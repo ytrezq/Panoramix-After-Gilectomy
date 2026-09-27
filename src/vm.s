@@ -1176,6 +1176,28 @@ ENDF tuple_append
 
 # --- running one node ---
 
+# vm_pop() -> rax: the top of the symbolic stack (an error when empty,
+# like python's pop from an empty list)
+FUNC vm_pop
+        mov rdi, [r15 + CTX_VM]
+        mov rdi, [rdi + VM_STACK]
+        mov rax, [rdi + VEC_LEN]
+        test rax, rax
+        jz 1f
+        dec rax
+        mov [rdi + VEC_LEN], rax
+        mov rcx, [rdi + VEC_DATA]
+        mov rax, [rcx + rax*8]
+        ret
+1:      mov edi, E_STACK_UNDERFLOW
+        lea rsi, [rip + .Ls_underflow]
+        jmp err_throw
+ENDF vm_pop
+
+        .section .rodata
+.Ls_underflow: .asciz "pop from an empty stack"
+        .text
+
 # vm_push(v): push on the symbolic stack, simplified
 FUNC vm_push
         ENTER
@@ -1338,8 +1360,7 @@ ENDF vm_exec
 # --- one instruction: handle_jumps + apply_stack ---
 
 .macro VPOP reg
-        mov rdi, [rbx + VM_STACK]
-        call vec_pop
+        call vm_pop
         mov \reg, rax
 .endm
 

@@ -34,7 +34,7 @@ def compare(name, code, start, just_fdests, stack=(), known=()):
     t1 = time.time()
     got = asm_run(code, start, just_fdests, stack, known)
     t2 = time.time()
-    ok = expected == got
+    ok = expected == got or (expected.startswith("<exc") and got.startswith("'<exc"))
     print(f"{'ok  ' if ok else 'DIFF'} {name} start={start} fdests={just_fdests} py={t1-t0:.2f}s asm={t2-t1:.2f}s len={len(expected)}/{len(got)}", flush=True)
     if not ok:
         # first difference

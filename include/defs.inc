@@ -76,7 +76,26 @@
 .set CTX_LOADER, 160
 # 168..239: memo tables (see CTX_MEMO)
 .set CTX_VM, 240            # the VM this thread runs (vm.s)
-.set CTX_SIZE, 256
+.set CTX_ERR_BUF, 248       # the innermost error handler (rt_err.s)
+.set CTX_ERR_CODE, 256      # what was thrown
+.set CTX_ERR_MSG, 264
+.set CTX_SIZE, 288
+
+# error handler buffer (rt_err.s)
+.set ERR_RBX, 0
+.set ERR_RBP, 8
+.set ERR_R12, 16
+.set ERR_R13, 24
+.set ERR_R14, 32
+.set ERR_RSP, 40
+.set ERR_RIP, 48
+.set ERR_PREV, 56
+.set ERR_SIZEOF, 64
+
+# error codes
+.set E_STACK_UNDERFLOW, 1
+.set E_TIMEOUT, 2
+.set E_ASSERT, 3
 
 .set ARENA_CHUNK_DEFAULT, 0x400000     # 4 MiB
 
@@ -100,7 +119,9 @@
 .set LD_JUMPDESTS, 40       # u8 per code offset: 1 if jumpdest
 .set LD_LASTLINE, 48
 .set LD_NJUMPDESTS, 56
-.set LD_SIZEOF, 64
+.set LD_FUNCS, 64           # list of (hash string, target, stack) (funcs.s)
+.set LD_FALLBACK_KNOWN, 72  # tuple: what holds in the default function
+.set LD_SIZEOF, 80
 
 # one disassembled instruction
 .set IN_PC, 0               # u32
