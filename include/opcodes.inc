@@ -159,8 +159,9 @@
 .set OP_A, 158
 .set OP_B, 159
 .set OP_C, 160
-.set OP_LOOP, 161
+.set OP_LOOP_UPPER, 161
 .set OP_PUSH_INT, 162
 .set OP_MERGED_IF, 163
-.set OP_GAS_REMAINING, 164
-.set OP_COUNT, 164
+.set OP_LOOP, 164
+.set OP_GAS_REMAINING, 165
+.set OP_COUNT, 165

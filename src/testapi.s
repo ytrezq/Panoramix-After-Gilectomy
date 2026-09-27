@@ -38,6 +38,7 @@ test_table:
         .quad .Ln_stack_simplify, stack_simplify
         .quad .Ln_stack_cleanup, tf_stack_cleanup
         .quad .Ln_fold_stacks, tf_fold_stacks
+        .quad .Ln_vm_run, tf_vm_run
         .quad 0, 0
 
         .section .rodata
@@ -71,6 +72,7 @@ test_table:
 .Ln_stack_simplify: .asciz "stack_simplify"
 .Ln_stack_cleanup: .asciz "stack_cleanup"
 .Ln_fold_stacks: .asciz "fold_stacks"
+.Ln_vm_run:    .asciz "vm_run"
 .Ls_unknown_fn: .asciz "<unknown test function>"
 .Ls_parse_err:  .asciz "<parse error at %u>"
 
@@ -331,6 +333,47 @@ FUNC tf_fold_stacks
         add rsp, 16
         LEAVE
 ENDF tf_fold_stacks
+
+# vm_run((hexcode, start, just_fdests, stack, known)) -> the trace
+FUNC tf_vm_run
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, [rbx + N_DATA]         # the code, as a hex string
+        mov edi, [r12 + N_DATA]
+        shr edi, 1
+        inc rdi
+        call malloc@PLT
+        mov r13, rax
+        lea rdi, [r12 + N_DATA + 4]
+        mov esi, [r12 + N_DATA]
+        mov rdx, r13
+        call hex_decode
+        mov r14, rax
+        call loader_new
+        mov [rsp], rax
+        mov rdi, rax
+        mov rsi, r13
+        mov rdx, r14
+        call loader_load
+        mov rdi, r13
+        call free@PLT
+        mov rdi, [rsp]
+        mov rsi, [rbx + N_DATA + 16]
+        sar rsi, 1
+        call vm_new
+        mov rdi, [rbx + N_DATA + 8]     # start
+        mov rsi, [rbx + N_DATA + 24]    # stack
+        mov rdx, [rbx + N_DATA + 32]    # known
+        xor ecx, ecx
+        call vm_run
+        mov [rsp + 8], rax
+        mov rdi, [rsp]
+        call loader_free
+        mov rax, [rsp + 8]
+        add rsp, 16
+        LEAVE
+ENDF tf_vm_run
 
 # pan_test(name, text, len, &out, &outlen) -> int
 FUNC pan_test

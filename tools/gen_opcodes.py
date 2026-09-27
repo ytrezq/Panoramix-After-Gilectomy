@@ -14,7 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 
 # Expression opcodes (tuple heads), atoms and other well-known strings.
-RENAMES = {"UNKNOWN_OP": "UNKNOWN"}
+RENAMES = {"UNKNOWN_OP": "UNKNOWN", "LOOP_UPPER": "LOOP"}
 
 NAMES = """
 add mul sub div sdiv mod smod addmod mulmod exp signextend
@@ -36,7 +36,7 @@ delegate.return_data delegate.return_code callcode.return_data
 callcode.return_code create.new_address create2.new_address
 memcopy.success code.data precompiled param unknown const comment
 def set len inputs payable read_only mapping owner fand
-x y z sth t a b c LOOP push_int merged_if
+x y z sth t a b c LOOP_UPPER push_int merged_if loop
 gas_remaining
 """.split()
 

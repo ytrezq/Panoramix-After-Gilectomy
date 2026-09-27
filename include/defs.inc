@@ -30,6 +30,7 @@
 .set K_TUPLE, 3
 .set K_LIST, 4
 .set K_SPECIAL, 5
+.set K_VMNODE, 6            # a node of the symbolic execution (vmnode.s)
 
 .set STR_VOLATILE, 0x80000000  # in a string's aux: mentions volatile state
 .set STR_ID_MASK, 0x7fffffff
@@ -73,7 +74,8 @@
 .set CTX_TMPZ, CTX_MPZ_A    # used by mk_int_i64/u64/bytes_be and the parser
 .set CTX_TMPZ2, CTX_MPZ_T   # used by value_mpz
 .set CTX_LOADER, 160
-# 168..231: memo tables (see CTX_MEMO)
+# 168..239: memo tables (see CTX_MEMO)
+.set CTX_VM, 240            # the VM this thread runs (vm.s)
 .set CTX_SIZE, 256
 
 .set ARENA_CHUNK_DEFAULT, 0x400000     # 4 MiB
@@ -218,3 +220,36 @@
 .set MEMO_TRUE, 6
 .set MEMO_CANNOT, 8
 .set SIGN_NONE, 0x40000000     # get_sign: unknown (python None)
+
+# --- the symbolic VM (vmnode.s, vm.s) ---
+
+# a node: a point in the symbolic execution, with the trace from there
+# until the next jump. K_VMNODE, hash = a unique id.
+.set ND_TRACE, 16           # vec* of lines, 0 while not run yet (python None)
+.set ND_PREV, 24            # node*, 0 for the root
+.set ND_NEXT, 32            # vec* of nodes
+.set ND_START, 40           # value: the pc, or a symbolic jump target
+.set ND_SAFE, 48            # 0/1: reached by falling through (no jumpdest needed)
+.set ND_STACK, 56           # tuple: the stack on arrival
+.set ND_DEPTH, 64
+.set ND_LABEL, 72           # node*: the loop head this node is the body of
+.set ND_CONDITION, 80       # value: the condition under which the parent gets here
+.set ND_KNOWN, 88           # tuple of the conditions holding on the path here
+.set ND_MERGED, 96          # 0/1: the paths were merged below (merge_branches)
+.set ND_JD, 104             # tuple (start, stack length, (jumpdests on the stack...))
+.set ND_BEGIN_VARS, 112     # tuple: on a loop head, its variables
+.set ND_SIZEOF, 128
+
+.set VM_LOADER, 0
+.set VM_JUST_FDESTS, 8
+.set VM_COUNTER, 16         # for the _1, _2... names
+.set VM_KNOWN, 24           # tuple: what holds at the current point of _run
+.set VM_STACK, 32           # vec: the symbolic stack of _run
+.set VM_TRACE, 40           # vec: the trace _run builds
+.set VM_NODE_COUNT, 48
+.set VM_TIME_START, 56      # CLOCK_MONOTONIC nanoseconds
+.set VM_TIMEOUT, 64         # nanoseconds, 0 = none
+.set VM_SIZEOF, 80
+
+.set MAX_NODE_COUNT, 5000
+.set MAX_EXP_SIZE, 150

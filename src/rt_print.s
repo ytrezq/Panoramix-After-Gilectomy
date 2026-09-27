@@ -38,7 +38,12 @@ FUNC value_print
         je .Lp_list
         cmp eax, K_SPECIAL
         je .Lp_special
-        lea rsi, [rip + .Ls_nil]
+        cmp eax, K_VMNODE
+        jne 3f
+        mov rsi, r12
+        call node_print
+        LEAVE
+3:      lea rsi, [rip + .Ls_nil]
         call sb_append_c
         LEAVE
 .Lp_int:
@@ -46,14 +51,9 @@ FUNC value_print
         call sb_append_int
         LEAVE
 .Lp_str:
-        mov esi, '\''
-        call sb_append_char
         mov rdi, rbx
         mov rsi, r12
-        call sb_append_str
-        mov rdi, rbx
-        mov esi, '\''
-        call sb_append_char
+        call str_repr
         LEAVE
 .Lp_special:
         mov eax, [r12 + N_AUX]
@@ -87,6 +87,103 @@ FUNC value_print
         mov esi, ']'
         call sb_append_char
         LEAVE
+
+# str_repr(sb, strnode): python's repr of a string: quoted with ' unless
+# it contains a ' and no ", the quote and backslashes escaped, and the
+# control characters as \n, \r, \t or \xNN
+FUNC str_repr
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        lea r12, [rsi + N_DATA + 4]     # the characters
+        mov r13d, [rsi + N_DATA]        # count
+        mov r14d, '\''
+        mov rdi, r12
+        mov esi, '\''
+        call strchr@PLT
+        test rax, rax
+        jz 1f
+        mov rdi, r12
+        mov esi, '"'
+        call strchr@PLT
+        test rax, rax
+        jnz 1f
+        mov r14d, '"'
+1:      mov rdi, rbx
+        mov esi, r14d
+        call sb_append_char
+        xor ecx, ecx
+2:      cmp ecx, r13d
+        jae 5f
+        mov [rsp], rcx
+        movzx eax, byte ptr [r12 + rcx]
+        cmp eax, r14d
+        je 3f
+        cmp al, '\\'
+        je 3f
+        cmp al, 0x20
+        jb 4f
+        cmp al, 0x7f
+        je 4f
+        mov rdi, rbx
+        mov esi, eax
+        call sb_append_char
+        jmp 6f
+3:      mov [rsp + 8], rax
+        mov rdi, rbx
+        mov esi, '\\'
+        call sb_append_char
+        mov rdi, rbx
+        mov esi, [rsp + 8]
+        call sb_append_char
+        jmp 6f
+4:      # \n \r \t, or \xNN
+        lea rsi, [rip + .Ls_n_esc]
+        cmp al, 0x0a
+        je 8f
+        lea rsi, [rip + .Ls_r_esc]
+        cmp al, 0x0d
+        je 8f
+        lea rsi, [rip + .Ls_t_esc]
+        cmp al, 0x09
+        je 8f
+        lea rsi, [rip + .Ls_x_esc]
+        mov [rsp + 8], rax
+        mov rdi, rbx
+        call sb_append_c
+        mov rax, [rsp + 8]
+        lea rcx, [rip + .Ls_hexdigits]
+        mov edx, eax
+        shr edx, 4
+        movzx esi, byte ptr [rcx + rdx]
+        mov rdi, rbx
+        call sb_append_char
+        mov rax, [rsp + 8]
+        lea rcx, [rip + .Ls_hexdigits]
+        and eax, 15
+        movzx esi, byte ptr [rcx + rax]
+        mov rdi, rbx
+        call sb_append_char
+        jmp 6f
+8:      mov rdi, rbx
+        call sb_append_c
+6:      mov rcx, [rsp]
+        inc rcx
+        jmp 2b
+5:      mov rdi, rbx
+        mov esi, r14d
+        call sb_append_char
+        add rsp, 16
+        LEAVE
+ENDF str_repr
+
+        .section .rodata
+.Ls_x_esc: .asciz "\\x"
+.Ls_hexdigits: .ascii "0123456789abcdef"
+.Ls_n_esc: .asciz "\\n"
+.Ls_r_esc: .asciz "\\r"
+.Ls_t_esc: .asciz "\\t"
+        .text
 
 # local helper: print the elements of r12, comma separated (rbx = sb)
 .Lp_elems:

@@ -168,7 +168,8 @@ opcode_names:
         .quad .Lopname_161
         .quad .Lopname_162
         .quad .Lopname_163
-opcode_names_count: .quad 164
+        .quad .Lopname_164
+opcode_names_count: .quad 165
 .Lopname_0: .asciz "add"
 .Lopname_1: .asciz "mul"
 .Lopname_2: .asciz "sub"
@@ -332,10 +333,11 @@ opcode_names_count: .quad 164
 .Lopname_160: .asciz "LOOP"
 .Lopname_161: .asciz "push_int"
 .Lopname_162: .asciz "merged_if"
-.Lopname_163: .asciz "gas_remaining"
+.Lopname_163: .asciz "loop"
+.Lopname_164: .asciz "gas_remaining"
         .section .bss
         .align 8
         .globl opcode_nodes
         .hidden opcode_nodes
-opcode_nodes: .space 1320
+opcode_nodes: .space 1328
         .section .note.GNU-stack,"",@progbits

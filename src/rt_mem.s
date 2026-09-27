@@ -45,6 +45,7 @@ FUNC rt_init
         call ctx_bind
         call arith_init
         call arith_module_init
+        call vm_module_init
         pop r15
         pop r15
         test rbx, rbx

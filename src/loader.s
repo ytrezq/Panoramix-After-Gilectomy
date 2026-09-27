@@ -275,7 +275,7 @@ ENDF loader_new
 # values allocated on the current (r15) context.
 FUNC loader_load
         ENTER
-        sub rsp, 16
+        sub rsp, 32
         mov rbx, rdi                    # loader
         mov r12, rsi                    # bytes
         mov r13, rdx                    # len
@@ -355,10 +355,22 @@ FUNC loader_load
         cmp rsi, rax
         cmovae rsi, rax
         add r14, rsi
+        mov [rsp + 8], rdi
+        push rsi
+        push rsi
         call mk_int_bytes_be
+        pop rsi
+        pop rsi
         mov rcx, [rsp]
         mov [rcx + IN_PARAM], rax
         mov byte ptr [rcx + IN_FLAGS], IF_PARAM
+        # big values that read as text become strings (pretty_bignum)
+        mov rdi, [rsp + 8]
+        call pretty_bignum
+        test rax, rax
+        jz .Lld_loop
+        mov rcx, [rsp]
+        mov [rcx + IN_PARAM], rax
         jmp .Lld_loop
 3:      cmp al, 0x80
         jb 4f
@@ -373,9 +385,113 @@ FUNC loader_load
 4:      inc r14
         jmp .Lld_loop
 .Lld_done:
-        add rsp, 16
+        add rsp, 32
         LEAVE
 ENDF loader_load
+
+# pretty_bignum(bytes, len) -> rax: for a push value above 10^15 whose
+# bytes are all printable (or zero), the quoted text as a string node
+# (python's pretty_bignum: it turns the string constants of the contract
+# into strings); else 0
+FUNC pretty_bignum
+        ENTER
+        sub rsp, 48
+        mov rbx, rdi
+        mov r12, rsi
+        # the number: skip the leading zero bytes
+        xor ecx, ecx
+1:      cmp rcx, r12
+        jae .Lpb_no
+        cmp byte ptr [rbx + rcx], 0
+        jne 2f
+        inc rcx
+        jmp 1b
+2:      mov rdx, r12
+        sub rdx, rcx                    # significant bytes
+        cmp rdx, 8
+        ja 3f
+        # up to 8 bytes: is it above 10^15?
+        xor eax, eax
+4:      cmp rcx, r12
+        jae 5f
+        shl rax, 8
+        movzx esi, byte ptr [rbx + rcx]
+        or rax, rsi
+        inc rcx
+        jmp 4b
+5:      movabs rsi, 1000000000000000
+        cmp rax, rsi
+        jbe .Lpb_no
+3:      # the signed message prefix, a special case
+        cmp r12, 32
+        jne 6f
+        mov rdi, rbx
+        lea rsi, [rip + .Lpb_signed_prefix]
+        mov edx, 32
+        call memcmp@PLT
+        test eax, eax
+        jnz 6f
+        lea rdi, [rip + .Ls_signed_message]
+        call str_intern_c
+        add rsp, 48
+        LEAVE
+6:      # every non-zero byte printable?
+        xor ecx, ecx
+7:      cmp rcx, r12
+        jae 8f
+        movzx eax, byte ptr [rbx + rcx]
+        inc rcx
+        test al, al
+        jz 7b
+        cmp al, 0x20
+        jb 9f
+        cmp al, 0x7e
+        jbe 7b
+        jmp .Lpb_no
+9:      cmp al, 0x09                    # \t \n \x0b \x0c \r
+        jb .Lpb_no
+        cmp al, 0x0d
+        jbe 7b
+        jmp .Lpb_no
+8:      # "'" + the non-zero bytes + "'"
+        lea rdi, [r12 + 3]
+        call malloc@PLT
+        mov r13, rax
+        mov byte ptr [r13], '\''
+        mov r14d, 1
+        xor ecx, ecx
+10:     cmp rcx, r12
+        jae 11f
+        movzx eax, byte ptr [rbx + rcx]
+        inc rcx
+        test al, al
+        jz 10b
+        mov [r13 + r14], al
+        inc r14
+        jmp 10b
+11:     mov byte ptr [r13 + r14], '\''
+        inc r14
+        mov rdi, r13
+        mov rsi, r14
+        call str_intern
+        mov [rsp], rax
+        mov rdi, r13
+        call free@PLT
+        mov rax, [rsp]
+        add rsp, 48
+        LEAVE
+.Lpb_no:
+        xor eax, eax
+        add rsp, 48
+        LEAVE
+ENDF pretty_bignum
+
+        .section .rodata
+.Lpb_signed_prefix:
+        .byte 0x19, 0x45, 0x74, 0x68, 0x65, 0x72, 0x65, 0x75, 0x6d, 0x20, 0x53, 0x69, 0x67, 0x6e, 0x65, 0x64
+        .byte 0x20, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x3a, 0x0a, 0x33, 0x32, 0, 0, 0, 0
+.Ls_signed_message: .asciz "'\\x19Ethereum Signed Message:\\n32'"
+        .text
 
 # loader_instr_at(loader, pc) -> rax: the instruction starting at pc, or 0
 FUNC loader_instr_at
@@ -455,8 +571,17 @@ FUNC loader_disasm
         jb 3f
         cmp al, 0x9f
         jbe 2f
-3:      mov rdi, r12
-        mov rsi, [r14 + IN_PARAM]
+3:      mov rsi, [r14 + IN_PARAM]
+        test sil, 1
+        jnz 4f
+        cmp dword ptr [rsi + N_KIND], K_STR
+        jne 4f
+        # a push value turned into a string: back to the number
+        mov rdi, rbx
+        mov rsi, r14
+        call push_value
+        mov rsi, rax
+4:      mov rdi, r12
         mov edx, 16
         call sb_append_int
 2:      mov rdi, r12
@@ -466,6 +591,23 @@ FUNC loader_disasm
         jmp 1b
 9:      LEAVE
 ENDF loader_disasm
+
+# push_value(loader, instr) -> rax: the integer pushed by a push
+# instruction, from the code bytes
+FUNC push_value
+        movzx eax, byte ptr [rsi + IN_OP]
+        sub eax, 0x5f                   # the number of bytes
+        mov ecx, [rsi + IN_PC]
+        inc rcx
+        mov rdx, [rdi + LD_CODELEN]
+        sub rdx, rcx                    # the bytes left
+        cmp rdx, rax
+        cmovae rdx, rax
+        mov rsi, rdx
+        mov rdi, [rdi + LD_CODE]
+        add rdi, rcx
+        jmp mk_int_bytes_be
+ENDF push_value
 
 # loader_free(loader)
 FUNC loader_free
