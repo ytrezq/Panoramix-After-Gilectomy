@@ -92,6 +92,7 @@ FUNC value_print
 .Lp_elems:
         push r13
         push r14
+        sub rsp, 8                      # the call pushed 8: realign
         xor r13d, r13d
 5:      mov eax, [r12 + N_AUX]
         cmp r13, rax
@@ -106,7 +107,8 @@ FUNC value_print
         call value_print
         inc r13
         jmp 5b
-6:      pop r14
+6:      add rsp, 8
+        pop r14
         pop r13
         ret
 ENDF value_print

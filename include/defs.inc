@@ -31,6 +31,9 @@
 .set K_LIST, 4
 .set K_SPECIAL, 5
 
+.set STR_VOLATILE, 0x80000000  # in a string's aux: mentions volatile state
+.set STR_ID_MASK, 0x7fffffff
+
 .set SP_NONE, 1
 .set SP_TRUE, 2
 .set SP_FALSE, 3
@@ -63,9 +66,13 @@
 .set CTX_NODE_COUNT, 64
 .set CTX_VAR_COUNTER, 72
 .set CTX_OUT, 80
-.set CTX_TMPZ, 96           # a scratch mpz_t (16 bytes) for small->mpz views
-.set CTX_TMPZ2, 112
-.set CTX_LOADER, 128
+.set CTX_MPZ_A, 96          # four scratch mpz_t (16 bytes each), initialized
+.set CTX_MPZ_B, 112         # with the context: A/B/R for arithmetic,
+.set CTX_MPZ_R, 128         # T for value_mpz views
+.set CTX_MPZ_T, 144
+.set CTX_TMPZ, CTX_MPZ_A    # used by mk_int_i64/u64/bytes_be and the parser
+.set CTX_TMPZ2, CTX_MPZ_T   # used by value_mpz
+.set CTX_LOADER, 160
 .set CTX_SIZE, 256
 
 .set ARENA_CHUNK_DEFAULT, 0x400000     # 4 MiB
@@ -166,3 +173,21 @@
         pop rbx
         pop rbp
 .endm
+
+# growable vector (rt_vec.s)
+.set VEC_DATA, 0
+.set VEC_LEN, 8
+.set VEC_CAP, 16
+.set VEC_SIZEOF, 24
+
+# LEAVE for functions that moved rsp by a dynamic amount after ENTER
+.macro LEAVE_DYN
+        lea rsp, [rbp - 32]
+        LEAVE
+.endm
+
+# tri-state / four-state results
+.set TRI_TRUE, 1
+.set TRI_FALSE, 0
+.set TRI_NONE, -1
+.set TRI_CANNOT, -2

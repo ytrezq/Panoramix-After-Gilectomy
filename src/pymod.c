@@ -6,6 +6,7 @@
 int pan_init(void);
 int pan_disasm(const unsigned char *code, size_t len, char **out, size_t *outlen);
 void pan_free(void *p);
+int pan_test(const char *name, const char *text, size_t len, char **out, size_t *outlen);
 
 /* accepts bytes (raw bytecode) or str (hex, 0x optional) */
 static int get_code(PyObject *arg, unsigned char **code, size_t *len, PyObject **holder)
@@ -57,7 +58,25 @@ static PyObject *py_disasm(PyObject *self, PyObject *args)
     return res;
 }
 
+static PyObject *py_test(PyObject *self, PyObject *args)
+{
+    const char *name, *text;
+    Py_ssize_t len;
+    char *out;
+    size_t outlen;
+
+    if (!PyArg_ParseTuple(args, "ss#", &name, &text, &len)) return NULL;
+    if (pan_test(name, text, len, &out, &outlen)) {
+        PyErr_SetString(PyExc_RuntimeError, "test call failed");
+        return NULL;
+    }
+    PyObject *res = PyUnicode_FromStringAndSize(out, outlen);
+    pan_free(out);
+    return res;
+}
+
 static PyMethodDef methods[] = {
+    {"_test", py_test, METH_VARARGS, "_test(name, literal) -> str: apply a library function to a python literal"},
     {"disasm", py_disasm, METH_VARARGS, "disasm(code) -> str: the disassembly, one instruction per line"},
     {NULL, NULL, 0, NULL}
 };

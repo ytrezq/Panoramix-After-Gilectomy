@@ -103,7 +103,10 @@ FUNC str_intern
         call malloc@PLT
         mov r14, rax
         mov dword ptr [r14 + N_KIND], K_STR
-        mov dword ptr [r14 + N_AUX], 0
+        mov rdi, [rsp]
+        mov rsi, [rsp + 8]
+        call str_volatile_flag
+        mov [r14 + N_AUX], eax
         mov rax, [rsp + 16]
         mov [r14 + N_HASH], rax
         mov rax, [rsp + 8]
@@ -121,6 +124,65 @@ FUNC str_intern
         add rsp, 32
         LEAVE
 ENDF str_intern
+
+# str_volatile_flag(ptr, len) -> eax: STR_VOLATILE if the string mentions
+# one of the VOLATILE names (see arithmetic.py), else 0
+FUNC str_volatile_flag
+        ENTER
+        mov r12, rdi
+        mov r13, rsi
+        lea rbx, [rip + volatile_names]
+1:      mov rdi, [rbx]
+        test rdi, rdi
+        jz 3f
+        call strlen@PLT
+        mov r14, rax                    # name length
+        cmp r14, r13
+        ja 2f
+        # naive substring search
+        xor ecx, ecx
+4:      lea rax, [rcx + r14]
+        cmp rax, r13
+        ja 2f
+        push rcx
+        push rcx
+        lea rdi, [r12 + rcx]
+        mov rsi, [rbx]
+        mov rdx, r14
+        call memcmp@PLT
+        pop rcx
+        pop rcx
+        test eax, eax
+        jz 5f
+        inc rcx
+        jmp 4b
+2:      add rbx, 8
+        jmp 1b
+5:      mov eax, STR_VOLATILE
+        LEAVE
+3:      xor eax, eax
+        LEAVE
+ENDF str_volatile_flag
+
+        .section .data.rel.ro
+        .align 8
+volatile_names:
+        .quad .Lv0, .Lv1, .Lv2, .Lv3, .Lv4, .Lv5, .Lv6, .Lv7, .Lv8, .Lv9, .Lv10, .Lv11, .Lv12, 0
+        .section .rodata
+.Lv0:  .asciz "storage"
+.Lv1:  .asciz "balance"
+.Lv2:  .asciz "ext_call"
+.Lv3:  .asciz "returndatasize"
+.Lv4:  .asciz "return_code"
+.Lv5:  .asciz "new_address"
+.Lv6:  .asciz "memcopy"
+.Lv7:  .asciz ".result"
+.Lv8:  .asciz "gas"
+.Lv9:  .asciz "extcodesize"
+.Lv10: .asciz "extcodehash"
+.Lv11: .asciz "mem"
+.Lv12: .asciz "msize"
+        .text
 
 # str_grow(): double the intern table (lock held)
 FUNC str_grow
@@ -177,7 +239,7 @@ FUNC opcodes_init
         mov rdi, [rax + rbx*8]
         call str_intern_c
         lea ecx, [rbx + 1]
-        mov [rax + N_AUX], ecx
+        or [rax + N_AUX], ecx
         lea rdx, [rip + opcode_nodes]
         mov [rdx + rcx*8], rax
         inc rbx

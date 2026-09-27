@@ -11,6 +11,9 @@
         .align 8
 ctx_key:        .quad 0          # pthread_key_t
 rt_initialized: .quad 0
+        .globl global_ctx
+        .hidden global_ctx
+global_ctx:     .quad 0          # a context for process-wide constants (never reset)
 
         .text
 
@@ -29,6 +32,25 @@ FUNC rt_init
         call __gmp_set_memory_functions@PLT
         call str_init
         call opcodes_init
+        # the global context: bound while the constants get made, and left
+        # bound for the calling thread if it had nothing (the CLI)
+        call ctx_current
+        mov rbx, rax
+        call ctx_new
+        mov [rip + global_ctx], rax
+        push r15
+        push r15
+        mov r15, rax
+        mov rdi, rax
+        call ctx_bind
+        call arith_init
+        call arith_module_init
+        pop r15
+        pop r15
+        test rbx, rbx
+        jz 9f
+        mov rdi, rbx
+        call ctx_bind
 9:      LEAVE
 ENDF rt_init
 
@@ -60,9 +82,13 @@ FUNC ctx_new
         mov r15, rbx
         mov rdi, rbx
         call ctx_bind
-        lea rdi, [r15 + CTX_TMPZ]
+        lea rdi, [r15 + CTX_MPZ_A]
         call __gmpz_init@PLT
-        lea rdi, [r15 + CTX_TMPZ2]
+        lea rdi, [r15 + CTX_MPZ_B]
+        call __gmpz_init@PLT
+        lea rdi, [r15 + CTX_MPZ_R]
+        call __gmpz_init@PLT
+        lea rdi, [r15 + CTX_MPZ_T]
         call __gmpz_init@PLT
         pop r15
         pop r15

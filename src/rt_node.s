@@ -531,9 +531,17 @@ FUNC opcode_of
         cmp dword ptr [rax + N_KIND], K_STR
         jne 1f
         mov eax, [rax + N_AUX]
+        and eax, STR_ID_MASK
         ret
 1:      xor eax, eax
         ret
 ENDF opcode_of
+
+# str_id(strnode) -> eax: the opcode id of a string node
+FUNC str_id
+        mov eax, [rdi + N_AUX]
+        and eax, STR_ID_MASK
+        ret
+ENDF str_id
 
         .section .note.GNU-stack,"",@progbits
