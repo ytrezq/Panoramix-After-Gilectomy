@@ -56,6 +56,11 @@ test_table:
         .quad .Ln_fill_mem, tf_fill_mem
         .quad .Ln_range_overlaps, tf_range_overlaps
         .quad .Ln_range_contains, tf_range_contains
+        .quad .Ln_simplify_exp, simplify_exp
+        .quad .Ln_simplify_mask, simplify_mask
+        .quad .Ln_cleanup_mask_data, cleanup_mask_data
+        .quad .Ln_canonise_max, canonise_max
+        .quad .Ln_sizeof_s, tf_sizeof_s
         .quad 0, 0
 
         .section .rodata
@@ -107,6 +112,11 @@ test_table:
 .Ln_fill_mem:  .asciz "fill_mem"
 .Ln_range_overlaps: .asciz "range_overlaps"
 .Ln_range_contains: .asciz "range_contains"
+.Ln_simplify_exp: .asciz "simplify_exp"
+.Ln_simplify_mask: .asciz "simplify_mask"
+.Ln_cleanup_mask_data: .asciz "cleanup_mask_data"
+.Ln_canonise_max: .asciz "canonise_max"
+.Ln_sizeof_s:  .asciz "sizeof_s"
 .Ls_unknown_fn: .asciz "<unknown test function>"
 .Ls_parse_err:  .asciz "<parse error at %u>"
 
@@ -690,6 +700,14 @@ FUNC tf_range_contains
         call tri_value
         LEAVE
 ENDF tf_range_contains
+
+FUNC tf_sizeof_s
+        ENTER
+        call sizeof_s
+        mov rdi, rax
+        call none_if_nil
+        LEAVE
+ENDF tf_sizeof_s
 
 # tf_exc_value() -> the string '<exc code: message>' for the error thrown
 FUNC tf_exc_value

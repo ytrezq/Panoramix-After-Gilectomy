@@ -386,8 +386,7 @@ FUNC cleanup_mul_1
         jz 2f
         cmp qword ptr [rbx + N_DATA + 8], 3
         jne 2f
-        mov rdi, [rbx + N_DATA + 16]
-        call cleanup_mul_1
+        mov rax, [rbx + N_DATA + 16]    # (not recursively, like helpers.cleanup_mul_1)
         LEAVE
 2:      mov r12d, [rbx + N_AUX]
         test r12, r12

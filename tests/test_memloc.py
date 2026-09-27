@@ -68,7 +68,8 @@ def check(name, args, expected, single=False):
         if bad >= 12:
             print("too many mismatches"); sys.exit(1)
 
-for n in range(N):
+if __name__ == "__main__":
+  for n in range(N):
     v = rval()
     check("to_bytes", (v,), run(AL.to_bytes, v), True)
     check("divisible_bytes", (v,), run(AL.divisible_bytes, v), True)
@@ -94,5 +95,5 @@ for n in range(N):
     check("fill_mem", (mem, r2, v), run(M.fill_mem, mem, r2, v))
     check("range_overlaps", (r1, r2), run(M.range_overlaps, r1, r2))
     check("range_contains", (r1, r2), run(M.range_contains, r1, r2))
-print(f"{cases} cases, {bad} mismatches")
-sys.exit(1 if bad else 0)
+  print(f"{cases} cases, {bad} mismatches")
+  sys.exit(1 if bad else 0)
