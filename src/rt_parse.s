@@ -21,6 +21,7 @@ parse_error_pos: .quad 0
 .Ls_True:  .asciz "True"
 .Ls_False: .asciz "False"
 .Ls_None:  .asciz "None"
+.Ls_Node:  .asciz "Node("
 
         .text
 
@@ -391,9 +392,59 @@ FUNC pv_word
         add qword ptr [rbx + PS_POS], 4
         lea rax, [rip + sp_none]
         LEAVE
-3:      mov rdi, rbx
-        call pv_fail
+3:      mov rdi, [rbx + PS_TEXT]
+        add rdi, [rbx + PS_POS]
+        lea rsi, [rip + .Ls_Node]
+        mov edx, 5
+        call strncmp@PLT
+        test eax, eax
+        jnz 4f
+        # Node(jd): a stand-in for a VM node in the tests, printed the
+        # same way. Made once per jd.
+        add qword ptr [rbx + PS_POS], 5
+        mov rdi, rbx
+        call pv_value
+        test rax, rax
+        jz 5f
+        mov r12, rax
+        mov rdi, rbx
+        call pv_skip_ws
+        mov rdi, rbx
+        call pv_peek
+        cmp eax, ')'
+        jne 4f
+        inc qword ptr [rbx + PS_POS]
+        mov rdi, r12
+        call test_node_for_jd
         LEAVE
+4:      mov rdi, rbx
+        call pv_fail
+5:      LEAVE
 ENDF pv_word
+
+# test_node_for_jd(jd) -> rax: the K_VMNODE with this jd (memoized)
+FUNC test_node_for_jd
+        ENTER
+        mov rbx, rdi
+        mov edi, MEMO_TEST_NODES
+        mov rsi, rbx
+        call memo_get
+        test rax, rax
+        jnz 1f
+        mov edi, ND_SIZEOF
+        call arena_alloc
+        mov r12, rax
+        mov dword ptr [r12 + N_KIND], K_VMNODE
+        mov rdi, r12
+        call hash_mix
+        mov [r12 + N_HASH], rax
+        mov [r12 + ND_JD], rbx
+        mov edi, MEMO_TEST_NODES
+        mov rsi, rbx
+        mov rdx, r12
+        call memo_put
+        mov rax, r12
+1:      LEAVE
+ENDF test_node_for_jd
 
         .section .note.GNU-stack,"",@progbits

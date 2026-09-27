@@ -2546,56 +2546,6 @@ FUNC extract_variables
         LEAVE
 ENDF extract_variables
 
-# replace(exp, what, by) -> value: structural replacement at any depth
-FUNC replace
-        ENTER
-        mov rbx, rdi
-        mov r12, rsi
-        mov r13, rdx
-        call values_equal
-        test eax, eax
-        jz 1f
-        mov rax, r13
-        LEAVE
-1:      test bl, 1
-        jnz .Lrp_asis
-        test rbx, rbx
-        jz .Lrp_asis
-        mov eax, [rbx + N_KIND]
-        cmp eax, K_TUPLE
-        je 2f
-        cmp eax, K_LIST
-        jne .Lrp_asis
-2:      mov r14d, [rbx + N_AUX]
-        test r14, r14
-        jz .Lrp_asis
-        lea rax, [r14*8 + 15]
-        and rax, -16
-        sub rsp, rax
-        xor ecx, ecx
-3:      cmp rcx, r14
-        jae 4f
-        push rcx
-        push rcx
-        mov rdi, [rbx + N_DATA + rcx*8]
-        mov rsi, r12
-        mov rdx, r13
-        call replace
-        pop rcx
-        pop rcx
-        mov [rsp + rcx*8], rax
-        inc rcx
-        jmp 3b
-4:      mov edi, [rbx + N_KIND]
-        mov rsi, r14
-        mov rdx, rsp
-        call mk_seq
-        LEAVE_DYN
-.Lrp_asis:
-        mov rax, rbx
-        LEAVE
-ENDF replace
-
         .section .rodata
         .align 8
 # 2^230 - 1 as a decimal string (variants.MAX_number)

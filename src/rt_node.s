@@ -517,12 +517,9 @@ FUNC opcode_of
         jnz 1f
         test rdi, rdi
         jz 1f
-        mov eax, [rdi + N_KIND]
-        cmp eax, K_TUPLE
-        je 2f
-        cmp eax, K_LIST
+        cmp dword ptr [rdi + N_KIND], K_TUPLE   # (not lists, like python's opcode())
         jne 1f
-2:      cmp dword ptr [rdi + N_AUX], 0
+        cmp dword ptr [rdi + N_AUX], 0
         je 1f
         mov rax, [rdi + N_DATA]
         test al, 1

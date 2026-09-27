@@ -74,12 +74,12 @@
 .set CTX_TMPZ, CTX_MPZ_A    # used by mk_int_i64/u64/bytes_be and the parser
 .set CTX_TMPZ2, CTX_MPZ_T   # used by value_mpz
 .set CTX_LOADER, 160
-# 168..239: memo tables (see CTX_MEMO)
-.set CTX_VM, 240            # the VM this thread runs (vm.s)
-.set CTX_ERR_BUF, 248       # the innermost error handler (rt_err.s)
-.set CTX_ERR_CODE, 256      # what was thrown
-.set CTX_ERR_MSG, 264
-.set CTX_SIZE, 288
+# 168..295: memo tables, 16 slots (see CTX_MEMO)
+.set CTX_VM, 296            # the VM this thread runs (vm.s)
+.set CTX_ERR_BUF, 304       # the innermost error handler (rt_err.s)
+.set CTX_ERR_CODE, 312      # what was thrown
+.set CTX_ERR_MSG, 320
+.set CTX_SIZE, 352
 
 # error handler buffer (rt_err.s)
 .set ERR_RBX, 0
@@ -223,7 +223,7 @@
 .set MAP_SIZEOF, 24
 
 # memo tables in the context (created lazily by memo_table)
-.set CTX_MEMO, 168          # 8 slots
+.set CTX_MEMO, 168          # 16 slots
 .set MEMO_SIMPLIFY, 0
 .set MEMO_GE_ZERO, 1
 .set MEMO_LT, 2
@@ -233,7 +233,8 @@
 .set MEMO_TO_MASK, 6
 .set MEMO_ADD_GE_ZERO, 7
 .set MEMO_STACK_SIMPLIFY, 8
-.set MEMO_COUNT, 9
+.set MEMO_TEST_NODES, 9
+.set MEMO_COUNT, 10
 # sentinel values stored in memo tables for python's None / False (values
 # and pointers are never 2 or 4)
 .set MEMO_NONE, 2
@@ -274,3 +275,21 @@
 
 .set MAX_NODE_COUNT, 5000
 .set MAX_EXP_SIZE, 150
+
+# --- pattern matching (matcher.s) ---
+.set MATCH_MAX, 16
+.set MATCH_NAMES_SIZE, 8 + 8*MATCH_MAX
+.set MATCH_BINDINGS_SIZE, 8*MATCH_MAX
+
+# PAT reg, "python literal with wildcards": reg := the pattern value.
+# The literals are collected in the pattern_table section and parsed
+# once at startup (patterns_init).
+.macro PAT reg, text
+        .section .rodata
+.Lpat_s\@: .asciz "\text"
+        .section pattern_table,"aw",@progbits
+        .align 8
+.Lpat_v\@: .quad 0, .Lpat_s\@
+        .text
+        mov \reg, [rip + .Lpat_v\@]
+.endm

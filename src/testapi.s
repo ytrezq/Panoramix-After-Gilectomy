@@ -40,6 +40,8 @@ test_table:
         .quad .Ln_fold_stacks, tf_fold_stacks
         .quad .Ln_vm_run, tf_vm_run
         .quad .Ln_find_functions, tf_find_functions
+        .quad .Ln_whiles_make, tf_whiles_make
+        .quad .Ln_match, tf_match
         .quad 0, 0
 
         .section .rodata
@@ -75,6 +77,8 @@ test_table:
 .Ln_fold_stacks: .asciz "fold_stacks"
 .Ln_vm_run:    .asciz "vm_run"
 .Ln_find_functions: .asciz "find_functions"
+.Ln_whiles_make: .asciz "whiles_make"
+.Ln_match:     .asciz "match"
 .Ls_unknown_fn: .asciz "<unknown test function>"
 .Ls_parse_err:  .asciz "<parse error at %u>"
 
@@ -430,6 +434,101 @@ FUNC tf_find_functions
         mov [rsp + 8], rax
         jmp 2b
 ENDF tf_find_functions
+
+# whiles_make(trace) -> list, or the error
+FUNC tf_whiles_make
+        ENTER
+        sub rsp, 80
+        mov rbx, rdi
+        lea rdi, [rsp + 16]
+        call err_catch
+        test eax, eax
+        jnz 1f
+        mov rdi, rbx
+        call whiles_make
+        mov [rsp + 8], rax
+        call err_end
+2:      mov rax, [rsp + 8]
+        add rsp, 80
+        LEAVE
+1:      call tf_exc_value
+        mov [rsp + 8], rax
+        jmp 2b
+ENDF tf_whiles_make
+
+# match((exp, pattern)) -> the list of bindings, or None
+FUNC tf_match
+        ENTER
+        sub rsp, MATCH_BINDINGS_SIZE
+        mov rbx, rdi
+        mov rdi, [rbx + N_DATA]
+        mov rsi, [rbx + N_DATA + 8]
+        mov rdx, rsp
+        call pat_match
+        test eax, eax
+        jz 1f
+        # how many: count the wildcards of the pattern (the names differ)
+        mov rdi, [rbx + N_DATA + 8]
+        call count_wildcards
+        mov rdi, rax
+        mov rsi, rsp
+        call mk_list
+        add rsp, MATCH_BINDINGS_SIZE
+        LEAVE
+1:      lea rax, [rip + sp_none]
+        add rsp, MATCH_BINDINGS_SIZE
+        LEAVE
+ENDF tf_match
+
+# count_wildcards(pattern) -> rax: the distinct named wildcards
+FUNC count_wildcards
+        ENTER
+        sub rsp, MATCH_NAMES_SIZE + 16
+        mov rbx, rdi
+        mov qword ptr [rsp], 0
+        mov rdi, rbx
+        mov rsi, rsp
+        call collect_wildcards
+        mov rax, [rsp]
+        add rsp, MATCH_NAMES_SIZE + 16
+        LEAVE
+ENDF count_wildcards
+
+FUNC collect_wildcards
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call is_str
+        test eax, eax
+        jz 2f
+        cmp rbx, [rip + s_any]
+        je 5f
+        cmp byte ptr [rbx + N_DATA + 4], ':'
+        jne 5f
+        xor ecx, ecx
+1:      cmp rcx, [r12]
+        jae 3f
+        cmp [r12 + 8 + rcx*8], rbx
+        je 5f
+        inc rcx
+        jmp 1b
+3:      mov [r12 + 8 + rcx*8], rbx
+        inc qword ptr [r12]
+        jmp 5f
+2:      mov rdi, rbx
+        call is_seq
+        test eax, eax
+        jz 5f
+        xor r13d, r13d
+4:      cmp r13d, [rbx + N_AUX]
+        jae 5f
+        mov rdi, [rbx + N_DATA + r13*8]
+        mov rsi, r12
+        call collect_wildcards
+        inc r13
+        jmp 4b
+5:      LEAVE
+ENDF collect_wildcards
 
 # tf_exc_value() -> the string '<exc code: message>' for the error thrown
 FUNC tf_exc_value

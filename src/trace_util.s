@@ -1,0 +1,757 @@
+# Generic walks and rewrites of traces and expressions (the helpers of
+# utils/helpers.py). Traces are lists of lines; an ('if', cond, if_true,
+# if_false) line holds two traces, a ('while', cond, body, jd, setvars)
+# one.
+#
+# Callbacks take (x, arg) plus, for the rewrites, the vec to append the
+# replacement lines to: f(line, arg, out).
+
+.include "defs.inc"
+
+        .text
+
+# mk_list1(x) -> [x]
+FUNC mk_list1
+        ENTER
+        sub rsp, 16
+        mov [rsp], rdi
+        mov edi, 1
+        mov rsi, rsp
+        call mk_list
+        add rsp, 16
+        LEAVE
+ENDF mk_list1
+
+# list_concat(a, b) -> list: a + b (sequences of either kind)
+FUNC list_concat
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call vec_new
+        mov r13, rax
+        mov rdi, rax
+        mov rsi, rbx
+        call vec_extend_seq
+        mov rdi, r13
+        mov rsi, r12
+        call vec_extend_seq
+        mov rdi, r13
+        call vec_to_list
+        LEAVE
+ENDF list_concat
+
+# list_from(seq, start) -> list: seq[start:]
+FUNC list_from
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call vec_new
+        mov r13, rax
+        mov edx, [rbx + N_AUX]
+        sub rdx, r12
+        jle 1f
+        mov rdi, r13
+        lea rsi, [rbx + N_DATA + r12*8]
+        call vec_extend
+1:      mov rdi, r13
+        call vec_to_list
+        LEAVE
+ENDF list_from
+
+# seq_index(seq, x) -> rax: the index of x in the sequence, or -1
+FUNC seq_index
+        xor eax, eax
+1:      cmp eax, [rdi + N_AUX]
+        jae 2f
+        cmp [rdi + N_DATA + rax*8], rsi
+        je 3f
+        inc eax
+        jmp 1b
+2:      mov rax, -1
+3:      ret
+ENDF seq_index
+
+# seq_contains(seq, x) -> eax
+FUNC seq_contains
+        ENTER
+        call seq_index
+        cmp rax, -1
+        setne al
+        movzx eax, al
+        LEAVE
+ENDF seq_contains
+
+# seq_last(seq) -> rax: the last element, or 0 when empty
+FUNC seq_last
+        mov ecx, [rdi + N_AUX]
+        test ecx, ecx
+        jz 1f
+        mov rax, [rdi + N_DATA + rcx*8 - 8]
+        ret
+1:      xor eax, eax
+        ret
+ENDF seq_last
+
+# is_if_line(line) -> eax: ('if', cond, if_true, if_false)
+FUNC is_if_line
+        ENTER
+        mov rbx, rdi
+        call opcode_of
+        cmp eax, OP_IF
+        jne 1f
+        xor eax, eax
+        cmp dword ptr [rbx + N_AUX], 4
+        sete al
+        LEAVE
+1:      xor eax, eax
+        LEAVE
+ENDF is_if_line
+
+# is_while_line(line) -> eax: ('while', cond, body, jd, setvars)
+FUNC is_while_line
+        ENTER
+        mov rbx, rdi
+        call opcode_of
+        cmp eax, OP_WHILE
+        jne 1f
+        xor eax, eax
+        cmp dword ptr [rbx + N_AUX], 5
+        sete al
+        LEAVE
+1:      xor eax, eax
+        LEAVE
+ENDF is_while_line
+
+# mk_if(cond, if_true, if_false) / mk_while(cond, body, jd, setvars)
+FUNC mk_if
+        mov rcx, rdx
+        mov rdx, rsi
+        mov rsi, rdi
+        LOADS rdi, IF
+        jmp mk4
+ENDF mk_if
+
+FUNC mk_while
+        mov r8, rcx
+        mov rcx, rdx
+        mov rdx, rsi
+        mov rsi, rdi
+        LOADS rdi, WHILE
+        jmp mk5
+ENDF mk_while
+
+# rewrite_trace(trace, f, arg) -> list: every line but the ifs goes
+# through f(line, arg, out); the ifs' branches are rewritten
+FUNC rewrite_trace
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        call vec_new
+        mov [rsp], rax
+        xor r14d, r14d
+1:      cmp r14d, [rbx + N_AUX]
+        jae 5f
+        mov rdi, [rbx + N_DATA + r14*8]
+        mov [rsp + 8], rdi
+        call is_if_line
+        test eax, eax
+        jz 2f
+        mov rdi, [rsp + 8]
+        mov rdi, [rdi + N_DATA + 16]
+        mov rsi, r12
+        mov rdx, r13
+        call rewrite_trace
+        mov rdi, [rsp + 8]
+        mov [rsp + 8], rax
+        mov rdi, [rdi + N_DATA + 24]
+        mov rsi, r12
+        mov rdx, r13
+        call rewrite_trace
+        mov rdx, rax
+        mov rsi, [rsp + 8]
+        mov rax, [rbx + N_DATA + r14*8]
+        mov rdi, [rax + N_DATA + 8]
+        call mk_if
+        mov rdi, [rsp]
+        mov rsi, rax
+        call vec_push
+        jmp 4f
+2:      mov rdi, [rsp + 8]
+        mov rsi, r13
+        mov rdx, [rsp]
+        call r12
+4:      inc r14
+        jmp 1b
+5:      mov rdi, [rsp]
+        call vec_to_list
+        add rsp, 16
+        LEAVE
+ENDF rewrite_trace
+
+# rewrite_trace_full(trace, f, arg) -> list: like rewrite_trace, the
+# whiles' bodies rewritten too
+FUNC rewrite_trace_full
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        call vec_new
+        mov [rsp], rax
+        xor r14d, r14d
+1:      cmp r14d, [rbx + N_AUX]
+        jae 5f
+        mov rdi, [rbx + N_DATA + r14*8]
+        mov [rsp + 8], rdi
+        call is_if_line
+        test eax, eax
+        jz 2f
+        mov rdi, [rsp + 8]
+        mov rdi, [rdi + N_DATA + 16]
+        mov rsi, r12
+        mov rdx, r13
+        call rewrite_trace_full
+        mov rdi, [rsp + 8]
+        mov [rsp + 8], rax
+        mov rdi, [rdi + N_DATA + 24]
+        mov rsi, r12
+        mov rdx, r13
+        call rewrite_trace_full
+        mov rdx, rax
+        mov rsi, [rsp + 8]
+        mov rax, [rbx + N_DATA + r14*8]
+        mov rdi, [rax + N_DATA + 8]
+        call mk_if
+        mov rdi, [rsp]
+        mov rsi, rax
+        call vec_push
+        jmp 4f
+2:      mov rdi, [rsp + 8]
+        call is_while_line
+        test eax, eax
+        jz 3f
+        mov rdi, [rsp + 8]
+        mov rdi, [rdi + N_DATA + 16]
+        mov rsi, r12
+        mov rdx, r13
+        call rewrite_trace_full
+        mov rsi, rax
+        mov rax, [rsp + 8]
+        mov rdi, [rax + N_DATA + 8]
+        mov rdx, [rax + N_DATA + 24]
+        mov rcx, [rax + N_DATA + 32]
+        call mk_while
+        mov rdi, [rsp]
+        mov rsi, rax
+        call vec_push
+        jmp 4f
+3:      mov rdi, [rsp + 8]
+        mov rsi, r13
+        mov rdx, [rsp]
+        call r12
+4:      inc r14
+        jmp 1b
+5:      mov rdi, [rsp]
+        call vec_to_list
+        add rsp, 16
+        LEAVE
+ENDF rewrite_trace_full
+
+# rewrite_trace_ifs(trace, f, arg) -> list: f sees the ifs too; when it
+# leaves an if alone its branches are rewritten, otherwise what it
+# returned is
+FUNC rewrite_trace_ifs
+        ENTER
+        sub rsp, 32
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        call vec_new
+        mov [rsp], rax
+        xor r14d, r14d
+1:      cmp r14d, [rbx + N_AUX]
+        jae 6f
+        mov rdi, [rbx + N_DATA + r14*8]
+        mov [rsp + 8], rdi
+        call is_if_line
+        test eax, eax
+        jz 3f
+        call vec_new
+        mov [rsp + 16], rax
+        mov rdi, [rsp + 8]
+        mov rsi, r13
+        mov rdx, rax
+        call r12
+        mov rax, [rsp + 16]
+        cmp qword ptr [rax + VEC_LEN], 1
+        jne 2f
+        mov rax, [rax + VEC_DATA]
+        mov rax, [rax]
+        cmp rax, [rsp + 8]
+        jne 2f
+        # unchanged: into the branches
+        mov rdi, [rsp + 8]
+        mov rdi, [rdi + N_DATA + 16]
+        mov rsi, r12
+        mov rdx, r13
+        call rewrite_trace_ifs
+        mov [rsp + 16], rax
+        mov rdi, [rsp + 8]
+        mov rdi, [rdi + N_DATA + 24]
+        mov rsi, r12
+        mov rdx, r13
+        call rewrite_trace_ifs
+        mov rdx, rax
+        mov rsi, [rsp + 16]
+        mov rax, [rsp + 8]
+        mov rdi, [rax + N_DATA + 8]
+        call mk_if
+        mov rdi, [rsp]
+        mov rsi, rax
+        call vec_push
+        jmp 5f
+2:      # replaced: rewrite the new lines
+        mov rdi, [rsp + 16]
+        call vec_to_list
+        mov rdi, rax
+        mov rsi, r12
+        mov rdx, r13
+        call rewrite_trace_ifs
+        mov rdi, [rsp]
+        mov rsi, rax
+        call vec_extend_seq
+        jmp 5f
+3:      mov rdi, [rsp + 8]
+        call is_while_line
+        test eax, eax
+        jz 4f
+        mov rdi, [rsp + 8]
+        mov rdi, [rdi + N_DATA + 16]
+        mov rsi, r12
+        mov rdx, r13
+        call rewrite_trace_ifs
+        mov rsi, rax
+        mov rax, [rsp + 8]
+        mov rdi, [rax + N_DATA + 8]
+        mov rdx, [rax + N_DATA + 24]
+        mov rcx, [rax + N_DATA + 32]
+        call mk_while
+        mov rdi, [rsp]
+        mov rsi, rax
+        call vec_push
+        jmp 5f
+4:      mov rdi, [rsp + 8]
+        mov rsi, r13
+        mov rdx, [rsp]
+        call r12
+5:      inc r14
+        jmp 1b
+6:      mov rdi, [rsp]
+        call vec_to_list
+        add rsp, 32
+        LEAVE
+ENDF rewrite_trace_ifs
+
+# rewrite_trace_multiline(trace, f, arg, number) -> list: f(window, arg)
+# sees `number` consecutive lines (as a list) and returns their
+# replacement (a list) or 0 to leave them
+FUNC rewrite_trace_multiline
+        ENTER
+        sub rsp, 32
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        mov [rsp + 16], rcx             # number
+        call vec_new
+        mov [rsp], rax
+        xor r14d, r14d
+1:      cmp r14d, [rbx + N_AUX]
+        jae 6f
+        mov eax, r14d
+        add rax, [rsp + 16]
+        cmp eax, [rbx + N_AUX]
+        ja 2f
+        mov rdi, [rsp + 16]
+        lea rsi, [rbx + N_DATA + r14*8]
+        call mk_list
+        mov rdi, rax
+        mov rsi, r13
+        call r12
+        test rax, rax
+        jz 2f
+        mov rdi, [rsp]
+        mov rsi, rax
+        call vec_extend_seq
+        add r14, [rsp + 16]
+        jmp 1b
+2:      mov rdi, [rbx + N_DATA + r14*8]
+        mov [rsp + 8], rdi
+        call is_if_line
+        test eax, eax
+        jz 3f
+        mov rdi, [rsp + 8]
+        mov rdi, [rdi + N_DATA + 16]
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, [rsp + 16]
+        call rewrite_trace_multiline
+        mov [rsp + 24], rax
+        mov rdi, [rsp + 8]
+        mov rdi, [rdi + N_DATA + 24]
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, [rsp + 16]
+        call rewrite_trace_multiline
+        mov rdx, rax
+        mov rsi, [rsp + 24]
+        mov rax, [rsp + 8]
+        mov rdi, [rax + N_DATA + 8]
+        call mk_if
+        mov rdi, [rsp]
+        mov rsi, rax
+        call vec_push
+        jmp 5f
+3:      mov rdi, [rsp + 8]
+        call is_while_line
+        test eax, eax
+        jz 4f
+        mov rdi, [rsp + 8]
+        mov rdi, [rdi + N_DATA + 16]
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, [rsp + 16]
+        call rewrite_trace_multiline
+        mov rsi, rax
+        mov rax, [rsp + 8]
+        mov rdi, [rax + N_DATA + 8]
+        mov rdx, [rax + N_DATA + 24]
+        mov rcx, [rax + N_DATA + 32]
+        call mk_while
+        mov rdi, [rsp]
+        mov rsi, rax
+        call vec_push
+        jmp 5f
+4:      mov rdi, [rsp]
+        mov rsi, [rsp + 8]
+        call vec_push
+5:      inc r14
+        jmp 1b
+6:      mov rdi, [rsp]
+        call vec_to_list
+        add rsp, 32
+        LEAVE
+ENDF rewrite_trace_multiline
+
+# replace_lines(trace, f, arg) -> list: f(x, arg) -> x' applied to the
+# conditions and setvars of the ifs and whiles, and to the other lines
+FUNC replace_lines
+        ENTER
+        sub rsp, 32
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        call vec_new
+        mov [rsp], rax
+        xor r14d, r14d
+1:      cmp r14d, [rbx + N_AUX]
+        jae 6f
+        mov rdi, [rbx + N_DATA + r14*8]
+        mov [rsp + 8], rdi
+        call is_while_line
+        test eax, eax
+        jz 2f
+        mov rax, [rsp + 8]
+        mov rdi, [rax + N_DATA + 8]
+        mov rsi, r13
+        call r12
+        mov [rsp + 16], rax             # cond
+        mov rax, [rsp + 8]
+        mov rdi, [rax + N_DATA + 16]
+        mov rsi, r12
+        mov rdx, r13
+        call replace_lines
+        mov [rsp + 24], rax             # path
+        mov rax, [rsp + 8]
+        mov rdi, [rax + N_DATA + 32]
+        mov rsi, r13
+        call r12
+        mov rcx, rax                    # setvars
+        mov rax, [rsp + 8]
+        mov rdx, [rax + N_DATA + 24]
+        mov rdi, [rsp + 16]
+        mov rsi, [rsp + 24]
+        call mk_while
+        jmp 4f
+2:      mov rdi, [rsp + 8]
+        call is_if_line
+        test eax, eax
+        jz 3f
+        mov rax, [rsp + 8]
+        mov rdi, [rax + N_DATA + 8]
+        mov rsi, r13
+        call r12
+        mov [rsp + 16], rax
+        mov rax, [rsp + 8]
+        mov rdi, [rax + N_DATA + 16]
+        mov rsi, r12
+        mov rdx, r13
+        call replace_lines
+        mov [rsp + 24], rax
+        mov rax, [rsp + 8]
+        mov rdi, [rax + N_DATA + 24]
+        mov rsi, r12
+        mov rdx, r13
+        call replace_lines
+        mov rdx, rax
+        mov rdi, [rsp + 16]
+        mov rsi, [rsp + 24]
+        call mk_if
+        jmp 4f
+3:      mov rdi, [rsp + 8]
+        mov rsi, r13
+        call r12
+4:      mov rdi, [rsp]
+        mov rsi, rax
+        call vec_push
+        inc r14
+        jmp 1b
+6:      mov rdi, [rsp]
+        call vec_to_list
+        add rsp, 32
+        LEAVE
+ENDF replace_lines
+
+# walk_trace(trace, f, arg, out): f(line, arg, out) for every line, the
+# ifs' branches (and nested lists) included
+FUNC walk_trace
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        mov [rsp], rcx
+        xor r14d, r14d
+1:      cmp r14d, [rbx + N_AUX]
+        jae 4f
+        mov rdi, [rbx + N_DATA + r14*8]
+        mov [rsp + 8], rdi
+        call is_list
+        test eax, eax
+        jz 2f
+        mov rdi, [rsp + 8]
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, [rsp]
+        call walk_trace
+        jmp 3f
+2:      mov rdi, [rsp + 8]
+        mov rsi, r13
+        mov rdx, [rsp]
+        call r12
+        mov rdi, [rsp + 8]
+        call is_if_line
+        test eax, eax
+        jz 3f
+        mov rdi, [rsp + 8]
+        mov rdi, [rdi + N_DATA + 16]
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, [rsp]
+        call walk_trace
+        mov rdi, [rsp + 8]
+        mov rdi, [rdi + N_DATA + 24]
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, [rsp]
+        call walk_trace
+3:      inc r14
+        jmp 1b
+4:      add rsp, 16
+        LEAVE
+ENDF walk_trace
+
+# is_list(v) -> eax
+FUNC is_list
+        xor eax, eax
+        test dil, 1
+        jnz 1f
+        test rdi, rdi
+        jz 1f
+        cmp dword ptr [rdi + N_KIND], K_LIST
+        sete al
+1:      ret
+ENDF is_list
+
+# replace(exp, what, by) -> exp with every occurrence of `what` replaced
+FUNC replace
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        mov rdi, rbx
+        mov rsi, r12
+        call values_equal
+        test eax, eax
+        jnz .Lrp_by
+        mov rdi, rbx
+        call is_seq
+        test eax, eax
+        jz .Lrp_asis
+        # a copy of the elements, replaced, kept only if one changed
+        mov edi, [rbx + N_AUX]
+        shl rdi, 3
+        call arena_alloc
+        mov [rsp], rax
+        xor r14d, r14d
+        mov qword ptr [rsp + 8], 0      # changed?
+1:      cmp r14d, [rbx + N_AUX]
+        jae 2f
+        mov rdi, [rbx + N_DATA + r14*8]
+        mov rsi, r12
+        mov rdx, r13
+        call replace
+        mov rcx, [rsp]
+        mov [rcx + r14*8], rax
+        cmp rax, [rbx + N_DATA + r14*8]
+        je 3f
+        mov qword ptr [rsp + 8], 1
+3:      inc r14
+        jmp 1b
+2:      cmp qword ptr [rsp + 8], 0
+        je .Lrp_asis
+        mov edi, [rbx + N_KIND]
+        mov esi, [rbx + N_AUX]
+        mov rdx, [rsp]
+        call mk_seq
+        add rsp, 16
+        LEAVE
+.Lrp_by:
+        mov rax, r13
+        add rsp, 16
+        LEAVE
+.Lrp_asis:
+        mov rax, rbx
+        add rsp, 16
+        LEAVE
+ENDF replace
+
+# replace_f(exp, f, arg) -> f applied bottom-up: the leaves through
+# f(leaf, arg), then each rebuilt sequence through f as well
+FUNC replace_f
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        call is_seq
+        test eax, eax
+        jnz 1f
+        mov rdi, rbx
+        mov rsi, r13
+        call r12
+        add rsp, 16
+        LEAVE
+1:      mov edi, [rbx + N_AUX]
+        shl rdi, 3
+        call arena_alloc
+        mov [rsp], rax
+        xor r14d, r14d
+2:      cmp r14d, [rbx + N_AUX]
+        jae 3f
+        mov rdi, [rbx + N_DATA + r14*8]
+        mov rsi, r12
+        mov rdx, r13
+        call replace_f
+        mov rcx, [rsp]
+        mov [rcx + r14*8], rax
+        inc r14
+        jmp 2b
+3:      mov edi, [rbx + N_KIND]
+        mov esi, [rbx + N_AUX]
+        mov rdx, [rsp]
+        call mk_seq
+        mov rdi, rax
+        mov rsi, r13
+        call r12
+        add rsp, 16
+        LEAVE
+ENDF replace_f
+
+# replace_f_stop(exp, f, arg) -> f(exp, arg) when it returns a value,
+# else the sequence with its elements replaced (top-down, stopping at
+# the first replacement)
+FUNC replace_f_stop
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        mov rdi, rbx
+        mov rsi, r13
+        call r12
+        test rax, rax
+        jnz 4f
+        mov rdi, rbx
+        call is_seq
+        test eax, eax
+        jz 5f
+        mov edi, [rbx + N_AUX]
+        shl rdi, 3
+        call arena_alloc
+        mov [rsp], rax
+        xor r14d, r14d
+2:      cmp r14d, [rbx + N_AUX]
+        jae 3f
+        mov rdi, [rbx + N_DATA + r14*8]
+        mov rsi, r12
+        mov rdx, r13
+        call replace_f_stop
+        mov rcx, [rsp]
+        mov [rcx + r14*8], rax
+        inc r14
+        jmp 2b
+3:      mov edi, [rbx + N_KIND]
+        mov esi, [rbx + N_AUX]
+        mov rdx, [rsp]
+        call mk_seq
+4:      add rsp, 16
+        LEAVE
+5:      mov rax, rbx
+        add rsp, 16
+        LEAVE
+ENDF replace_f_stop
+
+# find_op_list(exp, op, out): the sub-expressions with the opcode `op`,
+# depth first (an expression found is not searched further)
+FUNC find_op_list
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        call opcode_of
+        cmp eax, r12d
+        jne 1f
+        mov rdi, r13
+        mov rsi, rbx
+        call vec_push
+        LEAVE
+1:      mov rdi, rbx
+        call is_seq
+        test eax, eax
+        jz 3f
+        xor r14d, r14d
+2:      cmp r14d, [rbx + N_AUX]
+        jae 3f
+        mov rdi, [rbx + N_DATA + r14*8]
+        mov rsi, r12
+        mov rdx, r13
+        call find_op_list
+        inc r14
+        jmp 2b
+3:      LEAVE
+ENDF find_op_list
+
+        .section .note.GNU-stack,"",@progbits
