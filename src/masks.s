@@ -253,4 +253,43 @@ FUNC to_neg_mask
         LEAVE
 ENDF to_neg_mask
 
+
+# find_mask(num) -> rax, rdx: (size, offset), the byte-aligned mask that
+# encompasses the number
+FUNC find_mask
+        ENTER
+        mov rbx, rdi
+        xor r12d, r12d                  # i
+1:      cmp r12, 256
+        jae 2f
+        mov rdi, rbx
+        mov rsi, r12
+        call int_bit
+        test eax, eax
+        jnz 2f
+        inc r12
+        jmp 1b
+2:      mov r13, r12
+        and r13, -8                     # mask_pos = i - i % 8
+        mov r14d, 256                   # mask_pos_plus_len
+3:      cmp r12, 256
+        jae 4f
+        mov rdi, rbx
+        mov rsi, r12
+        call int_bit
+        test eax, eax
+        jz 5f
+        mov r14, r12
+        and r14, -8
+        add r14, 8
+5:      inc r12
+        jmp 3b
+4:      mov rax, r14
+        sub rax, r13
+        TAG rax
+        mov rdx, r13
+        TAG rdx
+        LEAVE
+ENDF find_mask
+
         .section .note.GNU-stack,"",@progbits

@@ -42,6 +42,20 @@ test_table:
         .quad .Ln_find_functions, tf_find_functions
         .quad .Ln_whiles_make, tf_whiles_make
         .quad .Ln_match, tf_match
+        .quad .Ln_to_bytes, tf_to_bytes
+        .quad .Ln_divisible_bytes, tf_divisible_bytes
+        .quad .Ln_find_mask, tf_find_mask
+        .quad .Ln_apply_mask_to_range, tf_apply_mask_to_range
+        .quad .Ln_split_or, split_or
+        .quad .Ln_sizeof, sizeof
+        .quad .Ln_split_setmem, tf_split_setmem
+        .quad .Ln_split_store, tf_split_store
+        .quad .Ln_memloc_overwrite, tf_2args_memloc_overwrite
+        .quad .Ln_slice_exp, tf_slice_exp
+        .quad .Ln_splits_mem, tf_splits_mem
+        .quad .Ln_fill_mem, tf_fill_mem
+        .quad .Ln_range_overlaps, tf_range_overlaps
+        .quad .Ln_range_contains, tf_range_contains
         .quad 0, 0
 
         .section .rodata
@@ -79,6 +93,20 @@ test_table:
 .Ln_find_functions: .asciz "find_functions"
 .Ln_whiles_make: .asciz "whiles_make"
 .Ln_match:     .asciz "match"
+.Ln_to_bytes:  .asciz "to_bytes"
+.Ln_divisible_bytes: .asciz "divisible_bytes"
+.Ln_find_mask: .asciz "find_mask"
+.Ln_apply_mask_to_range: .asciz "apply_mask_to_range"
+.Ln_split_or:  .asciz "split_or"
+.Ln_sizeof:    .asciz "sizeof"
+.Ln_split_setmem: .asciz "split_setmem"
+.Ln_split_store: .asciz "split_store"
+.Ln_memloc_overwrite: .asciz "memloc_overwrite"
+.Ln_slice_exp: .asciz "slice_exp"
+.Ln_splits_mem: .asciz "splits_mem"
+.Ln_fill_mem:  .asciz "fill_mem"
+.Ln_range_overlaps: .asciz "range_overlaps"
+.Ln_range_contains: .asciz "range_contains"
 .Ls_unknown_fn: .asciz "<unknown test function>"
 .Ls_parse_err:  .asciz "<parse error at %u>"
 
@@ -505,14 +533,24 @@ FUNC collect_wildcards
         je 5f
         cmp byte ptr [rbx + N_DATA + 4], ':'
         jne 5f
+        lea rdi, [rbx + N_DATA + 5]
+        call wildcard_name
+        mov r13, rax
         xor ecx, ecx
 1:      cmp rcx, [r12]
         jae 3f
-        cmp [r12 + 8 + rcx*8], rbx
-        je 5f
+        push rcx
+        push rcx
+        mov rdi, [r12 + 8 + rcx*8]
+        mov rsi, r13
+        call strcmp@PLT
+        pop rcx
+        pop rcx
+        test eax, eax
+        jz 5f
         inc rcx
         jmp 1b
-3:      mov [r12 + 8 + rcx*8], rbx
+3:      mov [r12 + 8 + rcx*8], r13
         inc qword ptr [r12]
         jmp 5f
 2:      mov rdi, rbx
@@ -529,6 +567,129 @@ FUNC collect_wildcards
         jmp 4b
 5:      LEAVE
 ENDF collect_wildcards
+
+# the memloc functions
+FUNC tf_to_bytes
+        ENTER
+        call to_bytes
+        mov rdi, rax
+        mov rsi, rdx
+        call mk2
+        LEAVE
+ENDF tf_to_bytes
+
+FUNC tf_divisible_bytes
+        ENTER
+        call divisible_bytes
+        mov edi, eax
+        call tri_value
+        LEAVE
+ENDF tf_divisible_bytes
+
+FUNC tf_find_mask
+        ENTER
+        call find_mask
+        mov rdi, rax
+        mov rsi, rdx
+        call mk2
+        LEAVE
+ENDF tf_find_mask
+
+FUNC tf_apply_mask_to_range
+        mov rdx, [rdi + N_DATA + 16]
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        jmp apply_mask_to_range
+ENDF tf_apply_mask_to_range
+
+# the rewrite callbacks: (line) -> the list of lines
+FUNC tf_split_setmem
+        ENTER
+        mov rbx, rdi
+        call vec_new
+        mov r12, rax
+        mov rdi, rbx
+        xor esi, esi
+        mov rdx, r12
+        call split_setmem
+        mov rdi, r12
+        call vec_to_list
+        LEAVE
+ENDF tf_split_setmem
+
+FUNC tf_split_store
+        ENTER
+        mov rbx, rdi
+        call vec_new
+        mov r12, rax
+        mov rdi, rbx
+        xor esi, esi
+        mov rdx, r12
+        call split_store
+        mov rdi, r12
+        call vec_to_list
+        LEAVE
+ENDF tf_split_store
+
+FUNC tf_2args_memloc_overwrite
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        jmp memloc_overwrite
+ENDF tf_2args_memloc_overwrite
+
+FUNC tf_slice_exp
+        ENTER
+        mov rdx, [rdi + N_DATA + 16]
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call slice_exp
+        mov rdi, rax
+        call none_if_nil
+        LEAVE
+ENDF tf_slice_exp
+
+# splits_mem((memloc, split, memval, split_val or None))
+FUNC tf_splits_mem
+        ENTER
+        mov rbx, rdi
+        mov rcx, [rbx + N_DATA + 24]
+        lea rax, [rip + sp_none]
+        cmp rcx, rax
+        jne 1f
+        xor ecx, ecx
+1:      mov rdx, [rbx + N_DATA + 16]
+        mov rsi, [rbx + N_DATA + 8]
+        mov rdi, [rbx + N_DATA]
+        call splits_mem
+        LEAVE
+ENDF tf_splits_mem
+
+FUNC tf_fill_mem
+        mov rdx, [rdi + N_DATA + 16]
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        jmp fill_mem
+ENDF tf_fill_mem
+
+FUNC tf_range_overlaps
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call range_overlaps
+        mov edi, eax
+        call tri_value
+        LEAVE
+ENDF tf_range_overlaps
+
+FUNC tf_range_contains
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call range_contains
+        mov edi, eax
+        call tri_value
+        LEAVE
+ENDF tf_range_contains
 
 # tf_exc_value() -> the string '<exc code: message>' for the error thrown
 FUNC tf_exc_value
@@ -557,7 +718,7 @@ ENDF tf_exc_value
 FUNC pan_test
         push r15
         ENTER
-        sub rsp, 56
+        sub rsp, 120                    # 48 of locals + the error handler
         mov [rsp], rdi                  # name
         mov [rsp + 8], rsi              # text
         mov [rsp + 16], rdx             # len
@@ -589,8 +750,20 @@ FUNC pan_test
         call parse_literal
         test rax, rax
         jz .Lt_parse_err
-        mov rdi, rax
+        mov r14, rax
+        lea rdi, [rsp + 48]
+        call err_catch
+        test eax, eax
+        jnz 3f
+        mov rdi, r14
         call r13
+        mov r14, rax
+        call err_end
+        mov rdi, rbx
+        mov rsi, r14
+        call value_print
+        jmp .Lt_out
+3:      call tf_exc_value
         mov rdi, rbx
         mov rsi, rax
         call value_print
@@ -619,7 +792,7 @@ FUNC pan_test
         mov rdi, [rsp + 40]
         call ctx_bind
         xor eax, eax
-        add rsp, 56
+        add rsp, 120
         LEAVE_NORET
         pop r15
         ret

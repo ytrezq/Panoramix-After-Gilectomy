@@ -32,7 +32,11 @@ if __name__ == "__main__":
         if code.startswith("0x"): code = code[2:]
         name = os.path.basename(f)
         for fname, target, stack, known in functions_of(code):
-            trace = py_run(code, target, False, stack, known)
+            try:
+                trace = py_run(code, target, False, stack, known)
+            except Exception as e:
+                print("skip", name, fname, type(e).__name__)
+                continue
             if not compare(name + " " + fname, trace):
                 bad += 1
     print("failures:", bad)

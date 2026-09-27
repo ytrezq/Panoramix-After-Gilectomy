@@ -123,22 +123,31 @@ FUNC match_helper
         call wildcard_type_ok
         test eax, eax
         jz .Lmh_no
+        lea rdi, [r13 + N_DATA + 5]
+        call wildcard_name
+        mov [rsp], rax                  # the name (after the type, if any)
         # bound already? then it must be the same
-        xor ecx, ecx
-1:      cmp rcx, [r14]
+        mov qword ptr [rsp + 8], 0
+1:      mov rcx, [rsp + 8]
+        cmp rcx, [r14]
         jae 2f
-        cmp [r14 + 8 + rcx*8], r13
-        je 3f
-        inc rcx
+        mov rdi, [r14 + 8 + rcx*8]
+        mov rsi, [rsp]
+        call strcmp@PLT
+        test eax, eax
+        jz 3f
+        inc qword ptr [rsp + 8]
         jmp 1b
-3:      mov rdi, r12
+3:      mov rcx, [rsp + 8]
+        mov rdi, r12
         mov rsi, [rbx + rcx*8]
         call values_equal
         add rsp, 16
         LEAVE
 2:      cmp rcx, MATCH_MAX
         jae .Lmh_no
-        mov [r14 + 8 + rcx*8], r13
+        mov rax, [rsp]
+        mov [r14 + 8 + rcx*8], rax
         mov [rbx + rcx*8], r12
         inc qword ptr [r14]
         jmp .Lmh_yes
@@ -220,6 +229,21 @@ FUNC wildcard_type_ok
 4:      mov eax, 1
         LEAVE
 ENDF wildcard_type_ok
+
+# wildcard_name(text) -> rax: the name of a wildcard, i.e. what follows
+# the type prefix if there is one (':int:x' -> 'x')
+FUNC wildcard_name
+        ENTER
+        mov rbx, rdi
+        mov esi, ':'
+        call strchr@PLT
+        test rax, rax
+        jz 1f
+        inc rax
+        LEAVE
+1:      mov rax, rbx
+        LEAVE
+ENDF wildcard_name
 
 # is_str(v) -> eax
 FUNC is_str

@@ -96,6 +96,10 @@
 .set E_STACK_UNDERFLOW, 1
 .set E_TIMEOUT, 2
 .set E_ASSERT, 3
+.set E_CANNOT_COMPARE, 4
+.set E_TYPE, 5              # python's TypeError (an int operation on an expression)
+.set E_NOT_IMPLEMENTED, 6
+.set E_INDEX, 7
 
 .set ARENA_CHUNK_DEFAULT, 0x400000     # 4 MiB
 

@@ -3832,4 +3832,260 @@ FUNC vec_dedupe
         LEAVE
 ENDF vec_dedupe
 
+
+# --- the pieces used by the simplifier ---
+
+        .section .rodata
+.Ls_cannot_compare: .asciz "CannotCompare"
+.Ls_type_error:     .asciz "TypeError: an int operation on an expression"
+.Ls_not_implemented: .asciz "NotImplementedError"
+        .text
+
+# must_compare(eax) -> eax: raises CannotCompare where python would
+FUNC must_compare
+        cmp edi, TRI_CANNOT
+        je 1f
+        mov eax, edi
+        ret
+1:      mov edi, E_CANNOT_COMPARE
+        lea rsi, [rip + .Ls_cannot_compare]
+        jmp err_throw
+ENDF must_compare
+
+# must_value(rax) -> rax: raises CannotCompare for NIL (max_op/min_op)
+FUNC must_value
+        test rdi, rdi
+        jz 1f
+        mov rax, rdi
+        ret
+1:      mov edi, E_CANNOT_COMPARE
+        lea rsi, [rip + .Ls_cannot_compare]
+        jmp err_throw
+ENDF must_value
+
+# must_int(v) -> v: python's TypeError when an expression meets an int
+# operation
+FUNC must_int
+        test dil, 1
+        jnz 1f
+        test rdi, rdi
+        jz 2f
+        cmp dword ptr [rdi + N_KIND], K_INT
+        jne 2f
+1:      mov rax, rdi
+        ret
+2:      mov edi, E_TYPE
+        lea rsi, [rip + .Ls_type_error]
+        jmp err_throw
+ENDF must_int
+
+FUNC raise_not_implemented
+        mov edi, E_NOT_IMPLEMENTED
+        lea rsi, [rip + .Ls_not_implemented]
+        jmp err_throw
+ENDF raise_not_implemented
+
+# alg_safe_gt_zero(exp) -> tri: safe_ge_zero(exp - 1)
+FUNC alg_safe_gt_zero
+        ENTER
+        mov esi, 3
+        call alg_sub_op
+        mov rdi, rax
+        call alg_safe_ge_zero
+        LEAVE
+ENDF alg_safe_gt_zero
+
+# to_bytes(exp) -> rax, rdx: (bytes, bits) - the byte size of a bit size
+FUNC to_bytes
+        ENTER
+        sub rsp, MATCH_BINDINGS_SIZE + 16
+        mov rbx, rdi
+        call is_int
+        test eax, eax
+        jz 1f
+        # (exp + 7) // 8, exp % 8
+        mov rdi, rbx
+        mov esi, (7 << 1) | 1
+        call int_add
+        mov rdi, rax
+        mov esi, (8 << 1) | 1
+        call int_floordiv
+        mov [rsp], rax
+        mov rdi, rbx
+        mov esi, (8 << 1) | 1
+        call int_mod
+        mov rdx, rax
+        mov rax, [rsp]
+        jmp .Ltb_done
+1:      PAT rsi, "('mask_shl', 253, 0, 3, ':val')"
+        mov rdi, rbx
+        mov rdx, rsp
+        call pat_match
+        test eax, eax
+        jz 2f
+        mov rax, [rsp]
+        mov edx, 1
+        jmp .Ltb_done
+2:      PAT rsi, "('mask_shl', ':int:size', ':int:offset', ':int:shl', ':val')"
+        mov rdi, rbx
+        mov rdx, rsp
+        call pat_match
+        test eax, eax
+        jz 3f
+        cmp qword ptr [rsp + 16], (3 << 1) | 1
+        jl 3f
+        # ('mask_shl', size, offset, shl - 3, val), 0
+        mov rdi, [rsp + 16]
+        mov esi, (3 << 1) | 1
+        call int_sub
+        mov rcx, rax
+        mov r8, [rsp + 24]
+        mov rdx, [rsp + 8]
+        mov rsi, [rsp]
+        LOADS rdi, MASK_SHL
+        call mk5
+        mov edx, 1
+        jmp .Ltb_done
+3:      mov rdi, rbx
+        call opcode_of
+        mov [rsp + MATCH_BINDINGS_SIZE], rax
+        cmp eax, OP_MUL
+        jne 4f
+        cmp dword ptr [rbx + N_AUX], 3
+        jne 4f
+        # (sic: to_bytes of the multiplier alone when it's a multiple of 8)
+        mov rdi, [rbx + N_DATA + 8]
+        call must_int
+        mov rdi, rax
+        mov esi, (8 << 1) | 1
+        call int_mod
+        cmp rax, 1
+        jne 4f
+        mov rdi, [rbx + N_DATA + 8]
+        call to_bytes
+        jmp .Ltb_done
+4:      cmp qword ptr [rsp + MATCH_BINDINGS_SIZE], OP_ADD
+        jne .Ltb_mask
+        call vec_new
+        mov r12, rax
+        mov r13d, 1
+5:      cmp r13d, [rbx + N_AUX]
+        jae 9f
+        mov r14, [rbx + N_DATA + r13*8]
+        mov rdi, r14
+        call is_int
+        test eax, eax
+        jnz 6f
+        mov rdi, r14
+        call opcode_of
+        cmp eax, OP_MASK_SHL
+        je 6f
+        cmp eax, OP_MUL
+        jne .Ltb_not_implemented
+        cmp dword ptr [r14 + N_AUX], 3
+        jne .Ltb_not_implemented
+        mov rdi, [r14 + N_DATA + 8]
+        call must_int
+        mov rdi, rax
+        mov esi, (8 << 1) | 1
+        call int_mod
+        cmp rax, 1
+        jne 7f
+        # ('mul', e[1] // 8, e[2])
+        mov rdi, [r14 + N_DATA + 8]
+        mov esi, (8 << 1) | 1
+        call int_floordiv
+        mov rsi, rax
+        mov rdx, [r14 + N_DATA + 16]
+        LOADS rdi, MUL
+        call mk3
+        jmp 8f
+7:      PAT rsi, "('mask_shl', 253, 0, 3, ':val')"
+        mov rdi, [r14 + N_DATA + 16]
+        mov rdx, rsp
+        call pat_match
+        test eax, eax
+        jz .Ltb_not_implemented
+        # ('mul', e[1], e[2][4])
+        mov rsi, [r14 + N_DATA + 8]
+        mov rdx, [rsp]
+        LOADS rdi, MUL
+        call mk3
+        jmp 8f
+6:      mov rdi, r14
+        call to_bytes
+        cmp rdx, 1
+        jne .Ltb_not_implemented
+8:      mov rdi, r12
+        mov rsi, rax
+        call vec_push
+        inc r13d
+        jmp 5b
+9:      # ('add', *res), 0
+        mov rdi, r12
+        LOADS rsi, ADD
+        call vec_prepend
+        mov rdi, r12
+        call vec_to_tuple
+        mov edx, 1
+        jmp .Ltb_done
+.Ltb_mask:
+        # mask_op(exp, shr=3), 0
+        mov rdi, rbx
+        mov esi, (256 << 1) | 1
+        mov edx, 1
+        mov ecx, 1
+        mov r8d, (3 << 1) | 1
+        call alg_mask_op
+        mov edx, 1
+.Ltb_done:
+        add rsp, MATCH_BINDINGS_SIZE + 16
+        LEAVE
+.Ltb_not_implemented:
+        call raise_not_implemented
+ENDF to_bytes
+
+# divisible_bytes(exp) -> eax: to_bytes gives whole bytes (and no error)
+FUNC divisible_bytes
+        ENTER
+        sub rsp, ERR_SIZEOF + 16
+        mov rbx, rdi
+        mov rdi, rsp
+        call err_catch
+        test eax, eax
+        jnz 1f
+        mov rdi, rbx
+        call to_bytes
+        mov [rsp + ERR_SIZEOF], rdx
+        call err_end
+        xor eax, eax
+        cmp qword ptr [rsp + ERR_SIZEOF], 1
+        sete al
+        add rsp, ERR_SIZEOF + 16
+        LEAVE
+1:      xor eax, eax
+        add rsp, ERR_SIZEOF + 16
+        LEAVE
+ENDF divisible_bytes
+
+# vec_prepend(vec, v): insert v in front
+FUNC vec_prepend
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        xor esi, esi
+        call vec_push                   # room for one more
+        mov rax, [rbx + VEC_DATA]
+        mov rcx, [rbx + VEC_LEN]
+        dec rcx
+1:      test rcx, rcx
+        jz 2f
+        mov rdx, [rax + rcx*8 - 8]
+        mov [rax + rcx*8], rdx
+        dec rcx
+        jmp 1b
+2:      mov [rax], r12
+        LEAVE
+ENDF vec_prepend
+
         .section .note.GNU-stack,"",@progbits
