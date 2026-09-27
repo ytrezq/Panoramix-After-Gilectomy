@@ -232,6 +232,11 @@ FUNC arena_reset
         call memset@PLT
         mov qword ptr [r15 + CTX_HC_COUNT], 0
         mov qword ptr [r15 + CTX_NODE_COUNT], 0
+        # the memo tables were in the arena
+        lea rdi, [r15 + CTX_MEMO]
+        xor esi, esi
+        mov edx, MEMO_COUNT * 8
+        call memset@PLT
         LEAVE
 ENDF arena_reset
 

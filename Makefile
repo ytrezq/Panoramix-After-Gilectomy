@@ -2,7 +2,7 @@ AS      = as
 ASFLAGS = -I include --64 -g
 CC      = cc
 CFLAGS  = -O2 -fPIC -Wall
-LDLIBS  = -L/usr/lib/x86_64-linux-gnu -l:libgmp.so.10 -lpthread
+LDLIBS  = -L/usr/lib/x86_64-linux-gnu -l:libgmp.so.10 -lpthread -lm
 PY_INC  = $(shell python3 -c "import sysconfig; print(sysconfig.get_paths()['include'])")
 PY_EXT  = $(shell python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")
 

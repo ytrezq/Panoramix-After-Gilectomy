@@ -1,8 +1,421 @@
-# Algebra (port of panoramix/core/algebra.py) - in progress; stubs first.
+# Algebra (port of panoramix/core/algebra.py): symbolic add/mul/masks and
+# comparisons. As the original says, "crazy-fragile": the port follows it
+# case by case, including its oddities, because the readability of the
+# output depends on the exact shapes it produces.
+#
+# Results of comparisons are four-state (see TRI_*).
 
 .include "defs.inc"
 
         .text
+
+# ---------------------------------------------------------------------
+# small helpers
+
+# is_op_n(v, op, n) -> eax: v is a tuple with opcode op and n elements
+FUNC is_op_n
+        ENTER
+        mov rbx, rdi
+        mov r12d, esi
+        mov r13d, edx
+        call opcode_of
+        cmp eax, r12d
+        jne 1f
+        cmp [rbx + N_AUX], r13d
+        jne 1f
+        mov eax, 1
+        LEAVE
+1:      xor eax, eax
+        LEAVE
+ENDF is_op_n
+
+# to_exp2(v) -> rax: k if math.log2(v) is an integer in double precision
+# (helpers.to_exp2), else -1. Like python, this is true of numbers close to
+# a power of two, e.g. 2^160 - 1: the output shapes depend on it.
+FUNC to_exp2
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        call is_int
+        test eax, eax
+        jz .Lte_no
+        mov rdi, rbx
+        call int_sign
+        cmp eax, 1
+        jne .Lte_no
+        # x = mantissa in [0.5, 1) * 2^e
+        mov rdi, rbx
+        call value_mpz
+        mov rdi, rsp                    # &e (long)
+        mov rsi, rax
+        call __gmpz_get_d_2exp@PLT
+        call log2@PLT
+        cvtsi2sd xmm1, qword ptr [rsp]
+        addsd xmm0, xmm1                # l = log2(m) + e
+        cvttsd2si rax, xmm0
+        cvtsi2sd xmm1, rax
+        ucomisd xmm0, xmm1
+        jne .Lte_no
+        jp .Lte_no
+        test rax, rax
+        js .Lte_no
+        add rsp, 16
+        LEAVE
+.Lte_no:
+        mov rax, -1
+        add rsp, 16
+        LEAVE
+ENDF to_exp2
+
+# pow2(k) -> value: 2^k
+FUNC pow2
+        cmp rdi, 62
+        jae 1f
+        mov ecx, edi
+        mov eax, 1
+        shl rax, cl
+        lea rax, [rax + rax + 1]
+        ret
+1:      ENTER
+        mov rbx, rdi
+        lea rdi, [r15 + CTX_MPZ_R]
+        mov esi, 1
+        call __gmpz_set_ui@PLT
+        lea rdi, [r15 + CTX_MPZ_R]
+        mov rsi, rdi
+        mov rdx, rbx
+        call __gmpz_mul_2exp@PLT
+        call arith_result
+        LEAVE
+ENDF pow2
+
+# int_add(a, b) / int_sub(a, b) / int_mul(a, b): exact python integer
+# arithmetic on integer values (no wrapping)
+FUNC int_add
+        test dil, 1
+        jz 1f
+        test sil, 1
+        jz 1f
+        mov rax, rdi
+        sar rax, 1
+        mov rcx, rsi
+        sar rcx, 1
+        add rax, rcx
+        mov rcx, SMALL_MAX
+        cmp rax, rcx
+        jg 1f
+        mov rcx, SMALL_MIN
+        cmp rax, rcx
+        jl 1f
+        lea rax, [rax + rax + 1]
+        ret
+1:      ENTER
+        call arith_load
+        lea rdi, [r15 + CTX_MPZ_R]
+        lea rsi, [r15 + CTX_MPZ_A]
+        lea rdx, [r15 + CTX_MPZ_B]
+        call __gmpz_add@PLT
+        call arith_result
+        LEAVE
+ENDF int_add
+
+FUNC int_sub
+        test dil, 1
+        jz 1f
+        test sil, 1
+        jz 1f
+        mov rax, rdi
+        sar rax, 1
+        mov rcx, rsi
+        sar rcx, 1
+        sub rax, rcx
+        mov rcx, SMALL_MAX
+        cmp rax, rcx
+        jg 1f
+        mov rcx, SMALL_MIN
+        cmp rax, rcx
+        jl 1f
+        lea rax, [rax + rax + 1]
+        ret
+1:      ENTER
+        call arith_load
+        lea rdi, [r15 + CTX_MPZ_R]
+        lea rsi, [r15 + CTX_MPZ_A]
+        lea rdx, [r15 + CTX_MPZ_B]
+        call __gmpz_sub@PLT
+        call arith_result
+        LEAVE
+ENDF int_sub
+
+FUNC int_mul
+        test dil, 1
+        jz 1f
+        test sil, 1
+        jz 1f
+        mov rax, rdi
+        sar rax, 1
+        mov rcx, rsi
+        sar rcx, 1
+        imul rax, rcx
+        jo 1f
+        mov rcx, SMALL_MAX
+        cmp rax, rcx
+        jg 1f
+        mov rcx, SMALL_MIN
+        cmp rax, rcx
+        jl 1f
+        lea rax, [rax + rax + 1]
+        ret
+1:      ENTER
+        call arith_load
+        lea rdi, [r15 + CTX_MPZ_R]
+        lea rsi, [r15 + CTX_MPZ_A]
+        lea rdx, [r15 + CTX_MPZ_B]
+        call __gmpz_mul@PLT
+        call arith_result
+        LEAVE
+ENDF int_mul
+
+# int_neg(a) -> value
+FUNC int_neg
+        mov rsi, rdi
+        mov edi, 1
+        jmp int_sub
+ENDF int_neg
+
+# int_floordiv(a, b) -> value (python //; 0 for b == 0, where python would
+# raise) ; int_mod(a, b) (python %)
+FUNC int_floordiv
+        cmp rsi, 1
+        jne 1f
+        mov eax, 1
+        ret
+1:      ENTER
+        call arith_load
+        lea rdi, [r15 + CTX_MPZ_R]
+        lea rsi, [r15 + CTX_MPZ_A]
+        lea rdx, [r15 + CTX_MPZ_B]
+        call __gmpz_fdiv_q@PLT
+        call arith_result
+        LEAVE
+ENDF int_floordiv
+
+FUNC int_mod
+        cmp rsi, 1
+        jne 1f
+        mov eax, 1
+        ret
+1:      ENTER
+        call arith_load
+        lea rdi, [r15 + CTX_MPZ_R]
+        lea rsi, [r15 + CTX_MPZ_A]
+        lea rdx, [r15 + CTX_MPZ_B]
+        call __gmpz_fdiv_r@PLT
+        call arith_result
+        LEAVE
+ENDF int_mod
+
+# int_mod_2exp(a, k) -> value: a mod 2^k (non-negative)
+FUNC int_mod_2exp
+        ENTER
+        mov rbx, rsi
+        mov rsi, rdi
+        lea rdi, [r15 + CTX_MPZ_R]
+        call value_set_mpz
+        lea rdi, [r15 + CTX_MPZ_R]
+        mov rsi, rdi
+        mov rdx, rbx
+        call __gmpz_fdiv_r_2exp@PLT
+        call arith_result
+        LEAVE
+ENDF int_mod_2exp
+
+# clamp_bits(v) -> rax: a small int value as a plain integer, clamped to
+# [-4096, 4096] (masks never exceed 256 bits; python would try to build
+# 2^huge and die)
+FUNC clamp_bits
+        test dil, 1
+        jz 1f
+        mov rax, rdi
+        sar rax, 1
+        cmp rax, 4096
+        jg 2f
+        cmp rax, -4096
+        jl 3f
+        ret
+1:      cmp dword ptr [rdi + N_DATA + MPZ_SIZE], 0
+        jl 3f
+2:      mov eax, 4096
+        ret
+3:      mov rax, -4096
+        ret
+ENDF clamp_bits
+
+# mask_to_int(size, offset) -> value: (2^size - 1) * 2^offset, with the
+# negative-offset handling of algebra.mask_to_int (ints only)
+FUNC mask_to_int
+        ENTER
+        call clamp_bits
+        mov rbx, rax                    # size
+        mov rdi, rsi
+        call clamp_bits
+        mov r12, rax                    # offset
+        test r12, r12
+        jns 1f
+        # offset < 0: size += offset; if size < 1: 0; else 2^size - 1
+        add rbx, r12
+        cmp rbx, 1
+        jge 2f
+        mov eax, 1
+        LEAVE
+2:      mov rdi, rbx
+        call pow2
+        mov rdi, rax
+        mov esi, 3
+        call int_sub
+        LEAVE
+1:      test rbx, rbx
+        jns 3f
+        mov eax, 1                      # 2^negative - 1 -> 0 (python: -1 + fraction... never happens)
+        LEAVE
+3:      mov rdi, rbx
+        call pow2
+        mov rdi, rax
+        mov esi, 3
+        call int_sub
+        mov rbx, rax
+        mov rdi, r12
+        call pow2
+        mov rdi, rbx
+        mov rsi, rax
+        call int_mul
+        LEAVE
+ENDF mask_to_int
+
+# alg_apply_mask(val, size, offset, shl) -> value (all ints)
+FUNC alg_apply_mask
+        ENTER
+        mov rbx, rdi
+        mov r12, rcx                    # shl
+        mov rdi, rsi
+        mov rsi, rdx
+        call mask_to_int
+        mov rdi, rbx
+        mov rsi, rax
+        call ev_and
+        mov rbx, rax
+        test r12b, 1
+        jz .Lam_zero                    # a huge shift
+        mov rax, r12
+        sar rax, 1
+        cmp rax, 256
+        jge .Lam_zero
+        cmp rax, -256
+        jle .Lam_zero
+        test rax, rax
+        jz 1f
+        js 2f
+        # val << shl
+        mov r12, rax
+        lea rdi, [r15 + CTX_MPZ_R]
+        mov rsi, rbx
+        call value_set_mpz
+        lea rdi, [r15 + CTX_MPZ_R]
+        mov rsi, rdi
+        mov rdx, r12
+        call __gmpz_mul_2exp@PLT
+        call arith_result
+        LEAVE
+2:      # val >> -shl
+        neg rax
+        mov r12, rax
+        lea rdi, [r15 + CTX_MPZ_R]
+        mov rsi, rbx
+        call value_set_mpz
+        lea rdi, [r15 + CTX_MPZ_R]
+        mov rsi, rdi
+        mov rdx, r12
+        call __gmpz_fdiv_q_2exp@PLT
+        call arith_result
+        LEAVE
+1:      mov rax, rbx
+        LEAVE
+.Lam_zero:
+        mov eax, 1
+        LEAVE
+ENDF alg_apply_mask
+
+# all_ints(count, elems) -> eax
+FUNC all_ints
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        xor r13d, r13d
+1:      cmp r13, rbx
+        jae 2f
+        mov rdi, [r12 + r13*8]
+        call is_int
+        test eax, eax
+        jz 3f
+        inc r13
+        jmp 1b
+2:      mov eax, 1
+        LEAVE
+3:      xor eax, eax
+        LEAVE
+ENDF all_ints
+
+# cleanup_mul_1(exp) -> value: ('mul', 1, x) -> x, recursively
+FUNC cleanup_mul_1
+        ENTER
+        mov rbx, rdi
+        test dil, 1
+        jnz .Lcm_asis
+        test rdi, rdi
+        jz .Lcm_asis
+        mov eax, [rbx + N_KIND]
+        cmp eax, K_TUPLE
+        je 1f
+        cmp eax, K_LIST
+        jne .Lcm_asis
+1:      mov rdi, rbx
+        mov esi, OP_MUL
+        mov edx, 3
+        call is_op_n
+        test eax, eax
+        jz 2f
+        cmp qword ptr [rbx + N_DATA + 8], 3
+        jne 2f
+        mov rdi, [rbx + N_DATA + 16]
+        call cleanup_mul_1
+        LEAVE
+2:      mov r12d, [rbx + N_AUX]
+        test r12, r12
+        jz .Lcm_asis
+        lea rax, [r12*8 + 15]
+        and rax, -16
+        sub rsp, rax
+        mov r13, rsp
+        xor r14d, r14d
+3:      cmp r14, r12
+        jae 4f
+        mov rdi, [rbx + N_DATA + r14*8]
+        call cleanup_mul_1
+        mov [r13 + r14*8], rax
+        inc r14
+        jmp 3b
+4:      mov edi, [rbx + N_KIND]
+        mov rsi, r12
+        mov rdx, r13
+        call mk_seq
+        LEAVE_DYN
+.Lcm_asis:
+        mov rax, rbx
+        LEAVE
+ENDF cleanup_mul_1
+
+# ---------------------------------------------------------------------
+# or_op
 
 # alg_or_n(count, elems) -> value: or_op(*args)
 FUNC alg_or_n
@@ -32,10 +445,9 @@ FUNC alg_or_n
         jne 3f
         mov rdi, rbx
         mov rsi, [r13 + r14*8]
-        add rsi, N_DATA + 8
-        mov rax, [r13 + r14*8]
-        mov edx, [rax + N_AUX]
+        mov edx, [rsi + N_AUX]
         dec edx
+        add rsi, N_DATA + 8
         call vec_extend
         jmp 5f
 3:      # skip duplicates
@@ -74,20 +486,3397 @@ FUNC alg_or_n
         LEAVE
 ENDF alg_or_n
 
-# temporary stubs
+FUNC alg_or2
+        ENTER
+        sub rsp, 16
+        mov [rsp], rdi
+        mov [rsp + 8], rsi
+        mov edi, 2
+        mov rsi, rsp
+        call alg_or_n
+        add rsp, 16
+        LEAVE
+ENDF alg_or2
+
+# ---------------------------------------------------------------------
+# mul_op / add_op / sub_op
+
+# alg_minus_op(exp) -> value
+FUNC alg_minus_op
+        mov rsi, rdi
+        mov rdi, -1
+        TAG rdi
+        jmp alg_mul2
+ENDF alg_minus_op
+
+# alg_sub_op(left, right) -> value
 FUNC alg_sub_op
-        xor eax, eax
-        ret
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call is_int
+        test eax, eax
+        jz 1f
+        mov rdi, r12
+        call is_int
+        test eax, eax
+        jz 1f
+        mov rdi, rbx
+        mov rsi, r12
+        call int_sub
+        LEAVE
+1:      mov rdi, rbx
+        mov esi, 1
+        call py_equal
+        test eax, eax
+        jz 2f
+        mov rdi, r12
+        call alg_minus_op
+        LEAVE
+2:      mov rdi, r12
+        mov esi, 1
+        call py_equal
+        test eax, eax
+        jz 3f
+        mov rax, rbx
+        LEAVE
+3:      mov rdi, r12
+        call alg_minus_op
+        mov rdi, rbx
+        mov rsi, rax
+        call alg_add2
+        LEAVE
 ENDF alg_sub_op
 
-FUNC alg_le_op
+# alg_mul2(a, b) -> value: mul_op(a, b)
+FUNC alg_mul2
+        ENTER
+        sub rsp, 16
+        mov [rsp], rdi
+        mov [rsp + 8], rsi
+        mov edi, 2
+        mov rsi, rsp
+        call alg_mul_n
+        add rsp, 16
+        LEAVE
+ENDF alg_mul2
+
+# alg_mul_n(count, args) -> value: mul_op(*args)
+FUNC alg_mul_n
+        ENTER
+        sub rsp, 32
+        mov rbx, rdi                    # count
+        mov r12, rsi                    # args
+        cmp rbx, 1
+        jne 1f
+        mov rax, [r12]
+        add rsp, 32
+        LEAVE
+1:      cmp rbx, 2
+        jne 2f
+        mov rdi, [r12]
+        call is_int
+        test eax, eax
+        jz 2f
+        mov rdi, [r12 + 8]
+        call is_int
+        test eax, eax
+        jz 2f
+        mov rdi, [r12]
+        mov rsi, [r12 + 8]
+        call int_mul
+        add rsp, 32
+        LEAVE
+2:      # a power of two among the args: mask_op(mul_op(rest), 256 - p, shl = p)
+        xor r13d, r13d
+3:      cmp r13, rbx
+        jae 6f
+        mov rdi, [r12 + r13*8]
+        call to_exp2
+        cmp rax, -1
+        je 4f
+        test rax, rax
+        jz 4f                           # 2^0 = 1 is falsy in python
+        mov r14, rax                    # p
+        # rest = args without args[r13]
+        lea rdi, [rbx*8 + 8]
+        call arena_alloc
+        xor ecx, ecx
+        xor edx, edx
+5:      cmp rcx, rbx
+        jae 7f
+        cmp rcx, r13
+        je 8f
+        mov rsi, [r12 + rcx*8]
+        mov [rax + rdx*8], rsi
+        inc rdx
+8:      inc rcx
+        jmp 5b
+7:      mov rdi, rdx
+        mov rsi, rax
+        call alg_mul_n
+        # mask_op(exp, size=256-p, offset=0, shl=p, shr=0)
+        mov rdi, rax
+        mov esi, 256
+        sub rsi, r14
+        TAG rsi
+        mov edx, 1
+        mov rcx, r14
+        TAG rcx
+        mov r8d, 1
+        call alg_mask_op
+        add rsp, 32
+        LEAVE
+4:      inc r13
+        jmp 3b
+6:      # flatten the muls
+        call vec_new
+        mov r13, rax
+        xor r14d, r14d
+9:      cmp r14, rbx
+        jae 10f
+        mov rdi, [r12 + r14*8]
+        call opcode_of
+        cmp eax, OP_MUL
+        jne 11f
+        mov rdi, r13
+        mov rsi, [r12 + r14*8]
+        mov edx, [rsi + N_AUX]
+        dec edx
+        add rsi, N_DATA + 8
+        call vec_extend
+        jmp 12f
+11:     mov rdi, r13
+        mov rsi, [r12 + r14*8]
+        call vec_push
+12:     inc r14
+        jmp 9b
+10:     # distribute over the first add
+        mov rbx, [r13 + VEC_LEN]
+        mov r12, [r13 + VEC_DATA]
+        xor r14d, r14d
+13:     cmp r14, rbx
+        jae 16f
+        mov rdi, [r12 + r14*8]
+        call opcode_of
+        cmp eax, OP_ADD
+        je 14f
+        inc r14
+        jmp 13b
+14:     # el = args[r14]; without = the others; add_op(*[mul_op(x, *without) for x in el[1:]])
+        mov rdi, [r12 + r14*8]
+        mov [rsp], rdi                  # el
+        call vec_new
+        mov [rsp + 8], rax              # results
+        mov qword ptr [rsp + 16], 1     # index into el
+15:     mov rax, [rsp]
+        mov rcx, [rsp + 16]
+        cmp ecx, [rax + N_AUX]
+        jae 17f
+        # build (x, without...)
+        lea rdi, [rbx*8 + 8]
+        call arena_alloc
+        mov rcx, [rsp + 16]
+        mov rdx, [rsp]
+        mov rdx, [rdx + N_DATA + rcx*8]
+        mov [rax], rdx
+        mov rdi, rax
+        xor ecx, ecx
+        mov edx, 1
+18:     cmp rcx, rbx
+        jae 19f
+        cmp rcx, r14
+        je 20f
+        mov rsi, [r12 + rcx*8]
+        mov [rdi + rdx*8], rsi
+        inc rdx
+20:     inc rcx
+        jmp 18b
+19:     mov rsi, rdi
+        mov rdi, rdx
+        call alg_mul_n
+        mov rdi, [rsp + 8]
+        mov rsi, rax
+        call vec_push
+        inc qword ptr [rsp + 16]
+        jmp 15b
+17:     mov rax, [rsp + 8]
+        mov rdi, [rax + VEC_LEN]
+        mov rsi, [rax + VEC_DATA]
+        call alg_add_n
+        add rsp, 32
+        LEAVE
+16:     # multiply the numbers, keep the symbols
+        mov qword ptr [rsp], 3          # real = 1
+        call vec_new
+        mov [rsp + 8], rax
+        xor r14d, r14d
+21:     cmp r14, rbx
+        jae 24f
+        mov rdi, [r12 + r14*8]
+        mov esi, 1
+        call py_equal                   # r == 0 -> 0
+        test eax, eax
+        jnz .Lmul_zero
+        mov rdi, [r12 + r14*8]
+        call is_int
+        test eax, eax
+        jz 22f
+        mov rdi, [rsp]
+        mov rsi, [r12 + r14*8]
+        call int_mul
+        mov [rsp], rax
+        jmp 23f
+22:     mov rdi, [rsp + 8]
+        mov rsi, [r12 + r14*8]
+        call vec_push
+23:     inc r14
+        jmp 21b
+24:     mov rax, [rsp + 8]
+        cmp qword ptr [rax + VEC_LEN], 0
+        jne 25f
+        mov rax, [rsp]
+        add rsp, 32
+        LEAVE
+25:     # ("mul", real) + symbolic
+        call vec_new
+        mov r13, rax
+        mov rdi, r13
+        LOADS rsi, MUL
+        call vec_push
+        mov rdi, r13
+        mov rsi, [rsp]
+        call vec_push
+        mov rax, [rsp + 8]
+        mov rdi, r13
+        mov rsi, [rax + VEC_DATA]
+        mov rdx, [rax + VEC_LEN]
+        call vec_extend
+        mov rdi, r13
+        call vec_to_tuple
+        add rsp, 32
+        LEAVE
+.Lmul_zero:
+        mov eax, 1
+        add rsp, 32
+        LEAVE
+ENDF alg_mul_n
+
+# flatten_adds(vec): in place, expands the ('add', ...) elements
+FUNC flatten_adds
+        ENTER
+        mov rbx, rdi
+1:      # any add?
+        xor r12d, r12d
+2:      cmp r12, [rbx + VEC_LEN]
+        jae 5f
+        mov rax, [rbx + VEC_DATA]
+        mov rdi, [rax + r12*8]
+        call opcode_of
+        cmp eax, OP_ADD
+        je 3f
+        inc r12
+        jmp 2b
+3:      # rebuild
+        call vec_new
+        mov r13, rax
+        xor r12d, r12d
+4:      cmp r12, [rbx + VEC_LEN]
+        jae 6f
+        mov rax, [rbx + VEC_DATA]
+        mov r14, [rax + r12*8]
+        mov rdi, r14
+        call opcode_of
+        cmp eax, OP_ADD
+        jne 7f
+        mov rdi, r13
+        mov edx, [r14 + N_AUX]
+        dec edx
+        lea rsi, [r14 + N_DATA + 8]
+        call vec_extend
+        jmp 8f
+7:      mov rdi, r13
+        mov rsi, r14
+        call vec_push
+8:      inc r12
+        jmp 4b
+6:      mov rax, [r13 + VEC_DATA]
+        mov [rbx + VEC_DATA], rax
+        mov rax, [r13 + VEC_LEN]
+        mov [rbx + VEC_LEN], rax
+        mov rax, [r13 + VEC_CAP]
+        mov [rbx + VEC_CAP], rax
+        jmp 1b
+5:      LEAVE
+ENDF flatten_adds
+
+# alg_add2(a, b) -> value: add_op(a, b)
+FUNC alg_add2
+        ENTER
+        sub rsp, 16
+        mov [rsp], rdi
+        mov [rsp + 8], rsi
+        mov edi, 2
+        mov rsi, rsp
+        call alg_add_n
+        add rsp, 16
+        LEAVE
+ENDF alg_add2
+
+# alg_add3(a, b, c)
+FUNC alg_add3
+        ENTER
+        sub rsp, 32
+        mov [rsp], rdi
+        mov [rsp + 8], rsi
+        mov [rsp + 16], rdx
+        mov edi, 3
+        mov rsi, rsp
+        call alg_add_n
+        add rsp, 32
+        LEAVE
+ENDF alg_add3
+
+# alg_add_n(count, args) -> value: add_op(*args), memoized on the args
+FUNC alg_add_n
+        ENTER
+        sub rsp, 48
+        mov rbx, rdi
+        mov r12, rsi
+        cmp rbx, 1
+        jne 1f
+        mov rax, [r12]
+        add rsp, 48
+        LEAVE
+1:      test rbx, rbx
+        jnz 2f
+        mov eax, 1
+        add rsp, 48
+        LEAVE
+2:      # all ints: their sum
+        mov qword ptr [rsp], 1
+        xor r13d, r13d
+3:      cmp r13, rbx
+        jae 4f
+        mov rdi, [r12 + r13*8]
+        call is_int
+        test eax, eax
+        jz 5f
+        mov rdi, [rsp]
+        mov rsi, [r12 + r13*8]
+        call int_add
+        mov [rsp], rax
+        inc r13
+        jmp 3b
+4:      mov rax, [rsp]
+        add rsp, 48
+        LEAVE
+5:      # memo lookup on the tuple of the args
+        mov rdi, rbx
+        mov rsi, r12
+        call mk_tuple
+        mov [rsp + 8], rax              # key
+        mov edi, MEMO_ADD
+        mov rsi, rax
+        call memo_get
+        test rax, rax
+        jz 6f
+        add rsp, 48
+        LEAVE
+6:      mov rdi, rbx
+        mov rsi, r12
+        call add_op_impl
+        mov [rsp + 16], rax
+        mov edi, MEMO_ADD
+        mov rsi, [rsp + 8]
+        mov rdx, rax
+        call memo_put
+        mov rax, [rsp + 16]
+        add rsp, 48
+        LEAVE
+ENDF alg_add_n
+
+# add_op_impl(count, args) -> value
+FUNC add_op_impl
+        ENTER
+        sub rsp, 48
+        mov rbx, rdi
+        mov r12, rsi
+        # res = flatten_adds(args)
+        call vec_new
+        mov r13, rax
+        mov rdi, r13
+        mov rsi, r12
+        mov rdx, rbx
+        call vec_extend
+        mov rdi, r13
+        call flatten_adds
+        # every term that isn't a mul becomes mul_op(1, term)
+        xor r14d, r14d
+1:      cmp r14, [r13 + VEC_LEN]
+        jae 2f
+        mov rax, [r13 + VEC_DATA]
+        mov rdi, [rax + r14*8]
+        call opcode_of
+        cmp eax, OP_MUL
+        je 3f
+        mov rax, [r13 + VEC_DATA]
+        mov rsi, [rax + r14*8]
+        mov edi, 3                      # 1
+        call alg_mul2
+        mov rcx, [r13 + VEC_DATA]
+        mov [rcx + r14*8], rax
+3:      inc r14
+        jmp 1b
+2:      mov qword ptr [rsp], 1          # real = 0
+        call vec_new
+        mov [rsp + 8], rax              # symbolic
+        xor r14d, r14d
+4:      cmp r14, [r13 + VEC_LEN]
+        jae 20f
+        mov rax, [r13 + VEC_DATA]
+        mov rbx, [rax + r14*8]          # r
+        mov rdi, rbx
+        call is_int
+        test eax, eax
+        jz 5f
+        mov rdi, [rsp]
+        mov rsi, rbx
+        call int_add
+        mov [rsp], rax
+        jmp 19f
+5:      # try to merge with a previous symbolic term
+        mov qword ptr [rsp + 16], 0     # idx
+6:      mov rax, [rsp + 8]
+        mov rcx, [rsp + 16]
+        cmp rcx, [rax + VEC_LEN]
+        jae 18f
+        mov rax, [rax + VEC_DATA]
+        mov r12, [rax + rcx*8]          # rr
+        mov rdi, rbx
+        mov rsi, r12
+        call alg_try_add
+        test rax, rax
+        jz 7f
+        cmp rax, 1                      # a result of 0 is falsy
+        jne 8f
+7:      mov rdi, r12
+        mov rsi, rbx
+        call alg_try_add
+        test rax, rax
+        jz 17f
+        cmp rax, 1
+        je 17f
+8:      mov [rsp + 24], rax             # tried
+        mov rdi, rax
+        call opcode_of
+        cmp eax, OP_MUL
+        jne 9f
+        # symbolic[idx] = tried
+        mov rax, [rsp + 8]
+        mov rax, [rax + VEC_DATA]
+        mov rcx, [rsp + 16]
+        mov rdx, [rsp + 24]
+        mov [rax + rcx*8], rdx
+        jmp 19f
+9:      mov rdi, [rsp + 24]
+        mov esi, OP_MASK_SHL
+        mov edx, 5
+        call is_op_n
+        test eax, eax
+        jz 10f
+        mov rax, [rsp + 24]
+        mov rdi, [rax + N_DATA + 8]     # size
+        test dil, 1
+        jz 10f
+        cmp qword ptr [rax + N_DATA + 16], 1   # offset == 0
+        jne 10f
+        # symbolic[idx] = ("mul", 2**osize, val)
+        mov rdi, [rax + N_DATA + 24]    # osize
+        sar rdi, 1
+        call pow2
+        mov rcx, [rsp + 24]
+        LOADS rdi, MUL
+        mov rsi, rax
+        mov rdx, [rcx + N_DATA + 32]
+        call mk3
+        mov rcx, [rsp + 8]
+        mov rcx, [rcx + VEC_DATA]
+        mov rdx, [rsp + 16]
+        mov [rcx + rdx*8], rax
+        jmp 19f
+10:     # ("add", num, term): symbolic[idx] = term, real += num
+        mov rax, [rsp + 24]
+        mov rdi, [rsp]
+        mov rsi, [rax + N_DATA + 8]
+        call int_add
+        mov [rsp], rax
+        mov rax, [rsp + 24]
+        mov rdx, [rax + N_DATA + 16]
+        mov rcx, [rsp + 8]
+        mov rcx, [rcx + VEC_DATA]
+        mov rax, [rsp + 16]
+        mov [rcx + rax*8], rdx
+        jmp 19f
+17:     inc qword ptr [rsp + 16]
+        jmp 6b
+18:     mov rdi, [rsp + 8]
+        mov rsi, rbx
+        call vec_push
+19:     inc r14
+        jmp 4b
+20:     # drop the terms with a zero coefficient, remove mul 1
+        call vec_new
+        mov r13, rax
+        xor r14d, r14d
+21:     mov rax, [rsp + 8]
+        cmp r14, [rax + VEC_LEN]
+        jae 24f
+        mov rax, [rax + VEC_DATA]
+        mov rbx, [rax + r14*8]
+        cmp qword ptr [rbx + N_DATA + 8], 1     # s[1] == 0
+        je 23f
+        mov rdi, rbx
+        mov esi, OP_MUL
+        mov edx, 3
+        call is_op_n
+        test eax, eax
+        jz 22f
+        cmp qword ptr [rbx + N_DATA + 8], 3     # s[1] == 1
+        jne 22f
+        mov rbx, [rbx + N_DATA + 16]
+22:     mov rdi, r13
+        mov rsi, rbx
+        call vec_push
+23:     inc r14
+        jmp 21b
+24:     # the result
+        cmp qword ptr [rsp], 1
+        je 26f
+        # real > 0: real % 2**256
+        mov rdi, [rsp]
+        call int_sign
+        cmp eax, 1
+        jne 25f
+        mov rdi, [rsp]
+        mov esi, 256
+        call int_mod_2exp
+        mov [rsp], rax
+25:     call vec_new
+        mov rbx, rax
+        mov rdi, rbx
+        mov rsi, [rsp]
+        call vec_push
+        mov rdi, rbx
+        mov rsi, [r13 + VEC_DATA]
+        mov rdx, [r13 + VEC_LEN]
+        call vec_extend
+        mov r13, rbx
+26:     mov rax, [r13 + VEC_LEN]
+        test rax, rax
+        jnz 27f
+        mov eax, 1
+        add rsp, 48
+        LEAVE
+27:     cmp rax, 1
+        jne 28f
+        mov rax, [r13 + VEC_DATA]
+        mov rax, [rax]
+        add rsp, 48
+        LEAVE
+28:     call vec_new
+        mov rbx, rax
+        mov rdi, rbx
+        LOADS rsi, ADD
+        call vec_push
+        mov rdi, rbx
+        mov rsi, [r13 + VEC_DATA]
+        mov rdx, [r13 + VEC_LEN]
+        call vec_extend
+        mov rdi, rbx
+        call vec_to_tuple
+        add rsp, 48
+        LEAVE
+ENDF add_op_impl
+
+# ---------------------------------------------------------------------
+# try_add
+
+        .section .rodata
+        .align 8
+try_add_ys: .quad 3, 4, 5, 6, 7, 8, 16, 32, 64, 128, 0
+        .text
+
+# is_mul_int(v) -> eax: v ~ ('mul', int, any)
+FUNC is_mul_int
+        ENTER
+        mov rbx, rdi
+        mov esi, OP_MUL
+        mov edx, 3
+        call is_op_n
+        test eax, eax
+        jz 1f
+        mov rdi, [rbx + N_DATA + 8]
+        call is_int
+1:      LEAVE
+ENDF is_mul_int
+
+# is_mask_shl_ints(v) -> eax: v ~ ('mask_shl', int, int, int, any)
+FUNC is_mask_shl_ints
+        ENTER
+        mov rbx, rdi
+        mov esi, OP_MASK_SHL
+        mov edx, 5
+        call is_op_n
+        test eax, eax
+        jz 1f
+        mov edi, 3
+        lea rsi, [rbx + N_DATA + 8]
+        call all_ints
+1:      LEAVE
+ENDF is_mask_shl_ints
+
+# mk_mask_shl(size, offset, shl, val) -> ('mask_shl', size, offset, shl, val)
+FUNC mk_mask_shl
+        mov r8, rcx
+        mov rcx, rdx
+        mov rdx, rsi
+        mov rsi, rdi
+        LOADS rdi, MASK_SHL
+        jmp mk5
+ENDF mk_mask_shl
+
+# mk_mul(a, b) -> ('mul', a, b)
+FUNC mk_mul
+        mov rdx, rsi
+        mov rsi, rdi
+        LOADS rdi, MUL
+        jmp mk3
+ENDF mk_mul
+
+# alg_try_add(self, other) -> value or NIL
+FUNC alg_try_add
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call try_add_1
+        test rax, rax
+        jnz 1f
+        mov rdi, rbx
+        mov rsi, r12
+        call try_add_2
+1:      LEAVE
+ENDF alg_try_add
+
+# try_add_2(self, other): __try_add - normalizes ('mul', num, mask_shl with
+# shl > 0) then _try_add
+FUNC try_add_2
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov rdi, rbx
+        call try_add_norm
+        mov rbx, rax
+        mov rdi, r12
+        call try_add_norm
+        mov r12, rax
+        mov rdi, rbx
+        mov rsi, r12
+        call try_add_1
+        LEAVE
+ENDF try_add_2
+
+# try_add_norm(v): ('mul', num, ('mask_shl', size, off, shl > 0, val)) ->
+# ('mul', num + 2^shl, ('mask_shl', size + shl, off, 0, val))
+FUNC try_add_norm
+        ENTER
+        mov rbx, rdi
+        call is_mul_int
+        test eax, eax
+        jz .Ltn_asis
+        mov r12, [rbx + N_DATA + 16]    # the mask_shl
+        mov rdi, r12
+        call is_mask_shl_ints
+        test eax, eax
+        jz .Ltn_asis
+        mov rdi, [r12 + N_DATA + 24]    # shl
+        call int_sign
+        cmp eax, 1
+        jne .Ltn_asis
+        mov rdi, [r12 + N_DATA + 24]
+        sar rdi, 1
+        call pow2
+        mov rdi, [rbx + N_DATA + 8]
+        mov rsi, rax
+        call int_add
+        mov r13, rax                    # num + 2^shl
+        mov rdi, [r12 + N_DATA + 8]
+        mov rsi, [r12 + N_DATA + 24]
+        call int_add                    # size + shl
+        mov rdi, rax
+        mov rsi, [r12 + N_DATA + 16]
+        mov edx, 1
+        mov rcx, [r12 + N_DATA + 32]
+        call mk_mask_shl
+        mov rdi, r13
+        mov rsi, rax
+        call mk_mul
+        LEAVE
+.Ltn_asis:
+        mov rax, rbx
+        LEAVE
+ENDF try_add_norm
+
+# try_add_1(self, other): _try_add
+FUNC try_add_1
+        ENTER
+        sub rsp, 48
+        mov rbx, rdi                    # self
+        mov r12, rsi                    # other
+        call is_mul_int
+        test eax, eax
+        jz .Lta_none
+        mov rdi, r12
+        call is_mul_int
+        test eax, eax
+        jz .Lta_none
+        mov r13, [rbx + N_DATA + 16]    # self[2]
+        mov r14, [r12 + N_DATA + 16]    # other[2]
+        # case: self = mul(-1, val), other = mul(mul, mask_shl(256 - shl, 0, shl, val))
+        mov rax, -1
+        TAG rax
+        cmp [rbx + N_DATA + 8], rax
+        jne 2f
+        mov rdi, r14
+        call is_mask_shl_ints
+        test eax, eax
+        jz 2f
+        cmp qword ptr [r14 + N_DATA + 16], 1       # offset 0
+        jne 2f
+        mov rdi, [r14 + N_DATA + 32]
+        mov rsi, r13
+        call values_equal
+        test eax, eax
+        jz 2f
+        # other_size == 256 - shl
+        mov rdi, [r14 + N_DATA + 8]
+        mov rsi, [r14 + N_DATA + 24]
+        call int_add
+        cmp rax, (256 << 1) | 1
+        jne 2f
+        # mul *= 2**shl - 1 ; mul_op(mul, val)
+        mov rdi, [r14 + N_DATA + 24]
+        sar rdi, 1
+        call pow2
+        mov rdi, rax
+        mov esi, 3
+        call int_sub
+        mov rdi, [r12 + N_DATA + 8]
+        mov rsi, rax
+        call int_mul
+        mov rdi, rax
+        mov rsi, r13
+        call alg_mul2
+        add rsp, 48
+        LEAVE
+2:      # case: mul(x, exp) + mul(y, exp) -> ('mul', x + y, exp)
+        mov rdi, r13
+        mov rsi, r14
+        call values_equal
+        test eax, eax
+        jz 3f
+        mov rdi, [rbx + N_DATA + 8]
+        mov rsi, [r12 + N_DATA + 8]
+        call int_add
+        mov rdi, rax
+        mov rsi, r13
+        call mk_mul
+        add rsp, 48
+        LEAVE
+3:      # case: mul(x, mask_shl(256-y, y, shl, v)) + mul(x, mask_shl(y, 0, shl, v))
+        mov rdi, [rbx + N_DATA + 8]
+        mov rsi, [r12 + N_DATA + 8]
+        call values_equal
+        test eax, eax
+        jz 4f
+        mov rdi, r13
+        mov esi, OP_MASK_SHL
+        mov edx, 5
+        call is_op_n
+        test eax, eax
+        jz 4f
+        mov rdi, r14
+        mov esi, OP_MASK_SHL
+        mov edx, 5
+        call is_op_n
+        test eax, eax
+        jz 4f
+        mov rdi, [r13 + N_DATA + 8]
+        call is_int
+        test eax, eax
+        jz 4f
+        mov rdi, [r13 + N_DATA + 16]
+        call is_int
+        test eax, eax
+        jz 4f
+        mov rdi, [r13 + N_DATA + 8]
+        mov rsi, [r13 + N_DATA + 16]
+        call int_add
+        cmp rax, (256 << 1) | 1
+        jne 4f
+        mov rdi, [r13 + N_DATA + 16]
+        mov rsi, [r14 + N_DATA + 8]
+        call values_equal
+        test eax, eax
+        jz 4f
+        cmp qword ptr [r14 + N_DATA + 16], 1
+        jne 4f
+        mov rdi, [r13 + N_DATA + 24]
+        mov rsi, [r14 + N_DATA + 24]
+        call values_equal
+        test eax, eax
+        jz 4f
+        mov rdi, [r13 + N_DATA + 32]
+        mov rsi, [r14 + N_DATA + 32]
+        call values_equal
+        test eax, eax
+        jz 4f
+        # mul_op(self[1], mask_op(self_mask[4], 256, 0, shl=self_mask[3]))
+        mov rdi, [r13 + N_DATA + 32]
+        mov esi, (256 << 1) | 1
+        mov edx, 1
+        mov rcx, [r13 + N_DATA + 24]
+        mov r8d, 1
+        call alg_mask_op
+        mov rdi, [rbx + N_DATA + 8]
+        mov rsi, rax
+        call alg_mul2
+        add rsp, 48
+        LEAVE
+4:      # the two "mask_shl vs plain, opposite coefficients" cases
+        mov rdi, r13
+        call opcode_of
+        cmp eax, OP_MASK_SHL
+        jne 8f
+        mov rdi, r14
+        call opcode_of
+        cmp eax, OP_MASK_SHL
+        je 8f
+        mov rdi, [r12 + N_DATA + 8]
+        call int_neg
+        mov rdi, [rbx + N_DATA + 8]
+        mov rsi, rax
+        call values_equal
+        test eax, eax
+        jz 8f
+        # for y in ys
+        lea rax, [rip + try_add_ys]
+        mov [rsp], rax
+5:      mov rax, [rsp]
+        mov rax, [rax]
+        test rax, rax
+        jz 6f
+        mov [rsp + 8], rax              # y
+        # m = mask_shl(256 - y, y, 0, ('add', 2**y - 1, ('mul', 1, x)))
+        mov rdi, rax
+        call pow2
+        mov rdi, rax
+        mov esi, 3
+        call int_sub
+        mov [rsp + 16], rax             # 2^y - 1
+        mov edi, 3
+        mov rsi, r14
+        call mk_mul                     # ('mul', 1, x)
+        LOADS rdi, ADD
+        mov rsi, [rsp + 16]
+        mov rdx, rax
+        call mk3
+        mov rcx, rax
+        mov rax, [rsp + 8]
+        mov edi, 256
+        sub rdi, rax
+        TAG rdi
+        mov rsi, rax
+        TAG rsi
+        mov edx, 1
+        call mk_mask_shl
+        mov rdi, r13
+        mov rsi, rax
+        call values_equal
+        test eax, eax
+        jz 7f
+        # mul_op(self[1], sub_op(2**y, mask_op(x, size=y)))
+        mov rdi, r14
+        mov rsi, [rsp + 8]
+        TAG rsi
+        mov edx, 1
+        mov ecx, 1
+        mov r8d, 1
+        call alg_mask_op
+        mov [rsp + 16], rax
+        mov rdi, [rsp + 8]
+        call pow2
+        mov rdi, rax
+        mov rsi, [rsp + 16]
+        call alg_sub_op
+        mov rdi, [rbx + N_DATA + 8]
+        mov rsi, rax
+        call alg_mul2
+        add rsp, 48
+        LEAVE
+7:      add qword ptr [rsp], 8
+        jmp 5b
+6:      # second loop: mask_shl(256 - y, y, 0, x) and mask_shl(251 - y, y, 0, x)
+        lea rax, [rip + try_add_ys]
+        mov [rsp], rax
+9:      mov rax, [rsp]
+        mov rax, [rax]
+        test rax, rax
+        jz 8f
+        mov [rsp + 8], rax
+        mov edi, 256
+        sub rdi, rax
+        TAG rdi
+        mov rsi, rax
+        TAG rsi
+        mov edx, 1
+        mov rcx, r14
+        call mk_mask_shl
+        mov rdi, r13
+        mov rsi, rax
+        call values_equal
+        test eax, eax
+        jnz 10f
+        mov rax, [rsp + 8]
+        mov edi, 251
+        sub rdi, rax
+        TAG rdi
+        mov rsi, rax
+        TAG rsi
+        mov edx, 1
+        mov rcx, r14
+        call mk_mask_shl
+        mov rdi, r13
+        mov rsi, rax
+        call values_equal
+        test eax, eax
+        jnz 10f
+        add qword ptr [rsp], 8
+        jmp 9b
+10:     # mul_op(other[1], mask_op(x, size=y))
+        mov rdi, r14
+        mov rsi, [rsp + 8]
+        TAG rsi
+        mov edx, 1
+        mov ecx, 1
+        mov r8d, 1
+        call alg_mask_op
+        mov rdi, [r12 + N_DATA + 8]
+        mov rsi, rax
+        call alg_mul2
+        add rsp, 48
+        LEAVE
+8:      # strip ('mask_shl', 256, 0, 0, exp)
+        mov rdi, r13
+        call strip_full_mask
+        mov r13, rax
+        mov rdi, r14
+        call strip_full_mask
+        mov r14, rax
+        # num1, exp1 / num2, exp2
+        mov rdi, r13
+        mov rsi, r14
+        call values_equal
+        test eax, eax
+        jz 11f
+        mov rdi, [rbx + N_DATA + 8]
+        mov rsi, [r12 + N_DATA + 8]
+        call int_add
+        mov rdi, rax
+        mov rsi, r13
+        call alg_mul2
+        add rsp, 48
+        LEAVE
+11:     # num1 == -num2 ?
+        mov rdi, [r12 + N_DATA + 8]
+        call int_neg
+        mov rdi, [rbx + N_DATA + 8]
+        mov rsi, rax
+        call values_equal
+        test eax, eax
+        jz .Lta_none
+        # exp2 ~ mask_shl(int size, 0, 0, exp1) -> ('mul', num1, mask_shl(256 - size, size, 0, exp1))
+        mov rdi, r14
+        mov esi, OP_MASK_SHL
+        mov edx, 5
+        call is_op_n
+        test eax, eax
+        jz 12f
+        mov rdi, [r14 + N_DATA + 8]
+        call is_int
+        test eax, eax
+        jz 12f
+        cmp qword ptr [r14 + N_DATA + 16], 1
+        jne 12f
+        cmp qword ptr [r14 + N_DATA + 24], 1
+        jne 12f
+        mov rdi, [r14 + N_DATA + 32]
+        mov rsi, r13
+        call values_equal
+        test eax, eax
+        jz 12f
+        mov edi, (256 << 1) | 1
+        mov rsi, [r14 + N_DATA + 8]
+        call int_sub
+        mov rdi, rax
+        mov rsi, [r14 + N_DATA + 8]
+        mov edx, 1
+        mov rcx, r13
+        call mk_mask_shl
+        mov rdi, [rbx + N_DATA + 8]
+        mov rsi, rax
+        call mk_mul
+        add rsp, 48
+        LEAVE
+12:     # exp1 ~ mask_shl(size1, 0, 0, x), exp2 ~ mask_shl(size2, 0, 0, x), size2 < size1
+        mov rdi, r13
+        mov esi, OP_MASK_SHL
+        mov edx, 5
+        call is_op_n
+        test eax, eax
+        jz .Lta_none
+        mov rdi, r14
+        mov esi, OP_MASK_SHL
+        mov edx, 5
+        call is_op_n
+        test eax, eax
+        jz .Lta_none
+        mov rdi, [r13 + N_DATA + 8]
+        call is_int
+        test eax, eax
+        jz .Lta_none
+        mov rdi, [r14 + N_DATA + 8]
+        call is_int
+        test eax, eax
+        jz .Lta_none
+        cmp qword ptr [r13 + N_DATA + 16], 1
+        jne .Lta_none
+        cmp qword ptr [r13 + N_DATA + 24], 1
+        jne .Lta_none
+        cmp qword ptr [r14 + N_DATA + 16], 1
+        jne .Lta_none
+        cmp qword ptr [r14 + N_DATA + 24], 1
+        jne .Lta_none
+        mov rdi, [r13 + N_DATA + 32]
+        mov rsi, [r14 + N_DATA + 32]
+        call values_equal
+        test eax, eax
+        jz .Lta_none
+        mov rdi, [r14 + N_DATA + 8]
+        mov rsi, [r13 + N_DATA + 8]
+        call int_cmp
+        cmp eax, -1
+        jne .Lta_none
+        mov rdi, [r13 + N_DATA + 8]
+        mov rsi, [r14 + N_DATA + 8]
+        call int_sub
+        mov rdi, rax
+        mov esi, 1
+        mov edx, 1
+        mov rcx, [r13 + N_DATA + 32]
+        call mk_mask_shl
+        mov rdi, [rbx + N_DATA + 8]
+        mov rsi, rax
+        call mk_mul
+        add rsp, 48
+        LEAVE
+.Lta_none:
+        xor eax, eax
+        add rsp, 48
+        LEAVE
+ENDF try_add_1
+
+# strip_full_mask(v): ('mask_shl', 256, 0, 0, exp) -> exp
+FUNC strip_full_mask
+        ENTER
+        mov rbx, rdi
+        mov esi, OP_MASK_SHL
+        mov edx, 5
+        call is_op_n
+        test eax, eax
+        jz 1f
+        cmp qword ptr [rbx + N_DATA + 8], (256 << 1) | 1
+        jne 1f
+        cmp qword ptr [rbx + N_DATA + 16], 1
+        jne 1f
+        cmp qword ptr [rbx + N_DATA + 24], 1
+        jne 1f
+        mov rax, [rbx + N_DATA + 32]
+        LEAVE
+1:      mov rax, rbx
+        LEAVE
+ENDF strip_full_mask
+
+# ---------------------------------------------------------------------
+# mask_op
+
+# alg_mask_op(exp, size, offset, shl, shr) -> value, memoized
+FUNC alg_mask_op
+        ENTER
+        sub rsp, 64
+        mov [rsp], rdi                  # exp
+        mov [rsp + 8], rsi              # size
+        mov [rsp + 16], rdx             # offset
+        mov [rsp + 24], rcx             # shl
+        mov [rsp + 32], r8              # shr
+        mov rdi, rsi
+        mov esi, 1
+        call py_equal
+        test eax, eax
+        jz 1f
+        mov eax, 1
+        add rsp, 64
+        LEAVE
+1:      # key = (size, offset, shl, shr, exp)
+        mov rdi, [rsp + 8]
+        mov rsi, [rsp + 16]
+        mov rdx, [rsp + 24]
+        mov rcx, [rsp + 32]
+        mov r8, [rsp]
+        call mk5
+        mov [rsp + 40], rax
+        mov edi, MEMO_MASK
+        mov rsi, rax
+        call memo_get
+        test rax, rax
+        jz 2f
+        add rsp, 64
+        LEAVE
+2:      mov rdi, [rsp]
+        mov rsi, [rsp + 8]
+        mov rdx, [rsp + 16]
+        mov rcx, [rsp + 24]
+        mov r8, [rsp + 32]
+        call mask_op_impl
+        mov [rsp + 48], rax
+        mov edi, MEMO_MASK
+        mov rsi, [rsp + 40]
+        mov rdx, rax
+        call memo_put
+        mov rax, [rsp + 48]
+        add rsp, 64
+        LEAVE
+ENDF alg_mask_op
+
+# mask_op_impl(exp, size, offset, shl, shr) -> value
+FUNC mask_op_impl
+        ENTER
+        sub rsp, 64
+        mov rbx, rdi                    # exp
+        mov r12, rsi                    # size
+        mov r13, rdx                    # offset
+        mov [rsp + 32], r8              # shr
+        mov [rsp + 40], rcx             # shl
+        # ('div', num, 1) -> num
+        mov rdi, rbx
+        mov esi, OP_DIV
+        mov edx, 3
+        call is_op_n
+        test eax, eax
+        jz 1f
+        cmp qword ptr [rbx + N_DATA + 16], 3
+        jne 1f
+        mov rbx, [rbx + N_DATA + 8]
+1:      # shl = sub_op(shl, shr); shr = 0
+        mov rdi, [rsp + 40]
+        mov rsi, [rsp + 32]
+        call alg_sub_op
+        mov r14, rax                    # shl
+        # storage trimming
+        mov rdi, rbx
+        mov esi, OP_STORAGE
+        mov edx, 4
+        call is_op_n
+        test eax, eax
+        jz .Lmo_not_storage
+        test r14b, 1
+        jz 3f                           # symbolic shl
+        mov rax, r14
+        sar rax, 1
+        cmp rax, 0
+        jle 3f
+        cmp rax, 8
+        jl .Lmo_not_storage             # 0 < shl < 8: pass
+        # shl >= 8 and size == 256
+        cmp r12, (256 << 1) | 1
+        jne 3f
+        mov rdi, rbx
+        mov esi, (256 << 1) | 1
+        sub rsi, r14
+        inc rsi                         # tagged 256 - shl
+        mov rdx, r13
+        mov rcx, r14
+        call apply_mask_to_storage
+        test rax, rax
+        jz 3f
+        cmp rax, 1
+        je 3f                           # 0 is falsy: try the next one
+        add rsp, 64
+        LEAVE
+3:      mov rdi, rbx
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, r14
+        call apply_mask_to_storage
+        test rax, rax
+        jz .Lmo_not_storage
+        cmp rax, 1
+        je .Lmo_not_storage
+        add rsp, 64
+        LEAVE
+.Lmo_not_storage:
+        mov rdi, rbx
+        call opcode_of
+        cmp eax, OP_OR
+        jne 5f
+        # or_op(*[mask_op(e, size, offset, shl, 0) for e in exp[1:]])
+        mov eax, [rbx + N_AUX]
+        dec eax
+        mov [rsp], rax                  # n
+        lea rdi, [rax*8 + 8]
+        call arena_alloc
+        mov [rsp + 8], rax
+        xor ecx, ecx
+4:      cmp rcx, [rsp]
+        jae 6f
+        mov [rsp + 16], rcx
+        mov rdi, [rbx + N_DATA + 8 + rcx*8]
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, r14
+        mov r8d, 1
+        call alg_mask_op
+        mov rcx, [rsp + 16]
+        mov rdx, [rsp + 8]
+        mov [rdx + rcx*8], rax
+        inc rcx
+        jmp 4b
+6:      mov rdi, [rsp]
+        mov rsi, [rsp + 8]
+        call alg_or_n
+        add rsp, 64
+        LEAVE
+5:      cmp eax, OP_MASK_SHL
+        jne 7f
+        cmp dword ptr [rbx + N_AUX], 5
+        jne 7f
+        # mask_mask_op(size, offset, shl, exp_size, exp_offset, exp_shl, exp)
+        mov [rsp], r12
+        mov [rsp + 8], r13
+        mov [rsp + 16], r14
+        mov rax, [rbx + N_DATA + 8]
+        mov [rsp + 24], rax
+        mov rax, [rbx + N_DATA + 16]
+        mov [rsp + 32], rax
+        mov rax, [rbx + N_DATA + 24]
+        mov [rsp + 40], rax
+        mov rax, [rbx + N_DATA + 32]
+        mov [rsp + 48], rax
+        mov rdi, rsp
+        call mask_mask_op
+        add rsp, 64
+        LEAVE
+7:      # size symbolic or > 0: ('mask_shl', size, offset, shl, exp), else 0
+        mov rdi, r12
+        call is_int
+        test eax, eax
+        jz 8f
+        mov rdi, r12
+        call int_sign
+        cmp eax, 1
+        jne 9f
+8:      mov rdi, r12
+        mov rsi, r13
+        mov rdx, r14
+        mov rcx, rbx
+        call mk_mask_shl
+        add rsp, 64
+        LEAVE
+9:      mov eax, 1
+        add rsp, 64
+        LEAVE
+ENDF mask_op_impl
+
+# apply_mask_to_storage(exp, size, offset, shl) -> value, or NIL (python's None)
+FUNC apply_mask_to_storage
+        ENTER
+        sub rsp, 32
+        mov rbx, rdi                    # ('storage', stor_size, stor_offset, stor_idx)
+        mov r12, rsi                    # size
+        mov r13, rdx                    # offset
+        mov r14, rcx                    # shl
+        # stor_offset = add_op(stor_offset, offset)
+        mov rdi, [rbx + N_DATA + 16]
+        mov rsi, r13
+        call alg_add2
+        mov [rsp], rax
+        # stor_size = sub_op(stor_size, offset)
+        mov rdi, [rbx + N_DATA + 8]
+        mov rsi, r13
+        call alg_sub_op
+        mov [rsp + 8], rax
+        # shl = add_op(shl, offset)
+        mov rdi, r14
+        mov rsi, r13
+        call alg_add2
+        mov r14, rax
+        # if safe_lt_op(size, stor_size): stor_size = size
+        mov rdi, r12
+        mov rsi, [rsp + 8]
+        call alg_safe_lt_op
+        cmp eax, TRI_TRUE
+        jne 1f
+        mov [rsp + 8], r12
+1:      # if safe_le_op(stor_size, 0) is True: return 0
+        mov rdi, [rsp + 8]
+        mov esi, 1
+        call alg_safe_le_op
+        cmp eax, TRI_TRUE
+        jne 2f
+        mov eax, 1
+        add rsp, 32
+        LEAVE
+2:      # res = ('storage', stor_size, stor_offset, stor_idx)
+        LOADS rdi, STORAGE
+        mov rsi, [rsp + 8]
+        mov rdx, [rsp]
+        mov rcx, [rbx + N_DATA + 24]
+        call mk4
+        mov [rsp + 16], rax
+        mov rdi, r14
+        mov esi, 1
+        call py_equal
+        test eax, eax
+        jz 3f
+        mov rax, [rsp + 16]
+        add rsp, 32
+        LEAVE
+3:      # if res[1] == size and res[2] == 0: ('storage', size, -shl, stor_idx)
+        mov rdi, [rsp + 8]
+        mov rsi, r12
+        call values_equal
+        test eax, eax
+        jz 4f
+        mov rdi, [rsp]
+        mov esi, 1
+        call py_equal
+        test eax, eax
+        jz 4f
+        mov rdi, r14
+        call alg_minus_op
+        LOADS rdi, STORAGE
+        mov rsi, r12
+        mov rdx, rax
+        mov rcx, [rbx + N_DATA + 24]
+        call mk4
+        add rsp, 32
+        LEAVE
+4:      xor eax, eax
+        add rsp, 32
+        LEAVE
+ENDF apply_mask_to_storage
+
+# mask_mask_op(params): params -> size, offset, shl, exp_size, exp_offset,
+# exp_shl, exp (7 words)
+.set MM_SIZE, 0
+.set MM_OFFSET, 8
+.set MM_SHL, 16
+.set MM_ESIZE, 24
+.set MM_EOFFSET, 32
+.set MM_ESHL, 40
+.set MM_EXP, 48
+
+FUNC mask_mask_op
+        ENTER
+        mov rbx, rdi
+        mov edi, 6
+        mov rsi, rbx
+        call all_ints
+        test eax, eax
+        jz 1f
+        mov rdi, rbx
+        call strategy_concrete
+        LEAVE
+1:      # strategy_0: 0 if exp == 0
+        mov rdi, [rbx + MM_EXP]
+        mov esi, 1
+        call py_equal
+        test eax, eax
+        jz 2f
+        mov eax, 1
+        LEAVE
+2:      mov rdi, rbx
+        call strategy_1
+        test rax, rax
+        jnz 9f
+        mov rdi, rbx
+        call strategy_2
+        test rax, rax
+        jnz 9f
+        mov rdi, rbx
+        call strategy_3
+        test rax, rax
+        jnz 9f
+        # strategy_final
+        mov rdi, [rbx + MM_ESIZE]
+        mov rsi, [rbx + MM_EOFFSET]
+        mov rdx, [rbx + MM_ESHL]
+        mov rcx, [rbx + MM_EXP]
+        call mk_mask_shl
+        mov rdi, [rbx + MM_SIZE]
+        mov rsi, [rbx + MM_OFFSET]
+        mov rdx, [rbx + MM_SHL]
+        mov rcx, rax
+        call mk_mask_shl
+9:      LEAVE
+ENDF mask_mask_op
+
+# strategy_concrete(params) -> value (all small ints)
+FUNC strategy_concrete
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov rdi, [rbx + MM_OFFSET]
+        sar rdi, 1
+        mov rsi, [rbx + MM_SIZE]
+        sar rsi, 1
+        lea r12, [rdi + rsi]            # outer_left
+        mov r13, rdi                    # outer_right
+        mov rdi, [rbx + MM_EOFFSET]
+        sar rdi, 1
+        mov rsi, [rbx + MM_ESIZE]
+        sar rsi, 1
+        mov rdx, [rbx + MM_ESHL]
+        sar rdx, 1
+        lea r14, [rdi + rsi]
+        add r14, rdx                    # inner_left
+        lea rcx, [rdi + rdx]            # inner_right
+        cmp r14, rcx
+        jle .Lsc_zero
+        cmp r14, r13
+        jle .Lsc_zero
+        # left = min(outer_left, inner_left); right = max(outer_right, inner_right)
+        mov rax, r12
+        cmp r14, rax
+        cmovl rax, r14                  # left
+        mov rsi, r13
+        cmp rcx, rsi
+        cmovg rsi, rcx                  # right
+        mov rdi, rsi
+        sub rdi, rdx                    # new_offset = right - exp_shl
+        sub rax, rsi                    # new_size = left - right
+        jle .Lsc_zero
+        mov rcx, [rbx + MM_SHL]
+        sar rcx, 1
+        add rcx, rdx                    # new_shl = shl + exp_shl
+        # mask_op(exp, new_size, new_offset, new_shl, 0)
+        TAG rax
+        TAG rdi
+        TAG rcx
+        mov rsi, rax
+        mov rdx, rdi
+        mov rdi, [rbx + MM_EXP]
+        mov r8d, 1
+        call alg_mask_op
+        add rsp, 16
+        LEAVE
+.Lsc_zero:
+        mov eax, 1
+        add rsp, 16
+        LEAVE
+ENDF strategy_concrete
+
+# strategy_1(params) -> value or NIL
+FUNC strategy_1
+        ENTER
+        sub rsp, 64
+        mov rbx, rdi
+        # outer_left = add_op(offset, size); outer_right = offset
+        mov rdi, [rbx + MM_OFFSET]
+        mov rsi, [rbx + MM_SIZE]
+        call alg_add2
+        mov [rsp], rax                  # outer_left
+        # inner_left = add_op(exp_offset, exp_size, exp_shl)
+        mov rdi, [rbx + MM_EOFFSET]
+        mov rsi, [rbx + MM_ESIZE]
+        mov rdx, [rbx + MM_ESHL]
+        call alg_add3
+        mov [rsp + 8], rax              # inner_left
+        mov rdi, [rbx + MM_EOFFSET]
+        mov rsi, [rbx + MM_ESHL]
+        call alg_add2
+        mov [rsp + 16], rax             # inner_right
+        mov rdi, [rsp]
+        mov rsi, [rsp + 8]
+        call alg_safe_min_op
+        mov [rsp + 24], rax             # left (NIL if unknown)
+        mov rdi, [rbx + MM_OFFSET]
+        mov rsi, [rsp + 16]
+        call alg_safe_max_op
+        mov [rsp + 32], rax             # right
+        mov rdi, [rsp + 8]
+        mov rsi, [rsp + 16]
+        call alg_safe_le_op
+        cmp eax, TRI_TRUE
+        je .Ls1_zero
+        mov rdi, [rsp + 8]
+        mov rsi, [rbx + MM_OFFSET]
+        call alg_safe_le_op
+        cmp eax, TRI_TRUE
+        je .Ls1_zero
+        cmp qword ptr [rsp + 24], 0
+        je .Ls1_none
+        cmp qword ptr [rsp + 32], 0
+        je .Ls1_none
+        # new_offset = sub_op(right, exp_shl); new_size = sub_op(left, right); new_shl = add_op(shl, exp_shl)
+        mov rdi, [rsp + 32]
+        mov rsi, [rbx + MM_ESHL]
+        call alg_sub_op
+        mov [rsp + 40], rax             # new_offset
+        mov rdi, [rsp + 24]
+        mov rsi, [rsp + 32]
+        call alg_sub_op
+        mov [rsp + 48], rax             # new_size
+        mov rdi, [rbx + MM_SHL]
+        mov rsi, [rbx + MM_ESHL]
+        call alg_add2
+        mov [rsp + 56], rax             # new_shl
+        mov rdi, [rsp + 48]
+        call alg_safe_ge_zero
+        mov r12d, eax                   # gezero
+        mov rdi, [rsp + 48]
+        mov esi, 1
+        call py_equal
+        mov r13d, eax                   # new_size == 0
+        cmp r12d, TRI_FALSE
+        je 1f
+        test r13d, r13d
+        jnz 1f
+        mov rdi, [rbx + MM_EXP]
+        mov rsi, [rsp + 48]
+        mov rdx, [rsp + 40]
+        mov rcx, [rsp + 56]
+        mov r8d, 1
+        call alg_mask_op
+        add rsp, 64
+        LEAVE
+1:      cmp r12d, TRI_FALSE
+        je .Ls1_zero
+        test r13d, r13d
+        jnz .Ls1_zero
+.Ls1_none:
+        xor eax, eax
+        add rsp, 64
+        LEAVE
+.Ls1_zero:
+        mov eax, 1
+        add rsp, 64
+        LEAVE
+ENDF strategy_1
+
+# strategy_2: strategy_1(size, offset - exp_size, shl + exp_size, exp_size,
+#                        exp_offset, exp_shl - exp_size, exp)
+FUNC strategy_2
+        ENTER
+        sub rsp, 64
+        mov rbx, rdi
+        mov rax, [rbx + MM_SIZE]
+        mov [rsp + MM_SIZE], rax
+        mov rdi, [rbx + MM_OFFSET]
+        mov rsi, [rbx + MM_ESIZE]
+        call alg_sub_op
+        mov [rsp + MM_OFFSET], rax
+        mov rdi, [rbx + MM_SHL]
+        mov rsi, [rbx + MM_ESIZE]
+        call alg_add2
+        mov [rsp + MM_SHL], rax
+        mov rax, [rbx + MM_ESIZE]
+        mov [rsp + MM_ESIZE], rax
+        mov rax, [rbx + MM_EOFFSET]
+        mov [rsp + MM_EOFFSET], rax
+        mov rdi, [rbx + MM_ESHL]
+        mov rsi, [rbx + MM_ESIZE]
+        call alg_sub_op
+        mov [rsp + MM_ESHL], rax
+        mov rax, [rbx + MM_EXP]
+        mov [rsp + MM_EXP], rax
+        mov rdi, rsp
+        call strategy_1
+        add rsp, 64
+        LEAVE
+ENDF strategy_2
+
+# strategy_3: strategy_1(size, offset - exp_shl, shl + exp_shl, exp_size,
+#                        exp_offset, 0, exp)
+FUNC strategy_3
+        ENTER
+        sub rsp, 64
+        mov rbx, rdi
+        mov rax, [rbx + MM_SIZE]
+        mov [rsp + MM_SIZE], rax
+        mov rdi, [rbx + MM_OFFSET]
+        mov rsi, [rbx + MM_ESHL]
+        call alg_sub_op
+        mov [rsp + MM_OFFSET], rax
+        mov rdi, [rbx + MM_SHL]
+        mov rsi, [rbx + MM_ESHL]
+        call alg_add2
+        mov [rsp + MM_SHL], rax
+        mov rax, [rbx + MM_ESIZE]
+        mov [rsp + MM_ESIZE], rax
+        mov rax, [rbx + MM_EOFFSET]
+        mov [rsp + MM_EOFFSET], rax
+        mov qword ptr [rsp + MM_ESHL], 1
+        mov rax, [rbx + MM_EXP]
+        mov [rsp + MM_EXP], rax
+        mov rdi, rsp
+        call strategy_1
+        add rsp, 64
+        LEAVE
+ENDF strategy_3
+
+# alg_neg_mask_op(exp, size, offset) -> value
+FUNC alg_neg_mask_op
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        # exp1 = mask_op(exp, size=256 - (size + offset), offset=offset + size)
+        mov rdi, r12
+        mov rsi, r13
+        call alg_add2
+        mov r14, rax
+        mov edi, (256 << 1) | 1
+        mov rsi, rax
+        call alg_sub_op
+        mov rdi, rbx
+        mov rsi, rax
+        mov rdx, r14
+        mov ecx, 1
+        mov r8d, 1
+        call alg_mask_op
+        mov [rsp], rax
+        # exp2 = mask_op(exp, size=offset, offset=0)
+        mov rdi, rbx
+        mov rsi, r13
+        mov edx, 1
+        mov ecx, 1
+        mov r8d, 1
+        call alg_mask_op
+        mov rdi, [rsp]
+        mov rsi, rax
+        call alg_or2
+        add rsp, 16
+        LEAVE
+ENDF alg_neg_mask_op
+
+# alg_div_op(a, b) -> value
+FUNC alg_div_op
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        cmp r12, 3
+        jne 1f
+        mov rax, rbx
+        LEAVE
+1:      mov rdi, rbx
+        call is_int
+        mov r13d, eax                   # a is int
+        mov rdi, r12
+        call is_int
+        mov r14d, eax                   # b is int
+        test r13d, r13d
+        jnz 4f
+        test r14d, r14d
+        jz 4f
+        # b < 0: a = -a, b = -b
+        mov rdi, r12
+        call int_sign
+        cmp eax, -1
+        jne 2f
+        mov rdi, rbx
+        call alg_minus_op
+        mov rbx, rax
+        mov rdi, r12
+        call int_neg
+        mov r12, rax
+2:      mov rdi, r12
+        call to_exp2
+        cmp rax, -1
+        je 4f
+        test rax, rax
+        jz 4f
+        # mask_op(a, size=256 - p, shr=p)
+        mov rdi, rbx
+        mov esi, 256
+        sub rsi, rax
+        TAG rsi
+        mov edx, 1
+        mov ecx, 1
+        mov r8, rax
+        TAG r8
+        call alg_mask_op
+        LEAVE
+4:      test r13d, r13d
+        jz 5f
+        test r14d, r14d
+        jz 5f
+        mov rdi, rbx
+        mov rsi, r12
+        call int_floordiv
+        LEAVE
+5:      LOADS rdi, DIV
+        mov rsi, rbx
+        mov rdx, r12
+        call mk3
+        LEAVE
+ENDF alg_div_op
+
+# alg_bits(exp) = mul_op(exp, 8)
+FUNC alg_bits
+        mov esi, (8 << 1) | 1
+        jmp alg_mul2
+ENDF alg_bits
+
+# ---------------------------------------------------------------------
+# comparisons
+
+# tri_to_memo(eax) -> rax memo sentinel ; memo_to_tri(rax) -> eax
+FUNC tri_to_memo
+        mov eax, MEMO_TRUE
+        cmp edi, TRI_TRUE
+        je 1f
+        mov eax, MEMO_FALSE
+        cmp edi, TRI_FALSE
+        je 1f
+        mov eax, MEMO_NONE
+        cmp edi, TRI_NONE
+        je 1f
+        mov eax, MEMO_CANNOT
+1:      ret
+ENDF tri_to_memo
+
+FUNC memo_to_tri
+        mov eax, TRI_TRUE
+        cmp rdi, MEMO_TRUE
+        je 1f
+        mov eax, TRI_FALSE
+        cmp rdi, MEMO_FALSE
+        je 1f
+        mov eax, TRI_NONE
+        cmp rdi, MEMO_NONE
+        je 1f
         mov eax, TRI_CANNOT
+1:      ret
+ENDF memo_to_tri
+
+# contains(exp, sub) -> eax: sub occurs in exp (structurally, any depth)
+FUNC contains
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call values_equal
+        test eax, eax
+        jnz .Lct_yes
+        test bl, 1
+        jnz .Lct_no
+        test rbx, rbx
+        jz .Lct_no
+        mov eax, [rbx + N_KIND]
+        cmp eax, K_TUPLE
+        je 1f
+        cmp eax, K_LIST
+        jne .Lct_no
+1:      xor r13d, r13d
+2:      cmp r13d, [rbx + N_AUX]
+        jae .Lct_no
+        mov rdi, [rbx + N_DATA + r13*8]
+        mov rsi, r12
+        call contains
+        test eax, eax
+        jnz .Lct_yes
+        inc r13
+        jmp 2b
+.Lct_yes:
+        mov eax, 1
+        LEAVE
+.Lct_no:
+        xor eax, eax
+        LEAVE
+ENDF contains
+
+# alg_ge_zero(exp) -> eax: TRI_TRUE / TRI_FALSE / TRI_CANNOT (memoized)
+FUNC alg_ge_zero
+        ENTER
+        mov rbx, rdi
+        call is_int
+        test eax, eax
+        jz 1f
+        mov rdi, rbx
+        call int_sign
+        cmp eax, -1
+        setne al
+        movzx eax, al
+        LEAVE
+1:      mov edi, MEMO_GE_ZERO
+        mov rsi, rbx
+        call memo_get
+        test rax, rax
+        jz 2f
+        mov rdi, rax
+        call memo_to_tri
+        cmp eax, TRI_NONE
+        jne 3f
+        mov eax, TRI_CANNOT
+3:      LEAVE
+2:      mov rdi, rbx
+        call ge_zero_impl
+        mov r12d, eax
+        mov edi, eax
+        call tri_to_memo
+        mov edi, MEMO_GE_ZERO
+        mov rsi, rbx
+        mov rdx, rax
+        call memo_put
+        mov eax, r12d
+        cmp eax, TRI_NONE
+        jne 4f
+        mov eax, TRI_CANNOT
+4:      LEAVE
+ENDF alg_ge_zero
+
+# alg_safe_ge_zero(exp) -> TRI_TRUE / TRI_FALSE / TRI_NONE
+FUNC alg_safe_ge_zero
+        ENTER
+        call alg_ge_zero
+        cmp eax, TRI_CANNOT
+        jne 1f
+        mov eax, TRI_NONE
+1:      LEAVE
+ENDF alg_safe_ge_zero
+
+# ge_zero_impl(exp) -> TRI_TRUE / TRI_FALSE / TRI_NONE (None = can't compare)
+FUNC ge_zero_impl
+        ENTER
+        mov rbx, rdi
+        call is_int
+        test eax, eax
+        jz 1f
+        mov rdi, rbx
+        call int_sign
+        cmp eax, -1
+        setne al
+        movzx eax, al
+        LEAVE
+1:      test bl, 1
+        jnz .Lgz_none
+        test rbx, rbx
+        jz .Lgz_none
+        cmp dword ptr [rbx + N_KIND], K_STR
+        je .Lgz_true
+        mov rdi, rbx
+        call opcode_of
+        cmp eax, OP_MUL
+        je .Lgz_mul
+        cmp eax, OP_BOOL
+        je .Lgz_true
+        cmp eax, OP_MASK_SHL
+        je .Lgz_mask
+        cmp eax, OP_CD
+        je .Lgz_true
+        cmp eax, OP_STORAGE
+        je .Lgz_true
+        cmp eax, OP_MSIZE
+        je .Lgz_true
+        cmp eax, OP_ADD
+        je .Lgz_add
+        cmp eax, OP_OR
+        je .Lgz_or
+        cmp eax, OP_VAR
+        je .Lgz_true
+        cmp eax, OP_EXT_CALL_RETURN_DATA
+        je .Lgz_true
+        jmp .Lgz_none
+.Lgz_mul:
+        mov r12d, 1                     # counter sign
+        mov r13d, 1
+2:      cmp r13d, [rbx + N_AUX]
+        jae 3f
+        mov rdi, [rbx + N_DATA + r13*8]
+        call alg_ge_zero
+        cmp eax, TRI_CANNOT
+        je .Lgz_none
+        cmp eax, TRI_FALSE
+        jne 4f
+        neg r12d
+4:      inc r13d
+        jmp 2b
+3:      test r12d, r12d
+        jns .Lgz_true
+        jmp .Lgz_false
+.Lgz_mask:
+        cmp dword ptr [rbx + N_AUX], 5
+        jne .Lgz_none
+        mov rdi, [rbx + N_DATA + 32]
+        call alg_ge_zero
+        cmp eax, TRI_CANNOT
+        je .Lgz_none
+        LEAVE
+.Lgz_add:
+        mov rdi, rbx
+        call alg_add_ge_zero
+        LEAVE
+.Lgz_or:
+        mov r13d, 1
+5:      cmp r13d, [rbx + N_AUX]
+        jae .Lgz_true
+        mov rdi, [rbx + N_DATA + r13*8]
+        call alg_ge_zero
+        cmp eax, TRI_CANNOT
+        je .Lgz_none
+        cmp eax, TRI_FALSE
+        je .Lgz_false
+        inc r13d
+        jmp 5b
+.Lgz_true:
+        mov eax, TRI_TRUE
+        LEAVE
+.Lgz_false:
+        mov eax, TRI_FALSE
+        LEAVE
+.Lgz_none:
+        mov eax, TRI_NONE
+        LEAVE
+ENDF ge_zero_impl
+
+# is_array_op(id) -> eax: helpers.is_array
+FUNC is_array_op
+        xor eax, eax
+        cmp edi, OP_CALL_DATA
+        je 1f
+        cmp edi, OP_EXT_CALL_RETURN_DATA
+        je 1f
+        cmp edi, OP_DELEGATE_RETURN_DATA
+        je 1f
+        cmp edi, OP_CALLCODE_RETURN_DATA
+        je 1f
+        cmp edi, OP_CODE_DATA
+        je 1f
         ret
+1:      mov eax, 1
+        ret
+ENDF is_array_op
+
+# extract_variables(exp, vec): appends the "variables" of exp to vec
+# (first occurrence order, no duplicates) - variants.extract_variables
+FUNC extract_variables
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call is_int
+        test eax, eax
+        jnz .Lxv_done
+        test bl, 1
+        jnz .Lxv_done
+        test rbx, rbx
+        jz .Lxv_done
+        mov eax, [rbx + N_KIND]
+        cmp eax, K_TUPLE
+        jne .Lxv_leaf                   # strings, specials, lists: a variable
+        mov rdi, rbx
+        call opcode_of
+        cmp eax, OP_VAR
+        je .Lxv_leaf
+        cmp eax, OP_MEM
+        je .Lxv_leaf
+        cmp eax, OP_CD
+        je .Lxv_leaf
+        cmp eax, OP_STORAGE
+        je .Lxv_leaf
+        cmp eax, OP_CALL_DATA
+        je .Lxv_leaf
+        cmp eax, OP_SHA3
+        je .Lxv_leaf
+        cmp eax, OP_CALLDATASIZE
+        je .Lxv_leaf
+        mov edi, eax
+        call is_array_op
+        test eax, eax
+        jnz .Lxv_leaf
+        # the elements, except the head
+        mov r13d, 1
+1:      cmp r13d, [rbx + N_AUX]
+        jae .Lxv_done
+        mov rdi, [rbx + N_DATA + r13*8]
+        mov rsi, r12
+        call extract_variables
+        inc r13d
+        jmp 1b
+.Lxv_leaf:
+        # python builds a set: skip duplicates
+        xor r13d, r13d
+2:      cmp r13, [r12 + VEC_LEN]
+        jae 3f
+        mov rax, [r12 + VEC_DATA]
+        mov rdi, [rax + r13*8]
+        mov rsi, rbx
+        call values_equal
+        test eax, eax
+        jnz .Lxv_done
+        inc r13
+        jmp 2b
+3:      mov rdi, r12
+        mov rsi, rbx
+        call vec_push
+.Lxv_done:
+        LEAVE
+ENDF extract_variables
+
+# replace(exp, what, by) -> value: structural replacement at any depth
+FUNC replace
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        call values_equal
+        test eax, eax
+        jz 1f
+        mov rax, r13
+        LEAVE
+1:      test bl, 1
+        jnz .Lrp_asis
+        test rbx, rbx
+        jz .Lrp_asis
+        mov eax, [rbx + N_KIND]
+        cmp eax, K_TUPLE
+        je 2f
+        cmp eax, K_LIST
+        jne .Lrp_asis
+2:      mov r14d, [rbx + N_AUX]
+        test r14, r14
+        jz .Lrp_asis
+        lea rax, [r14*8 + 15]
+        and rax, -16
+        sub rsp, rax
+        xor ecx, ecx
+3:      cmp rcx, r14
+        jae 4f
+        push rcx
+        push rcx
+        mov rdi, [rbx + N_DATA + rcx*8]
+        mov rsi, r12
+        mov rdx, r13
+        call replace
+        pop rcx
+        pop rcx
+        mov [rsp + rcx*8], rax
+        inc rcx
+        jmp 3b
+4:      mov edi, [rbx + N_KIND]
+        mov rsi, r14
+        mov rdx, rsp
+        call mk_seq
+        LEAVE_DYN
+.Lrp_asis:
+        mov rax, rbx
+        LEAVE
+ENDF replace
+
+        .section .rodata
+        .align 8
+# 2^230 - 1 as a decimal string (variants.MAX_number)
+max_number_str: .asciz "1725436586697640946858688965569256363112777243042596638790631055949823"
+        .section .bss
+        .align 8
+max_number_value: .quad 0       # the value, made on the global context
+        .text
+
+# alg_max_number() -> rax: variants.MAX_number
+FUNC alg_max_number
+        mov rax, [rip + max_number_value]
+        test rax, rax
+        jz 1f
+        ret
+1:      ENTER
+        push r15
+        push r15
+        call ctx_current
+        mov rbx, rax                    # the binding to restore
+        mov r15, [rip + global_ctx]
+        mov rdi, r15
+        call ctx_bind                   # GMP allocates on the bound context
+        lea rdi, [r15 + CTX_MPZ_R]
+        lea rsi, [rip + max_number_str]
+        mov edx, 10
+        call __gmpz_set_str@PLT
+        call arith_result
+        mov [rip + max_number_value], rax
+        mov rdi, rbx
+        call ctx_bind
+        pop r15
+        pop r15
+        LEAVE
+ENDF alg_max_number
+
+# is_mem64(v) -> eax: v == ('mem', ('range', 64, 32))
+FUNC is_mem64
+        ENTER
+        mov rbx, rdi
+        LOADS rdi, RANGE
+        mov esi, (64 << 1) | 1
+        mov edx, (32 << 1) | 1
+        call mk3
+        LOADS rdi, MEM
+        mov rsi, rax
+        call mk2
+        mov rdi, rbx
+        mov rsi, rax
+        call values_equal
+        LEAVE
+ENDF is_mem64
+
+# alg_add_ge_zero(exp) -> TRI_TRUE / TRI_FALSE / TRI_NONE (memoized)
+FUNC alg_add_ge_zero
+        ENTER
+        mov rbx, rdi
+        mov edi, MEMO_ADD_GE_ZERO
+        mov rsi, rbx
+        call memo_get
+        test rax, rax
+        jz 1f
+        mov rdi, rax
+        call memo_to_tri
+        LEAVE
+1:      mov rdi, rbx
+        call add_ge_zero_impl
+        mov r12d, eax
+        mov edi, eax
+        call tri_to_memo
+        mov edi, MEMO_ADD_GE_ZERO
+        mov rsi, rbx
+        mov rdx, rax
+        call memo_put
+        mov eax, r12d
+        LEAVE
+ENDF alg_add_ge_zero
+
+FUNC add_ge_zero_impl
+        ENTER
+        sub rsp, 48
+        mov rdi, rdi
+        call alg_simplify
+        mov rbx, rax
+        mov rdi, rbx
+        call is_int
+        test eax, eax
+        jz 1f
+        mov rdi, rbx
+        call int_sign
+        cmp eax, -1
+        setne al
+        movzx eax, al
+        add rsp, 48
+        LEAVE
+1:      call vec_new
+        mov r12, rax                    # the variables
+        mov rdi, rbx
+        mov rsi, r12
+        call extract_variables
+        mov r13, [r12 + VEC_LEN]
+        cmp r13, 7
+        ja .Lagz_none
+        # no variable at all: python iterates over no variant and says True
+        test r13, r13
+        jz .Lagz_true
+        # (variants.possibilities also yields, when ('mem', ('range', 64, 32))
+        # isn't the last variable of the set, a variant where only it is
+        # substituted; the set order depends on python's hash seed, so that
+        # behaviour isn't reproducible and isn't reproduced)
+        # enumerate the 2^n variants (MAX_number or the special value per var)
+        mov qword ptr [rsp], 0          # seen_neg
+        mov qword ptr [rsp + 8], 0      # seen_nonneg
+        mov qword ptr [rsp + 16], 0     # the current combination (bit k: special)
+        mov rax, 1
+        mov rcx, r13
+        shl rax, cl
+        mov [rsp + 24], rax             # number of combinations
+4:      mov rax, [rsp + 16]
+        cmp rax, [rsp + 24]
+        jae 9f
+        # build the variant
+        mov r14, rbx
+        xor ecx, ecx
+5:      cmp rcx, r13
+        jae 7f
+        mov [rsp + 32], rcx
+        mov rax, [r12 + VEC_DATA]
+        mov rdi, [rax + rcx*8]          # the variable
+        mov rax, [rsp + 16]
+        bt rax, rcx
+        jc 6f
+        call alg_max_number
+        mov rdx, rax
+        jmp 8f
+6:      # the special value: 96 for mem[64], 6 for calldatasize, else 0
+        mov [rsp + 40], rdi
+        call is_mem64
+        mov edx, (96 << 1) | 1
+        test eax, eax
+        jnz 8f
+        mov rdi, [rsp + 40]
+        LOADS rsi, CALLDATASIZE
+        mov edx, (6 << 1) | 1
+        cmp rdi, rsi
+        je 8f
+        mov edx, 1
+8:      mov rcx, [rsp + 32]
+        mov rax, [r12 + VEC_DATA]
+        mov rsi, [rax + rcx*8]
+        mov rdi, r14
+        call replace
+        mov r14, rax
+        mov rcx, [rsp + 32]
+        inc rcx
+        jmp 5b
+7:      # v = simplify(calc_max(variant))
+        mov rdi, r14
+        call alg_calc_max
+        mov rdi, rax
+        call alg_simplify
+        mov rdi, rax
+        mov r14, rax
+        call is_int
+        test eax, eax
+        jz .Lagz_none
+        mov rdi, r14
+        call int_sign
+        cmp eax, -1
+        je 10f
+        mov qword ptr [rsp + 8], 1
+        jmp 11f
+10:     mov qword ptr [rsp], 1
+11:     cmp qword ptr [rsp], 0
+        je 12f
+        cmp qword ptr [rsp + 8], 0
+        jne .Lagz_none
+12:     inc qword ptr [rsp + 16]
+        jmp 4b
+9:      cmp qword ptr [rsp], 0
+        jne 13f
+.Lagz_true:
+        mov eax, TRI_TRUE
+        add rsp, 48
+        LEAVE
+13:     mov eax, TRI_FALSE
+        add rsp, 48
+        LEAVE
+.Lagz_none:
+        mov eax, TRI_NONE
+        add rsp, 48
+        LEAVE
+ENDF add_ge_zero_impl
+
+# alg_calc_max(exp) -> value
+FUNC alg_calc_max
+        ENTER
+        mov rbx, rdi
+        call is_tuple
+        test eax, eax
+        jz .Lcmx_asis
+        mov r12d, [rbx + N_AUX]
+        test r12, r12
+        jz .Lcmx_asis
+        lea rax, [r12*8 + 8 + 15]       # the elements + one slot for the max
+        and rax, -16
+        sub rsp, rax
+        mov r13, rsp
+        mov rax, [rbx + N_DATA]
+        mov [r13], rax
+        mov r14d, 1
+1:      cmp r14, r12
+        jae 2f
+        mov rdi, [rbx + N_DATA + r14*8]
+        call alg_calc_max
+        mov [r13 + r14*8], rax
+        inc r14
+        jmp 1b
+2:      mov rdi, rbx
+        call opcode_of
+        cmp eax, OP_MAX
+        jne 4f
+        # m = -(2^256), then the max of the terms as long as they are ints
+        mov edi, 256
+        call pow2
+        mov rdi, rax
+        call int_neg
+        mov [r13 + r12*8], rax
+        mov r14d, 1
+3:      cmp r14, r12
+        jae 5f
+        mov rdi, [r13 + r14*8]
+        call is_int
+        test eax, eax
+        jz 4f
+        mov rdi, [r13 + r12*8]
+        mov rsi, [r13 + r14*8]
+        call int_cmp
+        cmp eax, -1
+        jne 6f
+        mov rax, [r13 + r14*8]
+        mov [r13 + r12*8], rax
+6:      inc r14
+        jmp 3b
+5:      mov rax, [r13 + r12*8]
+        LEAVE_DYN
+4:      mov rdi, r12
+        mov rsi, r13
+        call mk_tuple
+        LEAVE_DYN
+.Lcmx_asis:
+        mov rax, rbx
+        LEAVE
+ENDF alg_calc_max
+
+# ---------------------------------------------------------------------
+# simplify / max
+
+# alg_simplify(exp) -> value (memoized)
+FUNC alg_simplify
+        ENTER
+        mov rbx, rdi
+        call is_tuple
+        test eax, eax
+        jz .Lsi0_asis
+        mov edi, MEMO_SIMPLIFY
+        mov rsi, rbx
+        call memo_get
+        test rax, rax
+        jz 1f
+        LEAVE
+1:      mov rdi, rbx
+        call simplify_impl
+        mov r12, rax
+        mov edi, MEMO_SIMPLIFY
+        mov rsi, rbx
+        mov rdx, rax
+        call memo_put
+        mov rax, r12
+        LEAVE
+.Lsi0_asis:
+        mov rax, rbx
+        LEAVE
+ENDF alg_simplify
+
+FUNC simplify_impl
+        ENTER
+        sub rsp, 48
+        mov rbx, rdi
+        mov rdi, rbx
+        call opcode_of
+        mov r12d, eax
+        cmp eax, OP_MAX
+        je .Lsi_max
+        cmp eax, OP_MASK_SHL
+        je .Lsi_mask
+        cmp eax, OP_ADD
+        je .Lsi_add
+        cmp eax, OP_MUL
+        je .Lsi_mul
+        mov rax, rbx
+        add rsp, 48
+        LEAVE
+.Lsi_max:
+        # els = [simplify(e)]; res = -(2^256); res = max_op(res, e) for each,
+        # falling back to ('max',) + els on CannotCompare
+        mov r13d, [rbx + N_AUX]
+        lea rdi, [r13*8]
+        call arena_alloc
+        mov r14, rax
+        mov rax, [rbx + N_DATA]
+        mov [r14], rax
+        mov qword ptr [rsp], 1
+1:      mov rcx, [rsp]
+        cmp rcx, r13
+        jae 2f
+        mov rdi, [rbx + N_DATA + rcx*8]
+        call alg_simplify
+        mov rcx, [rsp]
+        mov [r14 + rcx*8], rax
+        inc rcx
+        mov [rsp], rcx
+        jmp 1b
+2:      mov edi, 256
+        call pow2
+        mov rdi, rax
+        call int_neg
+        mov [rsp + 8], rax              # res
+        mov qword ptr [rsp], 1
+3:      mov rcx, [rsp]
+        cmp rcx, r13
+        jae 4f
+        mov rdi, [rsp + 8]
+        mov rsi, [r14 + rcx*8]
+        call alg_max_op
+        test rax, rax
+        jz 5f
+        mov [rsp + 8], rax
+        inc qword ptr [rsp]
+        jmp 3b
+4:      mov rax, [rsp + 8]
+        add rsp, 48
+        LEAVE
+5:      mov rdi, r13
+        mov rsi, r14
+        call mk_tuple
+        add rsp, 48
+        LEAVE
+.Lsi_mask:
+        cmp dword ptr [rbx + N_AUX], 5
+        jne .Lsi_asis
+        mov rdi, [rbx + N_DATA + 8]
+        call alg_simplify
+        mov [rsp], rax                  # size
+        mov rdi, [rbx + N_DATA + 16]
+        call alg_simplify
+        mov [rsp + 8], rax              # offset
+        mov rdi, [rbx + N_DATA + 24]
+        call alg_simplify
+        mov [rsp + 16], rax             # shl
+        mov rdi, [rbx + N_DATA + 32]
+        call alg_simplify
+        mov [rsp + 24], rax             # val
+        mov edi, 4
+        mov rsi, rsp
+        call all_ints
+        test eax, eax
+        jz 6f
+        mov rdi, [rsp + 24]
+        mov rsi, [rsp]
+        mov rdx, [rsp + 8]
+        mov rcx, [rsp + 16]
+        call alg_apply_mask
+        add rsp, 48
+        LEAVE
+6:      cmp qword ptr [rsp], (256 << 1) | 1
+        jne .Lsi_asis
+        cmp qword ptr [rsp + 8], 1
+        jne .Lsi_asis
+        cmp qword ptr [rsp + 16], 1
+        jne .Lsi_asis
+        mov rax, [rsp + 24]
+        add rsp, 48
+        LEAVE
+.Lsi_add:
+        mov qword ptr [rsp], 1          # res = 0
+        mov r13d, 1
+7:      cmp r13d, [rbx + N_AUX]
+        jae 8f
+        mov rdi, [rbx + N_DATA + r13*8]
+        call alg_simplify
+        mov rdi, [rsp]
+        mov rsi, rax
+        call alg_add2
+        mov [rsp], rax
+        inc r13d
+        jmp 7b
+8:      mov rax, [rsp]
+        add rsp, 48
+        LEAVE
+.Lsi_mul:
+        mov qword ptr [rsp], 3          # res = 1
+        mov r13d, 1
+9:      cmp r13d, [rbx + N_AUX]
+        jae 10f
+        mov rdi, [rbx + N_DATA + r13*8]
+        call alg_simplify
+        mov rdi, [rsp]
+        mov rsi, rax
+        call alg_mul2
+        mov [rsp], rax
+        inc r13d
+        jmp 9b
+10:     mov rax, [rsp]
+        add rsp, 48
+        LEAVE
+.Lsi_asis:
+        mov rax, rbx
+        add rsp, 48
+        LEAVE
+ENDF simplify_impl
+
+# alg_simplify_max(exp) -> value: flattens nested max
+FUNC alg_simplify_max
+        ENTER
+        mov rbx, rdi
+        call opcode_of
+        cmp eax, OP_MAX
+        jne .Lsm_asis
+        call vec_new
+        mov r12, rax
+        mov rdi, r12
+        LOADS rsi, MAX
+        call vec_push
+        mov r13d, 1
+1:      cmp r13d, [rbx + N_AUX]
+        jae 2f
+        mov r14, [rbx + N_DATA + r13*8]
+        mov rdi, r14
+        call opcode_of
+        cmp eax, OP_MAX
+        jne 3f
+        mov rdi, r12
+        mov edx, [r14 + N_AUX]
+        dec edx
+        lea rsi, [r14 + N_DATA + 8]
+        call vec_extend
+        jmp 4f
+3:      mov rdi, r12
+        mov rsi, r14
+        call vec_push
+4:      inc r13d
+        jmp 1b
+2:      mov rdi, r12
+        call vec_to_tuple
+        LEAVE
+.Lsm_asis:
+        mov rax, rbx
+        LEAVE
+ENDF alg_simplify_max
+
+# alg_max_to_add(exp) -> value
+FUNC alg_max_to_add
+        ENTER
+        sub rsp, 48
+        mov rbx, rdi
+        call opcode_of
+        cmp eax, OP_MAX
+        jne .Lmta_asis
+        mov r12d, [rbx + N_AUX]
+        dec r12d                        # number of terms
+        lea r13, [rbx + N_DATA + 8]     # the terms
+        # every term must be an add or an int
+        xor r14d, r14d
+1:      cmp r14, r12
+        jae 2f
+        mov rdi, [r13 + r14*8]
+        call opcode_of
+        cmp eax, OP_ADD
+        je 3f
+        mov rdi, [r13 + r14*8]
+        call is_int
+        test eax, eax
+        jnz 3f
+        mov rdi, rbx
+        call alg_simplify_max
+        add rsp, 48
+        LEAVE
+3:      inc r14
+        jmp 1b
+2:      # an int term e: m = min over terms of (x if int else x[1] if int else 0)
+        xor r14d, r14d
+4:      cmp r14, r12
+        jae 10f
+        mov rdi, [r13 + r14*8]
+        call is_int
+        test eax, eax
+        jz 5f
+        mov [rsp], r14                  # index of e
+        # m
+        mov qword ptr [rsp + 8], 0
+        xor ecx, ecx
+6:      cmp rcx, r12
+        jae 9f
+        mov [rsp + 16], rcx
+        mov rdi, [r13 + rcx*8]
+        call term_leading_int
+        mov rcx, [rsp + 16]
+        cmp qword ptr [rsp + 8], 0
+        je 7f
+        mov rdi, rax
+        mov [rsp + 24], rax
+        mov rsi, [rsp + 8]
+        call int_cmp
+        cmp eax, -1
+        mov rax, [rsp + 24]
+        jne 8f
+7:      mov [rsp + 8], rax
+8:      mov rcx, [rsp + 16]
+        inc rcx
+        jmp 6b
+9:      # res = ('max', e - m, sub_op(e2, m) for the other terms) ; ('add', m, res)
+        call vec_new
+        mov [rsp + 16], rax
+        mov rdi, rax
+        LOADS rsi, MAX
+        call vec_push
+        mov rcx, [rsp]
+        mov rdi, [r13 + rcx*8]
+        mov rsi, [rsp + 8]
+        call int_sub
+        mov rdi, [rsp + 16]
+        mov rsi, rax
+        call vec_push
+        xor ecx, ecx
+11:     cmp rcx, r12
+        jae 12f
+        cmp rcx, [rsp]
+        je 13f
+        mov [rsp + 24], rcx
+        mov rdi, [r13 + rcx*8]
+        mov rsi, [rsp + 8]
+        call alg_sub_op
+        mov rdi, [rsp + 16]
+        mov rsi, rax
+        call vec_push
+        mov rcx, [rsp + 24]
+13:     inc rcx
+        jmp 11b
+12:     mov rdi, [rsp + 16]
+        call vec_to_tuple
+        LOADS rdi, ADD
+        mov rsi, [rsp + 8]
+        mov rdx, rax
+        call mk3
+        add rsp, 48
+        LEAVE
+5:      inc r14
+        jmp 4b
+10:     # all terms are adds: m = min of the e[1] (0 if one isn't an int)
+        mov edi, 1
+        call ten_pow_20
+        mov [rsp], rax                  # m
+        xor r14d, r14d
+14:     cmp r14, r12
+        jae 16f
+        mov rax, [r13 + r14*8]
+        mov rdi, [rax + N_DATA + 8]
+        call is_int
+        test eax, eax
+        jnz 15f
+        mov qword ptr [rsp], 1
+        jmp 16f
+15:     mov rax, [r13 + r14*8]
+        mov rdi, [rax + N_DATA + 8]
+        mov [rsp + 8], rdi
+        mov rsi, [rsp]
+        call int_cmp
+        cmp eax, -1
+        jne 17f
+        mov rax, [rsp + 8]
+        mov [rsp], rax
+17:     inc r14
+        jmp 14b
+16:     # common = [f for f in first if all(f in e[1:] for e in exp[1:])]
+        call vec_new
+        mov [rsp + 8], rax              # common
+        mov rax, [r13]                  # first
+        mov qword ptr [rsp + 16], 0     # index into first (all its elements, head included)
+18:     mov rax, [r13]
+        mov rcx, [rsp + 16]
+        cmp ecx, [rax + N_AUX]
+        jae 22f
+        mov rdi, [rax + N_DATA + rcx*8] # f
+        mov [rsp + 24], rdi
+        mov r14d, 1
+19:     cmp r14, r12
+        jae 21f
+        mov rax, [r13 + r14*8]          # e
+        mov rdi, [rsp + 24]
+        mov rsi, rax
+        call term_in_tail
+        test eax, eax
+        jz 20f
+        inc r14
+        jmp 19b
+21:     mov rdi, [rsp + 8]
+        mov rsi, [rsp + 24]
+        call vec_push
+20:     inc qword ptr [rsp + 16]
+        jmp 18b
+22:     # a = add_op(m, *common) if common else m
+        mov rax, [rsp + 8]
+        cmp qword ptr [rax + VEC_LEN], 0
+        je 23f
+        call vec_new
+        mov [rsp + 16], rax
+        mov rdi, rax
+        mov rsi, [rsp]
+        call vec_push
+        mov rax, [rsp + 8]
+        mov rdi, [rsp + 16]
+        mov rsi, [rax + VEC_DATA]
+        mov rdx, [rax + VEC_LEN]
+        call vec_extend
+        mov rax, [rsp + 16]
+        mov rdi, [rax + VEC_LEN]
+        mov rsi, [rax + VEC_DATA]
+        call alg_add_n
+        mov [rsp], rax                  # a
+23:     # res = [sub_op(e, a) for e in exp]
+        call vec_new
+        mov [rsp + 8], rax
+        mov rdi, rax
+        LOADS rsi, MAX
+        call vec_push
+        xor r14d, r14d
+24:     cmp r14, r12
+        jae 25f
+        mov rdi, [r13 + r14*8]
+        mov rsi, [rsp]
+        call alg_sub_op
+        mov rdi, [rsp + 8]
+        mov rsi, rax
+        call vec_push
+        inc r14
+        jmp 24b
+25:     mov rdi, [rsp + 8]
+        call vec_to_tuple
+        mov rdi, rax
+        call alg_simplify_max
+        mov [rsp + 8], rax
+        # ('add',) + prefix + (max,) ; prefix = (a,) if int else a[1:]
+        call vec_new
+        mov [rsp + 16], rax
+        mov rdi, rax
+        LOADS rsi, ADD
+        call vec_push
+        mov rdi, [rsp]
+        call is_int
+        test eax, eax
+        jz 26f
+        mov rdi, [rsp + 16]
+        mov rsi, [rsp]
+        call vec_push
+        jmp 27f
+26:     mov rax, [rsp]
+        mov rdi, [rsp + 16]
+        mov edx, [rax + N_AUX]
+        dec edx
+        lea rsi, [rax + N_DATA + 8]
+        call vec_extend
+27:     mov rdi, [rsp + 16]
+        mov rsi, [rsp + 8]
+        call vec_push
+        mov rdi, [rsp + 16]
+        call vec_to_tuple
+        add rsp, 48
+        LEAVE
+.Lmta_asis:
+        mov rax, rbx
+        add rsp, 48
+        LEAVE
+ENDF alg_max_to_add
+
+# term_leading_int(x) -> value: x if int, x[1] if a tuple of len > 1 with an
+# int there, else 0
+FUNC term_leading_int
+        ENTER
+        mov rbx, rdi
+        call is_int
+        test eax, eax
+        jz 1f
+        mov rax, rbx
+        LEAVE
+1:      mov rdi, rbx
+        call is_tuple
+        test eax, eax
+        jz 2f
+        cmp dword ptr [rbx + N_AUX], 2
+        jb 2f
+        mov rdi, [rbx + N_DATA + 8]
+        call is_int
+        test eax, eax
+        jz 2f
+        mov rax, [rbx + N_DATA + 8]
+        LEAVE
+2:      mov eax, 1
+        LEAVE
+ENDF term_leading_int
+
+# term_in_tail(f, e) -> eax: f in e[1:]
+FUNC term_in_tail
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13d, 1
+1:      cmp r13d, [r12 + N_AUX]
+        jae 2f
+        mov rdi, rbx
+        mov rsi, [r12 + N_DATA + r13*8]
+        call py_equal
+        test eax, eax
+        jnz 3f
+        inc r13d
+        jmp 1b
+2:      xor eax, eax
+        LEAVE
+3:      mov eax, 1
+        LEAVE
+ENDF term_in_tail
+
+# ten_pow_20() -> value: 10**20
+FUNC ten_pow_20
+        ENTER
+        lea rdi, [r15 + CTX_MPZ_R]
+        mov esi, 10
+        mov edx, 20
+        call __gmpz_ui_pow_ui@PLT
+        call arith_result
+        LEAVE
+ENDF ten_pow_20
+
+# alg_get_sign(exp) -> eax: -1, 0, 1, TRI_NONE (2^30 for none), TRI_CANNOT
+FUNC alg_get_sign
+        ENTER
+        mov rbx, rdi
+        mov esi, 1
+        call py_equal
+        test eax, eax
+        jz 1f
+        xor eax, eax
+        LEAVE
+1:      mov rdi, rbx
+        mov esi, 3
+        call alg_sub_op
+        mov rdi, rax
+        call alg_ge_zero
+        cmp eax, TRI_CANNOT
+        je 3f
+        cmp eax, TRI_TRUE
+        jne 2f
+        mov eax, 1
+        LEAVE
+2:      mov rdi, rbx
+        call alg_ge_zero
+        cmp eax, TRI_CANNOT
+        je 3f
+        cmp eax, TRI_FALSE
+        jne 4f
+        mov eax, -1
+        LEAVE
+4:      mov eax, SIGN_NONE
+        LEAVE
+3:      mov eax, TRI_CANNOT
+        LEAVE
+ENDF alg_get_sign
+
+# alg_lt_op(left, right) -> TRI_TRUE / TRI_FALSE / TRI_NONE / TRI_CANNOT (memoized)
+FUNC alg_lt_op
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call is_int
+        test eax, eax
+        jz 1f
+        mov rdi, r12
+        call is_int
+        test eax, eax
+        jz 1f
+        mov rdi, rbx
+        mov rsi, r12
+        call int_cmp
+        cmp eax, -1
+        sete al
+        movzx eax, al
+        LEAVE
+1:      mov rdi, rbx
+        mov rsi, r12
+        call mk2
+        mov r13, rax
+        mov edi, MEMO_LT
+        mov rsi, rax
+        call memo_get
+        test rax, rax
+        jz 2f
+        mov rdi, rax
+        call memo_to_tri
+        LEAVE
+2:      mov rdi, rbx
+        mov rsi, r12
+        call lt_op_impl
+        mov r14d, eax
+        mov edi, eax
+        call tri_to_memo
+        mov edi, MEMO_LT
+        mov rsi, r13
+        mov rdx, rax
+        call memo_put
+        mov eax, r14d
+        LEAVE
+ENDF alg_lt_op
+
+# add_max_terms(v): ('add', int num, ('max', ...)) -> ('max', add_op(t, num)...)
+# or v unchanged
+FUNC add_max_terms
+        ENTER
+        mov rbx, rdi
+        mov esi, OP_ADD
+        mov edx, 3
+        call is_op_n
+        test eax, eax
+        jz .Lamt_asis
+        mov rdi, [rbx + N_DATA + 8]
+        call is_int
+        test eax, eax
+        jz .Lamt_asis
+        mov r12, [rbx + N_DATA + 16]
+        mov rdi, r12
+        call opcode_of
+        cmp eax, OP_MAX
+        jne .Lamt_asis
+        call vec_new
+        mov r13, rax
+        mov rdi, r13
+        LOADS rsi, MAX
+        call vec_push
+        mov r14d, 1
+1:      cmp r14d, [r12 + N_AUX]
+        jae 2f
+        mov rdi, [r12 + N_DATA + r14*8]
+        mov rsi, [rbx + N_DATA + 8]
+        call alg_add2
+        mov rdi, r13
+        mov rsi, rax
+        call vec_push
+        inc r14d
+        jmp 1b
+2:      mov rdi, r13
+        call vec_to_tuple
+        LEAVE
+.Lamt_asis:
+        mov rax, rbx
+        LEAVE
+ENDF add_max_terms
+
+# is_add_int_var(v) -> eax: v ~ ('add', int, ('var', any)) ; is_add_any_var
+FUNC is_add_int_var
+        ENTER
+        mov rbx, rdi
+        call is_add_any_var
+        test eax, eax
+        jz 1f
+        mov rdi, [rbx + N_DATA + 8]
+        call is_int
+1:      LEAVE
+ENDF is_add_int_var
+
+FUNC is_add_any_var
+        ENTER
+        mov rbx, rdi
+        mov esi, OP_ADD
+        mov edx, 3
+        call is_op_n
+        test eax, eax
+        jz 1f
+        mov rdi, [rbx + N_DATA + 16]
+        mov esi, OP_VAR
+        mov edx, 2
+        call is_op_n
+1:      LEAVE
+ENDF is_add_any_var
+
+FUNC lt_op_impl
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov rdi, rbx
+        call add_max_terms
+        mov rbx, rax
+        mov rdi, r12
+        call add_max_terms
+        mov r12, rax
+        mov rdi, r12
+        call opcode_of
+        cmp eax, OP_MAX
+        jne 1f
+        xchg rbx, r12
+1:      mov rdi, rbx
+        call opcode_of
+        cmp eax, OP_MAX
+        jne .Llt_addvar
+        # all the terms < right: True; any False: False; else None. Every
+        # term is evaluated first (a CannotCompare anywhere wins), as in the
+        # python list comprehension.
+        mov r13d, 1
+        xor r14d, r14d                  # bit 0: some None, bit 1: some False
+2:      cmp r13d, [rbx + N_AUX]
+        jae 4f
+        mov rdi, [rbx + N_DATA + r13*8]
+        mov rsi, r12
+        call alg_lt_op
+        cmp eax, TRI_CANNOT
+        je .Llt_cannot
+        cmp eax, TRI_FALSE
+        jne 3f
+        or r14d, 2
+3:      cmp eax, TRI_NONE
+        jne 5f
+        or r14d, 1
+5:      inc r13d
+        jmp 2b
+4:      test r14d, 2
+        jnz .Llt_false
+        test r14d, 1
+        jnz .Llt_none
+        jmp .Llt_true
+.Llt_addvar:
+        # ('add', _, ('var', a)) vs ('add', _, ('var', b)) with a != b: can't
+        mov rdi, rbx
+        call is_add_any_var
+        test eax, eax
+        jz 6f
+        mov rdi, r12
+        call is_add_any_var
+        test eax, eax
+        jz 6f
+        mov rax, [rbx + N_DATA + 16]
+        mov rdi, [rax + N_DATA + 8]
+        mov rax, [r12 + N_DATA + 16]
+        mov rsi, [rax + N_DATA + 8]
+        call values_equal
+        test eax, eax
+        jz .Llt_cannot
+6:      # a var on one side must appear on the other
+        mov rdi, rbx
+        mov esi, OP_VAR
+        mov edx, 2
+        call is_op_n
+        test eax, eax
+        jz 7f
+        mov rdi, r12
+        mov rsi, rbx
+        call contains
+        test eax, eax
+        jz .Llt_cannot
+7:      mov rdi, r12
+        mov esi, OP_VAR
+        mov edx, 2
+        call is_op_n
+        test eax, eax
+        jz 8f
+        mov rdi, rbx
+        mov rsi, r12
+        call contains
+        test eax, eax
+        jz .Llt_cannot
+8:      # int vs ('add', int num, var)
+        mov rdi, r12
+        call is_int
+        test eax, eax
+        jz 9f
+        mov rdi, rbx
+        call is_add_int_var
+        test eax, eax
+        jz 9f
+        mov rdi, r12
+        mov rsi, [rbx + N_DATA + 8]
+        call int_cmp
+        cmp eax, -1
+        je .Llt_cannot
+        jmp .Llt_false
+9:      mov rdi, rbx
+        call is_int
+        test eax, eax
+        jz 10f
+        mov rdi, r12
+        call is_add_int_var
+        test eax, eax
+        jz 10f
+        mov rdi, rbx
+        mov rsi, [r12 + N_DATA + 8]
+        call int_cmp
+        cmp eax, -1
+        je .Llt_true
+        jmp .Llt_cannot
+10:     # lt2: sign of right - left
+        mov rdi, r12
+        mov rsi, rbx
+        call alg_sub_op
+        mov rdi, rax
+        call alg_get_sign
+        cmp eax, TRI_CANNOT
+        je .Llt_cannot
+        cmp eax, SIGN_NONE
+        je .Llt_cannot
+        cmp eax, 1
+        je .Llt_true
+        jmp .Llt_false
+.Llt_true:
+        mov eax, TRI_TRUE
+        LEAVE
+.Llt_false:
+        mov eax, TRI_FALSE
+        LEAVE
+.Llt_none:
+        mov eax, TRI_NONE
+        LEAVE
+.Llt_cannot:
+        mov eax, TRI_CANNOT
+        LEAVE
+ENDF lt_op_impl
+
+FUNC alg_safe_lt_op
+        ENTER
+        call alg_lt_op
+        cmp eax, TRI_CANNOT
+        jne 1f
+        mov eax, TRI_NONE
+1:      LEAVE
+ENDF alg_safe_lt_op
+
+# alg_le_op(left, right) -> tri (memoized)
+FUNC alg_le_op
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call mk2
+        mov r13, rax
+        mov edi, MEMO_LE
+        mov rsi, rax
+        call memo_get
+        test rax, rax
+        jz 1f
+        mov rdi, rax
+        call memo_to_tri
+        LEAVE
+1:      mov rdi, rbx
+        mov rsi, r12
+        call le_op_impl
+        mov r14d, eax
+        mov edi, eax
+        call tri_to_memo
+        mov edi, MEMO_LE
+        mov rsi, r13
+        mov rdx, rax
+        call memo_put
+        mov eax, r14d
+        LEAVE
 ENDF alg_le_op
 
-FUNC alg_lt_op
-        mov eax, TRI_CANNOT
-        ret
-ENDF alg_lt_op
+FUNC le_op_impl
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov rdi, rbx
+        call alg_max_to_add
+        mov rbx, rax
+        mov rdi, r12
+        call alg_max_to_add
+        mov r12, rax
+        mov rdi, rbx
+        call is_int
+        test eax, eax
+        jz 1f
+        mov rdi, r12
+        call is_int
+        test eax, eax
+        jz 1f
+        mov rdi, rbx
+        mov rsi, r12
+        call int_cmp
+        cmp eax, 1
+        setne al
+        movzx eax, al
+        LEAVE
+1:      mov rdi, r12
+        mov rsi, rbx
+        call alg_sub_op
+        mov rdi, rax
+        call alg_ge_zero
+        LEAVE
+ENDF le_op_impl
+
+FUNC alg_safe_le_op
+        ENTER
+        call alg_le_op
+        cmp eax, TRI_CANNOT
+        jne 1f
+        mov eax, TRI_NONE
+1:      LEAVE
+ENDF alg_safe_le_op
+
+# alg_max_op(left, right) -> value, or NIL for CannotCompare
+FUNC alg_max_op
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call alg_le_op
+        cmp eax, TRI_CANNOT
+        je 1f
+        test eax, eax
+        jz 2f
+        mov rax, r12
+        LEAVE
+2:      mov rax, rbx
+        LEAVE
+1:      mov rdi, r12
+        mov rsi, rbx
+        call alg_le_op
+        cmp eax, TRI_CANNOT
+        je 3f
+        test eax, eax
+        jz 4f
+        mov rax, rbx
+        LEAVE
+4:      mov rax, r12
+        LEAVE
+3:      xor eax, eax
+        LEAVE
+ENDF alg_max_op
+
+FUNC alg_safe_max_op
+        jmp alg_max_op
+ENDF alg_safe_max_op
+
+# alg_min_op(left, right) -> value, or NIL
+FUNC alg_min_op
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call alg_le_op
+        cmp eax, TRI_CANNOT
+        je 1f
+        test eax, eax
+        jz 2f
+        mov rax, rbx
+        LEAVE
+2:      mov rax, r12
+        LEAVE
+1:      mov rdi, r12
+        mov rsi, rbx
+        call alg_le_op
+        cmp eax, TRI_CANNOT
+        je 3f
+        test eax, eax
+        jz 4f
+        mov rax, r12
+        LEAVE
+4:      mov rax, rbx
+        LEAVE
+3:      xor eax, eax
+        LEAVE
+ENDF alg_min_op
+
+FUNC alg_safe_min_op
+        jmp alg_min_op
+ENDF alg_safe_min_op
+
+# alg_max_op2(base, what) -> value: algebra._max_op (may yield ('max', ...))
+FUNC alg_max_op2
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call opcode_of
+        cmp eax, OP_MAX
+        je 1f
+        mov rdi, r12
+        mov rsi, rbx
+        call alg_safe_lt_op
+        cmp eax, TRI_TRUE
+        jne 2f
+        mov rax, rbx
+        LEAVE
+2:      cmp eax, TRI_FALSE
+        jne 3f
+        mov rax, r12
+        LEAVE
+3:      LOADS rdi, MAX
+        mov rsi, rbx
+        mov rdx, r12
+        call mk3
+        LEAVE
+1:      call vec_new
+        mov r13, rax
+        mov r14d, 1
+4:      cmp r14d, [rbx + N_AUX]
+        jae 7f
+        mov rdi, r12
+        mov rsi, [rbx + N_DATA + r14*8]
+        call alg_safe_lt_op
+        cmp eax, TRI_TRUE
+        jne 5f
+        mov rax, rbx
+        LEAVE
+5:      cmp eax, TRI_FALSE
+        jne 6f
+        mov rdi, r13
+        mov rsi, r12
+        call vec_push
+        jmp 8f
+6:      mov rdi, r13
+        mov rsi, [rbx + N_DATA + r14*8]
+        call vec_push
+8:      inc r14d
+        jmp 4b
+7:      mov rdi, r13
+        mov rsi, r12
+        call vec_push
+        # res = tuple(set(res)) - dedupe (keeping the first occurrences)
+        mov rdi, r13
+        call vec_dedupe
+        mov rax, [r13 + VEC_LEN]
+        cmp rax, 1
+        jne 9f
+        mov rax, [r13 + VEC_DATA]
+        mov rax, [rax]
+        LEAVE
+9:      call vec_new
+        mov r14, rax
+        mov rdi, r14
+        LOADS rsi, MAX
+        call vec_push
+        mov rdi, r14
+        mov rsi, [r13 + VEC_DATA]
+        mov rdx, [r13 + VEC_LEN]
+        call vec_extend
+        mov rdi, r14
+        call vec_to_tuple
+        LEAVE
+ENDF alg_max_op2
+
+# vec_dedupe(vec): removes later duplicates (py_equal), in place
+FUNC vec_dedupe
+        ENTER
+        mov rbx, rdi
+        xor r12d, r12d                  # write index
+        xor r13d, r13d                  # read index
+1:      cmp r13, [rbx + VEC_LEN]
+        jae 5f
+        mov rax, [rbx + VEC_DATA]
+        mov r14, [rax + r13*8]
+        xor ecx, ecx
+2:      cmp rcx, r12
+        jae 4f
+        push rcx
+        push rcx
+        mov rax, [rbx + VEC_DATA]
+        mov rdi, [rax + rcx*8]
+        mov rsi, r14
+        call py_equal
+        pop rcx
+        pop rcx
+        test eax, eax
+        jnz 3f
+        inc rcx
+        jmp 2b
+4:      mov rax, [rbx + VEC_DATA]
+        mov [rax + r12*8], r14
+        inc r12
+3:      inc r13
+        jmp 1b
+5:      mov [rbx + VEC_LEN], r12
+        LEAVE
+ENDF vec_dedupe
 
         .section .note.GNU-stack,"",@progbits

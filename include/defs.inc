@@ -73,6 +73,7 @@
 .set CTX_TMPZ, CTX_MPZ_A    # used by mk_int_i64/u64/bytes_be and the parser
 .set CTX_TMPZ2, CTX_MPZ_T   # used by value_mpz
 .set CTX_LOADER, 160
+# 168..231: memo tables (see CTX_MEMO)
 .set CTX_SIZE, 256
 
 .set ARENA_CHUNK_DEFAULT, 0x400000     # 4 MiB
@@ -191,3 +192,28 @@
 .set TRI_FALSE, 0
 .set TRI_NONE, -1
 .set TRI_CANNOT, -2
+
+# hash map (rt_map.s)
+.set MAP_ENTRIES, 0
+.set MAP_CAP, 8
+.set MAP_COUNT, 16
+.set MAP_SIZEOF, 24
+
+# memo tables in the context (created lazily by memo_table)
+.set CTX_MEMO, 168          # 8 slots
+.set MEMO_SIMPLIFY, 0
+.set MEMO_GE_ZERO, 1
+.set MEMO_LT, 2
+.set MEMO_LE, 3
+.set MEMO_MASK, 4
+.set MEMO_ADD, 5
+.set MEMO_TO_MASK, 6
+.set MEMO_ADD_GE_ZERO, 7
+.set MEMO_COUNT, 8
+# sentinel values stored in memo tables for python's None / False (values
+# and pointers are never 2 or 4)
+.set MEMO_NONE, 2
+.set MEMO_FALSE, 4
+.set MEMO_TRUE, 6
+.set MEMO_CANNOT, 8
+.set SIGN_NONE, 0x40000000     # get_sign: unknown (python None)
