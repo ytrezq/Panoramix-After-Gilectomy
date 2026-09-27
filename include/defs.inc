@@ -209,7 +209,8 @@
 .set MEMO_ADD, 5
 .set MEMO_TO_MASK, 6
 .set MEMO_ADD_GE_ZERO, 7
-.set MEMO_COUNT, 8
+.set MEMO_STACK_SIMPLIFY, 8
+.set MEMO_COUNT, 9
 # sentinel values stored in memo tables for python's None / False (values
 # and pointers are never 2 or 4)
 .set MEMO_NONE, 2

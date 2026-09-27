@@ -51,6 +51,7 @@ FUNC hash_seq
         jae 2f
         mov rdi, [r13 + r14*8]
         call value_hash
+        mov rdi, rax
         xor rdi, rbx
         movabs rcx, 0x9e3779b97f4a7c15
         add rdi, rcx

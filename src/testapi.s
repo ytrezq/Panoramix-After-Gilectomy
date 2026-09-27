@@ -33,6 +33,11 @@ test_table:
         .quad .Ln_min_op, tf_min_op
         .quad .Ln_get_sign, tf_get_sign
         .quad .Ln_to_exp2, tf_to_exp2
+        .quad .Ln_to_mask, tf_to_mask
+        .quad .Ln_to_neg_mask, tf_to_neg_mask
+        .quad .Ln_stack_simplify, stack_simplify
+        .quad .Ln_stack_cleanup, tf_stack_cleanup
+        .quad .Ln_fold_stacks, tf_fold_stacks
         .quad 0, 0
 
         .section .rodata
@@ -61,6 +66,11 @@ test_table:
 .Ln_min_op:    .asciz "min_op"
 .Ln_get_sign:  .asciz "get_sign"
 .Ln_to_exp2:   .asciz "to_exp2"
+.Ln_to_mask:   .asciz "to_mask"
+.Ln_to_neg_mask: .asciz "to_neg_mask"
+.Ln_stack_simplify: .asciz "stack_simplify"
+.Ln_stack_cleanup: .asciz "stack_cleanup"
+.Ln_fold_stacks: .asciz "fold_stacks"
 .Ls_unknown_fn: .asciz "<unknown test function>"
 .Ls_parse_err:  .asciz "<parse error at %u>"
 
@@ -263,6 +273,64 @@ FUNC tf_to_exp2
 1:      lea rax, [rip + sp_none]
         LEAVE
 ENDF tf_to_exp2
+
+# to_mask(v) / to_neg_mask(v) -> (size, offset) or None
+FUNC tf_to_mask
+        ENTER
+        call to_mask
+        jmp tf_pair_or_none
+ENDF tf_to_mask
+
+FUNC tf_to_neg_mask
+        ENTER
+        call to_neg_mask
+        jmp tf_pair_or_none
+ENDF tf_to_neg_mask
+
+# (entered with the frame of the caller above)
+FUNC tf_pair_or_none
+        test rax, rax
+        jz 1f
+        mov rdi, rax
+        mov rsi, rdx
+        call mk2
+        LEAVE
+1:      lea rax, [rip + sp_none]
+        LEAVE
+ENDF tf_pair_or_none
+
+# stack_cleanup(elements) -> the cleaned up stack, as a tuple
+FUNC tf_stack_cleanup
+        ENTER
+        mov rbx, rdi
+        call vec_new
+        mov r12, rax
+        mov rdi, rax
+        mov rsi, rbx
+        call vec_extend_seq
+        mov rdi, r12
+        call stack_cleanup
+        mov rdi, r12
+        call vec_to_tuple
+        LEAVE
+ENDF tf_stack_cleanup
+
+# fold_stacks((first, second, depth)) -> (folded, vars)
+FUNC tf_fold_stacks
+        ENTER
+        sub rsp, 16
+        mov rdx, [rdi + N_DATA + 16]
+        sar rdx, 1
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        mov rcx, rsp
+        call fold_stacks
+        mov rdi, rax
+        mov rsi, [rsp]
+        call mk2
+        add rsp, 16
+        LEAVE
+ENDF tf_fold_stacks
 
 # pan_test(name, text, len, &out, &outlen) -> int
 FUNC pan_test

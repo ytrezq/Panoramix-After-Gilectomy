@@ -2211,6 +2211,9 @@ FUNC alg_div_op
         mov rdi, r12
         call int_neg
         mov r12, rax
+        mov rdi, rbx
+        call is_int
+        mov r13d, eax                   # -a may have folded to an int
 2:      mov rdi, r12
         call to_exp2
         cmp rax, -1
