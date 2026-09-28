@@ -248,13 +248,46 @@ FUNC find_nodes
         ENTER
         sub rsp, 16
         mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        call vec_new
+        mov [rsp], rax
+        mov rdi, rbx
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, rax
+        call find_nodes_into
+        mov rax, [rsp]
+        add rsp, 16
+        LEAVE
+ENDF find_nodes
+
+# find_nodes_into(root, pred, arg, out): find_nodes' nodes appended to
+# the vec out. The stack of the walk is the VM's, reused: python's lists
+# are garbage when the call returns, the arena's would stay (the rounds
+# of a long VM run called it thousands of times over thousands of nodes)
+FUNC find_nodes_into
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
         mov r12, rsi                    # pred
         mov r13, rdx                    # arg
+        mov [rsp], rcx                  # out
+        mov rax, [r15 + CTX_VM]
+        test rax, rax
+        jz 5f
+        mov r14, [rax + VM_SCR_VISIT]
+        test r14, r14
+        jnz 6f
         call vec_new
-        mov [rsp], rax                  # result
-        call vec_new
+        mov r14, rax
+        mov rax, [r15 + CTX_VM]
+        mov [rax + VM_SCR_VISIT], r14
+6:      mov qword ptr [r14 + VEC_LEN], 0
+        jmp 7f
+5:      call vec_new
         mov r14, rax                    # to_visit
-        mov rdi, r14
+7:      mov rdi, r14
         mov rsi, rbx
         call vec_push
 1:      mov rdi, r14
@@ -273,7 +306,6 @@ FUNC find_nodes
 2:      # to_visit.extend(reversed(n.next))
         mov rax, [rbx + ND_NEXT]
         mov rcx, [rax + VEC_LEN]
-        mov rdx, [rax + VEC_DATA]
         mov [rsp + 8], rcx
 3:      mov rcx, [rsp + 8]
         test rcx, rcx
@@ -286,10 +318,9 @@ FUNC find_nodes
         mov rdi, r14
         call vec_push
         jmp 3b
-4:      mov rax, [rsp]
-        add rsp, 16
+4:      add rsp, 16
         LEAVE
-ENDF find_nodes
+ENDF find_nodes_into
 
 # the predicates
 FUNC pred_unexpanded

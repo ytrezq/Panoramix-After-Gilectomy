@@ -5,8 +5,11 @@ repository's .venv), one contract per call.
 
     PYTHONPATH=../panoramix ../panoramix/.venv/bin/python tests/gen_json_expected.py FILE.hex OUT.pickle
 """
-import sys, pickle, logging
+import os, sys, pickle, logging
 sys.setrecursionlimit(10000)
+# python's time limits scaled as for the references of the corpus: pypy
+# is slower than the port, which doesn't hit them
+os.environ.setdefault("PANORAMIX_TIMEOUT", "20")
 from panoramix.decompiler import decompile_bytecode
 
 code = open(sys.argv[1]).read().strip()

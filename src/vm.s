@@ -535,41 +535,10 @@ FUNC vm_merge_branches
         mov r12, rax                    # unexpanded
         cmp qword ptr [r12 + VEC_LEN], 0
         je .Lmb_done
-        # by_jd: jd -> vec of the nodes there
-        call map_new
-        mov r13, rax
+        # by_jd: the nodes by jd, in find_nodes' order
         mov rdi, rbx
-        lea rsi, [rip + pred_any]
-        xor edx, edx
-        call find_nodes
-        mov r14, rax
-        xor ecx, ecx
-1:      cmp rcx, [r14 + VEC_LEN]
-        jae 2f
-        mov [rsp], rcx
-        mov rax, [r14 + VEC_DATA]
-        mov rax, [rax + rcx*8]
-        mov [rsp + 8], rax
-        mov rdi, r13
-        mov rsi, [rax + ND_JD]
-        call map_get
-        test rax, rax
-        jnz 3f
-        call vec_new
-        mov [rsp + 16], rax
-        mov rdi, r13
-        mov rax, [rsp + 8]
-        mov rsi, [rax + ND_JD]
-        mov rdx, [rsp + 16]
-        call map_put
-        mov rax, [rsp + 16]
-3:      mov rdi, rax
-        mov rsi, [rsp + 8]
-        call vec_push
-        mov rcx, [rsp]
-        inc rcx
-        jmp 1b
-2:      call map_new
+        call mb_by_jd
+        call map_new
         mov r14, rax                    # tried: (p, jd) pairs
         mov qword ptr [rsp], 0          # index into unexpanded
 .Lmb_next:
@@ -581,26 +550,37 @@ FUNC vm_merge_branches
         mov rbx, [rax + rcx*8]          # node
         cmp qword ptr [rbx + ND_TRACE], 0
         jne .Lmb_next                   # merged into another node during this pass
-        mov rdi, r13
+        mov rax, [r15 + CTX_VM]
+        mov rdi, [rax + VM_SCR_BYJD]
         mov rsi, [rbx + ND_JD]
-        call map_get
-        mov [rsp + 8], rax              # the nodes at this jd
-        cmp qword ptr [rax + VEC_LEN], 2
-        jb .Lmb_next                    # nothing to merge with
+        call emap_get                   # its group + 1
+        test rax, rax
+        jz .Lmb_next
+        mov rcx, [r15 + CTX_VM]
+        mov rcx, [rcx + VM_SCR_HEADS]
+        mov rcx, [rcx + VEC_DATA]
+        shl rax, 4
+        mov rdx, [rcx + rax - 16]       # the group's first
+        cmp rdx, [rcx + rax - 8]
+        je .Lmb_next                    # nothing to merge with (itself only)
+        mov [rsp + 8], rdx              # the next other to try
         mov rax, [rbx + ND_JD]
         mov rdi, [rax + N_DATA]
         call vm_ends_execution
         test eax, eax
         jnz .Lmb_next                   # no point (e.g. a shared revert block)
-        mov qword ptr [rsp + 16], 0     # index into the others
 .Lmb_other:
-        mov rcx, [rsp + 16]
-        mov rax, [rsp + 8]
-        cmp rcx, [rax + VEC_LEN]
-        jae .Lmb_next
-        inc qword ptr [rsp + 16]
-        mov rax, [rax + VEC_DATA]
-        mov rsi, [rax + rcx*8]          # other
+        mov rcx, [rsp + 8]
+        cmp rcx, -1
+        je .Lmb_next
+        mov rax, [r15 + CTX_VM]
+        mov rdx, [rax + VM_SCR_NEXT]
+        mov rdx, [rdx + VEC_DATA]
+        mov rdx, [rdx + rcx*8]
+        mov [rsp + 8], rdx              # (the one after it)
+        mov rdx, [rax + VM_SCR_ALL]
+        mov rdx, [rdx + VEC_DATA]
+        mov rsi, [rdx + rcx*8]          # other
         cmp rsi, rbx
         je .Lmb_other
         # the paths to node and other diverged at their closest common
@@ -637,6 +617,82 @@ FUNC vm_merge_branches
         add rsp, 48
         LEAVE
 ENDF vm_merge_branches
+
+# mb_by_jd(root): merge_branches' by_jd, in the VM's scratch (reused at
+# every round: python's dict of lists is garbage when the call returns,
+# the arena's would stay - GBs over the rounds of a long run): the nodes
+# below root in VM_SCR_ALL (find_nodes' order), jd -> its group + 1 in
+# VM_SCR_BYJD, the groups' (first, last) indexes into ALL in
+# VM_SCR_HEADS, the next index in the same group (-1 after the last) in
+# VM_SCR_NEXT
+FUNC mb_by_jd
+        ENTER
+        mov rbx, [r15 + CTX_VM]
+        mov r12, rdi
+        cmp qword ptr [rbx + VM_SCR_ALL], 0
+        jne 1f
+        call vec_new
+        mov [rbx + VM_SCR_ALL], rax
+        call vec_new
+        mov [rbx + VM_SCR_NEXT], rax
+        call vec_new
+        mov [rbx + VM_SCR_HEADS], rax
+        call emap_new
+        mov [rbx + VM_SCR_BYJD], rax
+1:      mov rax, [rbx + VM_SCR_ALL]
+        mov qword ptr [rax + VEC_LEN], 0
+        mov rax, [rbx + VM_SCR_NEXT]
+        mov qword ptr [rax + VEC_LEN], 0
+        mov rax, [rbx + VM_SCR_HEADS]
+        mov qword ptr [rax + VEC_LEN], 0
+        mov rdi, [rbx + VM_SCR_BYJD]
+        call emap_begin
+        mov rdi, r12
+        lea rsi, [rip + pred_any]
+        xor edx, edx
+        mov rcx, [rbx + VM_SCR_ALL]
+        call find_nodes_into
+        xor r13d, r13d                  # i
+2:      mov rax, [rbx + VM_SCR_ALL]
+        cmp r13, [rax + VEC_LEN]
+        jae 9f
+        mov rdi, [rbx + VM_SCR_NEXT]
+        mov rsi, -1
+        call vec_push                   # next[i] = -1
+        mov rax, [rbx + VM_SCR_ALL]
+        mov rax, [rax + VEC_DATA]
+        mov rax, [rax + r13*8]
+        mov r14, [rax + ND_JD]
+        mov rdi, [rbx + VM_SCR_BYJD]
+        mov rsi, r14
+        call emap_get
+        test rax, rax
+        jnz 3f
+        mov rdi, [rbx + VM_SCR_HEADS]   # a new group: (i, i)
+        mov rsi, r13
+        call vec_push
+        mov rdi, [rbx + VM_SCR_HEADS]
+        mov rsi, r13
+        call vec_push
+        mov rax, [rbx + VM_SCR_HEADS]
+        mov rdx, [rax + VEC_LEN]
+        shr rdx, 1                      # its number + 1
+        mov rdi, [rbx + VM_SCR_BYJD]
+        mov rsi, r14
+        call emap_put
+        jmp 4f
+3:      mov rcx, [rbx + VM_SCR_HEADS]   # after the group's last
+        mov rcx, [rcx + VEC_DATA]
+        shl rax, 4
+        mov rdx, [rcx + rax - 8]        # the last
+        mov [rcx + rax - 8], r13
+        mov rax, [rbx + VM_SCR_NEXT]
+        mov rax, [rax + VEC_DATA]
+        mov [rax + rdx*8], r13
+4:      inc r13
+        jmp 2b
+9:      LEAVE
+ENDF mb_by_jd
 
 # is_terminal_op(id) -> eax: the line ends the execution (or is a goto)
         OPSET_FUNC is_terminal_op, terminal

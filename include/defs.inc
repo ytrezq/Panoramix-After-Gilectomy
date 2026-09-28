@@ -483,7 +483,12 @@ ENDF \fname
 .set VM_NODE_COUNT, 48
 .set VM_TIME_START, 56      # CLOCK_MONOTONIC nanoseconds
 .set VM_TIMEOUT, 64         # nanoseconds, 0 = none
-.set VM_SIZEOF, 80
+.set VM_SCR_VISIT, 72       # find_nodes' stack (a vec, reused; 0 until needed)
+.set VM_SCR_ALL, 80         # merge_branches' scratch, reused at every round: the nodes,
+.set VM_SCR_NEXT, 88        #   the next index at the same jd (-1: the last),
+.set VM_SCR_HEADS, 96       #   the (first, last) index of each jd,
+.set VM_SCR_BYJD, 104       #   jd -> its group + 1 (an emap)
+.set VM_SIZEOF, 112
 
 .set MAX_NODE_COUNT, 5000
 .set MAX_EXP_SIZE, 150
