@@ -30,6 +30,7 @@ FUNC rt_init
         lea rsi, [rip + gmp_realloc]
         lea rdx, [rip + gmp_free]
         call __gmp_set_memory_functions@PLT
+        call simd_init
         call str_init
         call opcodes_init
         # the global context: bound while the constants get made, and left

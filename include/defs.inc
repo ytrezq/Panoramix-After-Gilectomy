@@ -115,7 +115,7 @@
 .set E_INDEX, 7
 
 .set ARENA_CHUNK_DEFAULT, 0x400000     # 4 MiB
-.set COMPACT_THRESHOLD, 0x4000000      # 64 MiB of arena: simplify_trace compacts
+.set COMPACT_THRESHOLD, 0x10000000      # 256 MiB of arena: simplify_trace compacts
 
 # arena chunk header
 .set CHUNK_NEXT, 0

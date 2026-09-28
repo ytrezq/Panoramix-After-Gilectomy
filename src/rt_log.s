@@ -76,7 +76,8 @@ FUNC log_init
         test eax, eax
         jnz 2f
         mov qword ptr [rip + log_level], LOG_ERROR
-2:      LEAVE
+2:      call simd_log                   # (chosen before the level was known)
+        LEAVE
 ENDF log_init
 
 # log_enabled(level) -> eax

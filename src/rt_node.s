@@ -40,15 +40,27 @@ ENDF value_hash
 # flags (HF_*) of the elements. A node's hash is read from it, a small
 # int is mixed inline, and the chain is finalized once (Murmur3's
 # finalizer): the elements are hashed in a few instructions each, which
-# matters as every tuple and list goes through here.
+# matters as every tuple and list goes through here. A long sequence
+# goes to the vector loop of the machine (rt_simd.s), when it has one.
 FUNC hash_seq
+        cmp rsi, [rip + hash_seq_vec_min]
+        jae 9f
         movabs rax, 0x9e3779b97f4a7c15
         imul rax, rdi
         xor rax, rsi                    # (kind, count)
+        xor edi, edi                    # no flags yet
+        xor ecx, ecx                    # from the first element
+        jmp hash_seq_tail
+9:      jmp [rip + hash_seq_vec]
+ENDF hash_seq
+
+# hash_seq_tail(rax: the hash so far, rdi: the flags so far, rcx: the
+# first element left, rsi: count, rdx: elems) -> rax: the scalar loop
+# over the elements left, then the finalizer
+FUNC hash_seq_tail
         movabs r9, 0xc4ceb9fe1a85ec53
-        xor r10d, r10d                  # the flags
+        mov r10, rdi                    # the flags
         mov r11, HF_MASK
-        xor ecx, ecx
 1:      cmp rcx, rsi
         jae 4f
         mov rdi, [rdx + rcx*8]
@@ -85,7 +97,7 @@ FUNC hash_seq
         and rax, r11
         or rax, r10
         ret
-ENDF hash_seq
+ENDF hash_seq_tail
 
 # values_equal(a, b) -> eax 0/1. Pointer equality, except big ints which
 # are compared by value.
