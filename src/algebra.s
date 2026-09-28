@@ -591,10 +591,25 @@ FUNC alg_mul2
         sub rsp, 16
         mov [rsp], rdi
         mov [rsp + 8], rsi
+        # memoized (a pure function of the two; the minus_op of a sum
+        # distributes over its terms, and comes back for the same ones)
+        mov edi, MEMO_MUL2
+        mov rsi, [rsp]
+        mov rdx, [rsp + 8]
+        call memo2_get
+        test rax, rax
+        jnz 1f
         mov edi, 2
         mov rsi, rsp
         call alg_mul_n
-        add rsp, 16
+        mov rbx, rax
+        mov edi, MEMO_MUL2
+        mov rsi, [rsp]
+        mov rdx, [rsp + 8]
+        mov rcx, rax
+        call memo2_put
+        mov rax, rbx
+1:      add rsp, 16
         LEAVE
 ENDF alg_mul2
 
@@ -2614,10 +2629,34 @@ ENDF memo_to_tri
 
 # contains(exp, sub) -> eax: sub occurs in exp (structurally, any depth)
 FUNC contains
+        # the mention flags of sub (a string's, or a tuple's: the or of
+        # its elements'): a tuple without all of them in its own can't
+        # hold it
+        xor edx, edx
+        test sil, 1
+        jnz contains_f
+        test rsi, rsi
+        jz contains_f
+        mov eax, [rsi + N_KIND]
+        cmp eax, K_STR
+        je 1f
+        cmp eax, K_TUPLE
+        je 1f
+        cmp eax, K_LIST
+        jne contains_f
+1:      mov rdx, [rsi + N_HASH]
+        mov rax, HF_MASK
+        and rdx, rax
+        jmp contains_f
+ENDF contains
+
+# contains_f(exp, sub, flags)
+FUNC contains_f
         STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
+        mov r14, rdx
         call values_equal
         test eax, eax
         jnz .Lct_yes
@@ -2630,12 +2669,17 @@ FUNC contains
         je 1f
         cmp eax, K_LIST
         jne .Lct_no
-1:      xor r13d, r13d
+1:      mov rax, [rbx + N_HASH]
+        and rax, r14
+        cmp rax, r14
+        jne .Lct_no
+        xor r13d, r13d
 2:      cmp r13d, [rbx + N_AUX]
         jae .Lct_no
         mov rdi, [rbx + N_DATA + r13*8]
         mov rsi, r12
-        call contains
+        mov rdx, r14
+        call contains_f
         test eax, eax
         jnz .Lct_yes
         inc r13
@@ -2646,7 +2690,7 @@ FUNC contains
 .Lct_no:
         xor eax, eax
         LEAVE
-ENDF contains
+ENDF contains_f
 
 # alg_ge_zero(exp) -> eax: TRI_TRUE / TRI_FALSE / TRI_CANNOT (memoized)
 FUNC alg_ge_zero

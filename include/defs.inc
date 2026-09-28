@@ -412,7 +412,8 @@ ENDF \fname
 .set MEMO_IMPORT, 15        # value_import: a VM node -> its copy here
 .set MEMO_LINE_VARS, 16     # a line -> the ('var', ...) in it (cleanup_vars' required_after)
 .set MEMO_TRY_ADD, 17       # (self, other) -> try_add's result (sp_none for None)
-.set MEMO_COUNT, 18
+.set MEMO_MUL2, 18          # (a, b) -> mul_op(a, b)
+.set MEMO_COUNT, 19
 # sentinel values stored in memo tables for python's None / False (values
 # and pointers are never 2 or 4)
 .set MEMO_NONE, 2
