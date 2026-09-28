@@ -1334,10 +1334,86 @@ ENDF map_seq_with
 
 # --- variables cleanup ---
 
+# The `required_after` of cleanup_vars: the variables that what follows a
+# branch or a loop may still use. Python concatenates lists of every
+# occurrence and searches them (`("var", idx) in required_after`) - here a
+# chain of hash maps, one per level (`req_new`), searched by `req_has`.
+.set RQ_MAP, 0
+.set RQ_PARENT, 8
+.set RQ_SIZEOF, 16
+
+# req_new(parent, trace) -> req: the parent's variables plus the ones the
+# trace mentions (required_after + find_op_list(trace, "var"))
+FUNC req_new
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov edi, RQ_SIZEOF
+        call arena_alloc
+        mov r13, rax
+        mov [r13 + RQ_PARENT], rbx
+        call map_new
+        mov [r13 + RQ_MAP], rax
+        call vec_new
+        mov r14, rax
+        mov rdi, r12
+        mov esi, OP_VAR
+        mov rdx, r14
+        call find_op_list
+        mov rbx, [r14 + VEC_LEN]
+1:      test rbx, rbx
+        jz 2f
+        dec rbx
+        mov rax, [r14 + VEC_DATA]
+        mov rsi, [rax + rbx*8]
+        mov rdi, [r13 + RQ_MAP]
+        mov edx, 2                      # (any non-zero value)
+        call map_put
+        jmp 1b
+2:      mov rax, r13
+        LEAVE
+ENDF req_new
+
+# req_has(req, var) -> eax: the variable is required after
+FUNC req_has
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+1:      test rbx, rbx
+        jz 2f
+        mov rdi, [rbx + RQ_MAP]
+        mov rsi, r12
+        call map_get
+        test rax, rax
+        jnz 3f
+        mov rbx, [rbx + RQ_PARENT]
+        jmp 1b
+2:      xor eax, eax
+        LEAVE
+3:      mov eax, 1
+        LEAVE
+ENDF req_has
+
+# req_from_list(list) -> req: the tests' required_after, a list of variables
+FUNC req_from_list
+        ENTER
+        mov rbx, rdi
+        test rbx, rbx
+        jz 1f
+        cmp dword ptr [rbx + N_AUX], 0
+        je 1f
+        xor edi, edi
+        mov rsi, rbx
+        call req_new                    # (find_op_list finds the variables of the list)
+        LEAVE
+1:      xor eax, eax
+        LEAVE
+ENDF req_from_list
+
 # cleanup_vars(trace, required_after) -> list: for every variable, its
-# future occurrences replaced with its value if possible, and the
-# declarations no longer in use removed. `required_after` (a list, or 0)
-# are the variables used after the trace.
+# value replaces the uses that follow when possible, and a variable no
+# longer used is dropped (simplify.cleanup_vars). required_after: a req
+# (see above), 0 for none.
 FUNC cleanup_vars
         ENTER
         sub rsp, 48
@@ -1347,13 +1423,7 @@ FUNC cleanup_vars
         .set CV_TMP2, 24
         .set CV_REQ2, 32
         mov rbx, rdi
-        test rsi, rsi
-        jnz 1f
-        xor edi, edi
-        xor esi, esi
-        call mk_list
-        mov rsi, rax
-1:      mov [rsp + CV_REQ], rsi
+        mov [rsp + CV_REQ], rsi
         call vec_new
         mov r12, rax
         xor r13d, r13d
@@ -1417,7 +1487,7 @@ FUNC cleanup_vars
         jnz 3f
         mov rdi, [rsp + CV_REQ]
         mov rsi, [rsp + CV_TMP]
-        call seq_contains
+        call req_has
         test eax, eax
         jz 4f
 3:      mov rdi, r12
@@ -1435,11 +1505,9 @@ FUNC cleanup_vars
         mov rdi, rbx
         mov rsi, r13
         call list_from
-        mov rdi, rax
-        call vars_of_trace
         mov rdi, [rsp + CV_REQ]
         mov rsi, rax
-        call list_concat
+        call req_new
         mov [rsp + CV_REQ2], rax
         mov rdi, [r14 + N_DATA + 16]
         mov rsi, rax
@@ -1489,11 +1557,9 @@ FUNC cleanup_vars
         mov rdi, rbx
         mov rsi, r13
         call list_from
-        mov rdi, rax
-        call vars_of_trace
         mov rdi, [rsp + CV_REQ]
         mov rsi, rax
-        call list_concat
+        call req_new
         mov [rsp + CV_REQ2], rax
         mov rdi, [r14 + N_DATA + 16]
         call .Lcv_branch
@@ -1513,9 +1579,6 @@ FUNC cleanup_vars
         call vec_to_list
         add rsp, 48
         LEAVE
-
-# local: cleanup_vars(branch, required or required_after when the branch
-# ends the execution)
 .Lcv_branch:
         sub rsp, 24
         mov [rsp], rdi

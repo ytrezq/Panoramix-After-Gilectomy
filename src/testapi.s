@@ -821,9 +821,14 @@ FUNC tf_cleanup_vars
 ENDF tf_cleanup_vars
 
 FUNC tf_cleanup_vars_req
-        mov rsi, [rdi + N_DATA + 8]
-        mov rdi, [rdi + N_DATA]
-        jmp cleanup_vars
+        ENTER
+        mov rbx, rdi
+        mov rdi, [rdi + N_DATA + 8]
+        call req_from_list
+        mov rsi, rax
+        mov rdi, [rbx + N_DATA]
+        call cleanup_vars
+        LEAVE
 ENDF tf_cleanup_vars_req
 
 FUNC tf_replace_var
