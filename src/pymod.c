@@ -14,10 +14,20 @@ int pan_build_sigdb(const char *xz_path, const char *out_path);
 void pan_set_log_level(long level);
 long pan_log_level_from_name(const char *name);
 
-/* accepts bytes (raw bytecode) or str (hex, 0x optional) */
-static int get_code(PyObject *arg, unsigned char **code, size_t *len, PyObject **holder)
+/* The bytecode of an argument: bytes, or any object with a contiguous
+ * buffer (bytearray, memoryview...: the raw bytecode, held - a bytearray
+ * can't be resized while it's exported - until release_code, since the
+ * work runs without the GIL), or str (hex, 0x optional). */
+typedef struct {
+    Py_buffer view;
+    int has_view;
+    PyObject *holder;
+} code_ref;
+
+static int get_code(PyObject *arg, unsigned char **code, size_t *len, code_ref *ref)
 {
-    *holder = NULL;
+    ref->has_view = 0;
+    ref->holder = NULL;
     if (PyBytes_Check(arg)) {
         *code = (unsigned char *)PyBytes_AS_STRING(arg);
         *len = PyBytes_GET_SIZE(arg);
@@ -32,29 +42,43 @@ static int get_code(PyObject *arg, unsigned char **code, size_t *len, PyObject *
         PyObject *raw = PyObject_CallMethod((PyObject *)&PyBytes_Type, "fromhex", "O", hexed);
         Py_DECREF(hexed);
         if (!raw) return -1;
-        *holder = raw;
+        ref->holder = raw;
         *code = (unsigned char *)PyBytes_AS_STRING(raw);
         *len = PyBytes_GET_SIZE(raw);
         return 0;
     }
-    PyErr_SetString(PyExc_TypeError, "expected bytes or a hex string");
+    if (PyObject_CheckBuffer(arg)) {
+        if (PyObject_GetBuffer(arg, &ref->view, PyBUF_SIMPLE)) return -1;
+        ref->has_view = 1;
+        *code = (unsigned char *)ref->view.buf;
+        *len = (size_t)ref->view.len;
+        return 0;
+    }
+    PyErr_SetString(PyExc_TypeError, "expected bytes (or a bytes-like object) or a hex string");
     return -1;
+}
+
+static void release_code(code_ref *ref)
+{
+    if (ref->has_view) PyBuffer_Release(&ref->view);
+    Py_XDECREF(ref->holder);
 }
 
 static PyObject *py_disasm(PyObject *self, PyObject *args)
 {
-    PyObject *arg, *holder;
+    PyObject *arg;
+    code_ref ref;
     unsigned char *code;
     size_t len, outlen;
     char *out;
     int rc;
 
     if (!PyArg_ParseTuple(args, "O", &arg)) return NULL;
-    if (get_code(arg, &code, &len, &holder)) return NULL;
+    if (get_code(arg, &code, &len, &ref)) return NULL;
     Py_BEGIN_ALLOW_THREADS
     rc = pan_disasm(code, len, &out, &outlen);
     Py_END_ALLOW_THREADS
-    Py_XDECREF(holder);
+    release_code(&ref);
     if (rc) {
         PyErr_SetString(PyExc_RuntimeError, "disassembly failed");
         return NULL;
@@ -67,7 +91,8 @@ static PyObject *py_disasm(PyObject *self, PyObject *args)
 static PyObject *py_decompile(PyObject *self, PyObject *args, PyObject *kwargs)
 {
     static char *kwlist[] = {"code", "threads", "function", "color", NULL};
-    PyObject *arg, *holder;
+    PyObject *arg;
+    code_ref ref;
     unsigned char *code;
     size_t len, outlen;
     char *out;
@@ -77,7 +102,7 @@ static PyObject *py_decompile(PyObject *self, PyObject *args, PyObject *kwargs)
     int rc;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|nzp", kwlist, &arg, &threads, &function, &color)) return NULL;
-    if (get_code(arg, &code, &len, &holder)) return NULL;
+    if (get_code(arg, &code, &len, &ref)) return NULL;
     if (threads <= 0) {
         threads = (Py_ssize_t)sysconf(_SC_NPROCESSORS_ONLN);
         if (threads <= 0) threads = 1;
@@ -85,7 +110,7 @@ static PyObject *py_decompile(PyObject *self, PyObject *args, PyObject *kwargs)
     Py_BEGIN_ALLOW_THREADS
     rc = pan_decompile_ex(code, len, (size_t)threads, function, &out, &outlen, color ? 0 : 1);
     Py_END_ALLOW_THREADS
-    Py_XDECREF(holder);
+    release_code(&ref);
     if (rc) {
         /* out: the message */
         PyErr_SetString(PyExc_RuntimeError, out ? out : "decompilation failed");
@@ -158,8 +183,8 @@ static PyMethodDef methods[] = {
     {"build_signature_db", py_build_signature_db, METH_VARARGS, "build_signature_db(abi_dump_xz, out=None): convert panoramix's signature dump into the database file (in the cache directory by default)"},
     {"_test", py_test, METH_VARARGS, "_test(name, literal) -> str: apply a library function to a python literal"},
     {"set_log_level", py_set_log_level, METH_O, "set_log_level(level): the level of the messages printed on stderr, an int (logging.INFO...) or a name (\"debug\", \"info\", \"warning\", \"error\"); WARNING by default, as a library, unless PANORAMIX_LOG is set"},
-    {"disasm", py_disasm, METH_VARARGS, "disasm(code) -> str: the disassembly, one instruction per line"},
-    {"decompile", (PyCFunction)py_decompile, METH_VARARGS | METH_KEYWORDS, "decompile(code, threads=0, function=None, color=True) -> str: the decompiled contract, as `python -m panoramix` prints it (code: bytes, or hex; threads: 0 for one per CPU; function: only the functions whose name starts with it)"},
+    {"disasm", py_disasm, METH_VARARGS, "disasm(code) -> str: the disassembly, one instruction per line (code: as for decompile)"},
+    {"decompile", (PyCFunction)py_decompile, METH_VARARGS | METH_KEYWORDS, "decompile(code, threads=0, function=None, color=True) -> str: the decompiled contract, as `python -m panoramix` prints it (code: bytes or a bytes-like object, or hex; threads: 0 for one per CPU; function: only the functions whose name starts with it)"},
     {NULL, NULL, 0, NULL}
 };
 
