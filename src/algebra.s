@@ -1325,14 +1325,39 @@ FUNC alg_try_add
         mov rsi, r13
         call mk_mul
         LEAVE
-2:      mov rdi, rbx
+2:      # the other rules, memoized by pair (a pure function of the two
+        # terms; python recomputes it, as its add_op's cache misses)
+        mov rdi, rbx
+        mov rsi, r12
+        call mk2
+        mov r13, rax                    # the key
+        mov edi, MEMO_TRY_ADD
+        mov rsi, rax
+        call memo_get
+        test rax, rax
+        jz 4f
+        lea rcx, [rip + sp_none]
+        cmp rax, rcx
+        jne 1f
+        xor eax, eax                    # None
+        LEAVE
+4:      mov rdi, rbx
         mov rsi, r12
         call try_add_1
         test rax, rax
-        jnz 1f
+        jnz 5f
         mov rdi, rbx
         mov rsi, r12
         call try_add_2
+5:      mov r14, rax
+        mov rdx, rax
+        test rdx, rdx
+        jnz 6f
+        lea rdx, [rip + sp_none]
+6:      mov edi, MEMO_TRY_ADD
+        mov rsi, r13
+        call memo_put
+        mov rax, r14
 1:      LEAVE
 3:      xor eax, eax
         LEAVE
@@ -1362,7 +1387,9 @@ ENDF try_add_2
 FUNC try_add_norm
         ENTER
         mov rbx, rdi
-        call is_mul_int
+        mov esi, OP_MUL
+        mov edx, 3
+        call is_op_n                    # ('mul', num, mask) - num any
         test eax, eax
         jz .Ltn_asis
         mov r12, [rbx + N_DATA + 16]    # the mask_shl
@@ -1374,6 +1401,10 @@ FUNC try_add_norm
         call int_sign
         cmp eax, 1
         jne .Ltn_asis
+        mov rdi, [rbx + N_DATA + 8]
+        call is_int
+        test eax, eax
+        jz .Ltn_type                    # python: num + 2**shl, a TypeError
         mov rdi, [r12 + N_DATA + 24]
         call clamp_bits                 # (shl may be a big int)
         mov rdi, rax
@@ -1397,7 +1428,15 @@ FUNC try_add_norm
 .Ltn_asis:
         mov rax, rbx
         LEAVE
+.Ltn_type:
+        mov edi, E_TYPE
+        lea rsi, [rip + .Ls_tn_type]
+        call err_throw
 ENDF try_add_norm
+
+        .section .rodata
+.Ls_tn_type: .asciz "TypeError: can only concatenate tuple (not \"int\") to tuple"
+        .text
 
 # try_add_1(self, other): _try_add
 FUNC try_add_1

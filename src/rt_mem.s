@@ -699,6 +699,7 @@ memo_kinds:
         .byte 0                         # SIGDB
         .byte 0                         # IMPORT: the import's own
         .byte 0                         # LINE_VARS
+        .byte 0                         # TRY_ADD
         .text
 
 # memo_sizes_log(): DEBUG: the number of entries of every memo table

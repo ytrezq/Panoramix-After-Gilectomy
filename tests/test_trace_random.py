@@ -78,8 +78,36 @@ def rline(d):
         start = rpos()
         return ("call", random.choice(["gas", 2300]), rexp(1), random.choice([0, "callvalue"]),
                 ("mem", ("range", start, 4)), ("mem", ("range", ("add", 4, start) if not isinstance(start, int) else start + 4, 64)))
-    if r < 0.87: return ("require", rcond())
+    if r < 0.85: return ("require", rcond())
+    if r < 0.92 and d < 2: return rwhile(d)
     return ("setmem", ("range", 64, 32), ("add", 32, ("mem", ("range", 64, 32))))
+
+LOOP_VARS = [15001, 15002, 27001]
+
+def rwhile(d):
+    """a loop as whiles.make gives it: ('while', cond, path, jd, setvars),
+    the path ending with ('continue', jd, setvars); the jds are the
+    strings the tests make of the VM's nodes"""
+    k = random.choice(LOOP_VARS)
+    jd = "Node((%d, 10, ('%d',)))" % (random.randint(100, 999), random.randint(1, 999))
+    cond = random.choice([("lt", ("var", k), rexp(2)), ("add", -1, ("var", k)),
+                          ("gt", rexp(2), ("var", k)), ("iszero", ("eq", ("var", k), rexp(2)))])
+    body = [rline(d + 1) for _ in range(random.randint(0, 4))]
+    if random.random() < 0.5:
+        # a copy loop: mem[dst + i] = mem[src + i] (or storage)
+        body.append(("setmem", ("range", ("add", random.choice([32, 96, 128]), ("var", k)), 32),
+                     random.choice([("mem", ("range", ("add", 64, ("var", k)), 32)),
+                                    ("storage", 256, 0, ("add", ("var", k), 5)), rexp(2)])))
+    step = random.choice([("add", 1, ("var", k)), ("add", 32, ("var", k)), ("add", -1, ("var", k))])
+    setvars = (("setvar", k, step),)
+    if random.random() < 0.3:
+        k2 = random.choice([v for v in LOOP_VARS if v != k])
+        setvars += (("setvar", k2, ("add", 32, ("var", k2))),)
+    body.append(("continue", jd, setvars))
+    init = (("setvar", k, random.choice([0, 1, ("cd", 4), ("mem", ("range", 64, 32))])),)
+    if len(setvars) > 1:
+        init += (("setvar", setvars[1][1], random.choice([0, 128, ("var", 1)])),)
+    return ("while", cond, body, jd, init)
 
 def rtrace(d=0):
     t = [rline(d) for _ in range(random.randint(1, 6 if d else 12))]
@@ -89,7 +117,21 @@ def rtrace(d=0):
     elif end < 0.8: t.append(("stop",))
     return t
 
+# cases the random runs found once: always checked
+REGRESSIONS = [
+    # conditions that simplify to None (mem[x len 0]): python's eval_bool
+    # can't decide them, the ifs stay
+    [("if", None, [("revert", 0)], [("stop",)])],
+    [("if", ("iszero", None), [("revert", 0)], [("stop",)])],
+    [("if", ("iszero", ("mem", ("range", 32, 0))), [("revert", 0)], [("stop",)])],
+    # a negative shift: python's ValueError
+    [("setmem", ("range", 64, 32), ("shl", -32, "caller")), ("return", ("mem", ("range", 64, 32)))],
+]
+
 if __name__ == "__main__":
+    for i, trace in enumerate(REGRESSIONS):
+        passes(trace, "regression %d" % i)
+        check("simplify_trace", trace, run(S.simplify_trace, trace), "regression %d" % i)
     for n in range(N):
         trace = rtrace()
         if os.environ.get("TRACE"): print("TRACE", n, repr(trace), flush=True)

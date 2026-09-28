@@ -58,6 +58,9 @@ REGRESSIONS = [
     ('mask_shl', 2**70, 5, 0, ('add', 2**200 + 31, 'x')),
     ('mask_shl', 8, 2**62 + 5, -(2**62 + 5), ('cd', 4)),
     ('mask_shl', 8, 2**100, -(2**100), ('cd', 4)),
+    # try_add's normalization of a mul whose coefficient isn't a number:
+    # python's TypeError (num + 2**shl)
+    ('lt', ('add', ('eq', ('and', 94964689875931252764577357350500699986261382086959835359635458281304267982331, 255), 'x'), ('var', '_1')), ('add', ('mul', ('or', ('var', '_2'), 0), ('mask_shl', 246, 5, 5, -1)), ('eq', ('iszero', ('var', '_1')), ('bool', 128)))),
 ]
 
 if __name__ == "__main__":

@@ -410,12 +410,12 @@ FUNC overwrites_mem
         sub rsp, MATCH_BINDINGS_SIZE
         mov rbx, rdi
         mov r12, rsi
-        PAT rsi, "('setmem', ':set_idx', 'Any')"
-        mov rdx, rsp
-        call pat_match
+        mov esi, OP_SETMEM              # ('setmem', set_idx, Any)
+        mov edx, 3
+        call is_op_n
         test eax, eax
         jz 1f
-        B rdi, 0
+        mov rdi, [rbx + N_DATA + 8]
         mov rsi, r12
         call range_overlaps
         cmp eax, TRI_FALSE
@@ -569,12 +569,16 @@ FUNC mem_use
         jae .Lmu_neither
         mov r14, [rbx + N_DATA + r13*8]
         inc r13d
-        PAT rsi, "('setmem', ':memloc', ':memval')"
-        mov rdi, r14
-        mov rdx, rsp
-        call pat_match
+        mov rdi, r14                    # ('setmem', memloc, memval)
+        mov esi, OP_SETMEM
+        mov edx, 3
+        call is_op_n
         test eax, eax
         jz 2f
+        mov rax, [r14 + N_DATA + 8]
+        mov [rsp], rax
+        mov rax, [r14 + N_DATA + 16]
+        mov [rsp + 8], rax
         B rdi, 1
         call simplify_exp
         mov rdi, rax
@@ -972,6 +976,12 @@ FUNC replace_mem_exp_impl
         je 6f
         # a call whose function selector and arguments are two memory
         # reads next to each other: one memory, replaced as a whole
+        mov rdi, [rsp + RM_RES]
+        mov esi, OP_DELEGATECALL
+        mov edx, 5
+        call is_op_n
+        test eax, eax
+        jz 4f
         PAT rsi, "('delegatecall', ':gas', ':addr', ('mem', ':func'), ('mem', ':args'))"
         mov rdi, [rsp + RM_RES]
         mov rdx, rsp
@@ -990,7 +1000,13 @@ FUNC replace_mem_exp_impl
         LOADS rdi, DELEGATECALL
         call mk5
         mov [rsp + RM_RES], rax
-4:      PAT rsi, "('call', ':gas', ':addr', ':value', ('mem', ':func'), ('mem', ':args'))"
+4:      mov rdi, [rsp + RM_RES]
+        mov esi, OP_CALL
+        mov edx, 6
+        call is_op_n
+        test eax, eax
+        jz 6f
+        PAT rsi, "('call', ':gas', ':addr', ':value', ('mem', ':func'), ('mem', ':args'))"
         mov rdi, [rsp + RM_RES]
         mov rdx, rsp
         call pat_match
@@ -1117,12 +1133,14 @@ FUNC replace_mem
         jae .Lrp_done
         mov r14, [rbx + N_DATA + r13*8]
         inc r13d
-        PAT rsi, "('setmem', ':memloc', 'Any')"
-        mov rdi, r14
-        mov rdx, rsp
-        call pat_match
+        mov rdi, r14                    # ('setmem', memloc, Any)
+        mov esi, OP_SETMEM
+        mov edx, 3
+        call is_op_n
         test eax, eax
         jz 3f
+        mov rax, [r14 + N_DATA + 8]
+        mov [rsp], rax
         B rdi, 0
         call simplify_exp
         mov [rsp + RP_MEMLOC], rax
@@ -1698,12 +1716,14 @@ FUNC replace_var
         jae .Lrv_done
         mov r14, [rbx + N_DATA + r13*8]
         inc r13d
-        PAT rsi, "('setmem', ':mem_idx', 'Any')"
-        mov rdi, r14
-        mov rdx, rsp
-        call pat_match
+        mov rdi, r14                    # ('setmem', mem_idx, Any)
+        mov esi, OP_SETMEM
+        mov edx, 3
+        call is_op_n
         test eax, eax
         jz 1f
+        mov rax, [r14 + N_DATA + 8]
+        mov [rsp], rax
         # (this all seems incorrect, plus the 'affects' checks below:
         # to be revisited)
         mov rdi, r14
@@ -2119,6 +2139,15 @@ FUNC string_length_cb
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 16
         mov rbx, rdi
+        # (for speed: both patterns are a mask_shl by -1 of an and)
+        mov esi, OP_MASK_SHL
+        mov edx, 5
+        call is_op_n
+        test eax, eax
+        jz .Lsl_none
+        cmp qword ptr [rbx + N_DATA + 24], -1   # -1, tagged
+        jne .Lsl_none
+        mov rdi, rbx
         PAT rsi, "('mask_shl', ':size', ':offset', -1, ('and', ('storage', 'Any', 0, ':key'), ('add', -1, ('mask_shl', 'Any', 'Any', 'Any', ('iszero', ('storage', 'Any', 0, ':key'))))))"
         mov rdx, rsp
         call pat_match
