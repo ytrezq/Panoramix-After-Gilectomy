@@ -535,7 +535,9 @@ class Gen:
 # python's failures the port doesn't reproduce on purpose (see the design
 # notes): the VM's `exp << off` of two constants runs out of memory
 KNOWN_PY_FAILURES = ("stack.append(exp << off)\nMemoryError",
-                     "stack.append(exp << off)\nOverflowError")
+                     "stack.append(exp << off)\nOverflowError",
+                     # BALANCE of a constant: addr[:4] of an int
+                     'if addr[:4] == ("mask_shl", 160, 0, 0):\nTypeError')
 
 
 def run_python(code):

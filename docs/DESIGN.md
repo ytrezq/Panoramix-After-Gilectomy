@@ -248,7 +248,9 @@ does with `PYTHONINTMAXSTRDIGITS=0`. The fuzzer found another one:
 `SHL` of two constants is `exp << off` in python's VM, which runs out
 of memory (or overflows) for a shift of 2^255 before the result is
 reduced to 256 bits; the port gives 0, and python reports the function
-as a failure.
+as a failure. And `BALANCE` of a constant address (`address(0x..).balance`)
+makes python's VM slice an int (`addr[:4]`, a TypeError): the function
+fails there, the port prints `eth.balance(0x..)`.
 
 `tests/stage_compare.py contract.hex FUNCTION` finds the first stage of
 python's `simplify_trace` whose port differs, replaying each stage on
