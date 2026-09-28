@@ -501,7 +501,7 @@ FUNC get_param_name
         LOADS rdi, CD
         call mk2
         mov rdi, rax
-        mov rsi, r12
+        xor esi, esi                    # (the inner name isn't colored)
         call get_param_name
         mov rdi, rax
         call value_str                  # str(...)
@@ -535,7 +535,7 @@ FUNC get_param_name
         LOADS rdi, CD
         call mk2
         mov rdi, rax
-        mov rsi, r12
+        xor esi, esi
         call get_param_name
         mov rdi, rax
         call value_str
@@ -761,14 +761,12 @@ FUNC clean_color
         test rsi, rsi
         jz 3f
         mov [rsp], rcx
-        mov rdi, r13
-        push rsi
-        push rsi
+        mov [rsp + 8], rsi
+        mov rdi, rsi
         call strlen@PLT
-        pop rsi
-        pop rsi
         mov rdx, rax
         mov rdi, r13
+        mov rsi, [rsp + 8]
         push rdx
         push rdx
         call strncmp@PLT

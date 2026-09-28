@@ -107,6 +107,9 @@ test_table:
         .quad .Ln_mask_to_type, tf_mask_to_type
         .quad .Ln_padded_hex, tf_padded_hex
         .quad .Ln_clean_color, clean_color
+        .quad .Ln_pretty_line, tf_pretty_line
+        .quad .Ln_pprint_logic, tf_pprint_logic
+        .quad .Ln_function, tf_function
         .quad 0, 0
 
         .section .rodata
@@ -206,6 +209,9 @@ test_table:
 .Ln_mask_to_type: .asciz "mask_to_type"
 .Ln_padded_hex: .asciz "padded_hex"
 .Ln_clean_color: .asciz "clean_color"
+.Ln_pretty_line: .asciz "pretty_line"
+.Ln_pprint_logic: .asciz "pprint_logic"
+.Ln_function: .asciz "function"
 .Ln_find_mems: .asciz "find_mems"
 .Ln_split_setmem_trace: .asciz "split_setmem_trace"
 .Ln_split_store_trace: .asciz "split_store_trace"
@@ -963,6 +969,104 @@ FUNC tf_pretty_bignum
         mov rax, rbx
 1:      LEAVE
 ENDF tf_pretty_bignum
+
+# (line, flags) -> list of str
+FUNC tf_pretty_line
+        mov rsi, [rdi + N_DATA + 8]
+        UNTAG rsi
+        mov rdi, [rdi + N_DATA]
+        jmp pretty_line
+ENDF tf_pretty_line
+
+# (exp, indent) -> list of str
+FUNC tf_pprint_logic
+        mov rsi, [rdi + N_DATA + 8]
+        UNTAG rsi
+        mov rdi, [rdi + N_DATA]
+        jmp pprint_logic
+ENDF tf_pprint_logic
+
+# (hash, trace, (name, inputs or None)) -> (name, color_name, abi_name,
+# params, trace, payable, read_only, const, getter, returns, is_regular,
+# print lines, priority)
+FUNC tf_function
+        ENTER
+        sub rsp, 112
+        mov rbx, rdi
+        mov rdx, [rbx + N_DATA + 16]
+        mov rax, [rdx + N_DATA + 8]
+        push rdx
+        push rdx
+        mov rdi, rax
+        call is_none
+        pop rdx
+        pop rdx
+        test eax, eax
+        jz 1f
+        mov rdi, [rdx + N_DATA]
+        xor esi, esi
+        call mk2                        # (name, NIL)
+        mov rdx, rax
+1:      mov rdi, [rbx + N_DATA]
+        mov rsi, [rbx + N_DATA + 8]
+        call function_new
+        mov r12, rax
+        mov rax, [r12 + FN_NAME]
+        mov [rsp], rax
+        mov rax, [r12 + FN_COLOR_NAME]
+        mov [rsp + 8], rax
+        mov rax, [r12 + FN_ABI_NAME]
+        mov [rsp + 16], rax
+        mov rax, [r12 + FN_PARAMS]
+        mov [rsp + 24], rax
+        mov rax, [r12 + FN_TRACE]
+        mov [rsp + 32], rax
+        mov rdi, [r12 + FN_PAYABLE]
+        call tf_bool
+        mov [rsp + 40], rax
+        mov rdi, [r12 + FN_READ_ONLY]
+        call tf_bool
+        mov [rsp + 48], rax
+        mov rdi, [r12 + FN_CONST]
+        call tf_or_none
+        mov [rsp + 56], rax
+        mov rdi, [r12 + FN_GETTER]
+        call tf_or_none
+        mov [rsp + 64], rax
+        mov rax, [r12 + FN_RETURNS]
+        mov [rsp + 72], rax
+        mov rdi, [r12 + FN_IS_REGULAR]
+        call tf_bool
+        mov [rsp + 80], rax
+        mov rdi, r12
+        call fn_print_lines
+        mov [rsp + 88], rax
+        mov rdi, r12
+        call fn_priority
+        TAG rax
+        mov [rsp + 96], rax
+        mov edi, 13
+        mov rsi, rsp
+        call mk_tuple
+        add rsp, 112
+        LEAVE
+ENDF tf_function
+
+FUNC tf_bool
+        lea rax, [rip + sp_true]
+        test rdi, rdi
+        jnz 1f
+        lea rax, [rip + sp_false]
+1:      ret
+ENDF tf_bool
+
+FUNC tf_or_none
+        mov rax, rdi
+        test rdi, rdi
+        jnz 1f
+        lea rax, [rip + sp_none]
+1:      ret
+ENDF tf_or_none
 
 FUNC tf_simplify_trace
         xor esi, esi

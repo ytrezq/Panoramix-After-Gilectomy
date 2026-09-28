@@ -35,6 +35,20 @@ def subexps(exp, out):
     if isinstance(exp, (int, str)) and not isinstance(exp, bool):
         out.setdefault(repr(exp), exp)
 
+def lines_of(trace, out):
+    """every line of a trace (the branches of the ifs and whiles too)"""
+    for line in trace:
+        out.setdefault(repr(line), line)
+        if isinstance(line, tuple) and line and line[0] == "if":
+            for branch in line[2:]: lines_of(branch, out)
+        if isinstance(line, tuple) and line and line[0] == "while":
+            lines_of(line[2], out)
+
+def check_lines(lines, ctx):
+    for r, line in lines.items():
+        for flags in (0, PF_COLOR):
+            check("pretty_line", (line, flags), run(lambda l, f: list(P.pretty_line(l, add_color=bool(f & PF_COLOR))), line, flags), ctx)
+
 def check_exps(exps, ctx):
     for r, exp in exps.items():
         for flags in (0, PF_PARENS, PF_COLOR, PF_PARENS | PF_COLOR, PF_REM_BOOL | PF_COLOR, PF_PARENS | PF_TOP):
@@ -68,8 +82,14 @@ if __name__ == "__main__":
             except Exception as e:
                 print("unparseable simplified trace", ctx, e); continue
             subexps(trace_s, exps)
-            subexps(folder.fold(trace_s), exps)
+            folded = folder.fold(trace_s)
+            subexps(folded, exps)
             before = test_simplify.bad
             check_exps(exps, ctx)
+            lines = {}
+            lines_of(trace, lines); lines_of(trace_s, lines); lines_of(folded, lines)
+            check_lines(lines, ctx)
+            for t in (trace, trace_s, folded):
+                check("pprint_logic", (t, 2), run(lambda x: list(P.pprint_logic(x)), t), ctx)
             print(f"{'ok  ' if test_simplify.bad == before else 'DIFF'} {ctx} {len(exps)} expressions {time.time()-t0:.1f}s", flush=True)
     print(f"{test_simplify.cases} cases, {test_simplify.bad} mismatches")

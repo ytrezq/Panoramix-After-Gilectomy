@@ -707,4 +707,24 @@ FUNC str_chars
         LEAVE
 ENDF str_chars
 
+
+# str_charlen(str) -> eax: python's len() - the characters (code points)
+# of the UTF-8 text, not its bytes
+FUNC str_charlen
+        mov ecx, [rdi + N_DATA]
+        add rdi, N_DATA + 4
+        xor eax, eax
+1:      test ecx, ecx
+        jz 2f
+        movzx edx, byte ptr [rdi]
+        and edx, 0xc0
+        cmp edx, 0x80                   # a continuation byte
+        je 3f
+        inc eax
+3:      inc rdi
+        dec ecx
+        jmp 1b
+2:      ret
+ENDF str_charlen
+
         .section .note.GNU-stack,"",@progbits

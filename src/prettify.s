@@ -1083,15 +1083,11 @@ FUNC prettify
         call int_cmp
         cmp eax, -1
         jne 5f
-        mov rdi, [rsp + PF_T2]
-        call int_sign
-        cmp eax, 1
-        je .Lpf_not_implemented         # (python: a float 2 ** -shl)
-        # ('div', val, 2 ** offset)
+        # ('div', val, 2 ** offset) - a float, as python, below zero
         mov rdi, r14
         call int_to_i64
         mov rdi, rax
-        call pow2
+        call pow2_or_float
         mov rdx, rax
         mov rsi, [rsp + PF_T3]
         LOADS rdi, DIV
@@ -1109,10 +1105,6 @@ FUNC prettify
         call int_cmp
         cmp eax, -1
         jne .Lms_general
-        mov rdi, r14
-        call int_sign
-        cmp eax, -1
-        je .Lpf_not_implemented         # (python: a float 2 ** shl)
         # val = ('mask', size + offset, 0, val) unless size + offset == 256
         # or val is a store
         mov rdi, r13
@@ -1139,11 +1131,11 @@ FUNC prettify
         PF_COLOR_PARENS rsi, r12
         call prettify
         jmp .Lpf_ret
-7:      # 0 < shl < 8: ('mul', val, 2 ** shl)
+7:      # -8 <= shl < 8: ('mul', val, 2 ** shl) (a float below zero)
         mov rdi, r14
         call int_to_i64
         mov rdi, rax
-        call pow2
+        call pow2_or_float
         mov rdx, rax
         mov rsi, [rsp + PF_T3]
         LOADS rdi, MUL
@@ -1235,10 +1227,6 @@ FUNC prettify
         cmp eax, -1
         je 11f
         # ('mul', 2 ** shl, mask)
-        mov rdi, [rsp + PF_T2]
-        call int_sign
-        cmp eax, -1
-        je .Lpf_not_implemented         # (python: a float)
         mov rdi, [rsp + PF_T2]
         call int_to_i64
         mov rdi, rax
@@ -1675,14 +1663,39 @@ FUNC prettify
 .Lpf_ret:
         add rsp, MATCH_BINDINGS_SIZE + 64
         LEAVE
-.Lpf_not_implemented:
-        mov edi, E_NOT_IMPLEMENTED
-        lea rsi, [rip + .Ls_float]
-        call err_throw
 ENDF prettify
 
+# pow2_or_float(k) -> value: 2 ** k; for a negative k python has a float,
+# printed as its decimal - that text (a string) stands for it here
+FUNC pow2_or_float
+        test rdi, rdi
+        js 1f
+        jmp pow2
+1:      neg rdi
+        cmp rdi, 8
+        ja 2f
+        lea rax, [rip + float_pow2]
+        mov rdi, [rax + rdi*8]
+        jmp str_new_c
+2:      mov edi, E_NOT_IMPLEMENTED
+        lea rsi, [rip + .Ls_float]
+        jmp err_throw
+ENDF pow2_or_float
+
         .section .rodata
-.Ls_float: .asciz "prettify: a negative shift as a float"
+.Ls_float: .asciz "prettify: a float below 2^-8"
+.Lf_1: .asciz "0.5"
+.Lf_2: .asciz "0.25"
+.Lf_3: .asciz "0.125"
+.Lf_4: .asciz "0.0625"
+.Lf_5: .asciz "0.03125"
+.Lf_6: .asciz "0.015625"
+.Lf_7: .asciz "0.0078125"
+.Lf_8: .asciz "0.00390625"
+        .section .data.rel.ro
+        .align 8
+float_pow2:
+        .quad 0, .Lf_1, .Lf_2, .Lf_3, .Lf_4, .Lf_5, .Lf_6, .Lf_7, .Lf_8
         .text
 
 # sb_append_pret_join(sb, seq, start, flags): the elements of seq from
@@ -1837,7 +1850,7 @@ FUNC pretty_adds
         call sb_append_c
         mov rdi, [rsp + PA_SB]
         mov rsi, [rsp + PA_REAL]
-        xor edx, edx
+        mov edx, PF_PARENS              # (prettify's default: no color, parentheses)
         call sb_append_pret
         jmp .Lpa_parens
 4:      mov rdi, [rsp + PA_SB]
@@ -1847,7 +1860,7 @@ FUNC pretty_adds
         call int_neg
         mov rdi, [rsp + PA_SB]
         mov rsi, rax
-        xor edx, edx
+        mov edx, PF_PARENS
         call sb_append_pret
         jmp .Lpa_parens
 .Lpa_symbolic_only:
