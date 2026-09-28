@@ -1862,14 +1862,10 @@ FUNC replace_while_var
         jz 2f
         add r13, 2                      # (tagged: += 1)
         jmp 1b
-2:      mov rdi, r12
-        mov rsi, r13
-        call mk2
-        mov [rsp], rax                  # (counter_idx, new_idx)
-        mov rdi, rbx
-        lea rsi, [rip + rename_var_cb]
-        mov rdx, rax
-        call replace_f
+2:      mov rdi, rbx
+        mov rsi, r12
+        mov rdx, r13
+        call rename_var                 # replace_f(rest, r)
         mov rdi, rax
         call simplify_exp
         mov rdx, r13
@@ -1877,39 +1873,119 @@ FUNC replace_while_var
         LEAVE
 ENDF replace_while_var
 
-# rename_var_cb(exp, (old, new)) -> exp with the variable old renamed new
-FUNC rename_var_cb
+# rename_var(exp, old, new) -> python's replace_f(exp, r) of
+# replace_while_var: ('var', old) becomes ('var', new), ('setvar', old,
+# v) ('setvar', new, v). The subtrees without a variable or a setvar
+# (the mention flags HF_VAR, HF_SETVAR) are kept as they are, and each
+# subtree is done once (the trace is a DAG): the same result as the
+# walk of every node, bottom-up, python makes
+        .set RV_OLD, 0
+        .set RV_NEW, 8
+        .set RV_VAR_OLD, 16
+        .set RV_VAR_NEW, 24
+        .set RV_MAP, 32
+        .set RV_SIZEOF, 48
+FUNC rename_var
         ENTER
-        sub rsp, MATCH_BINDINGS_SIZE
+        sub rsp, RV_SIZEOF
+        mov rbx, rdi
+        mov [rsp + RV_OLD], rsi
+        mov [rsp + RV_NEW], rdx
+        LOADS rdi, VAR
+        mov rsi, [rsp + RV_OLD]
+        call mk2
+        mov [rsp + RV_VAR_OLD], rax
+        LOADS rdi, VAR
+        mov rsi, [rsp + RV_NEW]
+        call mk2
+        mov [rsp + RV_VAR_NEW], rax
+        mov rax, [r15 + CTX_RV_MAP]     # the context's, emptied (an epoch)
+        test rax, rax
+        jnz 1f
+        call emap_new
+        mov [r15 + CTX_RV_MAP], rax
+1:      mov [rsp + RV_MAP], rax
+        mov rdi, rax
+        call emap_begin
+        mov rdi, rbx
+        mov rsi, rsp
+        call rv_walk
+        add rsp, RV_SIZEOF
+        LEAVE
+ENDF rename_var
+
+# rv_walk(exp, block) -> exp renamed (block: rename_var's)
+FUNC rv_walk
+        STACK_CHECK
+        cmp rdi, [rsi + RV_VAR_OLD]
+        je 7f
+        mov rax, rdi
+        test dil, 1
+        jnz 9f
+        test rdi, rdi
+        jz 9f
+        mov ecx, [rdi + N_KIND]
+        cmp ecx, K_TUPLE
+        je 1f
+        cmp ecx, K_LIST
+        jne 9f
+1:      mov rcx, HF_VAR | HF_SETVAR
+        test [rdi + N_HASH], rcx
+        jz 9f                           # no variable in there
+        ENTER
+        sub rsp, 16
         mov rbx, rdi
         mov r12, rsi
-        LOADS rdi, VAR
-        mov rsi, [r12 + N_DATA]
-        call mk2
-        cmp rax, rbx
-        jne 1f
-        LOADS rdi, VAR
-        mov rsi, [r12 + N_DATA + 8]
-        call mk2
-        jmp 3f
-1:      PAT rsi, "('setvar', ':idx', ':val')"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
-        test eax, eax
-        jz 2f
-        B rax, 0
-        cmp rax, [r12 + N_DATA]
-        jne 2f
-        B rdx, 1
-        mov rsi, [r12 + N_DATA + 8]
+        mov rdi, [r12 + RV_MAP]
+        mov rsi, rbx
+        call emap_get
+        test rax, rax
+        jnz 8f                          # done already
+        mov edi, [rbx + N_AUX]
+        shl rdi, 3
+        call arena_alloc_raw
+        mov r13, rax                    # the elements, renamed
+        xor r14d, r14d
+2:      cmp r14d, [rbx + N_AUX]
+        jae 3f
+        mov rdi, [rbx + N_DATA + r14*8]
+        mov rsi, r12
+        call rv_walk
+        mov [r13 + r14*8], rax
+        inc r14d
+        jmp 2b
+3:      mov rdi, rbx
+        mov rsi, r13
+        call mk_seq_like
+        # ('setvar', old, v): ('setvar', new, v)
+        cmp dword ptr [rax + N_KIND], K_TUPLE
+        jne 5f
+        cmp dword ptr [rax + N_AUX], 3
+        jne 5f
+        mov rcx, [rax + N_DATA + 8]
+        cmp rcx, [r12 + RV_OLD]
+        jne 5f
+        mov rdi, rax
+        mov [rsp], rax
+        call opcode_of
+        cmp eax, OP_SETVAR
+        mov rax, [rsp]
+        jne 5f
+        mov rdx, [rax + N_DATA + 16]
+        mov rsi, [r12 + RV_NEW]
         LOADS rdi, SETVAR
         call mk3
-        jmp 3f
-2:      mov rax, rbx
-3:      add rsp, MATCH_BINDINGS_SIZE
+5:      mov [rsp], rax
+        mov rdi, [r12 + RV_MAP]
+        mov rsi, rbx
+        mov rdx, rax
+        call emap_put
+        mov rax, [rsp]
+8:      add rsp, 16
         LEAVE
-ENDF rename_var_cb
+7:      mov rax, [rsi + RV_VAR_NEW]
+9:      ret
+ENDF rv_walk
 
 # readability(trace) -> list: nicer variable names, and the msize
 # expressions in setmems named

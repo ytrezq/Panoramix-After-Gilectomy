@@ -40,6 +40,7 @@
 .set HF_MSIZE, 1 << 57
 .set HF_STORAGE, 1 << 58
 .set HF_VAR, 1 << 59        # a ('var', ...): the string "var" itself (find_op_list's pruning)
+.set HF_SETVAR, 1 << 60     # a ('setvar', ...): the string "setvar" itself (rename_var's)
 .set HF_SHIFT, 56
 .set HF_MASK, 0xff << 56
 
@@ -92,7 +93,8 @@
 .set CTX_RFM_MAP, 192       # replace_f_memo's map (an emap, reused: rt_map.s), or 0
 .set CTX_DATA_SB, 200       # a builder for python's decompilation.json (data.s), or 0
 .set CTX_DATA_MODE, 208     # its form: DATA_BINARY (0) or DATA_JSON (1)
-# 216..295: free
+.set CTX_RV_MAP, 216        # rename_var's memo (an emap, reused: cleanup.s), or 0
+# 224..295: free
 .set CTX_VM, 296            # the VM this thread runs (vm.s)
 .set CTX_ERR_BUF, 304       # the innermost error handler (rt_err.s)
 .set CTX_ERR_CODE, 312      # what was thrown
@@ -446,7 +448,9 @@ ENDF \fname
 .set MEMO_LINE_VARS, 16     # a line -> the ('var', ...) in it (cleanup_vars' required_after)
 .set MEMO_TRY_ADD, 17       # (self, other) -> try_add's result (sp_none for None)
 .set MEMO_MUL2, 18          # (a, b) -> mul_op(a, b)
-.set MEMO_COUNT, 19
+.set MEMO_PARSE_COUNTERS, 19 # a while -> its PC struct (read only)
+.set MEMO_EXTRACT_SETMEMS, 20 # a while -> extract_setmems' list
+.set MEMO_COUNT, 21
 # sentinel values stored in memo tables for python's None / False (values
 # and pointers are never 2 or 4)
 .set MEMO_NONE, 2

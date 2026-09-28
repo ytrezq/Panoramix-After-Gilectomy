@@ -376,8 +376,29 @@ ENDF normalize
         OPSET_MEMBER cmp4, OP_GE
         OPSET_END cmp4, OP_COUNT
 
-# parse_counters(line) -> PC*: the counters of a while (see PC_* fields)
+# parse_counters(line) -> PC*: the counters of a while (see PC_* fields),
+# read only: remembered for the line (the memory checks of the
+# simplifier ask it of the same loops thousands of times)
 FUNC parse_counters
+        ENTER
+        mov rbx, rdi
+        mov rsi, rdi
+        mov edi, MEMO_PARSE_COUNTERS
+        call memo_get
+        test rax, rax
+        jnz 1f
+        mov rdi, rbx
+        call parse_counters_impl
+        mov r12, rax
+        mov edi, MEMO_PARSE_COUNTERS
+        mov rsi, rbx
+        mov rdx, rax
+        call memo_put
+        mov rax, r12
+1:      LEAVE
+ENDF parse_counters
+
+FUNC parse_counters_impl
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 64
         .set PC_L_A, MATCH_BINDINGS_SIZE
@@ -602,7 +623,7 @@ FUNC parse_counters
         mov edi, E_ASSERT
         lea rsi, [rip + .Ls_assert_counter]
         call err_throw
-ENDF parse_counters
+ENDF parse_counters_impl
 
 # --- the memory a loop touches ---
 
@@ -946,8 +967,27 @@ FUNC list_append
 ENDF list_append
 
 # extract_setmems(while) -> list: the setmems of the loop body that are
-# on a path to a continue, without duplicates
+# on a path to a continue, without duplicates (remembered for the line)
 FUNC extract_setmems
+        ENTER
+        mov rbx, rdi
+        mov rsi, rdi
+        mov edi, MEMO_EXTRACT_SETMEMS
+        call memo_get
+        test rax, rax
+        jnz 1f
+        mov rdi, rbx
+        call extract_setmems_impl
+        mov r12, rax
+        mov edi, MEMO_EXTRACT_SETMEMS
+        mov rsi, rbx
+        mov rdx, rax
+        call memo_put
+        mov rax, r12
+1:      LEAVE
+ENDF extract_setmems
+
+FUNC extract_setmems_impl
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -972,7 +1012,7 @@ FUNC extract_setmems
         call vec_to_list
         add rsp, 16
         LEAVE
-ENDF extract_setmems
+ENDF extract_setmems_impl
 
 # extract_setmems_f(trace, after, &reach) -> list: `after` says whether a
 # continue is reachable from the end of the trace; *reach whether there

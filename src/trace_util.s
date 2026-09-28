@@ -601,66 +601,114 @@ FUNC replace
         jmp replace_fl
 ENDF replace
 
-# replace_fl(exp, what, by_what, flags)
+# replace_fl(exp, what, by_what, flags): replace's walk - the leaves
+# (numbers, strings, the sequences without all the flags) looked at in
+# the loop, without a call (a replace visits them by the million)
 FUNC replace_fl
         STACK_CHECK
+        cmp rdi, rsi
+        je .Lrp_by0
+        test dil, 1
+        jnz .Lrp_asis0
+        test rdi, rdi
+        jz .Lrp_asis0
+        mov eax, [rdi + N_KIND]
+        cmp eax, K_INT
+        je .Lrp_int0
+        cmp eax, K_TUPLE
+        je 1f
+        cmp eax, K_LIST
+        jne .Lrp_asis0
+1:      mov rax, [rdi + N_HASH]
+        and rax, rcx
+        cmp rax, rcx
+        jne .Lrp_asis0
         ENTER
         sub rsp, 32
         mov rbx, rdi
         mov r12, rsi
         mov r13, rdx
         mov [rsp + 16], rcx             # the flags
-        mov rdi, rbx
+        mov qword ptr [rsp], 0          # the copy of the elements, once one changes
+        xor r14d, r14d
+2:      cmp r14d, [rbx + N_AUX]
+        jae 5f
+        mov rdi, [rbx + N_DATA + r14*8]
+        # the element's replacement, rax (rdi itself mostly)
+        mov rax, r13
+        cmp rdi, r12
+        je 3f
+        mov rax, rdi
+        test dil, 1
+        jnz 3f
+        test rdi, rdi
+        jz 3f
+        mov ecx, [rdi + N_KIND]
+        cmp ecx, K_TUPLE
+        je 21f
+        cmp ecx, K_LIST
+        je 21f
+        cmp ecx, K_INT
+        jne 3f                          # a string, a special: itself
+        mov rsi, r12                    # a number: equal to what? (a
+        call values_equal               # constant of the global context)
+        test eax, eax
+        mov rax, [rbx + N_DATA + r14*8]
+        cmovnz rax, r13
+        jmp 3f
+21:     mov rcx, [rsp + 16]
+        mov rdx, [rdi + N_HASH]
+        and rdx, rcx
+        cmp rdx, rcx
+        jne 3f                          # without the flags: itself
         mov rsi, r12
-        call values_equal
-        test eax, eax
-        jnz .Lrp_by
-        mov rdi, rbx
-        call is_seq
-        test eax, eax
-        jz .Lrp_asis
-        mov rax, [rbx + N_HASH]
-        mov rcx, [rsp + 16]
-        and rax, rcx
-        cmp rax, rcx
-        jne .Lrp_asis
-        # a copy of the elements, replaced, kept only if one changed
+        mov rdx, r13
+        call replace_fl
+3:      cmp qword ptr [rsp], 0
+        jne 4f
+        cmp rax, [rbx + N_DATA + r14*8]
+        je 41f                          # (unchanged so far: no copy yet)
+        # the first change: the copy, with the elements before it
+        mov [rsp + 8], rax
         mov edi, [rbx + N_AUX]
         shl rdi, 3
         call arena_alloc_raw
         mov [rsp], rax
-        xor r14d, r14d
-        mov qword ptr [rsp + 8], 0      # changed?
-1:      cmp r14d, [rbx + N_AUX]
-        jae 2f
-        mov rdi, [rbx + N_DATA + r14*8]
-        mov rsi, r12
-        mov rdx, r13
-        mov rcx, [rsp + 16]
-        call replace_fl
-        mov rcx, [rsp]
+        mov rdi, rax
+        lea rsi, [rbx + N_DATA]
+        mov edx, r14d
+        shl edx, 3
+        call memcpy@PLT
+        mov rax, [rsp + 8]
+4:      mov rcx, [rsp]
         mov [rcx + r14*8], rax
-        cmp rax, [rbx + N_DATA + r14*8]
-        je 3f
-        mov qword ptr [rsp + 8], 1
-3:      inc r14
-        jmp 1b
-2:      cmp qword ptr [rsp + 8], 0
-        je .Lrp_asis
+41:     inc r14d
+        jmp 2b
+5:      mov rax, rbx
+        cmp qword ptr [rsp], 0
+        je 6f
         mov edi, [rbx + N_KIND]
         mov esi, [rbx + N_AUX]
         mov rdx, [rsp]
         call mk_seq
-        add rsp, 32
+6:      add rsp, 32
         LEAVE
-.Lrp_by:
-        mov rax, r13
-        add rsp, 32
-        LEAVE
-.Lrp_asis:
-        mov rax, rbx
-        add rsp, 32
-        LEAVE
+.Lrp_int0:
+        push rdi
+        push rdx
+        sub rsp, 8
+        call values_equal
+        add rsp, 8
+        pop rdx
+        pop rdi
+        test eax, eax
+        jz .Lrp_asis0
+.Lrp_by0:
+        mov rax, rdx
+        ret
+.Lrp_asis0:
+        mov rax, rdi
+        ret
 ENDF replace_fl
 
 # replace_many(exp, n, whats, bys) -> exp with every occurrence of whats[i]
