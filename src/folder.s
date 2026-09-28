@@ -1524,99 +1524,171 @@ FUNC ending_with
         call err_throw
 ENDF ending_with
 
-# split_matches(or_tuple, shortest, idx1, longest, idx2) -> eax: the sides
-# starting with the first idx1 lines of shortest and those starting with
-# the first idx2 lines of longest are all the sides, and their remainders
-# are the same, in order (python: s1 == s2 and len(s1) + len(s2) + 1 ==
-# len(line))
-FUNC split_matches
+# fold_or_split(or_tuple, shortest, longest) -> rax: idx1, rdx: idx2 - the
+# first pair (idx1 in 1..len(shortest)-1, then idx2 in 1..len(longest)-1)
+# for which the sides starting with the first idx1 lines of shortest and
+# those starting with the first idx2 lines of longest are all the sides,
+# and their remainders are the same, in order (python: s1 == s2 and
+# len(s1) + len(s2) + 1 == len(line)), or rax = 0. Found without trying
+# the pairs (python's loops compare them all, a verbose trace's paths of
+# thousands of lines took minutes): every side starts with shortest's first line (group A) or
+# longest's (group B), so the two groups must be A and B whole, as many
+# sides each, the k-th of A and the k-th of B paired; their remainders
+# are the same only if len(B_k) - len(A_k) is one d for all k, so idx2 =
+# idx1 + d; then idx1 is bounded above by the prefix every side of A
+# shares with shortest (and idx1 + d by B's with longest), and below by
+# where the common suffix of each pair begins (the remainders being
+# equal for an idx1, they are for the next ones): the first idx1 is the
+# lower bound, when it doesn't pass the upper one.
+FUNC fold_or_split
         ENTER
-        sub rsp, 32
-        .set SM_IDX1, 0
-        .set SM_IDX2, 8
-        .set SM_I, 16                   # the cursor over the sides for shortest
-        .set SM_J, 24                   # and for longest
+        sub rsp, 48
+        .set FS_D, 0                    # len(B_k) - len(A_k), once known
+        .set FS_LO, 8                   # the lower bound of idx1
+        .set FS_HIA, 16                 # the prefix A shares with shortest
+        .set FS_HIB, 24                 # the prefix B shares with longest
+        .set FS_IA, 32                  # the cursors over the sides
+        .set FS_IB, 40
         mov rbx, rdi
-        mov r12, rsi
-        mov [rsp + SM_IDX1], rdx
-        mov r13, rcx
-        mov [rsp + SM_IDX2], r8
-        mov qword ptr [SM_I + rsp], 1
-        mov qword ptr [SM_J + rsp], 1
-        xor r14d, r14d                  # the sides seen
-.Lsm_pair:
-        # the next side starting with shortest[:idx1]
-1:      mov rcx, [rsp + SM_I]
+        mov r12, rsi                    # shortest
+        mov r13, rdx                    # longest
+        mov qword ptr [rsp + FS_D], -1  # (d unknown: FS_IA still 1)
+        mov qword ptr [rsp + FS_LO], 1
+        mov eax, [r12 + N_AUX]
+        mov [rsp + FS_HIA], rax
+        mov eax, [r13 + N_AUX]
+        mov [rsp + FS_HIB], rax
+        mov qword ptr [rsp + FS_IA], 1
+        mov qword ptr [rsp + FS_IB], 1
+        xor r14d, r14d                  # the pairs seen
+.Lfs_pair:
+        # the next side of A, and the next of B
+1:      mov rcx, [rsp + FS_IA]
         cmp ecx, [rbx + N_AUX]
         jae 2f
-        mov rdi, [rbx + N_DATA + rcx*8]
-        mov rsi, r12
-        mov rdx, [rsp + SM_IDX1]
-        call starts_with
-        test eax, eax
-        jnz 2f
-        inc qword ptr [rsp + SM_I]
+        mov rax, [rbx + N_DATA + rcx*8]
+        mov rax, [rax + N_DATA]
+        cmp rax, [r12 + N_DATA]
+        je 2f
+        inc qword ptr [rsp + FS_IA]
         jmp 1b
-        # and the next one starting with longest[:idx2]
-2:      mov rcx, [rsp + SM_J]
+2:      mov rcx, [rsp + FS_IB]
         cmp ecx, [rbx + N_AUX]
         jae 3f
-        mov rdi, [rbx + N_DATA + rcx*8]
-        mov rsi, r13
-        mov rdx, [rsp + SM_IDX2]
-        call starts_with
-        test eax, eax
-        jnz 3f
-        inc qword ptr [rsp + SM_J]
+        mov rax, [rbx + N_DATA + rcx*8]
+        mov rax, [rax + N_DATA]
+        cmp rax, [r13 + N_DATA]
+        je 3f
+        inc qword ptr [rsp + FS_IB]
         jmp 2b
-3:      mov rcx, [rsp + SM_I]
-        mov rdx, [rsp + SM_J]
+3:      mov rcx, [rsp + FS_IA]
+        mov rdx, [rsp + FS_IB]
         cmp ecx, [rbx + N_AUX]
-        jae .Lsm_end
+        jae .Lfs_end
         cmp edx, [rbx + N_AUX]
-        jae .Lsm_no                     # more of the first group than the second
-        # the remainders must be the same
+        jae .Lfs_none                   # more sides in A than in B
+        mov rdi, [rbx + N_DATA + rcx*8] # A_k
+        mov rsi, [rbx + N_DATA + rdx*8] # B_k
+        mov eax, [rsi + N_AUX]
+        mov ecx, [rdi + N_AUX]
+        sub rax, rcx                    # len(B_k) - len(A_k)
+        test r14, r14
+        jz 4f
+        cmp rax, [rsp + FS_D]
+        jne .Lfs_none
+4:      mov [rsp + FS_D], rax
+        # the prefix A_k shares with shortest
+        mov rdx, r12
+        lea rcx, [rsp + FS_HIA]
+        call .Lfs_prefix
+        # the prefix B_k shares with longest
+        mov rcx, [rsp + FS_IB]
         mov rdi, [rbx + N_DATA + rcx*8]
-        mov rsi, [rbx + N_DATA + rdx*8]
-        mov edx, [rdi + N_AUX]
-        sub rdx, [rsp + SM_IDX1]
-        mov ecx, [rsi + N_AUX]
-        sub rcx, [rsp + SM_IDX2]
-        cmp rdx, rcx
-        jne .Lsm_no
-        mov rcx, [rsp + SM_IDX1]
-        lea rdi, [rdi + N_DATA + rcx*8]
-        mov rcx, [rsp + SM_IDX2]
-        lea rsi, [rsi + N_DATA + rcx*8]
-4:      test rdx, rdx
-        jz 5f
-        mov rax, [rdi]
-        cmp rax, [rsi]
-        jne .Lsm_no
-        add rdi, 8
-        add rsi, 8
-        dec rdx
-        jmp 4b
-5:      add r14d, 2
-        inc qword ptr [rsp + SM_I]
-        inc qword ptr [rsp + SM_J]
-        jmp .Lsm_pair
-.Lsm_end:
+        mov rdx, r13
+        lea rcx, [rsp + FS_HIB]
+        call .Lfs_prefix
+        # the common suffix of A_k and B_k: idx1 >= len(A_k) - its length
+        mov rcx, [rsp + FS_IA]
+        mov rdi, [rbx + N_DATA + rcx*8]
+        mov rcx, [rsp + FS_IB]
+        mov rsi, [rbx + N_DATA + rcx*8]
+        mov r8d, [rdi + N_AUX]          # i over A_k, from its end
+        mov r9d, [rsi + N_AUX]          # j over B_k
+5:      test r8, r8
+        jz 6f
+        test r9, r9
+        jz 6f
+        mov rax, [rdi + N_DATA + r8*8 - 8]
+        cmp rax, [rsi + N_DATA + r9*8 - 8]
+        jne 6f
+        dec r8
+        dec r9
+        jmp 5b
+6:      cmp r8, [rsp + FS_LO]           # r8 = len(A_k) - the common suffix
+        jle 7f
+        mov [rsp + FS_LO], r8
+7:      inc r14
+        inc qword ptr [rsp + FS_IA]
+        inc qword ptr [rsp + FS_IB]
+        jmp .Lfs_pair
+.Lfs_end:
         cmp edx, [rbx + N_AUX]
-        jb .Lsm_no                      # more of the second group than the first
-        # every side is in one of the two groups
-        mov eax, [rbx + N_AUX]
-        dec eax
-        cmp eax, r14d
-        jne .Lsm_no
-        mov eax, 1
-        add rsp, 32
+        jb .Lfs_none                    # more sides in B than in A
+        # (every side is in A or B: fold_or checked it)
+        test r14, r14
+        jz .Lfs_none
+        # lo = max(the suffixes' bound, 1, 1 - d);
+        # hi = min(HIA, len(shortest) - 1, len(longest) - 1 - d, HIB - d)
+        mov rax, [rsp + FS_LO]
+        mov rcx, 1
+        sub rcx, [rsp + FS_D]
+        cmp rax, rcx
+        jge 8f
+        mov rax, rcx
+8:      mov rcx, [rsp + FS_HIA]
+        cmp rax, rcx
+        jg .Lfs_none
+        mov ecx, [r12 + N_AUX]
+        dec rcx
+        cmp rax, rcx
+        jg .Lfs_none
+        mov ecx, [r13 + N_AUX]
+        dec rcx
+        sub rcx, [rsp + FS_D]
+        cmp rax, rcx
+        jg .Lfs_none
+        mov rcx, [rsp + FS_HIB]
+        sub rcx, [rsp + FS_D]
+        cmp rax, rcx
+        jg .Lfs_none
+        mov rdx, rax
+        add rdx, [rsp + FS_D]           # idx2
+        add rsp, 48
         LEAVE
-.Lsm_no:
+.Lfs_none:
         xor eax, eax
-        add rsp, 32
+        xor edx, edx
+        add rsp, 48
         LEAVE
-ENDF split_matches
+# local: [rcx] = min([rcx], the prefix the list rdi shares with the list rdx)
+.Lfs_prefix:
+        mov r8d, [rdi + N_AUX]
+        mov r9d, [rdx + N_AUX]
+        cmp r8, r9
+        cmova r8, r9
+        cmp r8, [rcx]
+        cmova r8, [rcx]                 # (no need to look further)
+        xor eax, eax
+1:      cmp rax, r8
+        jae 2f
+        mov r9, [rdi + N_DATA + rax*8]
+        cmp r9, [rdx + N_DATA + rax*8]
+        jne 2f
+        inc rax
+        jmp 1b
+2:      mov [rcx], rax
+        ret
+ENDF fold_or_split
 
 # fold_paths_vec(vec of paths) -> list
 FUNC fold_paths_vec
@@ -1905,27 +1977,16 @@ FUNC fold_or
 51:     inc r12d
         jmp 5b
 6:      # find the two longest stretches that split the or into exactly
-        # two parts
-        mov r12d, 1                     # idx1
-7:      mov rax, [rsp + FO_SHORTEST]
-        cmp r12d, [rax + N_AUX]
-        jae .Lfo_cut
-        mov r13d, 1                     # idx2
-8:      mov rax, [rsp + FO_LONGEST]
-        cmp r13d, [rax + N_AUX]
-        jae 9f
+        # two parts: python's first (idx1, idx2) - idx1 over the lines of
+        # shortest, idx2 over longest's - that splits them so
         mov rdi, rbx
         mov rsi, [rsp + FO_SHORTEST]
-        mov edx, r12d
-        mov rcx, [rsp + FO_LONGEST]
-        mov r8d, r13d
-        call split_matches
-        test eax, eax
-        jnz .Lfo_best
-        inc r13d
-        jmp 8b
-9:      inc r12d
-        jmp 7b
+        mov rdx, [rsp + FO_LONGEST]
+        call fold_or_split
+        test rax, rax
+        jz .Lfo_cut
+        mov r12, rax
+        mov r13, rdx
 .Lfo_best:
         # or_op(shortest[:idx1], longest[:idx2]), the remainders of the
         # sides starting with shortest[:idx1]

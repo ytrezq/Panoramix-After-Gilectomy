@@ -270,6 +270,8 @@ The random unit tests (`tests/test_algebra.py` - with `BIG=1`, masks
 with numbers past 2^62 -, `test_arith.py`, `test_memloc.py`,
 `test_stack.py`, `test_simplify_exp.py`, `test_prettify_random.py`,
 `test_agz.py`: sums of many terms sharing variables, for `add_ge_zero`;
+`test_fold_random.py`: paths sharing beginnings and endings, some in
+two groups the folder's `fold_or` splits, through `fold_paths`;
 `test_trace_random.py`: random traces - the lines of the VM, loops
 included - through every pass of the simplifier and the whole
 `simplify_trace`; a trace on which python takes more than `PY_LIMIT`
@@ -416,3 +418,15 @@ tries its rules one after the other); the VM's rounds keep their
 scratch (see the memory item of the roadmap). Seaport15 went from 10.7G
 instructions to 8.6G, OneInchV5 from 5.9G to 5.5G; the corpus takes
 11.3 s of CPU (one thread per contract).
+
+`contains` compares the leaves in its loop and recurses only into the
+tuples that hold the mention flags of what it looks for. The folder's
+`fold_or` looked for the two stretches that split an or in two by
+trying every pair of lengths (python's two loops, each pair comparing
+every side's beginning and remainder): the groups can only be the sides
+starting with each of the two first lines, paired in order, which fixes
+the difference of the two lengths, and the first length is where the
+common endings of the pairs begin (unless that passes the beginning the
+group shares) - one pass over the sides (`fold_or_split`). With
+`--verbose`, whose paths have thousands of lines, UniV2Pair went from
+13 s to 3 s.
