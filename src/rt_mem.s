@@ -572,15 +572,29 @@ ENDF arena_alloc_raw
 # the scratch mpz are made again.
 FUNC ctx_compact
         ENTER
-        .set CC_FRAME, (16 + MEMO_COUNT * 8 + 15) & -16
+        .set CC_MEMOS, 16               # the old memo tables
+        .set CC_OLD, CC_MEMOS + MEMO_COUNT * 8  # the old arena's end, total, table's cap, count, nodes
+        .set CC_ERR, CC_OLD + 48        # a handler: an error midway puts the old arena back
+        .set CC_FRAME, (CC_ERR + ERR_SIZEOF + 15) & -16
         sub rsp, CC_FRAME
         .set CC_FREED, 0
         .set CC_SLOT, 8
-        .set CC_MEMOS, 16               # the old memo tables
         mov rbx, rdi
         mov r12, [r15 + CTX_ARENA_CHUNKS]      # the old chunks
         mov r13, [r15 + CTX_HC_TABLE]          # the old table
         mov r14, [r15 + CTX_ARENA_CUR]         # (how much of the current one got used)
+        mov rax, [r15 + CTX_ARENA_END]
+        mov [rsp + CC_OLD], rax
+        mov rax, [r15 + CTX_ARENA_TOTAL]
+        mov [rsp + CC_OLD + 8], rax
+        mov rax, [r15 + CTX_HC_CAP]
+        mov [rsp + CC_OLD + 16], rax
+        mov rax, [r15 + CTX_HC_COUNT]
+        mov [rsp + CC_OLD + 24], rax
+        mov rax, [r15 + CTX_NODE_COUNT]
+        mov [rsp + CC_OLD + 32], rax
+        mov rax, [r15 + CTX_RFM_MAP]
+        mov [rsp + CC_OLD + 40], rax
         mov qword ptr [r15 + CTX_ARENA_CHUNKS], 0
         mov qword ptr [r15 + CTX_ARENA_CUR], 0
         mov qword ptr [r15 + CTX_ARENA_END], 0
@@ -602,6 +616,12 @@ FUNC ctx_compact
         mov edx, MEMO_COUNT * 8
         call memset@PLT
         call ctx_init_mpz
+        # the imports can throw (the recursion, the memory limit, the
+        # watchdog's timeout): then the new arena goes, the old one stays
+        lea rdi, [rsp + CC_ERR]
+        call err_catch
+        test eax, eax
+        jnz .Lcc_rollback
         mov rdi, rbx
         call value_import
         mov rbx, rax
@@ -618,7 +638,8 @@ FUNC ctx_compact
         call memo_import
         inc qword ptr [rsp + CC_SLOT]
         jmp 1b
-2:      # (the import's memo holds the old addresses: gone with them;
+2:      call err_end
+        # (the import's memo holds the old addresses: gone with them;
         # replace_f_memo's map was in the old arena)
         mov qword ptr [r15 + CTX_MEMO + MEMO_IMPORT * 8], 0
         mov qword ptr [r15 + CTX_RFM_MAP], 0
@@ -639,7 +660,45 @@ FUNC ctx_compact
         mov rax, rbx
         add rsp, CC_FRAME
         LEAVE
+.Lcc_rollback:
+        mov [rsp + CC_FREED], rax       # the error's code
+        mov rdi, [r15 + CTX_ARENA_CHUNKS]
+        mov rsi, [r15 + CTX_ARENA_CUR]
+        call chunks_release
+        mov rdi, [r15 + CTX_HC_TABLE]
+        call free@PLT
+        mov [r15 + CTX_ARENA_CHUNKS], r12      # (r12, r13, r14: as they were
+        mov [r15 + CTX_HC_TABLE], r13          # at err_catch)
+        mov [r15 + CTX_ARENA_CUR], r14
+        mov rax, [rsp + CC_OLD]
+        mov [r15 + CTX_ARENA_END], rax
+        mov rax, [rsp + CC_OLD + 8]
+        mov [r15 + CTX_ARENA_TOTAL], rax
+        mov rax, [rsp + CC_OLD + 16]
+        mov [r15 + CTX_HC_CAP], rax
+        mov rax, [rsp + CC_OLD + 24]
+        mov [r15 + CTX_HC_COUNT], rax
+        mov rax, [rsp + CC_OLD + 32]
+        mov [r15 + CTX_NODE_COUNT], rax
+        mov rax, [rsp + CC_OLD + 40]
+        mov [r15 + CTX_RFM_MAP], rax
+        lea rdi, [r15 + CTX_MEMO]
+        lea rsi, [rsp + CC_MEMOS]
+        mov edx, MEMO_COUNT * 8
+        call memcpy@PLT
+        call ctx_init_mpz               # (the scratches were made in the new arena)
+        mov edi, LOG_DEBUG
+        lea rsi, [rip + .Ls_mem_logname]
+        lea rdx, [rip + .Ls_compact_undone]
+        call log_fmt
+        mov rdi, [rsp + CC_FREED]
+        mov rsi, [r15 + CTX_ERR_MSG]
+        call err_throw
 ENDF ctx_compact
+
+        .section .rodata
+.Ls_compact_undone: .asciz "compaction interrupted: the old arena kept"
+        .text
 
 # memo_import(slot, kind, old_map): the entries of a memo table of the old
 # arena put into the context's new table, keys and values imported

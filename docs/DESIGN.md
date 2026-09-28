@@ -195,7 +195,12 @@ must not take it down (thousands of nested ifs, a 20000-deep
 expression, a function past its memory limit). The third checks that a
 pass that would take forever (a random trace whose simplification
 doubles an expression at every variable inlined) is cut at its deadline
-by the watchdog.
+by the watchdog, and cuts a real simplification at deadlines all along
+it, with a compaction at every round (`PANORAMIX_COMPACT_MIB=1`, the
+arena's size past which `simplify_trace` compacts): a compaction cut
+midway puts the old arena back (`ctx_compact` has a handler), and every
+call comes back whole or with the timeout, on a context that stays
+sound. The corpus gives the same text with `PANORAMIX_COMPACT_MIB=1`.
 
 `tests/difffuzz.py SEED COUNT` is a differential fuzzer: random
 solidity-like programs (a selector dispatch; functions of storage and

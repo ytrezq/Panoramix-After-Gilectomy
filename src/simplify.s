@@ -95,7 +95,8 @@ FUNC simplify_trace
         # the garbage of the round is dropped once the arena is big: the
         # trace is all that is live here (compared with the previous one
         # by pointer first, as it is copied)
-        cmp qword ptr [r15 + CTX_ARENA_TOTAL], COMPACT_THRESHOLD
+        call compact_threshold
+        cmp [r15 + CTX_ARENA_TOTAL], rax
         jb .Lst_round
         cmp r15, [rip + global_ctx]     # (never the process-wide context)
         je .Lst_round
@@ -216,5 +217,39 @@ FUNC fix_storages
         add rsp, MATCH_BINDINGS_SIZE
         LEAVE
 ENDF fix_storages
+
+# compact_threshold() -> rax: the arena's size past which simplify_trace
+# compacts - COMPACT_THRESHOLD, or PANORAMIX_COMPACT_MIB (the tests: a
+# compaction at every round)
+FUNC compact_threshold
+        mov rax, [rip + compact_bytes]
+        test rax, rax
+        jz 1f
+        ret
+1:      push rbx
+        lea rdi, [rip + .Ls_env_compact]
+        call getenv@PLT
+        mov rbx, COMPACT_THRESHOLD
+        test rax, rax
+        jz 2f
+        mov rdi, rax
+        xor esi, esi
+        mov edx, 10
+        call strtoull@PLT
+        shl rax, 20
+        test rax, rax
+        cmovnz rbx, rax
+2:      mov [rip + compact_bytes], rbx
+        mov rax, rbx
+        pop rbx
+        ret
+ENDF compact_threshold
+
+        .section .data
+        .align 8
+compact_bytes:  .quad 0
+        .section .rodata
+.Ls_env_compact: .asciz "PANORAMIX_COMPACT_MIB"
+        .text
 
         .section .note.GNU-stack,"",@progbits
