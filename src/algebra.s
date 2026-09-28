@@ -2623,30 +2623,21 @@ max_number_value: .quad 0       # the value, made on the global context
 # alg_max_number() -> rax: variants.MAX_number
 FUNC alg_max_number
         mov rax, [rip + max_number_value]
-        test rax, rax
-        jz 1f
         ret
-1:      ENTER
-        push r15
-        push r15
-        call ctx_current
-        mov rbx, rax                    # the binding to restore
-        mov r15, [rip + global_ctx]
-        mov rdi, r15
-        call ctx_bind                   # GMP allocates on the bound context
+ENDF alg_max_number
+
+# alg_init(): the constants of the algebra, on the global context (r15 at
+# rt_init): made once, before any thread asks for them
+FUNC alg_init
+        ENTER
         lea rdi, [r15 + CTX_MPZ_R]
         lea rsi, [rip + max_number_str]
         mov edx, 10
         call __gmpz_set_str@PLT
         call arith_result
         mov [rip + max_number_value], rax
-        mov rdi, rbx
-        call ctx_bind
-        mov rax, [rip + max_number_value]   # (ctx_bind clobbers rax)
-        pop r15
-        pop r15
         LEAVE
-ENDF alg_max_number
+ENDF alg_init
 
 # is_mem64(v) -> eax: v == ('mem', ('range', 64, 32))
 FUNC is_mem64

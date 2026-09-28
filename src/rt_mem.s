@@ -45,6 +45,7 @@ FUNC rt_init
         mov rdi, rax
         call ctx_bind
         call arith_init
+        call alg_init
         call arith_module_init
         call vm_module_init
         call matcher_init
