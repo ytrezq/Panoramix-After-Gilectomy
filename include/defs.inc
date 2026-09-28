@@ -566,7 +566,8 @@ ENDF \fname
 .set VM_SCR_BYJD, 104       #   jd -> its group + 1 (an emap)
 .set VM_SCR_UNEXP, 112      #   and the nodes not run yet
 .set VM_LOOPS, 120          # the nodes replace_loops made loops, for continue_loops (a vec)
-.set VM_SIZEOF, 128
+.set VM_CLEAN, 128          # the bottom of the stack stack_cleanup leaves alone (see there)
+.set VM_SIZEOF, 136
 
 .set MAX_NODE_COUNT, 5000
 .set MAX_EXP_SIZE, 150

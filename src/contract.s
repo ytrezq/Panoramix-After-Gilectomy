@@ -269,7 +269,16 @@ ENDF make_asts
 # ast_cleanup(exp, dicts): the cleanup of make_asts. dicts points at the
 # loc dict, then the name dict.
 FUNC ast_cleanup
-        ENTER
+        # (its patterns are ('field', ...) and ('type', ...): the others
+        # are left as they are without trying them - every node goes here)
+        OPCODE_OF_RDI
+        cmp eax, OP_FIELD
+        je 1f
+        cmp eax, OP_TYPE
+        je 1f
+        mov rax, rdi
+        ret
+1:      ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 48
         .set AC_DICTS, MATCH_BINDINGS_SIZE
         .set AC_MASKS, MATCH_BINDINGS_SIZE + 8
@@ -617,7 +626,12 @@ ENDF loc_to_name
 # arr_rem_mul(exp, contract): the multiplier of an array index that is
 # the size of the struct stored there is dropped
 FUNC arr_rem_mul
-        ENTER
+        OPCODE_OF_RDI                   # (('array', ...) only)
+        cmp eax, OP_ARRAY
+        je 1f
+        mov rax, rdi
+        ret
+1:      ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 32
         .set AR_R, MATCH_BINDINGS_SIZE
         .set AR_LOC, MATCH_BINDINGS_SIZE + 8
@@ -825,7 +839,14 @@ ENDF other_1
 
 # other_2(exp, arg): a few display rewrites
 FUNC other_2
-        ENTER
+        OPCODE_OF_RDI                   # (('if', ...), ('mask_shl', ...) only)
+        cmp eax, OP_IF
+        je 1f
+        cmp eax, OP_MASK_SHL
+        je 1f
+        mov rax, rdi
+        ret
+1:      ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 16
         mov rbx, rdi
         PAT rsi, "('if', ('eq', ':a', ':b'), ':if_true')"

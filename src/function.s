@@ -782,7 +782,9 @@ ENDF rem_masks
 
 # --- the analysis ---
 
-# trace_text(trace) -> str: python's str(trace), for the searches below
+# trace_text(trace) -> sb: python's str(trace), for the searches below,
+# in a builder (sb_free it): its text isn't made a string node - one
+# would hash and scan all of it, which took more than printing it
 FUNC trace_text
         ENTER
         mov rbx, rdi
@@ -791,23 +793,23 @@ FUNC trace_text
         mov rdi, rax
         mov rsi, rbx
         call value_print
-        mov rdi, r12
-        call sb_finish
+        mov rax, r12
         LEAVE
 ENDF trace_text
 
-# text_mentions_any(text, table) -> eax: one of the C strings of the
-# table (0-terminated) occurs in the text
+# text_mentions_any(sb, table) -> eax: one of the C strings of the table
+# (0-terminated) occurs in the builder's text (no NUL in it: value_print
+# escapes them)
 FUNC text_mentions_any
         ENTER
-        mov rbx, rdi
+        mov rbx, [rdi + SB_BUF]
         mov r12, rsi
 1:      mov rsi, [r12]
         test rsi, rsi
         jz 2f
         mov rdi, rbx
-        call str_contains_c
-        test eax, eax
+        call strstr@PLT
+        test rax, rax
         jnz 3f
         add r12, 8
         jmp 1b
@@ -947,6 +949,8 @@ FUNC fn_analyse
 21:     mov r12, [r12 + N_DATA + 16]
 2:      mov [rbx + FN_CONST], r12
 .Lfa_getter:
+        mov rdi, [rsp + FA_TEXT]        # (str(trace) done with)
+        call sb_free
         mov qword ptr [rbx + FN_GETTER], 0
         mov rdi, rbx
         call simplify_string_getter
@@ -1449,10 +1453,14 @@ FUNC fn_priority
         je 1f
         mov rdi, [rbx + FN_TRACE]
         call trace_text
-        mov rdi, rax
+        mov r12, rax
+        mov rdi, [rax + SB_BUF]
         lea rsi, [rip + .Ls_selfdestruct]
-        call str_contains_c
-        test eax, eax
+        call strstr@PLT
+        mov r13, rax
+        mov rdi, r12
+        call sb_free
+        test r13, r13
         jnz 2f
         mov rdi, rbx
         call fn_print

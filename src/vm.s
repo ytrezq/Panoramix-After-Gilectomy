@@ -1284,14 +1284,17 @@ ENDF tuple_append
 # vm_pop() -> rax: the top of the symbolic stack (an error when empty,
 # like python's pop from an empty list)
 FUNC vm_pop
-        mov rdi, [r15 + CTX_VM]
-        mov rdi, [rdi + VM_STACK]
+        mov rcx, [r15 + CTX_VM]
+        mov rdi, [rcx + VM_STACK]
         mov rax, [rdi + VEC_LEN]
         test rax, rax
         jz 1f
         dec rax
         mov [rdi + VEC_LEN], rax
-        mov rcx, [rdi + VEC_DATA]
+        cmp [rcx + VM_CLEAN], rax       # (stack_cleanup's start: below the top)
+        jbe 2f
+        mov [rcx + VM_CLEAN], rax
+2:      mov rcx, [rdi + VEC_DATA]
         mov rax, [rcx + rax*8]
         ret
 1:      mov edi, E_STACK_UNDERFLOW
@@ -1349,6 +1352,7 @@ FUNC vm_exec
         mov [rbx + VM_KNOWN], r8
         call vec_new
         mov [rbx + VM_STACK], rax
+        mov qword ptr [rbx + VM_CLEAN], 0
         mov rdi, rax
         mov rsi, [rsp + 16]
         call vec_extend_seq
@@ -1580,7 +1584,12 @@ FUNC vm_step
         jbe .Lop_stack_index            # stack[-n - 1] of a shorter stack
         mov rdx, [rdi + VEC_DATA]
         lea rdx, [rdx + rcx*8 - 8]      # the top
-        neg rax
+        sub rcx, rax
+        dec rcx                         # (its index: stack_cleanup starts there at most)
+        cmp [rbx + VM_CLEAN], rcx
+        jbe 1f
+        mov [rbx + VM_CLEAN], rcx
+1:      neg rax
         mov rsi, [rdx]
         mov rdi, [rdx + rax*8]
         mov [rdx], rdi
@@ -2347,7 +2356,9 @@ FUNC vm_step
         VPUSH rax
 .Lstep_cleanup:
         mov rdi, [rbx + VM_STACK]
-        call stack_cleanup
+        mov rsi, [rbx + VM_CLEAN]
+        call stack_cleanup_from
+        mov [rbx + VM_CLEAN], rax
         xor eax, eax
         add rsp, 80
         LEAVE

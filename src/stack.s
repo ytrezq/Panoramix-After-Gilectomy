@@ -180,9 +180,22 @@ ENDF stack_simplify_impl
 
 # stack_cleanup(vec): Stack.cleanup, in place
 FUNC stack_cleanup
+        xor esi, esi
+        jmp stack_cleanup_from
+ENDF stack_cleanup
+
+# stack_cleanup_from(stack, start) -> rax: stack_cleanup of the elements
+# from `start` - those below are known to be left as they are (python's
+# cleanup of an element depends on the element only: one it left alone
+# stays so until it's popped or swapped away; one it changed may change
+# again). Returns where the next one may start: the first element it
+# changed, or the end.
+FUNC stack_cleanup_from
         ENTER
+        sub rsp, 16
         mov rbx, rdi
-        xor r12d, r12d
+        mov r12, rsi
+        mov qword ptr [rsp], -1         # the first element changed (none yet)
 1:      cmp r12, [rbx + VEC_LEN]
         jae .Lsc_done
         mov rax, [rbx + VEC_DATA]
@@ -260,12 +273,20 @@ FUNC stack_cleanup
 .Lsc_store:
         mov rcx, [rbx + VEC_DATA]
         mov [rcx + r12*8], rax
+        cmp qword ptr [rsp], -1
+        jne .Lsc_next
+        mov [rsp], r12
 .Lsc_next:
         inc r12
         jmp 1b
 .Lsc_done:
+        mov rax, [rsp]
+        cmp rax, -1
+        jne 2f
+        mov rax, [rbx + VEC_LEN]
+2:      add rsp, 16
         LEAVE
-ENDF stack_cleanup
+ENDF stack_cleanup_from
 
         OPSET_MEMBER booleans, OP_ISZERO
         OPSET_MEMBER booleans, OP_EQ
