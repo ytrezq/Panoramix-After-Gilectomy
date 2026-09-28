@@ -1061,7 +1061,7 @@ FUNC arith_eval
 1:      cmp r14, r12
         jae 2f
         mov rdi, [r13 + r14*8]
-        call opcode_of
+        OPCODE_OF_RDI
         mov edi, eax
         call is_arith_op
         test eax, eax
@@ -1082,13 +1082,13 @@ FUNC arith_eval
         inc r14
         jmp 4b
 5:      mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         mov edi, eax
         call is_arith_op
         test eax, eax
         jz .Lev_rebuild
         mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         mov edi, eax
         mov rsi, r12
         mov rdx, r13
@@ -1156,7 +1156,7 @@ FUNC eval_symbolic
         cmp dword ptr [rbx + N_AUX], 3
         jne .Les_asis
         mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         mov r12d, eax
         mov r13, [rbx + N_DATA + 8]     # left
         mov r14, [rbx + N_DATA + 16]    # right
@@ -1355,7 +1355,7 @@ FUNC is_zero
         call mk_iszero_of
         LEAVE
 3:      mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         mov r12d, eax
         JT_SWITCH iz, OP_COUNT, .Liz_cmp
         JT_CASE iz, OP_ISZERO, .Liz_iszero
@@ -1382,7 +1382,7 @@ FUNC is_zero
         jne .Liz_default
         mov r13, [rbx + N_DATA + 8]
         mov rdi, r13
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_EQ
         jne 4f
         mov rax, r13
@@ -1543,7 +1543,7 @@ FUNC eval_bool
         mov r13, rdx                    # symbolic flag
         # a known-true ('bool', x) is a known-true x
         mov rdi, r12
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_BOOL
         jne 1f
         cmp dword ptr [r12 + N_AUX], 2
@@ -1588,7 +1588,7 @@ FUNC eval_bool
         je .Leb_true
         jmp .Leb_false
 2:      mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         mov r14d, eax
         cmp eax, OP_BOOL
         jne 3f
@@ -1652,14 +1652,14 @@ FUNC eval_bool
         jmp 8b
 9:      # ('le'/'lt', x, a) with ('le'/'lt', x, b) known: a >= b makes it true
         mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         mov r14d, eax
         cmp eax, OP_LE
         je 10f
         cmp eax, OP_LT
         jne 12f
 10:     mov rdi, r12
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, r14d
         jne 12f
         cmp dword ptr [rbx + N_AUX], 3

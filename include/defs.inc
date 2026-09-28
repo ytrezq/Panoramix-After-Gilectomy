@@ -366,6 +366,57 @@ ENDF \fname
 # OP_N_CHECK op, n, fail: falls through if rdi is a tuple of n elements
 # (n > 0, a register or an immediate) with opcode op (a register or an
 # immediate); jumps to fail otherwise. Only rax is used.
+# OPCODE_INLINE src, dst32, tmp: opcode_of(src) without the call (the id
+# of a tuple's head string, 0 for anything else); src kept, tmp clobbered
+.macro OPCODE_INLINE src, dst32, tmp
+        xor \dst32, \dst32
+        test \src, 1
+        jnz .Lopi_done\@
+        test \src, \src
+        jz .Lopi_done\@
+        cmp dword ptr [\src + N_KIND], K_TUPLE
+        jne .Lopi_done\@
+        cmp dword ptr [\src + N_AUX], 0
+        je .Lopi_done\@
+        mov \tmp, [\src + N_DATA]
+        test \tmp, 1
+        jnz .Lopi_done\@
+        test \tmp, \tmp
+        jz .Lopi_done\@
+        cmp dword ptr [\tmp + N_KIND], K_STR
+        jne .Lopi_done\@
+        mov \dst32, [\tmp + N_AUX]
+        and \dst32, STR_ID_MASK
+.Lopi_done\@:
+.endm
+
+# OPCODE_OF_RDI: `call opcode_of` inline - eax the opcode id of the tuple
+# rdi, 0 for anything else; like the call, only rax (and the flags)
+# change
+.macro OPCODE_OF_RDI
+        test dil, 1
+        jnz .Loor_zero\@
+        test rdi, rdi
+        jz .Loor_zero\@
+        cmp dword ptr [rdi + N_KIND], K_TUPLE
+        jne .Loor_zero\@
+        cmp dword ptr [rdi + N_AUX], 0
+        je .Loor_zero\@
+        mov rax, [rdi + N_DATA]
+        test al, 1
+        jnz .Loor_zero\@
+        test rax, rax
+        jz .Loor_zero\@
+        cmp dword ptr [rax + N_KIND], K_STR
+        jne .Loor_zero\@
+        mov eax, [rax + N_AUX]
+        and eax, STR_ID_MASK
+        jmp .Loor_done\@
+.Loor_zero\@:
+        xor eax, eax
+.Loor_done\@:
+.endm
+
 .macro OP_N_CHECK op, n, fail
         test dil, 1
         jnz \fail

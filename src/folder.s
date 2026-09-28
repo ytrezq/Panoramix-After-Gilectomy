@@ -189,7 +189,7 @@ ENDF has_merged_if
 FUNC make_fands
         ENTER
         mov rbx, rdi
-        call opcode_of
+        OPCODE_OF_RDI
         LOADS rsi, FOR
         cmp eax, OP_OR
         je 1f
@@ -206,7 +206,7 @@ ENDF make_fands
 FUNC unmake_fands
         ENTER
         mov rbx, rdi
-        call opcode_of
+        OPCODE_OF_RDI
         LOADS rsi, OR
         cmp eax, OP_FOR
         je 1f
@@ -1356,7 +1356,7 @@ FUNC folder_and
         mov rsi, [rsp]
         call vec_push
 3:      mov rdi, [rsp]
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_OR
         jne 4f
         # an or among the arguments: one and per variant, ored

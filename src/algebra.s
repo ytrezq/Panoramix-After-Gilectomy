@@ -666,7 +666,7 @@ FUNC alg_mul_n
 9:      cmp r14, rbx
         jae 10f
         mov rdi, [r12 + r14*8]
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_MUL
         jne 11f
         mov rdi, r13
@@ -688,7 +688,7 @@ FUNC alg_mul_n
 13:     cmp r14, rbx
         jae 16f
         mov rdi, [r12 + r14*8]
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_ADD
         je 14f
         inc r14
@@ -802,7 +802,7 @@ FUNC flatten_adds
         jae 5f
         mov rax, [rbx + VEC_DATA]
         mov rdi, [rax + r12*8]
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_ADD
         je 3f
         inc r12
@@ -816,7 +816,7 @@ FUNC flatten_adds
         mov rax, [rbx + VEC_DATA]
         mov r14, [rax + r12*8]
         mov rdi, r14
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_ADD
         jne 7f
         cmp dword ptr [r14 + N_AUX], 2
@@ -2745,7 +2745,7 @@ FUNC ge_zero_impl
         cmp dword ptr [rbx + N_KIND], K_STR
         je .Lgz_true
         mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         JT_SWITCH ge_zero, OP_COUNT, .Lgz_none
         JT_CASE ge_zero, OP_MUL, .Lgz_mul
         JT_CASE ge_zero, OP_BOOL, .Lgz_true
@@ -2847,7 +2847,7 @@ FUNC extract_variables
         cmp eax, K_TUPLE
         jne .Lxv_leaf                   # strings, specials, lists: a variable
         mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         # a variable: var, mem, cd, storage, call.data, sha3, calldatasize,
         # or an array (helpers.ARRAY_OPCODES)
         JT_SWITCH xv, OP_COUNT, .Lxv_terms
@@ -2991,7 +2991,7 @@ FUNC variant_evaluable
         inc r14
         jmp 1b
 2:      mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         JT_SWITCH ve, OP_COUNT, .Lve_no
         JT_CASE ve, OP_ADD, .Lve_node
         JT_CASE ve, OP_MUL, .Lve_node
@@ -3069,7 +3069,7 @@ FUNC variant_eval
         shl rax, 4
         lea r14, [r15 + CTX_EVAL_POOL + rax]
         mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         cmp dword ptr [rbx + N_AUX], 2
         jb .Lvv_no_terms
         cmp eax, OP_ADD
@@ -3413,7 +3413,7 @@ FUNC add_ge_zero_impl
         cmp qword ptr [rsp + AGZ_FAST], 0
         jl 4f
         mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_ADD
         jne 4f
         mov rdi, rbx
@@ -3867,7 +3867,7 @@ FUNC simplify_impl
         sub rsp, 48
         mov rbx, rdi
         mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         mov r12d, eax
         JT_SWITCH simplify, OP_COUNT, .Lsi_other
         JT_CASE simplify, OP_MAX, .Lsi_max
@@ -4500,12 +4500,12 @@ FUNC lt_op_impl
         call add_max_terms
         mov r12, rax
         mov rdi, r12
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_MAX
         jne 1f
         xchg rbx, r12
 1:      mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_MAX
         jne .Llt_addvar
         # all the terms < right: True; any False: False; else None. Every

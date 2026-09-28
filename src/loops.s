@@ -646,7 +646,7 @@ FUNC collect_setmems
         call vec_extend_seq
         jmp 2f
 1:      mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_SETMEM
         jne 2f
         mov rdi, r12

@@ -970,7 +970,7 @@ FUNC find_op_list
         mov rbx, rdi
         mov r12, rsi
         mov r13, rdx
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, r12d
         jne 2f
         mov rdi, r13

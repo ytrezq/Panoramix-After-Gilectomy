@@ -256,7 +256,7 @@ ENDF pred_funccall
 FUNC pred_selector_if
         ENTER
         mov rbx, rdi
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_IF
         jne 1f
         cmp dword ptr [rbx + N_AUX], 4

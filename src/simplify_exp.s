@@ -136,7 +136,7 @@ FUNC simplify_exp_impl
         call mk5
         mov rbx, rax
 1:      mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_AND
         jne 2f
         mov rdi, rbx
@@ -144,7 +144,7 @@ FUNC simplify_exp_impl
         mov rbx, rax
 2:      # ('data', 0, 0, ...) is 0
         mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_DATA
         jne 3f
         mov ecx, 1
@@ -447,14 +447,14 @@ FUNC simplify_exp_impl
         B rax, 0
         jmp .Lse_done
 24:     mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_ADD
         jne 25f
         mov rdi, rbx
         call simplify_add_terms
         mov rbx, rax
 25:     mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_MASK_SHL
         jne 26f
         mov rdi, rbx
@@ -527,7 +527,7 @@ FUNC simplify_exp_impl
         jmp .Lse_done
 .Lse_not_mem_mask:
         mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_DATA
         jne .Lse_after_data
         mov rdi, rbx
@@ -622,7 +622,7 @@ FUNC simplify_exp_impl
         call simplify_exp
         jmp .Lse_done
 33:     mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_MUL
         jne 34f
         # mul_op over the simplified terms
@@ -1430,12 +1430,14 @@ ENDF sizeof_s
 # canonise_max(exp) -> value: the terms of a max in a canonical order
 # (sorted by their repr, the ints first)
 FUNC canonise_max
-        ENTER
+        OPCODE_INLINE rdi, eax, rcx     # (a callback on every node: not a
+        cmp eax, OP_MAX                 # max, as it is, without a frame)
+        je 1f
+        mov rax, rdi
+        ret
+1:      ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 16
         mov rbx, rdi
-        call opcode_of
-        cmp eax, OP_MAX
-        jne .Lcx_asis
         call vec_new
         mov r12, rax
         mov r13d, 1

@@ -420,7 +420,7 @@ FUNC overwrites_mem
         movzx eax, al
         jmp .Lom_done
 1:      mov rdi, rbx
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_WHILE
         jne 2f
         mov rdi, rbx
@@ -609,7 +609,7 @@ FUNC mem_use
 11:     mov eax, [rsp + MU_RES]
         jmp .Lmu_done
 2:      mov rdi, r14
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_WHILE
         jne 3f
         mov rdi, r14
@@ -645,7 +645,7 @@ FUNC mem_use
         mov eax, MU_OVERWRITTEN
         jmp .Lmu_done
 5:      mov rdi, r14
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_CONTINUE
         je .Lmu_used
         mov rdi, r14
@@ -654,7 +654,7 @@ FUNC mem_use
         test eax, eax
         jnz .Lmu_used
         mov rdi, r14
-        call opcode_of
+        OPCODE_OF_RDI
         mov edi, eax
         call is_ends_execution_op
         test eax, eax

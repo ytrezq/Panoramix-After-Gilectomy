@@ -58,7 +58,7 @@ ENDF stack_simplify
 FUNC stack_simplify_impl
         ENTER
         mov rbx, rdi
-        call opcode_of
+        OPCODE_OF_RDI
         mov r12d, eax
         mov edi, eax
         call is_arith_op
@@ -187,12 +187,7 @@ FUNC stack_cleanup
         jae .Lsc_done
         mov rax, [rbx + VEC_DATA]
         mov r13, [rax + r12*8]
-        mov rdi, r13
-        call is_tuple
-        test eax, eax
-        jz .Lsc_next
-        mov rdi, r13
-        call opcode_of
+        OPCODE_INLINE r13, eax, rcx     # (0: not a tuple)
         cmp eax, OP_LT
         je .Lsc_lt
         cmp eax, OP_ISZERO

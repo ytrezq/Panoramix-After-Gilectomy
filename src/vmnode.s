@@ -223,7 +223,7 @@ FUNC node_run
         mov rax, [rax + VEC_DATA]
         mov r12, [rax + rcx*8 - 8]      # the last line
         mov rdi, r12
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_JUMP
         je 1f
         cmp eax, OP_IF
@@ -343,13 +343,12 @@ FUNC pred_loop
         cmp qword ptr [rax + VEC_LEN], 1
         jne 1f
         mov rax, [rax + VEC_DATA]
-        mov rdi, [rax]
-        ENTER
-        call opcode_of
+        mov rdx, [rax]
+        OPCODE_INLINE rdx, eax, rcx
         cmp eax, OP_LOOP
         sete al
         movzx eax, al
-        LEAVE
+        ret
 1:      xor eax, eax
         ret
 ENDF pred_loop
@@ -410,7 +409,7 @@ FUNC node_make_trace
         mov rax, [r13 + VEC_DATA]
         mov rdi, [rax + r14*8]
         mov [rsp + 8], rdi              # line
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_JUMP
         jne 2f
         mov rdi, [rsp + 8]
