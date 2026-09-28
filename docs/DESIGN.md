@@ -11,19 +11,49 @@ database, liblzma. Everything else is assembly (GNU as, Intel syntax).
     include/defs.inc      constants, struct offsets, macros (read this first)
     include/opcodes.inc   generated: OP_* ids of the well-known strings
     src/rt_mem.s          thread contexts, arena allocator, GMP memory hooks
-    src/rt_node.s         values, tuples/lists (hash-consed), big ints
-    src/rt_str.s          global string interning, string builders, formatting
+    src/rt_node.s         values, tuples/lists (hash-consed), big ints, value_import
+    src/rt_str.s          global string interning, arena strings, builders, formatting
     src/rt_print.s        python-repr-like printing of values (tests, debug)
+    src/rt_parse.s        python literals -> values (the tests)
     src/rt_log.s          logging (coloredlogs' format)
-    src/loader.s          bytecode -> instructions, jumpdests
+    src/rt_err.s          errors: python's exceptions (err_catch / err_throw)
+    src/rt_map.s          pointer-keyed hash maps, memo tables
+    src/rt_vec.s          growable arrays
+    src/rt_io.s           files
+    src/pyutil.s          python's sorts (CPython's comparison order), ordered dicts, sets
+    src/matcher.s         the pattern matcher (matcher.py), PAT literals
+    src/loader.s          bytecode -> instructions, jumpdests, push values
+    src/funcs.s           function discovery (Loader.run)
+    src/arith.s           256-bit arithmetic, is_zero, eval_bool (core/arithmetic.py)
+    src/algebra.s         add_op, mask_op, lt_op, ge_zero... (core/algebra.py, variants.py)
+    src/masks.s           to_mask, find_mask (core/masks.py)
+    src/stack.s           the symbolic stack (stack.py)
+    src/vmnode.s, vm.s    the symbolic VM (vm.py): nodes, jump tables of the opcodes
+    src/whiles.s          loops to whiles (whiles.py)
+    src/memloc.s          memory locations (core/memloc.py)
+    src/simplify_exp.s    simplify_exp and its helpers
+    src/loops.s, cleanup.s, rewriter.s, simplify.s   the simplifier (simplify.py, postprocess.py)
+    src/folder.s          the folder (folder.py)
+    src/sigs.s            signatures as the printer needs them, get_param_name, colors
+    src/sigdb.s           the signature database: abi_dump.xz -> a flat mmap'ed file
+    src/prettify.s, pretty_line.s   the printer (prettify.py)
+    src/function.s        Function (function.py)
+    src/sparser.s         the storage (sparser.py)
+    src/contract.s        Contract (contract.py)
+    src/decompiler.s      decompile(): the thread pool, the contract's text (decompiler.py)
     src/api.s             the C-callable entry points (pan_*)
     src/main.s            the `panasm` command line tool
     src/pymod.c           the CPython module `panoramix_asm`
+    src/testapi.s         the hooks of the differential tests (`panoramix_asm._test`)
     tools/gen_opcodes.py  generates opcodes.inc / opcodes_table.s
     tests/                comparisons with the python implementation
 
 Build: `make` (needs python3 headers for the module). `build/panasm`
 is the CLI, `build/panoramix_asm*.so` the module.
+
+    panasm build-db panoramix/data/abi_dump.xz    # once: the signature database
+    panasm decompile contract.hex [-j N] [--function NAME] [--no-color]
+    python3 -c 'import panoramix_asm; print(panoramix_asm.decompile(open("contract.hex").read()))'
 
 ## Conventions
 
@@ -50,23 +80,57 @@ is the CLI, `build/panoramix_asm*.so` the module.
   table: `opcode_of(v)` then `jmp [table + rax*8]`. `LOADS reg, NAME`
   loads the string node of an opcode.
 
+## Errors, threads, strings
+
+- Where python raises, `err_throw(code, msg)` unwinds to the innermost
+  `err_catch` (setjmp-like, `rt_err.s`); every place python has a
+  try/except has one. The test entry point reports them as
+  `<exc code: message>`.
+- `decompile()` runs the functions on a pool of threads: each function
+  gets a context of its own, and its trace is imported into the main
+  thread's context (`value_import`: hash-consed again, big ints copied)
+  as soon as it is done, then the worker's arena is freed. The loader
+  is shared read-only; strings are global (a spinlock).
+- Two kinds of strings: interned ones (global, forever: opcodes, names
+  that go into expressions - equal text, same node) and arena strings
+  (`str_new`: the text being built for display, freed with the arena).
+  Anything compared by pointer inside expressions must be interned.
+- Python's floats appear in two places (2 ** shl below zero, in
+  prettify and sparser's mask_to_mul); they are carried as the interned
+  text of their repr, which is all that is done with them.
+
 ## Roadmap
 
 1. [x] runtime: arena, hash-consing, ints, strings, logging, printing
 2. [x] loader: disassembly (identical to `Loader.disasm()` on the corpus)
-3. [ ] literal parser (python repr subset) for the tests
-4. [ ] arithmetic: 256-bit EVM semantics, `is_zero`, `eval_bool`...
-5. [ ] masks + algebra (`add_op`, `mask_op`, `lt_op`, `ge_zero`...)
-6. [ ] symbolic stack (`Stack.simplify` / `cleanup`)
-7. [ ] VM: nodes, symbolic execution, loops, merges, path conditions
-8. [ ] function discovery, signature database (xz + json -> flat file)
-9. [ ] whiles, simplify passes, folder, prettify, storage naming
-10. [ ] threads: one per function, shared read-only loader
-11. [ ] `decompile()` in the module, CLI parity with `python -m panoramix`
+3. [x] literal parser (python repr subset) for the tests
+4. [x] arithmetic: 256-bit EVM semantics, `is_zero`, `eval_bool`...
+5. [x] masks + algebra (`add_op`, `mask_op`, `lt_op`, `ge_zero`...)
+6. [x] symbolic stack (`Stack.simplify` / `cleanup`)
+7. [x] VM: nodes, symbolic execution, loops, merges, path conditions
+8. [x] function discovery, signature database (xz + json -> flat file)
+9. [x] whiles, simplify passes, folder, prettify, storage naming
+10. [x] threads: one per function, shared read-only loader
+11. [x] `decompile()` in the module, CLI parity with `python -m panoramix`
+12. [ ] vectorization where it pays (the arena, the string hashing, the
+    hash-cons table) depending on the ISA (sse2/avx2/avx512)
+13. [ ] the deduplicating allocator: the hash-cons table already gives
+    one node per distinct value on a thread; sharing across threads
+    would need a lock-free table
 
 ## Testing
 
-`tests/compare_disasm.py` runs both implementations on a corpus of
-`.hex` files. Later stages compare python `repr()`s of intermediate
-structures (the printing in `rt_print.s` follows python's format for
-that) and the final text.
+Every layer has a differential test against the python implementation
+on a corpus of `.hex` files (`tests/test_*.py`, run with the system
+python3 and the module in `build/`): the raw traces of the VM, the
+functions found, the whiles, every simplifier pass on every corpus
+trace, the folder, every sub-expression through prettify with every
+combination of its flags, the function analysis, the whole contract
+postprocessing. `tests/compare_output.py` compares the final text with
+`decompile_bytecode`'s (both without the signature database);
+`corpus/run_one.sh` produces the references with the database, from
+pypy, to diff against `panasm decompile --no-color`.
+
+Python's nondeterminism had to be removed on its side first (the order
+of the terms of a max, the variants of an expression): commits on the
+`fix-branch-pruning` branch of the python repository.
