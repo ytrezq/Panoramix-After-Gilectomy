@@ -107,10 +107,22 @@ FUNC stack_jump_dests
         LEAVE
 ENDF stack_jump_dests
 
-# str_of_int(i64) -> rax: the interned decimal string
+# str_of_int(i64) -> rax: the interned decimal string. The jumpdests on
+# the stack are made strings for every node's jd: those of the numbers
+# below STR_OF_INT_CACHED are kept (the interned strings live as long as
+# the process; two threads filling the same slot write the same string)
+        .set STR_OF_INT_CACHED, 32768
 FUNC str_of_int
-        ENTER
+        cmp rdi, STR_OF_INT_CACHED
+        jae 1f                          # (a negative one too: unsigned)
+        lea rax, [rip + str_of_int_cache]
+        mov rax, [rax + rdi*8]
+        test rax, rax
+        jz 1f
+        ret
+1:      ENTER
         sub rsp, 32
+        mov rbx, rdi
         mov rcx, rdi
         mov rdi, rsp
         mov esi, 32
@@ -120,9 +132,18 @@ FUNC str_of_int
         mov rdi, rsp
         mov esi, eax
         call str_intern
-        add rsp, 32
+        cmp rbx, STR_OF_INT_CACHED
+        jae 2f
+        lea rcx, [rip + str_of_int_cache]
+        mov [rcx + rbx*8], rax
+2:      add rsp, 32
         LEAVE
 ENDF str_of_int
+
+        .bss
+        .p2align 4
+str_of_int_cache:   .zero STR_OF_INT_CACHED * 8
+        .text
 
 # str_of_value(v) -> rax: the interned python repr of a value (str(jd[0])
 # for a symbolic jump target)
