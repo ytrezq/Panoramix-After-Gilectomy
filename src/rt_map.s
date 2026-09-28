@@ -145,15 +145,15 @@ FUNC memo_table
         LEAVE
 ENDF memo_table
 
-# memo_get(which, key) -> rax (0 if absent)
+# memo_get(which, key) -> rax (0 if absent; a table not made yet: absent)
 FUNC memo_get
-        ENTER
-        mov rbx, rsi
-        call memo_table
+        mov rax, [r15 + CTX_MEMO + rdi*8]
+        test rax, rax
+        jz 1f
         mov rdi, rax
-        mov rsi, rbx
-        call map_get
-        LEAVE
+        jmp map_get
+1:      xor eax, eax
+        ret
 ENDF memo_get
 
 # memo_put(which, key, value)
