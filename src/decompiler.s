@@ -488,6 +488,8 @@ FUNC decompile
         call .Lde_functions_in_order
         mov [rsp + DE_FUNCS], rax
         mov rdi, [rsp + DE_PROBLEMS]
+        call .Lde_functions_in_order    # (the names, in the order of the jobs)
+        mov rdi, rax
         call vec_to_list
         mov rsi, rax
         mov rdi, [rsp + DE_FUNCS]
@@ -618,6 +620,19 @@ FUNC decompile
         mov rdi, rax
         xor esi, esi
         call abi_func_name              # the name, as python's problems hold it
+        mov [rsp + 16 + ERR_SIZEOF + 8], rax
+        # (name, job index): python's dict has them in the loader's order,
+        # the jobs finish in any order
+        mov rsi, [rsp + 16 + ERR_SIZEOF]
+        sub rsi, [r13 + DC_JOBS]
+        mov rax, rsi
+        xor edx, edx
+        mov ecx, JB_SIZEOF
+        div rcx
+        mov rsi, rax
+        TAG rsi
+        mov rdi, [rsp + 16 + ERR_SIZEOF + 8]
+        call mk2
         pop rdi
         pop rdi
         mov rsi, rax
