@@ -1703,11 +1703,20 @@ FUNC pow2_or_float
         ja 2f
         lea rax, [rip + float_pow2]
         mov rdi, [rax + rdi*8]
-        jmp str_intern_c                # (it goes into expressions)
+        jmp float_str
 2:      mov edi, E_NOT_IMPLEMENTED
         lea rsi, [rip + .Ls_float]
         jmp err_throw
 ENDF pow2_or_float
+
+# float_str(cstr) -> the interned string flagged STR_FLOAT: python's float
+# in an expression (it prints bare, like a number)
+FUNC float_str
+        ENTER
+        call str_intern_c
+        or dword ptr [rax + N_AUX], STR_FLOAT
+        LEAVE
+ENDF float_str
 
         .section .rodata
 .Ls_float: .asciz "prettify: a float below 2^-8"

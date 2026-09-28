@@ -234,6 +234,13 @@ FUNC pv_number
 4:      mov rax, [rbx + PS_POS]
         sub rax, r12                    # number of digits
         jz .Lnum_fail
+        # a float (digits.digits): kept as its text, flagged (see float_str)
+        mov rdi, rbx
+        call pv_peek
+        cmp eax, '.'
+        je .Lnum_float
+        mov rax, [rbx + PS_POS]
+        sub rax, r12
         lea rdi, [rax + 2]
         call malloc@PLT
         mov [rsp], rax
@@ -262,6 +269,27 @@ FUNC pv_number
         jnz .Lnum_fail
         lea rdi, [r15 + CTX_TMPZ]
         call mk_int_mpz
+        add rsp, 16
+        LEAVE
+.Lnum_float:
+        inc qword ptr [rbx + PS_POS]
+7:      mov rdi, rbx
+        call pv_peek
+        cmp eax, '0'
+        jb 8f
+        cmp eax, '9'
+        ja 8f
+        inc qword ptr [rbx + PS_POS]
+        jmp 7b
+8:      test r14d, r14d
+        jz 9f
+        dec r12                         # the '-' is part of the text
+9:      mov rdi, [rbx + PS_TEXT]
+        add rdi, r12
+        mov rsi, [rbx + PS_POS]
+        sub rsi, r12
+        call str_intern
+        or dword ptr [rax + N_AUX], STR_FLOAT
         add rsp, 16
         LEAVE
 .Lnum_fail:

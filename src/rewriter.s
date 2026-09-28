@@ -295,7 +295,7 @@ FUNC postprocess_exp
         jae 2f
         mov rax, [rbx + N_DATA + r13*8]
         test al, 1
-        jz 11f
+        jz 12f
         sar rax, 1
         test rax, 31
         jnz 11f
@@ -304,6 +304,24 @@ FUNC postprocess_exp
         mov [rsp + PE_CONCRETE], rax    # (untagged)
 11:     inc r13d
         jmp 1b
+12:     # a big int counts too when it is a multiple of 32 (the 32-byte
+        # constants of the errors usually are): never an offset, but it
+        # makes the count exceed one
+        mov rdi, rax
+        call is_int
+        test eax, eax
+        jz 11b
+        mov rax, [rbx + N_DATA + r13*8]
+        lea rdi, [rax + N_DATA]
+        mov esi, 32
+        call __gmpz_divisible_ui_p@PLT
+        test eax, eax
+        jz 11b
+        inc r12d
+        mov [rsp + PE_LOC], r13
+        mov rax, 0x7fffffffffffffff     # loc = huge: no array starts there
+        mov [rsp + PE_CONCRETE], rax
+        jmp 11b
 2:      cmp r12d, 1
         jne .Lpe_arr
         mov rax, [rsp + PE_CONCRETE]

@@ -53,7 +53,11 @@ FUNC value_print
 .Lp_str:
         mov rdi, rbx
         mov rsi, r12
+        test dword ptr [r12 + N_AUX], STR_FLOAT
+        jnz 5f
         call str_repr
+        LEAVE
+5:      call sb_append_str              # a float: bare, as python prints it
         LEAVE
 .Lp_special:
         mov eax, [r12 + N_AUX]

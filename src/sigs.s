@@ -380,9 +380,22 @@ FUNC find_sig
         mov rdi, r14
         mov esi, ' '
         call sb_append_char
-        mov rdi, r14
         mov rsi, [rbx + N_DATA + 8]
+        cmp dword ptr [rsi + N_DATA], 0
+        je 4f
+        mov rdi, r14
         call sb_append_str
+        inc qword ptr [rsp]
+        jmp 1b
+4:      # an unnamed input: _param<i+1>, as signatures.fix_input_names
+        mov rdi, r14
+        lea rsi, [rip + .Ls_param]
+        call sb_append_c
+        mov rdi, r14
+        mov rsi, [rsp]
+        lea rsi, [rsi*2 + 3]
+        mov edx, 10
+        call sb_append_int
         inc qword ptr [rsp]
         jmp 1b
 2:      mov rdi, r14
@@ -404,6 +417,7 @@ ENDF find_sig
 
         .section .rodata
 .Ls_fs_assert: .asciz "find_sig: a signature without inputs"
+.Ls_param:     .asciz "_param"
         .text
 
 # try_fname(v, flags) -> str or 0: prettify's try_fname - the signature of
