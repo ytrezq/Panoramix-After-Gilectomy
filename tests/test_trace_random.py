@@ -144,12 +144,20 @@ if __name__ == "__main__":
     for i, trace in enumerate(REGRESSIONS):
         passes(trace, "regression %d" % i)
         check("simplify_trace", trace, run(S.simplify_trace, trace), "regression %d" % i)
+    from panoramix import folder
     for n in range(N):
         trace = rtrace()
         if os.environ.get("TRACE"): print("TRACE", n, repr(trace), flush=True)
         passes(trace, "random %d" % n)
         exp = run(S.simplify_trace, trace)
         check("simplify_trace", trace, exp, "random %d" % n)
+        # the folder, on the trace and on its simplification
+        check("fold", trace, run(folder.fold, trace), "random %d" % n)
+        try:
+            simplified = S.simplify_trace(trace)
+        except Exception:
+            continue
+        check("fold", simplified, run(folder.fold, simplified), "random %d (simplified)" % n)
     if RECURSION_LIMITED: print(f"{RECURSION_LIMITED} cases past python's recursion limit")
     print(f"{T.cases} cases, {T.bad} mismatches")
     sys.exit(1 if T.bad else 0)
