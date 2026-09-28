@@ -238,9 +238,22 @@ ENDF eval_msize
 FUNC cleanup_msize
         ENTER
         sub rsp, 16
+        # a trace that doesn't mention msize comes back as it is: the msize
+        # python computes along the way (a max of every memory write, whose
+        # terms are compared with each other - the costliest part of some
+        # contracts) is only ever used to replace msize
+        mov rbx, rdi
+        mov rsi, HF_MSIZE
+        call mentions
+        test eax, eax
+        jz 1f
+        mov rdi, rbx
         mov esi, 1
         lea rdx, [rsp]
         call cleanup_msize_impl
+        add rsp, 16
+        LEAVE
+1:      mov rax, rbx
         add rsp, 16
         LEAVE
 ENDF cleanup_msize
