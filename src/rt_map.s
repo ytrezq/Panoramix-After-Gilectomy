@@ -363,6 +363,185 @@ FUNC memo2_put
         LEAVE
 ENDF memo2_put
 
+# --- maps from triples of keys (replace_mem_exp's (exp, mem_idx,
+# mem_val)), for the same reason: entries of 32 bytes, k1 (never 0), k2,
+# k3, the value (never 0). Same header.
+
+# MAP3_HASH: rax = the hash of (rsi, rdx, rcx), r8 clobbered
+.macro MAP3_HASH
+        movabs rax, 0x9e3779b97f4a7c15
+        imul rax, rsi
+        rol rax, 29
+        xor rax, rdx
+        movabs r8, 0xc4ceb9fe1a85ec53
+        imul rax, r8
+        rol rax, 31
+        xor rax, rcx
+        mov r8, rax
+        shr r8, 33
+        xor rax, r8
+        movabs r8, 0xff51afd7ed558ccd
+        imul rax, r8
+        mov r8, rax
+        shr r8, 29
+        xor rax, r8
+.endm
+
+# map3_get(map, k1, k2, k3) -> rax: the value, or 0
+FUNC map3_get
+        MAP3_HASH
+        mov r9, [rdi + MAP_CAP]
+        dec r9
+        and rax, r9
+        shl rax, 5
+        shl r9, 5
+        mov rdi, [rdi + MAP_ENTRIES]
+1:      mov r8, [rdi + rax]
+        test r8, r8
+        jz 2f
+        cmp r8, rsi
+        jne 3f
+        cmp [rdi + rax + 8], rdx
+        jne 3f
+        cmp [rdi + rax + 16], rcx
+        je 4f
+3:      add rax, 32
+        and rax, r9
+        jmp 1b
+2:      xor eax, eax
+        ret
+4:      mov rax, [rdi + rax + 24]
+        ret
+ENDF map3_get
+
+# map3_slot(map, k1, k2, k3) -> rax: the byte offset of the slot holding
+# the triple, or of the empty one for it (r10: the entries)
+FUNC map3_slot
+        MAP3_HASH
+        mov r9, [rdi + MAP_CAP]
+        dec r9
+        and rax, r9
+        shl rax, 5
+        shl r9, 5
+        mov r10, [rdi + MAP_ENTRIES]
+1:      mov r8, [r10 + rax]
+        test r8, r8
+        jz 2f
+        cmp r8, rsi
+        jne 3f
+        cmp [r10 + rax + 8], rdx
+        jne 3f
+        cmp [r10 + rax + 16], rcx
+        je 2f
+3:      add rax, 32
+        and rax, r9
+        jmp 1b
+2:      ret
+ENDF map3_slot
+
+# map3_put(map, k1, k2, k3, value): insert or replace
+FUNC map3_put
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        mov r14, rcx
+        mov [rsp], r8
+        mov rax, [rbx + MAP_COUNT]
+        shl rax, 1
+        cmp rax, [rbx + MAP_CAP]
+        jb 1f
+        mov rdi, rbx
+        call map3_grow
+1:      mov rdi, rbx
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, r14
+        call map3_slot
+        cmp qword ptr [r10 + rax], 0
+        jne 2f
+        inc qword ptr [rbx + MAP_COUNT]
+2:      mov [r10 + rax], r12
+        mov [r10 + rax + 8], r13
+        mov [r10 + rax + 16], r14
+        mov rcx, [rsp]
+        mov [r10 + rax + 24], rcx
+        add rsp, 16
+        LEAVE
+ENDF map3_put
+
+FUNC map3_grow
+        ENTER
+        mov rbx, rdi
+        mov r12, [rbx + MAP_ENTRIES]
+        mov r13, [rbx + MAP_CAP]
+        lea rdi, [r13*2]
+        shl rdi, 5
+        call arena_alloc                # (first: see map_grow)
+        mov [rbx + MAP_ENTRIES], rax
+        lea rax, [r13*2]
+        mov [rbx + MAP_CAP], rax
+        xor r14d, r14d                  # byte offset into the old entries
+        shl r13, 5
+1:      cmp r14, r13
+        jae 3f
+        mov rsi, [r12 + r14]
+        test rsi, rsi
+        jz 2f
+        mov rdi, rbx
+        mov rdx, [r12 + r14 + 8]
+        mov rcx, [r12 + r14 + 16]
+        call map3_slot
+        mov rsi, [r12 + r14]
+        mov [r10 + rax], rsi
+        mov rsi, [r12 + r14 + 8]
+        mov [r10 + rax + 8], rsi
+        mov rsi, [r12 + r14 + 16]
+        mov [r10 + rax + 16], rsi
+        mov rsi, [r12 + r14 + 24]
+        mov [r10 + rax + 24], rsi
+2:      add r14, 32
+        jmp 1b
+3:      LEAVE
+ENDF map3_grow
+
+# memo3_get(which, k1, k2, k3) -> rax (0 if absent): a triple memo
+FUNC memo3_get
+        mov rax, [r15 + CTX_MEMO + rdi*8]
+        test rax, rax
+        jz 1f
+        mov rdi, rax
+        jmp map3_get
+1:      xor eax, eax
+        ret
+ENDF memo3_get
+
+# memo3_put(which, k1, k2, k3, value)
+FUNC memo3_put
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        mov r14, rcx
+        mov [rsp], r8
+        mov rax, [r15 + CTX_MEMO + rbx*8]
+        test rax, rax
+        jnz 1f
+        mov edi, 64                     # (32 bytes an entry, as map2's)
+        call map2_new_cap
+        mov [r15 + CTX_MEMO + rbx*8], rax
+1:      mov rdi, rax
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, r14
+        mov r8, [rsp]
+        call map3_put
+        add rsp, 16
+        LEAVE
+ENDF memo3_put
+
 # --- emaps: maps whose entries belong to an epoch (32 bytes: key, value,
 # epoch, -), emptied at once by starting a new epoch - the entries of
 # the ones before are as good as empty (a new key takes their slot; the

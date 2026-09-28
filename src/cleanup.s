@@ -935,14 +935,11 @@ FUNC replace_mem_exp
 0:      mov rax, rbx
         add rsp, 32
         LEAVE
-1:      mov rdi, rbx
-        mov rsi, r12
-        mov rdx, r13
-        call mk3
-        mov r14, rax                    # the key
-        mov edi, MEMO_REPLACE_MEM_EXP
-        mov rsi, r14
-        call memo_get
+1:      mov edi, MEMO_REPLACE_MEM_EXP   # (a memo of triples: no key tuple made)
+        mov rsi, rbx
+        mov rdx, r12
+        mov rcx, r13
+        call memo3_get
         test rax, rax
         jnz 2f
         mov rdi, rbx
@@ -951,9 +948,11 @@ FUNC replace_mem_exp
         call replace_mem_exp_impl
         mov [rsp], rax
         mov edi, MEMO_REPLACE_MEM_EXP
-        mov rsi, r14
-        mov rdx, rax
-        call memo_put
+        mov rsi, rbx
+        mov rdx, r12
+        mov rcx, r13
+        mov r8, rax
+        call memo3_put
         mov rax, [rsp]
 2:      add rsp, 32
         LEAVE

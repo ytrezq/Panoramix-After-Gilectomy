@@ -514,7 +514,7 @@ ENDF \fname
 .set MEMO_TEST_NODES, 9
 .set MEMO_SIMPLIFY_EXP, 10
 .set MEMO_FIND_MEMS, 11
-.set MEMO_REPLACE_MEM_EXP, 12
+.set MEMO_REPLACE_MEM_EXP, 12  # (a map of triples: memo3_get)
 .set MEMO_RANGE_OVERLAPS, 13
 .set MEMO_SIGDB, 14         # selector -> abi entry (sigdb.s)
 .set MEMO_IMPORT, 15        # value_import: a VM node -> its copy here
