@@ -275,6 +275,10 @@ string in memory data whose length is -64 to -95 makes python's
 forward): the port raises the IndexError python raises for the longer
 negative lengths.
 
+`tests/test_threads.py` decompiles the corpus from several python
+threads at once (each call with its own workers, 1 to 3) and compares
+every text with the contract decompiled alone.
+
 `tests/stage_compare.py contract.hex FUNCTION` finds the first stage of
 python's `simplify_trace` whose port differs, replaying each stage on
 python's input of that stage.
