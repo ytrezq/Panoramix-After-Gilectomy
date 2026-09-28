@@ -168,6 +168,21 @@ The whole corpus (30 contracts) decompiles identically to pypy's
 references with the signature database; `panasm` takes ~16 s for all of
 them on two cores where pypy takes ~12 minutes.
 
+A second corpus comes from the compiled artifacts npm packages ship
+(`tests/corpus_from_npm.py`: OpenZeppelin 2/3/4, Uniswap v2/v3, Aave v3,
+Gnosis Safe, 0x - 407 runtime bytecodes, from solc 0.5 to 0.8, with
+libraries, mocks and proxies). All of them decompile identically to
+pypy's output (67 s against 57 minutes), with one intended difference:
+python 3.11 (and pypy) refuse `str()` of an integer of more than 4300
+digits, which `replace_mem` does on the lines of a trace, so python
+fails on the functions that deploy a contract whose code is inlined
+(`create2 ... code: 0x...`); the port prints them, exactly as python
+does with `PYTHONINTMAXSTRDIGITS=0`.
+
+`tests/stage_compare.py contract.hex FUNCTION` finds the first stage of
+python's `simplify_trace` whose port differs, replaying each stage on
+python's input of that stage.
+
 ## Performance notes
 
 Profiled with callgrind (`valgrind --tool=callgrind build/panasm ...`,
