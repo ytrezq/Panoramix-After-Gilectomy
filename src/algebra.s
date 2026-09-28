@@ -801,6 +801,8 @@ FUNC flatten_adds
         call opcode_of
         cmp eax, OP_ADD
         jne 7f
+        cmp dword ptr [r14 + N_AUX], 2
+        jbe .Lfa_assert                 # python: assert len(r[1:]) > 1
         mov rdi, r13
         mov edx, [r14 + N_AUX]
         dec edx
@@ -820,7 +822,15 @@ FUNC flatten_adds
         mov [rbx + VEC_CAP], rax
         jmp 1b
 5:      LEAVE
+.Lfa_assert:
+        mov edi, E_ASSERT
+        lea rsi, [rip + .Ls_fa_assert]
+        call err_throw
 ENDF flatten_adds
+
+        .section .rodata
+.Ls_fa_assert: .asciz "flatten_adds: an add of less than two terms"
+        .text
 
 # alg_add2(a, b) -> value: add_op(a, b)
 FUNC alg_add2
