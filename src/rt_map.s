@@ -346,4 +346,141 @@ FUNC memo2_put
         LEAVE
 ENDF memo2_put
 
+# --- emaps: maps whose entries belong to an epoch (32 bytes: key, value,
+# epoch, -), emptied at once by starting a new epoch - the entries of
+# the ones before are as good as empty (a new key takes their slot; the
+# probes stop at them). For replace_f_memo, which asks for a fresh map at
+# every walk of the trace: growing one from nothing, rehashing and zeroing
+# at every doubling, cost more than the walk it saved.
+
+# EMAP_HASH: rax = the slot's byte offset of rsi in the emap rdi, rcx =
+# the mask of the byte offsets
+.macro EMAP_SLOT
+        mov rax, rsi
+        mov rcx, rax
+        shr rcx, 33
+        xor rax, rcx
+        movabs rcx, 0xff51afd7ed558ccd
+        imul rax, rcx
+        mov rcx, rax
+        shr rcx, 29
+        xor rax, rcx
+        mov rcx, [rdi + MAP_CAP]
+        dec rcx
+        and rax, rcx
+        shl rax, 5
+        shl rcx, 5
+.endm
+
+# emap_new() -> rax: an emap of 1024 slots, epoch 1 (the slots' 0: empty)
+FUNC emap_new
+        ENTER
+        mov edi, EMAP_SIZEOF + 1024*32
+        call arena_alloc
+        lea rcx, [rax + EMAP_SIZEOF]
+        mov [rax + MAP_ENTRIES], rcx
+        mov qword ptr [rax + MAP_CAP], 1024
+        mov qword ptr [rax + MAP_COUNT], 0
+        mov qword ptr [rax + EMAP_EPOCH], 1
+        LEAVE
+ENDF emap_new
+
+# emap_begin(map): empty (a new epoch)
+FUNC emap_begin
+        inc qword ptr [rdi + EMAP_EPOCH]
+        mov qword ptr [rdi + MAP_COUNT], 0
+        ret
+ENDF emap_begin
+
+# emap_get(map, key) -> rax: the value, or 0
+FUNC emap_get
+        EMAP_SLOT
+        mov r8, [rdi + EMAP_EPOCH]
+        mov rdx, [rdi + MAP_ENTRIES]
+1:      cmp [rdx + rax + 16], r8
+        jne 2f                          # empty, or of an epoch before
+        cmp [rdx + rax], rsi
+        je 3f
+        add rax, 32
+        and rax, rcx
+        jmp 1b
+2:      xor eax, eax
+        ret
+3:      mov rax, [rdx + rax + 8]
+        ret
+ENDF emap_get
+
+# emap_put(map, key, value): insert or replace
+FUNC emap_put
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        mov rax, [rbx + MAP_COUNT]
+        inc rax
+        shl rax, 1
+        cmp rax, [rbx + MAP_CAP]
+        jbe 1f
+        mov rdi, rbx
+        call emap_grow
+1:      mov rdi, rbx
+        mov rsi, r12
+        EMAP_SLOT
+        mov r8, [rbx + EMAP_EPOCH]
+        mov rdx, [rbx + MAP_ENTRIES]
+2:      cmp [rdx + rax + 16], r8
+        jne 3f
+        cmp [rdx + rax], r12
+        je 4f
+        add rax, 32
+        and rax, rcx
+        jmp 2b
+3:      inc qword ptr [rbx + MAP_COUNT] # a slot taken
+        mov [rdx + rax], r12
+        mov [rdx + rax + 16], r8
+4:      mov [rdx + rax + 8], r13
+        LEAVE
+ENDF emap_put
+
+# emap_grow(map): twice the slots, the current epoch's entries moved
+FUNC emap_grow
+        ENTER
+        mov rbx, rdi
+        mov r12, [rbx + MAP_ENTRIES]
+        mov r13, [rbx + MAP_CAP]
+        lea rdi, [r13*2]
+        mov [rbx + MAP_CAP], rdi
+        shl rdi, 5
+        call arena_alloc                # (zeroed: epoch 0, empty)
+        mov [rbx + MAP_ENTRIES], rax
+        mov r14, [rbx + EMAP_EPOCH]
+        shl r13, 5
+        xor r8d, r8d                    # byte offset into the old entries
+1:      cmp r8, r13
+        jae 4f
+        cmp [r12 + r8 + 16], r14
+        jne 3f
+        mov rdi, rbx
+        mov rsi, [r12 + r8]
+        push r8
+        push r8
+        EMAP_SLOT
+        pop r8
+        pop r8
+        mov rdx, [rbx + MAP_ENTRIES]
+2:      cmp qword ptr [rdx + rax + 16], 0
+        je 21f
+        add rax, 32
+        and rax, rcx
+        jmp 2b
+21:     mov rsi, [r12 + r8]
+        mov [rdx + rax], rsi
+        mov rsi, [r12 + r8 + 8]
+        mov [rdx + rax + 8], rsi
+        mov [rdx + rax + 16], r14
+3:      add r8, 32
+        jmp 1b
+4:      LEAVE
+ENDF emap_grow
+
         .section .note.GNU-stack,"",@progbits

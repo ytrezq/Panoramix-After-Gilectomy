@@ -618,8 +618,10 @@ FUNC ctx_compact
         call memo_import
         inc qword ptr [rsp + CC_SLOT]
         jmp 1b
-2:      # (the import's memo holds the old addresses: gone with them)
+2:      # (the import's memo holds the old addresses: gone with them;
+        # replace_f_memo's map was in the old arena)
         mov qword ptr [r15 + CTX_MEMO + MEMO_IMPORT * 8], 0
+        mov qword ptr [r15 + CTX_RFM_MAP], 0
         mov rdi, r12
         mov rsi, r14
         call chunks_release
@@ -743,7 +745,6 @@ memo_kinds:
         .byte 0                         # LINE_VARS
         .byte 0                         # TRY_ADD (pairs)
         .byte 0                         # MUL2 (pairs)
-        .byte 3                         # AFFECTS (pairs, codes)
         .text
 
 # memo_sizes_log(): DEBUG: the number of entries of every memo table

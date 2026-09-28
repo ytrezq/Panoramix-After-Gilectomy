@@ -477,41 +477,6 @@ FUNC affects
         ENTER
         mov rbx, rdi
         mov r12, rsi
-        # memoized: a pure function of the two (replace_mem asks it of
-        # every line after every memory write, the same writes again and
-        # again - mem[64])
-        mov edi, MEMO_AFFECTS
-        mov rsi, rbx
-        mov rdx, r12
-        call memo2_get
-        test rax, rax
-        jz 1f
-        xor ecx, ecx
-        cmp rax, MEMO_TRUE              # (rax: the code)
-        sete cl
-        mov eax, ecx
-        LEAVE
-1:      mov rdi, rbx
-        mov rsi, r12
-        call affects_impl
-        mov r13d, eax
-        mov ecx, MEMO_FALSE
-        mov eax, MEMO_TRUE
-        test r13d, r13d
-        cmovnz ecx, eax
-        mov edi, MEMO_AFFECTS
-        mov rsi, rbx
-        mov rdx, r12
-        call memo2_put
-        mov eax, r13d
-        LEAVE
-ENDF affects
-
-FUNC affects_impl
-        STACK_CHECK
-        ENTER
-        mov rbx, rdi
-        mov r12, rsi
         mov rdi, r12
         call is_tuple
         test eax, eax
@@ -558,7 +523,7 @@ FUNC affects_impl
 .Laf_no:
         xor eax, eax
         LEAVE
-ENDF affects_impl
+ENDF affects
 
         .section .rodata
 .Ls_undefined: .asciz "undefined"

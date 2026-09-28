@@ -793,8 +793,15 @@ FUNC replace_f_memo
         mov rbx, rdi
         mov r12, rsi
         mov r13, rdx
-        call map_new
-        mov rcx, rax
+        mov rax, [r15 + CTX_RFM_MAP]    # the context's, emptied (an epoch)
+        test rax, rax
+        jnz 1f
+        call emap_new
+        mov [r15 + CTX_RFM_MAP], rax
+1:      mov r14, rax
+        mov rdi, rax
+        call emap_begin
+        mov rcx, r14
         mov rdi, rbx
         mov rsi, r12
         mov rdx, r13
@@ -821,7 +828,7 @@ FUNC rfm_walk
         LEAVE
 1:      mov rdi, [rsp + 8]
         mov rsi, rbx
-        call map_get
+        call emap_get
         test rax, rax
         jz 4f
         add rsp, 32
@@ -854,7 +861,7 @@ FUNC rfm_walk
         mov rdi, [rsp + 8]
         mov rsi, rbx
         mov rdx, rax
-        call map_put
+        call emap_put
 5:      mov rax, [rsp + 16]
         add rsp, 32
         LEAVE
