@@ -1224,7 +1224,13 @@ FUNC replace_mem
         test eax, eax
         jnz .Lrp_rest
         jmp .Lrp_line
-5:      mov rdi, r14
+5:      # (affects() can only be true of a while here: overwrites_mem is
+        # false of every line but a setmem, a while and an if)
+        mov rdi, r14
+        OPCODE_OF_RDI
+        cmp eax, OP_WHILE
+        jne 7f
+        mov rdi, r14
         mov rsi, [rsp + RP_VAL]
         call affects
         test eax, eax
@@ -1883,7 +1889,11 @@ FUNC replace_var
         test eax, eax
         jz .Lrv_line
         jmp .Lrv_rest
-4:      mov rdi, r14
+4:      mov rdi, r14                    # (affects() is false of a line other
+        OPCODE_OF_RDI                   # than a setmem, a while or an if)
+        cmp eax, OP_WHILE
+        jne 5f
+        mov rdi, r14
         mov rsi, [rsp + RV_VAL]
         call affects
         test eax, eax
