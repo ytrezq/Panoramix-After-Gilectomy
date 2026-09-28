@@ -20,6 +20,7 @@ From python (the module in `build/`):
     text = panoramix_asm.decompile(open("contract.hex").read())          # a str with colors
     text = panoramix_asm.decompile(code, threads=4, function="transfer")
     panoramix_asm.build_signature_db("abi_dump.xz")                       # once
+    panoramix_asm.set_log_level("info")     # warnings and errors only by default
 
 The signature database goes to `$PANORAMIX_SIGDB`, or
 `$XDG_CACHE_HOME/panoramix/abi_db.bin`, or `~/.cache/panoramix/abi_db.bin`.

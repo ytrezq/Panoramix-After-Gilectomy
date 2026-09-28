@@ -16,6 +16,7 @@ log_color:      .quad -1        # -1: decide from isatty(2)
 log_hostname:   .space 72
 log_pid:        .quad 0
 log_lock:       .quad 0
+log_initialized: .quad 0
 
         .section .rodata
 .Lc_green:      .asciz "\033[32m"
@@ -31,15 +32,18 @@ log_lock:       .quad 0
 .Ls_warning:    .asciz "WARNING"
 .Ls_error:      .asciz "ERROR"
 .Lenv_log:      .asciz "PANORAMIX_LOG"
-.Ls_debug_lc:   .asciz "debug"
-.Ls_warn_lc:    .asciz "warning"
-.Ls_error_lc:   .asciz "error"
+.Ls_warn_lc:    .asciz "warn"
 
         .text
 
-# log_init(): hostname, pid, color detection, PANORAMIX_LOG=debug|warning|error
+# log_init(): hostname, pid, color detection, and the level from
+# PANORAMIX_LOG=debug|info|warning|error (once: a level set later by
+# pan_set_log_level stays)
 FUNC log_init
         ENTER
+        cmp qword ptr [rip + log_initialized], 0
+        jne 2f
+        mov qword ptr [rip + log_initialized], 1
         lea rdi, [rip + log_hostname]
         mov esi, 64
         call gethostname@PLT
@@ -54,31 +58,46 @@ FUNC log_init
 1:      lea rdi, [rip + .Lenv_log]
         call getenv@PLT
         test rax, rax
-        jz 2f
-        mov rbx, rax
-        mov rdi, rbx
-        lea rsi, [rip + .Ls_debug_lc]
-        call strcmp@PLT
-        test eax, eax
-        jnz 3f
-        mov qword ptr [rip + log_level], LOG_DEBUG
-        jmp 2f
-3:      mov rdi, rbx
-        lea rsi, [rip + .Ls_warn_lc]
-        call strcmp@PLT
-        test eax, eax
-        jnz 4f
-        mov qword ptr [rip + log_level], LOG_WARNING
-        jmp 2f
-4:      mov rdi, rbx
-        lea rsi, [rip + .Ls_error_lc]
-        call strcmp@PLT
-        test eax, eax
-        jnz 2f
-        mov qword ptr [rip + log_level], LOG_ERROR
-2:      call simd_log                   # (chosen before the level was known)
-        LEAVE
+        jz 3f
+        mov rdi, rax
+        call log_level_from_name
+        test rax, rax
+        js 3f
+        mov [rip + log_level], rax
+3:      call simd_log                   # (chosen before the level was known)
+2:      LEAVE
 ENDF log_init
+
+# log_level_from_name(cstr) -> rax: the level of a name (any case), or -1
+FUNC log_level_from_name
+        ENTER
+        mov rbx, rdi
+        lea r12, [rip + log_level_names]
+1:      mov rsi, [r12]
+        test rsi, rsi
+        jz 2f
+        mov rdi, rbx
+        call strcasecmp@PLT
+        test eax, eax
+        jz 3f
+        add r12, 16
+        jmp 1b
+2:      mov rax, -1
+        LEAVE
+3:      mov rax, [r12 + 8]
+        LEAVE
+ENDF log_level_from_name
+
+        .section .data.rel.ro
+        .align 8
+log_level_names:                        # (name, level), as python's logging
+        .quad .Ls_debug, LOG_DEBUG
+        .quad .Ls_info, LOG_INFO
+        .quad .Ls_warning, LOG_WARNING
+        .quad .Ls_warn_lc, LOG_WARNING
+        .quad .Ls_error, LOG_ERROR
+        .quad 0, 0
+        .text
 
 # log_enabled(level) -> eax
 FUNC log_enabled

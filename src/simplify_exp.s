@@ -1198,12 +1198,32 @@ FUNC cleanup_mask_data
         call err_throw
 ENDF cleanup_mask_data
 
+# assert_mask5(exp): python's `m = match(exp, ("mask_shl", ":size",
+# ":offset", ":shl", ":val")); assert m` - an AssertionError otherwise
+FUNC assert_mask5
+        ENTER
+        mov esi, OP_MASK_SHL
+        mov edx, 5
+        call is_op_n
+        test eax, eax
+        jz 1f
+        LEAVE
+1:      mov edi, E_ASSERT
+        lea rsi, [rip + .Ls_assert_mask5]
+        call err_throw
+ENDF assert_mask5
+
+        .section .rodata
+.Ls_assert_mask5:   .asciz "cleanup_mask_data: the mask became something else"
+        .text
+
 # cleanup_mask_right(('mask_shl', size, offset, shl, val)): removes the
 # last element of a data cut off by the offset
 FUNC cleanup_mask_right
         ENTER
         sub rsp, 32
         mov rbx, rdi
+        call assert_mask5               # (mask_op may have returned something else)
         mov r12, [rbx + N_DATA + 32]    # val
         mov rdi, r12
         call opcode_of
@@ -1257,6 +1277,7 @@ FUNC cleanup_mask_left
         ENTER
         sub rsp, 32
         mov rbx, rdi
+        call assert_mask5
         mov r12, [rbx + N_DATA + 32]    # val
         mov rdi, r12
         call opcode_of

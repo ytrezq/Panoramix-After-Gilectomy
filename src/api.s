@@ -19,6 +19,21 @@ FUNC pan_init
         LEAVE
 ENDF pan_init
 
+# pan_set_log_level(level): python's logging levels (10 debug, 20 info,
+# 30 warning, 40 error)
+FUNC pan_set_log_level
+        ENTER
+        mov rbx, rdi
+        call pan_init
+        mov [rip + log_level], rbx
+        LEAVE
+ENDF pan_set_log_level
+
+# pan_log_level_from_name(name) -> the level of "debug", "INFO"..., or -1
+FUNC pan_log_level_from_name
+        jmp log_level_from_name
+ENDF pan_log_level_from_name
+
 FUNC pan_disasm
         push r15
         ENTER

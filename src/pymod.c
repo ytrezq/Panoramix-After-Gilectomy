@@ -10,6 +10,8 @@ void pan_free(void *p);
 int pan_test(const char *name, const char *text, size_t len, char **out, size_t *outlen);
 int pan_decompile(const unsigned char *code, size_t len, size_t threads, const char *only_func, char **out, size_t *outlen);
 int pan_build_sigdb(const char *xz_path, const char *out_path);
+void pan_set_log_level(long level);
+long pan_log_level_from_name(const char *name);
 
 /* accepts bytes (raw bytecode) or str (hex, 0x optional) */
 static int get_code(PyObject *arg, unsigned char **code, size_t *len, PyObject **holder)
@@ -107,6 +109,30 @@ static PyObject *py_build_signature_db(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
+/* set_log_level(level): an int (logging.DEBUG...) or a name ("debug"...) */
+static PyObject *py_set_log_level(PyObject *self, PyObject *arg)
+{
+    long level;
+
+    if (PyLong_Check(arg)) {
+        level = PyLong_AsLong(arg);
+        if (level == -1 && PyErr_Occurred()) return NULL;
+    } else if (PyUnicode_Check(arg)) {
+        const char *name = PyUnicode_AsUTF8(arg);
+        if (!name) return NULL;
+        level = pan_log_level_from_name(name);
+        if (level < 0) {
+            PyErr_Format(PyExc_ValueError, "unknown log level: %s", name);
+            return NULL;
+        }
+    } else {
+        PyErr_SetString(PyExc_TypeError, "expected an int or a level name");
+        return NULL;
+    }
+    pan_set_log_level(level);
+    Py_RETURN_NONE;
+}
+
 static PyObject *py_test(PyObject *self, PyObject *args)
 {
     const char *name, *text;
@@ -127,6 +153,7 @@ static PyObject *py_test(PyObject *self, PyObject *args)
 static PyMethodDef methods[] = {
     {"build_signature_db", py_build_signature_db, METH_VARARGS, "build_signature_db(abi_dump_xz, out=None): convert panoramix's signature dump into the database file (in the cache directory by default)"},
     {"_test", py_test, METH_VARARGS, "_test(name, literal) -> str: apply a library function to a python literal"},
+    {"set_log_level", py_set_log_level, METH_O, "set_log_level(level): the level of the messages printed on stderr, an int (logging.INFO...) or a name (\"debug\", \"info\", \"warning\", \"error\"); WARNING by default, as a library, unless PANORAMIX_LOG is set"},
     {"disasm", py_disasm, METH_VARARGS, "disasm(code) -> str: the disassembly, one instruction per line"},
     {"decompile", (PyCFunction)py_decompile, METH_VARARGS | METH_KEYWORDS, "decompile(code, threads=0, function=None) -> str: the decompiled contract, as `python -m panoramix` prints it"},
     {NULL, NULL, 0, NULL}
@@ -139,5 +166,10 @@ static struct PyModuleDef module = {
 PyMODINIT_FUNC PyInit_panoramix_asm(void)
 {
     pan_init();
+    /* as a library, like python's logging without a handler: the warnings
+       and the errors only (the command line tool shows INFO, like
+       `python -m panoramix`) */
+    if (!getenv("PANORAMIX_LOG"))
+        pan_set_log_level(30);
     return PyModule_Create(&module);
 }
