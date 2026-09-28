@@ -2919,6 +2919,8 @@ FUNC variant_eval
         lea r14, [r15 + CTX_EVAL_POOL + rax]
         mov rdi, rbx
         call opcode_of
+        cmp dword ptr [rbx + N_AUX], 2
+        jb .Lvv_no_terms
         cmp eax, OP_ADD
         je .Lvv_add
         cmp eax, OP_MUL
@@ -3000,65 +3002,121 @@ FUNC variant_eval
         xor esi, esi
         call __gmpz_set_ui@PLT
         jmp .Lvv_done
-.Lvv_add:
+.Lvv_no_terms:                          # ('add',) 0, ('mul',) 1, ('max',) the floor
         mov rdi, [rsp + VV_OUT]
+        cmp eax, OP_MAX
+        je 1f
         xor esi, esi
-        call __gmpz_set_ui@PLT          # 0
-        mov qword ptr [rsp + VV_SIZE], 1
+        cmp eax, OP_MUL
+        sete sil
+        call __gmpz_set_ui@PLT
+        jmp .Lvv_done
+1:      lea rsi, [rip + mpz_neg_two256]
+        call __gmpz_set@PLT
+        jmp .Lvv_done
+.Lvv_add:
+        # out := the first term, then += the others (a number or a variable
+        # added as it is, without a copy)
+        mov rdi, [rbx + N_DATA + 8]
+        call .Lvv_first
+        mov qword ptr [rsp + VV_SIZE], 2
 6:      mov rax, [rsp + VV_SIZE]
         cmp eax, [rbx + N_AUX]
         jae .Lvv_done
+        inc qword ptr [rsp + VV_SIZE]
         mov rdi, [rbx + N_DATA + rax*8]
+        call .Lvv_leaf
+        test rax, rax
+        jz 61f
+        test al, 1
+        jz 62f
+        sar rax, 1                      # a small int: + or - its magnitude
+        mov rdi, [rsp + VV_OUT]
+        mov rsi, rdi
+        test rax, rax
+        js 63f
+        mov rdx, rax
+        call __gmpz_add_ui@PLT
+        jmp 6b
+63:     neg rax
+        mov rdx, rax
+        call __gmpz_sub_ui@PLT
+        jmp 6b
+62:     lea rdx, [rax + N_DATA]         # a big int: its own mpz
+        mov rdi, [rsp + VV_OUT]
+        mov rsi, rdi
+        call __gmpz_add@PLT
+        jmp 6b
+61:     mov rax, [rsp + VV_SIZE]        # an expression: in the scratch
+        mov rdi, [rbx + N_DATA + rax*8 - 8]
         call .Lvv_elem
         mov rdi, [rsp + VV_OUT]
         mov rsi, rdi
         mov rdx, r14
         call __gmpz_add@PLT
-        inc qword ptr [rsp + VV_SIZE]
         jmp 6b
 .Lvv_mul:
-        mov rdi, [rsp + VV_OUT]
-        mov esi, 1
-        call __gmpz_set_ui@PLT          # 1
-        mov qword ptr [rsp + VV_SIZE], 1
+        mov rdi, [rbx + N_DATA + 8]
+        call .Lvv_first
+        mov qword ptr [rsp + VV_SIZE], 2
 7:      mov rax, [rsp + VV_SIZE]
         cmp eax, [rbx + N_AUX]
         jae .Lvv_done
+        inc qword ptr [rsp + VV_SIZE]
         mov rdi, [rbx + N_DATA + rax*8]
+        call .Lvv_leaf
+        test rax, rax
+        jz 71f
+        test al, 1
+        jz 72f
+        sar rax, 1
+        mov rdi, [rsp + VV_OUT]
+        mov rsi, rdi
+        mov rdx, rax
+        call __gmpz_mul_si@PLT
+        jmp 7b
+72:     lea rdx, [rax + N_DATA]
+        mov rdi, [rsp + VV_OUT]
+        mov rsi, rdi
+        call __gmpz_mul@PLT
+        jmp 7b
+71:     mov rax, [rsp + VV_SIZE]
+        mov rdi, [rbx + N_DATA + rax*8 - 8]
         call .Lvv_elem
         mov rdi, [rsp + VV_OUT]
         mov rsi, rdi
         mov rdx, r14
         call __gmpz_mul@PLT
-        inc qword ptr [rsp + VV_SIZE]
         jmp 7b
 .Lvv_max:
-        mov rdi, [rsp + VV_OUT]
-        mov esi, 1
-        call __gmpz_set_ui@PLT
-        mov rdi, [rsp + VV_OUT]
-        mov rsi, rdi
-        mov edx, 256
-        call __gmpz_mul_2exp@PLT
-        mov rdi, [rsp + VV_OUT]
-        mov rsi, rdi
-        call __gmpz_neg@PLT             # -(2^256), the floor
-        mov qword ptr [rsp + VV_SIZE], 1
+        # the largest element, and -(2^256) at least (calc_max's floor)
+        mov rdi, [rbx + N_DATA + 8]
+        call .Lvv_first
+        mov qword ptr [rsp + VV_SIZE], 2
 8:      mov rax, [rsp + VV_SIZE]
         cmp eax, [rbx + N_AUX]
-        jae .Lvv_done
+        jae 81f
+        inc qword ptr [rsp + VV_SIZE]
         mov rdi, [rbx + N_DATA + rax*8]
         call .Lvv_elem
         mov rdi, r14
         mov rsi, [rsp + VV_OUT]
         call __gmpz_cmp@PLT
         test eax, eax
-        jle 9f
+        jle 8b
         mov rdi, [rsp + VV_OUT]
         mov rsi, r14
         call __gmpz_set@PLT
-9:      inc qword ptr [rsp + VV_SIZE]
         jmp 8b
+81:     mov rdi, [rsp + VV_OUT]
+        lea rsi, [rip + mpz_neg_two256]
+        call __gmpz_cmp@PLT
+        test eax, eax
+        jge .Lvv_done
+        mov rdi, [rsp + VV_OUT]
+        lea rsi, [rip + mpz_neg_two256]
+        call __gmpz_set@PLT
+        jmp .Lvv_done
 .Lvv_int:                               # a number (rbx: the value): out := it
         mov rdi, [rsp + VV_OUT]
         mov rsi, rbx
@@ -3066,6 +3124,29 @@ FUNC variant_eval
 .Lvv_done:
         add rsp, 48
         LEAVE
+.Lvv_first:                             # out := the value of the element rdi
+        mov r8, [rsp + 8 + VV_OUT]
+        jmp .Lvv_elem_into
+# rax := the element rdi as a number (a tagged int, a K_INT node, or a
+# variable's value), or 0 for an expression
+.Lvv_leaf:
+        mov rax, rdi
+        test al, 1
+        jnz 2f
+        cmp dword ptr [rdi + N_KIND], K_INT
+        je 2f
+        xor ecx, ecx
+1:      cmp rcx, r12
+        jae 3f
+        cmp rdi, [r13 + rcx*8]
+        je 4f
+        inc rcx
+        jmp 1b
+4:      mov rax, [rsp + 8 + VV_VALS]
+        mov rax, [rax + rcx*8]
+2:      ret
+3:      xor eax, eax
+        ret
 .Lvv_elem:                              # scratch := the value of the element rdi
         mov r8, r14
 .Lvv_elem_into:                         # r8 := the value of the element rdi

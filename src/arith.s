@@ -9,12 +9,13 @@
 
         .section .bss
         .align 16
-        .globl mpz_two256, mpz_two255, mpz_max256, mpz_max255
-        .hidden mpz_two256, mpz_two255, mpz_max256, mpz_max255
+        .globl mpz_two256, mpz_two255, mpz_max256, mpz_max255, mpz_neg_two256
+        .hidden mpz_two256, mpz_two255, mpz_max256, mpz_max255, mpz_neg_two256
 mpz_two256: .space 16
 mpz_two255: .space 16
 mpz_max256: .space 16
 mpz_max255: .space 16
+mpz_neg_two256: .space 16
 
         .text
 
@@ -45,6 +46,11 @@ FUNC arith_init
         lea rsi, [rip + mpz_two255]
         mov edx, 1
         call __gmpz_sub_ui@PLT
+        lea rdi, [rip + mpz_neg_two256]
+        call __gmpz_init@PLT
+        lea rdi, [rip + mpz_neg_two256]
+        lea rsi, [rip + mpz_two256]
+        call __gmpz_neg@PLT
         LEAVE
 ENDF arith_init
 
