@@ -39,6 +39,7 @@
 .Ls_failed_text: .asciz "decompilation failed: "
 .Ls_0x:         .asciz "0x"
 
+        # python's time limits (scaled by PANORAMIX_TIMEOUT, see scaled_ns)
         .set LOADER_TIMEOUT_NS, 60000000000
         .set VM_TIMEOUT_NS, 60000000000
         .set WHILES_TIMEOUT_NS, 60000000000
@@ -192,6 +193,7 @@ FUNC decompile_worker
         .set DW_DEC, ERR_SIZEOF
         .set DW_JOB, ERR_SIZEOF + 8
         .set DW_START, ERR_SIZEOF + 16
+        .set DW_TMP, ERR_SIZEOF + 24
         mov [rsp + DW_DEC], rdi
 .Ldw_next:
         mov rbx, [rsp + DW_DEC]
@@ -236,10 +238,13 @@ FUNC decompile_worker
         mov r13, rax
         mov rdi, [r12 + JB_KNOWN]
         call value_import_root
+        mov [rsp + DW_TMP], rax
+        mov rdi, VM_TIMEOUT_NS
+        call scaled_ns
+        mov rcx, rax
         mov rdi, [r12 + JB_TARGET]
         mov rsi, r13
-        mov rdx, rax
-        mov rcx, VM_TIMEOUT_NS
+        mov rdx, [rsp + DW_TMP]
         call vm_run
         mov r13, rax
         call .Ldw_check_deadline
@@ -247,8 +252,10 @@ FUNC decompile_worker
         lea rsi, [rip + .Ls_logname]
         lea rdx, [rip + .Ls_cleaning]
         call log_fmt
+        mov rdi, WHILES_TIMEOUT_NS
+        call scaled_ns
         mov rdi, r13
-        mov rsi, WHILES_TIMEOUT_NS
+        mov rsi, rax
         call make_whiles
         mov [r12 + JB_TRACE], rax
         call .Ldw_check_deadline
@@ -291,9 +298,12 @@ FUNC decompile_worker
 # the function's overall time limit (python's 3 minutes)
 .Ldw_check_deadline:
         sub rsp, 8
+        mov rdi, FUNC_TIMEOUT_NS
+        call scaled_ns
+        mov [rsp], rax
         call monotonic_ns
         sub rax, [rsp + 8 + 8 + DW_START]
-        mov rcx, FUNC_TIMEOUT_NS
+        mov rcx, [rsp]
         cmp rax, rcx
         jg 1f
         add rsp, 8
@@ -347,8 +357,10 @@ FUNC decompile
         call err_catch
         test eax, eax
         jnz .Lde_loader_issue
+        mov rdi, LOADER_TIMEOUT_NS
+        call scaled_ns
         mov rdi, rbx
-        mov rsi, LOADER_TIMEOUT_NS
+        mov rsi, rax
         call loader_find_functions
         call err_end
         jmp 1f
@@ -1072,5 +1084,45 @@ FUNC priority_lt
         mov eax, ecx
         LEAVE
 ENDF priority_lt
+
+# scaled_ns(ns) -> rax: a time limit of python's, scaled by
+# PANORAMIX_TIMEOUT as python scales its own (10 for a slow machine, or
+# under valgrind); 0 or less: no limit.
+FUNC scaled_ns
+        cmp byte ptr [rip + timeout_read], 0
+        jne 1f
+        push rdi
+        lea rdi, [rip + .Ls_env_timeout]
+        call getenv@PLT
+        test rax, rax
+        jz 2f
+        mov rdi, rax
+        xor esi, esi
+        call strtod@PLT
+        movsd [rip + timeout_scale], xmm0
+2:      mov byte ptr [rip + timeout_read], 1
+        pop rdi
+1:      movsd xmm1, [rip + timeout_scale]
+        xorpd xmm0, xmm0
+        comisd xmm1, xmm0
+        jbe 3f
+        cvtsi2sd xmm0, rdi
+        mulsd xmm0, xmm1
+        minsd xmm0, [rip + .Lk_max_ns]
+        cvttsd2si rax, xmm0
+        ret
+3:      movabs rax, 0x3fffffffffffffff
+        ret
+ENDF scaled_ns
+
+        .section .data
+        .align 8
+timeout_scale:  .double 1.0
+timeout_read:   .quad 0             # (a race between the first two threads reads it twice: harmless)
+        .section .rodata
+        .align 8
+.Lk_max_ns:     .double 4.0e18
+.Ls_env_timeout: .asciz "PANORAMIX_TIMEOUT"
+        .text
 
         .section .note.GNU-stack,"",@progbits

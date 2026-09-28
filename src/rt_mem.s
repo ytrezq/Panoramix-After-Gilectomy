@@ -17,6 +17,7 @@ global_ctx:     .quad 0          # a context for process-wide constants (never r
 chunk_pool:     .quad 0          # the chunks free for reuse (zeroed), a list
 chunk_pool_count: .quad 0
 chunk_pool_lock: .quad 0         # a spinlock
+chunk_poison:   .quad 0          # PANORAMIX_POISON set: the released chunks filled with garbage
 
         .text
 
@@ -33,6 +34,10 @@ FUNC rt_init
         lea rsi, [rip + gmp_realloc]
         lea rdx, [rip + gmp_free]
         call __gmp_set_memory_functions@PLT
+        lea rdi, [rip + .Ls_env_poison]
+        call getenv@PLT
+        test rax, rax
+        setnz byte ptr [rip + chunk_poison]
         call simd_init
         call str_init
         call opcodes_init
@@ -156,7 +161,7 @@ FUNC arena_new_chunk
         ja .Lchunk_limit
 1:      cmp r12, ARENA_CHUNK_DEFAULT
         jne 3f
-        call pool_pop                   # a chunk used before, zeroed
+        call pool_pop                   # a chunk used before
         test rax, rax
         jnz 4f
         call chunk_map_huge             # a new one, on huge pages if it can
@@ -206,6 +211,7 @@ ENDF arena_new_chunk
 
         .section .rodata
 .Lmsg_oom: .asciz "panoramix-asm: out of memory (mmap failed)"
+.Ls_env_poison: .asciz "PANORAMIX_POISON"
 .Lmsg_limit: .asciz "out of memory: a function's memory limit was reached (PANORAMIX_MAX_MEMORY)"
 .Lmsg_recursion: .asciz "maximum recursion depth exceeded"
         .text
@@ -217,34 +223,79 @@ FUNC arena_alloc_ctx
         jmp arena_alloc_check
 ENDF arena_alloc_ctx
 
-# arena_alloc_nl(ctx, size) -> rax: the same, never past a limit (GMP's
-# allocations: GMP can't be left in the middle of an operation)
+# arena_alloc_nl(ctx, size) -> rax: 16-byte aligned, not zeroed, never
+# past a limit (GMP's allocations: GMP can't be left in the middle of an
+# operation)
 FUNC arena_alloc_nl
         xor edx, edx
-        jmp arena_alloc_check
+        jmp arena_alloc_check_raw
 ENDF arena_alloc_nl
 
-# arena_alloc_check(ctx, size, check) -> rax
+# arena_alloc_check(ctx, size, check) -> rax: zeroed. The chunks aren't
+# (the pool's are what their last user left): the block is zeroed here,
+# while it is in the cache anyway - most of the allocations are of nodes
+# and vectors that are all written at once, and take arena_alloc_raw.
 FUNC arena_alloc_check
-        ENTER
-        mov rbx, rdi
         add rsi, 15
         and rsi, -16
+        mov rax, [rdi + CTX_ARENA_CUR]
+        lea rcx, [rax + rsi]
+        cmp rcx, [rdi + CTX_ARENA_END]
+        ja .Laa_slow
+        mov [rdi + CTX_ARENA_CUR], rcx
+.Laa_zero:                              # rsi bytes at rax, a multiple of 16
+        cmp rsi, 512
+        ja .Laa_big
+        test rsi, rsi
+        jz 2f
+        mov rcx, rax
+        xor edx, edx
+1:      mov [rcx], rdx
+        mov [rcx + 8], rdx
+        add rcx, 16
+        sub rsi, 16
+        jnz 1b
+2:      ret
+.Laa_big:
+        push rax                        # (and the stack aligned for the call)
+        mov rdi, rax
+        mov rdx, rsi
+        xor esi, esi
+        call memset@PLT
+        pop rax
+        ret
+.Laa_slow:
+        ENTER
+        mov rbx, rdi
         mov r12, rsi
+        call arena_new_chunk            # (rdi, rsi, edx: the same)
         mov rax, [rbx + CTX_ARENA_CUR]
         lea rcx, [rax + r12]
-        cmp rcx, [rbx + CTX_ARENA_END]
-        ja 1f
         mov [rbx + CTX_ARENA_CUR], rcx
-        LEAVE
-1:      mov rdi, rbx
         mov rsi, r12
+        LEAVE_NORET
+        jmp .Laa_zero
+ENDF arena_alloc_check
+
+# arena_alloc_check_raw(ctx, size, check) -> rax: the same, not zeroed
+FUNC arena_alloc_check_raw
+        add rsi, 15
+        and rsi, -16
+        mov rax, [rdi + CTX_ARENA_CUR]
+        lea rcx, [rax + rsi]
+        cmp rcx, [rdi + CTX_ARENA_END]
+        ja 1f
+        mov [rdi + CTX_ARENA_CUR], rcx
+        ret
+1:      ENTER
+        mov rbx, rdi
+        mov r12, rsi
         call arena_new_chunk
         mov rax, [rbx + CTX_ARENA_CUR]
         lea rcx, [rax + r12]
         mov [rbx + CTX_ARENA_CUR], rcx
         LEAVE
-ENDF arena_alloc_check
+ENDF arena_alloc_check_raw
 
 # mem_limit_for(threads) -> rax: the bytes a function's context may take
 # (CTX_MEM_LIMIT): PANORAMIX_MAX_MEMORY (MiB, 0 for no limit), else the
@@ -358,7 +409,7 @@ ENDF chunk_map_huge
 
 # chunks_release(head, cur) -> rax: the bytes released. A context's chunks
 # (a list, `head` the current one, bump-allocated up to `cur`) go back:
-# those of the default size to the pool, zeroed where they were used,
+# those of the default size to the pool (as they are: arena_alloc zeroes),
 # the others (and those past the pool's size) to the system.
 FUNC chunks_release
         ENTER
@@ -379,14 +430,18 @@ FUNC chunks_release
         jne 2f
         cmp qword ptr [rip + chunk_pool_count], CHUNK_POOL_MAX
         jae 2f
+        cmp byte ptr [rip + chunk_poison], 0
+        je 4f
+        # PANORAMIX_POISON (tests): garbage where the chunk was used, for
+        # what would read memory it didn't write
         lea rdi, [rbx + CHUNK_DATA]
-        xor esi, esi
+        mov esi, 0xa5
         mov rdx, [rbx + CHUNK_USED]
         mov rax, ARENA_CHUNK_DEFAULT - CHUNK_DATA
         cmp rdx, rax
         cmova rdx, rax
         call memset@PLT
-        mov rdi, rbx
+4:      mov rdi, rbx
         call pool_push
         jmp 3f
 2:      mov rdi, rbx
@@ -414,7 +469,7 @@ ENDF chunks_release
         mov dword ptr [rip + chunk_pool_lock], 0
 .endm
 
-# pool_pop() -> rax: a zeroed chunk of the default size, or 0
+# pool_pop() -> rax: a chunk of the default size (not zeroed), or 0
 FUNC pool_pop
         POOL_LOCK
         mov rax, [rip + chunk_pool]
@@ -427,7 +482,7 @@ FUNC pool_pop
         ret
 ENDF pool_pop
 
-# pool_push(chunk): into the pool (zeroed already)
+# pool_push(chunk): into the pool
 FUNC pool_push
         POOL_LOCK
         mov rax, [rip + chunk_pool]
@@ -491,13 +546,21 @@ FUNC ctx_set_stack
         LEAVE
 ENDF ctx_set_stack
 
-# arena_alloc(size) -> rax, on the r15 context. Memory is zero (fresh mmap
-# pages are, and the chunks of the pool are zeroed when they go back to it).
+# arena_alloc(size) -> rax, on the r15 context: zeroed memory
 FUNC arena_alloc
         mov rsi, rdi
         mov rdi, r15
         jmp arena_alloc_ctx
 ENDF arena_alloc
+
+# arena_alloc_raw(size) -> rax, on the r15 context: memory the caller
+# writes all of (not zeroed)
+FUNC arena_alloc_raw
+        mov rsi, rdi
+        mov rdi, r15
+        mov edx, 1
+        jmp arena_alloc_check_raw
+ENDF arena_alloc_raw
 
 
 # ctx_compact(root) -> rax: the root copied into a fresh arena and

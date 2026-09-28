@@ -205,11 +205,15 @@ inconclusive.
 
 The random unit tests (`tests/test_algebra.py` - with `BIG=1`, masks
 with numbers past 2^62 -, `test_arith.py`, `test_memloc.py`,
-`test_stack.py`, `test_simplify_exp.py`, `test_prettify_random.py`)
+`test_stack.py`, `test_simplify_exp.py`, `test_prettify_random.py`,
+`test_agz.py`: sums of many terms sharing variables, for `add_ge_zero`)
 take a seed; run over many seeds, they found the negative exponents of
 `exp` (python's modular inverse), the order of the terms of a max
-(python sorts them by `str()`, which has no quotes around a string) and
-an assertion of `flatten_adds`.
+(python sorts them by `str()`, which has no quotes around a string), an
+assertion of `flatten_adds`, a `try_add` that gives a number (python's
+assertion in `add_op`, a crash here) and rules of `simplify_exp` that
+read numbers past 2^62 as small ones. The cases they found are kept in
+their `REGRESSIONS` lists.
 
 Every layer also has a differential test against the python
 implementation on the corpus (`tests/test_*.py`, run with the system
@@ -270,3 +274,16 @@ examining a term instead of building thirty patterns to compare with
 it. What is left is python's own algorithms: `cleanup_vars` and
 `cleanup_mems` rewrite the rest of the trace for every variable and
 memory write (quadratic), and the printer.
+
+Later, on Wyvern (20.0G instructions to 14.5G): `add_ge_zero` evaluates
+the terms of the sum by groups that share no variable (the min and the
+max of each group over its own variables' assignments, summed: the same
+tri-state as python's 3^k variants of the whole sum), the predicates
+`is_op_n`/`is_mul_int` are leaves (60M calls with a frame each),
+`range_overlaps` is memoized as python's `@cached` one is, and the
+chunks of the pool are no longer zeroed when released (up to 9% of the
+instructions, `memset` of what had been used): `arena_alloc` zeroes the
+block it gives, in the cache, and the nodes, vectors and strings, which
+are written whole, take `arena_alloc_raw`. `PANORAMIX_POISON=1` fills
+the released chunks with garbage instead, for the tests: the corpora
+give the same text with it.

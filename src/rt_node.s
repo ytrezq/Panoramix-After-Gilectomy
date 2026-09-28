@@ -288,7 +288,7 @@ FUNC mk_seq
         mov rdi, [rsp + 8]
         shl rdi, 3
         add rdi, N_DATA
-        call arena_alloc
+        call arena_alloc_raw
         mov r14, rax
         mov rcx, [rsp]
         mov [r14 + N_KIND], ecx
@@ -493,12 +493,13 @@ FUNC mk_int_mpz
         and r12, r14
         jmp 3b
 5:      mov edi, NODE_INT_SIZE
-        call arena_alloc
+        call arena_alloc_raw
         mov rcx, [r15 + CTX_HC_TABLE]
         mov [rcx + r12*8], rax
         inc qword ptr [r15 + CTX_HC_COUNT]
         mov r12, rax
         mov dword ptr [r12 + N_KIND], K_INT
+        mov dword ptr [r12 + N_AUX], 0
         mov [r12 + N_HASH], r13
         lea rdi, [r12 + N_DATA]
         mov rsi, rbx
@@ -703,7 +704,7 @@ FUNC value_import
         jz 5f
         mov edi, [rbx + N_AUX]
         shl rdi, 3
-        call arena_alloc
+        call arena_alloc_raw
         mov [rsp], rax
         xor r12d, r12d
 1:      cmp r12d, [rbx + N_AUX]

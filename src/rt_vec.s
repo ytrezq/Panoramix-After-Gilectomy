@@ -9,7 +9,7 @@
 FUNC vec_new
         ENTER
         mov edi, VEC_SIZEOF + 16*8
-        call arena_alloc
+        call arena_alloc_raw
         lea rcx, [rax + VEC_SIZEOF]
         mov [rax + VEC_DATA], rcx
         mov qword ptr [rax + VEC_LEN], 0
@@ -25,7 +25,7 @@ FUNC vec_new_cap
         jae 1f
         mov ebx, 4
 1:      lea rdi, [rbx*8 + VEC_SIZEOF]
-        call arena_alloc
+        call arena_alloc_raw
         lea rcx, [rax + VEC_SIZEOF]
         mov [rax + VEC_DATA], rcx
         mov qword ptr [rax + VEC_LEN], 0
@@ -49,7 +49,7 @@ FUNC vec_push
         shl rdi, 1
         mov [rbx + VEC_CAP], rdi
         shl rdi, 3
-        call arena_alloc
+        call arena_alloc_raw
         mov rdi, rax
         mov r13, rax
         mov rsi, [rbx + VEC_DATA]
@@ -63,21 +63,43 @@ FUNC vec_push
         LEAVE
 ENDF vec_push
 
-# vec_extend(vec, values_ptr, count)
+# vec_extend(vec, values_ptr, count): the room made once, the values
+# copied (values_ptr may point into the vector itself: a grown vector
+# leaves its old buffer as it was)
 FUNC vec_extend
         ENTER
         mov rbx, rdi
         mov r12, rsi
         mov r13, rdx
-        xor r14d, r14d
-1:      cmp r14, r13
-        jae 2f
-        mov rdi, rbx
-        mov rsi, [r12 + r14*8]
-        call vec_push
-        inc r14
-        jmp 1b
-2:      LEAVE
+        test r13, r13
+        jz 9f
+        mov rax, [rbx + VEC_LEN]
+        add rax, r13                    # the length needed
+        cmp rax, [rbx + VEC_CAP]
+        jbe 2f
+        mov rcx, [rbx + VEC_CAP]
+        shl rcx, 1
+        cmp rcx, rax
+        cmovb rcx, rax
+        mov [rbx + VEC_CAP], rcx
+        lea rdi, [rcx*8]
+        call arena_alloc_raw
+        mov r14, rax
+        mov rdi, rax
+        mov rsi, [rbx + VEC_DATA]
+        mov rdx, [rbx + VEC_LEN]
+        shl rdx, 3
+        call memcpy@PLT
+        mov [rbx + VEC_DATA], r14
+2:      mov rdi, [rbx + VEC_LEN]
+        shl rdi, 3
+        add rdi, [rbx + VEC_DATA]
+        mov rsi, r12
+        mov rdx, r13
+        shl rdx, 3
+        call memcpy@PLT
+        add [rbx + VEC_LEN], r13
+9:      LEAVE
 ENDF vec_extend
 
 # vec_extend_seq(vec, tuple_or_list)

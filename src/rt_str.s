@@ -629,7 +629,7 @@ FUNC str_new
         mov [rsp], rdi
         mov [rsp + 8], rsi
         lea rdi, [rsi + N_DATA + 4 + 1]
-        call arena_alloc
+        call arena_alloc_raw
         mov r12, rax
         mov dword ptr [r12 + N_KIND], K_STR
         mov rdi, [rsp]

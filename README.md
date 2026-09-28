@@ -41,6 +41,9 @@ format), `PANORAMIX_ISA=scalar|avx2|avx512` forces the vector loops,
 `PANORAMIX_MAX_MEMORY` caps what one function may take (MiB; by default
 the machine's memory shared by the threads): a function past it is
 reported as a problem, as python does with the ones that fail.
+`PANORAMIX_TIMEOUT` scales python's time limits (60 s a step, 3 minutes
+a function) as it does in python (10 on a slow machine, 0 for none: to
+compare runs under valgrind).
 
 Inputs no compiler would make (thousands of nested ifs, expressions
 thousands deep) don't take the process down: the recursions stop at
