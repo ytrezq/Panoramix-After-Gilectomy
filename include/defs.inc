@@ -339,7 +339,8 @@
 .set FN_AST, 112            # list, or 0
 .set FN_IS_REGULAR, 120
 .set FN_PRINT, 128          # the printed text (str), once printed
-.set FN_SIZEOF, 136
+.set FN_PRIORITY, 136       # the priority + 2, once computed (0 = not yet)
+.set FN_SIZEOF, 144
 
 # ordered dicts (pyutil.s)
 .set OD_KEYS, 0             # a vec

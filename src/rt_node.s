@@ -542,16 +542,27 @@ FUNC str_id
         ret
 ENDF str_id
 
-# value_import(v) -> rax: the value rebuilt through this context's
-# hash-cons table. Tuples and lists are consed per thread, so a
-# structure made by another thread (a function's trace, the loader's
-# values) is imported before being compared by pointer with this
-# thread's. Strings are global and integers compared by value: kept.
+# value_import(v) -> rax: the value rebuilt on this context. Tuples and
+# lists are consed per thread, so a structure made by another thread (a
+# function's trace, the loader's values) is imported before being
+# compared by pointer with this thread's - and before that thread's
+# arena is freed, which also holds its big integers (copied here).
+# Strings are global: kept.
 FUNC value_import
         ENTER
         sub rsp, 16
         mov rbx, rdi
-        call is_seq
+        test dil, 1
+        jnz 3f
+        test rdi, rdi
+        jz 3f
+        cmp dword ptr [rdi + N_KIND], K_INT
+        jne 4f
+        lea rdi, [rdi + N_DATA]
+        call mk_int_mpz
+        add rsp, 16
+        LEAVE
+4:      call is_seq
         test eax, eax
         jz 3f
         mov edi, [rbx + N_AUX]

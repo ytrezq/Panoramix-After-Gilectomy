@@ -70,4 +70,50 @@ FUNC pan_free
         jmp free@PLT
 ENDF pan_free
 
+# int pan_decompile(const uint8_t *code, size_t len, size_t threads,
+#                   const char *only_func, char **out, size_t *outlen)
+FUNC pan_decompile
+        push r15
+        ENTER
+        sub rsp, 56
+        mov [rsp], rdi                  # code
+        mov [rsp + 8], rsi              # len
+        mov [rsp + 16], rdx             # threads
+        mov [rsp + 24], rcx             # only_func
+        mov [rsp + 32], r8              # out
+        mov [rsp + 40], r9              # outlen
+        call pan_init
+        call ctx_current
+        mov [rsp + 48], rax
+        call ctx_new
+        mov r15, rax
+        mov rdi, r15
+        call ctx_bind
+        call sb_new
+        mov r12, rax
+        mov rdi, [rsp]
+        mov rsi, [rsp + 8]
+        mov rdx, [rsp + 16]
+        mov rcx, [rsp + 24]
+        mov r8, r12
+        call decompile
+        mov rax, [rsp + 32]
+        mov rcx, [r12 + SB_BUF]
+        mov [rax], rcx
+        mov rax, [rsp + 40]
+        mov rcx, [r12 + SB_LEN]
+        mov [rax], rcx
+        mov rdi, r12
+        call free@PLT                   # the builder, not its buffer
+        mov rdi, r15
+        call ctx_free
+        mov rdi, [rsp + 48]
+        call ctx_bind
+        xor eax, eax
+        add rsp, 56
+        LEAVE_NORET
+        pop r15
+        ret
+ENDF pan_decompile
+
         .section .note.GNU-stack,"",@progbits

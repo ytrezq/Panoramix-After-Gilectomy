@@ -1415,7 +1415,12 @@ ENDF fn_print
 FUNC fn_priority
         ENTER
         mov rbx, rdi
-        cmp qword ptr [rbx + FN_TRACE], 0
+        mov rax, [rbx + FN_PRIORITY]
+        test rax, rax
+        jz 3f
+        sub rax, 2
+        LEAVE
+3:      cmp qword ptr [rbx + FN_TRACE], 0
         je 1f
         mov rdi, [rbx + FN_TRACE]
         call trace_text
@@ -1428,10 +1433,12 @@ FUNC fn_priority
         call fn_print
         mov rdi, rax
         call str_charlen
-        LEAVE
+        jmp 4f
 1:      xor eax, eax
-        LEAVE
+        jmp 4f
 2:      mov rax, -1
+4:      lea rcx, [rax + 2]
+        mov [rbx + FN_PRIORITY], rcx
         LEAVE
 ENDF fn_priority
 
