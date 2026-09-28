@@ -26,8 +26,10 @@ FUNC simplify_exp
         mov eax, [rbx + N_KIND]
         cmp eax, K_INT
         je .Lse_int
+        cmp eax, K_SPECIAL
+        je .Lse_special
         cmp eax, K_TUPLE
-        jne .Lse_asis                   # lists, strings, specials: as they are
+        jne .Lse_asis                   # lists, strings: as they are
         mov edi, MEMO_SIMPLIFY_EXP
         mov rsi, rbx
         call memo_get
@@ -42,6 +44,18 @@ FUNC simplify_exp
         call memo_put
         mov rax, r12
 1:      LEAVE
+.Lse_special:
+        # True and False become 1 and 0: python's simplify_exp is @cached, and
+        # True == 1 with the same hash, so simplify_exp(True) returns what
+        # simplify_exp(1) gave, cached long before (every trace has a 1)
+        mov eax, (1 << 1) | 1
+        cmp dword ptr [rbx + N_AUX], SP_TRUE
+        je 1b
+        mov eax, 1
+        cmp dword ptr [rbx + N_AUX], SP_FALSE
+        je 1b
+        mov rax, rbx                    # None
+        LEAVE
 .Lse_int:
         # larger than 30 bytes: probably an address, not a negative number
         mov rdi, rbx

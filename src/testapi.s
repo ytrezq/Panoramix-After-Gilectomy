@@ -92,6 +92,10 @@ test_table:
         .quad .Ln_normalize, tf_normalize
         .quad .Ln_find_mems, find_mems
         .quad .Ln_split_setmem_trace, tf_split_setmem_trace
+        .quad .Ln_simplify_exps, tf_simplify_exps
+        .quad .Ln_loop_to_setmem_trace, tf_loop_to_setmem_trace
+        .quad .Ln_heuristics, tf_heuristics
+        .quad .Ln_fix_storages_trace, tf_fix_storages_trace
         .quad .Ln_split_store_trace, tf_split_store_trace
         .quad .Ln_fold, fold
         .quad .Ln_as_paths, as_paths
@@ -216,6 +220,10 @@ test_table:
 .Ln_contract: .asciz "contract"
 .Ln_find_mems: .asciz "find_mems"
 .Ln_split_setmem_trace: .asciz "split_setmem_trace"
+.Ln_simplify_exps: .asciz "simplify_exps"
+.Ln_loop_to_setmem_trace: .asciz "loop_to_setmem_trace"
+.Ln_heuristics: .asciz "heuristics"
+.Ln_fix_storages_trace: .asciz "fix_storages_trace"
 .Ln_split_store_trace: .asciz "split_store_trace"
 .Ls_unknown_fn: .asciz "<unknown test function>"
 .Ls_parse_err:  .asciz "<parse error at %u>"
@@ -1278,6 +1286,55 @@ FUNC tf_split_setmem_trace
         xor edx, edx
         jmp rewrite_trace
 ENDF tf_split_setmem_trace
+
+# the stages of simplify_trace that are a composition (for the tests that
+# replay python's stages one by one)
+FUNC tf_simplify_exps
+        lea rsi, [rip + simplify_exp_cb]
+        xor edx, edx
+        jmp replace_f
+ENDF tf_simplify_exps
+
+FUNC tf_loop_to_setmem_trace
+        lea rsi, [rip + loop_to_setmem]
+        xor edx, edx
+        jmp rewrite_trace
+ENDF tf_loop_to_setmem_trace
+
+FUNC tf_fix_storages_trace
+        lea rsi, [rip + fix_storages]
+        xor edx, edx
+        jmp replace_f
+ENDF tf_fix_storages_trace
+
+# "using heuristics to clean up some things": max_to_add, postprocess_exp
+# twice, postprocess_trace on the ifs, rewrite_string_stores
+FUNC tf_heuristics
+        ENTER
+        lea rsi, [rip + max_to_add_cb]
+        xor edx, edx
+        call replace_f
+        mov rdi, rax
+        lea rsi, [rip + postprocess_exp]
+        xor edx, edx
+        call replace_f
+        mov rdi, rax
+        lea rsi, [rip + postprocess_exp]
+        xor edx, edx
+        call replace_f
+        mov rdi, rax
+        lea rsi, [rip + postprocess_trace]
+        xor edx, edx
+        call rewrite_trace_ifs
+        mov rbx, rax
+        xor edi, edi
+        xor esi, esi
+        call mk_list
+        mov rdi, rbx
+        mov rsi, rax
+        call rewrite_string_stores
+        LEAVE
+ENDF tf_heuristics
 
 FUNC tf_split_store_trace
         lea rsi, [rip + split_store]
