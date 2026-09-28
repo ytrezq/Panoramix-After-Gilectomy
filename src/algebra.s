@@ -2636,27 +2636,28 @@ FUNC alg_add_ge_zero
         LEAVE
 ENDF alg_add_ge_zero
 
-# variant_evaluable(exp, n, vars) -> eax: the variant of exp can be
-# evaluated directly (variant_eval): every node is an int, one of the
-# variables, or an add / mul / mask_shl / max of such - all that
-# simplify(calc_max(variant)) computes with. Anything else goes through
-# the substitution and the simplifier, as in python.
+# variant_evaluable(exp, n, vars) -> eax: the height of exp when its
+# variants can be evaluated directly (variant_eval): every node is an int,
+# one of the variables, or an add / mul / mask_shl / max of such - all
+# that simplify(calc_max(variant)) computes with -, and -1 otherwise.
+# Anything else goes through the substitution and the simplifier, as in
+# python.
 FUNC variant_evaluable
         ENTER
         mov rbx, rdi
         mov r12, rsi
         mov r13, rdx
         test bl, 1
-        jnz .Lve_yes
+        jnz .Lve_leaf
         test rbx, rbx
-        jz .Lve_yes
+        jz .Lve_leaf
         cmp dword ptr [rbx + N_KIND], K_TUPLE
-        jne .Lve_yes                    # an int, or a leaf: a variable
+        jne .Lve_leaf                   # an int, or a leaf: a variable
         xor r14d, r14d
 1:      cmp r14, r12
         jae 2f
         cmp rbx, [r13 + r14*8]          # (variables are consed: one pointer)
-        je .Lve_yes
+        je .Lve_leaf
         inc r14
         jmp 1b
 2:      mov rdi, rbx
@@ -2669,55 +2670,75 @@ FUNC variant_evaluable
         je 3f
         cmp eax, OP_MASK_SHL
         jne .Lve_no
-3:      mov r14d, 1
+3:      push r15
+        push r15
+        xor r15d, r15d                  # the height of the elements
+        mov r14d, 1
 4:      cmp r14d, [rbx + N_AUX]
-        jae .Lve_yes
+        jae 5f
         mov rdi, [rbx + N_DATA + r14*8]
         mov rsi, r12
         mov rdx, r13
         call variant_evaluable
         test eax, eax
-        jz .Lve_no
+        js 6f
+        cmp eax, r15d
+        cmovg r15d, eax
         inc r14d
         jmp 4b
-.Lve_yes:
-        mov eax, 1
+5:      lea eax, [r15 + 1]
+        pop r15
+        pop r15
         LEAVE
+6:      pop r15
+        pop r15
 .Lve_no:
+        mov eax, -1
+        LEAVE
+.Lve_leaf:
         xor eax, eax
         LEAVE
 ENDF variant_evaluable
 
-# variant_eval(exp, n, vars, vals) -> value: the integer that
-# simplify(calc_max(exp with vars[i] := vals[i])) gives, computed without
-# building the variant (exact arithmetic, apply_mask for the masks, the
-# floor of -2^256 of a max)
+# variant_eval(exp, n, vars, vals, out, depth): out (an mpz_t) := the
+# integer that simplify(calc_max(exp with vars[i] := vals[i])) gives,
+# computed without building the variant: exact arithmetic, apply_mask for
+# the masks, the floor of -2^256 of a max. The scratch of the elements of
+# a node is the context's pool at `depth` (the height is bounded by
+# variant_evaluable).
 FUNC variant_eval
         ENTER
         sub rsp, 48
         .set VV_VALS, 0
-        .set VV_ACC, 8                  # the accumulator, or the mask's size
-        .set VV_OFFSET, 16
-        .set VV_SHL, 24
+        .set VV_OUT, 8
+        .set VV_DEPTH, 16
+        .set VV_SIZE, 24
+        .set VV_OFFSET, 32
+        .set VV_SHL, 40
         mov rbx, rdi
         mov r12, rsi
         mov r13, rdx
         mov [rsp + VV_VALS], rcx
+        mov [rsp + VV_OUT], r8
+        mov [rsp + VV_DEPTH], r9
         test bl, 1
-        jnz .Lvv_asis
+        jnz .Lvv_int
         xor r14d, r14d
 1:      cmp r14, r12
         jae 2f
         cmp rbx, [r13 + r14*8]
         jne 11f
         mov rax, [rsp + VV_VALS]
-        mov rax, [rax + r14*8]          # the variable's value
-        add rsp, 48
-        LEAVE
+        mov rbx, [rax + r14*8]          # the variable's value
+        jmp .Lvv_int
 11:     inc r14
         jmp 1b
 2:      cmp dword ptr [rbx + N_KIND], K_INT
-        je .Lvv_asis
+        je .Lvv_int
+        # the scratch of the elements: pool[depth]
+        mov rax, [rsp + VV_DEPTH]
+        shl rax, 4
+        lea r14, [r15 + CTX_EVAL_POOL + rax]
         mov rdi, rbx
         call opcode_of
         cmp eax, OP_ADD
@@ -2726,85 +2747,179 @@ FUNC variant_eval
         je .Lvv_mul
         cmp eax, OP_MAX
         je .Lvv_max
-        # mask_shl: apply_mask(val, size, offset, shl)
+        # mask_shl: size, offset and shl are clamped to +-4096 as
+        # mask_to_int / apply_mask do, so they fit a word
         mov rdi, [rbx + N_DATA + 8]
-        call .Lvv_child
-        mov [rsp + VV_ACC], rax         # size
+        call .Lvv_elem
+        mov rdi, r14
+        call .Lvv_clamped
+        mov [rsp + VV_SIZE], rax
         mov rdi, [rbx + N_DATA + 16]
-        call .Lvv_child
+        call .Lvv_elem
+        mov rdi, r14
+        call .Lvv_clamped
         mov [rsp + VV_OFFSET], rax
         mov rdi, [rbx + N_DATA + 24]
-        call .Lvv_child
+        call .Lvv_elem
+        mov rdi, r14
+        call .Lvv_clamped
         mov [rsp + VV_SHL], rax
         mov rdi, [rbx + N_DATA + 32]
-        call .Lvv_child
-        mov rdi, rax                    # val
-        mov rsi, [rsp + VV_ACC]
+        mov r8, [rsp + VV_OUT]
+        call .Lvv_elem_into             # val, in out
+        # the mask, in the scratch: (2^size - 1) * 2^offset
+        mov rax, [rsp + VV_SIZE]
+        mov rcx, [rsp + VV_OFFSET]
+        test rcx, rcx
+        jns 3f
+        add rax, rcx                    # offset < 0: size += offset
+        xor ecx, ecx
+        cmp rax, 1
+        jl .Lvv_zero
+        jmp 4f
+3:      test rax, rax
+        js .Lvv_zero
+4:      mov [rsp + VV_SIZE], rax
+        mov [rsp + VV_OFFSET], rcx
+        mov rdi, r14
+        mov esi, 1
+        call __gmpz_set_ui@PLT
+        mov rdi, r14
+        mov rsi, r14
+        mov rdx, [rsp + VV_SIZE]
+        call __gmpz_mul_2exp@PLT        # 2^size
+        mov rdi, r14
+        mov rsi, r14
+        mov edx, 1
+        call __gmpz_sub_ui@PLT          # - 1
+        mov rdi, r14
+        mov rsi, r14
         mov rdx, [rsp + VV_OFFSET]
-        mov rcx, [rsp + VV_SHL]
-        call alg_apply_mask
-        add rsp, 48
-        LEAVE
+        call __gmpz_mul_2exp@PLT        # << offset
+        mov rdi, [rsp + VV_OUT]
+        mov rsi, rdi
+        mov rdx, r14
+        call __gmpz_and@PLT             # val & mask
+        mov rdx, [rsp + VV_SHL]
+        cmp rdx, 256
+        jge .Lvv_zero                   # shifted out of the word entirely
+        cmp rdx, -256
+        jle .Lvv_zero
+        test rdx, rdx
+        jz .Lvv_done
+        js 5f
+        mov rdi, [rsp + VV_OUT]
+        mov rsi, rdi
+        call __gmpz_mul_2exp@PLT        # val << shl
+        jmp .Lvv_done
+5:      neg rdx
+        mov rdi, [rsp + VV_OUT]
+        mov rsi, rdi
+        call __gmpz_fdiv_q_2exp@PLT     # val >> -shl (python floors)
+        jmp .Lvv_done
+.Lvv_zero:
+        mov rdi, [rsp + VV_OUT]
+        xor esi, esi
+        call __gmpz_set_ui@PLT
+        jmp .Lvv_done
 .Lvv_add:
-        mov qword ptr [rsp + VV_ACC], 1     # 0
-        mov r14d, 1
-3:      cmp r14d, [rbx + N_AUX]
-        jae 4f
-        mov rdi, [rbx + N_DATA + r14*8]
-        call .Lvv_child
-        mov rdi, [rsp + VV_ACC]
-        mov rsi, rax
-        call int_add
-        mov [rsp + VV_ACC], rax
-        inc r14d
-        jmp 3b
-.Lvv_mul:
-        mov qword ptr [rsp + VV_ACC], 3     # 1
-        mov r14d, 1
-5:      cmp r14d, [rbx + N_AUX]
-        jae 4f
-        mov rdi, [rbx + N_DATA + r14*8]
-        call .Lvv_child
-        mov rdi, [rsp + VV_ACC]
-        mov rsi, rax
-        call int_mul
-        mov [rsp + VV_ACC], rax
-        inc r14d
-        jmp 5b
-.Lvv_max:
-        mov edi, 256
-        call pow2
-        mov rdi, rax
-        call int_neg
-        mov [rsp + VV_ACC], rax         # -(2^256), the floor
-        mov r14d, 1
-6:      cmp r14d, [rbx + N_AUX]
-        jae 4f
-        mov rdi, [rbx + N_DATA + r14*8]
-        call .Lvv_child
-        mov [rsp + VV_OFFSET], rax
-        mov rdi, rax
-        mov rsi, [rsp + VV_ACC]
-        call int_cmp
-        cmp eax, 1
-        jne 7f
-        mov rax, [rsp + VV_OFFSET]
-        mov [rsp + VV_ACC], rax
-7:      inc r14d
+        mov rdi, [rsp + VV_OUT]
+        xor esi, esi
+        call __gmpz_set_ui@PLT          # 0
+        mov qword ptr [rsp + VV_SIZE], 1
+6:      mov rax, [rsp + VV_SIZE]
+        cmp eax, [rbx + N_AUX]
+        jae .Lvv_done
+        mov rdi, [rbx + N_DATA + rax*8]
+        call .Lvv_elem
+        mov rdi, [rsp + VV_OUT]
+        mov rsi, rdi
+        mov rdx, r14
+        call __gmpz_add@PLT
+        inc qword ptr [rsp + VV_SIZE]
         jmp 6b
-4:      mov rax, [rsp + VV_ACC]
+.Lvv_mul:
+        mov rdi, [rsp + VV_OUT]
+        mov esi, 1
+        call __gmpz_set_ui@PLT          # 1
+        mov qword ptr [rsp + VV_SIZE], 1
+7:      mov rax, [rsp + VV_SIZE]
+        cmp eax, [rbx + N_AUX]
+        jae .Lvv_done
+        mov rdi, [rbx + N_DATA + rax*8]
+        call .Lvv_elem
+        mov rdi, [rsp + VV_OUT]
+        mov rsi, rdi
+        mov rdx, r14
+        call __gmpz_mul@PLT
+        inc qword ptr [rsp + VV_SIZE]
+        jmp 7b
+.Lvv_max:
+        mov rdi, [rsp + VV_OUT]
+        mov esi, 1
+        call __gmpz_set_ui@PLT
+        mov rdi, [rsp + VV_OUT]
+        mov rsi, rdi
+        mov edx, 256
+        call __gmpz_mul_2exp@PLT
+        mov rdi, [rsp + VV_OUT]
+        mov rsi, rdi
+        call __gmpz_neg@PLT             # -(2^256), the floor
+        mov qword ptr [rsp + VV_SIZE], 1
+8:      mov rax, [rsp + VV_SIZE]
+        cmp eax, [rbx + N_AUX]
+        jae .Lvv_done
+        mov rdi, [rbx + N_DATA + rax*8]
+        call .Lvv_elem
+        mov rdi, r14
+        mov rsi, [rsp + VV_OUT]
+        call __gmpz_cmp@PLT
+        test eax, eax
+        jle 9f
+        mov rdi, [rsp + VV_OUT]
+        mov rsi, r14
+        call __gmpz_set@PLT
+9:      inc qword ptr [rsp + VV_SIZE]
+        jmp 8b
+.Lvv_int:                               # a number (rbx: the value): out := it
+        mov rdi, [rsp + VV_OUT]
+        mov rsi, rbx
+        call value_set_mpz
+.Lvv_done:
         add rsp, 48
         LEAVE
-.Lvv_asis:
-        mov rax, rbx
-        add rsp, 48
-        LEAVE
-.Lvv_child:                             # variant_eval(rdi) with the same variables
+.Lvv_elem:                              # scratch := the value of the element rdi
+        mov r8, r14
+.Lvv_elem_into:                         # r8 := the value of the element rdi
         mov rsi, r12
         mov rdx, r13
         mov rcx, [rsp + 8 + VV_VALS]    # (the return address is on top)
+        mov r9, [rsp + 8 + VV_DEPTH]
+        inc r9
         jmp variant_eval
+.Lvv_clamped:                           # rax := the mpz rdi as a word clamped to +-4096
+        sub rsp, 8
+        call __gmpz_fits_slong_p@PLT
+        add rsp, 8
+        test eax, eax
+        jz 10f
+        sub rsp, 8
+        mov rdi, r14
+        call __gmpz_get_si@PLT
+        add rsp, 8
+        cmp rax, 4096
+        jg 12f
+        cmp rax, -4096
+        jl 13f
+        ret
+10:     cmp dword ptr [r14 + MPZ_SIZE], 0
+        jl 13f
+12:     mov eax, 4096
+        ret
+13:     mov rax, -4096
+        ret
 ENDF variant_eval
+
 
 FUNC add_ge_zero_impl
         ENTER
@@ -2852,6 +2967,10 @@ FUNC add_ge_zero_impl
         mov rsi, r13
         mov rdx, [r12 + VEC_DATA]
         call variant_evaluable
+        cmp eax, EVAL_POOL_DEPTH - 1
+        jle 41f
+        mov eax, -1                     # too deep for the pool of scratches
+41:     movsxd rax, eax
         mov [rsp + AGZ_FAST], rax
 4:      mov rax, [rsp + AGZ_COMB]
         cmp rax, [rsp + AGZ_NCOMB]
@@ -2885,15 +3004,20 @@ FUNC add_ge_zero_impl
         inc rcx
         jmp 5b
 7:      cmp qword ptr [rsp + AGZ_FAST], 0
-        je 71f
-        # evaluated directly
+        jl 71f
+        # evaluated directly, into MPZ_R: its sign is all that matters
         mov rdi, rbx
         mov rsi, r13
         mov rdx, [r12 + VEC_DATA]
         lea rcx, [rsp + AGZ_VALS]
+        lea r8, [r15 + CTX_MPZ_R]
+        xor r9d, r9d
         call variant_eval
-        mov r14, rax
-        jmp 72f
+        mov eax, [r15 + CTX_MPZ_R + MPZ_SIZE]
+        test eax, eax
+        js 10f
+        mov qword ptr [rsp + AGZ_SEEN_NONNEG], 1
+        jmp 11f
 71:     # the variant, all the variables replaced at once
         mov rdi, rbx
         mov rsi, r13

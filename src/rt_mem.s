@@ -94,7 +94,17 @@ FUNC ctx_new
         call __gmpz_init@PLT
         lea rdi, [r15 + CTX_MPZ_T]
         call __gmpz_init@PLT
-        pop r15
+        xor r12d, r12d
+1:      cmp r12d, EVAL_POOL_DEPTH
+        jae 2f
+        mov rax, r12
+        shl rax, 4
+        lea rdi, [r15 + CTX_EVAL_POOL + rax]
+        mov esi, 512                    # bits: the variants' numbers, mostly
+        call __gmpz_init2@PLT
+        inc r12d
+        jmp 1b
+2:      pop r15
         pop r15
         mov rax, rbx
         LEAVE

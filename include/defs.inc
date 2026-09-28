@@ -90,7 +90,9 @@
 .set CTX_ERR_CODE, 312      # what was thrown
 .set CTX_ERR_MSG, 320
 .set CTX_FUNC, 328          # the function being printed (sigs.s, function.s)
-.set CTX_SIZE, 352
+.set CTX_EVAL_POOL, 352     # 32 scratch mpz_t, one per depth, for variant_eval
+.set EVAL_POOL_DEPTH, 32
+.set CTX_SIZE, 352 + 32 * MPZ_SIZEOF
 
 # error handler buffer (rt_err.s)
 .set ERR_RBX, 0
