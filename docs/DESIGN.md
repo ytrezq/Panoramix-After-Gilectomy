@@ -97,7 +97,19 @@ is the CLI, `build/panoramix_asm*.so` the module.
   Anything compared by pointer inside expressions must be interned.
 - Python's floats appear in two places (2 ** shl below zero, in
   prettify and sparser's mask_to_mul); they are carried as the interned
-  text of their repr, which is all that is done with them.
+  text of their repr, flagged `STR_FLOAT` (printed bare, parsed from the
+  tests' literals), which is all that is done with them.
+- The top byte of a node's hash holds the "mention" flags (`HF_MEM`,
+  `HF_MSIZE`, `HF_STORAGE`): which of these words a value contains
+  anywhere in its tree. A string gets them when it is made (one
+  table-driven pass over its text, which also gives `STR_VOLATILE`),
+  `hash_seq` ORs them up. `mentions(exp, HF_x)` is what python does with
+  `"mem" in str(exp)` (a walk, every time): the simplifier asks it
+  millions of times.
+- The variants of an expression (`add_ge_zero`) substitute all the
+  variables at once (`replace_many`), an outer expression before the ones
+  it contains; python did them one by one in the order of a set, so its
+  answer depended on the hash seed (fixed on the python side too).
 
 ## Roadmap
 
@@ -132,5 +144,13 @@ postprocessing. `tests/compare_output.py` compares the final text with
 pypy, to diff against `panasm decompile --no-color`.
 
 Python's nondeterminism had to be removed on its side first (the order
-of the terms of a max, the variants of an expression): commits on the
-`fix-branch-pruning` branch of the python repository.
+of the terms of a max, the variants of an expression, the substitution
+order of the variants, the names of unnamed inputs of a signature):
+commits on the `fix-branch-pruning` branch of the python repository. Its
+timeouts (60 s per step, 180 s per function) are scaled by
+`PANORAMIX_TIMEOUT` there, so that a reference can be made without
+the timeouts pypy hits and the assembly doesn't (Wyvern: 20x).
+
+The whole corpus (30 contracts) decompiles identically to pypy's
+references with the signature database; `panasm` takes ~25 s for all of
+them on two cores where pypy takes ~12 minutes.
