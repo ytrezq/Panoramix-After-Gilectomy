@@ -100,20 +100,45 @@ ENDF pan_free
 
 # int pan_decompile(const uint8_t *code, size_t len, size_t threads,
 #                   const char *only_func, char **out, size_t *outlen)
-# strip_color(sb): the color codes removed from the builder's text
+# strip_color(sb): the color codes removed from the builder's text, in
+# place - every "\x1b[" digits and semicolons "m" (python's C.every, and
+# the colors of --verbose and --explain)
 FUNC strip_color
-        ENTER
-        mov rbx, rdi
-        call sb_to_str
-        mov rdi, rax
-        call clean_color
-        mov r12, rax
-        mov rdi, rbx
-        call sb_reset
-        mov rdi, rbx
-        mov rsi, r12
-        call sb_append_str
-        LEAVE
+        mov rsi, [rdi + SB_BUF]
+        mov rcx, [rdi + SB_LEN]
+        xor eax, eax                    # read
+        xor edx, edx                    # write
+1:      cmp rax, rcx
+        jae 5f
+        mov r8b, [rsi + rax]
+        cmp r8b, 0x1b
+        jne 4f
+        lea r9, [rax + 1]               # "[" (digit | ";")* "m"?
+        cmp r9, rcx
+        jae 4f
+        cmp byte ptr [rsi + r9], '['
+        jne 4f
+2:      inc r9
+        cmp r9, rcx
+        jae 4f
+        movzx r10d, byte ptr [rsi + r9]
+        cmp r10b, 'm'
+        je 3f
+        cmp r10b, ';'
+        je 2b
+        sub r10d, '0'
+        cmp r10d, 9
+        jbe 2b
+        jmp 4f
+3:      lea rax, [r9 + 1]               # (the sequence skipped)
+        jmp 1b
+4:      mov [rsi + rdx], r8b
+        inc rax
+        inc rdx
+        jmp 1b
+5:      mov [rdi + SB_LEN], rdx
+        mov byte ptr [rsi + rdx], 0
+        ret
 ENDF strip_color
 
 # int pan_decompile(code, len, threads, only_func, &out, &outlen): the
