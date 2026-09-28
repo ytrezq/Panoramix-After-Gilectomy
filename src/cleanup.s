@@ -1479,8 +1479,12 @@ FUNC req_map
 ENDF req_map
 
 # line_vars(line) -> list: the ('var', ...) the line mentions -
-# find_op_list(line, "var"), each once - remembered
+# find_op_list(line, "var"), each once, in no particular order -
+# remembered. An if's or a while's from the variables of the lines of
+# its branches, remembered too (replace_var rebuilds an if with a branch
+# changed: the lines it kept are known)
 FUNC line_vars
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -1492,10 +1496,43 @@ FUNC line_vars
         call vec_new
         mov r12, rax
         mov rdi, rbx
+        OPCODE_OF_RDI
+        cmp eax, OP_IF
+        je 10f
+        cmp eax, OP_WHILE
+        je 10f
+        mov rdi, rbx
         mov esi, OP_VAR
         mov rdx, r12
         call find_op_list
-        # each variable once (hash-consed: the same pointer)
+        jmp 0f
+10:     # its elements: a list (of lines) line by line, the rest walked
+        xor r13d, r13d
+11:     cmp r13d, [rbx + N_AUX]
+        jae 0f
+        mov r14, [rbx + N_DATA + r13*8]
+        inc r13d
+        mov rdi, r14
+        call is_list
+        test eax, eax
+        jnz 12f
+        mov rdi, r14
+        mov esi, OP_VAR
+        mov rdx, r12
+        call find_op_list
+        jmp 11b
+12:     mov qword ptr [rsp], 0          # the lines of the list
+13:     mov rcx, [rsp]
+        cmp ecx, [r14 + N_AUX]
+        jae 11b
+        mov rdi, [r14 + N_DATA + rcx*8]
+        inc qword ptr [rsp]
+        call line_vars
+        mov rdi, r12
+        mov rsi, rax
+        call vec_extend_seq
+        jmp 13b
+0:      # each variable once (hash-consed: the same pointer)
         mov rcx, [r12 + VEC_LEN]
         cmp rcx, 64
         ja 5f

@@ -550,7 +550,10 @@ ENDF \fname
 .set ND_MERGED, 96          # 0/1: the paths were merged below (merge_branches)
 .set ND_JD, 104             # tuple (start, stack length, (jumpdests on the stack...))
 .set ND_BEGIN_VARS, 112     # tuple: on a loop head, its variables
-.set ND_SIZEOF, 128
+.set ND_STAMP, 120          # the VM's generation when it or a node below last changed (node_touch)
+.set ND_VC_JD, 128          # merge_visit's answer for its subtree: the jd asked (0: none),
+.set ND_VC, 136             #   and the stamp then << 2 | the answer (MC_*)
+.set ND_SIZEOF, 144
 
 .set VM_LOADER, 0
 .set VM_JUST_FDESTS, 8
@@ -569,7 +572,9 @@ ENDF \fname
 .set VM_SCR_UNEXP, 112      #   and the nodes not run yet
 .set VM_LOOPS, 120          # the nodes replace_loops made loops, for continue_loops (a vec)
 .set VM_CLEAN, 128          # the bottom of the stack stack_cleanup leaves alone (see there)
-.set VM_SIZEOF, 136
+.set VM_GEN, 136            # the generation of the nodes' changes (node_touch), from 1
+.set VM_VISITED, 144        # 1: merge_visit remembered an answer since the last one began
+.set VM_SIZEOF, 152
 
 .set MAX_NODE_COUNT, 5000
 .set MAX_EXP_SIZE, 150

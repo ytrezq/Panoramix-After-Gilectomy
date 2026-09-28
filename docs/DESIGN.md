@@ -485,3 +485,35 @@ it once for all the nodes and the unexpanded ones among them (the same
 order), `continue_loops` takes the loops `replace_loops` just made (no
 other node's trace is a loop), and the walk handles its stack and the
 usual predicate itself. 2.51G instructions to 2.27G.
+
+Then, on zx_Forwarder and zx_Exchange: `cleanup_vars` asks whether a
+line holds a variable from the variables of the line, remembered
+(`line_vars`; an if's or a while's made of its lines', remembered too:
+`replace_var` rebuilds an if around a branch it changed, and the lines
+it kept are known), so that `replace_var` keeps a line without the
+variable as it is - without walking it, nor its branches: only whether
+it ends the replacement (`affects`) is left to decide - and "is the
+variable still used" asks the rest's lines one by one instead of
+walking it all; `replace_mem_exp` gives back at once an expression
+without "mem" in it (its mention flags; no key tuple made for its memo);
+`overwrites_mem` of an if or a while is remembered for the pair (the
+ifs nest, and `replace_mem` asks each level, then the ones inside as
+it goes into the branches); the priority of a function (`"selfdestruct"
+in str(trace)`) looks at the strings of the trace instead of printing
+it; the tables a compaction imports are made as big as the old ones.
+zx_Forwarder went from 9.9G instructions to 7.3G. (An if without "mem"
+can't be kept as it is by `replace_mem` the same way: python rebuilds
+the whiles inside, their variables made a list.)
+
+`merge_branches` tries to merge the paths of an if at a jumpdest by
+walking the subtrees below it, round after round of the VM, for every
+pair of nodes at a jumpdest - where only the nodes run since changed:
+OpenZeppelin's ReentrancyMock (the VM stopped at its 5000 nodes) spent
+77% of its time there. Each node carries a stamp, the generation of the
+last change below it (`node_touch`, at every change of a trace, of
+children, of a label; a generation begins at the first change after a
+walk), and the answer of the walk below each branching node for the
+last jumpdest asked (a false, a none, or a true without hits: a true
+with hits is walked again, for them), good while the stamp holds; the
+nodes of one child (straight code between jumps) are walked through,
+without a frame. 4.74G instructions to 1.22G.

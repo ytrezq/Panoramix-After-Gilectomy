@@ -144,9 +144,36 @@ FUNC str_of_value
         LEAVE
 ENDF str_of_value
 
+# node_touch(node): the node changed - its trace, its children, its label,
+# merged - so it and the nodes above it take the current generation
+# (VM_GEN): merge_visit's answer for a subtree holds while the subtree's
+# root keeps the stamp it had then. A new generation begins at the first
+# change after an answer was remembered; a node already of the current
+# one has its ancestors of it too (the walk up stops there).
+FUNC node_touch
+        mov rax, [r15 + CTX_VM]
+        test rax, rax
+        jz 3f
+        mov rcx, [rax + VM_GEN]
+        cmp qword ptr [rax + VM_VISITED], 0
+        je 1f
+        inc rcx
+        mov [rax + VM_GEN], rcx
+        mov qword ptr [rax + VM_VISITED], 0
+1:      test rdi, rdi
+        jz 3f
+        cmp [rdi + ND_STAMP], rcx
+        je 3f
+        mov [rdi + ND_STAMP], rcx
+        mov rdi, [rdi + ND_PREV]
+        jmp 1b
+3:      ret
+ENDF node_touch
+
 # node_set_prev(node, prev): hang node below prev
 FUNC node_set_prev
         ENTER
+        mov rbx, rsi
         mov [rdi + ND_PREV], rsi
         mov rax, [rsi + ND_DEPTH]
         inc rax
@@ -155,6 +182,8 @@ FUNC node_set_prev
         mov rdi, [rsi + ND_NEXT]
         mov rsi, rax
         call vec_push
+        mov rdi, rbx                    # (prev's children changed)
+        call node_touch
         LEAVE
 ENDF node_set_prev
 
@@ -204,6 +233,8 @@ FUNC node_set_label
         mov rdi, [rbx + ND_KNOWN]
         call forget_volatile
         mov [rbx + ND_KNOWN], rax
+        mov rdi, rbx                    # (a label now, below loop_dest)
+        call node_touch
         LEAVE
 ENDF node_set_label
 
@@ -218,6 +249,10 @@ FUNC node_run
         mov r8, [rbx + ND_KNOWN]
         call vm_exec
         mov [rbx + ND_TRACE], rax
+        mov r13, rax
+        mov rdi, rbx
+        call node_touch
+        mov rax, r13
         # the nodes the trace ends with are the children
         mov rcx, [rax + VEC_LEN]
         mov rax, [rax + VEC_DATA]

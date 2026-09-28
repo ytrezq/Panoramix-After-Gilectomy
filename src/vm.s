@@ -87,6 +87,7 @@ FUNC vm_new
         mov qword ptr [rax + VM_COUNTER], 0
         mov qword ptr [rax + VM_NODE_COUNT], 0
         mov qword ptr [rax + VM_TIMEOUT], 0
+        mov qword ptr [rax + VM_GEN], 1 # (a new node's stamp, 0, is never the current one)
         mov [r15 + CTX_VM], rax
         LEAVE
 ENDF vm_new
@@ -337,6 +338,8 @@ FUNC vm_replace_loops
         mov rdi, rax
         mov rsi, r14
         call vec_push
+        mov rdi, r13
+        call node_touch
         # (for continue_loops, in this order: find_nodes' - the loops are
         # these, as no other node's trace is ever a loop)
         mov rax, [r15 + CTX_VM]
@@ -438,6 +441,8 @@ FUNC vm_continue_loops
         mov rdi, rax
         mov rsi, [rsp + 8]
         call vec_push
+        mov rdi, r13
+        call node_touch
         jmp .Lcl_next
 .Lcl_new_loop:
         # node.trace = None; node.set_label(loop_dest, vars, new_stack)
@@ -762,16 +767,89 @@ ENDF mb_by_jd
 
 # merge_visit(start, jd, hits) -> eax: TRI_TRUE if every path below
 # `start` either ends, reaches `jd` (those nodes are added to hits), or
-# loops back; TRI_FALSE if not; TRI_NONE if it's too early to tell
+# loops back; TRI_FALSE if not; TRI_NONE if it's too early to tell.
+# Python walks the subtree at every try, and merge_branches tries the
+# same ones round after round when only the nodes run since changed: the
+# answer of each inner node's subtree is remembered in the node, for the
+# last jd asked (a false, a none, a true without hits: ND_VC_JD, ND_VC),
+# and holds while the node keeps its stamp (node_touch); a subtree with
+# hits is walked again, for them. Depth first, the children in order
+# (python's order of the hits), on the VM's scratch stack (find_nodes' -
+# not in use meanwhile): a frame of 4 words for each inner node being
+# walked - the node, its next child, what its children answered so far,
+# the nodes walked below it (an answer is remembered past MV_MIN_WALK of
+# them); the leaves, the subtrees answered already and the chains of
+# nodes of one child are looked at without a frame.
+        .set MS_NONE, 0                 # (the smallest wins)
+        .set MS_TRUEH, 1                # true, with hits below
+        .set MS_TRUE0, 2                # true, no hit
+        .set MC_FALSE, 1                # the codes remembered
+        .set MC_NONE, 2
+        .set MC_TRUE0, 3
+        .set MV_MIN_WALK, 4
+
+# MV_QUICK: the node rbx's own answer, eax = MS_* (a hit pushed on
+# hits), or a jump to .Lmv_false (a loop head at jd) or to .Lmv_push (an
+# inner node to walk)
+.macro MV_QUICK
+        cmp qword ptr [rbx + ND_MERGED], 0
+        jne 97f                         # goes on in the continuation of an if below
+        mov rax, [rbx + ND_JD]
+        cmp qword ptr [rbx + ND_LABEL], 0
+        je 91f
+        # the head of a loop: keep it that way. Otherwise the paths inside
+        # the loop body are fair game (the loop may get peeled, see vm.py)
+        cmp rax, r12
+        je .Lmv_false
+        jmp 92f
+91:     cmp rax, r12
+        jne 92f
+        mov rdi, r13                    # a hit
+        mov rsi, rbx
+        call vec_push
+        mov eax, MS_TRUEH
+        jmp 99f
+92:     cmp qword ptr [rbx + ND_TRACE], 0
+        je 98f
+        mov rax, [rbx + ND_NEXT]
+        cmp qword ptr [rax + VEC_LEN], 0
+        jne 93f
+        mov rax, [rbx + ND_TRACE]       # a leaf: it ends, or not yet
+        mov rcx, [rax + VEC_LEN]
+        test rcx, rcx
+        jz 98f
+        mov rax, [rax + VEC_DATA]
+        mov rdi, [rax + rcx*8 - 8]
+        OPCODE_OF_RDI
+        IN_OPSET terminal, rax
+        jne 97f
+        jmp 98f                         # (e.g. 'loop', not yet processed by continue_loops)
+93:     # an inner node: what its subtree answered, if it didn't change
+        cmp [rbx + ND_VC_JD], r12
+        jne .Lmv_push
+        mov rax, [rbx + ND_VC]
+        mov rcx, rax
+        shr rcx, 2
+        cmp rcx, [rbx + ND_STAMP]
+        jne .Lmv_push
+        and eax, 3
+        cmp eax, MC_FALSE
+        je .Lmv_false
+        cmp eax, MC_NONE
+        je 98f
+97:     mov eax, MS_TRUE0
+        jmp 99f
+98:     mov eax, MS_NONE
+99:
+.endm
+
 FUNC merge_visit
         ENTER
-        sub rsp, 16
+        sub rsp, 48
+        .set MV_FRAME, 0                # a frame to push (4 words)
         mov rbx, rdi
         mov r12, rsi                    # jd
         mov r13, rdx                    # hits
-        mov dword ptr [rsp + 8], TRI_TRUE
-        # to_visit: the VM's scratch stack (find_nodes' - not in use
-        # meanwhile), pushed and popped inline
         mov rax, [r15 + CTX_VM]
         mov r14, [rax + VM_SCR_VISIT]
         test r14, r14
@@ -781,91 +859,117 @@ FUNC merge_visit
         mov rax, [r15 + CTX_VM]
         mov [rax + VM_SCR_VISIT], r14
 1:      mov qword ptr [r14 + VEC_LEN], 0
-        mov rdi, r14
-        mov rsi, rbx
-        call vec_push
-.Lmv_loop:
-        mov rax, [r14 + VEC_LEN]
-        test rax, rax
-        jz .Lmv_done
-        dec rax
-        mov [r14 + VEC_LEN], rax
-        mov rcx, [r14 + VEC_DATA]
-        mov rbx, [rcx + rax*8]          # n = to_visit.pop()
-        cmp qword ptr [rbx + ND_MERGED], 0
-        jne .Lmv_loop                   # goes on in the continuation of an if below
-        mov rax, [rbx + ND_JD]
-        cmp qword ptr [rbx + ND_LABEL], 0
-        je 2f
-        # the head of a loop: keep it that way. Otherwise the paths inside
-        # the loop body are fair game (the loop may get peeled, see vm.py)
-        cmp rax, r12
-        je .Lmv_false
-        jmp 3f
-2:      cmp rax, r12
-        jne 3f
-        mov rdi, r13
-        mov rsi, rbx
-        call vec_push
-        jmp .Lmv_loop
-3:      cmp qword ptr [rbx + ND_TRACE], 0
-        jne 4f
-        mov dword ptr [rsp + 8], TRI_NONE
-        jmp .Lmv_loop
-4:      mov rax, [rbx + ND_NEXT]        # to_visit.extend(reversed(n.next))
-        mov rcx, [rax + VEC_LEN]
-        test rcx, rcx
-        jz 6f
-        mov rdx, [r14 + VEC_LEN]
-        add rdx, rcx
-        cmp rdx, [r14 + VEC_CAP]
-        ja .Lmv_grow
-        mov rsi, [rax + VEC_DATA]
-        mov rdi, [r14 + VEC_DATA]
-        mov rdx, [r14 + VEC_LEN]
-        lea r8, [rdx + rcx]
-        mov [r14 + VEC_LEN], r8
-5:      dec rcx
-        mov r9, [rsi + rcx*8]
-        mov [rdi + rdx*8], r9
-        inc rdx
-        test rcx, rcx
-        jnz 5b
-        jmp .Lmv_loop
-.Lmv_grow:                              # (no room: one by one, vec_push growing it)
-        mov [rsp], rcx
-51:     mov rcx, [rsp]
-        test rcx, rcx
-        jz .Lmv_loop
-        dec rcx
-        mov [rsp], rcx
+        MV_QUICK                        # the start
+        jmp .Lmv_answer
+.Lmv_push:                              # rbx: an inner node to walk
         mov rax, [rbx + ND_NEXT]
-        mov rdx, [rax + VEC_DATA]
-        mov rsi, [rdx + rcx*8]
-        mov rdi, r14
-        call vec_push
-        jmp 51b
-6:      mov rax, [rbx + ND_TRACE]
-        mov rcx, [rax + VEC_LEN]
-        test rcx, rcx
-        jz 7f
+        cmp qword ptr [rax + VEC_LEN], 1
+        jne .Lmv_frame
+        # one child (a chain of them: straight code between jumps): the
+        # child answers in its place, without a frame (nor a memory)
         mov rax, [rax + VEC_DATA]
-        mov rdi, [rax + rcx*8 - 8]
-        call opcode_of
-        mov edi, eax
-        call is_terminal_op
-        test eax, eax
-        jnz .Lmv_loop
-7:      # e.g. 'loop', not yet processed by continue_loops
-        mov dword ptr [rsp + 8], TRI_NONE
-        jmp .Lmv_loop
-.Lmv_done:
-        mov eax, [rsp + 8]
-        add rsp, 16
+        mov rbx, [rax]
+        MV_QUICK
+        cmp qword ptr [r14 + VEC_LEN], 0
+        je .Lmv_answer
+        jmp .Lmv_combine
+.Lmv_frame:
+        mov rcx, [r14 + VEC_LEN]
+        lea r8, [rcx + 4]
+        cmp r8, [r14 + VEC_CAP]
+        ja 2f
+        mov rdx, [r14 + VEC_DATA]
+        lea rdx, [rdx + rcx*8]
+        mov [rdx], rbx
+        mov qword ptr [rdx + 8], 0
+        mov qword ptr [rdx + 16], MS_TRUE0
+        mov qword ptr [rdx + 24], 1
+        mov [r14 + VEC_LEN], r8
+        jmp .Lmv_children
+2:      mov [rsp + MV_FRAME], rbx       # (no room: vec_extend makes some)
+        mov qword ptr [rsp + MV_FRAME + 8], 0
+        mov qword ptr [rsp + MV_FRAME + 16], MS_TRUE0
+        mov qword ptr [rsp + MV_FRAME + 24], 1
+        mov rdi, r14
+        lea rsi, [rsp + MV_FRAME]
+        mov edx, 4
+        call vec_extend
+.Lmv_children:                          # the top frame's next child
+        mov rax, [r14 + VEC_LEN]
+        mov rdx, [r14 + VEC_DATA]
+        lea rdx, [rdx + rax*8 - 32]
+        mov rbx, [rdx]
+        mov rcx, [rdx + 8]
+        mov rax, [rbx + ND_NEXT]
+        cmp rcx, [rax + VEC_LEN]
+        jae .Lmv_node_done
+        inc qword ptr [rdx + 8]
+        mov rax, [rax + VEC_DATA]
+        mov rbx, [rax + rcx*8]
+        MV_QUICK
+.Lmv_combine:
+        mov rcx, [r14 + VEC_LEN]        # its answer, the frame's so far
+        mov rdx, [r14 + VEC_DATA]
+        lea rdx, [rdx + rcx*8 - 32]
+        inc qword ptr [rdx + 24]
+        cmp eax, [rdx + 16]
+        jae .Lmv_children
+        mov [rdx + 16], rax
+        jmp .Lmv_children
+.Lmv_node_done:                         # rdx: the frame, rbx: its node
+        mov eax, [rdx + 16]
+        cmp eax, MS_TRUEH               # remembered, unless a true with hits
+        je 3f                           # or a small subtree
+        cmp qword ptr [rdx + 24], MV_MIN_WALK
+        jb 3f
+        mov esi, MC_NONE
+        cmp eax, MS_NONE
+        je 21f
+        mov esi, MC_TRUE0
+21:     mov [rbx + ND_VC_JD], r12
+        mov rcx, [rbx + ND_STAMP]
+        shl rcx, 2
+        or rcx, rsi
+        mov [rbx + ND_VC], rcx
+        mov rcx, [r15 + CTX_VM]
+        mov qword ptr [rcx + VM_VISITED], 1     # (the next change: a new generation)
+3:      mov r8, [rdx + 24]              # popped; its parent's answer the
+        mov rcx, [r14 + VEC_LEN]        # smaller of the two
+        sub rcx, 4
+        mov [r14 + VEC_LEN], rcx
+        jz .Lmv_answer
+        sub rdx, 32
+        add [rdx + 24], r8
+        cmp eax, [rdx + 16]
+        jae .Lmv_children
+        mov [rdx + 16], rax
+        jmp .Lmv_children
+.Lmv_answer:                            # eax: the start's (MS_*)
+        cmp eax, MS_NONE
+        mov eax, TRI_NONE
+        je 4f
+        mov eax, TRI_TRUE
+4:      add rsp, 48
         LEAVE
 .Lmv_false:
+        # a loop head at jd below every node of the stack: false for each
+        mov rcx, [r14 + VEC_LEN]
+5:      test rcx, rcx
+        jz 6f
+        sub rcx, 4
+        mov [r14 + VEC_LEN], rcx
+        mov rax, [r14 + VEC_DATA]
+        mov rdi, [rax + rcx*8]
+        mov [rdi + ND_VC_JD], r12
+        mov rax, [rdi + ND_STAMP]
+        shl rax, 2
+        or rax, MC_FALSE
+        mov [rdi + ND_VC], rax
+        jmp 5b
+6:      mov rax, [r15 + CTX_VM]
+        mov qword ptr [rax + VM_VISITED], 1
         mov eax, TRI_FALSE
-        add rsp, 16
+        add rsp, 48
         LEAVE
 ENDF merge_visit
 
@@ -1028,6 +1132,8 @@ FUNC vm_merge_at
         call vec_new
         mov rcx, [rsp + 32]
         mov [rcx + ND_NEXT], rax
+        mov rdi, rcx
+        call node_touch
         inc qword ptr [rsp + 24]
         jmp 8b
 9:      # what's known at the merge point is what's known on every path
