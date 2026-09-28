@@ -169,7 +169,7 @@ FUNC walk_collect
         mov rbx, rdi
         mov r12, rsi
         mov r13, rdx
-        call is_seq
+        IS_SEQ_RDI
         test eax, eax
         jz 3f
         mov rdi, rbx
@@ -198,7 +198,7 @@ FUNC walk_find
         ENTER
         mov rbx, rdi
         mov r12, rsi
-        call is_seq
+        IS_SEQ_RDI
         test eax, eax
         jz 3f
         mov rdi, rbx

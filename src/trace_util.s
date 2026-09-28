@@ -736,7 +736,7 @@ FUNC replace_many
         inc r14
         jmp 1b
 2:      mov rdi, rbx
-        call is_seq
+        IS_SEQ_RDI
         test eax, eax
         jz .Lrm_asis
         mov edi, [rbx + N_AUX]
@@ -787,7 +787,7 @@ FUNC replace_f
         mov rbx, rdi
         mov r12, rsi
         mov r13, rdx
-        call is_seq
+        IS_SEQ_RDI
         test eax, eax
         jnz 1f
         mov rdi, rbx
@@ -854,7 +854,7 @@ FUNC rfm_walk
         mov r12, rsi
         mov r13, rdx
         mov [rsp + 8], rcx              # the memo: a sequence -> its result
-        call is_seq
+        IS_SEQ_RDI
         test eax, eax
         jnz 1f
         mov rdi, rbx
@@ -919,7 +919,7 @@ FUNC replace_f_stop
         test rax, rax
         jnz 4f
         mov rdi, rbx
-        call is_seq
+        IS_SEQ_RDI
         test eax, eax
         jz 5f
         mov edi, [rbx + N_AUX]

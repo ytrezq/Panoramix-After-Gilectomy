@@ -417,6 +417,21 @@ ENDF \fname
 .Loor_done\@:
 .endm
 
+# IS_SEQ_RDI: `call is_seq` inline - eax 1 if rdi is a tuple or a list,
+# else 0; like the call, only rax and rcx (and the flags) change
+.macro IS_SEQ_RDI
+        xor eax, eax
+        test dil, 1
+        jnz .Lisq_done\@
+        test rdi, rdi
+        jz .Lisq_done\@
+        mov ecx, [rdi + N_KIND]
+        sub ecx, K_TUPLE
+        cmp ecx, K_LIST - K_TUPLE
+        setbe al
+.Lisq_done\@:
+.endm
+
 .macro OP_N_CHECK op, n, fail
         test dil, 1
         jnz \fail
