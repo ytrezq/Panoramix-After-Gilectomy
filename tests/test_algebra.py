@@ -11,11 +11,16 @@ from panoramix.core.algebra import CannotCompare
 random.seed(int(sys.argv[1]) if len(sys.argv) > 1 else 1)
 N = int(sys.argv[2]) if len(sys.argv) > 2 else 500
 
+BIG = os.environ.get("BIG")     # BIG=1: the masks' numbers past 2^62 too (python's ints)
+
 def rint():
     r = random.random()
     if r < 0.6: return random.choice([0, 1, 2, 3, 4, 5, 8, 16, 31, 32, 64, 96, 128, 160, 224, 255, 256, 288, -1, -4, -32, -256, 2**160, 2**160 - 1, 2**255, 2**256 - 1])
     if r < 0.95: return random.randint(-300, 300)
     return random.randint(0, 2**256)
+
+def rbig():
+    return random.choice([1, -1]) * random.choice([2**62, 2**62 - 1, 2**63 + 5, 2**64, 2**100 + 7, 2**255 + 255, 2**256 - 1])
 
 ATOMS = [("cd", 4), ("cd", 36), ("cd", ("add", 4, ("cd", 4))), "callvalue", "calldatasize", ("var", 1), ("var", 2), ("storage", 256, 0, 5), ("storage", 160, 0, 3), ("mem", ("range", 64, 32)), ("mem", ("range", 96, 32)), ("sha3", 1), "x", ("ext_call.return_data", 0, 32)]
 
@@ -36,6 +41,11 @@ def rexp(depth=0):
             size = random.choice([1, 8, 32, 64, 96, 160, 224, 248, 251, 253, 255, 256])
             off = random.choice([0, 0, 0, 8, 32, 96, 160])
             shl = random.choice([0, 0, 0, 1, 3, 5, 32, 96, -3, -5, -32, -96])
+            if BIG and random.random() < 0.3:
+                k = random.randrange(3)
+                if k == 0: off = rbig()
+                elif k == 1: shl = rbig()
+                else: off = shl = rbig()
             return ("mask_shl", size, off, shl, rexp(depth + 1))
         return ("mask_shl", rexp(depth + 1), rexp(depth + 1), rexp(depth + 1), rexp(depth + 1))
     if op == "max":

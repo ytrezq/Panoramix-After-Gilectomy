@@ -445,7 +445,9 @@ FUNC ev_mulmod
         LEAVE
 ENDF ev_mulmod
 
-# ev_exp(base, exponent): pow(base, exponent, 2^256)
+# ev_exp(base, exponent): pow(base, exponent, 2^256) - with a negative
+# exponent, python's modular inverse raised to its opposite (ValueError
+# for an even base: no inverse)
 FUNC ev_exp
         cmp rsi, 1
         jne 1f
@@ -456,7 +458,7 @@ FUNC ev_exp
         ENTER
         call arith_load
         cmp dword ptr [r15 + CTX_MPZ_B + MPZ_SIZE], 0
-        jl .Lzero_leave3
+        jl .Lexp_negative
         lea rdi, [r15 + CTX_MPZ_R]
         lea rsi, [r15 + CTX_MPZ_A]
         lea rdx, [r15 + CTX_MPZ_B]
@@ -464,10 +466,32 @@ FUNC ev_exp
         call __gmpz_powm@PLT
         call arith_result
         LEAVE
-.Lzero_leave3:
-        mov eax, 1
+.Lexp_negative:
+        lea rdi, [r15 + CTX_MPZ_R]
+        lea rsi, [r15 + CTX_MPZ_A]
+        lea rdx, [rip + mpz_two256]
+        call __gmpz_invert@PLT
+        test eax, eax
+        jz .Lexp_not_invertible
+        lea rdi, [r15 + CTX_MPZ_B]
+        lea rsi, [r15 + CTX_MPZ_B]
+        call __gmpz_neg@PLT
+        lea rdi, [r15 + CTX_MPZ_R]
+        lea rsi, [r15 + CTX_MPZ_R]
+        lea rdx, [r15 + CTX_MPZ_B]
+        lea rcx, [rip + mpz_two256]
+        call __gmpz_powm@PLT
+        call arith_result
         LEAVE
+.Lexp_not_invertible:
+        mov edi, E_VALUE
+        lea rsi, [rip + .Ls_not_invertible]
+        call err_throw
 ENDF ev_exp
+
+        .section .rodata
+.Ls_not_invertible: .asciz "base is not invertible for the given modulus"
+        .text
 
 # ev_signextend(bits, value)
 FUNC ev_signextend

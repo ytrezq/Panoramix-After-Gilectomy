@@ -121,6 +121,7 @@
 .set E_INDEX, 7
 .set E_MEMORY, 8            # python's MemoryError: the arena passed CTX_MEM_LIMIT
 .set E_RECURSION, 9         # python's RecursionError: the stack passed CTX_STACK_LOW
+.set E_VALUE, 10            # python's ValueError
 
 .set ARENA_CHUNK_DEFAULT, 0x400000     # 4 MiB
 .set COMPACT_THRESHOLD, 0x10000000      # 256 MiB of arena: simplify_trace compacts
