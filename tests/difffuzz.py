@@ -43,7 +43,9 @@ OPS = {
     "SGT": 0x13, "SAR": 0x1d, "ORIGIN": 0x32, "CALLDATACOPY": 0x37, "GASPRICE": 0x3a,
     "EXTCODESIZE": 0x3b, "RETURNDATACOPY": 0x3e, "EXTCODEHASH": 0x3f, "BLOCKHASH": 0x40,
     "COINBASE": 0x41, "CHAINID": 0x46, "SELFBALANCE": 0x47, "LOG0": 0xa0,
-    "SELFDESTRUCT": 0xff,
+    "SELFDESTRUCT": 0xff, "MSTORE8": 0x53, "MSIZE": 0x59, "CODESIZE": 0x38, "CODECOPY": 0x39,
+    "EXTCODECOPY": 0x3c, "DIFFICULTY": 0x44, "GASLIMIT": 0x45, "BASEFEE": 0x48, "LOG3": 0xa3,
+    "LOG4": 0xa4, "CREATE": 0xf0, "DELEGATECALL": 0xf4, "CREATE2": 0xf5,
 }
 
 
@@ -205,7 +207,8 @@ class Gen:
         elif r < 0.7:
             env = ["CALLER", "CALLVALUE", "TIMESTAMP", "NUMBER", "ADDRESS", "CALLDATASIZE", "GAS"]
             if self.rich:
-                env += ["ORIGIN", "GASPRICE", "COINBASE", "CHAINID", "SELFBALANCE", "RETURNDATASIZE"]
+                env += ["ORIGIN", "GASPRICE", "COINBASE", "CHAINID", "SELFBALANCE", "RETURNDATASIZE",
+                        "MSIZE", "CODESIZE", "DIFFICULTY", "GASLIMIT", "BASEFEE"]
             self.a.op(self.r.choice(env))
             if self.rich and self.r.random() < 0.15:
                 self.a.op(self.r.choice(["EXTCODESIZE", "EXTCODEHASH", "BLOCKHASH", "BALANCE"]))
@@ -416,8 +419,10 @@ class Gen:
         return False
 
     def rich_stmt(self, d):
-        k = self.r.randint(0, 4)
+        k = self.r.randint(0, 9)
         a = self.a
+        if k >= 5:
+            return self.rare_stmt(k)
         if k == 0:
             # array.push(v): slot p, length at p, data at keccak(p) + length
             p = self.r.randint(0, 6)
@@ -491,6 +496,93 @@ class Gen:
             a.push(self.r.randint(0, 6))
             a.op("SSTORE")
             self.depth -= 1
+
+    def rare_stmt(self, k):
+        """the other instructions: mstore8, delegatecall, create, create2,
+        codecopy, extcodecopy, log3 and log4"""
+        a = self.a
+        slot = self.r.randint(0, 6)
+        if k == 5:
+            # a byte written, the word read back
+            self.expr()
+            a.push(0x80 + self.r.randint(0, 31))
+            a.op("MSTORE8")
+            self.depth -= 1
+            a.push(0x80)
+            a.op("MLOAD")
+            a.push(slot)
+            a.op("SSTORE")
+        elif k == 6:
+            # a delegatecall, required, its return data stored
+            ok = a.label()
+            a.push(0x20)
+            a.push(0x80)
+            a.push(self.r.choice([0, 4, 0x24]))
+            a.push(0x80)
+            self.depth += 4
+            self.expr()                     # address
+            a.op("GAS")
+            a.op("DELEGATECALL")
+            self.depth -= 4
+            a.push_label(ok)
+            a.op("JUMPI")
+            self.depth -= 1
+            a.push(0)
+            a.dup(1)
+            a.op("REVERT")
+            a.jumpdest(ok)
+            a.push(0x80)
+            a.op("MLOAD")
+            a.push(slot)
+            a.op("SSTORE")
+        elif k == 7:
+            # a contract created from memory, its address stored
+            self.expr()
+            a.push(0x80)
+            a.op("MSTORE")
+            self.depth -= 1
+            op = self.r.choice(["CREATE", "CREATE2"])
+            if op == "CREATE2":
+                a.push(self.r.getrandbits(64))
+            a.push(0x20)
+            a.push(0x80)
+            a.push(self.r.choice([0, 1]))
+            a.op(op)
+            a.push(slot)
+            a.op("SSTORE")
+        elif k == 8:
+            # code copied to memory (this contract's, or another's)
+            if self.r.random() < 0.5:
+                a.push(0x20)
+                a.push(self.r.randint(0, 64))
+                a.push(0x80)
+                a.op("CODECOPY")
+            else:
+                a.push(0x20)
+                a.push(0)
+                a.push(0x80)
+                self.depth += 3
+                self.expr()                 # address
+                a.op("EXTCODECOPY")
+                self.depth -= 4
+            a.push(0x80)
+            a.op("MLOAD")
+            a.push(slot)
+            a.op("SSTORE")
+        else:
+            # an event of three or four topics
+            self.expr()
+            a.push(0x80)
+            a.op("MSTORE")
+            self.depth -= 1
+            n = self.r.choice([2, 3])       # the topics after the first
+            for _ in range(n):
+                self.expr()
+            a.push(self.r.getrandbits(256), 32)
+            a.push(0x20)
+            a.push(0x80)
+            a.op("LOG3" if n == 2 else "LOG4")
+            self.depth -= n
 
     def program(self):
         a = self.a
