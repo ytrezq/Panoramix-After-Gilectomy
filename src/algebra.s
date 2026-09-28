@@ -1168,6 +1168,39 @@ FUNC alg_try_add
         ENTER
         mov rbx, rdi
         mov r12, rsi
+        # (for speed) without a mask_shl in either term, the only rule
+        # that can apply is mul(x, exp) + mul(y, exp) -> ('mul', x + y, exp)
+        call is_mul_int
+        test eax, eax
+        jz 2f
+        mov rdi, r12
+        call is_mul_int
+        test eax, eax
+        jz 2f
+        mov r13, [rbx + N_DATA + 16]    # self[2]
+        mov r14, [r12 + N_DATA + 16]    # other[2]
+        mov rdi, r13
+        call opcode_of
+        cmp eax, OP_MASK_SHL
+        je 2f
+        mov rdi, r14
+        call opcode_of
+        cmp eax, OP_MASK_SHL
+        je 2f
+        mov rdi, r13
+        mov rsi, r14
+        call values_equal
+        test eax, eax
+        jz 3f
+        mov rdi, [rbx + N_DATA + 8]
+        mov rsi, [r12 + N_DATA + 8]
+        call int_add
+        mov rdi, rax
+        mov rsi, r13
+        call mk_mul
+        LEAVE
+2:      mov rdi, rbx
+        mov rsi, r12
         call try_add_1
         test rax, rax
         jnz 1f
@@ -1175,6 +1208,8 @@ FUNC alg_try_add
         mov rsi, r12
         call try_add_2
 1:      LEAVE
+3:      xor eax, eax
+        LEAVE
 ENDF alg_try_add
 
 # try_add_2(self, other): __try_add - normalizes ('mul', num, mask_shl with

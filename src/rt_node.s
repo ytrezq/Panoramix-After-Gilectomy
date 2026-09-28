@@ -37,46 +37,54 @@ FUNC value_hash
 ENDF value_hash
 
 # hash_seq(kind, count, elems) -> rax: the hash, its top byte the mention
-# flags (HF_*) of the elements
+# flags (HF_*) of the elements. A node's hash is read from it, a small
+# int is mixed inline, and the chain is finalized once (Murmur3's
+# finalizer): the elements are hashed in a few instructions each, which
+# matters as every tuple and list goes through here.
 FUNC hash_seq
-        ENTER
-        sub rsp, 16
-        mov r12, rsi                    # count
-        mov r13, rdx                    # elems
-        mov qword ptr [rsp], 0          # the flags
         movabs rax, 0x9e3779b97f4a7c15
-        imul rdi, rax
-        xor rdi, rsi
-        call hash_mix
-        mov rbx, rax
-        xor r14d, r14d
-1:      cmp r14, r12
-        jae 2f
-        mov rdi, [r13 + r14*8]
-        call value_hash
-        test byte ptr [r13 + r14*8], 1
-        jnz 3f
-        cmp qword ptr [r13 + r14*8], 0
-        je 3f
-        mov rcx, rax                    # a node: its flags
-        mov rdx, HF_MASK
-        and rcx, rdx
-        or [rsp], rcx
-3:      mov rdi, rax
-        xor rdi, rbx
-        movabs rcx, 0x9e3779b97f4a7c15
-        add rdi, rcx
-        call hash_mix
-        mov rbx, rax
-        inc r14
+        imul rax, rdi
+        xor rax, rsi                    # (kind, count)
+        movabs r9, 0xc4ceb9fe1a85ec53
+        xor r10d, r10d                  # the flags
+        mov r11, HF_MASK
+        xor ecx, ecx
+1:      cmp rcx, rsi
+        jae 4f
+        mov rdi, [rdx + rcx*8]
+        test dil, 1
+        jz 2f
+        movabs r8, 0xff51afd7ed558ccd
+        imul rdi, r8                    # a small int: mixed inline
+        jmp 3f
+2:      test rdi, rdi
+        jz 3f                           # NIL hashes as 0
+        mov rdi, [rdi + N_HASH]
+        mov r8, rdi
+        and r8, r11
+        or r10, r8                      # its flags
+3:      xor rax, rdi
+        imul rax, r9
+        rol rax, 31
+        inc rcx
         jmp 1b
-2:      mov rax, rbx
-        mov rcx, HF_MASK
-        not rcx
-        and rax, rcx
-        or rax, [rsp]
-        add rsp, 16
-        LEAVE
+4:      # the finalizer
+        mov rcx, rax
+        shr rcx, 33
+        xor rax, rcx
+        movabs r8, 0xff51afd7ed558ccd
+        imul rax, r8
+        mov rcx, rax
+        shr rcx, 33
+        xor rax, rcx
+        imul rax, r9
+        mov rcx, rax
+        shr rcx, 33
+        xor rax, rcx
+        not r11
+        and rax, r11
+        or rax, r10
+        ret
 ENDF hash_seq
 
 # values_equal(a, b) -> eax 0/1. Pointer equality, except big ints which
@@ -118,30 +126,54 @@ ENDF values_equal
 # seq_equal(node, kind, count, elems) -> eax: does the tuple/list node hold
 # exactly these elements?
 FUNC seq_equal
+        cmp [rdi + N_KIND], esi
+        jne .Lseq_no
+        cmp [rdi + N_AUX], edx
+        jne .Lseq_no
+        xor eax, eax
+1:      cmp rax, rdx
+        jae .Lseq_yes
+        mov r8, [rdi + N_DATA + rax*8]
+        mov r9, [rcx + rax*8]
+        inc rax
+        cmp r8, r9
+        je 1b
+        # different pointers: equal only as two big ints of the same value
+        test r8b, 1
+        jnz .Lseq_no
+        test r9b, 1
+        jnz .Lseq_no
+        test r8, r8
+        jz .Lseq_no
+        test r9, r9
+        jz .Lseq_no
+        cmp dword ptr [r8 + N_KIND], K_INT
+        jne .Lseq_no
+        cmp dword ptr [r9 + N_KIND], K_INT
+        jne .Lseq_no
         ENTER
         mov rbx, rdi
-        cmp [rbx + N_KIND], esi
-        jne .Lseq_no
-        cmp [rbx + N_AUX], edx
-        jne .Lseq_no
         mov r12, rdx
         mov r13, rcx
-        xor r14d, r14d
-1:      cmp r14, r12
-        jae .Lseq_yes
-        mov rdi, [rbx + N_DATA + r14*8]
-        mov rsi, [r13 + r14*8]
+        mov r14, rax
+        mov rdi, r8
+        mov rsi, r9
         call values_equal
         test eax, eax
-        jz .Lseq_no
-        inc r14
+        jz 2f
+        mov rdi, rbx
+        mov rdx, r12
+        mov rcx, r13
+        mov rax, r14
+        LEAVE_NORET
         jmp 1b
-.Lseq_yes:
-        mov eax, 1
-        LEAVE
+2:      LEAVE_NORET
 .Lseq_no:
         xor eax, eax
-        LEAVE
+        ret
+.Lseq_yes:
+        mov eax, 1
+        ret
 ENDF seq_equal
 
 # hc_grow(): double the hash-cons table
