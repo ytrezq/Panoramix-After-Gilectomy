@@ -317,7 +317,14 @@ what had been used): `arena_alloc` zeroes the block it gives, in the
 cache, and the nodes, vectors and strings, which are written whole,
 take `arena_alloc_raw` (`PANORAMIX_POISON=1` fills the released chunks
 with garbage instead, for the tests: the corpora give the same text
-with it). Without time limits (`PANORAMIX_TIMEOUT=0`: under valgrind
-python's limits cut the simplification short, and the counts of two
-builds weren't comparable), Wyvern went from 16.2G instructions to
-9.5G.
+with it); the walker of the pure callbacks (`replace_f_memo`: the
+trace is a DAG, hash-consed, that python walks as a tree at every round
+of `simplify_trace`) remembers what each subtree gave, in one map per
+context emptied by an epoch; `replace` skips the tuples that lack the
+mention flags of what it replaces (a variable); the folder finds the
+prefix and the suffix its paths share in one pass, and sorts its ors
+with a merge sort. Without time limits (`PANORAMIX_TIMEOUT=0`: under
+valgrind python's limits cut the simplification short, and the counts
+of two builds weren't comparable), Wyvern went from 16.2G instructions
+to 7.2G, zx_Exchange (the slowest of the npm corpus) from 58.6G to
+43.2G.
