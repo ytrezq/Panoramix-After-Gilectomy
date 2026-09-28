@@ -255,18 +255,8 @@ FUNC stack_cleanup
         jne .Lsc_next
         mov rdi, [r14 + N_DATA + 8]
         call opcode_of
-        cmp eax, OP_ISZERO
-        je 6f
-        cmp eax, OP_EQ
-        je 6f
-        cmp eax, OP_LT
-        je 6f
-        cmp eax, OP_GT
-        je 6f
-        cmp eax, OP_SLT
-        je 6f
-        cmp eax, OP_SGT
-        je 6f
+        IN_OPSET booleans, rax          # iszero, eq, lt, gt, slt, sgt
+        jne 6f
         mov rdi, [r14 + N_DATA + 8]
         call mk_bool_of
         jmp .Lsc_store
@@ -280,6 +270,14 @@ FUNC stack_cleanup
 .Lsc_done:
         LEAVE
 ENDF stack_cleanup
+
+        OPSET_MEMBER booleans, OP_ISZERO
+        OPSET_MEMBER booleans, OP_EQ
+        OPSET_MEMBER booleans, OP_LT
+        OPSET_MEMBER booleans, OP_GT
+        OPSET_MEMBER booleans, OP_SLT
+        OPSET_MEMBER booleans, OP_SGT
+        OPSET_END booleans, OP_COUNT
 
 # fold_stacks(first, second, depth, &vars) -> rax: the folded stack (a
 # tuple), vars = tuple of ('var', counter, first[idx], idx). The stacks are

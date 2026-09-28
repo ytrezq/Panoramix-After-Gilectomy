@@ -201,6 +201,109 @@
 
 .include "opcodes.inc"
 
+# --- jump tables: a switch on a small integer (an opcode id, a kind, a
+# byte) instead of a chain of compares ---
+#
+#       call opcode_of
+#       JT_SWITCH ge_zero, OP_COUNT, .Lgz_none     # eax: the value
+#       JT_CASE ge_zero, OP_MUL, .Lgz_mul
+#       JT_CASE ge_zero, OP_ADD, .Lgz_add
+#       JT_END ge_zero, OP_COUNT, .Lgz_none        # the table (after its cases)
+#
+# JT_SWITCH jumps to the label of eax's case, or to the default when eax
+# (unsigned) is above `bound` or has no case; it clobbers rax and rcx.
+# The table holds 32-bit offsets from itself, in .rodata: no relocation
+# at load time. The cases may come in any order; the names are local to
+# the file.
+
+.macro JT_SWITCH name, bound, default
+        cmp eax, \bound
+        ja \default
+        lea rcx, [rip + .Ljt_\name]
+        movsxd rax, dword ptr [rcx + rax*4]
+        add rax, rcx
+        jmp rax
+.endm
+
+.macro JT_CASE name, value, label
+        .altmacro
+        JT_CASE_ \name, %(\value), \label
+        .noaltmacro
+.endm
+
+.macro JT_CASE_ name, id, label
+        .set .Ljt_\name\()_\id, \label
+.endm
+
+.macro JT_ENTRY_ name, default, i
+        .ifdef .Ljt_\name\()_\i
+        .long .Ljt_\name\()_\i - .Ljt_\name
+        .else
+        .long \default - .Ljt_\name
+        .endif
+.endm
+
+.macro JT_END name, bound, default
+        .section .rodata
+        .align 4
+.Ljt_\name:
+        .set .Ljt_i, 0
+        .rept \bound + 1
+        .altmacro
+        JT_ENTRY_ \name, \default, %(.Ljt_i)
+        .noaltmacro
+        .set .Ljt_i, .Ljt_i + 1
+        .endr
+        .text
+.endm
+
+# Sets of small integers (opcode ids...), as a byte per value:
+#
+#       OPSET_MEMBER array_ops, OP_CALL_DATA
+#       OPSET_MEMBER array_ops, OP_CODE_DATA
+#       OPSET_END array_ops, OP_COUNT               # the label .Lset_array_ops
+#       ...
+#       lea rcx, [rip + .Lset_array_ops]
+#       movzx eax, byte ptr [rcx + rax]             # 1 for a member
+
+# IN_OPSET name, idx64: the flags of `cmp member, 0` - jne when idx is
+# in the set (idx at most the bound); clobbers rcx
+.macro IN_OPSET name, idx
+        lea rcx, [rip + .Lset_\name]
+        cmp byte ptr [rcx + \idx], 0
+.endm
+
+.macro OPSET_MEMBER name, value
+        .altmacro
+        OPSET_MEMBER_ \name, %(\value)
+        .noaltmacro
+.endm
+
+.macro OPSET_MEMBER_ name, id
+        .set .Lset_\name\()_\id, 1
+.endm
+
+.macro OPSET_ENTRY_ name, i
+        .ifdef .Lset_\name\()_\i
+        .byte 1
+        .else
+        .byte 0
+        .endif
+.endm
+
+.macro OPSET_END name, bound
+        .section .rodata
+.Lset_\name:
+        .set .Ljt_i, 0
+        .rept \bound + 1
+        .altmacro
+        OPSET_ENTRY_ \name, %(.Ljt_i)
+        .noaltmacro
+        .set .Ljt_i, .Ljt_i + 1
+        .endr
+        .text
+.endm
+
 # LOADS reg, NAME: load the interned string node for opcode NAME
 .macro LOADS reg, name
         lea \reg, [rip + opcode_nodes]

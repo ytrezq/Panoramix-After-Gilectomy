@@ -186,49 +186,29 @@ FUNC pretty_line
 2:      mov rdi, rbx
         call opcode_of
         mov r13d, eax
-        cmp eax, OP_LOG
-        je .Lpl_log
-        cmp eax, OP_CALLCODE
-        je .Lpl_callcode
-        cmp eax, OP_DELEGATECALL
-        je .Lpl_delegatecall
-        cmp eax, OP_SELFDESTRUCT
-        je .Lpl_selfdestruct
-        cmp eax, OP_PRECOMPILED
-        je .Lpl_precompiled
-        cmp eax, OP_CREATE
-        je .Lpl_create
-        cmp eax, OP_CREATE2
-        je .Lpl_create2
-        cmp eax, OP_CALL
-        je .Lpl_call
-        cmp eax, OP_STATICCALL
-        je .Lpl_staticcall
-        cmp eax, OP_LABEL
-        je .Lpl_label
-        cmp eax, OP_GOTO
-        je .Lpl_goto
-        cmp eax, OP_CONTINUE
-        je .Lpl_continue
-        cmp eax, OP_SETVAR
-        je .Lpl_prettify
-        cmp eax, OP_SETMEM
-        je .Lpl_prettify
-        cmp eax, OP_SET
-        je .Lpl_set
-        cmp eax, OP_STOP
-        je .Lpl_stop
-        cmp eax, OP_UNDEFINED
-        je .Lpl_undefined
-        cmp eax, OP_INVALID
-        je .Lpl_invalid
-        cmp eax, OP_REVERT
-        je .Lpl_revert_return
-        cmp eax, OP_RETURN
-        je .Lpl_revert_return
-        cmp eax, OP_STORE
-        je .Lpl_store
-        jmp .Lpl_other
+        JT_SWITCH pretty_line, OP_COUNT, .Lpl_other
+        JT_CASE pretty_line, OP_LOG, .Lpl_log
+        JT_CASE pretty_line, OP_CALLCODE, .Lpl_callcode
+        JT_CASE pretty_line, OP_DELEGATECALL, .Lpl_delegatecall
+        JT_CASE pretty_line, OP_SELFDESTRUCT, .Lpl_selfdestruct
+        JT_CASE pretty_line, OP_PRECOMPILED, .Lpl_precompiled
+        JT_CASE pretty_line, OP_CREATE, .Lpl_create
+        JT_CASE pretty_line, OP_CREATE2, .Lpl_create2
+        JT_CASE pretty_line, OP_CALL, .Lpl_call
+        JT_CASE pretty_line, OP_STATICCALL, .Lpl_staticcall
+        JT_CASE pretty_line, OP_LABEL, .Lpl_label
+        JT_CASE pretty_line, OP_GOTO, .Lpl_goto
+        JT_CASE pretty_line, OP_CONTINUE, .Lpl_continue
+        JT_CASE pretty_line, OP_SETVAR, .Lpl_prettify
+        JT_CASE pretty_line, OP_SETMEM, .Lpl_prettify
+        JT_CASE pretty_line, OP_SET, .Lpl_set
+        JT_CASE pretty_line, OP_STOP, .Lpl_stop
+        JT_CASE pretty_line, OP_UNDEFINED, .Lpl_undefined
+        JT_CASE pretty_line, OP_INVALID, .Lpl_invalid
+        JT_CASE pretty_line, OP_REVERT, .Lpl_revert_return
+        JT_CASE pretty_line, OP_RETURN, .Lpl_revert_return
+        JT_CASE pretty_line, OP_STORE, .Lpl_store
+        JT_END pretty_line, OP_COUNT, .Lpl_other
 
 .Lpl_log:
         # ('log', params, *events)
@@ -1943,14 +1923,13 @@ FUNC pprint_logic
         mov rdi, rbx
         call opcode_of
         mov r12d, eax
-        cmp eax, OP_WHILE
-        je .Lpp_while
-        cmp eax, OP_REQUIRE
-        je .Lpp_require
-        cmp eax, OP_IF
-        je .Lpp_if
-        cmp eax, OP_OR
-        je .Lpp_or
+        JT_SWITCH pprint_logic, OP_COUNT, .Lpp_other
+        JT_CASE pprint_logic, OP_WHILE, .Lpp_while
+        JT_CASE pprint_logic, OP_REQUIRE, .Lpp_require
+        JT_CASE pprint_logic, OP_IF, .Lpp_if
+        JT_CASE pprint_logic, OP_OR, .Lpp_or
+        JT_END pprint_logic, OP_COUNT, .Lpp_other
+.Lpp_other:
         mov rdi, rbx
         call is_list
         test eax, eax

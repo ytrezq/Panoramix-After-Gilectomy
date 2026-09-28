@@ -2455,27 +2455,18 @@ FUNC ge_zero_impl
         je .Lgz_true
         mov rdi, rbx
         call opcode_of
-        cmp eax, OP_MUL
-        je .Lgz_mul
-        cmp eax, OP_BOOL
-        je .Lgz_true
-        cmp eax, OP_MASK_SHL
-        je .Lgz_mask
-        cmp eax, OP_CD
-        je .Lgz_true
-        cmp eax, OP_STORAGE
-        je .Lgz_true
-        cmp eax, OP_MSIZE
-        je .Lgz_true
-        cmp eax, OP_ADD
-        je .Lgz_add
-        cmp eax, OP_OR
-        je .Lgz_or
-        cmp eax, OP_VAR
-        je .Lgz_true
-        cmp eax, OP_EXT_CALL_RETURN_DATA
-        je .Lgz_true
-        jmp .Lgz_none
+        JT_SWITCH ge_zero, OP_COUNT, .Lgz_none
+        JT_CASE ge_zero, OP_MUL, .Lgz_mul
+        JT_CASE ge_zero, OP_BOOL, .Lgz_true
+        JT_CASE ge_zero, OP_MASK_SHL, .Lgz_mask
+        JT_CASE ge_zero, OP_CD, .Lgz_true
+        JT_CASE ge_zero, OP_STORAGE, .Lgz_true
+        JT_CASE ge_zero, OP_MSIZE, .Lgz_true
+        JT_CASE ge_zero, OP_ADD, .Lgz_add
+        JT_CASE ge_zero, OP_OR, .Lgz_or
+        JT_CASE ge_zero, OP_VAR, .Lgz_true
+        JT_CASE ge_zero, OP_EXT_CALL_RETURN_DATA, .Lgz_true
+        JT_END ge_zero, OP_COUNT, .Lgz_none
 .Lgz_mul:
         mov r12d, 1                     # counter sign
         mov r13d, 1
@@ -2531,20 +2522,21 @@ ENDF ge_zero_impl
 # is_array_op(id) -> eax: helpers.is_array
 FUNC is_array_op
         xor eax, eax
-        cmp edi, OP_CALL_DATA
-        je 1f
-        cmp edi, OP_EXT_CALL_RETURN_DATA
-        je 1f
-        cmp edi, OP_DELEGATE_RETURN_DATA
-        je 1f
-        cmp edi, OP_CALLCODE_RETURN_DATA
-        je 1f
-        cmp edi, OP_CODE_DATA
-        je 1f
-        ret
-1:      mov eax, 1
-        ret
+        cmp edi, OP_COUNT
+        ja 1f
+        lea rax, [rip + .Lset_array_ops]
+        movzx eax, byte ptr [rax + rdi]
+1:      ret
 ENDF is_array_op
+
+        # helpers.ARRAY_OPCODES
+        OPSET_MEMBER array_ops, OP_CALL_DATA
+        OPSET_MEMBER array_ops, OP_EXT_CALL_RETURN_DATA
+        OPSET_MEMBER array_ops, OP_DELEGATE_RETURN_DATA
+        OPSET_MEMBER array_ops, OP_CALLCODE_RETURN_DATA
+        OPSET_MEMBER array_ops, OP_STATICCALL_RETURN_DATA
+        OPSET_MEMBER array_ops, OP_CODE_DATA
+        OPSET_END array_ops, OP_COUNT
 
 # extract_variables(exp, vec): appends the "variables" of exp to vec
 # (first occurrence order, no duplicates) - variants.extract_variables
@@ -2564,24 +2556,23 @@ FUNC extract_variables
         jne .Lxv_leaf                   # strings, specials, lists: a variable
         mov rdi, rbx
         call opcode_of
-        cmp eax, OP_VAR
-        je .Lxv_leaf
-        cmp eax, OP_MEM
-        je .Lxv_leaf
-        cmp eax, OP_CD
-        je .Lxv_leaf
-        cmp eax, OP_STORAGE
-        je .Lxv_leaf
-        cmp eax, OP_CALL_DATA
-        je .Lxv_leaf
-        cmp eax, OP_SHA3
-        je .Lxv_leaf
-        cmp eax, OP_CALLDATASIZE
-        je .Lxv_leaf
-        mov edi, eax
-        call is_array_op
-        test eax, eax
-        jnz .Lxv_leaf
+        # a variable: var, mem, cd, storage, call.data, sha3, calldatasize,
+        # or an array (helpers.ARRAY_OPCODES)
+        JT_SWITCH xv, OP_COUNT, .Lxv_terms
+        JT_CASE xv, OP_VAR, .Lxv_leaf
+        JT_CASE xv, OP_MEM, .Lxv_leaf
+        JT_CASE xv, OP_CD, .Lxv_leaf
+        JT_CASE xv, OP_STORAGE, .Lxv_leaf
+        JT_CASE xv, OP_CALL_DATA, .Lxv_leaf
+        JT_CASE xv, OP_SHA3, .Lxv_leaf
+        JT_CASE xv, OP_CALLDATASIZE, .Lxv_leaf
+        JT_CASE xv, OP_EXT_CALL_RETURN_DATA, .Lxv_leaf
+        JT_CASE xv, OP_DELEGATE_RETURN_DATA, .Lxv_leaf
+        JT_CASE xv, OP_CALLCODE_RETURN_DATA, .Lxv_leaf
+        JT_CASE xv, OP_STATICCALL_RETURN_DATA, .Lxv_leaf
+        JT_CASE xv, OP_CODE_DATA, .Lxv_leaf
+        JT_END xv, OP_COUNT, .Lxv_terms
+.Lxv_terms:
         # the elements, except the head
         mov r13d, 1
 1:      cmp r13d, [rbx + N_AUX]
@@ -2707,15 +2698,14 @@ FUNC variant_evaluable
         jmp 1b
 2:      mov rdi, rbx
         call opcode_of
-        cmp eax, OP_ADD
-        je 3f
-        cmp eax, OP_MUL
-        je 3f
-        cmp eax, OP_MAX
-        je 3f
-        cmp eax, OP_MASK_SHL
-        jne .Lve_no
-3:      push r15
+        JT_SWITCH ve, OP_COUNT, .Lve_no
+        JT_CASE ve, OP_ADD, .Lve_node
+        JT_CASE ve, OP_MUL, .Lve_node
+        JT_CASE ve, OP_MAX, .Lve_node
+        JT_CASE ve, OP_MASK_SHL, .Lve_node
+        JT_END ve, OP_COUNT, .Lve_no
+.Lve_node:
+        push r15
         push r15
         xor r15d, r15d                  # the height of the elements
         mov r14d, 1
@@ -3206,14 +3196,13 @@ FUNC simplify_impl
         mov rdi, rbx
         call opcode_of
         mov r12d, eax
-        cmp eax, OP_MAX
-        je .Lsi_max
-        cmp eax, OP_MASK_SHL
-        je .Lsi_mask
-        cmp eax, OP_ADD
-        je .Lsi_add
-        cmp eax, OP_MUL
-        je .Lsi_mul
+        JT_SWITCH simplify, OP_COUNT, .Lsi_other
+        JT_CASE simplify, OP_MAX, .Lsi_max
+        JT_CASE simplify, OP_MASK_SHL, .Lsi_mask
+        JT_CASE simplify, OP_ADD, .Lsi_add
+        JT_CASE simplify, OP_MUL, .Lsi_mul
+        JT_END simplify, OP_COUNT, .Lsi_other
+.Lsi_other:
         mov rax, rbx
         add rsp, 48
         LEAVE

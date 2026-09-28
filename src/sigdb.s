@@ -1180,20 +1180,21 @@ ENDF make_parent_dirs
 # js_ws(&p): the blanks skipped
 FUNC js_ws
         mov rax, [rdi]
+        lea rdx, [rip + .Lset_json_blank]
 1:      movzx ecx, byte ptr [rax]
-        cmp ecx, ' '
-        je 2f
-        cmp ecx, 9
-        je 2f
-        cmp ecx, 10
-        je 2f
-        cmp ecx, 13
-        jne 3f
-2:      inc rax
+        cmp byte ptr [rdx + rcx], 0     # ' ', tab, newline, carriage return
+        je 3f
+        inc rax
         jmp 1b
 3:      mov [rdi], rax
         ret
 ENDF js_ws
+
+        OPSET_MEMBER json_blank, ' '
+        OPSET_MEMBER json_blank, 9
+        OPSET_MEMBER json_blank, 10
+        OPSET_MEMBER json_blank, 13
+        OPSET_END json_blank, 255
 
 # js_expect(&p, c) -> eax: the blanks, then the character c
 FUNC js_expect

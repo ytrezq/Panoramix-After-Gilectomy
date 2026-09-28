@@ -290,24 +290,26 @@ FUNC py_truthy
 1:      test rdi, rdi
         jz 3f
         mov eax, [rdi + N_KIND]
-        cmp eax, K_STR
-        je 5f
-        cmp eax, K_SPECIAL
-        je 6f
-        cmp eax, K_TUPLE
-        je 7f
-        cmp eax, K_LIST
-        je 7f
+        JT_SWITCH truthy, K_VMNODE, .Lpt_other
+        JT_CASE truthy, K_STR, .Lpt_str
+        JT_CASE truthy, K_SPECIAL, .Lpt_special
+        JT_CASE truthy, K_TUPLE, .Lpt_seq
+        JT_CASE truthy, K_LIST, .Lpt_seq
+        JT_END truthy, K_VMNODE, .Lpt_other
+.Lpt_other:
         mov eax, 1                      # a big int, a vm node
         ret
+.Lpt_str:
 5:      xor eax, eax
         cmp dword ptr [rdi + N_DATA], 0
         setne al
         ret
+.Lpt_seq:
 7:      xor eax, eax
         cmp dword ptr [rdi + N_AUX], 0
         setne al
         ret
+.Lpt_special:
 6:      xor eax, eax
         cmp dword ptr [rdi + N_AUX], SP_TRUE
         sete al
@@ -684,18 +686,8 @@ FUNC prettify
 2:      # ('bool', val): comparisons as they are, else bool(val)
         mov rdi, rax
         call opcode_of
-        cmp eax, OP_LT
-        je 3f
-        cmp eax, OP_GT
-        je 3f
-        cmp eax, OP_ISZERO
-        je 3f
-        cmp eax, OP_LE
-        je 3f
-        cmp eax, OP_GE
-        je 3f
-        cmp eax, OP_BOOL
-        je 3f
+        IN_OPSET boolish, rax           # lt, gt, iszero, le, ge, bool
+        jne 3f
         call sb_new
         mov r13, rax
         mov rdi, rax
@@ -1691,6 +1683,14 @@ FUNC prettify
         add rsp, MATCH_BINDINGS_SIZE + 64
         LEAVE
 ENDF prettify
+
+        OPSET_MEMBER boolish, OP_LT
+        OPSET_MEMBER boolish, OP_GT
+        OPSET_MEMBER boolish, OP_ISZERO
+        OPSET_MEMBER boolish, OP_LE
+        OPSET_MEMBER boolish, OP_GE
+        OPSET_MEMBER boolish, OP_BOOL
+        OPSET_END boolish, OP_COUNT
 
 # pow2_or_float(k) -> value: 2 ** k; for a negative k python has a float,
 # printed as its decimal - that text (a string) stands for it here

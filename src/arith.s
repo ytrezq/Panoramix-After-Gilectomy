@@ -902,16 +902,15 @@ FUNC arith_apply
         mov ebx, edi
         mov r12, rsi
         mov r13, rdx
-        cmp ebx, OP_AND
-        je .Lap_and
-        cmp ebx, OP_OR
-        je .Lap_or
-        cmp ebx, OP_NOT
-        je .Lap_not
-        cmp ebx, OP_ADDMOD
-        je .Lap_3
-        cmp ebx, OP_MULMOD
-        je .Lap_3
+        mov eax, ebx
+        JT_SWITCH arith_apply, OP_COUNT, .Lap_binary
+        JT_CASE arith_apply, OP_AND, .Lap_and
+        JT_CASE arith_apply, OP_OR, .Lap_or
+        JT_CASE arith_apply, OP_NOT, .Lap_not
+        JT_CASE arith_apply, OP_ADDMOD, .Lap_3
+        JT_CASE arith_apply, OP_MULMOD, .Lap_3
+        JT_END arith_apply, OP_COUNT, .Lap_binary
+.Lap_binary:                            # the others: binary, from ev_binary_table
         cmp r12, 3
         jne .Lap_nil
         lea rax, [rip + ev_binary_table]
@@ -1116,63 +1115,61 @@ FUNC eval_symbolic
         # div/sdiv/mod/smod with left == 0 -> 0
         cmp r13, 1
         jne 1f
-        cmp r12d, OP_DIV
-        je .Les_zero
-        cmp r12d, OP_SDIV
-        je .Les_zero
-        cmp r12d, OP_MOD
-        je .Les_zero
-        cmp r12d, OP_SMOD
-        je .Les_zero
+        lea rcx, [rip + .Lset_div_mod]
+        cmp byte ptr [rcx + r12], 0
+        jne .Les_zero
 1:      cmp r12d, OP_MUL
         jne 2f
         cmp r13, 1
         je .Les_zero
         cmp r14, 1
         je .Les_zero
-2:      # left == right, not volatile
+2:      # left == right, not volatile: the strict comparisons are false,
+        # the others true
         mov rdi, r13
         mov rsi, r14
         call values_equal
         test eax, eax
-        jz 3f
+        jz .Les_zero_cmp
         mov rdi, r13
         call is_volatile
         test eax, eax
-        jnz 3f
-        cmp r12d, OP_LT
-        je .Les_zero
-        cmp r12d, OP_GT
-        je .Les_zero
-        cmp r12d, OP_SLT
-        je .Les_zero
-        cmp r12d, OP_SGT
-        je .Les_zero
-        cmp r12d, OP_LE
-        je .Les_one
-        cmp r12d, OP_GE
-        je .Les_one
-        cmp r12d, OP_SLE
-        je .Les_one
-        cmp r12d, OP_SGE
-        je .Les_one
-        cmp r12d, OP_EQ
-        je .Les_one
-3:      # unsigned comparisons with zero
-        cmp r12d, OP_GT
-        jne 4f
+        jnz .Les_zero_cmp
+        mov eax, r12d
+        JT_SWITCH es_same, OP_COUNT, .Les_zero_cmp
+        JT_CASE es_same, OP_LT, .Les_zero
+        JT_CASE es_same, OP_GT, .Les_zero
+        JT_CASE es_same, OP_SLT, .Les_zero
+        JT_CASE es_same, OP_SGT, .Les_zero
+        JT_CASE es_same, OP_LE, .Les_one
+        JT_CASE es_same, OP_GE, .Les_one
+        JT_CASE es_same, OP_SLE, .Les_one
+        JT_CASE es_same, OP_SGE, .Les_one
+        JT_CASE es_same, OP_EQ, .Les_one
+        JT_END es_same, OP_COUNT, .Les_zero_cmp
+.Les_zero_cmp:
+        # unsigned comparisons with zero: gt(0, x) and lt(x, 0) are false,
+        # le(0, x) and ge(x, 0) true
+        mov eax, r12d
+        JT_SWITCH es_zero, OP_COUNT, .Les_asis
+        JT_CASE es_zero, OP_GT, .Les_gt
+        JT_CASE es_zero, OP_LT, .Les_lt
+        JT_CASE es_zero, OP_LE, .Les_le
+        JT_CASE es_zero, OP_GE, .Les_ge
+        JT_END es_zero, OP_COUNT, .Les_asis
+.Les_gt:
         cmp r13, 1
         je .Les_zero
-4:      cmp r12d, OP_LT
-        jne 5f
+        jmp .Les_asis
+.Les_lt:
         cmp r14, 1
         je .Les_zero
-5:      cmp r12d, OP_LE
-        jne 6f
+        jmp .Les_asis
+.Les_le:
         cmp r13, 1
         je .Les_one
-6:      cmp r12d, OP_GE
-        jne .Les_asis
+        jmp .Les_asis
+.Les_ge:
         cmp r14, 1
         je .Les_one
 .Les_asis:
@@ -1185,6 +1182,12 @@ FUNC eval_symbolic
         mov eax, 3
         LEAVE
 ENDF eval_symbolic
+
+        OPSET_MEMBER div_mod, OP_DIV
+        OPSET_MEMBER div_mod, OP_SDIV
+        OPSET_MEMBER div_mod, OP_MOD
+        OPSET_MEMBER div_mod, OP_SMOD
+        OPSET_END div_mod, OP_COUNT
 
 # ---------------------------------------------------------------------
 # booleans
@@ -1304,17 +1307,16 @@ FUNC is_zero
 3:      mov rdi, rbx
         call opcode_of
         mov r12d, eax
-        cmp eax, OP_ISZERO
-        je .Liz_iszero
-        cmp eax, OP_BOOL
-        je .Liz_bool
-        cmp eax, OP_OR
-        je .Liz_or
-        cmp eax, OP_AND
-        je .Liz_and
+        JT_SWITCH iz, OP_COUNT, .Liz_cmp
+        JT_CASE iz, OP_ISZERO, .Liz_iszero
+        JT_CASE iz, OP_BOOL, .Liz_bool
+        JT_CASE iz, OP_OR, .Liz_or
+        JT_CASE iz, OP_AND, .Liz_and
+        JT_END iz, OP_COUNT, .Liz_cmp
+.Liz_cmp:
         # the comparisons: swap the opcode
         lea rcx, [rip + iszero_swap_table]
-        mov ecx, [rcx + rax*4]
+        mov ecx, [rcx + r12*4]
         test ecx, ecx
         jz .Liz_default
         cmp dword ptr [rbx + N_AUX], 3
@@ -1669,18 +1671,10 @@ FUNC eval_bool_symbolic
         mov r14d, eax
         cmp dword ptr [rbx + N_AUX], 3
         jne .Lebs_none
-        cmp eax, OP_LE
-        je 1f
-        cmp eax, OP_LT
-        je 1f
-        cmp eax, OP_GT
-        je 1f
-        cmp eax, OP_GE
-        je 1f
-        cmp eax, OP_EQ
-        je 1f
-        jmp .Lebs_none
-1:      mov rdi, [rbx + N_DATA + 8]
+        lea rcx, [rip + .Lset_ebs_cmp]  # le, lt, gt, ge, eq
+        cmp byte ptr [rcx + r14], 0
+        je .Lebs_none
+        mov rdi, [rbx + N_DATA + 8]
         call arith_eval
         mov r12, rax                    # left
         mov rdi, [rbx + N_DATA + 16]
@@ -1692,15 +1686,14 @@ FUNC eval_bool_symbolic
         mov rdi, r13
         call is_int
         and ebx, eax                    # both ints?
-        cmp r14d, OP_LE
-        je .Lebs_le
-        cmp r14d, OP_LT
-        je .Lebs_lt
-        cmp r14d, OP_GT
-        je .Lebs_gt
-        cmp r14d, OP_GE
-        je .Lebs_ge
-        # eq
+        mov eax, r14d
+        JT_SWITCH ebs, OP_COUNT, .Lebs_eq
+        JT_CASE ebs, OP_LE, .Lebs_le
+        JT_CASE ebs, OP_LT, .Lebs_lt
+        JT_CASE ebs, OP_GT, .Lebs_gt
+        JT_CASE ebs, OP_GE, .Lebs_ge
+        JT_END ebs, OP_COUNT, .Lebs_eq
+.Lebs_eq:
         mov rdi, r12
         mov rsi, r13
         call values_equal
@@ -1803,6 +1796,13 @@ FUNC eval_bool_symbolic
         mov eax, TRI_NONE
         LEAVE
 ENDF eval_bool_symbolic
+
+        OPSET_MEMBER ebs_cmp, OP_LE
+        OPSET_MEMBER ebs_cmp, OP_LT
+        OPSET_MEMBER ebs_cmp, OP_GT
+        OPSET_MEMBER ebs_cmp, OP_GE
+        OPSET_MEMBER ebs_cmp, OP_EQ
+        OPSET_END ebs_cmp, OP_COUNT
 
 # arith_module_init(): tables (called from rt_init)
 FUNC arith_module_init

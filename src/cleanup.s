@@ -137,15 +137,10 @@ FUNC eval_msize
         sub rsp, 16
         mov rbx, rdi
         call opcode_of
-        cmp eax, OP_LT
-        je 1f
-        cmp eax, OP_LE
-        je 1f
-        cmp eax, OP_GT
-        je 1f
-        cmp eax, OP_GE
-        jne .Lem_none
-1:      mov rdi, [rbx + N_DATA + 8]
+        lea rcx, [rip + .Lset_msize_cmp]        # lt, le, gt, ge
+        cmp byte ptr [rcx + rax], 0
+        je .Lem_none
+        mov rdi, [rbx + N_DATA + 8]
         call opcode_of
         mov r12d, eax
         mov rdi, [rbx + N_DATA + 16]
@@ -231,6 +226,12 @@ FUNC eval_msize
         lea rsi, [rip + .Ls_assert_msize]
         call err_throw
 ENDF eval_msize
+
+        OPSET_MEMBER msize_cmp, OP_LT
+        OPSET_MEMBER msize_cmp, OP_LE
+        OPSET_MEMBER msize_cmp, OP_GT
+        OPSET_MEMBER msize_cmp, OP_GE
+        OPSET_END msize_cmp, OP_COUNT
 
 # cleanup_msize(trace) -> list: msize replaced by the memory size where
 # it is known
@@ -737,21 +738,20 @@ FUNC cleanup_mems
         jnz .Lce_line
         mov rdi, r14
         call opcode_of
-        cmp eax, OP_CALL
-        je 2f
-        cmp eax, OP_STATICCALL
-        je 2f
-        cmp eax, OP_DELEGATECALL
-        je 2f
-        cmp eax, OP_SETMEM
-        je 3f
-        cmp eax, OP_WHILE
-        je 5f
+        JT_SWITCH ce, OP_COUNT, .Lce_other
+        JT_CASE ce, OP_CALL, .Lce_call
+        JT_CASE ce, OP_STATICCALL, .Lce_call
+        JT_CASE ce, OP_DELEGATECALL, .Lce_call
+        JT_CASE ce, OP_SETMEM, .Lce_setmem
+        JT_CASE ce, OP_WHILE, .Lce_while
+        JT_END ce, OP_COUNT, .Lce_other
+.Lce_other:
         mov rdi, r14
         call is_if_line
         test eax, eax
         jnz 6f
         jmp .Lce_push
+.Lce_call:
 2:      # a call with -4 bytes of arguments: none
         mov rdi, r14
         call seq_last
@@ -769,6 +769,7 @@ FUNC cleanup_mems
         call tuple_append_none2
         mov r14, rax
         jmp .Lce_push
+.Lce_setmem:
 3:      PAT rsi, "('setmem', ':mem_idx', ':mem_val')"
         mov rdi, r14
         mov rdx, rsp
@@ -811,6 +812,7 @@ FUNC cleanup_mems
         mov rsi, rax
         call vec_extend_seq
         jmp .Lce_done
+.Lce_while:
 5:      # ('while', cond, cleanup_mems(path)) + the rest
         mov rdi, [r14 + N_DATA + 16]
         xor esi, esi

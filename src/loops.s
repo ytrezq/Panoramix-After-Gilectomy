@@ -288,14 +288,8 @@ FUNC normalize
         mov rbx, rax
 1:      mov rdi, rbx
         call opcode_of
-        cmp eax, OP_LT
-        je 2f
-        cmp eax, OP_LE
-        je 2f
-        cmp eax, OP_GT
-        je 2f
-        cmp eax, OP_GE
-        je 2f
+        IN_OPSET cmp4, rax              # lt, le, gt, ge
+        jne 2f
         # 0 < cond
         LOADS rdi, LT
         mov esi, 1
@@ -374,6 +368,12 @@ FUNC normalize
         add rsp, MATCH_BINDINGS_SIZE + 16
         LEAVE
 ENDF normalize
+
+        OPSET_MEMBER cmp4, OP_LT
+        OPSET_MEMBER cmp4, OP_LE
+        OPSET_MEMBER cmp4, OP_GT
+        OPSET_MEMBER cmp4, OP_GE
+        OPSET_END cmp4, OP_COUNT
 
 # parse_counters(line) -> PC*: the counters of a while (see PC_* fields)
 FUNC parse_counters

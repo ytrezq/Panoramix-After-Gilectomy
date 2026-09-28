@@ -869,15 +869,9 @@ FUNC other_2
         jz 2f
         B rdi, 0
         call str_id
-        cmp eax, OP_ADDRESS
-        je 11f
-        cmp eax, OP_COINBASE
-        je 11f
-        cmp eax, OP_CALLER
-        je 11f
-        cmp eax, OP_ORIGIN
-        jne 2f
-11:     B rax, 0
+        IN_OPSET addresses, rax         # address, coinbase, caller, origin
+        je 2f
+        B rax, 0
         jmp .Lo2_ret
 2:      PAT rsi, "('mask_shl', ':int:size', ':int:off', ':int:m_off', ':e')"
         mov rdi, rbx
@@ -957,5 +951,11 @@ FUNC other_2
         add rsp, MATCH_BINDINGS_SIZE + 16
         LEAVE
 ENDF other_2
+
+        OPSET_MEMBER addresses, OP_ADDRESS
+        OPSET_MEMBER addresses, OP_COINBASE
+        OPSET_MEMBER addresses, OP_CALLER
+        OPSET_MEMBER addresses, OP_ORIGIN
+        OPSET_END addresses, OP_COUNT
 
         .section .note.GNU-stack,"",@progbits

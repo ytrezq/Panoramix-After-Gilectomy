@@ -323,15 +323,9 @@ FUNC simplify_exp_impl
         jz 14f
         B rdi, 0
         call str_id
-        cmp eax, OP_LT
-        je 131f
-        cmp eax, OP_LE
-        je 131f
-        cmp eax, OP_GT
-        je 131f
-        cmp eax, OP_GE
-        jne 14f
-131:    mov rdi, rbx
+        IN_OPSET cmp4, rax              # lt, le, gt, ge
+        je 14f
+        mov rdi, rbx
         call cancel_common_terms
         mov rbx, rax
 14:     PAT rsi, "('add', ':e')"
@@ -655,6 +649,12 @@ FUNC simplify_exp_impl
         add rsp, MATCH_BINDINGS_SIZE + 64
         LEAVE
 ENDF simplify_exp_impl
+
+        OPSET_MEMBER cmp4, OP_LT
+        OPSET_MEMBER cmp4, OP_LE
+        OPSET_MEMBER cmp4, OP_GT
+        OPSET_MEMBER cmp4, OP_GE
+        OPSET_END cmp4, OP_COUNT
 
 # simplify_exp_cb(x, arg) -> simplify_exp(x)
 FUNC simplify_exp_cb

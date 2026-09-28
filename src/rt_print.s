@@ -28,22 +28,20 @@ FUNC value_print
         call sb_append_c
         LEAVE
 2:      mov eax, [r12 + N_KIND]
-        cmp eax, K_INT
-        je .Lp_int
-        cmp eax, K_STR
-        je .Lp_str
-        cmp eax, K_TUPLE
-        je .Lp_tuple
-        cmp eax, K_LIST
-        je .Lp_list
-        cmp eax, K_SPECIAL
-        je .Lp_special
-        cmp eax, K_VMNODE
-        jne 3f
+        JT_SWITCH kind, K_VMNODE, .Lp_nil
+        JT_CASE kind, K_INT, .Lp_int
+        JT_CASE kind, K_STR, .Lp_str
+        JT_CASE kind, K_TUPLE, .Lp_tuple
+        JT_CASE kind, K_LIST, .Lp_list
+        JT_CASE kind, K_SPECIAL, .Lp_special
+        JT_CASE kind, K_VMNODE, .Lp_vmnode
+        JT_END kind, K_VMNODE, .Lp_nil
+.Lp_vmnode:
         mov rsi, r12
         call node_print
         LEAVE
-3:      lea rsi, [rip + .Ls_nil]
+.Lp_nil:
+        lea rsi, [rip + .Ls_nil]
         call sb_append_c
         LEAVE
 .Lp_int:
