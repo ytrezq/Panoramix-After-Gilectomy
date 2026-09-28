@@ -92,6 +92,19 @@ FUNC simplify_trace
         mov rbx, rax
         # (there is a logic to this ordering, but it would take a long
         # time to explain)
+        # the garbage of the round is dropped once the arena is big: the
+        # trace is all that is live here (compared with the previous one
+        # by pointer first, as it is copied)
+        cmp qword ptr [r15 + CTX_ARENA_TOTAL], COMPACT_THRESHOLD
+        jb .Lst_round
+        cmp r15, [rip + global_ctx]     # (never the process-wide context)
+        je .Lst_round
+        cmp rbx, [rsp + ST_OLD]
+        je .Lst_final
+        mov rdi, rbx
+        call ctx_compact
+        mov rbx, rax
+        mov qword ptr [rsp + ST_OLD], 0
         jmp .Lst_round
 .Lst_final:
         # final lightweight postprocessing: new variables, simplifications

@@ -636,7 +636,7 @@ FUNC value_import
         LEAVE
 4:      call is_seq
         test eax, eax
-        jz 3f
+        jz 5f
         mov edi, [rbx + N_AUX]
         shl rdi, 3
         call arena_alloc
@@ -655,6 +655,32 @@ FUNC value_import
         mov rdx, [rsp]
         call mk_seq
         add rsp, 16
+        LEAVE
+5:      cmp dword ptr [rbx + N_KIND], K_VMNODE
+        jne 3f
+        # a node of the VM (the label of a loop, in a while's jds and its
+        # continues): a stub with the same identity - the same copy for
+        # the same node - and its jd, the only field read after the VM
+        mov edi, MEMO_IMPORT
+        mov rsi, rbx
+        call memo_get
+        test rax, rax
+        jnz 6f
+        mov edi, ND_SIZEOF
+        call arena_alloc
+        mov r12, rax
+        mov dword ptr [r12 + N_KIND], K_VMNODE
+        mov rax, [rbx + N_HASH]
+        mov [r12 + N_HASH], rax
+        mov edi, MEMO_IMPORT
+        mov rsi, rbx
+        mov rdx, r12
+        call memo_put
+        mov rdi, [rbx + ND_JD]
+        call value_import
+        mov [r12 + ND_JD], rax
+        mov rax, r12
+6:      add rsp, 16
         LEAVE
 3:      mov rax, rbx
         add rsp, 16

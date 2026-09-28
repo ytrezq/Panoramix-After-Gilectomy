@@ -115,6 +115,7 @@
 .set E_INDEX, 7
 
 .set ARENA_CHUNK_DEFAULT, 0x400000     # 4 MiB
+.set COMPACT_THRESHOLD, 0x4000000      # 64 MiB of arena: simplify_trace compacts
 
 # arena chunk header
 .set CHUNK_NEXT, 0
@@ -256,7 +257,8 @@
 .set MEMO_REPLACE_MEM_EXP, 12
 .set MEMO_RANGE_OVERLAPS, 13
 .set MEMO_SIGDB, 14         # selector -> abi entry (sigdb.s)
-.set MEMO_COUNT, 15
+.set MEMO_IMPORT, 15        # value_import: a VM node -> its copy here
+.set MEMO_COUNT, 16
 # sentinel values stored in memo tables for python's None / False (values
 # and pointers are never 2 or 4)
 .set MEMO_NONE, 2
