@@ -701,23 +701,35 @@ ENDF mb_all_nodes
 # mb_by_jd(): merge_branches' by_jd, from the nodes mb_all_nodes put in
 # VM_SCR_ALL: jd -> its group + 1 in VM_SCR_BYJD, the groups' (first,
 # last) indexes into ALL in VM_SCR_HEADS, the next index in the same
-# group (-1 after the last) in VM_SCR_NEXT
+# group (-1 after the last) in VM_SCR_NEXT. Only the groups of the jds of
+# the nodes not run yet (VM_SCR_UNEXP): no other is asked for.
 FUNC mb_by_jd
         ENTER
         mov rbx, [r15 + CTX_VM]
-        mov rax, [rbx + VM_SCR_NEXT]
-        mov qword ptr [rax + VEC_LEN], 0
         mov rax, [rbx + VM_SCR_HEADS]
         mov qword ptr [rax + VEC_LEN], 0
         mov rdi, [rbx + VM_SCR_BYJD]
         call emap_begin
-        xor r13d, r13d                  # i
-2:      mov rax, [rbx + VM_SCR_ALL]
+        xor r13d, r13d                  # the jds asked for: -1, no group yet
+1:      mov rax, [rbx + VM_SCR_UNEXP]
         cmp r13, [rax + VEC_LEN]
-        jae 9f
+        jae 11f
+        mov rax, [rax + VEC_DATA]
+        mov rax, [rax + r13*8]
+        inc r13
+        mov rdi, [rbx + VM_SCR_BYJD]
+        mov rsi, [rax + ND_JD]
+        mov rdx, -1
+        call emap_put
+        jmp 1b
+11:     mov rax, [rbx + VM_SCR_ALL]     # NEXT as long as ALL (written for
+        mov r12, [rax + VEC_LEN]        # the groups' nodes only)
         mov rdi, [rbx + VM_SCR_NEXT]
-        mov rsi, -1
-        call vec_push                   # next[i] = -1
+        mov rsi, r12
+        call vec_resize
+        xor r13d, r13d                  # i
+2:      cmp r13, r12
+        jae 9f
         mov rax, [rbx + VM_SCR_ALL]
         mov rax, [rax + VEC_DATA]
         mov rax, [rax + r13*8]
@@ -726,7 +738,12 @@ FUNC mb_by_jd
         mov rsi, r14
         call emap_get
         test rax, rax
-        jnz 3f
+        jz 4f                           # (a group nobody asks for)
+        mov rcx, [rbx + VM_SCR_NEXT]
+        mov rcx, [rcx + VEC_DATA]
+        mov qword ptr [rcx + r13*8], -1 # next[i] = -1
+        cmp rax, -1
+        jne 3f
         mov rdi, [rbx + VM_SCR_HEADS]   # a new group: (i, i)
         mov rsi, r13
         call vec_push

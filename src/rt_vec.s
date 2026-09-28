@@ -119,6 +119,32 @@ FUNC vec_to_list
         jmp mk_list
 ENDF vec_to_list
 
+# vec_resize(vec, n): n elements, the ones past the old length not
+# written (room made, the old ones kept)
+FUNC vec_resize
+        cmp rsi, [rdi + VEC_CAP]
+        ja 1f
+        mov [rdi + VEC_LEN], rsi
+        ret
+1:      ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        lea rdi, [rsi*8]
+        shl rdi, 1                      # (twice the room)
+        call arena_alloc_raw
+        mov r13, rax
+        mov rdi, rax
+        mov rsi, [rbx + VEC_DATA]
+        mov rdx, [rbx + VEC_LEN]
+        shl rdx, 3
+        call memcpy@PLT
+        mov [rbx + VEC_DATA], r13
+        lea rax, [r12*2]
+        mov [rbx + VEC_CAP], rax
+        mov [rbx + VEC_LEN], r12
+        LEAVE
+ENDF vec_resize
+
 # vec_to_list_like(vec, orig) -> rax: vec_to_list(vec) - orig itself
 # when it is a list of these very elements (a pass over a trace that
 # changed none of its lines: no hashing, no lookup of a long list)
