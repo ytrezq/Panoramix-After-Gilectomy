@@ -1115,6 +1115,23 @@ ENDF add_op_impl
 try_add_ys: .quad 3, 4, 5, 6, 7, 8, 16, 32, 64, 128, 0
         .text
 
+# is_try_add_y(v) -> eax: v is one of try_add_ys (a tagged small int)
+FUNC is_try_add_y
+        xor eax, eax
+        test dil, 1
+        jz 2f
+        UNTAG rdi
+        lea rcx, [rip + try_add_ys]
+1:      mov rdx, [rcx]
+        test rdx, rdx
+        jz 2f
+        add rcx, 8
+        cmp rdx, rdi
+        jne 1b
+        mov eax, 1
+2:      ret
+ENDF is_try_add_y
+
 # is_mul_int(v) -> eax: v ~ ('mul', int, any)
 FUNC is_mul_int
         ENTER
@@ -1414,52 +1431,70 @@ FUNC try_add_1
         call values_equal
         test eax, eax
         jz 8f
-        # for y in ys
-        lea rax, [rip + try_add_ys]
-        mov [rsp], rax
-5:      mov rax, [rsp]
-        mov rax, [rax]
-        test rax, rax
-        jz 6f
-        mov [rsp + 8], rax              # y
-        # m = mask_shl(256 - y, y, 0, ('add', 2**y - 1, ('mul', 1, x)))
+        # python builds, for y in (3, 4, 5, 6, 7, 8, 16, 32, 64, 128),
+        # mask_shl(256 - y, y, 0, ('add', 2**y - 1, ('mul', 1, x))) and
+        # compares it with self[2]; here self[2] is taken apart instead: a
+        # mask_shl(256 - y, y, 0, ...) with y one of those (is_try_add_y)
+        cmp dword ptr [r13 + N_AUX], 5
+        jne 6f
+        mov rax, [r13 + N_DATA + 16]    # y
         mov rdi, rax
+        call is_try_add_y
+        test eax, eax
+        jz 6f
+        mov rax, [r13 + N_DATA + 16]
+        mov [rsp + 8], rax              # y (tagged)
+        cmp qword ptr [r13 + N_DATA + 24], 1   # shl 0
+        jne 6f
+        mov rcx, (256 << 1) | 1 + 1
+        sub rcx, rax                    # 256 - y, tagged
+        cmp [r13 + N_DATA + 8], rcx
+        jne 6f
+        # [4] ~ ('add', 2**y - 1, ('mul', 1, x))
+        mov rdi, [r13 + N_DATA + 32]
+        mov esi, OP_ADD
+        mov edx, 3
+        call is_op_n
+        test eax, eax
+        jz 6f
+        mov rax, [r13 + N_DATA + 32]
+        mov rdi, [rax + N_DATA + 16]
+        mov esi, OP_MUL
+        mov edx, 3
+        call is_op_n
+        test eax, eax
+        jz 6f
+        mov rax, [r13 + N_DATA + 32]
+        mov rax, [rax + N_DATA + 16]    # the mul
+        cmp qword ptr [rax + N_DATA + 8], 3    # 1
+        jne 6f
+        mov rdi, [rax + N_DATA + 16]
+        mov rsi, r14
+        call values_equal
+        test eax, eax
+        jz 6f
+        mov rdi, [rsp + 8]
+        UNTAG rdi
         call pow2
         mov rdi, rax
         mov esi, 3
-        call int_sub
-        mov [rsp + 16], rax             # 2^y - 1
-        mov edi, 3
-        mov rsi, r14
-        call mk_mul                     # ('mul', 1, x)
-        LOADS rdi, ADD
-        mov rsi, [rsp + 16]
-        mov rdx, rax
-        call mk3
-        mov rcx, rax
-        mov rax, [rsp + 8]
-        mov edi, 256
-        sub rdi, rax
-        TAG rdi
-        mov rsi, rax
-        TAG rsi
-        mov edx, 1
-        call mk_mask_shl
-        mov rdi, r13
+        call int_sub                    # 2^y - 1
+        mov rcx, [r13 + N_DATA + 32]
+        mov rdi, [rcx + N_DATA + 8]
         mov rsi, rax
         call values_equal
         test eax, eax
-        jz 7f
+        jz 6f
         # mul_op(self[1], sub_op(2**y, mask_op(x, size=y)))
         mov rdi, r14
         mov rsi, [rsp + 8]
-        TAG rsi
         mov edx, 1
         mov ecx, 1
         mov r8d, 1
         call alg_mask_op
         mov [rsp + 16], rax
         mov rdi, [rsp + 8]
+        UNTAG rdi
         call pow2
         mov rdi, rax
         mov rsi, [rsp + 16]
@@ -1469,49 +1504,34 @@ FUNC try_add_1
         call alg_mul2
         add rsp, 48
         LEAVE
-7:      add qword ptr [rsp], 8
-        jmp 5b
 6:      # second loop: mask_shl(256 - y, y, 0, x) and mask_shl(251 - y, y, 0, x)
-        lea rax, [rip + try_add_ys]
-        mov [rsp], rax
-9:      mov rax, [rsp]
-        mov rax, [rax]
-        test rax, rax
+        cmp dword ptr [r13 + N_AUX], 5
+        jne 8f
+        mov rax, [r13 + N_DATA + 16]    # y
+        mov rdi, rax
+        call is_try_add_y
+        test eax, eax
         jz 8f
+        mov rax, [r13 + N_DATA + 16]
         mov [rsp + 8], rax
-        mov edi, 256
-        sub rdi, rax
-        TAG rdi
-        mov rsi, rax
-        TAG rsi
-        mov edx, 1
-        mov rcx, r14
-        call mk_mask_shl
-        mov rdi, r13
-        mov rsi, rax
+        cmp qword ptr [r13 + N_DATA + 24], 1   # shl 0
+        jne 8f
+        mov rcx, (256 << 1) | 1 + 1
+        sub rcx, rax                    # 256 - y, tagged
+        cmp [r13 + N_DATA + 8], rcx
+        je 9f
+        mov rcx, (251 << 1) | 1 + 1
+        sub rcx, rax                    # 251 - y, tagged
+        cmp [r13 + N_DATA + 8], rcx
+        jne 8f
+9:      mov rdi, [r13 + N_DATA + 32]
+        mov rsi, r14
         call values_equal
         test eax, eax
-        jnz 10f
-        mov rax, [rsp + 8]
-        mov edi, 251
-        sub rdi, rax
-        TAG rdi
-        mov rsi, rax
-        TAG rsi
-        mov edx, 1
-        mov rcx, r14
-        call mk_mask_shl
-        mov rdi, r13
-        mov rsi, rax
-        call values_equal
-        test eax, eax
-        jnz 10f
-        add qword ptr [rsp], 8
-        jmp 9b
+        jz 8f
 10:     # mul_op(other[1], mask_op(x, size=y))
         mov rdi, r14
         mov rsi, [rsp + 8]
-        TAG rsi
         mov edx, 1
         mov ecx, 1
         mov r8d, 1
