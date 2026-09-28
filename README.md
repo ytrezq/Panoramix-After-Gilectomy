@@ -14,6 +14,7 @@ processes), integers are GMP's, the expressions are hash-consed.
     make                         # needs as, cc, libgmp, liblzma, python3-dev
     build/panasm build-db /path/to/panoramix/data/abi_dump.xz   # once: the signature database
     build/panasm decompile contract.hex [-j threads] [--function name] [--no-color] [--json]
+    build/panasm decompile 0x6080...       # (the bytecode itself, as python -m panoramix takes it)
     build/panasm disasm contract.hex
 
 From python (the module in `build/`):

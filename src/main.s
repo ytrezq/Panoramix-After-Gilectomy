@@ -4,7 +4,9 @@
 # Options: -j N / --threads N (default: the CPUs), --function NAME (only
 # the functions whose name starts with NAME), --no-color, --json (python's
 # decompilation.json instead of the text, as json.dumps writes it).
-# The file holds the bytecode in hex (0x optional); - reads it from stdin.
+# The file holds the bytecode in hex (0x optional); - reads it from stdin;
+# an argument that is no file but hex is the bytecode itself (as python -m
+# panoramix takes it).
 
 .include "defs.inc"
 
@@ -31,6 +33,34 @@
 
 
 
+
+# is_hex_arg(cstr) -> eax: hex digits (at least one), 0x first or not
+FUNC is_hex_arg
+        xor eax, eax
+        cmp byte ptr [rdi], '0'
+        jne 1f
+        mov cl, [rdi + 1]
+        or cl, 0x20
+        cmp cl, 'x'
+        jne 1f
+        add rdi, 2
+1:      cmp byte ptr [rdi], 0
+        je 4f
+2:      movzx ecx, byte ptr [rdi]
+        test ecx, ecx
+        jz 3f
+        inc rdi
+        sub ecx, '0'
+        cmp ecx, 9
+        jbe 2b
+        or ecx, 0x20
+        sub ecx, 'a' - '0'
+        cmp ecx, 5
+        jbe 2b
+        ret                             # (not a hex digit)
+3:      mov eax, 1
+4:      ret
+ENDF is_hex_arg
 
 FUNC main
         push r15
@@ -147,7 +177,15 @@ FUNC main
         lea rsi, [rsp + M_LEN]
         call read_file
         test rax, rax
+        jnz 7f
+        mov rdi, [rsp + M_PATH]         # no file: the bytecode itself?
+        call is_hex_arg
+        test eax, eax
         jz .Lnoread
+        mov rdi, [rsp + M_PATH]
+        call strlen@PLT
+        mov [rsp + M_LEN], rax
+        mov rax, [rsp + M_PATH]
 7:      mov rbx, rax                    # hex text
         mov rdi, [rsp + M_LEN]
         call xmalloc
