@@ -1,5 +1,5 @@
 /* The C interface: decompiles a small contract twice at once from two
- * threads and checks the texts (and the disassembly). */
+ * threads and checks the texts (and the disassembly, and the json). */
 #include <panoramix_asm.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -36,12 +36,21 @@ int main(void)
     pthread_join(a, (void **)&ta);
     pthread_join(b, (void **)&tb);
     pan_disasm(code, code_len, &dis, &dlen);
+    /* the text again, with python's json */
+    pan_output o;
+    int rc = pan_decompile_data(code, code_len, 1, NULL, PAN_NO_COLOR | PAN_JSON, &o);
     int ok = strcmp(ta, tb) == 0 && strstr(ta, "def storage:") && strstr(ta, "def get() payable:")
-             && strchr(ta, '\033') == NULL && strstr(dis, "jumpdest");
+             && strchr(ta, '\033') == NULL && strstr(dis, "jumpdest")
+             && rc == 0 && strcmp(o.text, ta) == 0 && o.datalen == strlen(o.data)
+             && strncmp(o.data, "{\"problems\": {}, \"stor_defs\": [", 31) == 0
+             && strstr(o.data, "\"functions\": [{\"hash\": \"0x6d4ce63c\"");
     printf("%s", ta);
+    printf("%.200s...\n", o.data);
     printf("c_api_test: %s\n", ok ? "ok" : "FAILED");
     pan_free(ta);
     pan_free(tb);
     pan_free(dis);
+    pan_free(o.text);
+    pan_free(o.data);
     return ok ? 0 : 1;
 }

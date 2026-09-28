@@ -29,6 +29,7 @@
 .Ls_cleaning:   .asciz " -> Cleaning up AST, identifying loops..."
 .Ls_finished:   .asciz "Functions decompilation finished, now doing post-processing."
 .Ls_problem:    .asciz "Problem with %S: %s"
+.Ls_json_failed: .asciz "Failed json serialization. (%s)"
 .Ls_loader_issue: .asciz "Loader issue: %s"
 .Ls_timed_out:  .asciz "the function took more than 3 minutes"
 .Ls_no_target:  .asciz "KeyError: its jump destination isn't an instruction"
@@ -411,6 +412,11 @@ FUNC decompile
         mov rdi, [rsp + DE_OUT]
         lea rsi, [rip + C_ENDC]
         call sb_append_c
+        mov rdi, [r15 + CTX_DATA_SB]    # (python's json: {})
+        test rdi, rdi
+        jz .Lde_ret
+        mov esi, [r15 + CTX_DATA_MODE]
+        call data_empty_dict
         jmp .Lde_ret
 2:      # the jobs: (hash, target, stack) -> the functions asked for
         mov r12, [rbx + LD_FUNCS]
@@ -578,7 +584,7 @@ FUNC decompile
         call .Lde_functions_in_order
         mov [rsp + DE_FUNCS], rax
         mov rdi, [rsp + DE_PROBLEMS]
-        call .Lde_functions_in_order    # (the names, in the order of the jobs)
+        call .Lde_functions_in_order    # (the (hash, name), in the order of the jobs)
         mov rdi, rax
         call vec_to_list
         mov rsi, rax
@@ -587,7 +593,31 @@ FUNC decompile
         mov [rsp + DE_CONTRACT], rax
         mov rdi, rax
         call contract_postprocess
+        # python's decompilation.json, when asked for (before the text,
+        # as python makes it)
+        cmp qword ptr [r15 + CTX_DATA_SB], 0
+        je 14f
+        mov rdi, rsp
+        call err_catch
+        test eax, eax
+        jnz 15f
         mov rdi, [rsp + DE_CONTRACT]
+        mov rsi, [r15 + CTX_DATA_SB]
+        mov edx, [r15 + CTX_DATA_MODE]
+        call contract_data
+        call err_end
+        jmp 14f
+15:     mov edi, LOG_ERROR
+        lea rsi, [rip + .Ls_logname]
+        lea rdx, [rip + .Ls_json_failed]
+        mov rcx, [r15 + CTX_ERR_MSG]
+        call log_fmt
+        mov rdi, [r15 + CTX_DATA_SB]
+        call sb_reset
+        mov rdi, [r15 + CTX_DATA_SB]
+        mov esi, [r15 + CTX_DATA_MODE]
+        call data_empty_dict
+14:     mov rdi, [rsp + DE_CONTRACT]
         mov rsi, [rsp + DE_OUT]
         call contract_text
 .Lde_ret:
@@ -718,8 +748,12 @@ FUNC decompile
         mov rdi, rax
         xor esi, esi
         call abi_func_name              # the name, as python's problems hold it
+        mov rsi, rax                    # (hash, name): problems[hash] = fname
+        mov rdi, [rsp + 16 + ERR_SIZEOF]
+        mov rdi, [rdi + JB_HASH]
+        call mk2
         mov [rsp + 16 + ERR_SIZEOF + 8], rax
-        # (name, job index): python's dict has them in the loader's order,
+        # ((hash, name), job index): python's dict has them in the loader's order,
         # the jobs finish in any order
         mov rsi, [rsp + 16 + ERR_SIZEOF]
         sub rsi, [r13 + DC_JOBS]
@@ -919,6 +953,7 @@ FUNC contract_text
         call sb_append_c
         mov rdi, r12
         mov rsi, [r13 + N_DATA + r14*8]
+        mov rsi, [rsi + N_DATA + 8]     # (hash, name)
         call sb_append_str
         mov rdi, r12
         lea rsi, [rip + C_ENDC]

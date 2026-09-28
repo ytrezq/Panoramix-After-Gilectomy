@@ -2,14 +2,15 @@
 #   panasm disasm <file.hex>                    the disassembly, like Loader.disasm()
 #   panasm decompile <file.hex|-> [options]     the decompilation, like `python -m panoramix`
 # Options: -j N / --threads N (default: the CPUs), --function NAME (only
-# the functions whose name starts with NAME), --no-color.
+# the functions whose name starts with NAME), --no-color, --json (python's
+# decompilation.json instead of the text, as json.dumps writes it).
 # The file holds the bytecode in hex (0x optional); - reads it from stdin.
 
 .include "defs.inc"
 
         .section .rodata
 .Lusage:  .ascii "usage: panasm disasm <file.hex>\n"
-          .ascii "       panasm decompile <file.hex|-> [-j threads] [--function name] [--no-color]\n"
+          .ascii "       panasm decompile <file.hex|-> [-j threads] [--function name] [--no-color] [--json]\n"
           .ascii "       panasm build-db <abi_dump.xz> [out.bin]\n"
 .Lusage_end:
 .Ls_disasm:     .asciz "disasm"
@@ -20,6 +21,7 @@
 .Ls_threads:    .asciz "--threads"
 .Ls_function:   .asciz "--function"
 .Ls_no_color:   .asciz "--no-color"
+.Ls_json:       .asciz "--json"
 .Ls_badhex:     .asciz "not a valid hex file\n"
 .Ls_noread:     .asciz "can't read the file\n"
 .Ls_main:       .asciz "panoramix.main"
@@ -42,6 +44,7 @@ FUNC main
         .set M_NOCOLOR, 40
         .set M_PATH, 48
         .set M_I, 56
+        .set M_JSON, 64
         mov r12, rdi                    # argc
         mov r13, rsi                    # argv
         call rt_init
@@ -74,6 +77,7 @@ FUNC main
 1:      mov [rsp + M_THREADS], rax
         mov qword ptr [rsp + M_FUNCTION], 0
         mov qword ptr [rsp + M_NOCOLOR], 0
+        mov qword ptr [rsp + M_JSON], 0
         mov rax, [r13 + 16]
         mov [rsp + M_PATH], rax
         mov qword ptr [rsp + M_I], 3
@@ -90,6 +94,14 @@ FUNC main
         inc qword ptr [rsp + M_I]
         jmp 2b
 3:      mov rdi, rbx
+        lea rsi, [rip + .Ls_json]
+        call strcmp@PLT
+        test eax, eax
+        jnz 32f
+        mov qword ptr [rsp + M_JSON], 1
+        inc qword ptr [rsp + M_I]
+        jmp 2b
+32:     mov rdi, rbx
         lea rsi, [rip + .Ls_j]
         call strcmp@PLT
         test eax, eax
@@ -179,7 +191,12 @@ FUNC main
         call loader_disasm
         jmp .Lwrite_exit
 .Ldecompile:
-        call sb_new
+        cmp qword ptr [rsp + M_JSON], 0
+        je 8f
+        call sb_new                     # python's json, as json.dumps writes it
+        mov [r15 + CTX_DATA_SB], rax
+        mov qword ptr [r15 + CTX_DATA_MODE], 1
+8:      call sb_new
         mov rbx, rax
         mov rdi, r14
         mov rsi, [rsp + M_CODELEN]
@@ -189,7 +206,14 @@ FUNC main
         call decompile_run
         test eax, eax
         jnz .Lfailed
+        cmp qword ptr [rsp + M_JSON], 0
+        je 9f
+        mov rbx, [r15 + CTX_DATA_SB]    # the json instead of the text
         mov rdi, rbx
+        mov esi, 10
+        call sb_append_char
+        jmp .Lwrite_exit
+9:      mov rdi, rbx
         mov esi, 10                     # (python's print adds a newline)
         call sb_append_char
         cmp qword ptr [rsp + M_NOCOLOR], 0

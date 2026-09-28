@@ -6,6 +6,9 @@ LDFLAGS = -Wl,-z,text -Wl,-z,noexecstack
 LDLIBS  = -L/usr/lib/x86_64-linux-gnu -l:libgmp.so.10 -l:liblzma.so.5 -lpthread -lm
 PY_INC  = $(shell python3 -c "import sysconfig; print(sysconfig.get_paths()['include'])")
 PY_EXT  = $(shell python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")
+# the python implementation, for the tests that compare with it
+PANORAMIX_REPO   ?= $(abspath ../panoramix)
+PANORAMIX_PYTHON ?= $(PANORAMIX_REPO)/.venv/bin/python
 
 SRCS = $(wildcard src/*.s)
 OBJS = $(patsubst src/%.s,build/%.o,$(SRCS))
@@ -43,8 +46,17 @@ check: build/c_api_test all
 	tests/run_corpus.sh
 	tests/robustness.sh
 	python3 tests/test_watchdog.py
+	python3 tests/test_json.py
+
+# python's Decompilation of the corpus (pypy, a few minutes), for
+# tests/test_json.py
+json-expected:
+	mkdir -p build/json_expected
+	for f in tests/corpus/*.hex; do n=$$(basename $$f .hex); \
+	  [ -f build/json_expected/$$n.pickle ] || PYTHONPATH=$(PANORAMIX_REPO) PYTHONINTMAXSTRDIGITS=0 \
+	    $(PANORAMIX_PYTHON) tests/gen_json_expected.py $$f build/json_expected/$$n.pickle; done
 
 clean:
 	rm -rf build
 
-.PHONY: all clean check
+.PHONY: all clean check json-expected

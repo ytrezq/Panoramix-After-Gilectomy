@@ -33,6 +33,31 @@ int pan_decompile_ex(const uint8_t *code, size_t len, size_t threads,
                      const char *only_func, char **out, size_t *outlen,
                      long flags);
 
+/* The text as pan_decompile_ex gives it, and python's
+ * decompilation.json - the problems, the storage definitions, and for
+ * each function its hash, names, length, getter, constant, payable,
+ * printed text, trace and parameters. flags: PAN_NO_COLOR (the text's),
+ * and PAN_JSON for the data as the JSON text json.dumps makes of it;
+ * without it, the data is a binary form of python's objects (tuples
+ * apart from lists, the keys' types), which the python module reads:
+ *     'N' None, 'T' True, 'F' False, 'i' int64 (little-endian),
+ *     'I' u32 n + n ASCII digits (any other integer, '-' first),
+ *     's' u32 n + n bytes of UTF-8, 'f' u32 n + n ASCII (a float),
+ *     '(' tuple, '[' list, '{' dict: u32 n + n elements (n keys and
+ *     values for a dict).
+ * The text and the data are malloc'ed (released with pan_free; the
+ * data is NULL on failure). Returns 0, or -1 with the message as the
+ * text. */
+#define PAN_JSON 4
+typedef struct {
+    char *text;
+    size_t textlen;
+    char *data;
+    size_t datalen;
+} pan_output;
+int pan_decompile_data(const uint8_t *code, size_t len, size_t threads,
+                       const char *only_func, long flags, pan_output *out);
+
 /* The disassembly, one instruction per line, as panoramix's
  * Loader.disasm(). */
 int pan_disasm(const uint8_t *code, size_t len, char **out, size_t *outlen);

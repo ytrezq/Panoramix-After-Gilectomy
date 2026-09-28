@@ -65,6 +65,7 @@ FUNC contract_postprocess
         xor esi, esi
         call mk_list
         mov [rbx + CT_STOR_DEFS], rax
+        mov qword ptr [rbx + CT_STOR_FAILED], 1
 2:      # the parameters by name
         mov r12, [rbx + CT_FUNCS]
         xor r13d, r13d

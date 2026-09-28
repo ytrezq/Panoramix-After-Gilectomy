@@ -90,7 +90,9 @@
 .set CTX_TIMED_OUT, 176     # set by the watchdog: CTX_STACK_LOW taken away
 .set CTX_STACK_LOW_REAL, 184  # CTX_STACK_LOW meanwhile
 .set CTX_RFM_MAP, 192       # replace_f_memo's map (an emap, reused: rt_map.s), or 0
-# 200..295: free
+.set CTX_DATA_SB, 200       # a builder for python's decompilation.json (data.s), or 0
+.set CTX_DATA_MODE, 208     # its form: DATA_BINARY (0) or DATA_JSON (1)
+# 216..295: free
 .set CTX_VM, 296            # the VM this thread runs (vm.s)
 .set CTX_ERR_BUF, 304       # the innermost error handler (rt_err.s)
 .set CTX_ERR_CODE, 312      # what was thrown
@@ -553,5 +555,6 @@ ENDF \fname
 .set CT_FUNCS, 0            # a vec of functions (FN_*)
 .set CT_STOR_DEFS, 8        # list of ('def', name, loc, type)
 .set CT_CONSTS, 16          # a vec of the constant functions, in display order
-.set CT_PROBLEMS, 24        # list of the names of the functions that failed
-.set CT_SIZEOF, 32
+.set CT_PROBLEMS, 24        # list of (hash, name) of the functions that failed
+.set CT_STOR_FAILED, 32     # the storage postprocessing failed (python's stor_defs = {})
+.set CT_SIZEOF, 40
