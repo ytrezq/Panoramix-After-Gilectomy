@@ -1456,7 +1456,7 @@ FUNC canonise_max
         LEAVE
 ENDF canonise_max
 
-# sort_by_repr(vec): stable sort of values by their python repr, the
+# sort_by_repr(vec): stable sort of values by their python str(), the
 # ints keyed with a space in front (so first)
 FUNC sort_by_repr
         ENTER
@@ -1528,10 +1528,18 @@ FUNC repr_key
         mov rdi, rbx
         mov esi, ' '
         call sb_append_char
-1:      mov rdi, rbx
+1:      mov rdi, r12                    # python's str(): a string without its quotes
+        call is_str
+        test eax, eax
+        jz 2f
+        mov rdi, rbx
+        mov rsi, r12
+        call sb_append_str
+        jmp 3f
+2:      mov rdi, rbx
         mov rsi, r12
         call value_print
-        mov rdi, rbx
+3:      mov rdi, rbx
         xor esi, esi
         call sb_append_char             # NUL
         mov r12, [rbx + SB_BUF]
