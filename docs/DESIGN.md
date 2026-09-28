@@ -187,10 +187,24 @@ expression, a function past its memory limit).
 `tests/difffuzz.py SEED COUNT` is a differential fuzzer: random
 solidity-like programs (a selector dispatch; functions of storage and
 memory writes, ifs, requires, loops, logs, calls, returns over random
-expressions) decompiled by pypy and by the port, the texts compared, the
-programs that differ kept in `build/difffuzz`. It found the loops
-without an exit condition, masks with offsets past 2^62, and python's
-floats in `Mask(-744, ...)`.
+expressions; for half of them internal functions, dynamic arrays,
+calldata copies, static calls and the signed and modular operations)
+decompiled by pypy and by the port, the texts compared, the programs
+that differ kept in `build/difffuzz`; with `--mutate`, small contracts
+of the corpora with a few instructions changed instead. It found the
+loops without an exit condition, masks with offsets past 2^62, python's
+floats in `Mask(-744, ...)`, the TypeErrors python raises on parameters
+whose size is an expression (a crash here), and an `except
+AssertionError` that caught everything. Python's timeouts make a case
+inconclusive.
+
+The random unit tests (`tests/test_algebra.py` - with `BIG=1`, masks
+with numbers past 2^62 -, `test_arith.py`, `test_memloc.py`,
+`test_stack.py`, `test_simplify_exp.py`, `test_prettify_random.py`)
+take a seed; run over many seeds, they found the negative exponents of
+`exp` (python's modular inverse), the order of the terms of a max
+(python sorts them by `str()`, which has no quotes around a string) and
+an assertion of `flatten_adds`.
 
 Every layer also has a differential test against the python
 implementation on the corpus (`tests/test_*.py`, run with the system
