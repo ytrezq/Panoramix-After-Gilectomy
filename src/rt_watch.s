@@ -24,6 +24,7 @@ wd_mutex:       .zero 64                # a pthread_mutex_t (40 bytes)
 wd_ctxs:        .zero WD_MAX * 8
 wd_started:     .quad 0
 wd_thread:      .quad 0
+wd_atfork:      .quad 0
 
         .section .rodata
 .Ls_timed_out:  .asciz "the function took more than 3 minutes"
@@ -51,6 +52,14 @@ FUNC watch_start
 3:      cmp qword ptr [rip + wd_started], 0
         jne 4f
         mov qword ptr [rip + wd_started], 1
+        cmp qword ptr [rip + wd_atfork], 0
+        jne 5f
+        mov qword ptr [rip + wd_atfork], 1
+        xor edi, edi
+        xor esi, esi
+        lea rdx, [rip + watch_atfork_child]
+        call pthread_atfork@PLT
+5:
         sub rsp, 64                     # a pthread_attr_t
         mov rdi, rsp
         call pthread_attr_init@PLT
@@ -162,6 +171,20 @@ FUNC watch_expired
         lea rsi, [rip + .Ls_timed_out]
         jmp err_throw
 ENDF watch_expired
+
+# watch_atfork_child(): in the child of a fork, the thread is gone (and
+# the lock may have been held by another thread): all anew, started again
+# by the next watch_start
+FUNC watch_atfork_child
+        push rdi
+        lea rdi, [rip + wd_mutex]
+        xor esi, esi
+        mov edx, 64 + WD_MAX * 8
+        call memset@PLT                 # (the mutex, then the table)
+        mov qword ptr [rip + wd_started], 0
+        pop rdi
+        ret
+ENDF watch_atfork_child
 
 # err_rethrow_timeout(code): for the handlers of python's `except
 # Exception`: a timeout goes on to the next handler
