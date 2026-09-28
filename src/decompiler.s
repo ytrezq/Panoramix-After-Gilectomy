@@ -38,6 +38,7 @@
         .set VM_TIMEOUT_NS, 60000000000
         .set WHILES_TIMEOUT_NS, 60000000000
         .set FUNC_TIMEOUT_NS, 180000000000
+        .set WORKER_STACK, 64 << 20     # the stack of a worker thread
 
         # a job: one function to decompile
         .set JB_HASH, 0                 # str (main context)
@@ -287,6 +288,7 @@ FUNC decompile
         .set DE_I, ERR_SIZEOF + 80
         .set DE_CONTRACT, ERR_SIZEOF + 88
         .set DE_SHOWN, ERR_SIZEOF + 96
+        .set DE_ATTR, ERR_SIZEOF + 104
         mov [rsp + DE_CODE], rdi
         mov [rsp + DE_LEN], rsi
         mov [rsp + DE_THREADS], rdx
@@ -422,13 +424,24 @@ FUNC decompile
         shl rdi, 3
         call arena_alloc
         mov [rsp + DE_TIDS], rax
+        # the workers' stacks: 64 MiB (reserved, not committed) - the
+        # recursions follow the nesting of the traces, and python's
+        # RecursionError has no equivalent here
+        mov edi, 64                     # (a pthread_attr_t is 56 bytes)
+        call arena_alloc
+        mov [rsp + DE_ATTR], rax
+        mov rdi, rax
+        call pthread_attr_init@PLT
+        mov rdi, [rsp + DE_ATTR]
+        mov esi, WORKER_STACK
+        call pthread_attr_setstacksize@PLT
         mov qword ptr [rsp + DE_I], 0
 8:      mov rax, [rsp + DE_I]
         cmp rax, [rsp + DE_THREADS]
         jae 9f
         mov rdi, [rsp + DE_TIDS]
         lea rdi, [rdi + rax*8]
-        xor esi, esi
+        mov rsi, [rsp + DE_ATTR]
         lea rdx, [rip + decompile_worker]
         mov rcx, r13
         call pthread_create@PLT
@@ -436,7 +449,9 @@ FUNC decompile
         jnz .Lde_thread_failed
         inc qword ptr [rsp + DE_I]
         jmp 8b
-9:      # the results, imported as they come (the contexts they are on
+9:      mov rdi, [rsp + DE_ATTR]
+        call pthread_attr_destroy@PLT
+        # the results, imported as they come (the contexts they are on
         # are freed then), the functions made from them
         call vec_new
         mov [rsp + DE_FUNCS], rax
