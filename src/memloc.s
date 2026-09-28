@@ -661,11 +661,14 @@ FUNC sizeof
         call is_int
         test eax, eax
         jz 5f
-        # above 2^256: the bytes needed to hold the number
+        # above 2^256 (python's exp > 2**256: neither 2^256 itself nor a
+        # negative number): the bytes needed to hold the number
+        mov rdi, rbx
+        call int_gt_pow2_256
+        test eax, eax
+        jz 5f
         mov rdi, rbx
         call int_bit_length
-        cmp rax, 256
-        jbe 5f
         add rax, 7
         shr rax, 3
         TAG rax
@@ -681,6 +684,38 @@ FUNC sizeof
         lea rsi, [rip + .Ls_assert_sizeof]
         call err_throw
 ENDF sizeof
+
+# int_gt_pow2_256(v) -> eax: the int v > 2^256, read off the number
+FUNC int_gt_pow2_256
+        xor eax, eax
+        test dil, 1
+        jnz 1f                          # a small int: below 2^62
+        movsxd rcx, dword ptr [rdi + N_DATA + MPZ_SIZE]
+        cmp rcx, 5
+        jl 1f                           # negative, or below 2^256
+        jg 2f                           # 2^320 and above
+        mov rdx, [rdi + N_DATA + MPZ_D]
+        cmp qword ptr [rdx + 32], 1
+        ja 2f                           # the high limb: 2^257 and above
+        mov rcx, [rdx]                  # 2^256 + the low limbs: above
+        or rcx, [rdx + 8]               # unless they are all zero
+        or rcx, [rdx + 16]
+        or rcx, [rdx + 24]
+        jz 1f
+2:      mov eax, 1
+1:      ret
+ENDF int_gt_pow2_256
+
+# int_lt_pow2_256(v) -> eax: the int v < 2^256 (the negative ones too)
+FUNC int_lt_pow2_256
+        mov eax, 1
+        test dil, 1
+        jnz 1f                          # a small int
+        cmp dword ptr [rdi + N_DATA + MPZ_SIZE], 4
+        jle 1f                          # negative, or 4 limbs at most
+        xor eax, eax
+1:      ret
+ENDF int_lt_pow2_256
 
 # int_bit_length(v) -> rax: python's int.bit_length() (of |v|)
 FUNC int_bit_length

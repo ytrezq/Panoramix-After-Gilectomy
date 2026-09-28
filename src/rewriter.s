@@ -125,9 +125,9 @@ FUNC pp_cleanup_exp
         test eax, eax
         jz 22f
         mov rdi, [rsp]
-        call int_bit_length
-        cmp rax, 256
-        ja 3f
+        call int_lt_pow2_256            # (python's e < 0x100**32: the
+        test eax, eax                   # negative ones too)
+        jz 3f
         mov rax, [rsp]
         jmp .Lpce_done
 22:     mov rdi, [rsp]

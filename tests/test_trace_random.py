@@ -33,7 +33,7 @@ N = int(sys.argv[2]) if len(sys.argv) > 2 else 200
 def rint():
     r = random.random()
     if r < 0.7: return random.choice([0, 1, 2, 4, 20, 31, 32, 36, 64, 68, 96, 100, 128, 160, 192, 224, 256, 0xa9059cbb])
-    if r < 0.9: return random.choice([2**160 - 1, 2**255, 2**256 - 1, 2**256 - 32, -1, -32])
+    if r < 0.9: return random.choice([2**160 - 1, 2**255, 2**256 - 1, 2**256 - 32, -1, -32, 2**256, -2**256 - 5])
     return random.randint(0, 2**256 - 1)
 
 VAR_IDS = [1, 2, 3, 1001]
@@ -138,6 +138,14 @@ REGRESSIONS = [
     [("if", ("iszero", ("mem", ("range", 32, 0))), [("revert", 0)], [("stop",)])],
     # a negative shift: python's ValueError
     [("setmem", ("range", 64, 32), ("shl", -32, "caller")), ("return", ("mem", ("range", 64, 32)))],
+    # numbers past 256 bits written to memory: python's sizeof counts the
+    # bytes of those above 2^256 only (not 2^256, not the negative ones)
+    [("setmem", ("range", 192, 2), -2**256), ("return", ("mem", ("range", 160, 64)))],
+    [("setmem", ("range", 192, 32), 2**256), ("return", ("mem", ("range", 160, 64)))],
+    [("setmem", ("range", 192, 1), ("mul", -1, ("mul", 2**251 + 3, 32))), ("return", ("mem", ("range", 160, 64)))],
+    [("setmem", ("range", 192, 3), 2**256 + 1), ("return", ("mem", ("range", 160, 64)))],
+    # and the postprocessing keeps a mask_shl 256 of the numbers >= 2^256
+    [("return", ("mask_shl", 256, 0, 0, -2**300)), ("return", ("mask_shl", 256, 0, 0, 2**256))],
 ]
 
 if __name__ == "__main__":
