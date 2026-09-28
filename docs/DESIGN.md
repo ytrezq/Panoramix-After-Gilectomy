@@ -178,6 +178,19 @@ is the CLI, `build/panoramix_asm*.so` the module.
     a thread, and `ctx_compact` drops the garbage of the rewrites between
     the rounds of `simplify_trace` once the arena passes 256 MiB (the
     trace is copied into a fresh arena, the comparison memos with it).
+    The VM's rounds reuse their scratch (`merge_branches`' nodes by
+    jump destination, `find_nodes`' stack): python's lists are garbage
+    at the end of each call, an arena's would stay (3 GB over the 4000
+    rounds of a contract the fuzzer mutated).
+14. [x] python's `decompilation.json` (`data.s`): `decompile_bytecode`
+    in the module gives python's `Decompilation` (text, asm, json - the
+    json as python's own objects, through a binary form the module
+    reads), `pan_decompile_data` and `panasm --json` its JSON text.
+15. [x] no abort where the system runs out of memory: a context, a
+    chunk, a hash-cons table that can't be had fail the function (or
+    the fold, or the call of the C interface) as python's MemoryError
+    would, and the process lives on (`robustness.sh` decompiles under
+    address space limits).
     Sharing the table across threads (a lock-free one, with a global
     arena) was considered and rejected: `mk_seq` is the hottest
     function, and a global arena could never be freed per function,
