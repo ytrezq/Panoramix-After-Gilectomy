@@ -10,7 +10,11 @@ compared.
 --mutate: instead, small contracts of tests/corpus (and of the
 directories in $MUTATE_DIRS, below $MUTATE_MAX hex digits) with one to
 four instructions changed (an operation for another of the same arity,
-a byte of a push, a dup or a swap for another).
+a byte of a push, a dup or a swap for another). With MUTATE_BIG=1, a
+push of 8 bytes or more may also become one of the numbers around the
+port's small ints' end (2^62) and the machine's words' (2^64, 2^255,
+2^256 - 1): where a number that isn't a small one is taken for a
+symbolic value (a jump to 2^64 - 1 was).
 
 Python runs as `python -m panoramix` ($PANORAMIX_PYTHON, pypy by
 default, in $PANORAMIX_PY), the port as build/panasm; both with the
@@ -677,6 +681,10 @@ BINARY = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x0a, 0x0b, 0x10, 0x11, 0x12
           0x14, 0x16, 0x17, 0x18, 0x1a, 0x1b, 0x1c, 0x1d]
 UNARY = [0x15, 0x19, 0x31, 0x35, 0x3b, 0x3f, 0x40, 0x51, 0x54]
 MUTATE_FROM = []
+MUTATE_BIG = os.environ.get("MUTATE_BIG") == "1"
+BIG_NUMBERS = [(1 << 62) - 1, 1 << 62, (1 << 62) + 1, (1 << 63) - 1, 1 << 63, (1 << 64) - 1, 1 << 64,
+               (1 << 64) + 1, (1 << 128) - 1, 1 << 160, (1 << 160) - 1, 1 << 255, (1 << 255) - 1,
+               (1 << 256) - 1, (1 << 256) - 2, (1 << 256) - (1 << 62)]
 
 
 def mutate(rnd):
@@ -694,6 +702,10 @@ def mutate(rnd):
             code[pc] = rnd.choice(BINARY)
         elif op in UNARY:
             code[pc] = rnd.choice(UNARY)
+        elif 0x67 <= op <= 0x7f and MUTATE_BIG and rnd.random() < 0.5 and pc + op - 0x5f < len(code):
+            n = op - 0x5f                                       # a big number instead
+            v = rnd.choice(BIG_NUMBERS) % (1 << (8 * n))
+            code[pc + 1:pc + 1 + n] = v.to_bytes(n, "big")
         elif 0x60 <= op <= 0x7f and pc + 1 < len(code):
             k = rnd.randrange(pc + 1, min(pc + 1 + op - 0x5f, len(code)))
             code[k] = rnd.choice([0, 1, 0xff, rnd.randrange(256)])

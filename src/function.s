@@ -1451,16 +1451,10 @@ FUNC fn_priority
         LEAVE
 3:      cmp qword ptr [rbx + FN_TRACE], 0
         je 1f
-        mov rdi, [rbx + FN_TRACE]
-        call trace_text
-        mov r12, rax
-        mov rdi, [rax + SB_BUF]
+        mov rdi, [rbx + FN_TRACE]       # "selfdestruct" in str(self.trace)
         lea rsi, [rip + .Ls_selfdestruct]
-        call strstr@PLT
-        mov r13, rax
-        mov rdi, r12
-        call sb_free
-        test r13, r13
+        call mentions_c
+        test eax, eax
         jnz 2f
         mov rdi, rbx
         call fn_print

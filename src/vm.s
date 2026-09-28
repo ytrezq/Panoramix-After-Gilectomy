@@ -766,59 +766,89 @@ ENDF mb_by_jd
 FUNC merge_visit
         ENTER
         sub rsp, 16
+        mov rbx, rdi
         mov r12, rsi                    # jd
         mov r13, rdx                    # hits
-        mov [rsp], rdi
         mov dword ptr [rsp + 8], TRI_TRUE
+        # to_visit: the VM's scratch stack (find_nodes' - not in use
+        # meanwhile), pushed and popped inline
+        mov rax, [r15 + CTX_VM]
+        mov r14, [rax + VM_SCR_VISIT]
+        test r14, r14
+        jnz 1f
         call vec_new
-        mov r14, rax                    # to_visit
+        mov r14, rax
+        mov rax, [r15 + CTX_VM]
+        mov [rax + VM_SCR_VISIT], r14
+1:      mov qword ptr [r14 + VEC_LEN], 0
         mov rdi, r14
-        mov rsi, [rsp]
+        mov rsi, rbx
         call vec_push
 .Lmv_loop:
-        mov rdi, r14
-        call vec_pop
+        mov rax, [r14 + VEC_LEN]
         test rax, rax
         jz .Lmv_done
-        mov rbx, rax
+        dec rax
+        mov [r14 + VEC_LEN], rax
+        mov rcx, [r14 + VEC_DATA]
+        mov rbx, [rcx + rax*8]          # n = to_visit.pop()
         cmp qword ptr [rbx + ND_MERGED], 0
         jne .Lmv_loop                   # goes on in the continuation of an if below
+        mov rax, [rbx + ND_JD]
         cmp qword ptr [rbx + ND_LABEL], 0
-        je 1f
+        je 2f
         # the head of a loop: keep it that way. Otherwise the paths inside
         # the loop body are fair game (the loop may get peeled, see vm.py)
-        cmp [rbx + ND_JD], r12
+        cmp rax, r12
         je .Lmv_false
-        jmp 2f
-1:      cmp [rbx + ND_JD], r12
-        jne 2f
+        jmp 3f
+2:      cmp rax, r12
+        jne 3f
         mov rdi, r13
         mov rsi, rbx
         call vec_push
         jmp .Lmv_loop
-2:      cmp qword ptr [rbx + ND_TRACE], 0
-        jne 3f
+3:      cmp qword ptr [rbx + ND_TRACE], 0
+        jne 4f
         mov dword ptr [rsp + 8], TRI_NONE
         jmp .Lmv_loop
-3:      mov rax, [rbx + ND_NEXT]
-        mov rcx, [rax + VEC_LEN]
-        test rcx, rcx
-        jz 5f
-4:      dec rcx
-        mov [rsp], rcx
-        mov rax, [rbx + ND_NEXT]
-        mov rax, [rax + VEC_DATA]
-        mov rsi, [rax + rcx*8]
-        mov rdi, r14
-        call vec_push
-        mov rcx, [rsp]
-        test rcx, rcx
-        jnz 4b
-        jmp .Lmv_loop
-5:      mov rax, [rbx + ND_TRACE]
+4:      mov rax, [rbx + ND_NEXT]        # to_visit.extend(reversed(n.next))
         mov rcx, [rax + VEC_LEN]
         test rcx, rcx
         jz 6f
+        mov rdx, [r14 + VEC_LEN]
+        add rdx, rcx
+        cmp rdx, [r14 + VEC_CAP]
+        ja .Lmv_grow
+        mov rsi, [rax + VEC_DATA]
+        mov rdi, [r14 + VEC_DATA]
+        mov rdx, [r14 + VEC_LEN]
+        lea r8, [rdx + rcx]
+        mov [r14 + VEC_LEN], r8
+5:      dec rcx
+        mov r9, [rsi + rcx*8]
+        mov [rdi + rdx*8], r9
+        inc rdx
+        test rcx, rcx
+        jnz 5b
+        jmp .Lmv_loop
+.Lmv_grow:                              # (no room: one by one, vec_push growing it)
+        mov [rsp], rcx
+51:     mov rcx, [rsp]
+        test rcx, rcx
+        jz .Lmv_loop
+        dec rcx
+        mov [rsp], rcx
+        mov rax, [rbx + ND_NEXT]
+        mov rdx, [rax + VEC_DATA]
+        mov rsi, [rdx + rcx*8]
+        mov rdi, r14
+        call vec_push
+        jmp 51b
+6:      mov rax, [rbx + ND_TRACE]
+        mov rcx, [rax + VEC_LEN]
+        test rcx, rcx
+        jz 7f
         mov rax, [rax + VEC_DATA]
         mov rdi, [rax + rcx*8 - 8]
         call opcode_of
@@ -826,7 +856,7 @@ FUNC merge_visit
         call is_terminal_op
         test eax, eax
         jnz .Lmv_loop
-6:      # e.g. 'loop', not yet processed by continue_loops
+7:      # e.g. 'loop', not yet processed by continue_loops
         mov dword ptr [rsp + 8], TRI_NONE
         jmp .Lmv_loop
 .Lmv_done:
@@ -1159,6 +1189,8 @@ FUNC mentions
 ENDF mentions
 
 # mentions_c(exp, cstr) -> eax: a string anywhere in exp contains cstr
+# (python's `word in str(exp)` for a word of letters: the repr of a
+# string escapes none of them, nor makes one out of what it escapes)
 FUNC mentions_c
         STACK_CHECK
         test dil, 1
@@ -1169,8 +1201,15 @@ FUNC mentions_c
         cmp eax, K_STR
         jne 1f
         ENTER
-        add rdi, N_DATA + 4
-        call strstr@PLT
+        mov rbx, rdi
+        mov r12, rsi
+        mov rdi, rsi
+        call strlen@PLT
+        mov rcx, rax                    # (memmem: the string's NULs are in it)
+        mov esi, [rbx + N_DATA]
+        lea rdi, [rbx + N_DATA + 4]
+        mov rdx, r12
+        call memmem@PLT
         test rax, rax
         setnz al
         movzx eax, al
@@ -1361,8 +1400,13 @@ FUNC vm_exec
         mov r12, [rbx + VM_LOADER]
         mov rdi, [rsp]
         test dil, 1
+        jnz 0f
+        test rdi, rdi
         jz .Lex_runtime_param
-        mov r13, rdi
+        cmp dword ptr [rdi + N_KIND], K_INT
+        je .Lex_bad_jumdest             # an int too big to be a line: python's invalid jumdest
+        jmp .Lex_runtime_param
+0:      mov r13, rdi
         sar r13, 1                      # pc
         js .Lex_bad_jumdest
         mov rdi, r12

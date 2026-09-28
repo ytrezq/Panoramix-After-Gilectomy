@@ -422,24 +422,51 @@ FUNC overwrites_mem
 1:      mov rdi, rbx
         OPCODE_OF_RDI
         cmp eax, OP_WHILE
-        jne 2f
+        je 3f
         mov rdi, rbx
-        mov rsi, r12
-        call while_touches_mem
-        jmp .Lom_done
-2:      mov rdi, rbx
         call is_if_line
         test eax, eax
         jz .Lom_no
-        # matters for what comes after the if, when its branches merge again
+3:      # a while or an if: its walk remembered for the pair (the ifs nest,
+        # and replace_mem asks it of each level, then of the ones inside
+        # when it goes into the branches)
+        mov edi, MEMO_OVERWRITES
+        mov rsi, rbx
+        mov rdx, r12
+        call memo2_get
+        test rax, rax
+        jz 4f
+        cmp rax, MEMO_TRUE
+        sete al
+        movzx eax, al
+        jmp .Lom_done
+4:      mov rdi, rbx
+        OPCODE_OF_RDI
+        cmp eax, OP_WHILE
+        jne 5f
+        mov rdi, rbx
+        mov rsi, r12
+        call while_touches_mem
+        jmp 6f
+5:      # matters for what comes after the if, when its branches merge again
         mov rdi, [rbx + N_DATA + 16]
         mov rsi, r12
         call any_overwrites_mem
         test eax, eax
-        jnz .Lom_done
+        jnz 6f
         mov rdi, [rbx + N_DATA + 24]
         mov rsi, r12
         call any_overwrites_mem
+6:      mov [rsp], eax
+        mov ecx, MEMO_FALSE
+        test eax, eax
+        jz 7f
+        mov ecx, MEMO_TRUE
+7:      mov edi, MEMO_OVERWRITES
+        mov rsi, rbx
+        mov rdx, r12
+        call memo2_put
+        mov eax, [rsp]
         jmp .Lom_done
 .Lom_no:
         xor eax, eax
@@ -898,8 +925,14 @@ FUNC replace_mem_exp
         mov r13, rdx
         call is_tuple
         test eax, eax
+        jz 0f
+        # without "mem" anywhere in it (its mention flags), nothing to
+        # replace: no read of the memory, no call pattern (('mem', ...)
+        # arguments), the tuple unchanged - python's walk gives it back
+        movabs rax, HF_MEM
+        test [rbx + N_HASH], rax
         jnz 1f
-        mov rax, rbx
+0:      mov rax, rbx
         add rsp, 32
         LEAVE
 1:      mov rdi, rbx
@@ -1212,7 +1245,9 @@ FUNC replace_mem
         mov rsi, rax
         call vec_push
         # one of the branches may have changed the memory: what comes
-        # after the if (if anything) is left alone
+        # after the if (if anything) is left alone. (Even an if without
+        # "mem" in it is rebuilt: python's replace_mem turns the vars of
+        # the whiles it goes through into lists.)
         mov rdi, r14
         mov rsi, [rsp + RP_VAL]
         call affects
@@ -1520,6 +1555,58 @@ FUNC line_vars
         LEAVE
 ENDF line_vars
 
+# line_has_var(line, var) -> eax: the variable (a ('var', ...) tuple) is
+# somewhere in the line - replace() of it would change the line. From the
+# line's variables, remembered (cleanup_vars replaces every variable in
+# the rest of the trace: each line is asked once per variable before it)
+FUNC line_has_var
+        xor eax, eax
+        test dil, 1
+        jnz 1f
+        test rdi, rdi
+        jz 1f
+        movabs rcx, HF_VAR              # (no "var" in it: none)
+        test [rdi + N_HASH], rcx
+        jz 1f
+        ENTER
+        mov rbx, rsi
+        call line_vars
+        mov ecx, [rax + N_AUX]
+        xor edx, edx
+2:      cmp edx, ecx
+        jae 3f
+        cmp [rax + N_DATA + rdx*8], rbx
+        je 4f
+        inc edx
+        jmp 2b
+3:      xor eax, eax
+        LEAVE
+4:      mov eax, 1
+        LEAVE
+1:      ret
+ENDF line_has_var
+
+# trace_has_var(trace, var) -> eax: contains(trace, var) - a line of the
+# trace holds the variable (its lines' variables, remembered: the lines
+# were just asked the same by replace_var)
+FUNC trace_has_var
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        xor r13d, r13d
+1:      cmp r13d, [rbx + N_AUX]
+        jae 2f
+        mov rdi, [rbx + N_DATA + r13*8]
+        mov rsi, r12
+        call line_has_var
+        inc r13d
+        test eax, eax
+        jz 1b
+        LEAVE
+2:      xor eax, eax
+        LEAVE
+ENDF trace_has_var
+
 # req_has(req, var) -> eax: the variable is required after
 FUNC req_has
         ENTER
@@ -1631,7 +1718,7 @@ FUNC cleanup_vars
         mov [rsp + CV_TMP], rax
         mov rdi, [rsp + CV_REMAINING]
         mov rsi, rax
-        call contains
+        call trace_has_var
         test eax, eax
         jnz 3f
         mov rdi, [rsp + CV_REQ]
@@ -1788,7 +1875,39 @@ FUNC replace_var
         jae .Lrv_done
         mov r14, [rbx + N_DATA + r13*8]
         inc r13d
-        mov rdi, r14                    # ('setmem', mem_idx, Any)
+        # a line without the variable anywhere (its branches, its loop's
+        # body included) comes out as it is from every case below: only
+        # whether it ends the replacement is left to decide (affects(),
+        # false of all but a setmem, a while, an if)
+        mov rdi, r14
+        mov rsi, [rsp + RV_ID]
+        call line_has_var
+        test eax, eax
+        jnz 0f
+        mov rdi, r12
+        mov rsi, r14
+        call vec_push
+        mov rdi, r14
+        OPCODE_OF_RDI
+        cmp eax, OP_WHILE
+        je 91f
+        mov rdi, r14
+        call is_if_line
+        test eax, eax
+        jnz 91f
+        mov rdi, r14
+        mov esi, OP_SETMEM
+        mov edx, 3
+        call is_op_n
+        test eax, eax
+        jz .Lrv_line
+91:     mov rdi, r14
+        mov rsi, [rsp + RV_VAL]
+        call affects
+        test eax, eax
+        jz .Lrv_line
+        jmp .Lrv_rest
+0:      mov rdi, r14                    # ('setmem', mem_idx, Any)
         mov esi, OP_SETMEM
         mov edx, 3
         call is_op_n

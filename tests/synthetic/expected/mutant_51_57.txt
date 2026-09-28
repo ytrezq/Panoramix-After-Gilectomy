@@ -1,0 +1,29 @@
+# Palkeoramix decompiler. 
+
+const registrar = 0
+const ens = 0
+
+#
+#  Regular functions
+#
+
+def _fallback(?) payable: # default function
+  revert
+
+def unknown9198c276(array _param1, uint256 _param2, uint256 _param3, uint256 _param4, uint256 _param5, array _param6) payable: 
+  require calldata.size - 4 >=′ 192
+  require _param1 <= LOCK8605463013()
+  require _param1 + 35 <′ calldata.size
+  require _param1.length <= LOCK8605463013()
+  require _param1 + _param1.length + 36 <= calldata.size
+  require _param2 == address(_param2)
+  require _param3 == uint32(_param3)
+  require _param4 == _param4 and _param2
+  require _param5 == address(_param5)
+  require _param6 <= _param2
+  require _param6 + 35 <′ calldata.size
+  require _param6.length <= LOCK8605463013()
+  require _param6 + _param6.length + 36 > calldata.size
+  revert
+
+

@@ -8,15 +8,24 @@
 
 # map_new() -> rax
 FUNC map_new
+        mov edi, 64
+        jmp map_new_cap
+ENDF map_new
+
+# map_new_cap(cap) -> rax: a map of cap slots (a power of 2), for as many
+# as cap/2 entries without growing
+FUNC map_new_cap
         ENTER
-        mov edi, MAP_SIZEOF + 64*16
+        mov rbx, rdi
+        shl rdi, 4
+        add rdi, MAP_SIZEOF
         call arena_alloc
         lea rcx, [rax + MAP_SIZEOF]
         mov [rax + MAP_ENTRIES], rcx
-        mov qword ptr [rax + MAP_CAP], 64
+        mov [rax + MAP_CAP], rbx
         mov qword ptr [rax + MAP_COUNT], 0
         LEAVE
-ENDF map_new
+ENDF map_new_cap
 
 # map_get(map, key) -> rax: the value, or 0
 FUNC map_get
@@ -192,15 +201,23 @@ ENDF memo_put
 
 # map2_new() -> rax
 FUNC map2_new
+        mov edi, 64
+        jmp map2_new_cap
+ENDF map2_new
+
+# map2_new_cap(cap) -> rax: a map of pairs of cap slots (a power of 2)
+FUNC map2_new_cap
         ENTER
-        mov edi, MAP_SIZEOF + 64*32
+        mov rbx, rdi
+        shl rdi, 5
+        add rdi, MAP_SIZEOF
         call arena_alloc
         lea rcx, [rax + MAP_SIZEOF]
         mov [rax + MAP_ENTRIES], rcx
-        mov qword ptr [rax + MAP_CAP], 64
+        mov [rax + MAP_CAP], rbx
         mov qword ptr [rax + MAP_COUNT], 0
         LEAVE
-ENDF map2_new
+ENDF map2_new_cap
 
 # map2_get(map, k1, k2) -> rax: the value, or 0
 FUNC map2_get

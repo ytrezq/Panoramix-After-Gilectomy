@@ -523,7 +523,8 @@ ENDF \fname
 .set MEMO_MUL2, 18          # (a, b) -> mul_op(a, b)
 .set MEMO_PARSE_COUNTERS, 19 # a while -> its PC struct (read only)
 .set MEMO_EXTRACT_SETMEMS, 20 # a while -> extract_setmems' list
-.set MEMO_COUNT, 21
+.set MEMO_OVERWRITES, 21    # (an if or a while, mem_idx) -> overwrites_mem's (pairs)
+.set MEMO_COUNT, 22
 # sentinel values stored in memo tables for python's None / False (values
 # and pointers are never 2 or 4)
 .set MEMO_NONE, 2

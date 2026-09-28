@@ -809,12 +809,23 @@ FUNC memo_import
         jz 3f
         test rdx, rdx
         jz 3f
-        cmp esi, 3
-        je memo_import_pairs
         mov rbx, rdi                    # slot
         mov r12d, esi                   # kind
         mov r13, rdx                    # the old map
-        xor r14d, r14d                  # the entry
+        # the new table as big as the old one (not grown from nothing by
+        # doublings, each rehashing it all)
+        mov rdi, [r13 + MAP_CAP]
+        cmp r12d, 3
+        je 5f
+        call map_new_cap
+        mov [r15 + CTX_MEMO + rbx*8], rax
+        jmp 6f
+5:      call map2_new_cap
+        mov [r15 + CTX_MEMO + rbx*8], rax
+        mov rdi, rbx
+        mov rdx, r13
+        jmp memo_import_pairs
+6:      xor r14d, r14d                  # the entry
 1:      cmp r14, [r13 + MAP_CAP]
         jae 3f
         mov rax, [r13 + MAP_ENTRIES]
@@ -844,7 +855,8 @@ FUNC memo_import
         LEAVE
 ENDF memo_import
 
-# memo_import_pairs: memo_import's kind 3 (jumped to, its frame as it is)
+# memo_import_pairs(slot, -, old_map): memo_import's kind 3 (jumped to,
+# its frame as it is)
 FUNC memo_import_pairs
         mov rbx, rdi                    # slot
         mov r13, rdx                    # the old map
@@ -903,6 +915,7 @@ memo_kinds:
         .byte 0                         # MUL2 (pairs)
         .byte 0                         # PARSE_COUNTERS (structs of the old arena)
         .byte 0                         # EXTRACT_SETMEMS
+        .byte 0                         # OVERWRITES (pairs: a replace_mem's)
         .text
 
 # memo_sizes_log(): DEBUG: the number of entries of every memo table
