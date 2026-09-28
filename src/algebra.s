@@ -2630,47 +2630,88 @@ FUNC contains
         jmp contains_f
 ENDF contains
 
-# contains_f(exp, sub, flags)
+# contains_f(exp, sub, flags): python's `exp == sub`, or a tuple or list
+# holding it at any depth. (== is values_equal: the same pointer, as
+# nodes are hash-consed, or two big ints of the same value.)
 FUNC contains_f
+        cmp rdi, rsi
+        je .Lct_yes_ret
+        test dil, 1
+        jnz .Lct_no_ret
+        test rdi, rdi
+        jz .Lct_no_ret
+        mov eax, [rdi + N_KIND]
+        cmp eax, K_INT
+        je values_equal                 # (a big int: == by value)
+        sub eax, K_TUPLE
+        cmp eax, K_LIST - K_TUPLE
+        jbe contains_seq
+.Lct_no_ret:
+        xor eax, eax
+        ret
+.Lct_yes_ret:
+        mov eax, 1
+        ret
+ENDF contains_f
+
+# contains_seq(seq, sub, flags) -> eax: sub among the elements of the
+# tuple or list, at any depth (the sequence itself isn't sub). Only the
+# sequences are recursed into, and only those whose mention flags hold
+# all of sub's; the leaves are compared here.
+FUNC contains_seq
+        mov rax, [rdi + N_HASH]
+        and rax, rdx
+        cmp rax, rdx
+        jne .Lcs_no_ret
         STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
         mov r14, rdx
-        call values_equal
-        test eax, eax
-        jnz .Lct_yes
-        test bl, 1
-        jnz .Lct_no
-        test rbx, rbx
-        jz .Lct_no
-        mov eax, [rbx + N_KIND]
-        cmp eax, K_TUPLE
-        je 1f
-        cmp eax, K_LIST
-        jne .Lct_no
-1:      mov rax, [rbx + N_HASH]
+        xor r13d, r13d
+.Lcs_next:
+        cmp r13d, [rbx + N_AUX]
+        jae .Lcs_no
+        mov rdi, [rbx + N_DATA + r13*8]
+        inc r13d
+        cmp rdi, r12
+        je .Lcs_yes
+        test dil, 1
+        jnz .Lcs_next
+        test rdi, rdi
+        jz .Lcs_next
+        mov eax, [rdi + N_KIND]
+        cmp eax, K_INT
+        je .Lcs_int
+        sub eax, K_TUPLE
+        cmp eax, K_LIST - K_TUPLE
+        ja .Lcs_next                    # a string: only the same pointer
+        mov rax, [rdi + N_HASH]
         and rax, r14
         cmp rax, r14
-        jne .Lct_no
-        xor r13d, r13d
-2:      cmp r13d, [rbx + N_AUX]
-        jae .Lct_no
-        mov rdi, [rbx + N_DATA + r13*8]
+        jne .Lcs_next
         mov rsi, r12
         mov rdx, r14
-        call contains_f
+        call contains_seq
         test eax, eax
-        jnz .Lct_yes
-        inc r13
-        jmp 2b
-.Lct_yes:
+        jz .Lcs_next
+.Lcs_yes:
         mov eax, 1
         LEAVE
-.Lct_no:
+.Lcs_int:
+        mov rsi, r12
+        call values_equal
+        test eax, eax
+        jz .Lcs_next
+        mov eax, 1
+        LEAVE
+.Lcs_no:
         xor eax, eax
         LEAVE
-ENDF contains_f
+.Lcs_no_ret:
+        xor eax, eax
+        ret
+ENDF contains_seq
 
 # alg_ge_zero(exp) -> eax: TRI_TRUE / TRI_FALSE / TRI_CANNOT (memoized)
 FUNC alg_ge_zero
