@@ -3,10 +3,12 @@
 The [panoramix](https://github.com/palkeo/panoramix) EVM decompiler, ported
 to x86-64 assembly: a library that takes bytecode and gives back the
 decompiled text, with a thin CPython wrapper and a command line tool. It
-produces the same text as the python implementation (checked on a corpus
-of 30 contracts against pypy's output, with the signature database), in
-a small fraction of the time and the memory: the functions of a contract
-are decompiled on threads sharing one address space (no GIL, no
+produces the same text as the python implementation (checked on two
+corpora - 30 mainnet contracts and 407 bytecodes of npm packages -
+against pypy's output, with the signature database), in about a
+fiftieth of pypy's time (70 s of CPU for the 407 where pypy takes 57
+minutes) and a fraction of its memory: the functions of a contract are
+decompiled on threads sharing one address space (no GIL, no
 processes), integers are GMP's, the expressions are hash-consed.
 
     make                         # needs as, cc, libgmp, liblzma, python3-dev
