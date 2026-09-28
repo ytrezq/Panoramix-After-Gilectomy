@@ -10,6 +10,14 @@ from panoramix.core import arithmetic as P
 M = 2**256
 random.seed(int(sys.argv[1]) if len(sys.argv) > 1 else 1)
 
+# python's byte_op computes 256 ** (31 - position): for a position of
+# -2^62 it takes all the memory there is before its MemoryError (an
+# inconclusive case): 2 GiB of address space at most
+import resource
+_soft, _hard = resource.getrlimit(resource.RLIMIT_AS)
+if _soft == resource.RLIM_INFINITY or _soft > (2 << 30):
+    resource.setrlimit(resource.RLIMIT_AS, (2 << 30, _hard))
+
 def rint():
     r = random.random()
     if r < 0.2: return random.randint(0, 300)
