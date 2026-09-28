@@ -40,6 +40,9 @@ isa_level:          .quad 0             # 0 scalar, 2 avx2, 3 avx512
 .Ls_avx512:     .asciz "avx512"
 .Ls_logname:    .asciz "panoramix.simd"
 .Lf_isa:        .asciz "vector loops: %s"
+
+        .section .data.rel.ro           # (addresses: relocated at load time)
+        .align 8
 .Ls_names:      .quad .Ls_scalar, .Ls_scalar, .Ls_avx2, .Ls_avx512
 
         .text
