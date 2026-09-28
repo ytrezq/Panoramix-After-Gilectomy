@@ -93,6 +93,10 @@ test_table:
         .quad .Ln_find_mems, find_mems
         .quad .Ln_split_setmem_trace, tf_split_setmem_trace
         .quad .Ln_split_store_trace, tf_split_store_trace
+        .quad .Ln_fold, fold
+        .quad .Ln_as_paths, as_paths
+        .quad .Ln_fold_paths, fold_paths
+        .quad .Ln_fold_aux, fold_aux
         .quad 0, 0
 
         .section .rodata
@@ -178,6 +182,10 @@ test_table:
 .Ln_mem_use: .asciz "mem_use"
 .Ln_trace_ends_execution: .asciz "trace_ends_execution"
 .Ln_normalize: .asciz "normalize"
+.Ln_fold: .asciz "fold"
+.Ln_as_paths: .asciz "as_paths"
+.Ln_fold_paths: .asciz "fold_paths"
+.Ln_fold_aux: .asciz "fold_aux"
 .Ln_find_mems: .asciz "find_mems"
 .Ln_split_setmem_trace: .asciz "split_setmem_trace"
 .Ln_split_store_trace: .asciz "split_store_trace"

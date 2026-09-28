@@ -317,12 +317,11 @@ FUNC cleanup_msize_impl
         jmp 4f
 3:      mov rdi, [rsp + CM_MSIZE]
         call alg_max_to_add
-        mov rdi, [rsp + CM_COND]
-        lea rsi, [rip + .Ls_msize]
         push rax
         push rax
+        lea rdi, [rip + .Ls_msize]
         call str_intern_c
-        pop rdx
+        pop rdx                         # max_to_add(current_msize)
         pop rdx
         mov rsi, rax
         mov rdi, [rsp + CM_COND]
