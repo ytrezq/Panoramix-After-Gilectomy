@@ -1361,7 +1361,8 @@ FUNC replace_mem
         call vec_extend
 .Lrp_done:
         mov rdi, r12
-        call vec_to_list
+        mov rsi, rbx                    # (unchanged: the trace itself)
+        call vec_to_list_like
         add rsp, MATCH_BINDINGS_SIZE + 64
         LEAVE
 ENDF replace_mem
@@ -2073,7 +2074,8 @@ FUNC replace_var
         call vec_extend
 .Lrv_done:
         mov rdi, r12
-        call vec_to_list
+        mov rsi, rbx                    # (unchanged: the trace itself)
+        call vec_to_list_like
         add rsp, MATCH_BINDINGS_SIZE + 48
         LEAVE
 ENDF replace_var

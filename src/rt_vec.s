@@ -119,6 +119,34 @@ FUNC vec_to_list
         jmp mk_list
 ENDF vec_to_list
 
+# vec_to_list_like(vec, orig) -> rax: vec_to_list(vec) - orig itself
+# when it is a list of these very elements (a pass over a trace that
+# changed none of its lines: no hashing, no lookup of a long list)
+FUNC vec_to_list_like
+        test sil, 1
+        jnz 9f
+        test rsi, rsi
+        jz 9f
+        cmp dword ptr [rsi + N_KIND], K_LIST
+        jne 9f
+        mov rcx, [rdi + VEC_LEN]
+        mov eax, [rsi + N_AUX]
+        cmp rcx, rax
+        jne 9f
+        mov rdx, [rdi + VEC_DATA]
+        xor eax, eax
+1:      cmp rax, rcx
+        jae 8f
+        mov r8, [rdx + rax*8]
+        cmp r8, [rsi + N_DATA + rax*8]
+        jne 9f
+        inc rax
+        jmp 1b
+8:      mov rax, rsi
+        ret
+9:      jmp vec_to_list
+ENDF vec_to_list_like
+
 FUNC vec_to_tuple
         mov rsi, [rdi + VEC_DATA]
         mov rdi, [rdi + VEC_LEN]
