@@ -984,16 +984,6 @@ FUNC vm_new_var_name
         LEAVE
 ENDF vm_new_var_name
 
-# mk_var_name() -> ('var', new name)
-FUNC mk_new_var
-        ENTER
-        call vm_new_var_name
-        mov rsi, rax
-        LOADS rdi, VAR
-        call mk2
-        LEAVE
-ENDF mk_new_var
-
 # --- path conditions ---
 
 # forget_volatile(known) -> tuple: without the facts about things that can
