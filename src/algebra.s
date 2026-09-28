@@ -12,21 +12,41 @@
 # ---------------------------------------------------------------------
 # small helpers
 
+# OP_N_CHECK op, n, fail: falls through if rdi is a tuple of n elements
+# (n > 0, a register or an immediate) with opcode op (a register or an
+# immediate); jumps to fail otherwise. Only rax is used.
+.macro OP_N_CHECK op, n, fail
+        test dil, 1
+        jnz \fail
+        test rdi, rdi
+        jz \fail
+        cmp dword ptr [rdi + N_KIND], K_TUPLE
+        jne \fail
+        cmp dword ptr [rdi + N_AUX], \n
+        jne \fail
+        mov rax, [rdi + N_DATA]
+        test al, 1
+        jnz \fail
+        test rax, rax
+        jz \fail
+        cmp dword ptr [rax + N_KIND], K_STR
+        jne \fail
+        mov eax, [rax + N_AUX]
+        and eax, STR_ID_MASK
+        cmp eax, \op
+        jne \fail
+.endm
+
 # is_op_n(v, op, n) -> eax: v is a tuple with opcode op and n elements
+# (a leaf: only rax is changed)
 FUNC is_op_n
-        ENTER
-        mov rbx, rdi
-        mov r12d, esi
-        mov r13d, edx
-        call opcode_of
-        cmp eax, r12d
-        jne 1f
-        cmp [rbx + N_AUX], r13d
-        jne 1f
+        test edx, edx
+        jz 1f
+        OP_N_CHECK esi, edx, 1f
         mov eax, 1
-        LEAVE
+        ret
 1:      xor eax, eax
-        LEAVE
+        ret
 ENDF is_op_n
 
 # to_exp2(v) -> rax: k if math.log2(v) is an integer in double precision
@@ -356,22 +376,28 @@ ENDF alg_apply_mask
 
 # all_ints(count, elems) -> eax
 FUNC all_ints
-        ENTER
-        mov rbx, rdi
-        mov r12, rsi
-        xor r13d, r13d
-1:      cmp r13, rbx
-        jae 2f
-        mov rdi, [r12 + r13*8]
-        call is_int
-        test eax, eax
-        jz 3f
-        inc r13
+        push rdi                        # (a leaf: only rax is changed)
+        push rsi
+1:      test rdi, rdi
+        jz 2f
+        mov rax, [rsi]
+        test al, 1
+        jnz 3f
+        test rax, rax
+        jz 4f
+        cmp dword ptr [rax + N_KIND], K_INT
+        jne 4f
+3:      add rsi, 8
+        dec rdi
         jmp 1b
 2:      mov eax, 1
-        LEAVE
-3:      xor eax, eax
-        LEAVE
+        pop rsi
+        pop rdi
+        ret
+4:      xor eax, eax
+        pop rsi
+        pop rdi
+        ret
 ENDF all_ints
 
 # cleanup_mul_1(exp) -> value: ('mul', 1, x) -> x, recursively
@@ -1213,33 +1239,35 @@ FUNC is_try_add_y
 2:      ret
 ENDF is_try_add_y
 
-# is_mul_int(v) -> eax: v ~ ('mul', int, any)
+# is_mul_int(v) -> eax: v ~ ('mul', int, any) (a leaf: only rax is changed)
 FUNC is_mul_int
-        ENTER
-        mov rbx, rdi
-        mov esi, OP_MUL
-        mov edx, 3
-        call is_op_n
-        test eax, eax
-        jz 1f
-        mov rdi, [rbx + N_DATA + 8]
-        call is_int
-1:      LEAVE
+        OP_N_CHECK OP_MUL, 3, 2f
+        mov rax, [rdi + N_DATA + 8]
+        test al, 1
+        jnz 1f
+        test rax, rax
+        jz 2f
+        cmp dword ptr [rax + N_KIND], K_INT
+        jne 2f
+1:      mov eax, 1
+        ret
+2:      xor eax, eax
+        ret
 ENDF is_mul_int
 
 # is_mask_shl_ints(v) -> eax: v ~ ('mask_shl', int, int, int, any)
 FUNC is_mask_shl_ints
-        ENTER
-        mov rbx, rdi
-        mov esi, OP_MASK_SHL
-        mov edx, 5
-        call is_op_n
-        test eax, eax
-        jz 1f
+        OP_N_CHECK OP_MASK_SHL, 5, 2f   # (only rax is changed)
+        push rsi
+        push rdi
+        lea rsi, [rdi + N_DATA + 8]
         mov edi, 3
-        lea rsi, [rbx + N_DATA + 8]
         call all_ints
-1:      LEAVE
+        pop rdi
+        pop rsi
+        ret
+2:      xor eax, eax
+        ret
 ENDF is_mask_shl_ints
 
 # mk_mask_shl(size, offset, shl, val) -> ('mask_shl', size, offset, shl, val)

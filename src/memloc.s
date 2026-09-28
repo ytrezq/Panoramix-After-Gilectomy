@@ -1568,7 +1568,36 @@ FUNC fill_mem
 ENDF fill_mem
 
 # range_overlaps(range1, range2) -> eax: TRI_TRUE / TRI_FALSE / TRI_NONE
+# (memoized, as python's @cached)
 FUNC range_overlaps
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call mk2
+        mov r13, rax                    # the key: (range1, range2)
+        mov edi, MEMO_RANGE_OVERLAPS
+        mov rsi, rax
+        call memo_get
+        test rax, rax
+        jz 1f
+        mov rdi, rax
+        call memo_to_tri
+        LEAVE
+1:      mov rdi, rbx
+        mov rsi, r12
+        call range_overlaps_impl
+        mov r14d, eax
+        mov edi, eax
+        call tri_to_memo
+        mov edi, MEMO_RANGE_OVERLAPS
+        mov rsi, r13
+        mov rdx, rax
+        call memo_put
+        mov eax, r14d
+        LEAVE
+ENDF range_overlaps
+
+FUNC range_overlaps_impl
         ENTER
         sub rsp, 32
         mov rbx, rdi
@@ -1617,7 +1646,7 @@ FUNC range_overlaps
         mov eax, TRI_NONE
         add rsp, 32
         LEAVE
-ENDF range_overlaps
+ENDF range_overlaps_impl
 
 # range_contains(outer, inner) -> eax: TRI_TRUE / TRI_FALSE / TRI_NONE:
 # outer fully contains inner
