@@ -11,7 +11,7 @@ SRCS = $(wildcard src/*.s)
 OBJS = $(patsubst src/%.s,build/%.o,$(SRCS))
 LIBOBJS = $(filter-out build/main.o,$(OBJS))
 
-all: build/panasm build/panoramix_asm$(PY_EXT)
+all: build/panasm build/panoramix_asm$(PY_EXT) build/libpanoramix_asm.so
 
 include/opcodes.inc src/opcodes_table.s: tools/gen_opcodes.py
 	python3 tools/gen_opcodes.py
@@ -29,7 +29,18 @@ build/pymod.o: src/pymod.c
 build/panoramix_asm$(PY_EXT): build/pymod.o $(LIBOBJS)
 	$(CC) -shared $(LDFLAGS) -o $@ build/pymod.o $(LIBOBJS) $(LDLIBS)
 
+# the library for C (include/panoramix_asm.h): only the pan_* functions
+# are exported
+build/libpanoramix_asm.so: $(LIBOBJS)
+	$(CC) -shared $(LDFLAGS) -Wl,-soname,libpanoramix_asm.so -o $@ $(LIBOBJS) $(LDLIBS)
+
+build/c_api_test: tests/c_api_test.c include/panoramix_asm.h build/libpanoramix_asm.so
+	$(CC) -O2 -Wall -Iinclude -o $@ tests/c_api_test.c -Lbuild -lpanoramix_asm -Wl,-rpath,'$$ORIGIN'
+
+check: build/c_api_test
+	build/c_api_test
+
 clean:
 	rm -rf build
 
-.PHONY: all clean
+.PHONY: all clean check

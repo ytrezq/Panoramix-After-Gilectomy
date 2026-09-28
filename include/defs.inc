@@ -166,6 +166,16 @@
 \name:
 .endm
 
+# API name: an exported function (the C interface of the library,
+# include/panoramix_asm.h); everything else is hidden
+.macro API name
+        .text
+        .globl \name
+        .type \name, @function
+        .p2align 4
+\name:
+.endm
+
 .macro ENDF name
         .size \name, .-\name
 .endm

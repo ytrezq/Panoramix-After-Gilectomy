@@ -11,7 +11,7 @@
 
         .text
 
-FUNC pan_init
+API pan_init
         ENTER
         call rt_init
         call log_init
@@ -21,7 +21,7 @@ ENDF pan_init
 
 # pan_set_log_level(level): python's logging levels (10 debug, 20 info,
 # 30 warning, 40 error)
-FUNC pan_set_log_level
+API pan_set_log_level
         ENTER
         mov rbx, rdi
         call pan_init
@@ -30,11 +30,11 @@ FUNC pan_set_log_level
 ENDF pan_set_log_level
 
 # pan_log_level_from_name(name) -> the level of "debug", "INFO"..., or -1
-FUNC pan_log_level_from_name
+API pan_log_level_from_name
         jmp log_level_from_name
 ENDF pan_log_level_from_name
 
-FUNC pan_disasm
+API pan_disasm
         push r15
         ENTER
         sub rsp, 40
@@ -81,7 +81,7 @@ FUNC pan_disasm
         ret
 ENDF pan_disasm
 
-FUNC pan_free
+API pan_free
         jmp free@PLT
 ENDF pan_free
 
@@ -105,7 +105,7 @@ ENDF strip_color
 
 # int pan_decompile(code, len, threads, only_func, &out, &outlen): the
 # decompilation with colors, as `python -m panoramix` prints it
-FUNC pan_decompile
+API pan_decompile
         push 0                          # the 7th argument, flags (rsp aligned at the call)
         call pan_decompile_ex
         add rsp, 8
@@ -115,7 +115,7 @@ ENDF pan_decompile
 # int pan_decompile_ex(code, len, threads, only_func, &out, &outlen, flags)
 # flags: PAN_NO_COLOR (1) - the text without the color codes
 .set PAN_NO_COLOR, 1
-FUNC pan_decompile_ex
+API pan_decompile_ex
         push r15
         ENTER
         sub rsp, 56
@@ -165,7 +165,7 @@ ENDF pan_decompile_ex
 
 
 # int pan_build_sigdb(const char *xz_path, const char *out_path)
-FUNC pan_build_sigdb
+API pan_build_sigdb
         push r15
         ENTER
         sub rsp, 24
