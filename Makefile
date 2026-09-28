@@ -4,8 +4,11 @@ CC      = cc
 CFLAGS  = -O2 -fPIC -Wall
 LDFLAGS = -Wl,-z,text -Wl,-z,noexecstack
 LDLIBS  = -L/usr/lib/x86_64-linux-gnu -l:libgmp.so.10 -l:liblzma.so.5 -lpthread -lm
-PY_INC  = $(shell python3 -c "import sysconfig; print(sysconfig.get_paths()['include'])")
-PY_EXT  = $(shell python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")
+# the python the module is built for (setup.py passes its own)
+PYTHON  ?= python3
+PY_INC  = $(shell $(PYTHON) -c "import sysconfig; print(sysconfig.get_paths()['include'])")
+PY_EXT  = $(shell $(PYTHON) -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")
+PREFIX  ?= /usr/local
 # the python implementation, for the tests that compare with it
 PANORAMIX_REPO   ?= $(abspath ../panoramix)
 PANORAMIX_PYTHON ?= $(PANORAMIX_REPO)/.venv/bin/python
@@ -70,7 +73,15 @@ verbose-expected:
 	  [ -f build/verbose_expected/$$n.repr.txt ] || PYTHONPATH=$(PANORAMIX_REPO) PYTHONINTMAXSTRDIGITS=0 \
 	    $(PANORAMIX_PYTHON) tests/gen_repr_expected.py tests/corpus/$$n.hex build/verbose_expected/$$n.repr.txt; done
 
+# the command line tool, the C library and its header (the python module:
+# pip install .)
+install: build/panasm build/libpanoramix_asm.so
+	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/lib $(DESTDIR)$(PREFIX)/include
+	install -m 755 build/panasm $(DESTDIR)$(PREFIX)/bin/panasm
+	install -m 755 build/libpanoramix_asm.so $(DESTDIR)$(PREFIX)/lib/libpanoramix_asm.so
+	install -m 644 include/panoramix_asm.h $(DESTDIR)$(PREFIX)/include/panoramix_asm.h
+
 clean:
 	rm -rf build
 
-.PHONY: all clean check json-expected verbose-expected
+.PHONY: all clean check install json-expected verbose-expected

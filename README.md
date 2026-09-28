@@ -12,6 +12,8 @@ decompiled on threads sharing one address space (no GIL, no
 processes), integers are GMP's, the expressions are hash-consed.
 
     make                         # needs as, cc, libgmp, liblzma, python3-dev
+    make install PREFIX=/usr/local   # panasm, libpanoramix_asm.so, the header
+    pip install .                # the python module (built by make, for that python)
     build/panasm build-db /path/to/panoramix/data/abi_dump.xz   # once: the signature database
     build/panasm decompile contract.hex [-j threads] [--function name] [--no-color] [--json] [-v level]
                                         [--verbose] [--explain] [--repr] [--returns]
