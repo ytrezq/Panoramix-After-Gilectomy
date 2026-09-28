@@ -14,6 +14,7 @@
         .text
 
 FUNC value_print
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi

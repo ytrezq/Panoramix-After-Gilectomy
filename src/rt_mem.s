@@ -14,6 +14,9 @@ rt_initialized: .quad 0
         .globl global_ctx
         .hidden global_ctx
 global_ctx:     .quad 0          # a context for process-wide constants (never reset)
+chunk_pool:     .quad 0          # the chunks free for reuse (zeroed), a list
+chunk_pool_count: .quad 0
+chunk_pool_lock: .quad 0         # a spinlock
 
         .text
 
@@ -74,6 +77,7 @@ FUNC ctx_new
         # first chunk
         mov rdi, rbx
         mov esi, ARENA_CHUNK_DEFAULT
+        xor edx, edx
         call arena_new_chunk
         # hash-cons table: 4096 entries to start with
         mov edi, 4096
@@ -117,24 +121,19 @@ ENDF ctx_current
 FUNC ctx_free
         ENTER
         mov rbx, rdi
-        mov r12, [rbx + CTX_ARENA_CHUNKS]
-1:      test r12, r12
-        jz 2f
-        mov r13, [r12 + CHUNK_NEXT]
-        mov rdi, r12
-        mov rsi, [r12 + CHUNK_SIZE]
-        call munmap@PLT
-        mov r12, r13
-        jmp 1b
-2:      mov rdi, [rbx + CTX_HC_TABLE]
+        mov rdi, [rbx + CTX_ARENA_CHUNKS]
+        mov rsi, [rbx + CTX_ARENA_CUR]
+        call chunks_release
+        mov rdi, [rbx + CTX_HC_TABLE]
         call free@PLT
         mov rdi, rbx
         call free@PLT
         LEAVE
 ENDF ctx_free
 
-# arena_new_chunk(ctx, size): map a chunk of at least `size` payload bytes
-# and make it the current one.
+# arena_new_chunk(ctx, size, check): map a chunk of at least `size`
+# payload bytes and make it the current one. check: E_MEMORY if the arena
+# would pass the context's limit (the context must be r15's then).
 FUNC arena_new_chunk
         ENTER
         mov rbx, rdi
@@ -144,7 +143,26 @@ FUNC arena_new_chunk
         mov rax, [rbx + CTX_ARENA_CHUNKSZ]
         cmp r12, rax
         cmovb r12, rax
-        xor edi, edi
+        test edx, edx
+        jz 1f
+        mov rax, [rbx + CTX_MEM_LIMIT]
+        test rax, rax
+        jz 1f
+        mov rcx, [rbx + CTX_HC_CAP]
+        shl rcx, 3                      # (the hash-cons table counts too)
+        add rcx, [rbx + CTX_ARENA_TOTAL]
+        add rcx, r12
+        cmp rcx, rax
+        ja .Lchunk_limit
+1:      cmp r12, ARENA_CHUNK_DEFAULT
+        jne 3f
+        call pool_pop                   # a chunk used before, zeroed
+        test rax, rax
+        jnz 4f
+        call chunk_map_huge             # a new one, on huge pages if it can
+        test rax, rax
+        jnz 4f
+3:      xor edi, edi
         mov rsi, r12
         mov edx, 3                      # PROT_READ | PROT_WRITE
         mov ecx, 0x22                   # MAP_PRIVATE | MAP_ANONYMOUS
@@ -153,16 +171,34 @@ FUNC arena_new_chunk
         call mmap@PLT
         cmp rax, -1
         je .Lchunk_fail
-        mov rcx, [rbx + CTX_ARENA_CHUNKS]
-        mov [rax + CHUNK_NEXT], rcx
+4:      mov rcx, [rbx + CTX_ARENA_CHUNKS]
+        test rcx, rcx
+        jz 5f
+        mov rdx, [rbx + CTX_ARENA_CUR]  # what the current chunk got used for
+        sub rdx, rcx
+        sub rdx, CHUNK_DATA
+        mov [rcx + CHUNK_USED], rdx
+5:      mov [rax + CHUNK_NEXT], rcx
         mov [rax + CHUNK_SIZE], r12
+        mov qword ptr [rax + CHUNK_USED], 0
         mov [rbx + CTX_ARENA_CHUNKS], rax
         lea rcx, [rax + CHUNK_DATA]
         mov [rbx + CTX_ARENA_CUR], rcx
         add rax, r12
         mov [rbx + CTX_ARENA_END], rax
-        add [rbx + CTX_ARENA_TOTAL], r12
-        LEAVE
+        mov rax, [rbx + CTX_ARENA_TOTAL]
+        add rax, r12
+        mov [rbx + CTX_ARENA_TOTAL], rax
+        cmp rax, [rbx + CTX_ARENA_PEAK]
+        jbe 2f
+        mov [rbx + CTX_ARENA_PEAK], rax
+2:      LEAVE
+.Lchunk_limit:
+        cmp rbx, r15
+        jne 1b                          # (not the thread's own context: no handler to go to)
+        mov edi, E_MEMORY
+        lea rsi, [rip + .Lmsg_limit]
+        call err_throw
 .Lchunk_fail:
         lea rdi, [rip + .Lmsg_oom]
         call rt_fatal
@@ -170,10 +206,26 @@ ENDF arena_new_chunk
 
         .section .rodata
 .Lmsg_oom: .asciz "panoramix-asm: out of memory (mmap failed)"
+.Lmsg_limit: .asciz "out of memory: a function's memory limit was reached (PANORAMIX_MAX_MEMORY)"
+.Lmsg_recursion: .asciz "maximum recursion depth exceeded"
         .text
 
 # arena_alloc_ctx(ctx, size) -> rax: 16-byte aligned, zeroed memory
+# (E_MEMORY past the context's limit)
 FUNC arena_alloc_ctx
+        mov edx, 1
+        jmp arena_alloc_check
+ENDF arena_alloc_ctx
+
+# arena_alloc_nl(ctx, size) -> rax: the same, never past a limit (GMP's
+# allocations: GMP can't be left in the middle of an operation)
+FUNC arena_alloc_nl
+        xor edx, edx
+        jmp arena_alloc_check
+ENDF arena_alloc_nl
+
+# arena_alloc_check(ctx, size, check) -> rax
+FUNC arena_alloc_check
         ENTER
         mov rbx, rdi
         add rsi, 15
@@ -192,52 +244,261 @@ FUNC arena_alloc_ctx
         lea rcx, [rax + r12]
         mov [rbx + CTX_ARENA_CUR], rcx
         LEAVE
-ENDF arena_alloc_ctx
+ENDF arena_alloc_check
+
+# mem_limit_for(threads) -> rax: the bytes a function's context may take
+# (CTX_MEM_LIMIT): PANORAMIX_MAX_MEMORY (MiB, 0 for no limit), else the
+# memory of the machine (or of its cgroup) shared by the threads and the
+# main one, 1 GiB at least. The worst functions of the corpora take
+# ~300 MiB; this is for the inputs that would take it all (python has no
+# limit, the kernel's OOM killer has one).
+FUNC mem_limit_for
+        ENTER
+        sub rsp, 80
+        mov rbx, rdi
+        lea rdi, [rip + .Ls_env_maxmem]
+        call getenv@PLT
+        test rax, rax
+        jz 1f
+        mov rdi, rax
+        xor esi, esi
+        mov edx, 10
+        call strtoull@PLT
+        shl rax, 20
+        jmp 9f
+1:      mov edi, 85                     # _SC_PHYS_PAGES
+        call sysconf@PLT
+        mov r12, rax
+        mov edi, 30                     # _SC_PAGESIZE
+        call sysconf@PLT
+        imul r12, rax
+        # cgroup v2: memory.max, "max" or a number of bytes
+        lea rdi, [rip + .Ls_cgroup_max]
+        xor esi, esi                    # O_RDONLY
+        xor eax, eax
+        call open@PLT
+        test eax, eax
+        js 3f
+        mov r13d, eax
+        mov edi, eax
+        mov rsi, rsp
+        mov edx, 63
+        call read@PLT
+        mov r14, rax
+        mov edi, r13d
+        call close@PLT
+        test r14, r14
+        jle 3f
+        mov byte ptr [rsp + r14], 0
+        movzx eax, byte ptr [rsp]
+        sub eax, '0'
+        cmp eax, 9
+        ja 3f                           # "max"
+        mov rdi, rsp
+        xor esi, esi
+        mov edx, 10
+        call strtoull@PLT
+        test rax, rax
+        jz 3f
+        cmp rax, r12
+        cmovb r12, rax
+3:      lea rcx, [rbx + 1]
+        mov rax, r12
+        xor edx, edx
+        div rcx
+        mov ecx, 1 << 30
+        cmp rax, rcx
+        cmovb rax, rcx
+9:      add rsp, 80
+        LEAVE
+ENDF mem_limit_for
+
+        .section .rodata
+.Ls_env_maxmem:  .asciz "PANORAMIX_MAX_MEMORY"
+.Ls_cgroup_max:  .asciz "/sys/fs/cgroup/memory.max"
+        .text
+
+# chunk_map_huge() -> rax: a new chunk of the default size, aligned on
+# 2 MiB and advised to be backed by huge pages (transparent huge pages:
+# a fault per 2 MiB instead of per 4 KiB - the arenas are touched
+# linearly and mostly used); 0 if the mapping failed
+FUNC chunk_map_huge
+        ENTER
+        xor edi, edi
+        mov esi, ARENA_CHUNK_DEFAULT + HUGE_PAGE
+        mov edx, 3                      # PROT_READ | PROT_WRITE
+        mov ecx, 0x22                   # MAP_PRIVATE | MAP_ANONYMOUS
+        mov r8, -1
+        xor r9d, r9d
+        call mmap@PLT
+        cmp rax, -1
+        je 8f
+        mov rbx, rax                    # the mapping
+        lea r12, [rax + HUGE_PAGE - 1]
+        and r12, -HUGE_PAGE             # the chunk, aligned
+        mov rsi, r12
+        sub rsi, rbx                    # the head to give back
+        jz 1f
+        mov rdi, rbx
+        call munmap@PLT
+1:      lea rdi, [r12 + ARENA_CHUNK_DEFAULT]
+        lea rsi, [rbx + ARENA_CHUNK_DEFAULT + HUGE_PAGE]
+        sub rsi, rdi                    # and the tail
+        jz 2f
+        call munmap@PLT
+2:      mov rdi, r12
+        mov esi, ARENA_CHUNK_DEFAULT
+        mov edx, 14                     # MADV_HUGEPAGE (a hint: its failure changes nothing)
+        call madvise@PLT
+        mov rax, r12
+        LEAVE
+8:      xor eax, eax
+        LEAVE
+ENDF chunk_map_huge
+
+# chunks_release(head, cur) -> rax: the bytes released. A context's chunks
+# (a list, `head` the current one, bump-allocated up to `cur`) go back:
+# those of the default size to the pool, zeroed where they were used,
+# the others (and those past the pool's size) to the system.
+FUNC chunks_release
+        ENTER
+        xor r14d, r14d                  # the bytes
+        mov rbx, rdi
+        test rbx, rbx
+        jz 9f
+        mov rax, rsi
+        sub rax, rbx
+        sub rax, CHUNK_DATA
+        mov [rbx + CHUNK_USED], rax
+1:      test rbx, rbx
+        jz 9f
+        mov r12, [rbx + CHUNK_NEXT]
+        mov r13, [rbx + CHUNK_SIZE]
+        add r14, r13
+        cmp r13, ARENA_CHUNK_DEFAULT
+        jne 2f
+        cmp qword ptr [rip + chunk_pool_count], CHUNK_POOL_MAX
+        jae 2f
+        lea rdi, [rbx + CHUNK_DATA]
+        xor esi, esi
+        mov rdx, [rbx + CHUNK_USED]
+        mov rax, ARENA_CHUNK_DEFAULT - CHUNK_DATA
+        cmp rdx, rax
+        cmova rdx, rax
+        call memset@PLT
+        mov rdi, rbx
+        call pool_push
+        jmp 3f
+2:      mov rdi, rbx
+        mov rsi, r13
+        call munmap@PLT
+3:      mov rbx, r12
+        jmp 1b
+9:      mov rax, r14
+        LEAVE
+ENDF chunks_release
+
+# the pool's lock: a spinlock (held for a few instructions)
+.macro POOL_LOCK
+        mov eax, 1
+.Lpl_spin\@:
+        xchg eax, [rip + chunk_pool_lock]
+        test eax, eax
+        jz .Lpl_got\@
+        pause
+        mov eax, 1
+        jmp .Lpl_spin\@
+.Lpl_got\@:
+.endm
+.macro POOL_UNLOCK
+        mov dword ptr [rip + chunk_pool_lock], 0
+.endm
+
+# pool_pop() -> rax: a zeroed chunk of the default size, or 0
+FUNC pool_pop
+        POOL_LOCK
+        mov rax, [rip + chunk_pool]
+        test rax, rax
+        jz 1f
+        mov rcx, [rax + CHUNK_NEXT]
+        mov [rip + chunk_pool], rcx
+        dec qword ptr [rip + chunk_pool_count]
+1:      POOL_UNLOCK
+        ret
+ENDF pool_pop
+
+# pool_push(chunk): into the pool (zeroed already)
+FUNC pool_push
+        POOL_LOCK
+        mov rax, [rip + chunk_pool]
+        mov [rdi + CHUNK_NEXT], rax
+        mov [rip + chunk_pool], rdi
+        inc qword ptr [rip + chunk_pool_count]
+        POOL_UNLOCK
+        ret
+ENDF pool_push
+
+# chunk_pool_trim(keep): the pool's chunks past `keep` back to the system
+FUNC chunk_pool_trim
+        ENTER
+        mov rbx, rdi
+1:      cmp [rip + chunk_pool_count], rbx
+        jbe 2f
+        call pool_pop
+        test rax, rax
+        jz 2f
+        mov rdi, rax
+        mov esi, ARENA_CHUNK_DEFAULT
+        call munmap@PLT
+        jmp 1b
+2:      LEAVE
+ENDF chunk_pool_trim
+
+# stack_overflow(): where STACK_CHECK goes (python's RecursionError)
+FUNC stack_overflow
+        mov edi, E_RECURSION
+        lea rsi, [rip + .Lmsg_recursion]
+        jmp err_throw
+ENDF stack_overflow
+
+# ctx_set_stack(): CTX_STACK_LOW of r15 from the calling thread's stack
+# (the recursions throw E_RECURSION a margin above its end)
+FUNC ctx_set_stack
+        ENTER
+        sub rsp, 80                     # a pthread_attr_t (56 bytes), the stack's address and size
+        call pthread_self@PLT
+        mov rdi, rax
+        mov rsi, rsp
+        call pthread_getattr_np@PLT
+        test eax, eax
+        jnz 9f
+        mov rdi, rsp
+        lea rsi, [rsp + 64]
+        lea rdx, [rsp + 72]
+        call pthread_attr_getstack@PLT
+        mov ebx, eax
+        mov rdi, rsp
+        call pthread_attr_destroy@PLT
+        test ebx, ebx
+        jnz 9f
+        mov rax, [rsp + 64]             # the lowest address
+        mov rcx, [rsp + 72]
+        cmp rcx, 4 * STACK_MARGIN
+        jb 9f                           # (a small stack: no check rather than a wrong one)
+        add rax, STACK_MARGIN
+        mov [r15 + CTX_STACK_LOW], rax
+9:      add rsp, 80
+        LEAVE
+ENDF ctx_set_stack
 
 # arena_alloc(size) -> rax, on the r15 context. Memory is zero (fresh mmap
-# pages are, and the arena is never reused without an arena_reset which
-# doesn't zero - so callers that reuse must not rely on it after a reset;
-# node constructors initialize every field anyway).
+# pages are, and the chunks of the pool are zeroed when they go back to it).
 FUNC arena_alloc
         mov rsi, rdi
         mov rdi, r15
         jmp arena_alloc_ctx
 ENDF arena_alloc
 
-# arena_reset(): drop every chunk but the first, rewind. Also empties the
-# hash-cons table (its nodes are gone).
-FUNC arena_reset
-        ENTER
-        mov r12, [r15 + CTX_ARENA_CHUNKS]
-1:      mov r13, [r12 + CHUNK_NEXT]
-        test r13, r13
-        jz 2f
-        mov rdi, r12
-        mov rsi, [r12 + CHUNK_SIZE]
-        sub [r15 + CTX_ARENA_TOTAL], rsi
-        call munmap@PLT
-        mov r12, r13
-        jmp 1b
-2:      mov [r15 + CTX_ARENA_CHUNKS], r12
-        lea rax, [r12 + CHUNK_DATA]
-        mov [r15 + CTX_ARENA_CUR], rax
-        mov rax, [r12 + CHUNK_SIZE]
-        add rax, r12
-        mov [r15 + CTX_ARENA_END], rax
-        mov rdi, [r15 + CTX_HC_TABLE]
-        xor esi, esi
-        mov rdx, [r15 + CTX_HC_CAP]
-        shl rdx, 3
-        call memset@PLT
-        mov qword ptr [r15 + CTX_HC_COUNT], 0
-        mov qword ptr [r15 + CTX_NODE_COUNT], 0
-        # the memo tables were in the arena
-        lea rdi, [r15 + CTX_MEMO]
-        xor esi, esi
-        mov edx, MEMO_COUNT * 8
-        call memset@PLT
-        LEAVE
-ENDF arena_reset
 
 # ctx_compact(root) -> rax: the root copied into a fresh arena and
 # hash-cons table, and everything else of the context's arena freed - the
@@ -253,6 +514,7 @@ FUNC ctx_compact
         mov rbx, rdi
         mov r12, [r15 + CTX_ARENA_CHUNKS]      # the old chunks
         mov r13, [r15 + CTX_HC_TABLE]          # the old table
+        mov r14, [r15 + CTX_ARENA_CUR]         # (how much of the current one got used)
         mov qword ptr [r15 + CTX_ARENA_CHUNKS], 0
         mov qword ptr [r15 + CTX_ARENA_CUR], 0
         mov qword ptr [r15 + CTX_ARENA_END], 0
@@ -290,17 +552,11 @@ FUNC ctx_compact
         call memo_import
         inc qword ptr [rsp + CC_SLOT]
         jmp 1b
-2:      mov qword ptr [rsp + CC_FREED], 0
-3:      test r12, r12
-        jz 4f
-        mov r14, [r12 + CHUNK_NEXT]
-        mov rdi, r12
-        mov rsi, [r12 + CHUNK_SIZE]
-        add [rsp + CC_FREED], rsi
-        call munmap@PLT
-        mov r12, r14
-        jmp 3b
-4:      mov rdi, r13
+2:      mov rdi, r12
+        mov rsi, r14
+        call chunks_release
+        mov [rsp + CC_FREED], rax
+        mov rdi, r13
         call free@PLT
         mov edi, LOG_DEBUG
         lea rsi, [rip + .Ls_mem_logname]
@@ -441,7 +697,7 @@ FUNC gmp_alloc
         call ctx_current
         mov rdi, rax
         mov rsi, rbx
-        call arena_alloc_ctx
+        call arena_alloc_nl
         LEAVE
 ENDF gmp_alloc
 
@@ -454,7 +710,7 @@ FUNC gmp_realloc
         call ctx_current
         mov rdi, rax
         mov rsi, r13
-        call arena_alloc_ctx
+        call arena_alloc_nl
         mov r14, rax
         mov rdi, rax
         mov rsi, rbx

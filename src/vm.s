@@ -1060,6 +1060,7 @@ ENDF mentions
 
 # mentions_c(exp, cstr) -> eax: a string anywhere in exp contains cstr
 FUNC mentions_c
+        STACK_CHECK
         test dil, 1
         jnz .Lmc_no
         test rdi, rdi
@@ -1123,6 +1124,7 @@ ENDF is_known
 
 # contains_value(exp, v) -> eax: v is exp or one of its subterms
 FUNC contains_value
+        STACK_CHECK
         cmp rdi, rsi
         je .Lcv_yes
         test dil, 1

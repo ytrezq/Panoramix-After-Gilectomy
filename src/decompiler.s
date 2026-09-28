@@ -32,6 +32,10 @@
 .Ls_loader_issue: .asciz "Loader issue: %s"
 .Ls_timed_out:  .asciz "the function took more than 3 minutes"
 .Ls_thread_failed: .asciz "pthread_create failed"
+.Ls_peak:       .asciz "%S: the arena took %u MiB at most"
+.Ls_peak_main:  .asciz "the contract: the arena took %u MiB at most"
+.Ls_failed:     .asciz "decompilation failed: %s"
+.Ls_failed_text: .asciz "decompilation failed: "
 .Ls_0x:         .asciz "0x"
 
         .set LOADER_TIMEOUT_NS, 60000000000
@@ -60,7 +64,21 @@
         .set DC_DONE, 32                # the jobs done (under the mutex)
         .set DC_MUTEX, 40               # pthread_mutex_t (40 bytes, zero-initialized)
         .set DC_COND, 80                # pthread_cond_t (48 bytes)
-        .set DC_SIZEOF, 128
+        .set DC_MEMLIMIT, 128           # CTX_MEM_LIMIT of the workers' contexts
+        .set DC_SIZEOF, 144
+
+        # the decompilation thread (decompile_run)
+        .set DR_CODE, 0
+        .set DR_LEN, 8
+        .set DR_THREADS, 16
+        .set DR_ONLY, 24
+        .set DR_OUT, 32
+        .set DR_CTX, 40                 # the main context
+        .set DR_STATUS, 48              # 0, or the error code
+        .set DR_MSG, 56                 # its message
+        .set DR_ATTR, 64                # pthread_attr_t (56 bytes)
+        .set DR_TID, 128
+        .set DR_SIZEOF, 144
 
         .text
 
@@ -189,6 +207,9 @@ FUNC decompile_worker
         mov [r12 + JB_CTX], rax
         mov rdi, rax
         call ctx_bind
+        call ctx_set_stack
+        mov rax, [rbx + DC_MEMLIMIT]
+        mov [r15 + CTX_MEM_LIMIT], rax
         call monotonic_ns
         mov [rsp + DW_START], rax
         mov edi, LOG_INFO
@@ -208,10 +229,10 @@ FUNC decompile_worker
         xor esi, esi
         call vm_new
         mov rdi, [r12 + JB_STACK]
-        call value_import
+        call value_import_root
         mov r13, rax
         mov rdi, [r12 + JB_KNOWN]
-        call value_import
+        call value_import_root
         mov rdi, [r12 + JB_TARGET]
         mov rsi, r13
         mov rdx, rax
@@ -236,6 +257,13 @@ FUNC decompile_worker
         mov rax, [r15 + CTX_ERR_MSG]
         mov [r12 + JB_ERRMSG], rax
 .Ldw_finish:
+        mov edi, LOG_DEBUG
+        lea rsi, [rip + .Ls_logname]
+        lea rdx, [rip + .Ls_peak]
+        mov rcx, [r12 + JB_HASH]
+        mov r8, [r15 + CTX_ARENA_PEAK]
+        shr r8, 20
+        call log_fmt
         # done: the main thread may import it
         lea rdi, [rbx + DC_MUTEX]
         call pthread_mutex_lock@PLT
@@ -421,6 +449,10 @@ FUNC decompile
         jnz 7f
         mov edi, 1
 7:      mov [rsp + DE_THREADS], rdi
+        call mem_limit_for
+        mov [r13 + DC_MEMLIMIT], rax
+        mov [r15 + CTX_CHILD_LIMIT], rax        # (the folder's contexts)
+        mov rdi, [rsp + DE_THREADS]
         shl rdi, 3
         call arena_alloc
         mov [rsp + DE_TIDS], rax
@@ -449,6 +481,20 @@ FUNC decompile
         jnz .Lde_thread_failed
         inc qword ptr [rsp + DE_I]
         jmp 8b
+.Lde_thread_failed:
+        # (no more threads: the ones there are do the work, or this one)
+        mov rax, [rsp + DE_I]
+        mov [rsp + DE_THREADS], rax
+        mov edi, LOG_WARNING
+        lea rsi, [rip + .Ls_logname]
+        lea rdx, [rip + .Ls_thread_failed]
+        call log_fmt
+        cmp qword ptr [rsp + DE_THREADS], 0
+        jne 9f
+        mov rdi, r13
+        call decompile_worker
+        mov rdi, r15
+        call ctx_bind                   # (the worker bound its contexts to this thread)
 9:      mov rdi, [rsp + DE_ATTR]
         call pthread_attr_destroy@PLT
         # the results, imported as they come (the contexts they are on
@@ -516,11 +562,14 @@ FUNC decompile
         mov rsi, [rsp + DE_OUT]
         call contract_text
 .Lde_ret:
+        mov edi, LOG_DEBUG
+        lea rsi, [rip + .Ls_logname]
+        lea rdx, [rip + .Ls_peak_main]
+        mov rcx, [r15 + CTX_ARENA_PEAK]
+        shr rcx, 20
+        call log_fmt
         add rsp, ERR_SIZEOF + 112
         LEAVE
-.Lde_thread_failed:
-        lea rdi, [rip + .Ls_thread_failed]
-        call rt_fatal
 
 # locals of decompile
 # eax: the function's name starts with only_func (or there's none)
@@ -586,7 +635,7 @@ FUNC decompile
         jnz 3f
         mov rdi, [rsp + ERR_SIZEOF]
         mov rdi, [rdi + JB_TRACE]
-        call value_import
+        call value_import_root
         mov [rsp + ERR_SIZEOF + 8], rax
         mov rdi, [rsp + ERR_SIZEOF]
         mov rdi, [rdi + JB_HASH]
@@ -686,6 +735,98 @@ FUNC job_order_lt
         movzx eax, al
         ret
 ENDF job_order_lt
+
+# decompile_run(code, len, threads, only_func, out) -> eax: decompile()
+# on a thread of its own, with a stack as big as the workers' (the folder
+# and the printer recurse as deep as the traces nest), under a handler
+# for what python lets through (an error in the postprocessing, where it
+# prints a traceback): 0, or the error code with the message in `out`
+# instead of the text. r15: the main context.
+FUNC decompile_run
+        ENTER
+        sub rsp, DR_SIZEOF
+        mov [rsp + DR_CODE], rdi
+        mov [rsp + DR_LEN], rsi
+        mov [rsp + DR_THREADS], rdx
+        mov [rsp + DR_ONLY], rcx
+        mov [rsp + DR_OUT], r8
+        mov [rsp + DR_CTX], r15
+        mov qword ptr [rsp + DR_STATUS], 0
+        lea rdi, [rsp + DR_ATTR]
+        call pthread_attr_init@PLT
+        lea rdi, [rsp + DR_ATTR]
+        mov esi, WORKER_STACK
+        call pthread_attr_setstacksize@PLT
+        lea rdi, [rsp + DR_TID]
+        lea rsi, [rsp + DR_ATTR]
+        lea rdx, [rip + decompile_thread]
+        mov rcx, rsp
+        call pthread_create@PLT
+        mov ebx, eax
+        lea rdi, [rsp + DR_ATTR]
+        call pthread_attr_destroy@PLT
+        test ebx, ebx
+        jnz 1f
+        mov rdi, [rsp + DR_TID]
+        xor esi, esi
+        call pthread_join@PLT
+        jmp 2f
+1:      mov rdi, rsp                    # (no thread: on this one)
+        call decompile_thread
+        mov rdi, r15
+        call ctx_bind
+2:      mov qword ptr [r15 + CTX_STACK_LOW], 0  # (that stack is gone)
+        mov eax, [rsp + DR_STATUS]
+        test eax, eax
+        jz 3f
+        mov rdi, [rsp + DR_OUT]         # the message instead of the text
+        call sb_reset
+        mov rdi, [rsp + DR_OUT]
+        lea rsi, [rip + .Ls_failed_text]
+        call sb_append_c
+        mov rdi, [rsp + DR_OUT]
+        mov rsi, [rsp + DR_MSG]
+        call sb_append_c
+        mov eax, [rsp + DR_STATUS]
+3:      add rsp, DR_SIZEOF
+        LEAVE
+ENDF decompile_run
+
+# decompile_thread(args) -> 0: the body of decompile_run's thread
+FUNC decompile_thread
+        push r15
+        ENTER
+        sub rsp, ERR_SIZEOF + 8         # (with r15 pushed: 8 mod 16 keeps rsp aligned)
+        mov rbx, rdi
+        mov r15, [rbx + DR_CTX]
+        mov rdi, r15
+        call ctx_bind
+        call ctx_set_stack
+        mov rdi, rsp
+        call err_catch
+        test eax, eax
+        jnz 1f
+        mov rdi, [rbx + DR_CODE]
+        mov rsi, [rbx + DR_LEN]
+        mov rdx, [rbx + DR_THREADS]
+        mov rcx, [rbx + DR_ONLY]
+        mov r8, [rbx + DR_OUT]
+        call decompile
+        call err_end
+        jmp 2f
+1:      mov [rbx + DR_STATUS], rax
+        mov rcx, [r15 + CTX_ERR_MSG]
+        mov [rbx + DR_MSG], rcx
+        mov edi, LOG_ERROR
+        lea rsi, [rip + .Ls_logname]
+        lea rdx, [rip + .Ls_failed]
+        call log_fmt
+2:      xor eax, eax
+        add rsp, ERR_SIZEOF + 8
+        LEAVE_NORET
+        pop r15
+        ret
+ENDF decompile_thread
 
 # --- the text ---
 

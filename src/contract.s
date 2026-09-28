@@ -491,7 +491,7 @@ FUNC make_ast
         ENTER
         mov rbx, rdi
         mov rdi, rsi
-        call fold
+        call fold_isolated
         mov rdi, rax
         lea rsi, [rip + store_to_set]
         xor edx, edx

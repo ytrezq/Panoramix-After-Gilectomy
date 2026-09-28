@@ -149,6 +149,7 @@ ENDF get_loc
 # loc_of(exp) -> value or 0: the num of the first ('loc', num) or
 # ('name', _, num) in a tuple, without entering storage references
 FUNC loc_of
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE
         mov rbx, rdi
@@ -206,6 +207,7 @@ ENDF get_name
 
 # name_of(exp) -> ('name', name, _) or 0, like loc_of
 FUNC name_of
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         call is_tuple
@@ -243,6 +245,7 @@ ENDF name_of
 # off, idx)) of the stores and reads in exp, each once (a set: out is a
 # vec without duplicates)
 FUNC find_stores
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE
         mov rbx, rdi
@@ -421,6 +424,7 @@ ENDF simplify_sha3
 # stor_internal_f(exp, f) -> value: f applied bottom-up to the tuples,
 # without entering storage references
 FUNC stor_internal_f
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -1179,6 +1183,7 @@ ENDF sparser
 # repl_res(exp, res) -> value: the storage references replaced by their
 # definitions, inside the definitions too
 FUNC repl_res
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -1723,6 +1728,7 @@ ENDF replace_names_in_assoc_bool
 # repl_stor(exp, assoc) -> value: the storage references of a trace
 # replaced by their definitions
 FUNC repl_stor
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 16
         mov rbx, rdi

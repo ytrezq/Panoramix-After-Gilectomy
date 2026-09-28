@@ -10,6 +10,7 @@
         .section .rodata
 .Ls_logname:        .asciz "panoramix.folder"
 .Ls_folder_failed:  .asciz "folder failed in a function: %s"
+.Ls_fold_peak:      .asciz "the fold took %u MiB at most"
 .Ls_assert_or:      .asciz "folder: an or with more than two sides"
 .Ls_assert_cond:    .asciz "folder: the conditions of the two sides don't match"
 .Ls_assert_if:      .asciz "folder: an if of the wrong shape"
@@ -30,6 +31,7 @@
 # fold(trace) -> list: the folded trace (the trace itself when folding
 # fails, which is logged)
 FUNC fold
+        STACK_CHECK
         ENTER
         sub rsp, ERR_SIZEOF + 16
         mov rbx, rdi
@@ -66,6 +68,91 @@ FUNC fold
         lea rsi, [rip + .Ls_assert_merged]
         call err_throw
 ENDF fold
+
+        # what a fold may take: the corpora's take 24 MiB at most, the
+        # paths of 700 nested ifs 4 GiB (python stops at a RecursionError)
+        .set FOLD_LIMIT, 1 << 30
+
+# fold_isolated(trace) -> list: fold(trace) on a context of its own, the
+# result imported back. The folder slices its paths over and over (python
+# frees the slices, an arena keeps them), so its garbage goes with that
+# context; and when the paths are too many for the memory given to a
+# function (E_MEMORY: 2000 nested ifs make 2000 paths of up to 2000
+# lines, sliced at every level), or nest too deep (E_RECURSION), the
+# trace is left unfolded, as python does when folding fails.
+FUNC fold_isolated
+        push r15
+        ENTER
+        sub rsp, ERR_SIZEOF + 24        # (with r15 pushed: 8 mod 16 keeps rsp aligned)
+        .set FI_TRACE, ERR_SIZEOF
+        .set FI_MAIN, ERR_SIZEOF + 8
+        .set FI_CTX, ERR_SIZEOF + 16
+        mov [rsp + FI_TRACE], rdi
+        mov [rsp + FI_MAIN], r15
+        call ctx_new                    # (bound to this thread)
+        mov [rsp + FI_CTX], rax
+        mov rcx, [r15 + CTX_CHILD_LIMIT]
+        mov rdx, FOLD_LIMIT
+        test rcx, rcx
+        cmovz rcx, rdx
+        cmp rcx, rdx
+        cmova rcx, rdx
+        mov [rax + CTX_MEM_LIMIT], rcx
+        mov rcx, [r15 + CTX_STACK_LOW]
+        mov [rax + CTX_STACK_LOW], rcx
+        mov rcx, [r15 + CTX_LOADER]
+        mov [rax + CTX_LOADER], rcx
+        mov rcx, [r15 + CTX_FUNC]
+        mov [rax + CTX_FUNC], rcx
+        mov r15, rax
+        mov rdi, rsp
+        call err_catch
+        test eax, eax
+        jnz .Lfi_failed
+        mov rdi, [rsp + FI_TRACE]
+        call value_import_root
+        mov rdi, rax
+        call fold
+        mov rbx, rax
+        call err_end
+        mov r15, [rsp + FI_MAIN]
+        mov rdi, r15
+        call ctx_bind
+        mov rdi, rbx
+        call value_import_root
+        mov rbx, rax
+        mov edi, LOG_DEBUG
+        lea rsi, [rip + .Ls_logname]
+        lea rdx, [rip + .Ls_fold_peak]
+        mov rcx, [rsp + FI_CTX]
+        mov rcx, [rcx + CTX_ARENA_PEAK]
+        shr rcx, 20
+        call log_fmt
+        mov rdi, [rsp + FI_CTX]
+        call ctx_free
+        mov rax, rbx
+        add rsp, ERR_SIZEOF + 24
+        LEAVE_NORET
+        pop r15
+        ret
+.Lfi_failed:
+        mov rbx, [r15 + CTX_ERR_MSG]
+        mov r15, [rsp + FI_MAIN]
+        mov rdi, r15
+        call ctx_bind
+        mov edi, LOG_ERROR
+        lea rsi, [rip + .Ls_logname]
+        lea rdx, [rip + .Ls_folder_failed]
+        mov rcx, rbx
+        call log_fmt
+        mov rdi, [rsp + FI_CTX]
+        call ctx_free
+        mov rax, [rsp + FI_TRACE]
+        add rsp, ERR_SIZEOF + 24
+        LEAVE_NORET
+        pop r15
+        ret
+ENDF fold_isolated
 
 # has_merged_if(exp) -> eax: a ('merged_if', ...) anywhere
 FUNC has_merged_if
@@ -142,6 +229,7 @@ ENDF replace_head
 # as_paths(trace) -> list of paths: the trace unfolded into the
 # branchless paths the contract can take, the ifs turned into conditions
 FUNC as_paths
+        STACK_CHECK
         ENTER
         lea rsi, [rip + make_fands]
         xor edx, edx
@@ -163,6 +251,7 @@ ENDF as_paths
 # as_paths_f(trace, path, out): the paths of the trace appended to out,
 # each starting with the lines of path (a vec, left as it was)
 FUNC as_paths_f
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -284,6 +373,7 @@ ENDF car_opcode
 
 # fold_aux(trace) -> list
 FUNC fold_aux
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 48
         .set FA_OUT, MATCH_BINDINGS_SIZE
@@ -608,6 +698,7 @@ ENDF meta_fold_paths
 # ends_exec(path) -> eax: the last line ends the execution (a two-sided
 # or: both sides do)
 FUNC ends_exec
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         cmp dword ptr [rbx + N_AUX], 0
@@ -643,6 +734,7 @@ ENDF ends_exec
 # flatten(path) -> list: the ors whose first side ends the execution
 # become an if without an else
 FUNC flatten
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -783,6 +875,7 @@ ENDF try_merge
 # cleanup_ors(path) -> list: the conditions leave the ors (the second
 # side's, which is the negation of the first's)
 FUNC cleanup_ors
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -905,6 +998,7 @@ ENDF comp_bool_check
 # make_ifs(path) -> list: the ors become ifs, the first line of a side
 # being its condition
 FUNC make_ifs
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -961,6 +1055,7 @@ ENDF make_ifs
 # merge_ifs(path) -> list: if-else sections with the same beginnings get
 # the common lines moved before the if
 FUNC merge_ifs
+        STACK_CHECK
         ENTER
         sub rsp, 32
         mov rbx, rdi
@@ -1101,6 +1196,7 @@ ENDF or_key
 
 # folder_or(args, count) -> ('or', ...): the lists ANDed, the ors flattened
 FUNC folder_or
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -1149,6 +1245,7 @@ ENDF folder_or
 # folder_and(args, count) -> list (or an or of lists when an argument is
 # an or): the arguments concatenated, without ors inside
 FUNC folder_and
+        STACK_CHECK
         ENTER
         sub rsp, 32
         mov rbx, rdi
@@ -1523,6 +1620,7 @@ ENDF sort_by_length_desc
 # fold_paths(paths) -> list: merges the beginnings and the endings of the
 # paths recursively
 FUNC fold_paths
+        STACK_CHECK
         ENTER
         sub rsp, 64
         .set FP_OR, 0
@@ -1690,6 +1788,7 @@ ENDF list_prepend
 # fold_or(('or', paths...), &out): out[0] = the or of the two stretches
 # that split the paths in two, out[1] = the paths left to fold
 FUNC fold_or
+        STACK_CHECK
         ENTER
         sub rsp, 80
         .set FO_OUT, 0

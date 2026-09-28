@@ -20,7 +20,11 @@ int pan_init(void);
  * `python -m panoramix` prints it, in *out (a NUL-terminated, malloc'ed
  * string of *outlen bytes, released with pan_free). threads: the number
  * of functions decompiled at once (1 or more). only_func: NULL, or only
- * the functions whose name starts with it. Returns 0. */
+ * the functions whose name starts with it. Returns 0, or -1 when the
+ * decompilation failed where python would have raised (a function that
+ * fails is reported in the text instead, as python does); *out is the
+ * message then. PANORAMIX_MAX_MEMORY (MiB) caps the memory one function
+ * may take (by default the machine's, shared by the threads). */
 int pan_decompile(const uint8_t *code, size_t len, size_t threads,
                   const char *only_func, char **out, size_t *outlen);
 

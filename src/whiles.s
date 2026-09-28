@@ -43,6 +43,7 @@ ENDF drop_jumpdests
 
 # whiles_make(trace) -> list
 FUNC whiles_make
+        STACK_CHECK
         ENTER
         sub rsp, 112                    # res, line, the error handler, before, inside, remaining, cond
         mov rbx, rdi
@@ -235,6 +236,7 @@ ENDF goes_to
 # walk_collect_lines(exp, f, out): f(x, 0, out) for every tuple and list
 # in exp, depth first (find_f_list with a collecting f)
 FUNC walk_collect_lines
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -334,15 +336,14 @@ FUNC to_while
         # the path loops back unconditionally: the exits, if any, are the
         # reverts and returns along the way. ([], add_path([line]), rest, True)
         call .Ltw_rest
-        mov [rsp + 24], rax
+        mov [rsp + 32], rax             # remaining
         mov rdi, r12
         call mk_list1
         mov rdi, rax
-        lea rsi, [rip + add_path]
         call .Ltw_rewrite_with_path
-        mov [rsp + 16], rax
+        mov [rsp + 24], rax             # inside
         call .Ltw_empty
-        mov [rsp + 32], rax
+        mov [rsp + 16], rax             # before
         LOADS rdi, BOOL
         mov esi, 3
         call mk2

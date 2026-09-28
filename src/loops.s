@@ -277,6 +277,7 @@ ENDF loop_vars_of
 # normalize(cond) -> value or 0: the condition as (le/ge, ('var', int),
 # bound), when it's about one loop variable
 FUNC normalize
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 16
         mov rbx, rdi
@@ -607,6 +608,7 @@ ENDF parse_counters
 
 # collect_setmems(line, arg, out): find_setmems' check (walk_trace)
 FUNC collect_setmems
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE
         mov rbx, rdi
@@ -635,6 +637,7 @@ ENDF collect_setmems
 
 # find_setmems(trace) -> list: the setmems of the trace, nested loops included
 FUNC find_setmems
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         call vec_new
@@ -791,6 +794,7 @@ ENDF while_max_memidx
 # setmems_at_bounds(lines, pc) -> rax, rdx: the lines (setmems or mems)
 # with every loop variable at its start value, and at its end value
 FUNC setmems_at_bounds
+        STACK_CHECK
         ENTER
         sub rsp, 32
         mov [rsp], rdi                  # begin
@@ -841,6 +845,7 @@ ENDF extract_paths
 
 # extract_paths_f(trace, so_far) -> list of paths
 FUNC extract_paths_f
+        STACK_CHECK
         ENTER
         sub rsp, 32
         mov rbx, rdi
@@ -971,6 +976,7 @@ ENDF extract_setmems
 # continue is reachable from the end of the trace; *reach whether there
 # are paths through it that reach one
 FUNC extract_setmems_f
+        STACK_CHECK
         ENTER
         sub rsp, 48
         mov rbx, rdi
@@ -1084,6 +1090,7 @@ ENDF vec_push_unique
 # of a loop with known counters, whether the memory index overlaps any
 # of them over the whole run of the loop
 FUNC ranges_overlap_at_bounds
+        STACK_CHECK
         ENTER
         sub rsp, 32
         mov rbx, rdi
@@ -1162,6 +1169,7 @@ ENDF ranges_overlap_any
 
 # while_touches_mem(line, mem_idx) -> eax: the loop may write the memory
 FUNC while_touches_mem
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -1316,6 +1324,7 @@ FUNC vars_in_expr
 ENDF vars_in_expr
 
 FUNC vars_in_expr_into
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE
         mov rbx, rdi
@@ -1348,6 +1357,7 @@ ENDF vars_in_expr_into
 # only_add_in_expr(op) -> eax: the expression only adds things to
 # variables (sha3 of a constant allowed)
 FUNC only_add_in_expr
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE
         mov rbx, rdi
@@ -1406,6 +1416,7 @@ ENDF only_add_in_expr
 # storage_sha3(value) -> value or 0: a sha3 (of something that isn't a
 # small int) among the terms of a sum
 FUNC storage_sha3
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE
         mov rbx, rdi

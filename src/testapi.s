@@ -641,6 +641,7 @@ FUNC count_wildcards
 ENDF count_wildcards
 
 FUNC collect_wildcards
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi

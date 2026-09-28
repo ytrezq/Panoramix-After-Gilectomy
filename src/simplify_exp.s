@@ -17,6 +17,7 @@
 # simplify_exp(exp) -> value (memoized; python's None for a zero-length
 # memory read is sp_none)
 FUNC simplify_exp
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         test dil, 1
@@ -109,6 +110,7 @@ ENDF int_shl_bits
 
 # simplify_exp_impl(exp) -> value, for a tuple
 FUNC simplify_exp_impl
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 64
         .set SE_TMP, MATCH_BINDINGS_SIZE
@@ -672,6 +674,7 @@ ENDF simplify_exp_impl
 
 # simplify_exp_cb(x, arg) -> simplify_exp(x)
 FUNC simplify_exp_cb
+        STACK_CHECK
         jmp simplify_exp
 ENDF simplify_exp_cb
 
@@ -874,6 +877,7 @@ ENDF seq_index_from1
 # simplify_add_terms(('add', ...)) -> add_op over the simplified terms,
 # the nested adds flattened
 FUNC simplify_add_terms
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -913,6 +917,7 @@ ENDF simplify_add_terms
 # simplified, the nested datas flattened, and the masks next to each
 # other that make one merged
 FUNC simplify_data
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 48
         .set SD_RES, MATCH_BINDINGS_SIZE
@@ -1148,6 +1153,7 @@ ENDF simplify_mask
 # cleanup_mask_data(exp) -> value: for a mask over some data, removes the
 # pieces of data that for sure won't fit into the mask
 FUNC cleanup_mask_data
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 32
         .set CM_PREV, MATCH_BINDINGS_SIZE
@@ -1288,6 +1294,7 @@ ENDF cleanup_mask_right
 # cleanup_mask_left(('mask_shl', size, offset, shl, val)): removes the
 # first elements of a data cut off by size + offset
 FUNC cleanup_mask_left
+        STACK_CHECK
         ENTER
         sub rsp, 32
         mov rbx, rdi

@@ -117,6 +117,7 @@ ENDF py_sort
 # py_lt(a, b, arg) -> eax: python's a < b for ints, strings, tuples and
 # lists; anything else raises TypeError (E_TYPE)
 FUNC py_lt
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi

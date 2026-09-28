@@ -71,12 +71,17 @@ is the CLI, `build/panoramix_asm*.so` the module.
 - Tuples and lists are hash-consed per thread (`mk_seq`): equal
   structures are the same pointer, so structural equality is `cmp`,
   and memo tables can be keyed by pointer. Strings are interned
-  globally. Big ints (`K_INT`, GMP mpz inside) are compared by value
-  (`values_equal`), small ints are inline.
-- Memory: each thread has an arena (mmap'ed chunks, bump allocation)
-  holding every node made while decompiling one function, and GMP's
-  allocations are routed to it. `arena_reset` frees it all at once.
-  Text results are malloc'ed and freed by the caller (`pan_free`).
+  globally, big ints (`K_INT`, GMP mpz inside) per context (the same
+  table as the tuples), small ints are inline. Only the process-wide
+  constants (made on the global context) need `values_equal`.
+- Memory: each function is decompiled on a context of its own, whose
+  arena (4 MiB chunks, bump allocation) holds every node it makes; GMP's
+  allocations are routed to it. The context is freed at once when the
+  function is done: its chunks go back to a pool (zeroed where they were
+  used), where the next contexts take them from - fresh pages cost a
+  fault each, which was half of the time on the bigger contracts; new
+  chunks are aligned on 2 MiB and advised as huge pages. Text results
+  are malloc'ed and freed by the caller (`pan_free`).
 - Opcode strings (tuple heads like `add`, `mask_shl`, `if`...) carry an
   id in their node (`N_AUX`), so dispatch on a tuple's opcode is a jump
   table: `opcode_of(v)` then `JT_SWITCH` / `JT_CASE` / `JT_END` (a table
@@ -92,7 +97,16 @@ is the CLI, `build/panoramix_asm*.so` the module.
 - Where python raises, `err_throw(code, msg)` unwinds to the innermost
   `err_catch` (setjmp-like, `rt_err.s`); every place python has a
   try/except has one. The test entry point reports them as
-  `<exc code: message>`.
+  `<exc code: message>`. Two come from the runtime: `E_RECURSION`
+  (python's `RecursionError`) from `STACK_CHECK`, at the entry of every
+  recursive function (`tools/recursion.py` finds them: the cycles of
+  the call graph, callbacks included, and `make check` verifies that
+  none lacks it), when the stack gets within 1 MiB of its end; and
+  `E_MEMORY` (`MemoryError`) when a function's context passes
+  `CTX_MEM_LIMIT`. Where python lets an exception through (the
+  postprocessing), `decompile_run` catches it and the text is the
+  error's message; the decompilation runs on a thread of its own, with
+  a stack as big as the workers' (64 MiB).
 - `decompile()` runs the functions on a pool of threads: each function
   gets a context of its own, and its trace is imported into the main
   thread's context (`value_import`: hash-consed again, big ints copied)
@@ -102,7 +116,7 @@ is the CLI, `build/panoramix_asm*.so` the module.
   that go into expressions - equal text, same node) and arena strings
   (`str_new`: the text being built for display, freed with the arena).
   Anything compared by pointer inside expressions must be interned.
-- Python's floats appear in two places (2 ** shl below zero, in
+- Python's floats appear in a few places (2 ** shl below zero, in
   prettify and sparser's mask_to_mul); they are carried as the interned
   text of their repr, flagged `STR_FLOAT` (printed bare, parsed from the
   tests' literals), which is all that is done with them.
@@ -113,6 +127,15 @@ is the CLI, `build/panoramix_asm*.so` the module.
   `hash_seq` ORs them up. `mentions(exp, HF_x)` is what python does with
   `"mem" in str(exp)` (a walk, every time): the simplifier asks it
   millions of times.
+- The folder (`fold_isolated`) runs on a context of its own too: python
+  slices its lists of paths at every level and frees the slices, an
+  arena keeps them (n nested ifs: n^3 bytes), so its garbage goes with
+  that context, and past 1 GiB (700 nested ifs, where python stops at
+  a RecursionError) the trace is left unfolded, as python does when
+  folding fails. The corpora's folds take 24 MiB at most.
+- Python's floats: `2 ** k` for a negative k (the masks' printing), as
+  the shortest decimal that reads back as the double (`float_repr`,
+  python's repr), carried as a string flagged `STR_FLOAT`.
 - The variants of an expression (`add_ge_zero`) substitute all the
   variables at once (`replace_many`), an outer expression before the ones
   it contains; python did them one by one in the order of a set, so its
@@ -151,11 +174,23 @@ is the CLI, `build/panoramix_asm*.so` the module.
 
 ## Testing
 
-`make check` runs the C example and `tests/run_corpus.sh`: the 30
-contracts of `tests/corpus` (mainnet bytecode, see `SOURCES`) against
-python's output in `tests/corpus/expected` (pypy's `python -m
-panoramix`, colors removed, with the signature database, which the
-script builds from panoramix's `data/abi_dump.xz`). It needs no python.
+`make check` runs the C example, `tests/run_corpus.sh` and
+`tests/robustness.sh`. The first compares the 30 contracts of
+`tests/corpus` (mainnet bytecode, see `SOURCES`) and the programs of
+`tests/synthetic` (each one a difference the port had) with python's
+output in their `expected` directories (pypy's `python -m panoramix`,
+colors removed, with the signature database, which the script builds
+from panoramix's `data/abi_dump.xz`). The second feeds it inputs that
+must not take it down (thousands of nested ifs, a 20000-deep
+expression, a function past its memory limit).
+
+`tests/difffuzz.py SEED COUNT` is a differential fuzzer: random
+solidity-like programs (a selector dispatch; functions of storage and
+memory writes, ifs, requires, loops, logs, calls, returns over random
+expressions) decompiled by pypy and by the port, the texts compared, the
+programs that differ kept in `build/difffuzz`. It found the loops
+without an exit condition, masks with offsets past 2^62, and python's
+floats in `Mask(-744, ...)`.
 
 Every layer also has a differential test against the python
 implementation on the corpus (`tests/test_*.py`, run with the system

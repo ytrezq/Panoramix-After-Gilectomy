@@ -29,6 +29,16 @@ an example).
 The signature database goes to `$PANORAMIX_SIGDB`, or
 `$XDG_CACHE_HOME/panoramix/abi_db.bin`, or `~/.cache/panoramix/abi_db.bin`.
 `PANORAMIX_LOG=debug|warning|error` sets the log level (coloredlogs'
-format), `PANORAMIX_ISA=scalar|avx2|avx512` forces the vector loops.
+format), `PANORAMIX_ISA=scalar|avx2|avx512` forces the vector loops,
+`PANORAMIX_MAX_MEMORY` caps what one function may take (MiB; by default
+the machine's memory shared by the threads): a function past it is
+reported as a problem, as python does with the ones that fail.
+
+Inputs no compiler would make (thousands of nested ifs, expressions
+thousands deep) don't take the process down: the recursions stop at
+python's `RecursionError` instead of running off the stack, the folder
+gives up past 1 GiB, and an error where python would print a traceback
+(in the postprocessing) comes back as one (`pan_decompile` returns -1,
+the module raises `RuntimeError`).
 
 See `docs/DESIGN.md` for the layout, the conventions and the tests.

@@ -977,6 +977,7 @@ ENDF tuple_count
 
 # arith_eval(exp) -> value
 FUNC arith_eval
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         call is_tuple
@@ -1052,6 +1053,7 @@ ENDF arith_eval
 # is_volatile(exp) -> eax: mentions storage, balances, calls... (a string
 # node flagged STR_VOLATILE anywhere in the tree)
 FUNC is_volatile
+        STACK_CHECK
         test dil, 1
         jnz .Liv_no
         test rdi, rdi
@@ -1180,6 +1182,7 @@ ENDF eval_symbolic
 # arith_and_n(count, elems) -> value: arithmetic.and_op (flattens `and`s,
 # folds ints)
 FUNC arith_and_n
+        STACK_CHECK
         ENTER
         mov r12, rdi
         mov r13, rsi
@@ -1272,6 +1275,7 @@ ENDF mk_bool_of
 
 # is_zero(exp) -> value (sp_true/sp_false for ints, like python's bools)
 FUNC is_zero
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         call is_int
@@ -1393,6 +1397,7 @@ ENDF iszero_swap_init
 
 # simplify_bool(exp) -> value
 FUNC simplify_bool
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         call opcode_of
@@ -1469,6 +1474,7 @@ ENDF is_special
 
 # eval_bool(exp, known_true, symbolic) -> eax: TRI_TRUE / TRI_FALSE / TRI_NONE
 FUNC eval_bool
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi                    # exp

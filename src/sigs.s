@@ -485,6 +485,7 @@ ENDF try_fname
 # of a calldata parameter (a green string), or the ('cd', loc) itself when
 # there is no name for it
 FUNC get_param_name
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 16
         .set GP_INPUTS, MATCH_BINDINGS_SIZE

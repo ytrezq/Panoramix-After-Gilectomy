@@ -376,6 +376,7 @@ ENDF all_ints
 
 # cleanup_mul_1(exp) -> value: ('mul', 1, x) -> x, recursively
 FUNC cleanup_mul_1
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         test dil, 1
@@ -510,6 +511,7 @@ ENDF alg_or2
 
 # alg_minus_op(exp) -> value
 FUNC alg_minus_op
+        STACK_CHECK
         mov rsi, rdi
         mov rdi, -1
         TAG rdi
@@ -518,6 +520,7 @@ ENDF alg_minus_op
 
 # alg_sub_op(left, right) -> value
 FUNC alg_sub_op
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -557,6 +560,7 @@ ENDF alg_sub_op
 
 # alg_mul2(a, b) -> value: mul_op(a, b)
 FUNC alg_mul2
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov [rsp], rdi
@@ -570,6 +574,7 @@ ENDF alg_mul2
 
 # alg_mul_n(count, args) -> value: mul_op(*args)
 FUNC alg_mul_n
+        STACK_CHECK
         ENTER
         sub rsp, 32
         mov rbx, rdi                    # count
@@ -819,6 +824,7 @@ ENDF flatten_adds
 
 # alg_add2(a, b) -> value: add_op(a, b)
 FUNC alg_add2
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov [rsp], rdi
@@ -832,6 +838,7 @@ ENDF alg_add2
 
 # alg_add3(a, b, c)
 FUNC alg_add3
+        STACK_CHECK
         ENTER
         sub rsp, 32
         mov [rsp], rdi
@@ -846,6 +853,7 @@ ENDF alg_add3
 
 # alg_add_n(count, args) -> value: add_op(*args), memoized on the args
 FUNC alg_add_n
+        STACK_CHECK
         ENTER
         sub rsp, 48
         mov rbx, rdi
@@ -905,6 +913,7 @@ ENDF alg_add_n
 
 # add_op_impl(count, args) -> value
 FUNC add_op_impl
+        STACK_CHECK
         ENTER
         sub rsp, 48
         mov rbx, rdi
@@ -1181,6 +1190,7 @@ ENDF mk_mul
 
 # alg_try_add(self, other) -> value or NIL
 FUNC alg_try_add
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -1231,6 +1241,7 @@ ENDF alg_try_add
 # try_add_2(self, other): __try_add - normalizes ('mul', num, mask_shl with
 # shl > 0) then _try_add
 FUNC try_add_2
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -1290,6 +1301,7 @@ ENDF try_add_norm
 
 # try_add_1(self, other): _try_add
 FUNC try_add_1
+        STACK_CHECK
         ENTER
         sub rsp, 48
         mov rbx, rdi                    # self
@@ -1687,6 +1699,7 @@ ENDF strip_full_mask
 
 # alg_mask_op(exp, size, offset, shl, shr) -> value, memoized
 FUNC alg_mask_op
+        STACK_CHECK
         ENTER
         sub rsp, 64
         mov [rsp], rdi                  # exp
@@ -1735,6 +1748,7 @@ ENDF alg_mask_op
 
 # mask_op_impl(exp, size, offset, shl, shr) -> value
 FUNC mask_op_impl
+        STACK_CHECK
         ENTER
         sub rsp, 64
         mov rbx, rdi                    # exp
@@ -1874,6 +1888,7 @@ ENDF mask_op_impl
 
 # apply_mask_to_storage(exp, size, offset, shl) -> value, or NIL (python's None)
 FUNC apply_mask_to_storage
+        STACK_CHECK
         ENTER
         sub rsp, 32
         mov rbx, rdi                    # ('storage', stor_size, stor_offset, stor_idx)
@@ -1962,6 +1977,7 @@ ENDF apply_mask_to_storage
 .set MM_EXP, 48
 
 FUNC mask_mask_op
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov edi, 6
@@ -2006,12 +2022,32 @@ FUNC mask_mask_op
 9:      LEAVE
 ENDF mask_mask_op
 
-# strategy_concrete(params) -> value (all small ints)
+# strategy_concrete(params) -> value (all ints). The six in [-2^59, 2^59),
+# in registers (the results stay small ints); else strategy_concrete_big.
 FUNC strategy_concrete
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
-        mov rdi, [rbx + MM_OFFSET]
+        xor ecx, ecx
+        mov rdx, 1 << 59
+        mov rsi, 1 << 60
+0:      mov rax, [rbx + rcx*8]
+        test al, 1
+        jz 1f                           # a big int
+        sar rax, 1
+        add rax, rdx
+        cmp rax, rsi
+        jae 1f                          # out of [-2^59, 2^59)
+        inc ecx
+        cmp ecx, 6
+        jb 0b
+        jmp 2f
+1:      mov rdi, rbx
+        call strategy_concrete_big
+        add rsp, 16
+        LEAVE
+2:      mov rdi, [rbx + MM_OFFSET]
         sar rdi, 1
         mov rsi, [rbx + MM_SIZE]
         sar rsi, 1
@@ -2061,8 +2097,96 @@ FUNC strategy_concrete
         LEAVE
 ENDF strategy_concrete
 
+# strategy_concrete_big(params) -> value: strategy_concrete with python's
+# integers (int_add, int_cmp: big ints, no overflow)
+FUNC strategy_concrete_big
+        STACK_CHECK
+        ENTER
+        sub rsp, 48
+        .set SB_OUTER_LEFT, 0
+        .set SB_INNER_LEFT, 8
+        .set SB_INNER_RIGHT, 16
+        .set SB_LEFT, 24
+        .set SB_RIGHT, 32
+        mov rbx, rdi
+        mov rdi, [rbx + MM_OFFSET]
+        mov rsi, [rbx + MM_SIZE]
+        call int_add
+        mov [rsp + SB_OUTER_LEFT], rax
+        mov rdi, [rbx + MM_EOFFSET]
+        mov rsi, [rbx + MM_ESIZE]
+        call int_add
+        mov rdi, rax
+        mov rsi, [rbx + MM_ESHL]
+        call int_add
+        mov [rsp + SB_INNER_LEFT], rax
+        mov rdi, [rbx + MM_EOFFSET]
+        mov rsi, [rbx + MM_ESHL]
+        call int_add
+        mov [rsp + SB_INNER_RIGHT], rax
+        # inner_left <= inner_right, inner_left <= outer_right: 0
+        mov rdi, [rsp + SB_INNER_LEFT]
+        mov rsi, [rsp + SB_INNER_RIGHT]
+        call int_cmp
+        cmp eax, 0
+        jle .Lsb_zero
+        mov rdi, [rsp + SB_INNER_LEFT]
+        mov rsi, [rbx + MM_OFFSET]
+        call int_cmp
+        cmp eax, 0
+        jle .Lsb_zero
+        # left = min(outer_left, inner_left), right = max(outer_right, inner_right)
+        mov rax, [rsp + SB_OUTER_LEFT]
+        mov [rsp + SB_LEFT], rax
+        mov rdi, [rsp + SB_INNER_LEFT]
+        mov rsi, rax
+        call int_cmp
+        cmp eax, 0
+        jge 1f
+        mov rax, [rsp + SB_INNER_LEFT]
+        mov [rsp + SB_LEFT], rax
+1:      mov rax, [rbx + MM_OFFSET]
+        mov [rsp + SB_RIGHT], rax
+        mov rdi, [rsp + SB_INNER_RIGHT]
+        mov rsi, rax
+        call int_cmp
+        cmp eax, 0
+        jle 2f
+        mov rax, [rsp + SB_INNER_RIGHT]
+        mov [rsp + SB_RIGHT], rax
+2:      # new_size = left - right > 0, or 0
+        mov rdi, [rsp + SB_LEFT]
+        mov rsi, [rsp + SB_RIGHT]
+        call int_sub
+        mov r12, rax
+        mov rdi, rax
+        call int_sign
+        cmp eax, 0
+        jle .Lsb_zero
+        mov rdi, [rsp + SB_RIGHT]       # new_offset = right - exp_shl
+        mov rsi, [rbx + MM_ESHL]
+        call int_sub
+        mov r13, rax
+        mov rdi, [rbx + MM_SHL]         # new_shl = shl + exp_shl
+        mov rsi, [rbx + MM_ESHL]
+        call int_add
+        mov rcx, rax
+        mov rdi, [rbx + MM_EXP]
+        mov rsi, r12
+        mov rdx, r13
+        mov r8d, 1                      # shr 0
+        call alg_mask_op
+        add rsp, 48
+        LEAVE
+.Lsb_zero:
+        mov eax, 1
+        add rsp, 48
+        LEAVE
+ENDF strategy_concrete_big
+
 # strategy_1(params) -> value or NIL
 FUNC strategy_1
+        STACK_CHECK
         ENTER
         sub rsp, 64
         mov rbx, rdi
@@ -2152,6 +2276,7 @@ ENDF strategy_1
 # strategy_2: strategy_1(size, offset - exp_size, shl + exp_size, exp_size,
 #                        exp_offset, exp_shl - exp_size, exp)
 FUNC strategy_2
+        STACK_CHECK
         ENTER
         sub rsp, 64
         mov rbx, rdi
@@ -2184,6 +2309,7 @@ ENDF strategy_2
 # strategy_3: strategy_1(size, offset - exp_shl, shl + exp_shl, exp_size,
 #                        exp_offset, 0, exp)
 FUNC strategy_3
+        STACK_CHECK
         ENTER
         sub rsp, 64
         mov rbx, rdi
@@ -2351,6 +2477,7 @@ ENDF memo_to_tri
 
 # contains(exp, sub) -> eax: sub occurs in exp (structurally, any depth)
 FUNC contains
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -2386,6 +2513,7 @@ ENDF contains
 
 # alg_ge_zero(exp) -> eax: TRI_TRUE / TRI_FALSE / TRI_CANNOT (memoized)
 FUNC alg_ge_zero
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         call is_int
@@ -2426,6 +2554,7 @@ ENDF alg_ge_zero
 
 # alg_safe_ge_zero(exp) -> TRI_TRUE / TRI_FALSE / TRI_NONE
 FUNC alg_safe_ge_zero
+        STACK_CHECK
         ENTER
         call alg_ge_zero
         cmp eax, TRI_CANNOT
@@ -2436,6 +2565,7 @@ ENDF alg_safe_ge_zero
 
 # ge_zero_impl(exp) -> TRI_TRUE / TRI_FALSE / TRI_NONE (None = can't compare)
 FUNC ge_zero_impl
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         call is_int
@@ -2541,6 +2671,7 @@ ENDF is_array_op
 # extract_variables(exp, vec): appends the "variables" of exp to vec
 # (first occurrence order, no duplicates) - variants.extract_variables
 FUNC extract_variables
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -2649,6 +2780,7 @@ ENDF is_mem64
 
 # alg_add_ge_zero(exp) -> TRI_TRUE / TRI_FALSE / TRI_NONE (memoized)
 FUNC alg_add_ge_zero
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov edi, MEMO_ADD_GE_ZERO
@@ -2679,6 +2811,7 @@ ENDF alg_add_ge_zero
 # Anything else goes through the substitution and the simplifier, as in
 # python.
 FUNC variant_evaluable
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -2705,9 +2838,8 @@ FUNC variant_evaluable
         JT_CASE ve, OP_MASK_SHL, .Lve_node
         JT_END ve, OP_COUNT, .Lve_no
 .Lve_node:
-        push r15
-        push r15
-        xor r15d, r15d                  # the height of the elements
+        sub rsp, 16
+        mov dword ptr [rsp], 0          # the height of the elements
         mov r14d, 1
 4:      cmp r14d, [rbx + N_AUX]
         jae 5f
@@ -2717,16 +2849,16 @@ FUNC variant_evaluable
         call variant_evaluable
         test eax, eax
         js 6f
-        cmp eax, r15d
-        cmovg r15d, eax
-        inc r14d
+        cmp eax, [rsp]
+        jle 3f
+        mov [rsp], eax
+3:      inc r14d
         jmp 4b
-5:      lea eax, [r15 + 1]
-        pop r15
-        pop r15
+5:      mov eax, [rsp]
+        inc eax
+        add rsp, 16
         LEAVE
-6:      pop r15
-        pop r15
+6:      add rsp, 16
 .Lve_no:
         mov eax, -1
         LEAVE
@@ -2742,6 +2874,7 @@ ENDF variant_evaluable
 # a node is the context's pool at `depth` (the height is bounded by
 # variant_evaluable).
 FUNC variant_eval
+        STACK_CHECK
         ENTER
         sub rsp, 48
         .set VV_VALS, 0
@@ -2957,6 +3090,7 @@ ENDF variant_eval
 
 
 FUNC add_ge_zero_impl
+        STACK_CHECK
         ENTER
         sub rsp, 112
         .set AGZ_SEEN_NEG, 0
@@ -3100,6 +3234,7 @@ ENDF add_ge_zero_impl
 
 # alg_calc_max(exp) -> value
 FUNC alg_calc_max
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         call is_tuple
@@ -3164,6 +3299,7 @@ ENDF alg_calc_max
 
 # alg_simplify(exp) -> value (memoized)
 FUNC alg_simplify
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         call is_tuple
@@ -3190,6 +3326,7 @@ FUNC alg_simplify
 ENDF alg_simplify
 
 FUNC simplify_impl
+        STACK_CHECK
         ENTER
         sub rsp, 48
         mov rbx, rdi
@@ -3366,6 +3503,7 @@ ENDF alg_simplify_max
 
 # alg_max_to_add(exp) -> value
 FUNC alg_max_to_add
+        STACK_CHECK
         ENTER
         sub rsp, 48
         mov rbx, rdi
@@ -3648,6 +3786,7 @@ ENDF ten_pow_20
 
 # alg_get_sign(exp) -> eax: -1, 0, 1, TRI_NONE (2^30 for none), TRI_CANNOT
 FUNC alg_get_sign
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov esi, 1
@@ -3683,6 +3822,7 @@ ENDF alg_get_sign
 
 # alg_lt_op(left, right) -> TRI_TRUE / TRI_FALSE / TRI_NONE / TRI_CANNOT (memoized)
 FUNC alg_lt_op
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -3729,6 +3869,7 @@ ENDF alg_lt_op
 # add_max_terms(v): ('add', int num, ('max', ...)) -> ('max', add_op(t, num)...)
 # or v unchanged
 FUNC add_max_terms
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov esi, OP_ADD
@@ -3797,6 +3938,7 @@ FUNC is_add_any_var
 ENDF is_add_any_var
 
 FUNC lt_op_impl
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -3937,6 +4079,7 @@ FUNC lt_op_impl
 ENDF lt_op_impl
 
 FUNC alg_safe_lt_op
+        STACK_CHECK
         ENTER
         call alg_lt_op
         cmp eax, TRI_CANNOT
@@ -3947,6 +4090,7 @@ ENDF alg_safe_lt_op
 
 # alg_le_op(left, right) -> tri (memoized)
 FUNC alg_le_op
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -3975,6 +4119,7 @@ FUNC alg_le_op
 ENDF alg_le_op
 
 FUNC le_op_impl
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -4008,6 +4153,7 @@ FUNC le_op_impl
 ENDF le_op_impl
 
 FUNC alg_safe_le_op
+        STACK_CHECK
         ENTER
         call alg_le_op
         cmp eax, TRI_CANNOT
@@ -4018,6 +4164,7 @@ ENDF alg_safe_le_op
 
 # alg_max_op(left, right) -> value, or NIL for CannotCompare
 FUNC alg_max_op
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -4046,11 +4193,13 @@ FUNC alg_max_op
 ENDF alg_max_op
 
 FUNC alg_safe_max_op
+        STACK_CHECK
         jmp alg_max_op
 ENDF alg_safe_max_op
 
 # alg_min_op(left, right) -> value, or NIL
 FUNC alg_min_op
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -4079,6 +4228,7 @@ FUNC alg_min_op
 ENDF alg_min_op
 
 FUNC alg_safe_min_op
+        STACK_CHECK
         jmp alg_min_op
 ENDF alg_safe_min_op
 
@@ -4254,6 +4404,7 @@ ENDF alg_safe_gt_zero
 
 # to_bytes(exp) -> rax, rdx: (bytes, bits) - the byte size of a bit size
 FUNC to_bytes
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 16
         mov rbx, rdi

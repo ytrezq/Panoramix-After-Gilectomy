@@ -38,8 +38,10 @@ build/c_api_test: tests/c_api_test.c include/panoramix_asm.h build/libpanoramix_
 	$(CC) -O2 -Wall -Iinclude -o $@ tests/c_api_test.c -Lbuild -lpanoramix_asm -Wl,-rpath,'$$ORIGIN'
 
 check: build/c_api_test all
+	python3 tools/recursion.py --check
 	build/c_api_test
 	tests/run_corpus.sh
+	tests/robustness.sh
 
 clean:
 	rm -rf build

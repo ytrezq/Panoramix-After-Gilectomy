@@ -186,7 +186,9 @@ FUNC main
         mov rdx, [rsp + M_THREADS]
         mov rcx, [rsp + M_FUNCTION]
         mov r8, rbx
-        call decompile
+        call decompile_run
+        test eax, eax
+        jnz .Lfailed
         mov rdi, rbx
         mov esi, 10                     # (python's print adds a newline)
         call sb_append_char
@@ -200,6 +202,16 @@ FUNC main
         mov rdx, [rbx + SB_LEN]
         call write_all
         xor eax, eax
+        jmp .Lmain_exit
+.Lfailed:
+        mov rdi, rbx                    # the message, on stderr
+        mov esi, 10
+        call sb_append_char
+        mov edi, 2
+        mov rsi, [rbx + SB_BUF]
+        mov rdx, [rbx + SB_LEN]
+        call write_all
+        mov eax, 1
         jmp .Lmain_exit
 .Lusage_exit:
         mov edi, 2

@@ -123,6 +123,7 @@ panic_codes:
 # (python's add_color); python's `col` is colorize with it, `pret` is
 # prettify with parentheses=False and it.
 FUNC pretty_line
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 96
         .set PL_OUT, MATCH_BINDINGS_SIZE        # the lines (a vec)
@@ -1910,6 +1911,7 @@ ENDF sb_append_spaces
 # pprint_logic(exp, indent) -> list of str: a trace (or a line) as
 # indented lines of text
 FUNC pprint_logic
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 48
         .set PP_OUT, MATCH_BINDINGS_SIZE

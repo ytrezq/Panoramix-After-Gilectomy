@@ -357,6 +357,7 @@ ENDF pred_goto_back
 # The nodes form long chains (a jump at the end of each), walked in a loop;
 # the recursion is only as deep as the ifs are nested.
 FUNC node_make_trace
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -580,6 +581,7 @@ ENDF node_begin_trace
 
 # node_print(sb, node): Node(jd), like the python __str__
 FUNC node_print
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi

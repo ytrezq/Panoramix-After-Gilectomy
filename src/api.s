@@ -113,7 +113,9 @@ API pan_decompile
 ENDF pan_decompile
 
 # int pan_decompile_ex(code, len, threads, only_func, &out, &outlen, flags)
-# flags: PAN_NO_COLOR (1) - the text without the color codes
+# flags: PAN_NO_COLOR (1) - the text without the color codes. Returns 0,
+# or -1 with the error's message in *out (what python would have raised
+# out of the postprocessing).
 .set PAN_NO_COLOR, 1
 API pan_decompile_ex
         push r15
@@ -139,7 +141,10 @@ API pan_decompile_ex
         mov rdx, [rsp + 16]
         mov rcx, [rsp + 24]
         mov r8, r12
-        call decompile
+        call decompile_run
+        mov ebx, eax                    # 0, or the error (the message in the builder)
+        test eax, eax
+        jnz 1f
         test qword ptr [rbp + 24], PAN_NO_COLOR     # (the 7th argument: above rbp, r15, the return address)
         jz 1f
         mov rdi, r12
@@ -154,10 +159,15 @@ API pan_decompile_ex
         call free@PLT                   # the builder, not its buffer
         mov rdi, r15
         call ctx_free
+        mov edi, CHUNK_POOL_KEEP        # (the memory of the arenas back, but a little)
+        call chunk_pool_trim
         mov rdi, [rsp + 48]
         call ctx_bind
         xor eax, eax
-        add rsp, 56
+        test ebx, ebx
+        jz 2f
+        mov eax, -1
+2:      add rsp, 56
         LEAVE_NORET
         pop r15
         ret

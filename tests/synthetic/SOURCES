@@ -1,0 +1,6 @@
+# Programs no compiler made, with python's output (pypy's `python -m
+# panoramix`, colors removed) - each one a difference the port had:
+counter_loop     for(;;) i++ : a loop without an exit condition (whiles)
+nested_ifs_200   200 nested requires (python fails from ~700 on, RecursionError)
+fuzz_1_3         tests/difffuzz.py 1, case 3: masks with offsets past 2^62 (big ints)
+fuzz_2_11        tests/difffuzz.py 2, case 11: Mask(-744, ...) prints % 2**-744, a float

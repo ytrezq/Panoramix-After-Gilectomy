@@ -90,9 +90,13 @@
 .set CTX_ERR_CODE, 312      # what was thrown
 .set CTX_ERR_MSG, 320
 .set CTX_FUNC, 328          # the function being printed (sigs.s, function.s)
+.set CTX_STACK_LOW, 336     # the lowest rsp the recursions may reach (0: no limit)
+.set CTX_MEM_LIMIT, 344     # the bytes the arena may take (0: no limit)
 .set CTX_EVAL_POOL, 352     # 32 scratch mpz_t, one per depth, for variant_eval
 .set EVAL_POOL_DEPTH, 32
-.set CTX_SIZE, 352 + 32 * MPZ_SIZEOF
+.set CTX_ARENA_PEAK, 352 + 32 * MPZ_SIZEOF     # the most the arena took
+.set CTX_CHILD_LIMIT, CTX_ARENA_PEAK + 8        # CTX_MEM_LIMIT of the contexts it makes
+.set CTX_SIZE, CTX_ARENA_PEAK + 16
 
 # error handler buffer (rt_err.s)
 .set ERR_RBX, 0
@@ -113,14 +117,20 @@
 .set E_TYPE, 5              # python's TypeError (an int operation on an expression)
 .set E_NOT_IMPLEMENTED, 6
 .set E_INDEX, 7
+.set E_MEMORY, 8            # python's MemoryError: the arena passed CTX_MEM_LIMIT
+.set E_RECURSION, 9         # python's RecursionError: the stack passed CTX_STACK_LOW
 
 .set ARENA_CHUNK_DEFAULT, 0x400000     # 4 MiB
 .set COMPACT_THRESHOLD, 0x10000000      # 256 MiB of arena: simplify_trace compacts
 
 # arena chunk header
 .set CHUNK_NEXT, 0
-.set CHUNK_SIZE, 8
-.set CHUNK_DATA, 16
+.set CHUNK_SIZE, 8          # the whole mapping
+.set CHUNK_USED, 16         # the payload bytes used (once the chunk isn't the current one)
+.set CHUNK_DATA, 32
+.set HUGE_PAGE, 0x200000   # 2 MiB: the chunks of the default size are aligned on it
+.set CHUNK_POOL_MAX, 256    # chunks of ARENA_CHUNK_DEFAULT kept for reuse (1 GiB)
+.set CHUNK_POOL_KEEP, 16    # kept between two decompilations (64 MiB)
 
 # string builder
 .set SB_BUF, 0
@@ -198,6 +208,16 @@
         pop rbx
         pop rbp
         ret
+.endm
+
+# STACK_CHECK: at the entry of every recursive function (the cycles of the
+# call graph, see tools/recursion.py): E_RECURSION instead of running off
+# the thread's stack. Threads that decompile set CTX_STACK_LOW
+# (ctx_set_stack) a margin above the end of their stack.
+.set STACK_MARGIN, 0x100000             # 1 MiB: what the deepest non-recursive calls need
+.macro STACK_CHECK
+        cmp rsp, [r15 + CTX_STACK_LOW]
+        jb stack_overflow
 .endm
 
 # tagged small int helpers

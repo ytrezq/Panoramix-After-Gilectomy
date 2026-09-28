@@ -91,6 +91,7 @@ ENDF pat_match
 # match_helper(exp, pattern, state) -> eax; rbx = the bindings array,
 # state = [count, names...]
 FUNC match_helper
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov r12, rdi                    # exp

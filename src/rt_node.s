@@ -455,16 +455,54 @@ FUNC mk_int_mpz
         jl 1f
         TAG rax
         LEAVE
-1:      mov edi, NODE_INT_SIZE
+1:      # interned: one node per value on a context (in the hash-cons
+        # table, with the tuples), so that equal ints are one pointer as
+        # everything else is
+        mov rdi, rbx
+        call int_hash_mpz
+        mov r13, rax                    # the hash
+        mov rax, [r15 + CTX_HC_COUNT]
+        shl rax, 1
+        cmp rax, [r15 + CTX_HC_CAP]
+        jb 2f
+        call hc_grow
+2:      mov r14, [r15 + CTX_HC_CAP]
+        dec r14                         # the mask
+        mov r12, r13
+        and r12, r14                    # the slot
+3:      mov rax, [r15 + CTX_HC_TABLE]
+        mov rdi, [rax + r12*8]
+        test rdi, rdi
+        jz 5f
+        cmp [rdi + N_HASH], r13
+        jne 4f
+        cmp dword ptr [rdi + N_KIND], K_INT
+        jne 4f
+        push rdi
+        push rdi
+        lea rdi, [rdi + N_DATA]
+        mov rsi, rbx
+        call __gmpz_cmp@PLT
+        pop rdi
+        pop rdi
+        test eax, eax
+        jnz 4f
+        mov rax, rdi                    # that value, already
+        LEAVE
+4:      inc r12
+        and r12, r14
+        jmp 3b
+5:      mov edi, NODE_INT_SIZE
         call arena_alloc
+        mov rcx, [r15 + CTX_HC_TABLE]
+        mov [rcx + r12*8], rax
+        inc qword ptr [r15 + CTX_HC_COUNT]
         mov r12, rax
         mov dword ptr [r12 + N_KIND], K_INT
+        mov [r12 + N_HASH], r13
         lea rdi, [r12 + N_DATA]
         mov rsi, rbx
         call __gmpz_init_set@PLT
-        lea rdi, [r12 + N_DATA]
-        call int_hash_mpz
-        mov [r12 + N_HASH], rax
         inc qword ptr [r15 + CTX_NODE_COUNT]
         mov rax, r12
         LEAVE
@@ -626,6 +664,19 @@ FUNC str_id
         ret
 ENDF str_id
 
+# value_import_root(v) -> rax: value_import of a whole value from another
+# context (a worker's trace, a fold's result). The VM nodes' copies are
+# remembered by address for the length of one import only: the other
+# context's memory is freed afterwards, and its addresses come back.
+FUNC value_import_root
+        ENTER
+        mov qword ptr [r15 + CTX_MEMO + MEMO_IMPORT * 8], 0
+        call value_import
+        mov qword ptr [r15 + CTX_MEMO + MEMO_IMPORT * 8], 0
+        LEAVE
+ENDF value_import_root
+
+
 # value_import(v) -> rax: the value rebuilt on this context. Tuples and
 # lists are consed per thread, so a structure made by another thread (a
 # function's trace, the loader's values) is imported before being
@@ -633,6 +684,7 @@ ENDF str_id
 # arena is freed, which also holds its big integers (copied here).
 # Strings are global: kept.
 FUNC value_import
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi

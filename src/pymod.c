@@ -87,7 +87,9 @@ static PyObject *py_decompile(PyObject *self, PyObject *args, PyObject *kwargs)
     Py_END_ALLOW_THREADS
     Py_XDECREF(holder);
     if (rc) {
-        PyErr_SetString(PyExc_RuntimeError, "decompilation failed");
+        /* out: the message */
+        PyErr_SetString(PyExc_RuntimeError, out ? out : "decompilation failed");
+        pan_free(out);
         return NULL;
     }
     PyObject *res = PyUnicode_FromStringAndSize(out, outlen);

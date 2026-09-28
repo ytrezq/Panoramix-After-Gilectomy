@@ -164,6 +164,7 @@ ENDF padded_hex8
 # the expression itself included) for which pred(exp) is true, in the
 # order of a depth-first walk (find_f_list)
 FUNC walk_collect
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -193,6 +194,7 @@ ENDF walk_collect
 # walk_find(exp, pred) -> rax: the first sub-expression for which pred
 # returns a value (non-zero), depth first (find_f); 0 if none
 FUNC walk_find
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi

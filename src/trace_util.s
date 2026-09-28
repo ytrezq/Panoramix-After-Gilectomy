@@ -143,6 +143,7 @@ ENDF mk_while
 # rewrite_trace(trace, f, arg) -> list: every line but the ifs goes
 # through f(line, arg, out); the ifs' branches are rewritten
 FUNC rewrite_trace
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -193,6 +194,7 @@ ENDF rewrite_trace
 # rewrite_trace_full(trace, f, arg) -> list: like rewrite_trace, the
 # whiles' bodies rewritten too
 FUNC rewrite_trace_full
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -263,6 +265,7 @@ ENDF rewrite_trace_full
 # leaves an if alone its branches are rewritten, otherwise what it
 # returned is
 FUNC rewrite_trace_ifs
+        STACK_CHECK
         ENTER
         sub rsp, 32
         mov rbx, rdi
@@ -358,6 +361,7 @@ ENDF rewrite_trace_ifs
 # sees `number` consecutive lines (as a list) and returns their
 # replacement (a list) or 0 to leave them
 FUNC rewrite_trace_multiline
+        STACK_CHECK
         ENTER
         sub rsp, 32
         mov rbx, rdi
@@ -447,6 +451,7 @@ ENDF rewrite_trace_multiline
 # replace_lines(trace, f, arg) -> list: f(x, arg) -> x' applied to the
 # conditions and setvars of the ifs and whiles, and to the other lines
 FUNC replace_lines
+        STACK_CHECK
         ENTER
         sub rsp, 32
         mov rbx, rdi
@@ -526,6 +531,7 @@ ENDF replace_lines
 # walk_trace(trace, f, arg, out): f(line, arg, out) for every line, the
 # ifs' branches (and nested lists) included
 FUNC walk_trace
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -586,6 +592,7 @@ ENDF is_list
 
 # replace(exp, what, by) -> exp with every occurrence of `what` replaced
 FUNC replace
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -642,6 +649,7 @@ ENDF replace
 # replaced by bys[i], all at once (an outer expression wins over the
 # expressions it contains: mem[_5] is replaced before _5)
 FUNC replace_many
+        STACK_CHECK
         ENTER
         sub rsp, 32
         .set RM_BYS, 0
@@ -707,6 +715,7 @@ ENDF replace_many
 # replace_f(exp, f, arg) -> f applied bottom-up: the leaves through
 # f(leaf, arg), then each rebuilt sequence through f as well
 FUNC replace_f
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -749,6 +758,7 @@ ENDF replace_f
 # else the sequence with its elements replaced (top-down, stopping at
 # the first replacement)
 FUNC replace_f_stop
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -791,6 +801,7 @@ ENDF replace_f_stop
 # find_op_list(exp, op, out): the sub-expressions with the opcode `op`,
 # depth first (an expression found is not searched further)
 FUNC find_op_list
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi

@@ -115,6 +115,7 @@ ENDF neg_mask_of_int
 
 # to_mask(num) -> (rax, rdx) or NIL (memoized: the pair is stored as a tuple)
 FUNC to_mask
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         call is_int
@@ -160,6 +161,7 @@ FUNC to_mask
 ENDF to_mask
 
 FUNC to_mask_impl
+        STACK_CHECK
         ENTER
         mov rdi, rdi
         call cleanup_mul_1
@@ -232,6 +234,7 @@ ENDF to_mask_impl
 
 # to_neg_mask(num) -> (rax, rdx) or NIL
 FUNC to_neg_mask
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         call opcode_of

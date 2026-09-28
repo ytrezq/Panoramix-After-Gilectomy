@@ -25,6 +25,7 @@
 # cleanup_conds(trace) -> list: removes the ifs/whiles whose conditions
 # are obviously true or false
 FUNC cleanup_conds
+        STACK_CHECK
         ENTER
         sub rsp, 32
         mov rbx, rdi
@@ -260,6 +261,7 @@ ENDF cleanup_msize
 
 # cleanup_msize_impl(trace, current_msize, &msize_out) -> list
 FUNC cleanup_msize_impl
+        STACK_CHECK
         ENTER
         sub rsp, 48
         .set CM_MSIZE, 0
@@ -403,6 +405,7 @@ ENDF cleanup_msize_impl
 # overwrites_mem(line, mem_idx) -> eax: the line may overwrite any part
 # of the memory range
 FUNC overwrites_mem
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE
         mov rbx, rdi
@@ -450,6 +453,7 @@ ENDF overwrites_mem
 
 # any_overwrites_mem(trace, mem_idx) -> eax
 FUNC any_overwrites_mem
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -472,6 +476,7 @@ ENDF any_overwrites_mem
 # affects(line, exp) -> eax: the line may change the value of the
 # expression (a memory it reads, or msize)
 FUNC affects
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -549,6 +554,7 @@ ENDF trace_uses_mem
 # OVERWRITTEN if every path through it overwrites the memory (or ends)
 # before reading it, NEITHER otherwise
 FUNC mem_use
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 32
         .set MU_RES, MATCH_BINDINGS_SIZE
@@ -669,6 +675,7 @@ ENDF mem_use
 # branch_mem_use(branch, mem_idx) -> eax: mem_use, NEITHER counting as
 # OVERWRITTEN when the branch ends the execution
 FUNC branch_mem_use
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         call mem_use
@@ -687,6 +694,7 @@ ENDF branch_mem_use
 # trace_ends_execution(trace) -> eax: every path through the trace ends
 # the execution
 FUNC trace_ends_execution
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         call seq_last
@@ -720,6 +728,7 @@ ENDF trace_ends_execution
 # occurrences of the memory replaced with its value where possible;
 # `used_after` (a list, or 0) is what gets executed after `trace`
 FUNC cleanup_mems
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 48
         .set CE_AFTER, MATCH_BINDINGS_SIZE
@@ -882,6 +891,7 @@ ENDF tuple_append_none2
 # replace_mem_exp(exp, mem_idx, mem_val) -> value: the reads of the
 # memory in the expression replaced by the value (memoized on the three)
 FUNC replace_mem_exp
+        STACK_CHECK
         ENTER
         sub rsp, 32
         mov rbx, rdi
@@ -918,6 +928,7 @@ FUNC replace_mem_exp
 ENDF replace_mem_exp
 
 FUNC replace_mem_exp_impl
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 32
         .set RM_RES, MATCH_BINDINGS_SIZE
@@ -1064,6 +1075,7 @@ ENDF merged_call_range
 # replace_mem(trace, mem_idx, mem_val) -> list: the reads of the memory
 # replaced with its value, up until it may be overwritten
 FUNC replace_mem
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 64
         .set RP_IDX, MATCH_BINDINGS_SIZE
@@ -1429,6 +1441,7 @@ ENDF req_from_list
 # longer used is dropped (simplify.cleanup_vars). required_after: a req
 # (see above), 0 for none.
 FUNC cleanup_vars
+        STACK_CHECK
         ENTER
         sub rsp, 48
         .set CV_REQ, 0
@@ -1625,6 +1638,7 @@ ENDF vars_of_trace
 # replace_var(trace, var_idx, var_val) -> list: the occurrences of the
 # variable replaced, where possible
 FUNC replace_var
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 48
         .set RV_IDX, MATCH_BINDINGS_SIZE
@@ -1848,6 +1862,7 @@ ENDF rename_var_cb
 # readability(trace) -> list: nicer variable names, and the msize
 # expressions in setmems named
 FUNC readability
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 64
         .set RD_RES, MATCH_BINDINGS_SIZE

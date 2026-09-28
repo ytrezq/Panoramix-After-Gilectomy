@@ -1,0 +1,33 @@
+# Palkeoramix decompiler. 
+
+def storage:
+  stor0 is mapping of uint256 at storage 0
+  stor1 is array of uint256 at storage 1
+  stor2 is uint256 at storage 2
+  stor5 is array of uint256 at storage 5
+  stor7 is uint256 at storage 7
+
+def _fallback(?) payable: # default function
+  stop
+
+def unknown7ec53e1e(uint256 _param1, uint256 _param2) payable: 
+  require not Mask(256, -_param1, sha3(-1, 1) xor _param2)
+  call 0x20 with:
+     value stor5[0] wei
+       gas gas_remaining wei
+  require ext_call.success
+
+def unknown683f82e0(uint256 _param1, uint256 _param2) payable: 
+  require uint256(stor[mem[32]].field_-stor1[_param2]) * stor5.length / _param1 / not stor5.length <′ 10 or address(_param2)
+  address(stor[not stor7].field_0) = address(sha3(-97, 1))
+  Mask(96, 0, stor[not stor7].field_160) = 0
+
+def unknownd7197d2b() payable: 
+  mem[64] = 96
+  uint256(stor[caller].field_0) = mem[160]
+  mem[128] = uint256(stor[mem[mem[32]]].field_0)
+  log 0x5cc422d8: mem[128], stor7 xor not mem[0]
+  uint256(stor[address(uint256(stor[mem[160]].field_0) xor mem[stor1.length]) xor 1].field_0) = 0
+  uint256(stor[calldata.size <′ stor2].field_0) = stor0[Mask(8, -926336713898529563388567880069503262826159877325124512315660672063305037117456, stor1.length > 255) >> 1784]^2
+
+

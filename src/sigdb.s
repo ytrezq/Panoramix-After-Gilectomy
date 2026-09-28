@@ -1461,6 +1461,7 @@ ENDF sb_append_utf8
 
 # js_skip(&p) -> eax: any value skipped
 FUNC js_skip
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi

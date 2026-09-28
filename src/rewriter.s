@@ -18,6 +18,7 @@
 
 # pp_cleanup_exp(exp) -> value
 FUNC pp_cleanup_exp
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -189,6 +190,7 @@ FUNC pp_cleanup_exp
 ENDF pp_cleanup_exp
 
 FUNC pp_cleanup_cb
+        STACK_CHECK
         jmp pp_cleanup_exp
 ENDF pp_cleanup_cb
 
@@ -221,6 +223,7 @@ ENDF pp_cleanup_elements
 
 # pp_cleanup_line_cb(line, arg): a line of a trace cleaned up
 FUNC pp_cleanup_line_cb
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -266,6 +269,7 @@ ENDF pp_cleanup_line_cb
 
 # pp_cleanup_mul_1(trace) -> list: postprocess.cleanup_mul_1
 FUNC pp_cleanup_mul_1
+        STACK_CHECK
         ENTER
         lea rsi, [rip + pp_cleanup_line_cb]
         call map_seq
@@ -494,6 +498,7 @@ ENDF collect_arr_l
 # walk_collect_with(exp, f, arg, out): f(x, arg, out) for every tuple
 # and list in exp, depth first (find_f_list with an argument)
 FUNC walk_collect_with
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -806,6 +811,7 @@ ENDF string_store
 # rewrite_string_stores(trace, after) -> list; `after` is what follows
 # the trace in the enclosing traces
 FUNC rewrite_string_stores
+        STACK_CHECK
         ENTER
         sub rsp, 64
         .set RS_AFTER, 0

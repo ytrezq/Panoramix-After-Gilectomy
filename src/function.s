@@ -572,6 +572,7 @@ ENDF pred_cd_ref
 # find_parents(exp, child, out): the tuples and lists that contain child
 # directly, depth first, once per occurrence
 FUNC find_parents
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi

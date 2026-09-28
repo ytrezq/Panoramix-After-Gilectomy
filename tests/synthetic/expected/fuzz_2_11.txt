@@ -1,0 +1,72 @@
+# Palkeoramix decompiler. 
+
+def storage:
+  stor0 is mapping of address at storage 0
+  stor2 is mapping of address at storage 2
+  stor4 is array of uint256 at storage 4
+  stor5 is array of uint256 at storage 5
+  stor6 is uint256 at storage 6
+
+def unknown3a1f0b4a() payable: 
+  stop
+
+def _fallback(?) payable: # default function
+  revert
+
+def unknown8f7a6262(uint256 _param1, uint256 _param2, uint256 _param3) payable: 
+  require _param2 == not gas_remaining + (Mask(256, -96 == caller, 96 == _param1) << -96 == caller)
+  log 0x91094691: block.number, Mask((8 * _param3) + 8, 0, stor1.length.field_-(8 * _param3) + 248)
+  idx = 0
+  while idx < 3:
+      mem[128] = idx
+      log 0xf9e2a98d: idx, Mask(256, -stor3.length, 10^18) << -stor3.length
+      idx = idx + 1
+      continue 
+
+def unknown44c71571(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _param4, uint256 _param5) payable: 
+  mem[64] = 96
+  mem[0] = mem[mem[stor6]]
+  call uint256(uint256(stor2[mem[0]]).field_0) with:
+     value 10 wei
+       gas gas_remaining wei
+  require ext_call.success
+  uint256(stor[Mask(256, -stor4[uint256(stor2.length.field_0)] < 256, _param5) << -stor4[uint256(stor2.length.field_0)] < 256].field_0) = stor0.length
+  require _param1 < 10
+  mem[0] = _param2
+  mem[32] = 5
+  uint256(stor[_param1 + not stor5[_param2] > _param2].field_0) = _param1
+  if bool(stor3.length)^0:
+      idx = 0
+      while idx < 10:
+          mem[256] = _param1^3
+          if 0x8000000000000000000000000000000000000000000000000000000000000000 xor mem[128] * idx % this.address < 1:
+              mem[128] = _param4 % 1.0806454419566534e-224 >> 1000
+              mem[0] = address(_param2^2)
+              mem[32] = 0
+              log 0x821903ec: (_param4 % 1.0806454419566534e-224 >> 1000), sha3(address(_param2^2), 0)
+              _21 = mem[idx]
+              mem[0] = address(_param2^2)
+              mem[32] = 0
+              mem[128] = address(stor0[address(_param2^2)]) + call.value + _21
+          idx = idx + 1
+          continue 
+      idx = 0
+      while idx < 100:
+          uint8(stor[mem[0] == mem[call.value] * calldata.size << mem[12 len 20] % 0].field_0) = Mask(8, -(8 * caller) + 248, 1024) << (8 * caller) - 248
+          Mask(248, 0, stor[mem[0] == mem[call.value] * calldata.size << mem[12 len 20] % 0].field_8) = 0
+          mem[0] = uint256(stor1[_param5].field_0)
+          mem[32] = 2
+          uint256(stor[mem[idx]].field_0) = Mask(256, -address(stor2[uint256(stor1[_param5].field_0)]), 255 > _param2 / block.number % uint256(stor0[mem[140 len 20]])) << address(stor2[uint256(stor1[_param5].field_0)])
+          idx = idx + 1
+          continue 
+      require 256 > not _param5 < sha3(mem[0], 4)
+  else:
+      mem[0] = this.address
+      mem[32] = 5
+      call this.address + mem[160] and sha3(this.address, 5) > stor5.length with:
+         value Mask(8, -(8 * stor5.length * _param1) + 248, uint256(stor3[call.value].field_0) - (_param3 or stor5.length)) << (8 * stor5.length * _param1) - 248 or Mask((8 * stor5.length * _param1) + 8, 0, stor3.length.field_-(8 * stor5.length * _param1) + 248) wei
+           gas gas_remaining wei
+      mem[0] = mem[Mask(256, -gas_remaining << _param3, stor4.length) >> gas_remaining << _param3]
+      log 0xaef5c611: stor4[mem[0]], stor4[(gas_remaining * caller <′ _param5)^1]
+
+

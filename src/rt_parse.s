@@ -92,6 +92,7 @@ ENDF pv_fail
 
 # pv_value(ps) -> rax
 FUNC pv_value
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         call pv_skip_ws
@@ -141,6 +142,7 @@ ENDF pv_value
 
 # pv_seq(ps, closer, kind) -> rax: elements up to the closer
 FUNC pv_seq
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12d, esi
@@ -388,6 +390,7 @@ ENDF pv_hex2
 
 # pv_word(ps) -> rax: True / False / None
 FUNC pv_word
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov rdi, [rbx + PS_TEXT]

@@ -330,6 +330,7 @@ ENDF is_none
 
 # sb_append_pret(sb, exp, flags): prettify appended
 FUNC sb_append_pret
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov rdi, rsi
@@ -344,6 +345,7 @@ ENDF sb_append_pret
 # --- prettify ---
 
 FUNC prettify
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 64
         .set PF_EXP, MATCH_BINDINGS_SIZE
@@ -1415,10 +1417,14 @@ FUNC prettify
         cmp eax, -1
         jne 6f
         mov rdi, r13
+        test dil, 1
+        jz 61f                          # a big int below 64: 2 ** it is 0.0
         call int_to_i64
         mov rdi, rax
-        call pow2
-        mov rdx, rax
+        call pow2_or_float              # (a float below zero, as python)
+        jmp 62f
+61:     mov eax, 1                      # (0.0: printed 0)
+62:     mov rdx, rax
         mov rsi, r14
         LOADS rdi, MOD
         call mk3
@@ -1693,7 +1699,7 @@ ENDF prettify
         OPSET_END boolish, OP_COUNT
 
 # pow2_or_float(k) -> value: 2 ** k; for a negative k python has a float,
-# printed as its decimal - that text (a string) stands for it here
+# printed as its repr - that text (a string) stands for it here
 FUNC pow2_or_float
         test rdi, rdi
         js 1f
@@ -1704,10 +1710,250 @@ FUNC pow2_or_float
         lea rax, [rip + float_pow2]
         mov rdi, [rax + rdi*8]
         jmp float_str
-2:      mov edi, E_NOT_IMPLEMENTED
-        lea rsi, [rip + .Ls_float]
-        jmp err_throw
+2:      neg rdi
+        jmp pow2_float_str
 ENDF pow2_or_float
+
+# pow2_float_str(k) -> the float 2.0 ** k (k < 0) as python's repr
+# (float_repr); below 2^-1074 it is 0.0, which python prints as 0: the
+# int 0 then
+FUNC pow2_float_str
+        cmp rdi, -1022
+        jl 1f
+        lea rax, [rdi + 1023]
+        shl rax, 52                     # a normal double: the exponent alone
+        movq xmm0, rax
+        jmp float_repr
+1:      cmp rdi, -1074
+        jl 2f
+        lea rcx, [rdi + 1074]
+        mov eax, 1
+        shl rax, cl                     # a subnormal: one bit of the mantissa
+        movq xmm0, rax
+        jmp float_repr
+2:      mov eax, 1
+        ret
+ENDF pow2_float_str
+
+# float_repr(x: xmm0, positive, finite) -> the interned STR_FLOAT string of
+# python's repr(x): the shortest decimal that reads back as x (the
+# nearest one of that length: the correctly rounded digits, or the next
+# ones up or down when those fall outside x's rounding interval, which
+# happens at powers of two), fixed notation from 1e-4 to 1e16
+FUNC float_repr
+        ENTER
+        sub rsp, 144
+        .set FR_X, 0
+        .set FR_P, 8                    # the number of digits
+        .set FR_EXP, 16                 # the decimal exponent
+        .set FR_DIGS, 32                # the digits (up to 17), then a candidate
+        .set FR_BUF, 64                 # snprintf's text; the result
+        movq [rsp + FR_X], xmm0
+        mov qword ptr [rsp + FR_P], 1
+.Lfr_try:
+        lea rdi, [rsp + FR_BUF]
+        mov esi, 48
+        lea rdx, [rip + .Lf_fmt_e]
+        mov rcx, [rsp + FR_P]
+        dec ecx                         # %.*e: the digits after the point
+        movq xmm0, [rsp + FR_X]
+        mov eax, 1
+        call snprintf@PLT
+        # the digits and the exponent of "d.ddde-xx"
+        lea rsi, [rsp + FR_BUF]
+        lea rdi, [rsp + FR_DIGS]
+        xor ecx, ecx
+1:      movzx eax, byte ptr [rsi]
+        cmp al, 'e'
+        je 2f
+        cmp al, '.'
+        je 3f
+        mov [rdi + rcx], al
+        inc ecx
+3:      inc rsi
+        jmp 1b
+2:      lea rdi, [rsi + 1]
+        xor esi, esi
+        mov edx, 10
+        call strtol@PLT
+        mov [rsp + FR_EXP], rax
+        # as rounded, then one up, then one down
+        call .Lfr_check
+        test eax, eax
+        jnz .Lfr_found
+        mov rcx, [rsp + FR_P]           # up: + 1 in the last digit
+4:      dec rcx
+        js 6f                           # (a carry out: fewer digits, seen already)
+        lea rdx, [rsp + FR_DIGS]
+        inc byte ptr [rdx + rcx]
+        cmp byte ptr [rdx + rcx], '9'
+        jbe 5f
+        mov byte ptr [rdx + rcx], '0'
+        jmp 4b
+5:      call .Lfr_check
+        test eax, eax
+        jnz .Lfr_found
+6:      # down: from the rounded digits again (- 1 twice from the one up)
+        call .Lfr_digits_again
+        mov rcx, [rsp + FR_P]
+7:      dec rcx
+        js 9f
+        lea rdx, [rsp + FR_DIGS]
+        dec byte ptr [rdx + rcx]
+        cmp byte ptr [rdx + rcx], '0'
+        jae 8f
+        mov byte ptr [rdx + rcx], '9'
+        jmp 7b
+8:      cmp byte ptr [rsp + FR_DIGS], '0'
+        je 9f                           # (a borrow into the first digit: fewer digits)
+        call .Lfr_check
+        test eax, eax
+        jnz .Lfr_found
+9:      inc qword ptr [rsp + FR_P]
+        cmp qword ptr [rsp + FR_P], 17
+        jbe .Lfr_try
+        dec qword ptr [rsp + FR_P]      # (17 digits always read back)
+        call .Lfr_digits_again
+.Lfr_found:
+        # python's layout of the digits
+        lea rdi, [rsp + FR_BUF]
+        mov rax, [rsp + FR_EXP]
+        cmp rax, -4
+        jl .Lfr_sci
+        cmp rax, 16
+        jge .Lfr_sci
+        test rax, rax
+        js 10f
+        # 1 <= x < 1e16: the digits (zeros past them) up to the point after
+        # exp + 1 of them, the rest after it; ".0" when nothing follows it
+        xor ecx, ecx
+11:     cmp rcx, [rsp + FR_P]
+        jb 12f
+        cmp rcx, [rsp + FR_EXP]
+        ja 14f
+        mov dl, '0'
+        jmp 13f
+12:     mov dl, [rsp + FR_DIGS + rcx]
+13:     mov [rdi], dl
+        inc rdi
+        cmp rcx, [rsp + FR_EXP]
+        jne 22f
+        mov byte ptr [rdi], '.'
+        inc rdi
+22:     inc rcx
+        jmp 11b
+14:     cmp byte ptr [rdi - 1], '.'
+        jne 15f
+        mov byte ptr [rdi], '0'
+        inc rdi
+        jmp 15f
+10:     # 1e-4 <= x < 1: "0." then -exp - 1 zeros, then the digits
+        mov word ptr [rdi], 0x2e30      # "0."
+        add rdi, 2
+        mov rcx, [rsp + FR_EXP]
+        not rcx                         # -exp - 1
+16:     test rcx, rcx
+        jz 17f
+        mov byte ptr [rdi], '0'
+        inc rdi
+        dec rcx
+        jmp 16b
+17:     xor ecx, ecx
+18:     cmp rcx, [rsp + FR_P]
+        jae 15f
+        mov dl, [rsp + FR_DIGS + rcx]
+        mov [rdi], dl
+        inc rdi
+        inc rcx
+        jmp 18b
+.Lfr_sci:
+        # d[.ddd]e-XX
+        mov dl, [rsp + FR_DIGS]
+        mov [rdi], dl
+        inc rdi
+        cmp qword ptr [rsp + FR_P], 1
+        je 20f
+        mov byte ptr [rdi], '.'
+        inc rdi
+        mov ecx, 1
+19:     cmp rcx, [rsp + FR_P]
+        jae 20f
+        mov dl, [rsp + FR_DIGS + rcx]
+        mov [rdi], dl
+        inc rdi
+        inc rcx
+        jmp 19b
+20:     mov byte ptr [rdi], 0
+        lea rsi, [rip + .Lf_fmt_exp]
+        mov rdx, [rsp + FR_EXP]
+        xor eax, eax
+        call sprintf@PLT
+        jmp 21f
+15:     mov byte ptr [rdi], 0
+21:     lea rdi, [rsp + FR_BUF]
+        call float_str
+        add rsp, 144
+        LEAVE
+# (the local routines: float_repr's frame is 16 bytes up, the return
+# address and the alignment)
+# eax: the digits (FR_DIGS, FR_P of them) with FR_EXP read back as x
+.Lfr_check:
+        sub rsp, 8
+        lea rdi, [rsp + 16 + FR_BUF]
+        mov byte ptr [rdi], 0
+        lea rax, [rsp + 16 + FR_DIGS]
+        mov rcx, [rsp + 16 + FR_P]
+        xor edx, edx
+1:      cmp rdx, rcx
+        jae 2f
+        mov r8b, [rax + rdx]
+        mov [rdi + rdx], r8b
+        inc rdx
+        jmp 1b
+2:      mov byte ptr [rdi + rdx], 'e'
+        lea rdi, [rdi + rdx + 1]
+        lea rsi, [rip + .Lf_fmt_ld]
+        mov rdx, [rsp + 16 + FR_EXP]
+        mov rcx, [rsp + 16 + FR_P]
+        dec rcx                         # (the digits read as an integer)
+        sub rdx, rcx
+        xor eax, eax
+        call sprintf@PLT
+        lea rdi, [rsp + 16 + FR_BUF]
+        xor esi, esi
+        call strtod@PLT
+        movq rax, xmm0
+        cmp rax, [rsp + 16 + FR_X]
+        sete al
+        movzx eax, al
+        add rsp, 8
+        ret
+# FR_DIGS := the correctly rounded digits again (FR_BUF was overwritten)
+.Lfr_digits_again:
+        sub rsp, 8
+        lea rdi, [rsp + 16 + FR_BUF]
+        mov esi, 48
+        lea rdx, [rip + .Lf_fmt_e]
+        mov rcx, [rsp + 16 + FR_P]
+        dec ecx
+        movq xmm0, [rsp + 16 + FR_X]
+        mov eax, 1
+        call snprintf@PLT
+        lea rsi, [rsp + 16 + FR_BUF]
+        lea rdi, [rsp + 16 + FR_DIGS]
+        xor ecx, ecx
+1:      movzx eax, byte ptr [rsi]
+        cmp al, 'e'
+        je 2f
+        cmp al, '.'
+        je 3f
+        mov [rdi + rcx], al
+        inc ecx
+3:      inc rsi
+        jmp 1b
+2:      add rsp, 8
+        ret
+ENDF float_repr
 
 # float_str(cstr) -> the interned string flagged STR_FLOAT: python's float
 # in an expression (it prints bare, like a number)
@@ -1719,7 +1965,9 @@ FUNC float_str
 ENDF float_str
 
         .section .rodata
-.Ls_float: .asciz "prettify: a float below 2^-8"
+.Lf_fmt_e: .asciz "%.*e"
+.Lf_fmt_ld: .asciz "%ld"
+.Lf_fmt_exp: .asciz "e%+03ld"
 .Lf_1: .asciz "0.5"
 .Lf_2: .asciz "0.25"
 .Lf_3: .asciz "0.125"
@@ -1737,6 +1985,7 @@ float_pow2:
 # sb_append_pret_join(sb, seq, start, flags): the elements of seq from
 # `start` prettified and joined with ", "
 FUNC sb_append_pret_join
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -1766,6 +2015,7 @@ ENDF sb_append_pret_join
 # sb_append_pret_join_str(sb, tuple, sep_str, flags): the elements after
 # the head prettified and joined with a string
 FUNC sb_append_pret_join_str
+        STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -1794,6 +2044,7 @@ ENDF sb_append_pret_join_str
 
 # fold_ands(exp) -> ('and', ...) with the nested ands flattened
 FUNC fold_ands
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         call vec_new
@@ -1839,6 +2090,7 @@ ENDF seq_to_tuple
 # pretty_adds(exp, flags) -> str: an ('add', ...) as a sum, the constant
 # term last
 FUNC pretty_adds
+        STACK_CHECK
         ENTER
         sub rsp, 32
         .set PA_SB, 0
@@ -2255,6 +2507,7 @@ ENDF unmask
 # for "mem" and for no terms, which its callers iterate: those come back
 # as lists of their characters)
 FUNC pretty_memory
+        STACK_CHECK
         ENTER
         sub rsp, 48
         .set PM_OUT, 0
@@ -2445,6 +2698,7 @@ ENDF pretty_memory
 # (its hex when unknown), the text of a memory reference (or of anything
 # when force), else v itself
 FUNC pretty_fname
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -2529,6 +2783,7 @@ ENDF pat_match_nobind
 
 # pretty_stor(exp, flags) -> str
 FUNC pretty_stor
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 32
         .set PS_SB, MATCH_BINDINGS_SIZE
@@ -2828,6 +3083,7 @@ ENDF pretty_stor
 # pretty_type(t) -> str: a storage definition ('def', name, loc, type)
 # or a type
 FUNC pretty_type
+        STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 32
         .set PT_SB, MATCH_BINDINGS_SIZE
