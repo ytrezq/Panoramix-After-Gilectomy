@@ -141,6 +141,8 @@ ENDF ctx_free
 # would pass the context's limit (the context must be r15's then).
 FUNC arena_new_chunk
         ENTER
+        sub rsp, 16
+        mov [rsp], rdx                  # check (for a failed mmap too)
         mov rbx, rdi
         mov r12, rsi
         add r12, CHUNK_DATA + 15
@@ -197,7 +199,8 @@ FUNC arena_new_chunk
         cmp rax, [rbx + CTX_ARENA_PEAK]
         jbe 2f
         mov [rbx + CTX_ARENA_PEAK], rax
-2:      LEAVE
+2:      add rsp, 16
+        LEAVE
 .Lchunk_limit:
         cmp rbx, r15
         jne 1b                          # (not the thread's own context: no handler to go to)
@@ -205,12 +208,25 @@ FUNC arena_new_chunk
         lea rsi, [rip + .Lmsg_limit]
         call err_throw
 .Lchunk_fail:
-        lea rdi, [rip + .Lmsg_oom]
+        # the system has no more (an address space limit, the machine's
+        # memory): python's MemoryError where the context can take it -
+        # its own, with a handler, and not in the middle of GMP's work
+        cmp qword ptr [rsp], 0
+        je 1f
+        cmp rbx, r15
+        jne 1f
+        cmp qword ptr [r15 + CTX_ERR_BUF], 0
+        je 1f
+        mov edi, E_MEMORY
+        lea rsi, [rip + .Lmsg_oom_throw]
+        call err_throw
+1:      lea rdi, [rip + .Lmsg_oom]
         call rt_fatal
 ENDF arena_new_chunk
 
         .section .rodata
 .Lmsg_oom: .asciz "panoramix-asm: out of memory (mmap failed)"
+.Lmsg_oom_throw: .asciz "out of memory: the system gave no more (mmap failed)"
 .Ls_env_poison: .asciz "PANORAMIX_POISON"
 .Lmsg_limit: .asciz "out of memory: a function's memory limit was reached (PANORAMIX_MAX_MEMORY)"
 .Lmsg_recursion: .asciz "maximum recursion depth exceeded"
