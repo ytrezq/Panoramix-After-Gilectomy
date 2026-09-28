@@ -16,7 +16,9 @@ import panoramix_asm as A
 A.set_log_level("error")
 
 sys.setrecursionlimit(10000)
-EXPECTED = os.path.join(ROOT, "build", "json_expected")
+# (JSON_EXPECTED and JSON_CORPUS: another corpus, its python results)
+EXPECTED = os.environ.get("JSON_EXPECTED") or os.path.join(ROOT, "build", "json_expected")
+CORPUS = os.environ.get("JSON_CORPUS") or os.path.join(HERE, "corpus")
 PANASM = os.path.join(ROOT, "build", "panasm")
 
 def first_difference(a, b, path="json"):
@@ -50,7 +52,7 @@ bad = 0
 for name in names:
     with open(os.path.join(EXPECTED, name + ".pickle"), "rb") as f:
         text, asm, pj = pickle.load(f)
-    hexfile = os.path.join(HERE, "corpus", name + ".hex")
+    hexfile = os.path.join(CORPUS, name + ".hex")
     code = open(hexfile).read().strip()
     d = A.decompile_bytecode(code, threads=2)
     problems = []
