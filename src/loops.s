@@ -127,7 +127,8 @@ FUNC find_conts
         mov rdi, rbx
         lea rsi, [rip + collect_continue]
         mov rdx, r12
-        call walk_collect_lines
+        mov rcx, HF_CONTINUE            # (only where a "continue" is)
+        call walk_collect_flag
         mov rax, r12
         LEAVE
 ENDF find_conts

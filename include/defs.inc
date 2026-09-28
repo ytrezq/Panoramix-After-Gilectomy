@@ -41,6 +41,8 @@
 .set HF_STORAGE, 1 << 58
 .set HF_VAR, 1 << 59        # a ('var', ...): the string "var" itself (find_op_list's pruning)
 .set HF_SETVAR, 1 << 60     # a ('setvar', ...): the string "setvar" itself (rename_var's)
+.set HF_GOTO, 1 << 61       # a ('goto', ...): the string "goto" itself (whiles' goes_to)
+.set HF_CONTINUE, 1 << 62   # a ('continue', ...): the string "continue" itself (find_conts)
 .set HF_SHIFT, 56
 .set HF_MASK, 0xff << 56
 

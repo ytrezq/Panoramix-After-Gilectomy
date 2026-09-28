@@ -229,7 +229,8 @@ FUNC goes_to
         mov rdi, rbx
         lea rsi, [rip + collect_gotos]
         mov rdx, r13
-        call walk_collect_lines
+        mov rcx, HF_GOTO                # (only where a "goto" is)
+        call walk_collect_flag
         xor r14d, r14d
 1:      cmp r14, [r13 + VEC_LEN]
         jae 2f
@@ -270,6 +271,41 @@ FUNC walk_collect_lines
         jmp 2b
 3:      LEAVE
 ENDF walk_collect_lines
+
+# walk_collect_flag(exp, f, out, flag): walk_collect_lines' walk for an f
+# that only finds the tuples of an opcode whose mention flag is `flag`:
+# the tuples and lists without it are skipped (nothing there for f)
+FUNC walk_collect_flag
+        STACK_CHECK
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        mov [rsp], rcx
+        call is_seq
+        test eax, eax
+        jz 3f
+        mov rax, [rsp]
+        test [rbx + N_HASH], rax
+        jz 3f
+        mov rdi, rbx
+        xor esi, esi
+        mov rdx, r13
+        call r12
+        xor r14d, r14d
+2:      cmp r14d, [rbx + N_AUX]
+        jae 3f
+        mov rdi, [rbx + N_DATA + r14*8]
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, [rsp]
+        call walk_collect_flag
+        inc r14
+        jmp 2b
+3:      add rsp, 16
+        LEAVE
+ENDF walk_collect_flag
 
 # add_path(line, path, out): rewrite_trace's f in to_while - a goto gets
 # the lines preceding the exit condition in front of it (with its

@@ -22,7 +22,8 @@ if len(sys.argv) > 1 and sys.argv[1] == "run":
         if random.random() < 0.2:
             t = t[:random.randrange(len(t) + 1)]
         if random.random() < 0.02:
-            t = random.choice(["var", "setvar", "va", "setva", "svar", "setvar "])
+            t = random.choice(["var", "setvar", "va", "setva", "svar", "setvar ", "goto", "got", "gotos",
+                               "continue", "continu", "continues", "xontinue"])
         out.append((t, A._test("str_flags", repr(t))))
     print(json.dumps(out))
     sys.exit(0)
@@ -39,7 +40,8 @@ for rows in zip(*(res[isa] for isa in ISAS)):
     t = rows[0][0]
     vol = 1 if any(n in t for n in NAMES) else 0
     hf = (1 if "mem" in t else 0) | (2 if "msize" in t else 0) | (4 if "storage" in t else 0) | \
-         (8 if t == "var" else 0) | (16 if t == "setvar" else 0)
+         (8 if t == "var" else 0) | (16 if t == "setvar" else 0) | (32 if t == "goto" else 0) | \
+         (64 if t == "continue" else 0)
     model = "(%d, %d)" % (vol, hf)
     if any(r[1] != model for r in rows):
         bad += 1
