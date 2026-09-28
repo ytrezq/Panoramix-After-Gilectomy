@@ -261,27 +261,16 @@ ENDF as_paths_f
 
 # is_terminating_op(id) -> eax: return, stop, selfdestruct, invalid,
 # assert_fail, revert, continue, undefined
-FUNC is_terminating_op
-        mov eax, 1
-        cmp edi, OP_RETURN
-        je 1f
-        cmp edi, OP_STOP
-        je 1f
-        cmp edi, OP_SELFDESTRUCT
-        je 1f
-        cmp edi, OP_INVALID
-        je 1f
-        cmp edi, OP_ASSERT_FAIL
-        je 1f
-        cmp edi, OP_REVERT
-        je 1f
-        cmp edi, OP_CONTINUE
-        je 1f
-        cmp edi, OP_UNDEFINED
-        je 1f
-        xor eax, eax
-1:      ret
-ENDF is_terminating_op
+        OPSET_FUNC is_terminating_op, terminating
+        OPSET_MEMBER terminating, OP_RETURN
+        OPSET_MEMBER terminating, OP_STOP
+        OPSET_MEMBER terminating, OP_SELFDESTRUCT
+        OPSET_MEMBER terminating, OP_INVALID
+        OPSET_MEMBER terminating, OP_ASSERT_FAIL
+        OPSET_MEMBER terminating, OP_REVERT
+        OPSET_MEMBER terminating, OP_CONTINUE
+        OPSET_MEMBER terminating, OP_UNDEFINED
+        OPSET_END terminating, OP_COUNT
 
 # car_opcode(seq) -> eax: the opcode of the first element (0 when empty)
 FUNC car_opcode

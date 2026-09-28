@@ -1049,23 +1049,14 @@ ENDF extract_setmems_f
 
 # is_ends_execution_op(id) -> eax: revert, return, stop, invalid,
 # assert_fail, selfdestruct
-FUNC is_ends_execution_op
-        mov eax, 1
-        cmp edi, OP_REVERT
-        je 1f
-        cmp edi, OP_RETURN
-        je 1f
-        cmp edi, OP_STOP
-        je 1f
-        cmp edi, OP_INVALID
-        je 1f
-        cmp edi, OP_ASSERT_FAIL
-        je 1f
-        cmp edi, OP_SELFDESTRUCT
-        je 1f
-        xor eax, eax
-1:      ret
-ENDF is_ends_execution_op
+        OPSET_FUNC is_ends_execution_op, ends_execution
+        OPSET_MEMBER ends_execution, OP_REVERT
+        OPSET_MEMBER ends_execution, OP_RETURN
+        OPSET_MEMBER ends_execution, OP_STOP
+        OPSET_MEMBER ends_execution, OP_INVALID
+        OPSET_MEMBER ends_execution, OP_ASSERT_FAIL
+        OPSET_MEMBER ends_execution, OP_SELFDESTRUCT
+        OPSET_END ends_execution, OP_COUNT
 
 # vec_push_unique(vec, v): push unless present (by value)
 FUNC vec_push_unique

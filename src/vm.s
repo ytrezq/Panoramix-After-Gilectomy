@@ -639,27 +639,16 @@ FUNC vm_merge_branches
 ENDF vm_merge_branches
 
 # is_terminal_op(id) -> eax: the line ends the execution (or is a goto)
-FUNC is_terminal_op
-        mov eax, 1
-        cmp edi, OP_REVERT
-        je 1f
-        cmp edi, OP_RETURN
-        je 1f
-        cmp edi, OP_STOP
-        je 1f
-        cmp edi, OP_INVALID
-        je 1f
-        cmp edi, OP_ASSERT_FAIL
-        je 1f
-        cmp edi, OP_SELFDESTRUCT
-        je 1f
-        cmp edi, OP_UNDEFINED
-        je 1f
-        cmp edi, OP_GOTO
-        je 1f
-        xor eax, eax
-1:      ret
-ENDF is_terminal_op
+        OPSET_FUNC is_terminal_op, terminal
+        OPSET_MEMBER terminal, OP_REVERT
+        OPSET_MEMBER terminal, OP_RETURN
+        OPSET_MEMBER terminal, OP_STOP
+        OPSET_MEMBER terminal, OP_INVALID
+        OPSET_MEMBER terminal, OP_ASSERT_FAIL
+        OPSET_MEMBER terminal, OP_SELFDESTRUCT
+        OPSET_MEMBER terminal, OP_UNDEFINED
+        OPSET_MEMBER terminal, OP_GOTO
+        OPSET_END terminal, OP_COUNT
 
 # merge_visit(start, jd, hits) -> eax: TRI_TRUE if every path below
 # `start` either ends, reaches `jd` (those nodes are added to hits), or

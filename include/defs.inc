@@ -273,6 +273,20 @@
         cmp byte ptr [rcx + \idx], 0
 .endm
 
+# OPSET_FUNC fname, name: fname(id) -> eax: 1 when the id (edi) is in
+# the set `name`, else 0
+.macro OPSET_FUNC fname, name
+FUNC \fname
+        xor eax, eax
+        mov edi, edi
+        cmp edi, OP_COUNT
+        ja 1f
+        lea rax, [rip + .Lset_\name]
+        movzx eax, byte ptr [rax + rdi]
+1:      ret
+ENDF \fname
+.endm
+
 .macro OPSET_MEMBER name, value
         .altmacro
         OPSET_MEMBER_ \name, %(\value)
