@@ -36,11 +36,14 @@ FUNC value_hash
         ret
 ENDF value_hash
 
-# hash_seq(kind, count, elems) -> rax
+# hash_seq(kind, count, elems) -> rax: the hash, its top byte the mention
+# flags (HF_*) of the elements
 FUNC hash_seq
         ENTER
+        sub rsp, 16
         mov r12, rsi                    # count
         mov r13, rdx                    # elems
+        mov qword ptr [rsp], 0          # the flags
         movabs rax, 0x9e3779b97f4a7c15
         imul rdi, rax
         xor rdi, rsi
@@ -51,7 +54,15 @@ FUNC hash_seq
         jae 2f
         mov rdi, [r13 + r14*8]
         call value_hash
-        mov rdi, rax
+        test byte ptr [r13 + r14*8], 1
+        jnz 3f
+        cmp qword ptr [r13 + r14*8], 0
+        je 3f
+        mov rcx, rax                    # a node: its flags
+        mov rdx, HF_MASK
+        and rcx, rdx
+        or [rsp], rcx
+3:      mov rdi, rax
         xor rdi, rbx
         movabs rcx, 0x9e3779b97f4a7c15
         add rdi, rcx
@@ -60,6 +71,11 @@ FUNC hash_seq
         inc r14
         jmp 1b
 2:      mov rax, rbx
+        mov rcx, HF_MASK
+        not rcx
+        and rax, rcx
+        or rax, [rsp]
+        add rsp, 16
         LEAVE
 ENDF hash_seq
 
@@ -351,6 +367,9 @@ FUNC int_hash_mpz
         mov r13, rax
         jmp 2b
 3:      mov rax, r13
+        mov rcx, HF_MASK                # (no mention flags in a number)
+        not rcx
+        and rax, rcx
         LEAVE
 ENDF int_hash_mpz
 
@@ -503,11 +522,11 @@ ENDF is_int
         .globl sp_none, sp_true, sp_false
         .hidden sp_none, sp_true, sp_false
 sp_none:  .long K_SPECIAL, SP_NONE
-          .quad 0x1111111111111111
+          .quad 0x0011111111111111     # (the top byte: no mention flags)
 sp_true:  .long K_SPECIAL, SP_TRUE
-          .quad 0x2222222222222222
+          .quad 0x0022222222222222
 sp_false: .long K_SPECIAL, SP_FALSE
-          .quad 0x3333333333333333
+          .quad 0x0033333333333333
         .text
 
 # opcode_of(v) -> eax: the opcode id of a tuple/list whose first element is

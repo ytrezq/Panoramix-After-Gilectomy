@@ -32,6 +32,9 @@ FUNC node_new
         mov dword ptr [rbx + N_AUX], 0
         mov rdi, rbx
         call hash_mix                   # identity: nodes are never equal
+        mov rcx, HF_MASK
+        not rcx
+        and rax, rcx
         mov [rbx + N_HASH], rax
         mov qword ptr [rbx + ND_TRACE], 0
         mov qword ptr [rbx + ND_PREV], 0

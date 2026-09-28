@@ -1041,8 +1041,8 @@ FUNC forget_storage
 1:      cmp r13d, [rbx + N_AUX]
         jae 3f
         mov rdi, [rbx + N_DATA + r13*8]
-        lea rsi, [rip + .Ls_storage]
-        call mentions_c
+        mov rsi, HF_STORAGE
+        call mentions
         test eax, eax
         jnz 2f
         mov rdi, r12
@@ -1054,6 +1054,20 @@ FUNC forget_storage
         call vec_to_tuple
         LEAVE
 ENDF forget_storage
+
+# mentions(exp, HF_flag) -> eax: a string anywhere in exp contains the
+# word of the flag (python's `"mem" in str(exp)`, from the flags kept in
+# the hashes, see hash_seq)
+FUNC mentions
+        xor eax, eax
+        test dil, 1
+        jnz 1f
+        test rdi, rdi
+        jz 1f
+        test [rdi + N_HASH], rsi
+        setnz al
+1:      ret
+ENDF mentions
 
 # mentions_c(exp, cstr) -> eax: a string anywhere in exp contains cstr
 FUNC mentions_c

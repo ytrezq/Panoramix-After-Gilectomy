@@ -32,6 +32,15 @@
 .set K_SPECIAL, 5
 .set K_VMNODE, 6            # a node of the symbolic execution (vmnode.s)
 
+# The top byte of a node's N_HASH holds "mention" flags: which of these
+# strings the value contains, anywhere in its tree - what python tests with
+# `"mem" in str(exp)` (a walk of the whole expression, every time).
+.set HF_MEM, 1 << 56
+.set HF_MSIZE, 1 << 57
+.set HF_STORAGE, 1 << 58
+.set HF_SHIFT, 56
+.set HF_MASK, 0xff << 56
+
 .set STR_VOLATILE, 0x80000000  # in a string's aux: mentions volatile state
 .set STR_FLOAT, 0x40000000     # in a string's aux: a python float ("0.5"), printed bare
 .set STR_ID_MASK, 0x3fffffff

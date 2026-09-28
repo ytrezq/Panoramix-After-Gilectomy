@@ -295,8 +295,8 @@ FUNC cleanup_msize_impl
         mov rax, [r14 + N_DATA + 8]
         mov [rsp + CM_COND], rax
         mov rdi, rax
-        lea rsi, [rip + .Ls_msize]
-        call mentions_c
+        mov rsi, HF_MSIZE
+        call mentions
         test eax, eax
         jz 3f
         mov rdi, [rsp + CM_MSIZE]
@@ -470,8 +470,8 @@ FUNC affects
         cmp r12, rax
         jne .Laf_no
 1:      mov rdi, r12
-        lea rsi, [rip + .Ls_msize]
-        call mentions_c
+        mov rsi, HF_MSIZE
+        call mentions
         test eax, eax
         jz 2f
         lea rdi, [rip + .Ls_undefined]
@@ -485,8 +485,8 @@ FUNC affects
         test eax, eax
         jnz .Laf_yes
 2:      mov rdi, r12
-        lea rsi, [rip + .Ls_mem]
-        call mentions_c
+        mov rsi, HF_MEM
+        call mentions
         test eax, eax
         jz .Laf_no
         mov rdi, r12
@@ -1243,8 +1243,8 @@ FUNC replace_mem
 7:      # (for speed) only the lines mentioning memory - and the variable
         # of the index, when it has one - get the replacement
         mov rdi, r14
-        lea rsi, [rip + .Ls_mem]
-        call mentions_c
+        mov rsi, HF_MEM
+        call mentions
         test eax, eax
         jz 8f
         PAT rsi, "('add', 'Any', ('var', ':num'))"

@@ -60,7 +60,15 @@ FUNC str_intern
         mov [rsp], rdi
         mov [rsp + 8], rsi
         call hash_bytes
+        mov rcx, HF_MASK
+        not rcx
+        and rax, rcx
         mov [rsp + 16], rax
+        mov rdi, [rsp]
+        mov rsi, [rsp + 8]
+        call str_scan_flags
+        or [rsp + 16], rdx              # the mention flags, in the hash
+        mov [rsp + 24], rax             # STR_VOLATILE, in the aux
         call str_lock_acquire
         mov rax, [rip + str_count]
         shl rax, 1
@@ -103,9 +111,7 @@ FUNC str_intern
         call malloc@PLT
         mov r14, rax
         mov dword ptr [r14 + N_KIND], K_STR
-        mov rdi, [rsp]
-        mov rsi, [rsp + 8]
-        call str_volatile_flag
+        mov rax, [rsp + 24]
         mov [r14 + N_AUX], eax
         mov rax, [rsp + 16]
         mov [r14 + N_HASH], rax
@@ -125,49 +131,79 @@ FUNC str_intern
         LEAVE
 ENDF str_intern
 
-# str_volatile_flag(ptr, len) -> eax: STR_VOLATILE if the string mentions
-# one of the VOLATILE names (see arithmetic.py), else 0
-FUNC str_volatile_flag
+# str_scan_flags(ptr, len) -> eax: STR_VOLATILE if the string mentions one
+# of the VOLATILE names (see arithmetic.py), else 0; rdx: the HF_* mention
+# flags ("mem", "msize", "storage"). One pass over the text: a byte is
+# looked up in a table of the names' first letters, and only a candidate
+# is compared with the names.
+FUNC str_scan_flags
         ENTER
-        mov r12, rdi
-        mov r13, rsi
-        lea rbx, [rip + volatile_names]
-1:      mov rdi, [rbx]
-        test rdi, rdi
-        jz 3f
-        call strlen@PLT
-        mov r14, rax                    # name length
-        cmp r14, r13
-        ja 2f
-        # naive substring search
-        xor ecx, ecx
-4:      lea rax, [rcx + r14]
-        cmp rax, r13
-        ja 2f
-        push rcx
-        push rcx
-        lea rdi, [r12 + rcx]
-        mov rsi, [rbx]
-        mov rdx, r14
-        call memcmp@PLT
-        pop rcx
-        pop rcx
+        sub rsp, 32
+        .set SF_HF, 0                   # the HF flags
+        .set SF_VOLATILE, 8             # STR_VOLATILE or 0
+        .set SF_CANDIDATES, 16          # the names still to try at this position
+        .set SF_NAME, 24                # the entry of scan_names being tried
+        mov r12, rdi                    # text
+        mov r13, rsi                    # its length
+        mov qword ptr [rsp + SF_HF], 0
+        mov qword ptr [rsp + SF_VOLATILE], 0
+        lea rbx, [rip + scan_first]
+        xor r14d, r14d                  # position
+1:      cmp r14, r13
+        jae 9f
+        movzx eax, byte ptr [r12 + r14]
+        movzx eax, word ptr [rbx + rax*2]  # the names starting with this byte
         test eax, eax
-        jz 5f
-        inc rcx
-        jmp 4b
-2:      add rbx, 8
+        jz 8f
+        mov [rsp + SF_CANDIDATES], rax
+2:      mov eax, [rsp + SF_CANDIDATES]
+        test eax, eax
+        jz 8f
+        tzcnt ecx, eax                  # the name's index
+        btr eax, ecx
+        mov [rsp + SF_CANDIDATES], rax
+        lea rax, [rcx + rcx*2]          # 24 bytes per entry
+        lea rdx, [rip + scan_names]
+        lea rax, [rdx + rax*8]
+        mov [rsp + SF_NAME], rax
+        mov rdx, [rax + 8]              # the name's length
+        lea rcx, [r14 + rdx]
+        cmp rcx, r13
+        ja 2b                           # too close to the end
+        lea rdi, [r12 + r14]
+        mov rsi, [rax]
+        call memcmp@PLT
+        test eax, eax
+        jnz 2b
+        mov rax, [rsp + SF_NAME]
+        mov rax, [rax + 16]             # the name's HF flags
+        or [rsp + SF_HF], rax
+        mov dword ptr [rsp + SF_VOLATILE], STR_VOLATILE
+        jmp 2b
+8:      inc r14
         jmp 1b
-5:      mov eax, STR_VOLATILE
+9:      mov eax, [rsp + SF_VOLATILE]
+        mov rdx, [rsp + SF_HF]
+        add rsp, 32
         LEAVE
-3:      xor eax, eax
-        LEAVE
-ENDF str_volatile_flag
+ENDF str_scan_flags
 
         .section .data.rel.ro
         .align 8
-volatile_names:
-        .quad .Lv0, .Lv1, .Lv2, .Lv3, .Lv4, .Lv5, .Lv6, .Lv7, .Lv8, .Lv9, .Lv10, .Lv11, .Lv12, 0
+scan_names:                             # (text, length, HF flags), in the order of scan_first's bits
+        .quad .Lv0, 7, HF_STORAGE       # storage
+        .quad .Lv1, 7, 0                # balance
+        .quad .Lv2, 8, 0                # ext_call
+        .quad .Lv3, 14, 0               # returndatasize
+        .quad .Lv4, 11, 0               # return_code
+        .quad .Lv5, 11, 0               # new_address
+        .quad .Lv6, 7, HF_MEM           # memcopy (contains "mem")
+        .quad .Lv7, 7, 0                # .result
+        .quad .Lv8, 3, 0                # gas
+        .quad .Lv9, 11, 0               # extcodesize
+        .quad .Lv10, 11, 0              # extcodehash
+        .quad .Lv11, 3, HF_MEM          # mem
+        .quad .Lv12, 5, HF_MSIZE        # msize
         .section .rodata
 .Lv0:  .asciz "storage"
 .Lv1:  .asciz "balance"
@@ -182,7 +218,26 @@ volatile_names:
 .Lv10: .asciz "extcodehash"
 .Lv11: .asciz "mem"
 .Lv12: .asciz "msize"
+        # scan_first[byte]: the names (bits of scan_names' order) starting with it
+        .align 2
+scan_first:
+        .fill '.', 2, 0
+        .short 1 << 7                   # '.': .result
+        .fill 'b' - '.' - 1, 2, 0
+        .short 1 << 1                   # 'b': balance
+        .fill 'e' - 'b' - 1, 2, 0
+        .short (1 << 2) | (1 << 9) | (1 << 10)   # 'e': ext_call, extcodesize, extcodehash
+        .fill 'g' - 'e' - 1, 2, 0
+        .short 1 << 8                   # 'g': gas
+        .fill 'm' - 'g' - 1, 2, 0
+        .short (1 << 6) | (1 << 11) | (1 << 12)  # 'm': memcopy, mem, msize
+        .short 1 << 5                   # 'n': new_address
+        .fill 'r' - 'n' - 1, 2, 0
+        .short (1 << 3) | (1 << 4)      # 'r': returndatasize, return_code
+        .short 1 << 0                   # 's': storage
+        .fill 255 - 's', 2, 0
         .text
+
 
 # str_grow(): double the intern table (lock held)
 FUNC str_grow
@@ -478,12 +533,16 @@ FUNC str_new
         mov dword ptr [r12 + N_KIND], K_STR
         mov rdi, [rsp]
         mov rsi, [rsp + 8]
-        call str_volatile_flag
-        mov [r12 + N_AUX], eax
+        call hash_bytes
+        mov rcx, HF_MASK
+        not rcx
+        and rax, rcx
+        mov [r12 + N_HASH], rax
         mov rdi, [rsp]
         mov rsi, [rsp + 8]
-        call hash_bytes
-        mov [r12 + N_HASH], rax
+        call str_scan_flags
+        mov [r12 + N_AUX], eax
+        or [r12 + N_HASH], rdx
         mov rax, [rsp + 8]
         mov [r12 + N_DATA], eax
         lea rdi, [r12 + N_DATA + 4]
