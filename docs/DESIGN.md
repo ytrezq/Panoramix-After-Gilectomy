@@ -433,3 +433,14 @@ common endings of the pairs begin (unless that passes the beginning the
 group shares) - one pass over the sides (`fold_or_split`). With
 `--verbose`, whose paths have thousands of lines, UniV2Pair went from
 13 s to 3 s.
+
+Then, on UniV3Pool: `cleanup_vars`' `required_after` (the variables of
+the rest of the trace, at every if and while) makes each level's map at
+its first search only, and a line's variables once each (its lines
+mention them 30 times each: 1.8M insertions for 19K searches); the VM's
+rounds walk the tree of nodes less - the nodes to run are the ones the
+round's last walk found (nothing changed since), `merge_branches` walks
+it once for all the nodes and the unexpanded ones among them (the same
+order), `continue_loops` takes the loops `replace_loops` just made (no
+other node's trace is a loop), and the walk handles its stack and the
+usual predicate itself. 2.51G instructions to 2.27G.

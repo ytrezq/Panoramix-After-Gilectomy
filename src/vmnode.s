@@ -265,7 +265,9 @@ ENDF find_nodes
 # find_nodes_into(root, pred, arg, out): find_nodes' nodes appended to
 # the vec out. The stack of the walk is the VM's, reused: python's lists
 # are garbage when the call returns, the arena's would stay (the rounds
-# of a long VM run called it thousands of times over thousands of nodes)
+# of a long VM run called it thousands of times over thousands of nodes).
+# The walk runs over every node at every round: its stack is handled
+# here, and the predicate the rounds ask the most (pred_unexpanded) too.
 FUNC find_nodes_into
         ENTER
         sub rsp, 16
@@ -290,26 +292,56 @@ FUNC find_nodes_into
 7:      mov rdi, r14
         mov rsi, rbx
         call vec_push
-1:      mov rdi, r14
-        call vec_pop
+.Lfn_pop:
+        mov rax, [r14 + VEC_LEN]
         test rax, rax
-        jz 4f
-        mov rbx, rax
-        mov rdi, rbx
+        jz .Lfn_done
+        dec rax
+        mov [r14 + VEC_LEN], rax
+        mov rcx, [r14 + VEC_DATA]
+        mov rbx, [rcx + rax*8]          # n = to_visit.pop()
+        lea rax, [rip + pred_unexpanded]
+        cmp r12, rax
+        jne 1f
+        cmp qword ptr [rbx + ND_TRACE], 0
+        jne .Lfn_next
+        jmp 2f
+1:      mov rdi, rbx
         mov rsi, r13
         call r12
         test eax, eax
-        jz 2f
-        mov rdi, [rsp]
+        jz .Lfn_next
+2:      mov rdi, [rsp]
         mov rsi, rbx
         call vec_push
-2:      # to_visit.extend(reversed(n.next))
+.Lfn_next:
+        # to_visit.extend(reversed(n.next))
         mov rax, [rbx + ND_NEXT]
         mov rcx, [rax + VEC_LEN]
-        mov [rsp + 8], rcx
-3:      mov rcx, [rsp + 8]
         test rcx, rcx
-        jz 1b
+        jz .Lfn_pop
+        mov rdx, [r14 + VEC_LEN]
+        add rdx, rcx
+        cmp rdx, [r14 + VEC_CAP]
+        ja .Lfn_grow
+        mov rsi, [rax + VEC_DATA]
+        mov rdi, [r14 + VEC_DATA]
+        mov rdx, [r14 + VEC_LEN]
+        lea r8, [rdx + rcx]
+        mov [r14 + VEC_LEN], r8
+3:      dec rcx
+        mov r9, [rsi + rcx*8]
+        mov [rdi + rdx*8], r9
+        inc rdx
+        test rcx, rcx
+        jnz 3b
+        jmp .Lfn_pop
+.Lfn_grow:
+        # (no room: one by one, vec_push growing the stack)
+        mov [rsp + 8], rcx
+4:      mov rcx, [rsp + 8]
+        test rcx, rcx
+        jz .Lfn_pop
         dec rcx
         mov [rsp + 8], rcx
         mov rax, [rbx + ND_NEXT]
@@ -317,8 +349,9 @@ FUNC find_nodes_into
         mov rsi, [rdx + rcx*8]
         mov rdi, r14
         call vec_push
-        jmp 3b
-4:      add rsp, 16
+        jmp 4b
+.Lfn_done:
+        add rsp, 16
         LEAVE
 ENDF find_nodes_into
 
@@ -334,24 +367,6 @@ FUNC pred_any
         mov eax, 1
         ret
 ENDF pred_any
-
-# a node whose trace is the single line ('loop', ...)
-FUNC pred_loop
-        mov rax, [rdi + ND_TRACE]
-        test rax, rax
-        jz 1f
-        cmp qword ptr [rax + VEC_LEN], 1
-        jne 1f
-        mov rax, [rax + VEC_DATA]
-        mov rdx, [rax]
-        OPCODE_INLINE rdx, eax, rcx
-        cmp eax, OP_LOOP
-        sete al
-        movzx eax, al
-        ret
-1:      xor eax, eax
-        ret
-ENDF pred_loop
 
 # pred_goto_back(node, label): the node's trace ends with a goto to the
 # label or to its loop head

@@ -189,12 +189,17 @@ FUNC vm_run
         # labels and gotos. (Depth-first would be way easier, but it tends
         # to work way slower because of the loops.)
         mov qword ptr [rsp + 24], 0     # j
+        mov qword ptr [rsp + 40], 0     # the unexpanded nodes, when just found
 .Louter:
         mov qword ptr [rsp + 32], 0     # i
 .Linner:
-        # find all the jumps, and expand them until the next jump
+        # find all the jumps, and expand them until the next jump (the
+        # unexpanded nodes the loop's condition just found: nothing
+        # changed since)
         mov rdi, r14
+        mov rsi, [rsp + 40]
         call vm_expand_trace
+        mov qword ptr [rsp + 40], 0
         # find all the jumps that lead to an already reached jumpdest
         # (with a similar stack, otherwise we'd catch function calls as
         # all), replace them with 'loop' identifiers
@@ -213,6 +218,7 @@ FUNC vm_run
         lea rsi, [rip + pred_unexpanded]
         xor edx, edx
         call find_nodes
+        mov [rsp + 40], rax
         cmp qword ptr [rax + VEC_LEN], 0
         je .Linner_done
         call vm_should_quit
@@ -228,6 +234,7 @@ FUNC vm_run
         lea rsi, [rip + pred_unexpanded]
         xor edx, edx
         call find_nodes
+        mov [rsp + 40], rax
         cmp qword ptr [rax + VEC_LEN], 0
         je .Lrun_done
         call vm_should_quit
@@ -257,13 +264,18 @@ FUNC vm_run
         LEAVE
 ENDF vm_run
 
-# vm_expand_trace(root): run the nodes that haven't been yet
+# vm_expand_trace(root, nodes): run the nodes that haven't been yet -
+# nodes: them, as find_nodes just gave them, or 0 to find them
 FUNC vm_expand_trace
         ENTER
+        mov rbx, rsi
+        test rbx, rbx
+        jnz 3f
         lea rsi, [rip + pred_unexpanded]
         xor edx, edx
         call find_nodes
         mov rbx, rax
+3:
         xor r12d, r12d
 1:      cmp r12, [rbx + VEC_LEN]
         jae 2f
@@ -325,20 +337,34 @@ FUNC vm_replace_loops
         mov rdi, rax
         mov rsi, r14
         call vec_push
+        # (for continue_loops, in this order: find_nodes' - the loops are
+        # these, as no other node's trace is ever a loop)
+        mov rax, [r15 + CTX_VM]
+        mov rdi, [rax + VM_LOOPS]
+        test rdi, rdi
+        jnz 2f
+        call vec_new
+        mov rdi, rax
+        mov rax, [r15 + CTX_VM]
+        mov [rax + VM_LOOPS], rdi
+2:      mov rsi, r13
+        call vec_push
 3:      inc r12
         jmp 1b
 4:      add rsp, 16
         LEAVE
 ENDF vm_replace_loops
 
-# vm_continue_loops(root): set up the loops found by vm_replace_loops
+# vm_continue_loops(root): set up the loops found by vm_replace_loops -
+# python's find_nodes(root, a trace of one 'loop'): the nodes
+# vm_replace_loops made so since (VM_LOOPS, in the same order), emptied
 FUNC vm_continue_loops
         ENTER
         sub rsp, 48
-        lea rsi, [rip + pred_loop]
-        xor edx, edx
-        call find_nodes
-        mov rbx, rax
+        mov rax, [r15 + CTX_VM]
+        mov rbx, [rax + VM_LOOPS]
+        test rbx, rbx
+        jz .Lcl_done
         xor r12d, r12d
 .Lcl_next:
         cmp r12, [rbx + VEC_LEN]
@@ -423,7 +449,10 @@ FUNC vm_continue_loops
         call node_set_label
         jmp .Lcl_next
 .Lcl_done:
-        add rsp, 48
+        test rbx, rbx
+        jz 1f
+        mov qword ptr [rbx + VEC_LEN], 0
+1:      add rsp, 48
         LEAVE
 ENDF vm_continue_loops
 
@@ -529,14 +558,14 @@ FUNC vm_merge_branches
         cmp qword ptr [rax + VM_JUST_FDESTS], 0
         jne .Lmb_done
         mov rbx, rdi                    # root
-        lea rsi, [rip + pred_unexpanded]
-        xor edx, edx
-        call find_nodes
+        # every node, in find_nodes' order (one walk: the unexpanded ones
+        # are those of them whose trace is None, in the same order)
+        mov rdi, rbx
+        call mb_all_nodes
         mov r12, rax                    # unexpanded
         cmp qword ptr [r12 + VEC_LEN], 0
         je .Lmb_done
         # by_jd: the nodes by jd, in find_nodes' order
-        mov rdi, rbx
         call mb_by_jd
         call map_new
         mov r14, rax                    # tried: (p, jd) pairs
@@ -618,14 +647,12 @@ FUNC vm_merge_branches
         LEAVE
 ENDF vm_merge_branches
 
-# mb_by_jd(root): merge_branches' by_jd, in the VM's scratch (reused at
+# mb_all_nodes(root) -> rax: the nodes below root in VM_SCR_ALL
+# (find_nodes' order), and those not run yet, in the same order, in
+# VM_SCR_UNEXP (returned). merge_branches' scratch is the VM's, reused at
 # every round: python's dict of lists is garbage when the call returns,
-# the arena's would stay - GBs over the rounds of a long run): the nodes
-# below root in VM_SCR_ALL (find_nodes' order), jd -> its group + 1 in
-# VM_SCR_BYJD, the groups' (first, last) indexes into ALL in
-# VM_SCR_HEADS, the next index in the same group (-1 after the last) in
-# VM_SCR_NEXT
-FUNC mb_by_jd
+# the arena's would stay - GBs over the rounds of a long run.
+FUNC mb_all_nodes
         ENTER
         mov rbx, [r15 + CTX_VM]
         mov r12, rdi
@@ -639,19 +666,46 @@ FUNC mb_by_jd
         mov [rbx + VM_SCR_HEADS], rax
         call emap_new
         mov [rbx + VM_SCR_BYJD], rax
+        call vec_new
+        mov [rbx + VM_SCR_UNEXP], rax
 1:      mov rax, [rbx + VM_SCR_ALL]
         mov qword ptr [rax + VEC_LEN], 0
+        mov rax, [rbx + VM_SCR_UNEXP]
+        mov qword ptr [rax + VEC_LEN], 0
+        mov rdi, r12
+        lea rsi, [rip + pred_any]
+        xor edx, edx
+        mov rcx, [rbx + VM_SCR_ALL]
+        call find_nodes_into
+        xor r13d, r13d
+        mov r12, [rbx + VM_SCR_ALL]
+2:      cmp r13, [r12 + VEC_LEN]
+        jae 3f
+        mov rax, [r12 + VEC_DATA]
+        mov rsi, [rax + r13*8]
+        inc r13
+        cmp qword ptr [rsi + ND_TRACE], 0
+        jne 2b
+        mov rdi, [rbx + VM_SCR_UNEXP]
+        call vec_push
+        jmp 2b
+3:      mov rax, [rbx + VM_SCR_UNEXP]
+        LEAVE
+ENDF mb_all_nodes
+
+# mb_by_jd(): merge_branches' by_jd, from the nodes mb_all_nodes put in
+# VM_SCR_ALL: jd -> its group + 1 in VM_SCR_BYJD, the groups' (first,
+# last) indexes into ALL in VM_SCR_HEADS, the next index in the same
+# group (-1 after the last) in VM_SCR_NEXT
+FUNC mb_by_jd
+        ENTER
+        mov rbx, [r15 + CTX_VM]
         mov rax, [rbx + VM_SCR_NEXT]
         mov qword ptr [rax + VEC_LEN], 0
         mov rax, [rbx + VM_SCR_HEADS]
         mov qword ptr [rax + VEC_LEN], 0
         mov rdi, [rbx + VM_SCR_BYJD]
         call emap_begin
-        mov rdi, r12
-        lea rsi, [rip + pred_any]
-        xor edx, edx
-        mov rcx, [rbx + VM_SCR_ALL]
-        call find_nodes_into
         xor r13d, r13d                  # i
 2:      mov rax, [rbx + VM_SCR_ALL]
         cmp r13, [rax + VEC_LEN]

@@ -1376,65 +1376,133 @@ ENDF map_seq_with
 # The `required_after` of cleanup_vars: the variables that what follows a
 # branch or a loop may still use. Python concatenates lists of every
 # occurrence and searches them (`("var", idx) in required_after`) - here a
-# chain of hash maps, one per level (`req_new`), searched by `req_has`.
-.set RQ_MAP, 0
+# chain of levels, one per `req_new`, each the variables of a trace (the
+# rest of a trace after an if or a while), searched by `req_has`. A
+# level's map of them is made at its first search: most levels are never
+# searched (a few thousand searches for as many levels on UniV3Pool, whose
+# lines mention variables 30 times each).
+.set RQ_MAP, 0                          # the map, or 0 until searched
 .set RQ_PARENT, 8
-.set RQ_SIZEOF, 16
+.set RQ_TRACE, 16                       # the trace whose variables they are
+.set RQ_SIZEOF, 24
 
 # req_new(parent, trace) -> req: the parent's variables plus the ones the
-# trace mentions (required_after + find_op_list(trace, "var")). The
-# variables of a line are remembered (line_vars): at every if, python
-# searches the rest of the trace again.
+# trace mentions (required_after + find_op_list(trace, "var"))
 FUNC req_new
         ENTER
-        sub rsp, 16
         mov rbx, rdi
         mov r12, rsi
         mov edi, RQ_SIZEOF
         call arena_alloc
-        mov r13, rax
-        mov [r13 + RQ_PARENT], rbx
+        mov [rax + RQ_PARENT], rbx
+        mov [rax + RQ_TRACE], r12
+        mov qword ptr [rax + RQ_MAP], 0
+        LEAVE
+ENDF req_new
+
+# req_map(req) -> rax: the map of the level's variables, made the first
+# time (the variables of each line remembered: line_vars)
+FUNC req_map
+        mov rax, [rdi + RQ_MAP]
+        test rax, rax
+        jz 1f
+        ret
+1:      ENTER
+        sub rsp, 16
+        mov rbx, rdi
         call map_new
-        mov [r13 + RQ_MAP], rax
+        mov r13, rax
+        mov r12, [rbx + RQ_TRACE]
         xor r14d, r14d
-1:      cmp r14d, [r12 + N_AUX]
+2:      cmp r14d, [r12 + N_AUX]
         jae 4f
         mov rdi, [r12 + N_DATA + r14*8]
         inc r14
         call line_vars
         mov [rsp], rax
         mov qword ptr [rsp + 8], 0
-2:      mov rax, [rsp]
+3:      mov rax, [rsp]
         mov rcx, [rsp + 8]
         cmp ecx, [rax + N_AUX]
-        jae 1b
+        jae 2b
         mov rsi, [rax + N_DATA + rcx*8]
         inc qword ptr [rsp + 8]
-        mov rdi, [r13 + RQ_MAP]
+        mov rdi, r13
         mov edx, 2                      # (any non-zero value)
         call map_put
-        jmp 2b
-4:      mov rax, r13
+        jmp 3b
+4:      mov [rbx + RQ_MAP], r13
+        mov rax, r13
         add rsp, 16
         LEAVE
-ENDF req_new
+ENDF req_map
 
-# line_vars(line) -> list: find_op_list(line, "var"), remembered
+# line_vars(line) -> list: the ('var', ...) the line mentions -
+# find_op_list(line, "var"), each once - remembered
 FUNC line_vars
         ENTER
+        sub rsp, 16
         mov rbx, rdi
         mov edi, MEMO_LINE_VARS
         mov rsi, rbx
         call memo_get
         test rax, rax
-        jnz 1f
+        jnz 9f
         call vec_new
         mov r12, rax
         mov rdi, rbx
         mov esi, OP_VAR
         mov rdx, r12
         call find_op_list
-        mov rdi, r12
+        # each variable once (hash-consed: the same pointer)
+        mov rcx, [r12 + VEC_LEN]
+        cmp rcx, 64
+        ja 5f
+        mov rdx, [r12 + VEC_DATA]       # few: in place
+        xor r8d, r8d                    # the ones kept
+        xor r9d, r9d                    # the one looked at
+1:      cmp r9, rcx
+        jae 4f
+        mov rax, [rdx + r9*8]
+        xor r10d, r10d
+2:      cmp r10, r8
+        jae 3f
+        cmp rax, [rdx + r10*8]
+        je 31f                          # (kept already)
+        inc r10
+        jmp 2b
+3:      mov [rdx + r8*8], rax
+        inc r8
+31:     inc r9
+        jmp 1b
+4:      mov [r12 + VEC_LEN], r8
+        jmp 8f
+5:      # many: the ones kept in a map
+        call map_new
+        mov r13, rax
+        call vec_new
+        mov [rsp], rax
+        xor r14d, r14d                  # the one looked at
+6:      cmp r14, [r12 + VEC_LEN]
+        jae 7f
+        mov rax, [r12 + VEC_DATA]
+        mov rsi, [rax + r14*8]
+        mov [rsp + 8], rsi
+        inc r14
+        mov rdi, r13
+        call map_get
+        test rax, rax
+        jnz 6b
+        mov rdi, r13
+        mov rsi, [rsp + 8]
+        mov edx, 1
+        call map_put
+        mov rdi, [rsp]
+        mov rsi, [rsp + 8]
+        call vec_push
+        jmp 6b
+7:      mov r12, [rsp]
+8:      mov rdi, r12
         call vec_to_list
         mov r12, rax
         mov edi, MEMO_LINE_VARS
@@ -1442,7 +1510,8 @@ FUNC line_vars
         mov rdx, rax
         call memo_put
         mov rax, r12
-1:      LEAVE
+9:      add rsp, 16
+        LEAVE
 ENDF line_vars
 
 # req_has(req, var) -> eax: the variable is required after
@@ -1452,7 +1521,9 @@ FUNC req_has
         mov r12, rsi
 1:      test rbx, rbx
         jz 2f
-        mov rdi, [rbx + RQ_MAP]
+        mov rdi, rbx
+        call req_map
+        mov rdi, rax
         mov rsi, r12
         call map_get
         test rax, rax

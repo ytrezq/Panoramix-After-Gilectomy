@@ -564,7 +564,9 @@ ENDF \fname
 .set VM_SCR_NEXT, 88        #   the next index at the same jd (-1: the last),
 .set VM_SCR_HEADS, 96       #   the (first, last) index of each jd,
 .set VM_SCR_BYJD, 104       #   jd -> its group + 1 (an emap)
-.set VM_SIZEOF, 112
+.set VM_SCR_UNEXP, 112      #   and the nodes not run yet
+.set VM_LOOPS, 120          # the nodes replace_loops made loops, for continue_loops (a vec)
+.set VM_SIZEOF, 128
 
 .set MAX_NODE_COUNT, 5000
 .set MAX_EXP_SIZE, 150
