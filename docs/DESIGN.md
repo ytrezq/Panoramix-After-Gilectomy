@@ -10,7 +10,8 @@ database, liblzma. Everything else is assembly (GNU as, Intel syntax).
 
     include/defs.inc      constants, struct offsets, macros (read this first)
     include/opcodes.inc   generated: OP_* ids of the well-known strings
-    src/rt_mem.s          thread contexts, arena allocator, GMP memory hooks
+    src/rt_mem.s          thread contexts, arena allocator, compaction, GMP memory hooks
+    src/rt_simd.s         the ISA detection and the vector loops (long hashes)
     src/rt_node.s         values, tuples/lists (hash-consed), big ints, value_import
     src/rt_str.s          global string interning, arena strings, builders, formatting
     src/rt_print.s        python-repr-like printing of values (tests, debug)
@@ -124,11 +125,23 @@ is the CLI, `build/panoramix_asm*.so` the module.
 9. [x] whiles, simplify passes, folder, prettify, storage naming
 10. [x] threads: one per function, shared read-only loader
 11. [x] `decompile()` in the module, CLI parity with `python -m panoramix`
-12. [ ] vectorization where it pays (the arena, the string hashing, the
-    hash-cons table) depending on the ISA (sse2/avx2/avx512)
-13. [ ] the deduplicating allocator: the hash-cons table already gives
-    one node per distinct value on a thread; sharing across threads
-    would need a lock-free table
+12. [x] vectorization where it pays, chosen from the ISA at run time
+    (`rt_simd.s`: cpuid + xgetbv; `PANORAMIX_ISA=scalar|avx2|avx512`
+    forces a level). What pays is little: the profile is tree walks over
+    small tuples (pointer chasing) and the hash-consing of them, and the
+    only long loops are the hashes of the traces (lists of hundreds of
+    lines), done 8 elements a step with AVX-512 (`vpmullq`,
+    `vpgatherqq`, `vprolq`) or 4 with AVX2. The wins came from the
+    algorithms instead, see below.
+13. [x] memory: the hash-cons table gives one node per distinct value on
+    a thread, and `ctx_compact` drops the garbage of the rewrites between
+    the rounds of `simplify_trace` once the arena passes 256 MiB (the
+    trace is copied into a fresh arena, the comparison memos with it).
+    Sharing the table across threads (a lock-free one, with a global
+    arena) was considered and rejected: `mk_seq` is the hottest
+    function, and a global arena could never be freed per function,
+    which is what keeps the memory bounded (~300 MiB per thread on the
+    worst contracts of the corpus, where python takes GBs).
 
 ## Testing
 
@@ -152,5 +165,20 @@ timeouts (60 s per step, 180 s per function) are scaled by
 the timeouts pypy hits and the assembly doesn't (Wyvern: 20x).
 
 The whole corpus (30 contracts) decompiles identically to pypy's
-references with the signature database; `panasm` takes ~25 s for all of
+references with the signature database; `panasm` takes ~16 s for all of
 them on two cores where pypy takes ~12 minutes.
+
+## Performance notes
+
+Profiled with callgrind (`valgrind --tool=callgrind build/panasm ...`,
+`callgrind_annotate --inclusive=yes`). What mattered, in order:
+`"mem" in str(exp)` walks (the mention flags), the `required_after`
+lists of `cleanup_vars` (a chain of maps), the variants of
+`add_ge_zero` (evaluated with mpz scratches instead of built and
+simplified), `hash_seq`/`seq_equal` without calls per element, the
+walkers keeping a node whose elements came back unchanged
+(`mk_seq_like`: 95% of the tuples built already existed), `try_add`
+examining a term instead of building thirty patterns to compare with
+it. What is left is python's own algorithms: `cleanup_vars` and
+`cleanup_mems` rewrite the rest of the trace for every variable and
+memory write (quadratic), and the printer.
