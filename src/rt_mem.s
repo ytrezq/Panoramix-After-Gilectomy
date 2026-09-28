@@ -624,8 +624,9 @@ ENDF arena_alloc_raw
 FUNC ctx_compact
         ENTER
         .set CC_MEMOS, 16               # the old memo tables
-        .set CC_OLD, CC_MEMOS + MEMO_COUNT * 8  # the old arena's end, total, table's cap, count, nodes
-        .set CC_ERR, CC_OLD + 48        # a handler: an error midway puts the old arena back
+        .set CC_OLD, CC_MEMOS + MEMO_COUNT * 8  # the old arena's end, total, table's cap, count, nodes,
+                                        # and what points into it (the maps reused, the VM)
+        .set CC_ERR, CC_OLD + 64        # a handler: an error midway puts the old arena back
         .set CC_FRAME, (CC_ERR + ERR_SIZEOF + 15) & -16
         sub rsp, CC_FRAME
         .set CC_FREED, 0
@@ -646,6 +647,10 @@ FUNC ctx_compact
         mov [rsp + CC_OLD + 32], rax
         mov rax, [r15 + CTX_RFM_MAP]
         mov [rsp + CC_OLD + 40], rax
+        mov rax, [r15 + CTX_RV_MAP]
+        mov [rsp + CC_OLD + 48], rax
+        mov rax, [r15 + CTX_VM]
+        mov [rsp + CC_OLD + 56], rax
         call memo_sizes_log
         lea rdi, [rsp + CC_MEMOS]
         lea rsi, [r15 + CTX_MEMO]
@@ -703,6 +708,8 @@ FUNC ctx_compact
         # replace_f_memo's map was in the old arena)
         mov qword ptr [r15 + CTX_MEMO + MEMO_IMPORT * 8], 0
         mov qword ptr [r15 + CTX_RFM_MAP], 0
+        mov qword ptr [r15 + CTX_RV_MAP], 0     # (rename_var's too)
+        mov qword ptr [r15 + CTX_VM], 0         # (the VM, done, was there)
         mov rdi, r12
         mov rsi, r14
         call chunks_release
@@ -742,6 +749,10 @@ FUNC ctx_compact
         mov [r15 + CTX_NODE_COUNT], rax
         mov rax, [rsp + CC_OLD + 40]
         mov [r15 + CTX_RFM_MAP], rax
+        mov rax, [rsp + CC_OLD + 48]
+        mov [r15 + CTX_RV_MAP], rax
+        mov rax, [rsp + CC_OLD + 56]
+        mov [r15 + CTX_VM], rax
         lea rdi, [r15 + CTX_MEMO]
         lea rsi, [rsp + CC_MEMOS]
         mov edx, MEMO_COUNT * 8
