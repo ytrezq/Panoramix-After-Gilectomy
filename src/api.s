@@ -46,7 +46,9 @@ API pan_disasm
         call pan_init
         call ctx_current
         mov [rsp + 32], rax             # previous binding, restored on exit
-        call ctx_new
+        call ctx_try_new
+        test rax, rax
+        jz .Ldis_no_ctx
         mov r15, rax
         mov rdi, r15
         call ctx_bind
@@ -76,6 +78,16 @@ API pan_disasm
         mov rdi, [rsp + 32]
         call ctx_bind
         xor eax, eax
+        add rsp, 40
+        LEAVE_NORET
+        pop r15
+        ret
+.Ldis_no_ctx:                           # (no memory: -1, nothing)
+        mov rax, [rsp + 16]
+        mov qword ptr [rax], 0
+        mov rax, [rsp + 24]
+        mov qword ptr [rax], 0
+        mov eax, -1
         add rsp, 40
         LEAVE_NORET
         pop r15
@@ -170,7 +182,9 @@ FUNC decompile_api
         call pan_init
         call ctx_current
         mov [rsp + 48], rax
-        call ctx_new
+        call ctx_try_new
+        test rax, rax
+        jz .Lda_no_ctx
         mov r15, rax
         mov rdi, r15
         call ctx_bind
@@ -240,7 +254,26 @@ FUNC decompile_api
         LEAVE_NORET
         pop r15
         ret
+.Lda_no_ctx:                            # (no memory for a context: -1, the message)
+        lea rdi, [rip + .Ls_no_memory]
+        call strdup@PLT
+        mov rcx, [rsp + 40]
+        mov [rcx + PO_TEXT], rax
+        xor edx, edx
+        test rax, rax
+        jz 7f
+        mov edx, .Ls_no_memory_end - .Ls_no_memory - 1
+7:      mov [rcx + PO_TEXTLEN], rdx
+        mov qword ptr [rcx + PO_DATA], 0
+        mov qword ptr [rcx + PO_DATALEN], 0
+        mov eax, -1
+        jmp 6b
 ENDF decompile_api
+
+        .section .rodata
+.Ls_no_memory:  .asciz "out of memory: the system gave no more (mmap failed)"
+.Ls_no_memory_end:
+        .text
 
 
 # int pan_build_sigdb(const char *xz_path, const char *out_path)
@@ -253,7 +286,9 @@ API pan_build_sigdb
         call pan_init
         call ctx_current
         mov [rsp + 16], rax
-        call ctx_new
+        call ctx_try_new
+        test rax, rax
+        jz 1f
         mov r15, rax
         mov rdi, r15
         call ctx_bind
@@ -266,6 +301,11 @@ API pan_build_sigdb
         mov rdi, [rsp + 16]
         call ctx_bind
         mov rax, [rsp]
+        add rsp, 24
+        LEAVE_NORET
+        pop r15
+        ret
+1:      mov eax, -1                     # (no memory for a context)
         add rsp, 24
         LEAVE_NORET
         pop r15

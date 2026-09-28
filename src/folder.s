@@ -10,6 +10,7 @@
         .section .rodata
 .Ls_logname:        .asciz "panoramix.folder"
 .Ls_folder_failed:  .asciz "folder failed in a function: %s"
+.Ls_no_ctx:     .asciz "out of memory: the system gave no more (mmap failed)"
 .Ls_fold_peak:      .asciz "the fold took %u MiB at most"
 .Ls_assert_or:      .asciz "folder: an or with more than two sides"
 .Ls_assert_cond:    .asciz "folder: the conditions of the two sides don't match"
@@ -89,7 +90,9 @@ FUNC fold_isolated
         .set FI_CTX, ERR_SIZEOF + 16
         mov [rsp + FI_TRACE], rdi
         mov [rsp + FI_MAIN], r15
-        call ctx_new                    # (bound to this thread)
+        call ctx_try_new                # (bound to this thread)
+        test rax, rax
+        jz .Lfi_no_ctx
         mov [rsp + FI_CTX], rax
         mov rcx, [r15 + CTX_CHILD_LIMIT]
         mov rdx, FOLD_LIMIT
@@ -147,6 +150,17 @@ FUNC fold_isolated
         call log_fmt
         mov rdi, [rsp + FI_CTX]
         call ctx_free
+        mov rax, [rsp + FI_TRACE]
+        add rsp, ERR_SIZEOF + 24
+        LEAVE_NORET
+        pop r15
+        ret
+.Lfi_no_ctx:                            # (no memory for a context: unfolded)
+        mov edi, LOG_ERROR
+        lea rsi, [rip + .Ls_logname]
+        lea rdx, [rip + .Ls_folder_failed]
+        lea rcx, [rip + .Ls_no_ctx]
+        call log_fmt
         mov rax, [rsp + FI_TRACE]
         add rsp, ERR_SIZEOF + 24
         LEAVE_NORET

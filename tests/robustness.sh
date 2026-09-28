@@ -65,4 +65,24 @@ run invalid 5
 # as a problem, the rest goes on
 MAXMEM=64 run nested_ifs_2000 60
 
+# the system with no more memory (an address space limit): the module's
+# contexts can't be had, or their chunks - the functions fail, the host
+# process lives on
+for lim in 60000 90000 160000 400000; do
+    out=$( (ulimit -v $lim; PANORAMIX_LOG=error timeout 60 python3 -c "
+import sys; sys.path.insert(0, 'build')
+import panoramix_asm as A
+t = A.decompile(open('tests/corpus/WETH.hex').read().strip(), threads=2, color=False)
+print('decompiled' if 'Palkeoramix' in t else 'no text')
+") 2>&1)
+    rc=$?
+    if [ $rc -ne 0 ] || [ "$(echo "$out" | tail -1)" != "decompiled" ]; then
+        echo "FAIL address space of $lim KiB: rc=$rc"
+        echo "$out" | tail -3
+        fail=1
+    else
+        echo "ok   address space of $lim KiB"
+    fi
+done
+
 exit $fail

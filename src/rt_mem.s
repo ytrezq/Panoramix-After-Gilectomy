@@ -68,11 +68,28 @@ FUNC rt_init
 9:      LEAVE
 ENDF rt_init
 
-# ctx_new() -> rax: a fresh thread context, not yet bound (see ctx_bind).
+# ctx_new() -> rax: a fresh thread context, bound to the thread (see
+# ctx_bind); a fatal "out of memory" if there's none to have (the
+# process-wide context, the command line tool)
 FUNC ctx_new
         ENTER
+        call ctx_try_new
+        test rax, rax
+        jz 1f
+        LEAVE
+1:      lea rdi, [rip + .Lmsg_oom]
+        call rt_fatal
+ENDF ctx_new
+
+# ctx_try_new() -> rax: ctx_new's context, or 0 when the memory for it
+# can't be had (a library doesn't take its host process down: the caller
+# fails what it was doing, as python's MemoryError would)
+FUNC ctx_try_new
+        ENTER
         mov edi, CTX_SIZE
-        call xmalloc
+        call malloc@PLT
+        test rax, rax
+        jz 9f
         mov rbx, rax
         mov rdi, rbx
         xor esi, esi
@@ -82,16 +99,20 @@ FUNC ctx_new
         # first chunk
         mov rdi, rbx
         mov esi, ARENA_CHUNK_DEFAULT
-        xor edx, edx
+        mov edx, 2                      # (0 if it can't be had)
         call arena_new_chunk
+        test rax, rax
+        jz 8f
         # hash-cons table: 4096 entries to start with
         mov edi, 4096
         mov esi, 8
-        call xcalloc
+        call calloc@PLT
+        test rax, rax
+        jz 7f
         mov [rbx + CTX_HC_TABLE], rax
         mov qword ptr [rbx + CTX_HC_CAP], 4096
-        # scratch mpz
-        lea rdi, [rbx + CTX_TMPZ]
+        # scratch mpz (from the first chunk: GMP allocates in the bound
+        # context's arena - the new one, left bound)
         push r15
         push r15
         mov r15, rbx
@@ -102,7 +123,14 @@ FUNC ctx_new
         pop r15
         mov rax, rbx
         LEAVE
-ENDF ctx_new
+7:      mov rdi, [rbx + CTX_ARENA_CHUNKS]
+        mov rsi, [rbx + CTX_ARENA_CUR]
+        call chunks_release
+8:      mov rdi, rbx
+        call free@PLT
+9:      xor eax, eax
+        LEAVE
+ENDF ctx_try_new
 
 # ctx_bind(ctx): make ctx the current thread's context for the code that
 # can't rely on r15 (GMP callbacks).
@@ -138,7 +166,8 @@ ENDF ctx_free
 
 # arena_new_chunk(ctx, size, check): map a chunk of at least `size`
 # payload bytes and make it the current one. check: E_MEMORY if the arena
-# would pass the context's limit (the context must be r15's then).
+# would pass the context's limit (the context must be r15's then); 2: no
+# limit, and rax = 0 when the system has no more (else nonzero).
 FUNC arena_new_chunk
         ENTER
         sub rsp, 16
@@ -211,6 +240,8 @@ FUNC arena_new_chunk
         # the system has no more (an address space limit, the machine's
         # memory): python's MemoryError where the context can take it -
         # its own, with a handler, and not in the middle of GMP's work
+        cmp qword ptr [rsp], 2
+        je .Lchunk_none
         cmp qword ptr [rsp], 0
         je 1f
         cmp rbx, r15
@@ -222,6 +253,10 @@ FUNC arena_new_chunk
         call err_throw
 1:      lea rdi, [rip + .Lmsg_oom]
         call rt_fatal
+.Lchunk_none:
+        xor eax, eax
+        add rsp, 16
+        LEAVE
 ENDF arena_new_chunk
 
         .section .rodata

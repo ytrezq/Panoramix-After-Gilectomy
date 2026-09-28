@@ -30,6 +30,7 @@
 .Ls_finished:   .asciz "Functions decompilation finished, now doing post-processing."
 .Ls_problem:    .asciz "Problem with %S: %s"
 .Ls_json_failed: .asciz "Failed json serialization. (%s)"
+.Ls_no_ctx:     .asciz "out of memory: the system gave no more (mmap failed)"
 .Ls_loader_issue: .asciz "Loader issue: %s"
 .Ls_timed_out:  .asciz "the function took more than 3 minutes"
 .Ls_no_target:  .asciz "KeyError: its jump destination isn't an instruction"
@@ -206,7 +207,9 @@ FUNC decompile_worker
         add rax, [rbx + DC_JOBS]
         mov r12, rax                    # the job
         mov [rsp + DW_JOB], rax
-        call ctx_new
+        call ctx_try_new
+        test rax, rax
+        jz .Ldw_no_ctx
         mov r15, rax
         mov [r12 + JB_CTX], rax
         mov rdi, rax
@@ -300,6 +303,22 @@ FUNC decompile_worker
         LEAVE_NORET
         pop r15
         ret
+# no memory for the job's context: the function fails (python's
+# MemoryError), the others go on
+.Ldw_no_ctx:
+        mov qword ptr [r12 + JB_CTX], 0
+        mov qword ptr [r12 + JB_ERR], E_MEMORY
+        lea rax, [rip + .Ls_no_ctx]
+        mov [r12 + JB_ERRMSG], rax
+        lea rdi, [rbx + DC_MUTEX]
+        call pthread_mutex_lock@PLT
+        mov qword ptr [r12 + JB_STATE], 1
+        inc qword ptr [rbx + DC_DONE]
+        lea rdi, [rbx + DC_COND]
+        call pthread_cond_signal@PLT
+        lea rdi, [rbx + DC_MUTEX]
+        call pthread_mutex_unlock@PLT
+        jmp .Ldw_next
 # the function's target isn't an instruction (python: loader.lines[target])
 .Ldw_no_target:
         mov edi, E_KEY
@@ -561,6 +580,8 @@ FUNC decompile
         mov rdi, r12
         call .Lde_import_job
         mov rdi, [r12 + JB_CTX]
+        test rdi, rdi                   # (0: it had none)
+        jz .Lde_wait
         call ctx_free
         jmp .Lde_wait
 .Lde_joined:
