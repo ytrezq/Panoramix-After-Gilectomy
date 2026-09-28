@@ -80,6 +80,7 @@ test_table:
         .quad .Ln_rewrite_string_stores, tf_rewrite_string_stores
         .quad .Ln_pp_cleanup_mul_1, pp_cleanup_mul_1
         .quad .Ln_simplify_trace, tf_simplify_trace
+        .quad .Ln_simplify_trace_deadline, tf_simplify_trace_deadline
         .quad .Ln_make_whiles, tf_make_whiles
         .quad .Ln_while_max_memidx, while_max_memidx
         .quad .Ln_extract_setmems, extract_setmems
@@ -192,6 +193,7 @@ test_table:
 .Ln_rewrite_string_stores: .asciz "rewrite_string_stores"
 .Ln_pp_cleanup_mul_1: .asciz "pp_cleanup_mul_1"
 .Ln_simplify_trace: .asciz "simplify_trace"
+.Ln_simplify_trace_deadline: .asciz "simplify_trace_deadline"
 .Ln_make_whiles: .asciz "make_whiles"
 .Ln_while_max_memidx: .asciz "while_max_memidx"
 .Ln_extract_setmems: .asciz "extract_setmems"
@@ -1243,6 +1245,42 @@ FUNC tf_make_whiles
         xor esi, esi
         jmp make_whiles
 ENDF tf_make_whiles
+
+# simplify_trace_deadline((trace, ms)): simplify_trace watched by the
+# watchdog with a deadline ms from now (its E_TIMEOUT comes back as an
+# exception, the watch stopped)
+FUNC tf_simplify_trace_deadline
+        ENTER
+        sub rsp, ERR_SIZEOF + 16
+        mov rbx, rdi
+        call monotonic_ns
+        mov rcx, [rbx + N_DATA + 8]
+        sar rcx, 1
+        imul rcx, rcx, 1000000
+        lea rsi, [rax + rcx]
+        mov rdi, r15
+        call watch_start
+        mov rdi, rsp
+        call err_catch
+        test eax, eax
+        jnz 1f
+        mov rdi, [rbx + N_DATA]
+        xor esi, esi
+        call simplify_trace
+        mov [rsp + ERR_SIZEOF], rax
+        call err_end
+        mov rdi, r15
+        call watch_stop
+        mov rax, [rsp + ERR_SIZEOF]
+        add rsp, ERR_SIZEOF + 16
+        LEAVE
+1:      mov [rsp + ERR_SIZEOF], rax
+        mov rdi, r15
+        call watch_stop
+        mov edi, [rsp + ERR_SIZEOF]
+        mov rsi, [r15 + CTX_ERR_MSG]
+        call err_throw
+ENDF tf_simplify_trace_deadline
 
 FUNC tf_while_touches_mem
         ENTER

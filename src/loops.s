@@ -781,6 +781,8 @@ FUNC while_max_memidx
         add rsp, ERR_SIZEOF + 48
         LEAVE
 .Lwm_error:
+        mov edi, eax                    # (python's timeout isn't an Exception)
+        call err_rethrow_timeout
         mov edi, LOG_ERROR
         lea rsi, [rip + .Ls_logname]
         lea rdx, [rip + .Ls_find_setmems]

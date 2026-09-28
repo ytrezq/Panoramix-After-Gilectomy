@@ -224,6 +224,13 @@ FUNC decompile_worker
         call err_catch
         test eax, eax
         jnz .Ldw_failed
+        # python's 3 minutes, as an alarm: the watchdog (rt_watch.s)
+        mov rdi, FUNC_TIMEOUT_NS
+        call scaled_ns
+        add rax, [rsp + DW_START]
+        mov rdi, r15
+        mov rsi, rax
+        call watch_start
         cmp qword ptr [r12 + JB_TARGET], 0
         je .Ldw_no_target
         mov edi, LOG_INFO
@@ -267,6 +274,8 @@ FUNC decompile_worker
         mov rax, [r15 + CTX_ERR_MSG]
         mov [r12 + JB_ERRMSG], rax
 .Ldw_finish:
+        mov rdi, r15
+        call watch_stop
         mov edi, LOG_DEBUG
         lea rsi, [rip + .Ls_logname]
         lea rdx, [rip + .Ls_peak]

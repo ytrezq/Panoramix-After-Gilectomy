@@ -162,6 +162,8 @@ FUNC whiles_make
         call vec_extend_seq
         jmp .Lmk_done
 .Lmk_no_loop:
+        mov edi, eax                    # (python's timeout isn't an Exception)
+        call err_rethrow_timeout
         mov edi, LOG_ERROR
         lea rsi, [rip + .Ls_logname]
         lea rdx, [rip + .Ls_no_loop]

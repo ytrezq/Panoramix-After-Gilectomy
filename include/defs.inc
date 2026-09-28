@@ -86,7 +86,10 @@
 .set CTX_TMPZ, CTX_MPZ_A    # used by mk_int_i64/u64/bytes_be and the parser
 .set CTX_TMPZ2, CTX_MPZ_T   # used by value_mpz
 .set CTX_LOADER, 160
-# 168..295: free
+.set CTX_DEADLINE, 168      # the watchdog's deadline, monotonic ns (0: none; rt_watch.s)
+.set CTX_TIMED_OUT, 176     # set by the watchdog: CTX_STACK_LOW taken away
+.set CTX_STACK_LOW_REAL, 184  # CTX_STACK_LOW meanwhile
+# 192..295: free
 .set CTX_VM, 296            # the VM this thread runs (vm.s)
 .set CTX_ERR_BUF, 304       # the innermost error handler (rt_err.s)
 .set CTX_ERR_CODE, 312      # what was thrown

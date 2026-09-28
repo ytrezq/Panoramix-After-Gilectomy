@@ -5142,7 +5142,9 @@ FUNC divisible_bytes
         sete al
         add rsp, ERR_SIZEOF + 16
         LEAVE
-1:      xor eax, eax
+1:      mov edi, eax                    # (python's timeout isn't an Exception)
+        call err_rethrow_timeout
+        xor eax, eax
         add rsp, ERR_SIZEOF + 16
         LEAVE
 ENDF divisible_bytes

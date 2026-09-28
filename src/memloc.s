@@ -585,6 +585,8 @@ FUNC split_or
         call full_row
         jmp .Lso_done
 .Lso_unsortable:
+        mov edi, eax                    # (python's timeout isn't an Exception)
+        call err_rethrow_timeout
         mov rdi, [rsp + SO_ORIG]
         call full_row
 .Lso_done:
@@ -754,6 +756,8 @@ FUNC split_setmem
         add rsp, ERR_SIZEOF + 32
         LEAVE
 .Lss_problem:
+        mov edi, eax                    # (python's timeout isn't an Exception)
+        call err_rethrow_timeout
         mov edi, LOG_ERROR
         lea rsi, [rip + .Ls_logname]
         lea rdx, [rip + .Ls_problem_split]

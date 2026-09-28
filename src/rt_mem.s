@@ -509,8 +509,10 @@ FUNC chunk_pool_trim
 2:      LEAVE
 ENDF chunk_pool_trim
 
-# stack_overflow(): where STACK_CHECK goes (python's RecursionError)
+# stack_overflow(): where STACK_CHECK goes (python's RecursionError, or
+# the watchdog's timeout: see rt_watch.s)
 FUNC stack_overflow
+        call watch_expired
         mov edi, E_RECURSION
         lea rsi, [rip + .Lmsg_recursion]
         jmp err_throw
