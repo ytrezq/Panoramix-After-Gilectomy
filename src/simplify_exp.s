@@ -161,25 +161,27 @@ FUNC simplify_exp_impl
         call pat_match
         test eax, eax
         jz 4f
-        B rax, 1
-        cmp rax, 1
-        jle 4f
-        B rcx, 2
-        sar rcx, 1
-        sar rax, 1
-        add rax, rcx
-        jnz 4f                          # moff == -off
+        B rdi, 1
+        call int_sign
+        cmp eax, 0
+        jle 4f                          # off > 0
+        B rdi, 1
+        call int_neg
+        mov rdi, rax
+        B rsi, 2
+        call values_equal
+        test eax, eax
+        jz 4f                           # moff == -off (numbers of any size)
         B rax, 0
-        sar rax, 1
-        cmp rax, 8
+        cmp rax, (8 << 1) | 1
         je 31f
-        cmp rax, 16
+        cmp rax, (16 << 1) | 1
         je 31f
-        cmp rax, 32
+        cmp rax, (32 << 1) | 1
         je 31f
-        cmp rax, 64
+        cmp rax, (64 << 1) | 1
         je 31f
-        cmp rax, 128
+        cmp rax, (128 << 1) | 1
         jne 4f
 31:     B rsi, 3
         LOADS rdi, CD
@@ -230,16 +232,21 @@ FUNC simplify_exp_impl
         call pat_match
         test eax, eax
         jz 8f
-        B rax, 0
-        cmp rax, (240 << 1) | 1
+        # size > 240 and num > 32 and num % 32 == 31 (numbers of any size)
+        B rdi, 0
+        mov esi, (240 << 1) | 1
+        call int_cmp
+        cmp eax, 0
         jle 8f
-        B rax, 1
-        cmp rax, (32 << 1) | 1
+        B rdi, 1
+        mov esi, (32 << 1) | 1
+        call int_cmp
+        cmp eax, 0
         jle 8f
-        sar rax, 1
-        mov rcx, rax
-        and rcx, 31
-        cmp rcx, 31
+        B rdi, 1
+        mov esi, 5
+        call int_mod_2exp
+        cmp rax, (31 << 1) | 1
         jne 8f
         # ('add', num // 32, ('mask_shl', 256, 5, 0, ('add', 31) + add_terms))
         mov rax, [rbx + N_DATA + 32]    # the add
@@ -266,11 +273,12 @@ FUNC simplify_exp_impl
         mov edx, (5 << 1) | 1
         mov ecx, 1
         call mk5
-        mov rdx, rax
-        B rsi, 1
-        sar rsi, 1
-        sar rsi, 5
-        TAG rsi
+        mov [rsp + SE_TMP], rax
+        B rdi, 1
+        mov esi, (32 << 1) | 1
+        call int_floordiv
+        mov rsi, rax
+        mov rdx, [rsp + SE_TMP]
         LOADS rdi, ADD
         call mk3
         mov rbx, rax

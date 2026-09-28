@@ -688,7 +688,17 @@ FUNC ctx_init_mpz
         call __gmpz_init2@PLT
         inc r12d
         jmp 1b
-2:      LEAVE
+2:      xor r12d, r12d
+3:      cmp r12d, 8
+        jae 4f
+        mov rax, r12
+        shl rax, 4
+        lea rdi, [r15 + CTX_AGZ + rax]
+        mov esi, 512
+        call __gmpz_init2@PLT
+        inc r12d
+        jmp 3b
+4:      LEAVE
 ENDF ctx_init_mpz
 
 # --- GMP memory callbacks (C ABI, context from the pthread key) ---

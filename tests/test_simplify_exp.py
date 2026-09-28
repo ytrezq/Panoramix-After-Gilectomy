@@ -51,7 +51,18 @@ def check(name, arg, expected):
         if bad >= 12:
             print("too many mismatches"); sys.exit(1)
 
+# cases the random runs found once: always checked
+REGRESSIONS = [
+    # the numbers of the rules past 2^62 (python's ints)
+    ('mask_shl', 246, 5, 0, ('or', ('add', 'callvalue', 128, 255), ('add', ('storage', 256, 0, 5), 'undefined', ('var', '_2'), 2**160 - 1))),
+    ('mask_shl', 2**70, 5, 0, ('add', 2**200 + 31, 'x')),
+    ('mask_shl', 8, 2**62 + 5, -(2**62 + 5), ('cd', 4)),
+    ('mask_shl', 8, 2**100, -(2**100), ('cd', 4)),
+]
+
 if __name__ == "__main__":
+    for e in REGRESSIONS:
+        check("simplify_exp", e, run(S.simplify_exp, e))
     for n in range(N):
         e = rexp()
         check("simplify_exp", e, run(S.simplify_exp, e))

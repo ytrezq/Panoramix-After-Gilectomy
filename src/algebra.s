@@ -1013,11 +1013,24 @@ FUNC add_op_impl
         jz 10f
         mov rax, [rsp + 24]
         mov rdi, [rax + N_DATA + 8]     # size
-        test dil, 1
+        call is_int
+        test eax, eax
         jz 10f
+        mov rax, [rsp + 24]
         cmp qword ptr [rax + N_DATA + 16], 1   # offset == 0
         jne 10f
+        # assert osize == 256 - size
+        mov edi, 513
+        mov rsi, [rax + N_DATA + 8]
+        call int_sub
+        mov rdi, rax
+        mov rax, [rsp + 24]
+        mov rsi, [rax + N_DATA + 24]
+        call py_equal
+        test eax, eax
+        jz .Lao_assert
         # symbolic[idx] = ("mul", 2**osize, val)
+        mov rax, [rsp + 24]
         mov rdi, [rax + N_DATA + 24]    # osize
         call clamp_bits
         mov rdi, rax
@@ -1032,7 +1045,19 @@ FUNC add_op_impl
         mov rdx, [rsp + 16]
         mov [rcx + rdx*8], rax
         jmp 19f
-10:     # ("add", num, term): symbolic[idx] = term, real += num
+10:     # ("add", num, term): symbolic[idx] = term, real += num (else
+        # python's assert fails: e.g. a number)
+        mov rdi, [rsp + 24]
+        mov esi, OP_ADD
+        mov edx, 3
+        call is_op_n
+        test eax, eax
+        jz .Lao_assert
+        mov rax, [rsp + 24]
+        mov rdi, [rax + N_DATA + 8]
+        call is_int
+        test eax, eax
+        jz .Lao_assert
         mov rax, [rsp + 24]
         mov rdi, [rsp]
         mov rsi, [rax + N_DATA + 8]
@@ -1061,6 +1086,22 @@ FUNC add_op_impl
         jae 24f
         mov rax, [rax + VEC_DATA]
         mov rbx, [rax + r14*8]
+        # s[1]: a tuple or a list of two or more; a string of two
+        # characters or more (s[1] a character: kept as it is); else
+        # python's TypeError (a number, None) or IndexError
+        test bl, 1
+        jnz .Lao_type
+        test rbx, rbx
+        jz .Lao_type
+        mov eax, [rbx + N_KIND]
+        cmp eax, K_STR
+        je 29f
+        cmp eax, K_TUPLE
+        je 30f
+        cmp eax, K_LIST
+        jne .Lao_type
+30:     cmp dword ptr [rbx + N_AUX], 2
+        jb .Lao_index
         cmp qword ptr [rbx + N_DATA + 8], 1     # s[1] == 0
         je 23f
         mov rdi, rbx
@@ -1072,6 +1113,9 @@ FUNC add_op_impl
         cmp qword ptr [rbx + N_DATA + 8], 3     # s[1] == 1
         jne 22f
         mov rbx, [rbx + N_DATA + 16]
+        jmp 22f
+29:     cmp dword ptr [rbx + N_DATA], 2         # a string
+        jb .Lao_index
 22:     mov rdi, r13
         mov rsi, rbx
         call vec_push
@@ -1124,7 +1168,25 @@ FUNC add_op_impl
         call vec_to_tuple
         add rsp, 48
         LEAVE
+.Lao_assert:
+        mov edi, E_ASSERT
+        lea rsi, [rip + .Ls_ao_assert]
+        call err_throw
+.Lao_type:
+        mov edi, E_TYPE
+        lea rsi, [rip + .Ls_ao_type]
+        call err_throw
+.Lao_index:
+        mov edi, E_INDEX
+        lea rsi, [rip + .Ls_ao_index]
+        call err_throw
 ENDF add_op_impl
+
+        .section .rodata
+.Ls_ao_assert:  .asciz "add_op: try_add gave neither a mul, a mask nor an add of a number"
+.Ls_ao_type:    .asciz "add_op: a term is not subscriptable"
+.Ls_ao_index:   .asciz "add_op: a term of less than two elements"
+        .text
 
 # ---------------------------------------------------------------------
 # try_add
@@ -3183,7 +3245,7 @@ ENDF variant_eval
 FUNC add_ge_zero_impl
         STACK_CHECK
         ENTER
-        sub rsp, 112
+        sub rsp, 176
         .set AGZ_SEEN_NEG, 0
         .set AGZ_SEEN_NONNEG, 8
         .set AGZ_COMB, 16               # the current combination (bit k: special)
@@ -3191,6 +3253,8 @@ FUNC add_ge_zero_impl
         .set AGZ_I, 32
         .set AGZ_FAST, 40               # the variants can be evaluated directly
         .set AGZ_VALS, 48               # the values of the (at most 7) variables
+        .set AGZ_MAXV, 104              # MAX_number
+        .set AGZ_SPEC, 112              # the special value of each variable (7)
         call alg_simplify
         mov rbx, rax
         mov rdi, rbx
@@ -3202,7 +3266,7 @@ FUNC add_ge_zero_impl
         cmp eax, -1
         setne al
         movzx eax, al
-        add rsp, 112
+        add rsp, 176
         LEAVE
 1:      call vec_new
         mov r12, rax                    # the variables
@@ -3232,6 +3296,45 @@ FUNC add_ge_zero_impl
         mov eax, -1                     # too deep for the pool of scratches
 41:     movsxd rax, eax
         mov [rsp + AGZ_FAST], rax
+        # the two values of every variable: MAX_number, and the special one
+        # (96 for mem[64], 6 for calldatasize, else 0)
+        call alg_max_number
+        mov [rsp + AGZ_MAXV], rax
+        xor ecx, ecx
+51:     cmp rcx, r13
+        jae 53f
+        mov [rsp + AGZ_I], rcx
+        mov rax, [r12 + VEC_DATA]
+        mov r14, [rax + rcx*8]          # the variable
+        mov rdi, r14
+        call is_mem64
+        mov edx, (96 << 1) | 1
+        test eax, eax
+        jnz 52f
+        LOADS rsi, CALLDATASIZE
+        mov edx, (6 << 1) | 1
+        cmp r14, rsi
+        je 52f
+        mov edx, 1
+52:     mov rcx, [rsp + AGZ_I]
+        mov [rsp + AGZ_SPEC + rcx*8], rdx
+        inc rcx
+        jmp 51b
+53:     # an add evaluated directly: its terms in groups of shared variables
+        cmp qword ptr [rsp + AGZ_FAST], 0
+        jl 4f
+        mov rdi, rbx
+        call opcode_of
+        cmp eax, OP_ADD
+        jne 4f
+        mov rdi, rbx
+        mov rsi, r13
+        mov rdx, [r12 + VEC_DATA]
+        mov rcx, [rsp + AGZ_MAXV]
+        lea r8, [rsp + AGZ_SPEC]
+        call agz_groups
+        add rsp, 176
+        LEAVE
 4:      mov rax, [rsp + AGZ_COMB]
         cmp rax, [rsp + AGZ_NCOMB]
         jae 9f
@@ -3239,28 +3342,12 @@ FUNC add_ge_zero_impl
         xor ecx, ecx
 5:      cmp rcx, r13
         jae 7f
-        mov [rsp + AGZ_I], rcx
-        mov rax, [r12 + VEC_DATA]
-        mov rdi, [rax + rcx*8]          # the variable
-        mov rax, [rsp + AGZ_COMB]
-        bt rax, rcx
-        jc 6f
-        call alg_max_number
-        jmp 8f
-6:      # the special value: 96 for mem[64], 6 for calldatasize, else 0
-        mov r14, rdi
-        call is_mem64
-        test eax, eax
-        jz 61f
-        mov eax, (96 << 1) | 1
-        jmp 8f
-61:     LOADS rsi, CALLDATASIZE
-        mov eax, (6 << 1) | 1
-        cmp r14, rsi
-        je 8f
-        mov eax, 1
-8:      mov rcx, [rsp + AGZ_I]
-        mov [rsp + AGZ_VALS + rcx*8], rax
+        mov rax, [rsp + AGZ_MAXV]
+        mov rdx, [rsp + AGZ_COMB]
+        bt rdx, rcx
+        jnc 8f
+        mov rax, [rsp + AGZ_SPEC + rcx*8]
+8:      mov [rsp + AGZ_VALS + rcx*8], rax
         inc rcx
         jmp 5b
 7:      cmp qword ptr [rsp + AGZ_FAST], 0
@@ -3312,16 +3399,285 @@ FUNC add_ge_zero_impl
         jne 13f
 .Lagz_true:
         mov eax, TRI_TRUE
-        add rsp, 112
+        add rsp, 176
         LEAVE
 13:     mov eax, TRI_FALSE
-        add rsp, 112
+        add rsp, 176
         LEAVE
 .Lagz_none:
         mov eax, TRI_NONE
-        add rsp, 112
+        add rsp, 176
         LEAVE
 ENDF add_ge_zero_impl
+
+        # add_ge_zero's scratch numbers (CTX_AGZ)
+        .set AGZM_C, CTX_AGZ
+        .set AGZM_MIN, CTX_AGZ + 16
+        .set AGZM_MAX, CTX_AGZ + 32
+        .set AGZM_GMIN, CTX_AGZ + 48
+        .set AGZM_GMAX, CTX_AGZ + 64
+        .set AGZM_SUM, CTX_AGZ + 80
+        .set AGZM_TERM, CTX_AGZ + 96
+
+# agz_groups(add, k, vars, max, spec) -> eax: add_ge_zero of an add whose
+# variants can be evaluated directly. Python evaluates every variant and
+# looks at the signs: all >= 0 (True), all < 0 (False), both (None) - i.e.
+# at the minimum and the maximum of the sum over the 2^k assignments. The
+# terms that share no variable vary independently: the extremes of the
+# sum are the sums of the extremes of the groups of terms, each group's
+# over the assignments of its own variables only (2^3 + 2^4 instead of
+# 2^7). spec: the special values (the other value is max).
+FUNC agz_groups
+        STACK_CHECK
+        ENTER
+        sub rsp, 224
+        .set AG_ROOT, 0
+        .set AG_K, 8
+        .set AG_VARS, 16
+        .set AG_MAXV, 24
+        .set AG_SPEC, 32
+        .set AG_MASKS, 40               # the variables of each term (a mask)
+        .set AG_NG, 48                  # the number of groups
+        .set AG_G, 56
+        .set AG_S, 64                   # the assignment of the group (bits: special)
+        .set AG_FIRST, 72
+        .set AG_VALS, 80                # 8 values
+        .set AG_GROUPS, 144             # 8 masks
+        mov [rsp + AG_ROOT], rdi
+        mov [rsp + AG_K], rsi
+        mov [rsp + AG_VARS], rdx
+        mov [rsp + AG_MAXV], rcx
+        mov [rsp + AG_SPEC], r8
+        mov rbx, rdi
+        mov r12d, [rbx + N_AUX]
+        dec r12                         # the terms: elements 1..r12
+        lea rdi, [r12*8 + 8]
+        call arena_alloc
+        mov [rsp + AG_MASKS], rax
+        mov qword ptr [rsp + AG_NG], 0
+        xor r13d, r13d
+1:      cmp r13, r12
+        jae 5f
+        mov rdi, [rbx + N_DATA + 8 + r13*8]
+        mov rsi, [rsp + AG_K]
+        mov rdx, [rsp + AG_VARS]
+        call var_mask
+        mov rcx, [rsp + AG_MASKS]
+        mov [rcx + r13*8], rax
+        inc r13
+        test rax, rax
+        jz 1b                           # a constant term
+        # merged with every group it shares a variable with
+        mov r14, rax
+        xor ecx, ecx
+2:      cmp rcx, [rsp + AG_NG]
+        jae 4f
+        mov rax, [rsp + AG_GROUPS + rcx*8]
+        test rax, r14
+        jz 3f
+        or r14, rax
+        mov rdx, [rsp + AG_NG]
+        dec rdx
+        mov [rsp + AG_NG], rdx
+        mov rax, [rsp + AG_GROUPS + rdx*8]
+        mov [rsp + AG_GROUPS + rcx*8], rax
+        jmp 2b
+3:      inc rcx
+        jmp 2b
+4:      mov rcx, [rsp + AG_NG]
+        mov [rsp + AG_GROUPS + rcx*8], r14
+        inc qword ptr [rsp + AG_NG]
+        jmp 1b
+5:      # the values: max everywhere to start with
+        xor ecx, ecx
+        mov rax, [rsp + AG_MAXV]
+51:     cmp rcx, [rsp + AG_K]
+        jae 52f
+        mov [rsp + AG_VALS + rcx*8], rax
+        inc rcx
+        jmp 51b
+52:     # C: the constant terms
+        lea rdi, [r15 + AGZM_C]
+        xor esi, esi
+        call __gmpz_set_ui@PLT
+        xor r13d, r13d
+6:      cmp r13, r12
+        jae 7f
+        mov rcx, [rsp + AG_MASKS]
+        cmp qword ptr [rcx + r13*8], 0
+        jne 61f
+        mov rdi, [rbx + N_DATA + 8 + r13*8]
+        call .Lag_term
+        lea rdi, [r15 + AGZM_C]
+        mov rsi, rdi
+        lea rdx, [r15 + AGZM_TERM]
+        call __gmpz_add@PLT
+61:     inc r13
+        jmp 6b
+7:      lea rdi, [r15 + AGZM_MIN]
+        lea rsi, [r15 + AGZM_C]
+        call __gmpz_set@PLT
+        lea rdi, [r15 + AGZM_MAX]
+        lea rsi, [r15 + AGZM_C]
+        call __gmpz_set@PLT
+        # every group: the extremes of its terms' sum over its assignments
+        mov qword ptr [rsp + AG_G], 0
+8:      mov rax, [rsp + AG_G]
+        cmp rax, [rsp + AG_NG]
+        jae 20f
+        mov r14, [rsp + AG_GROUPS + rax*8]      # the group's variables
+        mov qword ptr [rsp + AG_S], 0
+        mov qword ptr [rsp + AG_FIRST], 1
+9:      # the values of the group's variables in this assignment
+        xor ecx, ecx
+91:     cmp rcx, [rsp + AG_K]
+        jae 93f
+        bt r14, rcx
+        jnc 92f
+        mov rax, [rsp + AG_MAXV]
+        mov rdx, [rsp + AG_S]
+        bt rdx, rcx
+        jnc 94f
+        mov rax, [rsp + AG_SPEC]
+        mov rax, [rax + rcx*8]
+94:     mov [rsp + AG_VALS + rcx*8], rax
+92:     inc rcx
+        jmp 91b
+93:     # the sum of the group's terms
+        lea rdi, [r15 + AGZM_SUM]
+        xor esi, esi
+        call __gmpz_set_ui@PLT
+        xor r13d, r13d
+10:     cmp r13, r12
+        jae 12f
+        mov rcx, [rsp + AG_MASKS]
+        test [rcx + r13*8], r14
+        jz 11f
+        mov rdi, [rbx + N_DATA + 8 + r13*8]
+        call .Lag_term
+        lea rdi, [r15 + AGZM_SUM]
+        mov rsi, rdi
+        lea rdx, [r15 + AGZM_TERM]
+        call __gmpz_add@PLT
+11:     inc r13
+        jmp 10b
+12:     cmp qword ptr [rsp + AG_FIRST], 0
+        je 13f
+        mov qword ptr [rsp + AG_FIRST], 0
+        lea rdi, [r15 + AGZM_GMIN]
+        lea rsi, [r15 + AGZM_SUM]
+        call __gmpz_set@PLT
+        lea rdi, [r15 + AGZM_GMAX]
+        lea rsi, [r15 + AGZM_SUM]
+        call __gmpz_set@PLT
+        jmp 15f
+13:     lea rdi, [r15 + AGZM_SUM]
+        lea rsi, [r15 + AGZM_GMIN]
+        call __gmpz_cmp@PLT
+        test eax, eax
+        jns 14f
+        lea rdi, [r15 + AGZM_GMIN]
+        lea rsi, [r15 + AGZM_SUM]
+        call __gmpz_set@PLT
+14:     lea rdi, [r15 + AGZM_SUM]
+        lea rsi, [r15 + AGZM_GMAX]
+        call __gmpz_cmp@PLT
+        test eax, eax
+        jle 15f
+        lea rdi, [r15 + AGZM_GMAX]
+        lea rsi, [r15 + AGZM_SUM]
+        call __gmpz_set@PLT
+15:     # the next subset of the group's variables (back to 0 after all)
+        mov rax, [rsp + AG_S]
+        sub rax, r14
+        and rax, r14
+        mov [rsp + AG_S], rax
+        test rax, rax
+        jnz 9b
+        lea rdi, [r15 + AGZM_MIN]
+        mov rsi, rdi
+        lea rdx, [r15 + AGZM_GMIN]
+        call __gmpz_add@PLT
+        lea rdi, [r15 + AGZM_MAX]
+        mov rsi, rdi
+        lea rdx, [r15 + AGZM_GMAX]
+        call __gmpz_add@PLT
+        # (the group's variables back to max)
+        xor ecx, ecx
+        mov rax, [rsp + AG_MAXV]
+16:     cmp rcx, [rsp + AG_K]
+        jae 17f
+        mov [rsp + AG_VALS + rcx*8], rax
+        inc rcx
+        jmp 16b
+17:     inc qword ptr [rsp + AG_G]
+        jmp 8b
+20:     cmp dword ptr [r15 + AGZM_MIN + MPZ_SIZE], 0
+        jl 21f
+        mov eax, TRI_TRUE               # the minimum >= 0: every variant is
+        jmp 23f
+21:     cmp dword ptr [r15 + AGZM_MAX + MPZ_SIZE], 0
+        jge 22f
+        mov eax, TRI_FALSE              # the maximum < 0: none is
+        jmp 23f
+22:     mov eax, TRI_NONE
+23:     add rsp, 224
+        LEAVE
+# local: TERM := the value of the term rdi with the values of AG_VALS
+.Lag_term:
+        sub rsp, 8
+        mov rsi, [rsp + 16 + AG_K]
+        mov rdx, [rsp + 16 + AG_VARS]
+        lea rcx, [rsp + 16 + AG_VALS]
+        lea r8, [r15 + AGZM_TERM]
+        xor r9d, r9d
+        call variant_eval
+        add rsp, 8
+        ret
+ENDF agz_groups
+
+# var_mask(exp, k, vars) -> rax: the variables (bits) exp contains, a
+# variable counting as a whole (what variant_eval replaces)
+FUNC var_mask
+        STACK_CHECK
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        xor ecx, ecx
+1:      cmp rcx, r12
+        jae 2f
+        cmp rbx, [r13 + rcx*8]
+        je 3f
+        inc rcx
+        jmp 1b
+3:      mov eax, 1
+        shl rax, cl
+        add rsp, 16
+        LEAVE
+2:      xor r14d, r14d
+        test bl, 1
+        jnz 5f
+        test rbx, rbx
+        jz 5f
+        cmp dword ptr [rbx + N_KIND], K_TUPLE
+        jne 5f
+        mov qword ptr [rsp], 1
+4:      mov rcx, [rsp]
+        cmp ecx, [rbx + N_AUX]
+        jae 5f
+        mov rdi, [rbx + N_DATA + rcx*8]
+        inc qword ptr [rsp]
+        mov rsi, r12
+        mov rdx, r13
+        call var_mask
+        or r14, rax
+        jmp 4b
+5:      mov rax, r14
+        add rsp, 16
+        LEAVE
+ENDF var_mask
 
 # alg_calc_max(exp) -> value
 FUNC alg_calc_max

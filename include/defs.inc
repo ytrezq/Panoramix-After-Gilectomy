@@ -98,7 +98,8 @@
 .set CTX_ARENA_PEAK, 352 + 32 * MPZ_SIZEOF     # the most the arena took
 .set CTX_CHILD_LIMIT, CTX_ARENA_PEAK + 8        # CTX_MEM_LIMIT of the contexts it makes
 .set CTX_MEMO, CTX_ARENA_PEAK + 16              # the memo tables, 32 slots (see MEMO_*)
-.set CTX_SIZE, CTX_MEMO + 32 * 8
+.set CTX_AGZ, CTX_MEMO + 32 * 8                 # 8 scratch mpz_t for add_ge_zero's sums
+.set CTX_SIZE, CTX_AGZ + 8 * MPZ_SIZEOF
 
 # error handler buffer (rt_err.s)
 .set ERR_RBX, 0

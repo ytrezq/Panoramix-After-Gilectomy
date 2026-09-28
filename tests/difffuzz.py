@@ -24,7 +24,7 @@ import concurrent.futures
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "..")
-PANASM = os.path.join(ROOT, "build", "panasm")
+PANASM = os.environ.get("PANASM", os.path.join(ROOT, "build", "panasm"))
 PY_REPO = os.environ.get("PANORAMIX_PY", os.path.join(ROOT, "..", "panoramix"))
 PYTHON = os.environ.get("PANORAMIX_PYTHON", os.path.join(PY_REPO, ".venv", "bin", "python"))
 
