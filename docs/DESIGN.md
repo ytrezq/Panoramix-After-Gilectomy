@@ -42,6 +42,8 @@ database, liblzma. Everything else is assembly (GNU as, Intel syntax).
     src/sparser.s         the storage (sparser.py)
     src/contract.s        Contract (contract.py)
     src/decompiler.s      decompile(): the thread pool, the contract's text (decompiler.py)
+    src/data.s            python's decompilation.json: JSON text, or a binary form of
+                          python's objects for the module
     src/api.s             the C interface (pan_*, include/panoramix_asm.h), exported
                           by build/libpanoramix_asm.so
     src/main.s            the `panasm` command line tool
@@ -54,7 +56,7 @@ Build: `make` (needs python3 headers for the module). `build/panasm`
 is the CLI, `build/panoramix_asm*.so` the module.
 
     panasm build-db panoramix/data/abi_dump.xz    # once: the signature database
-    panasm decompile contract.hex [-j N] [--function NAME] [--no-color]
+    panasm decompile contract.hex [-j N] [--function NAME] [--no-color] [--json]
     python3 -c 'import panoramix_asm; print(panoramix_asm.decompile(open("contract.hex").read()))'
 
 ## Conventions
@@ -185,7 +187,8 @@ is the CLI, `build/panoramix_asm*.so` the module.
 ## Testing
 
 `make check` runs the C example, `tests/run_corpus.sh`,
-`tests/robustness.sh` and `tests/test_watchdog.py`. The first compares the 30 contracts of
+`tests/robustness.sh`, `tests/test_watchdog.py` and `tests/test_json.py`.
+The first compares the 30 contracts of
 `tests/corpus` (mainnet bytecode, see `SOURCES`) and the programs of
 `tests/synthetic` (each one a difference the port had) with python's
 output in their `expected` directories (pypy's `python -m panoramix`,
@@ -201,6 +204,11 @@ arena's size past which `simplify_trace` compacts): a compaction cut
 midway puts the old arena back (`ctx_compact` has a handler), and every
 call comes back whole or with the timeout, on a context that stays
 sound. The corpus gives the same text with `PANORAMIX_COMPACT_MIB=1`.
+The last compares the module's `decompile_bytecode` - the text, the
+disassembly, and python's `json` object for object (a tuple isn't a
+list, `True` isn't 1) - and `panasm --json` (against `json.dumps`) with
+python's `decompile_bytecode` on the corpus, whose results `make
+json-expected` pickles (pypy, `tests/gen_json_expected.py`).
 
 `tests/difffuzz.py SEED COUNT` is a differential fuzzer: random
 solidity-like programs (a selector dispatch; functions of storage and
@@ -220,8 +228,10 @@ The random unit tests (`tests/test_algebra.py` - with `BIG=1`, masks
 with numbers past 2^62 -, `test_arith.py`, `test_memloc.py`,
 `test_stack.py`, `test_simplify_exp.py`, `test_prettify_random.py`,
 `test_agz.py`: sums of many terms sharing variables, for `add_ge_zero`;
-`test_trace_random.py`: random traces through every pass of the
-simplifier and the whole `simplify_trace`)
+`test_trace_random.py`: random traces - the lines of the VM, loops
+included - through every pass of the simplifier and the whole
+`simplify_trace`; a trace on which python takes more than `PY_LIMIT`
+seconds, an expression doubling at every round, is skipped)
 take a seed; run over many seeds, they found the negative exponents of
 `exp` (python's modular inverse), the order of the terms of a max
 (python sorts them by `str()`, which has no quotes around a string), an
@@ -229,8 +239,13 @@ assertion of `flatten_adds`, a `try_add` that gives a number (python's
 assertion in `add_op`, a crash here), rules of `simplify_exp` that
 read numbers past 2^62 as small ones, conditions that simplify to None
 (`mem[x len 0]`: python's `eval_bool` can't decide them, the port took
-them for true) and the ValueError of a negative shift. The cases they found are kept in
-their `REGRESSIONS` lists.
+them for true), the ValueError of a negative shift, and the size python
+gives a number written to memory (the bytes it needs only past 2^256,
+never for a negative one). The cases they found are kept in their
+`REGRESSIONS` lists. `tools/tmin.py PASS FILE` shrinks a trace or an
+expression on which a pass differs. `PANASM_BUILD` points the tests to
+another copy of the module (a fixed one, for a campaign that runs while
+the build changes).
 
 Every layer also has a differential test against the python
 implementation on the corpus (`tests/test_*.py`, run with the system

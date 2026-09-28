@@ -13,7 +13,7 @@ processes), integers are GMP's, the expressions are hash-consed.
 
     make                         # needs as, cc, libgmp, liblzma, python3-dev
     build/panasm build-db /path/to/panoramix/data/abi_dump.xz   # once: the signature database
-    build/panasm decompile contract.hex [-j threads] [--function name] [--no-color]
+    build/panasm decompile contract.hex [-j threads] [--function name] [--no-color] [--json]
     build/panasm disasm contract.hex
 
 From python (the module in `build/`):
@@ -21,6 +21,8 @@ From python (the module in `build/`):
     import panoramix_asm
     text = panoramix_asm.decompile(open("contract.hex").read())          # a str with colors
     text = panoramix_asm.decompile(code, threads=4, function="transfer", color=False)
+    d = panoramix_asm.decompile_bytecode(code)      # as panoramix.decompiler's:
+    d.text, d.asm, d.json                           # the text, the disassembly, python's json
     panoramix_asm.build_signature_db("abi_dump.xz")                       # once
     panoramix_asm.set_log_level("info")     # warnings and errors only by default
 
@@ -33,9 +35,16 @@ has cores). A function that fails is reported in the text, as python
 does ("I failed with these"); an error where python would have printed
 a traceback raises `RuntimeError`.
 
+`decompile_bytecode` gives what panoramix's function of that name gives:
+`json` is python's `decompilation.json` - the problems, the storage
+definitions, and each function's names, length, getter, constant,
+payable, printed text, trace and parameters - as the same python objects
+(tuples, numbers as keys); `panasm decompile --json` prints it as
+`json.dumps` does.
+
 From C: `build/libpanoramix_asm.so` and `include/panoramix_asm.h`
-(`pan_decompile`, `pan_disasm`, `pan_build_sigdb`...; `make check` runs
-an example).
+(`pan_decompile`, `pan_decompile_data` for the json, `pan_disasm`,
+`pan_build_sigdb`...; `make check` runs an example).
 
 The signature database goes to `$PANORAMIX_SIGDB`, or
 `$XDG_CACHE_HOME/panoramix/abi_db.bin`, or `~/.cache/panoramix/abi_db.bin`.
