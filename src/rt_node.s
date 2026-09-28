@@ -176,6 +176,27 @@ FUNC seq_equal
         ret
 ENDF seq_equal
 
+# mk_seq_like(orig, elems) -> rax: a sequence of orig's kind and count
+# with these elements - orig itself when they are its own elements (the
+# common case of a walk that changes nothing: no hashing, no lookup)
+FUNC mk_seq_like
+        mov ecx, [rdi + N_AUX]
+        xor eax, eax
+1:      cmp rax, rcx
+        jae 2f
+        mov rdx, [rsi + rax*8]
+        cmp rdx, [rdi + N_DATA + rax*8]
+        jne 3f
+        inc rax
+        jmp 1b
+2:      mov rax, rdi
+        ret
+3:      mov rdx, rsi
+        mov esi, ecx
+        mov edi, [rdi + N_KIND]
+        jmp mk_seq
+ENDF mk_seq_like
+
 # hc_grow(): double the hash-cons table
 FUNC hc_grow
         ENTER

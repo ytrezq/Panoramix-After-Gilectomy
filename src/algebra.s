@@ -412,10 +412,9 @@ FUNC cleanup_mul_1
         mov [r13 + r14*8], rax
         inc r14
         jmp 3b
-4:      mov edi, [rbx + N_KIND]
-        mov rsi, r12
-        mov rdx, r13
-        call mk_seq
+4:      mov rdi, rbx
+        mov rsi, r13
+        call mk_seq_like
         LEAVE_DYN
 .Lcm_asis:
         mov rax, rbx

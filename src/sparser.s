@@ -1782,10 +1782,9 @@ FUNC repl_stor
         mov [rcx + r13*8], rax
         inc r13d
         jmp 3b
-4:      mov edi, [rbx + N_KIND]
-        mov esi, [rbx + N_AUX]
-        mov rdx, [rsp + MATCH_BINDINGS_SIZE]
-        call mk_seq
+4:      mov rdi, rbx
+        mov rsi, [rsp + MATCH_BINDINGS_SIZE]
+        call mk_seq_like
         jmp .Lrp_ret
 2:      mov rax, rbx
 .Lrp_ret:

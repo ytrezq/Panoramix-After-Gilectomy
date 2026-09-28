@@ -682,10 +682,9 @@ FUNC map_seq
         mov [rcx + r13*8], rax
         inc r13d
         jmp 1b
-2:      mov edi, [rbx + N_KIND]
-        mov esi, [rbx + N_AUX]
-        mov rdx, [rsp]
-        call mk_seq
+2:      mov rdi, rbx
+        mov rsi, [rsp]
+        call mk_seq_like
         add rsp, 16
         LEAVE
 ENDF map_seq

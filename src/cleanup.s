@@ -932,9 +932,9 @@ FUNC replace_mem_exp_impl
         mov [rcx + r14*8], rax
         inc r14d
         jmp 1b
-3:      mov edi, [rbx + N_AUX]
+3:      mov rdi, rbx
         mov rsi, [rsp + RM_ELEMS]
-        call mk_tuple
+        call mk_seq_like
         mov [rsp + RM_RES], rax
         mov rdi, r13
         call opcode_of
@@ -1324,10 +1324,9 @@ FUNC map_seq_with
         mov [rcx + r14*8], rax
         inc r14d
         jmp 1b
-2:      mov edi, [rbx + N_KIND]
-        mov esi, [rbx + N_AUX]
-        mov rdx, [rsp]
-        call mk_seq
+2:      mov rdi, rbx
+        mov rsi, [rsp]
+        call mk_seq_like
         add rsp, 16
         LEAVE
 ENDF map_seq_with

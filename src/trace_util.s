@@ -735,10 +735,9 @@ FUNC replace_f
         mov [rcx + r14*8], rax
         inc r14
         jmp 2b
-3:      mov edi, [rbx + N_KIND]
-        mov esi, [rbx + N_AUX]
-        mov rdx, [rsp]
-        call mk_seq
+3:      mov rdi, rbx
+        mov rsi, [rsp]
+        call mk_seq_like
         mov rdi, rax
         mov rsi, r13
         call r12
@@ -779,10 +778,9 @@ FUNC replace_f_stop
         mov [rcx + r14*8], rax
         inc r14
         jmp 2b
-3:      mov edi, [rbx + N_KIND]
-        mov esi, [rbx + N_AUX]
-        mov rdx, [rsp]
-        call mk_seq
+3:      mov rdi, rbx
+        mov rsi, [rsp]
+        call mk_seq_like
 4:      add rsp, 16
         LEAVE
 5:      mov rax, rbx
