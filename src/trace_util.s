@@ -592,12 +592,36 @@ ENDF is_list
 
 # replace(exp, what, by) -> exp with every occurrence of `what` replaced
 FUNC replace
+        # the mention flags of `what` (a string's, or a tuple's: the or of
+        # its elements'): a tuple without all of them can't hold it, and
+        # is kept as it is without a walk
+        xor ecx, ecx
+        test sil, 1
+        jnz replace_fl
+        test rsi, rsi
+        jz replace_fl
+        mov eax, [rsi + N_KIND]
+        cmp eax, K_STR
+        je 1f
+        cmp eax, K_TUPLE
+        je 1f
+        cmp eax, K_LIST
+        jne replace_fl
+1:      mov rcx, [rsi + N_HASH]
+        mov rax, HF_MASK
+        and rcx, rax
+        jmp replace_fl
+ENDF replace
+
+# replace_fl(exp, what, by_what, flags)
+FUNC replace_fl
         STACK_CHECK
         ENTER
-        sub rsp, 16
+        sub rsp, 32
         mov rbx, rdi
         mov r12, rsi
         mov r13, rdx
+        mov [rsp + 16], rcx             # the flags
         mov rdi, rbx
         mov rsi, r12
         call values_equal
@@ -607,10 +631,15 @@ FUNC replace
         call is_seq
         test eax, eax
         jz .Lrp_asis
+        mov rax, [rbx + N_HASH]
+        mov rcx, [rsp + 16]
+        and rax, rcx
+        cmp rax, rcx
+        jne .Lrp_asis
         # a copy of the elements, replaced, kept only if one changed
         mov edi, [rbx + N_AUX]
         shl rdi, 3
-        call arena_alloc
+        call arena_alloc_raw
         mov [rsp], rax
         xor r14d, r14d
         mov qword ptr [rsp + 8], 0      # changed?
@@ -619,7 +648,8 @@ FUNC replace
         mov rdi, [rbx + N_DATA + r14*8]
         mov rsi, r12
         mov rdx, r13
-        call replace
+        mov rcx, [rsp + 16]
+        call replace_fl
         mov rcx, [rsp]
         mov [rcx + r14*8], rax
         cmp rax, [rbx + N_DATA + r14*8]
@@ -633,17 +663,17 @@ FUNC replace
         mov esi, [rbx + N_AUX]
         mov rdx, [rsp]
         call mk_seq
-        add rsp, 16
+        add rsp, 32
         LEAVE
 .Lrp_by:
         mov rax, r13
-        add rsp, 16
+        add rsp, 32
         LEAVE
 .Lrp_asis:
         mov rax, rbx
-        add rsp, 16
+        add rsp, 32
         LEAVE
-ENDF replace
+ENDF replace_fl
 
 # replace_many(exp, n, whats, bys) -> exp with every occurrence of whats[i]
 # replaced by bys[i], all at once (an outer expression wins over the
