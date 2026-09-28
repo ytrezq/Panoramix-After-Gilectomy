@@ -1478,7 +1478,7 @@ FUNC sort_by_repr
         mov r12, [rbx + VEC_LEN]
         # the keys, malloc'ed C strings
         lea rdi, [r12*8 + 8]
-        call malloc@PLT
+        call xmalloc
         mov r13, rax
         xor r14d, r14d
 1:      cmp r14, r12

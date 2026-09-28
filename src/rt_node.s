@@ -218,7 +218,7 @@ FUNC hc_grow
         lea rdi, [r13 * 2]
         mov [r15 + CTX_HC_CAP], rdi
         mov esi, 8
-        call calloc@PLT
+        call xcalloc
         mov [r15 + CTX_HC_TABLE], rax
         mov rbx, rax
         xor r14d, r14d

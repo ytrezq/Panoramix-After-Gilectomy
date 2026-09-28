@@ -467,7 +467,7 @@ FUNC sigdb_build
         mov rax, [rsp + BF_INLEN]
         mov [rsp + BF_LZ + LZ_AVAIL_IN], rax
         mov edi, 4 << 20
-        call malloc@PLT
+        call xmalloc
         mov [rsp + BF_BUF], rax
         mov qword ptr [rsp + BF_BUFCAP], 4 << 20
         mov qword ptr [rsp + BF_BUFLEN], 0
@@ -534,7 +534,7 @@ FUNC sigdb_build
         mov [rsp + BF_BUFCAP], rax
         mov rdi, [rsp + BF_BUF]
         mov rsi, rax
-        call realloc@PLT
+        call xrealloc
         mov [rsp + BF_BUF], rax
         jmp .Lsb_decode
 6:      # the last line, without a newline
@@ -613,27 +613,27 @@ FUNC builder_new
         ENTER
         mov edi, 1
         mov esi, BD_SIZEOF
-        call calloc@PLT
+        call xcalloc
         mov rbx, rax
         mov edi, 1 << 20
         mov esi, 16
-        call calloc@PLT
+        call xcalloc
         mov [rbx + BD_ENTRIES], rax
         mov qword ptr [rbx + BD_CAPENTRIES], 1 << 20
         mov edi, 1 << 20
         mov esi, 8
-        call calloc@PLT
+        call xcalloc
         mov [rbx + BD_INPUTS], rax
         mov qword ptr [rbx + BD_CAPINPUTS], 1 << 20
         mov edi, 16 << 20
-        call malloc@PLT
+        call xmalloc
         mov [rbx + BD_STRINGS], rax
         mov qword ptr [rbx + BD_CAPSTRINGS], 16 << 20
         mov byte ptr [rax], 0           # offset 0: the empty string
         mov qword ptr [rbx + BD_NSTRINGS], 1
         mov edi, 1 << 21
         mov esi, 8
-        call calloc@PLT
+        call xcalloc
         mov [rbx + BD_TABLE], rax
         mov qword ptr [rbx + BD_TABLECAP], 1 << 21
         mov rax, rbx
@@ -709,7 +709,7 @@ FUNC builder_string
         mov [rbx + BD_CAPSTRINGS], rax
         mov rdi, [rbx + BD_STRINGS]
         mov rsi, rax
-        call realloc@PLT
+        call xrealloc
         mov [rbx + BD_STRINGS], rax
 4:      mov rdi, [rbx + BD_STRINGS]
         add rdi, [rbx + BD_NSTRINGS]
@@ -747,7 +747,7 @@ FUNC builder_grow_table
         lea rdi, [r13 * 2]
         mov [rbx + BD_TABLECAP], rdi
         mov esi, 8
-        call calloc@PLT
+        call xcalloc
         mov [rbx + BD_TABLE], rax
         xor r14d, r14d
 1:      cmp r14, r13
@@ -897,7 +897,7 @@ FUNC builder_line
         mov rdi, [rbx + BD_ENTRIES]
         mov rsi, rax
         shl rsi, 4
-        call realloc@PLT
+        call xrealloc
         mov [rbx + BD_ENTRIES], rax
         mov rax, [rbx + BD_NENTRIES]
 4:      shl rax, 4
@@ -1099,7 +1099,7 @@ FUNC bl_inputs
         mov rdi, [rbx + BD_INPUTS]
         mov rsi, rax
         shl rsi, 3
-        call realloc@PLT
+        call xrealloc
         mov [rbx + BD_INPUTS], rax
         mov rax, [rbx + BD_NINPUTS]
 7:      shl rax, 3
@@ -1228,7 +1228,7 @@ FUNC make_parent_dirs
         mov rbx, rdi
         call strlen@PLT
         lea rdi, [rax + 1]
-        call malloc@PLT
+        call xmalloc
         mov r12, rax
         mov rdi, rax
         mov rsi, rbx

@@ -2571,7 +2571,7 @@ FUNC code_bytes_value
         # the bytes pos-1 .. pos+len-2, the first being the last byte of
         # the code when pos is 0 (python's negative index)
         lea rdi, [r12 + 1]
-        call malloc@PLT
+        call xmalloc
         mov r14, rax
         mov rdi, r14
         mov rsi, [r13 + LD_CODE]

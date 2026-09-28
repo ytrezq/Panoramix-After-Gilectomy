@@ -138,7 +138,7 @@ FUNC main
         jz .Lnoread
 7:      mov rbx, rax                    # hex text
         mov rdi, [rsp + M_LEN]
-        call malloc@PLT
+        call xmalloc
         mov r14, rax                    # bytes
         mov rdi, rbx
         mov rsi, [rsp + M_LEN]

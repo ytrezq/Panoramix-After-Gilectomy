@@ -33,7 +33,7 @@ FUNC read_fd
         mov ebx, edi
         mov r13d, 65536                 # the capacity
         mov rdi, r13
-        call malloc@PLT
+        call xmalloc
         mov r14, rax
         xor r12d, r12d                  # read so far
 1:      mov rax, r13
@@ -43,7 +43,7 @@ FUNC read_fd
         shl r13, 1
         mov rdi, r14
         mov rsi, r13
-        call realloc@PLT
+        call xrealloc
         mov r14, rax
 2:      mov edi, ebx
         lea rsi, [r14 + r12]

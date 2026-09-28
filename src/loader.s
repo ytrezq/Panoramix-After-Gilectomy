@@ -267,7 +267,7 @@ FUNC loader_new
         ENTER
         mov edi, 1
         mov esi, LD_SIZEOF
-        call calloc@PLT
+        call xcalloc
         LEAVE
 ENDF loader_new
 
@@ -281,7 +281,7 @@ FUNC loader_load
         mov r13, rdx                    # len
         # copy the code
         lea rdi, [r13 + 1]
-        call malloc@PLT
+        call xmalloc
         mov [rbx + LD_CODE], rax
         mov rdi, rax
         mov rsi, r12
@@ -293,12 +293,12 @@ FUNC loader_load
         # instruction table: at most len entries
         lea rdi, [r13 + 1]
         mov esi, IN_SIZEOF
-        call calloc@PLT
+        call xcalloc
         mov [rbx + LD_INSTRS], rax
         # pc -> index
         lea rdi, [r13 + 1]
         mov esi, 4
-        call calloc@PLT
+        call xcalloc
         mov [rbx + LD_PC2IDX], rax
         mov rdi, rax
         mov esi, 0xff
@@ -307,7 +307,7 @@ FUNC loader_load
         # jumpdest flags
         lea rdi, [r13 + 1]
         mov esi, 1
-        call calloc@PLT
+        call xcalloc
         mov [rbx + LD_JUMPDESTS], rax
         xor r14d, r14d                  # pc
         mov qword ptr [rbx + LD_NINSTR], 0
@@ -455,7 +455,7 @@ FUNC pretty_bignum
         jmp .Lpb_no
 8:      # "'" + the non-zero bytes + "'"
         lea rdi, [r12 + 3]
-        call malloc@PLT
+        call xmalloc
         mov r13, rax
         mov byte ptr [r13], '\''
         mov r14d, 1

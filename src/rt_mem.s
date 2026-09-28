@@ -72,7 +72,7 @@ ENDF rt_init
 FUNC ctx_new
         ENTER
         mov edi, CTX_SIZE
-        call malloc@PLT
+        call xmalloc
         mov rbx, rax
         mov rdi, rbx
         xor esi, esi
@@ -87,7 +87,7 @@ FUNC ctx_new
         # hash-cons table: 4096 entries to start with
         mov edi, 4096
         mov esi, 8
-        call calloc@PLT
+        call xcalloc
         mov [rbx + CTX_HC_TABLE], rax
         mov qword ptr [rbx + CTX_HC_CAP], 4096
         # scratch mpz
@@ -617,7 +617,7 @@ FUNC ctx_compact
         mov qword ptr [r15 + CTX_ARENA_TOTAL], 0
         mov edi, 4096
         mov esi, 8
-        call calloc@PLT
+        call xcalloc
         mov [r15 + CTX_HC_TABLE], rax
         mov qword ptr [r15 + CTX_HC_CAP], 4096
         mov qword ptr [r15 + CTX_HC_COUNT], 0
@@ -921,6 +921,47 @@ ENDF gmp_realloc
 FUNC gmp_free
         ret
 ENDF gmp_free
+
+# xmalloc(size) / xcalloc(n, size) / xrealloc(ptr, size): the C
+# allocator's, a fatal "out of memory" instead of a NULL (for what lives
+# outside the arenas: the contexts, the hash-cons and string tables, the
+# loader, the signature database)
+FUNC xmalloc
+        push rdi
+        call malloc@PLT
+        pop rdi
+        test rax, rax
+        jz xalloc_failed
+        ret
+ENDF xmalloc
+
+FUNC xcalloc
+        push rdi
+        call calloc@PLT
+        pop rdi
+        test rax, rax
+        jz xalloc_failed
+        ret
+ENDF xcalloc
+
+FUNC xrealloc
+        push rdi
+        call realloc@PLT
+        pop rdi
+        test rax, rax
+        jz xalloc_failed
+        ret
+ENDF xrealloc
+
+FUNC xalloc_failed
+        sub rsp, 8
+        lea rdi, [rip + .Lmsg_xalloc]
+        call rt_fatal
+ENDF xalloc_failed
+
+        .section .rodata
+.Lmsg_xalloc: .asciz "panoramix-asm: out of memory (malloc failed)"
+        .text
 
 # rt_fatal(msg): print and abort
 FUNC rt_fatal

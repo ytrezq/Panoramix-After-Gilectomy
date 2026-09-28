@@ -522,7 +522,7 @@ FUNC tf_vm_run
         mov edi, [r12 + N_DATA]
         shr edi, 1
         inc rdi
-        call malloc@PLT
+        call xmalloc
         mov r13, rax
         lea rdi, [r12 + N_DATA + 4]
         mov esi, [r12 + N_DATA]
@@ -571,7 +571,7 @@ FUNC tf_find_functions
         mov edi, [r12 + N_DATA]
         shr edi, 1
         inc rdi
-        call malloc@PLT
+        call xmalloc
         mov r13, rax
         lea rdi, [r12 + N_DATA + 4]
         mov esi, [r12 + N_DATA]

@@ -244,7 +244,7 @@ FUNC pv_number
         mov rax, [rbx + PS_POS]
         sub rax, r12
         lea rdi, [rax + 2]
-        call malloc@PLT
+        call xmalloc
         mov [rsp], rax
         mov rdi, rax
         test r14d, r14d

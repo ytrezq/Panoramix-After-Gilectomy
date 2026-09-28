@@ -16,7 +16,7 @@ FUNC str_init
         ENTER
         mov edi, 4096
         mov esi, 8
-        call calloc@PLT
+        call xcalloc
         mov [rip + str_table], rax
         mov qword ptr [rip + str_cap], 4096
         LEAVE
@@ -108,7 +108,7 @@ FUNC str_intern
         mov rdi, [rsp + 8]
         add rdi, N_DATA + 4 + 1 + 15
         and rdi, -16
-        call malloc@PLT
+        call xmalloc
         mov r14, rax
         mov dword ptr [r14 + N_KIND], K_STR
         mov rax, [rsp + 24]
@@ -348,7 +348,7 @@ FUNC str_grow
         lea rdi, [r13 * 2]
         mov [rip + str_cap], rdi
         mov esi, 8
-        call calloc@PLT
+        call xcalloc
         mov [rip + str_table], rax
         mov rbx, rax
         xor r14d, r14d
@@ -410,10 +410,10 @@ ENDF opcodes_init
 FUNC sb_new
         ENTER
         mov edi, SB_SIZEOF
-        call malloc@PLT
+        call xmalloc
         mov rbx, rax
         mov edi, 256
-        call malloc@PLT
+        call xmalloc
         mov [rbx + SB_BUF], rax
         mov qword ptr [rbx + SB_LEN], 0
         mov qword ptr [rbx + SB_CAP], 256
@@ -438,7 +438,7 @@ FUNC sb_reserve
         mov [rbx + SB_CAP], rcx
         mov rdi, [rbx + SB_BUF]
         mov rsi, rcx
-        call realloc@PLT
+        call xrealloc
         mov [rbx + SB_BUF], rax
 1:      LEAVE
 ENDF sb_reserve
