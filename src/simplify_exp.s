@@ -700,7 +700,7 @@ FUNC map_seq
         mov r12, rsi
         mov edi, [rbx + N_AUX]
         shl rdi, 3
-        call arena_alloc
+        call arena_alloc_raw   # (every element written)
         mov [rsp], rax
         xor r13d, r13d
 1:      cmp r13d, [rbx + N_AUX]

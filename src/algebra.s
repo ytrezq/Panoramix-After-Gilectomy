@@ -3925,7 +3925,7 @@ FUNC simplify_impl
         # falling back to ('max',) + els on CannotCompare
         mov r13d, [rbx + N_AUX]
         lea rdi, [r13*8]
-        call arena_alloc
+        call arena_alloc_raw   # (every element written)
         mov r14, rax
         mov rax, [rbx + N_DATA]
         mov [r14], rax

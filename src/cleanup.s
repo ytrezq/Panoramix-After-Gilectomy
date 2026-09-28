@@ -970,7 +970,7 @@ FUNC replace_mem_exp_impl
         # the elements that are tuples, replaced
         mov edi, [rbx + N_AUX]
         shl rdi, 3
-        call arena_alloc
+        call arena_alloc_raw   # (every element written)
         mov [rsp + RM_ELEMS], rax
         xor r14d, r14d
 1:      cmp r14d, [rbx + N_AUX]
@@ -1392,7 +1392,7 @@ FUNC map_seq_with
         mov r13, rdx
         mov edi, [rbx + N_AUX]
         shl rdi, 3
-        call arena_alloc
+        call arena_alloc_raw   # (every element written)
         mov [rsp], rax
         xor r14d, r14d
 1:      cmp r14d, [rbx + N_AUX]

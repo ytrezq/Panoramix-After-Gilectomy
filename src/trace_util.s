@@ -741,7 +741,7 @@ FUNC replace_many
         jz .Lrm_asis
         mov edi, [rbx + N_AUX]
         shl rdi, 3
-        call arena_alloc
+        call arena_alloc_raw   # (every element written)
         mov [rsp + RM_ELEMS], rax
         mov qword ptr [rsp + RM_CHANGED], 0
         xor r14d, r14d
@@ -797,7 +797,7 @@ FUNC replace_f
         LEAVE
 1:      mov edi, [rbx + N_AUX]
         shl rdi, 3
-        call arena_alloc
+        call arena_alloc_raw   # (every element written)
         mov [rsp], rax
         xor r14d, r14d
 2:      cmp r14d, [rbx + N_AUX]
@@ -924,7 +924,7 @@ FUNC replace_f_stop
         jz 5f
         mov edi, [rbx + N_AUX]
         shl rdi, 3
-        call arena_alloc
+        call arena_alloc_raw   # (every element written)
         mov [rsp], rax
         xor r14d, r14d
 2:      cmp r14d, [rbx + N_AUX]
