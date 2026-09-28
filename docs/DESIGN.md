@@ -135,6 +135,17 @@ is the CLI, `build/panoramix_asm*.so` the module.
   `hash_seq` ORs them up. `mentions(exp, HF_x)` is what python does with
   `"mem" in str(exp)` (a walk, every time): the simplifier asks it
   millions of times.
+- The postprocessing's work of every function runs on threads too, as
+  many as the decompilation's: the folds of `make_asts` (`fold_many`:
+  each on a context of its own, its result imported as it comes) and
+  the printing (`print_many`, which the json and the text then take as
+  they are: each function printed from a copy of it on a context of its
+  own - the printer compares what it makes with what it reads by
+  pointer, so the copy's values are imported there -, the text made a
+  string of the main context after). The iterations read the main
+  context, which nobody writes meanwhile (`par_for`: its thread waits).
+  What is left on one thread is the storage's analysis and the rewrites
+  of the asts, which take the whole contract.
 - The folder (`fold_isolated`) runs on a context of its own too: python
   slices its lists of paths at every level and frees the slices, an
   arena keeps them (n nested ifs: n^3 bytes), so its garbage goes with

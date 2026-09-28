@@ -175,14 +175,33 @@ FUNC make_asts
         .set MA_MASKS, 16
         mov rbx, rdi
         mov r12, [rbx + CT_FUNCS]
+        # the folds first, all of them (on threads: fold_many)
+        call vec_new
+        mov r13, rax
+        xor r14d, r14d
+0:      cmp r14, [r12 + VEC_LEN]
+        jae 01f
+        mov rax, [r12 + VEC_DATA]
+        mov rax, [rax + r14*8]
+        mov rdi, r13
+        mov rsi, [rax + FN_TRACE]
+        call vec_push
+        inc r14
+        jmp 0b
+01:     mov rdi, r13
+        call vec_to_list
+        mov rdi, rax
+        call fold_many
+        mov [rsp + MA_MASKS], rax       # (the folded traces, for now)
         xor r13d, r13d
 1:      cmp r13, [r12 + VEC_LEN]
         jae 2f
         mov rax, [r12 + VEC_DATA]
         mov r14, [rax + r13*8]
         mov rdi, rbx
-        mov rsi, [r14 + FN_TRACE]
-        call make_ast
+        mov rsi, [rsp + MA_MASKS]
+        mov rsi, [rsi + N_DATA + r13*8]
+        call make_ast_folded
         mov [r14 + FN_AST], rax
         inc r13
         jmp 1b
@@ -495,14 +514,13 @@ FUNC ast_cleanup
         ret
 ENDF ast_cleanup
 
-# make_ast(contract, trace) -> list: the trace folded and rewritten for
+# make_ast_folded(contract, folded) -> list: python's contract.make_ast
+# of a trace folded already (fold_many, fold_isolated): rewritten for
 # display
-FUNC make_ast
+FUNC make_ast_folded
         ENTER
         mov rbx, rdi
         mov rdi, rsi
-        call fold_isolated
-        mov rdi, rax
         lea rsi, [rip + store_to_set]
         xor edx, edx
         call replace_f
@@ -527,7 +545,7 @@ FUNC make_ast
         xor edx, edx
         call replace_f
         LEAVE
-ENDF make_ast
+ENDF make_ast_folded
 
 # store_to_set(line, arg): ('store', size, off, idx, val) -> ('set', ('stor', size, off, idx), val)
 FUNC store_to_set

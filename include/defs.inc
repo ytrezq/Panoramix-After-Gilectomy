@@ -100,7 +100,8 @@
 .set CTX_EXPLAIN_FIRST, 248 # the first trace explained in this context, or 0
 .set CTX_EXPLAIN_CUT, 256   # the builder's length after that first one's text
 .set CTX_ASM_SB, 264        # a scratch builder for the lines of assembly (vm.s), or 0
-# 272..295: free
+.set CTX_FOLD_THREADS, 272  # the threads fold_many may use (folder.s; 0 or 1: none)
+# 280..295: free
 .set CTX_VM, 296            # the VM this thread runs (vm.s)
 .set CTX_ERR_BUF, 304       # the innermost error handler (rt_err.s)
 .set CTX_ERR_CODE, 312      # what was thrown

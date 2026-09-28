@@ -168,6 +168,280 @@ FUNC fold_isolated
         ret
 ENDF fold_isolated
 
+# --- the folds of a contract's functions, on threads ---
+
+        # a fold (fold_many's task)
+        .set FT_TRACE, 0                # the trace (the main context's)
+        .set FT_CTX, 8                  # the context it's folded on (0: none could be had)
+        .set FT_RESULT, 16              # the folded trace, there
+        .set FT_ERR, 24                 # an error's message (fold_isolated's handler), or 0
+        .set FT_STATE, 32               # 0 pending, 1 done, 2 taken
+        .set FT_SIZEOF, 40
+        # fold_many's shared state
+        .set FM_TASKS, 0
+        .set FM_N, 8
+        .set FM_NEXT, 16                # the next task to take (atomic)
+        .set FM_MUTEX, 24               # pthread_mutex_t (40 bytes, zeroed)
+        .set FM_COND, 64                # pthread_cond_t (48 bytes, zeroed)
+        .set FM_LIMIT, 112              # the folds' memory limit
+        .set FM_LOADER, 120
+        .set FM_FUNC, 128
+        .set FM_SIZEOF, 136
+        .set FOLD_WORKER_STACK, 64 << 20
+
+# fold_many(traces) -> list: the traces (a list) folded, as fold_isolated
+# folds each - on CTX_FOLD_THREADS threads when there are several, each
+# fold on a context of its own, as fold_isolated does; their results are
+# imported into this context as they come, and their contexts freed.
+FUNC fold_many
+        ENTER
+        sub rsp, 64
+        .set FMA_OUT, 0
+        .set FMA_TIDS, 8
+        .set FMA_NT, 16                 # the threads started
+        .set FMA_ATTR, 24
+        .set FMA_I, 32
+        mov rbx, rdi
+        mov edi, [rbx + N_AUX]
+        call vec_new_cap
+        mov [rsp + FMA_OUT], rax
+        mov rax, [r15 + CTX_FOLD_THREADS]
+        cmp rax, 1
+        jbe .Lfm_seq
+        cmp dword ptr [rbx + N_AUX], 1
+        jbe .Lfm_seq
+        # the tasks, the shared state
+        mov edi, FM_SIZEOF
+        call arena_alloc
+        mov r12, rax
+        mov edi, [rbx + N_AUX]
+        mov rax, [rsp + FMA_OUT]        # (its slots filled by .Lfm_take)
+        mov [rax + VEC_LEN], rdi
+        mov [r12 + FM_N], rdi
+        imul rdi, rdi, FT_SIZEOF
+        call arena_alloc
+        mov [r12 + FM_TASKS], rax
+        xor ecx, ecx
+1:      cmp ecx, [rbx + N_AUX]
+        jae 2f
+        mov rdx, [rbx + N_DATA + rcx*8]
+        imul r8, rcx, FT_SIZEOF
+        add r8, [r12 + FM_TASKS]
+        mov [r8 + FT_TRACE], rdx
+        inc ecx
+        jmp 1b
+2:      mov rcx, [r15 + CTX_CHILD_LIMIT]        # (fold_isolated's limit)
+        mov rdx, FOLD_LIMIT
+        test rcx, rcx
+        cmovz rcx, rdx
+        cmp rcx, rdx
+        cmova rcx, rdx
+        mov [r12 + FM_LIMIT], rcx
+        mov rax, [r15 + CTX_LOADER]
+        mov [r12 + FM_LOADER], rax
+        mov rax, [r15 + CTX_FUNC]
+        mov [r12 + FM_FUNC], rax
+        # the threads: as many as asked, no more than the folds
+        mov rax, [r15 + CTX_FOLD_THREADS]
+        cmp rax, [r12 + FM_N]
+        cmova rax, [r12 + FM_N]
+        mov r13, rax
+        lea rdi, [rax*8]
+        call arena_alloc
+        mov [rsp + FMA_TIDS], rax
+        mov edi, 64                     # (a pthread_attr_t is 56 bytes)
+        call arena_alloc
+        mov [rsp + FMA_ATTR], rax
+        mov rdi, rax
+        call pthread_attr_init@PLT
+        mov rdi, [rsp + FMA_ATTR]
+        mov esi, FOLD_WORKER_STACK
+        call pthread_attr_setstacksize@PLT
+        mov qword ptr [rsp + FMA_NT], 0
+3:      mov rax, [rsp + FMA_NT]
+        cmp rax, r13
+        jae 4f
+        mov rdi, [rsp + FMA_TIDS]
+        lea rdi, [rdi + rax*8]
+        mov rsi, [rsp + FMA_ATTR]
+        lea rdx, [rip + fold_worker]
+        mov rcx, r12
+        call pthread_create@PLT
+        test eax, eax
+        jnz 4f                          # (no more threads: the ones there are do it)
+        inc qword ptr [rsp + FMA_NT]
+        jmp 3b
+4:      mov rdi, [rsp + FMA_ATTR]
+        call pthread_attr_destroy@PLT
+        cmp qword ptr [rsp + FMA_NT], 0
+        jne 5f
+        mov rdi, r12                    # (not one: this thread does them)
+        call fold_worker
+        mov rdi, r15
+        call ctx_bind
+5:      # the results, as they come
+        mov qword ptr [rsp + FMA_I], 0
+.Lfm_wait:
+        mov rax, [rsp + FMA_I]
+        cmp rax, [r12 + FM_N]
+        jae .Lfm_joined
+        lea rdi, [r12 + FM_MUTEX]
+        call pthread_mutex_lock@PLT
+6:      mov rcx, [r12 + FM_N]
+        mov r14, [r12 + FM_TASKS]
+7:      test rcx, rcx
+        jz 8f
+        cmp qword ptr [r14 + FT_STATE], 1
+        je 9f
+        add r14, FT_SIZEOF
+        dec rcx
+        jmp 7b
+8:      lea rdi, [r12 + FM_COND]
+        lea rsi, [r12 + FM_MUTEX]
+        call pthread_cond_wait@PLT
+        jmp 6b
+9:      mov qword ptr [r14 + FT_STATE], 2
+        lea rdi, [r12 + FM_MUTEX]
+        call pthread_mutex_unlock@PLT
+        inc qword ptr [rsp + FMA_I]
+        mov rdi, r14
+        call .Lfm_take
+        jmp .Lfm_wait
+.Lfm_joined:
+        xor r13d, r13d
+10:     cmp r13, [rsp + FMA_NT]
+        jae 11f
+        mov rdi, [rsp + FMA_TIDS]
+        mov rdi, [rdi + r13*8]
+        xor esi, esi
+        call pthread_join@PLT
+        inc r13
+        jmp 10b
+11:     mov rdi, [rsp + FMA_OUT]
+        call vec_to_list
+        add rsp, 64
+        LEAVE
+.Lfm_seq:
+        # one thread: fold_isolated, one after the other
+        xor r12d, r12d
+12:     cmp r12d, [rbx + N_AUX]
+        jae 11b
+        mov rdi, [rbx + N_DATA + r12*8]
+        call fold_isolated
+        mov rdi, [rsp + FMA_OUT]
+        mov rsi, rax
+        call vec_push
+        inc r12d
+        jmp 12b
+
+# local: a task done (rdi): its result imported (or its trace, unfolded,
+# when it failed), in its place among the results; its context freed
+.Lfm_take:
+        push rbx
+        push r12
+        push r13
+        mov rbx, rdi
+        mov rcx, rdi                    # its index
+        sub rcx, [r12 + FM_TASKS]
+        mov rax, rcx
+        xor edx, edx
+        mov ecx, FT_SIZEOF
+        div rcx
+        mov r13, rax
+        mov rcx, [rbx + FT_ERR]
+        test rcx, rcx
+        jz 1f
+        mov edi, LOG_ERROR
+        lea rsi, [rip + .Ls_logname]
+        lea rdx, [rip + .Ls_folder_failed]
+        call log_fmt
+        mov rax, [rbx + FT_TRACE]
+        jmp 2f
+1:      mov rdi, [rbx + FT_RESULT]
+        call value_import_root
+        mov r12, rax
+        mov edi, LOG_DEBUG
+        lea rsi, [rip + .Ls_logname]
+        lea rdx, [rip + .Ls_fold_peak]
+        mov rcx, [rbx + FT_CTX]
+        mov rcx, [rcx + CTX_ARENA_PEAK]
+        shr rcx, 20
+        call log_fmt
+        mov rax, r12
+2:      mov rcx, [rsp + 24 + 8 + FMA_OUT]       # (the results, in order)
+        mov rcx, [rcx + VEC_DATA]
+        mov [rcx + r13*8], rax
+        mov rdi, [rbx + FT_CTX]
+        test rdi, rdi
+        jz 3f
+        call ctx_free
+3:      pop r13
+        pop r12
+        pop rbx
+        ret
+ENDF fold_many
+
+# fold_worker(fm) -> 0: takes folds until there are none left, each on a
+# context of its own - left with its result for the main thread to take
+FUNC fold_worker
+        push r15
+        ENTER
+        sub rsp, ERR_SIZEOF + 8         # (with r15 pushed: 8 mod 16 keeps rsp aligned)
+        mov rbx, rdi
+.Lfw_next:
+        mov eax, 1
+        lock xadd [rbx + FM_NEXT], rax
+        cmp rax, [rbx + FM_N]
+        jae .Lfw_done
+        imul r12, rax, FT_SIZEOF
+        add r12, [rbx + FM_TASKS]
+        call ctx_try_new                # (bound to this thread)
+        test rax, rax
+        jz .Lfw_no_ctx
+        mov r15, rax
+        mov [r12 + FT_CTX], rax
+        call ctx_set_stack
+        mov rax, [rbx + FM_LIMIT]
+        mov [r15 + CTX_MEM_LIMIT], rax
+        mov rax, [rbx + FM_LOADER]
+        mov [r15 + CTX_LOADER], rax
+        mov rax, [rbx + FM_FUNC]
+        mov [r15 + CTX_FUNC], rax
+        mov rdi, rsp
+        call err_catch
+        test eax, eax
+        jnz .Lfw_failed
+        mov rdi, [r12 + FT_TRACE]
+        call value_import_root
+        mov rdi, rax
+        call fold
+        mov [r12 + FT_RESULT], rax
+        call err_end
+        jmp .Lfw_signal
+.Lfw_failed:
+        mov rax, [r15 + CTX_ERR_MSG]
+        mov [r12 + FT_ERR], rax
+        jmp .Lfw_signal
+.Lfw_no_ctx:
+        lea rax, [rip + .Ls_no_ctx]
+        mov [r12 + FT_ERR], rax
+.Lfw_signal:
+        lea rdi, [rbx + FM_MUTEX]
+        call pthread_mutex_lock@PLT
+        mov qword ptr [r12 + FT_STATE], 1
+        lea rdi, [rbx + FM_COND]
+        call pthread_cond_signal@PLT
+        lea rdi, [rbx + FM_MUTEX]
+        call pthread_mutex_unlock@PLT
+        jmp .Lfw_next
+.Lfw_done:
+        xor eax, eax
+        add rsp, ERR_SIZEOF + 8
+        LEAVE_NORET
+        pop r15
+        ret
+ENDF fold_worker
+
 # has_merged_if(exp) -> eax: a ('merged_if', ...) anywhere
 FUNC has_merged_if
         ENTER

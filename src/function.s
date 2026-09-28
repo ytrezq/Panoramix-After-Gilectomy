@@ -1475,4 +1475,162 @@ FUNC fn_priority
         LEAVE
 ENDF fn_priority
 
+# --- the functions printed on threads ---
+
+        # an iteration of print_many
+        .set PT_TEXT, 0                 # the text (malloc'd), or 0 when it failed
+        .set PT_LEN, 8
+        .set PT_PRIORITY, 16            # FN_PRIORITY's value
+        .set PT_SIZEOF, 24
+        # print_many's shared state
+        .set PM_FUNCS, 0                # the vec of functions
+        .set PM_TASKS, 8
+        .set PM_LIMIT, 16
+        .set PM_LOADER, 24
+        .set PM_SIZEOF, 32
+
+# print_many(funcs, threads): every function printed (fn_print) and its
+# priority computed (fn_priority), on threads - what the contract's text
+# and json take of the functions, the same work for each. Each function
+# is printed on a context of its own, from a copy of it whose values are
+# imported there (the printer compares what it makes with what it reads,
+# by pointer: both must be of the same context). The texts are made
+# strings of this context after, in order. A function whose printing
+# fails is left as it was: fn_print, later, fails the same way where
+# python does.
+FUNC print_many
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r13, rsi
+        cmp r13, 1
+        jbe 9f
+        cmp qword ptr [rbx + VEC_LEN], 1
+        jbe 9f
+        mov edi, PM_SIZEOF
+        call arena_alloc
+        mov r12, rax
+        mov [r12 + PM_FUNCS], rbx
+        mov rdi, [rbx + VEC_LEN]
+        imul rdi, rdi, PT_SIZEOF
+        call arena_alloc
+        mov [r12 + PM_TASKS], rax
+        mov rax, [r15 + CTX_CHILD_LIMIT]
+        mov [r12 + PM_LIMIT], rax
+        mov rax, [r15 + CTX_LOADER]
+        mov [r12 + PM_LOADER], rax
+        mov rdi, [rbx + VEC_LEN]
+        mov rsi, r13
+        lea rdx, [rip + print_one]
+        mov rcx, r12
+        call par_for
+        # the texts, strings of this context now
+        xor r14d, r14d
+1:      cmp r14, [rbx + VEC_LEN]
+        jae 9f
+        imul r13, r14, PT_SIZEOF
+        add r13, [r12 + PM_TASKS]
+        mov rdi, [r13 + PT_TEXT]
+        test rdi, rdi
+        jz 2f
+        mov rsi, [r13 + PT_LEN]
+        call str_new
+        mov rcx, [rbx + VEC_DATA]
+        mov rcx, [rcx + r14*8]
+        mov [rcx + FN_PRINT], rax
+        mov rax, [r13 + PT_PRIORITY]
+        mov [rcx + FN_PRIORITY], rax
+        mov rdi, [r13 + PT_TEXT]
+        call free@PLT
+2:      inc r14
+        jmp 1b
+9:      add rsp, 16
+        LEAVE
+ENDF print_many
+
+# print_one(i, pm): print_many's iteration i (see there)
+FUNC print_one
+        push r15
+        ENTER
+        sub rsp, ERR_SIZEOF + 24        # (with r15 pushed: 8 mod 16 keeps rsp aligned)
+        .set PO1_CTX, ERR_SIZEOF
+        .set PO1_MAIN, ERR_SIZEOF + 8
+        mov [rsp + PO1_MAIN], r15
+        mov rbx, rsi                    # pm
+        imul r12, rdi, PT_SIZEOF
+        add r12, [rbx + PM_TASKS]       # the task
+        mov rax, [rbx + PM_FUNCS]
+        mov rax, [rax + VEC_DATA]
+        mov r13, [rax + rdi*8]          # the function (the main context's)
+        call ctx_try_new                # (bound to this thread)
+        test rax, rax
+        jz 8f
+        mov [rsp + PO1_CTX], rax
+        mov r15, rax
+        call ctx_set_stack
+        mov rax, [rbx + PM_LIMIT]
+        mov [r15 + CTX_MEM_LIMIT], rax
+        mov rax, [rbx + PM_LOADER]
+        mov [r15 + CTX_LOADER], rax
+        mov rdi, rsp
+        call err_catch
+        test eax, eax
+        jnz 7f
+        # the copy, its values imported
+        mov edi, FN_SIZEOF
+        call arena_alloc
+        mov r14, rax
+        mov rdi, rax
+        mov rsi, r13
+        mov edx, FN_SIZEOF
+        call memcpy@PLT
+        mov qword ptr [r14 + FN_PRINT], 0
+        mov qword ptr [r14 + FN_PRIORITY], 0
+        lea rbx, [rip + fn_value_fields]
+3:      mov ecx, [rbx]
+        cmp ecx, -1
+        je 4f
+        mov rdi, [r14 + rcx]
+        call value_import_root
+        mov ecx, [rbx]
+        mov [r14 + rcx], rax
+        add rbx, 4
+        jmp 3b
+4:      mov rdi, r14
+        call fn_print
+        mov rdi, r14
+        call fn_priority
+        call err_end
+        mov rax, [r14 + FN_PRIORITY]
+        mov [r12 + PT_PRIORITY], rax
+        mov rax, [r14 + FN_PRINT]       # its text, for the main thread
+        mov ebx, [rax + N_DATA]
+        mov [r12 + PT_LEN], rbx
+        lea rdi, [rbx + 1]
+        call malloc@PLT
+        test rax, rax
+        jz 7f
+        mov [r12 + PT_TEXT], rax
+        mov rdi, rax
+        mov rsi, [r14 + FN_PRINT]
+        add rsi, N_DATA + 4
+        lea rdx, [rbx + 1]
+        call memcpy@PLT
+7:      mov rdi, [rsp + PO1_CTX]
+        call ctx_free
+8:      mov r15, [rsp + PO1_MAIN]
+        add rsp, ERR_SIZEOF + 24
+        LEAVE_NORET
+        pop r15
+        ret
+ENDF print_one
+
+        .section .rodata
+        .align 4
+# the fields of a function that hold values of its context
+fn_value_fields:
+        .long FN_ABI, FN_INPUTS, FN_TRACE, FN_ORIG_TRACE, FN_PARAMS, FN_CONST
+        .long FN_GETTER, FN_RETURNS, FN_AST, -1
+        .text
+
         .section .note.GNU-stack,"",@progbits

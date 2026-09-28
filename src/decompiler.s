@@ -554,6 +554,7 @@ FUNC decompile
         jnz 7f
         mov edi, 1
 7:      mov [rsp + DE_THREADS], rdi
+        mov [r15 + CTX_FOLD_THREADS], rdi       # (the folds of the postprocessing too)
         call mem_limit_for
         mov [r13 + DC_MEMLIMIT], rax
         mov [r15 + CTX_CHILD_LIMIT], rax        # (the folder's contexts)
@@ -668,6 +669,12 @@ FUNC decompile
         mov [rsp + DE_CONTRACT], rax
         mov rdi, rax
         call contract_postprocess
+        # every function printed now, on threads (the json and the text
+        # take them as they are then)
+        mov rdi, [rsp + DE_CONTRACT]
+        mov rdi, [rdi + CT_FUNCS]
+        mov rsi, [r15 + CTX_FOLD_THREADS]
+        call print_many
         # python's decompilation.json, when asked for (before the text,
         # as python makes it)
         cmp qword ptr [r15 + CTX_DATA_SB], 0
