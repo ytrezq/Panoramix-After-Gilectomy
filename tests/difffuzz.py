@@ -4,7 +4,12 @@
 requires, loops, logs, calls, returns) decompiled by both, the texts
 compared.
 
-    tests/difffuzz.py SEED COUNT [--keep DIR]
+    tests/difffuzz.py SEED COUNT [--keep DIR] [--mutate]
+
+--mutate: instead, small contracts of tests/corpus (and of the
+directories in $MUTATE_DIRS, below $MUTATE_MAX hex digits) with one to
+four instructions changed (an operation for another of the same arity,
+a byte of a push, a dup or a swap for another).
 
 Python runs as `python -m panoramix` ($PANORAMIX_PYTHON, pypy by
 default, in $PANORAMIX_PY), the port as build/panasm; both with the
@@ -560,10 +565,40 @@ def run_port(path):
     return p.returncode, p.stdout
 
 
+# --mutate: small contracts of the corpora with a few instructions changed
+BINARY = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x0a, 0x0b, 0x10, 0x11, 0x12, 0x13,
+          0x14, 0x16, 0x17, 0x18, 0x1a, 0x1b, 0x1c, 0x1d]
+UNARY = [0x15, 0x19, 0x31, 0x35, 0x3b, 0x3f, 0x40, 0x51, 0x54]
+MUTATE_FROM = []
+
+
+def mutate(rnd):
+    code = bytearray(bytes.fromhex(open(rnd.choice(MUTATE_FROM)).read().strip().removeprefix("0x")))
+    # the instructions' offsets (the push data skipped)
+    pcs, pc = [], 0
+    while pc < len(code):
+        pcs.append(pc)
+        op = code[pc]
+        pc += 1 + (op - 0x5f if 0x60 <= op <= 0x7f else 0)
+    for _ in range(rnd.randint(1, 4)):
+        pc = rnd.choice(pcs)
+        op = code[pc]
+        if op in BINARY:
+            code[pc] = rnd.choice(BINARY)
+        elif op in UNARY:
+            code[pc] = rnd.choice(UNARY)
+        elif 0x60 <= op <= 0x7f and pc + 1 < len(code):
+            k = rnd.randrange(pc + 1, min(pc + 1 + op - 0x5f, len(code)))
+            code[k] = rnd.choice([0, 1, 0xff, rnd.randrange(256)])
+        elif 0x80 <= op <= 0x8f or 0x90 <= op <= 0x9f:
+            code[pc] = (op & 0xf0) | rnd.randrange(16)          # another dup / swap
+    return bytes(code)
+
+
 def one(args):
     seed, i, keep = args
     rnd = random.Random("%d-%d" % (seed, i))
-    code = Gen(rnd).program()
+    code = mutate(rnd) if MUTATE_FROM else Gen(rnd).program()
     path = os.path.join(keep, "case_%d_%d.hex" % (seed, i))
     with open(path, "w") as f:
         f.write(code.hex())
@@ -589,6 +624,15 @@ def main():
     if "--keep" in sys.argv:
         keep = sys.argv[sys.argv.index("--keep") + 1]
     os.makedirs(keep, exist_ok=True)
+    if "--mutate" in sys.argv:
+        import glob
+        dirs = [os.path.join(HERE, "corpus")] + os.environ.get("MUTATE_DIRS", "").split(":")
+        for d in dirs:
+            for f in glob.glob(os.path.join(d, "*.hex")):
+                if os.path.getsize(f) < int(os.environ.get("MUTATE_MAX", "6000")):
+                    MUTATE_FROM.append(f)
+        MUTATE_FROM.sort()
+        print(len(MUTATE_FROM), "contracts to mutate", flush=True)
     jobs = int(os.environ.get("JOBS", "2"))
     bad = 0
     with concurrent.futures.ThreadPoolExecutor(jobs) as ex:
