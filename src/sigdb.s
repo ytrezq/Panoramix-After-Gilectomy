@@ -67,6 +67,7 @@
 .Ls_true:       .asciz "true"
 .Ls_false:      .asciz "false"
 .Ls_null:       .asciz "null"
+.Ls_tmp_suffix: .asciz ".tmp"
 
         .section .bss
         .align 8
@@ -76,6 +77,8 @@ sigdb_entries:  .quad 0
 sigdb_inputs:   .quad 0
 sigdb_strings:  .quad 0
 sigdb_count:    .quad 0
+sigdb_ninputs:  .quad 0
+sigdb_nstrings: .quad 0                 # the size of the strings
 sigdb_state:    .quad 0                 # 0 not tried, 1 loaded, 2 none
 sigdb_lock:     .quad 0
 
@@ -185,6 +188,26 @@ FUNC sigdb_load
         call memcmp@PLT
         test eax, eax
         jnz .Lsl_bad
+        # the sections must fill the file exactly, the strings end with a
+        # NUL (a file cut short by an interrupted build is refused)
+        mov eax, [rbx + SH_COUNT]
+        imul rax, rax, SE_SIZEOF
+        mov ecx, [rbx + SH_NINPUTS]
+        imul rcx, rcx, SI_SIZEOF
+        add rax, rcx
+        mov ecx, [rbx + SH_STRINGS]
+        test ecx, ecx
+        jz .Lsl_bad
+        add rax, rcx
+        add rax, SH_SIZEOF
+        cmp rax, [rip + sigdb_size]
+        jne .Lsl_bad
+        cmp byte ptr [rbx + rax - 1], 0
+        jne .Lsl_bad
+        mov eax, [rbx + SH_STRINGS]
+        mov [rip + sigdb_nstrings], rax
+        mov eax, [rbx + SH_NINPUTS]
+        mov [rip + sigdb_ninputs], rax
         mov eax, [rbx + SH_COUNT]
         mov [rip + sigdb_count], rax
         lea rcx, [rbx + SH_SIZEOF]
@@ -285,7 +308,31 @@ FUNC sigdb_lookup
 4:      lea r12, [rax + 1]
         jmp 2b
 3:      mov r14, rcx                    # the entry
-        # (name, [(type, name), ...])
+        # its offsets within the file (else: as if it wasn't there)
+        mov eax, [r14 + SE_INPUTS]
+        mov ecx, [r14 + SE_NINPUTS]
+        add rax, rcx
+        cmp rax, [rip + sigdb_ninputs]
+        ja .Lsq_none
+        mov eax, [r14 + SE_NAME]
+        cmp rax, [rip + sigdb_nstrings]
+        jae .Lsq_none
+        xor ecx, ecx
+31:     cmp ecx, [r14 + SE_NINPUTS]
+        jae 32f
+        mov eax, [r14 + SE_INPUTS]
+        add rax, rcx
+        imul rax, rax, SI_SIZEOF
+        add rax, [rip + sigdb_inputs]
+        mov edx, [rax + SI_TYPE]
+        cmp rdx, [rip + sigdb_nstrings]
+        jae .Lsq_none
+        mov edx, [rax + SI_NAME]
+        cmp rdx, [rip + sigdb_nstrings]
+        jae .Lsq_none
+        inc ecx
+        jmp 31b
+32:     # (name, [(type, name), ...])
         call vec_new
         mov [rsp], rax
         xor r12d, r12d
@@ -1098,7 +1145,17 @@ FUNC builder_write
         # the directory, if needed
         mov rdi, r12
         call make_parent_dirs
-        mov rdi, r12
+        # written to <path>.tmp, renamed when complete: a reader never sees
+        # a file cut short
+        call sb_new
+        mov r14, rax
+        mov rdi, rax
+        mov rsi, r12
+        call sb_append_c
+        mov rdi, r14
+        lea rsi, [rip + .Ls_tmp_suffix]
+        call sb_append_c
+        mov rdi, [r14 + SB_BUF]
         mov esi, 0x241                  # O_WRONLY | O_CREAT | O_TRUNC
         mov edx, 0644
         call open@PLT
@@ -1120,25 +1177,45 @@ FUNC builder_write
         mov rsi, rsp
         mov edx, SH_SIZEOF
         call write_all
+        test eax, eax
+        jnz .Lbw_write_fail
         mov edi, r13d
         mov rsi, [rbx + BD_ENTRIES]
         mov rdx, [rbx + BD_NENTRIES]
         shl rdx, 4
         call write_all
+        test eax, eax
+        jnz .Lbw_write_fail
         mov edi, r13d
         mov rsi, [rbx + BD_INPUTS]
         mov rdx, [rbx + BD_NINPUTS]
         shl rdx, 3
         call write_all
+        test eax, eax
+        jnz .Lbw_write_fail
         mov edi, r13d
         mov rsi, [rbx + BD_STRINGS]
         mov rdx, [rbx + BD_NSTRINGS]
         call write_all
+        test eax, eax
+        jnz .Lbw_write_fail
+        mov edi, r13d
+        call fsync@PLT
         mov edi, r13d
         call close@PLT
+        test eax, eax
+        jnz .Lbw_fail
+        mov rdi, [r14 + SB_BUF]
+        mov rsi, r12
+        call rename@PLT
+        test eax, eax
+        jnz .Lbw_fail
         xor eax, eax
         add rsp, 32
         LEAVE
+.Lbw_write_fail:
+        mov edi, r13d
+        call close@PLT
 .Lbw_fail:
         mov eax, 1
         add rsp, 32

@@ -62,7 +62,8 @@ FUNC read_fd
         LEAVE
 ENDF read_fd
 
-# write_all(fd, buf, len): the whole buffer, whatever write() takes at a time
+# write_all(fd, buf, len) -> eax: the whole buffer, whatever write() takes at
+# a time (0), or -1 on an error
 FUNC write_all
         ENTER
         mov ebx, edi
@@ -75,11 +76,20 @@ FUNC write_all
         mov rdx, r13
         call write@PLT
         test rax, rax
-        jle 2f
+        jle 3f
         add r12, rax
         sub r13, rax
         jmp 1b
-2:      LEAVE
+2:      xor eax, eax
+        LEAVE
+3:      js 4f
+        mov eax, -1                     # nothing written: stop
+        LEAVE
+4:      call __errno_location@PLT
+        cmp dword ptr [rax], 4          # EINTR: again
+        je 1b
+        mov eax, -1
+        LEAVE
 ENDF write_all
 
         .section .note.GNU-stack,"",@progbits
