@@ -44,6 +44,7 @@ database, liblzma. Everything else is assembly (GNU as, Intel syntax).
     src/decompiler.s      decompile(): the thread pool, the contract's text (decompiler.py)
     src/data.s            python's decompilation.json: JSON text, or a binary form of
                           python's objects for the module
+    src/explain.s         python's --explain: the traces of every stage, the traits
     src/api.s             the C interface (pan_*, include/panoramix_asm.h), exported
                           by build/libpanoramix_asm.so
     src/main.s            the `panasm` command line tool
@@ -56,7 +57,7 @@ Build: `make` (needs python3 headers for the module). `build/panasm`
 is the CLI, `build/panoramix_asm*.so` the module.
 
     panasm build-db panoramix/data/abi_dump.xz    # once: the signature database
-    panasm decompile contract.hex [-j N] [--function NAME] [--no-color] [--json]
+    panasm decompile contract.hex [-j N] [--function NAME] [--no-color] [--json] [--verbose] [--explain]
     python3 -c 'import panoramix_asm; print(panoramix_asm.decompile(open("contract.hex").read()))'
 
 ## Conventions
@@ -197,11 +198,38 @@ is the CLI, `build/panoramix_asm*.so` the module.
     function, and a global arena could never be freed per function,
     which is what keeps the memory bounded (~300 MiB per thread on the
     worst contracts of the corpus, where python takes GBs).
+16. [x] python's `--verbose` and `--explain` (which python reads from
+    `sys.argv`, anywhere). With either, the VM puts lines of assembly in
+    its traces before every instruction it runs (`vm_trace_asm`): the
+    stack, prettified - through python's `str.format` with no argument,
+    so a stack holding a string constant with a lone brace makes the
+    function fail, as in python -, an empty line, `[pc] op` and the
+    parameter; they go through the whole simplifier as lines like any
+    other (they change what python finds - no function is a constant
+    any more, nor "not payable": its first line is no longer the check
+    of the value sent - and the port finds the same), and come out as
+    comments. With `--explain` also before the instructions that end a
+    node, and `explain(title, trace)` prints the trace after every stage
+    (`make_ast` and `pprint_logic`, unless it is the trace printed last:
+    python's global `prev_trace`) and `explain_traits` what
+    `Function.analyse` found; the assembly is dropped again after the
+    first trace. Python prints as it goes, one function after the other;
+    here each job prints into a builder of its own, and `decompile()`
+    concatenates them in the order of the jobs, dropping a job's first
+    trace when it equals the last one of the job before (both imported
+    into the main context: they may hold VM nodes, whose copies keep
+    their identity). `ctx_compact` carries the two traces the job keeps
+    for this. The command line prints it before the text,
+    `pan_decompile_data` gives it apart (`pan_output.explain`), the
+    module prints it on `sys.stdout` and gives it as `.explain`.
+    Interned strings being global, the lines of assembly stay in the
+    string table for the life of the process.
 
 ## Testing
 
 `make check` runs the C example, `tests/run_corpus.sh`,
-`tests/robustness.sh`, `tests/test_watchdog.py` and `tests/test_json.py`.
+`tests/robustness.sh`, `tests/test_watchdog.py`, `tests/test_json.py`
+and `tests/test_verbose.py`.
 The first compares the 30 contracts of
 `tests/corpus` (mainnet bytecode, see `SOURCES`) and the programs of
 `tests/synthetic` (each one a difference the port had) with python's
@@ -312,6 +340,13 @@ string in memory data whose length is -64 to -95 makes python's
 `pretty_memory` loop forever (its index goes back by as much as it goes
 forward): the port raises the IndexError python raises for the longer
 negative lengths.
+
+`tests/test_verbose.py` compares `panasm --verbose` / `--explain` and
+the module's `decompile_bytecode(verbose=, explain=)` (what it prints,
+then its text) with the output of `python -m panoramix --verbose` /
+`--explain` on small contracts of the corpus (`make verbose-expected`
+makes them, with pypy); `FUZZ_MODE=--verbose` (or `--explain`) runs
+the differential fuzzer with those options on both sides.
 
 `tests/test_threads.py` decompiles the corpus from several python
 threads at once (each call with its own workers, 1 to 3) and compares

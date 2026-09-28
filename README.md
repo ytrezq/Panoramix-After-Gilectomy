@@ -14,6 +14,7 @@ processes), integers are GMP's, the expressions are hash-consed.
     make                         # needs as, cc, libgmp, liblzma, python3-dev
     build/panasm build-db /path/to/panoramix/data/abi_dump.xz   # once: the signature database
     build/panasm decompile contract.hex [-j threads] [--function name] [--no-color] [--json] [-v level]
+                                        [--verbose] [--explain]
     build/panasm decompile 0x6080...       # (the bytecode itself, as python -m panoramix takes it)
     build/panasm disasm contract.hex
 
@@ -24,6 +25,7 @@ From python (the module in `build/`):
     text = panoramix_asm.decompile(code, threads=4, function="transfer", color=False)
     d = panoramix_asm.decompile_bytecode(code)      # as panoramix.decompiler's:
     d.text, d.asm, d.json                           # the text, the disassembly, python's json
+    d = panoramix_asm.decompile_bytecode(code, verbose=True)   # or explain=True: python's options
     panoramix_asm.build_signature_db("abi_dump.xz")                       # once
     panoramix_asm.set_log_level("info")     # warnings and errors only by default
 
@@ -42,6 +44,15 @@ definitions, and each function's names, length, getter, constant,
 payable, printed text, trace and parameters - as the same python objects
 (tuples, numbers as keys); `panasm decompile --json` prints it as
 `json.dumps` does.
+
+`--verbose` and `--explain` are python's: the first puts the
+instructions the symbolic execution ran, with the stack before each, in
+the text (as comments); the second prints, before the text, each
+function's trace at every stage of its decompilation and the traits its
+analysis found (and gives the text without the instructions). As python
+reads them from `sys.argv`, so does `decompile_bytecode` when its
+`verbose`/`explain` aren't given; what `--explain` prints goes to
+`sys.stdout`, as python prints it, and to `d.explain`.
 
 From C: `build/libpanoramix_asm.so` and `include/panoramix_asm.h`
 (`pan_decompile`, `pan_decompile_data` for the json, `pan_disasm`,
