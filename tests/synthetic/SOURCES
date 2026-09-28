@@ -4,3 +4,6 @@ counter_loop     for(;;) i++ : a loop without an exit condition (whiles)
 nested_ifs_200   200 nested requires (python fails from ~700 on, RecursionError)
 fuzz_1_3         tests/difffuzz.py 1, case 3: masks with offsets past 2^62 (big ints)
 fuzz_2_11        tests/difffuzz.py 2, case 11: Mask(-744, ...) prints % 2**-744, a float
+fuzz_3_10        difffuzz 3, case 10: a parameter whose size is an expression (a TypeError in python, a crash here)
+fuzz_3_68        difffuzz 3, case 68: split_or's gaps with big offsets
+fuzz_3_94        difffuzz 3, case 94: a NotImplementedError through split_or's except AssertionError

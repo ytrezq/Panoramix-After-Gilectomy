@@ -1,0 +1,30 @@
+# Palkeoramix decompiler. 
+#
+#  I failed with these: 
+#  - unknown29304d1a(?)
+#  All the rest is below.
+#
+
+def storage:
+  stor0 is mapping of uint256 at storage 0
+  stor3 is uint256 at storage 3
+  stor6 is uint256 at storage 6
+  stor10 is uint256 at storage 10
+
+def _fallback(?) payable: # default function
+  revert
+
+def unknown8faf70f2(uint256 _param1, uint256 _param2) payable: 
+  log 0xe0ced83d: stor3^1, _param1
+  mem[128] = sha3(stor[mem[32]^2].field_-stor6, 0)
+  idx = 0
+  while idx < 100:
+      mem[0] = _param2
+      mem[32] = 0
+      require stor10 > 1000 > _param2 * stor0[_param2] xor Mask(8, -(8 * call.value) + 248, 0) << (8 * call.value) - 248 > stor[Mask(2, 5, block.number)].field_0 - (Mask(256, -mem[140 len 20], stor[calldata.size].field_0) << -mem[140 len 20])
+      mem[128] = block.timestamp
+      log 0x62992c99: block.timestamp, stor[_param1 <′ mem[160]].field_0.field_0 > idx
+      idx = idx + 1
+      continue 
+
+

@@ -1,0 +1,49 @@
+# Palkeoramix decompiler. 
+#
+#  I failed with these: 
+#  - unknown91478de4(?)
+#  All the rest is below.
+#
+
+def storage:
+  stor1 is array of uint256 at storage 1
+  stor2 is uint256 at storage 2
+  stor3 is array of uint256 at storage 3
+  stor4 is array of uint256 at storage 4
+  stor5 is uint256 at storage 5
+  stor6 is uint256 at storage 6
+  stor10 is address at storage 10
+
+def _fallback(?) payable: # default function
+  stop
+
+def unknown1acdacc2(uint256 _param1) payable: 
+  stor1.length = _param1
+
+def unknownb26bf3be(uint256 _param1, uint256 _param2) payable: 
+  hash = sha256hash(None) # precompiled
+  require sha256hash.result
+  stor1.length = stor[_param2 % gas_remaining]
+  if gas_remaining > stor4.length:
+      return not stor3.length
+  call sha3((_param1 or 0x8000000000000000000000000000000000000000000000000000000000000000)^2, 0)^2 with:
+     value mem[160] wei
+       gas gas_remaining wei
+  require ext_call.success
+  return (this.address - 2)
+
+def unknown00c001da(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _param4) payable: 
+  mem[64] = 96
+  require stor10 > 256
+  stor1[caller] = address(gas_remaining) - !calldata.size <= mem[160]
+  mem[160] = _param3 - stor6
+  mem[0] = 10
+  mem[32] = 4
+  if stor0.length <′ _param4 or 4^0 != unknowndeadbeef() xor stor4[10] < calldata.size > 0x8000000000000000000000000000000000000000000000000000000000000000:
+      stor[Mask(8, -(8 * -1 % _param1 - 0x8000000000000000000000000000000000000000000000000000000000000000) + 248, stor3[32] - gas_remaining) << (8 * -1 % _param1 - 0x8000000000000000000000000000000000000000000000000000000000000000) - 248] = stor0[stor1[gas_remaining] == _param1 < _param1 == _param2].field_0
+  else:
+      stor[Mask(256, -('map', ('gt', 4, ('not', ('stor', ('name', 'stor5', 5)))), ('name', 'stor1', 1)), stor[_param3^2] and !_param3) << -('map', ('gt', 4, ('not', ('stor', ('name', 'stor5', 5)))), ('name', 'stor1', 1))] = !block.number % 0 >> 0x80000000000000000000000000000000000000000000000000000000000000ff
+      stor[block.number] = sha3(255, 0)
+      log 0x51657575: stor0.length, (_param4 - 1)^0 + (stor3[stor4.length] or sha3(10^18, 4)) and Mask((8 * (stor2 < _param3) + 32) + 8, 0, stor0.length.field_-(8 * (stor2 < _param3) + 32) + 248)
+
+
