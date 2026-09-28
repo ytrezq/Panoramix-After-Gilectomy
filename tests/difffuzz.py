@@ -33,6 +33,11 @@ OPS = {
     "MLOAD": 0x51, "MSTORE": 0x52, "SLOAD": 0x54, "SSTORE": 0x55, "JUMP": 0x56,
     "JUMPI": 0x57, "GAS": 0x5a, "JUMPDEST": 0x5b, "LOG1": 0xa1, "LOG2": 0xa2,
     "CALL": 0xf1, "RETURN": 0xf3, "STATICCALL": 0xfa, "REVERT": 0xfd, "INVALID": 0xfe,
+    "SDIV": 0x05, "SMOD": 0x07, "ADDMOD": 0x08, "MULMOD": 0x09, "SIGNEXTEND": 0x0b,
+    "SGT": 0x13, "SAR": 0x1d, "ORIGIN": 0x32, "CALLDATACOPY": 0x37, "GASPRICE": 0x3a,
+    "EXTCODESIZE": 0x3b, "RETURNDATACOPY": 0x3e, "EXTCODEHASH": 0x3f, "BLOCKHASH": 0x40,
+    "COINBASE": 0x41, "CHAINID": 0x46, "SELFBALANCE": 0x47, "LOG0": 0xa0,
+    "SELFDESTRUCT": 0xff,
 }
 
 
@@ -103,6 +108,10 @@ class Gen:
         self.depth = 0          # values on the stack above the function's base
         self.counters = []      # stack depths of the loop counters in scope
         self.nparams = 0
+        # half the programs use the rest of the instructions and patterns:
+        # internal functions, dynamic arrays, calldata copies, static calls
+        self.rich = rnd.random() < 0.5
+        self.internal = []      # (label, kind) of the internal functions to emit
 
     # --- expressions: push one value ---
 
@@ -111,10 +120,24 @@ class Gen:
         if d > 3 or r < 0.35:
             return self.leaf()
         if r < 0.65:
-            op = self.r.choice(["ADD", "SUB", "MUL", "DIV", "MOD", "AND", "OR", "XOR",
-                                "LT", "GT", "EQ", "SHL", "SHR", "SLT", "BYTE"])
+            ops = ["ADD", "SUB", "MUL", "DIV", "MOD", "AND", "OR", "XOR",
+                   "LT", "GT", "EQ", "SHL", "SHR", "SLT", "BYTE"]
+            if self.rich:
+                ops += ["SDIV", "SMOD", "SGT", "SAR", "SIGNEXTEND"]
+            op = self.r.choice(ops)
+            if self.rich and self.r.random() < 0.05:
+                # addmod / mulmod (x, y, n)
+                self.expr(d + 1)
+                self.expr(d + 1)
+                self.expr(d + 1)
+                self.a.op(self.r.choice(["ADDMOD", "MULMOD"]))
+                self.depth -= 2
+                return
+            if self.rich and self.r.random() < 0.08:
+                self.internal_call(d)
+                return
             self.expr(d + 1)
-            if op in ("SHL", "SHR", "BYTE") and self.r.random() < 0.8:
+            if op in ("SHL", "SHR", "SAR", "BYTE", "SIGNEXTEND") and self.r.random() < 0.8:
                 # the shift on top: mostly a small one (python computes
                 # x << 2**255 and runs out of memory)
                 self.a.push(self.r.choice([0, 1, 8, 31, 96, 160, 224, 255, 256, 300]))
@@ -174,8 +197,12 @@ class Gen:
             self.a.push(self.r.choice([0, 1, 2, 10, 32, 255, 256, 1000, 10 ** 18,
                                        2 ** 255, 2 ** 256 - 1, 0xdeadbeef]))
         elif r < 0.7:
-            self.a.op(self.r.choice(["CALLER", "CALLVALUE", "TIMESTAMP", "NUMBER",
-                                     "ADDRESS", "CALLDATASIZE", "GAS"]))
+            env = ["CALLER", "CALLVALUE", "TIMESTAMP", "NUMBER", "ADDRESS", "CALLDATASIZE", "GAS"]
+            if self.rich:
+                env += ["ORIGIN", "GASPRICE", "COINBASE", "CHAINID", "SELFBALANCE", "RETURNDATASIZE"]
+            self.a.op(self.r.choice(env))
+            if self.rich and self.r.random() < 0.15:
+                self.a.op(self.r.choice(["EXTCODESIZE", "EXTCODEHASH", "BLOCKHASH", "BALANCE"]))
         elif r < 0.8 and self.counters:
             # a loop counter
             pos = self.r.choice(self.counters)
@@ -202,6 +229,56 @@ class Gen:
             self.expr(1)
             if self.r.random() < 0.5:
                 self.a.op("ISZERO")
+
+    def internal_call(self, d):
+        """f(x): push the return address and the argument, jump to the
+        function, which leaves its result in place of both (solidity's
+        calling convention)"""
+        ret = self.a.label()
+        if not self.internal or self.r.random() < 0.4:
+            self.internal.append((self.a.label(), self.r.randint(0, 3)))
+        fn, _ = self.r.choice(self.internal)
+        self.a.push_label(ret)
+        self.depth += 1
+        self.expr(d + 1)
+        self.a.push_label(fn)
+        self.a.op("JUMP")
+        self.a.jumpdest(ret)
+        self.depth -= 1                 # (the return address and the argument: the result)
+
+    def internal_functions(self):
+        """the bodies: (ret, x) -> result, ending with SWAP1 JUMP"""
+        for fn, kind in self.internal:
+            a = self.a
+            a.jumpdest(fn)
+            if kind == 0:               # x + 1, checked
+                a.push(1)
+                a.dup(2)
+                a.op("ADD")
+            elif kind == 1:             # storage[x]
+                a.dup(1)
+                a.op("SLOAD")
+            elif kind == 2:             # mapping: keccak(x . 3)
+                a.dup(1)
+                a.push(0)
+                a.op("MSTORE")
+                a.push(3)
+                a.push(32)
+                a.op("MSTORE")
+                a.push(64)
+                a.push(0)
+                a.op("SHA3")
+                a.op("SLOAD")
+            else:                       # x & 0xff..ff, x * 2
+                a.push((1 << 160) - 1)
+                a.dup(2)
+                a.op("AND")
+                a.push(2)
+                a.op("MUL")
+            a.swap(1)
+            a.op("POP")                 # (ret, result)
+            a.swap(1)
+            a.op("JUMP")
 
     # --- statements: the stack as it was ---
 
@@ -314,6 +391,8 @@ class Gen:
             else:
                 self.a.op("POP")
             self.depth -= 1
+        elif self.rich and r < 0.97 and self.r.random() < 0.5:
+            self.rich_stmt(d)
         elif r < 0.94 and not self.counters:
             # return a value
             self.expr()
@@ -329,6 +408,83 @@ class Gen:
             self.a.op("POP")
             self.depth -= 1
         return False
+
+    def rich_stmt(self, d):
+        k = self.r.randint(0, 4)
+        a = self.a
+        if k == 0:
+            # array.push(v): slot p, length at p, data at keccak(p) + length
+            p = self.r.randint(0, 6)
+            self.expr()
+            a.push(p)
+            a.op("SLOAD")
+            a.push(p)
+            a.push(0)
+            a.op("MSTORE")
+            a.push(32)
+            a.push(0)
+            a.op("SHA3")
+            a.op("ADD")
+            a.op("SSTORE")
+            self.depth -= 1
+            a.push(1)
+            a.push(p)
+            a.op("SLOAD")
+            a.op("ADD")
+            a.push(p)
+            a.op("SSTORE")
+        elif k == 1:
+            # the calldata copied to memory, and returned or logged
+            a.op("CALLDATASIZE")
+            a.push(0)
+            a.push(0x80)
+            a.op("CALLDATACOPY")
+            a.op("CALLDATASIZE")
+            a.push(0x80)
+            a.op("LOG0")
+        elif k == 2:
+            # a static call, its return data read back
+            ok = a.label()
+            a.push(32)
+            a.push(0x80)
+            a.push(4)
+            a.push(0x80)
+            self.depth += 4
+            self.expr()                     # address
+            a.op("GAS")
+            a.op("STATICCALL")
+            self.depth -= 4
+            a.op("ISZERO")
+            a.op("ISZERO")
+            a.push_label(ok)
+            a.op("JUMPI")
+            self.depth -= 1
+            a.op("RETURNDATASIZE")
+            a.push(0)
+            a.dup(1)
+            a.op("RETURNDATACOPY")
+            a.op("RETURNDATASIZE")
+            a.push(0)
+            a.op("REVERT")
+            a.jumpdest(ok)
+            a.push(0x80)
+            a.op("MLOAD")
+            a.push(self.r.randint(0, 6))
+            a.op("SSTORE")
+        elif k == 3:
+            # a signed value stored: signextend(b, x)
+            self.expr()
+            a.push(self.r.choice([0, 1, 3, 15, 31]))
+            a.op("SIGNEXTEND")
+            a.push(self.r.randint(0, 6))
+            a.op("SSTORE")
+            self.depth -= 1
+        else:
+            # an internal function's result stored
+            self.internal_call(0)
+            a.push(self.r.randint(0, 6))
+            a.op("SSTORE")
+            self.depth -= 1
 
     def program(self):
         a = self.a
@@ -367,6 +523,7 @@ class Gen:
             self.counters = []
             if not self.stmts(self.r.randint(1, 6), 0):
                 a.op("STOP")
+        self.internal_functions()
         return a.assemble()
 
 
