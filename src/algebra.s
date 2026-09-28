@@ -2636,6 +2636,176 @@ FUNC alg_add_ge_zero
         LEAVE
 ENDF alg_add_ge_zero
 
+# variant_evaluable(exp, n, vars) -> eax: the variant of exp can be
+# evaluated directly (variant_eval): every node is an int, one of the
+# variables, or an add / mul / mask_shl / max of such - all that
+# simplify(calc_max(variant)) computes with. Anything else goes through
+# the substitution and the simplifier, as in python.
+FUNC variant_evaluable
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        test bl, 1
+        jnz .Lve_yes
+        test rbx, rbx
+        jz .Lve_yes
+        cmp dword ptr [rbx + N_KIND], K_TUPLE
+        jne .Lve_yes                    # an int, or a leaf: a variable
+        xor r14d, r14d
+1:      cmp r14, r12
+        jae 2f
+        cmp rbx, [r13 + r14*8]          # (variables are consed: one pointer)
+        je .Lve_yes
+        inc r14
+        jmp 1b
+2:      mov rdi, rbx
+        call opcode_of
+        cmp eax, OP_ADD
+        je 3f
+        cmp eax, OP_MUL
+        je 3f
+        cmp eax, OP_MAX
+        je 3f
+        cmp eax, OP_MASK_SHL
+        jne .Lve_no
+3:      mov r14d, 1
+4:      cmp r14d, [rbx + N_AUX]
+        jae .Lve_yes
+        mov rdi, [rbx + N_DATA + r14*8]
+        mov rsi, r12
+        mov rdx, r13
+        call variant_evaluable
+        test eax, eax
+        jz .Lve_no
+        inc r14d
+        jmp 4b
+.Lve_yes:
+        mov eax, 1
+        LEAVE
+.Lve_no:
+        xor eax, eax
+        LEAVE
+ENDF variant_evaluable
+
+# variant_eval(exp, n, vars, vals) -> value: the integer that
+# simplify(calc_max(exp with vars[i] := vals[i])) gives, computed without
+# building the variant (exact arithmetic, apply_mask for the masks, the
+# floor of -2^256 of a max)
+FUNC variant_eval
+        ENTER
+        sub rsp, 48
+        .set VV_VALS, 0
+        .set VV_ACC, 8                  # the accumulator, or the mask's size
+        .set VV_OFFSET, 16
+        .set VV_SHL, 24
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        mov [rsp + VV_VALS], rcx
+        test bl, 1
+        jnz .Lvv_asis
+        xor r14d, r14d
+1:      cmp r14, r12
+        jae 2f
+        cmp rbx, [r13 + r14*8]
+        jne 11f
+        mov rax, [rsp + VV_VALS]
+        mov rax, [rax + r14*8]          # the variable's value
+        add rsp, 48
+        LEAVE
+11:     inc r14
+        jmp 1b
+2:      cmp dword ptr [rbx + N_KIND], K_INT
+        je .Lvv_asis
+        mov rdi, rbx
+        call opcode_of
+        cmp eax, OP_ADD
+        je .Lvv_add
+        cmp eax, OP_MUL
+        je .Lvv_mul
+        cmp eax, OP_MAX
+        je .Lvv_max
+        # mask_shl: apply_mask(val, size, offset, shl)
+        mov rdi, [rbx + N_DATA + 8]
+        call .Lvv_child
+        mov [rsp + VV_ACC], rax         # size
+        mov rdi, [rbx + N_DATA + 16]
+        call .Lvv_child
+        mov [rsp + VV_OFFSET], rax
+        mov rdi, [rbx + N_DATA + 24]
+        call .Lvv_child
+        mov [rsp + VV_SHL], rax
+        mov rdi, [rbx + N_DATA + 32]
+        call .Lvv_child
+        mov rdi, rax                    # val
+        mov rsi, [rsp + VV_ACC]
+        mov rdx, [rsp + VV_OFFSET]
+        mov rcx, [rsp + VV_SHL]
+        call alg_apply_mask
+        add rsp, 48
+        LEAVE
+.Lvv_add:
+        mov qword ptr [rsp + VV_ACC], 1     # 0
+        mov r14d, 1
+3:      cmp r14d, [rbx + N_AUX]
+        jae 4f
+        mov rdi, [rbx + N_DATA + r14*8]
+        call .Lvv_child
+        mov rdi, [rsp + VV_ACC]
+        mov rsi, rax
+        call int_add
+        mov [rsp + VV_ACC], rax
+        inc r14d
+        jmp 3b
+.Lvv_mul:
+        mov qword ptr [rsp + VV_ACC], 3     # 1
+        mov r14d, 1
+5:      cmp r14d, [rbx + N_AUX]
+        jae 4f
+        mov rdi, [rbx + N_DATA + r14*8]
+        call .Lvv_child
+        mov rdi, [rsp + VV_ACC]
+        mov rsi, rax
+        call int_mul
+        mov [rsp + VV_ACC], rax
+        inc r14d
+        jmp 5b
+.Lvv_max:
+        mov edi, 256
+        call pow2
+        mov rdi, rax
+        call int_neg
+        mov [rsp + VV_ACC], rax         # -(2^256), the floor
+        mov r14d, 1
+6:      cmp r14d, [rbx + N_AUX]
+        jae 4f
+        mov rdi, [rbx + N_DATA + r14*8]
+        call .Lvv_child
+        mov [rsp + VV_OFFSET], rax
+        mov rdi, rax
+        mov rsi, [rsp + VV_ACC]
+        call int_cmp
+        cmp eax, 1
+        jne 7f
+        mov rax, [rsp + VV_OFFSET]
+        mov [rsp + VV_ACC], rax
+7:      inc r14d
+        jmp 6b
+4:      mov rax, [rsp + VV_ACC]
+        add rsp, 48
+        LEAVE
+.Lvv_asis:
+        mov rax, rbx
+        add rsp, 48
+        LEAVE
+.Lvv_child:                             # variant_eval(rdi) with the same variables
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, [rsp + 8 + VV_VALS]    # (the return address is on top)
+        jmp variant_eval
+ENDF variant_eval
+
 FUNC add_ge_zero_impl
         ENTER
         sub rsp, 112
@@ -2644,6 +2814,7 @@ FUNC add_ge_zero_impl
         .set AGZ_COMB, 16               # the current combination (bit k: special)
         .set AGZ_NCOMB, 24
         .set AGZ_I, 32
+        .set AGZ_FAST, 40               # the variants can be evaluated directly
         .set AGZ_VALS, 48               # the values of the (at most 7) variables
         call alg_simplify
         mov rbx, rax
@@ -2677,6 +2848,11 @@ FUNC add_ge_zero_impl
         mov rcx, r13
         shl rax, cl
         mov [rsp + AGZ_NCOMB], rax
+        mov rdi, rbx
+        mov rsi, r13
+        mov rdx, [r12 + VEC_DATA]
+        call variant_evaluable
+        mov [rsp + AGZ_FAST], rax
 4:      mov rax, [rsp + AGZ_COMB]
         cmp rax, [rsp + AGZ_NCOMB]
         jae 9f
@@ -2708,7 +2884,17 @@ FUNC add_ge_zero_impl
         mov [rsp + AGZ_VALS + rcx*8], rax
         inc rcx
         jmp 5b
-7:      # the variant, all the variables replaced at once
+7:      cmp qword ptr [rsp + AGZ_FAST], 0
+        je 71f
+        # evaluated directly
+        mov rdi, rbx
+        mov rsi, r13
+        mov rdx, [r12 + VEC_DATA]
+        lea rcx, [rsp + AGZ_VALS]
+        call variant_eval
+        mov r14, rax
+        jmp 72f
+71:     # the variant, all the variables replaced at once
         mov rdi, rbx
         mov rsi, r13
         mov rdx, [r12 + VEC_DATA]
@@ -2724,6 +2910,7 @@ FUNC add_ge_zero_impl
         call is_int
         test eax, eax
         jz .Lagz_none
+72:
         mov rdi, r14
         call int_sign
         cmp eax, -1
