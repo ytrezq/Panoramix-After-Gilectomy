@@ -1362,57 +1362,6 @@ FUNC ends_with
         ret
 ENDF ends_with
 
-# count_starting(or_tuple, path, n) -> eax: how many sides start with the
-# first n lines of path
-FUNC count_starting
-        ENTER
-        mov rbx, rdi
-        mov r12, rsi
-        mov r13, rdx
-        xor r14d, r14d
-        mov ecx, 1
-1:      cmp ecx, [rbx + N_AUX]
-        jae 2f
-        push rcx
-        push rcx
-        mov rdi, [rbx + N_DATA + rcx*8]
-        mov rsi, r12
-        mov rdx, r13
-        call starts_with
-        pop rcx
-        pop rcx
-        add r14d, eax
-        inc ecx
-        jmp 1b
-2:      mov eax, r14d
-        LEAVE
-ENDF count_starting
-
-# count_ending(or_tuple, path, n) -> eax
-FUNC count_ending
-        ENTER
-        mov rbx, rdi
-        mov r12, rsi
-        mov r13, rdx
-        xor r14d, r14d
-        mov ecx, 1
-1:      cmp ecx, [rbx + N_AUX]
-        jae 2f
-        push rcx
-        push rcx
-        mov rdi, [rbx + N_DATA + rcx*8]
-        mov rsi, r12
-        mov rdx, r13
-        call ends_with
-        pop rcx
-        pop rcx
-        add r14d, eax
-        inc ecx
-        jmp 1b
-2:      mov eax, r14d
-        LEAVE
-ENDF count_ending
-
 # starting_with(or_tuple, path, n) -> list of the sides that start with
 # the first n lines of path, without them
 FUNC starting_with
@@ -1661,33 +1610,60 @@ FUNC fold_paths
         mov [rsp + FP_OR], rax          # ('or',) + paths
         mov r13, [rbx + N_DATA]         # the first (longest) path
         # merge the beginnings: how many lines do all the paths share?
-        xor r14d, r14d
-3:      cmp r14d, [r13 + N_AUX]
-        ja 4f                           # (all the paths equal: python never ends)
-        mov rdi, [rsp + FP_OR]
-        mov rsi, r13
-        mov edx, r14d
-        call count_starting
-        cmp eax, [rbx + N_AUX]
-        jne 4f
-        inc r14d
+        # python grows a prefix of the longest path one line at a time and
+        # counts the paths that start with it (n L^2); the longest prefix
+        # they all share with it is the same number, in one pass (and it
+        # stops at the longest path's length, where python, with all the
+        # paths equal, would never end)
+        mov r14d, [r13 + N_AUX]         # the prefix shared so far
+        xor r8d, r8d                    # the path
+3:      cmp r8d, [rbx + N_AUX]
+        jae 4f
+        mov rdi, [rbx + N_DATA + r8*8]
+        mov r9d, [rdi + N_AUX]
+        cmp r9d, r14d
+        cmova r9d, r14d                 # min(len(path), shared)
+        xor ecx, ecx
+31:     cmp ecx, r9d
+        jae 32f
+        mov rax, [rdi + N_DATA + rcx*8]
+        cmp rax, [r13 + N_DATA + rcx*8]
+        jne 32f
+        inc ecx
+        jmp 31b
+32:     mov r14d, ecx
+        inc r8d
         jmp 3b
-4:      dec r14d
-        mov [rsp + FP_BEGIN], r14       # begin_offset
-        # and the endings
-        mov r14d, 1
-5:      cmp r14d, [r13 + N_AUX]
-        ja 6f                           # (python: for_merge[0][-idx:] with idx > len is the whole path)
-        mov rdi, [rsp + FP_OR]
-        mov rsi, r13
-        mov edx, r14d
-        call count_ending
-        cmp eax, [rbx + N_AUX]
-        jne 6f
-        inc r14d
+4:      mov [rsp + FP_BEGIN], r14       # begin_offset
+        # and the endings, the same way
+        mov r14d, [r13 + N_AUX]
+        xor r8d, r8d
+5:      cmp r8d, [rbx + N_AUX]
+        jae 6f
+        mov rdi, [rbx + N_DATA + r8*8]
+        mov r9d, [rdi + N_AUX]
+        mov r10d, r9d                   # len(path)
+        cmp r9d, r14d
+        cmova r9d, r14d
+        mov r11d, [r13 + N_AUX]         # len(longest)
+        xor ecx, ecx
+51:     cmp ecx, r9d
+        jae 52f
+        mov edx, r10d
+        sub edx, ecx
+        dec edx
+        mov rax, [rdi + N_DATA + rdx*8]
+        mov edx, r11d
+        sub edx, ecx
+        dec edx
+        cmp rax, [r13 + N_DATA + rdx*8]
+        jne 52f
+        inc ecx
+        jmp 51b
+52:     mov r14d, ecx
+        inc r8d
         jmp 5b
-6:      dec r14d
-        mov [rsp + FP_END], r14         # end_offset
+6:      mov [rsp + FP_END], r14         # end_offset
         # the paths without the common beginning...
         mov edi, [rsp + FP_BEGIN]
         lea rsi, [r13 + N_DATA]
