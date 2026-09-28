@@ -97,6 +97,16 @@ test_table:
         .quad .Ln_as_paths, as_paths
         .quad .Ln_fold_paths, fold_paths
         .quad .Ln_fold_aux, fold_aux
+        .quad .Ln_prettify, tf_prettify
+        .quad .Ln_pretty_stor, tf_pretty_stor
+        .quad .Ln_pretty_type, pretty_type
+        .quad .Ln_pretty_memory, tf_pretty_memory
+        .quad .Ln_pretty_num, tf_pretty_num
+        .quad .Ln_pretty_fname, tf_pretty_fname
+        .quad .Ln_pretty_bignum, tf_pretty_bignum
+        .quad .Ln_mask_to_type, tf_mask_to_type
+        .quad .Ln_padded_hex, tf_padded_hex
+        .quad .Ln_clean_color, clean_color
         .quad 0, 0
 
         .section .rodata
@@ -186,6 +196,16 @@ test_table:
 .Ln_as_paths: .asciz "as_paths"
 .Ln_fold_paths: .asciz "fold_paths"
 .Ln_fold_aux: .asciz "fold_aux"
+.Ln_prettify: .asciz "prettify"
+.Ln_pretty_stor: .asciz "pretty_stor"
+.Ln_pretty_type: .asciz "pretty_type"
+.Ln_pretty_memory: .asciz "pretty_memory"
+.Ln_pretty_num: .asciz "pretty_num"
+.Ln_pretty_fname: .asciz "pretty_fname"
+.Ln_pretty_bignum: .asciz "pretty_bignum"
+.Ln_mask_to_type: .asciz "mask_to_type"
+.Ln_padded_hex: .asciz "padded_hex"
+.Ln_clean_color: .asciz "clean_color"
 .Ln_find_mems: .asciz "find_mems"
 .Ln_split_setmem_trace: .asciz "split_setmem_trace"
 .Ln_split_store_trace: .asciz "split_store_trace"
@@ -877,6 +897,72 @@ FUNC tf_rewrite_string_stores
         call rewrite_string_stores
         LEAVE
 ENDF tf_rewrite_string_stores
+
+# (exp, flags) -> str
+FUNC tf_prettify
+        mov rsi, [rdi + N_DATA + 8]
+        UNTAG rsi
+        mov rdi, [rdi + N_DATA]
+        jmp prettify
+ENDF tf_prettify
+
+FUNC tf_pretty_stor
+        mov rsi, [rdi + N_DATA + 8]
+        UNTAG rsi
+        mov rdi, [rdi + N_DATA]
+        jmp pretty_stor
+ENDF tf_pretty_stor
+
+FUNC tf_pretty_memory
+        mov rsi, [rdi + N_DATA + 8]
+        UNTAG rsi
+        mov rdi, [rdi + N_DATA]
+        jmp pretty_memory
+ENDF tf_pretty_memory
+
+FUNC tf_pretty_num
+        mov rsi, [rdi + N_DATA + 8]
+        UNTAG rsi
+        mov rdi, [rdi + N_DATA]
+        jmp pretty_num
+ENDF tf_pretty_num
+
+# (v, flags, force)
+FUNC tf_pretty_fname
+        mov rsi, [rdi + N_DATA + 8]
+        UNTAG rsi
+        mov rdx, [rdi + N_DATA + 16]
+        UNTAG rdx
+        mov rdi, [rdi + N_DATA]
+        jmp pretty_fname
+ENDF tf_pretty_fname
+
+# (num, force)
+FUNC tf_mask_to_type
+        mov rsi, [rdi + N_DATA + 8]
+        UNTAG rsi
+        mov rdi, [rdi + N_DATA]
+        jmp mask_to_type
+ENDF tf_mask_to_type
+
+# (v, n)
+FUNC tf_padded_hex
+        mov rsi, [rdi + N_DATA + 8]
+        UNTAG rsi
+        mov rdi, [rdi + N_DATA]
+        jmp padded_hex
+ENDF tf_padded_hex
+
+# pretty_bignum(v): the number itself when it isn't a string (python)
+FUNC tf_pretty_bignum
+        ENTER
+        mov rbx, rdi
+        call pretty_bignum_int
+        test rax, rax
+        jnz 1f
+        mov rax, rbx
+1:      LEAVE
+ENDF tf_pretty_bignum
 
 FUNC tf_simplify_trace
         xor esi, esi

@@ -459,4 +459,252 @@ ENDF sb_append_int
 
         .section .rodata
 .Lhexprefix: .asciz "0x"
+        .text
+
+# --- arena strings: for text that is built and printed, not compared by
+# pointer (the interned strings live for the whole process, these are
+# freed with the thread's arena). Same layout as the interned ones, so
+# everything that reads a string works on both.
+
+# str_new(ptr, len) -> rax
+FUNC str_new
+        ENTER
+        sub rsp, 16
+        mov [rsp], rdi
+        mov [rsp + 8], rsi
+        lea rdi, [rsi + N_DATA + 4 + 1]
+        call arena_alloc
+        mov r12, rax
+        mov dword ptr [r12 + N_KIND], K_STR
+        mov rdi, [rsp]
+        mov rsi, [rsp + 8]
+        call str_volatile_flag
+        mov [r12 + N_AUX], eax
+        mov rdi, [rsp]
+        mov rsi, [rsp + 8]
+        call hash_bytes
+        mov [r12 + N_HASH], rax
+        mov rax, [rsp + 8]
+        mov [r12 + N_DATA], eax
+        lea rdi, [r12 + N_DATA + 4]
+        mov rsi, [rsp]
+        mov rdx, [rsp + 8]
+        call memcpy@PLT
+        mov rax, [rsp + 8]
+        mov byte ptr [r12 + N_DATA + 4 + rax], 0
+        mov rax, r12
+        add rsp, 16
+        LEAVE
+ENDF str_new
+
+# str_new_c(cstr) -> rax
+FUNC str_new_c
+        ENTER
+        mov rbx, rdi
+        call strlen@PLT
+        mov rdi, rbx
+        mov rsi, rax
+        call str_new
+        LEAVE
+ENDF str_new_c
+
+# sb_to_str(sb) -> rax: the builder's text as an arena string
+FUNC sb_to_str
+        mov rsi, [rdi + SB_LEN]
+        mov rdi, [rdi + SB_BUF]
+        jmp str_new
+ENDF sb_to_str
+
+# sb_finish(sb) -> rax: sb_to_str, and the builder is freed
+FUNC sb_finish
+        ENTER
+        mov rbx, rdi
+        call sb_to_str
+        mov r12, rax
+        mov rdi, rbx
+        call sb_free
+        mov rax, r12
+        LEAVE
+ENDF sb_finish
+
+# sb_reset(sb): empty
+FUNC sb_reset
+        mov qword ptr [rdi + SB_LEN], 0
+        mov rax, [rdi + SB_BUF]
+        mov byte ptr [rax], 0
+        ret
+ENDF sb_reset
+
+# str_eq(a, b) -> eax: same text (for strings that may not be interned)
+FUNC str_eq
+        cmp rdi, rsi
+        je 2f
+        mov eax, [rdi + N_DATA]
+        cmp eax, [rsi + N_DATA]
+        jne 3f
+        ENTER
+        mov edx, eax
+        add rdi, N_DATA + 4
+        add rsi, N_DATA + 4
+        call memcmp@PLT
+        test eax, eax
+        sete al
+        movzx eax, al
+        LEAVE
+2:      mov eax, 1
+        ret
+3:      xor eax, eax
+        ret
+ENDF str_eq
+
+# str_eq_c(str, cstr) -> eax
+FUNC str_eq_c
+        ENTER
+        lea rdi, [rdi + N_DATA + 4]
+        call strcmp@PLT
+        test eax, eax
+        sete al
+        movzx eax, al
+        LEAVE
+ENDF str_eq_c
+
+# str_contains_c(str, cstr) -> eax: python's `cstr in str`
+FUNC str_contains_c
+        ENTER
+        lea rdi, [rdi + N_DATA + 4]
+        call strstr@PLT
+        test rax, rax
+        setne al
+        movzx eax, al
+        LEAVE
+ENDF str_contains_c
+
+# str_startswith_c(str, cstr) -> eax
+FUNC str_startswith_c
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov rdi, rsi
+        call strlen@PLT
+        cmp eax, [rbx + N_DATA]
+        ja 1f
+        lea rdi, [rbx + N_DATA + 4]
+        mov rsi, r12
+        mov rdx, rax
+        call memcmp@PLT
+        test eax, eax
+        sete al
+        movzx eax, al
+        LEAVE
+1:      xor eax, eax
+        LEAVE
+ENDF str_startswith_c
+
+# str_count_char(str, c) -> eax
+FUNC str_count_char
+        mov ecx, [rdi + N_DATA]
+        add rdi, N_DATA + 4
+        xor eax, eax
+1:      test ecx, ecx
+        jz 2f
+        cmp [rdi], sil
+        jne 3f
+        inc eax
+3:      inc rdi
+        dec ecx
+        jmp 1b
+2:      ret
+ENDF str_count_char
+
+# str_cat2(a, b) / str_cat3(a, b, c) -> rax: concatenations (arena)
+FUNC str_cat2
+        xor edx, edx
+        jmp str_cat3
+ENDF str_cat2
+
+FUNC str_cat3
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        call sb_new
+        mov r14, rax
+        mov rdi, rax
+        mov rsi, rbx
+        call sb_append_str
+        mov rdi, r14
+        mov rsi, r12
+        call sb_append_str
+        test r13, r13
+        jz 1f
+        mov rdi, r14
+        mov rsi, r13
+        call sb_append_str
+1:      mov rdi, r14
+        call sb_finish
+        LEAVE
+ENDF str_cat3
+
+# str_slice(str, start, stop) -> rax: str[start:stop] (arena; the bounds
+# are clamped like python's)
+FUNC str_slice
+        mov eax, [rdi + N_DATA]
+        cmp rdx, rax
+        cmova rdx, rax                  # stop = min(stop, len)
+        cmp rsi, rdx
+        cmova rsi, rdx                  # start = min(start, stop)
+        sub rdx, rsi
+        lea rdi, [rdi + N_DATA + 4 + rsi]
+        mov rsi, rdx
+        jmp str_new
+ENDF str_slice
+
+# str_join(sep_cstr, list) -> rax: the strings of the list joined
+FUNC str_join
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call sb_new
+        mov r13, rax
+        xor r14d, r14d
+1:      cmp r14d, [r12 + N_AUX]
+        jae 2f
+        test r14d, r14d
+        jz 3f
+        mov rdi, r13
+        mov rsi, rbx
+        call sb_append_c
+3:      mov rdi, r13
+        mov rsi, [r12 + N_DATA + r14*8]
+        call sb_append_str
+        inc r14d
+        jmp 1b
+2:      mov rdi, r13
+        call sb_finish
+        LEAVE
+ENDF str_join
+
+# str_chars(str) -> rax: the list of its one-character strings (python
+# iterating over a string where a tuple of strings was expected)
+FUNC str_chars
+        ENTER
+        mov rbx, rdi
+        call vec_new
+        mov r12, rax
+        xor r13d, r13d
+1:      cmp r13d, [rbx + N_DATA]
+        jae 2f
+        lea rdi, [rbx + N_DATA + 4 + r13]
+        mov esi, 1
+        call str_new
+        mov rdi, r12
+        mov rsi, rax
+        call vec_push
+        inc r13d
+        jmp 1b
+2:      mov rdi, r12
+        call vec_to_list
+        LEAVE
+ENDF str_chars
+
         .section .note.GNU-stack,"",@progbits

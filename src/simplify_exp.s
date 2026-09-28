@@ -11,7 +11,7 @@
 
 # B reg, n: reg := binding n (of the last pat_match into [rsp])
 .macro B reg, n
-        mov \reg, [rsp + 8*\n]
+        mov \reg, [rsp + 8*(\n)]
 .endm
 
 # simplify_exp(exp) -> value (memoized; python's None for a zero-length

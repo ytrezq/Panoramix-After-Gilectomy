@@ -169,7 +169,17 @@ opcode_names:
         .quad .Lopname_162
         .quad .Lopname_163
         .quad .Lopname_164
-opcode_names_count: .quad 165
+        .quad .Lopname_165
+        .quad .Lopname_166
+        .quad .Lopname_167
+        .quad .Lopname_168
+        .quad .Lopname_169
+        .quad .Lopname_170
+        .quad .Lopname_171
+        .quad .Lopname_172
+        .quad .Lopname_173
+        .quad .Lopname_174
+opcode_names_count: .quad 175
 .Lopname_0: .asciz "add"
 .Lopname_1: .asciz "mul"
 .Lopname_2: .asciz "sub"
@@ -335,9 +345,19 @@ opcode_names_count: .quad 165
 .Lopname_162: .asciz "merged_if"
 .Lopname_163: .asciz "loop"
 .Lopname_164: .asciz "gas_remaining"
+.Lopname_165: .asciz "erecover"
+.Lopname_166: .asciz "sha256hash"
+.Lopname_167: .asciz "ripemd160hash"
+.Lopname_168: .asciz "bigModExp"
+.Lopname_169: .asciz "bn256Add"
+.Lopname_170: .asciz "bn256ScalarMul"
+.Lopname_171: .asciz "bn256Pairing"
+.Lopname_172: .asciz "staticcall.return_data"
+.Lopname_173: .asciz "sadd"
+.Lopname_174: .asciz "smul"
         .section .bss
         .align 8
         .globl opcode_nodes
         .hidden opcode_nodes
-opcode_nodes: .space 1328
+opcode_nodes: .space 1408
         .section .note.GNU-stack,"",@progbits

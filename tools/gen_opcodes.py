@@ -38,6 +38,8 @@ memcopy.success code.data precompiled param unknown const comment
 def set len inputs payable read_only mapping owner fand
 x y z sth t a b c LOOP_UPPER push_int merged_if loop
 gas_remaining
+erecover sha256hash ripemd160hash bigModExp bn256Add bn256ScalarMul bn256Pairing
+staticcall.return_data sadd smul
 """.split()
 
 

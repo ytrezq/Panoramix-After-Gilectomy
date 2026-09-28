@@ -19,7 +19,7 @@
         .text
 
 .macro B reg, n
-        mov \reg, [rsp + 8*\n]
+        mov \reg, [rsp + 8*(\n)]
 .endm
 
 # --- the counters of a loop (parse_counters) ---

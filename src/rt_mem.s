@@ -47,6 +47,7 @@ FUNC rt_init
         call arith_module_init
         call vm_module_init
         call matcher_init
+        call prettify_init
         call patterns_init
         pop r15
         pop r15

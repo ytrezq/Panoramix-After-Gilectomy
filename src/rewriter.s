@@ -11,7 +11,7 @@
         .text
 
 .macro B reg, n
-        mov \reg, [rsp + 8*\n]
+        mov \reg, [rsp + 8*(\n)]
 .endm
 
 # --- postprocess.cleanup_mul_1 ---

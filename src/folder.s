@@ -22,7 +22,7 @@
         .text
 
 .macro B reg, n
-        mov \reg, [rsp + 8*\n]
+        mov \reg, [rsp + 8*(\n)]
 .endm
 
 # --- the entry point ---
@@ -1229,45 +1229,20 @@ FUNC folder_and
         LEAVE
 ENDF folder_and
 
-# starting_with(or_tuple, starting) -> list of the sides (lists) that
-# start with the lines of `starting`, without them
-FUNC starting_with
-        ENTER
-        mov rbx, rdi
-        mov r12, rsi
-        call vec_new
-        mov r13, rax
-        mov r14d, 1
-1:      cmp r14d, [rbx + N_AUX]
-        jae 3f
-        mov rdi, [rbx + N_DATA + r14*8]
-        mov rsi, r12
-        call starts_with
-        test eax, eax
-        jz 2f
-        mov rdi, [rbx + N_DATA + r14*8]
-        mov esi, [r12 + N_AUX]
-        call list_from
-        mov rdi, r13
-        mov rsi, rax
-        call vec_push
-2:      inc r14d
-        jmp 1b
-3:      mov rdi, r13
-        call vec_to_list
-        LEAVE
-ENDF starting_with
+# The prefixes and suffixes compared here are the first or last n lines
+# of a path, given as (path, n) rather than as a list: the search for the
+# best split compares a lot of them, and python's slices would fill the
+# arena (which is only freed at the end) for nothing.
 
-# starts_with(seq, prefix) -> eax
+# starts_with(seq, path, n) -> eax: the first n lines of seq are path's
 FUNC starts_with
-        mov ecx, [rsi + N_AUX]
-        cmp ecx, [rdi + N_AUX]
+        cmp edx, [rdi + N_AUX]
         ja 2f
         xor eax, eax
-1:      cmp eax, ecx
+1:      cmp eax, edx
         jae 3f
-        mov rdx, [rdi + N_DATA + rax*8]
-        cmp rdx, [rsi + N_DATA + rax*8]
+        mov rcx, [rdi + N_DATA + rax*8]
+        cmp rcx, [rsi + N_DATA + rax*8]
         jne 2f
         inc eax
         jmp 1b
@@ -1277,57 +1252,21 @@ FUNC starts_with
         ret
 ENDF starts_with
 
-# ending_with(or_tuple, ending) -> list of the sides that end with the
-# lines of `ending`, without them
-FUNC ending_with
-        ENTER
-        mov rbx, rdi
-        mov r12, rsi
-        cmp dword ptr [r12 + N_AUX], 0
-        je .Lew_assert
-        call vec_new
-        mov r13, rax
-        mov r14d, 1
-1:      cmp r14d, [rbx + N_AUX]
-        jae 3f
-        mov rdi, [rbx + N_DATA + r14*8]
-        mov rsi, r12
-        call ends_with
-        test eax, eax
-        jz 2f
-        mov rdi, [rbx + N_DATA + r14*8]
-        mov edi, [rdi + N_AUX]
-        sub edi, [r12 + N_AUX]
-        mov rax, [rbx + N_DATA + r14*8]
-        lea rsi, [rax + N_DATA]
-        call mk_list
-        mov rdi, r13
-        mov rsi, rax
-        call vec_push
-2:      inc r14d
-        jmp 1b
-3:      mov rdi, r13
-        call vec_to_list
-        LEAVE
-.Lew_assert:
-        mov edi, E_ASSERT
-        lea rsi, [rip + .Ls_assert_ending]
-        call err_throw
-ENDF ending_with
-
-# ends_with(seq, suffix) -> eax
+# ends_with(seq, path, n) -> eax: the last n lines of seq are path's last n
 FUNC ends_with
-        mov ecx, [rsi + N_AUX]
-        mov edx, [rdi + N_AUX]
-        cmp ecx, edx
+        mov ecx, [rdi + N_AUX]
+        cmp edx, ecx
         ja 2f
-        sub edx, ecx                    # where the suffix would start
+        sub ecx, edx                    # where the suffix starts in seq
+        mov r8d, [rsi + N_AUX]
+        sub r8d, edx                    # and in path
         xor eax, eax
-1:      cmp eax, ecx
+1:      cmp eax, edx
         jae 3f
-        lea r8d, [rdx + rax]
-        mov r9, [rdi + N_DATA + r8*8]
-        cmp r9, [rsi + N_DATA + rax*8]
+        lea r9d, [rcx + rax]
+        mov r10, [rdi + N_DATA + r9*8]
+        lea r9d, [r8 + rax]
+        cmp r10, [rsi + N_DATA + r9*8]
         jne 2f
         inc eax
         jmp 1b
@@ -1336,6 +1275,225 @@ FUNC ends_with
 3:      mov eax, 1
         ret
 ENDF ends_with
+
+# count_starting(or_tuple, path, n) -> eax: how many sides start with the
+# first n lines of path
+FUNC count_starting
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        xor r14d, r14d
+        mov ecx, 1
+1:      cmp ecx, [rbx + N_AUX]
+        jae 2f
+        push rcx
+        push rcx
+        mov rdi, [rbx + N_DATA + rcx*8]
+        mov rsi, r12
+        mov rdx, r13
+        call starts_with
+        pop rcx
+        pop rcx
+        add r14d, eax
+        inc ecx
+        jmp 1b
+2:      mov eax, r14d
+        LEAVE
+ENDF count_starting
+
+# count_ending(or_tuple, path, n) -> eax
+FUNC count_ending
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        xor r14d, r14d
+        mov ecx, 1
+1:      cmp ecx, [rbx + N_AUX]
+        jae 2f
+        push rcx
+        push rcx
+        mov rdi, [rbx + N_DATA + rcx*8]
+        mov rsi, r12
+        mov rdx, r13
+        call ends_with
+        pop rcx
+        pop rcx
+        add r14d, eax
+        inc ecx
+        jmp 1b
+2:      mov eax, r14d
+        LEAVE
+ENDF count_ending
+
+# starting_with(or_tuple, path, n) -> list of the sides that start with
+# the first n lines of path, without them
+FUNC starting_with
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        call vec_new
+        mov [rsp], rax
+        mov r14d, 1
+1:      cmp r14d, [rbx + N_AUX]
+        jae 3f
+        mov rdi, [rbx + N_DATA + r14*8]
+        mov rsi, r12
+        mov rdx, r13
+        call starts_with
+        test eax, eax
+        jz 2f
+        mov rdi, [rbx + N_DATA + r14*8]
+        mov rsi, r13
+        call list_from
+        mov rdi, [rsp]
+        mov rsi, rax
+        call vec_push
+2:      inc r14d
+        jmp 1b
+3:      mov rdi, [rsp]
+        call vec_to_list
+        add rsp, 16
+        LEAVE
+ENDF starting_with
+
+# ending_with(or_tuple, path, n) -> list of the sides that end with the
+# last n lines of path, without them
+FUNC ending_with
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        test r13, r13
+        jz .Lew_assert
+        call vec_new
+        mov [rsp], rax
+        mov r14d, 1
+1:      cmp r14d, [rbx + N_AUX]
+        jae 3f
+        mov rdi, [rbx + N_DATA + r14*8]
+        mov rsi, r12
+        mov rdx, r13
+        call ends_with
+        test eax, eax
+        jz 2f
+        mov rax, [rbx + N_DATA + r14*8]
+        mov edi, [rax + N_AUX]
+        sub rdi, r13
+        lea rsi, [rax + N_DATA]
+        call mk_list
+        mov rdi, [rsp]
+        mov rsi, rax
+        call vec_push
+2:      inc r14d
+        jmp 1b
+3:      mov rdi, [rsp]
+        call vec_to_list
+        add rsp, 16
+        LEAVE
+.Lew_assert:
+        mov edi, E_ASSERT
+        lea rsi, [rip + .Ls_assert_ending]
+        call err_throw
+ENDF ending_with
+
+# split_matches(or_tuple, shortest, idx1, longest, idx2) -> eax: the sides
+# starting with the first idx1 lines of shortest and those starting with
+# the first idx2 lines of longest are all the sides, and their remainders
+# are the same, in order (python: s1 == s2 and len(s1) + len(s2) + 1 ==
+# len(line))
+FUNC split_matches
+        ENTER
+        sub rsp, 32
+        .set SM_IDX1, 0
+        .set SM_IDX2, 8
+        .set SM_I, 16                   # the cursor over the sides for shortest
+        .set SM_J, 24                   # and for longest
+        mov rbx, rdi
+        mov r12, rsi
+        mov [rsp + SM_IDX1], rdx
+        mov r13, rcx
+        mov [rsp + SM_IDX2], r8
+        mov qword ptr [SM_I + rsp], 1
+        mov qword ptr [SM_J + rsp], 1
+        xor r14d, r14d                  # the sides seen
+.Lsm_pair:
+        # the next side starting with shortest[:idx1]
+1:      mov rcx, [rsp + SM_I]
+        cmp ecx, [rbx + N_AUX]
+        jae 2f
+        mov rdi, [rbx + N_DATA + rcx*8]
+        mov rsi, r12
+        mov rdx, [rsp + SM_IDX1]
+        call starts_with
+        test eax, eax
+        jnz 2f
+        inc qword ptr [rsp + SM_I]
+        jmp 1b
+        # and the next one starting with longest[:idx2]
+2:      mov rcx, [rsp + SM_J]
+        cmp ecx, [rbx + N_AUX]
+        jae 3f
+        mov rdi, [rbx + N_DATA + rcx*8]
+        mov rsi, r13
+        mov rdx, [rsp + SM_IDX2]
+        call starts_with
+        test eax, eax
+        jnz 3f
+        inc qword ptr [rsp + SM_J]
+        jmp 2b
+3:      mov rcx, [rsp + SM_I]
+        mov rdx, [rsp + SM_J]
+        cmp ecx, [rbx + N_AUX]
+        jae .Lsm_end
+        cmp edx, [rbx + N_AUX]
+        jae .Lsm_no                     # more of the first group than the second
+        # the remainders must be the same
+        mov rdi, [rbx + N_DATA + rcx*8]
+        mov rsi, [rbx + N_DATA + rdx*8]
+        mov edx, [rdi + N_AUX]
+        sub rdx, [rsp + SM_IDX1]
+        mov ecx, [rsi + N_AUX]
+        sub rcx, [rsp + SM_IDX2]
+        cmp rdx, rcx
+        jne .Lsm_no
+        mov rcx, [rsp + SM_IDX1]
+        lea rdi, [rdi + N_DATA + rcx*8]
+        mov rcx, [rsp + SM_IDX2]
+        lea rsi, [rsi + N_DATA + rcx*8]
+4:      test rdx, rdx
+        jz 5f
+        mov rax, [rdi]
+        cmp rax, [rsi]
+        jne .Lsm_no
+        add rdi, 8
+        add rsi, 8
+        dec rdx
+        jmp 4b
+5:      add r14d, 2
+        inc qword ptr [rsp + SM_I]
+        inc qword ptr [rsp + SM_J]
+        jmp .Lsm_pair
+.Lsm_end:
+        cmp edx, [rbx + N_AUX]
+        jb .Lsm_no                      # more of the second group than the first
+        # every side is in one of the two groups
+        mov eax, [rbx + N_AUX]
+        dec eax
+        cmp eax, r14d
+        jne .Lsm_no
+        mov eax, 1
+        add rsp, 32
+        LEAVE
+.Lsm_no:
+        xor eax, eax
+        add rsp, 32
+        LEAVE
+ENDF split_matches
 
 # fold_paths_vec(vec of paths) -> list
 FUNC fold_paths_vec
@@ -1419,13 +1577,10 @@ FUNC fold_paths
         xor r14d, r14d
 3:      cmp r14d, [r13 + N_AUX]
         ja 4f                           # (all the paths equal: python never ends)
-        mov edi, r14d
-        lea rsi, [r13 + N_DATA]
-        call mk_list
         mov rdi, [rsp + FP_OR]
-        mov rsi, rax
-        call starting_with
-        mov eax, [rax + N_AUX]
+        mov rsi, r13
+        mov edx, r14d
+        call count_starting
         cmp eax, [rbx + N_AUX]
         jne 4f
         inc r14d
@@ -1436,16 +1591,10 @@ FUNC fold_paths
         mov r14d, 1
 5:      cmp r14d, [r13 + N_AUX]
         ja 6f                           # (python: for_merge[0][-idx:] with idx > len is the whole path)
-        mov edi, [r13 + N_AUX]
-        sub edi, r14d
-        mov rdi, rdi
-        mov rsi, r13
-        xchg rdi, rsi
-        call list_from
         mov rdi, [rsp + FP_OR]
-        mov rsi, rax
-        call ending_with
-        mov eax, [rax + N_AUX]
+        mov rsi, r13
+        mov edx, r14d
+        call count_ending
         cmp eax, [rbx + N_AUX]
         jne 6f
         inc r14d
@@ -1458,7 +1607,8 @@ FUNC fold_paths
         call mk_list
         mov [rsp + FP_MERGED], rax      # the beginning
         mov rdi, [rsp + FP_OR]
-        mov rsi, rax
+        mov rsi, r13
+        mov rdx, [rsp + FP_BEGIN]
         call starting_with
         mov r12, rax                    # s_with
         cmp qword ptr [rsp + FP_END], 0
@@ -1468,17 +1618,9 @@ FUNC fold_paths
         LOADS rsi, OR
         call list_prepend
         mov rdi, rax
-        mov esi, [r13 + N_AUX]
-        sub rsi, [rsp + FP_END]
-        push rdi
-        push rdi
-        mov rdi, r13
-        call list_from
-        pop rdi
-        pop rdi
-        mov rsi, rax
+        mov rsi, r13
+        mov rdx, [rsp + FP_END]
         call ending_with
-        mov rdi, rax
         mov esi, [rax + N_AUX]
         lea rdi, [rax + N_DATA]
         call folder_or
@@ -1568,6 +1710,7 @@ FUNC fold_or
         .set FO_S1, 48
         .set FO_S2, 56
         .set FO_ARGS, 64                # two slots: the arguments of or/and
+        # (BEST_S, S1, S2: the folded remainders)
         mov rbx, rdi
         mov [rsp + FO_OUT], rsi
         # every side has a first line
@@ -1615,38 +1758,30 @@ FUNC fold_or
 7:      mov rax, [rsp + FO_SHORTEST]
         cmp r12d, [rax + N_AUX]
         jae .Lfo_cut
-        mov edi, r12d
-        lea rsi, [rax + N_DATA]
-        call mk_list
-        mov rdi, rbx
-        mov rsi, rax
-        call starting_with
-        mov [rsp + FO_S1], rax
         mov r13d, 1                     # idx2
 8:      mov rax, [rsp + FO_LONGEST]
         cmp r13d, [rax + N_AUX]
         jae 9f
-        mov edi, r13d
-        lea rsi, [rax + N_DATA]
-        call mk_list
         mov rdi, rbx
-        mov rsi, rax
-        call starting_with
-        mov r14, rax                    # s2
-        cmp r14, [rsp + FO_S1]          # (lists are hash-consed: same content, same node)
-        jne 81f
-        mov eax, [r14 + N_AUX]
-        add eax, [r14 + N_AUX]
-        inc eax
-        cmp eax, [rbx + N_AUX]
-        je .Lfo_best
-81:     inc r13d
+        mov rsi, [rsp + FO_SHORTEST]
+        mov edx, r12d
+        mov rcx, [rsp + FO_LONGEST]
+        mov r8d, r13d
+        call split_matches
+        test eax, eax
+        jnz .Lfo_best
+        inc r13d
         jmp 8b
 9:      inc r12d
         jmp 7b
 .Lfo_best:
-        # or_op(shortest[:idx1], longest[:idx2]), s1
-        mov [rsp + FO_BEST_S], r14
+        # or_op(shortest[:idx1], longest[:idx2]), the remainders of the
+        # sides starting with shortest[:idx1]
+        mov rdi, rbx
+        mov rsi, [rsp + FO_SHORTEST]
+        mov edx, r12d
+        call starting_with
+        mov [rsp + FO_BEST_S], rax
         mov rax, [rsp + FO_SHORTEST]
         mov edi, r12d
         lea rsi, [rax + N_DATA]
@@ -1668,20 +1803,16 @@ FUNC fold_or
         LEAVE
 .Lfo_cut:
         # cut the first line, merge the remaining paths if possible
-        mov rax, [rsp + FO_SHORTEST]
-        mov rdi, [rax + N_DATA]
-        call mk_list1
         mov rdi, rbx
-        mov rsi, rax
+        mov rsi, [rsp + FO_SHORTEST]
+        mov edx, 1
         call starting_with
         mov rdi, rax
         call fold_paths
         mov [rsp + FO_S1], rax
-        mov rax, [rsp + FO_LONGEST]
-        mov rdi, [rax + N_DATA]
-        call mk_list1
         mov rdi, rbx
-        mov rsi, rax
+        mov rsi, [rsp + FO_LONGEST]
+        mov edx, 1
         call starting_with
         mov rdi, rax
         call fold_paths

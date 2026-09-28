@@ -79,6 +79,7 @@
 .set CTX_ERR_BUF, 304       # the innermost error handler (rt_err.s)
 .set CTX_ERR_CODE, 312      # what was thrown
 .set CTX_ERR_MSG, 320
+.set CTX_FUNC, 328          # the function being printed (sigs.s, function.s)
 .set CTX_SIZE, 352
 
 # error handler buffer (rt_err.s)
@@ -313,3 +314,29 @@
 .set PC_NUM_LOOPS, 56
 .set PC_ENDVARS, 64         # list of (idx, value): the values after the loop
 .set PC_SIZEOF, 80
+
+# prettify flags (prettify.s)
+.set PF_REM_BOOL, 1         # rem_bool=True
+.set PF_PARENS, 2           # parentheses=True
+.set PF_TOP, 4              # top_level=True
+.set PF_COLOR, 8            # add_color=True
+
+# a decompiled function (function.s)
+.set FN_HASH, 0             # str: "0x12345678" or "_fallback"
+.set FN_NAME, 8             # str
+.set FN_COLOR_NAME, 16      # str
+.set FN_ABI_NAME, 24        # str
+.set FN_ABI, 32             # (name, inputs) - the abi entry
+.set FN_INPUTS, 40          # list of (type, name), or 0 until known
+.set FN_TRACE, 48
+.set FN_ORIG_TRACE, 56
+.set FN_PARAMS, 64          # list of (idx, kind, name): the inferred params
+.set FN_CONST, 72           # value, or 0 (None)
+.set FN_READ_ONLY, 80
+.set FN_PAYABLE, 88
+.set FN_GETTER, 96          # value, or 0
+.set FN_RETURNS, 104        # list
+.set FN_AST, 112            # list, or 0
+.set FN_IS_REGULAR, 120
+.set FN_PRINT, 128          # the printed text (str), once printed
+.set FN_SIZEOF, 136
