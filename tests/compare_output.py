@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """The final text of the decompilation: python's decompile_bytecode
 against panoramix_asm.decompile, on the corpus (no signature database on
-either side unless --db)."""
+either side unless --db). Python's timeouts are scaled by 20 so that the
+comparison doesn't depend on the machine (the assembly hits none)."""
 import os, sys, glob, time, difflib
+os.environ.setdefault("PANORAMIX_TIMEOUT", "20")
 sys.path.insert(0, "/home/claude/panoramix")
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor"))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build"))
