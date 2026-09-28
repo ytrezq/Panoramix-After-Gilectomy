@@ -1036,8 +1036,39 @@ FUNC tuple_count
         ret
 ENDF tuple_count
 
-# arith_eval(exp) -> value
+# arith_eval(exp) -> value: arith_eval_impl's, remembered for a tuple
+# (a pure function, asked again and again of the same expressions: the
+# VM's is_known evaluates the condition once for every fact known)
 FUNC arith_eval
+        STACK_CHECK
+        test dil, 1
+        jnz 1f
+        test rdi, rdi
+        jz 1f
+        cmp dword ptr [rdi + N_KIND], K_TUPLE
+        jne 1f
+        ENTER
+        mov rbx, rdi
+        mov edi, MEMO_ARITH_EVAL
+        mov rsi, rbx
+        call memo_get
+        test rax, rax
+        jnz 2f
+        mov rdi, rbx
+        call arith_eval_impl
+        test rax, rax
+        jz 2f
+        mov r12, rax
+        mov edi, MEMO_ARITH_EVAL
+        mov rsi, rbx
+        mov rdx, rax
+        call memo_put
+        mov rax, r12
+2:      LEAVE
+1:      jmp arith_eval_impl
+ENDF arith_eval
+
+FUNC arith_eval_impl
         STACK_CHECK
         ENTER
         mov rbx, rdi
@@ -1109,7 +1140,7 @@ FUNC arith_eval
 .Lev_asis:
         mov rax, rbx
         LEAVE
-ENDF arith_eval
+ENDF arith_eval_impl
 
 # is_volatile(exp) -> eax: mentions storage, balances, calls... (a string
 # node flagged STR_VOLATILE anywhere in the tree)
@@ -1337,6 +1368,35 @@ ENDF mk_bool_of
 # is_zero(exp) -> value (sp_true/sp_false for ints, like python's bools)
 FUNC is_zero
         STACK_CHECK
+        test dil, 1
+        jnz 1f
+        test rdi, rdi
+        jz 1f
+        cmp dword ptr [rdi + N_KIND], K_TUPLE
+        jne 1f
+        ENTER                           # (a tuple's remembered, as arith_eval's)
+        mov rbx, rdi
+        mov edi, MEMO_IS_ZERO
+        mov rsi, rbx
+        call memo_get
+        test rax, rax
+        jnz 2f
+        mov rdi, rbx
+        call is_zero_impl
+        test rax, rax
+        jz 2f
+        mov r12, rax
+        mov edi, MEMO_IS_ZERO
+        mov rsi, rbx
+        mov rdx, rax
+        call memo_put
+        mov rax, r12
+2:      LEAVE
+1:      jmp is_zero_impl
+ENDF is_zero
+
+FUNC is_zero_impl
+        STACK_CHECK
         ENTER
         mov rbx, rdi
         call is_int
@@ -1435,7 +1495,7 @@ FUNC is_zero
         mov rdi, rbx
         call mk_iszero_of
         LEAVE
-ENDF is_zero
+ENDF is_zero_impl
 
         .section .data
         .align 4

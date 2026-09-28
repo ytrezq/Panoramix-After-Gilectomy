@@ -916,6 +916,8 @@ memo_kinds:
         .byte 0                         # PARSE_COUNTERS (structs of the old arena)
         .byte 0                         # EXTRACT_SETMEMS
         .byte 0                         # OVERWRITES (pairs: a replace_mem's)
+        .byte 0                         # IS_ZERO
+        .byte 0                         # ARITH_EVAL
         .text
 
 # memo_sizes_log(): DEBUG: the number of entries of every memo table

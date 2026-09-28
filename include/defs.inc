@@ -524,7 +524,9 @@ ENDF \fname
 .set MEMO_PARSE_COUNTERS, 19 # a while -> its PC struct (read only)
 .set MEMO_EXTRACT_SETMEMS, 20 # a while -> extract_setmems' list
 .set MEMO_OVERWRITES, 21    # (an if or a while, mem_idx) -> overwrites_mem's (pairs)
-.set MEMO_COUNT, 22
+.set MEMO_IS_ZERO, 22       # a tuple -> is_zero of it
+.set MEMO_ARITH_EVAL, 23    # a tuple -> arith_eval of it
+.set MEMO_COUNT, 24
 # sentinel values stored in memo tables for python's None / False (values
 # and pointers are never 2 or 4)
 .set MEMO_NONE, 2
