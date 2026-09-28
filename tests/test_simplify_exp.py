@@ -2,7 +2,7 @@
 """Differential tests of simplify_exp.s against panoramix.simplify."""
 import os, random, sys
 sys.path.insert(0, os.environ.get("PANORAMIX_PY", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "panoramix")))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build"))
+sys.path.insert(0, os.environ.get("PANASM_BUILD") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build"))
 import logging; logging.disable(logging.CRITICAL)
 import panoramix_asm as A
 from panoramix import simplify as S

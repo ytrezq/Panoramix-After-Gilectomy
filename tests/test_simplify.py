@@ -4,7 +4,7 @@ each pass is run on the trace after whiles.make (and on the intermediate
 traces of simplify_trace's rounds), and compared with python's."""
 import os, sys, glob, time, pickle
 sys.path.insert(0, os.environ.get("PANORAMIX_PY", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "panoramix")))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build"))
+sys.path.insert(0, os.environ.get("PANASM_BUILD") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build"))
 import logging; logging.disable(logging.CRITICAL)
 import panoramix_asm as A
 from test_vm import py_run, functions_of, CORPUS

@@ -7,7 +7,7 @@ import os, sys, glob, time, difflib
 os.environ.setdefault("PANORAMIX_TIMEOUT", "20")
 sys.path.insert(0, os.environ.get("PANORAMIX_PY", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "panoramix")))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor"))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build"))
+sys.path.insert(0, os.environ.get("PANASM_BUILD") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build"))
 import logging; logging.disable(logging.CRITICAL)
 if "--db" not in sys.argv:
     os.environ["PANORAMIX_SIGDB"] = "/nonexistent"

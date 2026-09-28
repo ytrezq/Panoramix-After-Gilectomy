@@ -6,7 +6,7 @@ runs out of memory on it); simplify_trace under a 2 s deadline must come
 back with the timeout, in about 2 s. Needs only the module in build/."""
 import os, sys, time, lzma
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "build"))
+sys.path.insert(0, os.environ.get("PANASM_BUILD") or os.path.join(HERE, "..", "build"))
 # a compaction at every round of simplify_trace (before the first one
 # reads it): the deadlines below then fall in compactions too, which must
 # put the old arena back
