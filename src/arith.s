@@ -802,25 +802,41 @@ FUNC ev_sgt
         LEAVE
 ENDF ev_sgt
 
+# sle / sge: python's slt(a, b) | eq(a, b) - the equality of the values
+# as they are, not of their signed views (0 and 2^256 differ)
 FUNC ev_sle
         ENTER
+        mov rbx, rdi
+        mov r12, rsi
         call ev_scmp
-        mov ecx, 3
-        mov edx, 1
-        cmp eax, 1
-        cmove eax, edx
-        cmovne eax, ecx
+        cmp eax, -1
+        je 1f
+        mov rdi, rbx
+        mov rsi, r12
+        call values_equal
+        test eax, eax
+        jnz 1f
+        mov eax, 1                      # 0
+        LEAVE
+1:      mov eax, 3                      # 1
         LEAVE
 ENDF ev_sle
 
 FUNC ev_sge
         ENTER
+        mov rbx, rdi
+        mov r12, rsi
         call ev_scmp
-        mov ecx, 3
-        mov edx, 1
-        cmp eax, -1
-        cmove eax, edx
-        cmovne eax, ecx
+        cmp eax, 1
+        je 1f
+        mov rdi, rbx
+        mov rsi, r12
+        call values_equal
+        test eax, eax
+        jnz 1f
+        mov eax, 1
+        LEAVE
+1:      mov eax, 3
         LEAVE
 ENDF ev_sge
 

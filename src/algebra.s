@@ -3588,9 +3588,14 @@ FUNC alg_max_to_add
         xor ecx, ecx
 11:     cmp rcx, r12
         jae 12f
-        cmp rcx, [rsp]
-        je 13f
         mov [rsp + 24], rcx
+        mov rdi, [r13 + rcx*8]          # (python: `if e2 != e`, every term equal to e skipped)
+        mov rax, [rsp]
+        mov rsi, [r13 + rax*8]
+        call py_equal
+        mov rcx, [rsp + 24]
+        test eax, eax
+        jnz 13f
         mov rdi, [r13 + rcx*8]
         mov rsi, [rsp + 8]
         call alg_sub_op
@@ -3717,7 +3722,11 @@ FUNC alg_max_to_add
         mov rsi, [rsp]
         call vec_push
         jmp 27f
-26:     mov rax, [rsp]
+26:     mov rdi, [rsp]                  # a[1:]: a tuple's (a string: python's TypeError)
+        call is_tuple
+        test eax, eax
+        jz .Lmta_type
+        mov rax, [rsp]
         mov rdi, [rsp + 16]
         mov edx, [rax + N_AUX]
         dec edx
@@ -3734,7 +3743,15 @@ FUNC alg_max_to_add
         mov rax, rbx
         add rsp, 48
         LEAVE
+.Lmta_type:
+        mov edi, E_TYPE
+        lea rsi, [rip + .Ls_mta_type]
+        call err_throw
 ENDF alg_max_to_add
+
+        .section .rodata
+.Ls_mta_type: .asciz "can only concatenate tuple (not \"str\") to tuple"
+        .text
 
 # term_leading_int(x) -> value: x if int, x[1] if a tuple of len > 1 with an
 # int there, else 0
