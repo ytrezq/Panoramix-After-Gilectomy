@@ -301,7 +301,8 @@ FUNC pv_number
         LEAVE
 ENDF pv_number
 
-# pv_string(ps) -> rax: an interned string
+# pv_string(ps) -> rax: an interned string (python's escapes: \n \r \t
+# \\ \' \" \xHH \uHHHH \UHHHHHHHH, the code points as UTF-8)
 FUNC pv_string
         ENTER
         mov rbx, rdi
@@ -321,22 +322,43 @@ FUNC pv_string
         jne 2f
         mov rdi, rbx
         call pv_peek
-        inc qword ptr [rbx + PS_POS]
-        cmp eax, 'n'
-        jne 3f
-        mov eax, '\n'
-        jmp 2f
-3:      cmp eax, 't'
-        jne 4f
-        mov eax, '\t'
-        jmp 2f
-4:      cmp eax, 'x'
-        jne 2f
-        # \xHH
-        mov rdi, rbx
-        call pv_hex2
         cmp eax, -1
         je .Lstr_fail
+        inc qword ptr [rbx + PS_POS]
+        mov ecx, '\n'
+        cmp eax, 'n'
+        je 5f
+        mov ecx, '\t'
+        cmp eax, 't'
+        je 5f
+        mov ecx, '\r'
+        cmp eax, 'r'
+        je 5f
+        mov ecx, 0
+        cmp eax, '0'
+        je 5f
+        mov r14d, 2
+        cmp eax, 'x'
+        je 6f
+        mov r14d, 4
+        cmp eax, 'u'
+        je 6f
+        mov r14d, 8
+        cmp eax, 'U'
+        je 6f
+        jmp 2f                          # (\\ \' \": the character)
+5:      mov eax, ecx
+        jmp 2f
+6:      # a code point of r14 hex digits, as UTF-8
+        mov rdi, rbx
+        mov esi, r14d
+        call pv_hexn
+        cmp eax, -1
+        je .Lstr_fail
+        mov rdi, r13
+        mov esi, eax
+        call sb_append_utf8
+        jmp 1b
 2:      mov rdi, r13
         mov esi, eax
         call sb_append_char
@@ -359,12 +381,12 @@ FUNC pv_string
         LEAVE
 ENDF pv_string
 
-# pv_hex2(ps) -> eax: two hex digits, or -1
-FUNC pv_hex2
+# pv_hexn(ps, n) -> eax: n hex digits, or -1
+FUNC pv_hexn
         ENTER
         mov rbx, rdi
         xor r12d, r12d
-        mov r13d, 2
+        mov r13d, esi
 1:      mov rdi, rbx
         call pv_peek
         cmp eax, -1
@@ -386,7 +408,7 @@ FUNC pv_hex2
         LEAVE
 9:      mov eax, -1
         LEAVE
-ENDF pv_hex2
+ENDF pv_hexn
 
 # pv_word(ps) -> rax: True / False / None
 FUNC pv_word

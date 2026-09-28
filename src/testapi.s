@@ -118,10 +118,12 @@ test_table:
         .quad .Ln_pprint_logic, tf_pprint_logic
         .quad .Ln_function, tf_function
         .quad .Ln_contract, tf_contract
+        .quad .Ln_json_value, tf_json_value
         .quad 0, 0
 
         .section .rodata
 .Ln_roundtrip: .asciz "roundtrip"
+.Ln_json_value: .asciz "json_value"
 .Ln_hash:      .asciz "hash"
 .Ln_str_flags: .asciz "str_flags"
 .Ln_opcode:    .asciz "opcode"
@@ -240,6 +242,21 @@ FUNC tf_roundtrip
         mov rax, rdi
         ret
 ENDF tf_roundtrip
+
+# json_value(v) -> str: the JSON text of the value (data.s), as json.dumps
+FUNC tf_json_value
+        ENTER
+        mov rbx, rdi
+        call sb_new
+        mov r12, rax
+        mov rdi, rax
+        mov rsi, rbx
+        mov edx, 1
+        call data_value
+        mov rdi, r12
+        call sb_finish
+        LEAVE
+ENDF tf_json_value
 
 # hash(v) -> the value's hash, as an integer
 FUNC tf_hash

@@ -46,6 +46,7 @@ check: build/c_api_test all
 	tests/run_corpus.sh
 	tests/robustness.sh
 	python3 tests/test_watchdog.py
+	python3 tests/test_json_value.py
 	python3 tests/test_json.py
 
 # python's Decompilation of the corpus (pypy, a few minutes), for
