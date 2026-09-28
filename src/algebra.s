@@ -2651,27 +2651,7 @@ FUNC add_ge_zero_impl
         # no variable at all: python iterates over no variant and says True
         test r13, r13
         jz .Lagz_true
-        # variants.possibilities also yields, when ('mem', ('range', 64, 32))
-        # isn't the last variable of the set, a variant where only it is
-        # substituted, which isn't concrete: no answer then. The set order
-        # depends on python's hash seed; this is the most likely outcome
-        # (and the conservative one), taken whenever there are other
-        # variables.
-        cmp r13, 2
-        jb 3f
-        xor ecx, ecx
-2:      cmp rcx, r13
-        jae 3f
-        mov rax, [r12 + VEC_DATA]
-        mov rdi, [rax + rcx*8]
-        mov [rsp], rcx
-        call is_mem64
-        mov rcx, [rsp]
-        test eax, eax
-        jnz .Lagz_none
-        inc rcx
-        jmp 2b
-3:      # enumerate the 2^n variants (MAX_number or the special value per var)
+        # enumerate the 2^n variants (MAX_number or the special value per var)
         mov qword ptr [rsp], 0          # seen_neg
         mov qword ptr [rsp + 8], 0      # seen_nonneg
         mov qword ptr [rsp + 16], 0     # the current combination (bit k: special)

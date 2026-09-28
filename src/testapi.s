@@ -65,6 +65,7 @@ test_table:
         .quad .Ln_cleanup_msize, cleanup_msize
         .quad .Ln_cleanup_mems, tf_cleanup_mems
         .quad .Ln_cleanup_vars, tf_cleanup_vars
+        .quad .Ln_cleanup_vars_req, tf_cleanup_vars_req
         .quad .Ln_replace_var, tf_replace_var
         .quad .Ln_replace_mem, tf_replace_mem
         .quad .Ln_parse_counters, tf_parse_counters
@@ -152,6 +153,7 @@ test_table:
 .Ln_cleanup_msize: .asciz "cleanup_msize"
 .Ln_cleanup_mems: .asciz "cleanup_mems"
 .Ln_cleanup_vars: .asciz "cleanup_vars"
+.Ln_cleanup_vars_req: .asciz "cleanup_vars_req"
 .Ln_replace_var: .asciz "replace_var"
 .Ln_replace_mem: .asciz "replace_mem"
 .Ln_parse_counters: .asciz "parse_counters"
@@ -781,6 +783,12 @@ FUNC tf_cleanup_vars
         xor esi, esi
         jmp cleanup_vars
 ENDF tf_cleanup_vars
+
+FUNC tf_cleanup_vars_req
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        jmp cleanup_vars
+ENDF tf_cleanup_vars_req
 
 FUNC tf_replace_var
         mov rdx, [rdi + N_DATA + 16]
