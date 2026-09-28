@@ -29,21 +29,6 @@
 
 
 
-# strip_color(sb): the color codes removed from the builder's text
-FUNC strip_color
-        ENTER
-        mov rbx, rdi
-        call sb_to_str
-        mov rdi, rax
-        call clean_color
-        mov r12, rax
-        mov rdi, rbx
-        call sb_reset
-        mov rdi, rbx
-        mov rsi, r12
-        call sb_append_str
-        LEAVE
-ENDF strip_color
 
 FUNC main
         push r15

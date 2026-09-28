@@ -9,6 +9,7 @@ int pan_disasm(const unsigned char *code, size_t len, char **out, size_t *outlen
 void pan_free(void *p);
 int pan_test(const char *name, const char *text, size_t len, char **out, size_t *outlen);
 int pan_decompile(const unsigned char *code, size_t len, size_t threads, const char *only_func, char **out, size_t *outlen);
+int pan_decompile_ex(const unsigned char *code, size_t len, size_t threads, const char *only_func, char **out, size_t *outlen, long flags);
 int pan_build_sigdb(const char *xz_path, const char *out_path);
 void pan_set_log_level(long level);
 long pan_log_level_from_name(const char *name);
@@ -65,23 +66,24 @@ static PyObject *py_disasm(PyObject *self, PyObject *args)
 
 static PyObject *py_decompile(PyObject *self, PyObject *args, PyObject *kwargs)
 {
-    static char *kwlist[] = {"code", "threads", "function", NULL};
+    static char *kwlist[] = {"code", "threads", "function", "color", NULL};
     PyObject *arg, *holder;
     unsigned char *code;
     size_t len, outlen;
     char *out;
     Py_ssize_t threads = 0;
     const char *function = NULL;
+    int color = 1;
     int rc;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|nz", kwlist, &arg, &threads, &function)) return NULL;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|nzp", kwlist, &arg, &threads, &function, &color)) return NULL;
     if (get_code(arg, &code, &len, &holder)) return NULL;
     if (threads <= 0) {
         threads = (Py_ssize_t)sysconf(_SC_NPROCESSORS_ONLN);
         if (threads <= 0) threads = 1;
     }
     Py_BEGIN_ALLOW_THREADS
-    rc = pan_decompile(code, len, (size_t)threads, function, &out, &outlen);
+    rc = pan_decompile_ex(code, len, (size_t)threads, function, &out, &outlen, color ? 0 : 1);
     Py_END_ALLOW_THREADS
     Py_XDECREF(holder);
     if (rc) {
@@ -155,7 +157,7 @@ static PyMethodDef methods[] = {
     {"_test", py_test, METH_VARARGS, "_test(name, literal) -> str: apply a library function to a python literal"},
     {"set_log_level", py_set_log_level, METH_O, "set_log_level(level): the level of the messages printed on stderr, an int (logging.INFO...) or a name (\"debug\", \"info\", \"warning\", \"error\"); WARNING by default, as a library, unless PANORAMIX_LOG is set"},
     {"disasm", py_disasm, METH_VARARGS, "disasm(code) -> str: the disassembly, one instruction per line"},
-    {"decompile", (PyCFunction)py_decompile, METH_VARARGS | METH_KEYWORDS, "decompile(code, threads=0, function=None) -> str: the decompiled contract, as `python -m panoramix` prints it"},
+    {"decompile", (PyCFunction)py_decompile, METH_VARARGS | METH_KEYWORDS, "decompile(code, threads=0, function=None, color=True) -> str: the decompiled contract, as `python -m panoramix` prints it (code: bytes, or hex; threads: 0 for one per CPU; function: only the functions whose name starts with it)"},
     {NULL, NULL, 0, NULL}
 };
 

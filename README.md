@@ -18,7 +18,7 @@ From python (the module in `build/`):
 
     import panoramix_asm
     text = panoramix_asm.decompile(open("contract.hex").read())          # a str with colors
-    text = panoramix_asm.decompile(code, threads=4, function="transfer")
+    text = panoramix_asm.decompile(code, threads=4, function="transfer", color=False)
     panoramix_asm.build_signature_db("abi_dump.xz")                       # once
     panoramix_asm.set_log_level("info")     # warnings and errors only by default
 

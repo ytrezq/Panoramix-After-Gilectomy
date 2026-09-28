@@ -87,7 +87,35 @@ ENDF pan_free
 
 # int pan_decompile(const uint8_t *code, size_t len, size_t threads,
 #                   const char *only_func, char **out, size_t *outlen)
+# strip_color(sb): the color codes removed from the builder's text
+FUNC strip_color
+        ENTER
+        mov rbx, rdi
+        call sb_to_str
+        mov rdi, rax
+        call clean_color
+        mov r12, rax
+        mov rdi, rbx
+        call sb_reset
+        mov rdi, rbx
+        mov rsi, r12
+        call sb_append_str
+        LEAVE
+ENDF strip_color
+
+# int pan_decompile(code, len, threads, only_func, &out, &outlen): the
+# decompilation with colors, as `python -m panoramix` prints it
 FUNC pan_decompile
+        push 0                          # the 7th argument, flags (rsp aligned at the call)
+        call pan_decompile_ex
+        add rsp, 8
+        ret
+ENDF pan_decompile
+
+# int pan_decompile_ex(code, len, threads, only_func, &out, &outlen, flags)
+# flags: PAN_NO_COLOR (1) - the text without the color codes
+.set PAN_NO_COLOR, 1
+FUNC pan_decompile_ex
         push r15
         ENTER
         sub rsp, 56
@@ -112,7 +140,11 @@ FUNC pan_decompile
         mov rcx, [rsp + 24]
         mov r8, r12
         call decompile
-        mov rax, [rsp + 32]
+        test qword ptr [rbp + 24], PAN_NO_COLOR     # (the 7th argument: above rbp, r15, the return address)
+        jz 1f
+        mov rdi, r12
+        call strip_color
+1:      mov rax, [rsp + 32]
         mov rcx, [r12 + SB_BUF]
         mov [rax], rcx
         mov rax, [rsp + 40]
@@ -129,7 +161,7 @@ FUNC pan_decompile
         LEAVE_NORET
         pop r15
         ret
-ENDF pan_decompile
+ENDF pan_decompile_ex
 
 
 # int pan_build_sigdb(const char *xz_path, const char *out_path)
