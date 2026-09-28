@@ -268,7 +268,11 @@ as a failure. And `BALANCE` of a constant address (`address(0x..).balance`)
 makes python's VM slice an int (`addr[:4]`, a TypeError): the function
 fails there, the port prints `eth.balance(0x..)`. `SAR` of two constants
 by 256 or more of a negative value names `UINT_255_NEGATIVE_ONE`, which
-python's arithmetic doesn't define (a NameError): the port gives -1.
+python's arithmetic doesn't define (a NameError): the port gives -1. A
+string in memory data whose length is -64 to -95 makes python's
+`pretty_memory` loop forever (its index goes back by as much as it goes
+forward): the port raises the IndexError python raises for the longer
+negative lengths.
 
 `tests/stage_compare.py contract.hex FUNCTION` finds the first stage of
 python's `simplify_trace` whose port differs, replaying each stage on
