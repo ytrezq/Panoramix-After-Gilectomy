@@ -281,15 +281,26 @@ it. What is left is python's own algorithms: `cleanup_vars` and
 `cleanup_mems` rewrite the rest of the trace for every variable and
 memory write (quadratic), and the printer.
 
-Later, on Wyvern (20.0G instructions to 14.5G): `add_ge_zero` evaluates
-the terms of the sum by groups that share no variable (the min and the
-max of each group over its own variables' assignments, summed: the same
-tri-state as python's 3^k variants of the whole sum), the predicates
-`is_op_n`/`is_mul_int` are leaves (60M calls with a frame each),
-`range_overlaps` is memoized as python's `@cached` one is, and the
-chunks of the pool are no longer zeroed when released (up to 9% of the
-instructions, `memset` of what had been used): `arena_alloc` zeroes the
-block it gives, in the cache, and the nodes, vectors and strings, which
-are written whole, take `arena_alloc_raw`. `PANORAMIX_POISON=1` fills
-the released chunks with garbage instead, for the tests: the corpora
-give the same text with it.
+Later, on Wyvern: `add_ge_zero` evaluates the terms of the sum by
+groups that share no variable (the min and the max of each group over
+its own variables' assignments, summed: the same tri-state as python's
+3^k variants of the whole sum); the predicates `is_op_n`/`is_mul_int`
+are leaves (60M calls with a frame each); `range_overlaps` is memoized
+as python's `@cached` one is, and so are `try_add` and `mul_op` of two
+terms (pure functions that python recomputes: `add_op` tries every pair
+of its terms, at ~1000 instructions a pair); the memos of the functions
+of two expressions hash the pair instead of making its tuple
+(`memo2_get`); the pattern matcher's wildcards are compiled at startup
+(the slot of the binding, the type) instead of their text read at every
+match, and the hottest patterns (`('setmem', x, Any)` on every line)
+are an opcode and arity check; `contains` skips the tuples that lack
+the mention flags of what it looks for; the chunks of the pool are no
+longer zeroed when released (up to 9% of the instructions, `memset` of
+what had been used): `arena_alloc` zeroes the block it gives, in the
+cache, and the nodes, vectors and strings, which are written whole,
+take `arena_alloc_raw` (`PANORAMIX_POISON=1` fills the released chunks
+with garbage instead, for the tests: the corpora give the same text
+with it). Without time limits (`PANORAMIX_TIMEOUT=0`: under valgrind
+python's limits cut the simplification short, and the counts of two
+builds weren't comparable), Wyvern went from 16.2G instructions to
+9.5G.
