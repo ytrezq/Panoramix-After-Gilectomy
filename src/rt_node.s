@@ -702,6 +702,13 @@ FUNC value_import
 4:      call is_seq
         test eax, eax
         jz 5f
+        # remembered by address for the length of one import: a subtree
+        # shared by many (a DAG, hash-consed) is imported once
+        mov edi, MEMO_IMPORT
+        mov rsi, rbx
+        call memo_get
+        test rax, rax
+        jnz 6f
         mov edi, [rbx + N_AUX]
         shl rdi, 3
         call arena_alloc_raw
@@ -719,6 +726,12 @@ FUNC value_import
         mov esi, [rbx + N_AUX]
         mov rdx, [rsp]
         call mk_seq
+        mov [rsp + 8], rax
+        mov edi, MEMO_IMPORT
+        mov rsi, rbx
+        mov rdx, rax
+        call memo_put
+        mov rax, [rsp + 8]
         add rsp, 16
         LEAVE
 5:      cmp dword ptr [rbx + N_KIND], K_VMNODE
