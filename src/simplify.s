@@ -219,13 +219,22 @@ FUNC fix_storages
 ENDF fix_storages
 
 # compact_threshold() -> rax: the arena's size past which simplify_trace
-# compacts - COMPACT_THRESHOLD, or PANORAMIX_COMPACT_MIB (the tests: a
+# compacts - COMPACT_THRESHOLD, or a quarter of the context's memory
+# limit when that is less (a small machine, many threads: compacted
+# rather than past the limit), or PANORAMIX_COMPACT_MIB (the tests: a
 # compaction at every round)
 FUNC compact_threshold
         mov rax, [rip + compact_bytes]
         test rax, rax
         jz 1f
-        ret
+        cmp byte ptr [rip + compact_env], 0
+        jne 3f                          # (set by the variable: as it is)
+        mov rcx, [r15 + CTX_MEM_LIMIT]
+        shr rcx, 2
+        jz 3f                           # (no limit)
+        cmp rcx, rax
+        cmovb rax, rcx
+3:      ret
 1:      push rbx
         lea rdi, [rip + .Ls_env_compact]
         call getenv@PLT
@@ -238,16 +247,18 @@ FUNC compact_threshold
         call strtoull@PLT
         shl rax, 20
         test rax, rax
-        cmovnz rbx, rax
+        jz 2f
+        mov rbx, rax
+        mov byte ptr [rip + compact_env], 1
 2:      mov [rip + compact_bytes], rbx
-        mov rax, rbx
         pop rbx
-        ret
+        jmp compact_threshold
 ENDF compact_threshold
 
         .section .data
         .align 8
 compact_bytes:  .quad 0
+compact_env:    .quad 0             # set by PANORAMIX_COMPACT_MIB
         .section .rodata
 .Ls_env_compact: .asciz "PANORAMIX_COMPACT_MIB"
         .text
