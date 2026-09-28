@@ -36,6 +36,11 @@ int pan_decompile(const uint8_t *code, size_t len, size_t threads,
  * decompilation, and the traits found of the function, as python prints
  * them along the way - put before the text by pan_decompile_ex */
 #define PAN_EXPLAIN 16
+/* python's hidden `--repr` and `--returns` (read from sys.argv, which its
+ * command line refuses): after each function, its trace as
+ * prettify.pprint_repr prints it, and its returns */
+#define PAN_REPR 32
+#define PAN_RETURNS 64
 int pan_decompile_ex(const uint8_t *code, size_t len, size_t threads,
                      const char *only_func, char **out, size_t *outlen,
                      long flags);

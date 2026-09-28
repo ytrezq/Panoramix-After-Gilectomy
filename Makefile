@@ -59,13 +59,16 @@ json-expected:
 	    $(PANORAMIX_PYTHON) tests/gen_json_expected.py $$f build/json_expected/$$n.pickle; done
 
 # python's --verbose and --explain outputs of small contracts of the
-# corpus (pypy, a few minutes), for tests/test_verbose.py
+# corpus, and its text with --repr and --returns in sys.argv (pypy, a few
+# minutes), for tests/test_verbose.py
 VERBOSE_CONTRACTS = USDC_proxy AaveV3Pool_proxy WETH Multicall3 ENSRegistry Permit2
 verbose-expected:
 	mkdir -p build/verbose_expected
 	for n in $(VERBOSE_CONTRACTS); do for m in verbose explain; do \
 	  [ -f build/verbose_expected/$$n.$$m.txt ] || tests/gen_verbose_expected.sh \
-	    $(PANORAMIX_PYTHON) $(PANORAMIX_REPO) tests/corpus/$$n.hex --$$m build/verbose_expected/$$n.$$m.txt; done; done
+	    $(PANORAMIX_PYTHON) $(PANORAMIX_REPO) tests/corpus/$$n.hex --$$m build/verbose_expected/$$n.$$m.txt; done; \
+	  [ -f build/verbose_expected/$$n.repr.txt ] || PYTHONPATH=$(PANORAMIX_REPO) PYTHONINTMAXSTRDIGITS=0 \
+	    $(PANORAMIX_PYTHON) tests/gen_repr_expected.py tests/corpus/$$n.hex build/verbose_expected/$$n.repr.txt; done
 
 clean:
 	rm -rf build

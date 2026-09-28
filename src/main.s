@@ -14,7 +14,7 @@
         .section .rodata
 .Lusage:  .ascii "usage: panasm disasm <file.hex>\n"
           .ascii "       panasm decompile <file.hex|-> [-j threads] [--function name] [--no-color] [--json] [-v level]\n"
-          .ascii "                        [--verbose] [--explain]\n"
+          .ascii "                        [--verbose] [--explain] [--repr] [--returns]\n"
           .ascii "       panasm build-db <abi_dump.xz> [out.bin]\n"
 .Lusage_end:
 .Ls_disasm:     .asciz "disasm"
@@ -28,6 +28,8 @@
 .Ls_json:       .asciz "--json"
 .Ls_verbose:    .asciz "--verbose"
 .Ls_explain:    .asciz "--explain"
+.Ls_repr:       .asciz "--repr"
+.Ls_returns:    .asciz "--returns"
 .Ls_v:          .asciz "-v"
 .Ls_badlevel:   .asciz "Logging should be DEBUG/INFO/WARNING/ERROR.\n"
 .Ls_badlevel_end:
@@ -149,7 +151,23 @@ FUNC main
         or qword ptr [rsp + M_VERBOSE], VB_ASM | VB_EXPLAIN
         inc qword ptr [rsp + M_I]
         jmp 2b
-34:     mov rdi, rbx
+34:     mov rdi, rbx                    # --repr, --returns: python's, from sys.argv
+        lea rsi, [rip + .Ls_repr]
+        call strcmp@PLT
+        test eax, eax
+        jnz 35f
+        or qword ptr [rsp + M_VERBOSE], VB_REPR
+        inc qword ptr [rsp + M_I]
+        jmp 2b
+35:     mov rdi, rbx
+        lea rsi, [rip + .Ls_returns]
+        call strcmp@PLT
+        test eax, eax
+        jnz 36f
+        or qword ptr [rsp + M_VERBOSE], VB_RETURNS
+        inc qword ptr [rsp + M_I]
+        jmp 2b
+36:     mov rdi, rbx
         lea rsi, [rip + .Ls_json]
         call strcmp@PLT
         test eax, eax

@@ -223,7 +223,10 @@ is the CLI, `build/panoramix_asm*.so` the module.
     `pan_decompile_data` gives it apart (`pan_output.explain`), the
     module prints it on `sys.stdout` and gives it as `.explain`.
     Interned strings being global, the lines of assembly stay in the
-    string table for the life of the process.
+    string table for the life of the process. `--repr` and `--returns`
+    (python's library reads them from `sys.argv` too; its command line
+    refuses them) print each function's trace (`pprint_repr`,
+    `format_exp`) and its returns after its text.
 
 ## Testing
 

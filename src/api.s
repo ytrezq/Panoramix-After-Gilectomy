@@ -153,12 +153,16 @@ ENDF pan_decompile
 # int pan_decompile_ex(code, len, threads, only_func, &out, &outlen, flags)
 # flags: PAN_NO_COLOR (1) - the text without the color codes; PAN_VERBOSE
 # (8) and PAN_EXPLAIN (16) - python's --verbose and --explain, the text
-# after what --explain printed. Returns 0, or -1 with the error's message
+# after what --explain printed; PAN_REPR (32), PAN_RETURNS (64) - the
+# traces and the returns of the functions after them, as python prints
+# them when sys.argv holds --repr, --returns. Returns 0, or -1 with the error's message
 # in *out (what python would have raised out of the postprocessing).
 .set PAN_NO_COLOR, 1
 .set PAN_JSON, 4
 .set PAN_VERBOSE, 8
 .set PAN_EXPLAIN, 16
+.set PAN_REPR, 32
+.set PAN_RETURNS, 64
 .set PAN_WANT_DATA, 1 << 16             # (internal: pan_decompile_data's)
 .set PO_TEXT, 0                         # struct pan_output
 .set PO_TEXTLEN, 8
@@ -264,8 +268,14 @@ FUNC decompile_api
         jz 01f
         or eax, VB_ASM
 01:     test rcx, PAN_EXPLAIN
-        jz 02f
+        jz 05f
         or eax, VB_ASM | VB_EXPLAIN
+05:     test rcx, PAN_REPR
+        jz 06f
+        or eax, VB_REPR
+06:     test rcx, PAN_RETURNS
+        jz 02f
+        or eax, VB_RETURNS
 02:     mov [r15 + CTX_VERBOSE], rax
         mov qword ptr [rsp + 56], 0     # --explain's builder
         test eax, VB_EXPLAIN

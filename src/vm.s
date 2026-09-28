@@ -1469,8 +1469,8 @@ FUNC vm_step
         mov rbx, [r15 + CTX_VM]
         mov r12, rdi
         mov [rsp + 72], rsi             # condition
-        cmp qword ptr [r15 + CTX_VERBOSE], 0
-        jne .Lstep_asm
+        test byte ptr [r15 + CTX_VERBOSE], VB_ASM
+        jnz .Lstep_asm
 .Lstep_dispatch:
         movzx eax, byte ptr [r12 + IN_OP]
         lea rcx, [rip + evm_op_nodes]

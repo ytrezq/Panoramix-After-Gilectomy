@@ -23,6 +23,8 @@ typedef struct {
 #define PAN_NO_COLOR 1
 #define PAN_VERBOSE 8
 #define PAN_EXPLAIN 16
+#define PAN_REPR 32
+#define PAN_RETURNS 64
 
 /* python's `"--verbose" in sys.argv` (the lines of assembly) and
  * `"--explain" in sys.argv` (the traces of every stage printed): an
@@ -328,7 +330,8 @@ static PyObject *py_decompile_bytecode(PyObject *self, PyObject *args, PyObject 
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|znpOO", kwlist, &arg, &function, &threads, &color, &verbose, &explain)) return NULL;
     flags = color ? 0 : PAN_NO_COLOR;
-    if (argv_flag(verbose, "--verbose", &flags, PAN_VERBOSE) || argv_flag(explain, "--explain", &flags, PAN_EXPLAIN)) return NULL;
+    if (argv_flag(verbose, "--verbose", &flags, PAN_VERBOSE) || argv_flag(explain, "--explain", &flags, PAN_EXPLAIN)
+        || argv_flag(NULL, "--repr", &flags, PAN_REPR) || argv_flag(NULL, "--returns", &flags, PAN_RETURNS)) return NULL;
     if (get_code(arg, &code, &len, &ref)) return NULL;
     if (threads <= 0) {
         threads = (Py_ssize_t)sysconf(_SC_NPROCESSORS_ONLN);

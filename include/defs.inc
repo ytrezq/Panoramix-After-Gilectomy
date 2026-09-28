@@ -608,6 +608,8 @@ ENDF \fname
 # python's "--verbose" / "--explain" in sys.argv (CTX_VERBOSE; explain.s)
 .set VB_ASM, 1              # the lines of assembly in the VM's traces (both)
 .set VB_EXPLAIN, 2          # the traces printed at every stage (--explain)
+.set VB_REPR, 4             # each function's trace after its text (--repr)
+.set VB_RETURNS, 8          # each regular function's returns after it (--returns)
 
 # a decompiled function (function.s)
 .set FN_HASH, 0             # str: "0x12345678" or "_fallback"

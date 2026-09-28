@@ -488,6 +488,7 @@ FUNC decompile
         mov [rsp + DE_DEC], rax
         mov [r13 + DC_LOADER], rbx
         mov rax, [r15 + CTX_VERBOSE]
+        and eax, VB_ASM | VB_EXPLAIN    # (what the jobs do with it)
         mov [r13 + DC_VERBOSE], rax
         # (--explain: the context's builder is each job's in turn, while
         # its function is made - see .Lde_import_job)
@@ -1189,7 +1190,16 @@ FUNC contract_text
         cmp qword ptr [rdi + FN_GETTER], 0
         je 8b
         call .Lct_print_function
-        call .Lct_newline
+        test qword ptr [r15 + CTX_VERBOSE], VB_REPR
+        jz 81f
+        call .Lct_newline               # --repr: print(), pprint_repr(func.trace)
+        mov rax, [r13 + VEC_DATA]
+        mov rax, [rax + r14*8 - 8]
+        mov rsi, [rax + FN_TRACE]
+        mov rdi, r12
+        xor edx, edx
+        call pprint_repr
+81:     call .Lct_newline
         jmp 8b
 9:      # the regular functions, by priority
         call vec_new
@@ -1241,7 +1251,18 @@ FUNC contract_text
         mov rax, [r13 + VEC_DATA]
         mov rdi, [rax + r14*8]
         call .Lct_print_function
-        call .Lct_newline
+        test qword ptr [r15 + CTX_VERBOSE], VB_RETURNS
+        jz 132f
+        call .Lct_returns               # --returns: print(r) for each
+132:    test qword ptr [r15 + CTX_VERBOSE], VB_REPR
+        jz 133f
+        mov rax, [r13 + VEC_DATA]       # --repr: pprint_repr(func.orig_trace)
+        mov rax, [rax + r14*8]
+        mov rsi, [rax + FN_ORIG_TRACE]
+        mov rdi, r12
+        xor edx, edx
+        call pprint_repr
+133:    call .Lct_newline
 131:    inc r14
         jmp 13b
 14:     add rsp, 32
@@ -1253,6 +1274,29 @@ FUNC contract_text
         mov esi, 10
         call sb_append_char
         add rsp, 8
+        ret
+# --returns: the returns of the function r13[r14], a line each (str())
+.Lct_returns:
+        push rbx
+        push r12
+        push r14
+        mov rax, [r13 + VEC_DATA]
+        mov rax, [rax + r14*8]
+        mov rbx, [rax + FN_RETURNS]
+        xor r14d, r14d
+1:      cmp r14d, [rbx + N_AUX]
+        jae 2f
+        mov rdi, r12
+        mov rsi, [rbx + N_DATA + r14*8]
+        call value_print
+        mov rdi, r12
+        mov esi, 10
+        call sb_append_char
+        inc r14d
+        jmp 1b
+2:      pop r14
+        pop r12
+        pop rbx
         ret
 # the function rdi printed (its text, a newline), and noted as shown
 .Lct_print_function:

@@ -393,4 +393,235 @@ FUNC explain_traits
         ret
 ENDF explain_traits
 
+# --- python's --repr and --returns (decompiler.py, from sys.argv) ---
+
+# pprint_repr(sb, trace, indent): prettify.pprint_repr - a line a line of
+# the trace, as python's print(indent * " ", text) writes it: the ifs
+# and whiles opened and closed around their bodies, every other line
+# format_exp'ed and followed by a gray ", "
+FUNC pprint_repr
+        STACK_CHECK
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        mov [rsp], rdx                  # indent
+        xor r13d, r13d
+.Lpr_next:
+        cmp r13d, [r12 + N_AUX]
+        jae .Lpr_done
+        mov r14, [r12 + N_DATA + r13*8]
+        inc r13d
+        mov rdi, r14
+        OPCODE_OF_RDI
+        cmp eax, OP_IF
+        je .Lpr_if
+        cmp eax, OP_WHILE
+        je .Lpr_while
+        call .Lpr_indent
+        mov rdi, rbx
+        mov rsi, r14
+        call format_exp
+        mov rdi, rbx
+        lea rsi, [rip + C_GRAY]
+        call sb_append_c
+        mov rdi, rbx
+        lea rsi, [rip + .Ls_comma_sp]
+        call sb_append_c
+        mov rdi, rbx
+        lea rsi, [rip + C_ENDC]
+        call sb_append_c
+        call .Lpr_newline
+        jmp .Lpr_next
+.Lpr_if:
+        # cond, if_true, if_false = line[1:]
+        cmp dword ptr [r14 + N_AUX], 4
+        jne .Lpr_unpack
+        call .Lpr_indent
+        mov rdi, rbx
+        lea rsi, [rip + .Ls_repr_if]
+        call sb_append_c
+        mov rdi, rbx
+        mov rsi, [r14 + N_DATA + 8]
+        call format_exp
+        mov rdi, rbx
+        lea rsi, [rip + .Ls_repr_open]
+        call sb_append_c
+        call .Lpr_newline
+        mov rdi, rbx
+        mov rsi, [r14 + N_DATA + 16]
+        mov rdx, [rsp]
+        add rdx, 2
+        call pprint_repr
+        call .Lpr_indent
+        mov rdi, rbx
+        lea rsi, [rip + .Ls_repr_else]
+        call sb_append_c
+        call .Lpr_newline
+        mov rdi, rbx
+        mov rsi, [r14 + N_DATA + 24]
+        mov rdx, [rsp]
+        add rdx, 2
+        call pprint_repr
+        call .Lpr_indent
+        mov rdi, rbx
+        lea rsi, [rip + .Ls_repr_end_if]
+        call sb_append_c
+        call .Lpr_newline
+        jmp .Lpr_next
+.Lpr_while:
+        # cond, tr = line[1], line[2]
+        cmp dword ptr [r14 + N_AUX], 3
+        jb .Lpr_index
+        call .Lpr_indent
+        mov rdi, rbx
+        lea rsi, [rip + .Ls_repr_while]
+        call sb_append_c
+        mov rdi, rbx
+        mov rsi, [r14 + N_DATA + 8]
+        call format_exp
+        mov rdi, rbx
+        lea rsi, [rip + .Ls_repr_open]
+        call sb_append_c
+        call .Lpr_newline
+        mov rdi, rbx
+        mov rsi, [r14 + N_DATA + 16]
+        mov rdx, [rsp]
+        add rdx, 2
+        call pprint_repr
+        call .Lpr_indent
+        mov rdi, rbx
+        lea rsi, [rip + .Ls_repr_end_while]
+        call sb_append_c
+        call .Lpr_newline
+        jmp .Lpr_next
+.Lpr_done:
+        add rsp, 16
+        LEAVE
+# locals: print's first argument (the indentation) and its separator
+.Lpr_indent:
+        sub rsp, 8
+        mov rdi, rbx
+        mov rsi, [rsp + 16]
+        call sb_append_spaces
+        mov rdi, rbx
+        mov esi, ' '
+        call sb_append_char
+        add rsp, 8
+        ret
+.Lpr_newline:
+        sub rsp, 8
+        mov rdi, rbx
+        mov esi, 10
+        call sb_append_char
+        add rsp, 8
+        ret
+.Lpr_unpack:
+        mov edi, E_VALUE
+        lea rsi, [rip + .Ls_repr_unpack]
+        call err_throw
+.Lpr_index:
+        mov edi, E_INDEX
+        lea rsi, [rip + .Ls_repr_index]
+        call err_throw
+ENDF pprint_repr
+
+        .section .rodata
+.Ls_comma_sp:       .asciz ", "
+.Ls_repr_if:        .asciz "[if, "
+.Ls_repr_while:     .asciz "[while, "
+.Ls_repr_open:      .asciz ", ["
+.Ls_repr_else:      .asciz "],["
+.Ls_repr_end_if:    .asciz "] "
+.Ls_repr_end_while: .asciz "], "
+.Ls_repr_unpack:    .asciz "too many values to unpack (an if of other than 4 elements)"
+.Ls_repr_index:     .asciz "tuple index out of range"
+.Ls_repr_list:      .asciz "sequence item 0: expected str instance, NoneType found"
+.Ls_empty_list:     .asciz "[]"
+        .text
+
+# format_exp(sb, exp): prettify.format_exp appended - a string quoted, an
+# int in hex past 10**6 unless a multiple of 10**6, a list (only an empty
+# one: python joins the None of opcode() for the others, a TypeError),
+# anything else as python's str()
+FUNC format_exp
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        test sil, 1
+        jnz .Lfx_small
+        test rsi, rsi
+        jz .Lfx_str
+        mov eax, [rsi + N_KIND]
+        cmp eax, K_STR
+        je .Lfx_string
+        cmp eax, K_INT
+        je .Lfx_big
+        cmp eax, K_LIST
+        jne .Lfx_str
+        cmp dword ptr [rsi + N_AUX], 0
+        jne .Lfx_list
+        mov rdi, rbx
+        lea rsi, [rip + C_GRAY]
+        call sb_append_c
+        mov rdi, rbx
+        lea rsi, [rip + .Ls_empty_list]
+        call sb_append_c
+        mov rdi, rbx
+        lea rsi, [rip + C_ENDC]
+        call sb_append_c
+        LEAVE
+.Lfx_string:
+        mov rdi, rbx
+        mov esi, '"'
+        call sb_append_char
+        mov rdi, rbx
+        mov rsi, r12
+        call sb_append_str
+        mov rdi, rbx
+        mov esi, '"'
+        call sb_append_char
+        LEAVE
+.Lfx_small:
+        mov rax, rsi
+        sar rax, 1
+        cmp rax, 1000000
+        jle .Lfx_dec
+        cqo
+        mov ecx, 1000000
+        idiv rcx
+        test rdx, rdx
+        jz .Lfx_dec
+        jmp .Lfx_hex
+.Lfx_big:
+        cmp dword ptr [rsi + N_DATA + MPZ_SIZE], 0
+        jle .Lfx_dec                    # (a negative one isn't past 10**6)
+        lea rdi, [rsi + N_DATA]
+        mov esi, 1000000
+        call __gmpz_fdiv_ui@PLT
+        test rax, rax
+        jz .Lfx_dec
+.Lfx_hex:
+        mov rdi, rbx
+        mov rsi, r12
+        mov edx, 16
+        call sb_append_int
+        LEAVE
+.Lfx_dec:
+        mov rdi, rbx
+        mov rsi, r12
+        mov edx, 10
+        call sb_append_int
+        LEAVE
+.Lfx_str:
+        mov rdi, rbx                    # str(): the repr, but of a string
+        mov rsi, r12
+        call value_print
+        LEAVE
+.Lfx_list:
+        mov edi, E_TYPE
+        lea rsi, [rip + .Ls_repr_list]
+        call err_throw
+ENDF format_exp
+
         .section .note.GNU-stack,"",@progbits
