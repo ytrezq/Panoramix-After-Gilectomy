@@ -517,3 +517,15 @@ last jumpdest asked (a false, a none, or a true without hits: a true
 with hits is walked again, for them), good while the stamp holds; the
 nodes of one child (straight code between jumps) are walked through,
 without a frame. 4.74G instructions to 1.22G.
+
+And then: `is_zero` and `arith_eval` of a tuple are remembered (pure
+functions; the VM's `is_known` evaluates the condition, and `is_zero`
+of it, once for every fact it knows: zx_DevUtils 11.5G to 10.8G); the
+strings of the jumpdests in a node's jd are kept for the numbers below
+32768 (a `snprintf` and an interning for each at every node made);
+`replace_mem` and `replace_var` give back the trace itself when none of
+its lines changed (no hashing of the long list); `replace_mem_exp`'s
+memo is keyed by its three arguments (`memo3_get`) instead of a tuple
+of them; the element arrays the walks write whole are taken unzeroed.
+The npm corpus takes 30.7 s of CPU (41.8 s at the beginning of this
+round, on the same machine).
