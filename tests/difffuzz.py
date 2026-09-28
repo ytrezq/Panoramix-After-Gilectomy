@@ -5,6 +5,7 @@ requires, loops, logs, calls, returns) decompiled by both, the texts
 compared.
 
     tests/difffuzz.py SEED COUNT [--keep DIR] [--mutate]
+    tests/difffuzz.py --recheck CASE.hex...     (the cases kept, again)
 
 --mutate: instead, small contracts of tests/corpus (and of the
 directories in $MUTATE_DIRS, below $MUTATE_MAX hex digits) with one to
@@ -547,13 +548,20 @@ def run_python(code):
     """python's text, or None (a timeout), or "known" (one of its failures
     the port doesn't have)"""
     env = dict(os.environ, PYTHONPATH=PY_REPO, PYTHONINTMAXSTRDIGITS="0")
-    try:
-        p = subprocess.run([PYTHON, "-m", "panoramix", code.hex()], capture_output=True,
-                           text=True, timeout=900, env=env)
-        out = p.stdout
-    except subprocess.TimeoutExpired:
-        return None
-    import re
+    import re, time
+    for attempt in range(8):
+        try:
+            p = subprocess.run([PYTHON, "-m", "panoramix", code.hex()], capture_output=True,
+                               text=True, timeout=900, env=env)
+            out = p.stdout
+        except subprocess.TimeoutExpired:
+            return None
+        # another python holding the signatures' shelve (gdbm's lock): the
+        # lookups fail, anywhere - again, a little later
+        if "Resource temporarily unavailable" in p.stderr and "abi_db.shelve" in p.stderr:
+            time.sleep(5 + 10 * attempt)
+            continue
+        break
     err = re.sub(r"\n\s+", "\n", p.stderr)
     if any(k in err for k in KNOWN_PY_FAILURES):
         return "known"
@@ -622,7 +630,31 @@ def one(args):
     return i, "rc=%d" % rc if rc else "differs"
 
 
+def recheck(paths):
+    """the cases kept, again: are they still different?"""
+    bad = 0
+    for path in paths:
+        code = bytes.fromhex(open(path).read().strip().removeprefix("0x"))
+        rc, got = run_port(path)
+        expected = run_python(code)
+        if expected is None or expected == "known":
+            res = "python timeout" if expected is None else "python's known failure"
+        elif rc == 0 and got == expected:
+            res = "same"
+        else:
+            res = "rc=%d" % rc if rc else "differs"
+            bad += 1
+            with open(path[:-4] + ".py.txt", "w") as f:
+                f.write(expected)
+            with open(path[:-4] + ".asm.txt", "w") as f:
+                f.write(got)
+        print(path, res, flush=True)
+    return 1 if bad else 0
+
+
 def main():
+    if "--recheck" in sys.argv:
+        return recheck([a for a in sys.argv[1:] if not a.startswith("--")])
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     seed, count = int(args[0]), int(args[1])
     keep = os.path.join(ROOT, "build", "difffuzz")
