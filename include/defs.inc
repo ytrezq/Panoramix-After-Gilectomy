@@ -340,3 +340,16 @@
 .set FN_IS_REGULAR, 120
 .set FN_PRINT, 128          # the printed text (str), once printed
 .set FN_SIZEOF, 136
+
+# ordered dicts (pyutil.s)
+.set OD_KEYS, 0             # a vec
+.set OD_VALS, 8             # a vec
+.set OD_MAP, 16             # key -> index + 1
+.set OD_SIZEOF, 24
+
+# a contract (contract.s)
+.set CT_FUNCS, 0            # a vec of functions (FN_*)
+.set CT_STOR_DEFS, 8        # list of ('def', name, loc, type)
+.set CT_CONSTS, 16          # a vec of the constant functions, in display order
+.set CT_PROBLEMS, 24        # list of the names of the functions that failed
+.set CT_SIZEOF, 32

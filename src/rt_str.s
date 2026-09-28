@@ -727,4 +727,26 @@ FUNC str_charlen
 2:      ret
 ENDF str_charlen
 
+# sb_finish_intern(sb) -> rax: like sb_finish, interned (for text that
+# goes into expressions, where equal strings must be the same node)
+FUNC sb_finish_intern
+        ENTER
+        mov rbx, rdi
+        mov rdi, [rbx + SB_BUF]
+        mov rsi, [rbx + SB_LEN]
+        call str_intern
+        mov r12, rax
+        mov rdi, rbx
+        call sb_free
+        mov rax, r12
+        LEAVE
+ENDF sb_finish_intern
+
+# str_interned(str) -> rax: the interned node of a string's text
+FUNC str_interned
+        mov esi, [rdi + N_DATA]
+        add rdi, N_DATA + 4
+        jmp str_intern
+ENDF str_interned
+
         .section .note.GNU-stack,"",@progbits

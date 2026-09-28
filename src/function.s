@@ -361,7 +361,7 @@ FUNC make_params
         call sb_append_u64
         pop rdi
         pop rdi
-        call sb_finish
+        call sb_finish_intern
         mov rdx, rax
         mov rdi, [r12 + N_DATA]
         mov rsi, [rsp + MP_SIZE]

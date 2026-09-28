@@ -110,6 +110,7 @@ test_table:
         .quad .Ln_pretty_line, tf_pretty_line
         .quad .Ln_pprint_logic, tf_pprint_logic
         .quad .Ln_function, tf_function
+        .quad .Ln_contract, tf_contract
         .quad 0, 0
 
         .section .rodata
@@ -212,6 +213,7 @@ test_table:
 .Ln_pretty_line: .asciz "pretty_line"
 .Ln_pprint_logic: .asciz "pprint_logic"
 .Ln_function: .asciz "function"
+.Ln_contract: .asciz "contract"
 .Ln_find_mems: .asciz "find_mems"
 .Ln_split_setmem_trace: .asciz "split_setmem_trace"
 .Ln_split_store_trace: .asciz "split_store_trace"
@@ -1051,6 +1053,105 @@ FUNC tf_function
         add rsp, 112
         LEAVE
 ENDF tf_function
+
+# [(hash, trace, (name, inputs or None))...] -> (stor_defs, [(name, trace,
+# ast, print lines, priority)...], [const names])
+FUNC tf_contract
+        ENTER
+        sub rsp, 48
+        mov rbx, rdi
+        call vec_new
+        mov r12, rax                    # the functions
+        xor r13d, r13d
+1:      cmp r13d, [rbx + N_AUX]
+        jae 2f
+        mov r14, [rbx + N_DATA + r13*8]
+        mov rdx, [r14 + N_DATA + 16]
+        mov rdi, [rdx + N_DATA + 8]
+        push rdx
+        push rdx
+        call is_none
+        pop rdx
+        pop rdx
+        test eax, eax
+        jz 11f
+        mov rdi, [rdx + N_DATA]
+        xor esi, esi
+        call mk2
+        mov rdx, rax
+11:     mov rdi, [r14 + N_DATA]
+        mov rsi, [r14 + N_DATA + 8]
+        call function_new
+        mov rdi, r12
+        mov rsi, rax
+        call vec_push
+        inc r13d
+        jmp 1b
+2:      xor edi, edi
+        xor esi, esi
+        call mk_list
+        mov rdi, r12
+        mov rsi, rax
+        call contract_new
+        mov rbx, rax
+        mov rdi, rax
+        call contract_postprocess
+        mov rax, [rbx + CT_STOR_DEFS]
+        mov [rsp], rax
+        call vec_new
+        mov r13, rax
+        xor r14d, r14d
+3:      cmp r14, [r12 + VEC_LEN]
+        jae 5f
+        mov rax, [r12 + VEC_DATA]
+        mov rax, [rax + r14*8]
+        mov [rsp + 40], rax
+        mov rcx, [rax + FN_NAME]
+        mov [rsp + 8], rcx
+        mov rcx, [rax + FN_TRACE]
+        mov [rsp + 16], rcx
+        mov rcx, [rax + FN_AST]
+        mov [rsp + 24], rcx
+        mov rdi, rax
+        call fn_print_lines
+        mov [rsp + 32], rax
+        mov rdi, [rsp + 40]
+        call fn_priority
+        TAG rax
+        mov [rsp + 40], rax
+        mov edi, 5
+        lea rsi, [rsp + 8]
+        call mk_tuple
+        mov rdi, r13
+        mov rsi, rax
+        call vec_push
+        inc r14
+        jmp 3b
+5:      mov rdi, r13
+        call vec_to_list
+        mov [rsp + 8], rax
+        call vec_new
+        mov r13, rax
+        mov r12, [rbx + CT_CONSTS]
+        xor r14d, r14d
+6:      cmp r14, [r12 + VEC_LEN]
+        jae 7f
+        mov rax, [r12 + VEC_DATA]
+        mov rax, [rax + r14*8]
+        mov rdi, r13
+        mov rsi, [rax + FN_NAME]
+        call vec_push
+        inc r14
+        jmp 6b
+7:      mov rdi, r13
+        call vec_to_list
+        mov [rsp + 16], rax
+        mov edi, 3
+        mov rsi, rsp
+        call mk_tuple
+        add rsp, 48
+        LEAVE
+ENDF tf_contract
 
 FUNC tf_bool
         lea rax, [rip + sp_true]

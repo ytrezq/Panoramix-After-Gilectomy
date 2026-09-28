@@ -1083,14 +1083,25 @@ FUNC prettify
         call int_cmp
         cmp eax, -1
         jne 5f
-        # ('div', val, 2 ** offset) - a float, as python, below zero
+        # shl <= 8: ('div', val, 2 ** offset) - a float, as python, below
+        # zero; else ('shr', shl, val)
         mov rdi, r14
         call int_to_i64
+        cmp rax, -8
+        jl 51f
         mov rdi, rax
         call pow2_or_float
         mov rdx, rax
         mov rsi, [rsp + PF_T3]
         LOADS rdi, DIV
+        call mk3
+        mov rdi, rax
+        PF_COLOR_PARENS rsi, r12
+        call prettify
+        jmp .Lpf_ret
+51:     mov rsi, [rsp + PF_T2]
+        mov rdx, [rsp + PF_T3]
+        LOADS rdi, SHR
         call mk3
         mov rdi, rax
         PF_COLOR_PARENS rsi, r12
@@ -1131,14 +1142,28 @@ FUNC prettify
         PF_COLOR_PARENS rsi, r12
         call prettify
         jmp .Lpf_ret
-7:      # -8 <= shl < 8: ('mul', val, 2 ** shl) (a float below zero)
+7:      # -8 <= shl <= 8: ('mul', val, 2 ** shl) (a float below zero);
+        # else a shift
         mov rdi, r14
         call int_to_i64
+        cmp rax, -8
+        jl 71f
         mov rdi, rax
         call pow2_or_float
         mov rdx, rax
         mov rsi, [rsp + PF_T3]
         LOADS rdi, MUL
+        call mk3
+        mov rdi, rax
+        PF_COLOR_PARENS rsi, r12
+        call prettify
+        jmp .Lpf_ret
+71:     # ('shr', -shl, val)  (shl > 8 can't happen here: offset < 8)
+        mov rdi, r14
+        call int_neg
+        mov rsi, rax
+        mov rdx, [rsp + PF_T3]
+        LOADS rdi, SHR
         call mk3
         mov rdi, rax
         PF_COLOR_PARENS rsi, r12
@@ -1676,7 +1701,7 @@ FUNC pow2_or_float
         ja 2f
         lea rax, [rip + float_pow2]
         mov rdi, [rax + rdi*8]
-        jmp str_new_c
+        jmp str_intern_c                # (it goes into expressions)
 2:      mov edi, E_NOT_IMPLEMENTED
         lea rsi, [rip + .Ls_float]
         jmp err_throw

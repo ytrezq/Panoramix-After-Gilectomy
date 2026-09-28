@@ -542,4 +542,40 @@ FUNC str_id
         ret
 ENDF str_id
 
+# value_import(v) -> rax: the value rebuilt through this context's
+# hash-cons table. Tuples and lists are consed per thread, so a
+# structure made by another thread (a function's trace, the loader's
+# values) is imported before being compared by pointer with this
+# thread's. Strings are global and integers compared by value: kept.
+FUNC value_import
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        call is_seq
+        test eax, eax
+        jz 3f
+        mov edi, [rbx + N_AUX]
+        shl rdi, 3
+        call arena_alloc
+        mov [rsp], rax
+        xor r12d, r12d
+1:      cmp r12d, [rbx + N_AUX]
+        jae 2f
+        mov rdi, [rbx + N_DATA + r12*8]
+        call value_import
+        mov rcx, [rsp]
+        mov [rcx + r12*8], rax
+        inc r12d
+        jmp 1b
+2:      mov edi, [rbx + N_KIND]
+        mov esi, [rbx + N_AUX]
+        mov rdx, [rsp]
+        call mk_seq
+        add rsp, 16
+        LEAVE
+3:      mov rax, rbx
+        add rsp, 16
+        LEAVE
+ENDF value_import
+
         .section .note.GNU-stack,"",@progbits
