@@ -107,12 +107,12 @@ FUNC map_grow
         mov rbx, rdi
         mov r12, [rbx + MAP_ENTRIES]
         mov r13, [rbx + MAP_CAP]
+        lea rdi, [r13*2]
+        shl rdi, 4
+        call arena_alloc                # (first: past the memory limit it
+        mov [rbx + MAP_ENTRIES], rax    # throws, and the map must stay whole)
         lea rax, [r13*2]
         mov [rbx + MAP_CAP], rax
-        shl rax, 4
-        mov rdi, rax
-        call arena_alloc
-        mov [rbx + MAP_ENTRIES], rax
         xor r14d, r14d                  # byte offset into the old entries
         shl r13, 4
 1:      cmp r14, r13
@@ -282,12 +282,12 @@ FUNC map2_grow
         mov rbx, rdi
         mov r12, [rbx + MAP_ENTRIES]
         mov r13, [rbx + MAP_CAP]
+        lea rdi, [r13*2]
+        shl rdi, 5
+        call arena_alloc                # (first: see map_grow)
+        mov [rbx + MAP_ENTRIES], rax
         lea rax, [r13*2]
         mov [rbx + MAP_CAP], rax
-        shl rax, 5
-        mov rdi, rax
-        call arena_alloc
-        mov [rbx + MAP_ENTRIES], rax
         xor r14d, r14d                  # byte offset into the old entries
         shl r13, 5
 1:      cmp r14, r13
@@ -449,10 +449,11 @@ FUNC emap_grow
         mov r12, [rbx + MAP_ENTRIES]
         mov r13, [rbx + MAP_CAP]
         lea rdi, [r13*2]
-        mov [rbx + MAP_CAP], rdi
         shl rdi, 5
-        call arena_alloc                # (zeroed: epoch 0, empty)
+        call arena_alloc                # (zeroed: epoch 0, empty; first: see map_grow)
         mov [rbx + MAP_ENTRIES], rax
+        lea rax, [r13*2]
+        mov [rbx + MAP_CAP], rax
         mov r14, [rbx + EMAP_EPOCH]
         shl r13, 5
         xor r8d, r8d                    # byte offset into the old entries

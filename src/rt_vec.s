@@ -46,17 +46,16 @@ FUNC vec_push
         mov rbx, rdi
         mov r12, rsi
         mov rdi, [rbx + VEC_CAP]
-        shl rdi, 1
-        mov [rbx + VEC_CAP], rdi
-        shl rdi, 3
-        call arena_alloc_raw
-        mov rdi, rax
+        shl rdi, 4                      # (twice the room, in bytes)
+        call arena_alloc_raw            # (first: past the memory limit it
+        mov rdi, rax                    # throws, and the vector must stay whole)
         mov r13, rax
         mov rsi, [rbx + VEC_DATA]
         mov rdx, [rbx + VEC_LEN]
         shl rdx, 3
         call memcpy@PLT
         mov [rbx + VEC_DATA], r13
+        shl qword ptr [rbx + VEC_CAP], 1
         mov rax, [rbx + VEC_LEN]
         mov [r13 + rax*8], r12
         inc qword ptr [rbx + VEC_LEN]
@@ -81,9 +80,10 @@ FUNC vec_extend
         shl rcx, 1
         cmp rcx, rax
         cmovb rcx, rax
-        mov [rbx + VEC_CAP], rcx
+        push rcx
+        push rcx
         lea rdi, [rcx*8]
-        call arena_alloc_raw
+        call arena_alloc_raw            # (first: see vec_push)
         mov r14, rax
         mov rdi, rax
         mov rsi, [rbx + VEC_DATA]
@@ -91,6 +91,9 @@ FUNC vec_extend
         shl rdx, 3
         call memcpy@PLT
         mov [rbx + VEC_DATA], r14
+        pop rcx
+        pop rcx
+        mov [rbx + VEC_CAP], rcx
 2:      mov rdi, [rbx + VEC_LEN]
         shl rdi, 3
         add rdi, [rbx + VEC_DATA]
