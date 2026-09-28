@@ -646,33 +646,42 @@ FUNC ctx_compact
         mov [rsp + CC_OLD + 32], rax
         mov rax, [r15 + CTX_RFM_MAP]
         mov [rsp + CC_OLD + 40], rax
-        mov qword ptr [r15 + CTX_ARENA_CHUNKS], 0
-        mov qword ptr [r15 + CTX_ARENA_CUR], 0
-        mov qword ptr [r15 + CTX_ARENA_END], 0
-        mov qword ptr [r15 + CTX_ARENA_TOTAL], 0
-        mov edi, 4096
-        mov esi, 8
-        call xcalloc
-        mov [r15 + CTX_HC_TABLE], rax
-        mov qword ptr [r15 + CTX_HC_CAP], 4096
-        mov qword ptr [r15 + CTX_HC_COUNT], 0
-        mov qword ptr [r15 + CTX_NODE_COUNT], 0
         call memo_sizes_log
         lea rdi, [rsp + CC_MEMOS]
         lea rsi, [r15 + CTX_MEMO]
         mov edx, MEMO_COUNT * 8
         call memcpy@PLT
-        lea rdi, [r15 + CTX_MEMO]
-        xor esi, esi
-        mov edx, MEMO_COUNT * 8
-        call memset@PLT
-        call ctx_init_mpz
-        # the imports can throw (the recursion, the memory limit, the
-        # watchdog's timeout): then the new arena goes, the old one stays
+        # from here, an error (the recursion, the memory limit or the
+        # system's, the watchdog's timeout) puts the old arena back
         lea rdi, [rsp + CC_ERR]
         call err_catch
         test eax, eax
         jnz .Lcc_rollback
+        mov qword ptr [r15 + CTX_ARENA_CHUNKS], 0
+        mov qword ptr [r15 + CTX_ARENA_CUR], 0
+        mov qword ptr [r15 + CTX_ARENA_END], 0
+        mov qword ptr [r15 + CTX_ARENA_TOTAL], 0
+        mov qword ptr [r15 + CTX_HC_TABLE], 0
+        mov edi, 4096
+        mov esi, 8
+        call calloc@PLT
+        test rax, rax
+        jz .Lcc_no_table
+        mov [r15 + CTX_HC_TABLE], rax
+        mov qword ptr [r15 + CTX_HC_CAP], 4096
+        mov qword ptr [r15 + CTX_HC_COUNT], 0
+        mov qword ptr [r15 + CTX_NODE_COUNT], 0
+        lea rdi, [r15 + CTX_MEMO]
+        xor esi, esi
+        mov edx, MEMO_COUNT * 8
+        call memset@PLT
+        # the new arena's first chunk, where the scratch mpz go (GMP's
+        # allocations don't throw: this one does)
+        mov rdi, r15
+        mov esi, ARENA_CHUNK_DEFAULT
+        mov edx, 1
+        call arena_new_chunk
+        call ctx_init_mpz
         mov rdi, rbx
         call value_import
         mov rbx, rax
@@ -744,6 +753,10 @@ FUNC ctx_compact
         call log_fmt
         mov rdi, [rsp + CC_FREED]
         mov rsi, [r15 + CTX_ERR_MSG]
+        call err_throw
+.Lcc_no_table:
+        mov edi, E_MEMORY
+        lea rsi, [rip + .Lmsg_xalloc_throw]
         call err_throw
 ENDF ctx_compact
 
@@ -996,6 +1009,7 @@ ENDF xalloc_failed
 
         .section .rodata
 .Lmsg_xalloc: .asciz "panoramix-asm: out of memory (malloc failed)"
+.Lmsg_xalloc_throw: .asciz "out of memory: the system gave no more (malloc failed)"
         .text
 
 # rt_fatal(msg): print and abort

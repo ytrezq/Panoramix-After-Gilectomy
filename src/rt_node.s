@@ -209,16 +209,21 @@ FUNC mk_seq_like
         jmp mk_seq
 ENDF mk_seq_like
 
-# hc_grow(): double the hash-cons table
+# hc_grow(): double the hash-cons table (the new one allocated first:
+# when the system has none, python's MemoryError for a context with a
+# handler, the table as it was)
 FUNC hc_grow
         ENTER
         sub rsp, 16
         mov r12, [r15 + CTX_HC_TABLE]
         mov r13, [r15 + CTX_HC_CAP]
         lea rdi, [r13 * 2]
-        mov [r15 + CTX_HC_CAP], rdi
         mov esi, 8
-        call xcalloc
+        call calloc@PLT
+        test rax, rax
+        jz .Lhc_no_table
+        lea rcx, [r13 * 2]
+        mov [r15 + CTX_HC_CAP], rcx
         mov [r15 + CTX_HC_TABLE], rax
         mov rbx, rax
         xor r14d, r14d
@@ -244,7 +249,18 @@ FUNC hc_grow
         call free@PLT
         add rsp, 16
         LEAVE
+.Lhc_no_table:
+        cmp qword ptr [r15 + CTX_ERR_BUF], 0
+        je 6f
+        mov edi, E_MEMORY
+        lea rsi, [rip + .Ls_hc_nomem]
+        call err_throw
+6:      call xalloc_failed
 ENDF hc_grow
+
+        .section .rodata
+.Ls_hc_nomem:   .asciz "out of memory: the system gave no more (malloc failed)"
+        .text
 
 # mk_seq(kind, count, elems) -> rax: the unique node for this sequence
 FUNC mk_seq
