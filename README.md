@@ -22,6 +22,10 @@ From python (the module in `build/`):
     panoramix_asm.build_signature_db("abi_dump.xz")                       # once
     panoramix_asm.set_log_level("info")     # warnings and errors only by default
 
+From C: `build/libpanoramix_asm.so` and `include/panoramix_asm.h`
+(`pan_decompile`, `pan_disasm`, `pan_build_sigdb`...; `make check` runs
+an example).
+
 The signature database goes to `$PANORAMIX_SIGDB`, or
 `$XDG_CACHE_HOME/panoramix/abi_db.bin`, or `~/.cache/panoramix/abi_db.bin`.
 `PANORAMIX_LOG=debug|warning|error` sets the log level (coloredlogs'

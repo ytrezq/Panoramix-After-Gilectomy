@@ -42,7 +42,8 @@ database, liblzma. Everything else is assembly (GNU as, Intel syntax).
     src/sparser.s         the storage (sparser.py)
     src/contract.s        Contract (contract.py)
     src/decompiler.s      decompile(): the thread pool, the contract's text (decompiler.py)
-    src/api.s             the C-callable entry points (pan_*)
+    src/api.s             the C interface (pan_*, include/panoramix_asm.h), exported
+                          by build/libpanoramix_asm.so
     src/main.s            the `panasm` command line tool
     src/pymod.c           the CPython module `panoramix_asm`
     src/testapi.s         the hooks of the differential tests (`panoramix_asm._test`)
@@ -78,8 +79,13 @@ is the CLI, `build/panoramix_asm*.so` the module.
   Text results are malloc'ed and freed by the caller (`pan_free`).
 - Opcode strings (tuple heads like `add`, `mask_shl`, `if`...) carry an
   id in their node (`N_AUX`), so dispatch on a tuple's opcode is a jump
-  table: `opcode_of(v)` then `jmp [table + rax*8]`. `LOADS reg, NAME`
-  loads the string node of an opcode.
+  table: `opcode_of(v)` then `JT_SWITCH` / `JT_CASE` / `JT_END` (a table
+  of 32-bit offsets the assembler builds from the cases), and a
+  membership test is a byte table (`OPSET_MEMBER` / `OPSET_END`,
+  `IN_OPSET`, `OPSET_FUNC`). `LOADS reg, NAME` loads the string node of
+  an opcode.
+- `FUNC` functions are hidden; `API` ones (api.s) are the exported C
+  interface.
 
 ## Errors, threads, strings
 
