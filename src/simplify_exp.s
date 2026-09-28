@@ -572,15 +572,18 @@ FUNC simplify_exp_impl
         call pat_match
         test eax, eax
         jz 30f
+        # python evaluates both before looking at either (the second's
+        # exceptions come even when the first is a number)
         B rdi, 0
+        call arith_eval
+        mov [rsp + SE_TMP], rax
+        B rdi, 1
         call arith_eval
         mov rdi, rax
         call is_int
         test eax, eax
         jnz 291f
-        B rdi, 1
-        call arith_eval
-        mov rdi, rax
+        mov rdi, [rsp + SE_TMP]
         call is_int
         test eax, eax
         jz 30f

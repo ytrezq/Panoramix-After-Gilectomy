@@ -61,6 +61,10 @@ REGRESSIONS = [
     # try_add's normalization of a mul whose coefficient isn't a number:
     # python's TypeError (num + 2**shl)
     ('lt', ('add', ('eq', ('and', 94964689875931252764577357350500699986261382086959835359635458281304267982331, 255), 'x'), ('var', '_1')), ('add', ('mul', ('or', ('var', '_2'), 0), ('mask_shl', 246, 5, 5, -1)), ('eq', ('iszero', ('var', '_1')), ('bool', 128)))),
+    # the and-rule evaluates both sides before looking at either: the
+    # second's TypeError (an add of four numbers) comes though the first
+    # is a number
+    ('and', ('div', 65, 1), ('data', ('add', 100, 0, 45833578640591742834686142070926924475193944920031094018015728496520947210164, -1))),
 ]
 
 if __name__ == "__main__":
