@@ -1,0 +1,11 @@
+# Palkeoramix decompiler. 
+#
+#  I failed with these: 
+#  - destroyAndTransfer(address to)
+#  All the rest is below.
+#
+
+def _fallback(?) payable: # default function
+  revert
+
+

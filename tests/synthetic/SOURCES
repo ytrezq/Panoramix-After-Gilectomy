@@ -7,3 +7,4 @@ fuzz_2_11        tests/difffuzz.py 2, case 11: Mask(-744, ...) prints % 2**-744,
 fuzz_3_10        difffuzz 3, case 10: a parameter whose size is an expression (a TypeError in python, a crash here)
 fuzz_3_68        difffuzz 3, case 68: split_or's gaps with big offsets
 fuzz_3_94        difffuzz 3, case 94: a NotImplementedError through split_or's except AssertionError
+mutant_6_77      difffuzz --mutate 6, case 77: a function whose target is in the middle of a push (python's KeyError)
