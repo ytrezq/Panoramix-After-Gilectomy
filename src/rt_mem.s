@@ -154,7 +154,11 @@ ENDF ctx_current
 FUNC ctx_free
         ENTER
         mov rbx, rdi
-        mov rdi, [rbx + CTX_ARENA_CHUNKS]
+        mov rdi, [rbx + CTX_ASM_SB]     # (vm.s's scratch builder)
+        test rdi, rdi
+        jz 1f
+        call sb_free
+1:      mov rdi, [rbx + CTX_ARENA_CHUNKS]
         mov rsi, [rbx + CTX_ARENA_CUR]
         call chunks_release
         mov rdi, [rbx + CTX_HC_TABLE]
@@ -626,7 +630,8 @@ FUNC ctx_compact
         .set CC_MEMOS, 16               # the old memo tables
         .set CC_OLD, CC_MEMOS + MEMO_COUNT * 8  # the old arena's end, total, table's cap, count, nodes,
                                         # and what points into it (the maps reused, the VM)
-        .set CC_ERR, CC_OLD + 64        # a handler: an error midway puts the old arena back
+        .set CC_NEW, CC_OLD + 64        # --explain's two traces (explain.s), imported
+        .set CC_ERR, CC_OLD + 80        # a handler: an error midway puts the old arena back
         .set CC_FRAME, (CC_ERR + ERR_SIZEOF + 15) & -16
         sub rsp, CC_FRAME
         .set CC_FREED, 0
@@ -690,7 +695,20 @@ FUNC ctx_compact
         mov rdi, rbx
         call value_import
         mov rbx, rax
-        # the memo tables worth keeping (see memo_kinds) are imported too:
+        # --explain's traces too: python's prev_trace, and the job's first
+        mov qword ptr [rsp + CC_NEW], 0
+        mov qword ptr [rsp + CC_NEW + 8], 0
+        mov rdi, [r15 + CTX_EXPLAIN_PREV]
+        test rdi, rdi
+        jz 3f
+        call value_import
+        mov [rsp + CC_NEW], rax
+3:      mov rdi, [r15 + CTX_EXPLAIN_FIRST]
+        test rdi, rdi
+        jz 4f
+        call value_import
+        mov [rsp + CC_NEW + 8], rax
+4:      # the memo tables worth keeping (see memo_kinds) are imported too:
         # what they remember is recomputed dearly (the comparisons)
         mov qword ptr [rsp + CC_SLOT], 0
 1:      mov rcx, [rsp + CC_SLOT]
@@ -704,6 +722,10 @@ FUNC ctx_compact
         inc qword ptr [rsp + CC_SLOT]
         jmp 1b
 2:      call err_end
+        mov rax, [rsp + CC_NEW]
+        mov [r15 + CTX_EXPLAIN_PREV], rax
+        mov rax, [rsp + CC_NEW + 8]
+        mov [r15 + CTX_EXPLAIN_FIRST], rax
         # (the import's memo holds the old addresses: gone with them;
         # replace_f_memo's map was in the old arena)
         mov qword ptr [r15 + CTX_MEMO + MEMO_IMPORT * 8], 0

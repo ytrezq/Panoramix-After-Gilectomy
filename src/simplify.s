@@ -7,11 +7,34 @@
         .section .rodata
 .Ls_logname:    .asciz "panoramix.simplify"
 .Ls_timed_out:  .asciz "simplify_trace timed out."
+        # the stages, as --explain titles them
+.Lx_simplify:   .asciz "simplify expressions"
+.Lx_vars:       .asciz "cleanup variables"
+.Lx_mems:       .asciz "cleanup mems"
+.Lx_split:      .asciz "split setmems & storages"
+.Lx_vars2:      .asciz "cleanup vars"
+.Lx_msize:      .asciz "calculate msize"
+.Lx_length:     .asciz "replace storage with length"
+.Lx_ifs:        .asciz "cleanup unused ifs"
+.Lx_loops:      .asciz "convert loops to setmems"
+.Lx_indexes:    .asciz "move loop indexes outside of loops"
+.Lx_heuristics: .asciz "using heuristics to clean up some things"
+.Lx_final:      .asciz "final setmem/condition cleanup"
+.Lx_storages:   .asciz "cleaning up storages slightly"
+.Lx_names:      .asciz "adding nicer variable names"
 
         .text
 
 .macro B reg, n
         mov \reg, [rsp + 8*(\n)]
+.endm
+
+# python's explain(title, trace) after a stage (explain.s: nothing without
+# --explain), the trace in rbx
+.macro EXPLAIN title
+        lea rdi, [rip + \title]
+        mov rsi, rbx
+        call explain
 .endm
 
 # simplify_trace(trace, timeout_ns) -> list
@@ -43,14 +66,17 @@ FUNC simplify_trace
         xor edx, edx
         call replace_f_memo                  # simplify expressions
         mov rbx, rax
+        EXPLAIN .Lx_simplify
         mov rdi, rbx
         xor esi, esi
         call cleanup_vars               # cleanup variables
         mov rbx, rax
+        EXPLAIN .Lx_vars
         mov rdi, rbx
         xor esi, esi
         call cleanup_mems               # cleanup mems
         mov rbx, rax
+        EXPLAIN .Lx_mems
         mov rdi, rbx
         lea rsi, [rip + split_setmem]
         xor edx, edx
@@ -61,35 +87,44 @@ FUNC simplify_trace
         xor edx, edx
         call rewrite_trace_full
         mov rbx, rax
+        EXPLAIN .Lx_split
         mov rdi, rbx
         xor esi, esi
         call cleanup_vars               # cleanup vars
         mov rbx, rax
+        EXPLAIN .Lx_vars2
         mov rdi, rbx
         lea rsi, [rip + simplify_exp_cb]
         xor edx, edx
         call replace_f_memo                  # simplify expressions
         mov rbx, rax
+        EXPLAIN .Lx_simplify
         mov rdi, rbx
         call pp_cleanup_mul_1
         mov rbx, rax
+        EXPLAIN .Lx_simplify
         mov rdi, rbx
         call cleanup_msize              # calculate msize
         mov rbx, rax
+        EXPLAIN .Lx_msize
         mov rdi, rbx
         call replace_bytes_or_string_length     # replace storage with length
         mov rbx, rax
+        EXPLAIN .Lx_length
         mov rdi, rbx
         call cleanup_conds              # cleanup unused ifs
         mov rbx, rax
+        EXPLAIN .Lx_ifs
         mov rdi, rbx
         lea rsi, [rip + loop_to_setmem]
         xor edx, edx
         call rewrite_trace              # convert loops to setmems
         mov rbx, rax
+        EXPLAIN .Lx_loops
         mov rdi, rbx
         call propagate_storage_in_loops # move loop indexes outside of loops
         mov rbx, rax
+        EXPLAIN .Lx_indexes
         # (there is a logic to this ordering, but it would take a long
         # time to explain)
         # the garbage of the round is dropped once the arena is big: the
@@ -137,6 +172,7 @@ FUNC simplify_trace
         mov rsi, rax
         call rewrite_string_stores      # using heuristics to clean up some things
         mov rbx, rax
+        EXPLAIN .Lx_heuristics
         call .Lst_should_quit
         test eax, eax
         jnz 2f
@@ -151,6 +187,7 @@ FUNC simplify_trace
 2:      mov rdi, rbx
         call cleanup_conds              # final setmem/condition cleanup
         mov rbx, rax
+        EXPLAIN .Lx_final
         mov rdi, rbx
         lea rsi, [rip + fix_storages]
         xor edx, edx
@@ -159,9 +196,11 @@ FUNC simplify_trace
         mov rdi, rbx
         call cleanup_conds              # cleaning up storages slightly
         mov rbx, rax
+        EXPLAIN .Lx_storages
         mov rdi, rbx
         call readability                # adding nicer variable names
         mov rbx, rax
+        EXPLAIN .Lx_names
         mov rdi, rbx
         call pp_cleanup_mul_1
         add rsp, 48

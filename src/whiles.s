@@ -14,10 +14,15 @@
 # make_whiles(trace, timeout_ns) -> list
 FUNC make_whiles
         ENTER
-        mov rbx, rsi
+        mov r12, rsi
         call whiles_make
+        mov rbx, rax
+        lea rdi, [rip + .Ls_loops_whiles]       # (explain.s)
+        mov rsi, rax
+        call explain
+        mov rdi, rbx
+        mov rbx, r12
         # clean up jumpdests
-        mov rdi, rax
         lea rsi, [rip + drop_jumpdests]
         xor edx, edx
         call rewrite_trace
@@ -26,6 +31,10 @@ FUNC make_whiles
         call simplify_trace
         LEAVE
 ENDF make_whiles
+
+        .section .rodata
+.Ls_loops_whiles: .asciz "Loops -> whiles"
+        .text
 
 # drop_jumpdests(line, arg, out)
 FUNC drop_jumpdests

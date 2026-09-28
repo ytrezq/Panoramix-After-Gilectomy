@@ -48,6 +48,7 @@ check: build/c_api_test all
 	python3 tests/test_watchdog.py
 	python3 tests/test_json_value.py
 	python3 tests/test_json.py
+	python3 tests/test_verbose.py
 
 # python's Decompilation of the corpus (pypy, a few minutes), for
 # tests/test_json.py
@@ -57,7 +58,16 @@ json-expected:
 	  [ -f build/json_expected/$$n.pickle ] || PYTHONPATH=$(PANORAMIX_REPO) PYTHONINTMAXSTRDIGITS=0 \
 	    $(PANORAMIX_PYTHON) tests/gen_json_expected.py $$f build/json_expected/$$n.pickle; done
 
+# python's --verbose and --explain outputs of small contracts of the
+# corpus (pypy, a few minutes), for tests/test_verbose.py
+VERBOSE_CONTRACTS = USDC_proxy AaveV3Pool_proxy WETH Multicall3 ENSRegistry Permit2
+verbose-expected:
+	mkdir -p build/verbose_expected
+	for n in $(VERBOSE_CONTRACTS); do for m in verbose explain; do \
+	  [ -f build/verbose_expected/$$n.$$m.txt ] || tests/gen_verbose_expected.sh \
+	    $(PANORAMIX_PYTHON) $(PANORAMIX_REPO) tests/corpus/$$n.hex --$$m build/verbose_expected/$$n.$$m.txt; done; done
+
 clean:
 	rm -rf build
 
-.PHONY: all clean check json-expected
+.PHONY: all clean check json-expected verbose-expected

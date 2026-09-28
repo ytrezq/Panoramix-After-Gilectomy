@@ -29,6 +29,13 @@ int pan_decompile(const uint8_t *code, size_t len, size_t threads,
                   const char *only_func, char **out, size_t *outlen);
 
 #define PAN_NO_COLOR 1   /* the text without the terminal color codes */
+/* python's `--verbose`: the instructions the symbolic execution ran, and
+ * the stack before each, as comments of the text */
+#define PAN_VERBOSE 8
+/* python's `--explain`: the trace at every stage of each function's
+ * decompilation, and the traits found of the function, as python prints
+ * them along the way - put before the text by pan_decompile_ex */
+#define PAN_EXPLAIN 16
 int pan_decompile_ex(const uint8_t *code, size_t len, size_t threads,
                      const char *only_func, char **out, size_t *outlen,
                      long flags);
@@ -54,6 +61,8 @@ typedef struct {
     size_t textlen;
     char *data;
     size_t datalen;
+    char *explain;       /* with PAN_EXPLAIN only (the fields are left alone */
+    size_t explainlen;   /* otherwise): what python's --explain printed */
 } pan_output;
 int pan_decompile_data(const uint8_t *code, size_t len, size_t threads,
                        const char *only_func, long flags, pan_output *out);

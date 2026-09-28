@@ -126,33 +126,73 @@ API pan_decompile
 ENDF pan_decompile
 
 # int pan_decompile_ex(code, len, threads, only_func, &out, &outlen, flags)
-# flags: PAN_NO_COLOR (1) - the text without the color codes. Returns 0,
-# or -1 with the error's message in *out (what python would have raised
-# out of the postprocessing).
+# flags: PAN_NO_COLOR (1) - the text without the color codes; PAN_VERBOSE
+# (8) and PAN_EXPLAIN (16) - python's --verbose and --explain, the text
+# after what --explain printed. Returns 0, or -1 with the error's message
+# in *out (what python would have raised out of the postprocessing).
 .set PAN_NO_COLOR, 1
 .set PAN_JSON, 4
+.set PAN_VERBOSE, 8
+.set PAN_EXPLAIN, 16
 .set PAN_WANT_DATA, 1 << 16             # (internal: pan_decompile_data's)
 .set PO_TEXT, 0                         # struct pan_output
 .set PO_TEXTLEN, 8
 .set PO_DATA, 16
 .set PO_DATALEN, 24
-.set PO_SIZEOF, 32
+.set PO_EXPLAIN, 32                     # (written with PAN_EXPLAIN only)
+.set PO_EXPLAINLEN, 40
+.set PO_SIZEOF, 48
 API pan_decompile_ex
         push rbp
         mov rbp, rsp
         push r8                         # &out
         push r9                         # &outlen
+        push rbx
+        push r12
         sub rsp, PO_SIZEOF
         mov r8, [rbp + 16]              # flags (the 7th argument)
         and r8, ~PAN_WANT_DATA
         mov r9, rsp
         call decompile_api
-        mov rcx, [rbp - 8]
+        mov ebx, eax
+        test qword ptr [rbp + 16], PAN_EXPLAIN
+        jz 1f
+        mov rax, [rsp + PO_EXPLAIN]     # what --explain printed, then the text
+        test rax, rax
+        jz 1f
+        mov rdi, [rsp + PO_EXPLAINLEN]
+        add rdi, [rsp + PO_TEXTLEN]
+        inc rdi
+        call malloc@PLT
+        test rax, rax
+        jz 2f
+        mov r12, rax
+        mov rdi, rax
+        mov rsi, [rsp + PO_EXPLAIN]
+        mov rdx, [rsp + PO_EXPLAINLEN]
+        call memcpy@PLT
+        mov rdi, r12
+        add rdi, [rsp + PO_EXPLAINLEN]
+        mov rsi, [rsp + PO_TEXT]
+        mov rdx, [rsp + PO_TEXTLEN]
+        inc rdx                         # (and the NUL)
+        call memcpy@PLT
+        mov rdi, [rsp + PO_TEXT]
+        call free@PLT
+        mov [rsp + PO_TEXT], r12
+        mov rax, [rsp + PO_EXPLAINLEN]
+        add [rsp + PO_TEXTLEN], rax
+2:      mov rdi, [rsp + PO_EXPLAIN]
+        call free@PLT
+1:      mov rcx, [rbp - 8]
         mov rdx, [rsp + PO_TEXT]
         mov [rcx], rdx
         mov rcx, [rbp - 16]
         mov rdx, [rsp + PO_TEXTLEN]
         mov [rcx], rdx
+        mov eax, ebx
+        mov rbx, [rbp - 24]
+        mov r12, [rbp - 32]
         mov rsp, rbp                    # (not `leave`: the macro LEAVE, for gas)
         pop rbp
         ret
@@ -162,7 +202,9 @@ ENDF pan_decompile_ex
 # the text, as pan_decompile_ex's, and python's decompilation.json in
 # po->data: its JSON text (flags: PAN_JSON), or the binary form data.s
 # describes (for the python module, which makes python's objects of it).
-# Returns 0, or -1 with the error's message as the text (and no data).
+# With PAN_EXPLAIN, what python's --explain printed in po->explain (and
+# not before the text). Returns 0, or -1 with the error's message as the
+# text (and no data).
 API pan_decompile_data
         or r8, PAN_WANT_DATA
         jmp decompile_api
@@ -190,7 +232,23 @@ FUNC decompile_api
         call ctx_bind
         call sb_new
         mov r12, rax                    # the text
-        xor r13d, r13d                  # the data (its builder)
+        # python's "--verbose" / "--explain" in sys.argv
+        xor eax, eax
+        mov rcx, [rsp + 32]
+        test rcx, PAN_VERBOSE
+        jz 01f
+        or eax, VB_ASM
+01:     test rcx, PAN_EXPLAIN
+        jz 02f
+        or eax, VB_ASM | VB_EXPLAIN
+02:     mov [r15 + CTX_VERBOSE], rax
+        mov qword ptr [rsp + 56], 0     # --explain's builder
+        test eax, VB_EXPLAIN
+        jz 03f
+        call sb_new
+        mov [rsp + 56], rax
+        mov [r15 + CTX_EXPLAIN_SB], rax
+03:     xor r13d, r13d                  # the data (its builder)
         test qword ptr [rsp + 32], PAN_WANT_DATA
         jz 1f
         call sb_new
@@ -207,7 +265,13 @@ FUNC decompile_api
         mov r8, r12
         call decompile_run
         mov ebx, eax                    # 0, or the error (the message in the text's builder)
-        test eax, eax
+        mov rdi, [rsp + 56]             # --explain's text: its colors, like the text's
+        test rdi, rdi
+        jz 04f
+        test qword ptr [rsp + 32], PAN_NO_COLOR
+        jz 04f
+        call strip_color
+04:     test ebx, ebx
         jnz 2f
         test qword ptr [rsp + 32], PAN_NO_COLOR
         jz 3f
@@ -233,13 +297,28 @@ FUNC decompile_api
         mov rdx, [r13 + SB_LEN]
 4:      mov [rax + PO_DATA], rcx
         mov [rax + PO_DATALEN], rdx
-        mov rdi, r12
+        test qword ptr [rsp + 32], PAN_EXPLAIN
+        jz 41f
+        xor ecx, ecx
+        xor edx, edx
+        mov rdi, [rsp + 56]
+        test rdi, rdi
+        jz 42f
+        mov rcx, [rdi + SB_BUF]
+        mov rdx, [rdi + SB_LEN]
+42:     mov [rax + PO_EXPLAIN], rcx
+        mov [rax + PO_EXPLAINLEN], rdx
+        test rdi, rdi
+        jz 41f
+        call free@PLT                   # (the builder, not its buffer)
+41:     mov rdi, r12
         call free@PLT                   # the builders, not their buffers
         test r13, r13
         jz 5f
         mov rdi, r13
         call free@PLT
 5:      mov qword ptr [r15 + CTX_DATA_SB], 0
+        mov qword ptr [r15 + CTX_EXPLAIN_SB], 0
         mov rdi, r15
         call ctx_free
         mov edi, CHUNK_POOL_KEEP        # (the memory of the arenas back, but a little)
@@ -266,7 +345,11 @@ FUNC decompile_api
 7:      mov [rcx + PO_TEXTLEN], rdx
         mov qword ptr [rcx + PO_DATA], 0
         mov qword ptr [rcx + PO_DATALEN], 0
-        mov eax, -1
+        test qword ptr [rsp + 32], PAN_EXPLAIN
+        jz 8f
+        mov qword ptr [rcx + PO_EXPLAIN], 0
+        mov qword ptr [rcx + PO_EXPLAINLEN], 0
+8:      mov eax, -1
         jmp 6b
 ENDF decompile_api
 

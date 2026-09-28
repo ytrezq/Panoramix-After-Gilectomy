@@ -1469,12 +1469,20 @@ FUNC vm_step
         mov rbx, [r15 + CTX_VM]
         mov r12, rdi
         mov [rsp + 72], rsi             # condition
+        cmp qword ptr [r15 + CTX_VERBOSE], 0
+        jne .Lstep_asm
+.Lstep_dispatch:
         movzx eax, byte ptr [r12 + IN_OP]
         lea rcx, [rip + evm_op_nodes]
         mov r13, [rcx + rax*8]
         mov r14, [r12 + IN_PARAM]
         lea rcx, [rip + step_table]
         jmp [rcx + rax*8]
+.Lstep_asm:
+        # --verbose, --explain: the instruction's lines of assembly first
+        mov rdi, r12
+        call vm_trace_asm
+        jmp .Lstep_dispatch
 
 # exp, and, eq, div, lt, gt, slt, sgt, mod, xor, signextend, smod, sdiv:
 # arithmetic.eval((op, a, b))
@@ -2306,6 +2314,285 @@ FUNC vm_step
 1:      add rsp, 8
         ret
 ENDF vm_step
+
+# --- the lines of assembly (python's --verbose, --explain) ---
+
+        .section .rodata
+.Ls_asm_stack:  .asciz "       ["
+.Ls_comma_sp:   .asciz ", "
+.Ls_asm_close:  .asciz "]"
+.Ls_rquote_sp:  .asciz " \342\200\235"         # " ”"
+.Ls_rquote:     .asciz "\342\200\235"          # "”"
+.Ls_dup:        .asciz "dup"
+.Ls_swap:       .asciz "swap"
+.Ls_fmt_close:  .asciz "Single '}' encountered in format string"
+.Ls_fmt_open:   .asciz "Single '{' encountered in format string"
+.Ls_fmt_field:  .asciz "Replacement index 0 out of range for positional args tuple"
+        .text
+
+# vm_trace_asm(instr): python's lines of assembly, put in the trace before
+# an instruction runs. With "--verbose" or "--explain" (VB_ASM), those of
+# apply_stack: the stack (`C.asm("       " + str(stack))`, which python
+# passes through str.format), an empty line, and "[pc] op" - with the
+# parameter of a push, dup or swap. With "--explain" (VB_EXPLAIN) also
+# those of handle_jumps, for the instructions a node ends with: the stack,
+# an empty line, "[pc] op". None for a jumpdest nor an unknown opcode.
+FUNC vm_trace_asm
+        ENTER
+        mov rbx, [r15 + CTX_VM]
+        mov r12, rdi
+        movzx r13d, byte ptr [r12 + IN_OP]
+        lea rax, [rip + evm_op_nodes]
+        cmp qword ptr [rax + r13*8], 0
+        je .Lta_done                    # UNKNOWN: handle_jumps' invalid
+        cmp r13d, 0x5b
+        je .Lta_done                    # jumpdest: where a node begins
+        # handle_jumps': stop, jump, jumpi, return, revert, invalid, selfdestruct
+        test r13d, r13d
+        jz .Lta_jumps
+        cmp r13d, 0x56
+        je .Lta_jumps
+        cmp r13d, 0x57
+        je .Lta_jumps
+        cmp r13d, 0xf3
+        je .Lta_jumps
+        cmp r13d, 0xfd
+        jae .Lta_jumps
+        test qword ptr [r15 + CTX_VERBOSE], VB_ASM
+        jz .Lta_done
+        mov edi, 1                      # (through str.format)
+        call .Lta_stack_line
+        call .Lta_empty_line
+        call .Lta_op_start
+        cmp r13d, 0x5f
+        jb .Lta_op_end                  # (no parameter)
+        cmp r13d, 0x9f
+        ja .Lta_op_end
+        # " " + C.asm(the parameter)
+        mov rdi, r14
+        mov esi, ' '
+        call sb_append_char
+        mov rdi, r14
+        lea rsi, [rip + C_ASM]
+        call sb_append_c
+        mov rsi, [r12 + IN_PARAM]
+        cmp r13d, 0x80
+        jae 2f                          # dup n, swap n: str(n)
+        test sil, 1
+        jz 1f
+        mov rax, rsi                    # a push: hex above 0x1000000000
+        sar rax, 1
+        mov rcx, 0x1000000000
+        cmp rax, rcx
+        jg 3f
+2:      mov rdi, r14
+        mov edx, 10
+        call sb_append_int
+        jmp 4f
+1:      cmp dword ptr [rsi + N_KIND], K_STR
+        jne 3f
+        # a string (pretty_bignum's): " ”" + line[2] + "”"
+        mov rdi, r14
+        lea rsi, [rip + .Ls_rquote_sp]
+        call sb_append_c
+        mov rdi, r14
+        mov rsi, [r12 + IN_PARAM]
+        call sb_append_str
+        mov rdi, r14
+        lea rsi, [rip + .Ls_rquote]
+        call sb_append_c
+        jmp 4f
+3:      mov rdi, r14
+        mov rsi, [r12 + IN_PARAM]
+        mov edx, 16
+        call sb_append_int
+4:      mov rdi, r14
+        lea rsi, [rip + C_ENDC]
+        call sb_append_c
+        jmp .Lta_op_end
+.Lta_jumps:
+        test qword ptr [r15 + CTX_VERBOSE], VB_EXPLAIN
+        jz .Lta_done
+        xor edi, edi                    # (appended as it is)
+        call .Lta_stack_line
+        call .Lta_empty_line
+        call .Lta_op_start
+.Lta_op_end:
+        call .Lta_push_sb
+.Lta_done:
+        LEAVE
+
+# local: the scratch builder, emptied -> rax and r14
+.Lta_sb:
+        sub rsp, 8
+        mov rax, [r15 + CTX_ASM_SB]
+        test rax, rax
+        jnz 1f
+        call sb_new
+        mov [r15 + CTX_ASM_SB], rax
+1:      mov r14, rax
+        mov rdi, rax
+        call sb_reset
+        mov rax, r14
+        add rsp, 8
+        ret
+# local: the builder's text, interned, added to the trace
+.Lta_push_sb:
+        sub rsp, 8
+        mov rdi, [r14 + SB_BUF]
+        mov rsi, [r14 + SB_LEN]
+        call str_intern
+        mov rdi, [rbx + VM_TRACE]
+        mov rsi, rax
+        call vec_push
+        add rsp, 8
+        ret
+# local: "", added to the trace
+.Lta_empty_line:
+        sub rsp, 8
+        call .Lta_sb
+        call .Lta_push_sb
+        add rsp, 8
+        ret
+# local: C.asm("       " + str(stack)) - str.format'ed when edi is 1
+.Lta_stack_line:
+        push rdi
+        call .Lta_sb
+        mov rdi, r14
+        lea rsi, [rip + C_ASM]
+        call sb_append_c
+        mov rdi, r14
+        lea rsi, [rip + .Ls_asm_stack]
+        call sb_append_c
+        xor r13d, r13d                  # (the opcode is reloaded below)
+1:      mov rax, [rbx + VM_STACK]
+        cmp r13, [rax + VEC_LEN]
+        jae 2f
+        test r13, r13
+        jz 3f
+        mov rdi, r14
+        lea rsi, [rip + .Ls_comma_sp]
+        call sb_append_c
+3:      mov rax, [rbx + VM_STACK]
+        mov rax, [rax + VEC_DATA]
+        mov rsi, [rax + r13*8]
+        mov rdi, r14
+        xor edx, edx                    # prettify(el, parentheses=False)
+        call sb_append_pret
+        inc r13
+        jmp 1b
+2:      mov rdi, r14
+        lea rsi, [rip + .Ls_asm_close]
+        call sb_append_c
+        mov rdi, r14
+        lea rsi, [rip + C_ENDC]
+        call sb_append_c
+        movzx r13d, byte ptr [r12 + IN_OP]
+        cmp qword ptr [rsp], 0
+        je 4f
+        mov rdi, r14
+        call fmt_noargs
+4:      pop rdi
+        jmp .Lta_push_sb
+# local: "[pc] " + C.asm(op) in the builder (r14)
+.Lta_op_start:
+        sub rsp, 8
+        call .Lta_sb
+        mov rdi, r14
+        mov esi, '['
+        call sb_append_char
+        mov rdi, r14
+        mov esi, [r12 + IN_PC]
+        call sb_append_u64
+        mov rdi, r14
+        mov esi, ']'
+        call sb_append_char
+        mov rdi, r14
+        mov esi, ' '
+        call sb_append_char
+        mov rdi, r14
+        lea rsi, [rip + C_ASM]
+        call sb_append_c
+        lea rsi, [rip + .Ls_dup]        # (python's names: dup n, swap n)
+        cmp r13d, 0x80
+        jb 1f
+        cmp r13d, 0x8f
+        jbe 2f
+        lea rsi, [rip + .Ls_swap]
+        cmp r13d, 0x9f
+        jbe 2f
+1:      lea rax, [rip + evm_op_nodes]
+        mov rsi, [rax + r13*8]
+        mov rdi, r14
+        call sb_append_str
+        jmp 3f
+2:      mov rdi, r14
+        call sb_append_c
+3:      mov rdi, r14
+        lea rsi, [rip + C_ENDC]
+        call sb_append_c
+        add rsp, 8
+        ret
+ENDF vm_trace_asm
+
+# fmt_noargs(sb): python's text.format() with no arguments, in place: "{{"
+# and "}}" become "{" and "}", a lone brace or a replacement field (which
+# would want an argument) raise (ValueError, IndexError: E_VALUE here)
+FUNC fmt_noargs
+        mov rsi, [rdi + SB_BUF]
+        mov rcx, [rdi + SB_LEN]
+        xor eax, eax
+1:      cmp rax, rcx                    # (most have no brace at all)
+        jae 9f
+        movzx edx, byte ptr [rsi + rax]
+        cmp dl, '{'
+        je 2f
+        cmp dl, '}'
+        je 2f
+        inc rax
+        jmp 1b
+2:      mov r8, rax                     # where the text goes
+3:      cmp rax, rcx
+        jae 8f
+        movzx edx, byte ptr [rsi + rax]
+        cmp dl, '{'
+        je 4f
+        cmp dl, '}'
+        je 5f
+        mov [rsi + r8], dl
+        inc rax
+        inc r8
+        jmp 3b
+4:      lea r9, [rax + 1]
+        cmp r9, rcx
+        jae .Lfmt_open
+        cmp byte ptr [rsi + r9], '{'
+        jne .Lfmt_field
+        jmp 6f
+5:      lea r9, [rax + 1]
+        cmp r9, rcx
+        jae .Lfmt_close
+        cmp byte ptr [rsi + r9], '}'
+        jne .Lfmt_close
+6:      mov [rsi + r8], dl
+        inc r8
+        add rax, 2
+        jmp 3b
+8:      mov [rdi + SB_LEN], r8
+        mov byte ptr [rsi + r8], 0
+9:      ret
+.Lfmt_open:
+        lea rsi, [rip + .Ls_fmt_open]
+        jmp 7f
+.Lfmt_close:
+        lea rsi, [rip + .Ls_fmt_close]
+        jmp 7f
+.Lfmt_field:
+        lea rsi, [rip + .Ls_fmt_field]
+7:      sub rsp, 8
+        mov edi, E_VALUE
+        call err_throw
+ENDF fmt_noargs
 
 # call_fname_params(params4): the function name and parameters of a call
 # from the caller's frame (arg_start at its [rsp + 24], arg_len at

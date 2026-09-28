@@ -58,7 +58,13 @@
         .set JB_ERR, 48                 # an error code, or 0
         .set JB_ERRMSG, 56
         .set JB_STATE, 64               # 0 pending, 1 done, 2 imported
-        .set JB_SIZEOF, 72
+        # --explain (explain.s): what the job printed, and its first and
+        # last traces explained (imported), for python's prev_trace
+        .set JB_EXPLAIN, 72             # the builder (malloc'd), or 0
+        .set JB_EXPLAIN_FIRST, 80       # the first trace explained, or 0
+        .set JB_EXPLAIN_LAST, 88        # the last one, or 0
+        .set JB_EXPLAIN_CUT, 96         # what the first one's text took
+        .set JB_SIZEOF, 104
 
         # the shared state of the decompilation
         .set DC_LOADER, 0
@@ -69,7 +75,9 @@
         .set DC_MUTEX, 40               # pthread_mutex_t (40 bytes, zero-initialized)
         .set DC_COND, 80                # pthread_cond_t (48 bytes)
         .set DC_MEMLIMIT, 128           # CTX_MEM_LIMIT of the workers' contexts
-        .set DC_SIZEOF, 144
+        .set DC_VERBOSE, 136            # CTX_VERBOSE of the workers' contexts
+        .set DC_EXPLAIN_SB, 144         # where the jobs' --explain goes, in order
+        .set DC_SIZEOF, 152
 
         # the decompilation thread (decompile_run)
         .set DR_CODE, 0
@@ -217,6 +225,14 @@ FUNC decompile_worker
         call ctx_set_stack
         mov rax, [rbx + DC_MEMLIMIT]
         mov [r15 + CTX_MEM_LIMIT], rax
+        mov rax, [rbx + DC_VERBOSE]
+        mov [r15 + CTX_VERBOSE], rax
+        test rax, VB_EXPLAIN
+        jz 1f
+        call sb_new                     # (what the job explains)
+        mov [r15 + CTX_EXPLAIN_SB], rax
+        mov [r12 + JB_EXPLAIN], rax
+1:
         call monotonic_ns
         mov [rsp + DW_START], rax
         mov edi, LOG_INFO
@@ -259,6 +275,23 @@ FUNC decompile_worker
         call vm_run
         mov r13, rax
         call .Ldw_check_deadline
+        test qword ptr [r15 + CTX_VERBOSE], VB_EXPLAIN
+        jz 1f
+        mov rdi, r13                    # (python's trace[1:])
+        mov esi, 1
+        call list_from
+        lea rdi, [rip + explain_s_initial]
+        mov rsi, rax
+        call explain
+        mov rdi, r13                    # the lines of assembly dropped again
+        lea rsi, [rip + explain_drop_asm]
+        xor edx, edx
+        call rewrite_trace
+        mov r13, rax
+        lea rdi, [rip + explain_s_no_asm]
+        mov rsi, rax
+        call explain
+1:
         mov edi, LOG_INFO
         lea rsi, [rip + .Ls_logname]
         lea rdx, [rip + .Ls_cleaning]
@@ -269,7 +302,17 @@ FUNC decompile_worker
         mov rsi, rax
         call make_whiles
         mov [r12 + JB_TRACE], rax
-        call .Ldw_check_deadline
+        test qword ptr [r15 + CTX_VERBOSE], VB_EXPLAIN
+        jz 1f
+        lea rdi, [rip + explain_s_final]
+        mov rsi, rax
+        call explain
+        mov rdi, [r12 + JB_TRACE]
+        call fold_isolated
+        lea rdi, [rip + explain_s_folded]
+        mov rsi, rax
+        call explain
+1:      call .Ldw_check_deadline
         call err_end
         mov qword ptr [r12 + JB_ERR], 0
         jmp .Ldw_finish
@@ -444,6 +487,13 @@ FUNC decompile
         mov r13, rax
         mov [rsp + DE_DEC], rax
         mov [r13 + DC_LOADER], rbx
+        mov rax, [r15 + CTX_VERBOSE]
+        mov [r13 + DC_VERBOSE], rax
+        # (--explain: the context's builder is each job's in turn, while
+        # its function is made - see .Lde_import_job)
+        mov rax, [r15 + CTX_EXPLAIN_SB]
+        mov [r13 + DC_EXPLAIN_SB], rax
+        mov qword ptr [r15 + CTX_EXPLAIN_SB], 0
         mov edi, [r12 + N_AUX]
         imul rdi, rdi, JB_SIZEOF
         call arena_alloc
@@ -595,7 +645,10 @@ FUNC decompile
         call pthread_join@PLT
         inc qword ptr [rsp + DE_I]
         jmp 12b
-13:     mov edi, LOG_INFO
+13:     test qword ptr [r15 + CTX_VERBOSE], VB_EXPLAIN
+        jz 16f
+        call .Lde_explain_merge
+16:     mov edi, LOG_INFO
         lea rsi, [rip + .Ls_logname]
         lea rdx, [rip + .Ls_finished]
         call log_fmt
@@ -712,7 +765,13 @@ FUNC decompile
 .Lde_import_job:
         sub rsp, ERR_SIZEOF + 24
         mov [rsp + ERR_SIZEOF], rdi
-        cmp qword ptr [rdi + JB_ERR], 0
+        test qword ptr [r15 + CTX_VERBOSE], VB_EXPLAIN
+        jz 1f
+        call .Lde_import_explain
+        mov rdi, [rsp + ERR_SIZEOF]
+        mov rax, [rdi + JB_EXPLAIN]     # (the traits of its function, there)
+        mov [r15 + CTX_EXPLAIN_SB], rax
+1:      cmp qword ptr [rdi + JB_ERR], 0
         jne 2f
         lea rdi, [rsp]
         call err_catch
@@ -732,6 +791,7 @@ FUNC decompile
         call function_new
         mov [rsp + ERR_SIZEOF + 16], rax
         call err_end
+        mov qword ptr [r15 + CTX_EXPLAIN_SB], 0
         # (fn, job index) - the order is restored later
         mov rsi, [rsp + ERR_SIZEOF]
         sub rsi, [r13 + DC_JOBS]
@@ -752,7 +812,8 @@ FUNC decompile
         mov rsi, [r15 + CTX_ERR_MSG]
         mov [rdi + JB_ERRMSG], rsi
         mov [rdi + JB_ERR], rax
-2:      mov rdi, [rsp + ERR_SIZEOF]
+2:      mov qword ptr [r15 + CTX_EXPLAIN_SB], 0
+        mov rdi, [rsp + ERR_SIZEOF]
         mov r8, [rdi + JB_ERRMSG]
         mov rcx, [rdi + JB_HASH]
         mov edi, LOG_ERROR
@@ -791,6 +852,81 @@ FUNC decompile
         mov rsi, rax
         call vec_push
         add rsp, ERR_SIZEOF + 24
+        ret
+# --explain: the first and last traces the job (rdi) explained, imported
+# (its context is freed next), and what the first one's text took
+.Lde_import_explain:
+        push rbx
+        mov rbx, rdi
+        mov rcx, [rbx + JB_CTX]
+        test rcx, rcx
+        jz 1f
+        mov rax, [rcx + CTX_EXPLAIN_CUT]
+        mov [rbx + JB_EXPLAIN_CUT], rax
+        mov rdi, [rcx + CTX_EXPLAIN_FIRST]
+        test rdi, rdi
+        jz 2f
+        call value_import_root
+        mov [rbx + JB_EXPLAIN_FIRST], rax
+2:      mov rcx, [rbx + JB_CTX]
+        mov rdi, [rcx + CTX_EXPLAIN_PREV]
+        test rdi, rdi
+        jz 1f
+        call value_import_root
+        mov [rbx + JB_EXPLAIN_LAST], rax
+1:      pop rbx
+        ret
+# --explain: what the jobs printed, one after the other into
+# DC_EXPLAIN_SB (the context's builder again) - python's prev_trace, the
+# trace printed last, carried from each job to the next: a job's first
+# trace equal to it wasn't printed. Their builders freed.
+.Lde_explain_merge:
+        push rbx
+        push r12
+        push r14
+        mov rax, [r13 + DC_EXPLAIN_SB]
+        mov [r15 + CTX_EXPLAIN_SB], rax
+        xor r14d, r14d                  # the trace printed last (0: none yet)
+        mov rbx, [r13 + DC_JOBS]
+        mov r12, [r13 + DC_NJOBS]
+1:      test r12, r12
+        jz 5f
+        cmp qword ptr [rbx + JB_EXPLAIN], 0
+        je 4f
+        xor ecx, ecx                    # from where
+        mov rdi, [rbx + JB_EXPLAIN_FIRST]
+        test rdi, rdi
+        jz 2f
+        test r14, r14
+        jz 2f
+        mov rsi, r14
+        call values_equal
+        xor ecx, ecx
+        test eax, eax
+        jz 2f
+        mov rcx, [rbx + JB_EXPLAIN_CUT]
+2:      mov rax, [rbx + JB_EXPLAIN]
+        mov rsi, [rax + SB_BUF]
+        mov rdx, [rax + SB_LEN]
+        add rsi, rcx
+        sub rdx, rcx
+        mov rdi, [r13 + DC_EXPLAIN_SB]
+        test rdi, rdi
+        jz 3f
+        call sb_append
+3:      mov rdi, [rbx + JB_EXPLAIN]
+        call sb_free
+        mov qword ptr [rbx + JB_EXPLAIN], 0
+        mov rax, [rbx + JB_EXPLAIN_LAST]
+        test rax, rax
+        jz 4f
+        mov r14, rax
+4:      add rbx, JB_SIZEOF
+        dec r12
+        jmp 1b
+5:      pop r14
+        pop r12
+        pop rbx
         ret
 # the (fn, job) pairs sorted by job (the functions in the loader's order)
 .Lde_functions_in_order:

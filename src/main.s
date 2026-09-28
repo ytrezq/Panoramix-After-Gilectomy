@@ -14,6 +14,7 @@
         .section .rodata
 .Lusage:  .ascii "usage: panasm disasm <file.hex>\n"
           .ascii "       panasm decompile <file.hex|-> [-j threads] [--function name] [--no-color] [--json] [-v level]\n"
+          .ascii "                        [--verbose] [--explain]\n"
           .ascii "       panasm build-db <abi_dump.xz> [out.bin]\n"
 .Lusage_end:
 .Ls_disasm:     .asciz "disasm"
@@ -25,6 +26,8 @@
 .Ls_function:   .asciz "--function"
 .Ls_no_color:   .asciz "--no-color"
 .Ls_json:       .asciz "--json"
+.Ls_verbose:    .asciz "--verbose"
+.Ls_explain:    .asciz "--explain"
 .Ls_v:          .asciz "-v"
 .Ls_badlevel:   .asciz "Logging should be DEBUG/INFO/WARNING/ERROR.\n"
 .Ls_badlevel_end:
@@ -69,7 +72,7 @@ ENDF is_hex_arg
 FUNC main
         push r15
         ENTER
-        sub rsp, 72                     # 5 pushes + r15: 8 mod 16 keeps rsp aligned
+        sub rsp, 88                     # 5 pushes + r15: 8 mod 16 keeps rsp aligned
         .set M_LEN, 0
         .set M_CODELEN, 8
         .set M_LOADER, 16
@@ -79,6 +82,8 @@ FUNC main
         .set M_PATH, 48
         .set M_I, 56
         .set M_JSON, 64
+        .set M_VERBOSE, 72              # VB_ASM, VB_EXPLAIN
+        .set M_EXPLAIN, 80              # --explain's builder
         mov r12, rdi                    # argc
         mov r13, rsi                    # argv
         call rt_init
@@ -112,6 +117,7 @@ FUNC main
         mov qword ptr [rsp + M_FUNCTION], 0
         mov qword ptr [rsp + M_NOCOLOR], 0
         mov qword ptr [rsp + M_JSON], 0
+        mov qword ptr [rsp + M_VERBOSE], 0
         mov rax, [r13 + 16]
         mov [rsp + M_PATH], rax
         mov qword ptr [rsp + M_I], 3
@@ -127,7 +133,23 @@ FUNC main
         mov qword ptr [rsp + M_NOCOLOR], 1
         inc qword ptr [rsp + M_I]
         jmp 2b
-3:      mov rdi, rbx
+3:      mov rdi, rbx                    # --verbose: the lines of assembly
+        lea rsi, [rip + .Ls_verbose]
+        call strcmp@PLT
+        test eax, eax
+        jnz 33f
+        or qword ptr [rsp + M_VERBOSE], VB_ASM
+        inc qword ptr [rsp + M_I]
+        jmp 2b
+33:     mov rdi, rbx                    # --explain: every stage's trace too
+        lea rsi, [rip + .Ls_explain]
+        call strcmp@PLT
+        test eax, eax
+        jnz 34f
+        or qword ptr [rsp + M_VERBOSE], VB_ASM | VB_EXPLAIN
+        inc qword ptr [rsp + M_I]
+        jmp 2b
+34:     mov rdi, rbx
         lea rsi, [rip + .Ls_json]
         call strcmp@PLT
         test eax, eax
@@ -263,7 +285,15 @@ FUNC main
         call sb_new                     # python's json, as json.dumps writes it
         mov [r15 + CTX_DATA_SB], rax
         mov qword ptr [r15 + CTX_DATA_MODE], 1
-8:      call sb_new
+8:      mov rax, [rsp + M_VERBOSE]
+        mov [r15 + CTX_VERBOSE], rax
+        mov qword ptr [rsp + M_EXPLAIN], 0
+        test rax, VB_EXPLAIN
+        jz 81f
+        call sb_new                     # (what python prints as it goes)
+        mov [rsp + M_EXPLAIN], rax
+        mov [r15 + CTX_EXPLAIN_SB], rax
+81:     call sb_new
         mov rbx, rax
         mov rdi, r14
         mov rsi, [rsp + M_CODELEN]
@@ -271,6 +301,19 @@ FUNC main
         mov rcx, [rsp + M_FUNCTION]
         mov r8, rbx
         call decompile_run
+        mov [rsp + M_LEN], rax          # (the status)
+        mov rdi, [rsp + M_EXPLAIN]      # --explain's text first
+        test rdi, rdi
+        jz 82f
+        cmp qword ptr [rsp + M_NOCOLOR], 0
+        je 83f
+        call strip_color
+83:     mov rax, [rsp + M_EXPLAIN]
+        mov edi, 1
+        mov rsi, [rax + SB_BUF]
+        mov rdx, [rax + SB_LEN]
+        call write_all
+82:     mov eax, [rsp + M_LEN]
         test eax, eax
         jnz .Lfailed
         cmp qword ptr [rsp + M_JSON], 0
@@ -332,7 +375,7 @@ FUNC main
         call write@PLT
         mov eax, 1
 .Lmain_exit:
-        add rsp, 72
+        add rsp, 88
         LEAVE_NORET
         pop r15
         ret

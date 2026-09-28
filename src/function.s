@@ -1048,6 +1048,8 @@ FUNC fn_analyse
         call mk2
         mov [rbx + FN_GETTER], rax
 .Lfa_done:
+        mov rdi, rbx                    # (--explain: explain_text, explain.s)
+        call explain_traits
         add rsp, MATCH_BINDINGS_SIZE + 48
         LEAVE
 # locals

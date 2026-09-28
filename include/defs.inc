@@ -94,7 +94,13 @@
 .set CTX_DATA_SB, 200       # a builder for python's decompilation.json (data.s), or 0
 .set CTX_DATA_MODE, 208     # its form: DATA_BINARY (0) or DATA_JSON (1)
 .set CTX_RV_MAP, 216        # rename_var's memo (an emap, reused: cleanup.s), or 0
-# 224..295: free
+.set CTX_VERBOSE, 224       # python's --verbose / --explain: VB_ASM, VB_EXPLAIN (explain.s)
+.set CTX_EXPLAIN_SB, 232    # the builder --explain prints into (malloc'd), or 0
+.set CTX_EXPLAIN_PREV, 240  # the trace explain() printed last (python's prev_trace), or 0
+.set CTX_EXPLAIN_FIRST, 248 # the first trace explained in this context, or 0
+.set CTX_EXPLAIN_CUT, 256   # the builder's length after that first one's text
+.set CTX_ASM_SB, 264        # a scratch builder for the lines of assembly (vm.s), or 0
+# 272..295: free
 .set CTX_VM, 296            # the VM this thread runs (vm.s)
 .set CTX_ERR_BUF, 304       # the innermost error handler (rt_err.s)
 .set CTX_ERR_CODE, 312      # what was thrown
@@ -598,6 +604,10 @@ ENDF \fname
 .set PF_PARENS, 2           # parentheses=True
 .set PF_TOP, 4              # top_level=True
 .set PF_COLOR, 8            # add_color=True
+
+# python's "--verbose" / "--explain" in sys.argv (CTX_VERBOSE; explain.s)
+.set VB_ASM, 1              # the lines of assembly in the VM's traces (both)
+.set VB_EXPLAIN, 2          # the traces printed at every stage (--explain)
 
 # a decompiled function (function.s)
 .set FN_HASH, 0             # str: "0x12345678" or "_fallback"

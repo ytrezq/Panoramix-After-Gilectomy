@@ -17,7 +17,54 @@ typedef struct {
     size_t textlen;
     char *data;
     size_t datalen;
+    char *explain;
+    size_t explainlen;
 } pan_output;
+#define PAN_NO_COLOR 1
+#define PAN_VERBOSE 8
+#define PAN_EXPLAIN 16
+
+/* python's `"--verbose" in sys.argv` (the lines of assembly) and
+ * `"--explain" in sys.argv` (the traces of every stage printed): an
+ * argument's value when given (not None), else sys.argv's say */
+static int argv_flag(PyObject *given, const char *name, long *flags, long flag)
+{
+    int on;
+    if (given && given != Py_None) {
+        on = PyObject_IsTrue(given);
+        if (on < 0) return -1;
+    } else {
+        PyObject *argv = PySys_GetObject("argv");     /* borrowed */
+        on = 0;
+        if (argv && PySequence_Check(argv)) {
+            PyObject *s = PyUnicode_FromString(name);
+            if (!s) return -1;
+            on = PySequence_Contains(argv, s);
+            Py_DECREF(s);
+            if (on < 0) {
+                PyErr_Clear();
+                on = 0;
+            }
+        }
+    }
+    if (on) *flags |= flag;
+    return 0;
+}
+
+/* python's print() of what --explain printed: to sys.stdout */
+static int print_explain(const char *text, size_t len)
+{
+    PyObject *out = PySys_GetObject("stdout");      /* borrowed */
+    PyObject *s, *r;
+    if (!out || out == Py_None || !len) return 0;
+    s = PyUnicode_DecodeUTF8(text, (Py_ssize_t)len, "surrogateescape");
+    if (!s) return -1;
+    r = PyObject_CallMethod(out, "write", "O", s);
+    Py_DECREF(s);
+    if (!r) return -1;
+    Py_DECREF(r);
+    return 0;
+}
 int pan_decompile_data(const unsigned char *code, size_t len, size_t threads, const char *only_func, long flags, pan_output *out);
 int pan_build_sigdb(const char *xz_path, const char *out_path);
 void pan_set_log_level(long level);
@@ -99,7 +146,7 @@ static PyObject *py_disasm(PyObject *self, PyObject *args)
 
 static PyObject *py_decompile(PyObject *self, PyObject *args, PyObject *kwargs)
 {
-    static char *kwlist[] = {"code", "threads", "function", "color", NULL};
+    static char *kwlist[] = {"code", "threads", "function", "color", "verbose", "explain", NULL};
     PyObject *arg;
     code_ref ref;
     unsigned char *code;
@@ -107,17 +154,19 @@ static PyObject *py_decompile(PyObject *self, PyObject *args, PyObject *kwargs)
     char *out;
     Py_ssize_t threads = 0;
     const char *function = NULL;
-    int color = 1;
+    int color = 1, verbose = 0, explain = 0;
+    long flags;
     int rc;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|nzp", kwlist, &arg, &threads, &function, &color)) return NULL;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|nzppp", kwlist, &arg, &threads, &function, &color, &verbose, &explain)) return NULL;
     if (get_code(arg, &code, &len, &ref)) return NULL;
     if (threads <= 0) {
         threads = (Py_ssize_t)sysconf(_SC_NPROCESSORS_ONLN);
         if (threads <= 0) threads = 1;
     }
+    flags = (color ? 0 : PAN_NO_COLOR) | (verbose ? PAN_VERBOSE : 0) | (explain ? PAN_EXPLAIN : 0);
     Py_BEGIN_ALLOW_THREADS
-    rc = pan_decompile_ex(code, len, (size_t)threads, function, &out, &outlen, color ? 0 : 1);
+    rc = pan_decompile_ex(code, len, (size_t)threads, function, &out, &outlen, flags);
     Py_END_ALLOW_THREADS
     release_code(&ref);
     if (rc) {
@@ -248,6 +297,7 @@ static PyStructSequence_Field decompilation_fields[] = {
     {"text", "the decompiled contract, as `python -m panoramix` prints it"},
     {"asm", "the disassembly: a str per instruction"},
     {"json", "python's decompilation.json: the problems, the storage definitions, the functions"},
+    {"explain", "what --explain printed (on sys.stdout too, as python prints it), or None"},
     {NULL, NULL}
 };
 
@@ -262,8 +312,9 @@ static PyTypeObject *DecompilationType;
 
 static PyObject *py_decompile_bytecode(PyObject *self, PyObject *args, PyObject *kwargs)
 {
-    static char *kwlist[] = {"code", "only_func_name", "threads", "color", NULL};
+    static char *kwlist[] = {"code", "only_func_name", "threads", "color", "verbose", "explain", NULL};
     PyObject *arg, *text = NULL, *json = NULL, *asm_text = NULL, *asm_list = NULL, *res;
+    PyObject *verbose = NULL, *explain = NULL, *explained = NULL;
     code_ref ref;
     unsigned char *code;
     size_t len, asmlen = 0;
@@ -272,9 +323,12 @@ static PyObject *py_decompile_bytecode(PyObject *self, PyObject *args, PyObject 
     Py_ssize_t threads = 0;
     const char *function = NULL;
     int color = 1;
+    long flags;
     int rc, asm_rc;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|znp", kwlist, &arg, &function, &threads, &color)) return NULL;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|znpOO", kwlist, &arg, &function, &threads, &color, &verbose, &explain)) return NULL;
+    flags = color ? 0 : PAN_NO_COLOR;
+    if (argv_flag(verbose, "--verbose", &flags, PAN_VERBOSE) || argv_flag(explain, "--explain", &flags, PAN_EXPLAIN)) return NULL;
     if (get_code(arg, &code, &len, &ref)) return NULL;
     if (threads <= 0) {
         threads = (Py_ssize_t)sysconf(_SC_NPROCESSORS_ONLN);
@@ -282,10 +336,23 @@ static PyObject *py_decompile_bytecode(PyObject *self, PyObject *args, PyObject 
     }
     memset(&out, 0, sizeof out);
     Py_BEGIN_ALLOW_THREADS
-    rc = pan_decompile_data(code, len, (size_t)threads, function, color ? 0 : 1, &out);
+    rc = pan_decompile_data(code, len, (size_t)threads, function, flags, &out);
     asm_rc = rc ? 0 : pan_disasm(code, len, &asm_out, &asmlen);
     Py_END_ALLOW_THREADS
     release_code(&ref);
+    if (out.explain) {
+        /* printed along the way by python, even when it failed after */
+        if (!rc) explained = PyUnicode_DecodeUTF8(out.explain, (Py_ssize_t)out.explainlen, "surrogateescape");
+        if (print_explain(out.explain, out.explainlen) || (!rc && !explained)) {
+            pan_free(out.explain);
+            pan_free(out.text);
+            pan_free(out.data);
+            pan_free(asm_out);
+            Py_XDECREF(explained);
+            return NULL;
+        }
+        pan_free(out.explain);
+    }
     if (rc) {
         PyErr_SetString(PyExc_RuntimeError, out.text ? out.text : "decompilation failed");
         pan_free(out.text);
@@ -310,6 +377,7 @@ static PyObject *py_decompile_bytecode(PyObject *self, PyObject *args, PyObject 
     if (!asm_list) {
         Py_XDECREF(text);
         Py_XDECREF(json);
+        Py_XDECREF(explained);
         return NULL;
     }
     res = PyStructSequence_New(DecompilationType);
@@ -317,11 +385,17 @@ static PyObject *py_decompile_bytecode(PyObject *self, PyObject *args, PyObject 
         Py_DECREF(text);
         Py_DECREF(json);
         Py_DECREF(asm_list);
+        Py_XDECREF(explained);
         return NULL;
+    }
+    if (!explained) {
+        explained = Py_None;
+        Py_INCREF(Py_None);
     }
     PyStructSequence_SET_ITEM(res, 0, text);
     PyStructSequence_SET_ITEM(res, 1, asm_list);
     PyStructSequence_SET_ITEM(res, 2, json);
+    PyStructSequence_SET_ITEM(res, 3, explained);
     return res;
 }
 
@@ -387,8 +461,8 @@ static PyMethodDef methods[] = {
     {"_test", py_test, METH_VARARGS, "_test(name, literal) -> str: apply a library function to a python literal"},
     {"set_log_level", py_set_log_level, METH_O, "set_log_level(level): the level of the messages printed on stderr, an int (logging.INFO...) or a name (\"debug\", \"info\", \"warning\", \"error\"); WARNING by default, as a library, unless PANORAMIX_LOG is set"},
     {"disasm", py_disasm, METH_VARARGS, "disasm(code) -> str: the disassembly, one instruction per line (code: as for decompile)"},
-    {"decompile_bytecode", (PyCFunction)py_decompile_bytecode, METH_VARARGS | METH_KEYWORDS, "decompile_bytecode(code, only_func_name=None, threads=0, color=True) -> Decompilation(text, asm, json): as panoramix.decompiler.decompile_bytecode - the text, the disassembly (a list of str) and python's decompilation.json (a dict of python's objects: the problems, the storage definitions, the functions); color only changes the text"},
-    {"decompile", (PyCFunction)py_decompile, METH_VARARGS | METH_KEYWORDS, "decompile(code, threads=0, function=None, color=True) -> str: the decompiled contract, as `python -m panoramix` prints it (code: bytes or a bytes-like object, or hex; threads: 0 for one per CPU; function: only the functions whose name starts with it)"},
+    {"decompile_bytecode", (PyCFunction)py_decompile_bytecode, METH_VARARGS | METH_KEYWORDS, "decompile_bytecode(code, only_func_name=None, threads=0, color=True, verbose=None, explain=None) -> Decompilation(text, asm, json): as panoramix.decompiler.decompile_bytecode - the text, the disassembly (a list of str) and python's decompilation.json (a dict of python's objects: the problems, the storage definitions, the functions); color only changes the text. verbose, explain: python's --verbose (the instructions run as comments of the text) and --explain (every stage's trace, printed on sys.stdout as python prints it, and in the result's .explain) - by default, as python, whether sys.argv holds them"},
+    {"decompile", (PyCFunction)py_decompile, METH_VARARGS | METH_KEYWORDS, "decompile(code, threads=0, function=None, color=True, verbose=False, explain=False) -> str: the decompiled contract, as `python -m panoramix` prints it (code: bytes or a bytes-like object, or hex; threads: 0 for one per CPU; function: only the functions whose name starts with it; verbose, explain: as its --verbose and --explain, what --explain prints first)"},
     {NULL, NULL, 0, NULL}
 };
 

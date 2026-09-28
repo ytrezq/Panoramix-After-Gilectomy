@@ -14,8 +14,9 @@ a byte of a push, a dup or a swap for another).
 
 Python runs as `python -m panoramix` ($PANORAMIX_PYTHON, pypy by
 default, in $PANORAMIX_PY), the port as build/panasm; both with the
-signature database. The programs where they differ are kept in DIR
-(default build/difffuzz), with both outputs.
+signature database, and with $FUZZ_MODE's options (--verbose, --explain:
+the lines of assembly, the traces of every stage). The programs where
+they differ are kept in DIR (default build/difffuzz), with both outputs.
 """
 import os
 import random
@@ -28,6 +29,7 @@ ROOT = os.path.join(HERE, "..")
 PANASM = os.environ.get("PANASM", os.path.join(ROOT, "build", "panasm"))
 PY_REPO = os.environ.get("PANORAMIX_PY", os.path.join(ROOT, "..", "panoramix"))
 PYTHON = os.environ.get("PANORAMIX_PYTHON", os.path.join(PY_REPO, ".venv", "bin", "python"))
+MODE = os.environ.get("FUZZ_MODE", "").split()
 
 OPS = {
     "STOP": 0x00, "ADD": 0x01, "MUL": 0x02, "SUB": 0x03, "DIV": 0x04, "MOD": 0x06,
@@ -643,7 +645,7 @@ def run_python(code):
     import re, time
     for attempt in range(8):
         try:
-            p = subprocess.run([PYTHON, "-m", "panoramix", code.hex()], capture_output=True,
+            p = subprocess.run([PYTHON, "-m", "panoramix", code.hex()] + MODE, capture_output=True,
                                text=True, timeout=900, env=env)
             out = p.stdout
         except subprocess.TimeoutExpired:
@@ -665,7 +667,7 @@ def run_python(code):
 def run_port(path):
     env = dict(os.environ, PANORAMIX_LOG="error")
     env.setdefault("PANORAMIX_SIGDB", os.path.join(ROOT, "build", "abi_db.bin"))
-    p = subprocess.run([PANASM, "decompile", path, "--no-color", "-j", "1"],
+    p = subprocess.run([PANASM, "decompile", path, "--no-color", "-j", "1"] + MODE,
                        capture_output=True, text=True, timeout=900, env=env)
     return p.returncode, p.stdout
 
