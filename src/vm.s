@@ -1199,6 +1199,7 @@ ENDF vm_pop
 
         .section .rodata
 .Ls_underflow: .asciz "pop from an empty stack"
+.Ls_stack_index: .asciz "list index out of range (dup or swap below the stack)"
         .text
 
 # vm_push(v): push on the symbolic stack, simplified
@@ -1454,6 +1455,7 @@ FUNC vm_step
         mov rdi, [rbx + VM_STACK]
         mov rcx, [rdi + VEC_LEN]
         sub rcx, rax
+        jb .Lop_stack_index             # stack[-n] of a shorter stack: IndexError
         mov rdx, [rdi + VEC_DATA]
         mov rsi, [rdx + rcx*8]
         call vec_push
@@ -1464,6 +1466,8 @@ FUNC vm_step
         sar rax, 1
         mov rdi, [rbx + VM_STACK]
         mov rcx, [rdi + VEC_LEN]
+        cmp rcx, rax
+        jbe .Lop_stack_index            # stack[-n - 1] of a shorter stack
         mov rdx, [rdi + VEC_DATA]
         lea rdx, [rdx + rcx*8 - 8]      # the top
         neg rax
@@ -1472,6 +1476,11 @@ FUNC vm_step
         mov [rdx], rdi
         mov [rdx + rax*8], rsi
         jmp .Lstep_cleanup
+
+.Lop_stack_index:
+        mov edi, E_INDEX
+        lea rsi, [rip + .Ls_stack_index]
+        call err_throw
 
 .Lop_mul:
         VPOP [rsp]

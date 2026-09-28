@@ -323,14 +323,14 @@ FUNC decompile
         # just the default function, at 0
         lea rdi, [rip + .Ls_fallback]
         call str_intern_c
-        mov rdi, rax
+        push rax
+        push rax
+        xor edi, edi
         xor esi, esi
-        push rax
-        push rax
-        call mk_tuple
+        call mk_tuple                   # the empty stack
         pop rdi
-        pop rdi
-        mov rsi, 1
+        pop rdi                         # the name
+        mov rsi, 1                      # the target: 0
         mov rdx, rax
         call mk3
         mov rdi, rax
