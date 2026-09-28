@@ -12,30 +12,7 @@
 # ---------------------------------------------------------------------
 # small helpers
 
-# OP_N_CHECK op, n, fail: falls through if rdi is a tuple of n elements
-# (n > 0, a register or an immediate) with opcode op (a register or an
-# immediate); jumps to fail otherwise. Only rax is used.
-.macro OP_N_CHECK op, n, fail
-        test dil, 1
-        jnz \fail
-        test rdi, rdi
-        jz \fail
-        cmp dword ptr [rdi + N_KIND], K_TUPLE
-        jne \fail
-        cmp dword ptr [rdi + N_AUX], \n
-        jne \fail
-        mov rax, [rdi + N_DATA]
-        test al, 1
-        jnz \fail
-        test rax, rax
-        jz \fail
-        cmp dword ptr [rax + N_KIND], K_STR
-        jne \fail
-        mov eax, [rax + N_AUX]
-        and eax, STR_ID_MASK
-        cmp eax, \op
-        jne \fail
-.endm
+
 
 # is_op_n(v, op, n) -> eax: v is a tuple with opcode op and n elements
 # (a leaf: only rax is changed)
@@ -1321,6 +1298,9 @@ FUNC alg_try_add
         mov r13, [rbx + N_DATA + 16]    # self[2]
         mov r14, [r12 + N_DATA + 16]    # other[2]
         mov rdi, r13
+        OP_N_CHECK OP_MASK_SHL, 5, 21f  # (a mask_shl of five: see try_add_1)
+        jmp 2f
+21:     mov rdi, r13
         call opcode_of
         cmp eax, OP_MASK_SHL
         je 2f

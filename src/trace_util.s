@@ -94,32 +94,20 @@ ENDF seq_last
 
 # is_if_line(line) -> eax: ('if', cond, if_true, if_false)
 FUNC is_if_line
-        ENTER
-        mov rbx, rdi
-        call opcode_of
-        cmp eax, OP_IF
-        jne 1f
-        xor eax, eax
-        cmp dword ptr [rbx + N_AUX], 4
-        sete al
-        LEAVE
+        OP_N_CHECK OP_IF, 4, 1f           # (a leaf: only rax is changed)
+        mov eax, 1
+        ret
 1:      xor eax, eax
-        LEAVE
+        ret
 ENDF is_if_line
 
 # is_while_line(line) -> eax: ('while', cond, body, jd, setvars)
 FUNC is_while_line
-        ENTER
-        mov rbx, rdi
-        call opcode_of
-        cmp eax, OP_WHILE
-        jne 1f
-        xor eax, eax
-        cmp dword ptr [rbx + N_AUX], 5
-        sete al
-        LEAVE
+        OP_N_CHECK OP_WHILE, 5, 1f           # (a leaf: only rax is changed)
+        mov eax, 1
+        ret
 1:      xor eax, eax
-        LEAVE
+        ret
 ENDF is_while_line
 
 # mk_if(cond, if_true, if_false) / mk_while(cond, body, jd, setvars)
