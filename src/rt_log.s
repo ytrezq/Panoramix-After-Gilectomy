@@ -33,6 +33,8 @@ log_initialized: .quad 0
 .Ls_error:      .asciz "ERROR"
 .Lenv_log:      .asciz "PANORAMIX_LOG"
 .Ls_warn_lc:    .asciz "warn"
+.Ls_critical:   .asciz "critical"
+.Ls_fatal:      .asciz "fatal"
 
         .text
 
@@ -96,6 +98,8 @@ log_level_names:                        # (name, level), as python's logging
         .quad .Ls_warning, LOG_WARNING
         .quad .Ls_warn_lc, LOG_WARNING
         .quad .Ls_error, LOG_ERROR
+        .quad .Ls_critical, 50
+        .quad .Ls_fatal, 50
         .quad 0, 0
         .text
 

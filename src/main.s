@@ -3,7 +3,8 @@
 #   panasm decompile <file.hex|-> [options]     the decompilation, like `python -m panoramix`
 # Options: -j N / --threads N (default: the CPUs), --function NAME (only
 # the functions whose name starts with NAME), --no-color, --json (python's
-# decompilation.json instead of the text, as json.dumps writes it).
+# decompilation.json instead of the text, as json.dumps writes it), -v
+# LEVEL (the log level, a number or a name, as python -m panoramix's).
 # The file holds the bytecode in hex (0x optional); - reads it from stdin;
 # an argument that is no file but hex is the bytecode itself (as python -m
 # panoramix takes it).
@@ -12,7 +13,7 @@
 
         .section .rodata
 .Lusage:  .ascii "usage: panasm disasm <file.hex>\n"
-          .ascii "       panasm decompile <file.hex|-> [-j threads] [--function name] [--no-color] [--json]\n"
+          .ascii "       panasm decompile <file.hex|-> [-j threads] [--function name] [--no-color] [--json] [-v level]\n"
           .ascii "       panasm build-db <abi_dump.xz> [out.bin]\n"
 .Lusage_end:
 .Ls_disasm:     .asciz "disasm"
@@ -24,6 +25,9 @@
 .Ls_function:   .asciz "--function"
 .Ls_no_color:   .asciz "--no-color"
 .Ls_json:       .asciz "--json"
+.Ls_v:          .asciz "-v"
+.Ls_badlevel:   .asciz "Logging should be DEBUG/INFO/WARNING/ERROR.\n"
+.Ls_badlevel_end:
 .Ls_badhex:     .asciz "not a valid hex file\n"
 .Ls_noread:     .asciz "can't read the file\n"
 .Ls_main:       .asciz "panoramix.main"
@@ -151,6 +155,31 @@ FUNC main
         add qword ptr [rsp + M_I], 2
         jmp 2b
 4:      mov rdi, rbx
+        lea rsi, [rip + .Ls_v]
+        call strcmp@PLT
+        test eax, eax
+        jnz 41f
+        mov rax, [rsp + M_I]            # -v LEVEL: a number, or a name
+        inc rax
+        cmp rax, r12
+        jae .Lusage_exit
+        mov rbx, [r13 + rax*8]
+        movzx eax, byte ptr [rbx]
+        sub eax, '0'
+        cmp eax, 9
+        ja 42f
+        mov rdi, rbx
+        call atol@PLT
+        jmp 43f
+42:     mov rdi, rbx
+        call log_level_from_name
+        test rax, rax
+        js .Lbadlevel
+43:     mov rdi, rax
+        call pan_set_log_level
+        add qword ptr [rsp + M_I], 2
+        jmp 2b
+41:     mov rdi, rbx
         lea rsi, [rip + .Ls_function]
         call strcmp@PLT
         test eax, eax
@@ -273,6 +302,13 @@ FUNC main
         mov rsi, [rbx + SB_BUF]
         mov rdx, [rbx + SB_LEN]
         call write_all
+        mov eax, 1
+        jmp .Lmain_exit
+.Lbadlevel:
+        mov edi, 2
+        lea rsi, [rip + .Ls_badlevel]
+        mov edx, .Ls_badlevel_end - .Ls_badlevel - 1
+        call write@PLT
         mov eax, 1
         jmp .Lmain_exit
 .Lusage_exit:
