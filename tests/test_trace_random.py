@@ -36,13 +36,18 @@ class PyTimeout(BaseException): pass
 def _alarm(*a): raise PyTimeout()
 signal.signal(signal.SIGALRM, _alarm)
 PY_LIMIT = float(os.environ.get("PY_LIMIT", "60"))
-_run = T.run
-def run(fn, *args):
+def run_obj(fn, *args):
+    """(python's result, its text as test_simplify.run gives it)"""
     signal.setitimer(signal.ITIMER_REAL, PY_LIMIT)
     try:
-        return _run(fn, *args)
+        r = fn(*args)
+        return r, T.norm(r)
+    except Exception as e:
+        return None, "<exc %s: %s>" % (type(e).__name__, e)
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
+def run(fn, *args):
+    return run_obj(fn, *args)[1]
 T.run = run
 PY_TIMEOUTS = 0
 
@@ -205,13 +210,12 @@ if __name__ == "__main__":
         if os.environ.get("TRACE"): print("TRACE", n, repr(trace), flush=True)
         try:
             passes(trace, "random %d" % n)
-            exp = run(S.simplify_trace, trace)
+            simplified, exp = run_obj(S.simplify_trace, trace)
             check("simplify_trace", trace, exp, "random %d" % n)
             # the folder, on the trace and on its simplification
             check("fold", trace, run(folder.fold, trace), "random %d" % n)
             if exp.startswith("<exc"):
                 continue
-            simplified = eval(exp)
             check("fold", simplified, run(folder.fold, simplified), "random %d (simplified)" % n)
         except PyTimeout:
             PY_TIMEOUTS += 1
