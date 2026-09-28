@@ -272,7 +272,11 @@ of memory (or overflows) for a shift of 2^255 before the result is
 reduced to 256 bits; the port gives 0, and python reports the function
 as a failure. And `BALANCE` of a constant address (`address(0x..).balance`)
 makes python's VM slice an int (`addr[:4]`, a TypeError): the function
-fails there, the port prints `eth.balance(0x..)`. `SAR` of two constants
+fails there, the port prints `eth.balance(0x..)`. Python's caches (`@cached`, dicts, sets) take `True` for `1`: a
+storage of size 1 can come back from one as a storage of size `True`
+(made from a boolean elsewhere), and its type can't be printed (an
+AssertionError that ends the decompilation); the port, whose `True`
+isn't the number 1, prints the `bool` of size 1. `SAR` of two constants
 by 256 or more of a negative value names `UINT_255_NEGATIVE_ONE`, which
 python's arithmetic doesn't define (a NameError): the port gives -1. A
 string in memory data whose length is -64 to -95 makes python's

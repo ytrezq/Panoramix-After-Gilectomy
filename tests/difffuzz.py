@@ -537,7 +537,10 @@ class Gen:
 KNOWN_PY_FAILURES = ("stack.append(exp << off)\nMemoryError",
                      "stack.append(exp << off)\nOverflowError",
                      # BALANCE of a constant: addr[:4] of an int
-                     'if addr[:4] == ("mask_shl", 160, 0, 0):\nTypeError')
+                     'if addr[:4] == ("mask_shl", 160, 0, 0):\nTypeError',
+                     # a storage of size True (python's caches take True
+                     # for 1): its type can't be printed
+                     'AssertionError: unknown type True')
 
 
 def run_python(code):
