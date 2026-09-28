@@ -22,6 +22,14 @@ From python (the module in `build/`):
     panoramix_asm.build_signature_db("abi_dump.xz")                       # once
     panoramix_asm.set_log_level("info")     # warnings and errors only by default
 
+`code` is the bytecode as bytes, or as a hex str (`0x` optional).
+`decompile` releases the GIL: several python threads can decompile
+contracts at once, in one process, each call using `threads` threads
+for the functions of its contract (by default as many as the machine
+has cores). A function that fails is reported in the text, as python
+does ("I failed with these"); an error where python would have printed
+a traceback raises `RuntimeError`.
+
 From C: `build/libpanoramix_asm.so` and `include/panoramix_asm.h`
 (`pan_decompile`, `pan_disasm`, `pan_build_sigdb`...; `make check` runs
 an example).
