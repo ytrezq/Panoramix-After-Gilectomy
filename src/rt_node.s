@@ -262,7 +262,11 @@ ENDF hc_grow
 .Ls_hc_nomem:   .asciz "out of memory: the system gave no more (malloc failed)"
         .text
 
-# mk_seq(kind, count, elems) -> rax: the unique node for this sequence
+# mk_seq(kind, count, elems) -> rax: the unique node for this sequence.
+# The hottest function of all (every tuple and list made goes through it,
+# most of them existing already): the comparison with a candidate, the
+# allocation and the copy are done here, the calls only for a big int
+# among the elements, a new chunk, a long copy.
 FUNC mk_seq
         ENTER
         sub rsp, 32
@@ -270,7 +274,7 @@ FUNC mk_seq
         mov [rsp + 8], rsi              # count
         mov [rsp + 16], rdx             # elems
         call hash_seq
-        mov [rsp + 24], rax             # hash
+        mov r14, rax                    # hash
         # grow if the table is half full
         mov rax, [r15 + CTX_HC_COUNT]
         shl rax, 1
@@ -280,49 +284,92 @@ FUNC mk_seq
 1:      mov rbx, [r15 + CTX_HC_TABLE]
         mov r13, [r15 + CTX_HC_CAP]
         dec r13                         # mask
-        mov r12, [rsp + 24]
+        mov r12, r14
         and r12, r13                    # slot
-2:      mov rdi, [rbx + r12*8]
+.Lmk_probe:
+        mov rdi, [rbx + r12*8]
         test rdi, rdi
         jz .Lmk_new
-        mov rax, [rsp + 24]
-        cmp [rdi + N_HASH], rax
+        cmp [rdi + N_HASH], r14
+        jne .Lmk_next
+        mov eax, [rsp]
+        cmp [rdi + N_KIND], eax
+        jne .Lmk_next
+        mov rcx, [rsp + 8]
+        cmp [rdi + N_AUX], ecx
+        jne .Lmk_next
+        mov rdx, [rsp + 16]
+        xor eax, eax
+2:      cmp rax, rcx
+        jae .Lmk_found
+        mov r8, [rdi + N_DATA + rax*8]
+        cmp r8, [rdx + rax*8]
         jne 3f
-        mov rsi, [rsp]
-        mov rdx, [rsp + 8]
+        inc rax
+        jmp 2b
+3:      # two different pointers: seq_equal decides (big ints by value)
+        mov esi, [rsp]
+        mov rdx, rcx
         mov rcx, [rsp + 16]
         call seq_equal
         test eax, eax
-        jz 3f
-        mov rax, [rbx + r12*8]
+        jz .Lmk_next
+        mov rdi, [rbx + r12*8]
+.Lmk_found:
+        mov rax, rdi
         add rsp, 32
         LEAVE
-3:      inc r12
+.Lmk_next:
+        inc r12
         and r12, r13
-        jmp 2b
+        jmp .Lmk_probe
 .Lmk_new:
-        mov rdi, [rsp + 8]
+        # arena_alloc_raw's bump, here
+        mov rsi, [rsp + 8]
+        lea rsi, [rsi*8 + N_DATA + 15]
+        and rsi, -16
+        mov rax, [r15 + CTX_ARENA_CUR]
+        lea rcx, [rax + rsi]
+        cmp rcx, [r15 + CTX_ARENA_END]
+        ja .Lmk_alloc_slow
+        mov [r15 + CTX_ARENA_CUR], rcx
+.Lmk_alloc_done:
+        mov rcx, [rsp]
+        mov [rax + N_KIND], ecx
+        mov rcx, [rsp + 8]
+        mov [rax + N_AUX], ecx
+        mov [rax + N_HASH], r14
+        mov [rbx + r12*8], rax
+        inc qword ptr [r15 + CTX_HC_COUNT]
+        inc qword ptr [r15 + CTX_NODE_COUNT]
+        mov rdx, [rsp + 16]
+        cmp rcx, 16
+        ja .Lmk_copy_long
+        xor esi, esi
+4:      cmp rsi, rcx
+        jae 5f
+        mov r8, [rdx + rsi*8]
+        mov [rax + N_DATA + rsi*8], r8
+        inc rsi
+        jmp 4b
+5:      add rsp, 32
+        LEAVE
+.Lmk_copy_long:
+        mov r12, rax
+        lea rdi, [rax + N_DATA]
+        mov rsi, rdx
+        shl rcx, 3
+        mov rdx, rcx
+        call memcpy@PLT
+        mov rax, r12
+        add rsp, 32
+        LEAVE
+.Lmk_alloc_slow:
+        mov rdi, [rsp + 8]              # (a new chunk: arena_alloc_raw)
         shl rdi, 3
         add rdi, N_DATA
         call arena_alloc_raw
-        mov r14, rax
-        mov rcx, [rsp]
-        mov [r14 + N_KIND], ecx
-        mov rcx, [rsp + 8]
-        mov [r14 + N_AUX], ecx
-        mov rcx, [rsp + 24]
-        mov [r14 + N_HASH], rcx
-        lea rdi, [r14 + N_DATA]
-        mov rsi, [rsp + 16]
-        mov rdx, [rsp + 8]
-        shl rdx, 3
-        call memcpy@PLT
-        mov [rbx + r12*8], r14
-        inc qword ptr [r15 + CTX_HC_COUNT]
-        inc qword ptr [r15 + CTX_NODE_COUNT]
-        mov rax, r14
-        add rsp, 32
-        LEAVE
+        jmp .Lmk_alloc_done
 ENDF mk_seq
 
 # mk_tuple(count, elems) / mk_list(count, elems)
