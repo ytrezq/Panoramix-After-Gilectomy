@@ -743,6 +743,7 @@ memo_kinds:
         .byte 0                         # LINE_VARS
         .byte 0                         # TRY_ADD (pairs)
         .byte 0                         # MUL2 (pairs)
+        .byte 3                         # AFFECTS (pairs, codes)
         .text
 
 # memo_sizes_log(): DEBUG: the number of entries of every memo table

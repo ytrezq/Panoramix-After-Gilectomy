@@ -335,8 +335,7 @@ FUNC cleanup_msize_impl
         call alg_max_to_add
         push rax
         push rax
-        lea rdi, [rip + .Ls_msize]
-        call str_intern_c
+        LOADS rax, MSIZE
         pop rdx                         # max_to_add(current_msize)
         pop rdx
         mov rsi, rax
@@ -365,8 +364,7 @@ FUNC cleanup_msize_impl
         je 41f
         # we could take the max of both, but that gets expensive quickly,
         # and msize isn't used by any recent compiler
-        lea rdi, [rip + .Ls_msize]
-        call str_intern_c
+        LOADS rax, MSIZE
 41:     mov [rsp + CM_MSIZE], rax
         jmp .Lcm_line
 5:      mov rdi, r14
@@ -390,8 +388,7 @@ FUNC cleanup_msize_impl
 .Lcm_replace_msize:
         sub rsp, 24
         mov [rsp], rdi
-        lea rdi, [rip + .Ls_msize]
-        call str_intern_c
+        LOADS rax, MSIZE
         mov rsi, rax
         mov rdi, [rsp]
         mov rdx, [rsp + 24 + 8 + CM_MSIZE]      # (the caller's frame: past the return address)
@@ -480,12 +477,46 @@ FUNC affects
         ENTER
         mov rbx, rdi
         mov r12, rsi
+        # memoized: a pure function of the two (replace_mem asks it of
+        # every line after every memory write, the same writes again and
+        # again - mem[64])
+        mov edi, MEMO_AFFECTS
+        mov rsi, rbx
+        mov rdx, r12
+        call memo2_get
+        test rax, rax
+        jz 1f
+        xor ecx, ecx
+        cmp rax, MEMO_TRUE              # (rax: the code)
+        sete cl
+        mov eax, ecx
+        LEAVE
+1:      mov rdi, rbx
+        mov rsi, r12
+        call affects_impl
+        mov r13d, eax
+        mov ecx, MEMO_FALSE
+        mov eax, MEMO_TRUE
+        test r13d, r13d
+        cmovnz ecx, eax
+        mov edi, MEMO_AFFECTS
+        mov rsi, rbx
+        mov rdx, r12
+        call memo2_put
+        mov eax, r13d
+        LEAVE
+ENDF affects
+
+FUNC affects_impl
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
         mov rdi, r12
         call is_tuple
         test eax, eax
         jnz 1f
-        lea rdi, [rip + .Ls_msize]
-        call str_intern_c
+        LOADS rax, MSIZE
         cmp r12, rax
         jne .Laf_no
 1:      mov rdi, r12
@@ -493,8 +524,7 @@ FUNC affects
         call mentions
         test eax, eax
         jz 2f
-        lea rdi, [rip + .Ls_undefined]
-        call str_intern_c
+        LOADS rax, UNDEFINED
         mov rsi, rax
         mov edi, 1
         call mk_range
@@ -528,7 +558,7 @@ FUNC affects
 .Laf_no:
         xor eax, eax
         LEAVE
-ENDF affects
+ENDF affects_impl
 
         .section .rodata
 .Ls_undefined: .asciz "undefined"

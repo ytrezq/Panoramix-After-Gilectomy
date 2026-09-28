@@ -1112,8 +1112,7 @@ FUNC splits_mem
         call alg_safe_ge_zero
         cmp eax, TRI_TRUE
         je 1f
-        lea rdi, [rip + .Ls_undefined]
-        call str_intern_c
+        LOADS rax, UNDEFINED
         mov [rsp + SM_S_LEN], rax
         mov rdi, [r12 + N_DATA + 8]
         mov rsi, rax
