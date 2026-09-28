@@ -227,6 +227,7 @@ FUNC compact_threshold
         mov rax, [rip + compact_bytes]
         test rax, rax
         jz 1f
+.Lct_have:
         cmp byte ptr [rip + compact_env], 0
         jne 3f                          # (set by the variable: as it is)
         mov rcx, [r15 + CTX_MEM_LIMIT]
@@ -251,8 +252,9 @@ FUNC compact_threshold
         mov rbx, rax
         mov byte ptr [rip + compact_env], 1
 2:      mov [rip + compact_bytes], rbx
+        mov rax, rbx
         pop rbx
-        jmp compact_threshold
+        jmp .Lct_have
 ENDF compact_threshold
 
         .section .data
