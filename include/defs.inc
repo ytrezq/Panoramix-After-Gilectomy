@@ -301,3 +301,15 @@
         .text
         mov \reg, [rip + .Lpat_v\@]
 .endm
+
+# --- the counters of a loop (loops.s parse_counters); 0 = absent ---
+.set PC_SETVARS, 0          # tuple of ('setvar', idx, value): the values before the loop
+.set PC_JDS, 8              # the loop's id
+.set PC_STEPVARS, 16        # list of (idx, value): the values at a continue
+.set PC_COUNTER, 24         # the counter variable's index
+.set PC_START, 32
+.set PC_STOP, 40
+.set PC_STEP, 48
+.set PC_NUM_LOOPS, 56
+.set PC_ENDVARS, 64         # list of (idx, value): the values after the loop
+.set PC_SIZEOF, 80

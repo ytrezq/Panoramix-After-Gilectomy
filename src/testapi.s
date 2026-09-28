@@ -61,6 +61,37 @@ test_table:
         .quad .Ln_cleanup_mask_data, cleanup_mask_data
         .quad .Ln_canonise_max, canonise_max
         .quad .Ln_sizeof_s, tf_sizeof_s
+        .quad .Ln_cleanup_conds, cleanup_conds
+        .quad .Ln_cleanup_msize, cleanup_msize
+        .quad .Ln_cleanup_mems, tf_cleanup_mems
+        .quad .Ln_cleanup_vars, tf_cleanup_vars
+        .quad .Ln_replace_var, tf_replace_var
+        .quad .Ln_replace_mem, tf_replace_mem
+        .quad .Ln_parse_counters, tf_parse_counters
+        .quad .Ln_loop_to_setmem, tf_loop_to_setmem
+        .quad .Ln_propagate_storage_in_loops, propagate_storage_in_loops
+        .quad .Ln_readability, readability
+        .quad .Ln_replace_bytes_or_string_length, replace_bytes_or_string_length
+        .quad .Ln_postprocess_exp, tf_postprocess_exp
+        .quad .Ln_postprocess_trace, tf_postprocess_trace
+        .quad .Ln_rewrite_string_stores, tf_rewrite_string_stores
+        .quad .Ln_pp_cleanup_mul_1, pp_cleanup_mul_1
+        .quad .Ln_simplify_trace, tf_simplify_trace
+        .quad .Ln_make_whiles, tf_make_whiles
+        .quad .Ln_while_max_memidx, while_max_memidx
+        .quad .Ln_extract_setmems, extract_setmems
+        .quad .Ln_extract_paths, extract_paths
+        .quad .Ln_while_touches_mem, tf_while_touches_mem
+        .quad .Ln_while_uses_mem, tf_while_uses_mem
+        .quad .Ln_exp_uses_mem, tf_exp_uses_mem
+        .quad .Ln_affects, tf_affects
+        .quad .Ln_overwrites_mem, tf_overwrites_mem
+        .quad .Ln_mem_use, tf_mem_use
+        .quad .Ln_trace_ends_execution, tf_trace_ends_execution
+        .quad .Ln_normalize, tf_normalize
+        .quad .Ln_find_mems, find_mems
+        .quad .Ln_split_setmem_trace, tf_split_setmem_trace
+        .quad .Ln_split_store_trace, tf_split_store_trace
         .quad 0, 0
 
         .section .rodata
@@ -117,6 +148,37 @@ test_table:
 .Ln_cleanup_mask_data: .asciz "cleanup_mask_data"
 .Ln_canonise_max: .asciz "canonise_max"
 .Ln_sizeof_s:  .asciz "sizeof_s"
+.Ln_cleanup_conds: .asciz "cleanup_conds"
+.Ln_cleanup_msize: .asciz "cleanup_msize"
+.Ln_cleanup_mems: .asciz "cleanup_mems"
+.Ln_cleanup_vars: .asciz "cleanup_vars"
+.Ln_replace_var: .asciz "replace_var"
+.Ln_replace_mem: .asciz "replace_mem"
+.Ln_parse_counters: .asciz "parse_counters"
+.Ln_loop_to_setmem: .asciz "loop_to_setmem"
+.Ln_propagate_storage_in_loops: .asciz "propagate_storage_in_loops"
+.Ln_readability: .asciz "readability"
+.Ln_replace_bytes_or_string_length: .asciz "replace_bytes_or_string_length"
+.Ln_postprocess_exp: .asciz "postprocess_exp"
+.Ln_postprocess_trace: .asciz "postprocess_trace"
+.Ln_rewrite_string_stores: .asciz "rewrite_string_stores"
+.Ln_pp_cleanup_mul_1: .asciz "pp_cleanup_mul_1"
+.Ln_simplify_trace: .asciz "simplify_trace"
+.Ln_make_whiles: .asciz "make_whiles"
+.Ln_while_max_memidx: .asciz "while_max_memidx"
+.Ln_extract_setmems: .asciz "extract_setmems"
+.Ln_extract_paths: .asciz "extract_paths"
+.Ln_while_touches_mem: .asciz "while_touches_mem"
+.Ln_while_uses_mem: .asciz "while_uses_mem"
+.Ln_exp_uses_mem: .asciz "exp_uses_mem"
+.Ln_affects: .asciz "affects"
+.Ln_overwrites_mem: .asciz "overwrites_mem"
+.Ln_mem_use: .asciz "mem_use"
+.Ln_trace_ends_execution: .asciz "trace_ends_execution"
+.Ln_normalize: .asciz "normalize"
+.Ln_find_mems: .asciz "find_mems"
+.Ln_split_setmem_trace: .asciz "split_setmem_trace"
+.Ln_split_store_trace: .asciz "split_store_trace"
 .Ls_unknown_fn: .asciz "<unknown test function>"
 .Ls_parse_err:  .asciz "<parse error at %u>"
 
@@ -708,6 +770,208 @@ FUNC tf_sizeof_s
         call none_if_nil
         LEAVE
 ENDF tf_sizeof_s
+
+# the simplifier passes
+FUNC tf_cleanup_mems
+        xor esi, esi
+        jmp cleanup_mems
+ENDF tf_cleanup_mems
+
+FUNC tf_cleanup_vars
+        xor esi, esi
+        jmp cleanup_vars
+ENDF tf_cleanup_vars
+
+FUNC tf_replace_var
+        mov rdx, [rdi + N_DATA + 16]
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        jmp replace_var
+ENDF tf_replace_var
+
+FUNC tf_replace_mem
+        mov rdx, [rdi + N_DATA + 16]
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        jmp replace_mem
+ENDF tf_replace_mem
+
+# parse_counters(line) -> (setvars, jds, stepvars, counter, start, stop, step, num_loops, endvars), None for absent
+FUNC tf_parse_counters
+        ENTER
+        sub rsp, 80
+        call parse_counters
+        mov rbx, rax
+        xor r12d, r12d
+1:      cmp r12d, 9
+        jae 2f
+        mov rdi, [rbx + r12*8]
+        call none_if_nil
+        mov [rsp + r12*8], rax
+        inc r12d
+        jmp 1b
+2:      mov edi, 9
+        mov rsi, rsp
+        call mk_tuple
+        add rsp, 80
+        LEAVE
+ENDF tf_parse_counters
+
+FUNC tf_loop_to_setmem
+        ENTER
+        mov rbx, rdi
+        call vec_new
+        mov r12, rax
+        mov rdi, rbx
+        xor esi, esi
+        mov rdx, r12
+        call loop_to_setmem
+        mov rdi, r12
+        call vec_to_list
+        LEAVE
+ENDF tf_loop_to_setmem
+
+FUNC tf_postprocess_exp
+        xor esi, esi
+        jmp postprocess_exp
+ENDF tf_postprocess_exp
+
+FUNC tf_postprocess_trace
+        ENTER
+        mov rbx, rdi
+        call vec_new
+        mov r12, rax
+        mov rdi, rbx
+        xor esi, esi
+        mov rdx, r12
+        call postprocess_trace
+        mov rdi, r12
+        call vec_to_list
+        LEAVE
+ENDF tf_postprocess_trace
+
+FUNC tf_rewrite_string_stores
+        ENTER
+        mov rbx, rdi
+        xor edi, edi
+        xor esi, esi
+        call mk_list
+        mov rdi, rbx
+        mov rsi, rax
+        call rewrite_string_stores
+        LEAVE
+ENDF tf_rewrite_string_stores
+
+FUNC tf_simplify_trace
+        xor esi, esi
+        jmp simplify_trace
+ENDF tf_simplify_trace
+
+FUNC tf_make_whiles
+        xor esi, esi
+        jmp make_whiles
+ENDF tf_make_whiles
+
+FUNC tf_while_touches_mem
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call while_touches_mem
+        mov edi, eax
+        call tri_value
+        LEAVE
+ENDF tf_while_touches_mem
+
+FUNC tf_while_uses_mem
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call while_uses_mem
+        mov edi, eax
+        call tri_value
+        LEAVE
+ENDF tf_while_uses_mem
+
+FUNC tf_exp_uses_mem
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call exp_uses_mem
+        mov edi, eax
+        call tri_value
+        LEAVE
+ENDF tf_exp_uses_mem
+
+FUNC tf_affects
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call affects
+        mov edi, eax
+        call tri_value
+        LEAVE
+ENDF tf_affects
+
+FUNC tf_overwrites_mem
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call overwrites_mem
+        mov edi, eax
+        call tri_value
+        LEAVE
+ENDF tf_overwrites_mem
+
+# mem_use((trace, idx)) -> 'used' / 'overwritten' / 'neither'
+FUNC tf_mem_use
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call mem_use
+        lea rdi, [rip + .Ls_used]
+        cmp eax, 1
+        je 1f
+        lea rdi, [rip + .Ls_overwritten]
+        cmp eax, 2
+        je 1f
+        lea rdi, [rip + .Ls_neither]
+1:      call str_intern_c
+        LEAVE
+ENDF tf_mem_use
+
+        .section .rodata
+.Ls_used: .asciz "used"
+.Ls_overwritten: .asciz "overwritten"
+.Ls_neither: .asciz "neither"
+        .text
+
+FUNC tf_trace_ends_execution
+        ENTER
+        call trace_ends_execution
+        mov edi, eax
+        call tri_value
+        LEAVE
+ENDF tf_trace_ends_execution
+
+FUNC tf_normalize
+        ENTER
+        call normalize
+        mov rdi, rax
+        call none_if_nil
+        LEAVE
+ENDF tf_normalize
+
+FUNC tf_split_setmem_trace
+        lea rsi, [rip + split_setmem]
+        xor edx, edx
+        jmp rewrite_trace
+ENDF tf_split_setmem_trace
+
+FUNC tf_split_store_trace
+        lea rsi, [rip + split_store]
+        xor edx, edx
+        jmp rewrite_trace_full
+ENDF tf_split_store_trace
 
 # tf_exc_value() -> the string '<exc code: message>' for the error thrown
 FUNC tf_exc_value
