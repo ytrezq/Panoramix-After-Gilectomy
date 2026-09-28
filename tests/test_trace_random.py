@@ -13,19 +13,38 @@ before it runs.
 import os, random, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_simplify as T
-from test_simplify import S, run, passes
+from test_simplify import S, passes
 
 # python's recursion limit (1000 frames) isn't the port's (the stack): an
-# expression that grows deeper round after round stops python only
+# expression that grows deeper round after round stops python only; and
+# python's memory isn't the port's either
 _check = T.check
 RECURSION_LIMITED = 0
 def check(name, arg, expected, ctx=""):
     global RECURSION_LIMITED
-    if expected.startswith("<exc RecursionError"):
+    if expected.startswith("<exc RecursionError") or expected.startswith("<exc MemoryError"):
         RECURSION_LIMITED += 1
         return True
     return _check(name, arg, expected, ctx)
 T.check = check
+
+# a trace whose expressions double at every round (a loop's end values
+# put back into the loop, round after round) takes python hours: past
+# PY_LIMIT seconds for one of its calls, the trace is skipped
+import signal
+class PyTimeout(BaseException): pass
+def _alarm(*a): raise PyTimeout()
+signal.signal(signal.SIGALRM, _alarm)
+PY_LIMIT = float(os.environ.get("PY_LIMIT", "60"))
+_run = T.run
+def run(fn, *args):
+    signal.setitimer(signal.ITIMER_REAL, PY_LIMIT)
+    try:
+        return _run(fn, *args)
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+T.run = run
+PY_TIMEOUTS = 0
 
 random.seed(int(sys.argv[1]) if len(sys.argv) > 1 else 1)
 N = int(sys.argv[2]) if len(sys.argv) > 2 else 200
@@ -92,7 +111,32 @@ def rline(d):
                 ("mem", ("range", start, 4)), ("mem", ("range", ("add", 4, start) if not isinstance(start, int) else start + 4, 64)))
     if r < 0.85: return ("require", rcond())
     if r < 0.92 and d < 2: return rwhile(d)
+    if r < 0.96 and OTHERS: return rother()
     return ("setmem", ("range", 64, 32), ("add", 32, ("mem", ("range", 64, 32))))
+
+# the other lines of the VM: the other calls, the creations, the
+# precompiled contracts, msize, the return data written to memory
+OTHERS = os.environ.get("OTHERS", "1") != "0"
+def rother():
+    start = rpos()
+    fname = ("mem", ("range", start, 4))
+    fparams = ("mem", ("range", ("add", 4, start) if not isinstance(start, int) else start + 4, random.choice([32, 64, ("cd", 4)])))
+    r = random.random()
+    if r < 0.15: return ("delegatecall", "gas", rexp(1), fname, random.choice([fparams, 0]))
+    if r < 0.3: return ("staticcall", "gas", rexp(1), 0, random.choice([fname, None]), random.choice([fparams, None]))
+    if r < 0.35: return ("callcode", "gas", rexp(1), random.choice([0, "callvalue"]), fname, fparams)
+    if r < 0.45: return ("create", random.choice([0, "callvalue"]), ("mem", rrange()))
+    if r < 0.5: return ("create2", 0, ("mem", rrange()), rexp(1))
+    if r < 0.6:
+        k = random.choice([1, 2, 3, 5])
+        return ("precompiled", {1: "signer", 2: "hash", 3: "hash", 5: "mod_exp"}[k],
+                {1: "erecover", 2: "sha256hash", 3: "ripemd160hash", 5: "bigModExp"}[k], ("mem", rrange()))
+    if r < 0.7: return ("setvar", random.choice(["_1", "_2"]), "msize")
+    if r < 0.8:
+        n = random.choice([32, 64, ("cd", 4)])
+        return ("setmem", ("range", rpos(), n), (random.choice(["ext_call.return_data", "delegate.return_data"]), 0, n))
+    if r < 0.9: return ("setmem", rrange(), ("var", random.choice(["_1", "_2", "signer", "hash"])))
+    return ("log", ("mem", rrange()), random.choice([0xddf252ad, rint()]))
 
 LOOP_VARS = [15001, 15002, 27001]
 
@@ -127,6 +171,9 @@ def rtrace(d=0):
     if end < 0.4: t.append(("return", ("mem", rrange())))
     elif end < 0.6: t.append(("revert", 0))
     elif end < 0.8: t.append(("stop",))
+    elif end < 0.9 and OTHERS:
+        t.append(random.choice([("selfdestruct", random.choice(["caller", ("cd", 4), rexp(1)])), ("invalid",),
+                                ("assert_fail",), ("revert", ("mem", rrange())), ("return", 0)]))
     return t
 
 # cases the random runs found once: always checked
@@ -156,16 +203,20 @@ if __name__ == "__main__":
     for n in range(N):
         trace = rtrace()
         if os.environ.get("TRACE"): print("TRACE", n, repr(trace), flush=True)
-        passes(trace, "random %d" % n)
-        exp = run(S.simplify_trace, trace)
-        check("simplify_trace", trace, exp, "random %d" % n)
-        # the folder, on the trace and on its simplification
-        check("fold", trace, run(folder.fold, trace), "random %d" % n)
         try:
-            simplified = S.simplify_trace(trace)
-        except Exception:
-            continue
-        check("fold", simplified, run(folder.fold, simplified), "random %d (simplified)" % n)
-    if RECURSION_LIMITED: print(f"{RECURSION_LIMITED} cases past python's recursion limit")
+            passes(trace, "random %d" % n)
+            exp = run(S.simplify_trace, trace)
+            check("simplify_trace", trace, exp, "random %d" % n)
+            # the folder, on the trace and on its simplification
+            check("fold", trace, run(folder.fold, trace), "random %d" % n)
+            if exp.startswith("<exc"):
+                continue
+            simplified = eval(exp)
+            check("fold", simplified, run(folder.fold, simplified), "random %d (simplified)" % n)
+        except PyTimeout:
+            PY_TIMEOUTS += 1
+            print(f"random {n}: python past {PY_LIMIT:g} s, skipped", flush=True)
+    if RECURSION_LIMITED: print(f"{RECURSION_LIMITED} cases past python's recursion limit (or its memory)")
+    if PY_TIMEOUTS: print(f"{PY_TIMEOUTS} traces skipped (python past {PY_LIMIT:g} s)")
     print(f"{T.cases} cases, {T.bad} mismatches")
     sys.exit(1 if T.bad else 0)
