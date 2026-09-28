@@ -38,6 +38,7 @@
 .set HF_MEM, 1 << 56
 .set HF_MSIZE, 1 << 57
 .set HF_STORAGE, 1 << 58
+.set HF_VAR, 1 << 59        # a ('var', ...): the string "var" itself (find_op_list's pruning)
 .set HF_SHIFT, 56
 .set HF_MASK, 0xff << 56
 
@@ -84,7 +85,7 @@
 .set CTX_TMPZ, CTX_MPZ_A    # used by mk_int_i64/u64/bytes_be and the parser
 .set CTX_TMPZ2, CTX_MPZ_T   # used by value_mpz
 .set CTX_LOADER, 160
-# 168..295: memo tables, 16 slots (see CTX_MEMO)
+# 168..295: free
 .set CTX_VM, 296            # the VM this thread runs (vm.s)
 .set CTX_ERR_BUF, 304       # the innermost error handler (rt_err.s)
 .set CTX_ERR_CODE, 312      # what was thrown
@@ -96,7 +97,8 @@
 .set EVAL_POOL_DEPTH, 32
 .set CTX_ARENA_PEAK, 352 + 32 * MPZ_SIZEOF     # the most the arena took
 .set CTX_CHILD_LIMIT, CTX_ARENA_PEAK + 8        # CTX_MEM_LIMIT of the contexts it makes
-.set CTX_SIZE, CTX_ARENA_PEAK + 16
+.set CTX_MEMO, CTX_ARENA_PEAK + 16              # the memo tables, 32 slots (see MEMO_*)
+.set CTX_SIZE, CTX_MEMO + 32 * 8
 
 # error handler buffer (rt_err.s)
 .set ERR_RBX, 0
@@ -388,7 +390,6 @@ ENDF \fname
 .set MAP_SIZEOF, 24
 
 # memo tables in the context (created lazily by memo_table)
-.set CTX_MEMO, 168          # 16 slots
 .set MEMO_SIMPLIFY, 0
 .set MEMO_GE_ZERO, 1
 .set MEMO_LT, 2
@@ -405,7 +406,8 @@ ENDF \fname
 .set MEMO_RANGE_OVERLAPS, 13
 .set MEMO_SIGDB, 14         # selector -> abi entry (sigdb.s)
 .set MEMO_IMPORT, 15        # value_import: a VM node -> its copy here
-.set MEMO_COUNT, 16
+.set MEMO_LINE_VARS, 16     # a line -> the ('var', ...) in it (cleanup_vars' required_after)
+.set MEMO_COUNT, 17
 # sentinel values stored in memo tables for python's None / False (values
 # and pointers are never 2 or 4)
 .set MEMO_NONE, 2

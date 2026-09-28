@@ -133,7 +133,7 @@ ENDF str_intern
 
 # str_scan_flags(ptr, len) -> eax: STR_VOLATILE if the string mentions one
 # of the VOLATILE names (see arithmetic.py), else 0; rdx: the HF_* mention
-# flags ("mem", "msize", "storage"). One pass over the text: a byte is
+# flags ("mem", "msize", "storage" anywhere; HF_VAR: the string "var"). One pass over the text: a byte is
 # looked up in a table of the names' first letters, and only a candidate
 # is compared with the names.
 FUNC str_scan_flags
@@ -182,7 +182,16 @@ FUNC str_scan_flags
         jmp 2b
 8:      inc r14
         jmp 1b
-9:      mov eax, [rsp + SF_VOLATILE]
+9:      cmp r13, 3                      # "var" exactly: HF_VAR
+        jne 10f
+        movzx eax, word ptr [r12]
+        cmp eax, 0x6176                 # "va"
+        jne 10f
+        cmp byte ptr [r12 + 2], 'r'
+        jne 10f
+        mov rax, HF_VAR
+        or [rsp + SF_HF], rax
+10:     mov eax, [rsp + SF_VOLATILE]
         mov rdx, [rsp + SF_HF]
         add rsp, 32
         LEAVE

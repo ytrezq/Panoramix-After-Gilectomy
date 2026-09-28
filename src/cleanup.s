@@ -1369,9 +1369,12 @@ ENDF map_seq_with
 .set RQ_SIZEOF, 16
 
 # req_new(parent, trace) -> req: the parent's variables plus the ones the
-# trace mentions (required_after + find_op_list(trace, "var"))
+# trace mentions (required_after + find_op_list(trace, "var")). The
+# variables of a line are remembered (line_vars): at every if, python
+# searches the rest of the trace again.
 FUNC req_new
         ENTER
+        sub rsp, 16
         mov rbx, rdi
         mov r12, rsi
         mov edi, RQ_SIZEOF
@@ -1380,25 +1383,54 @@ FUNC req_new
         mov [r13 + RQ_PARENT], rbx
         call map_new
         mov [r13 + RQ_MAP], rax
-        call vec_new
-        mov r14, rax
-        mov rdi, r12
-        mov esi, OP_VAR
-        mov rdx, r14
-        call find_op_list
-        mov rbx, [r14 + VEC_LEN]
-1:      test rbx, rbx
-        jz 2f
-        dec rbx
-        mov rax, [r14 + VEC_DATA]
-        mov rsi, [rax + rbx*8]
+        xor r14d, r14d
+1:      cmp r14d, [r12 + N_AUX]
+        jae 4f
+        mov rdi, [r12 + N_DATA + r14*8]
+        inc r14
+        call line_vars
+        mov [rsp], rax
+        mov qword ptr [rsp + 8], 0
+2:      mov rax, [rsp]
+        mov rcx, [rsp + 8]
+        cmp ecx, [rax + N_AUX]
+        jae 1b
+        mov rsi, [rax + N_DATA + rcx*8]
+        inc qword ptr [rsp + 8]
         mov rdi, [r13 + RQ_MAP]
         mov edx, 2                      # (any non-zero value)
         call map_put
-        jmp 1b
-2:      mov rax, r13
+        jmp 2b
+4:      mov rax, r13
+        add rsp, 16
         LEAVE
 ENDF req_new
+
+# line_vars(line) -> list: find_op_list(line, "var"), remembered
+FUNC line_vars
+        ENTER
+        mov rbx, rdi
+        mov edi, MEMO_LINE_VARS
+        mov rsi, rbx
+        call memo_get
+        test rax, rax
+        jnz 1f
+        call vec_new
+        mov r12, rax
+        mov rdi, rbx
+        mov esi, OP_VAR
+        mov rdx, r12
+        call find_op_list
+        mov rdi, r12
+        call vec_to_list
+        mov r12, rax
+        mov edi, MEMO_LINE_VARS
+        mov rsi, rbx
+        mov rdx, rax
+        call memo_put
+        mov rax, r12
+1:      LEAVE
+ENDF line_vars
 
 # req_has(req, var) -> eax: the variable is required after
 FUNC req_has
@@ -1580,14 +1612,9 @@ FUNC cleanup_vars
         jmp .Lcv_done
 .Lcv_if:
         # a variable set in a branch may be used after the if, when the
-        # branches merge again
-        mov rdi, rbx
-        mov rsi, r13
-        call list_from
-        mov rdi, [rsp + CV_REQ]
-        mov rsi, rax
-        call req_new
-        mov [rsp + CV_REQ2], rax
+        # branches merge again (the variables of the rest of the trace:
+        # made when a branch goes on, most end with a revert)
+        mov qword ptr [rsp + CV_REQ2], 0
         mov rdi, [r14 + N_DATA + 16]
         call .Lcv_branch
         mov [rsp + CV_TMP], rax
@@ -1610,10 +1637,20 @@ FUNC cleanup_vars
         sub rsp, 24
         mov [rsp], rdi
         call trace_ends_execution
-        mov rsi, [rsp + 24 + 8 + CV_REQ2]
-        test eax, eax
-        jz 7f
         mov rsi, [rsp + 24 + 8 + CV_REQ]
+        test eax, eax
+        jnz 7f
+        mov rsi, [rsp + 24 + 8 + CV_REQ2]
+        test rsi, rsi
+        jnz 7f
+        mov rdi, rbx                    # required_after + find_op_list(trace[idx + 1:], "var")
+        mov rsi, r13
+        call list_from
+        mov rdi, [rsp + 24 + 8 + CV_REQ]
+        mov rsi, rax
+        call req_new
+        mov [rsp + 24 + 8 + CV_REQ2], rax
+        mov rsi, rax
 7:      mov rdi, [rsp]
         call cleanup_vars
         add rsp, 24

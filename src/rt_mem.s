@@ -507,7 +507,8 @@ ENDF arena_alloc
 # the scratch mpz are made again.
 FUNC ctx_compact
         ENTER
-        sub rsp, 16 + MEMO_COUNT * 8
+        .set CC_FRAME, (16 + MEMO_COUNT * 8 + 15) & -16
+        sub rsp, CC_FRAME
         .set CC_FREED, 0
         .set CC_SLOT, 8
         .set CC_MEMOS, 16               # the old memo tables
@@ -567,7 +568,7 @@ FUNC ctx_compact
         shr r8, 20
         call log_fmt
         mov rax, rbx
-        add rsp, 16 + MEMO_COUNT * 8
+        add rsp, CC_FRAME
         LEAVE
 ENDF ctx_compact
 
@@ -634,6 +635,7 @@ memo_kinds:
         .byte 2                         # RANGE_OVERLAPS
         .byte 0                         # SIGDB
         .byte 0                         # IMPORT: the import's own
+        .byte 0                         # LINE_VARS
         .text
 
 # memo_sizes_log(): DEBUG: the number of entries of every memo table

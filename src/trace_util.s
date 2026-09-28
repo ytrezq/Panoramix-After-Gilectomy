@@ -799,34 +799,54 @@ FUNC replace_f_stop
 ENDF replace_f_stop
 
 # find_op_list(exp, op, out): the sub-expressions with the opcode `op`,
-# depth first (an expression found is not searched further)
+# depth first (an expression found is not searched further). For 'var',
+# the trees without the mention flag HF_VAR are skipped: cleanup_vars
+# asks for the variables of the rest of the trace at every if.
 FUNC find_op_list
         STACK_CHECK
-        ENTER
+        test dil, 1
+        jnz 9f
+        test rdi, rdi
+        jz 9f
+        mov eax, [rdi + N_KIND]
+        sub eax, K_TUPLE
+        cmp eax, K_LIST - K_TUPLE
+        ja 9f                           # a leaf: not a sequence
+        cmp esi, OP_VAR
+        jne 1f
+        mov rax, HF_VAR
+        test [rdi + N_HASH], rax
+        jz 9f                           # no 'var' in there
+1:      ENTER
         mov rbx, rdi
         mov r12, rsi
         mov r13, rdx
         call opcode_of
         cmp eax, r12d
-        jne 1f
+        jne 2f
         mov rdi, r13
         mov rsi, rbx
         call vec_push
         LEAVE
-1:      mov rdi, rbx
-        call is_seq
-        test eax, eax
-        jz 3f
-        xor r14d, r14d
-2:      cmp r14d, [rbx + N_AUX]
-        jae 3f
+2:      xor r14d, r14d
+3:      cmp r14d, [rbx + N_AUX]
+        jae 4f
         mov rdi, [rbx + N_DATA + r14*8]
+        inc r14
+        test dil, 1
+        jnz 3b                          # (the leaves, without a call)
+        test rdi, rdi
+        jz 3b
+        mov eax, [rdi + N_KIND]
+        sub eax, K_TUPLE
+        cmp eax, K_LIST - K_TUPLE
+        ja 3b
         mov rsi, r12
         mov rdx, r13
         call find_op_list
-        inc r14
-        jmp 2b
-3:      LEAVE
+        jmp 3b
+4:      LEAVE
+9:      ret
 ENDF find_op_list
 
         .section .note.GNU-stack,"",@progbits
