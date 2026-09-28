@@ -1,0 +1,3718 @@
+# Palkeoramix decompiler. 
+
+const factory = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73
+const WETH = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+
+#
+#  Regular functions
+#
+
+def _fallback(?) payable: # default function
+  revert
+
+def quote(uint256 amountA, uint256 reserveA, uint256 reserveB): # not payable
+  require calldata.size - 4 >= 96
+  if amountA <= 0:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  32,
+                  35,
+                  0x5450616e63616b654c6962726172793a20494e53554646494349454e545f414d4f554e,
+                  mem[199 len 29]
+  if reserveA <= 0:
+      _3 = reserveA > 0
+  else:
+      _3 = reserveB > 0
+  if not _3:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  32,
+                  38,
+                  0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4c49515549444954,
+                  mem[202 len 26]
+  if not reserveB:
+      _6 = 0
+      _7 = not reserveB
+  else:
+      _6 = amountA * reserveB
+      _7 = amountA * reserveB / reserveB == amountA
+  if not _7:
+      revert with 0, 'ds-math-mul-overflow'
+  require reserveA
+  return (_6 / reserveA)
+
+def getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut): # not payable
+  require calldata.size - 4 >= 96
+  if amountIn <= 0:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  32,
+                  41,
+                  0xfe50616e63616b654c6962726172793a20494e53554646494349454e545f494e5055545f414d4f554e,
+                  mem[205 len 23]
+  if reserveIn <= 0:
+      _3 = reserveIn > 0
+  else:
+      _3 = reserveOut > 0
+  if not _3:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  32,
+                  38,
+                  0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4c49515549444954,
+                  mem[202 len 26]
+  if 9975 * amountIn / 9975 != amountIn:
+      revert with 0, 'ds-math-mul-overflow'
+  if not reserveOut:
+      _8 = 0
+      _9 = not reserveOut
+  else:
+      _8 = 9975 * amountIn * reserveOut
+      _9 = 9975 * amountIn * reserveOut / reserveOut == 9975 * amountIn
+  if not _9:
+      revert with 0, 'ds-math-mul-overflow'
+  if 10000 * reserveIn / 10000 != reserveIn:
+      revert with 0, 'ds-math-mul-overflow'
+  if (10000 * reserveIn) + (9975 * amountIn) < 10000 * reserveIn:
+      revert with 0, 'ds-math-add-overflow'
+  require (10000 * reserveIn) + (9975 * amountIn)
+  return (_8 / (10000 * reserveIn) + (9975 * amountIn))
+
+def getAmountIn(uint256 amountOut, uint256 reserveIn, uint256 reserveOut): # not payable
+  require calldata.size - 4 >= 96
+  if amountOut <= 0:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  32,
+                  42,
+                  0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4f55545055545f414d4f554e,
+                  mem[206 len 22]
+  if reserveIn <= 0:
+      _3 = reserveIn > 0
+  else:
+      _3 = reserveOut > 0
+  if not _3:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  32,
+                  38,
+                  0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4c49515549444954,
+                  mem[202 len 26]
+  if not amountOut:
+      _6 = 0
+      _7 = not amountOut
+  else:
+      _6 = reserveIn * amountOut
+      _7 = reserveIn * amountOut / amountOut == reserveIn
+  if not _7:
+      revert with 0, 'ds-math-mul-overflow'
+  if 10000 * _6 / 10000 != _6:
+      revert with 0, 'ds-math-mul-overflow'
+  if reserveOut - amountOut > reserveOut:
+      revert with 0, 'ds-math-sub-underflow'
+  if (9975 * reserveOut) - (9975 * amountOut) / 9975 != reserveOut - amountOut:
+      revert with 0, 'ds-math-mul-overflow'
+  require (9975 * reserveOut) - (9975 * amountOut)
+  if (10000 * _6 / (9975 * reserveOut) - (9975 * amountOut)) + 1 < 10000 * _6 / (9975 * reserveOut) - (9975 * amountOut):
+      revert with 0, 'ds-math-add-overflow'
+  return ((10000 * _6 / (9975 * reserveOut) - (9975 * amountOut)) + 1)
+
+def removeLiquidity(address tokenA, address tokenB, uint256 liquidity, uint256 amountAMin, uint256 amountBMin, address to, uint256 deadline): # not payable
+  require calldata.size - 4 >= 224
+  if deadline < block.timestamp:
+      revert with 0, 'PancakeRouter: EXPIRED'
+  if tokenA == tokenB:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  32,
+                  35,
+                  0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345,
+                  mem[199 len 29]
+  if tokenA < tokenB:
+      _5 = tokenA
+      _6 = tokenB
+  else:
+      _5 = tokenB
+      _6 = tokenA
+  if not address(_5):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_5), address(_6)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+  call address(sha3(0, 14561330441654603551, sha3(address(_5), address(_6)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).transferFrom(address sender, address recipient, uint256 amount) with:
+       gas gas_remaining wei
+      args caller, address(sha3(0, 14561330441654603551, sha3(address(_5), address(_6)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)), liquidity
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_5), address(_6)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+  call address(sha3(0, 14561330441654603551, sha3(address(_5), address(_6)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).burn(address to) with:
+       gas gas_remaining wei
+      args to
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 64
+  if tokenA < tokenB:
+      _24 = tokenA
+  else:
+      _24 = tokenB
+  if not address(_24):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  if tokenA == address(_24):
+      _28 = ext_call.return_data[0]
+      _29 = ext_call.return_data[32]
+  else:
+      _28 = ext_call.return_data[32]
+      _29 = ext_call.return_data[0]
+  if _28 < amountAMin:
+      revert with 0, 32, 36, 0x5350616e63616b65526f757465723a20494e53554646494349454e545f415f414d4f554e, mem[389 len 28]
+  if _29 < amountBMin:
+      revert with 0, 32, 36, 0x4450616e63616b65526f757465723a20494e53554646494349454e545f425f414d4f554e, mem[389 len 28]
+  return _28, _29
+
+def removeLiquidityWithPermit(address tokenA, address tokenB, uint256 liquidity, uint256 amountAMin, uint256 amountBMin, address to, uint256 deadline, bool approveMax, uint8 v, bytes32 r, bytes32 s): # not payable
+  require calldata.size - 4 >= 352
+  if tokenA == tokenB:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  32,
+                  35,
+                  0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345,
+                  mem[199 len 29]
+  if tokenA < tokenB:
+      _3 = tokenA
+      _4 = tokenB
+  else:
+      _3 = tokenB
+      _4 = tokenA
+  if not address(_3):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  if approveMax:
+      _14 = -1
+  else:
+      _14 = liquidity
+  require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_3), address(_4)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+  call address(sha3(0, 14561330441654603551, sha3(address(_3), address(_4)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) with:
+       gas gas_remaining wei
+      args caller, this.address, _14, deadline, v << 248, r, s
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  if deadline < block.timestamp:
+      revert with 0, 'PancakeRouter: EXPIRED'
+  if tokenA < tokenB:
+      _19 = tokenA
+      _20 = tokenB
+  else:
+      _19 = tokenB
+      _20 = tokenA
+  if not address(_19):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_19), address(_20)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+  call address(sha3(0, 14561330441654603551, sha3(address(_19), address(_20)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).transferFrom(address sender, address recipient, uint256 amount) with:
+       gas gas_remaining wei
+      args caller, address(sha3(0, 14561330441654603551, sha3(address(_19), address(_20)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)), liquidity
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_19), address(_20)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+  call address(sha3(0, 14561330441654603551, sha3(address(_19), address(_20)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).burn(address to) with:
+       gas gas_remaining wei
+      args to
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 64
+  if tokenA < tokenB:
+      _38 = tokenA
+  else:
+      _38 = tokenB
+  if not address(_38):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  if tokenA == address(_38):
+      _42 = ext_call.return_data[0]
+      _43 = ext_call.return_data[32]
+  else:
+      _42 = ext_call.return_data[32]
+      _43 = ext_call.return_data[0]
+  if _42 < amountAMin:
+      revert with 0, 32, 36, 0x5350616e63616b65526f757465723a20494e53554646494349454e545f415f414d4f554e, mem[578 len 28]
+  if _43 < amountBMin:
+      revert with 0, 32, 36, 0x4450616e63616b65526f757465723a20494e53554646494349454e545f425f414d4f554e, mem[578 len 28]
+  return _42, _43
+
+def removeLiquidityETH(address token, uint256 liquidity, uint256 amountTokenMin, uint256 amountETHMin, address to, uint256 deadline): # not payable
+  require calldata.size - 4 >= 192
+  if deadline < block.timestamp:
+      revert with 0, 'PancakeRouter: EXPIRED'
+  if token == 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  32,
+                  35,
+                  0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345,
+                  mem[199 len 29]
+  if token < 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      _5 = token
+      _6 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+  else:
+      _5 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+      _6 = token
+  if not address(_5):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  mem[128] = address(_5)
+  mem[148] = address(_6)
+  mem[96] = 40
+  mem[200] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[201] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[221] = sha3(address(_5), address(_6))
+  mem[253] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[168] = 85
+  require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_5), address(_6)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+  call address(sha3(0, 14561330441654603551, sha3(address(_5), address(_6)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).transferFrom(address sender, address recipient, uint256 amount) with:
+       gas gas_remaining wei
+      args caller, address(sha3(0, 14561330441654603551, sha3(address(_5), address(_6)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)), liquidity
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_5), address(_6)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+  call address(sha3(0, 14561330441654603551, sha3(address(_5), address(_6)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).burn(address to) with:
+       gas gas_remaining wei
+      args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 64
+  if token < 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      _24 = token
+  else:
+      _24 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+  if not address(_24):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  if token == address(_24):
+      _28 = ext_call.return_data[0]
+      _29 = ext_call.return_data[32]
+  else:
+      _28 = ext_call.return_data[32]
+      _29 = ext_call.return_data[0]
+  if _28 < amountTokenMin:
+      revert with 0, 32, 36, 0x5350616e63616b65526f757465723a20494e53554646494349454e545f415f414d4f554e, mem[389 len 28]
+  if _29 < amountETHMin:
+      revert with 0, 32, 36, 0x4450616e63616b65526f757465723a20494e53554646494349454e545f425f414d4f554e, mem[389 len 28]
+  mem[321] = to
+  mem[353] = _28
+  mem[285] = 68
+  mem[64] = 385
+  mem[321 len 28] = address(to) << 64
+  mem[317 len 4] = transfer(address recipient, uint256 amount)
+  mem[385 len 64] = transfer(address recipient, uint256 amount), address(to) << 64, 0, Mask(224, 32, _28) >> 32
+  mem[477 len 4] = Mask(32, 64, _28) >> 64
+  call token with:
+       gas gas_remaining wei
+      args Mask(224, 32, _28) << 224, mem[449 len 4]
+  if not return_data.size:
+      _48 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 386
+      mem[385] = return_data.size
+      mem[417 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _48 = 385
+  if not ext_call.success:
+      _54 = ext_call.success
+  else:
+      if not mem[_48]:
+          _54 = not mem[_48]
+      else:
+          require mem[_48] >= 32
+          _54 = mem[_48 + 32]
+  if not _54:
+      revert with 0, 'TransferHelper: TRANSFER_FAILED'
+  mem[mem[64] + 4] = _29
+  require ext_code.size(0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c)
+  call 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c.withdraw(uint256 amount) with:
+       gas gas_remaining wei
+      args _29
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  _59 = mem[64]
+  mem[mem[64]] = 0
+  mem[64] = mem[64] + 32
+  mem[_59 + floor32(mem[_59]) + -(mem[_59] % 32) + 64 len mem[_59] % 32] = mem[_59 + -(mem[_59] % 32) + floor32(mem[_59]) + 64 len mem[_59] % 32]
+  call to.mem[_59 + 32 len 4] with:
+     value _29 wei
+       gas gas_remaining wei
+      args mem[_59 + 36 len mem[_59] - 4]
+  if return_data.size:
+      mem[64] = _59 + ceil32(return_data.size) + 33
+      mem[_59 + 32] = return_data.size
+      mem[_59 + 64 len return_data.size] = ext_call.return_data[0 len return_data.size]
+  if not ext_call.success:
+      revert with 0, 32, 35, 0x545472616e7366657248656c7065723a204554485f5452414e534645525f4641494c45, mem[mem[64] + 103 len 29]
+  return _28, _29
+
+def removeLiquidityETHSupportingFeeOnTransferTokens(address token, uint256 liquidity, uint256 amountTokenMin, uint256 amountETHMin, address to, uint256 deadline): # not payable
+  require calldata.size - 4 >= 192
+  if deadline < block.timestamp:
+      revert with 0, 'PancakeRouter: EXPIRED'
+  if token == 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  32,
+                  35,
+                  0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345,
+                  mem[199 len 29]
+  if token < 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      _5 = token
+      _6 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+  else:
+      _5 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+      _6 = token
+  if not address(_5):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  mem[128] = address(_5)
+  mem[148] = address(_6)
+  mem[96] = 40
+  mem[200] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[201] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[221] = sha3(address(_5), address(_6))
+  mem[253] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[168] = 85
+  require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_5), address(_6)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+  call address(sha3(0, 14561330441654603551, sha3(address(_5), address(_6)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).transferFrom(address sender, address recipient, uint256 amount) with:
+       gas gas_remaining wei
+      args caller, address(sha3(0, 14561330441654603551, sha3(address(_5), address(_6)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)), liquidity
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_5), address(_6)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+  call address(sha3(0, 14561330441654603551, sha3(address(_5), address(_6)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).burn(address to) with:
+       gas gas_remaining wei
+      args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 64
+  if token < 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      _24 = token
+  else:
+      _24 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+  if not address(_24):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  if token == address(_24):
+      _28 = ext_call.return_data[0]
+      _29 = ext_call.return_data[32]
+  else:
+      _28 = ext_call.return_data[32]
+      _29 = ext_call.return_data[0]
+  if _28 < amountTokenMin:
+      revert with 0, 32, 36, 0x5350616e63616b65526f757465723a20494e53554646494349454e545f415f414d4f554e, mem[389 len 28]
+  if _29 < amountETHMin:
+      revert with 0, 32, 36, 0x4450616e63616b65526f757465723a20494e53554646494349454e545f425f414d4f554e, mem[389 len 28]
+  require ext_code.size(token)
+  static call token.balanceOf(address account) with:
+          gas gas_remaining wei
+         args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  mem[321] = to
+  mem[353] = ext_call.return_data[0]
+  mem[285] = 68
+  mem[64] = 385
+  mem[321 len 28] = address(to) << 64
+  mem[317 len 4] = transfer(address recipient, uint256 amount)
+  mem[385 len 64] = transfer(address recipient, uint256 amount), address(to) << 64, 0, ext_call.return_data[0 len 28]
+  mem[477 len 4] = ext_call.return_data[20 len 4]
+  call token with:
+       gas gas_remaining wei
+      args Mask(480, -256, ext_call.return_data[0 len 28]) << 256, mem[449 len 4]
+  if not return_data.size:
+      _52 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 386
+      mem[385] = return_data.size
+      mem[417 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _52 = 385
+  if not ext_call.success:
+      _58 = ext_call.success
+  else:
+      if not mem[_52]:
+          _58 = not mem[_52]
+      else:
+          require mem[_52] >= 32
+          _58 = mem[_52 + 32]
+  if not _58:
+      revert with 0, 'TransferHelper: TRANSFER_FAILED'
+  mem[mem[64] + 4] = _29
+  require ext_code.size(0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c)
+  call 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c.withdraw(uint256 amount) with:
+       gas gas_remaining wei
+      args _29
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  _63 = mem[64]
+  mem[mem[64]] = 0
+  mem[64] = mem[64] + 32
+  mem[_63 + floor32(mem[_63]) + -(mem[_63] % 32) + 64 len mem[_63] % 32] = mem[_63 + -(mem[_63] % 32) + floor32(mem[_63]) + 64 len mem[_63] % 32]
+  call to.mem[_63 + 32 len 4] with:
+     value _29 wei
+       gas gas_remaining wei
+      args mem[_63 + 36 len mem[_63] - 4]
+  if return_data.size:
+      mem[64] = _63 + ceil32(return_data.size) + 33
+      mem[_63 + 32] = return_data.size
+      mem[_63 + 64 len return_data.size] = ext_call.return_data[0 len return_data.size]
+  if not ext_call.success:
+      revert with 0, 32, 35, 0x545472616e7366657248656c7065723a204554485f5452414e534645525f4641494c45, mem[mem[64] + 103 len 29]
+  return _29
+
+def getAmountsOut(uint256 amountIn, address[] path): # not payable
+  require calldata.size - 4 >= 64
+  require path <= unknown10000000()
+  require path + 36 <= calldata.size
+  require path.length <= unknown10000000() and path + (32 * path.length) + 36 <= calldata.size
+  mem[96] = path.length
+  mem[128 len 32 * path.length] = call.data[path + 36 len 32 * path.length]
+  if path.length < 2:
+      revert with 0, 'PancakeLibrary: INVALID_PATH'
+  require path.length <= LOCK8605463013()
+  mem[(32 * path.length) + 128] = path.length
+  mem[64] = (64 * path.length) + 160
+  if path.length:
+      mem[(32 * path.length) + 160 len 32 * path.length] = call.data[calldata.size len 32 * path.length]
+  require 0 < path.length
+  mem[(32 * path.length) + 160] = amountIn
+  idx = 0
+  while idx < path.length - 1:
+      require idx < mem[96]
+      _77 = mem[(32 * idx) + 128]
+      require idx + 1 < mem[96]
+      _79 = mem[(32 * idx + 1) + 128]
+      if mem[(32 * idx) + 140 len 20] == mem[(32 * idx + 1) + 140 len 20]:
+          revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+      if mem[(32 * idx) + 140 len 20] < mem[(32 * idx + 1) + 140 len 20]:
+          _87 = mem[(32 * idx) + 128]
+      else:
+          _87 = mem[(32 * idx + 1) + 128]
+      if not address(_87):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      if mem[(32 * idx) + 140 len 20] < mem[(32 * idx + 1) + 140 len 20]:
+          _93 = mem[(32 * idx) + 128]
+          _94 = mem[(32 * idx + 1) + 128]
+      else:
+          _93 = mem[(32 * idx + 1) + 128]
+          _94 = mem[(32 * idx) + 128]
+      if not address(_93):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      _97 = mem[64]
+      mem[mem[64] + 32] = address(_93)
+      mem[mem[64] + 52] = address(_94)
+      _98 = mem[64]
+      mem[mem[64]] = 40
+      mem[64] = mem[64] + 72
+      _100 = sha3(mem[_98 + 32 len mem[_98]])
+      mem[_97 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_97 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_97 + 125] = _100
+      mem[_97 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_97 + 72] = 85
+      if address(_77) < address(_79):
+          _104 = _77
+          _105 = _79
+      else:
+          _104 = _79
+          _105 = _77
+      if not address(_104):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      mem[_97 + 221] = address(_104)
+      mem[_97 + 241] = address(_105)
+      mem[_97 + 189] = 40
+      mem[_97 + 293] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_97 + 294] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_97 + 314] = sha3(address(_104), address(_105))
+      mem[_97 + 346] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_97 + 261] = 85
+      mem[64] = _97 + 378
+      require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_104), address(_105)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      static call address(sha3(0, 14561330441654603551, sha3(address(_104), address(_105)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).getReserves() with:
+              gas gas_remaining wei
+      mem[_97 + 378 len 96] = ext_call.return_data[0 len 96]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 96
+      if address(_87) == address(_77):
+          _120 = ext_call.return_data[18 len 14]
+          _121 = ext_call.return_data[50 len 14]
+      else:
+          _120 = ext_call.return_data[50 len 14]
+          _121 = ext_call.return_data[18 len 14]
+      require idx < mem[(32 * path.length) + 128]
+      if mem[(32 * idx) + (32 * path.length) + 160] <= 0:
+          revert with 0, 32, 41, 0xfe50616e63616b654c6962726172793a20494e53554646494349454e545f494e5055545f414d4f554e, mem[_97 + 487 len 23]
+      if _120 <= 0:
+          _126 = _120 > 0
+      else:
+          _126 = _121 > 0
+      if not _126:
+          revert with 0, 32, 38, 0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4c49515549444954, mem[_97 + 484 len 26]
+      if 9975 * mem[(32 * idx) + (32 * path.length) + 160] / 9975 != mem[(32 * idx) + (32 * path.length) + 160]:
+          revert with 0, 'ds-math-mul-overflow'
+      if not _121:
+          _131 = 0
+          _132 = not _121
+      else:
+          _131 = 9975 * mem[(32 * idx) + (32 * path.length) + 160] * _121
+          _132 = 9975 * mem[(32 * idx) + (32 * path.length) + 160] * _121 / _121 == 9975 * mem[(32 * idx) + (32 * path.length) + 160]
+      if not _132:
+          revert with 0, 'ds-math-mul-overflow'
+      if 10000 * _120 / 10000 != _120:
+          revert with 0, 'ds-math-mul-overflow'
+      if (10000 * _120) + (9975 * mem[(32 * idx) + (32 * path.length) + 160]) < 10000 * _120:
+          revert with 0, 'ds-math-add-overflow'
+      require (10000 * _120) + (9975 * mem[(32 * idx) + (32 * path.length) + 160])
+      require idx + 1 < mem[(32 * path.length) + 128]
+      mem[(32 * idx + 1) + (32 * path.length) + 160] = _131 / (10000 * _120) + (9975 * mem[(32 * idx) + (32 * path.length) + 160])
+      idx = idx + 1
+      continue 
+  mem[mem[64]] = 32
+  mem[mem[64] + 32] = mem[(32 * path.length) + 128]
+  _82 = mem[(32 * path.length) + 128]
+  mem[mem[64] + 64 len floor32(mem[(32 * path.length) + 128])] = mem[(32 * path.length) + 160 len floor32(mem[(32 * path.length) + 128])]
+  return 32, mem[mem[64] + 32 len (32 * _82) + 32]
+
+def removeLiquidityETHWithPermit(address token, uint256 liquidity, uint256 amountTokenMin, uint256 amountETHMin, address to, uint256 deadline, bool approveMax, uint8 v, bytes32 r, bytes32 s): # not payable
+  require calldata.size - 4 >= 320
+  if token == 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  32,
+                  35,
+                  0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345,
+                  mem[199 len 29]
+  if token < 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      _3 = token
+      _4 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+  else:
+      _3 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+      _4 = token
+  if not address(_3):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  mem[128] = address(_3)
+  mem[148] = address(_4)
+  mem[96] = 40
+  mem[200] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[201] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[221] = sha3(address(_3), address(_4))
+  mem[253] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[168] = 85
+  if approveMax:
+      _14 = -1
+  else:
+      _14 = liquidity
+  require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_3), address(_4)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+  call address(sha3(0, 14561330441654603551, sha3(address(_3), address(_4)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) with:
+       gas gas_remaining wei
+      args caller, this.address, _14, deadline, v << 248, r, s
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  if deadline < block.timestamp:
+      revert with 0, 'PancakeRouter: EXPIRED'
+  if token < 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      _19 = token
+      _20 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+  else:
+      _19 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+      _20 = token
+  if not address(_19):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  mem[317] = address(_19)
+  mem[337] = address(_20)
+  mem[285] = 40
+  mem[389] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[390] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[410] = sha3(address(_19), address(_20))
+  mem[442] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[357] = 85
+  require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_19), address(_20)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+  call address(sha3(0, 14561330441654603551, sha3(address(_19), address(_20)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).transferFrom(address sender, address recipient, uint256 amount) with:
+       gas gas_remaining wei
+      args caller, address(sha3(0, 14561330441654603551, sha3(address(_19), address(_20)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)), liquidity
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_19), address(_20)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+  call address(sha3(0, 14561330441654603551, sha3(address(_19), address(_20)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).burn(address to) with:
+       gas gas_remaining wei
+      args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 64
+  if token < 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      _38 = token
+  else:
+      _38 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+  if not address(_38):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  if token == address(_38):
+      _42 = ext_call.return_data[0]
+      _43 = ext_call.return_data[32]
+  else:
+      _42 = ext_call.return_data[32]
+      _43 = ext_call.return_data[0]
+  if _42 < amountTokenMin:
+      revert with 0, 32, 36, 0x5350616e63616b65526f757465723a20494e53554646494349454e545f415f414d4f554e, mem[578 len 28]
+  if _43 < amountETHMin:
+      revert with 0, 32, 36, 0x4450616e63616b65526f757465723a20494e53554646494349454e545f425f414d4f554e, mem[578 len 28]
+  mem[510] = to
+  mem[542] = _42
+  mem[474] = 68
+  mem[64] = 574
+  mem[510 len 28] = address(to) << 64
+  mem[506 len 4] = transfer(address recipient, uint256 amount)
+  mem[574 len 64] = transfer(address recipient, uint256 amount), address(to) << 64, 0, Mask(224, 32, _42) >> 32
+  mem[666 len 4] = Mask(32, 64, _42) >> 64
+  call token with:
+       gas gas_remaining wei
+      args Mask(224, 32, _42) << 224, mem[638 len 4]
+  if not return_data.size:
+      _62 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 575
+      mem[574] = return_data.size
+      mem[606 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _62 = 574
+  if not ext_call.success:
+      _68 = ext_call.success
+  else:
+      if not mem[_62]:
+          _68 = not mem[_62]
+      else:
+          require mem[_62] >= 32
+          _68 = mem[_62 + 32]
+  if not _68:
+      revert with 0, 'TransferHelper: TRANSFER_FAILED'
+  mem[mem[64] + 4] = _43
+  require ext_code.size(0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c)
+  call 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c.withdraw(uint256 amount) with:
+       gas gas_remaining wei
+      args _43
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  _73 = mem[64]
+  mem[mem[64]] = 0
+  mem[64] = mem[64] + 32
+  mem[_73 + floor32(mem[_73]) + -(mem[_73] % 32) + 64 len mem[_73] % 32] = mem[_73 + -(mem[_73] % 32) + floor32(mem[_73]) + 64 len mem[_73] % 32]
+  call to.mem[_73 + 32 len 4] with:
+     value _43 wei
+       gas gas_remaining wei
+      args mem[_73 + 36 len mem[_73] - 4]
+  if return_data.size:
+      mem[64] = _73 + ceil32(return_data.size) + 33
+      mem[_73 + 32] = return_data.size
+      mem[_73 + 64 len return_data.size] = ext_call.return_data[0 len return_data.size]
+  if not ext_call.success:
+      revert with 0, 32, 35, 0x545472616e7366657248656c7065723a204554485f5452414e534645525f4641494c45, mem[mem[64] + 103 len 29]
+  return _42, _43
+
+def removeLiquidityETHWithPermitSupportingFeeOnTransferTokens(address token, uint256 liquidity, uint256 amountTokenMin, uint256 amountETHMin, address to, uint256 deadline, bool approveMax, uint8 v, bytes32 r, bytes32 s): # not payable
+  require calldata.size - 4 >= 320
+  if token == 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  32,
+                  35,
+                  0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345,
+                  mem[199 len 29]
+  if token < 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      _3 = token
+      _4 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+  else:
+      _3 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+      _4 = token
+  if not address(_3):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  mem[128] = address(_3)
+  mem[148] = address(_4)
+  mem[96] = 40
+  mem[200] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[201] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[221] = sha3(address(_3), address(_4))
+  mem[253] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[168] = 85
+  if approveMax:
+      _14 = -1
+  else:
+      _14 = liquidity
+  require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_3), address(_4)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+  call address(sha3(0, 14561330441654603551, sha3(address(_3), address(_4)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) with:
+       gas gas_remaining wei
+      args caller, this.address, _14, deadline, v << 248, r, s
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  if deadline < block.timestamp:
+      revert with 0, 'PancakeRouter: EXPIRED'
+  if token < 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      _19 = token
+      _20 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+  else:
+      _19 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+      _20 = token
+  if not address(_19):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  mem[317] = address(_19)
+  mem[337] = address(_20)
+  mem[285] = 40
+  mem[389] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[390] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[410] = sha3(address(_19), address(_20))
+  mem[442] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[357] = 85
+  require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_19), address(_20)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+  call address(sha3(0, 14561330441654603551, sha3(address(_19), address(_20)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).transferFrom(address sender, address recipient, uint256 amount) with:
+       gas gas_remaining wei
+      args caller, address(sha3(0, 14561330441654603551, sha3(address(_19), address(_20)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)), liquidity
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_19), address(_20)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+  call address(sha3(0, 14561330441654603551, sha3(address(_19), address(_20)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).burn(address to) with:
+       gas gas_remaining wei
+      args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 64
+  if token < 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      _38 = token
+  else:
+      _38 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+  if not address(_38):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  if token == address(_38):
+      _42 = ext_call.return_data[0]
+      _43 = ext_call.return_data[32]
+  else:
+      _42 = ext_call.return_data[32]
+      _43 = ext_call.return_data[0]
+  if _42 < amountTokenMin:
+      revert with 0, 32, 36, 0x5350616e63616b65526f757465723a20494e53554646494349454e545f415f414d4f554e, mem[578 len 28]
+  if _43 < amountETHMin:
+      revert with 0, 32, 36, 0x4450616e63616b65526f757465723a20494e53554646494349454e545f425f414d4f554e, mem[578 len 28]
+  require ext_code.size(token)
+  static call token.balanceOf(address account) with:
+          gas gas_remaining wei
+         args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  mem[510] = to
+  mem[542] = ext_call.return_data[0]
+  mem[474] = 68
+  mem[64] = 574
+  mem[510 len 28] = address(to) << 64
+  mem[506 len 4] = transfer(address recipient, uint256 amount)
+  mem[574 len 64] = transfer(address recipient, uint256 amount), address(to) << 64, 0, ext_call.return_data[0 len 28]
+  mem[666 len 4] = ext_call.return_data[20 len 4]
+  call token with:
+       gas gas_remaining wei
+      args Mask(480, -256, ext_call.return_data[0 len 28]) << 256, mem[638 len 4]
+  if not return_data.size:
+      _66 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 575
+      mem[574] = return_data.size
+      mem[606 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _66 = 574
+  if not ext_call.success:
+      _72 = ext_call.success
+  else:
+      if not mem[_66]:
+          _72 = not mem[_66]
+      else:
+          require mem[_66] >= 32
+          _72 = mem[_66 + 32]
+  if not _72:
+      revert with 0, 'TransferHelper: TRANSFER_FAILED'
+  mem[mem[64] + 4] = _43
+  require ext_code.size(0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c)
+  call 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c.withdraw(uint256 amount) with:
+       gas gas_remaining wei
+      args _43
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  _77 = mem[64]
+  mem[mem[64]] = 0
+  mem[64] = mem[64] + 32
+  mem[_77 + floor32(mem[_77]) + -(mem[_77] % 32) + 64 len mem[_77] % 32] = mem[_77 + -(mem[_77] % 32) + floor32(mem[_77]) + 64 len mem[_77] % 32]
+  call to.mem[_77 + 32 len 4] with:
+     value _43 wei
+       gas gas_remaining wei
+      args mem[_77 + 36 len mem[_77] - 4]
+  if return_data.size:
+      mem[64] = _77 + ceil32(return_data.size) + 33
+      mem[_77 + 32] = return_data.size
+      mem[_77 + 64 len return_data.size] = ext_call.return_data[0 len return_data.size]
+  if not ext_call.success:
+      revert with 0, 32, 35, 0x545472616e7366657248656c7065723a204554485f5452414e534645525f4641494c45, mem[mem[64] + 103 len 29]
+  return _43
+
+def getAmountsIn(uint256 amountOut, address[] path): # not payable
+  require calldata.size - 4 >= 64
+  require path <= unknown10000000()
+  require path + 36 <= calldata.size
+  require path.length <= unknown10000000() and path + (32 * path.length) + 36 <= calldata.size
+  mem[96] = path.length
+  mem[128 len 32 * path.length] = call.data[path + 36 len 32 * path.length]
+  if path.length < 2:
+      revert with 0, 'PancakeLibrary: INVALID_PATH'
+  require path.length <= LOCK8605463013()
+  mem[(32 * path.length) + 128] = path.length
+  mem[64] = (64 * path.length) + 160
+  if path.length:
+      mem[(32 * path.length) + 160 len 32 * path.length] = call.data[calldata.size len 32 * path.length]
+  require path.length - 1 < path.length
+  mem[(32 * path.length - 1) + (32 * path.length) + 160] = amountOut
+  s = mem[96] - 1
+  while s:
+      require s - 1 < mem[96]
+      require s < mem[96]
+      _82 = mem[(32 * s) + 128]
+      if mem[(32 * s - 1) + 140 len 20] == mem[(32 * s) + 140 len 20]:
+          revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+      if mem[(32 * s - 1) + 140 len 20] < mem[(32 * s) + 140 len 20]:
+          _90 = mem[(32 * s - 1) + 128]
+      else:
+          _90 = mem[(32 * s) + 128]
+      if not address(_90):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      if mem[(32 * s - 1) + 140 len 20] < mem[(32 * s) + 140 len 20]:
+          _96 = mem[(32 * s - 1) + 128]
+          _97 = mem[(32 * s) + 128]
+      else:
+          _96 = mem[(32 * s) + 128]
+          _97 = mem[(32 * s - 1) + 128]
+      if not address(_96):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      _100 = mem[64]
+      mem[mem[64] + 32] = address(_96)
+      mem[mem[64] + 52] = address(_97)
+      _101 = mem[64]
+      mem[mem[64]] = 40
+      mem[64] = mem[64] + 72
+      _103 = sha3(mem[_101 + 32 len mem[_101]])
+      mem[_100 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_100 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_100 + 125] = _103
+      mem[_100 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_100 + 72] = 85
+      if mem[(32 * s - 1) + 140 len 20] < address(_82):
+          _107 = mem[(32 * s - 1) + 128]
+          _108 = _82
+      else:
+          _107 = _82
+          _108 = mem[(32 * s - 1) + 128]
+      if not address(_107):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      mem[_100 + 221] = address(_107)
+      mem[_100 + 241] = address(_108)
+      mem[_100 + 189] = 40
+      mem[_100 + 293] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_100 + 294] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_100 + 314] = sha3(address(_107), address(_108))
+      mem[_100 + 346] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_100 + 261] = 85
+      mem[64] = _100 + 378
+      require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_107), address(_108)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      static call address(sha3(0, 14561330441654603551, sha3(address(_107), address(_108)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).getReserves() with:
+              gas gas_remaining wei
+      mem[_100 + 378 len 96] = ext_call.return_data[0 len 96]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 96
+      if address(_90) == mem[(32 * s - 1) + 140 len 20]:
+          _123 = ext_call.return_data[18 len 14]
+          _124 = ext_call.return_data[50 len 14]
+      else:
+          _123 = ext_call.return_data[50 len 14]
+          _124 = ext_call.return_data[18 len 14]
+      require s < mem[(32 * path.length) + 128]
+      if mem[(32 * s) + (32 * path.length) + 160] <= 0:
+          revert with 0, 
+                      32,
+                      42,
+                      0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4f55545055545f414d4f554e,
+                      mem[_100 + 488 len 22]
+      if _123 <= 0:
+          _129 = _123 > 0
+      else:
+          _129 = _124 > 0
+      if not _129:
+          revert with 0, 32, 38, 0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4c49515549444954, mem[_100 + 484 len 26]
+      if not mem[(32 * s) + (32 * path.length) + 160]:
+          _132 = 0
+          _133 = not mem[(32 * s) + (32 * path.length) + 160]
+      else:
+          _132 = _123 * mem[(32 * s) + (32 * path.length) + 160]
+          _133 = _123 * mem[(32 * s) + (32 * path.length) + 160] / mem[(32 * s) + (32 * path.length) + 160] == _123
+      if not _133:
+          revert with 0, 'ds-math-mul-overflow'
+      if 10000 * _132 / 10000 != _132:
+          revert with 0, 'ds-math-mul-overflow'
+      if _124 - mem[(32 * s) + (32 * path.length) + 160] > _124:
+          revert with 0, 'ds-math-sub-underflow'
+      if (9975 * _124) - (9975 * mem[(32 * s) + (32 * path.length) + 160]) / 9975 != _124 - mem[(32 * s) + (32 * path.length) + 160]:
+          revert with 0, 'ds-math-mul-overflow'
+      require (9975 * _124) - (9975 * mem[(32 * s) + (32 * path.length) + 160])
+      if (10000 * _132 / (9975 * _124) - (9975 * mem[(32 * s) + (32 * path.length) + 160])) + 1 < 10000 * _132 / (9975 * _124) - (9975 * mem[(32 * s) + (32 * path.length) + 160]):
+          revert with 0, 'ds-math-add-overflow'
+      require s - 1 < mem[(32 * path.length) + 128]
+      mem[(32 * s - 1) + (32 * path.length) + 160] = (10000 * _132 / (9975 * _124) - (9975 * mem[(32 * s) + (32 * path.length) + 160])) + 1
+      s = s - 1
+      continue 
+  mem[mem[64]] = 32
+  mem[mem[64] + 32] = mem[(32 * path.length) + 128]
+  _85 = mem[(32 * path.length) + 128]
+  mem[mem[64] + 64 len floor32(mem[(32 * path.length) + 128])] = mem[(32 * path.length) + 160 len floor32(mem[(32 * path.length) + 128])]
+  return 32, mem[mem[64] + 32 len (32 * _85) + 32]
+
+def addLiquidity(address tokenA, address tokenB, uint256 amountADesired, uint256 amountBDesired, uint256 amountAMin, uint256 amountBMin, address to, uint256 deadline): # not payable
+  require calldata.size - 4 >= 256
+  if deadline < block.timestamp:
+      revert with 0, 'PancakeRouter: EXPIRED'
+  require ext_code.size(0xca143ce32fe78f1f7019d7d551a6402fc5350c73)
+  static call 0xca143ce32fe78f1f7019d7d551a6402fc5350c73.getPair(address _param1, address _param2) with:
+          gas gas_remaining wei
+         args address(tokenA), tokenB
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  if not ext_call.return_data[12 len 20]:
+      require ext_code.size(0xca143ce32fe78f1f7019d7d551a6402fc5350c73)
+      call 0xca143ce32fe78f1f7019d7d551a6402fc5350c73.createPair(address tokenA, address tokenB) with:
+           gas gas_remaining wei
+          args address(tokenA), tokenB
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 32
+  if tokenA == tokenB:
+      revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[199 len 29]
+  if tokenA < tokenB:
+      _14 = tokenA
+  else:
+      _14 = tokenB
+  if not address(_14):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  if tokenA < tokenB:
+      _18 = tokenA
+      _19 = tokenB
+  else:
+      _18 = tokenB
+      _19 = tokenA
+  if not address(_18):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  mem[128] = address(_18)
+  mem[148] = address(_19)
+  mem[96] = 40
+  mem[200] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[201] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[221] = sha3(address(_18), address(_19))
+  mem[253] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[168] = 85
+  if tokenA < tokenB:
+      _29 = tokenA
+      _30 = tokenB
+  else:
+      _29 = tokenB
+      _30 = tokenA
+  if not address(_29):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  mem[317] = address(_29)
+  mem[337] = address(_30)
+  mem[285] = 40
+  mem[389] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[390] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[410] = sha3(address(_29), address(_30))
+  mem[442] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[357] = 85
+  require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_29), address(_30)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+  static call address(sha3(0, 14561330441654603551, sha3(address(_29), address(_30)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).getReserves() with:
+          gas gas_remaining wei
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 96
+  if address(_14) == tokenA:
+      _45 = ext_call.return_data[18 len 14]
+      _46 = ext_call.return_data[50 len 14]
+  else:
+      _45 = ext_call.return_data[50 len 14]
+      _46 = ext_call.return_data[18 len 14]
+  if _45:
+      _47 = not _45
+  else:
+      _47 = not _46
+  if not _47:
+      if amountADesired <= 0:
+          revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a20494e53554646494349454e545f414d4f554e, mem[577 len 29]
+      if _45 <= 0:
+          _50 = _45 > 0
+      else:
+          _50 = _46 > 0
+      if not _50:
+          revert with 0, 32, 38, 0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4c49515549444954, mem[580 len 26]
+      if not _46:
+          _57 = 0
+          _58 = not _46
+      else:
+          _57 = amountADesired * _46
+          _58 = amountADesired * _46 / _46 == amountADesired
+      if not _58:
+          revert with 0, 'ds-math-mul-overflow'
+      require _45
+      if _57 / _45 > amountBDesired:
+          if amountBDesired <= 0:
+              revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a20494e53554646494349454e545f414d4f554e, mem[577 len 29]
+          if _46 <= 0:
+              _87 = _46 > 0
+          else:
+              _87 = _45 > 0
+          if not _87:
+              revert with 0, 32, 38, 0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4c49515549444954, mem[580 len 26]
+          if amountBDesired * _45 / _45 != amountBDesired:
+              revert with 0, 'ds-math-mul-overflow'
+          require _46
+          require amountBDesired * _45 / _46 <= amountADesired
+          if amountBDesired * _45 / _46 < amountAMin:
+              revert with 0, 32, 36, 0x5350616e63616b65526f757465723a20494e53554646494349454e545f415f414d4f554e, mem[578 len 28]
+          _136 = amountBDesired * _45 / _46
+          _137 = amountBDesired
+      else:
+          if _57 / _45 < amountBMin:
+              revert with 0, 32, 36, 0x4450616e63616b65526f757465723a20494e53554646494349454e545f425f414d4f554e, mem[578 len 28]
+          _136 = amountADesired
+          _137 = _57 / _45
+      _139 = _136
+      _140 = _137
+  else:
+      _139 = amountADesired
+      _140 = amountBDesired
+  if tokenA < tokenB:
+      _141 = tokenA
+      _142 = tokenB
+  else:
+      _141 = tokenB
+      _142 = tokenA
+  if not address(_141):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  mem[506] = address(_141)
+  mem[526] = address(_142)
+  mem[474] = 40
+  mem[578] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[579] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[599] = sha3(address(_141), address(_142))
+  mem[631] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[546] = 85
+  mem[699] = caller
+  mem[731] = address(sha3(0, 14561330441654603551, sha3(address(_141), address(_142)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5))
+  mem[763] = _139
+  mem[663] = 100
+  mem[64] = 795
+  mem[699 len 28] = Mask(224, 32, caller) >> 32
+  mem[695 len 4] = transferFrom(address sender, address recipient, uint256 amount)
+  mem[795 len 96] = transferFrom(address sender, address recipient, uint256 amount), caller, address(sha3(0, 14561330441654603551, sha3(address(_141), address(_142)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)), Mask(224, 32, _139) >> 32
+  mem[919 len 4] = Mask(32, 64, _139) >> 64
+  call tokenA with:
+       gas gas_remaining wei
+      args Mask(224, 32, _139) << 480, mem[891 len 4]
+  if not return_data.size:
+      _166 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 796
+      mem[795] = return_data.size
+      mem[827 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _166 = 795
+  if not ext_call.success:
+      _172 = ext_call.success
+  else:
+      if not mem[_166]:
+          _172 = not mem[_166]
+      else:
+          require mem[_166] >= 32
+          _172 = mem[_166 + 32]
+  if not _172:
+      revert with 0, 32, 36, 0x595472616e7366657248656c7065723a205452414e534645525f46524f4d5f4641494c45, mem[mem[64] + 104 len 28]
+  _175 = mem[64]
+  mem[mem[64] + 36] = caller
+  mem[mem[64] + 68] = address(sha3(0, 14561330441654603551, sha3(address(_141), address(_142)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5))
+  mem[mem[64] + 100] = _140
+  _176 = mem[64]
+  mem[mem[64]] = 100
+  mem[64] = mem[64] + 132
+  mem[_176 + 32 len 4] = transferFrom(address sender, address recipient, uint256 amount)
+  _179 = mem[_176]
+  mem[_175 + 132 len floor32(mem[_176])] = mem[_176 + 32 len floor32(mem[_176])]
+  mem[_175 + floor32(mem[_176]) + -(mem[_176] % 32) + 164 len mem[_176] % 32] = mem[_176 + -(mem[_176] % 32) + floor32(mem[_176]) + 64 len mem[_176] % 32]
+  call tokenB.mem[_175 + 132 len 4] with:
+       gas gas_remaining wei
+      args mem[_175 + 136 len _179 - 4]
+  if not return_data.size:
+      _189 = 96
+  else:
+      mem[64] = _175 + ceil32(return_data.size) + 133
+      mem[_175 + 132] = return_data.size
+      mem[_175 + 164 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _189 = _175 + 132
+  if not ext_call.success:
+      _195 = ext_call.success
+  else:
+      if not mem[_189]:
+          _195 = not mem[_189]
+      else:
+          require mem[_189] >= 32
+          _195 = mem[_189 + 32]
+  if not _195:
+      revert with 0, 32, 36, 0x595472616e7366657248656c7065723a205452414e534645525f46524f4d5f4641494c45, mem[mem[64] + 104 len 28]
+  require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_141), address(_142)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+  call address(sha3(0, 14561330441654603551, sha3(address(_141), address(_142)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).mint(address to) with:
+       gas gas_remaining wei
+      args address(to)
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  return _139, _140, ext_call.return_data[0]
+
+def addLiquidityETH(address token, uint256 amountTokenDesired, uint256 amountTokenMin, uint256 amountETHMin, address to, uint256 deadline) payable: 
+  require calldata.size - 4 >= 192
+  if deadline < block.timestamp:
+      revert with 0, 'PancakeRouter: EXPIRED'
+  require ext_code.size(0xca143ce32fe78f1f7019d7d551a6402fc5350c73)
+  static call 0xca143ce32fe78f1f7019d7d551a6402fc5350c73.getPair(address _param1, address _param2) with:
+          gas gas_remaining wei
+         args address(token), 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  if not ext_call.return_data[12 len 20]:
+      require ext_code.size(0xca143ce32fe78f1f7019d7d551a6402fc5350c73)
+      call 0xca143ce32fe78f1f7019d7d551a6402fc5350c73.createPair(address tokenA, address tokenB) with:
+           gas gas_remaining wei
+          args address(token), 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 32
+  if token == 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[199 len 29]
+  if token < 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      _14 = token
+  else:
+      _14 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+  if not address(_14):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  if token < 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      _18 = token
+      _19 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+  else:
+      _18 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+      _19 = token
+  if not address(_18):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  mem[128] = address(_18)
+  mem[148] = address(_19)
+  mem[96] = 40
+  mem[200] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[201] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[221] = sha3(address(_18), address(_19))
+  mem[253] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[168] = 85
+  if token < 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      _29 = token
+      _30 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+  else:
+      _29 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+      _30 = token
+  if not address(_29):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  mem[317] = address(_29)
+  mem[337] = address(_30)
+  mem[285] = 40
+  mem[389] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[390] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[410] = sha3(address(_29), address(_30))
+  mem[442] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[357] = 85
+  require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_29), address(_30)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+  static call address(sha3(0, 14561330441654603551, sha3(address(_29), address(_30)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).getReserves() with:
+          gas gas_remaining wei
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 96
+  if address(_14) == token:
+      _45 = ext_call.return_data[18 len 14]
+      _46 = ext_call.return_data[50 len 14]
+  else:
+      _45 = ext_call.return_data[50 len 14]
+      _46 = ext_call.return_data[18 len 14]
+  if _45:
+      _47 = not _45
+  else:
+      _47 = not _46
+  if not _47:
+      if amountTokenDesired <= 0:
+          revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a20494e53554646494349454e545f414d4f554e, mem[577 len 29]
+      if _45 <= 0:
+          _50 = _45 > 0
+      else:
+          _50 = _46 > 0
+      if not _50:
+          revert with 0, 32, 38, 0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4c49515549444954, mem[580 len 26]
+      if not _46:
+          _57 = 0
+          _58 = not _46
+      else:
+          _57 = amountTokenDesired * _46
+          _58 = amountTokenDesired * _46 / _46 == amountTokenDesired
+      if not _58:
+          revert with 0, 'ds-math-mul-overflow'
+      require _45
+      if _57 / _45 > call.value:
+          if call.value <= 0:
+              revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a20494e53554646494349454e545f414d4f554e, mem[577 len 29]
+          if _46 <= 0:
+              _87 = _46 > 0
+          else:
+              _87 = _45 > 0
+          if not _87:
+              revert with 0, 32, 38, 0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4c49515549444954, mem[580 len 26]
+          if call.value * _45 / _45 != call.value:
+              revert with 0, 'ds-math-mul-overflow'
+          require _46
+          require call.value * _45 / _46 <= amountTokenDesired
+          if call.value * _45 / _46 < amountTokenMin:
+              revert with 0, 32, 36, 0x5350616e63616b65526f757465723a20494e53554646494349454e545f415f414d4f554e, mem[578 len 28]
+          _130 = call.value * _45 / _46
+          _131 = call.value
+      else:
+          if _57 / _45 < amountETHMin:
+              revert with 0, 32, 36, 0x4450616e63616b65526f757465723a20494e53554646494349454e545f425f414d4f554e, mem[578 len 28]
+          _130 = amountTokenDesired
+          _131 = _57 / _45
+      _132 = _130
+      _133 = _131
+  else:
+      _132 = amountTokenDesired
+      _133 = call.value
+  if token < 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      _134 = token
+      _135 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+  else:
+      _134 = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
+      _135 = token
+  if not address(_134):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  mem[506] = address(_134)
+  mem[526] = address(_135)
+  mem[474] = 40
+  mem[578] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[579] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[599] = sha3(address(_134), address(_135))
+  mem[631] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[546] = 85
+  mem[699] = caller
+  mem[731] = address(sha3(0, 14561330441654603551, sha3(address(_134), address(_135)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5))
+  mem[763] = _132
+  mem[663] = 100
+  mem[64] = 795
+  mem[699 len 28] = Mask(224, 32, caller) >> 32
+  mem[695 len 4] = transferFrom(address sender, address recipient, uint256 amount)
+  mem[795 len 96] = transferFrom(address sender, address recipient, uint256 amount), caller, address(sha3(0, 14561330441654603551, sha3(address(_134), address(_135)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)), Mask(224, 32, _132) >> 32
+  mem[919 len 4] = Mask(32, 64, _132) >> 64
+  call token with:
+       gas gas_remaining wei
+      args Mask(224, 32, _132) << 480, mem[891 len 4]
+  if not return_data.size:
+      _159 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 796
+      mem[795] = return_data.size
+      mem[827 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _159 = 795
+  if not ext_call.success:
+      _165 = ext_call.success
+  else:
+      if not mem[_159]:
+          _165 = not mem[_159]
+      else:
+          require mem[_159] >= 32
+          _165 = mem[_159 + 32]
+  if not _165:
+      revert with 0, 32, 36, 0x595472616e7366657248656c7065723a205452414e534645525f46524f4d5f4641494c45, mem[mem[64] + 104 len 28]
+  require ext_code.size(0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c)
+  call 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c.deposit() with:
+     value _133 wei
+       gas gas_remaining wei
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  mem[mem[64] + 36] = _133
+  require ext_code.size(0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c)
+  call 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c.transfer(address recipient, uint256 amount) with:
+       gas gas_remaining wei
+      args address(sha3(0, 14561330441654603551, sha3(address(_134), address(_135)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)), _133
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  require ext_call.return_data[0]
+  mem[mem[64] + 4] = to
+  require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_134), address(_135)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+  call address(sha3(0, 14561330441654603551, sha3(address(_134), address(_135)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).mint(address to) with:
+       gas gas_remaining wei
+      args address(to)
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  if _133 < call.value:
+      _180 = mem[64]
+      mem[mem[64]] = 0
+      mem[64] = mem[64] + 32
+      mem[_180 + floor32(mem[_180]) + -(mem[_180] % 32) + 64 len mem[_180] % 32] = mem[_180 + -(mem[_180] % 32) + floor32(mem[_180]) + 64 len mem[_180] % 32]
+      call caller.mem[_180 + 32 len 4] with:
+         value call.value - _133 wei
+           gas gas_remaining wei
+          args mem[_180 + 36 len mem[_180] - 4]
+      if return_data.size:
+          mem[64] = _180 + ceil32(return_data.size) + 33
+          mem[_180 + 32] = return_data.size
+          mem[_180 + 64 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      if not ext_call.success:
+          revert with 0, 32, 35, 0x545472616e7366657248656c7065723a204554485f5452414e534645525f4641494c45, mem[mem[64] + 103 len 29]
+  return _132, _133, ext_call.return_data[0]
+
+def swapExactETHForTokensSupportingFeeOnTransferTokens(uint256 amountOutMin, address[] path, address to, uint256 deadline) payable: 
+  require calldata.size - 4 >= 128
+  require path <= unknown10000000()
+  require path + 36 <= calldata.size
+  require path.length <= unknown10000000() and path + (32 * path.length) + 36 <= calldata.size
+  if deadline < block.timestamp:
+      revert with 0, 'PancakeRouter: EXPIRED'
+  require 0 < path.length
+  if address(cd[(path + 36)]) != 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      revert with 0, 'PancakeRouter: INVALID_PATH'
+  require ext_code.size(0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c)
+  call 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c.deposit() with:
+     value call.value wei
+       gas gas_remaining wei
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require 1 < path.length
+  if address(cd[(path + 36)]) == address(cd[(path + 68)]):
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  32,
+                  35,
+                  0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345,
+                  mem[199 len 29]
+  if address(cd[(path + 36)]) < address(cd[(path + 68)]):
+      _9 = address(cd[(path + 36)])
+      _10 = address(cd[(path + 68)])
+  else:
+      _9 = address(cd[(path + 68)])
+      _10 = address(cd[(path + 36)])
+  if not address(_9):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  mem[128] = address(_9)
+  mem[148] = address(_10)
+  mem[96] = 40
+  mem[200] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[201] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[221] = sha3(address(_9), address(_10))
+  mem[253] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[168] = 85
+  mem[321] = call.value
+  require ext_code.size(0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c)
+  call 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c.transfer(address recipient, uint256 amount) with:
+       gas gas_remaining wei
+      args address(sha3(0, 14561330441654603551, sha3(address(_9), address(_10)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)), call.value
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  require ext_call.return_data[0]
+  require path.length - 1 < path.length
+  mem[289] = to
+  require ext_code.size(address(cd[((32 * path.length - 1) + path + 36)]))
+  static call address(cd[((32 * path.length - 1) + path + 36)]).balanceOf(address account) with:
+          gas gas_remaining wei
+         args to
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  mem[64] = (32 * path.length) + 317
+  mem[285] = path.length
+  mem[317 len 32 * path.length] = call.data[path + 36 len 32 * path.length]
+  mem[(32 * path.length) + 317] = 0
+  idx = 0
+  while idx < path.length - 1:
+      require idx < mem[285]
+      _124 = mem[(32 * idx) + 317]
+      require idx + 1 < mem[285]
+      _128 = mem[(32 * idx + 1) + 317]
+      if mem[(32 * idx) + 329 len 20] == mem[(32 * idx + 1) + 329 len 20]:
+          revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+      if mem[(32 * idx) + 329 len 20] < mem[(32 * idx + 1) + 329 len 20]:
+          _133 = mem[(32 * idx) + 317]
+      else:
+          _133 = mem[(32 * idx + 1) + 317]
+      if not address(_133):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      if mem[(32 * idx) + 329 len 20] < mem[(32 * idx + 1) + 329 len 20]:
+          _141 = mem[(32 * idx) + 317]
+          _142 = mem[(32 * idx + 1) + 317]
+      else:
+          _141 = mem[(32 * idx + 1) + 317]
+          _142 = mem[(32 * idx) + 317]
+      if not address(_141):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      _145 = mem[64]
+      mem[mem[64] + 32] = address(_141)
+      mem[mem[64] + 52] = address(_142)
+      _146 = mem[64]
+      mem[mem[64]] = 40
+      mem[64] = mem[64] + 72
+      _148 = sha3(mem[_146 + 32 len mem[_146]])
+      mem[_145 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_145 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_145 + 125] = _148
+      mem[_145 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_145 + 72] = 85
+      mem[64] = _145 + 189
+      require ext_code.size(address(sha3(0, 14561330441654603551, _148, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      static call address(sha3(0, 14561330441654603551, _148, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).getReserves() with:
+              gas gas_remaining wei
+      mem[_145 + 189 len 96] = ext_call.return_data[0 len 96]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 96
+      if address(_133) == address(_124):
+          _157 = ext_call.return_data[18 len 14]
+          _158 = ext_call.return_data[50 len 14]
+      else:
+          _157 = ext_call.return_data[50 len 14]
+          _158 = ext_call.return_data[18 len 14]
+      mem[_145 + 193] = address(sha3(0, 14561330441654603551, _148, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5))
+      require ext_code.size(address(_124))
+      static call address(_124).balanceOf(address account) with:
+              gas gas_remaining wei
+             args address(sha3(0, 14561330441654603551, _148, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5))
+      mem[_145 + 189] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 32
+      if ext_call.return_data[0] - _157 > ext_call.return_data[0]:
+          revert with 0, 'ds-math-sub-underflow'
+      if ext_call.return_data[0] - _157 <= 0:
+          revert with 0, 32, 41, 0xfe50616e63616b654c6962726172793a20494e53554646494349454e545f494e5055545f414d4f554e, mem[_145 + 298 len 23]
+      if _157 <= 0:
+          _167 = _157 > 0
+      else:
+          _167 = _158 > 0
+      if not _167:
+          revert with 0, 32, 38, 0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4c49515549444954, mem[_145 + 295 len 26]
+      if (9975 * ext_call.return_data[0]) - (9975 * _157) / 9975 != ext_call.return_data[0] - _157:
+          revert with 0, 'ds-math-mul-overflow'
+      if not _158:
+          _172 = 0
+          _173 = not _158
+      else:
+          _172 = (9975 * ext_call.return_data[0] * _158) - (9975 * _157 * _158)
+          _173 = (9975 * ext_call.return_data[0] * _158) - (9975 * _157 * _158) / _158 == (9975 * ext_call.return_data[0]) - (9975 * _157)
+      if not _173:
+          revert with 0, 'ds-math-mul-overflow'
+      if 10000 * _157 / 10000 != _157:
+          revert with 0, 'ds-math-mul-overflow'
+      if (25 * _157) + (9975 * ext_call.return_data[0]) < 10000 * _157:
+          revert with 0, 'ds-math-add-overflow'
+      require (25 * _157) + (9975 * ext_call.return_data[0])
+      if address(_124) == address(_133):
+          _180 = 0
+          _181 = _172 / (25 * _157) + (9975 * ext_call.return_data[0])
+      else:
+          _180 = _172 / (25 * _157) + (9975 * ext_call.return_data[0])
+          _181 = 0
+      if idx < mem[285] - 2:
+          require idx + 2 < mem[285]
+          if address(_128) == mem[(32 * idx + 2) + 329 len 20]:
+              revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[_145 + 292 len 29]
+          if address(_128) < mem[(32 * idx + 2) + 329 len 20]:
+              _191 = _128
+              _192 = mem[(32 * idx + 2) + 317]
+          else:
+              _191 = mem[(32 * idx + 2) + 317]
+              _192 = _128
+          if not address(_191):
+              revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+          mem[_145 + 221] = address(_191)
+          mem[_145 + 241] = address(_192)
+          mem[_145 + 189] = 40
+          mem[_145 + 293] = 0xff00000000000000000000000000000000000000000000000000000000000000
+          mem[_145 + 294] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+          mem[_145 + 314] = sha3(address(_191), address(_192))
+          mem[_145 + 346] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+          mem[_145 + 261] = 85
+          mem[64] = _145 + 378
+          _206 = sha3(0, 14561330441654603551, sha3(address(_191), address(_192)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)
+      else:
+          _206 = to
+      _207 = mem[64]
+      mem[mem[64]] = 0
+      mem[64] = mem[64] + 32
+      mem[_207 + 32] = 0x22c0d9f00000000000000000000000000000000000000000000000000000000
+      mem[_207 + 36] = _180
+      mem[_207 + 68] = _181
+      mem[_207 + 100] = address(_206)
+      mem[_207 + 132] = 128
+      mem[_207 + 164] = mem[_207]
+      s = 0
+      while s < mem[_207]:
+          mem[s + _207 + 196] = mem[s + _207 + 32]
+          s = s + 32
+          continue 
+      if not mem[_207] % 32:
+          _213 = mem[_207] + _207 + 196
+      else:
+          mem[floor32(mem[_207]) + _207 + 196] = mem[floor32(mem[_207]) + _207 + -(mem[_207] % 32) + 228 len mem[_207] % 32]
+          _213 = floor32(mem[_207]) + _207 + 228
+      require ext_code.size(address(sha3(0, 14561330441654603551, _148, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      call address(sha3(0, 14561330441654603551, _148, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).swap(uint256 amount0Out, uint256 amount1Out, address to, bytes data) with:
+           gas gas_remaining wei
+          args mem[_207 + 36 len _213 + -_207 - 36]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      idx = idx + 1
+      continue 
+  require ext_code.size(address(cd[((32 * path.length - 1) + path + 36)]))
+  static call address(cd[((32 * path.length - 1) + path + 36)]).balanceOf(address account) with:
+          gas gas_remaining wei
+         args address(to)
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  if 0 < amountOutMin:
+      revert with 0, 
+                  32,
+                  41,
+                  0x5450616e63616b65526f757465723a20494e53554646494349454e545f4f55545055545f414d4f554e,
+                  mem[mem[64] + 109 len 23]
+
+def swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256 amountIn, uint256 amountOutMin, address[] path, address to, uint256 deadline): # not payable
+  require calldata.size - 4 >= 160
+  require path <= unknown10000000()
+  require path + 36 <= calldata.size
+  require path.length <= unknown10000000() and path + (32 * path.length) + 36 <= calldata.size
+  if deadline < block.timestamp:
+      revert with 0, 'PancakeRouter: EXPIRED'
+  require 0 < path.length
+  require 1 < path.length
+  if address(cd[(path + 36)]) == address(cd[(path + 68)]):
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  32,
+                  35,
+                  0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345,
+                  mem[199 len 29]
+  if address(cd[(path + 36)]) < address(cd[(path + 68)]):
+      _5 = address(cd[(path + 36)])
+      _6 = address(cd[(path + 68)])
+  else:
+      _5 = address(cd[(path + 68)])
+      _6 = address(cd[(path + 36)])
+  if not address(_5):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  mem[128] = address(_5)
+  mem[148] = address(_6)
+  mem[96] = 40
+  mem[200] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[201] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[221] = sha3(address(_5), address(_6))
+  mem[253] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[168] = 85
+  mem[321] = caller
+  mem[353] = address(sha3(0, 14561330441654603551, sha3(address(_5), address(_6)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5))
+  mem[385] = amountIn
+  mem[285] = 100
+  mem[64] = 417
+  mem[321 len 28] = Mask(224, 32, caller) >> 32
+  mem[317 len 4] = transferFrom(address sender, address recipient, uint256 amount)
+  mem[417 len 96] = transferFrom(address sender, address recipient, uint256 amount), caller, address(sha3(0, 14561330441654603551, sha3(address(_5), address(_6)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)), Mask(224, 32, amountIn) >> 32
+  mem[541 len 4] = uint32(amountIn)
+  call address(cd[(path + 36)]) with:
+       gas gas_remaining wei
+      args Mask(224, 32, amountIn) << 480, mem[513 len 4]
+  if not return_data.size:
+      _30 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 418
+      mem[417] = return_data.size
+      mem[449 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _30 = 417
+  if not ext_call.success:
+      _36 = ext_call.success
+  else:
+      if not mem[_30]:
+          _36 = not mem[_30]
+      else:
+          require mem[_30] >= 32
+          _36 = mem[_30 + 32]
+  if not _36:
+      revert with 0, 32, 36, 0x595472616e7366657248656c7065723a205452414e534645525f46524f4d5f4641494c45, mem[mem[64] + 104 len 28]
+  require path.length - 1 < path.length
+  mem[mem[64] + 4] = to
+  require ext_code.size(address(cd[((32 * path.length - 1) + path + 36)]))
+  static call address(cd[((32 * path.length - 1) + path + 36)]).balanceOf(address account) with:
+          gas gas_remaining wei
+         args address(to)
+  mem[mem[64]] = ext_call.return_data[0]
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  _43 = mem[64]
+  mem[64] = (32 * path.length) + mem[64] + 32
+  mem[_43] = path.length
+  mem[_43 + 32 len 32 * path.length] = call.data[path + 36 len 32 * path.length]
+  mem[_43 + (32 * path.length) + 32] = 0
+  idx = 0
+  while idx < path.length - 1:
+      require idx < mem[_43]
+      _139 = mem[(32 * idx) + _43 + 32]
+      require idx + 1 < mem[_43]
+      _143 = mem[(32 * idx + 1) + _43 + 32]
+      if mem[(32 * idx) + _43 + 44 len 20] == mem[(32 * idx + 1) + _43 + 44 len 20]:
+          revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+      if mem[(32 * idx) + _43 + 44 len 20] < mem[(32 * idx + 1) + _43 + 44 len 20]:
+          _148 = mem[(32 * idx) + _43 + 32]
+      else:
+          _148 = mem[(32 * idx + 1) + _43 + 32]
+      if not address(_148):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      if mem[(32 * idx) + _43 + 44 len 20] < mem[(32 * idx + 1) + _43 + 44 len 20]:
+          _156 = mem[(32 * idx) + _43 + 32]
+          _157 = mem[(32 * idx + 1) + _43 + 32]
+      else:
+          _156 = mem[(32 * idx + 1) + _43 + 32]
+          _157 = mem[(32 * idx) + _43 + 32]
+      if not address(_156):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      _160 = mem[64]
+      mem[mem[64] + 32] = address(_156)
+      mem[mem[64] + 52] = address(_157)
+      _161 = mem[64]
+      mem[mem[64]] = 40
+      mem[64] = mem[64] + 72
+      _163 = sha3(mem[_161 + 32 len mem[_161]])
+      mem[_160 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_160 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_160 + 125] = _163
+      mem[_160 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_160 + 72] = 85
+      mem[64] = _160 + 189
+      require ext_code.size(address(sha3(0, 14561330441654603551, _163, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      static call address(sha3(0, 14561330441654603551, _163, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).getReserves() with:
+              gas gas_remaining wei
+      mem[_160 + 189 len 96] = ext_call.return_data[0 len 96]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 96
+      if address(_148) == address(_139):
+          _172 = ext_call.return_data[18 len 14]
+          _173 = ext_call.return_data[50 len 14]
+      else:
+          _172 = ext_call.return_data[50 len 14]
+          _173 = ext_call.return_data[18 len 14]
+      mem[_160 + 193] = address(sha3(0, 14561330441654603551, _163, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5))
+      require ext_code.size(address(_139))
+      static call address(_139).balanceOf(address account) with:
+              gas gas_remaining wei
+             args address(sha3(0, 14561330441654603551, _163, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5))
+      mem[_160 + 189] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 32
+      if ext_call.return_data[0] - _172 > ext_call.return_data[0]:
+          revert with 0, 'ds-math-sub-underflow'
+      if ext_call.return_data[0] - _172 <= 0:
+          revert with 0, 32, 41, 0xfe50616e63616b654c6962726172793a20494e53554646494349454e545f494e5055545f414d4f554e, mem[_160 + 298 len 23]
+      if _172 <= 0:
+          _182 = _172 > 0
+      else:
+          _182 = _173 > 0
+      if not _182:
+          revert with 0, 32, 38, 0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4c49515549444954, mem[_160 + 295 len 26]
+      if (9975 * ext_call.return_data[0]) - (9975 * _172) / 9975 != ext_call.return_data[0] - _172:
+          revert with 0, 'ds-math-mul-overflow'
+      if not _173:
+          _187 = 0
+          _188 = not _173
+      else:
+          _187 = (9975 * ext_call.return_data[0] * _173) - (9975 * _172 * _173)
+          _188 = (9975 * ext_call.return_data[0] * _173) - (9975 * _172 * _173) / _173 == (9975 * ext_call.return_data[0]) - (9975 * _172)
+      if not _188:
+          revert with 0, 'ds-math-mul-overflow'
+      if 10000 * _172 / 10000 != _172:
+          revert with 0, 'ds-math-mul-overflow'
+      if (25 * _172) + (9975 * ext_call.return_data[0]) < 10000 * _172:
+          revert with 0, 'ds-math-add-overflow'
+      require (25 * _172) + (9975 * ext_call.return_data[0])
+      if address(_139) == address(_148):
+          _195 = 0
+          _196 = _187 / (25 * _172) + (9975 * ext_call.return_data[0])
+      else:
+          _195 = _187 / (25 * _172) + (9975 * ext_call.return_data[0])
+          _196 = 0
+      if idx < mem[_43] - 2:
+          require idx + 2 < mem[_43]
+          if address(_143) == mem[(32 * idx + 2) + _43 + 44 len 20]:
+              revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[_160 + 292 len 29]
+          if address(_143) < mem[(32 * idx + 2) + _43 + 44 len 20]:
+              _206 = _143
+              _207 = mem[(32 * idx + 2) + _43 + 32]
+          else:
+              _206 = mem[(32 * idx + 2) + _43 + 32]
+              _207 = _143
+          if not address(_206):
+              revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+          mem[_160 + 221] = address(_206)
+          mem[_160 + 241] = address(_207)
+          mem[_160 + 189] = 40
+          mem[_160 + 293] = 0xff00000000000000000000000000000000000000000000000000000000000000
+          mem[_160 + 294] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+          mem[_160 + 314] = sha3(address(_206), address(_207))
+          mem[_160 + 346] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+          mem[_160 + 261] = 85
+          mem[64] = _160 + 378
+          _221 = sha3(0, 14561330441654603551, sha3(address(_206), address(_207)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)
+      else:
+          _221 = to
+      _222 = mem[64]
+      mem[mem[64]] = 0
+      mem[64] = mem[64] + 32
+      mem[_222 + 32] = 0x22c0d9f00000000000000000000000000000000000000000000000000000000
+      mem[_222 + 36] = _195
+      mem[_222 + 68] = _196
+      mem[_222 + 100] = address(_221)
+      mem[_222 + 132] = 128
+      mem[_222 + 164] = mem[_222]
+      s = 0
+      while s < mem[_222]:
+          mem[s + _222 + 196] = mem[s + _222 + 32]
+          s = s + 32
+          continue 
+      if not mem[_222] % 32:
+          _228 = mem[_222] + _222 + 196
+      else:
+          mem[floor32(mem[_222]) + _222 + 196] = mem[floor32(mem[_222]) + _222 + -(mem[_222] % 32) + 228 len mem[_222] % 32]
+          _228 = floor32(mem[_222]) + _222 + 228
+      require ext_code.size(address(sha3(0, 14561330441654603551, _163, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      call address(sha3(0, 14561330441654603551, _163, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).swap(uint256 amount0Out, uint256 amount1Out, address to, bytes data) with:
+           gas gas_remaining wei
+          args mem[_222 + 36 len _228 + -_222 - 36]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      idx = idx + 1
+      continue 
+  require ext_code.size(address(cd[((32 * path.length - 1) + path + 36)]))
+  static call address(cd[((32 * path.length - 1) + path + 36)]).balanceOf(address account) with:
+          gas gas_remaining wei
+         args address(to)
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  if 0 < amountOutMin:
+      revert with 0, 
+                  32,
+                  41,
+                  0x5450616e63616b65526f757465723a20494e53554646494349454e545f4f55545055545f414d4f554e,
+                  mem[mem[64] + 109 len 23]
+
+def swapExactTokensForETHSupportingFeeOnTransferTokens(uint256 amountIn, uint256 amountOutMin, address[] path, address to, uint256 deadline): # not payable
+  require calldata.size - 4 >= 160
+  require path <= unknown10000000()
+  require path + 36 <= calldata.size
+  require path.length <= unknown10000000() and path + (32 * path.length) + 36 <= calldata.size
+  if deadline < block.timestamp:
+      revert with 0, 'PancakeRouter: EXPIRED'
+  require path.length - 1 < path.length
+  if address(cd[((32 * path.length - 1) + path + 36)]) != 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      revert with 0, 'PancakeRouter: INVALID_PATH'
+  require 0 < path.length
+  require 1 < path.length
+  if address(cd[(path + 36)]) == address(cd[(path + 68)]):
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  32,
+                  35,
+                  0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345,
+                  mem[199 len 29]
+  if address(cd[(path + 36)]) < address(cd[(path + 68)]):
+      _7 = address(cd[(path + 36)])
+      _8 = address(cd[(path + 68)])
+  else:
+      _7 = address(cd[(path + 68)])
+      _8 = address(cd[(path + 36)])
+  if not address(_7):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  mem[128] = address(_7)
+  mem[148] = address(_8)
+  mem[96] = 40
+  mem[200] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[201] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[221] = sha3(address(_7), address(_8))
+  mem[253] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[168] = 85
+  mem[321] = caller
+  mem[353] = address(sha3(0, 14561330441654603551, sha3(address(_7), address(_8)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5))
+  mem[385] = amountIn
+  mem[285] = 100
+  mem[64] = 417
+  mem[321 len 28] = Mask(224, 32, caller) >> 32
+  mem[317 len 4] = transferFrom(address sender, address recipient, uint256 amount)
+  mem[417 len 96] = transferFrom(address sender, address recipient, uint256 amount), caller, address(sha3(0, 14561330441654603551, sha3(address(_7), address(_8)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)), Mask(224, 32, amountIn) >> 32
+  mem[541 len 4] = uint32(amountIn)
+  call address(cd[(path + 36)]) with:
+       gas gas_remaining wei
+      args Mask(224, 32, amountIn) << 480, mem[513 len 4]
+  if not return_data.size:
+      _32 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 418
+      mem[417] = return_data.size
+      mem[449 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _32 = 417
+  if not ext_call.success:
+      _38 = ext_call.success
+  else:
+      if not mem[_32]:
+          _38 = not mem[_32]
+      else:
+          require mem[_32] >= 32
+          _38 = mem[_32 + 32]
+  if not _38:
+      revert with 0, 32, 36, 0x595472616e7366657248656c7065723a205452414e534645525f46524f4d5f4641494c45, mem[mem[64] + 104 len 28]
+  _41 = mem[64]
+  mem[64] = mem[64] + (32 * path.length) + 32
+  mem[_41] = path.length
+  mem[_41 + 32 len 32 * path.length] = call.data[path + 36 len 32 * path.length]
+  mem[_41 + (32 * path.length) + 32] = 0
+  idx = 0
+  while idx < path.length - 1:
+      require idx < mem[_41]
+      _154 = mem[(32 * idx) + _41 + 32]
+      require idx + 1 < mem[_41]
+      _156 = mem[(32 * idx + 1) + _41 + 32]
+      if mem[(32 * idx) + _41 + 44 len 20] == mem[(32 * idx + 1) + _41 + 44 len 20]:
+          revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+      if mem[(32 * idx) + _41 + 44 len 20] < mem[(32 * idx + 1) + _41 + 44 len 20]:
+          _165 = mem[(32 * idx) + _41 + 32]
+      else:
+          _165 = mem[(32 * idx + 1) + _41 + 32]
+      if not address(_165):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      if mem[(32 * idx) + _41 + 44 len 20] < mem[(32 * idx + 1) + _41 + 44 len 20]:
+          _180 = mem[(32 * idx) + _41 + 32]
+          _181 = mem[(32 * idx + 1) + _41 + 32]
+      else:
+          _180 = mem[(32 * idx + 1) + _41 + 32]
+          _181 = mem[(32 * idx) + _41 + 32]
+      if not address(_180):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      _188 = mem[64]
+      mem[mem[64] + 32] = address(_180)
+      mem[mem[64] + 52] = address(_181)
+      _189 = mem[64]
+      mem[mem[64]] = 40
+      mem[64] = mem[64] + 72
+      _191 = sha3(mem[_189 + 32 len mem[_189]])
+      mem[_188 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_188 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_188 + 125] = _191
+      mem[_188 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_188 + 72] = 85
+      mem[64] = _188 + 189
+      require ext_code.size(address(sha3(0, 14561330441654603551, _191, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      static call address(sha3(0, 14561330441654603551, _191, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).getReserves() with:
+              gas gas_remaining wei
+      mem[_188 + 189 len 96] = ext_call.return_data[0 len 96]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 96
+      if address(_165) == address(_154):
+          _200 = ext_call.return_data[18 len 14]
+          _201 = ext_call.return_data[50 len 14]
+      else:
+          _200 = ext_call.return_data[50 len 14]
+          _201 = ext_call.return_data[18 len 14]
+      mem[_188 + 193] = address(sha3(0, 14561330441654603551, _191, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5))
+      require ext_code.size(address(_154))
+      static call address(_154).balanceOf(address account) with:
+              gas gas_remaining wei
+             args address(sha3(0, 14561330441654603551, _191, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5))
+      mem[_188 + 189] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 32
+      if ext_call.return_data[0] - _200 > ext_call.return_data[0]:
+          revert with 0, 'ds-math-sub-underflow'
+      if ext_call.return_data[0] - _200 <= 0:
+          revert with 0, 32, 41, 0xfe50616e63616b654c6962726172793a20494e53554646494349454e545f494e5055545f414d4f554e, mem[_188 + 298 len 23]
+      if _200 <= 0:
+          _210 = _200 > 0
+      else:
+          _210 = _201 > 0
+      if not _210:
+          revert with 0, 32, 38, 0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4c49515549444954, mem[_188 + 295 len 26]
+      if (9975 * ext_call.return_data[0]) - (9975 * _200) / 9975 != ext_call.return_data[0] - _200:
+          revert with 0, 'ds-math-mul-overflow'
+      if not _201:
+          _215 = 0
+          _216 = not _201
+      else:
+          _215 = (9975 * ext_call.return_data[0] * _201) - (9975 * _200 * _201)
+          _216 = (9975 * ext_call.return_data[0] * _201) - (9975 * _200 * _201) / _201 == (9975 * ext_call.return_data[0]) - (9975 * _200)
+      if not _216:
+          revert with 0, 'ds-math-mul-overflow'
+      if 10000 * _200 / 10000 != _200:
+          revert with 0, 'ds-math-mul-overflow'
+      if (25 * _200) + (9975 * ext_call.return_data[0]) < 10000 * _200:
+          revert with 0, 'ds-math-add-overflow'
+      require (25 * _200) + (9975 * ext_call.return_data[0])
+      if address(_154) == address(_165):
+          _223 = 0
+          _224 = _215 / (25 * _200) + (9975 * ext_call.return_data[0])
+      else:
+          _223 = _215 / (25 * _200) + (9975 * ext_call.return_data[0])
+          _224 = 0
+      if idx < mem[_41] - 2:
+          require idx + 2 < mem[_41]
+          if address(_156) == mem[(32 * idx + 2) + _41 + 44 len 20]:
+              revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[_188 + 292 len 29]
+          if address(_156) < mem[(32 * idx + 2) + _41 + 44 len 20]:
+              _234 = _156
+              _235 = mem[(32 * idx + 2) + _41 + 32]
+          else:
+              _234 = mem[(32 * idx + 2) + _41 + 32]
+              _235 = _156
+          if not address(_234):
+              revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+          mem[_188 + 221] = address(_234)
+          mem[_188 + 241] = address(_235)
+          mem[_188 + 189] = 40
+          mem[_188 + 293] = 0xff00000000000000000000000000000000000000000000000000000000000000
+          mem[_188 + 294] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+          mem[_188 + 314] = sha3(address(_234), address(_235))
+          mem[_188 + 346] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+          mem[_188 + 261] = 85
+          mem[64] = _188 + 378
+          _249 = sha3(0, 14561330441654603551, sha3(address(_234), address(_235)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)
+      else:
+          _249 = this.address
+      _250 = mem[64]
+      mem[mem[64]] = 0
+      mem[64] = mem[64] + 32
+      mem[_250 + 32] = 0x22c0d9f00000000000000000000000000000000000000000000000000000000
+      mem[_250 + 36] = _223
+      mem[_250 + 68] = _224
+      mem[_250 + 100] = address(_249)
+      mem[_250 + 132] = 128
+      mem[_250 + 164] = mem[_250]
+      s = 0
+      while s < mem[_250]:
+          mem[s + _250 + 196] = mem[s + _250 + 32]
+          s = s + 32
+          continue 
+      if not mem[_250] % 32:
+          _256 = mem[_250] + _250 + 196
+      else:
+          mem[floor32(mem[_250]) + _250 + 196] = mem[floor32(mem[_250]) + _250 + -(mem[_250] % 32) + 228 len mem[_250] % 32]
+          _256 = floor32(mem[_250]) + _250 + 228
+      require ext_code.size(address(sha3(0, 14561330441654603551, _191, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      call address(sha3(0, 14561330441654603551, _191, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).swap(uint256 amount0Out, uint256 amount1Out, address to, bytes data) with:
+           gas gas_remaining wei
+          args mem[_250 + 36 len _256 + -_250 - 36]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      idx = idx + 1
+      continue 
+  require ext_code.size(0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c)
+  static call 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c.balanceOf(address account) with:
+          gas gas_remaining wei
+         args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  if ext_call.return_data[0] < amountOutMin:
+      revert with 0, 
+                  32,
+                  41,
+                  0x5450616e63616b65526f757465723a20494e53554646494349454e545f4f55545055545f414d4f554e,
+                  mem[mem[64] + 109 len 23]
+  mem[mem[64] + 4] = ext_call.return_data[0]
+  require ext_code.size(0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c)
+  call 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c.withdraw(uint256 amount) with:
+       gas gas_remaining wei
+      args ext_call.return_data[0]
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  _169 = mem[64]
+  mem[mem[64]] = 0
+  mem[64] = mem[64] + 32
+  mem[_169 + floor32(mem[_169]) + -(mem[_169] % 32) + 64 len mem[_169] % 32] = mem[_169 + -(mem[_169] % 32) + floor32(mem[_169]) + 64 len mem[_169] % 32]
+  call to.mem[_169 + 32 len 4] with:
+     value ext_call.return_data[0] wei
+       gas gas_remaining wei
+      args mem[_169 + 36 len mem[_169] - 4]
+  if return_data.size:
+      mem[64] = _169 + ceil32(return_data.size) + 33
+      mem[_169 + 32] = return_data.size
+      mem[_169 + 64 len return_data.size] = ext_call.return_data[0 len return_data.size]
+  if not ext_call.success:
+      revert with 0, 32, 35, 0x545472616e7366657248656c7065723a204554485f5452414e534645525f4641494c45, mem[mem[64] + 103 len 29]
+
+def swapExactETHForTokens(uint256 amountOutMin, address[] path, address to, uint256 deadline) payable: 
+  require calldata.size - 4 >= 128
+  require path <= unknown10000000()
+  require path + 36 <= calldata.size
+  require path.length <= unknown10000000() and path + (32 * path.length) + 36 <= calldata.size
+  if deadline < block.timestamp:
+      revert with 0, 'PancakeRouter: EXPIRED'
+  require 0 < path.length
+  if address(cd[(path + 36)]) != 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      revert with 0, 'PancakeRouter: INVALID_PATH'
+  mem[96] = path.length
+  mem[128 len 32 * path.length] = call.data[path + 36 len 32 * path.length]
+  if path.length < 2:
+      revert with 0, 'PancakeLibrary: INVALID_PATH'
+  require path.length <= LOCK8605463013()
+  mem[(32 * path.length) + 128] = path.length
+  mem[64] = (64 * path.length) + 160
+  if path.length:
+      mem[(32 * path.length) + 160 len 32 * path.length] = call.data[calldata.size len 32 * path.length]
+  require 0 < path.length
+  mem[(32 * path.length) + 160] = call.value
+  idx = 0
+  while idx < path.length - 1:
+      require idx < mem[96]
+      _176 = mem[(32 * idx) + 128]
+      require idx + 1 < mem[96]
+      _179 = mem[(32 * idx + 1) + 128]
+      if mem[(32 * idx) + 140 len 20] == mem[(32 * idx + 1) + 140 len 20]:
+          revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+      if mem[(32 * idx) + 140 len 20] < mem[(32 * idx + 1) + 140 len 20]:
+          _188 = mem[(32 * idx) + 128]
+      else:
+          _188 = mem[(32 * idx + 1) + 128]
+      if not address(_188):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      if mem[(32 * idx) + 140 len 20] < mem[(32 * idx + 1) + 140 len 20]:
+          _196 = mem[(32 * idx) + 128]
+          _197 = mem[(32 * idx + 1) + 128]
+      else:
+          _196 = mem[(32 * idx + 1) + 128]
+          _197 = mem[(32 * idx) + 128]
+      if not address(_196):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      _210 = mem[64]
+      mem[mem[64] + 32] = address(_196)
+      mem[mem[64] + 52] = address(_197)
+      _211 = mem[64]
+      mem[mem[64]] = 40
+      mem[64] = mem[64] + 72
+      _213 = sha3(mem[_211 + 32 len mem[_211]])
+      mem[_210 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_210 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_210 + 125] = _213
+      mem[_210 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_210 + 72] = 85
+      if address(_176) < address(_179):
+          _223 = _176
+          _224 = _179
+      else:
+          _223 = _179
+          _224 = _176
+      if not address(_223):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      mem[_210 + 221] = address(_223)
+      mem[_210 + 241] = address(_224)
+      mem[_210 + 189] = 40
+      mem[_210 + 293] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_210 + 294] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_210 + 314] = sha3(address(_223), address(_224))
+      mem[_210 + 346] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_210 + 261] = 85
+      mem[64] = _210 + 378
+      require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_223), address(_224)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      static call address(sha3(0, 14561330441654603551, sha3(address(_223), address(_224)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).getReserves() with:
+              gas gas_remaining wei
+      mem[_210 + 378 len 96] = ext_call.return_data[0 len 96]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 96
+      if address(_188) == address(_176):
+          _253 = ext_call.return_data[18 len 14]
+          _254 = ext_call.return_data[50 len 14]
+      else:
+          _253 = ext_call.return_data[50 len 14]
+          _254 = ext_call.return_data[18 len 14]
+      require idx < mem[(32 * path.length) + 128]
+      if mem[(32 * idx) + (32 * path.length) + 160] <= 0:
+          revert with 0, 32, 41, 0xfe50616e63616b654c6962726172793a20494e53554646494349454e545f494e5055545f414d4f554e, mem[_210 + 487 len 23]
+      if _253 <= 0:
+          _268 = _253 > 0
+      else:
+          _268 = _254 > 0
+      if not _268:
+          revert with 0, 32, 38, 0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4c49515549444954, mem[_210 + 484 len 26]
+      if 9975 * mem[(32 * idx) + (32 * path.length) + 160] / 9975 != mem[(32 * idx) + (32 * path.length) + 160]:
+          revert with 0, 'ds-math-mul-overflow'
+      if not _254:
+          _300 = 0
+          _301 = not _254
+      else:
+          _300 = 9975 * mem[(32 * idx) + (32 * path.length) + 160] * _254
+          _301 = 9975 * mem[(32 * idx) + (32 * path.length) + 160] * _254 / _254 == 9975 * mem[(32 * idx) + (32 * path.length) + 160]
+      if not _301:
+          revert with 0, 'ds-math-mul-overflow'
+      if 10000 * _253 / 10000 != _253:
+          revert with 0, 'ds-math-mul-overflow'
+      if (10000 * _253) + (9975 * mem[(32 * idx) + (32 * path.length) + 160]) < 10000 * _253:
+          revert with 0, 'ds-math-add-overflow'
+      require (10000 * _253) + (9975 * mem[(32 * idx) + (32 * path.length) + 160])
+      require idx + 1 < mem[(32 * path.length) + 128]
+      mem[(32 * idx + 1) + (32 * path.length) + 160] = _300 / (10000 * _253) + (9975 * mem[(32 * idx) + (32 * path.length) + 160])
+      idx = idx + 1
+      continue 
+  require mem[(32 * path.length) + 128] - 1 < mem[(32 * path.length) + 128]
+  if mem[(32 * mem[(32 * path.length) + 128] - 1) + (32 * path.length) + 160] < amountOutMin:
+      revert with 0, 
+                  32,
+                  41,
+                  0x5450616e63616b65526f757465723a20494e53554646494349454e545f4f55545055545f414d4f554e,
+                  mem[mem[64] + 109 len 23]
+  require 0 < mem[(32 * path.length) + 128]
+  require ext_code.size(0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c)
+  call 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c.deposit() with:
+     value mem[(32 * path.length) + 160] wei
+       gas gas_remaining wei
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require 1 < path.length
+  if address(cd[(path + 36)]) == address(cd[(path + 68)]):
+      revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+  if address(cd[(path + 36)]) < address(cd[(path + 68)]):
+      _194 = address(cd[(path + 36)])
+      _195 = address(cd[(path + 68)])
+  else:
+      _194 = address(cd[(path + 68)])
+      _195 = address(cd[(path + 36)])
+  if not address(_194):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  _200 = mem[64]
+  mem[mem[64] + 32] = address(_194)
+  mem[mem[64] + 52] = address(_195)
+  _201 = mem[64]
+  mem[mem[64]] = 40
+  mem[64] = mem[64] + 72
+  _203 = sha3(mem[_201 + 32 len mem[_201]])
+  mem[_200 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[_200 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[_200 + 125] = _203
+  mem[_200 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[_200 + 72] = 85
+  require 0 < mem[(32 * path.length) + 128]
+  _217 = mem[(32 * path.length) + 160]
+  mem[_200 + 193] = address(sha3(0, 14561330441654603551, _203, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5))
+  mem[_200 + 225] = _217
+  require ext_code.size(0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c)
+  call 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c.transfer(address recipient, uint256 amount) with:
+       gas gas_remaining wei
+      args address(sha3(0, 14561330441654603551, _203, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)), _217
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  require ext_call.return_data[0]
+  mem[64] = _200 + (32 * path.length) + 221
+  mem[_200 + 189] = path.length
+  mem[_200 + 221 len 32 * path.length] = call.data[path + 36 len 32 * path.length]
+  mem[_200 + (32 * path.length) + 221] = 0
+  idx = 0
+  while idx < path.length - 1:
+      require idx < mem[_200 + 189]
+      _332 = mem[(32 * idx) + _200 + 221]
+      require idx + 1 < mem[_200 + 189]
+      _337 = mem[(32 * idx + 1) + _200 + 221]
+      if mem[(32 * idx) + _200 + 233 len 20] == mem[(32 * idx + 1) + _200 + 233 len 20]:
+          revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+      if mem[(32 * idx) + _200 + 233 len 20] < mem[(32 * idx + 1) + _200 + 233 len 20]:
+          _342 = mem[(32 * idx) + _200 + 221]
+      else:
+          _342 = mem[(32 * idx + 1) + _200 + 221]
+      if not address(_342):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      require idx + 1 < mem[(32 * path.length) + 128]
+      if mem[(32 * idx) + _200 + 233 len 20] == address(_342):
+          _350 = 0
+          _351 = mem[(32 * idx + 1) + (32 * path.length) + 160]
+      else:
+          _350 = mem[(32 * idx + 1) + (32 * path.length) + 160]
+          _351 = 0
+      if idx < mem[_200 + 189] - 2:
+          require idx + 2 < mem[_200 + 189]
+          if mem[(32 * idx + 1) + _200 + 233 len 20] == mem[(32 * idx + 2) + _200 + 233 len 20]:
+              revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+          if mem[(32 * idx + 1) + _200 + 233 len 20] < mem[(32 * idx + 2) + _200 + 233 len 20]:
+              _357 = mem[(32 * idx + 1) + _200 + 221]
+              _358 = mem[(32 * idx + 2) + _200 + 221]
+          else:
+              _357 = mem[(32 * idx + 2) + _200 + 221]
+              _358 = mem[(32 * idx + 1) + _200 + 221]
+          if not address(_357):
+              revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+          _365 = mem[64]
+          mem[mem[64] + 32] = address(_357)
+          mem[mem[64] + 52] = address(_358)
+          _366 = mem[64]
+          mem[mem[64]] = 40
+          mem[64] = mem[64] + 72
+          _368 = sha3(mem[_366 + 32 len mem[_366]])
+          mem[_365 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+          mem[_365 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+          mem[_365 + 125] = _368
+          mem[_365 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+          mem[_365 + 72] = 85
+          mem[64] = _365 + 189
+          _379 = sha3(0, 14561330441654603551, _368, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)
+      else:
+          _379 = to
+      if address(_332) < address(_337):
+          _380 = _332
+          _381 = _337
+      else:
+          _380 = _337
+          _381 = _332
+      if not address(_380):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      _384 = mem[64]
+      mem[mem[64] + 32] = address(_380)
+      mem[mem[64] + 52] = address(_381)
+      _385 = mem[64]
+      mem[mem[64]] = 40
+      mem[64] = mem[64] + 72
+      _387 = sha3(mem[_385 + 32 len mem[_385]])
+      mem[_384 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_384 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_384 + 125] = _387
+      mem[_384 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_384 + 72] = 85
+      mem[_384 + 189] = 0
+      mem[64] = _384 + 221
+      mem[_384 + 221] = 0x22c0d9f00000000000000000000000000000000000000000000000000000000
+      mem[_384 + 225] = _350
+      mem[_384 + 257] = _351
+      mem[_384 + 289] = address(_379)
+      mem[_384 + 321] = 128
+      mem[_384 + 353] = 0
+      require ext_code.size(address(sha3(0, 14561330441654603551, _387, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      call address(sha3(0, 14561330441654603551, _387, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).swap(uint256 amount0Out, uint256 amount1Out, address to, bytes data) with:
+           gas gas_remaining wei
+          args _350, _351, address(_379), 128, 0
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      idx = idx + 1
+      continue 
+  mem[mem[64]] = 32
+  mem[mem[64] + 32] = mem[(32 * path.length) + 128]
+  _336 = mem[(32 * path.length) + 128]
+  mem[mem[64] + 64 len floor32(mem[(32 * path.length) + 128])] = mem[(32 * path.length) + 160 len floor32(mem[(32 * path.length) + 128])]
+  return 32, mem[mem[64] + 32 len (32 * _336) + 32]
+
+def swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin, address[] path, address to, uint256 deadline): # not payable
+  require calldata.size - 4 >= 160
+  require path <= unknown10000000()
+  require path + 36 <= calldata.size
+  require path.length <= unknown10000000() and path + (32 * path.length) + 36 <= calldata.size
+  if deadline < block.timestamp:
+      revert with 0, 'PancakeRouter: EXPIRED'
+  mem[96] = path.length
+  mem[128 len 32 * path.length] = call.data[path + 36 len 32 * path.length]
+  if path.length < 2:
+      revert with 0, 'PancakeLibrary: INVALID_PATH'
+  require path.length <= LOCK8605463013()
+  mem[(32 * path.length) + 128] = path.length
+  mem[64] = (64 * path.length) + 160
+  if path.length:
+      mem[(32 * path.length) + 160 len 32 * path.length] = call.data[calldata.size len 32 * path.length]
+  require 0 < path.length
+  mem[(32 * path.length) + 160] = amountIn
+  idx = 0
+  while idx < path.length - 1:
+      require idx < mem[96]
+      _183 = mem[(32 * idx) + 128]
+      require idx + 1 < mem[96]
+      _186 = mem[(32 * idx + 1) + 128]
+      if mem[(32 * idx) + 140 len 20] == mem[(32 * idx + 1) + 140 len 20]:
+          revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+      if mem[(32 * idx) + 140 len 20] < mem[(32 * idx + 1) + 140 len 20]:
+          _191 = mem[(32 * idx) + 128]
+      else:
+          _191 = mem[(32 * idx + 1) + 128]
+      if not address(_191):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      if mem[(32 * idx) + 140 len 20] < mem[(32 * idx + 1) + 140 len 20]:
+          _208 = mem[(32 * idx) + 128]
+          _209 = mem[(32 * idx + 1) + 128]
+      else:
+          _208 = mem[(32 * idx + 1) + 128]
+          _209 = mem[(32 * idx) + 128]
+      if not address(_208):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      _219 = mem[64]
+      mem[mem[64] + 32] = address(_208)
+      mem[mem[64] + 52] = address(_209)
+      _220 = mem[64]
+      mem[mem[64]] = 40
+      mem[64] = mem[64] + 72
+      _222 = sha3(mem[_220 + 32 len mem[_220]])
+      mem[_219 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_219 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_219 + 125] = _222
+      mem[_219 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_219 + 72] = 85
+      if address(_183) < address(_186):
+          _236 = _183
+          _237 = _186
+      else:
+          _236 = _186
+          _237 = _183
+      if not address(_236):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      mem[_219 + 221] = address(_236)
+      mem[_219 + 241] = address(_237)
+      mem[_219 + 189] = 40
+      mem[_219 + 293] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_219 + 294] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_219 + 314] = sha3(address(_236), address(_237))
+      mem[_219 + 346] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_219 + 261] = 85
+      mem[64] = _219 + 378
+      require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_236), address(_237)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      static call address(sha3(0, 14561330441654603551, sha3(address(_236), address(_237)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).getReserves() with:
+              gas gas_remaining wei
+      mem[_219 + 378 len 96] = ext_call.return_data[0 len 96]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 96
+      if address(_191) == address(_183):
+          _261 = ext_call.return_data[18 len 14]
+          _262 = ext_call.return_data[50 len 14]
+      else:
+          _261 = ext_call.return_data[50 len 14]
+          _262 = ext_call.return_data[18 len 14]
+      require idx < mem[(32 * path.length) + 128]
+      if mem[(32 * idx) + (32 * path.length) + 160] <= 0:
+          revert with 0, 32, 41, 0xfe50616e63616b654c6962726172793a20494e53554646494349454e545f494e5055545f414d4f554e, mem[_219 + 487 len 23]
+      if _261 <= 0:
+          _279 = _261 > 0
+      else:
+          _279 = _262 > 0
+      if not _279:
+          revert with 0, 32, 38, 0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4c49515549444954, mem[_219 + 484 len 26]
+      if 9975 * mem[(32 * idx) + (32 * path.length) + 160] / 9975 != mem[(32 * idx) + (32 * path.length) + 160]:
+          revert with 0, 'ds-math-mul-overflow'
+      if not _262:
+          _297 = 0
+          _298 = not _262
+      else:
+          _297 = 9975 * mem[(32 * idx) + (32 * path.length) + 160] * _262
+          _298 = 9975 * mem[(32 * idx) + (32 * path.length) + 160] * _262 / _262 == 9975 * mem[(32 * idx) + (32 * path.length) + 160]
+      if not _298:
+          revert with 0, 'ds-math-mul-overflow'
+      if 10000 * _261 / 10000 != _261:
+          revert with 0, 'ds-math-mul-overflow'
+      if (10000 * _261) + (9975 * mem[(32 * idx) + (32 * path.length) + 160]) < 10000 * _261:
+          revert with 0, 'ds-math-add-overflow'
+      require (10000 * _261) + (9975 * mem[(32 * idx) + (32 * path.length) + 160])
+      require idx + 1 < mem[(32 * path.length) + 128]
+      mem[(32 * idx + 1) + (32 * path.length) + 160] = _297 / (10000 * _261) + (9975 * mem[(32 * idx) + (32 * path.length) + 160])
+      idx = idx + 1
+      continue 
+  require mem[(32 * path.length) + 128] - 1 < mem[(32 * path.length) + 128]
+  if mem[(32 * mem[(32 * path.length) + 128] - 1) + (32 * path.length) + 160] < amountOutMin:
+      revert with 0, 
+                  32,
+                  41,
+                  0x5450616e63616b65526f757465723a20494e53554646494349454e545f4f55545055545f414d4f554e,
+                  mem[mem[64] + 109 len 23]
+  require 0 < path.length
+  require 1 < path.length
+  if address(cd[(path + 36)]) == address(cd[(path + 68)]):
+      revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+  if address(cd[(path + 36)]) < address(cd[(path + 68)]):
+      _197 = address(cd[(path + 36)])
+      _198 = address(cd[(path + 68)])
+  else:
+      _197 = address(cd[(path + 68)])
+      _198 = address(cd[(path + 36)])
+  if not address(_197):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  _201 = mem[64]
+  mem[mem[64] + 32] = address(_197)
+  mem[mem[64] + 52] = address(_198)
+  _202 = mem[64]
+  mem[mem[64]] = 40
+  mem[64] = mem[64] + 72
+  _204 = sha3(mem[_202 + 32 len mem[_202]])
+  mem[_201 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[_201 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[_201 + 125] = _204
+  mem[_201 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[_201 + 72] = 85
+  require 0 < mem[(32 * path.length) + 128]
+  _211 = mem[(32 * path.length) + 160]
+  mem[_201 + 225] = caller
+  mem[_201 + 257] = address(sha3(0, 14561330441654603551, _204, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5))
+  mem[_201 + 289] = _211
+  mem[_201 + 189] = 100
+  mem[64] = _201 + 321
+  mem[_201 + 225 len 28] = Mask(224, 32, caller) >> 32
+  mem[_201 + 221 len 4] = transferFrom(address sender, address recipient, uint256 amount)
+  mem[_201 + 321 len 96] = transferFrom(address sender, address recipient, uint256 amount), caller, address(sha3(0, 14561330441654603551, _204, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)), Mask(224, 32, _211) >> 32
+  mem[_201 + 445 len 4] = Mask(32, 64, _211) >> 64
+  call address(cd[(path + 36)]) with:
+       gas gas_remaining wei
+      args Mask(224, 32, _211) << 480, mem[_201 + 417 len 4]
+  if not return_data.size:
+      _235 = 96
+  else:
+      mem[64] = _201 + ceil32(return_data.size) + 322
+      mem[_201 + 321] = return_data.size
+      mem[_201 + 353 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _235 = _201 + 321
+  if not ext_call.success:
+      _254 = ext_call.success
+  else:
+      if not mem[_235]:
+          _254 = not mem[_235]
+      else:
+          require mem[_235] >= 32
+          _254 = mem[_235 + 32]
+  if not _254:
+      revert with 0, 32, 36, 0x595472616e7366657248656c7065723a205452414e534645525f46524f4d5f4641494c45, mem[mem[64] + 104 len 28]
+  _258 = mem[64]
+  mem[64] = mem[64] + (32 * path.length) + 32
+  mem[_258] = path.length
+  mem[_258 + 32 len 32 * path.length] = call.data[path + 36 len 32 * path.length]
+  mem[_258 + (32 * path.length) + 32] = 0
+  idx = 0
+  while idx < path.length - 1:
+      require idx < mem[_258]
+      _354 = mem[(32 * idx) + _258 + 32]
+      require idx + 1 < mem[_258]
+      _359 = mem[(32 * idx + 1) + _258 + 32]
+      if mem[(32 * idx) + _258 + 44 len 20] == mem[(32 * idx + 1) + _258 + 44 len 20]:
+          revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+      if mem[(32 * idx) + _258 + 44 len 20] < mem[(32 * idx + 1) + _258 + 44 len 20]:
+          _364 = mem[(32 * idx) + _258 + 32]
+      else:
+          _364 = mem[(32 * idx + 1) + _258 + 32]
+      if not address(_364):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      require idx + 1 < mem[(32 * path.length) + 128]
+      if mem[(32 * idx) + _258 + 44 len 20] == address(_364):
+          _372 = 0
+          _373 = mem[(32 * idx + 1) + (32 * path.length) + 160]
+      else:
+          _372 = mem[(32 * idx + 1) + (32 * path.length) + 160]
+          _373 = 0
+      if idx < mem[_258] - 2:
+          require idx + 2 < mem[_258]
+          if mem[(32 * idx + 1) + _258 + 44 len 20] == mem[(32 * idx + 2) + _258 + 44 len 20]:
+              revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+          if mem[(32 * idx + 1) + _258 + 44 len 20] < mem[(32 * idx + 2) + _258 + 44 len 20]:
+              _379 = mem[(32 * idx + 1) + _258 + 32]
+              _380 = mem[(32 * idx + 2) + _258 + 32]
+          else:
+              _379 = mem[(32 * idx + 2) + _258 + 32]
+              _380 = mem[(32 * idx + 1) + _258 + 32]
+          if not address(_379):
+              revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+          _387 = mem[64]
+          mem[mem[64] + 32] = address(_379)
+          mem[mem[64] + 52] = address(_380)
+          _388 = mem[64]
+          mem[mem[64]] = 40
+          mem[64] = mem[64] + 72
+          _390 = sha3(mem[_388 + 32 len mem[_388]])
+          mem[_387 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+          mem[_387 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+          mem[_387 + 125] = _390
+          mem[_387 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+          mem[_387 + 72] = 85
+          mem[64] = _387 + 189
+          _401 = sha3(0, 14561330441654603551, _390, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)
+      else:
+          _401 = to
+      if address(_354) < address(_359):
+          _402 = _354
+          _403 = _359
+      else:
+          _402 = _359
+          _403 = _354
+      if not address(_402):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      _406 = mem[64]
+      mem[mem[64] + 32] = address(_402)
+      mem[mem[64] + 52] = address(_403)
+      _407 = mem[64]
+      mem[mem[64]] = 40
+      mem[64] = mem[64] + 72
+      _409 = sha3(mem[_407 + 32 len mem[_407]])
+      mem[_406 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_406 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_406 + 125] = _409
+      mem[_406 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_406 + 72] = 85
+      mem[_406 + 189] = 0
+      mem[64] = _406 + 221
+      mem[_406 + 221] = 0x22c0d9f00000000000000000000000000000000000000000000000000000000
+      mem[_406 + 225] = _372
+      mem[_406 + 257] = _373
+      mem[_406 + 289] = address(_401)
+      mem[_406 + 321] = 128
+      mem[_406 + 353] = 0
+      require ext_code.size(address(sha3(0, 14561330441654603551, _409, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      call address(sha3(0, 14561330441654603551, _409, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).swap(uint256 amount0Out, uint256 amount1Out, address to, bytes data) with:
+           gas gas_remaining wei
+          args _372, _373, address(_401), 128, 0
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      idx = idx + 1
+      continue 
+  mem[mem[64]] = 32
+  mem[mem[64] + 32] = mem[(32 * path.length) + 128]
+  _358 = mem[(32 * path.length) + 128]
+  mem[mem[64] + 64 len floor32(mem[(32 * path.length) + 128])] = mem[(32 * path.length) + 160 len floor32(mem[(32 * path.length) + 128])]
+  return 32, mem[mem[64] + 32 len (32 * _358) + 32]
+
+def swapTokensForExactTokens(uint256 amountOut, uint256 amountInMax, address[] path, address to, uint256 deadline): # not payable
+  require calldata.size - 4 >= 160
+  require path <= unknown10000000()
+  require path + 36 <= calldata.size
+  require path.length <= unknown10000000() and path + (32 * path.length) + 36 <= calldata.size
+  if deadline < block.timestamp:
+      revert with 0, 'PancakeRouter: EXPIRED'
+  mem[96] = path.length
+  mem[128 len 32 * path.length] = call.data[path + 36 len 32 * path.length]
+  if path.length < 2:
+      revert with 0, 'PancakeLibrary: INVALID_PATH'
+  require path.length <= LOCK8605463013()
+  mem[(32 * path.length) + 128] = path.length
+  mem[64] = (64 * path.length) + 160
+  if path.length:
+      mem[(32 * path.length) + 160 len 32 * path.length] = call.data[calldata.size len 32 * path.length]
+  require path.length - 1 < path.length
+  mem[(32 * path.length - 1) + (32 * path.length) + 160] = amountOut
+  s = mem[96] - 1
+  while s:
+      require s - 1 < mem[96]
+      require s < mem[96]
+      _188 = mem[(32 * s) + 128]
+      if mem[(32 * s - 1) + 140 len 20] == mem[(32 * s) + 140 len 20]:
+          revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+      if mem[(32 * s - 1) + 140 len 20] < mem[(32 * s) + 140 len 20]:
+          _193 = mem[(32 * s - 1) + 128]
+      else:
+          _193 = mem[(32 * s) + 128]
+      if not address(_193):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      if mem[(32 * s - 1) + 140 len 20] < mem[(32 * s) + 140 len 20]:
+          _210 = mem[(32 * s - 1) + 128]
+          _211 = mem[(32 * s) + 128]
+      else:
+          _210 = mem[(32 * s) + 128]
+          _211 = mem[(32 * s - 1) + 128]
+      if not address(_210):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      _221 = mem[64]
+      mem[mem[64] + 32] = address(_210)
+      mem[mem[64] + 52] = address(_211)
+      _222 = mem[64]
+      mem[mem[64]] = 40
+      mem[64] = mem[64] + 72
+      _224 = sha3(mem[_222 + 32 len mem[_222]])
+      mem[_221 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_221 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_221 + 125] = _224
+      mem[_221 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_221 + 72] = 85
+      if mem[(32 * s - 1) + 140 len 20] < address(_188):
+          _238 = mem[(32 * s - 1) + 128]
+          _239 = _188
+      else:
+          _238 = _188
+          _239 = mem[(32 * s - 1) + 128]
+      if not address(_238):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      mem[_221 + 221] = address(_238)
+      mem[_221 + 241] = address(_239)
+      mem[_221 + 189] = 40
+      mem[_221 + 293] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_221 + 294] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_221 + 314] = sha3(address(_238), address(_239))
+      mem[_221 + 346] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_221 + 261] = 85
+      mem[64] = _221 + 378
+      require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_238), address(_239)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      static call address(sha3(0, 14561330441654603551, sha3(address(_238), address(_239)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).getReserves() with:
+              gas gas_remaining wei
+      mem[_221 + 378 len 96] = ext_call.return_data[0 len 96]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 96
+      if address(_193) == mem[(32 * s - 1) + 140 len 20]:
+          _263 = ext_call.return_data[18 len 14]
+          _264 = ext_call.return_data[50 len 14]
+      else:
+          _263 = ext_call.return_data[50 len 14]
+          _264 = ext_call.return_data[18 len 14]
+      require s < mem[(32 * path.length) + 128]
+      if mem[(32 * s) + (32 * path.length) + 160] <= 0:
+          revert with 0, 
+                      32,
+                      42,
+                      0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4f55545055545f414d4f554e,
+                      mem[_221 + 488 len 22]
+      if _263 <= 0:
+          _281 = _263 > 0
+      else:
+          _281 = _264 > 0
+      if not _281:
+          revert with 0, 32, 38, 0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4c49515549444954, mem[_221 + 484 len 26]
+      if not mem[(32 * s) + (32 * path.length) + 160]:
+          _292 = 0
+          _293 = not mem[(32 * s) + (32 * path.length) + 160]
+      else:
+          _292 = _263 * mem[(32 * s) + (32 * path.length) + 160]
+          _293 = _263 * mem[(32 * s) + (32 * path.length) + 160] / mem[(32 * s) + (32 * path.length) + 160] == _263
+      if not _293:
+          revert with 0, 'ds-math-mul-overflow'
+      if 10000 * _292 / 10000 != _292:
+          revert with 0, 'ds-math-mul-overflow'
+      if _264 - mem[(32 * s) + (32 * path.length) + 160] > _264:
+          revert with 0, 'ds-math-sub-underflow'
+      if (9975 * _264) - (9975 * mem[(32 * s) + (32 * path.length) + 160]) / 9975 != _264 - mem[(32 * s) + (32 * path.length) + 160]:
+          revert with 0, 'ds-math-mul-overflow'
+      require (9975 * _264) - (9975 * mem[(32 * s) + (32 * path.length) + 160])
+      if (10000 * _292 / (9975 * _264) - (9975 * mem[(32 * s) + (32 * path.length) + 160])) + 1 < 10000 * _292 / (9975 * _264) - (9975 * mem[(32 * s) + (32 * path.length) + 160]):
+          revert with 0, 'ds-math-add-overflow'
+      require s - 1 < mem[(32 * path.length) + 128]
+      mem[(32 * s - 1) + (32 * path.length) + 160] = (10000 * _292 / (9975 * _264) - (9975 * mem[(32 * s) + (32 * path.length) + 160])) + 1
+      s = s - 1
+      continue 
+  require 0 < mem[(32 * path.length) + 128]
+  if mem[(32 * path.length) + 160] > amountInMax:
+      revert with 0, 32, 37, 0x4450616e63616b65526f757465723a204558434553534956455f494e5055545f414d4f554e, mem[mem[64] + 105 len 27]
+  require 0 < path.length
+  require 1 < path.length
+  if address(cd[(path + 36)]) == address(cd[(path + 68)]):
+      revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+  if address(cd[(path + 36)]) < address(cd[(path + 68)]):
+      _199 = address(cd[(path + 36)])
+      _200 = address(cd[(path + 68)])
+  else:
+      _199 = address(cd[(path + 68)])
+      _200 = address(cd[(path + 36)])
+  if not address(_199):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  _203 = mem[64]
+  mem[mem[64] + 32] = address(_199)
+  mem[mem[64] + 52] = address(_200)
+  _204 = mem[64]
+  mem[mem[64]] = 40
+  mem[64] = mem[64] + 72
+  _206 = sha3(mem[_204 + 32 len mem[_204]])
+  mem[_203 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[_203 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[_203 + 125] = _206
+  mem[_203 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[_203 + 72] = 85
+  require 0 < mem[(32 * path.length) + 128]
+  _213 = mem[(32 * path.length) + 160]
+  mem[_203 + 225] = caller
+  mem[_203 + 257] = address(sha3(0, 14561330441654603551, _206, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5))
+  mem[_203 + 289] = _213
+  mem[_203 + 189] = 100
+  mem[64] = _203 + 321
+  mem[_203 + 225 len 28] = Mask(224, 32, caller) >> 32
+  mem[_203 + 221 len 4] = transferFrom(address sender, address recipient, uint256 amount)
+  mem[_203 + 321 len 96] = transferFrom(address sender, address recipient, uint256 amount), caller, address(sha3(0, 14561330441654603551, _206, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)), Mask(224, 32, _213) >> 32
+  mem[_203 + 445 len 4] = Mask(32, 64, _213) >> 64
+  call address(cd[(path + 36)]) with:
+       gas gas_remaining wei
+      args Mask(224, 32, _213) << 480, mem[_203 + 417 len 4]
+  if not return_data.size:
+      _237 = 96
+  else:
+      mem[64] = _203 + ceil32(return_data.size) + 322
+      mem[_203 + 321] = return_data.size
+      mem[_203 + 353 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _237 = _203 + 321
+  if not ext_call.success:
+      _256 = ext_call.success
+  else:
+      if not mem[_237]:
+          _256 = not mem[_237]
+      else:
+          require mem[_237] >= 32
+          _256 = mem[_237 + 32]
+  if not _256:
+      revert with 0, 32, 36, 0x595472616e7366657248656c7065723a205452414e534645525f46524f4d5f4641494c45, mem[mem[64] + 104 len 28]
+  _260 = mem[64]
+  mem[64] = mem[64] + (32 * path.length) + 32
+  mem[_260] = path.length
+  mem[_260 + 32 len 32 * path.length] = call.data[path + 36 len 32 * path.length]
+  mem[_260 + (32 * path.length) + 32] = 0
+  idx = 0
+  while idx < path.length - 1:
+      require idx < mem[_260]
+      _358 = mem[(32 * idx) + _260 + 32]
+      require idx + 1 < mem[_260]
+      _363 = mem[(32 * idx + 1) + _260 + 32]
+      if mem[(32 * idx) + _260 + 44 len 20] == mem[(32 * idx + 1) + _260 + 44 len 20]:
+          revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+      if mem[(32 * idx) + _260 + 44 len 20] < mem[(32 * idx + 1) + _260 + 44 len 20]:
+          _368 = mem[(32 * idx) + _260 + 32]
+      else:
+          _368 = mem[(32 * idx + 1) + _260 + 32]
+      if not address(_368):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      require idx + 1 < mem[(32 * path.length) + 128]
+      if mem[(32 * idx) + _260 + 44 len 20] == address(_368):
+          _376 = 0
+          _377 = mem[(32 * idx + 1) + (32 * path.length) + 160]
+      else:
+          _376 = mem[(32 * idx + 1) + (32 * path.length) + 160]
+          _377 = 0
+      if idx < mem[_260] - 2:
+          require idx + 2 < mem[_260]
+          if mem[(32 * idx + 1) + _260 + 44 len 20] == mem[(32 * idx + 2) + _260 + 44 len 20]:
+              revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+          if mem[(32 * idx + 1) + _260 + 44 len 20] < mem[(32 * idx + 2) + _260 + 44 len 20]:
+              _383 = mem[(32 * idx + 1) + _260 + 32]
+              _384 = mem[(32 * idx + 2) + _260 + 32]
+          else:
+              _383 = mem[(32 * idx + 2) + _260 + 32]
+              _384 = mem[(32 * idx + 1) + _260 + 32]
+          if not address(_383):
+              revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+          _391 = mem[64]
+          mem[mem[64] + 32] = address(_383)
+          mem[mem[64] + 52] = address(_384)
+          _392 = mem[64]
+          mem[mem[64]] = 40
+          mem[64] = mem[64] + 72
+          _394 = sha3(mem[_392 + 32 len mem[_392]])
+          mem[_391 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+          mem[_391 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+          mem[_391 + 125] = _394
+          mem[_391 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+          mem[_391 + 72] = 85
+          mem[64] = _391 + 189
+          _405 = sha3(0, 14561330441654603551, _394, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)
+      else:
+          _405 = to
+      if address(_358) < address(_363):
+          _406 = _358
+          _407 = _363
+      else:
+          _406 = _363
+          _407 = _358
+      if not address(_406):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      _410 = mem[64]
+      mem[mem[64] + 32] = address(_406)
+      mem[mem[64] + 52] = address(_407)
+      _411 = mem[64]
+      mem[mem[64]] = 40
+      mem[64] = mem[64] + 72
+      _413 = sha3(mem[_411 + 32 len mem[_411]])
+      mem[_410 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_410 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_410 + 125] = _413
+      mem[_410 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_410 + 72] = 85
+      mem[_410 + 189] = 0
+      mem[64] = _410 + 221
+      mem[_410 + 221] = 0x22c0d9f00000000000000000000000000000000000000000000000000000000
+      mem[_410 + 225] = _376
+      mem[_410 + 257] = _377
+      mem[_410 + 289] = address(_405)
+      mem[_410 + 321] = 128
+      mem[_410 + 353] = 0
+      require ext_code.size(address(sha3(0, 14561330441654603551, _413, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      call address(sha3(0, 14561330441654603551, _413, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).swap(uint256 amount0Out, uint256 amount1Out, address to, bytes data) with:
+           gas gas_remaining wei
+          args _376, _377, address(_405), 128, 0
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      idx = idx + 1
+      continue 
+  mem[mem[64]] = 32
+  mem[mem[64] + 32] = mem[(32 * path.length) + 128]
+  _362 = mem[(32 * path.length) + 128]
+  mem[mem[64] + 64 len floor32(mem[(32 * path.length) + 128])] = mem[(32 * path.length) + 160 len floor32(mem[(32 * path.length) + 128])]
+  return 32, mem[mem[64] + 32 len (32 * _362) + 32]
+
+def swapETHForExactTokens(uint256 amountOut, address[] path, address to, uint256 deadline) payable: 
+  require calldata.size - 4 >= 128
+  require path <= unknown10000000()
+  require path + 36 <= calldata.size
+  require path.length <= unknown10000000() and path + (32 * path.length) + 36 <= calldata.size
+  if deadline < block.timestamp:
+      revert with 0, 'PancakeRouter: EXPIRED'
+  require 0 < path.length
+  if address(cd[(path + 36)]) != 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      revert with 0, 'PancakeRouter: INVALID_PATH'
+  mem[96] = path.length
+  mem[128 len 32 * path.length] = call.data[path + 36 len 32 * path.length]
+  if path.length < 2:
+      revert with 0, 'PancakeLibrary: INVALID_PATH'
+  require path.length <= LOCK8605463013()
+  mem[(32 * path.length) + 128] = path.length
+  mem[64] = (64 * path.length) + 160
+  if path.length:
+      mem[(32 * path.length) + 160 len 32 * path.length] = call.data[calldata.size len 32 * path.length]
+  require path.length - 1 < path.length
+  mem[(32 * path.length - 1) + (32 * path.length) + 160] = amountOut
+  s = mem[96] - 1
+  while s:
+      require s - 1 < mem[96]
+      require s < mem[96]
+      _208 = mem[(32 * s) + 128]
+      if mem[(32 * s - 1) + 140 len 20] == mem[(32 * s) + 140 len 20]:
+          revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+      if mem[(32 * s - 1) + 140 len 20] < mem[(32 * s) + 140 len 20]:
+          _217 = mem[(32 * s - 1) + 128]
+      else:
+          _217 = mem[(32 * s) + 128]
+      if not address(_217):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      if mem[(32 * s - 1) + 140 len 20] < mem[(32 * s) + 140 len 20]:
+          _225 = mem[(32 * s - 1) + 128]
+          _226 = mem[(32 * s) + 128]
+      else:
+          _225 = mem[(32 * s) + 128]
+          _226 = mem[(32 * s - 1) + 128]
+      if not address(_225):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      _239 = mem[64]
+      mem[mem[64] + 32] = address(_225)
+      mem[mem[64] + 52] = address(_226)
+      _240 = mem[64]
+      mem[mem[64]] = 40
+      mem[64] = mem[64] + 72
+      _242 = sha3(mem[_240 + 32 len mem[_240]])
+      mem[_239 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_239 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_239 + 125] = _242
+      mem[_239 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_239 + 72] = 85
+      if mem[(32 * s - 1) + 140 len 20] < address(_208):
+          _252 = mem[(32 * s - 1) + 128]
+          _253 = _208
+      else:
+          _252 = _208
+          _253 = mem[(32 * s - 1) + 128]
+      if not address(_252):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      mem[_239 + 221] = address(_252)
+      mem[_239 + 241] = address(_253)
+      mem[_239 + 189] = 40
+      mem[_239 + 293] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_239 + 294] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_239 + 314] = sha3(address(_252), address(_253))
+      mem[_239 + 346] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_239 + 261] = 85
+      mem[64] = _239 + 378
+      require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_252), address(_253)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      static call address(sha3(0, 14561330441654603551, sha3(address(_252), address(_253)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).getReserves() with:
+              gas gas_remaining wei
+      mem[_239 + 378 len 96] = ext_call.return_data[0 len 96]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 96
+      if address(_217) == mem[(32 * s - 1) + 140 len 20]:
+          _287 = ext_call.return_data[18 len 14]
+          _288 = ext_call.return_data[50 len 14]
+      else:
+          _287 = ext_call.return_data[50 len 14]
+          _288 = ext_call.return_data[18 len 14]
+      require s < mem[(32 * path.length) + 128]
+      if mem[(32 * s) + (32 * path.length) + 160] <= 0:
+          revert with 0, 
+                      32,
+                      42,
+                      0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4f55545055545f414d4f554e,
+                      mem[_239 + 488 len 22]
+      if _287 <= 0:
+          _314 = _287 > 0
+      else:
+          _314 = _288 > 0
+      if not _314:
+          revert with 0, 32, 38, 0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4c49515549444954, mem[_239 + 484 len 26]
+      if not mem[(32 * s) + (32 * path.length) + 160]:
+          _328 = 0
+          _329 = not mem[(32 * s) + (32 * path.length) + 160]
+      else:
+          _328 = _287 * mem[(32 * s) + (32 * path.length) + 160]
+          _329 = _287 * mem[(32 * s) + (32 * path.length) + 160] / mem[(32 * s) + (32 * path.length) + 160] == _287
+      if not _329:
+          revert with 0, 'ds-math-mul-overflow'
+      if 10000 * _328 / 10000 != _328:
+          revert with 0, 'ds-math-mul-overflow'
+      if _288 - mem[(32 * s) + (32 * path.length) + 160] > _288:
+          revert with 0, 'ds-math-sub-underflow'
+      if (9975 * _288) - (9975 * mem[(32 * s) + (32 * path.length) + 160]) / 9975 != _288 - mem[(32 * s) + (32 * path.length) + 160]:
+          revert with 0, 'ds-math-mul-overflow'
+      require (9975 * _288) - (9975 * mem[(32 * s) + (32 * path.length) + 160])
+      if (10000 * _328 / (9975 * _288) - (9975 * mem[(32 * s) + (32 * path.length) + 160])) + 1 < 10000 * _328 / (9975 * _288) - (9975 * mem[(32 * s) + (32 * path.length) + 160]):
+          revert with 0, 'ds-math-add-overflow'
+      require s - 1 < mem[(32 * path.length) + 128]
+      mem[(32 * s - 1) + (32 * path.length) + 160] = (10000 * _328 / (9975 * _288) - (9975 * mem[(32 * s) + (32 * path.length) + 160])) + 1
+      s = s - 1
+      continue 
+  require 0 < mem[(32 * path.length) + 128]
+  if mem[(32 * path.length) + 160] > call.value:
+      revert with 0, 32, 37, 0x4450616e63616b65526f757465723a204558434553534956455f494e5055545f414d4f554e, mem[mem[64] + 105 len 27]
+  require 0 < mem[(32 * path.length) + 128]
+  require ext_code.size(0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c)
+  call 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c.deposit() with:
+     value mem[(32 * path.length) + 160] wei
+       gas gas_remaining wei
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require 1 < path.length
+  if address(cd[(path + 36)]) == address(cd[(path + 68)]):
+      revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+  if address(cd[(path + 36)]) < address(cd[(path + 68)]):
+      _223 = address(cd[(path + 36)])
+      _224 = address(cd[(path + 68)])
+  else:
+      _223 = address(cd[(path + 68)])
+      _224 = address(cd[(path + 36)])
+  if not address(_223):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  _229 = mem[64]
+  mem[mem[64] + 32] = address(_223)
+  mem[mem[64] + 52] = address(_224)
+  _230 = mem[64]
+  mem[mem[64]] = 40
+  mem[64] = mem[64] + 72
+  _232 = sha3(mem[_230 + 32 len mem[_230]])
+  mem[_229 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[_229 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[_229 + 125] = _232
+  mem[_229 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[_229 + 72] = 85
+  require 0 < mem[(32 * path.length) + 128]
+  _246 = mem[(32 * path.length) + 160]
+  mem[_229 + 193] = address(sha3(0, 14561330441654603551, _232, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5))
+  mem[_229 + 225] = _246
+  require ext_code.size(0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c)
+  call 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c.transfer(address recipient, uint256 amount) with:
+       gas gas_remaining wei
+      args address(sha3(0, 14561330441654603551, _232, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)), _246
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  require ext_call.return_data[0]
+  mem[64] = _229 + (32 * path.length) + 221
+  mem[_229 + 189] = path.length
+  mem[_229 + 221 len 32 * path.length] = call.data[path + 36 len 32 * path.length]
+  mem[_229 + (32 * path.length) + 221] = 0
+  idx = 0
+  while idx < path.length - 1:
+      require idx < mem[_229 + 189]
+      _390 = mem[(32 * idx) + _229 + 221]
+      require idx + 1 < mem[_229 + 189]
+      _393 = mem[(32 * idx + 1) + _229 + 221]
+      if mem[(32 * idx) + _229 + 233 len 20] == mem[(32 * idx + 1) + _229 + 233 len 20]:
+          revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+      if mem[(32 * idx) + _229 + 233 len 20] < mem[(32 * idx + 1) + _229 + 233 len 20]:
+          _404 = mem[(32 * idx) + _229 + 221]
+      else:
+          _404 = mem[(32 * idx + 1) + _229 + 221]
+      if not address(_404):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      require idx + 1 < mem[(32 * path.length) + 128]
+      if mem[(32 * idx) + _229 + 233 len 20] == address(_404):
+          _424 = 0
+          _425 = mem[(32 * idx + 1) + (32 * path.length) + 160]
+      else:
+          _424 = mem[(32 * idx + 1) + (32 * path.length) + 160]
+          _425 = 0
+      if idx < mem[_229 + 189] - 2:
+          require idx + 2 < mem[_229 + 189]
+          if mem[(32 * idx + 1) + _229 + 233 len 20] == mem[(32 * idx + 2) + _229 + 233 len 20]:
+              revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+          if mem[(32 * idx + 1) + _229 + 233 len 20] < mem[(32 * idx + 2) + _229 + 233 len 20]:
+              _438 = mem[(32 * idx + 1) + _229 + 221]
+              _439 = mem[(32 * idx + 2) + _229 + 221]
+          else:
+              _438 = mem[(32 * idx + 2) + _229 + 221]
+              _439 = mem[(32 * idx + 1) + _229 + 221]
+          if not address(_438):
+              revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+          _448 = mem[64]
+          mem[mem[64] + 32] = address(_438)
+          mem[mem[64] + 52] = address(_439)
+          _449 = mem[64]
+          mem[mem[64]] = 40
+          mem[64] = mem[64] + 72
+          _451 = sha3(mem[_449 + 32 len mem[_449]])
+          mem[_448 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+          mem[_448 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+          mem[_448 + 125] = _451
+          mem[_448 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+          mem[_448 + 72] = 85
+          mem[64] = _448 + 189
+          _462 = sha3(0, 14561330441654603551, _451, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)
+      else:
+          _462 = to
+      if address(_390) < address(_393):
+          _463 = _390
+          _464 = _393
+      else:
+          _463 = _393
+          _464 = _390
+      if not address(_463):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      _467 = mem[64]
+      mem[mem[64] + 32] = address(_463)
+      mem[mem[64] + 52] = address(_464)
+      _468 = mem[64]
+      mem[mem[64]] = 40
+      mem[64] = mem[64] + 72
+      _470 = sha3(mem[_468 + 32 len mem[_468]])
+      mem[_467 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_467 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_467 + 125] = _470
+      mem[_467 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_467 + 72] = 85
+      mem[_467 + 189] = 0
+      mem[64] = _467 + 221
+      mem[_467 + 221] = 0x22c0d9f00000000000000000000000000000000000000000000000000000000
+      mem[_467 + 225] = _424
+      mem[_467 + 257] = _425
+      mem[_467 + 289] = address(_462)
+      mem[_467 + 321] = 128
+      mem[_467 + 353] = 0
+      require ext_code.size(address(sha3(0, 14561330441654603551, _470, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      call address(sha3(0, 14561330441654603551, _470, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).swap(uint256 amount0Out, uint256 amount1Out, address to, bytes data) with:
+           gas gas_remaining wei
+          args _424, _425, address(_462), 128, 0
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      idx = idx + 1
+      continue 
+  require 0 < mem[(32 * path.length) + 128]
+  if call.value > mem[(32 * path.length) + 160]:
+      require 0 < mem[(32 * path.length) + 128]
+      _398 = mem[(32 * path.length) + 160]
+      _401 = mem[64]
+      mem[mem[64]] = 0
+      mem[64] = mem[64] + 32
+      mem[_401 + floor32(mem[_401]) + -(mem[_401] % 32) + 64 len mem[_401] % 32] = mem[_401 + -(mem[_401] % 32) + floor32(mem[_401]) + 64 len mem[_401] % 32]
+      call caller.mem[_401 + 32 len 4] with:
+         value call.value - _398 wei
+           gas gas_remaining wei
+          args mem[_401 + 36 len mem[_401] - 4]
+      if return_data.size:
+          mem[64] = _401 + ceil32(return_data.size) + 33
+          mem[_401 + 32] = return_data.size
+          mem[_401 + 64 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      if not ext_call.success:
+          revert with 0, 32, 35, 0x545472616e7366657248656c7065723a204554485f5452414e534645525f4641494c45, mem[mem[64] + 103 len 29]
+  mem[mem[64]] = 32
+  mem[mem[64] + 32] = mem[(32 * path.length) + 128]
+  _433 = mem[(32 * path.length) + 128]
+  mem[mem[64] + 64 len floor32(mem[(32 * path.length) + 128])] = mem[(32 * path.length) + 160 len floor32(mem[(32 * path.length) + 128])]
+  return 32, mem[mem[64] + 32 len (32 * _433) + 32]
+
+def swapExactTokensForETH(uint256 amountIn, uint256 amountOutMin, address[] path, address to, uint256 deadline): # not payable
+  require calldata.size - 4 >= 160
+  require path <= unknown10000000()
+  require path + 36 <= calldata.size
+  require path.length <= unknown10000000() and path + (32 * path.length) + 36 <= calldata.size
+  if deadline < block.timestamp:
+      revert with 0, 'PancakeRouter: EXPIRED'
+  require path.length - 1 < path.length
+  if address(cd[((32 * path.length - 1) + path + 36)]) != 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      revert with 0, 'PancakeRouter: INVALID_PATH'
+  mem[96] = path.length
+  mem[128 len 32 * path.length] = call.data[path + 36 len 32 * path.length]
+  if path.length < 2:
+      revert with 0, 'PancakeLibrary: INVALID_PATH'
+  require path.length <= LOCK8605463013()
+  mem[(32 * path.length) + 128] = path.length
+  mem[64] = (64 * path.length) + 160
+  if path.length:
+      mem[(32 * path.length) + 160 len 32 * path.length] = call.data[calldata.size len 32 * path.length]
+  require 0 < path.length
+  mem[(32 * path.length) + 160] = amountIn
+  idx = 0
+  while idx < path.length - 1:
+      require idx < mem[96]
+      _208 = mem[(32 * idx) + 128]
+      require idx + 1 < mem[96]
+      _211 = mem[(32 * idx + 1) + 128]
+      if mem[(32 * idx) + 140 len 20] == mem[(32 * idx + 1) + 140 len 20]:
+          revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+      if mem[(32 * idx) + 140 len 20] < mem[(32 * idx + 1) + 140 len 20]:
+          _216 = mem[(32 * idx) + 128]
+      else:
+          _216 = mem[(32 * idx + 1) + 128]
+      if not address(_216):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      if mem[(32 * idx) + 140 len 20] < mem[(32 * idx + 1) + 140 len 20]:
+          _233 = mem[(32 * idx) + 128]
+          _234 = mem[(32 * idx + 1) + 128]
+      else:
+          _233 = mem[(32 * idx + 1) + 128]
+          _234 = mem[(32 * idx) + 128]
+      if not address(_233):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      _244 = mem[64]
+      mem[mem[64] + 32] = address(_233)
+      mem[mem[64] + 52] = address(_234)
+      _245 = mem[64]
+      mem[mem[64]] = 40
+      mem[64] = mem[64] + 72
+      _247 = sha3(mem[_245 + 32 len mem[_245]])
+      mem[_244 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_244 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_244 + 125] = _247
+      mem[_244 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_244 + 72] = 85
+      if address(_208) < address(_211):
+          _261 = _208
+          _262 = _211
+      else:
+          _261 = _211
+          _262 = _208
+      if not address(_261):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      mem[_244 + 221] = address(_261)
+      mem[_244 + 241] = address(_262)
+      mem[_244 + 189] = 40
+      mem[_244 + 293] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_244 + 294] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_244 + 314] = sha3(address(_261), address(_262))
+      mem[_244 + 346] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_244 + 261] = 85
+      mem[64] = _244 + 378
+      require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_261), address(_262)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      static call address(sha3(0, 14561330441654603551, sha3(address(_261), address(_262)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).getReserves() with:
+              gas gas_remaining wei
+      mem[_244 + 378 len 96] = ext_call.return_data[0 len 96]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 96
+      if address(_216) == address(_208):
+          _286 = ext_call.return_data[18 len 14]
+          _287 = ext_call.return_data[50 len 14]
+      else:
+          _286 = ext_call.return_data[50 len 14]
+          _287 = ext_call.return_data[18 len 14]
+      require idx < mem[(32 * path.length) + 128]
+      if mem[(32 * idx) + (32 * path.length) + 160] <= 0:
+          revert with 0, 32, 41, 0xfe50616e63616b654c6962726172793a20494e53554646494349454e545f494e5055545f414d4f554e, mem[_244 + 487 len 23]
+      if _286 <= 0:
+          _306 = _286 > 0
+      else:
+          _306 = _287 > 0
+      if not _306:
+          revert with 0, 32, 38, 0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4c49515549444954, mem[_244 + 484 len 26]
+      if 9975 * mem[(32 * idx) + (32 * path.length) + 160] / 9975 != mem[(32 * idx) + (32 * path.length) + 160]:
+          revert with 0, 'ds-math-mul-overflow'
+      if not _287:
+          _341 = 0
+          _342 = not _287
+      else:
+          _341 = 9975 * mem[(32 * idx) + (32 * path.length) + 160] * _287
+          _342 = 9975 * mem[(32 * idx) + (32 * path.length) + 160] * _287 / _287 == 9975 * mem[(32 * idx) + (32 * path.length) + 160]
+      if not _342:
+          revert with 0, 'ds-math-mul-overflow'
+      if 10000 * _286 / 10000 != _286:
+          revert with 0, 'ds-math-mul-overflow'
+      if (10000 * _286) + (9975 * mem[(32 * idx) + (32 * path.length) + 160]) < 10000 * _286:
+          revert with 0, 'ds-math-add-overflow'
+      require (10000 * _286) + (9975 * mem[(32 * idx) + (32 * path.length) + 160])
+      require idx + 1 < mem[(32 * path.length) + 128]
+      mem[(32 * idx + 1) + (32 * path.length) + 160] = _341 / (10000 * _286) + (9975 * mem[(32 * idx) + (32 * path.length) + 160])
+      idx = idx + 1
+      continue 
+  require mem[(32 * path.length) + 128] - 1 < mem[(32 * path.length) + 128]
+  if mem[(32 * mem[(32 * path.length) + 128] - 1) + (32 * path.length) + 160] < amountOutMin:
+      revert with 0, 
+                  32,
+                  41,
+                  0x5450616e63616b65526f757465723a20494e53554646494349454e545f4f55545055545f414d4f554e,
+                  mem[mem[64] + 109 len 23]
+  require 0 < path.length
+  require 1 < path.length
+  if address(cd[(path + 36)]) == address(cd[(path + 68)]):
+      revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+  if address(cd[(path + 36)]) < address(cd[(path + 68)]):
+      _222 = address(cd[(path + 36)])
+      _223 = address(cd[(path + 68)])
+  else:
+      _222 = address(cd[(path + 68)])
+      _223 = address(cd[(path + 36)])
+  if not address(_222):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  _226 = mem[64]
+  mem[mem[64] + 32] = address(_222)
+  mem[mem[64] + 52] = address(_223)
+  _227 = mem[64]
+  mem[mem[64]] = 40
+  mem[64] = mem[64] + 72
+  _229 = sha3(mem[_227 + 32 len mem[_227]])
+  mem[_226 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[_226 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[_226 + 125] = _229
+  mem[_226 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[_226 + 72] = 85
+  require 0 < mem[(32 * path.length) + 128]
+  _236 = mem[(32 * path.length) + 160]
+  mem[_226 + 225] = caller
+  mem[_226 + 257] = address(sha3(0, 14561330441654603551, _229, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5))
+  mem[_226 + 289] = _236
+  mem[_226 + 189] = 100
+  mem[64] = _226 + 321
+  mem[_226 + 225 len 28] = Mask(224, 32, caller) >> 32
+  mem[_226 + 221 len 4] = transferFrom(address sender, address recipient, uint256 amount)
+  mem[_226 + 321 len 96] = transferFrom(address sender, address recipient, uint256 amount), caller, address(sha3(0, 14561330441654603551, _229, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)), Mask(224, 32, _236) >> 32
+  mem[_226 + 445 len 4] = Mask(32, 64, _236) >> 64
+  call address(cd[(path + 36)]) with:
+       gas gas_remaining wei
+      args Mask(224, 32, _236) << 480, mem[_226 + 417 len 4]
+  if not return_data.size:
+      _260 = 96
+  else:
+      mem[64] = _226 + ceil32(return_data.size) + 322
+      mem[_226 + 321] = return_data.size
+      mem[_226 + 353 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _260 = _226 + 321
+  if not ext_call.success:
+      _279 = ext_call.success
+  else:
+      if not mem[_260]:
+          _279 = not mem[_260]
+      else:
+          require mem[_260] >= 32
+          _279 = mem[_260 + 32]
+  if not _279:
+      revert with 0, 32, 36, 0x595472616e7366657248656c7065723a205452414e534645525f46524f4d5f4641494c45, mem[mem[64] + 104 len 28]
+  _283 = mem[64]
+  mem[64] = mem[64] + (32 * path.length) + 32
+  mem[_283] = path.length
+  mem[_283 + 32 len 32 * path.length] = call.data[path + 36 len 32 * path.length]
+  mem[_283 + (32 * path.length) + 32] = 0
+  idx = 0
+  while idx < path.length - 1:
+      require idx < mem[_283]
+      _404 = mem[(32 * idx) + _283 + 32]
+      require idx + 1 < mem[_283]
+      _409 = mem[(32 * idx + 1) + _283 + 32]
+      if mem[(32 * idx) + _283 + 44 len 20] == mem[(32 * idx + 1) + _283 + 44 len 20]:
+          revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+      if mem[(32 * idx) + _283 + 44 len 20] < mem[(32 * idx + 1) + _283 + 44 len 20]:
+          _415 = mem[(32 * idx) + _283 + 32]
+      else:
+          _415 = mem[(32 * idx + 1) + _283 + 32]
+      if not address(_415):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      require idx + 1 < mem[(32 * path.length) + 128]
+      if mem[(32 * idx) + _283 + 44 len 20] == address(_415):
+          _432 = 0
+          _433 = mem[(32 * idx + 1) + (32 * path.length) + 160]
+      else:
+          _432 = mem[(32 * idx + 1) + (32 * path.length) + 160]
+          _433 = 0
+      if idx < mem[_283] - 2:
+          require idx + 2 < mem[_283]
+          if mem[(32 * idx + 1) + _283 + 44 len 20] == mem[(32 * idx + 2) + _283 + 44 len 20]:
+              revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+          if mem[(32 * idx + 1) + _283 + 44 len 20] < mem[(32 * idx + 2) + _283 + 44 len 20]:
+              _448 = mem[(32 * idx + 1) + _283 + 32]
+              _449 = mem[(32 * idx + 2) + _283 + 32]
+          else:
+              _448 = mem[(32 * idx + 2) + _283 + 32]
+              _449 = mem[(32 * idx + 1) + _283 + 32]
+          if not address(_448):
+              revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+          _458 = mem[64]
+          mem[mem[64] + 32] = address(_448)
+          mem[mem[64] + 52] = address(_449)
+          _459 = mem[64]
+          mem[mem[64]] = 40
+          mem[64] = mem[64] + 72
+          _461 = sha3(mem[_459 + 32 len mem[_459]])
+          mem[_458 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+          mem[_458 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+          mem[_458 + 125] = _461
+          mem[_458 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+          mem[_458 + 72] = 85
+          mem[64] = _458 + 189
+          _472 = sha3(0, 14561330441654603551, _461, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)
+      else:
+          _472 = this.address
+      if address(_404) < address(_409):
+          _473 = _404
+          _474 = _409
+      else:
+          _473 = _409
+          _474 = _404
+      if not address(_473):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      _477 = mem[64]
+      mem[mem[64] + 32] = address(_473)
+      mem[mem[64] + 52] = address(_474)
+      _478 = mem[64]
+      mem[mem[64]] = 40
+      mem[64] = mem[64] + 72
+      _480 = sha3(mem[_478 + 32 len mem[_478]])
+      mem[_477 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_477 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_477 + 125] = _480
+      mem[_477 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_477 + 72] = 85
+      mem[_477 + 189] = 0
+      mem[64] = _477 + 221
+      mem[_477 + 221] = 0x22c0d9f00000000000000000000000000000000000000000000000000000000
+      mem[_477 + 225] = _432
+      mem[_477 + 257] = _433
+      mem[_477 + 289] = address(_472)
+      mem[_477 + 321] = 128
+      mem[_477 + 353] = 0
+      require ext_code.size(address(sha3(0, 14561330441654603551, _480, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      call address(sha3(0, 14561330441654603551, _480, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).swap(uint256 amount0Out, uint256 amount1Out, address to, bytes data) with:
+           gas gas_remaining wei
+          args _432, _433, address(_472), 128, 0
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      idx = idx + 1
+      continue 
+  require mem[(32 * path.length) + 128] - 1 < mem[(32 * path.length) + 128]
+  _406 = mem[(32 * mem[(32 * path.length) + 128] - 1) + (32 * path.length) + 160]
+  mem[mem[64]] = 0x2e1a7d4d00000000000000000000000000000000000000000000000000000000
+  mem[mem[64] + 4] = _406
+  require ext_code.size(0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c)
+  call 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c.withdraw(uint256 amount) with:
+       gas gas_remaining wei
+      args _406
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require mem[(32 * path.length) + 128] - 1 < mem[(32 * path.length) + 128]
+  _414 = mem[(32 * mem[(32 * path.length) + 128] - 1) + (32 * path.length) + 160]
+  _417 = mem[64]
+  mem[mem[64]] = 0
+  mem[64] = mem[64] + 32
+  mem[_417 + floor32(mem[_417]) + -(mem[_417] % 32) + 64 len mem[_417] % 32] = mem[_417 + -(mem[_417] % 32) + floor32(mem[_417]) + 64 len mem[_417] % 32]
+  call to.mem[_417 + 32 len 4] with:
+     value _414 wei
+       gas gas_remaining wei
+      args mem[_417 + 36 len mem[_417] - 4]
+  if return_data.size:
+      mem[64] = _417 + ceil32(return_data.size) + 33
+      mem[_417 + 32] = return_data.size
+      mem[_417 + 64 len return_data.size] = ext_call.return_data[0 len return_data.size]
+  if not ext_call.success:
+      revert with 0, 32, 35, 0x545472616e7366657248656c7065723a204554485f5452414e534645525f4641494c45, mem[mem[64] + 103 len 29]
+  mem[mem[64]] = 32
+  mem[mem[64] + 32] = mem[(32 * path.length) + 128]
+  _443 = mem[(32 * path.length) + 128]
+  mem[mem[64] + 64 len floor32(mem[(32 * path.length) + 128])] = mem[(32 * path.length) + 160 len floor32(mem[(32 * path.length) + 128])]
+  return 32, mem[mem[64] + 32 len (32 * _443) + 32]
+
+def swapTokensForExactETH(uint256 amountOut, uint256 amountInMax, address[] path, address to, uint256 deadline): # not payable
+  require calldata.size - 4 >= 160
+  require path <= unknown10000000()
+  require path + 36 <= calldata.size
+  require path.length <= unknown10000000() and path + (32 * path.length) + 36 <= calldata.size
+  if deadline < block.timestamp:
+      revert with 0, 'PancakeRouter: EXPIRED'
+  require path.length - 1 < path.length
+  if address(cd[((32 * path.length - 1) + path + 36)]) != 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c:
+      revert with 0, 'PancakeRouter: INVALID_PATH'
+  mem[96] = path.length
+  mem[128 len 32 * path.length] = call.data[path + 36 len 32 * path.length]
+  if path.length < 2:
+      revert with 0, 'PancakeLibrary: INVALID_PATH'
+  require path.length <= LOCK8605463013()
+  mem[(32 * path.length) + 128] = path.length
+  mem[64] = (64 * path.length) + 160
+  if path.length:
+      mem[(32 * path.length) + 160 len 32 * path.length] = call.data[calldata.size len 32 * path.length]
+  require path.length - 1 < path.length
+  mem[(32 * path.length - 1) + (32 * path.length) + 160] = amountOut
+  s = mem[96] - 1
+  while s:
+      require s - 1 < mem[96]
+      require s < mem[96]
+      _213 = mem[(32 * s) + 128]
+      if mem[(32 * s - 1) + 140 len 20] == mem[(32 * s) + 140 len 20]:
+          revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+      if mem[(32 * s - 1) + 140 len 20] < mem[(32 * s) + 140 len 20]:
+          _218 = mem[(32 * s - 1) + 128]
+      else:
+          _218 = mem[(32 * s) + 128]
+      if not address(_218):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      if mem[(32 * s - 1) + 140 len 20] < mem[(32 * s) + 140 len 20]:
+          _235 = mem[(32 * s - 1) + 128]
+          _236 = mem[(32 * s) + 128]
+      else:
+          _235 = mem[(32 * s) + 128]
+          _236 = mem[(32 * s - 1) + 128]
+      if not address(_235):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      _246 = mem[64]
+      mem[mem[64] + 32] = address(_235)
+      mem[mem[64] + 52] = address(_236)
+      _247 = mem[64]
+      mem[mem[64]] = 40
+      mem[64] = mem[64] + 72
+      _249 = sha3(mem[_247 + 32 len mem[_247]])
+      mem[_246 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_246 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_246 + 125] = _249
+      mem[_246 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_246 + 72] = 85
+      if mem[(32 * s - 1) + 140 len 20] < address(_213):
+          _263 = mem[(32 * s - 1) + 128]
+          _264 = _213
+      else:
+          _263 = _213
+          _264 = mem[(32 * s - 1) + 128]
+      if not address(_263):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      mem[_246 + 221] = address(_263)
+      mem[_246 + 241] = address(_264)
+      mem[_246 + 189] = 40
+      mem[_246 + 293] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_246 + 294] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_246 + 314] = sha3(address(_263), address(_264))
+      mem[_246 + 346] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_246 + 261] = 85
+      mem[64] = _246 + 378
+      require ext_code.size(address(sha3(0, 14561330441654603551, sha3(address(_263), address(_264)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      static call address(sha3(0, 14561330441654603551, sha3(address(_263), address(_264)), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).getReserves() with:
+              gas gas_remaining wei
+      mem[_246 + 378 len 96] = ext_call.return_data[0 len 96]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 96
+      if address(_218) == mem[(32 * s - 1) + 140 len 20]:
+          _288 = ext_call.return_data[18 len 14]
+          _289 = ext_call.return_data[50 len 14]
+      else:
+          _288 = ext_call.return_data[50 len 14]
+          _289 = ext_call.return_data[18 len 14]
+      require s < mem[(32 * path.length) + 128]
+      if mem[(32 * s) + (32 * path.length) + 160] <= 0:
+          revert with 0, 
+                      32,
+                      42,
+                      0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4f55545055545f414d4f554e,
+                      mem[_246 + 488 len 22]
+      if _288 <= 0:
+          _308 = _288 > 0
+      else:
+          _308 = _289 > 0
+      if not _308:
+          revert with 0, 32, 38, 0x5450616e63616b654c6962726172793a20494e53554646494349454e545f4c49515549444954, mem[_246 + 484 len 26]
+      if not mem[(32 * s) + (32 * path.length) + 160]:
+          _325 = 0
+          _326 = not mem[(32 * s) + (32 * path.length) + 160]
+      else:
+          _325 = _288 * mem[(32 * s) + (32 * path.length) + 160]
+          _326 = _288 * mem[(32 * s) + (32 * path.length) + 160] / mem[(32 * s) + (32 * path.length) + 160] == _288
+      if not _326:
+          revert with 0, 'ds-math-mul-overflow'
+      if 10000 * _325 / 10000 != _325:
+          revert with 0, 'ds-math-mul-overflow'
+      if _289 - mem[(32 * s) + (32 * path.length) + 160] > _289:
+          revert with 0, 'ds-math-sub-underflow'
+      if (9975 * _289) - (9975 * mem[(32 * s) + (32 * path.length) + 160]) / 9975 != _289 - mem[(32 * s) + (32 * path.length) + 160]:
+          revert with 0, 'ds-math-mul-overflow'
+      require (9975 * _289) - (9975 * mem[(32 * s) + (32 * path.length) + 160])
+      if (10000 * _325 / (9975 * _289) - (9975 * mem[(32 * s) + (32 * path.length) + 160])) + 1 < 10000 * _325 / (9975 * _289) - (9975 * mem[(32 * s) + (32 * path.length) + 160]):
+          revert with 0, 'ds-math-add-overflow'
+      require s - 1 < mem[(32 * path.length) + 128]
+      mem[(32 * s - 1) + (32 * path.length) + 160] = (10000 * _325 / (9975 * _289) - (9975 * mem[(32 * s) + (32 * path.length) + 160])) + 1
+      s = s - 1
+      continue 
+  require 0 < mem[(32 * path.length) + 128]
+  if mem[(32 * path.length) + 160] > amountInMax:
+      revert with 0, 32, 37, 0x4450616e63616b65526f757465723a204558434553534956455f494e5055545f414d4f554e, mem[mem[64] + 105 len 27]
+  require 0 < path.length
+  require 1 < path.length
+  if address(cd[(path + 36)]) == address(cd[(path + 68)]):
+      revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+  if address(cd[(path + 36)]) < address(cd[(path + 68)]):
+      _224 = address(cd[(path + 36)])
+      _225 = address(cd[(path + 68)])
+  else:
+      _224 = address(cd[(path + 68)])
+      _225 = address(cd[(path + 36)])
+  if not address(_224):
+      revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+  _228 = mem[64]
+  mem[mem[64] + 32] = address(_224)
+  mem[mem[64] + 52] = address(_225)
+  _229 = mem[64]
+  mem[mem[64]] = 40
+  mem[64] = mem[64] + 72
+  _231 = sha3(mem[_229 + 32 len mem[_229]])
+  mem[_228 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[_228 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+  mem[_228 + 125] = _231
+  mem[_228 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+  mem[_228 + 72] = 85
+  require 0 < mem[(32 * path.length) + 128]
+  _238 = mem[(32 * path.length) + 160]
+  mem[_228 + 225] = caller
+  mem[_228 + 257] = address(sha3(0, 14561330441654603551, _231, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5))
+  mem[_228 + 289] = _238
+  mem[_228 + 189] = 100
+  mem[64] = _228 + 321
+  mem[_228 + 225 len 28] = Mask(224, 32, caller) >> 32
+  mem[_228 + 221 len 4] = transferFrom(address sender, address recipient, uint256 amount)
+  mem[_228 + 321 len 96] = transferFrom(address sender, address recipient, uint256 amount), caller, address(sha3(0, 14561330441654603551, _231, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)), Mask(224, 32, _238) >> 32
+  mem[_228 + 445 len 4] = Mask(32, 64, _238) >> 64
+  call address(cd[(path + 36)]) with:
+       gas gas_remaining wei
+      args Mask(224, 32, _238) << 480, mem[_228 + 417 len 4]
+  if not return_data.size:
+      _262 = 96
+  else:
+      mem[64] = _228 + ceil32(return_data.size) + 322
+      mem[_228 + 321] = return_data.size
+      mem[_228 + 353 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _262 = _228 + 321
+  if not ext_call.success:
+      _281 = ext_call.success
+  else:
+      if not mem[_262]:
+          _281 = not mem[_262]
+      else:
+          require mem[_262] >= 32
+          _281 = mem[_262 + 32]
+  if not _281:
+      revert with 0, 32, 36, 0x595472616e7366657248656c7065723a205452414e534645525f46524f4d5f4641494c45, mem[mem[64] + 104 len 28]
+  _285 = mem[64]
+  mem[64] = mem[64] + (32 * path.length) + 32
+  mem[_285] = path.length
+  mem[_285 + 32 len 32 * path.length] = call.data[path + 36 len 32 * path.length]
+  mem[_285 + (32 * path.length) + 32] = 0
+  idx = 0
+  while idx < path.length - 1:
+      require idx < mem[_285]
+      _408 = mem[(32 * idx) + _285 + 32]
+      require idx + 1 < mem[_285]
+      _413 = mem[(32 * idx + 1) + _285 + 32]
+      if mem[(32 * idx) + _285 + 44 len 20] == mem[(32 * idx + 1) + _285 + 44 len 20]:
+          revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+      if mem[(32 * idx) + _285 + 44 len 20] < mem[(32 * idx + 1) + _285 + 44 len 20]:
+          _419 = mem[(32 * idx) + _285 + 32]
+      else:
+          _419 = mem[(32 * idx + 1) + _285 + 32]
+      if not address(_419):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      require idx + 1 < mem[(32 * path.length) + 128]
+      if mem[(32 * idx) + _285 + 44 len 20] == address(_419):
+          _436 = 0
+          _437 = mem[(32 * idx + 1) + (32 * path.length) + 160]
+      else:
+          _436 = mem[(32 * idx + 1) + (32 * path.length) + 160]
+          _437 = 0
+      if idx < mem[_285] - 2:
+          require idx + 2 < mem[_285]
+          if mem[(32 * idx + 1) + _285 + 44 len 20] == mem[(32 * idx + 2) + _285 + 44 len 20]:
+              revert with 0, 32, 35, 0x5450616e63616b654c6962726172793a204944454e544943414c5f4144445245535345, mem[mem[64] + 103 len 29]
+          if mem[(32 * idx + 1) + _285 + 44 len 20] < mem[(32 * idx + 2) + _285 + 44 len 20]:
+              _452 = mem[(32 * idx + 1) + _285 + 32]
+              _453 = mem[(32 * idx + 2) + _285 + 32]
+          else:
+              _452 = mem[(32 * idx + 2) + _285 + 32]
+              _453 = mem[(32 * idx + 1) + _285 + 32]
+          if not address(_452):
+              revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+          _462 = mem[64]
+          mem[mem[64] + 32] = address(_452)
+          mem[mem[64] + 52] = address(_453)
+          _463 = mem[64]
+          mem[mem[64]] = 40
+          mem[64] = mem[64] + 72
+          _465 = sha3(mem[_463 + 32 len mem[_463]])
+          mem[_462 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+          mem[_462 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+          mem[_462 + 125] = _465
+          mem[_462 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+          mem[_462 + 72] = 85
+          mem[64] = _462 + 189
+          _476 = sha3(0, 14561330441654603551, _465, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)
+      else:
+          _476 = this.address
+      if address(_408) < address(_413):
+          _477 = _408
+          _478 = _413
+      else:
+          _477 = _413
+          _478 = _408
+      if not address(_477):
+          revert with 0, 'PancakeLibrary: ZERO_ADDRESS'
+      _481 = mem[64]
+      mem[mem[64] + 32] = address(_477)
+      mem[mem[64] + 52] = address(_478)
+      _482 = mem[64]
+      mem[mem[64]] = 40
+      mem[64] = mem[64] + 72
+      _484 = sha3(mem[_482 + 32 len mem[_482]])
+      mem[_481 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_481 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_481 + 125] = _484
+      mem[_481 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_481 + 72] = 85
+      mem[_481 + 189] = 0
+      mem[64] = _481 + 221
+      mem[_481 + 221] = 0x22c0d9f00000000000000000000000000000000000000000000000000000000
+      mem[_481 + 225] = _436
+      mem[_481 + 257] = _437
+      mem[_481 + 289] = address(_476)
+      mem[_481 + 321] = 128
+      mem[_481 + 353] = 0
+      require ext_code.size(address(sha3(0, 14561330441654603551, _484, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      call address(sha3(0, 14561330441654603551, _484, 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).swap(uint256 amount0Out, uint256 amount1Out, address to, bytes data) with:
+           gas gas_remaining wei
+          args _436, _437, address(_476), 128, 0
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      idx = idx + 1
+      continue 
+  require mem[(32 * path.length) + 128] - 1 < mem[(32 * path.length) + 128]
+  _410 = mem[(32 * mem[(32 * path.length) + 128] - 1) + (32 * path.length) + 160]
+  mem[mem[64]] = 0x2e1a7d4d00000000000000000000000000000000000000000000000000000000
+  mem[mem[64] + 4] = _410
+  require ext_code.size(0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c)
+  call 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c.withdraw(uint256 amount) with:
+       gas gas_remaining wei
+      args _410
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require mem[(32 * path.length) + 128] - 1 < mem[(32 * path.length) + 128]
+  _418 = mem[(32 * mem[(32 * path.length) + 128] - 1) + (32 * path.length) + 160]
+  _421 = mem[64]
+  mem[mem[64]] = 0
+  mem[64] = mem[64] + 32
+  mem[_421 + floor32(mem[_421]) + -(mem[_421] % 32) + 64 len mem[_421] % 32] = mem[_421 + -(mem[_421] % 32) + floor32(mem[_421]) + 64 len mem[_421] % 32]
+  call to.mem[_421 + 32 len 4] with:
+     value _418 wei
+       gas gas_remaining wei
+      args mem[_421 + 36 len mem[_421] - 4]
+  if return_data.size:
+      mem[64] = _421 + ceil32(return_data.size) + 33
+      mem[_421 + 32] = return_data.size
+      mem[_421 + 64 len return_data.size] = ext_call.return_data[0 len return_data.size]
+  if not ext_call.success:
+      revert with 0, 32, 35, 0x545472616e7366657248656c7065723a204554485f5452414e534645525f4641494c45, mem[mem[64] + 103 len 29]
+  mem[mem[64]] = 32
+  mem[mem[64] + 32] = mem[(32 * path.length) + 128]
+  _447 = mem[(32 * path.length) + 128]
+  mem[mem[64] + 64 len floor32(mem[(32 * path.length) + 128])] = mem[(32 * path.length) + 160 len floor32(mem[(32 * path.length) + 128])]
+  return 32, mem[mem[64] + 32 len (32 * _447) + 32]
+
+

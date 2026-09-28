@@ -1,0 +1,376 @@
+# Palkeoramix decompiler. 
+
+def storage:
+  stor0 is array of uint256 at storage 0
+  stor1 is array of uint256 at storage 1
+  stor2 is uint256 at storage 2
+  stor3 is uint256 at storage 3
+  stor4 is uint256 at storage 4
+  stor5 is uint256 at storage 5
+  stor6 is uint256 at storage 6
+  stor7 is uint256 at storage 7
+  stor8 is uint256 at storage 8
+  stor9 is uint256 at storage 9
+  stor10 is uint256 at storage 10
+  stor11 is uint256 at storage 11
+  stor12 is uint256 at storage 12
+  stor13 is uint256 at storage 13
+  stor14 is uint256 at storage 14
+  stor15 is uint256 at storage 15
+  stor16 is uint256 at storage 16
+  storFFFF is uint256 at storage 0xffffff
+
+def _fallback(?) payable: # default function
+  require calldata.size >= 4
+  if mem[0 len 28], uint32(call.func_hash) == A():
+      require not call.value
+      if block.timestamp < stor9:
+          if stor7 <= stor6:
+              require stor6 >= stor7
+              require block.timestamp >= stor8
+              require (block.timestamp * stor6) - (stor8 * stor6) - (block.timestamp * stor7) + (stor8 * stor7) / stor6 - stor7 == block.timestamp - stor8 or not stor6 - stor7
+              require stor9 >= stor8
+              require stor9 - stor8
+              require stor6 >= (block.timestamp * stor6) - (stor8 * stor6) - (block.timestamp * stor7) + (stor8 * stor7) / stor9 - stor8
+          else:
+              require stor7 >= stor6
+              require block.timestamp >= stor8
+              require (block.timestamp * stor7) - (stor8 * stor7) - (block.timestamp * stor6) + (stor8 * stor6) / stor7 - stor6 == block.timestamp - stor8 or not stor7 - stor6
+              require stor9 >= stor8
+              require stor9 - stor8
+              require stor6 + ((block.timestamp * stor7) - (stor8 * stor7) - (block.timestamp * stor6) + (stor8 * stor6) / stor9 - stor8) >= stor6
+      ...  # Decompilation aborted, sorry: ('jump to a parameter computed at runtime', 614)
+  if mem[0 len 28], uint32(call.func_hash) == get_virtual_price():
+      require not call.value
+      require 10^18 * stor1 / 10^18 == stor1
+      ...  # Decompilation aborted, sorry: ("decompilation didn't finish",)
+  if mem[0 len 28], uint32(call.func_hash) == calc_token_amount(uint256[3] amounts, bool deposit):
+      require not call.value
+      require _param3 < 2
+      if block.timestamp < stor9:
+          if stor7 <= stor6:
+              require stor6 >= stor7
+              require block.timestamp >= stor8
+              require (block.timestamp * stor6) - (stor8 * stor6) - (block.timestamp * stor7) + (stor8 * stor7) / stor6 - stor7 == block.timestamp - stor8 or not stor6 - stor7
+              require stor9 >= stor8
+              require stor9 - stor8
+              require stor6 >= (block.timestamp * stor6) - (stor8 * stor6) - (block.timestamp * stor7) + (stor8 * stor7) / stor9 - stor8
+          else:
+              require stor7 >= stor6
+              require block.timestamp >= stor8
+              require (block.timestamp * stor7) - (stor8 * stor7) - (block.timestamp * stor6) + (stor8 * stor6) / stor7 - stor6 == block.timestamp - stor8 or not stor7 - stor6
+              require stor9 >= stor8
+              require stor9 - stor8
+              require stor6 + ((block.timestamp * stor7) - (stor8 * stor7) - (block.timestamp * stor6) + (stor8 * stor6) / stor9 - stor8) >= stor6
+      ...  # Decompilation aborted, sorry: ('jump to a parameter computed at runtime', 2930)
+  if mem[0 len 28], uint32(call.func_hash) == add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount):
+      require not storFFFF
+      storFFFF = 1
+      require not call.value
+      require not stor15
+      require 3 * stor2 / stor2 == 3 or not stor2
+      if block.timestamp < stor9:
+          if stor7 <= stor6:
+              require stor6 >= stor7
+              require block.timestamp >= stor8
+              require (block.timestamp * stor6) - (stor8 * stor6) - (block.timestamp * stor7) + (stor8 * stor7) / stor6 - stor7 == block.timestamp - stor8 or not stor6 - stor7
+              require stor9 >= stor8
+              require stor9 - stor8
+              require stor6 >= (block.timestamp * stor6) - (stor8 * stor6) - (block.timestamp * stor7) + (stor8 * stor7) / stor9 - stor8
+          else:
+              require stor7 >= stor6
+              require block.timestamp >= stor8
+              require (block.timestamp * stor7) - (stor8 * stor7) - (block.timestamp * stor6) + (stor8 * stor6) / stor7 - stor6 == block.timestamp - stor8 or not stor7 - stor6
+              require stor9 >= stor8
+              require stor9 - stor8
+              require stor6 + ((block.timestamp * stor7) - (stor8 * stor7) - (block.timestamp * stor6) + (stor8 * stor6) / stor9 - stor8) >= stor6
+      ...  # Decompilation aborted, sorry: ('jump to a parameter computed at runtime', 3816)
+  if mem[0 len 28], uint32(call.func_hash) == get_dy(int128 i, int128 j, uint256 dx):
+      require not call.value
+      require _param1 <=′ 0x7fffffffffffffffffffffffffffffff
+      require _param1 >=′ 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
+      require _param2 <=′ 0x7fffffffffffffffffffffffffffffff
+      require _param2 >=′ 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
+      ...  # Decompilation aborted, sorry: ("decompilation didn't finish",)
+  if mem[0 len 28], uint32(call.func_hash) == get_dy_underlying(int128 i, int128 j, uint256 dx):
+      require not call.value
+      require _param1 <=′ 0x7fffffffffffffffffffffffffffffff
+      require _param1 >=′ 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
+      require _param2 <=′ 0x7fffffffffffffffffffffffffffffff
+      require _param2 >=′ 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
+      ...  # Decompilation aborted, sorry: ("decompilation didn't finish",)
+  if mem[0 len 28], uint32(call.func_hash) == exchange(int128 i, int128 j, uint256 _dx, uint256 _min_dy):
+      require not storFFFF
+      storFFFF = 1
+      require not call.value
+      require _param1 <=′ 0x7fffffffffffffffffffffffffffffff
+      require _param1 >=′ 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
+      require _param2 <=′ 0x7fffffffffffffffffffffffffffffff
+      require _param2 >=′ 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
+      require not stor15
+      require 10^18 * stor1 / 10^18 == stor1
+      ...  # Decompilation aborted, sorry: ("decompilation didn't finish",)
+  if mem[0 len 28], uint32(call.func_hash) == remove_liquidity(uint256 _burn_amount, uint256[3] _min_amounts):
+      require not storFFFF
+      storFFFF = 1
+      require not call.value
+      static call stor5.totalSupply() with:
+              gas gas_remaining wei
+      require ext_call.success
+      require return_data.size > 31
+      require stor1 * _param1 / stor1 == _param1 or not stor1
+      require ext_call.return_data[0]
+      if stor1 * _param1 / ext_call.return_data[0] < _param2:
+          revert with Error(string reason), 'Withdrawal resulted in fewer coins than expected'
+      require stor1 >= stor1 * _param1 / ext_call.return_data[0]
+      stor1 -= stor1 * _param1 / ext_call.return_data[0]
+      ...  # Decompilation aborted, sorry: ("decompilation didn't finish",)
+  if mem[0 len 28], uint32(call.func_hash) == remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount):
+      require not storFFFF
+      storFFFF = 1
+      require not call.value
+      require not stor15
+      static call stor5.totalSupply() with:
+              gas gas_remaining wei
+      require ext_call.success
+      require return_data.size > 31
+      require ext_call.return_data[0] xor 0
+      require 3 * stor2 / stor2 == 3 or not stor2
+      if block.timestamp < stor9:
+          if stor7 <= stor6:
+              require stor6 >= stor7
+              require block.timestamp >= stor8
+              require (block.timestamp * stor6) - (stor8 * stor6) - (block.timestamp * stor7) + (stor8 * stor7) / stor6 - stor7 == block.timestamp - stor8 or not stor6 - stor7
+              require stor9 >= stor8
+              require stor9 - stor8
+              require stor6 >= (block.timestamp * stor6) - (stor8 * stor6) - (block.timestamp * stor7) + (stor8 * stor7) / stor9 - stor8
+          else:
+              require stor7 >= stor6
+              require block.timestamp >= stor8
+              require (block.timestamp * stor7) - (stor8 * stor7) - (block.timestamp * stor6) + (stor8 * stor6) / stor7 - stor6 == block.timestamp - stor8 or not stor7 - stor6
+              require stor9 >= stor8
+              require stor9 - stor8
+              require stor6 + ((block.timestamp * stor7) - (stor8 * stor7) - (block.timestamp * stor6) + (stor8 * stor6) / stor9 - stor8) >= stor6
+      ...  # Decompilation aborted, sorry: ('jump to a parameter computed at runtime', 12588)
+  if mem[0 len 28], uint32(call.func_hash) == calc_withdraw_one_coin(uint256 _burn_amount, int128 i):
+      require not call.value
+      require _param2 <=′ 0x7fffffffffffffffffffffffffffffff
+      require _param2 >=′ 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
+      if block.timestamp < stor9:
+          if stor7 <= stor6:
+              require stor6 >= stor7
+              require block.timestamp >= stor8
+              require (block.timestamp * stor6) - (stor8 * stor6) - (block.timestamp * stor7) + (stor8 * stor7) / stor6 - stor7 == block.timestamp - stor8 or not stor6 - stor7
+              require stor9 >= stor8
+              require stor9 - stor8
+              require stor6 >= (block.timestamp * stor6) - (stor8 * stor6) - (block.timestamp * stor7) + (stor8 * stor7) / stor9 - stor8
+          else:
+              require stor7 >= stor6
+              require block.timestamp >= stor8
+              require (block.timestamp * stor7) - (stor8 * stor7) - (block.timestamp * stor6) + (stor8 * stor6) / stor7 - stor6 == block.timestamp - stor8 or not stor7 - stor6
+              require stor9 >= stor8
+              require stor9 - stor8
+              require stor6 + ((block.timestamp * stor7) - (stor8 * stor7) - (block.timestamp * stor6) + (stor8 * stor6) / stor9 - stor8) >= stor6
+      ...  # Decompilation aborted, sorry: ('jump to a parameter computed at runtime', 15599)
+  if mem[0 len 28], uint32(call.func_hash) == remove_liquidity_one_coin(uint256 _burn_amount, int128 i, uint256 _min_received):
+      require not storFFFF
+      storFFFF = 1
+      require not call.value
+      require _param2 <=′ 0x7fffffffffffffffffffffffffffffff
+      require _param2 >=′ 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
+      require not stor15
+      if block.timestamp < stor9:
+          if stor7 <= stor6:
+              require stor6 >= stor7
+              require block.timestamp >= stor8
+              require (block.timestamp * stor6) - (stor8 * stor6) - (block.timestamp * stor7) + (stor8 * stor7) / stor6 - stor7 == block.timestamp - stor8 or not stor6 - stor7
+              require stor9 >= stor8
+              require stor9 - stor8
+              require stor6 >= (block.timestamp * stor6) - (stor8 * stor6) - (block.timestamp * stor7) + (stor8 * stor7) / stor9 - stor8
+          else:
+              require stor7 >= stor6
+              require block.timestamp >= stor8
+              require (block.timestamp * stor7) - (stor8 * stor7) - (block.timestamp * stor6) + (stor8 * stor6) / stor7 - stor6 == block.timestamp - stor8 or not stor7 - stor6
+              require stor9 >= stor8
+              require stor9 - stor8
+              require stor6 + ((block.timestamp * stor7) - (stor8 * stor7) - (block.timestamp * stor6) + (stor8 * stor6) / stor9 - stor8) >= stor6
+      ...  # Decompilation aborted, sorry: ('jump to a parameter computed at runtime', 15599)
+  if mem[0 len 28], uint32(call.func_hash) == ramp_A(uint256 _future_A, uint256 _future_time):
+      require not call.value
+      require caller == stor4
+      require stor8 + (24 * 3600) >= stor8
+      require block.timestamp >= stor8 + (24 * 3600)
+      require block.timestamp + (24 * 3600) >= block.timestamp
+      require _param2 >= block.timestamp + (24 * 3600)
+      if block.timestamp < stor9:
+          if stor7 <= stor6:
+              require stor6 >= stor7
+              require block.timestamp >= stor8
+              require (block.timestamp * stor6) - (stor8 * stor6) - (block.timestamp * stor7) + (stor8 * stor7) / stor6 - stor7 == block.timestamp - stor8 or not stor6 - stor7
+              require stor9 >= stor8
+              require stor9 - stor8
+              require stor6 >= (block.timestamp * stor6) - (stor8 * stor6) - (block.timestamp * stor7) + (stor8 * stor7) / stor9 - stor8
+          else:
+              require stor7 >= stor6
+              require block.timestamp >= stor8
+              require (block.timestamp * stor7) - (stor8 * stor7) - (block.timestamp * stor6) + (stor8 * stor6) / stor7 - stor6 == block.timestamp - stor8 or not stor7 - stor6
+              require stor9 >= stor8
+              require stor9 - stor8
+              require stor6 + ((block.timestamp * stor7) - (stor8 * stor7) - (block.timestamp * stor6) + (stor8 * stor6) / stor9 - stor8) >= stor6
+      ...  # Decompilation aborted, sorry: ('jump to a parameter computed at runtime', 18414)
+  if mem[0 len 28], uint32(call.func_hash) == stop_ramp_A():
+      require not call.value
+      require caller == stor4
+      if block.timestamp < stor9:
+          if stor7 <= stor6:
+              require stor6 >= stor7
+              require block.timestamp >= stor8
+              require (block.timestamp * stor6) - (stor8 * stor6) - (block.timestamp * stor7) + (stor8 * stor7) / stor6 - stor7 == block.timestamp - stor8 or not stor6 - stor7
+              require stor9 >= stor8
+              require stor9 - stor8
+              require stor6 >= (block.timestamp * stor6) - (stor8 * stor6) - (block.timestamp * stor7) + (stor8 * stor7) / stor9 - stor8
+          else:
+              require stor7 >= stor6
+              require block.timestamp >= stor8
+              require (block.timestamp * stor7) - (stor8 * stor7) - (block.timestamp * stor6) + (stor8 * stor6) / stor7 - stor6 == block.timestamp - stor8 or not stor7 - stor6
+              require stor9 >= stor8
+              require stor9 - stor8
+              require stor6 + ((block.timestamp * stor7) - (stor8 * stor7) - (block.timestamp * stor6) + (stor8 * stor6) / stor9 - stor8) >= stor6
+      ...  # Decompilation aborted, sorry: ('jump to a parameter computed at runtime', 18751)
+  if mem[0 len 28], uint32(call.func_hash) == commit_new_fee(uint256 new_fee, uint256 new_admin_fee):
+      require not call.value
+      require caller == stor4
+      require not stor10
+      require _param1 <= 5 * 10^9
+      require _param2 <= 10^10
+      require block.timestamp + (72 * 24 * 3600) >= block.timestamp
+      stor10 = block.timestamp + (72 * 24 * 3600)
+      stor12 = _param1
+      stor13 = _param2
+      log CommitNewFee(
+            uint256 deadline=_param1,
+            uint256 fee=_param2,
+            uint256 admin_fee=block.timestamp + (72 * 24 * 3600))
+      stop
+  if mem[0 len 28], uint32(call.func_hash) == apply_new_fee():
+      require not call.value
+      require caller == stor4
+      require block.timestamp >= stor10
+      require stor10 xor 0
+      stor10 = 0
+      stor2 = stor12
+      stor3 = stor13
+      log NewFee(
+            uint256 fee=stor12,
+            uint256 admin_fee=stor13)
+      stop
+  if mem[0 len 28], uint32(call.func_hash) == revert_new_parameters():
+      require not call.value
+      require caller == stor4
+      stor10 = 0
+      stop
+  if mem[0 len 28], uint32(call.func_hash) == commit_transfer_ownership(address addr):
+      require not call.value
+      require _param1 < 0x10000000000000000000000000000000000000000
+      require caller == stor4
+      require not stor11
+      require block.timestamp + (72 * 24 * 3600) >= block.timestamp
+      stor11 = block.timestamp + (72 * 24 * 3600)
+      stor14 = _param1
+      log CommitNewAdmin(
+            uint256 deadline=block.timestamp + (72 * 24 * 3600),
+            address admin=_param1)
+      stop
+  if mem[0 len 28], uint32(call.func_hash) == apply_transfer_ownership():
+      require not call.value
+      require caller == stor4
+      require block.timestamp >= stor11
+      require stor11 xor 0
+      stor11 = 0
+      stor4 = stor14
+      log NewAdmin(address newAdmin=stor14)
+      stop
+  if mem[0 len 28], uint32(call.func_hash) == revert_transfer_ownership():
+      require not call.value
+      require caller == stor4
+      stor11 = 0
+      stop
+  if mem[0 len 28], uint32(call.func_hash) == admin_balances(uint256 i):
+      require not call.value
+      require _param1 < 3
+      static call stor0[_param1].balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      require ext_call.success
+      require return_data.size > 31
+      require ext_call.return_data[0] >= stor1[_param1]
+      return (ext_call.return_data[0] - stor1[_param1])
+  if mem[0 len 28], uint32(call.func_hash) == withdraw_admin_fees():
+      require not call.value
+      require caller == stor4
+      ...  # Decompilation aborted, sorry: ("decompilation didn't finish",)
+  if mem[0 len 28], uint32(call.func_hash) == donate_admin_fees():
+      require not call.value
+      require caller == stor4
+      static call stor0.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      require ext_call.success
+      ...  # Decompilation aborted, sorry: ("decompilation didn't finish",)
+  if mem[0 len 28], uint32(call.func_hash) == kill_me():
+      require not call.value
+      require caller == stor4
+      require stor16 > block.timestamp
+      stor15 = 1
+      stop
+  if mem[0 len 28], uint32(call.func_hash) == unkill_me():
+      require not call.value
+      require caller == stor4
+      stor15 = 0
+      stop
+  if mem[0 len 28], uint32(call.func_hash) == coins(uint256 _param1):
+      require not call.value
+      require _param1 < 3
+      return stor0[_param1]
+  if mem[0 len 28], uint32(call.func_hash) == balances(uint256 arg0):
+      require not call.value
+      require _param1 < 3
+      return stor1[_param1]
+  if mem[0 len 28], uint32(call.func_hash) == fee():
+      require not call.value
+      return stor2
+  if mem[0 len 28], uint32(call.func_hash) == admin_fee():
+      require not call.value
+      return stor3
+  if mem[0 len 28], uint32(call.func_hash) == owner():
+      require not call.value
+      return stor4
+  if mem[0 len 28], uint32(call.func_hash) == initial_A():
+      require not call.value
+      return stor6
+  if mem[0 len 28], uint32(call.func_hash) == future_A():
+      require not call.value
+      return stor7
+  if mem[0 len 28], uint32(call.func_hash) == initial_A_time():
+      require not call.value
+      return stor8
+  if mem[0 len 28], uint32(call.func_hash) == future_A_time():
+      require not call.value
+      return stor9
+  if mem[0 len 28], uint32(call.func_hash) == admin_actions_deadline():
+      require not call.value
+      return stor10
+  if mem[0 len 28], uint32(call.func_hash) == transfer_ownership_deadline():
+      require not call.value
+      return stor11
+  if mem[0 len 28], uint32(call.func_hash) == future_fee():
+      require not call.value
+      return stor12
+  if mem[0 len 28], uint32(call.func_hash) == future_admin_fee():
+      require not call.value
+      return stor13
+  require mem[0 len 28], uint32(call.func_hash) == future_owner()
+  require not call.value
+  return stor14
+
+

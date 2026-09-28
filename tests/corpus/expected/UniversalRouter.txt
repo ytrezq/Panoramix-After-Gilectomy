@@ -1,0 +1,781 @@
+# Palkeoramix decompiler. 
+
+def storage:
+  stor0 is uint256 at storage 0
+  stor1 is uint256 at storage 1
+
+def onERC721Received(address _param1, address _param2, uint256 _param3, bytes _param4): # not payable
+  require calldata.size - 4 >=′ 128
+  require not -Mask(96, 160, _param1)
+  require not -Mask(96, 160, _param2)
+  require _param4 <= LOCK8605463013()
+  require _param4 + 35 <′ calldata.size
+  require _param4.length <= LOCK8605463013()
+  require _param4 + _param4.length + 36 <= calldata.size
+  return 0x150b7a0200000000000000000000000000000000000000000000000000000000
+
+def onERC1155Received(address _param1, address _param2, uint256 _param3, uint256 _param4, bytes _param5): # not payable
+  require calldata.size - 4 >=′ 160
+  require not -Mask(96, 160, _param1)
+  require not -Mask(96, 160, _param2)
+  require _param5 <= LOCK8605463013()
+  require _param5 + 35 <′ calldata.size
+  require _param5.length <= LOCK8605463013()
+  require _param5 + _param5.length + 36 <= calldata.size
+  return 0xf23a6e6100000000000000000000000000000000000000000000000000000000
+
+def supportsInterface(bytes4 interfaceId): # not payable
+  require calldata.size - 4 >=′ 32
+  require not interfaceId - Mask(32, 224, interfaceId)
+  if Mask(32, 224, interfaceId) != 0x4e2312e000000000000000000000000000000000000000000000000000000000:
+      _1 = Mask(32, 224, interfaceId) == 0x150b7a0200000000000000000000000000000000000000000000000000000000
+  else:
+      _1 = Mask(32, 224, interfaceId) == 0x4e2312e000000000000000000000000000000000000000000000000000000000
+  if not _1:
+      return (Mask(32, 224, interfaceId) == 0x1ffc9a700000000000000000000000000000000000000000000000000000000)
+  return bool(_1)
+
+def onERC1155BatchReceived(address _param1, address _param2, uint256[] _param3, uint256[] _param4, bytes _param5): # not payable
+  require calldata.size - 4 >=′ 160
+  require not -Mask(96, 160, _param1)
+  require not -Mask(96, 160, _param2)
+  require _param3 <= LOCK8605463013()
+  require _param3 + 35 <′ calldata.size
+  require _param3.length <= LOCK8605463013()
+  require (32 * _param3.length) + _param3 + 36 <= calldata.size
+  require _param4 <= LOCK8605463013()
+  require _param4 + 35 <′ calldata.size
+  require _param4.length <= LOCK8605463013()
+  require (32 * _param4.length) + _param4 + 36 <= calldata.size
+  require _param5 <= LOCK8605463013()
+  require _param5 + 35 <′ calldata.size
+  require _param5.length <= LOCK8605463013()
+  require _param5 + _param5.length + 36 <= calldata.size
+  return 0xbc197c8100000000000000000000000000000000000000000000000000000000
+
+def collectRewards(bytes looksRareClaim) payable: 
+  mem[64] = 96
+  require not call.value
+  require calldata.size - 4 >=′ 32
+  require looksRareClaim <= LOCK8605463013()
+  require looksRareClaim + 35 <′ calldata.size
+  require looksRareClaim.length <= LOCK8605463013()
+  require looksRareClaim + looksRareClaim.length + 36 <= calldata.size
+  call 0x0554f068365ed43dcc98dcd7fd7a8208a5638c72 with:
+       gas gas_remaining wei
+      args looksRareClaim[all]
+  if return_data.size:
+      if return_data.size > LOCK8605463013():
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      if ceil32(ceil32(return_data.size)) + 97 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 97 < 96:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = ceil32(ceil32(return_data.size)) + 97
+  if not ext_call.success:
+      revert with UnableToClaim()
+  static call 0xf4d2888d29d722226fafa5d9b24f9164c092421e.balanceOf(address account) with:
+          gas gas_remaining wei
+         args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  if 32 > return_data.size:
+      _11 = return_data.size
+  else:
+      _11 = 32
+  if mem[64] + ceil32(_11) > LOCK8605463013() or mem[64] + ceil32(_11) < mem[64]:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  require _11 >=′ 32
+  call 0xf4d2888d29d722226fafa5d9b24f9164c092421e.transfer(address recipient, uint256 amount) with:
+       gas gas_remaining wei
+      args 0xea37093ce161f090e443f304e1bf3a8f14d7bb40, ext_call.return_data[0]
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  if return_data.size < 32:
+      _15 = return_data.size
+  else:
+      _15 = 32
+  if mem[64] + ceil32(_11) + ceil32(_15) > LOCK8605463013() or ceil32(_15) < 0:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  require _15 >=′ 32
+  require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+  log RewardsSent(uint256 amount=ext_call.return_data[0])
+  return 0
+
+def _fallback(?): # not payable, default function
+  require calldata.size - 4 >=′ 96
+  require cd[68] <= LOCK8605463013()
+  require cd[68] + 35 <′ calldata.size
+  require ('cd', 68).length <= LOCK8605463013()
+  require cd[68] + ('cd', 68).length + 36 <= calldata.size
+  if cd[4] <=′ 0:
+      _1 = not cd[36] >′ 0
+  else:
+      _1 = not cd[4] >′ 0
+  if _1:
+      revert with V3InvalidSwap()
+  require ('cd', 68).length >=′ 64
+  require ('cd', 68)[0] <= LOCK8605463013()
+  require cd[68] + ('cd', 68)[0] + 67 <′ cd[68] + ('cd', 68).length + 36
+  if cd[(cd[68] + ('cd', 68)[0] + 36)] > LOCK8605463013():
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  if ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 97 > LOCK8605463013() or ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 97 < 96:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[96] = cd[(cd[68] + ('cd', 68)[0] + 36)]
+  require ('cd', 68)[0] + cd[(cd[68] + ('cd', 68)[0] + 36)] + 68 <= ('cd', 68).length + 36
+  mem[128 len cd[(cd[68] + ('cd', 68)[0] + 36)]] = call.data[cd[68] + ('cd', 68)[0] + 68 len cd[(cd[68] + ('cd', 68)[0] + 36)]]
+  mem[cd[(cd[68] + ('cd', 68)[0] + 36)] + 128] = 0
+  require not -Mask(96, 160, ('cd', 68)[1])
+  if 20 > cd[(cd[68] + ('cd', 68)[0] + 36)]:
+      revert with ToAddressOutOfBounds()
+  _6 = Mask(96, 0, cd[(cd[68] + ('cd', 68)[0] + 36)]), mem[128 len 20]
+  if cd[(cd[68] + ('cd', 68)[0] + 36)] < 23:
+      revert with ToUint24OutOfBounds()
+  _8 = Mask(72, 0, cd[(cd[68] + ('cd', 68)[0] + 36)]), mem[128 len 23]
+  if cd[(cd[68] + ('cd', 68)[0] + 36)] < 43:
+      revert with ToAddressOutOfBounds()
+  _10 = mem[139]
+  if mem[128 len 20] > mem[151 len 20]:
+      _12 = Mask(96, 0, cd[(cd[68] + ('cd', 68)[0] + 36)]), mem[128 len 20]
+      _13 = mem[139]
+  else:
+      _12 = mem[139]
+      _13 = Mask(96, 0, cd[(cd[68] + ('cd', 68)[0] + 36)]), mem[128 len 20]
+  mem[ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 129] = address(_13)
+  mem[ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 161] = address(_12)
+  mem[ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 193] = _8 % unknown01000000()
+  mem[ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 97] = 96
+  if ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 225 > LOCK8605463013() or 225 < 97:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 257] = 0xff00000000000000000000000000000000000000000000000000000000000000
+  mem[ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 258] = 0x1f98431c8ad98523631ae4a59f267346ea31f984000000000000000000000000
+  mem[ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 278] = sha3(address(_13), address(_12), _8 % unknown01000000())
+  mem[ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 310] = 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54
+  mem[ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 225] = 85
+  if ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 353 > LOCK8605463013() or 256 < 128:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 353
+  if address(sha3(0, 2276643401503442211, sha3(address(_13), address(_12), _8 % unknown01000000()), 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54)) - caller:
+      revert with V3InvalidCaller()
+  if cd[4] <=′ 0:
+      _20 = cd[36]
+      _21 = address(_10) < address(_6)
+  else:
+      _20 = cd[4]
+      _21 = address(_6) < address(_10)
+  if _21:
+      if this.address - address(('cd', 68)[1]):
+          if _20 > 0xffffffffffffffffffffffffffffffffffffffff:
+              revert with UnsafeCast()
+          require ext_code.size(0x22d473030f116ddee9f6b43ac78ba3)
+          call 0x000000000022d473030f116ddee9f6b43ac78ba3.transferFrom(address from, address to, uint160 amount, address token) with:
+               gas gas_remaining wei
+              args address(('cd', 68)[1]), caller, address(_20), address(_6)
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 353 > LOCK8605463013():
+              revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      else:
+          if not address(_6):
+              call caller with:
+                 value _20 wei
+                   gas gas_remaining wei
+              if not ext_call.success:
+                  revert with Error(string reason), 'ETH_TRANSFER_FAILED'
+          else:
+              if _20 - 0x8000000000000000000000000000000000000000000000000000000000000000:
+                  _56 = _20
+              else:
+                  static call address(_6).balanceOf(address account) with:
+                          gas gas_remaining wei
+                         args this.address
+                  if not ext_call.success:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  if 32 > return_data.size:
+                      _49 = return_data.size
+                      _50 = return_data.size
+                  else:
+                      _49 = 32
+                      _50 = 32
+                  if ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + ceil32(_50) + 353 > LOCK8605463013() or ceil32(_50) < 0:
+                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+                  require _49 >=′ 32
+                  _56 = ext_call.return_data[0]
+              call address(_6).transfer(address recipient, uint256 amount) with:
+                   gas gas_remaining wei
+                  args caller, _56
+              if ext_call.return_data[0] != 1 or return_data.size <= 31 and return_data.size or not ext_call.success:
+                  revert with Error(string reason), 'TRANSFER_FAILED'
+  else:
+      if cd[(cd[68] + ('cd', 68)[0] + 36)] < 66:
+          if _20 > stor0:
+              revert with V3TooMuchRequested()
+          if this.address - address(('cd', 68)[1]):
+              if _20 > 0xffffffffffffffffffffffffffffffffffffffff:
+                  revert with UnsafeCast()
+              require ext_code.size(0x22d473030f116ddee9f6b43ac78ba3)
+              call 0x000000000022d473030f116ddee9f6b43ac78ba3.transferFrom(address from, address to, uint160 amount, address token) with:
+                   gas gas_remaining wei
+                  args address(('cd', 68)[1]), caller, address(_20), address(_10)
+              if not ext_call.success:
+                  revert with ext_call.return_data[0 len return_data.size]
+              if ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 353 > LOCK8605463013():
+                  revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+          else:
+              if not address(_10):
+                  call caller with:
+                     value _20 wei
+                       gas gas_remaining wei
+                  if not ext_call.success:
+                      revert with Error(string reason), 'ETH_TRANSFER_FAILED'
+              else:
+                  if _20 - 0x8000000000000000000000000000000000000000000000000000000000000000:
+                      _60 = _20
+                  else:
+                      static call address(_10).balanceOf(address account) with:
+                              gas gas_remaining wei
+                             args this.address
+                      if not ext_call.success:
+                          revert with ext_call.return_data[0 len return_data.size]
+                      if 32 > return_data.size:
+                          _52 = return_data.size
+                          _53 = return_data.size
+                      else:
+                          _52 = 32
+                          _53 = 32
+                      if ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + ceil32(_53) + 353 > LOCK8605463013() or ceil32(_53) < 0:
+                          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+                      require _52 >=′ 32
+                      _60 = ext_call.return_data[0]
+                  call address(_10).transfer(address recipient, uint256 amount) with:
+                       gas gas_remaining wei
+                      args caller, _60
+                  if ext_call.return_data[0] != 1 or return_data.size <= 31 and return_data.size or not ext_call.success:
+                      revert with Error(string reason), 'TRANSFER_FAILED'
+      else:
+          if cd[(cd[68] + ('cd', 68)[0] + 36)] - 23 > cd[(cd[68] + ('cd', 68)[0] + 36)]:
+              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+          if cd[(cd[68] + ('cd', 68)[0] + 36)] < 23:
+              revert with SliceOverflow()
+          if cd[(cd[68] + ('cd', 68)[0] + 36)] == 23:
+              revert with NoSlice()
+          mem[(32 * not cd[(cd[68] + ('cd', 68)[0] + 36)] - 23 % 32) + (cd[(cd[68] + ('cd', 68)[0] + 36)] - 23 % 32) + 96 len floor32(cd[(cd[68] + ('cd', 68)[0] + 36)] + 8)] = mem[(32 * not cd[(cd[68] + ('cd', 68)[0] + 36)] - 23 % 32) + (cd[(cd[68] + ('cd', 68)[0] + 36)] - 23 % 32) + 119 len floor32(cd[(cd[68] + ('cd', 68)[0] + 36)] + 8)]
+          require _20 < 0x8000000000000000000000000000000000000000000000000000000000000000
+          if _20 == 0x8000000000000000000000000000000000000000000000000000000000000000:
+              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+          if 20 > cd[(cd[68] + ('cd', 68)[0] + 36)] - 23:
+              revert with ToAddressOutOfBounds()
+          if cd[(cd[68] + ('cd', 68)[0] + 36)] - 23 < 23:
+              revert with ToUint24OutOfBounds()
+          if cd[(cd[68] + ('cd', 68)[0] + 36)] - 23 < 43:
+              revert with ToAddressOutOfBounds()
+          if mem[128 len 20] > mem[151 len 20]:
+              _72 = Mask(96, 0, cd[(cd[68] + ('cd', 68)[0] + 36)] - 23), mem[128 len 20]
+              _73 = mem[139]
+          else:
+              _72 = mem[139]
+              _73 = Mask(96, 0, cd[(cd[68] + ('cd', 68)[0] + 36)] - 23), mem[128 len 20]
+          if ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 481 > LOCK8605463013() or 481 < 353:
+              revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+          if ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 609 > LOCK8605463013() or 256 < 128:
+              revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+          if mem[151 len 20] >= mem[128 len 20]:
+              _79 = 0xfffd8963efd1fc6a506488495d951d5263988d25
+          else:
+              _79 = 4295128740
+          mem[ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 641] = 64
+          mem[ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 705] = cd[(cd[68] + ('cd', 68)[0] + 36)] - 23
+          mem[ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 737 len floor32(cd[(cd[68] + ('cd', 68)[0] + 36)] + 8)] = call.data[cd[68] + ('cd', 68)[0] + 68 len cd[(cd[68] + ('cd', 68)[0] + 36)]], Mask(8 * floor32(cd[(cd[68] + ('cd', 68)[0] + 36)] + 8) - cd[(cd[68] + ('cd', 68)[0] + 36)], -(8 * floor32(cd[(cd[68] + ('cd', 68)[0] + 36)] + 8) + -ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 31) + 256, 96) >> -(8 * floor32(cd[(cd[68] + ('cd', 68)[0] + 36)] + 8) + -ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 31) + 256
+          mem[ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 673] = address(('cd', 68)[1])
+          mem[ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 609] = floor32(cd[(cd[68] + ('cd', 68)[0] + 36)] + 8) + 96
+          if ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + ceil32(floor32(cd[(cd[68] + ('cd', 68)[0] + 36)] + 8)) + 613 > LOCK8605463013() or ceil32(floor32(cd[(cd[68] + ('cd', 68)[0] + 36)] + 8)) + 260 < 256:
+              revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+          mem[ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + ceil32(floor32(cd[(cd[68] + ('cd', 68)[0] + 36)] + 8)) + 613] = 0x128acb0800000000000000000000000000000000000000000000000000000000
+          mem[ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + ceil32(floor32(cd[(cd[68] + ('cd', 68)[0] + 36)] + 8)) + 617] = caller
+          call address(sha3(0, 2276643401503442211, sha3(address(_73), address(_72), mem[148 len 3]), 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54)).swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqrtPriceLimitX96, bytes data) with:
+               gas gas_remaining wei
+              args caller, mem[151 len 20] < mem[128 len 20], -_20, address(_79), Array(len=floor32(cd[(cd[68] + ('cd', 68)[0] + 36)] + 8) + 96, data=mem[ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + 641 len ceil32(floor32(cd[(cd[68] + ('cd', 68)[0] + 36)] + 8)) + 3])
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if 64 > return_data.size:
+              _89 = return_data.size
+          else:
+              _89 = 64
+          if ceil32(ceil32(cd[(cd[68] + ('cd', 68)[0] + 36)])) + ceil32(floor32(cd[(cd[68] + ('cd', 68)[0] + 36)] + 8)) + ceil32(_89) + 613 > LOCK8605463013() or ceil32(_89) < 0:
+              revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+          require _89 >=′ 64
+  return 0
+
+def execute(bytes commands, bytes[] inputs) payable: 
+  mem[64] = 96
+  require calldata.size - 4 >=′ 64
+  require commands <= LOCK8605463013()
+  require commands + 35 <′ calldata.size
+  require commands.length <= LOCK8605463013()
+  require commands + commands.length + 36 <= calldata.size
+  require inputs <= LOCK8605463013()
+  require inputs + 35 <′ calldata.size
+  require inputs.length <= LOCK8605463013()
+  require (32 * inputs.length) + inputs + 36 <= calldata.size
+  if stor1 - 1:
+      revert with ContractLocked()
+  stor1 = 2
+  if inputs.length - commands.length:
+      revert with LengthMismatch()
+  idx = 0
+  while idx < commands.length:
+      if idx >= inputs.length:
+          revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+      require cd[(inputs + (32 * idx) + 36)] <′ calldata.size + -inputs - 67
+      require cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)] <= LOCK8605463013()
+      require inputs + cd[(inputs + (32 * idx) + 36)] + 68 <=′ calldata.size - cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)]
+      if ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97 > LOCK8605463013() or ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97 < 96:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[96] = cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)]
+      require inputs + cd[(inputs + (32 * idx) + 36)] + cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)] + 68 <= calldata.size
+      mem[128 len cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)]] = call.data[inputs + cd[(inputs + (32 * idx) + 36)] + 68 len cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)]]
+      mem[cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)] + 128] = 0
+      require cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)] >=′ 160
+      _84 = mem[128]
+      require not -Mask(96, 160, mem[128])
+      _85 = mem[160]
+      _86 = mem[192]
+      _87 = mem[224]
+      require mem[224] <= LOCK8605463013()
+      require mem[224] + 159 <′ cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)] + 128
+      _88 = mem[mem[224] + 128]
+      if mem[mem[224] + 128] > LOCK8605463013():
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      if ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + ceil32(ceil32(mem[mem[224] + 128])) + 98 > LOCK8605463013() or ceil32(ceil32(mem[mem[224] + 128])) + 98 < 97:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + ceil32(ceil32(mem[mem[224] + 128])) + 98
+      mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] = mem[mem[224] + 128]
+      require _87 + _88 + 64 <= cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)] + 32
+      s = 0
+      while s < _88:
+          mem[s + ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 129] = mem[s + _87 + 160]
+          s = s + 32
+          continue 
+      mem[_88 + ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 129] = 0
+      require not mem[256] - bool(mem[256])
+      if not mem[256]:
+          _93 = this.address
+      else:
+          _93 = caller
+      if address(_84) - 1:
+          if -address(_84) + 2:
+              _94 = address(_84)
+          else:
+              _94 = this.address
+          _95 = _94
+      else:
+          _95 = caller
+      if _85 == 0x8000000000000000000000000000000000000000000000000000000000000000:
+          if 20 > _88:
+              revert with ToAddressOutOfBounds()
+          _99 = Mask(96, 0, _88), mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 129 len 20]
+          mem[mem[64] + 4] = this.address
+          static call address(_99).balanceOf(address account) with:
+                  gas gas_remaining wei
+                 args this.address
+          mem[mem[64]] = ext_call.return_data[0]
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if 32 > return_data.size:
+              _108 = return_data.size
+              _109 = return_data.size
+          else:
+              _108 = 32
+              _109 = 32
+          if mem[64] + ceil32(_109) > LOCK8605463013() or mem[64] + ceil32(_109) < mem[64]:
+              revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+          mem[64] = mem[64] + ceil32(_109)
+          require _108 >=′ 32
+          _118 = ext_call.return_data[0]
+      else:
+          _118 = _85
+      _164 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+      require _118 < 0x8000000000000000000000000000000000000000000000000000000000000000
+      if mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] < 66:
+          _165 = _95
+      else:
+          _165 = this.address
+      _166 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+      s = _93
+      t = _118
+      while _166 >= 43:
+          _168 = mem[64]
+          mem[mem[64] + 11] = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 108]
+          mem[mem[64] + 43] = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 140]
+          mem[mem[64]] = 43
+          mem[64] = mem[64] + 96
+          _173 = 43, mem[_168 + 32 len 20]
+          _177 = mem[_168 + 43]
+          if mem[_168 + 32 len 20] > mem[_168 + 55 len 20]:
+              _179 = 43, mem[_168 + 32 len 20]
+              _180 = mem[_168 + 43]
+          else:
+              _179 = mem[_168 + 43]
+              _180 = 43, mem[_168 + 32 len 20]
+          mem[_168 + 128] = address(_180)
+          mem[_168 + 160] = address(_179)
+          mem[_168 + 192] = mem[_168 + 52 len 3]
+          mem[_168 + 96] = 96
+          if _168 + 224 > LOCK8605463013() or 224 < 96:
+              revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+          mem[_168 + 256] = 0xff00000000000000000000000000000000000000000000000000000000000000
+          mem[_168 + 257] = 0x1f98431c8ad98523631ae4a59f267346ea31f984000000000000000000000000
+          mem[_168 + 277] = sha3(address(_180), address(_179), mem[_168 + 52 len 3])
+          mem[_168 + 309] = 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54
+          mem[_168 + 224] = 85
+          if _168 + 352 > LOCK8605463013() or 256 < 128:
+              revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+          mem[64] = _168 + 352
+          if address(_173) >= address(_177):
+              _186 = 0xfffd8963efd1fc6a506488495d951d5263988d25
+          else:
+              _186 = 4295128740
+          mem[_168 + 384] = 64
+          mem[_168 + 448] = 43
+          u = 0
+          while u < 43:
+              mem[u + _168 + 480] = mem[u + _168 + 32]
+              _164 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+              require t < 0x8000000000000000000000000000000000000000000000000000000000000000
+              if mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] < 66:
+                  _165 = _95
+              else:
+                  _165 = this.address
+              _166 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+              u = u + 32
+              continue 
+          mem[_168 + 416] = address(s)
+          mem[_168 + 352] = 160
+          if _168 + 420 > LOCK8605463013() or 420 < 352:
+              revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+          mem[_168 + 420] = 0x128acb0800000000000000000000000000000000000000000000000000000000
+          mem[_168 + 424] = address(_165)
+          mem[_168 + 456] = address(_173) < address(_177)
+          mem[_168 + 488] = t
+          mem[_168 + 520] = address(_186)
+          mem[_168 + 552] = 160
+          mem[_168 + 584] = 160
+          s = 0
+          while s < 160:
+              mem[s + _168 + 616] = mem[s + _168 + 384]
+              _164 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+              require t < 0x8000000000000000000000000000000000000000000000000000000000000000
+              if mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] < 66:
+                  _165 = _95
+              else:
+                  _165 = this.address
+              _166 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+              s = s + 32
+              continue 
+          mem[_168 + 776] = 0
+          call address(sha3(0, 2276643401503442211, mem[_168 + 277], 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54)).swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqrtPriceLimitX96, bytes data) with:
+               gas gas_remaining wei
+              args address(_165), address(_173) < address(_177), t, address(_186), 160, 160, mem[_168 + 616 len 160]
+          mem[_168 + 420 len 64] = ext_call.return_data[0 len 64]
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if 64 > return_data.size:
+              _196 = return_data.size
+          else:
+              _196 = 64
+          if _168 + ceil32(_196) + 420 > LOCK8605463013() or ceil32(_196) < 0:
+              revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+          mem[64] = _168 + ceil32(_196) + 420
+          require _196 >=′ 64
+          if address(_173) >= address(_177):
+              _199 = ext_call.return_data[0]
+          else:
+              _199 = ext_call.return_data[32]
+          if _199 == 0x8000000000000000000000000000000000000000000000000000000000000000:
+              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+          if _164 < 66:
+              if -_199 < _86:
+                  revert with V3TooLittleReceived()
+              _164 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+              require t < 0x8000000000000000000000000000000000000000000000000000000000000000
+              if mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] < 66:
+                  _165 = _95
+              else:
+                  _165 = this.address
+              _166 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+              idx = idx + 1
+              continue 
+          _201 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+          if mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] - 23 > mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]:
+              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+          if mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] < 23:
+              revert with SliceOverflow()
+          if mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] < mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]:
+              revert with SliceOutOfBounds()
+          if mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] == 23:
+              revert with NoSlice()
+          s = ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + (32 * not mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] - 23 % 32) + (mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] - 23 % 32) + 97
+          u = ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + (32 * not mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] - 23 % 32) + (mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] - 23 % 32) + 120
+          while s < ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + (32 * not _201 - 23 % 32) + (_201 - 23 % 32) + _201 + 74:
+              mem[s] = mem[u]
+              _164 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+              require t < 0x8000000000000000000000000000000000000000000000000000000000000000
+              if mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] < 66:
+                  _165 = _95
+              else:
+                  _165 = this.address
+              _166 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+              s = s + 32
+              u = u + 32
+              continue 
+          mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] = _201 - 23
+          _164 = _201 - 23
+          require -_199 < 0x8000000000000000000000000000000000000000000000000000000000000000
+          if _201 - 23 < 66:
+              _165 = _95
+          else:
+              _165 = this.address
+          _166 = _201 - 23
+          s = this.address
+          t = -_199
+          continue 
+      revert with SliceOutOfBounds()
+  stor1 = 1
+
+def execute(bytes commands, bytes[] inputs, uint256 deadline) payable: 
+  mem[64] = 96
+  require calldata.size - 4 >=′ 96
+  require commands <= LOCK8605463013()
+  require commands + 35 <′ calldata.size
+  require commands.length <= LOCK8605463013()
+  require commands + commands.length + 36 <= calldata.size
+  require inputs <= LOCK8605463013()
+  require inputs + 35 <′ calldata.size
+  require inputs.length <= LOCK8605463013()
+  require (32 * inputs.length) + inputs + 36 <= calldata.size
+  if block.timestamp > deadline:
+      revert with TransactionDeadlinePassed()
+  if stor1 - 1:
+      revert with ContractLocked()
+  stor1 = 2
+  if inputs.length - commands.length:
+      revert with LengthMismatch()
+  idx = 0
+  while idx < commands.length:
+      if idx >= inputs.length:
+          revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+      require cd[(inputs + (32 * idx) + 36)] <′ calldata.size + -inputs - 67
+      require cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)] <= LOCK8605463013()
+      require inputs + cd[(inputs + (32 * idx) + 36)] + 68 <=′ calldata.size - cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)]
+      if ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97 > LOCK8605463013() or ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97 < 96:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[96] = cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)]
+      require inputs + cd[(inputs + (32 * idx) + 36)] + cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)] + 68 <= calldata.size
+      mem[128 len cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)]] = call.data[inputs + cd[(inputs + (32 * idx) + 36)] + 68 len cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)]]
+      mem[cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)] + 128] = 0
+      require cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)] >=′ 160
+      _85 = mem[128]
+      require not -Mask(96, 160, mem[128])
+      _86 = mem[160]
+      _87 = mem[192]
+      _88 = mem[224]
+      require mem[224] <= LOCK8605463013()
+      require mem[224] + 159 <′ cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)] + 128
+      _89 = mem[mem[224] + 128]
+      if mem[mem[224] + 128] > LOCK8605463013():
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      if ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + ceil32(ceil32(mem[mem[224] + 128])) + 98 > LOCK8605463013() or ceil32(ceil32(mem[mem[224] + 128])) + 98 < 97:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + ceil32(ceil32(mem[mem[224] + 128])) + 98
+      mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] = mem[mem[224] + 128]
+      require _88 + _89 + 64 <= cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)] + 32
+      s = 0
+      while s < _89:
+          mem[s + ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 129] = mem[s + _88 + 160]
+          s = s + 32
+          continue 
+      mem[_89 + ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 129] = 0
+      require not mem[256] - bool(mem[256])
+      if not mem[256]:
+          _94 = this.address
+      else:
+          _94 = caller
+      if address(_85) - 1:
+          if -address(_85) + 2:
+              _95 = address(_85)
+          else:
+              _95 = this.address
+          _96 = _95
+      else:
+          _96 = caller
+      if _86 == 0x8000000000000000000000000000000000000000000000000000000000000000:
+          if 20 > _89:
+              revert with ToAddressOutOfBounds()
+          _100 = Mask(96, 0, _89), mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 129 len 20]
+          mem[mem[64] + 4] = this.address
+          static call address(_100).balanceOf(address account) with:
+                  gas gas_remaining wei
+                 args this.address
+          mem[mem[64]] = ext_call.return_data[0]
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if 32 > return_data.size:
+              _109 = return_data.size
+              _110 = return_data.size
+          else:
+              _109 = 32
+              _110 = 32
+          if mem[64] + ceil32(_110) > LOCK8605463013() or mem[64] + ceil32(_110) < mem[64]:
+              revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+          mem[64] = mem[64] + ceil32(_110)
+          require _109 >=′ 32
+          _119 = ext_call.return_data[0]
+      else:
+          _119 = _86
+      _165 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+      require _119 < 0x8000000000000000000000000000000000000000000000000000000000000000
+      if mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] < 66:
+          _166 = _96
+      else:
+          _166 = this.address
+      _167 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+      s = _94
+      t = _119
+      while _167 >= 43:
+          _169 = mem[64]
+          mem[mem[64] + 11] = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 108]
+          mem[mem[64] + 43] = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 140]
+          mem[mem[64]] = 43
+          mem[64] = mem[64] + 96
+          _174 = 43, mem[_169 + 32 len 20]
+          _178 = mem[_169 + 43]
+          if mem[_169 + 32 len 20] > mem[_169 + 55 len 20]:
+              _180 = 43, mem[_169 + 32 len 20]
+              _181 = mem[_169 + 43]
+          else:
+              _180 = mem[_169 + 43]
+              _181 = 43, mem[_169 + 32 len 20]
+          mem[_169 + 128] = address(_181)
+          mem[_169 + 160] = address(_180)
+          mem[_169 + 192] = mem[_169 + 52 len 3]
+          mem[_169 + 96] = 96
+          if _169 + 224 > LOCK8605463013() or 224 < 96:
+              revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+          mem[_169 + 256] = 0xff00000000000000000000000000000000000000000000000000000000000000
+          mem[_169 + 257] = 0x1f98431c8ad98523631ae4a59f267346ea31f984000000000000000000000000
+          mem[_169 + 277] = sha3(address(_181), address(_180), mem[_169 + 52 len 3])
+          mem[_169 + 309] = 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54
+          mem[_169 + 224] = 85
+          if _169 + 352 > LOCK8605463013() or 256 < 128:
+              revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+          mem[64] = _169 + 352
+          if address(_174) >= address(_178):
+              _187 = 0xfffd8963efd1fc6a506488495d951d5263988d25
+          else:
+              _187 = 4295128740
+          mem[_169 + 384] = 64
+          mem[_169 + 448] = 43
+          u = 0
+          while u < 43:
+              mem[u + _169 + 480] = mem[u + _169 + 32]
+              _165 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+              require t < 0x8000000000000000000000000000000000000000000000000000000000000000
+              if mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] < 66:
+                  _166 = _96
+              else:
+                  _166 = this.address
+              _167 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+              u = u + 32
+              continue 
+          mem[_169 + 416] = address(s)
+          mem[_169 + 352] = 160
+          if _169 + 420 > LOCK8605463013() or 420 < 352:
+              revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+          mem[_169 + 420] = 0x128acb0800000000000000000000000000000000000000000000000000000000
+          mem[_169 + 424] = address(_166)
+          mem[_169 + 456] = address(_174) < address(_178)
+          mem[_169 + 488] = t
+          mem[_169 + 520] = address(_187)
+          mem[_169 + 552] = 160
+          mem[_169 + 584] = 160
+          s = 0
+          while s < 160:
+              mem[s + _169 + 616] = mem[s + _169 + 384]
+              _165 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+              require t < 0x8000000000000000000000000000000000000000000000000000000000000000
+              if mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] < 66:
+                  _166 = _96
+              else:
+                  _166 = this.address
+              _167 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+              s = s + 32
+              continue 
+          mem[_169 + 776] = 0
+          call address(sha3(0, 2276643401503442211, mem[_169 + 277], 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54)).swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqrtPriceLimitX96, bytes data) with:
+               gas gas_remaining wei
+              args address(_166), address(_174) < address(_178), t, address(_187), 160, 160, mem[_169 + 616 len 160]
+          mem[_169 + 420 len 64] = ext_call.return_data[0 len 64]
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if 64 > return_data.size:
+              _197 = return_data.size
+          else:
+              _197 = 64
+          if _169 + ceil32(_197) + 420 > LOCK8605463013() or ceil32(_197) < 0:
+              revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+          mem[64] = _169 + ceil32(_197) + 420
+          require _197 >=′ 64
+          if address(_174) >= address(_178):
+              _200 = ext_call.return_data[0]
+          else:
+              _200 = ext_call.return_data[32]
+          if _200 == 0x8000000000000000000000000000000000000000000000000000000000000000:
+              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+          if _165 < 66:
+              if -_200 < _87:
+                  revert with V3TooLittleReceived()
+              _165 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+              require t < 0x8000000000000000000000000000000000000000000000000000000000000000
+              if mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] < 66:
+                  _166 = _96
+              else:
+                  _166 = this.address
+              _167 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+              idx = idx + 1
+              continue 
+          _202 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+          if mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] - 23 > mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]:
+              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+          if mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] < 23:
+              revert with SliceOverflow()
+          if mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] < mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]:
+              revert with SliceOutOfBounds()
+          if mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] == 23:
+              revert with NoSlice()
+          s = ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + (32 * not mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] - 23 % 32) + (mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] - 23 % 32) + 97
+          u = ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + (32 * not mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] - 23 % 32) + (mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] - 23 % 32) + 120
+          while s < ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + (32 * not _202 - 23 % 32) + (_202 - 23 % 32) + _202 + 74:
+              mem[s] = mem[u]
+              _165 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+              require t < 0x8000000000000000000000000000000000000000000000000000000000000000
+              if mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] < 66:
+                  _166 = _96
+              else:
+                  _166 = this.address
+              _167 = mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97]
+              s = s + 32
+              u = u + 32
+              continue 
+          mem[ceil32(ceil32(cd[(inputs + cd[(inputs + (32 * idx) + 36)] + 36)])) + 97] = _202 - 23
+          _165 = _202 - 23
+          require -_200 < 0x8000000000000000000000000000000000000000000000000000000000000000
+          if _202 - 23 < 66:
+              _166 = _96
+          else:
+              _166 = this.address
+          _167 = _202 - 23
+          s = this.address
+          t = -_200
+          continue 
+      revert with SliceOutOfBounds()
+  stor1 = 1
+
+

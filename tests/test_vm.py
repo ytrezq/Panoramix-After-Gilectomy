@@ -2,7 +2,7 @@
 """Differential test of the symbolic VM: the raw traces of panoramix.vm.VM
 against vm.s, on the corpus."""
 import os, sys, glob, time
-sys.path.insert(0, "/home/claude/panoramix")
+sys.path.insert(0, os.environ.get("PANORAMIX_PY", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "panoramix")))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build"))
 import logging; logging.disable(logging.CRITICAL)
 # no signature database on the asm side either (python's is disabled below)
@@ -16,7 +16,7 @@ panoramix.loader.get_func_name = lambda h: h
 from panoramix.vm import VM
 from panoramix.core.algebra import CannotCompare
 
-CORPUS = "/tmp/claude-0/-home-claude/0fe601fa-3d3d-56af-9a22-c5068d00d0e0/scratchpad/corpus"
+CORPUS = os.environ.get("CORPUS", os.path.join(os.path.dirname(os.path.abspath(__file__)), "corpus"))
 
 def py_run(code, start, just_fdests, stack=(), known=()):
     loader = Loader()

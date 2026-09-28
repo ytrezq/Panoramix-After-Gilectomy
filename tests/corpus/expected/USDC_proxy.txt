@@ -1,0 +1,98 @@
+# Palkeoramix decompiler. 
+
+def storage:
+  stor10D6 is uint128 at storage 0x10d6a54a4754c8869d6886b5f5d7fbfa5b4522237ea5c60d11bc4e7a1ff9390b offset 160
+  stor10D6 is address at storage 0x10d6a54a4754c8869d6886b5f5d7fbfa5b4522237ea5c60d11bc4e7a1ff9390b
+  stor7050 is uint128 at storage 0x7050c9e0f4ca769c69bd3a8ef740bc37934f8e2c036e5a723fd8ee048ed3f8c3 offset 160
+  stor7050 is address at storage 0x7050c9e0f4ca769c69bd3a8ef740bc37934f8e2c036e5a723fd8ee048ed3f8c3
+  stor7050 is uint256 at storage 0x7050c9e0f4ca769c69bd3a8ef740bc37934f8e2c036e5a723fd8ee048ed3f8c3
+
+def admin(): # not payable
+  if caller == address(stor10D6.field_0):
+      return address(stor10D6.field_0)
+  delegate uint256(stor7050.field_0) with:
+     funct call.data[0 len 4]
+       gas gas_remaining wei
+      args call.data[4 len calldata.size - 4]
+  if not delegate.return_code:
+      revert with ext_call.return_data[0 len return_data.size]
+  return ext_call.return_data[0 len return_data.size]
+
+def implementation(): # not payable
+  if caller == address(stor10D6.field_0):
+      return address(stor7050.field_0)
+  delegate uint256(stor7050.field_0) with:
+     funct call.data[0 len 4]
+       gas gas_remaining wei
+      args call.data[4 len calldata.size - 4]
+  if not delegate.return_code:
+      revert with ext_call.return_data[0 len return_data.size]
+  return ext_call.return_data[0 len return_data.size]
+
+def _fallback(?) payable: # default function
+  if caller == address(stor10D6.field_0):
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 'Cannot call fallback function from the proxy admin'
+  delegate uint256(stor7050.field_0) with:
+     funct call.data[0 len 4]
+       gas gas_remaining wei
+      args call.data[4 len calldata.size - 4]
+  if not delegate.return_code:
+      revert with ext_call.return_data[0 len return_data.size]
+  return ext_call.return_data[0 len return_data.size]
+
+def upgradeTo(address newImplementation): # not payable
+  if address(stor10D6.field_0) != caller:
+      delegate uint256(stor7050.field_0) with:
+         funct call.data[0 len 4]
+           gas gas_remaining wei
+          args call.data[4 len calldata.size - 4]
+      if not delegate.return_code:
+          revert with ext_call.return_data[0 len return_data.size]
+      return ext_call.return_data[0 len return_data.size]
+  if ext_code.size(newImplementation) <= 0:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  'Cannot set a proxy implementation to a non-contract address'
+  address(stor7050.field_0) = newImplementation
+  Mask(96, 0, stor7050.field_160) = 0
+  log Upgraded(address implementation=newImplementation)
+
+def changeAdmin(address newAdmin): # not payable
+  if address(stor10D6.field_0) != caller:
+      delegate uint256(stor7050.field_0) with:
+         funct call.data[0 len 4]
+           gas gas_remaining wei
+          args call.data[4 len calldata.size - 4]
+      if not delegate.return_code:
+          revert with ext_call.return_data[0 len return_data.size]
+      return ext_call.return_data[0 len return_data.size]
+  if not newAdmin:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  'Cannot change the admin of a proxy to the zero address'
+  log AdminChanged(
+        address previousAdmin=address(stor10D6.field_0),
+        address newAdmin=newAdmin)
+  address(stor10D6.field_0) = newAdmin
+  Mask(96, 0, stor10D6.field_160) = 0
+
+def upgradeToAndCall(address newImplementation, bytes data) payable: 
+  if address(stor10D6.field_0) != caller:
+      delegate uint256(stor7050.field_0) with:
+         funct call.data[0 len 4]
+           gas gas_remaining wei
+          args call.data[4 len calldata.size - 4]
+      if not delegate.return_code:
+          revert with ext_call.return_data[0 len return_data.size]
+      return ext_call.return_data[0 len return_data.size]
+  if ext_code.size(newImplementation) <= 0:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  'Cannot set a proxy implementation to a non-contract address'
+  address(stor7050.field_0) = newImplementation
+  Mask(96, 0, stor7050.field_160) = 0
+  log Upgraded(address implementation=newImplementation)
+  call this.address with:
+     value call.value wei
+       gas gas_remaining wei
+      args data[all]
+  require ext_call.success
+
+

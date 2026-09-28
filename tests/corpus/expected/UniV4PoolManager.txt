@@ -1,0 +1,659 @@
+# Palkeoramix decompiler. 
+
+def storage:
+  owner is address at storage 0
+  unknown97e8cd4e is array of uint256 at storage 1
+  unknownf02de3b2Address is address at storage 2
+  stor3 is mapping of uint8 at storage 3
+  balanceOf is mapping of uint256 at storage 4
+  allowance is mapping of uint256 at storage 5
+  stor6 is mapping of struct at storage 6
+
+def balanceOf(address account, uint256 id): # not payable
+  require calldata.size - 4 >=′ 64
+  require not Mask(96, 160, account)
+  return balanceOf[address(account)][id]
+
+def unknown1e2eaeaf(uint256 _param1): # not payable
+  require calldata.size - 4 >=′ 32
+  return stor[_param1]
+
+def allowance(address _owner, address _spender, uint256 _id): # not payable
+  require calldata.size - 4 >=′ 96
+  require not Mask(96, 160, _owner)
+  require not Mask(96, 160, _spender)
+  return allowance[address(_owner)][address(_spender)][_id]
+
+def owner(): # not payable
+  require calldata.size - 4 >=′ 0
+  return owner
+
+def unknown97e8cd4e(uint128 _param1): # not payable
+  require calldata.size - 4 >=′ 32
+  require not Mask(96, 160, _param1)
+  return unknown97e8cd4e[address(_param1)]
+
+def isOperator(address _owner, address _operator): # not payable
+  require calldata.size - 4 >=′ 64
+  require not Mask(96, 160, _owner)
+  require not Mask(96, 160, _operator)
+  return bool(stor3[address(_owner)][address(_operator)])
+
+def unknownf02de3b2(): # not payable
+  require calldata.size - 4 >=′ 0
+  return unknownf02de3b2Address
+
+#
+#  Regular functions
+#
+
+def _fallback(?) payable: # default function
+  revert
+
+def settle() payable: 
+  require calldata.size - 4 <′ 0
+  revert
+
+def unknownf135baaa(): # not payable
+  require calldata.size - 4 <′ 32
+  revert
+
+def unknown3dd45adb(uint128 _param1) payable: 
+  require calldata.size - 4 >=′ 32
+  require Mask(96, 160, _param1)
+  revert
+
+def unknown80f0b44c(address _param1, uint256 _param2): # not payable
+  require calldata.size - 4 >=′ 64
+  require Mask(96, 160, _param1)
+  revert
+
+def mint(address user, uint256 amount, uint256 index): # not payable
+  require calldata.size - 4 >=′ 96
+  require Mask(96, 160, user)
+  revert
+
+def burn(address account, uint256 id, uint256 value): # not payable
+  require calldata.size - 4 >=′ 96
+  require Mask(96, 160, account)
+  revert
+
+def take(address token, address to, uint256 amount): # not payable
+  require calldata.size - 4 >=′ 96
+  require not Mask(96, 160, token)
+  require Mask(96, 160, to)
+  revert
+
+def unknown48c89491(array _param1): # not payable
+  require calldata.size - 4 >=′ 32
+  require _param1 <= LOCK8605463013()
+  require _param1 + 35 <′ calldata.size
+  require _param1.length <= LOCK8605463013()
+  require _param1 + _param1.length + 36 > calldata.size
+  revert
+
+def unknown9bf6645f(array _param1): # not payable
+  require calldata.size - 4 >=′ 32
+  require _param1 <= LOCK8605463013()
+  require _param1 + 35 <′ calldata.size
+  require _param1.length <= LOCK8605463013()
+  require _param1 + (32 * _param1.length) + 36 > calldata.size
+  revert
+
+def unknown2d771389(uint128 _param1): # not payable
+  require calldata.size - 4 >=′ 32
+  require not Mask(96, 160, _param1)
+  if owner != caller:
+      revert with Error(string reason), 'UNAUTHORIZED'
+  unknownf02de3b2Address = address(_param1)
+  log 0xb4bd8ef5: address(_param1)
+
+def transferOwnership(address newOwner): # not payable
+  require calldata.size - 4 >=′ 32
+  require not Mask(96, 160, newOwner)
+  if owner != caller:
+      revert with Error(string reason), 'UNAUTHORIZED'
+  owner = newOwner
+  log OwnershipTransferred(
+        address previousOwner=caller,
+        address newOwner=newOwner)
+
+def setOperator(address gameContract, bool isOperator): # not payable
+  require calldata.size - 4 >=′ 64
+  require not Mask(96, 160, gameContract)
+  require not isOperator - isOperator
+  stor3[caller][address(gameContract)] = uint8(isOperator)
+  log 0xceb576d9: isOperator, caller, gameContract
+  return 1
+
+def supportsInterface(bytes4 interfaceId): # not payable
+  require calldata.size - 4 >=′ 32
+  require not interfaceId - Mask(32, 224, interfaceId)
+  if Mask(32, 224, interfaceId) != 0x1ffc9a700000000000000000000000000000000000000000000000000000000:
+      return (Mask(32, 224, interfaceId) == 0xf632fb300000000000000000000000000000000000000000000000000000000)
+  return (Mask(32, 224, interfaceId) == 0x1ffc9a700000000000000000000000000000000000000000000000000000000)
+
+def approve(address _spender, uint256 _currentValue, uint256 _newValue): # not payable
+  require calldata.size - 4 >=′ 96
+  require not Mask(96, 160, _spender)
+  allowance[caller][address(_spender)][_currentValue] = _newValue
+  log Approval(
+        address owner=_newValue,
+        address spender=caller,
+        uint256 _pid=_spender,
+        uint256 value=_currentValue)
+  return 1
+
+def unknown35fd631a(uint256 _param1, uint256 _param2): # not payable
+  require calldata.size - 4 >=′ 64
+  mem[160] = stor[_param1]
+  idx = 160
+  s = _param1
+  while idx + 32 < (32 * _param2) + 160:
+      mem[idx + 32] = unknown97e8cd4e[s]
+      idx = idx + 32
+      s = s + 1
+      continue 
+  return Array(len=_param2, data=mem[160 len 32 * _param2])
+
+def sync(address pair): # not payable
+  require calldata.size - 4 >=′ 32
+  require not Mask(96, 160, pair)
+  require pair
+  static call pair.balanceOf(address account) with:
+          gas gas_remaining wei
+         args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  if 32 > return_data.size:
+      _3 = return_data.size
+  else:
+      _3 = 32
+  if ceil32(_3) + 96 > LOCK8605463013() or ceil32(_3) + 96 < 96:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  require _3 <′ 32
+  revert
+
+def unknown234266d7(uint128 _param1, uint128 _param2, uint256 _param3, uint256 _param4, uint128 _param5, array _param6): # not payable
+  require calldata.size - 4 >=′ 256
+  require calldata.size - 4 >=′ 160
+  require not Mask(96, 160, _param1)
+  require not Mask(96, 160, _param2)
+  require not Mask(232, 24, _param3)
+  require not _param4 - ('signextend', 2, ('param', '_param4'))
+  require not Mask(96, 160, _param5)
+  require _param6 <= LOCK8605463013()
+  require _param6 + 35 <′ calldata.size
+  require _param6.length <= LOCK8605463013()
+  require _param6 + _param6.length + 36 > calldata.size
+  revert
+
+def unknowndbd035ff(): # not payable
+  require calldata.size - 4 >=′ 32
+  require cd[4] <= LOCK8605463013()
+  require cd[4] + 35 <′ calldata.size
+  require ('cd', 4).length <= LOCK8605463013()
+  require cd[4] + (32 * ('cd', 4).length) + 36 <= calldata.size
+  mem[160] = stor[('cd', 4)[0]]
+  idx = 160
+  s = cd[4] + 36
+  while idx + 32 < (32 * ('cd', 4).length) + 160:
+      mem[idx + 32] = stor[cd[(s + 32)]]
+      idx = idx + 32
+      s = s + 32
+      continue 
+  return Array(len=('cd', 4).length, data=mem[160 len 32 * ('cd', 4).length])
+
+def unknownf3cd914c(uint128 _param1, uint128 _param2, uint256 _param3, uint256 _param4, uint128 _param5, uint256 _param6, uint128 _param7, array _param8): # not payable
+  require calldata.size - 4 >=′ 288
+  require calldata.size - 4 >=′ 160
+  require not Mask(96, 160, _param1)
+  require not Mask(96, 160, _param2)
+  require not Mask(232, 24, _param3)
+  require not _param4 - ('signextend', 2, ('param', '_param4'))
+  require not Mask(96, 160, _param5)
+  require calldata.size - 164 >=′ 96
+  require not _param6 - bool(_param6)
+  require not Mask(96, 160, _param7)
+  require _param8 <= LOCK8605463013()
+  require _param8 + 35 <′ calldata.size
+  require _param8.length <= LOCK8605463013()
+  require _param8 + _param8.length + 36 > calldata.size
+  revert
+
+def unknown5a6bcfda(uint128 _param1, uint128 _param2, uint256 _param3, uint256 _param4, uint128 _param5, uint256 _param6, uint256 _param7, array _param8): # not payable
+  require calldata.size - 4 >=′ 320
+  require calldata.size - 4 >=′ 160
+  require not Mask(96, 160, _param1)
+  require not Mask(96, 160, _param2)
+  require not Mask(232, 24, _param3)
+  require not _param4 - ('signextend', 2, ('param', '_param4'))
+  require not Mask(96, 160, _param5)
+  require calldata.size - 164 >=′ 128
+  require not _param6 - ('signextend', 2, ('param', '_param6'))
+  require not _param7 - ('signextend', 2, ('param', '_param7'))
+  require _param8 <= LOCK8605463013()
+  require _param8 + 35 <′ calldata.size
+  require _param8.length <= LOCK8605463013()
+  require _param8 + _param8.length + 36 > calldata.size
+  revert
+
+def transfer(address _to, uint256 _value, uint256 _code): # not payable
+  require calldata.size - 4 >=′ 96
+  require not Mask(96, 160, _to)
+  if balanceOf[caller][_value] - _code > balanceOf[caller][_value]:
+      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+  balanceOf[caller][_value] -= _code
+  if balanceOf[address(_to)][_value] > balanceOf[address(_to)][_value] + _code:
+      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+  balanceOf[address(_to)][_value] += _code
+  log Transfer(
+        address _spender=caller,
+        address _from=_code,
+        address _to=caller,
+        uint256 _id=_to,
+        uint256 _value=_value)
+  return 1
+
+def unknown7e87ce7d(uint128 _param1, uint128 _param2, uint256 _param3, uint256 _param4, uint128 _param5, uint256 _param6): # not payable
+  require calldata.size - 4 >=′ 192
+  require calldata.size - 4 >=′ 160
+  require not Mask(96, 160, _param1)
+  require not Mask(96, 160, _param2)
+  require not Mask(232, 24, _param3)
+  require not _param4 - ('signextend', 2, ('param', '_param4'))
+  require not Mask(96, 160, _param5)
+  require not Mask(232, 24, _param6)
+  if caller - unknownf02de3b2Address:
+      revert with InvalidCaller()
+  if _param6 % 4096 >= 1001 or Mask(12, 12, _param6) >= 4100096:
+      revert with 0, _param6 % unknown01000000()
+  if not address(stor6[_param1][_param2][_param3][_param4][_param5].field_0):
+      revert with 1214948103
+  stor6[_param1][_param2][_param3][_param4][_param5].field_184 % unknown01000000() = _param6 % unknown01000000()
+  log 0xe9c42593: (_param6 % unknown01000000()), sha3(_param1, _param2, _param3, _param4, _param5)
+
+def unknown52759651(uint128 _param1, uint128 _param2, uint256 _param3, uint256 _param4, uint128 _param5, uint256 _param6): # not payable
+  require calldata.size - 4 >=′ 192
+  require calldata.size - 4 >=′ 160
+  require not Mask(96, 160, _param1)
+  require not Mask(96, 160, _param2)
+  require not Mask(232, 24, _param3)
+  require not _param4 - ('signextend', 2, ('param', '_param4'))
+  require not Mask(96, 160, _param5)
+  require not Mask(232, 24, _param6)
+  if _param3 % unknown01000000() == 8388608:
+      _4 = address(_param5) != caller
+  else:
+      _4 = _param3 % unknown01000000() != 8388608
+  if _4:
+      revert with 819074625
+  if _param6 % unknown01000000() > 10^6:
+      revert with 0, _param6 % unknown01000000()
+  if not address(stor6[_param1][_param2][_param3][_param4][_param5].field_0):
+      revert with 1214948103
+  stor6[_param1][_param2][_param3][_param4][_param5].field_208 % unknown01000000() = _param6 % unknown01000000()
+
+def unknown8161b874(uint128 _param1, uint128 _param2, uint256 _param3): # not payable
+  require calldata.size - 4 >=′ 96
+  require not Mask(96, 160, _param1)
+  require not Mask(96, 160, _param2)
+  if caller - unknownf02de3b2Address:
+      revert with InvalidCaller()
+  require not address(_param2)
+  if _param3:
+      _2 = _param3
+      _3 = _param3
+  else:
+      _2 = unknown97e8cd4e[address(_param2)]
+      _3 = unknown97e8cd4e[address(_param2)]
+  if unknown97e8cd4e[address(_param2)] - _3 > unknown97e8cd4e[address(_param2)]:
+      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+  unknown97e8cd4e[address(_param2)] -= _3
+  call _param1 with:
+     value _3 wei
+       gas gas_remaining wei
+  if ext_call.success:
+      return _2
+  mem[260 len return_data.size] = ext_call.return_data[0 len return_data.size]
+  mem[ceil32(return_data.size) + 260] = 4
+  revert with 2428483685, 
+              address(_param1),
+              0,
+              128,
+              ceil32(return_data.size) + 160,
+              return_data.size,
+              ext_call.return_data[0 len return_data.size],
+              mem[return_data.size + 260 len ceil32(return_data.size) + -return_data.size + 32],
+              0xf4b3b1bc00000000000000000000000000000000000000000000000000000000
+
+def transferFrom(address from_, address to_, uint256 tokenId_, uint256 transferUnits_): # not payable
+  require calldata.size - 4 >=′ 128
+  require not Mask(96, 160, from_)
+  require not Mask(96, 160, to_)
+  if from_ != caller:
+      _3 = not stor3[address(from_)][caller]
+  else:
+      _3 = from_ != caller
+  if _3:
+      if allowance[address(from_)][caller][tokenId_] - 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
+          if allowance[address(from_)][caller][tokenId_] - transferUnits_ > allowance[address(from_)][caller][tokenId_]:
+              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+          allowance[address(from_)][caller][tokenId_] -= transferUnits_
+  if balanceOf[address(from_)][tokenId_] - transferUnits_ > balanceOf[address(from_)][tokenId_]:
+      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+  balanceOf[address(from_)][tokenId_] -= transferUnits_
+  if balanceOf[address(to_)][tokenId_] > balanceOf[address(to_)][tokenId_] + transferUnits_:
+      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+  balanceOf[address(to_)][tokenId_] += transferUnits_
+  log Transfer(
+        address _spender=caller,
+        address _from=transferUnits_,
+        address _to=from_,
+        uint256 _id=to_,
+        uint256 _value=tokenId_)
+  return 1
+
+def unknown6276cbbe(uint128 _param1, uint128 _param2, uint256 _param3, uint256 _param4, uint128 _param5, uint128 _param6): # not payable
+  require calldata.size - 4 >=′ 192
+  require calldata.size - 4 >=′ 160
+  mem[64] = 256
+  require not Mask(96, 160, _param1)
+  mem[96] = _param1
+  require not Mask(96, 160, _param2)
+  mem[128] = _param2
+  require not Mask(232, 24, _param3)
+  mem[160] = _param3
+  require not _param4 - ('signextend', 2, ('param', '_param4'))
+  mem[192] = _param4
+  require not Mask(96, 160, _param5)
+  mem[224] = _param5
+  require not Mask(96, 160, _param6)
+  if this.address - 0x4444c5dc75cb358380d2e3de08a90:
+      revert with DelegateCallNotAllowed()
+  if ('signextend', 2, ('param', '_param4')) >′ 32767:
+      revert with 0, ('signextend', 2, ('param', '_param4'))
+  if ('signextend', 2, ('param', '_param4')) <′ 1:
+      revert with 0, ('signextend', 2, ('param', '_param4'))
+  if address(_param1) >= address(_param2):
+      revert with 1852610608, address(_param1), address(_param2)
+  if not Mask(1, 7, _param5):
+      _9 = bool(Mask(1, 3, _param5))
+  else:
+      _9 = not Mask(1, 7, _param5)
+  if _9:
+      _13 = 0
+  else:
+      if not Mask(1, 6, _param5):
+          _10 = bool(Mask(1, 2, _param5))
+      else:
+          _10 = not Mask(1, 6, _param5)
+      if _10:
+          _13 = 0
+      else:
+          if not Mask(1, 10, _param5):
+              _11 = bool(Mask(1, 1, _param5))
+          else:
+              _11 = not Mask(1, 10, _param5)
+          if _11:
+              _13 = 0
+          else:
+              if not Mask(1, 8, _param5):
+                  _12 = bool(bool(_param5))
+              else:
+                  _12 = not Mask(1, 8, _param5)
+              if _12:
+                  _13 = 0
+              else:
+                  if not address(_param5):
+                      _13 = _param3 % unknown01000000() != 8388608
+                  else:
+                      if not _param5 % 16384:
+                          _13 = _param3 % unknown01000000() == 8388608
+                      else:
+                          _13 = bool(_param5 % 16384)
+  if not _13:
+      revert with 0, address(_param5)
+  if _param3 % unknown01000000() == 8388608:
+      _24 = 0
+  else:
+      if _param3 % unknown01000000() > 10^6:
+          revert with 0, _param3 % unknown01000000()
+      _24 = _param3 % unknown01000000()
+  if caller - address(_param5):
+      if Mask(1, 13, _param5):
+          mem[288] = 0xdc98354e00000000000000000000000000000000000000000000000000000000
+          mem[292] = caller
+          mem[324] = address(_param1)
+          mem[356] = address(_param2)
+          mem[388] = _param3 % unknown01000000()
+          mem[420] = ('signextend', 2, ('param', '_param4'))
+          mem[452] = address(_param5)
+          mem[484] = address(_param6)
+          mem[256] = 228
+          call address(_param5).0xdc98354e with:
+               gas gas_remaining wei
+              args caller, address(_param1), address(_param2), _param3 << 232, ('signextend', 2, ('param', '_param4')), address(_param5), address(_param6)
+          if not ext_call.success:
+              mem[708 len return_data.size] = ext_call.return_data[0 len return_data.size]
+              mem[ceil32(return_data.size) + 708] = 4
+              revert with 2428483685, 
+                          address(_param5),
+                          0xdc98354e00000000000000000000000000000000000000000000000000000000,
+                          128,
+                          ceil32(return_data.size) + 160,
+                          return_data.size,
+                          ext_call.return_data[0 len return_data.size],
+                          mem[return_data.size + 708 len ceil32(return_data.size) + -return_data.size + 32],
+                          0xa9e35b2f00000000000000000000000000000000000000000000000000000000
+          mem[64] = ceil32(return_data.size) + 545
+          mem[544] = return_data.size
+          mem[576 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          if return_data.size >= 32:
+              _58 = Mask(32, 224, mem[576]) != 0xdc98354e00000000000000000000000000000000000000000000000000000000
+          else:
+              _58 = return_data.size < 32
+          if _58:
+              revert with 503615005
+  mem[0] = sha3(_param1, _param2, _param3, _param4, _param5)
+  mem[32] = 6
+  if address(stor6[_param1][_param2][_param3][_param4][_param5].field_0):
+      revert with PoolAlreadyInitialized()
+  if address(_param6 - 4295128739) > 0xfffd8963efd1fc6a506488495d951d5163961682:
+      revert with 'aHu$', address(_param6)
+  require address(_param6)
+  _97 = 32 * LOCK8605463013() < Mask(256, -64 * LOCK8605463013() < Mask(256, -LOCK8605463013() < address(_param6) << 32 << 7, address(_param6) << 32) << -LOCK8605463013() < address(_param6) << 32 << 7 or LOCK8605463013() < address(_param6) << 32 << 7, address(_param6) << 32) << -64 * LOCK8605463013() < Mask(256, -LOCK8605463013() < address(_param6) << 32 << 7, address(_param6) << 32) << -LOCK8605463013() < address(_param6) << 32 << 7 or LOCK8605463013() < address(_param6) << 32 << 7 or 64 * LOCK8605463013() < Mask(256, -LOCK8605463013() < address(_param6) << 32 << 7, address(_param6) << 32) << -LOCK8605463013() < address(_param6) << 32 << 7 or LOCK8605463013() < address(_param6) << 32 << 7
+  _98 = Mask(256, -8 * 255 < Mask(256, -16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 or _97, address(_param6) << 32) << -16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 or _97 or 16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 or _97, address(_param6) << 32) << -8 * 255 < Mask(256, -16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 or _97, address(_param6) << 32) << -16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 or _97 or 16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 or _97
+  if Mask(8, -(8 * Mask(256, -_98, 0x8421084210842108cc6318c6db6d54be) >> _98 % 32) + 248, 0x706060506020500060203020504000106050205030304010505030400000000) >> -(8 * Mask(256, -_98, 0x8421084210842108cc6318c6db6d54be) >> _98 % 32) + 248 or 8 * 255 < Mask(256, -16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 or _97, address(_param6) << 32) << -16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 or _97 % 32 or 16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 % 16 or uint8(_97) < 128:
+      _100 = address(_param6) << -(Mask(8, -(8 * Mask(256, -_98, 0x8421084210842108cc6318c6db6d54be) >> _98 % 32) + 248, 0x706060506020500060203020504000106050205030304010505030400000000) >> -(8 * Mask(256, -_98, 0x8421084210842108cc6318c6db6d54be) >> _98 % 32) + 248 or 8 * 255 < Mask(256, -16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 or _97, address(_param6) << 32) << -16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 or _97 % 32 or 16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 % 16 or uint8(_97)) + 159
+  else:
+      _99 = Mask(256, -(Mask(8, -(8 * Mask(256, -_98, 0x8421084210842108cc6318c6db6d54be) >> _98 % 32) + 248, 0x706060506020500060203020504000106050205030304010505030400000000) >> -(8 * Mask(256, -_98, 0x8421084210842108cc6318c6db6d54be) >> _98 % 32) + 248 or 8 * 255 < Mask(256, -16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 or _97, address(_param6) << 32) << -16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 or _97 % 32 or 16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 % 16 or uint8(_97)) - 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff81, address(_param6) << 32) << -(Mask(8, -(8 * Mask(256, -_98, 0x8421084210842108cc6318c6db6d54be) >> _98 % 32) + 248, 0x706060506020500060203020504000106050205030304010505030400000000) >> -(8 * Mask(256, -_98, 0x8421084210842108cc6318c6db6d54be) >> _98 % 32) + 248 or 8 * 255 < Mask(256, -16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 or _97, address(_param6) << 32) << -16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 or _97 % 32 or 16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 % 16 or uint8(_97)) - 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff81
+      _100 = _99
+  _101 = Mask((bool(Mask((bool(_100 * _100) >> 255) + 2, -(bool(_100 * _100) >> 255) + 127, _100 * _100) >> (bool(_100 * _100) >> 255) + 127 * Mask((bool(_100 * _100) >> 255) + 2, -(bool(_100 * _100) >> 255) + 127, _100 * _100) >> (bool(_100 * _100) >> 255) + 127) >> 255) + 2, -(bool(Mask((bool(_100 * _100) >> 255) + 2, -(bool(_100 * _100) >> 255) + 127, _100 * _100) >> (bool(_100 * _100) >> 255) + 127 * Mask((bool(_100 * _100) >> 255) + 2, -(bool(_100 * _100) >> 255) + 127, _100 * _100) >> (bool(_100 * _100) >> 255) + 127) >> 255) + 127, Mask((bool(_100 * _100) >> 255) + 2, -(bool(_100 * _100) >> 255) + 127, _100 * _100) >> (bool(_100 * _100) >> 255) + 127 * Mask((bool(_100 * _100) >> 255) + 2, -(bool(_100 * _100) >> 255) + 127, _100 * _100) >> (bool(_100 * _100) >> 255) + 127) >> (bool(Mask((bool(_100 * _100) >> 255) + 2, -(bool(_100 * _100) >> 255) + 127, _100 * _100) >> (bool(_100 * _100) >> 255) + 127 * Mask((bool(_100 * _100) >> 255) + 2, -(bool(_100 * _100) >> 255) + 127, _100 * _100) >> (bool(_100 * _100) >> 255) + 127) >> 255) + 127
+  _102 = Mask((bool(Mask((bool(_101 * _101) >> 255) + 2, -(bool(_101 * _101) >> 255) + 127, _101 * _101) >> (bool(_101 * _101) >> 255) + 127 * Mask((bool(_101 * _101) >> 255) + 2, -(bool(_101 * _101) >> 255) + 127, _101 * _101) >> (bool(_101 * _101) >> 255) + 127) >> 255) + 2, -(bool(Mask((bool(_101 * _101) >> 255) + 2, -(bool(_101 * _101) >> 255) + 127, _101 * _101) >> (bool(_101 * _101) >> 255) + 127 * Mask((bool(_101 * _101) >> 255) + 2, -(bool(_101 * _101) >> 255) + 127, _101 * _101) >> (bool(_101 * _101) >> 255) + 127) >> 255) + 127, Mask((bool(_101 * _101) >> 255) + 2, -(bool(_101 * _101) >> 255) + 127, _101 * _101) >> (bool(_101 * _101) >> 255) + 127 * Mask((bool(_101 * _101) >> 255) + 2, -(bool(_101 * _101) >> 255) + 127, _101 * _101) >> (bool(_101 * _101) >> 255) + 127) >> (bool(Mask((bool(_101 * _101) >> 255) + 2, -(bool(_101 * _101) >> 255) + 127, _101 * _101) >> (bool(_101 * _101) >> 255) + 127 * Mask((bool(_101 * _101) >> 255) + 2, -(bool(_101 * _101) >> 255) + 127, _101 * _101) >> (bool(_101 * _101) >> 255) + 127) >> 255) + 127
+  _103 = Mask((bool(Mask((bool(_102 * _102) >> 255) + 2, -(bool(_102 * _102) >> 255) + 127, _102 * _102) >> (bool(_102 * _102) >> 255) + 127 * Mask((bool(_102 * _102) >> 255) + 2, -(bool(_102 * _102) >> 255) + 127, _102 * _102) >> (bool(_102 * _102) >> 255) + 127) >> 255) + 2, -(bool(Mask((bool(_102 * _102) >> 255) + 2, -(bool(_102 * _102) >> 255) + 127, _102 * _102) >> (bool(_102 * _102) >> 255) + 127 * Mask((bool(_102 * _102) >> 255) + 2, -(bool(_102 * _102) >> 255) + 127, _102 * _102) >> (bool(_102 * _102) >> 255) + 127) >> 255) + 127, Mask((bool(_102 * _102) >> 255) + 2, -(bool(_102 * _102) >> 255) + 127, _102 * _102) >> (bool(_102 * _102) >> 255) + 127 * Mask((bool(_102 * _102) >> 255) + 2, -(bool(_102 * _102) >> 255) + 127, _102 * _102) >> (bool(_102 * _102) >> 255) + 127) >> (bool(Mask((bool(_102 * _102) >> 255) + 2, -(bool(_102 * _102) >> 255) + 127, _102 * _102) >> (bool(_102 * _102) >> 255) + 127 * Mask((bool(_102 * _102) >> 255) + 2, -(bool(_102 * _102) >> 255) + 127, _102 * _102) >> (bool(_102 * _102) >> 255) + 127) >> 255) + 127
+  _104 = Mask((bool(Mask((bool(_103 * _103) >> 255) + 2, -(bool(_103 * _103) >> 255) + 127, _103 * _103) >> (bool(_103 * _103) >> 255) + 127 * Mask((bool(_103 * _103) >> 255) + 2, -(bool(_103 * _103) >> 255) + 127, _103 * _103) >> (bool(_103 * _103) >> 255) + 127) >> 255) + 2, -(bool(Mask((bool(_103 * _103) >> 255) + 2, -(bool(_103 * _103) >> 255) + 127, _103 * _103) >> (bool(_103 * _103) >> 255) + 127 * Mask((bool(_103 * _103) >> 255) + 2, -(bool(_103 * _103) >> 255) + 127, _103 * _103) >> (bool(_103 * _103) >> 255) + 127) >> 255) + 127, Mask((bool(_103 * _103) >> 255) + 2, -(bool(_103 * _103) >> 255) + 127, _103 * _103) >> (bool(_103 * _103) >> 255) + 127 * Mask((bool(_103 * _103) >> 255) + 2, -(bool(_103 * _103) >> 255) + 127, _103 * _103) >> (bool(_103 * _103) >> 255) + 127) >> (bool(Mask((bool(_103 * _103) >> 255) + 2, -(bool(_103 * _103) >> 255) + 127, _103 * _103) >> (bool(_103 * _103) >> 255) + 127 * Mask((bool(_103 * _103) >> 255) + 2, -(bool(_103 * _103) >> 255) + 127, _103 * _103) >> (bool(_103 * _103) >> 255) + 127) >> 255) + 127
+  _105 = Mask((bool(Mask((bool(_104 * _104) >> 255) + 2, -(bool(_104 * _104) >> 255) + 127, _104 * _104) >> (bool(_104 * _104) >> 255) + 127 * Mask((bool(_104 * _104) >> 255) + 2, -(bool(_104 * _104) >> 255) + 127, _104 * _104) >> (bool(_104 * _104) >> 255) + 127) >> 255) + 2, -(bool(Mask((bool(_104 * _104) >> 255) + 2, -(bool(_104 * _104) >> 255) + 127, _104 * _104) >> (bool(_104 * _104) >> 255) + 127 * Mask((bool(_104 * _104) >> 255) + 2, -(bool(_104 * _104) >> 255) + 127, _104 * _104) >> (bool(_104 * _104) >> 255) + 127) >> 255) + 127, Mask((bool(_104 * _104) >> 255) + 2, -(bool(_104 * _104) >> 255) + 127, _104 * _104) >> (bool(_104 * _104) >> 255) + 127 * Mask((bool(_104 * _104) >> 255) + 2, -(bool(_104 * _104) >> 255) + 127, _104 * _104) >> (bool(_104 * _104) >> 255) + 127) >> (bool(Mask((bool(_104 * _104) >> 255) + 2, -(bool(_104 * _104) >> 255) + 127, _104 * _104) >> (bool(_104 * _104) >> 255) + 127 * Mask((bool(_104 * _104) >> 255) + 2, -(bool(_104 * _104) >> 255) + 127, _104 * _104) >> (bool(_104 * _104) >> 255) + 127) >> 255) + 127
+  _106 = Mask((bool(Mask((bool(_105 * _105) >> 255) + 2, -(bool(_105 * _105) >> 255) + 127, _105 * _105) >> (bool(_105 * _105) >> 255) + 127 * Mask((bool(_105 * _105) >> 255) + 2, -(bool(_105 * _105) >> 255) + 127, _105 * _105) >> (bool(_105 * _105) >> 255) + 127) >> 255) + 2, -(bool(Mask((bool(_105 * _105) >> 255) + 2, -(bool(_105 * _105) >> 255) + 127, _105 * _105) >> (bool(_105 * _105) >> 255) + 127 * Mask((bool(_105 * _105) >> 255) + 2, -(bool(_105 * _105) >> 255) + 127, _105 * _105) >> (bool(_105 * _105) >> 255) + 127) >> 255) + 127, Mask((bool(_105 * _105) >> 255) + 2, -(bool(_105 * _105) >> 255) + 127, _105 * _105) >> (bool(_105 * _105) >> 255) + 127 * Mask((bool(_105 * _105) >> 255) + 2, -(bool(_105 * _105) >> 255) + 127, _105 * _105) >> (bool(_105 * _105) >> 255) + 127) >> (bool(Mask((bool(_105 * _105) >> 255) + 2, -(bool(_105 * _105) >> 255) + 127, _105 * _105) >> (bool(_105 * _105) >> 255) + 127 * Mask((bool(_105 * _105) >> 255) + 2, -(bool(_105 * _105) >> 255) + 127, _105 * _105) >> (bool(_105 * _105) >> 255) + 127) >> 255) + 127
+  _107 = (Mask(8, -(8 * Mask(256, -_98, 0x8421084210842108cc6318c6db6d54be) >> _98 % 32) + 248, 0x706060506020500060203020504000106050205030304010505030400000000) >> -(8 * Mask(256, -_98, 0x8421084210842108cc6318c6db6d54be) >> _98 % 32) + 248 or 8 * 255 < Mask(256, -16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 or _97, address(_param6) << 32) << -16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 or _97 % 32 or 16 * 65535 < Mask(256, -_97, address(_param6) << 32) >> _97 % 16 or uint8(_97)) - 128 << 64 or '@' and Mask((bool(_100 * _100) >> 255) + 2, -(bool(_100 * _100) >> 255) + 127, _100 * _100) >> (bool(_100 * _100) >> 255) + 127 * Mask((bool(_100 * _100) >> 255) + 2, -(bool(_100 * _100) >> 255) + 127, _100 * _100) >> (bool(_100 * _100) >> 255) + 127 % 9223372036854775808 >> 193
+  _108 = ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 115792089237316195423570985008687907853266581672683754907038987867812469392726, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))) == ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105')))))))))
+  if not _108:
+      _109 = (bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255) + ('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))
+      if _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255 > 887272:
+          revert with 0, 
+                      ('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))
+      _118 = bool(_109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      _119 = Mask(1, 1, _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      if _119:
+          _128 = uint128(0xfff97272373d413259a46990580e213a * unknown10000000() xor 0x1fffcb933bd6fad37aa2d162d1a594001 * _118) >> 128
+      else:
+          _128 = unknown10000000() xor 0x1fffcb933bd6fad37aa2d162d1a594001 * _118
+      _129 = Mask(1, 2, _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      if _129:
+          _132 = uint128(0xfff2e50f5f656932ef12357cf3c7fdcc * _128) >> 128
+      else:
+          _132 = _128
+      _133 = Mask(1, 3, _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      if _133:
+          _135 = uint128(0xffe5caca7e10e4e61c3624eaa0941cd0 * _132) >> 128
+      else:
+          _135 = _132
+      _136 = Mask(1, 4, _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      if _136:
+          _143 = uint128(0xffcb9843d60f6159c9db58835c926644 * _135) >> 128
+      else:
+          _143 = _135
+      _144 = Mask(1, 5, _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      if _144:
+          _153 = uint128(0xff973b41fa98c081472e6896dfb254c0 * _143) >> 128
+      else:
+          _153 = _143
+      _154 = Mask(1, 6, _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      if _154:
+          _156 = uint128(0xff2ea16466c96a3843ec78b326b52861 * _153) >> 128
+      else:
+          _156 = _153
+      _160 = Mask(1, 7, _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      if _160:
+          _163 = uint128(0xfe5dee046a99a2a811c461f1969c3053 * _156) >> 128
+      else:
+          _163 = _156
+      _164 = Mask(1, 8, _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      if _164:
+          _166 = uint128(0xfcbe86c7900a88aedcffc83b479aa3a4 * _163) >> 128
+      else:
+          _166 = _163
+      _167 = Mask(1, 9, _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      if _167:
+          _169 = uint128(0xf987a7253ac413176f2b074cf7815e54 * _166) >> 128
+      else:
+          _169 = _166
+      _170 = Mask(1, 10, _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      if _170:
+          _172 = uint128(0xf3392b0822b70005940c7a398e4b70f3 * _169) >> 128
+      else:
+          _172 = _169
+      _173 = Mask(1, 11, _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      if _173:
+          _175 = uint128(0xe7159475a2c29b7443b29c7fa6e889d9 * _172) >> 128
+      else:
+          _175 = _172
+      _176 = Mask(1, 12, _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      if _176:
+          _178 = uint128(0xd097f3bdfd2022b8845ad8f792aa5825 * _175) >> 128
+      else:
+          _178 = _175
+      _179 = Mask(1, 13, _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      if _179:
+          _181 = uint128(0xa9f746462d870fdf8a65dc1f90e061e5 * _178) >> 128
+      else:
+          _181 = _178
+      _182 = Mask(1, 14, _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      if _182:
+          _184 = uint128(0x70d869a156d2a1b890bb3df62baf32f7 * _181) >> 128
+      else:
+          _184 = _181
+      _185 = Mask(1, 15, _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      if _185:
+          _187 = uint128(0x31be135f97d08fd981231505542fcfa6 * _184) >> 128
+      else:
+          _187 = _184
+      _188 = Mask(1, 16, _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      if _188:
+          _190 = uint128(0x9aa508b5b7a84e1c677de54f3e99bc9 * _187) >> 128
+      else:
+          _190 = _187
+      _191 = Mask(1, 17, _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      if _191:
+          _193 = uint128(0x5d6af8dedb81196699c329225ee604 * _190) >> 128
+      else:
+          _193 = _190
+      _194 = Mask(1, 18, _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      if _194:
+          _196 = uint128(0x2216e584f5fa1ea926041bedfe98 * _193) >> 128
+      else:
+          _196 = _193
+      _197 = Mask(1, 19, _109 xor bool(('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))) >> 255)
+      if _197:
+          _198 = uint128(0x48a170391f7dc42444e8fa2 * _196) >> 128
+      else:
+          _198 = _196
+      if 0 <′ ('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105')))))))))):
+          _199 = -1 / _198
+      else:
+          _199 = _198
+      if Mask(160, 32, _199 + LOCK8605463013()) >> 32 > address(_param6):
+          _200 = ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 115792089237316195423570985008687907853266581672683754907038987867812469392726, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105')))))))))
+      else:
+          _200 = ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 291339464771989622907027621153398088495, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105')))))))))
+      address(stor6[_param1][_param2][_param3][_param4][_param5].field_0) = address(_param6)
+      stor6[_param1][_param2][_param3][_param4][_param5].field_160 % unknown01000000() = _200 % unknown01000000()
+      stor6[_param1][_param2][_param3][_param4][_param5].field_184 % unknown01000000() = 0
+      stor6[_param1][_param2][_param3][_param4][_param5].field_208 % unknown01000000() = _24 % unknown01000000()
+      stor6[_param1][_param2][_param3][_param4][_param5].field_232 % unknown01000000() = 0
+      log 0xdd466e67: _param3 % unknown01000000(), ('signextend', 2, ('param', '_param4')), address(_param5), address(_param6), ('signextend', 2, ('var', '_200')), sha3(_param1, _param2, _param3, _param4, _param5), address(_param1), address(_param2)
+      if not caller - address(_param5):
+          return ('signextend', 2, ('var', '_200'))
+      if not Mask(1, 12, _param5):
+          return ('signextend', 2, ('var', '_200'))
+      mem[mem[64] + 32] = 0x6fe7e6eb00000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 36] = caller
+      mem[mem[64] + 68] = address(_param1)
+      mem[mem[64] + 100] = address(_param2)
+      mem[mem[64] + 132] = _param3 % unknown01000000()
+      mem[mem[64] + 164] = ('signextend', 2, ('param', '_param4'))
+      mem[mem[64] + 196] = address(_param5)
+      mem[mem[64] + 228] = address(_param6)
+      mem[mem[64] + 260] = ('signextend', 2, ('var', '_200'))
+      mem[mem[64]] = 260
+      _216 = ('signextend', 2, ('var', '_200'))
+      _217 = mem[64]
+      _218 = address(_param5)
+      _219 = mem[64]
+  else:
+      _110 = ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 115792089237316195423570985008687907853266581672683754907038987867812469392726, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))) % unknown01000000() << 160 or address(_param6) or _24 % unknown01000000() << 208
+      stor6[_param1][_param2][_param3][_param4][_param5].field_0 = _110
+      log 0xdd466e67: _param3 % unknown01000000(), ('signextend', 2, ('param', '_param4')), address(_param5), address(_param6), ('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 115792089237316195423570985008687907853266581672683754907038987867812469392726, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105')))))))))), sha3(_param1, _param2, _param3, _param4, _param5), address(_param1), address(_param2)
+      return ('signextend', 2, ('signextend', 2, ('mask_shl', 256, -128, -128, ('add', 115792089237316195423570985008687907853266581672683754907038987867812469392726, ('mul', 255738958999603826347141, ('or', ('var', '_107'), ('and', "' '", ('mask_shl', 256, -194, -194, ('mul', ('var', '_101'), ('var', '_101')))), ('and', "'@'", ('mask_shl', 256, -201, -201, ('mul', ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104'))), ('mask_shl', ('add', 2, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104')))), ('add', 127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('add', -127, ('mul', -1, ('mask_shl', 256, -255, -255, ('mul', ('var', '_104'), ('var', '_104'))))), ('mul', ('var', '_104'), ('var', '_104')))))), ('and', "' '", ('mask_shl', 256, -202, -202, ('mul', ('var', '_105'), ('var', '_105'))))))))))
+  if _219 + 320 > LOCK8605463013() or _219 + 320 < _219:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = _219 + 320
+  call _218.mem[_217 + 32 len 4] with:
+       gas gas_remaining wei
+      args mem[_217 + 36 len mem[_217] - 4]
+  if not ext_call.success:
+      _221 = mem[_217]
+      _222 = mem[_217 + 32]
+      mem[_219 + 484 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      mem[_219 + ceil32(return_data.size) + 484] = 4
+      if mem[_217] < 4:
+          revert with 2428483685, 
+                      address(_218),
+                      Mask(32, 224, 0xffffffff00000000000000000000000000000000000000000000000000000000 << 8 * -_221 + 4 and _222),
+                      128,
+                      ceil32(return_data.size) + 160,
+                      return_data.size,
+                      ext_call.return_data[0 len return_data.size],
+                      mem[_219 + return_data.size + 484 len ceil32(return_data.size) + -return_data.size + 32],
+                      0xa9e35b2f00000000000000000000000000000000000000000000000000000000
+      revert with 2428483685, 
+                  address(_218),
+                  Mask(32, 224, _222),
+                  128,
+                  ceil32(return_data.size) + 160,
+                  return_data.size,
+                  ext_call.return_data[0 len return_data.size],
+                  mem[_219 + return_data.size + 484 len ceil32(return_data.size) + -return_data.size + 32],
+                  0xa9e35b2f00000000000000000000000000000000000000000000000000000000
+  mem[64] = _219 + ceil32(return_data.size) + 321
+  mem[_219 + 320] = return_data.size
+  mem[_219 + 352 len return_data.size] = ext_call.return_data[0 len return_data.size]
+  if return_data.size >= 32:
+      _228 = Mask(32, 224, mem[_217 + 32]) != Mask(32, 224, mem[_219 + 352])
+  else:
+      _228 = return_data.size < 32
+  if _228:
+      revert with 503615005
+  return _216
+
+

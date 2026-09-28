@@ -1,0 +1,4530 @@
+# Palkeoramix decompiler. 
+
+def storage:
+  storBA1C is uint256 at storage 0xba1c30c097df6129de7ecd395cf2763f835b193186f029d0de7a64a9273dd07
+  stor4689 is uint256 at storage 0x4689d01902a77e9ad7f7103ded15feb0071b100f807050f8feeaeeed16a845d9
+  stor5E12 is address at storage 0x5e12654f390e4153c4f63b3dfcc122cf7876a5cdfb496dccf7284c10517a35c9
+  stor73166986876398619868416598790391528145847507363840536780291104356503039838162 is mapping of uint256 at storage 0xa1c30c097df6129de7ecd395cf2763f835b193186f029d0de7a64a9273dd07d2
+  stor83912140568142960653954465100243668236878970097786750856754735296490486109718 is array of uint256 at storage 0xb98496a7208546c3cd6b1754cdeca2e2dca28c1339bef7a3eae2c2bad18c1616
+  stor83912140568142960653954465100243668236878970097786750856754735296490486109719 is array of struct at storage 0xb98496a7208546c3cd6b1754cdeca2e2dca28c1339bef7a3eae2c2bad18c1617
+  storFEEC is address at storage 0xfeec6d945304bde08b32351fdd7d60c60f6a7eee31daec30b70c695c1a7cd167
+
+def _fallback(?) payable: # default function
+  revert
+
+def unknownf6a2ddd8(): # not payable
+  require calldata.size - 4 >=′ 0
+  mem[96] = storBA1C
+  idx = 0
+  s = 0xb98496a7208546c3cd6b1754cdeca2e2dca28c1339bef7a3eae2c2bad18c1617
+  t = 128
+  while idx < storBA1C:
+      mem[t] = stor[s]
+      idx = idx + 1
+      s = s + 1
+      t = t + 32
+      continue 
+  if floor32(storBA1C) + 97 > LOCK8605463013() or floor32(storBA1C) + 97 < 96:
+      revert with 0, 65
+  mem[floor32(storBA1C) + 97] = 32
+  mem[floor32(storBA1C) + 129] = storBA1C
+  idx = 0
+  s = 128
+  t = floor32(storBA1C) + 161
+  while idx < storBA1C:
+      mem[t] = mem[s + 12 len 20]
+      idx = idx + 1
+      s = s + 32
+      t = t + 32
+      continue 
+  return Array(len=storBA1C, data=mem[floor32(storBA1C) + 161 len 32 * storBA1C])
+
+def unknown4b01f85e(): # not payable
+  require calldata.size - 4 >=′ 32
+  require cd[4] <= LOCK8605463013()
+  require cd[4] + 35 <′ calldata.size
+  require ('cd', 4).length <= LOCK8605463013()
+  require cd[4] + (32 * ('cd', 4).length) + 36 <= calldata.size
+  if caller - stor5E12:
+      revert with OnlyContractOwner()
+  idx = 0
+  while idx < ('cd', 4).length:
+      require not Mask(96, 160, cd[((32 * idx) + cd[4] + 36)])
+      mem[0] = address(cd[((32 * idx) + cd[4] + 36)])
+      mem[32] = 0xa1c30c097df6129de7ecd395cf2763f835b193186f029d0de7a64a9273dd07d2
+      if not storA1C3[address(cd[((32 * idx) + cd[4] + 36)])]:
+          if storBA1C >= unknown10000000():
+              revert with 0, 65
+          storBA1C++
+          if storBA1C >= storBA1C:
+              revert with 0, 50
+          address(storB984[storBA1C].field_0) = address(cd[((32 * idx) + cd[4] + 36)])
+          Mask(96, 0, storB984[storBA1C].field_160) = 0
+          mem[0] = address(cd[((32 * idx) + cd[4] + 36)])
+          mem[32] = 0xa1c30c097df6129de7ecd395cf2763f835b193186f029d0de7a64a9273dd07d2
+          storA1C3[address(cd[((32 * idx) + cd[4] + 36)])] = storBA1C
+      idx = idx + 1
+      continue 
+  idx = 0
+  s = cd[4] + 36
+  t = 96
+  while idx < ('cd', 4).length:
+      require not Mask(96, 160, cd[s])
+      mem[t] = address(cd[s])
+      idx = idx + 1
+      s = s + 32
+      t = t + 32
+      continue 
+  log 0x22c0a78e: caller, sha3(mem[96 len 32 * ('cd', 4).length])
+  return 0
+
+def unknown5580e904(): # not payable
+  require calldata.size - 4 >=′ 32
+  require cd[4] <= LOCK8605463013()
+  require cd[4] + 35 <′ calldata.size
+  require ('cd', 4).length <= LOCK8605463013()
+  require cd[4] + (32 * ('cd', 4).length) + 36 <= calldata.size
+  if caller - stor5E12:
+      revert with OnlyContractOwner()
+  idx = 0
+  while idx < ('cd', 4).length:
+      require not Mask(96, 160, cd[((32 * idx) + cd[4] + 36)])
+      mem[0] = address(cd[((32 * idx) + cd[4] + 36)])
+      mem[32] = 0xa1c30c097df6129de7ecd395cf2763f835b193186f029d0de7a64a9273dd07d2
+      if storA1C3[address(cd[((32 * idx) + cd[4] + 36)])]:
+          if storA1C3[address(cd[((32 * idx) + cd[4] + 36)])] - 1 > storA1C3[address(cd[((32 * idx) + cd[4] + 36)])]:
+              revert with 0, 17
+          if storBA1C - 1 > storBA1C:
+              revert with 0, 17
+          if storA1C3[address(cd[((32 * idx) + cd[4] + 36)])] - storBA1C:
+              if storBA1C - 1 >= storBA1C:
+                  revert with 0, 50
+              if storA1C3[address(cd[((32 * idx) + cd[4] + 36)])] - 1 >= storBA1C:
+                  revert with 0, 50
+              storB984[storA1C3[address(cd[((32 * idx) + cd[4] + 36)])]] = storB984[storBA1C]
+              storA1C3[storB984[storBA1C]] = storA1C3[address(cd[((32 * idx) + cd[4] + 36)])]
+          if not storBA1C:
+              revert with 0, 49
+          if storBA1C - 1 >= storBA1C:
+              revert with 0, 50
+          storB984[storBA1C] = 0
+          storBA1C--
+          mem[0] = address(cd[((32 * idx) + cd[4] + 36)])
+          mem[32] = 0xa1c30c097df6129de7ecd395cf2763f835b193186f029d0de7a64a9273dd07d2
+          storA1C3[address(cd[((32 * idx) + cd[4] + 36)])] = 0
+      idx = idx + 1
+      continue 
+  idx = 0
+  s = cd[4] + 36
+  t = 96
+  while idx < ('cd', 4).length:
+      require not Mask(96, 160, cd[s])
+      mem[t] = address(cd[s])
+      idx = idx + 1
+      s = s + 32
+      t = t + 32
+      continue 
+  log 0xff941327: caller, sha3(mem[96 len 32 * ('cd', 4).length])
+  return 0
+
+def unknowndadb693f(address _param1, uint256 _param2, address _param3, array _param4) payable: 
+  mem[64] = 96
+  require calldata.size - 4 >=′ 128
+  require _param4 <= LOCK8605463013()
+  require _param4 + 35 <′ calldata.size
+  require _param4.length <= LOCK8605463013()
+  require _param4 + _param4.length + 36 <= calldata.size
+  if chainid == 324:
+      _5 = 0x13598fd0986d0e33c402f6907f05acf720224527
+  else:
+      _5 = 0x69460570c93f9de5e2edbc3052bf10125f0ca22d
+  if stor4689 == 1:
+      revert with ReentrancyError()
+  stor4689 = 1
+  if _param1:
+      mem[100] = this.address
+      static call _param1.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      mem[96] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _13 = return_data.size
+      else:
+          _13 = 32
+      if ceil32(_13) + 96 > LOCK8605463013() or ceil32(_13) + 96 < 96:
+          revert with 0, 65
+      mem[64] = ceil32(_13) + 96
+      require _13 >=′ 32
+      _16 = ext_call.return_data[0]
+  else:
+      _16 = eth.balance(this.address)
+  if not _param1:
+      if _16 - call.value > _16:
+          revert with 0, 17
+      _19 = _16 - call.value
+  else:
+      _19 = _16
+  if _param3:
+      mem[mem[64] + 4] = this.address
+      static call _param3.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _22 = return_data.size
+      else:
+          _22 = 32
+      if mem[64] + ceil32(_22) > LOCK8605463013() or mem[64] + ceil32(_22) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_22)
+      require _22 >=′ 32
+      _24 = ext_call.return_data[0]
+  else:
+      _24 = eth.balance(this.address)
+  if not _param3:
+      if _24 - call.value > _24:
+          revert with 0, 17
+      _26 = _24 - call.value
+  else:
+      _26 = _24
+  if _param3:
+      mem[mem[64] + 4] = caller
+      static call _param3.balanceOf(address account) with:
+              gas gas_remaining wei
+             args caller
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _30 = return_data.size
+      else:
+          _30 = 32
+      if mem[64] + ceil32(_30) > LOCK8605463013() or mem[64] + ceil32(_30) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_30)
+      require _30 >=′ 32
+      _34 = ext_call.return_data[0]
+  else:
+      _34 = eth.balance(caller)
+  if _param1:
+      _35 = mem[64]
+      mem[mem[64] + 32] = 0x23b872dd00000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 36] = caller
+      mem[mem[64] + 68] = this.address
+      mem[mem[64] + 100] = _param2
+      mem[mem[64]] = 100
+      if mem[64] + 160 > LOCK8605463013() or mem[64] + 160 < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + 160
+      call _param1.mem[_35 + 32 len 4] with:
+           gas gas_remaining wei
+          args mem[_35 + 36 len 64], _param2
+      if not return_data.size:
+          _47 = 96
+      else:
+          if return_data.size > LOCK8605463013():
+              revert with 0, 65
+          if _35 + ceil32(ceil32(return_data.size)) + 161 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 161 < 160:
+              revert with 0, 65
+          mem[64] = _35 + ceil32(ceil32(return_data.size)) + 161
+          mem[_35 + 160] = return_data.size
+          mem[_35 + 192 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          _47 = _35 + 160
+      if not ext_call.success:
+          if mem[_47]:
+              revert with memory
+                from _47 + 32
+                 len mem[_47]
+          revert with 338029122
+      if not mem[_47]:
+          _57 = not ext_code.size(_param1)
+      else:
+          _57 = not mem[_47]
+      if _57:
+          revert with 2576790293, address(_param1)
+      if mem[_47]:
+          require mem[_47] >=′ 32
+          require not mem[_47 + 32] - bool(mem[_47 + 32])
+          _70 = not mem[_47 + 32]
+      else:
+          _70 = bool(mem[_47])
+      if _70:
+          revert with 1383378919, address(_param1)
+      if address(_5) == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+          _82 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+      else:
+          if address(_5) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+              _82 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+          else:
+              if address(_5) == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                  _82 = 0xb4d2580d23f145f794f67480748cd801c862c469
+              else:
+                  if address(_5) == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                      _82 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                  else:
+                      if 0x610cac41f4f41803ddb005686e7327996a1dc839 == address(_5):
+                          _82 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                      else:
+                          _82 = _5
+      mem[mem[64]] = 0x95ea7b300000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 4] = _82
+      mem[mem[64] + 36] = _param2
+      call _param1.approve(address spender, uint256 amount) with:
+           gas gas_remaining wei
+          args _82, _param2
+      mem[0] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ApproveFailed()
+      if not return_data.size:
+          _87 = bool(ext_code.size(_param1))
+      else:
+          _87 = return_data.size > 31 and ext_call.return_data[0] == 1
+      if not _87:
+          revert with ApproveFailed()
+  _91 = mem[64]
+  if mem[64] + ceil32(ceil32(_param4.length)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(_param4.length)) + 1 < mem[64]:
+      revert with 0, 65
+  mem[64] = mem[64] + ceil32(ceil32(_param4.length)) + 1
+  mem[_91] = _param4.length
+  mem[_91 + 32 len _param4.length] = _param4[all]
+  mem[_91 + _param4.length + 32] = 0
+  if eth.balance(this.address) < call.value:
+      revert with 3447218265, this.address
+  call _5 with:
+     value call.value wei
+       gas gas_remaining wei
+      args _param4[all]
+  if not return_data.size:
+      _101 = 96
+  else:
+      if return_data.size > LOCK8605463013():
+          revert with 0, 65
+      _96 = mem[64]
+      if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+      mem[_96] = return_data.size
+      mem[_96 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _101 = _96
+  if not ext_call.success:
+      if mem[_101]:
+          revert with memory
+            from _101 + 32
+             len mem[_101]
+      revert with 338029122
+  if not mem[_101]:
+      _106 = not ext_code.size(_5)
+  else:
+      _106 = not mem[_101]
+  if _106:
+      revert with 2576790293, address(_5)
+  if _param1:
+      if address(_5) == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+          _116 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+      else:
+          if address(_5) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+              _116 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+          else:
+              if address(_5) == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                  _116 = 0xb4d2580d23f145f794f67480748cd801c862c469
+              else:
+                  if address(_5) == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                      _116 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                  else:
+                      if 0x610cac41f4f41803ddb005686e7327996a1dc839 == address(_5):
+                          _116 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                      else:
+                          _116 = _5
+      call _param1.approve(address spender, uint256 amount) with:
+           gas gas_remaining wei
+          args _116, 0
+      mem[0] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ApproveFailed()
+      if not return_data.size:
+          _120 = bool(ext_code.size(_param1))
+      else:
+          _120 = return_data.size > 31 and ext_call.return_data[0] == 1
+      if not _120:
+          revert with ApproveFailed()
+  if _param3:
+      static call _param3.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _127 = return_data.size
+      else:
+          _127 = 32
+      if mem[64] + ceil32(_127) > LOCK8605463013() or mem[64] + ceil32(_127) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_127)
+      require _127 >=′ 32
+      _129 = ext_call.return_data[0]
+  else:
+      _129 = eth.balance(this.address)
+  if _129 - _26 > _129:
+      revert with 0, 17
+  if _129 - _26:
+      if not _param3:
+          call caller with:
+             value _129 - _26 wei
+               gas gas_remaining wei
+          if return_data.size:
+              if return_data.size > LOCK8605463013():
+                  revert with 0, 65
+              _144 = mem[64]
+              if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+              mem[_144] = return_data.size
+              mem[_144 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          if not ext_call.success:
+              revert with NativeAssetTransferFailed()
+      else:
+          if not _param3 - 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
+              call _param3.transfer(address recipient, uint256 amount) with:
+                   gas gas_remaining wei
+                  args caller, _129 - _26
+              if not ext_call.success:
+                  revert with ext_call.return_data[0 len return_data.size]
+              if 32 > return_data.size:
+                  _145 = return_data.size
+                  _146 = return_data.size
+              else:
+                  _145 = 32
+                  _146 = 32
+              if mem[64] + ceil32(_146) > LOCK8605463013() or mem[64] + ceil32(_146) < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + ceil32(_146)
+              require _145 >=′ 32
+              require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+          else:
+              _135 = mem[64]
+              mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+              mem[mem[64] + 36] = caller
+              mem[mem[64] + 68] = _129 - _26
+              mem[mem[64]] = 68
+              if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + 128
+              call _param3.mem[_135 + 32 len 4] with:
+                   gas gas_remaining wei
+                  args mem[_135 + 36 len 64]
+              if not return_data.size:
+                  _161 = 96
+              else:
+                  if return_data.size > LOCK8605463013():
+                      revert with 0, 65
+                  if _135 + ceil32(ceil32(return_data.size)) + 129 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 129 < 128:
+                      revert with 0, 65
+                  mem[64] = _135 + ceil32(ceil32(return_data.size)) + 129
+                  mem[_135 + 128] = return_data.size
+                  mem[_135 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                  _161 = _135 + 128
+              if not ext_call.success:
+                  if mem[_161]:
+                      revert with memory
+                        from _161 + 32
+                         len mem[_161]
+                  revert with 338029122
+              if not mem[_161]:
+                  _173 = not ext_code.size(_param3)
+              else:
+                  _173 = not mem[_161]
+              if _173:
+                  revert with 2576790293, address(_param3)
+              if mem[_161]:
+                  require mem[_161] >=′ 32
+                  require not mem[_161 + 32] - bool(mem[_161 + 32])
+                  _186 = not mem[_161 + 32]
+              else:
+                  _186 = bool(mem[_161])
+              if _186:
+                  revert with 1383378919, address(_param3)
+  if _param3:
+      static call _param3.balanceOf(address account) with:
+              gas gas_remaining wei
+             args caller
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _204 = return_data.size
+      else:
+          _204 = 32
+      if mem[64] + ceil32(_204) > LOCK8605463013() or mem[64] + ceil32(_204) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_204)
+      require _204 >=′ 32
+      _208 = ext_call.return_data[0]
+  else:
+      _208 = eth.balance(caller)
+  if _208 < _34:
+      revert with 1839102622, 0, 0
+  if _208 - _34 > _208:
+      revert with 0, 17
+  if _param1:
+      static call _param1.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _212 = return_data.size
+      else:
+          _212 = 32
+      if mem[64] + ceil32(_212) > LOCK8605463013() or mem[64] + ceil32(_212) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_212)
+      require _212 >=′ 32
+      _217 = ext_call.return_data[0]
+  else:
+      _217 = eth.balance(this.address)
+  if _217 < _19:
+      if caller != 0x6aba0315493b7e6989041c91181337b662fb1b90:
+          _218 = 0x88649f4743a758171077b98ee2003f1989b1615a == caller
+      else:
+          _218 = 0x6aba0315493b7e6989041c91181337b662fb1b90 == caller
+      if not _218:
+          _219 = 0xcb8c32aca3e52d90943f6a06fecdddcf6c8c019f == caller
+      else:
+          _219 = _218
+      if not _219:
+          _220 = 0x3d499e1fd33ded6f681424ed22d396a21e6915df == caller
+      else:
+          _220 = _219
+      if _220:
+          _221 = _param1 == 0xf86af2fbcf6a0479b21b1d3a4af3893f63207fe7
+      else:
+          _221 = _220
+      _225 = _221
+  else:
+      _225 = _217 < _19
+  if not _225:
+      if _217 - _19 > _217:
+          revert with 0, 17
+      if _217 - _19:
+          if _param1:
+              if _param1 - 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
+                  _227 = mem[64]
+                  mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+                  mem[mem[64] + 36] = caller
+                  mem[mem[64] + 68] = _217 - _19
+                  mem[mem[64]] = 68
+                  if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+                      revert with 0, 65
+                  mem[64] = mem[64] + 128
+                  call _param1.mem[_227 + 32 len 4] with:
+                       gas gas_remaining wei
+                      args mem[_227 + 36 len 64]
+                  if not return_data.size:
+                      _245 = 96
+                  else:
+                      if return_data.size > LOCK8605463013():
+                          revert with 0, 65
+                      if _227 + ceil32(ceil32(return_data.size)) + 129 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 129 < 128:
+                          revert with 0, 65
+                      mem[64] = _227 + ceil32(ceil32(return_data.size)) + 129
+                      mem[_227 + 128] = return_data.size
+                      mem[_227 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                      _245 = _227 + 128
+                  if not ext_call.success:
+                      if mem[_245]:
+                          revert with memory
+                            from _245 + 32
+                             len mem[_245]
+                      revert with 338029122
+                  if not mem[_245]:
+                      _250 = not ext_code.size(_param1)
+                  else:
+                      _250 = not mem[_245]
+                  if _250:
+                      revert with 2576790293, address(_param1)
+                  if mem[_245]:
+                      require mem[_245] >=′ 32
+                      require not mem[_245 + 32] - bool(mem[_245 + 32])
+                      _254 = not mem[_245 + 32]
+                  else:
+                      _254 = bool(mem[_245])
+                  if _254:
+                      revert with 1383378919, address(_param1)
+              else:
+                  call _param1.transfer(address recipient, uint256 amount) with:
+                       gas gas_remaining wei
+                      args caller, _217 - _19
+                  if not ext_call.success:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  if 32 > return_data.size:
+                      _233 = return_data.size
+                      _234 = return_data.size
+                  else:
+                      _233 = 32
+                      _234 = 32
+                  if mem[64] + ceil32(_234) > LOCK8605463013() or mem[64] + ceil32(_234) < mem[64]:
+                      revert with 0, 65
+                  require _233 >=′ 32
+                  require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+          else:
+              call caller with:
+                 value _217 - _19 wei
+                   gas gas_remaining wei
+              if return_data.size:
+                  if return_data.size > LOCK8605463013():
+                      revert with 0, 65
+                  if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+                      revert with 0, 65
+              if not ext_call.success:
+                  revert with NativeAssetTransferFailed()
+  stor4689 = 0
+  return 0
+
+def unknowna03de6a9(address _param1, uint256 _param2, address _param3, array _param4) payable: 
+  mem[64] = 96
+  require calldata.size - 4 >=′ 128
+  require _param4 <= LOCK8605463013()
+  require _param4 + 35 <′ calldata.size
+  require _param4.length <= LOCK8605463013()
+  require _param4 + _param4.length + 36 <= calldata.size
+  if stor4689 == 1:
+      revert with ReentrancyError()
+  stor4689 = 1
+  _11 = 0x4689d01902a77e9ad7f7103ded15feb0071b100f807050f8feeaeeed16a845d9
+  if chainid == 324:
+      _12 = 0x6fd4383cb451173d5f9304f041c7bcbf27d561ff
+  else:
+      _12 = 0x111111125421ca6dc452d289314280a0f8842a65
+  if _param1:
+      mem[100] = this.address
+      static call _param1.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      mem[96] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _16 = return_data.size
+      else:
+          _16 = 32
+      if ceil32(_16) + 96 > LOCK8605463013() or ceil32(_16) + 96 < 96:
+          revert with 0, 65
+      mem[64] = ceil32(_16) + 96
+      require _16 >=′ 32
+      _19 = ext_call.return_data[0]
+  else:
+      _19 = eth.balance(this.address)
+  if not _param1:
+      if _19 - call.value > _19:
+          revert with 0, 17
+      _22 = _19 - call.value
+  else:
+      _22 = _19
+  if _param3:
+      mem[mem[64] + 4] = this.address
+      static call _param3.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _25 = return_data.size
+      else:
+          _25 = 32
+      if mem[64] + ceil32(_25) > LOCK8605463013() or mem[64] + ceil32(_25) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_25)
+      require _25 >=′ 32
+      _27 = ext_call.return_data[0]
+  else:
+      _27 = eth.balance(this.address)
+  if not _param3:
+      if _27 - call.value > _27:
+          revert with 0, 17
+      _29 = _27 - call.value
+  else:
+      _29 = _27
+  if _param3:
+      mem[mem[64] + 4] = caller
+      static call _param3.balanceOf(address account) with:
+              gas gas_remaining wei
+             args caller
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _33 = return_data.size
+      else:
+          _33 = 32
+      if mem[64] + ceil32(_33) > LOCK8605463013() or mem[64] + ceil32(_33) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_33)
+      require _33 >=′ 32
+      _37 = ext_call.return_data[0]
+  else:
+      _37 = eth.balance(caller)
+  if _param1:
+      _38 = mem[64]
+      mem[mem[64] + 32] = 0x23b872dd00000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 36] = caller
+      mem[mem[64] + 68] = this.address
+      mem[mem[64] + 100] = _param2
+      mem[mem[64]] = 100
+      if mem[64] + 160 > LOCK8605463013() or mem[64] + 160 < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + 160
+      call _param1.mem[_38 + 32 len 4] with:
+           gas gas_remaining wei
+          args mem[_38 + 36 len 64], _param2
+      if not return_data.size:
+          _50 = 96
+      else:
+          if return_data.size > LOCK8605463013():
+              revert with 0, 65
+          if _38 + ceil32(ceil32(return_data.size)) + 161 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 161 < 160:
+              revert with 0, 65
+          mem[64] = _38 + ceil32(ceil32(return_data.size)) + 161
+          mem[_38 + 160] = return_data.size
+          mem[_38 + 192 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          _50 = _38 + 160
+      if not ext_call.success:
+          if mem[_50]:
+              revert with memory
+                from _50 + 32
+                 len mem[_50]
+          revert with 338029122
+      if not mem[_50]:
+          _60 = not ext_code.size(_param1)
+      else:
+          _60 = not mem[_50]
+      if _60:
+          revert with 2576790293, address(_param1)
+      if mem[_50]:
+          require mem[_50] >=′ 32
+          require not mem[_50 + 32] - bool(mem[_50 + 32])
+          _73 = not mem[_50 + 32]
+      else:
+          _73 = bool(mem[_50])
+      if _73:
+          revert with 1383378919, address(_param1)
+      if address(_12) == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+          _85 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+      else:
+          if address(_12) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+              _85 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+          else:
+              if address(_12) == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                  _85 = 0xb4d2580d23f145f794f67480748cd801c862c469
+              else:
+                  if address(_12) == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                      _85 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                  else:
+                      if 0x610cac41f4f41803ddb005686e7327996a1dc839 == address(_12):
+                          _85 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                      else:
+                          _85 = _12
+      mem[mem[64]] = 0x95ea7b300000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 4] = _85
+      mem[mem[64] + 36] = _param2
+      call _param1.approve(address spender, uint256 amount) with:
+           gas gas_remaining wei
+          args _85, _param2
+      mem[0] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ApproveFailed()
+      if not return_data.size:
+          _90 = bool(ext_code.size(_param1))
+      else:
+          _90 = return_data.size > 31 and ext_call.return_data[0] == 1
+      if not _90:
+          revert with ApproveFailed()
+  _94 = mem[64]
+  if mem[64] + ceil32(ceil32(_param4.length)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(_param4.length)) + 1 < mem[64]:
+      revert with 0, 65
+  mem[64] = mem[64] + ceil32(ceil32(_param4.length)) + 1
+  mem[_94] = _param4.length
+  mem[_94 + 32 len _param4.length] = _param4[all]
+  mem[_94 + _param4.length + 32] = 0
+  if eth.balance(this.address) < call.value:
+      revert with 3447218265, this.address
+  call _12 with:
+     value call.value wei
+       gas gas_remaining wei
+      args _param4[all]
+  if not return_data.size:
+      _104 = 96
+  else:
+      if return_data.size > LOCK8605463013():
+          revert with 0, 65
+      _99 = mem[64]
+      if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+      mem[_99] = return_data.size
+      mem[_99 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _104 = _99
+  if not ext_call.success:
+      if mem[_104]:
+          revert with memory
+            from _104 + 32
+             len mem[_104]
+      revert with 338029122
+  if not mem[_104]:
+      _109 = not ext_code.size(_12)
+  else:
+      _109 = not mem[_104]
+  if _109:
+      revert with 2576790293, address(_12)
+  if _param1:
+      if address(_12) == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+          _119 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+      else:
+          if address(_12) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+              _119 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+          else:
+              if address(_12) == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                  _119 = 0xb4d2580d23f145f794f67480748cd801c862c469
+              else:
+                  if address(_12) == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                      _119 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                  else:
+                      if 0x610cac41f4f41803ddb005686e7327996a1dc839 == address(_12):
+                          _119 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                      else:
+                          _119 = _12
+      call _param1.approve(address spender, uint256 amount) with:
+           gas gas_remaining wei
+          args _119, 0
+      mem[0] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ApproveFailed()
+      if not return_data.size:
+          _123 = bool(ext_code.size(_param1))
+      else:
+          _123 = return_data.size > 31 and ext_call.return_data[0] == 1
+      if not _123:
+          revert with ApproveFailed()
+  if _param3:
+      static call _param3.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _130 = return_data.size
+      else:
+          _130 = 32
+      if mem[64] + ceil32(_130) > LOCK8605463013() or mem[64] + ceil32(_130) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_130)
+      require _130 >=′ 32
+      _132 = ext_call.return_data[0]
+  else:
+      _132 = eth.balance(this.address)
+  if _132 - _29 > _132:
+      revert with 0, 17
+  if _132 - _29:
+      if not _param3:
+          call caller with:
+             value _132 - _29 wei
+               gas gas_remaining wei
+          if return_data.size:
+              if return_data.size > LOCK8605463013():
+                  revert with 0, 65
+              _147 = mem[64]
+              if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+              mem[_147] = return_data.size
+              mem[_147 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          if not ext_call.success:
+              revert with NativeAssetTransferFailed()
+      else:
+          if not _param3 - 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
+              call _param3.transfer(address recipient, uint256 amount) with:
+                   gas gas_remaining wei
+                  args caller, _132 - _29
+              if not ext_call.success:
+                  revert with ext_call.return_data[0 len return_data.size]
+              if 32 > return_data.size:
+                  _148 = return_data.size
+                  _149 = return_data.size
+              else:
+                  _148 = 32
+                  _149 = 32
+              if mem[64] + ceil32(_149) > LOCK8605463013() or mem[64] + ceil32(_149) < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + ceil32(_149)
+              require _148 >=′ 32
+              require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+          else:
+              _138 = mem[64]
+              mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+              mem[mem[64] + 36] = caller
+              mem[mem[64] + 68] = _132 - _29
+              mem[mem[64]] = 68
+              if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + 128
+              call _param3.mem[_138 + 32 len 4] with:
+                   gas gas_remaining wei
+                  args mem[_138 + 36 len 64]
+              if not return_data.size:
+                  _164 = 96
+              else:
+                  if return_data.size > LOCK8605463013():
+                      revert with 0, 65
+                  if _138 + ceil32(ceil32(return_data.size)) + 129 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 129 < 128:
+                      revert with 0, 65
+                  mem[64] = _138 + ceil32(ceil32(return_data.size)) + 129
+                  mem[_138 + 128] = return_data.size
+                  mem[_138 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                  _164 = _138 + 128
+              if not ext_call.success:
+                  if mem[_164]:
+                      revert with memory
+                        from _164 + 32
+                         len mem[_164]
+                  revert with 338029122
+              if not mem[_164]:
+                  _176 = not ext_code.size(_param3)
+              else:
+                  _176 = not mem[_164]
+              if _176:
+                  revert with 2576790293, address(_param3)
+              if mem[_164]:
+                  require mem[_164] >=′ 32
+                  require not mem[_164 + 32] - bool(mem[_164 + 32])
+                  _189 = not mem[_164 + 32]
+              else:
+                  _189 = bool(mem[_164])
+              if _189:
+                  revert with 1383378919, address(_param3)
+  if _param3:
+      static call _param3.balanceOf(address account) with:
+              gas gas_remaining wei
+             args caller
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _207 = return_data.size
+      else:
+          _207 = 32
+      if mem[64] + ceil32(_207) > LOCK8605463013() or mem[64] + ceil32(_207) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_207)
+      require _207 >=′ 32
+      _211 = ext_call.return_data[0]
+  else:
+      _211 = eth.balance(caller)
+  if _211 < _37:
+      revert with 1839102622, 0, 0
+  if _211 - _37 > _211:
+      revert with 0, 17
+  if _param1:
+      static call _param1.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _215 = return_data.size
+      else:
+          _215 = 32
+      if mem[64] + ceil32(_215) > LOCK8605463013() or mem[64] + ceil32(_215) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_215)
+      require _215 >=′ 32
+      _220 = ext_call.return_data[0]
+  else:
+      _220 = eth.balance(this.address)
+  if _220 < _22:
+      if caller != 0x6aba0315493b7e6989041c91181337b662fb1b90:
+          _221 = 0x88649f4743a758171077b98ee2003f1989b1615a == caller
+      else:
+          _221 = 0x6aba0315493b7e6989041c91181337b662fb1b90 == caller
+      if not _221:
+          _222 = 0xcb8c32aca3e52d90943f6a06fecdddcf6c8c019f == caller
+      else:
+          _222 = _221
+      if not _222:
+          _223 = 0x3d499e1fd33ded6f681424ed22d396a21e6915df == caller
+      else:
+          _223 = _222
+      if _223:
+          _224 = _param1 == 0xf86af2fbcf6a0479b21b1d3a4af3893f63207fe7
+      else:
+          _224 = _223
+      _228 = _224
+  else:
+      _228 = _220 < _22
+  if not _228:
+      if _220 - _22 > _220:
+          revert with 0, 17
+      if _220 - _22:
+          if _param1:
+              if _param1 - 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
+                  _230 = mem[64]
+                  mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+                  mem[mem[64] + 36] = caller
+                  mem[mem[64] + 68] = _220 - _22
+                  mem[mem[64]] = 68
+                  if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+                      revert with 0, 65
+                  mem[64] = mem[64] + 128
+                  call _param1.mem[_230 + 32 len 4] with:
+                       gas gas_remaining wei
+                      args mem[_230 + 36 len 64]
+                  if not return_data.size:
+                      _248 = 96
+                  else:
+                      if return_data.size > LOCK8605463013():
+                          revert with 0, 65
+                      if _230 + ceil32(ceil32(return_data.size)) + 129 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 129 < 128:
+                          revert with 0, 65
+                      mem[64] = _230 + ceil32(ceil32(return_data.size)) + 129
+                      mem[_230 + 128] = return_data.size
+                      mem[_230 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                      _248 = _230 + 128
+                  if not ext_call.success:
+                      if mem[_248]:
+                          revert with memory
+                            from _248 + 32
+                             len mem[_248]
+                      revert with 338029122
+                  if not mem[_248]:
+                      _253 = not ext_code.size(_param1)
+                  else:
+                      _253 = not mem[_248]
+                  if _253:
+                      revert with 2576790293, address(_param1)
+                  if mem[_248]:
+                      require mem[_248] >=′ 32
+                      require not mem[_248 + 32] - bool(mem[_248 + 32])
+                      _257 = not mem[_248 + 32]
+                  else:
+                      _257 = bool(mem[_248])
+                  if _257:
+                      revert with 1383378919, address(_param1)
+              else:
+                  call _param1.transfer(address recipient, uint256 amount) with:
+                       gas gas_remaining wei
+                      args caller, _220 - _22
+                  if not ext_call.success:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  if 32 > return_data.size:
+                      _236 = return_data.size
+                      _237 = return_data.size
+                  else:
+                      _236 = 32
+                      _237 = 32
+                  if mem[64] + ceil32(_237) > LOCK8605463013() or mem[64] + ceil32(_237) < mem[64]:
+                      revert with 0, 65
+                  require _236 >=′ 32
+                  require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+          else:
+              call caller with:
+                 value _220 - _22 wei
+                   gas gas_remaining wei
+              if return_data.size:
+                  if return_data.size > LOCK8605463013():
+                      revert with 0, 65
+                  if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+                      revert with 0, 65
+              if not ext_call.success:
+                  revert with NativeAssetTransferFailed()
+  stor[_11] = 0
+  return 0
+
+def unknowndad12b6c(uint128 _param1, address _param2, uint256 _param3, address _param4, array _param5) payable: 
+  mem[64] = 96
+  require calldata.size - 4 >=′ 160
+  require not Mask(96, 160, _param1)
+  require _param5 <= LOCK8605463013()
+  require _param5 + 35 <′ calldata.size
+  require _param5.length <= LOCK8605463013()
+  require _param5 + _param5.length + 36 <= calldata.size
+  mem[32] = 0xa1c30c097df6129de7ecd395cf2763f835b193186f029d0de7a64a9273dd07d2
+  if not storA1C3[address(_param1)]:
+      revert with 3623301940, address(_param1)
+  mem[0] = address(_param1)
+  if stor4689 == 1:
+      revert with ReentrancyError()
+  stor4689 = 1
+  if _param2:
+      mem[100] = this.address
+      static call _param2.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      mem[96] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _10 = return_data.size
+      else:
+          _10 = 32
+      if ceil32(_10) + 96 > LOCK8605463013() or ceil32(_10) + 96 < 96:
+          revert with 0, 65
+      mem[64] = ceil32(_10) + 96
+      require _10 >=′ 32
+      _13 = ext_call.return_data[0]
+  else:
+      _13 = eth.balance(this.address)
+  if not _param2:
+      if _13 - call.value > _13:
+          revert with 0, 17
+      _16 = _13 - call.value
+  else:
+      _16 = _13
+  if _param4:
+      mem[mem[64] + 4] = this.address
+      static call _param4.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _19 = return_data.size
+      else:
+          _19 = 32
+      if mem[64] + ceil32(_19) > LOCK8605463013() or mem[64] + ceil32(_19) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_19)
+      require _19 >=′ 32
+      _21 = ext_call.return_data[0]
+  else:
+      _21 = eth.balance(this.address)
+  if not _param4:
+      if _21 - call.value > _21:
+          revert with 0, 17
+      _23 = _21 - call.value
+  else:
+      _23 = _21
+  if _param4:
+      mem[mem[64] + 4] = caller
+      static call _param4.balanceOf(address account) with:
+              gas gas_remaining wei
+             args caller
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _27 = return_data.size
+      else:
+          _27 = 32
+      if mem[64] + ceil32(_27) > LOCK8605463013() or mem[64] + ceil32(_27) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_27)
+      require _27 >=′ 32
+      _31 = ext_call.return_data[0]
+  else:
+      _31 = eth.balance(caller)
+  if _param2:
+      _32 = mem[64]
+      mem[mem[64] + 32] = 0x23b872dd00000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 36] = caller
+      mem[mem[64] + 68] = this.address
+      mem[mem[64] + 100] = _param3
+      mem[mem[64]] = 100
+      if mem[64] + 160 > LOCK8605463013() or mem[64] + 160 < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + 160
+      call _param2.mem[_32 + 32 len 4] with:
+           gas gas_remaining wei
+          args mem[_32 + 36 len 64], _param3
+      if not return_data.size:
+          _44 = 96
+      else:
+          if return_data.size > LOCK8605463013():
+              revert with 0, 65
+          if _32 + ceil32(ceil32(return_data.size)) + 161 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 161 < 160:
+              revert with 0, 65
+          mem[64] = _32 + ceil32(ceil32(return_data.size)) + 161
+          mem[_32 + 160] = return_data.size
+          mem[_32 + 192 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          _44 = _32 + 160
+      if not ext_call.success:
+          if mem[_44]:
+              revert with memory
+                from _44 + 32
+                 len mem[_44]
+          revert with 338029122
+      if not mem[_44]:
+          _54 = not ext_code.size(_param2)
+      else:
+          _54 = not mem[_44]
+      if _54:
+          revert with 2576790293, address(_param2)
+      if mem[_44]:
+          require mem[_44] >=′ 32
+          require not mem[_44 + 32] - bool(mem[_44 + 32])
+          _67 = not mem[_44 + 32]
+      else:
+          _67 = bool(mem[_44])
+      if _67:
+          revert with 1383378919, address(_param2)
+      if address(_param1) == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+          _79 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+      else:
+          if address(_param1) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+              _79 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+          else:
+              if address(_param1) == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                  _79 = 0xb4d2580d23f145f794f67480748cd801c862c469
+              else:
+                  if address(_param1) == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                      _79 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                  else:
+                      if 0x610cac41f4f41803ddb005686e7327996a1dc839 == address(_param1):
+                          _79 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                      else:
+                          _79 = _param1
+      mem[mem[64]] = 0x95ea7b300000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 4] = _79
+      mem[mem[64] + 36] = _param3
+      call _param2.approve(address spender, uint256 amount) with:
+           gas gas_remaining wei
+          args _79, _param3
+      mem[0] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ApproveFailed()
+      if not return_data.size:
+          _84 = bool(ext_code.size(_param2))
+      else:
+          _84 = return_data.size > 31 and ext_call.return_data[0] == 1
+      if not _84:
+          revert with ApproveFailed()
+  _88 = mem[64]
+  if mem[64] + ceil32(ceil32(_param5.length)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(_param5.length)) + 1 < mem[64]:
+      revert with 0, 65
+  mem[64] = mem[64] + ceil32(ceil32(_param5.length)) + 1
+  mem[_88] = _param5.length
+  mem[_88 + 32 len _param5.length] = _param5[all]
+  mem[_88 + _param5.length + 32] = 0
+  if eth.balance(this.address) < call.value:
+      revert with 3447218265, this.address
+  call _param1 with:
+     value call.value wei
+       gas gas_remaining wei
+      args _param5[all]
+  if not return_data.size:
+      _98 = 96
+  else:
+      if return_data.size > LOCK8605463013():
+          revert with 0, 65
+      _93 = mem[64]
+      if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+      mem[_93] = return_data.size
+      mem[_93 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _98 = _93
+  if not ext_call.success:
+      if mem[_98]:
+          revert with memory
+            from _98 + 32
+             len mem[_98]
+      revert with 338029122
+  if not mem[_98]:
+      _103 = not ext_code.size(_param1)
+  else:
+      _103 = not mem[_98]
+  if _103:
+      revert with 2576790293, address(_param1)
+  if _param2:
+      if address(_param1) == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+          _113 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+      else:
+          if address(_param1) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+              _113 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+          else:
+              if address(_param1) == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                  _113 = 0xb4d2580d23f145f794f67480748cd801c862c469
+              else:
+                  if address(_param1) == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                      _113 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                  else:
+                      if 0x610cac41f4f41803ddb005686e7327996a1dc839 == address(_param1):
+                          _113 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                      else:
+                          _113 = _param1
+      call _param2.approve(address spender, uint256 amount) with:
+           gas gas_remaining wei
+          args _113, 0
+      mem[0] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ApproveFailed()
+      if not return_data.size:
+          _117 = bool(ext_code.size(_param2))
+      else:
+          _117 = return_data.size > 31 and ext_call.return_data[0] == 1
+      if not _117:
+          revert with ApproveFailed()
+  if _param4:
+      static call _param4.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _124 = return_data.size
+      else:
+          _124 = 32
+      if mem[64] + ceil32(_124) > LOCK8605463013() or mem[64] + ceil32(_124) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_124)
+      require _124 >=′ 32
+      _126 = ext_call.return_data[0]
+  else:
+      _126 = eth.balance(this.address)
+  if _126 - _23 > _126:
+      revert with 0, 17
+  if _126 - _23:
+      if not _param4:
+          call caller with:
+             value _126 - _23 wei
+               gas gas_remaining wei
+          if return_data.size:
+              if return_data.size > LOCK8605463013():
+                  revert with 0, 65
+              _141 = mem[64]
+              if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+              mem[_141] = return_data.size
+              mem[_141 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          if not ext_call.success:
+              revert with NativeAssetTransferFailed()
+      else:
+          if not _param4 - 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
+              call _param4.transfer(address recipient, uint256 amount) with:
+                   gas gas_remaining wei
+                  args caller, _126 - _23
+              if not ext_call.success:
+                  revert with ext_call.return_data[0 len return_data.size]
+              if 32 > return_data.size:
+                  _142 = return_data.size
+                  _143 = return_data.size
+              else:
+                  _142 = 32
+                  _143 = 32
+              if mem[64] + ceil32(_143) > LOCK8605463013() or mem[64] + ceil32(_143) < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + ceil32(_143)
+              require _142 >=′ 32
+              require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+          else:
+              _132 = mem[64]
+              mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+              mem[mem[64] + 36] = caller
+              mem[mem[64] + 68] = _126 - _23
+              mem[mem[64]] = 68
+              if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + 128
+              call _param4.mem[_132 + 32 len 4] with:
+                   gas gas_remaining wei
+                  args mem[_132 + 36 len 64]
+              if not return_data.size:
+                  _158 = 96
+              else:
+                  if return_data.size > LOCK8605463013():
+                      revert with 0, 65
+                  if _132 + ceil32(ceil32(return_data.size)) + 129 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 129 < 128:
+                      revert with 0, 65
+                  mem[64] = _132 + ceil32(ceil32(return_data.size)) + 129
+                  mem[_132 + 128] = return_data.size
+                  mem[_132 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                  _158 = _132 + 128
+              if not ext_call.success:
+                  if mem[_158]:
+                      revert with memory
+                        from _158 + 32
+                         len mem[_158]
+                  revert with 338029122
+              if not mem[_158]:
+                  _170 = not ext_code.size(_param4)
+              else:
+                  _170 = not mem[_158]
+              if _170:
+                  revert with 2576790293, address(_param4)
+              if mem[_158]:
+                  require mem[_158] >=′ 32
+                  require not mem[_158 + 32] - bool(mem[_158 + 32])
+                  _183 = not mem[_158 + 32]
+              else:
+                  _183 = bool(mem[_158])
+              if _183:
+                  revert with 1383378919, address(_param4)
+  if _param4:
+      static call _param4.balanceOf(address account) with:
+              gas gas_remaining wei
+             args caller
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _201 = return_data.size
+      else:
+          _201 = 32
+      if mem[64] + ceil32(_201) > LOCK8605463013() or mem[64] + ceil32(_201) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_201)
+      require _201 >=′ 32
+      _205 = ext_call.return_data[0]
+  else:
+      _205 = eth.balance(caller)
+  if _205 < _31:
+      revert with 1839102622, 0, 0
+  if _205 - _31 > _205:
+      revert with 0, 17
+  if _param2:
+      static call _param2.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _209 = return_data.size
+      else:
+          _209 = 32
+      if mem[64] + ceil32(_209) > LOCK8605463013() or mem[64] + ceil32(_209) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_209)
+      require _209 >=′ 32
+      _214 = ext_call.return_data[0]
+  else:
+      _214 = eth.balance(this.address)
+  if _214 < _16:
+      if caller != 0x6aba0315493b7e6989041c91181337b662fb1b90:
+          _215 = 0x88649f4743a758171077b98ee2003f1989b1615a == caller
+      else:
+          _215 = 0x6aba0315493b7e6989041c91181337b662fb1b90 == caller
+      if not _215:
+          _216 = 0xcb8c32aca3e52d90943f6a06fecdddcf6c8c019f == caller
+      else:
+          _216 = _215
+      if not _216:
+          _217 = 0x3d499e1fd33ded6f681424ed22d396a21e6915df == caller
+      else:
+          _217 = _216
+      if _217:
+          _218 = _param2 == 0xf86af2fbcf6a0479b21b1d3a4af3893f63207fe7
+      else:
+          _218 = _217
+      _222 = _218
+  else:
+      _222 = _214 < _16
+  if not _222:
+      if _214 - _16 > _214:
+          revert with 0, 17
+      if _214 - _16:
+          if _param2:
+              if _param2 - 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
+                  _224 = mem[64]
+                  mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+                  mem[mem[64] + 36] = caller
+                  mem[mem[64] + 68] = _214 - _16
+                  mem[mem[64]] = 68
+                  if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+                      revert with 0, 65
+                  mem[64] = mem[64] + 128
+                  call _param2.mem[_224 + 32 len 4] with:
+                       gas gas_remaining wei
+                      args mem[_224 + 36 len 64]
+                  if not return_data.size:
+                      _242 = 96
+                  else:
+                      if return_data.size > LOCK8605463013():
+                          revert with 0, 65
+                      if _224 + ceil32(ceil32(return_data.size)) + 129 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 129 < 128:
+                          revert with 0, 65
+                      mem[64] = _224 + ceil32(ceil32(return_data.size)) + 129
+                      mem[_224 + 128] = return_data.size
+                      mem[_224 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                      _242 = _224 + 128
+                  if not ext_call.success:
+                      if mem[_242]:
+                          revert with memory
+                            from _242 + 32
+                             len mem[_242]
+                      revert with 338029122
+                  if not mem[_242]:
+                      _247 = not ext_code.size(_param2)
+                  else:
+                      _247 = not mem[_242]
+                  if _247:
+                      revert with 2576790293, address(_param2)
+                  if mem[_242]:
+                      require mem[_242] >=′ 32
+                      require not mem[_242 + 32] - bool(mem[_242 + 32])
+                      _251 = not mem[_242 + 32]
+                  else:
+                      _251 = bool(mem[_242])
+                  if _251:
+                      revert with 1383378919, address(_param2)
+              else:
+                  call _param2.transfer(address recipient, uint256 amount) with:
+                       gas gas_remaining wei
+                      args caller, _214 - _16
+                  if not ext_call.success:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  if 32 > return_data.size:
+                      _230 = return_data.size
+                      _231 = return_data.size
+                  else:
+                      _230 = 32
+                      _231 = 32
+                  if mem[64] + ceil32(_231) > LOCK8605463013() or mem[64] + ceil32(_231) < mem[64]:
+                      revert with 0, 65
+                  require _230 >=′ 32
+                  require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+          else:
+              call caller with:
+                 value _214 - _16 wei
+                   gas gas_remaining wei
+              if return_data.size:
+                  if return_data.size > LOCK8605463013():
+                      revert with 0, 65
+                  if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+                      revert with 0, 65
+              if not ext_call.success:
+                  revert with NativeAssetTransferFailed()
+  stor4689 = 0
+  return 0
+
+def unknown3166c37c(address _param1, uint256 _param2, address _param3, array _param4) payable: 
+  mem[64] = 96
+  require calldata.size - 4 >=′ 128
+  require _param4 <= LOCK8605463013()
+  require _param4 + 35 <′ calldata.size
+  require _param4.length <= LOCK8605463013()
+  require _param4 + _param4.length + 36 <= calldata.size
+  if -chainid + 1:
+      require not -chainid + 56
+      if stor4689 == 1:
+          revert with ReentrancyError()
+      stor4689 = 1
+      _11 = 0x4689d01902a77e9ad7f7103ded15feb0071b100f807050f8feeaeeed16a845d9
+      _12 = 0xde70456a4d47f43b3166f2ab3b883e2ab7bed3fd
+  else:
+      if stor4689 == 1:
+          revert with ReentrancyError()
+      stor4689 = 1
+      _11 = 0x4689d01902a77e9ad7f7103ded15feb0071b100f807050f8feeaeeed16a845d9
+      _12 = 0xff1747245bc70454596f5017fdff43e106cfaa68
+  if _param1:
+      mem[100] = this.address
+      static call _param1.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      mem[96] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _16 = return_data.size
+      else:
+          _16 = 32
+      if ceil32(_16) + 96 > LOCK8605463013() or ceil32(_16) + 96 < 96:
+          revert with 0, 65
+      mem[64] = ceil32(_16) + 96
+      require _16 >=′ 32
+      _19 = ext_call.return_data[0]
+  else:
+      _19 = eth.balance(this.address)
+  if not _param1:
+      if _19 - call.value > _19:
+          revert with 0, 17
+      _22 = _19 - call.value
+  else:
+      _22 = _19
+  if _param3:
+      mem[mem[64] + 4] = this.address
+      static call _param3.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _25 = return_data.size
+      else:
+          _25 = 32
+      if mem[64] + ceil32(_25) > LOCK8605463013() or mem[64] + ceil32(_25) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_25)
+      require _25 >=′ 32
+      _27 = ext_call.return_data[0]
+  else:
+      _27 = eth.balance(this.address)
+  if not _param3:
+      if _27 - call.value > _27:
+          revert with 0, 17
+      _29 = _27 - call.value
+  else:
+      _29 = _27
+  if _param3:
+      mem[mem[64] + 4] = caller
+      static call _param3.balanceOf(address account) with:
+              gas gas_remaining wei
+             args caller
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _33 = return_data.size
+      else:
+          _33 = 32
+      if mem[64] + ceil32(_33) > LOCK8605463013() or mem[64] + ceil32(_33) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_33)
+      require _33 >=′ 32
+      _37 = ext_call.return_data[0]
+  else:
+      _37 = eth.balance(caller)
+  if _param1:
+      _38 = mem[64]
+      mem[mem[64] + 32] = 0x23b872dd00000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 36] = caller
+      mem[mem[64] + 68] = this.address
+      mem[mem[64] + 100] = _param2
+      mem[mem[64]] = 100
+      if mem[64] + 160 > LOCK8605463013() or mem[64] + 160 < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + 160
+      call _param1.mem[_38 + 32 len 4] with:
+           gas gas_remaining wei
+          args mem[_38 + 36 len 64], _param2
+      if not return_data.size:
+          _50 = 96
+      else:
+          if return_data.size > LOCK8605463013():
+              revert with 0, 65
+          if _38 + ceil32(ceil32(return_data.size)) + 161 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 161 < 160:
+              revert with 0, 65
+          mem[64] = _38 + ceil32(ceil32(return_data.size)) + 161
+          mem[_38 + 160] = return_data.size
+          mem[_38 + 192 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          _50 = _38 + 160
+      if not ext_call.success:
+          if mem[_50]:
+              revert with memory
+                from _50 + 32
+                 len mem[_50]
+          revert with 338029122
+      if not mem[_50]:
+          _60 = not ext_code.size(_param1)
+      else:
+          _60 = not mem[_50]
+      if _60:
+          revert with 2576790293, address(_param1)
+      if mem[_50]:
+          require mem[_50] >=′ 32
+          require not mem[_50 + 32] - bool(mem[_50 + 32])
+          _73 = not mem[_50 + 32]
+      else:
+          _73 = bool(mem[_50])
+      if _73:
+          revert with 1383378919, address(_param1)
+      if address(_12) == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+          _85 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+      else:
+          if address(_12) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+              _85 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+          else:
+              if address(_12) == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                  _85 = 0xb4d2580d23f145f794f67480748cd801c862c469
+              else:
+                  if address(_12) == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                      _85 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                  else:
+                      if 0x610cac41f4f41803ddb005686e7327996a1dc839 == address(_12):
+                          _85 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                      else:
+                          _85 = _12
+      mem[mem[64]] = 0x95ea7b300000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 4] = _85
+      mem[mem[64] + 36] = _param2
+      call _param1.approve(address spender, uint256 amount) with:
+           gas gas_remaining wei
+          args _85, _param2
+      mem[0] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ApproveFailed()
+      if not return_data.size:
+          _90 = bool(ext_code.size(_param1))
+      else:
+          _90 = return_data.size > 31 and ext_call.return_data[0] == 1
+      if not _90:
+          revert with ApproveFailed()
+  _94 = mem[64]
+  if mem[64] + ceil32(ceil32(_param4.length)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(_param4.length)) + 1 < mem[64]:
+      revert with 0, 65
+  mem[64] = mem[64] + ceil32(ceil32(_param4.length)) + 1
+  mem[_94] = _param4.length
+  mem[_94 + 32 len _param4.length] = _param4[all]
+  mem[_94 + _param4.length + 32] = 0
+  if eth.balance(this.address) < call.value:
+      revert with 3447218265, this.address
+  call _12 with:
+     value call.value wei
+       gas gas_remaining wei
+      args _param4[all]
+  if not return_data.size:
+      _104 = 96
+  else:
+      if return_data.size > LOCK8605463013():
+          revert with 0, 65
+      _99 = mem[64]
+      if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+      mem[_99] = return_data.size
+      mem[_99 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _104 = _99
+  if not ext_call.success:
+      if mem[_104]:
+          revert with memory
+            from _104 + 32
+             len mem[_104]
+      revert with 338029122
+  if not mem[_104]:
+      _109 = not ext_code.size(_12)
+  else:
+      _109 = not mem[_104]
+  if _109:
+      revert with 2576790293, address(_12)
+  if _param1:
+      if address(_12) == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+          _119 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+      else:
+          if address(_12) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+              _119 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+          else:
+              if address(_12) == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                  _119 = 0xb4d2580d23f145f794f67480748cd801c862c469
+              else:
+                  if address(_12) == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                      _119 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                  else:
+                      if 0x610cac41f4f41803ddb005686e7327996a1dc839 == address(_12):
+                          _119 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                      else:
+                          _119 = _12
+      call _param1.approve(address spender, uint256 amount) with:
+           gas gas_remaining wei
+          args _119, 0
+      mem[0] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ApproveFailed()
+      if not return_data.size:
+          _123 = bool(ext_code.size(_param1))
+      else:
+          _123 = return_data.size > 31 and ext_call.return_data[0] == 1
+      if not _123:
+          revert with ApproveFailed()
+  if _param3:
+      static call _param3.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _130 = return_data.size
+      else:
+          _130 = 32
+      if mem[64] + ceil32(_130) > LOCK8605463013() or mem[64] + ceil32(_130) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_130)
+      require _130 >=′ 32
+      _132 = ext_call.return_data[0]
+  else:
+      _132 = eth.balance(this.address)
+  if _132 - _29 > _132:
+      revert with 0, 17
+  if _132 - _29:
+      if not _param3:
+          call caller with:
+             value _132 - _29 wei
+               gas gas_remaining wei
+          if return_data.size:
+              if return_data.size > LOCK8605463013():
+                  revert with 0, 65
+              _147 = mem[64]
+              if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+              mem[_147] = return_data.size
+              mem[_147 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          if not ext_call.success:
+              revert with NativeAssetTransferFailed()
+      else:
+          if not _param3 - 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
+              call _param3.transfer(address recipient, uint256 amount) with:
+                   gas gas_remaining wei
+                  args caller, _132 - _29
+              if not ext_call.success:
+                  revert with ext_call.return_data[0 len return_data.size]
+              if 32 > return_data.size:
+                  _148 = return_data.size
+                  _149 = return_data.size
+              else:
+                  _148 = 32
+                  _149 = 32
+              if mem[64] + ceil32(_149) > LOCK8605463013() or mem[64] + ceil32(_149) < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + ceil32(_149)
+              require _148 >=′ 32
+              require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+          else:
+              _138 = mem[64]
+              mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+              mem[mem[64] + 36] = caller
+              mem[mem[64] + 68] = _132 - _29
+              mem[mem[64]] = 68
+              if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + 128
+              call _param3.mem[_138 + 32 len 4] with:
+                   gas gas_remaining wei
+                  args mem[_138 + 36 len 64]
+              if not return_data.size:
+                  _164 = 96
+              else:
+                  if return_data.size > LOCK8605463013():
+                      revert with 0, 65
+                  if _138 + ceil32(ceil32(return_data.size)) + 129 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 129 < 128:
+                      revert with 0, 65
+                  mem[64] = _138 + ceil32(ceil32(return_data.size)) + 129
+                  mem[_138 + 128] = return_data.size
+                  mem[_138 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                  _164 = _138 + 128
+              if not ext_call.success:
+                  if mem[_164]:
+                      revert with memory
+                        from _164 + 32
+                         len mem[_164]
+                  revert with 338029122
+              if not mem[_164]:
+                  _176 = not ext_code.size(_param3)
+              else:
+                  _176 = not mem[_164]
+              if _176:
+                  revert with 2576790293, address(_param3)
+              if mem[_164]:
+                  require mem[_164] >=′ 32
+                  require not mem[_164 + 32] - bool(mem[_164 + 32])
+                  _189 = not mem[_164 + 32]
+              else:
+                  _189 = bool(mem[_164])
+              if _189:
+                  revert with 1383378919, address(_param3)
+  if _param3:
+      static call _param3.balanceOf(address account) with:
+              gas gas_remaining wei
+             args caller
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _207 = return_data.size
+      else:
+          _207 = 32
+      if mem[64] + ceil32(_207) > LOCK8605463013() or mem[64] + ceil32(_207) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_207)
+      require _207 >=′ 32
+      _211 = ext_call.return_data[0]
+  else:
+      _211 = eth.balance(caller)
+  if _211 < _37:
+      revert with 1839102622, 0, 0
+  if _211 - _37 > _211:
+      revert with 0, 17
+  if _param1:
+      static call _param1.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _215 = return_data.size
+      else:
+          _215 = 32
+      if mem[64] + ceil32(_215) > LOCK8605463013() or mem[64] + ceil32(_215) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_215)
+      require _215 >=′ 32
+      _220 = ext_call.return_data[0]
+  else:
+      _220 = eth.balance(this.address)
+  if _220 < _22:
+      if caller != 0x6aba0315493b7e6989041c91181337b662fb1b90:
+          _221 = 0x88649f4743a758171077b98ee2003f1989b1615a == caller
+      else:
+          _221 = 0x6aba0315493b7e6989041c91181337b662fb1b90 == caller
+      if not _221:
+          _222 = 0xcb8c32aca3e52d90943f6a06fecdddcf6c8c019f == caller
+      else:
+          _222 = _221
+      if not _222:
+          _223 = 0x3d499e1fd33ded6f681424ed22d396a21e6915df == caller
+      else:
+          _223 = _222
+      if _223:
+          _224 = _param1 == 0xf86af2fbcf6a0479b21b1d3a4af3893f63207fe7
+      else:
+          _224 = _223
+      _228 = _224
+  else:
+      _228 = _220 < _22
+  if not _228:
+      if _220 - _22 > _220:
+          revert with 0, 17
+      if _220 - _22:
+          if _param1:
+              if _param1 - 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
+                  _230 = mem[64]
+                  mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+                  mem[mem[64] + 36] = caller
+                  mem[mem[64] + 68] = _220 - _22
+                  mem[mem[64]] = 68
+                  if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+                      revert with 0, 65
+                  mem[64] = mem[64] + 128
+                  call _param1.mem[_230 + 32 len 4] with:
+                       gas gas_remaining wei
+                      args mem[_230 + 36 len 64]
+                  if not return_data.size:
+                      _248 = 96
+                  else:
+                      if return_data.size > LOCK8605463013():
+                          revert with 0, 65
+                      if _230 + ceil32(ceil32(return_data.size)) + 129 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 129 < 128:
+                          revert with 0, 65
+                      mem[64] = _230 + ceil32(ceil32(return_data.size)) + 129
+                      mem[_230 + 128] = return_data.size
+                      mem[_230 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                      _248 = _230 + 128
+                  if not ext_call.success:
+                      if mem[_248]:
+                          revert with memory
+                            from _248 + 32
+                             len mem[_248]
+                      revert with 338029122
+                  if not mem[_248]:
+                      _253 = not ext_code.size(_param1)
+                  else:
+                      _253 = not mem[_248]
+                  if _253:
+                      revert with 2576790293, address(_param1)
+                  if mem[_248]:
+                      require mem[_248] >=′ 32
+                      require not mem[_248 + 32] - bool(mem[_248 + 32])
+                      _257 = not mem[_248 + 32]
+                  else:
+                      _257 = bool(mem[_248])
+                  if _257:
+                      revert with 1383378919, address(_param1)
+              else:
+                  call _param1.transfer(address recipient, uint256 amount) with:
+                       gas gas_remaining wei
+                      args caller, _220 - _22
+                  if not ext_call.success:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  if 32 > return_data.size:
+                      _236 = return_data.size
+                      _237 = return_data.size
+                  else:
+                      _236 = 32
+                      _237 = 32
+                  if mem[64] + ceil32(_237) > LOCK8605463013() or mem[64] + ceil32(_237) < mem[64]:
+                      revert with 0, 65
+                  require _236 >=′ 32
+                  require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+          else:
+              call caller with:
+                 value _220 - _22 wei
+                   gas gas_remaining wei
+              if return_data.size:
+                  if return_data.size > LOCK8605463013():
+                      revert with 0, 65
+                  if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+                      revert with 0, 65
+              if not ext_call.success:
+                  revert with NativeAssetTransferFailed()
+  stor[_11] = 0
+  return 0
+
+def unknowne5e8894b(uint128 _param1, address _param2, uint256 _param3, address _param4, uint256 _param5, array _param6) payable: 
+  mem[64] = 96
+  require calldata.size - 4 >=′ 192
+  require not Mask(96, 160, _param1)
+  require _param6 <= LOCK8605463013()
+  require _param6 + 35 <′ calldata.size
+  require _param6.length <= LOCK8605463013()
+  require _param6 + _param6.length + 36 <= calldata.size
+  mem[32] = 0xa1c30c097df6129de7ecd395cf2763f835b193186f029d0de7a64a9273dd07d2
+  if not storA1C3[address(_param1)]:
+      revert with 3623301940, address(_param1)
+  mem[0] = address(_param1)
+  if stor4689 == 1:
+      revert with ReentrancyError()
+  stor4689 = 1
+  if _param2:
+      mem[100] = this.address
+      static call _param2.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      mem[96] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _10 = return_data.size
+      else:
+          _10 = 32
+      if ceil32(_10) + 96 > LOCK8605463013() or ceil32(_10) + 96 < 96:
+          revert with 0, 65
+      mem[64] = ceil32(_10) + 96
+      require _10 >=′ 32
+      _13 = ext_call.return_data[0]
+  else:
+      _13 = eth.balance(this.address)
+  if not _param2:
+      if _13 - call.value > _13:
+          revert with 0, 17
+      _16 = _13 - call.value
+  else:
+      _16 = _13
+  if _param4:
+      mem[mem[64] + 4] = this.address
+      static call _param4.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _19 = return_data.size
+      else:
+          _19 = 32
+      if mem[64] + ceil32(_19) > LOCK8605463013() or mem[64] + ceil32(_19) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_19)
+      require _19 >=′ 32
+      _21 = ext_call.return_data[0]
+  else:
+      _21 = eth.balance(this.address)
+  if not _param4:
+      if _21 - call.value > _21:
+          revert with 0, 17
+      _23 = _21 - call.value
+  else:
+      _23 = _21
+  if _param4:
+      mem[mem[64] + 4] = caller
+      static call _param4.balanceOf(address account) with:
+              gas gas_remaining wei
+             args caller
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _27 = return_data.size
+      else:
+          _27 = 32
+      if mem[64] + ceil32(_27) > LOCK8605463013() or mem[64] + ceil32(_27) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_27)
+      require _27 >=′ 32
+      _31 = ext_call.return_data[0]
+  else:
+      _31 = eth.balance(caller)
+  if _param2:
+      _32 = mem[64]
+      mem[mem[64] + 32] = 0x23b872dd00000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 36] = caller
+      mem[mem[64] + 68] = this.address
+      mem[mem[64] + 100] = _param3
+      mem[mem[64]] = 100
+      if mem[64] + 160 > LOCK8605463013() or mem[64] + 160 < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + 160
+      call _param2.mem[_32 + 32 len 4] with:
+           gas gas_remaining wei
+          args mem[_32 + 36 len 64], _param3
+      if not return_data.size:
+          _44 = 96
+      else:
+          if return_data.size > LOCK8605463013():
+              revert with 0, 65
+          if _32 + ceil32(ceil32(return_data.size)) + 161 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 161 < 160:
+              revert with 0, 65
+          mem[64] = _32 + ceil32(ceil32(return_data.size)) + 161
+          mem[_32 + 160] = return_data.size
+          mem[_32 + 192 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          _44 = _32 + 160
+      if not ext_call.success:
+          if mem[_44]:
+              revert with memory
+                from _44 + 32
+                 len mem[_44]
+          revert with 338029122
+      if not mem[_44]:
+          _54 = not ext_code.size(_param2)
+      else:
+          _54 = not mem[_44]
+      if _54:
+          revert with 2576790293, address(_param2)
+      if mem[_44]:
+          require mem[_44] >=′ 32
+          require not mem[_44 + 32] - bool(mem[_44 + 32])
+          _67 = not mem[_44 + 32]
+      else:
+          _67 = bool(mem[_44])
+      if _67:
+          revert with 1383378919, address(_param2)
+      if address(_param1) == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+          _79 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+      else:
+          if address(_param1) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+              _79 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+          else:
+              if address(_param1) == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                  _79 = 0xb4d2580d23f145f794f67480748cd801c862c469
+              else:
+                  if address(_param1) == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                      _79 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                  else:
+                      if 0x610cac41f4f41803ddb005686e7327996a1dc839 == address(_param1):
+                          _79 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                      else:
+                          _79 = _param1
+      mem[mem[64]] = 0x95ea7b300000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 4] = _79
+      mem[mem[64] + 36] = _param3
+      call _param2.approve(address spender, uint256 amount) with:
+           gas gas_remaining wei
+          args _79, _param3
+      mem[0] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ApproveFailed()
+      if not return_data.size:
+          _84 = bool(ext_code.size(_param2))
+      else:
+          _84 = return_data.size > 31 and ext_call.return_data[0] == 1
+      if not _84:
+          revert with ApproveFailed()
+  _88 = mem[64]
+  if mem[64] + ceil32(ceil32(_param6.length)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(_param6.length)) + 1 < mem[64]:
+      revert with 0, 65
+  mem[64] = mem[64] + ceil32(ceil32(_param6.length)) + 1
+  mem[_88] = _param6.length
+  mem[_88 + 32 len _param6.length] = _param6[all]
+  mem[_88 + _param6.length + 32] = 0
+  if eth.balance(this.address) < call.value:
+      revert with 3447218265, this.address
+  call _param1 with:
+     value call.value wei
+       gas gas_remaining wei
+      args _param6[all]
+  if not return_data.size:
+      _98 = 96
+  else:
+      if return_data.size > LOCK8605463013():
+          revert with 0, 65
+      _93 = mem[64]
+      if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+      mem[_93] = return_data.size
+      mem[_93 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _98 = _93
+  if not ext_call.success:
+      if mem[_98]:
+          revert with memory
+            from _98 + 32
+             len mem[_98]
+      revert with 338029122
+  if not mem[_98]:
+      _103 = not ext_code.size(_param1)
+  else:
+      _103 = not mem[_98]
+  if _103:
+      revert with 2576790293, address(_param1)
+  if _param2:
+      if address(_param1) == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+          _113 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+      else:
+          if address(_param1) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+              _113 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+          else:
+              if address(_param1) == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                  _113 = 0xb4d2580d23f145f794f67480748cd801c862c469
+              else:
+                  if address(_param1) == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                      _113 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                  else:
+                      if 0x610cac41f4f41803ddb005686e7327996a1dc839 == address(_param1):
+                          _113 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                      else:
+                          _113 = _param1
+      call _param2.approve(address spender, uint256 amount) with:
+           gas gas_remaining wei
+          args _113, 0
+      mem[0] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ApproveFailed()
+      if not return_data.size:
+          _117 = bool(ext_code.size(_param2))
+      else:
+          _117 = return_data.size > 31 and ext_call.return_data[0] == 1
+      if not _117:
+          revert with ApproveFailed()
+  if _param4:
+      static call _param4.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _124 = return_data.size
+      else:
+          _124 = 32
+      if mem[64] + ceil32(_124) > LOCK8605463013() or mem[64] + ceil32(_124) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_124)
+      require _124 >=′ 32
+      _126 = ext_call.return_data[0]
+  else:
+      _126 = eth.balance(this.address)
+  if _126 - _23 > _126:
+      revert with 0, 17
+  if _126 - _23:
+      if not _param4:
+          call caller with:
+             value _126 - _23 wei
+               gas gas_remaining wei
+          if return_data.size:
+              if return_data.size > LOCK8605463013():
+                  revert with 0, 65
+              _141 = mem[64]
+              if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+              mem[_141] = return_data.size
+              mem[_141 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          if not ext_call.success:
+              revert with NativeAssetTransferFailed()
+      else:
+          if not _param4 - 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
+              call _param4.transfer(address recipient, uint256 amount) with:
+                   gas gas_remaining wei
+                  args caller, _126 - _23
+              if not ext_call.success:
+                  revert with ext_call.return_data[0 len return_data.size]
+              if 32 > return_data.size:
+                  _142 = return_data.size
+                  _143 = return_data.size
+              else:
+                  _142 = 32
+                  _143 = 32
+              if mem[64] + ceil32(_143) > LOCK8605463013() or mem[64] + ceil32(_143) < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + ceil32(_143)
+              require _142 >=′ 32
+              require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+          else:
+              _132 = mem[64]
+              mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+              mem[mem[64] + 36] = caller
+              mem[mem[64] + 68] = _126 - _23
+              mem[mem[64]] = 68
+              if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + 128
+              call _param4.mem[_132 + 32 len 4] with:
+                   gas gas_remaining wei
+                  args mem[_132 + 36 len 64]
+              if not return_data.size:
+                  _159 = 96
+              else:
+                  if return_data.size > LOCK8605463013():
+                      revert with 0, 65
+                  if _132 + ceil32(ceil32(return_data.size)) + 129 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 129 < 128:
+                      revert with 0, 65
+                  mem[64] = _132 + ceil32(ceil32(return_data.size)) + 129
+                  mem[_132 + 128] = return_data.size
+                  mem[_132 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                  _159 = _132 + 128
+              if not ext_call.success:
+                  if mem[_159]:
+                      revert with memory
+                        from _159 + 32
+                         len mem[_159]
+                  revert with 338029122
+              if not mem[_159]:
+                  _170 = not ext_code.size(_param4)
+              else:
+                  _170 = not mem[_159]
+              if _170:
+                  revert with 2576790293, address(_param4)
+              if mem[_159]:
+                  require mem[_159] >=′ 32
+                  require not mem[_159 + 32] - bool(mem[_159 + 32])
+                  _183 = not mem[_159 + 32]
+              else:
+                  _183 = bool(mem[_159])
+              if _183:
+                  revert with 1383378919, address(_param4)
+  if _param4:
+      static call _param4.balanceOf(address account) with:
+              gas gas_remaining wei
+             args caller
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _201 = return_data.size
+      else:
+          _201 = 32
+      if mem[64] + ceil32(_201) > LOCK8605463013() or mem[64] + ceil32(_201) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_201)
+      require _201 >=′ 32
+      _205 = ext_call.return_data[0]
+  else:
+      _205 = eth.balance(caller)
+  if _205 < _31:
+      revert with 1839102622, _param5, 0
+  if _205 - _31 > _205:
+      revert with 0, 17
+  if _205 - _31 < _param5:
+      revert with 1839102622, _param5, _205 - _31
+  if _param2:
+      static call _param2.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _210 = return_data.size
+      else:
+          _210 = 32
+      if mem[64] + ceil32(_210) > LOCK8605463013() or mem[64] + ceil32(_210) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_210)
+      require _210 >=′ 32
+      _215 = ext_call.return_data[0]
+  else:
+      _215 = eth.balance(this.address)
+  if _215 < _16:
+      if caller != 0x6aba0315493b7e6989041c91181337b662fb1b90:
+          _216 = 0x88649f4743a758171077b98ee2003f1989b1615a == caller
+      else:
+          _216 = 0x6aba0315493b7e6989041c91181337b662fb1b90 == caller
+      if not _216:
+          _217 = 0xcb8c32aca3e52d90943f6a06fecdddcf6c8c019f == caller
+      else:
+          _217 = _216
+      if not _217:
+          _218 = 0x3d499e1fd33ded6f681424ed22d396a21e6915df == caller
+      else:
+          _218 = _217
+      if _218:
+          _219 = _param2 == 0xf86af2fbcf6a0479b21b1d3a4af3893f63207fe7
+      else:
+          _219 = _218
+      _223 = _219
+  else:
+      _223 = _215 < _16
+  if not _223:
+      if _215 - _16 > _215:
+          revert with 0, 17
+      if _215 - _16:
+          if _param2:
+              if _param2 - 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
+                  _225 = mem[64]
+                  mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+                  mem[mem[64] + 36] = caller
+                  mem[mem[64] + 68] = _215 - _16
+                  mem[mem[64]] = 68
+                  if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+                      revert with 0, 65
+                  mem[64] = mem[64] + 128
+                  call _param2.mem[_225 + 32 len 4] with:
+                       gas gas_remaining wei
+                      args mem[_225 + 36 len 64]
+                  if not return_data.size:
+                      _243 = 96
+                  else:
+                      if return_data.size > LOCK8605463013():
+                          revert with 0, 65
+                      if _225 + ceil32(ceil32(return_data.size)) + 129 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 129 < 128:
+                          revert with 0, 65
+                      mem[64] = _225 + ceil32(ceil32(return_data.size)) + 129
+                      mem[_225 + 128] = return_data.size
+                      mem[_225 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                      _243 = _225 + 128
+                  if not ext_call.success:
+                      if mem[_243]:
+                          revert with memory
+                            from _243 + 32
+                             len mem[_243]
+                      revert with 338029122
+                  if not mem[_243]:
+                      _248 = not ext_code.size(_param2)
+                  else:
+                      _248 = not mem[_243]
+                  if _248:
+                      revert with 2576790293, address(_param2)
+                  if mem[_243]:
+                      require mem[_243] >=′ 32
+                      require not mem[_243 + 32] - bool(mem[_243 + 32])
+                      _252 = not mem[_243 + 32]
+                  else:
+                      _252 = bool(mem[_243])
+                  if _252:
+                      revert with 1383378919, address(_param2)
+              else:
+                  call _param2.transfer(address recipient, uint256 amount) with:
+                       gas gas_remaining wei
+                      args caller, _215 - _16
+                  if not ext_call.success:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  if 32 > return_data.size:
+                      _231 = return_data.size
+                      _232 = return_data.size
+                  else:
+                      _231 = 32
+                      _232 = 32
+                  if mem[64] + ceil32(_232) > LOCK8605463013() or mem[64] + ceil32(_232) < mem[64]:
+                      revert with 0, 65
+                  require _231 >=′ 32
+                  require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+          else:
+              call caller with:
+                 value _215 - _16 wei
+                   gas gas_remaining wei
+              if return_data.size:
+                  if return_data.size > LOCK8605463013():
+                      revert with 0, 65
+                  if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+                      revert with 0, 65
+              if not ext_call.success:
+                  revert with NativeAssetTransferFailed()
+  stor4689 = 0
+  return 0
+
+def unknown849ce572(address _param1, uint256 _param2, address _param3, array _param4) payable: 
+  mem[64] = 96
+  require calldata.size - 4 >=′ 128
+  require _param4 <= LOCK8605463013()
+  require _param4 + 35 <′ calldata.size
+  require _param4.length <= LOCK8605463013()
+  require _param4 + _param4.length + 36 <= calldata.size
+  if -chainid + 324:
+      if -chainid + 59144:
+          if chainid - 1088:
+              _14 = 0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae
+          else:
+              _14 = 0x24ca98fb6972f5ee05f0db00595c7f68d9fafd68
+          if stor4689 == 1:
+              revert with ReentrancyError()
+          stor4689 = 1
+          _21 = 0x4689d01902a77e9ad7f7103ded15feb0071b100f807050f8feeaeeed16a845d9
+          _22 = _14
+      else:
+          if stor4689 == 1:
+              revert with ReentrancyError()
+          stor4689 = 1
+          _21 = 0x4689d01902a77e9ad7f7103ded15feb0071b100f807050f8feeaeeed16a845d9
+          _22 = 0xde1e598b81620773454588b85d6b5d4eec32573e
+      _24 = _21
+      _25 = _22
+  else:
+      if stor4689 == 1:
+          revert with ReentrancyError()
+      stor4689 = 1
+      _24 = 0x4689d01902a77e9ad7f7103ded15feb0071b100f807050f8feeaeeed16a845d9
+      _25 = 0x341e94069f53234fe6dabef707ad424830525715
+  if _param1:
+      mem[100] = this.address
+      static call _param1.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      mem[96] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _29 = return_data.size
+      else:
+          _29 = 32
+      if ceil32(_29) + 96 > LOCK8605463013() or ceil32(_29) + 96 < 96:
+          revert with 0, 65
+      mem[64] = ceil32(_29) + 96
+      require _29 >=′ 32
+      _32 = ext_call.return_data[0]
+  else:
+      _32 = eth.balance(this.address)
+  if not _param1:
+      if _32 - call.value > _32:
+          revert with 0, 17
+      _35 = _32 - call.value
+  else:
+      _35 = _32
+  if _param3:
+      mem[mem[64] + 4] = this.address
+      static call _param3.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _38 = return_data.size
+      else:
+          _38 = 32
+      if mem[64] + ceil32(_38) > LOCK8605463013() or mem[64] + ceil32(_38) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_38)
+      require _38 >=′ 32
+      _40 = ext_call.return_data[0]
+  else:
+      _40 = eth.balance(this.address)
+  if not _param3:
+      if _40 - call.value > _40:
+          revert with 0, 17
+      _42 = _40 - call.value
+  else:
+      _42 = _40
+  if _param3:
+      mem[mem[64] + 4] = caller
+      static call _param3.balanceOf(address account) with:
+              gas gas_remaining wei
+             args caller
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _46 = return_data.size
+      else:
+          _46 = 32
+      if mem[64] + ceil32(_46) > LOCK8605463013() or mem[64] + ceil32(_46) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_46)
+      require _46 >=′ 32
+      _50 = ext_call.return_data[0]
+  else:
+      _50 = eth.balance(caller)
+  if _param1:
+      _51 = mem[64]
+      mem[mem[64] + 32] = 0x23b872dd00000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 36] = caller
+      mem[mem[64] + 68] = this.address
+      mem[mem[64] + 100] = _param2
+      mem[mem[64]] = 100
+      if mem[64] + 160 > LOCK8605463013() or mem[64] + 160 < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + 160
+      call _param1.mem[_51 + 32 len 4] with:
+           gas gas_remaining wei
+          args mem[_51 + 36 len 64], _param2
+      if not return_data.size:
+          _63 = 96
+      else:
+          if return_data.size > LOCK8605463013():
+              revert with 0, 65
+          if _51 + ceil32(ceil32(return_data.size)) + 161 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 161 < 160:
+              revert with 0, 65
+          mem[64] = _51 + ceil32(ceil32(return_data.size)) + 161
+          mem[_51 + 160] = return_data.size
+          mem[_51 + 192 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          _63 = _51 + 160
+      if not ext_call.success:
+          if mem[_63]:
+              revert with memory
+                from _63 + 32
+                 len mem[_63]
+          revert with 338029122
+      if not mem[_63]:
+          _73 = not ext_code.size(_param1)
+      else:
+          _73 = not mem[_63]
+      if _73:
+          revert with 2576790293, address(_param1)
+      if mem[_63]:
+          require mem[_63] >=′ 32
+          require not mem[_63 + 32] - bool(mem[_63 + 32])
+          _86 = not mem[_63 + 32]
+      else:
+          _86 = bool(mem[_63])
+      if _86:
+          revert with 1383378919, address(_param1)
+      if address(_25) == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+          _98 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+      else:
+          if address(_25) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+              _98 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+          else:
+              if address(_25) == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                  _98 = 0xb4d2580d23f145f794f67480748cd801c862c469
+              else:
+                  if address(_25) == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                      _98 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                  else:
+                      if 0x610cac41f4f41803ddb005686e7327996a1dc839 == address(_25):
+                          _98 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                      else:
+                          _98 = _25
+      mem[mem[64]] = 0x95ea7b300000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 4] = _98
+      mem[mem[64] + 36] = _param2
+      call _param1.approve(address spender, uint256 amount) with:
+           gas gas_remaining wei
+          args _98, _param2
+      mem[0] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ApproveFailed()
+      if not return_data.size:
+          _103 = bool(ext_code.size(_param1))
+      else:
+          _103 = return_data.size > 31 and ext_call.return_data[0] == 1
+      if not _103:
+          revert with ApproveFailed()
+  _107 = mem[64]
+  if mem[64] + ceil32(ceil32(_param4.length)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(_param4.length)) + 1 < mem[64]:
+      revert with 0, 65
+  mem[64] = mem[64] + ceil32(ceil32(_param4.length)) + 1
+  mem[_107] = _param4.length
+  mem[_107 + 32 len _param4.length] = _param4[all]
+  mem[_107 + _param4.length + 32] = 0
+  if eth.balance(this.address) < call.value:
+      revert with 3447218265, this.address
+  call _25 with:
+     value call.value wei
+       gas gas_remaining wei
+      args _param4[all]
+  if not return_data.size:
+      _117 = 96
+  else:
+      if return_data.size > LOCK8605463013():
+          revert with 0, 65
+      _112 = mem[64]
+      if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+      mem[_112] = return_data.size
+      mem[_112 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _117 = _112
+  if not ext_call.success:
+      if mem[_117]:
+          revert with memory
+            from _117 + 32
+             len mem[_117]
+      revert with 338029122
+  if not mem[_117]:
+      _122 = not ext_code.size(_25)
+  else:
+      _122 = not mem[_117]
+  if _122:
+      revert with 2576790293, address(_25)
+  if _param1:
+      if address(_25) == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+          _132 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+      else:
+          if address(_25) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+              _132 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+          else:
+              if address(_25) == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                  _132 = 0xb4d2580d23f145f794f67480748cd801c862c469
+              else:
+                  if address(_25) == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                      _132 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                  else:
+                      if 0x610cac41f4f41803ddb005686e7327996a1dc839 == address(_25):
+                          _132 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                      else:
+                          _132 = _25
+      call _param1.approve(address spender, uint256 amount) with:
+           gas gas_remaining wei
+          args _132, 0
+      mem[0] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ApproveFailed()
+      if not return_data.size:
+          _136 = bool(ext_code.size(_param1))
+      else:
+          _136 = return_data.size > 31 and ext_call.return_data[0] == 1
+      if not _136:
+          revert with ApproveFailed()
+  if _param3:
+      static call _param3.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _143 = return_data.size
+      else:
+          _143 = 32
+      if mem[64] + ceil32(_143) > LOCK8605463013() or mem[64] + ceil32(_143) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_143)
+      require _143 >=′ 32
+      _145 = ext_call.return_data[0]
+  else:
+      _145 = eth.balance(this.address)
+  if _145 - _42 > _145:
+      revert with 0, 17
+  if _145 - _42:
+      if not _param3:
+          call caller with:
+             value _145 - _42 wei
+               gas gas_remaining wei
+          if return_data.size:
+              if return_data.size > LOCK8605463013():
+                  revert with 0, 65
+              _160 = mem[64]
+              if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+              mem[_160] = return_data.size
+              mem[_160 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          if not ext_call.success:
+              revert with NativeAssetTransferFailed()
+      else:
+          if not _param3 - 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
+              call _param3.transfer(address recipient, uint256 amount) with:
+                   gas gas_remaining wei
+                  args caller, _145 - _42
+              if not ext_call.success:
+                  revert with ext_call.return_data[0 len return_data.size]
+              if 32 > return_data.size:
+                  _161 = return_data.size
+                  _162 = return_data.size
+              else:
+                  _161 = 32
+                  _162 = 32
+              if mem[64] + ceil32(_162) > LOCK8605463013() or mem[64] + ceil32(_162) < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + ceil32(_162)
+              require _161 >=′ 32
+              require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+          else:
+              _151 = mem[64]
+              mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+              mem[mem[64] + 36] = caller
+              mem[mem[64] + 68] = _145 - _42
+              mem[mem[64]] = 68
+              if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + 128
+              call _param3.mem[_151 + 32 len 4] with:
+                   gas gas_remaining wei
+                  args mem[_151 + 36 len 64]
+              if not return_data.size:
+                  _177 = 96
+              else:
+                  if return_data.size > LOCK8605463013():
+                      revert with 0, 65
+                  if _151 + ceil32(ceil32(return_data.size)) + 129 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 129 < 128:
+                      revert with 0, 65
+                  mem[64] = _151 + ceil32(ceil32(return_data.size)) + 129
+                  mem[_151 + 128] = return_data.size
+                  mem[_151 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                  _177 = _151 + 128
+              if not ext_call.success:
+                  if mem[_177]:
+                      revert with memory
+                        from _177 + 32
+                         len mem[_177]
+                  revert with 338029122
+              if not mem[_177]:
+                  _189 = not ext_code.size(_param3)
+              else:
+                  _189 = not mem[_177]
+              if _189:
+                  revert with 2576790293, address(_param3)
+              if mem[_177]:
+                  require mem[_177] >=′ 32
+                  require not mem[_177 + 32] - bool(mem[_177 + 32])
+                  _202 = not mem[_177 + 32]
+              else:
+                  _202 = bool(mem[_177])
+              if _202:
+                  revert with 1383378919, address(_param3)
+  if _param3:
+      static call _param3.balanceOf(address account) with:
+              gas gas_remaining wei
+             args caller
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _220 = return_data.size
+      else:
+          _220 = 32
+      if mem[64] + ceil32(_220) > LOCK8605463013() or mem[64] + ceil32(_220) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_220)
+      require _220 >=′ 32
+      _224 = ext_call.return_data[0]
+  else:
+      _224 = eth.balance(caller)
+  if _224 < _50:
+      revert with 1839102622, 0, 0
+  if _224 - _50 > _224:
+      revert with 0, 17
+  if _param1:
+      static call _param1.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _228 = return_data.size
+      else:
+          _228 = 32
+      if mem[64] + ceil32(_228) > LOCK8605463013() or mem[64] + ceil32(_228) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_228)
+      require _228 >=′ 32
+      _233 = ext_call.return_data[0]
+  else:
+      _233 = eth.balance(this.address)
+  if _233 < _35:
+      if caller != 0x6aba0315493b7e6989041c91181337b662fb1b90:
+          _234 = 0x88649f4743a758171077b98ee2003f1989b1615a == caller
+      else:
+          _234 = 0x6aba0315493b7e6989041c91181337b662fb1b90 == caller
+      if not _234:
+          _235 = 0xcb8c32aca3e52d90943f6a06fecdddcf6c8c019f == caller
+      else:
+          _235 = _234
+      if not _235:
+          _236 = 0x3d499e1fd33ded6f681424ed22d396a21e6915df == caller
+      else:
+          _236 = _235
+      if _236:
+          _237 = _param1 == 0xf86af2fbcf6a0479b21b1d3a4af3893f63207fe7
+      else:
+          _237 = _236
+      _241 = _237
+  else:
+      _241 = _233 < _35
+  if not _241:
+      if _233 - _35 > _233:
+          revert with 0, 17
+      if _233 - _35:
+          if _param1:
+              if _param1 - 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
+                  _243 = mem[64]
+                  mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+                  mem[mem[64] + 36] = caller
+                  mem[mem[64] + 68] = _233 - _35
+                  mem[mem[64]] = 68
+                  if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+                      revert with 0, 65
+                  mem[64] = mem[64] + 128
+                  call _param1.mem[_243 + 32 len 4] with:
+                       gas gas_remaining wei
+                      args mem[_243 + 36 len 64]
+                  if not return_data.size:
+                      _261 = 96
+                  else:
+                      if return_data.size > LOCK8605463013():
+                          revert with 0, 65
+                      if _243 + ceil32(ceil32(return_data.size)) + 129 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 129 < 128:
+                          revert with 0, 65
+                      mem[64] = _243 + ceil32(ceil32(return_data.size)) + 129
+                      mem[_243 + 128] = return_data.size
+                      mem[_243 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                      _261 = _243 + 128
+                  if not ext_call.success:
+                      if mem[_261]:
+                          revert with memory
+                            from _261 + 32
+                             len mem[_261]
+                      revert with 338029122
+                  if not mem[_261]:
+                      _266 = not ext_code.size(_param1)
+                  else:
+                      _266 = not mem[_261]
+                  if _266:
+                      revert with 2576790293, address(_param1)
+                  if mem[_261]:
+                      require mem[_261] >=′ 32
+                      require not mem[_261 + 32] - bool(mem[_261 + 32])
+                      _270 = not mem[_261 + 32]
+                  else:
+                      _270 = bool(mem[_261])
+                  if _270:
+                      revert with 1383378919, address(_param1)
+              else:
+                  call _param1.transfer(address recipient, uint256 amount) with:
+                       gas gas_remaining wei
+                      args caller, _233 - _35
+                  if not ext_call.success:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  if 32 > return_data.size:
+                      _249 = return_data.size
+                      _250 = return_data.size
+                  else:
+                      _249 = 32
+                      _250 = 32
+                  if mem[64] + ceil32(_250) > LOCK8605463013() or mem[64] + ceil32(_250) < mem[64]:
+                      revert with 0, 65
+                  require _249 >=′ 32
+                  require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+          else:
+              call caller with:
+                 value _233 - _35 wei
+                   gas gas_remaining wei
+              if return_data.size:
+                  if return_data.size > LOCK8605463013():
+                      revert with 0, 65
+                  if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+                      revert with 0, 65
+              if not ext_call.success:
+                  revert with NativeAssetTransferFailed()
+  stor[_24] = 0
+  return 0
+
+def unknown810c705b(uint128 _param1, uint128 _param2, address _param3, uint256 _param4, address _param5, uint256 _param6, array _param7) payable: 
+  mem[64] = 96
+  require calldata.size - 4 >=′ 224
+  require not Mask(96, 160, _param1)
+  require not Mask(96, 160, _param2)
+  require _param7 <= LOCK8605463013()
+  require _param7 + 35 <′ calldata.size
+  require _param7.length <= LOCK8605463013()
+  require _param7 + _param7.length + 36 <= calldata.size
+  mem[32] = 0xa1c30c097df6129de7ecd395cf2763f835b193186f029d0de7a64a9273dd07d2
+  if not storA1C3[address(_param2)]:
+      revert with 3623301940, address(_param2)
+  if address(_param1) == storFEEC:
+      _86 = 1
+  else:
+      if address(_param1) != 0x939e79d3d899b184e6117cab36d8fcf5da7bd4d:
+          _5 = address(_param1) == 0xb9b2d319a9249486c0f4c7831f912db5aee4c595
+      else:
+          _5 = address(_param1) == 0x939e79d3d899b184e6117cab36d8fcf5da7bd4d
+      if _5:
+          _86 = 1
+      else:
+          if not -chainid + 56:
+              if address(_param1) != 0x74ed82189fe9ac9702451f89c597ab5ef6e1284c:
+                  _9 = address(_param1) == 0x94a11745a8d33388ee635b55f43944f1202c13d4
+              else:
+                  _9 = address(_param1) == 0x74ed82189fe9ac9702451f89c597ab5ef6e1284c
+              if _9:
+                  _15 = 1
+              else:
+                  _15 = 0
+              _86 = _15
+          else:
+              if not -chainid + 8453:
+                  if address(_param1) != 0x576c86d99ced8f70a5f2a92fec7584ebd0aca621:
+                      if address(_param1) == 0x1a1423ec086f0097fa322247c5c136cfd0a54355:
+                          _17 = 1
+                      else:
+                          _17 = 0
+                      _19 = _17
+                  else:
+                      _19 = 1
+                  _86 = _19
+              else:
+                  if not -chainid + 1:
+                      if address(_param1) != 0x4084528aa035c4f52dbb2a789577b83be31f3df:
+                          _13 = address(_param1) == 0x71e944d0ec39b4f8fdc3903824bb99c86cc41c0
+                      else:
+                          _13 = address(_param1) == 0x4084528aa035c4f52dbb2a789577b83be31f3df
+                      if _13:
+                          _18 = 1
+                      else:
+                          _18 = 0
+                      _86 = _18
+                  else:
+                      if not -chainid + 42161:
+                          if address(_param1) != 0x19811ff5394f0ec175eb809f6d810c7f7c4424c4:
+                              if address(_param1) == 0x2ce73fa353078188d1c76e92fd5dbc292e81f5fa:
+                                  _21 = 1
+                              else:
+                                  _21 = 0
+                              _26 = _21
+                          else:
+                              _26 = 1
+                          _86 = _26
+                      else:
+                          if not -chainid + 43114:
+                              if address(_param1) != 0x68febeffefa3f92c4b8a6ccd022dfb01d94a28e4:
+                                  if address(_param1) == 0x8dd219482e7b1096eee75684d5dfce5761530a84:
+                                      _25 = 1
+                                  else:
+                                      _25 = 0
+                                  _32 = _25
+                              else:
+                                  _32 = 1
+                              _86 = _32
+                          else:
+                              if not -chainid + 1088:
+                                  if address(_param1) != 0xf3ef961e204bc5472dfa1e1777e9b44d60a2e325:
+                                      if address(_param1) == 0x67e2635518dee67741330e5cf9690c41ab0a91c1:
+                                          _31 = 1
+                                      else:
+                                          _31 = 0
+                                      _38 = _31
+                                  else:
+                                      _38 = 1
+                                  _86 = _38
+                              else:
+                                  if not -chainid + 59144:
+                                      if address(_param1) != 0xc92652fc42602772438ebd66411f05e7cb617d3a:
+                                          if address(_param1) == 0x14356fcadc54f37073b97343e8881213fed971d2:
+                                              _37 = 1
+                                          else:
+                                              _37 = 0
+                                          _45 = _37
+                                      else:
+                                          _45 = 1
+                                      _86 = _45
+                                  else:
+                                      if not -chainid + 10:
+                                          if address(_param1) != 0x2bc9c4cfed8c104dbf7d78fc4ed619946eb34646:
+                                              if address(_param1) == 0xce9a49673fd1d40d38f6061eda5437dc84bd75f0:
+                                                  _44 = 1
+                                              else:
+                                                  _44 = 0
+                                              _52 = _44
+                                          else:
+                                              _52 = 1
+                                          _86 = _52
+                                      else:
+                                          if not -chainid + 137:
+                                              if address(_param1) != 0xce9a49673fd1d40d38f6061eda5437dc84bd75f0:
+                                                  if address(_param1) == 0x19811ff5394f0ec175eb809f6d810c7f7c4424c4:
+                                                      _51 = 1
+                                                  else:
+                                                      _51 = 0
+                                                  _60 = _51
+                                              else:
+                                                  _60 = 1
+                                              _86 = _60
+                                          else:
+                                              if not -chainid + 534352:
+                                                  if address(_param1) != 0x326bead817430e1576063999e63b7fe21b21f92:
+                                                      if address(_param1) == 0x84d6cc2349c8f89c8b63c0890f2752524922f867:
+                                                          _59 = 1
+                                                      else:
+                                                          _59 = 0
+                                                      _68 = _59
+                                                  else:
+                                                      _68 = 1
+                                                  _86 = _68
+                                              else:
+                                                  if not -chainid + 146:
+                                                      if address(_param1) != 0x19811ff5394f0ec175eb809f6d810c7f7c4424c4:
+                                                          if address(_param1) == 0x2ce73fa353078188d1c76e92fd5dbc292e81f5fa:
+                                                              _67 = 1
+                                                          else:
+                                                              _67 = 0
+                                                          _75 = _67
+                                                      else:
+                                                          _75 = 1
+                                                      _86 = _75
+                                                  else:
+                                                      if 324 != chainid:
+                                                          _86 = 0
+                                                      else:
+                                                          if address(_param1) != 0xfdb1e637f5173d5f87b984d4b3b0268bff0c8db6:
+                                                              _57 = address(_param1) == 0xefb6c460dc0f27ca8cd3fcea0774de177b539552
+                                                          else:
+                                                              _57 = address(_param1) == 0xfdb1e637f5173d5f87b984d4b3b0268bff0c8db6
+                                                          if _57:
+                                                              _80 = 1
+                                                          else:
+                                                              _80 = 0
+                                                          _86 = _80
+  if not _86:
+      revert with Error(string reason), 'Fee recipient mismatch'
+  mem[0] = address(_param2)
+  if stor4689 == 1:
+      revert with ReentrancyError()
+  stor4689 = 1
+  if _param3:
+      mem[100] = this.address
+      static call _param3.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      mem[96] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _93 = return_data.size
+      else:
+          _93 = 32
+      if ceil32(_93) + 96 > LOCK8605463013() or ceil32(_93) + 96 < 96:
+          revert with 0, 65
+      mem[64] = ceil32(_93) + 96
+      require _93 >=′ 32
+      _96 = ext_call.return_data[0]
+  else:
+      _96 = eth.balance(this.address)
+  if not _param3:
+      if _96 - call.value > _96:
+          revert with 0, 17
+      _99 = _96 - call.value
+  else:
+      _99 = _96
+  if _param5:
+      mem[mem[64] + 4] = this.address
+      static call _param5.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _102 = return_data.size
+      else:
+          _102 = 32
+      if mem[64] + ceil32(_102) > LOCK8605463013() or mem[64] + ceil32(_102) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_102)
+      require _102 >=′ 32
+      _104 = ext_call.return_data[0]
+  else:
+      _104 = eth.balance(this.address)
+  if not _param5:
+      if _104 - call.value > _104:
+          revert with 0, 17
+      _106 = _104 - call.value
+  else:
+      _106 = _104
+  if _param5:
+      mem[mem[64] + 4] = caller
+      static call _param5.balanceOf(address account) with:
+              gas gas_remaining wei
+             args caller
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _110 = return_data.size
+      else:
+          _110 = 32
+      if mem[64] + ceil32(_110) > LOCK8605463013() or mem[64] + ceil32(_110) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_110)
+      require _110 >=′ 32
+      _114 = ext_call.return_data[0]
+  else:
+      _114 = eth.balance(caller)
+  if _param3:
+      _115 = mem[64]
+      mem[mem[64] + 32] = 0x23b872dd00000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 36] = caller
+      mem[mem[64] + 68] = this.address
+      mem[mem[64] + 100] = _param4
+      mem[mem[64]] = 100
+      if mem[64] + 160 > LOCK8605463013() or mem[64] + 160 < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + 160
+      call _param3.mem[_115 + 32 len 4] with:
+           gas gas_remaining wei
+          args mem[_115 + 36 len 64], _param4
+      if not return_data.size:
+          _127 = 96
+      else:
+          if return_data.size > LOCK8605463013():
+              revert with 0, 65
+          if _115 + ceil32(ceil32(return_data.size)) + 161 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 161 < 160:
+              revert with 0, 65
+          mem[64] = _115 + ceil32(ceil32(return_data.size)) + 161
+          mem[_115 + 160] = return_data.size
+          mem[_115 + 192 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          _127 = _115 + 160
+      if not ext_call.success:
+          if mem[_127]:
+              revert with memory
+                from _127 + 32
+                 len mem[_127]
+          revert with 338029122
+      if not mem[_127]:
+          _137 = not ext_code.size(_param3)
+      else:
+          _137 = not mem[_127]
+      if _137:
+          revert with 2576790293, address(_param3)
+      if mem[_127]:
+          require mem[_127] >=′ 32
+          require not mem[_127 + 32] - bool(mem[_127 + 32])
+          _150 = not mem[_127 + 32]
+      else:
+          _150 = bool(mem[_127])
+      if _150:
+          revert with 1383378919, address(_param3)
+      if address(_param2) == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+          _162 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+      else:
+          if address(_param2) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+              _162 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+          else:
+              if address(_param2) == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                  _162 = 0xb4d2580d23f145f794f67480748cd801c862c469
+              else:
+                  if address(_param2) == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                      _162 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                  else:
+                      if 0x610cac41f4f41803ddb005686e7327996a1dc839 == address(_param2):
+                          _162 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                      else:
+                          _162 = _param2
+      mem[mem[64]] = 0x95ea7b300000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 4] = _162
+      mem[mem[64] + 36] = _param4
+      call _param3.approve(address spender, uint256 amount) with:
+           gas gas_remaining wei
+          args _162, _param4
+      mem[0] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ApproveFailed()
+      if not return_data.size:
+          _167 = bool(ext_code.size(_param3))
+      else:
+          _167 = return_data.size > 31 and ext_call.return_data[0] == 1
+      if not _167:
+          revert with ApproveFailed()
+  _171 = mem[64]
+  if mem[64] + ceil32(ceil32(_param7.length)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(_param7.length)) + 1 < mem[64]:
+      revert with 0, 65
+  mem[64] = mem[64] + ceil32(ceil32(_param7.length)) + 1
+  mem[_171] = _param7.length
+  mem[_171 + 32 len _param7.length] = _param7[all]
+  mem[_171 + _param7.length + 32] = 0
+  if eth.balance(this.address) < call.value:
+      revert with 3447218265, this.address
+  call _param2 with:
+     value call.value wei
+       gas gas_remaining wei
+      args _param7[all]
+  if not return_data.size:
+      _181 = 96
+  else:
+      if return_data.size > LOCK8605463013():
+          revert with 0, 65
+      _176 = mem[64]
+      if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+      mem[_176] = return_data.size
+      mem[_176 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _181 = _176
+  if not ext_call.success:
+      if mem[_181]:
+          revert with memory
+            from _181 + 32
+             len mem[_181]
+      revert with 338029122
+  if not mem[_181]:
+      _186 = not ext_code.size(_param2)
+  else:
+      _186 = not mem[_181]
+  if _186:
+      revert with 2576790293, address(_param2)
+  if _param3:
+      if address(_param2) == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+          _196 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+      else:
+          if address(_param2) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+              _196 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+          else:
+              if address(_param2) == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                  _196 = 0xb4d2580d23f145f794f67480748cd801c862c469
+              else:
+                  if address(_param2) == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                      _196 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                  else:
+                      if 0x610cac41f4f41803ddb005686e7327996a1dc839 == address(_param2):
+                          _196 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                      else:
+                          _196 = _param2
+      call _param3.approve(address spender, uint256 amount) with:
+           gas gas_remaining wei
+          args _196, 0
+      mem[0] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ApproveFailed()
+      if not return_data.size:
+          _200 = bool(ext_code.size(_param3))
+      else:
+          _200 = return_data.size > 31 and ext_call.return_data[0] == 1
+      if not _200:
+          revert with ApproveFailed()
+  if _param5:
+      static call _param5.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _207 = return_data.size
+      else:
+          _207 = 32
+      if mem[64] + ceil32(_207) > LOCK8605463013() or mem[64] + ceil32(_207) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_207)
+      require _207 >=′ 32
+      _209 = ext_call.return_data[0]
+  else:
+      _209 = eth.balance(this.address)
+  if _209 - _106 > _209:
+      revert with 0, 17
+  if _209 - _106:
+      if not _param5:
+          call caller with:
+             value _209 - _106 wei
+               gas gas_remaining wei
+          if return_data.size:
+              if return_data.size > LOCK8605463013():
+                  revert with 0, 65
+              _224 = mem[64]
+              if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+              mem[_224] = return_data.size
+              mem[_224 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          if not ext_call.success:
+              revert with NativeAssetTransferFailed()
+      else:
+          if not _param5 - 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
+              call _param5.transfer(address recipient, uint256 amount) with:
+                   gas gas_remaining wei
+                  args caller, _209 - _106
+              if not ext_call.success:
+                  revert with ext_call.return_data[0 len return_data.size]
+              if 32 > return_data.size:
+                  _225 = return_data.size
+                  _226 = return_data.size
+              else:
+                  _225 = 32
+                  _226 = 32
+              if mem[64] + ceil32(_226) > LOCK8605463013() or mem[64] + ceil32(_226) < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + ceil32(_226)
+              require _225 >=′ 32
+              require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+          else:
+              _215 = mem[64]
+              mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+              mem[mem[64] + 36] = caller
+              mem[mem[64] + 68] = _209 - _106
+              mem[mem[64]] = 68
+              if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + 128
+              call _param5.mem[_215 + 32 len 4] with:
+                   gas gas_remaining wei
+                  args mem[_215 + 36 len 64]
+              if not return_data.size:
+                  _242 = 96
+              else:
+                  if return_data.size > LOCK8605463013():
+                      revert with 0, 65
+                  if _215 + ceil32(ceil32(return_data.size)) + 129 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 129 < 128:
+                      revert with 0, 65
+                  mem[64] = _215 + ceil32(ceil32(return_data.size)) + 129
+                  mem[_215 + 128] = return_data.size
+                  mem[_215 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                  _242 = _215 + 128
+              if not ext_call.success:
+                  if mem[_242]:
+                      revert with memory
+                        from _242 + 32
+                         len mem[_242]
+                  revert with 338029122
+              if not mem[_242]:
+                  _253 = not ext_code.size(_param5)
+              else:
+                  _253 = not mem[_242]
+              if _253:
+                  revert with 2576790293, address(_param5)
+              if mem[_242]:
+                  require mem[_242] >=′ 32
+                  require not mem[_242 + 32] - bool(mem[_242 + 32])
+                  _266 = not mem[_242 + 32]
+              else:
+                  _266 = bool(mem[_242])
+              if _266:
+                  revert with 1383378919, address(_param5)
+  if _param5:
+      static call _param5.balanceOf(address account) with:
+              gas gas_remaining wei
+             args caller
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _284 = return_data.size
+      else:
+          _284 = 32
+      if mem[64] + ceil32(_284) > LOCK8605463013() or mem[64] + ceil32(_284) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_284)
+      require _284 >=′ 32
+      _288 = ext_call.return_data[0]
+  else:
+      _288 = eth.balance(caller)
+  if _288 < _114:
+      revert with 1839102622, _param6, 0
+  if _288 - _114 > _288:
+      revert with 0, 17
+  if _288 - _114 < _param6:
+      revert with 1839102622, _param6, _288 - _114
+  if _param3:
+      static call _param3.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _293 = return_data.size
+      else:
+          _293 = 32
+      if mem[64] + ceil32(_293) > LOCK8605463013() or mem[64] + ceil32(_293) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_293)
+      require _293 >=′ 32
+      _298 = ext_call.return_data[0]
+  else:
+      _298 = eth.balance(this.address)
+  if _298 < _99:
+      if caller != 0x6aba0315493b7e6989041c91181337b662fb1b90:
+          _299 = 0x88649f4743a758171077b98ee2003f1989b1615a == caller
+      else:
+          _299 = 0x6aba0315493b7e6989041c91181337b662fb1b90 == caller
+      if not _299:
+          _300 = 0xcb8c32aca3e52d90943f6a06fecdddcf6c8c019f == caller
+      else:
+          _300 = _299
+      if not _300:
+          _301 = 0x3d499e1fd33ded6f681424ed22d396a21e6915df == caller
+      else:
+          _301 = _300
+      if _301:
+          _302 = _param3 == 0xf86af2fbcf6a0479b21b1d3a4af3893f63207fe7
+      else:
+          _302 = _301
+      _306 = _302
+  else:
+      _306 = _298 < _99
+  if not _306:
+      if _298 - _99 > _298:
+          revert with 0, 17
+      if _298 - _99:
+          if _param3:
+              if _param3 - 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
+                  _308 = mem[64]
+                  mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+                  mem[mem[64] + 36] = caller
+                  mem[mem[64] + 68] = _298 - _99
+                  mem[mem[64]] = 68
+                  if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+                      revert with 0, 65
+                  mem[64] = mem[64] + 128
+                  call _param3.mem[_308 + 32 len 4] with:
+                       gas gas_remaining wei
+                      args mem[_308 + 36 len 64]
+                  if not return_data.size:
+                      _326 = 96
+                  else:
+                      if return_data.size > LOCK8605463013():
+                          revert with 0, 65
+                      if _308 + ceil32(ceil32(return_data.size)) + 129 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 129 < 128:
+                          revert with 0, 65
+                      mem[64] = _308 + ceil32(ceil32(return_data.size)) + 129
+                      mem[_308 + 128] = return_data.size
+                      mem[_308 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                      _326 = _308 + 128
+                  if not ext_call.success:
+                      if mem[_326]:
+                          revert with memory
+                            from _326 + 32
+                             len mem[_326]
+                      revert with 338029122
+                  if not mem[_326]:
+                      _331 = not ext_code.size(_param3)
+                  else:
+                      _331 = not mem[_326]
+                  if _331:
+                      revert with 2576790293, address(_param3)
+                  if mem[_326]:
+                      require mem[_326] >=′ 32
+                      require not mem[_326 + 32] - bool(mem[_326 + 32])
+                      _335 = not mem[_326 + 32]
+                  else:
+                      _335 = bool(mem[_326])
+                  if _335:
+                      revert with 1383378919, address(_param3)
+              else:
+                  call _param3.transfer(address recipient, uint256 amount) with:
+                       gas gas_remaining wei
+                      args caller, _298 - _99
+                  if not ext_call.success:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  if 32 > return_data.size:
+                      _314 = return_data.size
+                      _315 = return_data.size
+                  else:
+                      _314 = 32
+                      _315 = 32
+                  if mem[64] + ceil32(_315) > LOCK8605463013() or mem[64] + ceil32(_315) < mem[64]:
+                      revert with 0, 65
+                  require _314 >=′ 32
+                  require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+          else:
+              call caller with:
+                 value _298 - _99 wei
+                   gas gas_remaining wei
+              if return_data.size:
+                  if return_data.size > LOCK8605463013():
+                      revert with 0, 65
+                  if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+                      revert with 0, 65
+              if not ext_call.success:
+                  revert with NativeAssetTransferFailed()
+  stor4689 = 0
+  return 0
+
+def unknown3ecba7f8(uint128 _param1, uint128 _param2, bool _param3, uint256 _param4, address _param5, uint256 _param6, uint256 _param7, array _param8) payable: 
+  mem[64] = 96
+  require calldata.size - 4 >=′ 256
+  require not Mask(96, 160, _param1)
+  require not Mask(96, 160, _param2)
+  require _param8 <= LOCK8605463013()
+  require _param8 + 35 <′ calldata.size
+  require _param8.length <= LOCK8605463013()
+  require _param8 + _param8.length + 36 <= calldata.size
+  mem[32] = 0xa1c30c097df6129de7ecd395cf2763f835b193186f029d0de7a64a9273dd07d2
+  if not storA1C3[address(_param2)]:
+      revert with 3623301940, address(_param2)
+  if address(_param1) == storFEEC:
+      _132 = 1
+  else:
+      if address(_param1) != 0x939e79d3d899b184e6117cab36d8fcf5da7bd4d:
+          _5 = address(_param1) == 0xb9b2d319a9249486c0f4c7831f912db5aee4c595
+      else:
+          _5 = address(_param1) == 0x939e79d3d899b184e6117cab36d8fcf5da7bd4d
+      if _5:
+          _132 = 1
+      else:
+          if not -chainid + 56:
+              if address(_param1) != 0x74ed82189fe9ac9702451f89c597ab5ef6e1284c:
+                  _9 = address(_param1) == 0x94a11745a8d33388ee635b55f43944f1202c13d4
+              else:
+                  _9 = address(_param1) == 0x74ed82189fe9ac9702451f89c597ab5ef6e1284c
+              if _9:
+                  _18 = 1
+              else:
+                  _18 = 0
+              _132 = _18
+          else:
+              if not -chainid + 8453:
+                  if address(_param1) != 0x576c86d99ced8f70a5f2a92fec7584ebd0aca621:
+                      if address(_param1) == 0x1a1423ec086f0097fa322247c5c136cfd0a54355:
+                          _20 = 1
+                      else:
+                          _20 = 0
+                      _27 = _20
+                  else:
+                      _27 = 1
+                  _132 = _27
+              else:
+                  if not -chainid + 1:
+                      if address(_param1) != 0x4084528aa035c4f52dbb2a789577b83be31f3df:
+                          _16 = address(_param1) == 0x71e944d0ec39b4f8fdc3903824bb99c86cc41c0
+                      else:
+                          _16 = address(_param1) == 0x4084528aa035c4f52dbb2a789577b83be31f3df
+                      if _16:
+                          _26 = 1
+                      else:
+                          _26 = 0
+                      _132 = _26
+                  else:
+                      if not -chainid + 42161:
+                          if address(_param1) != 0x19811ff5394f0ec175eb809f6d810c7f7c4424c4:
+                              if address(_param1) == 0x2ce73fa353078188d1c76e92fd5dbc292e81f5fa:
+                                  _29 = 1
+                              else:
+                                  _29 = 0
+                              _34 = _29
+                          else:
+                              _34 = 1
+                          _132 = _34
+                      else:
+                          if not -chainid + 43114:
+                              if address(_param1) != 0x68febeffefa3f92c4b8a6ccd022dfb01d94a28e4:
+                                  if address(_param1) == 0x8dd219482e7b1096eee75684d5dfce5761530a84:
+                                      _33 = 1
+                                  else:
+                                      _33 = 0
+                                  _42 = _33
+                              else:
+                                  _42 = 1
+                              _132 = _42
+                          else:
+                              if not -chainid + 1088:
+                                  if address(_param1) != 0xf3ef961e204bc5472dfa1e1777e9b44d60a2e325:
+                                      if address(_param1) == 0x67e2635518dee67741330e5cf9690c41ab0a91c1:
+                                          _41 = 1
+                                      else:
+                                          _41 = 0
+                                      _51 = _41
+                                  else:
+                                      _51 = 1
+                                  _132 = _51
+                              else:
+                                  if not -chainid + 59144:
+                                      if address(_param1) != 0xc92652fc42602772438ebd66411f05e7cb617d3a:
+                                          if address(_param1) == 0x14356fcadc54f37073b97343e8881213fed971d2:
+                                              _50 = 1
+                                          else:
+                                              _50 = 0
+                                          _60 = _50
+                                      else:
+                                          _60 = 1
+                                      _132 = _60
+                                  else:
+                                      if not -chainid + 10:
+                                          if address(_param1) != 0x2bc9c4cfed8c104dbf7d78fc4ed619946eb34646:
+                                              if address(_param1) == 0xce9a49673fd1d40d38f6061eda5437dc84bd75f0:
+                                                  _59 = 1
+                                              else:
+                                                  _59 = 0
+                                              _69 = _59
+                                          else:
+                                              _69 = 1
+                                          _132 = _69
+                                      else:
+                                          if not -chainid + 137:
+                                              if address(_param1) != 0xce9a49673fd1d40d38f6061eda5437dc84bd75f0:
+                                                  if address(_param1) == 0x19811ff5394f0ec175eb809f6d810c7f7c4424c4:
+                                                      _68 = 1
+                                                  else:
+                                                      _68 = 0
+                                                  _84 = _68
+                                              else:
+                                                  _84 = 1
+                                              _132 = _84
+                                          else:
+                                              if not -chainid + 534352:
+                                                  if address(_param1) != 0x326bead817430e1576063999e63b7fe21b21f92:
+                                                      if address(_param1) == 0x84d6cc2349c8f89c8b63c0890f2752524922f867:
+                                                          _83 = 1
+                                                      else:
+                                                          _83 = 0
+                                                      _95 = _83
+                                                  else:
+                                                      _95 = 1
+                                                  _132 = _95
+                                              else:
+                                                  if not -chainid + 146:
+                                                      if address(_param1) != 0x19811ff5394f0ec175eb809f6d810c7f7c4424c4:
+                                                          if address(_param1) == 0x2ce73fa353078188d1c76e92fd5dbc292e81f5fa:
+                                                              _94 = 1
+                                                          else:
+                                                              _94 = 0
+                                                          _107 = _94
+                                                      else:
+                                                          _107 = 1
+                                                      _132 = _107
+                                                  else:
+                                                      if 324 != chainid:
+                                                          _132 = 0
+                                                      else:
+                                                          if address(_param1) != 0xfdb1e637f5173d5f87b984d4b3b0268bff0c8db6:
+                                                              _81 = address(_param1) == 0xefb6c460dc0f27ca8cd3fcea0774de177b539552
+                                                          else:
+                                                              _81 = address(_param1) == 0xfdb1e637f5173d5f87b984d4b3b0268bff0c8db6
+                                                          if _81:
+                                                              _121 = 1
+                                                          else:
+                                                              _121 = 0
+                                                          _132 = _121
+  if not _132:
+      revert with Error(string reason), 'Fee recipient mismatch'
+  mem[0] = address(_param2)
+  if stor4689 == 1:
+      revert with ReentrancyError()
+  stor4689 = 1
+  mem[160] = _param6
+  mem[128] = bool(_param6)
+  if _param6:
+      mem[128] = bool(Mask(1, 251, _param3))
+  if _param6:
+      _142 = not mem[128]
+  else:
+      _142 = bool(_param6)
+  mem[192] = address(_param3)
+  if mem[128]:
+      mem[100] = this.address
+      mem[132] = _param6
+      static call address(_param3).balanceOf(address account, uint256 id) with:
+              gas gas_remaining wei
+             args address(this.address), _param6
+      mem[96] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _150 = return_data.size
+      else:
+          _150 = 32
+      if ceil32(_150) + 96 > LOCK8605463013() or ceil32(_150) + 96 < 96:
+          revert with 0, 65
+      mem[64] = ceil32(_150) + 96
+      require _150 >=′ 32
+      _163 = ext_call.return_data[0]
+  else:
+      if address(_param3):
+          mem[100] = this.address
+          static call address(_param3).balanceOf(address account) with:
+                  gas gas_remaining wei
+                 args this.address
+          mem[96] = ext_call.return_data[0]
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if 32 > return_data.size:
+              _153 = return_data.size
+          else:
+              _153 = 32
+          if ceil32(_153) + 96 > LOCK8605463013() or ceil32(_153) + 96 < 96:
+              revert with 0, 65
+          mem[64] = ceil32(_153) + 96
+          require _153 >=′ 32
+          _162 = ext_call.return_data[0]
+      else:
+          _162 = eth.balance(this.address)
+      _163 = _162
+  if not uint64(_param3):
+      if _163 - call.value > _163:
+          revert with 0, 17
+      _168 = _163 - call.value
+  else:
+      _168 = _163
+  _169 = mem[160]
+  if _142:
+      mem[mem[64] + 4] = this.address
+      mem[mem[64] + 36] = _169
+      static call _param5.balanceOf(address account, uint256 id) with:
+              gas gas_remaining wei
+             args address(this.address), _169
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _174 = return_data.size
+      else:
+          _174 = 32
+      if mem[64] + ceil32(_174) > LOCK8605463013() or mem[64] + ceil32(_174) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_174)
+      require _174 >=′ 32
+      _181 = ext_call.return_data[0]
+  else:
+      if _param5:
+          mem[mem[64] + 4] = this.address
+          static call _param5.balanceOf(address account) with:
+                  gas gas_remaining wei
+                 args this.address
+          mem[mem[64]] = ext_call.return_data[0]
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if 32 > return_data.size:
+              _175 = return_data.size
+          else:
+              _175 = 32
+          if mem[64] + ceil32(_175) > LOCK8605463013() or mem[64] + ceil32(_175) < mem[64]:
+              revert with 0, 65
+          mem[64] = mem[64] + ceil32(_175)
+          require _175 >=′ 32
+          _179 = ext_call.return_data[0]
+      else:
+          _179 = eth.balance(this.address)
+      _181 = _179
+  if not _param5:
+      if _181 - call.value > _181:
+          revert with 0, 17
+      _184 = _181 - call.value
+  else:
+      _184 = _181
+  _185 = mem[160]
+  if _142:
+      mem[mem[64] + 4] = caller
+      mem[mem[64] + 36] = _185
+      static call _param5.balanceOf(address account, uint256 id) with:
+              gas gas_remaining wei
+             args caller, _185
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _190 = return_data.size
+      else:
+          _190 = 32
+      if mem[64] + ceil32(_190) > LOCK8605463013() or mem[64] + ceil32(_190) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_190)
+      require _190 >=′ 32
+      _213 = ext_call.return_data[0]
+  else:
+      if _param5:
+          mem[mem[64] + 4] = caller
+          static call _param5.balanceOf(address account) with:
+                  gas gas_remaining wei
+                 args caller
+          mem[mem[64]] = ext_call.return_data[0]
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if 32 > return_data.size:
+              _193 = return_data.size
+          else:
+              _193 = 32
+          if mem[64] + ceil32(_193) > LOCK8605463013() or mem[64] + ceil32(_193) < mem[64]:
+              revert with 0, 65
+          mem[64] = mem[64] + ceil32(_193)
+          require _193 >=′ 32
+          _206 = ext_call.return_data[0]
+      else:
+          _206 = eth.balance(caller)
+      _213 = _206
+  if mem[204 len 20]:
+      if not mem[128]:
+          _216 = mem[192]
+          _220 = mem[64]
+          mem[mem[64] + 32] = 0x23b872dd00000000000000000000000000000000000000000000000000000000
+          mem[mem[64] + 36] = caller
+          mem[mem[64] + 68] = this.address
+          mem[mem[64] + 100] = _param4
+          mem[mem[64]] = 100
+          if mem[64] + 160 > LOCK8605463013() or mem[64] + 160 < mem[64]:
+              revert with 0, 65
+          mem[64] = mem[64] + 160
+          call address(_216).mem[_220 + 32 len 4] with:
+               gas gas_remaining wei
+              args mem[_220 + 36 len 64], _param4
+          if not return_data.size:
+              _236 = 96
+          else:
+              if return_data.size > LOCK8605463013():
+                  revert with 0, 65
+              if _220 + ceil32(ceil32(return_data.size)) + 161 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 161 < 160:
+                  revert with 0, 65
+              mem[64] = _220 + ceil32(ceil32(return_data.size)) + 161
+              mem[_220 + 160] = return_data.size
+              mem[_220 + 192 len return_data.size] = ext_call.return_data[0 len return_data.size]
+              _236 = _220 + 160
+          if not ext_call.success:
+              if mem[_236]:
+                  revert with memory
+                    from _236 + 32
+                     len mem[_236]
+              revert with 338029122
+          if not mem[_236]:
+              _251 = not ext_code.size(address(_216))
+          else:
+              _251 = not mem[_236]
+          if _251:
+              revert with 2576790293, address(_216)
+          if mem[_236]:
+              require mem[_236] >=′ 32
+              require not mem[_236 + 32] - bool(mem[_236 + 32])
+              _298 = not mem[_236 + 32]
+          else:
+              _298 = bool(mem[_236])
+          if _298:
+              revert with 1383378919, address(_216)
+          if address(_param2) == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+              _360 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+          else:
+              if address(_param2) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+                  _360 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+              else:
+                  if address(_param2) == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                      _360 = 0xb4d2580d23f145f794f67480748cd801c862c469
+                  else:
+                      if address(_param2) == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                          _360 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                      else:
+                          if 0x610cac41f4f41803ddb005686e7327996a1dc839 == address(_param2):
+                              _360 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                          else:
+                              _360 = _param2
+          _364 = mem[192]
+          mem[mem[64]] = 0x95ea7b300000000000000000000000000000000000000000000000000000000
+          mem[mem[64] + 4] = _360
+          mem[mem[64] + 36] = _param4
+          call address(_364).approve(address spender, uint256 amount) with:
+               gas gas_remaining wei
+              args _360, _param4
+          mem[0] = ext_call.return_data[0]
+          if not ext_call.success:
+              revert with ApproveFailed()
+          if not return_data.size:
+              _383 = bool(ext_code.size(address(_364)))
+          else:
+              _383 = return_data.size > 31 and ext_call.return_data[0] == 1
+          if not _383:
+              revert with ApproveFailed()
+      else:
+          _217 = mem[64]
+          mem[mem[64]] = 0xfe99049a00000000000000000000000000000000000000000000000000000000
+          _218 = mem[160]
+          mem[mem[64] + 4] = caller
+          mem[mem[64] + 36] = this.address
+          mem[mem[64] + 68] = _218
+          mem[mem[64] + 100] = _param4
+          call mem[204 len 20].transferFrom(address from_, address to_, uint256 tokenId_, uint256 transferUnits_) with:
+               gas gas_remaining wei
+              args caller, this.address, _218, _param4
+          mem[mem[64]] = ext_call.return_data[0]
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if 32 > return_data.size:
+              _224 = return_data.size
+              _225 = return_data.size
+          else:
+              _224 = 32
+              _225 = 32
+          if mem[64] + ceil32(_225) > LOCK8605463013() or mem[64] + ceil32(_225) < mem[64]:
+              revert with 0, 65
+          mem[64] = mem[64] + ceil32(_225)
+          require _224 >=′ 32
+          require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+          if not ext_call.return_data[0]:
+              mem[_217 + ceil32(_225)] = 0x8520e26700000000000000000000000000000000000000000000000000000000
+              _238 = mem[160]
+              mem[_217 + ceil32(_225) + 4] = mem[204 len 20]
+              revert with 0, mem[_217 + ceil32(_225) + 4], _238
+          if mem[128]:
+              if 56 != chainid:
+                  revert with 1557801431, 1
+              if address(_param2) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+                  mem[_217 + ceil32(_225)] = 0x426a849300000000000000000000000000000000000000000000000000000000
+                  _260 = mem[160]
+                  mem[_217 + ceil32(_225) + 4] = 0x3d19cbc642b20eeeadbc4e426787cdc3220dc304
+                  mem[_217 + ceil32(_225) + 36] = _260
+                  mem[_217 + ceil32(_225) + 68] = _param4
+                  _274 = _217 + ceil32(_225)
+                  _275 = _217 + ceil32(_225)
+                  _276 = _217 + ceil32(_225)
+                  _277 = _217 + ceil32(_225) + 100
+              else:
+                  if address(_param2) != 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+                      revert with 1557801431, 1
+                  mem[_217 + ceil32(_225)] = 0x426a849300000000000000000000000000000000000000000000000000000000
+                  _266 = mem[160]
+                  mem[_217 + ceil32(_225) + 4] = 0x45c540fb94d5b4ab1e17b04a557ba05e14ac40ca
+                  mem[_217 + ceil32(_225) + 36] = _266
+                  mem[_217 + ceil32(_225) + 68] = _param4
+                  _274 = _217 + ceil32(_225)
+                  _275 = _217 + ceil32(_225)
+                  _276 = _217 + ceil32(_225)
+                  _277 = _217 + ceil32(_225) + 100
+              _291 = _274
+              _292 = _275
+              _293 = _276
+              _294 = _277
+          else:
+              if address(_param2) == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+                  _285 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+              else:
+                  if address(_param2) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+                      _285 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+                  else:
+                      if address(_param2) == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                          _285 = 0xb4d2580d23f145f794f67480748cd801c862c469
+                      else:
+                          if address(_param2) == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                              _285 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                          else:
+                              if 0x610cac41f4f41803ddb005686e7327996a1dc839 == address(_param2):
+                                  _285 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                              else:
+                                  _285 = _param2
+              mem[_217 + ceil32(_225)] = 0x426a849300000000000000000000000000000000000000000000000000000000
+              _290 = mem[160]
+              mem[_217 + ceil32(_225) + 4] = address(_285)
+              mem[_217 + ceil32(_225) + 36] = _290
+              mem[_217 + ceil32(_225) + 68] = _param4
+              _291 = _217 + ceil32(_225)
+              _292 = _217 + ceil32(_225)
+              _293 = _217 + ceil32(_225)
+              _294 = _217 + ceil32(_225) + 100
+          call mem[204 len 20].mem[_292 len 4] with:
+               gas gas_remaining wei
+              args mem[_292 + 4 len _294 + -_293 - 4]
+          mem[_292] = ext_call.return_data[0]
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if return_data.size < 32:
+              _306 = return_data.size
+              _307 = return_data.size
+          else:
+              _306 = 32
+              _307 = 32
+          if _291 + ceil32(_307) > LOCK8605463013() or _291 + ceil32(_307) < _291:
+              revert with 0, 65
+          mem[64] = _291 + ceil32(_307)
+          require _306 >=′ 32
+          require not mem[_291] - bool(mem[_291])
+          if not mem[_291]:
+              mem[_291 + ceil32(_307)] = 0x3f39bb0000000000000000000000000000000000000000000000000000000000
+              _371 = mem[160]
+              mem[_291 + ceil32(_307) + 4] = mem[204 len 20]
+              revert with 0, mem[_291 + ceil32(_307) + 4], _371
+  _392 = mem[64]
+  if mem[64] + ceil32(ceil32(_param8.length)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(_param8.length)) + 1 < mem[64]:
+      revert with 0, 65
+  mem[64] = mem[64] + ceil32(ceil32(_param8.length)) + 1
+  mem[_392] = _param8.length
+  mem[_392 + 32 len _param8.length] = _param8[all]
+  mem[_392 + _param8.length + 32] = 0
+  if eth.balance(this.address) < call.value:
+      revert with 3447218265, this.address
+  call _param2 with:
+     value call.value wei
+       gas gas_remaining wei
+      args _param8[all]
+  if not return_data.size:
+      _402 = 96
+  else:
+      if return_data.size > LOCK8605463013():
+          revert with 0, 65
+      _397 = mem[64]
+      if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+      mem[_397] = return_data.size
+      mem[_397 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _402 = _397
+  if not ext_call.success:
+      if mem[_402]:
+          revert with memory
+            from _402 + 32
+             len mem[_402]
+      revert with 338029122
+  if not mem[_402]:
+      _407 = not ext_code.size(_param2)
+  else:
+      _407 = not mem[_402]
+  if _407:
+      revert with 2576790293, address(_param2)
+  if mem[204 len 20]:
+      if not mem[128]:
+          if address(_param2) == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+              _447 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+          else:
+              if address(_param2) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+                  _447 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+              else:
+                  if address(_param2) == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                      _447 = 0xb4d2580d23f145f794f67480748cd801c862c469
+                  else:
+                      if address(_param2) == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                          _447 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                      else:
+                          if 0x610cac41f4f41803ddb005686e7327996a1dc839 == address(_param2):
+                              _447 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                          else:
+                              _447 = _param2
+          _449 = mem[192]
+          mem[mem[64]] = 0x95ea7b300000000000000000000000000000000000000000000000000000000
+          mem[mem[64] + 4] = _447
+          mem[mem[64] + 36] = 0
+          call address(_449).approve(address spender, uint256 amount) with:
+               gas gas_remaining wei
+              args _447, 0
+          mem[0] = ext_call.return_data[0]
+          if not ext_call.success:
+              revert with ApproveFailed()
+          if not return_data.size:
+              _468 = bool(ext_code.size(address(_449)))
+          else:
+              _468 = return_data.size > 31 and ext_call.return_data[0] == 1
+          if not _468:
+              revert with ApproveFailed()
+      else:
+          if mem[128]:
+              if 56 != chainid:
+                  revert with 1557801431, 1
+              if address(_param2) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+                  mem[mem[64]] = 0x426a849300000000000000000000000000000000000000000000000000000000
+                  mem[mem[64] + 4] = 0x3d19cbc642b20eeeadbc4e426787cdc3220dc304
+                  mem[mem[64] + 36] = mem[160]
+                  mem[mem[64] + 68] = 0
+                  call mem[204 len 20].approve(address _spender, uint256 _currentValue, uint256 _newValue) with:
+                       gas gas_remaining wei
+                      args 0x3d19cbc642b20eeeadbc4e426787cdc3220dc304, mem[mem[64] + 36], 0
+                  mem[mem[64]] = ext_call.return_data[0]
+                  if not ext_call.success:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  _455 = mem[64]
+              else:
+                  if address(_param2) != 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+                      revert with 1557801431, 1
+                  mem[mem[64]] = 0x426a849300000000000000000000000000000000000000000000000000000000
+                  mem[mem[64] + 4] = 0x45c540fb94d5b4ab1e17b04a557ba05e14ac40ca
+                  mem[mem[64] + 36] = mem[160]
+                  mem[mem[64] + 68] = 0
+                  call mem[204 len 20].approve(address _spender, uint256 _currentValue, uint256 _newValue) with:
+                       gas gas_remaining wei
+                      args 0x45c540fb94d5b4ab1e17b04a557ba05e14ac40ca, mem[mem[64] + 36], 0
+                  mem[mem[64]] = ext_call.return_data[0]
+                  if not ext_call.success:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  _455 = mem[64]
+              _466 = _455
+          else:
+              if address(_param2) == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+                  _457 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+              else:
+                  if address(_param2) == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+                      _457 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+                  else:
+                      if address(_param2) == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                          _457 = 0xb4d2580d23f145f794f67480748cd801c862c469
+                      else:
+                          if address(_param2) == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                              _457 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                          else:
+                              if 0x610cac41f4f41803ddb005686e7327996a1dc839 == address(_param2):
+                                  _457 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                              else:
+                                  _457 = _param2
+              mem[mem[64]] = 0x426a849300000000000000000000000000000000000000000000000000000000
+              mem[mem[64] + 4] = address(_457)
+              mem[mem[64] + 36] = mem[160]
+              mem[mem[64] + 68] = 0
+              call mem[204 len 20].approve(address _spender, uint256 _currentValue, uint256 _newValue) with:
+                   gas gas_remaining wei
+                  args address(_457), mem[mem[64] + 36], 0
+              mem[mem[64]] = ext_call.return_data[0]
+              if not ext_call.success:
+                  revert with ext_call.return_data[0 len return_data.size]
+              _466 = mem[64]
+          if 32 > return_data.size:
+              _471 = return_data.size
+          else:
+              _471 = 32
+          if _466 + ceil32(_471) > LOCK8605463013() or _466 + ceil32(_471) < _466:
+              revert with 0, 65
+          mem[64] = _466 + ceil32(_471)
+          require _471 >=′ 32
+          require not mem[_466] - bool(mem[_466])
+          if not mem[_466]:
+              mem[_466 + ceil32(_471)] = 0x3f39bb0000000000000000000000000000000000000000000000000000000000
+              _486 = mem[160]
+              mem[_466 + ceil32(_471) + 4] = mem[204 len 20]
+              revert with 0, mem[_466 + ceil32(_471) + 4], _486
+  _494 = mem[160]
+  if _142:
+      mem[mem[64] + 4] = this.address
+      mem[mem[64] + 36] = _494
+      static call _param5.balanceOf(address account, uint256 id) with:
+              gas gas_remaining wei
+             args address(this.address), _494
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _499 = return_data.size
+      else:
+          _499 = 32
+      if mem[64] + ceil32(_499) > LOCK8605463013() or mem[64] + ceil32(_499) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_499)
+      require _499 >=′ 32
+      _505 = ext_call.return_data[0]
+  else:
+      if _param5:
+          mem[mem[64] + 4] = this.address
+          static call _param5.balanceOf(address account) with:
+                  gas gas_remaining wei
+                 args this.address
+          mem[mem[64]] = ext_call.return_data[0]
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if 32 > return_data.size:
+              _500 = return_data.size
+          else:
+              _500 = 32
+          if mem[64] + ceil32(_500) > LOCK8605463013() or mem[64] + ceil32(_500) < mem[64]:
+              revert with 0, 65
+          mem[64] = mem[64] + ceil32(_500)
+          require _500 >=′ 32
+          _504 = ext_call.return_data[0]
+      else:
+          _504 = eth.balance(this.address)
+      _505 = _504
+  if _505 - _184 > _505:
+      revert with 0, 17
+  if _505 - _184:
+      _509 = mem[160]
+      if not _142:
+          if _param5:
+              if not _param5 - 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
+                  mem[mem[64] + 4] = caller
+                  mem[mem[64] + 36] = _505 - _184
+                  call _param5.transfer(address recipient, uint256 amount) with:
+                       gas gas_remaining wei
+                      args caller, _505 - _184
+                  mem[mem[64]] = ext_call.return_data[0]
+                  if not ext_call.success:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  if 32 > return_data.size:
+                      _535 = return_data.size
+                      _536 = return_data.size
+                  else:
+                      _535 = 32
+                      _536 = 32
+                  if mem[64] + ceil32(_536) > LOCK8605463013() or mem[64] + ceil32(_536) < mem[64]:
+                      revert with 0, 65
+                  mem[64] = mem[64] + ceil32(_536)
+                  require _535 >=′ 32
+                  require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+              else:
+                  _518 = mem[64]
+                  mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+                  mem[mem[64] + 36] = caller
+                  mem[mem[64] + 68] = _505 - _184
+                  mem[mem[64]] = 68
+                  if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+                      revert with 0, 65
+                  mem[64] = mem[64] + 128
+                  call _param5.mem[_518 + 32 len 4] with:
+                       gas gas_remaining wei
+                      args mem[_518 + 36 len 64]
+                  if not return_data.size:
+                      _558 = 96
+                  else:
+                      if return_data.size > LOCK8605463013():
+                          revert with 0, 65
+                      if _518 + ceil32(ceil32(return_data.size)) + 129 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 129 < 128:
+                          revert with 0, 65
+                      mem[64] = _518 + ceil32(ceil32(return_data.size)) + 129
+                      mem[_518 + 128] = return_data.size
+                      mem[_518 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                      _558 = _518 + 128
+                  if not ext_call.success:
+                      if mem[_558]:
+                          revert with memory
+                            from _558 + 32
+                             len mem[_558]
+                      revert with 338029122
+                  if not mem[_558]:
+                      _570 = not ext_code.size(_param5)
+                  else:
+                      _570 = not mem[_558]
+                  if _570:
+                      revert with 2576790293, address(_param5)
+                  if mem[_558]:
+                      require mem[_558] >=′ 32
+                      require not mem[_558 + 32] - bool(mem[_558 + 32])
+                      _597 = not mem[_558 + 32]
+                  else:
+                      _597 = bool(mem[_558])
+                  if _597:
+                      revert with 1383378919, address(_param5)
+          else:
+              call caller with:
+                 value _505 - _184 wei
+                   gas gas_remaining wei
+              if return_data.size:
+                  if return_data.size > LOCK8605463013():
+                      revert with 0, 65
+                  _533 = mem[64]
+                  if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+                      revert with 0, 65
+                  mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+                  mem[_533] = return_data.size
+                  mem[_533 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+              if not ext_call.success:
+                  revert with NativeAssetTransferFailed()
+          _618 = mem[160]
+      else:
+          mem[mem[64] + 4] = caller
+          mem[mem[64] + 36] = _509
+          mem[mem[64] + 68] = _505 - _184
+          call _param5.transfer(address _to, uint256 _value, uint256 _code) with:
+               gas gas_remaining wei
+              args caller, _509, _505 - _184
+          mem[mem[64]] = ext_call.return_data[0]
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if 32 > return_data.size:
+              _528 = return_data.size
+              _529 = return_data.size
+          else:
+              _528 = 32
+              _529 = 32
+          if mem[64] + ceil32(_529) > LOCK8605463013() or mem[64] + ceil32(_529) < mem[64]:
+              revert with 0, 65
+          mem[64] = mem[64] + ceil32(_529)
+          require _528 >=′ 32
+          require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+          if not ext_call.return_data[0]:
+              revert with 3489043343, address(_param5), _509
+          _618 = mem[160]
+      if _142:
+          mem[mem[64] + 4] = caller
+          mem[mem[64] + 36] = _618
+          static call _param5.balanceOf(address account, uint256 id) with:
+                  gas gas_remaining wei
+                 args caller, _618
+          mem[mem[64]] = ext_call.return_data[0]
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if 32 > return_data.size:
+              _630 = return_data.size
+          else:
+              _630 = 32
+          if mem[64] + ceil32(_630) > LOCK8605463013() or mem[64] + ceil32(_630) < mem[64]:
+              revert with 0, 65
+          mem[64] = mem[64] + ceil32(_630)
+          require _630 >=′ 32
+          _651 = ext_call.return_data[0]
+      else:
+          if _param5:
+              mem[mem[64] + 4] = caller
+              static call _param5.balanceOf(address account) with:
+                      gas gas_remaining wei
+                     args caller
+              mem[mem[64]] = ext_call.return_data[0]
+              if not ext_call.success:
+                  revert with ext_call.return_data[0 len return_data.size]
+              if 32 > return_data.size:
+                  _637 = return_data.size
+              else:
+                  _637 = 32
+              if mem[64] + ceil32(_637) > LOCK8605463013() or mem[64] + ceil32(_637) < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + ceil32(_637)
+              require _637 >=′ 32
+              _650 = ext_call.return_data[0]
+          else:
+              _650 = eth.balance(caller)
+          _651 = _650
+      if _651 < _213:
+          revert with 1839102622, _param7, 0
+      _658 = _651
+  else:
+      _506 = mem[160]
+      if _142:
+          mem[mem[64] + 4] = caller
+          mem[mem[64] + 36] = _506
+          static call _param5.balanceOf(address account, uint256 id) with:
+                  gas gas_remaining wei
+                 args caller, _506
+          mem[mem[64]] = ext_call.return_data[0]
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if 32 > return_data.size:
+              _512 = return_data.size
+          else:
+              _512 = 32
+          if mem[64] + ceil32(_512) > LOCK8605463013() or mem[64] + ceil32(_512) < mem[64]:
+              revert with 0, 65
+          mem[64] = mem[64] + ceil32(_512)
+          require _512 >=′ 32
+          _530 = ext_call.return_data[0]
+      else:
+          if _param5:
+              mem[mem[64] + 4] = caller
+              static call _param5.balanceOf(address account) with:
+                      gas gas_remaining wei
+                     args caller
+              mem[mem[64]] = ext_call.return_data[0]
+              if not ext_call.success:
+                  revert with ext_call.return_data[0 len return_data.size]
+              if 32 > return_data.size:
+                  _514 = return_data.size
+              else:
+                  _514 = 32
+              if mem[64] + ceil32(_514) > LOCK8605463013() or mem[64] + ceil32(_514) < mem[64]:
+                  revert with 0, 65
+              mem[64] = mem[64] + ceil32(_514)
+              require _514 >=′ 32
+              _527 = ext_call.return_data[0]
+          else:
+              _527 = eth.balance(caller)
+          _530 = _527
+      if _530 < _213:
+          revert with 1839102622, _param7, 0
+      _658 = _530
+  if _658 - _213 > _658:
+      revert with 0, 17
+  if _658 - _213 < _param7:
+      revert with 1839102622, _param7, _658 - _213
+  _662 = mem[160]
+  _664 = mem[192]
+  if mem[128]:
+      mem[mem[64] + 4] = this.address
+      mem[mem[64] + 36] = _662
+      static call address(_664).balanceOf(address account, uint256 id) with:
+              gas gas_remaining wei
+             args address(this.address), _662
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _669 = return_data.size
+      else:
+          _669 = 32
+      if mem[64] + ceil32(_669) > LOCK8605463013() or mem[64] + ceil32(_669) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_669)
+      require _669 >=′ 32
+      _681 = ext_call.return_data[0]
+  else:
+      if mem[204 len 20]:
+          mem[mem[64] + 4] = this.address
+          static call address(_664).balanceOf(address account) with:
+                  gas gas_remaining wei
+                 args this.address
+          mem[mem[64]] = ext_call.return_data[0]
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if 32 > return_data.size:
+              _670 = return_data.size
+          else:
+              _670 = 32
+          if mem[64] + ceil32(_670) > LOCK8605463013() or mem[64] + ceil32(_670) < mem[64]:
+              revert with 0, 65
+          mem[64] = mem[64] + ceil32(_670)
+          require _670 >=′ 32
+          _678 = ext_call.return_data[0]
+      else:
+          _678 = eth.balance(this.address)
+      _681 = _678
+  if _681 < _168:
+      if 0x6aba0315493b7e6989041c91181337b662fb1b90 != caller:
+          _682 = caller == 0x88649f4743a758171077b98ee2003f1989b1615a
+      else:
+          _682 = caller == 0x6aba0315493b7e6989041c91181337b662fb1b90
+      if not _682:
+          _683 = caller == 0xcb8c32aca3e52d90943f6a06fecdddcf6c8c019f
+      else:
+          _683 = _682
+      if not _683:
+          _687 = caller == 0x3d499e1fd33ded6f681424ed22d396a21e6915df
+      else:
+          _687 = _683
+      if not _687:
+          _690 = _687
+      else:
+          _690 = 0xf86af2fbcf6a0479b21b1d3a4af3893f63207fe7 == mem[204 len 20]
+      if _690:
+          stor4689 = 0
+          return 0
+      if _681 - _168 > _681:
+          revert with 0, 17
+  else:
+      if _681 - _168 > _681:
+          revert with 0, 17
+  if _681 - _168:
+      _699 = mem[192]
+      if not mem[128]:
+          if mem[204 len 20]:
+              if mem[204 len 20] - 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
+                  _702 = mem[64]
+                  mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+                  mem[mem[64] + 36] = caller
+                  mem[mem[64] + 68] = _681 - _168
+                  mem[mem[64]] = 68
+                  if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+                      revert with 0, 65
+                  mem[64] = mem[64] + 128
+                  call address(_699).mem[_702 + 32 len 4] with:
+                       gas gas_remaining wei
+                      args mem[_702 + 36 len 64]
+                  if not return_data.size:
+                      _724 = 96
+                  else:
+                      if return_data.size > LOCK8605463013():
+                          revert with 0, 65
+                      if _702 + ceil32(ceil32(return_data.size)) + 129 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 129 < 128:
+                          revert with 0, 65
+                      mem[64] = _702 + ceil32(ceil32(return_data.size)) + 129
+                      mem[_702 + 128] = return_data.size
+                      mem[_702 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                      _724 = _702 + 128
+                  if not ext_call.success:
+                      if mem[_724]:
+                          revert with memory
+                            from _724 + 32
+                             len mem[_724]
+                      revert with 338029122
+                  if not mem[_724]:
+                      _729 = not ext_code.size(address(_699))
+                  else:
+                      _729 = not mem[_724]
+                  if _729:
+                      revert with 2576790293, address(_699)
+                  if mem[_724]:
+                      require mem[_724] >=′ 32
+                      require not mem[_724 + 32] - bool(mem[_724 + 32])
+                      _733 = not mem[_724 + 32]
+                  else:
+                      _733 = bool(mem[_724])
+                  if _733:
+                      revert with 1383378919, address(_699)
+              else:
+                  call mem[204 len 20].transfer(address recipient, uint256 amount) with:
+                       gas gas_remaining wei
+                      args caller, _681 - _168
+                  if not ext_call.success:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  if 32 > return_data.size:
+                      _710 = return_data.size
+                      _711 = return_data.size
+                  else:
+                      _710 = 32
+                      _711 = 32
+                  if mem[64] + ceil32(_711) > LOCK8605463013() or mem[64] + ceil32(_711) < mem[64]:
+                      revert with 0, 65
+                  require _710 >=′ 32
+                  require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+          else:
+              call caller with:
+                 value _681 - _168 wei
+                   gas gas_remaining wei
+              if return_data.size:
+                  if return_data.size > LOCK8605463013():
+                      revert with 0, 65
+                  if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+                      revert with 0, 65
+              if not ext_call.success:
+                  revert with NativeAssetTransferFailed()
+      else:
+          call mem[204 len 20].transfer(address _to, uint256 _value, uint256 _code) with:
+               gas gas_remaining wei
+              args caller, mem[160], _681 - _168
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if 32 > return_data.size:
+              _705 = return_data.size
+              _706 = return_data.size
+          else:
+              _705 = 32
+              _706 = 32
+          if mem[64] + ceil32(_706) > LOCK8605463013() or mem[64] + ceil32(_706) < mem[64]:
+              revert with 0, 65
+          require _705 >=′ 32
+          require not ext_call.return_data[0] - bool(ext_call.return_data[0])
+          if not ext_call.return_data[0]:
+              revert with 3489043343, address(mem[192]), mem[160]
+  stor4689 = 0
+  return 0
+
+

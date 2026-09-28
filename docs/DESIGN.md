@@ -151,9 +151,16 @@ is the CLI, `build/panoramix_asm*.so` the module.
 
 ## Testing
 
-Every layer has a differential test against the python implementation
-on a corpus of `.hex` files (`tests/test_*.py`, run with the system
-python3 and the module in `build/`): the raw traces of the VM, the
+`make check` runs the C example and `tests/run_corpus.sh`: the 30
+contracts of `tests/corpus` (mainnet bytecode, see `SOURCES`) against
+python's output in `tests/corpus/expected` (pypy's `python -m
+panoramix`, colors removed, with the signature database, which the
+script builds from panoramix's `data/abi_dump.xz`). It needs no python.
+
+Every layer also has a differential test against the python
+implementation on the corpus (`tests/test_*.py`, run with the system
+python3, the module in `build/` and the python repository in
+`$PANORAMIX_PY` or next to this one): the raw traces of the VM, the
 functions found, the whiles, every simplifier pass on every corpus
 trace, the folder, every sub-expression through prettify with every
 combination of its flags, the function analysis, the whole contract

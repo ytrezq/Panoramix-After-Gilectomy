@@ -1,0 +1,541 @@
+# Palkeoramix decompiler. 
+
+const getCurrentBlockTimestamp = block.timestamp
+const getLastBlockHash = block.hash(block.number - 1)
+const getChainId = chainid
+const getBasefee = block.basefee
+const getBlockNumber = block.number
+const getCurrentBlockDifficulty = block.difficulty
+const getCurrentBlockGasLimit = block.gas_limit
+const getCurrentBlockCoinbase = block.coinbase
+
+#
+#  Regular functions
+#
+
+def _fallback(?) payable: # default function
+  revert
+
+def getBlockHash(uint256 blockNumber): # not payable
+  require calldata.size - 4 >=′ 32
+  return block.hash(blockNumber)
+
+def getEthBalance(address _addr): # not payable
+  require calldata.size - 4 >=′ 32
+  require _addr == _addr
+  return eth.balance(_addr)
+
+def aggregate(tuple[] calls) payable: 
+  require calldata.size - 4 >=′ 32
+  require calls <= LOCK8605463013()
+  require calls + 35 <′ calldata.size
+  require calls.length <= LOCK8605463013()
+  require calls + (32 * calls.length) + 36 <= calldata.size
+  mem[96] = calls.length
+  mem[64] = (32 * calls.length) + 128
+  if calls.length:
+      mem[128] = 96
+      s = 128
+      idx = calls.length
+      while idx - 1:
+          mem[s + 32] = 96
+          s = s + 32
+          idx = idx - 1
+          continue 
+  idx = 0
+  s = calldata.size
+  while idx < calls.length:
+      require cd[(calls + (32 * idx) + 36)] <′ calldata.size + -calls - 99
+      require cd[(cd[(calls + (32 * idx) + 36)] + calls + 36)] == address(cd[(cd[(calls + (32 * idx) + 36)] + calls + 36)])
+      require cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] <′ calldata.size + -cd[(calls + (32 * idx) + 36)] + -calls - 67
+      require cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)] <= LOCK8605463013()
+      require cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 68 <=′ calldata.size - cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)]
+      mem[mem[64] len cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)]] = call.data[cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 68 len cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)]]
+      mem[cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)] + mem[64]] = 0
+      call address(cd[(cd[(calls + (32 * idx) + 36)] + calls + 36)]) with:
+           gas gas_remaining wei
+          args call.data[cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 68 len cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)]]
+      if not return_data.size:
+          _35 = 96
+      else:
+          _34 = mem[64]
+          mem[64] = mem[64] + ceil32(return_data.size) + 1
+          mem[_34] = return_data.size
+          mem[_34 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          _35 = _34
+      if idx >= mem[96]:
+          revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+      mem[(32 * idx) + 128] = _35
+      if not ext_call.success:
+          revert with 0, 'Multicall3: call failed'
+      idx = idx + 1
+      s = cd[(calls + (32 * idx) + 36)] + calls + 36
+      continue 
+  _22 = mem[64]
+  mem[mem[64]] = block.number
+  mem[mem[64] + 32] = 64
+  _23 = mem[96]
+  mem[mem[64] + 64] = mem[96]
+  idx = 0
+  s = 128
+  t = mem[64] + 96
+  u = mem[64] + (32 * mem[96]) + 96
+  while idx < _23:
+      mem[t] = u + -_22 - 96
+      _30 = mem[s]
+      _32 = mem[mem[s]]
+      mem[u] = mem[mem[s]]
+      v = 0
+      while v < _32:
+          mem[v + u + 32] = mem[_30 + v + 32]
+          v = v + 32
+          continue 
+      if ceil32(_32) > _32:
+          mem[u + _32 + 32] = 0
+      idx = idx + 1
+      s = s + 32
+      t = t + 32
+      u = ceil32(_32) + u + 32
+      continue 
+  return memory
+    from mem[64]
+     len u - mem[64]
+
+def tryAggregate(bool requireSuccess, tuple[] calls) payable: 
+  require calldata.size - 4 >=′ 64
+  require requireSuccess == requireSuccess
+  require calls <= LOCK8605463013()
+  require calls + 35 <′ calldata.size
+  require calls.length <= LOCK8605463013()
+  require calls + (32 * calls.length) + 36 <= calldata.size
+  mem[96] = calls.length
+  mem[64] = (32 * calls.length) + 128
+  if calls.length:
+      mem[64] = (32 * calls.length) + 192
+      mem[(32 * calls.length) + 128] = 0
+      mem[(32 * calls.length) + 160] = 96
+      mem[128] = (32 * calls.length) + 128
+      s = 128
+      idx = calls.length
+      while idx - 1:
+          mem[64] = mem[64] + 64
+          mem[(32 * calls.length) + 128] = 0
+          mem[(32 * calls.length) + 160] = 96
+          mem[s + 32] = (32 * calls.length) + 128
+          s = s + 32
+          idx = idx - 1
+          continue 
+  idx = 0
+  s = calldata.size
+  while idx < calls.length:
+      if idx >= mem[96]:
+          revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+      _32 = mem[(32 * idx) + 128]
+      require cd[(calls + (32 * idx) + 36)] <′ calldata.size + -calls - 99
+      require cd[(cd[(calls + (32 * idx) + 36)] + calls + 36)] == address(cd[(cd[(calls + (32 * idx) + 36)] + calls + 36)])
+      require cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] <′ calldata.size + -cd[(calls + (32 * idx) + 36)] + -calls - 67
+      require cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)] <= LOCK8605463013()
+      require cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 68 <=′ calldata.size - cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)]
+      mem[mem[64] len cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)]] = call.data[cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 68 len cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)]]
+      mem[cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)] + mem[64]] = 0
+      call address(cd[(cd[(calls + (32 * idx) + 36)] + calls + 36)]) with:
+           gas gas_remaining wei
+          args call.data[cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 68 len cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)]]
+      if not return_data.size:
+          _49 = 96
+      else:
+          _48 = mem[64]
+          mem[64] = mem[64] + ceil32(return_data.size) + 1
+          mem[_48] = return_data.size
+          mem[_48 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          _49 = _48
+      mem[_32 + 32] = _49
+      mem[_32] = bool(ext_call.success)
+      idx = idx + 1
+      s = cd[(calls + (32 * idx) + 36)] + calls + 36
+      continue 
+  _31 = mem[64]
+  mem[mem[64]] = 32
+  _33 = mem[96]
+  mem[mem[64] + 32] = mem[96]
+  idx = 0
+  s = 128
+  t = mem[64] + (32 * mem[96]) + 64
+  u = mem[64] + 64
+  while idx < _33:
+      mem[u] = t + -_31 - 64
+      _42 = mem[s]
+      mem[t] = bool(mem[mem[s]])
+      _44 = mem[_42 + 32]
+      mem[t + 32] = 64
+      _45 = mem[_44]
+      mem[t + 64] = mem[_44]
+      v = 0
+      while v < _45:
+          mem[v + t + 96] = mem[_44 + v + 32]
+          v = v + 32
+          continue 
+      if ceil32(_45) > _45:
+          mem[t + _45 + 96] = 0
+      idx = idx + 1
+      s = s + 32
+      t = ceil32(_45) + t + 96
+      u = u + 32
+      continue 
+  return memory
+    from mem[64]
+     len t - mem[64]
+
+def aggregate3(tuple[] calls) payable: 
+  require calldata.size - 4 >=′ 32
+  require calls <= LOCK8605463013()
+  require calls + 35 <′ calldata.size
+  require calls.length <= LOCK8605463013()
+  require calls + (32 * calls.length) + 36 <= calldata.size
+  mem[96] = calls.length
+  mem[64] = (32 * calls.length) + 128
+  if calls.length:
+      mem[64] = (32 * calls.length) + 192
+      mem[(32 * calls.length) + 128] = 0
+      mem[(32 * calls.length) + 160] = 96
+      mem[128] = (32 * calls.length) + 128
+      s = 128
+      idx = calls.length
+      while idx - 1:
+          mem[64] = mem[64] + 64
+          mem[(32 * calls.length) + 128] = 0
+          mem[(32 * calls.length) + 160] = 96
+          mem[s + 32] = (32 * calls.length) + 128
+          s = s + 32
+          idx = idx - 1
+          continue 
+  idx = 0
+  s = calldata.size
+  while idx < calls.length:
+      if idx >= mem[96]:
+          revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+      _31 = mem[(32 * idx) + 128]
+      require cd[(calls + (32 * idx) + 36)] <′ calldata.size + -calls - 131
+      require cd[(cd[(calls + (32 * idx) + 36)] + calls + 36)] == address(cd[(cd[(calls + (32 * idx) + 36)] + calls + 36)])
+      require cd[(cd[(calls + (32 * idx) + 36)] + calls + 100)] <′ calldata.size + -cd[(calls + (32 * idx) + 36)] + -calls - 67
+      require cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 100)] + 36)] <= LOCK8605463013()
+      require cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 100)] + 68 <=′ calldata.size - cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 100)] + 36)]
+      mem[mem[64] len cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 100)] + 36)]] = call.data[cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 100)] + 68 len cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 100)] + 36)]]
+      mem[cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 100)] + 36)] + mem[64]] = 0
+      call address(cd[(cd[(calls + (32 * idx) + 36)] + calls + 36)]) with:
+           gas gas_remaining wei
+          args call.data[cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 100)] + 68 len cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 100)] + 36)]]
+      if not return_data.size:
+          _48 = 96
+      else:
+          _47 = mem[64]
+          mem[64] = mem[64] + ceil32(return_data.size) + 1
+          mem[_47] = return_data.size
+          mem[_47 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          _48 = _47
+      mem[_31 + 32] = _48
+      mem[_31] = bool(ext_call.success)
+      if not cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] and not ext_call.success:
+          revert with 0, 'Multicall3: call failed'
+      idx = idx + 1
+      s = cd[(calls + (32 * idx) + 36)] + calls + 36
+      continue 
+  _30 = mem[64]
+  mem[mem[64]] = 32
+  _32 = mem[96]
+  mem[mem[64] + 32] = mem[96]
+  idx = 0
+  s = 128
+  t = mem[64] + (32 * mem[96]) + 64
+  u = mem[64] + 64
+  while idx < _32:
+      mem[u] = t + -_30 - 64
+      _41 = mem[s]
+      mem[t] = bool(mem[mem[s]])
+      _43 = mem[_41 + 32]
+      mem[t + 32] = 64
+      _44 = mem[_43]
+      mem[t + 64] = mem[_43]
+      v = 0
+      while v < _44:
+          mem[v + t + 96] = mem[_43 + v + 32]
+          v = v + 32
+          continue 
+      if ceil32(_44) > _44:
+          mem[t + _44 + 96] = 0
+      idx = idx + 1
+      s = s + 32
+      t = ceil32(_44) + t + 96
+      u = u + 32
+      continue 
+  return memory
+    from mem[64]
+     len t - mem[64]
+
+def blockAndAggregate(tuple[] calls) payable: 
+  require calldata.size - 4 >=′ 32
+  require calls <= LOCK8605463013()
+  require calls + 35 <′ calldata.size
+  require calls.length <= LOCK8605463013()
+  require calls + (32 * calls.length) + 36 <= calldata.size
+  mem[96] = calls.length
+  mem[64] = (32 * calls.length) + 128
+  if calls.length:
+      mem[64] = (32 * calls.length) + 192
+      mem[(32 * calls.length) + 128] = 0
+      mem[(32 * calls.length) + 160] = 96
+      mem[128] = (32 * calls.length) + 128
+      s = 128
+      idx = calls.length
+      while idx - 1:
+          mem[64] = mem[64] + 64
+          mem[(32 * calls.length) + 128] = 0
+          mem[(32 * calls.length) + 160] = 96
+          mem[s + 32] = (32 * calls.length) + 128
+          s = s + 32
+          idx = idx - 1
+          continue 
+  idx = 0
+  s = calldata.size
+  while idx < calls.length:
+      if idx >= mem[96]:
+          revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+      _31 = mem[(32 * idx) + 128]
+      require cd[(calls + (32 * idx) + 36)] <′ calldata.size + -calls - 99
+      require cd[(cd[(calls + (32 * idx) + 36)] + calls + 36)] == address(cd[(cd[(calls + (32 * idx) + 36)] + calls + 36)])
+      require cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] <′ calldata.size + -cd[(calls + (32 * idx) + 36)] + -calls - 67
+      require cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)] <= LOCK8605463013()
+      require cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 68 <=′ calldata.size - cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)]
+      mem[mem[64] len cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)]] = call.data[cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 68 len cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)]]
+      mem[cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)] + mem[64]] = 0
+      call address(cd[(cd[(calls + (32 * idx) + 36)] + calls + 36)]) with:
+           gas gas_remaining wei
+          args call.data[cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 68 len cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)]]
+      if not return_data.size:
+          _47 = 96
+      else:
+          _46 = mem[64]
+          mem[64] = mem[64] + ceil32(return_data.size) + 1
+          mem[_46] = return_data.size
+          mem[_46 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          _47 = _46
+      mem[_31 + 32] = _47
+      mem[_31] = bool(ext_call.success)
+      if not ext_call.success:
+          revert with 0, 'Multicall3: call failed'
+      idx = idx + 1
+      s = cd[(calls + (32 * idx) + 36)] + calls + 36
+      continue 
+  _32 = mem[64]
+  mem[mem[64]] = block.number
+  mem[mem[64] + 32] = block.hash(block.number)
+  mem[mem[64] + 64] = 96
+  _33 = mem[96]
+  mem[mem[64] + 96] = mem[96]
+  idx = 0
+  s = 128
+  t = mem[64] + (32 * mem[96]) + 128
+  u = mem[64] + 128
+  while idx < _33:
+      mem[u] = t + -_32 - 128
+      _43 = mem[s]
+      mem[t] = bool(mem[mem[s]])
+      _45 = mem[_43 + 32]
+      mem[t + 32] = 64
+      _48 = mem[_45]
+      mem[t + 64] = mem[_45]
+      v = 0
+      while v < _48:
+          mem[v + t + 96] = mem[_45 + v + 32]
+          v = v + 32
+          continue 
+      if ceil32(_48) > _48:
+          mem[t + _48 + 96] = 0
+      idx = idx + 1
+      s = s + 32
+      t = ceil32(_48) + t + 96
+      u = u + 32
+      continue 
+  return memory
+    from mem[64]
+     len t - mem[64]
+
+def tryBlockAndAggregate(bool requireSuccess, tuple[] calls) payable: 
+  require calldata.size - 4 >=′ 64
+  require requireSuccess == requireSuccess
+  require calls <= LOCK8605463013()
+  require calls + 35 <′ calldata.size
+  require calls.length <= LOCK8605463013()
+  require calls + (32 * calls.length) + 36 <= calldata.size
+  mem[96] = calls.length
+  mem[64] = (32 * calls.length) + 128
+  if calls.length:
+      mem[64] = (32 * calls.length) + 192
+      mem[(32 * calls.length) + 128] = 0
+      mem[(32 * calls.length) + 160] = 96
+      mem[128] = (32 * calls.length) + 128
+      s = 128
+      idx = calls.length
+      while idx - 1:
+          mem[64] = mem[64] + 64
+          mem[(32 * calls.length) + 128] = 0
+          mem[(32 * calls.length) + 160] = 96
+          mem[s + 32] = (32 * calls.length) + 128
+          s = s + 32
+          idx = idx - 1
+          continue 
+  idx = 0
+  s = calldata.size
+  while idx < calls.length:
+      if idx >= mem[96]:
+          revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+      _30 = mem[(32 * idx) + 128]
+      require cd[(calls + (32 * idx) + 36)] <′ calldata.size + -calls - 99
+      require cd[(cd[(calls + (32 * idx) + 36)] + calls + 36)] == address(cd[(cd[(calls + (32 * idx) + 36)] + calls + 36)])
+      require cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] <′ calldata.size + -cd[(calls + (32 * idx) + 36)] + -calls - 67
+      require cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)] <= LOCK8605463013()
+      require cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 68 <=′ calldata.size - cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)]
+      mem[mem[64] len cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)]] = call.data[cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 68 len cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)]]
+      mem[cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)] + mem[64]] = 0
+      call address(cd[(cd[(calls + (32 * idx) + 36)] + calls + 36)]) with:
+           gas gas_remaining wei
+          args call.data[cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 68 len cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] + 36)]]
+      if not return_data.size:
+          _47 = 96
+      else:
+          _46 = mem[64]
+          mem[64] = mem[64] + ceil32(return_data.size) + 1
+          mem[_46] = return_data.size
+          mem[_46 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          _47 = _46
+      mem[_30 + 32] = _47
+      mem[_30] = bool(ext_call.success)
+      idx = idx + 1
+      s = cd[(calls + (32 * idx) + 36)] + calls + 36
+      continue 
+  _31 = mem[64]
+  mem[mem[64]] = block.number
+  mem[mem[64] + 32] = block.hash(block.number)
+  mem[mem[64] + 64] = 96
+  _32 = mem[96]
+  mem[mem[64] + 96] = mem[96]
+  idx = 0
+  s = 128
+  t = mem[64] + (32 * mem[96]) + 128
+  u = mem[64] + 128
+  while idx < _32:
+      mem[u] = t + -_31 - 128
+      _41 = mem[s]
+      mem[t] = bool(mem[mem[s]])
+      _43 = mem[_41 + 32]
+      mem[t + 32] = 64
+      _45 = mem[_43]
+      mem[t + 64] = mem[_43]
+      v = 0
+      while v < _45:
+          mem[v + t + 96] = mem[_43 + v + 32]
+          v = v + 32
+          continue 
+      if ceil32(_45) > _45:
+          mem[t + _45 + 96] = 0
+      idx = idx + 1
+      s = s + 32
+      t = ceil32(_45) + t + 96
+      u = u + 32
+      continue 
+  return memory
+    from mem[64]
+     len t - mem[64]
+
+def aggregate3Value(tuple[] calls) payable: 
+  require calldata.size - 4 >=′ 32
+  require calls <= LOCK8605463013()
+  require calls + 35 <′ calldata.size
+  require calls.length <= LOCK8605463013()
+  require calls + (32 * calls.length) + 36 <= calldata.size
+  mem[96] = calls.length
+  mem[64] = (32 * calls.length) + 128
+  if calls.length:
+      mem[64] = (32 * calls.length) + 192
+      mem[(32 * calls.length) + 128] = 0
+      mem[(32 * calls.length) + 160] = 96
+      mem[128] = (32 * calls.length) + 128
+      s = 128
+      idx = calls.length
+      while idx - 1:
+          mem[64] = mem[64] + 64
+          mem[(32 * calls.length) + 128] = 0
+          mem[(32 * calls.length) + 160] = 96
+          mem[s + 32] = (32 * calls.length) + 128
+          s = s + 32
+          idx = idx - 1
+          continue 
+  idx = 0
+  s = calldata.size
+  s = 0
+  while idx < calls.length:
+      if idx >= mem[96]:
+          revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+      _33 = mem[(32 * idx) + 128]
+      require cd[(calls + (32 * idx) + 36)] <′ calldata.size + -calls - 163
+      require cd[(cd[(calls + (32 * idx) + 36)] + calls + 36)] == address(cd[(cd[(calls + (32 * idx) + 36)] + calls + 36)])
+      require cd[(cd[(calls + (32 * idx) + 36)] + calls + 132)] <′ calldata.size + -cd[(calls + (32 * idx) + 36)] + -calls - 67
+      require cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 132)] + 36)] <= LOCK8605463013()
+      require cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 132)] + 68 <=′ calldata.size - cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 132)] + 36)]
+      mem[mem[64] len cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 132)] + 36)]] = call.data[cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 132)] + 68 len cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 132)] + 36)]]
+      mem[cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 132)] + 36)] + mem[64]] = 0
+      call address(cd[(cd[(calls + (32 * idx) + 36)] + calls + 36)]) with:
+         value cd[(cd[(calls + (32 * idx) + 36)] + calls + 100)] wei
+           gas gas_remaining wei
+          args call.data[cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 132)] + 68 len cd[(cd[(calls + (32 * idx) + 36)] + calls + cd[(cd[(calls + (32 * idx) + 36)] + calls + 132)] + 36)]]
+      if not return_data.size:
+          _51 = 96
+      else:
+          _50 = mem[64]
+          mem[64] = mem[64] + ceil32(return_data.size) + 1
+          mem[_50] = return_data.size
+          mem[_50 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          _51 = _50
+      mem[_33 + 32] = _51
+      mem[_33] = bool(ext_call.success)
+      if not cd[(cd[(calls + (32 * idx) + 36)] + calls + 68)] and not ext_call.success:
+          revert with 0, 'Multicall3: call failed', mem[100]
+      idx = idx + 1
+      s = cd[(calls + (32 * idx) + 36)] + calls + 36
+      s = cd[(cd[(calls + (32 * idx) + 36)] + calls + 100)] + s
+      continue 
+  if s != call.value:
+      revert with 0, 'Multicall3: value mismatch'
+  _34 = mem[64]
+  mem[mem[64]] = 32
+  _36 = mem[96]
+  mem[mem[64] + 32] = mem[96]
+  idx = 0
+  s = 128
+  t = mem[64] + (32 * mem[96]) + 64
+  u = mem[64] + 64
+  while idx < _36:
+      mem[u] = t + -_34 - 64
+      _45 = mem[s]
+      mem[t] = bool(mem[mem[s]])
+      _47 = mem[_45 + 32]
+      mem[t + 32] = 64
+      _49 = mem[_47]
+      mem[t + 64] = mem[_47]
+      v = 0
+      while v < _49:
+          mem[v + t + 96] = mem[_47 + v + 32]
+          v = v + 32
+          continue 
+      if ceil32(_49) > _49:
+          mem[t + _49 + 96] = 0
+      idx = idx + 1
+      s = s + 32
+      t = ceil32(_49) + t + 96
+      u = u + 32
+      continue 
+  return memory
+    from mem[64]
+     len t - mem[64]
+
+

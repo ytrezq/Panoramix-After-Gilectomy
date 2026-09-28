@@ -1,0 +1,1144 @@
+# Palkeoramix decompiler. 
+
+def storage:
+  nonceBitmap is mapping of uint256 at storage 0
+  stor1 is mapping of struct at storage 1
+  stor99 is mapping of struct at storage 99
+
+def nonceBitmap(address _param1, uint256 _param2): # not payable
+  require calldata.size - 4 >=′ 64
+  require not Mask(96, 160, _param1)
+  return nonceBitmap[address(_param1)][_param2]
+
+#
+#  Regular functions
+#
+
+def _fallback(?) payable: # default function
+  revert
+
+def DOMAIN_SEPARATOR(): # not payable
+  require calldata.size - 4 >=′ 0
+  if -chainid + 1:
+      return sha3(0x8cad95687ba82c2ce50e74f7b754645e5117c3a5bec8151c0726d5857980a866, 0x9ac997416e8ff9d2ff6bebeb7149f65cdae5e32e2b90440b566bb3044041d36a, chainid, this.address)
+  return 0x866a5aba21966af95d6c7ab78eb2b2fc913915c28be3b9aa07cc04ff903e3f28
+
+def invalidateUnorderedNonces(uint256 wordPos, uint256 mask): # not payable
+  require calldata.size - 4 >=′ 64
+  nonceBitmap[caller][wordPos] = nonceBitmap[caller][wordPos] or mask
+  log UnorderedNonceInvalidation(
+        address owner=wordPos,
+        uint256 word=mask,
+        uint256 mask=caller)
+  return 0
+
+def allowance(address _token, address owner, address spender): # not payable
+  require calldata.size - 4 >=′ 96
+  require not Mask(96, 160, _token)
+  require not Mask(96, 160, owner)
+  require not Mask(96, 160, spender)
+  return address(stor1[address(_token)][address(owner)][address(spender)].field_0), 
+         0,
+         uint256(stor1[address(_token)][address(owner)][address(spender)].field_0) % unknown10000000() >> 208
+
+def approve(address token, address spender, uint160 amount, uint48 expiration): # not payable
+  require calldata.size - 4 >=′ 128
+  require not Mask(96, 160, token)
+  require not Mask(96, 160, spender)
+  require not Mask(96, 160, amount)
+  require not Mask(208, 48, expiration)
+  address(stor1[caller][address(token)][address(spender)].field_0) = address(amount)
+  if expiration % unknown10000000():
+      stor1[caller][address(token)][address(spender)].field_160 % unknown10000000() = expiration % unknown10000000()
+  else:
+      stor1[caller][address(token)][address(spender)].field_160 % unknown10000000() = block.timestamp % unknown10000000()
+  log Approval(
+        address owner=address(amount),
+        address token=expiration << 208,
+        address spender=caller,
+        uint160 amount=token,
+        uint48 expiration=spender)
+  return 0
+
+def invalidateNonces(address token, address spender, uint48 newNonce): # not payable
+  require calldata.size - 4 >=′ 96
+  require not Mask(96, 160, token)
+  require not Mask(96, 160, spender)
+  require not Mask(208, 48, newNonce)
+  if newNonce % unknown10000000() <= uint256(stor1[caller][address(token)][address(spender)].field_0) % unknown10000000() >> 208:
+      revert with InvalidNonce()
+  if newNonce - (uint256(stor1[caller][address(token)][address(spender)].field_0) % unknown10000000() >> 208) % unknown10000000() > 65535:
+      revert with ExcessiveInvalidation()
+  stor1[caller][address(token)][address(spender)].field_208 % unknown10000000() = newNonce % unknown10000000()
+  log NonceInvalidation(
+        address owner=newNonce % unknown10000000(),
+        address token=stor1[caller][address(token)][address(spender)].field_0 % unknown10000000(),
+        address spender=caller,
+        uint48 newNonce=token,
+        uint48 oldNonce=spender)
+  return 0
+
+def lockdown(tuple[] approvals): # not payable
+  require calldata.size - 4 >=′ 32
+  require approvals <= LOCK8605463013()
+  require approvals + 35 <′ calldata.size
+  require approvals.length <= LOCK8605463013()
+  require (64 * approvals.length) + approvals + 36 <= calldata.size
+  idx = 0
+  while idx < approvals.length:
+      require not Mask(96, 160, cd[((64 * idx) + approvals + 36)])
+      require not Mask(96, 160, cd[((64 * idx) + approvals + 68)])
+      mem[0] = address(cd[((64 * idx) + approvals + 68)])
+      mem[32] = sha3(address(cd[((64 * idx) + approvals + 36)]), sha3(caller, 1))
+      address(stor1[caller][address(cd[((64 * idx) + approvals + 36)])][address(cd[((64 * idx) + approvals + 68)])].field_0) = 0
+      mem[96] = address(cd[((64 * idx) + approvals + 36)])
+      mem[128] = address(cd[((64 * idx) + approvals + 68)])
+      log Lockdown(
+            address owner=address(cd[((64 * idx) + approvals + 36)]),
+            address token=address(cd[((64 * idx) + approvals + 68)]),
+            address spender=caller)
+      idx = idx + 1
+      continue 
+  return 0
+
+def transferFrom(address from, address to, uint160 amount, address token): # not payable
+  require calldata.size - 4 >=′ 128
+  require not Mask(96, 160, from)
+  require not Mask(96, 160, to)
+  require not Mask(96, 160, amount)
+  require not Mask(96, 160, token)
+  if block.timestamp > 0:
+      revert with AllowanceExpired(uint256 deadline), 0
+  if address(stor1[address(from)][address(token)][caller].field_0) - 0xffffffffffffffffffffffffffffffffffffffff:
+      if address(amount) > address(stor1[address(from)][address(token)][caller].field_0):
+          revert with InsufficientAllowance(uint256 amount), address(stor1[address(from)][address(token)][caller].field_0)
+      address(stor1[address(from)][address(token)][caller].field_0) = address(address(stor1[address(from)][address(token)][caller].field_0) - amount)
+  call token.transferFrom(address sender, address recipient, uint256 amount) with:
+       gas gas_remaining wei
+      args from, to, address(amount)
+  if ext_call.return_data[0] != 1 or return_data.size <= 31 and return_data.size or not ext_call.success:
+      revert with Error(string reason), 'TRANSFER_FROM_FAILED'
+  else:
+      return 0
+
+def transferFrom(tuple[] transferDetails) payable: 
+  mem[64] = 96
+  require not call.value
+  require calldata.size - 4 >=′ 32
+  require transferDetails <= LOCK8605463013()
+  require transferDetails + 35 <′ calldata.size
+  require transferDetails.length <= LOCK8605463013()
+  require transferDetails + (transferDetails.length << 7) + 36 <= calldata.size
+  idx = 0
+  while idx < transferDetails.length:
+      require calldata.size + -transferDetails + -(idx << 7) - 36 >=′ 128
+      _13 = mem[64]
+      if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = mem[64] + 128
+      require not Mask(96, 160, cd[(transferDetails + (idx << 7) + 36)])
+      mem[_13] = cd[(transferDetails + (idx << 7) + 36)]
+      require not Mask(96, 160, cd[(transferDetails + (idx << 7) + 68)])
+      mem[_13 + 32] = cd[(transferDetails + (idx << 7) + 68)]
+      require not Mask(96, 160, cd[(transferDetails + (idx << 7) + 100)])
+      mem[_13 + 64] = cd[(transferDetails + (idx << 7) + 100)]
+      require not Mask(96, 160, cd[(transferDetails + (idx << 7) + 132)])
+      mem[_13 + 96] = cd[(transferDetails + (idx << 7) + 132)]
+      mem[32] = sha3(address(cd[(transferDetails + (idx << 7) + 132)]), sha3(address(cd[(transferDetails + (idx << 7) + 36)]), 1))
+      if address(stor1[address(cd[(transferDetails + (idx << 7) + 36)])][address(cd[(transferDetails + (idx << 7) + 132)])][caller].field_0) - 0xffffffffffffffffffffffffffffffffffffffff:
+          if address(cd[(transferDetails + (idx << 7) + 100)]) > address(stor1[address(cd[(transferDetails + (idx << 7) + 36)])][address(cd[(transferDetails + (idx << 7) + 132)])][caller].field_0):
+              revert with InsufficientAllowance(uint256 amount), 
+                          address(stor1[address(cd[(transferDetails + (idx << 7) + 36)])][address(cd[(transferDetails + (idx << 7) + 132)])][caller].field_0)
+          address(stor1[address(cd[(transferDetails + (idx << 7) + 36)])][address(cd[(transferDetails + (idx << 7) + 132)])][caller].field_0) = address(address(stor1[address(cd[(transferDetails + (idx << 7) + 36)])][address(cd[(transferDetails + (idx << 7) + 132)])][caller].field_0) - address(cd[(transferDetails + (idx << 7) + 100)]))
+      mem[mem[64]] = 0x23b872dd00000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 4] = address(cd[(transferDetails + (idx << 7) + 36)])
+      mem[mem[64] + 36] = address(cd[(transferDetails + (idx << 7) + 68)])
+      mem[mem[64] + 68] = address(cd[(transferDetails + (idx << 7) + 100)])
+      call address(cd[(transferDetails + (idx << 7) + 132)]).transferFrom(address sender, address recipient, uint256 amount) with:
+           gas gas_remaining wei
+          args address(cd[(transferDetails + (idx << 7) + 36)]), address(cd[(transferDetails + (idx << 7) + 68)]), address(cd[(transferDetails + (idx << 7) + 100)])
+      mem[0] = ext_call.return_data[0]
+      if ext_call.return_data[0] != 1 or return_data.size <= 31 and return_data.size or not ext_call.success:
+          revert with Error(string reason), 'TRANSFER_FROM_FAILED'
+      idx = idx + 1
+      continue 
+  return 0
+
+def permitTransferFrom(tuple permit, tuple transferDetails, address owner, bytes signature): # not payable
+  require calldata.size - 4 >=′ 256
+  require calldata.size - 4 >=′ 128
+  require calldata.size - 4 >=′ 64
+  require not Mask(96, 160, permit)
+  mem[192] = permit
+  mem[224] = transferDetails
+  mem[96] = 192
+  mem[128] = owner
+  mem[160] = signature
+  require calldata.size - 132 >=′ 64
+  require not Mask(96, 160, cd[196])
+  require cd[228] <= LOCK8605463013()
+  require cd[228] + 35 <′ calldata.size
+  require ('cd', 228).length <= LOCK8605463013()
+  require cd[228] + ('cd', 228).length + 36 <= calldata.size
+  mem[288] = 0x618358ac3db8dc274f0cd8829da7e234bd48cd73c4a740aede1adec9846d06a1
+  mem[320] = address(permit)
+  mem[352] = transferDetails
+  mem[256] = 96
+  mem[416] = 0x939c21a48a8dbe3a9a2404a1d46691e4d39f6583d6ec6b35714604c986d80106
+  mem[448] = sha3(0x618358ac3db8dc274f0cd8829da7e234bd48cd73c4a740aede1adec9846d06a1, address(permit), transferDetails)
+  mem[480] = caller
+  mem[512] = owner
+  mem[544] = signature
+  mem[384] = 160
+  mem[64] = 576
+  if block.timestamp > signature:
+      revert with SignatureExpired(uint256 signatureDeadline), signature
+  if cd[164] > transferDetails:
+      revert with InvalidAmount(uint256 amount), transferDetails
+  mem[0] = Mask(248, 0, owner) * 0.00390625
+  mem[32] = sha3(address(cd[196]), 0)
+  nonceBitmap[address(cd[196])][Mask(256, -8, owner) << 8] = nonceBitmap[address(cd[196])][Mask(256, -8, owner) << 8] xor 1 << uint8(owner)
+  if not nonceBitmap[address(cd[196])][Mask(256, -8, owner) << 8] xor 1 << uint8(owner) or not 1:
+      revert with InvalidNonce()
+  if -chainid + 1:
+      mem[608] = 0x8cad95687ba82c2ce50e74f7b754645e5117c3a5bec8151c0726d5857980a866
+      mem[640] = 0x9ac997416e8ff9d2ff6bebeb7149f65cdae5e32e2b90440b566bb3044041d36a
+      mem[672] = chainid
+      mem[704] = this.address
+      mem[576] = 128
+      mem[64] = 736
+      _27 = sha3(0x8cad95687ba82c2ce50e74f7b754645e5117c3a5bec8151c0726d5857980a866, 0x9ac997416e8ff9d2ff6bebeb7149f65cdae5e32e2b90440b566bb3044041d36a, chainid, this.address)
+  else:
+      _27 = 0x866a5aba21966af95d6c7ab78eb2b2fc913915c28be3b9aa07cc04ff903e3f28
+  _28 = mem[64]
+  mem[mem[64] + 32] = 0x1901000000000000000000000000000000000000000000000000000000000000
+  mem[mem[64] + 34] = _27
+  mem[mem[64] + 66] = sha3(0x939c21a48a8dbe3a9a2404a1d46691e4d39f6583d6ec6b35714604c986d80106, sha3(0x618358ac3db8dc274f0cd8829da7e234bd48cd73c4a740aede1adec9846d06a1, address(permit), transferDetails), caller, owner, signature)
+  mem[mem[64]] = 66
+  if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = mem[64] + 128
+  if ext_code.size(cd[196]):
+      mem[_28 + 132] = sha3(mem[_28 + 32 len 66])
+      mem[_28 + 164] = 64
+      mem[_28 + 196] = ('cd', 228).length
+      mem[_28 + 228 len ('cd', 228).length] = call.data[cd[228] + 36 len ('cd', 228).length]
+      static call address(cd[196]).isValidSignature(bytes32 _param1, bytes _param2) with:
+              gas gas_remaining wei
+             args sha3(mem[_28 + 32 len 66]), Array(len=('cd', 228).length, data=call.data[cd[228] + 36 len ('cd', 228).length])
+      mem[_28 + 128] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _34 = return_data.size
+      else:
+          _34 = 32
+      if _28 + ceil32(_34) + 128 > LOCK8605463013() or ceil32(_34) < 0:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      require _34 >=′ 32
+      require not ext_call.return_data[0] - Mask(32, 224, ext_call.return_data[0])
+      if Mask(32, 224, ext_call.return_data[0]) - 0x1626ba7e00000000000000000000000000000000000000000000000000000000:
+          revert with InvalidContractSignature()
+  else:
+      if ('cd', 228).length - 65:
+          if ('cd', 228).length - 64:
+              revert with InvalidSignatureLength()
+          require ('cd', 228).length >=′ 64
+          if (bool(('cd', 228)[1]) >> 255) + 27 > 255:
+              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+          _36 = uint255(('cd', 228)[1])
+          _37 = (bool(('cd', 228)[1]) >> 255) + 27
+      else:
+          require ('cd', 228).length >=′ 64
+          if 64 >= ('cd', 228).length:
+              revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+          _36 = ('cd', 228)[1]
+          _37 = uint8(('cd', 228)[2]) >> 248
+      mem[_28 + 128] = sha3(mem[_28 + 32 len 66])
+      mem[_28 + 160] = uint8(_37)
+      mem[_28 + 192] = ('cd', 228)[0]
+      mem[_28 + 224] = _36
+      signer = erecover(sha3(mem[_28 + 32 len 66]), _37 << 248, ('cd', 228)[0], _36) # precompiled
+      if not erecover.result:
+          revert with ext_call.return_data[0 len return_data.size]
+      if not address(signer):
+          revert with InvalidSignature()
+      if address(cd[196]) - address(signer):
+          revert with InvalidSigner()
+  require not Mask(96, 160, cd[132])
+  call mem[204 len 20].transferFrom(address sender, address recipient, uint256 amount) with:
+       gas gas_remaining wei
+      args cd[196], cd[132], cd[164]
+  if ext_call.return_data[0] != 1 or return_data.size <= 31 and return_data.size or not ext_call.success:
+      revert with Error(string reason), 'TRANSFER_FROM_FAILED'
+  else:
+      return 0
+
+def permit(address owner, tuple permitSingle, bytes signature): # not payable
+  require calldata.size - 4 >=′ 256
+  require not Mask(96, 160, owner)
+  require calldata.size - 36 >=′ 192
+  require calldata.size - 36 >=′ 128
+  require not Mask(96, 160, permitSingle)
+  mem[192] = permitSingle
+  require not Mask(96, 160, signature)
+  mem[224] = signature
+  require not Mask(208, 48, cd[100])
+  mem[256] = cd[100]
+  require not Mask(208, 48, cd[132])
+  mem[288] = cd[132]
+  mem[96] = 192
+  require not Mask(96, 160, cd[164])
+  mem[128] = cd[164]
+  mem[160] = cd[196]
+  require cd[228] <= LOCK8605463013()
+  require cd[228] + 35 <′ calldata.size
+  require ('cd', 228).length <= LOCK8605463013()
+  require cd[228] + ('cd', 228).length + 36 <= calldata.size
+  if block.timestamp > cd[196]:
+      revert with SignatureExpired(uint256 signatureDeadline), cd[196]
+  mem[352] = 0x65626cad6cb96493bf6f5ebea28756c966f023ab9e8a83a7101849d5573b3678
+  mem[384] = address(permitSingle)
+  mem[416] = address(signature)
+  mem[448] = cd[100] % unknown10000000()
+  mem[480] = cd[132] % unknown10000000()
+  mem[320] = 160
+  mem[544] = 0xf3841cd1ff0085026a6327b620b67997ce40f282c88a8e905a7a5626e310f3d0
+  mem[576] = sha3(0x65626cad6cb96493bf6f5ebea28756c966f023ab9e8a83a7101849d5573b3678, address(permitSingle), address(signature), cd[100] << 208, cd[132] % unknown10000000())
+  mem[608] = address(cd[164])
+  mem[640] = cd[196]
+  mem[512] = 128
+  mem[64] = 672
+  if -chainid + 1:
+      mem[704] = 0x8cad95687ba82c2ce50e74f7b754645e5117c3a5bec8151c0726d5857980a866
+      mem[736] = 0x9ac997416e8ff9d2ff6bebeb7149f65cdae5e32e2b90440b566bb3044041d36a
+      mem[768] = chainid
+      mem[800] = this.address
+      mem[672] = 128
+      mem[64] = 832
+      _21 = sha3(0x8cad95687ba82c2ce50e74f7b754645e5117c3a5bec8151c0726d5857980a866, 0x9ac997416e8ff9d2ff6bebeb7149f65cdae5e32e2b90440b566bb3044041d36a, chainid, this.address)
+  else:
+      _21 = 0x866a5aba21966af95d6c7ab78eb2b2fc913915c28be3b9aa07cc04ff903e3f28
+  _22 = mem[64]
+  mem[mem[64] + 32] = 0x1901000000000000000000000000000000000000000000000000000000000000
+  mem[mem[64] + 34] = _21
+  mem[mem[64] + 66] = sha3(0xf3841cd1ff0085026a6327b620b67997ce40f282c88a8e905a7a5626e310f3d0, sha3(0x65626cad6cb96493bf6f5ebea28756c966f023ab9e8a83a7101849d5573b3678, address(permitSingle), address(signature), cd[100] << 208, cd[132] % unknown10000000()), address(cd[164]), cd[196])
+  mem[mem[64]] = 66
+  if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = mem[64] + 128
+  if ext_code.size(owner):
+      mem[_22 + 132] = sha3(mem[_22 + 32 len 66])
+      mem[_22 + 164] = 64
+      mem[_22 + 196] = ('cd', 228).length
+      mem[_22 + 228 len ('cd', 228).length] = call.data[cd[228] + 36 len ('cd', 228).length]
+      mem[_22 + ('cd', 228).length + 228] = 0
+      static call owner.isValidSignature(bytes32 _param1, bytes _param2) with:
+              gas gas_remaining wei
+             args sha3(mem[_22 + 32 len 66]), Array(len=('cd', 228).length, data=call.data[cd[228] + 36 len ('cd', 228).length])
+      mem[_22 + 128] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _28 = return_data.size
+      else:
+          _28 = 32
+      if _22 + ceil32(_28) + 128 > LOCK8605463013() or ceil32(_28) < 0:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      require _28 >=′ 32
+      require not ext_call.return_data[0] - Mask(32, 224, ext_call.return_data[0])
+      if Mask(32, 224, ext_call.return_data[0]) - 0x1626ba7e00000000000000000000000000000000000000000000000000000000:
+          revert with InvalidContractSignature()
+  else:
+      if ('cd', 228).length - 65:
+          if ('cd', 228).length - 64:
+              revert with InvalidSignatureLength()
+          require ('cd', 228).length >=′ 64
+          if (bool(('cd', 228)[1]) >> 255) + 27 > 255:
+              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+          _30 = uint255(('cd', 228)[1])
+          _31 = (bool(('cd', 228)[1]) >> 255) + 27
+      else:
+          require ('cd', 228).length >=′ 64
+          if 64 >= ('cd', 228).length:
+              revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+          _30 = ('cd', 228)[1]
+          _31 = uint8(('cd', 228)[2]) >> 248
+      mem[_22 + 128] = sha3(mem[_22 + 32 len 66])
+      mem[_22 + 160] = uint8(_31)
+      mem[_22 + 192] = ('cd', 228)[0]
+      mem[_22 + 224] = _30
+      signer = erecover(sha3(mem[_22 + 32 len 66]), _31 << 248, ('cd', 228)[0], _30) # precompiled
+      if not erecover.result:
+          revert with ext_call.return_data[0 len return_data.size]
+      if not address(signer):
+          revert with InvalidSignature()
+      if owner - address(signer):
+          revert with InvalidSigner()
+  if (uint256(stor1[address(owner)][address(mem[192])][address(mem[128])].field_0) % unknown10000000() >> 208) - mem[314 len 6]:
+      revert with InvalidNonce()
+  if mem[282 len 6]:
+      _51 = mem[282 len 6]
+  else:
+      _51 = block.timestamp % unknown10000000()
+  address(stor1[address(owner)][address(mem[192])][address(mem[128])].field_0) = mem[236 len 20]
+  stor1[address(owner)][address(mem[192])][address(mem[128])].field_160 % unknown10000000() = _51 % unknown10000000()
+  stor1[address(owner)][address(mem[192])][address(mem[128])].field_208 % unknown10000000() = mem[314 len 6] + 1 % unknown10000000()
+  log Permit(
+        address owner=mem[236 len 20],
+        address token=mem[256] << 208,
+        address spender=mem[314 len 6],
+        uint160 amount=owner,
+        uint48 expiration=mem[204 len 20],
+        uint48 nonce=mem[140 len 20])
+  return 0
+
+def permitWitnessTransferFrom(tuple permit, tuple transferDetails, address owner, bytes32 witness, string witnessTypeString, bytes signature): # not payable
+  require calldata.size - 4 >=′ 320
+  require calldata.size - 4 >=′ 128
+  require calldata.size - 4 >=′ 64
+  require not Mask(96, 160, permit)
+  mem[192] = permit
+  mem[224] = transferDetails
+  mem[96] = 192
+  mem[128] = owner
+  mem[160] = witness
+  require calldata.size - 132 >=′ 64
+  require not Mask(96, 160, cd[196])
+  require cd[260] <= LOCK8605463013()
+  require cd[260] + 35 <′ calldata.size
+  require ('cd', 260).length <= LOCK8605463013()
+  require cd[260] + ('cd', 260).length + 36 <= calldata.size
+  require cd[292] <= LOCK8605463013()
+  require cd[292] + 35 <′ calldata.size
+  require ('cd', 292).length <= LOCK8605463013()
+  require cd[292] + ('cd', 292).length + 36 <= calldata.size
+  mem[256] = 100
+  mem[288] = 'PermitWitnessTransferFrom(TokenP'
+  mem[320] = 'ermissions permitted,address spe'
+  mem[352] = 'nder,uint256 nonce,uint256 deadl'
+  mem[384] = 'ine,'
+  mem[448 len 128] = 'PermitWitnessTransferFrom(TokenP', 'ermissions permitted,address spe', 'nder,uint256 nonce,uint256 deadl', 'ine,'
+  mem[548] = 0
+  mem[548 len ('cd', 260).length] = call.data[cd[260] + 36 len ('cd', 260).length]
+  mem[416] = ('cd', 260).length + 100
+  if floor32(('cd', 260).length + 131) + 417 > LOCK8605463013() or floor32(('cd', 260).length + 131) + 417 < 416:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[floor32(('cd', 260).length + 131) + 449] = 0x618358ac3db8dc274f0cd8829da7e234bd48cd73c4a740aede1adec9846d06a1
+  mem[floor32(('cd', 260).length + 131) + 481] = address(permit)
+  mem[floor32(('cd', 260).length + 131) + 513] = transferDetails
+  mem[floor32(('cd', 260).length + 131) + 417] = 96
+  if floor32(('cd', 260).length + 131) + 545 > LOCK8605463013() or 545 < 417:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[floor32(('cd', 260).length + 131) + 577] = sha3('PermitWitnessTransferFrom(TokenP', 'ermissions permitted,address spe', 'nder,uint256 nonce,uint256 deadl', 'ine,' >> 544, call.data[cd[260] + 36 len ('cd', 260).length])
+  mem[floor32(('cd', 260).length + 131) + 609] = sha3(0x618358ac3db8dc274f0cd8829da7e234bd48cd73c4a740aede1adec9846d06a1, address(permit), transferDetails)
+  mem[floor32(('cd', 260).length + 131) + 641] = caller
+  mem[floor32(('cd', 260).length + 131) + 673] = owner
+  mem[floor32(('cd', 260).length + 131) + 705] = witness
+  mem[floor32(('cd', 260).length + 131) + 737] = cd[228]
+  mem[floor32(('cd', 260).length + 131) + 545] = 192
+  if floor32(('cd', 260).length + 131) + 769 > LOCK8605463013() or 769 < 545:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = floor32(('cd', 260).length + 131) + 769
+  if block.timestamp > witness:
+      revert with SignatureExpired(uint256 signatureDeadline), witness
+  if signature > transferDetails:
+      revert with InvalidAmount(uint256 amount), transferDetails
+  mem[0] = Mask(248, 0, owner) * 0.00390625
+  mem[32] = sha3(address(cd[196]), 0)
+  stor[sha3(Mask(248, 0, owner), uint8(witness), ('map', ('mask_shl', 160, 0, 0, ('cd', 196)), ('name', 'nonceBitmap', 0)))] = stor[sha3(Mask(248, 0, owner), uint8(witness), ('map', ('mask_shl', 160, 0, 0, ('cd', 196)), ('name', 'nonceBitmap', 0)))] xor 1 << uint8(owner)
+  if not stor[sha3(Mask(248, 0, owner), uint8(witness), ('map', ('mask_shl', 160, 0, 0, ('cd', 196)), ('name', 'nonceBitmap', 0)))] xor 1 << uint8(owner) or not 1:
+      revert with InvalidNonce()
+  if -chainid + 1:
+      mem[floor32(('cd', 260).length + 131) + 801] = 0x8cad95687ba82c2ce50e74f7b754645e5117c3a5bec8151c0726d5857980a866
+      mem[floor32(('cd', 260).length + 131) + 833] = 0x9ac997416e8ff9d2ff6bebeb7149f65cdae5e32e2b90440b566bb3044041d36a
+      mem[floor32(('cd', 260).length + 131) + 865] = chainid
+      mem[floor32(('cd', 260).length + 131) + 897] = this.address
+      mem[floor32(('cd', 260).length + 131) + 769] = 128
+      if floor32(('cd', 260).length + 131) + 929 > LOCK8605463013() or 929 < 769:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = floor32(('cd', 260).length + 131) + 929
+      _34 = sha3(0x8cad95687ba82c2ce50e74f7b754645e5117c3a5bec8151c0726d5857980a866, 0x9ac997416e8ff9d2ff6bebeb7149f65cdae5e32e2b90440b566bb3044041d36a, chainid, this.address)
+  else:
+      _34 = 0x866a5aba21966af95d6c7ab78eb2b2fc913915c28be3b9aa07cc04ff903e3f28
+  _35 = mem[64]
+  mem[mem[64] + 32] = 0x1901000000000000000000000000000000000000000000000000000000000000
+  mem[mem[64] + 34] = _34
+  mem[mem[64] + 66] = sha3(sha3('PermitWitnessTransferFrom(TokenP', 'ermissions permitted,address spe', 'nder,uint256 nonce,uint256 deadl', 'ine,' >> 544, call.data[cd[260] + 36 len ('cd', 260).length]), sha3(0x618358ac3db8dc274f0cd8829da7e234bd48cd73c4a740aede1adec9846d06a1, address(permit), transferDetails), caller, owner, witness, cd[228])
+  mem[mem[64]] = 66
+  if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = mem[64] + 128
+  if ext_code.size(cd[196]):
+      mem[_35 + 132] = sha3(mem[_35 + 32 len 66])
+      mem[_35 + 164] = 64
+      mem[_35 + 196] = ('cd', 292).length
+      mem[_35 + 228 len ('cd', 292).length] = call.data[cd[292] + 36 len ('cd', 292).length]
+      static call address(cd[196]).isValidSignature(bytes32 _param1, bytes _param2) with:
+              gas gas_remaining wei
+             args sha3(mem[_35 + 32 len 66]), Array(len=('cd', 292).length, data=call.data[cd[292] + 36 len ('cd', 292).length])
+      mem[_35 + 128] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _41 = return_data.size
+      else:
+          _41 = 32
+      if _35 + ceil32(_41) + 128 > LOCK8605463013() or ceil32(_41) < 0:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      require _41 >=′ 32
+      require not ext_call.return_data[0] - Mask(32, 224, ext_call.return_data[0])
+      if Mask(32, 224, ext_call.return_data[0]) - 0x1626ba7e00000000000000000000000000000000000000000000000000000000:
+          revert with InvalidContractSignature()
+  else:
+      if ('cd', 292).length - 65:
+          if ('cd', 292).length - 64:
+              revert with InvalidSignatureLength()
+          require ('cd', 292).length >=′ 64
+          if (bool(('cd', 292)[1]) >> 255) + 27 > 255:
+              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+          _43 = uint255(('cd', 292)[1])
+          _44 = (bool(('cd', 292)[1]) >> 255) + 27
+      else:
+          require ('cd', 292).length >=′ 64
+          if 64 >= ('cd', 292).length:
+              revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+          _43 = ('cd', 292)[1]
+          _44 = uint8(('cd', 292)[2]) >> 248
+      mem[_35 + 128] = sha3(mem[_35 + 32 len 66])
+      mem[_35 + 160] = uint8(_44)
+      mem[_35 + 192] = ('cd', 292)[0]
+      mem[_35 + 224] = _43
+      signer = erecover(sha3(mem[_35 + 32 len 66]), _44 << 248, ('cd', 292)[0], _43) # precompiled
+      if not erecover.result:
+          revert with ext_call.return_data[0 len return_data.size]
+      if not address(signer):
+          revert with InvalidSignature()
+      if address(cd[196]) - address(signer):
+          revert with InvalidSigner()
+  require not Mask(96, 160, witnessTypeString)
+  call mem[204 len 20].transferFrom(address sender, address recipient, uint256 amount) with:
+       gas gas_remaining wei
+      args cd[196], witnessTypeString, signature
+  if ext_call.return_data[0] != 1 or return_data.size <= 31 and return_data.size or not ext_call.success:
+      revert with Error(string reason), 'TRANSFER_FROM_FAILED'
+  else:
+      return 0
+
+def permitTransferFrom(tuple permit, tuple[] transferDetails, address owner, bytes signature): # not payable
+  require calldata.size - 4 >=′ 128
+  require permit <= LOCK8605463013()
+  require calldata.size + -permit - 4 >=′ 96
+  require permit.length <= LOCK8605463013()
+  require permit + permit.length + 35 <′ calldata.size
+  if cd[(permit + permit.length + 4)] > LOCK8605463013():
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  if ceil32(32 * cd[(permit + permit.length + 4)]) + 193 > LOCK8605463013() or ceil32(32 * cd[(permit + permit.length + 4)]) + 193 < 192:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = ceil32(32 * cd[(permit + permit.length + 4)]) + 193
+  mem[192] = cd[(permit + permit.length + 4)]
+  require permit + permit.length + (64 * cd[(permit + permit.length + 4)]) + 36 <= calldata.size
+  s = 224
+  idx = permit + permit.length + 36
+  while idx < permit + permit.length + (64 * cd[(permit + permit.length + 4)]) + 36:
+      require calldata.size - idx >=′ 64
+      _4 = mem[64]
+      if mem[64] + 64 > LOCK8605463013() or mem[64] + 64 < mem[64]:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = mem[64] + 64
+      require not Mask(96, 160, cd[idx])
+      mem[_4] = cd[idx]
+      mem[_4 + 32] = cd[(idx + 32)]
+      mem[s] = _4
+      s = s + 32
+      idx = idx + 64
+      continue 
+  mem[96] = 192
+  mem[128] = cd[(permit + 36)]
+  mem[160] = cd[(permit + 68)]
+  require transferDetails <= LOCK8605463013()
+  require transferDetails + 35 <′ calldata.size
+  require transferDetails.length <= LOCK8605463013()
+  require (64 * transferDetails.length) + transferDetails + 36 <= calldata.size
+  require not Mask(96, 160, owner)
+  require signature <= LOCK8605463013()
+  require signature + 35 <′ calldata.size
+  require signature.length <= LOCK8605463013()
+  require signature + signature.length + 36 <= calldata.size
+  _6 = mem[192]
+  if mem[192] > LOCK8605463013():
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  _7 = mem[64]
+  if mem[64] + ceil32(32 * mem[192]) + 1 > LOCK8605463013() or mem[64] + ceil32(32 * mem[192]) + 1 < mem[64]:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = mem[64] + ceil32(32 * mem[192]) + 1
+  mem[_7] = mem[192]
+  mem[_7 + 32 len 32 * _6] = call.data[calldata.size len 32 * _6]
+  idx = 0
+  while idx < _6:
+      if idx >= mem[mem[96]]:
+          revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+      _36 = mem[(32 * idx) + mem[96] + 32]
+      _38 = mem[64]
+      mem[mem[64] + 32] = 0x618358ac3db8dc274f0cd8829da7e234bd48cd73c4a740aede1adec9846d06a1
+      mem[mem[64] + 64] = mem[_36 + 12 len 20]
+      mem[mem[64] + 96] = mem[_36 + 32]
+      mem[mem[64]] = 96
+      if _38 + 128 > LOCK8605463013() or _38 + 128 < _38:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = _38 + 128
+      if idx >= mem[_7]:
+          revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+      mem[(32 * idx) + _7 + 32] = sha3(mem[_38 + 32 len 96])
+      if idx == -1:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      idx = idx + 1
+      continue 
+  _33 = mem[64]
+  _35 = mem[_7]
+  mem[mem[64] + 32 len 32 * mem[_7]] = mem[_7 + 32 len 32 * mem[_7]]
+  mem[mem[64]] = 32 * _35
+  if mem[64] + floor32(_35) + 1 > LOCK8605463013() or mem[64] + floor32(_35) + 1 < mem[64]:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = mem[64] + floor32(_35) + 1
+  _46 = sha3(mem[_33 + 32 len mem[_33]])
+  _47 = mem[128]
+  _48 = mem[160]
+  _49 = mem[64]
+  mem[mem[64] + 32] = 0xfcf35f5ac6a2c28868dc44c302166470266239195f02b0ee408334829333b766
+  mem[mem[64] + 64] = _46
+  mem[mem[64] + 96] = caller
+  mem[mem[64] + 128] = _47
+  mem[mem[64] + 160] = _48
+  mem[mem[64]] = 160
+  if _49 + 192 > LOCK8605463013() or _49 + 192 < _49:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = _49 + 192
+  _51 = sha3(mem[_49 + 32 len 160])
+  _53 = mem[mem[96]]
+  if block.timestamp > mem[160]:
+      mem[_49 + 192] = 0xcd21db4f00000000000000000000000000000000000000000000000000000000
+      revert with SignatureExpired(uint256 signatureDeadline), mem[160]
+  if mem[mem[96]] - transferDetails.length:
+      revert with LengthMismatch()
+  mem[0] = Mask(248, 0, mem[128]) * 0.00390625
+  mem[32] = sha3(address(owner), 0)
+  nonceBitmap[address(owner)][mem[129]] = nonceBitmap[address(owner)][mem[129]] xor 1 << mem[159 len 1]
+  if not nonceBitmap[address(owner)][mem[129]] xor 1 << mem[159 len 1] or not 1:
+      revert with InvalidNonce()
+  if -chainid + 1:
+      mem[_49 + 224] = 0x8cad95687ba82c2ce50e74f7b754645e5117c3a5bec8151c0726d5857980a866
+      mem[_49 + 256] = 0x9ac997416e8ff9d2ff6bebeb7149f65cdae5e32e2b90440b566bb3044041d36a
+      mem[_49 + 288] = chainid
+      mem[_49 + 320] = this.address
+      mem[_49 + 192] = 128
+      if _49 + 352 > LOCK8605463013() or 352 < 192:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = _49 + 352
+      _65 = sha3(0x8cad95687ba82c2ce50e74f7b754645e5117c3a5bec8151c0726d5857980a866, 0x9ac997416e8ff9d2ff6bebeb7149f65cdae5e32e2b90440b566bb3044041d36a, chainid, this.address)
+  else:
+      _65 = 0x866a5aba21966af95d6c7ab78eb2b2fc913915c28be3b9aa07cc04ff903e3f28
+  _66 = mem[64]
+  mem[mem[64] + 32] = 0x1901000000000000000000000000000000000000000000000000000000000000
+  mem[mem[64] + 34] = _65
+  mem[mem[64] + 66] = _51
+  mem[mem[64]] = 66
+  if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = mem[64] + 128
+  if ext_code.size(owner):
+      mem[_66 + 132] = sha3(mem[_66 + 32 len 66])
+      mem[_66 + 164] = 64
+      mem[_66 + 196] = signature.length
+      mem[_66 + 228 len signature.length] = signature[all]
+      mem[_66 + signature.length + 228] = 0
+      static call owner.isValidSignature(bytes32 _param1, bytes _param2) with:
+              gas gas_remaining wei
+             args sha3(mem[_66 + 32 len 66]), Array(len=signature.length, data=signature[all])
+      mem[_66 + 128] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _72 = return_data.size
+      else:
+          _72 = 32
+      if _66 + ceil32(_72) + 128 > LOCK8605463013() or ceil32(_72) < 0:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = _66 + ceil32(_72) + 128
+      require _72 >=′ 32
+      require not ext_call.return_data[0] - Mask(32, 224, ext_call.return_data[0])
+      if Mask(32, 224, ext_call.return_data[0]) - 0x1626ba7e00000000000000000000000000000000000000000000000000000000:
+          revert with InvalidContractSignature()
+  else:
+      if signature.length - 65:
+          if signature.length - 64:
+              revert with InvalidSignatureLength()
+          require signature.length >=′ 64
+          if (bool(cd[(signature + 68)]) >> 255) + 27 > 255:
+              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+          _74 = uint255(cd[(signature + 68)])
+          _75 = (bool(cd[(signature + 68)]) >> 255) + 27
+      else:
+          require signature.length >=′ 64
+          if 64 >= signature.length:
+              revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+          _74 = cd[(signature + 68)]
+          _75 = uint8(cd[(signature + 100)]) >> 248
+      mem[_66 + 128] = sha3(mem[_66 + 32 len 66])
+      mem[_66 + 160] = uint8(_75)
+      mem[_66 + 192] = cd[(signature + 36)]
+      mem[_66 + 224] = _74
+      signer = erecover(sha3(mem[_66 + 32 len 66]), _75 << 248, cd[(signature + 36)], _74) # precompiled
+      mem[0] = signer
+      if not erecover.result:
+          revert with ext_call.return_data[0 len return_data.size]
+      if not address(signer):
+          revert with InvalidSignature()
+      if owner - address(signer):
+          revert with InvalidSigner()
+  idx = 0
+  while idx < _53:
+      if idx >= mem[mem[96]]:
+          revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+      if idx >= transferDetails.length:
+          revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+      if cd[((64 * idx) + transferDetails + 68)] > mem[mem[(32 * idx) + mem[96] + 32] + 32]:
+          revert with InvalidAmount(uint256 amount), mem[mem[(32 * idx) + mem[96] + 32] + 32]
+      if cd[((64 * idx) + transferDetails + 68)]:
+          _94 = mem[mem[(32 * idx) + mem[96] + 32]]
+          require not Mask(96, 160, cd[((64 * idx) + transferDetails + 36)])
+          mem[mem[64]] = 0x23b872dd00000000000000000000000000000000000000000000000000000000
+          mem[mem[64] + 4] = owner
+          mem[mem[64] + 36] = cd[((64 * idx) + transferDetails + 36)]
+          mem[mem[64] + 68] = cd[((64 * idx) + transferDetails + 68)]
+          call address(_94).transferFrom(address sender, address recipient, uint256 amount) with:
+               gas gas_remaining wei
+              args owner, cd[((64 * idx) + transferDetails + 36)], cd[((64 * idx) + transferDetails + 68)]
+          mem[0] = ext_call.return_data[0]
+          if ext_call.return_data[0] != 1 or return_data.size <= 31 and return_data.size or not ext_call.success:
+              revert with Error(string reason), 'TRANSFER_FROM_FAILED'
+      idx = idx + 1
+      continue 
+  return 0
+
+def permit(address owner, tuple permitBatch, bytes signature): # not payable
+  require calldata.size - 4 >=′ 96
+  require not Mask(96, 160, owner)
+  require permitBatch <= LOCK8605463013()
+  require calldata.size + -permitBatch - 4 >=′ 96
+  require permitBatch.length <= LOCK8605463013()
+  require permitBatch + permitBatch.length + 35 <′ calldata.size
+  if cd[(permitBatch + permitBatch.length + 4)] > LOCK8605463013():
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  if ceil32(32 * cd[(permitBatch + permitBatch.length + 4)]) + 193 > LOCK8605463013() or ceil32(32 * cd[(permitBatch + permitBatch.length + 4)]) + 193 < 192:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = ceil32(32 * cd[(permitBatch + permitBatch.length + 4)]) + 193
+  mem[192] = cd[(permitBatch + permitBatch.length + 4)]
+  require permitBatch + permitBatch.length + (cd[(permitBatch + permitBatch.length + 4)] << 7) + 36 <= calldata.size
+  s = 224
+  idx = permitBatch + permitBatch.length + 36
+  while idx < permitBatch + permitBatch.length + (cd[(permitBatch + permitBatch.length + 4)] << 7) + 36:
+      require calldata.size - idx >=′ 128
+      _8 = mem[64]
+      if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = mem[64] + 128
+      require not Mask(96, 160, cd[idx])
+      mem[_8] = cd[idx]
+      require not Mask(96, 160, cd[(idx + 32)])
+      mem[_8 + 32] = cd[(idx + 32)]
+      require not Mask(208, 48, cd[(idx + 64)])
+      mem[_8 + 64] = cd[(idx + 64)]
+      require not Mask(208, 48, cd[(idx + 96)])
+      mem[_8 + 96] = cd[(idx + 96)]
+      mem[s] = _8
+      s = s + 32
+      idx = idx + 128
+      continue 
+  mem[96] = 192
+  require not Mask(96, 160, cd[(permitBatch + 36)])
+  mem[128] = cd[(permitBatch + 36)]
+  mem[160] = cd[(permitBatch + 68)]
+  require signature <= LOCK8605463013()
+  require signature + 35 <′ calldata.size
+  require signature.length <= LOCK8605463013()
+  require signature + signature.length + 36 <= calldata.size
+  if block.timestamp > cd[(permitBatch + 68)]:
+      revert with SignatureExpired(uint256 signatureDeadline), cd[(permitBatch + 68)]
+  _11 = mem[192]
+  if mem[192] > LOCK8605463013():
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  _12 = mem[64]
+  if mem[64] + ceil32(32 * mem[192]) + 1 > LOCK8605463013() or mem[64] + ceil32(32 * mem[192]) + 1 < mem[64]:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = mem[64] + ceil32(32 * mem[192]) + 1
+  mem[_12] = mem[192]
+  mem[_12 + 32 len 32 * _11] = call.data[calldata.size len 32 * _11]
+  idx = 0
+  while idx < _11:
+      if idx >= mem[mem[96]]:
+          revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+      _39 = mem[(32 * idx) + mem[96] + 32]
+      _41 = mem[64]
+      mem[mem[64] + 32] = 0x65626cad6cb96493bf6f5ebea28756c966f023ab9e8a83a7101849d5573b3678
+      mem[mem[64] + 64] = mem[_39 + 12 len 20]
+      mem[mem[64] + 96] = mem[_39 + 44 len 20]
+      mem[mem[64] + 128] = mem[_39 + 90 len 6]
+      mem[mem[64] + 160] = mem[_39 + 122 len 6]
+      mem[mem[64]] = 160
+      if _41 + 192 > LOCK8605463013() or _41 + 192 < _41:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = _41 + 192
+      if idx >= mem[_12]:
+          revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+      mem[(32 * idx) + _12 + 32] = sha3(mem[_41 + 32 len 160])
+      if idx == -1:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      idx = idx + 1
+      continue 
+  _36 = mem[64]
+  _38 = mem[_12]
+  mem[mem[64] + 32 len 32 * mem[_12]] = mem[_12 + 32 len 32 * mem[_12]]
+  mem[mem[64]] = 32 * _38
+  if mem[64] + floor32(_38) + 1 > LOCK8605463013() or mem[64] + floor32(_38) + 1 < mem[64]:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = mem[64] + floor32(_38) + 1
+  _51 = sha3(mem[_36 + 32 len mem[_36]])
+  _52 = mem[128]
+  _53 = mem[160]
+  _54 = mem[64]
+  mem[mem[64] + 32] = 0xaf1b0d30d2cab0380e68f0689007e3254993c596f2fdd0aaa7f4d04f79440863
+  mem[mem[64] + 64] = _51
+  mem[mem[64] + 96] = address(_52)
+  mem[mem[64] + 128] = _53
+  mem[mem[64]] = 128
+  if _54 + 160 > LOCK8605463013() or _54 + 160 < _54:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = _54 + 160
+  _56 = sha3(mem[_54 + 32 len 128])
+  if -chainid + 1:
+      mem[_54 + 192] = 0x8cad95687ba82c2ce50e74f7b754645e5117c3a5bec8151c0726d5857980a866
+      mem[_54 + 224] = 0x9ac997416e8ff9d2ff6bebeb7149f65cdae5e32e2b90440b566bb3044041d36a
+      mem[_54 + 256] = chainid
+      mem[_54 + 288] = this.address
+      mem[_54 + 160] = 128
+      if _54 + 320 > LOCK8605463013() or 320 < 160:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = _54 + 320
+      _61 = sha3(0x8cad95687ba82c2ce50e74f7b754645e5117c3a5bec8151c0726d5857980a866, 0x9ac997416e8ff9d2ff6bebeb7149f65cdae5e32e2b90440b566bb3044041d36a, chainid, this.address)
+  else:
+      _61 = 0x866a5aba21966af95d6c7ab78eb2b2fc913915c28be3b9aa07cc04ff903e3f28
+  _62 = mem[64]
+  mem[mem[64] + 32] = 0x1901000000000000000000000000000000000000000000000000000000000000
+  mem[mem[64] + 34] = _61
+  mem[mem[64] + 66] = _56
+  mem[mem[64]] = 66
+  if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = mem[64] + 128
+  if ext_code.size(owner):
+      mem[_62 + 132] = sha3(mem[_62 + 32 len 66])
+      mem[_62 + 164] = 64
+      mem[_62 + 196] = signature.length
+      mem[_62 + 228 len signature.length] = signature[all]
+      mem[_62 + signature.length + 228] = 0
+      static call owner.isValidSignature(bytes32 _param1, bytes _param2) with:
+              gas gas_remaining wei
+             args sha3(mem[_62 + 32 len 66]), Array(len=signature.length, data=signature[all])
+      mem[_62 + 128] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _68 = return_data.size
+      else:
+          _68 = 32
+      if _62 + ceil32(_68) + 128 > LOCK8605463013() or ceil32(_68) < 0:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = _62 + ceil32(_68) + 128
+      require _68 >=′ 32
+      require not ext_call.return_data[0] - Mask(32, 224, ext_call.return_data[0])
+      if Mask(32, 224, ext_call.return_data[0]) - 0x1626ba7e00000000000000000000000000000000000000000000000000000000:
+          revert with InvalidContractSignature()
+  else:
+      if signature.length - 65:
+          if signature.length - 64:
+              revert with InvalidSignatureLength()
+          require signature.length >=′ 64
+          if (bool(cd[(signature + 68)]) >> 255) + 27 > 255:
+              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+          _70 = uint255(cd[(signature + 68)])
+          _71 = (bool(cd[(signature + 68)]) >> 255) + 27
+      else:
+          require signature.length >=′ 64
+          if 64 >= signature.length:
+              revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+          _70 = cd[(signature + 68)]
+          _71 = uint8(cd[(signature + 100)]) >> 248
+      mem[_62 + 128] = sha3(mem[_62 + 32 len 66])
+      mem[_62 + 160] = uint8(_71)
+      mem[_62 + 192] = cd[(signature + 36)]
+      mem[_62 + 224] = _70
+      signer = erecover(sha3(mem[_62 + 32 len 66]), _71 << 248, cd[(signature + 36)], _70) # precompiled
+      mem[0] = signer
+      if not erecover.result:
+          revert with ext_call.return_data[0 len return_data.size]
+      if not address(signer):
+          revert with InvalidSignature()
+      if owner - address(signer):
+          revert with InvalidSigner()
+  _82 = mem[128]
+  _84 = mem[mem[96]]
+  idx = 0
+  while idx < _84:
+      if idx >= mem[mem[96]]:
+          revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+      _101 = mem[mem[(32 * idx) + mem[96] + 32] + 96]
+      _102 = mem[mem[(32 * idx) + mem[96] + 32]]
+      _103 = mem[mem[(32 * idx) + mem[96] + 32] + 32]
+      _104 = mem[mem[(32 * idx) + mem[96] + 32] + 64]
+      _106 = sha3(address(mem[mem[(32 * idx) + mem[96] + 32]]), sha3(address(owner), 1))
+      mem[0] = address(_82)
+      mem[32] = _106
+      if (uint256(stor[_106][address(_82)].field_0) % unknown10000000() >> 208) - (_101 % unknown10000000()):
+          revert with InvalidNonce()
+      if _104 % unknown10000000():
+          _109 = _104 % unknown10000000()
+      else:
+          _109 = block.timestamp % unknown10000000()
+      address(stor[_106][address(_82)].field_0) = address(_103)
+      stor[_106][address(_82)].field_160 % unknown10000000() = _109 % unknown10000000()
+      stor[_106][address(_82)].field_208 % unknown10000000() = (_101 % unknown10000000()) + 1 % unknown10000000()
+      mem[mem[64]] = address(_103)
+      mem[mem[64] + 32] = _104 % unknown10000000()
+      mem[mem[64] + 64] = _101 % unknown10000000()
+      log Permit(
+            address owner=address(_103),
+            address token=_104 << 208,
+            address spender=_101 % unknown10000000(),
+            uint160 amount=owner,
+            uint48 expiration=address(_102),
+            uint48 nonce=address(_82))
+      idx = idx + 1
+      continue 
+  return 0
+
+def permitWitnessTransferFrom(tuple permit, tuple[] transferDetails, address owner, bytes32 witness, string witnessTypeString, bytes signature): # not payable
+  require calldata.size - 4 >=′ 192
+  require permit <= LOCK8605463013()
+  require calldata.size + -permit - 4 >=′ 96
+  require permit.length <= LOCK8605463013()
+  require permit + permit.length + 35 <′ calldata.size
+  if cd[(permit + permit.length + 4)] > LOCK8605463013():
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  if ceil32(32 * cd[(permit + permit.length + 4)]) + 193 > LOCK8605463013() or ceil32(32 * cd[(permit + permit.length + 4)]) + 193 < 192:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = ceil32(32 * cd[(permit + permit.length + 4)]) + 193
+  mem[192] = cd[(permit + permit.length + 4)]
+  require permit + permit.length + (64 * cd[(permit + permit.length + 4)]) + 36 <= calldata.size
+  s = 224
+  idx = permit + permit.length + 36
+  while idx < permit + permit.length + (64 * cd[(permit + permit.length + 4)]) + 36:
+      require calldata.size - idx >=′ 64
+      _4 = mem[64]
+      if mem[64] + 64 > LOCK8605463013() or mem[64] + 64 < mem[64]:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = mem[64] + 64
+      require not Mask(96, 160, cd[idx])
+      mem[_4] = cd[idx]
+      mem[_4 + 32] = cd[(idx + 32)]
+      mem[s] = _4
+      s = s + 32
+      idx = idx + 64
+      continue 
+  mem[96] = 192
+  mem[128] = cd[(permit + 36)]
+  mem[160] = cd[(permit + 68)]
+  require transferDetails <= LOCK8605463013()
+  require transferDetails + 35 <′ calldata.size
+  require transferDetails.length <= LOCK8605463013()
+  require (64 * transferDetails.length) + transferDetails + 36 <= calldata.size
+  require not Mask(96, 160, owner)
+  require witnessTypeString <= LOCK8605463013()
+  require witnessTypeString + 35 <′ calldata.size
+  require witnessTypeString.length <= LOCK8605463013()
+  require witnessTypeString + witnessTypeString.length + 36 <= calldata.size
+  require signature <= LOCK8605463013()
+  require signature + 35 <′ calldata.size
+  require signature.length <= LOCK8605463013()
+  require signature + signature.length + 36 <= calldata.size
+  _5 = mem[64]
+  if mem[64] + 160 > LOCK8605463013() or mem[64] + 160 < mem[64]:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = mem[64] + 160
+  mem[_5] = 107
+  mem[_5 + 32] = 'PermitBatchWitnessTransferFrom(T'
+  mem[_5 + 64] = 'okenPermissions[] permitted,addr'
+  mem[_5 + 96] = 'ess spender,uint256 nonce,uint25'
+  mem[_5 + 128] = '6 deadline,'
+  _6 = mem[64]
+  mem[mem[64] + 32 len 128] = 'PermitBatchWitnessTransferFrom(T', 'okenPermissions[] permitted,addr', 'ess spender,uint256 nonce,uint25', '6 deadline,'
+  mem[mem[64] + 139] = 0
+  mem[mem[64] + 139 len witnessTypeString.length] = witnessTypeString[all]
+  mem[mem[64] + witnessTypeString.length + 139] = 0
+  mem[mem[64]] = witnessTypeString.length + 107
+  if mem[64] + floor32(witnessTypeString.length + 138) + 1 > LOCK8605463013() or mem[64] + floor32(witnessTypeString.length + 138) + 1 < mem[64]:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = mem[64] + floor32(witnessTypeString.length + 138) + 1
+  _11 = sha3(mem[_6 + 32 len 107], witnessTypeString[all])
+  _13 = mem[192]
+  if mem[192] > LOCK8605463013():
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  if _6 + floor32(witnessTypeString.length + 138) + ceil32(32 * mem[192]) + 2 > LOCK8605463013() or ceil32(32 * mem[192]) + 2 < 1:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = _6 + floor32(witnessTypeString.length + 138) + ceil32(32 * mem[192]) + 2
+  mem[_6 + floor32(witnessTypeString.length + 138) + 1] = mem[192]
+  mem[_6 + floor32(witnessTypeString.length + 138) + 33 len 32 * _13] = call.data[calldata.size len 32 * _13]
+  idx = 0
+  while idx < _13:
+      if idx >= mem[mem[96]]:
+          revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+      _42 = mem[(32 * idx) + mem[96] + 32]
+      _44 = mem[64]
+      mem[mem[64] + 32] = 0x618358ac3db8dc274f0cd8829da7e234bd48cd73c4a740aede1adec9846d06a1
+      mem[mem[64] + 64] = mem[_42 + 12 len 20]
+      mem[mem[64] + 96] = mem[_42 + 32]
+      mem[mem[64]] = 96
+      if _44 + 128 > LOCK8605463013() or _44 + 128 < _44:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = _44 + 128
+      if idx >= mem[_6 + floor32(witnessTypeString.length + 138) + 1]:
+          revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+      mem[(32 * idx) + _6 + floor32(witnessTypeString.length + 138) + 33] = sha3(mem[_44 + 32 len 96])
+      if idx == -1:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      idx = idx + 1
+      continue 
+  _39 = mem[64]
+  _41 = mem[_6 + floor32(witnessTypeString.length + 138) + 1]
+  mem[mem[64] + 32 len 32 * mem[_6 + floor32(witnessTypeString.length + 138) + 1]] = mem[_6 + floor32(witnessTypeString.length + 138) + 33 len 32 * mem[_6 + floor32(witnessTypeString.length + 138) + 1]]
+  mem[mem[64]] = 32 * _41
+  if mem[64] + floor32(_41) + 1 > LOCK8605463013() or mem[64] + floor32(_41) + 1 < mem[64]:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = mem[64] + floor32(_41) + 1
+  _52 = sha3(mem[_39 + 32 len mem[_39]])
+  _53 = mem[128]
+  _54 = mem[160]
+  _55 = mem[64]
+  mem[mem[64] + 32] = _11
+  mem[mem[64] + 64] = _52
+  mem[mem[64] + 96] = caller
+  mem[mem[64] + 128] = _53
+  mem[mem[64] + 160] = _54
+  mem[mem[64] + 192] = witness
+  mem[mem[64]] = 192
+  if _55 + 224 > LOCK8605463013() or _55 + 224 < _55:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = _55 + 224
+  _57 = sha3(mem[_55 + 32 len 192])
+  _59 = mem[mem[96]]
+  if block.timestamp > mem[160]:
+      mem[_55 + 224] = 0xcd21db4f00000000000000000000000000000000000000000000000000000000
+      revert with SignatureExpired(uint256 signatureDeadline), mem[160]
+  if mem[mem[96]] - transferDetails.length:
+      revert with LengthMismatch()
+  mem[0] = Mask(248, 0, mem[128]) * 0.00390625
+  mem[32] = sha3(address(owner), 0)
+  nonceBitmap[address(owner)][mem[129]] = nonceBitmap[address(owner)][mem[129]] xor 1 << mem[159 len 1]
+  if not nonceBitmap[address(owner)][mem[129]] xor 1 << mem[159 len 1] or not 1:
+      revert with InvalidNonce()
+  if -chainid + 1:
+      mem[_55 + 256] = 0x8cad95687ba82c2ce50e74f7b754645e5117c3a5bec8151c0726d5857980a866
+      mem[_55 + 288] = 0x9ac997416e8ff9d2ff6bebeb7149f65cdae5e32e2b90440b566bb3044041d36a
+      mem[_55 + 320] = chainid
+      mem[_55 + 352] = this.address
+      mem[_55 + 224] = 128
+      if _55 + 384 > LOCK8605463013() or 384 < 224:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = _55 + 384
+      _71 = sha3(0x8cad95687ba82c2ce50e74f7b754645e5117c3a5bec8151c0726d5857980a866, 0x9ac997416e8ff9d2ff6bebeb7149f65cdae5e32e2b90440b566bb3044041d36a, chainid, this.address)
+  else:
+      _71 = 0x866a5aba21966af95d6c7ab78eb2b2fc913915c28be3b9aa07cc04ff903e3f28
+  _72 = mem[64]
+  mem[mem[64] + 32] = 0x1901000000000000000000000000000000000000000000000000000000000000
+  mem[mem[64] + 34] = _71
+  mem[mem[64] + 66] = _57
+  mem[mem[64]] = 66
+  if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = mem[64] + 128
+  if ext_code.size(owner):
+      mem[_72 + 132] = sha3(mem[_72 + 32 len 66])
+      mem[_72 + 164] = 64
+      mem[_72 + 196] = signature.length
+      mem[_72 + 228 len signature.length] = signature[all]
+      mem[_72 + signature.length + 228] = 0
+      static call owner.isValidSignature(bytes32 _param1, bytes _param2) with:
+              gas gas_remaining wei
+             args sha3(mem[_72 + 32 len 66]), Array(len=signature.length, data=signature[all])
+      mem[_72 + 128] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _78 = return_data.size
+      else:
+          _78 = 32
+      if _72 + ceil32(_78) + 128 > LOCK8605463013() or ceil32(_78) < 0:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = _72 + ceil32(_78) + 128
+      require _78 >=′ 32
+      require not ext_call.return_data[0] - Mask(32, 224, ext_call.return_data[0])
+      if Mask(32, 224, ext_call.return_data[0]) - 0x1626ba7e00000000000000000000000000000000000000000000000000000000:
+          revert with InvalidContractSignature()
+  else:
+      if signature.length - 65:
+          if signature.length - 64:
+              revert with InvalidSignatureLength()
+          require signature.length >=′ 64
+          if (bool(cd[(signature + 68)]) >> 255) + 27 > 255:
+              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+          _80 = uint255(cd[(signature + 68)])
+          _81 = (bool(cd[(signature + 68)]) >> 255) + 27
+      else:
+          require signature.length >=′ 64
+          if 64 >= signature.length:
+              revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+          _80 = cd[(signature + 68)]
+          _81 = uint8(cd[(signature + 100)]) >> 248
+      mem[_72 + 128] = sha3(mem[_72 + 32 len 66])
+      mem[_72 + 160] = uint8(_81)
+      mem[_72 + 192] = cd[(signature + 36)]
+      mem[_72 + 224] = _80
+      signer = erecover(sha3(mem[_72 + 32 len 66]), _81 << 248, cd[(signature + 36)], _80) # precompiled
+      mem[0] = signer
+      if not erecover.result:
+          revert with ext_call.return_data[0 len return_data.size]
+      if not address(signer):
+          revert with InvalidSignature()
+      if owner - address(signer):
+          revert with InvalidSigner()
+  idx = 0
+  while idx < _59:
+      if idx >= mem[mem[96]]:
+          revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+      if idx >= transferDetails.length:
+          revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
+      if cd[((64 * idx) + transferDetails + 68)] > mem[mem[(32 * idx) + mem[96] + 32] + 32]:
+          revert with InvalidAmount(uint256 amount), mem[mem[(32 * idx) + mem[96] + 32] + 32]
+      if cd[((64 * idx) + transferDetails + 68)]:
+          _100 = mem[mem[(32 * idx) + mem[96] + 32]]
+          require not Mask(96, 160, cd[((64 * idx) + transferDetails + 36)])
+          mem[mem[64]] = 0x23b872dd00000000000000000000000000000000000000000000000000000000
+          mem[mem[64] + 4] = owner
+          mem[mem[64] + 36] = cd[((64 * idx) + transferDetails + 36)]
+          mem[mem[64] + 68] = cd[((64 * idx) + transferDetails + 68)]
+          call address(_100).transferFrom(address sender, address recipient, uint256 amount) with:
+               gas gas_remaining wei
+              args owner, cd[((64 * idx) + transferDetails + 36)], cd[((64 * idx) + transferDetails + 68)]
+          mem[0] = ext_call.return_data[0]
+          if ext_call.return_data[0] != 1 or return_data.size <= 31 and return_data.size or not ext_call.success:
+              revert with Error(string reason), 'TRANSFER_FROM_FAILED'
+      idx = idx + 1
+      continue 
+  return 0
+
+

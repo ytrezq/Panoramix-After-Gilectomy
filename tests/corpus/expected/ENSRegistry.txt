@@ -1,0 +1,194 @@
+# Palkeoramix decompiler. 
+
+def storage:
+  stor0 is mapping of struct at storage 0
+  stor1 is mapping of uint8 at storage 1
+  oldAddress is address at storage 2
+
+def old() payable: 
+  return oldAddress
+
+def isApprovedForAll(address owner, address operator) payable: 
+  require calldata.size - 4 >= 64
+  return bool(stor1[address(owner)][address(operator)])
+
+def recordExists(bytes32 node) payable: 
+  require calldata.size - 4 >= 32
+  return bool(stor0[node].field_0)
+
+#
+#  Regular functions
+#
+
+def _fallback(?) payable: # default function
+  revert
+
+def setApprovalForAll(address operator, bool approved) payable: 
+  require calldata.size - 4 >= 64
+  stor1[caller][address(operator)] = uint8(approved)
+  log ApprovalForAll(
+        address owner=approved,
+        address operator=caller,
+        bool approved=operator)
+
+def setTTL(bytes32 node, uint64 ttl) payable: 
+  require calldata.size - 4 >= 64
+  if stor0[node].field_0 == caller:
+      _4 = stor0[node].field_0 == caller
+  else:
+      _4 = stor1[stor0[node].field_0][caller]
+  require _4
+  log NewTTL(
+        bytes32 node=ttl,
+        uint64 ttl=node)
+  stor0[node].field_416 = ttl
+
+def setResolver(bytes32 node, address resolver) payable: 
+  require calldata.size - 4 >= 64
+  if stor0[node].field_0 == caller:
+      _4 = stor0[node].field_0 == caller
+  else:
+      _4 = stor1[stor0[node].field_0][caller]
+  require _4
+  log NewResolver(
+        bytes32 node=resolver,
+        address resolver=node)
+  stor0[node].field_256 = resolver
+
+def ttl(bytes32 node) payable: 
+  require calldata.size - 4 >= 32
+  if stor0[node].field_0:
+      _7 = stor0[node].field_416
+  else:
+      require ext_code.size(oldAddress)
+      static call oldAddress.ttl(bytes32 node) with:
+              gas gas_remaining wei
+             args node
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 32
+      _7 = ext_call.return_data[0]
+  return uint64(_7)
+
+def resolver(bytes32 node) payable: 
+  require calldata.size - 4 >= 32
+  if stor0[node].field_0:
+      _7 = stor0[node].field_256
+  else:
+      require ext_code.size(oldAddress)
+      static call oldAddress.resolver(bytes32 node) with:
+              gas gas_remaining wei
+             args node
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 32
+      _7 = ext_call.return_data[0]
+  return address(_7)
+
+def setOwner(bytes32 node, address owner) payable: 
+  require calldata.size - 4 >= 64
+  if stor0[node].field_0 == caller:
+      _4 = stor0[node].field_0 == caller
+  else:
+      _4 = stor1[stor0[node].field_0][caller]
+  require _4
+  if owner:
+      _5 = owner
+  else:
+      _5 = this.address
+  stor0[node].field_0 = address(_5)
+  log Transfer(
+        bytes32 node=owner,
+        address owner=node)
+
+def owner(bytes32 node) payable: 
+  require calldata.size - 4 >= 32
+  if stor0[node].field_0:
+      if stor0[node].field_0 != this.address:
+          _6 = stor0[node].field_0
+      else:
+          _6 = 0
+      _8 = _6
+  else:
+      require ext_code.size(oldAddress)
+      static call oldAddress.owner(bytes32 node) with:
+              gas gas_remaining wei
+             args node
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 32
+      _8 = ext_call.return_data[0]
+  return address(_8)
+
+def setSubnodeOwner(bytes32 node, bytes32 label, address owner) payable: 
+  require calldata.size - 4 >= 96
+  if stor0[node].field_0 == caller:
+      _4 = stor0[node].field_0 == caller
+  else:
+      _4 = stor1[stor0[node].field_0][caller]
+  require _4
+  if owner:
+      _9 = owner
+  else:
+      _9 = this.address
+  stor0[node][label].field_0 = address(_9)
+  log NewOwner(
+        bytes32 node=owner,
+        bytes32 label=node,
+        address owner=label)
+  return sha3(node, label)
+
+def setRecord(bytes32 node, address owner, address resolver, uint64 ttl) payable: 
+  require calldata.size - 4 >= 128
+  if stor0[node].field_0 == caller:
+      _4 = stor0[node].field_0 == caller
+  else:
+      _4 = stor1[stor0[node].field_0][caller]
+  require _4
+  if owner:
+      _5 = owner
+  else:
+      _5 = this.address
+  stor0[node].field_0 = address(_5)
+  log Transfer(
+        bytes32 node=owner,
+        address owner=node)
+  if resolver != stor0[node].field_256:
+      stor0[node].field_256 = resolver
+      log NewResolver(
+            bytes32 node=resolver,
+            address resolver=node)
+  if ttl != stor0[node].field_416:
+      stor0[node].field_416 = ttl
+      log NewTTL(
+            bytes32 node=ttl,
+            uint64 ttl=node)
+
+def setSubnodeRecord(bytes32 node, bytes32 label, address owner, address resolver, uint64 ttl) payable: 
+  require calldata.size - 4 >= 160
+  if stor0[node].field_0 == caller:
+      _4 = stor0[node].field_0 == caller
+  else:
+      _4 = stor1[stor0[node].field_0][caller]
+  require _4
+  if owner:
+      _9 = owner
+  else:
+      _9 = this.address
+  stor0[node][label].field_0 = address(_9)
+  log NewOwner(
+        bytes32 node=owner,
+        bytes32 label=node,
+        address owner=label)
+  if resolver != stor0[node][label].field_256:
+      stor0[node][label].field_256 = resolver
+      log NewResolver(
+            bytes32 node=resolver,
+            address resolver=sha3(node, label))
+  if ttl != stor0[node][label].field_416:
+      stor0[node][label].field_416 = ttl
+      log NewTTL(
+            bytes32 node=ttl,
+            uint64 ttl=sha3(node, label))
+
+

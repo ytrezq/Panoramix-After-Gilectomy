@@ -1,0 +1,1210 @@
+# Palkeoramix decompiler. 
+
+const getChainId = chainid
+const domainSeparator = sha3(0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218, chainid, address(this.address))
+const VERSION = '1.3.0'
+
+def storage:
+  stor1 is mapping of struct at storage 1
+  stor2 is mapping of struct at storage 2
+  stor3 is uint256 at storage 3
+  threshold is uint256 at storage 4
+  nonce is uint256 at storage 5
+  signedMessages is mapping of uint256 at storage 7
+  approvedHashes is mapping of uint256 at storage 8
+  stor4A20 is uint128 at storage 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8 offset 160
+  stor4A20 is address at storage 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8
+  stor6C9A is uint128 at storage 0x6c9a6c4a39284e37ed1cf53d337577d14212a4870fb976a4366c693b939918d5 offset 160
+  stor6C9A is address at storage 0x6c9a6c4a39284e37ed1cf53d337577d14212a4870fb976a4366c693b939918d5
+  stor6C9A is uint256 at storage 0x6c9a6c4a39284e37ed1cf53d337577d14212a4870fb976a4366c693b939918d5
+
+def signedMessages(bytes32 _param1): # not payable
+  require calldata.size - 4 >= 32
+  return signedMessages[_param1]
+
+def approvedHashes(address _param1, bytes32 _param2): # not payable
+  require calldata.size - 4 >= 64
+  return approvedHashes[_param1][_param2]
+
+def nonce(): # not payable
+  return nonce
+
+def getThreshold(): # not payable
+  return threshold
+
+#
+#  Regular functions
+#
+
+def setGuard(address _guard): # not payable
+  require calldata.size - 4 >= 32
+  if this.address != caller:
+      revert with 0, 'GS031'
+  address(stor4A20.field_0) = _guard
+  Mask(96, 0, stor4A20.field_160) = 0
+  log ChangedGuard(address guard=_guard)
+
+def isOwner(address account): # not payable
+  require calldata.size - 4 >= 32
+  if account == 1:
+      _2 = account != 1
+  else:
+      _2 = bool(address(stor2[address(account)].field_0))
+  return bool(_2)
+
+def isModuleEnabled(address module): # not payable
+  require calldata.size - 4 >= 32
+  if 1 == module:
+      _2 = module != 1
+  else:
+      _2 = bool(address(stor1[address(module)].field_0))
+  return bool(_2)
+
+def setFallbackHandler(address handler): # not payable
+  require calldata.size - 4 >= 32
+  if this.address != caller:
+      revert with 0, 'GS031'
+  address(stor6C9A.field_0) = handler
+  Mask(96, 0, stor6C9A.field_160) = 0
+  log ChangedFallbackHandler(address handler=handler)
+
+def changeThreshold(uint256 _threshold): # not payable
+  require calldata.size - 4 >= 32
+  if this.address != caller:
+      revert with 0, 'GS031'
+  if _threshold > stor3:
+      revert with 0, 'GS201'
+  if _threshold < 1:
+      revert with 0, 'GS202'
+  threshold = _threshold
+  log ChangedThreshold(uint256 threshold=threshold)
+
+def approveHash(bytes32 hashToApprove): # not payable
+  require calldata.size - 4 >= 32
+  if not address(stor2[caller].field_0):
+      revert with 0, 'GS030'
+  approvedHashes[caller][hashToApprove] = 1
+  log ApproveHash(
+        bytes32 approvedHash=hashToApprove,
+        address owner=caller)
+
+def _fallback(?): # not payable, default function
+  if not uint256(stor6C9A.field_0):
+      return 0
+  call uint256(stor6C9A.field_0) with:
+     funct call.data[0 len 4]
+       gas gas_remaining wei
+      args call.data[4 len calldata.size - 4], Mask(160, 96, caller) >> 96
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  return ext_call.return_data[0 len return_data.size]
+
+def simulateAndRevert(address targetContract, bytes calldataPayload): # not payable
+  require calldata.size - 4 >= 64
+  require calldataPayload <= unknown10000000()
+  require calldataPayload + 36 <= calldata.size
+  require calldataPayload.length <= unknown10000000() and calldataPayload + calldataPayload.length + 36 <= calldata.size
+  delegate targetContract with:
+       gas gas_remaining wei
+      args calldataPayload[all]
+  revert with delegate.return_code, return_data.size, ext_call.return_data[0 len return_data.size]
+
+def enableModule(address module): # not payable
+  require calldata.size - 4 >= 32
+  if this.address != caller:
+      revert with 0, 'GS031'
+  if not module:
+      _3 = bool(module)
+  else:
+      _3 = module != 1
+  if not _3:
+      revert with 0, 'GS101'
+  if address(stor1[address(module)].field_0):
+      revert with 0, 'GS102'
+  address(stor1[address(module)].field_0) = address(stor1[1].field_0)
+  address(stor1[1].field_0) = module
+  log EnabledModule(address module=module)
+
+def disableModule(address prevModule, address module): # not payable
+  require calldata.size - 4 >= 64
+  if this.address != caller:
+      revert with 0, 'GS031'
+  if not module:
+      _3 = bool(module)
+  else:
+      _3 = module != 1
+  if not _3:
+      revert with 0, 'GS101'
+  if address(stor1[address(prevModule)].field_0) != module:
+      revert with 0, 'GS103'
+  address(stor1[address(prevModule)].field_0) = address(stor1[address(module)].field_0)
+  address(stor1[address(module)].field_0) = 0
+  log DisabledModule(address module=module)
+
+def getStorageAt(uint256 offset, uint256 length): # not payable
+  require calldata.size - 4 >= 64
+  require 32 * length <= LOCK8605463013()
+  if Mask(251, 0, length):
+      mem[128 len 32 * length] = call.data[calldata.size len 32 * length]
+  idx = 0
+  while idx < length:
+      mem[(32 * idx) + 128] = uint256(stor[offset + idx])
+      idx = idx + 1
+      continue 
+  mem[floor32(length) + 192 len floor32(length)] = mem[128 len floor32(length)]
+  return Array(len=32 * length, data=mem[128 len floor32(length)], mem[(2 * floor32(length)) + 192 len (32 * length) - floor32(length)]), 
+
+def getTransactionHash(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, uint256 _nonce): # not payable
+  require calldata.size - 4 >= 320
+  require data <= unknown10000000()
+  require data + 36 <= calldata.size
+  require data.length <= unknown10000000() and data + data.length + 36 <= calldata.size
+  require operation <= 1
+  return sha3(0, 0, sha3(0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218, chainid, this.address), sha3(0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8, address(to), value, sha3(data[all]), operation << 248, safeTxGas, baseGas, gasPrice, address(gasToken), address(refundReceiver), _nonce))
+
+def addOwnerWithThreshold(address owner, uint256 _threshold): # not payable
+  require calldata.size - 4 >= 64
+  if this.address != caller:
+      revert with 0, 'GS031'
+  if not owner:
+      _3 = bool(owner)
+  else:
+      _3 = owner != 1
+  if not _3:
+      _4 = _3
+  else:
+      _4 = owner != this.address
+  if not _4:
+      revert with 0, 'GS203'
+  if address(stor2[address(owner)].field_0):
+      revert with 0, 'GS204'
+  address(stor2[address(owner)].field_0) = address(stor2[1].field_0)
+  address(stor2[1].field_0) = owner
+  stor3++
+  log AddedOwner(address owner=owner)
+  if threshold != _threshold:
+      if _threshold > stor3:
+          revert with 0, 'GS201'
+      if _threshold < 1:
+          revert with 0, 'GS202'
+      threshold = _threshold
+      log ChangedThreshold(uint256 threshold=threshold)
+
+def getOwners(): # not payable
+  require stor3 <= LOCK8605463013()
+  if stor3:
+      mem[128 len 32 * stor3] = call.data[calldata.size len 32 * stor3]
+  mem[0] = 1
+  mem[32] = 2
+  s = address(stor[sha3(mem[0 len 64])])
+  t = 0
+  while address(s) != 1:
+      require t < stor3
+      mem[(32 * t) + 128] = address(s)
+      mem[0] = address(s)
+      mem[32] = 2
+      s = address(stor2[address(s)].field_0)
+      t = t + 1
+      continue 
+  mem[(32 * stor3) + 192 len floor32(stor3)] = mem[128 len floor32(stor3)]
+  return Array(len=stor3, data=mem[128 len floor32(stor3)], mem[(32 * stor3) + floor32(stor3) + 192 len (32 * stor3) - floor32(stor3)]), 
+
+def removeOwner(address prevOwner, address owner, uint256 _threshold): # not payable
+  require calldata.size - 4 >= 96
+  if this.address != caller:
+      revert with 0, 'GS031'
+  if stor3 - 1 < _threshold:
+      revert with 0, 'GS201'
+  if not owner:
+      _5 = bool(owner)
+  else:
+      _5 = owner != 1
+  if not _5:
+      revert with 0, 'GS203'
+  if address(stor2[address(prevOwner)].field_0) != owner:
+      revert with 0, 'GS205'
+  address(stor2[address(prevOwner)].field_0) = address(stor2[address(owner)].field_0)
+  address(stor2[address(owner)].field_0) = 0
+  stor3--
+  log RemovedOwner(address owner=owner)
+  if threshold != _threshold:
+      if _threshold > stor3:
+          revert with 0, 'GS201'
+      if _threshold < 1:
+          revert with 0, 'GS202'
+      threshold = _threshold
+      log ChangedThreshold(uint256 threshold=threshold)
+
+def swapOwner(address prevOwner, address oldOwner, address newOwner): # not payable
+  require calldata.size - 4 >= 96
+  if this.address != caller:
+      revert with 0, 'GS031'
+  if not newOwner:
+      _3 = bool(newOwner)
+  else:
+      _3 = newOwner != 1
+  if not _3:
+      _4 = _3
+  else:
+      _4 = newOwner != this.address
+  if not _4:
+      revert with 0, 'GS203'
+  if address(stor2[address(newOwner)].field_0):
+      revert with 0, 'GS204'
+  if not oldOwner:
+      _10 = bool(oldOwner)
+  else:
+      _10 = oldOwner != 1
+  if not _10:
+      revert with 0, 'GS203'
+  if address(stor2[address(prevOwner)].field_0) != oldOwner:
+      revert with 0, 'GS205'
+  address(stor2[address(newOwner)].field_0) = address(stor2[address(oldOwner)].field_0)
+  address(stor2[address(prevOwner)].field_0) = newOwner
+  address(stor2[address(oldOwner)].field_0) = 0
+  log RemovedOwner(address owner=oldOwner)
+  log AddedOwner(address owner=newOwner)
+
+def encodeTransactionData(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, uint256 _nonce): # not payable
+  require calldata.size - 4 >= 320
+  require data <= unknown10000000()
+  require data + 36 <= calldata.size
+  require data.length <= unknown10000000() and data + data.length + 36 <= calldata.size
+  require operation <= 1
+  return Array(len=66, data=0, 0, sha3(0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218, chainid, this.address), sha3(0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8, address(to), value, sha3(data[all]), operation << 248, safeTxGas, baseGas, gasPrice, address(gasToken), address(refundReceiver), _nonce), 0 >> 256, Mask(16, -512, 0, 0, sha3(0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218, chainid, this.address), sha3(0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8, address(to), value, sha3(data[all]), operation << 248, safeTxGas, baseGas, gasPrice, address(gasToken), address(refundReceiver), _nonce), 0) << 512), 
+
+def getModulesPaginated(address start, uint256 pageSize): # not payable
+  require calldata.size - 4 >= 64
+  require pageSize <= LOCK8605463013()
+  mem[64] = (32 * pageSize) + 128
+  if pageSize:
+      mem[128 len 32 * pageSize] = call.data[calldata.size len 32 * pageSize]
+  mem[0] = start
+  mem[32] = 1
+  if not address(stor1[address(start)].field_0):
+      _12 = bool(address(stor1[address(start)].field_0))
+  else:
+      _12 = address(stor1[address(start)].field_0) != 1
+  if not _12:
+      _13 = _12
+  else:
+      _13 = 0 < pageSize
+  s = address(stor[sha3(mem[0 len 64])])
+  t = 0
+  while _13:
+      require t < pageSize
+      mem[(32 * t) + 128] = address(s)
+      mem[0] = address(s)
+      mem[32] = 1
+      s = address(stor1[address(s)].field_0)
+      t = t + 1
+      continue 
+  mem[96] = t
+  mem[(32 * pageSize) + 160] = address(s)
+  mem[(32 * pageSize) + 128] = 64
+  mem[(32 * pageSize) + 192] = t
+  u = 0
+  while u < 32 * t:
+      mem[(32 * pageSize) + u + 224] = mem[u + 128]
+      u = u + 32
+      continue 
+  return Array(len=t, data=mem[(32 * pageSize) + 224 len 32 * t]), address(s)
+
+def execTransactionFromModuleReturnData(address to, uint256 value, bytes data, uint8 operation): # not payable
+  require calldata.size - 4 >= 128
+  require data <= unknown10000000()
+  require data + 36 <= calldata.size
+  require data.length <= unknown10000000() and data + data.length + 36 <= calldata.size
+  mem[128 len data.length] = data[all]
+  mem[data.length + 128] = 0
+  mem[ceil32(data.length) + 128] = caller
+  mem[ceil32(data.length) + 160] = to
+  mem[ceil32(data.length) + 192] = value
+  require operation <= 1
+  mem[ceil32(data.length) + 256] = operation
+  mem[ceil32(data.length) + 224] = 160
+  mem[ceil32(data.length) + 288] = data.length
+  mem[ceil32(data.length) + 320 len ceil32(data.length)] = data[all], mem[data.length + 128 len ceil32(data.length) - data.length]
+  if not data.length % 32:
+      _9 = data.length + ceil32(data.length) + 320
+  else:
+      mem[floor32(data.length) + ceil32(data.length) + 320] = mem[floor32(data.length) + ceil32(data.length) + -(data.length % 32) + 352 len data.length % 32]
+      _9 = floor32(data.length) + ceil32(data.length) + 352
+  log SafeModuleTransaction(address module, address to, uint256 value, bytes data, uint8 operation):
+                            mem[ceil32(data.length) + 128 len _9 + -ceil32(data.length) - 128],
+  if caller == 1:
+      _12 = 1 != caller
+  else:
+      _12 = bool(address(stor1[caller].field_0))
+  if not _12:
+      revert with 0, 'GS104'
+  if operation != 1:
+      call to with:
+         value value wei
+           gas gas_remaining wei
+          args data[all]
+      _17 = ext_call.success
+  else:
+      delegate to with:
+           gas gas_remaining wei
+          args data[all]
+      _17 = delegate.return_code
+  if not _17:
+      log ExecutionFromModuleFailure(address module=caller)
+  else:
+      log ExecutionFromModuleSuccess(address module=caller)
+  return bool(_17), Array(len=return_data.size, data=ext_call.return_data[0 len return_data.size])
+
+def execTransactionFromModule(address to, uint256 value, bytes data, uint8 operation): # not payable
+  require calldata.size - 4 >= 128
+  require data <= unknown10000000()
+  require data + 36 <= calldata.size
+  require data.length <= unknown10000000() and data + data.length + 36 <= calldata.size
+  mem[128 len data.length] = data[all]
+  mem[data.length + 128] = 0
+  mem[ceil32(data.length) + 128] = caller
+  mem[ceil32(data.length) + 160] = to
+  mem[ceil32(data.length) + 192] = value
+  require operation <= 1
+  mem[ceil32(data.length) + 256] = operation
+  mem[ceil32(data.length) + 224] = 160
+  mem[ceil32(data.length) + 288] = data.length
+  mem[ceil32(data.length) + 320 len ceil32(data.length)] = data[all], mem[data.length + 128 len ceil32(data.length) - data.length]
+  if not data.length % 32:
+      _9 = data.length + ceil32(data.length) + 320
+  else:
+      mem[floor32(data.length) + ceil32(data.length) + 320] = mem[floor32(data.length) + ceil32(data.length) + -(data.length % 32) + 352 len data.length % 32]
+      _9 = floor32(data.length) + ceil32(data.length) + 352
+  log SafeModuleTransaction(address module, address to, uint256 value, bytes data, uint8 operation):
+                            mem[ceil32(data.length) + 128 len _9 + -ceil32(data.length) - 128],
+  if caller == 1:
+      _12 = 1 != caller
+  else:
+      _12 = bool(address(stor1[caller].field_0))
+  if not _12:
+      revert with 0, 'GS104'
+  if operation != 1:
+      call to with:
+         value value wei
+           gas gas_remaining wei
+          args data[all]
+      _17 = ext_call.success
+  else:
+      delegate to with:
+           gas gas_remaining wei
+          args data[all]
+      _17 = delegate.return_code
+  if not _17:
+      log ExecutionFromModuleFailure(address module=caller)
+  else:
+      log ExecutionFromModuleSuccess(address module=caller)
+  mem[ceil32(data.length) + 128] = bool(_17)
+  return Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)]
+
+def requiredTxGas(address to, uint256 value, bytes data, uint8 operation): # not payable
+  require calldata.size - 4 >= 128
+  require data <= unknown10000000()
+  require data + 36 <= calldata.size
+  require data.length <= unknown10000000() and data + data.length + 36 <= calldata.size
+  mem[96] = data.length
+  mem[128 len data.length] = data[all]
+  mem[data.length + 128] = 0
+  require operation <= 1
+  if operation != 1:
+      call to with:
+         value value wei
+           gas gas_remaining wei
+          args data[all]
+      _4 = ext_call.success
+  else:
+      delegate to with:
+           gas gas_remaining wei
+          args data[all]
+      _4 = delegate.return_code
+  require _4
+  mem[ceil32(data.length) + 160] = 0
+  mem[ceil32(data.length) + 128] = 32
+  mem[64] = ceil32(data.length) + 192
+  mem[ceil32(data.length) + 192] = 0x8c379a000000000000000000000000000000000000000000000000000000000
+  mem[ceil32(data.length) + 196] = 32
+  mem[ceil32(data.length) + 228] = Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)]
+  mem[ceil32(data.length) + 260 len ceil32(Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)])] = mem[ceil32(data.length) + 160 len ceil32(Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)])]
+  if not Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)] % 32:
+      revert with memory
+        from ceil32(data.length) + 192
+         len Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)] + 68
+  mem[floor32(Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)]) + ceil32(data.length) + 260] = mem[floor32(Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)]) + ceil32(data.length) + -(Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)] % 32) + 292 len Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)] % 32]
+  revert with memory
+    from ceil32(data.length) + 192
+     len floor32(Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)]) + 100
+
+def setup(address[] _owners, uint256 _threshold, address to, bytes data, address fallbackHandler, address paymentToken, uint256 payment, address paymentReceiver): # not payable
+  require calldata.size - 4 >= 256
+  require _owners <= unknown10000000()
+  require _owners + 36 <= calldata.size
+  require _owners.length <= unknown10000000() and _owners + (32 * _owners.length) + 36 <= calldata.size
+  require data <= unknown10000000()
+  require data + 36 <= calldata.size
+  require data.length <= unknown10000000() and data + data.length + 36 <= calldata.size
+  mem[96] = _owners.length
+  mem[128 len 32 * _owners.length] = call.data[_owners + 36 len 32 * _owners.length]
+  mem[(32 * _owners.length) + 128] = 0
+  if threshold:
+      revert with 0, 'GS200'
+  if _threshold > _owners.length:
+      revert with 0, 'GS201'
+  if _threshold < 1:
+      revert with 0, 'GS202'
+  idx = 0
+  s = 1
+  while idx < _owners.length:
+      require idx < _owners.length
+      if not mem[(32 * idx) + 140 len 20]:
+          _39 = bool(mem[(32 * idx) + 140 len 20])
+      else:
+          _39 = mem[(32 * idx) + 140 len 20] != 1
+      if not _39:
+          _44 = _39
+      else:
+          _44 = mem[(32 * idx) + 140 len 20] != this.address
+      if not _44:
+          _47 = _44
+      else:
+          _47 = address(s) != mem[(32 * idx) + 140 len 20]
+      if not _47:
+          revert with 0, 'GS203'
+      if address(stor2[mem[(32 * idx) + 140 len 20]].field_0):
+          revert with 0, 'GS204'
+      mem[0] = address(s)
+      mem[32] = 2
+      address(stor2[address(s)].field_0) = mem[(32 * idx) + 140 len 20]
+      idx = idx + 1
+      s = mem[(32 * idx) + 128]
+      continue 
+  uint8(stor2[address(s)].field_0) = 1
+  Mask(152, 0, stor2[address(s)].field_8) = 0
+  stor3 = _owners.length
+  threshold = _threshold
+  if fallbackHandler:
+      address(stor6C9A.field_0) = fallbackHandler
+      Mask(96, 0, stor6C9A.field_160) = 0
+  mem[64] = (32 * _owners.length) + ceil32(data.length) + 160
+  mem[(32 * _owners.length) + 128] = data.length
+  mem[(32 * _owners.length) + 160 len data.length] = data[all]
+  mem[(32 * _owners.length) + data.length + 160] = 0
+  if address(stor1[1].field_0):
+      revert with 0, 'GS100'
+  mem[0] = 1
+  mem[32] = 1
+  uint8(stor1[1].field_0) = 1
+  Mask(152, 0, stor1[1].field_8) = 0
+  if to:
+      delegate to with:
+           gas gas_remaining wei
+          args data[all]
+      if not delegate.return_code:
+          revert with 0, 'GS000'
+  if payment > 0:
+      if not paymentReceiver:
+          _66 = tx.origin
+      else:
+          _66 = paymentReceiver
+      if not paymentToken:
+          if 1 < block.gasprice:
+              _67 = 1
+          else:
+              _67 = block.gasprice
+          if payment:
+              require payment
+              require payment * _67 / payment == _67
+              _71 = payment * _67
+          else:
+              _71 = 0
+          call address(_66) with:
+             value _71 wei
+               gas 2300 * is_zero(value) wei
+          if not ext_call.success:
+              revert with 0, 'GS011'
+      else:
+          if payment:
+              require payment
+              require payment / payment == 1
+              _68 = payment
+          else:
+              _68 = 0
+          mem[(32 * _owners.length) + ceil32(data.length) + 196] = address(_66)
+          mem[(32 * _owners.length) + ceil32(data.length) + 228] = _68
+          mem[(32 * _owners.length) + ceil32(data.length) + 160] = 68
+          mem[64] = (32 * _owners.length) + ceil32(data.length) + 260
+          mem[(32 * _owners.length) + ceil32(data.length) + 192 len 4] = transfer(address recipient, uint256 amount)
+          call paymentToken.transfer(address recipient, uint256 amount) with:
+               gas gas_remaining - 10000 wei
+              args mem[(32 * _owners.length) + ceil32(data.length) + 196 len Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[(32 * _owners.length) + data.length + 192 len -data.length + ceil32(data.length)] - 4]
+          mem[0] = ext_call.return_data[0]
+          if not return_data.size:
+              _81 = ext_call.success
+          else:
+              if return_data.size == 32:
+                  _81 = not not ext_call.success or not ext_call.return_data[0]
+              else:
+                  _81 = 0
+          if not _81:
+              revert with 0, 'GS012'
+  _87 = mem[64]
+  mem[mem[64] + 32] = _threshold
+  mem[mem[64] + 64] = to
+  mem[mem[64] + 96] = fallbackHandler
+  mem[mem[64]] = 128
+  mem[_87 + 128] = _owners.length
+  mem[_87 + 160 len 32 * _owners.length] = call.data[_owners + 36 len 32 * _owners.length]
+  mem[_87 + (32 * _owners.length) + 160] = 0
+  log SafeSetup(address initiator, address[] owners, uint256 threshold, address initializer, address fallbackHandler):
+                mem[mem[64] len _87 + floor32(_owners.length) + -mem[64] + 160],
+                caller,
+
+def checkSignatures(bytes32 dataHash, bytes data, bytes signatures): # not payable
+  require calldata.size - 4 >= 96
+  require data <= unknown10000000()
+  require data + 36 <= calldata.size
+  require data.length <= unknown10000000() and data + data.length + 36 <= calldata.size
+  mem[96] = data.length
+  mem[128 len data.length] = data[all]
+  mem[data.length + 128] = 0
+  require signatures <= unknown10000000()
+  require signatures + 36 <= calldata.size
+  require signatures.length <= unknown10000000() and signatures + signatures.length + 36 <= calldata.size
+  mem[64] = ceil32(data.length) + ceil32(signatures.length) + 160
+  mem[ceil32(data.length) + 128] = signatures.length
+  mem[ceil32(data.length) + 160 len signatures.length] = signatures[all]
+  mem[ceil32(data.length) + signatures.length + 160] = 0
+  if threshold <= 0:
+      revert with 0, 'GS001'
+  if threshold:
+      require threshold
+      require 65 * threshold / threshold == 65
+      _6 = 65 * threshold
+  else:
+      _6 = 0
+  if signatures.length < _6:
+      revert with 0, 'GS020'
+  idx = 0
+  s = 0
+  s = 0
+  s = 0
+  s = 0
+  s = 0
+  while idx < threshold:
+      _47 = mem[ceil32(data.length) + (65 * idx) + 160]
+      _48 = mem[ceil32(data.length) + (65 * idx) + 192]
+      _49 = mem[ceil32(data.length) + (65 * idx) + 193]
+      if mem[ceil32(data.length) + (65 * idx) + 224 len 1]:
+          if mem[ceil32(data.length) + (65 * idx) + 224 len 1] != 1:
+              if mem[ceil32(data.length) + (65 * idx) + 224 len 1] <= 30:
+                  _50 = mem[64]
+                  mem[64] = mem[64] + 32
+                  mem[_50 + 32] = dataHash
+                  mem[_50 + 64] = uint8(_49)
+                  mem[_50 + 96] = _47
+                  mem[_50 + 128] = _48
+                  signer = erecover(dataHash, _49 << 248, _47, _48) # precompiled
+                  mem[_50] = signer
+                  if not erecover.result:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  _67 = signer
+              else:
+                  _53 = mem[64]
+                  mem[mem[64] + 32] = '\x19Ethereum Signed Message:\n32'
+                  mem[mem[64] + 60] = dataHash
+                  _54 = mem[64]
+                  mem[mem[64]] = 60
+                  mem[64] = mem[64] + 92
+                  _56 = sha3(mem[_54 + 32 len mem[_54]])
+                  mem[_53 + 92] = 0
+                  mem[64] = _53 + 124
+                  mem[_53 + 124] = _56
+                  mem[_53 + 156] = uint8(uint8(_49) - 4)
+                  mem[_53 + 188] = _47
+                  mem[_53 + 220] = _48
+                  signer = erecover(_56, uint8(_49) - 4 << 248, _47, _48) # precompiled
+                  mem[_53 + 92] = signer
+                  if not erecover.result:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  _67 = signer
+              _70 = _67
+          else:
+              if caller == mem[ceil32(data.length) + (65 * idx) + 172 len 20]:
+                  _62 = caller == mem[ceil32(data.length) + (65 * idx) + 172 len 20]
+              else:
+                  mem[0] = dataHash
+                  mem[32] = sha3(mem[ceil32(data.length) + (65 * idx) + 172 len 20], 8)
+                  _62 = bool(approvedHashes[mem[ceil32(data.length) + (65 * idx) + 172 len 20]][dataHash])
+              if not _62:
+                  revert with 0, 'GS025'
+              _70 = mem[ceil32(data.length) + (65 * idx) + 160]
+          _107 = _70
+      else:
+          if threshold:
+              require threshold
+              require 65 * threshold / threshold == 65
+              _71 = 65 * threshold
+          else:
+              _71 = 0
+          if mem[ceil32(data.length) + (65 * idx) + 192] < _71:
+              revert with 0, 'GS021'
+          require mem[ceil32(data.length) + (65 * idx) + 192] + 32 >= mem[ceil32(data.length) + (65 * idx) + 192]
+          if mem[ceil32(data.length) + (65 * idx) + 192] + 32 > mem[ceil32(data.length) + 128]:
+              revert with 0, 'GS022'
+          if mem[ceil32(data.length) + (65 * idx) + 192] + mem[ceil32(data.length) + mem[ceil32(data.length) + (65 * idx) + 192] + 160] + 32 > mem[ceil32(data.length) + 128]:
+              revert with 0, 'GS023'
+          mem[mem[64]] = 0x20c13b0b00000000000000000000000000000000000000000000000000000000
+          mem[mem[64] + 4] = 64
+          mem[mem[64] + 68] = mem[96]
+          idx = 0
+          while idx < mem[96]:
+              mem[mem[64] + idx + 100] = mem[idx + 128]
+              idx = idx + 32
+              continue 
+          if not mem[96] % 32:
+              _94 = mem[96] + mem[64] + 100
+          else:
+              mem[floor32(mem[96]) + mem[64] + 100] = mem[floor32(mem[96]) + mem[64] + -(mem[96] % 32) + 132 len mem[96] % 32]
+              _94 = floor32(mem[96]) + mem[64] + 132
+          mem[mem[64] + 36] = _94 + -mem[64] - 4
+          mem[_94] = mem[ceil32(data.length) + _48 + 160]
+          _96 = mem[ceil32(data.length) + _48 + 160]
+          idx = 0
+          while idx < _96:
+              mem[_94 + idx + 32] = mem[ceil32(data.length) + _48 + idx + 192]
+              idx = idx + 32
+              continue 
+          if not _96 % 32:
+              _101 = _96 + _94 + 32
+          else:
+              mem[floor32(_96) + _94 + 32] = mem[floor32(_96) + _94 + -(_96 % 32) + 64 len _96 % 32]
+              _101 = floor32(_96) + _94 + 64
+          require ext_code.size(address(_47))
+          static call address(_47).mem[mem[64] len 4] with:
+                  gas gas_remaining wei
+                 args mem[mem[64] + 4 len _101 + -mem[64] - 4]
+          mem[mem[64]] = ext_call.return_data[0]
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          require return_data.size >= 32
+          if Mask(32, 224, ext_call.return_data[0]) != 0x20c13b0b00000000000000000000000000000000000000000000000000000000:
+              revert with 0, 'GS024'
+          _107 = _47
+      if address(_107) <= address(s):
+          _109 = address(_107) > address(s)
+      else:
+          mem[0] = address(_107)
+          mem[32] = 2
+          _109 = bool(address(stor2[address(_107)].field_0))
+      if not _109:
+          _110 = _109
+      else:
+          _110 = address(_107) != 1
+      if not _110:
+          revert with 0, 'GS026'
+      idx = idx + 1
+      s = _48
+      s = _47
+      s = uint8(_49)
+      s = _107
+      s = _107
+      continue 
+
+def checkNSignatures(bytes32 dataHash, bytes data, bytes signatures, uint256 requiredSignatures): # not payable
+  require calldata.size - 4 >= 128
+  require data <= unknown10000000()
+  require data + 36 <= calldata.size
+  require data.length <= unknown10000000() and data + data.length + 36 <= calldata.size
+  mem[96] = data.length
+  mem[128 len data.length] = data[all]
+  mem[data.length + 128] = 0
+  require signatures <= unknown10000000()
+  require signatures + 36 <= calldata.size
+  require signatures.length <= unknown10000000() and signatures + signatures.length + 36 <= calldata.size
+  mem[64] = ceil32(data.length) + ceil32(signatures.length) + 160
+  mem[ceil32(data.length) + 128] = signatures.length
+  mem[ceil32(data.length) + 160 len signatures.length] = signatures[all]
+  mem[ceil32(data.length) + signatures.length + 160] = 0
+  if requiredSignatures:
+      require requiredSignatures
+      require 65 * requiredSignatures / requiredSignatures == 65
+      _4 = 65 * requiredSignatures
+  else:
+      _4 = 0
+  if signatures.length < _4:
+      revert with 0, 'GS020'
+  idx = 0
+  s = 0
+  s = 0
+  s = 0
+  s = 0
+  s = 0
+  while idx < requiredSignatures:
+      _45 = mem[ceil32(data.length) + (65 * idx) + 160]
+      _46 = mem[ceil32(data.length) + (65 * idx) + 192]
+      _47 = mem[ceil32(data.length) + (65 * idx) + 193]
+      if mem[ceil32(data.length) + (65 * idx) + 224 len 1]:
+          if mem[ceil32(data.length) + (65 * idx) + 224 len 1] != 1:
+              if mem[ceil32(data.length) + (65 * idx) + 224 len 1] <= 30:
+                  _48 = mem[64]
+                  mem[64] = mem[64] + 32
+                  mem[_48 + 32] = dataHash
+                  mem[_48 + 64] = uint8(_47)
+                  mem[_48 + 96] = _45
+                  mem[_48 + 128] = _46
+                  signer = erecover(dataHash, _47 << 248, _45, _46) # precompiled
+                  mem[_48] = signer
+                  if not erecover.result:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  _65 = signer
+              else:
+                  _51 = mem[64]
+                  mem[mem[64] + 32] = '\x19Ethereum Signed Message:\n32'
+                  mem[mem[64] + 60] = dataHash
+                  _52 = mem[64]
+                  mem[mem[64]] = 60
+                  mem[64] = mem[64] + 92
+                  _54 = sha3(mem[_52 + 32 len mem[_52]])
+                  mem[_51 + 92] = 0
+                  mem[64] = _51 + 124
+                  mem[_51 + 124] = _54
+                  mem[_51 + 156] = uint8(uint8(_47) - 4)
+                  mem[_51 + 188] = _45
+                  mem[_51 + 220] = _46
+                  signer = erecover(_54, uint8(_47) - 4 << 248, _45, _46) # precompiled
+                  mem[_51 + 92] = signer
+                  if not erecover.result:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  _65 = signer
+              _68 = _65
+          else:
+              if caller == mem[ceil32(data.length) + (65 * idx) + 172 len 20]:
+                  _60 = caller == mem[ceil32(data.length) + (65 * idx) + 172 len 20]
+              else:
+                  mem[0] = dataHash
+                  mem[32] = sha3(mem[ceil32(data.length) + (65 * idx) + 172 len 20], 8)
+                  _60 = bool(approvedHashes[mem[ceil32(data.length) + (65 * idx) + 172 len 20]][dataHash])
+              if not _60:
+                  revert with 0, 'GS025'
+              _68 = mem[ceil32(data.length) + (65 * idx) + 160]
+          _105 = _68
+      else:
+          if requiredSignatures:
+              require requiredSignatures
+              require 65 * requiredSignatures / requiredSignatures == 65
+              _69 = 65 * requiredSignatures
+          else:
+              _69 = 0
+          if mem[ceil32(data.length) + (65 * idx) + 192] < _69:
+              revert with 0, 'GS021'
+          require mem[ceil32(data.length) + (65 * idx) + 192] + 32 >= mem[ceil32(data.length) + (65 * idx) + 192]
+          if mem[ceil32(data.length) + (65 * idx) + 192] + 32 > mem[ceil32(data.length) + 128]:
+              revert with 0, 'GS022'
+          if mem[ceil32(data.length) + (65 * idx) + 192] + mem[ceil32(data.length) + mem[ceil32(data.length) + (65 * idx) + 192] + 160] + 32 > mem[ceil32(data.length) + 128]:
+              revert with 0, 'GS023'
+          mem[mem[64]] = 0x20c13b0b00000000000000000000000000000000000000000000000000000000
+          mem[mem[64] + 4] = 64
+          mem[mem[64] + 68] = mem[96]
+          idx = 0
+          while idx < mem[96]:
+              mem[mem[64] + idx + 100] = mem[idx + 128]
+              idx = idx + 32
+              continue 
+          if not mem[96] % 32:
+              _92 = mem[96] + mem[64] + 100
+          else:
+              mem[floor32(mem[96]) + mem[64] + 100] = mem[floor32(mem[96]) + mem[64] + -(mem[96] % 32) + 132 len mem[96] % 32]
+              _92 = floor32(mem[96]) + mem[64] + 132
+          mem[mem[64] + 36] = _92 + -mem[64] - 4
+          mem[_92] = mem[ceil32(data.length) + _46 + 160]
+          _94 = mem[ceil32(data.length) + _46 + 160]
+          idx = 0
+          while idx < _94:
+              mem[_92 + idx + 32] = mem[ceil32(data.length) + _46 + idx + 192]
+              idx = idx + 32
+              continue 
+          if not _94 % 32:
+              _99 = _94 + _92 + 32
+          else:
+              mem[floor32(_94) + _92 + 32] = mem[floor32(_94) + _92 + -(_94 % 32) + 64 len _94 % 32]
+              _99 = floor32(_94) + _92 + 64
+          require ext_code.size(address(_45))
+          static call address(_45).mem[mem[64] len 4] with:
+                  gas gas_remaining wei
+                 args mem[mem[64] + 4 len _99 + -mem[64] - 4]
+          mem[mem[64]] = ext_call.return_data[0]
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          require return_data.size >= 32
+          if Mask(32, 224, ext_call.return_data[0]) != 0x20c13b0b00000000000000000000000000000000000000000000000000000000:
+              revert with 0, 'GS024'
+          _105 = _45
+      if address(_105) <= address(s):
+          _107 = address(_105) > address(s)
+      else:
+          mem[0] = address(_105)
+          mem[32] = 2
+          _107 = bool(address(stor2[address(_105)].field_0))
+      if not _107:
+          _108 = _107
+      else:
+          _108 = address(_105) != 1
+      if not _108:
+          revert with 0, 'GS026'
+      idx = idx + 1
+      s = _46
+      s = _45
+      s = uint8(_47)
+      s = _105
+      s = _105
+      continue 
+
+def execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures) payable: 
+  require calldata.size - 4 >= 320
+  require data <= unknown10000000()
+  require data + 36 <= calldata.size
+  require data.length <= unknown10000000() and data + data.length + 36 <= calldata.size
+  require signatures <= unknown10000000()
+  require signatures + 36 <= calldata.size
+  require signatures.length <= unknown10000000() and signatures + signatures.length + 36 <= calldata.size
+  mem[96] = signatures.length
+  mem[128 len signatures.length] = signatures[all]
+  mem[signatures.length + 128] = 0
+  mem[ceil32(signatures.length) + 160] = nonce
+  mem[ceil32(signatures.length) + 192] = caller
+  mem[ceil32(signatures.length) + 224] = threshold
+  mem[ceil32(signatures.length) + 128] = 96
+  mem[64] = ceil32(signatures.length) + 256
+  mem[ceil32(signatures.length) + 256] = to
+  mem[ceil32(signatures.length) + 288] = value
+  require operation <= 1
+  mem[ceil32(signatures.length) + 352] = operation
+  mem[ceil32(signatures.length) + 384] = safeTxGas
+  mem[ceil32(signatures.length) + 416] = baseGas
+  mem[ceil32(signatures.length) + 448] = gasPrice
+  mem[ceil32(signatures.length) + 480] = gasToken
+  mem[ceil32(signatures.length) + 512] = refundReceiver
+  mem[ceil32(signatures.length) + 320] = 352
+  mem[ceil32(signatures.length) + 608] = data.length
+  mem[ceil32(signatures.length) + 640 len data.length] = data[all]
+  mem[ceil32(signatures.length) + data.length + 640] = 0
+  mem[ceil32(signatures.length) + 544] = ceil32(data.length) + 384
+  mem[ceil32(signatures.length) + ceil32(data.length) + 640] = signatures.length
+  mem[ceil32(signatures.length) + ceil32(data.length) + 672 len ceil32(signatures.length)] = signatures[all], mem[signatures.length + 128 len ceil32(signatures.length) - signatures.length]
+  if not signatures.length % 32:
+      _12 = signatures.length + ceil32(signatures.length) + ceil32(data.length) + 672
+  else:
+      mem[floor32(signatures.length) + ceil32(signatures.length) + ceil32(data.length) + 672] = mem[floor32(signatures.length) + ceil32(signatures.length) + ceil32(data.length) + -(signatures.length % 32) + 704 len signatures.length % 32]
+      _12 = floor32(signatures.length) + ceil32(signatures.length) + ceil32(data.length) + 704
+  mem[ceil32(signatures.length) + 576] = _12 + -ceil32(signatures.length) - 256
+  mem[_12] = Mask(8 * -ceil32(signatures.length) + signatures.length + 32, 0, 0), mem[signatures.length + 160 len -signatures.length + ceil32(signatures.length)]
+  _14 = Mask(8 * -ceil32(signatures.length) + signatures.length + 32, 0, 0), mem[signatures.length + 160 len -signatures.length + ceil32(signatures.length)]
+  mem[_12 + 32 len ceil32(Mask(8 * -ceil32(signatures.length) + signatures.length + 32, 0, 0), mem[signatures.length + 160 len -signatures.length + ceil32(signatures.length)])] = mem[ceil32(signatures.length) + 160 len ceil32(Mask(8 * -ceil32(signatures.length) + signatures.length + 32, 0, 0), mem[signatures.length + 160 len -signatures.length + ceil32(signatures.length)])]
+  if not _14 % 32:
+      _19 = _14 + _12 + 32
+  else:
+      mem[floor32(_14) + _12 + 32] = mem[floor32(_14) + _12 + -(_14 % 32) + 64 len _14 % 32]
+      _19 = floor32(_14) + _12 + 64
+  log SafeMultiSigTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures, bytes additionalInfo):
+                              mem[mem[64] len _19 - mem[64]],
+  mem[mem[64] len data.length] = data[all]
+  _24 = mem[64]
+  mem[mem[64] + 32] = 0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8
+  mem[mem[64] + 64] = to
+  mem[mem[64] + 96] = value
+  mem[mem[64] + 128] = sha3(data[all])
+  mem[mem[64] + 160] = operation
+  mem[mem[64] + 192] = safeTxGas
+  mem[mem[64] + 224] = baseGas
+  mem[mem[64] + 256] = gasPrice
+  mem[mem[64] + 288] = gasToken
+  mem[mem[64] + 320] = refundReceiver
+  mem[mem[64] + 352] = nonce
+  _25 = mem[64]
+  mem[mem[64]] = 352
+  mem[64] = mem[64] + 384
+  _27 = sha3(mem[_25 + 32 len mem[_25]])
+  mem[_24 + 416] = 0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218
+  mem[_24 + 448] = chainid
+  mem[_24 + 480] = this.address
+  mem[_24 + 384] = 96
+  mem[_24 + 544] = 0x1900000000000000000000000000000000000000000000000000000000000000
+  mem[_24 + 545] = 0x100000000000000000000000000000000000000000000000000000000000000
+  mem[_24 + 546] = sha3(0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218, chainid, this.address)
+  mem[_24 + 578] = _27
+  mem[_24 + 512] = 66
+  mem[64] = _24 + 610
+  nonce++
+  if threshold <= 0:
+      revert with 0, 'GS001'
+  if threshold:
+      require threshold
+      require 65 * threshold / threshold == 65
+      _39 = 65 * threshold
+  else:
+      _39 = 0
+  if mem[96] < _39:
+      revert with 0, 'GS020'
+  idx = 0
+  s = 0
+  s = 0
+  s = 0
+  s = 0
+  s = 0
+  while idx < threshold:
+      _94 = mem[(65 * idx) + 128]
+      _95 = mem[(65 * idx) + 160]
+      _96 = mem[(65 * idx) + 161]
+      if mem[(65 * idx) + 192 len 1]:
+          if mem[(65 * idx) + 192 len 1] != 1:
+              if mem[(65 * idx) + 192 len 1] <= 30:
+                  _98 = mem[64]
+                  mem[64] = mem[64] + 32
+                  mem[_98 + 32] = sha3(0, 0, sha3(0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218, chainid, this.address), _27)
+                  mem[_98 + 64] = uint8(_96)
+                  mem[_98 + 96] = _94
+                  mem[_98 + 128] = _95
+                  signer = erecover(sha3(0, 0, sha3(0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218, chainid, this.address), _27), _96 << 248, _94, _95) # precompiled
+                  mem[_98] = signer
+                  if not erecover.result:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  _117 = signer
+              else:
+                  _101 = mem[64]
+                  mem[mem[64] + 32] = '\x19Ethereum Signed Message:\n32'
+                  mem[mem[64] + 60] = sha3(0, 0, sha3(0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218, chainid, this.address), _27)
+                  _102 = mem[64]
+                  mem[mem[64]] = 60
+                  mem[64] = mem[64] + 92
+                  _104 = sha3(mem[_102 + 32 len mem[_102]])
+                  mem[_101 + 92] = 0
+                  mem[64] = _101 + 124
+                  mem[_101 + 124] = _104
+                  mem[_101 + 156] = uint8(uint8(_96) - 4)
+                  mem[_101 + 188] = _94
+                  mem[_101 + 220] = _95
+                  signer = erecover(_104, uint8(_96) - 4 << 248, _94, _95) # precompiled
+                  mem[_101 + 92] = signer
+                  if not erecover.result:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  _117 = signer
+              _120 = _117
+          else:
+              if caller == mem[(65 * idx) + 140 len 20]:
+                  _110 = caller == mem[(65 * idx) + 140 len 20]
+              else:
+                  mem[0] = sha3(0, 0, sha3(0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218, chainid, this.address), _27)
+                  mem[32] = sha3(mem[(65 * idx) + 140 len 20], 8)
+                  _110 = bool(approvedHashes[mem[(65 * idx) + 140 len 20]][sha3(0, 0, sha3(0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218, chainid, this.address), _27)])
+              if not _110:
+                  revert with 0, 'GS025'
+              _120 = mem[(65 * idx) + 128]
+          _180 = _120
+      else:
+          if threshold:
+              require threshold
+              require 65 * threshold / threshold == 65
+              _121 = 65 * threshold
+          else:
+              _121 = 0
+          if mem[(65 * idx) + 160] < _121:
+              revert with 0, 'GS021'
+          require mem[(65 * idx) + 160] + 32 >= mem[(65 * idx) + 160]
+          if mem[(65 * idx) + 160] + 32 > mem[96]:
+              revert with 0, 'GS022'
+          if mem[(65 * idx) + 160] + mem[mem[(65 * idx) + 160] + 128] + 32 > mem[96]:
+              revert with 0, 'GS023'
+          mem[mem[64]] = 0x20c13b0b00000000000000000000000000000000000000000000000000000000
+          mem[mem[64] + 4] = 64
+          mem[mem[64] + 68] = mem[_24 + 512]
+          _151 = mem[_24 + 512]
+          idx = 0
+          while idx < _151:
+              mem[mem[64] + idx + 100] = mem[_24 + idx + 544]
+              idx = idx + 32
+              continue 
+          if not _151 % 32:
+              _160 = _151 + mem[64] + 100
+          else:
+              mem[floor32(_151) + mem[64] + 100] = mem[floor32(_151) + mem[64] + -(_151 % 32) + 132 len _151 % 32]
+              _160 = floor32(_151) + mem[64] + 132
+          mem[mem[64] + 36] = _160 + -mem[64] - 4
+          mem[_160] = mem[_95 + 128]
+          _164 = mem[_95 + 128]
+          idx = 0
+          while idx < _164:
+              mem[_160 + idx + 32] = mem[_95 + idx + 160]
+              idx = idx + 32
+              continue 
+          if not _164 % 32:
+              _170 = _164 + _160 + 32
+          else:
+              mem[floor32(_164) + _160 + 32] = mem[floor32(_164) + _160 + -(_164 % 32) + 64 len _164 % 32]
+              _170 = floor32(_164) + _160 + 64
+          require ext_code.size(address(_94))
+          static call address(_94).mem[mem[64] len 4] with:
+                  gas gas_remaining wei
+                 args mem[mem[64] + 4 len _170 + -mem[64] - 4]
+          mem[mem[64]] = ext_call.return_data[0]
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          require return_data.size >= 32
+          if Mask(32, 224, ext_call.return_data[0]) != 0x20c13b0b00000000000000000000000000000000000000000000000000000000:
+              revert with 0, 'GS024'
+          _180 = _94
+      if address(_180) <= address(s):
+          _186 = address(_180) > address(s)
+      else:
+          mem[0] = address(_180)
+          mem[32] = 2
+          _186 = bool(address(stor2[address(_180)].field_0))
+      if not _186:
+          _190 = _186
+      else:
+          _190 = address(_180) != 1
+      if not _190:
+          revert with 0, 'GS026'
+      idx = idx + 1
+      s = _95
+      s = _94
+      s = uint8(_96)
+      s = _180
+      s = _180
+      continue 
+  if address(stor4A20.field_0):
+      mem[mem[64]] = 0x75f0bb5200000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 4] = to
+      mem[mem[64] + 36] = value
+      mem[mem[64] + 100] = operation
+      mem[mem[64] + 132] = safeTxGas
+      mem[mem[64] + 164] = baseGas
+      mem[mem[64] + 196] = gasPrice
+      mem[mem[64] + 228] = gasToken
+      mem[mem[64] + 260] = refundReceiver
+      mem[mem[64] + 324] = caller
+      mem[mem[64] + 68] = 352
+      mem[mem[64] + 356] = data.length
+      mem[mem[64] + 388 len data.length] = data[all]
+      mem[mem[64] + data.length + 388] = 0
+      mem[mem[64] + 292] = ceil32(data.length) + 384
+      mem[mem[64] + ceil32(data.length) + 388] = mem[96]
+      mem[mem[64] + ceil32(data.length) + 420 len ceil32(mem[96])] = mem[128 len ceil32(mem[96])]
+      if not mem[96] % 32:
+          _135 = mem[96] + mem[64] + ceil32(data.length) + 420
+      else:
+          mem[floor32(mem[96]) + mem[64] + ceil32(data.length) + 420] = mem[floor32(mem[96]) + mem[64] + ceil32(data.length) + -(mem[96] % 32) + 452 len mem[96] % 32]
+          _135 = floor32(mem[96]) + mem[64] + ceil32(data.length) + 452
+      require ext_code.size(address(stor4A20.field_0))
+      call address(stor4A20.field_0).checkTransaction(address _param1, uint256 _param2, bytes _param3, uint8 _param4, uint256 _param5, uint256 _param6, uint256 _param7, address _param8, address _param9, bytes _param10, address msgSender) with:
+           gas gas_remaining wei
+          args mem[mem[64] + 4 len _135 + -mem[64] - 4]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+  if 64 * safeTxGas / 63 >= safeTxGas + 2500:
+      _145 = 64 * safeTxGas / 63
+  else:
+      _145 = safeTxGas + 2500
+  if gas_remaining < _145 + 500:
+      revert with 0, 'GS010'
+  _146 = mem[64]
+  mem[64] = mem[64] + ceil32(data.length) + 32
+  mem[_146] = data.length
+  mem[_146 + 32 len data.length] = data[all]
+  mem[_146 + data.length + 32] = 0
+  if not gasPrice:
+      _154 = gas_remaining - 2500
+  else:
+      _154 = safeTxGas
+  if operation != 1:
+      call to with:
+         value value wei
+           gas _154 wei
+          args data[all]
+      _165 = ext_call.success
+  else:
+      delegate to with:
+           gas _154 wei
+          args data[all]
+      _165 = delegate.return_code
+  require gas_remaining <= gas_remaining
+  if _165:
+      _172 = _165
+  else:
+      _172 = bool(safeTxGas)
+  if _172:
+      _174 = _172
+  else:
+      _174 = bool(gasPrice)
+  if not _174:
+      revert with 0, 'GS013'
+  if gasPrice <= 0:
+      _215 = 0
+  else:
+      if not refundReceiver:
+          _187 = tx.origin
+      else:
+          _187 = refundReceiver
+      if gasToken:
+          if baseGas:
+              require baseGas
+              require baseGas * gasPrice / baseGas == gasPrice
+              _198 = baseGas * gasPrice
+          else:
+              _198 = 0
+          mem[mem[64] + 36] = address(_187)
+          mem[mem[64] + 68] = _198
+          _203 = mem[64]
+          mem[mem[64]] = 68
+          mem[64] = mem[64] + 100
+          call gasToken.transfer(address recipient, uint256 amount) with:
+               gas gas_remaining - 10000 wei
+              args mem[_203 + 36 len mem[_203] - 4]
+          if not return_data.size:
+              _211 = ext_call.success
+          else:
+              if return_data.size == 32:
+                  _211 = not not ext_call.success or not ext_call.return_data[0]
+              else:
+                  _211 = 0
+          if not _211:
+              revert with 0, 'GS012'
+          _214 = _198
+      else:
+          if gasPrice < block.gasprice:
+              _195 = gasPrice
+          else:
+              _195 = block.gasprice
+          if baseGas:
+              require baseGas
+              require baseGas * _195 / baseGas == _195
+              _201 = baseGas * _195
+          else:
+              _201 = 0
+          call address(_187) with:
+             value _201 wei
+               gas 2300 * is_zero(value) wei
+          if not ext_call.success:
+              revert with 0, 'GS011'
+          _214 = _201
+      _215 = _214
+  if not _165:
+      log ExecutionFailure(
+            bytes32 txHash=sha3(0, 0, sha3(0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218, chainid, this.address), _27),
+            uint256 payment=_215)
+  else:
+      log ExecutionSuccess(
+            bytes32 txHash=sha3(0, 0, sha3(0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218, chainid, this.address), _27),
+            uint256 payment=_215)
+  if address(stor4A20.field_0):
+      require ext_code.size(address(stor4A20.field_0))
+      call address(stor4A20.field_0).checkAfterExecution(bytes32 _param1, bool _param2) with:
+           gas gas_remaining wei
+          args sha3(0, 0, sha3(0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218, chainid, this.address), _27), bool(_165)
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+  return bool(_165)
+
+

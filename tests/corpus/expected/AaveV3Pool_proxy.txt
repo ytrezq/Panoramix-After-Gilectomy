@@ -1,0 +1,120 @@
+# Palkeoramix decompiler. 
+
+def storage:
+  stor3608 is address at storage 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc
+  stor3608 is uint256 at storage 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc
+
+def admin(): # not payable
+  if 0x2f39d218133afab8f2b819b1066c7e434ad94e9e == caller:
+      return 0x2f39d218133afab8f2b819b1066c7e434ad94e9e
+  delegate uint256(stor3608) with:
+     funct call.data[0 len 4]
+       gas gas_remaining wei
+      args call.data[4 len calldata.size - 4]
+  if not delegate.return_code:
+      revert with ext_call.return_data[0 len return_data.size]
+  return ext_call.return_data[0 len return_data.size]
+
+def implementation(): # not payable
+  if 0x2f39d218133afab8f2b819b1066c7e434ad94e9e == caller:
+      return address(stor3608)
+  delegate uint256(stor3608) with:
+     funct call.data[0 len 4]
+       gas gas_remaining wei
+      args call.data[4 len calldata.size - 4]
+  if not delegate.return_code:
+      revert with ext_call.return_data[0 len return_data.size]
+  return ext_call.return_data[0 len return_data.size]
+
+def _fallback(?) payable: # default function
+  if 0x2f39d218133afab8f2b819b1066c7e434ad94e9e == caller:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 'Cannot call fallback function from the proxy admin'
+  delegate uint256(stor3608) with:
+     funct call.data[0 len 4]
+       gas gas_remaining wei
+      args call.data[4 len calldata.size - 4]
+  if not delegate.return_code:
+      revert with ext_call.return_data[0 len return_data.size]
+  return ext_call.return_data[0 len return_data.size]
+
+def upgradeTo(address newImplementation): # not payable
+  require calldata.size - 4 >=′ 32
+  require newImplementation == newImplementation
+  if caller != 0x2f39d218133afab8f2b819b1066c7e434ad94e9e:
+      delegate uint256(stor3608) with:
+         funct call.data[0 len 4]
+           gas gas_remaining wei
+          args call.data[4 len calldata.size - 4]
+      if not delegate.return_code:
+          revert with ext_call.return_data[0 len return_data.size]
+      return ext_call.return_data[0 len return_data.size]
+  if 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470 == ext_code.hash(newImplementation):
+      _1 = ext_code.hash(newImplementation) != 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+  else:
+      _1 = bool(ext_code.hash(newImplementation))
+  if not _1:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  'Cannot set a proxy implementation to a non-contract address'
+  uint256(stor3608) = newImplementation
+  log Upgraded(address implementation=newImplementation)
+
+def upgradeToAndCall(address newImplementation, bytes data) payable: 
+  require calldata.size - 4 >=′ 64
+  require newImplementation == newImplementation
+  require data <= LOCK8605463013()
+  require data + 35 <′ calldata.size
+  require data.length <= LOCK8605463013()
+  require data + data.length + 36 <= calldata.size
+  if caller != 0x2f39d218133afab8f2b819b1066c7e434ad94e9e:
+      delegate uint256(stor3608) with:
+         funct call.data[0 len 4]
+           gas gas_remaining wei
+          args call.data[4 len calldata.size - 4]
+      if not delegate.return_code:
+          revert with ext_call.return_data[0 len return_data.size]
+      return ext_call.return_data[0 len return_data.size]
+  if 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470 == ext_code.hash(newImplementation):
+      _1 = ext_code.hash(newImplementation) != 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+  else:
+      _1 = bool(ext_code.hash(newImplementation))
+  if not _1:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  'Cannot set a proxy implementation to a non-contract address'
+  uint256(stor3608) = newImplementation
+  log Upgraded(address implementation=newImplementation)
+  delegate newImplementation with:
+       gas gas_remaining wei
+      args data[all]
+  require delegate.return_code
+
+def initialize(address _logic, bytes _data) payable: 
+  require calldata.size - 4 >=′ 64
+  require _logic == _logic
+  require _data <= LOCK8605463013()
+  require _data + 35 <′ calldata.size
+  if _data.length > LOCK8605463013():
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  if ceil32(ceil32(_data.length)) + 97 < 96 or ceil32(ceil32(_data.length)) + 97 > LOCK8605463013():
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[96] = _data.length
+  require _data + _data.length + 36 <= calldata.size
+  mem[128 len _data.length] = _data[all]
+  mem[_data.length + 128] = 0
+  require not address(stor3608)
+  if 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470 == ext_code.hash(_logic):
+      _2 = ext_code.hash(_logic) != 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+  else:
+      _2 = bool(ext_code.hash(_logic))
+  if not _2:
+      revert with 0, 'Cannot set a proxy implementation to a non-contract address'
+  uint256(stor3608) = _logic
+  if _data.length:
+      mem[ceil32(ceil32(_data.length)) + 97 len ceil32(_data.length)] = _data[all], mem[_data.length + 128 len ceil32(_data.length) - _data.length]
+      if ceil32(_data.length) > _data.length:
+          mem[ceil32(ceil32(_data.length)) + _data.length + 97] = 0
+      delegate _logic.mem[ceil32(ceil32(_data.length)) + 97 len 4] with:
+           gas gas_remaining wei
+          args mem[ceil32(ceil32(_data.length)) + 101 len _data.length - 4]
+      require delegate.return_code
+
+

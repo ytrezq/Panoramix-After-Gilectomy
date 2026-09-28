@@ -1,0 +1,969 @@
+# Palkeoramix decompiler. 
+
+const name = 'Uniswap V2'
+const decimals = 18
+const symbol = 'UNI-V2'
+const PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9
+const MINIMUM_LIQUIDITY = 1000
+
+def storage:
+  totalSupply is uint256 at storage 0
+  balanceOf is mapping of uint256 at storage 1
+  allowance is mapping of uint256 at storage 2
+  DOMAIN_SEPARATOR is uint256 at storage 3
+  nonces is mapping of uint256 at storage 4
+  factoryAddress is address at storage 5
+  token0Address is address at storage 6
+  token1Address is address at storage 7
+  stor8 is uint32 at storage 8 offset 224
+  stor8 is uint128 at storage 8
+  stor8 is uint128 at storage 8 offset 112
+  price0CumulativeLast is uint256 at storage 9
+  price1CumulativeLast is uint256 at storage 10
+  stor11 is uint256 at storage 11 offset 1
+  kLast is uint256 at storage 11
+  stor12 is uint256 at storage 12
+
+def token0() payable: 
+  return token0Address
+
+def totalSupply() payable: 
+  return totalSupply
+
+def DOMAIN_SEPARATOR() payable: 
+  return DOMAIN_SEPARATOR
+
+def price0CumulativeLast() payable: 
+  return price0CumulativeLast
+
+def price1CumulativeLast() payable: 
+  return price1CumulativeLast
+
+def balanceOf(address account) payable: 
+  require calldata.size - 4 >= 32
+  return balanceOf[account]
+
+def kLast() payable: 
+  return kLast
+
+def nonces(address _param1) payable: 
+  require calldata.size - 4 >= 32
+  return nonces[_param1]
+
+def factory() payable: 
+  return factoryAddress
+
+def token1() payable: 
+  return token1Address
+
+def allowance(address owner, address spender) payable: 
+  require calldata.size - 4 >= 64
+  return allowance[owner][spender]
+
+#
+#  Regular functions
+#
+
+def _fallback(?) payable: # default function
+  revert
+
+def getReserves() payable: 
+  return Mask(112, 0, stor8.field_0), Mask(112, 0, stor8.field_0), uint32(stor8.field_224)
+
+def initialize(address _token0, address _token1) payable: 
+  require calldata.size - 4 >= 64
+  if factoryAddress != caller:
+      revert with 0, 'UniswapV2: FORBIDDEN'
+  token0Address = _token0
+  token1Address = _token1
+
+def approve(address spender, uint256 amount) payable: 
+  require calldata.size - 4 >= 64
+  allowance[caller][address(spender)] = amount
+  log Approval(
+        address owner=amount,
+        address spender=caller,
+        uint256 value=spender)
+  return 1
+
+def transfer(address recipient, uint256 amount) payable: 
+  require calldata.size - 4 >= 64
+  if balanceOf[caller] - amount > balanceOf[caller]:
+      revert with 0, 'ds-math-sub-underflow'
+  balanceOf[caller] -= amount
+  if balanceOf[recipient] + amount < balanceOf[recipient]:
+      revert with 0, 'ds-math-add-overflow'
+  balanceOf[address(recipient)] = balanceOf[recipient] + amount
+  log Transfer(
+        address from=amount,
+        address to=caller,
+        uint256 value=recipient)
+  return 1
+
+def permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) payable: 
+  require calldata.size - 4 >= 224
+  if deadline < block.timestamp:
+      revert with 0, 'UniswapV2: EXPIRED'
+  nonces[address(owner)]++
+  signer = erecover(sha3(0, DOMAIN_SEPARATOR, sha3(0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9, address(owner), address(spender), value, nonces[address(owner)], deadline)), v << 248, r, s) # precompiled
+  if not erecover.result:
+      revert with ext_call.return_data[0 len return_data.size]
+  if not address(signer):
+      _14 = bool(address(signer))
+  else:
+      _14 = address(signer) == owner
+  if not _14:
+      revert with 0, 'UniswapV2: INVALID_SIGNATURE'
+  allowance[address(owner)][address(spender)] = value
+  log Approval(
+        address owner=value,
+        address spender=owner,
+        uint256 value=spender)
+
+def transferFrom(address sender, address recipient, uint256 amount) payable: 
+  require calldata.size - 4 >= 96
+  if allowance[address(sender)][caller] != -1:
+      if allowance[address(sender)][caller] - amount > allowance[address(sender)][caller]:
+          revert with 0, 'ds-math-sub-underflow'
+      allowance[address(sender)][caller] -= amount
+  if balanceOf[address(sender)] - amount > balanceOf[address(sender)]:
+      revert with 0, 'ds-math-sub-underflow'
+  balanceOf[address(sender)] -= amount
+  if balanceOf[recipient] + amount < balanceOf[recipient]:
+      revert with 0, 'ds-math-add-overflow'
+  balanceOf[address(recipient)] = balanceOf[recipient] + amount
+  log Transfer(
+        address from=amount,
+        address to=sender,
+        uint256 value=recipient)
+  return 1
+
+def sync() payable: 
+  if stor12 != 1:
+      revert with 0, 'UniswapV2: LOCKED'
+  stor12 = 0
+  require ext_code.size(token0Address)
+  static call token0Address.balanceOf(address account) with:
+          gas gas_remaining wei
+         args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  require ext_code.size(token1Address)
+  static call token1Address.balanceOf(address account) with:
+          gas gas_remaining wei
+         args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  _11 = ext_call.return_data[0] <= LOCK8605463013()
+  if not _11:
+      revert with 0, 'UniswapV2: OVERFLOW'
+  if not uint32(uint32(block.timestamp) - uint32(stor8.field_224)):
+      _14 = bool(uint32(uint32(block.timestamp) - uint32(stor8.field_224)))
+  else:
+      _14 = bool(Mask(112, 0, stor8.field_0))
+  if not _14:
+      _15 = _14
+  else:
+      _15 = bool(Mask(112, 0, stor8.field_112))
+  if _15:
+      require Mask(112, 0, stor8.field_0)
+      price0CumulativeLast += Mask(224, 0, Mask(112, 0, Mask(112, 0, stor8.field_112)) << 112 / Mask(112, 0, stor8.field_0)) * uint32(uint32(block.timestamp) - uint32(stor8.field_224))
+      require Mask(112, 0, stor8.field_112)
+      price1CumulativeLast += Mask(224, 0, Mask(112, 0, stor8.field_0) / Mask(112, 0, stor8.field_112)) * uint32(uint32(block.timestamp) - uint32(stor8.field_224))
+  Mask(112, 0, stor8.field_0) = Mask(112, 0, ext_call.return_data[0])
+  Mask(112, 0, stor8.field_112) = Mask(112, 0, ext_call.return_data[0])
+  uint32(stor8.field_224) = uint32(block.timestamp)
+  log Sync(
+        uint112 reserve0=ext_call.return_data[0] << 144,
+        uint112 reserve1=Mask(112, 0, ext_call.return_data[0]))
+  stor12 = 1
+
+def skim(address to) payable: 
+  require calldata.size - 4 >= 32
+  if stor12 != 1:
+      revert with 0, 'UniswapV2: LOCKED'
+  stor12 = 0
+  require ext_code.size(token0Address)
+  static call token0Address.balanceOf(address account) with:
+          gas gas_remaining wei
+         args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  if ext_call.return_data[0] - Mask(112, 0, stor8.field_0) > ext_call.return_data[0]:
+      revert with 0, 'ds-math-sub-underflow'
+  mem[96] = 25
+  mem[128] = 'transfer(address,uint256)'
+  mem[196] = to
+  mem[228] = ext_call.return_data[0] - Mask(112, 0, stor8.field_0)
+  mem[160] = 68
+  mem[64] = 260
+  mem[196 len 28] = address(to) << 64
+  mem[192 len 4] = transfer(address recipient, uint256 amount)
+  mem[260 len 64] = transfer(address recipient, uint256 amount), address(to) << 64, 0, Mask(224, 32, ext_call.return_data[0] - Mask(112, 0, stor8.field_0)) >> 32
+  mem[352 len 4] = Mask(32, 64, ext_call.return_data[0] - Mask(112, 0, stor8.field_0)) >> 64
+  call token0Address with:
+       gas gas_remaining wei
+      args Mask(224, 32, ext_call.return_data[0] - Mask(112, 0, stor8.field_0)) << 224, mem[324 len 4]
+  if not return_data.size:
+      _24 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 261
+      mem[260] = return_data.size
+      mem[292 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _24 = 260
+  if not ext_call.success:
+      _30 = ext_call.success
+  else:
+      if not mem[_24]:
+          _30 = not mem[_24]
+      else:
+          require mem[_24] >= 32
+          _30 = mem[_24 + 32]
+  if not _30:
+      revert with 0, 'UniswapV2: TRANSFER_FAILED'
+  mem[mem[64] + 4] = this.address
+  require ext_code.size(token1Address)
+  static call token1Address.balanceOf(address account) with:
+          gas gas_remaining wei
+         args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  if ext_call.return_data[0] - Mask(112, 0, stor8.field_112) > ext_call.return_data[0]:
+      revert with 0, 'ds-math-sub-underflow'
+  _39 = mem[64]
+  mem[64] = mem[64] + 64
+  mem[_39] = 25
+  mem[_39 + 32] = 'transfer(address,uint256)'
+  _40 = mem[64]
+  mem[mem[64] + 36] = to
+  mem[mem[64] + 68] = ext_call.return_data[0] - Mask(112, 0, stor8.field_112)
+  _41 = mem[64]
+  mem[mem[64]] = 68
+  mem[64] = mem[64] + 100
+  mem[_41 + 32 len 4] = transfer(address recipient, uint256 amount)
+  _44 = mem[_41]
+  mem[_40 + 100 len floor32(mem[_41])] = mem[_41 + 32 len floor32(mem[_41])]
+  mem[_40 + floor32(mem[_41]) + -(mem[_41] % 32) + 132 len mem[_41] % 32] = mem[_41 + -(mem[_41] % 32) + floor32(mem[_41]) + 64 len mem[_41] % 32]
+  call token1Address.mem[_40 + 100 len 4] with:
+       gas gas_remaining wei
+      args mem[_40 + 104 len _44 - 4]
+  if not return_data.size:
+      _54 = 96
+  else:
+      mem[64] = _40 + ceil32(return_data.size) + 101
+      mem[_40 + 100] = return_data.size
+      mem[_40 + 132 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _54 = _40 + 100
+  if not ext_call.success:
+      _60 = ext_call.success
+  else:
+      if not mem[_54]:
+          _60 = not mem[_54]
+      else:
+          require mem[_54] >= 32
+          _60 = mem[_54 + 32]
+  if not _60:
+      revert with 0, 'UniswapV2: TRANSFER_FAILED'
+  stor12 = 1
+
+def swap(uint256 amount0Out, uint256 amount1Out, address to, bytes data) payable: 
+  mem[64] = 96
+  require calldata.size - 4 >= 128
+  require data <= unknown10000000()
+  require data + 36 <= calldata.size
+  require data.length <= unknown10000000() and data + data.length + 36 <= calldata.size
+  if stor12 != 1:
+      revert with 0, 'UniswapV2: LOCKED'
+  stor12 = 0
+  if amount0Out:
+      _3 = bool(amount0Out)
+  else:
+      _3 = amount1Out > 0
+  if not _3:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  32,
+                  37,
+                  0xfe556e697377617056323a20494e53554646494349454e545f4f55545055545f414d4f554e,
+                  mem[201 len 27]
+  if amount0Out >= Mask(112, 0, stor8.field_0):
+      _6 = amount0Out < Mask(112, 0, stor8.field_0)
+  else:
+      _6 = amount1Out < Mask(112, 0, stor8.field_112)
+  if not _6:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  32,
+                  33,
+                  0x54556e697377617056323a20494e53554646494349454e545f4c49515549444954,
+                  mem[197 len 31]
+  if token0Address == to:
+      _9 = token0Address != to
+  else:
+      _9 = to != token1Address
+  if not _9:
+      revert with 0, 'UniswapV2: INVALID_TO'
+  if amount0Out:
+      mem[96] = 25
+      mem[128] = 'transfer(address,uint256)'
+      mem[196] = to
+      mem[228] = amount0Out
+      mem[160] = 68
+      mem[64] = 260
+      mem[196 len 28] = address(to) << 64
+      mem[192 len 4] = transfer(address recipient, uint256 amount)
+      mem[260 len 64] = transfer(address recipient, uint256 amount), address(to) << 64, 0, Mask(224, 32, amount0Out) >> 32
+      mem[352 len 4] = uint32(amount0Out)
+      call token0Address with:
+           gas gas_remaining wei
+          args Mask(224, 32, amount0Out) << 224, mem[324 len 4]
+      if not return_data.size:
+          _48 = 96
+      else:
+          mem[64] = ceil32(return_data.size) + 261
+          mem[260] = return_data.size
+          mem[292 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          _48 = 260
+      if not ext_call.success:
+          _65 = ext_call.success
+      else:
+          if not mem[_48]:
+              _65 = not mem[_48]
+          else:
+              require mem[_48] >= 32
+              _65 = mem[_48 + 32]
+      if not _65:
+          revert with 0, 'UniswapV2: TRANSFER_FAILED'
+  if amount1Out:
+      _76 = mem[64]
+      mem[64] = mem[64] + 64
+      mem[_76] = 25
+      mem[_76 + 32] = 'transfer(address,uint256)'
+      _77 = mem[64]
+      mem[mem[64] + 36] = to
+      mem[mem[64] + 68] = amount1Out
+      _78 = mem[64]
+      mem[mem[64]] = 68
+      mem[64] = mem[64] + 100
+      mem[_78 + 32 len 4] = transfer(address recipient, uint256 amount)
+      _81 = mem[_78]
+      mem[_77 + 100 len floor32(mem[_78])] = mem[_78 + 32 len floor32(mem[_78])]
+      mem[_77 + floor32(mem[_78]) + -(mem[_78] % 32) + 132 len mem[_78] % 32] = mem[_78 + -(mem[_78] % 32) + floor32(mem[_78]) + 64 len mem[_78] % 32]
+      call token1Address.mem[_77 + 100 len 4] with:
+           gas gas_remaining wei
+          args mem[_77 + 104 len _81 - 4]
+      if not return_data.size:
+          _95 = 96
+      else:
+          mem[64] = _77 + ceil32(return_data.size) + 101
+          mem[_77 + 100] = return_data.size
+          mem[_77 + 132 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          _95 = _77 + 100
+      if not ext_call.success:
+          _106 = ext_call.success
+      else:
+          if not mem[_95]:
+              _106 = not mem[_95]
+          else:
+              require mem[_95] >= 32
+              _106 = mem[_95 + 32]
+      if not _106:
+          revert with 0, 'UniswapV2: TRANSFER_FAILED'
+  if data.length:
+      mem[mem[64] + 100] = 128
+      require ext_code.size(to)
+      call to.uniswapV2Call(address sender, uint256 amount0, uint256 amount1, bytes data) with:
+           gas gas_remaining wei
+          args caller, amount0Out, amount1Out, Array(len=data.length, data=data[all])
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+  require ext_code.size(token0Address)
+  static call token0Address.balanceOf(address account) with:
+          gas gas_remaining wei
+         args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  require ext_code.size(token1Address)
+  static call token1Address.balanceOf(address account) with:
+          gas gas_remaining wei
+         args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  if ext_call.return_data[0] > Mask(112, 0, stor8.field_0) - amount0Out:
+      _123 = ext_call.return_data[0] - Mask(112, 0, stor8.field_0) + amount0Out
+  else:
+      _123 = 0
+  if ext_call.return_data[0] > Mask(112, 0, stor8.field_112) - amount1Out:
+      _124 = ext_call.return_data[0] - Mask(112, 0, stor8.field_112) + amount1Out
+  else:
+      _124 = 0
+  if _123 > 0:
+      _125 = _123 > 0
+  else:
+      _125 = _124 > 0
+  if not _125:
+      revert with 0, 32, 36, 0x54556e697377617056323a20494e53554646494349454e545f494e5055545f414d4f554e, mem[mem[64] + 104 len 28]
+  if 3 * _123 / 3 != _123:
+      revert with 0, 'ds-math-mul-overflow'
+  if 1000 * ext_call.return_data[0] / 1000 != ext_call.return_data[0]:
+      revert with 0, 'ds-math-mul-overflow'
+  if (1000 * ext_call.return_data[0]) - (3 * _123) > 1000 * ext_call.return_data[0]:
+      revert with 0, 'ds-math-sub-underflow'
+  if 3 * _124 / 3 != _124:
+      revert with 0, 'ds-math-mul-overflow'
+  if 1000 * ext_call.return_data[0] / 1000 != ext_call.return_data[0]:
+      revert with 0, 'ds-math-mul-overflow'
+  if (1000 * ext_call.return_data[0]) - (3 * _124) > 1000 * ext_call.return_data[0]:
+      revert with 0, 'ds-math-sub-underflow'
+  if not Mask(112, 0, stor8.field_112):
+      _140 = 0
+      _141 = not Mask(112, 0, stor8.field_112)
+  else:
+      _140 = Mask(112, 0, stor8.field_0) * Mask(112, 0, stor8.field_112)
+      _141 = Mask(112, 0, stor8.field_0) * Mask(112, 0, stor8.field_112) / Mask(112, 0, stor8.field_112) == Mask(112, 0, stor8.field_0)
+  if not _141:
+      revert with 0, 'ds-math-mul-overflow'
+  if 10^6 * _140 / 10^6 != _140:
+      revert with 0, 'ds-math-mul-overflow'
+  if not (1000 * ext_call.return_data[0]) - (3 * _124):
+      _146 = 0
+      _147 = not (1000 * ext_call.return_data[0]) - (3 * _124)
+  else:
+      _146 = (10^6 * ext_call.return_data[0] * ext_call.return_data[0]) - (3000 * _124 * ext_call.return_data[0]) - (3000 * ext_call.return_data[0] * _123) + (9 * _124 * _123)
+      _147 = (10^6 * ext_call.return_data[0] * ext_call.return_data[0]) - (3000 * _124 * ext_call.return_data[0]) - (3000 * ext_call.return_data[0] * _123) + (9 * _124 * _123) / (1000 * ext_call.return_data[0]) - (3 * _124) == (1000 * ext_call.return_data[0]) - (3 * _123)
+  if not _147:
+      revert with 0, 'ds-math-mul-overflow'
+  if _146 < 10^6 * _140:
+      revert with 0, 'UniswapV2: K'
+  _152 = ext_call.return_data[0] <= LOCK8605463013()
+  if not _152:
+      revert with 0, 'UniswapV2: OVERFLOW'
+  if not uint32(uint32(block.timestamp) - uint32(stor8.field_224)):
+      _155 = bool(uint32(uint32(block.timestamp) - uint32(stor8.field_224)))
+  else:
+      _155 = bool(Mask(112, 0, stor8.field_0))
+  if not _155:
+      _156 = _155
+  else:
+      _156 = bool(Mask(112, 0, stor8.field_112))
+  if _156:
+      require Mask(112, 0, stor8.field_0)
+      price0CumulativeLast += Mask(224, 0, Mask(112, 0, Mask(112, 0, stor8.field_112)) << 112 / Mask(112, 0, stor8.field_0)) * uint32(uint32(block.timestamp) - uint32(stor8.field_224))
+      require Mask(112, 0, stor8.field_112)
+      price1CumulativeLast += Mask(224, 0, Mask(112, 0, stor8.field_0) / Mask(112, 0, stor8.field_112)) * uint32(uint32(block.timestamp) - uint32(stor8.field_224))
+  Mask(112, 0, stor8.field_0) = Mask(112, 0, ext_call.return_data[0])
+  Mask(112, 0, stor8.field_112) = Mask(112, 0, ext_call.return_data[0])
+  uint32(stor8.field_224) = uint32(block.timestamp)
+  log Sync(
+        uint112 reserve0=ext_call.return_data[0] << 144,
+        uint112 reserve1=Mask(112, 0, ext_call.return_data[0]))
+  log Swap(
+        address sender=_123,
+        uint256 amount0In=_124,
+        uint256 amount1In=amount0Out,
+        uint256 amount0Out=amount1Out,
+        uint256 amount1Out=caller,
+        address to=to)
+  stor12 = 1
+
+def mint(address to) payable: 
+  require calldata.size - 4 >= 32
+  if stor12 != 1:
+      revert with 0, 'UniswapV2: LOCKED'
+  stor12 = 0
+  require ext_code.size(token0Address)
+  static call token0Address.balanceOf(address account) with:
+          gas gas_remaining wei
+         args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  require ext_code.size(token1Address)
+  static call token1Address.balanceOf(address account) with:
+          gas gas_remaining wei
+         args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  if ext_call.return_data[0] - Mask(112, 0, stor8.field_0) > ext_call.return_data[0]:
+      revert with 0, 'ds-math-sub-underflow'
+  if ext_call.return_data[0] - Mask(112, 0, stor8.field_112) > ext_call.return_data[0]:
+      revert with 0, 'ds-math-sub-underflow'
+  require ext_code.size(factoryAddress)
+  static call factoryAddress.feeTo() with:
+          gas gas_remaining wei
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  if not ext_call.return_data[12 len 20]:
+      if kLast:
+          kLast = 0
+  else:
+      if kLast:
+          if not Mask(112, 0, stor8.field_112):
+              _19 = 0
+              _20 = not Mask(112, 0, stor8.field_112)
+          else:
+              _19 = Mask(112, 0, stor8.field_0) * Mask(112, 0, stor8.field_112)
+              _20 = Mask(112, 0, stor8.field_0) * Mask(112, 0, stor8.field_112) / Mask(112, 0, stor8.field_112) == Mask(112, 0, stor8.field_0)
+          if not _20:
+              revert with 0, 'ds-math-mul-overflow'
+          if _19 <= 3:
+              if not _19:
+                  _35 = 0
+              else:
+                  _35 = 1
+              _46 = _35
+          else:
+              s = (_19 / 2) + 1
+              t = _19
+              while s < t:
+                  require s
+                  s = (_19 / s) + s / 2
+                  t = s
+                  continue 
+              _46 = t
+          if kLast <= 3:
+              if not kLast:
+                  _51 = 0
+              else:
+                  _51 = 1
+              if _46 > _51:
+                  if _46 - _51 > _46:
+                      revert with 0, 'ds-math-sub-underflow'
+                  if not _46 - _51:
+                      _78 = 0
+                      _79 = not _46 - _51
+                  else:
+                      _78 = (_46 * totalSupply) - (_51 * totalSupply)
+                      _79 = (_46 * totalSupply) - (_51 * totalSupply) / _46 - _51 == totalSupply
+                  if not _79:
+                      revert with 0, 'ds-math-mul-overflow'
+                  if 5 * _46 / 5 != _46:
+                      revert with 0, 'ds-math-mul-overflow'
+                  if (5 * _46) + _51 < 5 * _46:
+                      revert with 0, 'ds-math-add-overflow'
+                  require (5 * _46) + _51
+                  if _78 / (5 * _46) + _51:
+                      if totalSupply + (_78 / (5 * _46) + _51) < totalSupply:
+                          revert with 0, 'ds-math-add-overflow'
+                      totalSupply += _78 / (5 * _46) + _51
+                      if balanceOf[ext_call.return_data[12 len 20]] + (_78 / (5 * _46) + _51) < balanceOf[ext_call.return_data[12 len 20]]:
+                          revert with 0, 'ds-math-add-overflow'
+                      balanceOf[address(ext_call.return_data[0])] = balanceOf[ext_call.return_data[12 len 20]] + (_78 / (5 * _46) + _51)
+                      log Transfer(
+                            address from=(_78 / (5 * _46) + _51),
+                            address to=0,
+                            uint256 value=address(ext_call.return_data[0]))
+          else:
+              s = stor11 + 1
+              t = kLast
+              while s < t:
+                  require s
+                  s = (kLast / s) + s / 2
+                  t = s
+                  continue 
+              if _46 > t:
+                  if _46 - t > _46:
+                      revert with 0, 'ds-math-sub-underflow'
+                  if not _46 - t:
+                      _112 = 0
+                      _113 = not _46 - t
+                  else:
+                      _112 = (_46 * totalSupply) - (t * totalSupply)
+                      _113 = (_46 * totalSupply) - (t * totalSupply) / _46 - t == totalSupply
+                  if not _113:
+                      revert with 0, 'ds-math-mul-overflow'
+                  if 5 * _46 / 5 != _46:
+                      revert with 0, 'ds-math-mul-overflow'
+                  if (5 * _46) + t < 5 * _46:
+                      revert with 0, 'ds-math-add-overflow'
+                  require (5 * _46) + t
+                  if _112 / (5 * _46) + t:
+                      if totalSupply + (_112 / (5 * _46) + t) < totalSupply:
+                          revert with 0, 'ds-math-add-overflow'
+                      totalSupply += _112 / (5 * _46) + t
+                      if balanceOf[ext_call.return_data[12 len 20]] + (_112 / (5 * _46) + t) < balanceOf[ext_call.return_data[12 len 20]]:
+                          revert with 0, 'ds-math-add-overflow'
+                      balanceOf[address(ext_call.return_data[0])] = balanceOf[ext_call.return_data[12 len 20]] + (_112 / (5 * _46) + t)
+                      log Transfer(
+                            address from=(_112 / (5 * _46) + t),
+                            address to=0,
+                            uint256 value=address(ext_call.return_data[0]))
+  if totalSupply:
+      if (ext_call.return_data[0] * totalSupply) - (Mask(112, 0, stor8.field_0) * totalSupply) / totalSupply != ext_call.return_data[0] - Mask(112, 0, stor8.field_0):
+          revert with 0, 'ds-math-mul-overflow'
+      require Mask(112, 0, stor8.field_0)
+      if (ext_call.return_data[0] * totalSupply) - (Mask(112, 0, stor8.field_112) * totalSupply) / totalSupply != ext_call.return_data[0] - Mask(112, 0, stor8.field_112):
+          revert with 0, 'ds-math-mul-overflow'
+      require Mask(112, 0, stor8.field_112)
+      if (ext_call.return_data[0] * totalSupply) - (Mask(112, 0, stor8.field_0) * totalSupply) / Mask(112, 0, stor8.field_0) < (ext_call.return_data[0] * totalSupply) - (Mask(112, 0, stor8.field_112) * totalSupply) / Mask(112, 0, stor8.field_112):
+          _230 = (ext_call.return_data[0] * totalSupply) - (Mask(112, 0, stor8.field_0) * totalSupply) / Mask(112, 0, stor8.field_0)
+      else:
+          _230 = (ext_call.return_data[0] * totalSupply) - (Mask(112, 0, stor8.field_112) * totalSupply) / Mask(112, 0, stor8.field_112)
+      _252 = _230
+  else:
+      if not ext_call.return_data[0] - Mask(112, 0, stor8.field_112):
+          _219 = 0
+          _220 = not ext_call.return_data[0] - Mask(112, 0, stor8.field_112)
+      else:
+          _219 = (ext_call.return_data[0] * ext_call.return_data[0]) - (Mask(112, 0, stor8.field_112) * ext_call.return_data[0]) - (ext_call.return_data[0] * Mask(112, 0, stor8.field_0)) + (Mask(112, 0, stor8.field_112) * Mask(112, 0, stor8.field_0))
+          _220 = (ext_call.return_data[0] * ext_call.return_data[0]) - (Mask(112, 0, stor8.field_112) * ext_call.return_data[0]) - (ext_call.return_data[0] * Mask(112, 0, stor8.field_0)) + (Mask(112, 0, stor8.field_112) * Mask(112, 0, stor8.field_0)) / ext_call.return_data[0] - Mask(112, 0, stor8.field_112) == ext_call.return_data[0] - Mask(112, 0, stor8.field_0)
+      if not _220:
+          revert with 0, 'ds-math-mul-overflow'
+      if _219 <= 3:
+          if not _219:
+              _225 = 0
+          else:
+              _225 = 1
+          _231 = _225
+      else:
+          s = (_219 / 2) + 1
+          t = _219
+          while s < t:
+              require s
+              s = (_219 / s) + s / 2
+              t = s
+              continue 
+          _231 = t
+      if _231 - 1000 > _231:
+          revert with 0, 'ds-math-sub-underflow'
+      if totalSupply + 1000 < totalSupply:
+          revert with 0, 'ds-math-add-overflow'
+      totalSupply += 1000
+      if balanceOf[0] + 1000 < balanceOf[0]:
+          revert with 0, 'ds-math-add-overflow'
+      balanceOf[0] += 1000
+      log Transfer(address from, address to, uint256 value):
+                   1000,
+      log 0x0: 1000
+      log 0x0: 1000
+      _252 = _231 - 1000
+  if _252 <= 0:
+      revert with 0, 32, 40, 0x44556e697377617056323a20494e53554646494349454e545f4c49515549444954595f4d494e5445, mem[204 len 24]
+  if totalSupply + _252 < totalSupply:
+      revert with 0, 'ds-math-add-overflow'
+  totalSupply += _252
+  if balanceOf[address(to)] + _252 < balanceOf[address(to)]:
+      revert with 0, 'ds-math-add-overflow'
+  balanceOf[address(to)] += _252
+  log Transfer(
+        address from=_252,
+        address to=0,
+        uint256 value=to)
+  _263 = ext_call.return_data[0] <= LOCK8605463013()
+  if not _263:
+      revert with 0, 'UniswapV2: OVERFLOW'
+  if not uint32(uint32(block.timestamp) - uint32(stor8.field_224)):
+      _266 = bool(uint32(uint32(block.timestamp) - uint32(stor8.field_224)))
+  else:
+      _266 = bool(Mask(112, 0, stor8.field_0))
+  if not _266:
+      _267 = _266
+  else:
+      _267 = bool(Mask(112, 0, stor8.field_112))
+  if _267:
+      require Mask(112, 0, stor8.field_0)
+      price0CumulativeLast += Mask(224, 0, Mask(112, 0, Mask(112, 0, stor8.field_112)) << 112 / Mask(112, 0, stor8.field_0)) * uint32(uint32(block.timestamp) - uint32(stor8.field_224))
+      require Mask(112, 0, stor8.field_112)
+      price1CumulativeLast += Mask(224, 0, Mask(112, 0, stor8.field_0) / Mask(112, 0, stor8.field_112)) * uint32(uint32(block.timestamp) - uint32(stor8.field_224))
+  Mask(112, 0, stor8.field_0) = Mask(112, 0, ext_call.return_data[0])
+  Mask(112, 0, stor8.field_112) = Mask(112, 0, ext_call.return_data[0])
+  uint32(stor8.field_224) = uint32(block.timestamp)
+  log Sync(
+        uint112 reserve0=ext_call.return_data[0] << 144,
+        uint112 reserve1=Mask(112, 0, ext_call.return_data[0]))
+  if address(ext_call.return_data[0]):
+      if not Mask(112, 0, stor8.field_112):
+          _288 = 0
+          _289 = not Mask(112, 0, stor8.field_112)
+      else:
+          _288 = Mask(112, 0, stor8.field_0) * Mask(112, 0, stor8.field_112)
+          _289 = Mask(112, 0, stor8.field_0) * Mask(112, 0, stor8.field_112) / Mask(112, 0, stor8.field_112) == Mask(112, 0, stor8.field_0)
+      if not _289:
+          revert with 0, 'ds-math-mul-overflow'
+      kLast = _288
+  log Mint(
+        address minter=ext_call.return_data[0] - Mask(112, 0, stor8.field_0),
+        uint256 mintAmount=ext_call.return_data[0] - Mask(112, 0, stor8.field_112),
+        uint256 mintTokens=caller)
+  stor12 = 1
+  return _252
+
+def burn(address to) payable: 
+  require calldata.size - 4 >= 32
+  if stor12 != 1:
+      revert with 0, 'UniswapV2: LOCKED'
+  stor12 = 0
+  require ext_code.size(token0Address)
+  static call token0Address.balanceOf(address account) with:
+          gas gas_remaining wei
+         args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  require ext_code.size(token1Address)
+  static call token1Address.balanceOf(address account) with:
+          gas gas_remaining wei
+         args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  require ext_code.size(factoryAddress)
+  static call factoryAddress.feeTo() with:
+          gas gas_remaining wei
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  if not ext_call.return_data[12 len 20]:
+      if kLast:
+          kLast = 0
+  else:
+      if kLast:
+          if not Mask(112, 0, stor8.field_112):
+              _16 = 0
+              _17 = not Mask(112, 0, stor8.field_112)
+          else:
+              _16 = Mask(112, 0, stor8.field_0) * Mask(112, 0, stor8.field_112)
+              _17 = Mask(112, 0, stor8.field_0) * Mask(112, 0, stor8.field_112) / Mask(112, 0, stor8.field_112) == Mask(112, 0, stor8.field_0)
+          if not _17:
+              revert with 0, 'ds-math-mul-overflow'
+          if _16 <= 3:
+              if not _16:
+                  _28 = 0
+              else:
+                  _28 = 1
+              _37 = _28
+          else:
+              s = (_16 / 2) + 1
+              t = _16
+              while s < t:
+                  require s
+                  s = (_16 / s) + s / 2
+                  t = s
+                  continue 
+              _37 = t
+          if kLast <= 3:
+              if not kLast:
+                  _44 = 0
+              else:
+                  _44 = 1
+              if _37 > _44:
+                  if _37 - _44 > _37:
+                      revert with 0, 'ds-math-sub-underflow'
+                  if not _37 - _44:
+                      _77 = 0
+                      _78 = not _37 - _44
+                  else:
+                      _77 = (_37 * totalSupply) - (_44 * totalSupply)
+                      _78 = (_37 * totalSupply) - (_44 * totalSupply) / _37 - _44 == totalSupply
+                  if not _78:
+                      revert with 0, 'ds-math-mul-overflow'
+                  if 5 * _37 / 5 != _37:
+                      revert with 0, 'ds-math-mul-overflow'
+                  if (5 * _37) + _44 < 5 * _37:
+                      revert with 0, 'ds-math-add-overflow'
+                  require (5 * _37) + _44
+                  if _77 / (5 * _37) + _44:
+                      if totalSupply + (_77 / (5 * _37) + _44) < totalSupply:
+                          revert with 0, 'ds-math-add-overflow'
+                      totalSupply += _77 / (5 * _37) + _44
+                      if balanceOf[ext_call.return_data[12 len 20]] + (_77 / (5 * _37) + _44) < balanceOf[ext_call.return_data[12 len 20]]:
+                          revert with 0, 'ds-math-add-overflow'
+                      balanceOf[address(ext_call.return_data[0])] = balanceOf[ext_call.return_data[12 len 20]] + (_77 / (5 * _37) + _44)
+                      log Transfer(
+                            address from=(_77 / (5 * _37) + _44),
+                            address to=0,
+                            uint256 value=address(ext_call.return_data[0]))
+          else:
+              s = stor11 + 1
+              t = kLast
+              while s < t:
+                  require s
+                  s = (kLast / s) + s / 2
+                  t = s
+                  continue 
+              if _37 > t:
+                  if _37 - t > _37:
+                      revert with 0, 'ds-math-sub-underflow'
+                  if not _37 - t:
+                      _107 = 0
+                      _108 = not _37 - t
+                  else:
+                      _107 = (_37 * totalSupply) - (t * totalSupply)
+                      _108 = (_37 * totalSupply) - (t * totalSupply) / _37 - t == totalSupply
+                  if not _108:
+                      revert with 0, 'ds-math-mul-overflow'
+                  if 5 * _37 / 5 != _37:
+                      revert with 0, 'ds-math-mul-overflow'
+                  if (5 * _37) + t < 5 * _37:
+                      revert with 0, 'ds-math-add-overflow'
+                  require (5 * _37) + t
+                  if _107 / (5 * _37) + t:
+                      if totalSupply + (_107 / (5 * _37) + t) < totalSupply:
+                          revert with 0, 'ds-math-add-overflow'
+                      totalSupply += _107 / (5 * _37) + t
+                      if balanceOf[ext_call.return_data[12 len 20]] + (_107 / (5 * _37) + t) < balanceOf[ext_call.return_data[12 len 20]]:
+                          revert with 0, 'ds-math-add-overflow'
+                      balanceOf[address(ext_call.return_data[0])] = balanceOf[ext_call.return_data[12 len 20]] + (_107 / (5 * _37) + t)
+                      log Transfer(
+                            address from=(_107 / (5 * _37) + t),
+                            address to=0,
+                            uint256 value=address(ext_call.return_data[0]))
+  if not ext_call.return_data[0]:
+      _248 = 0
+      _249 = not ext_call.return_data[0]
+  else:
+      _248 = balanceOf[this.address] * ext_call.return_data[0]
+      _249 = balanceOf[this.address] * ext_call.return_data[0] / ext_call.return_data[0] == balanceOf[this.address]
+  if not _249:
+      revert with 0, 'ds-math-mul-overflow'
+  require totalSupply
+  if not ext_call.return_data[0]:
+      _252 = 0
+      _253 = not ext_call.return_data[0]
+  else:
+      _252 = balanceOf[this.address] * ext_call.return_data[0]
+      _253 = balanceOf[this.address] * ext_call.return_data[0] / ext_call.return_data[0] == balanceOf[this.address]
+  if not _253:
+      revert with 0, 'ds-math-mul-overflow'
+  if _248 / totalSupply <= 0:
+      _256 = _248 / totalSupply > 0
+  else:
+      _256 = _252 / totalSupply > 0
+  if not _256:
+      revert with 0, 32, 40, 0x59556e697377617056323a20494e53554646494349454e545f4c49515549444954595f4255524e45, mem[204 len 24]
+  if balanceOf[address(this.address)] - balanceOf[this.address] > balanceOf[address(this.address)]:
+      revert with 0, 'ds-math-sub-underflow'
+  mem[0] = this.address
+  mem[32] = 1
+  balanceOf[address(this.address)] -= balanceOf[this.address]
+  if totalSupply - balanceOf[this.address] > totalSupply:
+      revert with 0, 'ds-math-sub-underflow'
+  totalSupply -= balanceOf[this.address]
+  log Transfer(
+        address from=balanceOf[this.address],
+        address to=this.address,
+        uint256 value=0)
+  mem[96] = 25
+  mem[128] = 'transfer(address,uint256)'
+  mem[196] = to
+  mem[228] = _248 / totalSupply
+  mem[160] = 68
+  mem[64] = 260
+  mem[192 len 4] = transfer(address recipient, uint256 amount)
+  mem[260 len 64] = 0, address(to), Mask(224, 32, _248 / totalSupply) >> 32
+  mem[352 len 4] = Mask(32, 64, _248 / totalSupply) >> 64
+  call token0Address with:
+       gas gas_remaining wei
+      args _248 / totalSupply, Mask(224, 32, address(to), Mask(224, 32, _248 / totalSupply) >> 32) >> 32, mem[324 len 4]
+  if not return_data.size:
+      _282 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 261
+      mem[260] = return_data.size
+      mem[292 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _282 = 260
+  if not ext_call.success:
+      _288 = ext_call.success
+  else:
+      if not mem[_282]:
+          _288 = not mem[_282]
+      else:
+          require mem[_282] >= 32
+          _288 = mem[_282 + 32]
+  if not _288:
+      revert with 0, 'UniswapV2: TRANSFER_FAILED'
+  _291 = mem[64]
+  mem[64] = mem[64] + 64
+  mem[_291] = 25
+  mem[_291 + 32] = 'transfer(address,uint256)'
+  _292 = mem[64]
+  mem[mem[64] + 36] = to
+  mem[mem[64] + 68] = _252 / totalSupply
+  _293 = mem[64]
+  mem[mem[64]] = 68
+  mem[64] = mem[64] + 100
+  mem[_293 + 32 len 4] = transfer(address recipient, uint256 amount)
+  _296 = mem[_293]
+  mem[_292 + 100 len floor32(mem[_293])] = mem[_293 + 32 len floor32(mem[_293])]
+  mem[_292 + floor32(mem[_293]) + -(mem[_293] % 32) + 132 len mem[_293] % 32] = mem[_293 + -(mem[_293] % 32) + floor32(mem[_293]) + 64 len mem[_293] % 32]
+  call token1Address.mem[_292 + 100 len 4] with:
+       gas gas_remaining wei
+      args mem[_292 + 104 len _296 - 4]
+  if not return_data.size:
+      _306 = 96
+  else:
+      mem[64] = _292 + ceil32(return_data.size) + 101
+      mem[_292 + 100] = return_data.size
+      mem[_292 + 132 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _306 = _292 + 100
+  if not ext_call.success:
+      _312 = ext_call.success
+  else:
+      if not mem[_306]:
+          _312 = not mem[_306]
+      else:
+          require mem[_306] >= 32
+          _312 = mem[_306 + 32]
+  if not _312:
+      revert with 0, 'UniswapV2: TRANSFER_FAILED'
+  require ext_code.size(token0Address)
+  static call token0Address.balanceOf(address account) with:
+          gas gas_remaining wei
+         args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  require ext_code.size(token1Address)
+  static call token1Address.balanceOf(address account) with:
+          gas gas_remaining wei
+         args this.address
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  _323 = ext_call.return_data[0] <= LOCK8605463013()
+  if not _323:
+      revert with 0, 'UniswapV2: OVERFLOW'
+  if not uint32(uint32(block.timestamp) - uint32(stor8.field_224)):
+      _326 = bool(uint32(uint32(block.timestamp) - uint32(stor8.field_224)))
+  else:
+      _326 = bool(Mask(112, 0, stor8.field_0))
+  if not _326:
+      _327 = _326
+  else:
+      _327 = bool(Mask(112, 0, stor8.field_112))
+  if _327:
+      require Mask(112, 0, stor8.field_0)
+      price0CumulativeLast += Mask(224, 0, Mask(112, 0, Mask(112, 0, stor8.field_112)) << 112 / Mask(112, 0, stor8.field_0)) * uint32(uint32(block.timestamp) - uint32(stor8.field_224))
+      require Mask(112, 0, stor8.field_112)
+      price1CumulativeLast += Mask(224, 0, Mask(112, 0, stor8.field_0) / Mask(112, 0, stor8.field_112)) * uint32(uint32(block.timestamp) - uint32(stor8.field_224))
+  Mask(112, 0, stor8.field_0) = Mask(112, 0, ext_call.return_data[0])
+  Mask(112, 0, stor8.field_112) = Mask(112, 0, ext_call.return_data[0])
+  uint32(stor8.field_224) = uint32(block.timestamp)
+  log Sync(
+        uint112 reserve0=ext_call.return_data[0] << 144,
+        uint112 reserve1=Mask(112, 0, ext_call.return_data[0]))
+  if address(ext_call.return_data[0]):
+      if not Mask(112, 0, stor8.field_112):
+          _348 = 0
+          _349 = not Mask(112, 0, stor8.field_112)
+      else:
+          _348 = Mask(112, 0, stor8.field_0) * Mask(112, 0, stor8.field_112)
+          _349 = Mask(112, 0, stor8.field_0) * Mask(112, 0, stor8.field_112) / Mask(112, 0, stor8.field_112) == Mask(112, 0, stor8.field_0)
+      if not _349:
+          revert with 0, 'ds-math-mul-overflow'
+      kLast = _348
+  log Burn(
+        address sender=_248 / totalSupply,
+        uint256 amount0=_252 / totalSupply,
+        uint256 amount1=caller,
+        address to=to)
+  stor12 = 1
+  return _248 / totalSupply, _252 / totalSupply
+
+

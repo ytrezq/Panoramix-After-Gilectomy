@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Compare `panasm disasm` with panoramix's Loader.disasm() on every .hex of a directory."""
 import glob, os, subprocess, sys
-sys.path.insert(0, "/home/claude/panoramix")
+sys.path.insert(0, os.environ.get("PANORAMIX_PY", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "panoramix")))
 import logging; logging.disable(logging.CRITICAL)
 from panoramix.loader import Loader
 
-corpus = sys.argv[1] if len(sys.argv) > 1 else "/tmp/claude-0/-home-claude/0fe601fa-3d3d-56af-9a22-c5068d00d0e0/scratchpad/corpus"
+corpus = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("CORPUS", os.path.join(os.path.dirname(os.path.abspath(__file__)), "corpus"))
 panasm = os.path.join(os.path.dirname(__file__), "..", "build", "panasm")
 bad = 0
 for path in sorted(glob.glob(os.path.join(corpus, "*.hex"))):

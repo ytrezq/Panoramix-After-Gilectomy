@@ -37,8 +37,9 @@ build/libpanoramix_asm.so: $(LIBOBJS)
 build/c_api_test: tests/c_api_test.c include/panoramix_asm.h build/libpanoramix_asm.so
 	$(CC) -O2 -Wall -Iinclude -o $@ tests/c_api_test.c -Lbuild -lpanoramix_asm -Wl,-rpath,'$$ORIGIN'
 
-check: build/c_api_test
+check: build/c_api_test all
 	build/c_api_test
+	tests/run_corpus.sh
 
 clean:
 	rm -rf build

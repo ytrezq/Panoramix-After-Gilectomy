@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Random differential tests of the algebra against panoramix.core.algebra."""
 import os, random, sys
-sys.path.insert(0, "/home/claude/panoramix")
+sys.path.insert(0, os.environ.get("PANORAMIX_PY", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "panoramix")))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build"))
 import logging; logging.disable(logging.CRITICAL)
 import panoramix_asm as A
@@ -59,7 +59,7 @@ def tri(r):
 
 import subprocess
 SEED_PROG = """
-import sys; sys.path.insert(0, "/home/claude/panoramix")
+import sys; sys.path.insert(0, os.environ.get("PANORAMIX_PY", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "panoramix")))
 import logging; logging.disable(logging.CRITICAL)
 from panoramix.core import algebra as P
 from panoramix.core.algebra import CannotCompare

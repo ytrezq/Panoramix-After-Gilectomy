@@ -1,0 +1,1686 @@
+# Palkeoramix decompiler. 
+
+def storage:
+  stor9B77 is uint256 at storage 0x9b779b17422d0df92223018b32b4d1fa46e071723d6817e2486d003becc55f
+  storA16A is bool at storage 0xa16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d1
+  storA16A is uint8 at storage 0xa16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d1 offset 1
+  storA16A is uint8 at storage 0xa16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d1
+  storA16A is uint128 at storage 0xa16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d1 offset 8
+  storA16A is address at storage 0xa16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d1 offset 120
+  storA16A is uint256 at storage 0xa16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d1
+  paused is uint8 at storage 0xcd5ed15c6e187e77e9aee88184c21f4f2182ab5827cb3b7e07fbedcd63f033
+  storCD5E is uint256 at storage 0xcd5ed15c6e187e77e9aee88184c21f4f2182ab5827cb3b7e07fbedcd63f033 offset 8
+  storF0C5 is uint8 at storage 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a
+  storF0C5 is uint8 at storage 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a offset 64
+  storF0C5 is uint64 at storage 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a offset 8
+  storF0C5 is uint64 at storage 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a
+  storF0C5 is uint256 at storage 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a offset 72
+  storF0C5 is uint256 at storage 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a offset 64
+  stor19D3 is uint256 at storage 0x19d3d0c2386ec3a05bb7001d2bbf079e6fe7bfbe6e95c923cb544f16e2385d9
+  stor2A16 is bool at storage 0x2a16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d1
+  stor2A16 is uint8 at storage 0x2a16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d1 offset 1
+  stor2A16 is uint8 at storage 0x2a16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d1
+  stor2A16 is uint64 at storage 0x2a16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d1 offset 216
+  stor2A16 is uint256 at storage 0x2a16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d1 offset 8
+  stor2A16 is uint256 at storage 0x2a16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d1
+  stor32C3 is uint128 at storage 0x32c355a1029f7297de90b706beea350b0073a5f8d06c07726a159113e4caa7d offset 160
+  unknown963bf6bdAddress is address at storage 0x32c355a1029f7297de90b706beea350b0073a5f8d06c07726a159113e4caa7d
+  stor19996029825046813822682483357211937912608049815403815478230828099723789499753 is mapping of uint256 at storage 0x2c355a1029f7297de90b706beea350b0073a5f8d06c07726a159113e4caa7d69
+  stor19996029825046813822682483357211937912608049815403815478230828099723789499756 is mapping of struct at storage 0x2c355a1029f7297de90b706beea350b0073a5f8d06c07726a159113e4caa7d6c
+  roleAdmin is mapping of struct at storage 0x4202dd7bc7dec4dceedda775e58dd541e08a116c6c53815c0bd028192f7b6268
+  stor51D2 is uint256 at storage 0x51d2c77e75fa4d7ea979836bebb592139941dd73acf569f643c01539efd328d4
+  stor42511026507305422135848753948444657518152693078737114383556346309921067489591 is mapping of uint8 at storage 0x5dfc6369ede8c1331430c00b581919993675ec010140508e8a499d5c8bfbd937
+  stor42860974067743711277946685589782127338435162903146151711351030542328023367218 is mapping of uint8 at storage 0x5ec2739e5d83ac0ee57f9f9a8bc0de261073ceffe84d59692a58d0a7bbee3e32
+  stor44042304583507570554611737105738879745920688822007283321396182861598980701508 is array of struct at storage 0x615f0f9e84155bea8cc509fe18befeb1baf65611e38a6ba60964480fb29dfd44
+  stor44042304583507570554611737105738879745920688822007283321396182861598980701509 is mapping of uint256 at storage 0x615f0f9e84155bea8cc509fe18befeb1baf65611e38a6ba60964480fb29dfd45
+  roleMember is array of struct at storage 0x6ac1f6fe24621ce81ec5827caf0253cadb74709b061630e6b55e823717059320
+  stor6B36 is address at storage 0x6b360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382b
+  stor52220351680908023148097989531469855575448041845003869064283189391306265992711 is array of struct at storage 0x7373abf07576b601f64b36d74d862c7ba4181047674cccb39b488c1eee141e07
+  stor52220351680908023148097989531469855575448041845003869064283189391306265992712 is mapping of uint256 at storage 0x7373abf07576b601f64b36d74d862c7ba4181047674cccb39b488c1eee141e08
+  stor54682934658968179699478025853008258924393719227432295160674125148245658510826 is mapping of uint8 at storage 0x78e571b7bf30584d955e1c6444a2b5147087edf9f00485d94993a04d370525ea
+  storA16A is uint256 at storage 0xa16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d100
+  storA16A is uint256 at storage 0xa16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d101
+  stor83160506999322053438603815664580836802437900671597318025490426298409516202365 is mapping of uint8 at storage 0xb7db2dd08fcb62d0c9e08c51941cae53c267786a0b75803fb7960902fc8ef97d
+  stor85216831584527138540021810027551790408228195787397627052264666927313372273978 is mapping of uint8 at storage 0xbc6704768de17ac743a4c41122099f7a3464fc20363467b8527e22c7572f5d3a
+  storCCE5 is uint256 at storage 0xcce5cadda4dca873250efd56882ba972f6be8519e5afa32ce3bf6829be0c7450
+  storFE2C is uint128 at storage 0xfe2c355a1029f7297de90b706beea350b0073a5f8d06c07726a159113e4caa7d offset 160
+  routerAddress is address at storage 0xfe2c355a1029f7297de90b706beea350b0073a5f8d06c07726a159113e4caa7d
+
+def getRoleAdmin(bytes32 role): # not payable
+  require calldata.size - 4 >=′ 32
+  return roleAdmin[role].field_256
+
+def paused(): # not payable
+  require calldata.size - 4 >=′ 0
+  return bool(paused)
+
+def getRoleMember(bytes32 role, uint256 index): # not payable
+  require calldata.size - 4 >=′ 64
+  if index >= roleMember[role].field_0:
+      revert with 0, 50
+  return address(roleMember[role][index].field_0)
+
+def hasRole(bytes32 role, address account): # not payable
+  require calldata.size - 4 >=′ 64
+  require not Mask(96, 160, account)
+  return bool(uint8(roleAdmin[role][address(account)].field_0))
+
+def unknown963bf6bd(): # not payable
+  require calldata.size - 4 >=′ 0
+  return unknown963bf6bdAddress
+
+def getRouter(): # not payable
+  require calldata.size - 4 >=′ 0
+  return routerAddress
+
+def getRoleMemberCount(bytes32 role): # not payable
+  require calldata.size - 4 >=′ 32
+  return roleMember[role].field_0
+
+#
+#  Regular functions
+#
+
+def unknownad3cb1cc(): # not payable
+  require calldata.size - 4 <′ 0
+  revert
+
+def DEFAULT_ADMIN_ROLE(): # not payable
+  require calldata.size - 4 >=′ 0
+  return 0
+
+def _fallback(?): # not payable, default function
+  require calldata.size - 4 >=′ 0
+  return 1
+
+def ROLE_ADMIN(): # not payable
+  require calldata.size - 4 >=′ 0
+  return 0xbcdf8b4c520ffe197c5343c6f5aec59570151ef9a492f2c624fd45ddde6135ec
+
+def ROLE_SIGNER(): # not payable
+  require calldata.size - 4 >=′ 0
+  return 0x2aeb38be3df14d720aeb10a2de6df09b0fb3cd5c5ec256283a22d4593110ca40
+
+def ROLE_OPERATOR(): # not payable
+  require calldata.size - 4 >=′ 0
+  return 0x523a704056dcd17bcf83bed8b68c59416dac1119be77755efe3bde0a64e46e0c
+
+def unknownd70e1ede(): # not payable
+  require calldata.size - 4 >=′ 0
+  return 0x39ba2c7e84b6d94350b0167bb3d872a8c3c981ee0b9746fbaa23ef1d87c8e2fc
+
+def proxiableUUID(): # not payable
+  require calldata.size - 4 >=′ 0
+  if this.address - 0x471a8de3eec36775d230070f9704cc86bf0f360d:
+      revert with 3766259130
+  return 0x6b360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382b
+
+def unknown92cda791(uint256 _param1): # not payable
+  require calldata.size - 4 >=′ 32
+  return bool(stor2C35[Mask(256, -8, _param1) << 8] and 1 << uint8(_param1))
+
+def pause(): # not payable
+  require calldata.size - 4 >=′ 0
+  if not stor5DFC[caller]:
+      revert with 0, caller, 0x523a704056dcd17bcf83bed8b68c59416dac1119be77755efe3bde0a64e46e0c
+  if paused:
+      revert with 3644589669
+  paused = 1
+  storCD5E = storCD5E
+  log Paused(address account=caller)
+
+def unpause(): # not payable
+  require calldata.size - 4 >=′ 0
+  if not stor78E5[caller]:
+      revert with 0, caller, 0xbcdf8b4c520ffe197c5343c6f5aec59570151ef9a492f2c624fd45ddde6135ec
+  if not paused:
+      revert with 2382110763
+  paused = 0
+  storCD5E = storCD5E
+  log Unpaused(address account=caller)
+
+def unknown33b5b0b5(uint128 _param1): # not payable
+  require calldata.size - 4 >=′ 32
+  require not Mask(96, 160, _param1)
+  return bool(uint8(stor2C35[address(_param1)].field_0)), stor2C35[address(_param1)].field_256
+
+def setRouter(address _newPancakeRouter): # not payable
+  require calldata.size - 4 >=′ 32
+  require not Mask(96, 160, _newPancakeRouter)
+  if not stor78E5[caller]:
+      revert with 0, caller, 0xbcdf8b4c520ffe197c5343c6f5aec59570151ef9a492f2c624fd45ddde6135ec
+  if not _newPancakeRouter:
+      revert with 3301233889
+  routerAddress = _newPancakeRouter
+  storFE2C = storFE2C
+  return 0
+
+def unknown60f525ed(uint128 _param1): # not payable
+  require calldata.size - 4 >=′ 32
+  require not Mask(96, 160, _param1)
+  if not stor78E5[caller]:
+      revert with 0, caller, 0xbcdf8b4c520ffe197c5343c6f5aec59570151ef9a492f2c624fd45ddde6135ec
+  if not address(_param1):
+      revert with 3301233889
+  unknown963bf6bdAddress = address(_param1)
+  stor32C3 = stor32C3
+  return 0
+
+def supportsInterface(bytes4 interfaceId): # not payable
+  require calldata.size - 4 >=′ 32
+  require not interfaceId - Mask(32, 224, interfaceId)
+  if Mask(32, 224, interfaceId) == 0x5a05180f00000000000000000000000000000000000000000000000000000000:
+      return True
+  if Mask(32, 224, interfaceId) != 0x7965db0b00000000000000000000000000000000000000000000000000000000:
+      _2 = 0x1ffc9a700000000000000000000000000000000000000000000000000000000 == Mask(32, 224, interfaceId)
+  else:
+      _2 = Mask(32, 224, interfaceId) == 0x7965db0b00000000000000000000000000000000000000000000000000000000
+  return bool(_2)
+
+def unknown1be1c18f(uint128 _param1, uint256 _param2, uint256 _param3): # not payable
+  require calldata.size - 4 >=′ 96
+  require not Mask(96, 160, _param1)
+  require not _param2 - bool(_param2)
+  if not stor78E5[caller]:
+      revert with 0, caller, 0xbcdf8b4c520ffe197c5343c6f5aec59570151ef9a492f2c624fd45ddde6135ec
+  if not address(_param1):
+      revert with 3301233889
+  if not _param2:
+      stor2C35[address(_param1)].field_0 = 0
+      stor2C35[address(_param1)].field_256 = 0
+  else:
+      uint8(stor2C35[address(_param1)].field_0) = 1
+      stor2C35[address(_param1)].field_256 = _param3
+
+def signers(): # not payable
+  require calldata.size - 4 >=′ 0
+  mem[96] = stor51D2
+  idx = 0
+  s = 0x68eb615873fbf2561ad9afc320d9b58d650ce4993675bd67cd3a26ad6e522c25
+  t = 128
+  while idx < stor51D2:
+      mem[t] = stor[s]
+      idx = idx + 1
+      s = s + 1
+      t = t + 32
+      continue 
+  if floor32(stor51D2) + 97 > LOCK8605463013() or floor32(stor51D2) + 97 < 96:
+      revert with 0, 65
+  mem[floor32(stor51D2) + 97] = 32
+  mem[floor32(stor51D2) + 129] = stor51D2
+  idx = 0
+  s = 128
+  t = floor32(stor51D2) + 161
+  while idx < stor51D2:
+      mem[t] = mem[s + 12 len 20]
+      idx = idx + 1
+      s = s + 32
+      t = t + 32
+      continue 
+  return Array(len=stor51D2, data=mem[floor32(stor51D2) + 161 len 32 * stor51D2])
+
+def operators(): # not payable
+  require calldata.size - 4 >=′ 0
+  mem[96] = stor19D3
+  idx = 0
+  s = 0x4d49d3f1622cef4a4245a42dc22c778f6b2708ebc8f710caa71f99728be94f24
+  t = 128
+  while idx < stor19D3:
+      mem[t] = stor[s]
+      idx = idx + 1
+      s = s + 1
+      t = t + 32
+      continue 
+  if floor32(stor19D3) + 97 > LOCK8605463013() or floor32(stor19D3) + 97 < 96:
+      revert with 0, 65
+  mem[floor32(stor19D3) + 97] = 32
+  mem[floor32(stor19D3) + 129] = stor19D3
+  idx = 0
+  s = 128
+  t = floor32(stor19D3) + 161
+  while idx < stor19D3:
+      mem[t] = mem[s + 12 len 20]
+      idx = idx + 1
+      s = s + 32
+      t = t + 32
+      continue 
+  return Array(len=stor19D3, data=mem[floor32(stor19D3) + 161 len 32 * stor19D3])
+
+def unknownc21fdc8f(): # not payable
+  require calldata.size - 4 >=′ 0
+  mem[96] = storCCE5
+  idx = 0
+  s = 0x6235272e13bbfead3f9c15da48c9b51dac727bff8adcf3c32351386f89222b06
+  t = 128
+  while idx < storCCE5:
+      mem[t] = stor[s]
+      idx = idx + 1
+      s = s + 1
+      t = t + 32
+      continue 
+  if floor32(storCCE5) + 97 > LOCK8605463013() or floor32(storCCE5) + 97 < 96:
+      revert with 0, 65
+  mem[floor32(storCCE5) + 97] = 32
+  mem[floor32(storCCE5) + 129] = storCCE5
+  idx = 0
+  s = 128
+  t = floor32(storCCE5) + 161
+  while idx < storCCE5:
+      mem[t] = mem[s + 12 len 20]
+      idx = idx + 1
+      s = s + 32
+      t = t + 32
+      continue 
+  return Array(len=storCCE5, data=mem[floor32(storCCE5) + 161 len 32 * storCCE5])
+
+def admins(): # not payable
+  require calldata.size - 4 >=′ 0
+  mem[96] = stor7373.length
+  idx = 0
+  s = 0x45560313361b5a38ee0e8c7f279a68bf043f9cb947ebdcce8948183ec1f0e38c
+  t = 128
+  while idx < stor7373.length:
+      mem[t] = stor[s]
+      idx = idx + 1
+      s = s + 1
+      t = t + 32
+      continue 
+  if floor32(stor7373.length) + 97 > LOCK8605463013() or floor32(stor7373.length) + 97 < 96:
+      revert with 0, 65
+  mem[floor32(stor7373.length) + 97] = 32
+  mem[floor32(stor7373.length) + 129] = stor7373.length
+  idx = 0
+  s = 128
+  t = floor32(stor7373.length) + 161
+  while idx < stor7373.length:
+      mem[t] = mem[s + 12 len 20]
+      idx = idx + 1
+      s = s + 32
+      t = t + 32
+      continue 
+  return Array(len=stor7373.length, data=mem[floor32(stor7373.length) + 161 len 32 * stor7373.length])
+
+def owners(): # not payable
+  require calldata.size - 4 >=′ 0
+  mem[96] = stor615F.length
+  idx = 0
+  s = 0x61b317071ea1c4632f65e4f7c9a9966863ed08380131d3333b8c89cf660c50ca
+  t = 128
+  while idx < stor615F.length:
+      mem[t] = stor[s]
+      idx = idx + 1
+      s = s + 1
+      t = t + 32
+      continue 
+  if floor32(stor615F.length) + 97 > LOCK8605463013() or floor32(stor615F.length) + 97 < 96:
+      revert with 0, 65
+  mem[floor32(stor615F.length) + 97] = 32
+  mem[floor32(stor615F.length) + 129] = stor615F.length
+  idx = 0
+  s = 128
+  t = floor32(stor615F.length) + 161
+  while idx < stor615F.length:
+      mem[t] = mem[s + 12 len 20]
+      idx = idx + 1
+      s = s + 32
+      t = t + 32
+      continue 
+  return Array(len=stor615F.length, data=mem[floor32(stor615F.length) + 161 len 32 * stor615F.length])
+
+def getRoleMembers(bytes32 role): # not payable
+  require calldata.size - 4 >=′ 32
+  mem[96] = roleMember[role].field_0
+  idx = 0
+  s = 0
+  t = 128
+  while idx < roleMember[role].field_0:
+      mem[t] = roleMember[role][s].field_0
+      idx = idx + 1
+      s = s + 1
+      t = t + 32
+      continue 
+  if floor32(roleMember[role].field_0) + 97 > LOCK8605463013() or floor32(roleMember[role].field_0) + 97 < 96:
+      revert with 0, 65
+  mem[floor32(roleMember[role].field_0) + 97] = 32
+  mem[floor32(roleMember[role].field_0) + 129] = roleMember[role].field_0
+  idx = 0
+  s = 128
+  t = floor32(roleMember[role].field_0) + 161
+  while idx < roleMember[role].field_0:
+      mem[t] = mem[s + 12 len 20]
+      idx = idx + 1
+      s = s + 32
+      t = t + 32
+      continue 
+  return Array(len=roleMember[role].field_0, data=mem[floor32(roleMember[role].field_0) + 161 len 32 * roleMember[role].field_0]), 
+
+def grantRole(bytes32 role, address account): # not payable
+  require calldata.size - 4 >=′ 64
+  require not Mask(96, 160, account)
+  if not stor78E5[caller]:
+      revert with 0, caller, 0xbcdf8b4c520ffe197c5343c6f5aec59570151ef9a492f2c624fd45ddde6135ec
+  if not role:
+      revert with 507153820
+  if uint8(roleAdmin[role][address(account)].field_0):
+      _12 = 0
+  else:
+      uint8(roleAdmin[role][address(account)].field_0) = 1
+      log RoleGranted(
+            bytes32 role=role,
+            address account=account,
+            address sender=caller)
+      _12 = 1
+  if _12:
+      if not roleMember[role][1][address(account)].field_0:
+          if roleMember[role].field_0 >= unknown10000000():
+              revert with 0, 65
+          roleMember[role].field_0++
+          if roleMember[role].field_0 >= roleMember[role].field_0:
+              revert with 0, 50
+          address(roleMember[role][roleMember[role].field_0].field_0) = account
+          Mask(96, 0, roleMember[role][roleMember[role].field_0].field_160) = 0
+          roleMember[role][1][address(account)].field_0 = roleMember[role].field_0
+
+def unknown84b0196e(): # not payable
+  require calldata.size - 4 >=′ 0
+  if not storA16A:
+      _1 = not storA16A
+  else:
+      _1 = not storA16A
+  if not _1:
+      revert with Error(string reason), 'EIP712: Uninitialized'
+  if not bool(storA16A.field_0):
+      _6 = storA16A.field_1 % 128
+  else:
+      _6 = uint255(uint256(storA16A.field_0)) * 0.5
+  if _6 < 32 == bool(storA16A.field_0):
+      revert with 0, 34
+  if not bool(storA16A.field_0):
+      _15 = (32 * bool(_6)) + 32
+  else:
+      if bool(storA16A.field_0) != 1:
+          _15 = -96
+      else:
+          s = 0x42ad5d3e1f2e6e70edcf6d991b8a3023d3fca8047a131592f9edb9fd9b89d57d
+          idx = 0
+          while idx < _6:
+              mem[idx + 128] = stor[s]
+              s = s + 1
+              idx = idx + 32
+              continue 
+          _15 = ceil32(_6) + 32
+  if ceil32(_15) + 96 > LOCK8605463013() or ceil32(_15) + 96 < 96:
+      revert with 0, 65
+  if not bool(stor2A16.field_0):
+      _19 = stor2A16.field_1 % 128
+  else:
+      _19 = uint255(uint256(stor2A16.field_0)) * 0.5
+  if _19 < 32 == bool(stor2A16.field_0):
+      revert with 0, 34
+  if not bool(stor2A16.field_0):
+      _24 = (32 * bool(_19)) + 32
+  else:
+      if bool(stor2A16.field_0) != 1:
+          _24 = -ceil32(_15) - 96
+      else:
+          s = 0x5f9ce34815f8e11431c7bb75a8e6886a91478f7ffc1dbb0a98dc240fddd76b75
+          idx = 0
+          while idx < _19:
+              mem[ceil32(_15) + idx + 128] = stor[s]
+              s = s + 1
+              idx = idx + 32
+              continue 
+          _24 = ceil32(_19) + 32
+  if ceil32(_15) + ceil32(_24) + 96 > LOCK8605463013() or ceil32(_24) < 0:
+      revert with 0, 65
+  require ceil32(_15) + ceil32(_24) + 128 > LOCK8605463013() or 32 < 0
+  revert with 0, 65
+
+def unknown41d5e516(uint128 _param1, uint256 _param2, uint128 _param3): # not payable
+  require calldata.size - 4 >=′ 96
+  require not Mask(96, 160, _param1)
+  require not Mask(96, 160, _param3)
+  if not stor5DFC[caller]:
+      revert with 0, caller, 0x523a704056dcd17bcf83bed8b68c59416dac1119be77755efe3bde0a64e46e0c
+  if not address(_param3):
+      revert with 3301233889
+  if address(_param3) - unknown963bf6bdAddress:
+      revert with 0, unknown963bf6bdAddress, address(_param3)
+  if not address(_param1):
+      revert with 3301233889
+  if 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee == address(_param1):
+      call address(_param3) with:
+         value _param2 wei
+           gas gas_remaining wei
+      if return_data.size:
+          if return_data.size > LOCK8605463013():
+              revert with 0, 65
+          if ceil32(ceil32(return_data.size)) + 97 > LOCK8605463013() or ceil32(ceil32(return_data.size)) + 97 < 96:
+              revert with 0, 65
+      if not ext_call.success:
+          revert with 807596772
+      log 0x64336c2c: caller, address(_param1), _param2, address(_param3)
+  else:
+      static call address(_param1).balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _6 = return_data.size
+          _7 = return_data.size
+      else:
+          _6 = 32
+          _7 = 32
+      if ceil32(_7) + 96 > LOCK8605463013() or ceil32(_7) + 96 < 96:
+          revert with 0, 65
+      require _6 >=′ 32
+      if ceil32(_7) + 224 > LOCK8605463013() or 224 < 96:
+          revert with 0, 65
+      call address(_param1).transfer(address recipient, uint256 amount) with:
+           gas gas_remaining wei
+          args address(_param3), _param2
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if return_data.size:
+          _17 = ext_call.return_data[0] != 1
+      else:
+          _17 = not ext_code.size(address(_param1))
+      if _17:
+          revert with 0, address(_param1)
+      static call address(_param1).balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _20 = return_data.size
+          _21 = return_data.size
+      else:
+          _20 = 32
+          _21 = 32
+      if ceil32(_7) + ceil32(_21) + 224 > LOCK8605463013() or ceil32(_21) < 0:
+          revert with 0, 65
+      require _20 >=′ 32
+      log 0x64336c2c: caller, address(_param1), 0, address(_param3)
+
+def transferOwnership(address newOwner): # not payable
+  require calldata.size - 4 >=′ 32
+  require not Mask(96, 160, newOwner)
+  if not storB7DB[caller]:
+      revert with 0, caller, 0
+  if not newOwner:
+      revert with 3301233889
+  if caller == newOwner:
+      revert with 523177770
+  if uint8(roleAdmin[0][address(newOwner)].field_0):
+      _10 = 0
+  else:
+      uint8(roleAdmin[0][address(newOwner)].field_0) = 1
+      log RoleGranted(
+            bytes32 role=0,
+            address account=newOwner,
+            address sender=caller)
+      _10 = 1
+  if _10:
+      if not stor615F[address(newOwner)]:
+          if stor615F.length >= unknown10000000():
+              revert with 0, 65
+          stor615F.length++
+          if stor615F.length >= stor615F.length:
+              revert with 0, 50
+          address(stor615F[stor615F.length].field_0) = newOwner
+          Mask(96, 0, stor615F[stor615F.length].field_160) = 0
+          stor615F[address(newOwner)] = stor615F.length
+  if not uint8(roleAdmin[0][caller].field_0):
+      _46 = 0
+  else:
+      uint8(roleAdmin[0][caller].field_0) = 0
+      log RoleRevoked(
+            bytes32 role=0,
+            address account=caller,
+            address sender=caller)
+      _46 = 1
+  if _46:
+      if stor615F[caller]:
+          if stor615F[caller] - 1 > stor615F[caller]:
+              revert with 0, 17
+          if stor615F.length - 1 > stor615F.length:
+              revert with 0, 17
+          if stor615F[caller] - stor615F.length:
+              if stor615F.length - 1 >= stor615F.length:
+                  revert with 0, 50
+              if stor615F[caller] - 1 >= stor615F.length:
+                  revert with 0, 50
+              stor615F[stor615F[caller]].field_0 = stor615F[stor615F.length].field_0
+              stor615F[stor615F[stor615F.length].field_0] = stor615F[caller]
+          if not stor615F.length:
+              revert with 0, 49
+          if stor615F.length - 1 >= stor615F.length:
+              revert with 0, 50
+          stor615F[stor615F.length].field_0 = 0
+          stor615F.length--
+          stor615F[caller] = 0
+
+def renounceRole(bytes32 role, address account): # not payable
+  require calldata.size - 4 >=′ 64
+  require not Mask(96, 160, account)
+  if account - caller:
+      revert with 1721217586
+  if not uint8(roleAdmin[role][address(account)].field_0):
+      _9 = 0
+  else:
+      uint8(roleAdmin[role][address(account)].field_0) = 0
+      log RoleRevoked(
+            bytes32 role=role,
+            address account=account,
+            address sender=caller)
+      _9 = 1
+  if _9:
+      if roleMember[role][1][address(account)].field_0:
+          if roleMember[role][1][address(account)].field_0 - 1 > roleMember[role][1][address(account)].field_0:
+              revert with 0, 17
+          if roleMember[role].field_0 - 1 > roleMember[role].field_0:
+              revert with 0, 17
+          if roleMember[role][1][address(account)].field_0 - roleMember[role].field_0:
+              if roleMember[role].field_0 - 1 >= roleMember[role].field_0:
+                  revert with 0, 50
+              if roleMember[role][1][address(account)].field_0 - 1 >= roleMember[role].field_0:
+                  revert with 0, 50
+              roleMember[role][roleMember[role][1][address(account)].field_0].field_0 = roleMember[role][roleMember[role].field_0].field_0
+              roleMember[role][1][roleMember[role][roleMember[role].field_0].field_0].field_0 = roleMember[role][1][address(account)].field_0
+          if not roleMember[role].field_0:
+              revert with 0, 49
+          if roleMember[role].field_0 - 1 >= roleMember[role].field_0:
+              revert with 0, 50
+          roleMember[role][roleMember[role].field_0].field_0 = 0
+          roleMember[role].field_0--
+          roleMember[role][1][address(account)].field_0 = 0
+
+def upgradeToAndCall(address newImplementation, bytes data) payable: 
+  require calldata.size - 4 >=′ 64
+  require not Mask(96, 160, newImplementation)
+  require data <= LOCK8605463013()
+  require data + 35 <′ calldata.size
+  if data.length > LOCK8605463013():
+      revert with 0, 65
+  if ceil32(ceil32(data.length)) + 97 > LOCK8605463013() or ceil32(ceil32(data.length)) + 97 < 96:
+      revert with 0, 65
+  mem[64] = ceil32(ceil32(data.length)) + 97
+  mem[96] = data.length
+  require data + data.length + 36 <= calldata.size
+  mem[128 len data.length] = data[all]
+  mem[data.length + 128] = 0
+  if this.address != 0x471a8de3eec36775d230070f9704cc86bf0f360d:
+      _4 = stor6B36 != 0x471a8de3eec36775d230070f9704cc86bf0f360d
+  else:
+      _4 = 0x471a8de3eec36775d230070f9704cc86bf0f360d == this.address
+  if _4:
+      revert with 3766259130
+  mem[32] = 0xb7db2dd08fcb62d0c9e08c51941cae53c267786a0b75803fb7960902fc8ef97d
+  if not storB7DB[caller]:
+      revert with 0, caller, 0
+  static call newImplementation.proxiableUUID() with:
+          gas gas_remaining wei
+  mem[ceil32(ceil32(data.length)) + 97] = ext_call.return_data[0]
+  if ext_call.success:
+      if 32 > return_data.size:
+          _8 = return_data.size
+      else:
+          _8 = 32
+      if ceil32(ceil32(data.length)) + ceil32(_8) + 97 > LOCK8605463013() or ceil32(_8) < 0:
+          revert with 0, 65
+      mem[64] = ceil32(ceil32(data.length)) + ceil32(_8) + 97
+      require _8 >=′ 32
+      _10 = ext_call.return_data[0]
+  else:
+      _10 = 0
+  if not ext_call.success:
+      revert with 0, newImplementation
+  if _10 - 0x6b360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382b:
+      revert with 0, _10
+  if not ext_code.size(newImplementation):
+      revert with 0, newImplementation
+  mem[0] = caller
+  stor6B36 = newImplementation
+  log Upgraded(address implementation=newImplementation)
+  if not data.length:
+      if call.value:
+          revert with 3013121951
+  else:
+      delegate newImplementation with:
+           gas gas_remaining wei
+          args data[all]
+      if not return_data.size:
+          _23 = 96
+      else:
+          if return_data.size > LOCK8605463013():
+              revert with 0, 65
+          _20 = mem[64]
+          if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+              revert with 0, 65
+          mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+          mem[_20] = return_data.size
+          mem[_20 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          _23 = _20
+      if not delegate.return_code:
+          if mem[_23]:
+              revert with memory
+                from _23 + 32
+                 len mem[_23]
+          revert with 3602752117
+      if not mem[_23]:
+          _27 = not ext_code.size(newImplementation)
+      else:
+          _27 = not mem[_23]
+      if _27:
+          revert with 0, newImplementation
+
+def revokeRole(bytes32 role, address account): # not payable
+  require calldata.size - 4 >=′ 64
+  require not Mask(96, 160, account)
+  if not stor78E5[caller]:
+      revert with 0, caller, 0xbcdf8b4c520ffe197c5343c6f5aec59570151ef9a492f2c624fd45ddde6135ec
+  if not role:
+      revert with 507153820
+  if not uint8(roleAdmin[role][address(account)].field_0):
+      _12 = 0
+  else:
+      uint8(roleAdmin[role][address(account)].field_0) = 0
+      log RoleRevoked(
+            bytes32 role=role,
+            address account=account,
+            address sender=caller)
+      _12 = 1
+  if _12:
+      if roleMember[role][1][address(account)].field_0:
+          if roleMember[role][1][address(account)].field_0 - 1 > roleMember[role][1][address(account)].field_0:
+              revert with 0, 17
+          if roleMember[role].field_0 - 1 > roleMember[role].field_0:
+              revert with 0, 17
+          if roleMember[role][1][address(account)].field_0 - roleMember[role].field_0:
+              if roleMember[role].field_0 - 1 >= roleMember[role].field_0:
+                  revert with 0, 50
+              if roleMember[role][1][address(account)].field_0 - 1 >= roleMember[role].field_0:
+                  revert with 0, 50
+              roleMember[role][roleMember[role][1][address(account)].field_0].field_0 = roleMember[role][roleMember[role].field_0].field_0
+              roleMember[role][1][roleMember[role][roleMember[role].field_0].field_0].field_0 = roleMember[role][1][address(account)].field_0
+          if not roleMember[role].field_0:
+              revert with 0, 49
+          if roleMember[role].field_0 - 1 >= roleMember[role].field_0:
+              revert with 0, 50
+          roleMember[role][roleMember[role].field_0].field_0 = 0
+          roleMember[role].field_0--
+          roleMember[role][1][address(account)].field_0 = 0
+
+def emergencyWithdraw(address _token, uint256 _amount, address _to) payable: 
+  mem[64] = 96
+  require not call.value
+  require calldata.size - 4 >=′ 96
+  require not Mask(96, 160, _token)
+  require not Mask(96, 160, _to)
+  if not stor78E5[caller]:
+      revert with 0, caller, 0xbcdf8b4c520ffe197c5343c6f5aec59570151ef9a492f2c624fd45ddde6135ec
+  if not _to:
+      revert with 3301233889
+  if _amount:
+      _18 = _amount
+  else:
+      if not _token:
+          revert with 3301233889
+      if _token != 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee:
+          static call _token.balanceOf(address account) with:
+                  gas gas_remaining wei
+                 args this.address
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if 32 > return_data.size:
+              _11 = return_data.size
+              _12 = return_data.size
+          else:
+              _11 = 32
+              _12 = 32
+          if ceil32(_12) + 96 > LOCK8605463013() or ceil32(_12) + 96 < 96:
+              revert with 0, 65
+          mem[64] = ceil32(_12) + 96
+          require _11 >=′ 32
+          _16 = ext_call.return_data[0]
+      else:
+          _16 = eth.balance(this.address)
+      _18 = _16
+  if not _token:
+      revert with 3301233889
+  if 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee == _token:
+      call _to with:
+         value _18 wei
+           gas gas_remaining wei
+      if return_data.size:
+          if return_data.size > LOCK8605463013():
+              revert with 0, 65
+          if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+              revert with 0, 65
+      if not ext_call.success:
+          revert with 807596772
+  else:
+      static call _token.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _21 = return_data.size
+          _22 = return_data.size
+      else:
+          _21 = 32
+          _22 = 32
+      if mem[64] + ceil32(_22) > LOCK8605463013() or mem[64] + ceil32(_22) < mem[64]:
+          revert with 0, 65
+      require _21 >=′ 32
+      if mem[64] + ceil32(_22) + 128 > LOCK8605463013() or 128 < 0:
+          revert with 0, 65
+      call _token.transfer(address recipient, uint256 amount) with:
+           gas gas_remaining wei
+          args address(_to), _18
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if return_data.size:
+          _30 = ext_call.return_data[0] != 1
+      else:
+          _30 = not ext_code.size(_token)
+      if _30:
+          revert with 0, _token
+      static call _token.balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _33 = return_data.size
+          _34 = return_data.size
+      else:
+          _33 = 32
+          _34 = 32
+      if mem[64] + ceil32(_22) + ceil32(_34) + 128 > LOCK8605463013() or ceil32(_34) < 0:
+          revert with 0, 65
+      require _33 >=′ 32
+
+def initialize(): # not payable
+  require calldata.size - 4 >=′ 0
+  if not uint64(storF0C5.field_0):
+      _3 = not uint8(storF0C5.field_64)
+  else:
+      _3 = not uint64(storF0C5.field_0)
+  if 1 == uint64(storF0C5.field_0):
+      _4 = not ext_code.size(this.address)
+  else:
+      _4 = 1 == uint64(storF0C5.field_0)
+  if not _3:
+      _5 = not _4
+  else:
+      _5 = not _3
+  if _5:
+      revert with InvalidInitialization()
+  uint8(storF0C5.field_0) = 1
+  storF0C5.field_8 % unknown10000000() = 0
+  Mask(192, 0, storF0C5.field_64) = Mask(192, 0, storF0C5.field_64)
+  if not uint8(storF0C5.field_64):
+      uint64(storF0C5.field_0) = uint64(storF0C5.field_0)
+      uint8(storF0C5.field_64) = 1
+      Mask(184, 0, storF0C5.field_72) = Mask(184, 0, storF0C5.field_72)
+  if not uint8(storF0C5.field_64):
+      revert with 3622223096
+  if not uint8(storF0C5.field_64):
+      revert with 3622223096
+  if not uint8(storF0C5.field_64):
+      revert with 3622223096
+  if not uint8(storF0C5.field_64):
+      revert with 3622223096
+  paused = 0
+  storCD5E = storCD5E
+  if not uint8(storF0C5.field_64):
+      revert with 3622223096
+  if not uint8(storF0C5.field_64):
+      revert with 3622223096
+  stor9B77 = 1
+  if not uint8(storF0C5.field_64):
+      revert with 3622223096
+  if not uint8(storF0C5.field_64):
+      revert with 3622223096
+  if not bool(storA16A.field_0):
+      _42 = storA16A.field_1 % 128
+  else:
+      _42 = uint255(uint256(storA16A.field_0)) * 0.5
+  if _42 < 32 == bool(storA16A.field_0):
+      revert with 0, 34
+  if _42 > 31:
+      idx = sha3(0xa16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d1)
+      while idx < (Mask(251, 0, _42 + 31) * 0.03125) + sha3(0xa16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d1):
+          stor[idx] = 0
+          idx = idx + 1
+          continue 
+  uint8(storA16A.field_0) = 34
+  Mask(112, 0, storA16A.field_8) = 0
+  Mask(136, 0, storA16A.field_120) = 0x62696e616e636520773377207661756c74
+  if not bool(stor2A16.field_0):
+      _82 = stor2A16.field_1 % 128
+  else:
+      _82 = uint255(uint256(stor2A16.field_0)) * 0.5
+  if _82 < 32 == bool(stor2A16.field_0):
+      revert with 0, 34
+  if _82 > 31:
+      idx = sha3(0x2a16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d1)
+      while idx < (Mask(251, 0, _82 + 31) * 0.03125) + sha3(0x2a16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d1):
+          stor[idx] = 0
+          idx = idx + 1
+          continue 
+  uint8(stor2A16.field_0) = 10
+  Mask(208, 0, stor2A16.field_8) = 0
+  stor2A16.field_216 % unknown10000000() = 206933405232
+  storA16A = 0
+  storA16A = 0
+  if uint8(roleAdmin[0][caller].field_0):
+      _123 = 0
+  else:
+      uint8(roleAdmin[0][caller].field_0) = 1
+      log RoleGranted(
+            bytes32 role=0,
+            address account=caller,
+            address sender=caller)
+      _123 = 1
+  if _123:
+      if not stor615F[caller]:
+          if stor615F.length >= unknown10000000():
+              revert with 0, 65
+          stor615F.length++
+          if stor615F.length >= stor615F.length:
+              revert with 0, 50
+          address(stor615F[stor615F.length].field_0) = caller
+          Mask(96, 0, stor615F[stor615F.length].field_160) = 0
+          stor615F[caller] = stor615F.length
+  if uint8(roleAdmin[0xbcdf8b4c520ffe197c5343c6f5aec59570151ef9a492f2c624fd45ddde6135ec][caller].field_0):
+      _167 = 0
+  else:
+      uint8(roleAdmin[0xbcdf8b4c520ffe197c5343c6f5aec59570151ef9a492f2c624fd45ddde6135ec][caller].field_0) = 1
+      log RoleGranted(
+            bytes32 role=0xbcdf8b4c520ffe197c5343c6f5aec59570151ef9a492f2c624fd45ddde6135ec,
+            address account=caller,
+            address sender=caller)
+      _167 = 1
+  if _167:
+      if not stor7373[caller]:
+          if stor7373.length >= unknown10000000():
+              revert with 0, 65
+          stor7373.length++
+          if stor7373.length >= stor7373.length:
+              revert with 0, 50
+          address(stor7373[stor7373.length].field_0) = caller
+          Mask(96, 0, stor7373[stor7373.length].field_160) = 0
+          stor7373[caller] = stor7373.length
+  if not uint8(storF0C5.field_64):
+      uint64(storF0C5.field_0) = uint64(storF0C5.field_0)
+      uint8(storF0C5.field_64) = 0
+      Mask(184, 0, storF0C5.field_72) = Mask(184, 0, storF0C5.field_72)
+      log 0xc7f505b2: 1
+
+def unknown250bf93a(uint256 _param1, uint128 _param2, uint256 _param3, uint128 _param4, uint256 _param5, uint128 _param6, uint256 _param7, array _param8) payable: 
+  mem[64] = 96
+  require not call.value
+  require calldata.size - 4 >=′ 256
+  require not Mask(96, 160, _param2)
+  require not Mask(96, 160, _param4)
+  require not Mask(96, 160, _param6)
+  require _param8 <= LOCK8605463013()
+  require _param8 + 35 <′ calldata.size
+  require _param8.length <= LOCK8605463013()
+  require _param8 + _param8.length + 36 <= calldata.size
+  if not stor5EC2[caller]:
+      revert with 0, caller, 0x39ba2c7e84b6d94350b0167bb3d872a8c3c981ee0b9746fbaa23ef1d87c8e2fc
+  if stor9B77 == 2:
+      revert with 1055239861
+  stor9B77 = 2
+  if paused:
+      revert with 3644589669
+  if _param7 <= block.timestamp:
+      revert with 0, block.timestamp, _param7
+  if not uint8(stor2C35[address(_param2)].field_0):
+      revert with 0, address(_param2)
+  if _param3 > stor2C35[address(_param2)].field_256:
+      revert with 0, _param3, stor2C35[address(_param2)].field_256
+  if stor2C35[Mask(256, -8, _param1) << 8] and 1 << uint8(_param1):
+      revert with 0, _param1
+  mem[0] = Mask(248, 0, _param1) * 0.00390625
+  mem[32] = 0x2c355a1029f7297de90b706beea350b0073a5f8d06c07726a159113e4caa7d69
+  stor2C35[Mask(256, -8, _param1) << 8] = 1
+  if not address(_param2):
+      revert with 3301233889
+  if address(_param2) != 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee:
+      mem[100] = this.address
+      static call address(_param2).balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      mem[96] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _13 = return_data.size
+          _14 = return_data.size
+      else:
+          _13 = 32
+          _14 = 32
+      if ceil32(_14) + 96 > LOCK8605463013() or ceil32(_14) + 96 < 96:
+          revert with 0, 65
+      mem[64] = ceil32(_14) + 96
+      require _13 >=′ 32
+      _18 = ext_call.return_data[0]
+  else:
+      _18 = eth.balance(this.address)
+  if not address(_param4):
+      revert with 3301233889
+  if address(_param4) != 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee:
+      mem[mem[64] + 4] = this.address
+      static call address(_param4).balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _23 = return_data.size
+          _24 = return_data.size
+      else:
+          _23 = 32
+          _24 = 32
+      if mem[64] + ceil32(_24) > LOCK8605463013() or mem[64] + ceil32(_24) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_24)
+      require _23 >=′ 32
+      _34 = ext_call.return_data[0]
+  else:
+      _34 = eth.balance(this.address)
+  if address(_param2) != 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee:
+      mem[0] = Mask(248, 0, _param1) * 0.00390625
+      _37 = mem[64]
+      mem[mem[64] + 32] = 0x95ea7b300000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 36] = routerAddress
+      mem[mem[64] + 68] = _param3
+      mem[mem[64]] = 68
+      if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + 128
+      call address(_param2).mem[_37 + 32 len 4] with:
+           gas gas_remaining wei
+          args mem[_37 + 36 len 64]
+      mem[0] = ext_call.return_data[0]
+      if ext_call.success:
+          if return_data.size:
+              _44 = ext_call.return_data[0] == 1
+          else:
+              _44 = bool(ext_code.size(address(_param2)))
+          _47 = not _44
+      else:
+          _47 = not ext_call.success
+      if _47:
+          mem[_37 + 160] = 0x95ea7b300000000000000000000000000000000000000000000000000000000
+          mem[_37 + 164] = routerAddress
+          mem[_37 + 196] = 0
+          mem[_37 + 128] = 68
+          if _37 + 256 > LOCK8605463013() or 256 < 128:
+              revert with 0, 65
+          mem[64] = _37 + 256
+          call address(_param2).approve(address spender, uint256 amount) with:
+               gas gas_remaining wei
+              args routerAddress, 0
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if return_data.size:
+              _57 = ext_call.return_data[0] != 1
+          else:
+              _57 = not ext_code.size(address(_param2))
+          if _57:
+              revert with 0, address(_param2)
+          call address(_param2).mem[_37 + 32 len 4] with:
+               gas gas_remaining wei
+              args mem[_37 + 36 len 64]
+          mem[0] = ext_call.return_data[0]
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if return_data.size:
+              _64 = ext_call.return_data[0] != 1
+          else:
+              _64 = not ext_code.size(address(_param2))
+          if _64:
+              revert with 0, address(_param2)
+      _68 = 0
+  else:
+      _68 = _param3
+  mem[mem[64] len _param8.length] = _param8[all]
+  mem[mem[64] + _param8.length] = 0
+  call routerAddress with:
+     value _68 wei
+       gas gas_remaining wei
+      args _param8[all]
+  if not return_data.size:
+      _74 = 96
+  else:
+      if return_data.size > LOCK8605463013():
+          revert with 0, 65
+      _73 = mem[64]
+      if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+      mem[_73] = return_data.size
+      mem[_73 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _74 = _73
+  if not ext_call.success:
+      revert with memory
+        from _74 + 32
+         len mem[_74]
+  if address(_param2) != 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee:
+      static call address(_param2).balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _78 = return_data.size
+          _79 = return_data.size
+      else:
+          _78 = 32
+          _79 = 32
+      if mem[64] + ceil32(_79) > LOCK8605463013() or mem[64] + ceil32(_79) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_79)
+      require _78 >=′ 32
+      _83 = ext_call.return_data[0]
+  else:
+      _83 = eth.balance(this.address)
+  if address(_param4) != 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee:
+      static call address(_param4).balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _88 = return_data.size
+          _89 = return_data.size
+      else:
+          _88 = 32
+          _89 = 32
+      if mem[64] + ceil32(_89) > LOCK8605463013() or mem[64] + ceil32(_89) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_89)
+      require _88 >=′ 32
+      _91 = ext_call.return_data[0]
+  else:
+      _91 = eth.balance(this.address)
+  if _18 - _83 > _18:
+      revert with 0, 17
+  if _18 - _83 - _param3:
+      revert with 0, _param3, _18 - _83
+  if _91 - _34 > _91:
+      revert with 0, 17
+  if not _91 - _34:
+      revert with 2250022533
+  if address(_param4) != 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee:
+      static call address(_param4).balanceOf(address account) with:
+              gas gas_remaining wei
+             args address(_param6)
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _94 = return_data.size
+          _95 = return_data.size
+      else:
+          _94 = 32
+          _95 = 32
+      if mem[64] + ceil32(_95) > LOCK8605463013() or mem[64] + ceil32(_95) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_95)
+      require _94 >=′ 32
+      _97 = ext_call.return_data[0]
+  else:
+      _97 = eth.balance(_param6)
+  if address(_param4) != 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee:
+      _98 = mem[64]
+      static call address(_param4).balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _100 = return_data.size
+          _101 = return_data.size
+      else:
+          _100 = 32
+          _101 = 32
+      if mem[64] + ceil32(_101) > LOCK8605463013() or mem[64] + ceil32(_101) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_101)
+      require _100 >=′ 32
+      mem[_98 + ceil32(_101) + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+      mem[_98 + ceil32(_101) + 36] = address(_param6)
+      mem[_98 + ceil32(_101) + 68] = _91 - _34
+      mem[_98 + ceil32(_101)] = 68
+      if _98 + ceil32(_101) + 128 > LOCK8605463013() or 128 < 0:
+          revert with 0, 65
+      call address(_param4).transfer(address recipient, uint256 amount) with:
+           gas gas_remaining wei
+          args address(_param6), _91 - _34
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if return_data.size:
+          _109 = ext_call.return_data[0] != 1
+      else:
+          _109 = not ext_code.size(address(_param4))
+      if _109:
+          revert with 0, address(_param4)
+      static call address(_param4).balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _115 = return_data.size
+          _116 = return_data.size
+      else:
+          _115 = 32
+          _116 = 32
+      if _98 + ceil32(_101) + ceil32(_116) + 128 > LOCK8605463013() or ceil32(_116) < 0:
+          revert with 0, 65
+      mem[64] = _98 + ceil32(_101) + ceil32(_116) + 128
+      require _115 >=′ 32
+  else:
+      call address(_param6) with:
+         value _91 - _34 wei
+           gas gas_remaining wei
+      if return_data.size:
+          if return_data.size > LOCK8605463013():
+              revert with 0, 65
+          _102 = mem[64]
+          if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+              revert with 0, 65
+          mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+          mem[_102] = return_data.size
+          mem[_102 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      if not ext_call.success:
+          revert with 807596772
+  if address(_param4) != 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee:
+      static call address(_param4).balanceOf(address account) with:
+              gas gas_remaining wei
+             args address(_param6)
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _121 = return_data.size
+          _122 = return_data.size
+      else:
+          _121 = 32
+          _122 = 32
+      if mem[64] + ceil32(_122) > LOCK8605463013() or mem[64] + ceil32(_122) < mem[64]:
+          revert with 0, 65
+      require _121 >=′ 32
+      _127 = ext_call.return_data[0]
+  else:
+      _127 = eth.balance(_param6)
+  if _127 - _97 > _127:
+      revert with 0, 17
+  if _127 - _97 < _param5:
+      revert with 0, _127 - _97, _param5
+  log 0x2952f5e0: address(_param2), _param3, address(_param4), _127 - _97, address(_param6), _param1
+  stor9B77 = 1
+
+def unknown3271ba8d(uint256 _param1, uint128 _param2, uint256 _param3, uint128 _param4, uint256 _param5, uint128 _param6, uint256 _param7, array _param8, array _param9): # not payable
+  require calldata.size - 4 >=′ 288
+  require not Mask(96, 160, _param2)
+  require not Mask(96, 160, _param4)
+  require not Mask(96, 160, _param6)
+  require _param8 <= LOCK8605463013()
+  require _param8 + 35 <′ calldata.size
+  require _param8.length <= LOCK8605463013()
+  require _param8 + _param8.length + 36 <= calldata.size
+  require _param9 <= LOCK8605463013()
+  require _param9 + 35 <′ calldata.size
+  require _param9.length <= LOCK8605463013()
+  require _param9 + _param9.length + 36 <= calldata.size
+  mem[128] = 0x487cccbedc87cd4c0fbc6ca4bf9c4af0664cdf39d7b533feca20689333eded7e
+  mem[160] = _param1
+  mem[192] = address(_param2)
+  mem[224] = _param3
+  mem[256] = address(_param4)
+  mem[288] = _param5
+  mem[320] = address(_param6)
+  mem[352] = _param7
+  mem[96] = 256
+  if not bool(storA16A.field_0):
+      _7 = storA16A.field_1 % 128
+  else:
+      _7 = uint255(uint256(storA16A.field_0)) * 0.5
+  if _7 < 32 == bool(storA16A.field_0):
+      revert with 0, 34
+  mem[384] = _7
+  if not bool(storA16A.field_0):
+      mem[416] = Mask(248, 8, uint256(storA16A.field_0))
+      _14 = (32 * bool(_7)) + 32
+  else:
+      if bool(storA16A.field_0) != 1:
+          _14 = -384
+      else:
+          mem[0] = 0xa16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d1
+          s = 0x42ad5d3e1f2e6e70edcf6d991b8a3023d3fca8047a131592f9edb9fd9b89d57d
+          idx = 0
+          while idx < _7:
+              mem[idx + 416] = stor[s]
+              s = s + 1
+              idx = idx + 32
+              continue 
+          _14 = ceil32(_7) + 32
+  if ceil32(_14) + 384 > LOCK8605463013() or ceil32(_14) + 384 < 384:
+      revert with 0, 65
+  if not _7:
+      if not storA16A:
+          _17 = 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+      else:
+          _17 = storA16A
+      _18 = _17
+  else:
+      _18 = sha3(mem[416 len _7])
+  if not bool(stor2A16.field_0):
+      _22 = stor2A16.field_1 % 128
+  else:
+      _22 = uint255(uint256(stor2A16.field_0)) * 0.5
+  if _22 < 32 == bool(stor2A16.field_0):
+      revert with 0, 34
+  mem[ceil32(_14) + 384] = _22
+  if not bool(stor2A16.field_0):
+      mem[ceil32(_14) + 416] = Mask(248, 8, uint256(stor2A16.field_0))
+      _29 = (32 * bool(_22)) + 32
+  else:
+      if bool(stor2A16.field_0) != 1:
+          _29 = -ceil32(_14) - 384
+      else:
+          mem[0] = 0x2a16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d1
+          s = 0x5f9ce34815f8e11431c7bb75a8e6886a91478f7ffc1dbb0a98dc240fddd76b75
+          idx = 0
+          while idx < _22:
+              mem[ceil32(_14) + idx + 416] = stor[s]
+              s = s + 1
+              idx = idx + 32
+              continue 
+          _29 = ceil32(_22) + 32
+  if ceil32(_14) + ceil32(_29) + 384 > LOCK8605463013() or ceil32(_29) < 0:
+      revert with 0, 65
+  if not _22:
+      if not storA16A:
+          _33 = 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+      else:
+          _33 = storA16A
+      mem[ceil32(_14) + ceil32(_29) + 416] = 0x8b73c3c69bb8fe3d512ecc4cf759cc79239f7b179b0ffacaa9a75d522b39400f
+      mem[ceil32(_14) + ceil32(_29) + 448] = _18
+      mem[ceil32(_14) + ceil32(_29) + 480] = _33
+      mem[ceil32(_14) + ceil32(_29) + 512] = chainid
+      mem[ceil32(_14) + ceil32(_29) + 544] = this.address
+      mem[ceil32(_14) + ceil32(_29) + 384] = 160
+      _35 = ceil32(_14) + ceil32(_29) + 416
+      _36 = ceil32(_14) + ceil32(_29) + 384
+      _37 = ceil32(_14) + ceil32(_29) + 384
+  else:
+      _31 = sha3(mem[ceil32(_14) + 416 len _22])
+      mem[ceil32(_14) + ceil32(_29) + 416] = 0x8b73c3c69bb8fe3d512ecc4cf759cc79239f7b179b0ffacaa9a75d522b39400f
+      mem[ceil32(_14) + ceil32(_29) + 448] = _18
+      mem[ceil32(_14) + ceil32(_29) + 480] = _31
+      mem[ceil32(_14) + ceil32(_29) + 512] = chainid
+      mem[ceil32(_14) + ceil32(_29) + 544] = this.address
+      mem[ceil32(_14) + ceil32(_29) + 384] = 160
+      _35 = ceil32(_14) + ceil32(_29) + 416
+      _36 = ceil32(_14) + ceil32(_29) + 384
+      _37 = ceil32(_14) + ceil32(_29) + 384
+  if _37 + 192 > LOCK8605463013() or _37 + 192 < _37:
+      revert with 0, 65
+  mem[64] = _37 + 192
+  _39 = sha3(mem[_35 len mem[_36]])
+  mem[_37 + 194] = sha3(mem[_35 len mem[_36]])
+  mem[_37 + 226] = sha3(0x487cccbedc87cd4c0fbc6ca4bf9c4af0664cdf39d7b533feca20689333eded7e, _param1, address(_param2), _param3, address(_param4), _param5, address(_param6), _param7)
+  if _37 + ceil32(ceil32(_param9.length)) + 193 > LOCK8605463013() or ceil32(ceil32(_param9.length)) + 193 < 192:
+      revert with 0, 65
+  mem[64] = _37 + ceil32(ceil32(_param9.length)) + 193
+  mem[_37 + 192] = _param9.length
+  mem[_37 + 224 len _param9.length] = _param9[all]
+  mem[_37 + _param9.length + 224] = 0
+  if _param9.length - 65:
+      _53 = 0
+      _54 = 2
+      _55 = _param9.length
+  else:
+      _44 = mem[_37 + 224 len 2], Mask(240, 16, sha3(0x487cccbedc87cd4c0fbc6ca4bf9c4af0664cdf39d7b533feca20689333eded7e, _param1, address(_param2), _param3, address(_param4), _param5, address(_param6), _param7)) >> 16
+      _45 = uint16(sha3(0x487cccbedc87cd4c0fbc6ca4bf9c4af0664cdf39d7b533feca20689333eded7e, _param1, address(_param2), _param3, address(_param4), _param5, address(_param6), _param7)), mem[_37 + 258 len 30]
+      _46 = mem[_37 + 288]
+      if uint16(sha3(0x487cccbedc87cd4c0fbc6ca4bf9c4af0664cdf39d7b533feca20689333eded7e, _param1, address(_param2), _param3, address(_param4), _param5, address(_param6), _param7)), mem[_37 + 258 len 30] > 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0:
+          _50 = 0
+          _51 = 3
+          _52 = uint16(sha3(0x487cccbedc87cd4c0fbc6ca4bf9c4af0664cdf39d7b533feca20689333eded7e, _param1, address(_param2), _param3, address(_param4), _param5, address(_param6), _param7)), mem[_37 + 258 len 30]
+      else:
+          mem[_37 + ceil32(ceil32(_param9.length)) + 193] = sha3(6401, _39, sha3(0x487cccbedc87cd4c0fbc6ca4bf9c4af0664cdf39d7b533feca20689333eded7e, _param1, address(_param2), _param3, address(_param4), _param5, address(_param6), _param7))
+          mem[_37 + ceil32(ceil32(_param9.length)) + 225] = Mask(8, 248, _46) >> 248
+          mem[_37 + ceil32(ceil32(_param9.length)) + 257] = _44
+          mem[_37 + ceil32(ceil32(_param9.length)) + 289] = _45
+          signer = erecover(sha3(6401, _39, sha3(0x487cccbedc87cd4c0fbc6ca4bf9c4af0664cdf39d7b533feca20689333eded7e, _param1, address(_param2), _param3, address(_param4), _param5, address(_param6), _param7)), Mask(8, 248, _46), _44, _45) # precompiled
+          if not erecover.result:
+              revert with ext_call.return_data[0 len return_data.size]
+          if not address(signer):
+              _50 = 0
+              _51 = 1
+          else:
+              _50 = signer
+              _51 = 0
+          _52 = 0
+      _53 = _50
+      _54 = _51
+      _55 = _52
+  if 4 <= _54:
+      revert with 0, 33
+  if _54:
+      if not _54 - 1:
+          revert with ECDSAInvalidSignature()
+      if not _54 - 2:
+          revert with 0, _55
+      if _54 == 3:
+          revert with 0, _55
+  if not storBC67[address(_53)]:
+      revert with 0, address(_53)
+  if not stor5EC2[caller]:
+      revert with 0, caller, 0x39ba2c7e84b6d94350b0167bb3d872a8c3c981ee0b9746fbaa23ef1d87c8e2fc
+  if stor9B77 == 2:
+      revert with 1055239861
+  stor9B77 = 2
+  if paused:
+      revert with 3644589669
+  if _param7 <= block.timestamp:
+      revert with 0, block.timestamp, _param7
+  if not uint8(stor2C35[address(_param2)].field_0):
+      revert with 0, address(_param2)
+  if _param3 > stor2C35[address(_param2)].field_256:
+      revert with 0, _param3, stor2C35[address(_param2)].field_256
+  if stor2C35[Mask(256, -8, _param1) << 8] and 1 << uint8(_param1):
+      revert with 0, _param1
+  mem[0] = Mask(248, 0, _param1) * 0.00390625
+  mem[32] = 0x2c355a1029f7297de90b706beea350b0073a5f8d06c07726a159113e4caa7d69
+  stor2C35[Mask(256, -8, _param1) << 8] = 1
+  if not address(_param2):
+      revert with 3301233889
+  if address(_param2) != 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee:
+      mem[_37 + ceil32(ceil32(_param9.length)) + 197] = this.address
+      static call address(_param2).balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      mem[_37 + ceil32(ceil32(_param9.length)) + 193] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _77 = return_data.size
+          _78 = return_data.size
+      else:
+          _77 = 32
+          _78 = 32
+      if _37 + ceil32(ceil32(_param9.length)) + ceil32(_78) + 193 > LOCK8605463013() or ceil32(_78) < 0:
+          revert with 0, 65
+      mem[64] = _37 + ceil32(ceil32(_param9.length)) + ceil32(_78) + 193
+      require _77 >=′ 32
+      _82 = ext_call.return_data[0]
+  else:
+      _82 = eth.balance(this.address)
+  if not address(_param4):
+      revert with 3301233889
+  if address(_param4) != 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee:
+      mem[mem[64] + 4] = this.address
+      static call address(_param4).balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      mem[mem[64]] = ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _87 = return_data.size
+          _88 = return_data.size
+      else:
+          _87 = 32
+          _88 = 32
+      if mem[64] + ceil32(_88) > LOCK8605463013() or mem[64] + ceil32(_88) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_88)
+      require _87 >=′ 32
+      _98 = ext_call.return_data[0]
+  else:
+      _98 = eth.balance(this.address)
+  if address(_param2) != 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee:
+      mem[0] = Mask(248, 0, _param1) * 0.00390625
+      _101 = mem[64]
+      mem[mem[64] + 32] = 0x95ea7b300000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 36] = routerAddress
+      mem[mem[64] + 68] = _param3
+      mem[mem[64]] = 68
+      if mem[64] + 128 > LOCK8605463013() or mem[64] + 128 < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + 128
+      call address(_param2).mem[_101 + 32 len 4] with:
+           gas gas_remaining wei
+          args mem[_101 + 36 len 64]
+      mem[0] = ext_call.return_data[0]
+      if ext_call.success:
+          if return_data.size:
+              _108 = ext_call.return_data[0] == 1
+          else:
+              _108 = bool(ext_code.size(address(_param2)))
+          _111 = not _108
+      else:
+          _111 = not ext_call.success
+      if _111:
+          mem[_101 + 160] = 0x95ea7b300000000000000000000000000000000000000000000000000000000
+          mem[_101 + 164] = routerAddress
+          mem[_101 + 196] = 0
+          mem[_101 + 128] = 68
+          if _101 + 256 > LOCK8605463013() or 256 < 128:
+              revert with 0, 65
+          mem[64] = _101 + 256
+          call address(_param2).approve(address spender, uint256 amount) with:
+               gas gas_remaining wei
+              args routerAddress, 0
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if return_data.size:
+              _121 = ext_call.return_data[0] != 1
+          else:
+              _121 = not ext_code.size(address(_param2))
+          if _121:
+              revert with 0, address(_param2)
+          call address(_param2).mem[_101 + 32 len 4] with:
+               gas gas_remaining wei
+              args mem[_101 + 36 len 64]
+          mem[0] = ext_call.return_data[0]
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          if return_data.size:
+              _128 = ext_call.return_data[0] != 1
+          else:
+              _128 = not ext_code.size(address(_param2))
+          if _128:
+              revert with 0, address(_param2)
+      _132 = 0
+  else:
+      _132 = _param3
+  mem[mem[64] len _param8.length] = _param8[all]
+  mem[mem[64] + _param8.length] = 0
+  call routerAddress with:
+     value _132 wei
+       gas gas_remaining wei
+      args _param8[all]
+  if not return_data.size:
+      _138 = 96
+  else:
+      if return_data.size > LOCK8605463013():
+          revert with 0, 65
+      _137 = mem[64]
+      if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+      mem[_137] = return_data.size
+      mem[_137 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _138 = _137
+  if not ext_call.success:
+      revert with memory
+        from _138 + 32
+         len mem[_138]
+  if address(_param2) != 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee:
+      static call address(_param2).balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _142 = return_data.size
+          _143 = return_data.size
+      else:
+          _142 = 32
+          _143 = 32
+      if mem[64] + ceil32(_143) > LOCK8605463013() or mem[64] + ceil32(_143) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_143)
+      require _142 >=′ 32
+      _147 = ext_call.return_data[0]
+  else:
+      _147 = eth.balance(this.address)
+  if address(_param4) != 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee:
+      static call address(_param4).balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _152 = return_data.size
+          _153 = return_data.size
+      else:
+          _152 = 32
+          _153 = 32
+      if mem[64] + ceil32(_153) > LOCK8605463013() or mem[64] + ceil32(_153) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_153)
+      require _152 >=′ 32
+      _155 = ext_call.return_data[0]
+  else:
+      _155 = eth.balance(this.address)
+  if _82 - _147 > _82:
+      revert with 0, 17
+  if _82 - _147 - _param3:
+      revert with 0, _param3, _82 - _147
+  if _155 - _98 > _155:
+      revert with 0, 17
+  if not _155 - _98:
+      revert with 2250022533
+  if address(_param4) != 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee:
+      static call address(_param4).balanceOf(address account) with:
+              gas gas_remaining wei
+             args address(_param6)
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _158 = return_data.size
+          _159 = return_data.size
+      else:
+          _158 = 32
+          _159 = 32
+      if mem[64] + ceil32(_159) > LOCK8605463013() or mem[64] + ceil32(_159) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_159)
+      require _158 >=′ 32
+      _161 = ext_call.return_data[0]
+  else:
+      _161 = eth.balance(_param6)
+  if address(_param4) != 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee:
+      _162 = mem[64]
+      static call address(_param4).balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _164 = return_data.size
+          _165 = return_data.size
+      else:
+          _164 = 32
+          _165 = 32
+      if mem[64] + ceil32(_165) > LOCK8605463013() or mem[64] + ceil32(_165) < mem[64]:
+          revert with 0, 65
+      mem[64] = mem[64] + ceil32(_165)
+      require _164 >=′ 32
+      mem[_162 + ceil32(_165) + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+      mem[_162 + ceil32(_165) + 36] = address(_param6)
+      mem[_162 + ceil32(_165) + 68] = _155 - _98
+      mem[_162 + ceil32(_165)] = 68
+      if _162 + ceil32(_165) + 128 > LOCK8605463013() or 128 < 0:
+          revert with 0, 65
+      call address(_param4).transfer(address recipient, uint256 amount) with:
+           gas gas_remaining wei
+          args address(_param6), _155 - _98
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if return_data.size:
+          _173 = ext_call.return_data[0] != 1
+      else:
+          _173 = not ext_code.size(address(_param4))
+      if _173:
+          revert with 0, address(_param4)
+      static call address(_param4).balanceOf(address account) with:
+              gas gas_remaining wei
+             args this.address
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _179 = return_data.size
+          _180 = return_data.size
+      else:
+          _179 = 32
+          _180 = 32
+      if _162 + ceil32(_165) + ceil32(_180) + 128 > LOCK8605463013() or ceil32(_180) < 0:
+          revert with 0, 65
+      mem[64] = _162 + ceil32(_165) + ceil32(_180) + 128
+      require _179 >=′ 32
+  else:
+      call address(_param6) with:
+         value _155 - _98 wei
+           gas gas_remaining wei
+      if return_data.size:
+          if return_data.size > LOCK8605463013():
+              revert with 0, 65
+          _166 = mem[64]
+          if mem[64] + ceil32(ceil32(return_data.size)) + 1 > LOCK8605463013() or mem[64] + ceil32(ceil32(return_data.size)) + 1 < mem[64]:
+              revert with 0, 65
+          mem[64] = mem[64] + ceil32(ceil32(return_data.size)) + 1
+          mem[_166] = return_data.size
+          mem[_166 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      if not ext_call.success:
+          revert with 807596772
+  if address(_param4) != 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee:
+      static call address(_param4).balanceOf(address account) with:
+              gas gas_remaining wei
+             args address(_param6)
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if 32 > return_data.size:
+          _185 = return_data.size
+          _186 = return_data.size
+      else:
+          _185 = 32
+          _186 = 32
+      if mem[64] + ceil32(_186) > LOCK8605463013() or mem[64] + ceil32(_186) < mem[64]:
+          revert with 0, 65
+      require _185 >=′ 32
+      _191 = ext_call.return_data[0]
+  else:
+      _191 = eth.balance(_param6)
+  if _191 - _161 > _191:
+      revert with 0, 17
+  if _191 - _161 < _param5:
+      revert with 0, _191 - _161, _param5
+  log 0x2952f5e0: address(_param2), _param3, address(_param4), _191 - _161, address(_param6), _param1
+  stor9B77 = 1
+
+

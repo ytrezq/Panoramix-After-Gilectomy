@@ -1,0 +1,1130 @@
+# Palkeoramix decompiler. 
+
+const exchangeRateStored = mem[_36]
+const getCash = mem[_36]
+const supplyRatePerBlock = mem[_36]
+const borrowRatePerBlock = mem[_36]
+const isCToken = 1
+
+def storage:
+  name is array of uint256 at storage 1
+  symbol is array of uint256 at storage 2
+  decimals is uint8 at storage 3
+  adminAddress is address at storage 3 offset 8
+  pendingAdminAddress is address at storage 4
+  comptrollerAddress is address at storage 5
+  interestRateModelAddress is address at storage 6
+  reserveFactorMantissa is uint256 at storage 8
+  accrualBlockNumber is uint256 at storage 9
+  borrowIndex is uint256 at storage 10
+  totalBorrows is uint256 at storage 11
+  totalReserves is uint256 at storage 12
+  totalSupply is uint256 at storage 13
+  underlyingAddress is address at storage 17
+  implementationAddress is address at storage 18
+
+def name(): # not payable
+  return name[0 len name.length]
+
+def reserveFactorMantissa(): # not payable
+  return reserveFactorMantissa
+
+def totalSupply(): # not payable
+  return totalSupply
+
+def pendingAdmin(): # not payable
+  return pendingAdminAddress
+
+def decimals(): # not payable
+  return decimals
+
+def totalBorrows(): # not payable
+  return totalBorrows
+
+def implementation(): # not payable
+  return implementationAddress
+
+def comptroller(): # not payable
+  return comptrollerAddress
+
+def accrualBlockNumber(): # not payable
+  return accrualBlockNumber
+
+def underlying(): # not payable
+  return underlyingAddress
+
+def totalReserves(): # not payable
+  return totalReserves
+
+def symbol(): # not payable
+  return symbol[0 len symbol.length]
+
+def borrowIndex(): # not payable
+  return borrowIndex
+
+def interestRateModel(): # not payable
+  return interestRateModelAddress
+
+def admin(): # not payable
+  return adminAddress
+
+#
+#  Regular functions
+#
+
+def _fallback(?) payable: # default function
+  if call.value:
+      revert with 0x8c379a000000000000000000000000000000000000000000000000000000000, 
+                  32,
+                  55,
+                  0xfe43457263323044656c656761746f723a66616c6c6261636b3a2063616e6e6f742073656e642076616c756520746f2066616c6c626163,
+                  mem[219 len 9]
+  delegate implementationAddress with:
+     funct call.data[0 len 4]
+       gas gas_remaining wei
+      args call.data[4 len calldata.size - 4]
+  if not delegate.return_code:
+      revert with ext_call.return_data[0 len return_data.size]
+  return ext_call.return_data[0 len return_data.size]
+
+def _acceptAdmin(): # not payable
+  mem[96] = 4
+  mem[64] = 132
+  mem[128 len 4] = _acceptAdmin()
+  mem[132 len 0] = None
+  mem[160 len 4] = mem[156 len 4]
+  delegate implementationAddress.mem[132 len 4] with:
+       gas gas_remaining wei
+      args 
+  if not return_data.size:
+      _14 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 133
+      mem[132] = return_data.size
+      mem[164 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _14 = 132
+  if not delegate.return_code:
+      revert with memory
+        from _14 + 32
+         len return_data.size
+  require mem[_14] >= 32
+  mem[mem[64]] = mem[_14 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def accrueInterest(): # not payable
+  mem[96] = 4
+  mem[64] = 132
+  mem[128 len 4] = accrueInterest()
+  mem[132 len 0] = None
+  mem[160 len 4] = mem[156 len 4]
+  delegate implementationAddress.mem[132 len 4] with:
+       gas gas_remaining wei
+      args 
+  if not return_data.size:
+      _14 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 133
+      mem[132] = return_data.size
+      mem[164 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _14 = 132
+  if not delegate.return_code:
+      revert with memory
+        from _14 + 32
+         len return_data.size
+  require mem[_14] >= 32
+  mem[mem[64]] = mem[_14 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def totalBorrowsCurrent(): # not payable
+  mem[96] = 4
+  mem[64] = 132
+  mem[128 len 4] = totalBorrowsCurrent()
+  mem[132 len 0] = None
+  mem[160 len 4] = mem[156 len 4]
+  delegate implementationAddress.mem[132 len 4] with:
+       gas gas_remaining wei
+      args 
+  if not return_data.size:
+      _14 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 133
+      mem[132] = return_data.size
+      mem[164 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _14 = 132
+  if not delegate.return_code:
+      revert with memory
+        from _14 + 32
+         len return_data.size
+  require mem[_14] >= 32
+  mem[mem[64]] = mem[_14 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def exchangeRateCurrent(): # not payable
+  mem[96] = 4
+  mem[64] = 132
+  mem[128 len 4] = exchangeRateCurrent()
+  mem[132 len 0] = None
+  mem[160 len 4] = mem[156 len 4]
+  delegate implementationAddress.mem[132 len 4] with:
+       gas gas_remaining wei
+      args 
+  if not return_data.size:
+      _14 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 133
+      mem[132] = return_data.size
+      mem[164 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _14 = 132
+  if not delegate.return_code:
+      revert with memory
+        from _14 + 32
+         len return_data.size
+  require mem[_14] >= 32
+  mem[mem[64]] = mem[_14 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def redeem(uint256 amount): # not payable
+  require calldata.size - 4 >= 32
+  mem[132] = amount
+  mem[96] = 36
+  mem[64] = 164
+  mem[132 len 28] = Mask(224, 32, amount) >> 32
+  mem[128 len 4] = redeem(uint256 amount)
+  mem[164] = redeem(uint256 amount), Mask(224, 32, amount) >> 32
+  mem[224 len 4] = uint32(amount)
+  delegate implementationAddress.redeem(uint256 amount) with:
+       gas gas_remaining wei
+      args Mask(224, 32, amount) >> 32, mem[196 len 4]
+  if not return_data.size:
+      _15 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 165
+      mem[164] = return_data.size
+      mem[196 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _15 = 164
+  if not delegate.return_code:
+      revert with memory
+        from _15 + 32
+         len return_data.size
+  require mem[_15] >= 32
+  mem[mem[64]] = mem[_15 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def mint(uint256 _mintAmount): # not payable
+  require calldata.size - 4 >= 32
+  mem[132] = _mintAmount
+  mem[96] = 36
+  mem[64] = 164
+  mem[132 len 28] = Mask(224, 32, _mintAmount) >> 32
+  mem[128 len 4] = mint(uint256 _mintAmount)
+  mem[164] = mint(uint256 _mintAmount), Mask(224, 32, _mintAmount) >> 32
+  mem[224 len 4] = uint32(_mintAmount)
+  delegate implementationAddress.mint(uint256 _mintAmount) with:
+       gas gas_remaining wei
+      args Mask(224, 32, _mintAmount) >> 32, mem[196 len 4]
+  if not return_data.size:
+      _15 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 165
+      mem[164] = return_data.size
+      mem[196 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _15 = 164
+  if not delegate.return_code:
+      revert with memory
+        from _15 + 32
+         len return_data.size
+  require mem[_15] >= 32
+  mem[mem[64]] = mem[_15 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def _addReserves(uint256 addAmount): # not payable
+  require calldata.size - 4 >= 32
+  mem[132] = addAmount
+  mem[96] = 36
+  mem[64] = 164
+  mem[132 len 28] = Mask(224, 32, addAmount) >> 32
+  mem[128 len 4] = _addReserves(uint256 addAmount)
+  mem[164] = _addReserves(uint256 addAmount), Mask(224, 32, addAmount) >> 32
+  mem[224 len 4] = uint32(addAmount)
+  delegate implementationAddress._addReserves(uint256 addAmount) with:
+       gas gas_remaining wei
+      args Mask(224, 32, addAmount) >> 32, mem[196 len 4]
+  if not return_data.size:
+      _15 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 165
+      mem[164] = return_data.size
+      mem[196 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _15 = 164
+  if not delegate.return_code:
+      revert with memory
+        from _15 + 32
+         len return_data.size
+  require mem[_15] >= 32
+  mem[mem[64]] = mem[_15 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def borrow(uint256 borrowAmount): # not payable
+  require calldata.size - 4 >= 32
+  mem[132] = borrowAmount
+  mem[96] = 36
+  mem[64] = 164
+  mem[132 len 28] = Mask(224, 32, borrowAmount) >> 32
+  mem[128 len 4] = borrow(uint256 borrowAmount)
+  mem[164] = borrow(uint256 borrowAmount), Mask(224, 32, borrowAmount) >> 32
+  mem[224 len 4] = uint32(borrowAmount)
+  delegate implementationAddress.borrow(uint256 borrowAmount) with:
+       gas gas_remaining wei
+      args Mask(224, 32, borrowAmount) >> 32, mem[196 len 4]
+  if not return_data.size:
+      _15 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 165
+      mem[164] = return_data.size
+      mem[196 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _15 = 164
+  if not delegate.return_code:
+      revert with memory
+        from _15 + 32
+         len return_data.size
+  require mem[_15] >= 32
+  mem[mem[64]] = mem[_15 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def repayBorrow(uint256 repayAmount): # not payable
+  require calldata.size - 4 >= 32
+  mem[132] = repayAmount
+  mem[96] = 36
+  mem[64] = 164
+  mem[132 len 28] = Mask(224, 32, repayAmount) >> 32
+  mem[128 len 4] = repayBorrow(uint256 repayAmount)
+  mem[164] = repayBorrow(uint256 repayAmount), Mask(224, 32, repayAmount) >> 32
+  mem[224 len 4] = uint32(repayAmount)
+  delegate implementationAddress.repayBorrow(uint256 repayAmount) with:
+       gas gas_remaining wei
+      args Mask(224, 32, repayAmount) >> 32, mem[196 len 4]
+  if not return_data.size:
+      _15 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 165
+      mem[164] = return_data.size
+      mem[196 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _15 = 164
+  if not delegate.return_code:
+      revert with memory
+        from _15 + 32
+         len return_data.size
+  require mem[_15] >= 32
+  mem[mem[64]] = mem[_15 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def balanceOfUnderlying(address owner): # not payable
+  require calldata.size - 4 >= 32
+  mem[132] = owner
+  mem[96] = 36
+  mem[64] = 164
+  mem[132 len 28] = address(owner) << 64
+  mem[128 len 4] = balanceOfUnderlying(address owner)
+  mem[164] = balanceOfUnderlying(address owner), address(owner) << 64
+  mem[224 len 4] = 0
+  delegate implementationAddress.0x0 with:
+       gas gas_remaining wei
+      args Mask(224, 0, balanceOfUnderlying(address owner), address(owner) << 64), mem[196 len 4]
+  if not return_data.size:
+      _15 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 165
+      mem[164] = return_data.size
+      mem[196 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _15 = 164
+  if not delegate.return_code:
+      revert with memory
+        from _15 + 32
+         len return_data.size
+  require mem[_15] >= 32
+  mem[mem[64]] = mem[_15 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def _reduceReserves(uint256 reduceAmount): # not payable
+  require calldata.size - 4 >= 32
+  mem[132] = reduceAmount
+  mem[96] = 36
+  mem[64] = 164
+  mem[132 len 28] = Mask(224, 32, reduceAmount) >> 32
+  mem[128 len 4] = _reduceReserves(uint256 reduceAmount)
+  mem[164] = _reduceReserves(uint256 reduceAmount), Mask(224, 32, reduceAmount) >> 32
+  mem[224 len 4] = uint32(reduceAmount)
+  delegate implementationAddress._reduceReserves(uint256 reduceAmount) with:
+       gas gas_remaining wei
+      args Mask(224, 32, reduceAmount) >> 32, mem[196 len 4]
+  if not return_data.size:
+      _15 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 165
+      mem[164] = return_data.size
+      mem[196 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _15 = 164
+  if not delegate.return_code:
+      revert with memory
+        from _15 + 32
+         len return_data.size
+  require mem[_15] >= 32
+  mem[mem[64]] = mem[_15 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def redeemUnderlying(uint256 redeemAmount): # not payable
+  require calldata.size - 4 >= 32
+  mem[132] = redeemAmount
+  mem[96] = 36
+  mem[64] = 164
+  mem[132 len 28] = Mask(224, 32, redeemAmount) >> 32
+  mem[128 len 4] = redeemUnderlying(uint256 redeemAmount)
+  mem[164] = redeemUnderlying(uint256 redeemAmount), Mask(224, 32, redeemAmount) >> 32
+  mem[224 len 4] = uint32(redeemAmount)
+  delegate implementationAddress.redeemUnderlying(uint256 redeemAmount) with:
+       gas gas_remaining wei
+      args Mask(224, 32, redeemAmount) >> 32, mem[196 len 4]
+  if not return_data.size:
+      _15 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 165
+      mem[164] = return_data.size
+      mem[196 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _15 = 164
+  if not delegate.return_code:
+      revert with memory
+        from _15 + 32
+         len return_data.size
+  require mem[_15] >= 32
+  mem[mem[64]] = mem[_15 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def borrowBalanceCurrent(address account): # not payable
+  require calldata.size - 4 >= 32
+  mem[132] = account
+  mem[96] = 36
+  mem[64] = 164
+  mem[132 len 28] = address(account) << 64
+  mem[128 len 4] = borrowBalanceCurrent(address account)
+  mem[164] = borrowBalanceCurrent(address account), address(account) << 64
+  mem[224 len 4] = 0
+  delegate implementationAddress.0x0 with:
+       gas gas_remaining wei
+      args Mask(224, 0, borrowBalanceCurrent(address account), address(account) << 64), mem[196 len 4]
+  if not return_data.size:
+      _15 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 165
+      mem[164] = return_data.size
+      mem[196 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _15 = 164
+  if not delegate.return_code:
+      revert with memory
+        from _15 + 32
+         len return_data.size
+  require mem[_15] >= 32
+  mem[mem[64]] = mem[_15 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def _setComptroller(address newComptroller): # not payable
+  require calldata.size - 4 >= 32
+  mem[132] = newComptroller
+  mem[96] = 36
+  mem[64] = 164
+  mem[132 len 28] = address(newComptroller) << 64
+  mem[128 len 4] = _setComptroller(address newComptroller)
+  mem[164] = _setComptroller(address newComptroller), address(newComptroller) << 64
+  mem[224 len 4] = 0
+  delegate implementationAddress.0x0 with:
+       gas gas_remaining wei
+      args Mask(224, 0, _setComptroller(address newComptroller), address(newComptroller) << 64), mem[196 len 4]
+  if not return_data.size:
+      _15 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 165
+      mem[164] = return_data.size
+      mem[196 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _15 = 164
+  if not delegate.return_code:
+      revert with memory
+        from _15 + 32
+         len return_data.size
+  require mem[_15] >= 32
+  mem[mem[64]] = mem[_15 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def _setPendingAdmin(address newPendingAdmin): # not payable
+  require calldata.size - 4 >= 32
+  mem[132] = newPendingAdmin
+  mem[96] = 36
+  mem[64] = 164
+  mem[132 len 28] = address(newPendingAdmin) << 64
+  mem[128 len 4] = _setPendingAdmin(address newPendingAdmin)
+  mem[164] = _setPendingAdmin(address newPendingAdmin), address(newPendingAdmin) << 64
+  mem[224 len 4] = 0
+  delegate implementationAddress.0x0 with:
+       gas gas_remaining wei
+      args Mask(224, 0, _setPendingAdmin(address newPendingAdmin), address(newPendingAdmin) << 64), mem[196 len 4]
+  if not return_data.size:
+      _15 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 165
+      mem[164] = return_data.size
+      mem[196 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _15 = 164
+  if not delegate.return_code:
+      revert with memory
+        from _15 + 32
+         len return_data.size
+  require mem[_15] >= 32
+  mem[mem[64]] = mem[_15 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def _setInterestRateModel(address newInterestRateModel): # not payable
+  require calldata.size - 4 >= 32
+  mem[132] = newInterestRateModel
+  mem[96] = 36
+  mem[64] = 164
+  mem[132 len 28] = address(newInterestRateModel) << 64
+  mem[128 len 4] = _setInterestRateModel(address newInterestRateModel)
+  mem[164] = _setInterestRateModel(address newInterestRateModel), address(newInterestRateModel) << 64
+  mem[224 len 4] = 0
+  delegate implementationAddress.0x0 with:
+       gas gas_remaining wei
+      args Mask(224, 0, _setInterestRateModel(address newInterestRateModel), address(newInterestRateModel) << 64), mem[196 len 4]
+  if not return_data.size:
+      _15 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 165
+      mem[164] = return_data.size
+      mem[196 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _15 = 164
+  if not delegate.return_code:
+      revert with memory
+        from _15 + 32
+         len return_data.size
+  require mem[_15] >= 32
+  mem[mem[64]] = mem[_15 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def _setReserveFactor(uint256 newReserveFactorMantissa): # not payable
+  require calldata.size - 4 >= 32
+  mem[132] = newReserveFactorMantissa
+  mem[96] = 36
+  mem[64] = 164
+  mem[132 len 28] = Mask(224, 32, newReserveFactorMantissa) >> 32
+  mem[128 len 4] = _setReserveFactor(uint256 newReserveFactorMantissa)
+  mem[164] = _setReserveFactor(uint256 newReserveFactorMantissa), Mask(224, 32, newReserveFactorMantissa) >> 32
+  mem[224 len 4] = uint32(newReserveFactorMantissa)
+  delegate implementationAddress._setReserveFactor(uint256 newReserveFactorMantissa) with:
+       gas gas_remaining wei
+      args Mask(224, 32, newReserveFactorMantissa) >> 32, mem[196 len 4]
+  if not return_data.size:
+      _15 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 165
+      mem[164] = return_data.size
+      mem[196 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _15 = 164
+  if not delegate.return_code:
+      revert with memory
+        from _15 + 32
+         len return_data.size
+  require mem[_15] >= 32
+  mem[mem[64]] = mem[_15 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def approve(address spender, uint256 amount): # not payable
+  require calldata.size - 4 >= 64
+  mem[132] = spender
+  mem[164] = amount
+  mem[96] = 68
+  mem[64] = 196
+  mem[132 len 28] = address(spender) << 64
+  mem[128 len 4] = approve(address spender, uint256 amount)
+  mem[196 len 64] = approve(address spender, uint256 amount), address(spender) << 64, 0, Mask(224, 32, amount) >> 32
+  mem[288 len 4] = uint32(amount)
+  delegate implementationAddress.0x0 with:
+       gas gas_remaining wei
+      args Mask(224, 32, amount) << 224, mem[260 len 4]
+  if not return_data.size:
+      _15 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 197
+      mem[196] = return_data.size
+      mem[228 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _15 = 196
+  if not delegate.return_code:
+      revert with memory
+        from _15 + 32
+         len return_data.size
+  require mem[_15] >= 32
+  mem[mem[64]] = bool(mem[_15 + 32])
+  return memory
+    from mem[64]
+     len 32
+
+def transfer(address recipient, uint256 amount): # not payable
+  require calldata.size - 4 >= 64
+  mem[132] = recipient
+  mem[164] = amount
+  mem[96] = 68
+  mem[64] = 196
+  mem[132 len 28] = address(recipient) << 64
+  mem[128 len 4] = transfer(address recipient, uint256 amount)
+  mem[196 len 64] = transfer(address recipient, uint256 amount), address(recipient) << 64, 0, Mask(224, 32, amount) >> 32
+  mem[288 len 4] = uint32(amount)
+  delegate implementationAddress.0x0 with:
+       gas gas_remaining wei
+      args Mask(224, 32, amount) << 224, mem[260 len 4]
+  if not return_data.size:
+      _15 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 197
+      mem[196] = return_data.size
+      mem[228 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _15 = 196
+  if not delegate.return_code:
+      revert with memory
+        from _15 + 32
+         len return_data.size
+  require mem[_15] >= 32
+  mem[mem[64]] = bool(mem[_15 + 32])
+  return memory
+    from mem[64]
+     len 32
+
+def repayBorrowBehalf(address borrower, uint256 repayAmount): # not payable
+  require calldata.size - 4 >= 64
+  mem[132] = borrower
+  mem[164] = repayAmount
+  mem[96] = 68
+  mem[64] = 196
+  mem[132 len 28] = address(borrower) << 64
+  mem[128 len 4] = repayBorrowBehalf(address borrower, uint256 repayAmount)
+  mem[196 len 64] = repayBorrowBehalf(address borrower, uint256 repayAmount), address(borrower) << 64, 0, Mask(224, 32, repayAmount) >> 32
+  mem[288 len 4] = uint32(repayAmount)
+  delegate implementationAddress.0x0 with:
+       gas gas_remaining wei
+      args Mask(224, 32, repayAmount) << 224, mem[260 len 4]
+  if not return_data.size:
+      _15 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 197
+      mem[196] = return_data.size
+      mem[228 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _15 = 196
+  if not delegate.return_code:
+      revert with memory
+        from _15 + 32
+         len return_data.size
+  require mem[_15] >= 32
+  mem[mem[64]] = mem[_15 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def transferFrom(address sender, address recipient, uint256 amount): # not payable
+  require calldata.size - 4 >= 96
+  mem[132] = sender
+  mem[164] = recipient
+  mem[196] = amount
+  mem[96] = 100
+  mem[64] = 228
+  mem[132 len 28] = address(sender) << 64
+  mem[128 len 4] = transferFrom(address sender, address recipient, uint256 amount)
+  mem[228 len 96] = transferFrom(address sender, address recipient, uint256 amount), address(sender) << 64, 0, address(recipient), Mask(224, 32, amount) >> 32
+  mem[352 len 4] = uint32(amount)
+  delegate implementationAddress.0x0 with:
+       gas gas_remaining wei
+      args Mask(224, 32, amount) << 480, mem[324 len 4]
+  if not return_data.size:
+      _15 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 229
+      mem[228] = return_data.size
+      mem[260 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _15 = 228
+  if not delegate.return_code:
+      revert with memory
+        from _15 + 32
+         len return_data.size
+  require mem[_15] >= 32
+  mem[mem[64]] = bool(mem[_15 + 32])
+  return memory
+    from mem[64]
+     len 32
+
+def seize(address liquidator, address borrower, uint256 seizeTokens): # not payable
+  require calldata.size - 4 >= 96
+  mem[132] = liquidator
+  mem[164] = borrower
+  mem[196] = seizeTokens
+  mem[96] = 100
+  mem[64] = 228
+  mem[132 len 28] = address(liquidator) << 64
+  mem[128 len 4] = seize(address liquidator, address borrower, uint256 seizeTokens)
+  mem[228 len 96] = seize(address liquidator, address borrower, uint256 seizeTokens), address(liquidator) << 64, 0, address(borrower), Mask(224, 32, seizeTokens) >> 32
+  mem[352 len 4] = uint32(seizeTokens)
+  delegate implementationAddress.0x0 with:
+       gas gas_remaining wei
+      args Mask(224, 32, seizeTokens) << 480, mem[324 len 4]
+  if not return_data.size:
+      _15 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 229
+      mem[228] = return_data.size
+      mem[260 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _15 = 228
+  if not delegate.return_code:
+      revert with memory
+        from _15 + 32
+         len return_data.size
+  require mem[_15] >= 32
+  mem[mem[64]] = mem[_15 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def liquidateBorrow(address borrower, uint256 repayAmount, address cTokenCollateral): # not payable
+  require calldata.size - 4 >= 96
+  mem[132] = borrower
+  mem[164] = repayAmount
+  mem[196] = cTokenCollateral
+  mem[96] = 100
+  mem[64] = 228
+  mem[132 len 28] = address(borrower) << 64
+  mem[128 len 4] = liquidateBorrow(address borrower, uint256 repayAmount, address cTokenCollateral)
+  mem[228 len 96] = liquidateBorrow(address borrower, uint256 repayAmount, address cTokenCollateral), address(borrower) << 64, 0, repayAmount, address(cTokenCollateral) << 64
+  mem[352 len 4] = 0
+  delegate implementationAddress with:
+     funct uint32(repayAmount)
+       gas gas_remaining wei
+      args address(cTokenCollateral) << 576, mem[324 len 4]
+  if not return_data.size:
+      _15 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 229
+      mem[228] = return_data.size
+      mem[260 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _15 = 228
+  if not delegate.return_code:
+      revert with memory
+        from _15 + 32
+         len return_data.size
+  require mem[_15] >= 32
+  mem[mem[64]] = mem[_15 + 32]
+  return memory
+    from mem[64]
+     len 32
+
+def delegateToImplementation(bytes data): # not payable
+  require calldata.size - 4 >= 32
+  require data <= unknown10000000()
+  require data + 36 <= calldata.size
+  require data.length <= unknown10000000() and data + data.length + 36 <= calldata.size
+  mem[64] = ceil32(data.length) + 128
+  mem[96] = data.length
+  mem[128 len data.length] = data[all]
+  mem[data.length + 128] = 0
+  mem[ceil32(data.length) + 128 len floor32(data.length)] = call.data[data + 36 len floor32(data.length)]
+  mem[ceil32(data.length) + floor32(data.length) + -(data.length % 32) + 160 len data.length % 32] = mem[-(data.length % 32) + floor32(data.length) + 160 len data.length % 32]
+  delegate implementationAddress with:
+     funct (Mask(32, -(8 * ceil32(data.length) + -data.length + 4) + 256, 0) >> -(8 * ceil32(data.length) + -data.length + 4) + 256)
+       gas gas_remaining wei
+      args mem[ceil32(data.length) + 132 len data.length - 4]
+  if not return_data.size:
+      _13 = 96
+  else:
+      mem[64] = ceil32(data.length) + ceil32(return_data.size) + 129
+      mem[ceil32(data.length) + 128] = return_data.size
+      mem[ceil32(data.length) + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _13 = ceil32(data.length) + 128
+  if not delegate.return_code:
+      revert with memory
+        from _13 + 32
+         len return_data.size
+  mem[mem[64]] = 32
+  mem[mem[64] + 32] = mem[_13]
+  _16 = mem[_13]
+  mem[mem[64] + 64 len ceil32(mem[_13])] = mem[_13 + 32 len ceil32(mem[_13])]
+  if not _16 % 32:
+      return 32, mem[mem[64] + 32 len _16 + 32]
+  mem[floor32(_16) + mem[64] + 64] = mem[floor32(_16) + mem[64] + -(_16 % 32) + 96 len _16 % 32]
+  return 32, mem[mem[64] + 32 len floor32(_16) + 64]
+
+def balanceOf(address account): # not payable
+  require calldata.size - 4 >= 32
+  mem[132] = account
+  mem[96] = 36
+  mem[132 len 28] = address(account) << 64
+  mem[128 len 4] = balanceOf(address account)
+  mem[200] = 32
+  mem[232] = 36
+  mem[264 len 64] = balanceOf(address account), address(account) << 64, 0, mem[164 len 28]
+  mem[296] = 0
+  mem[164] = 132
+  mem[64] = 328
+  mem[200 len 28] = 0
+  mem[196 len 4] = delegateToImplementation(bytes data)
+  mem[328 len 128] = delegateToImplementation(bytes data), 0, 0, 36, mem[264], 0
+  mem[484 len 4] = Mask(32, 32, delegateToImplementation(bytes data), 0, 0, 36, mem[264], 0) >> 32
+  static call this.address with:
+       funct Mask(32, 224, delegateToImplementation(bytes data), 0, 0, 36, mem[264], 0) >> 224
+          gas gas_remaining wei
+         args Mask(992, -768, delegateToImplementation(bytes data), 0, 0, 36, mem[264], 0) << 768, mem[456 len 4]
+  if not return_data.size:
+      _28 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 329
+      mem[328] = return_data.size
+      mem[360 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _28 = 328
+  if not ext_call.success:
+      revert with memory
+        from _28 + 32
+         len return_data.size
+  require mem[_28] >= 32
+  _30 = mem[_28 + 32]
+  _31 = mem[64]
+  require mem[_28 + 32] <= unknown10000000()
+  require mem[_28 + 32] + 64 <= mem[_28] + 32
+  require mem[_28] + 32 >= mem[_28 + mem[_28 + 32] + 32] + mem[_28 + 32] + 64 and mem[_28 + mem[_28 + 32] + 32] <= unknown10000000()
+  mem[mem[64]] = mem[_28 + mem[_28 + 32] + 32]
+  _33 = mem[_28 + _30 + 32]
+  mem[mem[64] + 32 len ceil32(mem[_28 + _30 + 32])] = mem[_28 + _30 + 64 len ceil32(mem[_28 + _30 + 32])]
+  if not _33 % 32:
+      _37 = _33 + mem[64] + 32
+  else:
+      mem[floor32(_33) + mem[64] + 32] = mem[floor32(_33) + mem[64] + -(_33 % 32) + 64 len _33 % 32]
+      _37 = floor32(_33) + mem[64] + 64
+  mem[64] = _37
+  require mem[_31] >= 32
+  mem[_37] = mem[_31 + 32]
+  return memory
+    from _37
+     len 32
+
+def borrowBalanceStored(address account): # not payable
+  require calldata.size - 4 >= 32
+  mem[132] = account
+  mem[96] = 36
+  mem[132 len 28] = address(account) << 64
+  mem[128 len 4] = borrowBalanceStored(address account)
+  mem[200] = 32
+  mem[232] = 36
+  mem[264 len 64] = borrowBalanceStored(address account), address(account) << 64, 0, mem[164 len 28]
+  mem[296] = 0
+  mem[164] = 132
+  mem[64] = 328
+  mem[200 len 28] = 0
+  mem[196 len 4] = delegateToImplementation(bytes data)
+  mem[328 len 128] = delegateToImplementation(bytes data), 0, 0, 36, mem[264], 0
+  mem[484 len 4] = Mask(32, 32, delegateToImplementation(bytes data), 0, 0, 36, mem[264], 0) >> 32
+  static call this.address with:
+       funct Mask(32, 224, delegateToImplementation(bytes data), 0, 0, 36, mem[264], 0) >> 224
+          gas gas_remaining wei
+         args Mask(992, -768, delegateToImplementation(bytes data), 0, 0, 36, mem[264], 0) << 768, mem[456 len 4]
+  if not return_data.size:
+      _28 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 329
+      mem[328] = return_data.size
+      mem[360 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _28 = 328
+  if not ext_call.success:
+      revert with memory
+        from _28 + 32
+         len return_data.size
+  require mem[_28] >= 32
+  _30 = mem[_28 + 32]
+  _31 = mem[64]
+  require mem[_28 + 32] <= unknown10000000()
+  require mem[_28 + 32] + 64 <= mem[_28] + 32
+  require mem[_28] + 32 >= mem[_28 + mem[_28 + 32] + 32] + mem[_28 + 32] + 64 and mem[_28 + mem[_28 + 32] + 32] <= unknown10000000()
+  mem[mem[64]] = mem[_28 + mem[_28 + 32] + 32]
+  _33 = mem[_28 + _30 + 32]
+  mem[mem[64] + 32 len ceil32(mem[_28 + _30 + 32])] = mem[_28 + _30 + 64 len ceil32(mem[_28 + _30 + 32])]
+  if not _33 % 32:
+      _37 = _33 + mem[64] + 32
+  else:
+      mem[floor32(_33) + mem[64] + 32] = mem[floor32(_33) + mem[64] + -(_33 % 32) + 64 len _33 % 32]
+      _37 = floor32(_33) + mem[64] + 64
+  mem[64] = _37
+  require mem[_31] >= 32
+  mem[_37] = mem[_31 + 32]
+  return memory
+    from _37
+     len 32
+
+def getAccountSnapshot(address account): # not payable
+  require calldata.size - 4 >= 32
+  mem[132] = account
+  mem[96] = 36
+  mem[132 len 28] = address(account) << 64
+  mem[128 len 4] = getAccountSnapshot(address account)
+  mem[200] = 32
+  mem[232] = 36
+  mem[264 len 64] = getAccountSnapshot(address account), address(account) << 64, 0, mem[164 len 28]
+  mem[296] = 0
+  mem[164] = 132
+  mem[64] = 328
+  mem[200 len 28] = 0
+  mem[196 len 4] = delegateToImplementation(bytes data)
+  mem[328 len 128] = delegateToImplementation(bytes data), 0, 0, 36, mem[264], 0
+  mem[484 len 4] = Mask(32, 32, delegateToImplementation(bytes data), 0, 0, 36, mem[264], 0) >> 32
+  static call this.address with:
+       funct Mask(32, 224, delegateToImplementation(bytes data), 0, 0, 36, mem[264], 0) >> 224
+          gas gas_remaining wei
+         args Mask(992, -768, delegateToImplementation(bytes data), 0, 0, 36, mem[264], 0) << 768, mem[456 len 4]
+  if not return_data.size:
+      _28 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 329
+      mem[328] = return_data.size
+      mem[360 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _28 = 328
+  if not ext_call.success:
+      revert with memory
+        from _28 + 32
+         len return_data.size
+  require mem[_28] >= 32
+  _30 = mem[_28 + 32]
+  _31 = mem[64]
+  require mem[_28 + 32] <= unknown10000000()
+  require mem[_28 + 32] + 64 <= mem[_28] + 32
+  require mem[_28] + 32 >= mem[_28 + mem[_28 + 32] + 32] + mem[_28 + 32] + 64 and mem[_28 + mem[_28 + 32] + 32] <= unknown10000000()
+  mem[mem[64]] = mem[_28 + mem[_28 + 32] + 32]
+  _33 = mem[_28 + _30 + 32]
+  mem[mem[64] + 32 len ceil32(mem[_28 + _30 + 32])] = mem[_28 + _30 + 64 len ceil32(mem[_28 + _30 + 32])]
+  if not _33 % 32:
+      _37 = _33 + mem[64] + 32
+  else:
+      mem[floor32(_33) + mem[64] + 32] = mem[floor32(_33) + mem[64] + -(_33 % 32) + 64 len _33 % 32]
+      _37 = floor32(_33) + mem[64] + 64
+  mem[64] = _37
+  require mem[_31] >= 128
+  _40 = mem[_31 + 64]
+  _41 = mem[_31 + 96]
+  _42 = mem[_31 + 128]
+  mem[_37] = mem[_31 + 32]
+  return mem[_37], _40, _41, _42
+
+def allowance(address owner, address spender): # not payable
+  require calldata.size - 4 >= 64
+  mem[132] = owner
+  mem[164] = spender
+  mem[96] = 68
+  mem[132 len 28] = address(owner) << 64
+  mem[128 len 4] = allowance(address owner, address spender)
+  mem[232] = 32
+  mem[264] = 68
+  mem[296 len 96] = allowance(address owner, address spender), address(owner) << 64, 0, address(spender), mem[196 len 28]
+  mem[360] = 0
+  mem[196] = 164
+  mem[64] = 392
+  mem[232 len 28] = 0
+  mem[228 len 4] = delegateToImplementation(bytes data)
+  mem[392 len 160] = delegateToImplementation(bytes data), 0, 0, 68, mem[296 len 64], 0
+  mem[580 len 4] = Mask(32, 32, delegateToImplementation(bytes data), 0, 0, 68, mem[296 len 64], 0) >> 32
+  static call this.address with:
+       funct Mask(32, 224, delegateToImplementation(bytes data), 0, 0, 68, mem[296 len 64], 0) >> 224
+          gas gas_remaining wei
+         args Mask(1248, -1024, delegateToImplementation(bytes data), 0, 0, 68, mem[296 len 64], 0) << 1024, mem[552 len 4]
+  if not return_data.size:
+      _28 = 96
+  else:
+      mem[64] = ceil32(return_data.size) + 393
+      mem[392] = return_data.size
+      mem[424 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _28 = 392
+  if not ext_call.success:
+      revert with memory
+        from _28 + 32
+         len return_data.size
+  require mem[_28] >= 32
+  _30 = mem[_28 + 32]
+  _31 = mem[64]
+  require mem[_28 + 32] <= unknown10000000()
+  require mem[_28 + 32] + 64 <= mem[_28] + 32
+  require mem[_28] + 32 >= mem[_28 + mem[_28 + 32] + 32] + mem[_28 + 32] + 64 and mem[_28 + mem[_28 + 32] + 32] <= unknown10000000()
+  mem[mem[64]] = mem[_28 + mem[_28 + 32] + 32]
+  _33 = mem[_28 + _30 + 32]
+  mem[mem[64] + 32 len ceil32(mem[_28 + _30 + 32])] = mem[_28 + _30 + 64 len ceil32(mem[_28 + _30 + 32])]
+  if not _33 % 32:
+      _37 = _33 + mem[64] + 32
+  else:
+      mem[floor32(_33) + mem[64] + 32] = mem[floor32(_33) + mem[64] + -(_33 % 32) + 64 len _33 % 32]
+      _37 = floor32(_33) + mem[64] + 64
+  mem[64] = _37
+  require mem[_31] >= 32
+  mem[_37] = mem[_31 + 32]
+  return memory
+    from _37
+     len 32
+
+def delegateToViewImplementation(bytes data): # not payable
+  require calldata.size - 4 >= 32
+  require data <= unknown10000000()
+  require data + 36 <= calldata.size
+  require data.length <= unknown10000000() and data + data.length + 36 <= calldata.size
+  mem[96] = data.length
+  mem[128 len data.length] = data[all]
+  mem[data.length + 128] = 0
+  mem[ceil32(data.length) + 164] = 32
+  mem[ceil32(data.length) + 196] = data.length
+  mem[ceil32(data.length) + 228 len ceil32(data.length)] = data[all], mem[data.length + 128 len ceil32(data.length) - data.length]
+  if not data.length % 32:
+      _12 = data.length + ceil32(data.length) + 228
+  else:
+      mem[floor32(data.length) + ceil32(data.length) + 228] = mem[floor32(data.length) + ceil32(data.length) + -(data.length % 32) + 260 len data.length % 32]
+      _12 = floor32(data.length) + ceil32(data.length) + 260
+  mem[ceil32(data.length) + 128] = _12 + -ceil32(data.length) - 160
+  mem[64] = _12
+  mem[ceil32(data.length) + 164 len 28] = 0
+  mem[ceil32(data.length) + 160 len 4] = delegateToImplementation(bytes data)
+  _16 = Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)]
+  mem[_12 len floor32(Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)])] = mem[ceil32(data.length) + 160 len floor32(Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)])]
+  mem[_12 + floor32(Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)]) + -(Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)] % 32) + 32 len Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)] % 32] = mem[ceil32(data.length) + -(Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)] % 32) + floor32(Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)]) + 192 len Mask(8 * -ceil32(data.length) + data.length + 32, 0, 0), mem[data.length + 160 len -data.length + ceil32(data.length)] % 32]
+  static call this.address.mem[_12 len 4] with:
+          gas gas_remaining wei
+         args mem[_12 + 4 len _16 - 4]
+  if not return_data.size:
+      _26 = 96
+  else:
+      mem[64] = _12 + ceil32(return_data.size) + 1
+      mem[_12] = return_data.size
+      mem[_12 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _26 = _12
+  if not ext_call.success:
+      revert with memory
+        from _26 + 32
+         len return_data.size
+  require mem[_26] >= 32
+  _28 = mem[_26 + 32]
+  _29 = mem[64]
+  require mem[_26 + 32] <= unknown10000000()
+  require mem[_26 + 32] + 64 <= mem[_26] + 32
+  require mem[_26] + 32 >= mem[_26 + mem[_26 + 32] + 32] + mem[_26 + 32] + 64 and mem[_26 + mem[_26 + 32] + 32] <= unknown10000000()
+  mem[mem[64]] = mem[_26 + mem[_26 + 32] + 32]
+  _31 = mem[_26 + _28 + 32]
+  mem[mem[64] + 32 len ceil32(mem[_26 + _28 + 32])] = mem[_26 + _28 + 64 len ceil32(mem[_26 + _28 + 32])]
+  if not _31 % 32:
+      _35 = _31 + mem[64] + 32
+  else:
+      mem[floor32(_31) + mem[64] + 32] = mem[floor32(_31) + mem[64] + -(_31 % 32) + 64 len _31 % 32]
+      _35 = floor32(_31) + mem[64] + 64
+  mem[64] = _35
+  mem[_35] = 32
+  mem[_35 + 32] = mem[_29]
+  _38 = mem[_29]
+  mem[_35 + 64 len ceil32(mem[_29])] = mem[_29 + 32 len ceil32(mem[_29])]
+  if not _38 % 32:
+      return 32, mem[_35 + 32 len _38 + 32]
+  mem[floor32(_38) + _35 + 64] = mem[floor32(_38) + _35 + -(_38 % 32) + 96 len _38 % 32]
+  return 32, mem[_35 + 32 len floor32(_38) + 64]
+
+def _setImplementation(address implementation_, bool allowResign, bytes becomeImplementationData): # not payable
+  require calldata.size - 4 >= 96
+  require becomeImplementationData <= unknown10000000()
+  require becomeImplementationData + 36 <= calldata.size
+  require becomeImplementationData.length <= unknown10000000() and becomeImplementationData + becomeImplementationData.length + 36 <= calldata.size
+  mem[64] = ceil32(becomeImplementationData.length) + 128
+  mem[96] = becomeImplementationData.length
+  mem[128 len becomeImplementationData.length] = becomeImplementationData[all]
+  mem[becomeImplementationData.length + 128] = 0
+  if adminAddress != caller:
+      revert with 0, 
+                  32,
+                  57,
+                  0x6b43457263323044656c656761746f723a3a5f736574496d706c656d656e746174696f6e3a2043616c6c6572206d7573742062652061646d69,
+                  mem[ceil32(becomeImplementationData.length) + 253 len 7]
+  if allowResign:
+      mem[ceil32(becomeImplementationData.length) + 128] = 4
+      mem[64] = ceil32(becomeImplementationData.length) + 164
+      mem[ceil32(becomeImplementationData.length) + 160 len 4] = _resignImplementation()
+      mem[ceil32(becomeImplementationData.length) + 164 len floor32(Mask(8 * -ceil32(becomeImplementationData.length) + becomeImplementationData.length + 32, 0, 0), mem[becomeImplementationData.length + 160 len -becomeImplementationData.length + ceil32(becomeImplementationData.length)])] = mem[ceil32(becomeImplementationData.length) + 160 len floor32(Mask(8 * -ceil32(becomeImplementationData.length) + becomeImplementationData.length + 32, 0, 0), mem[becomeImplementationData.length + 160 len -becomeImplementationData.length + ceil32(becomeImplementationData.length)])]
+      mem[ceil32(becomeImplementationData.length) + floor32(Mask(8 * -ceil32(becomeImplementationData.length) + becomeImplementationData.length + 32, 0, 0), mem[becomeImplementationData.length + 160 len -becomeImplementationData.length + ceil32(becomeImplementationData.length)]) + -(Mask(8 * -ceil32(becomeImplementationData.length) + becomeImplementationData.length + 32, 0, 0), mem[becomeImplementationData.length + 160 len -becomeImplementationData.length + ceil32(becomeImplementationData.length)] % 32) + 196 len Mask(8 * -ceil32(becomeImplementationData.length) + becomeImplementationData.length + 32, 0, 0), mem[becomeImplementationData.length + 160 len -becomeImplementationData.length + ceil32(becomeImplementationData.length)] % 32] = mem[ceil32(becomeImplementationData.length) + -(Mask(8 * -ceil32(becomeImplementationData.length) + becomeImplementationData.length + 32, 0, 0), mem[becomeImplementationData.length + 160 len -becomeImplementationData.length + ceil32(becomeImplementationData.length)] % 32) + floor32(Mask(8 * -ceil32(becomeImplementationData.length) + becomeImplementationData.length + 32, 0, 0), mem[becomeImplementationData.length + 160 len -becomeImplementationData.length + ceil32(becomeImplementationData.length)]) + 192 len Mask(8 * -ceil32(becomeImplementationData.length) + becomeImplementationData.length + 32, 0, 0), mem[becomeImplementationData.length + 160 len -becomeImplementationData.length + ceil32(becomeImplementationData.length)] % 32]
+      delegate implementationAddress.mem[ceil32(becomeImplementationData.length) + 164 len 4] with:
+           gas gas_remaining wei
+          args mem[ceil32(becomeImplementationData.length) + 168 len Mask(8 * -ceil32(becomeImplementationData.length) + becomeImplementationData.length + 32, 0, 0), mem[becomeImplementationData.length + 160 len -becomeImplementationData.length + ceil32(becomeImplementationData.length)] - 4]
+      if not return_data.size:
+          _28 = 96
+      else:
+          mem[64] = ceil32(becomeImplementationData.length) + ceil32(return_data.size) + 165
+          mem[ceil32(becomeImplementationData.length) + 164] = return_data.size
+          mem[ceil32(becomeImplementationData.length) + 196 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          _28 = ceil32(becomeImplementationData.length) + 164
+      if not delegate.return_code:
+          revert with memory
+            from _28 + 32
+             len return_data.size
+  implementationAddress = implementation_
+  mem[mem[64] + 36] = 32
+  mem[mem[64] + 68] = becomeImplementationData.length
+  mem[mem[64] + 100 len ceil32(becomeImplementationData.length)] = mem[128 len ceil32(becomeImplementationData.length)]
+  if not becomeImplementationData.length % 32:
+      _43 = becomeImplementationData.length + mem[64] + 100
+  else:
+      mem[floor32(becomeImplementationData.length) + mem[64] + 100] = mem[floor32(becomeImplementationData.length) + mem[64] + -(becomeImplementationData.length % 32) + 132 len becomeImplementationData.length % 32]
+      _43 = floor32(becomeImplementationData.length) + mem[64] + 132
+  _44 = mem[64]
+  mem[mem[64]] = _43 + -mem[64] - 32
+  mem[64] = _43
+  mem[_44 + 32 len 4] = _becomeImplementation(bytes data)
+  _47 = mem[_44]
+  mem[_43 len floor32(mem[_44])] = mem[_44 + 32 len floor32(mem[_44])]
+  mem[_43 + floor32(mem[_44]) + -(mem[_44] % 32) + 32 len mem[_44] % 32] = mem[_44 + -(mem[_44] % 32) + floor32(mem[_44]) + 64 len mem[_44] % 32]
+  delegate implementationAddress.mem[_43 len 4] with:
+       gas gas_remaining wei
+      args mem[_43 + 4 len _47 - 4]
+  if not return_data.size:
+      _57 = 96
+  else:
+      mem[64] = _43 + ceil32(return_data.size) + 1
+      mem[_43] = return_data.size
+      mem[_43 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _57 = _43
+  if not delegate.return_code:
+      revert with memory
+        from _57 + 32
+         len return_data.size
+  log NewImplementation(
+        address oldImplementation=implementationAddress,
+        address newImplementation=implementationAddress)
+
+

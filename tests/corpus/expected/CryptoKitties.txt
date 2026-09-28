@@ -1,0 +1,743 @@
+# Palkeoramix decompiler. 
+
+const name = 'CryptoKitties'
+const symbol = 'CK'
+const GEN0_STARTING_PRICE = 10^16
+const GEN0_AUCTION_DURATION = (24 * 3600)
+const GEN0_CREATION_LIMIT = 45000
+const PROMO_CREATION_LIMIT = 5000
+
+def storage:
+  ceoAddress is address at storage 0
+  cfoAddress is address at storage 1
+  paused is uint8 at storage 2 offset 160
+  cooAddress is address at storage 2
+  cooldowns is array of uint32 at storage 3
+  secondsPerBlock is uint256 at storage 5
+  kitty is array of struct at storage 6
+  kittyIndexToOwner is mapping of address at storage 7
+  balanceOf is mapping of uint256 at storage 8
+  kittyIndexToApproved is mapping of address at storage 9
+  sireAllowedTo is mapping of address at storage 10
+  saleAuctionAddress is address at storage 11
+  siringAuctionAddress is address at storage 12
+  erc721MetadataAddress is address at storage 13
+  autoBirthFee is uint256 at storage 14
+  pregnantKitties is uint256 at storage 15
+  geneScienceAddress is address at storage 16
+  promoCreatedCount is uint256 at storage 17
+  gen0CreatedCount is uint256 at storage 18
+  newContractAddress is address at storage 19
+
+def cfoAddress(): # not payable
+  return cfoAddress
+
+def promoCreatedCount(): # not payable
+  return promoCreatedCount
+
+def ceoAddress(): # not payable
+  return ceoAddress
+
+def pregnantKitties(): # not payable
+  return pregnantKitties
+
+def isPregnant(uint256 _monsterId): # not payable
+  require _monsterId > 0
+  require _monsterId < kitty.length
+  return bool(kitty[_monsterId].field_448)
+
+def siringAuction(): # not payable
+  return siringAuctionAddress
+
+def sireAllowedToAddress(uint256 _param1): # not payable
+  return sireAllowedTo[_param1]
+
+def kittyIndexToApproved(uint256 _param1): # not payable
+  return kittyIndexToApproved[_param1]
+
+def paused(): # not payable
+  return bool(paused)
+
+def ownerOf(uint256 tokenId): # not payable
+  require kittyIndexToOwner[tokenId]
+  return kittyIndexToOwner[tokenId]
+
+def newContractAddress(): # not payable
+  return newContractAddress
+
+def balanceOf(address account): # not payable
+  return balanceOf[address(account)]
+
+def secondsPerBlock(): # not payable
+  return secondsPerBlock
+
+def cooldowns(uint256 _param1): # not payable
+  require _param1 < 14
+  return cooldowns[uint8(_param1)]
+
+def kittyIndexToOwner(uint256 _param1): # not payable
+  return kittyIndexToOwner[_param1]
+
+def cooAddress(): # not payable
+  return cooAddress
+
+def autoBirthFee(): # not payable
+  return autoBirthFee
+
+def erc721Metadata(): # not payable
+  return erc721MetadataAddress
+
+def saleAuction(): # not payable
+  return saleAuctionAddress
+
+def getKitty(uint256 _id): # not payable
+  require _id < kitty.length
+  return bool(kitty[_id].field_448), 
+         kitty[_id].field_320 <= block.number,
+         kitty[_id].field_256,
+         kitty[_id].field_256,
+         kitty[_id].field_448,
+         kitty[_id].field_256,
+         kitty[_id].field_256,
+         kitty[_id].field_256,
+         kitty[_id].field_256,
+         kitty[_id].field_0
+
+def gen0CreatedCount(): # not payable
+  return gen0CreatedCount
+
+def geneScience(): # not payable
+  return geneScienceAddress
+
+#
+#  Regular functions
+#
+
+def totalSupply(): # not payable
+  return (kitty.length - 1)
+
+def setAutoBirthFee(uint256 val): # not payable
+  require cooAddress == caller
+  autoBirthFee = val
+
+def setCEO(address _newCEO): # not payable
+  require ceoAddress == caller
+  require _newCEO
+  ceoAddress = _newCEO
+
+def setCOO(address _newCOO): # not payable
+  require ceoAddress == caller
+  require _newCOO
+  cooAddress = _newCOO
+
+def setCFO(address _newCFO): # not payable
+  require ceoAddress == caller
+  require _newCFO
+  cfoAddress = _newCFO
+
+def setMetadataAddress(address _contractAddress): # not payable
+  require ceoAddress == caller
+  erc721MetadataAddress = _contractAddress
+
+def setNewAddress(address _v2Address): # not payable
+  require ceoAddress == caller
+  require paused
+  newContractAddress = _v2Address
+  log ContractUpgrade(address newContract=_v2Address)
+
+def _fallback(?) payable: # default function
+  if saleAuctionAddress == caller:
+      _1 = saleAuctionAddress == caller
+  else:
+      _1 = siringAuctionAddress == caller
+  require _1
+
+def approveSiring(address _addr, uint256 _sireId): # not payable
+  require not paused
+  require kittyIndexToOwner[_sireId] == caller
+  sireAllowedTo[_sireId] = _addr
+
+def unpause(): # not payable
+  require ceoAddress == caller
+  require paused
+  require saleAuctionAddress
+  require siringAuctionAddress
+  require geneScienceAddress
+  require not newContractAddress
+  paused = 0
+
+def setGeneScienceAddress(address _address): # not payable
+  require ceoAddress == caller
+  require ext_code.size(_address)
+  call _address.isGeneScience() with:
+       gas gas_remaining - 710 wei
+  require ext_call.success
+  require ext_call.return_data[0]
+  geneScienceAddress = _address
+
+def setSaleAuctionAddress(address _address): # not payable
+  require ceoAddress == caller
+  require ext_code.size(_address)
+  call _address.isSaleClockAuction() with:
+       gas gas_remaining - 710 wei
+  require ext_call.success
+  require ext_call.return_data[0]
+  saleAuctionAddress = _address
+
+def setSiringAuctionAddress(address _address): # not payable
+  require ceoAddress == caller
+  require ext_code.size(_address)
+  call _address.isSiringClockAuction() with:
+       gas gas_remaining - 710 wei
+  require ext_call.success
+  require ext_call.return_data[0]
+  siringAuctionAddress = _address
+
+def pause(): # not payable
+  if cooAddress == caller:
+      _1 = cooAddress == caller
+  else:
+      _1 = ceoAddress == caller
+  if _1:
+      _2 = _1
+  else:
+      _2 = cfoAddress == caller
+  require _2
+  require not paused
+  paused = 1
+
+def withdrawBalance(): # not payable
+  require cfoAddress == caller
+  if eth.balance(this.address) > autoBirthFee + (pregnantKitties * autoBirthFee):
+      call cfoAddress with:
+         value eth.balance(this.address) - autoBirthFee - (pregnantKitties * autoBirthFee) wei
+           gas 2300 * is_zero(value) wei
+
+def approve(address spender, uint256 amount): # not payable
+  require not paused
+  require kittyIndexToOwner[amount] == caller
+  kittyIndexToApproved[amount] = spender
+  log Approval(
+        address owner=caller,
+        address spender=address(spender),
+        uint256 value=amount)
+
+def setSecondsPerBlock(uint256 secs): # not payable
+  if cooAddress == caller:
+      _1 = cooAddress == caller
+  else:
+      _1 = ceoAddress == caller
+  if _1:
+      _2 = _1
+  else:
+      _2 = cfoAddress == caller
+  require _2
+  require secs < cooldowns.length
+  secondsPerBlock = secs
+
+def isReadyToBreed(uint256 _monsterId): # not payable
+  require _monsterId > 0
+  require _monsterId < kitty.length
+  if kitty[_monsterId].field_448:
+      _5 = not kitty[_monsterId].field_448
+  else:
+      _5 = kitty[_monsterId].field_320 <= uint64(block.number)
+  return bool(_5)
+
+def withdrawAuctionBalances(): # not payable
+  if cooAddress == caller:
+      _1 = cooAddress == caller
+  else:
+      _1 = ceoAddress == caller
+  if _1:
+      _2 = _1
+  else:
+      _2 = cfoAddress == caller
+  require _2
+  require ext_code.size(saleAuctionAddress)
+  call saleAuctionAddress.withdrawBalance() with:
+       gas gas_remaining - 710 wei
+  require ext_call.success
+  require ext_code.size(siringAuctionAddress)
+  call siringAuctionAddress.withdrawBalance() with:
+       gas gas_remaining - 710 wei
+  require ext_call.success
+
+def supportsInterface(bytes4 interfaceId): # not payable
+  if Mask(32, 224, interfaceId) == Mask(32, 224, sha3('supportsInterface(bytes4)')):
+      _34 = Mask(32, 224, interfaceId) == Mask(32, 224, sha3('supportsInterface(bytes4)'))
+  else:
+      _34 = Mask(32, 224, interfaceId) == Mask(32, 224, sha3('name()') xor sha3('symbol()') xor sha3('totalSupply()') xor sha3('balanceOf(address)') xor sha3('ownerOf(uint256)') xor sha3('approve(address,uint256)') xor sha3('transfer(address,uint256)') xor sha3('transferFrom(address,address,uin', 't256)') xor sha3('tokensOfOwner(address)') xor sha3('tokenMetadata(uint256,string)'))
+  return bool(_34)
+
+def transfer(address recipient, uint256 amount): # not payable
+  require not paused
+  require recipient
+  require recipient != this.address
+  require saleAuctionAddress != recipient
+  require siringAuctionAddress != recipient
+  require kittyIndexToOwner[amount] == caller
+  balanceOf[address(recipient)]++
+  kittyIndexToOwner[amount] = recipient
+  if caller:
+      balanceOf[caller]--
+      sireAllowedTo[amount] = 0
+      kittyIndexToApproved[amount] = 0
+  log Transfer(
+        address from=caller,
+        address to=address(recipient),
+        uint256 value=amount)
+
+def transferFrom(address sender, address recipient, uint256 amount): # not payable
+  require not paused
+  require recipient
+  require recipient != this.address
+  require kittyIndexToApproved[amount] == caller
+  require kittyIndexToOwner[amount] == sender
+  balanceOf[address(recipient)]++
+  kittyIndexToOwner[amount] = recipient
+  if sender:
+      balanceOf[address(sender)]--
+      sireAllowedTo[amount] = 0
+      kittyIndexToApproved[amount] = 0
+  log Transfer(
+        address from=address(sender),
+        address to=address(recipient),
+        uint256 value=amount)
+
+def createSaleAuction(uint256 _tokenId, uint256 _startingPrice, uint256 _endingPrice, uint256 _duration): # not payable
+  require not paused
+  require kittyIndexToOwner[_tokenId] == caller
+  require _tokenId > 0
+  require _tokenId < kitty.length
+  require not kitty[_tokenId].field_448
+  kittyIndexToApproved[_tokenId] = saleAuctionAddress
+  require ext_code.size(saleAuctionAddress)
+  call saleAuctionAddress.createAuction(uint256 _tokenId, uint256 _startingPrice, uint256 _endingPrice, uint256 _duration, address _seller) with:
+       gas gas_remaining - 710 wei
+      args 0, uint32(_tokenId), _startingPrice, _endingPrice, _duration, caller
+  require ext_call.success
+
+def createSiringAuction(uint256 _monsterId, uint256 _startingPrice, uint256 _endingPrice, uint256 _duration): # not payable
+  require not paused
+  require kittyIndexToOwner[_monsterId] == caller
+  require _monsterId > 0
+  require _monsterId < kitty.length
+  if kitty[_monsterId].field_448:
+      _6 = not kitty[_monsterId].field_448
+  else:
+      _6 = kitty[_monsterId].field_320 <= uint64(block.number)
+  require _6
+  kittyIndexToApproved[_monsterId] = siringAuctionAddress
+  require ext_code.size(siringAuctionAddress)
+  call siringAuctionAddress.createAuction(uint256 _tokenId, uint256 _startingPrice, uint256 _endingPrice, uint256 _duration, address _seller) with:
+       gas gas_remaining - 710 wei
+      args _monsterId, _startingPrice, _endingPrice, _duration, caller
+  require ext_call.success
+
+def tokenMetadata(uint256 _tokenId, string _preferredTransport): # not payable
+  require erc721MetadataAddress
+  mem[356 len _preferredTransport.length] = _preferredTransport[all]
+  require ext_code.size(erc721MetadataAddress)
+  call erc721MetadataAddress.getMetadata(uint256 tokenId, string metadataName) with:
+       gas gas_remaining - 710 wei
+      args _tokenId, Array(len=_preferredTransport.length, data=_preferredTransport[all])
+  mem[256 len 160] = ext_call.return_data[0 len 160]
+  require ext_call.success
+  mem[416] = 0
+  mem[448] = 0
+  _msize = max(124, _preferredTransport.length)
+  mem[_msize + 356] = ext_call.return_data[128]
+  mem[(_msize + 356) + 32 len floor32(ext_call.return_data[128])] = mem[256 len floor32(ext_call.return_data[128])]
+  mem[(_msize + 356) + floor32(ext_call.return_data[128]) + -(ext_call.return_data[128] % 32) + 64 len ext_call.return_data[128] % 32] = mem[floor32(ext_call.return_data[128]) + -(ext_call.return_data[128] % 32) + 288 len ext_call.return_data[128] % 32]
+  return Array(len=ext_call.return_data[128], data=mem[(_msize + 356) + 32 len ext_call.return_data[128]])
+
+def createPromoKitty(uint256 _genes, address _owner): # not payable
+  require cooAddress == caller
+  if _owner:
+      _1 = _owner
+  else:
+      _1 = cooAddress
+  require promoCreatedCount < 5000
+  promoCreatedCount++
+  kitty.length++
+  if not kitty.length <= kitty.length + 1:
+      idx = 2 * kitty.length + 1
+      while 2 * kitty.length > idx:
+          kitty[idx].field_0 = 0
+          kitty[idx].field_256 = 0
+          idx = idx + 2
+          continue 
+  kitty[kitty.length].field_0 = _genes
+  kitty[kitty.length].field_256 = 0
+  kitty[kitty.length].field_320 = 0
+  kitty[kitty.length].field_384 = 0
+  kitty[kitty.length].field_416 = 0
+  kitty[kitty.length].field_448 = 0
+  kitty[kitty.length].field_480 = 0
+  kitty[kitty.length].field_496 = 0
+  require kitty.length == uint32(kitty.length)
+  log Birth(
+        address owner=address(_1),
+        uint256 flowerId=kitty.length,
+        uint256 matronId=0,
+        uint256 sireId=0,
+        uint256 genes=_genes)
+  balanceOf[address(_1)]++
+  kittyIndexToOwner[stor6.length] = address(_1)
+  log Transfer(
+        address from=0,
+        address to=address(_1),
+        uint256 value=kitty.length)
+
+def tokensOfOwner(address owner): # not payable
+  mem[96] = 0
+  mem[128] = 0
+  mem[0] = owner
+  mem[32] = 8
+  if balanceOf[address(owner)]:
+      mem[160] = balanceOf[address(owner)]
+      mem[64] = (32 * balanceOf[address(owner)]) + 192
+      idx = 1
+      while idx <= kitty.length - 1:
+          mem[0] = idx
+          mem[32] = 7
+          if kittyIndexToOwner[idx] == owner:
+              require 0 < balanceOf[address(owner)]
+              mem[192] = idx
+          idx = idx + 1
+          continue 
+      mem[(32 * balanceOf[address(owner)]) + 192] = 32
+      mem[(32 * balanceOf[address(owner)]) + 224] = balanceOf[address(owner)]
+      _32 = (32 * balanceOf[address(owner)]) + 256
+      _34 = 32 * balanceOf[address(owner)]
+      _35 = 32 * balanceOf[address(owner)]
+      _36 = (32 * balanceOf[address(owner)]) + 256
+      _37 = 192
+  else:
+      mem[160] = 0
+      mem[64] = 192
+      mem[192] = 32
+      mem[224] = 0
+      _32 = 256
+      _34 = 0
+      _35 = 0
+      _36 = 256
+      _37 = 192
+  mem[_36 len ceil32(_35)] = mem[_37 len ceil32(_35)]
+  return memory
+    from mem[64]
+     len _34 + _32 - mem[64]
+
+def createGen0Auction(uint256 _genes): # not payable
+  require cooAddress == caller
+  require gen0CreatedCount < 45000
+  kitty.length++
+  if not kitty.length <= kitty.length + 1:
+      idx = 2 * kitty.length + 1
+      while 2 * kitty.length > idx:
+          kitty[idx].field_0 = 0
+          kitty[idx].field_256 = 0
+          idx = idx + 2
+          continue 
+  kitty[kitty.length].field_0 = _genes
+  kitty[kitty.length].field_256 = 0
+  kitty[kitty.length].field_320 = 0
+  kitty[kitty.length].field_384 = 0
+  kitty[kitty.length].field_416 = 0
+  kitty[kitty.length].field_448 = 0
+  kitty[kitty.length].field_480 = 0
+  kitty[kitty.length].field_496 = 0
+  require kitty.length == uint32(kitty.length)
+  log Birth(
+        address owner=address(this.address),
+        uint256 flowerId=kitty.length,
+        uint256 matronId=0,
+        uint256 sireId=0,
+        uint256 genes=_genes)
+  balanceOf[address(this.address)]++
+  kittyIndexToOwner[stor6.length] = this.address
+  log Transfer(
+        address from=0,
+        address to=address(this.address),
+        uint256 value=kitty.length)
+  kittyIndexToApproved[stor6.length] = saleAuctionAddress
+  require ext_code.size(saleAuctionAddress)
+  call saleAuctionAddress.averageGen0SalePrice() with:
+       gas gas_remaining - 710 wei
+  require ext_call.success
+  require ext_call.return_data[0] == ext_call.return_data[16 len 16]
+  if ext_call.return_data[0] + (ext_call.return_data[0] / 2) >= 10^16:
+      _47 = ext_call.return_data[0] + (ext_call.return_data[0] / 2)
+  else:
+      _47 = 10^16
+  require ext_code.size(saleAuctionAddress)
+  call saleAuctionAddress.createAuction(uint256 _tokenId, uint256 _startingPrice, uint256 _endingPrice, uint256 _duration, address _seller) with:
+       gas gas_remaining - 710 wei
+      args kitty.length, _47, 0, 24 * 3600, this.address
+  require ext_call.success
+  gen0CreatedCount++
+
+def canBreedWith(uint256 _matronId, uint256 _sireId): # not payable
+  require _matronId > 0
+  require _sireId > 0
+  require _matronId < kitty.length
+  require _sireId < kitty.length
+  if _matronId == _sireId:
+      return 0
+  if _sireId == kitty[_matronId].field_384:
+      _3 = _sireId == kitty[_matronId].field_384
+  else:
+      _3 = _sireId == kitty[_matronId].field_416
+  if _3:
+      return 0
+  if _matronId == kitty[_sireId].field_384:
+      _6 = _matronId == kitty[_sireId].field_384
+  else:
+      _6 = _matronId == kitty[_sireId].field_416
+  if _6:
+      return 0
+  if not kitty[_sireId].field_384:
+      _9 = not kitty[_sireId].field_384
+  else:
+      _9 = not kitty[_matronId].field_384
+  if _9:
+      if kittyIndexToOwner[_matronId] == kittyIndexToOwner[_sireId]:
+          _17 = kittyIndexToOwner[_matronId] == kittyIndexToOwner[_sireId]
+      else:
+          _17 = kittyIndexToOwner[_matronId] == sireAllowedTo[_sireId]
+      return bool(_17)
+  if kitty[_sireId].field_384 == kitty[_matronId].field_384:
+      _12 = kitty[_sireId].field_384 == kitty[_matronId].field_384
+  else:
+      _12 = kitty[_matronId].field_416 == kitty[_sireId].field_384
+  if not _12:
+      if kitty[_matronId].field_384 == kitty[_sireId].field_416:
+          _15 = kitty[_matronId].field_384 == kitty[_sireId].field_416
+      else:
+          _15 = kitty[_sireId].field_416 == kitty[_matronId].field_416
+      if not _15:
+          _18 = 1
+      else:
+          _18 = 0
+      _23 = _18
+  else:
+      _23 = 0
+  if not _23:
+      _29 = _23
+  else:
+      if kittyIndexToOwner[_matronId] == kittyIndexToOwner[_sireId]:
+          _29 = kittyIndexToOwner[_matronId] == kittyIndexToOwner[_sireId]
+      else:
+          _29 = kittyIndexToOwner[_matronId] == sireAllowedTo[_sireId]
+  return bool(_29)
+
+def giveBirth(uint256 _matronId): # not payable
+  require not paused
+  require _matronId < kitty.length
+  require kitty[_matronId].field_256
+  if not kitty[_matronId].field_448:
+      _5 = bool(kitty[_matronId].field_448)
+  else:
+      _5 = kitty[_matronId].field_320 <= uint64(block.number)
+  require _5
+  require kitty[_matronId].field_448 < kitty.length
+  require ext_code.size(geneScienceAddress)
+  call geneScienceAddress.mixGenes(uint256 _genes1, uint256 _genes2, uint256 _targetBlock) with:
+       gas gas_remaining - 710 wei
+      args kitty[_matronId].field_0, kitty[kitty[_matronId].field_448].field_0, uint64(kitty[_matronId].field_320 - 1)
+  require ext_call.success
+  require _matronId == uint32(_matronId)
+  require kitty[_matronId].field_448 == kitty[_matronId].field_448
+  kitty.length++
+  if not kitty.length <= kitty.length + 1:
+      idx = 2 * kitty.length + 1
+      while 2 * kitty.length > idx:
+          kitty[idx].field_0 = 0
+          kitty[idx].field_256 = 0
+          idx = idx + 2
+          continue 
+  kitty[kitty.length].field_0 = ext_call.return_data[0]
+  kitty[kitty.length].field_256 = 0
+  kitty[kitty.length].field_320 = 0
+  kitty[kitty.length].field_384 = 0
+  kitty[kitty.length].field_416 = kitty[_matronId].field_256
+  kitty[kitty.length].field_448 = 0
+  kitty[kitty.length].field_480 = 0
+  kitty[kitty.length].field_496 = 0
+  require kitty.length == uint32(kitty.length)
+  log Birth(
+        address owner=kittyIndexToOwner[_matronId],
+        uint256 flowerId=kitty.length,
+        uint256 matronId=_matronId << 224,
+        uint256 sireId=kitty[_matronId].field_256,
+        uint256 genes=ext_call.return_data[0])
+  balanceOf[stor7[_matronId]]++
+  kittyIndexToOwner[stor6.length] = kittyIndexToOwner[_matronId]
+  log Transfer(
+        address from=0,
+        address to=kittyIndexToOwner[_matronId],
+        uint256 value=kitty.length)
+  kitty[_matronId].field_448 = 0
+  pregnantKitties--
+  call caller with:
+     value autoBirthFee wei
+       gas 2300 * is_zero(value) wei
+  return kitty.length
+
+def breedWithAuto(uint256 _matronId, uint256 _sireId) payable: 
+  require not paused
+  require call.value >= autoBirthFee
+  require kittyIndexToOwner[_matronId] == caller
+  if kittyIndexToOwner[_matronId] == kittyIndexToOwner[_sireId]:
+      _5 = kittyIndexToOwner[_matronId] == kittyIndexToOwner[_sireId]
+  else:
+      _5 = kittyIndexToOwner[_matronId] == sireAllowedTo[_sireId]
+  require _5
+  require _matronId < kitty.length
+  if kitty[_matronId].field_448:
+      _10 = not kitty[_matronId].field_448
+  else:
+      _10 = kitty[_matronId].field_320 <= uint64(block.number)
+  require _10
+  require _sireId < kitty.length
+  if kitty[_sireId].field_448:
+      _15 = not kitty[_sireId].field_448
+  else:
+      _15 = kitty[_sireId].field_320 <= uint64(block.number)
+  require _15
+  require _matronId != _sireId
+  if _sireId == kitty[_matronId].field_384:
+      _16 = _sireId == kitty[_matronId].field_384
+  else:
+      _16 = _sireId == kitty[_matronId].field_416
+  require not _16
+  if _matronId == kitty[_sireId].field_384:
+      _17 = _matronId == kitty[_sireId].field_384
+  else:
+      _17 = _matronId == kitty[_sireId].field_416
+  require not _17
+  if not kitty[_sireId].field_384:
+      _18 = not kitty[_sireId].field_384
+  else:
+      _18 = not kitty[_matronId].field_384
+  if not _18:
+      if kitty[_sireId].field_384 == kitty[_matronId].field_384:
+          _19 = kitty[_sireId].field_384 == kitty[_matronId].field_384
+      else:
+          _19 = kitty[_matronId].field_416 == kitty[_sireId].field_384
+      if not _19:
+          if kitty[_matronId].field_384 == kitty[_sireId].field_416:
+              _20 = kitty[_matronId].field_384 == kitty[_sireId].field_416
+          else:
+              _20 = kitty[_sireId].field_416 == kitty[_matronId].field_416
+          if not _20:
+              _23 = 1
+          else:
+              _23 = 0
+          _24 = _23
+      else:
+          _24 = 0
+      require _24
+  kitty[_matronId].field_448 = uint32(_sireId)
+  require kitty[_sireId].field_480 < 14
+  require secondsPerBlock
+  kitty[_sireId].field_320 = uint64((cooldowns[stor6[_sireId].field_480] / secondsPerBlock) + block.number)
+  if kitty[_sireId].field_480 < 13:
+      kitty[_sireId].field_480 = uint16(kitty[_sireId].field_480 + 1)
+  require kitty[_matronId].field_480 < 14
+  require secondsPerBlock
+  kitty[_matronId].field_320 = uint64((cooldowns[stor6[_matronId].field_480] / secondsPerBlock) + block.number)
+  if kitty[_matronId].field_480 < 13:
+      kitty[_matronId].field_480 = uint16(kitty[_matronId].field_480 + 1)
+  sireAllowedTo[_matronId] = 0
+  sireAllowedTo[_sireId] = 0
+  pregnantKitties++
+  log Pregnant(
+        address owner=kittyIndexToOwner[_matronId],
+        uint256 matronId=_matronId,
+        uint256 sireId=_sireId,
+        uint256 cooldownEndBlock=kitty[_matronId].field_320)
+
+def bidOnSiringAuction(uint256 _sireId, uint256 _matronId) payable: 
+  require not paused
+  require kittyIndexToOwner[_matronId] == caller
+  require _matronId > 0
+  require _matronId < kitty.length
+  if kitty[_matronId].field_448:
+      _6 = not kitty[_matronId].field_448
+  else:
+      _6 = kitty[_matronId].field_320 <= uint64(block.number)
+  require _6
+  require _sireId < kitty.length
+  require _matronId != _sireId
+  if _sireId == kitty[_matronId].field_384:
+      _9 = _sireId == kitty[_matronId].field_384
+  else:
+      _9 = _sireId == kitty[_matronId].field_416
+  require not _9
+  if _matronId == kitty[_sireId].field_384:
+      _10 = _matronId == kitty[_sireId].field_384
+  else:
+      _10 = _matronId == kitty[_sireId].field_416
+  require not _10
+  if not kitty[_sireId].field_384:
+      _11 = not kitty[_sireId].field_384
+  else:
+      _11 = not kitty[_matronId].field_384
+  if not _11:
+      if kitty[_sireId].field_384 == kitty[_matronId].field_384:
+          _12 = kitty[_sireId].field_384 == kitty[_matronId].field_384
+      else:
+          _12 = kitty[_matronId].field_416 == kitty[_sireId].field_384
+      if not _12:
+          if kitty[_matronId].field_384 == kitty[_sireId].field_416:
+              _16 = kitty[_matronId].field_384 == kitty[_sireId].field_416
+          else:
+              _16 = kitty[_sireId].field_416 == kitty[_matronId].field_416
+          if not _16:
+              _19 = 1
+          else:
+              _19 = 0
+          _22 = _19
+      else:
+          _22 = 0
+      _23 = _22
+  else:
+      _23 = 1
+  require _23
+  require ext_code.size(siringAuctionAddress)
+  call siringAuctionAddress.getCurrentPrice(uint256 _tokenId) with:
+       gas gas_remaining - 710 wei
+      args _sireId
+  require ext_call.success
+  require call.value >= ext_call.return_data[0] + autoBirthFee
+  require ext_code.size(siringAuctionAddress)
+  call siringAuctionAddress.bid(uint256 _tokenId) with:
+     value call.value - autoBirthFee wei
+       gas gas_remaining - 9710 wei
+      args _sireId
+  require ext_call.success
+  require uint32(_sireId) < kitty.length
+  require uint32(_matronId) < kitty.length
+  kitty[2 * uint32(_matronId)].field_448 = uint32(_sireId)
+  require kitty[2 * uint32(_sireId)].field_480 < 14
+  require secondsPerBlock
+  kitty[2 * uint32(_sireId)].field_320 = uint64((cooldowns[stor6[2 * uint32(_sireId)].field_480] / secondsPerBlock) + block.number)
+  if kitty[2 * uint32(_sireId)].field_480 < 13:
+      kitty[2 * uint32(_sireId)].field_480 = uint16(kitty[2 * uint32(_sireId)].field_480 + 1)
+  require kitty[2 * uint32(_matronId)].field_480 < 14
+  require secondsPerBlock
+  kitty[2 * uint32(_matronId)].field_320 = uint64((cooldowns[stor6[2 * uint32(_matronId)].field_480] / secondsPerBlock) + block.number)
+  if kitty[2 * uint32(_matronId)].field_480 < 13:
+      kitty[2 * uint32(_matronId)].field_480 = uint16(kitty[2 * uint32(_matronId)].field_480 + 1)
+  sireAllowedTo[_matronId << 224] = 0
+  sireAllowedTo[uint32(_sireId)] = 0
+  pregnantKitties++
+  log Pregnant(
+        address owner=kittyIndexToOwner[_matronId << 224],
+        uint256 matronId=_matronId << 224,
+        uint256 sireId=_sireId << 224,
+        uint256 cooldownEndBlock=kitty[2 * uint32(_matronId)].field_320)
+
+

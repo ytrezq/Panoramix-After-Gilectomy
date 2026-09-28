@@ -1,0 +1,89 @@
+# Palkeoramix decompiler. 
+
+const totalSupply = eth.balance(this.address)
+
+def storage:
+  name is array of uint256 at storage 0
+  symbol is array of uint256 at storage 1
+  decimals is uint8 at storage 2
+  balanceOf is mapping of uint256 at storage 3
+  allowance is mapping of uint256 at storage 4
+
+def name(): # not payable
+  return name[0 len name.length]
+
+def decimals(): # not payable
+  return decimals
+
+def balanceOf(address account): # not payable
+  return balanceOf[account]
+
+def symbol(): # not payable
+  return symbol[0 len symbol.length]
+
+def allowance(address owner, address spender): # not payable
+  return allowance[owner][spender]
+
+#
+#  Regular functions
+#
+
+def deposit() payable: 
+  balanceOf[caller] += call.value
+  log Deposit(
+        address sender=call.value,
+        uint256 value=caller)
+
+def _fallback(?) payable: # default function
+  balanceOf[caller] += call.value
+  log Deposit(
+        address sender=call.value,
+        uint256 value=caller)
+
+def approve(address spender, uint256 amount): # not payable
+  allowance[caller][address(spender)] = amount
+  log Approval(
+        address owner=amount,
+        address spender=caller,
+        uint256 value=spender)
+  return 1
+
+def withdraw(uint256 amount): # not payable
+  require balanceOf[caller] >= amount
+  balanceOf[caller] -= amount
+  call caller with:
+     value amount wei
+       gas 2300 * is_zero(value) wei
+  require ext_call.success
+  log Withdrawal(
+        address src=amount,
+        uint256 wad=caller)
+
+def transfer(address recipient, uint256 amount): # not payable
+  require balanceOf[caller] >= amount
+  balanceOf[caller] -= amount
+  balanceOf[address(recipient)] += amount
+  log Transfer(
+        address from=amount,
+        address to=caller,
+        uint256 value=recipient)
+  return 1
+
+def transferFrom(address sender, address recipient, uint256 amount): # not payable
+  require balanceOf[address(sender)] >= amount
+  if sender == caller:
+      _4 = sender != caller
+  else:
+      _4 = allowance[address(sender)][caller] != -1
+  if _4:
+      require allowance[address(sender)][caller] >= amount
+      allowance[address(sender)][caller] -= amount
+  balanceOf[address(sender)] -= amount
+  balanceOf[address(recipient)] += amount
+  log Transfer(
+        address from=amount,
+        address to=sender,
+        uint256 value=recipient)
+  return 1
+
+

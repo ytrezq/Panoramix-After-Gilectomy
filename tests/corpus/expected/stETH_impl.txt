@@ -1,0 +1,149 @@
+# Palkeoramix decompiler. 
+
+def storage:
+  stor0 is mapping of uint256 at storage 0
+  stor10A6 is uint256 at storage 0x10a66d35f054e68143c18f32c990ed5cb972bb68a68f500cd2dd3a16bbf36864
+  stor1F9F is uint256 at storage 0x1f9f70001d82b6ef54e9d3725b46581c3eb9ee3aa02b941b6aa54d678a9ca35b
+  stor83A3 is uint32 at storage 0x83a3678de4a579be090bed1177e0a24f77cc29d181ac22fd7688aca344d89380
+  storCEE6 is uint256 at storage 0xcee6e35175eb53fc006520a2a9c3e9711a7c00de6ff2c32dd31df8c5a24cac1b
+  storE3B4 is uint256 at storage 0xe3b4b636e601189b5f4c6742edf2538ac12bb61ed03e6da26949d69838fa447e
+  storED31 is uint256 at storage 0xed310af23f61f96daefbcd140b306c0bdbf8c178398299741687b90e794772b0
+
+def _fallback(?) payable: # default function
+  if calldata.size:
+      revert with 0, 'NON_EMPTY_DATA'
+  if not call.value:
+      revert with 0, 'ZERO_DEPOSIT'
+  if not stor83A3:
+      revert with 0, 'STAKING_PAUSED'
+  require storCEE6 >= stor1F9F
+  if calldata.size < 4:
+      if storCEE6 - stor1F9F:
+          if (32 * 10^18 * storCEE6) - (32 * 10^18 * stor1F9F) / storCEE6 - stor1F9F != 32 * 10^18:
+              revert with 0, 'MATH_MUL_OVERFLOW'
+          _74 = (32 * 10^18 * storCEE6) - (32 * 10^18 * stor1F9F)
+          _75 = stor10A6
+      else:
+          _74 = 0
+          _75 = stor10A6
+      if _75 + storED31 < storED31:
+          revert with 0, 'MATH_ADD_OVERFLOW'
+      if storE3B4 * call.value / call.value != storE3B4:
+          revert with 0, 'MATH_MUL_OVERFLOW'
+      if _74 + _75 + storED31 <= 0:
+          revert with 0, 'MATH_DIV_ZERO'
+      require _74 + _75 + storED31
+      if not caller:
+          revert with 0, 'MINT_TO_ZERO_ADDR'
+      if (storE3B4 * call.value / _74 + _75 + storED31) + storE3B4 < storE3B4:
+          revert with 0, 'MATH_ADD_OVERFLOW'
+      storE3B4 += storE3B4 * call.value / _74 + _75 + storED31
+      if (storE3B4 * call.value / _74 + _75 + storED31) + stor0[caller] < stor0[caller]:
+          revert with 0, 'MATH_ADD_OVERFLOW'
+      stor0[caller] += storE3B4 * call.value / _74 + _75 + storED31
+      if call.value + storED31 < storED31:
+          revert with 0, 'MATH_ADD_OVERFLOW'
+      storED31 += call.value
+      log Submitted(
+            address sender=call.value,
+            uint256 amount=0,
+            address referral=caller)
+      require storCEE6 >= stor1F9F
+      if storCEE6 - stor1F9F:
+          if (32 * 10^18 * storCEE6) - (32 * 10^18 * stor1F9F) / storCEE6 - stor1F9F != 32 * 10^18:
+              revert with 0, 'MATH_MUL_OVERFLOW'
+          _274 = (32 * 10^18 * storCEE6) - (32 * 10^18 * stor1F9F)
+          _275 = stor10A6
+      else:
+          _274 = 0
+          _275 = stor10A6
+      if _275 + storED31 < storED31:
+          revert with 0, 'MATH_ADD_OVERFLOW'
+      if not storE3B4 * call.value / _74 + _75 + storED31:
+          if storE3B4 <= 0:
+              revert with 0, 'MATH_DIV_ZERO'
+          require storE3B4
+          log Transfer(
+                address from=0,
+                address to=0,
+                uint256 value=caller)
+      else:
+          if (_274 * storE3B4 * call.value / _74 + _75 + storED31) + (_275 * storE3B4 * call.value / _74 + _75 + storED31) + (storED31 * storE3B4 * call.value / _74 + _75 + storED31) / storE3B4 * call.value / _74 + _75 + storED31 != _274 + _275 + storED31:
+              revert with 0, 'MATH_MUL_OVERFLOW'
+          if storE3B4 <= 0:
+              revert with 0, 'MATH_DIV_ZERO'
+          require storE3B4
+          log Transfer(
+                address from=((_274 * storE3B4 * call.value / _74 + _75 + storED31) + (_275 * storE3B4 * call.value / _74 + _75 + storED31) + (storED31 * storE3B4 * call.value / _74 + _75 + storED31) / storE3B4),
+                address to=0,
+                uint256 value=caller)
+      log TransferShares(
+            address from=(storE3B4 * call.value / _74 + _75 + storED31),
+            address to=0,
+            uint256 sharesValue=caller)
+  else:
+      if storCEE6 - stor1F9F:
+          if (32 * 10^18 * storCEE6) - (32 * 10^18 * stor1F9F) / storCEE6 - stor1F9F != 32 * 10^18:
+              revert with 0, 'MATH_MUL_OVERFLOW'
+          _263 = (32 * 10^18 * storCEE6) - (32 * 10^18 * stor1F9F)
+          _264 = stor10A6
+      else:
+          _263 = 0
+          _264 = stor10A6
+      if _264 + storED31 < storED31:
+          revert with 0, 'MATH_ADD_OVERFLOW'
+      if storE3B4 * call.value / call.value != storE3B4:
+          revert with 0, 'MATH_MUL_OVERFLOW'
+      if _263 + _264 + storED31 <= 0:
+          revert with 0, 'MATH_DIV_ZERO'
+      require _263 + _264 + storED31
+      if not caller:
+          revert with 0, 'MINT_TO_ZERO_ADDR'
+      if (storE3B4 * call.value / _263 + _264 + storED31) + storE3B4 < storE3B4:
+          revert with 0, 'MATH_ADD_OVERFLOW'
+      storE3B4 += storE3B4 * call.value / _263 + _264 + storED31
+      if (storE3B4 * call.value / _263 + _264 + storED31) + stor0[caller] < stor0[caller]:
+          revert with 0, 'MATH_ADD_OVERFLOW'
+      stor0[caller] += storE3B4 * call.value / _263 + _264 + storED31
+      if call.value + storED31 < storED31:
+          revert with 0, 'MATH_ADD_OVERFLOW'
+      storED31 += call.value
+      log Submitted(
+            address sender=call.value,
+            uint256 amount=0,
+            address referral=caller)
+      require storCEE6 >= stor1F9F
+      if storCEE6 - stor1F9F:
+          if (32 * 10^18 * storCEE6) - (32 * 10^18 * stor1F9F) / storCEE6 - stor1F9F != 32 * 10^18:
+              revert with 0, 'MATH_MUL_OVERFLOW'
+          _462 = (32 * 10^18 * storCEE6) - (32 * 10^18 * stor1F9F)
+          _463 = stor10A6
+      else:
+          _462 = 0
+          _463 = stor10A6
+      if _463 + storED31 < storED31:
+          revert with 0, 'MATH_ADD_OVERFLOW'
+      if not storE3B4 * call.value / _263 + _264 + storED31:
+          if storE3B4 <= 0:
+              revert with 0, 'MATH_DIV_ZERO'
+          require storE3B4
+          log Transfer(
+                address from=0,
+                address to=0,
+                uint256 value=caller)
+      else:
+          if (_462 * storE3B4 * call.value / _263 + _264 + storED31) + (_463 * storE3B4 * call.value / _263 + _264 + storED31) + (storED31 * storE3B4 * call.value / _263 + _264 + storED31) / storE3B4 * call.value / _263 + _264 + storED31 != _462 + _463 + storED31:
+              revert with 0, 'MATH_MUL_OVERFLOW'
+          if storE3B4 <= 0:
+              revert with 0, 'MATH_DIV_ZERO'
+          require storE3B4
+          log Transfer(
+                address from=((_462 * storE3B4 * call.value / _263 + _264 + storED31) + (_463 * storE3B4 * call.value / _263 + _264 + storED31) + (storED31 * storE3B4 * call.value / _263 + _264 + storED31) / storE3B4),
+                address to=0,
+                uint256 value=caller)
+      log TransferShares(
+            address from=(storE3B4 * call.value / _263 + _264 + storED31),
+            address to=0,
+            uint256 sharesValue=caller)
+
+

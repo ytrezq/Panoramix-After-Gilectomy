@@ -1,0 +1,535 @@
+# Palkeoramix decompiler. 
+
+def storage:
+  wards is mapping of uint256 at storage 0
+  can is mapping of uint256 at storage 1
+  ilks is mapping of struct at storage 2
+  urns is mapping of struct at storage 3
+  gem is mapping of uint256 at storage 4
+  dai is mapping of uint256 at storage 5
+  sin is mapping of uint256 at storage 6
+  debt is uint256 at storage 7
+  vice is uint256 at storage 8
+  line is uint256 at storage 9
+  live is uint256 at storage 10
+
+def debt() payable: 
+  return debt
+
+def gem(bytes32 _param1, address _param2) payable: 
+  require calldata.size - 4 >= 64
+  return gem[_param1][_param2]
+
+def urns(bytes32 _param1, address _param2) payable: 
+  require calldata.size - 4 >= 64
+  return urns[_param1][_param2].field_0, urns[_param1][_param2].field_256
+
+def vice() payable: 
+  return vice
+
+def can(address _param1, address _param2) payable: 
+  require calldata.size - 4 >= 64
+  return can[_param1][_param2]
+
+def dai(address usr) payable: 
+  require calldata.size - 4 >= 32
+  return dai[usr]
+
+def live() payable: 
+  return live
+
+def Line() payable: 
+  return line
+
+def wards(address _param1) payable: 
+  require calldata.size - 4 >= 32
+  return wards[_param1]
+
+def ilks(bytes32 _param1) payable: 
+  require calldata.size - 4 >= 32
+  return ilks[_param1].field_0, 
+         ilks[_param1].field_256,
+         ilks[_param1].field_512,
+         ilks[_param1].field_768,
+         ilks[_param1].field_1024
+
+def sin(address _param1) payable: 
+  require calldata.size - 4 >= 32
+  return sin[_param1]
+
+#
+#  Regular functions
+#
+
+def _fallback(?) payable: # default function
+  revert
+
+def cage() payable: 
+  if wards[caller] != 1:
+      revert with 0, 'Vat/not-authorized'
+  live = 0
+  log 0x0: 32, 224, call.data[0 len 224], _param1, _param2, _param3
+
+def hope(address usr) payable: 
+  require calldata.size - 4 >= 32
+  can[caller][address(usr)] = 1
+  log 0x0: 32, 224, call.data[0 len 224], usr, cd[36], cd[68]
+
+def nope(address usr) payable: 
+  require calldata.size - 4 >= 32
+  can[caller][address(usr)] = 0
+  log 0x0: 32, 224, call.data[0 len 224], usr, cd[36], cd[68]
+
+def rely(address usr) payable: 
+  require calldata.size - 4 >= 32
+  if wards[caller] != 1:
+      revert with 0, 'Vat/not-authorized'
+  if live != 1:
+      revert with 0, 'Vat/not-live'
+  wards[address(usr)] = 1
+  log 0x0: 32, 224, call.data[0 len 224], usr, cd[36], cd[68]
+
+def deny(address usr) payable: 
+  require calldata.size - 4 >= 32
+  if wards[caller] != 1:
+      revert with 0, 'Vat/not-authorized'
+  if live != 1:
+      revert with 0, 'Vat/not-live'
+  wards[address(usr)] = 0
+  log 0x0: 32, 224, call.data[0 len 224], usr, cd[36], cd[68]
+
+def file(bytes32 what, uint256 data) payable: 
+  require calldata.size - 4 >= 64
+  if wards[caller] != 1:
+      revert with 0, 'Vat/not-authorized'
+  if live != 1:
+      revert with 0, 'Vat/not-live'
+  if what != 'Line':
+      revert with 0, 'Vat/file-unrecognized-param'
+  line = data
+  log 0x0: 32, 224, call.data[0 len 224], what, data, cd[68]
+
+def init(bytes32 ilk) payable: 
+  require calldata.size - 4 >= 32
+  if wards[caller] != 1:
+      revert with 0, 'Vat/not-authorized'
+  if ilks[ilk].field_256:
+      revert with 0, 'Vat/ilk-already-init'
+  ilks[ilk].field_256 = 1000000000 * 10^18
+  log 0x0: 32, 224, call.data[0 len 224], ilk, cd[36], cd[68]
+
+def heal(uint256 rad) payable: 
+  require calldata.size - 4 >= 32
+  require sin[caller] - rad <= sin[caller]
+  sin[caller] -= rad
+  require dai[caller] - rad <= dai[caller]
+  dai[caller] -= rad
+  require vice - rad <= vice
+  vice -= rad
+  require debt - rad <= debt
+  debt -= rad
+  log 0x0: 32, 224, call.data[0 len 224], rad, cd[36], cd[68]
+
+def file(bytes32 ilk, bytes32 what, uint256 data) payable: 
+  require calldata.size - 4 >= 96
+  if wards[caller] != 1:
+      revert with 0, 'Vat/not-authorized'
+  if live != 1:
+      revert with 0, 'Vat/not-live'
+  if what != 'spot':
+      if what == 'line':
+          ilks[ilk].field_768 = data
+      else:
+          if what != 'dust':
+              revert with 0, 'Vat/file-unrecognized-param'
+          ilks[ilk].field_1024 = data
+  else:
+      ilks[ilk].field_512 = data
+  log 0x0: 32, 224, call.data[0 len 224], ilk, what, data
+
+def move(address src, address dst, uint256 wad) payable: 
+  require calldata.size - 4 >= 96
+  if src != caller and can[address(src)][caller] != 1:
+      revert with 0, 'Vat/not-allowed'
+  require dai[address(src)] - wad <= dai[address(src)]
+  dai[address(src)] -= wad
+  require dai[address(dst)] + wad >= dai[address(dst)]
+  dai[address(dst)] += wad
+  log 0x0: 32, 224, call.data[0 len 224], src, dst, wad
+
+def suck(address u, address v, uint256 rad) payable: 
+  require calldata.size - 4 >= 96
+  if wards[caller] != 1:
+      revert with 0, 'Vat/not-authorized'
+  require sin[address(u)] + rad >= sin[address(u)]
+  sin[address(u)] += rad
+  require dai[address(v)] + rad >= dai[address(v)]
+  dai[address(v)] += rad
+  require vice + rad >= vice
+  vice += rad
+  require debt + rad >= debt
+  debt += rad
+  log 0x0: 32, 224, call.data[0 len 224], u, v, rad
+
+def slip(bytes32 ilk, address usr, int256 wad) payable: 
+  require calldata.size - 4 >= 96
+  if wards[caller] != 1:
+      revert with 0, 'Vat/not-authorized'
+  if wad >=′ 0:
+      _6 = not wad <′ 0
+  else:
+      _6 = gem[ilk][address(usr)] + wad <= gem[ilk][address(usr)]
+  require _6
+  if wad <=′ 0:
+      _7 = not wad >′ 0
+  else:
+      _7 = gem[ilk][address(usr)] + wad >= gem[ilk][address(usr)]
+  require _7
+  gem[ilk][address(usr)] += wad
+  log 0x0: 32, 224, call.data[0 len 224], ilk, usr, wad
+
+def flux(bytes32 ilk, address src, address dst, uint256 wad) payable: 
+  require calldata.size - 4 >= 128
+  if src != caller and can[address(src)][caller] != 1:
+      revert with 0, 'Vat/not-allowed'
+  require gem[ilk][address(src)] - wad <= gem[ilk][address(src)]
+  gem[ilk][address(src)] -= wad
+  require gem[ilk][address(dst)] + wad >= gem[ilk][address(dst)]
+  gem[ilk][address(dst)] += wad
+  log 0x0: 32, 224, call.data[0 len 224], ilk, src, dst
+
+def fold(bytes32 i, address u, int256 rate) payable: 
+  require calldata.size - 4 >= 96
+  if wards[caller] != 1:
+      revert with 0, 'Vat/not-authorized'
+  if live != 1:
+      revert with 0, 'Vat/not-live'
+  if rate >=′ 0:
+      _7 = not rate <′ 0
+  else:
+      _7 = ilks[i].field_256 + rate <= ilks[i].field_256
+  require _7
+  if rate <=′ 0:
+      _8 = not rate >′ 0
+  else:
+      _8 = ilks[i].field_256 + rate >= ilks[i].field_256
+  require _8
+  ilks[i].field_256 += rate
+  require ilks[i].field_0 >=′ 0
+  if not rate:
+      _9 = not rate
+  else:
+      require rate
+      _9 = ilks[i].field_0 * rate /′ rate == ilks[i].field_0
+  require _9
+  if ilks[i].field_0 * rate >=′ 0:
+      _11 = not ilks[i].field_0 * rate <′ 0
+  else:
+      _11 = dai[address(u)] + (ilks[i].field_0 * rate) <= dai[address(u)]
+  require _11
+  if ilks[i].field_0 * rate <=′ 0:
+      _12 = not ilks[i].field_0 * rate >′ 0
+  else:
+      _12 = dai[address(u)] + (ilks[i].field_0 * rate) >= dai[address(u)]
+  require _12
+  dai[address(u)] += ilks[i].field_0 * rate
+  if ilks[i].field_0 * rate >=′ 0:
+      _14 = not ilks[i].field_0 * rate <′ 0
+  else:
+      _14 = debt + (ilks[i].field_0 * rate) <= debt
+  require _14
+  if ilks[i].field_0 * rate <=′ 0:
+      _15 = not ilks[i].field_0 * rate >′ 0
+  else:
+      _15 = debt + (ilks[i].field_0 * rate) >= debt
+  require _15
+  debt += ilks[i].field_0 * rate
+  log 0x0: 32, 224, call.data[0 len 224], i, u, rate
+
+def grab(bytes32 i, address u, address v, address w, int256 dink, int256 dart) payable: 
+  require calldata.size - 4 >= 192
+  if wards[caller] != 1:
+      revert with 0, 'Vat/not-authorized'
+  if dink >=′ 0:
+      _7 = not dink <′ 0
+  else:
+      _7 = urns[i][address(u)].field_0 + dink <= urns[i][address(u)].field_0
+  require _7
+  if dink <=′ 0:
+      _8 = not dink >′ 0
+  else:
+      _8 = urns[i][address(u)].field_0 + dink >= urns[i][address(u)].field_0
+  require _8
+  urns[i][address(u)].field_0 += dink
+  if dart >=′ 0:
+      _9 = not dart <′ 0
+  else:
+      _9 = urns[i][address(u)].field_256 + dart <= urns[i][address(u)].field_256
+  require _9
+  if dart <=′ 0:
+      _10 = not dart >′ 0
+  else:
+      _10 = urns[i][address(u)].field_256 + dart >= urns[i][address(u)].field_256
+  require _10
+  urns[i][address(u)].field_256 += dart
+  if dart >=′ 0:
+      _11 = not dart <′ 0
+  else:
+      _11 = ilks[i].field_0 + dart <= ilks[i].field_0
+  require _11
+  if dart <=′ 0:
+      _12 = not dart >′ 0
+  else:
+      _12 = ilks[i].field_0 + dart >= ilks[i].field_0
+  require _12
+  ilks[i].field_0 += dart
+  require ilks[i].field_256 >=′ 0
+  if not dart:
+      _13 = not dart
+  else:
+      require dart
+      _13 = ilks[i].field_256 * dart /′ dart == ilks[i].field_256
+  require _13
+  if dink <=′ 0:
+      _16 = not dink >′ 0
+  else:
+      _16 = gem[i][address(v)] - dink <= gem[i][address(v)]
+  require _16
+  if dink >=′ 0:
+      _17 = not dink <′ 0
+  else:
+      _17 = gem[i][address(v)] - dink >= gem[i][address(v)]
+  require _17
+  gem[i][address(v)] -= dink
+  if ilks[i].field_256 * dart <=′ 0:
+      _21 = not ilks[i].field_256 * dart >′ 0
+  else:
+      _21 = sin[address(w)] - (ilks[i].field_256 * dart) <= sin[address(w)]
+  require _21
+  if ilks[i].field_256 * dart >=′ 0:
+      _22 = not ilks[i].field_256 * dart <′ 0
+  else:
+      _22 = sin[address(w)] - (ilks[i].field_256 * dart) >= sin[address(w)]
+  require _22
+  sin[address(w)] += -1 * ilks[i].field_256 * dart
+  if ilks[i].field_256 * dart <=′ 0:
+      _24 = not ilks[i].field_256 * dart >′ 0
+  else:
+      _24 = vice - (ilks[i].field_256 * dart) <= vice
+  require _24
+  if ilks[i].field_256 * dart >=′ 0:
+      _25 = not ilks[i].field_256 * dart <′ 0
+  else:
+      _25 = vice - (ilks[i].field_256 * dart) >= vice
+  require _25
+  vice += -1 * ilks[i].field_256 * dart
+  log 0x0: 32, 224, call.data[0 len 224], i, u, v
+
+def fork(bytes32 ilk, address src, address dst, int256 dink, int256 dart) payable: 
+  require calldata.size - 4 >= 160
+  if dink <=′ 0:
+      _6 = not dink >′ 0
+  else:
+      _6 = urns[ilk][address(src)].field_0 - dink <= urns[ilk][address(src)].field_0
+  require _6
+  if dink >=′ 0:
+      _7 = not dink <′ 0
+  else:
+      _7 = urns[ilk][address(src)].field_0 - dink >= urns[ilk][address(src)].field_0
+  require _7
+  urns[ilk][address(src)].field_0 -= dink
+  if dart <=′ 0:
+      _8 = not dart >′ 0
+  else:
+      _8 = urns[ilk][address(src)].field_256 - dart <= urns[ilk][address(src)].field_256
+  require _8
+  if dart >=′ 0:
+      _9 = not dart <′ 0
+  else:
+      _9 = urns[ilk][address(src)].field_256 - dart >= urns[ilk][address(src)].field_256
+  require _9
+  urns[ilk][address(src)].field_256 -= dart
+  if dink >=′ 0:
+      _10 = not dink <′ 0
+  else:
+      _10 = urns[ilk][address(dst)].field_0 + dink <= urns[ilk][address(dst)].field_0
+  require _10
+  if dink <=′ 0:
+      _11 = not dink >′ 0
+  else:
+      _11 = urns[ilk][address(dst)].field_0 + dink >= urns[ilk][address(dst)].field_0
+  require _11
+  urns[ilk][address(dst)].field_0 += dink
+  if dart >=′ 0:
+      _12 = not dart <′ 0
+  else:
+      _12 = urns[ilk][address(dst)].field_256 + dart <= urns[ilk][address(dst)].field_256
+  require _12
+  if dart <=′ 0:
+      _13 = not dart >′ 0
+  else:
+      _13 = urns[ilk][address(dst)].field_256 + dart >= urns[ilk][address(dst)].field_256
+  require _13
+  urns[ilk][address(dst)].field_256 += dart
+  if not ilks[ilk].field_256:
+      _14 = 0
+      _15 = not ilks[ilk].field_256
+  else:
+      require ilks[ilk].field_256
+      _14 = urns[ilk][address(src)].field_256 * ilks[ilk].field_256
+      _15 = urns[ilk][address(src)].field_256 * ilks[ilk].field_256 / ilks[ilk].field_256 == urns[ilk][address(src)].field_256
+  require _15
+  if not ilks[ilk].field_256:
+      _16 = 0
+      _17 = not ilks[ilk].field_256
+  else:
+      require ilks[ilk].field_256
+      _16 = urns[ilk][address(dst)].field_256 * ilks[ilk].field_256
+      _17 = urns[ilk][address(dst)].field_256 * ilks[ilk].field_256 / ilks[ilk].field_256 == urns[ilk][address(dst)].field_256
+  require _17
+  if src != caller and can[address(src)][caller] != 1 or dst != caller and can[address(dst)][caller] != 1:
+      revert with 0, 'Vat/not-allowed'
+  if not ilks[ilk].field_512:
+      _24 = 0
+      _25 = not ilks[ilk].field_512
+  else:
+      require ilks[ilk].field_512
+      _24 = urns[ilk][address(src)].field_0 * ilks[ilk].field_512
+      _25 = urns[ilk][address(src)].field_0 * ilks[ilk].field_512 / ilks[ilk].field_512 == urns[ilk][address(src)].field_0
+  require _25
+  if _14 > _24:
+      revert with 0, 'Vat/not-safe-src'
+  if not ilks[ilk].field_512:
+      _28 = 0
+      _29 = not ilks[ilk].field_512
+  else:
+      require ilks[ilk].field_512
+      _28 = urns[ilk][address(dst)].field_0 * ilks[ilk].field_512
+      _29 = urns[ilk][address(dst)].field_0 * ilks[ilk].field_512 / ilks[ilk].field_512 == urns[ilk][address(dst)].field_0
+  require _29
+  if _16 > _28:
+      revert with 0, 'Vat/not-safe-dst'
+  if _14 < ilks[ilk].field_1024 and urns[ilk][address(src)].field_256:
+      revert with 0, 'Vat/dust-src'
+  if _16 < ilks[ilk].field_1024 and urns[ilk][address(dst)].field_256:
+      revert with 0, 'Vat/dust-dst'
+  log 0x0: 32, 224, call.data[0 len 224], ilk, src, dst
+
+def frob(bytes32 i, address u, address v, address w, int256 dink, int256 dart) payable: 
+  require calldata.size - 4 >= 192
+  if live != 1:
+      revert with 0, 'Vat/not-live'
+  if not ilks[i].field_256:
+      revert with 0, 'Vat/ilk-not-init'
+  if dink >=′ 0:
+      _14 = not dink <′ 0
+  else:
+      _14 = urns[i][address(u)].field_0 + dink <= urns[i][address(u)].field_0
+  require _14
+  if dink <=′ 0:
+      _15 = not dink >′ 0
+  else:
+      _15 = urns[i][address(u)].field_0 + dink >= urns[i][address(u)].field_0
+  require _15
+  if dart >=′ 0:
+      _17 = not dart <′ 0
+  else:
+      _17 = urns[i][address(u)].field_256 + dart <= urns[i][address(u)].field_256
+  require _17
+  if dart <=′ 0:
+      _18 = not dart >′ 0
+  else:
+      _18 = urns[i][address(u)].field_256 + dart >= urns[i][address(u)].field_256
+  require _18
+  if dart >=′ 0:
+      _20 = not dart <′ 0
+  else:
+      _20 = ilks[i].field_0 + dart <= ilks[i].field_0
+  require _20
+  if dart <=′ 0:
+      _21 = not dart >′ 0
+  else:
+      _21 = ilks[i].field_0 + dart >= ilks[i].field_0
+  require _21
+  require ilks[i].field_256 >=′ 0
+  if not dart:
+      _23 = not dart
+  else:
+      require dart
+      _23 = ilks[i].field_256 * dart /′ dart == ilks[i].field_256
+  require _23
+  if not urns[i][address(u)].field_256 + dart:
+      _26 = 0
+      _27 = not urns[i][address(u)].field_256 + dart
+  else:
+      require urns[i][address(u)].field_256 + dart
+      _26 = (urns[i][address(u)].field_256 * ilks[i].field_256) + (dart * ilks[i].field_256)
+      _27 = (urns[i][address(u)].field_256 * ilks[i].field_256) + (dart * ilks[i].field_256) / urns[i][address(u)].field_256 + dart == ilks[i].field_256
+  require _27
+  if ilks[i].field_256 * dart >=′ 0:
+      _28 = not ilks[i].field_256 * dart <′ 0
+  else:
+      _28 = debt + (ilks[i].field_256 * dart) <= debt
+  require _28
+  if ilks[i].field_256 * dart <=′ 0:
+      _29 = not ilks[i].field_256 * dart >′ 0
+  else:
+      _29 = debt + (ilks[i].field_256 * dart) >= debt
+  require _29
+  debt += ilks[i].field_256 * dart
+  if not ilks[i].field_256:
+      _33 = 0
+      _34 = not ilks[i].field_256
+  else:
+      require ilks[i].field_256
+      _33 = (ilks[i].field_0 * ilks[i].field_256) + (dart * ilks[i].field_256)
+      _34 = (ilks[i].field_0 * ilks[i].field_256) + (dart * ilks[i].field_256) / ilks[i].field_256 == ilks[i].field_0 + dart
+  require _34
+  if dart >′ 0 and _33 > ilks[i].field_768 or debt > line:
+      revert with 0, 'Vat/ceiling-exceeded'
+  if not ilks[i].field_512:
+      _39 = 0
+      _40 = not ilks[i].field_512
+  else:
+      require ilks[i].field_512
+      _39 = (urns[i][address(u)].field_0 * ilks[i].field_512) + (dink * ilks[i].field_512)
+      _40 = (urns[i][address(u)].field_0 * ilks[i].field_512) + (dink * ilks[i].field_512) / ilks[i].field_512 == urns[i][address(u)].field_0 + dink
+  require _40
+  if bool(dart >′ 0) or bool(dink <′ 0) and _26 > _39:
+      revert with 0, 'Vat/not-safe'
+  if bool(dart >′ 0) or bool(dink <′ 0) and u != caller and can[address(u)][caller] != 1:
+      revert with 0, 'Vat/not-allowed-u'
+  if dink >′ 0 and v != caller and can[address(v)][caller] != 1:
+      revert with 0, 'Vat/not-allowed-v'
+  if dart <′ 0 and w != caller and can[address(w)][caller] != 1:
+      revert with 0, 'Vat/not-allowed-w'
+  if urns[i][address(u)].field_256 + dart and _26 < ilks[i].field_1024:
+      revert with 0, 'Vat/dust'
+  if dink <=′ 0:
+      _61 = not dink >′ 0
+  else:
+      _61 = gem[i][address(v)] - dink <= gem[i][address(v)]
+  require _61
+  if dink >=′ 0:
+      _62 = not dink <′ 0
+  else:
+      _62 = gem[i][address(v)] - dink >= gem[i][address(v)]
+  require _62
+  gem[i][address(v)] -= dink
+  if ilks[i].field_256 * dart >=′ 0:
+      _66 = not ilks[i].field_256 * dart <′ 0
+  else:
+      _66 = dai[address(w)] + (ilks[i].field_256 * dart) <= dai[address(w)]
+  require _66
+  if ilks[i].field_256 * dart <=′ 0:
+      _67 = not ilks[i].field_256 * dart >′ 0
+  else:
+      _67 = dai[address(w)] + (ilks[i].field_256 * dart) >= dai[address(w)]
+  require _67
+  dai[address(w)] += ilks[i].field_256 * dart
+  urns[i][address(u)].field_0 += dink
+  urns[i][address(u)].field_256 += dart
+  ilks[i].field_0 += dart
+  log 0x0: 32, 224, call.data[0 len 224], i, u, v
+
+

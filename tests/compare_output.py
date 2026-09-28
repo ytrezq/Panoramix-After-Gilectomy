@@ -5,14 +5,14 @@ either side unless --db). Python's timeouts are scaled by 20 so that the
 comparison doesn't depend on the machine (the assembly hits none)."""
 import os, sys, glob, time, difflib
 os.environ.setdefault("PANORAMIX_TIMEOUT", "20")
-sys.path.insert(0, "/home/claude/panoramix")
+sys.path.insert(0, os.environ.get("PANORAMIX_PY", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "panoramix")))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor"))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build"))
 import logging; logging.disable(logging.CRITICAL)
 if "--db" not in sys.argv:
     os.environ["PANORAMIX_SIGDB"] = "/nonexistent"
 import panoramix_asm as A
-CORPUS = "/tmp/claude-0/-home-claude/0fe601fa-3d3d-56af-9a22-c5068d00d0e0/scratchpad/corpus"
+CORPUS = os.environ.get("CORPUS", os.path.join(os.path.dirname(os.path.abspath(__file__)), "corpus"))
 import panoramix.utils.supplement
 import panoramix.utils.signatures
 import panoramix.loader
@@ -28,7 +28,7 @@ from panoramix.decompiler import decompile_bytecode
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     files = args or sorted(glob.glob(CORPUS + "/*.hex"))
-    outdir = os.environ.get("OUTDIR", "/tmp/claude-0/-home-claude-panoramix/0fe601fa-3d3d-56af-9a22-c5068d00d0e0/scratchpad/out")
+    outdir = os.environ.get("OUTDIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build", "compare_output"))
     os.makedirs(outdir, exist_ok=True)
     bad = 0
     for f in files:

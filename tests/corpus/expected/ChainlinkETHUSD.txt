@@ -1,0 +1,377 @@
+# Palkeoramix decompiler. 
+
+def storage:
+  owner is address at storage 0
+  stor1 is address at storage 1
+  phaseId is uint16 at storage 2
+  aggregatorAddress is address at storage 2 offset 16
+  proposedAggregatorAddress is address at storage 3
+  phaseAggregators is mapping of address at storage 4
+  accessControllerAddress is address at storage 5
+
+def aggregator() payable: 
+  return aggregatorAddress
+
+def phaseId() payable: 
+  return phaseId
+
+def owner() payable: 
+  return owner
+
+def accessController() payable: 
+  return accessControllerAddress
+
+def phaseAggregators(uint16 _param1) payable: 
+  require calldata.size - 4 >= 32
+  return phaseAggregators[_param1]
+
+def proposedAggregator() payable: 
+  return proposedAggregatorAddress
+
+#
+#  Regular functions
+#
+
+def _fallback(?) payable: # default function
+  revert
+
+def setController(address _controller) payable: 
+  require calldata.size - 4 >= 32
+  if owner != caller:
+      revert with 0, 'Only callable by owner'
+  accessControllerAddress = _controller
+
+def proposeAggregator(address _aggregator) payable: 
+  require calldata.size - 4 >= 32
+  if owner != caller:
+      revert with 0, 'Only callable by owner'
+  proposedAggregatorAddress = _aggregator
+
+def acceptOwnership() payable: 
+  if stor1 != caller:
+      revert with 0, 'Must be proposed owner'
+  owner = caller
+  stor1 = 0
+  log OwnershipTransferred(
+        address previousOwner=owner,
+        address newOwner=caller)
+
+def version() payable: 
+  require ext_code.size(aggregatorAddress)
+  static call aggregatorAddress.version() with:
+          gas gas_remaining wei
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  return ext_call.return_data[0]
+
+def transferOwnership(address newOwner) payable: 
+  require calldata.size - 4 >= 32
+  if owner != caller:
+      revert with 0, 'Only callable by owner'
+  stor1 = newOwner
+  log OwnershipTransferRequested(
+        address from=owner,
+        address to=newOwner)
+
+def decimals() payable: 
+  require ext_code.size(aggregatorAddress)
+  static call aggregatorAddress.decimals() with:
+          gas gas_remaining wei
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  return ext_call.return_data[31 len 1]
+
+def confirmAggregator(address _aggregator) payable: 
+  require calldata.size - 4 >= 32
+  if owner != caller:
+      revert with 0, 'Only callable by owner'
+  if proposedAggregatorAddress != _aggregator:
+      revert with 0, 'Invalid proposed aggregator'
+  proposedAggregatorAddress = 0
+  phaseId = uint16(phaseId + 1)
+  aggregatorAddress = _aggregator
+  phaseAggregators[stor2 + 1 << 240] = _aggregator
+
+def latestAnswer() payable: 
+  if not accessControllerAddress:
+      _7 = not accessControllerAddress
+  else:
+      require ext_code.size(accessControllerAddress)
+      static call accessControllerAddress.hasAccess(address _user, bytes _calldata) with:
+              gas gas_remaining wei
+             args 0, uint32(caller), 64, calldata.size, call.data[0 len calldata.size], Mask(8 * ceil32(calldata.size) - calldata.size, -(8 * ceil32(calldata.size) - calldata.size) + 256, 0) >> -(8 * ceil32(calldata.size) - calldata.size) + 256
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 32
+      _7 = ext_call.return_data[0]
+  if not _7:
+      revert with 0, 'No access'
+  require ext_code.size(aggregatorAddress)
+  static call aggregatorAddress.latestAnswer() with:
+          gas gas_remaining wei
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  return ext_call.return_data[0]
+
+def latestTimestamp() payable: 
+  if not accessControllerAddress:
+      _7 = not accessControllerAddress
+  else:
+      require ext_code.size(accessControllerAddress)
+      static call accessControllerAddress.hasAccess(address _user, bytes _calldata) with:
+              gas gas_remaining wei
+             args 0, uint32(caller), 64, calldata.size, call.data[0 len calldata.size], Mask(8 * ceil32(calldata.size) - calldata.size, -(8 * ceil32(calldata.size) - calldata.size) + 256, 0) >> -(8 * ceil32(calldata.size) - calldata.size) + 256
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 32
+      _7 = ext_call.return_data[0]
+  if not _7:
+      revert with 0, 'No access'
+  require ext_code.size(aggregatorAddress)
+  static call aggregatorAddress.latestTimestamp() with:
+          gas gas_remaining wei
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  return ext_call.return_data[0]
+
+def latestRound() payable: 
+  if not accessControllerAddress:
+      _6 = not accessControllerAddress
+  else:
+      require ext_code.size(accessControllerAddress)
+      static call accessControllerAddress.hasAccess(address _user, bytes _calldata) with:
+              gas gas_remaining wei
+             args 0, uint32(caller), 64, calldata.size, call.data[0 len calldata.size], Mask(8 * ceil32(calldata.size) - calldata.size, -(8 * ceil32(calldata.size) - calldata.size) + 256, 0) >> -(8 * ceil32(calldata.size) - calldata.size) + 256
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 32
+      _6 = ext_call.return_data[0]
+  if not _6:
+      revert with 0, 'No access'
+  require ext_code.size(aggregatorAddress)
+  static call aggregatorAddress.latestRound() with:
+          gas gas_remaining wei
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  return 0, uint64(ext_call.return_data[0])
+
+def latestRoundData() payable: 
+  if not accessControllerAddress:
+      _6 = not accessControllerAddress
+  else:
+      require ext_code.size(accessControllerAddress)
+      static call accessControllerAddress.hasAccess(address _user, bytes _calldata) with:
+              gas gas_remaining wei
+             args 0, uint32(caller), 64, calldata.size, call.data[0 len calldata.size], Mask(8 * ceil32(calldata.size) - calldata.size, -(8 * ceil32(calldata.size) - calldata.size) + 256, 0) >> -(8 * ceil32(calldata.size) - calldata.size) + 256
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 32
+      _6 = ext_call.return_data[0]
+  if not _6:
+      revert with 0, 'No access'
+  require ext_code.size(aggregatorAddress)
+  static call aggregatorAddress.latestRoundData() with:
+          gas gas_remaining wei
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 160
+  return phaseId or ext_call.return_data[24 len 8], 
+         ext_call.return_data[32],
+         ext_call.return_data[64],
+         ext_call.return_data[96],
+         0,
+         phaseId,
+         uint64(ext_call.return_data[128])
+
+def proposedLatestRoundData() payable: 
+  if not accessControllerAddress:
+      _7 = not accessControllerAddress
+  else:
+      require ext_code.size(accessControllerAddress)
+      static call accessControllerAddress.hasAccess(address _user, bytes _calldata) with:
+              gas gas_remaining wei
+             args 0, uint32(caller), 64, calldata.size, call.data[0 len calldata.size], Mask(8 * ceil32(calldata.size) - calldata.size, -(8 * ceil32(calldata.size) - calldata.size) + 256, 0) >> -(8 * ceil32(calldata.size) - calldata.size) + 256
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 32
+      _7 = ext_call.return_data[0]
+  if not _7:
+      revert with 0, 'No access'
+  if not proposedAggregatorAddress:
+      revert with 0, 'No proposed aggregator present'
+  require ext_code.size(proposedAggregatorAddress)
+  static call proposedAggregatorAddress.latestRoundData() with:
+          gas gas_remaining wei
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 160
+  return ext_call.return_data[0] << 176, 
+         ext_call.return_data[32],
+         ext_call.return_data[64],
+         ext_call.return_data[96],
+         Mask(80, 0, ext_call.return_data[128])
+
+def proposedGetRoundData(uint80 _roundId) payable: 
+  require calldata.size - 4 >= 32
+  if not accessControllerAddress:
+      _7 = not accessControllerAddress
+  else:
+      require ext_code.size(accessControllerAddress)
+      static call accessControllerAddress.hasAccess(address _user, bytes _calldata) with:
+              gas gas_remaining wei
+             args 0, uint32(caller), 64, calldata.size, call.data[0 len calldata.size], Mask(8 * ceil32(calldata.size) - calldata.size, -(8 * ceil32(calldata.size) - calldata.size) + 256, 0) >> -(8 * ceil32(calldata.size) - calldata.size) + 256
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 32
+      _7 = ext_call.return_data[0]
+  if not _7:
+      revert with 0, 'No access'
+  if not proposedAggregatorAddress:
+      revert with 0, 'No proposed aggregator present'
+  require ext_code.size(proposedAggregatorAddress)
+  static call proposedAggregatorAddress.getRoundData(uint80 _roundId) with:
+          gas gas_remaining wei
+         args Mask(80, 0, _roundId)
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 160
+  return ext_call.return_data[0] << 176, 
+         ext_call.return_data[32],
+         ext_call.return_data[64],
+         ext_call.return_data[96],
+         Mask(80, 0, ext_call.return_data[128])
+
+def getAnswer(uint256 _roundId) payable: 
+  require calldata.size - 4 >= 32
+  if not accessControllerAddress:
+      _5 = not accessControllerAddress
+  else:
+      require ext_code.size(accessControllerAddress)
+      static call accessControllerAddress.hasAccess(address _user, bytes _calldata) with:
+              gas gas_remaining wei
+             args 0, uint32(caller), 64, calldata.size, call.data[0 len calldata.size], Mask(8 * ceil32(calldata.size) - calldata.size, -(8 * ceil32(calldata.size) - calldata.size) + 256, 0) >> -(8 * ceil32(calldata.size) - calldata.size) + 256
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 32
+      _5 = ext_call.return_data[0]
+  if not _5:
+      revert with 0, 'No access'
+  if _roundId <= LOCK8605463013():
+      if phaseAggregators[_roundId << 240]:
+          require ext_code.size(phaseAggregators[_roundId << 240])
+          static call phaseAggregators[_roundId << 240].getAnswer(uint256 _roundId) with:
+                  gas gas_remaining wei
+                 args uint64(_roundId)
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          require return_data.size >= 32
+          _17 = ext_call.return_data[0]
+      else:
+          _17 = 0
+      _18 = _17
+  else:
+      _18 = 0
+  return _18
+
+def getTimestamp(uint256 _roundId) payable: 
+  require calldata.size - 4 >= 32
+  if not accessControllerAddress:
+      _5 = not accessControllerAddress
+  else:
+      require ext_code.size(accessControllerAddress)
+      static call accessControllerAddress.hasAccess(address _user, bytes _calldata) with:
+              gas gas_remaining wei
+             args 0, uint32(caller), 64, calldata.size, call.data[0 len calldata.size], Mask(8 * ceil32(calldata.size) - calldata.size, -(8 * ceil32(calldata.size) - calldata.size) + 256, 0) >> -(8 * ceil32(calldata.size) - calldata.size) + 256
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 32
+      _5 = ext_call.return_data[0]
+  if not _5:
+      revert with 0, 'No access'
+  if _roundId <= LOCK8605463013():
+      if phaseAggregators[_roundId << 240]:
+          require ext_code.size(phaseAggregators[_roundId << 240])
+          static call phaseAggregators[_roundId << 240].getTimestamp(uint256 _roundId) with:
+                  gas gas_remaining wei
+                 args uint64(_roundId)
+          if not ext_call.success:
+              revert with ext_call.return_data[0 len return_data.size]
+          require return_data.size >= 32
+          _17 = ext_call.return_data[0]
+      else:
+          _17 = 0
+      _18 = _17
+  else:
+      _18 = 0
+  return _18
+
+def getRoundData(uint80 _roundId) payable: 
+  require calldata.size - 4 >= 32
+  if not accessControllerAddress:
+      _5 = not accessControllerAddress
+  else:
+      require ext_code.size(accessControllerAddress)
+      static call accessControllerAddress.hasAccess(address _user, bytes _calldata) with:
+              gas gas_remaining wei
+             args 0, uint32(caller), 64, calldata.size, call.data[0 len calldata.size], Mask(8 * ceil32(calldata.size) - calldata.size, -(8 * ceil32(calldata.size) - calldata.size) + 256, 0) >> -(8 * ceil32(calldata.size) - calldata.size) + 256
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 32
+      _5 = ext_call.return_data[0]
+  if not _5:
+      revert with 0, 'No access'
+  require ext_code.size(phaseAggregators[_roundId << 240])
+  static call phaseAggregators[_roundId << 240].getRoundData(uint80 _roundId) with:
+          gas gas_remaining wei
+         args uint64(_roundId)
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 160
+  return 0, 
+         uint16(_roundId),
+         uint64(ext_call.return_data[0]),
+         ext_call.return_data[32],
+         ext_call.return_data[64],
+         ext_call.return_data[96],
+         0,
+         uint16(_roundId),
+         uint64(ext_call.return_data[128])
+
+def description() payable: 
+  mem[96] = 0x7284e41600000000000000000000000000000000000000000000000000000000
+  require ext_code.size(aggregatorAddress)
+  static call aggregatorAddress.description() with:
+          gas gas_remaining wei
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  mem[96 len return_data.size] = ext_call.return_data[0 len return_data.size]
+  mem[64] = ceil32(return_data.size) + 96
+  require return_data.size >= 32
+  _4 = mem[96]
+  require mem[96] <= unknown10000000()
+  require mem[96] + 32 <= return_data.size
+  require return_data.size >= mem[mem[96] + 96] + mem[96] + 32 and mem[mem[96] + 96] <= unknown10000000()
+  mem[ceil32(return_data.size) + 96] = mem[mem[96] + 96]
+  _7 = mem[_4 + 96]
+  mem[ceil32(return_data.size) + 128 len ceil32(mem[_4 + 96])] = mem[_4 + 128 len ceil32(mem[_4 + 96])]
+  if not _7 % 32:
+      _11 = _7 + ceil32(return_data.size) + 128
+  else:
+      mem[floor32(_7) + ceil32(return_data.size) + 128] = mem[floor32(_7) + ceil32(return_data.size) + -(_7 % 32) + 160 len _7 % 32]
+      _11 = floor32(_7) + ceil32(return_data.size) + 160
+  mem[64] = _11
+  mem[_11] = 32
+  mem[_11 + 32] = mem[ceil32(return_data.size) + 96]
+  _14 = mem[ceil32(return_data.size) + 96]
+  mem[_11 + 64 len ceil32(mem[ceil32(return_data.size) + 96])] = mem[ceil32(return_data.size) + 128 len ceil32(mem[ceil32(return_data.size) + 96])]
+  if not _14 % 32:
+      return 32, mem[_11 + 32 len _14 + 32]
+  mem[floor32(_14) + _11 + 64] = mem[floor32(_14) + _11 + -(_14 % 32) + 96 len _14 % 32]
+  return 32, mem[_11 + 32 len floor32(_14) + 64]
+
+
