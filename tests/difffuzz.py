@@ -547,6 +547,8 @@ def run_python(code):
     err = re.sub(r"\n\s+", "\n", p.stderr)
     if any(k in err for k in KNOWN_PY_FAILURES):
         return "known"
+    if "timed out" in err or "TimeoutInterrupt" in err or "stopped prematurely" in err:
+        return None                     # (what it gives depends on the time it had)
     return re.sub(r"\x1b\[[0-9;]*m", "", out)
 
 
