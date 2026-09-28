@@ -52,6 +52,7 @@ check: build/c_api_test all
 	python3 tests/test_json_value.py
 	python3 tests/test_json.py
 	python3 tests/test_verbose.py
+	python3 tests/test_fetch.py
 
 # python's Decompilation of the corpus (pypy, a few minutes), for
 # tests/test_json.py

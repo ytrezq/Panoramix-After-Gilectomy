@@ -59,6 +59,22 @@ int main(void)
                      && le == e.explainlen + e.textlen && strncmp(te, e.explain, e.explainlen) == 0
                      && strcmp(te + e.explainlen, e.text) == 0
                      && strstr(tv, "# [56] push1 0") && strstr(tv, "#        [uint32(call.func_hash) >> 224, 0]");
+    /* an address's code: no node to be had here, an address that isn't one */
+    uint8_t *fc = (uint8_t *)1;
+    size_t fl = 1;
+    char *ferr = NULL, *ferr2 = NULL;
+    setenv("WEB3_PROVIDER_URI", "http://127.0.0.1:1", 1);
+    setenv("WEB3_HTTP_PROVIDER_URI", "http://127.0.0.1:1", 1);
+    setenv("HOME", "/nonexistent", 1);
+    int rcf = pan_fetch_code("0x0000000000000000000000000000000000000001", &fc, &fl, &ferr);
+    int rcf2 = pan_fetch_code("0x12", &fc, &fl, &ferr2);
+    int ok_fetch = rcf == -1 && fc == NULL && fl == 0 && ferr
+                   && strncmp(ferr, "Could not discover provider while making request: method:eth_getCode", 68) == 0
+                   && rcf2 == -1 && ferr2 && strstr(ferr2, "not an address");
+    printf("pan_fetch_code: %s / %s\n", ferr ? ferr : "-", ferr2 ? ferr2 : "-");
+    pan_free(ferr);
+    pan_free(ferr2);
+    ok_explain = ok_explain && ok_fetch;
     printf("%s", ta);
     printf("%.200s...\n", o.data);
     printf("%.300s...\n", e.explain);

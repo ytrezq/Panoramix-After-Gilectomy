@@ -72,6 +72,18 @@ typedef struct {
 int pan_decompile_data(const uint8_t *code, size_t len, size_t threads,
                        const char *only_func, long flags, pan_output *out);
 
+/* The code deployed at an address ("0x" and 40 hex digits), as python's
+ * decompile_address fetches it: eth_getCode from the node web3's
+ * automatic provider finds - $WEB3_PROVIDER_URI (http://..., or
+ * file://PATH for the node's IPC socket), else the first of the default
+ * IPC sockets that exists (~/.ethereum/geth.ipc, parity's, trinity's),
+ * else $WEB3_HTTP_PROVIDER_URI or http://localhost:8545; each tried when
+ * the one before can't be reached (10 s at most each). No TLS (https://)
+ * nor websockets. Returns 0 with the raw bytecode in *code (malloc'ed,
+ * *len bytes: none for an address without code), or -1 with the reason
+ * in *err (malloc'ed; err may be NULL). */
+int pan_fetch_code(const char *address, uint8_t **code, size_t *len, char **err);
+
 /* The disassembly, one instruction per line, as panoramix's
  * Loader.disasm(). */
 int pan_disasm(const uint8_t *code, size_t len, char **out, size_t *outlen);

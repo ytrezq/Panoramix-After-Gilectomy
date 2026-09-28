@@ -45,6 +45,8 @@ database, liblzma. Everything else is assembly (GNU as, Intel syntax).
     src/data.s            python's decompilation.json: JSON text, or a binary form of
                           python's objects for the module
     src/explain.s         python's --explain: the traces of every stage, the traits
+    src/fetch.s           an address's code from a node: web3's automatic provider,
+                          JSON-RPC eth_getCode over HTTP/1.0 or an IPC socket
     src/api.s             the C interface (pan_*, include/panoramix_asm.h), exported
                           by build/libpanoramix_asm.so
     src/main.s            the `panasm` command line tool
@@ -58,6 +60,7 @@ is the CLI, `build/panoramix_asm*.so` the module.
 
     panasm build-db panoramix/data/abi_dump.xz    # once: the signature database
     panasm decompile contract.hex [-j N] [--function NAME] [--no-color] [--json] [--verbose] [--explain]
+    panasm decompile 0xADDRESS,other.hex      # an address's code from a node; lists, as python's
     python3 -c 'import panoramix_asm; print(panoramix_asm.decompile(open("contract.hex").read()))'
 
 ## Conventions
@@ -239,11 +242,29 @@ is the CLI, `build/panoramix_asm*.so` the module.
     refuses them) print each function's trace (`pprint_repr`,
     `format_exp`) and its returns after its text.
 
+17. [x] python's `decompile_address` and the rest of its command line:
+    an address (`0x` and 40 hex digits: `len(arg) == 42`, python's test)
+    is fetched with `eth_getCode` at "latest" from the provider web3's
+    `AutoProvider` finds (`fetch.s`): `$WEB3_PROVIDER_URI` (`file://` -
+    an IPC socket - or `http://`; another scheme is python's
+    NotImplementedError), else the first default IPC socket that exists
+    (geth's, parity's, trinity's), else `$WEB3_HTTP_PROVIDER_URI` or
+    `http://localhost:8545`, each tried when the one before can't be
+    reached, with web3's 10 s. JSON-RPC over the unix socket (the answer
+    read until it is a whole JSON value: geth keeps the connection), or
+    POSTed in HTTP/1.0 (the server closes after its answer; a chunked
+    one is put together anyway; requests' messages for the 4xx and
+    5xx); the answer's `result` taken with a small JSON scanner, its
+    `error` reported. No TLS nor websockets (a message says so). The
+    argument may be a comma-separated list, decompiled in turn. The
+    module has `decompile_address` (ConnectionError when the code can't
+    be had), the C interface `pan_fetch_code`.
+
 ## Testing
 
 `make check` runs the C example, `tests/run_corpus.sh`,
-`tests/robustness.sh`, `tests/test_watchdog.py`, `tests/test_json.py`
-and `tests/test_verbose.py`.
+`tests/robustness.sh`, `tests/test_watchdog.py`, `tests/test_json.py`,
+`tests/test_verbose.py` and `tests/test_fetch.py`.
 The first compares the 30 contracts of
 `tests/corpus` (mainnet bytecode, see `SOURCES`) and the programs of
 `tests/synthetic` (each one a difference the port had) with python's
@@ -363,6 +384,15 @@ then its text) with the output of `python -m panoramix --verbose` /
 `--explain` on small contracts of the corpus (`make verbose-expected`
 makes them, with pypy); `FUZZ_MODE=--verbose` (or `--explain`) runs
 the differential fuzzer with those options on both sides.
+
+`tests/test_fetch.py` runs a node of its own (HTTP, plain and chunked,
+and an IPC socket that keeps the connection, as geth's does) answering
+`eth_getCode` with contracts of the corpus: `panasm decompile ADDRESS`
+must print the contract's text through every way of finding the
+provider, a list its texts in turn, the module's `decompile_address`
+give `decompile_bytecode`'s result, `python -m panoramix ADDRESS` (web3,
+against the same node) the same text; the node's errors, an HTTP error,
+no provider, TLS, an unknown scheme come back as messages.
 
 `tests/test_threads.py` decompiles the corpus from several python
 threads at once (each call with its own workers, 1 to 3) and compares

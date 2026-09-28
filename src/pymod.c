@@ -68,6 +68,7 @@ static int print_explain(const char *text, size_t len)
     return 0;
 }
 int pan_decompile_data(const unsigned char *code, size_t len, size_t threads, const char *only_func, long flags, pan_output *out);
+int pan_fetch_code(const char *address, unsigned char **code, size_t *len, char **err);
 int pan_build_sigdb(const char *xz_path, const char *out_path);
 void pan_set_log_level(long level);
 long pan_log_level_from_name(const char *name);
@@ -312,37 +313,38 @@ static PyStructSequence_Desc decompilation_desc = {
 
 static PyTypeObject *DecompilationType;
 
-static PyObject *py_decompile_bytecode(PyObject *self, PyObject *args, PyObject *kwargs)
+/* the options of decompile_bytecode and decompile_address, as flags */
+static int decompilation_flags(int color, PyObject *verbose, PyObject *explain, Py_ssize_t *threads, long *flags)
 {
-    static char *kwlist[] = {"code", "only_func_name", "threads", "color", "verbose", "explain", NULL};
-    PyObject *arg, *text = NULL, *json = NULL, *asm_text = NULL, *asm_list = NULL, *res;
-    PyObject *verbose = NULL, *explain = NULL, *explained = NULL;
-    code_ref ref;
-    unsigned char *code;
-    size_t len, asmlen = 0;
+    *flags = color ? 0 : PAN_NO_COLOR;
+    if (argv_flag(verbose, "--verbose", flags, PAN_VERBOSE) || argv_flag(explain, "--explain", flags, PAN_EXPLAIN)
+        || argv_flag(NULL, "--repr", flags, PAN_REPR) || argv_flag(NULL, "--returns", flags, PAN_RETURNS)) return -1;
+    if (*threads <= 0) {
+        *threads = (Py_ssize_t)sysconf(_SC_NPROCESSORS_ONLN);
+        if (*threads <= 0) *threads = 1;
+    }
+    return 0;
+}
+
+/* The Decompilation of the code (released with release_code, or freed
+ * when ref is NULL - the code fetched) */
+static PyObject *decompilation(unsigned char *code, size_t len, code_ref *ref, const char *function, Py_ssize_t threads, long flags)
+{
+    PyObject *text = NULL, *json = NULL, *asm_text = NULL, *asm_list = NULL, *res, *explained = NULL;
+    size_t asmlen = 0;
     char *asm_out = NULL;
     pan_output out;
-    Py_ssize_t threads = 0;
-    const char *function = NULL;
-    int color = 1;
-    long flags;
     int rc, asm_rc;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|znpOO", kwlist, &arg, &function, &threads, &color, &verbose, &explain)) return NULL;
-    flags = color ? 0 : PAN_NO_COLOR;
-    if (argv_flag(verbose, "--verbose", &flags, PAN_VERBOSE) || argv_flag(explain, "--explain", &flags, PAN_EXPLAIN)
-        || argv_flag(NULL, "--repr", &flags, PAN_REPR) || argv_flag(NULL, "--returns", &flags, PAN_RETURNS)) return NULL;
-    if (get_code(arg, &code, &len, &ref)) return NULL;
-    if (threads <= 0) {
-        threads = (Py_ssize_t)sysconf(_SC_NPROCESSORS_ONLN);
-        if (threads <= 0) threads = 1;
-    }
     memset(&out, 0, sizeof out);
     Py_BEGIN_ALLOW_THREADS
     rc = pan_decompile_data(code, len, (size_t)threads, function, flags, &out);
     asm_rc = rc ? 0 : pan_disasm(code, len, &asm_out, &asmlen);
     Py_END_ALLOW_THREADS
-    release_code(&ref);
+    if (ref)
+        release_code(ref);
+    else
+        pan_free(code);
     if (out.explain) {
         /* printed along the way by python, even when it failed after */
         if (!rc) explained = PyUnicode_DecodeUTF8(out.explain, (Py_ssize_t)out.explainlen, "surrogateescape");
@@ -400,6 +402,50 @@ static PyObject *py_decompile_bytecode(PyObject *self, PyObject *args, PyObject 
     PyStructSequence_SET_ITEM(res, 2, json);
     PyStructSequence_SET_ITEM(res, 3, explained);
     return res;
+}
+
+static PyObject *py_decompile_bytecode(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = {"code", "only_func_name", "threads", "color", "verbose", "explain", NULL};
+    PyObject *arg, *verbose = NULL, *explain = NULL;
+    code_ref ref;
+    unsigned char *code;
+    size_t len;
+    Py_ssize_t threads = 0;
+    const char *function = NULL;
+    int color = 1;
+    long flags;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|znpOO", kwlist, &arg, &function, &threads, &color, &verbose, &explain)) return NULL;
+    if (decompilation_flags(color, verbose, explain, &threads, &flags)) return NULL;
+    if (get_code(arg, &code, &len, &ref)) return NULL;
+    return decompilation(code, len, &ref, function, threads, flags);
+}
+
+static PyObject *py_decompile_address(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = {"address", "only_func_name", "threads", "color", "verbose", "explain", NULL};
+    PyObject *verbose = NULL, *explain = NULL;
+    const char *address;
+    unsigned char *code;
+    char *err;
+    size_t len;
+    Py_ssize_t threads = 0;
+    const char *function = NULL;
+    int color = 1, rc;
+    long flags;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|znpOO", kwlist, &address, &function, &threads, &color, &verbose, &explain)) return NULL;
+    if (decompilation_flags(color, verbose, explain, &threads, &flags)) return NULL;
+    Py_BEGIN_ALLOW_THREADS
+    rc = pan_fetch_code(address, &code, &len, &err);
+    Py_END_ALLOW_THREADS
+    if (rc) {
+        PyErr_SetString(PyExc_ConnectionError, err ? err : "the code couldn't be fetched");
+        pan_free(err);
+        return NULL;
+    }
+    return decompilation(code, len, NULL, function, threads, flags);
 }
 
 static PyObject *py_build_signature_db(PyObject *self, PyObject *args)
@@ -465,6 +511,7 @@ static PyMethodDef methods[] = {
     {"set_log_level", py_set_log_level, METH_O, "set_log_level(level): the level of the messages printed on stderr, an int (logging.INFO...) or a name (\"debug\", \"info\", \"warning\", \"error\"); WARNING by default, as a library, unless PANORAMIX_LOG is set"},
     {"disasm", py_disasm, METH_VARARGS, "disasm(code) -> str: the disassembly, one instruction per line (code: as for decompile)"},
     {"decompile_bytecode", (PyCFunction)py_decompile_bytecode, METH_VARARGS | METH_KEYWORDS, "decompile_bytecode(code, only_func_name=None, threads=0, color=True, verbose=None, explain=None) -> Decompilation(text, asm, json): as panoramix.decompiler.decompile_bytecode - the text, the disassembly (a list of str) and python's decompilation.json (a dict of python's objects: the problems, the storage definitions, the functions); color only changes the text. verbose, explain: python's --verbose (the instructions run as comments of the text) and --explain (every stage's trace, printed on sys.stdout as python prints it, and in the result's .explain) - by default, as python, whether sys.argv holds them"},
+    {"decompile_address", (PyCFunction)py_decompile_address, METH_VARARGS | METH_KEYWORDS, "decompile_address(address, only_func_name=None, threads=0, color=True, verbose=None, explain=None) -> Decompilation: as panoramix.decompiler.decompile_address - the code deployed at the address (0x and 40 hex digits) fetched with eth_getCode from a node found as web3's automatic provider finds one ($WEB3_PROVIDER_URI: http:// or file:// for an IPC socket; the default IPC sockets; $WEB3_HTTP_PROVIDER_URI or http://localhost:8545 - no TLS), then decompiled as by decompile_bytecode; ConnectionError when it can't be had"},
     {"decompile", (PyCFunction)py_decompile, METH_VARARGS | METH_KEYWORDS, "decompile(code, threads=0, function=None, color=True, verbose=False, explain=False) -> str: the decompiled contract, as `python -m panoramix` prints it (code: bytes or a bytes-like object, or hex; threads: 0 for one per CPU; function: only the functions whose name starts with it; verbose, explain: as its --verbose and --explain, what --explain prints first)"},
     {NULL, NULL, 0, NULL}
 };

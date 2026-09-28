@@ -18,6 +18,8 @@ processes), integers are GMP's, the expressions are hash-consed.
     build/panasm decompile contract.hex [-j threads] [--function name] [--no-color] [--json] [-v level]
                                         [--verbose] [--explain] [--repr] [--returns]
     build/panasm decompile 0x6080...       # (the bytecode itself, as python -m panoramix takes it)
+    build/panasm decompile 0xdAC17F958D2ee523a2206206994597C13D831ec7   # an address: its code from a node
+    build/panasm decompile a.hex,b.hex,0x6080...   # each in turn
     build/panasm disasm contract.hex
 
 From python (the module in `build/`):
@@ -28,6 +30,7 @@ From python (the module in `build/`):
     d = panoramix_asm.decompile_bytecode(code)      # as panoramix.decompiler's:
     d.text, d.asm, d.json                           # the text, the disassembly, python's json
     d = panoramix_asm.decompile_bytecode(code, verbose=True)   # or explain=True: python's options
+    d = panoramix_asm.decompile_address("0xdAC17F958D2ee523a2206206994597C13D831ec7")
     panoramix_asm.build_signature_db("abi_dump.xz")                       # once
     panoramix_asm.set_log_level("info")     # warnings and errors only by default
 
@@ -58,9 +61,18 @@ reads them from `sys.argv`, so does `decompile_bytecode` when its
 and `--returns`, which python's library reads there too (its command
 line refuses them): each function's trace, and its returns, after it.
 
+An address (`0x` and 40 hex digits) is decompiled as python's
+`decompile_address` does it: its code comes from a node, through
+`eth_getCode`, found where web3's automatic provider looks -
+`$WEB3_PROVIDER_URI` (`http://...`, or `file://PATH` for the node's IPC
+socket), the default IPC sockets (`~/.ethereum/geth.ipc`, parity's,
+trinity's), then `$WEB3_HTTP_PROVIDER_URI` or `http://localhost:8545`.
+Plain HTTP and IPC only: no TLS nor websockets (a local node, or a
+proxy, for a provider in `https://`).
+
 From C: `build/libpanoramix_asm.so` and `include/panoramix_asm.h`
 (`pan_decompile`, `pan_decompile_data` for the json, `pan_disasm`,
-`pan_build_sigdb`...; `make check` runs an example).
+`pan_fetch_code`, `pan_build_sigdb`...; `make check` runs an example).
 
 The signature database goes to `$PANORAMIX_SIGDB`, or
 `$XDG_CACHE_HOME/panoramix/abi_db.bin`, or `~/.cache/panoramix/abi_db.bin`.

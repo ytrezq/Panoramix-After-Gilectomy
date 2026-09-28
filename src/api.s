@@ -394,6 +394,81 @@ ENDF decompile_api
         .text
 
 
+# int pan_fetch_code(const char *address, uint8_t **code, size_t *len,
+#                    char **err): the code deployed at the address, from a
+# node (fetch.s: python's decompile_address). 0 with the bytes in *code
+# (malloc'ed, *len of them), or -1 with the message in *err (malloc'ed;
+# err may be NULL).
+API pan_fetch_code
+        ENTER
+        sub rsp, 32
+        mov [rsp], rdi
+        mov [rsp + 8], rsi
+        mov [rsp + 16], rdx
+        mov [rsp + 24], rcx
+        call pan_init
+        mov rax, [rsp + 8]
+        mov qword ptr [rax], 0
+        mov rax, [rsp + 16]
+        mov qword ptr [rax], 0
+        mov rax, [rsp + 24]
+        test rax, rax
+        jz 1f
+        mov qword ptr [rax], 0
+1:      call sb_new
+        mov rbx, rax
+        mov rdi, [rsp]
+        mov rsi, rbx
+        call fetch_code
+        test eax, eax
+        jnz .Lpf_err
+        mov rdi, [rbx + SB_LEN]
+        inc rdi
+        call xmalloc
+        mov r12, rax
+        mov rdi, [rbx + SB_BUF]
+        mov rsi, [rbx + SB_LEN]
+        mov rdx, r12
+        call hex_decode
+        cmp rax, -1
+        je .Lpf_badhex
+        mov rcx, [rsp + 8]
+        mov [rcx], r12
+        mov rcx, [rsp + 16]
+        mov [rcx], rax
+        mov rdi, rbx
+        call sb_free
+        xor eax, eax
+        add rsp, 32
+        LEAVE
+.Lpf_badhex:
+        mov rdi, r12
+        call free@PLT
+        mov rdi, rbx
+        call sb_reset
+        mov rdi, rbx
+        lea rsi, [rip + .Ls_not_hex]
+        call sb_append_c
+.Lpf_err:
+        mov rax, [rsp + 24]
+        test rax, rax
+        jz 2f
+        mov rcx, [rbx + SB_BUF]         # the message: the builder's buffer
+        mov [rax], rcx
+        mov rdi, rbx
+        call free@PLT
+        jmp 3f
+2:      mov rdi, rbx
+        call sb_free
+3:      mov eax, -1
+        add rsp, 32
+        LEAVE
+ENDF pan_fetch_code
+
+        .section .rodata
+.Ls_not_hex:    .asciz "the node's answer isn't the code in hex"
+        .text
+
 # int pan_build_sigdb(const char *xz_path, const char *out_path)
 API pan_build_sigdb
         push r15
