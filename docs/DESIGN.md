@@ -160,8 +160,13 @@ is the CLI, `build/panoramix_asm*.so` the module.
     small tuples (pointer chasing) and the hash-consing of them, and the
     only long loops are the hashes of the traces (lists of hundreds of
     lines), done 8 elements a step with AVX-512 (`vpmullq`,
-    `vpgatherqq`, `vprolq`) or 4 with AVX2. The wins came from the
-    algorithms instead, see below.
+    `vpgatherqq`, `vprolq`) or 4 with AVX2, and the scan of the text of
+    every string made for the mention flags (`str_scan_flags`: the
+    printed lines, hundreds of bytes), 32 bytes a step with AVX2 - the
+    positions where the first two bytes of one of the names are, found
+    with `vpcmpeqb` and checked one by one (a third of the scalar
+    loop's instructions). The wins came from the algorithms instead,
+    see below.
 13. [x] memory: the hash-cons table gives one node per distinct value on
     a thread, and `ctx_compact` drops the garbage of the rewrites between
     the rounds of `simplify_trace` once the arena passes 256 MiB (the

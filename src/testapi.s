@@ -10,6 +10,7 @@
 test_table:
         .quad .Ln_roundtrip, tf_roundtrip
         .quad .Ln_hash, tf_hash
+        .quad .Ln_str_flags, tf_str_flags
         .quad .Ln_opcode, tf_opcode
         .quad .Ln_eval, arith_eval
         .quad .Ln_is_zero, is_zero
@@ -120,6 +121,7 @@ test_table:
         .section .rodata
 .Ln_roundtrip: .asciz "roundtrip"
 .Ln_hash:      .asciz "hash"
+.Ln_str_flags: .asciz "str_flags"
 .Ln_opcode:    .asciz "opcode"
 .Ln_eval:      .asciz "eval"
 .Ln_is_zero:   .asciz "is_zero"
@@ -243,6 +245,27 @@ FUNC tf_hash
         call mk_int_u64
         LEAVE
 ENDF tf_hash
+
+# str_flags(s) -> (volatile, hf): what str_scan_flags finds in the text
+FUNC tf_str_flags
+        ENTER
+        lea r12, [rdi + N_DATA + 4]
+        mov rdi, r12
+        call strlen@PLT
+        mov rdi, r12
+        mov rsi, rax
+        call str_scan_flags
+        mov ebx, eax
+        mov rdi, rdx
+        shr rdi, HF_SHIFT
+        TAG rdi
+        mov rsi, rdi
+        mov edi, ebx
+        shr edi, 31                     # STR_VOLATILE: 1
+        TAG rdi
+        call mk2
+        LEAVE
+ENDF tf_str_flags
 
 # opcode(v) -> the opcode id of a tuple
 FUNC tf_opcode

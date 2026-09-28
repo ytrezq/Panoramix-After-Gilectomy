@@ -138,49 +138,91 @@ ENDF str_intern
 # is compared with the names.
 FUNC str_scan_flags
         ENTER
-        sub rsp, 32
+        sub rsp, 48
         .set SF_HF, 0                   # the HF flags
         .set SF_VOLATILE, 8             # STR_VOLATILE or 0
         .set SF_CANDIDATES, 16          # the names still to try at this position
         .set SF_NAME, 24                # the entry of scan_names being tried
+        .set SF_MASK, 32                # the vector loop: the candidates of a chunk
+        .set SF_CHUNK, 40               # and its position
         mov r12, rdi                    # text
         mov r13, rsi                    # its length
         mov qword ptr [rsp + SF_HF], 0
         mov qword ptr [rsp + SF_VOLATILE], 0
         lea rbx, [rip + scan_first]
         xor r14d, r14d                  # position
+        cmp qword ptr [rip + isa_level], 2
+        jb 1f
+        # AVX2: 32 positions at a time, the candidates those where the
+        # name's first two bytes are (every name has 3 or more), both
+        # loads inside the string
+.Lsf_chunk:
+        lea rax, [r14 + 33]
+        cmp rax, r13
+        ja 1f                           # the rest, byte by byte
+        vmovdqu ymm0, [r12 + r14]       # the bytes at p
+        vmovdqu ymm1, [r12 + r14 + 1]   # and after them
+        vpcmpeqb ymm2, ymm0, [rip + .Lsv_s]
+        vpcmpeqb ymm3, ymm1, [rip + .Lsv_t]
+        vpand ymm4, ymm2, ymm3          # st
+        vpcmpeqb ymm2, ymm0, [rip + .Lsv_b]
+        vpcmpeqb ymm5, ymm1, [rip + .Lsv_a]
+        vpand ymm2, ymm2, ymm5          # ba
+        vpor ymm4, ymm4, ymm2
+        vpcmpeqb ymm2, ymm0, [rip + .Lsv_g]
+        vpand ymm2, ymm2, ymm5          # ga
+        vpor ymm4, ymm4, ymm2
+        vpcmpeqb ymm2, ymm0, [rip + .Lsv_e]
+        vpcmpeqb ymm3, ymm1, [rip + .Lsv_x]
+        vpand ymm2, ymm2, ymm3          # ex
+        vpor ymm4, ymm4, ymm2
+        vpcmpeqb ymm5, ymm1, [rip + .Lsv_e]
+        vpcmpeqb ymm2, ymm0, [rip + .Lsv_r]
+        vpand ymm2, ymm2, ymm5          # re
+        vpor ymm4, ymm4, ymm2
+        vpcmpeqb ymm2, ymm0, [rip + .Lsv_n]
+        vpand ymm2, ymm2, ymm5          # ne
+        vpor ymm4, ymm4, ymm2
+        vpcmpeqb ymm3, ymm0, [rip + .Lsv_m]
+        vpand ymm2, ymm3, ymm5          # me
+        vpor ymm4, ymm4, ymm2
+        vpcmpeqb ymm2, ymm1, [rip + .Lsv_s]
+        vpand ymm2, ymm2, ymm3          # ms
+        vpor ymm4, ymm4, ymm2
+        vpcmpeqb ymm2, ymm0, [rip + .Lsv_dot]
+        vpcmpeqb ymm3, ymm1, [rip + .Lsv_r]
+        vpand ymm2, ymm2, ymm3          # .r
+        vpor ymm4, ymm4, ymm2
+        vpmovmskb eax, ymm4
+        vzeroupper                      # (memcmp is SSE code)
+        test eax, eax
+        jz .Lsf_next_chunk
+        mov [rsp + SF_MASK], rax
+        mov [rsp + SF_CHUNK], r14
+.Lsf_bit:
+        mov rax, [rsp + SF_MASK]
+        test eax, eax
+        jz .Lsf_chunk_done
+        tzcnt ecx, eax
+        btr eax, ecx
+        mov [rsp + SF_MASK], rax
+        mov r14, [rsp + SF_CHUNK]
+        add r14, rcx
+        call .Lsf_check
+        jmp .Lsf_bit
+.Lsf_chunk_done:
+        mov r14, [rsp + SF_CHUNK]
+.Lsf_next_chunk:
+        add r14, 32
+        jmp .Lsf_chunk
+        # byte by byte
 1:      cmp r14, r13
         jae 9f
         movzx eax, byte ptr [r12 + r14]
-        movzx eax, word ptr [rbx + rax*2]  # the names starting with this byte
-        test eax, eax
-        jz 8f
-        mov [rsp + SF_CANDIDATES], rax
-2:      mov eax, [rsp + SF_CANDIDATES]
-        test eax, eax
-        jz 8f
-        tzcnt ecx, eax                  # the name's index
-        btr eax, ecx
-        mov [rsp + SF_CANDIDATES], rax
-        lea rax, [rcx + rcx*2]          # 24 bytes per entry
-        lea rdx, [rip + scan_names]
-        lea rax, [rdx + rax*8]
-        mov [rsp + SF_NAME], rax
-        mov rdx, [rax + 8]              # the name's length
-        lea rcx, [r14 + rdx]
-        cmp rcx, r13
-        ja 2b                           # too close to the end
-        lea rdi, [r12 + r14]
-        mov rsi, [rax]
-        call memcmp@PLT
-        test eax, eax
-        jnz 2b
-        mov rax, [rsp + SF_NAME]
-        mov rax, [rax + 16]             # the name's HF flags
-        or [rsp + SF_HF], rax
-        mov dword ptr [rsp + SF_VOLATILE], STR_VOLATILE
-        jmp 2b
-8:      inc r14
+        cmp word ptr [rbx + rax*2], 0
+        je 11f                          # (no name starts with it)
+        call .Lsf_check
+11:     inc r14
         jmp 1b
 9:      cmp r13, 3                      # "var" exactly: HF_VAR
         jne 10f
@@ -193,9 +235,59 @@ FUNC str_scan_flags
         or [rsp + SF_HF], rax
 10:     mov eax, [rsp + SF_VOLATILE]
         mov rdx, [rsp + SF_HF]
-        add rsp, 32
+        add rsp, 48
         LEAVE
+# the names starting at position r14 (the frame is 16 bytes up: the
+# return address, the alignment)
+.Lsf_check:
+        movzx eax, byte ptr [r12 + r14]
+        movzx eax, word ptr [rbx + rax*2]  # the names starting with this byte
+        test eax, eax
+        jz 8f
+        sub rsp, 8
+        mov [rsp + 16 + SF_CANDIDATES], rax
+2:      mov eax, [rsp + 16 + SF_CANDIDATES]
+        test eax, eax
+        jz 7f
+        tzcnt ecx, eax                  # the name's index
+        btr eax, ecx
+        mov [rsp + 16 + SF_CANDIDATES], rax
+        lea rax, [rcx + rcx*2]          # 24 bytes per entry
+        lea rdx, [rip + scan_names]
+        lea rax, [rdx + rax*8]
+        mov [rsp + 16 + SF_NAME], rax
+        mov rdx, [rax + 8]              # the name's length
+        lea rcx, [r14 + rdx]
+        cmp rcx, r13
+        ja 2b                           # too close to the end
+        lea rdi, [r12 + r14]
+        mov rsi, [rax]
+        call memcmp@PLT
+        test eax, eax
+        jnz 2b
+        mov rax, [rsp + 16 + SF_NAME]
+        mov rax, [rax + 16]             # the name's HF flags
+        or [rsp + 16 + SF_HF], rax
+        mov dword ptr [rsp + 16 + SF_VOLATILE], STR_VOLATILE
+        jmp 2b
+7:      add rsp, 8
+8:      ret
 ENDF str_scan_flags
+
+        .section .rodata
+        .align 32
+.Lsv_s:   .fill 32, 1, 's'
+.Lsv_t:   .fill 32, 1, 't'
+.Lsv_b:   .fill 32, 1, 'b'
+.Lsv_a:   .fill 32, 1, 'a'
+.Lsv_g:   .fill 32, 1, 'g'
+.Lsv_e:   .fill 32, 1, 'e'
+.Lsv_x:   .fill 32, 1, 'x'
+.Lsv_r:   .fill 32, 1, 'r'
+.Lsv_n:   .fill 32, 1, 'n'
+.Lsv_m:   .fill 32, 1, 'm'
+.Lsv_dot: .fill 32, 1, '.'
+        .text
 
         .section .data.rel.ro
         .align 8
