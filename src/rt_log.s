@@ -192,8 +192,7 @@ FUNC log_msg
         mov rdi, rbx
         lea rsi, [rip + .Lc_bold]
         call sb_color
-        mov rdi, rbx
-        mov rsi, r12
+        mov rdi, r12
         call log_level_name
         mov rsi, rax
         mov rdi, rbx

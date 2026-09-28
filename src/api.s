@@ -116,4 +116,33 @@ FUNC pan_decompile
         ret
 ENDF pan_decompile
 
+
+# int pan_build_sigdb(const char *xz_path, const char *out_path)
+FUNC pan_build_sigdb
+        push r15
+        ENTER
+        sub rsp, 24
+        mov [rsp], rdi
+        mov [rsp + 8], rsi
+        call pan_init
+        call ctx_current
+        mov [rsp + 16], rax
+        call ctx_new
+        mov r15, rax
+        mov rdi, r15
+        call ctx_bind
+        mov rdi, [rsp]
+        mov rsi, [rsp + 8]
+        call sigdb_build
+        mov [rsp], rax
+        mov rdi, r15
+        call ctx_free
+        mov rdi, [rsp + 16]
+        call ctx_bind
+        mov rax, [rsp]
+        add rsp, 24
+        LEAVE_NORET
+        pop r15
+        ret
+ENDF pan_build_sigdb
         .section .note.GNU-stack,"",@progbits

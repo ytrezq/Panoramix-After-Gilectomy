@@ -464,7 +464,9 @@ FUNC pretty_line
 67:     mov rdi, r13
         mov esi, ')'
         call sb_append_char
-68:     call .Lpl_yield_gray
+68:     mov rdi, r13
+        mov rsi, [rsp + PL_OUT]
+        call .Lpl_yield_gray
         inc qword ptr [rsp + PL_SB]
         jmp 66b
 .Lpl_log_mismatch:

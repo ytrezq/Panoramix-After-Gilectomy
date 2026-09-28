@@ -278,8 +278,16 @@ FUNC sig_db_lookup
         test rax, rax
         jz 1f
         jmp rax
-1:      xor eax, eax
-        ret
+1:      ENTER
+        mov rbx, rdi
+        call sigdb_load                 # (once: the state is kept)
+        test eax, eax
+        jz 2f
+        mov rdi, rbx
+        call [rip + sig_db_hook]
+        LEAVE
+2:      xor eax, eax
+        LEAVE
 ENDF sig_db_lookup
 
         .section .bss

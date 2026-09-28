@@ -243,7 +243,8 @@
 .set MEMO_FIND_MEMS, 11
 .set MEMO_REPLACE_MEM_EXP, 12
 .set MEMO_RANGE_OVERLAPS, 13
-.set MEMO_COUNT, 14
+.set MEMO_SIGDB, 14         # selector -> abi entry (sigdb.s)
+.set MEMO_COUNT, 15
 # sentinel values stored in memo tables for python's None / False (values
 # and pointers are never 2 or 4)
 .set MEMO_NONE, 2
