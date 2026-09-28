@@ -31,6 +31,7 @@
 .set K_LIST, 4
 .set K_SPECIAL, 5
 .set K_VMNODE, 6            # a node of the symbolic execution (vmnode.s)
+.set K_WILD, 7              # a compiled wildcard of a pattern (matcher.s): aux = slot | type << 8 | repeat << 16
 
 # The top byte of a node's N_HASH holds "mention" flags: which of these
 # strings the value contains, anywhere in its tree - what python tests with

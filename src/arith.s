@@ -231,30 +231,26 @@ FUNC py_equal
 1:      LEAVE
 ENDF py_equal
 
-# py_bool_int_equal(a, b) -> eax: a is False and b == 0, or a is True and b == 1
+# py_bool_int_equal(a, b) -> eax: a is False and b == 0, or a is True and
+# b == 1 (a leaf: only rax is changed)
 FUNC py_bool_int_equal
-        ENTER
-        mov rbx, rdi
-        mov r12, rsi
-        mov esi, SP_FALSE
-        call is_special
-        test eax, eax
+        xor eax, eax
+        test dil, 1
+        jnz 1f
+        test rdi, rdi
         jz 1f
-        xor eax, eax
-        cmp r12, 1
+        cmp dword ptr [rdi + N_KIND], K_SPECIAL
+        jne 1f
+        cmp dword ptr [rdi + N_AUX], SP_FALSE
+        jne 2f
+        cmp rsi, 1                      # 0
         sete al
-        LEAVE
-1:      mov rdi, rbx
-        mov esi, SP_TRUE
-        call is_special
-        test eax, eax
-        jz 2f
-        xor eax, eax
-        cmp r12, 3
+        ret
+2:      cmp dword ptr [rdi + N_AUX], SP_TRUE
+        jne 1f
+        cmp rsi, 3                      # 1
         sete al
-        LEAVE
-2:      xor eax, eax
-        LEAVE
+1:      ret
 ENDF py_bool_int_equal
 
 # ---------------------------------------------------------------------

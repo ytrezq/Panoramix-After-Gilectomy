@@ -43,6 +43,7 @@ test_table:
         .quad .Ln_find_functions, tf_find_functions
         .quad .Ln_whiles_make, tf_whiles_make
         .quad .Ln_match, tf_match
+        .quad .Ln_match_compiled, tf_match_compiled
         .quad .Ln_to_bytes, tf_to_bytes
         .quad .Ln_divisible_bytes, tf_divisible_bytes
         .quad .Ln_find_mask, tf_find_mask
@@ -154,6 +155,7 @@ test_table:
 .Ln_find_functions: .asciz "find_functions"
 .Ln_whiles_make: .asciz "whiles_make"
 .Ln_match:     .asciz "match"
+.Ln_match_compiled: .asciz "match_compiled"
 .Ln_to_bytes:  .asciz "to_bytes"
 .Ln_divisible_bytes: .asciz "divisible_bytes"
 .Ln_find_mask: .asciz "find_mask"
@@ -648,6 +650,32 @@ FUNC tf_match
         add rsp, MATCH_BINDINGS_SIZE
         LEAVE
 ENDF tf_match
+
+# match_compiled((exp, pattern)): the same as match, with the pattern
+# compiled first (pattern_compile, as the PAT patterns are)
+FUNC tf_match_compiled
+        ENTER
+        sub rsp, MATCH_BINDINGS_SIZE
+        mov rbx, rdi
+        mov rdi, [rbx + N_DATA + 8]
+        call pattern_compile
+        mov rdi, [rbx + N_DATA]
+        mov rsi, rax
+        mov rdx, rsp
+        call pat_match
+        test eax, eax
+        jz 1f
+        mov rdi, [rbx + N_DATA + 8]
+        call count_wildcards
+        mov rdi, rax
+        mov rsi, rsp
+        call mk_list
+        add rsp, MATCH_BINDINGS_SIZE
+        LEAVE
+1:      lea rax, [rip + sp_none]
+        add rsp, MATCH_BINDINGS_SIZE
+        LEAVE
+ENDF tf_match_compiled
 
 # count_wildcards(pattern) -> rax: the distinct named wildcards
 FUNC count_wildcards

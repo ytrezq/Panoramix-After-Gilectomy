@@ -62,6 +62,8 @@ FUNC patterns_init
         call parse_literal
         test rax, rax
         jz 2f
+        mov rdi, rax
+        call pattern_compile
         mov [rbx], rax
         add rbx, 16
         jmp 1b
@@ -74,6 +76,159 @@ ENDF patterns_init
         # (the section exists even when no pattern is used yet)
         .section pattern_table,"aw",@progbits
         .align 8
+        .text
+
+# pattern_compile(pat) -> rax: the pattern with its wildcards made
+# K_WILD nodes (aux: the binding's slot | the type << 8 | a repeat of a
+# name bound before << 16), numbered in the order match_helper meets
+# them - depth first, a sequence's elements up to a '...' - which is the
+# order of the bindings. The strings of the wildcards were read for every
+# match: the prefix of the type (strncmp), the name (strchr), the names
+# bound before (strcmp).
+FUNC pattern_compile
+        ENTER
+        sub rsp, MATCH_NAMES_SIZE + 8
+        mov qword ptr [rsp], 0          # [count, names...]
+        mov rsi, rsp
+        call pc_walk
+        add rsp, MATCH_NAMES_SIZE + 8
+        LEAVE
+ENDF pattern_compile
+
+# pc_walk(v, state) -> rax
+FUNC pc_walk
+        STACK_CHECK
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        test bl, 1
+        jnz .Lpc_asis
+        test rbx, rbx
+        jz .Lpc_asis
+        mov eax, [rbx + N_KIND]
+        cmp eax, K_STR
+        je .Lpc_str
+        cmp eax, K_TUPLE
+        je .Lpc_seq
+        cmp eax, K_LIST
+        je .Lpc_seq
+.Lpc_asis:
+        mov rax, rbx
+        add rsp, 16
+        LEAVE
+.Lpc_str:
+        cmp byte ptr [rbx + N_DATA + 4], ':'
+        jne .Lpc_asis
+        lea r13, [rbx + N_DATA + 5]     # after the ':'
+        xor r14d, r14d                  # the type
+        mov rdi, r13
+        lea rsi, [rip + .Ls_int]
+        mov edx, 4
+        call strncmp@PLT
+        mov ecx, 1
+        test eax, eax
+        jz 1f
+        mov rdi, r13
+        lea rsi, [rip + .Ls_str]
+        mov edx, 4
+        call strncmp@PLT
+        mov ecx, 2
+        test eax, eax
+        jz 1f
+        mov rdi, r13
+        lea rsi, [rip + .Ls_tuple]
+        mov edx, 6
+        call strncmp@PLT
+        mov ecx, 3
+        test eax, eax
+        jz 1f
+        mov rdi, r13
+        lea rsi, [rip + .Ls_list]
+        mov edx, 5
+        call strncmp@PLT
+        mov ecx, 4
+        test eax, eax
+        jz 1f
+        xor ecx, ecx
+1:      mov r14d, ecx
+        shl r14d, 8
+        mov rdi, r13
+        call wildcard_name
+        mov [rsp], rax                  # the name
+        # bound before? then a repeat of its slot
+        mov qword ptr [rsp + 8], 0
+2:      mov rcx, [rsp + 8]
+        cmp rcx, [r12]
+        jae 3f
+        mov rdi, [r12 + 8 + rcx*8]
+        mov rsi, [rsp]
+        call strcmp@PLT
+        test eax, eax
+        jz 4f
+        inc qword ptr [rsp + 8]
+        jmp 2b
+4:      mov eax, [rsp + 8]
+        or r14d, eax
+        or r14d, 1 << 16
+        jmp 5f
+3:      cmp rcx, MATCH_MAX
+        jae .Lpc_too_many
+        mov rax, [rsp]
+        mov [r12 + 8 + rcx*8], rax
+        inc qword ptr [r12]
+        or r14d, ecx
+5:      mov edi, N_DATA
+        call arena_alloc
+        mov r13, rax
+        mov dword ptr [r13 + N_KIND], K_WILD
+        mov [r13 + N_AUX], r14d
+        lea rdi, [r14 + 0x5bd1e995]
+        call hash_mix
+        mov rcx, HF_MASK
+        not rcx
+        and rax, rcx
+        mov [r13 + N_HASH], rax
+        mov rax, r13
+        add rsp, 16
+        LEAVE
+.Lpc_seq:
+        call vec_new
+        mov r13, rax
+        xor r14d, r14d
+6:      cmp r14d, [rbx + N_AUX]
+        jae 8f
+        mov rsi, [rbx + N_DATA + r14*8]
+        cmp rsi, [rip + s_ellipsis]
+        je 7f
+        mov rdi, rsi
+        mov rsi, r12
+        call pc_walk
+        mov rdi, r13
+        mov rsi, rax
+        call vec_push
+        inc r14d
+        jmp 6b
+7:      # '...': the rest is never matched, kept as it is
+        mov rsi, [rbx + N_DATA + r14*8]
+        mov rdi, r13
+        call vec_push
+        inc r14d
+        cmp r14d, [rbx + N_AUX]
+        jb 7b
+8:      mov edi, [rbx + N_KIND]
+        mov esi, [rbx + N_AUX]
+        mov rdx, [r13 + VEC_DATA]
+        call mk_seq
+        add rsp, 16
+        LEAVE
+.Lpc_too_many:
+        lea rdi, [rip + .Ls_too_many]
+        call rt_fatal
+ENDF pc_walk
+
+        .section .rodata
+.Ls_too_many:   .asciz "a pattern with more names than MATCH_MAX"
         .text
 
 # pat_match(exp, pattern, bindings) -> eax
@@ -102,6 +257,8 @@ FUNC match_helper
         test rsi, rsi
         jz .Lmh_equal
         mov eax, [r13 + N_KIND]
+        cmp eax, K_WILD
+        je .Lmh_wild
         cmp eax, K_STR
         je .Lmh_str
         cmp eax, K_TUPLE
@@ -177,6 +334,38 @@ FUNC match_helper
         jz .Lmh_no
         inc qword ptr [rsp]
         jmp 4b
+.Lmh_wild:                              # a compiled wildcard
+        mov eax, [r13 + N_AUX]
+        shr eax, 8
+        and eax, 0xff
+        jz 2f
+        mov rdi, r12
+        cmp eax, 1
+        jne 11f
+        call is_int
+        jmp 14f
+11:     cmp eax, 2
+        jne 12f
+        call is_str
+        jmp 14f
+12:     cmp eax, 3
+        jne 13f
+        call is_tuple
+        jmp 14f
+13:     call is_list
+14:     test eax, eax
+        jz .Lmh_no
+2:      mov eax, [r13 + N_AUX]
+        movzx ecx, al                   # the slot
+        test eax, 1 << 16
+        jnz 3f
+        mov [rbx + rcx*8], r12
+        jmp .Lmh_yes
+3:      mov rdi, r12                    # a name bound before: the same value
+        mov rsi, [rbx + rcx*8]
+        call values_equal
+        add rsp, 16
+        LEAVE
 .Lmh_yes:
         mov eax, 1
         add rsp, 16

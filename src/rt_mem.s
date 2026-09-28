@@ -638,7 +638,8 @@ ENDF ctx_compact
 # memo_import(slot, kind, old_map): the entries of a memo table of the old
 # arena put into the context's new table, keys and values imported
 # (kind 1), or the keys imported and the values kept as they are (kind 2:
-# codes, MEMO_TRUE and the like); kind 0: dropped
+# codes, MEMO_TRUE and the like; kind 3: the same for a table of pairs,
+# see memo2_get); kind 0: dropped
 FUNC memo_import
         ENTER
         sub rsp, 16
@@ -646,6 +647,8 @@ FUNC memo_import
         jz 3f
         test rdx, rdx
         jz 3f
+        cmp esi, 3
+        je memo_import_pairs
         mov rbx, rdi                    # slot
         mov r12d, esi                   # kind
         mov r13, rdx                    # the old map
@@ -679,13 +682,48 @@ FUNC memo_import
         LEAVE
 ENDF memo_import
 
+# memo_import_pairs: memo_import's kind 3 (jumped to, its frame as it is)
+FUNC memo_import_pairs
+        mov rbx, rdi                    # slot
+        mov r13, rdx                    # the old map
+        xor r14d, r14d                  # the entry
+1:      cmp r14, [r13 + MAP_CAP]
+        jae 3f
+        mov rax, [r13 + MAP_ENTRIES]
+        mov rcx, r14
+        shl rcx, 5                      # 32 bytes per entry
+        mov rdi, [rax + rcx]            # k1
+        test rdi, rdi
+        jz 2f
+        call value_import
+        mov [rsp], rax
+        mov rax, [r13 + MAP_ENTRIES]
+        mov rcx, r14
+        shl rcx, 5
+        mov rdi, [rax + rcx + 8]        # k2
+        call value_import
+        mov [rsp + 8], rax
+        mov rax, [r13 + MAP_ENTRIES]
+        mov rcx, r14
+        shl rcx, 5
+        mov rcx, [rax + rcx + 16]       # the value, a code
+        mov rdi, rbx
+        mov rsi, [rsp]
+        mov rdx, [rsp + 8]
+        call memo2_put
+2:      inc r14
+        jmp 1b
+3:      add rsp, 16
+        LEAVE
+ENDF memo_import_pairs
+
         .section .rodata
         # what ctx_compact does with each memo table (MEMO_* order)
 memo_kinds:
         .byte 0                         # SIMPLIFY: values
         .byte 2                         # GE_ZERO: codes
-        .byte 2                         # LT
-        .byte 2                         # LE
+        .byte 3                         # LT (pairs)
+        .byte 3                         # LE (pairs)
         .byte 0                         # MASK
         .byte 0                         # ADD
         .byte 0                         # TO_MASK (values, or MEMO_NONE)
@@ -695,11 +733,11 @@ memo_kinds:
         .byte 0                         # SIMPLIFY_EXP
         .byte 0                         # FIND_MEMS
         .byte 0                         # REPLACE_MEM_EXP
-        .byte 2                         # RANGE_OVERLAPS
+        .byte 3                         # RANGE_OVERLAPS (pairs)
         .byte 0                         # SIGDB
         .byte 0                         # IMPORT: the import's own
         .byte 0                         # LINE_VARS
-        .byte 0                         # TRY_ADD
+        .byte 0                         # TRY_ADD (pairs)
         .text
 
 # memo_sizes_log(): DEBUG: the number of entries of every memo table

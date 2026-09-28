@@ -1573,11 +1573,10 @@ FUNC range_overlaps
         ENTER
         mov rbx, rdi
         mov r12, rsi
-        call mk2
-        mov r13, rax                    # the key: (range1, range2)
         mov edi, MEMO_RANGE_OVERLAPS
-        mov rsi, rax
-        call memo_get
+        mov rsi, rbx
+        mov rdx, r12
+        call memo2_get
         test rax, rax
         jz 1f
         mov rdi, rax
@@ -1590,9 +1589,10 @@ FUNC range_overlaps
         mov edi, eax
         call tri_to_memo
         mov edi, MEMO_RANGE_OVERLAPS
-        mov rsi, r13
-        mov rdx, rax
-        call memo_put
+        mov rsi, rbx
+        mov rdx, r12
+        mov rcx, rax
+        call memo2_put
         mov eax, r14d
         LEAVE
 ENDF range_overlaps

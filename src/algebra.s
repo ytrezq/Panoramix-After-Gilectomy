@@ -1327,13 +1327,10 @@ FUNC alg_try_add
         LEAVE
 2:      # the other rules, memoized by pair (a pure function of the two
         # terms; python recomputes it, as its add_op's cache misses)
-        mov rdi, rbx
-        mov rsi, r12
-        call mk2
-        mov r13, rax                    # the key
         mov edi, MEMO_TRY_ADD
-        mov rsi, rax
-        call memo_get
+        mov rsi, rbx
+        mov rdx, r12
+        call memo2_get
         test rax, rax
         jz 4f
         lea rcx, [rip + sp_none]
@@ -1350,13 +1347,14 @@ FUNC alg_try_add
         mov rsi, r12
         call try_add_2
 5:      mov r14, rax
-        mov rdx, rax
-        test rdx, rdx
+        mov rcx, rax
+        test rcx, rcx
         jnz 6f
-        lea rdx, [rip + sp_none]
+        lea rcx, [rip + sp_none]
 6:      mov edi, MEMO_TRY_ADD
-        mov rsi, r13
-        call memo_put
+        mov rsi, rbx
+        mov rdx, r12
+        call memo2_put
         mov rax, r14
 1:      LEAVE
 3:      xor eax, eax
@@ -4371,13 +4369,10 @@ FUNC alg_lt_op
         sete al
         movzx eax, al
         LEAVE
-1:      mov rdi, rbx
-        mov rsi, r12
-        call mk2
-        mov r13, rax
-        mov edi, MEMO_LT
-        mov rsi, rax
-        call memo_get
+1:      mov edi, MEMO_LT
+        mov rsi, rbx
+        mov rdx, r12
+        call memo2_get
         test rax, rax
         jz 2f
         mov rdi, rax
@@ -4390,9 +4385,10 @@ FUNC alg_lt_op
         mov edi, eax
         call tri_to_memo
         mov edi, MEMO_LT
-        mov rsi, r13
-        mov rdx, rax
-        call memo_put
+        mov rsi, rbx
+        mov rdx, r12
+        mov rcx, rax
+        call memo2_put
         mov eax, r14d
         LEAVE
 ENDF alg_lt_op
@@ -4625,11 +4621,10 @@ FUNC alg_le_op
         ENTER
         mov rbx, rdi
         mov r12, rsi
-        call mk2
-        mov r13, rax
         mov edi, MEMO_LE
-        mov rsi, rax
-        call memo_get
+        mov rsi, rbx
+        mov rdx, r12
+        call memo2_get
         test rax, rax
         jz 1f
         mov rdi, rax
@@ -4642,9 +4637,10 @@ FUNC alg_le_op
         mov edi, eax
         call tri_to_memo
         mov edi, MEMO_LE
-        mov rsi, r13
-        mov rdx, rax
-        call memo_put
+        mov rsi, rbx
+        mov rdx, r12
+        mov rcx, rax
+        call memo2_put
         mov eax, r14d
         LEAVE
 ENDF alg_le_op
