@@ -13,7 +13,19 @@ before it runs.
 import os, random, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_simplify as T
-from test_simplify import S, run, check, passes
+from test_simplify import S, run, passes
+
+# python's recursion limit (1000 frames) isn't the port's (the stack): an
+# expression that grows deeper round after round stops python only
+_check = T.check
+RECURSION_LIMITED = 0
+def check(name, arg, expected, ctx=""):
+    global RECURSION_LIMITED
+    if expected.startswith("<exc RecursionError"):
+        RECURSION_LIMITED += 1
+        return True
+    return _check(name, arg, expected, ctx)
+T.check = check
 
 random.seed(int(sys.argv[1]) if len(sys.argv) > 1 else 1)
 N = int(sys.argv[2]) if len(sys.argv) > 2 else 200
@@ -138,5 +150,6 @@ if __name__ == "__main__":
         passes(trace, "random %d" % n)
         exp = run(S.simplify_trace, trace)
         check("simplify_trace", trace, exp, "random %d" % n)
+    if RECURSION_LIMITED: print(f"{RECURSION_LIMITED} cases past python's recursion limit")
     print(f"{T.cases} cases, {T.bad} mismatches")
     sys.exit(1 if T.bad else 0)

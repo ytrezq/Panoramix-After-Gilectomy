@@ -2611,7 +2611,7 @@ FUNC pretty_memory
         mov rdi, rax
         call int_to_i64
         test rax, rax
-        js .Lpm_plain                   # (python would go backwards)
+        js .Lpm_backwards
         mov [rsp + PM_BYTES], rax
         mov rcx, [rsp + PM_IDX]
         add rcx, rax
@@ -2686,6 +2686,24 @@ FUNC pretty_memory
         call vec_push
         inc qword ptr [rsp + PM_IDX]
         jmp .Lpm_loop
+.Lpm_backwards:
+        # a negative length: python's string is "" (its loop over no
+        # byte), and its index moves by 1 + byte_length - back, for less
+        # than -1: an IndexError at the start of the terms, or a loop
+        # without end
+        cmp rax, -1
+        jne .Lpm_index
+        lea rdi, [rip + .Ls_empty_quotes]
+        call str_new_c
+        mov rdi, [rsp + PM_OUT]
+        mov rsi, rax
+        call vec_push
+        inc qword ptr [rsp + PM_IDX]
+        jmp .Lpm_loop
+.Lpm_index:
+        mov edi, E_INDEX
+        lea rsi, [rip + .Ls_pm_index]
+        call err_throw
 .Lpm_done:
         mov rdi, [rsp + PM_OUT]
         call vec_to_list
@@ -2693,6 +2711,11 @@ FUNC pretty_memory
         add rsp, 48
         LEAVE
 ENDF pretty_memory
+
+        .section .rodata
+.Ls_empty_quotes: .asciz "''"
+.Ls_pm_index:   .asciz "IndexError: tuple index out of range (pretty_memory: a string of negative length)"
+        .text
 
 # pretty_fname(v, flags, force) -> value: a function name for a selector
 # (its hex when unknown), the text of a memory reference (or of anything

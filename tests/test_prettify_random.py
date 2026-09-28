@@ -80,6 +80,18 @@ def rline():
     if r < 0.93: return ("selfdestruct", e)
     return ("invalid",)
 
+# cases the random runs found once: always checked
+REGRESSIONS = [
+    # the length of a string in memory data, negative: python's index
+    # goes back by it ('' for -1, an IndexError further)
+    ("setmem", ("range", 0, 96), ("data", 32, -40, 5)),
+    ("setmem", ("range", 0, 96), ("data", 32, -200, 1, 2)),
+    ("return", ("data", 1, 2, 32, -40)),
+]
+for line in REGRESSIONS:
+    for flags in (0, PF_COLOR):
+        check("pretty_line", (line, flags), run(lambda l, f: list(P.pretty_line(l, add_color=bool(f & PF_COLOR))), line, flags), "regression")
+
 bad = 0
 for n in range(N):
     exp = rexp()
