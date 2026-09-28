@@ -400,11 +400,18 @@ FUNC split_or
         call alg_add2
         cmp rax, 1
         jne 12f
-        # a memory slice, when the mask fits it (else the mask stays)
+        # a memory slice, when the mask fits it (else the mask stays: an
+        # AssertionError only, python lets the others through)
         lea rdi, [rsp + SO_ERR]
         call err_catch
         test eax, eax
-        jnz 12f
+        jz 11f
+        cmp eax, E_ASSERT
+        je 12f
+        mov edi, eax
+        mov rsi, [r15 + CTX_ERR_MSG]
+        call err_throw
+11:
         mov rdi, [rsp]
         mov rsi, [rsp + SO_SIZE]
         mov rdx, [rsp + SO_OFFSET]
@@ -512,7 +519,7 @@ FUNC split_or
         mov rdi, [rsp + SO_ROWS]
         call sort_rows
         call err_end
-        # insert zeroes into the empty spaces
+        # insert zeroes into the empty spaces (python's ints: big ones too)
         call vec_new
         mov rbx, rax                    # result
         mov r12d, 1                     # pos
@@ -522,18 +529,23 @@ FUNC split_or
         jae 18f
         mov rax, [r13 + VEC_DATA]
         mov r13, [rax + r14*8]          # r
-        mov rax, [r13 + N_DATA + 8]
-        test al, 1
+        mov rdi, [r13 + N_DATA + 8]
+        call is_int
+        test eax, eax
         jz .Lso_symbolic
-        mov rax, [r13 + N_DATA]
-        test al, 1
+        mov rdi, [r13 + N_DATA]
+        call is_int
+        test eax, eax
         jz .Lso_symbolic
-        mov rax, [r13 + N_DATA + 8]
-        cmp rax, r12
+        mov rdi, [r13 + N_DATA + 8]
+        mov rsi, r12
+        call int_cmp
+        cmp eax, 0
         jle 16f
         # (r[1] - pos, pos, 0)
-        sub rax, r12
-        inc rax
+        mov rdi, [r13 + N_DATA + 8]
+        mov rsi, r12
+        call int_sub
         mov rdi, rax
         mov rsi, r12
         mov edx, 1
@@ -544,16 +556,21 @@ FUNC split_or
 16:     mov rdi, rbx
         mov rsi, r13
         call vec_push
-        mov r12, [r13 + N_DATA + 8]
-        add r12, [r13 + N_DATA]
-        dec r12                         # pos = r[1] + r[0], tagged
+        mov rdi, [r13 + N_DATA + 8]
+        mov rsi, [r13 + N_DATA]
+        call int_add
+        mov r12, rax                    # pos = r[1] + r[0]
         inc r14
         jmp 15b
-18:     cmp r12, (256 << 1) | 1
+18:     mov rdi, r12
+        mov esi, (256 << 1) | 1
+        call int_cmp
+        cmp eax, 0
         jge 19f
         mov edi, (256 << 1) | 1
-        sub rdi, r12
-        inc rdi
+        mov rsi, r12
+        call int_sub
+        mov rdi, rax
         mov rsi, r12
         mov edx, 1
         call mk_row

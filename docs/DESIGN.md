@@ -225,7 +225,11 @@ python 3.11 (and pypy) refuse `str()` of an integer of more than 4300
 digits, which `replace_mem` does on the lines of a trace, so python
 fails on the functions that deploy a contract whose code is inlined
 (`create2 ... code: 0x...`); the port prints them, exactly as python
-does with `PYTHONINTMAXSTRDIGITS=0`.
+does with `PYTHONINTMAXSTRDIGITS=0`. The fuzzer found another one:
+`SHL` of two constants is `exp << off` in python's VM, which runs out
+of memory (or overflows) for a shift of 2^255 before the result is
+reduced to 256 bits; the port gives 0, and python reports the function
+as a failure.
 
 `tests/stage_compare.py contract.hex FUNCTION` finds the first stage of
 python's `simplify_trace` whose port differs, replaying each stage on

@@ -240,13 +240,14 @@ FUNC stack_cleanup
         cmp dword ptr [r14 + N_AUX], 2
         jne 5f
         mov rdi, [r14 + N_DATA + 8]
-        test dil, 1
+        call is_int
+        test eax, eax
         jz .Lsc_next
-        # ('bool', 1 - x)
-        mov esi, 3
-        sub rsi, rdi
-        inc rsi                         # tagged 1 - x
-        mov rdi, rsi
+        # ('bool', 1 - x) (python's int: a big one too)
+        mov edi, 3
+        mov rsi, [r14 + N_DATA + 8]
+        call int_sub
+        mov rdi, rax
         call mk_bool_of
         jmp .Lsc_store
 5:      cmp eax, OP_ISZERO

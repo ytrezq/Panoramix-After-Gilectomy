@@ -114,7 +114,13 @@ class Gen:
             op = self.r.choice(["ADD", "SUB", "MUL", "DIV", "MOD", "AND", "OR", "XOR",
                                 "LT", "GT", "EQ", "SHL", "SHR", "SLT", "BYTE"])
             self.expr(d + 1)
-            self.expr(d + 1)
+            if op in ("SHL", "SHR", "BYTE") and self.r.random() < 0.8:
+                # the shift on top: mostly a small one (python computes
+                # x << 2**255 and runs out of memory)
+                self.a.push(self.r.choice([0, 1, 8, 31, 96, 160, 224, 255, 256, 300]))
+                self.depth += 1
+            else:
+                self.expr(d + 1)
             self.a.op(op)
             self.depth -= 1
             return

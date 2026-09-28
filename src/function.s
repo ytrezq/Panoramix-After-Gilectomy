@@ -269,12 +269,19 @@ FUNC make_params
         TAG rdx
         call .Lmp_sizes_set
         jmp .Lmp_occ
-5:      # a new index gets its size (python never lowers it: `==`)
+5:      # a new index gets its size (python never lowers it: `==`, but
+        # it compares them: TypeError for an expression and an int)
         mov rdi, [rsp + MP_SIZES]
         mov rsi, [rsp + MP_IDX]
         call .Lmp_sizes_find
         test rax, rax
-        jnz .Lmp_occ
+        jz 51f
+        mov rdi, [rsp + MP_SIZE]
+        mov rsi, [rax + N_DATA + 8]
+        xor edx, edx
+        call py_lt                      # size < sizes[idx]
+        jmp .Lmp_occ
+51:
         mov rdi, [rsp + MP_SIZES]
         mov rsi, [rsp + MP_IDX]
         mov rdx, [rsp + MP_SIZE]
@@ -667,6 +674,11 @@ FUNC make_names
         mov rcx, [rsp + 24]
         mov rax, [rax + N_DATA + rcx*8] # (idx, kind, name)
         mov [rsp + 32], rax
+        mov rdi, [rax + N_DATA + 8]
+        call is_str
+        test eax, eax
+        jz .Lmn_not_str                 # (the size of an expression: python's kind + " ")
+        mov rax, [rsp + 32]
         mov rdi, [rsp + 16]
         mov rsi, [rax + N_DATA + 8]
         call sb_append_str
@@ -690,7 +702,17 @@ FUNC make_names
         call sb_finish
         add rsp, 40
         ret
+.Lmn_not_str:
+        mov rdi, [rsp + 16]
+        call sb_free
+        mov edi, E_TYPE
+        lea rsi, [rip + .Ls_concat]
+        call err_throw
 ENDF make_names
+
+        .section .rodata
+.Ls_concat: .asciz "can only concatenate tuple (not \"str\") to tuple"
+        .text
 
 # cleanup_masks(fn, trace) -> list: the masks on the parameters whose
 # type already says so are removed
