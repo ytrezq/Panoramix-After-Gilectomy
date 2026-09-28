@@ -505,9 +505,10 @@ FUNC ev_signextend
         mov rbx, rdi
         mov r12, rsi
         test bl, 1
-        jz .Lse_asis                    # huge `bits`: value unchanged
+        jz 5f
         mov rax, rbx
         sar rax, 1
+        js .Lse_negative
         cmp rax, 31
         ja .Lse_asis
         lea r13, [rax*8 + 7]            # testbit
@@ -538,22 +539,40 @@ FUNC ev_signextend
         call __gmpz_fdiv_r_2exp@PLT
 3:      call arith_result
         LEAVE
-.Lse_asis:
+5:      cmp dword ptr [rbx + N_DATA + MPZ_SIZE], 0
+        jl .Lse_negative
+.Lse_asis:                              # huge `bits`: value unchanged
         mov rax, r12
         LEAVE
+.Lse_negative:                          # python: 1 << (bits * 8 + 7)
+        mov edi, E_VALUE
+        lea rsi, [rip + .Ls_negative_shift]
+        call err_throw
 ENDF ev_signextend
 
-# shift amount check: shift_ok(v) -> rax = shift (0..255) or -1
+        .section .rodata
+.Ls_negative_shift: .asciz "ValueError: negative shift count"
+        .text
+
+# shift_amount(v) -> rax: the shift (0..255), -1 for 256 or more; python's
+# ValueError for a negative one
 FUNC shift_amount
         test dil, 1
         jz 1f
         mov rax, rdi
         sar rax, 1
+        js 2f
         cmp rax, 255
-        ja 1f
+        ja 3f
         ret
-1:      mov rax, -1
+1:      cmp dword ptr [rdi + N_DATA + MPZ_SIZE], 0
+        jl 2f
+3:      mov rax, -1
         ret
+2:      sub rsp, 8                      # python: value << negative
+        mov edi, E_VALUE
+        lea rsi, [rip + .Ls_negative_shift]
+        call err_throw
 ENDF shift_amount
 
 FUNC ev_shl
@@ -1706,6 +1725,8 @@ FUNC eval_bool_symbolic
         mov rdi, rbx
         call opcode_of
         mov r14d, eax
+        test eax, eax
+        jz .Lebs_none                   # not an expression (None...)
         cmp dword ptr [rbx + N_AUX], 3
         jne .Lebs_none
         lea rcx, [rip + .Lset_ebs_cmp]  # le, lt, gt, ge, eq

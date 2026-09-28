@@ -47,7 +47,7 @@ FUNC cleanup_conds
         call cleanup_conds
         mov [rsp], rax
         mov rdi, [r14 + N_DATA + 8]
-        lea rsi, [rip + sp_none]
+        lea rsi, [rip + sp_true]        # (python's known_true=True)
         xor edx, edx
         call eval_bool
         cmp eax, TRI_FALSE
@@ -78,7 +78,7 @@ FUNC cleanup_conds
         call cleanup_conds
         mov [rsp + 8], rax
         mov rdi, [r14 + N_DATA + 8]
-        lea rsi, [rip + sp_none]
+        lea rsi, [rip + sp_true]        # (python's known_true=True)
         xor edx, edx
         call eval_bool
         cmp eax, TRI_TRUE

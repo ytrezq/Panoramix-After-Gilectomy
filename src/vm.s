@@ -2078,7 +2078,7 @@ FUNC vm_step
         call .Ljumpi_funccall
 1:      # decided by the arithmetic, or by what's known on the path here?
         mov rdi, [rsp + 8]
-        lea rsi, [rip + sp_none]
+        lea rsi, [rip + sp_true]        # (python's known_true=True)
         xor edx, edx
         call eval_bool
         cmp eax, TRI_NONE

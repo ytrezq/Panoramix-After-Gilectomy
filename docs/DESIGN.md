@@ -206,13 +206,17 @@ inconclusive.
 The random unit tests (`tests/test_algebra.py` - with `BIG=1`, masks
 with numbers past 2^62 -, `test_arith.py`, `test_memloc.py`,
 `test_stack.py`, `test_simplify_exp.py`, `test_prettify_random.py`,
-`test_agz.py`: sums of many terms sharing variables, for `add_ge_zero`)
+`test_agz.py`: sums of many terms sharing variables, for `add_ge_zero`;
+`test_trace_random.py`: random traces through every pass of the
+simplifier and the whole `simplify_trace`)
 take a seed; run over many seeds, they found the negative exponents of
 `exp` (python's modular inverse), the order of the terms of a max
 (python sorts them by `str()`, which has no quotes around a string), an
 assertion of `flatten_adds`, a `try_add` that gives a number (python's
-assertion in `add_op`, a crash here) and rules of `simplify_exp` that
-read numbers past 2^62 as small ones. The cases they found are kept in
+assertion in `add_op`, a crash here), rules of `simplify_exp` that
+read numbers past 2^62 as small ones, conditions that simplify to None
+(`mem[x len 0]`: python's `eval_bool` can't decide them, the port took
+them for true) and the ValueError of a negative shift. The cases they found are kept in
 their `REGRESSIONS` lists.
 
 Every layer also has a differential test against the python
@@ -254,7 +258,9 @@ of memory (or overflows) for a shift of 2^255 before the result is
 reduced to 256 bits; the port gives 0, and python reports the function
 as a failure. And `BALANCE` of a constant address (`address(0x..).balance`)
 makes python's VM slice an int (`addr[:4]`, a TypeError): the function
-fails there, the port prints `eth.balance(0x..)`.
+fails there, the port prints `eth.balance(0x..)`. `SAR` of two constants
+by 256 or more of a negative value names `UINT_255_NEGATIVE_ONE`, which
+python's arithmetic doesn't define (a NameError): the port gives -1.
 
 `tests/stage_compare.py contract.hex FUNCTION` finds the first stage of
 python's `simplify_trace` whose port differs, replaying each stage on
