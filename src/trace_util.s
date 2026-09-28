@@ -754,6 +754,82 @@ FUNC replace_f
         LEAVE
 ENDF replace_f
 
+# replace_f_memo(exp, f, arg) -> value: replace_f for an f that is a pure
+# function of the expression it is given (simplify_exp, max_to_add...):
+# a subtree met again - the trace is a DAG, hash-consed, and python walks
+# it as a tree - gives what it gave the first time
+FUNC replace_f_memo
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        call map_new
+        mov rcx, rax
+        mov rdi, rbx
+        mov rsi, r12
+        mov rdx, r13
+        call rfm_walk
+        LEAVE
+ENDF replace_f_memo
+
+# rfm_walk(exp, f, arg, map)
+FUNC rfm_walk
+        STACK_CHECK
+        ENTER
+        sub rsp, 32
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        mov [rsp + 8], rcx              # the memo: a sequence -> its result
+        call is_seq
+        test eax, eax
+        jnz 1f
+        mov rdi, rbx
+        mov rsi, r13
+        call r12
+        add rsp, 32
+        LEAVE
+1:      mov rdi, [rsp + 8]
+        mov rsi, rbx
+        call map_get
+        test rax, rax
+        jz 4f
+        add rsp, 32
+        LEAVE
+4:      mov edi, [rbx + N_AUX]
+        shl rdi, 3
+        call arena_alloc_raw
+        mov [rsp], rax
+        xor r14d, r14d
+2:      cmp r14d, [rbx + N_AUX]
+        jae 3f
+        mov rdi, [rbx + N_DATA + r14*8]
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, [rsp + 8]
+        call rfm_walk
+        mov rcx, [rsp]
+        mov [rcx + r14*8], rax
+        inc r14
+        jmp 2b
+3:      mov rdi, rbx
+        mov rsi, [rsp]
+        call mk_seq_like
+        mov rdi, rax
+        mov rsi, r13
+        call r12
+        mov [rsp + 16], rax
+        test rax, rax
+        jz 5f                           # (NIL isn't remembered: done again)
+        mov rdi, [rsp + 8]
+        mov rsi, rbx
+        mov rdx, rax
+        call map_put
+5:      mov rax, [rsp + 16]
+        add rsp, 32
+        LEAVE
+ENDF rfm_walk
+
 # replace_f_stop(exp, f, arg) -> f(exp, arg) when it returns a value,
 # else the sequence with its elements replaced (top-down, stopping at
 # the first replacement)

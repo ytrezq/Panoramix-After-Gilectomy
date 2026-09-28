@@ -41,7 +41,7 @@ FUNC simplify_trace
         mov rdi, rbx
         lea rsi, [rip + simplify_exp_cb]
         xor edx, edx
-        call replace_f                  # simplify expressions
+        call replace_f_memo                  # simplify expressions
         mov rbx, rax
         mov rdi, rbx
         xor esi, esi
@@ -68,7 +68,7 @@ FUNC simplify_trace
         mov rdi, rbx
         lea rsi, [rip + simplify_exp_cb]
         xor edx, edx
-        call replace_f                  # simplify expressions
+        call replace_f_memo                  # simplify expressions
         mov rbx, rax
         mov rdi, rbx
         call pp_cleanup_mul_1
@@ -112,17 +112,17 @@ FUNC simplify_trace
         mov rdi, rbx
         lea rsi, [rip + max_to_add_cb]
         xor edx, edx
-        call replace_f
+        call replace_f_memo
         mov rbx, rax
         mov rdi, rbx
         lea rsi, [rip + postprocess_exp]
         xor edx, edx
-        call replace_f
+        call replace_f_memo
         mov rbx, rax
         mov rdi, rbx
         lea rsi, [rip + postprocess_exp]
         xor edx, edx
-        call replace_f
+        call replace_f_memo
         mov rbx, rax
         mov rdi, rbx
         lea rsi, [rip + postprocess_trace]
@@ -153,7 +153,7 @@ FUNC simplify_trace
         mov rdi, rbx
         lea rsi, [rip + fix_storages]
         xor edx, edx
-        call replace_f
+        call replace_f_memo
         mov rbx, rax
         mov rdi, rbx
         call cleanup_conds              # cleaning up storages slightly

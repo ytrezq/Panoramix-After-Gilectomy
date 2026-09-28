@@ -1931,7 +1931,7 @@ FUNC readability
         .set RD_I, MATCH_BINDINGS_SIZE + 48
         lea rsi, [rip + canonise_max_cb]
         xor edx, edx
-        call replace_f
+        call replace_f_memo
         mov rbx, rax
         call vec_new
         mov [rsp + RD_RES], rax

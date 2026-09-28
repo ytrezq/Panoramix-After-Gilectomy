@@ -74,22 +74,24 @@ FUNC simplify_exp
         LEAVE
 ENDF simplify_exp
 
-# int_cmp_pow8_22(v) -> eax: v > -(8^22)
+# int_cmp_pow8_22(v) -> eax: v > -(8^22) = -(2^66), read off the number
+# (it is asked of every number simplify_exp meets)
 FUNC int_cmp_pow8_22
-        ENTER
-        mov rbx, rdi
-        mov edi, 3                      # 1
-        mov esi, 66
-        call int_shl_bits               # 2^66 = 8^22
-        mov rdi, rax
-        call int_neg
-        mov rdi, rbx
-        mov rsi, rax
-        call int_cmp
-        cmp eax, 1
-        sete al
-        movzx eax, al
-        LEAVE
+        mov eax, 1
+        test dil, 1
+        jnz 1f                          # a small int: above -2^62
+        movsxd rcx, dword ptr [rdi + N_DATA + MPZ_SIZE]
+        test rcx, rcx
+        jns 1f                          # not negative
+        cmp rcx, -1
+        je 1f                           # |v| < 2^64
+        cmp rcx, -2
+        jne 2f                          # |v| >= 2^128
+        mov rcx, [rdi + N_DATA + MPZ_D]
+        cmp qword ptr [rcx + 8], 4      # the high limb: |v| < 2^66?
+        jb 1f
+2:      xor eax, eax
+1:      ret
 ENDF int_cmp_pow8_22
 
 # int_shl_bits(v, k) -> value: v * 2^k (exact)
