@@ -803,37 +803,12 @@ ENDF ev_sge
 # ---------------------------------------------------------------------
 # eval
 
-        .section .rodata
-        .align 4
-arith_op_ids:
-        .long OP_ADD, OP_ADDMOD, OP_SUB, OP_MOD, OP_SMOD, OP_MUL, OP_MULMOD
-        .long OP_DIV, OP_SDIV, OP_EXP, OP_SIGNEXTEND, OP_SHL, OP_SHR, OP_SAR
-        .long OP_AND, OP_OR, OP_XOR, OP_NOT, OP_BYTE, OP_EQ, OP_LT, OP_LE
-        .long OP_GT, OP_SGT, OP_SLT, OP_GE, OP_SGE, OP_SLE, 0
-
-        .section .bss
-arith_op_flags: .space OP_COUNT + 1
-        .text
-
-# arith_ops_init(): the OPCODES membership table
-FUNC arith_ops_init
-        lea rcx, [rip + arith_op_ids]
-        lea rdx, [rip + arith_op_flags]
-1:      mov eax, [rcx]
-        test eax, eax
-        jz 2f
-        mov byte ptr [rdx + rax], 1
-        add rcx, 4
-        jmp 1b
-2:      ret
-ENDF arith_ops_init
-
-# is_arith_op(id) -> eax
-FUNC is_arith_op
-        lea rax, [rip + arith_op_flags]
-        movzx eax, byte ptr [rax + rdi]
-        ret
-ENDF is_arith_op
+# is_arith_op(id) -> eax: the opcode is one of arithmetic.OPCODES
+        OPSET_FUNC is_arith_op, arith_ops
+        .irp op, ADD, ADDMOD, SUB, MOD, SMOD, MUL, MULMOD, DIV, SDIV, EXP, SIGNEXTEND, SHL, SHR, SAR, AND, OR, XOR, NOT, BYTE, EQ, LT, LE, GT, SGT, SLT, GE, SGE, SLE
+        OPSET_MEMBER arith_ops, OP_\op
+        .endr
+        OPSET_END arith_ops, OP_COUNT
 
 # binary op dispatch: ev_binary(id, a, b) -> value, NIL if not binary
         .section .data
@@ -895,8 +870,10 @@ FUNC ev_binary_init
         ret
 ENDF ev_binary_init
 
-# arith_apply(id, count, elems) -> value, or NIL when the arity doesn't fit
-# (elems[0] is the opcode string, the arguments follow, all integers)
+# arith_apply(id, count, elems) -> value (elems[0] is the opcode string,
+# the arguments follow, all integers). A wrong number of arguments is
+# python's TypeError (OPCODES[op](*args)), or its AssertionError for an
+# `and` of fewer than two (and_op asserts it).
 FUNC arith_apply
         ENTER
         mov ebx, edi
@@ -922,8 +899,8 @@ FUNC arith_apply
         call rax
         LEAVE
 .Lap_and:
-        cmp r12, 2
-        jb .Lap_nil
+        cmp r12, 3
+        jb .Lap_assert
         mov rax, [r13 + 8]
         mov r14d, 2
 1:      cmp r14, r12
@@ -964,9 +941,19 @@ FUNC arith_apply
 4:      call ev_mulmod
         LEAVE
 .Lap_nil:
-        xor eax, eax
-        LEAVE
+        mov edi, E_TYPE
+        lea rsi, [rip + .Ls_arity]
+        call err_throw
+.Lap_assert:
+        mov edi, E_ASSERT
+        lea rsi, [rip + .Ls_and_arity]
+        call err_throw
 ENDF arith_apply
+
+        .section .rodata
+.Ls_arity:      .asciz "eval: the wrong number of arguments for the opcode"
+.Ls_and_arity:  .asciz "and_op: fewer than two arguments"
+        .text
 
 # is_tuple(v) -> eax
 FUNC is_tuple
@@ -1044,8 +1031,6 @@ FUNC arith_eval
         mov rsi, r12
         mov rdx, r13
         call arith_apply
-        test rax, rax
-        jz .Lev_rebuild
         LEAVE_DYN
 .Lev_rebuild:
         mov rdi, r12
@@ -1807,7 +1792,6 @@ ENDF eval_bool_symbolic
 # arith_module_init(): tables (called from rt_init)
 FUNC arith_module_init
         ENTER
-        call arith_ops_init
         call ev_binary_init
         call iszero_swap_init
         LEAVE
