@@ -366,3 +366,18 @@ valgrind python's limits cut the simplification short, and the counts
 of two builds weren't comparable), Wyvern went from 16.2G instructions
 to 7.2G, zx_Exchange (the slowest of the npm corpus) from 58.6G to
 43.2G.
+
+Then, on Seaport15 and OneInchV5: `replace_while_var` (`readability`)
+renames a loop's variables with a walk of its own that skips the
+subtrees without a `var` or a `setvar` (a mention flag each: `HF_VAR`,
+`HF_SETVAR`) and does each subtree once, where python's `replace_f`
+calls its callback on every node (7% of Seaport15); `parse_counters`
+and `extract_setmems` are remembered for their loop (the memory checks
+of `cleanup_mems` and `cleanup_vars` ask them of the same loops
+thousands of times: 8%); `replace` looks at the leaves in its loop
+instead of calling itself on each; `pat_match` rejects without a frame
+what doesn't start with the opcode heading the pattern (the simplifier
+tries its rules one after the other); the VM's rounds keep their
+scratch (see the memory item of the roadmap). Seaport15 went from 10.7G
+instructions to 8.6G, OneInchV5 from 5.9G to 5.5G; the corpus takes
+11.3 s of CPU (one thread per contract).
