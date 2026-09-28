@@ -2,12 +2,15 @@
 # of a long sequence (hash_seq, rt_node.s) hashes 8 elements at a time
 # with AVX-512 (vpmullq, vpgatherqq, vprolq) or 4 with AVX2 (vpmuludq and
 # the gather). The scalar loop of hash_seq stays for short sequences and
-# for machines without them (SSE2 is the baseline).
+# for machines without them. The scan of a string's text for the mention
+# flags (rt_str.s) takes 32 bytes a step with AVX2, 16 with SSE2 (the
+# baseline of x86-64: every machine has that level at least).
 #
 # A hash only has to be the same for the same sequence within a process:
 # the implementation is chosen once, and by the length only.
 #
-# PANORAMIX_ISA=scalar|avx2|avx512 forces a level (for the tests).
+# PANORAMIX_ISA=scalar|sse2|avx2|avx512 forces a level (for the tests;
+# scalar: no vector loop at all).
 
 .include "defs.inc"
 
@@ -21,7 +24,7 @@ hash_seq_vec:       .quad 0             # the vector hash, or 0
 hash_seq_vec_min:   .quad 0x7fffffff    # the length from which it is used
         .globl isa_level
         .hidden isa_level
-isa_level:          .quad 0             # 0 scalar, 2 avx2, 3 avx512
+isa_level:          .quad 0             # 0 scalar, 1 sse2, 2 avx2, 3 avx512
 
         .section .rodata
         .align 64
@@ -36,6 +39,7 @@ isa_level:          .quad 0             # 0 scalar, 2 avx2, 3 avx512
             .quad 0x78dde6e5fd29f054, 0x1715609d7c746c69, 0xb54cda54fbbee87e, 0x5384540c7b096493
 .Ls_env_isa:    .asciz "PANORAMIX_ISA"
 .Ls_scalar:     .asciz "scalar"
+.Ls_sse2:       .asciz "sse2"
 .Ls_avx2:       .asciz "avx2"
 .Ls_avx512:     .asciz "avx512"
 .Ls_logname:    .asciz "panoramix.simd"
@@ -43,7 +47,7 @@ isa_level:          .quad 0             # 0 scalar, 2 avx2, 3 avx512
 
         .section .data.rel.ro           # (addresses: relocated at load time)
         .align 8
-.Ls_names:      .quad .Ls_scalar, .Ls_scalar, .Ls_avx2, .Ls_avx512
+.Ls_names:      .quad .Ls_scalar, .Ls_sse2, .Ls_avx2, .Ls_avx512
 
         .text
 
@@ -52,7 +56,7 @@ isa_level:          .quad 0             # 0 scalar, 2 avx2, 3 avx512
 FUNC simd_init
         ENTER
         sub rsp, 16
-        xor r12d, r12d                  # the level
+        mov r12d, 1                     # the level: SSE2, the baseline
         # cpuid 1: OSXSAVE (ecx 27), then xgetbv: XMM/YMM (bits 1, 2),
         # opmask/ZMM (5, 6, 7); cpuid 7: AVX2 (ebx 5), AVX512F (16), DQ (17)
         mov eax, 1
@@ -97,6 +101,13 @@ FUNC simd_init
         xor r12d, r12d
         jmp 5f
 31:     mov rdi, rbx
+        lea rsi, [rip + .Ls_sse2]
+        call strcmp@PLT
+        test eax, eax
+        jnz 33f
+        mov r12d, 1
+        jmp 5f
+33:     mov rdi, rbx
         lea rsi, [rip + .Ls_avx2]
         call strcmp@PLT
         test eax, eax

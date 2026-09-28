@@ -50,7 +50,7 @@ From C: `build/libpanoramix_asm.so` and `include/panoramix_asm.h`
 The signature database goes to `$PANORAMIX_SIGDB`, or
 `$XDG_CACHE_HOME/panoramix/abi_db.bin`, or `~/.cache/panoramix/abi_db.bin`.
 `PANORAMIX_LOG=debug|warning|error` sets the log level (coloredlogs'
-format), `PANORAMIX_ISA=scalar|avx2|avx512` forces the vector loops,
+format), `PANORAMIX_ISA=scalar|sse2|avx2|avx512` forces the vector loops,
 `PANORAMIX_MAX_MEMORY` caps what one function may take (MiB; by default
 the machine's memory shared by the threads): a function past it is
 reported as a problem, as python does with the ones that fail.

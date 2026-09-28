@@ -153,7 +153,7 @@ FUNC str_scan_flags
         lea rbx, [rip + scan_first]
         xor r14d, r14d                  # position
         cmp qword ptr [rip + isa_level], 2
-        jb 1f
+        jb .Lsf_sse2
         # AVX2: 32 positions at a time, the candidates those where the
         # name's first two bytes are (every name has 3 or more), both
         # loads inside the string
@@ -216,6 +216,84 @@ FUNC str_scan_flags
 .Lsf_next_chunk:
         add r14, 32
         jmp .Lsf_chunk
+        # SSE2: the same, 16 positions at a time
+.Lsf_sse2:
+        cmp qword ptr [rip + isa_level], 1
+        jb 1f
+.Lsf_chunk16:
+        lea rax, [r14 + 17]
+        cmp rax, r13
+        ja 1f                           # the rest, byte by byte
+        movdqu xmm0, [r12 + r14]        # the bytes at p
+        movdqu xmm1, [r12 + r14 + 1]    # and after them
+        movdqa xmm2, xmm0
+        pcmpeqb xmm2, [rip + .Lsv_s]
+        movdqa xmm3, xmm1
+        pcmpeqb xmm3, [rip + .Lsv_t]
+        pand xmm2, xmm3
+        movdqa xmm4, xmm2               # st
+        movdqa xmm5, xmm1
+        pcmpeqb xmm5, [rip + .Lsv_a]    # (?a)
+        movdqa xmm2, xmm0
+        pcmpeqb xmm2, [rip + .Lsv_b]
+        pand xmm2, xmm5
+        por xmm4, xmm2                  # ba
+        movdqa xmm2, xmm0
+        pcmpeqb xmm2, [rip + .Lsv_g]
+        pand xmm2, xmm5
+        por xmm4, xmm2                  # ga
+        movdqa xmm2, xmm0
+        pcmpeqb xmm2, [rip + .Lsv_e]
+        movdqa xmm3, xmm1
+        pcmpeqb xmm3, [rip + .Lsv_x]
+        pand xmm2, xmm3
+        por xmm4, xmm2                  # ex
+        movdqa xmm5, xmm1
+        pcmpeqb xmm5, [rip + .Lsv_e]    # (?e)
+        movdqa xmm2, xmm0
+        pcmpeqb xmm2, [rip + .Lsv_r]
+        pand xmm2, xmm5
+        por xmm4, xmm2                  # re
+        movdqa xmm2, xmm0
+        pcmpeqb xmm2, [rip + .Lsv_n]
+        pand xmm2, xmm5
+        por xmm4, xmm2                  # ne
+        movdqa xmm3, xmm0
+        pcmpeqb xmm3, [rip + .Lsv_m]    # (m?)
+        movdqa xmm2, xmm3
+        pand xmm2, xmm5
+        por xmm4, xmm2                  # me
+        movdqa xmm2, xmm1
+        pcmpeqb xmm2, [rip + .Lsv_s]
+        pand xmm2, xmm3
+        por xmm4, xmm2                  # ms
+        movdqa xmm2, xmm0
+        pcmpeqb xmm2, [rip + .Lsv_dot]
+        movdqa xmm3, xmm1
+        pcmpeqb xmm3, [rip + .Lsv_r]
+        pand xmm2, xmm3
+        por xmm4, xmm2                  # .r
+        pmovmskb eax, xmm4
+        test eax, eax
+        jz .Lsf_next_chunk16
+        mov [rsp + SF_MASK], rax
+        mov [rsp + SF_CHUNK], r14
+.Lsf_bit16:
+        mov rax, [rsp + SF_MASK]
+        test eax, eax
+        jz .Lsf_chunk16_done
+        bsf ecx, eax
+        btr eax, ecx
+        mov [rsp + SF_MASK], rax
+        mov r14, [rsp + SF_CHUNK]
+        add r14, rcx
+        call .Lsf_check
+        jmp .Lsf_bit16
+.Lsf_chunk16_done:
+        mov r14, [rsp + SF_CHUNK]
+.Lsf_next_chunk16:
+        add r14, 16
+        jmp .Lsf_chunk16
         # byte by byte
 1:      cmp r14, r13
         jae 9f

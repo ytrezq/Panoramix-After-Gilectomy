@@ -162,14 +162,15 @@ is the CLI, `build/panoramix_asm*.so` the module.
 10. [x] threads: one per function, shared read-only loader
 11. [x] `decompile()` in the module, CLI parity with `python -m panoramix`
 12. [x] vectorization where it pays, chosen from the ISA at run time
-    (`rt_simd.s`: cpuid + xgetbv; `PANORAMIX_ISA=scalar|avx2|avx512`
+    (`rt_simd.s`: cpuid + xgetbv; `PANORAMIX_ISA=scalar|sse2|avx2|avx512`
     forces a level). What pays is little: the profile is tree walks over
     small tuples (pointer chasing) and the hash-consing of them, and the
     only long loops are the hashes of the traces (lists of hundreds of
     lines), done 8 elements a step with AVX-512 (`vpmullq`,
     `vpgatherqq`, `vprolq`) or 4 with AVX2, and the scan of the text of
     every string made for the mention flags (`str_scan_flags`: the
-    printed lines, hundreds of bytes), 32 bytes a step with AVX2 - the
+    printed lines, hundreds of bytes), 32 bytes a step with AVX2 (16 with
+    SSE2, the baseline every x86-64 has) - the
     positions where the first two bytes of one of the names are, found
     with `vpcmpeqb` and checked one by one (a third of the scalar
     loop's instructions). The wins came from the algorithms instead,
