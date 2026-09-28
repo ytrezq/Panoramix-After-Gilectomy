@@ -103,7 +103,12 @@ is the CLI, `build/panoramix_asm*.so` the module.
   the call graph, callbacks included, and `make check` verifies that
   none lacks it), when the stack gets within 1 MiB of its end; and
   `E_MEMORY` (`MemoryError`) when a function's context passes
-  `CTX_MEM_LIMIT`. Where python lets an exception through (the
+  `CTX_MEM_LIMIT`. A third one is python's time limit of a function
+  (a SIGALRM there): a watchdog thread (`rt_watch.s`) takes the stack's
+  limit of a worker past its deadline away, and the next `STACK_CHECK`
+  throws `E_TIMEOUT` - which the handlers of python's `except
+  Exception` let through, as python's `TimeoutInterrupt` is a
+  `BaseException`. Where python lets an exception through (the
   postprocessing), `decompile_run` catches it and the text is the
   error's message; the decompilation runs on a thread of its own, with
   a stack as big as the workers' (64 MiB).
@@ -179,15 +184,18 @@ is the CLI, `build/panoramix_asm*.so` the module.
 
 ## Testing
 
-`make check` runs the C example, `tests/run_corpus.sh` and
-`tests/robustness.sh`. The first compares the 30 contracts of
+`make check` runs the C example, `tests/run_corpus.sh`,
+`tests/robustness.sh` and `tests/test_watchdog.py`. The first compares the 30 contracts of
 `tests/corpus` (mainnet bytecode, see `SOURCES`) and the programs of
 `tests/synthetic` (each one a difference the port had) with python's
 output in their `expected` directories (pypy's `python -m panoramix`,
 colors removed, with the signature database, which the script builds
 from panoramix's `data/abi_dump.xz`). The second feeds it inputs that
 must not take it down (thousands of nested ifs, a 20000-deep
-expression, a function past its memory limit).
+expression, a function past its memory limit). The third checks that a
+pass that would take forever (a random trace whose simplification
+doubles an expression at every variable inlined) is cut at its deadline
+by the watchdog.
 
 `tests/difffuzz.py SEED COUNT` is a differential fuzzer: random
 solidity-like programs (a selector dispatch; functions of storage and

@@ -42,6 +42,7 @@ check: build/c_api_test all
 	build/c_api_test
 	tests/run_corpus.sh
 	tests/robustness.sh
+	python3 tests/test_watchdog.py
 
 clean:
 	rm -rf build
