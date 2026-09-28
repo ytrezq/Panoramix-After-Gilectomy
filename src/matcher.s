@@ -233,7 +233,46 @@ ENDF pc_walk
 
 # pat_match(exp, pattern, bindings) -> eax
 FUNC pat_match
-        ENTER
+        # a pattern whose head is a plain string (an opcode) matches only a
+        # sequence that starts with that string (interned: the pointer):
+        # the rest, and the frame, only then (the simplifier tries its
+        # rules one after the other, most of them on other opcodes)
+        test sil, 1
+        jnz 9f
+        test rsi, rsi
+        jz 9f
+        cmp dword ptr [rsi + N_KIND], K_TUPLE
+        jne 9f
+        cmp dword ptr [rsi + N_AUX], 0
+        je 9f
+        mov rax, [rsi + N_DATA]         # the pattern's head
+        test al, 1
+        jnz 9f
+        test rax, rax
+        jz 9f
+        cmp dword ptr [rax + N_KIND], K_STR
+        jne 9f                          # (a wildcard...)
+        cmp rax, [rip + s_any]
+        je 9f
+        cmp rax, [rip + s_ellipsis]
+        je 9f
+        cmp byte ptr [rax + N_DATA + 4], ':'
+        je 9f
+        test dil, 1
+        jnz 8f
+        test rdi, rdi
+        jz 8f
+        mov ecx, [rdi + N_KIND]
+        sub ecx, K_TUPLE
+        cmp ecx, K_LIST - K_TUPLE
+        ja 8f                           # not a sequence
+        cmp dword ptr [rdi + N_AUX], 0
+        je 8f
+        cmp rax, [rdi + N_DATA]
+        je 9f
+8:      xor eax, eax
+        ret
+9:      ENTER
         sub rsp, MATCH_NAMES_SIZE + 16
         mov rbx, rdx                    # the bindings
         mov qword ptr [rsp], 0          # how many so far
