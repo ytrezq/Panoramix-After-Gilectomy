@@ -1142,31 +1142,105 @@ ENDF merge_ifs
 # length (stable, the shortest first), the others counting as length 0
 FUNC sorted_or
         ENTER
-        sub rsp, 16
+        sub rsp, 48
+        .set SO2_A, 0                   # records (key, value)
+        .set SO2_B, 8
+        .set SO2_W, 16                  # the width of the runs
+        .set SO2_LO, 24
         mov rbx, rdi
         mov r12, rsi
-        # insertion sort on the array itself (stable)
-        mov r13d, 1
+        cmp r12, 1
+        jbe 9f
+        # python's sort by len(x) for a list, else 0: stable, n log n (a
+        # merge sort of (key, value) records, the keys read once)
+        mov rdi, r12
+        shl rdi, 4
+        call arena_alloc_raw
+        mov [rsp + SO2_A], rax
+        mov rdi, r12
+        shl rdi, 4
+        call arena_alloc_raw
+        mov [rsp + SO2_B], rax
+        xor r13d, r13d
 1:      cmp r13, r12
-        jae 4f
-        mov r14, r13
-2:      test r14, r14
-        jz 3f
-        mov rdi, [rbx + r14*8 - 8]
+        jae 2f
+        mov rdi, [rbx + r13*8]
         call or_key
-        mov [rsp], rax
-        mov rdi, [rbx + r14*8]
-        call or_key
-        cmp [rsp], rax
-        jle 3f
-        mov rax, [rbx + r14*8 - 8]
-        xchg rax, [rbx + r14*8]
-        mov [rbx + r14*8 - 8], rax
-        dec r14
-        jmp 2b
-3:      inc r13
+        mov rcx, [rsp + SO2_A]
+        mov rdx, r13
+        shl rdx, 4
+        mov [rcx + rdx], rax
+        mov rax, [rbx + r13*8]
+        mov [rcx + rdx + 8], rax
+        inc r13
         jmp 1b
-4:      call vec_new
+2:      mov qword ptr [rsp + SO2_W], 1
+3:      mov rax, [rsp + SO2_W]
+        cmp rax, r12
+        jae 8f
+        mov qword ptr [rsp + SO2_LO], 0
+4:      mov r8, [rsp + SO2_LO]          # lo
+        cmp r8, r12
+        jae 7f
+        mov r9, r8
+        add r9, [rsp + SO2_W]           # mid
+        cmp r9, r12
+        cmova r9, r12
+        mov r10, r9
+        add r10, [rsp + SO2_W]          # hi
+        cmp r10, r12
+        cmova r10, r12
+        mov rsi, [rsp + SO2_A]
+        mov rdi, [rsp + SO2_B]
+        mov rcx, r8                     # i (left), j = r9 (right), k = r8 (out)
+        mov rdx, r9
+        mov r11, r8
+5:      cmp r11, r10
+        jae 6f
+        cmp rcx, r9
+        jae 52f                         # left done: from the right
+        cmp rdx, r10
+        jae 51f                         # right done: from the left
+        mov rax, rcx
+        shl rax, 4
+        mov r13, [rsi + rax]            # key left
+        mov rax, rdx
+        shl rax, 4
+        cmp r13, [rsi + rax]
+        jbe 51f                         # left <= right: the left (stable)
+52:     mov rax, rdx
+        shl rax, 4
+        inc rdx
+        jmp 53f
+51:     mov rax, rcx
+        shl rax, 4
+        inc rcx
+53:     mov r13, [rsi + rax]
+        mov r14, [rsi + rax + 8]
+        mov rax, r11
+        shl rax, 4
+        mov [rdi + rax], r13
+        mov [rdi + rax + 8], r14
+        inc r11
+        jmp 5b
+6:      mov [rsp + SO2_LO], r10
+        jmp 4b
+7:      mov rax, [rsp + SO2_A]          # the runs twice as long, in b: swap
+        xchg rax, [rsp + SO2_B]
+        mov [rsp + SO2_A], rax
+        shl qword ptr [rsp + SO2_W], 1
+        jmp 3b
+8:      mov rcx, [rsp + SO2_A]
+        xor r13d, r13d
+81:     cmp r13, r12
+        jae 9f
+        mov rax, r13
+        shl rax, 4
+        mov rax, [rcx + rax + 8]
+        mov [rbx + r13*8], rax
+        inc r13
+        jmp 81b
+9:      call vec_new
         mov r13, rax
         mov rdi, rax
         LOADS rsi, OR
@@ -1177,21 +1251,21 @@ FUNC sorted_or
         call vec_extend
         mov rdi, r13
         call vec_to_tuple
-        add rsp, 16
+        add rsp, 48
         LEAVE
 ENDF sorted_or
 
 # or_key(v) -> rax: len(v) for a list, else 0
 FUNC or_key
-        ENTER
-        mov rbx, rdi
-        call is_list
-        test eax, eax
+        xor eax, eax
+        test dil, 1
+        jnz 1f
+        test rdi, rdi
         jz 1f
-        mov eax, [rbx + N_AUX]
-        LEAVE
-1:      xor eax, eax
-        LEAVE
+        cmp dword ptr [rdi + N_KIND], K_LIST
+        jne 1f
+        mov eax, [rdi + N_AUX]
+1:      ret
 ENDF or_key
 
 # folder_or(args, count) -> ('or', ...): the lists ANDed, the ors flattened
