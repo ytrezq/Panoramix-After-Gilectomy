@@ -67,7 +67,9 @@ FUNC to_exp2
         LEAVE
 ENDF to_exp2
 
-# pow2(k) -> value: 2^k
+# pow2(k) -> value: 2^k (0 for k < 0, and k is clamped to 4096: the
+# expressions never need more than 256 bits, but a variant of an
+# expression can put 2^230 in a shift)
 FUNC pow2
         cmp rdi, 62
         jae 1f
@@ -76,7 +78,14 @@ FUNC pow2
         shl rax, cl
         lea rax, [rax + rax + 1]
         ret
-1:      ENTER
+1:      test rdi, rdi
+        jns 2f
+        mov eax, 1                      # 0
+        ret
+2:      cmp rdi, 4096
+        jle 3f
+        mov edi, 4096
+3:      ENTER
         mov rbx, rdi
         lea rdi, [r15 + CTX_MPZ_R]
         mov esi, 1
@@ -992,7 +1001,8 @@ FUNC add_op_impl
         jne 10f
         # symbolic[idx] = ("mul", 2**osize, val)
         mov rdi, [rax + N_DATA + 24]    # osize
-        sar rdi, 1
+        call clamp_bits
+        mov rdi, rax
         call pow2
         mov rcx, [rsp + 24]
         LOADS rdi, MUL
@@ -1203,7 +1213,8 @@ FUNC try_add_norm
         cmp eax, 1
         jne .Ltn_asis
         mov rdi, [r12 + N_DATA + 24]
-        sar rdi, 1
+        call clamp_bits                 # (shl may be a big int)
+        mov rdi, rax
         call pow2
         mov rdi, [rbx + N_DATA + 8]
         mov rsi, rax
@@ -1265,7 +1276,8 @@ FUNC try_add_1
         jne 2f
         # mul *= 2**shl - 1 ; mul_op(mul, val)
         mov rdi, [r14 + N_DATA + 24]
-        sar rdi, 1
+        call clamp_bits
+        mov rdi, rax
         call pow2
         mov rdi, rax
         mov esi, 3
@@ -2576,6 +2588,7 @@ FUNC alg_max_number
         mov [rip + max_number_value], rax
         mov rdi, rbx
         call ctx_bind
+        mov rax, [rip + max_number_value]   # (ctx_bind clobbers rax)
         pop r15
         pop r15
         LEAVE
@@ -2625,8 +2638,13 @@ ENDF alg_add_ge_zero
 
 FUNC add_ge_zero_impl
         ENTER
-        sub rsp, 48
-        mov rdi, rdi
+        sub rsp, 112
+        .set AGZ_SEEN_NEG, 0
+        .set AGZ_SEEN_NONNEG, 8
+        .set AGZ_COMB, 16               # the current combination (bit k: special)
+        .set AGZ_NCOMB, 24
+        .set AGZ_I, 32
+        .set AGZ_VALS, 48               # the values of the (at most 7) variables
         call alg_simplify
         mov rbx, rax
         mov rdi, rbx
@@ -2638,7 +2656,7 @@ FUNC add_ge_zero_impl
         cmp eax, -1
         setne al
         movzx eax, al
-        add rsp, 48
+        add rsp, 112
         LEAVE
 1:      call vec_new
         mov r12, rax                    # the variables
@@ -2652,53 +2670,52 @@ FUNC add_ge_zero_impl
         test r13, r13
         jz .Lagz_true
         # enumerate the 2^n variants (MAX_number or the special value per var)
-        mov qword ptr [rsp], 0          # seen_neg
-        mov qword ptr [rsp + 8], 0      # seen_nonneg
-        mov qword ptr [rsp + 16], 0     # the current combination (bit k: special)
+        mov qword ptr [rsp + AGZ_SEEN_NEG], 0
+        mov qword ptr [rsp + AGZ_SEEN_NONNEG], 0
+        mov qword ptr [rsp + AGZ_COMB], 0
         mov rax, 1
         mov rcx, r13
         shl rax, cl
-        mov [rsp + 24], rax             # number of combinations
-4:      mov rax, [rsp + 16]
-        cmp rax, [rsp + 24]
+        mov [rsp + AGZ_NCOMB], rax
+4:      mov rax, [rsp + AGZ_COMB]
+        cmp rax, [rsp + AGZ_NCOMB]
         jae 9f
-        # build the variant
-        mov r14, rbx
+        # the value of every variable
         xor ecx, ecx
 5:      cmp rcx, r13
         jae 7f
-        mov [rsp + 32], rcx
+        mov [rsp + AGZ_I], rcx
         mov rax, [r12 + VEC_DATA]
         mov rdi, [rax + rcx*8]          # the variable
-        mov rax, [rsp + 16]
+        mov rax, [rsp + AGZ_COMB]
         bt rax, rcx
         jc 6f
         call alg_max_number
-        mov rdx, rax
         jmp 8f
 6:      # the special value: 96 for mem[64], 6 for calldatasize, else 0
-        mov [rsp + 40], rdi
+        mov r14, rdi
         call is_mem64
-        mov edx, (96 << 1) | 1
         test eax, eax
-        jnz 8f
-        mov rdi, [rsp + 40]
-        LOADS rsi, CALLDATASIZE
-        mov edx, (6 << 1) | 1
-        cmp rdi, rsi
+        jz 61f
+        mov eax, (96 << 1) | 1
+        jmp 8f
+61:     LOADS rsi, CALLDATASIZE
+        mov eax, (6 << 1) | 1
+        cmp r14, rsi
         je 8f
-        mov edx, 1
-8:      mov rcx, [rsp + 32]
-        mov rax, [r12 + VEC_DATA]
-        mov rsi, [rax + rcx*8]
-        mov rdi, r14
-        call replace
-        mov r14, rax
-        mov rcx, [rsp + 32]
+        mov eax, 1
+8:      mov rcx, [rsp + AGZ_I]
+        mov [rsp + AGZ_VALS + rcx*8], rax
         inc rcx
         jmp 5b
-7:      # v = simplify(calc_max(variant))
-        mov rdi, r14
+7:      # the variant, all the variables replaced at once
+        mov rdi, rbx
+        mov rsi, r13
+        mov rdx, [r12 + VEC_DATA]
+        lea rcx, [rsp + AGZ_VALS]
+        call replace_many
+        # v = simplify(calc_max(variant))
+        mov rdi, rax
         call alg_calc_max
         mov rdi, rax
         call alg_simplify
@@ -2711,27 +2728,27 @@ FUNC add_ge_zero_impl
         call int_sign
         cmp eax, -1
         je 10f
-        mov qword ptr [rsp + 8], 1
+        mov qword ptr [rsp + AGZ_SEEN_NONNEG], 1
         jmp 11f
-10:     mov qword ptr [rsp], 1
-11:     cmp qword ptr [rsp], 0
+10:     mov qword ptr [rsp + AGZ_SEEN_NEG], 1
+11:     cmp qword ptr [rsp + AGZ_SEEN_NEG], 0
         je 12f
-        cmp qword ptr [rsp + 8], 0
+        cmp qword ptr [rsp + AGZ_SEEN_NONNEG], 0
         jne .Lagz_none
-12:     inc qword ptr [rsp + 16]
+12:     inc qword ptr [rsp + AGZ_COMB]
         jmp 4b
-9:      cmp qword ptr [rsp], 0
+9:      cmp qword ptr [rsp + AGZ_SEEN_NEG], 0
         jne 13f
 .Lagz_true:
         mov eax, TRI_TRUE
-        add rsp, 48
+        add rsp, 112
         LEAVE
 13:     mov eax, TRI_FALSE
-        add rsp, 48
+        add rsp, 112
         LEAVE
 .Lagz_none:
         mov eax, TRI_NONE
-        add rsp, 48
+        add rsp, 112
         LEAVE
 ENDF add_ge_zero_impl
 

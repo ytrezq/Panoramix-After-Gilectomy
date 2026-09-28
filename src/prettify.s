@@ -1627,6 +1627,8 @@ FUNC prettify
         mov r13, [rbx + N_DATA + 8]     # val
         mov rdi, r13
         call opcode_of
+        test eax, eax
+        jz 4f                           # (not a tuple)
         cmp dword ptr [r13 + N_AUX], 3
         jne 4f
         cmp eax, OP_GT

@@ -7,6 +7,8 @@ sys.path.insert(0, "/home/claude/panoramix")
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor"))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build"))
 import logging; logging.disable(logging.CRITICAL)
+if "--db" not in sys.argv:
+    os.environ["PANORAMIX_SIGDB"] = "/nonexistent"
 import panoramix_asm as A
 CORPUS = "/tmp/claude-0/-home-claude/0fe601fa-3d3d-56af-9a22-c5068d00d0e0/scratchpad/corpus"
 import panoramix.utils.supplement

@@ -5,6 +5,8 @@ import os, sys, glob, time
 sys.path.insert(0, "/home/claude/panoramix")
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build"))
 import logging; logging.disable(logging.CRITICAL)
+# no signature database on the asm side either (python's is disabled below)
+os.environ.setdefault("PANORAMIX_SIGDB", "/nonexistent")
 import panoramix_asm as A
 from panoramix.loader import Loader
 import panoramix.loader

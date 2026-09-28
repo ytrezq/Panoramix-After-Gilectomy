@@ -638,6 +638,72 @@ FUNC replace
         LEAVE
 ENDF replace
 
+# replace_many(exp, n, whats, bys) -> exp with every occurrence of whats[i]
+# replaced by bys[i], all at once (an outer expression wins over the
+# expressions it contains: mem[_5] is replaced before _5)
+FUNC replace_many
+        ENTER
+        sub rsp, 32
+        .set RM_BYS, 0
+        .set RM_ELEMS, 8
+        .set RM_CHANGED, 16
+        mov rbx, rdi
+        mov r12, rsi                    # n
+        mov r13, rdx                    # whats
+        mov [rsp + RM_BYS], rcx
+        xor r14d, r14d
+1:      cmp r14, r12
+        jae 2f
+        mov rdi, rbx
+        mov rsi, [r13 + r14*8]
+        call values_equal
+        test eax, eax
+        jnz .Lrm_by
+        inc r14
+        jmp 1b
+2:      mov rdi, rbx
+        call is_seq
+        test eax, eax
+        jz .Lrm_asis
+        mov edi, [rbx + N_AUX]
+        shl rdi, 3
+        call arena_alloc
+        mov [rsp + RM_ELEMS], rax
+        mov qword ptr [rsp + RM_CHANGED], 0
+        xor r14d, r14d
+3:      cmp r14d, [rbx + N_AUX]
+        jae 4f
+        mov rdi, [rbx + N_DATA + r14*8]
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, [rsp + RM_BYS]
+        call replace_many
+        mov rcx, [rsp + RM_ELEMS]
+        mov [rcx + r14*8], rax
+        cmp rax, [rbx + N_DATA + r14*8]
+        je 5f
+        mov qword ptr [rsp + RM_CHANGED], 1
+5:      inc r14
+        jmp 3b
+4:      cmp qword ptr [rsp + RM_CHANGED], 0
+        je .Lrm_asis
+        mov edi, [rbx + N_KIND]
+        mov esi, [rbx + N_AUX]
+        mov rdx, [rsp + RM_ELEMS]
+        call mk_seq
+        add rsp, 32
+        LEAVE
+.Lrm_by:
+        mov rax, [rsp + RM_BYS]
+        mov rax, [rax + r14*8]
+        add rsp, 32
+        LEAVE
+.Lrm_asis:
+        mov rax, rbx
+        add rsp, 32
+        LEAVE
+ENDF replace_many
+
 # replace_f(exp, f, arg) -> f applied bottom-up: the leaves through
 # f(leaf, arg), then each rebuilt sequence through f as well
 FUNC replace_f
