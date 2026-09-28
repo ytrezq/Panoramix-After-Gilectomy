@@ -16,6 +16,7 @@ import panoramix_asm as A
 A.set_log_level("error")
 
 sys.setrecursionlimit(10000)
+sys.set_int_max_str_digits(0)           # (a contract's code inlined: 6000 digits)
 # (JSON_EXPECTED and JSON_CORPUS: another corpus, its python results)
 EXPECTED = os.environ.get("JSON_EXPECTED") or os.path.join(ROOT, "build", "json_expected")
 CORPUS = os.environ.get("JSON_CORPUS") or os.path.join(HERE, "corpus")

@@ -8,7 +8,9 @@
 #   back from it (the tuples stay tuples, the parameters' keys numbers):
 #       'N' None, 'T' True, 'F' False
 #       'i' int64 (little-endian)         a number that fits
-#       'I' u32 n, n ASCII digits         any other ('-' first if negative)
+#       'I' u32 n, n ASCII: [-]0x + hex   any other (python's int() takes
+#                                         hex of any length, decimal of 4300
+#                                         digits at most)
 #       's' u32 n, n bytes of UTF-8       a string
 #       'f' u32 n, n ASCII                a float, as python's repr
 #       '(' u32 n, n values               a tuple
@@ -230,7 +232,7 @@ FUNC data_value
         mov [rsp], rax
         mov rdi, rbx
         mov rsi, r12
-        mov edx, 10
+        mov edx, 16                     # (python reads hex of any length)
         call sb_append_int
         mov rdi, rbx
         mov rsi, [rsp]

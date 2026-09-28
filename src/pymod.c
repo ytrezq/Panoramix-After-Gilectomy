@@ -190,7 +190,7 @@ static PyObject *read_value(reader *r, int depth)
         tmp[n] = 0;
         r->p += n;
         if (tag == 'I') {
-            res = PyLong_FromString(tmp, NULL, 10);
+            res = PyLong_FromString(tmp, NULL, 16);
         } else {
             double d = PyOS_string_to_double(tmp, NULL, NULL);
             res = (d == -1.0 && PyErr_Occurred()) ? NULL : PyFloat_FromDouble(d);

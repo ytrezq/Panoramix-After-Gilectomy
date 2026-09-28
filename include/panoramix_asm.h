@@ -41,7 +41,7 @@ int pan_decompile_ex(const uint8_t *code, size_t len, size_t threads,
  * without it, the data is a binary form of python's objects (tuples
  * apart from lists, the keys' types), which the python module reads:
  *     'N' None, 'T' True, 'F' False, 'i' int64 (little-endian),
- *     'I' u32 n + n ASCII digits (any other integer, '-' first),
+ *     'I' u32 n + n ASCII (any other integer: [-]0x + its hex digits),
  *     's' u32 n + n bytes of UTF-8, 'f' u32 n + n ASCII (a float),
  *     '(' tuple, '[' list, '{' dict: u32 n + n elements (n keys and
  *     values for a dict).
