@@ -20,6 +20,7 @@ files = sorted(glob.glob(os.path.join(HERE, "corpus", "*.hex")))
 files = [f for f in files if os.path.getsize(f) < 30000]
 codes = {os.path.basename(f): open(f).read().strip() for f in files}
 alone = {n: A.decompile(c, threads=1, color=False) for n, c in codes.items()}
+alone_json = {}
 
 bad = []
 def worker(k):
@@ -27,6 +28,13 @@ def worker(k):
     names = list(codes) * ROUNDS
     rnd.shuffle(names)
     for n in names:
+        if rnd.random() < 0.3:
+            # decompile_bytecode: the text and python's json as well
+            d = A.decompile_bytecode(codes[n], threads=rnd.choice([1, 2, 3]), color=False)
+            j = alone_json.setdefault(n, d.json)
+            if d.text != alone[n] or d.json != j:
+                bad.append((k, n, "json"))
+            continue
         t = A.decompile(codes[n], threads=rnd.choice([1, 2, 3]), color=False)
         if t != alone[n]:
             bad.append((k, n))
