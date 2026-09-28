@@ -527,7 +527,15 @@ class Gen:
         return a.assemble()
 
 
+# python's failures the port doesn't reproduce on purpose (see the design
+# notes): the VM's `exp << off` of two constants runs out of memory
+KNOWN_PY_FAILURES = ("stack.append(exp << off)\nMemoryError",
+                     "stack.append(exp << off)\nOverflowError")
+
+
 def run_python(code):
+    """python's text, or None (a timeout), or "known" (one of its failures
+    the port doesn't have)"""
     env = dict(os.environ, PYTHONPATH=PY_REPO, PYTHONINTMAXSTRDIGITS="0")
     try:
         p = subprocess.run([PYTHON, "-m", "panoramix", code.hex()], capture_output=True,
@@ -536,6 +544,9 @@ def run_python(code):
     except subprocess.TimeoutExpired:
         return None
     import re
+    err = re.sub(r"\n\s+", "\n", p.stderr)
+    if any(k in err for k in KNOWN_PY_FAILURES):
+        return "known"
     return re.sub(r"\x1b\[[0-9;]*m", "", out)
 
 
@@ -556,9 +567,9 @@ def one(args):
         f.write(code.hex())
     rc, got = run_port(path)
     expected = run_python(code)
-    if expected is None:
+    if expected is None or expected == "known":
         os.remove(path)
-        return i, "python timeout"
+        return i, "python timeout" if expected is None else "python's known failure"
     if rc == 0 and got == expected:
         os.remove(path)
         return i, None
@@ -581,7 +592,7 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(jobs) as ex:
         for i, res in ex.map(one, [(seed, i, keep) for i in range(count)]):
             if res:
-                if res != "python timeout":
+                if not res.startswith("python"):
                     bad += 1
                 print("case %d: %s" % (i, res), flush=True)
     print("%d cases, %d differences" % (count, bad))
