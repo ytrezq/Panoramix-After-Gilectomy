@@ -2,8 +2,7 @@
 """The recursive functions of the port: the cycles of the call graph, with
 the functions whose address is taken (callbacks of the walkers) counted as
 called by the function taking it. Prints one function per line (file,
-name) and, with --check, fails if one of them lacks STACK_CHECK and is on
-a cycle that doesn't go through one that has it."""
+name) and, with --check, fails if one of them lacks STACK_CHECK."""
 import collections
 import glob
 import re
@@ -77,28 +76,11 @@ for comp in sccs:
     if len(comp) > 1 or comp[0] in edges[comp[0]]:
         recursive.update(comp)
 
-# a function without STACK_CHECK is fine when every cycle through it goes
-# through one that has it (DEDUP_KSM's values_equal and seq_equal: they
-# recurse through canonicalize only, and the merging thread, whose stack
-# isn't the context's, must not check): the cycles left once the functions
-# with it are taken out of the graph
-checked = {fn for fn in funcs if any("STACK_CHECK" in l for l in body[fn])}
-for fn in checked:
-    edges[fn] = set()
-index.clear(); low.clear(); stack.clear(); on.clear(); sccs.clear(); counter[0] = 0
-for v in funcs:
-    if v not in index:
-        strong(v)
-unguarded = set()
-for comp in sccs:
-    if len(comp) > 1 or comp[0] in edges[comp[0]]:
-        unguarded.update(comp)
-
 missing = []
 for fn in sorted(recursive, key=lambda n: (funcs[n], n)):
     has = any("STACK_CHECK" in l for l in body[fn])
     if "--check" in sys.argv:
-        if not has and fn in unguarded:
+        if not has:
             missing.append(fn)
     else:
         print(funcs[fn], fn, "" if has else "(no STACK_CHECK)")

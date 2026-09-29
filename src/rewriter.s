@@ -64,7 +64,7 @@ FUNC pp_cleanup_exp_impl
         cmp dword ptr [r13 + N_AUX], 4
         jb 1f
         mov rax, [rbx + N_DATA + 8]
-        VEQ rax, [r13 + N_DATA + 8]
+        cmp rax, [r13 + N_DATA + 8]
         jne 1f
         mov rdi, [rbx + N_DATA + 16]
         call is_int
@@ -72,10 +72,10 @@ FUNC pp_cleanup_exp_impl
         jz 1f
         mov rdi, [rbx + N_DATA + 24]
         call alg_minus_op
-        VEQ rax, [rbx + N_DATA + 16]
+        cmp rax, [rbx + N_DATA + 16]
         jne 1f
         mov rax, [rbx + N_DATA + 16]
-        VEQ rax, [r13 + N_DATA + 16]
+        cmp rax, [r13 + N_DATA + 16]
         jne 1f
         mov rdi, r13
         call pp_cleanup_exp
@@ -664,7 +664,7 @@ FUNC postprocess_trace
         jz 3f
         mov rax, [rsp + PT_TRUE]
         mov rax, [rax + N_DATA + 8]
-        VEQ rax, [rsp + PT_L]
+        cmp rax, [rsp + PT_L]
         jne 3f
         # [first] + deep_false + rest
         mov rdi, [rsp + PT_OUT]
@@ -709,7 +709,7 @@ FUNC postprocess_trace
         call mk2
         mov rdi, rax
         call .Lpt_lt31_storage
-        VEQ rax, [r13 + N_DATA + 8]
+        cmp rax, [r13 + N_DATA + 8]
         je 5f
         LOADS rdi, LOC
         mov rsi, [rsp + PT_L]
@@ -719,7 +719,7 @@ FUNC postprocess_trace
         call mk2
         mov rdi, rax
         call .Lpt_lt31_storage
-        VEQ rax, [r13 + N_DATA + 8]
+        cmp rax, [r13 + N_DATA + 8]
         jne .Lpt_asis
 5:      mov rax, [r13 + N_DATA + 16]    # deep_true
 .Lpt_replace:

@@ -164,7 +164,7 @@ FUNC vec_to_list_like
 1:      cmp rax, rcx
         jae 8f
         mov r8, [rdx + rax*8]
-        VEQ r8, [rsi + N_DATA + rax*8]
+        cmp r8, [rsi + N_DATA + rax*8]
         jne 9f
         inc rax
         jmp 1b

@@ -781,46 +781,29 @@ and -1% on the model (1.5% more instructions for the chunk of an index,
 were worse than the old tables (+1 to 3%: the copies and their garbage),
 and so were slots grown by two past 4096 (+0.1 to 1.5%).
 
-## Deduplication in a thread
+## Deduplication in a thread (tried, removed)
 
-Asked for: the duplicates merged by a thread of their own, as UKSM
-merges the identical pages of processes - with the difference that the
-program knows its objects (where each one is, its kind, its size, its
-hash), where UKSM has to find and hash pages. `PANORAMIX_DEDUP` chooses:
+Tried: the duplicates merged by a thread of their own, as UKSM merges
+the identical pages of processes - with the difference that the program
+knows its objects (where each one is, its kind, its size, its hash),
+where UKSM has to find and hash pages. Tuples were made as they are,
+with a word before each for its canonical node, and put on a queue per
+context; a merging thread gave each its canonical node (the equal one
+of the context's hash-cons table, or itself, put there), the table
+shared without a lock (slots only ever filled, by compare-and-swap;
+grown by the context's thread alone, the merging one kept away as
+during a compaction). Wherever the hash-consing makes a comparison of
+pointers one of values (about 150 places), and for the keys of the
+maps, the canonical nodes were compared instead. A `lazy` mode merged
+without a thread, when a tuple was first compared or used as a key.
 
-- `eager` (the default): the hash-consing - `mk_seq` looks the tuple up
-  and gives the one that exists;
-- `ksm`: `mk_seq` makes the tuple as it is (its canonical node, in the
-  word before it, `N_CANON`, not known yet) and puts it on its context's
-  queue; the merging thread (`src/ksm.s`, one for the process) takes the
-  queues' nodes in the order they were made, the elements of a node
-  before it, and gives each its canonical node - the equal one of the
-  context's table, or itself, put there;
-- `lazy`: no thread: a node is merged when it is first compared or used
-  as a key (`canon`);
-- `sync`, `defer` (tests): the thread's work done by the context's own
-  thread, at once or 48 nodes every 64 made - deterministic stand-ins.
-
-Wherever the hash-consing made a comparison of pointers one of values,
-the comparison is `VEQ` (the pointers, then, if they differ and the
-context doesn't hash-cons, the canonical nodes), about 150 of them; the
-keys of the maps are made canonical (`canon`) before they are hashed.
-The table is shared without a lock: its slots are only ever filled,
-by a compare-and-swap, and the node found there is marked canonical by
-whoever finds it; the context's thread alone grows it, the merging
-thread kept away meanwhile (`KQ_BLOCKED`, a count, and `KQ_ACTIVE`,
-Dekker's) - as during a compaction, whose end drops the queue.
-
-`tests/test_dedup.py` compares the modes on the corpora with more
-threads than processors (and `--compact`: a compaction at every round).
-It found two races the deterministic modes couldn't show: big ints
-interned in the table without the thread's lock (an insertion of one
-lost now and then: two equal tuples with different canonical nodes),
-and a table grown during a compaction, which let the thread back in
-before its end, to merge nodes of the old arena into the new table.
-All modes give the same texts on the four corpora (1116 contracts).
-
-And the thread doesn't pay (npm corpus, 407 contracts, 2 vCPUs):
+All the modes gave the same texts on the four corpora (1116 contracts)
+once two races were fixed that only more threads than processors
+showed: big ints interned in the table without the thread's lock (an
+insertion lost now and then), and a table grown during a compaction,
+which let the thread back in before its end, to merge nodes of the old
+arena into the new table. But the thread didn't pay (npm corpus, 407
+contracts, 2 vCPUs):
 
     -j 1    eager  22.2 s wall, 22.3 s CPU
             lazy   25.8 s,      25.9 s        +16%
@@ -829,21 +812,14 @@ And the thread doesn't pay (npm corpus, 407 contracts, 2 vCPUs):
             lazy   18.3 s,      27.7 s
             ksm    18.1 s,      28.4 s
 
-Most nodes are compared or used as keys soon after they are made - the
-job's thread merges them itself, in `canon`, before the merging thread
-gets to them (sampled: 4042 samples on the job's thread, 187 on the
-merging one, which mostly finds them merged already), and a lookup at
-creation costs less than later (the elements are in the cache then).
-What the thread does merge, it merges at the price of the cache lines
-of the nodes the other thread is using (the canonical marks, the
-elements replaced by their canonical nodes - written only when they
-change - and a delay of a few thousand nodes behind the queue's head
-didn't change that). The duplicates are allocated before being merged
-(the peak of memory 11% higher on ENS's NameGriefer, 624 to 696 MiB,
-22% on Uniswap's NFTDescriptor), and the arena doesn't give them back
-until a compaction. And the infrastructure costs `eager` 1.1 to 1.5% on the
-model (`VEQ`'s check of the mode when the pointers differ - its slow
-part out of line -, the maps' check before `canon`, `mk_seq`'s): the
-canonical word is only there when the process runs another mode
-(`hc_prefix`), and `seq_equal` and `values_equal` know that two
-different hash-consed tuples differ.
+Most tuples are compared or used as keys soon after they are made: the
+job's thread merged them itself before the merging thread got to them
+(sampled: 4042 samples on the job's thread, 187 on the merging one),
+and a lookup at creation costs less than later (the elements are in
+the cache then, and a duplicate found is one not allocated). What the
+thread did merge, it merged at the price of the cache lines of the
+nodes the other thread was using. The duplicates, allocated before
+being merged, raised the peak of memory by 11% (ENS's NameGriefer, 624
+to 696 MiB) to 22% (Uniswap's NFTDescriptor), and the infrastructure
+cost the hash-consing 1.1 to 1.5%. The hash-consing at creation stays
+the only mode (the code: commit 710c436 and the ones before it).

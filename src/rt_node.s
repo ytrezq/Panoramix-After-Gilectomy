@@ -112,14 +112,9 @@ FUNC values_equal
         jz .Lveq_no
         test rsi, rsi
         jz .Lveq_no
-        mov eax, [rdi + N_KIND]
-        cmp eax, [rsi + N_KIND]
+        cmp dword ptr [rdi + N_KIND], K_INT
         jne .Lveq_no
-        cmp eax, K_TUPLE
-        je .Lveq_seq
-        cmp eax, K_LIST
-        je .Lveq_seq
-        cmp eax, K_INT
+        cmp dword ptr [rsi + N_KIND], K_INT
         jne .Lveq_no
         mov rax, [rdi + N_HASH]
         cmp rax, [rsi + N_HASH]
@@ -138,25 +133,6 @@ FUNC values_equal
 .Lveq_no:
         xor eax, eax
         ret
-.Lveq_seq:
-        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER
-        je .Lveq_no                     # (hash-consed: different pointers, different)
-        mov rax, [rdi + N_HASH]
-        cmp rax, [rsi + N_HASH]
-        jne .Lveq_no
-        mov eax, [rdi + N_AUX]
-        cmp eax, [rsi + N_AUX]
-        jne .Lveq_no
-        push rbx
-        call canon
-        mov rbx, rax
-        mov rdi, rsi
-        call canon
-        cmp rax, rbx
-        pop rbx
-        sete al
-        movzx eax, al
-        ret
 ENDF values_equal
 
 # seq_equal(node, kind, count, elems) -> eax: does the tuple/list node hold
@@ -174,9 +150,7 @@ FUNC seq_equal
         inc rax
         cmp r8, r9
         je 1b
-        # different pointers: equal as two big ints of the same value, or
-        # (not hash-consed: DEDUP_KSM...) two tuples with the same
-        # canonical node
+        # different pointers: equal only as two big ints of the same value
         test r8b, 1
         jnz .Lseq_no
         test r9b, 1
@@ -185,17 +159,11 @@ FUNC seq_equal
         jz .Lseq_no
         test r9, r9
         jz .Lseq_no
-        mov r10, [r8 + N_HASH]
-        cmp r10, [r9 + N_HASH]
+        cmp dword ptr [r8 + N_KIND], K_INT
         jne .Lseq_no
-        mov r10d, [r8 + N_KIND]
-        cmp r10d, [r9 + N_KIND]
+        cmp dword ptr [r9 + N_KIND], K_INT
         jne .Lseq_no
-        cmp r10d, K_INT
-        je 3f
-        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER
-        je .Lseq_no
-3:      ENTER
+        ENTER
         mov rbx, rdi
         mov r12, rdx
         mov r13, rcx
@@ -321,8 +289,6 @@ FUNC mk_seq
         mov [rsp + 16], rdx             # elems
         call hash_seq
         mov r14, rax                    # hash
-        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER
-        jne .Lmk_provisional
         # grow if the table is half full
         mov rax, [r15 + CTX_HC_COUNT]
         shl rax, 1
@@ -382,11 +348,9 @@ FUNC mk_seq
         and r12, r13
         jmp .Lmk_probe
 .Lmk_new:
-        # arena_alloc_raw's bump, here (the canonical word before the node,
-        # when some context doesn't hash-cons: hc_prefix)
+        # arena_alloc_raw's bump, here
         mov rsi, [rsp + 8]
         lea rsi, [rsi*8 + N_DATA + 15]
-        add rsi, [rip + hc_prefix]
         and rsi, -16
         mov rax, [r15 + CTX_ARENA_CUR]
         lea rcx, [rax + rsi]
@@ -394,11 +358,7 @@ FUNC mk_seq
         ja .Lmk_alloc_slow
         mov [r15 + CTX_ARENA_CUR], rcx
 .Lmk_alloc_done:
-        cmp qword ptr [rip + hc_prefix], 0
-        je 1f
-        add rax, 8
-        mov [rax + N_CANON], rax        # (its own canonical node)
-1:      mov rcx, [rsp]
+        mov rcx, [rsp]
         mov [rax + N_KIND], ecx
         mov rcx, [rsp + 8]
         mov [rax + N_AUX], ecx
@@ -434,290 +394,9 @@ FUNC mk_seq
         mov rdi, [rsp + 8]              # (a new chunk: arena_alloc_raw)
         shl rdi, 3
         add rdi, N_DATA
-        add rdi, [rip + hc_prefix]
         call arena_alloc_raw
         jmp .Lmk_alloc_done
-.Lmk_provisional:
-        # made as it is, its canonical node not known yet (DEDUP_KSM: the
-        # merging thread is told)
-        mov rsi, [rsp + 8]
-        lea rdi, [rsi*8 + N_DATA + 8]
-        call arena_alloc_raw
-        add rax, 8
-        mov qword ptr [rax + N_CANON], 0
-        mov rcx, [rsp]
-        mov [rax + N_KIND], ecx
-        mov rcx, [rsp + 8]
-        mov [rax + N_AUX], ecx
-        mov [rax + N_HASH], r14
-        inc qword ptr [r15 + CTX_NODE_COUNT]
-        mov rdx, [rsp + 16]
-        mov r12, rax
-        lea rdi, [rax + N_DATA]
-        mov rsi, rdx
-        shl rcx, 3
-        mov rdx, rcx
-        call memcpy@PLT
-        mov rax, r12
-        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_SYNC
-        jne 7f
-        mov rdi, rax
-        call ksm_merge
-        mov rax, r12
-        add rsp, 32
-        LEAVE
-7:      mov rcx, [r15 + CTX_KSMQ]       # (DEDUP_KSM: the merging thread's queue)
-        test rcx, rcx
-        jz 9f
-        mov rdx, [rcx + 0]              # KQ_HEAD
-        mov rsi, rdx
-        sub rsi, [rcx + 64]             # - KQ_TAIL
-        cmp rsi, 1 << 16                # KQ_SIZE: full, the node left out
-        jae 8f
-        mov rsi, rdx
-        and esi, (1 << 16) - 1
-        mov [rcx + 320 + rsi*8], rax    # KQ_BUF
-        inc rdx
-        mov [rcx + 0], rdx
-        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_DEFER
-        jne 9f
-        test edx, 63
-        jnz 9f
-        mov [rsp + 24], rax
-        mov edi, 48
-        call ksm_drain
-        mov rax, [rsp + 24]
-9:      add rsp, 32
-        LEAVE
-8:      inc qword ptr [rcx + 272]       # KQ_DROPPED
-        add rsp, 32
-        LEAVE
 ENDF mk_seq
-
-# dedup_mode() -> rax: DEDUP_* of the contexts of the functions, from
-# $PANORAMIX_DEDUP (eager, ksm, lazy; read once)
-# dedup_init(): the mode read, before any node is made: the tuples of
-# every context get the canonical word before them (hc_prefix) unless
-# they all hash-cons
-FUNC dedup_init
-        ENTER
-        call dedup_mode
-        test rax, rax
-        jz 1f
-        mov qword ptr [rip + hc_prefix], 8
-1:      LEAVE
-ENDF dedup_init
-
-FUNC dedup_mode
-        mov rax, [rip + dedup_mode_word]
-        test rax, rax
-        js 1f
-        ret
-1:      ENTER
-        lea rdi, [rip + .Ls_env_dedup]
-        call getenv@PLT
-        xor ebx, ebx                    # DEDUP_EAGER
-        test rax, rax
-        jz 2f
-        mov r12, rax
-        mov rdi, rax
-        lea rsi, [rip + .Ls_dedup_ksm]
-        call strcmp@PLT
-        mov ecx, DEDUP_KSM
-        test eax, eax
-        cmovz ebx, ecx
-        mov rdi, r12
-        lea rsi, [rip + .Ls_dedup_lazy]
-        call strcmp@PLT
-        mov ecx, DEDUP_LAZY
-        test eax, eax
-        cmovz ebx, ecx
-        mov rdi, r12
-        lea rsi, [rip + .Ls_dedup_sync]
-        call strcmp@PLT
-        mov ecx, DEDUP_SYNC
-        test eax, eax
-        cmovz ebx, ecx
-        mov rdi, r12
-        lea rsi, [rip + .Ls_dedup_defer]
-        call strcmp@PLT
-        mov ecx, DEDUP_DEFER
-        test eax, eax
-        cmovz ebx, ecx
-2:      mov [rip + dedup_mode_word], rbx
-        mov rax, rbx
-        LEAVE
-ENDF dedup_mode
-
-        .section .data
-        .align 8
-dedup_mode_word: .quad -1
-hc_prefix:      .quad 0                 # 8: the tuples have their N_CANON word
-        .section .rodata
-.Ls_env_dedup:  .asciz "PANORAMIX_DEDUP"
-.Ls_dedup_ksm:  .asciz "ksm"
-.Ls_dedup_lazy: .asciz "lazy"
-.Ls_dedup_sync: .asciz "sync"
-.Ls_dedup_defer: .asciz "defer"
-        .text
-
-# veq_stack: VEQ's slow part, the two values at [rsp + 8] and [rsp + 16]
-# (different pointers): ZF set when their canonical nodes are the same.
-# Every register kept.
-FUNC veq_stack
-        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER
-        jne 1f
-        test rsp, rsp                   # (ZF clear: different)
-        ret
-1:      push rax
-        push rdi
-        push rdx
-        mov rdi, [rsp + 32]
-        call canon
-        mov rdx, rax
-        mov rdi, [rsp + 40]
-        call canon
-        cmp rdx, rax
-        pop rdx
-        pop rdi
-        pop rax
-        ret
-ENDF veq_stack
-
-# canon(v) -> rax: the canonical node equal to v - v itself when v isn't
-# a tuple or a list (ints, strings, specials, VM nodes...). Every
-# register but rax kept.
-FUNC canon
-        mov rax, rdi
-        test dil, 1
-        jnz 1f
-        test rdi, rdi
-        jz 1f
-        cmp dword ptr [rdi + N_KIND], K_TUPLE
-        je 2f
-        cmp dword ptr [rdi + N_KIND], K_LIST
-        jne 1f
-2:      mov rax, [rdi + N_CANON]
-        test rax, rax
-        jz 3f
-1:      ret
-3:      push rbp
-        mov rbp, rsp
-        and rsp, -16
-        push rcx
-        push rdx
-        push rsi
-        push rdi
-        push r8
-        push r9
-        push r10
-        push r11
-        call canonicalize
-        pop r11
-        pop r10
-        pop r9
-        pop r8
-        pop rdi
-        pop rsi
-        pop rdx
-        pop rcx
-        mov rsp, rbp
-        pop rbp
-        ret
-ENDF canon
-
-# canonicalize(v) -> rax: the canonical node of a tuple or list not known
-# yet: its elements made canonical (in place: the same values), then the
-# node equal to it in the hash-cons table, or v itself put there (under
-# the table's lock: DEDUP_KSM's thread merges nodes too, see ksm.s)
-FUNC canonicalize
-        STACK_CHECK
-        ENTER
-        mov rbx, rdi
-        mov r12d, [rbx + N_AUX]
-        xor r13d, r13d
-1:      cmp r13, r12
-        jae 2f
-        mov rdi, [rbx + N_DATA + r13*8]
-        call canon
-        mov [rbx + N_DATA + r13*8], rax
-        inc r13
-        jmp 1b
-2:      mov rax, [rbx + N_CANON]
-        test rax, rax
-        jnz 3f                          # (the merging thread's, meanwhile)
-        mov rax, [r15 + CTX_HC_COUNT]
-        shl rax, 1
-        cmp rax, [r15 + CTX_HC_CAP]
-        jb 4f
-        call hc_grow_shared
-4:      mov rdi, rbx
-        call hc_find_or_insert
-        mov [rbx + N_CANON], rax
-3:      LEAVE
-ENDF canonicalize
-
-# hc_find_or_insert(v) -> rax: the node of the hash-cons table equal to
-# the tuple or list v (its elements canonical), or v itself, put there
-# (the table has room; its lock held when shared)
-FUNC hc_find_or_insert
-        ENTER
-        sub rsp, 16
-        mov rbx, rdi
-        mov r14, [rbx + N_HASH]
-        mov r12, [r15 + CTX_HC_TABLE]
-        mov r13, [r15 + CTX_HC_CAP]
-        dec r13
-        mov rcx, r14
-        and rcx, r13
-        mov [rsp], rcx                  # the slot
-        HC_TAG rax, r14
-        mov [rsp + 8], rax
-4:      mov rcx, [rsp]
-        mov rdi, [r12 + rcx*8]
-        test rdi, rdi
-        jz 7f
-3:      mov rax, rdi
-        xor rax, [rsp + 8]
-        shr rax, 48
-        jnz 6f
-        shl rdi, 16
-        shr rdi, 16
-        cmp [rdi + N_HASH], r14
-        jne 6f
-        mov esi, [rbx + N_KIND]
-        mov edx, [rbx + N_AUX]
-        lea rcx, [rbx + N_DATA]
-        push rdi
-        push rdi
-        call seq_equal
-        pop rdi
-        pop rdi
-        test eax, eax
-        jz 6f
-        cmp qword ptr [rdi + N_CANON], 0 # found (its canonical node itself:
-        jne 1f                          # the one that put it there may not
-        mov [rdi + N_CANON], rdi        # have said so yet - it will, the same)
-1:      mov rax, rdi
-        add rsp, 16
-        LEAVE
-6:      mov rcx, [rsp]
-        inc rcx
-        and rcx, r13
-        mov [rsp], rcx
-        jmp 4b
-7:      mov rdx, [rsp + 8]              # not there: v is the one - unless
-        or rdx, rbx                     # the other thread put one there
-        xor eax, eax                    # meanwhile (DEDUP_KSM: the table
-        lock cmpxchg [r12 + rcx*8], rdx # shared without a lock, slots
-        jne 5f                          # only ever filled)
-        lock inc qword ptr [r15 + CTX_HC_COUNT]
-        mov rax, rbx
-        add rsp, 16
-        LEAVE
-5:      mov rdi, rax                    # (what it put there)
-        jmp 3b
-ENDF hc_find_or_insert
 
 # mk_tuple(count, elems) / mk_list(count, elems)
 FUNC mk_tuple
@@ -875,7 +554,7 @@ FUNC mk_int_mpz
         shl rax, 1
         cmp rax, [r15 + CTX_HC_CAP]
         jb 2f
-        call hc_grow_shared
+        call hc_grow
 2:      mov r14, [r15 + CTX_HC_CAP]
         dec r14                         # the mask
         mov r12, r13
@@ -904,13 +583,13 @@ FUNC mk_int_mpz
 4:      inc r12
         and r12, r14
         jmp 3b
-5:      # the node made, then put in the table (DEDUP_KSM: the merging
-        # thread putting tuples there meanwhile - the slot taken perhaps,
-        # the next free one then; it puts no ints)
-        push r12
-        push r12
-        mov edi, NODE_INT_SIZE
+5:      mov edi, NODE_INT_SIZE
         call arena_alloc_raw
+        mov rcx, [r15 + CTX_HC_TABLE]
+        HC_TAG rdx, r13
+        or rdx, rax
+        mov [rcx + r12*8], rdx
+        inc qword ptr [r15 + CTX_HC_COUNT]
         mov r12, rax
         mov dword ptr [r12 + N_KIND], K_INT
         mov dword ptr [r12 + N_AUX], 0
@@ -919,18 +598,6 @@ FUNC mk_int_mpz
         mov rsi, rbx
         call __gmpz_init_set@PLT
         inc qword ptr [r15 + CTX_NODE_COUNT]
-        pop rbx                         # the slot
-        pop rbx
-        mov rsi, [r15 + CTX_HC_TABLE]
-        HC_TAG rdx, r13
-        or rdx, r12
-8:      xor eax, eax
-        lock cmpxchg [rsi + rbx*8], rdx
-        je 9f
-        inc rbx
-        and rbx, r14
-        jmp 8b
-9:      lock inc qword ptr [r15 + CTX_HC_COUNT]
         mov rax, r12
         LEAVE
 ENDF mk_int_mpz

@@ -235,7 +235,7 @@ FUNC goes_to
 1:      cmp r14, [r13 + VEC_LEN]
         jae 2f
         mov rax, [r13 + VEC_DATA]
-        VEQ r12, [rax + r14*8]
+        cmp [rax + r14*8], r12
         je 3f
         inc r14
         jmp 1b
@@ -378,7 +378,7 @@ FUNC to_while
         cmp dword ptr [r12 + N_AUX], 2
         jb .Ltw_path
         mov rax, [r12 + N_DATA + 8]
-        VEQ rax, [rsp]
+        cmp rax, [rsp]
         jne .Ltw_path
         # the path loops back unconditionally: the exits, if any, are the
         # reverts and returns along the way. ([], add_path([line]), rest, True)

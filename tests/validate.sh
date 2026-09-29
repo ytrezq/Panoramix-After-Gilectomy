@@ -77,8 +77,6 @@ if [ -n "$NPM_CORPUS" ] && [ -n "$NPM_REFS" ]; then
     step npm_check with PANORAMIX_CHECK_LCA=1 corpus "${N[@]}"
     step npm_compact with PANORAMIX_COMPACT_MIB=1 corpus "${N[@]}"
 fi
-step dedup python3 tests/test_dedup.py
-step dedup_compact python3 tests/test_dedup.py --compact
 step algebra with BIG=1 python3 tests/test_algebra.py $seed 300
 step agz python3 tests/test_agz.py $seed 1000
 step agz_family python3 tests/test_agz_family.py $seed 300

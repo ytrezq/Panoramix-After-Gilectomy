@@ -1523,8 +1523,6 @@ FUNC pan_test
         mov [rsp + 40], rax
         call ctx_new
         mov r15, rax
-        call dedup_mode
-        mov [r15 + CTX_DEDUP], rax
         mov rdi, r15
         call ctx_bind
         call sb_new

@@ -430,7 +430,7 @@ FUNC parse_counters_impl
         mov rax, [r13 + VEC_DATA]
         mov rsi, [rax + r14*8]
         mov rax, [rsi + N_DATA + 8]
-        VEQ rax, [rbx + N_DATA + 24]
+        cmp rax, [rbx + N_DATA + 24]
         jne 11f
         mov rdi, [rsp + PC_L_CONTS]
         call vec_push
@@ -534,7 +534,7 @@ FUNC parse_counters_impl
 9:      LOADS rdi, VAR
         mov rsi, [r12 + PC_COUNTER]
         call mk2
-        VEQ rax, r14
+        cmp rax, r14
         jne .Lpc_assert
         mov rdi, [r13 + N_DATA + 8]
         call to_real_int
@@ -579,7 +579,7 @@ FUNC parse_counters_impl
         test eax, eax
         jz 12f
         B rax, 1
-        VEQ rax, [r14 + N_DATA + 8]
+        cmp rax, [r14 + N_DATA + 8]
         je 13f
 12:     PAT rsi, "('add', ':diff', ('mul', 1, ('var', ':var_idx')))"
         mov rdi, [rsp + PC_L_DIFF]
@@ -588,7 +588,7 @@ FUNC parse_counters_impl
         test eax, eax
         jz .Lpc_done
         B rax, 1
-        VEQ rax, [r14 + N_DATA + 8]
+        cmp rax, [r14 + N_DATA + 8]
         jne .Lpc_done
 13:     # var_stop = to_real_int(var_val) + to_real_int(diff) * num_loops
         mov rax, [rsp + PC_L_DIFF]
@@ -1558,7 +1558,7 @@ FUNC add_sha3
         ENTER
         mov rbx, rdi
         mov r12, rsi
-        VEQ rdi, [r12 + N_DATA]
+        cmp rdi, [r12 + N_DATA]
         jne 1f
         mov rsi, [r12 + N_DATA + 8]
         call alg_add2
@@ -1887,7 +1887,7 @@ FUNC loop_to_setmem_impl
         call memidx_to_memrange
         test rax, rax
         jz .Lls_none
-        VEQ rdx, [rsp + LS_DIFF]
+        cmp rdx, [rsp + LS_DIFF]
         jne .Lls_none                   # possible but unsupported
         # [('setmem', rng, ('mem', val_rng))]
         mov rsi, rax
@@ -2040,7 +2040,7 @@ FUNC loop_to_setmem_from_storage
         jae 4f
         mov r14, [r12 + N_DATA + r13*8]
         mov rax, [r14 + N_DATA + 8]
-        VEQ rax, [rsp + LF_IDX_VAR]
+        cmp rax, [rsp + LF_IDX_VAR]
         jne 2f
         mov rsi, rax
         LOADS rdi, VAR
@@ -2053,8 +2053,7 @@ FUNC loop_to_setmem_from_storage
         mov rax, [r14 + N_DATA + 16]
         mov [rsp + LF_IDX_INIT], rax
         jmp 3f
-2:
-        VEQ rax, [rsp + LF_KEY_VAR]
+2:      cmp rax, [rsp + LF_KEY_VAR]
         jne .Llf_none
         mov rsi, rax
         LOADS rdi, VAR
@@ -2177,7 +2176,7 @@ FUNC in_values
         xor eax, eax
 1:      cmp rax, rdx
         jae 2f
-        VEQ rdi, [rsi + rax*8]
+        cmp [rsi + rax*8], rdi
         je 3f
         inc rax
         jmp 1b

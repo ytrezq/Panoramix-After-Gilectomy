@@ -245,7 +245,7 @@ FUNC node_history
         mov rcx, [rdi + ND_PREV]
 1:      test rcx, rcx
         jz 2f
-        VEQ rax, [rcx + ND_JD]
+        cmp [rcx + ND_JD], rax
         je 3f
         mov rcx, [rcx + ND_PREV]
         jmp 1b
@@ -643,7 +643,7 @@ FUNC node_begin_trace
         mov esi, 1
         call mk2
         mov rcx, [r14 + VEC_DATA]
-        VEQ rax, [rcx]
+        cmp [rcx], rax
         je .Lbt_label
 3:      mov rax, [r14 + VEC_DATA]
         mov rdi, [rax]

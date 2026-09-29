@@ -360,7 +360,7 @@ FUNC cleanup_msize_impl
         call vec_push
         # for what follows the if, when its branches merge again
         mov rax, [rsp + CM_MSIZE_TRUE]
-        VEQ rax, [rsp + CM_FALSE]
+        cmp rax, [rsp + CM_FALSE]
         je 41f
         # we could take the max of both, but that gets expensive quickly,
         # and msize isn't used by any recent compiler
@@ -1038,7 +1038,7 @@ FUNC replace_mem_exp_impl
         B rdi, 2
         B rsi, 3
         call merged_call_range
-        VEQ rax, r12
+        cmp rax, r12
         jne 4f
         B rsi, 0
         B rdx, 1
@@ -1062,7 +1062,7 @@ FUNC replace_mem_exp_impl
         B rdi, 3
         B rsi, 4
         call merged_call_range
-        VEQ rax, r12
+        cmp rax, r12
         jne 6f
         B rsi, 0
         B rdx, 1
@@ -1073,7 +1073,7 @@ FUNC replace_mem_exp_impl
         call mk6
         mov [rsp + RM_RES], rax
 6:      mov rax, [rsp + RM_RES]
-        VEQ rax, rbx
+        cmp rax, rbx
         je 7f
         mov rdi, rax
         call simplify_exp
@@ -1583,19 +1583,8 @@ FUNC line_vars
         mov rsi, rax
         call vec_extend_seq
         jmp 13b
-0:      # each variable once (hash-consed: the same pointer - made so
-        # first when the context doesn't hash-cons)
-        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER
-        je 15f
-        mov rdx, [r12 + VEC_DATA]
+0:      # each variable once (hash-consed: the same pointer)
         mov rcx, [r12 + VEC_LEN]
-14:     dec rcx
-        js 15f
-        mov rdi, [rdx + rcx*8]
-        call canon                      # (every register but rax kept)
-        mov [rdx + rcx*8], rax
-        jmp 14b
-15:     mov rcx, [r12 + VEC_LEN]
         cmp rcx, 64
         ja 5f
         mov rdx, [r12 + VEC_DATA]       # few: in place
@@ -1679,7 +1668,7 @@ FUNC line_has_var
         xor edx, edx
 2:      cmp edx, ecx
         jae 3f
-        VEQ rbx, [rax + N_DATA + rdx*8]
+        cmp [rax + N_DATA + rdx*8], rbx
         je 4f
         inc edx
         jmp 2b
@@ -2178,14 +2167,14 @@ FUNC lines_have_var
         jz 8f
         cmp dword ptr [rbx + N_KIND], K_LIST
         jne 8f                          # (not a list: as python does)
-        VEQ rbx, r12
+        cmp rbx, r12
         je 7f
         xor r13d, r13d
 1:      cmp r13d, [rbx + N_AUX]
         jae 6f
         mov rdi, [rbx + N_DATA + r13*8]
         inc r13d
-        VEQ rdi, r12
+        cmp rdi, r12
         je 7f
         test dil, 1
         jnz 1b                          # (a number: not the tuple)
@@ -2253,7 +2242,7 @@ FUNC line_has_setvar
 2:      cmp edx, ecx
         jae 6f
         mov rdi, [rax + N_DATA + rdx*8]
-        VEQ rdi, rbx
+        cmp rdi, rbx
         je 7f
         test dil, 1                     # (python's ==: big ints by value)
         jnz 8f
@@ -2384,7 +2373,7 @@ FUNC rename_var
         jz 5f
         cmp dword ptr [r12 + N_KIND], K_TUPLE
         jne 5f
-        VEQ r12, [rsp + RV_VAR_OLD]
+        cmp r12, [rsp + RV_VAR_OLD]
         je 5f
         mov rdi, r12
         mov rsi, [rsp + RV_VAR_OLD]
@@ -2414,7 +2403,7 @@ ENDF rename_var
 # rv_walk(exp, block) -> exp renamed (block: rename_var's)
 FUNC rv_walk
         STACK_CHECK
-        VEQ rdi, [rsi + RV_VAR_OLD]
+        cmp rdi, [rsi + RV_VAR_OLD]
         je 7f
         mov rax, rdi
         test dil, 1
@@ -2460,7 +2449,7 @@ FUNC rv_walk
         cmp dword ptr [rax + N_AUX], 3
         jne 5f
         mov rcx, [rax + N_DATA + 8]
-        VEQ rcx, [r12 + RV_OLD]
+        cmp rcx, [r12 + RV_OLD]
         jne 5f
         mov rdi, rax
         mov [rsp], rax
@@ -2633,7 +2622,7 @@ FUNC readability
         jae 7f
         mov rax, [r12 + N_DATA + rcx*8]
         mov rsi, [rax + N_DATA + 8]     # v_idx
-        VEQ rsi, [rsp + RD_COUNTER]
+        cmp rsi, [rsp + RD_COUNTER]
         je 61f
         mov rdi, [rsp + RD_REST]
         mov rdx, [rsp + RD_NEW]

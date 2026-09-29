@@ -59,13 +59,6 @@
 .set N_AUX, 4
 .set N_HASH, 8
 .set N_DATA, 16
-.set DEDUP_EAGER, 0          # a tuple is looked up when it is made (hash-consing)
-.set DEDUP_KSM, 1            # made as it is; a thread merges the duplicates (ksm.s)
-.set DEDUP_LAZY, 2           # made as it is; merged only when compared or used as a key
-.set DEDUP_DEFER, 4          # (tests) queued as for the thread, merged by this one later
-.set DEDUP_SYNC, 3           # (tests) made as it is, then merged as the thread would, at once
-.set N_CANON, -8            # tuples and lists (hc_prefix): the word before the node - the canonical
-                            # node equal to it (itself when it is), 0 not known yet
 
 .set NODE_INT_SIZE, 32
 
@@ -126,9 +119,7 @@
 .set CTX_CHILD_LIMIT, CTX_ARENA_PEAK + 8        # CTX_MEM_LIMIT of the contexts it makes
 .set CTX_MEMO, CTX_ARENA_PEAK + 16              # the memo tables, 40 slots (see MEMO_*)
 .set CTX_AGZ, CTX_MEMO + 40 * 8                 # 8 scratch mpz_t for add_ge_zero's sums
-.set CTX_DEDUP, CTX_AGZ + 8 * MPZ_SIZEOF      # DEDUP_*: how this context's tuples are deduplicated
-.set CTX_KSMQ, CTX_DEDUP + 8   # DEDUP_KSM: the queue of the merging thread (ksm.s)
-.set CTX_SIZE, CTX_DEDUP + 16
+.set CTX_SIZE, CTX_AGZ + 8 * MPZ_SIZEOF
 
 # error handler buffer (rt_err.s)
 .set ERR_RBX, 0
@@ -273,27 +264,6 @@
 # the thread's stack. Threads that decompile set CTX_STACK_LOW
 # (ctx_set_stack) a margin above the end of their stack.
 .set STACK_MARGIN, 0x100000             # 1 MiB: what the deepest non-recursive calls need
-# VEQ reg, op: ZF set when the two values are equal - the same pointer, or
-# (tuples and lists not deduplicated yet: DEDUP_KSM, DEDUP_LAZY) the same
-# canonical node. Every register kept; op may be memory, [rsp + ...]
-# included. For `cmp reg, op` where hash-consing made it an equality of
-# values.
-.macro VEQ reg, op
-        cmp \reg, \op
-        je .Lveq_done\@
-        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER + 1
-        jae .Lveq_slow\@               # (DEDUP_EAGER: below, ZF clear - different)
-.Lveq_done\@:
-        .pushsection .text.unlikely, "ax"       # (out of the way of the hot code)
-.Lveq_slow\@:
-        push \op
-        push \reg
-        call veq_stack
-        lea rsp, [rsp + 16]
-        jmp .Lveq_done\@
-        .popsection
-.endm
-
 .macro STACK_CHECK
         cmp rsp, [r15 + CTX_STACK_LOW]
         jb stack_overflow
