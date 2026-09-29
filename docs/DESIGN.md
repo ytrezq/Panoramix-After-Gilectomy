@@ -290,6 +290,18 @@ list, `True` isn't 1) - and `panasm --json` (against `json.dumps`) with
 python's `decompile_bytecode` on the corpus, whose results `make
 json-expected` pickles (pypy, `tests/gen_json_expected.py`).
 
+`tests/validate.sh [--quick] [SEED]` is what a change goes through
+before it is committed: the corpus and the synthetic programs - and the
+npm corpus below when `$NPM_CORPUS` (its `.hex` files) and `$NPM_REFS`
+(pypy's texts, `NAME.pan`) are given - as they are, with the VM's checks
+(`PANORAMIX_CHECK_LCA=1`) and with a compaction at every round; the
+random unit tests below with SEED (the day of the year by default); the
+differential tests of the VM, the whiles and the simplifier on the
+corpus (an hour, left out by `--quick`, which takes ten minutes); `make
+check`. A line per step, with its time and the last line of its output
+(the whole of it in `build/validate/`); the status is 1 when a step
+failed.
+
 `tests/difffuzz.py SEED COUNT` is a differential fuzzer: random
 solidity-like programs (a selector dispatch; functions of storage and
 memory writes, ifs, requires, loops, logs, calls, returns over random
