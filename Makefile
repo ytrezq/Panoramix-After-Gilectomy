@@ -40,6 +40,12 @@ build/panoramix_asm$(PY_EXT): build/pymod.o $(LIBOBJS)
 build/libpanoramix_asm.so: $(LIBOBJS)
 	$(CC) -shared $(LDFLAGS) -Wl,-soname,libpanoramix_asm.so -o $@ $(LIBOBJS) $(LDLIBS)
 
+# the profiler (tools/psamp.c): build/psamp OUT 250000 build/panasm decompile ...,
+# then tools/psym.py OUT
+build/psamp: tools/psamp.c
+	@mkdir -p build
+	$(CC) -O2 -Wall -o $@ $<
+
 build/c_api_test: tests/c_api_test.c include/panoramix_asm.h build/libpanoramix_asm.so
 	$(CC) -O2 -Wall -Iinclude -o $@ tests/c_api_test.c -Lbuild -lpanoramix_asm -Wl,-rpath,'$$ORIGIN'
 

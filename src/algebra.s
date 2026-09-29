@@ -792,59 +792,41 @@ FUNC alg_mul_n
         LEAVE
 ENDF alg_mul_n
 
-# flatten_adds(vec): in place, expands the ('add', ...) elements
-FUNC flatten_adds
+# flatten_adds_into(vec, count, args): the args pushed on vec, their
+# ('add', ...) ones expanded, recursively - python's flatten_adds expands
+# a level at a time until none is left: the same terms in the same order
+FUNC flatten_adds_into
+        STACK_CHECK
         ENTER
         mov rbx, rdi
-1:      # any add?
-        xor r12d, r12d
-2:      cmp r12, [rbx + VEC_LEN]
-        jae 5f
-        mov rax, [rbx + VEC_DATA]
-        mov rdi, [rax + r12*8]
+        mov r12, rsi                    # count
+        mov r13, rdx                    # args
+        xor r14d, r14d
+1:      cmp r14, r12
+        jae 9f
+        mov rdi, [r13 + r14*8]
+        inc r14
         OPCODE_OF_RDI
         cmp eax, OP_ADD
         je 3f
-        inc r12
-        jmp 2b
-3:      # rebuild
-        call vec_new
-        mov r13, rax
-        xor r12d, r12d
-4:      cmp r12, [rbx + VEC_LEN]
-        jae 6f
-        mov rax, [rbx + VEC_DATA]
-        mov r14, [rax + r12*8]
-        mov rdi, r14
-        OPCODE_OF_RDI
-        cmp eax, OP_ADD
-        jne 7f
-        cmp dword ptr [r14 + N_AUX], 2
-        jbe .Lfa_assert                 # python: assert len(r[1:]) > 1
-        mov rdi, r13
-        mov edx, [r14 + N_AUX]
-        dec edx
-        lea rsi, [r14 + N_DATA + 8]
-        call vec_extend
-        jmp 8f
-7:      mov rdi, r13
-        mov rsi, r14
+        mov rsi, rdi
+        mov rdi, rbx
         call vec_push
-8:      inc r12
-        jmp 4b
-6:      mov rax, [r13 + VEC_DATA]
-        mov [rbx + VEC_DATA], rax
-        mov rax, [r13 + VEC_LEN]
-        mov [rbx + VEC_LEN], rax
-        mov rax, [r13 + VEC_CAP]
-        mov [rbx + VEC_CAP], rax
         jmp 1b
-5:      LEAVE
+3:      mov esi, [rdi + N_AUX]
+        cmp esi, 2
+        jbe .Lfa_assert                 # python: assert len(r[1:]) > 1
+        dec esi
+        lea rdx, [rdi + N_DATA + 8]
+        mov rdi, rbx
+        call flatten_adds_into
+        jmp 1b
+9:      LEAVE
 .Lfa_assert:
         mov edi, E_ASSERT
         lea rsi, [rip + .Ls_fa_assert]
         call err_throw
-ENDF flatten_adds
+ENDF flatten_adds_into
 
         .section .rodata
 .Ls_fa_assert: .asciz "flatten_adds: an add of less than two terms"
@@ -914,7 +896,9 @@ FUNC alg_add_n
 4:      mov rax, [rsp]
         add rsp, 48
         LEAVE
-5:      # memo lookup on the tuple of the args
+5:      cmp rbx, 2
+        je 8f
+        # memo lookup on the tuple of the args
         mov rdi, rbx
         mov rsi, r12
         call mk_tuple
@@ -932,29 +916,205 @@ FUNC alg_add_n
         mov [rsp + 16], rax
         mov edi, MEMO_ADD
         mov rsi, [rsp + 8]
-        mov rdx, rax
+        mov rdx, [rsp + 16]
         call memo_put
+        mov rax, [rsp + 16]
+        add rsp, 48
+        LEAVE
+8:      # two: the pair's memo, without a tuple made (most adds)
+        mov edi, MEMO_ADD2
+        mov rsi, [r12]
+        mov rdx, [r12 + 8]
+        call memo2_get
+        test rax, rax
+        jz 9f
+        add rsp, 48
+        LEAVE
+9:      mov rdi, rbx
+        mov rsi, r12
+        call add_op_impl
+        mov [rsp + 16], rax
+        cmp qword ptr [r15 + CTX_ADD_WRAPPED], 0
+        je 10f
+        mov edi, MEMO_ADD_WRAPPED       # (its sum reduced: see agz_by_family)
+        mov rsi, [r12]
+        mov rdx, [r12 + 8]
+        mov ecx, 3
+        call memo2_put
+10:     mov edi, MEMO_ADD2
+        mov rsi, [r12]
+        mov rdx, [r12 + 8]
+        mov rcx, [rsp + 16]
+        call memo2_put
         mov rax, [rsp + 16]
         add rsp, 48
         LEAVE
 ENDF alg_add_n
 
-# add_op_impl(count, args) -> value
+# add_op_impl(count, args) -> value. python's add_op sums the numbers
+# among the terms (flatten_adds'), and combines the others (try_add, in
+# order) without looking at the numbers - the combination gives the
+# symbolic part and a number of its own (try_add's ('add', num, term)):
+# that is remembered for the sequence of the other terms (MEMO_ADD_FAMILY,
+# add_op_family), whatever the numbers - add_op(64, x, y) and
+# add_op(96, x, y) combine x and y once. The result: the numbers' sum
+# plus the combination's, reduced mod 2^256 when positive, first.
 FUNC add_op_impl
         STACK_CHECK
         ENTER
         sub rsp, 48
+        .set AO_REAL, 0
+        .set AO_S, 8                    # the combination's terms (a tuple)
+        .set AO_KEY, 16
         mov rbx, rdi
         mov r12, rsi
         # res = flatten_adds(args)
         call vec_new
         mov r13, rax
         mov rdi, r13
-        mov rsi, r12
-        mov rdx, rbx
-        call vec_extend
+        mov rsi, rbx
+        mov rdx, r12
+        call flatten_adds_into
+        # the numbers summed, the other terms kept in order
+        mov qword ptr [rsp + AO_REAL], 1
+        xor r14d, r14d                  # read
+        xor ebx, ebx                    # written
+1:      cmp r14, [r13 + VEC_LEN]
+        jae 3f
+        mov rax, [r13 + VEC_DATA]
+        mov rdi, [rax + r14*8]
+        inc r14
+        test dil, 1
+        jnz 2f
+        test rdi, rdi
+        jz 14f
+        cmp dword ptr [rdi + N_KIND], K_INT
+        je 2f
+14:     mov [rax + rbx*8], rdi
+        inc rbx
+        jmp 1b
+2:      mov rsi, rdi
+        mov rdi, [rsp + AO_REAL]
+        call int_add
+        mov [rsp + AO_REAL], rax
+        jmp 1b
+3:      mov [r13 + VEC_LEN], rbx
+        # their combination, remembered for the sequence
+        mov edi, K_TUPLE
+        mov rsi, rbx
+        mov rdx, [r13 + VEC_DATA]
+        call mk_seq
+        mov [rsp + AO_KEY], rax
+        mov edi, MEMO_ADD_FAMILY
+        mov rsi, rax
+        call memo_get
+        test rax, rax
+        jnz 4f
         mov rdi, r13
-        call flatten_adds
+        call add_op_family
+        mov r12, rax
+        mov edi, MEMO_ADD_FAMILY
+        mov rsi, [rsp + AO_KEY]
+        mov rdx, rax
+        call memo_put
+        mov rax, r12
+4:      mov rcx, [rax + N_DATA + 8]
+        mov [rsp + AO_S], rcx
+        mov rdi, [rsp + AO_REAL]
+        mov rsi, [rax + N_DATA]
+        call int_add
+        mov [rsp + AO_REAL], rax
+        # the result
+        mov qword ptr [r15 + CTX_ADD_WRAPPED], 0
+        mov r12, [rsp + AO_S]
+        mov r13d, [r12 + N_AUX]         # the terms
+        cmp qword ptr [rsp + AO_REAL], 1
+        je 6f                           # real == 0: the terms alone
+        # real > 0: real % 2**256 (a small number stays as it is); whether
+        # that changed it, for alg_add_n (CTX_ADD_WRAPPED: see
+        # agz_by_family)
+        mov rdi, [rsp + AO_REAL]
+        test dil, 1
+        jnz 5f
+        call int_sign
+        cmp eax, 1
+        jne 5f
+        mov rdi, [rsp + AO_REAL]
+        mov esi, 256
+        call int_mod_2exp
+        mov rdi, rax
+        xchg rax, [rsp + AO_REAL]
+        mov rsi, rax
+        call values_equal
+        xor eax, 1
+        mov [r15 + CTX_ADD_WRAPPED], rax
+5:      test r13, r13
+        jnz 7f
+        mov rax, [rsp + AO_REAL]        # the number alone
+        add rsp, 48
+        LEAVE
+7:      # ('add', real) + terms
+        lea rax, [r13*8 + 16 + 15]
+        and rax, -16
+        sub rsp, rax
+        LOADS rax, ADD
+        mov [rsp], rax
+        mov rax, [rbp - 32 - 48 + AO_REAL]
+        mov [rsp + 8], rax
+        xor ecx, ecx
+8:      cmp rcx, r13
+        jae 9f
+        mov rax, [r12 + N_DATA + rcx*8]
+        mov [rsp + 16 + rcx*8], rax
+        inc rcx
+        jmp 8b
+9:      mov edi, K_TUPLE
+        lea rsi, [r13 + 2]
+        mov rdx, rsp
+        call mk_seq
+        lea rsp, [rbp - 32]
+        LEAVE
+6:      test r13, r13
+        jnz 10f
+        mov eax, 1                      # nothing: 0
+        add rsp, 48
+        LEAVE
+10:     cmp r13, 1
+        jne 11f
+        mov rax, [r12 + N_DATA]         # one term
+        add rsp, 48
+        LEAVE
+11:     # ('add',) + terms
+        lea rax, [r13*8 + 8 + 15]
+        and rax, -16
+        sub rsp, rax
+        LOADS rax, ADD
+        mov [rsp], rax
+        xor ecx, ecx
+12:     cmp rcx, r13
+        jae 13f
+        mov rax, [r12 + N_DATA + rcx*8]
+        mov [rsp + 8 + rcx*8], rax
+        inc rcx
+        jmp 12b
+13:     mov edi, K_TUPLE
+        lea rsi, [r13 + 1]
+        mov rdx, rsp
+        call mk_seq
+        lea rsp, [rbp - 32]
+        LEAVE
+ENDF add_op_impl
+
+# add_op_family(vec) -> rax: (num, terms): add_op's combination of the
+# terms of vec (numbers none; the vector is used up) - every term that
+# isn't a mul made mul_op(1, term), each one added to the first it
+# combines with (try_add) or kept, the zero ones dropped and the mul 1
+# ones unwrapped - and the sum of the numbers that came out of it
+FUNC add_op_family
+        STACK_CHECK
+        ENTER
+        sub rsp, 48
+        mov r13, rdi
         # every term that isn't a mul becomes mul_op(1, term)
         xor r14d, r14d
 1:      cmp r14, [r13 + VEC_LEN]
@@ -1139,51 +1299,13 @@ FUNC add_op_impl
         call vec_push
 23:     inc r14
         jmp 21b
-24:     # the result
-        cmp qword ptr [rsp], 1
-        je 26f
-        # real > 0: real % 2**256
+24:     mov edi, K_TUPLE
+        mov rsi, [r13 + VEC_LEN]
+        mov rdx, [r13 + VEC_DATA]
+        call mk_seq
         mov rdi, [rsp]
-        call int_sign
-        cmp eax, 1
-        jne 25f
-        mov rdi, [rsp]
-        mov esi, 256
-        call int_mod_2exp
-        mov [rsp], rax
-25:     call vec_new
-        mov rbx, rax
-        mov rdi, rbx
-        mov rsi, [rsp]
-        call vec_push
-        mov rdi, rbx
-        mov rsi, [r13 + VEC_DATA]
-        mov rdx, [r13 + VEC_LEN]
-        call vec_extend
-        mov r13, rbx
-26:     mov rax, [r13 + VEC_LEN]
-        test rax, rax
-        jnz 27f
-        mov eax, 1
-        add rsp, 48
-        LEAVE
-27:     cmp rax, 1
-        jne 28f
-        mov rax, [r13 + VEC_DATA]
-        mov rax, [rax]
-        add rsp, 48
-        LEAVE
-28:     call vec_new
-        mov rbx, rax
-        mov rdi, rbx
-        LOADS rsi, ADD
-        call vec_push
-        mov rdi, rbx
-        mov rsi, [r13 + VEC_DATA]
-        mov rdx, [r13 + VEC_LEN]
-        call vec_extend
-        mov rdi, rbx
-        call vec_to_tuple
+        mov rsi, rax
+        call mk2
         add rsp, 48
         LEAVE
 .Lao_assert:
@@ -1198,7 +1320,7 @@ FUNC add_op_impl
         mov edi, E_INDEX
         lea rsi, [rip + .Ls_ao_index]
         call err_throw
-ENDF add_op_impl
+ENDF add_op_family
 
         .section .rodata
 .Ls_ao_assert:  .asciz "add_op: try_add gave neither a mul, a mask nor an add of a number"
@@ -2963,22 +3085,47 @@ FUNC alg_init
         LEAVE
 ENDF alg_init
 
-# is_mem64(v) -> eax: v == ('mem', ('range', 64, 32))
+# is_mem64(v) -> eax: v == ('mem', ('range', 64, 32)) - read off the
+# structure (the strings are the opcodes' own nodes, the numbers small:
+# what values_equal would compare by pointer)
 FUNC is_mem64
-        ENTER
-        mov rbx, rdi
-        LOADS rdi, RANGE
-        mov esi, (64 << 1) | 1
-        mov edx, (32 << 1) | 1
-        call mk3
-        LOADS rdi, MEM
-        mov rsi, rax
-        call mk2
-        mov rdi, rbx
-        mov rsi, rax
-        call values_equal
-        LEAVE
+        xor eax, eax
+        test dil, 1
+        jnz 1f
+        test rdi, rdi
+        jz 1f
+        cmp dword ptr [rdi + N_KIND], K_TUPLE
+        jne 1f
+        cmp dword ptr [rdi + N_AUX], 2
+        jne 1f
+        LOADS rcx, MEM
+        cmp [rdi + N_DATA], rcx
+        jne 1f
+        mov rdi, [rdi + N_DATA + 8]
+        test dil, 1
+        jnz 1f
+        test rdi, rdi
+        jz 1f
+        cmp dword ptr [rdi + N_KIND], K_TUPLE
+        jne 1f
+        cmp dword ptr [rdi + N_AUX], 3
+        jne 1f
+        LOADS rcx, RANGE
+        cmp [rdi + N_DATA], rcx
+        jne 1f
+        cmp qword ptr [rdi + N_DATA + 8], (64 << 1) | 1
+        jne 1f
+        cmp qword ptr [rdi + N_DATA + 16], (32 << 1) | 1
+        jne 1f
+        mov eax, 1
+1:      ret
 ENDF is_mem64
+
+        # agz_by_family's codes (see there)
+        .set FAM_TRUE, MEMO_TRUE        # True whatever the number
+        .set FAM_NONE, MEMO_NONE        # None whatever the number
+        .set FAM_NO, MEMO_CANNOT        # not answered by the family
+        .set AGZ_BY_FAMILY_NO, -3
 
 # alg_add_ge_zero(exp) -> TRI_TRUE / TRI_FALSE / TRI_NONE (memoized)
 FUNC alg_add_ge_zero
@@ -3385,6 +3532,13 @@ FUNC add_ge_zero_impl
         .set AGZ_VALS, 48               # the values of the (at most 7) variables
         .set AGZ_MAXV, 104              # MAX_number
         .set AGZ_SPEC, 112              # the special value of each variable (7)
+        mov rbx, rdi
+        call agz_by_family
+        cmp eax, AGZ_BY_FAMILY_NO
+        je 1f
+        add rsp, 176
+        LEAVE
+1:      mov rdi, rbx
         call alg_simplify
         mov rbx, rax
         mov rdi, rbx
@@ -3808,6 +3962,338 @@ FUNC var_mask
         add rsp, 16
         LEAVE
 ENDF var_mask
+
+# --- add_ge_zero by families. The adds whose sign is asked come in
+# families: the same terms after different numbers (add_op puts the
+# number first), e.g. the ends of the memory ranges range_overlaps
+# compares, ('add', -64, x, ('mul', -1, y)) and ('add', 32, x, ('mul',
+# -1, y)). Python simplifies each and evaluates its variants anew. The
+# simplification of ('add', c, t1..tn) is the fold of add_op over c,
+# simplify(t1)..simplify(tn), and add_op combines the terms without
+# looking at the numbers, which it only sums (reducing a positive sum mod
+# 2^256): the symbolic part S of the result is that of the fold over the
+# terms alone (the family's), its number c + D (D: the family's) as long
+# as no sum reaches 2^256 - which the family's fold shows: every number
+# on its way small (c plus any of them too), and no step's sum reduced
+# (MEMO_ADD_WRAPPED: the steps that were, now or when alg_add_n
+# remembered them). The variants of c + D + S (evaluated directly:
+# agz_groups) range over c + D + the extremes of S's: the family's record
+# is (lo, hi) = D + those, and a member's answer is True for c + lo >= 0,
+# False for c + hi < 0, else None - a lookup instead of a simplification
+# and the evaluations. The rest (too many variables, none, not evaluable
+# directly, big numbers) is answered as before.
+
+# agz_by_family(exp) -> eax: add_ge_zero(exp) (TRI_*) from its family's
+# record, or AGZ_BY_FAMILY_NO
+FUNC agz_by_family
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        test bl, 1
+        jnz .Labf_no
+        test rbx, rbx
+        jz .Labf_no
+        cmp dword ptr [rbx + N_KIND], K_TUPLE
+        jne .Labf_no
+        mov r13d, [rbx + N_AUX]
+        cmp r13d, 3
+        jb .Labf_no
+        mov rdi, rbx
+        OPCODE_OF_RDI
+        cmp eax, OP_ADD
+        jne .Labf_no
+        mov rax, [rbx + N_DATA + 8]
+        test al, 1
+        jnz 1f
+        # no small number first: the family of the add itself (c = 0),
+        # unless it is a big number
+        mov r12d, 1
+        mov r14, rbx
+        test rax, rax
+        jz 2f
+        cmp dword ptr [rax + N_KIND], K_INT
+        je .Labf_no
+        jmp 2f
+1:      movabs rcx, (SMALL_MIN << 1) | 1
+        cmp rax, rcx
+        je .Labf_no                     # (-c must be small too)
+        mov r12, rax                    # c
+        # the family: ('add',) + exp[2:]
+        dec r13
+        lea rax, [r13*8 + 15]
+        and rax, -16
+        sub rsp, rax
+        mov rax, [rbx + N_DATA]
+        mov [rsp], rax
+        mov ecx, 1
+3:      cmp rcx, r13
+        jae 4f
+        mov rax, [rbx + N_DATA + 8 + rcx*8]
+        mov [rsp + rcx*8], rax
+        inc rcx
+        jmp 3b
+4:      mov edi, K_TUPLE
+        mov rsi, r13
+        mov rdx, rsp
+        call mk_seq
+        lea rsp, [rbp - 32]
+        mov r14, rax
+2:      mov edi, MEMO_AGZ_FAMILY
+        mov rsi, r14
+        call memo_get
+        test rax, rax
+        jnz 5f
+        mov rdi, r14
+        call agz_family
+        mov r13, rax
+        mov edi, MEMO_AGZ_FAMILY
+        mov rsi, r14
+        mov rdx, rax
+        call memo_put
+        mov rax, r13
+5:      cmp rax, FAM_NO
+        je .Labf_no
+        cmp rax, FAM_TRUE
+        je .Labf_true
+        cmp rax, FAM_NONE
+        je .Labf_none
+        mov r13, rax                    # (lo, hi)
+        mov r14d, 2
+        sub r14, r12                    # -c
+        mov rdi, [r13 + N_DATA]
+        mov rsi, r14
+        call int_cmp
+        test eax, eax
+        jns .Labf_true                  # c + lo >= 0
+        mov rdi, [r13 + N_DATA + 8]
+        mov rsi, r14
+        call int_cmp
+        test eax, eax
+        js .Labf_false                  # c + hi < 0
+.Labf_none:
+        mov eax, TRI_NONE
+        LEAVE
+.Labf_true:
+        mov eax, TRI_TRUE
+        LEAVE
+.Labf_false:
+        mov eax, TRI_FALSE
+        LEAVE
+.Labf_no:
+        mov eax, AGZ_BY_FAMILY_NO
+        LEAVE
+ENDF agz_by_family
+
+# fam_number(v) -> rax: the number of add_op's result v (a small int
+# value: v itself, its first term, or 0), or 0 (not a value) for a big one
+FUNC fam_number
+        mov rax, rdi
+        test al, 1
+        jnz 9f
+        test rdi, rdi
+        jz 8f
+        mov ecx, [rdi + N_KIND]
+        cmp ecx, K_INT
+        je 7f
+        cmp ecx, K_TUPLE
+        jne 8f
+        cmp dword ptr [rdi + N_AUX], 2
+        jb 8f
+        mov rax, [rdi + N_DATA]
+        LOADS rcx, ADD
+        cmp rax, rcx
+        jne 8f
+        mov rax, [rdi + N_DATA + 8]
+        test al, 1
+        jnz 9f
+        test rax, rax
+        jz 8f
+        cmp dword ptr [rax + N_KIND], K_INT
+        je 7f
+8:      mov eax, 1                      # no number: 0
+9:      ret
+7:      xor eax, eax
+        ret
+ENDF fam_number
+
+# agz_family(fam) -> rax: the record of the family ('add',) + fam[1:]
+# (see agz_by_family): (lo, hi), FAM_TRUE, FAM_NONE or FAM_NO
+FUNC agz_family
+        STACK_CHECK
+        ENTER
+        sub rsp, 96
+        .set AF_D, 0                    # the number of the fold's result
+        .set AF_VARS, 8
+        .set AF_MAXV, 16
+        .set AF_I, 24
+        .set AF_SPEC, 32                # the special values (7)
+        mov rbx, rdi
+        # python's fold, without the number: res = add_op(res, simplify(t))
+        mov r12d, 1                     # res = 0
+        mov r13d, 1
+1:      cmp r13d, [rbx + N_AUX]
+        jae 2f
+        mov rdi, [rbx + N_DATA + r13*8]
+        call alg_simplify
+        mov r14, rax
+        mov rdi, r12
+        mov rsi, rax
+        call alg_add2
+        # a step whose sum add_op reduced (now or when it was remembered)
+        cmp qword ptr [r15 + CTX_MEMO + MEMO_ADD_WRAPPED * 8], 0
+        je 3f
+        mov [rsp + AF_I], rax
+        mov edi, MEMO_ADD_WRAPPED       # (alg_add_n's pair)
+        mov rsi, r12
+        mov rdx, r14
+        call memo2_get
+        test rax, rax
+        jnz .Laf_no
+        mov rax, [rsp + AF_I]
+3:      mov r12, rax
+        mov rdi, rax
+        call fam_number
+        test rax, rax
+        jz .Laf_no                      # a big number on the way
+        inc r13d
+        jmp 1b
+2:      mov rdi, r12
+        call fam_number
+        mov [rsp + AF_D], rax
+        # S: the terms of the result after its number, as an add
+        test r12b, 1
+        jnz .Laf_int                    # a number: no term
+        cmp dword ptr [r12 + N_KIND], K_TUPLE
+        jne 3f
+        mov rdi, r12
+        OPCODE_OF_RDI
+        cmp eax, OP_ADD
+        jne 3f
+        mov rax, [r12 + N_DATA + 8]
+        test al, 1
+        jz 4f                           # no number: the add itself
+        mov r13d, [r12 + N_AUX]
+        dec r13
+        cmp r13, 1
+        jbe .Laf_no                     # (('add', n): not add_op's)
+        lea rax, [r13*8 + 15]
+        and rax, -16
+        sub rsp, rax
+        mov rax, [r12 + N_DATA]
+        mov [rsp], rax
+        mov ecx, 1
+5:      cmp rcx, r13
+        jae 6f
+        mov rax, [r12 + N_DATA + 8 + rcx*8]
+        mov [rsp + rcx*8], rax
+        inc rcx
+        jmp 5b
+6:      mov edi, K_TUPLE
+        mov rsi, r13
+        mov rdx, rsp
+        call mk_seq
+        lea rsp, [rbp - 32 - 96]
+        mov r12, rax
+        jmp 4f
+3:      LOADS rdi, ADD                  # one term
+        mov rsi, r12
+        call mk2
+        mov r12, rax
+4:      # r12: ('add',) + S. Its variables (the number has none)
+        call vec_new
+        mov [rsp + AF_VARS], rax
+        mov rdi, r12
+        mov rsi, rax
+        call extract_variables
+        mov rax, [rsp + AF_VARS]
+        mov r13, [rax + VEC_LEN]
+        cmp r13, 7
+        ja .Laf_none
+        test r13, r13
+        jz .Laf_true                    # none: python iterates over no variant
+        mov rdi, r12
+        mov rsi, r13
+        mov rdx, [rax + VEC_DATA]
+        call variant_evaluable
+        test eax, eax
+        js .Laf_no
+        cmp eax, EVAL_POOL_DEPTH - 1
+        jg .Laf_no
+        call alg_max_number
+        mov [rsp + AF_MAXV], rax
+        xor ecx, ecx
+7:      cmp rcx, r13
+        jae 9f
+        mov [rsp + AF_I], rcx
+        mov rax, [rsp + AF_VARS]
+        mov rax, [rax + VEC_DATA]
+        mov r14, [rax + rcx*8]
+        mov rdi, r14
+        call is_mem64
+        mov edx, (96 << 1) | 1
+        test eax, eax
+        jnz 8f
+        LOADS rsi, CALLDATASIZE
+        mov edx, (6 << 1) | 1
+        cmp r14, rsi
+        je 8f
+        mov edx, 1
+8:      mov rcx, [rsp + AF_I]
+        mov [rsp + AF_SPEC + rcx*8], rdx
+        inc rcx
+        jmp 7b
+9:      mov rdi, r12
+        mov rsi, r13
+        mov rax, [rsp + AF_VARS]
+        mov rdx, [rax + VEC_DATA]
+        mov rcx, [rsp + AF_MAXV]
+        lea r8, [rsp + AF_SPEC]
+        call agz_groups
+        # (lo, hi) = D + the extremes of S's variants
+        lea rdi, [r15 + AGZM_MIN]
+        call .Laf_add_d
+        lea rdi, [r15 + AGZM_MIN]
+        call mk_int_mpz
+        mov r12, rax
+        lea rdi, [r15 + AGZM_MAX]
+        call .Laf_add_d
+        lea rdi, [r15 + AGZM_MAX]
+        call mk_int_mpz
+        mov rdi, r12
+        mov rsi, rax
+        call mk2
+        add rsp, 96
+        LEAVE
+.Laf_int:                               # S empty: the number decides
+        mov rdi, [rsp + AF_D]
+        mov rsi, rdi
+        call mk2
+        add rsp, 96
+        LEAVE
+.Laf_true:
+        mov eax, FAM_TRUE
+        add rsp, 96
+        LEAVE
+.Laf_none:
+        mov eax, FAM_NONE
+        add rsp, 96
+        LEAVE
+.Laf_no:
+        mov eax, FAM_NO
+        lea rsp, [rbp - 32]
+        LEAVE
+# local: the mpz rdi += D
+.Laf_add_d:
+        mov rdx, [rsp + 8 + AF_D]
+        sar rdx, 1
+        jz 2f
+        mov rsi, rdi
+        js 1f
+        jmp __gmpz_add_ui@PLT
+1:      neg rdx
+        jmp __gmpz_sub_ui@PLT
+2:      ret
+ENDF agz_family
 
 # alg_calc_max(exp) -> value
 FUNC alg_calc_max

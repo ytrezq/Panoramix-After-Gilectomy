@@ -828,12 +828,13 @@ FUNC memo_import
 6:      xor r14d, r14d                  # the entry
 1:      cmp r14, [r13 + MAP_CAP]
         jae 3f
+        mov rax, [r13 + MAP_CTRL]
+        cmp byte ptr [rax + r14], 0
+        je 2f                           # (an empty slot)
         mov rax, [r13 + MAP_ENTRIES]
         mov rcx, r14
         shl rcx, 4                      # 16 bytes per entry
         mov rdi, [rax + rcx]            # key
-        test rdi, rdi
-        jz 2f
         mov rsi, [rax + rcx + 8]        # value
         mov [rsp], rsi
         call value_import
@@ -863,12 +864,13 @@ FUNC memo_import_pairs
         xor r14d, r14d                  # the entry
 1:      cmp r14, [r13 + MAP_CAP]
         jae 3f
+        mov rax, [r13 + MAP_CTRL]
+        cmp byte ptr [rax + r14], 0
+        je 2f                           # (an empty slot)
         mov rax, [r13 + MAP_ENTRIES]
         mov rcx, r14
         shl rcx, 5                      # 32 bytes per entry
         mov rdi, [rax + rcx]            # k1
-        test rdi, rdi
-        jz 2f
         call value_import
         mov [rsp], rax
         mov rax, [r13 + MAP_ENTRIES]
@@ -924,6 +926,12 @@ memo_kinds:
         .byte 0                         # PP_CLEANUP
         .byte 0                         # REPLACE_MEM (triples)
         .byte 0                         # MEMLOC_OVERWRITE (pairs)
+        .byte 1                         # AGZ_FAMILY (the records: tuples, or codes)
+        .byte 0                         # ADD_WRAPPED (pairs of ADD2: dropped with it)
+        .byte 0                         # ADD_FAMILY
+        .byte 0                         # AT_BOUNDS (vectors: dropped)
+        .byte 0                         # LINE_SETVARS
+        .byte 0                         # ADD2 (pairs)
         .text
 
 # memo_sizes_log(): DEBUG: the number of entries of every memo table

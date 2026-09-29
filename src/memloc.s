@@ -817,9 +817,7 @@ FUNC split_store
         .set ST_I, MATCH_BINDINGS_SIZE + 32
         mov rbx, rdi
         mov [rsp + ST_OUT], rdx
-        PAT rsi, "('store', 256, 0, ':int:idx', ('mask_shl', ':int:size', ':int:off', 0, ('storage', 256, 0, ':idx')))"
-        mov rdx, rsp
-        call pat_match
+        PATXD "('store', 256, 0, ':int:idx', ('mask_shl', ':int:size', ':int:off', 0, ('storage', 256, 0, ':idx')))"
         test eax, eax
         jz 2f
         cmp qword ptr [rsp + 8], (256 << 1) | 1
@@ -855,10 +853,8 @@ FUNC split_store
         mov rsi, rax
         call vec_push
         jmp .Lst_done
-2:      PAT rsi, "('store', 256, 0, ':idx', ':val')"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+2:      mov rdi, rbx
+        PATXD "('store', 256, 0, ':idx', ':val')"
         test eax, eax
         jz .Lst_asis
         mov rax, [rsp]

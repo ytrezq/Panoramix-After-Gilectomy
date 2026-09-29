@@ -25,8 +25,10 @@ FUNC node_new
         mov [rsp + 32], r8              # known
         mov rax, [r15 + CTX_VM]
         inc qword ptr [rax + VM_NODE_COUNT]
-        mov edi, ND_SIZEOF
+        mov edi, ND_SIZEOF + 48
         call arena_alloc
+        add rax, 63                     # (64-byte aligned: see defs.inc)
+        and rax, -64
         mov rbx, rax
         mov dword ptr [rbx + N_KIND], K_VMNODE
         mov dword ptr [rbx + N_AUX], 0
@@ -38,8 +40,12 @@ FUNC node_new
         mov [rbx + N_HASH], rax
         mov qword ptr [rbx + ND_TRACE], 0
         mov qword ptr [rbx + ND_PREV], 0
-        call vec_new
+        lea rax, [rbx + ND_NEXT_VEC]    # the children's vec, in the node
         mov [rbx + ND_NEXT], rax
+        lea rcx, [rbx + ND_NEXT_DATA]
+        mov [rax + VEC_DATA], rcx
+        mov qword ptr [rax + VEC_LEN], 0
+        mov qword ptr [rax + VEC_CAP], ND_NEXT_ROOM
         mov rax, [rsp]
         mov [rbx + ND_START], rax
         mov rax, [rsp + 8]
@@ -434,6 +440,8 @@ FUNC find_nodes_into
 3:      dec rcx
         mov r8, [rsi + rcx*8]
         mov [r12 + rbx*8], r8
+        prefetcht0 [r8]                 # (its two first lines: see defs.inc)
+        prefetcht0 [r8 + 64]
         inc rbx
         test rcx, rcx
         jnz 3b

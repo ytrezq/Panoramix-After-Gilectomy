@@ -216,8 +216,10 @@ FUNC vm_run
         mov qword ptr [rsp + 40], 0
         # find all the jumps that lead to an already reached jumpdest
         # (with a similar stack, otherwise we'd catch function calls as
-        # all), replace them with 'loop' identifiers
+        # all), replace them with 'loop' identifiers (the unexpanded
+        # nodes: the ones expand_trace just made, see there)
         mov rdi, r14
+        mov rsi, rax
         call vm_replace_loops
         # turn them into loops right away: the later this is done, the
         # bigger the subtree that gets thrown away and explored again
@@ -278,10 +280,17 @@ FUNC vm_run
         LEAVE
 ENDF vm_run
 
-# vm_expand_trace(root, nodes): run the nodes that haven't been yet -
-# nodes: them, as find_nodes just gave them, or 0 to find them
+# vm_expand_trace(root, nodes) -> rax: run the nodes that haven't been
+# yet - nodes: them, as find_nodes just gave them, or 0 to find them.
+# Gives the unexpanded nodes after (what replace_loops' find_nodes would
+# give): the unexpanded ones are leaves, found in the order of the
+# leaves, and running one only gives it children, new (unexpanded, but
+# for just_fdests' funccalls) - they take its place in that order, in the
+# order of its next.
 FUNC vm_expand_trace
         ENTER
+        sub rsp, 16
+        mov r13, rdi
         mov rbx, rsi
         test rbx, rbx
         jnz 3f
@@ -289,7 +298,8 @@ FUNC vm_expand_trace
         xor edx, edx
         call find_nodes
         mov rbx, rax
-3:
+3:      call vec_new
+        mov r14, rax                    # the unexpanded ones after
         xor r12d, r12d
 1:      cmp r12, [rbx + VEC_LEN]
         jae 2f
@@ -297,24 +307,91 @@ FUNC vm_expand_trace
         # expressions get big, so the timeout is checked here too
         call vm_should_quit
         test eax, eax
-        jnz 2f
+        jnz 4f
         mov rax, [rbx + VEC_DATA]
         mov rdi, [rax + r12*8]
+        mov [rsp], rdi
         call node_run
-        inc r12
+        mov rax, [rsp]                  # its children not run (with a
+        mov rax, [rax + ND_NEXT]        # trace from the start: just_fdests'
+        mov [rsp + 8], rax              # funccalls)
+        xor ecx, ecx
+8:      mov rax, [rsp + 8]
+        cmp rcx, [rax + VEC_LEN]
+        jae 9f
+        mov rax, [rax + VEC_DATA]
+        mov rsi, [rax + rcx*8]
+        inc rcx
+        cmp qword ptr [rsi + ND_TRACE], 0
+        jne 8b
+        mov [rsp], rcx
+        mov rdi, r14
+        call vec_push
+        mov rcx, [rsp]
+        jmp 8b
+9:      inc r12
         jmp 1b
-2:      LEAVE
+4:      mov rax, [rbx + VEC_DATA]       # the ones not run, as they are
+        lea rsi, [rax + r12*8]
+        mov rdx, [rbx + VEC_LEN]
+        sub rdx, r12
+        mov rdi, r14
+        call vec_extend
+2:      mov rax, [r15 + CTX_VM]
+        cmp qword ptr [rax + VM_CHECK_LCA], 0
+        je 5f
+        # PANORAMIX_CHECK_LCA=1: python's walk, compared
+        mov rdi, r13
+        lea rsi, [rip + pred_unexpanded]
+        xor edx, edx
+        call find_nodes
+        mov rcx, [rax + VEC_LEN]
+        cmp rcx, [r14 + VEC_LEN]
+        jne 7f
+        mov rsi, [rax + VEC_DATA]
+        mov rdi, [r14 + VEC_DATA]
+6:      dec rcx
+        js 5f
+        mov rdx, [rsi + rcx*8]
+        cmp rdx, [rdi + rcx*8]
+        jne 7f
+        jmp 6b
+5:      mov rax, r14
+        add rsp, 16
+        LEAVE
+7:      mov rcx, [rax + VEC_LEN]
+        mov r8, [r14 + VEC_LEN]
+        mov edi, LOG_ERROR
+        lea rsi, [rip + .Ls_unexp_dbgn]
+        lea rdx, [rip + .Ls_unexp_dbgf]
+        call log_fmt
+        lea rdi, [rip + .Ls_unexp_mismatch]
+        call rt_fatal
 ENDF vm_expand_trace
+        .section .rodata
+.Ls_unexp_dbgn: .asciz "unexpdbg"
+.Ls_unexp_dbgf: .asciz "walk %u derived %u"
+        .text
 
-# vm_replace_loops(root): an unexpanded node at a point of execution
-# already seen on its path (same jumpdest, same stack layout) is a loop
+        .section .rodata
+.Ls_unexp_mismatch: .asciz "vm_expand_trace: the unexpanded nodes after the runs and python's walk disagree"
+        .text
+
+# vm_replace_loops(root, nodes): an unexpanded node at a point of
+# execution already seen on its path (same jumpdest, same stack layout)
+# is a loop - nodes: the unexpanded nodes (vm_expand_trace's), or 0 to
+# find them
 FUNC vm_replace_loops
         ENTER
         sub rsp, 16
+        mov rbx, rsi
+        test rbx, rbx
+        jnz 5f
         lea rsi, [rip + pred_unexpanded]
         xor edx, edx
         call find_nodes
         mov rbx, rax
+5:
         xor r12d, r12d
 1:      cmp r12, [rbx + VEC_LEN]
         jae 4f
@@ -868,32 +945,33 @@ ENDF mb_by_jd
         OPSET_MEMBER terminal, OP_GOTO
         OPSET_END terminal, OP_COUNT
 
-# merge_visit(start, jd, hits) -> eax: TRI_TRUE if every path below
-# `start` either ends, reaches `jd` (those nodes are added to hits), or
-# loops back; TRI_FALSE if not; TRI_NONE if it's too early to tell.
-# Python walks the subtree at every try, and merge_branches tries the
-# same ones round after round when only the nodes run since changed: the
-# answer of each inner node's subtree is remembered in the node, for the
-# last jd asked (a false, a none, a true without hits: ND_VC_JD, ND_VC),
-# and holds while the node keeps its stamp (node_touch); a subtree with
-# hits is walked again, for them. Depth first, the children in order
-# (python's order of the hits), on the VM's scratch stack (find_nodes' -
-# not in use meanwhile): a frame of 4 words for each inner node being
-# walked - the node, its next child, what its children answered so far,
-# the nodes walked below it (an answer is remembered past MV_MIN_WALK of
-# them); the leaves, the subtrees answered already and the chains of
-# nodes of one child are looked at without a frame.
-        .set MS_NONE, 0                 # (the smallest wins)
-        .set MS_TRUEH, 1                # true, with hits below
-        .set MS_TRUE0, 2                # true, no hit
-        .set MC_FALSE, 1                # the codes remembered
-        .set MC_NONE, 2
-        .set MC_TRUE0, 3
+# merge_visit(start, jd, hits) -> rax: python's visit (vm.py, _merge_at)
+# - true if every path below `start` either ends, reaches `jd` (a hit),
+# or loops back; false if one is the head of a loop at jd; none if it's
+# too early to tell -, as _merge_at uses it: -1 when it isn't true (false
+# or none: the merge isn't done, either way - the walk stops at the first
+# path that says so), else the number of hits below (2 for 2 or more);
+# the hits are pushed on `hits`, in python's order, when it isn't 0.
+# _merge_at asks without the hits first (both sides true, 2 hits at least:
+# then again for them). Python walks the subtree at every try, and
+# merge_branches tries the same ones round after round when only the
+# nodes run since changed: the answer of each inner node's subtree is
+# remembered in the node, for the last jd asked (ND_VC_JD, ND_VC: -1, or
+# the hits below), and holds while the node keeps its stamp (node_touch);
+# a subtree with hits is walked again when they're asked for. Depth
+# first, the children in order (python's order of the hits), on the VM's
+# scratch stack (find_nodes' - not in use meanwhile): a frame of 4 words
+# for each inner node being walked - the node, its next child, the hits
+# below it so far, the nodes walked below it (an answer is remembered
+# past MV_MIN_WALK of them); the leaves, the subtrees answered already and
+# the chains of nodes of one child are looked at without a frame.
+        .set MC_NOT, 1                  # the codes remembered (ND_VC & 7)
+        .set MC_T0, 2                   # true: MC_T0 + the hits below (0, 1, 2)
         .set MV_MIN_WALK, 4
 
-# MV_QUICK: the node rbx's own answer, eax = MS_* (a hit pushed on
-# hits), or a jump to .Lmv_false (a loop head at jd) or to .Lmv_push (an
-# inner node to walk)
+# MV_QUICK: the node rbx's own answer, eax = its hits (0, 1, 2; a hit
+# pushed on hits), or a jump to .Lmv_not (not true: a path not run yet,
+# a loop head at jd) or to .Lmv_push (an inner node to walk)
 .macro MV_QUICK
         cmp qword ptr [rbx + ND_MERGED], 0
         jne 97f                         # goes on in the continuation of an if below
@@ -903,46 +981,49 @@ ENDF mb_by_jd
         # the head of a loop: keep it that way. Otherwise the paths inside
         # the loop body are fair game (the loop may get peeled, see vm.py)
         cmp rax, r12
-        je .Lmv_false
+        je .Lmv_not
         jmp 92f
 91:     cmp rax, r12
         jne 92f
-        mov rdi, r13                    # a hit
+        test r13, r13                   # a hit
+        jz 90f
+        mov rdi, r13
         mov rsi, rbx
         call vec_push
-        mov eax, MS_TRUEH
+90:     mov eax, 1
         jmp 99f
 92:     cmp qword ptr [rbx + ND_TRACE], 0
-        je 98f
+        je .Lmv_not
         mov rax, [rbx + ND_NEXT]
         cmp qword ptr [rax + VEC_LEN], 0
         jne 93f
         mov rax, [rbx + ND_TRACE]       # a leaf: it ends, or not yet
         mov rcx, [rax + VEC_LEN]
         test rcx, rcx
-        jz 98f
+        jz .Lmv_not
         mov rax, [rax + VEC_DATA]
         mov rdi, [rax + rcx*8 - 8]
         OPCODE_OF_RDI
         IN_OPSET terminal, rax
         jne 97f
-        jmp 98f                         # (e.g. 'loop', not yet processed by continue_loops)
+        jmp .Lmv_not                    # (e.g. 'loop', not yet processed by continue_loops)
 93:     # an inner node: what its subtree answered, if it didn't change
         cmp [rbx + ND_VC_JD], r12
         jne .Lmv_push
         mov rax, [rbx + ND_VC]
         mov rcx, rax
-        shr rcx, 2
+        shr rcx, 3
         cmp rcx, [rbx + ND_STAMP]
         jne .Lmv_push
-        and eax, 3
-        cmp eax, MC_FALSE
-        je .Lmv_false
-        cmp eax, MC_NONE
-        je 98f
-97:     mov eax, MS_TRUE0
-        jmp 99f
-98:     mov eax, MS_NONE
+        and eax, 7
+        cmp eax, MC_NOT
+        je .Lmv_not
+        sub eax, MC_T0
+        jz 99f
+        test r13, r13                   # hits below: walked again for them
+        jz 99f
+        jmp .Lmv_push
+97:     xor eax, eax
 99:
 .endm
 
@@ -952,7 +1033,7 @@ FUNC merge_visit
         .set MV_FRAME, 0                # a frame to push (4 words)
         mov rbx, rdi
         mov r12, rsi                    # jd
-        mov r13, rdx                    # hits
+        mov r13, rdx                    # hits, or 0
         mov rax, [r15 + CTX_VM]
         mov r14, [rax + VM_SCR_VISIT]
         test r14, r14
@@ -985,13 +1066,13 @@ FUNC merge_visit
         lea rdx, [rdx + rcx*8]
         mov [rdx], rbx
         mov qword ptr [rdx + 8], 0
-        mov qword ptr [rdx + 16], MS_TRUE0
+        mov qword ptr [rdx + 16], 0
         mov qword ptr [rdx + 24], 1
         mov [r14 + VEC_LEN], r8
         jmp .Lmv_children
 2:      mov [rsp + MV_FRAME], rbx       # (no room: vec_extend makes some)
         mov qword ptr [rsp + MV_FRAME + 8], 0
-        mov qword ptr [rsp + MV_FRAME + 16], MS_TRUE0
+        mov qword ptr [rsp + MV_FRAME + 16], 0
         mov qword ptr [rsp + MV_FRAME + 24], 1
         mov rdi, r14
         lea rsi, [rsp + MV_FRAME]
@@ -1011,51 +1092,47 @@ FUNC merge_visit
         mov rbx, [rax + rcx*8]
         MV_QUICK
 .Lmv_combine:
-        mov rcx, [r14 + VEC_LEN]        # its answer, the frame's so far
-        mov rdx, [r14 + VEC_DATA]
+        mov rcx, [r14 + VEC_LEN]        # its hits added to the frame's
+        mov rdx, [r14 + VEC_DATA]       # (2 at most)
         lea rdx, [rdx + rcx*8 - 32]
         inc qword ptr [rdx + 24]
-        cmp eax, [rdx + 16]
-        jae .Lmv_children
+        add rax, [rdx + 16]
+        mov ecx, 2
+        cmp rax, rcx
+        cmova rax, rcx
         mov [rdx + 16], rax
         jmp .Lmv_children
 .Lmv_node_done:                         # rdx: the frame, rbx: its node
-        mov eax, [rdx + 16]
-        cmp eax, MS_TRUEH               # remembered, unless a true with hits
-        je 3f                           # or a small subtree
+        mov rax, [rdx + 16]
         cmp qword ptr [rdx + 24], MV_MIN_WALK
-        jb 3f
-        mov esi, MC_NONE
-        cmp eax, MS_NONE
-        je 21f
-        mov esi, MC_TRUE0
-21:     mov [rbx + ND_VC_JD], r12
+        jb 3f                           # (a small subtree: not remembered)
+        lea esi, [eax + MC_T0]
+        mov [rbx + ND_VC_JD], r12
         mov rcx, [rbx + ND_STAMP]
-        shl rcx, 2
+        shl rcx, 3
         or rcx, rsi
         mov [rbx + ND_VC], rcx
         mov rcx, [r15 + CTX_VM]
         mov qword ptr [rcx + VM_VISITED], 1     # (the next change: a new generation)
-3:      mov r8, [rdx + 24]              # popped; its parent's answer the
-        mov rcx, [r14 + VEC_LEN]        # smaller of the two
+3:      mov r8, [rdx + 24]              # popped; its hits added to its
+        mov rcx, [r14 + VEC_LEN]        # parent's
         sub rcx, 4
         mov [r14 + VEC_LEN], rcx
         jz .Lmv_answer
         sub rdx, 32
         add [rdx + 24], r8
-        cmp eax, [rdx + 16]
-        jae .Lmv_children
+        add rax, [rdx + 16]
+        mov ecx, 2
+        cmp rax, rcx
+        cmova rax, rcx
         mov [rdx + 16], rax
         jmp .Lmv_children
-.Lmv_answer:                            # eax: the start's (MS_*)
-        cmp eax, MS_NONE
-        mov eax, TRI_NONE
-        je 4f
-        mov eax, TRI_TRUE
-4:      add rsp, 48
+.Lmv_answer:                            # eax: the start's hits
+        add rsp, 48
         LEAVE
-.Lmv_false:
-        # a loop head at jd below every node of the stack: false for each
+.Lmv_not:
+        # a path not run yet, or a loop head at jd, below every node of the
+        # stack: not true for each
         mov rcx, [r14 + VEC_LEN]
 5:      test rcx, rcx
         jz 6f
@@ -1065,16 +1142,135 @@ FUNC merge_visit
         mov rdi, [rax + rcx*8]
         mov [rdi + ND_VC_JD], r12
         mov rax, [rdi + ND_STAMP]
-        shl rax, 2
-        or rax, MC_FALSE
+        shl rax, 3
+        or rax, MC_NOT
         mov [rdi + ND_VC], rax
         jmp 5b
 6:      mov rax, [r15 + CTX_VM]
         mov qword ptr [rax + VM_VISITED], 1
-        mov eax, TRI_FALSE
+        mov rax, -1
         add rsp, 48
         LEAVE
 ENDF merge_visit
+
+# merge_visit_py(start, jd, hits) -> eax: python's visit as it is (the
+# walk of every node, TRI_TRUE, TRI_FALSE or TRI_NONE, the hits pushed),
+# for PANORAMIX_CHECK_LCA=1's comparison with merge_visit
+FUNC merge_visit_py
+        ENTER
+        sub rsp, 16
+        mov rbx, rsi                    # jd
+        mov r12, rdx                    # hits
+        mov r13, rdi
+        call vec_new
+        mov r14, rax                    # to_visit
+        mov rdi, r14
+        mov rsi, r13
+        call vec_push
+        mov r13d, TRI_TRUE              # result
+1:      mov rcx, [r14 + VEC_LEN]
+        test rcx, rcx
+        jz 9f
+        dec rcx
+        mov [r14 + VEC_LEN], rcx
+        mov rax, [r14 + VEC_DATA]
+        mov rdi, [rax + rcx*8]          # n
+        cmp qword ptr [rdi + ND_MERGED], 0
+        jne 1b
+        mov rax, [rdi + ND_JD]
+        cmp qword ptr [rdi + ND_LABEL], 0
+        je 2f
+        cmp rax, rbx
+        je 8f                           # the head of a loop at jd
+        jmp 3f
+2:      cmp rax, rbx
+        jne 3f
+        mov rsi, rdi                    # a hit
+        mov rdi, r12
+        call vec_push
+        jmp 1b
+3:      mov rax, [rdi + ND_TRACE]
+        test rax, rax
+        jnz 4f
+        mov r13d, TRI_NONE
+        jmp 1b
+4:      mov rcx, [rdi + ND_NEXT]
+        mov rdx, [rcx + VEC_LEN]
+        test rdx, rdx
+        jz 6f
+        mov [rsp], rcx                  # the children, reversed
+5:      dec rdx
+        js 1b
+        mov [rsp + 8], rdx
+        mov rax, [rsp]
+        mov rax, [rax + VEC_DATA]
+        mov rsi, [rax + rdx*8]
+        mov rdi, r14
+        call vec_push
+        mov rdx, [rsp + 8]
+        jmp 5b
+6:      mov rcx, [rax + VEC_LEN]        # a leaf
+        test rcx, rcx
+        jz 7f
+        mov rax, [rax + VEC_DATA]
+        mov rdi, [rax + rcx*8 - 8]
+        OPCODE_OF_RDI
+        IN_OPSET terminal, rax
+        jne 1b
+7:      mov r13d, TRI_NONE
+        jmp 1b
+8:      mov r13d, TRI_FALSE
+9:      mov eax, r13d
+        add rsp, 16
+        LEAVE
+ENDF merge_visit_py
+
+# merge_check(ifx, jd, hits): PANORAMIX_CHECK_LCA=1 - python's visits of
+# the sides of the if ifx must agree with merge_visit's: no merge when
+# hits is 0, else a merge at the same hits
+FUNC merge_check
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        call vec_new
+        mov r14, rax
+        mov rdi, [rbx + N_DATA + 16]
+        mov rsi, r12
+        mov rdx, r14
+        call merge_visit_py
+        cmp eax, TRI_TRUE
+        jne 2f
+        mov rdi, [rbx + N_DATA + 24]
+        mov rsi, r12
+        mov rdx, r14
+        call merge_visit_py
+        cmp eax, TRI_TRUE
+        jne 2f
+        cmp qword ptr [r14 + VEC_LEN], 2
+        jb 2f
+        test r13, r13                   # python merges: at the same hits?
+        jz 8f
+        mov rcx, [r14 + VEC_LEN]
+        cmp rcx, [r13 + VEC_LEN]
+        jne 8f
+        mov rsi, [r14 + VEC_DATA]
+        mov rdi, [r13 + VEC_DATA]
+1:      dec rcx
+        js 9f
+        mov rax, [rsi + rcx*8]
+        cmp rax, [rdi + rcx*8]
+        jne 8f
+        jmp 1b
+2:      test r13, r13                   # python doesn't
+        jz 9f
+8:      lea rdi, [rip + .Ls_merge_mismatch]
+        call rt_fatal
+9:      LEAVE
+ENDF merge_check
+        .section .rodata
+.Ls_merge_mismatch: .asciz "vm_merge_at: merge_visit and python's walk disagree"
+        .text
 
 # vm_merge_at(p, jd) -> eax: merge the paths going out of the `if` node p
 # at jumpdest jd. False if it couldn't be done (it will be tried again
@@ -1090,26 +1286,44 @@ FUNC vm_merge_at
         call is_if_node
         test eax, eax
         jz .Lma_false                   # p isn't an if any more
-        call vec_new
-        mov r13, rax                    # hits
         mov rax, [rbx + ND_TRACE]
         mov rcx, [rax + VEC_LEN]
         mov rax, [rax + VEC_DATA]
         mov r14, [rax + rcx*8 - 8]      # ('if', cond, if_true, if_false)
+        mov rdi, [r14 + N_DATA + 16]    # both sides true, 2 hits at least?
+        mov rsi, r12
+        xor edx, edx
+        call merge_visit
+        test rax, rax
+        js .Lma_no
+        mov [rsp + 56], rax
+        mov rdi, [r14 + N_DATA + 24]
+        mov rsi, r12
+        xor edx, edx
+        call merge_visit
+        test rax, rax
+        js .Lma_no
+        add rax, [rsp + 56]
+        cmp rax, 2
+        jb .Lma_no
+        call vec_new                    # then the hits
+        mov r13, rax
         mov rdi, [r14 + N_DATA + 16]
         mov rsi, r12
         mov rdx, r13
         call merge_visit
-        cmp eax, TRI_TRUE
-        jne .Lma_false
         mov rdi, [r14 + N_DATA + 24]
         mov rsi, r12
         mov rdx, r13
         call merge_visit
-        cmp eax, TRI_TRUE
-        jne .Lma_false
-        cmp qword ptr [r13 + VEC_LEN], 2
-        jb .Lma_false
+        mov rax, [r15 + CTX_VM]
+        cmp qword ptr [rax + VM_CHECK_LCA], 0
+        je 1f
+        mov rdi, r14
+        mov rsi, r12
+        mov rdx, r13
+        call merge_check
+1:
         # merged = the stack of the first hit, with a variable wherever
         # the hits' stacks differ; setvars[k] = the assignments on path k
         mov rax, [r13 + VEC_DATA]
@@ -1267,6 +1481,14 @@ FUNC vm_merge_at
         mov eax, 1
         add rsp, 80
         LEAVE
+.Lma_no:
+        mov rax, [r15 + CTX_VM]
+        cmp qword ptr [rax + VM_CHECK_LCA], 0
+        je .Lma_false
+        mov rdi, r14
+        mov rsi, r12
+        xor edx, edx
+        call merge_check
 .Lma_false:
         xor eax, eax
         add rsp, 80
@@ -1450,25 +1672,249 @@ FUNC mentions_c
 ENDF mentions_c
 
 # is_known(exp, known) -> eax: TRI_TRUE/TRI_FALSE if exp is decided by
-# the known conditions, TRI_NONE otherwise
+# the known conditions, TRI_NONE otherwise. Python asks eval_bool(exp,
+# fact) of every fact, from the last one (some 150 of them on the paths
+# of aave's logic libraries, nearly all answering None). eval_bool looks
+# at the fact only where it compares it with exp or with a part it goes
+# into (the operand of a bool or an iszero, the terms of an or or an
+# and): the fact itself, its is_zero, and an lt/le of the same first
+# operand; a fact equal to none of those gives what any other such fact
+# gives - asked once, of the first one. The parts' is_zero are computed
+# first, under a handler: on an error there (python may not have come to
+# it), the facts are asked one by one, as python does.
+        .set IK_MAXP, 16
+        .set IK_ERR, 0
+        .set IK_NP, ERR_SIZEOF          # the number of parts
+        .set IK_FB, ERR_SIZEOF + 8      # the answer of the facts that match nothing (IK_UNASKED)
+        .set IK_F, ERR_SIZEOF + 16      # the fact, unwrapped
+        .set IK_P, ERR_SIZEOF + 24      # the parts
+        .set IK_Z, IK_P + IK_MAXP * 8   # their is_zero
+        .set IK_FRAME, (IK_Z + IK_MAXP * 8 + 15) & -16
+        .set IK_UNASKED, -3
 FUNC is_known
         ENTER
+        sub rsp, IK_FRAME
         mov rbx, rdi
         mov r12, rsi
         mov r13d, [r12 + N_AUX]
-1:      test r13d, r13d
-        jz 2f
+        cmp r13d, 4
+        jb .Lik_plain
+        mov rdi, rbx
+        lea rsi, [rsp + IK_P]
+        call ik_parts
+        test rax, rax
+        js .Lik_plain
+        mov [rsp + IK_NP], rax
+        mov rdi, rsp
+        call err_catch
+        test eax, eax
+        jnz .Lik_caught
+        xor r14d, r14d
+1:      cmp r14, [rsp + IK_NP]
+        jae 2f
+        mov rdi, [rsp + IK_P + r14*8]
+        call is_zero
+        mov [rsp + IK_Z + r14*8], rax
+        inc r14
+        jmp 1b
+2:      call err_end
+        mov qword ptr [rsp + IK_FB], IK_UNASKED
+.Lik_fact:                              # the facts, from the last
+        test r13d, r13d
+        jz .Lik_none
+        dec r13d
+        mov r14, [r12 + N_DATA + r13*8]
+        mov rax, r14                    # a known-true ('bool', x) is a known-true x
+        test al, 1
+        jnz 3f
+        test rax, rax
+        jz .Lik_ask
+        cmp dword ptr [rax + N_KIND], K_TUPLE
+        jne 4f
+        mov rdi, rax
+        OPCODE_OF_RDI
+        cmp eax, OP_BOOL
+        mov rax, r14
+        jne 3f
+        cmp dword ptr [rax + N_AUX], 2
+        jne 3f
+        mov rax, [rax + N_DATA + 8]
+        # a bool still (unwrapped again below), or a big number: asked
+        test al, 1
+        jnz 3f
+        test rax, rax
+        jz .Lik_ask
+        cmp dword ptr [rax + N_KIND], K_TUPLE
+        jne 4f
+        mov rdi, rax
+        OPCODE_OF_RDI
+        cmp eax, OP_BOOL
+        je .Lik_ask
+        mov rax, [r14 + N_DATA + 8]
+        jmp 3f
+4:      cmp dword ptr [rax + N_KIND], K_INT
+        je .Lik_ask
+3:      mov [rsp + IK_F], rax
+        # a part, or a part's is_zero
+        mov rcx, [rsp + IK_NP]
+5:      dec rcx
+        js 6f
+        cmp rax, [rsp + IK_P + rcx*8]
+        je .Lik_ask
+        cmp rax, [rsp + IK_Z + rcx*8]
+        je .Lik_ask
+        jmp 5b
+6:      # its is_zero a part
+        mov rdi, rax
+        call is_zero
+        mov rcx, [rsp + IK_NP]
+7:      dec rcx
+        js 8f
+        cmp rax, [rsp + IK_P + rcx*8]
+        je .Lik_ask
+        jmp 7b
+8:      # an lt / le with the first operand of a part of the same opcode
+        mov rdi, [rsp + IK_F]
+        OPCODE_OF_RDI
+        cmp eax, OP_LT
+        je 9f
+        cmp eax, OP_LE
+        jne .Lik_neutral
+9:      mov rdi, [rsp + IK_F]
+        cmp dword ptr [rdi + N_AUX], 3
+        jne .Lik_neutral
+        mov [rsp + IK_ERR], rax         # (the handler's buffer, free now)
+        mov rax, [rsp + IK_NP]
+        mov [rsp + IK_ERR + 8], rax
+10:     dec qword ptr [rsp + IK_ERR + 8]
+        js .Lik_neutral
+        mov rcx, [rsp + IK_ERR + 8]
+        mov rdi, [rsp + IK_P + rcx*8]
+        test dil, 1
+        jnz 10b
+        test rdi, rdi
+        jz 10b
+        cmp dword ptr [rdi + N_KIND], K_TUPLE
+        jne 10b
+        cmp dword ptr [rdi + N_AUX], 3
+        jne 10b
+        OPCODE_OF_RDI
+        cmp rax, [rsp + IK_ERR]
+        jne 10b
+        mov rcx, [rsp + IK_ERR + 8]
+        mov rdi, [rsp + IK_P + rcx*8]
+        mov rdi, [rdi + N_DATA + 8]
+        mov rsi, [rsp + IK_F]
+        mov rsi, [rsi + N_DATA + 8]
+        call values_equal
+        test eax, eax
+        jnz .Lik_ask
+        jmp 10b
+.Lik_neutral:                           # what the facts matching nothing give
+        mov rax, [rsp + IK_FB]
+        cmp rax, IK_UNASKED
+        jne 11f
+        mov rdi, rbx
+        mov rsi, r14
+        xor edx, edx
+        call eval_bool
+        movsxd rax, eax
+        mov [rsp + IK_FB], rax
+11:     cmp eax, TRI_NONE
+        je .Lik_fact
+        jmp .Lik_ret
+.Lik_ask:
+        mov rdi, rbx
+        mov rsi, r14
+        xor edx, edx
+        call eval_bool
+        cmp eax, TRI_NONE
+        je .Lik_fact
+        jmp .Lik_ret
+.Lik_caught:                            # (python's timeout, its memory and
+        cmp eax, E_TIMEOUT              # recursion errors: the handler's above)
+        je 12f
+        cmp eax, E_MEMORY
+        je 12f
+        cmp eax, E_RECURSION
+        jne .Lik_plain
+12:     mov edi, eax
+        mov rsi, [r15 + CTX_ERR_MSG]
+        call err_throw
+.Lik_plain:                             # python's loop
+        test r13d, r13d
+        jz .Lik_none
         dec r13d
         mov rdi, rbx
         mov rsi, [r12 + N_DATA + r13*8]
         xor edx, edx
         call eval_bool
         cmp eax, TRI_NONE
-        je 1b
-        LEAVE
-2:      mov eax, TRI_NONE
+        je .Lik_plain
+        jmp .Lik_ret
+.Lik_none:
+        mov eax, TRI_NONE
+.Lik_ret:
+        add rsp, IK_FRAME
         LEAVE
 ENDF is_known
+
+# ik_parts(exp, out) -> rax: the parts of exp eval_bool goes into (exp,
+# the operand of a bool or an iszero, the terms of an or or an and, and
+# theirs), in out (IK_MAXP at most), their number; -1 for more, or for a
+# big number among them (compared by value)
+FUNC ik_parts
+        ENTER
+        mov [rsi], rdi
+        mov r12, rsi
+        mov ebx, 1                      # the parts found
+        xor r13d, r13d                  # the next to look into
+1:      cmp r13, rbx
+        jae 9f
+        mov rdi, [r12 + r13*8]
+        inc r13
+        test dil, 1
+        jnz 1b
+        test rdi, rdi
+        jz 1b
+        mov eax, [rdi + N_KIND]
+        cmp eax, K_INT
+        je 8f
+        cmp eax, K_TUPLE
+        jne 1b
+        mov r14, rdi
+        OPCODE_OF_RDI
+        cmp eax, OP_BOOL
+        je 2f
+        cmp eax, OP_ISZERO
+        je 2f
+        cmp eax, OP_OR
+        je 3f
+        cmp eax, OP_AND
+        jne 1b
+3:      mov ecx, 1                      # the terms
+4:      cmp ecx, [r14 + N_AUX]
+        jae 1b
+        cmp rbx, IK_MAXP
+        jae 8f
+        mov rax, [r14 + N_DATA + rcx*8]
+        mov [r12 + rbx*8], rax
+        inc rbx
+        inc ecx
+        jmp 4b
+2:      cmp dword ptr [r14 + N_AUX], 2
+        jne 1b
+        cmp rbx, IK_MAXP
+        jae 8f
+        mov rax, [r14 + N_DATA + 8]
+        mov [r12 + rbx*8], rax
+        inc rbx
+        jmp 1b
+8:      mov rax, -1
+        LEAVE
+9:      mov rax, rbx
+        LEAVE
+ENDF ik_parts
 
 # contains_value(exp, v) -> eax: v is exp or one of its subterms
 FUNC contains_value

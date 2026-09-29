@@ -250,9 +250,7 @@ FUNC find_stores
         sub rsp, MATCH_BINDINGS_SIZE
         mov rbx, rdi
         mov r12, rsi
-        PAT rsi, "('store', ':size', ':off', ':idx', ':val')"
-        mov rdx, rsp
-        call pat_match
+        PATXD "('store', ':size', ':off', ':idx', ':val')"
         test eax, eax
         jz 1f
         B rsi, 0
@@ -1736,10 +1734,8 @@ FUNC repl_stor
         call is_list
         test eax, eax
         jnz .Lrp_seq
-        PAT rsi, "('store', ':size', ':off', ':idx', ':val')"
         mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+        PATXD "('store', ':size', ':off', ':idx', ':val')"
         test eax, eax
         jz 1f
         # ('store',) + dest[1:] + (repl_stor(val),)

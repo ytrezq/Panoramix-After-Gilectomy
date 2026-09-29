@@ -227,12 +227,21 @@ FUNC hc_grow
         mov [r15 + CTX_HC_TABLE], rax
         mov rbx, rax
         xor r14d, r14d
+        movabs r8, HC_PTR_MASK
 1:      cmp r14, r13
         jae 3f
-        mov rdi, [r12 + r14*8]
+        lea rax, [r14 + 8]              # (the node eight slots on: read
+        cmp rax, r13                    # ahead, the reads scattered)
+        jae 6f
+        mov rdi, [r12 + rax*8]
+        and rdi, r8
+        prefetcht0 [rdi]
+6:      mov rdi, [r12 + r14*8]
         test rdi, rdi
         jz 2f
-        # reinsert
+        # reinsert (the slot's word: the pointer, its tag above)
+        mov rsi, rdi
+        and rdi, r8
         mov rax, [rdi + N_HASH]
         mov rcx, [r15 + CTX_HC_CAP]
         dec rcx
@@ -242,7 +251,7 @@ FUNC hc_grow
         inc rax
         and rax, rcx
         jmp 4b
-5:      mov [rbx + rax*8], rdi
+5:      mov [rbx + rax*8], rsi
 2:      inc r14
         jmp 1b
 3:      mov rdi, r12
@@ -286,10 +295,18 @@ FUNC mk_seq
         dec r13                         # mask
         mov r12, r14
         and r12, r13                    # slot
+        HC_TAG rax, r14
+        mov [rsp + 24], rax             # the slot's tag
 .Lmk_probe:
         mov rdi, [rbx + r12*8]
         test rdi, rdi
         jz .Lmk_new
+        mov rax, rdi                    # another tag: another hash, the
+        xor rax, [rsp + 24]             # node not read
+        shr rax, 48
+        jnz .Lmk_next
+        shl rdi, 16
+        shr rdi, 16                     # the node
         cmp [rdi + N_HASH], r14
         jne .Lmk_next
         mov eax, [rsp]
@@ -315,6 +332,8 @@ FUNC mk_seq
         test eax, eax
         jz .Lmk_next
         mov rdi, [rbx + r12*8]
+        shl rdi, 16
+        shr rdi, 16
 .Lmk_found:
         mov rax, rdi
         add rsp, 32
@@ -339,7 +358,9 @@ FUNC mk_seq
         mov rcx, [rsp + 8]
         mov [rax + N_AUX], ecx
         mov [rax + N_HASH], r14
-        mov [rbx + r12*8], rax
+        mov rdx, [rsp + 24]
+        or rdx, rax
+        mov [rbx + r12*8], rdx
         inc qword ptr [r15 + CTX_HC_COUNT]
         inc qword ptr [r15 + CTX_NODE_COUNT]
         mov rdx, [rsp + 16]
@@ -537,6 +558,8 @@ FUNC mk_int_mpz
         mov rdi, [rax + r12*8]
         test rdi, rdi
         jz 5f
+        shl rdi, 16                     # (the slot's tag above)
+        shr rdi, 16
         cmp [rdi + N_HASH], r13
         jne 4f
         cmp dword ptr [rdi + N_KIND], K_INT
@@ -558,7 +581,9 @@ FUNC mk_int_mpz
 5:      mov edi, NODE_INT_SIZE
         call arena_alloc_raw
         mov rcx, [r15 + CTX_HC_TABLE]
-        mov [rcx + r12*8], rax
+        HC_TAG rdx, r13
+        or rdx, rax
+        mov [rcx + r12*8], rdx
         inc qword ptr [r15 + CTX_HC_COUNT]
         mov r12, rax
         mov dword ptr [r12 + N_KIND], K_INT

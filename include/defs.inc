@@ -104,7 +104,8 @@
 .set CTX_EXPLAIN_CUT, 256   # the builder's length after that first one's text
 .set CTX_ASM_SB, 264        # a scratch builder for the lines of assembly (vm.s), or 0
 .set CTX_FOLD_THREADS, 272  # the threads fold_many may use (folder.s; 0 or 1: none)
-# 280..295: free
+.set CTX_ADD_WRAPPED, 280   # the last add_op_impl reduced its sum mod 2^256 (1) or not (0)
+# 288..295: free
 .set CTX_VM, 296            # the VM this thread runs (vm.s)
 .set CTX_ERR_BUF, 304       # the innermost error handler (rt_err.s)
 .set CTX_ERR_CODE, 312      # what was thrown
@@ -116,8 +117,8 @@
 .set EVAL_POOL_DEPTH, 32
 .set CTX_ARENA_PEAK, 352 + 32 * MPZ_SIZEOF     # the most the arena took
 .set CTX_CHILD_LIMIT, CTX_ARENA_PEAK + 8        # CTX_MEM_LIMIT of the contexts it makes
-.set CTX_MEMO, CTX_ARENA_PEAK + 16              # the memo tables, 32 slots (see MEMO_*)
-.set CTX_AGZ, CTX_MEMO + 32 * 8                 # 8 scratch mpz_t for add_ge_zero's sums
+.set CTX_MEMO, CTX_ARENA_PEAK + 16              # the memo tables, 40 slots (see MEMO_*)
+.set CTX_AGZ, CTX_MEMO + 40 * 8                 # 8 scratch mpz_t for add_ge_zero's sums
 .set CTX_SIZE, CTX_AGZ + 8 * MPZ_SIZEOF
 
 # error handler buffer (rt_err.s)
@@ -469,6 +470,17 @@ ENDF \fname
         mov \reg, [\reg + 8*OP_\name]
 .endm
 
+# the hash-cons table's slots: a node's pointer (48 bits) and, above, a
+# tag - 16 bits of its hash (40 to 55: below the mention flags) - that a
+# probe compares before reading the node
+.set HC_PTR_MASK, 0x0000ffffffffffff
+.macro HC_TAG reg, hash
+        mov \reg, \hash
+        shl \reg, 8
+        shr \reg, 48
+        shl \reg, 48
+.endm
+
 # LEAVE without the ret (for functions that saved more registers)
 .macro LEAVE_NORET
         pop r14
@@ -500,7 +512,8 @@ ENDF \fname
 .set MAP_ENTRIES, 0
 .set MAP_CAP, 8
 .set MAP_COUNT, 16
-.set MAP_SIZEOF, 24
+.set MAP_CTRL, 24              # the control bytes (one per slot: 0 empty)
+.set MAP_SIZEOF, 32
 .set EMAP_EPOCH, 24         # an emap's current epoch (rt_map.s)
 .set EMAP_SIZEOF, 32
 
@@ -535,7 +548,13 @@ ENDF \fname
 .set MEMO_PP_CLEANUP, 27    # a list -> pp_cleanup_mul_1 of it, a tuple -> pp_cleanup_exp of it
 .set MEMO_REPLACE_MEM, 28   # (trace, mem_idx, mem_val) -> replace_mem's list (triples)
 .set MEMO_MEMLOC_OVERWRITE, 29 # (memloc, split) -> memloc_overwrite's list (pairs)
-.set MEMO_COUNT, 30
+.set MEMO_AGZ_FAMILY, 30    # an add's terms after its number -> their family's record (add_ge_zero)
+.set MEMO_ADD_WRAPPED, 31   # the pairs of MEMO_ADD2 whose add_op reduced its sum mod 2^256 (-> 1)
+.set MEMO_ADD_FAMILY, 32    # add_op's terms other than numbers -> their combination (num, terms)
+.set MEMO_AT_BOUNDS, 33     # (lines, pc) -> a loop's ranges (ranges_overlap_at_bounds: a vector)
+.set MEMO_LINE_SETVARS, 34  # a line -> the indices of its ('setvar', idx, v) (a tuple)
+.set MEMO_ADD2, 35          # (a, b) -> add_op(a, b) (pairs; MEMO_ADD: the other counts)
+.set MEMO_COUNT, 36         # (at most 40: CTX_MEMO's slots)
 # sentinel values stored in memo tables for python's None / False (values
 # and pointers are never 2 or 4)
 .set MEMO_NONE, 2
@@ -548,24 +567,32 @@ ENDF \fname
 
 # a node: a point in the symbolic execution, with the trace from there
 # until the next jump. K_VMNODE, hash = a unique id.
+# The fields the walks of the tree read (find_nodes, merge_visit,
+# node_history) are in its first two cache lines (a node is 64-byte
+# aligned): its children's vec is in the node, with room for two of them
+# (a jump has one child, an if two), where it was a vec of its own
+# allocated after the node.
 .set ND_TRACE, 16           # vec* of lines, 0 while not run yet (python None)
-.set ND_PREV, 24            # node*, 0 for the root
-.set ND_NEXT, 32            # vec* of nodes
-.set ND_START, 40           # value: the pc, or a symbolic jump target
-.set ND_SAFE, 48            # 0/1: reached by falling through (no jumpdest needed)
-.set ND_STACK, 56           # tuple: the stack on arrival
-.set ND_DEPTH, 64
-.set ND_LABEL, 72           # node*: the loop head this node is the body of
-.set ND_CONDITION, 80       # value: the condition under which the parent gets here
-.set ND_KNOWN, 88           # tuple of the conditions holding on the path here
-.set ND_MERGED, 96          # 0/1: the paths were merged below (merge_branches)
-.set ND_JD, 104             # tuple (start, stack length, (jumpdests on the stack...))
-.set ND_BEGIN_VARS, 112     # tuple: on a loop head, its variables
-.set ND_STAMP, 120          # the VM's generation when it or a node below last changed (node_touch)
-.set ND_VC_JD, 128          # merge_visit's answer for its subtree: the jd asked (0: none),
-.set ND_VC, 136             #   and the stamp then << 2 | the answer (MC_*)
-.set ND_JUMP, 144           # node*: an ancestor, for vm_common_ancestor's skips (see there)
-.set ND_SIZEOF, 152
+.set ND_NEXT, 24            # vec* of nodes: ND_NEXT_VEC, unless replaced
+.set ND_NEXT_VEC, 32        # the vec the node is made with (VEC_SIZEOF bytes),
+.set ND_JD, 56              # tuple (start, stack length, (jumpdests on the stack...))
+.set ND_NEXT_DATA, 64       #   its room for ND_NEXT_ROOM nodes
+.set ND_NEXT_ROOM, 2
+.set ND_MERGED, 80          # 0/1: the paths were merged below (merge_branches)
+.set ND_LABEL, 88           # node*: the loop head this node is the body of
+.set ND_PREV, 96            # node*, 0 for the root
+.set ND_STAMP, 104          # the VM's generation when it or a node below last changed (node_touch)
+.set ND_VC_JD, 112          # merge_visit's answer for its subtree: the jd asked (0: none),
+.set ND_VC, 120             #   and the stamp then << 3 | the answer (MC_*)
+.set ND_JUMP, 128           # node*: an ancestor, for vm_common_ancestor's skips (see there)
+.set ND_DEPTH, 136
+.set ND_START, 144          # value: the pc, or a symbolic jump target
+.set ND_SAFE, 152           # 0/1: reached by falling through (no jumpdest needed)
+.set ND_STACK, 160          # tuple: the stack on arrival
+.set ND_CONDITION, 168      # value: the condition under which the parent gets here
+.set ND_KNOWN, 176          # tuple of the conditions holding on the path here
+.set ND_BEGIN_VARS, 184     # tuple: on a loop head, its variables
+.set ND_SIZEOF, 192
 
 .set VM_LOADER, 0
 .set VM_JUST_FDESTS, 8
@@ -609,6 +636,36 @@ ENDF \fname
 .Lpat_v\@: .quad 0, .Lpat_s\@
         .text
         mov \reg, [rip + .Lpat_v\@]
+.endm
+
+# PATXD "pattern": eax := pat_match(rdi, pattern, rsp) for a pattern
+# whose head is an opcode (a string): a tuple starting with another one
+# is turned down here, as pat_match would, without the call (the
+# simplifier's rules one after the other, most of them on other opcodes)
+.macro PATXD text
+        PAT rsi, "\text"
+        xor eax, eax
+        test dil, 1
+        jnz .Lpx_skip\@
+        test rdi, rdi
+        jz .Lpx_skip\@
+        cmp dword ptr [rdi + N_KIND], K_TUPLE
+        jne .Lpx_call\@
+        cmp dword ptr [rdi + N_AUX], 0
+        je .Lpx_skip\@
+        mov rcx, [rsi + N_DATA]
+        cmp rcx, [rdi + N_DATA]
+        jne .Lpx_skip\@
+.Lpx_call\@:
+        mov rdx, rsp
+        call pat_match
+.Lpx_skip\@:
+.endm
+
+# PATX "pattern": PATXD of rbx
+.macro PATX text
+        mov rdi, rbx
+        PATXD "\text"
 .endm
 
 # --- the counters of a loop (loops.s parse_counters); 0 = absent ---

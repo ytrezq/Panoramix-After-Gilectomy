@@ -2152,7 +2152,7 @@ FUNC replace_while_var
         call mk2
         mov rdi, rbx
         mov rsi, rax
-        call contains
+        call lines_have_var             # contains(rest, ('var', new_idx))
         test eax, eax
         jz 2f
         add r13, 2                      # (tagged: += 1)
@@ -2167,6 +2167,165 @@ FUNC replace_while_var
         add rsp, 32
         LEAVE
 ENDF replace_while_var
+
+# lines_have_var(lines, var) -> eax: contains(lines, var) for a list of
+# lines and a ('var', ...) tuple: from the variables of each line
+# (line_vars, remembered - replace_while_var asks it of the rest of the
+# trace for every variable of every loop, renaming one at a time)
+FUNC lines_have_var
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        test bl, 1
+        jnz 8f
+        test rbx, rbx
+        jz 8f
+        cmp dword ptr [rbx + N_KIND], K_LIST
+        jne 8f                          # (not a list: as python does)
+        cmp rbx, r12
+        je 7f
+        xor r13d, r13d
+1:      cmp r13d, [rbx + N_AUX]
+        jae 6f
+        mov rdi, [rbx + N_DATA + r13*8]
+        inc r13d
+        cmp rdi, r12
+        je 7f
+        test dil, 1
+        jnz 1b                          # (a number: not the tuple)
+        test rdi, rdi
+        jz 1b
+        cmp dword ptr [rdi + N_KIND], K_TUPLE
+        jne 2f
+        mov rsi, r12
+        call line_has_var
+        test eax, eax
+        jnz 7f
+        jmp 1b
+2:      mov rsi, r12                    # (a list, a string...: walked)
+        call contains
+        test eax, eax
+        jnz 7f
+        jmp 1b
+6:      xor eax, eax
+        LEAVE
+7:      mov eax, 1
+        LEAVE
+8:      mov rdi, rbx
+        mov rsi, r12
+        call contains
+        LEAVE
+ENDF lines_have_var
+
+# line_has_setvar(line, idx) -> eax: a ('setvar', idx, v) somewhere in
+# the line (python's `match(exp, ('setvar', idx, ':val'))` in
+# replace_while_var's r), from the line's setvars' indices, remembered
+FUNC line_has_setvar
+        xor eax, eax
+        test dil, 1
+        jnz 3f
+        test rdi, rdi
+        jz 3f
+        movabs rcx, HF_SETVAR           # (no "setvar" in it: none)
+        test [rdi + N_HASH], rcx
+        jz 3f
+        ENTER
+        mov rbx, rsi
+        mov r12, rdi
+        mov edi, MEMO_LINE_SETVARS
+        mov rsi, r12
+        call memo_get
+        test rax, rax
+        jnz 1f
+        call vec_new
+        mov r13, rax
+        mov rdi, r12
+        mov rsi, r13
+        call setvar_idxs
+        mov edi, K_TUPLE
+        mov rsi, [r13 + VEC_LEN]
+        mov rdx, [r13 + VEC_DATA]
+        call mk_seq
+        mov r14, rax
+        mov edi, MEMO_LINE_SETVARS
+        mov rsi, r12
+        mov rdx, rax
+        call memo_put
+        mov rax, r14
+1:      mov ecx, [rax + N_AUX]
+        xor edx, edx
+2:      cmp edx, ecx
+        jae 6f
+        mov rdi, [rax + N_DATA + rdx*8]
+        cmp rdi, rbx
+        je 7f
+        test dil, 1                     # (python's ==: big ints by value)
+        jnz 8f
+        test rdi, rdi
+        jz 8f
+        cmp dword ptr [rdi + N_KIND], K_INT
+        jne 8f
+        push rax
+        push rcx
+        push rdx
+        push rdx
+        mov rsi, rbx
+        call values_equal
+        mov esi, eax
+        pop rdx
+        pop rdx
+        pop rcx
+        pop rax
+        test esi, esi
+        jnz 7f
+8:      inc edx
+        jmp 2b
+6:      xor eax, eax
+        LEAVE
+7:      mov eax, 1
+        LEAVE
+3:      ret
+ENDF line_has_setvar
+
+# setvar_idxs(exp, vec): the indices of the ('setvar', idx, v) in exp,
+# at any depth (into them too), appended to vec
+FUNC setvar_idxs
+        STACK_CHECK
+        test dil, 1
+        jnz 9f
+        test rdi, rdi
+        jz 9f
+        mov eax, [rdi + N_KIND]
+        sub eax, K_TUPLE
+        cmp eax, K_LIST - K_TUPLE
+        ja 9f
+        movabs rax, HF_SETVAR
+        test [rdi + N_HASH], rax
+        jz 9f                           # no 'setvar' in there
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        cmp dword ptr [rbx + N_KIND], K_TUPLE
+        jne 2f
+        cmp dword ptr [rbx + N_AUX], 3
+        jne 2f
+        OPCODE_OF_RDI
+        cmp eax, OP_SETVAR
+        jne 2f
+        mov rdi, r12
+        mov rsi, [rbx + N_DATA + 8]
+        call vec_push
+2:      xor r13d, r13d
+3:      cmp r13d, [rbx + N_AUX]
+        jae 4f
+        mov rdi, [rbx + N_DATA + r13*8]
+        inc r13d
+        mov rsi, r12
+        call setvar_idxs
+        jmp 3b
+4:      LEAVE
+9:      ret
+ENDF setvar_idxs
 
 # rename_var(exp, old, new) -> python's replace_f(exp, r) of
 # replace_while_var: ('var', old) becomes ('var', new), ('setvar', old,
@@ -2202,9 +2361,56 @@ FUNC rename_var
 1:      mov [rsp + RV_MAP], rax
         mov rdi, rax
         call emap_begin
-        mov rdi, rbx
+        test bl, 1
+        jnz 2f
+        test rbx, rbx
+        jz 2f
+        cmp dword ptr [rbx + N_KIND], K_LIST
+        je 3f
+2:      mov rdi, rbx
         mov rsi, rsp
         call rv_walk
+        add rsp, RV_SIZEOF
+        LEAVE
+3:      # a list of lines: a line without the variable nor a setvar of it
+        # (line_vars, line_setvars: remembered) is kept as it is, unwalked
+        mov edi, [rbx + N_AUX]
+        shl rdi, 3
+        call arena_alloc_raw
+        mov r13, rax                    # the lines, renamed
+        xor r14d, r14d
+4:      cmp r14d, [rbx + N_AUX]
+        jae 6f
+        mov r12, [rbx + N_DATA + r14*8]
+        test r12b, 1
+        jnz 5f
+        test r12, r12
+        jz 5f
+        cmp dword ptr [r12 + N_KIND], K_TUPLE
+        jne 5f
+        cmp r12, [rsp + RV_VAR_OLD]
+        je 5f
+        mov rdi, r12
+        mov rsi, [rsp + RV_VAR_OLD]
+        call line_has_var
+        test eax, eax
+        jnz 5f
+        mov rdi, r12
+        mov rsi, [rsp + RV_OLD]
+        call line_has_setvar
+        test eax, eax
+        jnz 5f
+        mov rax, r12                    # kept
+        jmp 7f
+5:      mov rdi, r12
+        mov rsi, rsp
+        call rv_walk
+7:      mov [r13 + r14*8], rax
+        inc r14d
+        jmp 4b
+6:      mov rdi, rbx
+        mov rsi, r13
+        call mk_seq_like
         add rsp, RV_SIZEOF
         LEAVE
 ENDF rename_var

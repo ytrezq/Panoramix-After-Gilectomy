@@ -123,9 +123,7 @@ FUNC simplify_exp_impl
         mov rbx, rdi
         # mathematically incorrect, but this appears as an artifact of
         # other ops often
-        PAT rsi, "('mask_shl', 246, 5, 0, ':exp')"
-        mov rdx, rsp
-        call pat_match
+        PATX "('mask_shl', 246, 5, 0, ':exp')"
         test eax, eax
         jz 1f
         B r8, 0
@@ -157,10 +155,7 @@ FUNC simplify_exp_impl
 22:     mov eax, 1
         jmp .Lse_done
 3:      # calldata params are left-padded usually, it seems
-        PAT rsi, "('mask_shl', ':int:size', ':int:off', ':int:moff', ('cd', ':int:num'))"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+        PATX "('mask_shl', ':int:size', ':int:off', ':int:moff', ('cd', ':int:num'))"
         test eax, eax
         jz 4f
         B rdi, 1
@@ -195,43 +190,28 @@ FUNC simplify_exp_impl
         mov ecx, 1
         call mk5
         jmp .Lse_done
-4:      PAT rsi, "('iszero', ('iszero', ':e'))"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+4:      PATX "('iszero', ('iszero', ':e'))"
         test eax, eax
         jz 5f
         B rdi, 0
         call mk_bool_of
         mov rbx, rax
-5:      PAT rsi, "('bool', ('bool', ':e'))"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+5:      PATX "('bool', ('bool', ':e'))"
         test eax, eax
         jz 6f
         B rdi, 0
         call mk_bool_of
         mov rbx, rax
-6:      PAT rsi, "('eq', ':sth', 0)"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+6:      PATX "('eq', ':sth', 0)"
         test eax, eax
         jnz 61f
-        PAT rsi, "('eq', 0, ':sth')"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+        PATX "('eq', 0, ':sth')"
         test eax, eax
         jz 7f
 61:     B rdi, 0
         call mk_iszero_of
         mov rbx, rax
-7:      PAT rsi, "('mask_shl', ':int:size', 5, 0, ('add', ':int:num', '...'))"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+7:      PATX "('mask_shl', ':int:size', 5, 0, ('add', ':int:num', '...'))"
         test eax, eax
         jz 8f
         # size > 240 and num > 32 and num % 32 == 31 (numbers of any size)
@@ -284,10 +264,7 @@ FUNC simplify_exp_impl
         LOADS rdi, ADD
         call mk3
         mov rbx, rax
-8:      PAT rsi, "('iszero', ('mask_shl', ':size', ':off', ':shl', ':val'))"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+8:      PATX "('iszero', ('mask_shl', ':size', ':off', ':shl', ':val'))"
         test eax, eax
         jz 9f
         B r8, 3
@@ -299,26 +276,17 @@ FUNC simplify_exp_impl
         mov rdi, rax
         call mk_iszero_of
         mov rbx, rax
-9:      PAT rsi, "('max', ':single')"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+9:      PATX "('max', ':single')"
         test eax, eax
         jz 10f
         B rbx, 0
-10:     PAT rsi, "('mem', ('range', 'Any', 0))"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+10:     PATX "('mem', ('range', 'Any', 0))"
         test eax, eax
         jz 11f
         # sic. this happens usually in params to logs etc, we probably want None here
         lea rax, [rip + sp_none]
         jmp .Lse_done
-11:     PAT rsi, "('mod', ':exp2', ':int:num')"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+11:     PATX "('mod', ':exp2', ':int:num')"
         test eax, eax
         jz 12f
         B rdi, 1
@@ -333,10 +301,7 @@ FUNC simplify_exp_impl
         mov r8d, 1
         call alg_mask_op
         jmp .Lse_done
-12:     PAT rsi, "('mod', 0, 'Any')"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+12:     PATX "('mod', 0, 'Any')"
         test eax, eax
         jz 13f
         mov ebx, 1
@@ -354,46 +319,31 @@ FUNC simplify_exp_impl
         mov rdi, rbx
         call cancel_common_terms
         mov rbx, rax
-14:     PAT rsi, "('add', ':e')"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+14:     PATX "('add', ':e')"
         test eax, eax
         jz 15f
         B rdi, 0
         call simplify_exp
         jmp .Lse_done
-15:     PAT rsi, "('mul', 1, ':e')"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+15:     PATX "('mul', 1, ':e')"
         test eax, eax
         jz 16f
         B rdi, 0
         call simplify_exp
         jmp .Lse_done
-16:     PAT rsi, "('div', ':e', 1)"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+16:     PATX "('div', ':e', 1)"
         test eax, eax
         jz 17f
         B rdi, 0
         call simplify_exp
         jmp .Lse_done
-17:     PAT rsi, "('mask_shl', 256, 0, 0, ':val')"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+17:     PATX "('mask_shl', 256, 0, 0, ':val')"
         test eax, eax
         jz 18f
         B rdi, 0
         call simplify_exp
         jmp .Lse_done
-18:     PAT rsi, "('mask_shl', ':int:size', ':int:offset', ':int:shl', ':e')"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+18:     PATX "('mask_shl', ':int:size', ':int:offset', ':int:shl', ':e')"
         test eax, eax
         jz 19f
         B rdi, 3
@@ -405,10 +355,7 @@ FUNC simplify_exp_impl
         mov r8d, 1
         call alg_mask_op
         mov rbx, rax
-19:     PAT rsi, "('mask_shl', ':size', 0, 0, ('div', ':expr', ('exp', 256, ':shr')))"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+19:     PATX "('mask_shl', ':size', 0, 0, ('div', ':expr', ('exp', 256, ':shr')))"
         test eax, eax
         jz 20f
         B rdi, 2
@@ -423,10 +370,7 @@ FUNC simplify_exp_impl
         mov r8, [rsp + SE_TMP]
         call alg_mask_op
         mov rbx, rax
-20:     PAT rsi, "('mask_shl', 'Any', 'Any', ':shl', ('storage', ':size', 'Any', 'Any'))"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+20:     PATX "('mask_shl', 'Any', 'Any', ':shl', ('storage', ':size', 'Any', 'Any'))"
         test eax, eax
         jz 23f
         B rdi, 0
@@ -438,10 +382,7 @@ FUNC simplify_exp_impl
         jne 23f
         mov eax, 1
         jmp .Lse_done
-23:     PAT rsi, "('or', ':sth', 0)"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+23:     PATX "('or', ':sth', 0)"
         test eax, eax
         jz 24f
         B rax, 0
@@ -460,10 +401,7 @@ FUNC simplify_exp_impl
         mov rdi, rbx
         call cleanup_mask_data
         mov rbx, rax
-26:     PAT rsi, "('mask_shl', ':size', 0, 0, ('mem', ('range', ':mem_loc', ':mem_size')))"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+26:     PATX "('mask_shl', ':size', 0, 0, ('mem', ('range', ':mem_loc', ':mem_size')))"
         test eax, eax
         jz 27f
         B rdi, 0
@@ -488,10 +426,7 @@ FUNC simplify_exp_impl
         LOADS rdi, MEM
         call mk2
         jmp .Lse_done
-27:     PAT rsi, "('mask_shl', ':size', ':off', ':shl', ('mem', ('range', ':mem_loc', ':mem_size')))"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+27:     PATX "('mask_shl', ':size', ':off', ':shl', ('mem', ('range', ':mem_loc', ':mem_size')))"
         test eax, eax
         jz .Lse_not_mem_mask
         B rdi, 1
@@ -534,10 +469,7 @@ FUNC simplify_exp_impl
         call simplify_data
         jmp .Lse_done
 .Lse_after_data:
-        PAT rsi, "('mul', -1, ('mask_shl', ':size', ':offset', ':shl', ('mul', -1, ':val')))"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+        PATX "('mul', -1, ('mask_shl', ':size', ':offset', ':shl', ('mul', -1, ':val')))"
         test eax, eax
         jz 28f
         B rdi, 0
@@ -566,10 +498,7 @@ FUNC simplify_exp_impl
         mov rdi, rbx
         call simplify_exp
         jmp .Lse_done
-29:     PAT rsi, "('and', ':num', ':num2')"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+29:     PATX "('and', ':num', ':num2')"
         test eax, eax
         jz 30f
         # python evaluates both before looking at either (the second's
@@ -594,10 +523,7 @@ FUNC simplify_exp_impl
         call is_tuple
         test eax, eax
         jz .Lsei_asis
-        PAT rsi, "('mask_shl', ':int:size', ':int:offset', ':int:shl', ':int:val')"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+        PATX "('mask_shl', ':int:size', ':int:offset', ':int:shl', ':int:val')"
         test eax, eax
         jz 32f
         B rdi, 3
@@ -606,10 +532,7 @@ FUNC simplify_exp_impl
         B rcx, 2
         call alg_apply_mask
         jmp .Lse_done
-32:     PAT rsi, "('mask_shl', ':size', 5, ':shl', ('add', 31, ('mask_shl', 251, 0, 5, ':val')))"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+32:     PATX "('mask_shl', ':size', 5, ':shl', ('add', 31, ('mask_shl', 251, 0, 5, ':val')))"
         test eax, eax
         jz 33f
         B r8, 2

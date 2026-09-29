@@ -30,6 +30,7 @@ test_table:
         .quad .Ln_lt_op, tf_lt_op
         .quad .Ln_le_op, tf_le_op
         .quad .Ln_ge_zero, tf_ge_zero
+        .quad .Ln_ge_zero_many, tf_ge_zero_many
         .quad .Ln_max_op, tf_max_op
         .quad .Ln_min_op, tf_min_op
         .quad .Ln_get_sign, tf_get_sign
@@ -145,6 +146,7 @@ test_table:
 .Ln_lt_op:     .asciz "lt_op"
 .Ln_le_op:     .asciz "le_op"
 .Ln_ge_zero:   .asciz "ge_zero"
+.Ln_ge_zero_many: .asciz "ge_zero_many"
 .Ln_max_op:    .asciz "max_op"
 .Ln_min_op:    .asciz "min_op"
 .Ln_get_sign:  .asciz "get_sign"
@@ -417,6 +419,30 @@ FUNC tf_ge_zero
         call tri_value
         LEAVE
 ENDF tf_ge_zero
+
+# ge_zero_many(tuple) -> the tuple of ge_zero of its elements, asked one
+# after the other in the same context (its memos: add_ge_zero's families)
+FUNC tf_ge_zero_many
+        ENTER
+        mov rbx, rdi
+        call vec_new
+        mov r12, rax
+        xor r13d, r13d
+1:      cmp r13d, [rbx + N_AUX]
+        jae 2f
+        mov rdi, [rbx + N_DATA + r13*8]
+        call alg_ge_zero
+        mov edi, eax
+        call tri_value
+        mov rdi, r12
+        mov rsi, rax
+        call vec_push
+        inc r13d
+        jmp 1b
+2:      mov rdi, r12
+        call vec_to_tuple
+        LEAVE
+ENDF tf_ge_zero_many
 
 FUNC tf_get_sign
         ENTER

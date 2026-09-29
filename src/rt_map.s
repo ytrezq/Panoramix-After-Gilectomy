@@ -1,10 +1,72 @@
 # Hash maps from 64-bit keys (node pointers or tagged ints, never 0) to
 # 64-bit values (never 0), in the arena. Used for memoization: as tuples
 # are hash-consed, a structure is its pointer.
+#
+# Open addressing, linear probing, half full at most. A slot's state is
+# its control byte (MAP_CTRL, one per slot): 0 empty, else 0x80 | the top
+# 7 bits of the key's hash - a probe compares the key only when they
+# match. Only the control bytes are zeroed when a table is made (the
+# entries are written before they are read): a table of pairs grown to
+# 2^18 slots zeroes 256 KiB instead of 8 MiB - the zeroing of the tables
+# grown by doubling was 5 to 9% of the instructions.
 
 .include "defs.inc"
 
         .text
+
+# MAP_HASH: rax = the hash of rsi, rcx clobbered
+.macro MAP_HASH
+        mov rax, rsi
+        mov rcx, rax
+        shr rcx, 33
+        xor rax, rcx
+        movabs rcx, 0xff51afd7ed558ccd
+        imul rax, rcx
+        mov rcx, rax
+        shr rcx, 29
+        xor rax, rcx
+.endm
+
+# MAP_TAG reg32: the control byte of the hash rax (0x80..0xff)
+.macro MAP_TAG reg, reg32
+        mov \reg, rax
+        shr \reg, 57
+        or \reg32, 0x80
+.endm
+
+# MAP_NEWCAP reg: the capacity a map of r13 slots grows to - twice as
+# many, four times past MAP_GROW4 of them (the rehashing of a doubling
+# costs as much as the entries: a map grown to n entries has rehashed n
+# of them by doublings, n/3 past there)
+        .set MAP_GROW4, 1 << 12
+.macro MAP_NEWCAP reg
+        lea \reg, [r13*2]
+        cmp r13, MAP_GROW4
+        jb 99f
+        shl \reg, 1
+99:
+.endm
+
+# map_alloc(cap, entry_shift) -> rax: a table of cap slots of 2^shift
+# bytes, its control bytes zeroed
+FUNC map_alloc
+        ENTER
+        mov rbx, rdi
+        mov ecx, esi
+        shl rdi, cl
+        add rdi, MAP_SIZEOF
+        call arena_alloc_raw            # (the entries: written before read)
+        mov r12, rax
+        lea rcx, [rax + MAP_SIZEOF]
+        mov [rax + MAP_ENTRIES], rcx
+        mov [rax + MAP_CAP], rbx
+        mov qword ptr [rax + MAP_COUNT], 0
+        mov rdi, rbx
+        call arena_alloc                # the control bytes, zeroed
+        mov [r12 + MAP_CTRL], rax
+        mov rax, r12
+        LEAVE
+ENDF map_alloc
 
 # map_new() -> rax
 FUNC map_new
@@ -15,48 +77,61 @@ ENDF map_new
 # map_new_cap(cap) -> rax: a map of cap slots (a power of 2), for as many
 # as cap/2 entries without growing
 FUNC map_new_cap
-        ENTER
-        mov rbx, rdi
-        shl rdi, 4
-        add rdi, MAP_SIZEOF
-        call arena_alloc
-        lea rcx, [rax + MAP_SIZEOF]
-        mov [rax + MAP_ENTRIES], rcx
-        mov [rax + MAP_CAP], rbx
-        mov qword ptr [rax + MAP_COUNT], 0
-        LEAVE
+        mov esi, 4
+        jmp map_alloc
 ENDF map_new_cap
 
 # map_get(map, key) -> rax: the value, or 0
 FUNC map_get
-        mov rax, rsi
-        mov rcx, rax
-        shr rcx, 33
-        xor rax, rcx
-        movabs rcx, 0xff51afd7ed558ccd
-        imul rax, rcx
-        mov rcx, rax
-        shr rcx, 29
-        xor rax, rcx
+        MAP_HASH
+        MAP_TAG r8, r8d
         mov rcx, [rdi + MAP_CAP]
         dec rcx
-        and rax, rcx
-        shl rax, 4                      # byte offset of the slot
-        shl rcx, 4
+        and rax, rcx                    # the slot
+        mov r9, [rdi + MAP_CTRL]
         mov rdx, [rdi + MAP_ENTRIES]
-1:      mov r8, [rdx + rax]
-        test r8, r8
+1:      movzx r10d, byte ptr [r9 + rax]
+        test r10d, r10d
         jz 2f
-        cmp r8, rsi
-        je 3f
-        add rax, 16
+        cmp r10d, r8d
+        jne 3f
+        mov r10, rax
+        shl r10, 4
+        cmp [rdx + r10], rsi
+        je 4f
+3:      inc rax
         and rax, rcx
         jmp 1b
 2:      xor eax, eax
         ret
-3:      mov rax, [rdx + rax + 8]
+4:      mov rax, [rdx + r10 + 8]
         ret
 ENDF map_get
+
+# map_slot(map, key) -> rax: the slot holding key, or the empty one for
+# it; edx: the key's control byte
+FUNC map_slot
+        MAP_HASH
+        MAP_TAG rdx, edx
+        mov rcx, [rdi + MAP_CAP]
+        dec rcx
+        and rax, rcx
+        mov r9, [rdi + MAP_CTRL]
+        mov r11, [rdi + MAP_ENTRIES]
+1:      movzx r10d, byte ptr [r9 + rax]
+        test r10d, r10d
+        jz 2f
+        cmp r10d, edx
+        jne 3f
+        mov r10, rax
+        shl r10, 4
+        cmp [r11 + r10], rsi
+        je 2f
+3:      inc rax
+        and rax, rcx
+        jmp 1b
+2:      ret
+ENDF map_slot
 
 # map_put(map, key, value): insert or replace
 FUNC map_put
@@ -73,72 +148,67 @@ FUNC map_put
 1:      mov rdi, rbx
         mov rsi, r12
         call map_slot
-        mov rdx, [rbx + MAP_ENTRIES]
-        cmp qword ptr [rdx + rax], 0
+        mov r9, [rbx + MAP_CTRL]
+        cmp byte ptr [r9 + rax], 0
         jne 2f
         inc qword ptr [rbx + MAP_COUNT]
-2:      mov [rdx + rax], r12
-        mov [rdx + rax + 8], r13
+        mov [r9 + rax], dl
+2:      mov rcx, [rbx + MAP_ENTRIES]
+        shl rax, 4
+        mov [rcx + rax], r12
+        mov [rcx + rax + 8], r13
         LEAVE
 ENDF map_put
 
-# map_slot(map, key) -> rax: the byte offset of the slot holding key, or of
-# the empty one for it
-FUNC map_slot
-        mov rax, rsi
-        mov rcx, rax
-        shr rcx, 33
-        xor rax, rcx
-        movabs rcx, 0xff51afd7ed558ccd
-        imul rax, rcx
-        mov rcx, rax
-        shr rcx, 29
-        xor rax, rcx
-        mov rcx, [rdi + MAP_CAP]
-        dec rcx
-        and rax, rcx
-        shl rax, 4
-        shl rcx, 4
-        mov rdx, [rdi + MAP_ENTRIES]
-1:      mov r8, [rdx + rax]
-        test r8, r8
-        jz 2f
-        cmp r8, rsi
-        je 2f
-        add rax, 16
-        and rax, rcx
-        jmp 1b
-2:      ret
-ENDF map_slot
-
 FUNC map_grow
         ENTER
+        sub rsp, 16
         mov rbx, rdi
         mov r12, [rbx + MAP_ENTRIES]
         mov r13, [rbx + MAP_CAP]
-        lea rdi, [r13*2]
-        shl rdi, 4
-        call arena_alloc                # (first: past the memory limit it
-        mov [rbx + MAP_ENTRIES], rax    # throws, and the map must stay whole)
-        lea rax, [r13*2]
+        mov rax, [rbx + MAP_CTRL]
+        mov [rsp], rax                  # the old control bytes
+        MAP_NEWCAP rdi
+        mov esi, 4
+        call map_alloc                  # (first: past the memory limit it
+        mov rcx, [rax + MAP_ENTRIES]    # throws, and the map must stay whole)
+        mov [rbx + MAP_ENTRIES], rcx
+        mov rcx, [rax + MAP_CTRL]
+        mov [rbx + MAP_CTRL], rcx
+        MAP_NEWCAP rax
         mov [rbx + MAP_CAP], rax
-        xor r14d, r14d                  # byte offset into the old entries
-        shl r13, 4
+        # each entry to the first empty slot from its key's in the new
+        # table (no comparison: the keys are all different), its control
+        # byte as it was
+        mov r8, [rsp]
+        mov r9, [rbx + MAP_CTRL]
+        mov r10, [rbx + MAP_ENTRIES]
+        mov r11, [rbx + MAP_CAP]
+        dec r11            # the new mask
+        xor r14d, r14d                  # the old slot
 1:      cmp r14, r13
         jae 3f
-        mov rsi, [r12 + r14]
-        test rsi, rsi
+        movzx edx, byte ptr [r8 + r14]
+        test edx, edx
         jz 2f
-        mov rdi, rbx
-        call map_slot
-        mov rdx, [rbx + MAP_ENTRIES]
-        mov rsi, [r12 + r14]
-        mov [rdx + rax], rsi
-        mov rsi, [r12 + r14 + 8]
-        mov [rdx + rax + 8], rsi
-2:      add r14, 16
+        mov rdi, r14
+        shl rdi, 4
+        mov rsi, [r12 + rdi]
+        MAP_HASH
+        and rax, r11
+4:      cmp byte ptr [r9 + rax], 0
+        je 5f
+        inc rax
+        and rax, r11
+        jmp 4b
+5:      mov [r9 + rax], dl
+        shl rax, 4
+        movups xmm0, [r12 + rdi]
+        movups [r10 + rax], xmm0
+2:      inc r14
         jmp 1b
-3:      LEAVE
+3:      add rsp, 16
+        LEAVE
 ENDF map_grow
 
 # memo_table(which) -> rax: the context's memo map `which`, made on demand
@@ -207,61 +277,61 @@ ENDF map2_new
 
 # map2_new_cap(cap) -> rax: a map of pairs of cap slots (a power of 2)
 FUNC map2_new_cap
-        ENTER
-        mov rbx, rdi
-        shl rdi, 5
-        add rdi, MAP_SIZEOF
-        call arena_alloc
-        lea rcx, [rax + MAP_SIZEOF]
-        mov [rax + MAP_ENTRIES], rcx
-        mov [rax + MAP_CAP], rbx
-        mov qword ptr [rax + MAP_COUNT], 0
-        LEAVE
+        mov esi, 5
+        jmp map_alloc
 ENDF map2_new_cap
 
 # map2_get(map, k1, k2) -> rax: the value, or 0
 FUNC map2_get
         MAP2_HASH
+        MAP_TAG r8, r8d
         mov rcx, [rdi + MAP_CAP]
         dec rcx
         and rax, rcx
-        shl rax, 5                      # byte offset of the slot
-        shl rcx, 5
+        mov r9, [rdi + MAP_CTRL]
         mov rdi, [rdi + MAP_ENTRIES]
-1:      mov r8, [rdi + rax]
-        test r8, r8
+1:      movzx r10d, byte ptr [r9 + rax]
+        test r10d, r10d
         jz 2f
-        cmp r8, rsi
+        cmp r10d, r8d
         jne 3f
-        cmp [rdi + rax + 8], rdx
+        mov r10, rax
+        shl r10, 5
+        cmp [rdi + r10], rsi
+        jne 3f
+        cmp [rdi + r10 + 8], rdx
         je 4f
-3:      add rax, 32
+3:      inc rax
         and rax, rcx
         jmp 1b
 2:      xor eax, eax
         ret
-4:      mov rax, [rdi + rax + 16]
+4:      mov rax, [rdi + r10 + 16]
         ret
 ENDF map2_get
 
-# map2_slot(map, k1, k2) -> rax: the byte offset of the slot holding the
-# pair, or of the empty one for it
+# map2_slot(map, k1, k2) -> rax: the slot holding the pair, or the empty
+# one for it; r8d: its control byte
 FUNC map2_slot
         MAP2_HASH
+        MAP_TAG r8, r8d
         mov rcx, [rdi + MAP_CAP]
         dec rcx
         and rax, rcx
-        shl rax, 5
-        shl rcx, 5
-        mov r9, [rdi + MAP_ENTRIES]
-1:      mov r8, [r9 + rax]
-        test r8, r8
+        mov r9, [rdi + MAP_CTRL]
+        mov r11, [rdi + MAP_ENTRIES]
+1:      movzx r10d, byte ptr [r9 + rax]
+        test r10d, r10d
         jz 2f
-        cmp r8, rsi
+        cmp r10d, r8d
         jne 3f
-        cmp [r9 + rax + 8], rdx
+        mov r10, rax
+        shl r10, 5
+        cmp [r11 + r10], rsi
+        jne 3f
+        cmp [r11 + r10 + 8], rdx
         je 2f
-3:      add rax, 32
+3:      inc rax
         and rax, rcx
         jmp 1b
 2:      ret
@@ -284,11 +354,14 @@ FUNC map2_put
         mov rsi, r12
         mov rdx, r13
         call map2_slot
-        mov rdx, [rbx + MAP_ENTRIES]
-        cmp qword ptr [rdx + rax], 0
+        mov r9, [rbx + MAP_CTRL]
+        cmp byte ptr [r9 + rax], 0
         jne 2f
         inc qword ptr [rbx + MAP_COUNT]
-2:      mov [rdx + rax], r12
+        mov [r9 + rax], r8b
+2:      mov rdx, [rbx + MAP_ENTRIES]
+        shl rax, 5
+        mov [rdx + rax], r12
         mov [rdx + rax + 8], r13
         mov [rdx + rax + 16], r14
         LEAVE
@@ -296,35 +369,56 @@ ENDF map2_put
 
 FUNC map2_grow
         ENTER
+        sub rsp, 16
         mov rbx, rdi
         mov r12, [rbx + MAP_ENTRIES]
         mov r13, [rbx + MAP_CAP]
-        lea rdi, [r13*2]
-        shl rdi, 5
-        call arena_alloc                # (first: see map_grow)
-        mov [rbx + MAP_ENTRIES], rax
-        lea rax, [r13*2]
+        mov rax, [rbx + MAP_CTRL]
+        mov [rsp], rax                  # the old control bytes
+        MAP_NEWCAP rdi
+        mov esi, 5
+        call map_alloc                  # (first: see map_grow)
+        mov rcx, [rax + MAP_ENTRIES]
+        mov [rbx + MAP_ENTRIES], rcx
+        mov rcx, [rax + MAP_CTRL]
+        mov [rbx + MAP_CTRL], rcx
+        MAP_NEWCAP rax
         mov [rbx + MAP_CAP], rax
-        xor r14d, r14d                  # byte offset into the old entries
-        shl r13, 5
+        # (as map_grow does)
+        mov r8, [rsp]
+        mov r9, [rbx + MAP_CTRL]
+        mov r10, [rbx + MAP_ENTRIES]
+        mov r11, [rbx + MAP_CAP]
+        dec r11
+        xor r14d, r14d                  # the old slot
 1:      cmp r14, r13
         jae 3f
-        mov rsi, [r12 + r14]
-        test rsi, rsi
+        movzx edi, byte ptr [r8 + r14]
+        test edi, edi
         jz 2f
-        mov rdi, rbx
-        mov rdx, [r12 + r14 + 8]
-        call map2_slot
-        mov rdx, [rbx + MAP_ENTRIES]
-        mov rsi, [r12 + r14]
-        mov [rdx + rax], rsi
-        mov rsi, [r12 + r14 + 8]
-        mov [rdx + rax + 8], rsi
-        mov rsi, [r12 + r14 + 16]
-        mov [rdx + rax + 16], rsi
-2:      add r14, 32
+        mov rax, r14
+        shl rax, 5
+        mov rsi, [r12 + rax]
+        mov rdx, [r12 + rax + 8]
+        MAP2_HASH
+        and rax, r11
+4:      cmp byte ptr [r9 + rax], 0
+        je 5f
+        inc rax
+        and rax, r11
+        jmp 4b
+5:      mov [r9 + rax], dil
+        shl rax, 5
+        mov rcx, r14
+        shl rcx, 5
+        movups xmm0, [r12 + rcx]
+        movups xmm1, [r12 + rcx + 16]
+        movups [r10 + rax], xmm0
+        movups [r10 + rax + 16], xmm1
+2:      inc r14
         jmp 1b
-3:      LEAVE
+3:      add rsp, 16
+        LEAVE
 ENDF map2_grow
 
 # memo2_get(which, k1, k2) -> rax (0 if absent): a pair memo (MEMO_LT...)
@@ -390,53 +484,64 @@ ENDF memo2_put
 # map3_get(map, k1, k2, k3) -> rax: the value, or 0
 FUNC map3_get
         MAP3_HASH
+        MAP_TAG r8, r8d
         mov r9, [rdi + MAP_CAP]
         dec r9
         and rax, r9
-        shl rax, 5
-        shl r9, 5
+        mov r11, [rdi + MAP_CTRL]
         mov rdi, [rdi + MAP_ENTRIES]
-1:      mov r8, [rdi + rax]
-        test r8, r8
+1:      movzx r10d, byte ptr [r11 + rax]
+        test r10d, r10d
         jz 2f
-        cmp r8, rsi
+        cmp r10d, r8d
         jne 3f
-        cmp [rdi + rax + 8], rdx
+        mov r10, rax
+        shl r10, 5
+        cmp [rdi + r10], rsi
         jne 3f
-        cmp [rdi + rax + 16], rcx
+        cmp [rdi + r10 + 8], rdx
+        jne 3f
+        cmp [rdi + r10 + 16], rcx
         je 4f
-3:      add rax, 32
+3:      inc rax
         and rax, r9
         jmp 1b
 2:      xor eax, eax
         ret
-4:      mov rax, [rdi + rax + 24]
+4:      mov rax, [rdi + r10 + 24]
         ret
 ENDF map3_get
 
-# map3_slot(map, k1, k2, k3) -> rax: the byte offset of the slot holding
-# the triple, or of the empty one for it (r10: the entries)
+# map3_slot(map, k1, k2, k3) -> rax: the slot holding the triple, or the
+# empty one for it; r8d: its control byte (r10: the entries, r11: the
+# control bytes)
 FUNC map3_slot
         MAP3_HASH
+        MAP_TAG r8, r8d
         mov r9, [rdi + MAP_CAP]
         dec r9
         and rax, r9
-        shl rax, 5
-        shl r9, 5
+        mov r11, [rdi + MAP_CTRL]
         mov r10, [rdi + MAP_ENTRIES]
-1:      mov r8, [r10 + rax]
-        test r8, r8
+        push rbx
+1:      movzx ebx, byte ptr [r11 + rax]
+        test ebx, ebx
         jz 2f
-        cmp r8, rsi
+        cmp ebx, r8d
         jne 3f
-        cmp [r10 + rax + 8], rdx
+        mov rbx, rax
+        shl rbx, 5
+        cmp [r10 + rbx], rsi
         jne 3f
-        cmp [r10 + rax + 16], rcx
+        cmp [r10 + rbx + 8], rdx
+        jne 3f
+        cmp [r10 + rbx + 16], rcx
         je 2f
-3:      add rax, 32
+3:      inc rax
         and rax, r9
         jmp 1b
-2:      ret
+2:      pop rbx
+        ret
 ENDF map3_slot
 
 # map3_put(map, k1, k2, k3, value): insert or replace
@@ -459,10 +564,12 @@ FUNC map3_put
         mov rdx, r13
         mov rcx, r14
         call map3_slot
-        cmp qword ptr [r10 + rax], 0
+        cmp byte ptr [r11 + rax], 0
         jne 2f
         inc qword ptr [rbx + MAP_COUNT]
-2:      mov [r10 + rax], r12
+        mov [r11 + rax], r8b
+2:      shl rax, 5
+        mov [r10 + rax], r12
         mov [r10 + rax + 8], r13
         mov [r10 + rax + 16], r14
         mov rcx, [rsp]
@@ -473,37 +580,57 @@ ENDF map3_put
 
 FUNC map3_grow
         ENTER
+        sub rsp, 16
         mov rbx, rdi
         mov r12, [rbx + MAP_ENTRIES]
         mov r13, [rbx + MAP_CAP]
-        lea rdi, [r13*2]
-        shl rdi, 5
-        call arena_alloc                # (first: see map_grow)
-        mov [rbx + MAP_ENTRIES], rax
-        lea rax, [r13*2]
+        mov rax, [rbx + MAP_CTRL]
+        mov [rsp], rax                  # the old control bytes
+        MAP_NEWCAP rdi
+        mov esi, 5
+        call map_alloc                  # (first: see map_grow)
+        mov rcx, [rax + MAP_ENTRIES]
+        mov [rbx + MAP_ENTRIES], rcx
+        mov rcx, [rax + MAP_CTRL]
+        mov [rbx + MAP_CTRL], rcx
+        MAP_NEWCAP rax
         mov [rbx + MAP_CAP], rax
-        xor r14d, r14d                  # byte offset into the old entries
-        shl r13, 5
+        # (as map_grow does; MAP3_HASH takes r8)
+        mov r9, [rbx + MAP_CTRL]
+        mov r10, [rbx + MAP_ENTRIES]
+        mov r11, [rbx + MAP_CAP]
+        dec r11
+        xor r14d, r14d                  # the old slot
 1:      cmp r14, r13
         jae 3f
-        mov rsi, [r12 + r14]
-        test rsi, rsi
+        mov rax, [rsp]
+        movzx edi, byte ptr [rax + r14]
+        test edi, edi
         jz 2f
-        mov rdi, rbx
-        mov rdx, [r12 + r14 + 8]
-        mov rcx, [r12 + r14 + 16]
-        call map3_slot
-        mov rsi, [r12 + r14]
-        mov [r10 + rax], rsi
-        mov rsi, [r12 + r14 + 8]
-        mov [r10 + rax + 8], rsi
-        mov rsi, [r12 + r14 + 16]
-        mov [r10 + rax + 16], rsi
-        mov rsi, [r12 + r14 + 24]
-        mov [r10 + rax + 24], rsi
-2:      add r14, 32
+        mov rax, r14
+        shl rax, 5
+        mov rsi, [r12 + rax]
+        mov rdx, [r12 + rax + 8]
+        mov rcx, [r12 + rax + 16]
+        MAP3_HASH
+        and rax, r11
+4:      cmp byte ptr [r9 + rax], 0
+        je 5f
+        inc rax
+        and rax, r11
+        jmp 4b
+5:      mov [r9 + rax], dil
+        shl rax, 5
+        mov rcx, r14
+        shl rcx, 5
+        movups xmm0, [r12 + rcx]
+        movups xmm1, [r12 + rcx + 16]
+        movups [r10 + rax], xmm0
+        movups [r10 + rax + 16], xmm1
+2:      inc r14
         jmp 1b
-3:      LEAVE
+3:      add rsp, 16
+        LEAVE
 ENDF map3_grow
 
 # memo3_get(which, k1, k2, k3) -> rax (0 if absent): a triple memo

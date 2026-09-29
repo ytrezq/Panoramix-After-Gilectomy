@@ -132,9 +132,7 @@ FUNC replace_param_names
         sub rsp, MATCH_BINDINGS_SIZE
         mov rbx, rdi
         mov r12, rsi
-        PAT rsi, "('cd', ':int:idx')"
-        mov rdx, rsp
-        call pat_match
+        PATXD "('cd', ':int:idx')"
         test eax, eax
         jz 1f
         mov rdi, r12

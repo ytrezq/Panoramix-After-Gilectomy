@@ -729,10 +729,8 @@ FUNC rem_masks
         sub rsp, MATCH_BINDINGS_SIZE + 16
         mov rbx, rdi
         mov r12, rsi
-        PAT rsi, "('bool', ('cd', ':int:idx'))"
         mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+        PATXD "('bool', ('cd', ':int:idx'))"
         test eax, eax
         jz 1f
         mov rdi, r12
@@ -746,10 +744,8 @@ FUNC rem_masks
         test eax, eax
         jz .Lrm_asis
         jmp .Lrm_cd
-1:      PAT rsi, "('mask_shl', ':size', 0, 0, ('cd', ':int:idx'))"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+1:      mov rdi, rbx
+        PATXD "('mask_shl', ':size', 0, 0, ('cd', ':int:idx'))"
         test eax, eax
         jz .Lrm_asis
         mov rdi, r12

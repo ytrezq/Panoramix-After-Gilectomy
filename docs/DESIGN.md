@@ -53,6 +53,8 @@ database, liblzma. Everything else is assembly (GNU as, Intel syntax).
     src/pymod.c           the CPython module `panoramix_asm`
     src/testapi.s         the hooks of the differential tests (`panoramix_asm._test`)
     tools/gen_opcodes.py  generates opcodes.inc / opcodes_table.s
+    tools/psamp.c         a sampling profiler (perf_event_open's CPU clock, the
+                          frames' return addresses), tools/psym.py its report
     tests/                comparisons with the python implementation
 
 Build: `make` (needs python3 headers for the module). `build/panasm`
@@ -305,6 +307,8 @@ The random unit tests (`tests/test_algebra.py` - with `BIG=1`, masks
 with numbers past 2^62 -, `test_arith.py`, `test_memloc.py`,
 `test_stack.py`, `test_simplify_exp.py`, `test_prettify_random.py`,
 `test_agz.py`: sums of many terms sharing variables, for `add_ge_zero`;
+`test_agz_family.py`: many adds sharing their terms after the number,
+asked in one context, for `add_ge_zero`'s and `add_op`'s families;
 `test_fold_random.py`: paths sharing beginnings and endings, some in
 two groups the folder's `fold_or` splits, through `fold_paths`;
 `test_trace_random.py`: random traces - the lines of the VM, loops
@@ -602,3 +606,88 @@ every setmem: the first answers at once for a line without "mem" in it
 the scratch set; the second is remembered for its pair (the same
 setmems for the same memories, round after round). zx_Staking 4.23G to
 4.11G.
+
+The comparisons of the memory ranges (`range_overlaps`, `fill_mem`: the
+signs of differences of offsets, `lt_op`/`le_op`/`ge_zero`) come in
+families: the same terms after different numbers - ('add', -64, x,
+('mul', -1, y)), ('add', 32, x, ('mul', -1, y)) -, and python simplifies
+each and evaluates its 2^k variants anew (277K `add_ge_zero` on
+zx_Exchange, for 47K sets of terms). `add_op` combines the terms
+without looking at the numbers, which it only sums: its combination of
+the terms (`try_add`'s, in order) is remembered for the sequence of the
+terms other than numbers (`MEMO_ADD_FAMILY`), whatever the numbers, and
+the numbers' sum is added to the one the combination gave (then reduced
+mod 2^256 when positive, as python does). `add_ge_zero` of an add is
+answered from its family's record (`agz_by_family`): the fold of
+`simplify` over the terms after the number (the same symbolic part as
+the member's, its number the member's plus the family's, as long as no
+sum of numbers on the way reaches 2^256: every number small, and no
+`add_op` step that reduced one - `MEMO_ADD_WRAPPED`), then the extremes
+of its variants (`agz_groups`); a member's answer is True when its
+number plus the minimum is >= 0, False when its number plus the
+maximum is < 0, None otherwise. `add_op` of two terms, the most asked,
+is remembered for the pair (`MEMO_ADD2`) rather than for their tuple,
+whether it reduced a sum beside it (`MEMO_ADD_WRAPPED`, a table of pairs
+too). `tests/test_agz_family.py` asks, in one
+context, families made as `add_op` and `sub_op` make them, and raw, with
+the cases where a reduction mod 2^256 would change the answer. The
+VM's `is_known` asks `eval_bool` of every fact known on the path, from
+the last (some 150 on aave's logic libraries, nearly all answering
+None): `eval_bool` looks at the fact only where it compares it with the
+condition or a part it goes into (the operand of a bool or an iszero,
+the terms of an or or an and) - equal, equal to its `is_zero`, `is_zero`
+of it equal, an lt/le of the same first operand -, and a fact matching
+none of those gives what any other one gives, asked once. The maps
+(memo tables) keep a control byte per slot (0 empty, else the top bits of
+the key's hash, compared before the key): only those are zeroed when a
+table is made or doubled, where the whole table was (the zeroing was 5
+to 9% of the instructions). The ranges a loop's memory writes cover
+(`ranges_overlap_at_bounds`, which `overwrites_mem` asks for the loops of
+the rest of the trace at every setmem) are remembered for the loop: its
+bounds, then each range the first time python makes it, in python's
+order (`MEMO_AT_BOUNDS`). The VM's `replace_loops` takes the unexpanded
+nodes `expand_trace` leaves instead of walking the tree for them (the
+unexpanded nodes are leaves, found in the order of the leaves, and
+running one gives it new children only, which take its place in that
+order; `PANORAMIX_CHECK_LCA=1` compares with the walk); the simplifier's
+rules check the opcode heading their pattern before calling the matcher
+(`PATXD`). `readability` renames the variables of every loop in the rest
+of the trace, one at a time, after looking for a free name
+(`contains(rest, ('var', n))`): both go by the variables of each line
+(`line_vars`, remembered): the search asks the lines' lists, and the
+renaming keeps as it is a line without the variable nor a setvar of it
+(`line_setvars`, remembered too), without walking it. The hash-cons
+table's slots hold, above a node's pointer, 16 bits of its hash (a tag,
+`HC_TAG`): a probe reads a node only when the tags agree (the nodes are
+all over the arena: most probes were a cache miss), and its doubling
+reads the nodes' hashes ahead (`prefetcht0`).
+
+Then, measured in time rather than instructions (`tools/psamp.c`: `perf`
+isn't there, but `perf_event_open`'s software clock is - a sampler of the
+instruction pointers and the frames' return addresses, the misses of the
+caches included): 20% of the time went to the
+memo tables and 20% to the hash-consing, most of it waiting on the
+memory, and 9 to 15% to `merge_visit` on zx_Exchange and zx_Staking.
+`_merge_at` gives up the same way when a side of the if answers false
+or none, so `merge_visit` stops at the first path not run yet or looping
+back at the jumpdest, remembers with a subtree's answer the number of
+its hits (0, 1, 2 or more), and is asked without the hits first - for
+them only when both sides are true with 2 hits at least
+(`PANORAMIX_CHECK_LCA=1` compares every try with python's walk): 1% of
+the time. The VM's nodes keep what the walks of the tree read in their
+first two cache lines (64-byte aligned), with the vec of their children
+and room for two of them (a jump has one child, an if two), where the
+vec was allocated after the node; `find_nodes` prefetches the children
+it pushes: its walks, 8% of zx_DevUtils' time, are 5% of it. A memo
+table grows by four past 4096 slots (the rehashing of a doubling costs
+as much as the entries: n entries have rehashed n of them by doublings,
+n/3 past there), its rehashing without comparisons (the keys are all
+different); `add_op` flattens its arguments in one pass. zx_Exchange
+went from 17.2G instructions to 10.7G, zx_Staking from 4.1G to 3.1G;
+the npm corpus takes 20.3 s of CPU (27.3 s before this round, on the
+same machine), the mainnet one 5.4 s (6.8 s).
+(`merge_visit` remembering the answer of a chain of nodes of one child
+in its first node, as the node it leads to does, made it slower: the
+answers are rarely asked again before the stamps change. Prefetching
+the entry of a memo table with its control byte changed nothing: the
+two misses were already overlapping.)

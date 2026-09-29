@@ -1198,58 +1198,90 @@ ENDF vec_push_unique
 
 # ranges_overlap_at_bounds(lines, mem_idx, pc) -> eax: for setmems/mems
 # of a loop with known counters, whether the memory index overlaps any
-# of them over the whole run of the loop
+# of them over the whole run of the loop. The ranges depend on the loop
+# only, and every memory is compared with them (overwrites_mem asks for
+# the loops of the rest of the trace, at every setmem of cleanup_mems):
+# they are remembered for (lines, pc) - the bounds (python's replace_var
+# of every line), then each range the first time python makes it, in
+# the same order (MEMO_AT_BOUNDS: a vector, [begin, end, the ranges]).
 FUNC ranges_overlap_at_bounds
         STACK_CHECK
         ENTER
         sub rsp, 32
         mov rbx, rdi
         mov r12, rsi
+        mov [rsp + 24], rdx             # pc
+        mov edi, MEMO_AT_BOUNDS
+        mov rsi, rbx
+        call memo2_get
+        test rax, rax
+        jnz 1f
         mov rdi, rbx
-        mov rsi, rdx
+        mov rsi, [rsp + 24]
         call setmems_at_bounds
         mov [rsp], rax                  # begin
         mov [rsp + 8], rdx              # end
-        xor r13d, r13d
-1:      cmp r13d, [rbx + N_AUX]
-        jae 3f
-        # [begin.left, end.right] and [end.left, begin.right]
-        mov rax, [rsp]
-        mov rdi, [rax + N_DATA + r13*8]
+        call vec_new
+        mov r13, rax
+        mov rdi, r13
+        mov rsi, [rsp]
+        call vec_push
+        mov rdi, r13
+        mov rsi, [rsp + 8]
+        call vec_push
+        mov edi, MEMO_AT_BOUNDS
+        mov rsi, rbx
+        mov rdx, [rsp + 24]
+        mov rcx, r13
+        call memo2_put
+        mov rax, r13
+1:      mov r13, rax                    # the vector
+        xor r14d, r14d                  # the range: two per line
+2:      mov rax, r14
+        shr rax, 1
+        cmp eax, [rbx + N_AUX]
+        jae 9f
+        lea rax, [r14 + 2]
+        cmp rax, [r13 + VEC_LEN]
+        jb 5f                           # made already
+        # [begin.left, end.right], then [end.left, begin.right]
+        mov rcx, r14
+        shr rcx, 1
+        mov rdx, [r13 + VEC_DATA]
+        mov rax, [rdx]                  # begin
+        test r14b, 1
+        jz 3f
+        mov rax, [rdx + 8]              # end
+3:      mov rdi, [rax + N_DATA + rcx*8]
         call memloc_left
         mov [rsp + 16], rax
-        mov rax, [rsp + 8]
-        mov rdi, [rax + N_DATA + r13*8]
+        mov rcx, r14
+        shr rcx, 1
+        mov rdx, [r13 + VEC_DATA]
+        mov rax, [rdx + 8]              # end
+        test r14b, 1
+        jz 4f
+        mov rax, [rdx]                  # begin
+4:      mov rdi, [rax + N_DATA + rcx*8]
         call memloc_right
         mov rdi, [rsp + 16]
         mov rsi, rax
         call make_range
-        mov rdi, r12
+        mov rdi, r13
         mov rsi, rax
+        call vec_push
+5:      mov rax, [r13 + VEC_DATA]
+        mov rsi, [rax + r14*8 + 16]
+        mov rdi, r12
         call range_overlaps
         cmp eax, TRI_FALSE
-        jne 2f
-        mov rax, [rsp + 8]
-        mov rdi, [rax + N_DATA + r13*8]
-        call memloc_left
-        mov [rsp + 16], rax
-        mov rax, [rsp]
-        mov rdi, [rax + N_DATA + r13*8]
-        call memloc_right
-        mov rdi, [rsp + 16]
-        mov rsi, rax
-        call make_range
-        mov rdi, r12
-        mov rsi, rax
-        call range_overlaps
-        cmp eax, TRI_FALSE
-        jne 2f
-        inc r13d
-        jmp 1b
-2:      mov eax, 1
+        jne 8f
+        inc r14
+        jmp 2b
+8:      mov eax, 1
         add rsp, 32
         LEAVE
-3:      xor eax, eax
+9:      xor eax, eax
         add rsp, 32
         LEAVE
 ENDF ranges_overlap_at_bounds
