@@ -1001,15 +1001,10 @@ FUNC extract_setmems_impl
         # list(dict.fromkeys(res))
         call vec_new
         mov r12, rax
-        xor r13d, r13d
-1:      cmp r13d, [rbx + N_AUX]
-        jae 2f
+        mov rdi, rax
+        mov rsi, rbx
+        call vec_extend_unique
         mov rdi, r12
-        mov rsi, [rbx + N_DATA + r13*8]
-        call vec_push_unique
-        inc r13d
-        jmp 1b
-2:      mov rdi, r12
         call vec_to_list
         add rsp, 16
         LEAVE
@@ -1106,6 +1101,70 @@ ENDF extract_setmems_f
         OPSET_MEMBER ends_execution, OP_ASSERT_FAIL
         OPSET_MEMBER ends_execution, OP_SELFDESTRUCT
         OPSET_END ends_execution, OP_COUNT
+
+# vec_extend_unique(vec, seq): the elements of seq pushed, each unless
+# present already (by value: list(dict.fromkeys(...)) of the vector's
+# and seq's). The nodes but the big ints are their values (hash-consed,
+# interned): the ones seen are kept in the context's scratch set (see
+# line_vars) - a quadratic search of the vector otherwise
+FUNC vec_extend_unique
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, [r15 + CTX_LV_SET]
+        test r13, r13
+        jnz 1f
+        call emap_new
+        mov r13, rax
+        mov [r15 + CTX_LV_SET], rax
+1:      mov rdi, r13
+        call emap_begin
+        xor r14d, r14d                  # what the vector holds already
+2:      cmp r14, [rbx + VEC_LEN]
+        jae 3f
+        mov rax, [rbx + VEC_DATA]
+        mov rsi, [rax + r14*8]
+        inc r14
+        call .Leu_bigint
+        jnz 2b
+        mov rdi, r13
+        call emap_add
+        jmp 2b
+3:      xor r14d, r14d
+4:      cmp r14d, [r12 + N_AUX]
+        jae 9f
+        mov rsi, [r12 + N_DATA + r14*8]
+        inc r14d
+        mov [rsp], rsi
+        call .Leu_bigint
+        jz 5f
+        mov rdi, rbx                    # a big int: by value
+        mov rsi, [rsp]
+        call vec_push_unique
+        jmp 4b
+5:      mov rdi, r13
+        call emap_add
+        test eax, eax
+        jz 4b                           # (seen)
+        mov rdi, rbx
+        mov rsi, [rsp]
+        call vec_push
+        jmp 4b
+9:      add rsp, 16
+        LEAVE
+# ZF clear when rsi is a big int (K_INT node); rax, rcx changed
+.Leu_bigint:
+        xor eax, eax
+        test sil, 1
+        jnz 1f
+        test rsi, rsi
+        jz 1f
+        cmp dword ptr [rsi + N_KIND], K_INT
+        sete al
+1:      test eax, eax
+        ret
+ENDF vec_extend_unique
 
 # vec_push_unique(vec, v): push unless present (by value)
 FUNC vec_push_unique

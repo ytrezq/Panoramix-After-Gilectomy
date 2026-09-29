@@ -1143,9 +1143,9 @@ FUNC arith_eval_impl
 ENDF arith_eval_impl
 
 # is_volatile(exp) -> eax: mentions storage, balances, calls... (a string
-# node flagged STR_VOLATILE anywhere in the tree)
+# node flagged STR_VOLATILE anywhere in the tree: HF_VOLATILE, a tuple's
+# mention flag - no walk)
 FUNC is_volatile
-        STACK_CHECK
         test dil, 1
         jnz .Liv_no
         test rdi, rdi
@@ -1160,21 +1160,11 @@ FUNC is_volatile
         je 2f
         cmp eax, K_LIST
         jne .Liv_no
-2:      ENTER
-        mov rbx, rdi
-        xor r12d, r12d
-3:      cmp r12d, [rbx + N_AUX]
-        jae 4f
-        mov rdi, [rbx + N_DATA + r12*8]
-        call is_volatile
-        test eax, eax
-        jnz 5f
-        inc r12
-        jmp 3b
-4:      xor eax, eax
-        LEAVE
-5:      mov eax, 1
-        LEAVE
+2:      xor eax, eax                    # a sequence: its mention flag
+        movabs rcx, HF_VOLATILE         # (such a string anywhere below:
+        test [rdi + N_HASH], rcx        # the hash-consing OR'ed them up)
+        setnz al
+        ret
 .Liv_no:
         xor eax, eax
         ret

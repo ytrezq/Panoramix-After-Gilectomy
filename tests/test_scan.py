@@ -41,7 +41,7 @@ for rows in zip(*(res[isa] for isa in ISAS)):
     vol = 1 if any(n in t for n in NAMES) else 0
     hf = (1 if "mem" in t else 0) | (2 if "msize" in t else 0) | (4 if "storage" in t else 0) | \
          (8 if t == "var" else 0) | (16 if t == "setvar" else 0) | (32 if t == "goto" else 0) | \
-         (64 if t == "continue" else 0)
+         (64 if t == "continue" else 0) | (128 if vol else 0)
     model = "(%d, %d)" % (vol, hf)
     if any(r[1] != model for r in rows):
         bad += 1

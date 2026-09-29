@@ -149,7 +149,8 @@ FUNC str_intern
 ENDF str_intern
 
 # str_scan_flags(ptr, len) -> eax: STR_VOLATILE if the string mentions one
-# of the VOLATILE names (see arithmetic.py), else 0; rdx: the HF_* mention
+# of the VOLATILE names (see arithmetic.py), else 0 (and HF_VOLATILE in
+# rdx then); rdx: the HF_* mention
 # flags ("mem", "msize", "storage" anywhere; HF_VAR: the string "var",
 # HF_SETVAR: "setvar", HF_GOTO: "goto", HF_CONTINUE: "continue"). One
 # pass over the text: a byte is
@@ -356,7 +357,11 @@ FUNC str_scan_flags
         or [rsp + SF_HF], rax
 10:     mov eax, [rsp + SF_VOLATILE]
         mov rdx, [rsp + SF_HF]
-        add rsp, 48
+        test eax, eax
+        jz 11f
+        movabs rcx, HF_VOLATILE         # (the tuples above know it too)
+        or rdx, rcx
+11:     add rsp, 48
         LEAVE
 # the names starting at position r14 (the frame is 16 bytes up: the
 # return address, the alignment)

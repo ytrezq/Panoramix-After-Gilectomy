@@ -350,12 +350,25 @@ ENDF find_nodes
 # here, and the predicate the rounds ask the most (pred_unexpanded) too.
 FUNC find_nodes_into
         ENTER
-        sub rsp, 16
+        sub rsp, 48
+        .set FN_OUT, 0
+        .set FN_PRED, 8
+        .set FN_ARG, 16
+        .set FN_NODE, 24
         mov rbx, rdi
-        mov r12, rsi                    # pred
-        mov r13, rdx                    # arg
-        mov [rsp], rcx                  # out
-        mov rax, [r15 + CTX_VM]
+        mov [rsp + FN_PRED], rsi
+        mov [rsp + FN_ARG], rdx
+        mov [rsp + FN_OUT], rcx
+        mov r13d, 2                     # the predicate: 0 any, 1 not run
+        lea rax, [rip + pred_any]       # yet (the two of the rounds: no
+        cmp rsi, rax                    # call), 2 another
+        jne 1f
+        xor r13d, r13d
+1:      lea rax, [rip + pred_unexpanded]
+        cmp rsi, rax
+        jne 2f
+        mov r13d, 1
+2:      mov rax, [r15 + CTX_VM]
         test rax, rax
         jz 5f
         mov r14, [rax + VM_SCR_VISIT]
@@ -372,77 +385,75 @@ FUNC find_nodes_into
 7:      mov rdi, r14
         mov rsi, rbx
         call vec_push
+        # the stack's length and data in registers (rbx, r12): written
+        # back only to grow it
+        mov rbx, [r14 + VEC_LEN]
+        mov r12, [r14 + VEC_DATA]
 .Lfn_pop:
-        mov rax, [r14 + VEC_LEN]
-        test rax, rax
+        test rbx, rbx
         jz .Lfn_done
-        dec rax
-        mov [r14 + VEC_LEN], rax
-        mov rcx, [r14 + VEC_DATA]
-        mov rbx, [rcx + rax*8]          # n = to_visit.pop()
-        lea rax, [rip + pred_any]       # (the two predicates of the rounds:
-        cmp r12, rax                    # no call)
-        je 2f
-        lea rax, [rip + pred_unexpanded]
-        cmp r12, rax
+        dec rbx
+        mov rdi, [r12 + rbx*8]          # n = to_visit.pop()
+        test r13d, r13d
+        jz 2f
+        cmp r13d, 1
         jne 1f
-        cmp qword ptr [rbx + ND_TRACE], 0
+        cmp qword ptr [rdi + ND_TRACE], 0
         jne .Lfn_next
         jmp 2f
-1:      mov rdi, rbx
-        mov rsi, r13
-        call r12
+1:      mov [rsp + FN_NODE], rdi
+        mov rsi, [rsp + FN_ARG]
+        call [rsp + FN_PRED]
+        mov rdi, [rsp + FN_NODE]
         test eax, eax
         jz .Lfn_next
-2:      mov rdi, [rsp]                  # out.append(n): vec_push's quick
-        mov rax, [rdi + VEC_LEN]        # path here
-        cmp rax, [rdi + VEC_CAP]
+2:      mov rax, [rsp + FN_OUT]         # out.append(n): vec_push's quick
+        mov rcx, [rax + VEC_LEN]        # path here
+        cmp rcx, [rax + VEC_CAP]
         jae 21f
-        mov rcx, [rdi + VEC_DATA]
-        mov [rcx + rax*8], rbx
-        inc rax
-        mov [rdi + VEC_LEN], rax
+        mov rdx, [rax + VEC_DATA]
+        mov [rdx + rcx*8], rdi
+        inc rcx
+        mov [rax + VEC_LEN], rcx
         jmp .Lfn_next
-21:     mov rsi, rbx
+21:     mov [rsp + FN_NODE], rdi
+        mov rsi, rdi
+        mov rdi, rax
         call vec_push
+        mov rdi, [rsp + FN_NODE]
 .Lfn_next:
         # to_visit.extend(reversed(n.next))
-        mov rax, [rbx + ND_NEXT]
+        mov rax, [rdi + ND_NEXT]
         mov rcx, [rax + VEC_LEN]
         test rcx, rcx
         jz .Lfn_pop
-        mov rdx, [r14 + VEC_LEN]
-        add rdx, rcx
+        lea rdx, [rbx + rcx]
         cmp rdx, [r14 + VEC_CAP]
         ja .Lfn_grow
         mov rsi, [rax + VEC_DATA]
-        mov rdi, [r14 + VEC_DATA]
-        mov rdx, [r14 + VEC_LEN]
-        lea r8, [rdx + rcx]
-        mov [r14 + VEC_LEN], r8
 3:      dec rcx
-        mov r9, [rsi + rcx*8]
-        mov [rdi + rdx*8], r9
-        inc rdx
+        mov r8, [rsi + rcx*8]
+        mov [r12 + rbx*8], r8
+        inc rbx
         test rcx, rcx
         jnz 3b
         jmp .Lfn_pop
 .Lfn_grow:
-        # (no room: one by one, vec_push growing the stack)
-        mov [rsp + 8], rcx
-4:      mov rcx, [rsp + 8]
-        test rcx, rcx
-        jz .Lfn_pop
-        dec rcx
-        mov [rsp + 8], rcx
-        mov rax, [rbx + ND_NEXT]
-        mov rdx, [rax + VEC_DATA]
-        mov rsi, [rdx + rcx*8]
+        # (no room: the stack grown, rbx its length as it was)
+        mov [rsp + FN_NODE], rdi
+        mov [r14 + VEC_LEN], rbx
         mov rdi, r14
-        call vec_push
-        jmp 4b
+        mov rsi, rdx
+        call vec_resize
+        mov r12, [r14 + VEC_DATA]
+        mov rdi, [rsp + FN_NODE]
+        mov rax, [rdi + ND_NEXT]
+        mov rcx, [rax + VEC_LEN]
+        mov rsi, [rax + VEC_DATA]
+        jmp 3b
 .Lfn_done:
-        add rsp, 16
+        mov qword ptr [r14 + VEC_LEN], 0
+        add rsp, 48
         LEAVE
 ENDF find_nodes_into
 

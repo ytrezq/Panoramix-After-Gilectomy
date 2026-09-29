@@ -546,9 +546,9 @@ ENDF memo3_put
 # epoch, -), emptied at once by starting a new epoch - the entries of
 # the ones before are as good as empty (a new key takes their slot; the
 # probes stop at them). For rename_var (cleanup.s), which asks for a fresh
-# map at every walk of the trace, and line_vars' sets: growing one from
-# nothing, rehashing and zeroing at every doubling, cost more than the
-# walk it saved.
+# map at every walk of the trace, and the sets of line_vars and
+# vec_extend_unique: growing one from nothing, rehashing and zeroing at
+# every doubling, cost more than the walk it saved.
 
 # EMAP_HASH: rax = the slot's byte offset of rsi in the emap rdi, rcx =
 # the mask of the byte offsets

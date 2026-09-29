@@ -43,6 +43,7 @@
 .set HF_SETVAR, 1 << 60     # a ('setvar', ...): the string "setvar" itself (rename_var's)
 .set HF_GOTO, 1 << 61       # a ('goto', ...): the string "goto" itself (whiles' goes_to)
 .set HF_CONTINUE, 1 << 62   # a ('continue', ...): the string "continue" itself (find_conts)
+.set HF_VOLATILE, 1 << 63   # a string naming volatile state (STR_VOLATILE: is_volatile)
 .set HF_SHIFT, 56
 .set HF_MASK, 0xff << 56
 
@@ -92,7 +93,7 @@
 .set CTX_DEADLINE, 168      # the watchdog's deadline, monotonic ns (0: none; rt_watch.s)
 .set CTX_TIMED_OUT, 176     # set by the watchdog: CTX_STACK_LOW taken away
 .set CTX_STACK_LOW_REAL, 184  # CTX_STACK_LOW meanwhile
-.set CTX_LV_SET, 192        # line_vars' scratch set (an emap, reused: cleanup.s), or 0
+.set CTX_LV_SET, 192        # a scratch set (an emap, reused: line_vars, vec_extend_unique), or 0
 .set CTX_DATA_SB, 200       # a builder for python's decompilation.json (data.s), or 0
 .set CTX_DATA_MODE, 208     # its form: DATA_BINARY (0) or DATA_JSON (1)
 .set CTX_RV_MAP, 216        # rename_var's memo (an emap, reused: cleanup.s), or 0

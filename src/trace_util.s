@@ -27,35 +27,63 @@ FUNC list_concat
         ENTER
         mov rbx, rdi
         mov r12, rsi
-        call vec_new
-        mov r13, rax
+        mov r13d, [rbx + N_AUX]
+        mov r14d, [r12 + N_AUX]
+        test r14, r14
+        jnz 1f
+        cmp dword ptr [rbx + N_KIND], K_LIST    # a list + []: itself
+        jne 1f
+        mov rax, rbx
+        LEAVE
+1:      test r13, r13
+        jnz 2f
+        cmp dword ptr [r12 + N_KIND], K_LIST    # [] + a list: itself
+        jne 2f
+        mov rax, r12
+        LEAVE
+2:      lea rdi, [r13 + r14]            # the elements side by side, made
+        shl rdi, 3                      # a list (no vector in between)
+        jz 3f
+        sub rsp, 16
+        call arena_alloc_raw
+        mov [rsp], rax
         mov rdi, rax
-        mov rsi, rbx
-        call vec_extend_seq
-        mov rdi, r13
-        mov rsi, r12
-        call vec_extend_seq
-        mov rdi, r13
-        call vec_to_list
+        lea rsi, [rbx + N_DATA]
+        lea rdx, [r13*8]
+        call memcpy@PLT
+        mov rdi, [rsp]
+        lea rdi, [rdi + r13*8]
+        lea rsi, [r12 + N_DATA]
+        lea rdx, [r14*8]
+        call memcpy@PLT
+        lea rdi, [r13 + r14]
+        mov rsi, [rsp]
+        call mk_list
+        add rsp, 16
+        LEAVE
+3:      xor edi, edi
+        xor esi, esi
+        call mk_list
         LEAVE
 ENDF list_concat
 
 # list_from(seq, start) -> list: seq[start:]
 FUNC list_from
-        ENTER
-        mov rbx, rdi
-        mov r12, rsi
-        call vec_new
-        mov r13, rax
-        mov edx, [rbx + N_AUX]
-        sub rdx, r12
-        jle 1f
-        mov rdi, r13
-        lea rsi, [rbx + N_DATA + r12*8]
-        call vec_extend
-1:      mov rdi, r13
-        call vec_to_list
-        LEAVE
+        mov eax, [rdi + N_AUX]
+        sub rax, rsi                    # the count, when positive
+        jg 1f
+        xor edi, edi                    # (none: [])
+        xor esi, esi
+        jmp mk_list
+1:      test rsi, rsi
+        jnz 2f
+        cmp dword ptr [rdi + N_KIND], K_LIST
+        jne 2f
+        mov rax, rdi                    # a list from 0: itself (the node
+        ret                             # mk_list would find)
+2:      lea rsi, [rdi + N_DATA + rsi*8] # (mk_list copies the elements it
+        mov rdi, rax                    # keeps: no vector in between)
+        jmp mk_list
 ENDF list_from
 
 # seq_index(seq, x) -> rax: the index of x in the sequence, or -1

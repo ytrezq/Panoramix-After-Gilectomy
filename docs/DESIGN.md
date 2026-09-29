@@ -585,3 +585,14 @@ for the rest of the run (`VM_STALE_DEPTHS`, never seen on the corpora:
 a build comparing both answers at every call agreed on all of them;
 `PANORAMIX_CHECK_LCA=1` does the same, aborting on a disagreement, and
 `difffuzz.py` runs the port with it). 1.50G instructions to 0.98G.
+Then: `is_volatile` (the VM's `forget_volatile`, of every fact known at
+every loop's head) reads a mention flag, `HF_VOLATILE`, set on the
+strings that name a volatile thing and OR'ed up by the hash-consing,
+instead of walking the fact; `find_nodes` keeps its stack in registers;
+`extract_setmems`' `list(dict.fromkeys(...))` checks the setmems seen
+in the context's scratch set rather than in the list; `list_from` and
+`list_concat` (the rests of the traces, what runs after them) make their
+lists from the elements directly, without a vector in between, and give
+back the list itself when nothing is cut or added. 0.98G to 0.92G,
+zx_Forwarder 4.64G to 4.49G, aave3_BorrowLogic 2.11G to 2.07G,
+zx_Exchange 17.7G to 17.3G.

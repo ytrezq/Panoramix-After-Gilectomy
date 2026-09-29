@@ -490,6 +490,9 @@ FUNC test_node_for_jd
         mov dword ptr [r12 + N_KIND], K_VMNODE
         mov rdi, r12
         call hash_mix
+        mov rcx, HF_MASK                # (no mention flags in a node)
+        not rcx
+        and rax, rcx
         mov [r12 + N_HASH], rax
         mov [r12 + ND_JD], rbx
         mov edi, MEMO_TEST_NODES
