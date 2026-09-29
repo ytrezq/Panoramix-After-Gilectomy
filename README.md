@@ -1,15 +1,24 @@
-# panoramix-asm
+# Panoramix after Gilectomy
 
 The [panoramix](https://github.com/palkeo/panoramix) EVM decompiler, ported
 to x86-64 assembly: a library that takes bytecode and gives back the
-decompiled text, with a thin CPython wrapper and a command line tool. It
-produces the same text as the python implementation (checked on two
-corpora - 30 mainnet contracts and 407 bytecodes of npm packages -
-against pypy's output, with the signature database), in less than a
-hundredth of pypy's time (20 s of CPU for the 407 where pypy takes 57
-minutes) and a fraction of its memory: the functions of a contract are
-decompiled on threads sharing one address space (no GIL, no
-processes), integers are GMP's, the expressions are hash-consed.
+decompiled text, with a thin CPython wrapper and a command line tool.
+
+The name says why: the [Gilectomy](https://github.com/larryhastings/gilectomy)
+set out to take the GIL out of CPython, and python still can't run
+threads in parallel on objects they all read and write. Here the
+functions of a contract are decompiled on threads sharing one address
+space and one read-only loader - no GIL, no processes, no copies -, the
+integers are GMP's and the expressions are deduplicated.
+
+It produces the same text as the python implementation (pypy's output,
+with the signature database, on 30 mainnet contracts, the 407 runtime
+bytecodes npm packages ship, 491 more recent ones - OpenZeppelin 5,
+Uniswap v4, ENS, Safe, ERC-4337, compiled for Shanghai and Cancun - and
+179 vyper contracts; see `docs/DESIGN.md` for the few intended
+differences) in a hundredth to a three hundredth of pypy's time - 21 s
+of CPU for the 407 where pypy takes about an hour, 32 s for the 491
+where it takes two and a half hours - and a fraction of its memory.
 
     make                         # needs as, cc, libgmp, liblzma, python3-dev
     make install PREFIX=/usr/local   # panasm, libpanoramix_asm.so, the header

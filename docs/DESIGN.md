@@ -1,4 +1,4 @@
-# panoramix-asm — design notes
+# Panoramix after Gilectomy — design notes
 
 An x86-64 assembly port of the [panoramix](https://github.com/palkeo/panoramix)
 EVM decompiler. The only Python left is a thin CPython wrapper
