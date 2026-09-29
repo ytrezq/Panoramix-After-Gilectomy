@@ -839,8 +839,9 @@ of the nodes the other thread is using (the canonical marks, the
 elements replaced by their canonical nodes - written only when they
 change - and a delay of a few thousand nodes behind the queue's head
 didn't change that). The duplicates are allocated before being merged
-(5% more memory), and the arena doesn't give them back until a
-compaction. And the infrastructure costs `eager` 1.1 to 1.5% on the
+(the peak of memory 11% higher on ENS's NameGriefer, 624 to 696 MiB,
+22% on Uniswap's NFTDescriptor), and the arena doesn't give them back
+until a compaction. And the infrastructure costs `eager` 1.1 to 1.5% on the
 model (`VEQ`'s check of the mode when the pointers differ - its slow
 part out of line -, the maps' check before `canon`, `mk_seq`'s): the
 canonical word is only there when the process runs another mode
