@@ -312,7 +312,7 @@ FUNC vm_unexpanded_after_merges
 6:      dec rcx
         js 4f
         mov rdx, [rsi + rcx*8]
-        cmp rdx, [rdi + rcx*8]
+        VEQ rdx, [rdi + rcx*8]
         jne 7f
         jmp 6b
 4:      mov rax, r13
@@ -402,7 +402,7 @@ FUNC vm_expand_trace
 6:      dec rcx
         js 5f
         mov rdx, [rsi + rcx*8]
-        cmp rdx, [rdi + rcx*8]
+        VEQ rdx, [rdi + rcx*8]
         jne 7f
         jmp 6b
 5:      mov rax, r14
@@ -1031,10 +1031,11 @@ ENDF mb_by_jd
         je 91f
         # the head of a loop: keep it that way. Otherwise the paths inside
         # the loop body are fair game (the loop may get peeled, see vm.py)
-        cmp rax, r12
+        VEQ rax, r12
         je .Lmv_not
         jmp 92f
-91:     cmp rax, r12
+91:
+        VEQ rax, r12
         jne 92f
         test r13, r13                   # a hit
         jz 90f
@@ -1059,7 +1060,7 @@ ENDF mb_by_jd
         jne 97f
         jmp .Lmv_not                    # (e.g. 'loop', not yet processed by continue_loops)
 93:     # an inner node: what its subtree answered, if it didn't change
-        cmp [rbx + ND_VC_JD], r12
+        VEQ r12, [rbx + ND_VC_JD]
         jne .Lmv_push
         mov rax, [rbx + ND_VC]
         mov rcx, rax
@@ -1231,10 +1232,11 @@ FUNC merge_visit_py
         mov rax, [rdi + ND_JD]
         cmp qword ptr [rdi + ND_LABEL], 0
         je 2f
-        cmp rax, rbx
+        VEQ rax, rbx
         je 8f                           # the head of a loop at jd
         jmp 3f
-2:      cmp rax, rbx
+2:
+        VEQ rax, rbx
         jne 3f
         mov rsi, rdi                    # a hit
         mov rdi, r12
@@ -1310,7 +1312,7 @@ FUNC merge_check
 1:      dec rcx
         js 9f
         mov rax, [rsi + rcx*8]
-        cmp rax, [rdi + rcx*8]
+        VEQ rax, [rdi + rcx*8]
         jne 8f
         jmp 1b
 2:      test r13, r13                   # python doesn't
@@ -1331,7 +1333,7 @@ FUNC vm_merge_at
         sub rsp, 80
         mov rbx, rdi                    # p
         mov r12, rsi                    # jd
-        cmp [rbx + ND_JD], r12
+        VEQ r12, [rbx + ND_JD]
         je .Lma_false                   # a loop rather than a merge
         mov rdi, rbx
         call is_if_node
@@ -1572,7 +1574,7 @@ FUNC merged_known
         xor edx, edx
 3:      cmp edx, [rax + N_AUX]
         jae 6f                          # not there: drop the fact
-        cmp [rax + N_DATA + rdx*8], rdi
+        VEQ rdi, [rax + N_DATA + rdx*8]
         je 7f
         inc edx
         jmp 3b
@@ -1812,9 +1814,9 @@ FUNC is_known
         mov rcx, [rsp + IK_NP]
 5:      dec rcx
         js 6f
-        cmp rax, [rsp + IK_P + rcx*8]
+        VEQ rax, [rsp + IK_P + rcx*8]
         je .Lik_ask
-        cmp rax, [rsp + IK_Z + rcx*8]
+        VEQ rax, [rsp + IK_Z + rcx*8]
         je .Lik_ask
         jmp 5b
 6:      # its is_zero a part
@@ -1823,7 +1825,7 @@ FUNC is_known
         mov rcx, [rsp + IK_NP]
 7:      dec rcx
         js 8f
-        cmp rax, [rsp + IK_P + rcx*8]
+        VEQ rax, [rsp + IK_P + rcx*8]
         je .Lik_ask
         jmp 7b
 8:      # an lt / le with the first operand of a part of the same opcode
@@ -1972,7 +1974,7 @@ ENDF ik_parts
 # contains_value(exp, v) -> eax: v is exp or one of its subterms
 FUNC contains_value
         STACK_CHECK
-        cmp rdi, rsi
+        VEQ rdi, rsi
         je .Lcv_yes
         test dil, 1
         jnz .Lcv_no

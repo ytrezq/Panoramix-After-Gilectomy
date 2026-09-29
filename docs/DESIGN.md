@@ -770,3 +770,66 @@ and -1% on the model (1.5% more instructions for the chunk of an index,
 12 to 20% fewer L2 misses). Contiguous entries copied at each doubling
 were worse than the old tables (+1 to 3%: the copies and their garbage),
 and so were slots grown by two past 4096 (+0.1 to 1.5%).
+
+## Deduplication in a thread (branch `uksm`)
+
+Asked for: the duplicates merged by a thread of their own, as UKSM
+merges the identical pages of processes - with the difference that the
+program knows its objects (where each one is, its kind, its size, its
+hash), where UKSM has to find and hash pages. `PANORAMIX_DEDUP` chooses:
+
+- `eager` (the default): the hash-consing - `mk_seq` looks the tuple up
+  and gives the one that exists;
+- `ksm`: `mk_seq` makes the tuple as it is (its canonical node, in the
+  word before it, `N_CANON`, not known yet) and puts it on its context's
+  queue; the merging thread (`src/ksm.s`, one for the process) takes the
+  queues' nodes in the order they were made, the elements of a node
+  before it, and gives each its canonical node - the equal one of the
+  context's table, or itself, put there;
+- `lazy`: no thread: a node is merged when it is first compared or used
+  as a key (`canon`);
+- `sync`, `defer` (tests): the thread's work done by the context's own
+  thread, at once or 48 nodes every 64 made - deterministic stand-ins.
+
+Wherever the hash-consing made a comparison of pointers one of values,
+the comparison is `VEQ` (the pointers, then, if they differ and the
+context doesn't hash-cons, the canonical nodes), about 150 of them; the
+keys of the maps are made canonical (`canon`) before they are hashed.
+The table is shared without a lock: its slots are only ever filled,
+by a compare-and-swap, and the node found there is marked canonical by
+whoever finds it; the context's thread alone grows it, the merging
+thread kept away meanwhile (`KQ_BLOCKED`, a count, and `KQ_ACTIVE`,
+Dekker's) - as during a compaction, whose end drops the queue.
+
+`tests/test_dedup.py` compares the modes on the corpora with more
+threads than processors (and `--compact`: a compaction at every round).
+It found two races the deterministic modes couldn't show: big ints
+interned in the table without the thread's lock (an insertion of one
+lost now and then: two equal tuples with different canonical nodes),
+and a table grown during a compaction, which let the thread back in
+before its end, to merge nodes of the old arena into the new table.
+All modes give the same texts on the four corpora (1116 contracts).
+
+And the thread doesn't pay (npm corpus, 407 contracts, 2 vCPUs):
+
+    -j 1    eager  22.2 s wall, 22.3 s CPU
+            lazy   25.8 s,      25.9 s        +16%
+            ksm    28.2 s,      30.8 s        +27% wall, +38% CPU
+    -j 2    eager  15.6 s,      23.8 s
+            lazy   18.3 s,      27.7 s
+            ksm    18.1 s,      28.4 s
+
+Most nodes are compared or used as keys soon after they are made - the
+job's thread merges them itself, in `canon`, before the merging thread
+gets to them (sampled: 4042 samples on the job's thread, 187 on the
+merging one, which mostly finds them merged already), and a lookup at
+creation costs less than later (the elements are in the cache then).
+What the thread does merge, it merges at the price of the cache lines
+of the nodes the other thread is using (the canonical marks, the
+elements replaced by their canonical nodes - written only when they
+change - and a delay of a few thousand nodes behind the queue's head
+didn't change that). The duplicates are allocated before being merged
+(5% more memory), and the arena doesn't give them back until a
+compaction. And the infrastructure costs `eager` 1 to 3% on the model
+(`VEQ`, the canonical word, the checks of the mode), which is why it
+stays on this branch.

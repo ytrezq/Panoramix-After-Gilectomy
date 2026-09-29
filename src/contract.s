@@ -746,7 +746,7 @@ FUNC arr_rem_mul
         test eax, eax
         jz 1b
         mov rax, [rdi + N_DATA + 24]
-        cmp rax, [rsp + 8]
+        VEQ rax, [rsp + 8]
         jne 1b
         mov eax, 1
         add rsp, 24

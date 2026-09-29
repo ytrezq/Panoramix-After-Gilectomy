@@ -220,7 +220,15 @@ FUNC decompile_worker
         jz .Ldw_no_ctx
         mov r15, rax
         mov [r12 + JB_CTX], rax
-        mov rdi, rax
+        call dedup_mode
+        mov [r15 + CTX_DEDUP], rax
+        cmp rax, DEDUP_KSM
+        je 2f
+        cmp rax, DEDUP_DEFER
+        jne 1f
+2:      mov rdi, r15
+        call ksm_register
+1:      mov rdi, r15
         call ctx_bind
         call ctx_set_stack
         mov rax, [rbx + DC_MEMLIMIT]
@@ -321,6 +329,8 @@ FUNC decompile_worker
         mov rax, [r15 + CTX_ERR_MSG]
         mov [r12 + JB_ERRMSG], rax
 .Ldw_finish:
+        mov rdi, r15
+        call ksm_unregister             # (DEDUP_KSM: the merging thread done with it)
         mov rdi, r15
         call watch_stop
         mov edi, LOG_DEBUG

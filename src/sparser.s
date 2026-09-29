@@ -1514,7 +1514,7 @@ FUNC replace_names_in_assoc
         mov rdi, [rsp + RN_ASSOC]
         mov rsi, [rsp + RN_J]
         call od_val
-        cmp rax, r12
+        VEQ rax, r12
         jne 41f
         mov rdi, [rsp + RN_ASSOC]
         mov rsi, [rsp + RN_J]
@@ -1710,7 +1710,7 @@ FUNC replace_names_in_assoc_bool
         mov rdi, [rsp + RB_ASSOC]
         mov rsi, [rsp + RB_J]
         call od_val
-        cmp rax, r13
+        VEQ rax, r13
         jne 2f
         mov rdi, [rsp + RB_ASSOC]
         mov rsi, [rsp + RB_J]

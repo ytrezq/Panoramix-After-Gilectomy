@@ -499,7 +499,7 @@ FUNC split_or
         LOADS rdi, ADD
         mov esi, (256 << 1) | 1
         call mk3
-        cmp rax, [r12 + N_DATA + 8]
+        VEQ rax, [r12 + N_DATA + 8]
         jne .Lso_sort
         PAT rsi, "('mask_shl', 'Any', 'Any', 'Any', ('add', 32, ('mul', -1, '...')))"
         mov rdi, [r12 + N_DATA]
@@ -891,7 +891,7 @@ FUNC split_store
         mov rcx, [rsp + ST_IDX]
         LOADS rdi, STORAGE
         call mk4
-        cmp rax, [r12 + N_DATA + 16]
+        VEQ rax, [r12 + N_DATA + 16]
         je 3b
         mov r8, [r12 + N_DATA + 16]
         mov rcx, [rsp + ST_IDX]
@@ -1466,7 +1466,7 @@ FUNC fill_mem
         jne .Lfm_assert
         mov r13, [rbx + N_DATA + 8]     # memloc
         mov [rsp + FM_MEMLOC], r13
-        cmp r13, r12                    # exp == ('mem', split): the value
+        VEQ r13, r12                # exp == ('mem', split): the value
         jne 1f                          # (python compares first: the same)
         mov rax, [rsp + FM_SPLIT_VAL]
         jmp .Lfm_done
@@ -1515,7 +1515,7 @@ FUNC fill_mem
         mov rdi, r12
         call replace_max_with_MAX
         mov r12, rax
-        cmp rdx, [rsp + FM_MEMLOC_MAX]
+        VEQ rdx, [rsp + FM_MEMLOC_MAX]
         je 2f
         mov edi, LOG_WARNING
         lea rsi, [rip + .Ls_logname]

@@ -432,7 +432,7 @@ FUNC simplify_exp_impl
         B rdi, 1
         call alg_minus_op
         B rcx, 2
-        cmp rax, rcx
+        VEQ rax, rcx
         jne .Lse_after_data             # (an elif: no 'data' handling then)
         B rdi, 0
         call divisible_bytes
@@ -892,7 +892,7 @@ FUNC simplify_data
         mov qword ptr [rsp + SD_RES], 0
 .Lsd_swipe:
         mov rax, [rsp + SD_RES2]
-        cmp rax, [rsp + SD_RES]
+        VEQ rax, [rsp + SD_RES]
         je .Lsd_merged
         mov [rsp + SD_RES], rax
         mov rbx, rax                    # res
@@ -926,7 +926,7 @@ FUNC simplify_data
         mov edx, 1
         mov ecx, 1
         call mk5
-        cmp rax, [rsp + SD_EL]
+        VEQ rax, [rsp + SD_EL]
         jne 7f
         B rdi, 1
         B rsi, 2
@@ -1100,7 +1100,8 @@ FUNC cleanup_mask_data
         cmp eax, OP_MASK_SHL
         jne .Lcm_assert
         mov qword ptr [rsp + CM_PREV], 0
-1:      cmp rbx, [rsp + CM_PREV]
+1:
+        VEQ rbx, [rsp + CM_PREV]
         je 2f
         mov [rsp + CM_PREV], rbx
         mov rdi, rbx
@@ -1108,7 +1109,8 @@ FUNC cleanup_mask_data
         mov rbx, rax
         jmp 1b
 2:      mov qword ptr [rsp + CM_PREV], 0
-3:      cmp rbx, [rsp + CM_PREV]
+3:
+        VEQ rbx, [rsp + CM_PREV]
         je 4f
         mov [rsp + CM_PREV], rbx
         mov rdi, rbx

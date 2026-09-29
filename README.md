@@ -96,6 +96,11 @@ reported as a problem, as python does with the ones that fail.
 `PANORAMIX_TIMEOUT` scales python's time limits (60 s a step, 3 minutes
 a function) as it does in python (10 on a slow machine, 0 for none: to
 compare runs under valgrind).
+`PANORAMIX_DEDUP=eager|ksm|lazy` (this branch, `uksm`) chooses how the
+tuples are deduplicated: when they are made (the hash-consing, the
+default), by a thread of their own as UKSM merges pages, or when they
+are first compared - see "Deduplication in a thread" in
+`docs/DESIGN.md` for why the default stays the first.
 
 Inputs no compiler would make (thousands of nested ifs, expressions
 thousands deep) don't take the process down: the recursions stop at

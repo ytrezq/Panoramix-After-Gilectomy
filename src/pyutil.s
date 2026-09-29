@@ -376,7 +376,7 @@ FUNC set_add
         mov rax, [rdi + VEC_DATA]
 1:      test rcx, rcx
         jz 2f
-        cmp [rax], rsi
+        VEQ rsi, [rax]
         je 3f
         add rax, 8
         dec rcx
@@ -395,7 +395,7 @@ FUNC set_has
         mov rax, [rdi + VEC_DATA]
 1:      test rcx, rcx
         jz 2f
-        cmp [rax], rsi
+        VEQ rsi, [rax]
         je 3f
         add rax, 8
         dec rcx
