@@ -5367,17 +5367,6 @@ FUNC must_compare
         jmp err_throw
 ENDF must_compare
 
-# must_value(rax) -> rax: raises CannotCompare for NIL (max_op/min_op)
-FUNC must_value
-        test rdi, rdi
-        jz 1f
-        mov rax, rdi
-        ret
-1:      mov edi, E_CANNOT_COMPARE
-        lea rsi, [rip + .Ls_cannot_compare]
-        jmp err_throw
-ENDF must_value
-
 # must_int(v) -> v: python's TypeError when an expression meets an int
 # operation
 FUNC must_int

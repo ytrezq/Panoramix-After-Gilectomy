@@ -171,18 +171,6 @@ FUNC unsigned_to_signed_mpz
 1:      LEAVE
 ENDF unsigned_to_signed_mpz
 
-# unsigned_to_signed(v) -> value
-FUNC unsigned_to_signed
-        ENTER
-        mov rsi, rdi
-        lea rdi, [r15 + CTX_MPZ_R]
-        call value_set_mpz
-        lea rdi, [r15 + CTX_MPZ_R]
-        call unsigned_to_signed_mpz
-        call arith_result
-        LEAVE
-ENDF unsigned_to_signed
-
 # to_real_int(v) -> value: -((-v) mod 2^256) when bit 255 is set (ints only);
 # that's python's `-sub(0, exp)`, and it leaves negative numbers alone
 FUNC to_real_int
@@ -780,7 +768,7 @@ FUNC ev_eq
         LEAVE
 ENDF ev_eq
 
-# signed comparisons: through unsigned_to_signed on both sides
+# signed comparisons: through unsigned_to_signed_mpz on both sides
 FUNC ev_scmp
         # -> eax: -1/0/1 comparing the signed views
         ENTER
@@ -1029,12 +1017,6 @@ FUNC is_tuple
 1:      xor eax, eax
         ret
 ENDF is_tuple
-
-# tuple_count(v) -> eax (v must be a tuple/list)
-FUNC tuple_count
-        mov eax, [rdi + N_AUX]
-        ret
-ENDF tuple_count
 
 # arith_eval(exp) -> value: arith_eval_impl's, remembered for a tuple
 # (a pure function, asked again and again of the same expressions: the

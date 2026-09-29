@@ -1928,21 +1928,6 @@ FUNC cleanup_vars
         ret
 ENDF cleanup_vars
 
-# vars_of_trace(trace) -> list: the ('var', ...) expressions in it
-FUNC vars_of_trace
-        ENTER
-        mov rbx, rdi
-        call vec_new
-        mov r12, rax
-        mov rdi, rbx
-        mov esi, OP_VAR
-        mov rdx, r12
-        call find_op_list
-        mov rdi, r12
-        call vec_to_list
-        LEAVE
-ENDF vars_of_trace
-
 # replace_var(trace, var_idx, var_val) -> list: the occurrences of the
 # variable replaced, where possible
 FUNC replace_var

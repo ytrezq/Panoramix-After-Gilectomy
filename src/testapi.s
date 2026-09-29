@@ -85,7 +85,6 @@ test_table:
         .quad .Ln_make_whiles, tf_make_whiles
         .quad .Ln_while_max_memidx, while_max_memidx
         .quad .Ln_extract_setmems, extract_setmems
-        .quad .Ln_extract_paths, extract_paths
         .quad .Ln_while_touches_mem, tf_while_touches_mem
         .quad .Ln_while_uses_mem, tf_while_uses_mem
         .quad .Ln_exp_uses_mem, tf_exp_uses_mem
@@ -201,7 +200,6 @@ test_table:
 .Ln_make_whiles: .asciz "make_whiles"
 .Ln_while_max_memidx: .asciz "while_max_memidx"
 .Ln_extract_setmems: .asciz "extract_setmems"
-.Ln_extract_paths: .asciz "extract_paths"
 .Ln_while_touches_mem: .asciz "while_touches_mem"
 .Ln_while_uses_mem: .asciz "while_uses_mem"
 .Ln_exp_uses_mem: .asciz "exp_uses_mem"
