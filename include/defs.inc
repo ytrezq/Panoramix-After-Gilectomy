@@ -92,7 +92,7 @@
 .set CTX_DEADLINE, 168      # the watchdog's deadline, monotonic ns (0: none; rt_watch.s)
 .set CTX_TIMED_OUT, 176     # set by the watchdog: CTX_STACK_LOW taken away
 .set CTX_STACK_LOW_REAL, 184  # CTX_STACK_LOW meanwhile
-.set CTX_RFM_MAP, 192       # replace_f_memo's map (an emap, reused: rt_map.s), or 0
+.set CTX_LV_SET, 192        # line_vars' scratch set (an emap, reused: cleanup.s), or 0
 .set CTX_DATA_SB, 200       # a builder for python's decompilation.json (data.s), or 0
 .set CTX_DATA_MODE, 208     # its form: DATA_BINARY (0) or DATA_JSON (1)
 .set CTX_RV_MAP, 216        # rename_var's memo (an emap, reused: cleanup.s), or 0
@@ -528,7 +528,12 @@ ENDF \fname
 .set MEMO_OVERWRITES, 21    # (an if or a while, mem_idx) -> overwrites_mem's (pairs)
 .set MEMO_IS_ZERO, 22       # a tuple -> is_zero of it
 .set MEMO_ARITH_EVAL, 23    # a tuple -> arith_eval of it
-.set MEMO_COUNT, 24
+.set MEMO_RFM, 24           # (exp, f) -> replace_f_memo's result (pairs)
+.set MEMO_RFS, 25           # (exp, f) -> replace_f_stop_memo's result (pairs)
+.set MEMO_CLEANUP_MEMS, 26  # (trace, used_after) -> cleanup_mems' result (pairs)
+.set MEMO_PP_CLEANUP, 27    # a list -> pp_cleanup_mul_1 of it, a tuple -> pp_cleanup_exp of it
+.set MEMO_REPLACE_MEM, 28   # (trace, mem_idx, mem_val) -> replace_mem's list (triples)
+.set MEMO_COUNT, 29
 # sentinel values stored in memo tables for python's None / False (values
 # and pointers are never 2 or 4)
 .set MEMO_NONE, 2
@@ -557,7 +562,8 @@ ENDF \fname
 .set ND_STAMP, 120          # the VM's generation when it or a node below last changed (node_touch)
 .set ND_VC_JD, 128          # merge_visit's answer for its subtree: the jd asked (0: none),
 .set ND_VC, 136             #   and the stamp then << 2 | the answer (MC_*)
-.set ND_SIZEOF, 144
+.set ND_JUMP, 144           # node*: an ancestor, for vm_common_ancestor's skips (see there)
+.set ND_SIZEOF, 152
 
 .set VM_LOADER, 0
 .set VM_JUST_FDESTS, 8
@@ -578,7 +584,9 @@ ENDF \fname
 .set VM_CLEAN, 128          # the bottom of the stack stack_cleanup leaves alone (see there)
 .set VM_GEN, 136            # the generation of the nodes' changes (node_touch), from 1
 .set VM_VISITED, 144        # 1: merge_visit remembered an answer since the last one began
-.set VM_SIZEOF, 152
+.set VM_STALE_DEPTHS, 152   # 1: a node with children was hung elsewhere (vm_common_ancestor)
+.set VM_CHECK_LCA, 160      # 1: PANORAMIX_CHECK_LCA - both walks, compared (vm_common_ancestor)
+.set VM_SIZEOF, 168
 
 .set MAX_NODE_COUNT, 5000
 .set MAX_EXP_SIZE, 150

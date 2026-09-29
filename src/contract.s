@@ -521,13 +521,13 @@ FUNC make_ast_folded
         ENTER
         mov rbx, rdi
         mov rdi, rsi
-        lea rsi, [rip + store_to_set]
-        xor edx, edx
-        call replace_f
+        lea rsi, [rip + store_to_set]   # (pure callbacks: replace_f_memo,
+        xor edx, edx                    # each subtree once)
+        call replace_f_memo
         mov rdi, rax
         lea rsi, [rip + loc_to_name]
         xor edx, edx
-        call replace_f
+        call replace_f_memo
         mov rdi, rax
         lea rsi, [rip + arr_rem_mul]
         mov rdx, rbx
@@ -535,15 +535,15 @@ FUNC make_ast_folded
         mov rdi, rax
         lea rsi, [rip + mask_storage]
         xor edx, edx
-        call replace_f
+        call replace_f_memo
         mov rdi, rax
         lea rsi, [rip + other_1]
         xor edx, edx
-        call replace_f
+        call replace_f_memo
         mov rdi, rax
         lea rsi, [rip + other_2]
         xor edx, edx
-        call replace_f
+        call replace_f_memo
         LEAVE
 ENDF make_ast_folded
 

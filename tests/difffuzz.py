@@ -639,7 +639,10 @@ KNOWN_PY_FAILURES = ("stack.append(exp << off)\nMemoryError",
                      'if addr[:4] == ("mask_shl", 160, 0, 0):\nTypeError',
                      # a storage of size True (python's caches take True
                      # for 1): its type can't be printed
-                     'AssertionError: unknown type True')
+                     'AssertionError: unknown type True',
+                     # a mask of True, the same way: apply_mask asserts
+                     # its arguments are numbers (bool isn't)
+                     'assert all_concrete(val, size, offset, shl)\nAssertionError')
 
 
 def run_python(code):
@@ -669,7 +672,9 @@ def run_python(code):
 
 
 def run_port(path):
-    env = dict(os.environ, PANORAMIX_LOG="error")
+    # (PANORAMIX_CHECK_LCA: the VM checks its common ancestors by jump
+    # pointers against python's walk - a disagreement aborts)
+    env = dict(os.environ, PANORAMIX_LOG="error", PANORAMIX_CHECK_LCA="1")
     env.setdefault("PANORAMIX_SIGDB", os.path.join(ROOT, "build", "abi_db.bin"))
     p = subprocess.run([PANASM, "decompile", path, "--no-color", "-j", "1"] + MODE,
                        capture_output=True, text=True, timeout=900, env=env)

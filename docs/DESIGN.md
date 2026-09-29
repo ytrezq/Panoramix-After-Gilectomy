@@ -369,8 +369,9 @@ makes python's VM slice an int (`addr[:4]`, a TypeError): the function
 fails there, the port prints `eth.balance(0x..)`. Python's caches (`@cached`, dicts, sets) take `True` for `1`: a
 storage of size 1 can come back from one as a storage of size `True`
 (made from a boolean elsewhere), and its type can't be printed (an
-AssertionError that ends the decompilation); the port, whose `True`
-isn't the number 1, prints the `bool` of size 1. `SAR` of two constants
+AssertionError that ends the decompilation) - a mask of `True` fails
+`apply_mask`'s assertion the same way; the port, whose `True` isn't the
+number 1, prints the `bool` of size 1. `SAR` of two constants
 by 256 or more of a negative value names `UINT_255_NEGATIVE_ONE`, which
 python's arithmetic doesn't define (a NameError): the port gives -1. A
 string in memory data whose length is -64 to -95 makes python's
@@ -438,8 +439,9 @@ take `arena_alloc_raw` (`PANORAMIX_POISON=1` fills the released chunks
 with garbage instead, for the tests: the corpora give the same text
 with it); the walker of the pure callbacks (`replace_f_memo`: the
 trace is a DAG, hash-consed, that python walks as a tree at every round
-of `simplify_trace`) remembers what each subtree gave, in one map per
-context emptied by an epoch; `replace` skips the tuples that lack the
+of `simplify_trace`) remembers what each subtree gave (a map per
+context, of the pairs (subtree, callback) since, kept from walk to walk
+until a compaction: see below); `replace` skips the tuples that lack the
 mention flags of what it replaces (a variable); the folder finds the
 prefix and the suffix its paths share in one pass, and sorts its ors
 with a merge sort. Without time limits (`PANORAMIX_TIMEOUT=0`: under
@@ -529,3 +531,55 @@ memo is keyed by its three arguments (`memo3_get`) instead of a tuple
 of them; the element arrays the walks write whole are taken unzeroed.
 The npm corpus takes 30.7 s of CPU (41.8 s at the beginning of this
 round, on the same machine).
+
+Then, on zx_DevUtils and Seaport15, the walks of pure functions remember
+what they gave from one call to the next: `replace_f_memo`'s map, of the
+pairs (subtree, callback), stays until a compaction (the rounds of
+`simplify_trace` walk mostly the same trees; the display rewrites of
+`make_ast` and the folder's `make_fands` go through it too), the
+top-down walk of `replace_bytes_or_string_length` has one of its own
+(`replace_f_stop_memo`), `cleanup_mul_1` remembers the lists and the
+expressions it cleaned, and `cleanup_mems` the pair (trace, what runs
+after it): the rounds give it back the trace it made once nothing
+changes any more, and the rests of a trace after its last change, the
+branches, are asked again whatever changed. `line_vars` keeps the
+variables of a long line once each with the context's scratch set (an
+emap emptied by an epoch) instead of a map grown from nothing at every
+line; `goes_to` and `find_conts` look only where the mention flags say
+a `goto` or a `continue` is (`HF_GOTO`, `HF_CONTINUE`: the strings'
+flags). zx_DevUtils went from 10.1G instructions to 8.3G, zx_Exchange
+from 23.9G to 19.7G, Seaport15 from 4.7G to 3.7G.
+
+On zx_Exchange: `replace_mem` is remembered for its three arguments (the
+branches of the ifs are asked again and again, 38% of the time with the
+same memory and value); `pretty_num` looks for the multiples of 10^9
+and up and of 10^6 only in the numbers that are multiples of 10^6 (its
+eleven divisions for every number printed: 7% of the printing); the
+folder's `or` takes a path whose lines hold no list and no or as it is
+(its `and` concatenated them into a list hashed again, for each path of
+each or), and sorts the paths by length with a merge sort; the strings
+are hashed eight bytes at a time (the printer makes a string of every
+sub-expression it prints, each hashed: FNV-1a, a byte at a time, was 1%
+of the instructions). 19.7G instructions to 17.7G. (Remembering
+`mem_use` and `cleanup_vars` for their arguments gained nothing - the
+traces they get change all over between two calls -, nor did walking
+only the subtrees of the VM's tree that changed since the last walk,
+reusing the rest of the last list: at every round the nodes run are all
+over the tree, and the paths to them are most of it.)
+
+`merge_branches` asks for the common ancestor of every pair of nodes at
+the same jumpdest, round after round: python walks up from both (the
+deeper one to the other's depth, then both until they meet), as deep as
+the paths are - 38% of safe_MockContract. The nodes carry a jump pointer
+(Myers' skew-binary jumps, set with the parent: an ancestor at a depth
+that only depends on the node's), and the walk jumps where python steps:
+two nodes of the same depth jump to the same depth, so both jump when
+their jumps differ (they meet above) and step otherwise, a logarithmic
+number of steps. This gives python's answer as long as a node's depth is
+one more than its parent's - a node is only hung elsewhere as a leaf (a
+loop's body, a merge's node); one with children below would make their
+depths stale (python's too), and the walk goes back to python's steps
+for the rest of the run (`VM_STALE_DEPTHS`, never seen on the corpora:
+a build comparing both answers at every call agreed on all of them;
+`PANORAMIX_CHECK_LCA=1` does the same, aborting on a disagreement, and
+`difffuzz.py` runs the port with it). 1.50G instructions to 0.98G.

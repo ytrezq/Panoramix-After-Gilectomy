@@ -752,7 +752,11 @@ ENDF trace_ends_execution
 
 # cleanup_mems(trace, used_after) -> list: for every setmem, the future
 # occurrences of the memory replaced with its value where possible;
-# `used_after` (a list, or 0) is what gets executed after `trace`
+# `used_after` (a list, or 0) is what gets executed after `trace`.
+# Remembered for the pair (a pure function of the two: simplify_trace's
+# rounds, and its three calls at the end, give it the trace it made the
+# round before once nothing changes any more - and the rests of the trace
+# after the last change, the branches, are asked again whatever changed)
 FUNC cleanup_mems
         STACK_CHECK
         ENTER
@@ -769,7 +773,15 @@ FUNC cleanup_mems
         call mk_list
         mov rsi, rax
 1:      mov [rsp + CE_AFTER], rsi
-        call vec_new
+        mov edi, MEMO_CLEANUP_MEMS
+        mov rdx, rsi
+        mov rsi, rbx
+        call memo2_get
+        test rax, rax
+        jz 2f
+        add rsp, MATCH_BINDINGS_SIZE + 48
+        LEAVE
+2:      call vec_new
         mov r12, rax
         xor r13d, r13d
 .Lce_line:
@@ -898,7 +910,15 @@ FUNC cleanup_mems
         jmp .Lce_line
 .Lce_done:
         mov rdi, r12
-        call vec_to_list
+        mov rsi, rbx
+        call vec_to_list_like           # (the trace itself when unchanged)
+        mov r12, rax
+        mov edi, MEMO_CLEANUP_MEMS
+        mov rsi, rbx
+        mov rdx, [rsp + CE_AFTER]
+        mov rcx, rax
+        call memo2_put
+        mov rax, r12
         add rsp, MATCH_BINDINGS_SIZE + 48
         LEAVE
 ENDF cleanup_mems
@@ -1116,8 +1136,39 @@ FUNC merged_call_range
 ENDF merged_call_range
 
 # replace_mem(trace, mem_idx, mem_val) -> list: the reads of the memory
-# replaced with its value, up until it may be overwritten
+# replaced with its value, up until it may be overwritten. Remembered for
+# the three (a pure function of them: cleanup_mems asks it of the rest of
+# the trace after each setmem, round after round - the rest the same
+# when what changed came before the setmem - and of the branches)
 FUNC replace_mem
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        mov edi, MEMO_REPLACE_MEM
+        mov rsi, rbx
+        mov rdx, r12
+        mov rcx, r13
+        call memo3_get
+        test rax, rax
+        jnz 1f
+        mov rdi, rbx
+        mov rsi, r12
+        mov rdx, r13
+        call replace_mem_impl
+        mov r14, rax
+        mov edi, MEMO_REPLACE_MEM
+        mov rsi, rbx
+        mov rdx, r12
+        mov rcx, r13
+        mov r8, rax
+        call memo3_put
+        mov rax, r14
+1:      LEAVE
+ENDF replace_mem
+
+FUNC replace_mem_impl
         STACK_CHECK
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 64
@@ -1365,7 +1416,7 @@ FUNC replace_mem
         call vec_to_list_like
         add rsp, MATCH_BINDINGS_SIZE + 64
         LEAVE
-ENDF replace_mem
+ENDF replace_mem_impl
 
 # replace_mem_exp_cb(v, frame): replace_mem_exp(v, idx, val) with the
 # index and value taken from replace_mem's frame
@@ -1555,12 +1606,18 @@ FUNC line_vars
         jmp 1b
 4:      mov [r12 + VEC_LEN], r8
         jmp 8f
-5:      # many: the ones kept in a map
-        call map_new
+5:      # many: in place too, the ones kept in a set (the context's
+        # scratch one, emptied: the recursion is over)
+        mov r13, [r15 + CTX_LV_SET]
+        test r13, r13
+        jnz 51f
+        call emap_new
         mov r13, rax
-        call vec_new
-        mov [rsp], rax
+        mov [r15 + CTX_LV_SET], rax
+51:     mov rdi, r13
+        call emap_begin
         xor r14d, r14d                  # the one looked at
+        mov qword ptr [rsp], 0          # the ones kept
 6:      cmp r14, [r12 + VEC_LEN]
         jae 7f
         mov rax, [r12 + VEC_DATA]
@@ -1568,18 +1625,17 @@ FUNC line_vars
         mov [rsp + 8], rsi
         inc r14
         mov rdi, r13
-        call map_get
-        test rax, rax
-        jnz 6b
-        mov rdi, r13
+        call emap_add
+        test eax, eax
+        jz 6b                           # (kept already)
+        mov rax, [r12 + VEC_DATA]
+        mov rcx, [rsp]
         mov rsi, [rsp + 8]
-        mov edx, 1
-        call map_put
-        mov rdi, [rsp]
-        mov rsi, [rsp + 8]
-        call vec_push
+        mov [rax + rcx*8], rsi
+        inc qword ptr [rsp]
         jmp 6b
-7:      mov r12, [rsp]
+7:      mov rax, [rsp]
+        mov [r12 + VEC_LEN], rax
 8:      mov rdi, r12
         call vec_to_list
         mov r12, rax
@@ -1844,7 +1900,8 @@ FUNC cleanup_vars
         jmp .Lcv_line
 .Lcv_done:
         mov rdi, r12
-        call vec_to_list
+        mov rsi, rbx
+        call vec_to_list_like           # (the trace itself when unchanged)
         add rsp, 48
         LEAVE
 .Lcv_branch:
@@ -2439,8 +2496,7 @@ ENDF replace_pair_cb
 FUNC replace_bytes_or_string_length
         ENTER
         lea rsi, [rip + string_length_cb]
-        xor edx, edx
-        call replace_f_stop
+        call replace_f_stop_memo
         LEAVE
 ENDF replace_bytes_or_string_length
 

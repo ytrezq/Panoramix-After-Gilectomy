@@ -191,7 +191,10 @@ FUNC node_touch
 3:      ret
 ENDF node_touch
 
-# node_set_prev(node, prev): hang node below prev
+# node_set_prev(node, prev): hang node below prev - and its jump pointer
+# (vm_common_ancestor): prev's jump's jump when prev and its jump are as
+# far apart as its jump and that one's, else prev (Myers' skew-binary
+# jumps: an ancestor at a depth that only depends on the node's depth)
 FUNC node_set_prev
         ENTER
         mov rbx, rsi
@@ -199,7 +202,28 @@ FUNC node_set_prev
         mov rax, [rsi + ND_DEPTH]
         inc rax
         mov [rdi + ND_DEPTH], rax
-        mov rax, rdi
+        mov [rdi + ND_JUMP], rsi
+        mov rcx, [rsi + ND_JUMP]
+        test rcx, rcx
+        jz 1f
+        mov r8, [rcx + ND_JUMP]
+        test r8, r8
+        jz 1f
+        mov r9, [rsi + ND_DEPTH]
+        sub r9, [rcx + ND_DEPTH]
+        mov r10, [rcx + ND_DEPTH]
+        sub r10, [r8 + ND_DEPTH]
+        cmp r9, r10
+        jne 1f
+        mov [rdi + ND_JUMP], r8
+1:      # a node hung elsewhere with children below: their depths are the
+        # old ones (python's too), no longer one more than their parent's
+        mov rax, [rdi + ND_NEXT]
+        cmp qword ptr [rax + VEC_LEN], 0
+        je 2f
+        mov rax, [r15 + CTX_VM]
+        mov qword ptr [rax + VM_STALE_DEPTHS], 1
+2:      mov rax, rdi
         mov rdi, [rsi + ND_NEXT]
         mov rsi, rax
         call vec_push
@@ -356,6 +380,9 @@ FUNC find_nodes_into
         mov [r14 + VEC_LEN], rax
         mov rcx, [r14 + VEC_DATA]
         mov rbx, [rcx + rax*8]          # n = to_visit.pop()
+        lea rax, [rip + pred_any]       # (the two predicates of the rounds:
+        cmp r12, rax                    # no call)
+        je 2f
         lea rax, [rip + pred_unexpanded]
         cmp r12, rax
         jne 1f
@@ -367,8 +394,16 @@ FUNC find_nodes_into
         call r12
         test eax, eax
         jz .Lfn_next
-2:      mov rdi, [rsp]
-        mov rsi, rbx
+2:      mov rdi, [rsp]                  # out.append(n): vec_push's quick
+        mov rax, [rdi + VEC_LEN]        # path here
+        cmp rax, [rdi + VEC_CAP]
+        jae 21f
+        mov rcx, [rdi + VEC_DATA]
+        mov [rcx + rax*8], rbx
+        inc rax
+        mov [rdi + VEC_LEN], rax
+        jmp .Lfn_next
+21:     mov rsi, rbx
         call vec_push
 .Lfn_next:
         # to_visit.extend(reversed(n.next))

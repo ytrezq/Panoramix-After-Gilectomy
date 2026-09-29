@@ -89,8 +89,21 @@ FUNC vm_new
         mov qword ptr [rax + VM_TIMEOUT], 0
         mov qword ptr [rax + VM_GEN], 1 # (a new node's stamp, 0, is never the current one)
         mov [r15 + CTX_VM], rax
+        mov rbx, rax
+        lea rdi, [rip + .Ls_env_check_lca]
+        call getenv@PLT
+        xor ecx, ecx
+        test rax, rax
+        setnz cl
+        mov [rbx + VM_CHECK_LCA], rcx
+        mov rax, rbx
         LEAVE
 ENDF vm_new
+
+        .section .rodata
+.Ls_env_check_lca: .asciz "PANORAMIX_CHECK_LCA"
+.Ls_lca_mismatch: .asciz "vm_common_ancestor: the jump pointers and python's walk disagree"
+        .text
 
 # monotonic_ns() -> rax
 FUNC monotonic_ns
@@ -461,8 +474,35 @@ FUNC vm_continue_loops
         LEAVE
 ENDF vm_continue_loops
 
-# vm_common_ancestor(a, b) -> rax: the closest common ancestor
+# vm_common_ancestor(a, b) -> rax: the closest common ancestor (python's
+# walk; by the jump pointers while the depths are consistent - both,
+# compared, with PANORAMIX_CHECK_LCA set: the fuzzers' check)
 FUNC vm_common_ancestor
+        mov rax, [r15 + CTX_VM]
+        cmp qword ptr [rax + VM_STALE_DEPTHS], 0
+        jne vm_common_ancestor_walk
+        cmp qword ptr [rax + VM_CHECK_LCA], 0
+        je vm_common_ancestor_jumps
+        push rbx
+        push rdi
+        push rsi
+        call vm_common_ancestor_jumps
+        mov rbx, rax
+        mov rsi, [rsp]
+        mov rdi, [rsp + 8]
+        call vm_common_ancestor_walk
+        cmp rax, rbx
+        jne 1f
+        pop rsi
+        pop rdi
+        pop rbx
+        ret
+1:      lea rdi, [rip + .Ls_lca_mismatch]
+        call rt_fatal
+ENDF vm_common_ancestor
+
+# vm_common_ancestor_walk(a, b) -> rax: python's walk up, a step at a time
+FUNC vm_common_ancestor_walk
         mov rax, rdi
         mov rcx, rsi
 1:      test rax, rax
@@ -487,7 +527,53 @@ FUNC vm_common_ancestor
         mov rcx, [rcx + ND_PREV]
         jmp 3b
 4:      ret
-ENDF vm_common_ancestor
+ENDF vm_common_ancestor_walk
+
+# vm_common_ancestor_jumps(a, b) -> rax: python's walk up (the deeper one
+# to the other's depth, then both until they meet), with the jump
+# pointers (node_set_prev): the depths are consistent (a node is hung
+# elsewhere only as a leaf - a loop's body, a merge's node) and the jumps
+# of two nodes of the same depth go to the same depth, so both jump
+# when their jumps differ (the meeting is above) and step up otherwise -
+# a logarithmic number of steps where the walk took the depth (38% of
+# safe_MockContract's instructions)
+FUNC vm_common_ancestor_jumps
+        mov rax, rdi
+        mov rcx, rsi
+        mov rdx, [rcx + ND_DEPTH]       # a up to b's depth
+1:      cmp [rax + ND_DEPTH], rdx
+        jle 3f
+        mov r8, [rax + ND_JUMP]
+        cmp [r8 + ND_DEPTH], rdx
+        jl 2f
+        mov rax, r8
+        jmp 1b
+2:      mov rax, [rax + ND_PREV]
+        jmp 1b
+3:      mov rdx, [rax + ND_DEPTH]       # b up to a's
+4:      cmp [rcx + ND_DEPTH], rdx
+        jle 6f
+        mov r8, [rcx + ND_JUMP]
+        cmp [r8 + ND_DEPTH], rdx
+        jl 5f
+        mov rcx, r8
+        jmp 4b
+5:      mov rcx, [rcx + ND_PREV]
+        jmp 4b
+6:      cmp rax, rcx                    # both up until they meet
+        je 8f
+        mov r8, [rax + ND_JUMP]
+        mov r9, [rcx + ND_JUMP]
+        cmp r8, r9
+        je 7f
+        mov rax, r8
+        mov rcx, r9
+        jmp 6b
+7:      mov rax, [rax + ND_PREV]
+        mov rcx, [rcx + ND_PREV]
+        jmp 6b
+8:      ret
+ENDF vm_common_ancestor_jumps
 
 # vm_ends_execution(start) -> eax: the basic block starting at `start` (a
 # value) can only end the execution

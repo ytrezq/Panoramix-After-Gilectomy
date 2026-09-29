@@ -16,16 +16,39 @@
 
 # --- postprocess.cleanup_mul_1 ---
 
-# pp_cleanup_exp(exp) -> value
+# pp_cleanup_exp(exp) -> value (remembered for the tuples: a pure
+# function, asked of the same expressions at every round)
 FUNC pp_cleanup_exp
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        call is_tuple
+        test eax, eax
+        jz 1f
+        mov edi, MEMO_PP_CLEANUP
+        mov rsi, rbx
+        call memo_get
+        test rax, rax
+        jnz 2f
+        mov rdi, rbx
+        call pp_cleanup_exp_impl
+        mov r12, rax
+        mov edi, MEMO_PP_CLEANUP
+        mov rsi, rbx
+        mov rdx, rax
+        call memo_put
+        mov rax, r12
+2:      LEAVE
+1:      mov rax, rbx
+        LEAVE
+ENDF pp_cleanup_exp
+
+# pp_cleanup_exp_impl(tuple) -> value
+FUNC pp_cleanup_exp_impl
         STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
-        call is_tuple
-        test eax, eax
-        jz .Lpce_asis
-        mov rdi, rbx
         call opcode_of
         mov r12d, eax
         cmp eax, OP_MASK_SHL
@@ -177,9 +200,6 @@ FUNC pp_cleanup_exp
 5:      mov rdi, rbx
         lea rsi, [rip + pp_cleanup_cb]
         call map_seq
-        jmp .Lpce_done
-.Lpce_asis:
-        mov rax, rbx
 .Lpce_done:
         add rsp, 16
         LEAVE
@@ -187,7 +207,7 @@ FUNC pp_cleanup_exp
         mov edi, E_ASSERT
         lea rsi, [rip + .Ls_assert_mul]
         call err_throw
-ENDF pp_cleanup_exp
+ENDF pp_cleanup_exp_impl
 
 FUNC pp_cleanup_cb
         STACK_CHECK
@@ -271,6 +291,29 @@ ENDF pp_cleanup_line_cb
 FUNC pp_cleanup_mul_1
         STACK_CHECK
         ENTER
+        mov rbx, rdi
+        test dil, 1
+        jnz 1f
+        test rdi, rdi
+        jz 1f
+        cmp dword ptr [rdi + N_KIND], K_LIST
+        jne 1f
+        mov edi, MEMO_PP_CLEANUP        # (a list: remembered, the lines
+        mov rsi, rbx                    # of the rounds mostly the same)
+        call memo_get
+        test rax, rax
+        jnz 2f
+        mov rdi, rbx
+        lea rsi, [rip + pp_cleanup_line_cb]
+        call map_seq
+        mov r12, rax
+        mov edi, MEMO_PP_CLEANUP
+        mov rsi, rbx
+        mov rdx, rax
+        call memo_put
+        mov rax, r12
+2:      LEAVE
+1:      mov rdi, rbx
         lea rsi, [rip + pp_cleanup_line_cb]
         call map_seq
         LEAVE

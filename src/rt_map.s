@@ -545,9 +545,10 @@ ENDF memo3_put
 # --- emaps: maps whose entries belong to an epoch (32 bytes: key, value,
 # epoch, -), emptied at once by starting a new epoch - the entries of
 # the ones before are as good as empty (a new key takes their slot; the
-# probes stop at them). For replace_f_memo, which asks for a fresh map at
-# every walk of the trace: growing one from nothing, rehashing and zeroing
-# at every doubling, cost more than the walk it saved.
+# probes stop at them). For rename_var (cleanup.s), which asks for a fresh
+# map at every walk of the trace, and line_vars' sets: growing one from
+# nothing, rehashing and zeroing at every doubling, cost more than the
+# walk it saved.
 
 # EMAP_HASH: rax = the slot's byte offset of rsi in the emap rdi, rcx =
 # the mask of the byte offsets
@@ -637,6 +638,41 @@ FUNC emap_put
 4:      mov [rdx + rax + 8], r13
         LEAVE
 ENDF emap_put
+
+# emap_add(map, key) -> eax: 1 when the key is added (value 1), 0 when it
+# was there already - a set's insertion, one probe
+FUNC emap_add
+        mov rax, [rdi + MAP_COUNT]
+        inc rax
+        shl rax, 1
+        cmp rax, [rdi + MAP_CAP]
+        jbe 1f
+        push rdi
+        push rsi
+        sub rsp, 8
+        call emap_grow
+        add rsp, 8
+        pop rsi
+        pop rdi
+1:      EMAP_SLOT
+        mov r8, [rdi + EMAP_EPOCH]
+        mov rdx, [rdi + MAP_ENTRIES]
+2:      cmp [rdx + rax + 16], r8
+        jne 3f
+        cmp [rdx + rax], rsi
+        je 4f
+        add rax, 32
+        and rax, rcx
+        jmp 2b
+3:      inc qword ptr [rdi + MAP_COUNT] # a slot taken
+        mov [rdx + rax], rsi
+        mov qword ptr [rdx + rax + 8], 1
+        mov [rdx + rax + 16], r8
+        mov eax, 1
+        ret
+4:      xor eax, eax
+        ret
+ENDF emap_add
 
 # emap_grow(map): twice the slots, the current epoch's entries moved
 FUNC emap_grow

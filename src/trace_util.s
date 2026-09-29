@@ -823,85 +823,121 @@ ENDF replace_f
 # replace_f_memo(exp, f, arg) -> value: replace_f for an f that is a pure
 # function of the expression it is given (simplify_exp, max_to_add...):
 # a subtree met again - the trace is a DAG, hash-consed, and python walks
-# it as a tree - gives what it gave the first time
+# it as a tree - gives what it gave the first time, in this walk or in an
+# earlier one (MEMO_RFM: (the subtree, f) -> the result, until the next
+# compaction: the rounds of simplify_trace walk mostly the same trees).
+# With an arg (not in the key): replace_f.
 FUNC replace_f_memo
-        ENTER
-        mov rbx, rdi
-        mov r12, rsi
-        mov r13, rdx
-        mov rax, [r15 + CTX_RFM_MAP]    # the context's, emptied (an epoch)
-        test rax, rax
-        jnz 1f
-        call emap_new
-        mov [r15 + CTX_RFM_MAP], rax
-1:      mov r14, rax
-        mov rdi, rax
-        call emap_begin
-        mov rcx, r14
-        mov rdi, rbx
-        mov rsi, r12
-        mov rdx, r13
-        call rfm_walk
-        LEAVE
+        test rdx, rdx
+        jnz replace_f
+        jmp rfm_walk
 ENDF replace_f_memo
 
-# rfm_walk(exp, f, arg, map)
+# rfm_walk(exp, f): replace_f_memo's walk
 FUNC rfm_walk
         STACK_CHECK
         ENTER
-        sub rsp, 32
         mov rbx, rdi
         mov r12, rsi
-        mov r13, rdx
-        mov [rsp + 8], rcx              # the memo: a sequence -> its result
         IS_SEQ_RDI
         test eax, eax
         jnz 1f
         mov rdi, rbx
-        mov rsi, r13
+        xor esi, esi
         call r12
-        add rsp, 32
         LEAVE
-1:      mov rdi, [rsp + 8]
+1:      mov edi, MEMO_RFM
         mov rsi, rbx
-        call emap_get
+        mov rdx, r12
+        call memo2_get
         test rax, rax
-        jz 4f
-        add rsp, 32
+        jz 2f
         LEAVE
-4:      mov edi, [rbx + N_AUX]
+2:      mov edi, [rbx + N_AUX]
         shl rdi, 3
-        call arena_alloc_raw
-        mov [rsp], rax
+        call arena_alloc_raw            # (every element written)
+        mov r13, rax
+        xor r14d, r14d
+3:      cmp r14d, [rbx + N_AUX]
+        jae 4f
+        mov rdi, [rbx + N_DATA + r14*8]
+        mov rsi, r12
+        call rfm_walk
+        mov [r13 + r14*8], rax
+        inc r14
+        jmp 3b
+4:      mov rdi, rbx
+        mov rsi, r13
+        call mk_seq_like
+        mov rdi, rax
+        xor esi, esi
+        call r12
+        test rax, rax
+        jz 5f                           # (NIL isn't remembered: done again)
+        mov r13, rax
+        mov edi, MEMO_RFM
+        mov rsi, rbx
+        mov rdx, r12
+        mov rcx, rax
+        call memo2_put
+        mov rax, r13
+5:      LEAVE
+ENDF rfm_walk
+
+# replace_f_stop_memo(exp, f) -> replace_f_stop(exp, f, 0) for an f that
+# is a pure function of the expression, each subtree once (MEMO_RFS: (the
+# subtree, f) -> the result, kept as replace_f_memo's are)
+FUNC replace_f_stop_memo
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        IS_SEQ_RDI
+        test eax, eax
+        jz 5f
+        mov edi, MEMO_RFS
+        mov rsi, rbx
+        mov rdx, r12
+        call memo2_get
+        test rax, rax
+        jnz 9f
+        mov rdi, rbx
+        xor esi, esi
+        call r12
+        test rax, rax
+        jnz 8f
+        mov edi, [rbx + N_AUX]
+        shl rdi, 3
+        call arena_alloc_raw            # (every element written)
+        mov r13, rax
         xor r14d, r14d
 2:      cmp r14d, [rbx + N_AUX]
         jae 3f
         mov rdi, [rbx + N_DATA + r14*8]
         mov rsi, r12
-        mov rdx, r13
-        mov rcx, [rsp + 8]
-        call rfm_walk
-        mov rcx, [rsp]
-        mov [rcx + r14*8], rax
+        call replace_f_stop_memo
+        mov [r13 + r14*8], rax
         inc r14
         jmp 2b
 3:      mov rdi, rbx
-        mov rsi, [rsp]
-        call mk_seq_like
-        mov rdi, rax
         mov rsi, r13
-        call r12
-        mov [rsp + 16], rax
-        test rax, rax
-        jz 5f                           # (NIL isn't remembered: done again)
-        mov rdi, [rsp + 8]
+        call mk_seq_like
+8:      mov r13, rax
+        mov edi, MEMO_RFS
         mov rsi, rbx
-        mov rdx, rax
-        call emap_put
-5:      mov rax, [rsp + 16]
-        add rsp, 32
+        mov rdx, r12
+        mov rcx, rax
+        call memo2_put
+        mov rax, r13
+9:      LEAVE
+5:      mov rdi, rbx                    # a leaf: f's value, or itself
+        xor esi, esi
+        call r12
+        test rax, rax
+        jnz 9b
+        mov rax, rbx
         LEAVE
-ENDF rfm_walk
+ENDF replace_f_stop_memo
 
 # replace_f_stop(exp, f, arg) -> f(exp, arg) when it returns a value,
 # else the sequence with its elements replaced (top-down, stopping at

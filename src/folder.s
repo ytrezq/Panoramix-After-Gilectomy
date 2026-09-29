@@ -521,7 +521,7 @@ FUNC as_paths
         ENTER
         lea rsi, [rip + make_fands]
         xor edx, edx
-        call replace_f
+        call replace_f_memo
         mov rbx, rax
         call vec_new
         mov r12, rax                    # the lines of the path so far
@@ -979,7 +979,7 @@ FUNC meta_fold_paths
         mov rdi, rax
         lea rsi, [rip + unmake_fands]
         xor edx, edx
-        call replace_f
+        call replace_f_memo
         LEAVE
 ENDF meta_fold_paths
 
@@ -1576,6 +1576,13 @@ FUNC folder_or
         pop rdi
         test eax, eax
         jz 2f
+        push rdi
+        push rdi
+        call and_plain
+        pop rdi
+        pop rdi
+        test eax, eax
+        jnz 2f                          # (its and: the list itself)
         mov esi, [rdi + N_AUX]
         lea rdi, [rdi + N_DATA]
         call folder_and
@@ -1603,6 +1610,36 @@ FUNC folder_or
         call sorted_or
         LEAVE
 ENDF folder_or
+
+# and_plain(list) -> eax: 1 when no element of the list is a list or an
+# ('or', ...) - folder_and of its elements is the list itself (the lines
+# of a path, most of the time: no vector filled and list hashed again)
+FUNC and_plain
+        LOADS r9, OR
+        mov ecx, [rdi + N_AUX]
+        xor edx, edx
+1:      cmp edx, ecx
+        jae 3f
+        mov rax, [rdi + N_DATA + rdx*8]
+        inc edx
+        test al, 1
+        jnz 1b
+        test rax, rax
+        jz 1b
+        mov r8d, [rax + N_KIND]
+        cmp r8d, K_LIST
+        je 2f
+        cmp r8d, K_TUPLE
+        jne 1b
+        cmp dword ptr [rax + N_AUX], 0
+        je 1b
+        cmp [rax + N_DATA], r9
+        jne 1b
+2:      xor eax, eax
+        ret
+3:      mov eax, 1
+        ret
+ENDF and_plain
 
 # folder_and(args, count) -> list (or an or of lists when an argument is
 # an or): the arguments concatenated, without ors inside
@@ -1976,28 +2013,124 @@ ENDF fold_paths_vec
 # sort_by_length_desc(vec): stable, the longest first
 FUNC sort_by_length_desc
         ENTER
-        mov rbx, [rdi + VEC_DATA]
-        mov r12, [rdi + VEC_LEN]
+        sub rsp, 32
+        .set SL_N, 0
+        .set SL_WIDTH, 8
+        .set SL_SRC, 16
+        .set SL_DST, 24
+        mov rbx, rdi
+        mov rax, [rbx + VEC_LEN]
+        mov [rsp + SL_N], rax
+        cmp rax, 2
+        jb 9f
+        cmp rax, 8
+        ja 5f
+        # a few: insertion sort
+        mov r12, [rbx + VEC_DATA]
         mov r13d, 1
-1:      cmp r13, r12
-        jae 4f
+1:      cmp r13, [rsp + SL_N]
+        jae 9f
         mov r14, r13
 2:      test r14, r14
         jz 3f
-        mov rax, [rbx + r14*8 - 8]
+        mov rax, [r12 + r14*8 - 8]
         mov eax, [rax + N_AUX]
-        mov rcx, [rbx + r14*8]
+        mov rcx, [r12 + r14*8]
         mov ecx, [rcx + N_AUX]
         cmp eax, ecx
         jae 3f
-        mov rax, [rbx + r14*8 - 8]
-        xchg rax, [rbx + r14*8]
-        mov [rbx + r14*8 - 8], rax
+        mov rax, [r12 + r14*8 - 8]
+        xchg rax, [r12 + r14*8]
+        mov [r12 + r14*8 - 8], rax
         dec r14
         jmp 2b
 3:      inc r13
         jmp 1b
-4:      LEAVE
+5:      # more: a stable merge sort, bottom-up (python's sorted(key=len,
+        # reverse=True): the longer first, the equal ones in their order)
+        lea rdi, [rax*8]
+        call arena_alloc_raw
+        mov [rsp + SL_DST], rax
+        mov rax, [rbx + VEC_DATA]
+        mov [rsp + SL_SRC], rax
+        mov qword ptr [rsp + SL_WIDTH], 1
+.Lsl_pass:
+        mov rax, [rsp + SL_WIDTH]
+        cmp rax, [rsp + SL_N]
+        jae .Lsl_end
+        xor r8d, r8d                    # the start of the pair of runs
+.Lsl_pair:
+        mov r9, [rsp + SL_N]
+        cmp r8, r9
+        jae .Lsl_swap
+        mov r10, r8
+        add r10, [rsp + SL_WIDTH]       # the end of the left run
+        cmp r10, r9
+        cmova r10, r9
+        mov r11, r10
+        add r11, [rsp + SL_WIDTH]       # the end of the right run
+        cmp r11, r9
+        cmova r11, r9
+        mov rsi, [rsp + SL_SRC]
+        mov rdi, [rsp + SL_DST]
+        mov rcx, r8                     # i (left)
+        mov rdx, r10                    # j (right)
+        mov r12, r8                     # k (out)
+.Lsl_merge:
+        cmp rcx, r10
+        jae .Lsl_rights
+        cmp rdx, r11
+        jae .Lsl_lefts
+        mov rax, [rsi + rdx*8]
+        mov r13d, [rax + N_AUX]
+        mov r14, [rsi + rcx*8]
+        cmp r13d, [r14 + N_AUX]
+        jbe 6f
+        mov [rdi + r12*8], rax          # the right one longer: first
+        inc rdx
+        inc r12
+        jmp .Lsl_merge
+6:      mov [rdi + r12*8], r14          # (equal: the left one, stable)
+        inc rcx
+        inc r12
+        jmp .Lsl_merge
+.Lsl_lefts:
+        cmp rcx, r10
+        jae .Lsl_next
+        mov rax, [rsi + rcx*8]
+        mov [rdi + r12*8], rax
+        inc rcx
+        inc r12
+        jmp .Lsl_lefts
+.Lsl_rights:
+        cmp rdx, r11
+        jae .Lsl_next
+        mov rax, [rsi + rdx*8]
+        mov [rdi + r12*8], rax
+        inc rdx
+        inc r12
+        jmp .Lsl_rights
+.Lsl_next:
+        mov r8, r11
+        jmp .Lsl_pair
+.Lsl_swap:
+        mov rax, [rsp + SL_SRC]
+        mov rcx, [rsp + SL_DST]
+        mov [rsp + SL_SRC], rcx
+        mov [rsp + SL_DST], rax
+        shl qword ptr [rsp + SL_WIDTH], 1
+        jmp .Lsl_pass
+.Lsl_end:
+        mov rax, [rsp + SL_SRC]         # (the sorted ones: the vector's
+        cmp rax, [rbx + VEC_DATA]       # own data, or the buffer)
+        je 9f
+        mov rdi, [rbx + VEC_DATA]
+        mov rsi, rax
+        mov rdx, [rsp + SL_N]
+        shl rdx, 3
+        call memcpy@PLT
+9:      add rsp, 32
+        LEAVE
 ENDF sort_by_length_desc
 
 # fold_paths(paths) -> list: merges the beginnings and the endings of the

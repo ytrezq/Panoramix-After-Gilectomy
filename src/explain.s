@@ -161,7 +161,7 @@ FUNC explain_make_ast
         mov rdi, rax
         lea rsi, [rip + explain_mask_storage]
         xor edx, edx
-        call replace_f
+        call replace_f_memo
         LEAVE
 ENDF explain_make_ast
 

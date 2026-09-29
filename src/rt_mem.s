@@ -650,11 +650,11 @@ FUNC ctx_compact
         mov [rsp + CC_OLD + 24], rax
         mov rax, [r15 + CTX_NODE_COUNT]
         mov [rsp + CC_OLD + 32], rax
-        mov rax, [r15 + CTX_RFM_MAP]
-        mov [rsp + CC_OLD + 40], rax
         mov rax, [r15 + CTX_RV_MAP]
-        mov [rsp + CC_OLD + 48], rax
+        mov [rsp + CC_OLD + 40], rax
         mov rax, [r15 + CTX_VM]
+        mov [rsp + CC_OLD + 48], rax
+        mov rax, [r15 + CTX_LV_SET]
         mov [rsp + CC_OLD + 56], rax
         call memo_sizes_log
         lea rdi, [rsp + CC_MEMOS]
@@ -727,10 +727,10 @@ FUNC ctx_compact
         mov rax, [rsp + CC_NEW + 8]
         mov [r15 + CTX_EXPLAIN_FIRST], rax
         # (the import's memo holds the old addresses: gone with them;
-        # replace_f_memo's map was in the old arena)
+        # rename_var's map and line_vars' set were in the old arena)
         mov qword ptr [r15 + CTX_MEMO + MEMO_IMPORT * 8], 0
-        mov qword ptr [r15 + CTX_RFM_MAP], 0
-        mov qword ptr [r15 + CTX_RV_MAP], 0     # (rename_var's too)
+        mov qword ptr [r15 + CTX_RV_MAP], 0
+        mov qword ptr [r15 + CTX_LV_SET], 0
         mov qword ptr [r15 + CTX_VM], 0         # (the VM, done, was there)
         mov rdi, r12
         mov rsi, r14
@@ -770,11 +770,11 @@ FUNC ctx_compact
         mov rax, [rsp + CC_OLD + 32]
         mov [r15 + CTX_NODE_COUNT], rax
         mov rax, [rsp + CC_OLD + 40]
-        mov [r15 + CTX_RFM_MAP], rax
-        mov rax, [rsp + CC_OLD + 48]
         mov [r15 + CTX_RV_MAP], rax
-        mov rax, [rsp + CC_OLD + 56]
+        mov rax, [rsp + CC_OLD + 48]
         mov [r15 + CTX_VM], rax
+        mov rax, [rsp + CC_OLD + 56]
+        mov [r15 + CTX_LV_SET], rax
         lea rdi, [r15 + CTX_MEMO]
         lea rsi, [rsp + CC_MEMOS]
         mov edx, MEMO_COUNT * 8
@@ -918,6 +918,11 @@ memo_kinds:
         .byte 0                         # OVERWRITES (pairs: a replace_mem's)
         .byte 0                         # IS_ZERO
         .byte 0                         # ARITH_EVAL
+        .byte 0                         # RFM (pairs)
+        .byte 0                         # RFS (pairs)
+        .byte 0                         # CLEANUP_MEMS (pairs)
+        .byte 0                         # PP_CLEANUP
+        .byte 0                         # REPLACE_MEM (triples)
         .text
 
 # memo_sizes_log(): DEBUG: the number of entries of every memo table

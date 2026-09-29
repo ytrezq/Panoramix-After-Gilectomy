@@ -2242,7 +2242,22 @@ FUNC pretty_num
         call is_int
         test eax, eax
         jz .Lpn_str
-        # above 8 ** 50: binary data, in hex
+        test bl, 1
+        jz 5f
+        # a small int: never above 8 ** 50, and the multiples of 10^9 and
+        # up and of 10^6 are multiples of 10^6 (most numbers aren't: none
+        # of the eleven divisions then)
+        cmp rbx, 1                      # zero
+        je .Lpn_plain
+        mov rax, rbx
+        sar rax, 1
+        cqo
+        mov ecx, 1000000
+        idiv rcx
+        test rdx, rdx
+        jnz .Lpn_plain
+        jmp 6f
+5:      # above 8 ** 50: binary data, in hex
         mov edi, 150
         call pow2
         mov rdi, rbx
@@ -2250,9 +2265,12 @@ FUNC pretty_num
         call int_cmp
         cmp eax, 1
         je .Lpn_hex
-        cmp rbx, 1                      # zero
-        je .Lpn_plain
-        # a multiple of 10^18 .. 10^9, or of 10^6
+        lea rdi, [rbx + N_DATA]         # (not a multiple of 10^6: none)
+        mov esi, 1000000
+        call __gmpz_divisible_ui_p@PLT
+        test eax, eax
+        jz .Lpn_plain
+6:      # a multiple of 10^18 .. 10^9, or of 10^6
         mov r13d, 18
 1:      mov edi, r13d
         call ten_pow

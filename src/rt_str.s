@@ -22,19 +22,36 @@ FUNC str_init
         LEAVE
 ENDF str_init
 
-# hash_bytes(ptr, len) -> rax (FNV-1a, then mixed)
+# hash_bytes(ptr, len) -> rax: eight bytes at a time (a multiply and a
+# rotation each), the last one to seven bytes as one more word, then
+# mixed (Murmur3's finalizer). Every string made gets hashed - the
+# printer's, whole lines, many times over: byte by byte, this was 1% of
+# the instructions
 FUNC hash_bytes
         movabs rax, 0xcbf29ce484222325
-        movabs rcx, 0x100000001b3
-        xor edx, edx
-1:      cmp rdx, rsi
-        jae 2f
-        movzx r8d, byte ptr [rdi + rdx]
+        xor rax, rsi                    # (the length in)
+        movabs rcx, 0x9e3779b97f4a7c15
+        mov rdx, rsi
+        shr rdx, 3                      # the words
+        jz 2f
+1:      xor rax, [rdi]
+        add rdi, 8
+        imul rax, rcx
+        rol rax, 29
+        dec rdx
+        jnz 1b
+2:      and esi, 7
+        jz 4f
+        xor r8d, r8d                    # the tail, a byte at a time (no
+3:      shl r8, 8                       # read past the end)
+        movzx r9d, byte ptr [rdi + rsi - 1]
+        or r8, r9
+        dec esi
+        jnz 3b
         xor rax, r8
         imul rax, rcx
-        inc rdx
-        jmp 1b
-2:      mov rdi, rax
+        rol rax, 29
+4:      mov rdi, rax
         jmp hash_mix
 ENDF hash_bytes
 
