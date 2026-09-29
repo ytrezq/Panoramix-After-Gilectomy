@@ -97,6 +97,11 @@ reported as a problem, as python does with the ones that fail.
 a function) as it does in python (10 on a slow machine, 0 for none: to
 compare runs under valgrind).
 
+The bytecode is whoever wrote it's, so it is treated as hostile: see
+"Hostile input" in `docs/DESIGN.md` for the review of the sources
+against that, what it found and what bounds a contract's memory and
+time. `tests/security.sh` keeps the inputs that used to break it.
+
 Inputs no compiler would make (thousands of nested ifs, expressions
 thousands deep) don't take the process down: the recursions stop at
 python's `RecursionError` instead of running off the stack, the folder

@@ -781,6 +781,89 @@ and -1% on the model (1.5% more instructions for the chunk of an index,
 were worse than the old tables (+1 to 3%: the copies and their garbage),
 and so were slots grown by two past 4096 (+0.1 to 1.5%).
 
+## Hostile input
+
+The bytecode a decompiler is given is whoever's wrote it, so a server
+that decompiles what it is sent runs this on input an attacker chooses
+entirely. A review of the sources against that threat model (every file,
+by twelve readers, plus fuzzing) found seven things worth fixing; they
+are fixed, and `tests/security.sh` keeps the inputs that used to break
+them.
+
+Memory safety:
+
+- `CODECOPY` of no bytes (offset 0, length 0) made `code_bytes_value`
+  copy the whole code into a one-byte buffer: the length it computed was
+  `0 - 1`, python's negative index of an empty range, as `SIZE_MAX`.
+  A heap overrun from eight bytes of bytecode (`6000600060003900`), and
+  the worst of the lot. An empty range is python's `0` now.
+- `fetch_code` kept a 43-byte address in a 64-byte frame at offset 24:
+  the last three bytes went into the saved `r14` below it.
+- `pretty_memory` checked that a string's run of terms fits the tuple
+  with a 32-bit compare of a 64-bit sum, so a length near 2^37 in the
+  contract's data wrapped past it and the merge loop read past the end.
+- `builder_string` doubled the signature blob once where the string
+  needed more, and `memcpy`'d past it: the dump is trusted, but a dump
+  is a file, and a 34 MiB name in one was enough. It doubles until the
+  string fits, and refuses a blob past 4 GiB (the file's offsets are 32
+  bits).
+- The variable-size stack allocations (`sub rsp, count*8` for the
+  elements of an expression, in `arith.s` and `algebra.s`) could step
+  over the guard page: `STACK_CHECK` leaves a 1 MiB margin, and 131072
+  elements are past it. `STACK_ALLOC` checks the new `rsp` before
+  anything is written there.
+- `fold_many` imports each fold's result as it comes, and the import can
+  throw (its memory). The threads were left running on the tasks, the
+  mutex and the condition variable of a context about to be freed. The
+  collecting loop has a handler: no more folds are taken, the threads
+  are joined, every context is freed, and the error goes on up.
+- `build-db` never gave its context a stack limit, so `js_skip`'s
+  `STACK_CHECK` compared against 0 and a dump nested deep enough ran off
+  the stack. Both build paths call `ctx_set_stack`, and `sigdb_build`
+  catches what its dump throws (a message and -1, where it aborted).
+
+The rest, and what they cost:
+
+- The signature database was written to `<db>.<pid>.tmp` with `O_CREAT`
+  alone: in a cache directory others can write, that name could be a
+  link planted beforehand, and the build would follow it. It is unlinked
+  first and made with `O_EXCL | O_NOFOLLOW`.
+- A node's answer was read until it ended; one that never stops ended
+  the process instead (`xmalloc` aborts). 256 MiB is all it gets, and
+  `SIGPIPE` is ignored, so a node that closes its socket gives `EPIPE`
+  rather than killing the process.
+- GMP's allocations go through the arena without its limit checked (GMP
+  can't be left in the middle of an operation), but they count toward
+  the total, so the next allocation that is checked throws. What is left
+  is one allocation's overshoot; every shift and exponent that reaches
+  GMP is clamped (`shift_amount`, `pow2`, `clamp_bits`, `powm` mod
+  2^256), so none of them is the contract's number.
+- A string constant of the contract can hold `\t \n \v \f \r`
+  (`pretty_bignum` takes them as printable), so it can forge lines in
+  the text - `def something(...)`, a comment. ESC is not among them, so
+  there are no terminal escape sequences, and the JSON output escapes
+  everything (`json_string`). Python does the same, and the text follows
+  python, so it is left as it is and `tests/security.sh` checks that a
+  constant of newlines forges nothing that reads as a function.
+
+What the review found safe is as much of the answer: the loader's scans
+(truncated `PUSH` data, jumpdests, targets inside data), the symbolic
+stack (`DUP`/`SWAP`/`POP` underflow), the copies with symbolic ranges,
+the JSON scanner of the network answers (iterative, every byte bounded),
+the chunked decoder, the database's header and its lookups (every offset
+checked against the file's size before use), the interned strings and
+the builders, and the vector, map and hash-cons growths. The recursions
+all go through `STACK_CHECK` (`tools/recursion.py --check`, in `make
+check`), so an expression nested arbitrarily deep is python's
+`RecursionError`.
+
+Two things bound what a contract can spend: `CTX_MEM_LIMIT` per function
+(`PANORAMIX_MAX_MEMORY`) and the watchdog's time limit, python's. The
+folds have neither (they have their own arena limit, 1 GiB); a contract
+that is expensive to fold burns CPU until the function's own limit ends
+it. On a server, `PANORAMIX_MAX_MEMORY` and a process per request are
+the way to bound it.
+
 ## Deduplication in a thread (tried, removed)
 
 Tried: the duplicates merged by a thread of their own, as UKSM merges

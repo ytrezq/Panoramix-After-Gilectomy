@@ -69,6 +69,7 @@
 .Ls_building:   .asciz "Loading %s into %s..."
 .Ls_built:      .asciz "%s is ready: %u signatures"
 .Ls_cant_read:  .asciz "can't read %s"
+.Ls_dump_bad:   .asciz "%s isn't a signature dump this can read: %s"
 .Ls_cant_write: .asciz "can't write %s"
 .Ls_lzma_error: .asciz "%s: lzma error %d"
 .Ls_json_error: .asciz "%s: line %u: not the json expected"
@@ -81,6 +82,7 @@
 .Ls_false:      .asciz "false"
 .Ls_null:       .asciz "null"
 .Ls_tmp_suffix: .asciz ".tmp"
+.Ls_too_big:    .asciz "the signature dump's strings go past 4 GiB"
 
         .section .bss
         .align 8
@@ -546,7 +548,7 @@ ENDF sigdb_lookup
 # the cache path.
 FUNC sigdb_build
         ENTER
-        sub rsp, LZ_SIZEOF + 104        # (a multiple of 16)
+        sub rsp, LZ_SIZEOF + 152        # (a multiple of 16)
         .set BF_LZ, 0
         .set BF_XZ, LZ_SIZEOF
         .set BF_OUT, LZ_SIZEOF + 8
@@ -559,8 +561,15 @@ FUNC sigdb_build
         .set BF_OUTSB, LZ_SIZEOF + 64
         .set BF_LINE, LZ_SIZEOF + 72
         .set BF_RC, LZ_SIZEOF + 80
+        .set BF_ERR, LZ_SIZEOF + 88     # (a dump that isn't one: its json
+                                        # nested past the recursion limit,
+                                        # its strings past what fits)
         mov [rsp + BF_XZ], rdi
         mov [rsp + BF_OUT], rsi
+        lea rdi, [rsp + BF_ERR]
+        call err_catch
+        test eax, eax
+        jnz .Lsb_threw
         call sb_new
         mov [rsp + BF_OUTSB], rax
         mov rsi, [rsp + BF_OUT]
@@ -708,7 +717,18 @@ FUNC sigdb_build
         mov r8, [rax + BD_NENTRIES]
         call log_fmt
         xor eax, eax
-        add rsp, LZ_SIZEOF + 104
+        call err_end
+        add rsp, LZ_SIZEOF + 152
+        LEAVE
+.Lsb_threw:
+        mov edi, LOG_ERROR
+        lea rsi, [rip + .Ls_logname]
+        lea rdx, [rip + .Ls_dump_bad]
+        mov rcx, [rsp + BF_XZ]
+        mov r8, [r15 + CTX_ERR_MSG]
+        call log_fmt
+        mov eax, -1
+        add rsp, LZ_SIZEOF + 152
         LEAVE
 .Lsb_cant_read:
         mov edi, LOG_ERROR
@@ -741,9 +761,11 @@ FUNC sigdb_build
         mov rax, [rsp + BF_BD]
         mov r8, [rax + BD_LINES]
         call log_fmt
+        # (the handler is left before the message's own paths return)
 .Lsb_fail:
+        call err_end
         mov eax, 1
-        add rsp, LZ_SIZEOF + 104
+        add rsp, LZ_SIZEOF + 152
         LEAVE
 ENDF sigdb_build
 
@@ -838,13 +860,20 @@ FUNC builder_string
         mov [rsp], rax
         jmp 2b
 .Lbs_new:
-        # appended to the blob (grown when needed)
+        # appended to the blob (grown when needed: doubled until the
+        # string fits - one of the dump's may be bigger than the blob; the
+        # file's offsets are 32 bits)
         mov rax, [rbx + BD_NSTRINGS]
         lea rcx, [rax + r13 + 1]
+        mov edx, 0xffffffff
+        cmp rcx, rdx
+        ja .Lbs_too_big
         cmp rcx, [rbx + BD_CAPSTRINGS]
         jb 4f
         mov rax, [rbx + BD_CAPSTRINGS]
-        shl rax, 1
+5:      shl rax, 1
+        cmp rcx, rax
+        jae 5b
         mov [rbx + BD_CAPSTRINGS], rax
         mov rdi, [rbx + BD_STRINGS]
         mov rsi, rax
@@ -874,6 +903,9 @@ FUNC builder_string
         xor eax, eax
         add rsp, 16
         LEAVE
+.Lbs_too_big:
+        lea rdi, [rip + .Ls_too_big]
+        call rt_fatal
 ENDF builder_string
 
 # builder_grow_table(bd): the dedup table doubled
@@ -1301,8 +1333,10 @@ FUNC builder_write
         mov rdi, r14
         lea rsi, [rip + .Ls_tmp_suffix]
         call sb_append_c
-        mov rdi, [r14 + SB_BUF]
-        mov esi, 0x241                  # O_WRONLY | O_CREAT | O_TRUNC
+        mov rdi, [r14 + SB_BUF]         # (a file of that name left there -
+        call unlink@PLT                 # or a link planted - is removed first,
+        mov rdi, [r14 + SB_BUF]         # and the file made anew: not followed)
+        mov esi, 0xa00c1                # O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC
         mov edx, 0644
         call open@PLT
         test eax, eax

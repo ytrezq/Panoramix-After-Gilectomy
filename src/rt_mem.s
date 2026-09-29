@@ -34,6 +34,9 @@ FUNC rt_init
         lea rsi, [rip + gmp_realloc]
         lea rdx, [rip + gmp_free]
         call __gmp_set_memory_functions@PLT
+        mov edi, 13                     # SIGPIPE ignored: a node that closes
+        mov esi, 1                      # its socket must not end the process
+        call signal@PLT                 # (write() gives EPIPE instead)
         lea rdi, [rip + .Ls_env_poison]
         call getenv@PLT
         test rax, rax
@@ -595,9 +598,12 @@ FUNC ctx_set_stack
         jnz 9f
         mov rax, [rsp + 64]             # the lowest address
         mov rcx, [rsp + 72]
+        mov edx, STACK_MARGIN
         cmp rcx, 4 * STACK_MARGIN
-        jb 9f                           # (a small stack: no check rather than a wrong one)
-        add rax, STACK_MARGIN
+        jae 1f
+        shr rcx, 2                      # (a small stack: a quarter of it
+        mov rdx, rcx                    # as the margin)
+1:      add rax, rdx
         mov [r15 + CTX_STACK_LOW], rax
 9:      add rsp, 80
         LEAVE

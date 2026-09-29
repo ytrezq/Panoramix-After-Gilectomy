@@ -59,13 +59,14 @@
 .Ls_too_long:       .asciz "the IPC socket's path is too long: "
 .Ls_cant_send:      .asciz "the request couldn't be sent to "
 
+                .set RESP_MAX, 256 << 20        # the biggest answer taken from a node
         .text
 
 # fetch_code(address, out) -> eax: 0 with the code's hex (no 0x) in the
 # builder out, or -1 with the message in it
 FUNC fetch_code
         ENTER
-        sub rsp, 64
+        sub rsp, 80                     # (FC_ADDR: 43 bytes at 24)
         .set FC_OUT, 0
         .set FC_REQ, 8                  # the request's body
         .set FC_RESP, 16                # the answer's JSON (or a message)
@@ -215,7 +216,7 @@ FUNC fetch_code
         mov rdi, [rsp + FC_RESP]
         call sb_free
         mov eax, ebx
-        add rsp, 64
+        add rsp, 80
         LEAVE
 .Lfc_bad_addr:
         mov rdi, [rsp + FC_OUT]
@@ -227,7 +228,7 @@ FUNC fetch_code
         mov rsi, rbx
         call sb_append_c
         mov eax, -1
-        add rsp, 64
+        add rsp, 80
         LEAVE
 ENDF fetch_code
 
@@ -692,7 +693,8 @@ FUNC rpc_http
         test ebx, ebx
         jnz .Lrh_cant_send
         mov edi, [rsp + RH_FD]
-        call read_fd
+        mov esi, RESP_MAX               # (a node that never stops: what
+        call read_fd_max                # came in that much is all it gets)
         mov [rsp + RH_ANS], rax
         mov [rsp + RH_ANSLEN], rdx
         mov edi, [rsp + RH_FD]

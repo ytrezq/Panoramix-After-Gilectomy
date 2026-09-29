@@ -12,6 +12,8 @@
 #   and with a compaction at every round (PANORAMIX_COMPACT_MIB=1);
 # - the random differential unit tests, with SEED (default: the day of
 #   the year);
+# - tests/security.sh: the inputs of the review of docs/DESIGN.md's
+#   "Hostile input";
 # - the differential tests of the layers on tests/corpus (test_vm
 #   --functions, test_whiles, test_simplify: an hour or so; not with
 #   --quick);
@@ -25,7 +27,11 @@ cd "$(dirname "$0")/.."
 quick=0
 [ "$1" = "--quick" ] && { quick=1; shift; }
 seed=${1:-$(date +%j)}
-unset PANORAMIX_SIGDB           # the unit tests compare without one
+# the unit tests compare without a database on either side: unsetting it
+# isn't enough, the port falls back to the cache directory (where one is,
+# once the corpora have been run) - it is pointed away instead, and the
+# steps that want one pass it themselves
+export PANORAMIX_SIGDB=/nonexistent/no_abi_db.bin
 out=build/validate
 mkdir -p $out
 failed=0
@@ -93,5 +99,6 @@ if [ $quick -eq 0 ]; then
     step whiles with PANORAMIX_CHECK_LCA=1 python3 tests/test_whiles.py
     step simplify python3 tests/test_simplify.py
 fi
-step make_check make check
+step security tests/security.sh
+step make_check env -u PANORAMIX_SIGDB make check   # (it has its own)
 exit $failed

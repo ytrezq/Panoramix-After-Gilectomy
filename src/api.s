@@ -485,6 +485,7 @@ API pan_build_sigdb
         mov r15, rax
         mov rdi, r15
         call ctx_bind
+        call ctx_set_stack              # (the dump's json recurses)
         mov rdi, [rsp]
         mov rsi, [rsp + 8]
         call sigdb_build

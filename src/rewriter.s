@@ -814,6 +814,17 @@ FUNC string_store
         test eax, eax
         jz .Lss_none
         # ('store', 256, 0, ('array', '', ('sha3', idx)), ('arr', src, ('mem', ('range', setvars[1][2], src))))
+        # (a loop with fewer than two variables has no setvars[1]:
+        # python's IndexError, nothing rewritten here)
+        mov rax, [rsp + SS_SETVARS]
+        cmp dword ptr [rax + N_AUX], 2
+        jb .Lss_none
+        mov rdi, [rax + N_DATA + 8]
+        mov esi, OP_SETVAR
+        mov edx, 3
+        call is_op_n
+        test eax, eax
+        jz .Lss_none
         mov rax, [rsp + SS_SETVARS]
         mov rax, [rax + N_DATA + 8]
         mov rdi, [rax + N_DATA + 16]

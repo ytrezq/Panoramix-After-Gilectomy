@@ -366,6 +366,7 @@ FUNC main
         mov r15, rax
         mov rdi, r15
         call ctx_bind
+        call ctx_set_stack              # (build-db's json recurses)
         cmp r12, 3
         jl .Lusage_exit
         # build-db <xz> [out]

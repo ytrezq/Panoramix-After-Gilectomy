@@ -3728,6 +3728,8 @@ FUNC code_bytes_value
         js .Lcb_no
         test r12, r12
         js .Lcb_no
+        jz .Lcb_zero                    # (no bytes: python's 0 - and no copy
+                                        # of len - 1 bytes below)
         # the bytes pos-1 .. pos+len-2, the first being the last byte of
         # the code when pos is 0 (python's negative index)
         lea rdi, [r12 + 1]
@@ -3754,6 +3756,10 @@ FUNC code_bytes_value
         mov rdi, r14
         call free@PLT
         mov rax, [rsp]
+        add rsp, 16
+        LEAVE
+.Lcb_zero:
+        mov eax, 1                      # (the small int 0)
         add rsp, 16
         LEAVE
 .Lcb_no:

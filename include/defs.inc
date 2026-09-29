@@ -269,6 +269,20 @@
         jb stack_overflow
 .endm
 
+# STACK_ALLOC size: `sub rsp, size` for a size taken from an expression
+# (the elements of a tuple), checked - a big enough one would step over
+# the guard page and past the stack, and what follows writes there.
+# Nothing is written between the two, so checking after the sub is safe;
+# rsp goes back before the error, which needs a stack of its own.
+.macro STACK_ALLOC size
+        sub rsp, \size
+        cmp rsp, [r15 + CTX_STACK_LOW]
+        jae .Lsa_ok\@
+        add rsp, \size
+        jmp stack_overflow
+.Lsa_ok\@:
+.endm
+
 # tagged small int helpers
 .macro TAG reg
         lea \reg, [\reg + \reg + 1]

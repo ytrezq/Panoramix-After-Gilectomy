@@ -404,7 +404,7 @@ FUNC cleanup_mul_1
         jz .Lcm_asis
         lea rax, [r12*8 + 15]
         and rax, -16
-        sub rsp, rax
+        STACK_ALLOC rax
         mov r13, rsp
         xor r14d, r14d
 3:      cmp r14, r12
@@ -1035,7 +1035,7 @@ FUNC add_op_impl
 7:      # ('add', real) + terms
         lea rax, [r13*8 + 16 + 15]
         and rax, -16
-        sub rsp, rax
+        STACK_ALLOC rax
         LOADS rax, ADD
         mov [rsp], rax
         mov rax, [rbp - 32 - 48 + AO_REAL]
@@ -1066,7 +1066,7 @@ FUNC add_op_impl
 11:     # ('add',) + terms
         lea rax, [r13*8 + 8 + 15]
         and rax, -16
-        sub rsp, rax
+        STACK_ALLOC rax
         LOADS rax, ADD
         mov [rsp], rax
         xor ecx, ecx
@@ -3974,7 +3974,7 @@ FUNC agz_by_family
         dec r13
         lea rax, [r13*8 + 15]
         and rax, -16
-        sub rsp, rax
+        STACK_ALLOC rax
         mov rax, [rbx + N_DATA]
         mov [rsp], rax
         mov ecx, 1
@@ -4123,7 +4123,7 @@ FUNC agz_family
         jbe .Laf_no                     # (('add', n): not add_op's)
         lea rax, [r13*8 + 15]
         and rax, -16
-        sub rsp, rax
+        STACK_ALLOC rax
         mov rax, [r12 + N_DATA]
         mov [rsp], rax
         mov ecx, 1
@@ -4253,7 +4253,7 @@ FUNC alg_calc_max
         jz .Lcmx_asis
         lea rax, [r12*8 + 8 + 15]       # the elements + one slot for the max
         and rax, -16
-        sub rsp, rax
+        STACK_ALLOC rax
         mov r13, rsp
         mov rax, [rbx + N_DATA]
         mov [r13], rax

@@ -28,15 +28,29 @@ ENDF read_file
 
 # read_fd(fd) -> rax: malloc'ed contents (NUL-terminated), rdx: the length
 FUNC read_fd
+        xor esi, esi
+        jmp read_fd_max
+ENDF read_fd
+
+# read_fd_max(fd, max) -> rax, rdx: the same, no more than max bytes read
+# (0: no limit) - what a socket gives has to end somewhere, whoever is at
+# the other end
+FUNC read_fd_max
         ENTER
         sub rsp, 16
+        mov [rsp], rsi                  # max
         mov ebx, edi
         mov r13d, 65536                 # the capacity
         mov rdi, r13
         call xmalloc
         mov r14, rax
         xor r12d, r12d                  # read so far
-1:      mov rax, r13
+1:      mov rcx, [rsp]                  # past the limit: what came so far
+        test rcx, rcx
+        jz 4f
+        cmp r12, rcx
+        jae 3f
+4:      mov rax, r13
         sub rax, r12
         cmp rax, 1
         ja 2f

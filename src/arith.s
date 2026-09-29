@@ -1063,7 +1063,7 @@ FUNC arith_eval_impl
         # a copy of the elements on the stack
         lea rax, [r12*8 + 15]
         and rax, -16
-        sub rsp, rax
+        STACK_ALLOC rax
         mov r13, rsp
         mov rdi, r13
         lea rsi, [rbx + N_DATA]
@@ -1441,7 +1441,7 @@ FUNC is_zero_impl
         jz .Liz_default
         lea rax, [r13*8 + 15]
         and rax, -16
-        sub rsp, rax
+        STACK_ALLOC rax
         mov r14, rsp
         xor ecx, ecx
 6:      cmp rcx, r13

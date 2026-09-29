@@ -2606,7 +2606,8 @@ FUNC pretty_memory
         jne .Lpm_plain
         mov rcx, [rsp + PM_IDX]
         inc rcx
-        cmp ecx, [rbx + N_AUX]
+        mov edx, [rbx + N_AUX]
+        cmp rcx, rdx
         jae .Lpm_plain
         mov rdi, [rbx + N_DATA + rcx*8]
         call unmask
@@ -2634,7 +2635,8 @@ FUNC pretty_memory
         mov rcx, [rsp + PM_IDX]
         add rcx, rax
         inc rcx                         # idx + 1 + byte_length (0-based: our idx is 1-based, see below)
-        cmp ecx, [rbx + N_AUX]
+        mov edx, [rbx + N_AUX]          # (64 bits: byte_length is the
+        cmp rcx, rdx                    # contract's, up to 2^63 - 1)
         jae .Lpm_plain
         call sb_new
         mov [rsp + PM_STR], rax

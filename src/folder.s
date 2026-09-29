@@ -195,12 +195,14 @@ ENDF fold_isolated
 # imported into this context as they come, and their contexts freed.
 FUNC fold_many
         ENTER
-        sub rsp, 64
+        sub rsp, 48 + ERR_SIZEOF
         .set FMA_OUT, 0
         .set FMA_TIDS, 8
         .set FMA_NT, 16                 # the threads started
         .set FMA_ATTR, 24
         .set FMA_I, 32
+        .set FMA_ERR, 48                # an error while a fold's result is
+                                        # taken: the threads joined first
         mov rbx, rdi
         mov edi, [rbx + N_AUX]
         call vec_new_cap
@@ -279,7 +281,13 @@ FUNC fold_many
         call fold_worker
         mov rdi, r15
         call ctx_bind
-5:      # the results, as they come
+5:      # the results, as they come. An error here (the import's memory)
+        # must not leave the threads running on what this context holds:
+        # they are stopped and joined before it goes on up.
+        lea rdi, [rsp + FMA_ERR]
+        call err_catch
+        test eax, eax
+        jnz .Lfm_failed
         mov qword ptr [rsp + FMA_I], 0
 .Lfm_wait:
         mov rax, [rsp + FMA_I]
@@ -308,6 +316,8 @@ FUNC fold_many
         call .Lfm_take
         jmp .Lfm_wait
 .Lfm_joined:
+        call err_end
+.Lfm_join:
         xor r13d, r13d
 10:     cmp r13, [rsp + FMA_NT]
         jae 11f
@@ -319,12 +329,43 @@ FUNC fold_many
         jmp 10b
 11:     mov rdi, [rsp + FMA_OUT]
         call vec_to_list
-        add rsp, 64
+        add rsp, 48 + ERR_SIZEOF
         LEAVE
+.Lfm_failed:
+        # no more folds taken, the threads joined (each finishes the one it
+        # is at, on its own context), every context left freed, and up
+        mov rbx, rax                    # the error's code
+        mov r14, [r15 + CTX_ERR_MSG]
+        mov rax, [r12 + FM_N]
+        lock xchg [r12 + FM_NEXT], rax
+        xor r13d, r13d
+12:     cmp r13, [rsp + FMA_NT]
+        jae 13f
+        mov rdi, [rsp + FMA_TIDS]
+        mov rdi, [rdi + r13*8]
+        xor esi, esi
+        call pthread_join@PLT
+        inc r13
+        jmp 12b
+13:     mov qword ptr [rsp + FMA_NT], 0
+        xor r13d, r13d
+14:     cmp r13, [r12 + FM_N]
+        jae 15f
+        imul rdi, r13, FT_SIZEOF
+        add rdi, [r12 + FM_TASKS]
+        mov rdi, [rdi + FT_CTX]
+        test rdi, rdi
+        jz 16f
+        call ctx_free
+16:     inc r13
+        jmp 14b
+15:     mov rdi, rbx
+        mov rsi, r14
+        call err_throw
 .Lfm_seq:
         # one thread: fold_isolated, one after the other
         xor r12d, r12d
-12:     cmp r12d, [rbx + N_AUX]
+17:     cmp r12d, [rbx + N_AUX]
         jae 11b
         mov rdi, [rbx + N_DATA + r12*8]
         call fold_isolated
@@ -332,7 +373,7 @@ FUNC fold_many
         mov rsi, rax
         call vec_push
         inc r12d
-        jmp 12b
+        jmp 17b
 
 # local: a task done (rdi): its result imported (or its trace, unfolded,
 # when it failed), in its place among the results; its context freed
@@ -368,12 +409,14 @@ FUNC fold_many
         shr rcx, 20
         call log_fmt
         mov rax, r12
-2:      mov rcx, [rsp + 24 + 8 + FMA_OUT]       # (the results, in order)
+2:      mov rcx, [rsp + 24 + 8 + FMA_OUT]       # (3 pushes and the return
+                                                # address above the frame)
         mov rcx, [rcx + VEC_DATA]
         mov [rcx + r13*8], rax
         mov rdi, [rbx + FT_CTX]
         test rdi, rdi
         jz 3f
+        mov qword ptr [rbx + FT_CTX], 0 # (freed once: .Lfm_failed frees the rest)
         call ctx_free
 3:      pop r13
         pop r12
