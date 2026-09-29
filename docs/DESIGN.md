@@ -753,3 +753,18 @@ bytes with their header) instead of 16, 3.3M of them on zx_Exchange,
 most short and soon garbage (-0.4%); memo tables made with 256 slots
 instead of 64 (-0.2%); the hash-cons table growing by four past 2^16
 slots, as the memo tables do past 4096 (-0.6%).
+
+Where the arena went, counted by caller (an experiment: `arena_alloc`
+and `mk_seq`'s allocations summed by return address): on the function
+of ENS's NameGriefer that takes 760 MiB, 58% to the memo tables'
+growths (their slots held the entries, a pair's 32 bytes, half empty at
+best and seven eighths just after a growth by four) - the arena is
+fresh memory, a page fault per 4 KiB, and the sys time was a third of
+the CPU time on the third corpus. The maps keep their entries dense
+now, in chunks of 64, 128, 256... entries never moved, found through
+32-bit slots (a tag of the hash above the entry's index): 1666 MiB
+allocated to 1044, 888 MiB of RSS to 624, a third of the page faults,
+and -1% on the model (1.5% more instructions for the chunk of an index,
+12 to 20% fewer L2 misses). Contiguous entries copied at each doubling
+were worse than the old tables (+1 to 3%: the copies and their garbage),
+and so were slots grown by two past 4096 (+0.1 to 1.5%).

@@ -533,11 +533,16 @@ ENDF \fname
 .set TRI_CANNOT, -2
 
 # hash map (rt_map.s)
-.set MAP_ENTRIES, 0
-.set MAP_CAP, 8
-.set MAP_COUNT, 16
-.set MAP_CTRL, 24              # the control bytes (one per slot: 0 empty)
-.set MAP_SIZEOF, 32
+.set MAP_SHIFT, 0             # log2 of an entry's bytes (rt_map.s)
+.set MAP_CAP, 8               # the slots
+.set MAP_COUNT, 16            # the entries
+.set MAP_SLOTS, 24            # 32 bits a slot: 0 empty, else a tag above the entry's index + 1
+.set MAP_ECAP, 32             # the room for entries (in the chunks made)
+.set MAP_CHUNKS, 48           # the chunks of entries: 64 << k entries each (21 at most)
+.set MAP_SIZEOF, 224
+.set EMAP_ENTRIES, 0         # an emap's entries (rt_map.s: 32 bytes, key, value, epoch)
+.set EMAP_CAP, 8
+.set EMAP_COUNT, 16
 .set EMAP_EPOCH, 24         # an emap's current epoch (rt_map.s)
 .set EMAP_SIZEOF, 32
 

@@ -813,29 +813,27 @@ FUNC memo_import
         mov r12d, esi                   # kind
         mov r13, rdx                    # the old map
         # the new table as big as the old one (not grown from nothing by
-        # doublings, each rehashing it all)
+        # doublings, each rehashing it all), room for its entries
         mov rdi, [r13 + MAP_CAP]
+        mov rsi, [r13 + MAP_COUNT]
         cmp r12d, 3
         je 5f
-        call map_new_cap
+        call map_new_sized
         mov [r15 + CTX_MEMO + rbx*8], rax
         jmp 6f
-5:      call map2_new_cap
+5:      call map2_new_sized
         mov [r15 + CTX_MEMO + rbx*8], rax
         mov rdi, rbx
         mov rdx, r13
         jmp memo_import_pairs
 6:      xor r14d, r14d                  # the entry
-1:      cmp r14, [r13 + MAP_CAP]
+1:      cmp r14, [r13 + MAP_COUNT]
         jae 3f
-        mov rax, [r13 + MAP_CTRL]
-        cmp byte ptr [rax + r14], 0
-        je 2f                           # (an empty slot)
-        mov rax, [r13 + MAP_ENTRIES]
-        mov rcx, r14
-        shl rcx, 4                      # 16 bytes per entry
-        mov rdi, [rax + rcx]            # key
-        mov rsi, [rax + rcx + 8]        # value
+        mov rdi, r13
+        mov rsi, r14
+        call map_entry_at
+        mov rdi, [rax]                  # key
+        mov rsi, [rax + 8]              # value
         mov [rsp], rsi
         call value_import
         mov [rsp + 8], rax              # the key, imported
@@ -862,27 +860,24 @@ FUNC memo_import_pairs
         mov rbx, rdi                    # slot
         mov r13, rdx                    # the old map
         xor r14d, r14d                  # the entry
-1:      cmp r14, [r13 + MAP_CAP]
+1:      cmp r14, [r13 + MAP_COUNT]
         jae 3f
-        mov rax, [r13 + MAP_CTRL]
-        cmp byte ptr [rax + r14], 0
-        je 2f                           # (an empty slot)
-        mov rax, [r13 + MAP_ENTRIES]
-        mov rcx, r14
-        shl rcx, 5                      # 32 bytes per entry
-        mov rdi, [rax + rcx]            # k1
+        mov rdi, r13
+        mov rsi, r14
+        call map_entry_at
+        mov rdi, [rax]                  # k1
         call value_import
         mov [rsp], rax
-        mov rax, [r13 + MAP_ENTRIES]
-        mov rcx, r14
-        shl rcx, 5
-        mov rdi, [rax + rcx + 8]        # k2
+        mov rdi, r13
+        mov rsi, r14
+        call map_entry_at
+        mov rdi, [rax + 8]              # k2
         call value_import
         mov [rsp + 8], rax
-        mov rax, [r13 + MAP_ENTRIES]
-        mov rcx, r14
-        shl rcx, 5
-        mov rcx, [rax + rcx + 16]       # the value, a code
+        mov rdi, r13
+        mov rsi, r14
+        call map_entry_at
+        mov rcx, [rax + 16]             # the value, a code
         mov rdi, rbx
         mov rsi, [rsp]
         mov rdx, [rsp + 8]
