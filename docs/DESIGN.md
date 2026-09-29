@@ -372,7 +372,8 @@ own unreachable code (`loop_to_setmem_from_storage` past
 Python's nondeterminism had to be removed on its side first (the order
 of the terms of a max, the variants of an expression, the substitution
 order of the variants, the names of unnamed inputs of a signature):
-commits on the `fix-branch-pruning` branch of the python repository. Its
+commits of python's pull request (palkeo/panoramix#146, the branch
+`merge-branches` of ytrezq/panoramix), whose code is the reference. Its
 timeouts (60 s per step, 180 s per function) are scaled by
 `PANORAMIX_TIMEOUT` there, so that a reference can be made without
 the timeouts pypy hits and the assembly doesn't (Wyvern: 20x).
@@ -409,6 +410,15 @@ string in memory data whose length is -64 to -95 makes python's
 `pretty_memory` loop forever (its index goes back by as much as it goes
 forward): the port raises the IndexError python raises for the longer
 negative lengths.
+
+Checked again against that pull request's final python (all four
+corpora, 1116 contracts, pypy, `PANORAMIX_TIMEOUT=5`): the same texts
+but for python's failures above (`BALANCE` of a constant address in
+four Uniswap v4 test contracts), a `RecursionError` of pypy's in ENS's
+NameGriefer, and python's timers - a function past its time limit, or
+a VM stopped at a time where the port counts its nodes, when pypy runs
+on a loaded machine (0x's DevUtils and Forwarder: the same texts on a
+quiet one, or as the older references had them).
 
 `tests/test_verbose.py` compares `panasm --verbose` / `--explain` and
 the module's `decompile_bytecode(verbose=, explain=)` (what it prints,
