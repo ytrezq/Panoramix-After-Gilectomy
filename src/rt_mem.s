@@ -637,6 +637,8 @@ FUNC ctx_compact
         .set CC_FREED, 0
         .set CC_SLOT, 8
         mov rbx, rdi
+        mov rdi, r15
+        call ksm_block                  # (DEDUP_KSM: the merging thread kept away)
         mov r12, [r15 + CTX_ARENA_CHUNKS]      # the old chunks
         mov r13, [r15 + CTX_HC_TABLE]          # the old table
         mov r14, [r15 + CTX_ARENA_CUR]         # (how much of the current one got used)
@@ -746,11 +748,15 @@ FUNC ctx_compact
         mov r8, [r15 + CTX_ARENA_TOTAL]
         shr r8, 20
         call log_fmt
+        mov rdi, r15
+        call ksm_unblock                # (its queue: of the old arena, dropped)
         mov rax, rbx
         add rsp, CC_FRAME
         LEAVE
 .Lcc_rollback:
         mov [rsp + CC_FREED], rax       # the error's code
+        mov rdi, r15
+        call ksm_unblock
         mov rdi, [r15 + CTX_ARENA_CHUNKS]
         mov rsi, [r15 + CTX_ARENA_CUR]
         call chunks_release

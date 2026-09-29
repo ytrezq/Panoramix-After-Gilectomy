@@ -146,8 +146,20 @@ FUNC map_new_sized
         jmp map_alloc
 ENDF map_new_sized
 
-# map_get(map, key) -> rax: the value, or 0
+# map_get(map, key) -> rax: the value, or 0 (the key's canonical node:
+# canon)
 FUNC map_get
+        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER
+        je map_get_raw                 # (the keys unique already)
+        xchg rdi, rsi
+        call canon
+        mov rdi, rsi
+        mov rsi, rax
+        jmp map_get_raw
+ENDF map_get
+
+# map_get_raw(map, key): map_get, the key as it is (by address)
+FUNC map_get_raw
         MAP_HASH
         MAP_SLOTTAG r8, r8d
         mov rcx, [rdi + MAP_CAP]
@@ -171,10 +183,21 @@ FUNC map_get
         ret
 4:      mov rax, [r10 + 8]
         ret
-ENDF map_get
+ENDF map_get_raw
 
-# map_put(map, key, value): insert or replace
+# map_put(map, key, value): insert or replace (the key's canonical node)
 FUNC map_put
+        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER
+        je map_put_raw                 # (the keys unique already)
+        xchg rdi, rsi
+        call canon
+        mov rdi, rsi
+        mov rsi, rax
+        jmp map_put_raw
+ENDF map_put
+
+# map_put_raw(map, key, value): map_put, the key as it is
+FUNC map_put_raw
         ENTER
         sub rsp, 16
         mov rbx, rdi
@@ -230,7 +253,7 @@ FUNC map_put
         mov [r9 + r14*4], eax
         add rsp, 16
         LEAVE
-ENDF map_put
+ENDF map_put_raw
 
 # map_full: a map past MAP_MAXCOUNT entries (jumped to): E_MEMORY
 map_full:
@@ -296,7 +319,9 @@ FUNC memo_get
         mov rax, [r15 + CTX_MEMO + rdi*8]
         test rax, rax
         jz 1f
+        cmp edi, MEMO_IMPORT
         mov rdi, rax
+        je map_get_raw                  # (by address: another context's nodes)
         jmp map_get
 1:      xor eax, eax
         ret
@@ -307,11 +332,16 @@ FUNC memo_put
         ENTER
         mov rbx, rsi
         mov r12, rdx
+        mov r13, rdi
         call memo_table
         mov rdi, rax
         mov rsi, rbx
         mov rdx, r12
+        cmp r13d, MEMO_IMPORT
+        je 1f
         call map_put
+        LEAVE
+1:      call map_put_raw
         LEAVE
 ENDF memo_put
 
@@ -360,6 +390,17 @@ ENDF map2_new_sized
 # map2_get(map, k1, k2) -> rax: the value, or 0; rdx: the entry's fourth
 # word when there is one (map2_put_w's; 0 for map2_put's)
 FUNC map2_get
+        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER
+        je 8f
+        push rdi
+        mov rdi, rsi
+        call canon
+        mov rsi, rax
+        mov rdi, rdx
+        call canon
+        mov rdx, rax
+        pop rdi
+8:
         MAP2_HASH
         MAP_SLOTTAG r8, r8d
         mov rcx, [rdi + MAP_CAP]
@@ -403,7 +444,15 @@ FUNC map2_put_w
         mov rbx, rdi
         mov r12, rsi
         mov r13, rdx
-        mov r14, rcx
+        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER
+        je 8f
+        mov rdi, r12
+        call canon
+        mov r12, rax
+        mov rdi, r13
+        call canon
+        mov r13, rax
+8:      mov r14, rcx
         mov rax, [rbx + MAP_COUNT]
         shl rax, 1
         cmp rax, [rbx + MAP_CAP]
@@ -574,6 +623,20 @@ ENDF memo2_put_w
 
 # map3_get(map, k1, k2, k3) -> rax: the value, or 0
 FUNC map3_get
+        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER
+        je 8f
+        push rdi
+        mov rdi, rsi
+        call canon
+        mov rsi, rax
+        mov rdi, rdx
+        call canon
+        mov rdx, rax
+        mov rdi, rcx
+        call canon
+        mov rcx, rax
+        pop rdi
+8:
         MAP3_HASH
         MAP_SLOTTAG r8, r8d
         mov r9, [rdi + MAP_CAP]
@@ -615,6 +678,18 @@ FUNC map3_put
         mov r12, rsi
         mov r13, rdx
         mov r14, rcx
+        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER
+        je 8f
+        mov rdi, r12
+        call canon
+        mov r12, rax
+        mov rdi, r13
+        call canon
+        mov r13, rax
+        mov rdi, r14
+        call canon
+        mov r14, rax
+8:
         mov rax, [rbx + MAP_COUNT]
         shl rax, 1
         cmp rax, [rbx + MAP_CAP]
@@ -800,6 +875,13 @@ ENDF emap_begin
 
 # emap_get(map, key) -> rax: the value, or 0
 FUNC emap_get
+        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER
+        je 8f
+        xchg rdi, rsi
+        call canon
+        mov rdi, rsi
+        mov rsi, rax
+8:
         EMAP_SLOT
         mov r8, [rdi + EMAP_EPOCH]
         mov rdx, [rdi + EMAP_ENTRIES]
@@ -818,6 +900,13 @@ ENDF emap_get
 
 # emap_put(map, key, value): insert or replace
 FUNC emap_put
+        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER
+        je 8f
+        xchg rdi, rsi
+        call canon
+        mov rdi, rsi
+        mov rsi, rax
+8:
         ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -851,6 +940,13 @@ ENDF emap_put
 # emap_add(map, key) -> eax: 1 when the key is added (value 1), 0 when it
 # was there already - a set's insertion, one probe
 FUNC emap_add
+        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER
+        je 8f
+        xchg rdi, rsi
+        call canon
+        mov rdi, rsi
+        mov rsi, rax
+8:
         mov rax, [rdi + EMAP_COUNT]
         inc rax
         shl rax, 1

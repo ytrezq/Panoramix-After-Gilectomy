@@ -52,7 +52,7 @@ FUNC simplify_trace
         mov qword ptr [rsp + ST_OLD], 0
         mov qword ptr [rsp + ST_COUNT], 0
 .Lst_round:
-        cmp rbx, [rsp + ST_OLD]
+        VEQ rbx, [rsp + ST_OLD]
         je .Lst_final
         cmp qword ptr [rsp + ST_COUNT], 40
         jae .Lst_final
@@ -135,7 +135,7 @@ FUNC simplify_trace
         jb .Lst_round
         cmp r15, [rip + global_ctx]     # (never the process-wide context)
         je .Lst_round
-        cmp rbx, [rsp + ST_OLD]
+        VEQ rbx, [rsp + ST_OLD]
         je .Lst_final
         mov rdi, rbx
         call ctx_compact

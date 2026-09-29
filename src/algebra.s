@@ -2735,7 +2735,7 @@ ENDF contains
 # holding it at any depth. (== is values_equal: the same pointer, as
 # nodes are hash-consed, or two big ints of the same value.)
 FUNC contains_f
-        cmp rdi, rsi
+        VEQ rdi, rsi
         je .Lct_yes_ret
         test dil, 1
         jnz .Lct_no_ret
@@ -2775,7 +2775,7 @@ FUNC contains_seq
         jae .Lcs_no
         mov rdi, [rbx + N_DATA + r13*8]
         inc r13d
-        cmp rdi, r12
+        VEQ rdi, r12
         je .Lcs_yes
         test dil, 1
         jnz .Lcs_next
@@ -3127,7 +3127,7 @@ FUNC variant_evaluable
         xor r14d, r14d
 1:      cmp r14, r12
         jae 2f
-        cmp rbx, [r13 + r14*8]          # (variables are consed: one pointer)
+        VEQ rbx, [r13 + r14*8]                # (variables are consed: one pointer)
         je .Lve_leaf
         inc r14
         jmp 1b
@@ -3196,7 +3196,7 @@ FUNC variant_eval
         xor r14d, r14d
 1:      cmp r14, r12
         jae 2f
-        cmp rbx, [r13 + r14*8]
+        VEQ rbx, [r13 + r14*8]
         jne 11f
         mov rax, [rsp + VV_VALS]
         mov rbx, [rax + r14*8]          # the variable's value
@@ -3430,7 +3430,7 @@ FUNC variant_eval
         xor ecx, ecx
 1:      cmp rcx, r12
         jae 3f
-        cmp rdi, [r13 + rcx*8]
+        VEQ rdi, [r13 + rcx*8]
         je 4f
         inc rcx
         jmp 1b
@@ -3884,7 +3884,7 @@ FUNC var_mask
         xor ecx, ecx
 1:      cmp rcx, r12
         jae 2f
-        cmp rbx, [r13 + rcx*8]
+        VEQ rbx, [r13 + rcx*8]
         je 3f
         inc rcx
         jmp 1b

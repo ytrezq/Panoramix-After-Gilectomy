@@ -815,12 +815,12 @@ FUNC is_end_block
         LOADS rdi, RETURN
         mov esi, 1
         call mk2
-        cmp rax, [rbx + N_DATA]
+        VEQ rax, [rbx + N_DATA]
         je 3f
         LOADS rdi, REVERT
         mov esi, 1
         call mk2
-        cmp rax, [rbx + N_DATA]
+        VEQ rax, [rbx + N_DATA]
         je 3f
 2:      xor eax, eax
         LEAVE
@@ -921,7 +921,7 @@ FUNC try_merge_ifs
         cmp r14d, [r13 + N_AUX]
         jae 2f
         mov rax, [r12 + N_DATA + r14*8]
-        cmp rax, [r13 + N_DATA + r14*8]
+        VEQ rax, [r13 + N_DATA + r14*8]
         jne 2f
         inc r14d
         jmp 1b
@@ -1110,7 +1110,7 @@ FUNC try_merge
         mov rax, [rbx + N_DATA + rcx*8]
         mov ecx, [r12 + N_AUX]
         sub ecx, r14d
-        cmp rax, [r12 + N_DATA + rcx*8]
+        VEQ rax, [r12 + N_DATA + rcx*8]
         jne 3f
         inc r14d
         jmp 2b
@@ -1633,7 +1633,7 @@ FUNC and_plain
         jne 1b
         cmp dword ptr [rax + N_AUX], 0
         je 1b
-        cmp [rax + N_DATA], r9
+        VEQ r9, [rax + N_DATA]
         jne 1b
 2:      xor eax, eax
         ret
@@ -1727,7 +1727,7 @@ FUNC starts_with
 1:      cmp eax, edx
         jae 3f
         mov rcx, [rdi + N_DATA + rax*8]
-        cmp rcx, [rsi + N_DATA + rax*8]
+        VEQ rcx, [rsi + N_DATA + rax*8]
         jne 2f
         inc eax
         jmp 1b
@@ -1751,7 +1751,7 @@ FUNC ends_with
         lea r9d, [rcx + rax]
         mov r10, [rdi + N_DATA + r9*8]
         lea r9d, [r8 + rax]
-        cmp r10, [rsi + N_DATA + r9*8]
+        VEQ r10, [rsi + N_DATA + r9*8]
         jne 2f
         inc eax
         jmp 1b
@@ -1879,7 +1879,7 @@ FUNC fold_or_split
         jae 2f
         mov rax, [rbx + N_DATA + rcx*8]
         mov rax, [rax + N_DATA]
-        cmp rax, [r12 + N_DATA]
+        VEQ rax, [r12 + N_DATA]
         je 2f
         inc qword ptr [rsp + FS_IA]
         jmp 1b
@@ -1888,7 +1888,7 @@ FUNC fold_or_split
         jae 3f
         mov rax, [rbx + N_DATA + rcx*8]
         mov rax, [rax + N_DATA]
-        cmp rax, [r13 + N_DATA]
+        VEQ rax, [r13 + N_DATA]
         je 3f
         inc qword ptr [rsp + FS_IB]
         jmp 2b
@@ -1930,7 +1930,7 @@ FUNC fold_or_split
         test r9, r9
         jz 6f
         mov rax, [rdi + N_DATA + r8*8 - 8]
-        cmp rax, [rsi + N_DATA + r9*8 - 8]
+        VEQ rax, [rsi + N_DATA + r9*8 - 8]
         jne 6f
         dec r8
         dec r9
@@ -1993,7 +1993,7 @@ FUNC fold_or_split
 1:      cmp rax, r8
         jae 2f
         mov r9, [rdi + N_DATA + rax*8]
-        cmp r9, [rdx + N_DATA + rax*8]
+        VEQ r9, [rdx + N_DATA + rax*8]
         jne 2f
         inc rax
         jmp 1b
@@ -2194,7 +2194,7 @@ FUNC fold_paths
 31:     cmp ecx, r9d
         jae 32f
         mov rax, [rdi + N_DATA + rcx*8]
-        cmp rax, [r13 + N_DATA + rcx*8]
+        VEQ rax, [r13 + N_DATA + rcx*8]
         jne 32f
         inc ecx
         jmp 31b
@@ -2223,7 +2223,7 @@ FUNC fold_paths
         mov edx, r11d
         sub edx, ecx
         dec edx
-        cmp rax, [r13 + N_DATA + rdx*8]
+        VEQ rax, [r13 + N_DATA + rdx*8]
         jne 52f
         inc ecx
         jmp 51b
@@ -2363,7 +2363,7 @@ FUNC fold_or
         mov rax, [rbx + N_DATA + r12*8]
         mov rax, [rax + N_DATA]
         mov rcx, [rsp + FO_LONGEST]
-        cmp rax, [rcx + N_DATA]
+        VEQ rax, [rcx + N_DATA]
         jne 4f
         inc r12d
         jmp 3b
@@ -2376,10 +2376,10 @@ FUNC fold_or
         mov rax, [rbx + N_DATA + r12*8]
         mov rax, [rax + N_DATA]
         mov rcx, [rsp + FO_LONGEST]
-        cmp rax, [rcx + N_DATA]
+        VEQ rax, [rcx + N_DATA]
         je 51f
         mov rcx, [rsp + FO_SHORTEST]
-        cmp rax, [rcx + N_DATA]
+        VEQ rax, [rcx + N_DATA]
         jne .Lfo_assert
 51:     inc r12d
         jmp 5b

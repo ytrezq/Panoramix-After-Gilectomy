@@ -91,7 +91,7 @@ FUNC seq_index
         xor eax, eax
 1:      cmp eax, [rdi + N_AUX]
         jae 2f
-        cmp [rdi + N_DATA + rax*8], rsi
+        VEQ rsi, [rdi + N_DATA + rax*8]
         je 3f
         inc eax
         jmp 1b
@@ -298,7 +298,7 @@ FUNC rewrite_trace_ifs
         jne 2f
         mov rax, [rax + VEC_DATA]
         mov rax, [rax]
-        cmp rax, [rsp + 8]
+        VEQ rax, [rsp + 8]
         jne 2f
         # unchanged: into the branches
         mov rdi, [rsp + 8]
@@ -453,7 +453,7 @@ ENDF replace
 # the loop, without a call (a replace visits them by the million)
 FUNC replace_fl
         STACK_CHECK
-        cmp rdi, rsi
+        VEQ rdi, rsi
         je .Lrp_by0
         test dil, 1
         jnz .Lrp_asis0
@@ -483,7 +483,7 @@ FUNC replace_fl
         mov rdi, [rbx + N_DATA + r14*8]
         # the element's replacement, rax (rdi itself mostly)
         mov rax, r13
-        cmp rdi, r12
+        VEQ rdi, r12
         je 3f
         mov rax, rdi
         test dil, 1
