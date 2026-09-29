@@ -665,9 +665,9 @@ reads the nodes' hashes ahead (`prefetcht0`).
 Then, measured in time rather than instructions (`tools/psamp.c`: `perf`
 isn't there, but `perf_event_open`'s software clock is - a sampler of the
 instruction pointers and the frames' return addresses, the misses of the
-caches included): 20% of the time went to the
-memo tables and 20% to the hash-consing, most of it waiting on the
-memory, and 9 to 15% to `merge_visit` on zx_Exchange and zx_Staking.
+caches included): 20% of the time went to the memo tables and 20% to
+the hash-consing, most of it waiting on the memory, and 9 to 15% to
+`merge_visit` on zx_Exchange and zx_Staking.
 `_merge_at` gives up the same way when a side of the if answers false
 or none, so `merge_visit` stops at the first path not run yet or looping
 back at the jumpdest, remembers with a subtree's answer the number of
@@ -700,7 +700,9 @@ made for the key), `add_ge_zero`'s never (only `ge_zero` asks, after
 its own memo): they are computed each time. Whether `add_op` reduced
 its sum, which `agz_by_family` asks of every step of its fold, is the
 fourth word of `MEMO_ADD2`'s entry (`map2_put_w`), where it was a table
-of its own looked up at every step, nearly always without the pair.
+of its own looked up at every step, nearly always without the pair;
+`fill_mem` compares the range of the read with the split instead of
+making the tuple ('mem', split) to compare the read with.
 The VM's rounds walked the tree for the nodes not run yet right after
 `merge_branches`, which had walked it at its beginning: when it merged
 none, its list is the one (`PANORAMIX_CHECK_LCA=1` compares) - the walks
@@ -708,3 +710,14 @@ of the tree were 15% of safe_MockContract's time, 9% of zx_Broker's.
 The big contracts of the npm corpus (zx_Exchange, zx_DevUtils,
 zx_Staking, zx_Forwarder, zx_Broker, aave3_BorrowLogic,
 safe_MockContract, oz2_ReentrancyMock) take 7.4 s of CPU, 8.0 s before.
+(The machine's speed drifts by 5 to 10% from one minute to the next:
+`tools/bench.py` has the binaries take turns, file by file, and keeps
+the best of several runs. Tried, and left: a small cache of the last
+node found for each 12 bits of the hash in front of the hash-cons table
+(it hit too rarely to pay for itself), the answer of `fill_mem`'s first
+comparisons remembered for the pair of ranges (133K calls on zx_Exchange,
+5K pairs asked again), a filter of the jumpdests above a node in the
+node for `node_history` (the walks of the tree slower by as much as it
+gained: a fourth cache line per node), vectors made with room for 5
+instead of 16 (no difference), a fast path of `le_op` for two numbers
+plus the same terms (10% of its questions).)

@@ -1458,15 +1458,7 @@ FUNC fill_mem
         mov [rsp + FM_SPLIT_VAL], rdx
         mov rbx, rdi
         mov r12, rsi
-        # exp == ('mem', split)?
-        LOADS rdi, MEM
-        mov rsi, r12
-        call mk2
-        cmp rax, rbx
-        jne 1f
-        mov rax, [rsp + FM_SPLIT_VAL]
-        jmp .Lfm_done
-1:      mov rdi, rbx
+        mov rdi, rbx
         call opcode_of
         cmp eax, OP_MEM
         jne .Lfm_assert
@@ -1474,6 +1466,11 @@ FUNC fill_mem
         jne .Lfm_assert
         mov r13, [rbx + N_DATA + 8]     # memloc
         mov [rsp + FM_MEMLOC], r13
+        cmp r13, r12                    # exp == ('mem', split): the value
+        jne 1f                          # (python compares first: the same)
+        mov rax, [rsp + FM_SPLIT_VAL]
+        jmp .Lfm_done
+1:
         mov rdi, r13
         call assert_range
         mov rdi, r12
