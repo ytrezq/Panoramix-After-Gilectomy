@@ -595,4 +595,10 @@ in the context's scratch set rather than in the list; `list_from` and
 lists from the elements directly, without a vector in between, and give
 back the list itself when nothing is cut or added. 0.98G to 0.92G,
 zx_Forwarder 4.64G to 4.49G, aave3_BorrowLogic 2.11G to 2.07G,
-zx_Exchange 17.7G to 17.3G.
+zx_Exchange 17.7G to 17.3G. `mem_use` (what reads a memory after a
+setmem) asks `exp_uses_mem` of every line and `memloc_overwrite` of
+every setmem: the first answers at once for a line without "mem" in it
+(its flag), `find_mems` too, and keeps the ones it finds once each with
+the scratch set; the second is remembered for its pair (the same
+setmems for the same memories, round after round). zx_Staking 4.23G to
+4.11G.

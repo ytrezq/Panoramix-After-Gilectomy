@@ -923,6 +923,7 @@ memo_kinds:
         .byte 0                         # CLEANUP_MEMS (pairs)
         .byte 0                         # PP_CLEANUP
         .byte 0                         # REPLACE_MEM (triples)
+        .byte 0                         # MEMLOC_OVERWRITE (pairs)
         .text
 
 # memo_sizes_log(): DEBUG: the number of entries of every memo table

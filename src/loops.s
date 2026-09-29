@@ -1108,10 +1108,18 @@ ENDF extract_setmems_f
 # interned): the ones seen are kept in the context's scratch set (see
 # line_vars) - a quadratic search of the vector otherwise
 FUNC vec_extend_unique
+        mov edx, [rsi + N_AUX]
+        add rsi, N_DATA
+        jmp vec_extend_unique_n
+ENDF vec_extend_unique
+
+# vec_extend_unique_n(vec, elems, count): vec_extend_unique of an array
+FUNC vec_extend_unique_n
         ENTER
         sub rsp, 16
         mov rbx, rdi
         mov r12, rsi
+        mov [rsp + 8], rdx
         mov r13, [r15 + CTX_LV_SET]
         test r13, r13
         jnz 1f
@@ -1132,10 +1140,10 @@ FUNC vec_extend_unique
         call emap_add
         jmp 2b
 3:      xor r14d, r14d
-4:      cmp r14d, [r12 + N_AUX]
+4:      cmp r14, [rsp + 8]
         jae 9f
-        mov rsi, [r12 + N_DATA + r14*8]
-        inc r14d
+        mov rsi, [r12 + r14*8]
+        inc r14
         mov [rsp], rsi
         call .Leu_bigint
         jz 5f
@@ -1164,7 +1172,7 @@ FUNC vec_extend_unique
         sete al
 1:      test eax, eax
         ret
-ENDF vec_extend_unique
+ENDF vec_extend_unique_n
 
 # vec_push_unique(vec, v): push unless present (by value)
 FUNC vec_push_unique
@@ -1339,7 +1347,16 @@ ENDF while_uses_mem
 
 # exp_uses_mem(exp, mem_idx) -> eax: a memory read in exp may overlap mem_idx
 FUNC exp_uses_mem
-        ENTER
+        test dil, 1                     # (no "mem" anywhere in it: no read
+        jnz 4f                          # of the memory - most lines)
+        test rdi, rdi
+        jz 4f
+        movabs rax, HF_MEM
+        test [rdi + N_HASH], rax
+        jnz 5f
+4:      xor eax, eax
+        ret
+5:      ENTER
         mov r12, rsi
         call find_mems
         mov rbx, rax
@@ -1360,7 +1377,8 @@ FUNC exp_uses_mem
         LEAVE
 ENDF exp_uses_mem
 
-# collect_mem(exp, arg, out): find_mems' f
+# collect_mem(exp, arg, out): find_mems' f (every one: find_mems keeps
+# each once after)
 FUNC collect_mem
         ENTER
         mov rbx, rdi
@@ -1370,7 +1388,7 @@ FUNC collect_mem
         jne 1f
         mov rdi, r12
         mov rsi, rbx
-        call vec_push_unique
+        call vec_push
 1:      LEAVE
 ENDF collect_mem
 
@@ -1383,6 +1401,9 @@ FUNC find_mems
         jnz .Lfm_none
         test rdi, rdi
         jz .Lfm_none
+        movabs rax, HF_MEM              # (no "mem" anywhere in it: none -
+        test [rbx + N_HASH], rax        # most lines)
+        jz .Lfm_none
         mov edi, MEMO_FIND_MEMS
         mov rsi, rbx
         call memo_get
@@ -1394,7 +1415,13 @@ FUNC find_mems
         lea rsi, [rip + collect_mem]
         mov rdx, r12
         call walk_collect_lines
-        mov rdi, r12
+        call vec_new                    # each once, in order
+        mov r13, rax
+        mov rdi, rax
+        mov rsi, [r12 + VEC_DATA]
+        mov rdx, [r12 + VEC_LEN]
+        call vec_extend_unique_n
+        mov rdi, r13
         call vec_to_list
         mov r12, rax
         mov edi, MEMO_FIND_MEMS

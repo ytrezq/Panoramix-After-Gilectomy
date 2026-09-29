@@ -534,7 +534,8 @@ ENDF \fname
 .set MEMO_CLEANUP_MEMS, 26  # (trace, used_after) -> cleanup_mems' result (pairs)
 .set MEMO_PP_CLEANUP, 27    # a list -> pp_cleanup_mul_1 of it, a tuple -> pp_cleanup_exp of it
 .set MEMO_REPLACE_MEM, 28   # (trace, mem_idx, mem_val) -> replace_mem's list (triples)
-.set MEMO_COUNT, 29
+.set MEMO_MEMLOC_OVERWRITE, 29 # (memloc, split) -> memloc_overwrite's list (pairs)
+.set MEMO_COUNT, 30
 # sentinel values stored in memo tables for python's None / False (values
 # and pointers are never 2 or 4)
 .set MEMO_NONE, 2

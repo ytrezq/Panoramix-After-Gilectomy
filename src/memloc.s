@@ -931,6 +931,29 @@ ENDF split_store
 # that are for sure not overwritten by the split
 FUNC memloc_overwrite
         ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov edi, MEMO_MEMLOC_OVERWRITE  # (remembered for the pair: mem_use
+        mov rsi, rbx                    # asks it of the same setmems for
+        mov rdx, r12                    # the same memory, round after round)
+        call memo2_get
+        test rax, rax
+        jnz 1f
+        mov rdi, rbx
+        mov rsi, r12
+        call memloc_overwrite_impl
+        mov r13, rax
+        mov edi, MEMO_MEMLOC_OVERWRITE
+        mov rsi, rbx
+        mov rdx, r12
+        mov rcx, rax
+        call memo2_put
+        mov rax, r13
+1:      LEAVE
+ENDF memloc_overwrite
+
+FUNC memloc_overwrite_impl
+        ENTER
         sub rsp, 48
         .set MO_M_RIGHT, 0
         .set MO_S_RIGHT, 8
@@ -1010,7 +1033,7 @@ FUNC memloc_overwrite
         call mk_list1
         add rsp, 48
         LEAVE
-ENDF memloc_overwrite
+ENDF memloc_overwrite_impl
 
 # slice_exp(exp, left, right) -> value or NIL: the bytes left..right of
 # the expression
