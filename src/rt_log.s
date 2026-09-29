@@ -103,14 +103,6 @@ log_level_names:                        # (name, level), as python's logging
         .quad 0, 0
         .text
 
-# log_enabled(level) -> eax
-FUNC log_enabled
-        xor eax, eax
-        cmp rdi, [rip + log_level]
-        setge al
-        ret
-ENDF log_enabled
-
 # sb_color(sb, cstr): append an escape sequence if colors are on
 FUNC sb_color
         cmp qword ptr [rip + log_color], 0

@@ -12,8 +12,6 @@
 # ---------------------------------------------------------------------
 # small helpers
 
-
-
 # is_op_n(v, op, n) -> eax: v is a tuple with opcode op and n elements
 # (a leaf: only rax is changed)
 FUNC is_op_n
@@ -3473,7 +3471,6 @@ FUNC variant_eval
         ret
 ENDF variant_eval
 
-
 FUNC add_ge_zero_impl
         STACK_CHECK
         ENTER
@@ -5346,7 +5343,6 @@ FUNC vec_dedupe
 5:      mov [rbx + VEC_LEN], r12
         LEAVE
 ENDF vec_dedupe
-
 
 # --- the pieces used by the simplifier ---
 

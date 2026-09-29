@@ -758,12 +758,6 @@ FUNC sb_append_col_c
         LEAVE
 ENDF sb_append_col_c
 
-# sb_append_color(sb, color_cstr): the code itself, unconditionally (the
-# python code has many literal COLOR_X + text + ENDC)
-FUNC sb_append_color
-        jmp sb_append_c
-ENDF sb_append_color
-
 # clean_color(str) -> str: the text without the color codes
 FUNC clean_color
         ENTER

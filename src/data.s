@@ -48,11 +48,6 @@
 .Ls_k_params:   .asciz "params"
         .text
 
-# data_tag(sb, c): one byte
-FUNC data_tag
-        jmp sb_append_char
-ENDF data_tag
-
 # data_u32(sb, x): four bytes, little-endian
 FUNC data_u32
         sub rsp, 24
