@@ -212,17 +212,22 @@ ENDF mk_seq_like
 # hc_grow(): double the hash-cons table (the new one allocated first:
 # when the system has none, python's MemoryError for a context with a
 # handler, the table as it was)
+        .set HC_GROW4, 1 << 16
 FUNC hc_grow
         ENTER
         sub rsp, 16
         mov r12, [r15 + CTX_HC_TABLE]
         mov r13, [r15 + CTX_HC_CAP]
-        lea rdi, [r13 * 2]
+        lea rdi, [r13 * 2]              # twice the slots, four times past
+        cmp r13, HC_GROW4               # HC_GROW4 (see MAP_NEWCAP)
+        jb 7f
+        shl rdi, 1
+7:      mov [rsp], rdi
         mov esi, 8
         call calloc@PLT
         test rax, rax
         jz .Lhc_no_table
-        lea rcx, [r13 * 2]
+        mov rcx, [rsp]
         mov [r15 + CTX_HC_CAP], rcx
         mov [r15 + CTX_HC_TABLE], rax
         mov rbx, rax

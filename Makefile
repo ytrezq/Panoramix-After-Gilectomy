@@ -40,6 +40,25 @@ build/panoramix_asm$(PY_EXT): build/pymod.o $(LIBOBJS)
 build/libpanoramix_asm.so: $(LIBOBJS)
 	$(CC) -shared $(LDFLAGS) -Wl,-soname,libpanoramix_asm.so -o $@ $(LIBOBJS) $(LDLIBS)
 
+# `make coverage`: build/cov/, the tool and the module counting the calls of
+# every function (FUNC's COV_COUNT), written at exit to $PANORAMIX_COVERAGE
+# ("count name" lines, appended): tools/cov_report.py lists the ones never
+# called
+COV_OBJS = $(patsubst src/%.s,build/cov/%.o,$(SRCS))
+COV_LIBOBJS = $(filter-out build/cov/main.o,$(COV_OBJS))
+
+build/cov/%.o: src/%.s include/defs.inc include/opcodes.inc
+	@mkdir -p build/cov
+	$(AS) $(ASFLAGS) --defsym COVERAGE=1 -o $@ $<
+
+build/cov/panasm: $(COV_OBJS)
+	$(CC) -pie $(LDFLAGS) -o $@ $(COV_OBJS) $(LDLIBS)
+
+build/cov/panoramix_asm$(PY_EXT): build/pymod.o $(COV_LIBOBJS)
+	$(CC) -shared $(LDFLAGS) -o $@ build/pymod.o $(COV_LIBOBJS) $(LDLIBS)
+
+coverage: build/cov/panasm build/cov/panoramix_asm$(PY_EXT)
+
 # the profiler (tools/psamp.c): build/psamp OUT 250000 build/panasm decompile ...,
 # then tools/psym.py OUT
 build/psamp: tools/psamp.c
@@ -91,4 +110,4 @@ install: build/panasm build/libpanoramix_asm.so
 clean:
 	rm -rf build
 
-.PHONY: all clean check install json-expected verbose-expected
+.PHONY: all clean check install json-expected verbose-expected coverage

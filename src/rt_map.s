@@ -70,7 +70,7 @@ ENDF map_alloc
 
 # map_new() -> rax
 FUNC map_new
-        mov edi, 64
+        mov edi, 256
         jmp map_new_cap
 ENDF map_new
 
@@ -272,7 +272,7 @@ ENDF memo_put
 
 # map2_new() -> rax
 FUNC map2_new
-        mov edi, 64
+        mov edi, 256
         jmp map2_new_cap
 ENDF map2_new
 

@@ -343,6 +343,11 @@ postprocessing. `tests/compare_output.py` compares the final text with
 `corpus/run_one.sh` produces the references with the database, from
 pypy, to diff against `panasm decompile --no-color`.
 
+`make coverage` builds `build/cov/` - the tool and the module - with a
+counter of the calls of every function (`COV_COUNT` in `FUNC`: `pushf`,
+an increment, `popf`), written at exit to `$PANORAMIX_COVERAGE`;
+`tools/cov_report.py` lists the functions no run called.
+
 Python's nondeterminism had to be removed on its side first (the order
 of the terms of a max, the variants of an expression, the substitution
 order of the variants, the names of unnamed inputs of a signature):
@@ -721,3 +726,11 @@ node for `node_history` (the walks of the tree slower by as much as it
 gained: a fourth cache line per node), vectors made with room for 5
 instead of 16 (no difference), a fast path of `le_op` for two numbers
 plus the same terms (10% of its questions).)
+
+Small changes weighed on a model rather than on the clock - cachegrind
+with the L2 (2 MiB) as the last level, instructions + 10 L1 misses + 60
+L2 misses, on four contracts: vectors made with room for 5 elements (64
+bytes with their header) instead of 16, 3.3M of them on zx_Exchange,
+most short and soon garbage (-0.4%); memo tables made with 256 slots
+instead of 64 (-0.2%); the hash-cons table growing by four past 2^16
+slots, as the memo tables do past 4096 (-0.6%).

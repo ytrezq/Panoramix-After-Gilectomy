@@ -199,6 +199,7 @@
         .type \name, @function
         .p2align 4
 \name:
+        COV_COUNT \name
 .endm
 
 # API name: an exported function (the C interface of the library,
@@ -209,6 +210,29 @@
         .type \name, @function
         .p2align 4
 \name:
+        COV_COUNT \name
+.endm
+
+# COV_COUNT name: with `make coverage` (COVERAGE defined), a counter of
+# the function's calls (pushf/popf: the flags as they came), listed in
+# the section covtab with its name for cov_dump (rt_cov.s)
+.macro COV_COUNT name
+.ifdef COVERAGE
+        pushfq
+        inc qword ptr [rip + .Lcov_\name]
+        popfq
+        .pushsection .covcnt, "aw"
+        .p2align 3
+.Lcov_\name: .quad 0
+        .popsection
+        .pushsection .rodata.covname, "a"
+.Lcovn_\name: .asciz "\name"
+        .popsection
+        .pushsection covtab, "aw"
+        .p2align 3
+        .quad .Lcov_\name, .Lcovn_\name
+        .popsection
+.endif
 .endm
 
 .macro ENDF name

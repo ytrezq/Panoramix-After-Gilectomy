@@ -8,12 +8,12 @@
 # vec_new() -> rax
 FUNC vec_new
         ENTER
-        mov edi, VEC_SIZEOF + 16*8
-        call arena_alloc_raw
+        mov edi, VEC_SIZEOF + 5*8       # (64 bytes: most vectors are short
+        call arena_alloc_raw            # and garbage soon)
         lea rcx, [rax + VEC_SIZEOF]
         mov [rax + VEC_DATA], rcx
         mov qword ptr [rax + VEC_LEN], 0
-        mov qword ptr [rax + VEC_CAP], 16
+        mov qword ptr [rax + VEC_CAP], 5
         LEAVE
 ENDF vec_new
 
