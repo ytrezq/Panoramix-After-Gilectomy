@@ -55,6 +55,7 @@ database, liblzma. Everything else is assembly (GNU as, Intel syntax).
     tools/gen_opcodes.py  generates opcodes.inc / opcodes_table.s
     tools/psamp.c         a sampling profiler (perf_event_open's CPU clock, the
                           frames' return addresses), tools/psym.py its report
+    tools/bench.py        the CPU time of a corpus, binaries compared
     tests/                comparisons with the python implementation
 
 Build: `make` (needs python3 headers for the module). `build/panasm`
@@ -622,13 +623,12 @@ answered from its family's record (`agz_by_family`): the fold of
 `simplify` over the terms after the number (the same symbolic part as
 the member's, its number the member's plus the family's, as long as no
 sum of numbers on the way reaches 2^256: every number small, and no
-`add_op` step that reduced one - `MEMO_ADD_WRAPPED`), then the extremes
+`add_op` step that reduced one), then the extremes
 of its variants (`agz_groups`); a member's answer is True when its
 number plus the minimum is >= 0, False when its number plus the
 maximum is < 0, None otherwise. `add_op` of two terms, the most asked,
 is remembered for the pair (`MEMO_ADD2`) rather than for their tuple,
-whether it reduced a sum beside it (`MEMO_ADD_WRAPPED`, a table of pairs
-too). `tests/test_agz_family.py` asks, in one
+with whether it reduced a sum (the entry's fourth word). `tests/test_agz_family.py` asks, in one
 context, families made as `add_op` and `sub_op` make them, and raw, with
 the cases where a reduction mod 2^256 would change the answer. The
 VM's `is_known` asks `eval_bool` of every fact known on the path, from
@@ -691,3 +691,13 @@ in its first node, as the node it leads to does, made it slower: the
 answers are rarely asked again before the stamps change. Prefetching
 the entry of a memo table with its control byte changed nothing: the
 two misses were already overlapping.)
+
+A memo table asked for answers it rarely has costs its lookups and its
+entries for nothing. Counted (the hits and misses of each table, on the
+corpus' biggest): `lt_op`'s questions came again 5 to 10% of the time,
+`add_op`'s of more than two terms 0 to 12% (a tuple of the arguments
+made for the key), `add_ge_zero`'s never (only `ge_zero` asks, after
+its own memo): they are computed each time. Whether `add_op` reduced
+its sum, which `agz_by_family` asks of every step of its fold, is the
+fourth word of `MEMO_ADD2`'s entry (`map2_put_w`), where it was a table
+of its own looked up at every step, nearly always without the pair.

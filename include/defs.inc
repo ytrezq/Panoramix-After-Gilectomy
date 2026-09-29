@@ -520,12 +520,12 @@ ENDF \fname
 # memo tables in the context (created lazily by memo_table)
 .set MEMO_SIMPLIFY, 0
 .set MEMO_GE_ZERO, 1
-.set MEMO_LT, 2
+.set MEMO_LT, 2             # (not used: lt_op's questions came again 5 to 10% of the time)
 .set MEMO_LE, 3
 .set MEMO_MASK, 4
-.set MEMO_ADD, 5
+.set MEMO_ADD, 5            # (not used: add_op of more than two terms, 0 to 12%)
 .set MEMO_TO_MASK, 6
-.set MEMO_ADD_GE_ZERO, 7
+.set MEMO_ADD_GE_ZERO, 7    # (not used: only ge_zero asks, after its own memo)
 .set MEMO_STACK_SIMPLIFY, 8
 .set MEMO_TEST_NODES, 9
 .set MEMO_SIMPLIFY_EXP, 10
@@ -549,11 +549,11 @@ ENDF \fname
 .set MEMO_REPLACE_MEM, 28   # (trace, mem_idx, mem_val) -> replace_mem's list (triples)
 .set MEMO_MEMLOC_OVERWRITE, 29 # (memloc, split) -> memloc_overwrite's list (pairs)
 .set MEMO_AGZ_FAMILY, 30    # an add's terms after its number -> their family's record (add_ge_zero)
-.set MEMO_ADD_WRAPPED, 31   # the pairs of MEMO_ADD2 whose add_op reduced its sum mod 2^256 (-> 1)
+.set MEMO_ADD_WRAPPED, 31   # (not used: MEMO_ADD2's entries keep whether add_op reduced its sum)
 .set MEMO_ADD_FAMILY, 32    # add_op's terms other than numbers -> their combination (num, terms)
 .set MEMO_AT_BOUNDS, 33     # (lines, pc) -> a loop's ranges (ranges_overlap_at_bounds: a vector)
 .set MEMO_LINE_SETVARS, 34  # a line -> the indices of its ('setvar', idx, v) (a tuple)
-.set MEMO_ADD2, 35          # (a, b) -> add_op(a, b) (pairs; MEMO_ADD: the other counts)
+.set MEMO_ADD2, 35          # (a, b) -> add_op(a, b) (pairs; the fourth word: CTX_ADD_WRAPPED)
 .set MEMO_COUNT, 36         # (at most 40: CTX_MEMO's slots)
 # sentinel values stored in memo tables for python's None / False (values
 # and pointers are never 2 or 4)

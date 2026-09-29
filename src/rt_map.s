@@ -251,7 +251,8 @@ ENDF memo_put
 # --- maps from pairs of keys: memoization of the functions of two
 # expressions (lt_op, le_op, range_overlaps, try_add) without making the
 # tuple of the two (a hash-cons lookup) for every question. Entries of 32
-# bytes: k1 (never 0), k2, the value (never 0), unused. Same header.
+# bytes: k1 (never 0), k2, the value (never 0), a word of map2_put_w's
+# (MEMO_ADD2: whether add_op reduced its sum). Same header.
 
 # MAP2_HASH: rax = the hash of (rsi, rdx), rcx clobbered
 .macro MAP2_HASH
@@ -281,7 +282,8 @@ FUNC map2_new_cap
         jmp map_alloc
 ENDF map2_new_cap
 
-# map2_get(map, k1, k2) -> rax: the value, or 0
+# map2_get(map, k1, k2) -> rax: the value, or 0; rdx: the entry's fourth
+# word when there is one (map2_put_w's; garbage for map2_put's)
 FUNC map2_get
         MAP2_HASH
         MAP_TAG r8, r8d
@@ -307,6 +309,7 @@ FUNC map2_get
 2:      xor eax, eax
         ret
 4:      mov rax, [rdi + r10 + 16]
+        mov rdx, [rdi + r10 + 24]
         ret
 ENDF map2_get
 
@@ -421,7 +424,8 @@ FUNC map2_grow
         LEAVE
 ENDF map2_grow
 
-# memo2_get(which, k1, k2) -> rax (0 if absent): a pair memo (MEMO_LT...)
+# memo2_get(which, k1, k2) -> rax (0 if absent): a pair memo (MEMO_LE...);
+# rdx: the entry's fourth word (map2_get)
 FUNC memo2_get
         test rsi, rsi
         jz 1f                           # (k1 0: never stored)
@@ -456,6 +460,69 @@ FUNC memo2_put
         call map2_put
         LEAVE
 ENDF memo2_put
+
+# map2_put_w(map, k1, k2, value, w): map2_put, and w the entry's fourth
+# word (map2_get's rdx)
+FUNC map2_put_w
+        ENTER
+        sub rsp, 16
+        mov [rsp], r8                   # w
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        mov r14, rcx
+        mov rax, [rbx + MAP_COUNT]
+        shl rax, 1
+        cmp rax, [rbx + MAP_CAP]
+        jb 1f
+        mov rdi, rbx
+        call map2_grow
+1:      mov rdi, rbx
+        mov rsi, r12
+        mov rdx, r13
+        call map2_slot
+        mov r9, [rbx + MAP_CTRL]
+        cmp byte ptr [r9 + rax], 0
+        jne 2f
+        inc qword ptr [rbx + MAP_COUNT]
+        mov [r9 + rax], r8b
+2:      mov rdx, [rbx + MAP_ENTRIES]
+        shl rax, 5
+        mov [rdx + rax], r12
+        mov [rdx + rax + 8], r13
+        mov [rdx + rax + 16], r14
+        mov rcx, [rsp]
+        mov [rdx + rax + 24], rcx
+        add rsp, 16
+        LEAVE
+ENDF map2_put_w
+
+# memo2_put_w(which, k1, k2, value, w): memo2_put, w in the entry
+FUNC memo2_put_w
+        test rsi, rsi
+        jnz 2f
+        ret
+2:      ENTER
+        sub rsp, 16
+        mov [rsp], r8
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        mov r14, rcx
+        mov rax, [r15 + CTX_MEMO + rbx*8]
+        test rax, rax
+        jnz 1f
+        call map2_new
+        mov [r15 + CTX_MEMO + rbx*8], rax
+1:      mov rdi, rax
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, r14
+        mov r8, [rsp]
+        call map2_put_w
+        add rsp, 16
+        LEAVE
+ENDF memo2_put_w
 
 # --- maps from triples of keys (replace_mem_exp's (exp, mem_idx,
 # mem_val)), for the same reason: entries of 32 bytes, k1 (never 0), k2,

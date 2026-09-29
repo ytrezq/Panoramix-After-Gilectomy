@@ -868,6 +868,7 @@ FUNC alg_add_n
         sub rsp, 48
         mov rbx, rdi
         mov r12, rsi
+        mov qword ptr [r15 + CTX_ADD_WRAPPED], 0        # (python's: no sum reduced)
         cmp rbx, 1
         jne 1f
         mov rax, [r12]
@@ -898,54 +899,34 @@ FUNC alg_add_n
         LEAVE
 5:      cmp rbx, 2
         je 8f
-        # memo lookup on the tuple of the args
+        # more: not remembered (the tuple of the arguments made for the
+        # key, 0 to 12% of them asked again)
         mov rdi, rbx
         mov rsi, r12
-        call mk_tuple
-        mov [rsp + 8], rax              # key
-        mov edi, MEMO_ADD
-        mov rsi, rax
-        call memo_get
-        test rax, rax
-        jz 6f
-        add rsp, 48
-        LEAVE
-6:      mov rdi, rbx
-        mov rsi, r12
         call add_op_impl
-        mov [rsp + 16], rax
-        mov edi, MEMO_ADD
-        mov rsi, [rsp + 8]
-        mov rdx, [rsp + 16]
-        call memo_put
-        mov rax, [rsp + 16]
         add rsp, 48
         LEAVE
-8:      # two: the pair's memo, without a tuple made (most adds)
+8:      # two: the pair's memo, without a tuple made (most adds), with
+        # whether add_op reduced its sum (CTX_ADD_WRAPPED: agz_by_family)
         mov edi, MEMO_ADD2
         mov rsi, [r12]
         mov rdx, [r12 + 8]
         call memo2_get
         test rax, rax
         jz 9f
+        mov [r15 + CTX_ADD_WRAPPED], rdx        # (the entry's fourth word)
         add rsp, 48
         LEAVE
 9:      mov rdi, rbx
         mov rsi, r12
         call add_op_impl
         mov [rsp + 16], rax
-        cmp qword ptr [r15 + CTX_ADD_WRAPPED], 0
-        je 10f
-        mov edi, MEMO_ADD_WRAPPED       # (its sum reduced: see agz_by_family)
-        mov rsi, [r12]
-        mov rdx, [r12 + 8]
-        mov ecx, 3
-        call memo2_put
-10:     mov edi, MEMO_ADD2
+        mov edi, MEMO_ADD2
         mov rsi, [r12]
         mov rdx, [r12 + 8]
         mov rcx, [rsp + 16]
-        call memo2_put
+        mov r8, [r15 + CTX_ADD_WRAPPED]
+        call memo2_put_w
         mov rax, [rsp + 16]
         add rsp, 48
         LEAVE
@@ -2948,7 +2929,7 @@ FUNC ge_zero_impl
         LEAVE
 .Lgz_add:
         mov rdi, rbx
-        call alg_add_ge_zero
+        call add_ge_zero_impl        # (not remembered: only ge_zero asks, after its memo)
         LEAVE
 .Lgz_or:
         mov r13d, 1
@@ -3126,32 +3107,6 @@ ENDF is_mem64
         .set FAM_NONE, MEMO_NONE        # None whatever the number
         .set FAM_NO, MEMO_CANNOT        # not answered by the family
         .set AGZ_BY_FAMILY_NO, -3
-
-# alg_add_ge_zero(exp) -> TRI_TRUE / TRI_FALSE / TRI_NONE (memoized)
-FUNC alg_add_ge_zero
-        STACK_CHECK
-        ENTER
-        mov rbx, rdi
-        mov edi, MEMO_ADD_GE_ZERO
-        mov rsi, rbx
-        call memo_get
-        test rax, rax
-        jz 1f
-        mov rdi, rax
-        call memo_to_tri
-        LEAVE
-1:      mov rdi, rbx
-        call add_ge_zero_impl
-        mov r12d, eax
-        mov edi, eax
-        call tri_to_memo
-        mov edi, MEMO_ADD_GE_ZERO
-        mov rsi, rbx
-        mov rdx, rax
-        call memo_put
-        mov eax, r12d
-        LEAVE
-ENDF alg_add_ge_zero
 
 # variant_evaluable(exp, n, vars) -> eax: the height of exp when its
 # variants can be evaluated directly (variant_eval): every node is an int,
@@ -3975,8 +3930,8 @@ ENDF var_mask
 # terms alone (the family's), its number c + D (D: the family's) as long
 # as no sum reaches 2^256 - which the family's fold shows: every number
 # on its way small (c plus any of them too), and no step's sum reduced
-# (MEMO_ADD_WRAPPED: the steps that were, now or when alg_add_n
-# remembered them). The variants of c + D + S (evaluated directly:
+# (CTX_ADD_WRAPPED after alg_add2: add_op_impl's, or the one alg_add_n
+# remembered with the pair, MEMO_ADD2). The variants of c + D + S (evaluated directly:
 # agz_groups) range over c + D + the extremes of S's: the family's record
 # is (lo, hi) = D + those, and a member's answer is True for c + lo >= 0,
 # False for c + hi < 0, else None - a lookup instead of a simplification
@@ -4139,18 +4094,11 @@ FUNC agz_family
         mov rdi, r12
         mov rsi, rax
         call alg_add2
-        # a step whose sum add_op reduced (now or when it was remembered)
-        cmp qword ptr [r15 + CTX_MEMO + MEMO_ADD_WRAPPED * 8], 0
-        je 3f
-        mov [rsp + AF_I], rax
-        mov edi, MEMO_ADD_WRAPPED       # (alg_add_n's pair)
-        mov rsi, r12
-        mov rdx, r14
-        call memo2_get
-        test rax, rax
-        jnz .Laf_no
-        mov rax, [rsp + AF_I]
-3:      mov r12, rax
+        # a step whose sum add_op reduced (now or when it was remembered:
+        # alg_add_n's MEMO_ADD2 keeps it)
+        cmp qword ptr [r15 + CTX_ADD_WRAPPED], 0
+        jne .Laf_no
+        mov r12, rax
         mov rdi, rax
         call fam_number
         test rax, rax
@@ -4920,27 +4868,9 @@ FUNC alg_lt_op
         sete al
         movzx eax, al
         LEAVE
-1:      mov edi, MEMO_LT
-        mov rsi, rbx
-        mov rdx, r12
-        call memo2_get
-        test rax, rax
-        jz 2f
-        mov rdi, rax
-        call memo_to_tri
-        LEAVE
-2:      mov rdi, rbx
-        mov rsi, r12
+1:      mov rdi, rbx                    # (not remembered: 5 to 10% of the
+        mov rsi, r12                    # questions came again)
         call lt_op_impl
-        mov r14d, eax
-        mov edi, eax
-        call tri_to_memo
-        mov edi, MEMO_LT
-        mov rsi, rbx
-        mov rdx, r12
-        mov rcx, rax
-        call memo2_put
-        mov eax, r14d
         LEAVE
 ENDF alg_lt_op
 

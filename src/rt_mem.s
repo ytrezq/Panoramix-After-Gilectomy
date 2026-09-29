@@ -898,12 +898,12 @@ ENDF memo_import_pairs
 memo_kinds:
         .byte 0                         # SIMPLIFY: values
         .byte 2                         # GE_ZERO: codes
-        .byte 3                         # LT (pairs)
+        .byte 0                         # LT (unused)
         .byte 3                         # LE (pairs)
         .byte 0                         # MASK
-        .byte 0                         # ADD
+        .byte 0                         # ADD (unused)
         .byte 0                         # TO_MASK (values, or MEMO_NONE)
-        .byte 2                         # ADD_GE_ZERO
+        .byte 0                         # ADD_GE_ZERO (unused)
         .byte 0                         # STACK_SIMPLIFY: the VM is over
         .byte 0                         # TEST_NODES
         .byte 0                         # SIMPLIFY_EXP
@@ -927,7 +927,7 @@ memo_kinds:
         .byte 0                         # REPLACE_MEM (triples)
         .byte 0                         # MEMLOC_OVERWRITE (pairs)
         .byte 1                         # AGZ_FAMILY (the records: tuples, or codes)
-        .byte 0                         # ADD_WRAPPED (pairs of ADD2: dropped with it)
+        .byte 0                         # ADD_WRAPPED (unused)
         .byte 0                         # ADD_FAMILY
         .byte 0                         # AT_BOUNDS (vectors: dropped)
         .byte 0                         # LINE_SETVARS
