@@ -149,9 +149,10 @@ int main(int argc, char **argv) {
     }
     if (write(pipefd[1], "x", 1) != 1) return 1;
     close(pipefd[1]);
-    int status = 0, done = 0;
+    int status = 0, done = 0, rounds = 0;
     while (!done) {
-        poll(pfd, ncpu, 100);
+        // (short at first: a short run's maps are read before it ends)
+        poll(pfd, ncpu, rounds++ < 100 ? 5 : 100);
         for (int c = 0; c < ncpu; c++) drain(c);
         read_maps(child);               // (the last ones before it exits)
         if (waitpid(child, &status, WNOHANG) == child) done = 1;

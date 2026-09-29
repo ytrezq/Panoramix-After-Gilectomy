@@ -701,3 +701,10 @@ its own memo): they are computed each time. Whether `add_op` reduced
 its sum, which `agz_by_family` asks of every step of its fold, is the
 fourth word of `MEMO_ADD2`'s entry (`map2_put_w`), where it was a table
 of its own looked up at every step, nearly always without the pair.
+The VM's rounds walked the tree for the nodes not run yet right after
+`merge_branches`, which had walked it at its beginning: when it merged
+none, its list is the one (`PANORAMIX_CHECK_LCA=1` compares) - the walks
+of the tree were 15% of safe_MockContract's time, 9% of zx_Broker's.
+The big contracts of the npm corpus (zx_Exchange, zx_DevUtils,
+zx_Staking, zx_Forwarder, zx_Broker, aave3_BorrowLogic,
+safe_MockContract, oz2_ReentrancyMock) take 7.4 s of CPU, 8.0 s before.

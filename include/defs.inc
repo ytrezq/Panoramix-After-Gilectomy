@@ -615,7 +615,8 @@ ENDF \fname
 .set VM_VISITED, 144        # 1: merge_visit remembered an answer since the last one began
 .set VM_STALE_DEPTHS, 152   # 1: a node with children was hung elsewhere (vm_common_ancestor)
 .set VM_CHECK_LCA, 160      # 1: PANORAMIX_CHECK_LCA - both walks, compared (vm_common_ancestor)
-.set VM_SIZEOF, 168
+.set VM_UNEXP_VALID, 168    # 1: VM_SCR_UNEXP is the unexpanded nodes still (no merge since mb_all_nodes)
+.set VM_SIZEOF, 176
 
 .set MAX_NODE_COUNT, 5000
 .set MAX_EXP_SIZE, 150

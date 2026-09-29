@@ -227,13 +227,14 @@ FUNC vm_run
         call vm_continue_loops
         # find the ifs whose branches all end up at the same jumpdest, and
         # continue from there only once
+        mov rax, [r15 + CTX_VM]
+        mov qword ptr [rax + VM_UNEXP_VALID], 0
         mov rdi, r14
         call vm_merge_branches
-        # repeat until there are no more jumps to explore
+        # repeat until there are no more jumps to explore: the nodes not
+        # run yet, merge_branches' when it merged none (its walk found them)
         mov rdi, r14
-        lea rsi, [rip + pred_unexpanded]
-        xor edx, edx
-        call find_nodes
+        call vm_unexpanded_after_merges
         mov [rsp + 40], rax
         cmp qword ptr [rax + VEC_LEN], 0
         je .Linner_done
@@ -279,6 +280,54 @@ FUNC vm_run
         add rsp, 48
         LEAVE
 ENDF vm_run
+
+# vm_unexpanded_after_merges(root) -> rax: python's find_nodes(root, the
+# nodes not run yet), after merge_branches: the ones its walk found, when
+# it merged none (VM_UNEXP_VALID), else a walk (PANORAMIX_CHECK_LCA=1:
+# both, compared)
+FUNC vm_unexpanded_after_merges
+        ENTER
+        mov r12, rdi
+        mov rbx, [r15 + CTX_VM]
+        cmp qword ptr [rbx + VM_UNEXP_VALID], 0
+        je 5f
+        call vec_new                    # (a copy: the scratch is the next
+        mov r13, rax                    # round's)
+        mov rsi, [rbx + VM_SCR_UNEXP]
+        mov rdx, [rsi + VEC_LEN]
+        mov rsi, [rsi + VEC_DATA]
+        mov rdi, r13
+        call vec_extend
+        cmp qword ptr [rbx + VM_CHECK_LCA], 0
+        je 4f
+        mov rdi, r12
+        lea rsi, [rip + pred_unexpanded]
+        xor edx, edx
+        call find_nodes
+        mov rcx, [rax + VEC_LEN]
+        cmp rcx, [r13 + VEC_LEN]
+        jne 7f
+        mov rsi, [rax + VEC_DATA]
+        mov rdi, [r13 + VEC_DATA]
+6:      dec rcx
+        js 4f
+        mov rdx, [rsi + rcx*8]
+        cmp rdx, [rdi + rcx*8]
+        jne 7f
+        jmp 6b
+4:      mov rax, r13
+        LEAVE
+5:      mov rdi, r12
+        lea rsi, [rip + pred_unexpanded]
+        xor edx, edx
+        call find_nodes
+        LEAVE
+7:      lea rdi, [rip + .Ls_unexp_mb_mismatch]
+        call rt_fatal
+ENDF vm_unexpanded_after_merges
+        .section .rodata
+.Ls_unexp_mb_mismatch: .asciz "vm_run: merge_branches' unexpanded nodes and python's walk disagree"
+        .text
 
 # vm_expand_trace(root, nodes) -> rax: run the nodes that haven't been
 # yet - nodes: them, as find_nodes just gave them, or 0 to find them.
@@ -731,6 +780,8 @@ FUNC vm_merge_branches
         mov rdi, rbx
         call mb_all_nodes
         mov r12, rax                    # unexpanded
+        mov rax, [r15 + CTX_VM]         # (the rounds' next list, unless a
+        mov qword ptr [rax + VM_UNEXP_VALID], 1         # merge changes it)
         cmp qword ptr [r12 + VEC_LEN], 0
         je .Lmb_done
         # by_jd: the nodes by jd, in find_nodes' order
@@ -1434,6 +1485,8 @@ FUNC vm_merge_at
         inc qword ptr [rsp + 24]
         jmp .Lma_idx
 .Lma_apply:
+        mov rax, [r15 + CTX_VM]         # (merge_branches' unexpanded nodes
+        mov qword ptr [rax + VM_UNEXP_VALID], 0         # change)
         # each hit now just sets the variables and goes on in the merged node
         mov qword ptr [rsp + 24], 0
 8:      mov rcx, [rsp + 24]
