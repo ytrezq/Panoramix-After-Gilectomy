@@ -1583,8 +1583,19 @@ FUNC line_vars
         mov rsi, rax
         call vec_extend_seq
         jmp 13b
-0:      # each variable once (hash-consed: the same pointer)
+0:      # each variable once (hash-consed: the same pointer - made so
+        # first when the context doesn't hash-cons)
+        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER
+        je 15f
+        mov rdx, [r12 + VEC_DATA]
         mov rcx, [r12 + VEC_LEN]
+14:     dec rcx
+        js 15f
+        mov rdi, [rdx + rcx*8]
+        call canon                      # (every register but rax kept)
+        mov [rdx + rcx*8], rax
+        jmp 14b
+15:     mov rcx, [r12 + VEC_LEN]
         cmp rcx, 64
         ja 5f
         mov rdx, [r12 + VEC_DATA]       # few: in place
@@ -1596,7 +1607,7 @@ FUNC line_vars
         xor r10d, r10d
 2:      cmp r10, r8
         jae 3f
-        VEQ rax, [rdx + r10*8]
+        cmp rax, [rdx + r10*8]
         je 31f                          # (kept already)
         inc r10
         jmp 2b

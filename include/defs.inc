@@ -64,7 +64,7 @@
 .set DEDUP_LAZY, 2           # made as it is; merged only when compared or used as a key
 .set DEDUP_DEFER, 4          # (tests) queued as for the thread, merged by this one later
 .set DEDUP_SYNC, 3           # (tests) made as it is, then merged as the thread would, at once
-.set N_CANON, -8            # tuples and lists: the word before the node - the canonical
+.set N_CANON, -8            # tuples and lists (hc_prefix): the word before the node - the canonical
                             # node equal to it (itself when it is), 0 not known yet
 
 .set NODE_INT_SIZE, 32
@@ -281,16 +281,17 @@
 .macro VEQ reg, op
         cmp \reg, \op
         je .Lveq_done\@
-        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER
-        jne .Lveq_slow\@
-        test rsp, rsp                   # (ZF clear: different)
-        jmp .Lveq_done\@
+        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER + 1
+        jae .Lveq_slow\@               # (DEDUP_EAGER: below, ZF clear - different)
+.Lveq_done\@:
+        .pushsection .text.unlikely, "ax"       # (out of the way of the hot code)
 .Lveq_slow\@:
         push \op
         push \reg
         call veq_stack
         lea rsp, [rsp + 16]
-.Lveq_done\@:
+        jmp .Lveq_done\@
+        .popsection
 .endm
 
 .macro STACK_CHECK

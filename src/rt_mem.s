@@ -39,6 +39,7 @@ FUNC rt_init
         test rax, rax
         setnz byte ptr [rip + chunk_poison]
         call simd_init
+        call dedup_init                 # (before any node)
         call str_init
         call opcodes_init
         # the global context: bound while the constants get made, and left

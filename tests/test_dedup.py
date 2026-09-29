@@ -11,7 +11,7 @@ included, so that the races have the chance to happen on one core too.
 --compact compacts the arena at every round of the simplification
 (PANORAMIX_COMPACT_MIB=1: the merging thread kept away, its queue
 dropped). The CPU time of each mode is summed."""
-import glob, os, subprocess, sys
+import glob, os, resource, subprocess, sys
 
 here = os.path.dirname(os.path.abspath(__file__))
 root = os.path.dirname(here)
@@ -46,12 +46,17 @@ for d in dirs:
                 env["PANORAMIX_SIGDB"] = db
             if compact:
                 env["PANORAMIX_COMPACT_MIB"] = "1"
+            r0 = resource.getrusage(resource.RUSAGE_CHILDREN)
             p = subprocess.Popen([panasm, "decompile", f, "--no-color", "-j", jobs],
                                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env)
-            out = p.stdout.read()
-            _, st, ru = os.wait4(p.pid, 0)
-            cpu[m] += ru.ru_utime + ru.ru_stime
-            outs[m] = (st, out)
+            try:
+                out, _ = p.communicate(timeout=600)
+            except subprocess.TimeoutExpired:   # (a deadlock)
+                p.kill()
+                out = p.communicate()[0] + b"(timed out)"
+            r1 = resource.getrusage(resource.RUSAGE_CHILDREN)
+            cpu[m] += r1.ru_utime + r1.ru_stime - r0.ru_utime - r0.ru_stime
+            outs[m] = (p.returncode, out)
         for m in modes[1:]:
             if outs[m] != outs[modes[0]]:
                 bad.append("%s (%s)" % (os.path.basename(f)[:-4], m))

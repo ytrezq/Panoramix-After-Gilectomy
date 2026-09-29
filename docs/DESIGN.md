@@ -830,5 +830,9 @@ elements replaced by their canonical nodes - written only when they
 change - and a delay of a few thousand nodes behind the queue's head
 didn't change that). The duplicates are allocated before being merged
 (5% more memory), and the arena doesn't give them back until a
-compaction. And the infrastructure costs `eager` 1 to 3% on the model
-(`VEQ`, the canonical word, the checks of the mode).
+compaction. And the infrastructure costs `eager` 1.1 to 1.5% on the
+model (`VEQ`'s check of the mode when the pointers differ - its slow
+part out of line -, the maps' check before `canon`, `mk_seq`'s): the
+canonical word is only there when the process runs another mode
+(`hc_prefix`), and `seq_equal` and `values_equal` know that two
+different hash-consed tuples differ.

@@ -139,6 +139,8 @@ FUNC values_equal
         xor eax, eax
         ret
 .Lveq_seq:
+        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER
+        je .Lveq_no                     # (hash-consed: different pointers, different)
         mov rax, [rdi + N_HASH]
         cmp rax, [rsi + N_HASH]
         jne .Lveq_no
@@ -173,7 +175,8 @@ FUNC seq_equal
         cmp r8, r9
         je 1b
         # different pointers: equal as two big ints of the same value, or
-        # two tuples with the same canonical node
+        # (not hash-consed: DEDUP_KSM...) two tuples with the same
+        # canonical node
         test r8b, 1
         jnz .Lseq_no
         test r9b, 1
@@ -182,7 +185,17 @@ FUNC seq_equal
         jz .Lseq_no
         test r9, r9
         jz .Lseq_no
-        ENTER
+        mov r10, [r8 + N_HASH]
+        cmp r10, [r9 + N_HASH]
+        jne .Lseq_no
+        mov r10d, [r8 + N_KIND]
+        cmp r10d, [r9 + N_KIND]
+        jne .Lseq_no
+        cmp r10d, K_INT
+        je 3f
+        cmp qword ptr [r15 + CTX_DEDUP], DEDUP_EAGER
+        je .Lseq_no
+3:      ENTER
         mov rbx, rdi
         mov r12, rdx
         mov r13, rcx
@@ -369,9 +382,11 @@ FUNC mk_seq
         and r12, r13
         jmp .Lmk_probe
 .Lmk_new:
-        # arena_alloc_raw's bump, here (the canonical word before the node)
+        # arena_alloc_raw's bump, here (the canonical word before the node,
+        # when some context doesn't hash-cons: hc_prefix)
         mov rsi, [rsp + 8]
-        lea rsi, [rsi*8 + N_DATA + 8 + 15]
+        lea rsi, [rsi*8 + N_DATA + 15]
+        add rsi, [rip + hc_prefix]
         and rsi, -16
         mov rax, [r15 + CTX_ARENA_CUR]
         lea rcx, [rax + rsi]
@@ -379,9 +394,11 @@ FUNC mk_seq
         ja .Lmk_alloc_slow
         mov [r15 + CTX_ARENA_CUR], rcx
 .Lmk_alloc_done:
+        cmp qword ptr [rip + hc_prefix], 0
+        je 1f
         add rax, 8
         mov [rax + N_CANON], rax        # (its own canonical node)
-        mov rcx, [rsp]
+1:      mov rcx, [rsp]
         mov [rax + N_KIND], ecx
         mov rcx, [rsp + 8]
         mov [rax + N_AUX], ecx
@@ -416,7 +433,8 @@ FUNC mk_seq
 .Lmk_alloc_slow:
         mov rdi, [rsp + 8]              # (a new chunk: arena_alloc_raw)
         shl rdi, 3
-        add rdi, N_DATA + 8
+        add rdi, N_DATA
+        add rdi, [rip + hc_prefix]
         call arena_alloc_raw
         jmp .Lmk_alloc_done
 .Lmk_provisional:
@@ -478,6 +496,18 @@ ENDF mk_seq
 
 # dedup_mode() -> rax: DEDUP_* of the contexts of the functions, from
 # $PANORAMIX_DEDUP (eager, ksm, lazy; read once)
+# dedup_init(): the mode read, before any node is made: the tuples of
+# every context get the canonical word before them (hc_prefix) unless
+# they all hash-cons
+FUNC dedup_init
+        ENTER
+        call dedup_mode
+        test rax, rax
+        jz 1f
+        mov qword ptr [rip + hc_prefix], 8
+1:      LEAVE
+ENDF dedup_init
+
 FUNC dedup_mode
         mov rax, [rip + dedup_mode_word]
         test rax, rax
@@ -522,6 +552,7 @@ ENDF dedup_mode
         .section .data
         .align 8
 dedup_mode_word: .quad -1
+hc_prefix:      .quad 0                 # 8: the tuples have their N_CANON word
         .section .rodata
 .Ls_env_dedup:  .asciz "PANORAMIX_DEDUP"
 .Ls_dedup_ksm:  .asciz "ksm"
