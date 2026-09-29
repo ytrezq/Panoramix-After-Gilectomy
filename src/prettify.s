@@ -3155,6 +3155,8 @@ FUNC pretty_type
         lea rsi, [rip + C_GRAY]
         call sb_append_c
         B rdi, 3
+        call must_int                   # (a symbolic offset: python's
+        mov rdi, rax                    # TypeError on `off > 0`)
         call int_sign
         cmp eax, 1
         jne 11f

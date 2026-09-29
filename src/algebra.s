@@ -3121,7 +3121,7 @@ FUNC variant_evaluable
         test bl, 1
         jnz .Lve_leaf
         test rbx, rbx
-        jz .Lve_leaf
+        jz .Lve_no                      # (NIL: variant_eval reads a kind)
         cmp dword ptr [rbx + N_KIND], K_TUPLE
         jne .Lve_leaf                   # an int, or a leaf: a variable
         xor r14d, r14d
@@ -3137,8 +3137,11 @@ FUNC variant_evaluable
         JT_CASE ve, OP_ADD, .Lve_node
         JT_CASE ve, OP_MUL, .Lve_node
         JT_CASE ve, OP_MAX, .Lve_node
-        JT_CASE ve, OP_MASK_SHL, .Lve_node
+        JT_CASE ve, OP_MASK_SHL, .Lve_mask
         JT_END ve, OP_COUNT, .Lve_no
+.Lve_mask:
+        cmp dword ptr [rbx + N_AUX], 5  # (variant_eval reads four arguments)
+        jne .Lve_no
 .Lve_node:
         sub rsp, 16
         mov dword ptr [rsp], 0          # the height of the elements
@@ -4518,7 +4521,9 @@ FUNC alg_max_to_add
         call opcode_of
         cmp eax, OP_MAX
         jne .Lmta_asis
-        mov r12d, [rbx + N_AUX]
+        cmp dword ptr [rbx + N_AUX], 2  # (a max of nothing: its terms are
+        jb .Lmta_asis                   # read below, and the count would
+        mov r12d, [rbx + N_AUX]         # wrap for an empty tuple)
         dec r12d                        # number of terms
         lea r13, [rbx + N_DATA + 8]     # the terms
         # every term must be an add or an int

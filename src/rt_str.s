@@ -692,6 +692,90 @@ ENDF sb_append_hex
 .Lhexdigits: .ascii "0123456789abcdef"
         .text
 
+# sb_append_clean(sb, ptr, len): the bytes appended, everything that
+# isn't printable ASCII as \xNN (the backslash too). For text that comes
+# from outside and ends up on a terminal - what a node answers: an error
+# object, a result that isn't code, an HTTP reason. The contract's own
+# strings go through pretty_bignum, which takes only printable bytes.
+FUNC sb_append_clean
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        xor r14d, r14d
+1:      cmp r14, r13
+        jae 9f
+        mov [rsp], r14                  # a run of bytes that can go as they are
+2:      cmp r14, r13
+        jae 3f
+        movzx eax, byte ptr [r12 + r14]
+        cmp al, ' '
+        jb 3f
+        cmp al, 0x7e
+        ja 3f
+        cmp al, '\\'
+        je 3f
+        inc r14
+        jmp 2b
+3:      mov rdx, r14
+        sub rdx, [rsp]
+        jz 4f
+        mov rdi, rbx
+        mov rsi, r12
+        add rsi, [rsp]
+        call sb_append
+4:      cmp r14, r13
+        jae 9f
+        movzx esi, byte ptr [r12 + r14]
+        mov rdi, rbx
+        call sb_append_byte_hex
+        inc r14
+        jmp 1b
+9:      add rsp, 16
+        LEAVE
+ENDF sb_append_clean
+
+# sb_append_clean_c(sb, cstr): sb_append_clean of a NUL-terminated string
+FUNC sb_append_clean_c
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov rdi, rsi
+        call strlen@PLT
+        mov rdi, rbx
+        mov rsi, r12
+        mov rdx, rax
+        call sb_append_clean
+        LEAVE
+ENDF sb_append_clean_c
+
+# sb_append_byte_hex(sb, byte): \xNN
+FUNC sb_append_byte_hex
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov eax, esi
+        mov byte ptr [rsp], '\\'
+        mov byte ptr [rsp + 1], 'x'
+        lea rcx, [rip + .Lhexdigits]
+        mov edx, eax
+        shr edx, 4
+        and edx, 15
+        mov dl, [rcx + rdx]
+        mov [rsp + 2], dl
+        mov edx, eax
+        and edx, 15
+        mov dl, [rcx + rdx]
+        mov [rsp + 3], dl
+        mov rdi, rbx
+        mov rsi, rsp
+        mov edx, 4
+        call sb_append
+        add rsp, 16
+        LEAVE
+ENDF sb_append_byte_hex
+
 # sb_append_int(sb, v, base): an integer value (small or big), base 10 or 16
 # (16 gives 0x..., negative numbers get a leading '-')
 FUNC sb_append_int

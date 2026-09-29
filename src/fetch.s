@@ -804,7 +804,7 @@ FUNC rpc_http
         jnz 21f
         mov rsi, r12                    # (none: "")
 21:     mov rdi, [rsp + RH_RESP]
-        call sb_append_c
+        call sb_append_clean_c
         mov rdi, [rsp + RH_RESP]
         lea rsi, [rip + .Ls_for_url]
         call sb_append_c
@@ -817,7 +817,7 @@ FUNC rpc_http
         call sb_append_c
         mov rdi, [rsp + RH_RESP]
         mov rsi, rbx
-        call sb_append_c
+        call sb_append_clean_c
 4:      mov rdi, [rsp + RH_ANS]
         call free@PLT
         mov eax, RPC_FAILED
@@ -835,7 +835,7 @@ FUNC rpc_http
         mov edx, 200
 1:      mov rdi, [rsp + RH_RESP]
         mov rsi, [rsp + RH_ANS]
-        call sb_append
+        call sb_append_clean
         mov rdi, [rsp + RH_ANS]
         call free@PLT
         mov eax, RPC_FAILED
@@ -894,7 +894,7 @@ FUNC rpc_code
         mov rsi, r14
         mov rdx, [rsp]
         sub rdx, r14
-        call sb_append
+        call sb_append_clean
         jmp .Lrc_failed
 1:      mov rdi, rbx
         mov rsi, r12
@@ -937,7 +937,7 @@ FUNC rpc_code
         mov rsi, r14
         mov rdx, [rsp]
         sub rdx, r14
-        call sb_append
+        call sb_append_clean
         jmp .Lrc_failed
 .Lrc_not_rpc:
         mov rdi, r13
@@ -952,7 +952,7 @@ FUNC rpc_code
         mov edx, 200
 3:      mov rdi, r13
         mov rsi, rbx
-        call sb_append
+        call sb_append_clean
 .Lrc_failed:
         mov eax, RPC_FAILED
         add rsp, 16

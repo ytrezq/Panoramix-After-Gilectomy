@@ -74,6 +74,46 @@ else
     echo "ok   fetch_address"
 fi
 
+# a node that answers with terminal escape sequences: its text ends up on
+# a terminal, so it is escaped (the contract's own constants can't hold
+# ESC - pretty_bignum takes only printable bytes - but a node's answer is
+# bytes from the network)
+if command -v python3 > /dev/null; then
+    python3 - "$tmp" <<'EOF' &
+import http.server, sys, threading, time
+RAW = (b'{"jsonrpc":"2.0","id":1,"error":{"code":-1,"message":'
+       b'"\x1b]0;pwned\x07\x1b[2J\x1b[31mGOTCHA\x1b[0m\r\nfake"}}')
+class H(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        self.rfile.read(int(self.headers.get('Content-Length', 0)))
+        self.send_response(200)
+        self.send_header('Content-Length', str(len(RAW)))
+        self.end_headers()
+        self.wfile.write(RAW)
+    def log_message(self, *a):
+        pass
+srv = http.server.HTTPServer(('127.0.0.1', 8601), H)
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+time.sleep(30)
+EOF
+    node=$!
+    sleep 2
+    WEB3_PROVIDER_URI=http://127.0.0.1:8601 PANORAMIX_LOG=error timeout 30 \
+        "$PANASM" decompile 0xdAC17F958D2ee523a2206206994597C13D831ec7 \
+        > "$tmp/node.out" 2>&1
+    rc=$?
+    kill $node 2> /dev/null
+    if crashed $rc; then
+        echo "FAIL node_escapes: rc=$rc"
+        fail=1
+    elif grep -q $'\x1b' "$tmp/node.out"; then
+        echo "FAIL node_escapes: an escape sequence of the node's reached the output"
+        fail=1
+    else
+        echo "ok   node_escapes"
+    fi
+fi
+
 # the signature dump: a string bigger than the blob it is put in (it was
 # grown once, not until the string fits), and values nested deeper than
 # the stack (js_skip recurses)

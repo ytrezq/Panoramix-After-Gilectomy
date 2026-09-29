@@ -751,10 +751,21 @@ FUNC opcode_of
         ret
 ENDF opcode_of
 
-# str_id(strnode) -> eax: the opcode id of a string node
+# str_id(v) -> eax: the opcode id of a string node, 0 for anything else.
+# The patterns that bind the head of a sequence (`(':op', ...)`) bind
+# whatever is there, and an expression's head is a string only by
+# convention: a count read as an id would index the opcode tables.
 FUNC str_id
+        test dil, 1
+        jnz 1f
+        test rdi, rdi
+        jz 1f
+        cmp dword ptr [rdi + N_KIND], K_STR
+        jne 1f
         mov eax, [rdi + N_AUX]
         and eax, STR_ID_MASK
+        ret
+1:      xor eax, eax
         ret
 ENDF str_id
 

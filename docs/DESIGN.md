@@ -838,6 +838,13 @@ The rest, and what they cost:
   is one allocation's overshoot; every shift and exponent that reaches
   GMP is clamped (`shift_amount`, `pow2`, `clamp_bits`, `powm` mod
   2^256), so none of them is the contract's number.
+- A node's answer is bytes from the network, and its text ends up on a
+  terminal: the error object, a `result` that isn't code, the answer
+  when it isn't JSON-RPC at all, and the HTTP reason. They went through
+  unescaped, so a node could write terminal escape sequences -- clear the
+  screen, set the title, colour its own text. They go through
+  `sb_append_clean` now, which writes anything that isn't printable
+  ASCII as `\xNN`.
 - A string constant of the contract can hold `\t \n \v \f \r`
   (`pretty_bignum` takes them as printable), so it can forge lines in
   the text - `def something(...)`, a comment. ESC is not among them, so
@@ -845,6 +852,21 @@ The rest, and what they cost:
   everything (`json_string`). Python does the same, and the text follows
   python, so it is left as it is and `tests/security.sh` checks that a
   constant of newlines forges nothing that reads as a function.
+
+A second pass closed the shapes the readers could reach only in theory
+-- an expression whose head or arity isn't what its opcode implies. None
+of them has a path from bytecode that I could find, and each is one
+comparison: `str_id` answers 0 for anything that isn't a string (the
+patterns that bind a head, `(':op', ...)`, bind whatever is there, and a
+tuple's count read as an opcode id would index the tables);
+`variant_evaluable` refuses NIL and a `mask_shl` that isn't five
+elements (`variant_eval` reads four arguments from it);
+`alg_max_to_add` wants a `max` with at least one term (an empty one read
+past the tuple, and `N_AUX` of 0 wrapped its count); and `pretty_type`
+puts a storage offset through `must_int`, python's TypeError, where a
+symbolic one would have been read as an mpz -- the one of these with a
+consequence beyond a crash, since `mpz_get_str` of a bogus limb pointer
+prints whatever is there.
 
 What the review found safe is as much of the answer: the loader's scans
 (truncated `PUSH` data, jumpdests, targets inside data), the symbolic
