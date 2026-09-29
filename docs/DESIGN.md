@@ -347,14 +347,14 @@ timeouts (60 s per step, 180 s per function) are scaled by
 the timeouts pypy hits and the assembly doesn't (Wyvern: 20x).
 
 The whole corpus (30 contracts) decompiles identically to pypy's
-references with the signature database; `panasm` takes 8.7 s of CPU
+references with the signature database; `panasm` takes 6.9 s of CPU
 for all of them (one thread each) where pypy takes ~12 minutes.
 
 A second corpus comes from the compiled artifacts npm packages ship
 (`tests/corpus_from_npm.py`: OpenZeppelin 2/3/4, Uniswap v2/v3, Aave v3,
 Gnosis Safe, 0x - 407 runtime bytecodes, from solc 0.5 to 0.8, with
 libraries, mocks and proxies). All of them decompile identically to
-pypy's output (34 s of CPU against 57 minutes), with one intended
+pypy's output (27 s of CPU against 57 minutes), with one intended
 difference:
 python 3.11 (and pypy) refuse `str()` of an integer of more than 4300
 digits, which `replace_mem` does on the lines of a trace, so python
@@ -565,7 +565,9 @@ of the instructions). 19.7G instructions to 17.7G. (Remembering
 traces they get change all over between two calls -, nor did walking
 only the subtrees of the VM's tree that changed since the last walk,
 reusing the rest of the last list: at every round the nodes run are all
-over the tree, and the paths to them are most of it.)
+over the tree, and the paths to them are most of it.) The npm corpus
+takes 27.1 s of CPU (32.1 s before this round, on the same machine),
+the mainnet one 6.9 s (8.0 s).
 
 `merge_branches` asks for the common ancestor of every pair of nodes at
 the same jumpdest, round after round: python walks up from both (the

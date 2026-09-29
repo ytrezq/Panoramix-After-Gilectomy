@@ -6,7 +6,7 @@ decompiled text, with a thin CPython wrapper and a command line tool. It
 produces the same text as the python implementation (checked on two
 corpora - 30 mainnet contracts and 407 bytecodes of npm packages -
 against pypy's output, with the signature database), in about a
-hundredth of pypy's time (34 s of CPU for the 407 where pypy takes 57
+hundredth of pypy's time (27 s of CPU for the 407 where pypy takes 57
 minutes) and a fraction of its memory: the functions of a contract are
 decompiled on threads sharing one address space (no GIL, no
 processes), integers are GMP's, the expressions are hash-consed.
