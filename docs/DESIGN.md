@@ -346,7 +346,14 @@ pypy, to diff against `panasm decompile --no-color`.
 `make coverage` builds `build/cov/` - the tool and the module - with a
 counter of the calls of every function (`COV_COUNT` in `FUNC`: `pushf`,
 an increment, `popf`), written at exit to `$PANORAMIX_COVERAGE`;
-`tools/cov_report.py` lists the functions no run called.
+`tools/cov_report.py` lists the functions no run called. The two
+corpora, the random unit tests and a run of the fuzzer call 887 of the
+999 functions there were; the functions no one called any more went, and
+the rest are the C interface, the fetching of an address's code, the
+building of the signature database, the test hooks, `--repr`, the
+watchdog's expiry, the AVX2 hashing where AVX-512 is there, and python's
+own unreachable code (`loop_to_setmem_from_storage` past
+`only_add_in_expr` of a range, which is always false).
 
 Python's nondeterminism had to be removed on its side first (the order
 of the terms of a max, the variants of an expression, the substitution
