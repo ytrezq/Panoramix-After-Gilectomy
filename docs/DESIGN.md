@@ -770,3 +770,12 @@ and -1% on the model (1.5% more instructions for the chunk of an index,
 12 to 20% fewer L2 misses). Contiguous entries copied at each doubling
 were worse than the old tables (+1 to 3%: the copies and their garbage),
 and so were slots grown by two past 4096 (+0.1 to 1.5%).
+
+Tried, and left on the branch `uksm`: the duplicates merged by a thread
+of their own, as UKSM merges pages (`PANORAMIX_DEDUP=ksm`), or when they
+are first compared (`lazy`), instead of the hash-consing at creation -
+all modes give the same texts, but the thread costs 27% of wall time and
+38% of CPU at -j 1 on the npm corpus (the job's thread merges most nodes
+itself, when it compares them soon after making them), and its
+infrastructure 1 to 3% to the hash-consing. See that branch's
+DESIGN.md.
