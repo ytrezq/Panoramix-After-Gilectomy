@@ -36,7 +36,8 @@ database, liblzma. Everything else is assembly (GNU as, Intel syntax).
     src/loops.s, cleanup.s, rewriter.s, simplify.s   the simplifier (simplify.py, postprocess.py)
     src/folder.s          the folder (folder.py)
     src/sigs.s            signatures as the printer needs them, get_param_name, colors
-    src/sigdb.s           the signature database: abi_dump.xz -> a flat mmap'ed file
+    src/sigdb.s           the signature database: abi_dump.xz -> a flat mmap'ed file,
+                          built again when the dump changes (src/sha256.s: its version)
     src/prettify.s, pretty_line.s   the printer (prettify.py)
     src/function.s        Function (function.py)
     src/sparser.s         the storage (sparser.py)
@@ -61,7 +62,8 @@ database, liblzma. Everything else is assembly (GNU as, Intel syntax).
 Build: `make` (needs python3 headers for the module). `build/panasm`
 is the CLI, `build/panoramix_asm*.so` the module.
 
-    panasm build-db panoramix/data/abi_dump.xz    # once: the signature database
+    panasm build-db panoramix/data/abi_dump.xz    # once: the signature database (built
+                                                  # again when that dump, or $PANORAMIX_ABI_DUMP, changes)
     panasm decompile contract.hex [-j N] [--function NAME] [--no-color] [--json] [--verbose] [--explain]
     panasm decompile 0xADDRESS,other.hex      # an address's code from a node; lists, as python's
     python3 -c 'import panoramix_asm; print(panoramix_asm.decompile(open("contract.hex").read()))'

@@ -4,8 +4,11 @@
 # with liblzma and the small JSON parser below, into a flat file that is
 # mmap'ed and searched by dichotomy afterwards:
 #
-#   header:  "PANSIGS1" (8), u32 count, u32 strings size, u32 inputs
-#            count, u32 pad                                    (24 bytes)
+#   header:  "PANSIGS2" (8), u32 count, u32 strings size, u32 inputs
+#            count, u32 the dump's version (python's dump_version: the
+#            first 4 bytes of its sha256), u64 its size, u64 its mtime
+#            (ns), u32 its absolute path (an offset in the strings, -1
+#            none), u32 pad                                    (48 bytes)
 #   entries: count * { u32 selector, u32 name, u32 inputs, u32 ninputs }
 #            (name: an offset in the strings; inputs: an index in the
 #            inputs)
@@ -13,7 +16,12 @@
 #   strings: NUL-terminated, deduplicated
 #
 # The file lives in the cache directory ($XDG_CACHE_HOME/panoramix or
-# ~/.cache/panoramix, as python's), or where $PANORAMIX_SIGDB points.
+# ~/.cache/panoramix, as python's), or where $PANORAMIX_SIGDB points. As
+# python's, it is built again when the dump it came from changes (the one
+# $PANORAMIX_ABI_DUMP names, else the one it was built from: its size and
+# mtime, then its version), or when it isn't a database of this format
+# and $PANORAMIX_ABI_DUMP names a dump - into <file>.<pid>.tmp, renamed
+# once complete.
 
 .include "defs.inc"
 
@@ -21,7 +29,11 @@
         .set SH_COUNT, 8
         .set SH_STRINGS, 12
         .set SH_NINPUTS, 16
-        .set SH_SIZEOF, 24
+        .set SH_VERSION, 20
+        .set SH_DUMPSIZE, 24
+        .set SH_DUMPMTIME, 32
+        .set SH_DUMPPATH, 40
+        .set SH_SIZEOF, 48
         .set SE_SELECTOR, 0
         .set SE_NAME, 4
         .set SE_INPUTS, 8
@@ -42,7 +54,8 @@
         .set LZMA_CONCATENATED, 8
 
         .section .rodata
-.Ls_magic:      .ascii "PANSIGS1"
+.Ls_magic:      .ascii "PANSIGS2"
+.Ls_env_dump:   .asciz "PANORAMIX_ABI_DUMP"
 .Ls_env_db:     .asciz "PANORAMIX_SIGDB"
 .Ls_env_xdg:    .asciz "XDG_CACHE_HOME"
 .Ls_env_home:   .asciz "HOME"
@@ -138,13 +151,18 @@ ENDF cache_dir_path
 
 # --- loading ---
 
-# sigdb_load() -> eax: the database mapped (once), 1 if there is one
+# sigdb_load() -> eax: the database mapped (once), 1 if there is one.
+# Built again first when its dump changed, or built when there is none (or
+# not one of this format) and $PANORAMIX_ABI_DUMP names the dump, as
+# python's check_supplements does
 FUNC sigdb_load
         ENTER
-        sub rsp, 160
+        sub rsp, 176
         .set SL_ST, 0                   # struct stat (144 bytes)
         .set SL_SB, 144
         .set SL_FD, 152
+        .set SL_DUMP, 160               # the dump to build from (an sb), or 0
+        .set SL_BUILT, 168              # built once already
         cmp qword ptr [rip + sigdb_state], 0
         jne .Lsl_done
         lea rdi, [rip + sigdb_lock]
@@ -155,6 +173,9 @@ FUNC sigdb_load
         mov [rsp + SL_SB], rax
         mov rdi, rax
         call sigdb_path
+        mov qword ptr [rsp + SL_DUMP], 0
+        mov qword ptr [rsp + SL_BUILT], 0
+.Lsl_open:
         mov rax, [rsp + SL_SB]
         mov rdi, [rax + SB_BUF]
         xor esi, esi                    # O_RDONLY
@@ -168,7 +189,7 @@ FUNC sigdb_load
         mov rax, [rsp + SL_ST + 48]     # st_size
         mov [rip + sigdb_size], rax
         cmp rax, SH_SIZEOF
-        jb .Lsl_bad
+        jb .Lsl_bad_fd
         xor edi, edi
         mov rsi, rax
         mov edx, 1                      # PROT_READ
@@ -181,13 +202,12 @@ FUNC sigdb_load
         call close@PLT
         cmp rbx, -1
         je .Lsl_none
-        mov [rip + sigdb_base], rbx
         lea rdi, [rip + .Ls_magic]
         mov rsi, rbx
         mov edx, 8
         call memcmp@PLT
         test eax, eax
-        jnz .Lsl_bad
+        jnz .Lsl_bad_map
         # the sections must fill the file exactly, the strings end with a
         # NUL (a file cut short by an interrupted build is refused)
         mov eax, [rbx + SH_COUNT]
@@ -197,13 +217,55 @@ FUNC sigdb_load
         add rax, rcx
         mov ecx, [rbx + SH_STRINGS]
         test ecx, ecx
-        jz .Lsl_bad
+        jz .Lsl_bad_map
         add rax, rcx
         add rax, SH_SIZEOF
         cmp rax, [rip + sigdb_size]
-        jne .Lsl_bad
+        jne .Lsl_bad_map
         cmp byte ptr [rbx + rax - 1], 0
-        jne .Lsl_bad
+        jne .Lsl_bad_map
+        # the dump it came from: the one of $PANORAMIX_ABI_DUMP, or its own
+        cmp qword ptr [rsp + SL_BUILT], 0
+        jne .Lsl_take                   # (just built)
+        call sb_new
+        mov [rsp + SL_DUMP], rax
+        lea rdi, [rip + .Ls_env_dump]
+        call getenv@PLT
+        test rax, rax
+        jz 1f
+        cmp byte ptr [rax], 0
+        je 1f
+        mov rdi, [rsp + SL_DUMP]
+        mov rsi, rax
+        call sb_append_c
+        jmp 2f
+1:      mov eax, [rbx + SH_DUMPPATH]
+        cmp eax, -1
+        je .Lsl_take
+        cmp eax, [rbx + SH_STRINGS]
+        jae .Lsl_take
+        mov ecx, [rbx + SH_COUNT]
+        imul rcx, rcx, SE_SIZEOF
+        mov edx, [rbx + SH_NINPUTS]
+        imul rdx, rdx, SI_SIZEOF
+        lea rsi, [rbx + rcx + SH_SIZEOF]
+        add rsi, rdx                    # the strings
+        add rsi, rax
+        mov rdi, [rsp + SL_DUMP]
+        call sb_append_c
+2:      mov rdi, rbx
+        mov rax, [rsp + SL_DUMP]
+        mov rsi, [rax + SB_BUF]
+        call sigdb_dump_changed
+        test eax, eax
+        jz .Lsl_take
+        # built from another dump: again, from this one
+        mov rdi, rbx
+        mov rsi, [rip + sigdb_size]
+        call munmap@PLT
+        jmp .Lsl_build
+.Lsl_take:
+        mov [rip + sigdb_base], rbx
         mov eax, [rbx + SH_STRINGS]
         mov [rip + sigdb_nstrings], rax
         mov eax, [rbx + SH_NINPUTS]
@@ -222,16 +284,30 @@ FUNC sigdb_load
         lea rax, [rip + sigdb_lookup]
         mov [rip + sig_db_hook], rax
         mov qword ptr [rip + sigdb_state], 1
-        mov edi, LOG_INFO
+        mov edi, LOG_DEBUG
         lea rsi, [rip + .Ls_logname]
         lea rdx, [rip + .Ls_loaded]
         mov rcx, [rip + sigdb_count]
         mov rax, [rsp + SL_SB]
         mov r8, [rax + SB_BUF]
         call log_fmt
-        jmp .Lsl_unlock
+        jmp .Lsl_free
+.Lsl_bad_fd:
+        mov rdi, [rsp + SL_FD]
+        call close@PLT
+        jmp .Lsl_bad
+.Lsl_bad_map:
+        mov rdi, rbx
+        mov rsi, [rip + sigdb_size]
+        call munmap@PLT
 .Lsl_bad:
-        mov edi, LOG_WARNING
+        cmp qword ptr [rsp + SL_BUILT], 0
+        jne 3f
+        lea rdi, [rsp + SL_DUMP]
+        call sigdb_env_dump
+        test eax, eax
+        jnz .Lsl_build
+3:      mov edi, LOG_WARNING
         lea rsi, [rip + .Ls_logname]
         lea rdx, [rip + .Ls_bad_db]
         mov rax, [rsp + SL_SB]
@@ -239,13 +315,39 @@ FUNC sigdb_load
         call log_fmt
         jmp 1f
 .Lsl_none:
-        mov edi, LOG_WARNING
+        cmp qword ptr [rsp + SL_BUILT], 0
+        jne 3f
+        lea rdi, [rsp + SL_DUMP]
+        call sigdb_env_dump
+        test eax, eax
+        jnz .Lsl_build
+3:      mov edi, LOG_WARNING
         lea rsi, [rip + .Ls_logname]
         lea rdx, [rip + .Ls_no_db]
         mov rax, [rsp + SL_SB]
         mov rcx, [rax + SB_BUF]
         call log_fmt
 1:      mov qword ptr [rip + sigdb_state], 2
+        jmp .Lsl_free
+.Lsl_build:
+        # (once: a build that fails, or a file still not right after it,
+        # leaves the functions unknown)
+        cmp qword ptr [rsp + SL_BUILT], 0
+        jne 1b
+        mov qword ptr [rsp + SL_BUILT], 1
+        mov rax, [rsp + SL_DUMP]
+        mov rdi, [rax + SB_BUF]
+        mov rax, [rsp + SL_SB]
+        mov rsi, [rax + SB_BUF]
+        call sigdb_build
+        jmp .Lsl_open
+.Lsl_free:
+        mov rdi, [rsp + SL_SB]
+        call sb_free
+        mov rdi, [rsp + SL_DUMP]
+        test rdi, rdi
+        jz .Lsl_unlock
+        call sb_free
 .Lsl_unlock:
         lea rdi, [rip + sigdb_lock]
         call spin_unlock
@@ -253,9 +355,37 @@ FUNC sigdb_load
         xor eax, eax
         cmp qword ptr [rip + sigdb_state], 1
         sete al
-        add rsp, 160
+        add rsp, 176
         LEAVE
 ENDF sigdb_load
+
+# sigdb_env_dump(&sb) -> eax: 1 when $PANORAMIX_ABI_DUMP names a dump,
+# then in *sb (made if 0)
+FUNC sigdb_env_dump
+        ENTER
+        mov rbx, rdi
+        lea rdi, [rip + .Ls_env_dump]
+        call getenv@PLT
+        test rax, rax
+        jz 1f
+        cmp byte ptr [rax], 0
+        je 1f
+        mov r12, rax
+        mov rdi, [rbx]
+        test rdi, rdi
+        jnz 2f
+        call sb_new
+        mov [rbx], rax
+        mov rdi, rax
+2:      call sb_reset
+        mov rdi, [rbx]
+        mov rsi, r12
+        call sb_append_c
+        mov eax, 1
+        LEAVE
+1:      xor eax, eax
+        LEAVE
+ENDF sigdb_env_dump
 
 # spin_lock(&word) / spin_unlock(&word)
 FUNC spin_lock
@@ -406,7 +536,11 @@ ENDF sigdb_lookup
         .set BD_TABLECAP, 80
         .set BD_TABLECOUNT, 88
         .set BD_LINES, 96
-        .set BD_SIZEOF, 104
+        .set BD_VERSION, 104            # the dump's version, size, mtime, path (the header's)
+        .set BD_DUMPSIZE, 112
+        .set BD_DUMPMTIME, 120
+        .set BD_DUMPPATH, 128
+        .set BD_SIZEOF, 136
 
 # sigdb_build(xz_path, out_path) -> eax: 0 on success. out_path 0 means
 # the cache path.
@@ -473,6 +607,11 @@ FUNC sigdb_build
         mov qword ptr [rsp + BF_BUFLEN], 0
         call builder_new
         mov [rsp + BF_BD], rax
+        mov rdi, rax
+        mov rsi, [rsp + BF_XZ]
+        mov rdx, [rsp + BF_IN]
+        mov rcx, [rsp + BF_INLEN]
+        call builder_dump
 .Lsb_decode:
         # decode into the free part of the buffer, then take the complete
         # lines out of it
@@ -1139,7 +1278,7 @@ ENDF js_selector
 # builder_write(bd, path) -> eax: the file written (0 on success)
 FUNC builder_write
         ENTER
-        sub rsp, 32
+        sub rsp, SH_SIZEOF
         mov rbx, rdi
         mov r12, rsi
         # the directory, if needed
@@ -1152,6 +1291,13 @@ FUNC builder_write
         mov rdi, rax
         mov rsi, r12
         call sb_append_c
+        mov rdi, r14
+        mov esi, '.'
+        call sb_append_char
+        call getpid@PLT
+        mov rdi, r14
+        mov esi, eax
+        call sb_append_u64
         mov rdi, r14
         lea rsi, [rip + .Ls_tmp_suffix]
         call sb_append_c
@@ -1172,7 +1318,15 @@ FUNC builder_write
         mov [rsp + 12], eax
         mov rax, [rbx + BD_NINPUTS]
         mov [rsp + 16], eax
-        mov dword ptr [rsp + 20], 0
+        mov rax, [rbx + BD_VERSION]
+        mov [rsp + SH_VERSION], eax
+        mov rax, [rbx + BD_DUMPSIZE]
+        mov [rsp + SH_DUMPSIZE], rax
+        mov rax, [rbx + BD_DUMPMTIME]
+        mov [rsp + SH_DUMPMTIME], rax
+        mov rax, [rbx + BD_DUMPPATH]
+        mov [rsp + SH_DUMPPATH], eax
+        mov dword ptr [rsp + SH_DUMPPATH + 4], 0
         mov edi, r13d
         mov rsi, rsp
         mov edx, SH_SIZEOF
@@ -1211,16 +1365,102 @@ FUNC builder_write
         test eax, eax
         jnz .Lbw_fail
         xor eax, eax
-        add rsp, 32
+        add rsp, SH_SIZEOF
         LEAVE
 .Lbw_write_fail:
         mov edi, r13d
         call close@PLT
 .Lbw_fail:
+        mov rdi, [r14 + SB_BUF]
+        call unlink@PLT                 # (a partial file: gone)
         mov eax, 1
-        add rsp, 32
+        add rsp, SH_SIZEOF
         LEAVE
 ENDF builder_write
+
+# builder_dump(bd, xz_path, data, len): the dump the database comes from
+# (its version from its contents, its size and mtime, its absolute path)
+FUNC builder_dump
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        mov rdi, rdx
+        mov rsi, rcx
+        call dump_version_buf
+        mov [rbx + BD_VERSION], rax
+        mov rdi, r12
+        call file_stamp
+        mov [rbx + BD_DUMPSIZE], rax
+        mov [rbx + BD_DUMPMTIME], rdx
+        mov qword ptr [rbx + BD_DUMPPATH], -1
+        mov rdi, r12
+        xor esi, esi
+        call realpath@PLT
+        test rax, rax
+        jz 1f
+        mov r13, rax
+        mov rdi, rax
+        call strlen@PLT
+        mov rdi, rbx
+        mov rsi, r13
+        mov rdx, rax
+        call builder_string
+        mov [rbx + BD_DUMPPATH], rax
+        mov rdi, r13
+        call free@PLT
+1:      add rsp, 16
+        LEAVE
+ENDF builder_dump
+
+# file_stamp(path) -> rax: its size, rdx: its mtime in ns (rax = -1: no
+# such file)
+FUNC file_stamp
+        ENTER
+        sub rsp, 144
+        mov rsi, rsp
+        call stat@PLT
+        test eax, eax
+        jnz 1f
+        mov rax, [rsp + 88]             # st_mtim
+        imul rax, rax, 1000000000
+        add rax, [rsp + 96]
+        mov rdx, rax
+        mov rax, [rsp + 48]             # st_size
+        add rsp, 144
+        LEAVE
+1:      mov rax, -1
+        xor edx, edx
+        add rsp, 144
+        LEAVE
+ENDF file_stamp
+
+# sigdb_dump_changed(base, dump) -> eax: 1 when the dump isn't the one the
+# mapped database base was built from (its size or mtime differ, and then
+# its version); 0 when it is, or when there is no such file
+FUNC sigdb_dump_changed
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov rdi, rsi
+        call file_stamp
+        cmp rax, -1
+        je 1f
+        cmp rax, [rbx + SH_DUMPSIZE]
+        jne 2f
+        cmp rdx, [rbx + SH_DUMPMTIME]
+        je 1f
+2:      mov rdi, r12
+        call dump_version
+        test eax, eax
+        jz 1f
+        cmp eax, [rbx + SH_VERSION]
+        je 1f
+        mov eax, 1
+        LEAVE
+1:      xor eax, eax
+        LEAVE
+ENDF sigdb_dump_changed
 
 # make_parent_dirs(path): mkdir -p of the directories of a path
 FUNC make_parent_dirs

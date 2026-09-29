@@ -51,7 +51,7 @@ corpus() {      # corpus DIR REFDIR SUFFIX [DIR REFDIR SUFFIX...]: every DIR/*.h
             local name=$(basename "$f" .hex)
             [ -f "$refs/$name$suffix" ] || continue
             n=$((n + 1))
-            if ! PANORAMIX_SIGDB=$PWD/build/abi_db.bin build/panasm decompile "$f" --no-color 2>/dev/null \
+            if ! PANORAMIX_SIGDB=$PWD/build/abi_db.bin PANORAMIX_ABI_DUMP=$dump build/panasm decompile "$f" --no-color 2>/dev/null \
                     | cmp -s - "$refs/$name$suffix"; then
                 bad=$((bad + 1))
                 echo "DIFF $name"
@@ -62,8 +62,8 @@ corpus() {      # corpus DIR REFDIR SUFFIX [DIR REFDIR SUFFIX...]: every DIR/*.h
     [ $bad -eq 0 ] && [ $n -gt 0 ]
 }
 make -s all || exit 1
+dump=$(realpath "${PANORAMIX_ABI_DUMP:-../panoramix/panoramix/data/abi_dump.xz}")
 if [ ! -f build/abi_db.bin ]; then
-    dump=${PANORAMIX_ABI_DUMP:-../panoramix/panoramix/data/abi_dump.xz}
     build/panasm build-db "$dump" build/abi_db.bin 2>/dev/null \
         || { echo "no signature database: set PANORAMIX_ABI_DUMP"; exit 2; }
 fi

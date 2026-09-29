@@ -119,10 +119,12 @@ test_table:
         .quad .Ln_function, tf_function
         .quad .Ln_contract, tf_contract
         .quad .Ln_json_value, tf_json_value
+        .quad .Ln_dump_version, tf_dump_version
         .quad 0, 0
 
         .section .rodata
 .Ln_roundtrip: .asciz "roundtrip"
+.Ln_dump_version: .asciz "dump_version"
 .Ln_json_value: .asciz "json_value"
 .Ln_hash:      .asciz "hash"
 .Ln_str_flags: .asciz "str_flags"
@@ -441,6 +443,16 @@ FUNC tf_ge_zero_many
         call vec_to_tuple
         LEAVE
 ENDF tf_ge_zero_many
+
+# dump_version(path) -> the version of the signature dump (sha256.s)
+FUNC tf_dump_version
+        ENTER
+        lea rdi, [rdi + N_DATA + 4]
+        call dump_version
+        mov rdi, rax
+        call mk_int_i64
+        LEAVE
+ENDF tf_dump_version
 
 FUNC tf_get_sign
         ENTER

@@ -5,12 +5,13 @@
 #
 #   tests/run_corpus.sh [name...]
 #
-# The signature database is built once into build/abi_db.bin from
-# panoramix's data/abi_dump.xz ($PANORAMIX_ABI_DUMP, or the python
-# repository next to this one).
+# The signature database is built into build/abi_db.bin from panoramix's
+# data/abi_dump.xz ($PANORAMIX_ABI_DUMP, or the python repository next to
+# this one), and built again by panasm itself when the dump changes.
 cd "$(dirname "$0")/.."
 DUMP=${PANORAMIX_ABI_DUMP:-../panoramix/panoramix/data/abi_dump.xz}
 export PANORAMIX_SIGDB=$PWD/build/abi_db.bin
+[ -f "$DUMP" ] && export PANORAMIX_ABI_DUMP=$(cd "$(dirname "$DUMP")" && pwd)/$(basename "$DUMP")
 if [ ! -f "$PANORAMIX_SIGDB" ]; then
     [ -f "$DUMP" ] || { echo "no signature dump ($DUMP): set PANORAMIX_ABI_DUMP"; exit 2; }
     build/panasm build-db "$DUMP" "$PANORAMIX_SIGDB" 2>/dev/null || exit 2

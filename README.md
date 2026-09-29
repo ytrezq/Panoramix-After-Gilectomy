@@ -76,6 +76,9 @@ From C: `build/libpanoramix_asm.so` and `include/panoramix_asm.h`
 
 The signature database goes to `$PANORAMIX_SIGDB`, or
 `$XDG_CACHE_HOME/panoramix/abi_db.bin`, or `~/.cache/panoramix/abi_db.bin`.
+As python's, it is built again when the dump it was made from changes
+(`$PANORAMIX_ABI_DUMP`, or the dump `build-db` was given), and built
+from `$PANORAMIX_ABI_DUMP` when there is none.
 `PANORAMIX_LOG=debug|warning|error` sets the log level (coloredlogs'
 format), `PANORAMIX_ISA=scalar|sse2|avx2|avx512` forces the vector loops,
 `PANORAMIX_MAX_MEMORY` caps what one function may take (MiB; by default
