@@ -153,6 +153,29 @@ test_table:
         .quad .Ln_get_sign_m, tf_get_sign_m
         .quad .Ln_max_op_m, tf_max_op_m
         .quad .Ln_min_op_m, tf_min_op_m
+        .quad .Ln_prettify_n, tf_prettify_n
+        .quad .Ln_pretty_line_n, tf_pretty_line_n
+        .quad .Ln_pprint_logic_n, tf_pprint_logic_n
+        .quad .Ln_prettify_f, tf_prettify_f
+        .quad .Ln_get_param_name, tf_get_param_name
+        .quad .Ln_pretty_memory_l, tf_pretty_memory_l
+        .quad .Ln_fix_widths, fix_widths
+        .quad .Ln_sequential_setvars, sequential_setvars
+        .quad .Ln_calldata_params, tf_calldata_params
+        .quad .Ln_canonical_type, tf_canonical_type
+        .quad .Ln_is_dynamic, tf_is_dynamic
+        .quad .Ln_pretty_with_width, pw_with_width
+        .quad .Ln_setmem_value, tf_setmem_value
+        .quad .Ln_split_selector, tf_split_selector
+        .quad .Ln_callee_name, tf_callee_name
+        .quad .Ln_pretty_bytes, tf_pretty_bytes
+        .quad .Ln_find_sig, tf_find_sig
+        .quad .Ln_known_fname, tf_known_fname
+        .quad .Ln_event_abi, tf_event_abi
+        .quad .Ln_sig_lookup, tf_sig_lookup
+        .quad .Ln_abi_names, tf_abi_names
+        .quad .Ln_add_breaks, add_breaks
+        .quad .Ln_continues_from_inside, tf_continues_from_inside
         .quad 0, 0
 
         .section .rodata
@@ -192,6 +215,29 @@ test_table:
 .Ln_get_sign_m: .asciz "get_sign_m"
 .Ln_max_op_m:  .asciz "max_op_m"
 .Ln_min_op_m:  .asciz "min_op_m"
+.Ln_prettify_n: .asciz "prettify_n"
+.Ln_pretty_line_n: .asciz "pretty_line_n"
+.Ln_pprint_logic_n: .asciz "pprint_logic_n"
+.Ln_prettify_f: .asciz "prettify_f"
+.Ln_get_param_name: .asciz "get_param_name"
+.Ln_pretty_memory_l: .asciz "pretty_memory_l"
+.Ln_fix_widths: .asciz "fix_widths"
+.Ln_sequential_setvars: .asciz "sequential_setvars"
+.Ln_calldata_params: .asciz "calldata_params"
+.Ln_canonical_type: .asciz "canonical_type"
+.Ln_is_dynamic: .asciz "is_dynamic"
+.Ln_pretty_with_width: .asciz "pretty_with_width"
+.Ln_setmem_value: .asciz "setmem_value"
+.Ln_split_selector: .asciz "split_selector"
+.Ln_callee_name: .asciz "callee_name"
+.Ln_pretty_bytes: .asciz "pretty_bytes"
+.Ln_find_sig: .asciz "find_sig"
+.Ln_known_fname: .asciz "known_fname"
+.Ln_event_abi: .asciz "event_abi"
+.Ln_sig_lookup: .asciz "sig_lookup"
+.Ln_abi_names: .asciz "abi_names"
+.Ln_add_breaks: .asciz "add_breaks"
+.Ln_continues_from_inside: .asciz "continues_from_inside"
 .Ln_json_value: .asciz "json_value"
 .Ln_hash:      .asciz "hash"
 .Ln_str_flags: .asciz "str_flags"
@@ -2394,5 +2440,280 @@ FUNC pan_test
         pop r15
         ret
 ENDF pan_test
+
+
+# --- the printer's (prettify.py, signatures.py) ---
+
+# tf_none_nil(v) -> rax: the tests' None as NIL (the port's None of the
+# abis), anything else as it is
+FUNC tf_none_nil
+        ENTER
+        mov rbx, rdi
+        call is_none
+        test eax, eax
+        jnz 1f
+        mov rax, rbx
+        LEAVE
+1:      xor eax, eax
+        LEAVE
+ENDF tf_none_nil
+
+# tf_or_none_nil(v) -> rax: NIL as the None special (the results)
+FUNC tf_or_none_nil
+        test rdi, rdi
+        jz 1f
+        mov rax, rdi
+        ret
+1:      lea rax, [rip + sp_none]
+        ret
+ENDF tf_or_none_nil
+
+# (storage, params, x, flags): set_names, then rdx (prettify, pretty_line
+# or pprint_logic) of x with the flags (untagged)
+FUNC tf_with_names
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov rdi, [rbx + N_DATA]
+        call tf_none_nil
+        mov r13, rax
+        mov rdi, [rbx + N_DATA + 8]
+        call tf_none_nil
+        mov rdi, r13
+        mov rsi, rax
+        call set_names
+        mov rdi, [rbx + N_DATA + 16]
+        mov rsi, [rbx + N_DATA + 24]
+        sar rsi, 1
+        call r12
+        LEAVE
+ENDF tf_with_names
+
+FUNC tf_prettify_n
+        lea rsi, [rip + prettify]
+        jmp tf_with_names
+ENDF tf_prettify_n
+
+FUNC tf_pretty_line_n
+        lea rsi, [rip + pretty_line]
+        jmp tf_with_names
+ENDF tf_pretty_line_n
+
+FUNC tf_pprint_logic_n
+        lea rsi, [rip + pprint_logic]
+        jmp tf_with_names
+ENDF tf_pprint_logic_n
+
+# tf_set_func(inputs): a function whose abi has these inputs (None:
+# none) printed (CTX_FUNC)
+FUNC tf_set_func
+        ENTER
+        mov rbx, rdi
+        mov edi, FN_SIZEOF
+        call arena_alloc
+        mov r12, rax
+        mov rdi, rbx
+        call tf_none_nil
+        mov [r12 + FN_INPUTS], rax
+        mov [r15 + CTX_FUNC], r12
+        LEAVE
+ENDF tf_set_func
+
+# (inputs, exp, flags) -> str: prettify with the function's inputs
+FUNC tf_prettify_f
+        ENTER
+        mov rbx, rdi
+        mov rdi, [rbx + N_DATA]
+        call tf_set_func
+        mov rdi, [rbx + N_DATA + 8]
+        mov rsi, [rbx + N_DATA + 16]
+        sar rsi, 1
+        call prettify
+        LEAVE
+ENDF tf_prettify_f
+
+# (inputs, cd, flags) -> get_param_name
+FUNC tf_get_param_name
+        ENTER
+        mov rbx, rdi
+        mov rdi, [rbx + N_DATA]
+        call tf_set_func
+        mov rdi, [rbx + N_DATA + 8]
+        mov rsi, [rbx + N_DATA + 16]
+        sar rsi, 1
+        call get_param_name
+        LEAVE
+ENDF tf_get_param_name
+
+# (exp, flags) -> list of str: list(pretty_memory(...)) (PF_ABI_TEXT: 16)
+FUNC tf_pretty_memory_l
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        sar rsi, 1
+        mov rdi, [rdi + N_DATA]
+        call pretty_memory
+        mov rdi, rax
+        call pm_list
+        LEAVE
+ENDF tf_pretty_memory_l
+
+# inputs -> list of (type, name): calldata_params
+FUNC tf_calldata_params
+        jmp calldata_params
+ENDF tf_calldata_params
+
+# (kind, components) -> str
+FUNC tf_canonical_type
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        jmp canonical_type
+ENDF tf_canonical_type
+
+# (kind, components) -> bool
+FUNC tf_is_dynamic
+        ENTER
+        mov rbx, rdi
+        mov rdi, [rbx + N_DATA + 8]
+        call tf_none_nil
+        mov rsi, rax
+        mov rdi, [rbx + N_DATA]
+        call is_dynamic
+        mov edi, eax
+        call tf_bool
+        LEAVE
+ENDF tf_is_dynamic
+
+# (val, n) -> setmem_value
+FUNC tf_setmem_value
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        jmp setmem_value
+ENDF tf_setmem_value
+
+# (fname, fparams) -> (fname, fparams)
+FUNC tf_split_selector
+        ENTER
+        mov rbx, rdi
+        mov rdi, [rbx + N_DATA]
+        call tf_none_nil
+        mov r12, rax
+        mov rdi, [rbx + N_DATA + 8]
+        call tf_none_nil
+        mov rdi, r12
+        mov rsi, rax
+        call split_selector
+        mov r12, rdx
+        mov rdi, rax
+        call tf_or_none_nil
+        mov r13, rax
+        mov rdi, r12
+        call tf_or_none_nil
+        mov rdi, r13
+        mov rsi, rax
+        call mk2
+        LEAVE
+ENDF tf_split_selector
+
+# (fname, flags) -> str or None
+FUNC tf_callee_name
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        sar rsi, 1
+        mov rdi, [rdi + N_DATA]
+        call callee_name
+        mov rdi, rax
+        call tf_or_none_nil
+        LEAVE
+ENDF tf_callee_name
+
+# (size, val, flags, ctx) -> str
+FUNC tf_pretty_bytes
+        mov rdx, [rdi + N_DATA + 16]
+        sar rdx, 1
+        mov rcx, [rdi + N_DATA + 24]
+        sar rcx, 1
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        jmp pretty_bytes
+ENDF tf_pretty_bytes
+
+# (sigstr, flags) -> str or None: Loader.find_sig
+FUNC tf_find_sig
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        sar rsi, 1
+        mov rdi, [rdi + N_DATA]
+        call find_sig
+        mov rdi, rax
+        call tf_or_none_nil
+        LEAVE
+ENDF tf_find_sig
+
+# (sel, flags) -> str or None
+FUNC tf_known_fname
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        sar rsi, 1
+        mov rdi, [rdi + N_DATA]
+        sar rdi, 1
+        call known_fname
+        mov rdi, rax
+        call tf_or_none_nil
+        LEAVE
+ENDF tf_known_fname
+
+# topic -> the abi entry (name, inputs, type) or None
+FUNC tf_event_abi
+        ENTER
+        call event_abi
+        mov rdi, rax
+        call tf_or_none_nil
+        LEAVE
+ENDF tf_event_abi
+
+# selector -> the database's entry or None (fetch_sig)
+FUNC tf_sig_lookup
+        ENTER
+        sar rdi, 1
+        call sig_db_lookup
+        mov rdi, rax
+        call tf_or_none_nil
+        LEAVE
+ENDF tf_sig_lookup
+
+# hash -> (abi_of's entry, get_func_name, get_func_name colored, get_abi_name)
+FUNC tf_abi_names
+        ENTER
+        sub rsp, 32
+        call abi_of
+        mov [rsp], rax
+        mov rdi, rax
+        xor esi, esi
+        call abi_func_name
+        mov [rsp + 8], rax
+        mov rdi, [rsp]
+        mov esi, PF_COLOR
+        call abi_func_name
+        mov [rsp + 16], rax
+        mov rdi, [rsp]
+        call abi_name
+        mov [rsp + 24], rax
+        mov edi, 4
+        mov rsi, rsp
+        call mk_tuple
+        add rsp, 32
+        LEAVE
+ENDF tf_abi_names
+
+# (path, jd) -> bool
+FUNC tf_continues_from_inside
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call continues_from_inside
+        mov edi, eax
+        call tf_bool
+        LEAVE
+ENDF tf_continues_from_inside
 
         .section .note.GNU-stack,"",@progbits

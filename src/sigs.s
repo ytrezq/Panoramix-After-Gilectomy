@@ -348,6 +348,10 @@ FUNC input_components
         cmp dword ptr [rdi + N_AUX], 3
         jb 1f
         mov rax, [rdi + N_DATA + 16]
+        lea rcx, [rip + sp_none]        # (the tests' None)
+        cmp rax, rcx
+        jne 1f
+        xor eax, eax
 1:      ret
 ENDF input_components
 
@@ -367,8 +371,10 @@ FUNC canonical_type
         ENTER
         mov rbx, rdi
         mov r12, rsi
-        test rsi, rsi
-        jz 1f
+        mov rdi, rsi
+        call is_none
+        test eax, eax
+        jnz 1f
         call sb_new
         mov r13, rax
         mov rdi, rax
@@ -389,8 +395,10 @@ FUNC sb_append_canonical
         mov rbx, rdi
         mov r12, rsi
         mov r13, rdx
-        test r13, r13
-        jz 8f
+        mov rdi, rdx
+        call is_none
+        test eax, eax
+        jnz 8f
         mov rdi, r12
         lea rsi, [rip + .Ls_tuple]
         call str_startswith_c
