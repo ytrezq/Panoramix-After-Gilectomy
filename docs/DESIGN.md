@@ -927,4 +927,4 @@ nodes the other thread was using. The duplicates, allocated before
 being merged, raised the peak of memory by 11% (ENS's NameGriefer, 624
 to 696 MiB) to 22% (Uniswap's NFTDescriptor), and the infrastructure
 cost the hash-consing 1.1 to 1.5%. The hash-consing at creation stays
-the only mode (the code: commit 710c436 and the ones before it).
+the only mode (the code: commit b6986cb and the ones before it).
