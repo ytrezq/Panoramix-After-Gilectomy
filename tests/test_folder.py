@@ -24,6 +24,9 @@ INPUTS = os.path.join(HERE, "..", "build", "fn_inputs")
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     paths = args or sorted(glob.glob(os.path.join(INPUTS, "*.pkl")))
+    if not paths:
+        print("test_folder: skipped, no python inputs in build/fn_inputs (make fn-inputs)")
+        sys.exit(0)
     for p in paths:
         name = os.path.basename(p).rsplit(".", 1)[0]
         rec = pickle.load(open(p, "rb"))

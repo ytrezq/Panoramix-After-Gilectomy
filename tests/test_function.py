@@ -136,6 +136,9 @@ def records(paths):
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     paths = args or sorted(glob.glob(os.path.join(INPUTS, "*.pkl")))
+    if not paths:
+        print("test_function: skipped, no python inputs in build/fn_inputs (make fn-inputs)")
+        sys.exit(0)
     rnd = random.Random(int(os.environ.get("SEED", "1")))
     for name, rec in records(paths):
         t0 = time.time()

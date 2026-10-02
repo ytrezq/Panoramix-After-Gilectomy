@@ -87,6 +87,13 @@ json-expected:
 	  [ -f build/json_expected/$$n.pickle ] || PYTHONPATH=$(PANORAMIX_REPO) PYTHONINTMAXSTRDIGITS=0 \
 	    $(PANORAMIX_PYTHON) tests/gen_json_expected.py $$f build/json_expected/$$n.pickle; done
 
+# what reached python's Function and make_ast in its decompilations of the
+# corpus and the synthetic programs (pypy, ~40 minutes), for
+# tests/test_function.py, test_folder.py, test_postprocess.py
+fn-inputs:
+	PANORAMIX_PY=$(PANORAMIX_REPO) PANORAMIX_TIMEOUT=5 PYTHONINTMAXSTRDIGITS=0 \
+	  $(PANORAMIX_PYTHON) tests/gen_function_inputs.py build/fn_inputs tests/synthetic/*.hex tests/corpus/*.hex
+
 # python's --verbose and --explain outputs of small contracts of the
 # corpus, and its text with --repr and --returns in sys.argv (pypy, a few
 # minutes), for tests/test_verbose.py
@@ -110,4 +117,4 @@ install: build/panasm build/libpanoramix_asm.so
 clean:
 	rm -rf build
 
-.PHONY: all clean check install json-expected verbose-expected coverage
+.PHONY: all clean check install json-expected verbose-expected fn-inputs coverage
