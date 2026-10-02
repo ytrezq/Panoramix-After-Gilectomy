@@ -40,4 +40,37 @@ FUNC tf_sets_fmp
         LEAVE
 ENDF tf_sets_fmp
 
+# stack_vars((first, positions, depth)) -> (folded, vars): positions a
+# tuple of indices
+FUNC tf_stack_vars
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, [rbx + N_DATA]         # first
+        mov edi, [r12 + N_AUX]
+        inc edi
+        call arena_alloc                # (zeroed)
+        mov r13, rax
+        mov r14, [rbx + N_DATA + 8]     # positions
+        xor ecx, ecx
+1:      cmp ecx, [r14 + N_AUX]
+        jae 2f
+        mov rax, [r14 + N_DATA + rcx*8]
+        sar rax, 1
+        mov byte ptr [r13 + rax], 1
+        inc ecx
+        jmp 1b
+2:      mov rdi, r12
+        mov rsi, r13
+        mov rdx, [rbx + N_DATA + 16]
+        sar rdx, 1
+        lea rcx, [rsp]
+        call stack_vars
+        mov rdi, rax
+        mov rsi, [rsp]
+        call mk2
+        add rsp, 16
+        LEAVE
+ENDF tf_stack_vars
+
         .section .note.GNU-stack,"",@progbits

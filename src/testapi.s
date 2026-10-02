@@ -178,10 +178,12 @@ test_table:
         .quad .Ln_continues_from_inside, tf_continues_from_inside
         # the VM, the stack, the loader (testapi_vm.s)
         .quad .Ln_sets_fmp, tf_sets_fmp
+        .quad .Ln_stack_vars, tf_stack_vars
         .quad 0, 0
 
         .section .rodata
 .Ln_sets_fmp: .asciz "sets_fmp"
+.Ln_stack_vars: .asciz "stack_vars"
         .text
 
         .section .rodata

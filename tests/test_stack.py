@@ -7,7 +7,7 @@ sys.path.insert(0, os.environ.get("PANASM_BUILD") or os.path.join(os.path.dirnam
 import logging; logging.disable(logging.CRITICAL)
 import panoramix_asm as A
 from panoramix.core import masks as M
-from panoramix.stack import Stack, fold_stacks
+from panoramix.stack import Stack, fold_stacks, stack_vars
 
 random.seed(int(sys.argv[1]) if len(sys.argv) > 1 else 1)
 N = int(sys.argv[2]) if len(sys.argv) > 2 else 300
@@ -78,5 +78,11 @@ for n in range(N):
     depth = random.randint(0, 3)
     f, v = fold_stacks(first, second, depth)
     check("fold_stacks", repr((tuple(first), tuple(second), depth)), repr((tuple(f), tuple(v))))
+    # the positions of the variables given (continue_loops'): python's
+    # depth is a loop's number (vm.loop_key)
+    positions = set(random.sample(range(len(first)), random.randint(0, len(first))))
+    depth = random.choice([0, 1, 2, 9, 10, 123])
+    f, v = stack_vars(tuple(first), positions, depth)
+    check("stack_vars", repr((tuple(first), tuple(sorted(positions)), depth)), repr((tuple(f), tuple(v))))
 print(f"{cases} cases, {bad} mismatches")
 sys.exit(1 if bad else 0)

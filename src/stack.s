@@ -369,4 +369,71 @@ FUNC fold_stacks
         LEAVE
 ENDF fold_stacks
 
+# stack_vars(first, positions, depth, &vars) -> rax: python's stack_vars -
+# fold_stacks with the positions of the loop variables given: positions is
+# a byte per element of first (a tuple or a list), not 0 for a variable's.
+# The folded stack (a tuple), vars = the tuple of ('var', counter,
+# first[idx], idx), the positions from the last.
+FUNC stack_vars
+        ENTER
+        sub rsp, 48
+        .set SV_VARSP, 0
+        .set SV_ELEMS, 8
+        .set SV_VARS, 16
+        .set SV_IDX, 24
+        .set SV_COUNTER, 32
+        mov rbx, rdi                    # first
+        mov r12, rsi                    # positions
+        mov r13, rdx                    # depth
+        mov [rsp + SV_VARSP], rcx
+        mov r14d, [rbx + N_AUX]         # len
+        lea rdi, [r14*8 + 8]
+        call arena_alloc
+        mov [rsp + SV_ELEMS], rax       # the folded elements: first's
+        mov rdi, rax
+        lea rsi, [rbx + N_DATA]
+        lea rdx, [r14*8]
+        call memcpy@PLT
+        call vec_new
+        mov [rsp + SV_VARS], rax
+        mov rcx, r14
+1:      test rcx, rcx
+        jz 5f
+        dec rcx
+        cmp byte ptr [r12 + rcx], 0
+        je 1b
+        mov [rsp + SV_IDX], rcx
+        # temp_var_counter = len - idx + depth * 1000
+        mov rax, r14
+        sub rax, rcx
+        imul rdx, r13, 1000
+        add rax, rdx
+        TAG rax
+        mov [rsp + SV_COUNTER], rax
+        mov rsi, rax
+        LOADS rdi, VAR
+        mov rdx, [rbx + N_DATA + rcx*8]
+        TAG rcx
+        call mk4                        # ('var', counter, first[idx], idx)
+        mov rdi, [rsp + SV_VARS]
+        mov rsi, rax
+        call vec_push
+        LOADS rdi, VAR
+        mov rsi, [rsp + SV_COUNTER]
+        call mk2                        # ('var', counter)
+        mov rcx, [rsp + SV_IDX]
+        mov rdx, [rsp + SV_ELEMS]
+        mov [rdx + rcx*8], rax
+        jmp 1b
+5:      mov rdi, [rsp + SV_VARS]
+        call vec_to_tuple
+        mov rcx, [rsp + SV_VARSP]
+        mov [rcx], rax
+        mov rdi, r14
+        mov rsi, [rsp + SV_ELEMS]
+        call mk_tuple
+        add rsp, 48
+        LEAVE
+ENDF stack_vars
+
         .section .note.GNU-stack,"",@progbits
