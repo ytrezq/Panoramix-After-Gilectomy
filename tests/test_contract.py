@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Differential test of the contract postprocessing (sparser.py and
-contract.py): the storage definitions, the rewritten traces, the asts
-and the final text of every function, on the corpus."""
+"""Differential test of the contract postprocessing (storage.py and
+contract.py): the storage definitions and language, the rewritten traces,
+the asts and the final text of every function, on the corpus (the traces
+the port's simplifier gives: see tests/test_storage.py for the storage on
+python's own traces)."""
 import os, sys, glob, time, ast
 sys.path.insert(0, os.environ.get("PANORAMIX_PY", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "panoramix")))
 sys.path.insert(0, os.environ.get("PANASM_BUILD") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build"))
@@ -17,21 +19,21 @@ from panoramix.utils import signatures as S
 from panoramix.function import Function
 from panoramix.contract import Contract
 from panoramix.utils.helpers import rewrite_trace
-import panoramix.sparser
+import panoramix.prettify
 
 Loader.find_sig = staticmethod(lambda sig, add_color=False: None)
+panoramix.prettify.fetch_sig = None         # (the events of the logs: no database)
 
 def py_contract(entries):
     S._abi = {}
     for hash, trace, (name, inputs) in entries:
         S._abi[hash] = {"name": name} if inputs is None else {"name": name, "inputs": [{"type": t, "name": n} for t, n in inputs]}
-    panoramix.sparser.used_locs = set()
     functions = {}
     for hash, trace, abi in entries:
         functions[hash] = Function(hash, trace)
     c = Contract(functions, {})
     c.postprocess()
-    return (c.stor_defs, [(f.name, f.trace, f.ast, f.print().split("\n"), f.priority()) for f in c.functions], [f.name for f in c.consts])
+    return ((c.lang, c.stor_defs), [(f.name, f.trace, f.ast, f.print().split("\n"), f.priority()) for f in c.functions], [f.name for f in c.consts])
 
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("--")]

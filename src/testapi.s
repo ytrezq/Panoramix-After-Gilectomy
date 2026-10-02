@@ -2025,8 +2025,12 @@ FUNC tf_function
         LEAVE
 ENDF tf_function
 
-# [(hash, trace, (name, inputs or None))...] -> (stor_defs, [(name, trace,
-# ast, print lines, priority)...], [const names])
+# [(hash, trace, (name, inputs or None))...] -> ((lang, stor_defs), [(name,
+# trace, ast, print lines, priority)...], [const names])
+        .section .rodata
+.Ls_tc_solidity: .asciz "solidity"
+.Ls_tc_vyper:   .asciz "vyper"
+        .text
 FUNC tf_contract
         ENTER
         sub rsp, 48
@@ -2067,7 +2071,14 @@ FUNC tf_contract
         mov rbx, rax
         mov rdi, rax
         call contract_postprocess
-        mov rax, [rbx + CT_STOR_DEFS]
+        lea rdi, [rip + .Ls_tc_solidity]        # (lang, stor_defs)
+        lea rax, [rip + .Ls_tc_vyper]
+        cmp qword ptr [rbx + CT_LANG], 0
+        cmovne rdi, rax
+        call str_intern_c
+        mov rdi, rax
+        mov rsi, [rbx + CT_STOR_DEFS]
+        call mk2
         mov [rsp], rax
         call vec_new
         mov r13, rax
