@@ -595,11 +595,11 @@ FUNC as_paths_f
         jae 5f
         mov r14, [rbx + N_DATA + r13*8]
         mov rdi, r14
-        call is_if_line
-        test eax, eax
-        jz 3f
-        cmp dword ptr [r14 + N_AUX], 4
-        jne .Lap_index
+        call opcode_of
+        cmp eax, OP_IF
+        jne 3f
+        cmp dword ptr [r14 + N_AUX], 4  # (python's line[3] of any if: an
+        jb .Lap_index                   # IndexError that fold catches)
         lea eax, [r13 + 1]
         cmp eax, [rbx + N_AUX]
         jae 2f

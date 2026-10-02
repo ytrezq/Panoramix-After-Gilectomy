@@ -22,8 +22,8 @@ count = int(sys.argv[2]) if len(sys.argv) > 2 else 1000
 rnd = random.Random(seed)
 
 LINES = [("setmem", 64, 1), ("store", 256, 0, 1, 2), ("log", 5), "asm line", "",
-         ("stop",), ("revert", 0), ("return", 1), ("setvar", "_1", 3),
-         ("call", 1, 2, 3, 4, 5, 6)]
+         ("stop",), ("revert", 0), ("revert", None), ("return", 1), ("return", 0), ("invalid",),
+         ("setvar", "_1", 3), ("call", 1, 2, 3, 4, 5, 6)]
 CONDS = [("lt", "x", 5), ("iszero", ("lt", "x", 5)), ("eq", "y", 1), ("iszero", ("eq", "y", 1)),
          ("gt", "z", 2), "callvalue", ("iszero", "callvalue")]
 
@@ -80,31 +80,61 @@ def paths():
         res.append(begin + p + end if rnd.random() < 0.7 else p)
     return [p for p in res if p]
 
-# python loops forever on some (the same path twice: the beginning they
-# share never ends); python's fold_or prints before it raises
-import signal, io, contextlib
-class PyTimeout(Exception):
-    pass
-def alarm(*a):
-    raise PyTimeout()
-signal.signal(signal.SIGALRM, alarm)
-skipped = 0
-for i in range(count):
-    ps = paths()
-    if not ps:
-        continue
-    signal.alarm(5)
-    try:
-        with contextlib.redirect_stdout(io.StringIO()):
-            expected = run(lambda x: folder.fold_paths(copy.deepcopy(x)), ps)
-    except PyTimeout:
-        skipped += 1
-        continue
-    finally:
-        signal.alarm(0)
-    if "PyTimeout" in expected:
-        skipped += 1
-        continue
-    check("fold_paths", ps, expected, f"case {i}")
-print(f"{test_simplify.cases} cases, {test_simplify.bad} mismatches ({skipped} where python loops, skipped)")
-sys.exit(1 if test_simplify.bad else 0)
+# fold_aux, its final rules: a one-sided if followed by an end (a revert
+# with no data, a return of 0, an invalid) takes the end in
+ENDS = [[], [("revert", None)], [("revert", 0)], [("return", 0)], [("invalid",)], [("invalid",), ("stop",)],
+        [("stop",)], [("revert", None), ("stop",)], [("return", 1)]]
+
+
+def raux(d=0):
+    lines = []
+    for _ in range(rnd.randint(0, 3)):
+        r = rnd.random()
+        if r < 0.3 and d < 3:
+            lines.append(("if", rnd.choice(CONDS), raux(d + 1)))
+        elif r < 0.45 and d < 3:
+            lines.append(("if", rnd.choice(CONDS), raux(d + 1), raux(d + 1)))
+        elif r < 0.5 and d < 2:
+            lines.append(("while", rnd.choice(CONDS), raux(d + 1), "jd", ()))
+        else:
+            lines.append(rline())
+    return lines + copy.deepcopy(rnd.choice(ENDS))
+
+
+
+if __name__ == "__main__":
+    # python loops forever on some (the same path twice: the beginning they
+    # share never ends); python's fold_or prints before it raises
+    import signal, io, contextlib
+    class PyTimeout(Exception):
+        pass
+    def alarm(*a):
+        raise PyTimeout()
+    signal.signal(signal.SIGALRM, alarm)
+    skipped = 0
+    for i in range(count):
+        ps = paths()
+        if not ps:
+            continue
+        signal.alarm(5)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                expected = run(lambda x: folder.fold_paths(copy.deepcopy(x)), ps)
+        except PyTimeout:
+            skipped += 1
+            continue
+        finally:
+            signal.alarm(0)
+        if "PyTimeout" in expected:
+            skipped += 1
+            continue
+        check("fold_paths", ps, expected, f"case {i}")
+
+    for i in range(count):
+        tr = raux()
+        check("fold_aux", tr, run(lambda x: folder.fold_aux(copy.deepcopy(x)), tr), f"fold_aux case {i}")
+        check("is_end_block", tr, run(lambda x: x == [("return", 0)] or x == [("revert", None)]
+                                      or (len(x) > 0 and isinstance(x[0], tuple) and x[0][:1] == ("invalid",)), tr),
+              f"is_end_block case {i}")
+    print(f"{test_simplify.cases} cases, {test_simplify.bad} mismatches ({skipped} where python loops, skipped)")
+    sys.exit(1 if test_simplify.bad else 0)
