@@ -371,4 +371,101 @@ FUNC tf_entry_helper
         LEAVE
 ENDF tf_entry_helper
 
+# vm_func((hexcode, hash)): the trace of the function `hash` (its string:
+# '0x12345678' or '_fallback'), as the decompiler gets it - the loader's
+# functions found (loader_find_functions), the VM run from the function's
+# target (past its jumpdest) with what the dispatcher did before it
+# (vm_run_function)
+FUNC tf_vm_func
+        ENTER
+        sub rsp, 96                     # the error handler, the loader, the result
+        mov rbx, rdi
+        mov rdi, [rbx + N_DATA]
+        call tv_loader
+        mov [rsp + 72], rax
+        mov r12, rax
+        mov rdi, rsp
+        call err_catch
+        test eax, eax
+        jnz 8f
+        mov rdi, r12
+        mov rsi, 60000000000            # 60 s
+        call loader_find_functions
+        call err_end
+        jmp 1f
+8:      # python's "Loader issue": the default function only, at 0
+        lea rdi, [rip + .Ltv_fallback]
+        call str_intern_c
+        mov [rsp + 80], rax
+        xor edi, edi
+        xor esi, esi
+        call mk_tuple
+        mov rdx, rax
+        mov rdi, [rsp + 80]
+        mov esi, 1
+        call mk3
+        mov rdi, rax
+        call mk_list1
+        mov [r12 + LD_FUNCS], rax
+        xor edi, edi
+        xor esi, esi
+        call mk_tuple
+        mov [r12 + LD_FALLBACK_KNOWN], rax
+1:      # the function asked for
+        mov r13, [r12 + LD_FUNCS]
+        xor r14d, r14d
+2:      cmp r14d, [r13 + N_AUX]
+        jae 7f
+        mov rax, [r13 + N_DATA + r14*8]
+        inc r14d
+        mov rcx, [rbx + N_DATA + 8]
+        cmp [rax + N_DATA], rcx
+        jne 2b
+        mov [rsp + 80], rax             # (hash, target, stack)
+        # past the jumpdest it starts at (the decompiler's target += 1)
+        mov rsi, [rax + N_DATA + 8]
+        mov [rsp + 88], rsi
+        cmp rsi, (1 << 1) | 1
+        jle 3f
+        sar rsi, 1
+        mov rdi, r12
+        call loader_instr_at
+        test rax, rax
+        jz 3f
+        cmp byte ptr [rax + IN_OP], 0x5b
+        jne 3f
+        add qword ptr [rsp + 88], 2
+3:      mov rdi, r12
+        xor esi, esi
+        call vm_new
+        mov rdi, rsp
+        call err_catch
+        test eax, eax
+        jnz 6f
+        mov rax, [rsp + 80]
+        mov rdi, r12
+        mov rsi, [rax + N_DATA]
+        mov rdx, [rsp + 88]
+        mov rcx, [rax + N_DATA + 16]
+        xor r8d, r8d
+        call vm_run_function
+        mov [rsp + 80], rax
+        call err_end
+        jmp 9f
+6:      call tf_exc_value
+        mov [rsp + 80], rax
+        jmp 9f
+7:      lea rax, [rip + sp_none]        # no such function
+        mov [rsp + 80], rax
+9:      mov rdi, r12
+        call loader_free
+        mov rax, [rsp + 80]
+        add rsp, 96
+        LEAVE
+ENDF tf_vm_func
+
+        .section .rodata
+.Ltv_fallback: .asciz "_fallback"
+        .text
+
         .section .note.GNU-stack,"",@progbits

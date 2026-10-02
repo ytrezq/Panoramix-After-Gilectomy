@@ -181,6 +181,7 @@ test_table:
         .quad .Ln_stack_vars, tf_stack_vars
         .quad .Ln_vm_helper, tf_vm_helper
         .quad .Ln_entry_helper, tf_entry_helper
+        .quad .Ln_vm_func, tf_vm_func
         .quad 0, 0
 
         .section .rodata
@@ -188,6 +189,7 @@ test_table:
 .Ln_stack_vars: .asciz "stack_vars"
 .Ln_vm_helper: .asciz "vm_helper"
 .Ln_entry_helper: .asciz "entry_helper"
+.Ln_vm_func: .asciz "vm_func"
         .text
 
         .section .rodata
@@ -1458,6 +1460,25 @@ FUNC tf_vm_run
         call err_catch
         test eax, eax
         jnz 1f
+        # (code, start, just_fdests, stack, known[, entry, memory]): entry
+        # None (or absent) as NIL, memory () when absent
+        xor r13d, r13d
+        cmp dword ptr [rbx + N_AUX], 6
+        jb 3f
+        mov r13, [rbx + N_DATA + 40]
+        lea rax, [rip + sp_none]
+        cmp r13, rax
+        jne 3f
+        xor r13d, r13d
+3:      xor edi, edi
+        xor esi, esi
+        call mk_tuple
+        mov r14, rax
+        cmp dword ptr [rbx + N_AUX], 7
+        jb 4f
+        mov r14, [rbx + N_DATA + 48]
+4:      mov r8, r13
+        mov r9, r14
         mov rdi, [rbx + N_DATA + 8]     # start
         mov rsi, [rbx + N_DATA + 24]    # stack
         mov rdx, [rbx + N_DATA + 32]    # known
@@ -1509,7 +1530,11 @@ FUNC tf_find_functions
         call err_end
         mov rdi, [rbx + LD_FUNCS]
         mov rsi, [rbx + LD_FALLBACK_KNOWN]
-        call mk2
+        mov rdx, [rbx + LD_ENTRIES]
+        test rdx, rdx
+        jnz 3f
+        lea rdx, [rip + sp_none]
+3:      call mk3
         mov [rsp + 8], rax
 2:      mov rdi, rbx
         call loader_free

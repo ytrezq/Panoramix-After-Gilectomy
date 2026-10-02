@@ -185,7 +185,8 @@
 .set LD_FUNCS, 64           # list of (hash string, target, stack) (funcs.s)
 .set LD_FALLBACK_KNOWN, 72  # tuple: what holds in the default function
 .set LD_NO_FREE_MEM, 80     # u8: mem[64] isn't solidity's free memory pointer (variants.FREE_MEMORY_POINTER off)
-.set LD_SIZEOF, 88
+.set LD_ENTRIES, 88         # tuple of (hash string, list of entries): what runs before each function (entry.s)
+.set LD_SIZEOF, 96
 
 # one disassembled instruction
 .set IN_PC, 0               # u32
