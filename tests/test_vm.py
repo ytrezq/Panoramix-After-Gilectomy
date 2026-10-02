@@ -70,6 +70,39 @@ def py_function(loader, hash, target, stack):
     return VM(loader).run(target, stack=stack, known=known, entry=loader.entry(hash),
                           memory=entry_memory(loader.entries.get(hash)))
 
+class Run:
+    """How the decompiler runs the VM for a function (functions_of): what's
+    known there, its entry and the memory then - what py_run takes for
+    `known`."""
+    def __init__(self, known, entry, memory):
+        self.known, self.entry, self.memory = known, entry, memory
+
+    def __repr__(self):
+        return f"Run({self.known!r}, {self.entry!r}, {self.memory!r})"
+
+def functions_of(code):
+    """(name, target, stack, run) of every function, from python's loader -
+    target past its jumpdest, run what py_run is given for known"""
+    loader = load(code)
+    fresh_keys()
+    loader.run(VM(loader, just_fdests=True))
+    res = []
+    for hash, fname, target, stack in loader.func_list:
+        if target > 1 and loader.lines[target][1] == "jumpdest":
+            target += 1
+        known = loader.fallback_known if hash == "_fallback" and target == 0 else ()
+        res.append((fname, target, stack, Run(known, loader.entry(hash), entry_memory(loader.entries.get(hash)))))
+    return res
+
+def py_run(code, start, just_fdests, stack=(), known=()):
+    """python's VM run - known: what's known, or a Run (functions_of's)"""
+    loader = load(code)
+    vm = VM(loader, just_fdests=just_fdests)
+    fresh_keys()
+    if isinstance(known, Run):
+        return vm.run(start, stack=stack, known=known.known, entry=known.entry, memory=known.memory)
+    return vm.run(start, stack=stack, known=known)
+
 def first_diff(expected, got):
     i = 0
     while i < min(len(expected), len(got)) and expected[i] == got[i]:

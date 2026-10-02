@@ -87,7 +87,8 @@ def whiles_of(trace):
 
 def passes(trace, ctx):
     check("cleanup_conds", trace, run(S.cleanup_conds, trace), ctx)
-    check("cleanup_msize", trace, run(S.cleanup_msize, trace), ctx)
+    if hasattr(S, "cleanup_msize"):         # (gone in the PR's simplify)
+        check("cleanup_msize", trace, run(S.cleanup_msize, trace), ctx)
     check("cleanup_vars", trace, run(S.cleanup_vars, trace), ctx)
     check("cleanup_mems", trace, run(S.cleanup_mems, trace), ctx)
     check("split_setmem_trace", trace, run(rewrite_trace, trace, split_setmem), ctx)
@@ -100,7 +101,8 @@ def passes(trace, ctx):
     for w in whiles_of(trace):
         check("parse_counters", w, run(pc_tuple, w), ctx)
         check("loop_to_setmem", w, run(S.loop_to_setmem, w), ctx)
-        check("while_max_memidx", w, run(S.while_max_memidx, w), ctx)
+        if hasattr(S, "while_max_memidx"):  # (gone in the PR's simplify)
+            check("while_max_memidx", w, run(S.while_max_memidx, w), ctx)
         check("extract_setmems", w, run(S.extract_setmems, w), ctx)
 
 if __name__ == "__main__":
