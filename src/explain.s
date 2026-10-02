@@ -250,6 +250,33 @@ ENDF explain_replace_lines
 .Ls_unpack:     .asciz "not enough values to unpack (a while of other than 5 elements)"
         .text
 
+# store_to_set(line, arg): prettify.make_ast's - ('store', size, off, idx,
+# val) -> ('set', ('stor', size, off, idx), val)
+FUNC store_to_set
+        ENTER
+        sub rsp, MATCH_BINDINGS_SIZE
+        mov rbx, rdi
+        PAT rsi, "('store', ':size', ':off', ':idx', ':val')"
+        mov rdx, rsp
+        call pat_match
+        test eax, eax
+        jz 1f
+        mov rsi, [rsp + 0]
+        mov rdx, [rsp + 8]
+        mov rcx, [rsp + 16]
+        LOADS rdi, STOR
+        call mk4
+        mov rsi, rax
+        mov rdx, [rsp + 24]
+        LOADS rdi, SET
+        call mk3
+        add rsp, MATCH_BINDINGS_SIZE
+        LEAVE
+1:      mov rax, rbx
+        add rsp, MATCH_BINDINGS_SIZE
+        LEAVE
+ENDF store_to_set
+
 # explain_mask_storage(exp, arg): prettify.make_ast's mask_storage
 FUNC explain_mask_storage
         ENTER

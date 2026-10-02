@@ -100,6 +100,22 @@ class F:
         self.__dict__.update(d)
 
 
+def unbool(e):
+    """
+    True and False as 1 and 0: python's caches take True for 1, and its
+    simplifier hands the storage a slot 1 written True now and then, which
+    its dicts then take for the slot 1 (the port's True isn't 1, and its
+    simplifier makes no such True: see DESIGN.md) - both are given ints.
+    """
+    if type(e) is bool:
+        return int(e)
+    if type(e) is tuple:
+        return tuple(unbool(x) for x in e)
+    if type(e) is list:
+        return [unbool(x) for x in e]
+    return e
+
+
 def load_caps():
     res = []
     for p in sorted(glob.glob(os.path.join(CAPS, "*.pkl"))):
@@ -108,6 +124,10 @@ def load_caps():
         except Exception:
             continue
         for c in caps:
+            for d in c["functions"]:
+                d["trace"] = unbool(d["trace"])
+                d["returns"] = unbool(d["returns"])
+                d["getter"] = unbool(d["getter"])
             res.append((os.path.basename(p)[:-4], c))
     return res
 
