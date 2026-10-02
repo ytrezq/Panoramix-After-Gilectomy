@@ -272,9 +272,10 @@ ENDF padded_hex
 
 # --- the signature database ---
 
-# sig_db_lookup(selector) -> rax: the abi entry (name, inputs) of a
-# selector (an integer below 2^32), or 0. The database comes later: without
-# one, every selector is unknown.
+# sig_db_lookup(selector) -> rax: the abi entry (name, inputs, type) of a
+# selector (an integer below 2^32), or 0 - supplement.fetch_sig: only an
+# entry whose signature hashes to the selector. The database comes later:
+# without one, every selector is unknown.
 FUNC sig_db_lookup
         mov rax, [rip + sig_db_hook]
         test rax, rax
