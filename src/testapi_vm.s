@@ -427,27 +427,35 @@ FUNC tf_vm_func
         cmp [rax + N_DATA], rcx
         jne 2b
         mov [rsp + 80], rax             # (hash, target, stack)
-        # past the jumpdest it starts at (the decompiler's target += 1)
-        mov rsi, [rax + N_DATA + 8]
-        mov [rsp + 88], rsi
-        cmp rsi, (1 << 1) | 1
-        jle 3f
-        sar rsi, 1
         mov rdi, r12
-        call loader_instr_at
-        test rax, rax
-        jz 3f
-        cmp byte ptr [rax + IN_OP], 0x5b
-        jne 3f
-        add qword ptr [rsp + 88], 2
-3:      mov rdi, r12
         xor esi, esi
         call vm_new
         mov rdi, rsp
         call err_catch
         test eax, eax
         jnz 6f
+        # past the jumpdest it starts at (the decompiler's target += 1 -
+        # python's KeyError where the target isn't an instruction)
         mov rax, [rsp + 80]
+        mov rsi, [rax + N_DATA + 8]
+        mov [rsp + 88], rsi
+        cmp rsi, (1 << 1) | 1
+        jle 3f
+        test sil, 1
+        jz 4f
+        sar rsi, 1
+        mov rdi, r12
+        call loader_instr_at
+        test rax, rax
+        jz 4f
+        cmp byte ptr [rax + IN_OP], 0x5b
+        jne 3f
+        add qword ptr [rsp + 88], 2
+        jmp 3f
+4:      mov edi, E_KEY
+        lea rsi, [rip + .Ltv_key]
+        call err_throw
+3:      mov rax, [rsp + 80]
         mov rdi, r12
         mov rsi, [rax + N_DATA]
         mov rdx, [rsp + 88]
@@ -471,6 +479,7 @@ ENDF tf_vm_func
 
         .section .rodata
 .Ltv_fallback: .asciz "_fallback"
+.Ltv_key: .asciz "the target is not an instruction"
         .text
 
         .section .note.GNU-stack,"",@progbits
