@@ -185,4 +185,5 @@
 .set OP_CODECALL, 184
 .set OP_LAND, 185
 .set OP_LOR, 186
-.set OP_COUNT, 186
+.set OP_SALL, 187
+.set OP_COUNT, 187

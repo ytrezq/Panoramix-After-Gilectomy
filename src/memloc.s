@@ -598,93 +598,6 @@ FUNC split_or
         call err_throw
 ENDF split_or
 
-# sizeof(exp) -> value: the size of an expression in bits
-FUNC sizeof
-        ENTER
-        sub rsp, MATCH_BINDINGS_SIZE
-        mov rbx, rdi
-        PAT rsi, "('storage', ':size', '...')"
-        mov rdx, rsp
-        call pat_match
-        test eax, eax
-        jz 1f
-        mov rax, [rsp]
-        jmp .Lsz_done
-1:      PAT rsi, "('mask_shl', ':size', ':off', ':shl', 'Any')"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
-        test eax, eax
-        jz 2f
-        mov rdi, [rsp]
-        mov rsi, [rsp + 8]
-        mov rdx, [rsp + 16]
-        call alg_add3
-        jmp .Lsz_done
-2:      PAT rsi, "(':op', 'Any', ':size_bytes')"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
-        test eax, eax
-        jz 3f
-        mov rdi, [rsp]
-        call str_id
-        mov edi, eax
-        call is_array_op
-        test eax, eax
-        jz 3f
-        mov rdi, [rsp + 8]
-        call alg_bits
-        jmp .Lsz_done
-3:      PAT rsi, "('mem', ('range', 'Any', ':size_bytes'))"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
-        test eax, eax
-        jz 4f
-        mov rdi, [rsp]
-        call alg_bits
-        jmp .Lsz_done
-4:      PAT rsi, "('mem', ':idx')"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
-        test eax, eax
-        jnz .Lsz_assert
-        PAT rsi, "('arr', ':l', 'Any')"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
-        test eax, eax
-        jnz .Lsz_assert
-        mov rdi, rbx
-        call is_int
-        test eax, eax
-        jz 5f
-        # above 2^256 (python's exp > 2**256: neither 2^256 itself nor a
-        # negative number): the bytes needed to hold the number
-        mov rdi, rbx
-        call int_gt_pow2_256
-        test eax, eax
-        jz 5f
-        mov rdi, rbx
-        call int_bit_length
-        add rax, 7
-        shr rax, 3
-        TAG rax
-        mov rdi, rax
-        call alg_bits
-        jmp .Lsz_done
-5:      mov eax, (256 << 1) | 1
-.Lsz_done:
-        add rsp, MATCH_BINDINGS_SIZE
-        LEAVE
-.Lsz_assert:
-        mov edi, E_ASSERT
-        lea rsi, [rip + .Ls_assert_sizeof]
-        call err_throw
-ENDF sizeof
-
 # int_gt_pow2_256(v) -> eax: the int v > 2^256, read off the number
 FUNC int_gt_pow2_256
         xor eax, eax
@@ -1031,93 +944,394 @@ FUNC memloc_overwrite_impl
         LEAVE
 ENDF memloc_overwrite_impl
 
-# slice_exp(exp, left, right) -> value or NIL: the bytes left..right of
-# the expression
+# slice_exp(exp, left, right, width) -> value or NIL: python's slice_exp -
+# the bytes left to right of exp, `width` bits wide (the width of the
+# memory it's in; NIL: sizeof)
 FUNC slice_exp
+        STACK_CHECK
         ENTER
-        sub rsp, MATCH_BINDINGS_SIZE + 32
-        .set SL_SIZE, MATCH_BINDINGS_SIZE
-        .set SL_OFF, MATCH_BINDINGS_SIZE + 8
+        sub rsp, 64
+        .set SL_SIZE, 0
+        .set SL_WIDTH, 8
+        .set SL_RES, 16                 # the data's pieces
+        .set SL_POS, 24
+        .set SL_I, 32
+        .set SL_PSIZE, 40
+        .set SL_SIZES, 48
         mov rbx, rdi
         mov r12, rsi                    # left
         mov r13, rdx                    # right
+        mov [rsp + SL_WIDTH], rcx
         mov rdi, rdx
         mov rsi, r12
         call alg_sub_op
         mov [rsp + SL_SIZE], rax        # size = right - left
-        PAT rsi, "('mem', ('range', ':rleft', ':rlen'))"
+        # bytes, as the number they make (see with_width)
         mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+        call opcode_of
+        cmp eax, OP_BYTES
+        jne 1f
+        cmp dword ptr [rbx + N_AUX], 3
+        jb 1f
+        mov rdi, [rbx + N_DATA + 16]
+        call sized
         test eax, eax
         jz 1f
-        # ('mem', ('range', rleft + left, size)) when left + size <= rlen
+        cmp qword ptr [rsp + SL_WIDTH], 0
+        jne 11f
+        mov rdi, [rbx + N_DATA + 8]
+        call alg_bits
+        mov [rsp + SL_WIDTH], rax
+11:     mov rbx, [rbx + N_DATA + 16]
+1:      # bytes in memory of another width: the number they make there
+        mov rdi, rbx
+        call sized
+        test eax, eax
+        jz 2f
+        mov rdi, rbx
+        call opcode_of
+        cmp eax, OP_BYTES
+        je 2f
+        mov rdi, [rsp + SL_WIDTH]
+        call is_int
+        test eax, eax
+        jz 2f
+        mov rdi, rbx
+        call width_of
+        mov r14, rax                    # w
+        test rax, rax
+        jz 12f                          # (None != width)
+        mov rdi, rax
+        mov rsi, [rsp + SL_WIDTH]
+        call py_equal
+        test eax, eax
+        jnz 2f
+12:     mov rdi, r14
+        call is_int
+        test eax, eax
+        jz .Lsl_none
+        mov rdi, [rsp + SL_WIDTH]
+        mov esi, 3
+        call int_mod_2exp
+        cmp rax, 1
+        jne .Lsl_none
+        mov rdi, [rsp + SL_WIDTH]
+        mov esi, (8 << 1) | 1
+        call int_floordiv
+        mov rdi, rbx
+        mov rsi, rax
+        call resize_bytes
+        test rax, rax
+        jz .Lsl_none
+        mov rbx, rax
+2:      # ('mem', ('range', rleft, rlen))
+        mov rdi, rbx
+        mov esi, OP_MEM
+        mov edx, 2
+        call is_op_n
+        test eax, eax
+        jz 3f
+        mov rdi, [rbx + N_DATA + 8]
+        mov esi, OP_RANGE
+        mov edx, 3
+        call is_op_n
+        test eax, eax
+        jz 3f
+        mov r14, [rbx + N_DATA + 8]
         mov rdi, r12
         mov rsi, [rsp + SL_SIZE]
         call alg_add2
         mov rdi, rax
-        mov rsi, [rsp + 8]
+        mov rsi, [r14 + N_DATA + 16]
         call mem_safe_le_op
         cmp eax, TRI_TRUE
         jne .Lsl_none
-        mov rdi, [rsp]
+        mov rdi, [r14 + N_DATA + 8]
         mov rsi, r12
         call alg_add2
         mov rdi, rax
         mov rsi, [rsp + SL_SIZE]
         call mk_mem_range
         jmp .Lsl_done
-1:      PAT rsi, "(':op', ':rleft', ':rlen')"
+3:      # (op, rleft, rlen), op an array
         mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
+        call is_tuple
         test eax, eax
-        jz 2f
-        mov rdi, [rsp]
+        jz 4f
+        cmp dword ptr [rbx + N_AUX], 3
+        jne 4f
+        mov rdi, [rbx + N_DATA]
         call str_id
         mov edi, eax
         call is_array_op
         test eax, eax
-        jz 2f
+        jz 4f
         mov rdi, r12
         mov rsi, [rsp + SL_SIZE]
         call alg_add2
         mov rdi, rax
-        mov rsi, [rsp + 16]
+        mov rsi, [rbx + N_DATA + 16]
         call mem_safe_le_op
         cmp eax, TRI_TRUE
         jne .Lsl_none
-        mov rdi, [rsp + 8]
+        mov rdi, [rbx + N_DATA + 8]
         mov rsi, r12
         call alg_add2
         mov rsi, rax
-        mov rdi, [rsp]
+        mov rdi, [rbx + N_DATA]
         mov rdx, [rsp + SL_SIZE]
         call mk3
         jmp .Lsl_done
-2:      # a mask: size 8*size bits, at sizeof(exp) - 8*right
+4:      # ('extcodecopy', addr, ('range', rleft, rlen))
+        mov rdi, rbx
+        mov esi, OP_EXTCODECOPY
+        mov edx, 3
+        call is_op_n
+        test eax, eax
+        jz 5f
+        mov rdi, [rbx + N_DATA + 16]
+        mov esi, OP_RANGE
+        mov edx, 3
+        call is_op_n
+        test eax, eax
+        jz 5f
+        mov r14, [rbx + N_DATA + 16]
+        mov rdi, r12
+        mov rsi, [rsp + SL_SIZE]
+        call alg_add2
+        mov rdi, rax
+        mov rsi, [r14 + N_DATA + 16]
+        call mem_safe_le_op
+        cmp eax, TRI_TRUE
+        jne .Lsl_none
+        mov rdi, [r14 + N_DATA + 8]
+        mov rsi, r12
+        call alg_add2
+        mov rdi, rax
+        mov rsi, [rsp + SL_SIZE]
+        call mk_range
+        LOADS rdi, EXTCODECOPY
+        mov rsi, [rbx + N_DATA + 8]
+        mov rdx, rax
+        call mk3
+        jmp .Lsl_done
+5:      # a data, numbers left < right: the parts of it between them (a mask
+        # of it would be a mask of a value of more than a word)
+        mov rdi, rbx
+        call opcode_of
+        cmp eax, OP_DATA
+        jne .Lsl_bytes
+        mov rdi, r12
+        call is_int
+        test eax, eax
+        jz .Lsl_bytes
+        mov rdi, r13
+        call is_int
+        test eax, eax
+        jz .Lsl_bytes
+        mov rdi, r12
+        mov rsi, r13
+        call int_cmp
+        test eax, eax
+        jns .Lsl_bytes
+        # the sizes of its parts (sizeof may assert), all whole bytes
+        call vec_new
+        mov [rsp + SL_SIZES], rax
+        mov qword ptr [rsp + SL_I], 1
+51:     mov rax, [rsp + SL_I]
+        cmp eax, [rbx + N_AUX]
+        jae 52f
+        mov rdi, [rbx + N_DATA + rax*8]
+        inc qword ptr [rsp + SL_I]
+        call sizeof
+        mov rdi, [rsp + SL_SIZES]
+        mov rsi, rax
+        call vec_push
+        jmp 51b
+52:     mov qword ptr [rsp + SL_I], 0
+        mov qword ptr [rsp + SL_POS], 1         # (their sum, a value)
+53:     mov rax, [rsp + SL_SIZES]
+        mov rcx, [rsp + SL_I]
+        cmp rcx, [rax + VEC_LEN]
+        jae 54f
+        mov rax, [rax + VEC_DATA]
+        mov r14, [rax + rcx*8]
+        inc qword ptr [rsp + SL_I]
+        mov rdi, r14
+        call is_int
+        test eax, eax
+        jz .Lsl_bytes
+        mov rdi, r14
+        mov esi, 3
+        call int_mod_2exp
+        cmp rax, 1
+        jne .Lsl_bytes
+        mov rdi, [rsp + SL_POS]
+        mov rsi, r14
+        call int_add
+        mov [rsp + SL_POS], rax
+        jmp 53b
+54:     cmp qword ptr [rsp + SL_WIDTH], 0      # width is None or the sum
+        je 55f
+        mov rdi, [rsp + SL_WIDTH]
+        mov rsi, [rsp + SL_POS]
+        call py_equal
+        test eax, eax
+        jz .Lsl_bytes
+55:     call vec_new
+        mov [rsp + SL_RES], rax
+        mov qword ptr [rsp + SL_POS], 1         # pos, in bytes
+        mov qword ptr [rsp + SL_I], 0
+56:     mov rax, [rsp + SL_SIZES]
+        mov rcx, [rsp + SL_I]
+        cmp rcx, [rax + VEC_LEN]
+        jae 59f
+        mov rax, [rax + VEC_DATA]
+        mov rdi, [rax + rcx*8]
+        mov esi, (8 << 1) | 1
+        call int_floordiv
+        mov [rsp + SL_PSIZE], rax       # part_size, in bytes
+        # lo, hi = max(left, pos), min(right, pos + part_size)
+        mov rdi, [rsp + SL_POS]
+        mov rsi, rax
+        call int_add
+        mov r14, rax                    # pos + part_size
+        mov rdi, r12
+        mov rsi, [rsp + SL_POS]
+        call int_max
+        push rax                        # lo
+        push rax
+        mov rdi, r13
+        mov rsi, r14
+        call int_min
+        mov rdx, rax                    # hi
+        pop rax
+        pop rax
+        mov [rsp + SL_PSIZE], rdx       # (hi; part_size is r14 - pos)
+        mov rdi, rax
+        mov rsi, rdx
+        push rax
+        push rax
+        call int_cmp
+        pop rcx                         # lo
+        pop rcx
+        test eax, eax
+        jns 58f                         # lo >= hi: none of it
+        mov rax, [rsp + SL_I]
+        mov rdx, [rbx + N_DATA + 8 + rax*8]     # the part
+        cmp rcx, [rsp + SL_POS]
+        jne 57f
+        cmp r14, [rsp + SL_PSIZE]
+        jne 57f
+        mov rax, rdx                    # all of it: the part
+        jmp 571f
+57:     # slice_exp(part, lo - pos, hi - pos)
+        push rdx
+        push rcx
+        mov rdi, rcx
+        mov rsi, [rsp + 16 + SL_POS]
+        call int_sub
+        mov [rsp], rax                  # lo - pos
+        mov rdi, [rsp + 16 + SL_PSIZE]
+        mov rsi, [rsp + 16 + SL_POS]
+        call int_sub
+        mov rdx, rax
+        pop rsi
+        pop rdi
+        xor ecx, ecx
+        call slice_exp
+        test rax, rax
+        jz .Lsl_none
+571:    mov rdi, [rsp + SL_RES]
+        mov rsi, rax
+        call vec_push
+58:     mov [rsp + SL_POS], r14         # pos += part_size
+        inc qword ptr [rsp + SL_I]
+        jmp 56b
+59:     # right <= pos: the pieces (one: itself)
+        mov rdi, r13
+        mov rsi, [rsp + SL_POS]
+        call int_cmp
+        cmp eax, 0
+        jg .Lsl_bytes
+        mov rax, [rsp + SL_RES]
+        cmp qword ptr [rax + VEC_LEN], 1
+        jne 591f
+        mov rax, [rax + VEC_DATA]
+        mov rax, [rax]
+        jmp .Lsl_done
+591:    mov rdi, rax
+        LOADS rsi, DATA
+        call vec_prepend
+        mov rdi, [rsp + SL_RES]
+        call vec_to_tuple
+        jmp .Lsl_done
+.Lsl_bytes:
+        # bytes: the number they make, of the width of the bytes
+        mov rdi, rbx
+        call opcode_of
+        cmp eax, OP_BYTES
+        jne 6f
+        cmp dword ptr [rbx + N_AUX], 3
+        jb 6f
+        cmp qword ptr [rsp + SL_WIDTH], 0
+        jne 61f
+        mov rdi, [rbx + N_DATA + 8]
+        call alg_bits
+        mov [rsp + SL_WIDTH], rax
+61:     mov rbx, [rbx + N_DATA + 16]
+6:      # bytes of more than a word (or of a width not known) cut where it's
+        # not known: not a number, to take bits of
+        mov rdi, rbx
+        call sized
+        test eax, eax
+        jz 7f
+        mov rdi, rbx
+        call opcode_of
+        cmp eax, OP_BYTES
+        je 7f
+        mov rdi, rbx
+        call width_of
+        mov r14, rax
+        test rax, rax
+        jz .Lsl_none
+        mov rdi, rax
+        call is_int
+        test eax, eax
+        jz .Lsl_none
+        mov rdi, r14
+        mov esi, (256 << 1) | 1
+        call int_cmp
+        cmp eax, 0
+        jg .Lsl_none
+7:      cmp qword ptr [rsp + SL_WIDTH], 0
+        jne 8f
         mov rdi, rbx
         call sizeof
-        mov r14, rax
+        mov [rsp + SL_WIDTH], rax
+8:      # a mask: 8 * size bits, at width - 8 * right
         mov rdi, r13
         call alg_bits
-        mov rdi, r14
+        mov rdi, [rsp + SL_WIDTH]
         mov rsi, rax
         call alg_sub_op
-        mov [rsp + SL_OFF], rax
+        mov r14, rax                    # off
         mov rdi, [rsp + SL_SIZE]
         call alg_bits
         mov rsi, rax
         mov rdi, rbx
-        mov rdx, [rsp + SL_OFF]
+        mov rdx, r14
         mov ecx, 1
-        mov r8, [rsp + SL_OFF]
+        mov r8, r14
         call alg_mask_op
+        mov rdi, rax
+        mov rsi, [rsp + SL_SIZE]
+        call with_width
         jmp .Lsl_done
 .Lsl_none:
         xor eax, eax
 .Lsl_done:
-        add rsp, MATCH_BINDINGS_SIZE + 32
+        add rsp, 64
         LEAVE
 ENDF slice_exp
 
@@ -1226,6 +1440,7 @@ FUNC splits_mem
         mov rdi, [rsp + SM_MEMVAL]
         mov esi, 1
         mov rdx, [rsp + SM_IN_LEFT]
+        xor ecx, ecx                    # (width: sizeof)
         call slice_exp
         mov [rsp + SM_VAL_LEFT], rax
         mov qword ptr [rsp + SM_VAL_RIGHT], 0
@@ -1237,6 +1452,7 @@ FUNC splits_mem
         mov rdi, [rsp + SM_MEMVAL]
         mov rsi, [rsp + SM_IN_RIGHT]
         mov rdx, rax
+        xor ecx, ecx                    # (width: sizeof)
         call slice_exp
         mov [rsp + SM_VAL_RIGHT], rax
 2:      call vec_new
@@ -1529,6 +1745,7 @@ FUNC fill_mem
         mov rdi, rbx
         mov esi, 1
         mov rdx, rax
+        xor ecx, ecx                    # (width: sizeof)
         call slice_exp
         mov [rsp + FM_RES_LEFT], rax
         test rax, rax
@@ -1543,6 +1760,7 @@ FUNC fill_mem
         mov rdi, rbx
         mov rsi, [rsp + FM_TMP]
         mov rdx, rax
+        xor ecx, ecx                    # (width: sizeof)
         call slice_exp
         mov [rsp + FM_RES_RIGHT], rax
         test rax, rax
@@ -1572,6 +1790,7 @@ FUNC fill_mem
         mov rdi, [rsp + FM_SPLIT_VAL]
         mov rsi, [rsp + FM_TMP]
         mov rdx, rax
+        xor ecx, ecx                    # (width: sizeof)
         call slice_exp
         mov [rsp + FM_RES_CENTER], rax
         test rax, rax

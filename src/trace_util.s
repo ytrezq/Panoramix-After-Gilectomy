@@ -660,12 +660,62 @@ FUNC replace_f
 3:      mov rdi, rbx
         mov rsi, [rsp]
         call mk_seq_like
+        mov rdi, rbx                    # what's bytes in it as wide as it was
+        mov rsi, rax
+        call keep_widths_seq
         mov rdi, rax
         mov rsi, r13
         call r12
         add rsp, 16
         LEAVE
 ENDF replace_f
+
+# replace_vars(exp, values) -> rax: python's helpers.replace_vars - exp with
+# each ('var', i) of `values` (an emap {i: value}, or 0 for none) replaced
+# by its value, all at once (as the setvars of a continue happen)
+FUNC replace_vars
+        test rsi, rsi
+        jz 1f
+        cmp qword ptr [rsi + EMAP_COUNT], 0
+        je 1f
+        mov rdx, rsi
+        lea rsi, [rip + replace_vars_f]
+        jmp replace_f
+1:      mov rax, rdi
+        ret
+ENDF replace_vars
+
+FUNC replace_vars_f
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov esi, OP_VAR
+        mov edx, 2
+        call is_op_n
+        test eax, eax
+        jz 1f
+        mov rdi, r12
+        mov rsi, [rbx + N_DATA + 8]
+        call emap_get
+        test rax, rax
+        jz 1f
+        LEAVE
+1:      mov rax, rbx
+        LEAVE
+ENDF replace_vars_f
+
+# keep_widths_seq(old, new) -> rax: python's replace_f / replace_f_stop: a
+# tuple rebuilt with its elements rewritten keeps the widths of the ones
+# that are bytes (memloc.keep_widths); a list, or the same one, as it is
+FUNC keep_widths_seq
+        cmp rdi, rsi
+        je 1f
+        cmp dword ptr [rsi + N_KIND], K_TUPLE
+        jne 1f
+        jmp keep_widths
+1:      mov rax, rsi
+        ret
+ENDF keep_widths_seq
 
 # replace_f_memo(exp, f, arg) -> value: replace_f for an f that is a pure
 # function of the expression it is given (simplify_exp, max_to_add...):
@@ -716,6 +766,9 @@ FUNC rfm_walk
 4:      mov rdi, rbx
         mov rsi, r13
         call mk_seq_like
+        mov rdi, rbx
+        mov rsi, rax
+        call keep_widths_seq
         mov rdi, rax
         xor esi, esi
         call r12
@@ -769,6 +822,9 @@ FUNC replace_f_stop_memo
 3:      mov rdi, rbx
         mov rsi, r13
         call mk_seq_like
+        mov rdi, rbx
+        mov rsi, rax
+        call keep_widths_seq
 8:      mov r13, rax
         mov edi, MEMO_RFS
         mov rsi, rbx
@@ -823,6 +879,9 @@ FUNC replace_f_stop
 3:      mov rdi, rbx
         mov rsi, [rsp]
         call mk_seq_like
+        mov rdi, rbx
+        mov rsi, rax
+        call keep_widths_seq
 4:      add rsp, 16
         LEAVE
 5:      mov rax, rbx

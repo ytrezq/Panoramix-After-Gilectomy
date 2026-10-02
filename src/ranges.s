@@ -1954,6 +1954,9 @@ ENDF proven_le
         OPSET_MEMBER vr_bounded, OP_GAS
         OPSET_END vr_bounded, OP_COUNT
 
+# is_bounded_symbol(id) -> eax: one of python's BOUNDED_SYMBOLS (64 bits)
+        OPSET_FUNC is_bounded_symbol, vr_bounded
+
         OPSET_MEMBER vr_wide_ops, OP_CALL_DATA
         OPSET_MEMBER vr_wide_ops, OP_CODE_DATA
         OPSET_MEMBER vr_wide_ops, OP_EXT_CALL_RETURN_DATA

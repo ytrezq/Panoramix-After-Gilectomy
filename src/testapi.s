@@ -129,6 +129,20 @@ test_table:
         .quad .Ln_signextend_op, tf_signextend_op
         .quad .Ln_bits, alg_bits
         .quad .Ln_is_bool, tf_is_bool
+        .quad .Ln_value_bits, value_bits
+        .quad .Ln_max_value_bits, tf_max_value_bits
+        .quad .Ln_max_value, max_value
+        .quad .Ln_low_zero_bits, low_zero_bits
+        .quad .Ln_width_of, tf_width_of
+        .quad .Ln_sized, tf_sized
+        .quad .Ln_implicit, tf_implicit
+        .quad .Ln_keep_width, tf_keep_width
+        .quad .Ln_keep_widths, tf_keep_widths
+        .quad .Ln_keep_setmem_width, tf_keep_setmem_width
+        .quad .Ln_resize_bytes, tf_resize_bytes
+        .quad .Ln_with_width, tf_with_width
+        .quad .Ln_byte_elements, tf_byte_elements
+        .quad .Ln_words, tf_words
         .quad .Ln_to_mask_b, tf_to_mask_b
         .quad .Ln_to_neg_mask_b, tf_to_neg_mask_b
         .quad .Ln_state_read, tf_state_read
@@ -155,6 +169,20 @@ test_table:
 .Ln_bits:      .asciz "bits"
 .Ln_lt_op_m:   .asciz "lt_op_m"
 .Ln_is_bool:   .asciz "is_bool"
+.Ln_value_bits: .asciz "value_bits"
+.Ln_max_value_bits: .asciz "max_value_bits"
+.Ln_max_value: .asciz "max_value"
+.Ln_low_zero_bits: .asciz "low_zero_bits"
+.Ln_width_of:  .asciz "width_of"
+.Ln_sized:     .asciz "sized"
+.Ln_implicit:  .asciz "implicit"
+.Ln_keep_width: .asciz "keep_width"
+.Ln_keep_widths: .asciz "keep_widths"
+.Ln_keep_setmem_width: .asciz "keep_setmem_width"
+.Ln_resize_bytes: .asciz "resize_bytes"
+.Ln_with_width: .asciz "with_width"
+.Ln_byte_elements: .asciz "byte_elements"
+.Ln_words:     .asciz "words"
 .Ln_to_mask_b: .asciz "to_mask_b"
 .Ln_to_neg_mask_b: .asciz "to_neg_mask_b"
 .Ln_state_read: .asciz "state_read"
@@ -453,6 +481,149 @@ FUNC tf_le_op
         call tri_value
         LEAVE
 ENDF tf_le_op
+
+# memloc's widths (widths.s): max_value_bits((exp, bounds)) - bounds None
+# or a tuple of (exp, bits) - width_of(exp), sized(exp), implicit((exp,
+# width)), keep_width((old, new)), keep_widths((old, new)),
+# keep_setmem_width((length, old, new)), resize_bytes((exp, size)),
+# with_width((exp, size)), byte_elements(exp) (a tuple), words(exp)
+FUNC tf_max_value_bits
+        ENTER
+        mov rbx, rdi
+        xor r12d, r12d
+        mov rax, [rbx + N_DATA + 8]
+        lea rcx, [rip + sp_none]
+        cmp rax, rcx
+        je 2f
+        call emap_new
+        mov r12, rax
+        mov r13, [rbx + N_DATA + 8]
+        xor r14d, r14d
+1:      cmp r14d, [r13 + N_AUX]
+        jae 2f
+        mov rax, [r13 + N_DATA + r14*8]
+        inc r14d
+        mov rdi, r12
+        mov rsi, [rax + N_DATA]
+        mov rdx, [rax + N_DATA + 8]
+        call emap_put
+        jmp 1b
+2:      mov rdi, [rbx + N_DATA]
+        mov rsi, r12
+        call max_value_bits
+        LEAVE
+ENDF tf_max_value_bits
+
+FUNC tf_width_of
+        ENTER
+        call width_of
+        mov rdi, rax
+        call none_if_nil
+        LEAVE
+ENDF tf_width_of
+
+FUNC tf_sized
+        ENTER
+        call sized
+        jmp tf_bool_ret
+ENDF tf_sized
+
+FUNC tf_words
+        ENTER
+        call mem_words
+        jmp tf_bool_ret
+ENDF tf_words
+
+FUNC tf_implicit
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call implicit
+        jmp tf_bool_ret
+ENDF tf_implicit
+
+# (entered with the frame of the caller above: eax as True or False)
+FUNC tf_bool_ret
+        lea rcx, [rip + sp_true]
+        lea rdx, [rip + sp_false]
+        test eax, eax
+        cmovz rcx, rdx
+        mov rax, rcx
+        LEAVE
+ENDF tf_bool_ret
+
+FUNC tf_keep_width
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        jmp keep_width
+ENDF tf_keep_width
+
+FUNC tf_keep_widths
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        jmp keep_widths
+ENDF tf_keep_widths
+
+FUNC tf_keep_setmem_width
+        mov rdx, [rdi + N_DATA + 16]
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        jmp keep_setmem_width
+ENDF tf_keep_setmem_width
+
+FUNC tf_resize_bytes
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call resize_bytes
+        mov rdi, rax
+        call none_if_nil
+        LEAVE
+ENDF tf_resize_bytes
+
+FUNC tf_with_width
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        jmp with_width
+ENDF tf_with_width
+
+FUNC tf_byte_elements
+        ENTER
+        mov rbx, rdi
+        call vec_new
+        mov r12, rax
+        xor r13d, r13d
+        call is_tuple_rbx
+1:      cmp r13d, r14d
+        jae 2f
+        mov rdi, rbx
+        mov esi, r13d
+        call is_byte_element
+        test eax, eax
+        jz 3f
+        mov rdi, r12
+        lea rsi, [r13 + r13 + 1]
+        call vec_push
+3:      inc r13d
+        jmp 1b
+2:      mov rdi, r12
+        call vec_to_tuple
+        LEAVE
+ENDF tf_byte_elements
+
+# is_tuple_rbx(): r14d := the number of elements of the tuple rbx, 0 for
+# anything else (tf_byte_elements')
+FUNC is_tuple_rbx
+        xor r14d, r14d
+        mov rdi, rbx
+        push rbx
+        call is_tuple
+        pop rbx
+        test eax, eax
+        jz 1f
+        mov r14d, [rbx + N_AUX]
+1:      ret
+ENDF is_tuple_rbx
 
 # is_bool(exp) -> bool; state_read(exp) -> its kind (a string) or None;
 # may_alias((a, b)) -> bool; changed_reads((exp, op, target)) -> a tuple
@@ -1499,7 +1670,15 @@ ENDF tf_2args_memloc_overwrite
 
 FUNC tf_slice_exp
         ENTER
-        mov rdx, [rdi + N_DATA + 16]
+        xor ecx, ecx                    # (width: sizeof)
+        cmp dword ptr [rdi + N_AUX], 4  # (exp, left, right[, width])
+        jb 1f
+        mov rcx, [rdi + N_DATA + 24]
+        lea rax, [rip + sp_none]
+        cmp rcx, rax
+        jne 1f
+        xor ecx, ecx
+1:      mov rdx, [rdi + N_DATA + 16]
         mov rsi, [rdi + N_DATA + 8]
         mov rdi, [rdi + N_DATA]
         call slice_exp

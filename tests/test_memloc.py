@@ -40,7 +40,22 @@ def rval(depth=0):
     if op == "call.data": return (random.choice(["call.data", "ext_call.return_data"]), rpos(), rpos())
     if op == "bool": return ("bool", rval(depth + 1))
     if op == "mul": return ("mul", random.choice([1, 2, 8, 32, -1]), rval(depth + 1))
-    return ("data", rval(depth + 1), rval(depth + 1))
+    if random.random() < 0.5:
+        return random.choice([
+            ("bytes", random.choice([1, 4, 20, 32, 33, 64, ("cd", 4)]), rval(depth + 1)),
+            ("extcodecopy", "x", ("range", rpos(), random.choice([32, 4, 64, rpos()]))),
+            ("arr", ("cd", 4), rval(depth + 1)),
+            ("sha3", rval(depth + 1), rval(depth + 1)),
+            ("mem", rpos()),
+            ("sall", 5),
+            ("data", ("bytes", 4, ("cd", 4)), ("mem", ("range", 64, random.choice([32, 4, 100])))),
+        ])
+    return ("data",) + tuple(rval(depth + 1) for _ in range(random.randint(0, 3)))
+
+def rwide():
+    """what's in memory, of a width"""
+    return random.choice([rval(), ("bytes", random.choice([4, 20, 32]), rval()), ("mem", rrange()), ("call.data", rpos(), random.choice([4, 32, 64])),
+                          ("data", rval(), ("bytes", 4, ("cd", 4))), ("data", ("mem", ("range", 0, 4)), ("mem", ("range", 100, 28))), 5, 2**300, ("mask_shl", 160, 0, 0, ("cd", 4))])
 
 def run(fn, *args):
     try:
@@ -52,9 +67,13 @@ def run(fn, *args):
     except Exception as e:
         return "<exc %s: %s>" % (type(e).__name__, e)
 
+ONLY = set(os.environ["ONLY"].split(",")) if os.environ.get("ONLY") else None
+
 cases = bad = 0
 def check(name, args, expected, single=False):
     global cases, bad
+    if ONLY and name not in ONLY:
+        return
     cases += 1
     lit = repr(args[0]) if single else repr(args)
     try:
@@ -95,5 +114,32 @@ if __name__ == "__main__":
     check("fill_mem", (mem, r2, v), run(M.fill_mem, mem, r2, v))
     check("range_overlaps", (r1, r2), run(M.range_overlaps, r1, r2))
     check("range_contains", (r1, r2), run(M.range_contains, r1, r2))
+    # the widths of what's in memory, and what's known of the bits of a value
+    w1, w2 = rwide(), rwide()
+    check("value_bits", (w1,), run(M.value_bits, w1), True)
+    bnd = random.choice([None, ((("cd", 4), 64),), ((("var", "_1"), 8), ("x", 3))])
+    check("max_value_bits", (w1, bnd), run(M.max_value_bits, w1, None if bnd is None else dict(bnd)))
+    check("max_value", (w1,), run(M.max_value, w1), True)
+    check("low_zero_bits", (w1,), run(M.low_zero_bits, w1), True)
+    check("width_of", (w1,), run(M.width_of, w1), True)
+    check("sized", (w1,), run(M.sized, w1), True)
+    check("words", (w1,), run(M.words, w1), True)
+    wd = random.choice([256, 160, 32, 8 * random.randint(0, 40), ("mul", 8, ("cd", 4))])
+    check("implicit", (w1, wd), run(M.implicit, w1, wd))
+    check("keep_width", (w1, w2), run(M.keep_width, w1, w2))
+    op = random.choice(["sha3", "data", "return", "log", "call", "setmem", "arr", "add"])
+    old_e = (op,) + tuple(rwide() for _ in range(random.randint(1, 6)))
+    if op == "setmem": old_e = ("setmem", rrange(), rwide())
+    new_e = tuple(e if random.random() < 0.5 else rwide() for e in old_e)
+    check("keep_widths", (old_e, new_e), run(M.keep_widths, old_e, new_e))
+    ln = random.choice([32, 4, 20, 64, 1, ("cd", 4)])
+    check("keep_setmem_width", (ln, w1, w2), run(M.keep_setmem_width, ln, w1, w2))
+    sz = random.choice([32, 4, 20, 64, 1, 33, ("cd", 4)])
+    check("resize_bytes", (w1, sz), run(M.resize_bytes, w1, sz))
+    check("with_width", (w1, sz), run(M.with_width, w1, sz))
+    check("byte_elements", (old_e,), run(lambda e: tuple(M.byte_elements(e)), old_e), True)
+    l2, r2_ = random.choice([(0, 4), (4, 32), (0, 32), (12, 32), (28, 36), (l, r)])
+    wdt = random.choice([None, 256, 160, 512, 32])
+    check("slice_exp", (w1, l2, r2_, wdt), run(M.slice_exp, w1, l2, r2_, wdt))
   print(f"{cases} cases, {bad} mismatches")
   sys.exit(1 if bad else 0)

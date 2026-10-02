@@ -190,7 +190,8 @@ opcode_names:
         .quad .Lopname_183
         .quad .Lopname_184
         .quad .Lopname_185
-opcode_names_count: .quad 186
+        .quad .Lopname_186
+opcode_names_count: .quad 187
 .Lopname_0: .asciz "add"
 .Lopname_1: .asciz "mul"
 .Lopname_2: .asciz "sub"
@@ -377,9 +378,10 @@ opcode_names_count: .quad 186
 .Lopname_183: .asciz "codecall"
 .Lopname_184: .asciz "land"
 .Lopname_185: .asciz "lor"
+.Lopname_186: .asciz "sall"
         .section .bss
         .align 8
         .globl opcode_nodes
         .hidden opcode_nodes
-opcode_nodes: .space 1496
+opcode_nodes: .space 1504
         .section .note.GNU-stack,"",@progbits
