@@ -182,6 +182,10 @@ test_table:
         .quad .Ln_setmem_reads_written, tf_setmem_reads_written
         .quad .Ln_store_reads_written, tf_store_reads_written
         .quad .Ln_byte_field_store, tf_byte_field_store
+        .quad .Ln_abi_content, tf_abi_content
+        .quad .Ln_byte_size, tf_byte_size
+        .quad .Ln_postprocess_trace_ifs, tf_postprocess_trace_ifs
+        .quad .Ln_postprocess_exp_f, tf_postprocess_exp_f
         .quad 0, 0
 
         .section .rodata
@@ -250,6 +254,10 @@ test_table:
 .Ln_setmem_reads_written: .asciz "setmem_reads_written"
 .Ln_store_reads_written: .asciz "store_reads_written"
 .Ln_byte_field_store: .asciz "byte_field_store"
+.Ln_abi_content: .asciz "abi_content"
+.Ln_byte_size: .asciz "byte_size"
+.Ln_postprocess_trace_ifs: .asciz "postprocess_trace_ifs"
+.Ln_postprocess_exp_f: .asciz "postprocess_exp_f"
 .Ln_json_value: .asciz "json_value"
 .Ln_hash:      .asciz "hash"
 .Ln_str_flags: .asciz "str_flags"
@@ -2811,5 +2819,54 @@ FUNC tf_byte_field_store
 1:      lea rax, [rip + sp_none]
         LEAVE
 ENDF tf_byte_field_store
+
+# rewriter's: abi_content((length, content)) -> tuple or None
+FUNC tf_abi_content
+        ENTER
+        mov rbx, [rdi + N_DATA + 8]     # content
+        mov rdi, [rdi + N_DATA]
+        lea rsi, [rbx + N_DATA]
+        mov edx, [rbx + N_AUX]
+        call abi_content
+        test rax, rax
+        js 1f
+        mov rdi, rax
+        lea rsi, [rbx + N_DATA]
+        call mk_tuple
+        LEAVE
+1:      lea rax, [rip + sp_none]
+        LEAVE
+ENDF tf_abi_content
+
+# byte_size(terms) -> value or None
+FUNC tf_byte_size
+        ENTER
+        mov esi, [rdi + N_AUX]
+        lea rdi, [rdi + N_DATA]
+        call byte_size
+        mov rdi, rax
+        call none_if_nil
+        LEAVE
+ENDF tf_byte_size
+
+# rewrite_trace_ifs(trace, postprocess_trace)
+FUNC tf_postprocess_trace_ifs
+        lea rsi, [rip + postprocess_trace]
+        xor edx, edx
+        jmp rewrite_trace_ifs
+ENDF tf_postprocess_trace_ifs
+
+# replace_f(trace, postprocess_exp), twice (simplify_trace's)
+FUNC tf_postprocess_exp_f
+        ENTER
+        lea rsi, [rip + postprocess_exp]
+        xor edx, edx
+        call replace_f_memo
+        mov rdi, rax
+        lea rsi, [rip + postprocess_exp]
+        xor edx, edx
+        call replace_f_memo
+        LEAVE
+ENDF tf_postprocess_exp_f
 
         .section .note.GNU-stack,"",@progbits

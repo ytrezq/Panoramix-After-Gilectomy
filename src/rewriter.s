@@ -5,7 +5,6 @@
 
         .section .rodata
 .Ls_assert_mul:     .asciz "cleanup_mul_1: a mul with too few terms"
-.Ls_assert_arr:     .asciz "postprocess_exp: array offset"
 .Ls_empty:          .asciz ""
 
         .text
@@ -321,172 +320,273 @@ ENDF pp_cleanup_mul_1
 
 # --- rewriter.postprocess_exp ---
 
-# postprocess_exp(exp, arg) -> value: arrays in data
+# postprocess_exp(exp, arg) -> value: an array in a list of data - its
+# offset, then after the other words its length and content - as
+# ('arr', len, data...), that is ABI-encoded: its content padded with
+# zeroes to whole words. Where the data has that padding only: its content
+# is whole words, or is as many bytes as its length followed by the
+# zeroes up to them.
 FUNC postprocess_exp
         ENTER
-        sub rsp, MATCH_BINDINGS_SIZE + 48
-        .set PE_LOC, MATCH_BINDINGS_SIZE
-        .set PE_CONCRETE, MATCH_BINDINGS_SIZE + 8
-        .set PE_ARR, MATCH_BINDINGS_SIZE + 16
-        .set PE_VEC, MATCH_BINDINGS_SIZE + 24
-        .set PE_I, MATCH_BINDINGS_SIZE + 32
+        sub rsp, 48
+        .set PE_LOC, 0                  # the offset's index in exp
+        .set PE_N, 8                    # len(terms)
+        .set PE_KEEP, 16                # the content's elements kept
+        .set PE_VEC, 24
         mov rbx, rdi
         call opcode_of
         cmp eax, OP_DATA
-        jne .Lpe_arr
-        # one term a multiple of 32: potentially the offset of an array
-        mov qword ptr [rsp + PE_CONCRETE], 0
+        jne .Lpe_asis
+        # one term a number multiple of 32 (python's %: a negative or a
+        # big one too)
+        mov eax, [rbx + N_AUX]
+        dec eax
+        mov [rsp + PE_N], rax
         xor r12d, r12d                  # how many
         mov r13d, 1
 1:      cmp r13d, [rbx + N_AUX]
         jae 2f
-        mov rax, [rbx + N_DATA + r13*8]
-        test al, 1
-        jz 12f
-        sar rax, 1
-        test rax, 31
-        jnz 11f
-        inc r12d
-        mov [rsp + PE_LOC], r13
-        mov [rsp + PE_CONCRETE], rax    # (untagged)
-11:     inc r13d
-        jmp 1b
-12:     # a big int counts too when it is a multiple of 32 (the 32-byte
-        # constants of the errors usually are): never an offset, but it
-        # makes the count exceed one
-        mov rdi, rax
+        mov rdi, [rbx + N_DATA + r13*8]
+        inc r13d
         call is_int
         test eax, eax
-        jz 11b
-        mov rax, [rbx + N_DATA + r13*8]
-        lea rdi, [rax + N_DATA]
-        mov esi, 32
-        call __gmpz_divisible_ui_p@PLT
-        test eax, eax
-        jz 11b
+        jz 1b
+        mov rdi, [rbx + N_DATA + r13*8 - 8]
+        mov esi, 5
+        call int_mod_2exp
+        cmp rax, 1
+        jne 1b
         inc r12d
-        mov [rsp + PE_LOC], r13
-        mov rax, 0x7fffffffffffffff     # loc = huge: no array starts there
-        mov [rsp + PE_CONCRETE], rax
-        jmp 11b
+        lea rax, [r13 - 1]
+        mov [rsp + PE_LOC], rax
+        jmp 1b
 2:      cmp r12d, 1
-        jne .Lpe_arr
-        mov rax, [rsp + PE_CONCRETE]
-        sar rax, 5                      # loc = concrete // 32
-        mov r14, rax
-        # loc + 1 < len(terms) and loc > terms.index(concrete)
-        mov ecx, [rbx + N_AUX]
-        dec ecx                         # len(terms)
-        lea rdx, [r14 + 1]
-        cmp rdx, rcx
-        jge .Lpe_arr
-        mov rdx, [rsp + PE_LOC]
-        dec rdx                         # index among the terms
-        cmp r14, rdx
-        jle .Lpe_arr
-        # arr = ('arr',) + terms[loc:]
+        jne .Lpe_asis
+        # loc = concrete // 32: loc + 1 < len(terms) and loc > the
+        # offset's index (a big loc is neither)
+        mov rax, [rsp + PE_LOC]
+        mov rdi, [rbx + N_DATA + rax*8]
+        test dil, 1
+        jz .Lpe_asis
+        sar rdi, 6                      # (untagged, // 32)
+        mov r14, rdi                    # loc
+        lea rax, [r14 + 1]
+        cmp rax, [rsp + PE_N]
+        jge .Lpe_asis
+        mov rax, [rsp + PE_LOC]
+        dec rax                         # its index among the terms
+        cmp r14, rax
+        jle .Lpe_asis
+        # the offset is one of words up to the length
+        xor r12d, r12d
+3:      cmp r12, r14
+        ja 4f
+        mov rdi, [rbx + N_DATA + 8 + r12*8]
+        inc r12
+        call sizeof
+        cmp rax, (256 << 1) | 1
+        jne .Lpe_asis
+        jmp 3b
+4:      mov rdi, [rbx + N_DATA + 8 + r14*8]     # terms[loc], terms[loc + 1:]
+        lea rsi, [rbx + N_DATA + 16 + r14*8]
+        mov rdx, [rsp + PE_N]
+        sub rdx, r14
+        dec rdx
+        call abi_content
+        test rax, rax
+        js .Lpe_asis
+        mov [rsp + PE_KEEP], rax
+        # ('arr', length) + content
         call vec_new
         mov [rsp + PE_VEC], rax
         mov rdi, rax
         LOADS rsi, ARR
         call vec_push
-        mov ecx, [rbx + N_AUX]
-        dec ecx
-        sub rcx, r14                    # the terms from loc on
-        lea rsi, [rbx + N_DATA + 8 + r14*8]
         mov rdi, [rsp + PE_VEC]
-        mov rdx, rcx
+        mov rsi, [rbx + N_DATA + 8 + r14*8]
+        call vec_push
+        mov rdi, [rsp + PE_VEC]
+        lea rsi, [rbx + N_DATA + 16 + r14*8]
+        mov rdx, [rsp + PE_KEEP]
         call vec_extend
         mov rdi, [rsp + PE_VEC]
         call vec_to_tuple
-        mov [rsp + PE_ARR], rax
-        # heuristics for cleaning up various misprocessed stuff
-        PAT rsi, "('arr', ':l', (':op', 'Any', ':l'), '...')"
-        mov rdi, rax
-        mov rdx, rsp
-        call pat_match
-        test eax, eax
-        jz 3f
-        B rdi, 1
-        call str_id
-        mov edi, eax
-        call is_array_op
-        test eax, eax
-        jz 3f
-        mov rax, [rsp + PE_ARR]
-        mov edi, 3
-        lea rsi, [rax + N_DATA]
-        call mk_tuple
-        mov [rsp + PE_ARR], rax
-        jmp 4f
-3:      PAT rsi, "('arr', ':l', ('mask_shl', ('mask_shl', 253, 0, 3, ':l'), 'Any', 'Any', ('data', (':op', ':st', ':l'), '...'), '...'))"
-        mov rdi, [rsp + PE_ARR]
-        mov rdx, rsp
-        call pat_match
-        test eax, eax
-        jz 4f
-        B rdi, 1
-        call str_id
-        mov edi, eax
-        call is_array_op
-        test eax, eax
-        jz 4f
-        # ('arr', l, (op, st, l))
-        B rdi, 1
-        B rsi, 2
-        B rdx, 0
-        call mk3
-        mov rdx, rax
-        B rsi, 0
-        LOADS rdi, ARR
-        call mk3
-        mov [rsp + PE_ARR], rax
-4:      # ('data',) + the terms before loc, the offset replaced by the array
+        mov r13, rax                    # arr
+        # ('data',) + the terms before loc, the offset replaced by the array
         call vec_new
         mov [rsp + PE_VEC], rax
         mov rdi, rax
         LOADS rsi, DATA
         call vec_push
-        mov qword ptr [rsp + PE_I], 0
-5:      mov rcx, [rsp + PE_I]
+        mov r12, r14
+        shl r12, 5
+        TAG r12                         # loc * 32
+        mov qword ptr [rsp + PE_KEEP], 0
+5:      mov rcx, [rsp + PE_KEEP]
         cmp rcx, r14
         jae 6f
-        mov rsi, [rbx + N_DATA + 8 + rcx*8]
-        mov rax, [rsp + PE_CONCRETE]
-        TAG rax
-        cmp rsi, rax
-        jne 51f
-        mov rsi, [rsp + PE_ARR]
-51:     mov rdi, [rsp + PE_VEC]
+        mov rdi, [rbx + N_DATA + 8 + rcx*8]
+        inc qword ptr [rsp + PE_KEEP]
+        mov [rsp + PE_LOC], rdi
+        mov rsi, r12
+        call py_equal
+        mov rsi, [rsp + PE_LOC]
+        test eax, eax
+        cmovnz rsi, r13
+        mov rdi, [rsp + PE_VEC]
         call vec_push
-        inc qword ptr [rsp + PE_I]
         jmp 5b
 6:      mov rdi, [rsp + PE_VEC]
         call vec_to_tuple
-        jmp .Lpe_done
-.Lpe_arr:
-        PAT rsi, "('arr', ':l', ('mask_shl', ('mask_shl', 'Any', 0, 3, ':l'), ('add', 256, 'Any'), ('add', -256, 'Any'), ('data', ('call.data', ':s', ':l'), '...'), '...'))"
+        add rsp, 48
+        LEAVE
+.Lpe_asis:
+        mov rax, rbx
+        add rsp, 48
+        LEAVE
+ENDF postprocess_exp
+
+# abi_content(length, content, count) -> rax: what an Array(len=length,
+# data=...) of the bytes of content (count values) is printed with, as how
+# many of them it keeps - all of them if they're whole words (padding them
+# adds nothing); without the zeroes after its `length` bytes up to whole
+# words - -1 (python's None) if they're neither
+FUNC abi_content
+        ENTER
+        sub rsp, 32
+        .set AC_LENGTH, 0
+        .set AC_SIZE, 8
+        .set AC_WORDS, 16
+        mov [rsp + AC_LENGTH], rdi
+        mov rbx, rsi
+        mov r12, rdx
+        mov rdi, rsi
+        mov rsi, rdx
+        call byte_size
+        mov [rsp + AC_SIZE], rax
+        # the data without its zeroes at the end
+        mov r13, r12
+1:      test r13, r13
+        jz 2f
+        mov rdi, [rbx + r13*8 - 8]
+        mov esi, 1
+        call py_equal
+        test eax, eax
+        jnz 11f
+        mov rdi, [rbx + r13*8 - 8]
+        PATXD "('bytes', 'Any', 0)"
+        test eax, eax
+        jz 2f
+11:     dec r13
+        jmp 1b
+2:      # ('mask_shl', 251, 5, 0, 31 + length): its whole words
+        mov edi, (31 << 1) | 1
+        mov rsi, [rsp + AC_LENGTH]
+        call alg_add2
+        mov r8, rax
+        LOADS rdi, MASK_SHL
+        mov esi, (251 << 1) | 1
+        mov edx, (5 << 1) | 1
+        mov ecx, 1
+        call mk5
+        mov [rsp + AC_WORDS], rax
+        cmp qword ptr [rsp + AC_SIZE], 0
+        je 9f
         mov rdi, rbx
+        mov rsi, r13
+        call byte_size
+        mov rdi, rax
+        call none_if_nil
+        mov rdi, rax
+        mov rsi, [rsp + AC_LENGTH]
+        call alg_sub_op
+        cmp rax, 1
+        jne 3f
+        mov rdi, [rsp + AC_SIZE]
+        mov rsi, [rsp + AC_WORDS]
+        call alg_sub_op
+        cmp rax, 1
+        jne 3f
+        mov rax, r13
+        jmp 8f
+3:      mov rdi, [rsp + AC_SIZE]
+        call low_zero_bits
+        mov rdi, rax
+        mov esi, (5 << 1) | 1
+        call int_cmp
+        test eax, eax
+        js 9f
+        mov rax, r12
+8:      add rsp, 32
+        LEAVE
+9:      mov rax, -1
+        add rsp, 32
+        LEAVE
+ENDF abi_content
+
+# byte_size(terms, count) -> rax: how many bytes the elements of a data
+# are, NIL if that's not known
+FUNC byte_size
+        ENTER
+        sub rsp, MATCH_BINDINGS_SIZE + 16
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13d, 1                     # res (0)
+        xor r14d, r14d
+1:      cmp r14, r12
+        jae 8f
+        mov rdi, [rbx + r14*8]
+        inc r14
+        PATXD "('bytes', ':n', 'Any')"
+        test eax, eax
+        jnz 5f
+        mov rdi, [rbx + r14*8 - 8]
+        PAT rsi, "(':op', 'Any', ':n')"
         mov rdx, rsp
         call pat_match
         test eax, eax
-        jz .Lpe_asis
-        # ('arr', l, ('call.data', s, l))
-        B rsi, 1
-        B rdx, 0
-        LOADS rdi, CALL_DATA
-        call mk3
-        mov rdx, rax
-        B rsi, 0
-        LOADS rdi, ARR
-        call mk3
-        jmp .Lpe_done
-.Lpe_asis:
-        mov rax, rbx
-.Lpe_done:
-        add rsp, MATCH_BINDINGS_SIZE + 48
+        jz 2f
+        mov rdi, [rsp]
+        call str_id
+        mov edi, eax
+        call is_array_op
+        test eax, eax
+        jz 2f
+        mov rax, [rsp + 8]
+        mov [rsp], rax
+        jmp 5f
+2:      mov rdi, [rbx + r14*8 - 8]
+        PATXD "('mem', ('range', 'Any', ':n'))"
+        test eax, eax
+        jnz 5f
+        mov rdi, [rbx + r14*8 - 8]
+        call sizeof
+        mov [rsp + MATCH_BINDINGS_SIZE], rax
+        mov rdi, rax
+        call is_int
+        test eax, eax
+        jz 9f
+        mov rdi, [rsp + MATCH_BINDINGS_SIZE]
+        mov esi, 3
+        call int_mod_2exp
+        cmp rax, 1
+        jne 9f
+        mov rdi, [rsp + MATCH_BINDINGS_SIZE]
+        mov esi, (8 << 1) | 1
+        call int_floordiv
+        mov [rsp], rax
+5:      mov rdi, r13
+        mov rsi, [rsp]
+        call alg_add2
+        mov r13, rax
+        jmp 1b
+8:      mov rax, r13
+        add rsp, MATCH_BINDINGS_SIZE + 16
         LEAVE
-ENDF postprocess_exp
+9:      xor eax, eax
+        add rsp, MATCH_BINDINGS_SIZE + 16
+        LEAVE
+ENDF byte_size
 
 # --- rewriter.postprocess_trace ---
 
@@ -589,166 +689,128 @@ ENDF count_found
 # postprocess_trace(line, arg, out): rewrite_trace_ifs' f
 FUNC postprocess_trace
         ENTER
-        sub rsp, MATCH_BINDINGS_SIZE + 32
+        sub rsp, MATCH_BINDINGS_SIZE + 48
         .set PT_OUT, MATCH_BINDINGS_SIZE
         .set PT_L, MATCH_BINDINGS_SIZE + 8
         .set PT_TRUE, MATCH_BINDINGS_SIZE + 16
+        .set PT_FALSE, MATCH_BINDINGS_SIZE + 24
+        .set PT_COUNT, MATCH_BINDINGS_SIZE + 32
         mov rbx, rdi
         mov [rsp + PT_OUT], rdx
         # an if on the length of a storage string/array whose branches
-        # both hold the array: the true branch alone
+        # both hold the array as many times: the true branch alone
         PAT rsi, "('if', ('iszero', ('storage', 5, 0, ':l')), ':if_true', ':if_false')"
         mov rdx, rsp
         call pat_match
         test eax, eax
         jz 1f
-        B rax, 0
-        mov [rsp + PT_L], rax
-        B rax, 1
-        mov [rsp + PT_TRUE], rax
-        mov rdi, rax
-        lea rsi, [rip + collect_arr_storage]
-        mov rdx, [rsp + PT_L]
-        call count_found
-        test rax, rax
-        jz 1f
-        # (sic: both counts are taken on the true branch)
-        mov rax, [rsp + PT_TRUE]
-        jmp .Lpt_replace
+        lea rax, [rip + collect_arr_storage]
+        jmp .Lpt_counts
 1:      PAT rsi, "('if', ('iszero', ('mask_shl', 5, 0, 0, ':l')), ':if_true', ':if_false')"
         mov rdi, rbx
         mov rdx, rsp
         call pat_match
         test eax, eax
         jz 2f
+        lea rax, [rip + collect_arr_l]
+.Lpt_counts:
+        mov r12, rax
         B rax, 0
         mov [rsp + PT_L], rax
         B rax, 1
         mov [rsp + PT_TRUE], rax
-        mov rdi, rax
-        lea rsi, [rip + collect_arr_l]
+        B rax, 2
+        mov [rsp + PT_FALSE], rax
+        mov rdi, [rsp + PT_TRUE]
+        mov rsi, r12
         mov rdx, [rsp + PT_L]
         call count_found
-        test rax, rax
-        jz 2f
-        mov rax, [rsp + PT_TRUE]
-        jmp .Lpt_replace
-2:      # a string written to storage: only the case of a long one shown
+        mov [rsp + PT_COUNT], rax
+        mov rdi, [rsp + PT_FALSE]
+        mov rsi, r12
+        mov rdx, [rsp + PT_L]
+        call count_found
+        cmp qword ptr [rsp + PT_COUNT], 0
+        je 11f
+        cmp rax, [rsp + PT_COUNT]
+        jne 11f
+        mov rdi, [rsp + PT_OUT]
+        mov rsi, [rsp + PT_TRUE]
+        call vec_extend_seq
+        jmp .Lpt_done
+11:     jmp .Lpt_asis                   # (an iszero isn't the next patterns')
+2:      # a string written to storage: when it's longer than 31 bytes, it
+        # isn't empty - the check that it is can go
         PAT rsi, "('if', ('lt', 31, ':some_len'), ':if_true', ':if_false')"
         mov rdi, rbx
         mov rdx, rsp
         call pat_match
         test eax, eax
-        jz 3f
+        jz .Lpt_asis
         B r12, 1                        # if_true
+        mov rdi, r12
+        call is_seq
+        test eax, eax
+        jz .Lpt_asis
         cmp dword ptr [r12 + N_AUX], 2
-        jb 3f
+        jb .Lpt_asis
         mov r13, [r12 + N_DATA]         # first
         mov rdi, r13
         call opcode_of
         cmp eax, OP_STORE
-        jne 3f
+        jne .Lpt_asis
         mov rdi, r13
         B rsi, 0
         call contains
         test eax, eax
-        jz 3f
+        jz .Lpt_asis
         B rdi, 0
         call mk_iszero_of
         mov [rsp + PT_L], rax
-        mov rax, [r12 + N_DATA + 8]     # second
-        mov [rsp + PT_TRUE], rax
-        mov rdi, rax
+        mov r14, [r12 + N_DATA + 8]     # second
+        mov rdi, r14
         call is_if_line
         test eax, eax
-        jz 3f
-        mov rax, [rsp + PT_TRUE]
-        mov rax, [rax + N_DATA + 8]
+        jz .Lpt_asis
+        mov rax, [r14 + N_DATA + 8]
         cmp rax, [rsp + PT_L]
-        jne 3f
-        # [first] + deep_false + rest
-        mov rdi, [rsp + PT_OUT]
+        jne .Lpt_asis
+        # ('if', ('lt', 31, some_len), [first] + deep_false + rest, if_false)
+        call vec_new
+        mov [rsp + PT_COUNT], rax
+        mov rdi, rax
         mov rsi, r13
         call vec_push
-        mov rax, [rsp + PT_TRUE]
-        mov rdi, [rsp + PT_OUT]
-        mov rsi, [rax + N_DATA + 24]
+        mov rdi, [rsp + PT_COUNT]
+        mov rsi, [r14 + N_DATA + 24]
         call vec_extend_seq
         mov edx, [r12 + N_AUX]
         sub edx, 2
         lea rsi, [r12 + N_DATA + 16]
-        mov rdi, [rsp + PT_OUT]
+        mov rdi, [rsp + PT_COUNT]
         call vec_extend
-        jmp .Lpt_done
-3:      PAT rsi, "('if', ('iszero', ('mask_shl', 255, 1, 0, ('and', ('storage', 256, 0, ':loc'), ('add', -1, ('mask_shl', 248, 0, 8, ('iszero', ('storage', 1, 0, ':loc'))))))), ':if_true', ':if_false')"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
-        test eax, eax
-        jnz 4f
-        PAT rsi, "('if', ('iszero', ('mask_shl', 255, 1, 0, ('and', ('add', -1, ('mask_shl', 248, 0, 8, ('iszero', ('storage', 1, 0, ':loc')))), ('storage', 256, 0, ':loc')))), ':if_true', ':if_false')"
-        mov rdi, rbx
-        mov rdx, rsp
-        call pat_match
-        test eax, eax
-        jz .Lpt_asis
-4:      B r12, 2                        # if_false
-        cmp dword ptr [r12 + N_AUX], 1
-        jne .Lpt_asis
-        mov r13, [r12 + N_DATA]         # first
-        B rax, 0
-        mov [rsp + PT_L], rax           # loc
-        # ('if', ('lt', 31, ('storage', 256, 0, ('length', loc))), deep_true, ...)
-        # or with ('loc', loc)
-        mov rdi, r13
-        call is_if_line
-        test eax, eax
-        jz .Lpt_asis
-        LOADS rdi, LENGTH
-        mov rsi, [rsp + PT_L]
-        call mk2
+        mov rdi, [rsp + PT_COUNT]
+        call vec_to_list
+        mov r12, rax
+        LOADS rdi, LT
+        mov esi, (31 << 1) | 1
+        B rdx, 0
+        call mk3
         mov rdi, rax
-        call .Lpt_lt31_storage
-        cmp rax, [r13 + N_DATA + 8]
-        je 5f
-        LOADS rdi, LOC
-        mov rsi, [rsp + PT_L]
-        call mk2
-        mov rsi, rax
-        LOADS rdi, LENGTH
-        call mk2
-        mov rdi, rax
-        call .Lpt_lt31_storage
-        cmp rax, [r13 + N_DATA + 8]
-        jne .Lpt_asis
-5:      mov rax, [r13 + N_DATA + 16]    # deep_true
-.Lpt_replace:
+        mov rsi, r12
+        B rdx, 2
+        call mk_if
         mov rdi, [rsp + PT_OUT]
         mov rsi, rax
-        call vec_extend_seq
+        call vec_push
         jmp .Lpt_done
 .Lpt_asis:
         mov rdi, [rsp + PT_OUT]
         mov rsi, rbx
         call vec_push
 .Lpt_done:
-        add rsp, MATCH_BINDINGS_SIZE + 32
+        add rsp, MATCH_BINDINGS_SIZE + 48
         LEAVE
-
-# local: ('lt', 31, ('storage', 256, 0, rdi))
-.Lpt_lt31_storage:
-        sub rsp, 8
-        mov rcx, rdi
-        LOADS rdi, STORAGE
-        mov esi, (256 << 1) | 1
-        mov edx, 1
-        call mk4
-        mov rdx, rax
-        LOADS rdi, LT
-        mov esi, (31 << 1) | 1
-        call mk3
-        add rsp, 8
-        ret
 ENDF postprocess_trace
 
 # --- rewriter.rewrite_string_stores ---
