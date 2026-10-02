@@ -299,6 +299,17 @@ def rinputs():
         res.append(d)
     return res
 
+def rtype(d=0):
+    """a type of the storage (pretty_type's)"""
+    r = random.random()
+    if d > 2 or r < 0.35:
+        return random.choice([256, 160, 8, 1, 32, 64, 128, 0, 2, 255, 7, 2**200, "bytes", "struct", ("struct", 1),
+                              ("struct", random.choice([0, 2, 32, 64]))])
+    if r < 0.5: return ("array", rtype(d + 1))
+    if r < 0.65: return ("mapping", rtype(d + 1))
+    if r < 0.85: return ("def", random.choice(["stor0", "owner", "x"]), random.choice([0, 3, 1000, 1001, 2**255, "loc"]), rtype(d + 1))
+    return ("def", "x", random.choice([1, 2000]), ("mask", random.choice([8, 160, 256, 1]), random.choice([0, 8, 96, -1])))
+
 def port_inputs(inputs):
     if inputs is None: return None
     def conv(i):
@@ -383,6 +394,8 @@ for n in range(N):
     check("fix_widths", trace, run(P.fix_widths, trace), "fix_widths %d" % n)
     sv = rsetvars()
     check("sequential_setvars", sv, run(P.sequential_setvars, sv), "setvars %d" % n)
+    t = rtype()
+    check("pretty_type", t, run(P.pretty_type, t), "type %d" % n)
     # the params of the function printed
     inputs = rinputs()
     cd = random.choice([("cd", random.choice([4, 36, 68, 100, 132, 5, rint()])),

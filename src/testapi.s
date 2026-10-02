@@ -2662,11 +2662,17 @@ FUNC tf_known_fname
         LEAVE
 ENDF tf_known_fname
 
-# topic -> the abi entry (name, inputs, type) or None
+# topic -> the abi entry (name, inputs, type) or None, its inputs named
+# (as pretty_line has them: python's own entry has its names fixed or not
+# depending on what was asked of fetch_sig's cached dict before)
 FUNC tf_event_abi
         ENTER
         call event_abi
+        test rax, rax
+        jz 1f
         mov rdi, rax
+        call fix_input_names
+1:      mov rdi, rax
         call tf_or_none_nil
         LEAVE
 ENDF tf_event_abi

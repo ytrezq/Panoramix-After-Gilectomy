@@ -4339,11 +4339,17 @@ FUNC pretty_type
         call pat_match_nobind
         test eax, eax
         jnz 3f
+        LOADS rax, BYTES
+        cmp rbx, rax
+        je 31f
         LOADS rax, STRUCT
         cmp rbx, rax
         jne 4f
 3:      lea rdi, [rip + .Ls_struct]
         call str_new_c
+        jmp .Lpt_ret
+31:     lea rdi, [rip + .Ls_bytes + 1]  # "bytes" (a string has the same
+        call str_new_c                  # storage)
         jmp .Lpt_ret
 4:      PAT rsi, "('struct', ':int:num')"
         mov rdi, rbx
