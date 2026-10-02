@@ -1790,6 +1790,10 @@ FUNC is_known
         jz .Lik_none
         dec r13d
         mov r14, [r12 + N_DATA + r13*8]
+        mov rdi, r14                    # (what's known of the memory, and
+        call is_path_fact               # of the bits of a variable: not a
+        test eax, eax                   # condition)
+        jz .Lik_fact
         mov rax, r14                    # a known-true ('bool', x) is a known-true x
         test al, 1
         jnz 3f
@@ -1911,6 +1915,10 @@ FUNC is_known
         test r13d, r13d
         jz .Lik_none
         dec r13d
+        mov rdi, [r12 + N_DATA + r13*8]
+        call is_path_fact
+        test eax, eax
+        jz .Lik_plain
         mov rdi, rbx
         mov rsi, [r12 + N_DATA + r13*8]
         xor edx, edx
@@ -1924,6 +1932,23 @@ FUNC is_known
         add rsp, IK_FRAME
         LEAVE
 ENDF is_known
+
+# is_path_fact(fact) -> eax: the fact is a condition is_known asks about -
+# not one of the memory's ('memory', ...), ('memory_fresh',), nor a
+# ('var_bits', ...) (leaf)
+FUNC is_path_fact
+        OPCODE_OF_RDI
+        cmp eax, OP_MEMORY
+        je 1f
+        cmp eax, OP_MEMORY_FRESH
+        je 1f
+        cmp eax, OP_VAR_BITS
+        je 1f
+        mov eax, 1
+        ret
+1:      xor eax, eax
+        ret
+ENDF is_path_fact
 
 # ik_parts(exp, out) -> rax: the parts of exp eval_bool goes into (exp,
 # the operand of a bool or an iszero, the terms of an or or an and, and

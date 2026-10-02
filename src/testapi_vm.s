@@ -73,4 +73,200 @@ FUNC tf_stack_vars
         LEAVE
 ENDF tf_stack_vars
 
+# emap_items(map) -> tuple of (key, value): the entries of an emap of the
+# current epoch, in the order of the slots (0: ())
+FUNC emap_items
+        ENTER
+        mov rbx, rdi
+        call vec_new
+        mov r12, rax
+        test rbx, rbx
+        jz 3f
+        xor r13d, r13d
+1:      cmp r13, [rbx + EMAP_CAP]
+        jae 3f
+        mov rax, r13
+        shl rax, 5
+        add rax, [rbx + EMAP_ENTRIES]
+        inc r13
+        mov rcx, [rbx + EMAP_EPOCH]
+        cmp [rax + 16], rcx
+        jne 1b
+        mov rdi, [rax]
+        mov rsi, [rax + 8]
+        call mk2
+        mov rdi, r12
+        mov rsi, rax
+        call vec_push
+        jmp 1b
+3:      mov rdi, r12
+        call vec_to_tuple
+        LEAVE
+ENDF emap_items
+
+# nil_none(v) -> rax: v, NIL as None
+FUNC nil_none
+        mov rax, rdi
+        test rdi, rdi
+        jnz 1f
+        lea rax, [rip + sp_none]
+1:      ret
+ENDF nil_none
+
+        .section .rodata
+.Lvh_mask_value:    .asciz "mask_value"
+.Lvh_read_memory:   .asciz "read_memory"
+.Lvh_write_memory:  .asciz "write_memory"
+.Lvh_known_zeroes:  .asciz "known_zeroes"
+.Lvh_forget:        .asciz "forget"
+.Lvh_upper_bound:   .asciz "upper_bound"
+.Lvh_known_bounds:  .asciz "known_bounds"
+.Lvh_bound:         .asciz "bound"
+.Lvh_write_range:   .asciz "write_range"
+.Lvh_and_op:        .asciz "and_op"
+.Lvh_decided:       .asciz "decided"
+.Lvh_switch_values: .asciz "switch_values"
+.Lvh_entry_memory:  .asciz "entry_memory"
+.Lvh_is_known:      .asciz "is_known"
+.Lvh_float:         .asciz "float"
+        .text
+
+# vm_helper((name, a, b, c, d)): the VM's helpers (vmmem.s) - see
+# tests/test_vmmem.py for the arguments of each
+FUNC tf_vm_helper
+        ENTER
+        mov rbx, rdi
+        mov r12, [rbx + N_DATA]         # the name
+        mov r13, [rbx + N_DATA + 8]     # a
+        mov r14, [rbx + N_DATA + 16]    # b
+.macro VH_IS name, label
+        mov rdi, r12
+        lea rsi, [rip + .Lvh_\name]
+        call str_eq_c
+        test eax, eax
+        jnz \label
+.endm
+        VH_IS mask_value, .Lvh_mv
+        VH_IS read_memory, .Lvh_rm
+        VH_IS write_memory, .Lvh_wm
+        VH_IS known_zeroes, .Lvh_kz
+        VH_IS forget, .Lvh_fg
+        VH_IS upper_bound, .Lvh_ub
+        VH_IS known_bounds, .Lvh_kb
+        VH_IS bound, .Lvh_bd
+        VH_IS write_range, .Lvh_wr
+        VH_IS and_op, .Lvh_ao
+        VH_IS decided, .Lvh_dc
+        VH_IS switch_values, .Lvh_sv
+        VH_IS entry_memory, .Lvh_em
+        VH_IS is_known, .Lvh_ik
+        lea rax, [rip + sp_none]
+        LEAVE
+.Lvh_mv:
+        mov rdi, r13
+        mov rsi, r14
+        mov rdx, [rbx + N_DATA + 24]
+        mov rcx, [rbx + N_DATA + 32]
+        call mask_value
+        LEAVE
+.Lvh_rm:
+        mov rdi, r13
+        mov rsi, r14
+        call read_memory
+        mov rdi, rax
+        call nil_none
+        LEAVE
+.Lvh_wm:
+        mov rdi, r13
+        mov rsi, r14
+        mov rdx, [rbx + N_DATA + 24]
+        call write_memory
+        LEAVE
+.Lvh_kz:
+        mov rdi, r13
+        mov rsi, r14
+        mov rdx, [rbx + N_DATA + 24]
+        call known_zeroes
+        mov edi, eax                    # (TRI_TRUE, TRI_FALSE)
+        call tri_value
+        LEAVE
+.Lvh_fg:
+        mov rdi, r13
+        mov rsi, r14
+        sar rsi, 1
+        call forget
+        LEAVE
+.Lvh_ub:
+        mov rdi, r13
+        mov rsi, r14
+        call upper_bound
+        mov rdi, rax
+        call nil_none
+        LEAVE
+.Lvh_kb:
+        mov rdi, r13
+        call known_bounds
+        mov rdi, rax
+        call emap_items
+        LEAVE
+.Lvh_bd:
+        mov rdi, r13
+        mov rsi, r14
+        call bound
+        mov rdi, rax
+        call nil_none
+        LEAVE
+.Lvh_wr:
+        mov rdi, r13
+        mov rsi, r14
+        mov rdx, [rbx + N_DATA + 24]
+        call write_range
+        test rax, rax
+        jz 1f
+        js 2f
+        mov rdi, rax
+        mov rsi, rdx
+        call mk2
+        LEAVE
+1:      lea rax, [rip + sp_none]
+        LEAVE
+2:      lea rdi, [rip + .Lvh_float]
+        call str_intern_c
+        LEAVE
+.Lvh_ao:
+        mov rdi, r13
+        mov rsi, r14
+        mov rdx, [rbx + N_DATA + 24]
+        call and_op
+        LEAVE
+.Lvh_dc:
+        mov rdi, r13
+        mov rsi, r14
+        call decided
+        LEAVE
+.Lvh_sv:
+        mov rdi, r13
+        call switch_values
+        test rax, rax
+        jz 1b
+        mov r12, rax
+        mov rdi, rdx
+        call vec_to_tuple
+        mov rsi, rax
+        mov rdi, r12
+        call mk2
+        LEAVE
+.Lvh_em:
+        mov rdi, r13
+        call entry_memory
+        LEAVE
+.Lvh_ik:
+        mov rdi, r13
+        mov rsi, r14
+        call is_known
+        mov edi, eax
+        call tri_value
+        LEAVE
+ENDF tf_vm_helper
+
         .section .note.GNU-stack,"",@progbits

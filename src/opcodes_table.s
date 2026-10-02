@@ -201,7 +201,15 @@ opcode_names:
         .quad .Lopname_194
         .quad .Lopname_195
         .quad .Lopname_196
-opcode_names_count: .quad 197
+        .quad .Lopname_197
+        .quad .Lopname_198
+        .quad .Lopname_199
+        .quad .Lopname_200
+        .quad .Lopname_201
+        .quad .Lopname_202
+        .quad .Lopname_203
+        .quad .Lopname_204
+opcode_names_count: .quad 205
 .Lopname_0: .asciz "add"
 .Lopname_1: .asciz "mul"
 .Lopname_2: .asciz "sub"
@@ -399,9 +407,17 @@ opcode_names_count: .quad 197
 .Lopname_194: .asciz "break"
 .Lopname_195: .asciz "ecrecover"
 .Lopname_196: .asciz "shift"
+.Lopname_197: .asciz "memory"
+.Lopname_198: .asciz "memory_fresh"
+.Lopname_199: .asciz "returndatasize_zero"
+.Lopname_200: .asciz "var_bits"
+.Lopname_201: .asciz "check"
+.Lopname_202: .asciz "switch"
+.Lopname_203: .asciz "copied"
+.Lopname_204: .asciz "identity"
         .section .bss
         .align 8
         .globl opcode_nodes
         .hidden opcode_nodes
-opcode_nodes: .space 1584
+opcode_nodes: .space 1648
         .section .note.GNU-stack,"",@progbits
