@@ -109,7 +109,6 @@ test_table:
         .quad .Ln_pretty_type, pretty_type
         .quad .Ln_pretty_memory, tf_pretty_memory
         .quad .Ln_pretty_num, tf_pretty_num
-        .quad .Ln_pretty_fname, tf_pretty_fname
         .quad .Ln_pretty_bignum, tf_pretty_bignum
         .quad .Ln_mask_to_type, tf_mask_to_type
         .quad .Ln_padded_hex, tf_padded_hex
@@ -1868,16 +1867,6 @@ FUNC tf_pretty_num
         mov rdi, [rdi + N_DATA]
         jmp pretty_num
 ENDF tf_pretty_num
-
-# (v, flags, force)
-FUNC tf_pretty_fname
-        mov rsi, [rdi + N_DATA + 8]
-        UNTAG rsi
-        mov rdx, [rdi + N_DATA + 16]
-        UNTAG rdx
-        mov rdi, [rdi + N_DATA]
-        jmp pretty_fname
-ENDF tf_pretty_fname
 
 # (num, force)
 FUNC tf_mask_to_type

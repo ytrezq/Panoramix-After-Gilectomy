@@ -4,16 +4,24 @@
 # with liblzma and the small JSON parser below, into a flat file that is
 # mmap'ed and searched by dichotomy afterwards:
 #
-#   header:  "PANSIGS2" (8), u32 count, u32 strings size, u32 inputs
+#   header:  "PANSIGS3" (8), u32 count, u32 strings size, u32 inputs
 #            count, u32 the dump's version (python's dump_version: the
 #            first 4 bytes of its sha256), u64 its size, u64 its mtime
 #            (ns), u32 its absolute path (an offset in the strings, -1
 #            none), u32 pad                                    (48 bytes)
-#   entries: count * { u32 selector, u32 name, u32 inputs, u32 ninputs }
-#            (name: an offset in the strings; inputs: an index in the
+#   entries: count * { u32 selector, u32 name, u32 inputs, u32 ninputs,
+#            u32 type } (name, type: offsets in the strings - the abi's
+#            "type", "event" for an event's; inputs: an index in the
 #            inputs)
-#   inputs:  inputs count * { u32 type, u32 name }   (offsets in the strings)
+#   inputs:  inputs count * { u32 type, u32 name, u32 components, u32
+#            their count, u32 flags } (type, name: offsets in the
+#            strings; components: the index of the first of a tuple's -
+#            written before it -, flags: SIF_INDEXED for an event's
+#            indexed input, SIF_COMPONENTS when it has "components")
 #   strings: NUL-terminated, deduplicated
+#
+# (The second version had no components, no indexed inputs, no type: a
+# file of it, abi_db.bin, is left where it is - this one is abi_db3.bin.)
 #
 # The file lives in the cache directory ($XDG_CACHE_HOME/panoramix or
 # ~/.cache/panoramix, as python's), or where $PANORAMIX_SIGDB points. As
@@ -38,10 +46,16 @@
         .set SE_NAME, 4
         .set SE_INPUTS, 8
         .set SE_NINPUTS, 12
-        .set SE_SIZEOF, 16
+        .set SE_KIND, 16
+        .set SE_SIZEOF, 20
         .set SI_TYPE, 0
         .set SI_NAME, 4
-        .set SI_SIZEOF, 8
+        .set SI_COMPS, 8
+        .set SI_NCOMPS, 12
+        .set SI_FLAGS, 16
+        .set SI_SIZEOF, 20
+        .set SIF_INDEXED, 1
+        .set SIF_COMPONENTS, 2
 
         # lzma_stream (liblzma)
         .set LZ_NEXT_IN, 0
@@ -54,14 +68,14 @@
         .set LZMA_CONCATENATED, 8
 
         .section .rodata
-.Ls_magic:      .ascii "PANSIGS2"
+.Ls_magic:      .ascii "PANSIGS3"
 .Ls_env_dump:   .asciz "PANORAMIX_ABI_DUMP"
 .Ls_env_db:     .asciz "PANORAMIX_SIGDB"
 .Ls_env_xdg:    .asciz "XDG_CACHE_HOME"
 .Ls_env_home:   .asciz "HOME"
 .Ls_cache_sub:  .asciz "/panoramix"
 .Ls_dot_cache:  .asciz "/.cache"
-.Ls_db_file:    .asciz "/abi_db.bin"
+.Ls_db_file:    .asciz "/abi_db3.bin"
 .Ls_logname:    .asciz "panoramix.sigdb"
 .Ls_loaded:     .asciz "%u signatures loaded from %s"
 .Ls_no_db:      .asciz "no signature database (%s): the functions will be unknown; build one with `panasm build-db abi_dump.xz`"
@@ -78,6 +92,8 @@
 .Ls_name:       .asciz "name"
 .Ls_inputs:     .asciz "inputs"
 .Ls_type:       .asciz "type"
+.Ls_indexed:    .asciz "indexed"
+.Ls_components: .asciz "components"
 .Ls_true:       .asciz "true"
 .Ls_false:      .asciz "false"
 .Ls_null:       .asciz "null"
@@ -405,8 +421,12 @@ FUNC spin_unlock
         ret
 ENDF spin_unlock
 
-# sigdb_lookup(selector) -> rax: the (name, inputs) of a selector, or 0
-# (memoized on the context: the same entry is asked for repeatedly)
+# sigdb_lookup(selector) -> rax: the (name, inputs, type) of a selector,
+# or 0 (memoized on the context: the same entry is asked for repeatedly).
+# As python's fetch_sig, an entry is only one when its signature hashes to
+# the selector (supplement.hashes_to): a quarter of the dump is what a
+# decompiler guessed of functions whose signature wasn't known -
+# unknowna8b0c2ca(uint64 _param1) for a function of an address.
 FUNC sigdb_lookup
         ENTER
         sub rsp, 16
@@ -441,72 +461,42 @@ FUNC sigdb_lookup
         jmp 2b
 3:      mov r14, rcx                    # the entry
         # its offsets within the file (else: as if it wasn't there)
-        mov eax, [r14 + SE_INPUTS]
-        mov ecx, [r14 + SE_NINPUTS]
-        add rax, rcx
-        cmp rax, [rip + sigdb_ninputs]
-        ja .Lsq_none
         mov eax, [r14 + SE_NAME]
         cmp rax, [rip + sigdb_nstrings]
         jae .Lsq_none
-        xor ecx, ecx
-31:     cmp ecx, [r14 + SE_NINPUTS]
-        jae 32f
-        mov eax, [r14 + SE_INPUTS]
-        add rax, rcx
-        imul rax, rax, SI_SIZEOF
-        add rax, [rip + sigdb_inputs]
-        mov edx, [rax + SI_TYPE]
-        cmp rdx, [rip + sigdb_nstrings]
+        mov eax, [r14 + SE_KIND]
+        cmp rax, [rip + sigdb_nstrings]
         jae .Lsq_none
-        mov edx, [rax + SI_NAME]
-        cmp rdx, [rip + sigdb_nstrings]
-        jae .Lsq_none
-        inc ecx
-        jmp 31b
-32:     # (name, [(type, name), ...])
-        call vec_new
+        mov edi, [r14 + SE_INPUTS]
+        mov esi, [r14 + SE_NINPUTS]
+        lea rax, [rdi + rsi]
+        cmp rax, [rip + sigdb_ninputs]
+        ja .Lsq_none
+        call sigdb_read_inputs
+        test rax, rax
+        jz .Lsq_none
         mov [rsp], rax
-        xor r12d, r12d
-5:      cmp r12d, [r14 + SE_NINPUTS]
-        jae 6f
-        mov eax, [r14 + SE_INPUTS]
-        add rax, r12
-        imul rax, rax, SI_SIZEOF
-        add rax, [rip + sigdb_inputs]
-        mov edi, [rax + SI_TYPE]
+        mov edi, [r14 + SE_KIND]
         add rdi, [rip + sigdb_strings]
         call str_intern_c
         mov [rsp + 8], rax
-        mov eax, [r14 + SE_INPUTS]
-        add rax, r12
-        imul rax, rax, SI_SIZEOF
-        add rax, [rip + sigdb_inputs]
-        mov edi, [rax + SI_NAME]
-        add rdi, [rip + sigdb_strings]
-        call str_intern_c
-        mov rdi, [rsp + 8]
-        mov rsi, rax
-        call mk2
-        mov rdi, [rsp]
-        mov rsi, rax
-        call vec_push
-        inc r12d
-        jmp 5b
-6:      mov rdi, [rsp]
-        call vec_to_list
-        mov r12, rax
         mov edi, [r14 + SE_NAME]
         add rdi, [rip + sigdb_strings]
         call str_intern_c
         mov rdi, rax
-        mov rsi, r12
-        call mk2
+        mov rsi, [rsp]
+        mov rdx, [rsp + 8]
+        call mk3
         mov r12, rax
+        mov rdi, rax
+        mov rsi, rbx
+        call abi_hashes_to
+        test eax, eax
+        jz .Lsq_none
         mov edi, MEMO_SIGDB
         mov rsi, rbx
         TAG rsi
-        mov rdx, rax
+        mov rdx, r12
         call memo_put
         mov rax, r12
         jmp .Lsq_ret
@@ -522,13 +512,99 @@ FUNC sigdb_lookup
         LEAVE
 ENDF sigdb_lookup
 
+# sigdb_read_inputs(first, count) -> rax: the list of the inputs of these
+# records (see sig_db_lookup's form, sigs.s), or 0 when the file isn't
+# right (an offset past it, components not before their tuple)
+FUNC sigdb_read_inputs
+        STACK_CHECK
+        ENTER
+        sub rsp, 32
+        .set SQ_TYPE, 0
+        .set SQ_NAME, 8
+        .set SQ_COMPS, 16
+        mov rbx, rdi
+        mov r12, rsi
+        call vec_new
+        mov r13, rax
+        xor r14d, r14d
+1:      cmp r14, r12
+        jae 8f
+        lea rax, [rbx + r14]
+        imul rax, rax, SI_SIZEOF
+        add rax, [rip + sigdb_inputs]
+        mov ecx, [rax + SI_TYPE]
+        cmp rcx, [rip + sigdb_nstrings]
+        jae 9f
+        mov ecx, [rax + SI_NAME]
+        cmp rcx, [rip + sigdb_nstrings]
+        jae 9f
+        mov edi, [rax + SI_TYPE]
+        add rdi, [rip + sigdb_strings]
+        call str_intern_c
+        mov [rsp + SQ_TYPE], rax
+        lea rax, [rbx + r14]
+        imul rax, rax, SI_SIZEOF
+        add rax, [rip + sigdb_inputs]
+        mov edi, [rax + SI_NAME]
+        add rdi, [rip + sigdb_strings]
+        call str_intern_c
+        mov [rsp + SQ_NAME], rax
+        mov qword ptr [rsp + SQ_COMPS], 0
+        lea rax, [rbx + r14]
+        imul rax, rax, SI_SIZEOF
+        add rax, [rip + sigdb_inputs]
+        test dword ptr [rax + SI_FLAGS], SIF_COMPONENTS
+        jz 2f
+        # its components: written before it
+        mov edi, [rax + SI_COMPS]
+        mov esi, [rax + SI_NCOMPS]
+        lea rcx, [rdi + rsi]
+        lea rdx, [rbx + r14]
+        cmp rcx, rdx
+        ja 9f
+        call sigdb_read_inputs
+        test rax, rax
+        jz 9f
+        mov [rsp + SQ_COMPS], rax
+2:      lea rax, [rbx + r14]
+        imul rax, rax, SI_SIZEOF
+        add rax, [rip + sigdb_inputs]
+        mov ecx, [rax + SI_FLAGS]
+        and ecx, SIF_INDEXED
+        cmp qword ptr [rsp + SQ_COMPS], 0
+        jne 3f
+        test ecx, ecx
+        jnz 3f
+        mov rdi, [rsp + SQ_TYPE]        # (type, name)
+        mov rsi, [rsp + SQ_NAME]
+        call mk2
+        jmp 4f
+3:      lea rcx, [rcx*2 + 1]            # (type, name, components, indexed)
+        mov rdi, [rsp + SQ_TYPE]
+        mov rsi, [rsp + SQ_NAME]
+        mov rdx, [rsp + SQ_COMPS]
+        call mk4
+4:      mov rdi, r13
+        mov rsi, rax
+        call vec_push
+        inc r14
+        jmp 1b
+8:      mov rdi, r13
+        call vec_to_list
+        add rsp, 32
+        LEAVE
+9:      xor eax, eax
+        add rsp, 32
+        LEAVE
+ENDF sigdb_read_inputs
+
 # --- building ---
 
         # the builder's state
-        .set BD_ENTRIES, 0              # u32[4] * count, malloc'ed
+        .set BD_ENTRIES, 0              # u32[5] * count, malloc'ed
         .set BD_NENTRIES, 8
         .set BD_CAPENTRIES, 16
-        .set BD_INPUTS, 24              # u32[2] * count
+        .set BD_INPUTS, 24              # u32[5] * count
         .set BD_NINPUTS, 32
         .set BD_CAPINPUTS, 40
         .set BD_STRINGS, 48             # the blob
@@ -777,12 +853,12 @@ FUNC builder_new
         call xcalloc
         mov rbx, rax
         mov edi, 1 << 20
-        mov esi, 16
+        mov esi, SE_SIZEOF
         call xcalloc
         mov [rbx + BD_ENTRIES], rax
         mov qword ptr [rbx + BD_CAPENTRIES], 1 << 20
         mov edi, 1 << 20
-        mov esi, 8
+        mov esi, SI_SIZEOF
         call xcalloc
         mov [rbx + BD_INPUTS], rax
         mov qword ptr [rbx + BD_CAPINPUTS], 1 << 20
@@ -967,12 +1043,14 @@ FUNC builder_line
         .set BL_INPUTS, 32              # the index of the first input
         .set BL_NINPUTS, 40
         .set BL_KEY, 48                 # an sb for the keys and strings
+        .set BL_KIND, 56                # the abi's "type" (an offset in the strings)
         mov rbx, rdi
         mov [rsp + BL_P], rsi
         mov [rsp + BL_END], rdx
         inc qword ptr [rbx + BD_LINES]
         mov qword ptr [rsp + BL_SELECTOR], -1
         mov qword ptr [rsp + BL_NAME], 0
+        mov qword ptr [rsp + BL_KIND], 0
         mov rax, [rbx + BD_NINPUTS]
         mov [rsp + BL_INPUTS], rax
         mov qword ptr [rsp + BL_NINPUTS], 0
@@ -1053,7 +1131,7 @@ FUNC builder_line
         test rax, rax
         jz 3f
         dec rax
-        shl rax, 4
+        imul rax, rax, SE_SIZEOF
         add rax, [rbx + BD_ENTRIES]
         mov ecx, [rax + SE_SELECTOR]
         cmp rcx, [rsp + BL_SELECTOR]
@@ -1066,12 +1144,11 @@ FUNC builder_line
         shl rax, 1
         mov [rbx + BD_CAPENTRIES], rax
         mov rdi, [rbx + BD_ENTRIES]
-        mov rsi, rax
-        shl rsi, 4
+        imul rsi, rax, SE_SIZEOF
         call xrealloc
         mov [rbx + BD_ENTRIES], rax
         mov rax, [rbx + BD_NENTRIES]
-4:      shl rax, 4
+4:      imul rax, rax, SE_SIZEOF
         add rax, [rbx + BD_ENTRIES]
         mov rcx, [rsp + BL_SELECTOR]
         mov [rax + SE_SELECTOR], ecx
@@ -1081,6 +1158,8 @@ FUNC builder_line
         mov [rax + SE_INPUTS], ecx
         mov rcx, [rsp + BL_NINPUTS]
         mov [rax + SE_NINPUTS], ecx
+        mov rcx, [rsp + BL_KIND]
+        mov [rax + SE_KIND], ecx
         inc qword ptr [rbx + BD_NENTRIES]
 .Lbl_ok:
         mov rdi, [rsp + BL_KEY]
@@ -1145,12 +1224,41 @@ FUNC bl_abi
         lea rsi, [rip + .Ls_inputs]
         call strcmp@PLT
         test eax, eax
-        jnz 3f
+        jnz 21f
+        lea rdi, [r12 + BL_P]
+        call js_ws
+        mov rax, [r12 + BL_P]
+        cmp byte ptr [rax], '['
+        jne 3f                          # (not a list: none)
         mov rdi, rbx
         mov rsi, r12
-        call bl_inputs
+        lea rdx, [r12 + BL_INPUTS]      # (BL_INPUTS, BL_NINPUTS)
+        call bl_input_array
         test eax, eax
         jz 9f
+        jmp 4f
+21:     mov rax, [r12 + BL_KEY]
+        mov rdi, [rax + SB_BUF]
+        lea rsi, [rip + .Ls_type]
+        call strcmp@PLT
+        test eax, eax
+        jnz 3f
+        lea rdi, [r12 + BL_P]
+        call js_ws
+        mov rax, [r12 + BL_P]
+        cmp byte ptr [rax], '"'
+        jne 3f
+        lea rdi, [r12 + BL_P]
+        mov rsi, [r12 + BL_KEY]
+        call js_string
+        test eax, eax
+        jz 9f
+        mov rax, [r12 + BL_KEY]
+        mov rdi, rbx
+        mov rsi, [rax + SB_BUF]
+        mov rdx, [rax + SB_LEN]
+        call builder_string
+        mov [r12 + BL_KIND], rax
         jmp 4f
 3:      lea rdi, [r12 + BL_P]
         call js_skip
@@ -1170,15 +1278,32 @@ FUNC bl_abi
         LEAVE
 ENDF bl_abi
 
-# bl_inputs(bd, frame) -> eax: the "inputs" array - the "name" and "type"
-# of each, recorded
-FUNC bl_inputs
+# bl_input_array(bd, frame, out) -> eax: an array of inputs read at the
+# cursor (builder_line's frame), 1 when it was one: their records
+# appended to the inputs, contiguous, each one's components (an array of
+# their own) before them; out[0] the index of the first, out[1] their
+# count (qwords)
+FUNC bl_input_array
+        STACK_CHECK
         ENTER
-        sub rsp, 16
-        .set BI_TYPE, 0
-        .set BI_NAME, 8
+        sub rsp, 80
+        .set IA_OUT, 0
+        .set IA_BUF, 8                  # this array's records (malloc'ed)
+        .set IA_N, 16
+        .set IA_CAP, 24
+        .set IA_TYPE, 32                # the record being read
+        .set IA_NAME, 40
+        .set IA_COMPS, 48               # (out of the components' array:
+        .set IA_NCOMPS, 56              # these two)
+        .set IA_FLAGS, 64
         mov rbx, rdi
         mov r12, rsi
+        mov [rsp + IA_OUT], rdx
+        mov edi, 16 * SI_SIZEOF
+        call xmalloc
+        mov [rsp + IA_BUF], rax
+        mov qword ptr [rsp + IA_N], 0
+        mov qword ptr [rsp + IA_CAP], 16
         lea rdi, [r12 + BL_P]
         mov esi, '['
         call js_expect
@@ -1190,8 +1315,12 @@ FUNC bl_inputs
         cmp byte ptr [rax], ']'
         je 8f
         # one input
-        mov qword ptr [rsp + BI_TYPE], 0
-        mov qword ptr [rsp + BI_NAME], 0
+        xor eax, eax
+        mov [rsp + IA_TYPE], rax
+        mov [rsp + IA_NAME], rax
+        mov [rsp + IA_COMPS], rax
+        mov [rsp + IA_NCOMPS], rax
+        mov [rsp + IA_FLAGS], rax
         lea rdi, [r12 + BL_P]
         mov esi, '{'
         call js_expect
@@ -1218,35 +1347,57 @@ FUNC bl_inputs
         call strcmp@PLT
         test eax, eax
         jnz 3f
-        lea rdi, [r12 + BL_P]
-        mov rsi, [r12 + BL_KEY]
-        call js_string
+        lea rdi, [rsp + IA_NAME]
+        call .Lia_string
         test eax, eax
         jz 9f
-        mov rax, [r12 + BL_KEY]
-        mov rdi, rbx
-        mov rsi, [rax + SB_BUF]
-        mov rdx, [rax + SB_LEN]
-        call builder_string
-        mov [rsp + BI_NAME], rax
         jmp 5f
 3:      mov rax, [r12 + BL_KEY]
         mov rdi, [rax + SB_BUF]
         lea rsi, [rip + .Ls_type]
         call strcmp@PLT
         test eax, eax
-        jnz 4f
-        lea rdi, [r12 + BL_P]
-        mov rsi, [r12 + BL_KEY]
-        call js_string
+        jnz 31f
+        lea rdi, [rsp + IA_TYPE]
+        call .Lia_string
         test eax, eax
         jz 9f
-        mov rax, [r12 + BL_KEY]
+        jmp 5f
+31:     mov rax, [r12 + BL_KEY]
+        mov rdi, [rax + SB_BUF]
+        lea rsi, [rip + .Ls_indexed]
+        call strcmp@PLT
+        test eax, eax
+        jnz 32f
+        # (true: indexed; anything else isn't)
+        lea rdi, [r12 + BL_P]
+        call js_ws
+        mov rdi, [r12 + BL_P]
+        lea rsi, [rip + .Ls_true]
+        mov edx, 4
+        call strncmp@PLT
+        test eax, eax
+        jnz 4f
+        or qword ptr [rsp + IA_FLAGS], SIF_INDEXED
+        jmp 4f
+32:     mov rax, [r12 + BL_KEY]
+        mov rdi, [rax + SB_BUF]
+        lea rsi, [rip + .Ls_components]
+        call strcmp@PLT
+        test eax, eax
+        jnz 4f
+        lea rdi, [r12 + BL_P]
+        call js_ws
+        mov rax, [r12 + BL_P]
+        cmp byte ptr [rax], '['
+        jne 4f                          # (null: as if there were none)
         mov rdi, rbx
-        mov rsi, [rax + SB_BUF]
-        mov rdx, [rax + SB_LEN]
-        call builder_string
-        mov [rsp + BI_TYPE], rax
+        mov rsi, r12
+        lea rdx, [rsp + IA_COMPS]
+        call bl_input_array
+        test eax, eax
+        jz 9f
+        or qword ptr [rsp + IA_FLAGS], SIF_COMPONENTS
         jmp 5f
 4:      lea rdi, [r12 + BL_P]
         call js_skip
@@ -1260,27 +1411,30 @@ FUNC bl_inputs
         inc qword ptr [r12 + BL_P]
         jmp 2b
 6:      inc qword ptr [r12 + BL_P]
-        # the input recorded
-        mov rax, [rbx + BD_NINPUTS]
-        cmp rax, [rbx + BD_CAPINPUTS]
+        # the record, in this array's
+        mov rax, [rsp + IA_N]
+        cmp rax, [rsp + IA_CAP]
         jb 7f
-        mov rax, [rbx + BD_CAPINPUTS]
         shl rax, 1
-        mov [rbx + BD_CAPINPUTS], rax
-        mov rdi, [rbx + BD_INPUTS]
-        mov rsi, rax
-        shl rsi, 3
+        mov [rsp + IA_CAP], rax
+        mov rdi, [rsp + IA_BUF]
+        imul rsi, rax, SI_SIZEOF
         call xrealloc
-        mov [rbx + BD_INPUTS], rax
-        mov rax, [rbx + BD_NINPUTS]
-7:      shl rax, 3
-        add rax, [rbx + BD_INPUTS]
-        mov rcx, [rsp + BI_TYPE]
+        mov [rsp + IA_BUF], rax
+        mov rax, [rsp + IA_N]
+7:      imul rax, rax, SI_SIZEOF
+        add rax, [rsp + IA_BUF]
+        mov rcx, [rsp + IA_TYPE]
         mov [rax + SI_TYPE], ecx
-        mov rcx, [rsp + BI_NAME]
+        mov rcx, [rsp + IA_NAME]
         mov [rax + SI_NAME], ecx
-        inc qword ptr [rbx + BD_NINPUTS]
-        inc qword ptr [r12 + BL_NINPUTS]
+        mov rcx, [rsp + IA_COMPS]
+        mov [rax + SI_COMPS], ecx
+        mov rcx, [rsp + IA_NCOMPS]
+        mov [rax + SI_NCOMPS], ecx
+        mov rcx, [rsp + IA_FLAGS]
+        mov [rax + SI_FLAGS], ecx
+        inc qword ptr [rsp + IA_N]
         lea rdi, [r12 + BL_P]
         call js_ws
         mov rax, [r12 + BL_P]
@@ -1289,13 +1443,80 @@ FUNC bl_inputs
         inc qword ptr [r12 + BL_P]
         jmp 1b
 8:      inc qword ptr [r12 + BL_P]
+        # the records, after the ones of their components
+        mov rax, [rbx + BD_NINPUTS]
+        mov rcx, [rsp + IA_OUT]
+        mov [rcx], rax
+        mov rdx, [rsp + IA_N]
+        mov [rcx + 8], rdx
+        add rax, rdx
+        mov r13, 0xffffffff
+        cmp rax, r13
+        ja .Lia_too_big
+        cmp rax, [rbx + BD_CAPINPUTS]
+        jbe 81f
+        mov rcx, [rbx + BD_CAPINPUTS]
+82:     shl rcx, 1
+        cmp rax, rcx
+        ja 82b
+        mov [rbx + BD_CAPINPUTS], rcx
+        mov rdi, [rbx + BD_INPUTS]
+        imul rsi, rcx, SI_SIZEOF
+        call xrealloc
+        mov [rbx + BD_INPUTS], rax
+81:     mov rdi, [rbx + BD_NINPUTS]
+        imul rdi, rdi, SI_SIZEOF
+        add rdi, [rbx + BD_INPUTS]
+        mov rsi, [rsp + IA_BUF]
+        imul rdx, [rsp + IA_N], SI_SIZEOF
+        call memcpy@PLT
+        mov rax, [rsp + IA_N]
+        add [rbx + BD_NINPUTS], rax
+        mov rdi, [rsp + IA_BUF]
+        call free@PLT
         mov eax, 1
-        add rsp, 16
+        add rsp, 80
         LEAVE
-9:      xor eax, eax
-        add rsp, 16
+9:      mov rdi, [rsp + IA_BUF]
+        call free@PLT
+        xor eax, eax
+        add rsp, 80
         LEAVE
-ENDF bl_inputs
+.Lia_too_big:
+        lea rdi, [rip + .Ls_too_big]
+        call rt_fatal
+# a local: a string value read into the strings, its offset at [rdi]
+# (eax 0 when it isn't a string; null and the rest are skipped: "")
+.Lia_string:
+        push rbx
+        push r13
+        sub rsp, 8
+        mov r13, rdi
+        lea rdi, [r12 + BL_P]
+        call js_ws
+        mov rax, [r12 + BL_P]
+        cmp byte ptr [rax], '"'
+        je 1f
+        lea rdi, [r12 + BL_P]
+        call js_skip
+        jmp 2f
+1:      lea rdi, [r12 + BL_P]
+        mov rsi, [r12 + BL_KEY]
+        call js_string
+        test eax, eax
+        jz 2f
+        mov rax, [r12 + BL_KEY]
+        mov rdi, rbx
+        mov rsi, [rax + SB_BUF]
+        mov rdx, [rax + SB_LEN]
+        call builder_string
+        mov [r13], rax
+        mov eax, 1
+2:      add rsp, 8
+        pop r13
+        pop rbx
+        ret
+ENDF bl_input_array
 
 # js_selector(cstr) -> rax: the value of "0x12345678"
 FUNC js_selector
@@ -1370,14 +1591,14 @@ FUNC builder_write
         mov edi, r13d
         mov rsi, [rbx + BD_ENTRIES]
         mov rdx, [rbx + BD_NENTRIES]
-        shl rdx, 4
+        imul rdx, rdx, SE_SIZEOF
         call write_all
         test eax, eax
         jnz .Lbw_write_fail
         mov edi, r13d
         mov rsi, [rbx + BD_INPUTS]
         mov rdx, [rbx + BD_NINPUTS]
-        shl rdx, 3
+        imul rdx, rdx, SI_SIZEOF
         call write_all
         test eax, eax
         jnz .Lbw_write_fail

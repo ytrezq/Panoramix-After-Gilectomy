@@ -191,7 +191,17 @@ opcode_names:
         .quad .Lopname_184
         .quad .Lopname_185
         .quad .Lopname_186
-opcode_names_count: .quad 187
+        .quad .Lopname_187
+        .quad .Lopname_188
+        .quad .Lopname_189
+        .quad .Lopname_190
+        .quad .Lopname_191
+        .quad .Lopname_192
+        .quad .Lopname_193
+        .quad .Lopname_194
+        .quad .Lopname_195
+        .quad .Lopname_196
+opcode_names_count: .quad 197
 .Lopname_0: .asciz "add"
 .Lopname_1: .asciz "mul"
 .Lopname_2: .asciz "sub"
@@ -379,9 +389,19 @@ opcode_names_count: .quad 187
 .Lopname_184: .asciz "land"
 .Lopname_185: .asciz "lor"
 .Lopname_186: .asciz "sall"
+.Lopname_187: .asciz "st"
+.Lopname_188: .asciz "sv"
+.Lopname_189: .asciz "si"
+.Lopname_190: .asciz "sl"
+.Lopname_191: .asciz "sbl"
+.Lopname_192: .asciz "sf"
+.Lopname_193: .asciz "sr"
+.Lopname_194: .asciz "break"
+.Lopname_195: .asciz "ecrecover"
+.Lopname_196: .asciz "shift"
         .section .bss
         .align 8
         .globl opcode_nodes
         .hidden opcode_nodes
-opcode_nodes: .space 1504
+opcode_nodes: .space 1584
         .section .note.GNU-stack,"",@progbits

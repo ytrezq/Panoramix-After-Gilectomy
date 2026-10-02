@@ -14,8 +14,9 @@ from panoramix import whiles, folder, prettify as P
 from panoramix.loader import Loader
 from panoramix.utils.helpers import rewrite_trace
 
-# no signature database on either side (yet)
+# no signature database on either side (see test_sigs.py for the tests with one)
 Loader.find_sig = staticmethod(lambda sig, add_color=False: None)
+P.fetch_sig = lambda h: None
 
 PF_REM_BOOL, PF_PARENS, PF_TOP, PF_COLOR = 1, 2, 4, 8
 
@@ -56,7 +57,6 @@ def check_exps(exps, ctx):
         if isinstance(exp, tuple) and exp and exp[0] == "data":
             check("pretty_memory", (exp, PF_COLOR), run(lambda e: list(P.pretty_memory(e, add_color=True)), exp), ctx)
         if isinstance(exp, int):
-            check("pretty_fname", (exp, 0, 0), run(P.pretty_fname, exp), ctx)
             check("pretty_bignum", exp, run(lambda e: __import__("panoramix.utils.helpers", fromlist=["x"]).pretty_bignum(e), exp), ctx)
 
 if __name__ == "__main__":

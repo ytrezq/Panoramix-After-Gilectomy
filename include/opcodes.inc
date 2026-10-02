@@ -186,4 +186,14 @@
 .set OP_LAND, 185
 .set OP_LOR, 186
 .set OP_SALL, 187
-.set OP_COUNT, 187
+.set OP_ST, 188
+.set OP_SV, 189
+.set OP_SI, 190
+.set OP_SL, 191
+.set OP_SBL, 192
+.set OP_SF, 193
+.set OP_SR, 194
+.set OP_BREAK, 195
+.set OP_ECRECOVER, 196
+.set OP_SHIFT, 197
+.set OP_COUNT, 197

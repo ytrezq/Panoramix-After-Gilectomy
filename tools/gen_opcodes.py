@@ -42,6 +42,7 @@ erecover sha256hash ripemd160hash bigModExp bn256Add bn256ScalarMul bn256Pairing
 staticcall.return_data sadd smul
 cleared bytes sbytes tload tstore mcopy blobhash blobbasefee codecall land lor
 sall
+st sv si sl sbl sf sr break ecrecover shift
 """.split()
 
 

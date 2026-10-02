@@ -106,7 +106,7 @@
 .set CTX_ASM_SB, 264        # a scratch builder for the lines of assembly (vm.s), or 0
 .set CTX_FOLD_THREADS, 272  # the threads fold_many may use (folder.s; 0 or 1: none)
 .set CTX_ADD_WRAPPED, 280   # the last add_op_impl reduced its sum mod 2^256 (1) or not (0)
-# 288..295: free
+.set CTX_NAMES, 288      # prettify's names (set_names: storage, params; see prettify.s), or 0
 .set CTX_VM, 296            # the VM this thread runs (vm.s)
 .set CTX_ERR_BUF, 304       # the innermost error handler (rt_err.s)
 .set CTX_ERR_CODE, 312      # what was thrown
@@ -746,6 +746,24 @@ ENDF \fname
 .set PF_PARENS, 2           # parentheses=True
 .set PF_TOP, 4              # top_level=True
 .set PF_COLOR, 8            # add_color=True
+.set PF_ABI_TEXT, 16        # pretty_memory's abi_text=True (pretty_mem.s)
+# parentheses=<a precedence> (prettify's context, see there): bits 8..11
+.set PF_CTX_SHIFT, 8
+.set PF_CTX_MASK, 0xf << PF_CTX_SHIFT
+# the precedences of the operators as printed (prettify.py's OR, AND, NOT...)
+.set P_OR, 1
+.set P_AND, 2
+.set P_NOT, 3
+.set P_CMP, 4
+.set P_BOR, 5
+.set P_BXOR, 6
+.set P_BAND, 7
+.set P_SHIFT, 8
+.set P_ADD, 9
+.set P_MUL, 10
+.set P_UNARY, 11
+.set P_POW, 12
+.set P_ATOM, 13
 
 # python's "--verbose" / "--explain" in sys.argv (CTX_VERBOSE; explain.s)
 .set VB_ASM, 1              # the lines of assembly in the VM's traces (both)
