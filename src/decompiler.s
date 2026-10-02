@@ -172,16 +172,18 @@ FUNC decompile_worker
         mov rdi, [r12 + JB_STACK]
         call value_import_root
         mov r13, rax
-        mov rdi, [r12 + JB_KNOWN]
-        call value_import_root
-        mov [rsp + DW_TMP], rax
         mov rdi, VM_TIMEOUT_NS
         call scaled_ns
-        mov rcx, rax
-        mov rdi, [r12 + JB_TARGET]
-        mov rsi, r13
-        mov rdx, [rsp + DW_TMP]
-        call vm_run
+        # the VM run as python's decompiler makes it: what no selector
+        # matched known where the default function is all of the
+        # dispatcher, what runs before the function and the memory then
+        # (vm_run_function: loader.entry, entry_memory)
+        mov r8, rax
+        mov rdi, [rbx + DC_LOADER]
+        mov rsi, [r12 + JB_HASH]
+        mov rdx, [r12 + JB_TARGET]
+        mov rcx, r13
+        call vm_run_function
         mov r13, rax
         call .Ldw_check_deadline
         test qword ptr [r15 + CTX_VERBOSE], VB_EXPLAIN
