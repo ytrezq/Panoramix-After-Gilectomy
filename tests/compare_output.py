@@ -22,6 +22,8 @@ import panoramix.sparser
 if "--db" not in sys.argv:
     panoramix.utils.signatures.fetch_sig = lambda h: None
     Loader.find_sig = staticmethod(lambda sig, add_color=False: None)
+    import panoramix.prettify               # (the events of the logs)
+    panoramix.prettify.fetch_sig = lambda h: None
 
 from panoramix.decompiler import decompile_bytecode
 

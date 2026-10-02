@@ -55,7 +55,11 @@ def port_inputs(inputs):
         return (i["type"], i["name"], [conv(c) for c in comps] if comps is not None else None, 1 if idx else 0)
     return [conv(i) for i in inputs]
 
+from panoramix.utils.helpers import clear_caches
 def py_lookup(sel):
+    # (afresh: make_abi and find_sig name the unnamed inputs of the dict
+    # fetch_sig keeps - no one reads the names before them)
+    clear_caches()
     a = supplement.fetch_sig("0x%08x" % sel)
     if a is None: return None
     return (a["name"], port_inputs(a["inputs"]), a.get("type", ""))
