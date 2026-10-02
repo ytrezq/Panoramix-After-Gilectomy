@@ -180,12 +180,14 @@ test_table:
         .quad .Ln_sets_fmp, tf_sets_fmp
         .quad .Ln_stack_vars, tf_stack_vars
         .quad .Ln_vm_helper, tf_vm_helper
+        .quad .Ln_entry_helper, tf_entry_helper
         .quad 0, 0
 
         .section .rodata
 .Ln_sets_fmp: .asciz "sets_fmp"
 .Ln_stack_vars: .asciz "stack_vars"
 .Ln_vm_helper: .asciz "vm_helper"
+.Ln_entry_helper: .asciz "entry_helper"
         .text
 
         .section .rodata

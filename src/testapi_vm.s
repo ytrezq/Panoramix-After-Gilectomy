@@ -269,4 +269,106 @@ FUNC tf_vm_helper
         LEAVE
 ENDF tf_vm_helper
 
+        .section .rodata
+.Leh_is_dispatch:   .asciz "is_dispatch"
+.Leh_selector_test: .asciz "selector_test"
+.Leh_reverts:       .asciz "reverts"
+.Leh_strip_markers: .asciz "strip_markers"
+.Leh_entry_paths:   .asciz "entry_paths"
+.Leh_apply_entry:   .asciz "apply_entry"
+.Leh_entry_known:   .asciz "entry_known"
+.Leh_common_entry:  .asciz "common_entry"
+        .text
+
+# entry_helper((name, a, b, c)): the loader's entry functions (entry.s) -
+# see tests/test_entry.py
+FUNC tf_entry_helper
+        ENTER
+        mov rbx, rdi
+        mov r12, [rbx + N_DATA]         # the name
+        mov r13, [rbx + N_DATA + 8]     # a
+        mov r14, [rbx + N_DATA + 16]    # b
+.macro EH_IS name, label
+        mov rdi, r12
+        lea rsi, [rip + .Leh_\name]
+        call str_eq_c
+        test eax, eax
+        jnz \label
+.endm
+        EH_IS is_dispatch, .Leh_id
+        EH_IS selector_test, .Leh_st
+        EH_IS reverts, .Leh_rv
+        EH_IS strip_markers, .Leh_sm
+        EH_IS entry_paths, .Leh_ep
+        EH_IS apply_entry, .Leh_ae
+        EH_IS entry_known, .Leh_ek
+        EH_IS common_entry, .Leh_ce
+        lea rax, [rip + sp_none]
+        LEAVE
+.Leh_id:
+        mov rdi, r13
+        call is_dispatch
+        mov edi, eax
+        call tri_value
+        LEAVE
+.Leh_st:
+        mov rdi, r13
+        call selector_test
+        test rax, rax
+        jz 1f
+        lea rsi, [rip + sp_true]
+        lea rcx, [rip + sp_false]
+        test edx, edx
+        cmovz rsi, rcx
+        mov rdi, rax
+        call mk2
+        LEAVE
+1:      lea rax, [rip + sp_none]
+        LEAVE
+.Leh_rv:
+        mov rdi, r13
+        call reverts
+        mov edi, eax
+        call tri_value
+        LEAVE
+.Leh_sm:
+        mov rdi, r13
+        call strip_markers
+        LEAVE
+.Leh_ep:
+        call vec_new
+        mov r12, rax
+        mov rdi, r13                    # trace
+        mov rsi, r14                    # leaf: 0 funccall, 1 jd
+        sar rsi, 1
+        mov rdx, [rbx + N_DATA + 24]    # arg
+        xor edi, edi                    # (the empty entry)
+        push rdx
+        push rsi
+        xor esi, esi
+        call mk_tuple
+        mov rcx, rax
+        pop rsi
+        pop rdx
+        mov rdi, r13
+        mov r8, r12
+        call entry_paths
+        mov rdi, r12
+        call vec_to_list
+        LEAVE
+.Leh_ae:
+        mov rdi, r13
+        mov rsi, r14
+        call apply_entry
+        LEAVE
+.Leh_ek:
+        mov rdi, r13
+        call entry_known
+        LEAVE
+.Leh_ce:
+        mov rdi, r13
+        call common_entry
+        LEAVE
+ENDF tf_entry_helper
+
         .section .note.GNU-stack,"",@progbits
