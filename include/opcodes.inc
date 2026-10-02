@@ -196,4 +196,15 @@
 .set OP_BREAK, 195
 .set OP_ECRECOVER, 196
 .set OP_SHIFT, 197
-.set OP_COUNT, 197
+.set OP_OFF, 198
+.set OP_BLEN, 199
+.set OP_RAW, 200
+.set OP_WORD, 201
+.set OP_VALUE, 202
+.set OP_FIXED, 203
+.set OP_MEMBER, 204
+.set OP_ROOT, 205
+.set OP_SDEF, 206
+.set OP_VYPER, 207
+.set OP_SOLIDITY, 208
+.set OP_COUNT, 208

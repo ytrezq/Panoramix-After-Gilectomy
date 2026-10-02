@@ -176,10 +176,12 @@ test_table:
         .quad .Ln_abi_names, tf_abi_names
         .quad .Ln_add_breaks, add_breaks
         .quad .Ln_continues_from_inside, tf_continues_from_inside
+        .quad .Ln_storage, tf_storage
         .quad 0, 0
 
         .section .rodata
 .Ln_roundtrip: .asciz "roundtrip"
+.Ln_storage:   .asciz "storage"
 .Ln_dump_version: .asciz "dump_version"
 .Ln_keccak:    .asciz "keccak"
 .Ln_runtrace:  .asciz "runtrace"

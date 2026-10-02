@@ -43,6 +43,7 @@ staticcall.return_data sadd smul
 cleared bytes sbytes tload tstore mcopy blobhash blobbasefee codecall land lor
 sall
 st sv si sl sbl sf sr break ecrecover shift
+off blen raw word value fixed member root sdef vyper solidity
 """.split()
 
 
