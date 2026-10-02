@@ -17,6 +17,7 @@
 .Ls_assert_inleft:  .asciz "splits_mem: the split ends before the memory"
 .Ls_index:          .asciz "tuple index out of range"
 .Ls_unpack:         .asciz "unexpected number of values to unpack"
+.Ls_not_iterable:   .asciz "cannot unpack non-iterable object"
 .Ls_MAX:            .asciz "MAX"
 .Ls_logname:        .asciz "panoramix.memloc"
 .Ls_unusual_store:  .asciz "unusual store"
@@ -39,6 +40,43 @@ FUNC assert_range
         lea rsi, [rip + .Ls_assert_range]
         call err_throw
 ENDF assert_range
+
+# unpack_range(v): python's `op, pos, len = v; assert op == "range"` - a
+# TypeError for what isn't a sequence, a ValueError for a sequence (or a
+# string) of another length than 3, an AssertionError for another head
+# (split_or catches the AssertionErrors of apply_mask_to_range only)
+FUNC unpack_range
+        test dil, 1
+        jnz .Lur_type
+        test rdi, rdi
+        jz .Lur_type
+        mov eax, [rdi + N_KIND]
+        cmp eax, K_TUPLE
+        je 1f
+        cmp eax, K_LIST
+        je 1f
+        cmp eax, K_STR
+        jne .Lur_type
+        test dword ptr [rdi + N_AUX], STR_FLOAT
+        jnz .Lur_type
+        cmp dword ptr [rdi + N_DATA], 3         # (a string of 3 is 3 strings)
+        jne throw_unpack
+        jmp .Lur_assert
+1:      cmp dword ptr [rdi + N_AUX], 3
+        jne throw_unpack
+        LOADS rax, RANGE
+        cmp rax, [rdi + N_DATA]
+        jne .Lur_assert
+        ret
+.Lur_assert:
+        mov edi, E_ASSERT
+        lea rsi, [rip + .Ls_assert_range]
+        jmp err_throw
+.Lur_type:
+        mov edi, E_TYPE
+        lea rsi, [rip + .Ls_not_iterable]
+        jmp err_throw
+ENDF unpack_range
 
 # throw_index(), throw_unpack(): python's IndexError, ValueError
 FUNC throw_index
@@ -103,7 +141,7 @@ FUNC apply_mask_to_range
         mov rbx, rdi
         mov r12, rsi
         mov r13, rdx
-        call assert_range
+        call unpack_range
         mov rdi, r12
         call to_bytes
         mov [rsp], rax                  # size_bytes
@@ -1819,9 +1857,9 @@ FUNC memloc_overwrite_impl
         .set MO_RIGHT_LEN, 24
         mov rbx, rdi
         mov r12, rsi
-        call assert_range
+        call unpack_range
         mov rdi, r12
-        call assert_range
+        call unpack_range
         mov rdi, [rbx + N_DATA + 8]
         mov rsi, [rbx + N_DATA + 16]
         call alg_add2
@@ -2319,9 +2357,9 @@ FUNC splits_mem
         mov [rsp + SM_SPLIT_VAL], rcx
         mov rbx, rdi
         mov r12, rsi
-        call assert_range
+        call unpack_range
         mov rdi, r12
-        call assert_range
+        call unpack_range
         mov rax, [r12 + N_DATA + 16]
         mov [rsp + SM_S_LEN], rax
         mov rdi, [rbx + N_DATA + 8]
@@ -2677,9 +2715,9 @@ FUNC fill_mem
         call with_width
         jmp .Lfm_done
 1:      mov rdi, r13
-        call assert_range
+        call unpack_range
         mov rdi, r12
-        call assert_range
+        call unpack_range
         mov rdi, [r13 + N_DATA + 8]
         mov rsi, [r13 + N_DATA + 16]
         call alg_add2
@@ -2911,9 +2949,9 @@ FUNC range_overlaps_impl
         sub rsp, 32
         mov rbx, rdi
         mov r12, rsi
-        call assert_range
+        call unpack_range
         mov rdi, r12
-        call assert_range
+        call unpack_range
         mov rax, [rbx + N_DATA + 8]
         mov [rsp], rax                  # r1_begin
         mov rax, [r12 + N_DATA + 8]
@@ -2971,9 +3009,9 @@ FUNC range_contains
         sub rsp, 16
         mov rbx, rdi
         mov r12, rsi
-        call assert_range
+        call unpack_range
         mov rdi, r12
-        call assert_range
+        call unpack_range
         mov rdi, [rbx + N_DATA + 8]
         mov rsi, [rbx + N_DATA + 16]
         call alg_add2

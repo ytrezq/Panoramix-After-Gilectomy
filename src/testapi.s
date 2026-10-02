@@ -176,6 +176,12 @@ test_table:
         .quad .Ln_abi_names, tf_abi_names
         .quad .Ln_add_breaks, add_breaks
         .quad .Ln_continues_from_inside, tf_continues_from_inside
+        .quad .Ln_merge_zeros, tf_merge_zeros
+        .quad .Ln_in_order_setmem, tf_in_order_setmem
+        .quad .Ln_in_order_store, tf_in_order_store
+        .quad .Ln_setmem_reads_written, tf_setmem_reads_written
+        .quad .Ln_store_reads_written, tf_store_reads_written
+        .quad .Ln_byte_field_store, tf_byte_field_store
         .quad 0, 0
 
         .section .rodata
@@ -238,6 +244,12 @@ test_table:
 .Ln_abi_names: .asciz "abi_names"
 .Ln_add_breaks: .asciz "add_breaks"
 .Ln_continues_from_inside: .asciz "continues_from_inside"
+.Ln_merge_zeros: .asciz "merge_zeros"
+.Ln_in_order_setmem: .asciz "in_order_setmem"
+.Ln_in_order_store: .asciz "in_order_store"
+.Ln_setmem_reads_written: .asciz "setmem_reads_written"
+.Ln_store_reads_written: .asciz "store_reads_written"
+.Ln_byte_field_store: .asciz "byte_field_store"
 .Ln_json_value: .asciz "json_value"
 .Ln_hash:      .asciz "hash"
 .Ln_str_flags: .asciz "str_flags"
@@ -2721,5 +2733,83 @@ FUNC tf_continues_from_inside
         call tf_bool
         LEAVE
 ENDF tf_continues_from_inside
+
+# memloc's: merge_zeros(stores) -> list
+FUNC tf_merge_zeros
+        ENTER
+        mov rbx, rdi
+        call vec_new
+        mov r12, rax
+        mov rdi, rax
+        mov rsi, rbx
+        call vec_extend_seq
+        mov rdi, r12
+        call merge_zeros
+        mov rdi, rax
+        call vec_to_list
+        LEAVE
+ENDF tf_merge_zeros
+
+# in_order(writes, setmem_reads_written / store_reads_written) -> list or None
+FUNC tf_in_order_setmem
+        lea rsi, [rip + setmem_reads_written]
+        jmp tf_in_order
+ENDF tf_in_order_setmem
+
+FUNC tf_in_order_store
+        lea rsi, [rip + store_reads_written]
+        jmp tf_in_order
+ENDF tf_in_order_store
+
+FUNC tf_in_order
+        ENTER
+        mov rbx, rdi
+        mov r13, rsi
+        call vec_new
+        mov r12, rax
+        mov rdi, rax
+        mov rsi, rbx
+        call vec_extend_seq
+        mov rdi, r12
+        mov rsi, r13
+        call in_order
+        mov rdi, rax
+        call none_if_nil
+        LEAVE
+ENDF tf_in_order
+
+# (a, b) -> bool
+FUNC tf_setmem_reads_written
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call setmem_reads_written
+        mov edi, eax
+        call tf_bool
+        LEAVE
+ENDF tf_setmem_reads_written
+
+FUNC tf_store_reads_written
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call store_reads_written
+        mov edi, eax
+        call tf_bool
+        LEAVE
+ENDF tf_store_reads_written
+
+# line -> [store] or None
+FUNC tf_byte_field_store
+        ENTER
+        call byte_field_store
+        test rax, rax
+        jz 1f
+        mov rdi, rax
+        call mk_list1
+        LEAVE
+1:      lea rax, [rip + sp_none]
+        LEAVE
+ENDF tf_byte_field_store
 
         .section .note.GNU-stack,"",@progbits

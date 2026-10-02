@@ -57,6 +57,90 @@ def rwide():
     return random.choice([rval(), ("bytes", random.choice([4, 20, 32]), rval()), ("mem", rrange()), ("call.data", rpos(), random.choice([4, 32, 64])),
                           ("data", rval(), ("bytes", 4, ("cd", 4))), ("data", ("mem", ("range", 0, 4)), ("mem", ("range", 100, 28))), 5, 2**300, ("mask_shl", 160, 0, 0, ("cd", 4))])
 
+
+# the parts of a word written to storage or memory (split_store, split_setmem)
+SLOTS = [5, 0, ("map", 1, 2), ("var", "_1"), ("add", 1, ("sha3", 0)), 7]
+
+def ratom():
+    return random.choice(["x", "y", ("cd", 4), ("cd", 36), "callvalue", ("var", "_1"), "caller", ("mask_shl", 160, 0, 0, "caller")])
+
+def rpart(idx):
+    r = random.random()
+    if r < 0.3:
+        size = random.choice([1, 7, 8, 16, 32, 64, 96, 160, 248, 255, 256])
+        off = random.choice([0, 0, 0, 8, 96, 160])
+        shl = random.choice([0, 0, 8, 96, 160, 224, -8, 5, 248])
+        x = random.choice([ratom(), ("storage", 256, 0, idx), ("storage", 160, 0, idx), ("storage", 8, random.choice([0, 160, 168]), idx),
+                           ("bool", ratom()), ("iszero", ratom()), ("lt", ratom(), 5), ("mask_shl", 8, 0, 0, ratom()), ("mem", ("range", 64, 32)), 5])
+        return ("mask_shl", size, off, shl, x)
+    if r < 0.5:
+        return ("storage", random.choice([8, 16, 64, 96, 160, 1]), random.choice([0, 8, 160, 168, 224, -96, -8, -160, -64]), idx if random.random() < 0.8 else random.choice(SLOTS))
+    if r < 0.6:
+        return random.choice([("bool", ratom()), ("iszero", ratom()), ("lt", ratom(), ratom()), ("eq", ratom(), 5)])
+    if r < 0.75:
+        return random.choice([0, 1, 255, 0xff << 224, 0xffff << 160, 2**160 - 1, (2**96 - 1) << 160, 0x1234 << 8, 2**255])
+    if r < 0.8:
+        return ("mul", 1, rpart(idx))
+    if r < 0.85:
+        return "caller"
+    return ("mask_shl", random.choice([8, 32, 160]), 0, random.choice([0, 8, 160, 224]), ("mask_shl", random.choice([1, 8]), 0, 0, ratom()))
+
+def rbyte_field(idx):
+    k = random.choice([0, 1, 2, 31, 32, ("var", "_1"), ("mask_shl", 5, 0, 0, ("cd", 4)), ("cd", 4), ("mask_shl", 8, 0, 0, "x"), ("mask_shl", 3, 0, 0, "x")])
+    k2 = k if random.random() < 0.85 else random.choice([0, 1, ("cd", 4)])
+    v = random.choice([("bool", "x"), ("mask_shl", 8, 0, 0, ("cd", 4)), 1, 0, 255, 256, ("cd", 4), "x", ("iszero", "x"), ("mask_shl", 16, 0, 0, "y"), ("mask_shl", 160, 0, 0, "caller")])
+    mask = random.choice([1, 255, 65535, 2**160 - 1, 256, 0, -1, 2**256 - 1, 3, 7, 2**64 - 1])
+    fp = [v, ("exp", 256, k)]
+    if random.random() < 0.2: fp.append(1)
+    if random.random() < 0.05: fp.append(("exp", 256, k))
+    if random.random() < 0.05: fp.append("z")
+    random.shuffle(fp)
+    fm = [mask, ("exp", 256, k2)]
+    if random.random() < 0.1: fm.append(1)
+    random.shuffle(fm)
+    cleared = ("not", ("mul",) + tuple(fm))
+    if random.random() < 0.05: cleared = ("iszero", ("mul",) + tuple(fm))
+    stor = ("storage", 256, 0, idx if random.random() < 0.9 else 7)
+    keep = ("and", cleared, stor) if random.random() < 0.5 else ("and", stor, cleared)
+    put = ("mul",) + tuple(fp)
+    return ("store", 256, 0, idx, ("or", put, keep) if random.random() < 0.5 else ("or", keep, put))
+
+def rstore_line():
+    idx = random.choice(SLOTS)
+    r = random.random()
+    if r < 0.25:
+        return rbyte_field(idx)
+    if r < 0.35:
+        return ("store", 256, 0, idx, ("mask_shl", random.choice([8, 160, 248, 255, 96]), random.choice([0, 8, 96, 160, -8]), 0, ("storage", 256, 0, idx)))
+    if r < 0.45:
+        return ("store", 256, 0, idx, rpart(idx))
+    return ("store", 256, 0, idx, ("or",) + tuple(rpart(idx) for _ in range(random.randint(2, 4))))
+
+def rmempart(base):
+    r = random.random()
+    if r < 0.4:
+        at = random.choice([base, ("add", 12, base) if type(base) != int else base + 12, ("add", 32, base) if type(base) != int else base + 32, 0, 1000, "z"])
+        if type(at) == tuple and at[0] == "add" and type(at[2]) == int: at = at[1] + at[2]
+        return ("mask_shl", random.choice([160, 96, 8, 32, 256]), random.choice([0, 0, 96]), random.choice([0, 96, -96, 160, 224]), ("mem", ("range", at, random.choice([32, 32, 20, 4]))))
+    if r < 0.5:
+        return ("mask_shl", 8, 0, random.choice([0, 248]), "msize")
+    return rpart(5)
+
+def rsetmem_line():
+    base = random.choice([64, 128, ("var", "_1"), 0, "x"])
+    rng = ("range", base, random.choice([32, 32, 32, 20, 4, ("cd", 4)]))
+    return ("setmem", rng, ("or",) + tuple(rmempart(base) for _ in range(random.randint(2, 4))))
+
+def rstores(n):
+    idx = random.choice(SLOTS)
+    res, pos = [], 0
+    while pos < 256 and len(res) < n:
+        size = random.choice([1, 3, 7, 8, 16, 160, 5, 64])
+        val = random.choice([0, 0, ("bool", ratom()), ratom(), ("storage", 8, random.choice([0, 8, 160]), idx), ("mask_shl", 8, 0, 0, ("storage", 256, 0, idx)), ("storage", 160, 0, random.choice(SLOTS))])
+        res.append(("store", size, pos, idx, val))
+        pos += size
+    return res
+
 def run(fn, *args):
     try:
         r = fn(*args)
@@ -84,7 +168,7 @@ def check(name, args, expected, single=False):
     if not ok:
         bad += 1
         print(f"MISMATCH {name}({lit})\n   python: {expected}\n   asm:    {got}")
-        if bad >= 12:
+        if bad >= int(os.environ.get("MAXBAD", "12")):
             print("too many mismatches"); sys.exit(1)
 
 if __name__ == "__main__":
@@ -141,5 +225,22 @@ if __name__ == "__main__":
     l2, r2_ = random.choice([(0, 4), (4, 32), (0, 32), (12, 32), (28, 36), (l, r)])
     wdt = random.choice([None, 256, 160, 512, 32])
     check("slice_exp", (w1, l2, r2_, wdt), run(M.slice_exp, w1, l2, r2_, wdt))
+    # the parts of a word written to storage or memory
+    st = rstore_line()
+    check("split_store", (st,), run(M.split_store, st), True)
+    check("byte_field_store", (st,), run(M.byte_field_store, st), True)
+    sm = rsetmem_line()
+    check("split_setmem", (sm,), run(M.split_setmem, sm), True)
+    check("split_or", (sm[2],), run(M.split_or, sm[2]), True)
+    check("split_or", (st[4],), run(M.split_or, st[4]), True)
+    sts = rstores(random.randint(1, 6))
+    check("merge_zeros", (sts,), run(M.merge_zeros, sts), True)
+    check("in_order_store", (sts,), run(M.in_order, sts, M.store_reads_written), True)
+    if len(sts) >= 2:
+        check("store_reads_written", (sts[0], sts[1]), run(M.store_reads_written, sts[0], sts[1]))
+    sms = [("setmem", ("range", random.choice([64, 76, 96, 128, "x"]), random.choice([32, 20, 12])), rmempart(64)) for _ in range(random.randint(1, 4))]
+    check("in_order_setmem", (sms,), run(M.in_order, sms, M.setmem_reads_written), True)
+    if len(sms) >= 2:
+        check("setmem_reads_written", (sms[0], sms[1]), run(M.setmem_reads_written, sms[0], sms[1]))
   print(f"{cases} cases, {bad} mismatches")
   sys.exit(1 if bad else 0)
