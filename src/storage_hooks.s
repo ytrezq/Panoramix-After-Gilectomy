@@ -30,6 +30,13 @@ sth_table:
         .quad .Lh_evb, sth_evb
         .quad .Lh_read, sth_read
         .quad .Lh_checks, sth_checks
+        .quad .Lh_regroup, sth_regroup
+        .quad .Lh_rewrite_functions, sth_rewrite_functions
+        .quad .Lh_rewrite_raw, sth_rewrite_raw
+        .quad .Lh_pretty_def, sth_pretty_def
+        .quad .Lh_good_name, sth_good_name
+        .quad .Lh_getter_name, sth_getter_name
+        .quad .Lh_bytes_tail, sth_bytes_tail
         .quad 0, 0
 
         .section .rodata
@@ -55,6 +62,13 @@ sth_table:
 .Lh_evb:        .asciz "evb"
 .Lh_read:       .asciz "read"
 .Lh_checks:     .asciz "checks"
+.Lh_regroup:    .asciz "regroup"
+.Lh_rewrite_functions: .asciz "rewrite_functions"
+.Lh_rewrite_raw: .asciz "rewrite_raw"
+.Lh_pretty_def: .asciz "pretty_def"
+.Lh_good_name:  .asciz "good_name"
+.Lh_getter_name: .asciz "getter_name"
+.Lh_bytes_tail: .asciz "bytes_tail"
 .Ls_fail:       .asciz "Fail"
 .Ls_unknown:    .asciz "no such storage hook"
 .Ls_vyper:      .asciz "vyper"
@@ -530,5 +544,192 @@ FUNC sth_checks
         call sth_bool
         LEAVE
 ENDF sth_checks
+
+# sth_functions(list of (hash, name, trace, getter, returns, read_only)) ->
+# vec of functions (FN_*: those fields only)
+FUNC sth_functions
+        ENTER
+        mov rbx, rdi
+        call vec_new
+        mov r12, rax
+        xor r13d, r13d
+1:      cmp r13d, [rbx + N_AUX]
+        jae 2f
+        mov r14, [rbx + N_DATA + r13*8]
+        inc r13d
+        mov edi, FN_SIZEOF
+        call arena_alloc
+        push rax
+        push rax
+        mov rcx, [r14 + N_DATA]
+        mov [rax + FN_HASH], rcx
+        mov rcx, [r14 + N_DATA + 8]
+        mov [rax + FN_NAME], rcx
+        mov rcx, [r14 + N_DATA + 16]
+        mov [rax + FN_TRACE], rcx
+        mov rdi, [r14 + N_DATA + 24]
+        call tf_none_nil
+        mov rcx, [rsp]
+        mov [rcx + FN_GETTER], rax
+        mov rdi, [r14 + N_DATA + 32]
+        call tf_none_nil
+        mov rcx, [rsp]
+        mov [rcx + FN_RETURNS], rax
+        mov rdi, [r14 + N_DATA + 40]
+        call py_truthy
+        mov rcx, [rsp]
+        mov [rcx + FN_READ_ONLY], rax
+        pop rsi
+        pop rsi
+        mov rdi, r12
+        call vec_push
+        jmp 1b
+2:      mov rax, r12
+        LEAVE
+ENDF sth_functions
+
+# sth_traces(vec of functions) -> [trace...]
+FUNC sth_traces
+        ENTER
+        mov rbx, rdi
+        call vec_new
+        mov r12, rax
+        xor r13d, r13d
+1:      cmp r13, [rbx + VEC_LEN]
+        jae 2f
+        mov rax, [rbx + VEC_DATA]
+        mov rax, [rax + r13*8]
+        mov rdi, r12
+        mov rsi, [rax + FN_TRACE]
+        call vec_push
+        inc r13
+        jmp 1b
+2:      mov rdi, r12
+        call vec_to_list
+        LEAVE
+ENDF sth_traces
+
+# ('regroup', functions, lang) -> [trace...]: Regroup(functions,
+# lang).trace of each
+FUNC sth_regroup
+        ENTER
+        mov rbx, rdi
+        ARG rdi, 0
+        call sth_functions
+        mov r12, rax
+        ARG rdi, 1
+        call sth_lang
+        mov rdi, r12
+        mov esi, eax
+        call rg_new
+        mov r13, rax
+        xor r14d, r14d
+1:      cmp r14, [r12 + VEC_LEN]
+        jae 2f
+        mov rax, [r12 + VEC_DATA]
+        mov rbx, [rax + r14*8]
+        mov rdi, r13
+        mov rsi, [rbx + FN_TRACE]
+        call rg_trace
+        mov [rbx + FN_TRACE], rax
+        inc r14
+        jmp 1b
+2:      mov rdi, r12
+        call sth_traces
+        LEAVE
+ENDF sth_regroup
+
+# ('rewrite_functions', code hex or None, functions) -> (lang, defs,
+# [trace...])
+FUNC sth_rewrite_functions
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        ARG rdi, 1
+        call sth_functions
+        mov r12, rax
+        ARG rdi, 0
+        call is_none
+        xor esi, esi
+        xor edx, edx
+        test eax, eax
+        jnz 1f
+        ARG rdi, 0
+        call tf_hex_bytes
+        mov rsi, rax
+1:      mov rdi, r12
+        call st_rewrite_functions
+        mov r13, rax
+        lea rdi, [rip + .Ls_solidity]
+        lea rcx, [rip + .Ls_vyper]
+        test edx, edx
+        cmovnz rdi, rcx
+        call str_intern_c
+        mov r14, rax
+        mov rdi, r12
+        call sth_traces
+        mov rdx, rax
+        mov rdi, r14
+        mov rsi, r13
+        call mk3
+        add rsp, 16
+        LEAVE
+ENDF sth_rewrite_functions
+
+# ('rewrite_raw', functions) -> [trace...]
+FUNC sth_rewrite_raw
+        ENTER
+        mov rbx, rdi
+        ARG rdi, 0
+        call sth_functions
+        mov r12, rax
+        mov rdi, rax
+        call st_rewrite_raw
+        mov rdi, r12
+        call sth_traces
+        LEAVE
+ENDF sth_rewrite_raw
+
+# ('pretty_def', d) -> str
+FUNC sth_pretty_def
+        ENTER
+        mov rbx, rdi
+        ARG rdi, 0
+        call st_pretty_def
+        LEAVE
+ENDF sth_pretty_def
+
+FUNC sth_good_name
+        ENTER
+        mov rbx, rdi
+        ARG rdi, 0
+        call st_good_name
+        mov edi, eax
+        call sth_bool
+        LEAVE
+ENDF sth_good_name
+
+FUNC sth_getter_name
+        ENTER
+        mov rbx, rdi
+        ARG rdi, 0
+        call st_getter_name
+        LEAVE
+ENDF sth_getter_name
+
+# ('bytes_tail', trace, key, selector) -> trace or None
+FUNC sth_bytes_tail
+        ENTER
+        mov rbx, rdi
+        ARG rdi, 2
+        call int_to_i64
+        mov rdx, rax
+        ARG rdi, 0
+        ARG rsi, 1
+        call st_bytes_tail
+        mov rdi, rax
+        call sth_none
+        LEAVE
+ENDF sth_bytes_tail
 
         .section .note.GNU-stack,"",@progbits

@@ -487,7 +487,51 @@ def t_checks():
             run("read", read, g, defs, lang, rnd.randrange(4))
 
 
-TESTS = [t_worlds, t_checks, t_hash_constant, t_parse, t_linear, t_packed, t_typeof, t_form, t_raw, t_layout, t_trace_functions]
+def fn_tuple(d):
+    return (d["hash"], d["name"], d["trace"], d["getter"], d["returns"], d["read_only"])
+
+
+def rewrite_functions(code_hex, fns):
+    fs = [F({"hash": h, "name": n, "trace": t, "getter": g, "returns": r, "read_only": ro})
+          for h, n, t, g, r, ro in fns]
+    lang, defs = S.rewrite_functions(fs, bytes.fromhex(code_hex) if code_hex is not None else None)
+    return (lang, defs, [f.trace for f in fs])
+
+
+def regroup(fns, lang):
+    fs = [F({"hash": h, "name": n, "trace": t, "getter": g, "returns": r, "read_only": ro})
+          for h, n, t, g, r, ro in fns]
+    for f in fs:
+        f.trace = replace_f(f.trace, S.narrow)
+    rg = S.Regroup(fs, lang)
+    return [rg.trace(f.trace) for f in fs]
+
+
+def regroup_asm(fns, lang):
+    fs = [(h, n, replace_f(t, S.narrow), g, r, ro) for h, n, t, g, r, ro in fns]
+    return asm("regroup", fs, lang)
+
+
+def t_whole():
+    for name, cap in CAPTURED:
+        fns = [fn_tuple(d) for d in cap["functions"]]
+        code = cap["code"].hex() if cap["code"] is not None else None
+        for lang in ("solidity", "vyper"):
+            if not ONLY or ONLY == "regroup":
+                check("regroup", (name, lang), py(regroup, fns, lang), regroup_asm(fns, lang))
+        t0 = time.time()
+        if not ONLY or ONLY == "rewrite_functions":
+            p = py(rewrite_functions, code, fns)
+            t1 = time.time()
+            a = asm("rewrite_functions", code, fns)
+            t2 = time.time()
+            ok = check("rewrite_functions", name, p, a)
+            print(f"   {'ok  ' if ok else 'DIFF'} {name}: py {t1 - t0:.1f}s asm {t2 - t1:.1f}s", flush=True)
+            if not ok and os.environ.get("STORAGE_DUMP"):
+                open(f"/tmp/claude-0/-home-claude/0fe601fa-3d3d-56af-9a22-c5068d00d0e0/scratchpad/storage/diff_{name}.txt", "w").write(f"{p}\n{a}\n")
+
+
+TESTS = [t_whole, t_worlds, t_checks, t_hash_constant, t_parse, t_linear, t_packed, t_typeof, t_form, t_raw, t_layout, t_trace_functions]
 
 if __name__ == "__main__":
     for t in TESTS:
