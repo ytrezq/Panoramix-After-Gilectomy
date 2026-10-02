@@ -176,7 +176,13 @@ test_table:
         .quad .Ln_abi_names, tf_abi_names
         .quad .Ln_add_breaks, add_breaks
         .quad .Ln_continues_from_inside, tf_continues_from_inside
+        # the VM, the stack, the loader (testapi_vm.s)
+        .quad .Ln_sets_fmp, tf_sets_fmp
         .quad 0, 0
+
+        .section .rodata
+.Ln_sets_fmp: .asciz "sets_fmp"
+        .text
 
         .section .rodata
 .Ln_roundtrip: .asciz "roundtrip"

@@ -88,8 +88,21 @@ FUNC vm_new
         mov qword ptr [rax + VM_NODE_COUNT], 0
         mov qword ptr [rax + VM_TIMEOUT], 0
         mov qword ptr [rax + VM_GEN], 1 # (a new node's stamp, 0, is never the current one)
+        mov qword ptr [rax + VM_LOOP_KEY], 1    # (loop_key's next number)
         mov [r15 + CTX_VM], rax
-        mov rbx, rax
+        mov r12, rax
+        # the context works on the loader's contract: the memory model's
+        # free memory pointer is the loader's (vr_free_memory_pointer;
+        # python's variants.FREE_MEMORY_POINTER, global, whose caches are
+        # forgotten when it changes)
+        call vr_free_memory_pointer
+        mov r13d, eax
+        mov [r15 + CTX_LOADER], rbx
+        call vr_free_memory_pointer
+        cmp eax, r13d
+        je 1f
+        call clear_caches
+1:      mov rbx, r12
         lea rdi, [rip + .Ls_env_check_lca]
         call getenv@PLT
         xor ecx, ecx

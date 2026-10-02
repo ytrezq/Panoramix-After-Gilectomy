@@ -17,9 +17,9 @@ evm_opnames:
         .quad .Lo30, .Lo31, .Lo32, .Lo33, .Lo34, .Lo35, .Lo36, .Lo37
         .quad .Lo38, .Lo39, .Lo3a, .Lo3b, .Lo3c, .Lo3d, .Lo3e, .Lo3f
         .quad .Lo40, .Lo41, .Lo42, .Lo43, .Lo44, .Lo45, .Lo46, .Lo47
-        .quad .Lo48, 0, 0, 0, 0, 0, 0, 0
+        .quad .Lo48, .Lo49, .Lo4a, 0, 0, 0, 0, 0
         .quad .Lo50, .Lo51, .Lo52, .Lo53, .Lo54, .Lo55, .Lo56, .Lo57
-        .quad .Lo58, .Lo59, .Lo5a, .Lo5b, 0, 0, 0, .Lo5f
+        .quad .Lo58, .Lo59, .Lo5a, .Lo5b, .Lo5c, .Lo5d, .Lo5e, .Lo5f
         .quad .Lo60, .Lo61, .Lo62, .Lo63, .Lo64, .Lo65, .Lo66, .Lo67
         .quad .Lo68, .Lo69, .Lo6a, .Lo6b, .Lo6c, .Lo6d, .Lo6e, .Lo6f
         .quad .Lo70, .Lo71, .Lo72, .Lo73, .Lo74, .Lo75, .Lo76, .Lo77
@@ -93,6 +93,8 @@ evm_opnames:
 .Lo46: .asciz "chainid"
 .Lo47: .asciz "selfbalance"
 .Lo48: .asciz "basefee"
+.Lo49: .asciz "blobhash"
+.Lo4a: .asciz "blobbasefee"
 .Lo50: .asciz "pop"
 .Lo51: .asciz "mload"
 .Lo52: .asciz "mstore"
@@ -105,6 +107,9 @@ evm_opnames:
 .Lo59: .asciz "msize"
 .Lo5a: .asciz "gas"
 .Lo5b: .asciz "jumpdest"
+.Lo5c: .asciz "tload"
+.Lo5d: .asciz "tstore"
+.Lo5e: .asciz "mcopy"
 .Lo5f: .asciz "push0"
 .Lo60: .asciz "push1"
 .Lo61: .asciz "push2"
@@ -355,22 +360,10 @@ FUNC loader_load
         cmp rsi, rax
         cmovae rsi, rax
         add r14, rsi
-        mov [rsp + 8], rdi
-        push rsi
-        push rsi
         call mk_int_bytes_be
-        pop rsi
-        pop rsi
         mov rcx, [rsp]
         mov [rcx + IN_PARAM], rax
         mov byte ptr [rcx + IN_FLAGS], IF_PARAM
-        # big values that read as text become strings (pretty_bignum)
-        mov rdi, [rsp + 8]
-        call pretty_bignum
-        test rax, rax
-        jz .Lld_loop
-        mov rcx, [rsp]
-        mov [rcx + IN_PARAM], rax
         jmp .Lld_loop
 3:      cmp al, 0x80
         jb 4f
@@ -385,113 +378,130 @@ FUNC loader_load
 4:      inc r14
         jmp .Lld_loop
 .Lld_done:
-        add rsp, 32
+        # solidity sets its free memory pointer, mem[64], before anything
+        # else (but a library's check that it's called with a delegatecall):
+        # what the memory model takes it for (python's
+        # variants.set_free_memory_pointer, which forgets the caches when
+        # it changes: what the context took it for, see vr_free_memory_pointer)
+        call vr_free_memory_pointer
+        mov r12d, eax
+        mov rdi, rbx
+        call sets_free_memory_pointer
+        xor ecx, ecx
+        test eax, eax
+        sete cl
+        mov [rbx + LD_NO_FREE_MEM], cl
+        call vr_free_memory_pointer
+        cmp eax, r12d
+        je 1f
+        call clear_caches
+1:      add rsp, 32
         LEAVE
 ENDF loader_load
 
-# pretty_bignum(bytes, len) -> rax: for a push value above 10^15 whose
-# bytes are all printable (or zero), the quoted text as a string node
-# (python's pretty_bignum: it turns the string constants of the contract
-# into strings); else 0
-FUNC pretty_bignum
+# sets_free_memory_pointer(loader) -> eax: python's loader.sets_free_memory_pointer
+# - the code starts as solidity's does: its first mstore writes a number
+# of at least 0x60 (below 2^16) at 0x40, the stack before it made of
+# pushes, dups and swaps, and of the few instructions of STACK_EFFECTS (a
+# library checks its address), within the first 32 instructions. The
+# stack's unknown words are NIL (python's None).
+FUNC sets_free_memory_pointer
         ENTER
-        sub rsp, 48
+        sub rsp, 272                    # the stack: 32 words at most
         mov rbx, rdi
-        mov r12, rsi
-        # the number: skip the leading zero bytes
-        xor ecx, ecx
-1:      cmp rcx, r12
-        jae .Lpb_no
-        cmp byte ptr [rbx + rcx], 0
-        jne 2f
-        inc rcx
-        jmp 1b
-2:      mov rdx, r12
-        sub rdx, rcx                    # significant bytes
-        cmp rdx, 8
-        ja 3f
-        # up to 8 bytes: is it above 10^15?
-        xor eax, eax
-4:      cmp rcx, r12
-        jae 5f
-        shl rax, 8
-        movzx esi, byte ptr [rbx + rcx]
-        or rax, rsi
-        inc rcx
-        jmp 4b
-5:      movabs rsi, 1000000000000000
-        cmp rax, rsi
-        jbe .Lpb_no
-3:      # the signed message prefix, a special case
+        mov r12, [rbx + LD_NINSTR]
         cmp r12, 32
-        jne 6f
-        mov rdi, rbx
-        lea rsi, [rip + .Lpb_signed_prefix]
-        mov edx, 32
-        call memcmp@PLT
-        test eax, eax
-        jnz 6f
-        lea rdi, [rip + .Ls_signed_message]
-        call str_intern_c
-        add rsp, 48
-        LEAVE
-6:      # every non-zero byte printable?
-        xor ecx, ecx
-7:      cmp rcx, r12
-        jae 8f
-        movzx eax, byte ptr [rbx + rcx]
-        inc rcx
-        test al, al
-        jz 7b
-        cmp al, 0x20
-        jb 9f
-        cmp al, 0x7e
-        jbe 7b
-        jmp .Lpb_no
-9:      cmp al, 0x09                    # \t \n \x0b \x0c \r
-        jb .Lpb_no
-        cmp al, 0x0d
-        jbe 7b
-        jmp .Lpb_no
-8:      # "'" + the non-zero bytes + "'"
-        lea rdi, [r12 + 3]
-        call xmalloc
-        mov r13, rax
-        mov byte ptr [r13], '\''
-        mov r14d, 1
-        xor ecx, ecx
-10:     cmp rcx, r12
-        jae 11f
-        movzx eax, byte ptr [rbx + rcx]
-        inc rcx
-        test al, al
-        jz 10b
-        mov [r13 + r14], al
+        jbe 1f
+        mov r12d, 32
+1:      xor r13d, r13d                  # the instruction
+        xor r14d, r14d                  # the stack's depth
+.Lsf_next:
+        cmp r13, r12
+        jae .Lsf_no
+        mov rax, r13
+        shl rax, 4
+        add rax, [rbx + LD_INSTRS]
+        inc r13
+        movzx ecx, byte ptr [rax + IN_OP]
+        cmp ecx, 0x5f
+        jb .Lsf_other
+        cmp ecx, 0x7f
+        ja 2f
+        mov rdx, [rax + IN_PARAM]       # a push (python's `param or 0`)
+        mov [rsp + r14*8], rdx
         inc r14
-        jmp 10b
-11:     mov byte ptr [r13 + r14], '\''
+        jmp .Lsf_next
+2:      cmp ecx, 0x8f
+        ja 3f
+        sub ecx, 0x7f                   # dup n
+        cmp r14, rcx
+        jb .Lsf_no
+        mov rdx, r14
+        sub rdx, rcx
+        mov rdx, [rsp + rdx*8]
+        mov [rsp + r14*8], rdx
         inc r14
-        mov rdi, r13
-        mov rsi, r14
-        call str_intern
-        mov [rsp], rax
-        mov rdi, r13
-        call free@PLT
-        mov rax, [rsp]
-        add rsp, 48
+        jmp .Lsf_next
+3:      cmp ecx, 0x9f
+        ja .Lsf_no
+        sub ecx, 0x8f                   # swap n
+        cmp r14, rcx
+        jbe .Lsf_no
+        mov rdx, r14
+        sub rdx, rcx
+        dec rdx
+        mov rsi, [rsp + rdx*8]
+        mov rdi, [rsp + r14*8 - 8]
+        mov [rsp + rdx*8], rdi
+        mov [rsp + r14*8 - 8], rsi
+        jmp .Lsf_next
+.Lsf_other:
+        cmp ecx, 0x52
+        jne 4f
+        cmp r14, 2                      # mstore: of a number at 0x40?
+        jb .Lsf_no
+        cmp qword ptr [rsp + r14*8 - 8], (0x40 << 1) | 1
+        jne .Lsf_no
+        mov rax, [rsp + r14*8 - 16]
+        test al, 1
+        jz .Lsf_no
+        sar rax, 1
+        cmp rax, 0x60
+        jl .Lsf_no
+        cmp rax, 0x10000
+        jge .Lsf_no
+        mov eax, 1
+        add rsp, 272
         LEAVE
-.Lpb_no:
+4:      # STACK_EFFECTS: (popped, pushed)
+        mov edx, 0                      # popped
+        cmp ecx, 0x30                   # address
+        je 5f
+        cmp ecx, 0x34                   # callvalue
+        je 5f
+        cmp ecx, 0x36                   # calldatasize
+        je 5f
+        mov edx, 1
+        cmp ecx, 0x15                   # iszero
+        je 5f
+        mov edx, 2
+        cmp ecx, 0x14                   # eq
+        je 5f
+        cmp ecx, 0x10                   # lt
+        je 5f
+        cmp ecx, 0x11                   # gt
+        jne .Lsf_no
+5:      cmp r14, rdx
+        jb .Lsf_no
+        sub r14, rdx
+        mov qword ptr [rsp + r14*8], 0  # one pushed: unknown
+        inc r14
+        jmp .Lsf_next
+.Lsf_no:
         xor eax, eax
-        add rsp, 48
+        add rsp, 272
         LEAVE
-ENDF pretty_bignum
-
-        .section .rodata
-.Lpb_signed_prefix:
-        .byte 0x19, 0x45, 0x74, 0x68, 0x65, 0x72, 0x65, 0x75, 0x6d, 0x20, 0x53, 0x69, 0x67, 0x6e, 0x65, 0x64
-        .byte 0x20, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x3a, 0x0a, 0x33, 0x32, 0, 0, 0, 0
-.Ls_signed_message: .asciz "'\\x19Ethereum Signed Message:\\n32'"
-        .text
+ENDF sets_free_memory_pointer
 
 # loader_instr_at(loader, pc) -> rax: the instruction starting at pc, or 0
 FUNC loader_instr_at
@@ -572,16 +582,7 @@ FUNC loader_disasm
         cmp al, 0x9f
         jbe 2f
 3:      mov rsi, [r14 + IN_PARAM]
-        test sil, 1
-        jnz 4f
-        cmp dword ptr [rsi + N_KIND], K_STR
-        jne 4f
-        # a push value turned into a string: back to the number
-        mov rdi, rbx
-        mov rsi, r14
-        call push_value
-        mov rsi, rax
-4:      mov rdi, r12
+        mov rdi, r12
         mov edx, 16
         call sb_append_int
 2:      mov rdi, r12
@@ -591,23 +592,6 @@ FUNC loader_disasm
         jmp 1b
 9:      LEAVE
 ENDF loader_disasm
-
-# push_value(loader, instr) -> rax: the integer pushed by a push
-# instruction, from the code bytes
-FUNC push_value
-        movzx eax, byte ptr [rsi + IN_OP]
-        sub eax, 0x5f                   # the number of bytes
-        mov ecx, [rsi + IN_PC]
-        inc rcx
-        mov rdx, [rdi + LD_CODELEN]
-        sub rdx, rcx                    # the bytes left
-        cmp rdx, rax
-        cmovae rdx, rax
-        mov rsi, rdx
-        mov rdi, [rdi + LD_CODE]
-        add rdi, rcx
-        jmp mk_int_bytes_be
-ENDF push_value
 
 # loader_free(loader)
 FUNC loader_free
