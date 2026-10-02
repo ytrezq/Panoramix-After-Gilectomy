@@ -171,7 +171,31 @@ def check(name, args, expected, single=False):
         if bad >= int(os.environ.get("MAXBAD", "12")):
             print("too many mismatches"); sys.exit(1)
 
+# (name, args, single): cases that differed once
+REGRESSIONS = [
+    # a ('mem', x) of something that isn't a range: apply_mask_to_range's
+    # ValueError, which split_or doesn't catch (only its AssertionErrors)
+    ("split_or", (("mask_shl", 8, 0, 0, ("mem", ("sha3", ("mem", ("range", 0, 64))))),), True),
+    # a read of a negative length (the old VM's call arguments) inside the
+    # split: its bytes, of that length
+    ("fill_mem", (("mem", ("range", 100, -4)), ("range", 64, 32), 96), False),
+    # a bool at the byte k of a packed array, k at most 31
+    ("split_store", (("store", 256, 0, 5, ("or", ("mul", ("bool", "x"), ("exp", 256, ("mask_shl", 5, 0, 0, ("cd", 4)))), ("and", ("not", ("mul", 255, ("exp", 256, ("mask_shl", 5, 0, 0, ("cd", 4))))), ("storage", 256, 0, 5)))),), True),
+    # two bytes swapped: no order
+    ("split_store", (("store", 256, 0, 5, ("or", ("mask_shl", 8, 0, 8, ("storage", 8, 0, 5)), ("mask_shl", 8, 8, -8, ("storage", 256, 0, 5)))),), True),
+    # a part reading what another part writes: it goes first
+    ("split_setmem", (("setmem", ("range", 64, 32), ("or", ("mask_shl", 160, 0, 0, "caller"), ("mask_shl", 96, 0, 160, ("mem", ("range", 64, 32))))),), True),
+    # a bool shifted left, next to what's above its byte
+    ("split_or", (("or", ("mask_shl", 32, 0, 200, ("bool", "x")), ("mask_shl", 48, 0, 208, "y")),), True),
+]
+
+def regressions():
+    for name, args, single in REGRESSIONS:
+        fn = getattr(M, name)
+        check(name, args, run(fn, *args), single)
+
 if __name__ == "__main__":
+  regressions()
   for n in range(N):
     v = rval()
     check("to_bytes", (v,), run(AL.to_bytes, v), True)
