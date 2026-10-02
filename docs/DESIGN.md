@@ -332,8 +332,10 @@ AssertionError` that caught everything. Python's timeouts make a case
 inconclusive.
 
 The random unit tests (`tests/test_algebra.py` - with `BIG=1`, masks
-with numbers past 2^62 -, `test_arith.py`, `test_memloc.py`,
-`test_stack.py`, `test_simplify_exp.py`, `test_prettify_random.py`,
+with numbers past 2^62 -, `test_arith.py`, `test_memloc.py`: the
+memory model, the stores and setmems of several parts that read what the
+others write among them; `test_rewriter.py`: datas with arrays, padded or
+not, and the ifs on the lengths of strings; `test_stack.py`, `test_simplify_exp.py`, `test_prettify_random.py`,
 `test_agz.py`: sums of many terms sharing variables, for `add_ge_zero`;
 `test_agz_family.py`: many adds sharing their terms after the number,
 asked in one context, for `add_ge_zero`'s and `add_op`'s families;

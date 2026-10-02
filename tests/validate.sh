@@ -88,6 +88,7 @@ step agz python3 tests/test_agz.py $seed 1000
 step agz_family python3 tests/test_agz_family.py $seed 300
 step simplify_exp python3 tests/test_simplify_exp.py $seed 300
 step memloc python3 tests/test_memloc.py $seed
+step rewriter python3 tests/test_rewriter.py $seed 500
 step arith python3 tests/test_arith.py $seed
 step matcher python3 tests/test_matcher.py $seed 2000
 step stack python3 tests/test_stack.py $seed
