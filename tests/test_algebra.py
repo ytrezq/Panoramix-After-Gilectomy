@@ -119,15 +119,30 @@ for n in range(N):
         ("max_op", (a, b), None),
         ("min_op", (a, b), None),
         ("get_sign", (a,), None),
+        ("lt_op_m", (a, b), None),
+        ("le_op_m", (a, b), None),
+        ("ge_zero_m", (a,), None),
+        ("max_op_m", (a, b), None),
+        ("min_op_m", (a, b), None),
+        ("get_sign_m", (a,), None),
+        ("shr_op", (a, random.choice([0, 3, 8, 96, 255, 256, 300, ("cd", 4)])), None),
+        ("shl_op", (a, random.choice([0, 3, 8, 96, 255, 256, 300, ("cd", 4), ("add", 5, ("cd", 4)), ("mul", -1, ("cd", 4))])), None),
+        ("signextend_op", (random.choice([0, 1, 3, 15, 30, 31, 32, -1, 2**256 - 1, ("cd", 4), True]), random.choice([a, rint(), ("signextend", random.choice([0, 1, 3, 31]), a), ("mask_shl", random.choice([8, 16, 32, 256]), random.choice([0, 0, 8, 16]), random.choice([0, -8, -16, 8]), a), ("storage", random.choice([8, 16, 64, 256]), random.choice([0, 8, -8]), 5)])), None),
+        ("bits", (a,), None),
+        ("to_bytes", (a,), None),
     ]
     for name, args, _ in tests:
         _args = args
-        pyfn = getattr(P, name)
+        if name.endswith("_m"):
+            # memloc's: top=MEMORY_TOP
+            pyfn = (lambda f: (lambda *a: f(*a, top=P.MEMORY_TOP)))(getattr(P, name[:-2]))
+        else:
+            pyfn = getattr(P, name)
         try:
             r = pyfn(*args)
-            if name in ("lt_op", "le_op", "ge_zero"):
+            if name in ("lt_op", "le_op", "ge_zero", "lt_op_m", "le_op_m", "ge_zero_m"):
                 expected = tri(r)
-            elif name == "get_sign":
+            elif name in ("get_sign", "get_sign_m"):
                 expected = "None" if r is None else repr(r)
             else:
                 expected = repr(r)
@@ -135,18 +150,13 @@ for n in range(N):
             expected = "'CannotCompare'"
         except Exception as e:
             expected = "<exc %s>" % type(e).__name__
-        lit = repr(args[0]) if len(args) == 1 and name in ("simplify", "calc_max", "max_to_add", "ge_zero", "get_sign") else repr(args)
+        lit = repr(args[0]) if len(args) == 1 and name in ("simplify", "calc_max", "max_to_add", "ge_zero", "get_sign", "ge_zero_m", "get_sign_m", "bits", "to_bytes") else repr(args)
         if os.environ.get('TRACE'): print('CALL', name, lit, flush=True)
         try:
             got = A._test(name, lit)
         except Exception as e:
             got = "<asm exc %s>" % e
         cases += 1
-        if expected != got and not expected.startswith("<exc") and "('mem', ('range', 64, 32))" in lit:
-            alts = seed_results(name, args)
-            if got in alts or len(alts) > 1:
-                print(f"seed-dependent {name}: python gives {sorted(alts)}, asm {got}")
-                expected = got
         if expected != got and not expected.startswith("<exc"):
             bad += 1
             print(f"MISMATCH {name}{args!r}\n   python: {expected}\n   asm:    {got}")

@@ -26,7 +26,10 @@ database, liblzma. Everything else is assembly (GNU as, Intel syntax).
     src/loader.s          bytecode -> instructions, jumpdests, push values
     src/funcs.s           function discovery (Loader.run)
     src/arith.s           256-bit arithmetic, is_zero, eval_bool (core/arithmetic.py)
-    src/algebra.s         add_op, mask_op, lt_op, ge_zero... (core/algebra.py, variants.py)
+    src/algebra.s         add_op, mask_op, lt_op, ge_zero... (core/algebra.py)
+    src/ranges.s          value_range: what an expression is as an integer, for any
+                          value of its words - what decides the comparisons
+                          (algebra.value_range, set_variables, _linear...)
     src/masks.s           to_mask, find_mask (core/masks.py)
     src/stack.s           the symbolic stack (stack.py)
     src/vmnode.s, vm.s    the symbolic VM (vm.py): nodes, jump tables of the opcodes
@@ -166,10 +169,15 @@ is the CLI, `build/panoramix_asm*.so` the module.
 - Python's floats: `2 ** k` for a negative k (the masks' printing), as
   the shortest decimal that reads back as the double (`float_repr`,
   python's repr), carried as a string flagged `STR_FLOAT`.
-- The variants of an expression (`add_ge_zero`) substitute all the
-  variables at once (`replace_many`), an outer expression before the ones
-  it contains; python did them one by one in the order of a set, so its
-  answer depended on the hash seed (fixed on the python side too).
+- The comparisons (`ge_zero`, `lt_op`, `le_op`, `max_op`...) are decided
+  by `value_range` (src/ranges.s) and nothing else, as python's are since
+  the PR's rewrite: the variants of an expression (`add_ge_zero`, which
+  tried 0 and 2^230 for each word) are gone, with their scratch numbers.
+  The ranges are remembered per expression and per top (`MEMO_VR_W`/`_M`,
+  `MEMO_TR_W`/`_M`, `MEMO_UNCHECKED`), the memo tables forgotten when what
+  they rest on changes (`set_variables`, python's `clear_caches`) - all of
+  them but `mask_op`'s, whose python cache (`mask_dict`) isn't one of the
+  cleared ones.
 
 ## Roadmap
 

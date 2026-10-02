@@ -24,41 +24,42 @@ FUNC is_op_n
         ret
 ENDF is_op_n
 
-# to_exp2(v) -> rax: k if math.log2(v) is an integer in double precision
-# (helpers.to_exp2), else -1. Like python, this is true of numbers close to
-# a power of two, e.g. 2^160 - 1: the output shapes depend on it.
+# to_exp2(v) -> rax: k if v is 2^k (helpers.to_exp2: exactly, not by a
+# float's log2), else -1. v an int (not a bool).
 FUNC to_exp2
         ENTER
-        sub rsp, 16
         mov rbx, rdi
         call is_int
         test eax, eax
         jz .Lte_no
-        mov rdi, rbx
+        test bl, 1
+        jz 1f
+        mov rax, rbx                    # a small one
+        sar rax, 1
+        test rax, rax
+        jle .Lte_no
+        lea rcx, [rax - 1]
+        test rax, rcx
+        jnz .Lte_no
+        bsf rax, rax
+        LEAVE
+1:      mov rdi, rbx                    # a big one
         call int_sign
         cmp eax, 1
         jne .Lte_no
-        # x = mantissa in [0.5, 1) * 2^e
         mov rdi, rbx
         call value_mpz
-        mov rdi, rsp                    # &e (long)
-        mov rsi, rax
-        call __gmpz_get_d_2exp@PLT
-        call log2@PLT
-        cvtsi2sd xmm1, qword ptr [rsp]
-        addsd xmm0, xmm1                # l = log2(m) + e
-        cvttsd2si rax, xmm0
-        cvtsi2sd xmm1, rax
-        ucomisd xmm0, xmm1
+        mov rbx, rax
+        mov rdi, rax
+        call __gmpz_popcount@PLT
+        cmp rax, 1
         jne .Lte_no
-        jp .Lte_no
-        test rax, rax
-        js .Lte_no
-        add rsp, 16
+        mov rdi, rbx
+        xor esi, esi
+        call __gmpz_scan1@PLT
         LEAVE
 .Lte_no:
         mov rax, -1
-        add rsp, 16
         LEAVE
 ENDF to_exp2
 
@@ -602,16 +603,17 @@ FUNC alg_mul_n
         LEAVE
 1:      cmp rbx, 2
         jne 2f
-        mov rdi, [r12]
-        call is_int
-        test eax, eax
+        mov rdi, [r12]                  # match(args, (int, int)): isinstance,
+        call vr_number                  # a bool is a number too
+        test rax, rax
         jz 2f
+        mov [rsp], rax
         mov rdi, [r12 + 8]
-        call is_int
-        test eax, eax
+        call vr_number
+        test rax, rax
         jz 2f
-        mov rdi, [r12]
-        mov rsi, [r12 + 8]
+        mov rdi, [rsp]
+        mov rsi, rax
         call int_mul
         add rsp, 32
         LEAVE
@@ -1457,8 +1459,7 @@ FUNC alg_try_add
         LEAVE
 ENDF alg_try_add
 
-# try_add_2(self, other): __try_add - normalizes ('mul', num, mask_shl with
-# shl > 0) then _try_add
+# try_add_2(self, other): __try_add - _try_add of the terms unshifted
 FUNC try_add_2
         STACK_CHECK
         ENTER
@@ -1476,8 +1477,12 @@ FUNC try_add_2
         LEAVE
 ENDF try_add_2
 
-# try_add_norm(v): ('mul', num, ('mask_shl', size, off, shl > 0, val)) ->
-# ('mul', num + 2^shl, ('mask_shl', size + shl, off, 0, val))
+# try_add_norm(v): python's _unshift - ('mul', num, ('mask_shl', size, off,
+# shl > 0, val)) is num * 2**shl times the mask unshifted, and when no bit of
+# it stays under 256 - shl, the mask takes all the bits from off: ('mul',
+# num * 2^shl, ('mask_shl', size + shl or size, off, 0, val)). (A num that
+# isn't a number: python's tuple times a number, which isn't a term
+# _try_add adds: as it is.)
 FUNC try_add_norm
         ENTER
         mov rbx, rdi
@@ -1496,21 +1501,36 @@ FUNC try_add_norm
         cmp eax, 1
         jne .Ltn_asis
         mov rdi, [rbx + N_DATA + 8]
-        call is_int
-        test eax, eax
-        jz .Ltn_type                    # python: num + 2**shl, a TypeError
+        call vr_number                  # (a bool too)
+        test rax, rax
+        jz .Ltn_asis
+        mov r13, rax
         mov rdi, [r12 + N_DATA + 24]
         call clamp_bits                 # (shl may be a big int)
         mov rdi, rax
         call pow2
-        mov rdi, [rbx + N_DATA + 8]
+        mov rdi, r13
         mov rsi, rax
+        call int_mul
+        mov r13, rax                    # num * 2^shl
+        # off + size + shl >= 256: size + shl, else size
+        mov rdi, [r12 + N_DATA + 16]
+        mov rsi, [r12 + N_DATA + 8]
         call int_add
-        mov r13, rax                    # num + 2^shl
-        mov rdi, [r12 + N_DATA + 8]
-        mov rsi, [r12 + N_DATA + 24]
-        call int_add                    # size + shl
         mov rdi, rax
+        mov rsi, [r12 + N_DATA + 24]
+        call int_add
+        mov rdi, rax
+        mov esi, (256 << 1) | 1
+        call int_cmp
+        mov r14, [r12 + N_DATA + 8]
+        test eax, eax
+        js 1f
+        mov rdi, r14
+        mov rsi, [r12 + N_DATA + 24]
+        call int_add
+        mov r14, rax
+1:      mov rdi, r14
         mov rsi, [r12 + N_DATA + 16]
         mov edx, 1
         mov rcx, [r12 + N_DATA + 32]
@@ -1522,10 +1542,6 @@ FUNC try_add_norm
 .Ltn_asis:
         mov rax, rbx
         LEAVE
-.Ltn_type:
-        mov edi, E_TYPE
-        lea rsi, [rip + .Ls_tn_type]
-        call err_throw
 ENDF try_add_norm
 
         .section .rodata
@@ -1570,17 +1586,17 @@ FUNC try_add_1
         call int_add
         cmp rax, (256 << 1) | 1
         jne 2f
-        # mul *= 2**shl - 1 ; mul_op(mul, val)
+        # mul * 2**shl * val - val
         mov rdi, [r14 + N_DATA + 24]
         call clamp_bits
         mov rdi, rax
         call pow2
-        mov rdi, rax
-        mov esi, 3
-        call int_sub
         mov rdi, [r12 + N_DATA + 8]
         mov rsi, rax
         call int_mul
+        mov rdi, rax
+        mov esi, 3
+        call int_sub
         mov rdi, rax
         mov rsi, r13
         call alg_mul2
@@ -1749,7 +1765,7 @@ FUNC try_add_1
         call alg_mul2
         add rsp, 48
         LEAVE
-6:      # second loop: mask_shl(256 - y, y, 0, x) and mask_shl(251 - y, y, 0, x)
+6:      # second loop: mask_shl(256 - y, y, 0, x)
         cmp dword ptr [r13 + N_AUX], 5
         jne 8f
         mov rax, [r13 + N_DATA + 16]    # y
@@ -1764,12 +1780,8 @@ FUNC try_add_1
         mov rcx, (256 << 1) | 1 + 1
         sub rcx, rax                    # 256 - y, tagged
         cmp [r13 + N_DATA + 8], rcx
-        je 9f
-        mov rcx, (251 << 1) | 1 + 1
-        sub rcx, rax                    # 251 - y, tagged
-        cmp [r13 + N_DATA + 8], rcx
         jne 8f
-9:      mov rdi, [r13 + N_DATA + 32]
+        mov rdi, [r13 + N_DATA + 32]
         mov rsi, r14
         call values_equal
         test eax, eax
@@ -1887,11 +1899,12 @@ FUNC try_add_1
         call int_cmp
         cmp eax, -1
         jne .Lta_none
+        # the bits [size2, size1) of x
         mov rdi, [r13 + N_DATA + 8]
         mov rsi, [r14 + N_DATA + 8]
         call int_sub
         mov rdi, rax
-        mov esi, 1
+        mov rsi, [r14 + N_DATA + 8]
         mov edx, 1
         mov rcx, [r13 + N_DATA + 32]
         call mk_mask_shl
@@ -1979,7 +1992,7 @@ FUNC alg_mask_op
         LEAVE
 ENDF alg_mask_op
 
-# mask_op_impl(exp, size, offset, shl, shr) -> value
+# mask_op_impl(exp, size, offset, shl, shr) -> value (python's _mask_op)
 FUNC mask_op_impl
         STACK_CHECK
         ENTER
@@ -1989,6 +2002,10 @@ FUNC mask_op_impl
         mov r13, rdx                    # offset
         mov [rsp + 32], r8              # shr
         mov [rsp + 40], rcx             # shl
+        mov esi, 1                      # exp == 0 (False too): 0
+        call py_equal
+        test eax, eax
+        jnz 9f
         # ('div', num, 1) -> num
         mov rdi, rbx
         mov esi, OP_DIV
@@ -2004,13 +2021,73 @@ FUNC mask_op_impl
         mov rsi, [rsp + 32]
         call alg_sub_op
         mov r14, rax                    # shl
-        # storage trimming
+        # a bool (0 or 1), with a mask of numbers: kept or dropped
+        mov rdi, rbx
+        call opcode_of
+        mov edi, eax
+        call is_bool_op
+        test eax, eax
+        jz 11f
+        mov [rsp], r12
+        mov [rsp + 8], r13
+        mov [rsp + 16], r14
+        mov edi, 3
+        mov rsi, rsp
+        call all_ints
+        test eax, eax
+        jz 11f
+        mov rdi, r13
+        call int_sign
+        cmp eax, 1
+        je 9f                           # offset > 0: 0
+        mov rdi, r12
+        call int_sign
+        cmp eax, 0
+        jle 9f                          # size <= 0: 0
+        cmp r14, 1
+        jne 11f
+        mov rax, rbx                    # shl == 0: as it is
+        add rsp, 64
+        LEAVE
+11:     # storage
         mov rdi, rbx
         mov esi, OP_STORAGE
         mov edx, 4
         call is_op_n
         test eax, eax
         jz .Lmo_not_storage
+        # a field moved left (see apply_mask_to_storage): a mask of the
+        # field, moved
+        mov rdi, [rbx + N_DATA + 16]
+        call vr_number                  # (":int:", a bool too)
+        test rax, rax
+        jz 12f
+        mov rdi, rax
+        call int_sign
+        test eax, eax
+        jns 12f
+        LOADS rdi, STORAGE
+        mov rsi, [rbx + N_DATA + 8]
+        mov edx, 1
+        mov rcx, [rbx + N_DATA + 24]
+        call mk4
+        mov [rsp], rax                  # the field
+        mov rdi, [rbx + N_DATA + 16]
+        call int_neg
+        mov rdi, [rbx + N_DATA + 8]
+        mov esi, 1
+        mov rdx, rax
+        mov rcx, [rsp]
+        call mk_mask_shl
+        mov rdi, rax
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, r14
+        mov r8d, 1
+        call alg_mask_op
+        add rsp, 64
+        LEAVE
+12:     # trimming the storage inside
         test r14b, 1
         jz 3f                           # symbolic shl
         mov rax, r14
@@ -2029,10 +2106,8 @@ FUNC mask_op_impl
         mov rdx, r13
         mov rcx, r14
         call apply_mask_to_storage
-        test rax, rax
+        test rax, rax                   # (None: the next one; 0 is a result)
         jz 3f
-        cmp rax, 1
-        je 3f                           # 0 is falsy: try the next one
         add rsp, 64
         LEAVE
 3:      mov rdi, rbx
@@ -2042,8 +2117,6 @@ FUNC mask_op_impl
         call apply_mask_to_storage
         test rax, rax
         jz .Lmo_not_storage
-        cmp rax, 1
-        je .Lmo_not_storage
         add rsp, 64
         LEAVE
 .Lmo_not_storage:
@@ -2078,7 +2151,48 @@ FUNC mask_op_impl
         call alg_or_n
         add rsp, 64
         LEAVE
-5:      cmp eax, OP_MASK_SHL
+5:      cmp eax, OP_SIGNEXTEND
+        jne 51f
+        # the bits signextend doesn't change: ('signextend', int b, val) with
+        # offset + size <= 8 * (b + 1), numbers
+        cmp dword ptr [rbx + N_AUX], 3
+        jne 7f
+        mov rdi, [rbx + N_DATA + 8]
+        call vr_number
+        test rax, rax
+        jz 7f
+        mov [rsp + 24], rax             # b
+        mov [rsp], r12
+        mov [rsp + 8], r13
+        mov edi, 2
+        mov rsi, rsp
+        call all_ints
+        test eax, eax
+        jz 7f
+        mov rdi, r13
+        mov rsi, r12
+        call int_add
+        mov [rsp + 16], rax
+        mov rdi, [rsp + 24]
+        mov esi, 3
+        call int_add
+        mov rdi, rax
+        mov esi, (8 << 1) | 1
+        call int_mul
+        mov rdi, [rsp + 16]
+        mov rsi, rax
+        call int_cmp
+        cmp eax, 0
+        jg 7f
+        mov rdi, [rbx + N_DATA + 16]
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, r14
+        mov r8d, 1
+        call alg_mask_op
+        add rsp, 64
+        LEAVE
+51:     cmp eax, OP_MASK_SHL
         jne 7f
         cmp dword ptr [rbx + N_AUX], 5
         jne 7f
@@ -2119,7 +2233,8 @@ FUNC mask_op_impl
         LEAVE
 ENDF mask_op_impl
 
-# apply_mask_to_storage(exp, size, offset, shl) -> value, or NIL (python's None)
+# apply_mask_to_storage(exp, size, offset, shl) -> value, or NIL (python's
+# None: the mask has to stay)
 FUNC apply_mask_to_storage
         STACK_CHECK
         ENTER
@@ -2143,23 +2258,30 @@ FUNC apply_mask_to_storage
         mov rsi, r13
         call alg_add2
         mov r14, rax
-        # if safe_lt_op(size, stor_size): stor_size = size
+        # the narrower of the two - unless which one isn't known (uint8 of
+        # a field of 256 - 8 * i bits): None
         mov rdi, r12
         mov rsi, [rsp + 8]
-        call alg_safe_lt_op
+        call alg_safe_le_op
         cmp eax, TRI_TRUE
         jne 1f
         mov [rsp + 8], r12
-1:      # if safe_le_op(stor_size, 0) is True: return 0
+        jmp 2f
+1:      mov rdi, [rsp + 8]
+        mov rsi, r12
+        call alg_safe_le_op
+        cmp eax, TRI_TRUE
+        jne .Lams_none
+2:      # if safe_le_op(stor_size, 0) is True: return 0
         mov rdi, [rsp + 8]
         mov esi, 1
         call alg_safe_le_op
         cmp eax, TRI_TRUE
-        jne 2f
+        jne 3f
         mov eax, 1
         add rsp, 32
         LEAVE
-2:      # res = ('storage', stor_size, stor_offset, stor_idx)
+3:      # res = ('storage', stor_size, stor_offset, stor_idx)
         LOADS rdi, STORAGE
         mov rsi, [rsp + 8]
         mov rdx, [rsp]
@@ -2170,23 +2292,60 @@ FUNC apply_mask_to_storage
         mov esi, 1
         call py_equal
         test eax, eax
-        jz 3f
-        mov rax, [rsp + 16]
+        jz 4f
+        mov rax, [rsp + 16]             # shl == 0: res
         add rsp, 32
         LEAVE
-3:      # if res[1] == size and res[2] == 0: ('storage', size, -shl, stor_idx)
+4:      mov rdi, r14                    # (moved by a number of bits known only)
+        call is_int
+        test eax, eax
+        jz .Lams_none
+        mov rdi, r14
+        call int_sign
+        test eax, eax
+        jns 6f
+        # moved right: its bits from -shl on, at 0
+        mov rdi, [rsp + 8]
+        mov rsi, r14
+        call alg_add2
+        mov [rsp + 24], rax             # new_size
+        mov rdi, rax
+        call is_int
+        test eax, eax
+        jz .Lams_none
+        mov rdi, [rsp + 24]
+        call int_sign
+        cmp eax, 0
+        jg 5f
+        mov eax, 1                      # new_size <= 0: 0
+        add rsp, 32
+        LEAVE
+5:      mov rdi, r14
+        call int_neg
+        mov rdi, [rsp]
+        mov rsi, rax
+        call alg_add2
+        LOADS rdi, STORAGE
+        mov rsi, [rsp + 24]
+        mov rdx, rax
+        mov rcx, [rbx + N_DATA + 24]
+        call mk4
+        add rsp, 32
+        LEAVE
+6:      # a field moved left (see mask_op_impl): res ~ ('storage', size, 0,
+        # stor_idx) -> ('storage', size, -shl, stor_idx)
         mov rdi, [rsp + 8]
         mov rsi, r12
-        call values_equal
+        call py_equal
         test eax, eax
-        jz 4f
+        jz .Lams_none
         mov rdi, [rsp]
         mov esi, 1
         call py_equal
         test eax, eax
-        jz 4f
+        jz .Lams_none
         mov rdi, r14
-        call alg_minus_op
+        call int_neg
         LOADS rdi, STORAGE
         mov rsi, r12
         mov rdx, rax
@@ -2194,7 +2353,8 @@ FUNC apply_mask_to_storage
         call mk4
         add rsp, 32
         LEAVE
-4:      xor eax, eax
+.Lams_none:
+        xor eax, eax
         add rsp, 32
         LEAVE
 ENDF apply_mask_to_storage
@@ -2221,7 +2381,23 @@ FUNC mask_mask_op
         mov rdi, rbx
         call strategy_concrete
         LEAVE
-1:      # strategy_0: 0 if exp == 0
+1:      # two masks that can be printed as they are: as far as it's proven
+        mov rdi, [rbx + MM_SIZE]
+        mov rsi, [rbx + MM_OFFSET]
+        mov rdx, [rbx + MM_SHL]
+        call readable_mask
+        test eax, eax
+        jz 10f
+        mov rdi, [rbx + MM_ESIZE]
+        mov rsi, [rbx + MM_EOFFSET]
+        mov rdx, [rbx + MM_ESHL]
+        call readable_mask
+        test eax, eax
+        jz 10f
+        mov rdi, rbx
+        call strategy_proven
+        LEAVE
+10:     # strategy_0: 0 if exp == 0
         mov rdi, [rbx + MM_EXP]
         mov esi, 1
         call py_equal
@@ -2254,6 +2430,206 @@ FUNC mask_mask_op
         call mk_mask_shl
 9:      LEAVE
 ENDF mask_mask_op
+
+# strategy_proven(params) -> value: python's strategy_proven - a mask of a
+# mask, as strategy_1 does it, but only as far as it's proven (value_range),
+# and when what it makes can be printed as it is (readable_mask): else it
+# stays a mask of a mask
+FUNC strategy_proven
+        STACK_CHECK
+        ENTER
+        sub rsp, 80
+        .set SP_IR, 0                   # inner_right: where the inner mask's bits end up
+        .set SP_IL, 8                   # inner_left
+        .set SP_OL, 16                  # outer_left: the bits the outer one keeps
+        .set SP_CANDS, 24               # three candidates
+        .set SP_LEFT, 48
+        .set SP_FINAL, 56
+        .set SP_NSIZE, 64
+        .set SP_NOFF, 72                # (after SP_NSIZE: all_ints of the two)
+        mov rbx, rdi
+        mov rdi, [rbx + MM_EOFFSET]
+        mov rsi, [rbx + MM_ESHL]
+        call alg_add2
+        mov [rsp + SP_IR], rax
+        mov rdi, [rbx + MM_EOFFSET]
+        mov rsi, [rbx + MM_ESIZE]
+        mov rdx, [rbx + MM_ESHL]
+        call alg_add3
+        mov [rsp + SP_IL], rax
+        mov rdi, [rbx + MM_OFFSET]
+        mov rsi, [rbx + MM_SIZE]
+        call alg_add2
+        mov [rsp + SP_OL], rax
+        # no bit of the inner mask kept: 0
+        mov rdi, [rsp + SP_IL]
+        mov rsi, [rsp + SP_IR]
+        call proven_le
+        test eax, eax
+        jnz .Lsp_zero
+        mov rdi, [rsp + SP_IL]
+        mov rsi, [rbx + MM_OFFSET]
+        call proven_le
+        test eax, eax
+        jnz .Lsp_zero
+        mov rdi, [rsp + SP_OL]
+        mov rsi, [rsp + SP_IR]
+        call proven_le
+        test eax, eax
+        jnz .Lsp_zero
+        mov rdi, [rsp + SP_IL]
+        mov esi, 1
+        call proven_le
+        test eax, eax
+        jnz .Lsp_zero
+        mov edi, (256 << 1) | 1
+        mov rsi, [rsp + SP_IR]
+        call proven_le
+        test eax, eax
+        jnz .Lsp_zero
+        # (strategy_final's)
+        mov rdi, [rbx + MM_ESIZE]
+        mov rsi, [rbx + MM_EOFFSET]
+        mov rdx, [rbx + MM_ESHL]
+        mov rcx, [rbx + MM_EXP]
+        call mk_mask_shl
+        mov rdi, [rbx + MM_SIZE]
+        mov rsi, [rbx + MM_OFFSET]
+        mov rdx, [rbx + MM_SHL]
+        mov rcx, rax
+        call mk_mask_shl
+        mov [rsp + SP_FINAL], rax
+        # left: the one of outer_left, inner_left, 256 proven the lowest
+        mov rax, [rsp + SP_OL]
+        mov [rsp + SP_CANDS], rax
+        mov rax, [rsp + SP_IL]
+        mov [rsp + SP_CANDS + 8], rax
+        mov qword ptr [rsp + SP_CANDS + 16], (256 << 1) | 1
+        lea rdi, [rsp + SP_CANDS]
+        xor esi, esi
+        call proven_pick
+        test rax, rax
+        jz .Lsp_final
+        mov [rsp + SP_LEFT], rax
+        # right: the one of outer_right, inner_right, 0 proven the highest
+        mov rax, [rbx + MM_OFFSET]
+        mov [rsp + SP_CANDS], rax
+        mov rax, [rsp + SP_IR]
+        mov [rsp + SP_CANDS + 8], rax
+        mov qword ptr [rsp + SP_CANDS + 16], 1
+        lea rdi, [rsp + SP_CANDS]
+        mov esi, 1
+        call proven_pick
+        test rax, rax
+        jz .Lsp_final
+        mov r12, rax                    # right
+        mov rdi, [rsp + SP_LEFT]
+        mov rsi, r12
+        call alg_sub_op
+        mov [rsp + SP_NSIZE], rax
+        mov rdi, r12
+        mov rsi, [rbx + MM_ESHL]
+        call alg_sub_op
+        mov [rsp + SP_NOFF], rax
+        mov rdi, [rsp + SP_NSIZE]
+        mov esi, 1
+        call proven_le
+        test eax, eax
+        jnz .Lsp_zero
+        mov rdi, [rsp + SP_NSIZE]
+        xor esi, esi
+        call is_word
+        test eax, eax
+        jz .Lsp_final
+        # a size or an offset made of a shift (uint8(x << n), 2 * (1 << n)):
+        # the two masks read better
+        mov edi, 2
+        lea rsi, [rsp + SP_NSIZE]
+        call all_ints
+        test eax, eax
+        jnz 1f
+        mov edi, 2
+        lea rsi, [rbx + MM_SIZE]        # size, offset
+        call all_ints
+        test eax, eax
+        jz 1f
+        mov edi, 2
+        lea rsi, [rbx + MM_ESIZE]       # exp_size, exp_offset
+        call all_ints
+        test eax, eax
+        jnz .Lsp_final
+1:      mov rdi, [rbx + MM_SHL]
+        mov rsi, [rbx + MM_ESHL]
+        call alg_add2
+        mov rcx, rax
+        mov rdi, [rbx + MM_EXP]
+        mov rsi, [rsp + SP_NSIZE]
+        mov rdx, [rsp + SP_NOFF]
+        mov r8d, 1
+        call alg_mask_op
+        mov r12, rax
+        mov rdi, rax
+        call opcode_of
+        cmp eax, OP_MASK_SHL
+        jne 2f
+        cmp dword ptr [r12 + N_AUX], 4
+        jb 2f
+        mov rdi, [r12 + N_DATA + 8]
+        mov rsi, [r12 + N_DATA + 16]
+        mov rdx, [r12 + N_DATA + 24]
+        call readable_mask
+        test eax, eax
+        jz .Lsp_final
+2:      mov rax, r12
+        add rsp, 80
+        LEAVE
+.Lsp_final:
+        mov rax, [rsp + SP_FINAL]
+        add rsp, 80
+        LEAVE
+.Lsp_zero:
+        mov eax, 1
+        add rsp, 80
+        LEAVE
+ENDF strategy_proven
+
+# proven_pick(cands, flip) -> rax: python's _proven_pick of three
+# candidates - the first one proven to come first (proven_le(c, o), or
+# proven_le(o, c) when flip) to each of the others it isn't equal to - or
+# NIL
+FUNC proven_pick
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        mov r12d, esi
+        xor r13d, r13d                  # c
+1:      cmp r13d, 3
+        jae 8f
+        xor r14d, r14d                  # o
+2:      cmp r14d, 3
+        jae 7f
+        mov rdi, [rbx + r13*8]
+        mov rsi, [rbx + r14*8]
+        call py_equal
+        test eax, eax
+        jnz 3f
+        mov rdi, [rbx + r13*8]
+        mov rsi, [rbx + r14*8]
+        test r12d, r12d
+        jz 4f
+        xchg rdi, rsi
+4:      call proven_le
+        test eax, eax
+        jz 5f
+3:      inc r14d
+        jmp 2b
+5:      inc r13d
+        jmp 1b
+7:      mov rax, [rbx + r13*8]
+        LEAVE
+8:      xor eax, eax
+        LEAVE
+ENDF proven_pick
 
 # strategy_concrete(params) -> value (all ints). The six in [-2^59, 2^59),
 # in registers (the results stay small ints); else strategy_concrete_big.
@@ -2644,12 +3020,13 @@ FUNC alg_div_op
         je 4f
         test rax, rax
         jz 4f
-        # mask_op(a, size=256 - p, shr=p)
+        # mask_op(a, size=256 - p, offset=p, shr=p)
         mov rdi, rbx
         mov esi, 256
         sub rsi, rax
         TAG rsi
-        mov edx, 1
+        mov rdx, rax
+        TAG rdx
         mov ecx, 1
         mov r8, rax
         TAG r8
@@ -2670,10 +3047,65 @@ FUNC alg_div_op
         LEAVE
 ENDF alg_div_op
 
-# alg_bits(exp) = mul_op(exp, 8)
+# alg_bits(exp) -> rax: python's bits - the number of bits in exp bytes:
+# a sum's terms' bits added up (a size, too small to overflow), a term
+# subtracted minus the bits of what's subtracted (not 8 times the word of a
+# negative number), else mul_op(exp, 8)
 FUNC alg_bits
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        call opcode_of
+        cmp eax, OP_ADD
+        je .Lbits_add
+        mov rdi, rbx
+        mov esi, OP_MUL
+        mov edx, 3
+        call is_op_n
+        test eax, eax
+        jz 9f
+        mov rdi, [rbx + N_DATA + 8]
+        call is_int
+        test eax, eax
+        jz 9f
+        mov rdi, [rbx + N_DATA + 8]
+        call int_sign
+        test eax, eax
+        jns 9f
+        mov rdi, [rbx + N_DATA + 16]
+        cmp qword ptr [rbx + N_DATA + 8], -1    # k == -1 (a small int: -1)
+        je 1f
+        mov rdi, [rbx + N_DATA + 8]
+        call int_neg
+        mov rdi, rax
+        mov rsi, [rbx + N_DATA + 16]
+        call alg_mul2
+        mov rdi, rax
+1:      call alg_bits
+        mov rdi, rax
+        call alg_minus_op
+        LEAVE
+9:      mov rdi, rbx
         mov esi, (8 << 1) | 1
-        jmp alg_mul2
+        call alg_mul2
+        LEAVE
+.Lbits_add:
+        call vec_new
+        mov r12, rax
+        mov r13d, 1
+2:      cmp r13d, [rbx + N_AUX]
+        jae 3f
+        mov rdi, [rbx + N_DATA + r13*8]
+        inc r13d
+        call alg_bits
+        mov rdi, r12
+        mov rsi, rax
+        call vec_push
+        jmp 2b
+3:      mov rdi, [r12 + VEC_LEN]
+        mov rsi, [r12 + VEC_DATA]
+        call alg_add_n
+        LEAVE
 ENDF alg_bits
 
 # ---------------------------------------------------------------------
@@ -2814,144 +3246,6 @@ FUNC contains_seq
         ret
 ENDF contains_seq
 
-# alg_ge_zero(exp) -> eax: TRI_TRUE / TRI_FALSE / TRI_CANNOT (memoized)
-FUNC alg_ge_zero
-        STACK_CHECK
-        ENTER
-        mov rbx, rdi
-        call is_int
-        test eax, eax
-        jz 1f
-        mov rdi, rbx
-        call int_sign
-        cmp eax, -1
-        setne al
-        movzx eax, al
-        LEAVE
-1:      mov edi, MEMO_GE_ZERO
-        mov rsi, rbx
-        call memo_get
-        test rax, rax
-        jz 2f
-        mov rdi, rax
-        call memo_to_tri
-        cmp eax, TRI_NONE
-        jne 3f
-        mov eax, TRI_CANNOT
-3:      LEAVE
-2:      mov rdi, rbx
-        call ge_zero_impl
-        mov r12d, eax
-        mov edi, eax
-        call tri_to_memo
-        mov edi, MEMO_GE_ZERO
-        mov rsi, rbx
-        mov rdx, rax
-        call memo_put
-        mov eax, r12d
-        cmp eax, TRI_NONE
-        jne 4f
-        mov eax, TRI_CANNOT
-4:      LEAVE
-ENDF alg_ge_zero
-
-# alg_safe_ge_zero(exp) -> TRI_TRUE / TRI_FALSE / TRI_NONE
-FUNC alg_safe_ge_zero
-        STACK_CHECK
-        ENTER
-        call alg_ge_zero
-        cmp eax, TRI_CANNOT
-        jne 1f
-        mov eax, TRI_NONE
-1:      LEAVE
-ENDF alg_safe_ge_zero
-
-# ge_zero_impl(exp) -> TRI_TRUE / TRI_FALSE / TRI_NONE (None = can't compare)
-FUNC ge_zero_impl
-        STACK_CHECK
-        ENTER
-        mov rbx, rdi
-        call is_int
-        test eax, eax
-        jz 1f
-        mov rdi, rbx
-        call int_sign
-        cmp eax, -1
-        setne al
-        movzx eax, al
-        LEAVE
-1:      test bl, 1
-        jnz .Lgz_none
-        test rbx, rbx
-        jz .Lgz_none
-        cmp dword ptr [rbx + N_KIND], K_STR
-        je .Lgz_true
-        mov rdi, rbx
-        OPCODE_OF_RDI
-        JT_SWITCH ge_zero, OP_COUNT, .Lgz_none
-        JT_CASE ge_zero, OP_MUL, .Lgz_mul
-        JT_CASE ge_zero, OP_BOOL, .Lgz_true
-        JT_CASE ge_zero, OP_MASK_SHL, .Lgz_mask
-        JT_CASE ge_zero, OP_CD, .Lgz_true
-        JT_CASE ge_zero, OP_STORAGE, .Lgz_true
-        JT_CASE ge_zero, OP_MSIZE, .Lgz_true
-        JT_CASE ge_zero, OP_ADD, .Lgz_add
-        JT_CASE ge_zero, OP_OR, .Lgz_or
-        JT_CASE ge_zero, OP_VAR, .Lgz_true
-        JT_CASE ge_zero, OP_EXT_CALL_RETURN_DATA, .Lgz_true
-        JT_END ge_zero, OP_COUNT, .Lgz_none
-.Lgz_mul:
-        mov r12d, 1                     # counter sign
-        mov r13d, 1
-2:      cmp r13d, [rbx + N_AUX]
-        jae 3f
-        mov rdi, [rbx + N_DATA + r13*8]
-        call alg_ge_zero
-        cmp eax, TRI_CANNOT
-        je .Lgz_none
-        cmp eax, TRI_FALSE
-        jne 4f
-        neg r12d
-4:      inc r13d
-        jmp 2b
-3:      test r12d, r12d
-        jns .Lgz_true
-        jmp .Lgz_false
-.Lgz_mask:
-        cmp dword ptr [rbx + N_AUX], 5
-        jne .Lgz_none
-        mov rdi, [rbx + N_DATA + 32]
-        call alg_ge_zero
-        cmp eax, TRI_CANNOT
-        je .Lgz_none
-        LEAVE
-.Lgz_add:
-        mov rdi, rbx
-        call add_ge_zero_impl        # (not remembered: only ge_zero asks, after its memo)
-        LEAVE
-.Lgz_or:
-        mov r13d, 1
-5:      cmp r13d, [rbx + N_AUX]
-        jae .Lgz_true
-        mov rdi, [rbx + N_DATA + r13*8]
-        call alg_ge_zero
-        cmp eax, TRI_CANNOT
-        je .Lgz_none
-        cmp eax, TRI_FALSE
-        je .Lgz_false
-        inc r13d
-        jmp 5b
-.Lgz_true:
-        mov eax, TRI_TRUE
-        LEAVE
-.Lgz_false:
-        mov eax, TRI_FALSE
-        LEAVE
-.Lgz_none:
-        mov eax, TRI_NONE
-        LEAVE
-ENDF ge_zero_impl
-
 # is_array_op(id) -> eax: helpers.is_array
 FUNC is_array_op
         xor eax, eax
@@ -2971,97 +3265,10 @@ ENDF is_array_op
         OPSET_MEMBER array_ops, OP_CODE_DATA
         OPSET_END array_ops, OP_COUNT
 
-# extract_variables(exp, vec): appends the "variables" of exp to vec
-# (first occurrence order, no duplicates) - variants.extract_variables
-FUNC extract_variables
-        STACK_CHECK
-        ENTER
-        mov rbx, rdi
-        mov r12, rsi
-        call is_int
-        test eax, eax
-        jnz .Lxv_done
-        test bl, 1
-        jnz .Lxv_done
-        test rbx, rbx
-        jz .Lxv_done
-        mov eax, [rbx + N_KIND]
-        cmp eax, K_TUPLE
-        jne .Lxv_leaf                   # strings, specials, lists: a variable
-        mov rdi, rbx
-        OPCODE_OF_RDI
-        # a variable: var, mem, cd, storage, call.data, sha3, calldatasize,
-        # or an array (helpers.ARRAY_OPCODES)
-        JT_SWITCH xv, OP_COUNT, .Lxv_terms
-        JT_CASE xv, OP_VAR, .Lxv_leaf
-        JT_CASE xv, OP_MEM, .Lxv_leaf
-        JT_CASE xv, OP_CD, .Lxv_leaf
-        JT_CASE xv, OP_STORAGE, .Lxv_leaf
-        JT_CASE xv, OP_CALL_DATA, .Lxv_leaf
-        JT_CASE xv, OP_SHA3, .Lxv_leaf
-        JT_CASE xv, OP_CALLDATASIZE, .Lxv_leaf
-        JT_CASE xv, OP_EXT_CALL_RETURN_DATA, .Lxv_leaf
-        JT_CASE xv, OP_DELEGATE_RETURN_DATA, .Lxv_leaf
-        JT_CASE xv, OP_CALLCODE_RETURN_DATA, .Lxv_leaf
-        JT_CASE xv, OP_STATICCALL_RETURN_DATA, .Lxv_leaf
-        JT_CASE xv, OP_CODE_DATA, .Lxv_leaf
-        JT_END xv, OP_COUNT, .Lxv_terms
-.Lxv_terms:
-        # the elements, except the head
-        mov r13d, 1
-1:      cmp r13d, [rbx + N_AUX]
-        jae .Lxv_done
-        mov rdi, [rbx + N_DATA + r13*8]
-        mov rsi, r12
-        call extract_variables
-        inc r13d
-        jmp 1b
-.Lxv_leaf:
-        # python builds a set: skip duplicates
-        xor r13d, r13d
-2:      cmp r13, [r12 + VEC_LEN]
-        jae 3f
-        mov rax, [r12 + VEC_DATA]
-        mov rdi, [rax + r13*8]
-        mov rsi, rbx
-        call values_equal
-        test eax, eax
-        jnz .Lxv_done
-        inc r13
-        jmp 2b
-3:      mov rdi, r12
-        mov rsi, rbx
-        call vec_push
-.Lxv_done:
-        LEAVE
-ENDF extract_variables
-
-        .section .rodata
-        .align 8
-# 2^230 - 1 as a decimal string (variants.MAX_number)
-max_number_str: .asciz "1725436586697640946858688965569256363112777243042596638790631055949823"
-        .section .bss
-        .align 8
-max_number_value: .quad 0       # the value, made on the global context
-        .text
-
-# alg_max_number() -> rax: variants.MAX_number
-FUNC alg_max_number
-        mov rax, [rip + max_number_value]
-        ret
-ENDF alg_max_number
-
 # alg_init(): the constants of the algebra, on the global context (r15 at
 # rt_init): made once, before any thread asks for them
 FUNC alg_init
-        ENTER
-        lea rdi, [r15 + CTX_MPZ_R]
-        lea rsi, [rip + max_number_str]
-        mov edx, 10
-        call __gmpz_set_str@PLT
-        call arith_result
-        mov [rip + max_number_value], rax
-        LEAVE
+        ret
 ENDF alg_init
 
 # is_mem64(v) -> eax: v == ('mem', ('range', 64, 32)) - read off the
@@ -3099,1149 +3306,6 @@ FUNC is_mem64
         mov eax, 1
 1:      ret
 ENDF is_mem64
-
-        # agz_by_family's codes (see there)
-        .set FAM_TRUE, MEMO_TRUE        # True whatever the number
-        .set FAM_NONE, MEMO_NONE        # None whatever the number
-        .set FAM_NO, MEMO_CANNOT        # not answered by the family
-        .set AGZ_BY_FAMILY_NO, -3
-
-# variant_evaluable(exp, n, vars) -> eax: the height of exp when its
-# variants can be evaluated directly (variant_eval): every node is an int,
-# one of the variables, or an add / mul / mask_shl / max of such - all
-# that simplify(calc_max(variant)) computes with -, and -1 otherwise.
-# Anything else goes through the substitution and the simplifier, as in
-# python.
-FUNC variant_evaluable
-        STACK_CHECK
-        ENTER
-        mov rbx, rdi
-        mov r12, rsi
-        mov r13, rdx
-        test bl, 1
-        jnz .Lve_leaf
-        test rbx, rbx
-        jz .Lve_no                      # (NIL: variant_eval reads a kind)
-        cmp dword ptr [rbx + N_KIND], K_TUPLE
-        jne .Lve_leaf                   # an int, or a leaf: a variable
-        xor r14d, r14d
-1:      cmp r14, r12
-        jae 2f
-        cmp rbx, [r13 + r14*8]          # (variables are consed: one pointer)
-        je .Lve_leaf
-        inc r14
-        jmp 1b
-2:      mov rdi, rbx
-        OPCODE_OF_RDI
-        JT_SWITCH ve, OP_COUNT, .Lve_no
-        JT_CASE ve, OP_ADD, .Lve_node
-        JT_CASE ve, OP_MUL, .Lve_node
-        JT_CASE ve, OP_MAX, .Lve_node
-        JT_CASE ve, OP_MASK_SHL, .Lve_mask
-        JT_END ve, OP_COUNT, .Lve_no
-.Lve_mask:
-        cmp dword ptr [rbx + N_AUX], 5  # (variant_eval reads four arguments)
-        jne .Lve_no
-.Lve_node:
-        sub rsp, 16
-        mov dword ptr [rsp], 0          # the height of the elements
-        mov r14d, 1
-4:      cmp r14d, [rbx + N_AUX]
-        jae 5f
-        mov rdi, [rbx + N_DATA + r14*8]
-        mov rsi, r12
-        mov rdx, r13
-        call variant_evaluable
-        test eax, eax
-        js 6f
-        cmp eax, [rsp]
-        jle 3f
-        mov [rsp], eax
-3:      inc r14d
-        jmp 4b
-5:      mov eax, [rsp]
-        inc eax
-        add rsp, 16
-        LEAVE
-6:      add rsp, 16
-.Lve_no:
-        mov eax, -1
-        LEAVE
-.Lve_leaf:
-        xor eax, eax
-        LEAVE
-ENDF variant_evaluable
-
-# variant_eval(exp, n, vars, vals, out, depth): out (an mpz_t) := the
-# integer that simplify(calc_max(exp with vars[i] := vals[i])) gives,
-# computed without building the variant: exact arithmetic, apply_mask for
-# the masks, the floor of -2^256 of a max. The scratch of the elements of
-# a node is the context's pool at `depth` (the height is bounded by
-# variant_evaluable).
-FUNC variant_eval
-        STACK_CHECK
-        ENTER
-        sub rsp, 48
-        .set VV_VALS, 0
-        .set VV_OUT, 8
-        .set VV_DEPTH, 16
-        .set VV_SIZE, 24
-        .set VV_OFFSET, 32
-        .set VV_SHL, 40
-        mov rbx, rdi
-        mov r12, rsi
-        mov r13, rdx
-        mov [rsp + VV_VALS], rcx
-        mov [rsp + VV_OUT], r8
-        mov [rsp + VV_DEPTH], r9
-        test bl, 1
-        jnz .Lvv_int
-        xor r14d, r14d
-1:      cmp r14, r12
-        jae 2f
-        cmp rbx, [r13 + r14*8]
-        jne 11f
-        mov rax, [rsp + VV_VALS]
-        mov rbx, [rax + r14*8]          # the variable's value
-        jmp .Lvv_int
-11:     inc r14
-        jmp 1b
-2:      cmp dword ptr [rbx + N_KIND], K_INT
-        je .Lvv_int
-        # the scratch of the elements: pool[depth]
-        mov rax, [rsp + VV_DEPTH]
-        shl rax, 4
-        lea r14, [r15 + CTX_EVAL_POOL + rax]
-        mov rdi, rbx
-        OPCODE_OF_RDI
-        cmp dword ptr [rbx + N_AUX], 2
-        jb .Lvv_no_terms
-        cmp eax, OP_ADD
-        je .Lvv_add
-        cmp eax, OP_MUL
-        je .Lvv_mul
-        cmp eax, OP_MAX
-        je .Lvv_max
-        # mask_shl: size, offset and shl are clamped to +-4096 as
-        # mask_to_int / apply_mask do, so they fit a word
-        mov rdi, [rbx + N_DATA + 8]
-        call .Lvv_elem
-        mov rdi, r14
-        call .Lvv_clamped
-        mov [rsp + VV_SIZE], rax
-        mov rdi, [rbx + N_DATA + 16]
-        call .Lvv_elem
-        mov rdi, r14
-        call .Lvv_clamped
-        mov [rsp + VV_OFFSET], rax
-        mov rdi, [rbx + N_DATA + 24]
-        call .Lvv_elem
-        mov rdi, r14
-        call .Lvv_clamped
-        mov [rsp + VV_SHL], rax
-        mov rdi, [rbx + N_DATA + 32]
-        mov r8, [rsp + VV_OUT]
-        call .Lvv_elem_into             # val, in out
-        # the mask, in the scratch: (2^size - 1) * 2^offset
-        mov rax, [rsp + VV_SIZE]
-        mov rcx, [rsp + VV_OFFSET]
-        test rcx, rcx
-        jns 3f
-        add rax, rcx                    # offset < 0: size += offset
-        xor ecx, ecx
-        cmp rax, 1
-        jl .Lvv_zero
-        jmp 4f
-3:      test rax, rax
-        js .Lvv_zero
-4:      mov [rsp + VV_SIZE], rax
-        mov [rsp + VV_OFFSET], rcx
-        mov rdi, r14
-        mov esi, 1
-        call __gmpz_set_ui@PLT
-        mov rdi, r14
-        mov rsi, r14
-        mov rdx, [rsp + VV_SIZE]
-        call __gmpz_mul_2exp@PLT        # 2^size
-        mov rdi, r14
-        mov rsi, r14
-        mov edx, 1
-        call __gmpz_sub_ui@PLT          # - 1
-        mov rdi, r14
-        mov rsi, r14
-        mov rdx, [rsp + VV_OFFSET]
-        call __gmpz_mul_2exp@PLT        # << offset
-        mov rdi, [rsp + VV_OUT]
-        mov rsi, rdi
-        mov rdx, r14
-        call __gmpz_and@PLT             # val & mask
-        mov rdx, [rsp + VV_SHL]
-        cmp rdx, 256
-        jge .Lvv_zero                   # shifted out of the word entirely
-        cmp rdx, -256
-        jle .Lvv_zero
-        test rdx, rdx
-        jz .Lvv_done
-        js 5f
-        mov rdi, [rsp + VV_OUT]
-        mov rsi, rdi
-        call __gmpz_mul_2exp@PLT        # val << shl
-        jmp .Lvv_done
-5:      neg rdx
-        mov rdi, [rsp + VV_OUT]
-        mov rsi, rdi
-        call __gmpz_fdiv_q_2exp@PLT     # val >> -shl (python floors)
-        jmp .Lvv_done
-.Lvv_zero:
-        mov rdi, [rsp + VV_OUT]
-        xor esi, esi
-        call __gmpz_set_ui@PLT
-        jmp .Lvv_done
-.Lvv_no_terms:                          # ('add',) 0, ('mul',) 1, ('max',) the floor
-        mov rdi, [rsp + VV_OUT]
-        cmp eax, OP_MAX
-        je 1f
-        xor esi, esi
-        cmp eax, OP_MUL
-        sete sil
-        call __gmpz_set_ui@PLT
-        jmp .Lvv_done
-1:      lea rsi, [rip + mpz_neg_two256]
-        call __gmpz_set@PLT
-        jmp .Lvv_done
-.Lvv_add:
-        # out := the first term, then += the others (a number or a variable
-        # added as it is, without a copy)
-        mov rdi, [rbx + N_DATA + 8]
-        call .Lvv_first
-        mov qword ptr [rsp + VV_SIZE], 2
-6:      mov rax, [rsp + VV_SIZE]
-        cmp eax, [rbx + N_AUX]
-        jae .Lvv_done
-        inc qword ptr [rsp + VV_SIZE]
-        mov rdi, [rbx + N_DATA + rax*8]
-        call .Lvv_leaf
-        test rax, rax
-        jz 61f
-        test al, 1
-        jz 62f
-        sar rax, 1                      # a small int: + or - its magnitude
-        mov rdi, [rsp + VV_OUT]
-        mov rsi, rdi
-        test rax, rax
-        js 63f
-        mov rdx, rax
-        call __gmpz_add_ui@PLT
-        jmp 6b
-63:     neg rax
-        mov rdx, rax
-        call __gmpz_sub_ui@PLT
-        jmp 6b
-62:     lea rdx, [rax + N_DATA]         # a big int: its own mpz
-        mov rdi, [rsp + VV_OUT]
-        mov rsi, rdi
-        call __gmpz_add@PLT
-        jmp 6b
-61:     mov rax, [rsp + VV_SIZE]        # an expression: in the scratch
-        mov rdi, [rbx + N_DATA + rax*8 - 8]
-        call .Lvv_elem
-        mov rdi, [rsp + VV_OUT]
-        mov rsi, rdi
-        mov rdx, r14
-        call __gmpz_add@PLT
-        jmp 6b
-.Lvv_mul:
-        mov rdi, [rbx + N_DATA + 8]
-        call .Lvv_first
-        mov qword ptr [rsp + VV_SIZE], 2
-7:      mov rax, [rsp + VV_SIZE]
-        cmp eax, [rbx + N_AUX]
-        jae .Lvv_done
-        inc qword ptr [rsp + VV_SIZE]
-        mov rdi, [rbx + N_DATA + rax*8]
-        call .Lvv_leaf
-        test rax, rax
-        jz 71f
-        test al, 1
-        jz 72f
-        sar rax, 1
-        mov rdi, [rsp + VV_OUT]
-        mov rsi, rdi
-        mov rdx, rax
-        call __gmpz_mul_si@PLT
-        jmp 7b
-72:     lea rdx, [rax + N_DATA]
-        mov rdi, [rsp + VV_OUT]
-        mov rsi, rdi
-        call __gmpz_mul@PLT
-        jmp 7b
-71:     mov rax, [rsp + VV_SIZE]
-        mov rdi, [rbx + N_DATA + rax*8 - 8]
-        call .Lvv_elem
-        mov rdi, [rsp + VV_OUT]
-        mov rsi, rdi
-        mov rdx, r14
-        call __gmpz_mul@PLT
-        jmp 7b
-.Lvv_max:
-        # the largest element, and -(2^256) at least (calc_max's floor)
-        mov rdi, [rbx + N_DATA + 8]
-        call .Lvv_first
-        mov qword ptr [rsp + VV_SIZE], 2
-8:      mov rax, [rsp + VV_SIZE]
-        cmp eax, [rbx + N_AUX]
-        jae 81f
-        inc qword ptr [rsp + VV_SIZE]
-        mov rdi, [rbx + N_DATA + rax*8]
-        call .Lvv_elem
-        mov rdi, r14
-        mov rsi, [rsp + VV_OUT]
-        call __gmpz_cmp@PLT
-        test eax, eax
-        jle 8b
-        mov rdi, [rsp + VV_OUT]
-        mov rsi, r14
-        call __gmpz_set@PLT
-        jmp 8b
-81:     mov rdi, [rsp + VV_OUT]
-        lea rsi, [rip + mpz_neg_two256]
-        call __gmpz_cmp@PLT
-        test eax, eax
-        jge .Lvv_done
-        mov rdi, [rsp + VV_OUT]
-        lea rsi, [rip + mpz_neg_two256]
-        call __gmpz_set@PLT
-        jmp .Lvv_done
-.Lvv_int:                               # a number (rbx: the value): out := it
-        mov rdi, [rsp + VV_OUT]
-        mov rsi, rbx
-        call value_set_mpz
-.Lvv_done:
-        add rsp, 48
-        LEAVE
-.Lvv_first:                             # out := the value of the element rdi
-        mov r8, [rsp + 8 + VV_OUT]
-        jmp .Lvv_elem_into
-# rax := the element rdi as a number (a tagged int, a K_INT node, or a
-# variable's value), or 0 for an expression
-.Lvv_leaf:
-        mov rax, rdi
-        test al, 1
-        jnz 2f
-        cmp dword ptr [rdi + N_KIND], K_INT
-        je 2f
-        xor ecx, ecx
-1:      cmp rcx, r12
-        jae 3f
-        cmp rdi, [r13 + rcx*8]
-        je 4f
-        inc rcx
-        jmp 1b
-4:      mov rax, [rsp + 8 + VV_VALS]
-        mov rax, [rax + rcx*8]
-2:      ret
-3:      xor eax, eax
-        ret
-.Lvv_elem:                              # scratch := the value of the element rdi
-        mov r8, r14
-.Lvv_elem_into:                         # r8 := the value of the element rdi
-        mov rsi, r12
-        mov rdx, r13
-        mov rcx, [rsp + 8 + VV_VALS]    # (the return address is on top)
-        mov r9, [rsp + 8 + VV_DEPTH]
-        inc r9
-        jmp variant_eval
-.Lvv_clamped:                           # rax := the mpz rdi as a word clamped to +-4096
-        sub rsp, 8
-        call __gmpz_fits_slong_p@PLT
-        add rsp, 8
-        test eax, eax
-        jz 10f
-        sub rsp, 8
-        mov rdi, r14
-        call __gmpz_get_si@PLT
-        add rsp, 8
-        cmp rax, 4096
-        jg 12f
-        cmp rax, -4096
-        jl 13f
-        ret
-10:     cmp dword ptr [r14 + MPZ_SIZE], 0
-        jl 13f
-12:     mov eax, 4096
-        ret
-13:     mov rax, -4096
-        ret
-ENDF variant_eval
-
-FUNC add_ge_zero_impl
-        STACK_CHECK
-        ENTER
-        sub rsp, 176
-        .set AGZ_SEEN_NEG, 0
-        .set AGZ_SEEN_NONNEG, 8
-        .set AGZ_COMB, 16               # the current combination (bit k: special)
-        .set AGZ_NCOMB, 24
-        .set AGZ_I, 32
-        .set AGZ_FAST, 40               # the variants can be evaluated directly
-        .set AGZ_VALS, 48               # the values of the (at most 7) variables
-        .set AGZ_MAXV, 104              # MAX_number
-        .set AGZ_SPEC, 112              # the special value of each variable (7)
-        mov rbx, rdi
-        call agz_by_family
-        cmp eax, AGZ_BY_FAMILY_NO
-        je 1f
-        add rsp, 176
-        LEAVE
-1:      mov rdi, rbx
-        call alg_simplify
-        mov rbx, rax
-        mov rdi, rbx
-        call is_int
-        test eax, eax
-        jz 1f
-        mov rdi, rbx
-        call int_sign
-        cmp eax, -1
-        setne al
-        movzx eax, al
-        add rsp, 176
-        LEAVE
-1:      call vec_new
-        mov r12, rax                    # the variables
-        mov rdi, rbx
-        mov rsi, r12
-        call extract_variables
-        mov r13, [r12 + VEC_LEN]
-        cmp r13, 7
-        ja .Lagz_none
-        # no variable at all: python iterates over no variant and says True
-        test r13, r13
-        jz .Lagz_true
-        # enumerate the 2^n variants (MAX_number or the special value per var)
-        mov qword ptr [rsp + AGZ_SEEN_NEG], 0
-        mov qword ptr [rsp + AGZ_SEEN_NONNEG], 0
-        mov qword ptr [rsp + AGZ_COMB], 0
-        mov rax, 1
-        mov rcx, r13
-        shl rax, cl
-        mov [rsp + AGZ_NCOMB], rax
-        mov rdi, rbx
-        mov rsi, r13
-        mov rdx, [r12 + VEC_DATA]
-        call variant_evaluable
-        cmp eax, EVAL_POOL_DEPTH - 1
-        jle 41f
-        mov eax, -1                     # too deep for the pool of scratches
-41:     movsxd rax, eax
-        mov [rsp + AGZ_FAST], rax
-        # the two values of every variable: MAX_number, and the special one
-        # (96 for mem[64], 6 for calldatasize, else 0)
-        call alg_max_number
-        mov [rsp + AGZ_MAXV], rax
-        xor ecx, ecx
-51:     cmp rcx, r13
-        jae 53f
-        mov [rsp + AGZ_I], rcx
-        mov rax, [r12 + VEC_DATA]
-        mov r14, [rax + rcx*8]          # the variable
-        mov rdi, r14
-        call is_mem64
-        mov edx, (96 << 1) | 1
-        test eax, eax
-        jnz 52f
-        LOADS rsi, CALLDATASIZE
-        mov edx, (6 << 1) | 1
-        cmp r14, rsi
-        je 52f
-        mov edx, 1
-52:     mov rcx, [rsp + AGZ_I]
-        mov [rsp + AGZ_SPEC + rcx*8], rdx
-        inc rcx
-        jmp 51b
-53:     # an add evaluated directly: its terms in groups of shared variables
-        cmp qword ptr [rsp + AGZ_FAST], 0
-        jl 4f
-        mov rdi, rbx
-        OPCODE_OF_RDI
-        cmp eax, OP_ADD
-        jne 4f
-        mov rdi, rbx
-        mov rsi, r13
-        mov rdx, [r12 + VEC_DATA]
-        mov rcx, [rsp + AGZ_MAXV]
-        lea r8, [rsp + AGZ_SPEC]
-        call agz_groups
-        add rsp, 176
-        LEAVE
-4:      mov rax, [rsp + AGZ_COMB]
-        cmp rax, [rsp + AGZ_NCOMB]
-        jae 9f
-        # the value of every variable
-        xor ecx, ecx
-5:      cmp rcx, r13
-        jae 7f
-        mov rax, [rsp + AGZ_MAXV]
-        mov rdx, [rsp + AGZ_COMB]
-        bt rdx, rcx
-        jnc 8f
-        mov rax, [rsp + AGZ_SPEC + rcx*8]
-8:      mov [rsp + AGZ_VALS + rcx*8], rax
-        inc rcx
-        jmp 5b
-7:      cmp qword ptr [rsp + AGZ_FAST], 0
-        jl 71f
-        # evaluated directly, into MPZ_R: its sign is all that matters
-        mov rdi, rbx
-        mov rsi, r13
-        mov rdx, [r12 + VEC_DATA]
-        lea rcx, [rsp + AGZ_VALS]
-        lea r8, [r15 + CTX_MPZ_R]
-        xor r9d, r9d
-        call variant_eval
-        mov eax, [r15 + CTX_MPZ_R + MPZ_SIZE]
-        test eax, eax
-        js 10f
-        mov qword ptr [rsp + AGZ_SEEN_NONNEG], 1
-        jmp 11f
-71:     # the variant, all the variables replaced at once
-        mov rdi, rbx
-        mov rsi, r13
-        mov rdx, [r12 + VEC_DATA]
-        lea rcx, [rsp + AGZ_VALS]
-        call replace_many
-        # v = simplify(calc_max(variant))
-        mov rdi, rax
-        call alg_calc_max
-        mov rdi, rax
-        call alg_simplify
-        mov rdi, rax
-        mov r14, rax
-        call is_int
-        test eax, eax
-        jz .Lagz_none
-72:
-        mov rdi, r14
-        call int_sign
-        cmp eax, -1
-        je 10f
-        mov qword ptr [rsp + AGZ_SEEN_NONNEG], 1
-        jmp 11f
-10:     mov qword ptr [rsp + AGZ_SEEN_NEG], 1
-11:     cmp qword ptr [rsp + AGZ_SEEN_NEG], 0
-        je 12f
-        cmp qword ptr [rsp + AGZ_SEEN_NONNEG], 0
-        jne .Lagz_none
-12:     inc qword ptr [rsp + AGZ_COMB]
-        jmp 4b
-9:      cmp qword ptr [rsp + AGZ_SEEN_NEG], 0
-        jne 13f
-.Lagz_true:
-        mov eax, TRI_TRUE
-        add rsp, 176
-        LEAVE
-13:     mov eax, TRI_FALSE
-        add rsp, 176
-        LEAVE
-.Lagz_none:
-        mov eax, TRI_NONE
-        add rsp, 176
-        LEAVE
-ENDF add_ge_zero_impl
-
-        # add_ge_zero's scratch numbers (CTX_AGZ)
-        .set AGZM_C, CTX_AGZ
-        .set AGZM_MIN, CTX_AGZ + 16
-        .set AGZM_MAX, CTX_AGZ + 32
-        .set AGZM_GMIN, CTX_AGZ + 48
-        .set AGZM_GMAX, CTX_AGZ + 64
-        .set AGZM_SUM, CTX_AGZ + 80
-        .set AGZM_TERM, CTX_AGZ + 96
-
-# agz_groups(add, k, vars, max, spec) -> eax: add_ge_zero of an add whose
-# variants can be evaluated directly. Python evaluates every variant and
-# looks at the signs: all >= 0 (True), all < 0 (False), both (None) - i.e.
-# at the minimum and the maximum of the sum over the 2^k assignments. The
-# terms that share no variable vary independently: the extremes of the
-# sum are the sums of the extremes of the groups of terms, each group's
-# over the assignments of its own variables only (2^3 + 2^4 instead of
-# 2^7). spec: the special values (the other value is max).
-FUNC agz_groups
-        STACK_CHECK
-        ENTER
-        sub rsp, 224
-        .set AG_ROOT, 0
-        .set AG_K, 8
-        .set AG_VARS, 16
-        .set AG_MAXV, 24
-        .set AG_SPEC, 32
-        .set AG_MASKS, 40               # the variables of each term (a mask)
-        .set AG_NG, 48                  # the number of groups
-        .set AG_G, 56
-        .set AG_S, 64                   # the assignment of the group (bits: special)
-        .set AG_FIRST, 72
-        .set AG_VALS, 80                # 8 values
-        .set AG_GROUPS, 144             # 8 masks
-        mov [rsp + AG_ROOT], rdi
-        mov [rsp + AG_K], rsi
-        mov [rsp + AG_VARS], rdx
-        mov [rsp + AG_MAXV], rcx
-        mov [rsp + AG_SPEC], r8
-        mov rbx, rdi
-        mov r12d, [rbx + N_AUX]
-        dec r12                         # the terms: elements 1..r12
-        lea rdi, [r12*8 + 8]
-        call arena_alloc
-        mov [rsp + AG_MASKS], rax
-        mov qword ptr [rsp + AG_NG], 0
-        xor r13d, r13d
-1:      cmp r13, r12
-        jae 5f
-        mov rdi, [rbx + N_DATA + 8 + r13*8]
-        mov rsi, [rsp + AG_K]
-        mov rdx, [rsp + AG_VARS]
-        call var_mask
-        mov rcx, [rsp + AG_MASKS]
-        mov [rcx + r13*8], rax
-        inc r13
-        test rax, rax
-        jz 1b                           # a constant term
-        # merged with every group it shares a variable with
-        mov r14, rax
-        xor ecx, ecx
-2:      cmp rcx, [rsp + AG_NG]
-        jae 4f
-        mov rax, [rsp + AG_GROUPS + rcx*8]
-        test rax, r14
-        jz 3f
-        or r14, rax
-        mov rdx, [rsp + AG_NG]
-        dec rdx
-        mov [rsp + AG_NG], rdx
-        mov rax, [rsp + AG_GROUPS + rdx*8]
-        mov [rsp + AG_GROUPS + rcx*8], rax
-        jmp 2b
-3:      inc rcx
-        jmp 2b
-4:      mov rcx, [rsp + AG_NG]
-        mov [rsp + AG_GROUPS + rcx*8], r14
-        inc qword ptr [rsp + AG_NG]
-        jmp 1b
-5:      # the values: max everywhere to start with
-        xor ecx, ecx
-        mov rax, [rsp + AG_MAXV]
-51:     cmp rcx, [rsp + AG_K]
-        jae 52f
-        mov [rsp + AG_VALS + rcx*8], rax
-        inc rcx
-        jmp 51b
-52:     # C: the constant terms
-        lea rdi, [r15 + AGZM_C]
-        xor esi, esi
-        call __gmpz_set_ui@PLT
-        xor r13d, r13d
-6:      cmp r13, r12
-        jae 7f
-        mov rcx, [rsp + AG_MASKS]
-        cmp qword ptr [rcx + r13*8], 0
-        jne 61f
-        mov rdi, [rbx + N_DATA + 8 + r13*8]
-        call .Lag_term
-        lea rdi, [r15 + AGZM_C]
-        mov rsi, rdi
-        lea rdx, [r15 + AGZM_TERM]
-        call __gmpz_add@PLT
-61:     inc r13
-        jmp 6b
-7:      lea rdi, [r15 + AGZM_MIN]
-        lea rsi, [r15 + AGZM_C]
-        call __gmpz_set@PLT
-        lea rdi, [r15 + AGZM_MAX]
-        lea rsi, [r15 + AGZM_C]
-        call __gmpz_set@PLT
-        # every group: the extremes of its terms' sum over its assignments
-        mov qword ptr [rsp + AG_G], 0
-8:      mov rax, [rsp + AG_G]
-        cmp rax, [rsp + AG_NG]
-        jae 20f
-        mov r14, [rsp + AG_GROUPS + rax*8]      # the group's variables
-        mov qword ptr [rsp + AG_S], 0
-        mov qword ptr [rsp + AG_FIRST], 1
-9:      # the values of the group's variables in this assignment
-        xor ecx, ecx
-91:     cmp rcx, [rsp + AG_K]
-        jae 93f
-        bt r14, rcx
-        jnc 92f
-        mov rax, [rsp + AG_MAXV]
-        mov rdx, [rsp + AG_S]
-        bt rdx, rcx
-        jnc 94f
-        mov rax, [rsp + AG_SPEC]
-        mov rax, [rax + rcx*8]
-94:     mov [rsp + AG_VALS + rcx*8], rax
-92:     inc rcx
-        jmp 91b
-93:     # the sum of the group's terms
-        lea rdi, [r15 + AGZM_SUM]
-        xor esi, esi
-        call __gmpz_set_ui@PLT
-        xor r13d, r13d
-10:     cmp r13, r12
-        jae 12f
-        mov rcx, [rsp + AG_MASKS]
-        test [rcx + r13*8], r14
-        jz 11f
-        mov rdi, [rbx + N_DATA + 8 + r13*8]
-        call .Lag_term
-        lea rdi, [r15 + AGZM_SUM]
-        mov rsi, rdi
-        lea rdx, [r15 + AGZM_TERM]
-        call __gmpz_add@PLT
-11:     inc r13
-        jmp 10b
-12:     cmp qword ptr [rsp + AG_FIRST], 0
-        je 13f
-        mov qword ptr [rsp + AG_FIRST], 0
-        lea rdi, [r15 + AGZM_GMIN]
-        lea rsi, [r15 + AGZM_SUM]
-        call __gmpz_set@PLT
-        lea rdi, [r15 + AGZM_GMAX]
-        lea rsi, [r15 + AGZM_SUM]
-        call __gmpz_set@PLT
-        jmp 15f
-13:     lea rdi, [r15 + AGZM_SUM]
-        lea rsi, [r15 + AGZM_GMIN]
-        call __gmpz_cmp@PLT
-        test eax, eax
-        jns 14f
-        lea rdi, [r15 + AGZM_GMIN]
-        lea rsi, [r15 + AGZM_SUM]
-        call __gmpz_set@PLT
-14:     lea rdi, [r15 + AGZM_SUM]
-        lea rsi, [r15 + AGZM_GMAX]
-        call __gmpz_cmp@PLT
-        test eax, eax
-        jle 15f
-        lea rdi, [r15 + AGZM_GMAX]
-        lea rsi, [r15 + AGZM_SUM]
-        call __gmpz_set@PLT
-15:     # the next subset of the group's variables (back to 0 after all)
-        mov rax, [rsp + AG_S]
-        sub rax, r14
-        and rax, r14
-        mov [rsp + AG_S], rax
-        test rax, rax
-        jnz 9b
-        lea rdi, [r15 + AGZM_MIN]
-        mov rsi, rdi
-        lea rdx, [r15 + AGZM_GMIN]
-        call __gmpz_add@PLT
-        lea rdi, [r15 + AGZM_MAX]
-        mov rsi, rdi
-        lea rdx, [r15 + AGZM_GMAX]
-        call __gmpz_add@PLT
-        # (the group's variables back to max)
-        xor ecx, ecx
-        mov rax, [rsp + AG_MAXV]
-16:     cmp rcx, [rsp + AG_K]
-        jae 17f
-        mov [rsp + AG_VALS + rcx*8], rax
-        inc rcx
-        jmp 16b
-17:     inc qword ptr [rsp + AG_G]
-        jmp 8b
-20:     cmp dword ptr [r15 + AGZM_MIN + MPZ_SIZE], 0
-        jl 21f
-        mov eax, TRI_TRUE               # the minimum >= 0: every variant is
-        jmp 23f
-21:     cmp dword ptr [r15 + AGZM_MAX + MPZ_SIZE], 0
-        jge 22f
-        mov eax, TRI_FALSE              # the maximum < 0: none is
-        jmp 23f
-22:     mov eax, TRI_NONE
-23:     add rsp, 224
-        LEAVE
-# local: TERM := the value of the term rdi with the values of AG_VALS
-.Lag_term:
-        sub rsp, 8
-        mov rsi, [rsp + 16 + AG_K]
-        mov rdx, [rsp + 16 + AG_VARS]
-        lea rcx, [rsp + 16 + AG_VALS]
-        lea r8, [r15 + AGZM_TERM]
-        xor r9d, r9d
-        call variant_eval
-        add rsp, 8
-        ret
-ENDF agz_groups
-
-# var_mask(exp, k, vars) -> rax: the variables (bits) exp contains, a
-# variable counting as a whole (what variant_eval replaces)
-FUNC var_mask
-        STACK_CHECK
-        ENTER
-        sub rsp, 16
-        mov rbx, rdi
-        mov r12, rsi
-        mov r13, rdx
-        xor ecx, ecx
-1:      cmp rcx, r12
-        jae 2f
-        cmp rbx, [r13 + rcx*8]
-        je 3f
-        inc rcx
-        jmp 1b
-3:      mov eax, 1
-        shl rax, cl
-        add rsp, 16
-        LEAVE
-2:      xor r14d, r14d
-        test bl, 1
-        jnz 5f
-        test rbx, rbx
-        jz 5f
-        cmp dword ptr [rbx + N_KIND], K_TUPLE
-        jne 5f
-        mov qword ptr [rsp], 1
-4:      mov rcx, [rsp]
-        cmp ecx, [rbx + N_AUX]
-        jae 5f
-        mov rdi, [rbx + N_DATA + rcx*8]
-        inc qword ptr [rsp]
-        mov rsi, r12
-        mov rdx, r13
-        call var_mask
-        or r14, rax
-        jmp 4b
-5:      mov rax, r14
-        add rsp, 16
-        LEAVE
-ENDF var_mask
-
-# --- add_ge_zero by families. The adds whose sign is asked come in
-# families: the same terms after different numbers (add_op puts the
-# number first), e.g. the ends of the memory ranges range_overlaps
-# compares, ('add', -64, x, ('mul', -1, y)) and ('add', 32, x, ('mul',
-# -1, y)). Python simplifies each and evaluates its variants anew. The
-# simplification of ('add', c, t1..tn) is the fold of add_op over c,
-# simplify(t1)..simplify(tn), and add_op combines the terms without
-# looking at the numbers, which it only sums (reducing a positive sum mod
-# 2^256): the symbolic part S of the result is that of the fold over the
-# terms alone (the family's), its number c + D (D: the family's) as long
-# as no sum reaches 2^256 - which the family's fold shows: every number
-# on its way small (c plus any of them too), and no step's sum reduced
-# (CTX_ADD_WRAPPED after alg_add2: add_op_impl's, or the one alg_add_n
-# remembered with the pair, MEMO_ADD2). The variants of c + D + S (evaluated directly:
-# agz_groups) range over c + D + the extremes of S's: the family's record
-# is (lo, hi) = D + those, and a member's answer is True for c + lo >= 0,
-# False for c + hi < 0, else None - a lookup instead of a simplification
-# and the evaluations. The rest (too many variables, none, not evaluable
-# directly, big numbers) is answered as before.
-
-# agz_by_family(exp) -> eax: add_ge_zero(exp) (TRI_*) from its family's
-# record, or AGZ_BY_FAMILY_NO
-FUNC agz_by_family
-        STACK_CHECK
-        ENTER
-        mov rbx, rdi
-        test bl, 1
-        jnz .Labf_no
-        test rbx, rbx
-        jz .Labf_no
-        cmp dword ptr [rbx + N_KIND], K_TUPLE
-        jne .Labf_no
-        mov r13d, [rbx + N_AUX]
-        cmp r13d, 3
-        jb .Labf_no
-        mov rdi, rbx
-        OPCODE_OF_RDI
-        cmp eax, OP_ADD
-        jne .Labf_no
-        mov rax, [rbx + N_DATA + 8]
-        test al, 1
-        jnz 1f
-        # no small number first: the family of the add itself (c = 0),
-        # unless it is a big number
-        mov r12d, 1
-        mov r14, rbx
-        test rax, rax
-        jz 2f
-        cmp dword ptr [rax + N_KIND], K_INT
-        je .Labf_no
-        jmp 2f
-1:      movabs rcx, (SMALL_MIN << 1) | 1
-        cmp rax, rcx
-        je .Labf_no                     # (-c must be small too)
-        mov r12, rax                    # c
-        # the family: ('add',) + exp[2:]
-        dec r13
-        lea rax, [r13*8 + 15]
-        and rax, -16
-        STACK_ALLOC rax
-        mov rax, [rbx + N_DATA]
-        mov [rsp], rax
-        mov ecx, 1
-3:      cmp rcx, r13
-        jae 4f
-        mov rax, [rbx + N_DATA + 8 + rcx*8]
-        mov [rsp + rcx*8], rax
-        inc rcx
-        jmp 3b
-4:      mov edi, K_TUPLE
-        mov rsi, r13
-        mov rdx, rsp
-        call mk_seq
-        lea rsp, [rbp - 32]
-        mov r14, rax
-2:      mov edi, MEMO_AGZ_FAMILY
-        mov rsi, r14
-        call memo_get
-        test rax, rax
-        jnz 5f
-        mov rdi, r14
-        call agz_family
-        mov r13, rax
-        mov edi, MEMO_AGZ_FAMILY
-        mov rsi, r14
-        mov rdx, rax
-        call memo_put
-        mov rax, r13
-5:      cmp rax, FAM_NO
-        je .Labf_no
-        cmp rax, FAM_TRUE
-        je .Labf_true
-        cmp rax, FAM_NONE
-        je .Labf_none
-        mov r13, rax                    # (lo, hi)
-        mov r14d, 2
-        sub r14, r12                    # -c
-        mov rdi, [r13 + N_DATA]
-        mov rsi, r14
-        call int_cmp
-        test eax, eax
-        jns .Labf_true                  # c + lo >= 0
-        mov rdi, [r13 + N_DATA + 8]
-        mov rsi, r14
-        call int_cmp
-        test eax, eax
-        js .Labf_false                  # c + hi < 0
-.Labf_none:
-        mov eax, TRI_NONE
-        LEAVE
-.Labf_true:
-        mov eax, TRI_TRUE
-        LEAVE
-.Labf_false:
-        mov eax, TRI_FALSE
-        LEAVE
-.Labf_no:
-        mov eax, AGZ_BY_FAMILY_NO
-        LEAVE
-ENDF agz_by_family
-
-# fam_number(v) -> rax: the number of add_op's result v (a small int
-# value: v itself, its first term, or 0), or 0 (not a value) for a big one
-FUNC fam_number
-        mov rax, rdi
-        test al, 1
-        jnz 9f
-        test rdi, rdi
-        jz 8f
-        mov ecx, [rdi + N_KIND]
-        cmp ecx, K_INT
-        je 7f
-        cmp ecx, K_TUPLE
-        jne 8f
-        cmp dword ptr [rdi + N_AUX], 2
-        jb 8f
-        mov rax, [rdi + N_DATA]
-        LOADS rcx, ADD
-        cmp rax, rcx
-        jne 8f
-        mov rax, [rdi + N_DATA + 8]
-        test al, 1
-        jnz 9f
-        test rax, rax
-        jz 8f
-        cmp dword ptr [rax + N_KIND], K_INT
-        je 7f
-8:      mov eax, 1                      # no number: 0
-9:      ret
-7:      xor eax, eax
-        ret
-ENDF fam_number
-
-# agz_family(fam) -> rax: the record of the family ('add',) + fam[1:]
-# (see agz_by_family): (lo, hi), FAM_TRUE, FAM_NONE or FAM_NO
-FUNC agz_family
-        STACK_CHECK
-        ENTER
-        sub rsp, 96
-        .set AF_D, 0                    # the number of the fold's result
-        .set AF_VARS, 8
-        .set AF_MAXV, 16
-        .set AF_I, 24
-        .set AF_SPEC, 32                # the special values (7)
-        mov rbx, rdi
-        # python's fold, without the number: res = add_op(res, simplify(t))
-        mov r12d, 1                     # res = 0
-        mov r13d, 1
-1:      cmp r13d, [rbx + N_AUX]
-        jae 2f
-        mov rdi, [rbx + N_DATA + r13*8]
-        call alg_simplify
-        mov r14, rax
-        mov rdi, r12
-        mov rsi, rax
-        call alg_add2
-        # a step whose sum add_op reduced (now or when it was remembered:
-        # alg_add_n's MEMO_ADD2 keeps it)
-        cmp qword ptr [r15 + CTX_ADD_WRAPPED], 0
-        jne .Laf_no
-        mov r12, rax
-        mov rdi, rax
-        call fam_number
-        test rax, rax
-        jz .Laf_no                      # a big number on the way
-        inc r13d
-        jmp 1b
-2:      mov rdi, r12
-        call fam_number
-        mov [rsp + AF_D], rax
-        # S: the terms of the result after its number, as an add
-        test r12b, 1
-        jnz .Laf_int                    # a number: no term
-        cmp dword ptr [r12 + N_KIND], K_TUPLE
-        jne 3f
-        mov rdi, r12
-        OPCODE_OF_RDI
-        cmp eax, OP_ADD
-        jne 3f
-        mov rax, [r12 + N_DATA + 8]
-        test al, 1
-        jz 4f                           # no number: the add itself
-        mov r13d, [r12 + N_AUX]
-        dec r13
-        cmp r13, 1
-        jbe .Laf_no                     # (('add', n): not add_op's)
-        lea rax, [r13*8 + 15]
-        and rax, -16
-        STACK_ALLOC rax
-        mov rax, [r12 + N_DATA]
-        mov [rsp], rax
-        mov ecx, 1
-5:      cmp rcx, r13
-        jae 6f
-        mov rax, [r12 + N_DATA + 8 + rcx*8]
-        mov [rsp + rcx*8], rax
-        inc rcx
-        jmp 5b
-6:      mov edi, K_TUPLE
-        mov rsi, r13
-        mov rdx, rsp
-        call mk_seq
-        lea rsp, [rbp - 32 - 96]
-        mov r12, rax
-        jmp 4f
-3:      LOADS rdi, ADD                  # one term
-        mov rsi, r12
-        call mk2
-        mov r12, rax
-4:      # r12: ('add',) + S. Its variables (the number has none)
-        call vec_new
-        mov [rsp + AF_VARS], rax
-        mov rdi, r12
-        mov rsi, rax
-        call extract_variables
-        mov rax, [rsp + AF_VARS]
-        mov r13, [rax + VEC_LEN]
-        cmp r13, 7
-        ja .Laf_none
-        test r13, r13
-        jz .Laf_true                    # none: python iterates over no variant
-        mov rdi, r12
-        mov rsi, r13
-        mov rdx, [rax + VEC_DATA]
-        call variant_evaluable
-        test eax, eax
-        js .Laf_no
-        cmp eax, EVAL_POOL_DEPTH - 1
-        jg .Laf_no
-        call alg_max_number
-        mov [rsp + AF_MAXV], rax
-        xor ecx, ecx
-7:      cmp rcx, r13
-        jae 9f
-        mov [rsp + AF_I], rcx
-        mov rax, [rsp + AF_VARS]
-        mov rax, [rax + VEC_DATA]
-        mov r14, [rax + rcx*8]
-        mov rdi, r14
-        call is_mem64
-        mov edx, (96 << 1) | 1
-        test eax, eax
-        jnz 8f
-        LOADS rsi, CALLDATASIZE
-        mov edx, (6 << 1) | 1
-        cmp r14, rsi
-        je 8f
-        mov edx, 1
-8:      mov rcx, [rsp + AF_I]
-        mov [rsp + AF_SPEC + rcx*8], rdx
-        inc rcx
-        jmp 7b
-9:      mov rdi, r12
-        mov rsi, r13
-        mov rax, [rsp + AF_VARS]
-        mov rdx, [rax + VEC_DATA]
-        mov rcx, [rsp + AF_MAXV]
-        lea r8, [rsp + AF_SPEC]
-        call agz_groups
-        # (lo, hi) = D + the extremes of S's variants
-        lea rdi, [r15 + AGZM_MIN]
-        call .Laf_add_d
-        lea rdi, [r15 + AGZM_MIN]
-        call mk_int_mpz
-        mov r12, rax
-        lea rdi, [r15 + AGZM_MAX]
-        call .Laf_add_d
-        lea rdi, [r15 + AGZM_MAX]
-        call mk_int_mpz
-        mov rdi, r12
-        mov rsi, rax
-        call mk2
-        add rsp, 96
-        LEAVE
-.Laf_int:                               # S empty: the number decides
-        mov rdi, [rsp + AF_D]
-        mov rsi, rdi
-        call mk2
-        add rsp, 96
-        LEAVE
-.Laf_true:
-        mov eax, FAM_TRUE
-        add rsp, 96
-        LEAVE
-.Laf_none:
-        mov eax, FAM_NONE
-        add rsp, 96
-        LEAVE
-.Laf_no:
-        mov eax, FAM_NO
-        lea rsp, [rbp - 32]
-        LEAVE
-# local: the mpz rdi += D
-.Laf_add_d:
-        mov rdx, [rsp + 8 + AF_D]
-        sar rdx, 1
-        jz 2f
-        mov rsi, rdi
-        js 1f
-        jmp __gmpz_add_ui@PLT
-1:      neg rdx
-        jmp __gmpz_sub_ui@PLT
-2:      ret
-ENDF agz_family
 
 # alg_calc_max(exp) -> value
 FUNC alg_calc_max
@@ -4432,6 +3496,10 @@ FUNC simplify_impl
         jne .Lsi_asis
         cmp qword ptr [rsp + 16], 1
         jne .Lsi_asis
+        mov rdi, [rsp + 24]             # (a value from memory may be longer
+        call may_be_wide                # than a word: the mask cuts it)
+        test eax, eax
+        jnz .Lsi_asis
         mov rax, [rsp + 24]
         add rsp, 48
         LEAVE
@@ -4814,48 +3882,151 @@ FUNC ten_pow_20
         LEAVE
 ENDF ten_pow_20
 
-# alg_get_sign(exp) -> eax: -1, 0, 1, TRI_NONE (2^30 for none), TRI_CANNOT
-FUNC alg_get_sign
+# The comparisons (python's ge_zero, get_sign, lt_op, le_op, max_op,
+# min_op and their safe_ forms) are decided by value_range (ranges.s) and
+# nothing else: what an expression is as an integer, for any value of what
+# it's made of. top: 0 for WORD_TOP, 1 for MEMORY_TOP (the memory
+# addresses and sizes: memloc's, the mem_ forms below).
+
+# alg_ge_zero(exp) -> eax: python's ge_zero (WORD_TOP)
+FUNC alg_ge_zero
+        xor esi, esi
+        jmp alg_ge_zero_top
+ENDF alg_ge_zero
+
+# alg_ge_zero_top(exp, top) -> eax: python's ge_zero(exp, top) - TRI_TRUE if
+# exp >= 0, TRI_FALSE if exp < 0, TRI_CANNOT if that depends
+FUNC alg_ge_zero_top
         STACK_CHECK
         ENTER
         mov rbx, rdi
+        mov r12d, esi
+        call is_int                     # (python's int: a bool's range is its value)
+        test eax, eax
+        jz 1f
+        mov rdi, rbx
+        call int_sign
+        cmp eax, -1
+        setne al
+        movzx eax, al
+        LEAVE
+1:      mov rdi, rbx
+        xor esi, esi
+        mov edx, r12d
+        call value_range
+        mov rbx, rdx
+        mov rdi, rax
+        call int_sign
+        test eax, eax
+        js 2f
+        mov eax, TRI_TRUE               # lo >= 0
+        LEAVE
+2:      mov rdi, rbx
+        call int_sign
+        test eax, eax
+        jns 3f
+        mov eax, TRI_FALSE              # hi < 0
+        LEAVE
+3:      mov eax, TRI_CANNOT
+        LEAVE
+ENDF alg_ge_zero_top
+
+# alg_safe_ge_zero(exp) / alg_safe_ge_zero_top(exp, top) -> eax: TRI_TRUE,
+# TRI_FALSE or TRI_NONE
+FUNC alg_safe_ge_zero
+        xor esi, esi
+        jmp alg_safe_ge_zero_top
+ENDF alg_safe_ge_zero
+
+FUNC alg_safe_ge_zero_top
+        STACK_CHECK
+        ENTER
+        call alg_ge_zero_top
+        cmp eax, TRI_CANNOT
+        jne 1f
+        mov eax, TRI_NONE
+1:      LEAVE
+ENDF alg_safe_ge_zero_top
+
+# alg_safe_gt_zero(exp) / alg_safe_gt_zero_top(exp, top) -> eax:
+# safe_ge_zero(exp - 1, top)
+FUNC alg_safe_gt_zero
+        xor esi, esi
+        jmp alg_safe_gt_zero_top
+ENDF alg_safe_gt_zero
+
+FUNC alg_safe_gt_zero_top
+        STACK_CHECK
+        ENTER
+        mov ebx, esi
+        mov esi, 3
+        call alg_sub_op
+        mov rdi, rax
+        mov esi, ebx
+        call alg_safe_ge_zero_top
+        LEAVE
+ENDF alg_safe_gt_zero_top
+
+# alg_get_sign(exp) / alg_get_sign_top(exp, top) -> eax: python's get_sign -
+# 1 if exp > 0, -1 if exp < 0, 0 if it's 0, SIGN_NONE if that depends
+FUNC alg_get_sign
+        xor esi, esi
+        jmp alg_get_sign_top
+ENDF alg_get_sign
+
+FUNC alg_get_sign_top
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        mov r12d, esi
         mov esi, 1
-        call py_equal
+        call py_equal                   # exp == 0 (False too)
         test eax, eax
         jz 1f
         xor eax, eax
         LEAVE
 1:      mov rdi, rbx
-        mov esi, 3
-        call alg_sub_op
+        xor esi, esi
+        mov edx, r12d
+        call value_range
+        mov rbx, rax
+        mov r12, rdx
         mov rdi, rax
-        call alg_ge_zero
-        cmp eax, TRI_CANNOT
-        je 3f
-        cmp eax, TRI_TRUE
+        call int_sign
+        cmp eax, 1
         jne 2f
-        mov eax, 1
+        LEAVE                           # lo > 0: 1
+2:      mov rdi, r12
+        call int_sign
+        test eax, eax
+        jns 3f
+        mov eax, -1                     # hi < 0
         LEAVE
-2:      mov rdi, rbx
-        call alg_ge_zero
-        cmp eax, TRI_CANNOT
-        je 3f
-        cmp eax, TRI_FALSE
+3:      cmp rbx, 1                      # lo == hi == 0 (normalized: small)
         jne 4f
-        mov eax, -1
+        cmp r12, 1
+        jne 4f
+        xor eax, eax
         LEAVE
 4:      mov eax, SIGN_NONE
         LEAVE
-3:      mov eax, TRI_CANNOT
-        LEAVE
-ENDF alg_get_sign
+ENDF alg_get_sign_top
 
-# alg_lt_op(left, right) -> TRI_TRUE / TRI_FALSE / TRI_NONE / TRI_CANNOT (memoized)
+# alg_lt_op(left, right) / alg_lt_op_top(left, right, top) -> eax: python's
+# lt_op - TRI_TRUE if left < right, TRI_FALSE if not, TRI_CANNOT if that
+# depends
 FUNC alg_lt_op
+        xor edx, edx
+        jmp alg_lt_op_top
+ENDF alg_lt_op
+
+FUNC alg_lt_op_top
         STACK_CHECK
         ENTER
+        sub rsp, 16
         mov rbx, rdi
         mov r12, rsi
+        mov r13d, edx
         call is_int
         test eax, eax
         jz 1f
@@ -4869,12 +4040,101 @@ FUNC alg_lt_op
         cmp eax, -1
         sete al
         movzx eax, al
+        jmp .Llt_ret
+1:      mov rdi, rbx
+        call add_max_terms
+        mov rbx, rax
+        mov rdi, r12
+        call add_max_terms
+        mov r12, rax
+        mov rdi, rbx
+        call opcode_of
+        cmp eax, OP_MAX
+        jne .Llt_right_max
+        # below the largest: below all of them (each asked, as python's list)
+        xor r14d, r14d                  # bit 0: one not True, bit 1: one False
+        mov qword ptr [rsp], 1
+2:      mov rax, [rsp]
+        cmp eax, [rbx + N_AUX]
+        jae 3f
+        mov rdi, [rbx + N_DATA + rax*8]
+        inc qword ptr [rsp]
+        mov rsi, r12
+        mov edx, r13d
+        call alg_safe_lt_op_top
+        cmp eax, TRI_TRUE
+        je 2b
+        or r14d, 1
+        cmp eax, TRI_FALSE
+        jne 2b
+        or r14d, 2
+        jmp 2b
+3:      mov eax, TRI_TRUE
+        test r14d, r14d
+        jz .Llt_ret
+        mov eax, TRI_FALSE
+        test r14d, 2
+        jnz .Llt_ret
+        mov eax, TRI_CANNOT
+        jmp .Llt_ret
+.Llt_right_max:
+        mov rdi, r12
+        call opcode_of
+        cmp eax, OP_MAX
+        jne .Llt_range
+        # below the largest: below one of them
+        xor r14d, r14d                  # bit 0: one True, bit 1: one not False
+        mov qword ptr [rsp], 1
+4:      mov rax, [rsp]
+        cmp eax, [r12 + N_AUX]
+        jae 5f
+        mov rsi, [r12 + N_DATA + rax*8]
+        inc qword ptr [rsp]
+        mov rdi, rbx
+        mov edx, r13d
+        call alg_safe_lt_op_top
+        cmp eax, TRI_FALSE
+        je 4b
+        or r14d, 2
+        cmp eax, TRI_TRUE
+        jne 4b
+        or r14d, 1
+        jmp 4b
+5:      mov eax, TRI_TRUE
+        test r14d, 1
+        jnz .Llt_ret
+        mov eax, TRI_FALSE
+        test r14d, 2
+        jz .Llt_ret
+        mov eax, TRI_CANNOT
+        jmp .Llt_ret
+.Llt_range:
+        # right - left: above 0, or not
+        mov rdi, r12
+        mov rsi, rbx
+        call alg_sub_op
+        mov rdi, rax
+        xor esi, esi
+        mov edx, r13d
+        call value_range
+        mov rbx, rdx
+        mov rdi, rax
+        call int_sign
+        mov ecx, eax
+        mov eax, TRI_TRUE
+        cmp ecx, 1
+        je .Llt_ret                     # lo > 0
+        mov rdi, rbx
+        call int_sign
+        mov ecx, eax
+        mov eax, TRI_FALSE
+        cmp ecx, 0
+        jle .Llt_ret                    # hi <= 0
+        mov eax, TRI_CANNOT
+.Llt_ret:
+        add rsp, 16
         LEAVE
-1:      mov rdi, rbx                    # (not remembered: 5 to 10% of the
-        mov rsi, r12                    # questions came again)
-        call lt_op_impl
-        LEAVE
-ENDF alg_lt_op
+ENDF alg_lt_op_top
 
 # add_max_terms(v): ('add', int num, ('max', ...)) -> ('max', add_op(t, num)...)
 # or v unchanged
@@ -4920,191 +4180,43 @@ FUNC add_max_terms
         LEAVE
 ENDF add_max_terms
 
-# is_add_int_var(v) -> eax: v ~ ('add', int, ('var', any)) ; is_add_any_var
-FUNC is_add_int_var
-        ENTER
-        mov rbx, rdi
-        call is_add_any_var
-        test eax, eax
-        jz 1f
-        mov rdi, [rbx + N_DATA + 8]
-        call is_int
-1:      LEAVE
-ENDF is_add_int_var
-
-FUNC is_add_any_var
-        ENTER
-        mov rbx, rdi
-        mov esi, OP_ADD
-        mov edx, 3
-        call is_op_n
-        test eax, eax
-        jz 1f
-        mov rdi, [rbx + N_DATA + 16]
-        mov esi, OP_VAR
-        mov edx, 2
-        call is_op_n
-1:      LEAVE
-ENDF is_add_any_var
-
-FUNC lt_op_impl
-        STACK_CHECK
-        ENTER
-        mov rbx, rdi
-        mov r12, rsi
-        mov rdi, rbx
-        call add_max_terms
-        mov rbx, rax
-        mov rdi, r12
-        call add_max_terms
-        mov r12, rax
-        mov rdi, r12
-        OPCODE_OF_RDI
-        cmp eax, OP_MAX
-        jne 1f
-        xchg rbx, r12
-1:      mov rdi, rbx
-        OPCODE_OF_RDI
-        cmp eax, OP_MAX
-        jne .Llt_addvar
-        # all the terms < right: True; any False: False; else None. Every
-        # term is evaluated first (a CannotCompare anywhere wins), as in the
-        # python list comprehension.
-        mov r13d, 1
-        xor r14d, r14d                  # bit 0: some None, bit 1: some False
-2:      cmp r13d, [rbx + N_AUX]
-        jae 4f
-        mov rdi, [rbx + N_DATA + r13*8]
-        mov rsi, r12
-        call alg_lt_op
-        cmp eax, TRI_CANNOT
-        je .Llt_cannot
-        cmp eax, TRI_FALSE
-        jne 3f
-        or r14d, 2
-3:      cmp eax, TRI_NONE
-        jne 5f
-        or r14d, 1
-5:      inc r13d
-        jmp 2b
-4:      test r14d, 2
-        jnz .Llt_false
-        test r14d, 1
-        jnz .Llt_none
-        jmp .Llt_true
-.Llt_addvar:
-        # ('add', _, ('var', a)) vs ('add', _, ('var', b)) with a != b: can't
-        mov rdi, rbx
-        call is_add_any_var
-        test eax, eax
-        jz 6f
-        mov rdi, r12
-        call is_add_any_var
-        test eax, eax
-        jz 6f
-        mov rax, [rbx + N_DATA + 16]
-        mov rdi, [rax + N_DATA + 8]
-        mov rax, [r12 + N_DATA + 16]
-        mov rsi, [rax + N_DATA + 8]
-        call values_equal
-        test eax, eax
-        jz .Llt_cannot
-6:      # a var on one side must appear on the other
-        mov rdi, rbx
-        mov esi, OP_VAR
-        mov edx, 2
-        call is_op_n
-        test eax, eax
-        jz 7f
-        mov rdi, r12
-        mov rsi, rbx
-        call contains
-        test eax, eax
-        jz .Llt_cannot
-7:      mov rdi, r12
-        mov esi, OP_VAR
-        mov edx, 2
-        call is_op_n
-        test eax, eax
-        jz 8f
-        mov rdi, rbx
-        mov rsi, r12
-        call contains
-        test eax, eax
-        jz .Llt_cannot
-8:      # int vs ('add', int num, var)
-        mov rdi, r12
-        call is_int
-        test eax, eax
-        jz 9f
-        mov rdi, rbx
-        call is_add_int_var
-        test eax, eax
-        jz 9f
-        mov rdi, r12
-        mov rsi, [rbx + N_DATA + 8]
-        call int_cmp
-        cmp eax, -1
-        je .Llt_cannot
-        jmp .Llt_false
-9:      mov rdi, rbx
-        call is_int
-        test eax, eax
-        jz 10f
-        mov rdi, r12
-        call is_add_int_var
-        test eax, eax
-        jz 10f
-        mov rdi, rbx
-        mov rsi, [r12 + N_DATA + 8]
-        call int_cmp
-        cmp eax, -1
-        je .Llt_true
-        jmp .Llt_cannot
-10:     # lt2: sign of right - left
-        mov rdi, r12
-        mov rsi, rbx
-        call alg_sub_op
-        mov rdi, rax
-        call alg_get_sign
-        cmp eax, TRI_CANNOT
-        je .Llt_cannot
-        cmp eax, SIGN_NONE
-        je .Llt_cannot
-        cmp eax, 1
-        je .Llt_true
-        jmp .Llt_false
-.Llt_true:
-        mov eax, TRI_TRUE
-        LEAVE
-.Llt_false:
-        mov eax, TRI_FALSE
-        LEAVE
-.Llt_none:
-        mov eax, TRI_NONE
-        LEAVE
-.Llt_cannot:
-        mov eax, TRI_CANNOT
-        LEAVE
-ENDF lt_op_impl
-
+# alg_safe_lt_op(left, right) / alg_safe_lt_op_top(left, right, top) -> eax:
+# TRI_TRUE, TRI_FALSE or TRI_NONE
 FUNC alg_safe_lt_op
-        STACK_CHECK
-        ENTER
-        call alg_lt_op
-        cmp eax, TRI_CANNOT
-        jne 1f
-        mov eax, TRI_NONE
-1:      LEAVE
+        xor edx, edx
+        jmp alg_safe_lt_op_top
 ENDF alg_safe_lt_op
 
-# alg_le_op(left, right) -> tri (memoized)
-FUNC alg_le_op
+FUNC alg_safe_lt_op_top
         STACK_CHECK
         ENTER
+        call alg_lt_op_top
+        cmp eax, TRI_CANNOT
+        jne 1f
+        mov eax, TRI_NONE
+1:      LEAVE
+ENDF alg_safe_lt_op_top
+
+# alg_le_op(left, right) / alg_le_op_top(left, right, top) -> eax: python's
+# le_op - TRI_TRUE if left <= right, TRI_FALSE if not, TRI_CANNOT if that
+# depends (remembered: a table of pairs for each top)
+FUNC alg_le_op
+        xor edx, edx
+        jmp alg_le_op_top
+ENDF alg_le_op
+
+FUNC alg_le_op_top
+        STACK_CHECK
+        ENTER
+        sub rsp, 16
         mov rbx, rdi
         mov r12, rsi
-        mov edi, MEMO_LE
+        mov [rsp], rdx                  # top
+        mov r13d, MEMO_LE
+        mov eax, MEMO_LE_M
+        test edx, edx
+        cmovnz r13d, eax
+        mov edi, r13d
         mov rsi, rbx
         mov rdx, r12
         call memo2_get
@@ -5112,27 +4224,31 @@ FUNC alg_le_op
         jz 1f
         mov rdi, rax
         call memo_to_tri
+        add rsp, 16
         LEAVE
 1:      mov rdi, rbx
         mov rsi, r12
+        mov rdx, [rsp]
         call le_op_impl
         mov r14d, eax
         mov edi, eax
         call tri_to_memo
-        mov edi, MEMO_LE
+        mov edi, r13d
         mov rsi, rbx
         mov rdx, r12
         mov rcx, rax
         call memo2_put
         mov eax, r14d
+        add rsp, 16
         LEAVE
-ENDF alg_le_op
+ENDF alg_le_op_top
 
 FUNC le_op_impl
         STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
+        mov r13d, edx
         mov rdi, rbx
         call alg_max_to_add
         mov rbx, rax
@@ -5158,27 +4274,43 @@ FUNC le_op_impl
         mov rsi, rbx
         call alg_sub_op
         mov rdi, rax
-        call alg_ge_zero
+        mov esi, r13d
+        call alg_ge_zero_top
         LEAVE
 ENDF le_op_impl
 
+# alg_safe_le_op(left, right) / alg_safe_le_op_top(left, right, top) -> eax:
+# TRI_TRUE, TRI_FALSE or TRI_NONE
 FUNC alg_safe_le_op
         STACK_CHECK
+        xor edx, edx
+        jmp alg_safe_le_op_top
+ENDF alg_safe_le_op
+
+FUNC alg_safe_le_op_top
+        STACK_CHECK
         ENTER
-        call alg_le_op
+        call alg_le_op_top
         cmp eax, TRI_CANNOT
         jne 1f
         mov eax, TRI_NONE
 1:      LEAVE
-ENDF alg_safe_le_op
+ENDF alg_safe_le_op_top
 
-# alg_max_op(left, right) -> value, or NIL for CannotCompare
+# alg_max_op(left, right) / alg_max_op_top(left, right, top) -> rax: python's
+# max_op, or NIL for its CannotCompare (the safe_ form's None)
 FUNC alg_max_op
+        xor edx, edx
+        jmp alg_max_op_top
+ENDF alg_max_op
+
+FUNC alg_max_op_top
         STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
-        call alg_le_op
+        mov r13d, edx
+        call alg_le_op_top
         cmp eax, TRI_CANNOT
         je 1f
         test eax, eax
@@ -5189,7 +4321,8 @@ FUNC alg_max_op
         LEAVE
 1:      mov rdi, r12
         mov rsi, rbx
-        call alg_le_op
+        mov edx, r13d
+        call alg_le_op_top
         cmp eax, TRI_CANNOT
         je 3f
         test eax, eax
@@ -5200,20 +4333,28 @@ FUNC alg_max_op
         LEAVE
 3:      xor eax, eax
         LEAVE
-ENDF alg_max_op
+ENDF alg_max_op_top
 
 FUNC alg_safe_max_op
         STACK_CHECK
-        jmp alg_max_op
+        xor edx, edx
+        jmp alg_max_op_top
 ENDF alg_safe_max_op
 
-# alg_min_op(left, right) -> value, or NIL
+# alg_min_op(left, right) / alg_min_op_top(left, right, top) -> rax: python's
+# min_op, or NIL
 FUNC alg_min_op
+        xor edx, edx
+        jmp alg_min_op_top
+ENDF alg_min_op
+
+FUNC alg_min_op_top
         STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
-        call alg_le_op
+        mov r13d, edx
+        call alg_le_op_top
         cmp eax, TRI_CANNOT
         je 1f
         test eax, eax
@@ -5224,7 +4365,8 @@ FUNC alg_min_op
         LEAVE
 1:      mov rdi, r12
         mov rsi, rbx
-        call alg_le_op
+        mov edx, r13d
+        call alg_le_op_top
         cmp eax, TRI_CANNOT
         je 3f
         test eax, eax
@@ -5235,12 +4377,65 @@ FUNC alg_min_op
         LEAVE
 3:      xor eax, eax
         LEAVE
-ENDF alg_min_op
+ENDF alg_min_op_top
 
 FUNC alg_safe_min_op
         STACK_CHECK
-        jmp alg_min_op
+        xor edx, edx
+        jmp alg_min_op_top
 ENDF alg_safe_min_op
+
+# the comparisons of memory addresses and sizes (python's memloc: its
+# partials of algebra's, top=MEMORY_TOP)
+FUNC mem_ge_zero
+        mov esi, 1
+        jmp alg_ge_zero_top
+ENDF mem_ge_zero
+
+FUNC mem_safe_ge_zero
+        mov esi, 1
+        jmp alg_safe_ge_zero_top
+ENDF mem_safe_ge_zero
+
+FUNC mem_safe_gt_zero
+        mov esi, 1
+        jmp alg_safe_gt_zero_top
+ENDF mem_safe_gt_zero
+
+FUNC mem_get_sign
+        mov esi, 1
+        jmp alg_get_sign_top
+ENDF mem_get_sign
+
+FUNC mem_lt_op
+        mov edx, 1
+        jmp alg_lt_op_top
+ENDF mem_lt_op
+
+FUNC mem_safe_lt_op
+        mov edx, 1
+        jmp alg_safe_lt_op_top
+ENDF mem_safe_lt_op
+
+FUNC mem_le_op
+        mov edx, 1
+        jmp alg_le_op_top
+ENDF mem_le_op
+
+FUNC mem_safe_le_op
+        mov edx, 1
+        jmp alg_safe_le_op_top
+ENDF mem_safe_le_op
+
+FUNC mem_max_op
+        mov edx, 1
+        jmp alg_max_op_top
+ENDF mem_max_op
+
+FUNC mem_min_op
+        mov edx, 1
+        jmp alg_min_op_top
+ENDF mem_min_op
 
 # alg_max_op2(base, what) -> value: algebra._max_op (may yield ('max', ...))
 FUNC alg_max_op2
@@ -5384,23 +4579,9 @@ FUNC must_int
         jmp err_throw
 ENDF must_int
 
-FUNC raise_not_implemented
-        mov edi, E_NOT_IMPLEMENTED
-        lea rsi, [rip + .Ls_not_implemented]
-        jmp err_throw
-ENDF raise_not_implemented
-
-# alg_safe_gt_zero(exp) -> tri: safe_ge_zero(exp - 1)
-FUNC alg_safe_gt_zero
-        ENTER
-        mov esi, 3
-        call alg_sub_op
-        mov rdi, rax
-        call alg_safe_ge_zero
-        LEAVE
-ENDF alg_safe_gt_zero
-
-# to_bytes(exp) -> rax, rdx: (bytes, bits) - the byte size of a bit size
+# to_bytes(exp) -> rax, rdx: python's to_bytes - exp bits, as (bytes, bits
+# left over); the bits left over NIL (None) when it isn't known whether
+# exp is a whole number of bytes
 FUNC to_bytes
         STACK_CHECK
         ENTER
@@ -5438,10 +4619,23 @@ FUNC to_bytes
         call pat_match
         test eax, eax
         jz 3f
-        cmp qword ptr [rsp + 16], (3 << 1) | 1
-        jl 3f
-        # ('mask_shl', size, offset, shl - 3, val), 0
+        # the lowest 3 bits are 0: offset + shl >= 3
+        mov rdi, [rsp + 8]
+        call vr_number                  # (":int:": a bool too)
+        mov [rsp + MATCH_BINDINGS_SIZE], rax
         mov rdi, [rsp + 16]
+        call vr_number
+        mov [rsp + MATCH_BINDINGS_SIZE + 8], rax
+        mov rdi, [rsp + MATCH_BINDINGS_SIZE]
+        mov rsi, rax
+        call int_add
+        mov rdi, rax
+        mov esi, (3 << 1) | 1
+        call int_cmp
+        test eax, eax
+        js 3f
+        # ('mask_shl', size, offset, shl - 3, val), 0
+        mov rdi, [rsp + MATCH_BINDINGS_SIZE + 8]
         mov esi, (3 << 1) | 1
         call int_sub
         mov rcx, rax
@@ -5454,65 +4648,56 @@ FUNC to_bytes
         jmp .Ltb_done
 3:      mov rdi, rbx
         call opcode_of
-        mov [rsp + MATCH_BINDINGS_SIZE], rax
         cmp eax, OP_MUL
         jne 4f
+        # ('mul', int k, x), k a multiple of 8: ('mul', k // 8, x), 0
         cmp dword ptr [rbx + N_AUX], 3
-        jne 4f
-        # (sic: to_bytes of the multiplier alone when it's a multiple of 8)
+        jne .Ltb_mask
         mov rdi, [rbx + N_DATA + 8]
-        call must_int
-        mov rdi, rax
+        call is_int
+        test eax, eax
+        jz .Ltb_mask
+        mov rdi, [rbx + N_DATA + 8]
         mov esi, (8 << 1) | 1
         call int_mod
         cmp rax, 1
-        jne 4f
-        mov rdi, [rbx + N_DATA + 8]
-        call to_bytes
-        jmp .Ltb_done
-4:      cmp qword ptr [rsp + MATCH_BINDINGS_SIZE], OP_ADD
         jne .Ltb_mask
+        mov rdi, [rbx + N_DATA + 8]
+        mov esi, (8 << 1) | 1
+        call int_floordiv
+        mov rsi, rax
+        mov rdx, [rbx + N_DATA + 16]
+        LOADS rdi, MUL
+        call mk3
+        mov edx, 1
+        jmp .Ltb_done
+4:      cmp eax, OP_ADD
+        jne .Ltb_mask
+        # the bytes of each term, when they all are whole
         call vec_new
         mov r12, rax
         mov r13d, 1
 5:      cmp r13d, [rbx + N_AUX]
         jae 9f
         mov r14, [rbx + N_DATA + r13*8]
+        inc r13d
+        # ('mul', int k, ('mask_shl', 253, 0, 3, x)): ('mul', k, x)
         mov rdi, r14
+        mov esi, OP_MUL
+        mov edx, 3
+        call is_op_n
+        test eax, eax
+        jz 6f
+        mov rdi, [r14 + N_DATA + 8]
         call is_int
         test eax, eax
-        jnz 6f
-        mov rdi, r14
-        call opcode_of
-        cmp eax, OP_MASK_SHL
-        je 6f
-        cmp eax, OP_MUL
-        jne .Ltb_not_implemented
-        cmp dword ptr [r14 + N_AUX], 3
-        jne .Ltb_not_implemented
-        mov rdi, [r14 + N_DATA + 8]
-        call must_int
-        mov rdi, rax
-        mov esi, (8 << 1) | 1
-        call int_mod
-        cmp rax, 1
-        jne 7f
-        # ('mul', e[1] // 8, e[2])
-        mov rdi, [r14 + N_DATA + 8]
-        mov esi, (8 << 1) | 1
-        call int_floordiv
-        mov rsi, rax
-        mov rdx, [r14 + N_DATA + 16]
-        LOADS rdi, MUL
-        call mk3
-        jmp 8f
-7:      PAT rsi, "('mask_shl', 253, 0, 3, ':val')"
+        jz 6f
+        PAT rsi, "('mask_shl', 253, 0, 3, ':val')"
         mov rdi, [r14 + N_DATA + 16]
         mov rdx, rsp
         call pat_match
         test eax, eax
-        jz .Ltb_not_implemented
-        # ('mul', e[1], e[2][4])
+        jz 6f
         mov rsi, [r14 + N_DATA + 8]
         mov rdx, [rsp]
         LOADS rdi, MUL
@@ -5521,11 +4706,10 @@ FUNC to_bytes
 6:      mov rdi, r14
         call to_bytes
         cmp rdx, 1
-        jne .Ltb_not_implemented
+        jne .Ltb_mask                   # (bits left over, or not known)
 8:      mov rdi, r12
         mov rsi, rax
         call vec_push
-        inc r13d
         jmp 5b
 9:      # ('add', *res), 0
         mov rdi, r12
@@ -5536,20 +4720,330 @@ FUNC to_bytes
         mov edx, 1
         jmp .Ltb_done
 .Ltb_mask:
-        # mask_op(exp, shr=3), 0
+        # mask_op(exp, shr=3), None
         mov rdi, rbx
         mov esi, (256 << 1) | 1
         mov edx, 1
         mov ecx, 1
         mov r8d, (3 << 1) | 1
         call alg_mask_op
-        mov edx, 1
+        xor edx, edx
 .Ltb_done:
         add rsp, MATCH_BINDINGS_SIZE + 16
         LEAVE
-.Ltb_not_implemented:
-        call raise_not_implemented
 ENDF to_bytes
+
+# ---------------------------------------------------------------------
+# shifts (python's shr_op, shl_op, signextend_op: the VM's and simplify's)
+
+# alg_shr_op(exp, off) -> rax: python's shr_op - exp >> off, the bits [off,
+# 256) of exp moved down by off: the mask a division by 2**off makes. By a
+# symbolic amount: ('shr', off, exp).
+FUNC alg_shr_op
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov rdi, rsi
+        call vr_number                  # (isinstance(off, int): a bool too)
+        test rax, rax
+        jz 2f
+        mov r13, rax
+        mov rdi, rax
+        mov esi, (256 << 1) | 1
+        call int_cmp
+        test eax, eax
+        js 1f
+        mov eax, 1                      # off >= 256: 0
+        LEAVE
+1:      mov edi, (256 << 1) | 1
+        mov rsi, r13
+        call int_sub
+        mov rdi, rbx                    # mask_op(exp, size=256 - off,
+        mov rsi, rax                    # offset=off, shr=off)
+        mov rdx, r12
+        mov ecx, 1
+        mov r8, r12
+        call alg_mask_op
+        LEAVE
+2:      LOADS rdi, SHR
+        mov rsi, r12
+        mov rdx, rbx
+        call mk3
+        LEAVE
+ENDF alg_shr_op
+
+# alg_shl_op(exp, off) -> rax: python's shl_op - exp << off, off a word: a
+# mask of exp moved left by off, when that's what it is (off the integer
+# it's made of, see value_range) and the mask can be printed as it is;
+# else ('shl', off, exp)
+FUNC alg_shl_op
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov rdi, rsi
+        call is_int                     # (type(off) is int: not a bool)
+        test eax, eax
+        jz 2f
+        mov rdi, r12
+        mov esi, (256 << 1) | 1
+        call int_cmp
+        test eax, eax
+        js 1f
+        mov eax, 1                      # off >= 256: 0
+        LEAVE
+1:      mov rdi, rbx
+        mov esi, (256 << 1) | 1
+        mov edx, 1
+        mov rcx, r12
+        mov r8d, 1
+        call alg_mask_op
+        LEAVE
+2:      mov rdi, r12
+        xor esi, esi
+        call is_word
+        test eax, eax
+        jz 3f
+        mov rdi, rbx
+        mov esi, (256 << 1) | 1
+        mov edx, 1
+        mov rcx, r12
+        mov r8d, 1
+        call alg_mask_op
+        mov r13, rax
+        mov rdi, rax
+        call alg_readable
+        test eax, eax
+        jz 3f
+        mov rax, r13
+        LEAVE
+3:      LOADS rdi, SHL
+        mov rsi, r12
+        mov rdx, rbx
+        call mk3
+        LEAVE
+ENDF alg_shl_op
+
+# alg_readable(exp) -> eax: python's _readable - a mask mask_op made can be
+# printed as it is
+FUNC alg_readable
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        call is_int
+        test eax, eax
+        jnz 8f
+        mov rdi, rbx
+        call opcode_of
+        cmp eax, OP_MASK_SHL
+        je 1f
+        cmp eax, OP_OR
+        je 2f
+        cmp eax, OP_STORAGE
+        je 4f
+        jmp 9f
+1:      cmp dword ptr [rbx + N_AUX], 5
+        jne 9f
+        mov rdi, [rbx + N_DATA + 8]
+        mov rsi, [rbx + N_DATA + 16]
+        mov rdx, [rbx + N_DATA + 24]
+        call readable_mask
+        LEAVE
+2:      mov r12d, 1                     # an or: all of its terms
+3:      cmp r12d, [rbx + N_AUX]
+        jae 8f
+        mov rdi, [rbx + N_DATA + r12*8]
+        inc r12d
+        call alg_readable
+        test eax, eax
+        jnz 3b
+        jmp 9f
+4:      cmp dword ptr [rbx + N_AUX], 4  # a storage: its size and offset numbers
+        jne 9f
+        mov rdi, [rbx + N_DATA + 8]
+        call is_int
+        test eax, eax
+        jz 9f
+        mov rdi, [rbx + N_DATA + 16]
+        call is_int
+        LEAVE
+8:      mov eax, 1
+        LEAVE
+9:      xor eax, eax
+        LEAVE
+ENDF alg_readable
+
+# alg_signextend_op(b, val) -> rax: python's signextend_op - ('signextend',
+# b, val), the lowest 8 * (b + 1) bits of val as a signed number
+FUNC alg_signextend_op
+        STACK_CHECK
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        call is_int                     # (type(b) is int)
+        test eax, eax
+        jz .Lse_asis
+        # b %= 2**256 (the word it was made of); bits = 8 * (b + 1)
+        mov rdi, rbx
+        mov esi, 256
+        call int_mod_2exp
+        mov rbx, rax
+        test bl, 1
+        jz .Lse_val                     # (a big b: bits >= 256)
+        mov r13, rbx
+        sar r13, 1
+        cmp r13, 31
+        jae .Lse_val
+        inc r13
+        shl r13, 3                      # bits, < 256
+        mov rdi, r12
+        call is_int
+        test eax, eax
+        jz .Lse_exp
+        # a number: its low bits, the ones above copies of the highest
+        lea rdi, [r15 + CTX_MPZ_R]
+        mov rsi, r12
+        call value_set_mpz
+        lea rdi, [r15 + CTX_MPZ_R]
+        mov rsi, rdi
+        mov rdx, r13
+        call __gmpz_fdiv_r_2exp@PLT
+        lea rdi, [r15 + CTX_MPZ_R]
+        lea rsi, [r13 - 1]
+        call __gmpz_tstbit@PLT
+        mov [rsp], eax
+        call arith_result
+        cmp dword ptr [rsp], 0
+        je .Lse_ret
+        mov [rsp], rax                  # low | (2**256 - 2**bits)
+        mov edi, 256
+        call pow2
+        mov [rsp + 8], rax
+        mov rdi, r13
+        call pow2
+        mov rdi, [rsp + 8]
+        mov rsi, rax
+        call int_sub
+        mov rdi, [rsp]
+        mov rsi, rax
+        call int_add
+        jmp .Lse_ret
+.Lse_exp:
+        # ('signextend', int c, inner): of the fewer bits
+        mov rdi, r12
+        mov esi, OP_SIGNEXTEND
+        mov edx, 3
+        call is_op_n
+        test eax, eax
+        jz 2f
+        mov rdi, [r12 + N_DATA + 8]
+        call vr_number                  # (":int:c": a bool too)
+        test rax, rax
+        jz 2f
+        mov rdi, rbx
+        mov rsi, rax
+        call int_cmp
+        mov rdi, rbx                    # min(b, c): b when they're equal
+        test eax, eax
+        jle 21f
+        mov rdi, [r12 + N_DATA + 8]
+21:     mov rsi, [r12 + N_DATA + 16]
+        call alg_signextend_op
+        jmp .Lse_ret
+2:      # a number made of some bits of another one: only its lowest bits
+        # count, and if it has less than them the highest one is 0
+        mov rdi, r12
+        call is_mask_shl_ints
+        test eax, eax
+        jz 4f
+        mov rdi, [r12 + N_DATA + 16]    # off >= 0
+        call int_sign
+        test eax, eax
+        js 4f
+        mov rdi, [r12 + N_DATA + 16]    # shl == -off
+        call int_neg
+        mov rdi, rax
+        mov rsi, [r12 + N_DATA + 24]
+        call values_equal
+        test eax, eax
+        jz 4f
+        mov rdi, [r12 + N_DATA + 8]
+        mov rsi, r13
+        TAG rsi
+        call int_cmp
+        test eax, eax
+        js .Lse_val                     # size < bits: val
+        cmp qword ptr [r12 + N_DATA + 16], 1
+        jne 3f
+        mov rdi, rbx                    # off == 0: of the inner one
+        mov rsi, [r12 + N_DATA + 32]
+        call alg_signextend_op
+        jmp .Lse_ret
+3:      test eax, eax
+        jz .Lse_mk                      # size == bits
+        # ('signextend', b, ('mask_shl', bits, off, -off, inner))
+        mov rdi, r13
+        TAG rdi
+        mov rsi, [r12 + N_DATA + 16]
+        mov rdx, [r12 + N_DATA + 24]
+        mov rcx, [r12 + N_DATA + 32]
+        call mk_mask_shl
+        mov r12, rax
+        jmp .Lse_mk
+4:      # ('storage', int size, int off >= 0, loc)
+        mov rdi, r12
+        mov esi, OP_STORAGE
+        mov edx, 4
+        call is_op_n
+        test eax, eax
+        jz .Lse_mk
+        mov rdi, [r12 + N_DATA + 8]
+        call vr_number
+        test rax, rax
+        jz .Lse_mk
+        mov [rsp], rax
+        mov rdi, [r12 + N_DATA + 16]
+        call vr_number
+        test rax, rax
+        jz .Lse_mk
+        mov rdi, rax
+        call int_sign
+        test eax, eax
+        js .Lse_mk
+        mov rdi, [rsp]
+        mov rsi, r13
+        TAG rsi
+        call int_cmp
+        test eax, eax
+        js .Lse_val                     # size < bits: val
+        jz .Lse_mk
+        LOADS rdi, STORAGE              # ('signextend', b, ('storage', bits, off, loc))
+        mov rsi, r13
+        TAG rsi
+        mov rdx, [r12 + N_DATA + 16]
+        mov rcx, [r12 + N_DATA + 24]
+        call mk4
+        mov r12, rax
+.Lse_mk:
+        LOADS rdi, SIGNEXTEND
+        mov rsi, rbx
+        mov rdx, r12
+        call mk3
+        jmp .Lse_ret
+.Lse_asis:
+        LOADS rdi, SIGNEXTEND
+        mov rsi, rbx
+        mov rdx, r12
+        call mk3
+        jmp .Lse_ret
+.Lse_val:
+        mov rax, r12
+.Lse_ret:
+        add rsp, 16
+        LEAVE
+ENDF alg_signextend_op
 
 # divisible_bytes(exp) -> eax: to_bytes gives whole bytes (and no error)
 FUNC divisible_bytes

@@ -123,6 +123,17 @@ test_table:
         .quad .Ln_keccak, tf_keccak
         .quad .Ln_runtrace, tf_runtrace
         .quad .Ln_keccak_word, rt_keccak_word
+        .quad .Ln_ranges, tf_ranges
+        .quad .Ln_shr_op, tf_shr_op
+        .quad .Ln_shl_op, tf_shl_op
+        .quad .Ln_signextend_op, tf_signextend_op
+        .quad .Ln_bits, alg_bits
+        .quad .Ln_lt_op_m, tf_lt_op_m
+        .quad .Ln_le_op_m, tf_le_op_m
+        .quad .Ln_ge_zero_m, tf_ge_zero_m
+        .quad .Ln_get_sign_m, tf_get_sign_m
+        .quad .Ln_max_op_m, tf_max_op_m
+        .quad .Ln_min_op_m, tf_min_op_m
         .quad 0, 0
 
         .section .rodata
@@ -131,6 +142,17 @@ test_table:
 .Ln_keccak:    .asciz "keccak"
 .Ln_runtrace:  .asciz "runtrace"
 .Ln_keccak_word: .asciz "keccak_word"
+.Ln_ranges:    .asciz "ranges"
+.Ln_shr_op:    .asciz "shr_op"
+.Ln_shl_op:    .asciz "shl_op"
+.Ln_signextend_op: .asciz "signextend_op"
+.Ln_bits:      .asciz "bits"
+.Ln_lt_op_m:   .asciz "lt_op_m"
+.Ln_le_op_m:   .asciz "le_op_m"
+.Ln_ge_zero_m: .asciz "ge_zero_m"
+.Ln_get_sign_m: .asciz "get_sign_m"
+.Ln_max_op_m:  .asciz "max_op_m"
+.Ln_min_op_m:  .asciz "min_op_m"
 .Ln_json_value: .asciz "json_value"
 .Ln_hash:      .asciz "hash"
 .Ln_str_flags: .asciz "str_flags"
@@ -418,6 +440,71 @@ FUNC tf_le_op
         LEAVE
 ENDF tf_le_op
 
+# the comparisons with top=MEMORY_TOP (memloc's): lt_op_m((a, b))...
+FUNC tf_lt_op_m
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call mem_lt_op
+        mov edi, eax
+        call tri_value
+        LEAVE
+ENDF tf_lt_op_m
+
+FUNC tf_le_op_m
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call mem_le_op
+        mov edi, eax
+        call tri_value
+        LEAVE
+ENDF tf_le_op_m
+
+FUNC tf_ge_zero_m
+        ENTER
+        call mem_ge_zero
+        mov edi, eax
+        call tri_value
+        LEAVE
+ENDF tf_ge_zero_m
+
+FUNC tf_get_sign_m
+        ENTER
+        call mem_get_sign
+        cmp eax, SIGN_NONE
+        je 2f
+        movsxd rdi, eax
+        call mk_int_i64
+        LEAVE
+2:      lea rax, [rip + sp_none]
+        LEAVE
+ENDF tf_get_sign_m
+
+FUNC tf_max_op_m
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call mem_max_op
+        test rax, rax
+        jnz 1f
+        mov edi, TRI_CANNOT
+        call tri_value
+1:      LEAVE
+ENDF tf_max_op_m
+
+FUNC tf_min_op_m
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call mem_min_op
+        test rax, rax
+        jnz 1f
+        mov edi, TRI_CANNOT
+        call tri_value
+1:      LEAVE
+ENDF tf_min_op_m
+
 FUNC tf_ge_zero
         ENTER
         call alg_ge_zero
@@ -427,7 +514,7 @@ FUNC tf_ge_zero
 ENDF tf_ge_zero
 
 # ge_zero_many(tuple) -> the tuple of ge_zero of its elements, asked one
-# after the other in the same context (its memos: add_ge_zero's families)
+# after the other in the same context (its memos: the ranges')
 FUNC tf_ge_zero_many
         ENTER
         mov rbx, rdi
@@ -449,6 +536,167 @@ FUNC tf_ge_zero_many
         call vec_to_tuple
         LEAVE
 ENDF tf_ge_zero_many
+
+# ranges((args, fmp, queries)) -> the answers, a tuple (ranges.s):
+# set_variables(args) - args None, or (vars, small) - mem[64] solidity's
+# free memory pointer when fmp, then each query (kind, a, b, c), in the
+# same context: 0 value_range(a, b, c) - b None or a tuple of (exp, lo, hi),
+# c 0 (WORD_TOP) or 1 (MEMORY_TOP) - 1 memory_range(a), 2 is_word(a), 3
+# shift_sign(a), 4 readable_mask(a, b, c), 5 proven_le(a, b), 6
+# may_be_wide(a), 7 unchecked(a) (of the variables and the small words set),
+# 8 mentions_var(a, b)
+FUNC tf_ranges
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        lea rax, [rip + sp_false]
+        xor ecx, ecx
+        cmp [rbx + N_DATA + 8], rax
+        sete cl
+        mov [r15 + CTX_VR_NO_FMP], rcx
+        mov rdi, [rbx + N_DATA]
+        lea rax, [rip + sp_none]
+        cmp rdi, rax
+        jne 1f
+        xor edi, edi
+1:      call set_variables
+        call vec_new
+        mov r12, rax
+        mov r13, [rbx + N_DATA + 16]    # the queries
+        xor r14d, r14d
+2:      cmp r14d, [r13 + N_AUX]
+        jae 9f
+        mov rbx, [r13 + N_DATA + r14*8]
+        inc r14d
+        mov rax, [rbx + N_DATA]         # the kind
+        mov rdi, [rbx + N_DATA + 8]     # a
+        mov rsi, [rbx + N_DATA + 16]    # b
+        mov rdx, [rbx + N_DATA + 24]    # c
+        cmp rax, (0 << 1) | 1
+        je .Ltr_value_range
+        cmp rax, (1 << 1) | 1
+        je .Ltr_memory_range
+        cmp rax, (2 << 1) | 1
+        je .Ltr_is_word
+        cmp rax, (3 << 1) | 1
+        je .Ltr_shift_sign
+        cmp rax, (4 << 1) | 1
+        je .Ltr_readable_mask
+        cmp rax, (5 << 1) | 1
+        je .Ltr_proven_le
+        cmp rax, (6 << 1) | 1
+        je .Ltr_may_be_wide
+        cmp rax, (7 << 1) | 1
+        je .Ltr_unchecked
+        call mentions_var
+        jmp .Ltr_bool
+.Ltr_value_range:
+        mov [rsp], rdi
+        mov [rsp + 8], rdx
+        mov rdi, rsi
+        call tr_bounds
+        mov rsi, rax
+        mov rdi, [rsp]
+        mov rdx, [rsp + 8]
+        sar rdx, 1
+        call value_range
+        jmp .Ltr_pair
+.Ltr_memory_range:
+        call memory_range
+.Ltr_pair:
+        mov rdi, rax
+        mov rsi, rdx
+        call mk2
+        jmp .Ltr_push
+.Ltr_is_word:
+        xor esi, esi
+        call is_word
+        jmp .Ltr_bool
+.Ltr_shift_sign:
+        call shift_sign
+        lea rcx, [rip + sp_none]
+        cmp eax, 2
+        je 3f
+        movsxd rcx, eax
+        lea rcx, [rcx + rcx + 1]
+3:      mov rax, rcx
+        jmp .Ltr_push
+.Ltr_readable_mask:
+        call readable_mask
+        jmp .Ltr_bool
+.Ltr_proven_le:
+        call proven_le
+        jmp .Ltr_bool
+.Ltr_may_be_wide:
+        call may_be_wide
+        jmp .Ltr_bool
+.Ltr_unchecked:
+        mov rsi, [r15 + CTX_VR_VARS]
+        mov rdx, [r15 + CTX_VR_SMALL]
+        call unchecked
+.Ltr_bool:
+        lea rcx, [rip + sp_true]
+        lea rdx, [rip + sp_false]
+        test eax, eax
+        cmovz rcx, rdx
+        mov rax, rcx
+.Ltr_push:
+        mov rdi, r12
+        mov rsi, rax
+        call vec_push
+        jmp 2b
+9:      mov rdi, r12
+        call vec_to_tuple
+        add rsp, 16
+        LEAVE
+ENDF tf_ranges
+
+# shr_op((exp, off)), shl_op((exp, off)), signextend_op((b, val))
+FUNC tf_shr_op
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        jmp alg_shr_op
+ENDF tf_shr_op
+
+FUNC tf_shl_op
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        jmp alg_shl_op
+ENDF tf_shl_op
+
+FUNC tf_signextend_op
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        jmp alg_signextend_op
+ENDF tf_signextend_op
+
+# tr_bounds(b) -> rax: None as 0, a tuple of (exp, lo, hi) as an emap
+# {exp: (lo, hi)}
+FUNC tr_bounds
+        ENTER
+        mov rbx, rdi
+        xor eax, eax
+        lea rcx, [rip + sp_none]
+        cmp rbx, rcx
+        je 9f
+        call emap_new
+        mov r12, rax
+        xor r13d, r13d
+1:      cmp r13d, [rbx + N_AUX]
+        jae 2f
+        mov r14, [rbx + N_DATA + r13*8]
+        inc r13d
+        mov rdi, [r14 + N_DATA + 8]
+        mov rsi, [r14 + N_DATA + 16]
+        call mk2
+        mov rdi, r12
+        mov rsi, [r14 + N_DATA]
+        mov rdx, rax
+        call emap_put
+        jmp 1b
+2:      mov rax, r12
+9:      LEAVE
+ENDF tr_bounds
 
 # dump_version(path) -> the version of the signature dump (sha256.s)
 FUNC tf_dump_version
@@ -1076,7 +1324,10 @@ FUNC tf_to_bytes
         call to_bytes
         mov rdi, rax
         mov rsi, rdx
-        call mk2
+        test rsi, rsi                   # (None)
+        jnz 1f
+        lea rsi, [rip + sp_none]
+1:      call mk2
         LEAVE
 ENDF tf_to_bytes
 

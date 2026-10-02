@@ -179,7 +179,10 @@ opcode_names:
         .quad .Lopname_172
         .quad .Lopname_173
         .quad .Lopname_174
-opcode_names_count: .quad 175
+        .quad .Lopname_175
+        .quad .Lopname_176
+        .quad .Lopname_177
+opcode_names_count: .quad 178
 .Lopname_0: .asciz "add"
 .Lopname_1: .asciz "mul"
 .Lopname_2: .asciz "sub"
@@ -355,9 +358,12 @@ opcode_names_count: .quad 175
 .Lopname_172: .asciz "staticcall.return_data"
 .Lopname_173: .asciz "sadd"
 .Lopname_174: .asciz "smul"
+.Lopname_175: .asciz "cleared"
+.Lopname_176: .asciz "bytes"
+.Lopname_177: .asciz "sbytes"
         .section .bss
         .align 8
         .globl opcode_nodes
         .hidden opcode_nodes
-opcode_nodes: .space 1408
+opcode_nodes: .space 1432
         .section .note.GNU-stack,"",@progbits

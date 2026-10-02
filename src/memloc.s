@@ -81,7 +81,7 @@ FUNC apply_mask_to_range
         mov [rsp + 16], rax             # size + offset, in bytes
         mov rdi, rax
         mov rsi, [rbx + N_DATA + 16]    # range_len
-        call alg_safe_le_op
+        call mem_safe_le_op
         cmp eax, TRI_TRUE
         jne .Lamr_fits
         # range_pos + (range_len - (size + offset)), size
@@ -112,7 +112,7 @@ FUNC row_lt
         ENTER
         mov rdi, [rdi + N_DATA + 8]
         mov rsi, [rsi + N_DATA + 8]
-        call alg_lt_op
+        call mem_lt_op
         mov edi, eax
         call must_compare
         cmp eax, TRI_TRUE
@@ -874,7 +874,7 @@ FUNC split_store
         # 0 <= s_off and s_size + s_off <= 256
         mov edi, 1
         mov rsi, [r12 + N_DATA + 8]
-        call alg_safe_le_op
+        call mem_safe_le_op
         cmp eax, TRI_TRUE
         jne .Lst_unusual
         mov rdi, [r12 + N_DATA]
@@ -882,7 +882,7 @@ FUNC split_store
         call alg_add2
         mov rdi, rax
         mov esi, (256 << 1) | 1
-        call alg_safe_le_op
+        call mem_safe_le_op
         cmp eax, TRI_TRUE
         jne .Lst_unusual
         # ignore writing the same to the same storage
@@ -971,12 +971,12 @@ FUNC memloc_overwrite_impl
         # no overlap when the split is after or before the memory
         mov rdi, [rsp + MO_M_RIGHT]
         mov rsi, [r12 + N_DATA + 8]
-        call alg_safe_le_op
+        call mem_safe_le_op
         cmp eax, TRI_TRUE
         je .Lmo_whole
         mov rdi, [rsp + MO_S_RIGHT]
         mov rsi, [rbx + N_DATA + 8]
-        call alg_safe_le_op
+        call mem_safe_le_op
         cmp eax, TRI_TRUE
         je .Lmo_whole
         mov rdi, [r12 + N_DATA + 8]
@@ -988,10 +988,10 @@ FUNC memloc_overwrite_impl
         call alg_sub_op
         mov [rsp + MO_RIGHT_LEN], rax
         mov rdi, [rsp + MO_LEFT_LEN]
-        call alg_safe_ge_zero
+        call mem_safe_ge_zero
         mov r13d, eax
         mov rdi, [rsp + MO_RIGHT_LEN]
-        call alg_safe_ge_zero
+        call mem_safe_ge_zero
         mov r14d, eax
         # we can't compare some numbers: conservatively the whole range
         cmp r13d, TRI_NONE
@@ -1057,7 +1057,7 @@ FUNC slice_exp
         call alg_add2
         mov rdi, rax
         mov rsi, [rsp + 8]
-        call alg_safe_le_op
+        call mem_safe_le_op
         cmp eax, TRI_TRUE
         jne .Lsl_none
         mov rdi, [rsp]
@@ -1084,7 +1084,7 @@ FUNC slice_exp
         call alg_add2
         mov rdi, rax
         mov rsi, [rsp + 16]
-        call alg_safe_le_op
+        call mem_safe_le_op
         cmp eax, TRI_TRUE
         jne .Lsl_none
         mov rdi, [rsp + 8]
@@ -1163,7 +1163,7 @@ FUNC splits_mem
         mov [rsp + SM_S_RIGHT], rax
         # a split of unknown sign is of undefined length
         mov rdi, [rsp + SM_S_LEN]
-        call alg_safe_ge_zero
+        call mem_safe_ge_zero
         cmp eax, TRI_TRUE
         je 1f
         LOADS rax, UNDEFINED
@@ -1175,21 +1175,21 @@ FUNC splits_mem
 1:      # no overlap when the split is after or before the memory
         mov rdi, [rsp + SM_M_RIGHT]
         mov rsi, [r12 + N_DATA + 8]
-        call alg_safe_le_op
+        call mem_safe_le_op
         cmp eax, TRI_TRUE
         je .Lsm_untouched
         mov rdi, [rsp + SM_S_RIGHT]
         mov rsi, [rbx + N_DATA + 8]
-        call alg_safe_le_op
+        call mem_safe_le_op
         cmp eax, TRI_TRUE
         je .Lsm_untouched
         mov rdi, [r12 + N_DATA + 8]
         mov rsi, [rbx + N_DATA + 8]
-        call alg_safe_max_op
+        call mem_max_op
         mov [rsp + SM_LEFT], rax        # (NIL for python's None)
         mov rdi, [rsp + SM_S_RIGHT]
         mov rsi, [rsp + SM_M_RIGHT]
-        call alg_safe_min_op
+        call mem_min_op
         mov [rsp + SM_RIGHT], rax
         # left/right relative to the beginning of the memory location
         mov rdi, [rsp + SM_LEFT]
@@ -1207,7 +1207,7 @@ FUNC splits_mem
         # we must be sure the split begins inside the memory
         mov rdi, [rsp + SM_IN_LEFT]
         mov rsi, [rbx + N_DATA + 16]
-        call alg_safe_le_op
+        call mem_safe_le_op
         cmp eax, TRI_TRUE
         jne .Lsm_unsure
         cmp qword ptr [rsp + SM_LEFT], 0
@@ -1217,7 +1217,7 @@ FUNC splits_mem
         call none_if_nil
         mov rdi, rax
         mov rsi, [rbx + N_DATA + 8]
-        call alg_safe_le_op
+        call mem_safe_le_op
         cmp eax, TRI_TRUE
         jne 8f
         cmp qword ptr [rsp + SM_IN_LEFT], 1
@@ -1252,7 +1252,7 @@ FUNC splits_mem
         call alg_sub_op
         mov r14, rax                    # right_len
         mov rdi, r13
-        call alg_safe_ge_zero
+        call mem_safe_ge_zero
         cmp eax, TRI_TRUE
         jne 3f
         cmp r13, 1
@@ -1273,13 +1273,13 @@ FUNC splits_mem
         # the part of the split value inside the memory location
         mov rdi, [rbx + N_DATA + 8]
         mov rsi, [r12 + N_DATA + 8]
-        call alg_safe_max_op
+        call mem_max_op
         mov rdi, rax
         call none_if_nil
         mov [rsp + SM_CLEFT], rax
         mov rdi, [rsp + SM_M_RIGHT]
         mov rsi, [rsp + SM_S_RIGHT]
-        call alg_safe_min_op
+        call mem_min_op
         mov rdi, rax
         call none_if_nil
         mov [rsp + SM_CRIGHT], rax
@@ -1329,7 +1329,7 @@ FUNC splits_mem
         call alg_mask_op
         mov [rsp + SM_CVAL], rax
 5:      mov rdi, [rsp + SM_CLEN]
-        call alg_safe_ge_zero
+        call mem_safe_ge_zero
         cmp eax, TRI_TRUE
         jne 6f
         cmp qword ptr [rsp + SM_CLEN], 1
@@ -1344,7 +1344,7 @@ FUNC splits_mem
         mov rsi, rax
         call vec_push
 6:      mov rdi, r14
-        call alg_safe_ge_zero
+        call mem_safe_ge_zero
         cmp eax, TRI_TRUE
         jne 7f
         cmp r14, 1
@@ -1486,23 +1486,23 @@ FUNC fill_mem
         # the split must overlap the memory for sure
         mov rdi, [rsp + FM_M_RIGHT]
         mov rsi, [r12 + N_DATA + 8]
-        call alg_safe_le_op
+        call mem_safe_le_op
         cmp eax, TRI_FALSE
         jne .Lfm_asis
         mov rdi, [rsp + FM_S_RIGHT]
         mov rsi, [r13 + N_DATA + 8]
-        call alg_safe_le_op
+        call mem_safe_le_op
         cmp eax, TRI_FALSE
         jne .Lfm_asis
         mov rdi, [r12 + N_DATA + 8]
         mov rsi, [r13 + N_DATA + 8]
-        call alg_safe_max_op
+        call mem_max_op
         mov [rsp + FM_LEFT], rax
         test rax, rax
         jz .Lfm_asis
         mov rdi, [rsp + FM_S_RIGHT]
         mov rsi, [rsp + FM_M_RIGHT]
-        call alg_safe_min_op
+        call mem_min_op
         mov [rsp + FM_RIGHT], rax
         test rax, rax
         jz .Lfm_asis
@@ -1552,7 +1552,7 @@ FUNC fill_mem
         mov rdi, [rsp + FM_RES_LEFT]
         call sizeof
         mov rdi, rax
-        call alg_safe_gt_zero
+        call mem_safe_gt_zero
         cmp eax, TRI_TRUE
         jne 3f
         mov rdi, [rsp + FM_RES]
@@ -1579,7 +1579,7 @@ FUNC fill_mem
         mov rdi, rax
         call sizeof
         mov rdi, rax
-        call alg_safe_ge_zero
+        call mem_safe_ge_zero
         cmp eax, TRI_TRUE
         jne .Lfm_center_assert
         mov rdi, [rsp + FM_RES]
@@ -1589,7 +1589,7 @@ FUNC fill_mem
         call sizeof
         mov [rsp + FM_TMP], rax
         mov rdi, rax
-        call alg_safe_ge_zero
+        call mem_safe_ge_zero
         cmp eax, TRI_TRUE
         jne 5f
         cmp qword ptr [rsp + FM_TMP], 1
@@ -1673,7 +1673,7 @@ FUNC range_overlaps_impl
         mov [rsp + 24], rax             # r2_end
         mov rdi, [rsp + 8]
         mov rsi, [rsp]
-        call alg_lt_op
+        call mem_lt_op
         cmp eax, TRI_CANNOT
         je .Lro_none
         cmp eax, TRI_TRUE
@@ -1688,7 +1688,7 @@ FUNC range_overlaps_impl
 1:      # r1 begins before r2 for sure now: they overlap unless r1 ends first
         mov rdi, [rsp + 16]
         mov rsi, [rsp + 8]
-        call alg_le_op
+        call mem_le_op
         cmp eax, TRI_CANNOT
         je .Lro_none
         cmp eax, TRI_TRUE
@@ -1722,14 +1722,14 @@ FUNC range_contains
         mov [rsp + 8], rax              # inner_end
         mov rdi, [rbx + N_DATA + 8]
         mov rsi, [r12 + N_DATA + 8]
-        call alg_le_op
+        call mem_le_op
         cmp eax, TRI_CANNOT
         je .Lrc_none
         cmp eax, TRI_TRUE
         jne .Lrc_false
         mov rdi, [rsp + 8]
         mov rsi, [rsp]
-        call alg_le_op
+        call mem_le_op
         cmp eax, TRI_CANNOT
         je .Lrc_none
         cmp eax, TRI_TRUE

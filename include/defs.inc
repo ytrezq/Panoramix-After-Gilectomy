@@ -113,13 +113,19 @@
 .set CTX_FUNC, 328          # the function being printed (sigs.s, function.s)
 .set CTX_STACK_LOW, 336     # the lowest rsp the recursions may reach (0: no limit)
 .set CTX_MEM_LIMIT, 344     # the bytes the arena may take (0: no limit)
-.set CTX_EVAL_POOL, 352     # 32 scratch mpz_t, one per depth, for variant_eval
-.set EVAL_POOL_DEPTH, 32
-.set CTX_ARENA_PEAK, 352 + 32 * MPZ_SIZEOF     # the most the arena took
+.set CTX_ARENA_PEAK, 352     # the most the arena took
 .set CTX_CHILD_LIMIT, CTX_ARENA_PEAK + 8        # CTX_MEM_LIMIT of the contexts it makes
-.set CTX_MEMO, CTX_ARENA_PEAK + 16              # the memo tables, 40 slots (see MEMO_*)
-.set CTX_AGZ, CTX_MEMO + 40 * 8                 # 8 scratch mpz_t for add_ge_zero's sums
-.set CTX_SIZE, CTX_AGZ + 8 * MPZ_SIZEOF
+.set CTX_MEMO, CTX_ARENA_PEAK + 16              # the memo tables, 64 slots (see MEMO_*)
+# what set_variables was given and what's made of it (ranges.s)
+.set CTX_VR_ARGS, CTX_MEMO + 64 * 8             # (vars, small), or 0 (none)
+.set CTX_VR_VARS, CTX_VR_ARGS + 8               # {name: values} (an emap), or 0
+.set CTX_VR_CYCLIC, CTX_VR_ARGS + 16            # the names a value of which is made of them (an emap)
+.set CTX_VR_SMALL, CTX_VR_ARGS + 24             # the words known to be small (an emap), or 0
+.set CTX_VR_VISITING, CTX_VR_ARGS + 32          # the names being looked at (an emap), or 0
+.set CTX_VR_SEEN_U, CTX_VR_ARGS + 40            # unchecked's seen (an emap, reused), or 0
+.set CTX_VR_SEEN_M, CTX_VR_ARGS + 48            # mentions_var's
+.set CTX_VR_NO_FMP, CTX_VR_ARGS + 56            # without a loader: no free memory pointer (the tests')
+.set CTX_SIZE, CTX_VR_ARGS + 64
 
 # error handler buffer (rt_err.s)
 .set ERR_RBX, 0
@@ -177,7 +183,8 @@
 .set LD_NJUMPDESTS, 56
 .set LD_FUNCS, 64           # list of (hash string, target, stack) (funcs.s)
 .set LD_FALLBACK_KNOWN, 72  # tuple: what holds in the default function
-.set LD_SIZEOF, 80
+.set LD_NO_FREE_MEM, 80     # u8: mem[64] isn't solidity's free memory pointer (variants.FREE_MEMORY_POINTER off)
+.set LD_SIZEOF, 88
 
 # one disassembled instruction
 .set IN_PC, 0               # u32
@@ -565,7 +572,7 @@ ENDF \fname
 
 # memo tables in the context (created lazily by memo_table)
 .set MEMO_SIMPLIFY, 0
-.set MEMO_GE_ZERO, 1
+.set MEMO_GE_ZERO, 1         # (not used: value_range's are)
 .set MEMO_LT, 2             # (not used: lt_op's questions came again 5 to 10% of the time)
 .set MEMO_LE, 3
 .set MEMO_MASK, 4
@@ -594,13 +601,19 @@ ENDF \fname
 .set MEMO_PP_CLEANUP, 27    # a list -> pp_cleanup_mul_1 of it, a tuple -> pp_cleanup_exp of it
 .set MEMO_REPLACE_MEM, 28   # (trace, mem_idx, mem_val) -> replace_mem's list (triples)
 .set MEMO_MEMLOC_OVERWRITE, 29 # (memloc, split) -> memloc_overwrite's list (pairs)
-.set MEMO_AGZ_FAMILY, 30    # an add's terms after its number -> their family's record (add_ge_zero)
+.set MEMO_AGZ_FAMILY, 30    # (not used: add_ge_zero's families, gone with it)
 .set MEMO_ADD_WRAPPED, 31   # (not used: MEMO_ADD2's entries keep whether add_op reduced its sum)
 .set MEMO_ADD_FAMILY, 32    # add_op's terms other than numbers -> their combination (num, terms)
 .set MEMO_AT_BOUNDS, 33     # (lines, pc) -> a loop's ranges (ranges_overlap_at_bounds: a vector)
 .set MEMO_LINE_SETVARS, 34  # a line -> the indices of its ('setvar', idx, v) (a tuple)
 .set MEMO_ADD2, 35          # (a, b) -> add_op(a, b) (pairs; the fourth word: CTX_ADD_WRAPPED)
-.set MEMO_COUNT, 36         # (at most 40: CTX_MEMO's slots)
+.set MEMO_VR_W, 36          # exp -> its value_range (lo, hi), top WORD_TOP (ranges.s)
+.set MEMO_VR_M, 37          # the same, top MEMORY_TOP (MEMO_VR_W + 1)
+.set MEMO_TR_W, 38          # a term -> its _term_range (lo, hi), top WORD_TOP
+.set MEMO_TR_M, 39          # the same, top MEMORY_TOP (MEMO_TR_W + 1)
+.set MEMO_UNCHECKED, 40     # a term -> _of_unchecked (MEMO_TRUE, MEMO_FALSE)
+.set MEMO_LE_M, 41          # (left, right) -> le_op(left, right, MEMORY_TOP) (pairs)
+.set MEMO_COUNT, 42         # (at most 64: CTX_MEMO's slots)
 # sentinel values stored in memo tables for python's None / False (values
 # and pointers are never 2 or 4)
 .set MEMO_NONE, 2

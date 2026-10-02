@@ -57,6 +57,7 @@ FUNC rt_init
         call ctx_bind
         call arith_init
         call alg_init
+        call ranges_init
         call arith_module_init
         call vm_module_init
         call matcher_init
@@ -636,8 +637,9 @@ FUNC ctx_compact
         .set CC_MEMOS, 16               # the old memo tables
         .set CC_OLD, CC_MEMOS + MEMO_COUNT * 8  # the old arena's end, total, table's cap, count, nodes,
                                         # and what points into it (the maps reused, the VM)
-        .set CC_NEW, CC_OLD + 64        # --explain's two traces (explain.s), imported
-        .set CC_ERR, CC_OLD + 80        # a handler: an error midway puts the old arena back
+        .set CC_NEW, CC_OLD + 64        # --explain's two traces (explain.s), and what
+                                        # set_variables was given (ranges.s), imported
+        .set CC_ERR, CC_OLD + 88        # a handler: an error midway puts the old arena back
         .set CC_FRAME, (CC_ERR + ERR_SIZEOF + 15) & -16
         sub rsp, CC_FRAME
         .set CC_FREED, 0
@@ -714,7 +716,13 @@ FUNC ctx_compact
         jz 4f
         call value_import
         mov [rsp + CC_NEW + 8], rax
-4:      # the memo tables worth keeping (see memo_kinds) are imported too:
+4:      mov qword ptr [rsp + CC_NEW + 16], 0
+        mov rdi, [r15 + CTX_VR_ARGS]
+        test rdi, rdi
+        jz 6f
+        call value_import
+        mov [rsp + CC_NEW + 16], rax
+6:      # the memo tables worth keeping (see memo_kinds) are imported too:
         # what they remember is recomputed dearly (the comparisons)
         mov qword ptr [rsp + CC_SLOT], 0
 1:      mov rcx, [rsp + CC_SLOT]
@@ -744,6 +752,10 @@ FUNC ctx_compact
         mov [rsp + CC_FREED], rax
         mov rdi, r13
         call free@PLT
+        # set_variables' tables, made again of what it was given
+        mov rax, [rsp + CC_NEW + 16]
+        mov [r15 + CTX_VR_ARGS], rax
+        call vr_rebuild
         mov edi, LOG_DEBUG
         lea rsi, [rip + .Ls_mem_logname]
         lea rdx, [rip + .Ls_compacted]
@@ -898,7 +910,7 @@ ENDF memo_import_pairs
         # what ctx_compact does with each memo table (MEMO_* order)
 memo_kinds:
         .byte 0                         # SIMPLIFY: values
-        .byte 2                         # GE_ZERO: codes
+        .byte 0                         # GE_ZERO (unused)
         .byte 0                         # LT (unused)
         .byte 3                         # LE (pairs)
         .byte 0                         # MASK
@@ -927,12 +939,18 @@ memo_kinds:
         .byte 0                         # PP_CLEANUP
         .byte 0                         # REPLACE_MEM (triples)
         .byte 0                         # MEMLOC_OVERWRITE (pairs)
-        .byte 1                         # AGZ_FAMILY (the records: tuples, or codes)
+        .byte 0                         # AGZ_FAMILY (unused)
         .byte 0                         # ADD_WRAPPED (unused)
         .byte 0                         # ADD_FAMILY
         .byte 0                         # AT_BOUNDS (vectors: dropped)
         .byte 0                         # LINE_SETVARS
         .byte 0                         # ADD2 (pairs)
+        .byte 1                         # VR_W: (lo, hi)
+        .byte 1                         # VR_M
+        .byte 1                         # TR_W
+        .byte 1                         # TR_M
+        .byte 2                         # UNCHECKED: codes
+        .byte 3                         # LE_M (pairs)
         .text
 
 # memo_sizes_log(): DEBUG: the number of entries of every memo table
@@ -975,27 +993,7 @@ FUNC ctx_init_mpz
         call __gmpz_init@PLT
         lea rdi, [r15 + CTX_MPZ_T]
         call __gmpz_init@PLT
-        xor r12d, r12d
-1:      cmp r12d, EVAL_POOL_DEPTH
-        jae 2f
-        mov rax, r12
-        shl rax, 4
-        lea rdi, [r15 + CTX_EVAL_POOL + rax]
-        mov esi, 512                    # bits: the variants' numbers, mostly
-        call __gmpz_init2@PLT
-        inc r12d
-        jmp 1b
-2:      xor r12d, r12d
-3:      cmp r12d, 8
-        jae 4f
-        mov rax, r12
-        shl rax, 4
-        lea rdi, [r15 + CTX_AGZ + rax]
-        mov esi, 512
-        call __gmpz_init2@PLT
-        inc r12d
-        jmp 3b
-4:      LEAVE
+        LEAVE
 ENDF ctx_init_mpz
 
 # --- GMP memory callbacks (C ABI, context from the pthread key) ---
