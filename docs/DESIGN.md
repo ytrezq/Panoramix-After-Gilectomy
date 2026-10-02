@@ -38,10 +38,12 @@ database, liblzma. Everything else is assembly (GNU as, Intel syntax).
     src/simplify_exp.s    simplify_exp and its helpers
     src/loops.s, cleanup.s, rewriter.s, simplify.s   the simplifier (simplify.py, postprocess.py)
     src/folder.s          the folder (folder.py)
-    src/sigs.s            signatures as the printer needs them, get_param_name, colors
+    src/sigs.s            signatures (utils/signatures.py): the abis, get_param_name,
+                          the params of tuples and arrays, the events of the logs
     src/sigdb.s           the signature database: abi_dump.xz -> a flat mmap'ed file,
                           built again when the dump changes (src/sha256.s: its version)
-    src/prettify.s, pretty_line.s   the printer (prettify.py)
+    src/prettify.s, pretty_line.s, pretty_mem.s   the printer (prettify.py): expressions
+                          with python's precedences, lines and loops, memory data
     src/function.s        Function (function.py)
     src/sparser.s         the storage (sparser.py)
     src/runtrace.s        a trace run on concrete values (runtrace.py): what checks the
@@ -423,10 +425,14 @@ AssertionError that ends the decompilation) - a mask of `True` fails
 number 1, prints the `bool` of size 1. `SAR` of two constants
 by 256 or more of a negative value names `UINT_255_NEGATIVE_ONE`, which
 python's arithmetic doesn't define (a NameError): the port gives -1. A
-string in memory data whose length is -64 to -95 makes python's
-`pretty_memory` loop forever (its index goes back by as much as it goes
-forward): the port raises the IndexError python raises for the longer
-negative lengths.
+string in memory data whose length was -64 to -95 made the earlier
+python's `pretty_memory` loop forever (its index went back by as much
+as it went forward); the current one reads the bytes of a string
+forward only, and the port with it. Its `data_bytes` makes
+`2 ** (8 * size)` for any size of bytes (a MemoryError, or a long wait,
+for a huge one; the port raises a MemoryError past 2^24 bytes, where
+python still makes them), and `to_bytes` raises a ValueError for a
+negative size down to -134 (`('bytes', -k, 0)`), as the port does.
 
 Checked again against that pull request's final python (all four
 corpora, 1116 contracts, pypy, `PANORAMIX_TIMEOUT=5`): the same texts

@@ -92,7 +92,7 @@ void pan_free(void *p);
 
 /* The signature database (function names), made once from panoramix's
  * data/abi_dump.xz. out_path: NULL for $PANORAMIX_SIGDB, or
- * $XDG_CACHE_HOME/panoramix/abi_db.bin, or ~/.cache/panoramix/abi_db.bin
+ * $XDG_CACHE_HOME/panoramix/abi_db3.bin, or ~/.cache/panoramix/abi_db3.bin
  * (where pan_decompile looks for it). Returns 0 on success. */
 int pan_build_sigdb(const char *xz_path, const char *out_path);
 

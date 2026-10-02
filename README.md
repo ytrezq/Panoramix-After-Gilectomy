@@ -84,7 +84,7 @@ From C: `build/libpanoramix_asm.so` and `include/panoramix_asm.h`
 `pan_fetch_code`, `pan_build_sigdb`...; `make check` runs an example).
 
 The signature database goes to `$PANORAMIX_SIGDB`, or
-`$XDG_CACHE_HOME/panoramix/abi_db.bin`, or `~/.cache/panoramix/abi_db.bin`.
+`$XDG_CACHE_HOME/panoramix/abi_db3.bin`, or `~/.cache/panoramix/abi_db3.bin`.
 As python's, it is built again when the dump it was made from changes
 (`$PANORAMIX_ABI_DUMP`, or the dump `build-db` was given), and built
 from `$PANORAMIX_ABI_DUMP` when there is none.
