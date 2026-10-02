@@ -371,7 +371,7 @@ FUNC tf_entry_helper
         LEAVE
 ENDF tf_entry_helper
 
-# vm_func((hexcode, hash)): the trace of the function `hash` (its string:
+# vm_func((hexcode, hash[, flags])): the trace of the function `hash` (its string:
 # '0x12345678' or '_fallback'), as the decompiler gets it - the loader's
 # functions found (loader_find_functions), the VM run from the function's
 # target (past its jumpdest) with what the dispatcher did before it
@@ -380,7 +380,12 @@ FUNC tf_vm_func
         ENTER
         sub rsp, 96                     # the error handler, the loader, the result
         mov rbx, rdi
-        mov rdi, [rbx + N_DATA]
+        cmp dword ptr [rbx + N_AUX], 3  # (python's --verbose, --explain: VB_*)
+        jb 1f
+        mov rax, [rbx + N_DATA + 16]
+        sar rax, 1
+        mov [r15 + CTX_VERBOSE], rax
+1:      mov rdi, [rbx + N_DATA]
         call tv_loader
         mov [rsp + 72], rax
         mov r12, rax

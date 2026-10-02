@@ -2,7 +2,7 @@
 """Differential test of the symbolic VM: the raw traces of panoramix.vm.VM
 against vm.s, on the corpus.
 
-    tests/test_vm.py [--functions] [--loader] [FILE.hex...]
+    tests/test_vm.py [--functions [--verbose|--explain]] [--loader] [FILE.hex...]
 
 Without options: the dispatcher's run (just_fdests, from 0, entry=() as
 Loader.run makes it). --loader: what Loader.run finds - the functions, what
@@ -102,6 +102,13 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     funcs = "--functions" in args
     loader_mode = "--loader" in args
+    # the lines of assembly in the traces: python reads sys.argv
+    flags = 0
+    if "--verbose" in args:
+        flags = 1
+    if "--explain" in args:
+        flags = 3
+    sys.argv = [sys.argv[0]] + (["--verbose"] if flags == 1 else ["--explain"] if flags == 3 else [])
     args = [a for a in args if not a.startswith("--")]
     files = args or sorted(glob.glob(CORPUS + "/*.hex"))
     bad = skipped = 0
@@ -125,7 +132,7 @@ if __name__ == "__main__":
             continue
         for hash, target, stack in expected[0]:
             r = compare(f"{name} {hash}", lambda: py_function(loader, hash, target, stack),
-                        lambda: A._test("vm_func", repr((code, hash))))
+                        lambda: A._test("vm_func", repr((code, hash, flags))))
             bad += r is False
             skipped += r is None
     print("failures:", bad, " skipped:", skipped)
