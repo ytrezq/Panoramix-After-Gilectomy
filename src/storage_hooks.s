@@ -37,6 +37,7 @@ sth_table:
         .quad .Lh_good_name, sth_good_name
         .quad .Lh_getter_name, sth_getter_name
         .quad .Lh_bytes_tail, sth_bytes_tail
+        .quad .Lh_make_ast_folded, sth_make_ast_folded
         .quad 0, 0
 
         .section .rodata
@@ -69,6 +70,7 @@ sth_table:
 .Lh_good_name:  .asciz "good_name"
 .Lh_getter_name: .asciz "getter_name"
 .Lh_bytes_tail: .asciz "bytes_tail"
+.Lh_make_ast_folded: .asciz "make_ast_folded"
 .Ls_fail:       .asciz "Fail"
 .Ls_unknown:    .asciz "no such storage hook"
 .Ls_vyper:      .asciz "vyper"
@@ -731,5 +733,14 @@ FUNC sth_bytes_tail
         call sth_none
         LEAVE
 ENDF sth_bytes_tail
+
+# ('make_ast_folded', trace) -> contract.make_ast of a folded trace
+FUNC sth_make_ast_folded
+        ENTER
+        mov rbx, rdi
+        ARG rdi, 0
+        call make_ast_folded
+        LEAVE
+ENDF sth_make_ast_folded
 
         .section .note.GNU-stack,"",@progbits

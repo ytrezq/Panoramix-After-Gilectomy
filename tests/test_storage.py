@@ -621,7 +621,37 @@ def t_names():
         run("pretty_def", S.pretty_def, d)
 
 
-TESTS = [t_whole, t_bytes_tail, t_names, t_worlds, t_checks, t_hash_constant, t_parse, t_linear, t_packed, t_typeof, t_form, t_raw, t_layout, t_trace_functions]
+def t_make_ast():
+    """contract.make_ast past the fold (fix_widths, other_1, other_2), on
+    python's folded traces of the storage's results"""
+    import panoramix.contract as C
+    import panoramix.folder as folder
+    from panoramix.postprocess import short_circuits
+
+    class NoFold:
+        fold = staticmethod(lambda t: t)
+
+    for name, cap in CAPTURED[: max(5, N // 10)]:
+        fs = [F(copy.deepcopy(d)) for d in cap["functions"]]
+        try:
+            S.rewrite_functions(fs, cap["code"])
+        except Exception:
+            continue
+        for f in fs:
+            try:
+                folded = folder.fold(short_circuits(f.trace))
+            except Exception:
+                continue
+            saved = C.short_circuits, C.folder
+            C.short_circuits, C.folder = (lambda t: t), NoFold
+            try:
+                p = py(lambda t: C.Contract({}, {}).make_ast(t), folded)
+            finally:
+                C.short_circuits, C.folder = saved
+            check("make_ast_folded", (name, f.name), p, asm("make_ast_folded", folded))
+
+
+TESTS = [t_make_ast, t_whole, t_bytes_tail, t_names, t_worlds, t_checks, t_hash_constant, t_parse, t_linear, t_packed, t_typeof, t_form, t_raw, t_layout, t_trace_functions]
 
 if __name__ == "__main__":
     for t in TESTS:
