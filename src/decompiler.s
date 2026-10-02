@@ -181,11 +181,6 @@ FUNC decompile_worker
         mov rdi, [r12 + JB_TARGET]
         mov rsi, r13
         mov rdx, [rsp + DW_TMP]
-        # TODO(vm): python's VM(loader).run(..., entry=loader.entry(hash),
-        # memory=entry_memory(loader.entries.get(hash))) - what runs before
-        # the function's start (its entry's lines, first in the trace) and
-        # what's known of the memory then: the VM's port (vm.s, loader.s)
-        # gives vm_run those arguments
         call vm_run
         mov r13, rax
         call .Ldw_check_deadline
@@ -582,9 +577,6 @@ FUNC decompile
         call vec_to_list
         mov rsi, rax
         mov rdi, [rsp + DE_FUNCS]
-        # TODO(storage): python's Contract(..., code=bytes(loader.binary or
-        # [])), the code for the storage's checks (runtrace) - contract_new
-        # can take it from CTX_LOADER's LD_CODE / LD_CODELEN
         call contract_new
         mov [rsp + DE_CONTRACT], rax
         mov rdi, rax
@@ -1078,10 +1070,6 @@ FUNC contract_text
         je 5f
         call .Lct_newline
 5:      # the storage
-        # TODO(storage): python prints `def storage (vyper):` for a Vyper
-        # contract (contract.lang, from storage.rewrite_functions) and each
-        # definition with storage.pretty_def (the PR's definitions:
-        # ('def', name, slot, off, type)) - the storage's port gives them
         mov r13, [rbx + CT_STOR_DEFS]
         cmp dword ptr [r13 + N_AUX], 0
         je 7f
