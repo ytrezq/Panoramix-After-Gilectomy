@@ -32,7 +32,7 @@
 .set BT_NWORLDS, 24
 .set BT_ORIG, 32                # BR_* records
 .set BT_M, 40                   # the machine
-.set BT_WORDS, 48               # a map: slot -> word (the words of the bytes)
+.set BT_WORDS, 48               # an emap: slot -> word (the words of the bytes)
 .set BT_CONTENT, 56             # the world being run
 .set BT_CLEN, 64
 .set BT_REACHED, 72
@@ -57,7 +57,7 @@ bt_lengths:     .quad 0, 1, 2, 30, 31, 32, 33, 63, 64, 65, 96, 97, 300
 FUNC bt_sload
         ENTER
         mov rdi, [rdi + BT_WORDS]
-        call map_get
+        call emap_get
         test rax, rax
         jz 1f
         LEAVE
@@ -145,8 +145,8 @@ FUNC bt_run
         mov rax, [r12 + BW_CLEN]
         mov [rbx + BT_CLEN], rax
         mov qword ptr [rbx + BT_REACHED], 0
-        call map_new
-        mov [rbx + BT_WORDS], rax
+        mov rdi, [rbx + BT_WORDS]       # (python's words = {}: the map emptied)
+        call emap_begin
         mov rdi, [rbx + BT_M]
         mov rsi, [r12 + BW_CD]
         mov rdx, [r12 + BW_CDLEN]
@@ -177,7 +177,7 @@ FUNC bt_run
         mov rdx, rax
         mov rdi, [rbx + BT_WORDS]
         mov rsi, [rsp + BU_SLOT]
-        call map_put
+        call emap_put
         jmp 4f
 2:      # a long one: 2 * length + 1, the words at keccak(slot) + i
         lea rdx, [r13 + r13 + 1]
@@ -186,7 +186,7 @@ FUNC bt_run
         mov rdx, rax
         mov rdi, [rbx + BT_WORDS]
         mov rsi, [rsp + BU_SLOT]
-        call map_put
+        call emap_put
         mov rdi, [rsp + BU_SLOT]
         call rt_keccak_word
         mov [rsp + BU_BASE], rax
@@ -222,7 +222,7 @@ FUNC bt_run
         mov rdi, [rbx + BT_WORDS]
         mov rsi, rax
         mov rdx, r14
-        call map_put
+        call emap_put
         inc qword ptr [rsp + BU_I]
         jmp 3b
 4:      mov rdi, [rbx + BT_M]
@@ -781,6 +781,8 @@ FUNC st_bytes_tail
         mov r14, rax
         mov [r14 + BT_TRACE], rbx
         mov [r14 + BT_KEY], r12
+        call emap_new
+        mov [r14 + BT_WORDS], rax
         mov rdi, r14
         mov rsi, rbx
         mov rdx, r13

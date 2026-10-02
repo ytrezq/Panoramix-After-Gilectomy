@@ -514,7 +514,11 @@ def fn_tuple(d):
 def rewrite_functions(code_hex, fns):
     fs = [F({"hash": h, "name": n, "trace": t, "getter": g, "returns": r, "read_only": ro})
           for h, n, t, g, r, ro in fns]
-    lang, defs = S.rewrite_functions(fs, bytes.fromhex(code_hex) if code_hex is not None else None)
+    try:
+        lang, defs = S.rewrite_functions(fs, bytes.fromhex(code_hex) if code_hex is not None else None)
+    except S.Fail:
+        # (a Fail that nothing catches: raw's, of a write of a length)
+        raise FailExc()
     return (lang, defs, [f.trace for f in fs])
 
 
@@ -533,6 +537,8 @@ def regroup_asm(fns, lang):
 
 
 def t_whole():
+    if os.environ.get("STORAGE_QUICK"):
+        return
     for name, cap in CAPTURED:
         fns = [fn_tuple(d) for d in cap["functions"]]
         code = cap["code"].hex() if cap["code"] is not None else None
@@ -651,7 +657,121 @@ def t_make_ast():
             check("make_ast_folded", (name, f.name), p, asm("make_ast_folded", folded))
 
 
-TESTS = [t_make_ast, t_whole, t_bytes_tail, t_names, t_worlds, t_checks, t_hash_constant, t_parse, t_linear, t_packed, t_typeof, t_form, t_raw, t_layout, t_trace_functions]
+# ---------------------------------------------------------------------------
+# random contracts: functions reading and writing the storage as compilers do
+
+KEYS = [("mask_shl", 160, 0, 0, ("cd", 4)), ("cd", 36), "caller", ("var", "x"), ("cd", 4),
+        ("mask_shl", 256, 0, 0, ("cd", 68)), ("param", "id"), 7]
+INDEXES = [("cd", 4), ("var", "i"), ("cd", 36), ("mask_shl", 255, 0, 1, ("cd", 4)), ("add", 1, ("cd", 4)), 3, 0]
+
+
+def rkey():
+    k = rnd.choice(KEYS)
+    return ("bytes", 32, k) if rnd.random() < 0.6 and type(k) != int else k
+
+
+def rhash(parts, vyper):
+    if rnd.random() < 0.15:
+        return ("sha3",) + tuple(parts)
+    return ("sha3", ("data",) + tuple(parts))
+
+
+def rplace(vyper, d=0):
+    """a slot as a compiler computes it"""
+    n = rnd.choice([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 2**160, rnd.randrange(2**256)])
+    r = rnd.random()
+    if d > 2 or r < 0.25:
+        return n
+    if r < 0.45:   # a mapping
+        inner = rplace(vyper, d + 1) if rnd.random() < 0.3 else n
+        parts = [inner, rkey()] if vyper else [rkey(), inner]
+        return rhash(parts, vyper)
+    if r < 0.6:    # an element of an array: keccak(slot) + index
+        stride = rnd.choice([1, 1, 2, 3])
+        i = rnd.choice(INDEXES)
+        off = i if stride == 1 else ("mul", stride, i)
+        if rnd.random() < 0.3:
+            off = ("add", rnd.randrange(stride), off) if stride > 1 else off
+        return ("add", off, ("sha3", n)) if rnd.random() < 0.5 else ("add", ("sha3", n), off)
+    if r < 0.7:    # a member of a struct
+        return ("add", rnd.randrange(1, 4), rplace(vyper, d + 1))
+    if r < 0.8:    # a fixed array
+        return ("add", n, rnd.choice(INDEXES))
+    if r < 0.88:   # a hash written as a number
+        from panoramix.storage import keccak, w32
+        return keccak(w32(n % 16)) + rnd.choice([0, 0, 1, 2])
+    return ("length", ("loc", n))
+
+
+def raccess(vyper):
+    idx = rplace(vyper)
+    size, off = rnd.choice([(256, 0), (256, 0), (160, 0), (8, 0), (8, 160), (1, 0), (248, 8), (255, 1), (7, 1),
+                            (8, 8), (16, 16), (32, 224), (8, ("mask_shl", 5, 0, 3, ("cd", 4))), (64, 64),
+                            (("cd", 4), 0), (96, 160), (128, 128)])
+    return size, off, idx
+
+
+def rline(vyper, getter):
+    r = rnd.random()
+    size, off, idx = raccess(vyper)
+    if r < 0.3:
+        return ("setvar", "_" + str(rnd.randrange(5)), ("storage", size, off, idx))
+    if r < 0.6 and not getter:
+        val = rnd.choice([0, 1, ("cd", 36), ("add", 1, ("storage", size, off, idx)), 2**160 - 1, "caller", 5])
+        if S.opcode(idx) == "length" and rnd.random() < 0.9:
+            idx = idx[1][1]
+        return ("store", size, off, idx, val)
+    if r < 0.7:
+        return ("if", ("lt", rnd.choice(INDEXES[:3]), rnd.choice([3, 4, 10, 32])), [rline(vyper, getter)], [("revert", None)])
+    if r < 0.8:
+        return ("if", ("iszero", ("storage", size, off, idx)), [("revert", None)], [rline(vyper, getter)])
+    return ("setvar", "_9", ("add", 1, ("storage", size, off, idx)))
+
+
+NAMES = ["balanceOf", "getOwner", "owner", "totalSupply", "data", "items", "getBalance", "_hidden", "stor5",
+         "allowance", "unknown12345678", "users", "Mask", "if", "x", "config", "getX", "values", "getvalue"]
+
+
+def rcontract():
+    vyper = rnd.random() < 0.3
+    fns = []
+    for k in range(rnd.randrange(1, 9)):
+        getter = rnd.random() < 0.5
+        trace = [rline(vyper, getter) for _ in range(rnd.randrange(0, 5))]
+        g = None
+        returns = []
+        if getter:
+            size, off, idx = raccess(vyper)
+            ret = ("storage", size, off, idx)
+            form = rnd.random()
+            if form < 0.2:
+                ret = ("bool", ret)
+            elif form < 0.35:
+                ret = ("mask_shl", size if type(size) == int else 256, 0, 0, ret)
+            elif form < 0.45:
+                ret = ("bytes", 32, ret)
+            line = ("return", ret)
+            trace.append(line)
+            returns = [line]
+            g = ("storage", size, off, idx) if rnd.random() < 0.9 else ("struct", ("loc", rnd.randrange(5)))
+        else:
+            trace.append(("stop",))
+        read_only = not any("store" in repr(l) for l in trace)
+        name = rnd.choice(NAMES) + ("(%s)" % rnd.choice(["", "uint256", "address", "address,address"]))
+        fns.append(("0x%08x" % rnd.randrange(2**32), name, trace, g, returns, read_only))
+    code = rnd.choice([None, "", "a165627a7a72305820", "6576797065728300", "0011"])
+    return code, fns
+
+
+def t_random_whole():
+    for k in range(N):
+        code, fns = rcontract()
+        if ONLY and ONLY != "rewrite_functions":
+            continue
+        check("rewrite_functions", (code, fns), py(rewrite_functions, code, fns), asm("rewrite_functions", code, fns))
+
+
+TESTS = [t_random_whole, t_make_ast, t_whole, t_bytes_tail, t_names, t_worlds, t_checks, t_hash_constant, t_parse, t_linear, t_packed, t_typeof, t_form, t_raw, t_layout, t_trace_functions]
 
 if __name__ == "__main__":
     for t in TESTS:

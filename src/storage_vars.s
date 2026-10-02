@@ -2296,6 +2296,32 @@ FUNC st_getter_path
         LEAVE
 ENDF st_getter_path
 
+# st_int_add_checked(a, b) -> value: python's a + b of two ints, its
+# TypeError for anything else (an expression)
+FUNC st_int_add_checked
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call is_int
+        test eax, eax
+        jz 1f
+        mov rdi, r12
+        call is_int
+        test eax, eax
+        jz 1f
+        mov rdi, rbx
+        mov rsi, r12
+        call int_add
+        LEAVE
+1:      mov edi, E_TYPE
+        lea rsi, [rip + .Ls_add_type]
+        call err_throw
+ENDF st_int_add_checked
+
+        .section .rodata
+.Ls_add_type:   .asciz "unsupported operand type(s) for +"
+        .text
+
 # st_fn_name_lt(a, b, arg) -> eax: a.name < b.name
 FUNC st_fn_name_lt
         mov rdi, [rdi + FN_NAME]
@@ -2442,7 +2468,7 @@ FUNC sg_names
         mov rax, [rsp + NA_A]           # ('field', n, off, off + size)
         mov rdi, [rax + N_DATA + 8]
         mov rsi, [rax + N_DATA]
-        call int_add
+        call st_int_add_checked
         mov rcx, rax
         mov rax, [rsp + NA_A]
         mov rdx, [rax + N_DATA + 8]
