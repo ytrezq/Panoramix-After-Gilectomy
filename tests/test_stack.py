@@ -58,6 +58,13 @@ for n in range(N):
     a = rexp()
     check("to_mask", repr(a), run(M.to_mask, a))
     check("to_neg_mask", repr(a), run(M.to_neg_mask, a))
+    # with bounds: what's known of what num is made of (vm's)
+    e = random.choice([("cd", 4), ("var", 1), ("add", 3, ("cd", 4)), ("mul", 2, ("cd", 36))])
+    b = random.choice([None, ((("cd", 4), 0, 31),), ((("cd", 4), -1, 8),), ((("var", 1), 0, 2**256),), ((("cd", 36), 0, 100),)])
+    num = random.choice([("sub", ("exp", 2, e), 1), ("sub", ("exp", 256, e), 1), ("add", -1, ("exp", 2, e)), ("not", ("sub", ("exp", 2, e), 1)), a])
+    bd = None if b is None else {x: (lo, hi) for x, lo, hi in b}
+    check("to_mask_b", repr((num, b)), run(M.to_mask, num, bd))
+    check("to_neg_mask_b", repr((num, b)), run(M.to_neg_mask, num, bd))
     check("stack_simplify", repr(a), run(Stack.simplify, a))
     # cleanup on a random stack
     st = [rexp() for _ in range(random.randint(0, 5))]

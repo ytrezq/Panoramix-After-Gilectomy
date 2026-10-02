@@ -84,6 +84,7 @@ FUNC stack_simplify_impl
         jmp .Lssi_asis
 .Lssi_and:
         mov rdi, r13
+        xor esi, esi                    # (no bounds)
         call to_mask
         test rax, rax
         jz 2f
@@ -94,6 +95,7 @@ FUNC stack_simplify_impl
         call alg_mask_op
         LEAVE
 2:      mov rdi, r14
+        xor esi, esi                    # (no bounds)
         call to_mask
         test rax, rax
         jz 3f
@@ -104,6 +106,7 @@ FUNC stack_simplify_impl
         call alg_mask_op
         LEAVE
 3:      mov rdi, r13
+        xor esi, esi                    # (no bounds)
         call to_neg_mask
         test rax, rax
         jz 4f
@@ -112,6 +115,7 @@ FUNC stack_simplify_impl
         call alg_neg_mask_op
         LEAVE
 4:      mov rdi, r14
+        xor esi, esi                    # (no bounds)
         call to_neg_mask
         test rax, rax
         jz .Lssi_asis

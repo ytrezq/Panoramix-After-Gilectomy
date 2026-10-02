@@ -40,7 +40,7 @@ x y z sth t a b c LOOP_UPPER push_int merged_if loop
 gas_remaining
 erecover sha256hash ripemd160hash bigModExp bn256Add bn256ScalarMul bn256Pairing
 staticcall.return_data sadd smul
-cleared bytes sbytes
+cleared bytes sbytes tload tstore mcopy blobhash blobbasefee codecall land lor
 """.split()
 
 

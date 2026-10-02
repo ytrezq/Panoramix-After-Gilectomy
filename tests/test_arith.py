@@ -41,14 +41,35 @@ def rarg(depth=0):
 BIN = ["add", "sub", "mul", "div", "sdiv", "mod", "smod", "exp", "signextend", "shl", "shr", "sar", "and", "or", "xor", "byte", "eq", "lt", "gt", "le", "ge", "slt", "sgt", "sle", "sge"]
 
 def rexp(depth=0):
-    op = random.choice(BIN + ["not", "addmod", "mulmod", "and", "iszero", "bool", "mask_shl"])
+    op = random.choice(BIN + ["not", "addmod", "mulmod", "and", "iszero", "bool", "mask_shl", "nary", "land", "lor", "storage1"])
     if op == "not": return ("not", rarg(depth))
     if op in ("addmod", "mulmod"): return (op, rarg(depth), rarg(depth), rarg(depth))
     if op == "iszero": return ("iszero", rarg(depth))
     if op == "bool": return ("bool", rarg(depth))
-    if op == "mask_shl": return ("mask_shl", rint(), rint(), rint(), rarg(depth))
+    if op == "mask_shl":
+        if random.random() < 0.3:
+            return ("mask_shl", 1, random.choice([0, 3, 255, True]), random.choice([0, -3, -255, 3]), rarg(depth))
+        return ("mask_shl", rint(), rint(), rint(), rarg(depth))
     if op == "and" and random.random() < 0.3: return ("and", rarg(depth), rarg(depth), rarg(depth))
+    if op == "nary":
+        # add, mul, or, xor of any number of operands (python's n-ary ones)
+        return (random.choice(["add", "mul", "or", "xor"]),) + tuple(rarg(depth) for _ in range(random.randint(0, 4)))
+    if op in ("land", "lor"):
+        return (op,) + tuple(rarg(depth) for _ in range(random.randint(1, 3)))
+    if op == "storage1":
+        return ("storage", random.choice([1, 1, 8, True]), random.choice([0, 5, -1]), 3)
     return (op, rarg(depth), rarg(depth))
+
+def rread():
+    """reads of the state, for changed_reads"""
+    return random.choice([("storage", 256, 0, 5), ("storage", 8, 0, ("sha3", 1, 2)), ("storage", 160, 0, rint() % 7),
+                          ("storage", 256, 0, ("add", 1, ("sha3", 5))), ("tload", 3), ("tload", ("cd", 4)), ("balance", "caller"),
+                          ("extcodesize", ("cd", 4)), "returndatasize", ("ext_call.return_data", 0, 32), ("delegate.return_data", 0, 32),
+                          ("ext_call.success",), "ext_call.gas", ("create.new_address",), ("memcopy.success",), ("x.result",), "callvalue", ("cd", 4)])
+
+def rstate(depth=0):
+    if depth > 2 or random.random() < 0.4: return rread()
+    return (random.choice(["add", "mul", "iszero", "eq"]),) + tuple(rstate(depth + 1) for _ in range(random.randint(1, 3)))
 
 def norm(v):
     # python bools print as True/False in repr, ints as ints: our side does the same
@@ -74,6 +95,17 @@ for n in range(N):
     bad += check("simplify_bool", P.simplify_bool, lambda a: A._test("simplify_bool", repr(a)), e, n)
     x = rint()
     bad += check("to_real_int", P.to_real_int, lambda a: A._test("to_real_int", repr(a)), x, n)
+    bad += check("is_bool", P.is_bool, lambda a: A._test("is_bool", repr(a)), e, n)
+    kt = random.choice([True, rexp(), ("le", ("cd", 4), rarg()), ("lt", ("cd", 4), rarg()), ("bool", rexp())])
+    ex = random.choice([e, ("le", ("cd", 4), rarg()), ("lt", ("cd", 4), rarg()), ("gt", rarg(), rarg()), ("ge", rarg(), rarg()), rint()])
+    for sym in (True, False):
+        bad += check("eval_bool", lambda a: P.eval_bool(*a), lambda a: A._test("eval_bool", repr(a)), (ex, kt, sym), n)
+    st = rstate()
+    bad += check("state_read", P.state_read, lambda a: A._test("state_read", repr(a)), st, n)
+    sa, sb = random.choice([rint() % 2**70, ("sha3", 1), ("add", 5, ("sha3", 2)), ("cd", 4), -3, 7]), random.choice([rint() % 2**70, ("sha3", 1), ("add", 5, ("sha3", 2)), ("cd", 4), 7])
+    bad += check("may_alias", lambda a: P.may_alias(*a), lambda a: A._test("may_alias", repr(a)), (sa, sb), n)
+    op = random.choice(["sstore", "store", "tstore", "staticcall", "call", "callcode", "delegatecall", "create", "create2", "mstore", "codecall"])
+    bad += check("changed_reads", lambda a: tuple(P.changed_reads(*a)), lambda a: A._test("changed_reads", repr(a)), (st, op, random.choice([5, 3, ("cd", 4), ("sha3", 1, 2), 0])), n)
     if bad > 10:
         break
 print("mismatches:", bad)

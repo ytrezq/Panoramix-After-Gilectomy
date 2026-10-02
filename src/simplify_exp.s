@@ -996,12 +996,14 @@ FUNC simplify_mask
         test eax, eax
         jz 2f
         B rdi, 0
+        xor esi, esi                    # (no bounds)
         call to_mask
         test rax, rax
         jz 11f
         B rdi, 1
         jmp 14f
 11:     B rdi, 1
+        xor esi, esi                    # (no bounds)
         call to_mask
         test rax, rax
         jz 12f
@@ -1012,12 +1014,14 @@ FUNC simplify_mask
         call alg_mask_op
         jmp .Lsm_done
 12:     B rdi, 0
+        xor esi, esi                    # (no bounds)
         call to_neg_mask
         test rax, rax
         jz 13f
         B rdi, 1
         jmp 15f
 13:     B rdi, 1
+        xor esi, esi                    # (no bounds)
         call to_neg_mask
         test rax, rax
         jz .Lsm_asis

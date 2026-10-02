@@ -182,7 +182,15 @@ opcode_names:
         .quad .Lopname_175
         .quad .Lopname_176
         .quad .Lopname_177
-opcode_names_count: .quad 178
+        .quad .Lopname_178
+        .quad .Lopname_179
+        .quad .Lopname_180
+        .quad .Lopname_181
+        .quad .Lopname_182
+        .quad .Lopname_183
+        .quad .Lopname_184
+        .quad .Lopname_185
+opcode_names_count: .quad 186
 .Lopname_0: .asciz "add"
 .Lopname_1: .asciz "mul"
 .Lopname_2: .asciz "sub"
@@ -361,9 +369,17 @@ opcode_names_count: .quad 178
 .Lopname_175: .asciz "cleared"
 .Lopname_176: .asciz "bytes"
 .Lopname_177: .asciz "sbytes"
+.Lopname_178: .asciz "tload"
+.Lopname_179: .asciz "tstore"
+.Lopname_180: .asciz "mcopy"
+.Lopname_181: .asciz "blobhash"
+.Lopname_182: .asciz "blobbasefee"
+.Lopname_183: .asciz "codecall"
+.Lopname_184: .asciz "land"
+.Lopname_185: .asciz "lor"
         .section .bss
         .align 8
         .globl opcode_nodes
         .hidden opcode_nodes
-opcode_nodes: .space 1432
+opcode_nodes: .space 1496
         .section .note.GNU-stack,"",@progbits

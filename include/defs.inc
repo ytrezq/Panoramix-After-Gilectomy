@@ -49,7 +49,8 @@
 
 .set STR_VOLATILE, 0x80000000  # in a string's aux: mentions volatile state
 .set STR_FLOAT, 0x40000000     # in a string's aux: a python float ("0.5"), printed bare
-.set STR_ID_MASK, 0x3fffffff
+.set STR_CALLRES, 0x20000000   # in a string's aux: names a call's result (CALL_RESULTS)
+.set STR_ID_MASK, 0x1fffffff
 
 .set SP_NONE, 1
 .set SP_TRUE, 2

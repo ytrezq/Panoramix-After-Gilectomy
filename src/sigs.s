@@ -50,7 +50,7 @@ type_masks:
         .quad .Ls_uint32, 32
         .quad .Ls_uint64, 64
         .quad .Lt_int8, 8
-        .quad .Lt_bytes1, 1
+        .quad .Lt_bytes1, 8
         .quad .Lt_int16, 16
         .quad .Lt_bytes2, 16
         .quad .Lt_int32, 32

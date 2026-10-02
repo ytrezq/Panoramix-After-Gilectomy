@@ -213,6 +213,10 @@ FUNC str_scan_flags
         vpcmpeqb ymm3, ymm1, [rip + .Lsv_r]
         vpand ymm2, ymm2, ymm3          # .r
         vpor ymm4, ymm4, ymm2
+        vpcmpeqb ymm2, ymm0, [rip + .Lsv_t]
+        vpcmpeqb ymm3, ymm1, [rip + .Lsv_l]
+        vpand ymm2, ymm2, ymm3          # tl
+        vpor ymm4, ymm4, ymm2
         vpmovmskb eax, ymm4
         vzeroupper                      # (memcmp is SSE code)
         test eax, eax
@@ -292,6 +296,12 @@ FUNC str_scan_flags
         pcmpeqb xmm3, [rip + .Lsv_r]
         pand xmm2, xmm3
         por xmm4, xmm2                  # .r
+        movdqa xmm2, xmm0
+        pcmpeqb xmm2, [rip + .Lsv_t]
+        movdqa xmm3, xmm1
+        pcmpeqb xmm3, [rip + .Lsv_l]
+        pand xmm2, xmm3
+        por xmm4, xmm2                  # tl
         pmovmskb eax, xmm4
         test eax, eax
         jz .Lsf_next_chunk16
@@ -392,9 +402,13 @@ FUNC str_scan_flags
         test eax, eax
         jnz 2b
         mov rax, [rsp + 16 + SF_NAME]
-        mov rax, [rax + 16]             # the name's HF flags
-        or [rsp + 16 + SF_HF], rax
-        mov dword ptr [rsp + 16 + SF_VOLATILE], STR_VOLATILE
+        mov rax, [rax + 16]             # the name's HF flags, and its STR ones
+        mov rcx, rax
+        shr rcx, HF_SHIFT
+        shl rcx, HF_SHIFT
+        or [rsp + 16 + SF_HF], rcx
+        or eax, STR_VOLATILE
+        or [rsp + 16 + SF_VOLATILE], eax
         jmp 2b
 7:      add rsp, 8
 8:      ret
@@ -413,24 +427,27 @@ ENDF str_scan_flags
 .Lsv_n:   .fill 32, 1, 'n'
 .Lsv_m:   .fill 32, 1, 'm'
 .Lsv_dot: .fill 32, 1, '.'
+.Lsv_l:   .fill 32, 1, 'l'
         .text
 
         .section .data.rel.ro
         .align 8
-scan_names:                             # (text, length, HF flags), in the order of scan_first's bits
+scan_names:                             # (text, length, HF flags | STR flags), in the order of scan_first's bits
         .quad .Lv0, 7, HF_STORAGE       # storage
         .quad .Lv1, 7, 0                # balance
-        .quad .Lv2, 8, 0                # ext_call
-        .quad .Lv3, 14, 0               # returndatasize
-        .quad .Lv4, 11, 0               # return_code
-        .quad .Lv5, 11, 0               # new_address
-        .quad .Lv6, 7, HF_MEM           # memcopy (contains "mem")
-        .quad .Lv7, 7, 0                # .result
+        .quad .Lv2, 8, STR_CALLRES      # ext_call
+        .quad .Lv3, 14, STR_CALLRES     # returndatasize
+        .quad .Lv4, 11, STR_CALLRES     # return_code
+        .quad .Lv5, 11, STR_CALLRES     # new_address
+        .quad .Lv6, 7, HF_MEM | STR_CALLRES   # memcopy (contains "mem")
+        .quad .Lv7, 7, STR_CALLRES      # .result
         .quad .Lv8, 3, 0                # gas
         .quad .Lv9, 11, 0               # extcodesize
         .quad .Lv10, 11, 0              # extcodehash
         .quad .Lv11, 3, HF_MEM          # mem
         .quad .Lv12, 5, HF_MSIZE        # msize
+        .quad .Lv13, 5, 0               # tload
+        .quad .Lv14, 11, STR_CALLRES    # return_data
         .section .rodata
 .Lv0:  .asciz "storage"
 .Lv1:  .asciz "balance"
@@ -445,6 +462,8 @@ scan_names:                             # (text, length, HF flags), in the order
 .Lv10: .asciz "extcodehash"
 .Lv11: .asciz "mem"
 .Lv12: .asciz "msize"
+.Lv13: .asciz "tload"
+.Lv14: .asciz "return_data"
         # scan_first[byte]: the names (bits of scan_names' order) starting with it
         .align 2
 scan_first:
@@ -460,9 +479,10 @@ scan_first:
         .short (1 << 6) | (1 << 11) | (1 << 12)  # 'm': memcopy, mem, msize
         .short 1 << 5                   # 'n': new_address
         .fill 'r' - 'n' - 1, 2, 0
-        .short (1 << 3) | (1 << 4)      # 'r': returndatasize, return_code
+        .short (1 << 3) | (1 << 4) | (1 << 14)   # 'r': returndatasize, return_code, return_data
         .short 1 << 0                   # 's': storage
-        .fill 255 - 's', 2, 0
+        .short 1 << 13                  # 't': tload
+        .fill 255 - 't', 2, 0
         .text
 
 

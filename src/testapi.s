@@ -128,6 +128,12 @@ test_table:
         .quad .Ln_shl_op, tf_shl_op
         .quad .Ln_signextend_op, tf_signextend_op
         .quad .Ln_bits, alg_bits
+        .quad .Ln_is_bool, tf_is_bool
+        .quad .Ln_to_mask_b, tf_to_mask_b
+        .quad .Ln_to_neg_mask_b, tf_to_neg_mask_b
+        .quad .Ln_state_read, tf_state_read
+        .quad .Ln_may_alias, tf_may_alias
+        .quad .Ln_changed_reads, tf_changed_reads
         .quad .Ln_lt_op_m, tf_lt_op_m
         .quad .Ln_le_op_m, tf_le_op_m
         .quad .Ln_ge_zero_m, tf_ge_zero_m
@@ -148,6 +154,12 @@ test_table:
 .Ln_signextend_op: .asciz "signextend_op"
 .Ln_bits:      .asciz "bits"
 .Ln_lt_op_m:   .asciz "lt_op_m"
+.Ln_is_bool:   .asciz "is_bool"
+.Ln_to_mask_b: .asciz "to_mask_b"
+.Ln_to_neg_mask_b: .asciz "to_neg_mask_b"
+.Ln_state_read: .asciz "state_read"
+.Ln_may_alias: .asciz "may_alias"
+.Ln_changed_reads: .asciz "changed_reads"
 .Ln_le_op_m:   .asciz "le_op_m"
 .Ln_ge_zero_m: .asciz "ge_zero_m"
 .Ln_get_sign_m: .asciz "get_sign_m"
@@ -331,10 +343,12 @@ ENDF tf_opcode
 FUNC tf_eval_bool
         ENTER
         mov rbx, rdi
+        mov rdi, [rbx + N_DATA + 16]    # symbolic: an int or a bool
+        call vr_number
+        sar rax, 1
+        mov rdx, rax
         mov rdi, [rbx + N_DATA]
         mov rsi, [rbx + N_DATA + 8]
-        mov rdx, [rbx + N_DATA + 16]
-        sar rdx, 1
         call eval_bool
         lea rcx, [rip + sp_none]
         lea rdx, [rip + sp_true]
@@ -439,6 +453,73 @@ FUNC tf_le_op
         call tri_value
         LEAVE
 ENDF tf_le_op
+
+# is_bool(exp) -> bool; state_read(exp) -> its kind (a string) or None;
+# may_alias((a, b)) -> bool; changed_reads((exp, op, target)) -> a tuple
+# (arithmetic's)
+FUNC tf_is_bool
+        ENTER
+        call is_bool
+        lea rcx, [rip + sp_true]
+        lea rdx, [rip + sp_false]
+        test eax, eax
+        cmovz rcx, rdx
+        mov rax, rcx
+        LEAVE
+ENDF tf_is_bool
+
+FUNC tf_state_read
+        ENTER
+        call state_read
+        lea rdi, [rip + .Ls_sr_kinds]
+        mov rdi, [rdi + rax*8]
+        test rdi, rdi
+        jz 1f
+        call str_intern_c
+        LEAVE
+1:      lea rax, [rip + sp_none]
+        LEAVE
+ENDF tf_state_read
+
+        .section .data.rel.ro
+        .align 8
+.Ls_sr_kinds:   .quad 0, .Ls_sr_storage, .Ls_sr_tload, .Ls_sr_account, .Ls_sr_call
+        .section .rodata
+.Ls_sr_storage: .asciz "storage"
+.Ls_sr_tload:   .asciz "tload"
+.Ls_sr_account: .asciz "account"
+.Ls_sr_call:    .asciz "call"
+        .text
+
+FUNC tf_may_alias
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call may_alias
+        lea rcx, [rip + sp_true]
+        lea rdx, [rip + sp_false]
+        test eax, eax
+        cmovz rcx, rdx
+        mov rax, rcx
+        LEAVE
+ENDF tf_may_alias
+
+FUNC tf_changed_reads
+        ENTER
+        mov rbx, rdi
+        call vec_new
+        mov r12, rax
+        mov rdi, [rbx + N_DATA + 8]     # the op, a string: its id
+        call str_id
+        mov esi, eax
+        mov rdi, [rbx + N_DATA]
+        mov rdx, [rbx + N_DATA + 16]
+        mov rcx, r12
+        call changed_reads
+        mov rdi, r12
+        call vec_to_tuple
+        LEAVE
+ENDF tf_changed_reads
 
 # the comparisons with top=MEMORY_TOP (memloc's): lt_op_m((a, b))...
 FUNC tf_lt_op_m
@@ -1036,15 +1117,41 @@ ENDF tf_to_exp2
 # to_mask(v) / to_neg_mask(v) -> (size, offset) or None
 FUNC tf_to_mask
         ENTER
+        xor esi, esi
         call to_mask
         jmp tf_pair_or_none
 ENDF tf_to_mask
 
 FUNC tf_to_neg_mask
         ENTER
+        xor esi, esi
         call to_neg_mask
         jmp tf_pair_or_none
 ENDF tf_to_neg_mask
+
+# to_mask_b((num, bounds)), to_neg_mask_b((num, bounds)): with bounds None
+# or a tuple of (exp, lo, hi)
+FUNC tf_to_mask_b
+        ENTER
+        mov rbx, rdi
+        mov rdi, [rbx + N_DATA + 8]
+        call tr_bounds
+        mov rsi, rax
+        mov rdi, [rbx + N_DATA]
+        call to_mask
+        jmp tf_pair_or_none
+ENDF tf_to_mask_b
+
+FUNC tf_to_neg_mask_b
+        ENTER
+        mov rbx, rdi
+        mov rdi, [rbx + N_DATA + 8]
+        call tr_bounds
+        mov rsi, rax
+        mov rdi, [rbx + N_DATA]
+        call to_neg_mask
+        jmp tf_pair_or_none
+ENDF tf_to_neg_mask_b
 
 # (entered with the frame of the caller above)
 FUNC tf_pair_or_none

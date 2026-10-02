@@ -931,7 +931,10 @@ FUNC arith_apply
         mov eax, ebx
         JT_SWITCH arith_apply, OP_COUNT, .Lap_binary
         JT_CASE arith_apply, OP_AND, .Lap_and
-        JT_CASE arith_apply, OP_OR, .Lap_or
+        JT_CASE arith_apply, OP_OR, .Lap_nary
+        JT_CASE arith_apply, OP_XOR, .Lap_nary
+        JT_CASE arith_apply, OP_ADD, .Lap_nary
+        JT_CASE arith_apply, OP_MUL, .Lap_nary
         JT_CASE arith_apply, OP_NOT, .Lap_not
         JT_CASE arith_apply, OP_ADDMOD, .Lap_3
         JT_CASE arith_apply, OP_MULMOD, .Lap_3
@@ -960,16 +963,44 @@ FUNC arith_apply
         inc r14
         jmp 1b
 2:      LEAVE
-.Lap_or:
-        cmp r12, 2
-        jne 3f
-        mov rax, [r13 + 8]
-        LEAVE
-3:      cmp r12, 3
-        jne .Lap_nil
-        mov rdi, [r13 + 8]
-        mov rsi, [r13 + 16]
-        call ev_or
+.Lap_nary:
+        # add, mul, or, xor of any number of operands (python's sum & MAX,
+        # its product & MAX, its | and ^ of them all)
+        lea rdi, [r15 + CTX_MPZ_R]
+        xor esi, esi
+        cmp ebx, OP_MUL
+        sete sil                        # (1 for a product)
+        call __gmpz_set_ui@PLT
+        mov r14d, 1
+3:      cmp r14, r12
+        jae 5f
+        lea rdi, [r15 + CTX_MPZ_A]
+        mov rsi, [r13 + r14*8]
+        call value_set_mpz
+        inc r14
+        lea rdi, [r15 + CTX_MPZ_R]
+        mov rsi, rdi
+        lea rdx, [r15 + CTX_MPZ_A]
+        cmp ebx, OP_ADD
+        je 31f
+        cmp ebx, OP_MUL
+        je 32f
+        cmp ebx, OP_OR
+        je 33f
+        call __gmpz_xor@PLT
+        jmp 3b
+31:     call __gmpz_add@PLT
+        jmp 3b
+32:     call __gmpz_mul@PLT
+        jmp 3b
+33:     call __gmpz_ior@PLT
+        jmp 3b
+5:      cmp ebx, OP_ADD
+        je 6f
+        cmp ebx, OP_MUL
+        jne 7f
+6:      call arith_wrap_r
+7:      call arith_result
         LEAVE
 .Lap_not:
         cmp r12, 2
@@ -1100,7 +1131,17 @@ FUNC arith_eval_impl
         call is_arith_op
         test eax, eax
         jz .Lev_rebuild
-        mov rdi, rbx
+        # of words: -1 is 2^256 - 1 (the operations take them from 0 up)
+        mov r14d, 1
+6:      cmp r14, r12
+        jae 7f
+        mov rdi, [r13 + r14*8]
+        mov esi, 256
+        call int_mod_2exp
+        mov [r13 + r14*8], rax
+        inc r14
+        jmp 6b
+7:      mov rdi, rbx
         OPCODE_OF_RDI
         mov edi, eax
         mov rsi, r12
@@ -1254,7 +1295,21 @@ FUNC arith_and_n
         jne 1f
         mov rax, [r13]
         LEAVE
-1:      cmp r12, 2
+1:      # (bitwise or not) 0 and anything is 0: an int or a bool that is 0
+        xor ecx, ecx
+        lea rdx, [rip + sp_false]
+6:      cmp rcx, r12
+        jae 7f
+        mov rax, [r13 + rcx*8]
+        cmp rax, 1
+        je 8f
+        cmp rax, rdx
+        je 8f
+        inc rcx
+        jmp 6b
+8:      mov eax, 1
+        LEAVE
+7:      cmp r12, 2
         jne 2f
         mov rdi, [r13]
         mov rsi, [r13 + 8]
@@ -1374,11 +1429,14 @@ FUNC is_zero_impl
         call is_int
         test eax, eax
         jz 1f
-        lea rax, [rip + sp_false]
-        cmp rbx, 1
-        jne 2f
-        lea rax, [rip + sp_true]
-2:      LEAVE
+        mov rdi, rbx                    # (as a word)
+        call int_is_word_zero
+        lea rcx, [rip + sp_false]
+        lea rdx, [rip + sp_true]
+        test eax, eax
+        cmovnz rcx, rdx
+        mov rax, rcx
+        LEAVE
 1:      mov rdi, rbx
         call is_tuple
         test eax, eax
@@ -1433,8 +1491,19 @@ FUNC is_zero_impl
         mov rdi, [rbx + N_DATA + 8]
         call is_zero
         LEAVE
-.Liz_or:
 .Liz_and:
+        # of truth values: one of them is false. Not of other numbers - of 1
+        # and 2, neither of which is 0, `and` is 0.
+        mov r13d, 1
+9:      cmp r13d, [rbx + N_AUX]
+        jae .Liz_or
+        mov rdi, [rbx + N_DATA + r13*8]
+        inc r13d
+        call is_bool
+        test eax, eax
+        jnz 9b
+        jmp .Liz_default
+.Liz_or:
         # is_zero of every term, then and_op / or_op of them
         mov r13d, [rbx + N_AUX]
         dec r13d                        # number of terms
@@ -1614,11 +1683,11 @@ FUNC eval_bool
         call is_int
         test eax, eax
         jz 2f
-        mov rdi, rbx
-        call int_sign
-        cmp eax, 1
-        je .Leb_true
-        jmp .Leb_false
+        mov rdi, rbx                    # a word: true when it isn't 0 (-1 is
+        call int_is_word_zero           # 2^256 - 1)
+        test eax, eax
+        jnz .Leb_false
+        jmp .Leb_true
 2:      mov rdi, rbx
         OPCODE_OF_RDI
         mov r14d, eax
@@ -1703,16 +1772,23 @@ FUNC eval_bool
         call values_equal
         test eax, eax
         jz 12f
-        mov rdi, [rbx + N_DATA]         # the opcode string
-        mov rsi, [r12 + N_DATA + 16]
-        mov rdx, [rbx + N_DATA + 16]
-        call mk3
-        mov rdi, rax
-        lea rsi, [rip + sp_true]
-        mov edx, 1
-        call eval_bool
-        cmp eax, TRI_TRUE
-        je .Leb_true
+        # when sth2 <= sth, as the words they are (x < a + 1 is no x < a + 2
+        # where a + 2 wraps to 0)
+        mov rdi, [r12 + N_DATA + 16]
+        xor esi, esi
+        call is_word
+        test eax, eax
+        jz 12f
+        mov rdi, [rbx + N_DATA + 16]
+        xor esi, esi
+        call is_word
+        test eax, eax
+        jz 12f
+        mov rdi, [r12 + N_DATA + 16]
+        mov rsi, [rbx + N_DATA + 16]
+        call proven_le
+        test eax, eax
+        jnz .Leb_true
 12:     test r13, r13
         jnz .Leb_symbolic
         # concrete only: eval and look at the number
@@ -1801,7 +1877,7 @@ FUNC eval_bool_symbolic
         jz 2f
         mov rdi, r12
         mov rsi, r13
-        call int_cmp
+        call int_cmp_words
         cmp eax, 1
         je .Lebs_false
         jmp .Lebs_true
@@ -1819,7 +1895,7 @@ FUNC eval_bool_symbolic
         jz 3f
         mov rdi, r12
         mov rsi, r13
-        call int_cmp
+        call int_cmp_words
         cmp eax, -1
         je .Lebs_true
         jmp .Lebs_false
@@ -1832,7 +1908,7 @@ FUNC eval_bool_symbolic
         jz 4f
         mov rdi, r12
         mov rsi, r13
-        call int_cmp
+        call int_cmp_words
         cmp eax, 1
         je .Lebs_true
         jmp .Lebs_false
@@ -1841,15 +1917,25 @@ FUNC eval_bool_symbolic
         call values_equal
         test eax, eax
         jnz .Lebs_false
-        # (python's symbolic `gt` branch is dead code: it calls lt_op with
-        # three arguments, which raises and gets swallowed)
+        # python's: lt_op(left + 1, right), True: False, False: True (sic:
+        # left + 1 >= right isn't left > right), CannotCompare: None
+        mov rdi, r12
+        mov esi, 3
+        call alg_add2
+        mov rdi, rax
+        mov rsi, r13
+        call alg_lt_op
+        cmp eax, TRI_TRUE
+        je .Lebs_false
+        cmp eax, TRI_FALSE
+        je .Lebs_true
         jmp .Lebs_none
 .Lebs_ge:
         test ebx, ebx
         jz 5f
         mov rdi, r12
         mov rsi, r13
-        call int_cmp
+        call int_cmp_words
         cmp eax, -1
         je .Lebs_false
         jmp .Lebs_true
@@ -1889,6 +1975,373 @@ ENDF eval_bool_symbolic
         OPSET_MEMBER ebs_cmp, OP_GE
         OPSET_MEMBER ebs_cmp, OP_EQ
         OPSET_END ebs_cmp, OP_COUNT
+
+# int_is_word_zero(v) -> eax: v (an int) is 0 as a word: a multiple of
+# 2^256 (python's v % 2**256 == 0)
+FUNC int_is_word_zero
+        xor eax, eax
+        cmp rdi, 1
+        je 1f
+        test dil, 1
+        jnz 2f                          # (a small one other than 0: not)
+        ENTER
+        lea rdi, [rdi + N_DATA]
+        mov esi, 256
+        call __gmpz_divisible_2exp_p@PLT
+        LEAVE
+1:      mov eax, 1
+2:      ret
+ENDF int_is_word_zero
+
+# int_cmp_words(a, b) -> eax: int_cmp of a and b as words (python's
+# a % 2**256 vs b % 2**256)
+FUNC int_cmp_words
+        ENTER
+        mov rbx, rsi
+        mov esi, 256
+        call int_mod_2exp
+        mov r12, rax
+        mov rdi, rbx
+        mov esi, 256
+        call int_mod_2exp
+        mov rdi, r12
+        mov rsi, rax
+        call int_cmp
+        LEAVE
+ENDF int_cmp_words
+
+# is_bool(exp) -> eax: python's arithmetic.is_bool - exp is 0 or 1: its
+# bits are those of a truth value
+FUNC is_bool
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        call vr_number                  # an int or a bool: 0 or 1
+        test rax, rax
+        jz 1f
+        cmp rax, 1
+        je .Lib_true
+        cmp rax, 3
+        je .Lib_true
+        jmp .Lib_false
+1:      mov rdi, rbx
+        call opcode_of
+        mov r12d, eax
+        mov edi, eax
+        call is_bool_op
+        test eax, eax
+        jnz .Lib_true
+        cmp r12d, OP_AND
+        je 2f
+        cmp r12d, OP_OR
+        je 2f
+        cmp r12d, OP_XOR
+        je 2f
+        cmp r12d, OP_LOR
+        je 2f
+        cmp r12d, OP_LAND
+        je .Lib_land
+        cmp r12d, OP_MASK_SHL
+        je .Lib_mask
+        cmp r12d, OP_STORAGE
+        je .Lib_storage
+        jmp .Lib_false
+2:      # all of its operands (python's or: one of them)
+        mov r13d, 1
+3:      cmp r13d, [rbx + N_AUX]
+        jae .Lib_true
+        mov rdi, [rbx + N_DATA + r13*8]
+        inc r13d
+        call is_bool
+        test eax, eax
+        jnz 3b
+        jmp .Lib_false
+.Lib_land:
+        # python's and: its last operand, or one that is 0
+        mov eax, [rbx + N_AUX]
+        mov rdi, [rbx + N_DATA + rax*8 - 8]
+        call is_bool
+        LEAVE
+.Lib_mask:
+        # a single bit, moved down to the lowest one
+        cmp dword ptr [rbx + N_AUX], 5
+        jne .Lib_false
+        mov rdi, [rbx + N_DATA + 8]
+        mov esi, 3
+        call py_equal
+        test eax, eax
+        jz .Lib_false
+        mov rdi, [rbx + N_DATA + 16]
+        call vr_number                  # (":int:": a bool too)
+        test rax, rax
+        jz .Lib_false
+        mov r13, rax
+        mov rdi, [rbx + N_DATA + 24]
+        call vr_number
+        test rax, rax
+        jz .Lib_false
+        mov rdi, r13
+        mov rsi, rax
+        call int_add
+        cmp rax, 1
+        jne .Lib_false
+        jmp .Lib_true
+.Lib_storage:
+        cmp dword ptr [rbx + N_AUX], 4
+        jne .Lib_false
+        mov rdi, [rbx + N_DATA + 8]
+        mov esi, 3
+        call py_equal
+        test eax, eax
+        jz .Lib_false
+        mov rdi, [rbx + N_DATA + 16]
+        call vr_number
+        test rax, rax
+        jz .Lib_false
+        mov rdi, rax
+        call int_sign
+        test eax, eax
+        js .Lib_false
+.Lib_true:
+        mov eax, 1
+        LEAVE
+.Lib_false:
+        xor eax, eax
+        LEAVE
+ENDF is_bool
+
+# state_read(exp) -> eax: python's state_read - what part of the state exp
+# reads, if it's a read an expression keeps making: SR_STORAGE, SR_TLOAD,
+# SR_ACCOUNT (a balance, a code), SR_CALL (a result of the last call), or
+# SR_NONE
+        .set SR_NONE, 0
+        .set SR_STORAGE, 1
+        .set SR_TLOAD, 2
+        .set SR_ACCOUNT, 3
+        .set SR_CALL, 4
+FUNC state_read
+        mov rsi, rdi
+        call opcode_of
+        cmp eax, OP_STORAGE
+        je 1f
+        cmp eax, OP_TLOAD
+        je 2f
+        cmp eax, OP_BALANCE
+        je 3f
+        cmp eax, OP_EXTCODESIZE
+        je 3f
+        cmp eax, OP_EXTCODEHASH
+        je 3f
+        # a string naming a call's result (CALL_RESULTS), or a tuple whose
+        # head is one
+        test sil, 1
+        jnz 8f
+        test rsi, rsi
+        jz 8f
+        cmp dword ptr [rsi + N_KIND], K_TUPLE
+        jne 5f
+        cmp dword ptr [rsi + N_AUX], 0
+        je 8f
+        mov rsi, [rsi + N_DATA]
+        test sil, 1
+        jnz 8f
+        test rsi, rsi
+        jz 8f
+5:      cmp dword ptr [rsi + N_KIND], K_STR
+        jne 8f
+        test dword ptr [rsi + N_AUX], STR_CALLRES
+        jz 8f
+        mov eax, SR_CALL
+        ret
+1:      mov eax, SR_STORAGE
+        ret
+2:      mov eax, SR_TLOAD
+        ret
+3:      mov eax, SR_ACCOUNT
+        ret
+8:      xor eax, eax
+        ret
+ENDF state_read
+
+# may_alias(a, b) -> eax: python's may_alias - 0 when the storage slots
+# (or transient keys) a and b are sure to differ
+FUNC may_alias
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call py_equal
+        test eax, eax
+        jnz 8f
+        mov rdi, rbx
+        call is_int
+        mov r13d, eax
+        mov rdi, r12
+        call is_int
+        test eax, r13d
+        jnz 9f                          # two numbers, not equal
+        # a slot of a mapping or of a dynamic array (a hash) isn't a small one
+        mov rdi, rbx
+        mov rsi, r12
+        call may_alias_hash
+        test eax, eax
+        jnz 9f
+        mov rdi, r12
+        mov rsi, rbx
+        call may_alias_hash
+        test eax, eax
+        jnz 9f
+8:      mov eax, 1
+        LEAVE
+9:      xor eax, eax
+        LEAVE
+ENDF may_alias
+
+# may_alias_hash(x, y) -> eax: x an int below 2^64 and y a hash (a sha3, or
+# an add with one)
+FUNC may_alias_hash
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call is_int
+        test eax, eax
+        jz 9f
+        mov rdi, rbx
+        mov esi, 3
+        call int_mod_2exp_cmp64
+        test eax, eax
+        jz 9f
+        mov rdi, r12
+        call opcode_of
+        cmp eax, OP_SHA3
+        je 8f
+        cmp eax, OP_ADD
+        jne 9f
+        mov r13d, 1
+1:      cmp r13d, [r12 + N_AUX]
+        jae 9f
+        mov rdi, [r12 + N_DATA + r13*8]
+        inc r13d
+        call opcode_of
+        cmp eax, OP_SHA3
+        jne 1b
+8:      mov eax, 1
+        LEAVE
+9:      xor eax, eax
+        LEAVE
+ENDF may_alias_hash
+
+# int_mod_2exp_cmp64(x, -) -> eax: x < 2^64 (x an int)
+FUNC int_mod_2exp_cmp64
+        mov eax, 1
+        test dil, 1
+        jnz 1f                          # a small one: below 2^62
+        cmp dword ptr [rdi + N_DATA + MPZ_SIZE], 0
+        jl 1f                           # negative
+        cmp dword ptr [rdi + N_DATA + MPZ_SIZE], 1
+        jle 1f                          # one limb: below 2^64
+        xor eax, eax
+1:      ret
+ENDF int_mod_2exp_cmp64
+
+# changed_by(exp, op, target) -> eax: python's changed_by - exp, a read of
+# the state, may have another value after op (an opcode id; target the
+# slot or key it writes, for sstore/store and tstore)
+FUNC changed_by
+        ENTER
+        mov rbx, rdi
+        mov r12d, esi
+        mov r13, rdx
+        call state_read
+        test eax, eax
+        jz 9f
+        cmp r12d, OP_SSTORE
+        je 1f
+        cmp r12d, OP_STORE
+        je 1f
+        cmp r12d, OP_TSTORE
+        je 2f
+        cmp r12d, OP_STATICCALL
+        je 3f
+        cmp r12d, OP_CALL
+        je 8f
+        cmp r12d, OP_CALLCODE
+        je 8f
+        cmp r12d, OP_DELEGATECALL
+        je 8f
+        cmp r12d, OP_CODECALL
+        je 8f
+        cmp r12d, OP_CREATE
+        je 8f
+        cmp r12d, OP_CREATE2
+        je 8f
+        jmp 9f
+1:      cmp eax, SR_STORAGE             # its slot may be the one written
+        jne 9f
+        cmp dword ptr [rbx + N_AUX], 4
+        jb 7f
+        mov rdi, [rbx + N_DATA + 24]
+        mov rsi, r13
+        call may_alias
+        LEAVE
+2:      cmp eax, SR_TLOAD
+        jne 9f
+        cmp dword ptr [rbx + N_AUX], 2
+        jb 7f
+        mov rdi, [rbx + N_DATA + 8]
+        mov rsi, r13
+        call may_alias
+        LEAVE
+3:      cmp eax, SR_CALL
+        jne 9f
+8:      mov eax, 1
+        LEAVE
+9:      xor eax, eax
+        LEAVE
+7:      mov edi, E_INDEX                # (python's exp[3] / exp[1])
+        lea rsi, [rip + .Ls_cb_index]
+        call err_throw
+ENDF changed_by
+
+        .section .rodata
+.Ls_cb_index: .asciz "changed_by: tuple index out of range"
+        .text
+
+# changed_reads(exp, op, target, vec): python's changed_reads - the reads
+# of the state in exp that op may change, outermost first, pushed on vec
+# (once each)
+FUNC changed_reads
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        mov r12d, esi
+        mov r13, rdx
+        mov r14, rcx
+        call changed_by
+        test eax, eax
+        jz 1f
+        mov rdi, r14
+        mov rsi, rbx
+        call vec_push_unique
+        LEAVE
+1:      mov rdi, rbx
+        call is_tuple
+        test eax, eax
+        jz 9f
+        sub rsp, 16
+        mov qword ptr [rsp], 0          # every element, the head too
+2:      mov rax, [rsp]
+        cmp eax, [rbx + N_AUX]
+        jae 3f
+        mov rdi, [rbx + N_DATA + rax*8]
+        inc qword ptr [rsp]
+        mov esi, r12d
+        mov rdx, r13
+        mov rcx, r14
+        call changed_reads
+        jmp 2b
+3:      add rsp, 16
+9:      LEAVE
+ENDF changed_reads
 
 # arith_module_init(): tables (called from rt_init)
 FUNC arith_module_init
