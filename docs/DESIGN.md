@@ -41,6 +41,9 @@ database, liblzma. Everything else is assembly (GNU as, Intel syntax).
     src/prettify.s, pretty_line.s   the printer (prettify.py)
     src/function.s        Function (function.py)
     src/sparser.s         the storage (sparser.py)
+    src/runtrace.s        a trace run on concrete values (runtrace.py): what checks the
+                          rewrite of a bytes getter (storage.bytes_getter)
+    src/keccak.s          Keccak-256, the EVM's sha3 (eth_hash's keccak, runtrace's)
     src/contract.s        Contract (contract.py)
     src/decompiler.s      decompile(): the thread pool, the contract's text (decompiler.py)
     src/data.s            python's decompilation.json: JSON text, or a binary form of
@@ -329,7 +332,13 @@ two groups the folder's `fold_or` splits, through `fold_paths`;
 `test_trace_random.py`: random traces - the lines of the VM, loops
 included - through every pass of the simplifier and the whole
 `simplify_trace`; a trace on which python takes more than `PY_LIMIT`
-seconds, an expression doubling at every round, is skipped)
+seconds, an expression doubling at every round, is skipped;
+`test_runtrace.py`: random traces run on values by both machines, in
+worlds made as `storage.bytes_tail` makes them - how a run ends, its
+data, its steps, its memory's length, its variables, or its exception -,
+one machine reset between the calldatas of a case, as storage would
+reuse it; `test_keccak.py`: the digests of random bytes, the rate's
+boundaries always)
 take a seed; run over many seeds, they found the negative exponents of
 `exp` (python's modular inverse), the order of the terms of a max
 (python sorts them by `str()`, which has no quotes around a string), an
@@ -878,6 +887,21 @@ the builders, and the vector, map and hash-cons growths. The recursions
 all go through `STACK_CHECK` (`tools/recursion.py --check`, in `make
 check`), so an expression nested arbitrarily deep is python's
 `RecursionError`.
+
+The machine that runs a trace on values (`runtrace.s`, for the storage's
+check of a getter) computes in words of 32 bytes, made without a node,
+and keeps its byte strings on a stack of its own, so a run leaves no
+garbage in the arena (a machine is reset, not made again, between the
+thousands of runs of a check). Python's bounds are its: 20000 lines, 20
+times as many expressions, a memory of 1 MiB. What it doesn't bound, the
+size of a byte string (a `call.data` or a `bytes` of the contract's
+length) and of a shift, it bounds at 16 MiB (`RT_BYTES_MAX`): past that,
+python's MemoryError, where python itself would go on, to what the
+machine has; and a run makes 256 MiB of byte strings at most
+(`RT_WORK_MAX`, python's Unsupported "steps"), where python would spend
+minutes hashing them. A shift count past 2^63 is pypy's OverflowError
+(CPython's only past 30 * 2^61, its MemoryError before it), which
+storage's check catches where it doesn't catch a MemoryError.
 
 Two things bound what a contract can spend: `CTX_MEM_LIMIT` per function
 (`PANORAMIX_MAX_MEMORY`) and the watchdog's time limit, python's. The

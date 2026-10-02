@@ -144,6 +144,9 @@
 .set E_RECURSION, 9         # python's RecursionError: the stack passed CTX_STACK_LOW
 .set E_VALUE, 10            # python's ValueError
 .set E_KEY, 11              # python's KeyError
+.set E_UNSUPPORTED, 12      # runtrace's Unsupported: what a trace run on values can't run
+.set E_OVERFLOW, 13         # python's OverflowError
+.set E_CONTINUE, 14         # runtrace's Continue out of every loop of its jd
 
 .set ARENA_CHUNK_DEFAULT, 0x400000     # 4 MiB
 .set COMPACT_THRESHOLD, 0x10000000      # 256 MiB of arena: simplify_trace compacts
@@ -770,3 +773,40 @@ ENDF \fname
 .set CT_PROBLEMS, 24        # list of (hash, name) of the functions that failed
 .set CT_STOR_FAILED, 32     # the storage postprocessing failed (python's stor_defs = {})
 .set CT_SIZEOF, 40
+
+# a trace run on values (runtrace.s, python's runtrace.Machine). Words are
+# 256-bit numbers in 32 bytes, the least significant limb first.
+.set RM_CALLDATA, 0         # the calldata (the caller's bytes)
+.set RM_CDLEN, 8
+.set RM_WORLD, 16           # the callbacks (RW_*)
+.set RM_USER, 24            # their first argument
+.set RM_MAX_STEPS, 32       # python's max_steps (20000)
+.set RM_STEPS, 40
+.set RM_CALLVALUE, 48       # a word (0)
+.set RM_VARS, 80            # an emap: a variable -> its entry's index + 1 (0 until one is set)
+.set RM_VENT, 88            # the variables' entries (RM_ENTRY bytes: key, -, word), in python's dict order
+.set RM_VCOUNT, 96
+.set RM_VCAP, 104
+.set RM_NEW, 112            # the entries a while or a continue sets all at once
+.set RM_NEWCAP, 120
+.set RM_MEM, 128            # python's self.mem
+.set RM_MEMLEN, 136
+.set RM_MEMCAP, 144
+.set RM_SCR, 152            # the byte strings being made: a stack
+.set RM_SCRTOP, 160
+.set RM_SCRCAP, 168
+.set RM_WORK, 176           # the bytes made since the machine was reset
+.set RM_JD, 184             # a continue on its way to its loop: jd, setvars
+.set RM_SETVARS, 192
+.set RM_KIND, 200           # how the run ended: "return", "revert", "stop", "invalid"
+.set RM_DATA, 208           #   its data (in the scratch: until the machine runs again)
+.set RM_DLEN, 216
+.set RM_S_BYTES, 224        # the strings "bytes" and "sbytes" (not opcodes)
+.set RM_S_SBYTES, 232
+.set RM_SIZEOF, 240
+.set RM_ENTRY, 48            # an entry of RM_VENT, RM_NEW
+
+# a machine's world: python's callbacks, each called (user, slot)
+.set RW_SLOAD, 0            # -> the word of the storage at slot (an int value)
+.set RW_BYTES_LENGTH, 8     # -> the length of the bytes at slot (an int value)
+.set RW_BYTES_DATA, 16      # -> rax: the bytes at slot, rdx: their count; 0: python's None

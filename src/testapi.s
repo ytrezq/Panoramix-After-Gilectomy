@@ -120,11 +120,17 @@ test_table:
         .quad .Ln_contract, tf_contract
         .quad .Ln_json_value, tf_json_value
         .quad .Ln_dump_version, tf_dump_version
+        .quad .Ln_keccak, tf_keccak
+        .quad .Ln_runtrace, tf_runtrace
+        .quad .Ln_keccak_word, rt_keccak_word
         .quad 0, 0
 
         .section .rodata
 .Ln_roundtrip: .asciz "roundtrip"
 .Ln_dump_version: .asciz "dump_version"
+.Ln_keccak:    .asciz "keccak"
+.Ln_runtrace:  .asciz "runtrace"
+.Ln_keccak_word: .asciz "keccak_word"
 .Ln_json_value: .asciz "json_value"
 .Ln_hash:      .asciz "hash"
 .Ln_str_flags: .asciz "str_flags"
@@ -453,6 +459,277 @@ FUNC tf_dump_version
         call mk_int_i64
         LEAVE
 ENDF tf_dump_version
+
+# keccak(hexstring) -> int.from_bytes(keccak(bytes), "big") (keccak.s)
+FUNC tf_keccak
+        ENTER
+        call tf_hex_bytes
+        mov rdi, rax
+        mov rsi, rdx
+        call keccak_value
+        LEAVE
+ENDF tf_keccak
+
+# runtrace((calldatas, words, content, callvalue, max_steps, key, trace))
+# -> a result per calldata (hex strings): the trace run by one machine,
+# reset between them (runtrace.s) - (ev(key), kind, data, steps,
+# len(mem), vars, the bytes reached), key and trace None for none, or the
+# error. The world is storage.bytes_tail's: words a tuple of (slot, word),
+# content the hex of the bytes, None for no bytes_data.
+.set TW_WORDS, 0
+.set TW_CONTENT, 8
+.set TW_CLEN, 16
+.set TW_REACHED, 24
+.set TW_SIZEOF, 32
+
+        .section .data.rel.ro
+        .align 8
+tw_world:        .quad tw_sload, tw_bytes_length, tw_bytes_data
+tw_world_nodata: .quad tw_sload, tw_bytes_length, 0
+        .section .rodata
+.Ls_another_slot: .asciz "another slot"
+        .text
+
+FUNC tf_runtrace
+        ENTER
+        sub rsp, 176
+        .set TR_ERR, 0                  # an error handler (64 bytes)
+        .set TR_M, 64
+        .set TR_USER, 72
+        .set TR_RES, 80                 # the results (a vec)
+        .set TR_I, 88
+        .set TR_ELEMS, 96               # a result's 7 elements
+        mov rbx, rdi
+        call ctx_set_stack              # (STACK_CHECK as in a worker)
+        mov edi, TW_SIZEOF
+        call arena_alloc
+        mov [rsp + TR_USER], rax
+        mov rcx, [rbx + N_DATA + 8]
+        mov [rax + TW_WORDS], rcx
+        lea r12, [rip + tw_world_nodata]
+        mov rdi, [rbx + N_DATA + 16]
+        lea rax, [rip + sp_none]
+        cmp rdi, rax
+        je 1f
+        call tf_hex_bytes
+        mov rcx, [rsp + TR_USER]
+        mov [rcx + TW_CONTENT], rax
+        mov [rcx + TW_CLEN], rdx
+        lea r12, [rip + tw_world]
+1:      xor edi, edi
+        xor esi, esi
+        mov rdx, r12
+        mov rcx, [rsp + TR_USER]
+        call rt_machine_new
+        mov [rsp + TR_M], rax
+        lea rdi, [rax + RM_CALLVALUE]
+        mov rsi, [rbx + N_DATA + 24]
+        call w_from_value
+        mov rdi, [rbx + N_DATA + 32]
+        call int_to_i64
+        mov rcx, [rsp + TR_M]
+        mov [rcx + RM_MAX_STEPS], rax
+        call vec_new
+        mov [rsp + TR_RES], rax
+        mov qword ptr [rsp + TR_I], 0
+.Ltr_run:
+        mov rcx, [rbx + N_DATA]
+        mov rax, [rsp + TR_I]
+        cmp eax, [rcx + N_AUX]
+        jae .Ltr_done
+        mov rdi, [rcx + N_DATA + rax*8]
+        call tf_hex_bytes
+        mov rdi, [rsp + TR_M]
+        mov rsi, rax
+        call rt_machine_reset
+        mov rax, [rsp + TR_USER]
+        mov qword ptr [rax + TW_REACHED], 0
+        lea rdi, [rsp + TR_ERR]
+        call err_catch
+        test eax, eax
+        jnz .Ltr_err
+        lea rax, [rip + sp_none]
+        mov [rsp + TR_ELEMS], rax
+        mov [rsp + TR_ELEMS + 8], rax
+        mov [rsp + TR_ELEMS + 16], rax
+        mov rsi, [rbx + N_DATA + 40]
+        lea rax, [rip + sp_none]
+        cmp rsi, rax
+        je 2f
+        mov rdi, [rsp + TR_M]
+        call rt_ev
+        mov [rsp + TR_ELEMS], rax
+2:      mov rsi, [rbx + N_DATA + 48]
+        lea rax, [rip + sp_none]
+        cmp rsi, rax
+        je 3f
+        mov rdi, [rsp + TR_M]
+        call rt_run
+        mov [rsp + TR_ELEMS + 8], rax
+        mov rcx, [rsp + TR_M]
+        mov rdi, [rcx + RM_DATA]
+        mov rsi, rdx
+        call tf_hex_str
+        mov [rsp + TR_ELEMS + 16], rax
+3:      call err_end
+        mov r13, [rsp + TR_M]
+        mov rdi, [r13 + RM_STEPS]
+        call mk_int_u64
+        mov [rsp + TR_ELEMS + 24], rax
+        mov rdi, [r13 + RM_MEMLEN]
+        call mk_int_u64
+        mov [rsp + TR_ELEMS + 32], rax
+        call vec_new                    # the variables, in their order
+        mov r12, rax
+        xor r14d, r14d
+4:      cmp r14, [r13 + RM_VCOUNT]
+        jae 5f
+        imul rax, r14, RM_ENTRY
+        add rax, [r13 + RM_VENT]
+        mov [rsp + TR_ELEMS + 40], rax
+        lea rdi, [rax + 16]
+        call w_to_value
+        mov rsi, rax
+        mov rax, [rsp + TR_ELEMS + 40]
+        mov rdi, [rax]
+        call mk2
+        mov rdi, r12
+        mov rsi, rax
+        call vec_push
+        inc r14
+        jmp 4b
+5:      mov rdi, r12
+        call vec_to_list
+        mov [rsp + TR_ELEMS + 40], rax
+        mov rax, [rsp + TR_USER]
+        lea rcx, [rip + sp_false]
+        lea rdx, [rip + sp_true]
+        cmp qword ptr [rax + TW_REACHED], 0
+        cmovne rcx, rdx
+        mov [rsp + TR_ELEMS + 48], rcx
+        mov edi, 7
+        lea rsi, [rsp + TR_ELEMS]
+        call mk_tuple
+        jmp .Ltr_next
+.Ltr_err:
+        call tf_exc_value
+.Ltr_next:
+        mov rdi, [rsp + TR_RES]
+        mov rsi, rax
+        call vec_push
+        inc qword ptr [rsp + TR_I]
+        jmp .Ltr_run
+.Ltr_done:
+        mov rdi, [rsp + TR_RES]
+        call vec_to_tuple
+        add rsp, 176
+        LEAVE
+ENDF tf_runtrace
+
+# tw_sload(user, slot) -> the word there, Unsupported for another slot
+FUNC tw_sload
+        ENTER
+        mov rbx, [rdi + TW_WORDS]
+        mov r12, rsi
+        xor r13d, r13d
+1:      cmp r13d, [rbx + N_AUX]
+        jae 2f
+        mov rax, [rbx + N_DATA + r13*8]
+        mov rdi, [rax + N_DATA]
+        mov rsi, r12
+        call values_equal
+        test eax, eax
+        jnz 3f
+        inc r13d
+        jmp 1b
+3:      mov rax, [rbx + N_DATA + r13*8]
+        mov rax, [rax + N_DATA + 8]
+        LEAVE
+2:      mov edi, E_UNSUPPORTED
+        lea rsi, [rip + .Ls_another_slot]
+        call err_throw
+ENDF tw_sload
+
+# tw_bytes_length(user, slot): (v - 1) // 2 if v & 1 else (v & 0xFF) // 2
+FUNC tw_bytes_length
+        ENTER
+        call tw_sload
+        mov rbx, rax
+        mov rdi, rax
+        xor esi, esi
+        call int_tstbit
+        test eax, eax
+        jz 1f
+        mov rdi, rbx
+        mov esi, 3
+        call ev_sub
+        jmp 2f
+1:      mov rdi, rbx
+        mov esi, (255 << 1) | 1
+        call ev_and
+2:      mov edi, 3
+        mov rsi, rax
+        call ev_shr
+        LEAVE
+ENDF tw_bytes_length
+
+# tw_bytes_data(user, slot) -> rax: the content, rdx: its length
+FUNC tw_bytes_data
+        mov qword ptr [rdi + TW_REACHED], 1
+        mov rax, [rdi + TW_CONTENT]
+        mov rdx, [rdi + TW_CLEN]
+        ret
+ENDF tw_bytes_data
+
+# tf_hex_str(bytes, n) -> the arena string of their hex digits
+FUNC tf_hex_str
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        lea rdi, [r12*2 + 16]
+        call arena_alloc_raw
+        mov r13, rax
+        xor ecx, ecx
+        lea r8, [rip + .Ls_hexdigits]
+1:      cmp rcx, r12
+        jae 2f
+        movzx eax, byte ptr [rbx + rcx]
+        mov edx, eax
+        shr eax, 4
+        and edx, 15
+        mov al, [r8 + rax]
+        mov dl, [r8 + rdx]
+        mov [r13 + rcx*2], al
+        mov [r13 + rcx*2 + 1], dl
+        inc rcx
+        jmp 1b
+2:      mov rdi, r13
+        lea rsi, [r12*2]
+        call str_new
+        LEAVE
+ENDF tf_hex_str
+
+        .section .rodata
+.Ls_hexdigits: .ascii "0123456789abcdef"
+        .text
+
+# tf_hex_bytes(hexstring) -> rax: its bytes (arena), rdx: their count
+FUNC tf_hex_bytes
+        ENTER
+        mov rbx, rdi
+        mov edi, [rbx + N_DATA]
+        shr edi, 1
+        inc rdi
+        call arena_alloc_raw
+        mov r12, rax
+        lea rdi, [rbx + N_DATA + 4]
+        mov esi, [rbx + N_DATA]
+        mov rdx, r12
+        call hex_decode
+        mov rdx, rax
+        mov rax, r12
+        LEAVE
+ENDF tf_hex_bytes
 
 FUNC tf_get_sign
         ENTER
