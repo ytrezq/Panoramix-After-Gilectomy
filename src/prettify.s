@@ -3300,22 +3300,38 @@ FUNC names_state
         LEAVE
 ENDF names_state
 
-# name_taken_c(cstr) -> eax: python's `name in _names["taken"]` - a
-# builtin name, a storage variable's, a param's
-FUNC name_taken_c
+# is_builtin_name_c(cstr) -> eax: python's `name in BUILTIN_NAMES` - the
+# names the text has for what the EVM gives, the first names of the ones
+# with a dot, the precompiled contracts' (also function.py's
+# rename_params': a param with one of them is renamed _name)
+FUNC is_builtin_name_c
         ENTER
         mov rbx, rdi
         lea r12, [rip + builtin_names]
 1:      mov rsi, [r12]
         test rsi, rsi
-        jz 2f
+        jz 9f
         mov rdi, rbx
         call strcmp@PLT
         test eax, eax
         jz 8f
         add r12, 8
         jmp 1b
-2:      mov r13, [r15 + CTX_NAMES]
+9:      xor eax, eax
+        LEAVE
+8:      mov eax, 1
+        LEAVE
+ENDF is_builtin_name_c
+
+# name_taken_c(cstr) -> eax: python's `name in _names["taken"]` - a
+# builtin name, a storage variable's, a param's
+FUNC name_taken_c
+        ENTER
+        mov rbx, rdi
+        call is_builtin_name_c
+        test eax, eax
+        jnz 8f
+        mov r13, [r15 + CTX_NAMES]
         test r13, r13
         jz 9f
         mov rdi, [r13 + NM_STORAGE]
