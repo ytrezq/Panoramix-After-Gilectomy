@@ -376,6 +376,21 @@ postprocessing. `tests/compare_output.py` compares the final text with
 `corpus/run_one.sh` produces the references with the database, from
 pypy, to diff against `panasm decompile --no-color`.
 
+The function-level code - `Function`, the postprocessing's short
+circuits, the folder - is also compared on python's own inputs, whatever
+the port's VM and simplifier do meanwhile: `tests/gen_function_inputs.py`
+(pypy) records what reached `Function(hash, trace)` in python's whole
+decompilation of a contract (with the abi python had then, from the
+signature database), the storage names `rename_params` got, and the
+traces `make_ast` folded, into `build/fn_inputs/`; `test_function.py`
+(each trace with that abi, without one, with made-up ones, then
+renamed), `test_postprocess.py` and `test_folder.py` feed them to both
+sides. `test_function_random.py` takes random traces made for the
+checks of the params (`require x == address(x)`), the params guessed
+from the uses of the calldata, the check of the value sent (an or, after
+setmems), the constants and the getters; `test_postprocess.py` random
+ifs whose branches set a variable (`logical`).
+
 `make coverage` builds `build/cov/` - the tool and the module - with a
 counter of the calls of every function (`COV_COUNT` in `FUNC`: `pushf`,
 an increment, `popf`), written at exit to `$PANORAMIX_COVERAGE`;
