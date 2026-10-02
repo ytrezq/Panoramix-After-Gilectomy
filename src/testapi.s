@@ -176,6 +176,13 @@ test_table:
         .quad .Ln_abi_names, tf_abi_names
         .quad .Ln_add_breaks, add_breaks
         .quad .Ln_continues_from_inside, tf_continues_from_inside
+        .quad .Ln_function_renamed, tf_function_renamed
+        .quad .Ln_cleanup_masks, tf_cleanup_masks
+        .quad .Ln_varies, tf_varies
+        .quad .Ln_disjuncts, tf_disjuncts
+        .quad .Ln_short_circuits, short_circuits
+        .quad .Ln_logical, tf_logical
+        .quad .Ln_is_end_block, tf_is_end_block
         .quad 0, 0
 
         .section .rodata
@@ -340,6 +347,13 @@ test_table:
 .Ln_pretty_line: .asciz "pretty_line"
 .Ln_pprint_logic: .asciz "pprint_logic"
 .Ln_function: .asciz "function"
+.Ln_function_renamed: .asciz "function_renamed"
+.Ln_cleanup_masks: .asciz "cleanup_masks"
+.Ln_varies: .asciz "varies"
+.Ln_disjuncts: .asciz "disjuncts"
+.Ln_short_circuits: .asciz "short_circuits"
+.Ln_logical: .asciz "logical"
+.Ln_is_end_block: .asciz "is_end_block"
 .Ln_contract: .asciz "contract"
 .Ln_find_mems: .asciz "find_mems"
 .Ln_split_setmem_trace: .asciz "split_setmem_trace"
@@ -1957,28 +1971,34 @@ FUNC tf_pprint_logic
         jmp pprint_logic
 ENDF tf_pprint_logic
 
-# (hash, trace, (name, inputs or None)) -> (name, color_name, abi_name,
-# params, trace, payable, read_only, const, getter, returns, is_regular,
-# print lines, priority)
-FUNC tf_function
+# tf_abi((name, inputs or None)) -> the abi entry: (name, inputs), NIL
+# for None
+FUNC tf_abi
         ENTER
-        sub rsp, 112
         mov rbx, rdi
-        mov rdx, [rbx + N_DATA + 16]
-        mov rax, [rdx + N_DATA + 8]
-        push rdx
-        push rdx
-        mov rdi, rax
+        mov rdi, [rbx + N_DATA + 8]
         call is_none
-        pop rdx
-        pop rdx
         test eax, eax
         jz 1f
-        mov rdi, [rdx + N_DATA]
+        mov rdi, [rbx + N_DATA]
         xor esi, esi
         call mk2                        # (name, NIL)
+        LEAVE
+1:      mov rax, rbx
+        LEAVE
+ENDF tf_abi
+
+# (hash, trace, (name, inputs or None)) -> (name, color_name, abi_name,
+# params, trace, payable, read_only, const, getter, returns, is_regular,
+# print lines, priority, value_fails)
+FUNC tf_function
+        ENTER
+        sub rsp, 128
+        mov rbx, rdi
+        mov rdi, [rbx + N_DATA + 16]
+        call tf_abi
         mov rdx, rax
-1:      mov rdi, [rbx + N_DATA]
+        mov rdi, [rbx + N_DATA]
         mov rsi, [rbx + N_DATA + 8]
         call function_new
         mov r12, rax
@@ -2016,12 +2036,117 @@ FUNC tf_function
         call fn_priority
         TAG rax
         mov [rsp + 96], rax
-        mov edi, 13
+        mov rdi, [r12 + FN_VALUE_FAILS]
+        call tf_or_none
+        mov [rsp + 104], rax
+        mov edi, 14
         mov rsi, rsp
         call mk_tuple
-        add rsp, 112
+        add rsp, 128
         LEAVE
 ENDF tf_function
+
+# (hash, trace, (name, inputs or None), storage_names) -> (name,
+# color_name, abi_name, params, inputs, print lines): the function as
+# contract.postprocess leaves it - set_names(storage), rename_params, its
+# params by name in the trace - then printed
+FUNC tf_function_renamed
+        ENTER
+        sub rsp, 64
+        mov rbx, rdi
+        mov rdi, [rbx + N_DATA + 16]
+        call tf_abi
+        mov rdx, rax
+        mov rdi, [rbx + N_DATA]
+        mov rsi, [rbx + N_DATA + 8]
+        call function_new
+        mov r12, rax
+        mov rdi, [rbx + N_DATA + 24]
+        call tf_none_nil
+        mov r13, rax
+        mov rdi, rax
+        xor esi, esi
+        call set_names
+        mov rdi, r12
+        mov rsi, r13
+        call fn_rename_params
+        mov rdi, [r12 + FN_TRACE]
+        lea rsi, [rip + replace_param_names]
+        mov rdx, r12
+        call replace_f
+        mov [r12 + FN_TRACE], rax
+        mov rdi, r12
+        call fn_print_lines
+        mov [rsp + 40], rax
+        mov rax, [r12 + FN_NAME]
+        mov [rsp], rax
+        mov rax, [r12 + FN_COLOR_NAME]
+        mov [rsp + 8], rax
+        mov rax, [r12 + FN_ABI_NAME]
+        mov [rsp + 16], rax
+        mov rax, [r12 + FN_PARAMS]
+        mov [rsp + 24], rax
+        mov rdi, [r12 + FN_INPUTS]
+        call tf_or_none
+        mov [rsp + 32], rax
+        mov edi, 6
+        mov rsi, rsp
+        call mk_tuple
+        add rsp, 64
+        LEAVE
+ENDF tf_function_renamed
+
+# trace -> list: Function.cleanup_masks
+FUNC tf_cleanup_masks
+        mov rsi, rdi
+        xor edi, edi
+        jmp cleanup_masks
+ENDF tf_cleanup_masks
+
+# exp -> bool: function.varies
+FUNC tf_varies
+        ENTER
+        call fn_varies
+        mov edi, eax
+        call tf_bool
+        LEAVE
+ENDF tf_varies
+
+# cond -> list: function.disjuncts
+FUNC tf_disjuncts
+        ENTER
+        mov rbx, rdi
+        call vec_new
+        mov r12, rax
+        mov rdi, rbx
+        mov rsi, rax
+        call fn_disjuncts
+        mov rdi, r12
+        call vec_to_list
+        LEAVE
+ENDF tf_disjuncts
+
+# (cond, if_true, if_false) -> value or None: postprocess.logical
+FUNC tf_logical
+        ENTER
+        mov rdx, [rdi + N_DATA + 16]
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call logical
+        mov rdi, rax
+        call tf_or_none
+        LEAVE
+ENDF tf_logical
+
+# trace -> bool: the folder's is_end_block (fold_aux's if_false ==
+# [('return', 0)] or [('revert', None)], or starting with an invalid)
+FUNC tf_is_end_block
+        ENTER
+        call is_end_block
+        mov edi, eax
+        call tf_bool
+        LEAVE
+ENDF tf_is_end_block
 
 # [(hash, trace, (name, inputs or None))...] -> (stor_defs, [(name, trace,
 # ast, print lines, priority)...], [const names])

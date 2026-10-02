@@ -769,7 +769,7 @@ FUNC fold_aux
         mov [rsp + FA_FALSE], rax
         B rax, 1
         mov [rsp + FA_TRUE], rax
-        # if_false == [('return', 0)] or [('revert', 0)] or starts with invalid
+        # if_false == [('return', 0)] or [('revert', None)] or starts with invalid
         mov rdi, [rsp + FA_FALSE]
         call is_end_block
         test eax, eax
@@ -842,8 +842,8 @@ FUNC fold_aux
         call err_throw
 ENDF fold_aux
 
-# is_end_block(trace) -> eax: [('return', 0)], [('revert', 0)], or a trace
-# starting with invalid
+# is_end_block(trace) -> eax: [('return', 0)], [('revert', None)] (a
+# revert with no data), or a trace starting with invalid
 FUNC is_end_block
         ENTER
         mov rbx, rdi
@@ -860,11 +860,12 @@ FUNC is_end_block
         call mk2
         cmp rax, [rbx + N_DATA]
         je 3f
-        LOADS rdi, REVERT
-        mov esi, 1
-        call mk2
-        cmp rax, [rbx + N_DATA]
-        je 3f
+        mov r12, [rbx + N_DATA]
+        mov rdi, r12
+        OP_N_CHECK OP_REVERT, 2, 2f
+        mov rdi, [r12 + N_DATA + 8]
+        call is_none
+        LEAVE
 2:      xor eax, eax
         LEAVE
 3:      mov eax, 1

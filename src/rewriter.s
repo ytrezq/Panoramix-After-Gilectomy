@@ -200,6 +200,9 @@ FUNC pp_cleanup_exp_impl
 5:      mov rdi, rbx
         lea rsi, [rip + pp_cleanup_cb]
         call map_seq
+        mov rdi, rbx                    # (what's bytes as wide as it was)
+        mov rsi, rax
+        call keep_widths
 .Lpce_done:
         add rsp, 16
         LEAVE

@@ -790,7 +790,9 @@ ENDF \fname
 .set FN_IS_REGULAR, 120
 .set FN_PRINT, 128          # the printed text (str), once printed
 .set FN_PRIORITY, 136       # the priority + 2, once computed (0 = not yet)
-.set FN_SIZEOF, 144
+.set FN_VALUE_FAILS, 144    # what it does when sent ether, if it isn't payable:
+                            # the string "revert" or "invalid", or 0 (None)
+.set FN_SIZEOF, 152
 
 # ordered dicts (pyutil.s)
 .set OD_KEYS, 0             # a vec
