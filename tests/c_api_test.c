@@ -58,7 +58,7 @@ int main(void)
                      && strchr(e.explain, '\033') == NULL
                      && le == e.explainlen + e.textlen && strncmp(te, e.explain, e.explainlen) == 0
                      && strcmp(te + e.explainlen, e.text) == 0
-                     && strstr(tv, "# [56] push1 0") && strstr(tv, "#        [uint32(call.func_hash) >> 224, 0]");
+                     && strstr(tv, "# [56] push1 0") && strstr(tv, "#        [call.func_hash >> 224, 0]");
     /* an address's code: no node to be had here, an address that isn't one */
     uint8_t *fc = (uint8_t *)1;
     size_t fl = 1;
