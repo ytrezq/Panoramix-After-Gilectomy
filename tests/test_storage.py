@@ -551,7 +551,77 @@ def t_whole():
                 open(f"/tmp/claude-0/-home-claude/0fe601fa-3d3d-56af-9a22-c5068d00d0e0/scratchpad/storage/diff_{name}.txt", "w").write(f"{p}\n{a}\n")
 
 
-TESTS = [t_whole, t_worlds, t_checks, t_hash_constant, t_parse, t_linear, t_packed, t_typeof, t_form, t_raw, t_layout, t_trace_functions]
+def bytes_keys(f, s):
+    """the keys bytes_getter tries for f (its first part)"""
+    keys = []
+    for e in S.find_f_list(f.trace, lambda e: [e] if S.opcode(e) == "storage" else []):
+        k = e[3][1] if S.opcode(e[3]) == "length" else e[3] if e[1:3] == (1, 0) else None
+        if S.opcode(k) == "loc":
+            k = k[1]
+        if k is not None and k not in keys:
+            keys.append(k)
+    return [("loc", k) if type(k) == int else k for k in keys[:3]]
+
+
+def tweak(trace):
+    """a trace changed a little: a number, a line gone, a branch swapped"""
+    t = list(trace)
+    if not t:
+        return t
+    r = rnd.random()
+    i = rnd.randrange(len(t))
+    if r < 0.3:
+        del t[i]
+    elif r < 0.6:
+        t[i] = mutate(t[i])
+    elif r < 0.8 and S.opcode(t[i]) == "if" and len(t[i]) == 4:
+        t[i] = ("if", t[i][1], t[i][3], t[i][2])
+    else:
+        t.insert(i, ("setmem", ("range", rnd.choice([0, 32, 64, 128]), 32), rnd.choice([0, 1, 32, ("cd", 4)])))
+    return t
+
+
+def t_bytes_tail():
+    items = []
+    for name, cap, fs, acc, lang, rg, s in ANALYSES:
+        for f in fs:
+            if not f.read_only or type(f.hash) != str or not f.hash.startswith("0x"):
+                continue
+            sel = int(f.hash, 16)
+            for key in bytes_keys(f, s):
+                items.append((f.trace, key, sel))
+    rnd.shuffle(items)
+    for trace, key, sel in items[:N]:
+        run("bytes_tail", S.bytes_tail, trace, key, sel)
+    for trace, key, sel in items[:N // 3]:
+        run("bytes_tail", S.bytes_tail, tweak(trace), key, sel)
+
+
+def t_names():
+    names = ["balanceOf", "getBalance", "get", "getx", "getX", "_owner", "owner", "unknown1234", "stor5", "storABC",
+             "stor5_3", "storE", "store", "int", "uint256", "bytes32", "bytes", "Mask", "if", "x1", "1x", "a-b",
+             "stor0_x", "getOwner(uint256)", "name()", "total_supply", "storA1_2", "stor_1", "address", "addr", "é", ""]
+    for n in names:
+        run("good_name", S.good_name, n)
+    for n in names:
+        def getter_name(n):
+            name = n.split("(")[0]
+            if name.startswith("get") and len(name) > 3 and name[3].isupper():
+                name = name[3].lower() + name[4:]
+            return name
+        run("getter_name", getter_name, n)
+    defs = []
+    for name, cap, fs, acc, lang, rg, s in ANALYSES:
+        if s:
+            defs += s.header()
+    defs += [("sdef", "x", 2**40, 8, ("fixed", ("value", 8), 1, 32)), ("sdef", "y", 3, 0, ("fixed", ("struct", 2), 2, 4)),
+             ("sdef", "z", 0, 0, ("fixed", ("mapping", ("value", 256)), 1)), ("sdef", "w", 1, 1, ("struct", None)),
+             ("sdef", "v", 2**32, 0, ("struct", 1)), ("sdef", "u", 2**32 - 1, 0, ("other",))]
+    for d in defs:
+        run("pretty_def", S.pretty_def, d)
+
+
+TESTS = [t_whole, t_bytes_tail, t_names, t_worlds, t_checks, t_hash_constant, t_parse, t_linear, t_packed, t_typeof, t_form, t_raw, t_layout, t_trace_functions]
 
 if __name__ == "__main__":
     for t in TESTS:
