@@ -406,7 +406,88 @@ def t_trace_functions():
             None, list(acc))
 
 
-TESTS = [t_hash_constant, t_parse, t_linear, t_packed, t_typeof, t_form, t_raw, t_layout, t_trace_functions]
+def rexp(d=0):
+    """a random expression for the worlds"""
+    r = rnd.random()
+    if d > 3 or r < 0.25:
+        return rnd.choice([rint(), "caller", ("cd", 4), ("var", "x"), ("param", "a"), True, False, None,
+                           ("mem", ("range", 0, 32)), [1, 2], (), "calldatasize", ("bytes", 32, ("cd", 4)),
+                           ("storage", 256, 0, 3)])
+    if r < 0.4:
+        return ("add",) + tuple(rexp(d + 1) for _ in range(rnd.randrange(4)))
+    if r < 0.5:
+        return ("mul",) + tuple(rexp(d + 1) for _ in range(rnd.randrange(4)))
+    if r < 0.6:
+        return (rnd.choice(["div", "mod"]),) + tuple(rexp(d + 1) for _ in range(rnd.choice([2, 2, 2, 1, 3])))
+    if r < 0.75:
+        return ("mask_shl", rnd.choice([256, 160, 8, 1, 0, 257, -1, ("cd", 4)]), rnd.choice([0, 8, -8, 255, 256, 300, -300]),
+                rnd.choice([0, 8, -8, 255, 256, 512, -512, 600]), rexp(d + 1))[:rnd.choice([5, 5, 5, 5, 4, 3])]
+    if r < 0.9:
+        parts = tuple(rnd.choice([("bytes", rnd.choice([32, 20, 1, 0, 33, ("cd", 4)]), rexp(d + 1)), rexp(d + 1),
+                                  ("data", rexp(d + 1), ("bytes", 32, rexp(d + 1))), ("mem", ("range", 0, 64)),
+                                  ("call.data", 4, 32), ("arr", 32, ("cd", 4))])
+                      for _ in range(rnd.randrange(1, 4)))
+        return ("sha3", ("data",) + parts) if rnd.random() < 0.5 else ("sha3",) + parts
+    return rnd.choice([("bytes",), ("bytes", 32), ("lt", 1, 2), ("bytes", 32, rexp(d + 1))])
+
+
+def evb(e, seed):
+    return S.evb(e, S.World(seed)).hex()
+
+
+def t_worlds():
+    es = [rexp() for _ in range(N * 2)]
+    for size, off, idx in ACCESSES[:N]:
+        es += [idx, off, size]
+    for e in es:
+        seed = rnd.randrange(4)
+        run("ev", lambda e, seed: S.ev(e, S.World(seed)), e, seed)
+        run("evb", evb, e, seed)
+
+
+def defs_list(s):
+    return [(name, d["slot"], d.get("off", 0), d["type"]) for name, d in s.defs.items()]
+
+
+def read(f, defs, lang, seed):
+    d = {name: ({"slot": slot, "off": off, "type": t} if off else {"slot": slot, "type": t}) for name, slot, off, t in defs}
+    return S.read(f, d, lang, S.World(seed))
+
+
+def checks(f, size, off, idx, defs, lang):
+    d = {name: ({"slot": slot, "off": off, "type": t} if off else {"slot": slot, "type": t}) for name, slot, off, t in defs}
+    return S.checks(f, size, off, idx, d, lang)
+
+
+def t_checks():
+    for name, cap, fs, acc, lang, rg, s in ANALYSES:
+        if not s:
+            continue
+        defs = defs_list(s)
+        items = []
+        for a, st in s.steps.items():
+            size, off, idx = a
+            if st is None or type(size) != int:
+                continue
+            n, sts = st
+            try:
+                f = s.path_form(n, sts, size, off)
+            except S.Fail:
+                continue
+            except Exception:
+                continue
+            items.append((f, size, off, idx))
+            items.append((S.raw(size, off, idx), size, off, idx))
+        rnd.shuffle(items)
+        for f, size, off, idx in items[:max(40, N // 4)]:
+            run("checks", checks, f, size, off, idx, defs, lang)
+            run("read", read, f, defs, lang, rnd.randrange(4))
+            g = mutate(f)
+            run("checks", checks, g, size, off, idx, defs, lang)
+            run("read", read, g, defs, lang, rnd.randrange(4))
+
+
+TESTS = [t_worlds, t_checks, t_hash_constant, t_parse, t_linear, t_packed, t_typeof, t_form, t_raw, t_layout, t_trace_functions]
 
 if __name__ == "__main__":
     for t in TESTS:

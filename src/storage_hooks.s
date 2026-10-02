@@ -26,6 +26,10 @@ sth_table:
         .quad .Lh_language, sth_language
         .quad .Lh_checked_below, sth_checked_below
         .quad .Lh_narrow, sth_narrow
+        .quad .Lh_ev, sth_ev
+        .quad .Lh_evb, sth_evb
+        .quad .Lh_read, sth_read
+        .quad .Lh_checks, sth_checks
         .quad 0, 0
 
         .section .rodata
@@ -47,6 +51,10 @@ sth_table:
 .Lh_language:   .asciz "language"
 .Lh_checked_below: .asciz "checked_below"
 .Lh_narrow:     .asciz "narrow"
+.Lh_ev:         .asciz "ev"
+.Lh_evb:        .asciz "evb"
+.Lh_read:       .asciz "read"
+.Lh_checks:     .asciz "checks"
 .Ls_fail:       .asciz "Fail"
 .Ls_unknown:    .asciz "no such storage hook"
 .Ls_vyper:      .asciz "vyper"
@@ -402,5 +410,125 @@ FUNC sth_narrow
         call replace_f
         LEAVE
 ENDF sth_narrow
+
+# ('ev', e, seed) -> int
+FUNC sth_ev
+        ENTER
+        sub rsp, 32
+        mov rbx, rdi
+        ARG rdi, 1
+        call int_to_i64
+        mov rdi, rax
+        call ck_new
+        mov rdx, rax
+        mov rdi, rsp
+        ARG rsi, 0
+        call ck_ev
+        mov rdi, rsp
+        call w_to_value
+        add rsp, 32
+        LEAVE
+ENDF sth_ev
+
+# ('evb', e, seed) -> the hex of the bytes
+FUNC sth_evb
+        ENTER
+        mov rbx, rdi
+        ARG rdi, 1
+        call int_to_i64
+        mov rdi, rax
+        call ck_new
+        mov r12, rax
+        ARG rdi, 0
+        mov rsi, r12
+        call ck_evb
+        mov rdi, [r12 + 8]
+        mov rsi, [r12 + 16]
+        call tf_hex_str
+        LEAVE
+ENDF sth_evb
+
+# sth_defs(list of (name, slot, off, type)) -> od: name -> (slot, off, type)
+FUNC sth_defs
+        ENTER
+        mov rbx, rdi
+        call od_new
+        mov r12, rax
+        xor r13d, r13d
+1:      cmp r13d, [rbx + N_AUX]
+        jae 2f
+        mov r14, [rbx + N_DATA + r13*8]
+        inc r13d
+        mov rdi, [r14 + N_DATA + 8]
+        mov rsi, [r14 + N_DATA + 16]
+        mov rdx, [r14 + N_DATA + 24]
+        call mk3
+        mov rdi, r12
+        mov rsi, [r14 + N_DATA]
+        mov rdx, rax
+        call od_put
+        jmp 1b
+2:      mov rax, r12
+        LEAVE
+ENDF sth_defs
+
+# ('read', f, defs, lang, seed) -> (slot or ('blen', slot), off, size)
+FUNC sth_read
+        ENTER
+        sub rsp, 96
+        mov rbx, rdi
+        ARG rdi, 3
+        call int_to_i64
+        mov rdi, rax
+        call ck_new
+        mov r12, rax
+        ARG rdi, 1
+        call sth_defs
+        mov r13, rax
+        ARG rdi, 2
+        call sth_lang
+        mov ecx, eax
+        mov rdi, rsp
+        ARG rsi, 0
+        mov rdx, r13
+        mov r8, r12
+        call ck_read
+        mov [rsp + 64], rax
+        mov [rsp + 72], rdx
+        mov rdi, rsp
+        call w_to_value
+        cmp qword ptr [rsp + 32], 0
+        je 1f
+        mov rsi, rax
+        LOADS rdi, BLEN
+        call mk2
+1:      mov rdi, rax
+        mov rsi, [rsp + 64]
+        mov rdx, [rsp + 72]
+        call mk3
+        add rsp, 96
+        LEAVE
+ENDF sth_read
+
+# ('checks', f, size, off, idx, defs, lang) -> bool
+FUNC sth_checks
+        ENTER
+        mov rbx, rdi
+        ARG rdi, 4
+        call sth_defs
+        mov r12, rax
+        ARG rdi, 5
+        call sth_lang
+        mov r9d, eax
+        ARG rdi, 0
+        ARG rsi, 1
+        ARG rdx, 2
+        ARG rcx, 3
+        mov r8, r12
+        call ck_checks
+        mov edi, eax
+        call sth_bool
+        LEAVE
+ENDF sth_checks
 
         .section .note.GNU-stack,"",@progbits
