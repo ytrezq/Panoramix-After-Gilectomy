@@ -17,7 +17,6 @@ import panoramix.utils.supplement
 import panoramix.utils.signatures
 import panoramix.loader
 from panoramix.loader import Loader
-import panoramix.sparser
 
 if "--db" not in sys.argv:
     panoramix.utils.signatures.fetch_sig = lambda h: None
@@ -36,7 +35,6 @@ if __name__ == "__main__":
     for f in files:
         code = open(f).read().strip()
         name = os.path.basename(f)[:-4]
-        panoramix.sparser.used_locs = set()
         t0 = time.time()
         py = decompile_bytecode(code).text
         t1 = time.time()

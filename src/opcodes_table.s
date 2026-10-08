@@ -209,7 +209,18 @@ opcode_names:
         .quad .Lopname_202
         .quad .Lopname_203
         .quad .Lopname_204
-opcode_names_count: .quad 205
+        .quad .Lopname_205
+        .quad .Lopname_206
+        .quad .Lopname_207
+        .quad .Lopname_208
+        .quad .Lopname_209
+        .quad .Lopname_210
+        .quad .Lopname_211
+        .quad .Lopname_212
+        .quad .Lopname_213
+        .quad .Lopname_214
+        .quad .Lopname_215
+opcode_names_count: .quad 216
 .Lopname_0: .asciz "add"
 .Lopname_1: .asciz "mul"
 .Lopname_2: .asciz "sub"
@@ -415,9 +426,20 @@ opcode_names_count: .quad 205
 .Lopname_202: .asciz "switch"
 .Lopname_203: .asciz "copied"
 .Lopname_204: .asciz "identity"
+.Lopname_205: .asciz "off"
+.Lopname_206: .asciz "blen"
+.Lopname_207: .asciz "raw"
+.Lopname_208: .asciz "word"
+.Lopname_209: .asciz "value"
+.Lopname_210: .asciz "fixed"
+.Lopname_211: .asciz "member"
+.Lopname_212: .asciz "root"
+.Lopname_213: .asciz "sdef"
+.Lopname_214: .asciz "vyper"
+.Lopname_215: .asciz "solidity"
         .section .bss
         .align 8
         .globl opcode_nodes
         .hidden opcode_nodes
-opcode_nodes: .space 1648
+opcode_nodes: .space 1736
         .section .note.GNU-stack,"",@progbits

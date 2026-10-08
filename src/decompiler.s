@@ -18,6 +18,7 @@
 .Ls_failed_item: .asciz "#  - "
 .Ls_all_rest:   .asciz "#  All the rest is below."
 .Ls_def_storage: .asciz "storage:"
+.Ls_def_storage_vyper: .asciz "storage (vyper):"
 .Ls_def_:       .asciz "def "
 .Ls_regular:    .asciz "#\n#  Regular functions\n#"
 .Ls_fallback:   .asciz "_fallback"
@@ -1071,7 +1072,8 @@ FUNC contract_text
         cmp qword ptr [rax + VEC_LEN], 0
         je 5f
         call .Lct_newline
-5:      # the storage
+5:      # the storage: `def storage:` (`def storage (vyper):` for a Vyper
+        # contract), each definition as storage.pretty_def prints it
         mov r13, [rbx + CT_STOR_DEFS]
         cmp dword ptr [r13 + N_AUX], 0
         je 7f
@@ -1086,13 +1088,16 @@ FUNC contract_text
         call sb_append_c
         mov rdi, r12
         lea rsi, [rip + .Ls_def_storage]
-        call sb_append_c
+        cmp qword ptr [rbx + CT_LANG], 0
+        je 51f
+        lea rsi, [rip + .Ls_def_storage_vyper]
+51:     call sb_append_c
         call .Lct_newline
         xor r14d, r14d
 6:      cmp r14d, [r13 + N_AUX]
         jae 61f
         mov rdi, [r13 + N_DATA + r14*8]
-        call pretty_type
+        call st_pretty_def
         mov rdi, r12
         mov rsi, rax
         call sb_append_str

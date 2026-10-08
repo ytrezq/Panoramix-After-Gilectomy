@@ -204,4 +204,15 @@
 .set OP_SWITCH, 203
 .set OP_COPIED, 204
 .set OP_IDENTITY, 205
-.set OP_COUNT, 205
+.set OP_OFF, 206
+.set OP_BLEN, 207
+.set OP_RAW, 208
+.set OP_WORD, 209
+.set OP_VALUE, 210
+.set OP_FIXED, 211
+.set OP_MEMBER, 212
+.set OP_ROOT, 213
+.set OP_SDEF, 214
+.set OP_VYPER, 215
+.set OP_SOLIDITY, 216
+.set OP_COUNT, 216

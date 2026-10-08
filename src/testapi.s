@@ -199,6 +199,7 @@ test_table:
         .quad .Ln_vm_helper, tf_vm_helper
         .quad .Ln_entry_helper, tf_entry_helper
         .quad .Ln_vm_func, tf_vm_func
+        .quad .Ln_storage, tf_storage
         .quad 0, 0
 
         .section .rodata
@@ -211,6 +212,7 @@ test_table:
 
         .section .rodata
 .Ln_roundtrip: .asciz "roundtrip"
+.Ln_storage:   .asciz "storage"
 .Ln_dump_version: .asciz "dump_version"
 .Ln_keccak:    .asciz "keccak"
 .Ln_runtrace:  .asciz "runtrace"
@@ -2207,6 +2209,12 @@ ENDF tf_is_end_block
 
 # [(hash, trace, (name, inputs or None))...] -> (stor_defs, [(name, trace,
 # ast, print lines, priority)...], [const names])
+# [(hash, trace, (name, inputs or None))...] -> ((lang, stor_defs), [(name,
+# trace, ast, print lines, priority)...], [const names])
+        .section .rodata
+.Ls_tc_solidity: .asciz "solidity"
+.Ls_tc_vyper:   .asciz "vyper"
+        .text
 FUNC tf_contract
         ENTER
         sub rsp, 48
@@ -2247,7 +2255,14 @@ FUNC tf_contract
         mov rbx, rax
         mov rdi, rax
         call contract_postprocess
-        mov rax, [rbx + CT_STOR_DEFS]
+        lea rdi, [rip + .Ls_tc_solidity]        # (lang, stor_defs)
+        lea rax, [rip + .Ls_tc_vyper]
+        cmp qword ptr [rbx + CT_LANG], 0
+        cmovne rdi, rax
+        call str_intern_c
+        mov rdi, rax
+        mov rsi, [rbx + CT_STOR_DEFS]
+        call mk2
         mov [rsp], rax
         call vec_new
         mov r13, rax

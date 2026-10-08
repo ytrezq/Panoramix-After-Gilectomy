@@ -559,17 +559,11 @@ FUNC contract_data
         lea rsi, [rip + .Ls_stor_defs]
         mov edx, r13d
         call data_key
-        cmp qword ptr [rbx + CT_STOR_FAILED], 0
-        jne 5f
         mov rdi, r12
         mov rsi, [rbx + CT_STOR_DEFS]
         mov edx, r13d
         call data_value
-        jmp 6f
-5:      mov rdi, r12                    # (python's {} when it failed)
-        mov esi, r13d
-        call data_empty_dict
-6:      # the functions
+        # the functions
         mov rdi, r12
         mov esi, 2
         mov edx, r13d

@@ -819,11 +819,13 @@ ENDF \fname
 
 # a contract (contract.s)
 .set CT_FUNCS, 0            # a vec of functions (FN_*)
-.set CT_STOR_DEFS, 8        # list of ('def', name, loc, type)
+.set CT_STOR_DEFS, 8        # list of ('sdef', name, slot, off, type) (storage.py's header)
 .set CT_CONSTS, 16          # a vec of the constant functions, in display order
 .set CT_PROBLEMS, 24        # list of (hash, name) of the functions that failed
-.set CT_STOR_FAILED, 32     # the storage postprocessing failed (python's stor_defs = {})
-.set CT_SIZEOF, 40
+.set CT_LANG, 32            # the storage's language: 1 vyper, 0 solidity
+.set CT_CODE, 40            # the code (the loader's), or 0 (None)
+.set CT_CODELEN, 48
+.set CT_SIZEOF, 56
 
 # a trace run on values (runtrace.s, python's runtrace.Machine). Words are
 # 256-bit numbers in 32 bytes, the least significant limb first.
