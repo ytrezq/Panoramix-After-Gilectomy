@@ -1,8 +1,9 @@
 # python's decompilation.json (decompiler.py: contract.json(), after the
 # postprocessing): the problems, the storage definitions and the
 # functions - each with its names, its length, its getter or constant,
-# payable, its printed text (with the colors), its trace and its
-# parameters - serialized for the caller, in one of two forms:
+# payable and what it does when sent ether (value_fails), its printed
+# text (with the colors), its trace and its parameters - serialized for
+# the caller, in one of two forms:
 #
 #   DATA_BINARY (0), for the python module, which makes python's objects
 #   back from it (the tuples stay tuples, the parameters' keys numbers):
@@ -43,6 +44,7 @@
 .Ls_k_getter:   .asciz "getter"
 .Ls_k_const:    .asciz "const"
 .Ls_k_payable:  .asciz "payable"
+.Ls_k_value_fails: .asciz "value_fails"
 .Ls_k_print:    .asciz "print"
 .Ls_k_trace:    .asciz "trace"
 .Ls_k_params:   .asciz "params"
@@ -646,7 +648,7 @@ FUNC function_data
         mov r13d, edx
         mov rdi, r12
         mov esi, '{'
-        mov edx, 11
+        mov edx, 12
         mov ecx, r13d
         call data_open
         xor r14d, r14d                  # the index of the key
@@ -709,6 +711,9 @@ FUNC function_data
         mov rdi, r12
         mov edx, r13d
         call data_special
+        lea rsi, [rip + .Ls_k_value_fails]
+        mov rdx, [rbx + FN_VALUE_FAILS] # (0: None)
+        call .Lfd_field
         lea rsi, [rip + .Ls_k_print]
         mov rdx, [rsp]
         call .Lfd_field

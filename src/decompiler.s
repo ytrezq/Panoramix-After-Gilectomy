@@ -186,11 +186,8 @@ FUNC decompile_worker
         call .Ldw_check_deadline
         test qword ptr [r15 + CTX_VERBOSE], VB_EXPLAIN
         jz 1f
-        mov rdi, r13                    # (python's trace[1:])
-        mov esi, 1
-        call list_from
-        lea rdi, [rip + explain_s_initial]
-        mov rsi, rax
+        lea rdi, [rip + explain_s_initial]      # (the whole trace: its entry
+        mov rsi, r13                            # first, see vm_run)
         call explain
         mov rdi, r13                    # the lines of assembly dropped again
         lea rsi, [rip + explain_drop_asm]
@@ -442,6 +439,12 @@ FUNC decompile
         pop rcx
         pop rcx
         mov [rcx + JB_KNOWN], rax
+        # (what's known holds for the default function where it's all of
+        # the dispatcher, at 0 - not where it starts: what's known there is
+        # what its entries, each of the paths to it, have in common - see
+        # loader.entry)
+        cmp qword ptr [rcx + JB_TARGET], 1      # target == 0
+        jne 3b
         mov rdi, [rcx + JB_HASH]
         push rcx
         push rcx
