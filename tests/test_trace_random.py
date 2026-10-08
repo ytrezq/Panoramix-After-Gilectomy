@@ -86,7 +86,10 @@ def rexp(d=0):
     r = random.random()
     if d > 2 or r < 0.35: return rint() if random.random() < 0.4 else ratom()
     op = random.choice(["add", "add", "mul", "sub", "mem", "mem", "and", "or", "iszero", "lt", "gt",
-                        "eq", "div", "mask_shl", "sha3", "exp", "shl", "shr", "not", "byte", "mod"])
+                        "eq", "div", "mask_shl", "sha3", "exp", "shl", "shr", "not", "byte", "mod",
+                        "sar", "tload", "min"])
+    if op == "tload": return ("tload", rexp(d + 1))
+    if op == "min": return ("min", rexp(d + 1), "returndatasize")
     if op == "add": return ("add",) + tuple(rexp(d + 1) for _ in range(random.randint(2, 3)))
     if op == "mul": return ("mul", random.choice([1, 2, 32, -1, rint()]), rexp(d + 1))
     if op == "mem": return ("mem", rrange())
@@ -120,27 +123,46 @@ def rline(d):
     return ("setmem", ("range", 64, 32), ("add", 32, ("mem", ("range", 64, 32))))
 
 # the other lines of the VM: the other calls, the creations, the
-# precompiled contracts, msize, the return data written to memory
+# precompiled contracts, msize, the return data written to memory - as the
+# PR's VM makes them: a call's data split where it surely has a selector
+# (vm.call_data: (None, None), (selector, None), (selector, params), (None,
+# data)), min(ret_len, returndatasize) of the return data written, the
+# identity precompile as a copy, the transient storage, mcopy, the check of
+# a returndatacopy
 OTHERS = os.environ.get("OTHERS", "1") != "0"
-def rother():
-    start = rpos()
+def rcalldata(start):
     fname = ("mem", ("range", start, 4))
     fparams = ("mem", ("range", ("add", 4, start) if not isinstance(start, int) else start + 4, random.choice([32, 64, ("cd", 4)])))
+    return random.choice([(None, None), (fname, None), (fname, fparams), (None, ("mem", ("range", start, ("cd", 4))))])
+
+def rother():
+    start = rpos()
     r = random.random()
-    if r < 0.15: return ("delegatecall", "gas", rexp(1), fname, random.choice([fparams, 0]))
-    if r < 0.3: return ("staticcall", "gas", rexp(1), 0, random.choice([fname, None]), random.choice([fparams, None]))
-    if r < 0.35: return ("callcode", "gas", rexp(1), random.choice([0, "callvalue"]), fname, fparams)
-    if r < 0.45: return ("create", random.choice([0, "callvalue"]), ("mem", rrange()))
-    if r < 0.5: return ("create2", 0, ("mem", rrange()), rexp(1))
+    if r < 0.1: return ("delegatecall", "gas", rexp(1)) + rcalldata(start)
+    if r < 0.2: return ("staticcall", "gas", rexp(1), 0) + rcalldata(start)
+    if r < 0.25: return ("callcode", "gas", rexp(1), random.choice([0, "callvalue"])) + rcalldata(start)
+    if r < 0.3: return ("create", random.choice([0, "callvalue"]), ("mem", rrange()))
+    if r < 0.35: return ("create2", 0, ("mem", rrange()), rexp(1))
+    if r < 0.45:
+        k = random.choice([1, 2, 3, 5, 4])
+        if k == 4:
+            return ("precompiled", "copied", "identity", ("mem", rrange()))
+        return ("precompiled", random.choice([{1: "signer", 2: "hash", 3: "hash", 5: "mod_exp"}[k], "signer2", "hash2"]),
+                {1: "ecrecover", 2: "sha256hash", 3: "ripemd160hash", 5: "bigModExp"}[k], ("mem", rrange()))
+    if r < 0.5: return ("setvar", random.choice(["_1", "_2"]), "msize")
     if r < 0.6:
-        k = random.choice([1, 2, 3, 5])
-        return ("precompiled", {1: "signer", 2: "hash", 3: "hash", 5: "mod_exp"}[k],
-                {1: "erecover", 2: "sha256hash", 3: "ripemd160hash", 5: "bigModExp"}[k], ("mem", rrange()))
-    if r < 0.7: return ("setvar", random.choice(["_1", "_2"]), "msize")
-    if r < 0.8:
         n = random.choice([32, 64, ("cd", 4)])
-        return ("setmem", ("range", rpos(), n), (random.choice(["ext_call.return_data", "delegate.return_data"]), 0, n))
-    if r < 0.9: return ("setmem", rrange(), ("var", random.choice(["_1", "_2", "signer", "hash"])))
+        n = random.choice([n, ("min", n, "returndatasize")])
+        return ("setmem", ("range", rpos(), n), ("ext_call.return_data", 0, n))
+    if r < 0.67: return ("setmem", rrange(), ("var", random.choice(["_1", "_2", "signer", "hash"])))
+    if r < 0.72: return ("tstore", random.choice([0, 1, ("cd", 4)]), rexp(1))
+    if r < 0.77:
+        n = rlen()
+        return ("setmem", ("range", rpos(), n), ("mem", ("range", rpos(), n)))
+    if r < 0.82:
+        return ("if", ("lt", random.choice(["returndatasize", 0]), ("add", random.choice([0, 32]), random.choice([32, ("cd", 4)]))),
+                [("invalid", "returndatacopy")], [])
+    if r < 0.87: return ("setmem", rrange(), ("ext_call.return_data", random.choice([0, 4]), rlen()))
     return ("log", ("mem", rrange()), random.choice([0xddf252ad, rint()]))
 
 LOOP_VARS = [15001, 15002, 27001]
@@ -174,7 +196,7 @@ def rtrace(d=0):
     t = [rline(d) for _ in range(random.randint(1, 6 if d else 12))]
     end = random.random()
     if end < 0.4: t.append(("return", ("mem", rrange())))
-    elif end < 0.6: t.append(("revert", 0))
+    elif end < 0.6: t.append(("revert", random.choice([None, None, 0])))
     elif end < 0.8: t.append(("stop",))
     elif end < 0.9 and OTHERS:
         t.append(random.choice([("selfdestruct", random.choice(["caller", ("cd", 4), rexp(1)])), ("invalid",),

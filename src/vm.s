@@ -18,36 +18,6 @@
 .Ls_safe:           .asciz "safe"
 .Ls_storage:        .asciz "storage"
 .Ls_var_fmt:        .asciz "_%lu"
-.Ls_result_fmt:     .asciz "%s.result"
-.Ls_erecover:       .asciz "erecover"
-.Ls_sha256hash:     .asciz "sha256hash"
-.Ls_ripemd160hash:  .asciz "ripemd160hash"
-.Ls_bigModExp:      .asciz "bigModExp"
-.Ls_bn256Add:       .asciz "bn256Add"
-.Ls_bn256ScalarMul: .asciz "bn256ScalarMul"
-.Ls_bn256Pairing:   .asciz "bn256Pairing"
-.Ls_signer:         .asciz "signer"
-.Ls_hash:           .asciz "hash"
-.Ls_mod_exp:        .asciz "mod_exp"
-.Ls_bn_add:         .asciz "bn_add"
-.Ls_bn_scalar_mul:  .asciz "bn_scalar_mul"
-.Ls_bn_pairing:     .asciz "bn_pairing"
-
-        .section .data.rel.ro
-        .align 8
-# the precompiled contracts 1..8 (4, the identity, is handled apart):
-# name, variable name
-precompiled_names:
-        .quad 0, 0
-        .quad .Ls_erecover, .Ls_signer
-        .quad .Ls_sha256hash, .Ls_hash
-        .quad .Ls_ripemd160hash, .Ls_hash
-        .quad 0, 0
-        .quad .Ls_bigModExp, .Ls_mod_exp
-        .quad .Ls_bn256Add, .Ls_bn_add
-        .quad .Ls_bn256ScalarMul, .Ls_bn_scalar_mul
-        .quad .Ls_bn256Pairing, .Ls_bn_pairing
-
         .section .bss
         .align 8
         .globl evm_op_nodes
@@ -88,8 +58,21 @@ FUNC vm_new
         mov qword ptr [rax + VM_NODE_COUNT], 0
         mov qword ptr [rax + VM_TIMEOUT], 0
         mov qword ptr [rax + VM_GEN], 1 # (a new node's stamp, 0, is never the current one)
+        mov qword ptr [rax + VM_LOOP_KEY], 1    # (loop_key's next number)
         mov [r15 + CTX_VM], rax
-        mov rbx, rax
+        mov r12, rax
+        # the context works on the loader's contract: the memory model's
+        # free memory pointer is the loader's (vr_free_memory_pointer;
+        # python's variants.FREE_MEMORY_POINTER, global, whose caches are
+        # forgotten when it changes)
+        call vr_free_memory_pointer
+        mov r13d, eax
+        mov [r15 + CTX_LOADER], rbx
+        call vr_free_memory_pointer
+        cmp eax, r13d
+        je 1f
+        call clear_caches
+1:      mov rbx, r12
         lea rdi, [rip + .Ls_env_check_lca]
         call getenv@PLT
         xor ecx, ecx
@@ -118,13 +101,23 @@ FUNC monotonic_ns
         LEAVE
 ENDF monotonic_ns
 
-# vm_should_quit() -> eax: too many nodes, or out of time
+# vm_should_quit() -> eax: too many nodes (MAX_NODE_COUNT, or
+# MAX_FDESTS_NODE_COUNT finding the functions; past WIDE_NODE_COUNT, the
+# exploration goes on only while fewer than one node of 16 is still to
+# explore - VM_FRONTIER, as last counted), or out of time
 FUNC vm_should_quit
         ENTER
         mov rbx, [r15 + CTX_VM]
-        cmp qword ptr [rbx + VM_NODE_COUNT], MAX_NODE_COUNT
+        mov rax, [rbx + VM_NODE_COUNT]
+        cmp rax, [rbx + VM_MAX_NODES]
         ja 1f
-        cmp qword ptr [rbx + VM_TIMEOUT], 0
+        cmp rax, WIDE_NODE_COUNT
+        jbe 3f
+        mov rcx, [rbx + VM_FRONTIER]
+        shl rcx, 4
+        cmp rcx, rax
+        ja 1f
+3:      cmp qword ptr [rbx + VM_TIMEOUT], 0
         je 2f
         call monotonic_ns
         sub rax, [rbx + VM_TIME_START]
@@ -136,31 +129,40 @@ FUNC vm_should_quit
         LEAVE
 ENDF vm_should_quit
 
-# vm_run(start, stack, known, timeout_ns) -> rax: the decompiled trace (a
-# list) of the function starting at `start` with `stack` (a tuple), given
-# the conditions `known` to hold there.
+# vm_run(start, stack, known, timeout_ns, entry, memory) -> rax: the
+# decompiled trace (a list) of the function starting at `start` with
+# `stack` (a tuple), given the conditions `known` to hold there. entry:
+# what runs before start (see loader.entry_paths), NIL when it isn't known
+# (python's None: the free memory pointer is assumed to be 0x60 then, as
+# the old compilers set it - if it's solidity's), the beginning of the
+# trace; memory: what's known of the memory then (see entry_memory).
 FUNC vm_run
         ENTER
-        sub rsp, 48
+        sub rsp, 64
         mov rbx, [r15 + CTX_VM]
         mov [rsp], rdi                  # start
         mov [rsp + 8], rsi              # stack
         mov [rsp + 16], rdx             # known
         mov [rbx + VM_TIMEOUT], rcx
+        mov [rsp + 48], r8              # entry
+        mov [rsp + 56], r9              # memory
         call monotonic_ns
         mov [rbx + VM_TIME_START], rax
         mov qword ptr [rbx + VM_NODE_COUNT], 0
-        # func_node = Node(start, safe=True, stack, known)
-        mov rdi, [rsp]
-        mov esi, 1
-        mov rdx, [rsp + 8]
-        lea rcx, [rip + sp_true]
-        mov r8, [rsp + 16]
-        call node_new
-        mov r12, rax
-        # trace = [('setmem', ('range', 0x40, 32), 0x60), ('jump', func_node, 'safe', ())]
+        mov qword ptr [rbx + VM_FRONTIER], 0
+        mov eax, MAX_NODE_COUNT
+        mov ecx, MAX_FDESTS_NODE_COUNT
+        cmp qword ptr [rbx + VM_JUST_FDESTS], 0
+        cmovne eax, ecx
+        mov [rbx + VM_MAX_NODES], rax
         call vec_new
-        mov r13, rax
+        mov r13, rax                    # the root's trace: before, then the jump
+        cmp qword ptr [rsp + 48], 0
+        jne 1f
+        # no entry: mem[64] = 0x60, if it's the free memory pointer
+        call vr_free_memory_pointer
+        test eax, eax
+        jz 2f
         LOADS rdi, RANGE
         mov esi, (0x40 << 1) | 1
         mov edx, (32 << 1) | 1
@@ -172,6 +174,61 @@ FUNC vm_run
         mov rdi, r13
         mov rsi, rax
         call vec_push
+        jmp 2f
+1:      # what the entry says holds, a memory of zeroes where the run starts
+        # at the beginning of the code, what's known of the memory, and no
+        # data returned yet (the dispatcher makes no call: minimal proxies
+        # use returndatasize as a cheap 0)
+        mov rdi, [rsp + 48]
+        call entry_known
+        mov rdi, [rsp + 16]
+        mov rsi, rax
+        call tuple_concat
+        mov [rsp + 16], rax
+        cmp qword ptr [rsp], 1          # start == 0 and len(entry) == 0
+        jne 3f
+        mov rax, [rsp + 48]
+        cmp dword ptr [rax + N_AUX], 0
+        jne 3f
+        LOADS rdi, MEMORY_FRESH
+        call mk1
+        mov rdi, [rsp + 16]
+        mov rsi, rax
+        call tuple_append
+        mov [rsp + 16], rax
+3:      mov r12, [rsp + 56]             # the memory facts not known yet
+        xor r14d, r14d
+4:      cmp r14d, [r12 + N_AUX]
+        jae 6f
+        mov rsi, [r12 + N_DATA + r14*8]
+        inc r14d
+        mov rax, [rsp + 16]
+        xor ecx, ecx
+5:      cmp ecx, [rax + N_AUX]
+        jae 51f
+        cmp [rax + N_DATA + rcx*8], rsi
+        je 4b
+        inc ecx
+        jmp 5b
+51:     mov rdi, rax
+        call tuple_append
+        mov [rsp + 16], rax
+        jmp 4b
+6:      LOADS rdi, RETURNDATASIZE_ZERO
+        call mk1
+        mov rdi, [rsp + 16]
+        mov rsi, rax
+        call tuple_append
+        mov [rsp + 16], rax
+2:      # func_node = Node(start, safe=True, stack, known)
+        mov rdi, [rsp]
+        mov esi, 1
+        mov rdx, [rsp + 8]
+        lea rcx, [rip + sp_true]
+        mov r8, [rsp + 16]
+        call node_new
+        mov r12, rax
+        # trace = before + [('jump', func_node, 'safe', ())]
         xor edi, edi
         xor esi, esi
         call mk_tuple
@@ -236,8 +293,10 @@ FUNC vm_run
         mov rdi, r14
         call vm_unexpanded_after_merges
         mov [rsp + 40], rax
-        cmp qword ptr [rax + VEC_LEN], 0
-        je .Linner_done
+        mov rcx, [rax + VEC_LEN]
+        mov [rbx + VM_FRONTIER], rcx
+        test rcx, rcx
+        jz .Linner_done
         call vm_should_quit
         test eax, eax
         jnz .Linner_done
@@ -277,9 +336,77 @@ FUNC vm_run
         call log_fmt
 1:      mov rdi, r14
         call node_make_trace
-        add rsp, 48
+        # preceded by what runs before (a non-empty entry)
+        mov rdi, [rsp + 48]
+        test rdi, rdi
+        jz 2f
+        cmp dword ptr [rdi + N_AUX], 0
+        je 2f
+        mov rsi, rax
+        call apply_entry
+2:      add rsp, 64
         LEAVE
 ENDF vm_run
+
+# vm_run_function(loader, hash, target, stack, timeout_ns) -> rax: the
+# trace of a function, as python's decompiler runs the VM for it (on this
+# context's VM): known what no selector matched where the default function
+# is all of the dispatcher (target 0), the entry of the function (what all
+# the paths of the dispatcher to it have in common, see loader.entry) and
+# what's known of the memory then (entry_memory of its entries). hash: the
+# function's string, the loader's (imported here, with what goes with it).
+FUNC vm_run_function
+        ENTER
+        sub rsp, 48
+        mov rbx, rdi                    # loader
+        mov [rsp], rsi                  # hash
+        mov [rsp + 8], rdx              # target
+        mov [rsp + 16], rcx             # stack
+        mov [rsp + 24], r8              # timeout
+        xor edi, edi
+        xor esi, esi
+        call mk_tuple
+        mov r12, rax                    # known
+        cmp qword ptr [rsp + 8], 1
+        jne 1f
+        mov rdi, [rsp]
+        lea rsi, [rip + .Ls_fallback_name]
+        call str_eq_c
+        test eax, eax
+        jz 1f
+        mov rdi, [rbx + LD_FALLBACK_KNOWN]
+        call value_import_root
+        mov r12, rax
+1:      xor r13d, r13d                  # entry: None
+        mov rdi, rbx
+        mov rsi, [rsp]
+        call loader_entries
+        test rax, rax
+        jz 2f
+        mov rdi, rax
+        call value_import_root
+        mov r14, rax                    # the entries
+        mov rdi, rax
+        call common_entry
+        mov r13, rax
+        mov rdi, r14
+        call entry_memory
+        jmp 3f
+2:      xor edi, edi
+        call entry_memory
+3:      mov r9, rax
+        mov r8, r13
+        mov rdi, [rsp + 8]
+        mov rsi, [rsp + 16]
+        mov rdx, r12
+        mov rcx, [rsp + 24]
+        call vm_run
+        add rsp, 48
+        LEAVE
+ENDF vm_run_function
+        .section .rodata
+.Ls_fallback_name: .asciz "_fallback"
+        .text
 
 # vm_unexpanded_after_merges(root) -> rax: python's find_nodes(root, the
 # nodes not run yet), after merge_branches: the ones its walk found, when
@@ -331,14 +458,20 @@ ENDF vm_unexpanded_after_merges
 
 # vm_expand_trace(root, nodes) -> rax: run the nodes that haven't been
 # yet - nodes: them, as find_nodes just gave them, or 0 to find them.
+# Finding the functions only (just_fdests), the dispatcher first: the
+# nodes in_dispatcher, if any - a function's body with the nodes left once
+# it's done (the default function's body, which takes the paths no
+# selector matches, branches as it goes: explored with it, it took all of
+# the nodes, and the functions past where the dispatcher was cut were left
+# to the default function, as its ifs on the selector).
 # Gives the unexpanded nodes after (what replace_loops' find_nodes would
-# give): the unexpanded ones are leaves, found in the order of the
-# leaves, and running one only gives it children, new (unexpanded, but
-# for just_fdests' funccalls) - they take its place in that order, in the
-# order of its next.
+# give): the unexpanded ones are leaves, found in the order of the leaves,
+# and running one only gives it new nodes below (its children - unexpanded
+# but for just_fdests' funccalls - and the cases of a switch below its
+# ifs, see code_switch): they take its place in that order.
 FUNC vm_expand_trace
         ENTER
-        sub rsp, 16
+        sub rsp, 32
         mov r13, rdi
         mov rbx, rsi
         test rbx, rbx
@@ -349,43 +482,68 @@ FUNC vm_expand_trace
         mov rbx, rax
 3:      call vec_new
         mov r14, rax                    # the unexpanded ones after
+        # just_fdests: the nodes of the dispatcher only, if there are some
+        # (a byte per node: run it)
+        mov rdi, [rbx + VEC_LEN]
+        inc rdi
+        call arena_alloc
+        mov [rsp + 16], rax
         xor r12d, r12d
+        mov qword ptr [rsp + 24], 0     # how many in the dispatcher
+        mov rax, [r15 + CTX_VM]
+        cmp qword ptr [rax + VM_JUST_FDESTS], 0
+        je 11f
+10:     cmp r12, [rbx + VEC_LEN]
+        jae 12f
+        mov rax, [rbx + VEC_DATA]
+        mov rdi, [rax + r12*8]
+        call in_dispatcher
+        mov rcx, [rsp + 16]
+        mov [rcx + r12], al
+        add [rsp + 24], rax
+        inc r12
+        jmp 10b
+12:     cmp qword ptr [rsp + 24], 0
+        jne 13f
+11:     mov rdi, [rsp + 16]             # all of them
+        mov esi, 1
+        mov rdx, [rbx + VEC_LEN]
+        call memset@PLT
+13:     xor r12d, r12d
+        mov qword ptr [rsp + 24], 0     # 1: stopped (should_quit)
 1:      cmp r12, [rbx + VEC_LEN]
         jae 2f
+        mov rax, [rbx + VEC_DATA]
+        mov rdi, [rax + r12*8]
+        mov [rsp], rdi
+        mov rcx, [rsp + 16]
+        cmp byte ptr [rcx + r12], 0
+        je 7f                           # not run: as it is
+        cmp qword ptr [rsp + 24], 0
+        jne 7f
         # symbolic execution of a single node can take very long when the
         # expressions get big, so the timeout is checked here too
         call vm_should_quit
         test eax, eax
-        jnz 4f
-        mov rax, [rbx + VEC_DATA]
-        mov rdi, [rax + r12*8]
-        mov [rsp], rdi
+        jz 6f
+        mov qword ptr [rsp + 24], 1
+        mov rdi, [rsp]
+        jmp 7f
+6:      mov rdi, [rsp]
         call node_run
-        mov rax, [rsp]                  # its children not run (with a
-        mov rax, [rax + ND_NEXT]        # trace from the start: just_fdests'
-        mov [rsp + 8], rax              # funccalls)
-        xor ecx, ecx
-8:      mov rax, [rsp + 8]
-        cmp rcx, [rax + VEC_LEN]
-        jae 9f
-        mov rax, [rax + VEC_DATA]
-        mov rsi, [rax + rcx*8]
-        inc rcx
-        cmp qword ptr [rsi + ND_TRACE], 0
-        jne 8b
-        mov [rsp], rcx
+        # the unexpanded nodes below it, in find_nodes' order
+        mov rdi, [rsp]
+        lea rsi, [rip + pred_unexpanded]
+        xor edx, edx
+        mov rcx, r14
+        call find_nodes_into
+        inc r12
+        jmp 1b
+7:      mov rsi, rdi
         mov rdi, r14
         call vec_push
-        mov rcx, [rsp]
-        jmp 8b
-9:      inc r12
+        inc r12
         jmp 1b
-4:      mov rax, [rbx + VEC_DATA]       # the ones not run, as they are
-        lea rsi, [rax + r12*8]
-        mov rdx, [rbx + VEC_LEN]
-        sub rdx, r12
-        mov rdi, r14
-        call vec_extend
 2:      mov rax, [r15 + CTX_VM]
         cmp qword ptr [rax + VM_CHECK_LCA], 0
         je 5f
@@ -396,31 +554,21 @@ FUNC vm_expand_trace
         call find_nodes
         mov rcx, [rax + VEC_LEN]
         cmp rcx, [r14 + VEC_LEN]
-        jne 7f
+        jne 8f
         mov rsi, [rax + VEC_DATA]
         mov rdi, [r14 + VEC_DATA]
-6:      dec rcx
+4:      dec rcx
         js 5f
         mov rdx, [rsi + rcx*8]
         cmp rdx, [rdi + rcx*8]
-        jne 7f
-        jmp 6b
+        jne 8f
+        jmp 4b
 5:      mov rax, r14
-        add rsp, 16
+        add rsp, 32
         LEAVE
-7:      mov rcx, [rax + VEC_LEN]
-        mov r8, [r14 + VEC_LEN]
-        mov edi, LOG_ERROR
-        lea rsi, [rip + .Ls_unexp_dbgn]
-        lea rdx, [rip + .Ls_unexp_dbgf]
-        call log_fmt
-        lea rdi, [rip + .Ls_unexp_mismatch]
+8:      lea rdi, [rip + .Ls_unexp_mismatch]
         call rt_fatal
 ENDF vm_expand_trace
-        .section .rodata
-.Ls_unexp_dbgn: .asciz "unexpdbg"
-.Ls_unexp_dbgf: .asciz "walk %u derived %u"
-        .text
 
         .section .rodata
 .Ls_unexp_mismatch: .asciz "vm_expand_trace: the unexpanded nodes after the runs and python's walk disagree"
@@ -429,7 +577,8 @@ ENDF vm_expand_trace
 # vm_replace_loops(root, nodes): an unexpanded node at a point of
 # execution already seen on its path (same jumpdest, same stack layout)
 # is a loop - nodes: the unexpanded nodes (vm_expand_trace's), or 0 to
-# find them
+# find them. ('loop', earlier, stack, folded, vars): folded a list, as
+# python's fold_stacks gives it.
 FUNC vm_replace_loops
         ENTER
         sub rsp, 16
@@ -459,12 +608,15 @@ FUNC vm_replace_loops
         mov rax, [r13 + ND_STACK]
         cmp ecx, [rax + N_AUX]
         jne 3f
-        # ('loop', earlier, stack, folded, vars)
+        mov rdi, r14
+        call loop_key
+        mov rdx, rax
         mov rdi, [r14 + ND_STACK]
         mov rsi, [r13 + ND_STACK]
-        mov rdx, [r13 + ND_DEPTH]
         lea rcx, [rsp]
         call fold_stacks
+        mov rdi, rax
+        call seq_to_list
         mov r8, [rsp]
         mov rcx, rax
         mov rdx, [r13 + ND_STACK]
@@ -480,7 +632,8 @@ FUNC vm_replace_loops
         mov rdi, r13
         call node_touch
         # (for continue_loops, in this order: find_nodes' - the loops are
-        # these, as no other node's trace is ever a loop)
+        # these, as no other node's trace is ever a loop, unless
+        # continue_loops left some: VM_LOOPS_STALE)
         mov rax, [r15 + CTX_VM]
         mov rdi, [rax + VM_LOOPS]
         test rdi, rdi
@@ -499,13 +652,36 @@ ENDF vm_replace_loops
 
 # vm_continue_loops(root): set up the loops found by vm_replace_loops -
 # python's find_nodes(root, a trace of one 'loop'): the nodes
-# vm_replace_loops made so since (VM_LOOPS, in the same order), emptied
+# vm_replace_loops made so since (VM_LOOPS, in the same order), emptied;
+# or, when the last call returned early (it may: the tree changed), a walk
+# of the tree (VM_LOOPS_STALE)
 FUNC vm_continue_loops
         ENTER
-        sub rsp, 48
+        sub rsp, 64
+        .set CL_DEST, 0                 # loop_dest
+        .set CL_SETVARS, 8
+        .set CL_BEGINVARS, 16
+        .set CL_I, 24
+        .set CL_VARS, 32
+        .set CL_MASK, 40
+        mov [rsp + 56], rdi             # root
         mov rax, [r15 + CTX_VM]
         mov rbx, [rax + VM_LOOPS]
-        test rbx, rbx
+        cmp qword ptr [rax + VM_LOOPS_STALE], 0
+        je 1f
+        mov qword ptr [rax + VM_LOOPS_STALE], 0
+        mov rdi, [rsp + 56]             # python's walk
+        lea rsi, [rip + pred_loop]
+        xor edx, edx
+        call find_nodes
+        mov rcx, [r15 + CTX_VM]
+        mov rdx, [rcx + VM_LOOPS]
+        test rdx, rdx
+        jz 2f
+        mov qword ptr [rdx + VEC_LEN], 0
+2:      mov rbx, rax
+        mov [rcx + VM_LOOPS], rax
+1:      test rbx, rbx
         jz .Lcl_done
         xor r12d, r12d
 .Lcl_next:
@@ -518,21 +694,29 @@ FUNC vm_continue_loops
         mov rax, [rax + VEC_DATA]
         mov r14, [rax]                  # ('loop', loop_dest, stack, new_stack, vars)
         mov rax, [r14 + N_DATA + 8]
-        mov [rsp], rax                  # loop_dest
+        mov [rsp + CL_DEST], rax
         cmp qword ptr [rax + ND_LABEL], 0
         je .Lcl_new_loop
         # loop_dest is already the body of a loop: this is another way
-        # back to its head. set_vars = [('setvar', var_idx, stack[stack_pos])
-        # for (_, var_idx, val, stack_pos) in loop_dest.label.begin_vars]
+        # back to its head. What was assumed in memory at the start of the
+        # loop (see node_set_label) and isn't any more here: explored again
+        # without it.
+        mov rdi, [rax + ND_ASSUMED_MEM]
+        mov rsi, [r13 + ND_KNOWN]
+        call facts_missing
+        test rax, rax
+        jnz .Lcl_broken
+        # set_vars = [('setvar', var_idx, stack[stack_pos]) for (_, var_idx,
+        # val, stack_pos) in loop_dest.label.begin_vars]
         call vec_new
-        mov [rsp + 8], rax              # set_vars
-        mov rax, [rsp]
+        mov [rsp + CL_SETVARS], rax
+        mov rax, [rsp + CL_DEST]
         mov rax, [rax + ND_LABEL]
         mov rax, [rax + ND_BEGIN_VARS]
-        mov [rsp + 16], rax             # beginvars
-        mov qword ptr [rsp + 24], 0     # index
-1:      mov rcx, [rsp + 24]
-        mov rax, [rsp + 16]
+        mov [rsp + CL_BEGINVARS], rax
+        mov qword ptr [rsp + CL_I], 0
+1:      mov rcx, [rsp + CL_I]
+        mov rax, [rsp + CL_BEGINVARS]
         cmp ecx, [rax + N_AUX]
         jae 2f
         mov rax, [rax + N_DATA + rcx*8] # ('var', var_idx, val, stack_pos)
@@ -543,62 +727,295 @@ FUNC vm_continue_loops
         mov rdx, [rcx + N_DATA + rdx*8]
         LOADS rdi, SETVAR
         call mk3
-        mov rdi, [rsp + 8]
+        mov rdi, [rsp + CL_SETVARS]
         mov rsi, rax
         call vec_push
-        inc qword ptr [rsp + 24]
+        inc qword ptr [rsp + CL_I]
         jmp 1b
-2:      mov rax, [rsp + 8]
+2:      mov rax, [rsp + CL_SETVARS]
         cmp qword ptr [rax + VEC_LEN], 0
-        jne 3f
-        # no variables: fold the stacks again from the loop's own
-        mov rdi, [rsp]
+        jne .Lcl_vars
+        # (a loop of its own, from loop_dest: see set_label) - fold the
+        # stacks again, numbered after loop_dest
+        mov rdi, [rsp + CL_DEST]
+        call loop_key
+        mov rdx, rax
+        mov rdi, [rsp + CL_DEST]
         mov rdi, [rdi + ND_STACK]
         mov rsi, [r14 + N_DATA + 16]
-        mov rax, [rsp]
-        mov rax, [rax + ND_LABEL]
-        mov rdx, [rax + ND_DEPTH]
-        lea rcx, [rsp + 32]
+        lea rcx, [rsp + CL_VARS]
         call fold_stacks
+        mov rcx, [rsp + CL_VARS]
+        cmp dword ptr [rcx + N_AUX], 0
+        je 3f
+        mov rdi, rax
+        call seq_to_list
+        mov rcx, rax
         mov qword ptr [r13 + ND_TRACE], 0
         mov rdi, r13
-        mov rsi, [rsp]
-        mov rdx, [rsp + 32]
-        mov rcx, rax
+        mov rsi, [rsp + CL_DEST]
+        mov rdx, [rsp + CL_VARS]
         call node_set_label
         jmp .Lcl_next
-3:      # node.trace = [('goto', loop_dest, set_vars)]
-        mov rdi, [rsp + 8]
+3:      # nothing on the stack changes from one iteration to the next (the
+        # loop keeps what it changes in memory, as Vyper does): back to the
+        # start, rather than a label again
+        xor edi, edi
+        xor esi, esi
+        call mk_tuple
+        mov rdx, rax
+        mov rdi, r13
+        mov rsi, [rsp + CL_DEST]
+        call cl_set_goto
+        jmp .Lcl_next
+.Lcl_vars:
+        # The loop variables were found by comparing the stack before and
+        # after the first iteration, and this one changes something else
+        # (`s += i * i` leaves s at 0 the first time): the loop gets
+        # explored again, with a variable there too.
+        mov rax, [rsp + CL_DEST]
+        mov rax, [rax + ND_STACK]       # old_stack
+        mov edi, [rax + N_AUX]
+        inc edi
+        call arena_alloc
+        mov [rsp + CL_MASK], rax        # var_positions | changed
+        mov rax, [rsp + CL_BEGINVARS]
+        xor ecx, ecx
+4:      cmp ecx, [rax + N_AUX]
+        jae 5f
+        mov rdx, [rax + N_DATA + rcx*8]
+        mov rdx, [rdx + N_DATA + 24]    # stack_pos
+        sar rdx, 1
+        mov rsi, [rsp + CL_MASK]
+        mov byte ptr [rsi + rdx], 1
+        inc ecx
+        jmp 4b
+5:      xor r8d, r8d                    # changed: idx not a variable's, before != after
+        mov rax, [rsp + CL_DEST]
+        mov rax, [rax + ND_STACK]
+        mov rcx, [r14 + N_DATA + 16]
+        mov edx, [rax + N_AUX]
+        cmp edx, [rcx + N_AUX]
+        cmova edx, [rcx + N_AUX]        # (zip: the shortest)
+        xor esi, esi
+6:      cmp esi, edx
+        jae 7f
+        mov rdi, [rsp + CL_MASK]
+        cmp byte ptr [rdi + rsi], 0
+        jne 61f
+        mov rdi, [rax + N_DATA + rsi*8]
+        cmp rdi, [rcx + N_DATA + rsi*8]
+        je 61f
+        push rax
+        push rcx
+        push rdx
+        push rsi
+        push r8
+        sub rsp, 8
+        mov rsi, [rcx + N_DATA + rsi*8]
+        call values_equal
+        add rsp, 8
+        pop r8
+        pop rsi
+        pop rdx
+        pop rcx
+        mov rdi, rax
+        pop rax
+        test edi, edi
+        jnz 61f
+        mov rdi, [rsp + CL_MASK]
+        mov byte ptr [rdi + rsi], 2     # (changed)
+        inc r8d
+61:     inc esi
+        jmp 6b
+7:      test r8d, r8d
+        jz .Lcl_goto
+        # first = loop_dest.label: the head; stack_vars of its stack
+        mov rax, [rsp + CL_DEST]
+        mov rdi, [rax + ND_LABEL]
+        call loop_key
+        mov rdx, rax
+        mov rax, [rsp + CL_DEST]
+        mov rax, [rax + ND_LABEL]
+        mov rdi, [rax + ND_STACK]
+        mov rsi, [rsp + CL_MASK]
+        lea rcx, [rsp + CL_VARS]
+        call stack_vars
+        mov rdi, rax
+        call seq_to_list
+        mov rcx, rax
+        mov rdi, [rsp + CL_DEST]
+        mov qword ptr [rdi + ND_TRACE], 0
+        lea rax, [rdi + ND_NEXT_VEC]    # loop_dest.next = [] (set_label makes
+        mov [rdi + ND_NEXT], rax        # the head's again)
+        mov qword ptr [rax + VEC_LEN], 0
+        mov rsi, [rdi + ND_LABEL]
+        mov rdx, [rsp + CL_VARS]
+        call node_set_label
+        # the other loops found in this pass may be in the part of the tree
+        # that was just thrown away
+        jmp .Lcl_return
+.Lcl_goto:
+        # node.trace = [('goto', loop_dest, set_vars)]
+        mov rdi, [rsp + CL_SETVARS]
         call vec_to_tuple
         mov rdx, rax
-        mov rsi, [rsp]
-        LOADS rdi, GOTO
-        call mk3
-        mov [rsp + 8], rax
-        call vec_new
-        mov [r13 + ND_TRACE], rax
-        mov rdi, rax
-        mov rsi, [rsp + 8]
-        call vec_push
         mov rdi, r13
-        call node_touch
+        mov rsi, [rsp + CL_DEST]
+        call cl_set_goto
         jmp .Lcl_next
+.Lcl_broken:
+        # an iteration changes what was assumed in memory at the start of
+        # the loop: explored again without it
+        mov [rsp + CL_VARS], rax        # broken
+        mov rdi, [rsp + CL_DEST]
+        mov rdi, [rdi + ND_REJECTED_MEM]
+        test rdi, rdi
+        jnz 8f
+        xor edi, edi
+        xor esi, esi
+        call mk_tuple
+        mov rdi, rax
+8:      mov rsi, [rsp + CL_VARS]
+        call tuple_concat
+        mov rcx, [rsp + CL_DEST]
+        mov [rcx + ND_REJECTED_MEM], rax
+        mov rdi, [rcx + ND_ASSUMED_MEM]
+        mov rsi, [rsp + CL_VARS]
+        call facts_without
+        mov rcx, [rsp + CL_DEST]
+        mov [rcx + ND_ASSUMED_MEM], rax
+        mov rdi, [rcx + ND_KNOWN]
+        mov rsi, [rsp + CL_VARS]
+        call facts_without
+        mov rdi, [rsp + CL_DEST]
+        mov [rdi + ND_KNOWN], rax
+        mov qword ptr [rdi + ND_TRACE], 0
+        call vec_new
+        mov rdi, [rsp + CL_DEST]
+        mov [rdi + ND_NEXT], rax
+        call node_touch
+.Lcl_return:
+        # the loops not processed are left in the tree: the next call walks it
+        mov rax, [r15 + CTX_VM]
+        mov qword ptr [rax + VM_LOOPS_STALE], 1
+        jmp .Lcl_done
 .Lcl_new_loop:
         # node.trace = None; node.set_label(loop_dest, vars, new_stack)
         mov qword ptr [r13 + ND_TRACE], 0
         mov rdi, r13
-        mov rsi, [rsp]
+        mov rsi, [rsp + CL_DEST]
         mov rdx, [r14 + N_DATA + 32]
         mov rcx, [r14 + N_DATA + 24]
         call node_set_label
         jmp .Lcl_next
 .Lcl_done:
-        test rbx, rbx
+        mov rax, [r15 + CTX_VM]
+        mov rax, [rax + VM_LOOPS]
+        test rax, rax
         jz 1f
-        mov qword ptr [rbx + VEC_LEN], 0
-1:      add rsp, 48
+        mov qword ptr [rax + VEC_LEN], 0
+1:      add rsp, 64
         LEAVE
 ENDF vm_continue_loops
+
+# cl_set_goto(node, loop_dest, setvars): node.trace = [('goto', loop_dest, setvars)]
+FUNC cl_set_goto
+        ENTER
+        mov rbx, rdi
+        mov rdx, rdx
+        LOADS rdi, GOTO
+        call mk3
+        mov r12, rax
+        call vec_new
+        mov [rbx + ND_TRACE], rax
+        mov rdi, rax
+        mov rsi, r12
+        call vec_push
+        mov rdi, rbx
+        call node_touch
+        LEAVE
+ENDF cl_set_goto
+
+# pred_loop(node) -> eax: the node's trace is one ('loop', ...)
+FUNC pred_loop
+        xor eax, eax
+        mov rcx, [rdi + ND_TRACE]
+        test rcx, rcx
+        jz 1f
+        cmp qword ptr [rcx + VEC_LEN], 1
+        jne 1f
+        mov rcx, [rcx + VEC_DATA]
+        mov rdi, [rcx]
+        OPCODE_OF_RDI
+        cmp eax, OP_LOOP
+        sete al
+        movzx eax, al
+1:      ret
+ENDF pred_loop
+
+# facts_missing(facts, known) -> rax: the facts (a tuple, or 0) not in known,
+# a tuple - 0 when there's none
+FUNC facts_missing
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        xor eax, eax
+        test rbx, rbx
+        jz 9f
+        call vec_new
+        mov r13, rax
+        xor r14d, r14d
+1:      cmp r14d, [rbx + N_AUX]
+        jae 4f
+        mov rsi, [rbx + N_DATA + r14*8]
+        inc r14d
+        xor ecx, ecx
+2:      cmp ecx, [r12 + N_AUX]
+        jae 3f
+        cmp [r12 + N_DATA + rcx*8], rsi
+        je 1b
+        inc ecx
+        jmp 2b
+3:      mov rdi, r13
+        call vec_push
+        jmp 1b
+4:      xor eax, eax
+        cmp qword ptr [r13 + VEC_LEN], 0
+        je 9f
+        mov rdi, r13
+        call vec_to_tuple
+9:      LEAVE
+ENDF facts_missing
+
+# facts_without(facts, gone) -> tuple: the facts not in gone
+FUNC facts_without
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call vec_new
+        mov r13, rax
+        test rbx, rbx
+        jz 4f
+        xor r14d, r14d
+1:      cmp r14d, [rbx + N_AUX]
+        jae 4f
+        mov rsi, [rbx + N_DATA + r14*8]
+        inc r14d
+        xor ecx, ecx
+2:      cmp ecx, [r12 + N_AUX]
+        jae 3f
+        cmp [r12 + N_DATA + rcx*8], rsi
+        je 1b
+        inc ecx
+        jmp 2b
+3:      mov rdi, r13
+        call vec_push
+        jmp 1b
+4:      mov rdi, r13
+        call vec_to_tuple
+        LEAVE
+ENDF facts_without
 
 # vm_common_ancestor(a, b) -> rax: the closest common ancestor (python's
 # walk; by the jump pointers while the depths are consistent - both,
@@ -767,7 +1184,10 @@ ENDF is_if_node
 # vm_merge_branches(root): when every path going out of an `if` either
 # ends the execution or reaches the same jumpdest with the same stack
 # layout, decompile what follows that jumpdest once, as the continuation
-# of the `if` (see merge_branches in vm.py)
+# of the `if` (see merge_branches in vm.py). First the merges that were
+# too early to tell at the head of a loop - its exits, maybe -, the oldest
+# first (VM_PENDING); then those at the jumpdests the unexpanded nodes got
+# to (python's _merge_unexpanded).
 FUNC vm_merge_branches
         ENTER
         sub rsp, 48
@@ -775,9 +1195,44 @@ FUNC vm_merge_branches
         cmp qword ptr [rax + VM_JUST_FDESTS], 0
         jne .Lmb_done
         mov rbx, rdi                    # root
+        mov [rsp + 40], rdi
+        # the pending merges: dropped when p was thrown away, or when it's
+        # told (True or False)
+        mov r12, [rax + VM_PENDING]
+        test r12, r12
+        jz .Lmb_unexpanded
+        xor r13d, r13d                  # read
+        xor r14d, r14d                  # written
+1:      cmp r13, [r12 + VEC_LEN]
+        jae 3f
+        mov rax, [r12 + VEC_DATA]
+        mov rdi, [rax + r13*8]          # p
+        mov rsi, [rax + r13*8 + 8]      # jd
+        add r13, 2
+        mov [rsp], rdi
+        mov [rsp + 8], rsi
+        mov rsi, [rsp + 40]
+        call vm_attached
+        test eax, eax
+        jz 1b
+        mov rdi, [rsp]
+        mov rsi, [rsp + 8]
+        mov edx, 1                      # loop_exit
+        call vm_merge_at
+        cmp eax, TRI_NONE
+        jne 1b
+        mov rax, [r12 + VEC_DATA]
+        mov rcx, [rsp]
+        mov [rax + r14*8], rcx
+        mov rcx, [rsp + 8]
+        mov [rax + r14*8 + 8], rcx
+        add r14, 2
+        jmp 1b
+3:      mov [r12 + VEC_LEN], r14
+.Lmb_unexpanded:
         # every node, in find_nodes' order (one walk: the unexpanded ones
         # are those of them whose trace is None, in the same order)
-        mov rdi, rbx
+        mov rdi, [rsp + 40]
         call mb_all_nodes
         mov r12, rax                    # unexpanded
         mov rax, [r15 + CTX_VM]         # (the rounds' next list, unless a
@@ -798,6 +1253,8 @@ FUNC vm_merge_branches
         mov rbx, [rax + rcx*8]          # node
         cmp qword ptr [rbx + ND_TRACE], 0
         jne .Lmb_next                   # merged into another node during this pass
+        cmp qword ptr [rbx + ND_SWITCHED], 0
+        jne .Lmb_next                   # a path of a switch, where what it copies is known
         mov rax, [r15 + CTX_VM]
         mov rdi, [rax + VM_SCR_BYJD]
         mov rsi, [rbx + ND_JD]
@@ -857,14 +1314,142 @@ FUNC vm_merge_branches
         call map_put
         mov rdi, [rsp + 24]
         mov rsi, [rbx + ND_JD]
+        xor edx, edx
         call vm_merge_at
-        test eax, eax
-        jz .Lmb_other
-        jmp .Lmb_next
+        cmp eax, TRI_TRUE
+        je .Lmb_next
+        cmp eax, TRI_NONE
+        jne .Lmb_other
+        mov rax, [rsp + 24]             # at the head of a loop: its exits,
+        cmp qword ptr [rax + ND_LABEL], 0       # maybe - tried again later
+        je .Lmb_other
+        mov rdi, rax
+        mov rsi, [rbx + ND_JD]
+        call vm_pending_add
+        jmp .Lmb_other
 .Lmb_done:
         add rsp, 48
         LEAVE
 ENDF vm_merge_branches
+
+# vm_pending_add(p, jd): pending_merges[(id(p), jd)] = (p, jd) - appended
+# unless it's there already (a dict keeps its place)
+FUNC vm_pending_add
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov rax, [r15 + CTX_VM]
+        mov r13, [rax + VM_PENDING]
+        test r13, r13
+        jnz 1f
+        call vec_new
+        mov r13, rax
+        mov rax, [r15 + CTX_VM]
+        mov [rax + VM_PENDING], r13
+1:      xor ecx, ecx
+        mov rax, [r13 + VEC_DATA]
+2:      cmp rcx, [r13 + VEC_LEN]
+        jae 3f
+        cmp [rax + rcx*8], rbx
+        jne 21f
+        cmp [rax + rcx*8 + 8], r12
+        je 9f
+21:     add rcx, 2
+        jmp 2b
+3:      mov rdi, r13
+        mov rsi, rbx
+        call vec_push
+        mov rdi, r13
+        mov rsi, r12
+        call vec_push
+9:      LEAVE
+ENDF vm_pending_add
+
+# vm_attached(node, root) -> eax: python's attached - node is still in the
+# tree of root, not in a part thrown away since (a loop explored again, a
+# path cut by a merge): one of its parent's children, up to the root
+FUNC vm_attached
+1:      cmp rdi, rsi
+        je 8f
+        mov rax, [rdi + ND_PREV]
+        test rax, rax
+        jz 9f
+        mov rcx, [rax + ND_NEXT]
+        mov rdx, [rcx + VEC_LEN]
+        mov rcx, [rcx + VEC_DATA]
+2:      test rdx, rdx
+        jz 9f
+        dec rdx
+        cmp [rcx + rdx*8], rdi
+        jne 2b
+        mov rdi, rax
+        jmp 1b
+8:      mov eax, 1
+        ret
+9:      xor eax, eax
+        ret
+ENDF vm_attached
+
+# vm_below(node, p) -> eax: python's below - node is p, or a node of the
+# tree below it
+FUNC vm_below
+1:      test rdi, rdi
+        jz 9f
+        cmp rdi, rsi
+        je 8f
+        mov rdi, [rdi + ND_PREV]
+        jmp 1b
+8:      mov eax, 1
+        ret
+9:      xor eax, eax
+        ret
+ENDF vm_below
+
+# vm_in_merged_branch(node, p) -> eax: python's in_merged_branch - node,
+# below the `if` node p, is in a branch of an `if` between them whose
+# paths were merged: a path that ends at node goes on in the continuation
+# of that `if`, not in what follows p
+FUNC vm_in_merged_branch
+        ENTER
+        mov rbx, rdi                    # child
+        mov r12, [rdi + ND_PREV]        # a
+        mov r13, rsi                    # p
+1:      test r12, r12
+        jz 9f
+        cmp r12, r13
+        je 9f
+        mov rax, [r12 + ND_TRACE]
+        test rax, rax
+        jz 2f
+        mov rcx, [rax + VEC_LEN]
+        cmp rcx, 2
+        jb 2f
+        mov rax, [rax + VEC_DATA]
+        mov rdi, [rax + rcx*8 - 8]
+        OPCODE_OF_RDI
+        cmp eax, OP_JUMP
+        jne 2f
+        mov rax, [r12 + ND_TRACE]
+        mov rcx, [rax + VEC_LEN]
+        mov rax, [rax + VEC_DATA]
+        mov rdi, [rax + rcx*8 - 16]
+        OPCODE_OF_RDI
+        cmp eax, OP_IF
+        jne 2f
+        cmp dword ptr [rdi + N_AUX], 4
+        jb 2f
+        cmp [rdi + N_DATA + 16], rbx
+        je 8f
+        cmp [rdi + N_DATA + 24], rbx
+        je 8f
+2:      mov rbx, r12
+        mov r12, [r12 + ND_PREV]
+        jmp 1b
+8:      mov eax, 1
+        LEAVE
+9:      xor eax, eax
+        LEAVE
+ENDF vm_in_merged_branch
 
 # mb_all_nodes(root) -> rax: the nodes below root in VM_SCR_ALL
 # (find_nodes' order), and those not run yet, in the same order, in
@@ -996,95 +1581,28 @@ ENDF mb_by_jd
         OPSET_MEMBER terminal, OP_GOTO
         OPSET_END terminal, OP_COUNT
 
-# merge_visit(start, jd, hits) -> rax: python's visit (vm.py, _merge_at)
-# - true if every path below `start` either ends, reaches `jd` (a hit),
-# or loops back; false if one is the head of a loop at jd; none if it's
-# too early to tell -, as _merge_at uses it: -1 when it isn't true (false
-# or none: the merge isn't done, either way - the walk stops at the first
-# path that says so), else the number of hits below (2 for 2 or more);
-# the hits are pushed on `hits`, in python's order, when it isn't 0.
-# _merge_at asks without the hits first (both sides true, 2 hits at least:
-# then again for them). Python walks the subtree at every try, and
-# merge_branches tries the same ones round after round when only the
-# nodes run since changed: the answer of each inner node's subtree is
-# remembered in the node, for the last jd asked (ND_VC_JD, ND_VC: -1, or
-# the hits below), and holds while the node keeps its stamp (node_touch);
-# a subtree with hits is walked again when they're asked for. Depth
-# first, the children in order (python's order of the hits), on the VM's
-# scratch stack (find_nodes' - not in use meanwhile): a frame of 4 words
-# for each inner node being walked - the node, its next child, the hits
-# below it so far, the nodes walked below it (an answer is remembered
-# past MV_MIN_WALK of them); the leaves, the subtrees answered already and
-# the chains of nodes of one child are looked at without a frame.
-        .set MC_NOT, 1                  # the codes remembered (ND_VC & 7)
-        .set MC_T0, 2                   # true: MC_T0 + the hits below (0, 1, 2)
-        .set MV_MIN_WALK, 4
-
-# MV_QUICK: the node rbx's own answer, eax = its hits (0, 1, 2; a hit
-# pushed on hits), or a jump to .Lmv_not (not true: a path not run yet,
-# a loop head at jd) or to .Lmv_push (an inner node to walk)
-.macro MV_QUICK
-        cmp qword ptr [rbx + ND_MERGED], 0
-        jne 97f                         # goes on in the continuation of an if below
-        mov rax, [rbx + ND_JD]
-        cmp qword ptr [rbx + ND_LABEL], 0
-        je 91f
-        # the head of a loop: keep it that way. Otherwise the paths inside
-        # the loop body are fair game (the loop may get peeled, see vm.py)
-        cmp rax, r12
-        je .Lmv_not
-        jmp 92f
-91:     cmp rax, r12
-        jne 92f
-        test r13, r13                   # a hit
-        jz 90f
-        mov rdi, r13
-        mov rsi, rbx
-        call vec_push
-90:     mov eax, 1
-        jmp 99f
-92:     cmp qword ptr [rbx + ND_TRACE], 0
-        je .Lmv_not
-        mov rax, [rbx + ND_NEXT]
-        cmp qword ptr [rax + VEC_LEN], 0
-        jne 93f
-        mov rax, [rbx + ND_TRACE]       # a leaf: it ends, or not yet
-        mov rcx, [rax + VEC_LEN]
-        test rcx, rcx
-        jz .Lmv_not
-        mov rax, [rax + VEC_DATA]
-        mov rdi, [rax + rcx*8 - 8]
-        OPCODE_OF_RDI
-        IN_OPSET terminal, rax
-        jne 97f
-        jmp .Lmv_not                    # (e.g. 'loop', not yet processed by continue_loops)
-93:     # an inner node: what its subtree answered, if it didn't change
-        cmp [rbx + ND_VC_JD], r12
-        jne .Lmv_push
-        mov rax, [rbx + ND_VC]
-        mov rcx, rax
-        shr rcx, 3
-        cmp rcx, [rbx + ND_STAMP]
-        jne .Lmv_push
-        and eax, 7
-        cmp eax, MC_NOT
-        je .Lmv_not
-        sub eax, MC_T0
-        jz 99f
-        test r13, r13                   # hits below: walked again for them
-        jz 99f
-        jmp .Lmv_push
-97:     xor eax, eax
-99:
-.endm
-
-FUNC merge_visit
+# mv_visit(start, p, jd, hits, continues) -> eax: python's visit (vm.py,
+# _merge_at) - TRI_TRUE if every path below `start` either ends, reaches
+# `jd` (a hit, pushed on hits; not one in a branch of an if between p and
+# it whose paths were merged already), or loops back (a goto: one to p or
+# its label - the loop p is the head of - pushed on continues); TRI_FALSE
+# if one is the head of a loop at jd, or a merged node whose paths go on
+# above p; TRI_NONE if it's too early to tell. Depth first, the children
+# in order, on the VM's scratch stack (find_nodes': not in use meanwhile).
+FUNC mv_visit
         ENTER
         sub rsp, 48
-        .set MV_FRAME, 0                # a frame to push (4 words)
+        .set MV_P, 0
+        .set MV_JD, 8
+        .set MV_HITS, 16
+        .set MV_CONTS, 24
+        .set MV_RES, 32
         mov rbx, rdi
-        mov r12, rsi                    # jd
-        mov r13, rdx                    # hits, or 0
+        mov [rsp + MV_P], rsi
+        mov [rsp + MV_JD], rdx
+        mov [rsp + MV_HITS], rcx
+        mov [rsp + MV_CONTS], r8
+        mov qword ptr [rsp + MV_RES], TRI_TRUE
         mov rax, [r15 + CTX_VM]
         mov r14, [rax + VM_SCR_VISIT]
         test r14, r14
@@ -1094,243 +1612,137 @@ FUNC merge_visit
         mov rax, [r15 + CTX_VM]
         mov [rax + VM_SCR_VISIT], r14
 1:      mov qword ptr [r14 + VEC_LEN], 0
-        MV_QUICK                        # the start
-        jmp .Lmv_answer
-.Lmv_push:                              # rbx: an inner node to walk
-        mov rax, [rbx + ND_NEXT]
-        cmp qword ptr [rax + VEC_LEN], 1
-        jne .Lmv_frame
-        # one child (a chain of them: straight code between jumps): the
-        # child answers in its place, without a frame (nor a memory)
-        mov rax, [rax + VEC_DATA]
-        mov rbx, [rax]
-        MV_QUICK
-        cmp qword ptr [r14 + VEC_LEN], 0
-        je .Lmv_answer
-        jmp .Lmv_combine
-.Lmv_frame:
-        mov rcx, [r14 + VEC_LEN]
-        lea r8, [rcx + 4]
-        cmp r8, [r14 + VEC_CAP]
-        ja 2f
-        mov rdx, [r14 + VEC_DATA]
-        lea rdx, [rdx + rcx*8]
-        mov [rdx], rbx
-        mov qword ptr [rdx + 8], 0
-        mov qword ptr [rdx + 16], 0
-        mov qword ptr [rdx + 24], 1
-        mov [r14 + VEC_LEN], r8
-        jmp .Lmv_children
-2:      mov [rsp + MV_FRAME], rbx       # (no room: vec_extend makes some)
-        mov qword ptr [rsp + MV_FRAME + 8], 0
-        mov qword ptr [rsp + MV_FRAME + 16], 0
-        mov qword ptr [rsp + MV_FRAME + 24], 1
         mov rdi, r14
-        lea rsi, [rsp + MV_FRAME]
-        mov edx, 4
-        call vec_extend
-.Lmv_children:                          # the top frame's next child
-        mov rax, [r14 + VEC_LEN]
-        mov rdx, [r14 + VEC_DATA]
-        lea rdx, [rdx + rax*8 - 32]
-        mov rbx, [rdx]
-        mov rcx, [rdx + 8]
-        mov rax, [rbx + ND_NEXT]
-        cmp rcx, [rax + VEC_LEN]
-        jae .Lmv_node_done
-        inc qword ptr [rdx + 8]
-        mov rax, [rax + VEC_DATA]
-        mov rbx, [rax + rcx*8]
-        MV_QUICK
-.Lmv_combine:
-        mov rcx, [r14 + VEC_LEN]        # its hits added to the frame's
-        mov rdx, [r14 + VEC_DATA]       # (2 at most)
-        lea rdx, [rdx + rcx*8 - 32]
-        inc qword ptr [rdx + 24]
-        add rax, [rdx + 16]
-        mov ecx, 2
-        cmp rax, rcx
-        cmova rax, rcx
-        mov [rdx + 16], rax
-        jmp .Lmv_children
-.Lmv_node_done:                         # rdx: the frame, rbx: its node
-        mov rax, [rdx + 16]
-        cmp qword ptr [rdx + 24], MV_MIN_WALK
-        jb 3f                           # (a small subtree: not remembered)
-        lea esi, [eax + MC_T0]
-        mov [rbx + ND_VC_JD], r12
-        mov rcx, [rbx + ND_STAMP]
-        shl rcx, 3
-        or rcx, rsi
-        mov [rbx + ND_VC], rcx
-        mov rcx, [r15 + CTX_VM]
-        mov qword ptr [rcx + VM_VISITED], 1     # (the next change: a new generation)
-3:      mov r8, [rdx + 24]              # popped; its hits added to its
-        mov rcx, [r14 + VEC_LEN]        # parent's
-        sub rcx, 4
-        mov [r14 + VEC_LEN], rcx
-        jz .Lmv_answer
-        sub rdx, 32
-        add [rdx + 24], r8
-        add rax, [rdx + 16]
-        mov ecx, 2
-        cmp rax, rcx
-        cmova rax, rcx
-        mov [rdx + 16], rax
-        jmp .Lmv_children
-.Lmv_answer:                            # eax: the start's hits
-        add rsp, 48
-        LEAVE
-.Lmv_not:
-        # a path not run yet, or a loop head at jd, below every node of the
-        # stack: not true for each
-        mov rcx, [r14 + VEC_LEN]
-5:      test rcx, rcx
-        jz 6f
-        sub rcx, 4
-        mov [r14 + VEC_LEN], rcx
-        mov rax, [r14 + VEC_DATA]
-        mov rdi, [rax + rcx*8]
-        mov [rdi + ND_VC_JD], r12
-        mov rax, [rdi + ND_STAMP]
-        shl rax, 3
-        or rax, MC_NOT
-        mov [rdi + ND_VC], rax
-        jmp 5b
-6:      mov rax, [r15 + CTX_VM]
-        mov qword ptr [rax + VM_VISITED], 1
-        mov rax, -1
-        add rsp, 48
-        LEAVE
-ENDF merge_visit
-
-# merge_visit_py(start, jd, hits) -> eax: python's visit as it is (the
-# walk of every node, TRI_TRUE, TRI_FALSE or TRI_NONE, the hits pushed),
-# for PANORAMIX_CHECK_LCA=1's comparison with merge_visit
-FUNC merge_visit_py
-        ENTER
-        sub rsp, 16
-        mov rbx, rsi                    # jd
-        mov r12, rdx                    # hits
-        mov r13, rdi
-        call vec_new
-        mov r14, rax                    # to_visit
-        mov rdi, r14
-        mov rsi, r13
+        mov rsi, rbx
         call vec_push
-        mov r13d, TRI_TRUE              # result
-1:      mov rcx, [r14 + VEC_LEN]
+.Lmv_pop:
+        mov rcx, [r14 + VEC_LEN]
         test rcx, rcx
-        jz 9f
+        jz .Lmv_end
         dec rcx
         mov [r14 + VEC_LEN], rcx
         mov rax, [r14 + VEC_DATA]
-        mov rdi, [rax + rcx*8]          # n
-        cmp qword ptr [rdi + ND_MERGED], 0
-        jne 1b
-        mov rax, [rdi + ND_JD]
-        cmp qword ptr [rdi + ND_LABEL], 0
+        mov rbx, [rax + rcx*8]          # n
+        cmp qword ptr [rbx + ND_MERGED], 0
         je 2f
-        cmp rax, rbx
-        je 8f                           # the head of a loop at jd
-        jmp 3f
-2:      cmp rax, rbx
-        jne 3f
-        mov rsi, rdi                    # a hit
-        mov rdi, r12
-        call vec_push
-        jmp 1b
-3:      mov rax, [rdi + ND_TRACE]
-        test rax, rax
+        # goes on in the continuation of the `if` it was merged at, which
+        # will be visited as well - if that's below p; one above it: the
+        # path would go on in what follows p instead
+        mov rdi, [rbx + ND_MERGE_POINT]
+        mov rsi, [rsp + MV_P]
+        call vm_below
+        test eax, eax
+        jz .Lmv_false
+        jmp .Lmv_pop
+2:      mov rax, [rbx + ND_JD]
+        cmp qword ptr [rbx + ND_LABEL], 0
+        je 3f
+        cmp rax, [rsp + MV_JD]          # the head of a loop: let's keep it that way
+        je .Lmv_false
+        jmp 4f
+3:      cmp rax, [rsp + MV_JD]
+        jne 4f
+        mov rdi, rbx
+        mov rsi, [rsp + MV_P]
+        call vm_in_merged_branch
+        test eax, eax
         jnz 4f
-        mov r13d, TRI_NONE
-        jmp 1b
-4:      mov rcx, [rdi + ND_NEXT]
+        mov rdi, [rsp + MV_HITS]        # a hit
+        mov rsi, rbx
+        call vec_push
+        jmp .Lmv_pop
+4:      mov rax, [rbx + ND_TRACE]
+        test rax, rax
+        jnz 5f
+        mov qword ptr [rsp + MV_RES], TRI_NONE
+        jmp .Lmv_pop
+5:      mov rcx, [rbx + ND_NEXT]
         mov rdx, [rcx + VEC_LEN]
         test rdx, rdx
-        jz 6f
-        mov [rsp], rcx                  # the children, reversed
-5:      dec rdx
-        js 1b
-        mov [rsp + 8], rdx
-        mov rax, [rsp]
-        mov rax, [rax + VEC_DATA]
-        mov rsi, [rax + rdx*8]
-        mov rdi, r14
-        call vec_push
-        mov rdx, [rsp + 8]
-        jmp 5b
-6:      mov rcx, [rax + VEC_LEN]        # a leaf
-        test rcx, rcx
         jz 7f
-        mov rax, [rax + VEC_DATA]
-        mov rdi, [rax + rcx*8 - 8]
-        OPCODE_OF_RDI
-        IN_OPSET terminal, rax
-        jne 1b
-7:      mov r13d, TRI_NONE
-        jmp 1b
-8:      mov r13d, TRI_FALSE
-9:      mov eax, r13d
-        add rsp, 16
-        LEAVE
-ENDF merge_visit_py
-
-# merge_check(ifx, jd, hits): PANORAMIX_CHECK_LCA=1 - python's visits of
-# the sides of the if ifx must agree with merge_visit's: no merge when
-# hits is 0, else a merge at the same hits
-FUNC merge_check
-        ENTER
-        mov rbx, rdi
-        mov r12, rsi
-        mov r13, rdx
-        call vec_new
-        mov r14, rax
-        mov rdi, [rbx + N_DATA + 16]
-        mov rsi, r12
-        mov rdx, r14
-        call merge_visit_py
-        cmp eax, TRI_TRUE
-        jne 2f
-        mov rdi, [rbx + N_DATA + 24]
-        mov rsi, r12
-        mov rdx, r14
-        call merge_visit_py
-        cmp eax, TRI_TRUE
-        jne 2f
-        cmp qword ptr [r14 + VEC_LEN], 2
-        jb 2f
-        test r13, r13                   # python merges: at the same hits?
-        jz 8f
-        mov rcx, [r14 + VEC_LEN]
-        cmp rcx, [r13 + VEC_LEN]
-        jne 8f
-        mov rsi, [r14 + VEC_DATA]
-        mov rdi, [r13 + VEC_DATA]
-1:      dec rcx
-        js 9f
-        mov rax, [rsi + rcx*8]
-        cmp rax, [rdi + rcx*8]
-        jne 8f
-        jmp 1b
-2:      test r13, r13                   # python doesn't
+        mov rsi, [rcx + VEC_DATA]       # its children, reversed
+6:      dec rdx
+        js .Lmv_pop
+        mov [rsp + 40], rdx
+        push rsi
+        push rsi
+        mov rdi, r14
+        mov rsi, [rsi + rdx*8]
+        call vec_push
+        pop rsi
+        pop rsi
+        mov rdx, [rsp + 40]
+        jmp 6b
+7:      mov rcx, [rax + VEC_LEN]
+        test rcx, rcx
         jz 9f
-8:      lea rdi, [rip + .Ls_merge_mismatch]
-        call rt_fatal
-9:      LEAVE
-ENDF merge_check
-        .section .rodata
-.Ls_merge_mismatch: .asciz "vm_merge_at: merge_visit and python's walk disagree"
-        .text
+        mov rax, [rax + VEC_DATA]
+        mov r12, [rax + rcx*8 - 8]      # the last line
+        mov rdi, r12
+        OPCODE_OF_RDI
+        mov r13d, eax
+        cmp eax, OP_GOTO
+        jne 8f
+        mov rax, [r12 + N_DATA + 8]     # to p, or to p's label: it goes on with the loop
+        mov rcx, [rsp + MV_P]
+        cmp rax, rcx
+        je 71f
+        mov rcx, [rcx + ND_LABEL]
+        test rcx, rcx
+        jz 8f
+        cmp rax, rcx
+        jne 8f
+71:     mov rdi, [rsp + MV_CONTS]
+        mov rsi, rbx
+        call vec_push
+8:      IN_OPSET terminal, r13
+        jne .Lmv_pop
+9:      mov qword ptr [rsp + MV_RES], TRI_NONE  # (e.g. 'loop', not yet processed by continue_loops)
+        jmp .Lmv_pop
+.Lmv_end:
+        mov eax, [rsp + MV_RES]
+        add rsp, 48
+        LEAVE
+.Lmv_false:
+        mov eax, TRI_FALSE
+        add rsp, 48
+        LEAVE
+ENDF mv_visit
 
-# vm_merge_at(p, jd) -> eax: merge the paths going out of the `if` node p
-# at jumpdest jd. False if it couldn't be done (it will be tried again
-# when another node reaches jd).
+# pred_merged_out(m, h) -> eax: m is a merged node whose merge point isn't
+# h nor below it (_merge_at's check of the hits)
+FUNC pred_merged_out
+        xor eax, eax
+        cmp qword ptr [rdi + ND_MERGED], 0
+        je 1f
+        mov rdi, [rdi + ND_MERGE_POINT]
+        call vm_below
+        xor eax, 1
+1:      ret
+ENDF pred_merged_out
+
+# vm_merge_at(p, jd, loop_exit) -> eax: python's _merge_at - merge the
+# paths going out of the `if` node p at jumpdest jd. TRI_TRUE if it was
+# done, TRI_NONE if it can't be told yet (some paths were not explored
+# yet), TRI_FALSE if not. loop_exit: only where jd is where the loop p is
+# the head of goes on when it's left - its exit condition jumps there, and
+# a path of the body goes on with the loop without getting there.
 FUNC vm_merge_at
         ENTER
-        sub rsp, 80
+        sub rsp, 96
+        .set MA_LEN, 0                  # the stacks' length
+        .set MA_MERGED, 8               # the merged stack's elements
+        .set MA_SETVARS, 16             # a vec per hit
+        .set MA_IDX, 24
+        .set MA_K, 32
+        .set MA_VALS, 40                # the values at idx, a vec
+        .set MA_NAME, 48
+        .set MA_CONTS, 56
+        .set MA_LOOPEXIT, 64
+        .set MA_SEEN, 72
         mov rbx, rdi                    # p
         mov r12, rsi                    # jd
+        mov [rsp + MA_LOOPEXIT], rdx
         cmp [rbx + ND_JD], r12
         je .Lma_false                   # a loop rather than a merge
         mov rdi, rbx
@@ -1341,177 +1753,234 @@ FUNC vm_merge_at
         mov rcx, [rax + VEC_LEN]
         mov rax, [rax + VEC_DATA]
         mov r14, [rax + rcx*8 - 8]      # ('if', cond, if_true, if_false)
-        mov rdi, [r14 + N_DATA + 16]    # both sides true, 2 hits at least?
-        mov rsi, r12
-        xor edx, edx
-        call merge_visit
-        test rax, rax
-        js .Lma_no
-        mov [rsp + 56], rax
-        mov rdi, [r14 + N_DATA + 24]
-        mov rsi, r12
-        xor edx, edx
-        call merge_visit
-        test rax, rax
-        js .Lma_no
-        add rax, [rsp + 56]
-        cmp rax, 2
-        jb .Lma_no
-        call vec_new                    # then the hits
-        mov r13, rax
+        call vec_new
+        mov r13, rax                    # hits
+        call vec_new
+        mov [rsp + MA_CONTS], rax
         mov rdi, [r14 + N_DATA + 16]
-        mov rsi, r12
-        mov rdx, r13
-        call merge_visit
+        mov rsi, rbx
+        mov rdx, r12
+        mov rcx, r13
+        mov r8, [rsp + MA_CONTS]
+        call mv_visit
+        cmp eax, TRI_FALSE
+        je .Lma_false
+        mov [rsp + MA_SEEN], rax
         mov rdi, [r14 + N_DATA + 24]
-        mov rsi, r12
-        mov rdx, r13
-        call merge_visit
-        mov rax, [r15 + CTX_VM]
-        cmp qword ptr [rax + VM_CHECK_LCA], 0
-        je 1f
-        mov rdi, r14
-        mov rsi, r12
-        mov rdx, r13
-        call merge_check
-1:
-        # merged = the stack of the first hit, with a variable wherever
-        # the hits' stacks differ; setvars[k] = the assignments on path k
+        mov rsi, rbx
+        mov rdx, r12
+        mov rcx, r13
+        mov r8, [rsp + MA_CONTS]
+        call mv_visit
+        cmp eax, TRI_FALSE
+        je .Lma_false
+        cmp eax, TRI_NONE
+        je .Lma_none
+        cmp dword ptr [rsp + MA_SEEN], TRI_NONE
+        je .Lma_none
+        cmp qword ptr [r13 + VEC_LEN], 2
+        jb .Lma_false
+        cmp qword ptr [rsp + MA_LOOPEXIT], 0
+        je 2f
+        # the exits of the loop: some path goes on with it, and a side of
+        # the if gets to jd at once
+        mov rax, [rsp + MA_CONTS]
+        cmp qword ptr [rax + VEC_LEN], 0
+        je .Lma_false
+        mov rcx, [r13 + VEC_LEN]
+        mov rax, [r13 + VEC_DATA]
+1:      dec rcx
+        js .Lma_false
+        mov rdx, [rax + rcx*8]
+        cmp rdx, [r14 + N_DATA + 16]
+        je 2f
+        cmp rdx, [r14 + N_DATA + 24]
+        je 2f
+        jmp 1b
+2:      # the path from a hit merged with others further down, at an `if`
+        # above p: cut at the hit, it wouldn't get to that merge any more
+        mov qword ptr [rsp + MA_K], 0
+3:      mov rcx, [rsp + MA_K]
+        cmp rcx, [r13 + VEC_LEN]
+        jae 4f
+        mov rax, [r13 + VEC_DATA]
+        mov rdi, [rax + rcx*8]
+        lea rsi, [rip + pred_merged_out]
+        mov rdx, rdi
+        call find_nodes
+        cmp qword ptr [rax + VEC_LEN], 0
+        jne .Lma_false
+        inc qword ptr [rsp + MA_K]
+        jmp 3b
+4:      # merged = the stack of the first hit, with a variable wherever the
+        # hits' stacks differ (what a path knows of a value it has of its
+        # own decides it first); setvars[k] = the assignments on path k
         mov rax, [r13 + VEC_DATA]
         mov rax, [rax]
         mov rax, [rax + ND_STACK]
         mov ecx, [rax + N_AUX]
-        mov [rsp], rcx                  # stack length
-        lea rdi, [rcx*8]
+        mov [rsp + MA_LEN], rcx
+        lea rdi, [rcx*8 + 8]
         call arena_alloc
-        mov [rsp + 8], rax              # merged elements
+        mov [rsp + MA_MERGED], rax
         mov rdi, rax
         mov rax, [r13 + VEC_DATA]
         mov rax, [rax]
         mov rax, [rax + ND_STACK]
         lea rsi, [rax + N_DATA]
-        mov rdx, [rsp]
+        mov rdx, [rsp + MA_LEN]
         shl rdx, 3
         call memcpy@PLT
         mov rdi, [r13 + VEC_LEN]
         shl rdi, 3
         call arena_alloc
-        mov [rsp + 16], rax             # setvars: a vec per hit
+        mov [rsp + MA_SETVARS], rax
         xor ecx, ecx
-1:      cmp rcx, [r13 + VEC_LEN]
-        jae 2f
-        mov [rsp + 24], rcx
+5:      cmp rcx, [r13 + VEC_LEN]
+        jae 6f
+        mov [rsp + MA_K], rcx
         call vec_new
-        mov rcx, [rsp + 24]
-        mov rdx, [rsp + 16]
+        mov rcx, [rsp + MA_K]
+        mov rdx, [rsp + MA_SETVARS]
         mov [rdx + rcx*8], rax
         inc rcx
-        jmp 1b
-2:      mov qword ptr [rsp + 24], 0     # idx
+        jmp 5b
+6:      call vec_new
+        mov [rsp + MA_VALS], rax
+        mov qword ptr [rsp + MA_IDX], 0
 .Lma_idx:
-        mov rcx, [rsp + 24]
-        cmp rcx, [rsp]
+        mov rcx, [rsp + MA_IDX]
+        cmp rcx, [rsp + MA_LEN]
         jae .Lma_apply
         # vals = [h.stack[idx] for h in hits]; all equal?
-        mov rax, [r13 + VEC_DATA]
-        mov rax, [rax]
-        mov rax, [rax + ND_STACK]
-        mov rax, [rax + N_DATA + rcx*8]
-        mov [rsp + 32], rax             # vals[0]
-        mov qword ptr [rsp + 40], 1     # k
-3:      mov rcx, [rsp + 40]
-        cmp rcx, [r13 + VEC_LEN]
-        jae .Lma_same
+        mov rax, [rsp + MA_VALS]
+        mov qword ptr [rax + VEC_LEN], 0
+        xor ecx, ecx
+7:      cmp rcx, [r13 + VEC_LEN]
+        jae 8f
+        mov [rsp + MA_K], rcx
         mov rax, [r13 + VEC_DATA]
         mov rax, [rax + rcx*8]
         mov rax, [rax + ND_STACK]
-        mov rcx, [rsp + 24]
-        mov rsi, [rax + N_DATA + rcx*8]
-        mov rdi, [rsp + 32]
-        call values_equal
+        mov rdx, [rsp + MA_IDX]
+        mov rsi, [rax + N_DATA + rdx*8]
+        mov rdi, [rsp + MA_VALS]
+        call vec_push
+        mov rcx, [rsp + MA_K]
+        inc rcx
+        jmp 7b
+8:      call .Lma_all_equal
         test eax, eax
-        jz .Lma_differ
-        inc qword ptr [rsp + 40]
-        jmp 3b
-.Lma_differ:
-        # let's not turn a jump destination into a variable
-        mov qword ptr [rsp + 40], 0
-4:      mov rcx, [rsp + 40]
-        cmp rcx, [r13 + VEC_LEN]
-        jae 5f
+        jnz .Lma_same
+        # decided(v, h.known)
+        xor ecx, ecx
+9:      cmp rcx, [r13 + VEC_LEN]
+        jae 10f
+        mov [rsp + MA_K], rcx
+        mov rax, [rsp + MA_VALS]
+        mov rax, [rax + VEC_DATA]
+        mov rdi, [rax + rcx*8]
         mov rax, [r13 + VEC_DATA]
         mov rax, [rax + rcx*8]
-        mov rax, [rax + ND_STACK]
-        mov rcx, [rsp + 24]
-        mov rsi, [rax + N_DATA + rcx*8]
+        mov rsi, [rax + ND_KNOWN]
+        call decided
+        mov rcx, [rsp + MA_K]
+        mov rdx, [rsp + MA_VALS]
+        mov rdx, [rdx + VEC_DATA]
+        mov [rdx + rcx*8], rax
+        inc rcx
+        jmp 9b
+10:     call .Lma_all_equal
+        test eax, eax
+        jz 11f
+        mov rax, [rsp + MA_VALS]        # merged[idx] = vals[0]
+        mov rax, [rax + VEC_DATA]
+        mov rax, [rax]
+        mov rcx, [rsp + MA_IDX]
+        mov rdx, [rsp + MA_MERGED]
+        mov [rdx + rcx*8], rax
+        jmp .Lma_same
+11:     # let's not turn a jump destination into a variable
+        xor ecx, ecx
+12:     cmp rcx, [r13 + VEC_LEN]
+        jae 13f
+        mov rax, [rsp + MA_VALS]
+        mov rax, [rax + VEC_DATA]
+        mov rsi, [rax + rcx*8]
+        inc rcx
         test sil, 1
-        jz 6f
+        jz 12b
         sar rsi, 1
+        js 12b
+        mov [rsp + MA_K], rcx
         mov rdi, [r15 + CTX_VM]
         mov rdi, [rdi + VM_LOADER]
         call loader_is_jumpdest
+        mov rcx, [rsp + MA_K]
         test eax, eax
         jnz .Lma_false
-6:      inc qword ptr [rsp + 40]
-        jmp 4b
-5:      call vm_new_var_name
-        mov [rsp + 48], rax             # name
+        jmp 12b
+13:     call vm_new_var_name
+        mov [rsp + MA_NAME], rax
         mov rsi, rax
         LOADS rdi, VAR
         call mk2
-        mov rcx, [rsp + 24]
-        mov rdx, [rsp + 8]
+        mov rcx, [rsp + MA_IDX]
+        mov rdx, [rsp + MA_MERGED]
         mov [rdx + rcx*8], rax          # merged[idx] = ('var', name)
-        mov qword ptr [rsp + 40], 0
-7:      mov rcx, [rsp + 40]
-        cmp rcx, [r13 + VEC_LEN]
+        xor ecx, ecx
+14:     cmp rcx, [r13 + VEC_LEN]
         jae .Lma_same
-        mov rax, [r13 + VEC_DATA]
-        mov rax, [rax + rcx*8]
-        mov rax, [rax + ND_STACK]
-        mov rcx, [rsp + 24]
-        mov rdx, [rax + N_DATA + rcx*8]
-        mov rsi, [rsp + 48]
+        mov [rsp + MA_K], rcx
+        mov rax, [rsp + MA_VALS]
+        mov rax, [rax + VEC_DATA]
+        mov rdx, [rax + rcx*8]
+        mov rsi, [rsp + MA_NAME]
         LOADS rdi, SETVAR
         call mk3
-        mov rcx, [rsp + 40]
-        mov rdi, [rsp + 16]
+        mov rcx, [rsp + MA_K]
+        mov rdi, [rsp + MA_SETVARS]
         mov rdi, [rdi + rcx*8]
         mov rsi, rax
         call vec_push
-        inc qword ptr [rsp + 40]
-        jmp 7b
+        mov rcx, [rsp + MA_K]
+        inc rcx
+        jmp 14b
 .Lma_same:
-        inc qword ptr [rsp + 24]
+        inc qword ptr [rsp + MA_IDX]
         jmp .Lma_idx
 .Lma_apply:
         mov rax, [r15 + CTX_VM]         # (merge_branches' unexpanded nodes
         mov qword ptr [rax + VM_UNEXP_VALID], 0         # change)
         # each hit now just sets the variables and goes on in the merged node
-        mov qword ptr [rsp + 24], 0
-8:      mov rcx, [rsp + 24]
-        cmp rcx, [r13 + VEC_LEN]
-        jae 9f
+        xor ecx, ecx
+15:     cmp rcx, [r13 + VEC_LEN]
+        jae 16f
+        mov [rsp + MA_K], rcx
         mov rax, [r13 + VEC_DATA]
         mov rax, [rax + rcx*8]
-        mov rdx, [rsp + 16]
+        mov rdx, [rsp + MA_SETVARS]
         mov rdx, [rdx + rcx*8]
         mov [rax + ND_TRACE], rdx
         mov qword ptr [rax + ND_MERGED], 1
-        mov [rsp + 32], rax
+        mov [rax + ND_MERGE_POINT], rbx
+        mov [rsp + MA_IDX], rax
         call vec_new
-        mov rcx, [rsp + 32]
+        mov rcx, [rsp + MA_IDX]
         mov [rcx + ND_NEXT], rax
         mov rdi, rcx
         call node_touch
-        inc qword ptr [rsp + 24]
-        jmp 8b
-9:      # what's known at the merge point is what's known on every path
+        mov rcx, [rsp + MA_K]
+        inc rcx
+        jmp 15b
+16:     # what's known at the merge point is what's known on every path, and
+        # what only some of them wrote in memory isn't (not even that it's
+        # still zero)
         mov rdi, r13
         call merged_known
-        mov [rsp + 32], rax
-        mov rdi, [rsp]
-        mov rsi, [rsp + 8]
+        mov [rsp + MA_IDX], rax
+        mov rdi, [rsp + MA_LEN]
+        mov rsi, [rsp + MA_MERGED]
         call mk_tuple
         mov rdx, rax
         mov rdi, [r12 + N_DATA]         # jd[0]
@@ -1519,7 +1988,7 @@ FUNC vm_merge_at
         mov rax, [rax]
         mov rsi, [rax + ND_SAFE]
         lea rcx, [rip + sp_true]
-        mov r8, [rsp + 32]
+        mov r8, [rsp + MA_IDX]
         call node_new
         mov r14, rax
         mov rdi, r14
@@ -1531,24 +2000,47 @@ FUNC vm_merge_at
         mov rdi, [rbx + ND_TRACE]
         mov rsi, rax
         call vec_push
-        mov eax, 1
-        add rsp, 80
+        mov eax, TRI_TRUE
+        add rsp, 96
         LEAVE
-.Lma_no:
-        mov rax, [r15 + CTX_VM]
-        cmp qword ptr [rax + VM_CHECK_LCA], 0
-        je .Lma_false
-        mov rdi, r14
-        mov rsi, r12
-        xor edx, edx
-        call merge_check
+.Lma_none:
+        mov eax, TRI_NONE
+        add rsp, 96
+        LEAVE
 .Lma_false:
-        xor eax, eax
-        add rsp, 80
+        mov eax, TRI_FALSE
+        add rsp, 96
         LEAVE
+
+# local: eax 1 if all of MA_VALS (the caller's frame, 8 bytes up) are equal
+# to the first (python's ==)
+.Lma_all_equal:
+        push r12
+        push r13
+        push r14
+        mov rax, [rsp + 32 + MA_VALS]
+        mov r12, [rax + VEC_DATA]
+        mov r13, [rax + VEC_LEN]
+        mov r14d, 1
+1:      cmp r14, r13
+        jae 2f
+        mov rdi, [r12]
+        mov rsi, [r12 + r14*8]
+        call py_equal
+        test eax, eax
+        jz 3f
+        inc r14
+        jmp 1b
+2:      mov eax, 1
+3:      pop r14
+        pop r13
+        pop r12
+        ret
 ENDF vm_merge_at
 
-# merged_known(hits) -> tuple: the facts known on every path
+# merged_known(hits) -> tuple: the facts known on every path, then for
+# each memory fact of a path not among them, the place with an unknown
+# value ('memory', start, size, None), once
 FUNC merged_known
         ENTER
         sub rsp, 16
@@ -1583,11 +2075,67 @@ FUNC merged_known
         call vec_push
 6:      inc r14
         jmp 1b
-5:      mov rdi, r12
+5:      # the memory facts of each path not known on every path
+        xor r14d, r14d                  # the hit
+.Lmk_hit:
+        cmp r14, [rbx + VEC_LEN]
+        jae .Lmk_done
+        mov rax, [rbx + VEC_DATA]
+        mov rax, [rax + r14*8]
+        inc r14
+        mov r13, [rax + ND_KNOWN]
+        mov qword ptr [rsp], 0
+.Lmk_fact:
+        mov rcx, [rsp]
+        cmp ecx, [r13 + N_AUX]
+        jae .Lmk_hit
+        mov rdi, [r13 + N_DATA + rcx*8]
+        inc qword ptr [rsp]
+        mov rsi, rdi
+        OPCODE_OF_RDI
+        cmp eax, OP_MEMORY
+        jne .Lmk_fact
+        mov rdi, r12                    # fact not in known
+        call vec_has_ptr
+        test eax, eax
+        jnz .Lmk_fact
+        mov rcx, [rsp]
+        mov rax, [r13 + N_DATA + rcx*8 - 8]
+        mov rsi, [rax + N_DATA + 8]
+        mov rdx, [rax + N_DATA + 16]
+        lea rcx, [rip + sp_none]
+        LOADS rdi, MEMORY
+        call mk4
+        mov rsi, rax                    # unknown not in known: added
+        mov rdi, r12
+        call vec_has_ptr
+        test eax, eax
+        jnz .Lmk_fact
+        mov rdi, r12
+        call vec_push
+        jmp .Lmk_fact
+.Lmk_done:
+        mov rdi, r12
         call vec_to_tuple
         add rsp, 16
         LEAVE
 ENDF merged_known
+
+# vec_has_ptr(vec, v) -> eax: v is in the vec (the same pointer); rsi kept
+# (leaf)
+FUNC vec_has_ptr
+        mov rcx, [rdi + VEC_LEN]
+        mov rax, [rdi + VEC_DATA]
+1:      test rcx, rcx
+        jz 2f
+        dec rcx
+        cmp [rax + rcx*8], rsi
+        jne 1b
+        mov eax, 1
+        ret
+2:      xor eax, eax
+        ret
+ENDF vec_has_ptr
 
 # vm_new_var_name() -> rax: the next '_N' name
 FUNC vm_new_var_name
@@ -1777,6 +2325,10 @@ FUNC is_known
         jz .Lik_none
         dec r13d
         mov r14, [r12 + N_DATA + r13*8]
+        mov rdi, r14                    # (what's known of the memory, and
+        call is_path_fact               # of the bits of a variable: not a
+        test eax, eax                   # condition)
+        jz .Lik_fact
         mov rax, r14                    # a known-true ('bool', x) is a known-true x
         test al, 1
         jnz 3f
@@ -1898,6 +2450,10 @@ FUNC is_known
         test r13d, r13d
         jz .Lik_none
         dec r13d
+        mov rdi, [r12 + N_DATA + r13*8]
+        call is_path_fact
+        test eax, eax
+        jz .Lik_plain
         mov rdi, rbx
         mov rsi, [r12 + N_DATA + r13*8]
         xor edx, edx
@@ -1911,6 +2467,23 @@ FUNC is_known
         add rsp, IK_FRAME
         LEAVE
 ENDF is_known
+
+# is_path_fact(fact) -> eax: the fact is a condition is_known asks about -
+# not one of the memory's ('memory', ...), ('memory_fresh',), nor a
+# ('var_bits', ...) (leaf)
+FUNC is_path_fact
+        OPCODE_OF_RDI
+        cmp eax, OP_MEMORY
+        je 1f
+        cmp eax, OP_MEMORY_FRESH
+        je 1f
+        cmp eax, OP_VAR_BITS
+        je 1f
+        mov eax, 1
+        ret
+1:      xor eax, eax
+        ret
+ENDF is_path_fact
 
 # ik_parts(exp, out) -> rax: the parts of exp eval_bool goes into (exp,
 # the operand of a bool or an iszero, the terms of an or or an and, and
@@ -2231,10 +2804,11 @@ ENDF vm_exec
         call vm_push
 .endm
 
+# a line of the trace (python's trace() of apply_stack: a setmem tells
+# what's known of the memory, see vm_add_line)
 .macro VTRACE reg
-        mov rdi, [rbx + VM_TRACE]
-        mov rsi, \reg
-        call vec_push
+        mov rdi, \reg
+        call vm_add_line
 .endm
 
         .section .data.rel.ro
@@ -2242,16 +2816,16 @@ ENDF vm_exec
 step_table:
         .quad .Lop_stop, .Lop_add, .Lop_mul, .Lop_sub, .Lop_arith, .Lop_arith, .Lop_arith, .Lop_arith    # 00-07
         .quad .Lop_mulmod, .Lop_mulmod, .Lop_arith, .Lop_arith, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown   # 08-0f
-        .quad .Lop_arith, .Lop_arith, .Lop_arith, .Lop_arith, .Lop_arith, .Lop_unary, .Lop_arith, .Lop_or   # 10-17
+        .quad .Lop_arith, .Lop_arith, .Lop_arith, .Lop_arith, .Lop_arith, .Lop_unary, .Lop_and, .Lop_or   # 10-17
         .quad .Lop_arith, .Lop_unary, .Lop_byte, .Lop_shl, .Lop_shr, .Lop_sar, .Lop_unknown, .Lop_unknown   # 18-1f
         .quad .Lop_sha3, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown   # 20-27
         .quad .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown   # 28-2f
         .quad .Lop_env, .Lop_balance, .Lop_env, .Lop_env, .Lop_env, .Lop_calldataload, .Lop_env, .Lop_calldatacopy   # 30-37
-        .quad .Lop_codesize, .Lop_codecopy, .Lop_env, .Lop_unary, .Lop_extcodecopy, .Lop_env, .Lop_returndatacopy, .Lop_unary   # 38-3f
+        .quad .Lop_codesize, .Lop_codecopy, .Lop_env, .Lop_unary, .Lop_extcodecopy, .Lop_returndatasize, .Lop_returndatacopy, .Lop_unary   # 38-3f
         .quad .Lop_unary, .Lop_env, .Lop_env, .Lop_env, .Lop_env, .Lop_env, .Lop_env, .Lop_selfbalance   # 40-47
-        .quad .Lop_env, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown   # 48-4f
+        .quad .Lop_env, .Lop_unary, .Lop_env, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown   # 48-4f
         .quad .Lop_pop, .Lop_mload, .Lop_mstore, .Lop_mstore8, .Lop_sload, .Lop_sstore, .Lop_jump, .Lop_jumpi   # 50-57
-        .quad .Lop_pc, .Lop_msize, .Lop_env, .Lop_jumpdest, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_push   # 58-5f
+        .quad .Lop_pc, .Lop_msize, .Lop_env, .Lop_jumpdest, .Lop_tload, .Lop_tstore, .Lop_mcopy, .Lop_push   # 58-5f
         .rept 32
         .quad .Lop_push                 # 60-7f
         .endr
@@ -2268,19 +2842,170 @@ step_table:
         .quad .Lop_create, .Lop_call, .Lop_callcode, .Lop_return, .Lop_delegatecall, .Lop_create2, .Lop_unknown, .Lop_unknown   # f0-f7
         .quad .Lop_unknown, .Lop_unknown, .Lop_call, .Lop_unknown, .Lop_unknown, .Lop_return, .Lop_invalid, .Lop_selfdestruct   # f8-ff
 
+# what happens before an instruction of apply_stack (the others, of
+# handle_jumps, end the node): 0 nothing, 1 a snapshot of what an sstore
+# or a tstore changes and what's known of it forgotten, 2 the same for
+# what a call or a creation changes, 3 handle_jumps' (no apply_stack)
+step_class:
+        .byte 3                         # 00 stop
+        .rept 0x55 - 1
+        .byte 0
+        .endr
+        .byte 1                         # 55 sstore
+        .byte 3, 3                      # 56 jump, 57 jumpi
+        .rept 0x5b - 0x58
+        .byte 0
+        .endr
+        .byte 3                         # 5b jumpdest
+        .byte 0                         # 5c tload
+        .byte 1                         # 5d tstore
+        .rept 0xf0 - 0x5e
+        .byte 0
+        .endr
+        .byte 2, 2, 2, 3, 2, 2          # f0 create, f1 call, f2 callcode, f3 return, f4 delegatecall, f5 create2
+        .byte 0, 0, 0, 0                # f6-f9
+        .byte 2                         # fa staticcall
+        .byte 0, 0                      # fb, fc
+        .byte 3, 3, 3                   # fd revert, fe invalid, ff selfdestruct
+
         .text
 
+# vm_add_line(line): python's trace() of apply_stack - the line added to the
+# trace; a setmem tells what's known of the memory (write_memory)
+FUNC vm_add_line
+        ENTER
+        mov rbx, rdi
+        mov r12, [r15 + CTX_VM]
+        mov rdi, [r12 + VM_TRACE]
+        mov rsi, rbx
+        call vec_push
+        mov rdi, rbx
+        OPCODE_OF_RDI
+        cmp eax, OP_SETMEM
+        jne 1f
+        cmp dword ptr [rbx + N_AUX], 3
+        jb 1f
+        mov rdi, [r12 + VM_KNOWN]
+        mov rsi, [rbx + N_DATA + 8]
+        mov rdx, [rbx + N_DATA + 16]
+        call write_memory
+        mov [r12 + VM_KNOWN], rax
+1:      LEAVE
+ENDF vm_add_line
+
+# vm_known_add(fact): self.known += (fact,)
+FUNC vm_known_add
+        ENTER
+        mov rbx, [r15 + CTX_VM]
+        mov rsi, rdi
+        mov rdi, [rbx + VM_KNOWN]
+        call tuple_append
+        mov [rbx + VM_KNOWN], rax
+        LEAVE
+ENDF vm_known_add
+
+# vm_rdz_known() -> eax: RETURNDATASIZE_ZERO, ('returndatasize_zero',), is
+# known: no call was made yet, no data was returned
+FUNC vm_rdz_known
+        mov rax, [r15 + CTX_VM]
+        mov rax, [rax + VM_KNOWN]
+        xor ecx, ecx
+1:      cmp ecx, [rax + N_AUX]
+        jae 2f
+        mov rdx, [rax + N_DATA + rcx*8]
+        inc ecx
+        test dl, 1
+        jnz 1b
+        test rdx, rdx
+        jz 1b
+        cmp dword ptr [rdx + N_KIND], K_TUPLE
+        jne 1b
+        cmp dword ptr [rdx + N_AUX], 1
+        jne 1b
+        mov rdx, [rdx + N_DATA]
+        test dl, 1
+        jnz 1b
+        cmp dword ptr [rdx + N_KIND], K_STR
+        jne 1b
+        mov edx, [rdx + N_AUX]
+        and edx, STR_ID_MASK
+        cmp edx, OP_RETURNDATASIZE_ZERO
+        jne 1b
+        mov eax, 1
+        ret
+2:      xor eax, eax
+        ret
+ENDF vm_rdz_known
+
 # vm_step(instr, condition) -> eax: 1 when the instruction ends the trace
-# (a jump, or the end of the execution). rbx = vm, r12 = instr, r13 = the
-# mnemonic, r14 = the parameter; [rsp..] hold the operands.
+# (a jump, the end of the execution, a returndatacopy past the data). rbx =
+# vm, r12 = instr, r13 = the mnemonic, r14 = the parameter; [rsp..] hold the
+# operands.
 FUNC vm_step
         ENTER
         sub rsp, 80
         mov rbx, [r15 + CTX_VM]
         mov r12, rdi
         mov [rsp + 72], rsi             # condition
+        movzx eax, byte ptr [r12 + IN_OP]
+        lea rcx, [rip + step_class]
+        movzx ecx, byte ptr [rcx + rax]
+        mov [rsp + 64], rcx             # the class
+        # handle_jumps: --explain's lines of the instructions that end a node
+        cmp ecx, 3
+        jne 1f
         test byte ptr [r15 + CTX_VERBOSE], VB_ASM
-        jnz .Lstep_asm
+        jz .Lstep_dispatch
+        mov rdi, r12
+        call vm_trace_asm
+        jmp .Lstep_dispatch
+1:      cmp eax, 0x39                   # a codecopy of a switch (see code_switch)
+        jne 2f
+        mov edi, [r12 + IN_PC]
+        call vm_code_switch
+        test rax, rax
+        jz 2f
+        mov rdi, [rbx + VM_TRACE]
+        mov rsi, rax
+        call vec_push
+        jmp .Lstep_finished
+        # apply_stack: before an instruction that changes the state, what
+        # was read from it gets a variable (snapshot), and what's known of
+        # it is forgotten
+2:      mov rcx, [rsp + 64]
+        test ecx, ecx
+        jz 4f
+        movzx eax, byte ptr [r12 + IN_OP]
+        lea rdx, [rip + evm_op_nodes]
+        mov rdi, [rdx + rax*8]
+        mov eax, [rdi + N_AUX]
+        and eax, STR_ID_MASK
+        mov [rsp + 56], rax             # the op's id
+        xor esi, esi                    # target
+        cmp ecx, 1
+        jne 3f
+        mov rax, [rbx + VM_STACK]       # sstore, tstore: their slot, the top
+        mov rcx, [rax + VEC_LEN]
+        test rcx, rcx
+        jz 3f                           # (python's IndexError, at the pop below)
+        mov rax, [rax + VEC_DATA]
+        mov rsi, [rax + rcx*8 - 8]
+3:      mov edi, [rsp + 56]
+        call vm_snapshot
+        mov rdi, [rbx + VM_KNOWN]
+        mov esi, 1                      # sstore: ("storage",)
+        cmp qword ptr [rsp + 56], OP_SSTORE
+        je 31f
+        mov esi, 2                      # tstore: ("tload",)
+        cmp qword ptr [rsp + 56], OP_TSTORE
+        je 31f
+        xor esi, esi                    # anything can happen in the callee,
+31:     call forget                     # reentering this contract included
+        mov [rbx + VM_KNOWN], rax
+4:      test byte ptr [r15 + CTX_VERBOSE], VB_ASM
+        jz .Lstep_dispatch
+        mov rdi, r12
+        call vm_trace_asm
 .Lstep_dispatch:
         movzx eax, byte ptr [r12 + IN_OP]
         lea rcx, [rip + evm_op_nodes]
@@ -2288,13 +3013,8 @@ FUNC vm_step
         mov r14, [r12 + IN_PARAM]
         lea rcx, [rip + step_table]
         jmp [rcx + rax*8]
-.Lstep_asm:
-        # --verbose, --explain: the instruction's lines of assembly first
-        mov rdi, r12
-        call vm_trace_asm
-        jmp .Lstep_dispatch
 
-# exp, and, eq, div, lt, gt, slt, sgt, mod, xor, signextend, smod, sdiv:
+# exp, eq, div, lt, gt, slt, sgt, mod, xor, signextend, smod, sdiv:
 # arithmetic.eval((op, a, b))
 .Lop_arith:
         VPOP [rsp]
@@ -2304,6 +3024,17 @@ FUNC vm_step
         call mk3
         mov rdi, rax
         call arith_eval
+        VPUSH rax
+        jmp .Lstep_epilogue
+
+# and: a mask when one of them is one - of 256 ** e - 1 when the known
+# conditions say what e is (and_op)
+.Lop_and:
+        VPOP [rsp]
+        VPOP rsi
+        mov rdi, [rsp]
+        mov rdx, [rbx + VM_KNOWN]
+        call and_op
         VPUSH rax
         jmp .Lstep_epilogue
 
@@ -2399,13 +3130,14 @@ FUNC vm_step
         VPUSH rax
         jmp .Lstep_epilogue
 
+# mulmod, addmod: (op, a, b, c)
 .Lop_mulmod:
         VPOP [rsp]
         VPOP [rsp + 8]
         VPOP rcx
         mov rdx, [rsp + 8]
         mov rsi, [rsp]
-        LOADS rdi, MULMOD
+        mov rdi, r13
         call mk4
         VPUSH rax
         jmp .Lstep_epilogue
@@ -2416,18 +3148,14 @@ FUNC vm_step
         call .Lboth_int
         test eax, eax
         jz 1f
-        mov rdi, [rsp + 8]
+        mov rdi, [rsp + 8]              # exp << off (0 for an off of 256 or more)
         mov rsi, [rsp]
         call int_shl
         VPUSH rax
         jmp .Lstep_epilogue
-1:      # mask_op(exp, shl=off)
-        mov rdi, [rsp + 8]
-        mov esi, (256 << 1) | 1
-        mov edx, 1
-        mov rcx, [rsp]
-        mov r8d, 1
-        call alg_mask_op
+1:      mov rdi, [rsp + 8]
+        mov rsi, [rsp]
+        call alg_shl_op
         VPUSH rax
         jmp .Lstep_epilogue
 
@@ -2436,22 +3164,15 @@ FUNC vm_step
         VPOP [rsp + 8]                   # exp
         call .Lboth_int
         test eax, eax
-        jz .Lshr_symbolic
+        jz 1f
         mov rdi, [rsp + 8]
         mov rsi, [rsp]
         call int_shr
         VPUSH rax
         jmp .Lstep_epilogue
-.Lshr_symbolic:
-        # mask_op(exp, offset=minus_op(off), shr=off)
-        mov rdi, [rsp]
-        call alg_minus_op
-        mov rdx, rax
-        mov rdi, [rsp + 8]
-        mov esi, (256 << 1) | 1
-        mov ecx, 1
-        mov r8, [rsp]
-        call alg_mask_op
+1:      mov rdi, [rsp + 8]
+        mov rsi, [rsp]
+        call alg_shr_op
         VPUSH rax
         jmp .Lstep_epilogue
 
@@ -2460,14 +3181,21 @@ FUNC vm_step
         VPOP [rsp + 8]                   # exp
         call .Lboth_int
         test eax, eax
-        jz .Lshr_symbolic               # FIXME (as in python): not the right result
+        jz 1f
         mov rdi, [rsp + 8]
         mov rsi, [rsp]
         call int_sar
         VPUSH rax
         jmp .Lstep_epilogue
+1:      # left as it is: no mask copies the sign bit into the bits shifted in
+        mov rdx, [rsp + 8]
+        mov rsi, [rsp]
+        mov rdi, r13
+        call mk3
+        VPUSH rax
+        jmp .Lstep_epilogue
 
-# not, iszero, extcodesize, extcodehash, blockhash: (op, x)
+# not, iszero, extcodesize, extcodehash, blockhash, blobhash: (op, x)
 .Lop_unary:
         VPOP rsi
         mov rdi, r13
@@ -2504,22 +3232,41 @@ FUNC vm_step
         VPUSH rax
         jmp .Lstep_epilogue
 
-# byte i of x, the most significant first: mask_op(x, 8, 248 - 8 i, shr=248 - 8 i)
+# byte i of x, the most significant first - 0 for an i of 32 or more: as
+# it is when i isn't known (a mask at an offset computed from it wouldn't
+# say that)
 .Lop_byte:
         VPOP [rsp]                       # i
         VPOP [rsp + 8]                   # x
-        mov edi, (8 << 1) | 1
+        mov rdi, [rsp]
+        call is_int
+        test eax, eax
+        jnz 1f
+        mov rdx, [rsp + 8]
         mov rsi, [rsp]
-        call alg_mul2
-        mov rsi, rax
-        mov edi, (248 << 1) | 1
-        call alg_sub_op
-        mov [rsp], rax
+        mov rdi, r13
+        call mk3
+        VPUSH rax
+        jmp .Lstep_epilogue
+1:      mov rdi, [rsp]
+        mov esi, (32 << 1) | 1
+        call int_cmp
+        cmp eax, 0
+        jl 2f
+        mov edi, 1                      # 0
+        VPUSH rdi
+        jmp .Lstep_epilogue
+2:      mov rax, [rsp]                  # off = 248 - 8 i: mask_op(x, 8, off, shr=off)
+        sar rax, 1
+        shl rax, 3
+        mov ecx, 248
+        sub rcx, rax
+        TAG rcx
+        mov rdx, rcx
+        mov r8, rcx
         mov rdi, [rsp + 8]
         mov esi, (8 << 1) | 1
-        mov rdx, rax
         mov ecx, 1
-        mov r8, rax
         call alg_mask_op
         VPUSH rax
         jmp .Lstep_epilogue
@@ -2534,23 +3281,26 @@ FUNC vm_step
 .Lop_balance:
         VPOP [rsp]
         mov rdi, [rsp]
-        call is_tuple
+        mov esi, OP_MASK_SHL
+        mov edx, 5
+        call is_op_n
+        test eax, eax
+        jz 1f
+        mov rax, [rsp]                  # (the address: the low 160 bits of the word, as printed)
+        cmp qword ptr [rax + N_DATA + 8], (160 << 1) | 1
+        jne 1f
+        mov rdi, [rax + N_DATA + 16]
+        mov esi, 1
+        call py_equal
         test eax, eax
         jz 1f
         mov rax, [rsp]
-        cmp dword ptr [rax + N_AUX], 5
-        jne 1f
-        mov rdi, rax
-        call opcode_of
-        cmp eax, OP_MASK_SHL
-        jne 1f
+        mov rdi, [rax + N_DATA + 24]
+        mov esi, 1
+        call py_equal
+        test eax, eax
+        jz 1f
         mov rax, [rsp]
-        cmp qword ptr [rax + N_DATA + 8], (160 << 1) | 1
-        jne 1f
-        cmp qword ptr [rax + N_DATA + 16], 1
-        jne 1f
-        cmp qword ptr [rax + N_DATA + 24], 1
-        jne 1f
         mov rax, [rax + N_DATA + 32]
         mov [rsp], rax
 1:      mov rsi, [rsp]
@@ -2598,9 +3348,6 @@ FUNC vm_step
         jmp .Lstep_epilogue
 
 .Lop_sstore:
-        mov rdi, [rbx + VM_KNOWN]
-        call forget_storage
-        mov [rbx + VM_KNOWN], rax
         VPOP [rsp]                       # sloc
         VPOP r8                          # val
         mov rcx, [rsp]
@@ -2611,8 +3358,34 @@ FUNC vm_step
         VTRACE rax
         jmp .Lstep_epilogue
 
+.Lop_tload:
+        VPOP rsi
+        mov rdi, r13
+        call mk2
+        VPUSH rax
+        jmp .Lstep_epilogue
+
+.Lop_tstore:
+        VPOP rsi                         # key
+        mov [rsp], rsi
+        VPOP rdx                         # val
+        mov rsi, [rsp]
+        mov rdi, r13
+        call mk3
+        VTRACE rax
+        jmp .Lstep_epilogue
+
+# a word read from where what's there is known is that, not a variable
 .Lop_mload:
-        VPOP rdi
+        VPOP [rsp]
+        mov rdi, [rbx + VM_KNOWN]
+        mov rsi, [rsp]
+        call read_memory
+        test rax, rax
+        jz 1f
+        VPUSH rax
+        jmp .Lstep_epilogue
+1:      mov rdi, [rsp]
         mov esi, (32 << 1) | 1
         call mk_mem_range
         mov [rsp], rax
@@ -2630,16 +3403,54 @@ FUNC vm_step
         jmp .Lstep_epilogue
 
 .Lop_mstore:
-        mov qword ptr [rsp + 16], (32 << 1) | 1
-        jmp 1f
-.Lop_mstore8:
-        mov qword ptr [rsp + 16], (8 << 1) | 1
-1:      VPOP rdi                         # memloc
-        mov rsi, [rsp + 16]
+        VPOP rdi                         # memloc
+        mov esi, (32 << 1) | 1
         call mk_range
         mov [rsp], rax
         VPOP rdx                         # val
         mov rsi, [rsp]
+        LOADS rdi, SETMEM
+        call mk3
+        VTRACE rax
+        jmp .Lstep_epilogue
+
+# the lowest byte of val, into one byte of memory
+.Lop_mstore8:
+        VPOP rdi                         # memloc
+        mov esi, (1 << 1) | 1
+        call mk_range
+        mov [rsp], rax
+        VPOP rdi                         # val
+        mov esi, (8 << 1) | 1
+        mov edx, 1
+        mov ecx, 1
+        mov r8d, 1
+        call alg_mask_op
+        mov rdx, rax
+        mov rsi, [rsp]
+        LOADS rdi, SETMEM
+        call mk3
+        VTRACE rax
+        jmp .Lstep_epilogue
+
+.Lop_mcopy:
+        VPOP [rsp]                       # dst
+        VPOP [rsp + 8]                   # src
+        VPOP [rsp + 16]                  # size
+        mov rdi, [rsp + 16]
+        mov esi, 1
+        call py_equal
+        test eax, eax
+        jnz .Lstep_epilogue
+        mov rdi, [rsp + 8]
+        mov rsi, [rsp + 16]
+        call mk_mem_range
+        mov [rsp + 8], rax
+        mov rdi, [rsp]
+        mov rsi, [rsp + 16]
+        call mk_range
+        mov rsi, rax
+        mov rdx, [rsp + 8]
         LOADS rdi, SETMEM
         call mk3
         VTRACE rax
@@ -2668,6 +3479,9 @@ FUNC vm_step
         VTRACE rax
         jmp .Lstep_epilogue
 
+# the bytes of the code, and zeroes past its end (solc fills a new array
+# with them, copying from codesize), for a copy of known place and size
+# up to MAX_CODECOPY_SIZE; else ('code.data', pos, len)
 .Lop_codecopy:
         VPOP [rsp]                       # mem_pos
         VPOP [rsp + 8]                   # call_pos
@@ -2677,7 +3491,6 @@ FUNC vm_step
         call code_bytes_value
         test rax, rax
         jnz 1f
-        # ('code.data', call_pos, data_len)
         mov rsi, [rsp + 8]
         mov rdx, [rsp + 16]
         LOADS rdi, CODE_DATA
@@ -2701,19 +3514,15 @@ FUNC vm_step
         jmp .Lstep_epilogue
 
 .Lop_calldatacopy:
-        LOADS rax, CALL_DATA
-        mov [rsp + 32], rax
-        jmp .Lcopy_data
-.Lop_returndatacopy:
-        LOADS rax, EXT_CALL_RETURN_DATA
-        mov [rsp + 32], rax
-.Lcopy_data:
         VPOP [rsp]                       # mem_pos
-        VPOP [rsp + 8]                   # src_pos
+        VPOP [rsp + 8]                   # call_pos
         VPOP [rsp + 16]                  # data_len
-        cmp qword ptr [rsp + 16], 1     # data_len != 0
-        je .Lstep_epilogue
-        mov rdi, [rsp + 32]
+        mov rdi, [rsp + 16]
+        mov esi, 1
+        call py_equal
+        test eax, eax
+        jnz .Lstep_epilogue
+        LOADS rdi, CALL_DATA
         mov rsi, [rsp + 8]
         mov rdx, [rsp + 16]
         call mk3
@@ -2728,43 +3537,122 @@ FUNC vm_step
         VTRACE rax
         jmp .Lstep_epilogue
 
+# a copy of more than there is halts, as an invalid opcode does
+.Lop_returndatacopy:
+        VPOP [rsp]                       # mem_pos
+        VPOP [rsp + 8]                   # ret_pos
+        VPOP [rsp + 16]                  # data_len
+        mov rdi, [rsp + 8]              # end = add_op(ret_pos, data_len)
+        mov rsi, [rsp + 16]
+        call alg_add2
+        mov [rsp + 24], rax
+        LOADS rax, RETURNDATASIZE       # size: 0 when no call was made
+        mov [rsp + 32], rax
+        call vm_rdz_known
+        test eax, eax
+        jz 1f
+        mov qword ptr [rsp + 32], 1
+1:      LOADS rdi, LT                   # beyond = ('lt', size, end)
+        mov rsi, [rsp + 32]
+        mov rdx, [rsp + 24]
+        call mk3
+        mov [rsp + 40], rax
+        mov rdi, [rsp + 32]             # (sizes: far from 2**256)
+        mov rsi, [rsp + 24]
+        call alg_lt_op
+        cmp eax, TRI_CANNOT
+        jne 2f
+        mov rdi, [rsp + 40]
+        mov rsi, [rbx + VM_KNOWN]
+        call is_known
+2:      cmp eax, TRI_TRUE
+        je .Lrdc_beyond
+        cmp eax, TRI_FALSE
+        je .Lrdc_copy
+        # ('if', beyond, [('invalid', 'returndatacopy')], []), and what holds after
+        LOADS rdi, INVALID
+        lea rsi, [rip + .Ls_returndatacopy]
+        call .Lstep_line_c_value
+        mov [rsp + 48], rax
+        mov edi, 1
+        lea rsi, [rsp + 48]
+        call mk_list
+        mov [rsp + 48], rax
+        xor edi, edi
+        xor esi, esi
+        call mk_list
+        mov rcx, rax
+        mov rdx, [rsp + 48]
+        mov rsi, [rsp + 40]
+        LOADS rdi, IF
+        call mk4
+        VTRACE rax
+        mov rdi, [rsp + 40]
+        call is_zero
+        mov rdi, rax
+        call vm_known_add
+.Lrdc_copy:
+        mov rdi, [rsp + 16]
+        mov esi, 1
+        call py_equal
+        test eax, eax
+        jnz .Lstep_epilogue
+        LOADS rdi, EXT_CALL_RETURN_DATA
+        mov rsi, [rsp + 8]
+        mov rdx, [rsp + 16]
+        call mk3
+        mov [rsp + 24], rax
+        mov rdi, [rsp]
+        mov rsi, [rsp + 16]
+        call mk_range
+        mov rsi, rax
+        mov rdx, [rsp + 24]
+        LOADS rdi, SETMEM
+        call mk3
+        VTRACE rax
+        jmp .Lstep_epilogue
+.Lrdc_beyond:
+        LOADS rdi, INVALID
+        lea rsi, [rip + .Ls_returndatacopy]
+        call .Lstep_line_c_value
+        VTRACE rax
+        jmp .Lstep_finished             # (the instruction ended the path)
+
+.Lop_returndatasize:
+        call vm_rdz_known
+        mov edi, 1                      # 0
+        test eax, eax
+        jnz 1f
+        mov rdi, r13
+1:      VPUSH rdi
+        jmp .Lstep_epilogue
+
 .Lop_call:
-        mov rdi, [rbx + VM_KNOWN]
-        call forget_volatile
-        mov [rbx + VM_KNOWN], rax
         call vm_handle_call
         jmp .Lstep_epilogue
 
 .Lop_delegatecall:
-        mov rdi, [rbx + VM_KNOWN]
-        call forget_volatile
-        mov [rbx + VM_KNOWN], rax
         VPOP [rsp]                       # gas
         VPOP [rsp + 8]                   # addr
-        mov qword ptr [rsp + 16], 0     # (no value)
         VPOP [rsp + 24]                  # arg_start
         VPOP [rsp + 32]                  # arg_len
         VPOP [rsp + 40]                  # ret_start
         VPOP [rsp + 48]                  # ret_len
-        mov edi, 1
-        call call_fname_params          # -> [rsp + 56], [rsp + 64]
-        mov r8, [rsp + 64]
-        mov rcx, [rsp + 56]
+        mov rdi, [rsp + 24]
+        mov rsi, [rsp + 32]
+        call vm_call_data
+        mov r8, rdx
+        mov rcx, rax
         mov rdx, [rsp + 8]
         mov rsi, [rsp]
-        LOADS rdi, DELEGATECALL
+        mov rdi, r13
         call mk5
         VTRACE rax
         LOADS rdi, DELEGATE_RETURN_CODE
         VPUSH rdi
-        LOADS rax, DELEGATE_RETURN_DATA
-        mov [rsp + 32], rax
-        jmp .Lcall_return_data
+        jmp .Lcall_output
 
 .Lop_callcode:
-        mov rdi, [rbx + VM_KNOWN]
-        call forget_volatile
-        mov [rbx + VM_KNOWN], rax
         VPOP [rsp]                       # gas
         VPOP [rsp + 8]                   # addr
         VPOP [rsp + 16]                  # value
@@ -2772,43 +3660,26 @@ FUNC vm_step
         VPOP [rsp + 32]                  # arg_len
         VPOP [rsp + 40]                  # ret_start
         VPOP [rsp + 48]                  # ret_len
-        mov edi, 1
-        call call_fname_params
-        mov r9, [rsp + 64]
-        mov r8, [rsp + 56]
+        mov rdi, [rsp + 24]
+        mov rsi, [rsp + 32]
+        call vm_call_data
+        mov r9, rdx
+        mov r8, rax
         mov rcx, [rsp + 16]
         mov rdx, [rsp + 8]
         mov rsi, [rsp]
-        LOADS rdi, CALLCODE
+        mov rdi, r13
         call mk6
         VTRACE rax
         LOADS rdi, CALLCODE_RETURN_CODE
         VPUSH rdi
-        LOADS rax, CALLCODE_RETURN_DATA
-        mov [rsp + 32], rax
-.Lcall_return_data:
-        # if 0 != ret_len: setmem(range(ret_start, ret_len), (X.return_data, 0, ret_len))
-        cmp qword ptr [rsp + 48], 1
-        je .Lstep_epilogue
-        mov rdi, [rsp + 32]
-        mov esi, 1
-        mov rdx, [rsp + 48]
-        call mk3
-        mov [rsp + 56], rax
+.Lcall_output:
         mov rdi, [rsp + 40]
         mov rsi, [rsp + 48]
-        call mk_range
-        mov rsi, rax
-        mov rdx, [rsp + 56]
-        LOADS rdi, SETMEM
-        call mk3
-        VTRACE rax
+        call vm_output_write
         jmp .Lstep_epilogue
 
 .Lop_create:
-        mov rdi, [rbx + VM_KNOWN]
-        call forget_volatile
-        mov [rbx + VM_KNOWN], rax
         VPOP [rsp]                       # wei
         VPOP [rsp + 8]                   # mem_start
         VPOP rsi                         # mem_len
@@ -2824,9 +3695,6 @@ FUNC vm_step
         jmp .Lstep_epilogue
 
 .Lop_create2:
-        mov rdi, [rbx + VM_KNOWN]
-        call forget_volatile
-        mov [rbx + VM_KNOWN], rax
         VPOP [rsp]                       # wei
         VPOP [rsp + 8]                   # mem_start
         VPOP rsi                         # mem_len
@@ -2864,13 +3732,13 @@ FUNC vm_step
         jmp .Lstep_epilogue
 
 # callvalue, caller, address, number, gas, origin, timestamp, chainid,
-# difficulty, gasprice, coinbase, gaslimit, calldatasize, returndatasize,
-# basefee: the name itself
+# difficulty, gasprice, coinbase, gaslimit, calldatasize, basefee,
+# blobbasefee: the name itself
 .Lop_env:
         VPUSH r13
         jmp .Lstep_epilogue
 
-# --- the ones that end the trace ---
+# --- the ones that end the trace (handle_jumps) ---
 
 .Lop_jumpdest:
         # a new node stands for what follows
@@ -2886,7 +3754,7 @@ FUNC vm_step
         mov rsi, rax
         LOADS rdi, JUMP
         call mk2
-        VTRACE rax
+        call .Lstep_push_line
         jmp .Lstep_finished
 
 .Lop_jump:
@@ -2902,7 +3770,7 @@ FUNC vm_step
         mov rsi, rax
         LOADS rdi, JUMP
         call mk2
-        VTRACE rax
+        call .Lstep_push_line
         jmp .Lstep_finished
 
 .Lop_jumpi:
@@ -2944,7 +3812,33 @@ FUNC vm_step
         mov [rsp + 40], rax             # n_false
         cmp qword ptr [rbx + VM_JUST_FDESTS], 0
         je 1f
-        call .Ljumpi_funccall
+        # the selector compared with a function's hash: the function
+        # follows the jump where they're equal, the fall through where
+        # they differ (a difference: zero when equal)
+        mov rdi, [rsp + 8]
+        call selector_test
+        test rax, rax
+        jz 1f
+        mov [rsp + 48], rax             # fx_hash
+        mov rsi, [rsp + 24]             # the node it's taken to
+        mov rcx, [rsp]                  # and where it goes
+        test edx, edx
+        jnz 4f
+        mov rsi, [rsp + 40]
+        mov rcx, [rsi + ND_START]
+4:      mov [rsp + 56], rsi
+        mov rdx, rcx
+        mov rcx, [rsp + 16]
+        mov rsi, [rsp + 48]
+        LOADS rdi, FUNCCALL
+        call mk4                        # ('funccall', fx_hash, target, tuple_stack)
+        mov [rsp + 48], rax
+        call vec_new
+        mov rcx, [rsp + 56]
+        mov [rcx + ND_TRACE], rax
+        mov rdi, rax
+        mov rsi, [rsp + 48]
+        call vec_push
 1:      # decided by the arithmetic, or by what's known on the path here?
         mov rdi, [rsp + 8]
         lea rsi, [rip + sp_true]        # (python's known_true=True)
@@ -2965,112 +3859,65 @@ FUNC vm_step
         mov rsi, rax
         LOADS rdi, JUMP
         call mk2
-        VTRACE rax
+        call .Lstep_push_line
         jmp .Lstep_finished
 3:      mov rcx, [rsp + 40]
         mov rdx, [rsp + 24]
         mov rsi, [rsp + 8]
         LOADS rdi, IF
         call mk4
-        VTRACE rax
+        call .Lstep_push_line
         jmp .Lstep_finished
-
-# local: in the function discovery mode, a comparison of the selector
-# ('cd', 0) with a constant means a function call: n_true.trace =
-# [('funccall', fx_hash, target, tuple_stack)]. The caller's frame is at
-# rsp + 32: target, if_condition, tuple_stack, n_true.
-.Ljumpi_funccall:
-        sub rsp, 24
-        mov rdi, [rsp + 32 + 8]
-        call opcode_of
-        cmp eax, OP_EQ
-        jne 9f
-        mov rax, [rsp + 32 + 8]
-        cmp dword ptr [rax + N_AUX], 3
-        jne 9f
-        # ('eq', fx_hash, is_cd) or ('eq', is_cd, fx_hash)
-        mov rdi, [rax + N_DATA + 8]
-        mov rsi, [rax + N_DATA + 16]
-        call .Lis_selector_check
-        test eax, eax
-        jnz 8f
-        mov rax, [rsp + 32 + 8]
-        mov rdi, [rax + N_DATA + 16]
-        mov rsi, [rax + N_DATA + 8]
-        call .Lis_selector_check
-        test eax, eax
-        jz 9f
-8:      mov [rsp], rdi                  # fx_hash
-        call vec_new
-        mov [rsp + 8], rax
-        mov rcx, [rsp + 32 + 16]        # tuple_stack
-        mov rdx, [rsp + 32]             # target
-        mov rsi, [rsp]
-        LOADS rdi, FUNCCALL
-        call mk4
-        mov rdi, [rsp + 8]
-        mov rsi, rax
-        call vec_push
-        mov rax, [rsp + 32 + 24]        # n_true
-        mov rcx, [rsp + 8]
-        mov [rax + ND_TRACE], rcx
-9:      add rsp, 24
-        ret
-
-# local: (fx_hash, is_cd) -> eax: fx_hash is an int and is_cd mentions
-# ('cd', 0). rdi is preserved.
-.Lis_selector_check:
-        sub rsp, 24
-        mov [rsp], rdi
-        mov [rsp + 8], rsi
-        call is_int
-        test eax, eax
-        jz 7f
-        LOADS rdi, CD
-        mov esi, 1
-        call mk2
-        mov rdi, [rsp + 8]
-        mov rsi, rax
-        call contains_value
-7:      mov rdi, [rsp]
-        add rsp, 24
-        ret
 
 .Lop_return:
         VPOP [rsp]                       # p
-        VPOP rsi                         # n
-        cmp rsi, 1
+        VPOP [rsp + 8]                   # n
+        mov rdi, [rsp + 8]
+        mov esi, 1
+        call py_equal
+        test eax, eax
+        jz 2f
+        cmp byte ptr [r12 + IN_OP], 0xf3
         jne 1f
-        mov rdi, r13
-        call mk2                        # (op, 0)
-        VTRACE rax
+        # returning nothing is the same as stopping, while ('return', 0)
+        # returns a word, 0
+        LOADS rdi, STOP
+        call mk1
+        call .Lstep_push_line
         jmp .Lstep_finished
-1:      mov rdi, [rsp]
+1:      # likewise, ('revert', 0) reverts with a word, 0
+        mov rdi, r13
+        lea rsi, [rip + sp_none]
+        call mk2
+        call .Lstep_push_line
+        jmp .Lstep_finished
+2:      mov rdi, [rsp]
+        mov rsi, [rsp + 8]
         call mk_mem_range
         mov rsi, rax
         mov rdi, r13
         call mk2
-        VTRACE rax
+        call .Lstep_push_line
         jmp .Lstep_finished
 
 .Lop_selfdestruct:
         VPOP rsi
         mov rdi, r13
         call mk2
-        VTRACE rax
+        call .Lstep_push_line
         jmp .Lstep_finished
 
 .Lop_stop:
 .Lop_invalid:
         mov rdi, r13
         call mk1
-        VTRACE rax
+        call .Lstep_push_line
         jmp .Lstep_finished
 
 .Lop_unknown:
         LOADS rdi, INVALID
         call mk1
-        VTRACE rax
+        call .Lstep_push_line
         jmp .Lstep_finished
 
 # --- the ends ---
@@ -3119,7 +3966,8 @@ FUNC vm_step
         add rsp, 80
         LEAVE
 
-# local: are [rsp + 8] and [rsp + 16] (the caller's [rsp], [rsp + 8]) both ints?
+# local: are [rsp + 8] and [rsp + 16] (the caller's [rsp], [rsp + 8]) both
+# ints? (python's all_concrete: no bool)
 .Lboth_int:
         sub rsp, 8
         mov rdi, [rsp + 16]
@@ -3130,7 +3978,32 @@ FUNC vm_step
         call is_int
 1:      add rsp, 8
         ret
+
+# local: the line rax added to the trace as it is (handle_jumps')
+.Lstep_push_line:
+        sub rsp, 8
+        mov rdi, [rbx + VM_TRACE]
+        mov rsi, rax
+        call vec_push
+        add rsp, 8
+        ret
+
+# local: (op rdi, the string of the C string rsi) -> rax
+.Lstep_line_c_value:
+        sub rsp, 24
+        mov [rsp], rdi
+        mov rdi, rsi
+        call str_intern_c
+        mov rdi, [rsp]
+        mov rsi, rax
+        call mk2
+        add rsp, 24
+        ret
 ENDF vm_step
+
+        .section .rodata
+.Ls_returndatacopy: .asciz "returndatacopy"
+        .text
 
 # --- the lines of assembly (python's --verbose, --explain) ---
 
@@ -3411,64 +4284,173 @@ FUNC fmt_noargs
         call err_throw
 ENDF fmt_noargs
 
-# call_fname_params(params4): the function name and parameters of a call
-# from the caller's frame (arg_start at its [rsp + 24], arg_len at
-# [rsp + 32]) into its [rsp + 56] and [rsp + 64]. params4 is the value of
-# the parameters for a 4-byte call (the python version puts 0 there for
-# delegatecall/callcode and None for call/staticcall).
-FUNC call_fname_params
-        push rbp
-        mov rbp, rsp
-        # the caller's frame: rbp + 16 is its rsp
-        lea rax, [rbp + 16]
-        mov rcx, [rax + 32]             # arg_len
-        cmp rcx, 1                      # arg_len == 0
-        jne 1f
-        lea rcx, [rip + sp_none]
-        mov [rax + 56], rcx
-        mov [rax + 64], rcx
-        pop rbp
-        ret
-1:      cmp rcx, (4 << 1) | 1           # arg_len == 4
-        jne 2f
-        push rdi
-        push rdi
-        mov rdi, [rax + 24]
+# vm_call_data(arg_start, arg_len) -> rax, rdx: python's call_data -
+# (selector, params): the data of a call, the arg_len bytes of memory at
+# arg_start - its 4 first bytes and the others, where it has 4 bytes or
+# more for sure (a number, or a word whose range says so); else (None, all
+# of them): the data of a param (x.call(data)) can be shorter, and then it
+# has no selector. (None, None): no data.
+FUNC vm_call_data
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov rdi, rsi
+        mov esi, 1
+        call py_equal
+        test eax, eax
+        jz 1f
+        lea rax, [rip + sp_none]
+        mov rdx, rax
+        LEAVE
+1:      mov rdi, r12
+        mov esi, (4 << 1) | 1
+        call py_equal
+        test eax, eax
+        jz 2f
+        mov rdi, rbx
         mov esi, (4 << 1) | 1
         call mk_mem_range
-        pop rdi
-        pop rdi
-        lea rcx, [rbp + 16]
-        mov [rcx + 56], rax
-        mov [rcx + 64], rdi
-        pop rbp
-        ret
-2:      mov rdi, [rax + 24]
+        lea rdx, [rip + sp_none]
+        LEAVE
+2:      mov rdi, r12
+        call is_int
+        test eax, eax
+        jz 3f
+        mov rdi, r12                    # split = arg_len > 4
+        mov esi, (4 << 1) | 1
+        call int_cmp
+        cmp eax, 0
+        jg .Lcd_split
+        jmp .Lcd_whole
+3:      # (as the word it is: a sum that can't wrap)
+        mov rax, [r15 + CTX_VM]
+        mov rdi, [rax + VM_KNOWN]
+        call known_bounds
+        mov rsi, rax
+        mov rdi, r12
+        xor edx, edx                    # (WORD_TOP)
+        call value_range
+        mov r13, rax                    # lo
+        mov r14, rdx                    # hi
+        mov rdi, rax
+        mov esi, (4 << 1) | 1
+        call int_cmp
+        cmp eax, 0
+        jl .Lcd_whole
+        mov rdi, r14
+        mov rsi, [rip + vr_word_top_v]
+        call int_cmp
+        cmp eax, 0
+        jg .Lcd_whole
+.Lcd_split:
+        mov rdi, rbx
         mov esi, (4 << 1) | 1
         call mk_mem_range
-        lea rcx, [rbp + 16]
-        mov [rcx + 56], rax
-        # fparams = mem_load(add_op(arg_start, 4), sub_op(arg_len, 4))
-        mov rdi, [rcx + 24]
+        mov r13, rax
+        mov rdi, rbx
         mov esi, (4 << 1) | 1
         call alg_add2
-        push rax
-        push rax
-        lea rcx, [rbp + 16]
-        mov rdi, [rcx + 32]
+        mov r14, rax
+        mov rdi, r12
         mov esi, (4 << 1) | 1
         call alg_sub_op
         mov rsi, rax
-        pop rdi
-        pop rdi
+        mov rdi, r14
         call mk_mem_range
-        lea rcx, [rbp + 16]
-        mov [rcx + 64], rax
-        pop rbp
-        ret
-ENDF call_fname_params
+        mov rdx, rax
+        mov rax, r13
+        LEAVE
+.Lcd_whole:
+        mov rdi, rbx
+        mov rsi, r12
+        call mk_mem_range
+        mov rdx, rax
+        lea rax, [rip + sp_none]
+        LEAVE
+ENDF vm_call_data
 
-# vm_handle_call(): call / staticcall (rbx = vm, r12 = instr, r13 = op)
+# vm_output_write(ret_start, ret_len): python's output_write - what a call
+# returns, written to the ret_len bytes of memory at ret_start it gives for
+# it: min(ret_len, return_data.size) of them (a callee may return less) -
+# or, where the memory is known to be zeroes, all of them: the return data
+# padded with zeroes. Nothing when ret_len is 0.
+FUNC vm_output_write
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov edi, 1
+        call alg_lt_op
+        cmp eax, TRI_FALSE
+        je 9f
+        mov rax, [r15 + CTX_VM]
+        mov rdi, [rax + VM_KNOWN]
+        mov rsi, rbx
+        mov rdx, r12
+        call known_zeroes
+        test eax, eax
+        jnz 1f
+        LOADS rdi, MIN                  # size = ('min', ret_len, 'returndatasize')
+        mov rsi, r12
+        LOADS rdx, RETURNDATASIZE
+        call mk3
+        mov r12, rax
+1:      LOADS rdi, EXT_CALL_RETURN_DATA
+        mov esi, 1
+        mov rdx, r12
+        call mk3
+        mov r13, rax
+        mov rdi, rbx
+        mov rsi, r12
+        call mk_range
+        mov rsi, rax
+        mov rdx, r13
+        LOADS rdi, SETMEM
+        call mk3
+        mov rdi, rax
+        call vm_add_line
+9:      LEAVE
+ENDF vm_output_write
+
+        .section .data.rel.ro
+        .align 8
+# the precompiled contracts 1..8 (4, the identity, is handled apart): name,
+# the name of its result, and its counter (VM_PRECOMPILES: "hash" is
+# sha256hash's and ripemd160hash's)
+precompiled_names:
+        .quad 0, 0, 0
+        .quad .Ls_ecrecover, .Ls_signer, 0
+        .quad .Ls_sha256hash, .Ls_hash, 1
+        .quad .Ls_ripemd160hash, .Ls_hash, 1
+        .quad 0, 0, 0
+        .quad .Ls_bigModExp, .Ls_mod_exp, 2
+        .quad .Ls_bn256Add, .Ls_bn_add, 3
+        .quad .Ls_bn256ScalarMul, .Ls_bn_scalar_mul, 4
+        .quad .Ls_bn256Pairing, .Ls_bn_pairing, 5
+        .section .rodata
+.Ls_ecrecover:      .asciz "ecrecover"
+.Ls_sha256hash:     .asciz "sha256hash"
+.Ls_ripemd160hash:  .asciz "ripemd160hash"
+.Ls_bigModExp:      .asciz "bigModExp"
+.Ls_bn256Add:       .asciz "bn256Add"
+.Ls_bn256ScalarMul: .asciz "bn256ScalarMul"
+.Ls_bn256Pairing:   .asciz "bn256Pairing"
+.Ls_signer:         .asciz "signer"
+.Ls_hash:           .asciz "hash"
+.Ls_mod_exp:        .asciz "mod_exp"
+.Ls_bn_add:         .asciz "bn_add"
+.Ls_bn_scalar_mul:  .asciz "bn_scalar_mul"
+.Ls_bn_pairing:     .asciz "bn_pairing"
+.Ls_result_fmt:     .asciz "%s.result"
+.Ls_name_count_fmt: .asciz "%s%ld"
+.Ls_copied:         .asciz "copied"
+.Ls_identity:       .asciz "identity"
+        .text
+
+# vm_handle_call(): call / staticcall (rbx = vm, r12 = instr, r13 = op) -
+# python's handle_call: the identity precompile (its return data is what
+# it's given: as much of it as there's room for is written), the other
+# precompiled contracts (a name for each result: signer, signer2...), and
+# the external calls
 FUNC vm_handle_call
         ENTER
         sub rsp, 80
@@ -3482,55 +4464,96 @@ FUNC vm_handle_call
         VPOP [rsp + 32]                  # arg_len
         VPOP [rsp + 40]                  # ret_start
         VPOP [rsp + 48]                  # ret_len
+        mov rdi, [rsp + 8]
+        mov esi, (4 << 1) | 1
+        call py_equal
+        test eax, eax
+        jnz .Lhc_identity
         mov rax, [rsp + 8]
-        cmp rax, (4 << 1) | 1
-        je .Lhc_identity
         test al, 1
         jz .Lhc_call
         sar rax, 1
         cmp rax, 1
-        jb .Lhc_call
+        jl .Lhc_call
         cmp rax, 8
         ja .Lhc_call
-        shl rax, 4
+        imul rax, rax, 24
         lea rcx, [rip + precompiled_names]
         cmp qword ptr [rcx + rax], 0
         je .Lhc_call
-        # a precompiled contract: ('precompiled', var_name, name, args);
-        # setmem(range(ret_start, ret_len), ('var', var_name)); push name.result
-        mov [rsp + 56], rax
-        mov rdi, [rcx + rax + 8]
-        call str_intern_c
-        mov [rsp + 64], rax             # var_name
-        mov rax, [rsp + 56]
-        lea rcx, [rip + precompiled_names]
-        mov rdi, [rcx + rax]
-        call str_intern_c
-        mov [rsp + 72], rax             # name
+        # a precompiled contract
+        add rax, rcx
+        mov [rsp + 56], rax             # its entry
         mov rdi, [rsp + 24]
         mov rsi, [rsp + 32]
         call mk_mem_range
-        mov rcx, rax
-        mov rdx, [rsp + 72]
-        mov rsi, [rsp + 64]
+        mov [rsp + 64], rax             # args
+        # the name of the result: base, base2, base3...
+        mov rax, [rsp + 56]
+        mov rcx, [rax + 16]
+        mov rdx, [r15 + CTX_VM]
+        lea rdx, [rdx + VM_PRECOMPILES + rcx*8]
+        inc qword ptr [rdx]
+        mov rcx, [rdx]                  # count
+        mov rdi, [rax + 8]
+        cmp rcx, 1
+        je 2f
+        sub rsp, 64                     # f"{base}{count}"
+        mov rax, [rsp + 64 + 56]
+        mov r8, rcx
+        mov rcx, [rax + 8]
+        mov rdi, rsp
+        mov esi, 64
+        lea rdx, [rip + .Ls_name_count_fmt]
+        xor eax, eax
+        call snprintf@PLT
+        mov rdi, rsp
+        call str_intern_c
+        add rsp, 64
+        jmp 3f
+2:      call str_intern_c
+3:      mov [rsp + 72], rax             # var_name
+        mov rax, [rsp + 56]
+        mov rdi, [rax]
+        call str_intern_c
+        mov rdx, rax                    # ('precompiled', var_name, name, args)
+        mov rsi, [rsp + 72]
+        mov rcx, [rsp + 64]
         LOADS rdi, PRECOMPILED
         call mk4
         VTRACE rax
-        mov rsi, [rsp + 64]
+        # the word it returns, or zeroes (ecrecover of a wrong signature
+        # returns nothing): the result, where the memory is of zeroes
+        mov rdi, [rsp + 48]
+        mov esi, (32 << 1) | 1
+        call py_equal
+        test eax, eax
+        jz 4f
+        mov rdi, [rbx + VM_KNOWN]
+        mov rsi, [rsp + 40]
+        mov edx, (32 << 1) | 1
+        call known_zeroes
+        test eax, eax
+        jz 4f
+        mov rsi, [rsp + 72]
         LOADS rdi, VAR
         call mk2
-        mov [rsp + 56], rax
+        mov [rsp + 64], rax
         mov rdi, [rsp + 40]
-        mov rsi, [rsp + 48]
+        mov esi, (32 << 1) | 1
         call mk_range
         mov rsi, rax
-        mov rdx, [rsp + 56]
+        mov rdx, [rsp + 64]
         LOADS rdi, SETMEM
         call mk3
         VTRACE rax
-        # "{}.result"
-        mov rax, [rsp + 72]
-        lea rcx, [rax + N_DATA + 4]
+        jmp 5f
+4:      mov rdi, [rsp + 40]
+        mov rsi, [rsp + 48]
+        call vm_output_write
+5:      # "{}.result"
+        mov rax, [rsp + 56]
+        mov rcx, [rax]
         lea rdi, [rsp + 56]
         mov esi, 24
         lea rdx, [rip + .Ls_result_fmt]
@@ -3542,29 +4565,79 @@ FUNC vm_handle_call
         add rsp, 80
         LEAVE
 .Lhc_identity:
-        # memory copy: setmem(range(ret_start, arg_len), mem(arg_start, arg_len))
+        # its return data is what it's given: ('precompiled', 'copied',
+        # 'identity', args), and as much of it as there's room for written
+        # (what the next returndatacopy copies)
         mov rdi, [rsp + 24]
         mov rsi, [rsp + 32]
         call mk_mem_range
         mov [rsp + 56], rax
-        mov rdi, [rsp + 40]
+        lea rdi, [rip + .Ls_copied]
+        call str_intern_c
+        mov [rsp + 64], rax
+        lea rdi, [rip + .Ls_identity]
+        call str_intern_c
+        mov rdx, rax
+        mov rsi, [rsp + 64]
+        mov rcx, [rsp + 56]
+        LOADS rdi, PRECOMPILED
+        call mk4
+        VTRACE rax
+        # size: ret_len when it's arg_len, the least of two numbers, else
+        # ('min', ret_len, arg_len)
+        mov rax, [rsp + 48]
+        mov [rsp + 56], rax
+        mov rdi, [rsp + 48]
         mov rsi, [rsp + 32]
+        call py_equal
+        test eax, eax
+        jnz 7f
+        mov rdi, [rsp + 48]
+        call is_int
+        test eax, eax
+        jz 6f
+        mov rdi, [rsp + 32]
+        call is_int
+        test eax, eax
+        jz 6f
+        mov rdi, [rsp + 48]
+        mov rsi, [rsp + 32]
+        call int_min
+        mov [rsp + 56], rax
+        jmp 7f
+6:      LOADS rdi, MIN
+        mov rsi, [rsp + 48]
+        mov rdx, [rsp + 32]
+        call mk3
+        mov [rsp + 56], rax
+7:      mov edi, 1                      # 0 < size (or can't tell): written
+        mov rsi, [rsp + 56]
+        call alg_lt_op
+        cmp eax, TRI_FALSE
+        je 8f
+        mov rdi, [rsp + 24]
+        mov rsi, [rsp + 56]
+        call mk_mem_range
+        mov [rsp + 64], rax
+        mov rdi, [rsp + 40]
+        mov rsi, [rsp + 56]
         call mk_range
         mov rsi, rax
-        mov rdx, [rsp + 56]
+        mov rdx, [rsp + 64]
         LOADS rdi, SETMEM
         call mk3
         VTRACE rax
-        LOADS rdi, MEMCOPY_SUCCESS
+8:      LOADS rdi, MEMCOPY_SUCCESS
         VPUSH rdi
         add rsp, 80
         LEAVE
 .Lhc_call:
-        # (op, gas, addr, wei, fname, fparams)
-        lea rdi, [rip + sp_none]
-        call call_fname_params
-        mov r9, [rsp + 64]
-        mov r8, [rsp + 56]
+        # (op, gas, addr, wei, selector, params)
+        mov rdi, [rsp + 24]
+        mov rsi, [rsp + 32]
+        call vm_call_data
+        mov r9, rdx
+        mov r8, rax
         mov rcx, [rsp + 16]
         mov rdx, [rsp + 8]
         mov rsi, [rsp]
@@ -3573,28 +4646,488 @@ FUNC vm_handle_call
         VTRACE rax
         LOADS rdi, EXT_CALL_SUCCESS
         VPUSH rdi
-        # the return data, when there is some (or when we can't tell)
-        mov edi, 1
-        mov rsi, [rsp + 48]
-        call alg_lt_op
-        cmp eax, TRI_FALSE
-        je 2f
-        mov esi, 1
-        mov rdx, [rsp + 48]
-        LOADS rdi, EXT_CALL_RETURN_DATA
-        call mk3
-        mov [rsp + 56], rax
         mov rdi, [rsp + 40]
         mov rsi, [rsp + 48]
-        call mk_range
-        mov rsi, rax
-        mov rdx, [rsp + 56]
-        LOADS rdi, SETMEM
-        call mk3
-        VTRACE rax
-2:      add rsp, 80
+        call vm_output_write
+        add rsp, 80
         LEAVE
 ENDF vm_handle_call
+
+# exp_size(exp) -> rax: python's exp_size - the leaves of a tuple (a list
+# is one)
+FUNC exp_size
+        STACK_CHECK
+        mov eax, 1
+        test dil, 1
+        jnz 9f
+        test rdi, rdi
+        jz 9f
+        cmp dword ptr [rdi + N_KIND], K_TUPLE
+        jne 9f
+        ENTER
+        mov rbx, rdi
+        xor r12d, r12d                  # the sum
+        xor r13d, r13d
+1:      cmp r13d, [rbx + N_AUX]
+        jae 2f
+        mov rdi, [rbx + N_DATA + r13*8]
+        inc r13d
+        call exp_size
+        add r12, rax
+        jmp 1b
+2:      mov rax, r12
+        LEAVE
+9:      ret
+ENDF exp_size
+
+# snap_name(e, names) -> rax: the variable a read was given (snapshot's
+# with_names: replace_f_stop's callback), 0 for none
+FUNC snap_name
+        xor eax, eax
+        test dil, 1
+        jnz 1f
+        test rdi, rdi
+        jz 1f
+        mov eax, [rdi + N_KIND]
+        cmp eax, K_TUPLE
+        je 2f
+        cmp eax, K_STR
+        je 2f
+        xor eax, eax
+1:      ret
+2:      push rdi
+        mov rax, rsi
+        mov rsi, rdi
+        mov rdi, rax
+        call emap_get
+        pop rdi
+        ret
+ENDF snap_name
+
+# size_pair_lt((s1, r1), (s2, r2), -) -> eax: s1 < s2 (exp_size's key)
+FUNC size_pair_lt
+        mov rax, [rdi + N_DATA]
+        cmp rax, [rsi + N_DATA]
+        setl al
+        movzx eax, al
+        ret
+ENDF size_pair_lt
+
+# vm_snapshot(op, target): python's snapshot - before an instruction that
+# changes the state (op: its id; target the slot or key an sstore or a
+# tstore writes, else NIL), what was read from it and is still on the stack
+# (or in what the memory was written with) gets a variable: afterwards, the
+# expression of the read stands for what's there then. All read at once,
+# the smaller ones first, the stack's outermost read replaced; a read of a
+# few bits says so (('var_bits', var, bits): a size, for where memory is
+# written).
+FUNC vm_snapshot
+        ENTER
+        sub rsp, 32
+        mov [rsp], rdi                  # op
+        mov [rsp + 8], rsi              # target
+        mov rbx, [r15 + CTX_VM]
+        call vec_new
+        mov r12, rax                    # reads
+        mov r13, [rbx + VM_STACK]
+        xor r14d, r14d
+1:      cmp r14, [r13 + VEC_LEN]
+        jae 2f
+        mov rax, [r13 + VEC_DATA]
+        mov rdi, [rax + r14*8]
+        inc r14
+        mov esi, [rsp]
+        mov rdx, [rsp + 8]
+        mov rcx, r12
+        call changed_reads
+        jmp 1b
+2:      mov r13, [rbx + VM_KNOWN]       # (and what the memory was written with)
+        xor r14d, r14d
+3:      cmp r14d, [r13 + N_AUX]
+        jae 4f
+        mov rdi, [r13 + N_DATA + r14*8]
+        inc r14d
+        mov rsi, rdi
+        OPCODE_OF_RDI
+        cmp eax, OP_MEMORY
+        jne 3b
+        mov rdi, [rsi + N_DATA + 24]
+        lea rax, [rip + sp_none]
+        cmp rdi, rax
+        je 3b
+        mov esi, [rsp]
+        mov rdx, [rsp + 8]
+        mov rcx, r12
+        call changed_reads
+        jmp 3b
+4:      cmp qword ptr [r12 + VEC_LEN], 0
+        je .Lsn_done
+        # sorted by exp_size (stable): (size, read) pairs
+        xor r14d, r14d
+5:      cmp r14, [r12 + VEC_LEN]
+        jae 6f
+        mov rax, [r12 + VEC_DATA]
+        mov r13, [rax + r14*8]
+        mov rdi, r13
+        call exp_size
+        lea rdi, [rax + rax + 1]
+        mov rsi, r13
+        call mk2
+        mov rcx, [r12 + VEC_DATA]
+        mov [rcx + r14*8], rax
+        inc r14
+        jmp 5b
+6:      mov rdi, r12
+        lea rsi, [rip + size_pair_lt]
+        xor edx, edx
+        call py_sort
+        call emap_new
+        mov [rsp + 16], rax             # names
+        xor r14d, r14d
+7:      cmp r14, [r12 + VEC_LEN]
+        jae 8f
+        mov rax, [r12 + VEC_DATA]
+        mov rax, [rax + r14*8]
+        mov r13, [rax + N_DATA + 8]     # r
+        inc r14
+        call vm_new_var_name
+        mov [rsp + 24], rax
+        mov rdi, r13                    # ('setvar', name, with_names(r))
+        lea rsi, [rip + snap_name]
+        mov rdx, [rsp + 16]
+        call replace_f_stop
+        mov rdx, rax
+        mov rsi, [rsp + 24]
+        LOADS rdi, SETVAR
+        call mk3
+        mov rdi, rax
+        call vm_add_line
+        LOADS rdi, VAR
+        mov rsi, [rsp + 24]
+        call mk2
+        mov rdi, [rsp + 16]
+        mov rsi, r13
+        mov rdx, rax
+        call emap_put
+        # what it was is as small as that (a size, say): for where memory
+        # is written (see bound), not to decide conditions
+        mov rdi, r13
+        xor esi, esi
+        call max_value_bits
+        cmp rax, (128 << 1) | 1
+        jg 7b
+        mov [rsp + 8], rax              # (the target: not needed any more)
+        LOADS rdi, VAR
+        mov rsi, [rsp + 24]
+        call mk2
+        mov rdx, [rsp + 8]
+        mov rsi, rax
+        LOADS rdi, VAR_BITS
+        call mk3
+        mov rdi, rax
+        call vm_known_add
+        jmp 7b
+8:      # the stack, and the values of what's known of the memory, with the names
+        mov r13, [rbx + VM_STACK]
+        xor r14d, r14d
+9:      cmp r14, [r13 + VEC_LEN]
+        jae 10f
+        mov rax, [r13 + VEC_DATA]
+        mov rdi, [rax + r14*8]
+        lea rsi, [rip + snap_name]
+        mov rdx, [rsp + 16]
+        call replace_f_stop
+        mov rcx, [r13 + VEC_DATA]
+        mov [rcx + r14*8], rax
+        inc r14
+        jmp 9b
+10:     mov qword ptr [rbx + VM_CLEAN], 0       # (the stack changed: cleaned up again)
+        call vec_new
+        mov r12, rax
+        mov r13, [rbx + VM_KNOWN]
+        xor r14d, r14d
+11:     cmp r14d, [r13 + N_AUX]
+        jae 13f
+        mov rdi, [r13 + N_DATA + r14*8]
+        inc r14d
+        mov rsi, rdi
+        OPCODE_OF_RDI
+        cmp eax, OP_MEMORY
+        jne 12f
+        mov rdi, [rsi + N_DATA + 24]
+        lea rax, [rip + sp_none]
+        cmp rdi, rax
+        je 12f
+        mov [rsp + 24], rsi
+        lea rsi, [rip + snap_name]
+        mov rdx, [rsp + 16]
+        call replace_f_stop
+        mov rcx, rax
+        mov rax, [rsp + 24]
+        mov rsi, [rax + N_DATA + 8]
+        mov rdx, [rax + N_DATA + 16]
+        LOADS rdi, MEMORY
+        call mk4
+        mov rsi, rax
+12:     mov rdi, r12
+        call vec_push
+        jmp 11b
+13:     mov rdi, r12
+        call vec_to_tuple
+        mov [rbx + VM_KNOWN], rax
+.Lsn_done:
+        add rsp, 32
+        LEAVE
+ENDF vm_snapshot
+
+# vm_code_switch(pc) -> rax: python's code_switch - a codecopy of a few
+# bytes of the code from where one of few numbers says, x % n (Vyper's
+# dispatcher, 0.3.10 on, copies from a table where the code of a selector
+# is, and jumps there): one path for each of the values, where the copy
+# is from a known place - the line ('if', x % n == k0, node, rest), rest
+# the ifs of the other values, made here, the last without its test. 0
+# when it isn't that, or when x % n is known (then the stack is the one
+# where it's that value).
+FUNC vm_code_switch
+        ENTER
+        sub rsp, 64
+        .set CS_PC, 0
+        .set CS_M, 8
+        .set CS_VALUES, 16
+        .set CS_CASES, 24
+        .set CS_NODES, 32               # (cond, node) pairs, a vec of 2 per case
+        .set CS_STACK, 40               # the stack, a tuple
+        .set CS_TMP, 48
+        mov rax, rdi
+        TAG rax
+        mov [rsp + CS_PC], rax
+        mov rbx, [r15 + CTX_VM]
+        mov r12, [rbx + VM_STACK]
+        mov rcx, [r12 + VEC_LEN]
+        cmp rcx, 3
+        jb .Lcs_none
+        mov rax, [r12 + VEC_DATA]
+        lea r13, [rax + rcx*8 - 24]     # size, code_pos, mem_pos
+        mov rdi, [r13 + 16]             # mem_pos: an int
+        call is_int
+        test eax, eax
+        jz .Lcs_none
+        mov rdi, [r13]                  # size: an int, at most 32
+        call is_int
+        test eax, eax
+        jz .Lcs_none
+        mov rdi, [r13]
+        mov esi, (32 << 1) | 1
+        call int_cmp
+        cmp eax, 0
+        jg .Lcs_none
+        mov rdi, [r13 + 8]              # code_pos: not an int
+        call is_int
+        test eax, eax
+        jnz .Lcs_none
+        mov rdi, [r13 + 8]
+        call switch_values
+        test rax, rax
+        jz .Lcs_none
+        mov [rsp + CS_M], rax
+        mov [rsp + CS_VALUES], rdx
+        # the cases: the values not known to be other than it
+        call vec_new
+        mov [rsp + CS_CASES], rax
+        xor r14d, r14d
+1:      mov rax, [rsp + CS_VALUES]
+        cmp r14, [rax + VEC_LEN]
+        jae 2f
+        mov rax, [rax + VEC_DATA]
+        mov r13, [rax + r14*8]
+        inc r14
+        LOADS rdi, EQ
+        mov rsi, [rsp + CS_M]
+        mov rdx, r13
+        call mk3
+        mov rdi, rax
+        mov rsi, [rbx + VM_KNOWN]
+        call is_known
+        cmp eax, TRI_FALSE
+        je 1b
+        mov rdi, [rsp + CS_CASES]
+        mov rsi, r13
+        call vec_push
+        jmp 1b
+2:      # a fact ('eq', x % n, k) says which (the last one)
+        mov r13, [rbx + VM_KNOWN]
+        xor r14d, r14d
+3:      cmp r14d, [r13 + N_AUX]
+        jae 4f
+        mov rdi, [r13 + N_DATA + r14*8]
+        inc r14d
+        mov rsi, rdi
+        mov [rsp + CS_TMP], rdi
+        mov esi, OP_EQ
+        mov edx, 3
+        call is_op_n
+        test eax, eax
+        jz 3b
+        mov rax, [rsp + CS_TMP]
+        mov rcx, [rsp + CS_M]
+        cmp [rax + N_DATA + 8], rcx
+        jne 3b
+        mov rdi, [rax + N_DATA + 16]
+        call int_or_bool
+        test rax, rax
+        jz 3b
+        mov rax, [rsp + CS_CASES]
+        mov qword ptr [rax + VEC_LEN], 0
+        mov rdi, rax
+        mov rsi, [rsp + CS_TMP]
+        mov rsi, [rsi + N_DATA + 16]
+        call vec_push
+        jmp 3b
+4:      mov rdi, [r12 + VEC_LEN]        # the stack as it is: a tuple
+        mov rsi, [r12 + VEC_DATA]
+        call mk_tuple
+        mov [rsp + CS_STACK], rax
+        mov rax, [rsp + CS_CASES]
+        cmp qword ptr [rax + VEC_LEN], 2
+        jae 6f
+        cmp qword ptr [rax + VEC_LEN], 0
+        je .Lcs_none
+        # one case: the stack where x % n is it
+        mov rax, [rax + VEC_DATA]
+        mov rdi, [rax]
+        call .Lcs_value
+        mov rdi, [rbx + VM_STACK]
+        mov qword ptr [rdi + VEC_LEN], 0
+        mov rsi, rax
+        call vec_extend_seq
+        mov qword ptr [rbx + VM_CLEAN], 0
+        jmp .Lcs_none
+6:      # a node for each case, where the copy is from a known place
+        call vec_new
+        mov [rsp + CS_NODES], rax
+        xor r14d, r14d
+7:      mov rax, [rsp + CS_CASES]
+        cmp r14, [rax + VEC_LEN]
+        jae 8f
+        mov rax, [rax + VEC_DATA]
+        mov r13, [rax + r14*8]          # k
+        inc r14
+        LOADS rdi, EQ
+        mov rsi, [rsp + CS_M]
+        mov rdx, r13
+        call mk3
+        mov r13, rax                    # cond
+        mov rdi, [rsp + CS_NODES]
+        mov rsi, rax
+        call vec_push
+        mov rax, [rsp + CS_CASES]
+        mov rax, [rax + VEC_DATA]
+        mov rdi, [rax + r14*8 - 8]
+        call .Lcs_value
+        mov [rsp + CS_TMP], rax         # the stack where it's k
+        mov rdi, [rbx + VM_KNOWN]
+        mov rsi, r13
+        call tuple_append
+        mov r8, rax
+        mov rdi, [rsp + CS_PC]
+        mov esi, 1
+        mov rdx, [rsp + CS_TMP]
+        mov rcx, r13
+        call node_new
+        mov qword ptr [rax + ND_SWITCHED], 1    # (not to be merged again)
+        mov rdi, [rsp + CS_NODES]
+        mov rsi, rax
+        call vec_push
+        jmp 7b
+8:      # rest: the last case's node; the ifs of the cases between, from the end
+        mov rax, [rsp + CS_NODES]
+        mov rcx, [rax + VEC_LEN]
+        mov rax, [rax + VEC_DATA]
+        mov r13, [rax + rcx*8 - 8]      # rest
+        sub rcx, 4                      # the one before the last
+9:      cmp rcx, 2
+        jb 10f
+        mov [rsp + CS_TMP], rcx
+        mov rax, [rsp + CS_NODES]
+        mov rax, [rax + VEC_DATA]
+        mov rdx, [rax + rcx*8]          # cond
+        mov rcx, [rax + rcx*8 + 8]      # n
+        mov rsi, rdx
+        mov rdx, rcx
+        mov rcx, r13
+        LOADS rdi, IF
+        call mk4
+        mov [rsp + CS_VALUES], rax      # ('if', cond, n, rest)
+        LOADS rdi, SWITCH               # start = ('switch', pc, k)
+        mov rsi, [rsp + CS_PC]
+        mov rax, [rsp + CS_NODES]
+        mov rax, [rax + VEC_DATA]
+        mov rcx, [rsp + CS_TMP]
+        mov rdx, [rax + rcx*8]
+        mov rdx, [rdx + N_DATA + 16]
+        call mk3
+        mov rdi, rax
+        mov esi, 1
+        mov rdx, [rsp + CS_STACK]
+        lea rcx, [rip + sp_true]
+        mov r8, [rbx + VM_KNOWN]
+        call node_new
+        mov r13, rax
+        call vec_new
+        mov [r13 + ND_TRACE], rax
+        mov rdi, rax
+        mov rsi, [rsp + CS_VALUES]
+        call vec_push
+        mov rcx, [rsp + CS_TMP]
+        sub rcx, 2
+        jmp 9b
+10:     mov rax, [rsp + CS_NODES]
+        mov rax, [rax + VEC_DATA]
+        mov rsi, [rax]
+        mov rdx, [rax + 8]
+        mov rcx, r13
+        LOADS rdi, IF
+        call mk4
+        add rsp, 64
+        LEAVE
+.Lcs_none:
+        xor eax, eax
+        add rsp, 64
+        LEAVE
+
+# local: the stack where x % n is k (rdi) -> rax, a tuple:
+# [simplify(replace(e, m, k)) for e in stack]
+.Lcs_value:
+        push r12
+        push r13
+        push r14
+        sub rsp, 16
+        mov r12, rdi                    # k
+        call vec_new
+        mov r13, rax
+        xor r14d, r14d
+1:      mov rax, [rsp + 40 + 8 + CS_STACK]
+        cmp r14d, [rax + N_AUX]
+        jae 2f
+        mov rdi, [rax + N_DATA + r14*8]
+        inc r14d
+        mov rsi, [rsp + 40 + 8 + CS_M]
+        mov rdx, r12
+        call replace
+        mov rdi, rax
+        call alg_simplify
+        mov rdi, r13
+        mov rsi, rax
+        call vec_push
+        jmp 1b
+2:      mov rdi, r13
+        call vec_to_tuple
+        add rsp, 16
+        pop r14
+        pop r13
+        pop r12
+        ret
+ENDF vm_code_switch
 
 # --- helpers ---
 
@@ -3705,9 +5238,10 @@ FUNC int_sar
 ENDF int_sar
 
 # code_bytes_value(pos, len) -> rax: the bytes of the code at pos as an
-# integer, when both are ints and in range, else 0. (As in python:
-# starting one byte early, which is probably a bug there but is what the
-# output shows.)
+# integer, and zeroes past its end (solc fills a new array with them,
+# copying from codesize), when both are ints, 0 <= pos and 0 <= len <=
+# MAX_CODECOPY_SIZE (more would be unreadable anyway: python's limit of
+# the digits of a number it prints); else 0
 FUNC code_bytes_value
         ENTER
         sub rsp, 16
@@ -3717,39 +5251,33 @@ FUNC code_bytes_value
         jz .Lcb_no
         sar rdi, 1
         sar rsi, 1
+        js .Lcb_no
+        test rdi, rdi
+        js .Lcb_no
+        cmp rsi, MAX_CODECOPY_SIZE
+        jg .Lcb_no
         mov rbx, rdi                    # pos
         mov r12, rsi                    # len
+        test r12, r12
+        jz .Lcb_zero
         mov rax, [r15 + CTX_VM]
         mov r13, [rax + VM_LOADER]
-        lea rax, [rbx + r12]
-        cmp rax, [r13 + LD_CODELEN]
-        jae .Lcb_no
-        test rbx, rbx
-        js .Lcb_no
-        test r12, r12
-        js .Lcb_no
-        jz .Lcb_zero                    # (no bytes: python's 0 - and no copy
-                                        # of len - 1 bytes below)
-        # the bytes pos-1 .. pos+len-2, the first being the last byte of
-        # the code when pos is 0 (python's negative index)
-        lea rdi, [r12 + 1]
-        call xmalloc
+        mov rdi, r12
+        call xcalloc_bytes
         mov r14, rax
+        # the bytes pos .. min(pos + len, codelen), then zeroes
+        mov rcx, [r13 + LD_CODELEN]
+        cmp rbx, rcx
+        jae 1f
+        lea rdx, [rbx + r12]
+        cmp rdx, rcx
+        cmova rdx, rcx
+        sub rdx, rbx
         mov rdi, r14
         mov rsi, [r13 + LD_CODE]
-        lea rsi, [rsi + rbx - 1]
-        mov rdx, r12
-        test rbx, rbx
-        jnz 1f
-        mov rcx, [r13 + LD_CODE]
-        mov rax, [r13 + LD_CODELEN]
-        mov al, [rcx + rax - 1]
-        mov [r14], al
-        inc rdi
-        inc rsi
-        dec rdx
-1:      call memcpy@PLT
-        mov rdi, r14
+        add rsi, rbx
+        call memcpy@PLT
+1:      mov rdi, r14
         mov rsi, r12
         call mk_int_bytes_be
         mov [rsp], rax
@@ -3767,6 +5295,14 @@ FUNC code_bytes_value
         add rsp, 16
         LEAVE
 ENDF code_bytes_value
+
+# xcalloc_bytes(n) -> rax: n zeroed bytes (malloc'ed)
+FUNC xcalloc_bytes
+        ENTER
+        mov esi, 1
+        call xcalloc
+        LEAVE
+ENDF xcalloc_bytes
 
 # exp_size_over(exp, limit) -> eax: more than `limit` leaves in the
 # expression (python's exp_size(exp) > limit, without counting them all)

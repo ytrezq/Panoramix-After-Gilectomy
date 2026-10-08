@@ -256,9 +256,16 @@ FUNC node_history
 ENDF node_history
 
 # node_set_label(node, loop_dest, vars, stack): node becomes the body of
-# the loop whose head is loop_dest
+# the loop whose head is loop_dest, executed for every iteration, the
+# first one included: what is known there is what was known before the
+# loop (loop_dest's), but what can change while the contract runs, and but
+# the memory - a loop may write anywhere -, except the code addresses in
+# memory (where Vyper keeps the return address of a private function) for
+# as long as no iteration changes them (ND_ASSUMED_MEM, see
+# vm_continue_loops; not those rejected already)
 FUNC node_set_label
         ENTER
+        sub rsp, 16
         mov rbx, rdi
         mov r12, rsi
         mov [rbx + ND_LABEL], r12
@@ -279,15 +286,87 @@ FUNC node_set_label
         mov rdi, rbx
         mov rsi, r12
         call node_set_prev
-        # what was learned during the first iteration about things that
-        # can change doesn't hold for the next ones
-        mov rdi, [rbx + ND_KNOWN]
-        call forget_volatile
+        # known = (forget(loop_dest.known, VOLATILE) without the memory) + assumed
+        mov rdi, [r12 + ND_KNOWN]
+        xor esi, esi                    # (FG_VOLATILE)
+        call forget
+        mov rdi, rax
+        call without_memory_facts
+        mov [rsp], rax
+        call vec_new
+        mov r13, rax                    # the memory assumed
+        mov r12, [r12 + ND_KNOWN]
+        xor r14d, r14d
+1:      cmp r14d, [r12 + N_AUX]
+        jae 4f
+        mov rdi, [r12 + N_DATA + r14*8]
+        inc r14d
+        mov rsi, rdi
+        OPCODE_OF_RDI
+        cmp eax, OP_MEMORY
+        jne 1b
+        cmp qword ptr [rsi + N_DATA + 16], (32 << 1) | 1
+        jne 1b
+        mov rax, [rsi + N_DATA + 24]
+        test al, 1
+        jz 1b                           # (a big int: not a jumpdest)
+        mov [rsp + 8], rsi
+        mov rsi, rax
+        sar rsi, 1
+        js 1b
+        mov rax, [r15 + CTX_VM]
+        mov rdi, [rax + VM_LOADER]
+        call loader_is_jumpdest
+        test eax, eax
+        jz 1b
+        mov rsi, [rsp + 8]              # not rejected?
+        mov rax, [rbx + ND_REJECTED_MEM]
+        test rax, rax
+        jz 3f
+        xor ecx, ecx
+2:      cmp ecx, [rax + N_AUX]
+        jae 3f
+        cmp [rax + N_DATA + rcx*8], rsi
+        je 1b
+        inc ecx
+        jmp 2b
+3:      mov rdi, r13
+        call vec_push
+        jmp 1b
+4:      mov rdi, r13
+        call vec_to_tuple
+        mov [rbx + ND_ASSUMED_MEM], rax
+        mov rdi, [rsp]
+        mov rsi, rax
+        call tuple_concat
         mov [rbx + ND_KNOWN], rax
         mov rdi, rbx                    # (a label now, below loop_dest)
         call node_touch
+        add rsp, 16
         LEAVE
 ENDF node_set_label
+
+# tuple_concat(a, b) -> tuple: python's a + b (two tuples)
+FUNC tuple_concat
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        cmp dword ptr [r12 + N_AUX], 0
+        je 1f
+        call vec_new
+        mov r13, rax
+        mov rdi, rax
+        mov rsi, rbx
+        call vec_extend_seq
+        mov rdi, r13
+        mov rsi, r12
+        call vec_extend_seq
+        mov rdi, r13
+        call vec_to_tuple
+        LEAVE
+1:      mov rax, rbx
+        LEAVE
+ENDF tuple_concat
 
 # node_run(node): symbolic execution from the node to the next jump
 FUNC node_run
@@ -319,14 +398,117 @@ FUNC node_run
         mov rsi, rbx
         call node_set_prev
         LEAVE
-2:      mov rdi, [r12 + N_DATA + 16]
-        mov rsi, rbx
-        call node_set_prev
-        mov rdi, [r12 + N_DATA + 24]
-        mov rsi, rbx
-        call node_set_prev
+2:      mov rdi, rbx
+        mov rsi, r12
+        call link_if
         LEAVE
 ENDF node_run
+
+# link_if(node, line): python's link_if - the branches of the if `line` that
+# ends node's trace go on from it, and so do those of the ifs made in
+# between (the nodes of code_switch's cases, whose trace is an if already)
+FUNC link_if
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13d, 16                    # if_true, then if_false
+1:      mov r14, [r12 + N_DATA + r13]
+        mov rdi, r14
+        mov rsi, rbx
+        call node_set_prev
+        mov rax, [r14 + ND_TRACE]
+        test rax, rax
+        jz 2f
+        mov rcx, [rax + VEC_LEN]
+        test rcx, rcx
+        jz 2f
+        mov rax, [rax + VEC_DATA]
+        mov rsi, [rax + rcx*8 - 8]
+        mov rdi, rsi
+        OPCODE_OF_RDI
+        cmp eax, OP_IF
+        jne 2f
+        mov rdi, r14
+        call link_if
+2:      add r13d, 8
+        cmp r13d, 24
+        jbe 1b
+        LEAVE
+ENDF link_if
+
+# in_dispatcher(node) -> eax: python's in_dispatcher - every branch on the
+# way to node is one of the dispatcher's: its condition is true (a jump,
+# not a branch) or is_dispatch - not one of a function's body. Remembered
+# in the node (ND_DISPATCH) as python's attribute is, the parents' first.
+FUNC in_dispatcher
+        ENTER
+        mov rbx, rdi
+        mov rax, [rbx + ND_DISPATCH]
+        test rax, rax
+        jnz 9f
+        # the chain of the nodes not answered yet, up to the first that is
+        call vec_new
+        mov r12, rax
+        mov r13, rbx
+1:      mov rdi, r12
+        mov rsi, r13
+        call vec_push
+        mov r13, [r13 + ND_PREV]
+        test r13, r13
+        jz 2f
+        cmp qword ptr [r13 + ND_DISPATCH], 0
+        je 1b
+2:      # from the top down: (parent is None or in_dispatcher(parent)) and
+        # (condition is True or is_dispatch(condition))
+        mov r14d, 2                     # the parent's (none: yes)
+        test r13, r13
+        jz 3f
+        mov r14, [r13 + ND_DISPATCH]
+3:      mov rcx, [r12 + VEC_LEN]
+        test rcx, rcx
+        jz 8f
+        dec rcx
+        mov [r12 + VEC_LEN], rcx
+        mov rax, [r12 + VEC_DATA]
+        mov r13, [rax + rcx*8]
+        cmp r14d, 2
+        jne 5f                          # the parent's no: no
+        mov rdi, [r13 + ND_CONDITION]
+        lea rax, [rip + sp_true]
+        cmp rdi, rax
+        je 4f
+        call is_dispatch
+        test eax, eax
+        jz 5f
+4:      mov r14d, 2
+        jmp 6f
+5:      mov r14d, 1
+6:      mov [r13 + ND_DISPATCH], r14
+        jmp 3b
+8:      mov rax, [rbx + ND_DISPATCH]
+9:      xor ecx, ecx
+        cmp eax, 2
+        sete cl
+        mov eax, ecx
+        LEAVE
+ENDF in_dispatcher
+
+# loop_key(head) -> rax: python's loop_key - the number of the loop that
+# starts at the node head, the variables of the loop are numbered after: a
+# number of its own (VM_LOOP_KEY: python's itertools.count(1)), the same
+# when it's found again
+FUNC loop_key
+        mov rax, [rdi + ND_LOOP_KEY]
+        test rax, rax
+        jnz 1f
+        mov rcx, [r15 + CTX_VM]
+        mov rax, [rcx + VM_LOOP_KEY]
+        lea rdx, [rax + 1]
+        mov [rcx + VM_LOOP_KEY], rdx
+        mov [rdi + ND_LOOP_KEY], rax
+1:      ret
+ENDF loop_key
 
 # find_nodes(root, pred, arg) -> vec: the nodes below root (itself
 # included) for which pred(node, arg) is true, in depth-first order
@@ -620,9 +802,9 @@ FUNC node_begin_trace
 1:      mov r13, [r15 + CTX_VM]
         cmp qword ptr [r13 + VM_JUST_FDESTS], 0
         je .Lbt_label
-        # the loader looks for the jumpdests to find the default function
-        cmp qword ptr [rbx + ND_SAFE], 0
-        je 2f
+        # the loader looks for the jumpdests to find the default function,
+        # and the stack it starts with: where the dispatcher falls through
+        # to it, and where it jumps to it (solc's `calldatasize < 4`)
         mov rdi, [r13 + VM_LOADER]
         mov rsi, [rbx + ND_START]
         test sil, 1
@@ -635,12 +817,12 @@ FUNC node_begin_trace
         jne 2f
         call .Lpush_jd
         jmp .Lbt_label
-2:      # trace != [('revert', 0)]
+2:      # trace != [('revert', None)]
         mov r14, [rbx + ND_TRACE]
         cmp qword ptr [r14 + VEC_LEN], 1
         jne 3f
         LOADS rdi, REVERT
-        mov esi, 1
+        lea rsi, [rip + sp_none]
         call mk2
         mov rcx, [r14 + VEC_DATA]
         cmp [rcx], rax
@@ -713,7 +895,7 @@ FUNC node_begin_trace
         add rsp, 16
         LEAVE
 
-# local: push ('jd', str(jd[0])) on r12
+# local: push ('jd', str(jd[0]), tuple(stack)) on r12
 .Lpush_jd:
         push r13
         mov rax, [rbx + ND_JD]
@@ -724,9 +906,13 @@ FUNC node_begin_trace
         call str_of_int
         jmp 9f
 8:      call str_of_value
-9:      mov rsi, rax
+9:      mov r13, rax
+        mov rdi, [rbx + ND_STACK]
+        call seq_to_tuple
+        mov rdx, rax
+        mov rsi, r13
         LOADS rdi, JD
-        call mk2
+        call mk3
         mov rdi, r12
         mov rsi, rax
         call vec_push

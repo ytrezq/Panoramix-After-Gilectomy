@@ -185,7 +185,8 @@
 .set LD_FUNCS, 64           # list of (hash string, target, stack) (funcs.s)
 .set LD_FALLBACK_KNOWN, 72  # tuple: what holds in the default function
 .set LD_NO_FREE_MEM, 80     # u8: mem[64] isn't solidity's free memory pointer (variants.FREE_MEMORY_POINTER off)
-.set LD_SIZEOF, 88
+.set LD_ENTRIES, 88         # tuple of (hash string, list of entries): what runs before each function (entry.s)
+.set LD_SIZEOF, 96
 
 # one disassembled instruction
 .set IN_PC, 0               # u32
@@ -652,7 +653,13 @@ ENDF \fname
 .set ND_CONDITION, 168      # value: the condition under which the parent gets here
 .set ND_KNOWN, 176          # tuple of the conditions holding on the path here
 .set ND_BEGIN_VARS, 184     # tuple: on a loop head, its variables
-.set ND_SIZEOF, 192
+.set ND_DISPATCH, 192       # in_dispatcher's answer, remembered: 0 not asked yet, 1 no, 2 yes
+.set ND_LOOP_KEY, 200       # loop_key's number for a loop head (0: none yet)
+.set ND_SWITCHED, 208       # 1: a path of code_switch's, not to be merged again
+.set ND_MERGE_POINT, 216    # node*: the `if` node a merged node's paths were merged at
+.set ND_ASSUMED_MEM, 224    # tuple: the memory facts a loop's body assumes (set_label), or 0
+.set ND_REJECTED_MEM, 232   # tuple: the ones an iteration broke (continue_loops), or 0
+.set ND_SIZEOF, 240
 
 .set VM_LOADER, 0
 .set VM_JUST_FDESTS, 8
@@ -676,9 +683,19 @@ ENDF \fname
 .set VM_STALE_DEPTHS, 152   # 1: a node with children was hung elsewhere (vm_common_ancestor)
 .set VM_CHECK_LCA, 160      # 1: PANORAMIX_CHECK_LCA - both walks, compared (vm_common_ancestor)
 .set VM_UNEXP_VALID, 168    # 1: VM_SCR_UNEXP is the unexpanded nodes still (no merge since mb_all_nodes)
-.set VM_SIZEOF, 176
+.set VM_LOOP_KEY, 176       # loop_key's next number (python's loop_keys, itertools.count(1))
+.set VM_PENDING, 184        # merge_branches' pending merges: a vec of (p, jd) pairs, in python's dict order
+.set VM_PRECOMPILES, 192    # how many results of each precompile were named: 6 counters (VM_PC_*)
+.set VM_HALTED, 240         # 1: the instruction ended the path (returndatacopy's)
+.set VM_FRONTIER, 248       # the nodes still to explore, as last counted (VM.run's frontier)
+.set VM_LOOPS_STALE, 256    # 1: VM_LOOPS may miss loops (continue_loops returned early): walk the tree
+.set VM_MAX_NODES, 264      # MAX_NODE_COUNT, or MAX_FDESTS_NODE_COUNT for just_fdests
+.set VM_SIZEOF, 272
 
-.set MAX_NODE_COUNT, 5000
+.set MAX_NODE_COUNT, 20000
+.set WIDE_NODE_COUNT, 5000
+.set MAX_FDESTS_NODE_COUNT, 5000
+.set MAX_CODECOPY_SIZE, 1024
 .set MAX_EXP_SIZE, 150
 
 # --- pattern matching (matcher.s) ---
