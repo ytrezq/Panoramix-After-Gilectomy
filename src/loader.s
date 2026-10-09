@@ -1,201 +1,17 @@
-# Loader: bytecode -> instructions, jumpdests. The function discovery
-# (running the dispatcher symbolically) is in the VM.
+# Loader: bytecode -> instructions, jumpdests (the decoder, decoder.s: the
+# automaton of spec/evm_decoder.rl). The function discovery (running the
+# dispatcher symbolically) is in the VM.
 
 .include "defs.inc"
 
-        .section .data.rel.ro
-        .align 8
-        .globl evm_opnames
-        .hidden evm_opnames
-evm_opnames:
-        .quad .Lo00, .Lo01, .Lo02, .Lo03, .Lo04, .Lo05, .Lo06, .Lo07
-        .quad .Lo08, .Lo09, .Lo0a, .Lo0b, 0, 0, 0, 0
-        .quad .Lo10, .Lo11, .Lo12, .Lo13, .Lo14, .Lo15, .Lo16, .Lo17
-        .quad .Lo18, .Lo19, .Lo1a, .Lo1b, .Lo1c, .Lo1d, 0, 0
-        .quad .Lo20, 0, 0, 0, 0, 0, 0, 0
-        .quad 0, 0, 0, 0, 0, 0, 0, 0
-        .quad .Lo30, .Lo31, .Lo32, .Lo33, .Lo34, .Lo35, .Lo36, .Lo37
-        .quad .Lo38, .Lo39, .Lo3a, .Lo3b, .Lo3c, .Lo3d, .Lo3e, .Lo3f
-        .quad .Lo40, .Lo41, .Lo42, .Lo43, .Lo44, .Lo45, .Lo46, .Lo47
-        .quad .Lo48, .Lo49, .Lo4a, 0, 0, 0, 0, 0
-        .quad .Lo50, .Lo51, .Lo52, .Lo53, .Lo54, .Lo55, .Lo56, .Lo57
-        .quad .Lo58, .Lo59, .Lo5a, .Lo5b, .Lo5c, .Lo5d, .Lo5e, .Lo5f
-        .quad .Lo60, .Lo61, .Lo62, .Lo63, .Lo64, .Lo65, .Lo66, .Lo67
-        .quad .Lo68, .Lo69, .Lo6a, .Lo6b, .Lo6c, .Lo6d, .Lo6e, .Lo6f
-        .quad .Lo70, .Lo71, .Lo72, .Lo73, .Lo74, .Lo75, .Lo76, .Lo77
-        .quad .Lo78, .Lo79, .Lo7a, .Lo7b, .Lo7c, .Lo7d, .Lo7e, .Lo7f
-        .quad .Lo80, .Lo81, .Lo82, .Lo83, .Lo84, .Lo85, .Lo86, .Lo87
-        .quad .Lo88, .Lo89, .Lo8a, .Lo8b, .Lo8c, .Lo8d, .Lo8e, .Lo8f
-        .quad .Lo90, .Lo91, .Lo92, .Lo93, .Lo94, .Lo95, .Lo96, .Lo97
-        .quad .Lo98, .Lo99, .Lo9a, .Lo9b, .Lo9c, .Lo9d, .Lo9e, .Lo9f
-        .quad .Loa0, .Loa1, .Loa2, .Loa3, .Loa4, 0, 0, 0
-        .quad 0, 0, 0, 0, 0, 0, 0, 0
-        .quad 0, 0, 0, 0, 0, 0, 0, 0
-        .quad 0, 0, 0, 0, 0, 0, 0, 0
-        .quad 0, 0, 0, 0, 0, 0, 0, 0
-        .quad 0, 0, 0, 0, 0, 0, 0, 0
-        .quad 0, 0, 0, 0, 0, 0, 0, 0
-        .quad 0, 0, 0, 0, 0, 0, 0, 0
-        .quad 0, 0, 0, 0, 0, 0, 0, 0
-        .quad 0, 0, 0, 0, 0, 0, 0, 0
-        .quad .Lof0, .Lof1, .Lof2, .Lof3, .Lof4, .Lof5, 0, 0
-        .quad 0, 0, .Lofa, 0, 0, .Lofd, .Lofe, .Loff
-.section .rodata
-.Lo00: .asciz "stop"
-.Lo01: .asciz "add"
-.Lo02: .asciz "mul"
-.Lo03: .asciz "sub"
-.Lo04: .asciz "div"
-.Lo05: .asciz "sdiv"
-.Lo06: .asciz "mod"
-.Lo07: .asciz "smod"
-.Lo08: .asciz "addmod"
-.Lo09: .asciz "mulmod"
-.Lo0a: .asciz "exp"
-.Lo0b: .asciz "signextend"
-.Lo10: .asciz "lt"
-.Lo11: .asciz "gt"
-.Lo12: .asciz "slt"
-.Lo13: .asciz "sgt"
-.Lo14: .asciz "eq"
-.Lo15: .asciz "iszero"
-.Lo16: .asciz "and"
-.Lo17: .asciz "or"
-.Lo18: .asciz "xor"
-.Lo19: .asciz "not"
-.Lo1a: .asciz "byte"
-.Lo1b: .asciz "shl"
-.Lo1c: .asciz "shr"
-.Lo1d: .asciz "sar"
-.Lo20: .asciz "sha3"
-.Lo30: .asciz "address"
-.Lo31: .asciz "balance"
-.Lo32: .asciz "origin"
-.Lo33: .asciz "caller"
-.Lo34: .asciz "callvalue"
-.Lo35: .asciz "calldataload"
-.Lo36: .asciz "calldatasize"
-.Lo37: .asciz "calldatacopy"
-.Lo38: .asciz "codesize"
-.Lo39: .asciz "codecopy"
-.Lo3a: .asciz "gasprice"
-.Lo3b: .asciz "extcodesize"
-.Lo3c: .asciz "extcodecopy"
-.Lo3d: .asciz "returndatasize"
-.Lo3e: .asciz "returndatacopy"
-.Lo3f: .asciz "extcodehash"
-.Lo40: .asciz "blockhash"
-.Lo41: .asciz "coinbase"
-.Lo42: .asciz "timestamp"
-.Lo43: .asciz "number"
-.Lo44: .asciz "difficulty"
-.Lo45: .asciz "gaslimit"
-.Lo46: .asciz "chainid"
-.Lo47: .asciz "selfbalance"
-.Lo48: .asciz "basefee"
-.Lo49: .asciz "blobhash"
-.Lo4a: .asciz "blobbasefee"
-.Lo50: .asciz "pop"
-.Lo51: .asciz "mload"
-.Lo52: .asciz "mstore"
-.Lo53: .asciz "mstore8"
-.Lo54: .asciz "sload"
-.Lo55: .asciz "sstore"
-.Lo56: .asciz "jump"
-.Lo57: .asciz "jumpi"
-.Lo58: .asciz "pc"
-.Lo59: .asciz "msize"
-.Lo5a: .asciz "gas"
-.Lo5b: .asciz "jumpdest"
-.Lo5c: .asciz "tload"
-.Lo5d: .asciz "tstore"
-.Lo5e: .asciz "mcopy"
-.Lo5f: .asciz "push0"
-.Lo60: .asciz "push1"
-.Lo61: .asciz "push2"
-.Lo62: .asciz "push3"
-.Lo63: .asciz "push4"
-.Lo64: .asciz "push5"
-.Lo65: .asciz "push6"
-.Lo66: .asciz "push7"
-.Lo67: .asciz "push8"
-.Lo68: .asciz "push9"
-.Lo69: .asciz "push10"
-.Lo6a: .asciz "push11"
-.Lo6b: .asciz "push12"
-.Lo6c: .asciz "push13"
-.Lo6d: .asciz "push14"
-.Lo6e: .asciz "push15"
-.Lo6f: .asciz "push16"
-.Lo70: .asciz "push17"
-.Lo71: .asciz "push18"
-.Lo72: .asciz "push19"
-.Lo73: .asciz "push20"
-.Lo74: .asciz "push21"
-.Lo75: .asciz "push22"
-.Lo76: .asciz "push23"
-.Lo77: .asciz "push24"
-.Lo78: .asciz "push25"
-.Lo79: .asciz "push26"
-.Lo7a: .asciz "push27"
-.Lo7b: .asciz "push28"
-.Lo7c: .asciz "push29"
-.Lo7d: .asciz "push30"
-.Lo7e: .asciz "push31"
-.Lo7f: .asciz "push32"
-.Lo80: .asciz "dup1"
-.Lo81: .asciz "dup2"
-.Lo82: .asciz "dup3"
-.Lo83: .asciz "dup4"
-.Lo84: .asciz "dup5"
-.Lo85: .asciz "dup6"
-.Lo86: .asciz "dup7"
-.Lo87: .asciz "dup8"
-.Lo88: .asciz "dup9"
-.Lo89: .asciz "dup10"
-.Lo8a: .asciz "dup11"
-.Lo8b: .asciz "dup12"
-.Lo8c: .asciz "dup13"
-.Lo8d: .asciz "dup14"
-.Lo8e: .asciz "dup15"
-.Lo8f: .asciz "dup16"
-.Lo90: .asciz "swap1"
-.Lo91: .asciz "swap2"
-.Lo92: .asciz "swap3"
-.Lo93: .asciz "swap4"
-.Lo94: .asciz "swap5"
-.Lo95: .asciz "swap6"
-.Lo96: .asciz "swap7"
-.Lo97: .asciz "swap8"
-.Lo98: .asciz "swap9"
-.Lo99: .asciz "swap10"
-.Lo9a: .asciz "swap11"
-.Lo9b: .asciz "swap12"
-.Lo9c: .asciz "swap13"
-.Lo9d: .asciz "swap14"
-.Lo9e: .asciz "swap15"
-.Lo9f: .asciz "swap16"
-.Loa0: .asciz "log0"
-.Loa1: .asciz "log1"
-.Loa2: .asciz "log2"
-.Loa3: .asciz "log3"
-.Loa4: .asciz "log4"
-.Lof0: .asciz "create"
-.Lof1: .asciz "call"
-.Lof2: .asciz "callcode"
-.Lof3: .asciz "return"
-.Lof4: .asciz "delegatecall"
-.Lof5: .asciz "create2"
-.Lofa: .asciz "staticcall"
-.Lofd: .asciz "revert"
-.Lofe: .asciz "invalid"
-.Loff: .asciz "selfdestruct"
+        .section .rodata
 .Ls_unknown: .asciz "UNKNOWN"
 .Ls_comma_sp: .asciz ", "
 
         .text
 
-# evm_opname(op) -> rax: C string, "UNKNOWN" for undefined opcodes
+# evm_opname(op) -> rax: C string, "UNKNOWN" for undefined opcodes (the
+# names of spec/evm.def: evm_opnames, src/evm_ops.s)
 FUNC evm_opname
         movzx edi, dil
         lea rax, [rip + evm_opnames]
@@ -314,79 +130,9 @@ FUNC loader_load
         mov esi, 1
         call xcalloc
         mov [rbx + LD_JUMPDESTS], rax
-        xor r14d, r14d                  # pc
         mov qword ptr [rbx + LD_NINSTR], 0
-.Lld_loop:
-        cmp r14, r13
-        jae .Lld_done
-        mov rax, [rbx + LD_NINSTR]
-        mov rcx, [rbx + LD_PC2IDX]
-        mov [rcx + r14*4], eax
-        mov rcx, rax
-        shl rcx, 4
-        add rcx, [rbx + LD_INSTRS]      # rcx = instr
-        mov [rcx + IN_PC], r14d
-        movzx eax, byte ptr [r12 + r14]
-        mov [rcx + IN_OP], al
-        mov [rsp], rcx
-        inc qword ptr [rbx + LD_NINSTR]
-        # classify
-        lea rdx, [rip + evm_opnames]
-        cmp qword ptr [rdx + rax*8], 0
-        jne 1f
-        # unknown: param = the byte
-        lea rdi, [rax + rax + 1]
-        mov [rcx + IN_PARAM], rdi
-        mov byte ptr [rcx + IN_FLAGS], IF_PARAM
-        inc r14
-        jmp .Lld_loop
-1:      cmp al, 0x5b
-        jne 2f
-        mov rdx, [rbx + LD_JUMPDESTS]
-        mov byte ptr [rdx + r14], 1
-        inc qword ptr [rbx + LD_NJUMPDESTS]
-        inc r14
-        jmp .Lld_loop
-2:      cmp al, 0x5f
-        jb 3f
-        cmp al, 0x7f
-        ja 3f
-        # push n: n = op - 0x5f bytes - past the end of the code, they're
-        # 0 (as the EVM reads them)
-        sub eax, 0x5f
-        inc r14
-        lea rdi, [r12 + r14]            # bytes start
-        mov rsi, r13
-        sub rsi, r14                    # remaining
-        cmp rsi, rax
-        cmovae rsi, rax
-        add r14, rsi
-        sub rax, rsi
-        shl rax, 3
-        mov [rsp + 8], rax              # (the bits of the missing ones)
-        call mk_int_bytes_be
-        mov rsi, [rsp + 8]
-        test rsi, rsi
-        jz 21f
-        mov rdi, rax
-        call int_shl_bits
-21:     mov rcx, [rsp]
-        mov [rcx + IN_PARAM], rax
-        mov byte ptr [rcx + IN_FLAGS], IF_PARAM
-        jmp .Lld_loop
-3:      cmp al, 0x80
-        jb 4f
-        cmp al, 0x9f
-        ja 4f
-        # dup n / swap n
-        and eax, 0x0f
-        inc eax
-        lea rdi, [rax + rax + 1]
-        mov [rcx + IN_PARAM], rdi
-        mov byte ptr [rcx + IN_FLAGS], IF_PARAM
-4:      inc r14
-        jmp .Lld_loop
-.Lld_done:
+        mov rdi, rbx
+        call evm_decode
         # solidity sets its free memory pointer, mem[64], before anything
         # else (but a library's check that it's called with a delegatecall):
         # what the memory model takes it for (python's
@@ -394,9 +140,12 @@ FUNC loader_load
         # it changes: what the context took it for, see vr_free_memory_pointer)
         call vr_free_memory_pointer
         mov r12d, eax
+        mov eax, 1                      # (the decoder saw the usual prologue,
+        cmp byte ptr [rbx + LD_FMP], 0  # where the stack's run would have
+        jne 2f                          # ended the same: its fmp idiom)
         mov rdi, rbx
         call sets_free_memory_pointer
-        xor ecx, ecx
+2:      xor ecx, ecx
         test eax, eax
         sete cl
         mov [rbx + LD_NO_FREE_MEM], cl
@@ -613,6 +362,8 @@ FUNC loader_free
         mov rdi, [rbx + LD_PC2IDX]
         call free@PLT
         mov rdi, [rbx + LD_JUMPDESTS]
+        call free@PLT
+        mov rdi, [rbx + LD_IDIOMS]
         call free@PLT
         mov rdi, rbx
         call free@PLT

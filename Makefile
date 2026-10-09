@@ -22,6 +22,32 @@ all: build/panasm build/panoramix_asm$(PY_EXT) build/libpanoramix_asm.so
 include/opcodes.inc src/opcodes_table.s: tools/gen_opcodes.py
 	python3 tools/gen_opcodes.py
 
+# the decoder (src/decoder.s, docs/DESIGN.md): the instructions of
+# spec/evm.def as ragel machines and as the tables of their opcodes
+# (tools/gen_dfa.py), the automaton of spec/evm_decoder.rl as tables
+# (tools/rl2asm.py, which needs ragel: `make dfa`, the tables being kept in
+# the repository), and the proof that it decodes what spec/evm.def says
+# and recognizes the idioms of tools/evm_spec.py, where they are and only
+# there (`make dfa-check`: tools/verify_dfa.py, and the tables the same
+# as ragel makes them now)
+build/gen_dfa.stamp: spec/evm.def tools/gen_dfa.py tools/evm_spec.py
+	@mkdir -p build
+	python3 tools/gen_dfa.py
+	@touch $@
+
+spec/evm_insns.rl src/evm_ops.s include/evm_ops.inc: build/gen_dfa.stamp
+
+build/decoder.o build/decode_report.o: include/evm_ops.inc include/evm_dfa.inc
+build/evm_dfa.o: include/evm_dfa.inc
+
+dfa: spec/evm_insns.rl
+	python3 tools/rl2asm.py
+
+dfa-check: spec/evm_insns.rl
+	python3 tools/verify_dfa.py
+	python3 tools/rl2asm.py build/dfa_check >/dev/null
+	cmp src/evm_dfa.s build/dfa_check/src/evm_dfa.s && cmp include/evm_dfa.inc build/dfa_check/include/evm_dfa.inc
+
 build/%.o: src/%.s include/defs.inc include/opcodes.inc include/storage.inc
 	@mkdir -p build
 	$(AS) $(ASFLAGS) -o $@ $<
@@ -126,4 +152,4 @@ install: build/panasm build/libpanoramix_asm.so
 clean:
 	rm -rf build
 
-.PHONY: all clean check install json-expected verbose-expected fn-inputs storage-caps coverage
+.PHONY: all clean check install json-expected verbose-expected fn-inputs storage-caps coverage dfa dfa-check

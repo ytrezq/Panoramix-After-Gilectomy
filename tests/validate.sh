@@ -10,6 +10,8 @@
 #   three times: as they are, with the VM's own checks
 #   (PANORAMIX_CHECK_LCA=1: its shortcuts compared with python's walks),
 #   and with a compaction at every round (PANORAMIX_COMPACT_MIB=1);
+# - the decoder: the proof of its automaton (make dfa-check, when ragel is
+#   there), tests/test_decoder.py;
 # - the random differential unit tests, with SEED (default: the day of
 #   the year);
 # - tests/security.sh: the inputs of the review of docs/DESIGN.md's
@@ -85,6 +87,12 @@ if [ -n "$NPM_CORPUS" ] && [ -n "$NPM_REFS" ]; then
     step npm_check with PANORAMIX_CHECK_LCA=1 corpus "${N[@]}"
     step npm_compact with PANORAMIX_COMPACT_MIB=1 corpus "${N[@]}"
 fi
+# the decoder: its automaton proven, its tables the ones ragel makes
+# (with ragel), and the decoder against the spec and python's
+if command -v ragel > /dev/null; then
+    step dfa make -s dfa-check
+fi
+step decoder python3 tests/test_decoder.py $seed 20000
 step algebra with BIG=1 python3 tests/test_algebra.py $seed 300
 step ranges python3 tests/test_ranges.py $seed 400
 step simplify_exp python3 tests/test_simplify_exp.py $seed 300

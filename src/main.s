@@ -1,5 +1,6 @@
 # Command line tool.
 #   panasm disasm <input>                       the disassembly, like Loader.disasm()
+#   panasm decode <input>                       what the decoder finds in the code (decode_report.s)
 #   panasm decompile <input[,input...]> [options]   the decompilation, like `python -m panoramix`
 # Options: -j N / --threads N (default: the CPUs), --function NAME (only
 # the functions whose name starts with NAME), --no-color, --json (python's
@@ -16,11 +17,13 @@
 
         .section .rodata
 .Lusage:  .ascii "usage: panasm disasm <file.hex|->\n"
+          .ascii "       panasm decode <file.hex|-|address|bytecode>\n"
           .ascii "       panasm decompile <file.hex|-|address|bytecode>[,...] [-j threads] [--function name]\n"
           .ascii "                        [--no-color] [--json] [-v level] [--verbose] [--explain] [--repr] [--returns]\n"
           .ascii "       panasm build-db <abi_dump.xz> [out.bin]\n"
 .Lusage_end:
 .Ls_disasm:     .asciz "disasm"
+.Ls_decode:     .asciz "decode"
 .Ls_decompile:  .asciz "decompile"
 .Ls_build_db:   .asciz "build-db"
 .Ls_dash:       .asciz "-"
@@ -512,11 +515,17 @@ FUNC main
         test eax, eax
         jz .Ldecompile
         mov rdi, [r13 + 8]
+        lea rsi, [rip + .Ls_decode]
+        call strcmp@PLT
+        mov [rsp + M_STATUS], rax       # (0: decode)
+        test eax, eax
+        jz 51f
+        mov rdi, [r13 + 8]
         lea rsi, [rip + .Ls_disasm]
         call strcmp@PLT
         test eax, eax
         jnz .Lusage_exit
-        mov rdi, [rsp + M_PATH]
+51:     mov rdi, [rsp + M_PATH]
         call input_code
         test rax, rax
         jz .Lfail_exit
@@ -540,8 +549,12 @@ FUNC main
         mov rbx, rax
         mov rdi, [rsp + M_LOADER]
         mov rsi, rbx
-        call loader_disasm
-        mov edi, 1
+        cmp qword ptr [rsp + M_STATUS], 0
+        jne 52f
+        call decoder_report
+        jmp 53f
+52:     call loader_disasm
+53:     mov edi, 1
         mov rsi, [rbx + SB_BUF]
         mov rdx, [rbx + SB_LEN]
         call write_all

@@ -23,7 +23,12 @@ database, liblzma. Everything else is assembly (GNU as, Intel syntax).
     src/rt_io.s           files
     src/pyutil.s          python's sorts (CPython's comparison order), ordered dicts, sets
     src/matcher.s         the pattern matcher (matcher.py), PAT literals
-    src/loader.s          bytecode -> instructions, jumpdests, push values
+    spec/evm.def          the instructions of the EVM, the decoder's source
+    spec/evm_decoder.rl   the decoder's automaton (ragel): the instructions and the idioms
+    src/decoder.s         the decoder: the automaton's tables (src/evm_dfa.s, generated)
+                          run over the code - instructions, jumpdests, idioms
+    src/decode_report.s   `panasm decode`: what the decoder finds in a code
+    src/loader.s          bytecode -> the decoder's instructions, jumpdests, push values
     src/funcs.s           function discovery (Loader.run)
     src/arith.s           256-bit arithmetic, is_zero, eval_bool (core/arithmetic.py)
     src/algebra.s         add_op, mask_op, lt_op, ge_zero... (core/algebra.py)
@@ -62,6 +67,10 @@ database, liblzma. Everything else is assembly (GNU as, Intel syntax).
     src/pymod.c           the CPython module `panoramix_asm`
     src/testapi.s         the hooks of the differential tests (`panoramix_asm._test`)
     tools/gen_opcodes.py  generates opcodes.inc / opcodes_table.s
+    tools/gen_dfa.py, rl2asm.py   the decoder's generators: spec/evm.def into ragel
+                          machines and opcode tables, ragel's automaton into tables
+    tools/verify_dfa.py   the proof of the decoder's automaton (tools/evm_spec.py: the
+                          instructions and the idioms by the letter of spec/evm.def)
     tools/psamp.c         a sampling profiler (perf_event_open's CPU clock, the
                           frames' return addresses), tools/psym.py its report
     tools/bench.py        the CPU time of a corpus, binaries compared
@@ -74,6 +83,7 @@ is the CLI, `build/panoramix_asm*.so` the module.
                                                   # again when that dump, or $PANORAMIX_ABI_DUMP, changes)
     panasm decompile contract.hex [-j N] [--function NAME] [--no-color] [--json] [--verbose] [--explain]
     panasm decompile 0xADDRESS,other.hex      # an address's code from a node; lists, as python's
+    panasm decode contract.hex                # what the decoder finds in the code
     python3 -c 'import panoramix_asm; print(panoramix_asm.decompile(open("contract.hex").read()))'
 
 ## Conventions
@@ -277,6 +287,84 @@ is the CLI, `build/panoramix_asm*.so` the module.
     argument may be a comma-separated list, decompiled in turn. The
     module has `decompile_address` (ConnectionError when the code can't
     be had), the C interface `pan_fetch_code`.
+
+18. [x] the decoder, Native Client's way: see below.
+
+## The decoder
+
+The bytecode isn't decoded by a loop written by hand but by an automaton
+made from a description of the instructions, as Native Client's
+validator decodes the machine code it lets run. `spec/evm.def` has an
+opcode a line - its name (python's: what the disassembly prints), its
+immediate's size, the words it takes and gives, the fork it came with.
+`tools/gen_dfa.py` makes it a ragel machine for each instruction
+(`spec/evm_insns.rl`: the opcode, then the immediate's bytes; `unknown`
+for the bytes that aren't opcodes, python's `UNKNOWN`) and the tables of
+what the decoder reads of an opcode (`src/evm_ops.s`: its kind, its
+immediate's size, a dup's or a swap's n, its name). `spec/evm_decoder.rl`
+puts the machines together: an instruction starts on its opcode and ends
+on its immediate's last byte (the actions `insn_start`, `insn_end`),
+the instructions one after the other, and among them the idioms - NaCl's
+superinstructions: a push then a jump or a jumpi (`static_jump`,
+`static_jumpi`: where the jump goes is known), solc's comparison of the
+selector with a function's (`selector`: dup1, push4, eq, a push of the
+destination, jumpi), solidity's free memory pointer set first (`fmp`:
+mstore(0x40, v), v a push1 of 0x60 at least, where the code begins).
+Ragel makes the automaton - 51 states: the bytes left of an immediate
+are counted down, the same states for every push -, `tools/rl2asm.py`
+makes tables of it (ragel's XML, `ragel -x`): for each state the mask of
+a byte (0 when one transition goes for every byte, as in an immediate)
+and the index of its transitions, for each transition the next state
+and the actions on it, 14 KiB in all (`src/evm_dfa.s`, kept in the
+repository: `make dfa` makes them again, with ragel). `decoder.s` runs
+them: a byte, a lookup, and the actions when there are some - an
+instruction's entry at its start, its parameter at its end, an idiom
+noted with the index of its last instruction. A push the end of the
+code cuts is the only instruction open at the end: its missing bytes
+are zeroes, as the EVM reads them (and python's PR). The idioms change
+nothing of what is decoded: the automaton follows every way the
+instructions so far can be parts of idioms at once (ragel's subset
+construction), and an idiom's action is on its last instruction's last
+byte.
+
+What it decodes is proven, as NaCl proved its validator's automaton
+(`tools/verify_dfa.py`, run by `make dfa-check`): every state has a
+transition for every byte; from every state an instruction can end in,
+every instruction - every opcode, every value of its immediate, the
+values the automaton and the idioms don't tell apart taken as one: they
+lead to the same - starts on its opcode, ends on its last byte and only
+there, an idiom's action only where an instruction ends; and the idioms
+the automaton ends with an instruction are the ones the patterns of
+`tools/evm_spec.py` (the spec by the letter: a few lines of python)
+say end there, for any instructions before - a walk of the pairs (the
+automaton's state, the beginnings of the idioms the last instructions
+are), each pair with every instruction. There are 9 such pairs: the
+automaton's state, where an instruction ends, is exactly what the
+patterns need to know of the past. Changes of the grammar that break
+any of this - an idiom's action a byte early, the destination of a
+selector pushed by a push5, a byte missing from `unknown`, an
+instruction's end on every byte - are caught (tried). `make dfa-check`
+also compares the tables in the repository with the ones ragel makes
+now, and `tests/test_decoder.py` the decoder itself with the spec's
+decoding and with python's `Loader.load_binary` - every code of one and
+two bytes, every opcode cut at every length, random codes dense with
+the idioms' instructions, the corpora -, the tables it runs with
+ragel's automaton byte by byte, and `panasm decode` with a report made
+from the spec.
+
+What python's decoder got wrong - a push the end of the code cuts,
+Cancun's opcodes (`tload`, `tstore`, `mcopy`, `blobhash`,
+`blobbasefee`) -, python's PR and the spec have right; Osaka's CLZ
+(`0x1e`) the spec leaves out, as python, whose opcode table takes no new
+instruction: it is an `UNKNOWN` byte for both. The free memory
+pointer's idiom spares the loader its run of the stack
+(`sets_free_memory_pointer` would end on the same mstore with the same
+answer). `panasm decode` prints what the decoder found - NaCl's `ncval`
+for the EVM: the code's size, its instructions and jumpdests; the free
+memory pointer set first; a push the end of the code cuts; the bytes
+that aren't opcodes; the jumps to a number, and those to a place that
+isn't a jumpdest (the EVM's jump fails there); the jumps to a computed
+place; the functions solc's dispatcher compares the selector with.
 
 ## Testing
 

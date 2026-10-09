@@ -1,0 +1,191 @@
+# The instructions of the EVM, as the decoder reads them: the source of the
+# decoder's automaton (tools/gen_dfa.py: spec/evm_insns.rl, then ragel) and
+# of the names the disassembly prints.
+#
+#   opcode  name  imm  in  out  since  [flags]
+#
+# imm: the bytes of its immediate (a push's), which follow it; in, out: the
+# words it takes from the stack and the ones it puts there; since: the fork
+# that brought it; flags: jumpdest, jump (its destination is the word on
+# top of the stack), halt (the path ends there), dup, swap.
+#
+# The names are python's (panoramix/utils/opcode_dict.py), the text of the
+# disassembly and of the decompiler's traces: difficulty for 0x44, which
+# Paris made prevrandao, sha3 for keccak256. A byte that isn't an opcode
+# here is python's UNKNOWN, an instruction of one byte whose parameter is
+# the byte.
+#
+# Not decoded, as python doesn't (its opcode table is in maintenance mode:
+# no new instruction):
+#   0x1e  clz  0  1  1  osaka
+
+# Stop and arithmetic
+0x00  stop            0  0  0  frontier        halt
+0x01  add             0  2  1  frontier
+0x02  mul             0  2  1  frontier
+0x03  sub             0  2  1  frontier
+0x04  div             0  2  1  frontier
+0x05  sdiv            0  2  1  frontier
+0x06  mod             0  2  1  frontier
+0x07  smod            0  2  1  frontier
+0x08  addmod          0  3  1  frontier
+0x09  mulmod          0  3  1  frontier
+0x0a  exp             0  2  1  frontier
+0x0b  signextend      0  2  1  frontier
+
+# Comparison and bitwise logic
+0x10  lt              0  2  1  frontier
+0x11  gt              0  2  1  frontier
+0x12  slt             0  2  1  frontier
+0x13  sgt             0  2  1  frontier
+0x14  eq              0  2  1  frontier
+0x15  iszero          0  1  1  frontier
+0x16  and             0  2  1  frontier
+0x17  or              0  2  1  frontier
+0x18  xor             0  2  1  frontier
+0x19  not             0  1  1  frontier
+0x1a  byte            0  2  1  frontier
+0x1b  shl             0  2  1  constantinople
+0x1c  shr             0  2  1  constantinople
+0x1d  sar             0  2  1  constantinople
+
+# Hashing
+0x20  sha3            0  2  1  frontier
+
+# Environment
+0x30  address         0  0  1  frontier
+0x31  balance         0  1  1  frontier
+0x32  origin          0  0  1  frontier
+0x33  caller          0  0  1  frontier
+0x34  callvalue       0  0  1  frontier
+0x35  calldataload    0  1  1  frontier
+0x36  calldatasize    0  0  1  frontier
+0x37  calldatacopy    0  3  0  frontier
+0x38  codesize        0  0  1  frontier
+0x39  codecopy        0  3  0  frontier
+0x3a  gasprice        0  0  1  frontier
+0x3b  extcodesize     0  1  1  frontier
+0x3c  extcodecopy     0  4  0  frontier
+0x3d  returndatasize  0  0  1  byzantium
+0x3e  returndatacopy  0  3  0  byzantium
+0x3f  extcodehash     0  1  1  constantinople
+
+# Block
+0x40  blockhash       0  1  1  frontier
+0x41  coinbase        0  0  1  frontier
+0x42  timestamp       0  0  1  frontier
+0x43  number          0  0  1  frontier
+0x44  difficulty      0  0  1  frontier
+0x45  gaslimit        0  0  1  frontier
+0x46  chainid         0  0  1  istanbul
+0x47  selfbalance     0  0  1  istanbul
+0x48  basefee         0  0  1  london
+0x49  blobhash        0  1  1  cancun
+0x4a  blobbasefee     0  0  1  cancun
+
+# Stack, memory, storage and flow
+0x50  pop             0  1  0  frontier
+0x51  mload           0  1  1  frontier
+0x52  mstore          0  2  0  frontier
+0x53  mstore8         0  2  0  frontier
+0x54  sload           0  1  1  frontier
+0x55  sstore          0  2  0  frontier
+0x56  jump            0  1  0  frontier        jump halt
+0x57  jumpi           0  2  0  frontier        jump
+0x58  pc              0  0  1  frontier
+0x59  msize           0  0  1  frontier
+0x5a  gas             0  0  1  frontier
+0x5b  jumpdest        0  0  0  frontier        jumpdest
+0x5c  tload           0  1  1  cancun
+0x5d  tstore          0  2  0  cancun
+0x5e  mcopy           0  3  0  cancun
+
+# Pushes
+0x5f  push0           0  0  1  shanghai
+0x60  push1           1  0  1  frontier
+0x61  push2           2  0  1  frontier
+0x62  push3           3  0  1  frontier
+0x63  push4           4  0  1  frontier
+0x64  push5           5  0  1  frontier
+0x65  push6           6  0  1  frontier
+0x66  push7           7  0  1  frontier
+0x67  push8           8  0  1  frontier
+0x68  push9           9  0  1  frontier
+0x69  push10         10  0  1  frontier
+0x6a  push11         11  0  1  frontier
+0x6b  push12         12  0  1  frontier
+0x6c  push13         13  0  1  frontier
+0x6d  push14         14  0  1  frontier
+0x6e  push15         15  0  1  frontier
+0x6f  push16         16  0  1  frontier
+0x70  push17         17  0  1  frontier
+0x71  push18         18  0  1  frontier
+0x72  push19         19  0  1  frontier
+0x73  push20         20  0  1  frontier
+0x74  push21         21  0  1  frontier
+0x75  push22         22  0  1  frontier
+0x76  push23         23  0  1  frontier
+0x77  push24         24  0  1  frontier
+0x78  push25         25  0  1  frontier
+0x79  push26         26  0  1  frontier
+0x7a  push27         27  0  1  frontier
+0x7b  push28         28  0  1  frontier
+0x7c  push29         29  0  1  frontier
+0x7d  push30         30  0  1  frontier
+0x7e  push31         31  0  1  frontier
+0x7f  push32         32  0  1  frontier
+
+# Duplication
+0x80  dup1            0  1  2  frontier        dup
+0x81  dup2            0  2  3  frontier        dup
+0x82  dup3            0  3  4  frontier        dup
+0x83  dup4            0  4  5  frontier        dup
+0x84  dup5            0  5  6  frontier        dup
+0x85  dup6            0  6  7  frontier        dup
+0x86  dup7            0  7  8  frontier        dup
+0x87  dup8            0  8  9  frontier        dup
+0x88  dup9            0  9 10  frontier        dup
+0x89  dup10           0 10 11  frontier        dup
+0x8a  dup11           0 11 12  frontier        dup
+0x8b  dup12           0 12 13  frontier        dup
+0x8c  dup13           0 13 14  frontier        dup
+0x8d  dup14           0 14 15  frontier        dup
+0x8e  dup15           0 15 16  frontier        dup
+0x8f  dup16           0 16 17  frontier        dup
+
+# Exchange
+0x90  swap1           0  2  2  frontier        swap
+0x91  swap2           0  3  3  frontier        swap
+0x92  swap3           0  4  4  frontier        swap
+0x93  swap4           0  5  5  frontier        swap
+0x94  swap5           0  6  6  frontier        swap
+0x95  swap6           0  7  7  frontier        swap
+0x96  swap7           0  8  8  frontier        swap
+0x97  swap8           0  9  9  frontier        swap
+0x98  swap9           0 10 10  frontier        swap
+0x99  swap10          0 11 11  frontier        swap
+0x9a  swap11          0 12 12  frontier        swap
+0x9b  swap12          0 13 13  frontier        swap
+0x9c  swap13          0 14 14  frontier        swap
+0x9d  swap14          0 15 15  frontier        swap
+0x9e  swap15          0 16 16  frontier        swap
+0x9f  swap16          0 17 17  frontier        swap
+
+# Logging
+0xa0  log0            0  2  0  frontier
+0xa1  log1            0  3  0  frontier
+0xa2  log2            0  4  0  frontier
+0xa3  log3            0  5  0  frontier
+0xa4  log4            0  6  0  frontier
+
+# System
+0xf0  create          0  3  1  frontier
+0xf1  call            0  7  1  frontier
+0xf2  callcode        0  7  1  frontier
+0xf3  return          0  2  0  frontier        halt
+0xf4  delegatecall    0  6  1  homestead
+0xf5  create2         0  4  1  constantinople
+0xfa  staticcall      0  6  1  byzantium
+0xfd  revert          0  2  0  byzantium       halt
+0xfe  invalid         0  0  0  frontier        halt
+0xff  selfdestruct    0  1  0  frontier        halt

@@ -30,6 +30,7 @@ where it takes two and a half hours - and a fraction of its memory.
     build/panasm decompile 0xdAC17F958D2ee523a2206206994597C13D831ec7   # an address: its code from a node
     build/panasm decompile a.hex,b.hex,0x6080...   # each in turn
     build/panasm disasm contract.hex
+    build/panasm decode contract.hex       # what the decoder finds: jumps, selectors, bytes that aren't opcodes
 
 From python (the module in `build/`):
 
@@ -96,6 +97,14 @@ reported as a problem, as python does with the ones that fail.
 `PANORAMIX_TIMEOUT` scales python's time limits (60 s a step, 3 minutes
 a function) as it does in python (10 on a slow machine, 0 for none: to
 compare runs under valgrind).
+
+The bytecode is decoded as Native Client decodes the machine code it
+runs: by an automaton made from a description of the instructions
+(`spec/evm.def`, then ragel), whose decoding of every instruction,
+whatever comes before it, is proven against that description
+(`make dfa-check`), and which recognizes some idioms as it goes - the
+jumps to a number, solc's dispatcher; `panasm decode` prints what it
+found. See "The decoder" in `docs/DESIGN.md`.
 
 The bytecode is whoever wrote it's, so it is treated as hostile: see
 "Hostile input" in `docs/DESIGN.md` for the review of the sources

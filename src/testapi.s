@@ -42,6 +42,8 @@ test_table:
         .quad .Ln_fold_stacks, tf_fold_stacks
         .quad .Ln_vm_run, tf_vm_run
         .quad .Ln_find_functions, tf_find_functions
+        .quad .Ln_decode, tf_decode
+        .quad .Ln_dfa_step, tf_dfa_step
         .quad .Ln_whiles_make, tf_whiles_make
         .quad .Ln_match, tf_match
         .quad .Ln_match_compiled, tf_match_compiled
@@ -318,6 +320,8 @@ test_table:
 .Ln_fold_stacks: .asciz "fold_stacks"
 .Ln_vm_run:    .asciz "vm_run"
 .Ln_find_functions: .asciz "find_functions"
+.Ln_decode: .asciz "decode"
+.Ln_dfa_step: .asciz "dfa_step"
 .Ln_whiles_make: .asciz "whiles_make"
 .Ln_match:     .asciz "match"
 .Ln_match_compiled: .asciz "match_compiled"
@@ -1587,6 +1591,166 @@ FUNC tf_find_functions
         mov [rsp + 8], rax
         jmp 2b
 ENDF tf_find_functions
+
+# decode(hexcode) -> (instructions, jumpdests, idioms, fmp, last line):
+# what the decoder (decoder.s) makes of the code - each instruction's
+# (place, name, parameter or None), the jumpdests' places, each idiom's
+# (kind, index of its first instruction, of its last), whether the code
+# begins with solidity's free memory pointer, where the code ends
+FUNC tf_decode
+        ENTER
+        sub rsp, 48
+        mov r12, rdi                    # the code, as a hex string
+        mov edi, [r12 + N_DATA]
+        shr edi, 1
+        inc rdi
+        call xmalloc
+        mov r13, rax
+        lea rdi, [r12 + N_DATA + 4]
+        mov esi, [r12 + N_DATA]
+        mov rdx, r13
+        call hex_decode
+        mov r14, rax
+        call loader_new
+        mov rbx, rax
+        mov rdi, rax
+        mov rsi, r13
+        mov rdx, r14
+        call loader_load
+        mov rdi, r13
+        call free@PLT
+        # the instructions
+        call vec_new
+        mov [rsp], rax
+        xor r12d, r12d
+1:      cmp r12, [rbx + LD_NINSTR]
+        jae 3f
+        mov r13, r12
+        shl r13, 4
+        add r13, [rbx + LD_INSTRS]
+        movzx edi, byte ptr [r13 + IN_OP]
+        call evm_opname
+        mov rdi, rax
+        call str_intern_c
+        mov rsi, rax
+        lea rdx, [rip + sp_none]
+        test byte ptr [r13 + IN_FLAGS], IF_PARAM
+        jz 2f
+        mov rdx, [r13 + IN_PARAM]
+2:      mov edi, [r13 + IN_PC]
+        lea rdi, [rdi + rdi + 1]
+        call mk3
+        mov rdi, [rsp]
+        mov rsi, rax
+        call vec_push
+        inc r12
+        jmp 1b
+3:      mov rdi, [rsp]
+        call vec_to_list
+        mov [rsp], rax
+        # the jumpdests
+        call vec_new
+        mov [rsp + 8], rax
+        xor r12d, r12d
+4:      cmp r12, [rbx + LD_CODELEN]
+        jae 5f
+        mov rax, [rbx + LD_JUMPDESTS]
+        cmp byte ptr [rax + r12], 0
+        je 41f
+        mov rdi, [rsp + 8]
+        lea rsi, [r12 + r12 + 1]
+        call vec_push
+41:     inc r12
+        jmp 4b
+5:      mov rdi, [rsp + 8]
+        call vec_to_list
+        mov [rsp + 8], rax
+        # the idioms
+        call vec_new
+        mov [rsp + 16], rax
+        xor r12d, r12d
+6:      cmp r12, [rbx + LD_NIDIOMS]
+        jae 7f
+        mov rdi, rbx
+        mov rsi, r12
+        call decoder_idiom
+        lea r13, [rdx + rdx + 1]        # first
+        lea r14, [rcx + rcx + 1]        # last
+        lea rcx, [rip + dfa_action_names]
+        mov rdi, [rcx + rax*8]
+        call str_intern_c
+        mov rdi, rax
+        mov rsi, r13
+        mov rdx, r14
+        call mk3
+        mov rdi, [rsp + 16]
+        mov rsi, rax
+        call vec_push
+        inc r12
+        jmp 6b
+7:      mov rdi, [rsp + 16]
+        call vec_to_list
+        mov [rsp + 16], rax
+        lea rax, [rip + sp_false]
+        lea rcx, [rip + sp_true]
+        cmp byte ptr [rbx + LD_FMP], 0
+        cmovne rax, rcx
+        mov [rsp + 24], rax
+        mov rax, [rbx + LD_LASTLINE]
+        lea rax, [rax + rax + 1]
+        mov [rsp + 32], rax
+        mov edi, 5
+        mov rsi, rsp
+        call mk_tuple
+        mov [rsp + 40], rax
+        mov rdi, rbx
+        call loader_free
+        mov rax, [rsp + 40]
+        add rsp, 48
+        LEAVE
+ENDF tf_decode
+
+# dfa_step((state, byte)) -> (state, (action codes...)): the decoder's
+# automaton as its tables (src/evm_dfa.s) have it
+FUNC tf_dfa_step
+        ENTER
+        sub rsp, 16
+        mov rax, [rdi + N_DATA]
+        sar rax, 1                      # the state
+        mov rcx, [rdi + N_DATA + 8]
+        sar rcx, 1                      # the byte
+        lea rdx, [rip + dfa_states]
+        mov rdx, [rdx + rax*8]
+        mov rax, rdx
+        shr rax, 32
+        and ecx, eax
+        add ecx, edx
+        lea rdx, [rip + dfa_trans]
+        mov eax, [rdx + rcx*4]
+        movzx ecx, ax
+        lea rcx, [rcx + rcx + 1]
+        mov [rsp], rcx
+        shr eax, 16
+        lea rbx, [rip + dfa_programs]
+        add rbx, rax
+        call vec_new
+        mov r12, rax
+1:      movzx eax, byte ptr [rbx]
+        test eax, eax
+        jz 2f
+        mov rdi, r12
+        lea rsi, [rax + rax + 1]
+        call vec_push
+        inc rbx
+        jmp 1b
+2:      mov rdi, r12
+        call vec_to_tuple
+        mov rsi, rax
+        mov rdi, [rsp]
+        call mk2
+        add rsp, 16
+        LEAVE
+ENDF tf_dfa_step
 
 # whiles_make(trace) -> list, or the error
 FUNC tf_whiles_make

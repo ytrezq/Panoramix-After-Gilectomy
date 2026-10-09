@@ -186,7 +186,11 @@
 .set LD_FALLBACK_KNOWN, 72  # tuple: what holds in the default function
 .set LD_NO_FREE_MEM, 80     # u8: mem[64] isn't solidity's free memory pointer (variants.FREE_MEMORY_POINTER off)
 .set LD_ENTRIES, 88         # tuple of (hash string, list of entries): what runs before each function (entry.s)
-.set LD_SIZEOF, 96
+.set LD_IDIOMS, 96          # u64 per idiom the decoder recognized: its DA_* code | the index of its last instruction << 8 (decoder.s)
+.set LD_NIDIOMS, 104
+.set LD_CAPIDIOMS, 112
+.set LD_FMP, 120            # u8: the code begins with solidity's free memory pointer (the decoder's fmp idiom)
+.set LD_SIZEOF, 128
 
 # one disassembled instruction
 .set IN_PC, 0               # u32
