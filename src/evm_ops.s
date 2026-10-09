@@ -16,7 +16,7 @@ evm_opinfo:
         .long 0x000001, 0x000001, 0x000001, 0x000001, 0x000001, 0x000001, 0x000001, 0x000001
         .long 0x000001, 0x000001, 0x000001, 0x000001, 0x000000, 0x000000, 0x000000, 0x000000
         .long 0x000001, 0x000001, 0x000001, 0x000001, 0x000001, 0x000001, 0x000001, 0x000001
-        .long 0x000001, 0x000001, 0x000001, 0x000001, 0x000001, 0x000001, 0x000000, 0x000000
+        .long 0x000001, 0x000001, 0x000001, 0x000001, 0x000001, 0x000001, 0x000001, 0x000000
         .long 0x000001, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000
         .long 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000
         .long 0x000001, 0x000001, 0x000001, 0x000001, 0x000001, 0x000001, 0x000001, 0x000001
@@ -54,7 +54,7 @@ evm_opnames:
         .quad .Lop_00, .Lop_01, .Lop_02, .Lop_03, .Lop_04, .Lop_05, .Lop_06, .Lop_07
         .quad .Lop_08, .Lop_09, .Lop_0a, .Lop_0b, 0, 0, 0, 0
         .quad .Lop_10, .Lop_11, .Lop_12, .Lop_13, .Lop_14, .Lop_15, .Lop_16, .Lop_17
-        .quad .Lop_18, .Lop_19, .Lop_1a, .Lop_1b, .Lop_1c, .Lop_1d, 0, 0
+        .quad .Lop_18, .Lop_19, .Lop_1a, .Lop_1b, .Lop_1c, .Lop_1d, .Lop_1e, 0
         .quad .Lop_20, 0, 0, 0, 0, 0, 0, 0
         .quad 0, 0, 0, 0, 0, 0, 0, 0
         .quad .Lop_30, .Lop_31, .Lop_32, .Lop_33, .Lop_34, .Lop_35, .Lop_36, .Lop_37
@@ -111,6 +111,7 @@ evm_opnames:
 .Lop_1b: .asciz "shl"
 .Lop_1c: .asciz "shr"
 .Lop_1d: .asciz "sar"
+.Lop_1e: .asciz "clz"
 .Lop_20: .asciz "sha3"
 .Lop_30: .asciz "address"
 .Lop_31: .asciz "balance"

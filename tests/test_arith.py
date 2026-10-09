@@ -41,8 +41,8 @@ def rarg(depth=0):
 BIN = ["add", "sub", "mul", "div", "sdiv", "mod", "smod", "exp", "signextend", "shl", "shr", "sar", "and", "or", "xor", "byte", "eq", "lt", "gt", "le", "ge", "slt", "sgt", "sle", "sge"]
 
 def rexp(depth=0):
-    op = random.choice(BIN + ["not", "addmod", "mulmod", "and", "iszero", "bool", "mask_shl", "nary", "land", "lor", "storage1"])
-    if op == "not": return ("not", rarg(depth))
+    op = random.choice(BIN + ["not", "clz", "addmod", "mulmod", "and", "iszero", "bool", "mask_shl", "nary", "land", "lor", "storage1"])
+    if op in ("not", "clz"): return (op, rarg(depth))
     if op in ("addmod", "mulmod"): return (op, rarg(depth), rarg(depth), rarg(depth))
     if op == "iszero": return ("iszero", rarg(depth))
     if op == "bool": return ("bool", rarg(depth))
@@ -59,6 +59,12 @@ def rexp(depth=0):
     if op == "storage1":
         return ("storage", random.choice([1, 1, 8, True]), random.choice([0, 5, -1]), 3)
     return (op, rarg(depth), rarg(depth))
+
+def nested_bool(x, depth=0):
+    """a True or a False inside a tuple"""
+    if type(x) is bool:
+        return depth > 0
+    return type(x) is tuple and any(nested_bool(e, depth + 1) for e in x)
 
 def rread():
     """reads of the state, for changed_reads"""
@@ -99,8 +105,11 @@ for n in range(N):
     kt = random.choice([True, rexp(), ("le", ("cd", 4), rarg()), ("lt", ("cd", 4), rarg()), ("bool", rexp())])
     ex = random.choice([e, ("le", ("cd", 4), rarg()), ("lt", ("cd", 4), rarg()), ("gt", rarg(), rarg()), ("ge", rarg(), rarg()), rint()])
     # (an or of nothing, which or_op never makes: python's eval_bool of it
-    # is the 0 it starts its or with, a number where the others are bools)
-    if "('or',)" not in repr(ex):
+    # is the 0 it starts its or with, a number where the others are bools;
+    # nor a True or a False inside them - a storage of size True: python's
+    # == takes it for 1, the port's True isn't the number 1, see "Python's
+    # caches" in docs/DESIGN.md)
+    if "('or',)" not in repr(ex) and not nested_bool(ex) and not nested_bool(kt):
         for sym in (True, False):
             bad += check("eval_bool", lambda a: P.eval_bool(*a), lambda a: A._test("eval_bool", repr(a)), (ex, kt, sym), n)
     st = rstate()

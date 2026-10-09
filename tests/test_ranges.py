@@ -54,7 +54,7 @@ def rexp(depth=0):
     if depth > 3 or r < 0.25:
         return rint() if random.random() < 0.4 else ratom()
     op = random.choice(["add", "add", "add", "mul", "mul", "mask_shl", "mask_shl", "mask_shl",
-                        "mod", "div", "and", "or", "xor", "min", "max", "bool", "not", "exp"])
+                        "mod", "div", "and", "or", "xor", "min", "max", "bool", "not", "exp", "clz"])
     if op == "add":
         return ("add",) + tuple(rexp(depth + 1) for _ in range(random.randint(2, 4)))
     if op == "mul":
@@ -82,8 +82,8 @@ def rexp(depth=0):
         if b in ("iszero", "bool"):
             return (b, rexp(depth + 1))
         return (b, rexp(depth + 1), rexp(depth + 1))
-    if op == "not":
-        return ("not", rexp(depth + 1))
+    if op in ("not", "clz"):
+        return (op, rexp(depth + 1))
     return ("exp", rexp(depth + 1), rexp(depth + 1))
 
 

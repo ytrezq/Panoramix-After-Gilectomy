@@ -45,6 +45,7 @@ sall
 st sv si sl sbl sf sr break ecrecover shift
 memory memory_fresh returndatasize_zero var_bits check switch copied identity
 off blen raw word value fixed member root sdef vyper solidity
+clz
 """.split()
 
 

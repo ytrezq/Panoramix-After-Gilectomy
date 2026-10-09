@@ -14,10 +14,6 @@
 # Paris made prevrandao, sha3 for keccak256. A byte that isn't an opcode
 # here is python's UNKNOWN, an instruction of one byte whose parameter is
 # the byte.
-#
-# Not decoded, as python doesn't (its opcode table is in maintenance mode:
-# no new instruction):
-#   0x1e  clz  0  1  1  osaka
 
 # Stop and arithmetic
 0x00  stop            0  0  0  frontier        halt
@@ -48,6 +44,7 @@
 0x1b  shl             0  2  1  constantinople
 0x1c  shr             0  2  1  constantinople
 0x1d  sar             0  2  1  constantinople
+0x1e  clz             0  1  1  osaka
 
 # Hashing
 0x20  sha3            0  2  1  frontier

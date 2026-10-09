@@ -677,6 +677,31 @@ FUNC ev_not
         LEAVE
 ENDF ev_not
 
+# ev_clz(a): the leading zero bits of the word a (Osaka's CLZ): 256 - its
+# bits, 256 for 0
+FUNC ev_clz
+        test dil, 1
+        jz 1f
+        mov rax, rdi                    # a small one (of a word: not negative)
+        sar rax, 1
+        mov ecx, 256
+        test rax, rax
+        jz 2f
+        bsr rdx, rax
+        sub ecx, edx
+        dec ecx
+2:      lea rax, [rcx + rcx + 1]
+        ret
+1:      ENTER                           # a big one: its digits in base 2
+        lea rdi, [rdi + N_DATA]
+        mov esi, 2
+        call __gmpz_sizeinbase@PLT
+        mov ecx, 256
+        sub ecx, eax
+        lea rax, [rcx + rcx + 1]
+        LEAVE
+ENDF ev_clz
+
 # ev_byte(position, value): (value // 256^(31-pos)) % 256 (negative
 # positions shift further right, like in python)
 FUNC ev_byte
@@ -854,7 +879,7 @@ ENDF ev_sge
 
 # is_arith_op(id) -> eax: the opcode is one of arithmetic.OPCODES
         OPSET_FUNC is_arith_op, arith_ops
-        .irp op, ADD, ADDMOD, SUB, MOD, SMOD, MUL, MULMOD, DIV, SDIV, EXP, SIGNEXTEND, SHL, SHR, SAR, AND, OR, XOR, NOT, BYTE, EQ, LT, LE, GT, SGT, SLT, GE, SGE, SLE
+        .irp op, ADD, ADDMOD, SUB, MOD, SMOD, MUL, MULMOD, DIV, SDIV, EXP, SIGNEXTEND, SHL, SHR, SAR, AND, OR, XOR, NOT, BYTE, CLZ, EQ, LT, LE, GT, SGT, SLT, GE, SGE, SLE
         OPSET_MEMBER arith_ops, OP_\op
         .endr
         OPSET_END arith_ops, OP_COUNT
@@ -936,6 +961,7 @@ FUNC arith_apply
         JT_CASE arith_apply, OP_ADD, .Lap_nary
         JT_CASE arith_apply, OP_MUL, .Lap_nary
         JT_CASE arith_apply, OP_NOT, .Lap_not
+        JT_CASE arith_apply, OP_CLZ, .Lap_clz
         JT_CASE arith_apply, OP_ADDMOD, .Lap_3
         JT_CASE arith_apply, OP_MULMOD, .Lap_3
         JT_END arith_apply, OP_COUNT, .Lap_binary
@@ -1007,6 +1033,12 @@ FUNC arith_apply
         jne .Lap_nil
         mov rdi, [r13 + 8]
         call ev_not
+        LEAVE
+.Lap_clz:
+        cmp r12, 2
+        jne .Lap_nil
+        mov rdi, [r13 + 8]
+        call ev_clz
         LEAVE
 .Lap_3:
         cmp r12, 4

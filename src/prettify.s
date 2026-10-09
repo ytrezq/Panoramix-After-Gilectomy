@@ -285,6 +285,7 @@ FUNC prettify_init
         PF OP_MAX, .Lpf_max
         PF OP_MIN, .Lpf_max
         PF OP_BYTE, .Lpf_max
+        PF OP_CLZ, .Lpf_max
         PF OP_BLOBHASH, .Lpf_blobhash
         PF OP_TLOAD, .Lpf_tload
         PF OP_MASK_SHL, .Lpf_mask_shl

@@ -842,6 +842,8 @@ FUNC vr_whole_term_range
         jne .Lvw_bool
         cmp r12d, OP_MUL
         je .Lvw_mul
+        cmp r12d, OP_CLZ
+        je .Lvw_clz
         cmp r12d, OP_MOD
         je .Lvw_mod
         cmp r12d, OP_DIV
@@ -1034,6 +1036,12 @@ FUNC vr_whole_term_range
 .Lvw_bool:
         mov eax, 1
         mov edx, 3
+        jmp .Lvw_ret
+
+.Lvw_clz:
+        # the leading zero bits of a word: 0 to 256
+        mov eax, 1
+        mov edx, (256 << 1) | 1
         jmp .Lvw_ret
 
 .Lvw_str:
@@ -1990,6 +1998,7 @@ ENDF proven_le
         OPSET_MEMBER vr_computed, OP_SHR
         OPSET_MEMBER vr_computed, OP_SAR
         OPSET_MEMBER vr_computed, OP_BYTE
+        OPSET_MEMBER vr_computed, OP_CLZ
         OPSET_MEMBER vr_computed, OP_MIN
         OPSET_MEMBER vr_computed, OP_MAX
         OPSET_MEMBER vr_computed, OP_BYTES

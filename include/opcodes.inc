@@ -215,4 +215,5 @@
 .set OP_SDEF, 214
 .set OP_VYPER, 215
 .set OP_SOLIDITY, 216
-.set OP_COUNT, 216
+.set OP_CLZ, 217
+.set OP_COUNT, 217

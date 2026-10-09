@@ -87,7 +87,7 @@ def rexp(d=0):
     if d > 2 or r < 0.35: return rint() if random.random() < 0.4 else ratom()
     op = random.choice(["add", "add", "mul", "sub", "mem", "mem", "and", "or", "iszero", "lt", "gt",
                         "eq", "div", "mask_shl", "sha3", "exp", "shl", "shr", "not", "byte", "mod",
-                        "sar", "tload", "min"])
+                        "sar", "tload", "min", "clz"])
     if op == "tload": return ("tload", rexp(d + 1))
     if op == "min": return ("min", rexp(d + 1), "returndatasize")
     if op == "add": return ("add",) + tuple(rexp(d + 1) for _ in range(random.randint(2, 3)))
@@ -97,7 +97,7 @@ def rexp(d=0):
         return ("mask_shl", random.choice([8, 32, 160, 248, 256]), random.choice([0, 0, 8, 96]),
                 random.choice([0, 0, 8, -8, 96]), rexp(d + 1))
     if op == "sha3": return ("sha3",) + tuple(rexp(d + 1) for _ in range(random.randint(1, 2)))
-    if op in ("iszero", "not"): return (op, rexp(d + 1))
+    if op in ("iszero", "not", "clz"): return (op, rexp(d + 1))
     return (op, rexp(d + 1), rexp(d + 1))
 
 def rcond():

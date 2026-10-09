@@ -315,7 +315,7 @@ are counted down, the same states for every push -, `tools/rl2asm.py`
 makes tables of it (ragel's XML, `ragel -x`): for each state the mask of
 a byte (0 when one transition goes for every byte, as in an immediate)
 and the index of its transitions, for each transition the next state
-and the actions on it, 14 KiB in all (`src/evm_dfa.s`, kept in the
+and the actions on it, 12 KiB in all (`src/evm_dfa.s`, kept in the
 repository: `make dfa` makes them again, with ragel). `decoder.s` runs
 them: a byte, a lookup, and the actions when there are some - an
 instruction's entry at its start, its parameter at its end, an idiom
@@ -354,9 +354,11 @@ from the spec.
 
 What python's decoder got wrong - a push the end of the code cuts,
 Cancun's opcodes (`tload`, `tstore`, `mcopy`, `blobhash`,
-`blobbasefee`) -, python's PR and the spec have right; Osaka's CLZ
-(`0x1e`) the spec leaves out, as python, whose opcode table takes no new
-instruction: it is an `UNKNOWN` byte for both. The free memory
+`blobbasefee`), Osaka's CLZ (`0x1e`: `clz(x)`, the leading zero bits of
+the word, 256 for 0 - computed for a number, 0 to 256 for the
+comparisons) -, python's PR and the spec have right (CLZ as an
+exception to the PR's opcode table taking no new instruction: it is the
+EVM's since Osaka). The free memory
 pointer's idiom spares the loader its run of the stack
 (`sets_free_memory_pointer` would end on the same mstore with the same
 answer). `panasm decode` prints what the decoder found - NaCl's `ncval`

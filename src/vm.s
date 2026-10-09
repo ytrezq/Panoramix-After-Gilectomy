@@ -3056,7 +3056,7 @@ step_table:
         .quad .Lop_stop, .Lop_add, .Lop_mul, .Lop_sub, .Lop_arith, .Lop_arith, .Lop_arith, .Lop_arith    # 00-07
         .quad .Lop_mulmod, .Lop_mulmod, .Lop_arith, .Lop_arith, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown   # 08-0f
         .quad .Lop_arith, .Lop_arith, .Lop_arith, .Lop_arith, .Lop_arith, .Lop_iszero, .Lop_and, .Lop_or   # 10-17
-        .quad .Lop_arith, .Lop_unary, .Lop_byte, .Lop_shl, .Lop_shr, .Lop_sar, .Lop_unknown, .Lop_unknown   # 18-1f
+        .quad .Lop_arith, .Lop_unary, .Lop_byte, .Lop_shl, .Lop_shr, .Lop_sar, .Lop_unary, .Lop_unknown   # 18-1f
         .quad .Lop_sha3, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown   # 20-27
         .quad .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown   # 28-2f
         .quad .Lop_env, .Lop_balance, .Lop_env, .Lop_env, .Lop_env, .Lop_calldataload, .Lop_env, .Lop_calldatacopy   # 30-37
@@ -3455,7 +3455,7 @@ FUNC vm_step
         VPUSH rax
         jmp .Lstep_epilogue
 
-# not, iszero, extcodesize, extcodehash, blockhash, blobhash: (op, x)
+# not, iszero, clz, extcodesize, extcodehash, blockhash, blobhash: (op, x)
 .Lop_unary:
         VPOP rsi
         mov rdi, r13

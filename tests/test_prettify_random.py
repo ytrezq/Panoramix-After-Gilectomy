@@ -131,7 +131,7 @@ def rexp(d=0):
         if random.random() < 0.03: n = random.choice([0, 1, 3])
         return (op,) + tuple(rexp(d + 1) for _ in range(n))
     if r < 0.52:
-        return (random.choice(["iszero", "bool", "not"]), rexp(d + 1))
+        return (random.choice(["iszero", "bool", "not", "clz"]), rexp(d + 1))
     if r < 0.64:
         size = random.choice([1, 8, 20, 32, 64, 96, 160, 224, 248, 251, 255, 256, 16, 24, 40, 7, rint()])
         off = random.choice([0, 0, 0, 5, 8, 96, 160, 248, 16, -3, rint()])
