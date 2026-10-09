@@ -286,6 +286,7 @@ FUNC prettify_init
         PF OP_MIN, .Lpf_max
         PF OP_BYTE, .Lpf_max
         PF OP_CLZ, .Lpf_max
+        PF OP_SAFEMATH, .Lpf_safemath
         PF OP_BLOBHASH, .Lpf_blobhash
         PF OP_TLOAD, .Lpf_tload
         PF OP_MASK_SHL, .Lpf_mask_shl
@@ -1022,6 +1023,24 @@ FUNC prettify
         mov rdi, r13
         mov esi, ')'
         call sb_append_char
+        jmp .Lpf_finish
+
+.Lpf_safemath:
+        # a function of the contract's def SafeMath (safemath.s): its
+        # operands (one for inc and dec), then the messages it fails with,
+        # string literals
+        cmp dword ptr [rbx + N_AUX], 2
+        jb .Lpf_default
+        mov rdi, [rbx + N_DATA + 8]
+        call is_str
+        test eax, eax
+        jz .Lpf_default
+        call sb_new
+        mov r13, rax
+        mov rdi, rax
+        mov rsi, rbx
+        PF_COLOR_OF rdx, r12
+        call sm_pretty_call
         jmp .Lpf_finish
 
 .Lpf_mulmod:

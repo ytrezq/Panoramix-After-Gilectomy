@@ -833,7 +833,8 @@ ENDF \fname
 .set CT_LANG, 32            # the storage's language: 1 vyper, 0 solidity
 .set CT_CODE, 40            # the code (the loader's), or 0 (None)
 .set CT_CODELEN, 48
-.set CT_SIZEOF, 56
+.set CT_SAFEMATH, 56        # list of the functions of its def SafeMath (safemath.s's defs)
+.set CT_SIZEOF, 64
 
 # a trace run on values (runtrace.s, python's runtrace.Machine). Words are
 # 256-bit numbers in 32 bytes, the least significant limb first.

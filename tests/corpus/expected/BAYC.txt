@@ -22,6 +22,23 @@ def storage:
   saleIsActive is uint8 at storage 15
   REVEAL_TIMESTAMP is uint256 at storage 16
 
+def SafeMath:
+  def add(a, b):
+      if a + b < a:
+          revert with 'SafeMath: addition overflow'
+      return a + b
+  def sub(a, b):
+      if b > a:
+          revert with 'SafeMath: subtraction overflow'
+      return a - b
+  def mul(a, b):
+      if a * b / a != b:
+          revert with 'SafeMath: multiplication overflow'
+      return a * b
+  def mod(a, b):
+      assert b
+      return a % b
+
 def supportsInterface(bytes4 interfaceId): # not payable
   require calldata.size - 4 >= 32
   return bool(supportsInterface[Mask(32, 224, interfaceId)])
@@ -138,6 +155,18 @@ def withdraw(): # not payable
   if not ext_call.success:
       revert with ext_call.return_data[0 len return_data.size]
 
+def setStartingIndex(): # not payable
+  if startingIndex:
+      revert with 'Starting index is already set'
+  if not startingIndexBlock:
+      revert with 'Starting index block must be set'
+  startingIndex = SafeMath.mod(block.hash(startingIndexBlock), MAX_APES)
+  if SafeMath.sub(block.number, startingIndexBlock) > 255:
+      assert MAX_APES
+      startingIndex = block.hash(block.number - 1) % MAX_APES
+  if not startingIndex:
+      startingIndex = SafeMath.add(startingIndex, 1)
+
 def setApprovalForAll(address operator, bool _approved): # not payable
   require calldata.size - 4 >= 64
   if address(operator) == caller:
@@ -158,23 +187,6 @@ def transferOwnership(address newOwner): # not payable
         address indexed previousOwner=owner,
         address indexed newOwner=address(newOwner))
   owner = address(newOwner)
-
-def setStartingIndex(): # not payable
-  if startingIndex:
-      revert with 'Starting index is already set'
-  if not startingIndexBlock:
-      revert with 'Starting index block must be set'
-  assert MAX_APES
-  startingIndex = block.hash(startingIndexBlock) % MAX_APES
-  if startingIndexBlock > block.number:
-      revert with 'SafeMath: subtraction overflow'
-  if block.number - startingIndexBlock > 255:
-      assert MAX_APES
-      startingIndex = block.hash(block.number - 1) % MAX_APES
-  if not startingIndex:
-      if startingIndex + 1 < startingIndex:
-          revert with 'SafeMath: addition overflow'
-      startingIndex++
 
 def approve(address spender, uint256 amount): # not payable
   require calldata.size - 4 >= 64
@@ -544,13 +556,9 @@ def mintApe(uint256 numberOfTokens) payable:
       revert with 'Sale must be active to mint Ape'
   if numberOfTokens > 20:
       revert with Error(string reason), 32, 33, 'Can only mint 20 tokens at a time', mem[229 len 31]
-  if tokenByIndex.length + numberOfTokens < tokenByIndex.length:
-      revert with 'SafeMath: addition overflow'
-  if tokenByIndex.length + numberOfTokens > MAX_APES:
+  if SafeMath.add(tokenByIndex.length, numberOfTokens) > MAX_APES:
       revert with Error(string reason), 32, 40, 'Purchase would exceed max supply of Apes', mem[236 len 24]
-  if 8 * 10**16 * numberOfTokens / (8 * 10**16) != numberOfTokens:
-      revert with Error(string reason), 32, 33, 'SafeMath: multiplication overflow', mem[229 len 31]
-  if 8 * 10**16 * numberOfTokens > call.value:
+  if SafeMath.mul(8 * 10**16, numberOfTokens) > call.value:
       revert with 'Ether value sent is not correct'
   idx = 0
   while idx < numberOfTokens:

@@ -29,6 +29,23 @@ def storage:
   initializationBlock is uint256 at storage 0xebb05b386a8d34882b8711d156f463690983dc47815980fb82aeeff1aa43579e
   bufferedEther is uint256 at storage 0xed310af23f61f96daefbcd140b306c0bdbf8c178398299741687b90e794772b0
 
+def SafeMath:
+  def add(a, b):
+      if a + b < a:
+          revert with 'MATH_ADD_OVERFLOW'
+      return a + b
+  def sub(a, b):
+      if b > a:
+          revert with 'BALANCE_EXCEEDED'
+      return a - b
+  def mul(a, b):
+      if a * b / a != b:
+          revert with 'MATH_MUL_OVERFLOW'
+      return a * b
+  def div(a, b):
+      assert b
+      return a / b
+
 def getBufferedEther(): # not payable
   return bufferedEther
 
@@ -165,9 +182,7 @@ def receiveELRewards() payable:
       revert with ext_call.return_data[0 len return_data.size]
   require return_data.size >= 32
   require caller == address(ext_call.return_data[0])
-  if call.value + totalELRewardsCollected < totalELRewardsCollected:
-      revert with 'MATH_ADD_OVERFLOW'
-  totalELRewardsCollected += call.value
+  totalELRewardsCollected = SafeMath.add(totalELRewardsCollected, call.value)
   log ELRewardsReceived(uint256 amount=call.value)
 
 def getWithdrawalCredentials(): # not payable
@@ -599,6 +614,49 @@ def setStakingLimit(uint256 _maxStakeLimit, uint256 _stakeLimitIncreasePerBlock)
         uint256 maxStakeLimit=_maxStakeLimit,
         uint256 stakeLimitIncreasePerBlock=_stakeLimitIncreasePerBlock)
 
+def permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s): # not payable
+  if deadline < block.timestamp:
+      revert with 'DEADLINE_EXPIRED'
+  _3 = nonces[address(owner)]
+  nonces[address(owner)] = SafeMath.add(nonces[address(owner)], 1)
+  require ext_code.size(address(stor42B2))
+  call address(stor42B2).unknown804e5eb3(?) with:
+       gas gas_remaining
+      args this.address, sha3(0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9, address(owner), address(spender), value, _3, deadline)
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  if ext_code.size(address(owner)) <= 0:
+      if s > 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0:
+          revert with 'ECDSA: invalid signature \'s\' value'
+      mem[416] = 0
+      mem[448] = ext_call.return_data[0]
+      signer = ecrecover(mem[448], uint8(v), r, s) # precompiled
+      mem[416 len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
+      if not ecrecover.result:
+          revert with ext_call.return_data[0 len return_data.size]
+      if not mem[428 len 20]:
+          revert with 'ECDSA: invalid signature'
+      _42 = mem[428 len 20] == address(owner)
+  else:
+      static call address(owner).isValidSignature(bytes32, bytes) with:
+              gas gas_remaining
+             args ext_call.return_data[0], 64, 65, r, s, v << 248
+      mem[741 len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
+      _39 = ext_call.success == 1 and return_data.size == 32 and concat(ext_call.return_data[0 len min(32, return_data.size)], mem[min(32, return_data.size) + 741 len -min(32, return_data.size) + 32])
+      _42 = _39 == 0x1626ba7e00000000000000000000000000000000000000000000000000000000
+  if not _42:
+      revert with 'INVALID_SIGNATURE'
+  if not address(owner):
+      revert with 'APPROVE_FROM_ZERO_ADDR'
+  if not address(spender):
+      revert with 'APPROVE_TO_ZERO_ADDR'
+  allowance[address(owner)][address(spender)] = value
+  log Approval(
+        address indexed owner=address(owner),
+        address indexed spender=address(spender),
+        uint256 value=value)
+
 def unknown84b0196e(): # not payable
   mem[128] = 0xf440931900000000000000000000000000000000000000000000000000000000
   mem[132] = this.address
@@ -642,51 +700,6 @@ def unknown84b0196e(): # not payable
   return memory
     from ceil32(return_data.size) + 128
      len floor32(_17) + _15 - ceil32(return_data.size) - 64
-
-def permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s): # not payable
-  if deadline < block.timestamp:
-      revert with 'DEADLINE_EXPIRED'
-  if nonces[address(owner)] + 1 < nonces[address(owner)]:
-      revert with 'MATH_ADD_OVERFLOW'
-  _3 = nonces[address(owner)]
-  nonces[address(owner)]++
-  require ext_code.size(address(stor42B2))
-  call address(stor42B2).unknown804e5eb3(?) with:
-       gas gas_remaining
-      args this.address, sha3(0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9, address(owner), address(spender), value, _3, deadline)
-  if not ext_call.success:
-      revert with ext_call.return_data[0 len return_data.size]
-  require return_data.size >= 32
-  if ext_code.size(address(owner)) <= 0:
-      if s > 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0:
-          revert with 'ECDSA: invalid signature \'s\' value'
-      mem[416] = 0
-      mem[448] = ext_call.return_data[0]
-      signer = ecrecover(mem[448], uint8(v), r, s) # precompiled
-      mem[416 len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
-      if not ecrecover.result:
-          revert with ext_call.return_data[0 len return_data.size]
-      if not mem[428 len 20]:
-          revert with 'ECDSA: invalid signature'
-      _42 = mem[428 len 20] == address(owner)
-  else:
-      static call address(owner).isValidSignature(bytes32, bytes) with:
-              gas gas_remaining
-             args ext_call.return_data[0], 64, 65, r, s, v << 248
-      mem[741 len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
-      _39 = ext_call.success == 1 and return_data.size == 32 and concat(ext_call.return_data[0 len min(32, return_data.size)], mem[min(32, return_data.size) + 741 len -min(32, return_data.size) + 32])
-      _42 = _39 == 0x1626ba7e00000000000000000000000000000000000000000000000000000000
-  if not _42:
-      revert with 'INVALID_SIGNATURE'
-  if not address(owner):
-      revert with 'APPROVE_FROM_ZERO_ADDR'
-  if not address(spender):
-      revert with 'APPROVE_TO_ZERO_ADDR'
-  allowance[address(owner)][address(spender)] = value
-  log Approval(
-        address indexed owner=address(owner),
-        address indexed spender=address(spender),
-        uint256 value=value)
 
 def totalSupply(): # not payable
   mem[64] = 128
@@ -915,10 +928,8 @@ def deposit(uint256 _id, uint256 _amount, bytes _data): # not payable
           mem[64] = 192
           mem[128] = 17
           mem[160] = 0x4d4154485f4d554c5f4f564552464c4f57000000000000000000000000000000
-          if 32 * 10**18 * min(_id, ext_call.return_data[0]) / min(_id, ext_call.return_data[0]) != 32 * 10**18:
-              revert with 'MATH_MUL_OVERFLOW'
-          _18 = 32 * 10**18 * min(_id, ext_call.return_data[0])
-          _19 = 32 * 10**18 * min(_id, ext_call.return_data[0])
+          _18 = SafeMath.mul(min(_id, ext_call.return_data[0]), 32 * 10**18)
+          _19 = SafeMath.mul(min(_id, ext_call.return_data[0]), 32 * 10**18)
       else:
           _18 = 0
           _19 = 0
@@ -1506,18 +1517,14 @@ def transferShares(address _to, uint256 _numShares): # not payable
       revert with 'TRANSFER_TO_STETH_CONTRACT'
   if not stor6441:
       revert with 'CONTRACT_IS_STOPPED'
-  if _numShares > sharesOf[caller]:
-      revert with 'BALANCE_EXCEEDED'
   mem[128] = 18
   mem[160] = 0x4d4154485f5355425f554e444552464c4f570000000000000000000000000000
-  sharesOf[caller] -= _numShares
+  sharesOf[caller] = SafeMath.sub(sharesOf[caller], _numShares)
   mem[64] = 256
   mem[192] = 17
   mem[224] = 0x4d4154485f4144445f4f564552464c4f57000000000000000000000000000000
-  if _numShares + sharesOf[address(_to)] < sharesOf[address(_to)]:
-      revert with 'MATH_ADD_OVERFLOW'
   mem[32] = 0
-  sharesOf[address(_to)] += _numShares
+  sharesOf[address(_to)] = SafeMath.add(sharesOf[address(_to)], _numShares)
   assert storE6E3 >= stor9F70
   if storE6E3 != stor9F70:
       mem[64] = 320
@@ -1662,16 +1669,15 @@ def transferShares(address _to, uint256 _numShares): # not payable
   mem[_40] = 13
   mem[_40 + 32] = 0x4d4154485f4449565f5a45524f00000000000000000000000000000000000000
   if totalShares > 0:
-      assert totalShares
       log Transfer(
             address indexed from=caller,
             address indexed to=address(_to),
-            uint256 value=(_7 * _numShares + storA66D * _numShares + bufferedEther * _numShares) / totalShares)
+            uint256 value=SafeMath.div(_7 * _numShares + storA66D * _numShares + bufferedEther * _numShares, totalShares))
       log TransferShares(
             address indexed from=caller,
             address indexed to=address(_to),
             uint256 sharesValue=_numShares)
-      return (_7 * _numShares + storA66D * _numShares + bufferedEther * _numShares) / totalShares
+      return SafeMath.div(_7 * _numShares + storA66D * _numShares + bufferedEther * _numShares, totalShares)
   _46 = mem[64]
   mem[mem[64]] = 0x8c379a000000000000000000000000000000000000000000000000000000000
   mem[mem[64] + 4] = 32
@@ -1712,16 +1718,12 @@ def initialize(address _token0, address _token1) payable:
             address referral=0)
       mem[192] = 17
       mem[224] = 0x4d4154485f4144445f4f564552464c4f57000000000000000000000000000000
-      if eth.balance(this.address) + totalShares < totalShares:
-          revert with 'MATH_ADD_OVERFLOW'
-      totalShares += eth.balance(this.address)
+      totalShares = SafeMath.add(totalShares, eth.balance(this.address))
       mem[64] = 320
       mem[256] = 17
       mem[288] = 0x4d4154485f4144445f4f564552464c4f57000000000000000000000000000000
-      if eth.balance(this.address) + sharesOf[57005] < sharesOf[57005]:
-          revert with 'MATH_ADD_OVERFLOW'
       mem[32] = 0
-      sharesOf[57005] += eth.balance(this.address)
+      sharesOf[57005] = SafeMath.add(sharesOf[57005], eth.balance(this.address))
       assert storE6E3 >= stor9F70
       if storE6E3 != stor9F70:
           mem[64] = 384
@@ -1826,11 +1828,10 @@ def initialize(address _token0, address _token1) payable:
       mem[_44] = 13
       mem[_44 + 32] = 0x4d4154485f4449565f5a45524f00000000000000000000000000000000000000
       if totalShares > 0:
-          assert totalShares
           log Transfer(
                 address indexed from=0,
                 address indexed to=57005,
-                uint256 value=(_12 * eth.balance(this.address) + storA66D * eth.balance(this.address) + bufferedEther * eth.balance(this.address)) / totalShares)
+                uint256 value=SafeMath.div(_12 * eth.balance(this.address) + storA66D * eth.balance(this.address) + bufferedEther * eth.balance(this.address), totalShares))
           log TransferShares(
                 address indexed from=0,
                 address indexed to=57005,
@@ -2112,14 +2113,12 @@ def transfer(address recipient, uint256 amount): # not payable
              len floor32(_39) + _37 - mem[64] + 100
   if not stor6441:
       revert with 'CONTRACT_IS_STOPPED'
-  if _81 > sharesOf[caller]:
-      revert with 'BALANCE_EXCEEDED'
   _88 = mem[64]
   mem[64] = mem[64] + 64
   mem[_88] = 18
   mem[_88 + 32] = 0x4d4154485f5355425f554e444552464c4f570000000000000000000000000000
   mem[32] = 0
-  sharesOf[caller] -= _81
+  sharesOf[caller] = SafeMath.sub(sharesOf[caller], _81)
   mem[0] = address(recipient)
   _92 = mem[64]
   mem[64] = mem[64] + 64
@@ -2360,14 +2359,12 @@ def transferFrom(address sender, address recipient, uint256 amount): # not payab
              len floor32(_45) + _43 - mem[64] + 100
   if not stor6441:
       revert with 'CONTRACT_IS_STOPPED'
-  if _87 > sharesOf[address(sender)]:
-      revert with 'BALANCE_EXCEEDED'
   _94 = mem[64]
   mem[64] = mem[64] + 64
   mem[_94] = 18
   mem[_94 + 32] = 0x4d4154485f5355425f554e444552464c4f570000000000000000000000000000
   mem[32] = 0
-  sharesOf[address(sender)] -= _87
+  sharesOf[address(sender)] = SafeMath.sub(sharesOf[address(sender)], _87)
   mem[0] = address(recipient)
   _98 = mem[64]
   mem[64] = mem[64] + 64
@@ -2614,14 +2611,12 @@ def unknown6d780459(address _param1, address _param2, uint256 _param3): # not pa
       revert with 'TRANSFER_TO_STETH_CONTRACT'
   if not stor6441:
       revert with 'CONTRACT_IS_STOPPED'
-  if _param3 > sharesOf[address(_param1)]:
-      revert with 'BALANCE_EXCEEDED'
   _119 = mem[64]
   mem[64] = mem[64] + 64
   mem[_119] = 18
   mem[_119 + 32] = 0x4d4154485f5355425f554e444552464c4f570000000000000000000000000000
   mem[32] = 0
-  sharesOf[address(_param1)] -= _param3
+  sharesOf[address(_param1)] = SafeMath.sub(sharesOf[address(_param1)], _param3)
   mem[0] = address(_param2)
   _123 = mem[64]
   mem[64] = mem[64] + 64
@@ -3062,11 +3057,10 @@ def submit(address id) payable:
           mem[_174] = 13
           mem[_174 + 32] = 0x4d4154485f4449565f5a45524f00000000000000000000000000000000000000
           if totalShares > 0:
-              assert totalShares
               log Transfer(
                     address indexed from=0,
                     address indexed to=caller,
-                    uint256 value=(_141 * (_83 * call.value / (_23 + _95 + _96)) + storA66D * (_83 * call.value / (_23 + _95 + _96)) + bufferedEther * (_83 * call.value / (_23 + _95 + _96))) / totalShares)
+                    uint256 value=SafeMath.div(_141 * (_83 * call.value / (_23 + _95 + _96)) + storA66D * (_83 * call.value / (_23 + _95 + _96)) + bufferedEther * (_83 * call.value / (_23 + _95 + _96)), totalShares))
               log TransferShares(
                     address indexed from=0,
                     address indexed to=caller,
@@ -3627,11 +3621,10 @@ def _fallback(?) payable: # default function
       mem[_228] = 13
       mem[_228 + 32] = 0x4d4154485f4449565f5a45524f00000000000000000000000000000000000000
       if totalShares > 0:
-          assert totalShares
           log Transfer(
                 address indexed from=0,
                 address indexed to=caller,
-                uint256 value=(_169 * (_83 * call.value / (_23 + _96 + _97)) + storA66D * (_83 * call.value / (_23 + _96 + _97)) + bufferedEther * (_83 * call.value / (_23 + _96 + _97))) / totalShares)
+                uint256 value=SafeMath.div(_169 * (_83 * call.value / (_23 + _96 + _97)) + storA66D * (_83 * call.value / (_23 + _96 + _97)) + bufferedEther * (_83 * call.value / (_23 + _96 + _97)), totalShares))
           log TransferShares(
                 address indexed from=0,
                 address indexed to=caller,
@@ -4109,11 +4102,10 @@ def _fallback(?) payable: # default function
   mem[_388] = 13
   mem[_388 + 32] = 0x4d4154485f4449565f5a45524f00000000000000000000000000000000000000
   if totalShares > 0:
-      assert totalShares
       log Transfer(
             address indexed from=0,
             address indexed to=caller,
-            uint256 value=(_355 * (_297 * call.value / (_159 + _309 + _310)) + storA66D * (_297 * call.value / (_159 + _309 + _310)) + bufferedEther * (_297 * call.value / (_159 + _309 + _310))) / totalShares)
+            uint256 value=SafeMath.div(_355 * (_297 * call.value / (_159 + _309 + _310)) + storA66D * (_297 * call.value / (_159 + _309 + _310)) + bufferedEther * (_297 * call.value / (_159 + _309 + _310)), totalShares))
       log TransferShares(
             address indexed from=0,
             address indexed to=caller,
@@ -5100,14 +5092,13 @@ def unknownbac3f3c5(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _
           mem[_1151] = 13
           mem[_1151 + 32] = 0x4d4154485f4449565f5a45524f00000000000000000000000000000000000000
           if totalShares > 0:
-              assert totalShares
               mem[mem[64]] = _655
-              mem[mem[64] + 32] = (_1045 * _378 + storA66D * _378 + bufferedEther * _378) / totalShares
+              mem[mem[64] + 32] = SafeMath.div(_1045 * _378 + storA66D * _378 + bufferedEther * _378, totalShares)
               mem[mem[64] + 64] = _378
               log SharesBurnt(
                     address indexed account=address(_377),
                     uint256 preRebaseTokenAmount=_655,
-                    uint256 postRebaseTokenAmount=(_1045 * _378 + storA66D * _378 + bufferedEther * _378) / totalShares,
+                    uint256 postRebaseTokenAmount=SafeMath.div(_1045 * _378 + storA66D * _378 + bufferedEther * _378, totalShares),
                     uint256 sharesAmount=_378)
               _1201 = mem[352]
           else:
@@ -6040,14 +6031,12 @@ def unknownbac3f3c5(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _
                          len floor32(_2158) + _2156 - mem[64] + 100
               if not stor6441:
                   revert with 'CONTRACT_IS_STOPPED'
-              if _2213 > sharesOf[this.address]:
-                  revert with 'BALANCE_EXCEEDED'
               _2227 = mem[64]
               mem[64] = mem[64] + 64
               mem[_2227] = 18
               mem[_2227 + 32] = 0x4d4154485f5355425f554e444552464c4f570000000000000000000000000000
               mem[32] = 0
-              sharesOf[this.address] -= _2213
+              sharesOf[this.address] = SafeMath.sub(sharesOf[this.address], _2213)
               mem[0] = address(_2212)
               _2235 = mem[64]
               mem[64] = mem[64] + 64
@@ -6214,11 +6203,10 @@ def unknownbac3f3c5(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _
                   mem[_2372] = 13
                   mem[_2372 + 32] = 0x4d4154485f4449565f5a45524f00000000000000000000000000000000000000
                   if totalShares > 0:
-                      assert totalShares
                       log Transfer(
                             address indexed from=0,
                             address indexed to=address(_2255),
-                            uint256 value=(_2295 * _2211 + storA66D * _2211 + bufferedEther * _2211) / totalShares)
+                            uint256 value=SafeMath.div(_2295 * _2211 + storA66D * _2211 + bufferedEther * _2211, totalShares))
                       mem[mem[64]] = _2211
                       log TransferShares(
                             address indexed from=0,
@@ -6538,11 +6526,10 @@ def unknownbac3f3c5(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _
               mem[_2357] = 13
               mem[_2357 + 32] = 0x4d4154485f4449565f5a45524f00000000000000000000000000000000000000
               if totalShares > 0:
-                  assert totalShares
                   log Transfer(
                         address indexed from=0,
                         address indexed to=address(ext_call.return_data[0]),
-                        uint256 value=(_1800 * _2293 - t * _2293 + _1800 * storA66D - t * storA66D + _1800 * bufferedEther - t * bufferedEther) / totalShares)
+                        uint256 value=SafeMath.div(_1800 * _2293 - t * _2293 + _1800 * storA66D - t * storA66D + _1800 * bufferedEther - t * bufferedEther, totalShares))
                   mem[mem[64]] = _1800 - t
                   log TransferShares(
                         address indexed from=0,

@@ -3,6 +3,23 @@
 const factory = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73
 const WETH = 0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
 
+def SafeMath:
+  def add(a, b):
+      if a + b < a:
+          revert with 'ds-math-add-overflow'
+      return a + b
+  def sub(a, b):
+      if a - b > a:
+          revert with 'ds-math-sub-underflow'
+      return a - b
+  def mul(a, b):
+      if a * b / a != b:
+          revert with 'ds-math-mul-overflow'
+      return a * b
+  def div(a, b):
+      assert b
+      return a / b
+
 #
 #  Regular functions
 #
@@ -47,12 +64,8 @@ def getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut): # not
       _3 = 9975 * amountIn * reserveOut / reserveOut == 9975 * amountIn
   if not _3:
       revert with 'ds-math-mul-overflow'
-  if 10000 * reserveIn / 10000 != reserveIn:
-      revert with 'ds-math-mul-overflow'
-  if 10000 * reserveIn + 9975 * amountIn < 10000 * reserveIn:
-      revert with 'ds-math-add-overflow'
-  assert 10000 * reserveIn + 9975 * amountIn
-  return _2 / (10000 * reserveIn + 9975 * amountIn)
+  assert SafeMath.add(SafeMath.mul(10000, reserveIn), 9975 * amountIn)
+  return _2 / SafeMath.add(SafeMath.mul(10000, reserveIn), 9975 * amountIn)
 
 def getAmountIn(uint256 amountOut, uint256 reserveIn, uint256 reserveOut): # not payable
   require calldata.size - 4 >= 96
@@ -71,14 +84,9 @@ def getAmountIn(uint256 amountOut, uint256 reserveIn, uint256 reserveOut): # not
       revert with 'ds-math-mul-overflow'
   if 10000 * _2 / 10000 != _2:
       revert with 'ds-math-mul-overflow'
-  if reserveOut - amountOut > reserveOut:
-      revert with 'ds-math-sub-underflow'
-  if (9975 * reserveOut - 9975 * amountOut) / 9975 != reserveOut - amountOut:
+  if (9975 * reserveOut - 9975 * amountOut) / 9975 != SafeMath.sub(reserveOut, amountOut):
       revert with 'ds-math-mul-overflow'
-  assert 9975 * reserveOut - 9975 * amountOut
-  if 10000 * _2 / (9975 * reserveOut - 9975 * amountOut) + 1 < 10000 * _2 / (9975 * reserveOut - 9975 * amountOut):
-      revert with 'ds-math-add-overflow'
-  return 10000 * _2 / (9975 * reserveOut - 9975 * amountOut) + 1
+  return SafeMath.add(SafeMath.div(10000 * _2, 9975 * reserveOut - 9975 * amountOut), 1)
 
 def removeLiquidity(address tokenA, address tokenB, uint256 liquidity, uint256 amountAMin, uint256 amountBMin, address to, uint256 deadline): # not payable
   require calldata.size - 4 >= 224
@@ -283,6 +291,116 @@ def removeLiquidityETH(address token, uint256 liquidity, uint256 amountTokenMin,
       revert with Error(string reason), 32, 35, 'TransferHelper: ETH_TRANSFER_FAILED', mem[mem[64] + 103 len 29]
   return _9, _10
 
+def getAmountsOut(uint256 amountIn, address[] path): # not payable
+  require calldata.size - 4 >= 64
+  require path <= 4294967296
+  require path + 36 <= calldata.size
+  require path.length <= 4294967296 and path + 32 * path.length + 36 <= calldata.size
+  mem[128] = path.length
+  mem[160 len 32 * path.length] = call.data[path + 36 len 32 * path.length]
+  if path.length < 2:
+      revert with 'PancakeLibrary: INVALID_PATH'
+  require path.length <= 18446744073709551615
+  mem[32 * path.length + 160] = path.length
+  mem[64] = 64 * path.length + 192
+  if path.length:
+      mem[32 * path.length + 192 len 32 * path.length] = call.data[calldata.size len 32 * path.length]
+  assert 0 < path.length
+  mem[32 * path.length + 192] = amountIn
+  _71 = path.length
+  idx = 0
+  while idx < _71 - 1:
+      assert idx < mem[128]
+      _73 = mem[32 * idx + 160]
+      assert idx + 1 < mem[128]
+      _75 = mem[32 * (idx + 1) + 160]
+      if mem[32 * idx + 172 len 20] == mem[32 * (idx + 1) + 172 len 20]:
+          revert with Error(string reason), 32, 35, 'PancakeLibrary: IDENTICAL_ADDRESSES', mem[mem[64] + 103 len 29]
+      if mem[32 * idx + 172 len 20] < mem[32 * (idx + 1) + 172 len 20]:
+          _83 = mem[32 * idx + 160]
+      else:
+          _83 = mem[32 * (idx + 1) + 160]
+      if not address(_83):
+          revert with 'PancakeLibrary: ZERO_ADDRESS'
+      if mem[32 * idx + 172 len 20] < mem[32 * (idx + 1) + 172 len 20]:
+          _89 = mem[32 * idx + 160]
+          _90 = mem[32 * (idx + 1) + 160]
+      else:
+          _89 = mem[32 * (idx + 1) + 160]
+          _90 = mem[32 * idx + 160]
+      if not address(_89):
+          revert with 'PancakeLibrary: ZERO_ADDRESS'
+      _93 = mem[64]
+      mem[mem[64] + 32] = _89 << 96
+      mem[mem[64] + 52] = _90 << 96
+      _94 = mem[64]
+      mem[mem[64]] = 40
+      mem[64] = mem[64] + 72
+      _96 = sha3(mem[_94 + 32 len mem[_94]])
+      mem[_93 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_93 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_93 + 125] = _96
+      mem[_93 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[mem[64]] = _93 - mem[64] + 157
+      if address(_73) < address(_75):
+          _100 = _73
+          _101 = _75
+      else:
+          _100 = _75
+          _101 = _73
+      if not address(_100):
+          revert with 'PancakeLibrary: ZERO_ADDRESS'
+      mem[_93 + 221] = _100 << 96
+      mem[_93 + 241] = _101 << 96
+      mem[_93 + 189] = 40
+      mem[_93 + 293] = 0xff00000000000000000000000000000000000000000000000000000000000000
+      mem[_93 + 294] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
+      mem[_93 + 314] = sha3(Bytes(20, address(_100)), Bytes(20, address(_101)))
+      mem[_93 + 346] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
+      mem[_93 + 261] = 85
+      mem[64] = _93 + 378
+      mem[_93 + 378] = 0x902f1ac00000000000000000000000000000000000000000000000000000000
+      require ext_code.size(address(sha3(Bytes(1, 0xff), Bytes(20, 0xca143ce32fe78f1f7019d7d551a6402fc5350c73), sha3(Bytes(20, address(_100)), Bytes(20, address(_101))), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
+      static call address(sha3(Bytes(1, 0xff), Bytes(20, 0xca143ce32fe78f1f7019d7d551a6402fc5350c73), sha3(Bytes(20, address(_100)), Bytes(20, address(_101))), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).getReserves() with:
+              gas gas_remaining
+      mem[_93 + 378 len min(96, return_data.size)] = ext_call.return_data[0 len min(96, return_data.size)]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      require return_data.size >= 96
+      if address(_83) == address(_73):
+          _113 = ext_call.return_data[18 len 14]
+          _114 = ext_call.return_data[50 len 14]
+      else:
+          _113 = ext_call.return_data[50 len 14]
+          _114 = ext_call.return_data[18 len 14]
+      assert idx < mem[32 * path.length + 160]
+      if mem[32 * idx + 32 * path.length + 192] <= 0:
+          revert with Error(string reason), 32, 41, 'PancakeLibrary: INSUFFICIENT_INPUT_AMOUNT', mem[_93 + 487 len 23]
+      _119 = _113 > 0 and _114 > 0
+      if not _119:
+          revert with Error(string reason), 32, 38, 'PancakeLibrary: INSUFFICIENT_LIQUIDITY', mem[_93 + 484 len 26]
+      if 9975 * mem[32 * idx + 32 * path.length + 192] / 9975 != mem[32 * idx + 32 * path.length + 192]:
+          revert with 'ds-math-mul-overflow'
+      if not _114:
+          _124 = 0
+          _125 = 1
+      else:
+          _124 = 9975 * mem[32 * idx + 32 * path.length + 192] * _114
+          _125 = 9975 * mem[32 * idx + 32 * path.length + 192] * _114 / _114 == 9975 * mem[32 * idx + 32 * path.length + 192]
+      if not _125:
+          revert with 'ds-math-mul-overflow'
+      assert SafeMath.add(SafeMath.mul(10000, _113), 9975 * mem[32 * idx + 32 * path.length + 192])
+      assert idx + 1 < mem[32 * path.length + 160]
+      mem[32 * (idx + 1) + 32 * path.length + 192] = _124 / SafeMath.add(SafeMath.mul(10000, _113), 9975 * mem[32 * idx + 32 * path.length + 192])
+      _71 = mem[128]
+      idx = idx + 1
+      continue
+  mem[mem[64]] = 32
+  mem[mem[64] + 32] = mem[32 * path.length + 160]
+  _78 = mem[32 * path.length + 160]
+  mem[mem[64] + 64 len 32 * mem[32 * path.length + 160]] = mem[32 * path.length + 192 len 32 * mem[32 * path.length + 160]]
+  return 32, mem[mem[64] + 32 len 32 * _78 + 32]
+
 def removeLiquidityETHSupportingFeeOnTransferTokens(address token, uint256 liquidity, uint256 amountTokenMin, uint256 amountETHMin, address to, uint256 deadline): # not payable
   require calldata.size - 4 >= 192
   if deadline < block.timestamp:
@@ -393,120 +511,6 @@ def removeLiquidityETHSupportingFeeOnTransferTokens(address token, uint256 liqui
       revert with Error(string reason), 32, 35, 'TransferHelper: ETH_TRANSFER_FAILED', mem[mem[64] + 103 len 29]
   return _10
 
-def getAmountsOut(uint256 amountIn, address[] path): # not payable
-  require calldata.size - 4 >= 64
-  require path <= 4294967296
-  require path + 36 <= calldata.size
-  require path.length <= 4294967296 and path + 32 * path.length + 36 <= calldata.size
-  mem[128] = path.length
-  mem[160 len 32 * path.length] = call.data[path + 36 len 32 * path.length]
-  if path.length < 2:
-      revert with 'PancakeLibrary: INVALID_PATH'
-  require path.length <= 18446744073709551615
-  mem[32 * path.length + 160] = path.length
-  mem[64] = 64 * path.length + 192
-  if path.length:
-      mem[32 * path.length + 192 len 32 * path.length] = call.data[calldata.size len 32 * path.length]
-  assert 0 < path.length
-  mem[32 * path.length + 192] = amountIn
-  _71 = path.length
-  idx = 0
-  while idx < _71 - 1:
-      assert idx < mem[128]
-      _73 = mem[32 * idx + 160]
-      assert idx + 1 < mem[128]
-      _75 = mem[32 * (idx + 1) + 160]
-      if mem[32 * idx + 172 len 20] == mem[32 * (idx + 1) + 172 len 20]:
-          revert with Error(string reason), 32, 35, 'PancakeLibrary: IDENTICAL_ADDRESSES', mem[mem[64] + 103 len 29]
-      if mem[32 * idx + 172 len 20] < mem[32 * (idx + 1) + 172 len 20]:
-          _83 = mem[32 * idx + 160]
-      else:
-          _83 = mem[32 * (idx + 1) + 160]
-      if not address(_83):
-          revert with 'PancakeLibrary: ZERO_ADDRESS'
-      if mem[32 * idx + 172 len 20] < mem[32 * (idx + 1) + 172 len 20]:
-          _89 = mem[32 * idx + 160]
-          _90 = mem[32 * (idx + 1) + 160]
-      else:
-          _89 = mem[32 * (idx + 1) + 160]
-          _90 = mem[32 * idx + 160]
-      if not address(_89):
-          revert with 'PancakeLibrary: ZERO_ADDRESS'
-      _93 = mem[64]
-      mem[mem[64] + 32] = _89 << 96
-      mem[mem[64] + 52] = _90 << 96
-      _94 = mem[64]
-      mem[mem[64]] = 40
-      mem[64] = mem[64] + 72
-      _96 = sha3(mem[_94 + 32 len mem[_94]])
-      mem[_93 + 104] = 0xff00000000000000000000000000000000000000000000000000000000000000
-      mem[_93 + 105] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
-      mem[_93 + 125] = _96
-      mem[_93 + 157] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
-      mem[mem[64]] = _93 - mem[64] + 157
-      if address(_73) < address(_75):
-          _100 = _73
-          _101 = _75
-      else:
-          _100 = _75
-          _101 = _73
-      if not address(_100):
-          revert with 'PancakeLibrary: ZERO_ADDRESS'
-      mem[_93 + 221] = _100 << 96
-      mem[_93 + 241] = _101 << 96
-      mem[_93 + 189] = 40
-      mem[_93 + 293] = 0xff00000000000000000000000000000000000000000000000000000000000000
-      mem[_93 + 294] = 0xca143ce32fe78f1f7019d7d551a6402fc5350c73000000000000000000000000
-      mem[_93 + 314] = sha3(Bytes(20, address(_100)), Bytes(20, address(_101)))
-      mem[_93 + 346] = 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5
-      mem[_93 + 261] = 85
-      mem[64] = _93 + 378
-      mem[_93 + 378] = 0x902f1ac00000000000000000000000000000000000000000000000000000000
-      require ext_code.size(address(sha3(Bytes(1, 0xff), Bytes(20, 0xca143ce32fe78f1f7019d7d551a6402fc5350c73), sha3(Bytes(20, address(_100)), Bytes(20, address(_101))), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)))
-      static call address(sha3(Bytes(1, 0xff), Bytes(20, 0xca143ce32fe78f1f7019d7d551a6402fc5350c73), sha3(Bytes(20, address(_100)), Bytes(20, address(_101))), 0xfb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5)).getReserves() with:
-              gas gas_remaining
-      mem[_93 + 378 len min(96, return_data.size)] = ext_call.return_data[0 len min(96, return_data.size)]
-      if not ext_call.success:
-          revert with ext_call.return_data[0 len return_data.size]
-      require return_data.size >= 96
-      if address(_83) == address(_73):
-          _113 = ext_call.return_data[18 len 14]
-          _114 = ext_call.return_data[50 len 14]
-      else:
-          _113 = ext_call.return_data[50 len 14]
-          _114 = ext_call.return_data[18 len 14]
-      assert idx < mem[32 * path.length + 160]
-      if mem[32 * idx + 32 * path.length + 192] <= 0:
-          revert with Error(string reason), 32, 41, 'PancakeLibrary: INSUFFICIENT_INPUT_AMOUNT', mem[_93 + 487 len 23]
-      _119 = _113 > 0 and _114 > 0
-      if not _119:
-          revert with Error(string reason), 32, 38, 'PancakeLibrary: INSUFFICIENT_LIQUIDITY', mem[_93 + 484 len 26]
-      if 9975 * mem[32 * idx + 32 * path.length + 192] / 9975 != mem[32 * idx + 32 * path.length + 192]:
-          revert with 'ds-math-mul-overflow'
-      if not _114:
-          _124 = 0
-          _125 = 1
-      else:
-          _124 = 9975 * mem[32 * idx + 32 * path.length + 192] * _114
-          _125 = 9975 * mem[32 * idx + 32 * path.length + 192] * _114 / _114 == 9975 * mem[32 * idx + 32 * path.length + 192]
-      if not _125:
-          revert with 'ds-math-mul-overflow'
-      if 10000 * _113 / 10000 != _113:
-          revert with 'ds-math-mul-overflow'
-      if 10000 * _113 + 9975 * mem[32 * idx + 32 * path.length + 192] < 10000 * _113:
-          revert with 'ds-math-add-overflow'
-      assert 10000 * _113 + 9975 * mem[32 * idx + 32 * path.length + 192]
-      assert idx + 1 < mem[32 * path.length + 160]
-      mem[32 * (idx + 1) + 32 * path.length + 192] = _124 / (10000 * _113 + 9975 * mem[32 * idx + 32 * path.length + 192])
-      _71 = mem[128]
-      idx = idx + 1
-      continue
-  mem[mem[64]] = 32
-  mem[mem[64] + 32] = mem[32 * path.length + 160]
-  _78 = mem[32 * path.length + 160]
-  mem[mem[64] + 64 len 32 * mem[32 * path.length + 160]] = mem[32 * path.length + 192 len 32 * mem[32 * path.length + 160]]
-  return 32, mem[mem[64] + 32 len 32 * _78 + 32]
-
 def getAmountsIn(uint256 amountOut, address[] path): # not payable
   require calldata.size - 4 >= 64
   require path <= 4294967296
@@ -604,15 +608,12 @@ def getAmountsIn(uint256 amountOut, address[] path): # not payable
           revert with 'ds-math-mul-overflow'
       if 10000 * _125 / 10000 != _125:
           revert with 'ds-math-mul-overflow'
-      if _117 - mem[32 * s + 32 * path.length + 192] > _117:
-          revert with 'ds-math-sub-underflow'
-      if (9975 * _117 - 9975 * mem[32 * s + 32 * path.length + 192]) / 9975 != _117 - mem[32 * s + 32 * path.length + 192]:
+      if (9975 * _117 - 9975 * mem[32 * s + 32 * path.length + 192]) / 9975 != SafeMath.sub(_117, mem[32 * s + 32 * path.length + 192]):
           revert with 'ds-math-mul-overflow'
-      assert 9975 * _117 - 9975 * mem[32 * s + 32 * path.length + 192]
-      if 10000 * _125 / (9975 * _117 - 9975 * mem[32 * s + 32 * path.length + 192]) + 1 < 10000 * _125 / (9975 * _117 - 9975 * mem[32 * s + 32 * path.length + 192]):
+      if SafeMath.div(10000 * _125, 9975 * _117 - 9975 * mem[32 * s + 32 * path.length + 192]) + 1 < SafeMath.div(10000 * _125, 9975 * _117 - 9975 * mem[32 * s + 32 * path.length + 192]):
           revert with 'ds-math-add-overflow'
       assert s - 1 < mem[32 * path.length + 160]
-      mem[32 * (s - 1) + 32 * path.length + 192] = 10000 * _125 / (9975 * _117 - 9975 * mem[32 * s + 32 * path.length + 192]) + 1
+      mem[32 * (s - 1) + 32 * path.length + 192] = SafeMath.div(10000 * _125, 9975 * _117 - 9975 * mem[32 * s + 32 * path.length + 192]) + 1
       s = s - 1
       continue
   mem[mem[64]] = 32
@@ -1004,14 +1005,12 @@ def swapExactETHForTokensSupportingFeeOnTransferTokens(uint256 amountOutMin, add
       if not ext_call.success:
           revert with ext_call.return_data[0 len return_data.size]
       require return_data.size >= 32
-      if ext_call.return_data[0] - _133 > ext_call.return_data[0]:
-          revert with 'ds-math-sub-underflow'
-      if ext_call.return_data[0] - _133 <= 0:
+      if SafeMath.sub(ext_call.return_data[0], _133) <= 0:
           revert with Error(string reason), 32, 41, 'PancakeLibrary: INSUFFICIENT_INPUT_AMOUNT', mem[_122 + 298 len 23]
       _143 = _133 > 0 and _134 > 0
       if not _143:
           revert with Error(string reason), 32, 38, 'PancakeLibrary: INSUFFICIENT_LIQUIDITY', mem[_122 + 295 len 26]
-      if (9975 * ext_call.return_data[0] - 9975 * _133) / 9975 != ext_call.return_data[0] - _133:
+      if (9975 * ext_call.return_data[0] - 9975 * _133) / 9975 != SafeMath.sub(ext_call.return_data[0], _133):
           revert with 'ds-math-mul-overflow'
       if not _134:
           _148 = 0
@@ -1021,9 +1020,7 @@ def swapExactETHForTokensSupportingFeeOnTransferTokens(uint256 amountOutMin, add
           _149 = (9975 * ext_call.return_data[0] * _134 - 9975 * _133 * _134) / _134 == 9975 * ext_call.return_data[0] - 9975 * _133
       if not _149:
           revert with 'ds-math-mul-overflow'
-      if 10000 * _133 / 10000 != _133:
-          revert with 'ds-math-mul-overflow'
-      if 25 * _133 + 9975 * ext_call.return_data[0] < 10000 * _133:
+      if 25 * _133 + 9975 * ext_call.return_data[0] < SafeMath.mul(10000, _133):
           revert with 'ds-math-add-overflow'
       assert 25 * _133 + 9975 * ext_call.return_data[0]
       if address(_101) == address(_110):
@@ -1091,9 +1088,7 @@ def swapExactETHForTokensSupportingFeeOnTransferTokens(uint256 amountOutMin, add
   if not ext_call.success:
       revert with ext_call.return_data[0 len return_data.size]
   require return_data.size >= 32
-  if ext_call.return_data[0] - _6 > ext_call.return_data[0]:
-      revert with 'ds-math-sub-underflow'
-  if ext_call.return_data[0] - _6 < amountOutMin:
+  if SafeMath.sub(ext_call.return_data[0], _6) < amountOutMin:
       revert with Error(string reason), 32, 41, 'PancakeRouter: INSUFFICIENT_OUTPUT_AMOUNT', mem[mem[64] + 109 len 23]
 
 def addLiquidity(address tokenA, address tokenB, uint256 amountADesired, uint256 amountBDesired, uint256 amountAMin, uint256 amountBMin, address to, uint256 deadline): # not payable
@@ -1182,8 +1177,7 @@ def addLiquidity(address tokenA, address tokenB, uint256 amountADesired, uint256
           _21 = amountADesired * _15 / _15 == amountADesired
       if not _21:
           revert with 'ds-math-mul-overflow'
-      assert _14
-      if _20 / _14 > amountBDesired:
+      if SafeMath.div(_20, _14) > amountBDesired:
           if amountBDesired <= 0:
               revert with Error(string reason), 32, 35, 'PancakeLibrary: INSUFFICIENT_AMOUNT', mem[609 len 29]
           _28 = _15 > 0 and _14 > 0
@@ -1191,17 +1185,16 @@ def addLiquidity(address tokenA, address tokenB, uint256 amountADesired, uint256
               revert with Error(string reason), 32, 38, 'PancakeLibrary: INSUFFICIENT_LIQUIDITY', mem[612 len 26]
           if amountBDesired * _14 / _14 != amountBDesired:
               revert with 'ds-math-mul-overflow'
-          assert _15
-          assert amountBDesired * _14 / _15 <= amountADesired
-          if amountBDesired * _14 / _15 < amountAMin:
+          assert SafeMath.div(amountBDesired * _14, _15) <= amountADesired
+          if SafeMath.div(amountBDesired * _14, _15) < amountAMin:
               revert with Error(string reason), 32, 36, 'PancakeRouter: INSUFFICIENT_A_AMOUNT', mem[610 len 28]
-          _52 = amountBDesired * _14 / _15
+          _52 = SafeMath.div(amountBDesired * _14, _15)
           _53 = amountBDesired
       else:
-          if _20 / _14 < amountBMin:
+          if SafeMath.div(_20, _14) < amountBMin:
               revert with Error(string reason), 32, 36, 'PancakeRouter: INSUFFICIENT_B_AMOUNT', mem[610 len 28]
           _52 = amountADesired
-          _53 = _20 / _14
+          _53 = SafeMath.div(_20, _14)
       _58 = _52
       _59 = _53
   else:
@@ -1379,8 +1372,7 @@ def addLiquidityETH(address token, uint256 amountTokenDesired, uint256 amountTok
           _21 = amountTokenDesired * _15 / _15 == amountTokenDesired
       if not _21:
           revert with 'ds-math-mul-overflow'
-      assert _14
-      if _20 / _14 > call.value:
+      if SafeMath.div(_20, _14) > call.value:
           if call.value <= 0:
               revert with Error(string reason), 32, 35, 'PancakeLibrary: INSUFFICIENT_AMOUNT', mem[609 len 29]
           _28 = _15 > 0 and _14 > 0
@@ -1388,17 +1380,16 @@ def addLiquidityETH(address token, uint256 amountTokenDesired, uint256 amountTok
               revert with Error(string reason), 32, 38, 'PancakeLibrary: INSUFFICIENT_LIQUIDITY', mem[612 len 26]
           if call.value * _14 / _14 != call.value:
               revert with 'ds-math-mul-overflow'
-          assert _15
-          assert call.value * _14 / _15 <= amountTokenDesired
-          if call.value * _14 / _15 < amountTokenMin:
+          assert SafeMath.div(call.value * _14, _15) <= amountTokenDesired
+          if SafeMath.div(call.value * _14, _15) < amountTokenMin:
               revert with Error(string reason), 32, 36, 'PancakeRouter: INSUFFICIENT_A_AMOUNT', mem[610 len 28]
-          _48 = call.value * _14 / _15
+          _48 = SafeMath.div(call.value * _14, _15)
           _49 = call.value
       else:
-          if _20 / _14 < amountETHMin:
+          if SafeMath.div(_20, _14) < amountETHMin:
               revert with Error(string reason), 32, 36, 'PancakeRouter: INSUFFICIENT_B_AMOUNT', mem[610 len 28]
           _48 = amountTokenDesired
-          _49 = _20 / _14
+          _49 = SafeMath.div(_20, _14)
       _51 = _48
       _52 = _49
   else:
@@ -1628,14 +1619,12 @@ def swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256 amountIn, uint
       if not ext_call.success:
           revert with ext_call.return_data[0 len return_data.size]
       require return_data.size >= 32
-      if ext_call.return_data[0] - _150 > ext_call.return_data[0]:
-          revert with 'ds-math-sub-underflow'
-      if ext_call.return_data[0] - _150 <= 0:
+      if SafeMath.sub(ext_call.return_data[0], _150) <= 0:
           revert with Error(string reason), 32, 41, 'PancakeLibrary: INSUFFICIENT_INPUT_AMOUNT', mem[_139 + 298 len 23]
       _160 = _150 > 0 and _151 > 0
       if not _160:
           revert with Error(string reason), 32, 38, 'PancakeLibrary: INSUFFICIENT_LIQUIDITY', mem[_139 + 295 len 26]
-      if (9975 * ext_call.return_data[0] - 9975 * _150) / 9975 != ext_call.return_data[0] - _150:
+      if (9975 * ext_call.return_data[0] - 9975 * _150) / 9975 != SafeMath.sub(ext_call.return_data[0], _150):
           revert with 'ds-math-mul-overflow'
       if not _151:
           _165 = 0
@@ -1645,9 +1634,7 @@ def swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256 amountIn, uint
           _166 = (9975 * ext_call.return_data[0] * _151 - 9975 * _150 * _151) / _151 == 9975 * ext_call.return_data[0] - 9975 * _150
       if not _166:
           revert with 'ds-math-mul-overflow'
-      if 10000 * _150 / 10000 != _150:
-          revert with 'ds-math-mul-overflow'
-      if 25 * _150 + 9975 * ext_call.return_data[0] < 10000 * _150:
+      if 25 * _150 + 9975 * ext_call.return_data[0] < SafeMath.mul(10000, _150):
           revert with 'ds-math-add-overflow'
       assert 25 * _150 + 9975 * ext_call.return_data[0]
       if address(_118) == address(_127):
@@ -1715,9 +1702,7 @@ def swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256 amountIn, uint
   if not ext_call.success:
       revert with ext_call.return_data[0 len return_data.size]
   require return_data.size >= 32
-  if ext_call.return_data[0] - _22 > ext_call.return_data[0]:
-      revert with 'ds-math-sub-underflow'
-  if ext_call.return_data[0] - _22 < amountOutMin:
+  if SafeMath.sub(ext_call.return_data[0], _22) < amountOutMin:
       revert with Error(string reason), 32, 41, 'PancakeRouter: INSUFFICIENT_OUTPUT_AMOUNT', mem[mem[64] + 109 len 23]
 
 def swapExactTokensForETHSupportingFeeOnTransferTokens(uint256 amountIn, uint256 amountOutMin, address[] path, address to, uint256 deadline): # not payable
@@ -1846,14 +1831,12 @@ def swapExactTokensForETHSupportingFeeOnTransferTokens(uint256 amountIn, uint256
       if not ext_call.success:
           revert with ext_call.return_data[0 len return_data.size]
       require return_data.size >= 32
-      if ext_call.return_data[0] - _174 > ext_call.return_data[0]:
-          revert with 'ds-math-sub-underflow'
-      if ext_call.return_data[0] - _174 <= 0:
+      if SafeMath.sub(ext_call.return_data[0], _174) <= 0:
           revert with Error(string reason), 32, 41, 'PancakeLibrary: INSUFFICIENT_INPUT_AMOUNT', mem[_163 + 298 len 23]
       _184 = _174 > 0 and _175 > 0
       if not _184:
           revert with Error(string reason), 32, 38, 'PancakeLibrary: INSUFFICIENT_LIQUIDITY', mem[_163 + 295 len 26]
-      if (9975 * ext_call.return_data[0] - 9975 * _174) / 9975 != ext_call.return_data[0] - _174:
+      if (9975 * ext_call.return_data[0] - 9975 * _174) / 9975 != SafeMath.sub(ext_call.return_data[0], _174):
           revert with 'ds-math-mul-overflow'
       if not _175:
           _189 = 0
@@ -1863,9 +1846,7 @@ def swapExactTokensForETHSupportingFeeOnTransferTokens(uint256 amountIn, uint256
           _190 = (9975 * ext_call.return_data[0] * _175 - 9975 * _174 * _175) / _175 == 9975 * ext_call.return_data[0] - 9975 * _174
       if not _190:
           revert with 'ds-math-mul-overflow'
-      if 10000 * _174 / 10000 != _174:
-          revert with 'ds-math-mul-overflow'
-      if 25 * _174 + 9975 * ext_call.return_data[0] < 10000 * _174:
+      if 25 * _174 + 9975 * ext_call.return_data[0] < SafeMath.mul(10000, _174):
           revert with 'ds-math-add-overflow'
       assert 25 * _174 + 9975 * ext_call.return_data[0]
       if address(_130) == address(_141):
@@ -2062,13 +2043,9 @@ def swapExactETHForTokens(uint256 amountOutMin, address[] path, address to, uint
           _286 = 9975 * mem[32 * idx + 32 * path.length + 192] * _239 / _239 == 9975 * mem[32 * idx + 32 * path.length + 192]
       if not _286:
           revert with 'ds-math-mul-overflow'
-      if 10000 * _238 / 10000 != _238:
-          revert with 'ds-math-mul-overflow'
-      if 10000 * _238 + 9975 * mem[32 * idx + 32 * path.length + 192] < 10000 * _238:
-          revert with 'ds-math-add-overflow'
-      assert 10000 * _238 + 9975 * mem[32 * idx + 32 * path.length + 192]
+      assert SafeMath.add(SafeMath.mul(10000, _238), 9975 * mem[32 * idx + 32 * path.length + 192])
       assert idx + 1 < mem[32 * path.length + 160]
-      mem[32 * (idx + 1) + 32 * path.length + 192] = _285 / (10000 * _238 + 9975 * mem[32 * idx + 32 * path.length + 192])
+      mem[32 * (idx + 1) + 32 * path.length + 192] = _285 / SafeMath.add(SafeMath.mul(10000, _238), 9975 * mem[32 * idx + 32 * path.length + 192])
       _161 = mem[128]
       idx = idx + 1
       continue
@@ -2318,13 +2295,9 @@ def swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin, address[] p
           _285 = 9975 * mem[32 * idx + 32 * path.length + 192] * _249 / _249 == 9975 * mem[32 * idx + 32 * path.length + 192]
       if not _285:
           revert with 'ds-math-mul-overflow'
-      if 10000 * _248 / 10000 != _248:
-          revert with 'ds-math-mul-overflow'
-      if 10000 * _248 + 9975 * mem[32 * idx + 32 * path.length + 192] < 10000 * _248:
-          revert with 'ds-math-add-overflow'
-      assert 10000 * _248 + 9975 * mem[32 * idx + 32 * path.length + 192]
+      assert SafeMath.add(SafeMath.mul(10000, _248), 9975 * mem[32 * idx + 32 * path.length + 192])
       assert idx + 1 < mem[32 * path.length + 160]
-      mem[32 * (idx + 1) + 32 * path.length + 192] = _284 / (10000 * _248 + 9975 * mem[32 * idx + 32 * path.length + 192])
+      mem[32 * (idx + 1) + 32 * path.length + 192] = _284 / SafeMath.add(SafeMath.mul(10000, _248), 9975 * mem[32 * idx + 32 * path.length + 192])
       _170 = mem[128]
       idx = idx + 1
       continue
@@ -2586,15 +2559,12 @@ def swapTokensForExactTokens(uint256 amountOut, uint256 amountInMax, address[] p
           revert with 'ds-math-mul-overflow'
       if 10000 * _279 / 10000 != _279:
           revert with 'ds-math-mul-overflow'
-      if _251 - mem[32 * s + 32 * path.length + 192] > _251:
-          revert with 'ds-math-sub-underflow'
-      if (9975 * _251 - 9975 * mem[32 * s + 32 * path.length + 192]) / 9975 != _251 - mem[32 * s + 32 * path.length + 192]:
+      if (9975 * _251 - 9975 * mem[32 * s + 32 * path.length + 192]) / 9975 != SafeMath.sub(_251, mem[32 * s + 32 * path.length + 192]):
           revert with 'ds-math-mul-overflow'
-      assert 9975 * _251 - 9975 * mem[32 * s + 32 * path.length + 192]
-      if 10000 * _279 / (9975 * _251 - 9975 * mem[32 * s + 32 * path.length + 192]) + 1 < 10000 * _279 / (9975 * _251 - 9975 * mem[32 * s + 32 * path.length + 192]):
+      if SafeMath.div(10000 * _279, 9975 * _251 - 9975 * mem[32 * s + 32 * path.length + 192]) + 1 < SafeMath.div(10000 * _279, 9975 * _251 - 9975 * mem[32 * s + 32 * path.length + 192]):
           revert with 'ds-math-add-overflow'
       assert s - 1 < mem[32 * path.length + 160]
-      mem[32 * (s - 1) + 32 * path.length + 192] = 10000 * _279 / (9975 * _251 - 9975 * mem[32 * s + 32 * path.length + 192]) + 1
+      mem[32 * (s - 1) + 32 * path.length + 192] = SafeMath.div(10000 * _279, 9975 * _251 - 9975 * mem[32 * s + 32 * path.length + 192]) + 1
       s = s - 1
       continue
   assert 0 < mem[32 * path.length + 160]
@@ -2858,15 +2828,12 @@ def swapETHForExactTokens(uint256 amountOut, address[] path, address to, uint256
           revert with 'ds-math-mul-overflow'
       if 10000 * _311 / 10000 != _311:
           revert with 'ds-math-mul-overflow'
-      if _271 - mem[32 * s + 32 * path.length + 192] > _271:
-          revert with 'ds-math-sub-underflow'
-      if (9975 * _271 - 9975 * mem[32 * s + 32 * path.length + 192]) / 9975 != _271 - mem[32 * s + 32 * path.length + 192]:
+      if (9975 * _271 - 9975 * mem[32 * s + 32 * path.length + 192]) / 9975 != SafeMath.sub(_271, mem[32 * s + 32 * path.length + 192]):
           revert with 'ds-math-mul-overflow'
-      assert 9975 * _271 - 9975 * mem[32 * s + 32 * path.length + 192]
-      if 10000 * _311 / (9975 * _271 - 9975 * mem[32 * s + 32 * path.length + 192]) + 1 < 10000 * _311 / (9975 * _271 - 9975 * mem[32 * s + 32 * path.length + 192]):
+      if SafeMath.div(10000 * _311, 9975 * _271 - 9975 * mem[32 * s + 32 * path.length + 192]) + 1 < SafeMath.div(10000 * _311, 9975 * _271 - 9975 * mem[32 * s + 32 * path.length + 192]):
           revert with 'ds-math-add-overflow'
       assert s - 1 < mem[32 * path.length + 160]
-      mem[32 * (s - 1) + 32 * path.length + 192] = 10000 * _311 / (9975 * _271 - 9975 * mem[32 * s + 32 * path.length + 192]) + 1
+      mem[32 * (s - 1) + 32 * path.length + 192] = SafeMath.div(10000 * _311, 9975 * _271 - 9975 * mem[32 * s + 32 * path.length + 192]) + 1
       s = s - 1
       continue
   assert 0 < mem[32 * path.length + 160]
@@ -3137,13 +3104,9 @@ def swapExactTokensForETH(uint256 amountIn, uint256 amountOutMin, address[] path
           _325 = 9975 * mem[32 * idx + 32 * path.length + 192] * _271 / _271 == 9975 * mem[32 * idx + 32 * path.length + 192]
       if not _325:
           revert with 'ds-math-mul-overflow'
-      if 10000 * _270 / 10000 != _270:
-          revert with 'ds-math-mul-overflow'
-      if 10000 * _270 + 9975 * mem[32 * idx + 32 * path.length + 192] < 10000 * _270:
-          revert with 'ds-math-add-overflow'
-      assert 10000 * _270 + 9975 * mem[32 * idx + 32 * path.length + 192]
+      assert SafeMath.add(SafeMath.mul(10000, _270), 9975 * mem[32 * idx + 32 * path.length + 192])
       assert idx + 1 < mem[32 * path.length + 160]
-      mem[32 * (idx + 1) + 32 * path.length + 192] = _324 / (10000 * _270 + 9975 * mem[32 * idx + 32 * path.length + 192])
+      mem[32 * (idx + 1) + 32 * path.length + 192] = _324 / SafeMath.add(SafeMath.mul(10000, _270), 9975 * mem[32 * idx + 32 * path.length + 192])
       _192 = mem[128]
       idx = idx + 1
       continue
@@ -3435,15 +3398,12 @@ def swapTokensForExactETH(uint256 amountOut, uint256 amountInMax, address[] path
           revert with 'ds-math-mul-overflow'
       if 10000 * _308 / 10000 != _308:
           revert with 'ds-math-mul-overflow'
-      if _273 - mem[32 * s + 32 * path.length + 192] > _273:
-          revert with 'ds-math-sub-underflow'
-      if (9975 * _273 - 9975 * mem[32 * s + 32 * path.length + 192]) / 9975 != _273 - mem[32 * s + 32 * path.length + 192]:
+      if (9975 * _273 - 9975 * mem[32 * s + 32 * path.length + 192]) / 9975 != SafeMath.sub(_273, mem[32 * s + 32 * path.length + 192]):
           revert with 'ds-math-mul-overflow'
-      assert 9975 * _273 - 9975 * mem[32 * s + 32 * path.length + 192]
-      if 10000 * _308 / (9975 * _273 - 9975 * mem[32 * s + 32 * path.length + 192]) + 1 < 10000 * _308 / (9975 * _273 - 9975 * mem[32 * s + 32 * path.length + 192]):
+      if SafeMath.div(10000 * _308, 9975 * _273 - 9975 * mem[32 * s + 32 * path.length + 192]) + 1 < SafeMath.div(10000 * _308, 9975 * _273 - 9975 * mem[32 * s + 32 * path.length + 192]):
           revert with 'ds-math-add-overflow'
       assert s - 1 < mem[32 * path.length + 160]
-      mem[32 * (s - 1) + 32 * path.length + 192] = 10000 * _308 / (9975 * _273 - 9975 * mem[32 * s + 32 * path.length + 192]) + 1
+      mem[32 * (s - 1) + 32 * path.length + 192] = SafeMath.div(10000 * _308, 9975 * _273 - 9975 * mem[32 * s + 32 * path.length + 192]) + 1
       s = s - 1
       continue
   assert 0 < mem[32 * path.length + 160]

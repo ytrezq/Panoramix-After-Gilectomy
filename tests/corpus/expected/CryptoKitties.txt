@@ -29,6 +29,11 @@ def storage:
   gen0CreatedCount is uint256 at storage 18
   newContractAddress is address at storage 19
 
+def SafeMath:
+  def div(a, b):
+      assert b
+      return a / b
+
 def cfoAddress(): # not payable
   return cfoAddress
 
@@ -565,17 +570,15 @@ def breedWithAuto(uint256 _matronId, uint256 _sireId) payable:
       require _36
   uint32(kitty[2 * _matronId + 1].field_192) = uint32(_sireId)
   assert uint16(kitty[2 * _sireId + 1].field_224) < 14
-  assert secondsPerBlock
   _64 = kitty[2 * _sireId + 1]
   _65 = uint64(kitty[2 * _sireId + 1].field_0)
-  uint64(kitty[2 * _sireId + 1].field_64) = uint64((Mask(32, 32 * (uint3(kitty[2 * _sireId + 1].field_224) % 8), stor[uint13(kitty[2 * _sireId + 1].field_227) + 3]) >> 32 * (uint3(kitty[2 * _sireId + 1].field_224) % 8)) / secondsPerBlock + block.number)
+  uint64(kitty[2 * _sireId + 1].field_64) = uint64(SafeMath.div(Mask(32, 32 * (uint3(kitty[2 * _sireId + 1].field_224) % 8), stor[uint13(kitty[2 * _sireId + 1].field_227) + 3]) >> 32 * (uint3(kitty[2 * _sireId + 1].field_224) % 8), secondsPerBlock) + block.number)
   if uint16(_64 >> 224) | uint16(_65 >> 224) < 13:
       uint16(kitty[2 * _sireId + 1].field_224) = uint16(uint16(kitty[2 * _sireId + 1].field_224) + 1)
   assert uint16(kitty[2 * _matronId + 1].field_224) < 14
-  assert secondsPerBlock
   _72 = kitty[2 * _matronId + 1]
   _73 = uint64(kitty[2 * _matronId + 1].field_0)
-  uint64(kitty[2 * _matronId + 1].field_64) = uint64((Mask(32, 32 * (uint3(kitty[2 * _matronId + 1].field_224) % 8), stor[uint13(kitty[2 * _matronId + 1].field_227) + 3]) >> 32 * (uint3(kitty[2 * _matronId + 1].field_224) % 8)) / secondsPerBlock + block.number)
+  uint64(kitty[2 * _matronId + 1].field_64) = uint64(SafeMath.div(Mask(32, 32 * (uint3(kitty[2 * _matronId + 1].field_224) % 8), stor[uint13(kitty[2 * _matronId + 1].field_227) + 3]) >> 32 * (uint3(kitty[2 * _matronId + 1].field_224) % 8), secondsPerBlock) + block.number)
   if uint16(_72 >> 224) | uint16(_73 >> 224) < 13:
       uint16(kitty[2 * _matronId + 1].field_224) = uint16(uint16(kitty[2 * _matronId + 1].field_224) + 1)
   sireAllowedToAddress[_matronId] = 0
@@ -632,17 +635,15 @@ def bidOnSiringAuction(uint256 _sireId, uint256 _matronId) payable:
   assert uint32(_matronId) < kitty.length
   uint32(kitty[2 * uint32(_matronId) + 1].field_192) = uint32(_sireId)
   assert uint16(kitty[2 * uint32(_sireId) + 1].field_224) < 14
-  assert secondsPerBlock
   _44 = kitty[2 * uint32(_sireId) + 1]
   _45 = uint64(kitty[2 * uint32(_sireId) + 1].field_0)
-  uint64(kitty[2 * uint32(_sireId) + 1].field_64) = uint64((Mask(32, 32 * (uint3(kitty[2 * uint32(_sireId) + 1].field_224) % 8), stor[uint13(kitty[2 * uint32(_sireId) + 1].field_227) + 3]) >> 32 * (uint3(kitty[2 * uint32(_sireId) + 1].field_224) % 8)) / secondsPerBlock + block.number)
+  uint64(kitty[2 * uint32(_sireId) + 1].field_64) = uint64(SafeMath.div(Mask(32, 32 * (uint3(kitty[2 * uint32(_sireId) + 1].field_224) % 8), stor[uint13(kitty[2 * uint32(_sireId) + 1].field_227) + 3]) >> 32 * (uint3(kitty[2 * uint32(_sireId) + 1].field_224) % 8), secondsPerBlock) + block.number)
   if uint16(_44 >> 224) | uint16(_45 >> 224) < 13:
       uint16(kitty[2 * uint32(_sireId) + 1].field_224) = uint16(uint16(kitty[2 * uint32(_sireId) + 1].field_224) + 1)
   assert uint16(kitty[2 * uint32(_matronId) + 1].field_224) < 14
-  assert secondsPerBlock
   _52 = kitty[2 * uint32(_matronId) + 1]
   _53 = uint64(kitty[2 * uint32(_matronId) + 1].field_0)
-  uint64(kitty[2 * uint32(_matronId) + 1].field_64) = uint64((Mask(32, 32 * (uint3(kitty[2 * uint32(_matronId) + 1].field_224) % 8), stor[uint13(kitty[2 * uint32(_matronId) + 1].field_227) + 3]) >> 32 * (uint3(kitty[2 * uint32(_matronId) + 1].field_224) % 8)) / secondsPerBlock + block.number)
+  uint64(kitty[2 * uint32(_matronId) + 1].field_64) = uint64(SafeMath.div(Mask(32, 32 * (uint3(kitty[2 * uint32(_matronId) + 1].field_224) % 8), stor[uint13(kitty[2 * uint32(_matronId) + 1].field_227) + 3]) >> 32 * (uint3(kitty[2 * uint32(_matronId) + 1].field_224) % 8), secondsPerBlock) + block.number)
   if uint16(_52 >> 224) | uint16(_53 >> 224) < 13:
       uint16(kitty[2 * uint32(_matronId) + 1].field_224) = uint16(uint16(kitty[2 * uint32(_matronId) + 1].field_224) + 1)
   sireAllowedToAddress[uint32(_matronId)] = 0

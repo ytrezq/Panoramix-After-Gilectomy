@@ -104,6 +104,7 @@ step matcher python3 tests/test_matcher.py $seed 2000
 step stack python3 tests/test_stack.py $seed
 step prettify_random python3 tests/test_prettify_random.py $seed 500
 step fold_random python3 tests/test_fold_random.py $seed 1000
+step safemath python3 tests/test_safemath.py $seed 2000
 step function_random python3 tests/test_function_random.py $seed 300
 step postprocess python3 tests/test_postprocess.py $seed 1000
 step trace_random with PANORAMIX_CHECK_LCA=1 python3 tests/test_trace_random.py $seed 150

@@ -29,6 +29,16 @@ def storage:
   nonces is mapping of uint256 at storage 17
   stor18 is uint8 at storage 18
 
+def SafeMath:
+  def add(a, b):
+      if a + b < a:
+          revert with 'SafeMath: addition overflow'
+      return a + b
+  def sub(a, b):
+      if b > a:
+          revert with 'SafeMath: subtraction overflow'
+      return a - b
+
 def totalSupply(): # not payable
   return totalSupply
 
@@ -241,6 +251,32 @@ def increaseAllowance(address spender, uint256 addedValue): # not payable
         uint256 value=addedValue + _5)
   return 1
 
+def burn(uint256 _value): # not payable
+  require calldata.size - 4 >= 32
+  if paused:
+      revert with 'Pausable: paused'
+  if not isMinter[caller]:
+      revert with Error(string reason), 32, 33, 'FiatToken: caller is not a minter', mem[229 len 31]
+  if balanceOf[caller].field_255:
+      revert with Error(string reason), 32, 37, 'Blacklistable: account is blacklisted', mem[233 len 27]
+  if _value <= 0:
+      revert with Error(string reason), 32, 41, 'FiatToken: burn amount not greater than 0', mem[237 len 23]
+  if uint255(balanceOf[caller].field_0) < _value:
+      revert with Error(string reason), 32, 38, 'FiatToken: burn amount exceeds balance', mem[234 len 26]
+  totalSupply = SafeMath.sub(totalSupply, _value)
+  if SafeMath.sub(uint255(balanceOf[caller].field_0), _value) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
+      revert with Error(string reason), 32, 42, 'FiatTokenV2_2: Balance exceeds (2^255 - 1)', mem[238 len 22]
+  if balanceOf[caller].field_255:
+      revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[233 len 27]
+  balanceOf[caller] = SafeMath.sub(uint255(balanceOf[caller].field_0), _value)
+  log Burn(
+        address indexed from=caller,
+        uint256 value=_value)
+  log Transfer(
+        address indexed from=caller,
+        address indexed to=0,
+        uint256 value=_value)
+
 def DOMAIN_SEPARATOR(): # not payable
   mem[64] = ceil32(name.length) + 160
   mem[128] = name.length
@@ -275,36 +311,6 @@ def DOMAIN_SEPARATOR(): # not payable
   return memory
     from mem[64]
      len _18 - mem[64] + 224
-
-def burn(uint256 _value): # not payable
-  require calldata.size - 4 >= 32
-  if paused:
-      revert with 'Pausable: paused'
-  if not isMinter[caller]:
-      revert with Error(string reason), 32, 33, 'FiatToken: caller is not a minter', mem[229 len 31]
-  if balanceOf[caller].field_255:
-      revert with Error(string reason), 32, 37, 'Blacklistable: account is blacklisted', mem[233 len 27]
-  if _value <= 0:
-      revert with Error(string reason), 32, 41, 'FiatToken: burn amount not greater than 0', mem[237 len 23]
-  if uint255(balanceOf[caller].field_0) < _value:
-      revert with Error(string reason), 32, 38, 'FiatToken: burn amount exceeds balance', mem[234 len 26]
-  if _value > totalSupply:
-      revert with 'SafeMath: subtraction overflow'
-  totalSupply -= _value
-  if _value > uint255(balanceOf[caller].field_0):
-      revert with 'SafeMath: subtraction overflow'
-  if uint255(balanceOf[caller].field_0) - _value > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
-      revert with Error(string reason), 32, 42, 'FiatTokenV2_2: Balance exceeds (2^255 - 1)', mem[238 len 22]
-  if balanceOf[caller].field_255:
-      revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[233 len 27]
-  balanceOf[caller] = uint255(balanceOf[caller].field_0) - _value
-  log Burn(
-        address indexed from=caller,
-        uint256 value=_value)
-  log Transfer(
-        address indexed from=caller,
-        address indexed to=0,
-        uint256 value=_value)
 
 def initializeV2(string newName): # not payable
   require calldata.size - 4 >= 32
@@ -350,36 +356,6 @@ def initializeV2(string newName): # not payable
   stor15 = sha3(0x8b73c3c69bb8fe3d512ecc4cf759cc79239f7b179b0ffacaa9a75d522b39400f, sha3(mem[160 len mem[128]]), sha3('2'), chainid, this.address)
   stor18 = 1
 
-def initializeV2_1(address lostAndFound): # not payable
-  require calldata.size - 4 >= 32
-  require 1 == stor18
-  if uint255(balanceOf[this.address].field_0):
-      if not this.address:
-          revert with Error(string reason), 32, 37, 'ERC20: transfer from the zero address', mem[233 len 27]
-      if not address(lostAndFound):
-          revert with Error(string reason), 32, 35, 'ERC20: transfer to the zero address', mem[231 len 29]
-      if uint255(balanceOf[this.address].field_0) > uint255(balanceOf[this.address].field_0):
-          revert with Error(string reason), 32, 38, 'ERC20: transfer amount exceeds balance', mem[234 len 26]
-      if uint255(balanceOf[this.address].field_0) > uint255(balanceOf[this.address].field_0):
-          revert with 'SafeMath: subtraction overflow'
-      if balanceOf[this.address].field_255:
-          revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[233 len 27]
-      _11 = uint255(balanceOf[this.address].field_0)
-      balanceOf[this.address] = 0
-      if _11 + uint255(balanceOf[address(lostAndFound)].field_0) < uint255(balanceOf[address(lostAndFound)].field_0):
-          revert with 'SafeMath: addition overflow'
-      if _11 + uint255(balanceOf[address(lostAndFound)].field_0) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
-          revert with Error(string reason), 32, 42, 'FiatTokenV2_2: Balance exceeds (2^255 - 1)', mem[238 len 22]
-      if balanceOf[address(lostAndFound)].field_255:
-          revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[233 len 27]
-      balanceOf[address(lostAndFound)] = _11 + uint255(balanceOf[address(lostAndFound)].field_0)
-      log Transfer(
-            address indexed from=this.address,
-            address indexed to=address(lostAndFound),
-            uint256 value=_11)
-  balanceOf[this.address] = 0x8000000000000000000000000000000000000000000000000000000000000000 | balanceOf[this.address]
-  stor18 = 2
-
 def mint(address _to, uint256 _amount): # not payable
   require calldata.size - 4 >= 64
   if paused:
@@ -396,20 +372,14 @@ def mint(address _to, uint256 _amount): # not payable
       revert with Error(string reason), 32, 41, 'FiatToken: mint amount not greater than 0', mem[237 len 23]
   if _amount > minterAllowance[caller]:
       revert with Error(string reason), 32, 46, 'FiatToken: mint amount exceeds minterAllowance', mem[242 len 18]
-  if _amount + totalSupply < totalSupply:
-      revert with 'SafeMath: addition overflow'
   _6 = minterAllowance[caller]
-  totalSupply += _amount
-  if _amount + uint255(balanceOf[address(_to)].field_0) < uint255(balanceOf[address(_to)].field_0):
-      revert with 'SafeMath: addition overflow'
-  if _amount + uint255(balanceOf[address(_to)].field_0) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
+  totalSupply = SafeMath.add(totalSupply, _amount)
+  if SafeMath.add(uint255(balanceOf[address(_to)].field_0), _amount) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
       revert with Error(string reason), 32, 42, 'FiatTokenV2_2: Balance exceeds (2^255 - 1)', mem[238 len 22]
   if balanceOf[address(_to)].field_255:
       revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[233 len 27]
-  balanceOf[address(_to)] = _amount + uint255(balanceOf[address(_to)].field_0)
-  if _amount > _6:
-      revert with 'SafeMath: subtraction overflow'
-  minterAllowance[caller] = _6 - _amount
+  balanceOf[address(_to)] = SafeMath.add(uint255(balanceOf[address(_to)].field_0), _amount)
+  minterAllowance[caller] = SafeMath.sub(_6, _amount)
   log Mint(
         address indexed from=caller,
         address indexed to=address(_to),
@@ -418,6 +388,64 @@ def mint(address _to, uint256 _amount): # not payable
         address indexed from=0,
         address indexed to=address(_to),
         uint256 value=_amount)
+  return 1
+
+def initializeV2_1(address lostAndFound): # not payable
+  require calldata.size - 4 >= 32
+  require 1 == stor18
+  if uint255(balanceOf[this.address].field_0):
+      if not this.address:
+          revert with Error(string reason), 32, 37, 'ERC20: transfer from the zero address', mem[233 len 27]
+      if not address(lostAndFound):
+          revert with Error(string reason), 32, 35, 'ERC20: transfer to the zero address', mem[231 len 29]
+      if uint255(balanceOf[this.address].field_0) > uint255(balanceOf[this.address].field_0):
+          revert with Error(string reason), 32, 38, 'ERC20: transfer amount exceeds balance', mem[234 len 26]
+      if uint255(balanceOf[this.address].field_0) > uint255(balanceOf[this.address].field_0):
+          revert with 'SafeMath: subtraction overflow'
+      if balanceOf[this.address].field_255:
+          revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[233 len 27]
+      _11 = uint255(balanceOf[this.address].field_0)
+      balanceOf[this.address] = 0
+      if SafeMath.add(uint255(balanceOf[address(lostAndFound)].field_0), _11) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
+          revert with Error(string reason), 32, 42, 'FiatTokenV2_2: Balance exceeds (2^255 - 1)', mem[238 len 22]
+      if balanceOf[address(lostAndFound)].field_255:
+          revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[233 len 27]
+      balanceOf[address(lostAndFound)] = SafeMath.add(uint255(balanceOf[address(lostAndFound)].field_0), _11)
+      log Transfer(
+            address indexed from=this.address,
+            address indexed to=address(lostAndFound),
+            uint256 value=_11)
+  balanceOf[this.address] = 0x8000000000000000000000000000000000000000000000000000000000000000 | balanceOf[this.address]
+  stor18 = 2
+
+def transfer(address recipient, uint256 amount): # not payable
+  require calldata.size - 4 >= 64
+  if paused:
+      revert with 'Pausable: paused'
+  if balanceOf[caller].field_255:
+      revert with Error(string reason), 32, 37, 'Blacklistable: account is blacklisted', mem[233 len 27]
+  if balanceOf[address(recipient)].field_255:
+      revert with Error(string reason), 32, 37, 'Blacklistable: account is blacklisted', mem[233 len 27]
+  if not caller:
+      revert with Error(string reason), 32, 37, 'ERC20: transfer from the zero address', mem[233 len 27]
+  if not address(recipient):
+      revert with Error(string reason), 32, 35, 'ERC20: transfer to the zero address', mem[231 len 29]
+  if amount > uint255(balanceOf[caller].field_0):
+      revert with Error(string reason), 32, 38, 'ERC20: transfer amount exceeds balance', mem[234 len 26]
+  if SafeMath.sub(uint255(balanceOf[caller].field_0), amount) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
+      revert with Error(string reason), 32, 42, 'FiatTokenV2_2: Balance exceeds (2^255 - 1)', mem[238 len 22]
+  if balanceOf[caller].field_255:
+      revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[233 len 27]
+  balanceOf[caller] = SafeMath.sub(uint255(balanceOf[caller].field_0), amount)
+  if SafeMath.add(uint255(balanceOf[address(recipient)].field_0), amount) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
+      revert with Error(string reason), 32, 42, 'FiatTokenV2_2: Balance exceeds (2^255 - 1)', mem[238 len 22]
+  if balanceOf[address(recipient)].field_255:
+      revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[233 len 27]
+  balanceOf[address(recipient)] = SafeMath.add(uint255(balanceOf[address(recipient)].field_0), amount)
+  log Transfer(
+        address indexed from=caller,
+        address indexed to=address(recipient),
+        uint256 value=amount)
   return 1
 
 def unknown430239b4(array _param1, array _param2): # not payable
@@ -471,38 +499,39 @@ def unknown430239b4(array _param1, array _param2): # not payable
   stor3[this.address] = 0
   stor18 = 3
 
-def transfer(address recipient, uint256 amount): # not payable
-  require calldata.size - 4 >= 64
+def transferFrom(address sender, address recipient, uint256 amount): # not payable
+  require calldata.size - 4 >= 96
   if paused:
       revert with 'Pausable: paused'
   if balanceOf[caller].field_255:
       revert with Error(string reason), 32, 37, 'Blacklistable: account is blacklisted', mem[233 len 27]
+  if balanceOf[address(sender)].field_255:
+      revert with Error(string reason), 32, 37, 'Blacklistable: account is blacklisted', mem[233 len 27]
   if balanceOf[address(recipient)].field_255:
       revert with Error(string reason), 32, 37, 'Blacklistable: account is blacklisted', mem[233 len 27]
-  if not caller:
+  if amount > allowance[address(sender)][caller]:
+      revert with Error(string reason), 32, 40, 'ERC20: transfer amount exceeds allowance', mem[236 len 24]
+  if not address(sender):
       revert with Error(string reason), 32, 37, 'ERC20: transfer from the zero address', mem[233 len 27]
   if not address(recipient):
       revert with Error(string reason), 32, 35, 'ERC20: transfer to the zero address', mem[231 len 29]
-  if amount > uint255(balanceOf[caller].field_0):
+  if amount > uint255(balanceOf[address(sender)].field_0):
       revert with Error(string reason), 32, 38, 'ERC20: transfer amount exceeds balance', mem[234 len 26]
-  if amount > uint255(balanceOf[caller].field_0):
-      revert with 'SafeMath: subtraction overflow'
-  if uint255(balanceOf[caller].field_0) - amount > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
+  if SafeMath.sub(uint255(balanceOf[address(sender)].field_0), amount) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
       revert with Error(string reason), 32, 42, 'FiatTokenV2_2: Balance exceeds (2^255 - 1)', mem[238 len 22]
-  if balanceOf[caller].field_255:
+  if balanceOf[address(sender)].field_255:
       revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[233 len 27]
-  balanceOf[caller] = uint255(balanceOf[caller].field_0) - amount
-  if amount + uint255(balanceOf[address(recipient)].field_0) < uint255(balanceOf[address(recipient)].field_0):
-      revert with 'SafeMath: addition overflow'
-  if amount + uint255(balanceOf[address(recipient)].field_0) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
+  balanceOf[address(sender)] = SafeMath.sub(uint255(balanceOf[address(sender)].field_0), amount)
+  if SafeMath.add(uint255(balanceOf[address(recipient)].field_0), amount) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
       revert with Error(string reason), 32, 42, 'FiatTokenV2_2: Balance exceeds (2^255 - 1)', mem[238 len 22]
   if balanceOf[address(recipient)].field_255:
       revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[233 len 27]
-  balanceOf[address(recipient)] = amount + uint255(balanceOf[address(recipient)].field_0)
+  balanceOf[address(recipient)] = SafeMath.add(uint255(balanceOf[address(recipient)].field_0), amount)
   log Transfer(
-        address indexed from=caller,
+        address indexed from=address(sender),
         address indexed to=address(recipient),
         uint256 value=amount)
+  allowance[address(sender)][caller] = SafeMath.sub(allowance[address(sender)][caller], amount)
   return 1
 
 def rescueERC20(address tokenContract, address to, uint256 amount): # not payable
@@ -566,47 +595,6 @@ def rescueERC20(address tokenContract, address to, uint256 amount): # not payabl
   revert with memory
     from mem[64]
      len floor32(_10) + _8 - mem[64] + 100
-
-def transferFrom(address sender, address recipient, uint256 amount): # not payable
-  require calldata.size - 4 >= 96
-  if paused:
-      revert with 'Pausable: paused'
-  if balanceOf[caller].field_255:
-      revert with Error(string reason), 32, 37, 'Blacklistable: account is blacklisted', mem[233 len 27]
-  if balanceOf[address(sender)].field_255:
-      revert with Error(string reason), 32, 37, 'Blacklistable: account is blacklisted', mem[233 len 27]
-  if balanceOf[address(recipient)].field_255:
-      revert with Error(string reason), 32, 37, 'Blacklistable: account is blacklisted', mem[233 len 27]
-  if amount > allowance[address(sender)][caller]:
-      revert with Error(string reason), 32, 40, 'ERC20: transfer amount exceeds allowance', mem[236 len 24]
-  if not address(sender):
-      revert with Error(string reason), 32, 37, 'ERC20: transfer from the zero address', mem[233 len 27]
-  if not address(recipient):
-      revert with Error(string reason), 32, 35, 'ERC20: transfer to the zero address', mem[231 len 29]
-  if amount > uint255(balanceOf[address(sender)].field_0):
-      revert with Error(string reason), 32, 38, 'ERC20: transfer amount exceeds balance', mem[234 len 26]
-  if amount > uint255(balanceOf[address(sender)].field_0):
-      revert with 'SafeMath: subtraction overflow'
-  if uint255(balanceOf[address(sender)].field_0) - amount > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
-      revert with Error(string reason), 32, 42, 'FiatTokenV2_2: Balance exceeds (2^255 - 1)', mem[238 len 22]
-  if balanceOf[address(sender)].field_255:
-      revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[233 len 27]
-  balanceOf[address(sender)] = uint255(balanceOf[address(sender)].field_0) - amount
-  if amount + uint255(balanceOf[address(recipient)].field_0) < uint255(balanceOf[address(recipient)].field_0):
-      revert with 'SafeMath: addition overflow'
-  if amount + uint255(balanceOf[address(recipient)].field_0) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
-      revert with Error(string reason), 32, 42, 'FiatTokenV2_2: Balance exceeds (2^255 - 1)', mem[238 len 22]
-  if balanceOf[address(recipient)].field_255:
-      revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[233 len 27]
-  balanceOf[address(recipient)] = amount + uint255(balanceOf[address(recipient)].field_0)
-  log Transfer(
-        address indexed from=address(sender),
-        address indexed to=address(recipient),
-        uint256 value=amount)
-  if amount > allowance[address(sender)][caller]:
-      revert with 'SafeMath: subtraction overflow'
-  allowance[address(sender)][caller] -= amount
-  return 1
 
 def cancelAuthorization(address authorizer, bytes32 nonce, uint8 v, bytes32 r, bytes32 s): # not payable
   require calldata.size - 4 >= 160
@@ -1151,20 +1139,16 @@ def transferWithAuthorization(address from, address to, uint256 value, uint256 v
       revert with Error(string reason), 32, 35, 'ERC20: transfer to the zero address', mem[131 len 29]
   if value > uint255(balanceOf[address(from)].field_0):
       revert with Error(string reason), 32, 38, 'ERC20: transfer amount exceeds balance', mem[134 len 26]
-  if value > uint255(balanceOf[address(from)].field_0):
-      revert with 'SafeMath: subtraction overflow'
-  if uint255(balanceOf[address(from)].field_0) - value > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
+  if SafeMath.sub(uint255(balanceOf[address(from)].field_0), value) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
       revert with Error(string reason), 32, 42, 'FiatTokenV2_2: Balance exceeds (2^255 - 1)', mem[138 len 22]
   if balanceOf[address(from)].field_255:
       revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[133 len 27]
-  balanceOf[address(from)] = uint255(balanceOf[address(from)].field_0) - value
-  if value + uint255(balanceOf[address(to)].field_0) < uint255(balanceOf[address(to)].field_0):
-      revert with 'SafeMath: addition overflow'
-  if value + uint255(balanceOf[address(to)].field_0) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
+  balanceOf[address(from)] = SafeMath.sub(uint255(balanceOf[address(from)].field_0), value)
+  if SafeMath.add(uint255(balanceOf[address(to)].field_0), value) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
       revert with Error(string reason), 32, 42, 'FiatTokenV2_2: Balance exceeds (2^255 - 1)', mem[138 len 22]
   if balanceOf[address(to)].field_255:
       revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[133 len 27]
-  balanceOf[address(to)] = value + uint255(balanceOf[address(to)].field_0)
+  balanceOf[address(to)] = SafeMath.add(uint255(balanceOf[address(to)].field_0), value)
   log Transfer(
         address indexed from=address(from),
         address indexed to=address(to),
@@ -1261,20 +1245,16 @@ def receiveWithAuthorization(address from, address to, uint256 value, uint256 va
       revert with Error(string reason), 32, 35, 'ERC20: transfer to the zero address', mem[131 len 29]
   if value > uint255(balanceOf[address(from)].field_0):
       revert with Error(string reason), 32, 38, 'ERC20: transfer amount exceeds balance', mem[134 len 26]
-  if value > uint255(balanceOf[address(from)].field_0):
-      revert with 'SafeMath: subtraction overflow'
-  if uint255(balanceOf[address(from)].field_0) - value > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
+  if SafeMath.sub(uint255(balanceOf[address(from)].field_0), value) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
       revert with Error(string reason), 32, 42, 'FiatTokenV2_2: Balance exceeds (2^255 - 1)', mem[138 len 22]
   if balanceOf[address(from)].field_255:
       revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[133 len 27]
-  balanceOf[address(from)] = uint255(balanceOf[address(from)].field_0) - value
-  if value + uint255(balanceOf[address(to)].field_0) < uint255(balanceOf[address(to)].field_0):
-      revert with 'SafeMath: addition overflow'
-  if value + uint255(balanceOf[address(to)].field_0) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
+  balanceOf[address(from)] = SafeMath.sub(uint255(balanceOf[address(from)].field_0), value)
+  if SafeMath.add(uint255(balanceOf[address(to)].field_0), value) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
       revert with Error(string reason), 32, 42, 'FiatTokenV2_2: Balance exceeds (2^255 - 1)', mem[138 len 22]
   if balanceOf[address(to)].field_255:
       revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[133 len 27]
-  balanceOf[address(to)] = value + uint255(balanceOf[address(to)].field_0)
+  balanceOf[address(to)] = SafeMath.add(uint255(balanceOf[address(to)].field_0), value)
   log Transfer(
         address indexed from=address(from),
         address indexed to=address(to),
@@ -1375,20 +1355,16 @@ def unknowncf092995(address _param1, address _param2, uint256 _param3, uint256 _
       revert with Error(string reason), 32, 35, 'ERC20: transfer to the zero address', mem[131 len 29]
   if _param3 > uint255(balanceOf[address(_param1)].field_0):
       revert with Error(string reason), 32, 38, 'ERC20: transfer amount exceeds balance', mem[134 len 26]
-  if _param3 > uint255(balanceOf[address(_param1)].field_0):
-      revert with 'SafeMath: subtraction overflow'
-  if uint255(balanceOf[address(_param1)].field_0) - _param3 > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
+  if SafeMath.sub(uint255(balanceOf[address(_param1)].field_0), _param3) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
       revert with Error(string reason), 32, 42, 'FiatTokenV2_2: Balance exceeds (2^255 - 1)', mem[138 len 22]
   if balanceOf[address(_param1)].field_255:
       revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[133 len 27]
-  balanceOf[address(_param1)] = uint255(balanceOf[address(_param1)].field_0) - _param3
-  if _param3 + uint255(balanceOf[address(_param2)].field_0) < uint255(balanceOf[address(_param2)].field_0):
-      revert with 'SafeMath: addition overflow'
-  if _param3 + uint255(balanceOf[address(_param2)].field_0) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
+  balanceOf[address(_param1)] = SafeMath.sub(uint255(balanceOf[address(_param1)].field_0), _param3)
+  if SafeMath.add(uint255(balanceOf[address(_param2)].field_0), _param3) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
       revert with Error(string reason), 32, 42, 'FiatTokenV2_2: Balance exceeds (2^255 - 1)', mem[138 len 22]
   if balanceOf[address(_param2)].field_255:
       revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[133 len 27]
-  balanceOf[address(_param2)] = _param3 + uint255(balanceOf[address(_param2)].field_0)
+  balanceOf[address(_param2)] = SafeMath.add(uint255(balanceOf[address(_param2)].field_0), _param3)
   log Transfer(
         address indexed from=address(_param1),
         address indexed to=address(_param2),
@@ -1491,20 +1467,16 @@ def unknown88b7ab63(address _param1, address _param2, uint256 _param3, uint256 _
       revert with Error(string reason), 32, 35, 'ERC20: transfer to the zero address', mem[131 len 29]
   if _param3 > uint255(balanceOf[address(_param1)].field_0):
       revert with Error(string reason), 32, 38, 'ERC20: transfer amount exceeds balance', mem[134 len 26]
-  if _param3 > uint255(balanceOf[address(_param1)].field_0):
-      revert with 'SafeMath: subtraction overflow'
-  if uint255(balanceOf[address(_param1)].field_0) - _param3 > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
+  if SafeMath.sub(uint255(balanceOf[address(_param1)].field_0), _param3) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
       revert with Error(string reason), 32, 42, 'FiatTokenV2_2: Balance exceeds (2^255 - 1)', mem[138 len 22]
   if balanceOf[address(_param1)].field_255:
       revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[133 len 27]
-  balanceOf[address(_param1)] = uint255(balanceOf[address(_param1)].field_0) - _param3
-  if _param3 + uint255(balanceOf[address(_param2)].field_0) < uint255(balanceOf[address(_param2)].field_0):
-      revert with 'SafeMath: addition overflow'
-  if _param3 + uint255(balanceOf[address(_param2)].field_0) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
+  balanceOf[address(_param1)] = SafeMath.sub(uint255(balanceOf[address(_param1)].field_0), _param3)
+  if SafeMath.add(uint255(balanceOf[address(_param2)].field_0), _param3) > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
       revert with Error(string reason), 32, 42, 'FiatTokenV2_2: Balance exceeds (2^255 - 1)', mem[138 len 22]
   if balanceOf[address(_param2)].field_255:
       revert with Error(string reason), 32, 37, 'FiatTokenV2_2: Account is blacklisted', mem[133 len 27]
-  balanceOf[address(_param2)] = _param3 + uint255(balanceOf[address(_param2)].field_0)
+  balanceOf[address(_param2)] = SafeMath.add(uint255(balanceOf[address(_param2)].field_0), _param3)
   log Transfer(
         address indexed from=address(_param1),
         address indexed to=address(_param2),

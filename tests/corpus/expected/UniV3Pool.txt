@@ -25,6 +25,20 @@ def storage:
   positions is mapping of struct of 4 slots at storage 7
   stor8 is fixed array of 65535 struct of 1 slot at storage 8
 
+def SafeMath:
+  def add(a, b):
+      require a + b >= a
+      return a + b
+  def div(a, b):
+      require b > 0
+      return a / b
+  def div2(a, b):
+      assert b
+      return a / b
+  def mod(a, b):
+      assert b
+      return a % b
+
 def liquidity(): # not payable
   return liquidity
 
@@ -164,8 +178,7 @@ def snapshotCumulativesInside(int24 tickLower, int24 tickUpper): # not payable
           mem[608] = uint32(block.timestamp)
           mem[640] = int56(int56(uint56(stor8[stor0_184].field_32)) + int24(stor0_160) * uint32(block.timestamp - uint32(stor8[stor0_184].field_0)))
           _3 = liquidity <= 0 or liquidity
-          assert uint128(_3)
-          mem[672] = address(address(stor8[stor0_184].field_88) + (uint32(block.timestamp - uint32(stor8[stor0_184].field_0)) << 128) / uint128(_3))
+          mem[672] = address(address(stor8[stor0_184].field_88) + SafeMath.div2(uint32(block.timestamp - uint32(stor8[stor0_184].field_0)) << 128, uint128(_3)))
           _4 = 608
       _7 = mem[_4 + 32] - int56(uint56(ticks[int24(tickLower)].field_768)) - int56(uint56(ticks[int24(tickUpper)].field_768))
       _8 = mem[_4 + 64] - address(ticks[int24(tickLower)].field_824) - address(ticks[int24(tickUpper)].field_824)
@@ -401,8 +414,7 @@ def observe(uint32[] secondsAgos): # not payable
               mem[_59] = uint32(block.timestamp)
               mem[_59 + 32] = int56(mem[_45 + 32] + int24(stor0_160) * uint32(block.timestamp - _58))
               _62 = liquidity <= 0 or liquidity
-              assert uint128(_62)
-              mem[_59 + 64] = address(mem[_45 + 64] + (uint32(block.timestamp - _58) << 128) / uint128(_62))
+              mem[_59 + 64] = address(mem[_45 + 64] + SafeMath.div2(uint32(block.timestamp - _58) << 128, uint128(_62)))
               mem[_59 + 96] = 1
               _67 = _59
           _68 = mem[_67 + 32]
@@ -444,15 +456,14 @@ def observe(uint32[] secondsAgos): # not payable
           else:
               _75 = uint32(stor8[stor0_184].field_0) <= uint32(block.timestamp - _38)
           if not _75:
-              assert stor0_200
-              assert uint16(uint16(stor0_184 + 1) % stor0_200) < 65535
+              assert uint16(SafeMath.mod(uint16(stor0_184 + 1), stor0_200)) < 65535
               _77 = mem[64]
               mem[64] = mem[64] + 128
-              mem[_77] = uint32(stor8[uint16(uint16(stor0_184 + 1) % stor0_200)].field_0)
-              mem[_77 + 32] = int56(uint56(stor8[uint16(uint16(stor0_184 + 1) % stor0_200)].field_32))
-              mem[_77 + 64] = address(stor8[uint16(uint16(stor0_184 + 1) % stor0_200)].field_88)
-              mem[_77 + 96] = bool(stor8[uint16(uint16(stor0_184 + 1) % stor0_200)].field_248)
-              if stor8[uint16(uint16(stor0_184 + 1) % stor0_200)].field_248:
+              mem[_77] = uint32(stor8[uint16(SafeMath.mod(uint16(stor0_184 + 1), stor0_200))].field_0)
+              mem[_77 + 32] = int56(uint56(stor8[uint16(SafeMath.mod(uint16(stor0_184 + 1), stor0_200))].field_32))
+              mem[_77 + 64] = address(stor8[uint16(SafeMath.mod(uint16(stor0_184 + 1), stor0_200))].field_88)
+              mem[_77 + 96] = bool(stor8[uint16(SafeMath.mod(uint16(stor0_184 + 1), stor0_200))].field_248)
+              if stor8[uint16(SafeMath.mod(uint16(stor0_184 + 1), stor0_200))].field_248:
                   _82 = _77
               else:
                   _79 = mem[64]
@@ -495,15 +506,14 @@ def observe(uint32[] secondsAgos): # not payable
               v = _142
               w = _139
               while True:
-                  assert stor0_200
-                  assert (u + t) / 2 % stor0_200 < 65535
+                  assert SafeMath.mod((u + t) / 2, stor0_200) < 65535
                   _154 = mem[64]
                   mem[64] = mem[64] + 128
-                  mem[_154] = uint32(stor8[(u + t) / 2 % stor0_200].field_0)
-                  mem[_154 + 32] = int56(uint56(stor8[(u + t) / 2 % stor0_200].field_32))
-                  mem[_154 + 64] = address(stor8[(u + t) / 2 % stor0_200].field_88)
-                  mem[_154 + 96] = bool(stor8[(u + t) / 2 % stor0_200].field_248)
-                  if not stor8[(u + t) / 2 % stor0_200].field_248:
+                  mem[_154] = uint32(stor8[SafeMath.mod((u + t) / 2, stor0_200)].field_0)
+                  mem[_154 + 32] = int56(uint56(stor8[SafeMath.mod((u + t) / 2, stor0_200)].field_32))
+                  mem[_154 + 64] = address(stor8[SafeMath.mod((u + t) / 2, stor0_200)].field_88)
+                  mem[_154 + 96] = bool(stor8[SafeMath.mod((u + t) / 2, stor0_200)].field_248)
+                  if not stor8[SafeMath.mod((u + t) / 2, stor0_200)].field_248:
                       s = (u + t) / 2
                       u = (u + t) / 2 + 1
                       w = _154
@@ -574,8 +584,7 @@ def observe(uint32[] secondsAgos): # not payable
                   mem[_85] = uint32(block.timestamp - _38)
                   mem[_85 + 32] = int56(mem[_61 + 32] + int24(stor0_160) * uint32(block.timestamp - _38 - _84))
                   _96 = liquidity <= 0 or liquidity
-                  assert uint128(_96)
-                  mem[_85 + 64] = address(mem[_61 + 64] + (uint32(block.timestamp - _38 - _84) << 128) / uint128(_96))
+                  mem[_85 + 64] = address(mem[_61 + 64] + SafeMath.div2(uint32(block.timestamp - _38 - _84) << 128, uint128(_96)))
                   mem[_85 + 96] = 1
                   _108 = _85
               else:
@@ -584,9 +593,8 @@ def observe(uint32[] secondsAgos): # not payable
               _170 = _108
           if uint32(block.timestamp - _38) != mem[_169 + 28 len 4]:
               if mem[_170 + 28 len 4] != uint32(block.timestamp - _38):
-                  assert uint32(mem[_170] - mem[_169])
                   _188 = mem[_169 + 32] + int56(mem[_170 + 32] - mem[_169 + 32]) /′ uint32(mem[_170] - mem[_169]) * uint32(block.timestamp - _38 - mem[_169])
-                  _189 = mem[_169 + 64] + address(mem[_170 + 64] - mem[_169 + 64]) * uint32(block.timestamp - _38 - mem[_169]) / uint32(mem[_170] - mem[_169])
+                  _189 = mem[_169 + 64] + SafeMath.div2(address(mem[_170 + 64] - mem[_169 + 64]) * uint32(block.timestamp - _38 - mem[_169]), uint32(mem[_170] - mem[_169]))
               else:
                   _188 = mem[_170 + 32]
                   _189 = mem[_170 + 64]
@@ -994,11 +1002,9 @@ def flash(address recipient, uint256 amount0, uint256 amount1, bytes data): # no
   _205 = ext_call.success and mem[_203] >= 32
   require _205
   require mem[_203] >= 32
-  require _18 + _5 >= _18
-  if _18 + _5 > _179:
+  if SafeMath.add(_18, _5) > _179:
       revert with 'F0'
-  require _46 + _8 >= _46
-  if _46 + _8 > mem[_203 + 32]:
+  if SafeMath.add(_46, _8) > mem[_203 + 32]:
       revert with 'F1'
   if _179 != _18:
       _216 = uint4(stor0_232) and (_179 - _18) / uint4(stor0_232)
@@ -1013,8 +1019,7 @@ def flash(address recipient, uint256 amount0, uint256 amount1, bytes data): # no
           _226 = mulmod(_179 - _18 - _216, 0x100000000000000000000000000000000, -1) + -(uint128(_115) & -uint128(_115)) / (uint128(_115) & -uint128(_115)) * mulmod(_179 - _18 - _216, 0x100000000000000000000000000000000, -1) - (_179 - _18 - _216 << 128) - -(uint128(_115) & -uint128(_115)) / (uint128(_115) & -uint128(_115)) * (_179 - _18 - _216 << 128) - (mulmod(_179 - _18 - _216, 0x100000000000000000000000000000000, -1) < _179 - _18 - _216 << 128) - -(uint128(_115) & -uint128(_115)) / (uint128(_115) & -uint128(_115)) * (mulmod(_179 - _18 - _216, 0x100000000000000000000000000000000, -1) < _179 - _18 - _216 << 128) - (mulmod(_179 - _18 - _216, 0x100000000000000000000000000000000, uint128(_115)) > _179 - _18 - _216 << 128) - -(uint128(_115) & -uint128(_115)) / (uint128(_115) & -uint128(_115)) * (mulmod(_179 - _18 - _216, 0x100000000000000000000000000000000, uint128(_115)) > _179 - _18 - _216 << 128)
           _228 = (((_179 - _18 - _216 << 128) - mulmod(_179 - _18 - _216, 0x100000000000000000000000000000000, uint128(_115))) / (uint128(_115) & -uint128(_115)) | _226) * _225
       else:
-          require uint128(_115) > 0
-          _228 = (_179 - _18 - _216 << 128) / uint128(_115)
+          _228 = SafeMath.div(_179 - _18 - _216 << 128, uint128(_115))
       feeGrowthGlobal0X128 += _228
   if mem[_203 + 32] != _46:
       _241 = stor0_232 / 16 and (mem[_203 + 32] - _46) / (stor0_232 / 16)
@@ -1029,8 +1034,7 @@ def flash(address recipient, uint256 amount0, uint256 amount1, bytes data): # no
           _248 = mulmod(mem[_203 + 32] - _46 - _241, 0x100000000000000000000000000000000, -1) + -(uint128(_115) & -uint128(_115)) / (uint128(_115) & -uint128(_115)) * mulmod(mem[_203 + 32] - _46 - _241, 0x100000000000000000000000000000000, -1) - (mem[_203 + 32] - _46 - _241 << 128) - -(uint128(_115) & -uint128(_115)) / (uint128(_115) & -uint128(_115)) * (mem[_203 + 32] - _46 - _241 << 128) - (mulmod(mem[_203 + 32] - _46 - _241, 0x100000000000000000000000000000000, -1) < mem[_203 + 32] - _46 - _241 << 128) - -(uint128(_115) & -uint128(_115)) / (uint128(_115) & -uint128(_115)) * (mulmod(mem[_203 + 32] - _46 - _241, 0x100000000000000000000000000000000, -1) < mem[_203 + 32] - _46 - _241 << 128) - (mulmod(mem[_203 + 32] - _46 - _241, 0x100000000000000000000000000000000, uint128(_115)) > mem[_203 + 32] - _46 - _241 << 128) - -(uint128(_115) & -uint128(_115)) / (uint128(_115) & -uint128(_115)) * (mulmod(mem[_203 + 32] - _46 - _241, 0x100000000000000000000000000000000, uint128(_115)) > mem[_203 + 32] - _46 - _241 << 128)
           _250 = (((mem[_203 + 32] - _46 - _241 << 128) - mulmod(mem[_203 + 32] - _46 - _241, 0x100000000000000000000000000000000, uint128(_115))) / (uint128(_115) & -uint128(_115)) | _248) * _247
       else:
-          require uint128(_115) > 0
-          _250 = (mem[_203 + 32] - _46 - _241 << 128) / uint128(_115)
+          _250 = SafeMath.div(mem[_203 + 32] - _46 - _241 << 128, uint128(_115))
       feeGrowthGlobal1X128 += _250
   log Flash(
         address indexed sender=caller,
@@ -1094,8 +1098,7 @@ def burn(int24 tickLower, int24 tickUpper, uint128 amount): # not payable
           mem[794] = uint32(block.timestamp)
           mem[826] = int56(int56(uint56(stor8[stor0_184].field_32)) + int24(stor0_160) * uint32(block.timestamp - uint32(stor8[stor0_184].field_0)))
           _12 = liquidity <= 0 or liquidity
-          assert uint128(_12)
-          mem[858] = address(address(stor8[stor0_184].field_88) + (uint32(block.timestamp - uint32(stor8[stor0_184].field_0)) << 128) / uint128(_12))
+          mem[858] = address(address(stor8[stor0_184].field_88) + SafeMath.div2(uint32(block.timestamp - uint32(stor8[stor0_184].field_0)) << 128, uint128(_12)))
           mem[890] = 1
           _17 = 794
       if int128(-uint128(amount)) >=′ 0:
@@ -1454,8 +1457,7 @@ def burn(int24 tickLower, int24 tickUpper, uint128 amount): # not payable
                   _541 = mulmod(uint128(-mem[224]) << 96, address(_527 - _526), -1) + -(address(_527) & -address(_527)) / (address(_527) & -address(_527)) * mulmod(uint128(-mem[224]) << 96, address(_527 - _526), -1) - address(_527 - _526) * (uint128(-mem[224]) << 96) - -(address(_527) & -address(_527)) / (address(_527) & -address(_527)) * address(_527 - _526) * (uint128(-mem[224]) << 96) - (mulmod(uint128(-mem[224]) << 96, address(_527 - _526), -1) < address(_527 - _526) * (uint128(-mem[224]) << 96)) - -(address(_527) & -address(_527)) / (address(_527) & -address(_527)) * (mulmod(uint128(-mem[224]) << 96, address(_527 - _526), -1) < address(_527 - _526) * (uint128(-mem[224]) << 96)) - (mulmod(uint128(-mem[224]) << 96, address(_527 - _526), address(_527)) > address(_527 - _526) * (uint128(-mem[224]) << 96)) - -(address(_527) & -address(_527)) / (address(_527) & -address(_527)) * (mulmod(uint128(-mem[224]) << 96, address(_527 - _526), address(_527)) > address(_527 - _526) * (uint128(-mem[224]) << 96))
                   _546 = ((address(_527 - _526) * (uint128(-mem[224]) << 96) - mulmod(uint128(-mem[224]) << 96, address(_527 - _526), address(_527))) / (address(_527) & -address(_527)) | _541) * _540
               else:
-                  require address(_527) > 0
-                  _546 = address(_527 - _526) * (uint128(-mem[224]) << 96) / address(_527)
+                  _546 = SafeMath.div(address(_527 - _526) * (uint128(-mem[224]) << 96), address(_527))
               require _546 / address(_526) < 0x8000000000000000000000000000000000000000000000000000000000000000
               _574 = -(_546 / address(_526))
           else:
@@ -1475,8 +1477,7 @@ def burn(int24 tickLower, int24 tickUpper, uint128 amount): # not payable
                   _552 = mulmod(uint128(mem[224]) << 96, address(_529 - _528), -1) + -(address(_529) & -address(_529)) / (address(_529) & -address(_529)) * mulmod(uint128(mem[224]) << 96, address(_529 - _528), -1) - address(_529 - _528) * (uint128(mem[224]) << 96) - -(address(_529) & -address(_529)) / (address(_529) & -address(_529)) * address(_529 - _528) * (uint128(mem[224]) << 96) - (mulmod(uint128(mem[224]) << 96, address(_529 - _528), -1) < address(_529 - _528) * (uint128(mem[224]) << 96)) - -(address(_529) & -address(_529)) / (address(_529) & -address(_529)) * (mulmod(uint128(mem[224]) << 96, address(_529 - _528), -1) < address(_529 - _528) * (uint128(mem[224]) << 96)) - (mulmod(uint128(mem[224]) << 96, address(_529 - _528), address(_529)) > address(_529 - _528) * (uint128(mem[224]) << 96)) - -(address(_529) & -address(_529)) / (address(_529) & -address(_529)) * (mulmod(uint128(mem[224]) << 96, address(_529 - _528), address(_529)) > address(_529 - _528) * (uint128(mem[224]) << 96))
                   _556 = ((address(_529 - _528) * (uint128(mem[224]) << 96) - mulmod(uint128(mem[224]) << 96, address(_529 - _528), address(_529))) / (address(_529) & -address(_529)) | _552) * _551
               else:
-                  require address(_529) > 0
-                  _556 = address(_529 - _528) * (uint128(mem[224]) << 96) / address(_529)
+                  _556 = SafeMath.div(address(_529 - _528) * (uint128(mem[224]) << 96), address(_529))
               assert address(_529)
               if mulmod(uint128(mem[224]) << 96, address(_529 - _528), address(_529)) <= 0:
                   _561 = _556
@@ -1739,8 +1740,7 @@ def burn(int24 tickLower, int24 tickUpper, uint128 amount): # not payable
                   mem[mem[64]] = uint32(block.timestamp)
                   mem[mem[64] + 32] = int56(mem[_333 + 32] + int24(_323) * uint32(block.timestamp - _354))
                   _358 = liquidity <= 0 or liquidity
-                  assert uint128(_358)
-                  mem[mem[64] + 64] = address(mem[_333 + 64] + (uint32(block.timestamp - _354) << 128) / uint128(_358))
+                  mem[mem[64] + 64] = address(mem[_333 + 64] + SafeMath.div2(uint32(block.timestamp - _354) << 128, uint128(_358)))
                   mem[mem[64] + 96] = 1
                   assert uint16(uint16(_317 + 1) % uint16(_343)) < 65535
                   _370 = liquidity
@@ -1866,8 +1866,7 @@ def burn(int24 tickLower, int24 tickUpper, uint128 amount): # not payable
                       _479 = mulmod(uint128(-mem[224]) << 96, address(_467 - _466), -1) + -(address(_467) & -address(_467)) / (address(_467) & -address(_467)) * mulmod(uint128(-mem[224]) << 96, address(_467 - _466), -1) - address(_467 - _466) * (uint128(-mem[224]) << 96) - -(address(_467) & -address(_467)) / (address(_467) & -address(_467)) * address(_467 - _466) * (uint128(-mem[224]) << 96) - (mulmod(uint128(-mem[224]) << 96, address(_467 - _466), -1) < address(_467 - _466) * (uint128(-mem[224]) << 96)) - -(address(_467) & -address(_467)) / (address(_467) & -address(_467)) * (mulmod(uint128(-mem[224]) << 96, address(_467 - _466), -1) < address(_467 - _466) * (uint128(-mem[224]) << 96)) - (mulmod(uint128(-mem[224]) << 96, address(_467 - _466), address(_467)) > address(_467 - _466) * (uint128(-mem[224]) << 96)) - -(address(_467) & -address(_467)) / (address(_467) & -address(_467)) * (mulmod(uint128(-mem[224]) << 96, address(_467 - _466), address(_467)) > address(_467 - _466) * (uint128(-mem[224]) << 96))
                       _482 = ((address(_467 - _466) * (uint128(-mem[224]) << 96) - mulmod(uint128(-mem[224]) << 96, address(_467 - _466), address(_467))) / (address(_467) & -address(_467)) | _479) * _478
                   else:
-                      require address(_467) > 0
-                      _482 = address(_467 - _466) * (uint128(-mem[224]) << 96) / address(_467)
+                      _482 = SafeMath.div(address(_467 - _466) * (uint128(-mem[224]) << 96), address(_467))
                   require _482 / address(_466) < 0x8000000000000000000000000000000000000000000000000000000000000000
                   _510 = -(_482 / address(_466))
               else:
@@ -1887,8 +1886,7 @@ def burn(int24 tickLower, int24 tickUpper, uint128 amount): # not payable
                       _487 = mulmod(uint128(mem[224]) << 96, address(_469 - _468), -1) + -(address(_469) & -address(_469)) / (address(_469) & -address(_469)) * mulmod(uint128(mem[224]) << 96, address(_469 - _468), -1) - address(_469 - _468) * (uint128(mem[224]) << 96) - -(address(_469) & -address(_469)) / (address(_469) & -address(_469)) * address(_469 - _468) * (uint128(mem[224]) << 96) - (mulmod(uint128(mem[224]) << 96, address(_469 - _468), -1) < address(_469 - _468) * (uint128(mem[224]) << 96)) - -(address(_469) & -address(_469)) / (address(_469) & -address(_469)) * (mulmod(uint128(mem[224]) << 96, address(_469 - _468), -1) < address(_469 - _468) * (uint128(mem[224]) << 96)) - (mulmod(uint128(mem[224]) << 96, address(_469 - _468), address(_469)) > address(_469 - _468) * (uint128(mem[224]) << 96)) - -(address(_469) & -address(_469)) / (address(_469) & -address(_469)) * (mulmod(uint128(mem[224]) << 96, address(_469 - _468), address(_469)) > address(_469 - _468) * (uint128(mem[224]) << 96))
                       _489 = ((address(_469 - _468) * (uint128(mem[224]) << 96) - mulmod(uint128(mem[224]) << 96, address(_469 - _468), address(_469))) / (address(_469) & -address(_469)) | _487) * _486
                   else:
-                      require address(_469) > 0
-                      _489 = address(_469 - _468) * (uint128(mem[224]) << 96) / address(_469)
+                      _489 = SafeMath.div(address(_469 - _468) * (uint128(mem[224]) << 96), address(_469))
                   assert address(_469)
                   if mulmod(uint128(mem[224]) << 96, address(_469 - _468), address(_469)) <= 0:
                       _496 = _489
@@ -2104,8 +2102,7 @@ def mint(address recipient, int24 tickLower, int24 tickUpper, uint128 amount, by
           mem[794] = uint32(block.timestamp)
           mem[826] = int56(int56(uint56(stor8[stor0_184].field_32)) + int24(stor0_160) * uint32(block.timestamp - uint32(stor8[stor0_184].field_0)))
           _12 = liquidity <= 0 or liquidity
-          assert uint128(_12)
-          mem[858] = address(address(stor8[stor0_184].field_88) + (uint32(block.timestamp - uint32(stor8[stor0_184].field_0)) << 128) / uint128(_12))
+          mem[858] = address(address(stor8[stor0_184].field_88) + SafeMath.div2(uint32(block.timestamp - uint32(stor8[stor0_184].field_0)) << 128, uint128(_12)))
           mem[890] = 1
           _17 = 794
       if int128(amount) >=′ 0:
@@ -2470,8 +2467,7 @@ def mint(address recipient, int24 tickLower, int24 tickUpper, uint128 amount, by
                   _550 = mulmod(uint128(-mem[224]) << 96, address(_536 - _535), -1) + -(address(_536) & -address(_536)) / (address(_536) & -address(_536)) * mulmod(uint128(-mem[224]) << 96, address(_536 - _535), -1) - address(_536 - _535) * (uint128(-mem[224]) << 96) - -(address(_536) & -address(_536)) / (address(_536) & -address(_536)) * address(_536 - _535) * (uint128(-mem[224]) << 96) - (mulmod(uint128(-mem[224]) << 96, address(_536 - _535), -1) < address(_536 - _535) * (uint128(-mem[224]) << 96)) - -(address(_536) & -address(_536)) / (address(_536) & -address(_536)) * (mulmod(uint128(-mem[224]) << 96, address(_536 - _535), -1) < address(_536 - _535) * (uint128(-mem[224]) << 96)) - (mulmod(uint128(-mem[224]) << 96, address(_536 - _535), address(_536)) > address(_536 - _535) * (uint128(-mem[224]) << 96)) - -(address(_536) & -address(_536)) / (address(_536) & -address(_536)) * (mulmod(uint128(-mem[224]) << 96, address(_536 - _535), address(_536)) > address(_536 - _535) * (uint128(-mem[224]) << 96))
                   _555 = ((address(_536 - _535) * (uint128(-mem[224]) << 96) - mulmod(uint128(-mem[224]) << 96, address(_536 - _535), address(_536))) / (address(_536) & -address(_536)) | _550) * _549
               else:
-                  require address(_536) > 0
-                  _555 = address(_536 - _535) * (uint128(-mem[224]) << 96) / address(_536)
+                  _555 = SafeMath.div(address(_536 - _535) * (uint128(-mem[224]) << 96), address(_536))
               require _555 / address(_535) < 0x8000000000000000000000000000000000000000000000000000000000000000
               _585 = -(_555 / address(_535))
           else:
@@ -2491,8 +2487,7 @@ def mint(address recipient, int24 tickLower, int24 tickUpper, uint128 amount, by
                   _561 = mulmod(uint128(mem[224]) << 96, address(_538 - _537), -1) + -(address(_538) & -address(_538)) / (address(_538) & -address(_538)) * mulmod(uint128(mem[224]) << 96, address(_538 - _537), -1) - address(_538 - _537) * (uint128(mem[224]) << 96) - -(address(_538) & -address(_538)) / (address(_538) & -address(_538)) * address(_538 - _537) * (uint128(mem[224]) << 96) - (mulmod(uint128(mem[224]) << 96, address(_538 - _537), -1) < address(_538 - _537) * (uint128(mem[224]) << 96)) - -(address(_538) & -address(_538)) / (address(_538) & -address(_538)) * (mulmod(uint128(mem[224]) << 96, address(_538 - _537), -1) < address(_538 - _537) * (uint128(mem[224]) << 96)) - (mulmod(uint128(mem[224]) << 96, address(_538 - _537), address(_538)) > address(_538 - _537) * (uint128(mem[224]) << 96)) - -(address(_538) & -address(_538)) / (address(_538) & -address(_538)) * (mulmod(uint128(mem[224]) << 96, address(_538 - _537), address(_538)) > address(_538 - _537) * (uint128(mem[224]) << 96))
                   _565 = ((address(_538 - _537) * (uint128(mem[224]) << 96) - mulmod(uint128(mem[224]) << 96, address(_538 - _537), address(_538))) / (address(_538) & -address(_538)) | _561) * _560
               else:
-                  require address(_538) > 0
-                  _565 = address(_538 - _537) * (uint128(mem[224]) << 96) / address(_538)
+                  _565 = SafeMath.div(address(_538 - _537) * (uint128(mem[224]) << 96), address(_538))
               assert address(_538)
               if mulmod(uint128(mem[224]) << 96, address(_538 - _537), address(_538)) <= 0:
                   _570 = _565
@@ -2757,8 +2752,7 @@ def mint(address recipient, int24 tickLower, int24 tickUpper, uint128 amount, by
                   mem[_364] = uint32(block.timestamp)
                   mem[_364 + 32] = int56(mem[_336 + 32] + int24(_328) * uint32(block.timestamp - _363))
                   _367 = liquidity <= 0 or liquidity
-                  assert uint128(_367)
-                  mem[_364 + 64] = address(mem[_336 + 64] + (uint32(block.timestamp - _363) << 128) / uint128(_367))
+                  mem[_364 + 64] = address(mem[_336 + 64] + SafeMath.div2(uint32(block.timestamp - _363) << 128, uint128(_367)))
                   mem[_364 + 96] = 1
                   assert uint16(uint16(_324 + 1) % uint16(_352)) < 65535
                   _379 = liquidity
@@ -2884,8 +2878,7 @@ def mint(address recipient, int24 tickLower, int24 tickUpper, uint128 amount, by
                       _488 = mulmod(uint128(-mem[224]) << 96, address(_476 - _475), -1) + -(address(_476) & -address(_476)) / (address(_476) & -address(_476)) * mulmod(uint128(-mem[224]) << 96, address(_476 - _475), -1) - address(_476 - _475) * (uint128(-mem[224]) << 96) - -(address(_476) & -address(_476)) / (address(_476) & -address(_476)) * address(_476 - _475) * (uint128(-mem[224]) << 96) - (mulmod(uint128(-mem[224]) << 96, address(_476 - _475), -1) < address(_476 - _475) * (uint128(-mem[224]) << 96)) - -(address(_476) & -address(_476)) / (address(_476) & -address(_476)) * (mulmod(uint128(-mem[224]) << 96, address(_476 - _475), -1) < address(_476 - _475) * (uint128(-mem[224]) << 96)) - (mulmod(uint128(-mem[224]) << 96, address(_476 - _475), address(_476)) > address(_476 - _475) * (uint128(-mem[224]) << 96)) - -(address(_476) & -address(_476)) / (address(_476) & -address(_476)) * (mulmod(uint128(-mem[224]) << 96, address(_476 - _475), address(_476)) > address(_476 - _475) * (uint128(-mem[224]) << 96))
                       _491 = ((address(_476 - _475) * (uint128(-mem[224]) << 96) - mulmod(uint128(-mem[224]) << 96, address(_476 - _475), address(_476))) / (address(_476) & -address(_476)) | _488) * _487
                   else:
-                      require address(_476) > 0
-                      _491 = address(_476 - _475) * (uint128(-mem[224]) << 96) / address(_476)
+                      _491 = SafeMath.div(address(_476 - _475) * (uint128(-mem[224]) << 96), address(_476))
                   require _491 / address(_475) < 0x8000000000000000000000000000000000000000000000000000000000000000
                   _519 = -(_491 / address(_475))
               else:
@@ -2905,8 +2898,7 @@ def mint(address recipient, int24 tickLower, int24 tickUpper, uint128 amount, by
                       _496 = mulmod(uint128(mem[224]) << 96, address(_478 - _477), -1) + -(address(_478) & -address(_478)) / (address(_478) & -address(_478)) * mulmod(uint128(mem[224]) << 96, address(_478 - _477), -1) - address(_478 - _477) * (uint128(mem[224]) << 96) - -(address(_478) & -address(_478)) / (address(_478) & -address(_478)) * address(_478 - _477) * (uint128(mem[224]) << 96) - (mulmod(uint128(mem[224]) << 96, address(_478 - _477), -1) < address(_478 - _477) * (uint128(mem[224]) << 96)) - -(address(_478) & -address(_478)) / (address(_478) & -address(_478)) * (mulmod(uint128(mem[224]) << 96, address(_478 - _477), -1) < address(_478 - _477) * (uint128(mem[224]) << 96)) - (mulmod(uint128(mem[224]) << 96, address(_478 - _477), address(_478)) > address(_478 - _477) * (uint128(mem[224]) << 96)) - -(address(_478) & -address(_478)) / (address(_478) & -address(_478)) * (mulmod(uint128(mem[224]) << 96, address(_478 - _477), address(_478)) > address(_478 - _477) * (uint128(mem[224]) << 96))
                       _498 = ((address(_478 - _477) * (uint128(mem[224]) << 96) - mulmod(uint128(mem[224]) << 96, address(_478 - _477), address(_478))) / (address(_478) & -address(_478)) | _496) * _495
                   else:
-                      require address(_478) > 0
-                      _498 = address(_478 - _477) * (uint128(mem[224]) << 96) / address(_478)
+                      _498 = SafeMath.div(address(_478 - _477) * (uint128(mem[224]) << 96), address(_478))
                   assert address(_478)
                   if mulmod(uint128(mem[224]) << 96, address(_478 - _477), address(_478)) <= 0:
                       _505 = _498
@@ -3218,8 +3210,7 @@ def mint(address recipient, int24 tickLower, int24 tickUpper, uint128 amount, by
       _925 = ext_call.success and mem[_916] >= 32
       require _925
       require mem[_916] >= 32
-      require _821 + _765 >= _821
-      if _821 + _765 > mem[_916 + 32]:
+      if SafeMath.add(_821, _765) > mem[_916 + 32]:
           revert with 'M0'
       if not _766:
           log Mint(
@@ -3275,8 +3266,7 @@ def mint(address recipient, int24 tickLower, int24 tickUpper, uint128 amount, by
   _973 = ext_call.success and mem[_971] >= 32
   require _973
   require mem[_971] >= 32
-  require _876 + _766 >= _876
-  if _876 + _766 > mem[_971 + 32]:
+  if SafeMath.add(_876, _766) > mem[_971 + 32]:
       revert with 'M1'
   log Mint(
         address sender=caller,
@@ -3611,8 +3601,7 @@ def swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqr
                   _943 = mulmod(uint128(mem[736]) << 96, address(_929 - _928), -1) + -(address(_929) & -address(_929)) / (address(_929) & -address(_929)) * mulmod(uint128(mem[736]) << 96, address(_929 - _928), -1) - address(_929 - _928) * (uint128(mem[736]) << 96) - -(address(_929) & -address(_929)) / (address(_929) & -address(_929)) * address(_929 - _928) * (uint128(mem[736]) << 96) - (mulmod(uint128(mem[736]) << 96, address(_929 - _928), -1) < address(_929 - _928) * (uint128(mem[736]) << 96)) - -(address(_929) & -address(_929)) / (address(_929) & -address(_929)) * (mulmod(uint128(mem[736]) << 96, address(_929 - _928), -1) < address(_929 - _928) * (uint128(mem[736]) << 96)) - (mulmod(uint128(mem[736]) << 96, address(_929 - _928), address(_929)) > address(_929 - _928) * (uint128(mem[736]) << 96)) - -(address(_929) & -address(_929)) / (address(_929) & -address(_929)) * (mulmod(uint128(mem[736]) << 96, address(_929 - _928), address(_929)) > address(_929 - _928) * (uint128(mem[736]) << 96))
                   _945 = ((address(_929 - _928) * (uint128(mem[736]) << 96) - mulmod(uint128(mem[736]) << 96, address(_929 - _928), address(_929))) / (address(_929) & -address(_929)) | _943) * _942
               else:
-                  require address(_929) > 0
-                  _945 = address(_929 - _928) * (uint128(mem[736]) << 96) / address(_929)
+                  _945 = SafeMath.div(address(_929 - _928) * (uint128(mem[736]) << 96), address(_929))
               _947 = _945 / address(_928)
           if -mem[544] < _947:
               require mem[620 len 20] > 0
@@ -3654,8 +3643,7 @@ def swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqr
                           _988 = 2 * (2 * _985 - ((uint128(mem[736]) << 96) + mem[620 len 20] * mem[544]) / ((uint128(mem[736]) << 96) + mem[620 len 20] * mem[544] & -(uint128(mem[736]) << 96) - mem[620 len 20] * mem[544]) * _985 * _985) * ((mem[620 len 20] * (uint128(mem[736]) << 96) - mulmod(uint128(mem[736]) << 96, mem[620 len 20], (uint128(mem[736]) << 96) + mem[620 len 20] * mem[544])) / ((uint128(mem[736]) << 96) + mem[620 len 20] * mem[544] & -(uint128(mem[736]) << 96) - mem[620 len 20] * mem[544]) | _987) - 2 * _985 * _986 * ((mem[620 len 20] * (uint128(mem[736]) << 96) - mulmod(uint128(mem[736]) << 96, mem[620 len 20], (uint128(mem[736]) << 96) + mem[620 len 20] * mem[544])) / ((uint128(mem[736]) << 96) + mem[620 len 20] * mem[544] & -(uint128(mem[736]) << 96) - mem[620 len 20] * mem[544]) | _987) + ((uint128(mem[736]) << 96) + mem[620 len 20] * mem[544]) / ((uint128(mem[736]) << 96) + mem[620 len 20] * mem[544] & -(uint128(mem[736]) << 96) - mem[620 len 20] * mem[544]) * _985 * _985 * _986 * ((mem[620 len 20] * (uint128(mem[736]) << 96) - mulmod(uint128(mem[736]) << 96, mem[620 len 20], (uint128(mem[736]) << 96) + mem[620 len 20] * mem[544])) / ((uint128(mem[736]) << 96) + mem[620 len 20] * mem[544] & -(uint128(mem[736]) << 96) - mem[620 len 20] * mem[544]) | _987)
                           _990 = _988
                       else:
-                          require (uint128(mem[736]) << 96) + mem[620 len 20] * mem[544] > 0
-                          _990 = mem[620 len 20] * (uint128(mem[736]) << 96) / ((uint128(mem[736]) << 96) + mem[620 len 20] * mem[544])
+                          _990 = SafeMath.div(mem[620 len 20] * (uint128(mem[736]) << 96), (uint128(mem[736]) << 96) + mem[620 len 20] * mem[544])
                       assert (uint128(mem[736]) << 96) + mem[620 len 20] * mem[544]
                       if mulmod(uint128(mem[736]) << 96, mem[620 len 20], (uint128(mem[736]) << 96) + mem[620 len 20] * mem[544]) <= 0:
                           _1002 = _990
@@ -3696,8 +3684,7 @@ def swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqr
                   _954 = mulmod(uint128(mem[736]) << 96, address(_936 - _935), -1) + -(address(_936) & -address(_936)) / (address(_936) & -address(_936)) * mulmod(uint128(mem[736]) << 96, address(_936 - _935), -1) - address(_936 - _935) * (uint128(mem[736]) << 96) - -(address(_936) & -address(_936)) / (address(_936) & -address(_936)) * address(_936 - _935) * (uint128(mem[736]) << 96) - (mulmod(uint128(mem[736]) << 96, address(_936 - _935), -1) < address(_936 - _935) * (uint128(mem[736]) << 96)) - -(address(_936) & -address(_936)) / (address(_936) & -address(_936)) * (mulmod(uint128(mem[736]) << 96, address(_936 - _935), -1) < address(_936 - _935) * (uint128(mem[736]) << 96)) - (mulmod(uint128(mem[736]) << 96, address(_936 - _935), address(_936)) > address(_936 - _935) * (uint128(mem[736]) << 96)) - -(address(_936) & -address(_936)) / (address(_936) & -address(_936)) * (mulmod(uint128(mem[736]) << 96, address(_936 - _935), address(_936)) > address(_936 - _935) * (uint128(mem[736]) << 96))
                   _956 = ((address(_936 - _935) * (uint128(mem[736]) << 96) - mulmod(uint128(mem[736]) << 96, address(_936 - _935), address(_936))) / (address(_936) & -address(_936)) | _954) * _953
               else:
-                  require address(_936) > 0
-                  _956 = address(_936 - _935) * (uint128(mem[736]) << 96) / address(_936)
+                  _956 = SafeMath.div(address(_936 - _935) * (uint128(mem[736]) << 96), address(_936))
               assert address(_936)
               if mulmod(uint128(mem[736]) << 96, address(_936 - _935), address(_936)) <= 0:
                   _958 = _956
@@ -3730,14 +3717,10 @@ def swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqr
               if mem[620 len 20] >= address(_923):
                   if _931:
                       if mem[620 len 20] * _931 / _931 != mem[620 len 20]:
-                          assert mem[620 len 20]
-                          require (uint128(mem[736]) << 96) / mem[620 len 20] + _931 >= (uint128(mem[736]) << 96) / mem[620 len 20]
-                          _1035 = bool((uint128(mem[736]) << 96) % ((uint128(mem[736]) << 96) / mem[620 len 20] + _931)) + (uint128(mem[736]) << 96) / ((uint128(mem[736]) << 96) / mem[620 len 20] + _931)
+                          _1035 = bool((uint128(mem[736]) << 96) % SafeMath.add(SafeMath.div2(uint128(mem[736]) << 96, mem[620 len 20]), _931)) + (uint128(mem[736]) << 96) / SafeMath.add(SafeMath.div2(uint128(mem[736]) << 96, mem[620 len 20]), _931)
                       else:
                           if mem[620 len 20] * _931 + (uint128(mem[736]) << 96) < uint128(mem[736]) << 96:
-                              assert mem[620 len 20]
-                              require (uint128(mem[736]) << 96) / mem[620 len 20] + _931 >= (uint128(mem[736]) << 96) / mem[620 len 20]
-                              _1035 = bool((uint128(mem[736]) << 96) % ((uint128(mem[736]) << 96) / mem[620 len 20] + _931)) + (uint128(mem[736]) << 96) / ((uint128(mem[736]) << 96) / mem[620 len 20] + _931)
+                              _1035 = bool((uint128(mem[736]) << 96) % SafeMath.add(SafeMath.div2(uint128(mem[736]) << 96, mem[620 len 20]), _931)) + (uint128(mem[736]) << 96) / SafeMath.add(SafeMath.div2(uint128(mem[736]) << 96, mem[620 len 20]), _931)
                           else:
                               if mulmod(uint128(mem[736]) << 96, mem[620 len 20], -1) - mem[620 len 20] * (uint128(mem[736]) << 96) != (mulmod(uint128(mem[736]) << 96, mem[620 len 20], -1) < mem[620 len 20] * (uint128(mem[736]) << 96)):
                                   require mem[620 len 20] * _931 + (uint128(mem[736]) << 96) > mulmod(uint128(mem[736]) << 96, mem[620 len 20], -1) - mem[620 len 20] * (uint128(mem[736]) << 96) - (mulmod(uint128(mem[736]) << 96, mem[620 len 20], -1) < mem[620 len 20] * (uint128(mem[736]) << 96))
@@ -3750,8 +3733,7 @@ def swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqr
                                   _1014 = 2 * (2 * _1011 - (mem[620 len 20] * _931 + (uint128(mem[736]) << 96)) / (mem[620 len 20] * _931 + (uint128(mem[736]) << 96) & -1 * mem[620 len 20] * _931 - (uint128(mem[736]) << 96)) * _1011 * _1011) * ((mem[620 len 20] * (uint128(mem[736]) << 96) - mulmod(uint128(mem[736]) << 96, mem[620 len 20], mem[620 len 20] * _931 + (uint128(mem[736]) << 96))) / (mem[620 len 20] * _931 + (uint128(mem[736]) << 96) & -1 * mem[620 len 20] * _931 - (uint128(mem[736]) << 96)) | _1013) - 2 * _1011 * _1012 * ((mem[620 len 20] * (uint128(mem[736]) << 96) - mulmod(uint128(mem[736]) << 96, mem[620 len 20], mem[620 len 20] * _931 + (uint128(mem[736]) << 96))) / (mem[620 len 20] * _931 + (uint128(mem[736]) << 96) & -1 * mem[620 len 20] * _931 - (uint128(mem[736]) << 96)) | _1013) + (mem[620 len 20] * _931 + (uint128(mem[736]) << 96)) / (mem[620 len 20] * _931 + (uint128(mem[736]) << 96) & -1 * mem[620 len 20] * _931 - (uint128(mem[736]) << 96)) * _1011 * _1011 * _1012 * ((mem[620 len 20] * (uint128(mem[736]) << 96) - mulmod(uint128(mem[736]) << 96, mem[620 len 20], mem[620 len 20] * _931 + (uint128(mem[736]) << 96))) / (mem[620 len 20] * _931 + (uint128(mem[736]) << 96) & -1 * mem[620 len 20] * _931 - (uint128(mem[736]) << 96)) | _1013)
                                   _1018 = _1014
                               else:
-                                  require mem[620 len 20] * _931 + (uint128(mem[736]) << 96) > 0
-                                  _1018 = mem[620 len 20] * (uint128(mem[736]) << 96) / (mem[620 len 20] * _931 + (uint128(mem[736]) << 96))
+                                  _1018 = SafeMath.div(mem[620 len 20] * (uint128(mem[736]) << 96), mem[620 len 20] * _931 + (uint128(mem[736]) << 96))
                               assert mem[620 len 20] * _931 + (uint128(mem[736]) << 96)
                               if mulmod(uint128(mem[736]) << 96, mem[620 len 20], mem[620 len 20] * _931 + (uint128(mem[736]) << 96)) <= 0:
                                   _1033 = _1018
@@ -3778,9 +3760,8 @@ def swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqr
                       else:
                           _1001 = (_931 << 96) / mem[752 len 16]
                       _1003 = _1001
-                  require mem[620 len 20] + _1003 >= mem[620 len 20]
-                  require mem[620 len 20] + _1003 == address(mem[620 len 20] + _1003)
-                  _1037 = mem[620 len 20] + _1003
+                  require SafeMath.add(mem[620 len 20], _1003) == address(SafeMath.add(mem[620 len 20], _1003))
+                  _1037 = SafeMath.add(mem[620 len 20], _1003)
               _1038 = _1037
           else:
               _1038 = _923
@@ -3830,8 +3811,7 @@ def swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqr
                   _1107 = mulmod(uint128(mem[736]) << 96, address(_1095 - _1094), -1) + -(address(_1095) & -address(_1095)) / (address(_1095) & -address(_1095)) * mulmod(uint128(mem[736]) << 96, address(_1095 - _1094), -1) - address(_1095 - _1094) * (uint128(mem[736]) << 96) - -(address(_1095) & -address(_1095)) / (address(_1095) & -address(_1095)) * address(_1095 - _1094) * (uint128(mem[736]) << 96) - (mulmod(uint128(mem[736]) << 96, address(_1095 - _1094), -1) < address(_1095 - _1094) * (uint128(mem[736]) << 96)) - -(address(_1095) & -address(_1095)) / (address(_1095) & -address(_1095)) * (mulmod(uint128(mem[736]) << 96, address(_1095 - _1094), -1) < address(_1095 - _1094) * (uint128(mem[736]) << 96)) - (mulmod(uint128(mem[736]) << 96, address(_1095 - _1094), address(_1095)) > address(_1095 - _1094) * (uint128(mem[736]) << 96)) - -(address(_1095) & -address(_1095)) / (address(_1095) & -address(_1095)) * (mulmod(uint128(mem[736]) << 96, address(_1095 - _1094), address(_1095)) > address(_1095 - _1094) * (uint128(mem[736]) << 96))
                   _1109 = ((address(_1095 - _1094) * (uint128(mem[736]) << 96) - mulmod(uint128(mem[736]) << 96, address(_1095 - _1094), address(_1095))) / (address(_1095) & -address(_1095)) | _1107) * _1106
               else:
-                  require address(_1095) > 0
-                  _1109 = address(_1095 - _1094) * (uint128(mem[736]) << 96) / address(_1095)
+                  _1109 = SafeMath.div(address(_1095 - _1094) * (uint128(mem[736]) << 96), address(_1095))
               _1119 = _1109 / address(_1094)
           _1124 = _1089
           _1125 = _1119
@@ -3856,8 +3836,7 @@ def swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqr
                   _1064 = mulmod(uint128(mem[736]) << 96, address(_1050 - _1049), -1) + -(address(_1050) & -address(_1050)) / (address(_1050) & -address(_1050)) * mulmod(uint128(mem[736]) << 96, address(_1050 - _1049), -1) - address(_1050 - _1049) * (uint128(mem[736]) << 96) - -(address(_1050) & -address(_1050)) / (address(_1050) & -address(_1050)) * address(_1050 - _1049) * (uint128(mem[736]) << 96) - (mulmod(uint128(mem[736]) << 96, address(_1050 - _1049), -1) < address(_1050 - _1049) * (uint128(mem[736]) << 96)) - -(address(_1050) & -address(_1050)) / (address(_1050) & -address(_1050)) * (mulmod(uint128(mem[736]) << 96, address(_1050 - _1049), -1) < address(_1050 - _1049) * (uint128(mem[736]) << 96)) - (mulmod(uint128(mem[736]) << 96, address(_1050 - _1049), address(_1050)) > address(_1050 - _1049) * (uint128(mem[736]) << 96)) - -(address(_1050) & -address(_1050)) / (address(_1050) & -address(_1050)) * (mulmod(uint128(mem[736]) << 96, address(_1050 - _1049), address(_1050)) > address(_1050 - _1049) * (uint128(mem[736]) << 96))
                   _1068 = ((address(_1050 - _1049) * (uint128(mem[736]) << 96) - mulmod(uint128(mem[736]) << 96, address(_1050 - _1049), address(_1050))) / (address(_1050) & -address(_1050)) | _1064) * _1063
               else:
-                  require address(_1050) > 0
-                  _1068 = address(_1050 - _1049) * (uint128(mem[736]) << 96) / address(_1050)
+                  _1068 = SafeMath.div(address(_1050 - _1049) * (uint128(mem[736]) << 96), address(_1050))
               assert address(_1050)
               if mulmod(uint128(mem[736]) << 96, address(_1050 - _1049), address(_1050)) <= 0:
                   _1082 = _1068
@@ -3923,8 +3902,7 @@ def swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqr
       if mem[383 len 1]:
           _1155 = mem[352]
           _1156 = mem[_460 + 192]
-          assert mem[383 len 1]
-          mem[_460 + 192] = mem[_460 + 192] - mem[_460 + 192] / mem[383 len 1]
+          mem[_460 + 192] = mem[_460 + 192] - SafeMath.div2(mem[_460 + 192], mem[383 len 1])
           mem[704] = uint128(_1156 / uint8(_1155) + mem[704])
       if mem[752 len 16]:
           if mulmod(mem[_460 + 192], 0x100000000000000000000000000000000, -1) - (mem[_460 + 192] << 128) - (mulmod(mem[_460 + 192], 0x100000000000000000000000000000000, -1) < mem[_460 + 192] << 128):
@@ -3935,8 +3913,7 @@ def swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqr
               _1184 = mulmod(mem[_460 + 192], 0x100000000000000000000000000000000, -1) + -(mem[752 len 16] & -mem[752 len 16]) / (mem[752 len 16] & -mem[752 len 16]) * mulmod(mem[_460 + 192], 0x100000000000000000000000000000000, -1) - (mem[_460 + 192] << 128) - -(mem[752 len 16] & -mem[752 len 16]) / (mem[752 len 16] & -mem[752 len 16]) * (mem[_460 + 192] << 128) - (mulmod(mem[_460 + 192], 0x100000000000000000000000000000000, -1) < mem[_460 + 192] << 128) - -(mem[752 len 16] & -mem[752 len 16]) / (mem[752 len 16] & -mem[752 len 16]) * (mulmod(mem[_460 + 192], 0x100000000000000000000000000000000, -1) < mem[_460 + 192] << 128) - (mulmod(mem[_460 + 192], 0x100000000000000000000000000000000, mem[752 len 16]) > mem[_460 + 192] << 128) - -(mem[752 len 16] & -mem[752 len 16]) / (mem[752 len 16] & -mem[752 len 16]) * (mulmod(mem[_460 + 192], 0x100000000000000000000000000000000, mem[752 len 16]) > mem[_460 + 192] << 128)
               _1187 = (((mem[_460 + 192] << 128) - mulmod(mem[_460 + 192], 0x100000000000000000000000000000000, mem[752 len 16])) / (mem[752 len 16] & -mem[752 len 16]) | _1184) * _1183
           else:
-              require mem[752 len 16] > 0
-              _1187 = (mem[_460 + 192] << 128) / mem[752 len 16]
+              _1187 = SafeMath.div(mem[_460 + 192] << 128, mem[752 len 16])
           mem[672] = _1187 + mem[672]
       if mem[620 len 20] != mem[_460 + 108 len 20]:
           if mem[620 len 20] != mem[_460 + 12 len 20]:
@@ -4088,8 +4065,7 @@ def swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqr
                       mem[_1244] = uint32(_1202)
                       mem[_1244 + 32] = int56(mem[_1216 + 32] + int24(_1203) * uint32(_1202 - _1243))
                       _1251 = uint128(_1205) <= 0 or _1205
-                      assert uint128(_1251)
-                      mem[_1244 + 64] = address(mem[_1216 + 64] + (uint32(_1202 - _1243) << 128) / uint128(_1251))
+                      mem[_1244 + 64] = address(mem[_1216 + 64] + SafeMath.div2(uint32(_1202 - _1243) << 128, uint128(_1251)))
                       mem[_1244 + 96] = 1
                       _1263 = _1244
                   _1264 = mem[_1263 + 32]
@@ -4164,8 +4140,7 @@ def swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqr
           mem[_507] = uint32(_455)
           mem[_507 + 32] = int56(mem[_467 + 32] + int24(_456) * uint32(_455 - _506))
           _531 = uint128(_457) <= 0 or _457
-          assert uint128(_531)
-          mem[_507 + 64] = address(mem[_467 + 64] + (uint32(_455 - _506) << 128) / uint128(_531))
+          mem[_507 + 64] = address(mem[_467 + 64] + SafeMath.div2(uint32(_455 - _506) << 128, uint128(_531)))
           mem[_507 + 96] = 1
           assert uint16(uint16(_454 + 1) % uint16(_485)) < 65535
           uint32(stor8[uint16(uint16(_454 + 1) % uint16(_485))].field_0) = uint32(_455)
@@ -4334,8 +4309,7 @@ def swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqr
       _881 = ext_call.success and mem[_876] >= 32
       require _881
       require mem[_876] >= 32
-      require _827 + _651 >= _827
-      if _827 + _651 > mem[_876 + 32]:
+      if SafeMath.add(_827, _651) > mem[_876 + 32]:
           revert with 'IIA'
   else:
       if _651 <′ 0:
@@ -4426,8 +4400,7 @@ def swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqr
       _877 = ext_call.success and mem[_867] >= 32
       require _877
       require mem[_867] >= 32
-      require _826 + _650 >= _826
-      if _826 + _650 > mem[_867 + 32]:
+      if SafeMath.add(_826, _650) > mem[_867 + 32]:
           revert with 'IIA'
   log Swap(address sender, address recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick): _650, _651, Bytes(12, 0), mem[620 len 20], Bytes(16, 0), mem[752 len 16], int24(mem[640]), indexed caller, indexed address(recipient)
   stor0_240 = 1

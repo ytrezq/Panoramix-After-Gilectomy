@@ -23,6 +23,23 @@ def storage:
   kLast is uint256 at storage 11
   stor12 is uint256 at storage 12
 
+def SafeMath:
+  def add(a, b):
+      if a + b < a:
+          revert with 'ds-math-add-overflow'
+      return a + b
+  def sub(a, b):
+      if a - b > a:
+          revert with 'ds-math-sub-underflow'
+      return a - b
+  def mul(a, b):
+      if a * b / a != b:
+          revert with 'ds-math-mul-overflow'
+      return a * b
+  def div(a, b):
+      assert b
+      return a / b
+
 def token0(): # not payable
   return token0
 
@@ -87,12 +104,8 @@ def approve(address spender, uint256 amount): # not payable
 
 def transfer(address recipient, uint256 amount): # not payable
   require calldata.size - 4 >= 64
-  if balanceOf[caller] - amount > balanceOf[caller]:
-      revert with 'ds-math-sub-underflow'
-  balanceOf[caller] -= amount
-  if balanceOf[address(recipient)] + amount < balanceOf[address(recipient)]:
-      revert with 'ds-math-add-overflow'
-  balanceOf[address(recipient)] += amount
+  balanceOf[caller] = SafeMath.sub(balanceOf[caller], amount)
+  balanceOf[address(recipient)] = SafeMath.add(balanceOf[address(recipient)], amount)
   log Transfer(
         address indexed from=caller,
         address indexed to=address(recipient),
@@ -102,15 +115,9 @@ def transfer(address recipient, uint256 amount): # not payable
 def transferFrom(address sender, address recipient, uint256 amount): # not payable
   require calldata.size - 4 >= 96
   if allowance[address(sender)][caller] != -1:
-      if allowance[address(sender)][caller] - amount > allowance[address(sender)][caller]:
-          revert with 'ds-math-sub-underflow'
-      allowance[address(sender)][caller] -= amount
-  if balanceOf[address(sender)] - amount > balanceOf[address(sender)]:
-      revert with 'ds-math-sub-underflow'
-  balanceOf[address(sender)] -= amount
-  if balanceOf[address(recipient)] + amount < balanceOf[address(recipient)]:
-      revert with 'ds-math-add-overflow'
-  balanceOf[address(recipient)] += amount
+      allowance[address(sender)][caller] = SafeMath.sub(allowance[address(sender)][caller], amount)
+  balanceOf[address(sender)] = SafeMath.sub(balanceOf[address(sender)], amount)
+  balanceOf[address(recipient)] = SafeMath.add(balanceOf[address(recipient)], amount)
   log Transfer(
         address indexed from=address(sender),
         address indexed to=address(recipient),
@@ -160,8 +167,7 @@ def sync(): # not payable
   _4 = uint32(uint32(block.timestamp) - stor8_224) and bool(stor8)
   _5 = _4 and bool(stor8_112)
   if _5:
-      assert stor8
-      price0CumulativeLast += uint224((uint112(stor8_112) << 112) / stor8) * uint32(uint32(block.timestamp) - stor8_224)
+      price0CumulativeLast += uint224(SafeMath.div(uint112(stor8_112) << 112, stor8)) * uint32(uint32(block.timestamp) - stor8_224)
       assert stor8_112
       price1CumulativeLast += uint224((uint112(stor8) << 112) / stor8_112) * uint32(uint32(block.timestamp) - stor8_224)
   stor8 = uint112(_1)
@@ -186,23 +192,21 @@ def skim(address to): # not payable
   if not ext_call.success:
       revert with ext_call.return_data[0 len return_data.size]
   require return_data.size >= 32
-  if ext_call.return_data[0] - stor8 > ext_call.return_data[0]:
-      revert with 'ds-math-sub-underflow'
   mem[128] = 25
   mem[160] = 0x7472616e7366657228616464726573732c75696e743235362900000000000000
   mem[228] = address(to)
-  mem[260] = ext_call.return_data[0] - stor8
+  mem[260] = SafeMath.sub(ext_call.return_data[0], stor8)
   mem[192] = 68
   mem[64] = 292
   mem[240 len 16] = uint128(to >> 32)
   mem[228 len 12] = 0
   mem[224 len 4] = 2835717307
-  mem[292 len 64] = Bytes(4, 0xa9059cbb), Bytes(28, uint128(to >> 32)), Bytes(4, uint32(to)), Bytes(28, ext_call.return_data[0] - stor8 >> 32)
-  mem[356 len 4] = uint32(ext_call.return_data[0] - stor8)
+  mem[292 len 64] = Bytes(4, 0xa9059cbb), Bytes(28, uint128(to >> 32)), Bytes(4, uint32(to)), Bytes(28, SafeMath.sub(ext_call.return_data[0], stor8) >> 32)
+  mem[356 len 4] = uint32(SafeMath.sub(ext_call.return_data[0], stor8))
   _6 = token1
   call token0.transfer(address recipient, uint256 amount) with:
        gas gas_remaining
-      args Bytes(28, uint128(to >> 32)), Bytes(4, uint32(to)), Bytes(28, ext_call.return_data[0] - stor8 >> 32), Bytes(4, uint32(ext_call.return_data[0] - stor8))
+      args Bytes(28, uint128(to >> 32)), Bytes(4, uint32(to)), Bytes(28, SafeMath.sub(ext_call.return_data[0], stor8) >> 32), Bytes(4, uint32(SafeMath.sub(ext_call.return_data[0], stor8)))
   if not return_data.size:
       _10 = 96
   else:
@@ -230,14 +234,12 @@ def skim(address to): # not payable
   if not ext_call.success:
       revert with ext_call.return_data[0 len return_data.size]
   require return_data.size >= 32
-  if ext_call.return_data[0] - stor8_112 > ext_call.return_data[0]:
-      revert with 'ds-math-sub-underflow'
   _25 = mem[64]
   mem[64] = mem[64] + 64
   mem[_25] = 25
   mem[_25 + 32] = 0x7472616e7366657228616464726573732c75696e743235362900000000000000
   mem[mem[64] + 36] = address(to)
-  mem[mem[64] + 68] = ext_call.return_data[0] - stor8_112
+  mem[mem[64] + 68] = SafeMath.sub(ext_call.return_data[0], stor8_112)
   _27 = mem[64]
   mem[mem[64]] = 68
   mem[64] = mem[64] + 100
@@ -405,15 +407,11 @@ def swap(uint256 amount0Out, uint256 amount1Out, address to, bytes data): # not 
       revert with Error(string reason), 32, 36, 'UniswapV2: INSUFFICIENT_INPUT_AMOUNT', mem[mem[64] + 104 len 28]
   if 3 * _111 / 3 != _111:
       revert with 'ds-math-mul-overflow'
-  if 1000 * _106 / 1000 != _106:
-      revert with 'ds-math-mul-overflow'
-  if 1000 * _106 - 3 * _111 > 1000 * _106:
+  if SafeMath.mul(1000, _106) - 3 * _111 > SafeMath.mul(1000, _106):
       revert with 'ds-math-sub-underflow'
   if 3 * _112 / 3 != _112:
       revert with 'ds-math-mul-overflow'
-  if 1000 * ext_call.return_data[0] / 1000 != ext_call.return_data[0]:
-      revert with 'ds-math-mul-overflow'
-  if 1000 * ext_call.return_data[0] - 3 * _112 > 1000 * ext_call.return_data[0]:
+  if SafeMath.mul(1000, ext_call.return_data[0]) - 3 * _112 > SafeMath.mul(1000, ext_call.return_data[0]):
       revert with 'ds-math-sub-underflow'
   if not uint112(_57):
       _128 = 0
@@ -425,12 +423,12 @@ def swap(uint256 amount0Out, uint256 amount1Out, address to, bytes data): # not 
       revert with 'ds-math-mul-overflow'
   if 10**6 * _128 / 10**6 != _128:
       revert with 'ds-math-mul-overflow'
-  if not 1000 * ext_call.return_data[0] - 3 * _112:
+  if not SafeMath.mul(1000, ext_call.return_data[0]) - 3 * _112:
       _134 = 0
       _135 = 1
   else:
       _134 = 10**6 * ext_call.return_data[0] * _106 - 3000 * _112 * _106 - 3000 * ext_call.return_data[0] * _111 + 9 * _112 * _111
-      _135 = (10**6 * ext_call.return_data[0] * _106 - 3000 * _112 * _106 - 3000 * ext_call.return_data[0] * _111 + 9 * _112 * _111) / (1000 * ext_call.return_data[0] - 3 * _112) == 1000 * _106 - 3 * _111
+      _135 = (10**6 * ext_call.return_data[0] * _106 - 3000 * _112 * _106 - 3000 * ext_call.return_data[0] * _111 + 9 * _112 * _111) / (SafeMath.mul(1000, ext_call.return_data[0]) - 3 * _112) == SafeMath.mul(1000, _106) - 3 * _111
   if not _135:
       revert with 'ds-math-mul-overflow'
   if _134 < 10**6 * _128:
@@ -441,8 +439,7 @@ def swap(uint256 amount0Out, uint256 amount1Out, address to, bytes data): # not 
   _143 = uint32(uint32(block.timestamp) - stor8_224) and bool(uint112(_56))
   _144 = _143 and bool(uint112(_57))
   if _144:
-      assert uint112(_56)
-      price0CumulativeLast += uint224((uint112(_57) << 112) / uint112(_56)) * uint32(uint32(block.timestamp) - stor8_224)
+      price0CumulativeLast += uint224(SafeMath.div(uint112(_57) << 112, uint112(_56))) * uint32(uint32(block.timestamp) - stor8_224)
       assert uint112(_57)
       price1CumulativeLast += uint224((uint112(_56) << 112) / uint112(_57)) * uint32(uint32(block.timestamp) - stor8_224)
   stor8 = uint112(_106)
@@ -543,23 +540,14 @@ def mint(address to): # not payable
                       _44 = (_15 * totalSupply - _20 * totalSupply) / (_15 - _20) == totalSupply
                   if not _44:
                       revert with 'ds-math-mul-overflow'
-                  if 5 * _15 / 5 != _15:
-                      revert with 'ds-math-mul-overflow'
-                  if 5 * _15 + _20 < 5 * _15:
-                      revert with 'ds-math-add-overflow'
-                  assert 5 * _15 + _20
-                  if not _43 / (5 * _15 + _20):
+                  if not SafeMath.div(_43, SafeMath.add(SafeMath.mul(5, _15), _20)):
                       _184 = stor8
                       _185 = stor8_112
                       _186 = _1 - stor8
                       _187 = _2 - stor8_112
                   else:
-                      if totalSupply + _43 / (5 * _15 + _20) < totalSupply:
-                          revert with 'ds-math-add-overflow'
-                      totalSupply += _43 / (5 * _15 + _20)
-                      if balanceOf[address(ext_call.return_data[0])] + _43 / (5 * _15 + _20) < balanceOf[address(ext_call.return_data[0])]:
-                          revert with 'ds-math-add-overflow'
-                      balanceOf[address(ext_call.return_data[0])] += _43 / (5 * _15 + _20)
+                      totalSupply = SafeMath.add(totalSupply, _43 / (5 * _15 + _20))
+                      balanceOf[address(ext_call.return_data[0])] = SafeMath.add(balanceOf[address(ext_call.return_data[0])], _43 / (5 * _15 + _20))
                       log Transfer(
                             address indexed from=0,
                             address indexed to=address(ext_call.return_data[0]),
@@ -600,23 +588,14 @@ def mint(address to): # not payable
                       _92 = (_15 * totalSupply - t * totalSupply) / (_15 - t) == totalSupply
                   if not _92:
                       revert with 'ds-math-mul-overflow'
-                  if 5 * _15 / 5 != _15:
-                      revert with 'ds-math-mul-overflow'
-                  if 5 * _15 + t < 5 * _15:
-                      revert with 'ds-math-add-overflow'
-                  assert 5 * _15 + t
-                  if not _91 / (5 * _15 + t):
+                  if not SafeMath.div(_91, SafeMath.add(SafeMath.mul(5, _15), t)):
                       _229 = stor8
                       _230 = stor8_112
                       _231 = _1 - stor8
                       _232 = _2 - stor8_112
                   else:
-                      if totalSupply + _91 / (5 * _15 + t) < totalSupply:
-                          revert with 'ds-math-add-overflow'
-                      totalSupply += _91 / (5 * _15 + t)
-                      if balanceOf[address(ext_call.return_data[0])] + _91 / (5 * _15 + t) < balanceOf[address(ext_call.return_data[0])]:
-                          revert with 'ds-math-add-overflow'
-                      balanceOf[address(ext_call.return_data[0])] += _91 / (5 * _15 + t)
+                      totalSupply = SafeMath.add(totalSupply, _91 / (5 * _15 + t))
+                      balanceOf[address(ext_call.return_data[0])] = SafeMath.add(balanceOf[address(ext_call.return_data[0])], _91 / (5 * _15 + t))
                       log Transfer(
                             address indexed from=0,
                             address indexed to=address(ext_call.return_data[0]),
@@ -668,12 +647,8 @@ def mint(address to): # not payable
           _274 = t
       if _274 - 1000 > _274:
           revert with 'ds-math-sub-underflow'
-      if totalSupply + 1000 < totalSupply:
-          revert with 'ds-math-add-overflow'
-      totalSupply += 1000
-      if balanceOf[0] + 1000 < balanceOf[0]:
-          revert with 'ds-math-add-overflow'
-      balanceOf[0] += 1000
+      totalSupply = SafeMath.add(totalSupply, 1000)
+      balanceOf[0] = SafeMath.add(balanceOf[0], 1000)
       log Transfer(
             address indexed from=0,
             address indexed to=0,
@@ -681,12 +656,8 @@ def mint(address to): # not payable
       _299 = _274 - 1000
   if _299 <= 0:
       revert with Error(string reason), 32, 40, 'UniswapV2: INSUFFICIENT_LIQUIDITY_MINTED', mem[236 len 24]
-  if totalSupply + _299 < totalSupply:
-      revert with 'ds-math-add-overflow'
-  totalSupply += _299
-  if balanceOf[address(to)] + _299 < balanceOf[address(to)]:
-      revert with 'ds-math-add-overflow'
-  balanceOf[address(to)] += _299
+  totalSupply = SafeMath.add(totalSupply, _299)
+  balanceOf[address(to)] = SafeMath.add(balanceOf[address(to)], _299)
   log Transfer(
         address indexed from=0,
         address indexed to=address(to),
@@ -697,8 +668,7 @@ def mint(address to): # not payable
   _316 = uint32(uint32(block.timestamp) - stor8_224) and bool(uint112(_255))
   _317 = _316 and bool(uint112(_256))
   if _317:
-      assert uint112(_255)
-      price0CumulativeLast += uint224((uint112(_256) << 112) / uint112(_255)) * uint32(uint32(block.timestamp) - stor8_224)
+      price0CumulativeLast += uint224(SafeMath.div(uint112(_256) << 112, uint112(_255))) * uint32(uint32(block.timestamp) - stor8_224)
       assert uint112(_256)
       price1CumulativeLast += uint224((uint112(_255) << 112) / uint112(_256)) * uint32(uint32(block.timestamp) - stor8_224)
   stor8 = uint112(_1)
@@ -809,25 +779,16 @@ def burn(address to): # not payable
                       _48 = (_20 * totalSupply - _23 * totalSupply) / (_20 - _23) == totalSupply
                   if not _48:
                       revert with 'ds-math-mul-overflow'
-                  if 5 * _20 / 5 != _20:
-                      revert with 'ds-math-mul-overflow'
-                  if 5 * _20 + _23 < 5 * _20:
-                      revert with 'ds-math-add-overflow'
-                  assert 5 * _20 + _23
-                  if not _47 / (5 * _20 + _23):
+                  if not SafeMath.div(_47, SafeMath.add(SafeMath.mul(5, _20), _23)):
                       _188 = stor8
                       _189 = stor8_112
                       _190 = token0
                       _191 = token1
                       _192 = balanceOf[this.address]
                   else:
-                      if totalSupply + _47 / (5 * _20 + _23) < totalSupply:
-                          revert with 'ds-math-add-overflow'
                       _155 = balanceOf[this.address]
-                      totalSupply += _47 / (5 * _20 + _23)
-                      if balanceOf[address(ext_call.return_data[0])] + _47 / (5 * _20 + _23) < balanceOf[address(ext_call.return_data[0])]:
-                          revert with 'ds-math-add-overflow'
-                      balanceOf[address(ext_call.return_data[0])] += _47 / (5 * _20 + _23)
+                      totalSupply = SafeMath.add(totalSupply, _47 / (5 * _20 + _23))
+                      balanceOf[address(ext_call.return_data[0])] = SafeMath.add(balanceOf[address(ext_call.return_data[0])], _47 / (5 * _20 + _23))
                       log Transfer(
                             address indexed from=0,
                             address indexed to=address(ext_call.return_data[0]),
@@ -872,25 +833,16 @@ def burn(address to): # not payable
                       _70 = (_20 * totalSupply - t * totalSupply) / (_20 - t) == totalSupply
                   if not _70:
                       revert with 'ds-math-mul-overflow'
-                  if 5 * _20 / 5 != _20:
-                      revert with 'ds-math-mul-overflow'
-                  if 5 * _20 + t < 5 * _20:
-                      revert with 'ds-math-add-overflow'
-                  assert 5 * _20 + t
-                  if not _69 / (5 * _20 + t):
+                  if not SafeMath.div(_69, SafeMath.add(SafeMath.mul(5, _20), t)):
                       _249 = stor8
                       _250 = stor8_112
                       _251 = token0
                       _252 = token1
                       _253 = balanceOf[this.address]
                   else:
-                      if totalSupply + _69 / (5 * _20 + t) < totalSupply:
-                          revert with 'ds-math-add-overflow'
                       _221 = balanceOf[this.address]
-                      totalSupply += _69 / (5 * _20 + t)
-                      if balanceOf[address(ext_call.return_data[0])] + _69 / (5 * _20 + t) < balanceOf[address(ext_call.return_data[0])]:
-                          revert with 'ds-math-add-overflow'
-                      balanceOf[address(ext_call.return_data[0])] += _69 / (5 * _20 + t)
+                      totalSupply = SafeMath.add(totalSupply, _69 / (5 * _20 + t))
+                      balanceOf[address(ext_call.return_data[0])] = SafeMath.add(balanceOf[address(ext_call.return_data[0])], _69 / (5 * _20 + t))
                       log Transfer(
                             address indexed from=0,
                             address indexed to=address(ext_call.return_data[0]),
@@ -935,13 +887,9 @@ def burn(address to): # not payable
   _298 = _290 / totalSupply > 0 and _294 / totalSupply > 0
   if not _298:
       revert with Error(string reason), 32, 40, 'UniswapV2: INSUFFICIENT_LIQUIDITY_BURNED', mem[236 len 24]
-  if balanceOf[this.address] - _286 > balanceOf[this.address]:
-      revert with 'ds-math-sub-underflow'
   _305 = totalSupply
-  balanceOf[this.address] -= _286
-  if totalSupply - _286 > totalSupply:
-      revert with 'ds-math-sub-underflow'
-  totalSupply -= _286
+  balanceOf[this.address] = SafeMath.sub(balanceOf[this.address], _286)
+  totalSupply = SafeMath.sub(totalSupply, _286)
   log Transfer(
         address indexed from=this.address,
         address indexed to=0,
@@ -1029,8 +977,7 @@ def burn(address to): # not payable
   _371 = uint32(uint32(block.timestamp) - stor8_224) and bool(uint112(_282))
   _372 = _371 and bool(uint112(_283))
   if _372:
-      assert uint112(_282)
-      price0CumulativeLast += uint224((uint112(_283) << 112) / uint112(_282)) * uint32(uint32(block.timestamp) - stor8_224)
+      price0CumulativeLast += uint224(SafeMath.div(uint112(_283) << 112, uint112(_282))) * uint32(uint32(block.timestamp) - stor8_224)
       assert uint112(_283)
       price1CumulativeLast += uint224((uint112(_282) << 112) / uint112(_283)) * uint32(uint32(block.timestamp) - stor8_224)
   stor8 = uint112(_363)

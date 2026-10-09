@@ -109,6 +109,7 @@ test_table:
         .quad .Ln_as_paths, as_paths
         .quad .Ln_fold_paths, fold_paths
         .quad .Ln_fold_path_lists, fold_path_lists
+        .quad .Ln_safemath, tf_safemath
         .quad .Ln_fold_aux, fold_aux
         .quad .Ln_prettify, tf_prettify
         .quad .Ln_pretty_stor, tf_pretty_stor
@@ -381,6 +382,7 @@ test_table:
 .Ln_as_paths: .asciz "as_paths"
 .Ln_fold_paths: .asciz "fold_paths"
 .Ln_fold_path_lists: .asciz "fold_path_lists"
+.Ln_safemath: .asciz "safemath"
 .Ln_fold_aux: .asciz "fold_aux"
 .Ln_prettify: .asciz "prettify"
 .Ln_pretty_stor: .asciz "pretty_stor"
@@ -2458,6 +2460,21 @@ ENDF tf_is_end_block
 .Ls_tc_solidity: .asciz "solidity"
 .Ls_tc_vyper:   .asciz "vyper"
         .text
+# tf_safemath(asts) -> (asts, lines): safemath_rewrite of the asts (a
+# list, None for a function without), the lines of its functions
+# (safemath_pretty)
+FUNC tf_safemath
+        ENTER
+        call safemath_rewrite
+        mov rbx, rax
+        mov rdi, [rax + N_DATA + 8]
+        call safemath_pretty
+        mov rsi, rax
+        mov rdi, [rbx + N_DATA]
+        call mk2
+        LEAVE
+ENDF tf_safemath
+
 FUNC tf_contract
         ENTER
         sub rsp, 48

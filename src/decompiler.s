@@ -19,6 +19,7 @@
 .Ls_all_rest:   .asciz "#  All the rest is below."
 .Ls_def_storage: .asciz "storage:"
 .Ls_def_storage_vyper: .asciz "storage (vyper):"
+.Ls_def_safemath: .asciz "SafeMath:"
 .Ls_def_:       .asciz "def "
 .Ls_regular:    .asciz "#\n#  Regular functions\n#"
 .Ls_fallback:   .asciz "_fallback"
@@ -1107,7 +1108,37 @@ FUNC contract_text
         inc r14d
         jmp 6b
 61:     call .Lct_newline
-7:      # the getters
+7:      # the functions of the contract's SafeMath (safemath.s)
+        mov r13, [rbx + CT_SAFEMATH]
+        cmp dword ptr [r13 + N_AUX], 0
+        je 72f
+        mov rdi, r12
+        lea rsi, [rip + C_GREEN]
+        call sb_append_c
+        mov rdi, r12
+        lea rsi, [rip + .Ls_def_]
+        call sb_append_c
+        mov rdi, r12
+        lea rsi, [rip + C_ENDC]
+        call sb_append_c
+        mov rdi, r12
+        lea rsi, [rip + .Ls_def_safemath]
+        call sb_append_c
+        call .Lct_newline
+        mov rdi, r13
+        call safemath_pretty
+        mov r13, rax
+        xor r14d, r14d
+71:     cmp r14d, [r13 + N_AUX]
+        jae 711f
+        mov rdi, r12
+        mov rsi, [r13 + N_DATA + r14*8]
+        call sb_append_str
+        call .Lct_newline
+        inc r14d
+        jmp 71b
+711:    call .Lct_newline
+72:     # the getters
         mov r13, [rbx + CT_FUNCS]
         xor r14d, r14d
 8:      cmp r14, [r13 + VEC_LEN]

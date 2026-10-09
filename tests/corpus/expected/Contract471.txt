@@ -30,6 +30,12 @@ def storage:
   storF0C5_8 is uint56 at storage 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00 offset 8
   storF0C5_64 is uint8 at storage 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00 offset 64
 
+def SafeMath:
+  def sub(a, b):  # solidity >= 0.8
+      if a - b > a:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      return a - b
+
 def getRoleAdmin(bytes32 role): # not payable
   require calldata.size - 4 >=′ 32
   return stor[sha3(role, 0x2dd7bc7dec4dceedda775e58dd541e08a116c6c53815c0bd028192f7b626800) + 1]
@@ -637,9 +643,7 @@ def unknown41d5e516(uint256 _param1, uint256 _param2, uint256 _param3): # not pa
       if ceil32(_3) + ceil32(_12) + 256 > 18446744073709551615 or ceil32(_3) + ceil32(_12) + 256 < ceil32(_3) + 256:
           revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
       require _11 >=′ 32
-      if _5 - concat(ext_call.return_data[0 len min(32, return_data.size)], mem[ceil32(_3) + min(32, return_data.size) + 256 len -min(32, return_data.size) + 32]) > _5:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      log 0x64336c2c468e7484a74b9f0ef79fe767455ab9373c75d9578d2415770f9f516c: caller, _param1, _5 - concat(ext_call.return_data[0 len min(32, return_data.size)], mem[ceil32(_3) + min(32, return_data.size) + 256 len -min(32, return_data.size) + 32]), _param3
+      log 0x64336c2c468e7484a74b9f0ef79fe767455ab9373c75d9578d2415770f9f516c: caller, _param1, SafeMath.sub(_5, concat(ext_call.return_data[0 len min(32, return_data.size)], mem[ceil32(_3) + min(32, return_data.size) + 256 len -min(32, return_data.size) + 32])), _param3
 
 def unknown84b0196e(): # not payable
   require calldata.size - 4 >=′ 0
@@ -1240,11 +1244,9 @@ def unknown250bf93a(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _
       _109 = concat(ext_call.return_data[0 len min(32, return_data.size)], mem[mem[64] + min(32, return_data.size) len -min(32, return_data.size) + 32])
   else:
       _109 = eth.balance(_param6)
-  if _109 - _84 > _109:
-      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-  if _109 - _84 < _param5:
-      revert with 0x2b90f889, _109 - _84, _param5
-  log 0x2952f5e0e1d25d547d0556be0fc7ce2a78eec88b21369ecb37e214e1d28a33e1: _param2, _param3, _param4, _109 - _84, _param6, indexed _param1
+  if SafeMath.sub(_109, _84) < _param5:
+      revert with 0x2b90f889, SafeMath.sub(_109, _84), _param5
+  log 0x2952f5e0e1d25d547d0556be0fc7ce2a78eec88b21369ecb37e214e1d28a33e1: _param2, _param3, _param4, SafeMath.sub(_109, _84), _param6, indexed _param1
   stor9B77 = 1
 
 def unknown3271ba8d(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _param4, uint256 _param5, uint256 _param6, uint256 _param7, array _param8, array _param9): # not payable
@@ -1709,11 +1711,9 @@ def unknown3271ba8d(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _
       _152 = concat(ext_call.return_data[0 len min(32, return_data.size)], mem[mem[64] + min(32, return_data.size) len -min(32, return_data.size) + 32])
   else:
       _152 = eth.balance(_param6)
-  if _152 - _127 > _152:
-      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-  if _152 - _127 < _param5:
-      revert with 0x2b90f889, _152 - _127, _param5
-  log 0x2952f5e0e1d25d547d0556be0fc7ce2a78eec88b21369ecb37e214e1d28a33e1: _param2, _param3, _param4, _152 - _127, _param6, indexed _param1
+  if SafeMath.sub(_152, _127) < _param5:
+      revert with 0x2b90f889, SafeMath.sub(_152, _127), _param5
+  log 0x2952f5e0e1d25d547d0556be0fc7ce2a78eec88b21369ecb37e214e1d28a33e1: _param2, _param3, _param4, SafeMath.sub(_152, _127), _param6, indexed _param1
   stor9B77 = 1
 
 

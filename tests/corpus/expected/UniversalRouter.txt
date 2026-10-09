@@ -4,6 +4,20 @@ def storage:
   stor0 is uint256 at storage 0
   stor1 is uint256 at storage 1
 
+def SafeMath:
+  def sub(a, b):  # solidity >= 0.8
+      if a - b > a:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      return a - b
+  def div(a, b):  # solidity >= 0.8
+      if not b:
+          revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
+      return a / b
+  def inc(a):  # solidity >= 0.8
+      if a == -1:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      return a + 1
+
 def _fallback(?) payable: # default function
   require not calldata.size
 
@@ -247,9 +261,7 @@ def uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes data):
                   if not (concat(ext_call.return_data[0 len min(32, return_data.size)], mem[min(32, return_data.size) len -min(32, return_data.size) + 32]) == 1 and return_data.size > 31 or not return_data.size) & ext_call.success:
                       revert with 'TRANSFER_FAILED'
       else:
-          if cd[data + cd[data + 36] + 36] - 23 > cd[data + cd[data + 36] + 36]:
-              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if cd[data + cd[data + 36] + 36] + 8 < cd[data + cd[data + 36] + 36] - 23:
+          if cd[data + cd[data + 36] + 36] + 8 < SafeMath.sub(cd[data + cd[data + 36] + 36], 23):
               revert with SliceOverflow()
           if cd[data + cd[data + 36] + 36] < 23:
               revert with SliceOverflow()
@@ -257,30 +269,30 @@ def uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes data):
               revert with NoSlice()
           idx = 32 * (not (mem[128] - 23) % 32) + (mem[128] - 23) % 32 + 128
           s = 32 * (not (mem[128] - 23) % 32) + (mem[128] - 23) % 32 + 151
-          while idx < 32 * (not (cd[data + cd[data + 36] + 36] - 23) % 32) + (cd[data + cd[data + 36] + 36] - 23) % 32 + cd[data + cd[data + 36] + 36] + 105:
+          while idx < 32 * (not SafeMath.sub(cd[data + cd[data + 36] + 36], 23) % 32) + SafeMath.sub(cd[data + cd[data + 36] + 36], 23) % 32 + cd[data + cd[data + 36] + 36] + 105:
               mem[idx] = mem[s]
               idx = idx + 32
               s = s + 32
               continue
-          mem[128] = cd[data + cd[data + 36] + 36] - 23
+          mem[128] = SafeMath.sub(cd[data + cd[data + 36] + 36], 23)
           require _11 < 0x8000000000000000000000000000000000000000000000000000000000000000
           if _11 == 0x8000000000000000000000000000000000000000000000000000000000000000:
               revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if 20 > cd[data + cd[data + 36] + 36] - 23:
+          if 20 > SafeMath.sub(cd[data + cd[data + 36] + 36], 23):
               revert with ToAddressOutOfBounds()
-          _41 = concat(Bytes(12, uint96(cd[data + cd[data + 36] + 36] - 23)), mem[160 len 20])
-          if cd[data + cd[data + 36] + 36] - 23 < 23:
+          _41 = concat(Bytes(12, uint96(SafeMath.sub(cd[data + cd[data + 36] + 36], 23))), mem[160 len 20])
+          if SafeMath.sub(cd[data + cd[data + 36] + 36], 23) < 23:
               revert with ToUint24OutOfBounds()
-          _43 = concat(Bytes(9, uint72(cd[data + cd[data + 36] + 36] - 23)), mem[160 len 23])
-          if cd[data + cd[data + 36] + 36] - 23 < 43:
+          _43 = concat(Bytes(9, uint72(SafeMath.sub(cd[data + cd[data + 36] + 36], 23))), mem[160 len 23])
+          if SafeMath.sub(cd[data + cd[data + 36] + 36], 23) < 43:
               revert with ToAddressOutOfBounds()
           _45 = mem[171]
           if mem[160 len 20] > mem[183 len 20]:
-              _47 = concat(Bytes(12, uint96(cd[data + cd[data + 36] + 36] - 23)), mem[160 len 20])
+              _47 = concat(Bytes(12, uint96(SafeMath.sub(cd[data + cd[data + 36] + 36], 23))), mem[160 len 20])
               _48 = mem[171]
           else:
               _47 = mem[171]
-              _48 = concat(Bytes(12, uint96(cd[data + cd[data + 36] + 36] - 23)), mem[160 len 20])
+              _48 = concat(Bytes(12, uint96(SafeMath.sub(cd[data + cd[data + 36] + 36], 23))), mem[160 len 20])
           mem[mem[64] + 32] = address(_48)
           mem[mem[64] + 64] = address(_47)
           mem[mem[64] + 96] = uint24(_43)
@@ -1828,9 +1840,7 @@ def execute(bytes commands, bytes[] inputs) payable:
                   idx = idx + 1
                   continue loop1
               _1112 = mem[_192]
-              if mem[_192] - 23 > mem[_192]:
-                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-              if mem[_192] + 8 < mem[_192] - 23:
+              if mem[_192] + 8 < SafeMath.sub(mem[_192], 23):
                   revert with SliceOverflow()
               if mem[_192] < 23:
                   revert with SliceOverflow()
@@ -1975,9 +1985,7 @@ def execute(bytes commands, bytes[] inputs) payable:
                                   revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
                               if mem[mem[32 * s + _196 + 32] + 12 len 20] != caller:
                                   revert with FromAddressIsNotOwner()
-                              if s == -1:
-                                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              s = s + 1
+                              s = SafeMath.inc(s)
                               continue
                           require ext_code.size(0x22d473030f116ddee9f6b43ac78ba3)
                           mem[mem[64]] = 0xd58b1db00000000000000000000000000000000000000000000000000000000
@@ -2170,18 +2178,16 @@ def execute(bytes commands, bytes[] inputs) payable:
               u = 0
               v = _140
               while s:
-                  if t - 1 > t:
-                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if t - 1 >= mem[_190]:
+                  if SafeMath.sub(t, 1) >= mem[_190]:
                       revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
-                  _942 = mem[32 * (t - 1) + _190 + 32]
+                  _942 = mem[32 * SafeMath.sub(t, 1) + _190 + 32]
                   if t >= mem[_190]:
                       revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
-                  if mem[32 * (t - 1) + _190 + 44 len 20] >= mem[32 * t + _190 + 44 len 20]:
+                  if mem[32 * SafeMath.sub(t, 1) + _190 + 44 len 20] >= mem[32 * t + _190 + 44 len 20]:
                       _962 = mem[32 * t + _190 + 44 len 20]
-                      _963 = mem[32 * (t - 1) + _190 + 44 len 20]
+                      _963 = mem[32 * SafeMath.sub(t, 1) + _190 + 44 len 20]
                   else:
-                      _962 = mem[32 * (t - 1) + _190 + 44 len 20]
+                      _962 = mem[32 * SafeMath.sub(t, 1) + _190 + 44 len 20]
                       _963 = mem[32 * t + _190 + 44 len 20]
                   _965 = mem[64]
                   mem[mem[64] + 32] = _962 << 96
@@ -2228,20 +2234,16 @@ def execute(bytes commands, bytes[] inputs) payable:
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                   if _1028 * v and 1000 * _1028 * v / (_1028 * v) != 1000:
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if _1029 - v > _1029:
+                  if _1029 != v and (997 * _1029 - 997 * v) / SafeMath.sub(_1029, v) != 997:
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if _1029 != v and (997 * _1029 - 997 * v) / (_1029 - v) != 997:
-                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if not 997 * _1029 - 997 * v:
-                      revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                  if 1000 * _1028 * v / (997 * _1029 - 997 * v) > 1000 * _1028 * v / (997 * _1029 - 997 * v) + 1:
+                  if SafeMath.div(1000 * _1028 * v, 997 * _1029 - 997 * v) > SafeMath.div(1000 * _1028 * v, 997 * _1029 - 997 * v) + 1:
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                   if not t:
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  s = t - 1
-                  t = t - 1
+                  s = SafeMath.sub(t, 1)
+                  t = SafeMath.sub(t, 1)
                   u = address(sha3(Bytes(1, 0xff), Bytes(20, 0x5c69bee701ef814a2b6a3edd4b1652cb9cc5aa6f), sha3(Bytes(20, address(_962)), Bytes(20, address(_963))), 0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f))
-                  v = 1000 * _1028 * v / (997 * _1029 - 997 * v) + 1
+                  v = SafeMath.div(1000 * _1028 * v, 997 * _1029 - 997 * v) + 1
                   continue
               if v > _141:
                   revert with V2TooMuchRequested()
@@ -2562,11 +2564,9 @@ def execute(bytes commands, bytes[] inputs) payable:
                   if _616 + 224 > 18446744073709551615:
                       revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
                   mem[64] = _616 + 224
-          if mem[_184] - 1 > mem[_184]:
-              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if mem[_184] - 1 >= mem[_184]:
+          if SafeMath.sub(mem[_184], 1) >= mem[_184]:
               revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
-          _921 = mem[32 * (mem[_184] - 1) + _184 + 32]
+          _921 = mem[32 * SafeMath.sub(mem[_184], 1) + _184 + 32]
           _928 = mem[64]
           mem[mem[64]] = 0x70a0823100000000000000000000000000000000000000000000000000000000
           mem[mem[64] + 4] = address(_426)
@@ -2739,9 +2739,7 @@ def execute(bytes commands, bytes[] inputs) payable:
               revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
           mem[64] = mem[64] + ceil32(_1139)
           require _1138 >=′ 32
-          if mem[_1132] - _939 > mem[_1132]:
-              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if mem[_1132] - _939 < _123:
+          if SafeMath.sub(mem[_1132], _939) < _123:
               revert with V2TooLittleReceived()
       idx = idx + 1
       continue
@@ -4265,9 +4263,7 @@ def execute(bytes commands, bytes[] inputs, uint256 deadline) payable:
                   idx = idx + 1
                   continue loop1
               _1112 = mem[_192]
-              if mem[_192] - 23 > mem[_192]:
-                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-              if mem[_192] + 8 < mem[_192] - 23:
+              if mem[_192] + 8 < SafeMath.sub(mem[_192], 23):
                   revert with SliceOverflow()
               if mem[_192] < 23:
                   revert with SliceOverflow()
@@ -4412,9 +4408,7 @@ def execute(bytes commands, bytes[] inputs, uint256 deadline) payable:
                                   revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
                               if mem[mem[32 * s + _196 + 32] + 12 len 20] != caller:
                                   revert with FromAddressIsNotOwner()
-                              if s == -1:
-                                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              s = s + 1
+                              s = SafeMath.inc(s)
                               continue
                           require ext_code.size(0x22d473030f116ddee9f6b43ac78ba3)
                           mem[mem[64]] = 0xd58b1db00000000000000000000000000000000000000000000000000000000
@@ -4607,18 +4601,16 @@ def execute(bytes commands, bytes[] inputs, uint256 deadline) payable:
               u = 0
               v = _140
               while s:
-                  if t - 1 > t:
-                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if t - 1 >= mem[_190]:
+                  if SafeMath.sub(t, 1) >= mem[_190]:
                       revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
-                  _942 = mem[32 * (t - 1) + _190 + 32]
+                  _942 = mem[32 * SafeMath.sub(t, 1) + _190 + 32]
                   if t >= mem[_190]:
                       revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
-                  if mem[32 * (t - 1) + _190 + 44 len 20] >= mem[32 * t + _190 + 44 len 20]:
+                  if mem[32 * SafeMath.sub(t, 1) + _190 + 44 len 20] >= mem[32 * t + _190 + 44 len 20]:
                       _962 = mem[32 * t + _190 + 44 len 20]
-                      _963 = mem[32 * (t - 1) + _190 + 44 len 20]
+                      _963 = mem[32 * SafeMath.sub(t, 1) + _190 + 44 len 20]
                   else:
-                      _962 = mem[32 * (t - 1) + _190 + 44 len 20]
+                      _962 = mem[32 * SafeMath.sub(t, 1) + _190 + 44 len 20]
                       _963 = mem[32 * t + _190 + 44 len 20]
                   _965 = mem[64]
                   mem[mem[64] + 32] = _962 << 96
@@ -4665,20 +4657,16 @@ def execute(bytes commands, bytes[] inputs, uint256 deadline) payable:
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                   if _1028 * v and 1000 * _1028 * v / (_1028 * v) != 1000:
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if _1029 - v > _1029:
+                  if _1029 != v and (997 * _1029 - 997 * v) / SafeMath.sub(_1029, v) != 997:
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if _1029 != v and (997 * _1029 - 997 * v) / (_1029 - v) != 997:
-                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if not 997 * _1029 - 997 * v:
-                      revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                  if 1000 * _1028 * v / (997 * _1029 - 997 * v) > 1000 * _1028 * v / (997 * _1029 - 997 * v) + 1:
+                  if SafeMath.div(1000 * _1028 * v, 997 * _1029 - 997 * v) > SafeMath.div(1000 * _1028 * v, 997 * _1029 - 997 * v) + 1:
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                   if not t:
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  s = t - 1
-                  t = t - 1
+                  s = SafeMath.sub(t, 1)
+                  t = SafeMath.sub(t, 1)
                   u = address(sha3(Bytes(1, 0xff), Bytes(20, 0x5c69bee701ef814a2b6a3edd4b1652cb9cc5aa6f), sha3(Bytes(20, address(_962)), Bytes(20, address(_963))), 0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f))
-                  v = 1000 * _1028 * v / (997 * _1029 - 997 * v) + 1
+                  v = SafeMath.div(1000 * _1028 * v, 997 * _1029 - 997 * v) + 1
                   continue
               if v > _141:
                   revert with V2TooMuchRequested()
@@ -4999,11 +4987,9 @@ def execute(bytes commands, bytes[] inputs, uint256 deadline) payable:
                   if _616 + 224 > 18446744073709551615:
                       revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
                   mem[64] = _616 + 224
-          if mem[_184] - 1 > mem[_184]:
-              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if mem[_184] - 1 >= mem[_184]:
+          if SafeMath.sub(mem[_184], 1) >= mem[_184]:
               revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
-          _921 = mem[32 * (mem[_184] - 1) + _184 + 32]
+          _921 = mem[32 * SafeMath.sub(mem[_184], 1) + _184 + 32]
           _928 = mem[64]
           mem[mem[64]] = 0x70a0823100000000000000000000000000000000000000000000000000000000
           mem[mem[64] + 4] = address(_426)
@@ -5176,9 +5162,7 @@ def execute(bytes commands, bytes[] inputs, uint256 deadline) payable:
               revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
           mem[64] = mem[64] + ceil32(_1139)
           require _1138 >=′ 32
-          if mem[_1132] - _939 > mem[_1132]:
-              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if mem[_1132] - _939 < _123:
+          if SafeMath.sub(mem[_1132], _939) < _123:
               revert with V2TooLittleReceived()
       idx = idx + 1
       continue

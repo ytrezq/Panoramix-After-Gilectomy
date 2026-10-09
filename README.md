@@ -55,8 +55,9 @@ a traceback raises `RuntimeError`.
 
 `decompile_bytecode` gives what panoramix's function of that name gives:
 `json` is python's `decompilation.json` - the problems, the storage
-definitions, and each function's names, length, getter, constant,
-payable, printed text, trace and parameters - as the same python objects
+definitions, each function's names, length, getter, constant, payable,
+printed text, trace and parameters, and the text of the contract's `def
+SafeMath:` block when it has one - as the same python objects
 (tuples, numbers as keys); `panasm decompile --json` prints it as
 `json.dumps` does.
 

@@ -22,6 +22,12 @@ def storage:
   allowance is mapping of mapping of uint256 at storage 16
   stor17 is mapping of struct of 2 slots at storage 17
 
+def SafeMath:
+  def sub(a, b):
+      if a - b > a:
+          revert with 'reduce reserves unexpected underflow'
+      return a - b
+
 def reserveFactorMantissa(): # not payable
   return reserveFactorMantissa
 
@@ -2356,10 +2362,8 @@ def _reduceReserves(uint256 reduceAmount): # not payable
   require not _46
   if _47 >= reduceAmount:
       if reduceAmount <= totalReserves:
-          if totalReserves - reduceAmount > totalReserves:
-              revert with Error(string reason), 32, 36, 'reduce reserves unexpected underflow', mem[1000 len 28]
           _48 = totalReserves
-          totalReserves -= reduceAmount
+          totalReserves = SafeMath.sub(totalReserves, reduceAmount)
           call admin with:
              value reduceAmount wei
                gas 2300 * (not reduceAmount)

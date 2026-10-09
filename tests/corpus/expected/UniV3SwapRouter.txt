@@ -6,6 +6,11 @@ const WETH9 = 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2
 def storage:
   stor0 is uint256 at storage 0
 
+def SafeMath:
+  def mul(a, b):
+      require a * b / a == b
+      return a * b
+
 #
 #  Regular functions
 #
@@ -154,6 +159,58 @@ def sweepToken(address token, uint256 amountMinimum, address recipient) payable:
       if not _13:
           revert with 'ST'
 
+def unwrapWETH9WithFee(uint256 amountMinimum, address recipient, uint256 feeBips, address feeRecipient) payable: 
+  mem[64] = 128
+  require calldata.size - 4 >=′ 128
+  require recipient == address(recipient)
+  require feeRecipient == address(feeRecipient)
+  _1 = feeBips > 0 and feeBips <= 100
+  require _1
+  mem[132] = this.address
+  require ext_code.size(0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2)
+  static call 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2.balanceOf(address account) with:
+          gas gas_remaining
+         args this.address
+  mem[128 len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
+  if not ext_call.success:
+      revert with ext_call.return_data[0 len return_data.size]
+  require return_data.size >= 32
+  _2 = ext_call.return_data[0]
+  if ext_call.return_data[0] < amountMinimum:
+      revert with 'Insufficient WETH9'
+  if ext_call.return_data[0]:
+      mem[128] = 0x2e1a7d4d00000000000000000000000000000000000000000000000000000000
+      mem[132] = ext_call.return_data[0]
+      require ext_code.size(0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2)
+      call 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2.withdraw(uint256 amount) with:
+           gas gas_remaining
+          args ext_call.return_data[0]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if SafeMath.mul(_2, feeBips) / 10000:
+          mem[128] = 0
+          mem[64] = 160
+          mem[160] = _2 << 224
+          call feeRecipient with:
+             value SafeMath.mul(_2, feeBips) / 10000 wei
+               gas gas_remaining
+          if return_data.size:
+              mem[64] = ceil32(return_data.size) + 192
+              mem[160] = return_data.size
+              mem[192 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          if not ext_call.success:
+              revert with 'STE'
+      _9 = mem[64]
+      mem[mem[64]] = 0
+      mem[64] = mem[64] + 32
+      mem[_9 + floor32(mem[_9]) + 32] = Mask(-(8 * (-(mem[_9] % 32) + 32)) + 256, 8 * (-(mem[_9] % 32) + 32), mem[_9 + floor32(mem[_9]) + 32]) | mem[_9 + mem[_9] + 32 len -(mem[_9] % 32) + 32]
+      call recipient with:
+         value _2 - SafeMath.mul(_2, feeBips) / 10000 wei
+           gas gas_remaining
+          args mem[mem[64] len mem[_9] + _9 - mem[64] + 32]
+      if not ext_call.success:
+          revert with 'STE'
+
 def exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160) params) payable: 
   require calldata.size - 4 >=′ 256
   if block.timestamp > params.deadline:
@@ -194,59 +251,6 @@ def exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uin
   if -_18 < params.amountOutMinimum:
       revert with 'Too little received'
   return -_18
-
-def unwrapWETH9WithFee(uint256 amountMinimum, address recipient, uint256 feeBips, address feeRecipient) payable: 
-  mem[64] = 128
-  require calldata.size - 4 >=′ 128
-  require recipient == address(recipient)
-  require feeRecipient == address(feeRecipient)
-  _1 = feeBips > 0 and feeBips <= 100
-  require _1
-  mem[132] = this.address
-  require ext_code.size(0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2)
-  static call 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2.balanceOf(address account) with:
-          gas gas_remaining
-         args this.address
-  mem[128 len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
-  if not ext_call.success:
-      revert with ext_call.return_data[0 len return_data.size]
-  require return_data.size >= 32
-  _2 = ext_call.return_data[0]
-  if ext_call.return_data[0] < amountMinimum:
-      revert with 'Insufficient WETH9'
-  if ext_call.return_data[0]:
-      mem[128] = 0x2e1a7d4d00000000000000000000000000000000000000000000000000000000
-      mem[132] = ext_call.return_data[0]
-      require ext_code.size(0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2)
-      call 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2.withdraw(uint256 amount) with:
-           gas gas_remaining
-          args ext_call.return_data[0]
-      if not ext_call.success:
-          revert with ext_call.return_data[0 len return_data.size]
-      require feeBips * _2 / _2 == feeBips
-      if feeBips * _2 / 10000:
-          mem[128] = 0
-          mem[64] = 160
-          mem[160] = _2 << 224
-          call feeRecipient with:
-             value feeBips * _2 / 10000 wei
-               gas gas_remaining
-          if return_data.size:
-              mem[64] = ceil32(return_data.size) + 192
-              mem[160] = return_data.size
-              mem[192 len return_data.size] = ext_call.return_data[0 len return_data.size]
-          if not ext_call.success:
-              revert with 'STE'
-      _9 = mem[64]
-      mem[mem[64]] = 0
-      mem[64] = mem[64] + 32
-      mem[_9 + floor32(mem[_9]) + 32] = Mask(-(8 * (-(mem[_9] % 32) + 32)) + 256, 8 * (-(mem[_9] % 32) + 32), mem[_9 + floor32(mem[_9]) + 32]) | mem[_9 + mem[_9] + 32 len -(mem[_9] % 32) + 32]
-      call recipient with:
-         value _2 - feeBips * _2 / 10000 wei
-           gas gas_remaining
-          args mem[mem[64] len mem[_9] + _9 - mem[64] + 32]
-      if not ext_call.success:
-          revert with 'STE'
 
 def exactOutputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160) params) payable: 
   require calldata.size - 4 >=′ 256
@@ -368,8 +372,7 @@ def sweepTokenWithFee(address token, uint256 amountMinimum, address recipient, u
   if ext_call.return_data[0] < amountMinimum:
       revert with 'Insufficient token'
   if ext_call.return_data[0]:
-      require feeBips * ext_call.return_data[0] / ext_call.return_data[0] == feeBips
-      if feeBips * ext_call.return_data[0] / 10000:
+      if SafeMath.mul(ext_call.return_data[0], feeBips) / 10000:
           mem[164] = feeRecipient
           mem[196] = feeBips * ext_call.return_data[0] / 10000
           mem[128] = 68

@@ -9,6 +9,12 @@ def storage:
   storB984_b98496a7 is fixed array of uint256 at storage 0xb98496a7208546c3cd6b1754cdeca2e2dca28c1339bef7a3eae2c2bad18c1617
   storEC6D is address at storage 0xec6d945304bde08b32351fdd7d60c60f6a7eee31daec30b70c695c1a7cd1670b
 
+def SafeMath:
+  def sub(a, b):  # solidity >= 0.8
+      if a - b > a:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      return a - b
+
 def _fallback(?) payable: # default function
   revert
 
@@ -126,6 +132,622 @@ def unknown5580e904(array _param1): # not payable
       continue
   log 0xff941327c7be63f8e9b28f7296ef538a1cde7d1ae85b7d0be860035bc6553540: indexed caller, indexed sha3(mem[224 len 32 * _param1.length])
 
+def unknowne5e8894b(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _param4, uint256 _param5, array _param6) payable: 
+  mem[64] = 224
+  require calldata.size - 4 >=′ 192
+  require not Mask(96, 160, _param1)
+  require _param6 <= 18446744073709551615
+  require _param6 + 35 <′ calldata.size
+  require _param6.length <= 18446744073709551615
+  require _param6 + _param6.length + 36 <= calldata.size
+  if not storA1C3_a1c30c09[_param1]:
+      revert with 0xd7f73334, _param1
+  mem[0] = _param1
+  if stor89D0 == 1:
+      revert with ReentrancyError()
+  stor89D0 = 1
+  if uint16(_param2 >> 160) >= 10000:
+      revert with 0xc51e5f83, uint16(_param2 >> 160)
+  if uint16(_param4 >> 160) >= 10000:
+      revert with 0xc51e5f83, uint16(_param4 >> 160)
+  if address(_param2):
+      mem[224] = 0x70a0823100000000000000000000000000000000000000000000000000000000
+      mem[228] = this.address
+      static call address(_param2).balanceOf(address account) with:
+              gas gas_remaining
+             args this.address
+      mem[224 len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if ceil32(min(return_data.size, 32)) + 224 > 18446744073709551615 or ceil32(min(return_data.size, 32)) + 224 < 224:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = ceil32(min(return_data.size, 32)) + 224
+      require min(return_data.size, 32) >=′ 32
+      _4 = ext_call.return_data[0]
+  else:
+      _4 = eth.balance(this.address)
+  if not address(_param2):
+      _7 = SafeMath.sub(_4, call.value)
+  else:
+      _7 = _4
+  if address(_param4):
+      _8 = mem[64]
+      mem[mem[64]] = 0x70a0823100000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 4] = this.address
+      static call address(_param4).balanceOf(address account) with:
+              gas gas_remaining
+             args this.address
+      mem[mem[64] len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if mem[64] + ceil32(min(return_data.size, 32)) > 18446744073709551615 or mem[64] + ceil32(min(return_data.size, 32)) < mem[64]:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = mem[64] + ceil32(min(return_data.size, 32))
+      require min(return_data.size, 32) >=′ 32
+      _12 = mem[_8]
+  else:
+      _12 = eth.balance(this.address)
+  if not address(_param4):
+      _14 = SafeMath.sub(_12, call.value)
+  else:
+      _14 = _12
+  if uint16(_param2 >> 160):
+      if _param3 * uint16(_param2 >> 160) / _param3 != uint16(_param2 >> 160) and _param3:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      if not _param3 * uint16(_param2 >> 160) / 10000:
+          _146 = storEC6D
+          _147 = _param3
+          _148 = call.value
+      else:
+          if _param3 - _param3 * uint16(_param2 >> 160) / 10000 > _param3:
+              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+          if address(_param2):
+              mem[0] = _param1
+              _27 = mem[64]
+              mem[mem[64] + 32] = 0x23b872dd00000000000000000000000000000000000000000000000000000000
+              mem[mem[64] + 36] = caller
+              mem[mem[64] + 68] = storEC6D
+              mem[mem[64] + 100] = _param3 * uint16(_param2 >> 160) / 10000
+              mem[mem[64]] = 100
+              if mem[64] + 160 > 18446744073709551615 or mem[64] + 160 < mem[64]:
+                  revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+              mem[64] = mem[64] + 160
+              _36 = storEC6D
+              call address(_param2) with:
+                   gas gas_remaining
+                  args mem[_27 + 32 len mem[_27]]
+              if not return_data.size:
+                  _56 = 96
+              else:
+                  if return_data.size > 18446744073709551615:
+                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+                  if _27 + ceil32(return_data.size) + 192 > 18446744073709551615 or _27 + ceil32(return_data.size) + 192 < _27 + 160:
+                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+                  mem[64] = _27 + ceil32(return_data.size) + 192
+                  mem[_27 + 160] = return_data.size
+                  mem[_27 + 192 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                  _56 = _27 + 160
+              if not ext_call.success:
+                  if mem[_56]:
+                      revert with memory
+                        from _56 + 32
+                         len mem[_56]
+                  revert with 0x1425ea42
+              _72 = not mem[_56] and not ext_code.size(address(_param2))
+              if _72:
+                  revert with 0x9996b315, address(_param2)
+              if mem[_56]:
+                  require mem[_56] >=′ 32
+                  require mem[_56 + 32] == bool(mem[_56 + 32])
+                  _116 = not mem[_56 + 32]
+              else:
+                  _116 = 0
+              if _116:
+                  revert with 0x5274afe7, address(_param2)
+              _133 = _36
+              _134 = call.value
+          else:
+              if call.value - _param3 * uint16(_param2 >> 160) / 10000 > call.value:
+                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+              _37 = storEC6D
+              call storEC6D with:
+                 value _param3 * uint16(_param2 >> 160) / 10000 wei
+                   gas gas_remaining
+              if return_data.size:
+                  if return_data.size > 18446744073709551615:
+                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+                  _49 = mem[64]
+                  if mem[64] + ceil32(return_data.size) + 32 > 18446744073709551615 or mem[64] + ceil32(return_data.size) + 32 < mem[64]:
+                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+                  mem[64] = mem[64] + ceil32(return_data.size) + 32
+                  mem[_49] = return_data.size
+                  mem[_49 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+              if not ext_call.success:
+                  revert with NativeAssetTransferFailed()
+              mem[0] = _param1
+              _133 = _37
+              _134 = call.value - _param3 * uint16(_param2 >> 160) / 10000
+          mem[mem[64]] = address(_133)
+          mem[mem[64] + 32] = _param3 * uint16(_param2 >> 160) / 10000
+          log FeeCollected(address from, address to, uint256 value): address(_133), _param3 * uint16(_param2 >> 160) / 10000, indexed address(_param2)
+          _146 = _133
+          _147 = _param3 - _param3 * uint16(_param2 >> 160) / 10000
+          _148 = _134
+      _150 = _146
+      _151 = _147
+      _152 = _148
+  else:
+      _150 = storEC6D
+      _151 = _param3
+      _152 = call.value
+  if address(_param4):
+      _153 = mem[64]
+      mem[mem[64]] = 0x70a0823100000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 4] = caller
+      static call address(_param4).balanceOf(address account) with:
+              gas gas_remaining
+             args caller
+      mem[mem[64] len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if mem[64] + ceil32(min(return_data.size, 32)) > 18446744073709551615 or mem[64] + ceil32(min(return_data.size, 32)) < mem[64]:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = mem[64] + ceil32(min(return_data.size, 32))
+      require min(return_data.size, 32) >=′ 32
+      _161 = mem[_153]
+  else:
+      _161 = eth.balance(caller)
+  if address(_param2):
+      _162 = mem[64]
+      mem[mem[64] + 32] = 0x23b872dd00000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 36] = caller
+      mem[mem[64] + 68] = this.address
+      mem[mem[64] + 100] = _151
+      mem[mem[64]] = 100
+      if mem[64] + 160 > 18446744073709551615 or mem[64] + 160 < mem[64]:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = mem[64] + 160
+      call address(_param2) with:
+           gas gas_remaining
+          args mem[_162 + 32 len mem[_162]]
+      if not return_data.size:
+          _171 = 96
+      else:
+          if return_data.size > 18446744073709551615:
+              revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+          if _162 + ceil32(return_data.size) + 192 > 18446744073709551615 or _162 + ceil32(return_data.size) + 192 < _162 + 160:
+              revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+          mem[64] = _162 + ceil32(return_data.size) + 192
+          mem[_162 + 160] = return_data.size
+          mem[_162 + 192 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          _171 = _162 + 160
+      if not ext_call.success:
+          if mem[_171]:
+              revert with memory
+                from _171 + 32
+                 len mem[_171]
+          revert with 0x1425ea42
+      _181 = not mem[_171] and not ext_code.size(address(_param2))
+      if _181:
+          revert with 0x9996b315, address(_param2)
+      if mem[_171]:
+          require mem[_171] >=′ 32
+          require mem[_171 + 32] == bool(mem[_171 + 32])
+          _194 = not mem[_171 + 32]
+      else:
+          _194 = 0
+      if _194:
+          revert with 0x5274afe7, address(_param2)
+      if _param1 == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+          _206 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+      else:
+          if _param1 == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+              _206 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+          else:
+              if _param1 == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                  _206 = 0xb4d2580d23f145f794f67480748cd801c862c469
+              else:
+                  if _param1 == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                      _206 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                  else:
+                      if 0x610cac41f4f41803ddb005686e7327996a1dc839 == _param1:
+                          _206 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                      else:
+                          _206 = _param1
+      mem[mem[64]] = 0x95ea7b300000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 4] = _206
+      mem[mem[64] + 36] = _151
+      call address(_param2).approve(address spender, uint256 amount) with:
+           gas gas_remaining
+          args _206, _151
+      mem[0 len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
+      if not ext_call.success:
+          revert with ApproveFailed()
+      if not return_data.size:
+          _211 = bool(ext_code.size(address(_param2)))
+      else:
+          _211 = return_data.size > 31 and concat(ext_call.return_data[0 len min(32, return_data.size)], mem[min(32, return_data.size) len -min(32, return_data.size) + 32]) == 1
+      if not _211:
+          revert with ApproveFailed()
+  _215 = mem[64]
+  if mem[64] + ceil32(_param6.length) + 32 > 18446744073709551615 or mem[64] + ceil32(_param6.length) + 32 < mem[64]:
+      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+  mem[64] = mem[64] + ceil32(_param6.length) + 32
+  mem[_215] = _param6.length
+  mem[_215 + 32 len _param6.length] = _param6[all]
+  mem[_215 + _param6.length + 32] = 0
+  if eth.balance(this.address) < _152:
+      revert with 0xcd786059, this.address
+  call _param1 with:
+     value _152 wei
+       gas gas_remaining
+      args _param6[all]
+  if not return_data.size:
+      _225 = 96
+  else:
+      if return_data.size > 18446744073709551615:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      _220 = mem[64]
+      if mem[64] + ceil32(return_data.size) + 32 > 18446744073709551615 or mem[64] + ceil32(return_data.size) + 32 < mem[64]:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = mem[64] + ceil32(return_data.size) + 32
+      mem[_220] = return_data.size
+      mem[_220 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+      _225 = _220
+  if not ext_call.success:
+      if mem[_225]:
+          revert with memory
+            from _225 + 32
+             len mem[_225]
+      revert with 0x1425ea42
+  _230 = not mem[_225] and not ext_code.size(_param1)
+  if _230:
+      revert with 0x9996b315, _param1
+  if address(_param2):
+      if _param1 == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
+          _240 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
+      else:
+          if _param1 == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
+              _240 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
+          else:
+              if _param1 == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
+                  _240 = 0xb4d2580d23f145f794f67480748cd801c862c469
+              else:
+                  if _param1 == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
+                      _240 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
+                  else:
+                      if 0x610cac41f4f41803ddb005686e7327996a1dc839 == _param1:
+                          _240 = 0x876c6161eb02210b1f2241886f5479d832666d81
+                      else:
+                          _240 = _param1
+      mem[mem[64]] = 0x95ea7b300000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 4] = _240
+      mem[mem[64] + 36] = 0
+      call address(_param2).approve(address spender, uint256 amount) with:
+           gas gas_remaining
+          args _240, 0
+      mem[0 len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
+      if not ext_call.success:
+          revert with ApproveFailed()
+      if not return_data.size:
+          _244 = bool(ext_code.size(address(_param2)))
+      else:
+          _244 = return_data.size > 31 and concat(ext_call.return_data[0 len min(32, return_data.size)], mem[min(32, return_data.size) len -min(32, return_data.size) + 32]) == 1
+      if not _244:
+          revert with ApproveFailed()
+  if address(_param4):
+      _249 = mem[64]
+      mem[mem[64]] = 0x70a0823100000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 4] = this.address
+      static call address(_param4).balanceOf(address account) with:
+              gas gas_remaining
+             args this.address
+      mem[mem[64] len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if mem[64] + ceil32(min(return_data.size, 32)) > 18446744073709551615 or mem[64] + ceil32(min(return_data.size, 32)) < mem[64]:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = mem[64] + ceil32(min(return_data.size, 32))
+      require min(return_data.size, 32) >=′ 32
+      _253 = mem[_249]
+  else:
+      _253 = eth.balance(this.address)
+  if _253 - _14 > _253:
+      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+  if _253 != _14:
+      if (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / (_253 - _14) != uint16(_param4 >> 160) and _253 - _14:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      if (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000:
+          if address(_param4):
+              if address(_param4) != 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
+                  _259 = mem[64]
+                  mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+                  mem[mem[64] + 36] = address(_150)
+                  mem[mem[64] + 68] = (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000
+                  mem[mem[64]] = 68
+                  if mem[64] + 128 > 18446744073709551615 or mem[64] + 128 < mem[64]:
+                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+                  mem[64] = mem[64] + 128
+                  call address(_param4) with:
+                       gas gas_remaining
+                      args mem[_259 + 32 len mem[_259]]
+                  if not return_data.size:
+                      _297 = 96
+                  else:
+                      if return_data.size > 18446744073709551615:
+                          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+                      if _259 + ceil32(return_data.size) + 160 > 18446744073709551615 or _259 + ceil32(return_data.size) + 160 < _259 + 128:
+                          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+                      mem[64] = _259 + ceil32(return_data.size) + 160
+                      mem[_259 + 128] = return_data.size
+                      mem[_259 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                      _297 = _259 + 128
+                  if not ext_call.success:
+                      if mem[_297]:
+                          revert with memory
+                            from _297 + 32
+                             len mem[_297]
+                      revert with 0x1425ea42
+                  _307 = not mem[_297] and not ext_code.size(address(_param4))
+                  if _307:
+                      revert with 0x9996b315, address(_param4)
+                  if mem[_297]:
+                      require mem[_297] >=′ 32
+                      require mem[_297 + 32] == bool(mem[_297 + 32])
+                      _335 = not mem[_297 + 32]
+                  else:
+                      _335 = 0
+                  if _335:
+                      revert with 0x5274afe7, address(_param4)
+              else:
+                  _260 = mem[64]
+                  mem[mem[64]] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+                  mem[mem[64] + 4] = address(_150)
+                  mem[mem[64] + 36] = (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000
+                  call address(_param4).transfer(address recipient, uint256 amount) with:
+                       gas gas_remaining
+                      args address(_150), (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000
+                  mem[mem[64] len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
+                  if not ext_call.success:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  if 32 > return_data.size:
+                      _273 = return_data.size
+                      _274 = return_data.size
+                  else:
+                      _273 = 32
+                      _274 = 32
+                  if mem[64] + ceil32(_274) > 18446744073709551615 or mem[64] + ceil32(_274) < mem[64]:
+                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+                  mem[64] = mem[64] + ceil32(_274)
+                  require _273 >=′ 32
+                  require mem[_260] == bool(mem[_260])
+              mem[mem[64]] = address(_150)
+              mem[mem[64] + 32] = (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000
+              log FeeCollected(address from, address to, uint256 value): address(_150), (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000, indexed address(_param4)
+          else:
+              call _150 with:
+                 value (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000 wei
+                   gas gas_remaining
+              if return_data.size:
+                  if return_data.size > 18446744073709551615:
+                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+                  _271 = mem[64]
+                  if mem[64] + ceil32(return_data.size) + 32 > 18446744073709551615 or mem[64] + ceil32(return_data.size) + 32 < mem[64]:
+                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+                  mem[64] = mem[64] + ceil32(return_data.size) + 32
+                  mem[_271] = return_data.size
+                  mem[_271 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+              if not ext_call.success:
+                  revert with NativeAssetTransferFailed()
+              mem[mem[64]] = address(_150)
+              mem[mem[64] + 32] = (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000
+              log FeeCollected(address from, address to, uint256 value): address(_150), (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000, indexed address(_param4)
+      if _253 - _14 - (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000 > _253 - _14:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      if not address(_param4):
+          call caller with:
+             value _253 - _14 - (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000 wei
+               gas gas_remaining
+          if return_data.size:
+              if return_data.size > 18446744073709551615:
+                  revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+              _367 = mem[64]
+              if mem[64] + ceil32(return_data.size) + 32 > 18446744073709551615 or mem[64] + ceil32(return_data.size) + 32 < mem[64]:
+                  revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+              mem[64] = mem[64] + ceil32(return_data.size) + 32
+              mem[_367] = return_data.size
+              mem[_367 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
+          if not ext_call.success:
+              revert with NativeAssetTransferFailed()
+      else:
+          if address(_param4) == 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
+              _361 = mem[64]
+              mem[mem[64]] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+              mem[mem[64] + 4] = caller
+              mem[mem[64] + 36] = _253 - _14 - (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000
+              call address(_param4).transfer(address recipient, uint256 amount) with:
+                   gas gas_remaining
+                  args caller, _253 - _14 - (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000
+              mem[mem[64] len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
+              if not ext_call.success:
+                  revert with ext_call.return_data[0 len return_data.size]
+              if 32 > return_data.size:
+                  _369 = return_data.size
+                  _370 = return_data.size
+              else:
+                  _369 = 32
+                  _370 = 32
+              if mem[64] + ceil32(_370) > 18446744073709551615 or mem[64] + ceil32(_370) < mem[64]:
+                  revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+              mem[64] = mem[64] + ceil32(_370)
+              require _369 >=′ 32
+              require mem[_361] == bool(mem[_361])
+          else:
+              _360 = mem[64]
+              mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+              mem[mem[64] + 36] = caller
+              mem[mem[64] + 68] = _253 - _14 - (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000
+              mem[mem[64]] = 68
+              if mem[64] + 128 > 18446744073709551615 or mem[64] + 128 < mem[64]:
+                  revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+              mem[64] = mem[64] + 128
+              call address(_param4) with:
+                   gas gas_remaining
+                  args mem[_360 + 32 len mem[_360]]
+              if not return_data.size:
+                  _388 = 96
+              else:
+                  if return_data.size > 18446744073709551615:
+                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+                  if _360 + ceil32(return_data.size) + 160 > 18446744073709551615 or _360 + ceil32(return_data.size) + 160 < _360 + 128:
+                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+                  mem[64] = _360 + ceil32(return_data.size) + 160
+                  mem[_360 + 128] = return_data.size
+                  mem[_360 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                  _388 = _360 + 128
+              if not ext_call.success:
+                  if mem[_388]:
+                      revert with memory
+                        from _388 + 32
+                         len mem[_388]
+                  revert with 0x1425ea42
+              _398 = not mem[_388] and not ext_code.size(address(_param4))
+              if _398:
+                  revert with 0x9996b315, address(_param4)
+              if mem[_388]:
+                  require mem[_388] >=′ 32
+                  require mem[_388 + 32] == bool(mem[_388 + 32])
+                  _414 = not mem[_388 + 32]
+              else:
+                  _414 = 0
+              if _414:
+                  revert with 0x5274afe7, address(_param4)
+  if address(_param4):
+      _427 = mem[64]
+      mem[mem[64]] = 0x70a0823100000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 4] = caller
+      static call address(_param4).balanceOf(address account) with:
+              gas gas_remaining
+             args caller
+      mem[mem[64] len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if mem[64] + ceil32(min(return_data.size, 32)) > 18446744073709551615 or mem[64] + ceil32(min(return_data.size, 32)) < mem[64]:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = mem[64] + ceil32(min(return_data.size, 32))
+      require min(return_data.size, 32) >=′ 32
+      _434 = mem[_427]
+  else:
+      _434 = eth.balance(caller)
+  if _434 < _161:
+      revert with 0x6d9e7a9e, _param5, 0
+  if SafeMath.sub(_434, _161) < _param5:
+      revert with 0x6d9e7a9e, _param5, SafeMath.sub(_434, _161)
+  if address(_param2):
+      _437 = mem[64]
+      mem[mem[64]] = 0x70a0823100000000000000000000000000000000000000000000000000000000
+      mem[mem[64] + 4] = this.address
+      static call address(_param2).balanceOf(address account) with:
+              gas gas_remaining
+             args this.address
+      mem[mem[64] len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
+      if not ext_call.success:
+          revert with ext_call.return_data[0 len return_data.size]
+      if mem[64] + ceil32(min(return_data.size, 32)) > 18446744073709551615 or mem[64] + ceil32(min(return_data.size, 32)) < mem[64]:
+          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+      mem[64] = mem[64] + ceil32(min(return_data.size, 32))
+      require min(return_data.size, 32) >=′ 32
+      _444 = mem[_437]
+  else:
+      _444 = eth.balance(this.address)
+  if _444 < _7:
+      _445 = 0x6aba0315493b7e6989041c91181337b662fb1b90 == caller or 0x88649f4743a758171077b98ee2003f1989b1615a == caller
+      if not _445:
+          _446 = 0xcb8c32aca3e52d90943f6a06fecdddcf6c8c019f == caller
+      else:
+          _446 = _445
+      if not _446:
+          _447 = 0x3d499e1fd33ded6f681424ed22d396a21e6915df == caller
+      else:
+          _447 = _446
+      _448 = _447 and address(_param2) == 0xf86af2fbcf6a0479b21b1d3a4af3893f63207fe7
+      _452 = _448
+  else:
+      _452 = 0
+  if not _452:
+      if _444 - _7 > _444:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      if _444 != _7:
+          if address(_param2):
+              if address(_param2) != 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
+                  mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+                  mem[mem[64] + 36] = caller
+                  mem[mem[64] + 68] = _444 - _7
+                  mem[mem[64]] = 68
+                  if mem[64] + 128 > 18446744073709551615 or mem[64] + 128 < mem[64]:
+                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+                  call address(_param2).transfer(address recipient, uint256 amount) with:
+                       gas gas_remaining
+                      args caller, _444 - _7
+                  if not return_data.size:
+                      _469 = 96
+                  else:
+                      if return_data.size > 18446744073709551615:
+                          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+                      if mem[64] + ceil32(return_data.size) + 160 > 18446744073709551615 or mem[64] + ceil32(return_data.size) + 160 < mem[64] + 128:
+                          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+                      mem[mem[64] + 128] = return_data.size
+                      mem[mem[64] + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
+                      _469 = mem[64] + 128
+                  if not ext_call.success:
+                      if mem[_469]:
+                          revert with memory
+                            from _469 + 32
+                             len mem[_469]
+                      revert with 0x1425ea42
+                  _474 = not mem[_469] and not ext_code.size(address(_param2))
+                  if _474:
+                      revert with 0x9996b315, address(_param2)
+                  if mem[_469]:
+                      require mem[_469] >=′ 32
+                      require mem[_469 + 32] == bool(mem[_469 + 32])
+                      _478 = not mem[_469 + 32]
+                  else:
+                      _478 = 0
+                  if _478:
+                      revert with 0x5274afe7, address(_param2)
+              else:
+                  mem[mem[64]] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+                  mem[mem[64] + 4] = caller
+                  call address(_param2).transfer(address recipient, uint256 amount) with:
+                       gas gas_remaining
+                      args caller, _444 - _7
+                  mem[mem[64] len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
+                  if not ext_call.success:
+                      revert with ext_call.return_data[0 len return_data.size]
+                  if 32 > return_data.size:
+                      _460 = return_data.size
+                      _461 = return_data.size
+                  else:
+                      _460 = 32
+                      _461 = 32
+                  if mem[64] + ceil32(_461) > 18446744073709551615 or mem[64] + ceil32(_461) < mem[64]:
+                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+                  require _460 >=′ 32
+                  require concat(ext_call.return_data[0 len min(32, return_data.size)], mem[mem[64] + min(32, return_data.size) len -min(32, return_data.size) + 32]) == bool(concat(ext_call.return_data[0 len min(32, return_data.size)], mem[mem[64] + min(32, return_data.size) len -min(32, return_data.size) + 32]))
+          else:
+              call caller with:
+                 value _444 - _7 wei
+                   gas gas_remaining
+              if return_data.size:
+                  if return_data.size > 18446744073709551615:
+                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+                  if mem[64] + ceil32(return_data.size) + 32 > 18446744073709551615 or mem[64] + ceil32(return_data.size) + 32 < mem[64]:
+                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
+              if not ext_call.success:
+                  revert with NativeAssetTransferFailed()
+  stor89D0 = 0
+
 def unknowndad12b6c(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _param4, array _param5) payable: 
   mem[64] = 224
   require calldata.size - 4 >=′ 160
@@ -161,9 +783,7 @@ def unknowndad12b6c(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _
   else:
       _4 = eth.balance(this.address)
   if not address(_param2):
-      if _4 - call.value > _4:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      _7 = _4 - call.value
+      _7 = SafeMath.sub(_4, call.value)
   else:
       _7 = _4
   if address(_param4):
@@ -184,9 +804,7 @@ def unknowndad12b6c(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _
   else:
       _12 = eth.balance(this.address)
   if not address(_param4):
-      if _12 - call.value > _12:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      _14 = _12 - call.value
+      _14 = SafeMath.sub(_12, call.value)
   else:
       _14 = _12
   if uint16(_param2 >> 160):
@@ -746,628 +1364,6 @@ def unknowndad12b6c(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _
                   revert with NativeAssetTransferFailed()
   stor89D0 = 0
 
-def unknowne5e8894b(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _param4, uint256 _param5, array _param6) payable: 
-  mem[64] = 224
-  require calldata.size - 4 >=′ 192
-  require not Mask(96, 160, _param1)
-  require _param6 <= 18446744073709551615
-  require _param6 + 35 <′ calldata.size
-  require _param6.length <= 18446744073709551615
-  require _param6 + _param6.length + 36 <= calldata.size
-  if not storA1C3_a1c30c09[_param1]:
-      revert with 0xd7f73334, _param1
-  mem[0] = _param1
-  if stor89D0 == 1:
-      revert with ReentrancyError()
-  stor89D0 = 1
-  if uint16(_param2 >> 160) >= 10000:
-      revert with 0xc51e5f83, uint16(_param2 >> 160)
-  if uint16(_param4 >> 160) >= 10000:
-      revert with 0xc51e5f83, uint16(_param4 >> 160)
-  if address(_param2):
-      mem[224] = 0x70a0823100000000000000000000000000000000000000000000000000000000
-      mem[228] = this.address
-      static call address(_param2).balanceOf(address account) with:
-              gas gas_remaining
-             args this.address
-      mem[224 len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
-      if not ext_call.success:
-          revert with ext_call.return_data[0 len return_data.size]
-      if ceil32(min(return_data.size, 32)) + 224 > 18446744073709551615 or ceil32(min(return_data.size, 32)) + 224 < 224:
-          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-      mem[64] = ceil32(min(return_data.size, 32)) + 224
-      require min(return_data.size, 32) >=′ 32
-      _4 = ext_call.return_data[0]
-  else:
-      _4 = eth.balance(this.address)
-  if not address(_param2):
-      if _4 - call.value > _4:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      _7 = _4 - call.value
-  else:
-      _7 = _4
-  if address(_param4):
-      _8 = mem[64]
-      mem[mem[64]] = 0x70a0823100000000000000000000000000000000000000000000000000000000
-      mem[mem[64] + 4] = this.address
-      static call address(_param4).balanceOf(address account) with:
-              gas gas_remaining
-             args this.address
-      mem[mem[64] len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
-      if not ext_call.success:
-          revert with ext_call.return_data[0 len return_data.size]
-      if mem[64] + ceil32(min(return_data.size, 32)) > 18446744073709551615 or mem[64] + ceil32(min(return_data.size, 32)) < mem[64]:
-          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-      mem[64] = mem[64] + ceil32(min(return_data.size, 32))
-      require min(return_data.size, 32) >=′ 32
-      _12 = mem[_8]
-  else:
-      _12 = eth.balance(this.address)
-  if not address(_param4):
-      if _12 - call.value > _12:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      _14 = _12 - call.value
-  else:
-      _14 = _12
-  if uint16(_param2 >> 160):
-      if _param3 * uint16(_param2 >> 160) / _param3 != uint16(_param2 >> 160) and _param3:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      if not _param3 * uint16(_param2 >> 160) / 10000:
-          _146 = storEC6D
-          _147 = _param3
-          _148 = call.value
-      else:
-          if _param3 - _param3 * uint16(_param2 >> 160) / 10000 > _param3:
-              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if address(_param2):
-              mem[0] = _param1
-              _27 = mem[64]
-              mem[mem[64] + 32] = 0x23b872dd00000000000000000000000000000000000000000000000000000000
-              mem[mem[64] + 36] = caller
-              mem[mem[64] + 68] = storEC6D
-              mem[mem[64] + 100] = _param3 * uint16(_param2 >> 160) / 10000
-              mem[mem[64]] = 100
-              if mem[64] + 160 > 18446744073709551615 or mem[64] + 160 < mem[64]:
-                  revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-              mem[64] = mem[64] + 160
-              _36 = storEC6D
-              call address(_param2) with:
-                   gas gas_remaining
-                  args mem[_27 + 32 len mem[_27]]
-              if not return_data.size:
-                  _56 = 96
-              else:
-                  if return_data.size > 18446744073709551615:
-                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-                  if _27 + ceil32(return_data.size) + 192 > 18446744073709551615 or _27 + ceil32(return_data.size) + 192 < _27 + 160:
-                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-                  mem[64] = _27 + ceil32(return_data.size) + 192
-                  mem[_27 + 160] = return_data.size
-                  mem[_27 + 192 len return_data.size] = ext_call.return_data[0 len return_data.size]
-                  _56 = _27 + 160
-              if not ext_call.success:
-                  if mem[_56]:
-                      revert with memory
-                        from _56 + 32
-                         len mem[_56]
-                  revert with 0x1425ea42
-              _72 = not mem[_56] and not ext_code.size(address(_param2))
-              if _72:
-                  revert with 0x9996b315, address(_param2)
-              if mem[_56]:
-                  require mem[_56] >=′ 32
-                  require mem[_56 + 32] == bool(mem[_56 + 32])
-                  _116 = not mem[_56 + 32]
-              else:
-                  _116 = 0
-              if _116:
-                  revert with 0x5274afe7, address(_param2)
-              _133 = _36
-              _134 = call.value
-          else:
-              if call.value - _param3 * uint16(_param2 >> 160) / 10000 > call.value:
-                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-              _37 = storEC6D
-              call storEC6D with:
-                 value _param3 * uint16(_param2 >> 160) / 10000 wei
-                   gas gas_remaining
-              if return_data.size:
-                  if return_data.size > 18446744073709551615:
-                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-                  _49 = mem[64]
-                  if mem[64] + ceil32(return_data.size) + 32 > 18446744073709551615 or mem[64] + ceil32(return_data.size) + 32 < mem[64]:
-                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-                  mem[64] = mem[64] + ceil32(return_data.size) + 32
-                  mem[_49] = return_data.size
-                  mem[_49 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
-              if not ext_call.success:
-                  revert with NativeAssetTransferFailed()
-              mem[0] = _param1
-              _133 = _37
-              _134 = call.value - _param3 * uint16(_param2 >> 160) / 10000
-          mem[mem[64]] = address(_133)
-          mem[mem[64] + 32] = _param3 * uint16(_param2 >> 160) / 10000
-          log FeeCollected(address from, address to, uint256 value): address(_133), _param3 * uint16(_param2 >> 160) / 10000, indexed address(_param2)
-          _146 = _133
-          _147 = _param3 - _param3 * uint16(_param2 >> 160) / 10000
-          _148 = _134
-      _150 = _146
-      _151 = _147
-      _152 = _148
-  else:
-      _150 = storEC6D
-      _151 = _param3
-      _152 = call.value
-  if address(_param4):
-      _153 = mem[64]
-      mem[mem[64]] = 0x70a0823100000000000000000000000000000000000000000000000000000000
-      mem[mem[64] + 4] = caller
-      static call address(_param4).balanceOf(address account) with:
-              gas gas_remaining
-             args caller
-      mem[mem[64] len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
-      if not ext_call.success:
-          revert with ext_call.return_data[0 len return_data.size]
-      if mem[64] + ceil32(min(return_data.size, 32)) > 18446744073709551615 or mem[64] + ceil32(min(return_data.size, 32)) < mem[64]:
-          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-      mem[64] = mem[64] + ceil32(min(return_data.size, 32))
-      require min(return_data.size, 32) >=′ 32
-      _161 = mem[_153]
-  else:
-      _161 = eth.balance(caller)
-  if address(_param2):
-      _162 = mem[64]
-      mem[mem[64] + 32] = 0x23b872dd00000000000000000000000000000000000000000000000000000000
-      mem[mem[64] + 36] = caller
-      mem[mem[64] + 68] = this.address
-      mem[mem[64] + 100] = _151
-      mem[mem[64]] = 100
-      if mem[64] + 160 > 18446744073709551615 or mem[64] + 160 < mem[64]:
-          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-      mem[64] = mem[64] + 160
-      call address(_param2) with:
-           gas gas_remaining
-          args mem[_162 + 32 len mem[_162]]
-      if not return_data.size:
-          _171 = 96
-      else:
-          if return_data.size > 18446744073709551615:
-              revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-          if _162 + ceil32(return_data.size) + 192 > 18446744073709551615 or _162 + ceil32(return_data.size) + 192 < _162 + 160:
-              revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-          mem[64] = _162 + ceil32(return_data.size) + 192
-          mem[_162 + 160] = return_data.size
-          mem[_162 + 192 len return_data.size] = ext_call.return_data[0 len return_data.size]
-          _171 = _162 + 160
-      if not ext_call.success:
-          if mem[_171]:
-              revert with memory
-                from _171 + 32
-                 len mem[_171]
-          revert with 0x1425ea42
-      _181 = not mem[_171] and not ext_code.size(address(_param2))
-      if _181:
-          revert with 0x9996b315, address(_param2)
-      if mem[_171]:
-          require mem[_171] >=′ 32
-          require mem[_171 + 32] == bool(mem[_171 + 32])
-          _194 = not mem[_171 + 32]
-      else:
-          _194 = 0
-      if _194:
-          revert with 0x5274afe7, address(_param2)
-      if _param1 == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
-          _206 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
-      else:
-          if _param1 == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
-              _206 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
-          else:
-              if _param1 == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
-                  _206 = 0xb4d2580d23f145f794f67480748cd801c862c469
-              else:
-                  if _param1 == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
-                      _206 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
-                  else:
-                      if 0x610cac41f4f41803ddb005686e7327996a1dc839 == _param1:
-                          _206 = 0x876c6161eb02210b1f2241886f5479d832666d81
-                      else:
-                          _206 = _param1
-      mem[mem[64]] = 0x95ea7b300000000000000000000000000000000000000000000000000000000
-      mem[mem[64] + 4] = _206
-      mem[mem[64] + 36] = _151
-      call address(_param2).approve(address spender, uint256 amount) with:
-           gas gas_remaining
-          args _206, _151
-      mem[0 len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
-      if not ext_call.success:
-          revert with ApproveFailed()
-      if not return_data.size:
-          _211 = bool(ext_code.size(address(_param2)))
-      else:
-          _211 = return_data.size > 31 and concat(ext_call.return_data[0 len min(32, return_data.size)], mem[min(32, return_data.size) len -min(32, return_data.size) + 32]) == 1
-      if not _211:
-          revert with ApproveFailed()
-  _215 = mem[64]
-  if mem[64] + ceil32(_param6.length) + 32 > 18446744073709551615 or mem[64] + ceil32(_param6.length) + 32 < mem[64]:
-      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-  mem[64] = mem[64] + ceil32(_param6.length) + 32
-  mem[_215] = _param6.length
-  mem[_215 + 32 len _param6.length] = _param6[all]
-  mem[_215 + _param6.length + 32] = 0
-  if eth.balance(this.address) < _152:
-      revert with 0xcd786059, this.address
-  call _param1 with:
-     value _152 wei
-       gas gas_remaining
-      args _param6[all]
-  if not return_data.size:
-      _225 = 96
-  else:
-      if return_data.size > 18446744073709551615:
-          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-      _220 = mem[64]
-      if mem[64] + ceil32(return_data.size) + 32 > 18446744073709551615 or mem[64] + ceil32(return_data.size) + 32 < mem[64]:
-          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-      mem[64] = mem[64] + ceil32(return_data.size) + 32
-      mem[_220] = return_data.size
-      mem[_220 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
-      _225 = _220
-  if not ext_call.success:
-      if mem[_225]:
-          revert with memory
-            from _225 + 32
-             len mem[_225]
-      revert with 0x1425ea42
-  _230 = not mem[_225] and not ext_code.size(_param1)
-  if _230:
-      revert with 0x9996b315, _param1
-  if address(_param2):
-      if _param1 == 0x3d90f66b534dd8482b181e24655a9e8265316be9:
-          _240 = 0x8157a9d65807521fbb8db8f37eeecefdd247e9b1
-      else:
-          if _param1 == 0x2bd6471e79b2f5a723731c36837242df4d845ce8:
-              _240 = 0x2e1808b8514fbbc824c6a885cc3e8f8d8ca59b5b
-          else:
-              if _param1 == 0xed7eb36961f9dc6e0aa699a8a4747fdc2c52d39f:
-                  _240 = 0xb4d2580d23f145f794f67480748cd801c862c469
-              else:
-                  if _param1 == 0x947b4a89eede7eb22d4efb911d9a6f48d012cd0a:
-                      _240 = 0x24fc552148d2ce1158ccfb6235dfc0b65cca2a61
-                  else:
-                      if 0x610cac41f4f41803ddb005686e7327996a1dc839 == _param1:
-                          _240 = 0x876c6161eb02210b1f2241886f5479d832666d81
-                      else:
-                          _240 = _param1
-      mem[mem[64]] = 0x95ea7b300000000000000000000000000000000000000000000000000000000
-      mem[mem[64] + 4] = _240
-      mem[mem[64] + 36] = 0
-      call address(_param2).approve(address spender, uint256 amount) with:
-           gas gas_remaining
-          args _240, 0
-      mem[0 len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
-      if not ext_call.success:
-          revert with ApproveFailed()
-      if not return_data.size:
-          _244 = bool(ext_code.size(address(_param2)))
-      else:
-          _244 = return_data.size > 31 and concat(ext_call.return_data[0 len min(32, return_data.size)], mem[min(32, return_data.size) len -min(32, return_data.size) + 32]) == 1
-      if not _244:
-          revert with ApproveFailed()
-  if address(_param4):
-      _249 = mem[64]
-      mem[mem[64]] = 0x70a0823100000000000000000000000000000000000000000000000000000000
-      mem[mem[64] + 4] = this.address
-      static call address(_param4).balanceOf(address account) with:
-              gas gas_remaining
-             args this.address
-      mem[mem[64] len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
-      if not ext_call.success:
-          revert with ext_call.return_data[0 len return_data.size]
-      if mem[64] + ceil32(min(return_data.size, 32)) > 18446744073709551615 or mem[64] + ceil32(min(return_data.size, 32)) < mem[64]:
-          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-      mem[64] = mem[64] + ceil32(min(return_data.size, 32))
-      require min(return_data.size, 32) >=′ 32
-      _253 = mem[_249]
-  else:
-      _253 = eth.balance(this.address)
-  if _253 - _14 > _253:
-      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-  if _253 != _14:
-      if (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / (_253 - _14) != uint16(_param4 >> 160) and _253 - _14:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      if (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000:
-          if address(_param4):
-              if address(_param4) != 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
-                  _259 = mem[64]
-                  mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-                  mem[mem[64] + 36] = address(_150)
-                  mem[mem[64] + 68] = (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000
-                  mem[mem[64]] = 68
-                  if mem[64] + 128 > 18446744073709551615 or mem[64] + 128 < mem[64]:
-                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-                  mem[64] = mem[64] + 128
-                  call address(_param4) with:
-                       gas gas_remaining
-                      args mem[_259 + 32 len mem[_259]]
-                  if not return_data.size:
-                      _297 = 96
-                  else:
-                      if return_data.size > 18446744073709551615:
-                          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-                      if _259 + ceil32(return_data.size) + 160 > 18446744073709551615 or _259 + ceil32(return_data.size) + 160 < _259 + 128:
-                          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-                      mem[64] = _259 + ceil32(return_data.size) + 160
-                      mem[_259 + 128] = return_data.size
-                      mem[_259 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
-                      _297 = _259 + 128
-                  if not ext_call.success:
-                      if mem[_297]:
-                          revert with memory
-                            from _297 + 32
-                             len mem[_297]
-                      revert with 0x1425ea42
-                  _307 = not mem[_297] and not ext_code.size(address(_param4))
-                  if _307:
-                      revert with 0x9996b315, address(_param4)
-                  if mem[_297]:
-                      require mem[_297] >=′ 32
-                      require mem[_297 + 32] == bool(mem[_297 + 32])
-                      _335 = not mem[_297 + 32]
-                  else:
-                      _335 = 0
-                  if _335:
-                      revert with 0x5274afe7, address(_param4)
-              else:
-                  _260 = mem[64]
-                  mem[mem[64]] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-                  mem[mem[64] + 4] = address(_150)
-                  mem[mem[64] + 36] = (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000
-                  call address(_param4).transfer(address recipient, uint256 amount) with:
-                       gas gas_remaining
-                      args address(_150), (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000
-                  mem[mem[64] len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
-                  if not ext_call.success:
-                      revert with ext_call.return_data[0 len return_data.size]
-                  if 32 > return_data.size:
-                      _273 = return_data.size
-                      _274 = return_data.size
-                  else:
-                      _273 = 32
-                      _274 = 32
-                  if mem[64] + ceil32(_274) > 18446744073709551615 or mem[64] + ceil32(_274) < mem[64]:
-                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-                  mem[64] = mem[64] + ceil32(_274)
-                  require _273 >=′ 32
-                  require mem[_260] == bool(mem[_260])
-              mem[mem[64]] = address(_150)
-              mem[mem[64] + 32] = (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000
-              log FeeCollected(address from, address to, uint256 value): address(_150), (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000, indexed address(_param4)
-          else:
-              call _150 with:
-                 value (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000 wei
-                   gas gas_remaining
-              if return_data.size:
-                  if return_data.size > 18446744073709551615:
-                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-                  _271 = mem[64]
-                  if mem[64] + ceil32(return_data.size) + 32 > 18446744073709551615 or mem[64] + ceil32(return_data.size) + 32 < mem[64]:
-                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-                  mem[64] = mem[64] + ceil32(return_data.size) + 32
-                  mem[_271] = return_data.size
-                  mem[_271 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
-              if not ext_call.success:
-                  revert with NativeAssetTransferFailed()
-              mem[mem[64]] = address(_150)
-              mem[mem[64] + 32] = (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000
-              log FeeCollected(address from, address to, uint256 value): address(_150), (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000, indexed address(_param4)
-      if _253 - _14 - (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000 > _253 - _14:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      if not address(_param4):
-          call caller with:
-             value _253 - _14 - (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000 wei
-               gas gas_remaining
-          if return_data.size:
-              if return_data.size > 18446744073709551615:
-                  revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-              _367 = mem[64]
-              if mem[64] + ceil32(return_data.size) + 32 > 18446744073709551615 or mem[64] + ceil32(return_data.size) + 32 < mem[64]:
-                  revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-              mem[64] = mem[64] + ceil32(return_data.size) + 32
-              mem[_367] = return_data.size
-              mem[_367 + 32 len return_data.size] = ext_call.return_data[0 len return_data.size]
-          if not ext_call.success:
-              revert with NativeAssetTransferFailed()
-      else:
-          if address(_param4) == 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
-              _361 = mem[64]
-              mem[mem[64]] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-              mem[mem[64] + 4] = caller
-              mem[mem[64] + 36] = _253 - _14 - (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000
-              call address(_param4).transfer(address recipient, uint256 amount) with:
-                   gas gas_remaining
-                  args caller, _253 - _14 - (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000
-              mem[mem[64] len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
-              if not ext_call.success:
-                  revert with ext_call.return_data[0 len return_data.size]
-              if 32 > return_data.size:
-                  _369 = return_data.size
-                  _370 = return_data.size
-              else:
-                  _369 = 32
-                  _370 = 32
-              if mem[64] + ceil32(_370) > 18446744073709551615 or mem[64] + ceil32(_370) < mem[64]:
-                  revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-              mem[64] = mem[64] + ceil32(_370)
-              require _369 >=′ 32
-              require mem[_361] == bool(mem[_361])
-          else:
-              _360 = mem[64]
-              mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-              mem[mem[64] + 36] = caller
-              mem[mem[64] + 68] = _253 - _14 - (_253 * uint16(_param4 >> 160) - _14 * uint16(_param4 >> 160)) / 10000
-              mem[mem[64]] = 68
-              if mem[64] + 128 > 18446744073709551615 or mem[64] + 128 < mem[64]:
-                  revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-              mem[64] = mem[64] + 128
-              call address(_param4) with:
-                   gas gas_remaining
-                  args mem[_360 + 32 len mem[_360]]
-              if not return_data.size:
-                  _388 = 96
-              else:
-                  if return_data.size > 18446744073709551615:
-                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-                  if _360 + ceil32(return_data.size) + 160 > 18446744073709551615 or _360 + ceil32(return_data.size) + 160 < _360 + 128:
-                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-                  mem[64] = _360 + ceil32(return_data.size) + 160
-                  mem[_360 + 128] = return_data.size
-                  mem[_360 + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
-                  _388 = _360 + 128
-              if not ext_call.success:
-                  if mem[_388]:
-                      revert with memory
-                        from _388 + 32
-                         len mem[_388]
-                  revert with 0x1425ea42
-              _398 = not mem[_388] and not ext_code.size(address(_param4))
-              if _398:
-                  revert with 0x9996b315, address(_param4)
-              if mem[_388]:
-                  require mem[_388] >=′ 32
-                  require mem[_388 + 32] == bool(mem[_388 + 32])
-                  _414 = not mem[_388 + 32]
-              else:
-                  _414 = 0
-              if _414:
-                  revert with 0x5274afe7, address(_param4)
-  if address(_param4):
-      _427 = mem[64]
-      mem[mem[64]] = 0x70a0823100000000000000000000000000000000000000000000000000000000
-      mem[mem[64] + 4] = caller
-      static call address(_param4).balanceOf(address account) with:
-              gas gas_remaining
-             args caller
-      mem[mem[64] len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
-      if not ext_call.success:
-          revert with ext_call.return_data[0 len return_data.size]
-      if mem[64] + ceil32(min(return_data.size, 32)) > 18446744073709551615 or mem[64] + ceil32(min(return_data.size, 32)) < mem[64]:
-          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-      mem[64] = mem[64] + ceil32(min(return_data.size, 32))
-      require min(return_data.size, 32) >=′ 32
-      _434 = mem[_427]
-  else:
-      _434 = eth.balance(caller)
-  if _434 < _161:
-      revert with 0x6d9e7a9e, _param5, 0
-  if _434 - _161 > _434:
-      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-  if _434 - _161 < _param5:
-      revert with 0x6d9e7a9e, _param5, _434 - _161
-  if address(_param2):
-      _437 = mem[64]
-      mem[mem[64]] = 0x70a0823100000000000000000000000000000000000000000000000000000000
-      mem[mem[64] + 4] = this.address
-      static call address(_param2).balanceOf(address account) with:
-              gas gas_remaining
-             args this.address
-      mem[mem[64] len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
-      if not ext_call.success:
-          revert with ext_call.return_data[0 len return_data.size]
-      if mem[64] + ceil32(min(return_data.size, 32)) > 18446744073709551615 or mem[64] + ceil32(min(return_data.size, 32)) < mem[64]:
-          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-      mem[64] = mem[64] + ceil32(min(return_data.size, 32))
-      require min(return_data.size, 32) >=′ 32
-      _444 = mem[_437]
-  else:
-      _444 = eth.balance(this.address)
-  if _444 < _7:
-      _445 = 0x6aba0315493b7e6989041c91181337b662fb1b90 == caller or 0x88649f4743a758171077b98ee2003f1989b1615a == caller
-      if not _445:
-          _446 = 0xcb8c32aca3e52d90943f6a06fecdddcf6c8c019f == caller
-      else:
-          _446 = _445
-      if not _446:
-          _447 = 0x3d499e1fd33ded6f681424ed22d396a21e6915df == caller
-      else:
-          _447 = _446
-      _448 = _447 and address(_param2) == 0xf86af2fbcf6a0479b21b1d3a4af3893f63207fe7
-      _452 = _448
-  else:
-      _452 = 0
-  if not _452:
-      if _444 - _7 > _444:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      if _444 != _7:
-          if address(_param2):
-              if address(_param2) != 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c:
-                  mem[mem[64] + 32] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-                  mem[mem[64] + 36] = caller
-                  mem[mem[64] + 68] = _444 - _7
-                  mem[mem[64]] = 68
-                  if mem[64] + 128 > 18446744073709551615 or mem[64] + 128 < mem[64]:
-                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-                  call address(_param2).transfer(address recipient, uint256 amount) with:
-                       gas gas_remaining
-                      args caller, _444 - _7
-                  if not return_data.size:
-                      _469 = 96
-                  else:
-                      if return_data.size > 18446744073709551615:
-                          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-                      if mem[64] + ceil32(return_data.size) + 160 > 18446744073709551615 or mem[64] + ceil32(return_data.size) + 160 < mem[64] + 128:
-                          revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-                      mem[mem[64] + 128] = return_data.size
-                      mem[mem[64] + 160 len return_data.size] = ext_call.return_data[0 len return_data.size]
-                      _469 = mem[64] + 128
-                  if not ext_call.success:
-                      if mem[_469]:
-                          revert with memory
-                            from _469 + 32
-                             len mem[_469]
-                      revert with 0x1425ea42
-                  _474 = not mem[_469] and not ext_code.size(address(_param2))
-                  if _474:
-                      revert with 0x9996b315, address(_param2)
-                  if mem[_469]:
-                      require mem[_469] >=′ 32
-                      require mem[_469 + 32] == bool(mem[_469 + 32])
-                      _478 = not mem[_469 + 32]
-                  else:
-                      _478 = 0
-                  if _478:
-                      revert with 0x5274afe7, address(_param2)
-              else:
-                  mem[mem[64]] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-                  mem[mem[64] + 4] = caller
-                  call address(_param2).transfer(address recipient, uint256 amount) with:
-                       gas gas_remaining
-                      args caller, _444 - _7
-                  mem[mem[64] len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
-                  if not ext_call.success:
-                      revert with ext_call.return_data[0 len return_data.size]
-                  if 32 > return_data.size:
-                      _460 = return_data.size
-                      _461 = return_data.size
-                  else:
-                      _460 = 32
-                      _461 = 32
-                  if mem[64] + ceil32(_461) > 18446744073709551615 or mem[64] + ceil32(_461) < mem[64]:
-                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-                  require _460 >=′ 32
-                  require concat(ext_call.return_data[0 len min(32, return_data.size)], mem[mem[64] + min(32, return_data.size) len -min(32, return_data.size) + 32]) == bool(concat(ext_call.return_data[0 len min(32, return_data.size)], mem[mem[64] + min(32, return_data.size) len -min(32, return_data.size) + 32]))
-          else:
-              call caller with:
-                 value _444 - _7 wei
-                   gas gas_remaining
-              if return_data.size:
-                  if return_data.size > 18446744073709551615:
-                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-                  if mem[64] + ceil32(return_data.size) + 32 > 18446744073709551615 or mem[64] + ceil32(return_data.size) + 32 < mem[64]:
-                      revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-              if not ext_call.success:
-                  revert with NativeAssetTransferFailed()
-  stor89D0 = 0
-
 def unknowna03de6a9(uint256 _param1, uint256 _param2, uint256 _param3, array _param4) payable: 
   mem[64] = 224
   require calldata.size - 4 >=′ 128
@@ -1404,9 +1400,7 @@ def unknowna03de6a9(uint256 _param1, uint256 _param2, uint256 _param3, array _pa
   else:
       _4 = eth.balance(this.address)
   if not address(_param1):
-      if _4 - call.value > _4:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      _7 = _4 - call.value
+      _7 = SafeMath.sub(_4, call.value)
   else:
       _7 = _4
   if address(_param3):
@@ -1427,9 +1421,7 @@ def unknowna03de6a9(uint256 _param1, uint256 _param2, uint256 _param3, array _pa
   else:
       _12 = eth.balance(this.address)
   if not address(_param3):
-      if _12 - call.value > _12:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      _14 = _12 - call.value
+      _14 = SafeMath.sub(_12, call.value)
   else:
       _14 = _12
   if uint16(_param1 >> 160):
@@ -2023,9 +2015,7 @@ def unknowndadb693f(uint256 _param1, uint256 _param2, uint256 _param3, array _pa
   else:
       _4 = eth.balance(this.address)
   if not address(_param1):
-      if _4 - call.value > _4:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      _7 = _4 - call.value
+      _7 = SafeMath.sub(_4, call.value)
   else:
       _7 = _4
   if address(_param3):
@@ -2046,9 +2036,7 @@ def unknowndadb693f(uint256 _param1, uint256 _param2, uint256 _param3, array _pa
   else:
       _12 = eth.balance(this.address)
   if not address(_param3):
-      if _12 - call.value > _12:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      _14 = _12 - call.value
+      _14 = SafeMath.sub(_12, call.value)
   else:
       _14 = _12
   if uint16(_param1 >> 160):
@@ -2650,9 +2638,7 @@ def unknown3166c37c(uint256 _param1, uint256 _param2, uint256 _param3, array _pa
   else:
       _4 = eth.balance(this.address)
   if not address(_param1):
-      if _4 - call.value > _4:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      _7 = _4 - call.value
+      _7 = SafeMath.sub(_4, call.value)
   else:
       _7 = _4
   if address(_param3):
@@ -2673,9 +2659,7 @@ def unknown3166c37c(uint256 _param1, uint256 _param2, uint256 _param3, array _pa
   else:
       _12 = eth.balance(this.address)
   if not address(_param3):
-      if _12 - call.value > _12:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      _14 = _12 - call.value
+      _14 = SafeMath.sub(_12, call.value)
   else:
       _14 = _12
   if uint16(_param1 >> 160):
@@ -3285,9 +3269,7 @@ def unknown849ce572(uint256 _param1, uint256 _param2, uint256 _param3, array _pa
   else:
       _6 = eth.balance(this.address)
   if not address(_param1):
-      if _6 - call.value > _6:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      _9 = _6 - call.value
+      _9 = SafeMath.sub(_6, call.value)
   else:
       _9 = _6
   if address(_param3):
@@ -3308,9 +3290,7 @@ def unknown849ce572(uint256 _param1, uint256 _param2, uint256 _param3, array _pa
   else:
       _14 = eth.balance(this.address)
   if not address(_param3):
-      if _14 - call.value > _14:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      _16 = _14 - call.value
+      _16 = SafeMath.sub(_14, call.value)
   else:
       _16 = _14
   if uint16(_param1 >> 160):
@@ -4001,9 +3981,7 @@ def unknown810c705b(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _
   else:
       _35 = eth.balance(this.address)
   if not address(_param3):
-      if _35 - call.value > _35:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      _38 = _35 - call.value
+      _38 = SafeMath.sub(_35, call.value)
   else:
       _38 = _35
   if address(_param5):
@@ -4024,9 +4002,7 @@ def unknown810c705b(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _
   else:
       _43 = eth.balance(this.address)
   if not address(_param5):
-      if _43 - call.value > _43:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      _45 = _43 - call.value
+      _45 = SafeMath.sub(_43, call.value)
   else:
       _45 = _43
   if uint16(_param3 >> 160):
@@ -4471,10 +4447,8 @@ def unknown810c705b(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _
       _454 = eth.balance(caller)
   if _454 < _181:
       revert with 0x6d9e7a9e, _param6, 0
-  if _454 - _181 > _454:
-      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-  if _454 - _181 < _param6:
-      revert with 0x6d9e7a9e, _param6, _454 - _181
+  if SafeMath.sub(_454, _181) < _param6:
+      revert with 0x6d9e7a9e, _param6, SafeMath.sub(_454, _181)
   if address(_param3):
       _457 = mem[64]
       mem[mem[64]] = 0x70a0823100000000000000000000000000000000000000000000000000000000
@@ -4736,9 +4710,7 @@ def unknown3ecba7f8(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _
           _54 = eth.balance(this.address)
       _55 = _54
   if not address(_param3):
-      if _55 - call.value > _55:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      _58 = _55 - call.value
+      _58 = SafeMath.sub(_55, call.value)
   else:
       _58 = _55
   if _48:
@@ -4777,9 +4749,7 @@ def unknown3ecba7f8(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _
           _67 = eth.balance(this.address)
       _69 = _67
   if not address(_param5):
-      if _69 - call.value > _69:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      _72 = _69 - call.value
+      _72 = SafeMath.sub(_69, call.value)
   else:
       _72 = _69
   if uint16(_param3 >> 160):
@@ -5588,10 +5558,8 @@ def unknown3ecba7f8(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _
       if _691 < _382:
           revert with 0x6d9e7a9e, _param7, 0
       _937 = _691
-  if _937 - _382 > _937:
-      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-  if _937 - _382 < _param7:
-      revert with 0x6d9e7a9e, _param7, _937 - _382
+  if SafeMath.sub(_937, _382) < _param7:
+      revert with 0x6d9e7a9e, _param7, SafeMath.sub(_937, _382)
   _939 = mem[160]
   _941 = mem[192]
   if mem[128]:

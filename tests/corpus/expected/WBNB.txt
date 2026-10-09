@@ -7,6 +7,11 @@ def storage:
   balanceOf is mapping of uint256 at storage 3
   allowance is mapping of mapping of uint256 at storage 4
 
+def SafeMath:
+  def sub(a, b):
+      require a >= b
+      return a - b
+
 def decimals(): # not payable
   return decimals
 
@@ -50,8 +55,7 @@ def approve(address spender, uint256 amount): # not payable
   return 1
 
 def withdraw(uint256 amount): # not payable
-  require balanceOf[caller] >= amount
-  balanceOf[caller] -= amount
+  balanceOf[caller] = SafeMath.sub(balanceOf[caller], amount)
   call caller with:
      value amount wei
        gas 2300 * (not amount)
@@ -61,8 +65,7 @@ def withdraw(uint256 amount): # not payable
         uint256 wad=amount)
 
 def transfer(address recipient, uint256 amount): # not payable
-  require balanceOf[caller] >= amount
-  balanceOf[caller] -= amount
+  balanceOf[caller] = SafeMath.sub(balanceOf[caller], amount)
   balanceOf[address(recipient)] += amount
   log Transfer(
         address indexed from=caller,
@@ -74,8 +77,7 @@ def transferFrom(address sender, address recipient, uint256 amount): # not payab
   require balanceOf[address(sender)] >= amount
   _4 = address(sender) != caller and allowance[address(sender)][caller] != -1
   if _4:
-      require allowance[address(sender)][caller] >= amount
-      allowance[address(sender)][caller] -= amount
+      allowance[address(sender)][caller] = SafeMath.sub(allowance[address(sender)][caller], amount)
   balanceOf[address(sender)] -= amount
   balanceOf[address(recipient)] += amount
   log Transfer(

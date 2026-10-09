@@ -17,6 +17,17 @@ def storage:
   upgradedAddress is address at storage 10
   deprecated is uint8 at storage 10 offset 160
 
+def SafeMath:
+  def add(a, b):
+      assert a + b >= a
+      return a + b
+  def add2(a, b):
+      require a + b > a
+      return a + b
+  def sub(a, b):
+      assert b <= a
+      return a - b
+
 def deprecated(): # not payable
   return bool(deprecated)
 
@@ -102,6 +113,13 @@ def deprecate(address _upgradedAddress): # not payable
   upgradedAddress = address(_upgradedAddress)
   log Deprecate(address newAddress=address(_upgradedAddress))
 
+def issue(uint256 amount): # not payable
+  require caller == owner
+  require stor1 + amount > stor1
+  balances[owner] = SafeMath.add2(balances[owner], amount)
+  stor1 += amount
+  log Issue(uint256 amount=amount)
+
 def redeem(uint256 amount): # not payable
   require caller == owner
   require stor1 >= amount
@@ -109,14 +127,6 @@ def redeem(uint256 amount): # not payable
   stor1 -= amount
   balances[owner] -= amount
   log Redeem(uint256 amount=amount)
-
-def issue(uint256 amount): # not payable
-  require caller == owner
-  require stor1 + amount > stor1
-  require balances[owner] + amount > balances[owner]
-  balances[owner] += amount
-  stor1 += amount
-  log Issue(uint256 amount=amount)
 
 def totalSupply(): # not payable
   if not deprecated:
@@ -225,13 +235,11 @@ def transfer(address recipient, uint256 amount): # not payable
       else:
           _3 = 0
       assert min(_3 / 10000, maximumFee) <= amount
-      assert amount <= balances[caller]
-      balances[caller] -= amount
+      balances[caller] = SafeMath.sub(balances[caller], amount)
       assert balances[address(recipient)] + amount - min(_3 / 10000, maximumFee) >= balances[address(recipient)]
       balances[address(recipient)] = balances[address(recipient)] + amount - min(_3 / 10000, maximumFee)
       if min(_3 / 10000, maximumFee) > 0:
-          assert balances[owner] + min(_3 / 10000, maximumFee) >= balances[owner]
-          balances[owner] += min(_3 / 10000, maximumFee)
+          balances[owner] = SafeMath.add(balances[owner], min(_3 / 10000, maximumFee))
           log Transfer(
                 address indexed from=caller,
                 address indexed to=owner,
@@ -262,13 +270,11 @@ def transferFrom(address sender, address recipient, uint256 amount): # not payab
           assert amount <= allowed[address(sender)][caller]
           allowed[address(sender)][caller] -= amount
       assert min(_5 / 10000, maximumFee) <= amount
-      assert amount <= balances[address(sender)]
-      balances[address(sender)] -= amount
+      balances[address(sender)] = SafeMath.sub(balances[address(sender)], amount)
       assert balances[address(recipient)] + amount - min(_5 / 10000, maximumFee) >= balances[address(recipient)]
       balances[address(recipient)] = balances[address(recipient)] + amount - min(_5 / 10000, maximumFee)
       if min(_5 / 10000, maximumFee) > 0:
-          assert balances[owner] + min(_5 / 10000, maximumFee) >= balances[owner]
-          balances[owner] += min(_5 / 10000, maximumFee)
+          balances[owner] = SafeMath.add(balances[owner], min(_5 / 10000, maximumFee))
           log Transfer(
                 address indexed from=address(sender),
                 address indexed to=owner,

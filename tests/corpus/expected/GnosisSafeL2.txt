@@ -13,6 +13,18 @@ def storage:
   stor4A20 is uint256 at storage 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8
   stor6C9A is uint256 at storage 0x6c9a6c4a39284e37ed1cf53d337577d14212a4870fb976a4366c693b939918d5
 
+def SafeMath:
+  def add(a, b):
+      require a + b >= a
+      return a + b
+  def mul(a, b):
+      assert a
+      require a * b / a == b
+      return a * b
+  def div(a, b):
+      assert a
+      return a / b
+
 def signedMessages(bytes32 _param1): # not payable
   require calldata.size - 4 >= 32
   return signedMessages[_param1]
@@ -453,9 +465,7 @@ def setup(address[] _owners, uint256 _threshold, address to, bytes data, address
           _73 = address(paymentReceiver)
       if not address(paymentToken):
           if payment:
-              assert payment
-              require payment * min(1, tx.gasprice) / payment == min(1, tx.gasprice)
-              _78 = payment * min(1, tx.gasprice)
+              _78 = SafeMath.mul(payment, min(1, tx.gasprice))
           else:
               _78 = 0
           call address(_73) with:
@@ -465,8 +475,7 @@ def setup(address[] _owners, uint256 _threshold, address to, bytes data, address
               revert with 'GS011'
       else:
           if payment:
-              assert payment
-              require payment / payment == 1
+              require SafeMath.div(payment, payment) == 1
               _75 = payment
           else:
               _75 = 0
@@ -504,9 +513,7 @@ def checkSignatures(bytes32 dataHash, bytes data, bytes signatures): # not payab
   if threshold <= 0:
       revert with 'GS001'
   if threshold:
-      assert threshold
-      require 65 * threshold / threshold == 65
-      _5 = 65 * threshold
+      _5 = SafeMath.mul(threshold, 65)
   else:
       _5 = 0
   if signatures.length < _5:
@@ -566,17 +573,14 @@ def checkSignatures(bytes32 dataHash, bytes data, bytes signatures): # not payab
           _100 = _63
       else:
           if threshold:
-              assert threshold
-              require 65 * threshold / threshold == 65
-              _64 = 65 * threshold
+              _64 = SafeMath.mul(threshold, 65)
           else:
               _64 = 0
           if mem[ceil32(data.length) + 65 * idx + 224] < _64:
               revert with 'GS021'
-          require mem[ceil32(data.length) + 65 * idx + 224] + 32 >= mem[ceil32(data.length) + 65 * idx + 224]
-          if mem[ceil32(data.length) + 65 * idx + 224] + 32 > mem[ceil32(data.length) + 160]:
+          if SafeMath.add(mem[ceil32(data.length) + 65 * idx + 224], 32) > mem[ceil32(data.length) + 160]:
               revert with 'GS022'
-          require mem[ceil32(data.length) + 65 * idx + 224] + mem[ceil32(data.length) + mem[ceil32(data.length) + 65 * idx + 224] + 192] + 32 >= mem[ceil32(data.length) + 65 * idx + 224] + 32
+          require mem[ceil32(data.length) + 65 * idx + 224] + mem[ceil32(data.length) + mem[ceil32(data.length) + 65 * idx + 224] + 192] + 32 >= SafeMath.add(mem[ceil32(data.length) + 65 * idx + 224], 32)
           if mem[ceil32(data.length) + 65 * idx + 224] + mem[ceil32(data.length) + mem[ceil32(data.length) + 65 * idx + 224] + 192] + 32 > mem[ceil32(data.length) + 160]:
               revert with 'GS023'
           mem[mem[64]] = 0x20c13b0b00000000000000000000000000000000000000000000000000000000
@@ -649,9 +653,7 @@ def checkNSignatures(bytes32 dataHash, bytes data, bytes signatures, uint256 req
   mem[ceil32(data.length) + 192 len signatures.length] = signatures[all]
   mem[ceil32(data.length) + signatures.length + 192] = 0
   if requiredSignatures:
-      assert requiredSignatures
-      require 65 * requiredSignatures / requiredSignatures == 65
-      _3 = 65 * requiredSignatures
+      _3 = SafeMath.mul(requiredSignatures, 65)
   else:
       _3 = 0
   if signatures.length < _3:
@@ -711,17 +713,14 @@ def checkNSignatures(bytes32 dataHash, bytes data, bytes signatures, uint256 req
           _98 = _61
       else:
           if requiredSignatures:
-              assert requiredSignatures
-              require 65 * requiredSignatures / requiredSignatures == 65
-              _62 = 65 * requiredSignatures
+              _62 = SafeMath.mul(requiredSignatures, 65)
           else:
               _62 = 0
           if mem[ceil32(data.length) + 65 * idx + 224] < _62:
               revert with 'GS021'
-          require mem[ceil32(data.length) + 65 * idx + 224] + 32 >= mem[ceil32(data.length) + 65 * idx + 224]
-          if mem[ceil32(data.length) + 65 * idx + 224] + 32 > mem[ceil32(data.length) + 160]:
+          if SafeMath.add(mem[ceil32(data.length) + 65 * idx + 224], 32) > mem[ceil32(data.length) + 160]:
               revert with 'GS022'
-          require mem[ceil32(data.length) + 65 * idx + 224] + mem[ceil32(data.length) + mem[ceil32(data.length) + 65 * idx + 224] + 192] + 32 >= mem[ceil32(data.length) + 65 * idx + 224] + 32
+          require mem[ceil32(data.length) + 65 * idx + 224] + mem[ceil32(data.length) + mem[ceil32(data.length) + 65 * idx + 224] + 192] + 32 >= SafeMath.add(mem[ceil32(data.length) + 65 * idx + 224], 32)
           if mem[ceil32(data.length) + 65 * idx + 224] + mem[ceil32(data.length) + mem[ceil32(data.length) + 65 * idx + 224] + 192] + 32 > mem[ceil32(data.length) + 160]:
               revert with 'GS023'
           mem[mem[64]] = 0x20c13b0b00000000000000000000000000000000000000000000000000000000
@@ -852,9 +851,7 @@ def execTransaction(address to, uint256 value, bytes data, uint8 operation, uint
   if threshold <= 0:
       revert with 'GS001'
   if threshold:
-      assert threshold
-      require 65 * threshold / threshold == 65
-      _35 = 65 * threshold
+      _35 = SafeMath.mul(threshold, 65)
   else:
       _35 = 0
   if signatures.length < _35:
@@ -914,17 +911,14 @@ def execTransaction(address to, uint256 value, bytes data, uint8 operation, uint
           _166 = _103
       else:
           if threshold:
-              assert threshold
-              require 65 * threshold / threshold == 65
-              _104 = 65 * threshold
+              _104 = SafeMath.mul(threshold, 65)
           else:
               _104 = 0
           if mem[65 * idx + 192] < _104:
               revert with 'GS021'
-          require mem[65 * idx + 192] + 32 >= mem[65 * idx + 192]
-          if mem[65 * idx + 192] + 32 > mem[128]:
+          if SafeMath.add(mem[65 * idx + 192], 32) > mem[128]:
               revert with 'GS022'
-          require mem[65 * idx + 192] + mem[mem[65 * idx + 192] + 160] + 32 >= mem[65 * idx + 192] + 32
+          require mem[65 * idx + 192] + mem[mem[65 * idx + 192] + 160] + 32 >= SafeMath.add(mem[65 * idx + 192], 32)
           if mem[65 * idx + 192] + mem[mem[65 * idx + 192] + 160] + 32 > mem[128]:
               revert with 'GS023'
           mem[mem[64]] = 0x20c13b0b00000000000000000000000000000000000000000000000000000000
@@ -1049,9 +1043,7 @@ def execTransaction(address to, uint256 value, bytes data, uint8 operation, uint
           _173 = address(refundReceiver)
       if address(gasToken):
           if baseGas:
-              assert baseGas
-              require baseGas * gasPrice / baseGas == gasPrice
-              _184 = baseGas * gasPrice
+              _184 = SafeMath.mul(baseGas, gasPrice)
           else:
               _184 = 0
           call address(gasToken).transfer(address recipient, uint256 amount) with:
@@ -1066,9 +1058,7 @@ def execTransaction(address to, uint256 value, bytes data, uint8 operation, uint
           _200 = _184
       else:
           if baseGas:
-              assert baseGas
-              require baseGas * min(gasPrice, tx.gasprice) / baseGas == min(gasPrice, tx.gasprice)
-              _187 = baseGas * min(gasPrice, tx.gasprice)
+              _187 = SafeMath.mul(baseGas, min(gasPrice, tx.gasprice))
           else:
               _187 = 0
           call address(_173) with:

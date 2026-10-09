@@ -6,6 +6,20 @@ def storage:
   remainingRaw is mapping of uint256 at storage 2
   invalidatorForOrderRFQ is mapping of mapping of uint256 at storage 3
 
+def SafeMath:
+  def add(a, b):  # solidity >= 0.8
+      if a > a + b:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      return a + b
+  def div(a, b):  # solidity >= 0.8
+      if not b:
+          revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
+      return a / b
+  def inc(a):  # solidity >= 0.8
+      if a == -1:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      return a + 1
+
 def invalidatorForOrderRFQ(address maker, uint256 slot): # not payable
   require calldata.size - 4 >=′ 64
   require maker == address(maker)
@@ -48,6 +62,13 @@ def remaining(bytes32 orderHash): # not payable
       revert with UnknownOrder()
   return remainingRaw[orderHash] - 1
 
+def increaseNonce(): # not payable
+  _3 = nonce[caller]
+  nonce[caller] = SafeMath.add(nonce[caller], 1)
+  log NonceIncreased(
+        address indexed maker=caller,
+        uint256 newNonce=_3 + 1)
+
 def nonceEquals(address makerAddress, uint256 makerNonce): # not payable
   require calldata.size - 4 >=′ 64
   require makerAddress == address(makerAddress)
@@ -67,14 +88,16 @@ def timestampBelowAndNonceEquals(uint256 timeNonceAccount): # not payable
   _2 = block.timestamp < timeNonceAccount >> 208 and uint48(timeNonceAccount >> 160) == nonce[address(timeNonceAccount)]
   return bool(_2)
 
-def increaseNonce(): # not payable
-  if nonce[caller] > nonce[caller] + 1:
-      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+def advanceNonce(uint8 amount): # not payable
+  require calldata.size - 4 >=′ 32
+  require amount == uint8(amount)
+  if not amount:
+      revert with AdvanceNonceFailed()
   _3 = nonce[caller]
-  nonce[caller]++
+  nonce[caller] = SafeMath.add(nonce[caller], amount)
   log NonceIncreased(
         address indexed maker=caller,
-        uint256 newNonce=_3 + 1)
+        uint256 newNonce=amount + _3)
 
 def transferOwnership(address newOwner): # not payable
   require calldata.size - 4 >=′ 32
@@ -88,19 +111,6 @@ def transferOwnership(address newOwner): # not payable
   log OwnershipTransferred(
         address indexed previousOwner=address(_1),
         address indexed newOwner=newOwner)
-
-def advanceNonce(uint8 amount): # not payable
-  require calldata.size - 4 >=′ 32
-  require amount == uint8(amount)
-  if not amount:
-      revert with AdvanceNonceFailed()
-  if nonce[caller] > amount + nonce[caller]:
-      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-  _3 = nonce[caller]
-  nonce[caller] += amount
-  log NonceIncreased(
-        address indexed maker=caller,
-        uint256 newNonce=amount + _3)
 
 def cancelOrderRFQ(uint256 orderInfo): # not payable
   require calldata.size - 4 >=′ 32
@@ -285,10 +295,8 @@ def remainingsRaw(bytes32[] orderHashes): # not payable
       if idx >= orderHashes.length:
           revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
       mem[32 * idx + 32 * orderHashes.length + 192] = remainingRaw[concat(mem[32 * idx + 160])]
-      if idx == -1:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
       _12 = orderHashes.length
-      idx = idx + 1
+      idx = SafeMath.inc(idx)
       continue
   return Array(len=orderHashes.length, data=mem[32 * orderHashes.length + 192 len 32 * orderHashes.length])
 
@@ -2012,23 +2020,17 @@ def fillOrderRFQ((uint256,address,address,address,address,uint256,uint256) order
               revert with TakingAmountExceeded()
           if mem[288] != mem[288] * Mask(252, 0, flagsAndAmount) / Mask(252, 0, flagsAndAmount) and Mask(252, 0, flagsAndAmount):
               revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if not mem[320]:
-              revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-          _111 = mem[288] * Mask(252, 0, flagsAndAmount) / mem[320]
+          _111 = SafeMath.div(mem[288] * Mask(252, 0, flagsAndAmount), mem[320])
           _112 = Mask(252, 0, flagsAndAmount)
       else:
           if Mask(252, 0, flagsAndAmount) > mem[288]:
               revert with MakingAmountExceeded()
           if mem[320] != mem[320] * Mask(252, 0, flagsAndAmount) / Mask(252, 0, flagsAndAmount) and Mask(252, 0, flagsAndAmount):
               revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if mem[320] * Mask(252, 0, flagsAndAmount) > mem[288] + mem[320] * Mask(252, 0, flagsAndAmount):
+          if mem[288] + mem[320] * Mask(252, 0, flagsAndAmount) - 1 > SafeMath.add(mem[320] * Mask(252, 0, flagsAndAmount), mem[288]):
               revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if mem[288] + mem[320] * Mask(252, 0, flagsAndAmount) - 1 > mem[288] + mem[320] * Mask(252, 0, flagsAndAmount):
-              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if not mem[288]:
-              revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
           _111 = Mask(252, 0, flagsAndAmount)
-          _112 = (mem[288] + mem[320] * Mask(252, 0, flagsAndAmount) - 1) / mem[288]
+          _112 = SafeMath.div(mem[288] + mem[320] * Mask(252, 0, flagsAndAmount) - 1, mem[288])
       _116 = not _111 or not _112
       if _116:
           revert with RFQSwapWithZeroAmount()
@@ -2341,23 +2343,17 @@ def fillOrderRFQTo((uint256,address,address,address,address,uint256,uint256) ord
               revert with TakingAmountExceeded()
           if mem[288] != mem[288] * Mask(252, 0, flagsAndAmount) / Mask(252, 0, flagsAndAmount) and Mask(252, 0, flagsAndAmount):
               revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if not mem[320]:
-              revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-          _111 = mem[288] * Mask(252, 0, flagsAndAmount) / mem[320]
+          _111 = SafeMath.div(mem[288] * Mask(252, 0, flagsAndAmount), mem[320])
           _112 = Mask(252, 0, flagsAndAmount)
       else:
           if Mask(252, 0, flagsAndAmount) > mem[288]:
               revert with MakingAmountExceeded()
           if mem[320] != mem[320] * Mask(252, 0, flagsAndAmount) / Mask(252, 0, flagsAndAmount) and Mask(252, 0, flagsAndAmount):
               revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if mem[320] * Mask(252, 0, flagsAndAmount) > mem[288] + mem[320] * Mask(252, 0, flagsAndAmount):
+          if mem[288] + mem[320] * Mask(252, 0, flagsAndAmount) - 1 > SafeMath.add(mem[320] * Mask(252, 0, flagsAndAmount), mem[288]):
               revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if mem[288] + mem[320] * Mask(252, 0, flagsAndAmount) - 1 > mem[288] + mem[320] * Mask(252, 0, flagsAndAmount):
-              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if not mem[288]:
-              revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
           _111 = Mask(252, 0, flagsAndAmount)
-          _112 = (mem[288] + mem[320] * Mask(252, 0, flagsAndAmount) - 1) / mem[288]
+          _112 = SafeMath.div(mem[288] + mem[320] * Mask(252, 0, flagsAndAmount) - 1, mem[288])
       _116 = not _111 or not _112
       if _116:
           revert with RFQSwapWithZeroAmount()
@@ -2662,23 +2658,17 @@ def fillOrderRFQCompact((uint256,address,address,address,address,uint256,uint256
               revert with TakingAmountExceeded()
           if mem[288] != mem[288] * Mask(252, 0, flagsAndAmount) / Mask(252, 0, flagsAndAmount) and Mask(252, 0, flagsAndAmount):
               revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if not mem[320]:
-              revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-          _92 = mem[288] * Mask(252, 0, flagsAndAmount) / mem[320]
+          _92 = SafeMath.div(mem[288] * Mask(252, 0, flagsAndAmount), mem[320])
           _93 = Mask(252, 0, flagsAndAmount)
       else:
           if Mask(252, 0, flagsAndAmount) > mem[288]:
               revert with MakingAmountExceeded()
           if mem[320] != mem[320] * Mask(252, 0, flagsAndAmount) / Mask(252, 0, flagsAndAmount) and Mask(252, 0, flagsAndAmount):
               revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if mem[320] * Mask(252, 0, flagsAndAmount) > mem[288] + mem[320] * Mask(252, 0, flagsAndAmount):
+          if mem[288] + mem[320] * Mask(252, 0, flagsAndAmount) - 1 > SafeMath.add(mem[320] * Mask(252, 0, flagsAndAmount), mem[288]):
               revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if mem[288] + mem[320] * Mask(252, 0, flagsAndAmount) - 1 > mem[288] + mem[320] * Mask(252, 0, flagsAndAmount):
-              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if not mem[288]:
-              revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
           _92 = Mask(252, 0, flagsAndAmount)
-          _93 = (mem[288] + mem[320] * Mask(252, 0, flagsAndAmount) - 1) / mem[288]
+          _93 = SafeMath.div(mem[288] + mem[320] * Mask(252, 0, flagsAndAmount) - 1, mem[288])
       _97 = not _92 or not _93
       if _97:
           revert with RFQSwapWithZeroAmount()
@@ -3018,23 +3008,17 @@ def fillOrderRFQToWithPermit((uint256,address,address,address,address,uint256,ui
               revert with TakingAmountExceeded()
           if mem[288] != mem[288] * Mask(252, 0, flagsAndAmount) / Mask(252, 0, flagsAndAmount) and Mask(252, 0, flagsAndAmount):
               revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if not mem[320]:
-              revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-          _114 = mem[288] * Mask(252, 0, flagsAndAmount) / mem[320]
+          _114 = SafeMath.div(mem[288] * Mask(252, 0, flagsAndAmount), mem[320])
           _115 = Mask(252, 0, flagsAndAmount)
       else:
           if Mask(252, 0, flagsAndAmount) > mem[288]:
               revert with MakingAmountExceeded()
           if mem[320] != mem[320] * Mask(252, 0, flagsAndAmount) / Mask(252, 0, flagsAndAmount) and Mask(252, 0, flagsAndAmount):
               revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if mem[320] * Mask(252, 0, flagsAndAmount) > mem[288] + mem[320] * Mask(252, 0, flagsAndAmount):
+          if mem[288] + mem[320] * Mask(252, 0, flagsAndAmount) - 1 > SafeMath.add(mem[320] * Mask(252, 0, flagsAndAmount), mem[288]):
               revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if mem[288] + mem[320] * Mask(252, 0, flagsAndAmount) - 1 > mem[288] + mem[320] * Mask(252, 0, flagsAndAmount):
-              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if not mem[288]:
-              revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
           _114 = Mask(252, 0, flagsAndAmount)
-          _115 = (mem[288] + mem[320] * Mask(252, 0, flagsAndAmount) - 1) / mem[288]
+          _115 = SafeMath.div(mem[288] + mem[320] * Mask(252, 0, flagsAndAmount) - 1, mem[288])
       _119 = not _114 or not _115
       if _119:
           revert with RFQSwapWithZeroAmount()
@@ -7701,11 +7685,9 @@ def and(uint256 offsets, bytes data): # not payable
           _52 = bool(_30)
           if uint8(_52) != 1:
               return 0
-          if s > s + 32:
-              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
           t = uint32(offsets >> s)
           u = uint32(offsets >> s)
-          s = s + 32
+          s = SafeMath.add(s, 32)
           continue
       if cd[t + data + 36] >> 224 >= 3205889240:
           if cd[t + data + 36] >> 224 < 3394162210:
@@ -7742,11 +7724,9 @@ def and(uint256 offsets, bytes data): # not payable
                       revert with ArbitraryStaticCallFailed()
                   if _63 != 1:
                       return 0
-              if s > s + 32:
-                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
               t = uint32(offsets >> s)
               u = uint32(offsets >> s)
-              s = s + 32
+              s = SafeMath.add(s, 32)
               continue
           if cd[t + data + 36] >> 224 != 3394162210:
               if cd[t + data + 36] >> 224 != 3480209123:
@@ -7770,11 +7750,9 @@ def and(uint256 offsets, bytes data): # not payable
               _85 = not _72 or _73 != 1
               if _85:
                   return 0
-              if s > s + 32:
-                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
               t = uint32(offsets >> s)
               u = uint32(offsets >> s)
-              s = s + 32
+              s = SafeMath.add(s, 32)
               continue
           if uint32(offsets >> s) - t < 100:
               revert with IncorrectDataLength()
@@ -7793,11 +7771,9 @@ def and(uint256 offsets, bytes data): # not payable
               _271 = uint8(_173) < cd[t + data + 40]
               if uint8(_271) != 1:
                   return 0
-              if s > s + 32:
-                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
               t = uint32(offsets >> s)
               u = uint32(offsets >> s)
-              s = s + 32
+              s = SafeMath.add(s, 32)
               continue
           if cd[t + data + 136] >> 224 >= 3205889240:
               if cd[t + data + 136] >> 224 >= 3394162210:
@@ -7824,11 +7800,9 @@ def and(uint256 offsets, bytes data): # not payable
                       _354 = bool(_335)
                       if uint8(_354) != 1:
                           return 0
-                      if s > s + 32:
-                          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                       t = uint32(offsets >> s)
                       u = uint32(offsets >> s)
-                      s = s + 32
+                      s = SafeMath.add(s, 32)
                       continue
                   if uint32(offsets >> s) - t - 100 < 100:
                       revert with IncorrectDataLength()
@@ -7935,11 +7909,9 @@ def and(uint256 offsets, bytes data): # not payable
                       _407 = _208 < cd[t + data + 40]
                       if uint8(_407) != 1:
                           return 0
-                      if s > s + 32:
-                          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                       t = uint32(offsets >> s)
                       u = uint32(offsets >> s)
-                      s = s + 32
+                      s = SafeMath.add(s, 32)
                       continue
                   if cd[t + data + 136] >> 224 != 3215413571:
                       _142 = mem[64]
@@ -7953,11 +7925,9 @@ def and(uint256 offsets, bytes data): # not payable
                       _346 = bool(_314)
                       if uint8(_346) != 1:
                           return 0
-                      if s > s + 32:
-                          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                       t = uint32(offsets >> s)
                       u = uint32(offsets >> s)
-                      s = s + 32
+                      s = SafeMath.add(s, 32)
                       continue
                   if uint32(offsets >> s) - t - 100 < 100:
                       revert with IncorrectDataLength()
@@ -7965,11 +7935,9 @@ def and(uint256 offsets, bytes data): # not payable
                       _406 = 1 < cd[t + data + 40]
                       if uint8(_406) != 1:
                           return 0
-                      if s > s + 32:
-                          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                       t = uint32(offsets >> s)
                       u = uint32(offsets >> s)
-                      s = s + 32
+                      s = SafeMath.add(s, 32)
                       continue
                   require uint32(cd[t + data + 140]) <= uint32(offsets >> s) - t - 200
                   if uint32(cd[t + data + 140]) < 4:
@@ -8060,11 +8028,9 @@ def and(uint256 offsets, bytes data): # not payable
                       _348 = bool(_316)
                       if uint8(_348) != 1:
                           return 0
-                      if s > s + 32:
-                          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                       t = uint32(offsets >> s)
                       u = uint32(offsets >> s)
-                      s = s + 32
+                      s = SafeMath.add(s, 32)
                       continue
                   if uint32(offsets >> s) - t - 100 < 100:
                       revert with IncorrectDataLength()
@@ -8259,11 +8225,9 @@ def and(uint256 offsets, bytes data): # not payable
                           _347 = bool(_315)
                           if uint8(_347) != 1:
                               return 0
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       if uint32(offsets >> s) - t - 100 < 100:
                           revert with IncorrectDataLength()
@@ -8271,11 +8235,9 @@ def and(uint256 offsets, bytes data): # not payable
                           _408 = 0 < cd[t + data + 40]
                           if uint8(_408) != 1:
                               return 0
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       require uint32(cd[t + data + 140]) <= uint32(offsets >> s) - t - 200
                       if uint32(cd[t + data + 140]) < 4:
@@ -8366,11 +8328,9 @@ def and(uint256 offsets, bytes data): # not payable
                   _77 = not (32 == return_data.size) & ext_call.success or _58 != 1
                   if _77:
                       return 0
-                  if s > s + 32:
-                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                   t = uint32(offsets >> s)
                   u = uint32(offsets >> s)
-                  s = s + 32
+                  s = SafeMath.add(s, 32)
                   continue
               if uint32(offsets >> s) - t < 100:
                   revert with IncorrectDataLength()
@@ -8389,11 +8349,9 @@ def and(uint256 offsets, bytes data): # not payable
                   _272 = cd[t + data + 40] == uint8(_176)
                   if uint8(_272) != 1:
                       return 0
-                  if s > s + 32:
-                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                   t = uint32(offsets >> s)
                   u = uint32(offsets >> s)
-                  s = s + 32
+                  s = SafeMath.add(s, 32)
                   continue
               if cd[t + data + 136] >> 224 >= 3205889240:
                   if cd[t + data + 136] >> 224 >= 3394162210:
@@ -8420,11 +8378,9 @@ def and(uint256 offsets, bytes data): # not payable
                           _363 = bool(_342)
                           if uint8(_363) != 1:
                               return 0
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       if uint32(offsets >> s) - t - 100 < 100:
                           revert with IncorrectDataLength()
@@ -8531,11 +8487,9 @@ def and(uint256 offsets, bytes data): # not payable
                           _413 = cd[t + data + 40] == _212
                           if uint8(_413) != 1:
                               return 0
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       if cd[t + data + 136] >> 224 != 3215413571:
                           _154 = mem[64]
@@ -8549,11 +8503,9 @@ def and(uint256 offsets, bytes data): # not payable
                           _349 = bool(_323)
                           if uint8(_349) != 1:
                               return 0
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       if uint32(offsets >> s) - t - 100 < 100:
                           revert with IncorrectDataLength()
@@ -8561,11 +8513,9 @@ def and(uint256 offsets, bytes data): # not payable
                           _412 = cd[t + data + 40] == 1
                           if uint8(_412) != 1:
                               return 0
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       require uint32(cd[t + data + 140]) <= uint32(offsets >> s) - t - 200
                       if uint32(cd[t + data + 140]) < 4:
@@ -8656,11 +8606,9 @@ def and(uint256 offsets, bytes data): # not payable
                           _351 = bool(_325)
                           if uint8(_351) != 1:
                               return 0
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       if uint32(offsets >> s) - t - 100 < 100:
                           revert with IncorrectDataLength()
@@ -8855,11 +8803,9 @@ def and(uint256 offsets, bytes data): # not payable
                               _350 = bool(_324)
                               if uint8(_350) != 1:
                                   return 0
-                              if s > s + 32:
-                                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                               t = uint32(offsets >> s)
                               u = uint32(offsets >> s)
-                              s = s + 32
+                              s = SafeMath.add(s, 32)
                               continue
                           if uint32(offsets >> s) - t - 100 < 100:
                               revert with IncorrectDataLength()
@@ -8867,11 +8813,9 @@ def and(uint256 offsets, bytes data): # not payable
                               _414 = not cd[t + data + 40]
                               if uint8(_414) != 1:
                                   return 0
-                              if s > s + 32:
-                                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                               t = uint32(offsets >> s)
                               u = uint32(offsets >> s)
-                              s = s + 32
+                              s = SafeMath.add(s, 32)
                               continue
                           require uint32(cd[t + data + 140]) <= uint32(offsets >> s) - t - 200
                           if uint32(cd[t + data + 140]) < 4:
@@ -8960,11 +8904,9 @@ def and(uint256 offsets, bytes data): # not payable
                   _78 = not _64 or _65 != 1
                   if _78:
                       return 0
-                  if s > s + 32:
-                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                   t = uint32(offsets >> s)
                   u = uint32(offsets >> s)
-                  s = s + 32
+                  s = SafeMath.add(s, 32)
                   continue
               if uint32(offsets >> s) - t < 100:
                   revert with IncorrectDataLength()
@@ -8983,11 +8925,9 @@ def and(uint256 offsets, bytes data): # not payable
                   _343 = uint8(_179) > cd[t + data + 40]
                   if uint8(_343) != 1:
                       return 0
-                  if s > s + 32:
-                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                   t = uint32(offsets >> s)
                   u = uint32(offsets >> s)
-                  s = s + 32
+                  s = SafeMath.add(s, 32)
                   continue
               if cd[t + data + 136] >> 224 >= 3205889240:
                   if cd[t + data + 136] >> 224 >= 3394162210:
@@ -9014,11 +8954,9 @@ def and(uint256 offsets, bytes data): # not payable
                           _395 = bool(_326)
                           if uint8(_395) != 1:
                               return 0
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       if uint32(offsets >> s) - t - 100 < 100:
                           revert with IncorrectDataLength()
@@ -9125,11 +9063,9 @@ def and(uint256 offsets, bytes data): # not payable
                           _540 = _216 > cd[t + data + 40]
                           if uint8(_540) != 1:
                               return 0
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       if cd[t + data + 136] >> 224 != 3215413571:
                           _164 = mem[64]
@@ -9143,11 +9079,9 @@ def and(uint256 offsets, bytes data): # not payable
                           _364 = bool(_273)
                           if uint8(_364) != 1:
                               return 0
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       if uint32(offsets >> s) - t - 100 < 100:
                           revert with IncorrectDataLength()
@@ -9155,11 +9089,9 @@ def and(uint256 offsets, bytes data): # not payable
                           _539 = 1 > cd[t + data + 40]
                           if uint8(_539) != 1:
                               return 0
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       require uint32(cd[t + data + 140]) <= uint32(offsets >> s) - t - 200
                       if uint32(cd[t + data + 140]) < 4:
@@ -9250,11 +9182,9 @@ def and(uint256 offsets, bytes data): # not payable
                           _366 = bool(_275)
                           if uint8(_366) != 1:
                               return 0
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       if uint32(offsets >> s) - t - 100 < 100:
                           revert with IncorrectDataLength()
@@ -9449,11 +9379,9 @@ def and(uint256 offsets, bytes data): # not payable
                               _365 = bool(_274)
                               if uint8(_365) != 1:
                                   return 0
-                              if s > s + 32:
-                                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                               t = uint32(offsets >> s)
                               u = uint32(offsets >> s)
-                              s = s + 32
+                              s = SafeMath.add(s, 32)
                               continue
                           if uint32(offsets >> s) - t - 100 < 100:
                               revert with IncorrectDataLength()
@@ -9557,11 +9485,9 @@ def or(uint256 offsets, bytes data): # not payable
           _52 = bool(_30)
           if 1 == uint8(_52):
               return 1
-          if s > s + 32:
-              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
           t = uint32(offsets >> s)
           u = uint32(offsets >> s)
-          s = s + 32
+          s = SafeMath.add(s, 32)
           continue
       if cd[t + data + 36] >> 224 >= 3205889240:
           if cd[t + data + 36] >> 224 < 3394162210:
@@ -9598,11 +9524,9 @@ def or(uint256 offsets, bytes data): # not payable
                       revert with ArbitraryStaticCallFailed()
                   if 1 == _63:
                       return 1
-              if s > s + 32:
-                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
               t = uint32(offsets >> s)
               u = uint32(offsets >> s)
-              s = s + 32
+              s = SafeMath.add(s, 32)
               continue
           if cd[t + data + 36] >> 224 != 3394162210:
               if cd[t + data + 36] >> 224 != 3480209123:
@@ -9626,11 +9550,9 @@ def or(uint256 offsets, bytes data): # not payable
               _85 = _72 and 1 == _73
               if _85:
                   return 1
-              if s > s + 32:
-                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
               t = uint32(offsets >> s)
               u = uint32(offsets >> s)
-              s = s + 32
+              s = SafeMath.add(s, 32)
               continue
           if uint32(offsets >> s) - t < 100:
               revert with IncorrectDataLength()
@@ -9649,11 +9571,9 @@ def or(uint256 offsets, bytes data): # not payable
               _271 = uint8(_173) < cd[t + data + 40]
               if 1 == uint8(_271):
                   return 1
-              if s > s + 32:
-                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
               t = uint32(offsets >> s)
               u = uint32(offsets >> s)
-              s = s + 32
+              s = SafeMath.add(s, 32)
               continue
           if cd[t + data + 136] >> 224 >= 3205889240:
               if cd[t + data + 136] >> 224 >= 3394162210:
@@ -9680,11 +9600,9 @@ def or(uint256 offsets, bytes data): # not payable
                       _354 = bool(_335)
                       if 1 == uint8(_354):
                           return 1
-                      if s > s + 32:
-                          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                       t = uint32(offsets >> s)
                       u = uint32(offsets >> s)
-                      s = s + 32
+                      s = SafeMath.add(s, 32)
                       continue
                   if uint32(offsets >> s) - t - 100 < 100:
                       revert with IncorrectDataLength()
@@ -9791,11 +9709,9 @@ def or(uint256 offsets, bytes data): # not payable
                       _407 = _208 < cd[t + data + 40]
                       if 1 == uint8(_407):
                           return 1
-                      if s > s + 32:
-                          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                       t = uint32(offsets >> s)
                       u = uint32(offsets >> s)
-                      s = s + 32
+                      s = SafeMath.add(s, 32)
                       continue
                   if cd[t + data + 136] >> 224 != 3215413571:
                       _142 = mem[64]
@@ -9809,11 +9725,9 @@ def or(uint256 offsets, bytes data): # not payable
                       _346 = bool(_314)
                       if 1 == uint8(_346):
                           return 1
-                      if s > s + 32:
-                          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                       t = uint32(offsets >> s)
                       u = uint32(offsets >> s)
-                      s = s + 32
+                      s = SafeMath.add(s, 32)
                       continue
                   if uint32(offsets >> s) - t - 100 < 100:
                       revert with IncorrectDataLength()
@@ -9821,11 +9735,9 @@ def or(uint256 offsets, bytes data): # not payable
                       _406 = 1 < cd[t + data + 40]
                       if 1 == uint8(_406):
                           return 1
-                      if s > s + 32:
-                          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                       t = uint32(offsets >> s)
                       u = uint32(offsets >> s)
-                      s = s + 32
+                      s = SafeMath.add(s, 32)
                       continue
                   require uint32(cd[t + data + 140]) <= uint32(offsets >> s) - t - 200
                   if uint32(cd[t + data + 140]) < 4:
@@ -9916,11 +9828,9 @@ def or(uint256 offsets, bytes data): # not payable
                       _348 = bool(_316)
                       if 1 == uint8(_348):
                           return 1
-                      if s > s + 32:
-                          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                       t = uint32(offsets >> s)
                       u = uint32(offsets >> s)
-                      s = s + 32
+                      s = SafeMath.add(s, 32)
                       continue
                   if uint32(offsets >> s) - t - 100 < 100:
                       revert with IncorrectDataLength()
@@ -10115,11 +10025,9 @@ def or(uint256 offsets, bytes data): # not payable
                           _347 = bool(_315)
                           if 1 == uint8(_347):
                               return 1
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       if uint32(offsets >> s) - t - 100 < 100:
                           revert with IncorrectDataLength()
@@ -10127,11 +10035,9 @@ def or(uint256 offsets, bytes data): # not payable
                           _408 = 0 < cd[t + data + 40]
                           if 1 == uint8(_408):
                               return 1
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       require uint32(cd[t + data + 140]) <= uint32(offsets >> s) - t - 200
                       if uint32(cd[t + data + 140]) < 4:
@@ -10222,11 +10128,9 @@ def or(uint256 offsets, bytes data): # not payable
                   _77 = (32 == return_data.size) & ext_call.success and 1 == _58
                   if _77:
                       return 1
-                  if s > s + 32:
-                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                   t = uint32(offsets >> s)
                   u = uint32(offsets >> s)
-                  s = s + 32
+                  s = SafeMath.add(s, 32)
                   continue
               if uint32(offsets >> s) - t < 100:
                   revert with IncorrectDataLength()
@@ -10245,11 +10149,9 @@ def or(uint256 offsets, bytes data): # not payable
                   _272 = cd[t + data + 40] == uint8(_176)
                   if 1 == uint8(_272):
                       return 1
-                  if s > s + 32:
-                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                   t = uint32(offsets >> s)
                   u = uint32(offsets >> s)
-                  s = s + 32
+                  s = SafeMath.add(s, 32)
                   continue
               if cd[t + data + 136] >> 224 >= 3205889240:
                   if cd[t + data + 136] >> 224 >= 3394162210:
@@ -10276,11 +10178,9 @@ def or(uint256 offsets, bytes data): # not payable
                           _363 = bool(_342)
                           if 1 == uint8(_363):
                               return 1
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       if uint32(offsets >> s) - t - 100 < 100:
                           revert with IncorrectDataLength()
@@ -10387,11 +10287,9 @@ def or(uint256 offsets, bytes data): # not payable
                           _413 = cd[t + data + 40] == _212
                           if 1 == uint8(_413):
                               return 1
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       if cd[t + data + 136] >> 224 != 3215413571:
                           _154 = mem[64]
@@ -10405,11 +10303,9 @@ def or(uint256 offsets, bytes data): # not payable
                           _349 = bool(_323)
                           if 1 == uint8(_349):
                               return 1
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       if uint32(offsets >> s) - t - 100 < 100:
                           revert with IncorrectDataLength()
@@ -10417,11 +10313,9 @@ def or(uint256 offsets, bytes data): # not payable
                           _412 = cd[t + data + 40] == 1
                           if 1 == uint8(_412):
                               return 1
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       require uint32(cd[t + data + 140]) <= uint32(offsets >> s) - t - 200
                       if uint32(cd[t + data + 140]) < 4:
@@ -10512,11 +10406,9 @@ def or(uint256 offsets, bytes data): # not payable
                           _351 = bool(_325)
                           if 1 == uint8(_351):
                               return 1
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       if uint32(offsets >> s) - t - 100 < 100:
                           revert with IncorrectDataLength()
@@ -10711,11 +10603,9 @@ def or(uint256 offsets, bytes data): # not payable
                               _350 = bool(_324)
                               if 1 == uint8(_350):
                                   return 1
-                              if s > s + 32:
-                                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                               t = uint32(offsets >> s)
                               u = uint32(offsets >> s)
-                              s = s + 32
+                              s = SafeMath.add(s, 32)
                               continue
                           if uint32(offsets >> s) - t - 100 < 100:
                               revert with IncorrectDataLength()
@@ -10723,11 +10613,9 @@ def or(uint256 offsets, bytes data): # not payable
                               _414 = not cd[t + data + 40]
                               if 1 == uint8(_414):
                                   return 1
-                              if s > s + 32:
-                                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                               t = uint32(offsets >> s)
                               u = uint32(offsets >> s)
-                              s = s + 32
+                              s = SafeMath.add(s, 32)
                               continue
                           require uint32(cd[t + data + 140]) <= uint32(offsets >> s) - t - 200
                           if uint32(cd[t + data + 140]) < 4:
@@ -10816,11 +10704,9 @@ def or(uint256 offsets, bytes data): # not payable
                   _78 = _64 and 1 == _65
                   if _78:
                       return 1
-                  if s > s + 32:
-                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                   t = uint32(offsets >> s)
                   u = uint32(offsets >> s)
-                  s = s + 32
+                  s = SafeMath.add(s, 32)
                   continue
               if uint32(offsets >> s) - t < 100:
                   revert with IncorrectDataLength()
@@ -10839,11 +10725,9 @@ def or(uint256 offsets, bytes data): # not payable
                   _343 = uint8(_179) > cd[t + data + 40]
                   if 1 == uint8(_343):
                       return 1
-                  if s > s + 32:
-                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                   t = uint32(offsets >> s)
                   u = uint32(offsets >> s)
-                  s = s + 32
+                  s = SafeMath.add(s, 32)
                   continue
               if cd[t + data + 136] >> 224 >= 3205889240:
                   if cd[t + data + 136] >> 224 >= 3394162210:
@@ -10870,11 +10754,9 @@ def or(uint256 offsets, bytes data): # not payable
                           _395 = bool(_326)
                           if 1 == uint8(_395):
                               return 1
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       if uint32(offsets >> s) - t - 100 < 100:
                           revert with IncorrectDataLength()
@@ -10981,11 +10863,9 @@ def or(uint256 offsets, bytes data): # not payable
                           _540 = _216 > cd[t + data + 40]
                           if 1 == uint8(_540):
                               return 1
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       if cd[t + data + 136] >> 224 != 3215413571:
                           _164 = mem[64]
@@ -10999,11 +10879,9 @@ def or(uint256 offsets, bytes data): # not payable
                           _364 = bool(_273)
                           if 1 == uint8(_364):
                               return 1
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       if uint32(offsets >> s) - t - 100 < 100:
                           revert with IncorrectDataLength()
@@ -11011,11 +10889,9 @@ def or(uint256 offsets, bytes data): # not payable
                           _539 = 1 > cd[t + data + 40]
                           if 1 == uint8(_539):
                               return 1
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       require uint32(cd[t + data + 140]) <= uint32(offsets >> s) - t - 200
                       if uint32(cd[t + data + 140]) < 4:
@@ -11106,11 +10982,9 @@ def or(uint256 offsets, bytes data): # not payable
                           _366 = bool(_275)
                           if 1 == uint8(_366):
                               return 1
-                          if s > s + 32:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           t = uint32(offsets >> s)
                           u = uint32(offsets >> s)
-                          s = s + 32
+                          s = SafeMath.add(s, 32)
                           continue
                       if uint32(offsets >> s) - t - 100 < 100:
                           revert with IncorrectDataLength()
@@ -11305,20 +11179,16 @@ def or(uint256 offsets, bytes data): # not payable
                               _365 = bool(_274)
                               if 1 == uint8(_365):
                                   return 1
-                              if s > s + 32:
-                                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                               t = uint32(offsets >> s)
                               u = uint32(offsets >> s)
-                              s = s + 32
+                              s = SafeMath.add(s, 32)
                               continue
                           if uint32(offsets >> s) - t - 100 < 100:
                               revert with IncorrectDataLength()
                           if not uint32(cd[t + data + 140]):
-                              if s > s + 32:
-                                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                               t = uint32(offsets >> s)
                               u = uint32(offsets >> s)
-                              s = s + 32
+                              s = SafeMath.add(s, 32)
                               continue
                           require uint32(cd[t + data + 140]) <= uint32(offsets >> s) - t - 200
                           if uint32(cd[t + data + 140]) < 4:
@@ -13073,13 +12943,9 @@ def fillOrder((uint256,address,address,address,address,address,uint256,uint256,u
           else:
               if cd[order + 228] != cd[order + 228] * min(makingAmount, _296) / min(makingAmount, _296) and min(makingAmount, _296):
                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-              if cd[order + 228] * min(makingAmount, _296) > cd[order + 196] + cd[order + 228] * min(makingAmount, _296):
+              if cd[order + 196] + cd[order + 228] * min(makingAmount, _296) - 1 > SafeMath.add(cd[order + 228] * min(makingAmount, _296), cd[order + 196]):
                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-              if cd[order + 196] + cd[order + 228] * min(makingAmount, _296) - 1 > cd[order + 196] + cd[order + 228] * min(makingAmount, _296):
-                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-              if not cd[order + 196]:
-                  revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-              _553 = (cd[order + 196] + cd[order + 228] * min(makingAmount, _296) - 1) / cd[order + 196]
+              _553 = SafeMath.div(cd[order + 196] + cd[order + 228] * min(makingAmount, _296) - 1, cd[order + 196])
           if min(makingAmount, _296) != min(makingAmount, _296) * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
               revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
           if makingAmount != makingAmount * _553 / _553 and _553:
@@ -13141,9 +13007,7 @@ def fillOrder((uint256,address,address,address,address,address,uint256,uint256,u
           else:
               if cd[order + 196] != cd[order + 196] * takingAmount / takingAmount and takingAmount:
                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-              if not cd[order + 228]:
-                  revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-              _500 = cd[order + 196] * takingAmount / cd[order + 228]
+              _500 = SafeMath.div(cd[order + 196] * takingAmount, cd[order + 228])
           if _500 <= _296:
               if takingAmount != takingAmount * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
@@ -13166,9 +13030,7 @@ def fillOrder((uint256,address,address,address,address,address,uint256,uint256,u
               if uint32(cd[order + 260] >> 64) == uint32(cd[order + 260] >> 96):
                   if cd[order + 228] != cd[order + 228] * _296 / _296 and _296:
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if cd[order + 228] * _296 > cd[order + 196] + cd[order + 228] * _296:
-                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if cd[order + 196] + cd[order + 228] * _296 - 1 > cd[order + 196] + cd[order + 228] * _296:
+                  if cd[order + 196] + cd[order + 228] * _296 - 1 > SafeMath.add(cd[order + 228] * _296, cd[order + 196]):
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
               else:
                   if -uint32(cd[order + 260] >> 96) + uint32(cd[order + 260] >> 64) + 1:
@@ -13206,12 +13068,10 @@ def fillOrder((uint256,address,address,address,address,address,uint256,uint256,u
               if uint32(cd[order + 260] >> 32) == uint32(cd[order + 260] >> 64):
                   if cd[order + 196] != cd[order + 196] * takingAmount / takingAmount and takingAmount:
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if not cd[order + 228]:
-                      revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                  if cd[order + 196] * takingAmount / cd[order + 228] <= _296:
+                  if SafeMath.div(cd[order + 196] * takingAmount, cd[order + 228]) <= _296:
                       if takingAmount != takingAmount * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
                           revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                      if takingAmount != takingAmount * (cd[order + 196] * takingAmount / cd[order + 228]) / (cd[order + 196] * takingAmount / cd[order + 228]) and cd[order + 196] * takingAmount / cd[order + 228]:
+                      if takingAmount != takingAmount * SafeMath.div(cd[order + 196] * takingAmount, cd[order + 228]) / SafeMath.div(cd[order + 196] * takingAmount, cd[order + 228]) and SafeMath.div(cd[order + 196] * takingAmount, cd[order + 228]):
                           revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
               else:
                   if not -uint32(cd[order + 260] >> 64) + uint32(cd[order + 260] >> 32) + 1:
@@ -13249,9 +13109,7 @@ def fillOrder((uint256,address,address,address,address,address,uint256,uint256,u
               if uint32(cd[order + 260] >> 64) == uint32(cd[order + 260] >> 96):
                   if cd[order + 228] != cd[order + 228] * min(makingAmount, _296) / min(makingAmount, _296) and min(makingAmount, _296):
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if cd[order + 228] * min(makingAmount, _296) > cd[order + 196] + cd[order + 228] * min(makingAmount, _296):
-                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if cd[order + 196] + cd[order + 228] * min(makingAmount, _296) - 1 > cd[order + 196] + cd[order + 228] * min(makingAmount, _296):
+                  if cd[order + 196] + cd[order + 228] * min(makingAmount, _296) - 1 > SafeMath.add(cd[order + 228] * min(makingAmount, _296), cd[order + 196]):
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                   if not cd[order + 196]:
                       revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
@@ -13315,9 +13173,7 @@ def fillOrder((uint256,address,address,address,address,address,uint256,uint256,u
                           if uint32(cd[order + 260] >> 32) == uint32(cd[order + 260] >> 64):
                               if cd[order + 196] != cd[order + 196] * takingAmount / takingAmount and takingAmount:
                                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              if not cd[order + 228]:
-                                  revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                              if cd[order + 196] * takingAmount / cd[order + 228] <= _296:
+                              if SafeMath.div(cd[order + 196] * takingAmount, cd[order + 228]) <= _296:
                                   if takingAmount != takingAmount * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           else:
@@ -13339,9 +13195,7 @@ def fillOrder((uint256,address,address,address,address,address,uint256,uint256,u
                           if uint32(cd[order + 260] >> 64) == uint32(cd[order + 260] >> 96):
                               if cd[order + 228] != cd[order + 228] * min(makingAmount, _296) / min(makingAmount, _296) and min(makingAmount, _296):
                                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              if cd[order + 228] * min(makingAmount, _296) > cd[order + 196] + cd[order + 228] * min(makingAmount, _296):
-                                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              if cd[order + 196] + cd[order + 228] * min(makingAmount, _296) - 1 > cd[order + 196] + cd[order + 228] * min(makingAmount, _296):
+                              if cd[order + 196] + cd[order + 228] * min(makingAmount, _296) - 1 > SafeMath.add(cd[order + 228] * min(makingAmount, _296), cd[order + 196]):
                                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                               if not cd[order + 196]:
                                   revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
@@ -13988,9 +13842,7 @@ def fillOrder((uint256,address,address,address,address,address,uint256,uint256,u
                               if uint32(cd[order + 260] >> 64) == uint32(cd[order + 260] >> 96):
                                   if cd[order + 228] != cd[order + 228] * min(makingAmount, _296) / min(makingAmount, _296) and min(makingAmount, _296):
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                                  if cd[order + 228] * min(makingAmount, _296) > cd[order + 196] + cd[order + 228] * min(makingAmount, _296):
-                                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                                  if cd[order + 196] + cd[order + 228] * min(makingAmount, _296) - 1 > cd[order + 196] + cd[order + 228] * min(makingAmount, _296):
+                                  if cd[order + 196] + cd[order + 228] * min(makingAmount, _296) - 1 > SafeMath.add(cd[order + 228] * min(makingAmount, _296), cd[order + 196]):
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                                   if not cd[order + 196]:
                                       revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
@@ -14013,9 +13865,7 @@ def fillOrder((uint256,address,address,address,address,address,uint256,uint256,u
                               if uint32(cd[order + 260] >> 32) == uint32(cd[order + 260] >> 64):
                                   if cd[order + 196] != cd[order + 196] * takingAmount / takingAmount and takingAmount:
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                                  if not cd[order + 228]:
-                                      revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                                  if cd[order + 196] * takingAmount / cd[order + 228] <= _296:
+                                  if SafeMath.div(cd[order + 196] * takingAmount, cd[order + 228]) <= _296:
                                       if takingAmount != takingAmount * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
                                           revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                               else:
@@ -14612,9 +14462,7 @@ def fillOrder((uint256,address,address,address,address,address,uint256,uint256,u
                           if uint32(cd[order + 260] >> 64) == uint32(cd[order + 260] >> 96):
                               if cd[order + 228] != cd[order + 228] * min(makingAmount, _296) / min(makingAmount, _296) and min(makingAmount, _296):
                                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              if cd[order + 228] * min(makingAmount, _296) > cd[order + 196] + cd[order + 228] * min(makingAmount, _296):
-                                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              if cd[order + 196] + cd[order + 228] * min(makingAmount, _296) - 1 > cd[order + 196] + cd[order + 228] * min(makingAmount, _296):
+                              if cd[order + 196] + cd[order + 228] * min(makingAmount, _296) - 1 > SafeMath.add(cd[order + 228] * min(makingAmount, _296), cd[order + 196]):
                                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                               if not cd[order + 196]:
                                   revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
@@ -14637,9 +14485,7 @@ def fillOrder((uint256,address,address,address,address,address,uint256,uint256,u
                           if uint32(cd[order + 260] >> 32) == uint32(cd[order + 260] >> 64):
                               if cd[order + 196] != cd[order + 196] * takingAmount / takingAmount and takingAmount:
                                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              if not cd[order + 228]:
-                                  revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                              if cd[order + 196] * takingAmount / cd[order + 228] <= _296:
+                              if SafeMath.div(cd[order + 196] * takingAmount, cd[order + 228]) <= _296:
                                   if takingAmount != takingAmount * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           else:
@@ -15245,9 +15091,7 @@ def fillOrder((uint256,address,address,address,address,address,uint256,uint256,u
                               if uint32(cd[order + 260] >> 64) == uint32(cd[order + 260] >> 96):
                                   if cd[order + 228] != cd[order + 228] * min(makingAmount, _296) / min(makingAmount, _296) and min(makingAmount, _296):
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                                  if cd[order + 228] * min(makingAmount, _296) > cd[order + 196] + cd[order + 228] * min(makingAmount, _296):
-                                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                                  if cd[order + 196] + cd[order + 228] * min(makingAmount, _296) - 1 > cd[order + 196] + cd[order + 228] * min(makingAmount, _296):
+                                  if cd[order + 196] + cd[order + 228] * min(makingAmount, _296) - 1 > SafeMath.add(cd[order + 228] * min(makingAmount, _296), cd[order + 196]):
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                                   if not cd[order + 196]:
                                       revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
@@ -15270,9 +15114,7 @@ def fillOrder((uint256,address,address,address,address,address,uint256,uint256,u
                               if uint32(cd[order + 260] >> 32) == uint32(cd[order + 260] >> 64):
                                   if cd[order + 196] != cd[order + 196] * takingAmount / takingAmount and takingAmount:
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                                  if not cd[order + 228]:
-                                      revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                                  if cd[order + 196] * takingAmount / cd[order + 228] <= _296:
+                                  if SafeMath.div(cd[order + 196] * takingAmount, cd[order + 228]) <= _296:
                                       if takingAmount != takingAmount * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
                                           revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                               else:
@@ -15515,13 +15357,9 @@ def fillOrderToWithPermit((uint256,address,address,address,address,address,uint2
           else:
               if cd[order + 228] != cd[order + 228] * min(makingAmount, _306) / min(makingAmount, _306) and min(makingAmount, _306):
                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-              if cd[order + 228] * min(makingAmount, _306) > cd[order + 196] + cd[order + 228] * min(makingAmount, _306):
+              if cd[order + 196] + cd[order + 228] * min(makingAmount, _306) - 1 > SafeMath.add(cd[order + 228] * min(makingAmount, _306), cd[order + 196]):
                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-              if cd[order + 196] + cd[order + 228] * min(makingAmount, _306) - 1 > cd[order + 196] + cd[order + 228] * min(makingAmount, _306):
-                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-              if not cd[order + 196]:
-                  revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-              _563 = (cd[order + 196] + cd[order + 228] * min(makingAmount, _306) - 1) / cd[order + 196]
+              _563 = SafeMath.div(cd[order + 196] + cd[order + 228] * min(makingAmount, _306) - 1, cd[order + 196])
           if min(makingAmount, _306) != min(makingAmount, _306) * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
               revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
           if makingAmount != makingAmount * _563 / _563 and _563:
@@ -15583,9 +15421,7 @@ def fillOrderToWithPermit((uint256,address,address,address,address,address,uint2
           else:
               if cd[order + 196] != cd[order + 196] * takingAmount / takingAmount and takingAmount:
                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-              if not cd[order + 228]:
-                  revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-              _510 = cd[order + 196] * takingAmount / cd[order + 228]
+              _510 = SafeMath.div(cd[order + 196] * takingAmount, cd[order + 228])
           if _510 <= _306:
               if takingAmount != takingAmount * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
@@ -15608,9 +15444,7 @@ def fillOrderToWithPermit((uint256,address,address,address,address,address,uint2
               if uint32(cd[order + 260] >> 64) == uint32(cd[order + 260] >> 96):
                   if cd[order + 228] != cd[order + 228] * _306 / _306 and _306:
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if cd[order + 228] * _306 > cd[order + 196] + cd[order + 228] * _306:
-                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if cd[order + 196] + cd[order + 228] * _306 - 1 > cd[order + 196] + cd[order + 228] * _306:
+                  if cd[order + 196] + cd[order + 228] * _306 - 1 > SafeMath.add(cd[order + 228] * _306, cd[order + 196]):
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
               else:
                   if -uint32(cd[order + 260] >> 96) + uint32(cd[order + 260] >> 64) + 1:
@@ -15648,12 +15482,10 @@ def fillOrderToWithPermit((uint256,address,address,address,address,address,uint2
               if uint32(cd[order + 260] >> 32) == uint32(cd[order + 260] >> 64):
                   if cd[order + 196] != cd[order + 196] * takingAmount / takingAmount and takingAmount:
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if not cd[order + 228]:
-                      revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                  if cd[order + 196] * takingAmount / cd[order + 228] <= _306:
+                  if SafeMath.div(cd[order + 196] * takingAmount, cd[order + 228]) <= _306:
                       if takingAmount != takingAmount * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
                           revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                      if takingAmount != takingAmount * (cd[order + 196] * takingAmount / cd[order + 228]) / (cd[order + 196] * takingAmount / cd[order + 228]) and cd[order + 196] * takingAmount / cd[order + 228]:
+                      if takingAmount != takingAmount * SafeMath.div(cd[order + 196] * takingAmount, cd[order + 228]) / SafeMath.div(cd[order + 196] * takingAmount, cd[order + 228]) and SafeMath.div(cd[order + 196] * takingAmount, cd[order + 228]):
                           revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
               else:
                   if not -uint32(cd[order + 260] >> 64) + uint32(cd[order + 260] >> 32) + 1:
@@ -15691,9 +15523,7 @@ def fillOrderToWithPermit((uint256,address,address,address,address,address,uint2
               if uint32(cd[order + 260] >> 64) == uint32(cd[order + 260] >> 96):
                   if cd[order + 228] != cd[order + 228] * min(makingAmount, _306) / min(makingAmount, _306) and min(makingAmount, _306):
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if cd[order + 228] * min(makingAmount, _306) > cd[order + 196] + cd[order + 228] * min(makingAmount, _306):
-                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if cd[order + 196] + cd[order + 228] * min(makingAmount, _306) - 1 > cd[order + 196] + cd[order + 228] * min(makingAmount, _306):
+                  if cd[order + 196] + cd[order + 228] * min(makingAmount, _306) - 1 > SafeMath.add(cd[order + 228] * min(makingAmount, _306), cd[order + 196]):
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                   if not cd[order + 196]:
                       revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
@@ -15757,9 +15587,7 @@ def fillOrderToWithPermit((uint256,address,address,address,address,address,uint2
                           if uint32(cd[order + 260] >> 32) == uint32(cd[order + 260] >> 64):
                               if cd[order + 196] != cd[order + 196] * takingAmount / takingAmount and takingAmount:
                                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              if not cd[order + 228]:
-                                  revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                              if cd[order + 196] * takingAmount / cd[order + 228] <= _306:
+                              if SafeMath.div(cd[order + 196] * takingAmount, cd[order + 228]) <= _306:
                                   if takingAmount != takingAmount * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           else:
@@ -15781,9 +15609,7 @@ def fillOrderToWithPermit((uint256,address,address,address,address,address,uint2
                           if uint32(cd[order + 260] >> 64) == uint32(cd[order + 260] >> 96):
                               if cd[order + 228] != cd[order + 228] * min(makingAmount, _306) / min(makingAmount, _306) and min(makingAmount, _306):
                                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              if cd[order + 228] * min(makingAmount, _306) > cd[order + 196] + cd[order + 228] * min(makingAmount, _306):
-                                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              if cd[order + 196] + cd[order + 228] * min(makingAmount, _306) - 1 > cd[order + 196] + cd[order + 228] * min(makingAmount, _306):
+                              if cd[order + 196] + cd[order + 228] * min(makingAmount, _306) - 1 > SafeMath.add(cd[order + 228] * min(makingAmount, _306), cd[order + 196]):
                                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                               if not cd[order + 196]:
                                   revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
@@ -16430,9 +16256,7 @@ def fillOrderToWithPermit((uint256,address,address,address,address,address,uint2
                               if uint32(cd[order + 260] >> 64) == uint32(cd[order + 260] >> 96):
                                   if cd[order + 228] != cd[order + 228] * min(makingAmount, _306) / min(makingAmount, _306) and min(makingAmount, _306):
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                                  if cd[order + 228] * min(makingAmount, _306) > cd[order + 196] + cd[order + 228] * min(makingAmount, _306):
-                                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                                  if cd[order + 196] + cd[order + 228] * min(makingAmount, _306) - 1 > cd[order + 196] + cd[order + 228] * min(makingAmount, _306):
+                                  if cd[order + 196] + cd[order + 228] * min(makingAmount, _306) - 1 > SafeMath.add(cd[order + 228] * min(makingAmount, _306), cd[order + 196]):
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                                   if not cd[order + 196]:
                                       revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
@@ -16455,9 +16279,7 @@ def fillOrderToWithPermit((uint256,address,address,address,address,address,uint2
                               if uint32(cd[order + 260] >> 32) == uint32(cd[order + 260] >> 64):
                                   if cd[order + 196] != cd[order + 196] * takingAmount / takingAmount and takingAmount:
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                                  if not cd[order + 228]:
-                                      revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                                  if cd[order + 196] * takingAmount / cd[order + 228] <= _306:
+                                  if SafeMath.div(cd[order + 196] * takingAmount, cd[order + 228]) <= _306:
                                       if takingAmount != takingAmount * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
                                           revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                               else:
@@ -17054,9 +16876,7 @@ def fillOrderToWithPermit((uint256,address,address,address,address,address,uint2
                           if uint32(cd[order + 260] >> 64) == uint32(cd[order + 260] >> 96):
                               if cd[order + 228] != cd[order + 228] * min(makingAmount, _306) / min(makingAmount, _306) and min(makingAmount, _306):
                                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              if cd[order + 228] * min(makingAmount, _306) > cd[order + 196] + cd[order + 228] * min(makingAmount, _306):
-                                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              if cd[order + 196] + cd[order + 228] * min(makingAmount, _306) - 1 > cd[order + 196] + cd[order + 228] * min(makingAmount, _306):
+                              if cd[order + 196] + cd[order + 228] * min(makingAmount, _306) - 1 > SafeMath.add(cd[order + 228] * min(makingAmount, _306), cd[order + 196]):
                                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                               if not cd[order + 196]:
                                   revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
@@ -17079,9 +16899,7 @@ def fillOrderToWithPermit((uint256,address,address,address,address,address,uint2
                           if uint32(cd[order + 260] >> 32) == uint32(cd[order + 260] >> 64):
                               if cd[order + 196] != cd[order + 196] * takingAmount / takingAmount and takingAmount:
                                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              if not cd[order + 228]:
-                                  revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                              if cd[order + 196] * takingAmount / cd[order + 228] <= _306:
+                              if SafeMath.div(cd[order + 196] * takingAmount, cd[order + 228]) <= _306:
                                   if takingAmount != takingAmount * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           else:
@@ -17687,9 +17505,7 @@ def fillOrderToWithPermit((uint256,address,address,address,address,address,uint2
                               if uint32(cd[order + 260] >> 64) == uint32(cd[order + 260] >> 96):
                                   if cd[order + 228] != cd[order + 228] * min(makingAmount, _306) / min(makingAmount, _306) and min(makingAmount, _306):
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                                  if cd[order + 228] * min(makingAmount, _306) > cd[order + 196] + cd[order + 228] * min(makingAmount, _306):
-                                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                                  if cd[order + 196] + cd[order + 228] * min(makingAmount, _306) - 1 > cd[order + 196] + cd[order + 228] * min(makingAmount, _306):
+                                  if cd[order + 196] + cd[order + 228] * min(makingAmount, _306) - 1 > SafeMath.add(cd[order + 228] * min(makingAmount, _306), cd[order + 196]):
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                                   if not cd[order + 196]:
                                       revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
@@ -17712,9 +17528,7 @@ def fillOrderToWithPermit((uint256,address,address,address,address,address,uint2
                               if uint32(cd[order + 260] >> 32) == uint32(cd[order + 260] >> 64):
                                   if cd[order + 196] != cd[order + 196] * takingAmount / takingAmount and takingAmount:
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                                  if not cd[order + 228]:
-                                      revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                                  if cd[order + 196] * takingAmount / cd[order + 228] <= _306:
+                                  if SafeMath.div(cd[order + 196] * takingAmount, cd[order + 228]) <= _306:
                                       if takingAmount != takingAmount * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
                                           revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                               else:
@@ -17929,13 +17743,9 @@ def fillOrderTo((uint256,address,address,address,address,address,uint256,uint256
           else:
               if cd[order_ + 228] != cd[order_ + 228] * min(makingAmount, _296) / min(makingAmount, _296) and min(makingAmount, _296):
                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-              if cd[order_ + 228] * min(makingAmount, _296) > cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296):
+              if cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296) - 1 > SafeMath.add(cd[order_ + 228] * min(makingAmount, _296), cd[order_ + 196]):
                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-              if cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296) - 1 > cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296):
-                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-              if not cd[order_ + 196]:
-                  revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-              _553 = (cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296) - 1) / cd[order_ + 196]
+              _553 = SafeMath.div(cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296) - 1, cd[order_ + 196])
           if min(makingAmount, _296) != min(makingAmount, _296) * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
               revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
           if makingAmount != makingAmount * _553 / _553 and _553:
@@ -17997,9 +17807,7 @@ def fillOrderTo((uint256,address,address,address,address,address,uint256,uint256
           else:
               if cd[order_ + 196] != cd[order_ + 196] * takingAmount / takingAmount and takingAmount:
                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-              if not cd[order_ + 228]:
-                  revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-              _500 = cd[order_ + 196] * takingAmount / cd[order_ + 228]
+              _500 = SafeMath.div(cd[order_ + 196] * takingAmount, cd[order_ + 228])
           if _500 <= _296:
               if takingAmount != takingAmount * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
@@ -18022,9 +17830,7 @@ def fillOrderTo((uint256,address,address,address,address,address,uint256,uint256
               if uint32(cd[order_ + 260] >> 64) == uint32(cd[order_ + 260] >> 96):
                   if cd[order_ + 228] != cd[order_ + 228] * _296 / _296 and _296:
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if cd[order_ + 228] * _296 > cd[order_ + 196] + cd[order_ + 228] * _296:
-                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if cd[order_ + 196] + cd[order_ + 228] * _296 - 1 > cd[order_ + 196] + cd[order_ + 228] * _296:
+                  if cd[order_ + 196] + cd[order_ + 228] * _296 - 1 > SafeMath.add(cd[order_ + 228] * _296, cd[order_ + 196]):
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
               else:
                   if -uint32(cd[order_ + 260] >> 96) + uint32(cd[order_ + 260] >> 64) + 1:
@@ -18062,12 +17868,10 @@ def fillOrderTo((uint256,address,address,address,address,address,uint256,uint256
               if uint32(cd[order_ + 260] >> 32) == uint32(cd[order_ + 260] >> 64):
                   if cd[order_ + 196] != cd[order_ + 196] * takingAmount / takingAmount and takingAmount:
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if not cd[order_ + 228]:
-                      revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                  if cd[order_ + 196] * takingAmount / cd[order_ + 228] <= _296:
+                  if SafeMath.div(cd[order_ + 196] * takingAmount, cd[order_ + 228]) <= _296:
                       if takingAmount != takingAmount * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
                           revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                      if takingAmount != takingAmount * (cd[order_ + 196] * takingAmount / cd[order_ + 228]) / (cd[order_ + 196] * takingAmount / cd[order_ + 228]) and cd[order_ + 196] * takingAmount / cd[order_ + 228]:
+                      if takingAmount != takingAmount * SafeMath.div(cd[order_ + 196] * takingAmount, cd[order_ + 228]) / SafeMath.div(cd[order_ + 196] * takingAmount, cd[order_ + 228]) and SafeMath.div(cd[order_ + 196] * takingAmount, cd[order_ + 228]):
                           revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
               else:
                   if not -uint32(cd[order_ + 260] >> 64) + uint32(cd[order_ + 260] >> 32) + 1:
@@ -18105,9 +17909,7 @@ def fillOrderTo((uint256,address,address,address,address,address,uint256,uint256
               if uint32(cd[order_ + 260] >> 64) == uint32(cd[order_ + 260] >> 96):
                   if cd[order_ + 228] != cd[order_ + 228] * min(makingAmount, _296) / min(makingAmount, _296) and min(makingAmount, _296):
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if cd[order_ + 228] * min(makingAmount, _296) > cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296):
-                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296) - 1 > cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296):
+                  if cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296) - 1 > SafeMath.add(cd[order_ + 228] * min(makingAmount, _296), cd[order_ + 196]):
                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                   if not cd[order_ + 196]:
                       revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
@@ -18171,9 +17973,7 @@ def fillOrderTo((uint256,address,address,address,address,address,uint256,uint256
                           if uint32(cd[order_ + 260] >> 32) == uint32(cd[order_ + 260] >> 64):
                               if cd[order_ + 196] != cd[order_ + 196] * takingAmount / takingAmount and takingAmount:
                                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              if not cd[order_ + 228]:
-                                  revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                              if cd[order_ + 196] * takingAmount / cd[order_ + 228] <= _296:
+                              if SafeMath.div(cd[order_ + 196] * takingAmount, cd[order_ + 228]) <= _296:
                                   if takingAmount != takingAmount * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           else:
@@ -18195,9 +17995,7 @@ def fillOrderTo((uint256,address,address,address,address,address,uint256,uint256
                           if uint32(cd[order_ + 260] >> 64) == uint32(cd[order_ + 260] >> 96):
                               if cd[order_ + 228] != cd[order_ + 228] * min(makingAmount, _296) / min(makingAmount, _296) and min(makingAmount, _296):
                                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              if cd[order_ + 228] * min(makingAmount, _296) > cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296):
-                                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              if cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296) - 1 > cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296):
+                              if cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296) - 1 > SafeMath.add(cd[order_ + 228] * min(makingAmount, _296), cd[order_ + 196]):
                                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                               if not cd[order_ + 196]:
                                   revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
@@ -18844,9 +18642,7 @@ def fillOrderTo((uint256,address,address,address,address,address,uint256,uint256
                               if uint32(cd[order_ + 260] >> 64) == uint32(cd[order_ + 260] >> 96):
                                   if cd[order_ + 228] != cd[order_ + 228] * min(makingAmount, _296) / min(makingAmount, _296) and min(makingAmount, _296):
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                                  if cd[order_ + 228] * min(makingAmount, _296) > cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296):
-                                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                                  if cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296) - 1 > cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296):
+                                  if cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296) - 1 > SafeMath.add(cd[order_ + 228] * min(makingAmount, _296), cd[order_ + 196]):
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                                   if not cd[order_ + 196]:
                                       revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
@@ -18869,9 +18665,7 @@ def fillOrderTo((uint256,address,address,address,address,address,uint256,uint256
                               if uint32(cd[order_ + 260] >> 32) == uint32(cd[order_ + 260] >> 64):
                                   if cd[order_ + 196] != cd[order_ + 196] * takingAmount / takingAmount and takingAmount:
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                                  if not cd[order_ + 228]:
-                                      revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                                  if cd[order_ + 196] * takingAmount / cd[order_ + 228] <= _296:
+                                  if SafeMath.div(cd[order_ + 196] * takingAmount, cd[order_ + 228]) <= _296:
                                       if takingAmount != takingAmount * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
                                           revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                               else:
@@ -19468,9 +19262,7 @@ def fillOrderTo((uint256,address,address,address,address,address,uint256,uint256
                           if uint32(cd[order_ + 260] >> 64) == uint32(cd[order_ + 260] >> 96):
                               if cd[order_ + 228] != cd[order_ + 228] * min(makingAmount, _296) / min(makingAmount, _296) and min(makingAmount, _296):
                                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              if cd[order_ + 228] * min(makingAmount, _296) > cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296):
-                                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              if cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296) - 1 > cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296):
+                              if cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296) - 1 > SafeMath.add(cd[order_ + 228] * min(makingAmount, _296), cd[order_ + 196]):
                                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                               if not cd[order_ + 196]:
                                   revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
@@ -19493,9 +19285,7 @@ def fillOrderTo((uint256,address,address,address,address,address,uint256,uint256
                           if uint32(cd[order_ + 260] >> 32) == uint32(cd[order_ + 260] >> 64):
                               if cd[order_ + 196] != cd[order_ + 196] * takingAmount / takingAmount and takingAmount:
                                   revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              if not cd[order_ + 228]:
-                                  revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                              if cd[order_ + 196] * takingAmount / cd[order_ + 228] <= _296:
+                              if SafeMath.div(cd[order_ + 196] * takingAmount, cd[order_ + 228]) <= _296:
                                   if takingAmount != takingAmount * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                           else:
@@ -20101,9 +19891,7 @@ def fillOrderTo((uint256,address,address,address,address,address,uint256,uint256
                               if uint32(cd[order_ + 260] >> 64) == uint32(cd[order_ + 260] >> 96):
                                   if cd[order_ + 228] != cd[order_ + 228] * min(makingAmount, _296) / min(makingAmount, _296) and min(makingAmount, _296):
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                                  if cd[order_ + 228] * min(makingAmount, _296) > cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296):
-                                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                                  if cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296) - 1 > cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296):
+                                  if cd[order_ + 196] + cd[order_ + 228] * min(makingAmount, _296) - 1 > SafeMath.add(cd[order_ + 228] * min(makingAmount, _296), cd[order_ + 196]):
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                                   if not cd[order_ + 196]:
                                       revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
@@ -20126,9 +19914,7 @@ def fillOrderTo((uint256,address,address,address,address,address,uint256,uint256
                               if uint32(cd[order_ + 260] >> 32) == uint32(cd[order_ + 260] >> 64):
                                   if cd[order_ + 196] != cd[order_ + 196] * takingAmount / takingAmount and takingAmount:
                                       revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                                  if not cd[order_ + 228]:
-                                      revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                                  if cd[order_ + 196] * takingAmount / cd[order_ + 228] <= _296:
+                                  if SafeMath.div(cd[order_ + 196] * takingAmount, cd[order_ + 228]) <= _296:
                                       if takingAmount != takingAmount * uint255(skipPermitAndThresholdAmount) / uint255(skipPermitAndThresholdAmount) and uint255(skipPermitAndThresholdAmount):
                                           revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
                               else:

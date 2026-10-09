@@ -6,6 +6,16 @@ def storage:
   orderStatus is mapping of struct of 1 slot at storage 2
   contractOffererNonce is mapping of uint256 at storage 3
 
+def SafeMath:
+  def add(a, b):  # solidity >= 0.8
+      if a > a + b:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      return a + b
+  def sub(a, b):  # solidity >= 0.8
+      if a - b > a:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      return a - b
+
 def getOrderStatus(bytes32 orderHash): # not payable
   require calldata.size - 4 >=′ 32
   return bool(uint8(orderStatus[orderHash].field_0)), 
@@ -1454,9 +1464,7 @@ def ROOT4146650865() payable:
       s = _922
       while idx < 64 * cd[612]:
           if cd[292] / 4 > 3:
-              if s - cd[idx + 644] > s:
-                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-              _977 = s - cd[idx + 644]
+              _977 = SafeMath.sub(s, cd[idx + 644])
           else:
               _977 = s
           if not cd[idx + 644]:
@@ -3403,9 +3411,7 @@ def fulfillBasicOrder((address,uint256,uint256,address,address,address,uint256,u
       s = _922
       while idx < 64 * cd[612]:
           if cd[292] / 4 > 3:
-              if s - cd[idx + 644] > s:
-                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-              _977 = s - cd[idx + 644]
+              _977 = SafeMath.sub(s, cd[idx + 644])
           else:
               _977 = s
           if not cd[idx + 644]:
@@ -17068,14 +17074,12 @@ def fulfillAvailableOrders(((address,address,(uint8,address,uint256,uint256,uint
       continue
   _1482 = mem[_14]
   _1483 = mem[_22]
-  if mem[_14] > mem[_14] + mem[_22]:
-      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-  if mem[_14] + mem[_22] > 18446744073709551615:
+  if SafeMath.add(mem[_14], mem[_22]) > 18446744073709551615:
       revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
   _1517 = mem[64]
-  if mem[64] + 32 * (mem[_14] + mem[_22]) + 32 > 18446744073709551615 or mem[64] + 32 * (mem[_14] + mem[_22]) + 32 < mem[64]:
+  if mem[64] + 32 * SafeMath.add(mem[_14], mem[_22]) + 32 > 18446744073709551615 or mem[64] + 32 * SafeMath.add(mem[_14], mem[_22]) + 32 < mem[64]:
       revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-  mem[64] = mem[64] + 32 * (mem[_14] + mem[_22]) + 32
+  mem[64] = mem[64] + 32 * SafeMath.add(mem[_14], mem[_22]) + 32
   mem[_1517] = mem[_14] + mem[_22]
   idx = 0
   while idx < 32 * (_1482 + _1483):
@@ -20667,14 +20671,12 @@ def fulfillAvailableAdvancedOrders(((address,address,(uint8,address,uint256,uint
       continue
   _1490 = mem[_22]
   _1491 = mem[_30]
-  if mem[_22] > mem[_22] + mem[_30]:
-      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-  if mem[_22] + mem[_30] > 18446744073709551615:
+  if SafeMath.add(mem[_22], mem[_30]) > 18446744073709551615:
       revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
   _1525 = mem[64]
-  if mem[64] + 32 * (mem[_22] + mem[_30]) + 32 > 18446744073709551615 or mem[64] + 32 * (mem[_22] + mem[_30]) + 32 < mem[64]:
+  if mem[64] + 32 * SafeMath.add(mem[_22], mem[_30]) + 32 > 18446744073709551615 or mem[64] + 32 * SafeMath.add(mem[_22], mem[_30]) + 32 < mem[64]:
       revert with Panic(65)  # If you allocate too much memory or create an array that is too large.
-  mem[64] = mem[64] + 32 * (mem[_22] + mem[_30]) + 32
+  mem[64] = mem[64] + 32 * SafeMath.add(mem[_22], mem[_30]) + 32
   mem[_1525] = mem[_22] + mem[_30]
   idx = 0
   while idx < 32 * (_1490 + _1491):

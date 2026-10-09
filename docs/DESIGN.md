@@ -55,6 +55,8 @@ database, liblzma. Everything else is assembly (GNU as, Intel syntax).
                           rewrite of a bytes getter (storage.bytes_getter)
     src/keccak.s          Keccak-256, the EVM's sha3 (eth_hash's keccak, runtrace's)
     src/contract.s        Contract (contract.py)
+    src/safemath.s        the checked arithmetic of the asts as calls of the
+                          contract's `def SafeMath:` functions (safemath.py)
     src/decompiler.s      decompile(): the thread pool, the contract's text (decompiler.py)
     src/data.s            python's decompilation.json: JSON text, or a binary form of
                           python's objects for the module
@@ -308,6 +310,25 @@ is the CLI, `build/panoramix_asm*.so` the module.
 
 18. [x] the decoder, Native Client's way: see below.
 
+19. [x] SafeMath (`safemath.s`, python's `safemath.py`): the checks a
+    contract makes of its arithmetic before it uses the result -
+    OpenZeppelin's SafeMath and ds-math (solidity < 0.8, inlined),
+    solidity's own since 0.8 (`Panic(17)`, `Panic(18)`), the check of a
+    division of solidity < 0.8 (an invalid opcode), Vyper's - each a
+    function of the contract's `def SafeMath:` block, the result where
+    it's used after them a call (`SafeMath.add(a, b)`, a message that
+    differs from the other calls' its last argument). It runs on the
+    asts once they're folded, on the main context (`contract_safemath`,
+    after `make_asts`): the asts there are hash-consed in one table, so
+    python's comparisons of the conditions with the forms of each check
+    (`cond in (("lt", res, a), ...)`) are a tuple made and a pointer
+    compared (`sm_in3`). Where python keys dicts by the checks (one
+    function for each other operation and its checks), the keys are the
+    hash-consed tuples themselves, looked up in a vector (a contract has
+    a few); the messages are interned strings, compared by pointer too.
+    An error (python's `except Exception`) leaves the asts as they are,
+    the block empty, and logs it, as python does.
+
 ## The decoder
 
 The bytecode isn't decoded by a loop written by hand but by an automaton
@@ -454,6 +475,11 @@ words of random traces;
 two groups the folder's `fold_or` splits, through `fold_paths` and
 `fold_path_lists`; the paths of traces whose ifs nest hundreds deep, and
 the fold of traces nesting them a thousand deep;
+`test_safemath.py`: asts with the checks of every operation, right and
+wrong, one after the other (a library's and the compiler's), failing in
+every way, their results used after lines that change what they read or
+not, in branches and loops - the asts rewritten and the block's lines
+(and, with `PANORAMIX_ASTS`, the asts of contracts, pickled);
 `test_trace_random.py`: random traces - the lines of the VM, loops
 included - through every pass of the simplifier and the whole
 `simplify_trace`; a trace on which python takes more than `PY_LIMIT`

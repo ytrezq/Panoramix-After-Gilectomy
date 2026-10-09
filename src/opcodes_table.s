@@ -221,7 +221,12 @@ opcode_names:
         .quad .Lopname_214
         .quad .Lopname_215
         .quad .Lopname_216
-opcode_names_count: .quad 217
+        .quad .Lopname_217
+        .quad .Lopname_218
+        .quad .Lopname_219
+        .quad .Lopname_220
+        .quad .Lopname_221
+opcode_names_count: .quad 222
 .Lopname_0: .asciz "add"
 .Lopname_1: .asciz "mul"
 .Lopname_2: .asciz "sub"
@@ -439,9 +444,14 @@ opcode_names_count: .quad 217
 .Lopname_214: .asciz "vyper"
 .Lopname_215: .asciz "solidity"
 .Lopname_216: .asciz "clz"
+.Lopname_217: .asciz "safemath"
+.Lopname_218: .asciz "panic"
+.Lopname_219: .asciz "error"
+.Lopname_220: .asciz "inc"
+.Lopname_221: .asciz "dec"
         .section .bss
         .align 8
         .globl opcode_nodes
         .hidden opcode_nodes
-opcode_nodes: .space 1744
+opcode_nodes: .space 1784
         .section .note.GNU-stack,"",@progbits

@@ -7,6 +7,7 @@
         .section .rodata
 .Ls_logname:    .asciz "panoramix.contract"
 .Ls_storage_failed: .asciz "Storage postprocessing failed. This is very bad! (%s)"
+.Ls_safemath_failed: .asciz "SafeMath failed: the arithmetic stays as it is. (%s)"
         .text
 
 .macro B reg, n
@@ -31,6 +32,10 @@ FUNC contract_new
         mov [r13 + CT_STOR_DEFS], rax
         call vec_new
         mov [r13 + CT_CONSTS], rax
+        xor edi, edi
+        xor esi, esi
+        call mk_list
+        mov [r13 + CT_SAFEMATH], rax
         mov rax, [r15 + CTX_LOADER]
         test rax, rax
         jz 1f
@@ -122,9 +127,68 @@ FUNC contract_postprocess
         call contract_consts
         mov rdi, rbx
         call make_asts
+        mov rdi, rbx
+        call contract_safemath
         add rsp, ERR_SIZEOF + 16
         LEAVE
 ENDF contract_postprocess
+
+# contract_safemath(contract): python's postprocess's SafeMath - the asts'
+# checked arithmetic calls of the functions of the contract's def SafeMath
+# (safemath.s); an error leaves the asts as they are, the block empty
+FUNC contract_safemath
+        ENTER
+        sub rsp, ERR_SIZEOF + 16
+        mov rbx, rdi
+        mov rdi, rsp
+        call err_catch
+        test eax, eax
+        jnz 8f
+        mov r12, [rbx + CT_FUNCS]
+        call vec_new
+        mov r13, rax
+        xor r14d, r14d
+1:      cmp r14, [r12 + VEC_LEN]
+        jae 2f
+        mov rax, [r12 + VEC_DATA]
+        mov rax, [rax + r14*8]
+        mov rdi, r13
+        mov rsi, [rax + FN_AST]
+        call vec_push
+        inc r14
+        jmp 1b
+2:      mov rdi, r13
+        call vec_to_list
+        mov rdi, rax
+        call safemath_rewrite
+        mov r13, rax                    # (asts, defs)
+        call err_end
+        mov rax, [r13 + N_DATA + 8]
+        mov [rbx + CT_SAFEMATH], rax
+        mov r13, [r13 + N_DATA]
+        xor r14d, r14d
+3:      cmp r14, [r12 + VEC_LEN]
+        jae 9f
+        mov rax, [r12 + VEC_DATA]
+        mov rax, [rax + r14*8]
+        mov rcx, [r13 + N_DATA + r14*8]
+        mov [rax + FN_AST], rcx
+        inc r14
+        jmp 3b
+8:      mov edi, eax
+        call st_catch_all
+        mov edi, LOG_ERROR
+        lea rsi, [rip + .Ls_logname]
+        lea rdx, [rip + .Ls_safemath_failed]
+        mov rcx, [r15 + CTX_ERR_MSG]
+        call log_fmt
+        xor edi, edi
+        xor esi, esi
+        call mk_list
+        mov [rbx + CT_SAFEMATH], rax
+9:      add rsp, ERR_SIZEOF + 16
+        LEAVE
+ENDF contract_safemath
 
 # contract_consts(contract, all_caps): the constant functions whose name
 # is (or isn't) all caps, appended to the contract's constants

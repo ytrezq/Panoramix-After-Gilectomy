@@ -13,6 +13,17 @@ def storage:
   Line is uint256 at storage 9
   live is uint256 at storage 10
 
+def SafeMath:
+  def add(a, b):
+      require a + b >= a
+      return a + b
+  def sub(a, b):
+      require a - b <= a
+      return a - b
+  def div(a, b):
+      assert b
+      return a / b
+
 def debt(): # not payable
   return debt
 
@@ -107,6 +118,14 @@ def init(bytes32 ilk): # not payable
   stor2[ilk].field_256 = 1000000000 * 10**18
   log call.func_hash: 32, 224, call.data[0 len 224], indexed ilk, indexed cd[36], indexed cd[68]
 
+def heal(uint256 rad): # not payable
+  require calldata.size - 4 >= 32
+  sin[caller] = SafeMath.sub(sin[caller], rad)
+  dai[caller] = SafeMath.sub(dai[caller], rad)
+  vice = SafeMath.sub(vice, rad)
+  debt = SafeMath.sub(debt, rad)
+  log call.func_hash: 32, 224, call.data[0 len 224], indexed rad, indexed cd[36], indexed cd[68]
+
 def file(bytes32 what, uint256 data): # not payable
   require calldata.size - 4 >= 64
   if wards[caller] != 1:
@@ -118,17 +137,31 @@ def file(bytes32 what, uint256 data): # not payable
   Line = data
   log call.func_hash: 32, 224, call.data[0 len 224], indexed what, indexed data, indexed cd[68]
 
-def heal(uint256 rad): # not payable
-  require calldata.size - 4 >= 32
-  require sin[caller] - rad <= sin[caller]
-  sin[caller] -= rad
-  require dai[caller] - rad <= dai[caller]
-  dai[caller] -= rad
-  require vice - rad <= vice
-  vice -= rad
-  require debt - rad <= debt
-  debt -= rad
-  log call.func_hash: 32, 224, call.data[0 len 224], indexed rad, indexed cd[36], indexed cd[68]
+def suck(address u, address v, uint256 rad): # not payable
+  require calldata.size - 4 >= 96
+  if wards[caller] != 1:
+      revert with 'Vat/not-authorized'
+  sin[address(u)] = SafeMath.add(sin[address(u)], rad)
+  dai[address(v)] = SafeMath.add(dai[address(v)], rad)
+  vice = SafeMath.add(vice, rad)
+  debt = SafeMath.add(debt, rad)
+  log call.func_hash: 32, 224, call.data[0 len 224], indexed u, indexed v, indexed rad
+
+def move(address src, address dst, uint256 wad): # not payable
+  require calldata.size - 4 >= 96
+  if address(src) != caller and can[address(src)][caller] != 1:
+      revert with 'Vat/not-allowed'
+  dai[address(src)] = SafeMath.sub(dai[address(src)], wad)
+  dai[address(dst)] = SafeMath.add(dai[address(dst)], wad)
+  log call.func_hash: 32, 224, call.data[0 len 224], indexed src, indexed dst, indexed wad
+
+def flux(bytes32 ilk, address src, address dst, uint256 wad): # not payable
+  require calldata.size - 4 >= 128
+  if address(src) != caller and can[address(src)][caller] != 1:
+      revert with 'Vat/not-allowed'
+  gem[ilk][address(src)] = SafeMath.sub(gem[ilk][address(src)], wad)
+  gem[ilk][address(dst)] = SafeMath.add(gem[ilk][address(dst)], wad)
+  log call.func_hash: 32, 224, call.data[0 len 224], indexed ilk, indexed src, indexed dst
 
 def file(bytes32 ilk, bytes32 what, uint256 data): # not payable
   require calldata.size - 4 >= 96
@@ -147,30 +180,6 @@ def file(bytes32 ilk, bytes32 what, uint256 data): # not payable
       stor2[ilk].field_512 = data
   log call.func_hash: 32, 224, call.data[0 len 224], indexed ilk, indexed what, indexed data
 
-def move(address src, address dst, uint256 wad): # not payable
-  require calldata.size - 4 >= 96
-  if address(src) != caller and can[address(src)][caller] != 1:
-      revert with 'Vat/not-allowed'
-  require dai[address(src)] - wad <= dai[address(src)]
-  dai[address(src)] -= wad
-  require dai[address(dst)] + wad >= dai[address(dst)]
-  dai[address(dst)] += wad
-  log call.func_hash: 32, 224, call.data[0 len 224], indexed src, indexed dst, indexed wad
-
-def suck(address u, address v, uint256 rad): # not payable
-  require calldata.size - 4 >= 96
-  if wards[caller] != 1:
-      revert with 'Vat/not-authorized'
-  require sin[address(u)] + rad >= sin[address(u)]
-  sin[address(u)] += rad
-  require dai[address(v)] + rad >= dai[address(v)]
-  dai[address(v)] += rad
-  require vice + rad >= vice
-  vice += rad
-  require debt + rad >= debt
-  debt += rad
-  log call.func_hash: 32, 224, call.data[0 len 224], indexed u, indexed v, indexed rad
-
 def slip(bytes32 ilk, address usr, int256 wad): # not payable
   require calldata.size - 4 >= 96
   if wards[caller] != 1:
@@ -181,16 +190,6 @@ def slip(bytes32 ilk, address usr, int256 wad): # not payable
   require _5
   gem[ilk][address(usr)] += wad
   log call.func_hash: 32, 224, call.data[0 len 224], indexed ilk, indexed usr, indexed wad
-
-def flux(bytes32 ilk, address src, address dst, uint256 wad): # not payable
-  require calldata.size - 4 >= 128
-  if address(src) != caller and can[address(src)][caller] != 1:
-      revert with 'Vat/not-allowed'
-  require gem[ilk][address(src)] - wad <= gem[ilk][address(src)]
-  gem[ilk][address(src)] -= wad
-  require gem[ilk][address(dst)] + wad >= gem[ilk][address(dst)]
-  gem[ilk][address(dst)] += wad
-  log call.func_hash: 32, 224, call.data[0 len 224], indexed ilk, indexed src, indexed dst
 
 def fold(bytes32 i, address u, int256 rate): # not payable
   require calldata.size - 4 >= 96
@@ -362,9 +361,8 @@ def frob(bytes32 i, address u, address v, address w, int256 dink, int256 dart): 
       _11 = 0
       _12 = 1
   else:
-      assert stor3[i][address(u)].field_256 + dart
       _11 = stor3[i][address(u)].field_256 * stor2[i].field_256 + dart * stor2[i].field_256
-      _12 = (stor3[i][address(u)].field_256 * stor2[i].field_256 + dart * stor2[i].field_256) / (stor3[i][address(u)].field_256 + dart) == stor2[i].field_256
+      _12 = SafeMath.div(stor3[i][address(u)].field_256 * stor2[i].field_256 + dart * stor2[i].field_256, stor3[i][address(u)].field_256 + dart) == stor2[i].field_256
   require _12
   _13 = stor2[i].field_256 * dart >=′ 0 or debt + stor2[i].field_256 * dart <= debt
   require _13
@@ -382,9 +380,8 @@ def frob(bytes32 i, address u, address v, address w, int256 dink, int256 dart): 
       _23 = 0
       _24 = 1
   else:
-      assert stor2[i].field_256
       _23 = stor2[i].field_0 * stor2[i].field_256 + dart * stor2[i].field_256
-      _24 = (stor2[i].field_0 * stor2[i].field_256 + dart * stor2[i].field_256) / stor2[i].field_256 == stor2[i].field_0 + dart
+      _24 = SafeMath.div(stor2[i].field_0 * stor2[i].field_256 + dart * stor2[i].field_256, stor2[i].field_256) == stor2[i].field_0 + dart
   require _24
   if dart >′ 0 and (_23 > stor2[i].field_768 or debt > Line):
       revert with 'Vat/ceiling-exceeded'
@@ -392,9 +389,8 @@ def frob(bytes32 i, address u, address v, address w, int256 dink, int256 dart): 
       _25 = 0
       _26 = 1
   else:
-      assert stor2[i].field_512
       _25 = stor3[i][address(u)].field_0 * stor2[i].field_512 + dink * stor2[i].field_512
-      _26 = (stor3[i][address(u)].field_0 * stor2[i].field_512 + dink * stor2[i].field_512) / stor2[i].field_512 == stor3[i][address(u)].field_0 + dink
+      _26 = SafeMath.div(stor3[i][address(u)].field_0 * stor2[i].field_512 + dink * stor2[i].field_512, stor2[i].field_512) == stor3[i][address(u)].field_0 + dink
   require _26
   if (dart >′ 0 or dink <′ 0) and _11 > _25:
       revert with 'Vat/not-safe'

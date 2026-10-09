@@ -36,6 +36,7 @@
 .Ls_problems:   .asciz "problems"
 .Ls_stor_defs:  .asciz "stor_defs"
 .Ls_functions:  .asciz "functions"
+.Ls_safemath:   .asciz "safemath"
 .Ls_k_hash:     .asciz "hash"
 .Ls_k_name:     .asciz "name"
 .Ls_k_color_name: .asciz "color_name"
@@ -506,8 +507,12 @@ FUNC contract_data
         mov r13d, edx
         mov rdi, r12
         mov esi, '{'
-        mov edx, 3
-        mov ecx, r13d
+        mov edx, 3                      # (and the SafeMath, when it has
+        mov rax, [rbx + CT_SAFEMATH]    # functions)
+        cmp dword ptr [rax + N_AUX], 0
+        je 11f
+        inc edx
+11:     mov ecx, r13d
         call data_open
         # the problems: {hash: name}
         mov rdi, r12
@@ -599,7 +604,45 @@ FUNC contract_data
         mov esi, '['
         mov edx, r13d
         call data_close
+        # the SafeMath: its lines, as printed
+        mov rax, [rbx + CT_SAFEMATH]
+        cmp dword ptr [rax + N_AUX], 0
+        je 7f
+        mov rdi, rax
+        call safemath_pretty
+        mov [rsp], rax
+        call sb_new
+        mov [rsp + 8], rax
+        xor r14d, r14d
+5:      mov rax, [rsp]
+        cmp r14d, [rax + N_AUX]
+        jae 6f
+        test r14d, r14d
+        jz 51f
+        mov rdi, [rsp + 8]
+        mov esi, 10
+        call sb_append_char
+51:     mov rax, [rsp]
+        mov rsi, [rax + N_DATA + r14*8]
+        mov rdi, [rsp + 8]
+        call sb_append_str
+        inc r14d
+        jmp 5b
+6:      mov rdi, r12
+        mov esi, 3
+        mov edx, r13d
+        call data_sep
         mov rdi, r12
+        lea rsi, [rip + .Ls_safemath]
+        mov edx, r13d
+        call data_key
+        mov rdi, [rsp + 8]
+        call sb_finish
+        mov rsi, rax
+        mov rdi, r12
+        mov edx, r13d
+        call data_value
+7:      mov rdi, r12
         mov esi, '{'
         mov edx, r13d
         call data_close

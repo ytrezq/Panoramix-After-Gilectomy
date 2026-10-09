@@ -4,6 +4,12 @@ def storage:
   nonceBitmap is mapping of mapping of uint256 at storage 0
   allowance is mapping of mapping of mapping of struct of 1 slot at storage 1
 
+def SafeMath:
+  def inc(a):  # solidity >= 0.8
+      if a == -1:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      return a + 1
+
 def nonceBitmap(address _param1, uint256 _param2): # not payable
   require calldata.size - 4 >=′ 64
   require not Mask(96, 160, _param1)
@@ -588,9 +594,7 @@ def permit(address owner, ((address,uint160,uint48,uint48)[],address,uint256) pe
       if idx >= mem[_4]:
           revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
       mem[32 * idx + _4 + 32] = sha3(mem[_32 + 32 len mem[_32]])
-      if idx == -1:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      idx = idx + 1
+      idx = SafeMath.inc(idx)
       continue
   _27 = mem[64]
   _29 = mem[_4]
@@ -778,9 +782,7 @@ def permitTransferFrom(((address,uint256)[],uint256,uint256) permit, (address,ui
       if idx >= mem[_3]:
           revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
       mem[32 * idx + _3 + 32] = sha3(mem[_32 + 32 len mem[_32]])
-      if idx == -1:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      idx = idx + 1
+      idx = SafeMath.inc(idx)
       continue
   _27 = mem[64]
   _29 = mem[_3]
@@ -1002,9 +1004,7 @@ def permitWitnessTransferFrom(((address,uint256)[],uint256,uint256) permit, (add
       if idx >= mem[_3 + floor32(witnessTypeString.length + 138) + 32]:
           revert with Panic(50)  # If you access an array, bytesN or an array slice at an out-of-bounds or negative index (i.e. x[i] where i >= x.length or i < 0).
       mem[32 * idx + _3 + floor32(witnessTypeString.length + 138) + 64] = sha3(mem[_39 + 32 len mem[_39]])
-      if idx == -1:
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      idx = idx + 1
+      idx = SafeMath.inc(idx)
       continue
   _34 = mem[64]
   _36 = mem[_3 + floor32(witnessTypeString.length + 138) + 32]

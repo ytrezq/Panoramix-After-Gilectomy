@@ -20,6 +20,20 @@ def storage:
   stor16 is uint256 at storage 16
   stor16777215 is uint256 at storage 16777215
 
+def SafeMath:
+  def add(a, b):
+      require a + b >= a
+      return a + b
+  def sub(a, b):
+      require a >= b
+      return a - b
+  def mul(a, b):
+      require a * b / a == b
+      return a * b
+  def div(a, b):
+      require b
+      return a / b
+
 def future_owner(): # not payable
   return future_owner
 
@@ -96,6 +110,15 @@ def apply_transfer_ownership(): # not payable
   owner = future_owner
   log NewAdmin(address indexed newAdmin=future_owner)
 
+def admin_balances(uint256 i): # not payable
+  require i < 3
+  static call coins[i].balanceOf(address account) with:
+          gas gas_remaining
+         args this.address
+  require ext_call.success
+  require return_data.size > 31
+  return SafeMath.sub(ext_call.return_data[0], balances[i])
+
 def apply_new_fee(): # not payable
   require caller == owner
   require block.timestamp >= admin_actions_deadline
@@ -107,25 +130,14 @@ def apply_new_fee(): # not payable
         uint256 fee=future_fee,
         uint256 admin_fee=future_admin_fee)
 
-def admin_balances(uint256 i): # not payable
-  require i < 3
-  static call coins[i].balanceOf(address account) with:
-          gas gas_remaining
-         args this.address
-  require ext_call.success
-  require return_data.size > 31
-  require ext_call.return_data[0] >= balances[i]
-  return ext_call.return_data[0] - balances[i]
-
 def commit_transfer_ownership(address addr): # not payable
   require addr < 0x10000000000000000000000000000000000000000
   require caller == owner
   require not transfer_ownership_deadline
-  require block.timestamp + 3 * 24 * 3600 >= block.timestamp
-  transfer_ownership_deadline = block.timestamp + 3 * 24 * 3600
+  transfer_ownership_deadline = SafeMath.add(block.timestamp, 3 * 24 * 3600)
   future_owner = addr
   log CommitNewAdmin(
-        uint256 indexed deadline=block.timestamp + 3 * 24 * 3600,
+        uint256 indexed deadline=SafeMath.add(block.timestamp, 3 * 24 * 3600),
         address indexed admin=addr)
 
 def commit_new_fee(uint256 new_fee, uint256 new_admin_fee): # not payable
@@ -133,12 +145,11 @@ def commit_new_fee(uint256 new_fee, uint256 new_admin_fee): # not payable
   require not admin_actions_deadline
   require new_fee <= 5 * 10**9
   require new_admin_fee <= 10**10
-  require block.timestamp + 3 * 24 * 3600 >= block.timestamp
-  admin_actions_deadline = block.timestamp + 3 * 24 * 3600
+  admin_actions_deadline = SafeMath.add(block.timestamp, 3 * 24 * 3600)
   future_fee = new_fee
   future_admin_fee = new_admin_fee
   log CommitNewFee(
-        uint256 indexed deadline=block.timestamp + 3 * 24 * 3600,
+        uint256 indexed deadline=SafeMath.add(block.timestamp, 3 * 24 * 3600),
         uint256 fee=new_fee,
         uint256 admin_fee=new_admin_fee)
 
@@ -174,19 +185,15 @@ def A(): # not payable
       return future_A
   if future_A <= initial_A:
       require initial_A >= future_A
-      require block.timestamp >= initial_A_time
-      require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == block.timestamp - initial_A_time or initial_A == future_A
+      require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == SafeMath.sub(block.timestamp, initial_A_time) or initial_A == future_A
       require future_A_time >= initial_A_time
       require future_A_time != initial_A_time
-      require initial_A >= (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
-      return initial_A - (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
+      return SafeMath.sub(initial_A, (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time))
   require future_A >= initial_A
-  require block.timestamp >= initial_A_time
-  require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == block.timestamp - initial_A_time or future_A == initial_A
+  require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == SafeMath.sub(block.timestamp, initial_A_time) or future_A == initial_A
   require future_A_time >= initial_A_time
   require future_A_time != initial_A_time
-  require initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time) >= initial_A
-  return initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time)
+  return SafeMath.add(initial_A, (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time))
 
 def stop_ramp_A(): # not payable
   require caller == owner
@@ -196,22 +203,18 @@ def stop_ramp_A(): # not payable
   else:
       if future_A <= initial_A:
           require initial_A >= future_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == block.timestamp - initial_A_time or initial_A == future_A
+          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == SafeMath.sub(block.timestamp, initial_A_time) or initial_A == future_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A >= (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
-          mem[320] = initial_A - (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
-          initial_A -= (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
+          mem[320] = SafeMath.sub(initial_A, (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time))
+          initial_A = SafeMath.sub(initial_A, (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time))
       else:
           require future_A >= initial_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == block.timestamp - initial_A_time or future_A == initial_A
+          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == SafeMath.sub(block.timestamp, initial_A_time) or future_A == initial_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time) >= initial_A
-          mem[320] = initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time)
-          initial_A += (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time)
+          mem[320] = SafeMath.add(initial_A, (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time))
+          initial_A = SafeMath.add(initial_A, (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time))
   future_A = mem[320]
   initial_A_time = block.timestamp
   future_A_time = block.timestamp
@@ -221,29 +224,23 @@ def stop_ramp_A(): # not payable
 
 def ramp_A(uint256 _future_A, uint256 _future_time): # not payable
   require caller == owner
-  require initial_A_time + 24 * 3600 >= initial_A_time
-  require block.timestamp >= initial_A_time + 24 * 3600
-  require block.timestamp + 24 * 3600 >= block.timestamp
-  require _future_time >= block.timestamp + 24 * 3600
+  require block.timestamp >= SafeMath.add(initial_A_time, 24 * 3600)
+  require _future_time >= SafeMath.add(block.timestamp, 24 * 3600)
   if block.timestamp >= future_A_time:
       _3 = future_A
   else:
       if future_A <= initial_A:
           require initial_A >= future_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == block.timestamp - initial_A_time or initial_A == future_A
+          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == SafeMath.sub(block.timestamp, initial_A_time) or initial_A == future_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A >= (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
-          _3 = initial_A - (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
+          _3 = SafeMath.sub(initial_A, (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time))
       else:
           require future_A >= initial_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == block.timestamp - initial_A_time or future_A == initial_A
+          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == SafeMath.sub(block.timestamp, initial_A_time) or future_A == initial_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time) >= initial_A
-          _3 = initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time)
+          _3 = SafeMath.add(initial_A, (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time))
   _4 = _future_A > 0 and _future_A < 10**6
   require _4
   if _future_A < _3:
@@ -279,8 +276,7 @@ def withdraw_admin_fees(): # not payable
   mem[544 len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
   require ext_call.success
   require return_data.size > 31
-  require ext_call.return_data[0] >= balances[0]
-  if ext_call.return_data[0] - balances[0] > 0:
+  if SafeMath.sub(ext_call.return_data[0], balances[0]) > 0:
       copied = identity(Bytes(4, 0xa9059cbb)) # precompiled
       copied = identity(68, Bytes(4, 0xa9059cbb), caller, mem[544] - balances[0]) # precompiled
       require memcopy.success
@@ -312,8 +308,7 @@ def withdraw_admin_fees(): # not payable
       require return_data.size > 31
       require mem[320] < 3
       mem[192] = 1
-      require ext_call.return_data[0] >= balances[mem[320]]
-      mem[384] = ext_call.return_data[0] - balances[mem[320]]
+      mem[384] = SafeMath.sub(ext_call.return_data[0], balances[mem[320]])
       if ext_call.return_data[0] - balances[mem[320]] > 0:
           mem[672] = 4
           mem[704] = 0xa9059cbb00000000000000000000000000000000000000000000000000000000
@@ -355,12 +350,10 @@ def remove_liquidity(uint256 _burn_amount, uint256[3] _min_amounts) payable:
   mem[480 len 96] = 0
   mem[576 len 96] = 0
   require balances[0] * _burn_amount / balances[0] == _burn_amount or not balances[0]
-  require ext_call.return_data[0]
-  if balances[0] * _burn_amount / ext_call.return_data[0] < _min_amounts[0]:
+  if SafeMath.div(balances[0] * _burn_amount, ext_call.return_data[0]) < _min_amounts[0]:
       revert with 'Withdrawal resulted in fewer coins than expected'
-  require balances[0] >= balances[0] * _burn_amount / ext_call.return_data[0]
   _22 = balances[0]
-  balances[0] -= balances[0] * _burn_amount / ext_call.return_data[0]
+  balances[0] = SafeMath.sub(balances[0], SafeMath.div(balances[0] * _burn_amount, ext_call.return_data[0]))
   mem[480] = _22 * _burn_amount / ext_call.return_data[0]
   copied = identity(Bytes(4, 0xa9059cbb)) # precompiled
   copied = identity(68, Bytes(4, 0xa9059cbb), caller, _22 * _burn_amount / mem[320]) # precompiled
@@ -383,8 +376,7 @@ def remove_liquidity(uint256 _burn_amount, uint256[3] _min_amounts) payable:
   while _34 + 1 != 3:
       require mem[672] < 3
       require balances[mem[672]] * _burn_amount / balances[mem[672]] == _burn_amount or not balances[mem[672]]
-      require mem[320]
-      mem[704] = balances[mem[672]] * _burn_amount / mem[320]
+      mem[704] = SafeMath.div(balances[mem[672]] * _burn_amount, mem[320])
       mem[736] = 147028384
       mem[768] = 32
       mem[800] = 48
@@ -394,9 +386,8 @@ def remove_liquidity(uint256 _burn_amount, uint256[3] _min_amounts) payable:
       if balances[mem[672]] * _burn_amount / mem[320] < cd[32 * mem[672] + 36]:
           revert with 'Withdrawal resulted in fewer coins than expected'
       require mem[672] < 3
-      require balances[mem[672]] >= balances[mem[672]] * _burn_amount / mem[320]
       _22 = balances[mem[672]]
-      balances[mem[672]] -= balances[mem[672]] * _burn_amount / mem[320]
+      balances[mem[672]] = SafeMath.sub(balances[mem[672]], balances[mem[672]] * _burn_amount / mem[320])
       require mem[672] < 3
       mem[32 * mem[672] + 480] = _22 * _burn_amount / mem[320]
       mem[1024] = 4
@@ -433,16 +424,14 @@ def remove_liquidity(uint256 _burn_amount, uint256[3] _min_amounts) payable:
       args caller, _burn_amount
   require ext_call.success
   require return_data.size > 31
-  require mem[320] >= _burn_amount
-  log RemoveLiquidity(address provider, uint256[3] token_amounts, uint256[3] fees, uint256 token_supply): mem[480 len 192], mem[320] - _burn_amount, indexed caller
+  log RemoveLiquidity(address provider, uint256[3] token_amounts, uint256[3] fees, uint256 token_supply): mem[480 len 192], SafeMath.sub(mem[320], _burn_amount), indexed caller
   stor16777215 = 0
 
 def get_virtual_price(): # not payable
   mem[736] = 736
   mem[384] = 1000000000000 * 10**18
   mem[416] = 1000000000000 * 10**18
-  require 10**18 * balances[0] / 10**18 == balances[0]
-  mem[352] = 10**18 * balances[0] / 10**18
+  mem[352] = SafeMath.mul(10**18, balances[0]) / 10**18
   _7 = 0
   mem[448] = 1
   while _7 + 1 != 3:
@@ -463,20 +452,16 @@ def get_virtual_price(): # not payable
   else:
       if future_A <= initial_A:
           require initial_A >= future_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == block.timestamp - initial_A_time or initial_A == future_A
+          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == SafeMath.sub(block.timestamp, initial_A_time) or initial_A == future_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A >= (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
-          _12 = initial_A - (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
+          _12 = SafeMath.sub(initial_A, (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time))
       else:
           require future_A >= initial_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == block.timestamp - initial_A_time or future_A == initial_A
+          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == SafeMath.sub(block.timestamp, initial_A_time) or future_A == initial_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time) >= initial_A
-          _12 = initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time)
+          _12 = SafeMath.add(initial_A, (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time))
   mem[704] = _12
   mem[640] = mem[416]
   mem[608] = mem[384]
@@ -498,8 +483,7 @@ def get_virtual_price(): # not payable
       _14 = mem[32 * mem[544] + 320]
       mem[512] = mem[32 * mem[544] + 320]
       _15 = mem[480]
-      require mem[480] + _14 >= mem[480]
-      mem[480] = mem[480] + _14
+      mem[480] = SafeMath.add(mem[480], _14)
       _16 = mem[544]
       mem[544] = mem[544] + 1
       continue
@@ -516,8 +500,7 @@ def get_virtual_price(): # not payable
           _39 = mem[640]
           require mem[640] * mem[640] / mem[640] == mem[640] or not mem[640]
           require 3 * mem[320] / mem[320] == 3 or not mem[320]
-          require 3 * mem[320]
-          mem[736] = mem[640] * mem[640] / (3 * mem[320])
+          mem[736] = SafeMath.div(mem[640] * mem[640], 3 * mem[320])
           _40 = 0
           mem[800] = 1
           while _40 + 1 != 3:
@@ -527,8 +510,7 @@ def get_virtual_price(): # not payable
               _39 = mem[640]
               require mem[736] * mem[640] / mem[736] == mem[640] or not mem[736]
               require 3 * _37 / _37 == 3 or not _37
-              require 3 * _37
-              mem[736] = mem[736] * mem[640] / (3 * _37)
+              mem[736] = SafeMath.div(mem[736] * mem[640], 3 * _37)
               _40 = mem[800]
               mem[800] = mem[800] + 1
               continue
@@ -536,26 +518,22 @@ def get_virtual_price(): # not payable
           mem[608] = mem[640]
           require 3 * _12 * mem[480] / (3 * _12) == mem[480] or not 3 * _12
           require 3 * (_38 * _39 / (3 * _37)) / (_38 * _39 / (3 * _37)) == 3 or not _38 * _39 / (3 * _37)
-          require 3 * _12 * mem[480] + 3 * (_38 * _39 / (3 * _37)) >= 3 * _12 * mem[480]
           _44 = mem[640]
-          require (3 * _12 * mem[480] * mem[640] + 3 * (_38 * _39 / (3 * _37)) * mem[640]) / (3 * _12 * mem[480] + 3 * (_38 * _39 / (3 * _37))) == mem[640] or not 3 * _12 * mem[480] + 3 * (_38 * _39 / (3 * _37))
-          require 3 * _12 >= 1
+          require (3 * _12 * mem[480] * mem[640] + 3 * (_38 * _39 / (3 * _37)) * mem[640]) / SafeMath.add(3 * _12 * mem[480], 3 * (_38 * _39 / (3 * _37))) == mem[640] or not SafeMath.add(3 * _12 * mem[480], 3 * (_38 * _39 / (3 * _37)))
           _46 = mem[640]
-          require (-mem[640] + 3 * _12 * mem[640]) / (3 * _12 - 1) == mem[640] or 3 * _12 == 1
+          require (-mem[640] + 3 * _12 * mem[640]) / SafeMath.sub(3 * _12, 1) == mem[640] or 3 * _12 == 1
           require Mask(254, 0, _38 * _39 / (3 * _37)) == _38 * _39 / (3 * _37)
           require -mem[640] + 3 * _12 * mem[640] + 4 * (_38 * _39 / (3 * _37)) >= -mem[640] + 3 * _12 * mem[640]
           require 3 * _12 * mem[640] + 4 * (_38 * _39 / (3 * _37)) != mem[640]
           mem[640] = (3 * _12 * mem[480] * mem[640] + 3 * (_38 * _39 / (3 * _37)) * mem[640]) / (-mem[640] + 3 * _12 * mem[640] + 4 * (_38 * _39 / (3 * _37)))
           if (3 * _12 * mem[480] * _44 + 3 * (_38 * _39 / (3 * _37)) * _44) / (-_46 + 3 * _12 * _46 + 4 * (_38 * _39 / (3 * _37))) <= _41:
-              require _41 >= (3 * _12 * mem[480] * _44 + 3 * (_38 * _39 / (3 * _37)) * _44) / (-_46 + 3 * _12 * _46 + 4 * (_38 * _39 / (3 * _37)))
-              if _41 - (3 * _12 * mem[480] * _44 + 3 * (_38 * _39 / (3 * _37)) * _44) / (-_46 + 3 * _12 * _46 + 4 * (_38 * _39 / (3 * _37))) > 1:
+              if SafeMath.sub(_41, (3 * _12 * mem[480] * _44 + 3 * (_38 * _39 / (3 * _37)) * _44) / (-_46 + 3 * _12 * _46 + 4 * (_38 * _39 / (3 * _37)))) > 1:
                   _47 = mem[704]
                   mem[704] = mem[704] + 1
                   if _47 + 1 != 255:
                       continue
           else:
-              require (3 * _12 * mem[480] * _44 + 3 * (_38 * _39 / (3 * _37)) * _44) / (-_46 + 3 * _12 * _46 + 4 * (_38 * _39 / (3 * _37))) >= _41
-              if (3 * _12 * mem[480] * _44 + 3 * (_38 * _39 / (3 * _37)) * _44) / (-_46 + 3 * _12 * _46 + 4 * (_38 * _39 / (3 * _37))) - _41 > 1:
+              if SafeMath.sub((3 * _12 * mem[480] * _44 + 3 * (_38 * _39 / (3 * _37)) * _44) / (-_46 + 3 * _12 * _46 + 4 * (_38 * _39 / (3 * _37))), _41) > 1:
                   _48 = mem[704]
                   mem[704] = mem[704] + 1
                   if _48 + 1 != 255:
@@ -569,8 +547,7 @@ def get_virtual_price(): # not payable
   require ext_call.success
   require return_data.size > 31
   require 10**18 * _49 / _49 == 10**18 or not _49
-  require ext_call.return_data[0]
-  return 10**18 * _49 / ext_call.return_data[0]
+  return SafeMath.div(10**18 * _49, ext_call.return_data[0])
 
 def get_dy_underlying(int128 i, int128 j, uint256 dx): # not payable
   mem[32] = 0x10000000000000000000000000000000000000000
@@ -585,8 +562,7 @@ def get_dy_underlying(int128 i, int128 j, uint256 dx): # not payable
   mem[384] = 1000000000000 * 10**18
   mem[416] = 1000000000000 * 10**18
   mem[192] = 1
-  require 10**18 * balances[0] / 10**18 == balances[0]
-  mem[352] = 10**18 * balances[0] / 10**18
+  mem[352] = SafeMath.mul(10**18, balances[0]) / 10**18
   _7 = 0
   mem[448] = 1
   while _7 + 1 != 3:
@@ -615,8 +591,7 @@ def get_dy_underlying(int128 i, int128 j, uint256 dx): # not payable
   _11 = mem[32 * i + 320]
   _12 = mem[32 * i + 544]
   require dx * mem[32 * i + 544] / dx == mem[32 * i + 544] or not dx
-  require mem[32 * i + 320] + dx * mem[32 * i + 544] >= mem[32 * i + 320]
-  mem[640] = mem[32 * i + 320] + dx * mem[32 * i + 544]
+  mem[640] = SafeMath.add(mem[32 * i + 320], dx * mem[32 * i + 544])
   _13 = mem[416]
   mem[832] = _10
   mem[864] = _9
@@ -631,20 +606,16 @@ def get_dy_underlying(int128 i, int128 j, uint256 dx): # not payable
   else:
       if future_A <= initial_A:
           require initial_A >= future_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == block.timestamp - initial_A_time or initial_A == future_A
+          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == SafeMath.sub(block.timestamp, initial_A_time) or initial_A == future_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A >= (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
-          _15 = initial_A - (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
+          _15 = SafeMath.sub(initial_A, (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time))
       else:
           require future_A >= initial_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == block.timestamp - initial_A_time or future_A == initial_A
+          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == SafeMath.sub(block.timestamp, initial_A_time) or future_A == initial_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time) >= initial_A
-          _15 = initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time)
+          _15 = SafeMath.add(initial_A, (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time))
   mem[608] = _15
   mem[672] = 672
   mem[704] = _10
@@ -666,8 +637,7 @@ def get_dy_underlying(int128 i, int128 j, uint256 dx): # not payable
       _21 = mem[32 * mem[544] + 320]
       mem[512] = mem[32 * mem[544] + 320]
       _22 = mem[480]
-      require mem[480] + _21 >= mem[480]
-      mem[480] = mem[480] + _21
+      mem[480] = SafeMath.add(mem[480], _21)
       _23 = mem[544]
       mem[544] = mem[544] + 1
       continue
@@ -684,8 +654,7 @@ def get_dy_underlying(int128 i, int128 j, uint256 dx): # not payable
           _58 = mem[640]
           require mem[640] * mem[640] / mem[640] == mem[640] or not mem[640]
           require 3 * _10 / _10 == 3 or not _10
-          require 3 * _10
-          mem[736] = mem[640] * mem[640] / (3 * _10)
+          mem[736] = SafeMath.div(mem[640] * mem[640], 3 * _10)
           _68 = 0
           mem[800] = 1
           while _68 + 1 != 3:
@@ -695,8 +664,7 @@ def get_dy_underlying(int128 i, int128 j, uint256 dx): # not payable
               _58 = mem[640]
               require mem[736] * mem[640] / mem[736] == mem[640] or not mem[736]
               require 3 * _56 / _56 == 3 or not _56
-              require 3 * _56
-              mem[736] = mem[736] * mem[640] / (3 * _56)
+              mem[736] = SafeMath.div(mem[736] * mem[640], 3 * _56)
               _68 = mem[800]
               mem[800] = mem[800] + 1
               continue
@@ -704,26 +672,22 @@ def get_dy_underlying(int128 i, int128 j, uint256 dx): # not payable
           mem[608] = mem[640]
           require 3 * _15 * mem[480] / (3 * _15) == mem[480] or not 3 * _15
           require 3 * (_57 * _58 / (3 * _56)) / (_57 * _58 / (3 * _56)) == 3 or not _57 * _58 / (3 * _56)
-          require 3 * _15 * mem[480] + 3 * (_57 * _58 / (3 * _56)) >= 3 * _15 * mem[480]
           _78 = mem[640]
-          require (3 * _15 * mem[480] * mem[640] + 3 * (_57 * _58 / (3 * _56)) * mem[640]) / (3 * _15 * mem[480] + 3 * (_57 * _58 / (3 * _56))) == mem[640] or not 3 * _15 * mem[480] + 3 * (_57 * _58 / (3 * _56))
-          require 3 * _15 >= 1
+          require (3 * _15 * mem[480] * mem[640] + 3 * (_57 * _58 / (3 * _56)) * mem[640]) / SafeMath.add(3 * _15 * mem[480], 3 * (_57 * _58 / (3 * _56))) == mem[640] or not SafeMath.add(3 * _15 * mem[480], 3 * (_57 * _58 / (3 * _56)))
           _83 = mem[640]
-          require (-mem[640] + 3 * _15 * mem[640]) / (3 * _15 - 1) == mem[640] or 3 * _15 == 1
+          require (-mem[640] + 3 * _15 * mem[640]) / SafeMath.sub(3 * _15, 1) == mem[640] or 3 * _15 == 1
           require Mask(254, 0, _57 * _58 / (3 * _56)) == _57 * _58 / (3 * _56)
           require -mem[640] + 3 * _15 * mem[640] + 4 * (_57 * _58 / (3 * _56)) >= -mem[640] + 3 * _15 * mem[640]
           require 3 * _15 * mem[640] + 4 * (_57 * _58 / (3 * _56)) != mem[640]
           mem[640] = (3 * _15 * mem[480] * mem[640] + 3 * (_57 * _58 / (3 * _56)) * mem[640]) / (-mem[640] + 3 * _15 * mem[640] + 4 * (_57 * _58 / (3 * _56)))
           if (3 * _15 * mem[480] * _78 + 3 * (_57 * _58 / (3 * _56)) * _78) / (-_83 + 3 * _15 * _83 + 4 * (_57 * _58 / (3 * _56))) <= _71:
-              require _71 >= (3 * _15 * mem[480] * _78 + 3 * (_57 * _58 / (3 * _56)) * _78) / (-_83 + 3 * _15 * _83 + 4 * (_57 * _58 / (3 * _56)))
-              if _71 - (3 * _15 * mem[480] * _78 + 3 * (_57 * _58 / (3 * _56)) * _78) / (-_83 + 3 * _15 * _83 + 4 * (_57 * _58 / (3 * _56))) > 1:
+              if SafeMath.sub(_71, (3 * _15 * mem[480] * _78 + 3 * (_57 * _58 / (3 * _56)) * _78) / (-_83 + 3 * _15 * _83 + 4 * (_57 * _58 / (3 * _56)))) > 1:
                   _86 = mem[704]
                   mem[704] = mem[704] + 1
                   if _86 + 1 != 255:
                       continue
           else:
-              require (3 * _15 * mem[480] * _78 + 3 * (_57 * _58 / (3 * _56)) * _78) / (-_83 + 3 * _15 * _83 + 4 * (_57 * _58 / (3 * _56))) >= _71
-              if (3 * _15 * mem[480] * _78 + 3 * (_57 * _58 / (3 * _56)) * _78) / (-_83 + 3 * _15 * _83 + 4 * (_57 * _58 / (3 * _56))) - _71 > 1:
+              if SafeMath.sub((3 * _15 * mem[480] * _78 + 3 * (_57 * _58 / (3 * _56)) * _78) / (-_83 + 3 * _15 * _83 + 4 * (_57 * _58 / (3 * _56))), _71) > 1:
                   _87 = mem[704]
                   mem[704] = mem[704] + 1
                   if _87 + 1 != 255:
@@ -754,24 +718,20 @@ def get_dy_underlying(int128 i, int128 j, uint256 dx): # not payable
               require mem[1056] < 3
               _97 = mem[32 * mem[1056] + 416]
               mem[1024] = mem[32 * mem[1056] + 416]
-              require mem[960] + _97 >= mem[960]
-              mem[960] = mem[960] + _97
+              mem[960] = SafeMath.add(mem[960], _97)
               require mem[928] * _88 / mem[928] == _88 or not mem[928]
               require 3 * _97 / _97 == 3 or not _97
-              require 3 * _97
-              mem[928] = mem[928] * _88 / (3 * _97)
+              mem[928] = SafeMath.div(mem[928] * _88, 3 * _97)
           _113 = mem[1056]
           mem[1056] = mem[1056] + 1
           if _113 + 1 != 3:
               continue
           break
       mem[1024] = _11 + dx * _12
-      require mem[960] + _11 + dx * _12 >= mem[960]
-      mem[960] = mem[960] + _11 + dx * _12
+      mem[960] = SafeMath.add(mem[960], _11 + dx * _12)
       require mem[928] * _88 / mem[928] == _88 or not mem[928]
       require (3 * _11 + 3 * dx * _12) / (_11 + dx * _12) == 3 or not _11 + dx * _12
-      require 3 * _11 + 3 * dx * _12
-      mem[928] = mem[928] * _88 / (3 * _11 + 3 * dx * _12)
+      mem[928] = SafeMath.div(mem[928] * _88, 3 * _11 + 3 * dx * _12)
       _109 = mem[1056]
       mem[1056] = mem[1056] + 1
       if _109 + 1 != 3:
@@ -779,11 +739,8 @@ def get_dy_underlying(int128 i, int128 j, uint256 dx): # not payable
       break
   require mem[928] * _88 / mem[928] == _88 or not mem[928]
   require 9 * _15 / (3 * _15) == 3 or not 3 * _15
-  require 9 * _15
-  mem[928] = mem[928] * _88 / (9 * _15)
-  require 3 * _15
-  require mem[960] + _88 / (3 * _15) >= mem[960]
-  mem[1088] = mem[960] + _88 / (3 * _15)
+  mem[928] = SafeMath.div(mem[928] * _88, 9 * _15)
+  mem[1088] = SafeMath.add(mem[960], SafeMath.div(_88, 3 * _15))
   mem[1120] = 0
   mem[1152] = _88
   mem[1184] = 0
@@ -798,21 +755,18 @@ def get_dy_underlying(int128 i, int128 j, uint256 dx): # not payable
       _126 = mem[1152]
       require uint255(mem[1152]) == mem[1152]
       _127 = mem[960] + _88 / (3 * _15)
-      require 2 * mem[1152] + mem[960] + _88 / (3 * _15) >= 2 * mem[1152]
       _128 = _88
-      require 2 * mem[1152] + mem[960] + _88 / (3 * _15) >= _88
-      require 2 * mem[1152] + mem[960] + _88 / (3 * _15) != _88
+      require SafeMath.add(2 * mem[1152], mem[960] + _88 / (3 * _15)) >= _88
+      require SafeMath.add(2 * mem[1152], mem[960] + _88 / (3 * _15)) != _88
       mem[1152] = (mem[1152] * mem[1152] + mem[928]) / (2 * mem[1152] + mem[960] + _88 / (3 * _15) - _88)
       if (_123 * _124 + mem[928]) / (2 * _126 + mem[960] + _88 / (3 * _15) - _88) <= _122:
-          require _122 >= (_123 * _124 + mem[928]) / (2 * _126 + mem[960] + _88 / (3 * _15) - _88)
-          if _122 - (_123 * _124 + mem[928]) / (2 * _126 + mem[960] + _88 / (3 * _15) - _88) > 1:
+          if SafeMath.sub(_122, (_123 * _124 + mem[928]) / (2 * _126 + mem[960] + _88 / (3 * _15) - _88)) > 1:
               _129 = mem[1184]
               mem[1184] = mem[1184] + 1
               if _129 + 1 != 255:
                   continue
           break
-      require (_123 * _124 + mem[928]) / (2 * _126 + mem[960] + _88 / (3 * _15) - _88) >= _122
-      if (_123 * _124 + mem[928]) / (2 * _126 + mem[960] + _88 / (3 * _15) - _88) - _122 > 1:
+      if SafeMath.sub((_123 * _124 + mem[928]) / (2 * _126 + mem[960] + _88 / (3 * _15) - _88), _122) > 1:
           _130 = mem[1184]
           mem[1184] = mem[1184] + 1
           if _130 + 1 != 255:
@@ -834,12 +788,9 @@ def get_dy_underlying(int128 i, int128 j, uint256 dx): # not payable
   mem[704] = 288
   mem[672] = (_123 * _124 + _125) / (2 * _126 + _127 - _128)
   require j < 3
-  require mem[32 * j + 320] >= (_123 * _124 + _125) / (2 * _126 + _127 - _128)
-  require mem[32 * j + 320] - (_123 * _124 + _125) / (2 * _126 + _127 - _128) >= 1
-  require mem[32 * j + 544]
-  require fee * ((mem[32 * j + 320] - (_123 * _124 + _125) / (2 * _126 + _127 - _128) - 1) / mem[32 * j + 544]) / fee == (mem[32 * j + 320] - (_123 * _124 + _125) / (2 * _126 + _127 - _128) - 1) / mem[32 * j + 544] or not fee
-  require (mem[32 * j + 320] - (_123 * _124 + _125) / (2 * _126 + _127 - _128) - 1) / mem[32 * j + 544] >= fee * ((mem[32 * j + 320] - (_123 * _124 + _125) / (2 * _126 + _127 - _128) - 1) / mem[32 * j + 544]) / 10**10
-  return (mem[32 * j + 320] - (_123 * _124 + _125) / (2 * _126 + _127 - _128) - 1) / mem[32 * j + 544] - fee * ((mem[32 * j + 320] - (_123 * _124 + _125) / (2 * _126 + _127 - _128) - 1) / mem[32 * j + 544]) / 10**10
+  require SafeMath.sub(mem[32 * j + 320], (_123 * _124 + _125) / (2 * _126 + _127 - _128)) >= 1
+  require fee * SafeMath.div(mem[32 * j + 320] - (_123 * _124 + _125) / (2 * _126 + _127 - _128) - 1, mem[32 * j + 544]) / fee == SafeMath.div(mem[32 * j + 320] - (_123 * _124 + _125) / (2 * _126 + _127 - _128) - 1, mem[32 * j + 544]) or not fee
+  return SafeMath.sub(SafeMath.div(mem[32 * j + 320] - (_123 * _124 + _125) / (2 * _126 + _127 - _128) - 1, mem[32 * j + 544]), fee * SafeMath.div(mem[32 * j + 320] - (_123 * _124 + _125) / (2 * _126 + _127 - _128) - 1, mem[32 * j + 544]) / 10**10)
 
 def get_dy(int128 i, int128 j, uint256 dx): # not payable
   mem[32] = 0x10000000000000000000000000000000000000000
@@ -854,8 +805,7 @@ def get_dy(int128 i, int128 j, uint256 dx): # not payable
   mem[384] = 1000000000000 * 10**18
   mem[416] = 1000000000000 * 10**18
   mem[192] = 1
-  require 10**18 * balances[0] / 10**18 == balances[0]
-  mem[352] = 10**18 * balances[0] / 10**18
+  mem[352] = SafeMath.mul(10**18, balances[0]) / 10**18
   _7 = 0
   mem[448] = 1
   while _7 + 1 != 3:
@@ -884,8 +834,7 @@ def get_dy(int128 i, int128 j, uint256 dx): # not payable
   _11 = mem[32 * i + 416]
   _12 = mem[32 * i + 320]
   require dx * mem[32 * i + 320] / dx == mem[32 * i + 320] or not dx
-  require mem[32 * i + 416] + dx * mem[32 * i + 320] / 10**18 >= mem[32 * i + 416]
-  mem[640] = mem[32 * i + 416] + dx * mem[32 * i + 320] / 10**18
+  mem[640] = SafeMath.add(mem[32 * i + 416], dx * mem[32 * i + 320] / 10**18)
   _13 = mem[512]
   mem[832] = _10
   mem[864] = _9
@@ -900,20 +849,16 @@ def get_dy(int128 i, int128 j, uint256 dx): # not payable
   else:
       if future_A <= initial_A:
           require initial_A >= future_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == block.timestamp - initial_A_time or initial_A == future_A
+          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == SafeMath.sub(block.timestamp, initial_A_time) or initial_A == future_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A >= (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
-          _15 = initial_A - (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
+          _15 = SafeMath.sub(initial_A, (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time))
       else:
           require future_A >= initial_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == block.timestamp - initial_A_time or future_A == initial_A
+          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == SafeMath.sub(block.timestamp, initial_A_time) or future_A == initial_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time) >= initial_A
-          _15 = initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time)
+          _15 = SafeMath.add(initial_A, (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time))
   mem[608] = _15
   mem[672] = 672
   mem[704] = _10
@@ -935,8 +880,7 @@ def get_dy(int128 i, int128 j, uint256 dx): # not payable
       _21 = mem[32 * mem[544] + 320]
       mem[512] = mem[32 * mem[544] + 320]
       _22 = mem[480]
-      require mem[480] + _21 >= mem[480]
-      mem[480] = mem[480] + _21
+      mem[480] = SafeMath.add(mem[480], _21)
       _23 = mem[544]
       mem[544] = mem[544] + 1
       continue
@@ -953,8 +897,7 @@ def get_dy(int128 i, int128 j, uint256 dx): # not payable
           _58 = mem[640]
           require mem[640] * mem[640] / mem[640] == mem[640] or not mem[640]
           require 3 * _10 / _10 == 3 or not _10
-          require 3 * _10
-          mem[736] = mem[640] * mem[640] / (3 * _10)
+          mem[736] = SafeMath.div(mem[640] * mem[640], 3 * _10)
           _68 = 0
           mem[800] = 1
           while _68 + 1 != 3:
@@ -964,8 +907,7 @@ def get_dy(int128 i, int128 j, uint256 dx): # not payable
               _58 = mem[640]
               require mem[736] * mem[640] / mem[736] == mem[640] or not mem[736]
               require 3 * _56 / _56 == 3 or not _56
-              require 3 * _56
-              mem[736] = mem[736] * mem[640] / (3 * _56)
+              mem[736] = SafeMath.div(mem[736] * mem[640], 3 * _56)
               _68 = mem[800]
               mem[800] = mem[800] + 1
               continue
@@ -973,26 +915,22 @@ def get_dy(int128 i, int128 j, uint256 dx): # not payable
           mem[608] = mem[640]
           require 3 * _15 * mem[480] / (3 * _15) == mem[480] or not 3 * _15
           require 3 * (_57 * _58 / (3 * _56)) / (_57 * _58 / (3 * _56)) == 3 or not _57 * _58 / (3 * _56)
-          require 3 * _15 * mem[480] + 3 * (_57 * _58 / (3 * _56)) >= 3 * _15 * mem[480]
           _78 = mem[640]
-          require (3 * _15 * mem[480] * mem[640] + 3 * (_57 * _58 / (3 * _56)) * mem[640]) / (3 * _15 * mem[480] + 3 * (_57 * _58 / (3 * _56))) == mem[640] or not 3 * _15 * mem[480] + 3 * (_57 * _58 / (3 * _56))
-          require 3 * _15 >= 1
+          require (3 * _15 * mem[480] * mem[640] + 3 * (_57 * _58 / (3 * _56)) * mem[640]) / SafeMath.add(3 * _15 * mem[480], 3 * (_57 * _58 / (3 * _56))) == mem[640] or not SafeMath.add(3 * _15 * mem[480], 3 * (_57 * _58 / (3 * _56)))
           _83 = mem[640]
-          require (-mem[640] + 3 * _15 * mem[640]) / (3 * _15 - 1) == mem[640] or 3 * _15 == 1
+          require (-mem[640] + 3 * _15 * mem[640]) / SafeMath.sub(3 * _15, 1) == mem[640] or 3 * _15 == 1
           require Mask(254, 0, _57 * _58 / (3 * _56)) == _57 * _58 / (3 * _56)
           require -mem[640] + 3 * _15 * mem[640] + 4 * (_57 * _58 / (3 * _56)) >= -mem[640] + 3 * _15 * mem[640]
           require 3 * _15 * mem[640] + 4 * (_57 * _58 / (3 * _56)) != mem[640]
           mem[640] = (3 * _15 * mem[480] * mem[640] + 3 * (_57 * _58 / (3 * _56)) * mem[640]) / (-mem[640] + 3 * _15 * mem[640] + 4 * (_57 * _58 / (3 * _56)))
           if (3 * _15 * mem[480] * _78 + 3 * (_57 * _58 / (3 * _56)) * _78) / (-_83 + 3 * _15 * _83 + 4 * (_57 * _58 / (3 * _56))) <= _71:
-              require _71 >= (3 * _15 * mem[480] * _78 + 3 * (_57 * _58 / (3 * _56)) * _78) / (-_83 + 3 * _15 * _83 + 4 * (_57 * _58 / (3 * _56)))
-              if _71 - (3 * _15 * mem[480] * _78 + 3 * (_57 * _58 / (3 * _56)) * _78) / (-_83 + 3 * _15 * _83 + 4 * (_57 * _58 / (3 * _56))) > 1:
+              if SafeMath.sub(_71, (3 * _15 * mem[480] * _78 + 3 * (_57 * _58 / (3 * _56)) * _78) / (-_83 + 3 * _15 * _83 + 4 * (_57 * _58 / (3 * _56)))) > 1:
                   _86 = mem[704]
                   mem[704] = mem[704] + 1
                   if _86 + 1 != 255:
                       continue
           else:
-              require (3 * _15 * mem[480] * _78 + 3 * (_57 * _58 / (3 * _56)) * _78) / (-_83 + 3 * _15 * _83 + 4 * (_57 * _58 / (3 * _56))) >= _71
-              if (3 * _15 * mem[480] * _78 + 3 * (_57 * _58 / (3 * _56)) * _78) / (-_83 + 3 * _15 * _83 + 4 * (_57 * _58 / (3 * _56))) - _71 > 1:
+              if SafeMath.sub((3 * _15 * mem[480] * _78 + 3 * (_57 * _58 / (3 * _56)) * _78) / (-_83 + 3 * _15 * _83 + 4 * (_57 * _58 / (3 * _56))), _71) > 1:
                   _87 = mem[704]
                   mem[704] = mem[704] + 1
                   if _87 + 1 != 255:
@@ -1023,24 +961,20 @@ def get_dy(int128 i, int128 j, uint256 dx): # not payable
               require mem[1056] < 3
               _97 = mem[32 * mem[1056] + 416]
               mem[1024] = mem[32 * mem[1056] + 416]
-              require mem[960] + _97 >= mem[960]
-              mem[960] = mem[960] + _97
+              mem[960] = SafeMath.add(mem[960], _97)
               require mem[928] * _88 / mem[928] == _88 or not mem[928]
               require 3 * _97 / _97 == 3 or not _97
-              require 3 * _97
-              mem[928] = mem[928] * _88 / (3 * _97)
+              mem[928] = SafeMath.div(mem[928] * _88, 3 * _97)
           _113 = mem[1056]
           mem[1056] = mem[1056] + 1
           if _113 + 1 != 3:
               continue
           break
       mem[1024] = _11 + dx * _12 / 10**18
-      require mem[960] + _11 + dx * _12 / 10**18 >= mem[960]
-      mem[960] = mem[960] + _11 + dx * _12 / 10**18
+      mem[960] = SafeMath.add(mem[960], _11 + dx * _12 / 10**18)
       require mem[928] * _88 / mem[928] == _88 or not mem[928]
       require (3 * _11 + 3 * (dx * _12 / 10**18)) / (_11 + dx * _12 / 10**18) == 3 or not _11 + dx * _12 / 10**18
-      require 3 * _11 + 3 * (dx * _12 / 10**18)
-      mem[928] = mem[928] * _88 / (3 * _11 + 3 * (dx * _12 / 10**18))
+      mem[928] = SafeMath.div(mem[928] * _88, 3 * _11 + 3 * (dx * _12 / 10**18))
       _109 = mem[1056]
       mem[1056] = mem[1056] + 1
       if _109 + 1 != 3:
@@ -1048,11 +982,8 @@ def get_dy(int128 i, int128 j, uint256 dx): # not payable
       break
   require mem[928] * _88 / mem[928] == _88 or not mem[928]
   require 9 * _15 / (3 * _15) == 3 or not 3 * _15
-  require 9 * _15
-  mem[928] = mem[928] * _88 / (9 * _15)
-  require 3 * _15
-  require mem[960] + _88 / (3 * _15) >= mem[960]
-  mem[1088] = mem[960] + _88 / (3 * _15)
+  mem[928] = SafeMath.div(mem[928] * _88, 9 * _15)
+  mem[1088] = SafeMath.add(mem[960], SafeMath.div(_88, 3 * _15))
   mem[1120] = 0
   mem[1152] = _88
   mem[1184] = 0
@@ -1067,21 +998,18 @@ def get_dy(int128 i, int128 j, uint256 dx): # not payable
       _126 = mem[1152]
       require uint255(mem[1152]) == mem[1152]
       _127 = mem[960] + _88 / (3 * _15)
-      require 2 * mem[1152] + mem[960] + _88 / (3 * _15) >= 2 * mem[1152]
       _128 = _88
-      require 2 * mem[1152] + mem[960] + _88 / (3 * _15) >= _88
-      require 2 * mem[1152] + mem[960] + _88 / (3 * _15) != _88
+      require SafeMath.add(2 * mem[1152], mem[960] + _88 / (3 * _15)) >= _88
+      require SafeMath.add(2 * mem[1152], mem[960] + _88 / (3 * _15)) != _88
       mem[1152] = (mem[1152] * mem[1152] + mem[928]) / (2 * mem[1152] + mem[960] + _88 / (3 * _15) - _88)
       if (_123 * _124 + mem[928]) / (2 * _126 + mem[960] + _88 / (3 * _15) - _88) <= _122:
-          require _122 >= (_123 * _124 + mem[928]) / (2 * _126 + mem[960] + _88 / (3 * _15) - _88)
-          if _122 - (_123 * _124 + mem[928]) / (2 * _126 + mem[960] + _88 / (3 * _15) - _88) > 1:
+          if SafeMath.sub(_122, (_123 * _124 + mem[928]) / (2 * _126 + mem[960] + _88 / (3 * _15) - _88)) > 1:
               _129 = mem[1184]
               mem[1184] = mem[1184] + 1
               if _129 + 1 != 255:
                   continue
           break
-      require (_123 * _124 + mem[928]) / (2 * _126 + mem[960] + _88 / (3 * _15) - _88) >= _122
-      if (_123 * _124 + mem[928]) / (2 * _126 + mem[960] + _88 / (3 * _15) - _88) - _122 > 1:
+      if SafeMath.sub((_123 * _124 + mem[928]) / (2 * _126 + mem[960] + _88 / (3 * _15) - _88), _122) > 1:
           _130 = mem[1184]
           mem[1184] = mem[1184] + 1
           if _130 + 1 != 255:
@@ -1103,13 +1031,10 @@ def get_dy(int128 i, int128 j, uint256 dx): # not payable
   mem[704] = 288
   mem[672] = (_123 * _124 + _125) / (2 * _126 + _127 - _128)
   require j < 3
-  require mem[32 * j + 416] >= (_123 * _124 + _125) / (2 * _126 + _127 - _128)
-  require mem[32 * j + 416] - (_123 * _124 + _125) / (2 * _126 + _127 - _128) >= 1
+  require SafeMath.sub(mem[32 * j + 416], (_123 * _124 + _125) / (2 * _126 + _127 - _128)) >= 1
   require (10**18 * mem[32 * j + 416] - 10**18 * ((_123 * _124 + _125) / (2 * _126 + _127 - _128)) - 10**18) / (mem[32 * j + 416] - (_123 * _124 + _125) / (2 * _126 + _127 - _128) - 1) == 10**18 or not mem[32 * j + 416] - (_123 * _124 + _125) / (2 * _126 + _127 - _128) - 1
-  require mem[32 * j + 320]
-  require fee * ((10**18 * mem[32 * j + 416] - 10**18 * ((_123 * _124 + _125) / (2 * _126 + _127 - _128)) - 10**18) / mem[32 * j + 320]) / fee == (10**18 * mem[32 * j + 416] - 10**18 * ((_123 * _124 + _125) / (2 * _126 + _127 - _128)) - 10**18) / mem[32 * j + 320] or not fee
-  require (10**18 * mem[32 * j + 416] - 10**18 * ((_123 * _124 + _125) / (2 * _126 + _127 - _128)) - 10**18) / mem[32 * j + 320] >= fee * ((10**18 * mem[32 * j + 416] - 10**18 * ((_123 * _124 + _125) / (2 * _126 + _127 - _128)) - 10**18) / mem[32 * j + 320]) / 10**10
-  return (10**18 * mem[32 * j + 416] - 10**18 * ((_123 * _124 + _125) / (2 * _126 + _127 - _128)) - 10**18) / mem[32 * j + 320] - fee * ((10**18 * mem[32 * j + 416] - 10**18 * ((_123 * _124 + _125) / (2 * _126 + _127 - _128)) - 10**18) / mem[32 * j + 320]) / 10**10
+  require fee * SafeMath.div(10**18 * mem[32 * j + 416] - 10**18 * ((_123 * _124 + _125) / (2 * _126 + _127 - _128)) - 10**18, mem[32 * j + 320]) / fee == SafeMath.div(10**18 * mem[32 * j + 416] - 10**18 * ((_123 * _124 + _125) / (2 * _126 + _127 - _128)) - 10**18, mem[32 * j + 320]) or not fee
+  return SafeMath.sub(SafeMath.div(10**18 * mem[32 * j + 416] - 10**18 * ((_123 * _124 + _125) / (2 * _126 + _127 - _128)) - 10**18, mem[32 * j + 320]), fee * SafeMath.div(10**18 * mem[32 * j + 416] - 10**18 * ((_123 * _124 + _125) / (2 * _126 + _127 - _128)) - 10**18, mem[32 * j + 320]) / 10**10)
 
 def calc_token_amount(uint256[3] amounts, bool deposit): # not payable
   require deposit < 2
@@ -1119,20 +1044,16 @@ def calc_token_amount(uint256[3] amounts, bool deposit): # not payable
       mem[448] = initial_A
       if future_A <= initial_A:
           require initial_A >= future_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == block.timestamp - initial_A_time or initial_A == future_A
+          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == SafeMath.sub(block.timestamp, initial_A_time) or initial_A == future_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A >= (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
-          _4 = initial_A - (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
+          _4 = SafeMath.sub(initial_A, (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time))
       else:
           require future_A >= initial_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == block.timestamp - initial_A_time or future_A == initial_A
+          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == SafeMath.sub(block.timestamp, initial_A_time) or future_A == initial_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time) >= initial_A
-          _4 = initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time)
+          _4 = SafeMath.add(initial_A, (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time))
   _5 = mem[448]
   mem[576] = balances[0]
   mem[608] = balances[1]
@@ -1149,8 +1070,7 @@ def calc_token_amount(uint256[3] amounts, bool deposit): # not payable
   mem[384] = balances[2]
   mem[480] = 1000000000000 * 10**18
   mem[512] = 1000000000000 * 10**18
-  require 10**18 * balances[0] / 10**18 == balances[0]
-  mem[448] = 10**18 * balances[0] / 10**18
+  mem[448] = SafeMath.mul(10**18, balances[0]) / 10**18
   _11 = 0
   mem[544] = 1
   while _11 + 1 != 3:
@@ -1192,8 +1112,7 @@ def calc_token_amount(uint256[3] amounts, bool deposit): # not payable
       _16 = mem[32 * mem[544] + 320]
       mem[512] = mem[32 * mem[544] + 320]
       _17 = mem[480]
-      require mem[480] + _16 >= mem[480]
-      mem[480] = mem[480] + _16
+      mem[480] = SafeMath.add(mem[480], _16)
       _18 = mem[544]
       mem[544] = mem[544] + 1
       continue
@@ -1210,8 +1129,7 @@ def calc_token_amount(uint256[3] amounts, bool deposit): # not payable
           _40 = mem[640]
           require mem[640] * mem[640] / mem[640] == mem[640] or not mem[640]
           require 3 * _14 / _14 == 3 or not _14
-          require 3 * _14
-          mem[736] = mem[640] * mem[640] / (3 * _14)
+          mem[736] = SafeMath.div(mem[640] * mem[640], 3 * _14)
           _41 = 0
           mem[800] = 1
           while _41 + 1 != 3:
@@ -1221,8 +1139,7 @@ def calc_token_amount(uint256[3] amounts, bool deposit): # not payable
               _40 = mem[640]
               require mem[736] * mem[640] / mem[736] == mem[640] or not mem[736]
               require 3 * _38 / _38 == 3 or not _38
-              require 3 * _38
-              mem[736] = mem[736] * mem[640] / (3 * _38)
+              mem[736] = SafeMath.div(mem[736] * mem[640], 3 * _38)
               _41 = mem[800]
               mem[800] = mem[800] + 1
               continue
@@ -1230,26 +1147,22 @@ def calc_token_amount(uint256[3] amounts, bool deposit): # not payable
           mem[608] = mem[640]
           require 3 * _4 * mem[480] / (3 * _4) == mem[480] or not 3 * _4
           require 3 * (_39 * _40 / (3 * _38)) / (_39 * _40 / (3 * _38)) == 3 or not _39 * _40 / (3 * _38)
-          require 3 * _4 * mem[480] + 3 * (_39 * _40 / (3 * _38)) >= 3 * _4 * mem[480]
           _45 = mem[640]
-          require (3 * _4 * mem[480] * mem[640] + 3 * (_39 * _40 / (3 * _38)) * mem[640]) / (3 * _4 * mem[480] + 3 * (_39 * _40 / (3 * _38))) == mem[640] or not 3 * _4 * mem[480] + 3 * (_39 * _40 / (3 * _38))
-          require 3 * _4 >= 1
+          require (3 * _4 * mem[480] * mem[640] + 3 * (_39 * _40 / (3 * _38)) * mem[640]) / SafeMath.add(3 * _4 * mem[480], 3 * (_39 * _40 / (3 * _38))) == mem[640] or not SafeMath.add(3 * _4 * mem[480], 3 * (_39 * _40 / (3 * _38)))
           _47 = mem[640]
-          require (-mem[640] + 3 * _4 * mem[640]) / (3 * _4 - 1) == mem[640] or 3 * _4 == 1
+          require (-mem[640] + 3 * _4 * mem[640]) / SafeMath.sub(3 * _4, 1) == mem[640] or 3 * _4 == 1
           require Mask(254, 0, _39 * _40 / (3 * _38)) == _39 * _40 / (3 * _38)
           require -mem[640] + 3 * _4 * mem[640] + 4 * (_39 * _40 / (3 * _38)) >= -mem[640] + 3 * _4 * mem[640]
           require 3 * _4 * mem[640] + 4 * (_39 * _40 / (3 * _38)) != mem[640]
           mem[640] = (3 * _4 * mem[480] * mem[640] + 3 * (_39 * _40 / (3 * _38)) * mem[640]) / (-mem[640] + 3 * _4 * mem[640] + 4 * (_39 * _40 / (3 * _38)))
           if (3 * _4 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _4 * _47 + 4 * (_39 * _40 / (3 * _38))) <= _42:
-              require _42 >= (3 * _4 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _4 * _47 + 4 * (_39 * _40 / (3 * _38)))
-              if _42 - (3 * _4 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _4 * _47 + 4 * (_39 * _40 / (3 * _38))) > 1:
+              if SafeMath.sub(_42, (3 * _4 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _4 * _47 + 4 * (_39 * _40 / (3 * _38)))) > 1:
                   _48 = mem[704]
                   mem[704] = mem[704] + 1
                   if _48 + 1 != 255:
                       continue
           else:
-              require (3 * _4 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _4 * _47 + 4 * (_39 * _40 / (3 * _38))) >= _42
-              if (3 * _4 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _4 * _47 + 4 * (_39 * _40 / (3 * _38))) - _42 > 1:
+              if SafeMath.sub((3 * _4 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _4 * _47 + 4 * (_39 * _40 / (3 * _38))), _42) > 1:
                   _49 = mem[704]
                   mem[704] = mem[704] + 1
                   if _49 + 1 != 255:
@@ -1282,22 +1195,18 @@ def calc_token_amount(uint256[3] amounts, bool deposit): # not payable
   mem[352] = balances[1]
   mem[512] = _50
   if not deposit:
-      require balances[0] >= amounts[0]
-      mem[320] = balances[0] - amounts[0]
+      mem[320] = SafeMath.sub(balances[0], amounts[0])
   else:
-      require balances[0] + amounts[0] >= balances[0]
-      mem[320] = balances[0] + amounts[0]
+      mem[320] = SafeMath.add(balances[0], amounts[0])
   _57 = 0
   mem[800] = 1
   while _57 + 1 != 3:
       require mem[800] < 3
       require mem[800] < 3
       if not deposit:
-          require mem[32 * mem[800] + 320] >= cd[32 * mem[800] + 4]
-          mem[32 * mem[800] + 320] = mem[32 * mem[800] + 320] - cd[32 * mem[800] + 4]
+          mem[32 * mem[800] + 320] = SafeMath.sub(mem[32 * mem[800] + 320], cd[32 * mem[800] + 4])
       else:
-          require mem[32 * mem[800] + 320] + cd[32 * mem[800] + 4] >= mem[32 * mem[800] + 320]
-          mem[32 * mem[800] + 320] = mem[32 * mem[800] + 320] + cd[32 * mem[800] + 4]
+          mem[32 * mem[800] + 320] = SafeMath.add(mem[32 * mem[800] + 320], cd[32 * mem[800] + 4])
       _57 = mem[800]
       mem[800] = mem[800] + 1
       continue
@@ -1321,8 +1230,7 @@ def calc_token_amount(uint256[3] amounts, bool deposit): # not payable
   mem[416] = 2135
   mem[480] = 1000000000000 * 10**18
   mem[512] = 1000000000000 * 10**18
-  require 10**18 * mem[320] / 10**18 == mem[320]
-  mem[448] = 10**18 * mem[320] / 10**18
+  mem[448] = SafeMath.mul(10**18, mem[320]) / 10**18
   _104 = 0
   mem[544] = 1
   while _104 + 1 != 3:
@@ -1364,8 +1272,7 @@ def calc_token_amount(uint256[3] amounts, bool deposit): # not payable
       _109 = mem[32 * mem[544] + 320]
       mem[512] = mem[32 * mem[544] + 320]
       _110 = mem[480]
-      require mem[480] + _109 >= mem[480]
-      mem[480] = mem[480] + _109
+      mem[480] = SafeMath.add(mem[480], _109)
       _111 = mem[544]
       mem[544] = mem[544] + 1
       continue
@@ -1382,8 +1289,7 @@ def calc_token_amount(uint256[3] amounts, bool deposit): # not payable
           _133 = mem[640]
           require mem[640] * mem[640] / mem[640] == mem[640] or not mem[640]
           require 3 * _107 / _107 == 3 or not _107
-          require 3 * _107
-          mem[736] = mem[640] * mem[640] / (3 * _107)
+          mem[736] = SafeMath.div(mem[640] * mem[640], 3 * _107)
           _134 = 0
           mem[800] = 1
           while _134 + 1 != 3:
@@ -1393,8 +1299,7 @@ def calc_token_amount(uint256[3] amounts, bool deposit): # not payable
               _133 = mem[640]
               require mem[736] * mem[640] / mem[736] == mem[640] or not mem[736]
               require 3 * _131 / _131 == 3 or not _131
-              require 3 * _131
-              mem[736] = mem[736] * mem[640] / (3 * _131)
+              mem[736] = SafeMath.div(mem[736] * mem[640], 3 * _131)
               _134 = mem[800]
               mem[800] = mem[800] + 1
               continue
@@ -1402,26 +1307,22 @@ def calc_token_amount(uint256[3] amounts, bool deposit): # not payable
           mem[608] = mem[640]
           require 3 * _77 * mem[480] / (3 * _77) == mem[480] or not 3 * _77
           require 3 * (_132 * _133 / (3 * _131)) / (_132 * _133 / (3 * _131)) == 3 or not _132 * _133 / (3 * _131)
-          require 3 * _77 * mem[480] + 3 * (_132 * _133 / (3 * _131)) >= 3 * _77 * mem[480]
           _138 = mem[640]
-          require (3 * _77 * mem[480] * mem[640] + 3 * (_132 * _133 / (3 * _131)) * mem[640]) / (3 * _77 * mem[480] + 3 * (_132 * _133 / (3 * _131))) == mem[640] or not 3 * _77 * mem[480] + 3 * (_132 * _133 / (3 * _131))
-          require 3 * _77 >= 1
+          require (3 * _77 * mem[480] * mem[640] + 3 * (_132 * _133 / (3 * _131)) * mem[640]) / SafeMath.add(3 * _77 * mem[480], 3 * (_132 * _133 / (3 * _131))) == mem[640] or not SafeMath.add(3 * _77 * mem[480], 3 * (_132 * _133 / (3 * _131)))
           _140 = mem[640]
-          require (-mem[640] + 3 * _77 * mem[640]) / (3 * _77 - 1) == mem[640] or 3 * _77 == 1
+          require (-mem[640] + 3 * _77 * mem[640]) / SafeMath.sub(3 * _77, 1) == mem[640] or 3 * _77 == 1
           require Mask(254, 0, _132 * _133 / (3 * _131)) == _132 * _133 / (3 * _131)
           require -mem[640] + 3 * _77 * mem[640] + 4 * (_132 * _133 / (3 * _131)) >= -mem[640] + 3 * _77 * mem[640]
           require 3 * _77 * mem[640] + 4 * (_132 * _133 / (3 * _131)) != mem[640]
           mem[640] = (3 * _77 * mem[480] * mem[640] + 3 * (_132 * _133 / (3 * _131)) * mem[640]) / (-mem[640] + 3 * _77 * mem[640] + 4 * (_132 * _133 / (3 * _131)))
           if (3 * _77 * mem[480] * _138 + 3 * (_132 * _133 / (3 * _131)) * _138) / (-_140 + 3 * _77 * _140 + 4 * (_132 * _133 / (3 * _131))) <= _135:
-              require _135 >= (3 * _77 * mem[480] * _138 + 3 * (_132 * _133 / (3 * _131)) * _138) / (-_140 + 3 * _77 * _140 + 4 * (_132 * _133 / (3 * _131)))
-              if _135 - (3 * _77 * mem[480] * _138 + 3 * (_132 * _133 / (3 * _131)) * _138) / (-_140 + 3 * _77 * _140 + 4 * (_132 * _133 / (3 * _131))) > 1:
+              if SafeMath.sub(_135, (3 * _77 * mem[480] * _138 + 3 * (_132 * _133 / (3 * _131)) * _138) / (-_140 + 3 * _77 * _140 + 4 * (_132 * _133 / (3 * _131)))) > 1:
                   _141 = mem[704]
                   mem[704] = mem[704] + 1
                   if _141 + 1 != 255:
                       continue
           else:
-              require (3 * _77 * mem[480] * _138 + 3 * (_132 * _133 / (3 * _131)) * _138) / (-_140 + 3 * _77 * _140 + 4 * (_132 * _133 / (3 * _131))) >= _135
-              if (3 * _77 * mem[480] * _138 + 3 * (_132 * _133 / (3 * _131)) * _138) / (-_140 + 3 * _77 * _140 + 4 * (_132 * _133 / (3 * _131))) - _135 > 1:
+              if SafeMath.sub((3 * _77 * mem[480] * _138 + 3 * (_132 * _133 / (3 * _131)) * _138) / (-_140 + 3 * _77 * _140 + 4 * (_132 * _133 / (3 * _131))), _135) > 1:
                   _142 = mem[704]
                   mem[704] = mem[704] + 1
                   if _142 + 1 != 255:
@@ -1435,14 +1336,11 @@ def calc_token_amount(uint256[3] amounts, bool deposit): # not payable
   require ext_call.success
   require return_data.size > 31
   if not deposit:
-      require _64 >= _143
-      mem[1280] = _64 - _143
+      mem[1280] = SafeMath.sub(_64, _143)
   else:
-      require _143 >= _64
-      mem[1280] = _143 - _64
+      mem[1280] = SafeMath.sub(_143, _64)
   require mem[1280] * ext_call.return_data[0] / mem[1280] == ext_call.return_data[0] or not mem[1280]
-  require _64
-  return mem[1280] * ext_call.return_data[0] / _64
+  return SafeMath.div(mem[1280] * ext_call.return_data[0], _64)
 
 def exchange(int128 i, int128 j, uint256 _dx, uint256 _min_dy) payable: 
   mem[32] = 0x10000000000000000000000000000000000000000
@@ -1467,8 +1365,7 @@ def exchange(int128 i, int128 j, uint256 _dx, uint256 _min_dy) payable:
   mem[384] = balances[2]
   mem[480] = 1000000000000 * 10**18
   mem[512] = 1000000000000 * 10**18
-  require 10**18 * balances[0] / 10**18 == balances[0]
-  mem[448] = 10**18 * balances[0] / 10**18
+  mem[448] = SafeMath.mul(10**18, balances[0]) / 10**18
   _9 = 0
   mem[544] = 1
   while _9 + 1 != 3:
@@ -1543,14 +1440,12 @@ def exchange(int128 i, int128 j, uint256 _dx, uint256 _min_dy) payable:
       mem[1920 len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
       require ext_call.success
       require return_data.size > 31
-      require ext_call.return_data[0] >= mem[896]
-      mem[896] = ext_call.return_data[0] - mem[896]
+      mem[896] = SafeMath.sub(ext_call.return_data[0], mem[896])
   _38 = mem[32 * i + 512]
   _39 = mem[896]
   _40 = mem[32 * i + 320]
   require mem[896] * mem[32 * i + 320] / mem[896] == mem[32 * i + 320] or not mem[896]
-  require mem[32 * i + 512] + mem[896] * mem[32 * i + 320] / 10**18 >= mem[32 * i + 512]
-  mem[1952] = mem[32 * i + 512] + mem[896] * mem[32 * i + 320] / 10**18
+  mem[1952] = SafeMath.add(mem[32 * i + 512], mem[896] * mem[32 * i + 320] / 10**18)
   _44 = mem[416]
   _45 = mem[448]
   _46 = mem[480]
@@ -1587,20 +1482,16 @@ def exchange(int128 i, int128 j, uint256 _dx, uint256 _min_dy) payable:
   else:
       if future_A <= initial_A:
           require initial_A >= future_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == block.timestamp - initial_A_time or initial_A == future_A
+          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == SafeMath.sub(block.timestamp, initial_A_time) or initial_A == future_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A >= (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
-          _97 = initial_A - (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
+          _97 = SafeMath.sub(initial_A, (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time))
       else:
           require future_A >= initial_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == block.timestamp - initial_A_time or future_A == initial_A
+          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == SafeMath.sub(block.timestamp, initial_A_time) or future_A == initial_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time) >= initial_A
-          _97 = initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time)
+          _97 = SafeMath.add(initial_A, (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time))
   mem[608] = _97
   mem[672] = 672
   mem[704] = _12
@@ -1622,8 +1513,7 @@ def exchange(int128 i, int128 j, uint256 _dx, uint256 _min_dy) payable:
       _105 = mem[32 * mem[544] + 320]
       mem[512] = mem[32 * mem[544] + 320]
       _106 = mem[480]
-      require mem[480] + _105 >= mem[480]
-      mem[480] = mem[480] + _105
+      mem[480] = SafeMath.add(mem[480], _105)
       _107 = mem[544]
       mem[544] = mem[544] + 1
       continue
@@ -1640,8 +1530,7 @@ def exchange(int128 i, int128 j, uint256 _dx, uint256 _min_dy) payable:
           _142 = mem[640]
           require mem[640] * mem[640] / mem[640] == mem[640] or not mem[640]
           require 3 * _12 / _12 == 3 or not _12
-          require 3 * _12
-          mem[736] = mem[640] * mem[640] / (3 * _12)
+          mem[736] = SafeMath.div(mem[640] * mem[640], 3 * _12)
           _152 = 0
           mem[800] = 1
           while _152 + 1 != 3:
@@ -1651,8 +1540,7 @@ def exchange(int128 i, int128 j, uint256 _dx, uint256 _min_dy) payable:
               _142 = mem[640]
               require mem[736] * mem[640] / mem[736] == mem[640] or not mem[736]
               require 3 * _140 / _140 == 3 or not _140
-              require 3 * _140
-              mem[736] = mem[736] * mem[640] / (3 * _140)
+              mem[736] = SafeMath.div(mem[736] * mem[640], 3 * _140)
               _152 = mem[800]
               mem[800] = mem[800] + 1
               continue
@@ -1660,26 +1548,22 @@ def exchange(int128 i, int128 j, uint256 _dx, uint256 _min_dy) payable:
           mem[608] = mem[640]
           require 3 * _97 * mem[480] / (3 * _97) == mem[480] or not 3 * _97
           require 3 * (_141 * _142 / (3 * _140)) / (_141 * _142 / (3 * _140)) == 3 or not _141 * _142 / (3 * _140)
-          require 3 * _97 * mem[480] + 3 * (_141 * _142 / (3 * _140)) >= 3 * _97 * mem[480]
           _162 = mem[640]
-          require (3 * _97 * mem[480] * mem[640] + 3 * (_141 * _142 / (3 * _140)) * mem[640]) / (3 * _97 * mem[480] + 3 * (_141 * _142 / (3 * _140))) == mem[640] or not 3 * _97 * mem[480] + 3 * (_141 * _142 / (3 * _140))
-          require 3 * _97 >= 1
+          require (3 * _97 * mem[480] * mem[640] + 3 * (_141 * _142 / (3 * _140)) * mem[640]) / SafeMath.add(3 * _97 * mem[480], 3 * (_141 * _142 / (3 * _140))) == mem[640] or not SafeMath.add(3 * _97 * mem[480], 3 * (_141 * _142 / (3 * _140)))
           _167 = mem[640]
-          require (-mem[640] + 3 * _97 * mem[640]) / (3 * _97 - 1) == mem[640] or 3 * _97 == 1
+          require (-mem[640] + 3 * _97 * mem[640]) / SafeMath.sub(3 * _97, 1) == mem[640] or 3 * _97 == 1
           require Mask(254, 0, _141 * _142 / (3 * _140)) == _141 * _142 / (3 * _140)
           require -mem[640] + 3 * _97 * mem[640] + 4 * (_141 * _142 / (3 * _140)) >= -mem[640] + 3 * _97 * mem[640]
           require 3 * _97 * mem[640] + 4 * (_141 * _142 / (3 * _140)) != mem[640]
           mem[640] = (3 * _97 * mem[480] * mem[640] + 3 * (_141 * _142 / (3 * _140)) * mem[640]) / (-mem[640] + 3 * _97 * mem[640] + 4 * (_141 * _142 / (3 * _140)))
           if (3 * _97 * mem[480] * _162 + 3 * (_141 * _142 / (3 * _140)) * _162) / (-_167 + 3 * _97 * _167 + 4 * (_141 * _142 / (3 * _140))) <= _155:
-              require _155 >= (3 * _97 * mem[480] * _162 + 3 * (_141 * _142 / (3 * _140)) * _162) / (-_167 + 3 * _97 * _167 + 4 * (_141 * _142 / (3 * _140)))
-              if _155 - (3 * _97 * mem[480] * _162 + 3 * (_141 * _142 / (3 * _140)) * _162) / (-_167 + 3 * _97 * _167 + 4 * (_141 * _142 / (3 * _140))) > 1:
+              if SafeMath.sub(_155, (3 * _97 * mem[480] * _162 + 3 * (_141 * _142 / (3 * _140)) * _162) / (-_167 + 3 * _97 * _167 + 4 * (_141 * _142 / (3 * _140)))) > 1:
                   _170 = mem[704]
                   mem[704] = mem[704] + 1
                   if _170 + 1 != 255:
                       continue
           else:
-              require (3 * _97 * mem[480] * _162 + 3 * (_141 * _142 / (3 * _140)) * _162) / (-_167 + 3 * _97 * _167 + 4 * (_141 * _142 / (3 * _140))) >= _155
-              if (3 * _97 * mem[480] * _162 + 3 * (_141 * _142 / (3 * _140)) * _162) / (-_167 + 3 * _97 * _167 + 4 * (_141 * _142 / (3 * _140))) - _155 > 1:
+              if SafeMath.sub((3 * _97 * mem[480] * _162 + 3 * (_141 * _142 / (3 * _140)) * _162) / (-_167 + 3 * _97 * _167 + 4 * (_141 * _142 / (3 * _140))), _155) > 1:
                   _171 = mem[704]
                   mem[704] = mem[704] + 1
                   if _171 + 1 != 255:
@@ -1710,24 +1594,20 @@ def exchange(int128 i, int128 j, uint256 _dx, uint256 _min_dy) payable:
               require mem[1056] < 3
               _181 = mem[32 * mem[1056] + 416]
               mem[1024] = mem[32 * mem[1056] + 416]
-              require mem[960] + _181 >= mem[960]
-              mem[960] = mem[960] + _181
+              mem[960] = SafeMath.add(mem[960], _181)
               require mem[928] * _172 / mem[928] == _172 or not mem[928]
               require 3 * _181 / _181 == 3 or not _181
-              require 3 * _181
-              mem[928] = mem[928] * _172 / (3 * _181)
+              mem[928] = SafeMath.div(mem[928] * _172, 3 * _181)
           _197 = mem[1056]
           mem[1056] = mem[1056] + 1
           if _197 + 1 != 3:
               continue
           break
       mem[1024] = _38 + _39 * _40 / 10**18
-      require mem[960] + _38 + _39 * _40 / 10**18 >= mem[960]
-      mem[960] = mem[960] + _38 + _39 * _40 / 10**18
+      mem[960] = SafeMath.add(mem[960], _38 + _39 * _40 / 10**18)
       require mem[928] * _172 / mem[928] == _172 or not mem[928]
       require (3 * _38 + 3 * (_39 * _40 / 10**18)) / (_38 + _39 * _40 / 10**18) == 3 or not _38 + _39 * _40 / 10**18
-      require 3 * _38 + 3 * (_39 * _40 / 10**18)
-      mem[928] = mem[928] * _172 / (3 * _38 + 3 * (_39 * _40 / 10**18))
+      mem[928] = SafeMath.div(mem[928] * _172, 3 * _38 + 3 * (_39 * _40 / 10**18))
       _193 = mem[1056]
       mem[1056] = mem[1056] + 1
       if _193 + 1 != 3:
@@ -1735,10 +1615,8 @@ def exchange(int128 i, int128 j, uint256 _dx, uint256 _min_dy) payable:
       break
   require mem[928] * _172 / mem[928] == _172 or not mem[928]
   require 9 * _97 / (3 * _97) == 3 or not 3 * _97
-  require 9 * _97
-  mem[928] = mem[928] * _172 / (9 * _97)
-  require 3 * _97
-  require mem[960] + _172 / (3 * _97) >= mem[960]
+  mem[928] = SafeMath.div(mem[928] * _172, 9 * _97)
+  require mem[960] + SafeMath.div(_172, 3 * _97) >= mem[960]
   mem[1152] = _172
   mem[1184] = 0
   while True:
@@ -1752,21 +1630,18 @@ def exchange(int128 i, int128 j, uint256 _dx, uint256 _min_dy) payable:
       _210 = mem[1152]
       require uint255(mem[1152]) == mem[1152]
       _211 = mem[960] + _172 / (3 * _97)
-      require 2 * mem[1152] + mem[960] + _172 / (3 * _97) >= 2 * mem[1152]
       _212 = _172
-      require 2 * mem[1152] + mem[960] + _172 / (3 * _97) >= _172
-      require 2 * mem[1152] + mem[960] + _172 / (3 * _97) != _172
+      require SafeMath.add(2 * mem[1152], mem[960] + _172 / (3 * _97)) >= _172
+      require SafeMath.add(2 * mem[1152], mem[960] + _172 / (3 * _97)) != _172
       mem[1152] = (mem[1152] * mem[1152] + mem[928]) / (2 * mem[1152] + mem[960] + _172 / (3 * _97) - _172)
       if (_207 * _208 + mem[928]) / (2 * _210 + mem[960] + _172 / (3 * _97) - _172) <= _206:
-          require _206 >= (_207 * _208 + mem[928]) / (2 * _210 + mem[960] + _172 / (3 * _97) - _172)
-          if _206 - (_207 * _208 + mem[928]) / (2 * _210 + mem[960] + _172 / (3 * _97) - _172) > 1:
+          if SafeMath.sub(_206, (_207 * _208 + mem[928]) / (2 * _210 + mem[960] + _172 / (3 * _97) - _172)) > 1:
               _213 = mem[1184]
               mem[1184] = mem[1184] + 1
               if _213 + 1 != 255:
                   continue
           break
-      require (_207 * _208 + mem[928]) / (2 * _210 + mem[960] + _172 / (3 * _97) - _172) >= _206
-      if (_207 * _208 + mem[928]) / (2 * _210 + mem[960] + _172 / (3 * _97) - _172) - _206 > 1:
+      if SafeMath.sub((_207 * _208 + mem[928]) / (2 * _210 + mem[960] + _172 / (3 * _97) - _172), _206) > 1:
           _214 = mem[1184]
           mem[1184] = mem[1184] + 1
           if _214 + 1 != 255:
@@ -1804,8 +1679,7 @@ def exchange(int128 i, int128 j, uint256 _dx, uint256 _min_dy) payable:
   mem[1984] = (_207 * _208 + _209) / (2 * _210 + _211 - _212)
   require j < 3
   _215 = mem[32 * j + 512]
-  require mem[32 * j + 512] >= (_207 * _208 + _209) / (2 * _210 + _211 - _212)
-  require mem[32 * j + 512] - (_207 * _208 + _209) / (2 * _210 + _211 - _212) >= 1
+  require SafeMath.sub(mem[32 * j + 512], (_207 * _208 + _209) / (2 * _210 + _211 - _212)) >= 1
   mem[2336] = mem[32 * j + 512] - (_207 * _208 + _209) / (2 * _210 + _211 - _212) - 1
   require (-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / (_215 - (_207 * _208 + _209) / (2 * _210 + _211 - _212) - 1) == fee or not _215 - (_207 * _208 + _209) / (2 * _210 + _211 - _212) - 1
   mem[2368] = (-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / 10**10
@@ -1813,8 +1687,7 @@ def exchange(int128 i, int128 j, uint256 _dx, uint256 _min_dy) payable:
   _216 = (10**18 * _215 - 10**18 * ((_207 * _208 + _209) / (2 * _210 + _211 - _212)) - 10**18 * ((-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / 10**10) - 10**18) / (_215 - (_207 * _208 + _209) / (2 * _210 + _211 - _212) - (-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / 10**10 - 1)
   require _216 == 10**18 or not _215 - (_207 * _208 + _209) / (2 * _210 + _211 - _212) - (-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / 10**10 - 1
   _217 = mem[32 * j + 320]
-  require mem[32 * j + 320]
-  mem[2336] = (10**18 * _215 - 10**18 * ((_207 * _208 + _209) / (2 * _210 + _211 - _212)) - 10**18 * ((-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / 10**10) - 10**18) / mem[32 * j + 320]
+  mem[2336] = SafeMath.div(10**18 * _215 - 10**18 * ((_207 * _208 + _209) / (2 * _210 + _211 - _212)) - 10**18 * ((-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / 10**10) - 10**18, mem[32 * j + 320])
   mem[2400] = 147028384
   mem[2432] = 32
   mem[2464] = 46
@@ -1828,13 +1701,11 @@ def exchange(int128 i, int128 j, uint256 _dx, uint256 _min_dy) payable:
   _219 = 10**18 * ((-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / 10**10 * admin_fee / 10**10) / ((-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / 10**10 * admin_fee / 10**10) == 10**18 or not (-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / 10**10 * admin_fee / 10**10
   require _219
   _220 = mem[32 * j + 320]
-  require mem[32 * j + 320]
-  mem[2592] = 10**18 * ((-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / 10**10 * admin_fee / 10**10) / mem[32 * j + 320]
+  mem[2592] = SafeMath.div(10**18 * ((-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / 10**10 * admin_fee / 10**10), mem[32 * j + 320])
   require mem[32 * i + 416] + _59 >= mem[32 * i + 416]
   mem[192] = 1
   balances[i] = mem[32 * i + 416] + _59
-  require mem[32 * j + 416] >= (10**18 * _215 - 10**18 * ((_207 * _208 + _209) / (2 * _210 + _211 - _212)) - 10**18 * ((-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / 10**10) - 10**18) / _217
-  require mem[32 * j + 416] - (10**18 * _215 - 10**18 * ((_207 * _208 + _209) / (2 * _210 + _211 - _212)) - 10**18 * ((-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / 10**10) - 10**18) / _217 >= 10**18 * ((-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / 10**10 * admin_fee / 10**10) / _220
+  require SafeMath.sub(mem[32 * j + 416], (10**18 * _215 - 10**18 * ((_207 * _208 + _209) / (2 * _210 + _211 - _212)) - 10**18 * ((-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / 10**10) - 10**18) / _217) >= 10**18 * ((-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / 10**10 * admin_fee / 10**10) / _220
   balances[j] = mem[32 * j + 416] - (10**18 * _215 - 10**18 * ((_207 * _208 + _209) / (2 * _210 + _211 - _212)) - 10**18 * ((-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / 10**10) - 10**18) / _217 - 10**18 * ((-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / 10**10 * admin_fee / 10**10) / _220
   copied = identity(Bytes(4, 0xa9059cbb)) # precompiled
   copied = identity(68, Bytes(4, 0xa9059cbb), caller, (10**18 * _215 - 10**18 * ((_207 * _208 + _209) / (2 * _210 + _211 - _212)) - 10**18 * ((-fee + _215 * fee - (_207 * _208 + _209) / (2 * _210 + _211 - _212) * fee) / 10**10) - 10**18) / _217) # precompiled
@@ -1874,20 +1745,16 @@ def calc_withdraw_one_coin(uint256 _burn_amount, int128 i): # not payable
       mem[448] = initial_A
       if future_A <= initial_A:
           require initial_A >= future_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == block.timestamp - initial_A_time or initial_A == future_A
+          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == SafeMath.sub(block.timestamp, initial_A_time) or initial_A == future_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A >= (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
-          _1 = initial_A - (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
+          _1 = SafeMath.sub(initial_A, (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time))
       else:
           require future_A >= initial_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == block.timestamp - initial_A_time or future_A == initial_A
+          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == SafeMath.sub(block.timestamp, initial_A_time) or future_A == initial_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time) >= initial_A
-          _1 = initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time)
+          _1 = SafeMath.add(initial_A, (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time))
   mem[480] = _1
   require 3 * fee / fee == 3 or not fee
   mem[512] = 3 * fee / 8
@@ -1906,8 +1773,7 @@ def calc_withdraw_one_coin(uint256 _burn_amount, int128 i): # not payable
   mem[384] = 1000000000000 * 10**18
   mem[416] = 1000000000000 * 10**18
   mem[192] = 1
-  require 10**18 * balances[0] / 10**18 == balances[0]
-  mem[352] = 10**18 * balances[0] / 10**18
+  mem[352] = SafeMath.mul(10**18, balances[0]) / 10**18
   _10 = 0
   mem[448] = 1
   while _10 + 1 != 3:
@@ -1957,8 +1823,7 @@ def calc_withdraw_one_coin(uint256 _burn_amount, int128 i): # not payable
       _16 = mem[32 * mem[544] + 320]
       mem[512] = mem[32 * mem[544] + 320]
       _17 = mem[480]
-      require mem[480] + _16 >= mem[480]
-      mem[480] = mem[480] + _16
+      mem[480] = SafeMath.add(mem[480], _16)
       _18 = mem[544]
       mem[544] = mem[544] + 1
       continue
@@ -1975,8 +1840,7 @@ def calc_withdraw_one_coin(uint256 _burn_amount, int128 i): # not payable
           _40 = mem[640]
           require mem[640] * mem[640] / mem[640] == mem[640] or not mem[640]
           require 3 * mem[320] / mem[320] == 3 or not mem[320]
-          require 3 * mem[320]
-          mem[736] = mem[640] * mem[640] / (3 * mem[320])
+          mem[736] = SafeMath.div(mem[640] * mem[640], 3 * mem[320])
           _41 = 0
           mem[800] = 1
           while _41 + 1 != 3:
@@ -1986,8 +1850,7 @@ def calc_withdraw_one_coin(uint256 _burn_amount, int128 i): # not payable
               _40 = mem[640]
               require mem[736] * mem[640] / mem[736] == mem[640] or not mem[736]
               require 3 * _38 / _38 == 3 or not _38
-              require 3 * _38
-              mem[736] = mem[736] * mem[640] / (3 * _38)
+              mem[736] = SafeMath.div(mem[736] * mem[640], 3 * _38)
               _41 = mem[800]
               mem[800] = mem[800] + 1
               continue
@@ -1995,26 +1858,22 @@ def calc_withdraw_one_coin(uint256 _burn_amount, int128 i): # not payable
           mem[608] = mem[640]
           require 3 * _1 * mem[480] / (3 * _1) == mem[480] or not 3 * _1
           require 3 * (_39 * _40 / (3 * _38)) / (_39 * _40 / (3 * _38)) == 3 or not _39 * _40 / (3 * _38)
-          require 3 * _1 * mem[480] + 3 * (_39 * _40 / (3 * _38)) >= 3 * _1 * mem[480]
           _45 = mem[640]
-          require (3 * _1 * mem[480] * mem[640] + 3 * (_39 * _40 / (3 * _38)) * mem[640]) / (3 * _1 * mem[480] + 3 * (_39 * _40 / (3 * _38))) == mem[640] or not 3 * _1 * mem[480] + 3 * (_39 * _40 / (3 * _38))
-          require 3 * _1 >= 1
+          require (3 * _1 * mem[480] * mem[640] + 3 * (_39 * _40 / (3 * _38)) * mem[640]) / SafeMath.add(3 * _1 * mem[480], 3 * (_39 * _40 / (3 * _38))) == mem[640] or not SafeMath.add(3 * _1 * mem[480], 3 * (_39 * _40 / (3 * _38)))
           _47 = mem[640]
-          require (-mem[640] + 3 * _1 * mem[640]) / (3 * _1 - 1) == mem[640] or 3 * _1 == 1
+          require (-mem[640] + 3 * _1 * mem[640]) / SafeMath.sub(3 * _1, 1) == mem[640] or 3 * _1 == 1
           require Mask(254, 0, _39 * _40 / (3 * _38)) == _39 * _40 / (3 * _38)
           require -mem[640] + 3 * _1 * mem[640] + 4 * (_39 * _40 / (3 * _38)) >= -mem[640] + 3 * _1 * mem[640]
           require 3 * _1 * mem[640] + 4 * (_39 * _40 / (3 * _38)) != mem[640]
           mem[640] = (3 * _1 * mem[480] * mem[640] + 3 * (_39 * _40 / (3 * _38)) * mem[640]) / (-mem[640] + 3 * _1 * mem[640] + 4 * (_39 * _40 / (3 * _38)))
           if (3 * _1 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _1 * _47 + 4 * (_39 * _40 / (3 * _38))) <= _42:
-              require _42 >= (3 * _1 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _1 * _47 + 4 * (_39 * _40 / (3 * _38)))
-              if _42 - (3 * _1 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _1 * _47 + 4 * (_39 * _40 / (3 * _38))) > 1:
+              if SafeMath.sub(_42, (3 * _1 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _1 * _47 + 4 * (_39 * _40 / (3 * _38)))) > 1:
                   _48 = mem[704]
                   mem[704] = mem[704] + 1
                   if _48 + 1 != 255:
                       continue
           else:
-              require (3 * _1 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _1 * _47 + 4 * (_39 * _40 / (3 * _38))) >= _42
-              if (3 * _1 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _1 * _47 + 4 * (_39 * _40 / (3 * _38))) - _42 > 1:
+              if SafeMath.sub((3 * _1 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _1 * _47 + 4 * (_39 * _40 / (3 * _38))), _42) > 1:
                   _49 = mem[704]
                   mem[704] = mem[704] + 1
                   if _49 + 1 != 255:
@@ -2037,9 +1896,7 @@ def calc_withdraw_one_coin(uint256 _burn_amount, int128 i): # not payable
   mem[1056] = 288
   mem[1024] = _50
   require _burn_amount * _50 / _burn_amount == _50 or not _burn_amount
-  require ext_call.return_data[0]
-  require _50 >= _burn_amount * _50 / ext_call.return_data[0]
-  mem[1312] = _50 - _burn_amount * _50 / ext_call.return_data[0]
+  mem[1312] = SafeMath.sub(_50, SafeMath.div(_burn_amount * _50, ext_call.return_data[0]))
   mem[1344] = _13
   mem[1376] = _12
   mem[1408] = _11
@@ -2049,15 +1906,15 @@ def calc_withdraw_one_coin(uint256 _burn_amount, int128 i): # not payable
   mem[1568] = _13
   mem[1600] = _12
   mem[1632] = _11
-  mem[1664] = _50 - _burn_amount * _50 / ext_call.return_data[0]
+  mem[1664] = SafeMath.sub(_50, SafeMath.div(_burn_amount * _50, ext_call.return_data[0]))
   mem[512] = 16316
   mem[384] = _13
   mem[416] = _12
   mem[448] = _11
-  mem[480] = _50 - _burn_amount * _50 / ext_call.return_data[0]
+  mem[480] = SafeMath.sub(_50, SafeMath.div(_burn_amount * _50, ext_call.return_data[0]))
   require i >=′ 0
   require i <′ 3
-  mem[544] = _50 - _burn_amount * _50 / ext_call.return_data[0]
+  mem[544] = SafeMath.sub(_50, SafeMath.div(_burn_amount * _50, ext_call.return_data[0]))
   mem[576] = 0
   require 3 * _1 / _1 == 3 or not _1
   mem[608] = 3 * _1
@@ -2066,10 +1923,9 @@ def calc_withdraw_one_coin(uint256 _burn_amount, int128 i): # not payable
       _62 = _13
       mem[640] = _13
       mem[576] = _13
-      require (_50 * _50 - _burn_amount * _50 / ext_call.return_data[0] * _50 - _50 * (_burn_amount * _50 / ext_call.return_data[0]) + _burn_amount * _50 / ext_call.return_data[0] * (_burn_amount * _50 / ext_call.return_data[0])) / (_50 - _burn_amount * _50 / ext_call.return_data[0]) == _50 - _burn_amount * _50 / ext_call.return_data[0] or _50 == _burn_amount * _50 / ext_call.return_data[0]
+      require (_50 * _50 - SafeMath.div(_burn_amount * _50, ext_call.return_data[0]) * _50 - _50 * SafeMath.div(_burn_amount * _50, ext_call.return_data[0]) + SafeMath.div(_burn_amount * _50, ext_call.return_data[0]) * SafeMath.div(_burn_amount * _50, ext_call.return_data[0])) / SafeMath.sub(_50, SafeMath.div(_burn_amount * _50, ext_call.return_data[0])) == SafeMath.sub(_50, SafeMath.div(_burn_amount * _50, ext_call.return_data[0])) or _50 == SafeMath.div(_burn_amount * _50, ext_call.return_data[0])
       require 3 * _13 / _13 == 3 or not _13
-      require 3 * _13
-      mem[544] = (_50 * _50 - _burn_amount * _50 / ext_call.return_data[0] * _50 - _50 * (_burn_amount * _50 / ext_call.return_data[0]) + _burn_amount * _50 / ext_call.return_data[0] * (_burn_amount * _50 / ext_call.return_data[0])) / (3 * _13)
+      mem[544] = SafeMath.div(_50 * _50 - SafeMath.div(_burn_amount * _50, ext_call.return_data[0]) * _50 - _50 * SafeMath.div(_burn_amount * _50, ext_call.return_data[0]) + SafeMath.div(_burn_amount * _50, ext_call.return_data[0]) * SafeMath.div(_burn_amount * _50, ext_call.return_data[0]), 3 * _13)
   _72 = 0
   mem[672] = 1
   while _72 + 1 != 3:
@@ -2077,21 +1933,17 @@ def calc_withdraw_one_coin(uint256 _burn_amount, int128 i): # not payable
           require mem[672] < 3
           _62 = mem[32 * mem[672] + 384]
           mem[640] = mem[32 * mem[672] + 384]
-          require mem[576] + _62 >= mem[576]
-          mem[576] = mem[576] + _62
+          mem[576] = SafeMath.add(mem[576], _62)
           require (_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544]) / mem[544] == _50 - _burn_amount * _50 / ext_call.return_data[0] or not mem[544]
           require 3 * _62 / _62 == 3 or not _62
-          require 3 * _62
-          mem[544] = (_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544]) / (3 * _62)
+          mem[544] = SafeMath.div(_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544], 3 * _62)
       _72 = mem[672]
       mem[672] = mem[672] + 1
       continue
   require (_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544]) / mem[544] == _50 - _burn_amount * _50 / ext_call.return_data[0] or not mem[544]
   require 9 * _1 / (3 * _1) == 3 or not 3 * _1
-  require 9 * _1
-  mem[544] = (_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544]) / (9 * _1)
-  require 3 * _1
-  require mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) >= mem[576]
+  mem[544] = SafeMath.div(_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544], 9 * _1)
+  require mem[576] + SafeMath.div(_50 - _burn_amount * _50 / ext_call.return_data[0], 3 * _1) >= mem[576]
   mem[768] = _50 - _burn_amount * _50 / ext_call.return_data[0]
   mem[800] = 0
   while True:
@@ -2105,21 +1957,18 @@ def calc_withdraw_one_coin(uint256 _burn_amount, int128 i): # not payable
       _85 = mem[768]
       require uint255(mem[768]) == mem[768]
       _86 = mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1)
-      require 2 * mem[768] + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) >= 2 * mem[768]
       _87 = _50 - _burn_amount * _50 / ext_call.return_data[0]
-      require 2 * mem[768] + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) >= _50 - _burn_amount * _50 / ext_call.return_data[0]
-      require 2 * mem[768] + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) != _50 - _burn_amount * _50 / ext_call.return_data[0]
+      require SafeMath.add(2 * mem[768], mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1)) >= _50 - _burn_amount * _50 / ext_call.return_data[0]
+      require SafeMath.add(2 * mem[768], mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1)) != _50 - _burn_amount * _50 / ext_call.return_data[0]
       mem[768] = (mem[768] * mem[768] + mem[544]) / (2 * mem[768] + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0])
       if (_82 * _83 + mem[544]) / (2 * _85 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]) <= _81:
-          require _81 >= (_82 * _83 + mem[544]) / (2 * _85 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0])
-          if _81 - (_82 * _83 + mem[544]) / (2 * _85 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]) > 1:
+          if SafeMath.sub(_81, (_82 * _83 + mem[544]) / (2 * _85 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0])) > 1:
               _88 = mem[800]
               mem[800] = mem[800] + 1
               if _88 + 1 != 255:
                   continue
           break
-      require (_82 * _83 + mem[544]) / (2 * _85 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]) >= _81
-      if (_82 * _83 + mem[544]) / (2 * _85 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]) - _81 > 1:
+      if SafeMath.sub((_82 * _83 + mem[544]) / (2 * _85 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]), _81) > 1:
           _89 = mem[800]
           mem[800] = mem[800] + 1
           if _89 + 1 != 255:
@@ -2164,19 +2013,15 @@ def calc_withdraw_one_coin(uint256 _burn_amount, int128 i): # not payable
   mem[1440] = (_82 * _83 + _84) / (2 * _85 + _86 - _87)
   require i < 3
   require mem[32 * i + 800] >= (_82 * _83 + _84) / (2 * _85 + _86 - _87)
-  require mem[32 * i + 544]
-  mem[1792] = (mem[32 * i + 800] - (_82 * _83 + _84) / (2 * _85 + _86 - _87)) / mem[32 * i + 544]
+  mem[1792] = SafeMath.div(mem[32 * i + 800] - (_82 * _83 + _84) / (2 * _85 + _86 - _87), mem[32 * i + 544])
   require (_50 * _13 - _burn_amount * _50 / ext_call.return_data[0] * _13) / _13 == _50 - _burn_amount * _50 / ext_call.return_data[0] or not _13
   require _50
   if i:
-      require _13 >= (_50 * _13 - _burn_amount * _50 / ext_call.return_data[0] * _13) / _50
-      mem[1856] = _13 - (_50 * _13 - _burn_amount * _50 / ext_call.return_data[0] * _13) / _50
+      mem[1856] = SafeMath.sub(_13, (_50 * _13 - _burn_amount * _50 / ext_call.return_data[0] * _13) / _50)
   else:
-      require (_50 * _13 - _burn_amount * _50 / ext_call.return_data[0] * _13) / _50 >= (_82 * _83 + _84) / (2 * _85 + _86 - _87)
-      mem[1856] = (_50 * _13 - _burn_amount * _50 / ext_call.return_data[0] * _13) / _50 - (_82 * _83 + _84) / (2 * _85 + _86 - _87)
+      mem[1856] = SafeMath.sub((_50 * _13 - _burn_amount * _50 / ext_call.return_data[0] * _13) / _50, (_82 * _83 + _84) / (2 * _85 + _86 - _87))
   require 3 * fee / 8 * mem[1856] / (3 * fee / 8) == mem[1856] or not 3 * fee / 8
-  require _13 >= 3 * fee / 8 * mem[1856] / 10**10
-  mem[1344] = _13 - 3 * fee / 8 * mem[1856] / 10**10
+  mem[1344] = SafeMath.sub(_13, 3 * fee / 8 * mem[1856] / 10**10)
   _111 = 0
   mem[1824] = 1
   while _111 + 1 != 3:
@@ -2185,18 +2030,13 @@ def calc_withdraw_one_coin(uint256 _burn_amount, int128 i): # not payable
       if mem[1824] != i:
           require mem[1824] < 3
           require (_50 * mem[32 * mem[1824] + 800] - _burn_amount * _50 / ext_call.return_data[0] * mem[32 * mem[1824] + 800]) / mem[32 * mem[1824] + 800] == _50 - _burn_amount * _50 / ext_call.return_data[0] or not mem[32 * mem[1824] + 800]
-          require _50
-          require mem[32 * mem[1824] + 800] >= (_50 * mem[32 * mem[1824] + 800] - _burn_amount * _50 / ext_call.return_data[0] * mem[32 * mem[1824] + 800]) / _50
-          mem[1856] = mem[32 * mem[1824] + 800] - (_50 * mem[32 * mem[1824] + 800] - _burn_amount * _50 / ext_call.return_data[0] * mem[32 * mem[1824] + 800]) / _50
+          mem[1856] = SafeMath.sub(mem[32 * mem[1824] + 800], SafeMath.div(_50 * mem[32 * mem[1824] + 800] - _burn_amount * _50 / ext_call.return_data[0] * mem[32 * mem[1824] + 800], _50))
       else:
           require (_50 * mem[32 * mem[1824] + 800] - _burn_amount * _50 / ext_call.return_data[0] * mem[32 * mem[1824] + 800]) / mem[32 * mem[1824] + 800] == _50 - _burn_amount * _50 / ext_call.return_data[0] or not mem[32 * mem[1824] + 800]
-          require _50
-          require (_50 * mem[32 * mem[1824] + 800] - _burn_amount * _50 / ext_call.return_data[0] * mem[32 * mem[1824] + 800]) / _50 >= mem[1440]
-          mem[1856] = (_50 * mem[32 * mem[1824] + 800] - _burn_amount * _50 / ext_call.return_data[0] * mem[32 * mem[1824] + 800]) / _50 - mem[1440]
+          mem[1856] = SafeMath.sub(SafeMath.div(_50 * mem[32 * mem[1824] + 800] - _burn_amount * _50 / ext_call.return_data[0] * mem[32 * mem[1824] + 800], _50), mem[1440])
       require mem[1824] < 3
       require 3 * fee / 8 * mem[1856] / (3 * fee / 8) == mem[1856] or not 3 * fee / 8
-      require mem[32 * mem[1824] + 1344] >= 3 * fee / 8 * mem[1856] / 10**10
-      mem[32 * mem[1824] + 1344] = mem[32 * mem[1824] + 1344] - 3 * fee / 8 * mem[1856] / 10**10
+      mem[32 * mem[1824] + 1344] = SafeMath.sub(mem[32 * mem[1824] + 1344], 3 * fee / 8 * mem[1856] / 10**10)
       _111 = mem[1824]
       mem[1824] = mem[1824] + 1
       continue
@@ -2227,8 +2067,7 @@ def calc_withdraw_one_coin(uint256 _burn_amount, int128 i): # not payable
       mem[576] = mem[1344]
       require (_50 * _50 - _burn_amount * _50 / ext_call.return_data[0] * _50 - _50 * (_burn_amount * _50 / ext_call.return_data[0]) + _burn_amount * _50 / ext_call.return_data[0] * (_burn_amount * _50 / ext_call.return_data[0])) / (_50 - _burn_amount * _50 / ext_call.return_data[0]) == _50 - _burn_amount * _50 / ext_call.return_data[0] or _50 == _burn_amount * _50 / ext_call.return_data[0]
       require 3 * mem[1344] / mem[1344] == 3 or not mem[1344]
-      require 3 * mem[1344]
-      mem[544] = (_50 * _50 - _burn_amount * _50 / ext_call.return_data[0] * _50 - _50 * (_burn_amount * _50 / ext_call.return_data[0]) + _burn_amount * _50 / ext_call.return_data[0] * (_burn_amount * _50 / ext_call.return_data[0])) / (3 * mem[1344])
+      mem[544] = SafeMath.div(_50 * _50 - _burn_amount * _50 / ext_call.return_data[0] * _50 - _50 * (_burn_amount * _50 / ext_call.return_data[0]) + _burn_amount * _50 / ext_call.return_data[0] * (_burn_amount * _50 / ext_call.return_data[0]), 3 * mem[1344])
   _182 = 0
   mem[672] = 1
   while _182 + 1 != 3:
@@ -2236,21 +2075,17 @@ def calc_withdraw_one_coin(uint256 _burn_amount, int128 i): # not payable
           require mem[672] < 3
           _172 = mem[32 * mem[672] + 384]
           mem[640] = mem[32 * mem[672] + 384]
-          require mem[576] + _172 >= mem[576]
-          mem[576] = mem[576] + _172
+          mem[576] = SafeMath.add(mem[576], _172)
           require (_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544]) / mem[544] == _50 - _burn_amount * _50 / ext_call.return_data[0] or not mem[544]
           require 3 * _172 / _172 == 3 or not _172
-          require 3 * _172
-          mem[544] = (_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544]) / (3 * _172)
+          mem[544] = SafeMath.div(_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544], 3 * _172)
       _182 = mem[672]
       mem[672] = mem[672] + 1
       continue
   require (_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544]) / mem[544] == _50 - _burn_amount * _50 / ext_call.return_data[0] or not mem[544]
   require 9 * _1 / (3 * _1) == 3 or not 3 * _1
-  require 9 * _1
-  mem[544] = (_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544]) / (9 * _1)
-  require 3 * _1
-  require mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) >= mem[576]
+  mem[544] = SafeMath.div(_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544], 9 * _1)
+  require mem[576] + SafeMath.div(_50 - _burn_amount * _50 / ext_call.return_data[0], 3 * _1) >= mem[576]
   mem[768] = _50 - _burn_amount * _50 / ext_call.return_data[0]
   mem[800] = 0
   while True:
@@ -2264,21 +2099,18 @@ def calc_withdraw_one_coin(uint256 _burn_amount, int128 i): # not payable
       _195 = mem[768]
       require uint255(mem[768]) == mem[768]
       _196 = mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1)
-      require 2 * mem[768] + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) >= 2 * mem[768]
       _197 = _50 - _burn_amount * _50 / ext_call.return_data[0]
-      require 2 * mem[768] + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) >= _50 - _burn_amount * _50 / ext_call.return_data[0]
-      require 2 * mem[768] + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) != _50 - _burn_amount * _50 / ext_call.return_data[0]
+      require SafeMath.add(2 * mem[768], mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1)) >= _50 - _burn_amount * _50 / ext_call.return_data[0]
+      require SafeMath.add(2 * mem[768], mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1)) != _50 - _burn_amount * _50 / ext_call.return_data[0]
       mem[768] = (mem[768] * mem[768] + mem[544]) / (2 * mem[768] + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0])
       if (_192 * _193 + mem[544]) / (2 * _195 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]) <= _191:
-          require _191 >= (_192 * _193 + mem[544]) / (2 * _195 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0])
-          if _191 - (_192 * _193 + mem[544]) / (2 * _195 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]) > 1:
+          if SafeMath.sub(_191, (_192 * _193 + mem[544]) / (2 * _195 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0])) > 1:
               _198 = mem[800]
               mem[800] = mem[800] + 1
               if _198 + 1 != 255:
                   continue
           break
-      require (_192 * _193 + mem[544]) / (2 * _195 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]) >= _191
-      if (_192 * _193 + mem[544]) / (2 * _195 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]) - _191 > 1:
+      if SafeMath.sub((_192 * _193 + mem[544]) / (2 * _195 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]), _191) > 1:
           _199 = mem[800]
           mem[800] = mem[800] + 1
           if _199 + 1 != 255:
@@ -2310,13 +2142,11 @@ def calc_withdraw_one_coin(uint256 _burn_amount, int128 i): # not payable
   mem[576] = 10**12
   mem[544] = 1
   mem[1920] = 288
-  require _113 >= (_192 * _193 + _194) / (2 * _195 + _196 - _197)
-  mem[1888] = _113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197)
-  require _113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) >= 1
+  mem[1888] = SafeMath.sub(_113, (_192 * _193 + _194) / (2 * _195 + _196 - _197))
+  require SafeMath.sub(_113, (_192 * _193 + _194) / (2 * _195 + _196 - _197)) >= 1
   require i < 3
-  require mem[32 * i + 544]
-  require mem[1792] >= (_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / mem[32 * i + 544]
-  return (_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / mem[32 * i + 544]
+  require mem[1792] >= SafeMath.div(_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1, mem[32 * i + 544])
+  return SafeMath.div(_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1, mem[32 * i + 544])
 
 def remove_liquidity_one_coin(uint256 _burn_amount, int128 i, uint256 _min_received) payable: 
   mem[32] = 0x10000000000000000000000000000000000000000
@@ -2337,20 +2167,16 @@ def remove_liquidity_one_coin(uint256 _burn_amount, int128 i, uint256 _min_recei
       mem[448] = initial_A
       if future_A <= initial_A:
           require initial_A >= future_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == block.timestamp - initial_A_time or initial_A == future_A
+          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == SafeMath.sub(block.timestamp, initial_A_time) or initial_A == future_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A >= (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
-          _1 = initial_A - (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
+          _1 = SafeMath.sub(initial_A, (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time))
       else:
           require future_A >= initial_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == block.timestamp - initial_A_time or future_A == initial_A
+          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == SafeMath.sub(block.timestamp, initial_A_time) or future_A == initial_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time) >= initial_A
-          _1 = initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time)
+          _1 = SafeMath.add(initial_A, (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time))
   mem[480] = _1
   require 3 * fee / fee == 3 or not fee
   mem[512] = 3 * fee / 8
@@ -2369,8 +2195,7 @@ def remove_liquidity_one_coin(uint256 _burn_amount, int128 i, uint256 _min_recei
   mem[384] = 1000000000000 * 10**18
   mem[416] = 1000000000000 * 10**18
   mem[192] = 1
-  require 10**18 * balances[0] / 10**18 == balances[0]
-  mem[352] = 10**18 * balances[0] / 10**18
+  mem[352] = SafeMath.mul(10**18, balances[0]) / 10**18
   _10 = 0
   mem[448] = 1
   while _10 + 1 != 3:
@@ -2420,8 +2245,7 @@ def remove_liquidity_one_coin(uint256 _burn_amount, int128 i, uint256 _min_recei
       _16 = mem[32 * mem[544] + 320]
       mem[512] = mem[32 * mem[544] + 320]
       _17 = mem[480]
-      require mem[480] + _16 >= mem[480]
-      mem[480] = mem[480] + _16
+      mem[480] = SafeMath.add(mem[480], _16)
       _18 = mem[544]
       mem[544] = mem[544] + 1
       continue
@@ -2438,8 +2262,7 @@ def remove_liquidity_one_coin(uint256 _burn_amount, int128 i, uint256 _min_recei
           _40 = mem[640]
           require mem[640] * mem[640] / mem[640] == mem[640] or not mem[640]
           require 3 * mem[320] / mem[320] == 3 or not mem[320]
-          require 3 * mem[320]
-          mem[736] = mem[640] * mem[640] / (3 * mem[320])
+          mem[736] = SafeMath.div(mem[640] * mem[640], 3 * mem[320])
           _41 = 0
           mem[800] = 1
           while _41 + 1 != 3:
@@ -2449,8 +2272,7 @@ def remove_liquidity_one_coin(uint256 _burn_amount, int128 i, uint256 _min_recei
               _40 = mem[640]
               require mem[736] * mem[640] / mem[736] == mem[640] or not mem[736]
               require 3 * _38 / _38 == 3 or not _38
-              require 3 * _38
-              mem[736] = mem[736] * mem[640] / (3 * _38)
+              mem[736] = SafeMath.div(mem[736] * mem[640], 3 * _38)
               _41 = mem[800]
               mem[800] = mem[800] + 1
               continue
@@ -2458,26 +2280,22 @@ def remove_liquidity_one_coin(uint256 _burn_amount, int128 i, uint256 _min_recei
           mem[608] = mem[640]
           require 3 * _1 * mem[480] / (3 * _1) == mem[480] or not 3 * _1
           require 3 * (_39 * _40 / (3 * _38)) / (_39 * _40 / (3 * _38)) == 3 or not _39 * _40 / (3 * _38)
-          require 3 * _1 * mem[480] + 3 * (_39 * _40 / (3 * _38)) >= 3 * _1 * mem[480]
           _45 = mem[640]
-          require (3 * _1 * mem[480] * mem[640] + 3 * (_39 * _40 / (3 * _38)) * mem[640]) / (3 * _1 * mem[480] + 3 * (_39 * _40 / (3 * _38))) == mem[640] or not 3 * _1 * mem[480] + 3 * (_39 * _40 / (3 * _38))
-          require 3 * _1 >= 1
+          require (3 * _1 * mem[480] * mem[640] + 3 * (_39 * _40 / (3 * _38)) * mem[640]) / SafeMath.add(3 * _1 * mem[480], 3 * (_39 * _40 / (3 * _38))) == mem[640] or not SafeMath.add(3 * _1 * mem[480], 3 * (_39 * _40 / (3 * _38)))
           _47 = mem[640]
-          require (-mem[640] + 3 * _1 * mem[640]) / (3 * _1 - 1) == mem[640] or 3 * _1 == 1
+          require (-mem[640] + 3 * _1 * mem[640]) / SafeMath.sub(3 * _1, 1) == mem[640] or 3 * _1 == 1
           require Mask(254, 0, _39 * _40 / (3 * _38)) == _39 * _40 / (3 * _38)
           require -mem[640] + 3 * _1 * mem[640] + 4 * (_39 * _40 / (3 * _38)) >= -mem[640] + 3 * _1 * mem[640]
           require 3 * _1 * mem[640] + 4 * (_39 * _40 / (3 * _38)) != mem[640]
           mem[640] = (3 * _1 * mem[480] * mem[640] + 3 * (_39 * _40 / (3 * _38)) * mem[640]) / (-mem[640] + 3 * _1 * mem[640] + 4 * (_39 * _40 / (3 * _38)))
           if (3 * _1 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _1 * _47 + 4 * (_39 * _40 / (3 * _38))) <= _42:
-              require _42 >= (3 * _1 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _1 * _47 + 4 * (_39 * _40 / (3 * _38)))
-              if _42 - (3 * _1 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _1 * _47 + 4 * (_39 * _40 / (3 * _38))) > 1:
+              if SafeMath.sub(_42, (3 * _1 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _1 * _47 + 4 * (_39 * _40 / (3 * _38)))) > 1:
                   _48 = mem[704]
                   mem[704] = mem[704] + 1
                   if _48 + 1 != 255:
                       continue
           else:
-              require (3 * _1 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _1 * _47 + 4 * (_39 * _40 / (3 * _38))) >= _42
-              if (3 * _1 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _1 * _47 + 4 * (_39 * _40 / (3 * _38))) - _42 > 1:
+              if SafeMath.sub((3 * _1 * mem[480] * _45 + 3 * (_39 * _40 / (3 * _38)) * _45) / (-_47 + 3 * _1 * _47 + 4 * (_39 * _40 / (3 * _38))), _42) > 1:
                   _49 = mem[704]
                   mem[704] = mem[704] + 1
                   if _49 + 1 != 255:
@@ -2500,9 +2318,7 @@ def remove_liquidity_one_coin(uint256 _burn_amount, int128 i, uint256 _min_recei
   mem[1056] = 288
   mem[1024] = _50
   require _burn_amount * _50 / _burn_amount == _50 or not _burn_amount
-  require ext_call.return_data[0]
-  require _50 >= _burn_amount * _50 / ext_call.return_data[0]
-  mem[1312] = _50 - _burn_amount * _50 / ext_call.return_data[0]
+  mem[1312] = SafeMath.sub(_50, SafeMath.div(_burn_amount * _50, ext_call.return_data[0]))
   mem[1344] = _13
   mem[1376] = _12
   mem[1408] = _11
@@ -2512,15 +2328,15 @@ def remove_liquidity_one_coin(uint256 _burn_amount, int128 i, uint256 _min_recei
   mem[1568] = _13
   mem[1600] = _12
   mem[1632] = _11
-  mem[1664] = _50 - _burn_amount * _50 / ext_call.return_data[0]
+  mem[1664] = SafeMath.sub(_50, SafeMath.div(_burn_amount * _50, ext_call.return_data[0]))
   mem[512] = 16316
   mem[384] = _13
   mem[416] = _12
   mem[448] = _11
-  mem[480] = _50 - _burn_amount * _50 / ext_call.return_data[0]
+  mem[480] = SafeMath.sub(_50, SafeMath.div(_burn_amount * _50, ext_call.return_data[0]))
   require i >=′ 0
   require i <′ 3
-  mem[544] = _50 - _burn_amount * _50 / ext_call.return_data[0]
+  mem[544] = SafeMath.sub(_50, SafeMath.div(_burn_amount * _50, ext_call.return_data[0]))
   mem[576] = 0
   require 3 * _1 / _1 == 3 or not _1
   mem[608] = 3 * _1
@@ -2529,10 +2345,9 @@ def remove_liquidity_one_coin(uint256 _burn_amount, int128 i, uint256 _min_recei
       _62 = _13
       mem[640] = _13
       mem[576] = _13
-      require (_50 * _50 - _burn_amount * _50 / ext_call.return_data[0] * _50 - _50 * (_burn_amount * _50 / ext_call.return_data[0]) + _burn_amount * _50 / ext_call.return_data[0] * (_burn_amount * _50 / ext_call.return_data[0])) / (_50 - _burn_amount * _50 / ext_call.return_data[0]) == _50 - _burn_amount * _50 / ext_call.return_data[0] or _50 == _burn_amount * _50 / ext_call.return_data[0]
+      require (_50 * _50 - SafeMath.div(_burn_amount * _50, ext_call.return_data[0]) * _50 - _50 * SafeMath.div(_burn_amount * _50, ext_call.return_data[0]) + SafeMath.div(_burn_amount * _50, ext_call.return_data[0]) * SafeMath.div(_burn_amount * _50, ext_call.return_data[0])) / SafeMath.sub(_50, SafeMath.div(_burn_amount * _50, ext_call.return_data[0])) == SafeMath.sub(_50, SafeMath.div(_burn_amount * _50, ext_call.return_data[0])) or _50 == SafeMath.div(_burn_amount * _50, ext_call.return_data[0])
       require 3 * _13 / _13 == 3 or not _13
-      require 3 * _13
-      mem[544] = (_50 * _50 - _burn_amount * _50 / ext_call.return_data[0] * _50 - _50 * (_burn_amount * _50 / ext_call.return_data[0]) + _burn_amount * _50 / ext_call.return_data[0] * (_burn_amount * _50 / ext_call.return_data[0])) / (3 * _13)
+      mem[544] = SafeMath.div(_50 * _50 - SafeMath.div(_burn_amount * _50, ext_call.return_data[0]) * _50 - _50 * SafeMath.div(_burn_amount * _50, ext_call.return_data[0]) + SafeMath.div(_burn_amount * _50, ext_call.return_data[0]) * SafeMath.div(_burn_amount * _50, ext_call.return_data[0]), 3 * _13)
   _72 = 0
   mem[672] = 1
   while _72 + 1 != 3:
@@ -2540,21 +2355,17 @@ def remove_liquidity_one_coin(uint256 _burn_amount, int128 i, uint256 _min_recei
           require mem[672] < 3
           _62 = mem[32 * mem[672] + 384]
           mem[640] = mem[32 * mem[672] + 384]
-          require mem[576] + _62 >= mem[576]
-          mem[576] = mem[576] + _62
+          mem[576] = SafeMath.add(mem[576], _62)
           require (_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544]) / mem[544] == _50 - _burn_amount * _50 / ext_call.return_data[0] or not mem[544]
           require 3 * _62 / _62 == 3 or not _62
-          require 3 * _62
-          mem[544] = (_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544]) / (3 * _62)
+          mem[544] = SafeMath.div(_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544], 3 * _62)
       _72 = mem[672]
       mem[672] = mem[672] + 1
       continue
   require (_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544]) / mem[544] == _50 - _burn_amount * _50 / ext_call.return_data[0] or not mem[544]
   require 9 * _1 / (3 * _1) == 3 or not 3 * _1
-  require 9 * _1
-  mem[544] = (_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544]) / (9 * _1)
-  require 3 * _1
-  require mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) >= mem[576]
+  mem[544] = SafeMath.div(_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544], 9 * _1)
+  require mem[576] + SafeMath.div(_50 - _burn_amount * _50 / ext_call.return_data[0], 3 * _1) >= mem[576]
   mem[768] = _50 - _burn_amount * _50 / ext_call.return_data[0]
   mem[800] = 0
   while True:
@@ -2568,21 +2379,18 @@ def remove_liquidity_one_coin(uint256 _burn_amount, int128 i, uint256 _min_recei
       _85 = mem[768]
       require uint255(mem[768]) == mem[768]
       _86 = mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1)
-      require 2 * mem[768] + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) >= 2 * mem[768]
       _87 = _50 - _burn_amount * _50 / ext_call.return_data[0]
-      require 2 * mem[768] + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) >= _50 - _burn_amount * _50 / ext_call.return_data[0]
-      require 2 * mem[768] + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) != _50 - _burn_amount * _50 / ext_call.return_data[0]
+      require SafeMath.add(2 * mem[768], mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1)) >= _50 - _burn_amount * _50 / ext_call.return_data[0]
+      require SafeMath.add(2 * mem[768], mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1)) != _50 - _burn_amount * _50 / ext_call.return_data[0]
       mem[768] = (mem[768] * mem[768] + mem[544]) / (2 * mem[768] + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0])
       if (_82 * _83 + mem[544]) / (2 * _85 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]) <= _81:
-          require _81 >= (_82 * _83 + mem[544]) / (2 * _85 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0])
-          if _81 - (_82 * _83 + mem[544]) / (2 * _85 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]) > 1:
+          if SafeMath.sub(_81, (_82 * _83 + mem[544]) / (2 * _85 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0])) > 1:
               _88 = mem[800]
               mem[800] = mem[800] + 1
               if _88 + 1 != 255:
                   continue
           break
-      require (_82 * _83 + mem[544]) / (2 * _85 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]) >= _81
-      if (_82 * _83 + mem[544]) / (2 * _85 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]) - _81 > 1:
+      if SafeMath.sub((_82 * _83 + mem[544]) / (2 * _85 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]), _81) > 1:
           _89 = mem[800]
           mem[800] = mem[800] + 1
           if _89 + 1 != 255:
@@ -2627,19 +2435,15 @@ def remove_liquidity_one_coin(uint256 _burn_amount, int128 i, uint256 _min_recei
   mem[1440] = (_82 * _83 + _84) / (2 * _85 + _86 - _87)
   require i < 3
   require mem[32 * i + 800] >= (_82 * _83 + _84) / (2 * _85 + _86 - _87)
-  require mem[32 * i + 544]
-  mem[1792] = (mem[32 * i + 800] - (_82 * _83 + _84) / (2 * _85 + _86 - _87)) / mem[32 * i + 544]
+  mem[1792] = SafeMath.div(mem[32 * i + 800] - (_82 * _83 + _84) / (2 * _85 + _86 - _87), mem[32 * i + 544])
   require (_50 * _13 - _burn_amount * _50 / ext_call.return_data[0] * _13) / _13 == _50 - _burn_amount * _50 / ext_call.return_data[0] or not _13
   require _50
   if i:
-      require _13 >= (_50 * _13 - _burn_amount * _50 / ext_call.return_data[0] * _13) / _50
-      mem[1856] = _13 - (_50 * _13 - _burn_amount * _50 / ext_call.return_data[0] * _13) / _50
+      mem[1856] = SafeMath.sub(_13, (_50 * _13 - _burn_amount * _50 / ext_call.return_data[0] * _13) / _50)
   else:
-      require (_50 * _13 - _burn_amount * _50 / ext_call.return_data[0] * _13) / _50 >= (_82 * _83 + _84) / (2 * _85 + _86 - _87)
-      mem[1856] = (_50 * _13 - _burn_amount * _50 / ext_call.return_data[0] * _13) / _50 - (_82 * _83 + _84) / (2 * _85 + _86 - _87)
+      mem[1856] = SafeMath.sub((_50 * _13 - _burn_amount * _50 / ext_call.return_data[0] * _13) / _50, (_82 * _83 + _84) / (2 * _85 + _86 - _87))
   require 3 * fee / 8 * mem[1856] / (3 * fee / 8) == mem[1856] or not 3 * fee / 8
-  require _13 >= 3 * fee / 8 * mem[1856] / 10**10
-  mem[1344] = _13 - 3 * fee / 8 * mem[1856] / 10**10
+  mem[1344] = SafeMath.sub(_13, 3 * fee / 8 * mem[1856] / 10**10)
   _111 = 0
   mem[1824] = 1
   while _111 + 1 != 3:
@@ -2648,18 +2452,13 @@ def remove_liquidity_one_coin(uint256 _burn_amount, int128 i, uint256 _min_recei
       if mem[1824] != i:
           require mem[1824] < 3
           require (_50 * mem[32 * mem[1824] + 800] - _burn_amount * _50 / ext_call.return_data[0] * mem[32 * mem[1824] + 800]) / mem[32 * mem[1824] + 800] == _50 - _burn_amount * _50 / ext_call.return_data[0] or not mem[32 * mem[1824] + 800]
-          require _50
-          require mem[32 * mem[1824] + 800] >= (_50 * mem[32 * mem[1824] + 800] - _burn_amount * _50 / ext_call.return_data[0] * mem[32 * mem[1824] + 800]) / _50
-          mem[1856] = mem[32 * mem[1824] + 800] - (_50 * mem[32 * mem[1824] + 800] - _burn_amount * _50 / ext_call.return_data[0] * mem[32 * mem[1824] + 800]) / _50
+          mem[1856] = SafeMath.sub(mem[32 * mem[1824] + 800], SafeMath.div(_50 * mem[32 * mem[1824] + 800] - _burn_amount * _50 / ext_call.return_data[0] * mem[32 * mem[1824] + 800], _50))
       else:
           require (_50 * mem[32 * mem[1824] + 800] - _burn_amount * _50 / ext_call.return_data[0] * mem[32 * mem[1824] + 800]) / mem[32 * mem[1824] + 800] == _50 - _burn_amount * _50 / ext_call.return_data[0] or not mem[32 * mem[1824] + 800]
-          require _50
-          require (_50 * mem[32 * mem[1824] + 800] - _burn_amount * _50 / ext_call.return_data[0] * mem[32 * mem[1824] + 800]) / _50 >= mem[1440]
-          mem[1856] = (_50 * mem[32 * mem[1824] + 800] - _burn_amount * _50 / ext_call.return_data[0] * mem[32 * mem[1824] + 800]) / _50 - mem[1440]
+          mem[1856] = SafeMath.sub(SafeMath.div(_50 * mem[32 * mem[1824] + 800] - _burn_amount * _50 / ext_call.return_data[0] * mem[32 * mem[1824] + 800], _50), mem[1440])
       require mem[1824] < 3
       require 3 * fee / 8 * mem[1856] / (3 * fee / 8) == mem[1856] or not 3 * fee / 8
-      require mem[32 * mem[1824] + 1344] >= 3 * fee / 8 * mem[1856] / 10**10
-      mem[32 * mem[1824] + 1344] = mem[32 * mem[1824] + 1344] - 3 * fee / 8 * mem[1856] / 10**10
+      mem[32 * mem[1824] + 1344] = SafeMath.sub(mem[32 * mem[1824] + 1344], 3 * fee / 8 * mem[1856] / 10**10)
       _111 = mem[1824]
       mem[1824] = mem[1824] + 1
       continue
@@ -2690,8 +2489,7 @@ def remove_liquidity_one_coin(uint256 _burn_amount, int128 i, uint256 _min_recei
       mem[576] = mem[1344]
       require (_50 * _50 - _burn_amount * _50 / ext_call.return_data[0] * _50 - _50 * (_burn_amount * _50 / ext_call.return_data[0]) + _burn_amount * _50 / ext_call.return_data[0] * (_burn_amount * _50 / ext_call.return_data[0])) / (_50 - _burn_amount * _50 / ext_call.return_data[0]) == _50 - _burn_amount * _50 / ext_call.return_data[0] or _50 == _burn_amount * _50 / ext_call.return_data[0]
       require 3 * mem[1344] / mem[1344] == 3 or not mem[1344]
-      require 3 * mem[1344]
-      mem[544] = (_50 * _50 - _burn_amount * _50 / ext_call.return_data[0] * _50 - _50 * (_burn_amount * _50 / ext_call.return_data[0]) + _burn_amount * _50 / ext_call.return_data[0] * (_burn_amount * _50 / ext_call.return_data[0])) / (3 * mem[1344])
+      mem[544] = SafeMath.div(_50 * _50 - _burn_amount * _50 / ext_call.return_data[0] * _50 - _50 * (_burn_amount * _50 / ext_call.return_data[0]) + _burn_amount * _50 / ext_call.return_data[0] * (_burn_amount * _50 / ext_call.return_data[0]), 3 * mem[1344])
   _182 = 0
   mem[672] = 1
   while _182 + 1 != 3:
@@ -2699,21 +2497,17 @@ def remove_liquidity_one_coin(uint256 _burn_amount, int128 i, uint256 _min_recei
           require mem[672] < 3
           _172 = mem[32 * mem[672] + 384]
           mem[640] = mem[32 * mem[672] + 384]
-          require mem[576] + _172 >= mem[576]
-          mem[576] = mem[576] + _172
+          mem[576] = SafeMath.add(mem[576], _172)
           require (_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544]) / mem[544] == _50 - _burn_amount * _50 / ext_call.return_data[0] or not mem[544]
           require 3 * _172 / _172 == 3 or not _172
-          require 3 * _172
-          mem[544] = (_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544]) / (3 * _172)
+          mem[544] = SafeMath.div(_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544], 3 * _172)
       _182 = mem[672]
       mem[672] = mem[672] + 1
       continue
   require (_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544]) / mem[544] == _50 - _burn_amount * _50 / ext_call.return_data[0] or not mem[544]
   require 9 * _1 / (3 * _1) == 3 or not 3 * _1
-  require 9 * _1
-  mem[544] = (_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544]) / (9 * _1)
-  require 3 * _1
-  require mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) >= mem[576]
+  mem[544] = SafeMath.div(_50 * mem[544] - _burn_amount * _50 / ext_call.return_data[0] * mem[544], 9 * _1)
+  require mem[576] + SafeMath.div(_50 - _burn_amount * _50 / ext_call.return_data[0], 3 * _1) >= mem[576]
   mem[768] = _50 - _burn_amount * _50 / ext_call.return_data[0]
   mem[800] = 0
   while True:
@@ -2727,21 +2521,18 @@ def remove_liquidity_one_coin(uint256 _burn_amount, int128 i, uint256 _min_recei
       _195 = mem[768]
       require uint255(mem[768]) == mem[768]
       _196 = mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1)
-      require 2 * mem[768] + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) >= 2 * mem[768]
       _197 = _50 - _burn_amount * _50 / ext_call.return_data[0]
-      require 2 * mem[768] + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) >= _50 - _burn_amount * _50 / ext_call.return_data[0]
-      require 2 * mem[768] + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) != _50 - _burn_amount * _50 / ext_call.return_data[0]
+      require SafeMath.add(2 * mem[768], mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1)) >= _50 - _burn_amount * _50 / ext_call.return_data[0]
+      require SafeMath.add(2 * mem[768], mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1)) != _50 - _burn_amount * _50 / ext_call.return_data[0]
       mem[768] = (mem[768] * mem[768] + mem[544]) / (2 * mem[768] + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0])
       if (_192 * _193 + mem[544]) / (2 * _195 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]) <= _191:
-          require _191 >= (_192 * _193 + mem[544]) / (2 * _195 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0])
-          if _191 - (_192 * _193 + mem[544]) / (2 * _195 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]) > 1:
+          if SafeMath.sub(_191, (_192 * _193 + mem[544]) / (2 * _195 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0])) > 1:
               _198 = mem[800]
               mem[800] = mem[800] + 1
               if _198 + 1 != 255:
                   continue
           break
-      require (_192 * _193 + mem[544]) / (2 * _195 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]) >= _191
-      if (_192 * _193 + mem[544]) / (2 * _195 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]) - _191 > 1:
+      if SafeMath.sub((_192 * _193 + mem[544]) / (2 * _195 + mem[576] + (_50 - _burn_amount * _50 / ext_call.return_data[0]) / (3 * _1) - _50 + _burn_amount * _50 / ext_call.return_data[0]), _191) > 1:
           _199 = mem[800]
           mem[800] = mem[800] + 1
           if _199 + 1 != 255:
@@ -2773,22 +2564,18 @@ def remove_liquidity_one_coin(uint256 _burn_amount, int128 i, uint256 _min_recei
   mem[576] = 10**12
   mem[544] = 1
   mem[1920] = 288
-  require _113 >= (_192 * _193 + _194) / (2 * _195 + _196 - _197)
-  mem[1888] = _113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197)
-  require _113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) >= 1
+  mem[1888] = SafeMath.sub(_113, (_192 * _193 + _194) / (2 * _195 + _196 - _197))
+  require SafeMath.sub(_113, (_192 * _193 + _194) / (2 * _195 + _196 - _197)) >= 1
   require i < 3
   _200 = mem[32 * i + 544]
-  require mem[32 * i + 544]
-  mem[1888] = (_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / mem[32 * i + 544]
+  mem[1888] = SafeMath.div(_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1, mem[32 * i + 544])
   mem[2240] = (_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / _200
-  require mem[1792] >= (_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / _200
-  mem[2272] = mem[1792] - (_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / _200
+  mem[2272] = SafeMath.sub(mem[1792], (_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / _200)
   mem[2304] = 0
   if (_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / _200 < _min_received:
       revert with 'Not enough coins removed'
   require (mem[1792] * admin_fee - (_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / _200 * admin_fee) / (mem[1792] - (_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / _200) == admin_fee or mem[1792] == (_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / _200
-  require (_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / _200 + (mem[1792] * admin_fee - (_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / _200 * admin_fee) / 10**10 >= (_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / _200
-  require balances[i] >= (_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / _200 + (mem[1792] * admin_fee - (_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / _200 * admin_fee) / 10**10
+  require balances[i] >= SafeMath.add((_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / _200, (mem[1792] * admin_fee - (_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / _200 * admin_fee) / 10**10)
   balances[i] = balances[i] - (_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / _200 - (mem[1792] * admin_fee - (_113 - (_192 * _193 + _194) / (2 * _195 + _196 - _197) - 1) / _200 * admin_fee) / 10**10
   call stor5.burnFrom(address _from, uint256 _value) with:
        gas gas_remaining
@@ -2833,20 +2620,16 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
   else:
       if future_A <= initial_A:
           require initial_A >= future_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == block.timestamp - initial_A_time or initial_A == future_A
+          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == SafeMath.sub(block.timestamp, initial_A_time) or initial_A == future_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A >= (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
-          _4 = initial_A - (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
+          _4 = SafeMath.sub(initial_A, (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time))
       else:
           require future_A >= initial_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == block.timestamp - initial_A_time or future_A == initial_A
+          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == SafeMath.sub(block.timestamp, initial_A_time) or future_A == initial_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time) >= initial_A
-          _4 = initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time)
+          _4 = SafeMath.add(initial_A, (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time))
   mem[608] = _4
   mem[640] = balances[0]
   mem[672] = balances[1]
@@ -2867,8 +2650,7 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
   mem[384] = balances[2]
   mem[480] = 1000000000000 * 10**18
   mem[512] = 1000000000000 * 10**18
-  require 10**18 * balances[0] / 10**18 == balances[0]
-  mem[448] = 10**18 * balances[0] / 10**18
+  mem[448] = SafeMath.mul(10**18, balances[0]) / 10**18
   _13 = 0
   mem[544] = 1
   while _13 + 1 != 3:
@@ -2910,8 +2692,7 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
       _18 = mem[32 * mem[544] + 320]
       mem[512] = mem[32 * mem[544] + 320]
       _19 = mem[480]
-      require mem[480] + _18 >= mem[480]
-      mem[480] = mem[480] + _18
+      mem[480] = SafeMath.add(mem[480], _18)
       _20 = mem[544]
       mem[544] = mem[544] + 1
       continue
@@ -2928,8 +2709,7 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
           _42 = mem[640]
           require mem[640] * mem[640] / mem[640] == mem[640] or not mem[640]
           require 3 * _16 / _16 == 3 or not _16
-          require 3 * _16
-          mem[736] = mem[640] * mem[640] / (3 * _16)
+          mem[736] = SafeMath.div(mem[640] * mem[640], 3 * _16)
           _43 = 0
           mem[800] = 1
           while _43 + 1 != 3:
@@ -2939,8 +2719,7 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
               _42 = mem[640]
               require mem[736] * mem[640] / mem[736] == mem[640] or not mem[736]
               require 3 * _40 / _40 == 3 or not _40
-              require 3 * _40
-              mem[736] = mem[736] * mem[640] / (3 * _40)
+              mem[736] = SafeMath.div(mem[736] * mem[640], 3 * _40)
               _43 = mem[800]
               mem[800] = mem[800] + 1
               continue
@@ -2948,26 +2727,22 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
           mem[608] = mem[640]
           require 3 * _4 * mem[480] / (3 * _4) == mem[480] or not 3 * _4
           require 3 * (_41 * _42 / (3 * _40)) / (_41 * _42 / (3 * _40)) == 3 or not _41 * _42 / (3 * _40)
-          require 3 * _4 * mem[480] + 3 * (_41 * _42 / (3 * _40)) >= 3 * _4 * mem[480]
           _47 = mem[640]
-          require (3 * _4 * mem[480] * mem[640] + 3 * (_41 * _42 / (3 * _40)) * mem[640]) / (3 * _4 * mem[480] + 3 * (_41 * _42 / (3 * _40))) == mem[640] or not 3 * _4 * mem[480] + 3 * (_41 * _42 / (3 * _40))
-          require 3 * _4 >= 1
+          require (3 * _4 * mem[480] * mem[640] + 3 * (_41 * _42 / (3 * _40)) * mem[640]) / SafeMath.add(3 * _4 * mem[480], 3 * (_41 * _42 / (3 * _40))) == mem[640] or not SafeMath.add(3 * _4 * mem[480], 3 * (_41 * _42 / (3 * _40)))
           _49 = mem[640]
-          require (-mem[640] + 3 * _4 * mem[640]) / (3 * _4 - 1) == mem[640] or 3 * _4 == 1
+          require (-mem[640] + 3 * _4 * mem[640]) / SafeMath.sub(3 * _4, 1) == mem[640] or 3 * _4 == 1
           require Mask(254, 0, _41 * _42 / (3 * _40)) == _41 * _42 / (3 * _40)
           require -mem[640] + 3 * _4 * mem[640] + 4 * (_41 * _42 / (3 * _40)) >= -mem[640] + 3 * _4 * mem[640]
           require 3 * _4 * mem[640] + 4 * (_41 * _42 / (3 * _40)) != mem[640]
           mem[640] = (3 * _4 * mem[480] * mem[640] + 3 * (_41 * _42 / (3 * _40)) * mem[640]) / (-mem[640] + 3 * _4 * mem[640] + 4 * (_41 * _42 / (3 * _40)))
           if (3 * _4 * mem[480] * _47 + 3 * (_41 * _42 / (3 * _40)) * _47) / (-_49 + 3 * _4 * _49 + 4 * (_41 * _42 / (3 * _40))) <= _44:
-              require _44 >= (3 * _4 * mem[480] * _47 + 3 * (_41 * _42 / (3 * _40)) * _47) / (-_49 + 3 * _4 * _49 + 4 * (_41 * _42 / (3 * _40)))
-              if _44 - (3 * _4 * mem[480] * _47 + 3 * (_41 * _42 / (3 * _40)) * _47) / (-_49 + 3 * _4 * _49 + 4 * (_41 * _42 / (3 * _40))) > 1:
+              if SafeMath.sub(_44, (3 * _4 * mem[480] * _47 + 3 * (_41 * _42 / (3 * _40)) * _47) / (-_49 + 3 * _4 * _49 + 4 * (_41 * _42 / (3 * _40)))) > 1:
                   _50 = mem[704]
                   mem[704] = mem[704] + 1
                   if _50 + 1 != 255:
                       continue
           else:
-              require (3 * _4 * mem[480] * _47 + 3 * (_41 * _42 / (3 * _40)) * _47) / (-_49 + 3 * _4 * _49 + 4 * (_41 * _42 / (3 * _40))) >= _44
-              if (3 * _4 * mem[480] * _47 + 3 * (_41 * _42 / (3 * _40)) * _47) / (-_49 + 3 * _4 * _49 + 4 * (_41 * _42 / (3 * _40))) - _44 > 1:
+              if SafeMath.sub((3 * _4 * mem[480] * _47 + 3 * (_41 * _42 / (3 * _40)) * _47) / (-_49 + 3 * _4 * _49 + 4 * (_41 * _42 / (3 * _40))), _44) > 1:
                   _51 = mem[704]
                   mem[704] = mem[704] + 1
                   if _51 + 1 != 255:
@@ -2993,15 +2768,13 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
   mem[576] = 0
   mem[864] = 288
   mem[832] = _52
-  require balances[0] >= _amounts[0]
-  mem[736] = balances[0] - _amounts[0]
+  mem[736] = SafeMath.sub(balances[0], _amounts[0])
   _56 = 0
   mem[1120] = 1
   while _56 + 1 != 3:
       require mem[1120] < 3
       require mem[1120] < 3
-      require mem[32 * mem[1120] + 736] >= cd[32 * mem[1120] + 4]
-      mem[32 * mem[1120] + 736] = mem[32 * mem[1120] + 736] - cd[32 * mem[1120] + 4]
+      mem[32 * mem[1120] + 736] = SafeMath.sub(mem[32 * mem[1120] + 736], cd[32 * mem[1120] + 4])
       _56 = mem[1120]
       mem[1120] = mem[1120] + 1
       continue
@@ -3039,8 +2812,7 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
   mem[384] = _85
   mem[480] = 1000000000000 * 10**18
   mem[512] = 1000000000000 * 10**18
-  require 10**18 * mem[736] / 10**18 == mem[736]
-  mem[448] = 10**18 * mem[736] / 10**18
+  mem[448] = SafeMath.mul(10**18, mem[736]) / 10**18
   _119 = 0
   mem[544] = 1
   while _119 + 1 != 3:
@@ -3082,8 +2854,7 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
       _124 = mem[32 * mem[544] + 320]
       mem[512] = mem[32 * mem[544] + 320]
       _125 = mem[480]
-      require mem[480] + _124 >= mem[480]
-      mem[480] = mem[480] + _124
+      mem[480] = SafeMath.add(mem[480], _124)
       _126 = mem[544]
       mem[544] = mem[544] + 1
       continue
@@ -3100,8 +2871,7 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
           _148 = mem[640]
           require mem[640] * mem[640] / mem[640] == mem[640] or not mem[640]
           require 3 * _122 / _122 == 3 or not _122
-          require 3 * _122
-          mem[736] = mem[640] * mem[640] / (3 * _122)
+          mem[736] = SafeMath.div(mem[640] * mem[640], 3 * _122)
           _149 = 0
           mem[800] = 1
           while _149 + 1 != 3:
@@ -3111,8 +2881,7 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
               _148 = mem[640]
               require mem[736] * mem[640] / mem[736] == mem[640] or not mem[736]
               require 3 * _146 / _146 == 3 or not _146
-              require 3 * _146
-              mem[736] = mem[736] * mem[640] / (3 * _146)
+              mem[736] = SafeMath.div(mem[736] * mem[640], 3 * _146)
               _149 = mem[800]
               mem[800] = mem[800] + 1
               continue
@@ -3120,26 +2889,22 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
           mem[608] = mem[640]
           require 3 * _4 * mem[480] / (3 * _4) == mem[480] or not 3 * _4
           require 3 * (_147 * _148 / (3 * _146)) / (_147 * _148 / (3 * _146)) == 3 or not _147 * _148 / (3 * _146)
-          require 3 * _4 * mem[480] + 3 * (_147 * _148 / (3 * _146)) >= 3 * _4 * mem[480]
           _153 = mem[640]
-          require (3 * _4 * mem[480] * mem[640] + 3 * (_147 * _148 / (3 * _146)) * mem[640]) / (3 * _4 * mem[480] + 3 * (_147 * _148 / (3 * _146))) == mem[640] or not 3 * _4 * mem[480] + 3 * (_147 * _148 / (3 * _146))
-          require 3 * _4 >= 1
+          require (3 * _4 * mem[480] * mem[640] + 3 * (_147 * _148 / (3 * _146)) * mem[640]) / SafeMath.add(3 * _4 * mem[480], 3 * (_147 * _148 / (3 * _146))) == mem[640] or not SafeMath.add(3 * _4 * mem[480], 3 * (_147 * _148 / (3 * _146)))
           _155 = mem[640]
-          require (-mem[640] + 3 * _4 * mem[640]) / (3 * _4 - 1) == mem[640] or 3 * _4 == 1
+          require (-mem[640] + 3 * _4 * mem[640]) / SafeMath.sub(3 * _4, 1) == mem[640] or 3 * _4 == 1
           require Mask(254, 0, _147 * _148 / (3 * _146)) == _147 * _148 / (3 * _146)
           require -mem[640] + 3 * _4 * mem[640] + 4 * (_147 * _148 / (3 * _146)) >= -mem[640] + 3 * _4 * mem[640]
           require 3 * _4 * mem[640] + 4 * (_147 * _148 / (3 * _146)) != mem[640]
           mem[640] = (3 * _4 * mem[480] * mem[640] + 3 * (_147 * _148 / (3 * _146)) * mem[640]) / (-mem[640] + 3 * _4 * mem[640] + 4 * (_147 * _148 / (3 * _146)))
           if (3 * _4 * mem[480] * _153 + 3 * (_147 * _148 / (3 * _146)) * _153) / (-_155 + 3 * _4 * _155 + 4 * (_147 * _148 / (3 * _146))) <= _150:
-              require _150 >= (3 * _4 * mem[480] * _153 + 3 * (_147 * _148 / (3 * _146)) * _153) / (-_155 + 3 * _4 * _155 + 4 * (_147 * _148 / (3 * _146)))
-              if _150 - (3 * _4 * mem[480] * _153 + 3 * (_147 * _148 / (3 * _146)) * _153) / (-_155 + 3 * _4 * _155 + 4 * (_147 * _148 / (3 * _146))) > 1:
+              if SafeMath.sub(_150, (3 * _4 * mem[480] * _153 + 3 * (_147 * _148 / (3 * _146)) * _153) / (-_155 + 3 * _4 * _155 + 4 * (_147 * _148 / (3 * _146)))) > 1:
                   _156 = mem[704]
                   mem[704] = mem[704] + 1
                   if _156 + 1 != 255:
                       continue
           else:
-              require (3 * _4 * mem[480] * _153 + 3 * (_147 * _148 / (3 * _146)) * _153) / (-_155 + 3 * _4 * _155 + 4 * (_147 * _148 / (3 * _146))) >= _150
-              if (3 * _4 * mem[480] * _153 + 3 * (_147 * _148 / (3 * _146)) * _153) / (-_155 + 3 * _4 * _155 + 4 * (_147 * _148 / (3 * _146))) - _150 > 1:
+              if SafeMath.sub((3 * _4 * mem[480] * _153 + 3 * (_147 * _148 / (3 * _146)) * _153) / (-_155 + 3 * _4 * _155 + 4 * (_147 * _148 / (3 * _146))), _150) > 1:
                   _157 = mem[704]
                   mem[704] = mem[704] + 1
                   if _157 + 1 != 255:
@@ -3172,38 +2937,30 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
   mem[1440 len 96] = 0
   _163 = balances[0]
   require _158 * balances[0] / _158 == balances[0] or not _158
-  require _73
-  mem[1568] = _158 * balances[0] / _73
-  if _158 * balances[0] / _73 <= _70:
-      require _70 >= _158 * balances[0] / _73
-      mem[1600] = _70 - _158 * balances[0] / _73
+  mem[1568] = SafeMath.div(_158 * balances[0], _73)
+  if SafeMath.div(_158 * balances[0], _73) <= _70:
+      mem[1600] = SafeMath.sub(_70, SafeMath.div(_158 * balances[0], _73))
   else:
-      require _158 * balances[0] / _73 >= _70
-      mem[1600] = _158 * balances[0] / _73 - _70
+      mem[1600] = SafeMath.sub(SafeMath.div(_158 * balances[0], _73), _70)
   require 3 * fee / 8 * mem[1600] / (3 * fee / 8) == mem[1600] or not 3 * fee / 8
   mem[1440] = 3 * fee / 8 * mem[1600] / 10**10
   require 3 * fee / 8 * mem[1600] / 10**10 * admin_fee / (3 * fee / 8 * mem[1600] / 10**10) == admin_fee or not 3 * fee / 8 * mem[1600] / 10**10
-  require _70 >= 3 * fee / 8 * mem[1600] / 10**10 * admin_fee / 10**10
-  balances[0] = _70 - 3 * fee / 8 * mem[1600] / 10**10 * admin_fee / 10**10
-  require _70 >= 3 * fee / 8 * mem[1600] / 10**10
-  mem[736] = _70 - 3 * fee / 8 * mem[1600] / 10**10
+  balances[0] = SafeMath.sub(_70, 3 * fee / 8 * mem[1600] / 10**10 * admin_fee / 10**10)
+  mem[736] = SafeMath.sub(_70, 3 * fee / 8 * mem[1600] / 10**10)
   _185 = 0
   mem[1536] = 1
   while _185 + 1 != 3:
       require mem[1536] < 3
       _163 = mem[32 * mem[1536] + 640]
       require mem[1152] * mem[32 * mem[1536] + 640] / mem[1152] == mem[32 * mem[1536] + 640] or not mem[1152]
-      require mem[832]
-      mem[1568] = mem[1152] * mem[32 * mem[1536] + 640] / mem[832]
+      mem[1568] = SafeMath.div(mem[1152] * mem[32 * mem[1536] + 640], mem[832])
       mem[1600] = 0
       require mem[1536] < 3
       require mem[1536] < 3
       if mem[1152] * _163 / mem[832] <= mem[32 * mem[1536] + 736]:
-          require mem[32 * mem[1536] + 736] >= mem[1152] * _163 / mem[832]
-          mem[1600] = mem[32 * mem[1536] + 736] - mem[1152] * _163 / mem[832]
+          mem[1600] = SafeMath.sub(mem[32 * mem[1536] + 736], mem[1152] * _163 / mem[832])
       else:
-          require mem[1152] * _163 / mem[832] >= mem[32 * mem[1536] + 736]
-          mem[1600] = mem[1152] * _163 / mem[832] - mem[32 * mem[1536] + 736]
+          mem[1600] = SafeMath.sub(mem[1152] * _163 / mem[832], mem[32 * mem[1536] + 736])
       require 3 * fee / 8 * mem[1600] / (3 * fee / 8) == mem[1600] or not 3 * fee / 8
       require mem[1536] < 3
       mem[32 * mem[1536] + 1440] = 3 * fee / 8 * mem[1600] / 10**10
@@ -3216,8 +2973,7 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
       balances[mem[1536]] = mem[32 * mem[1536] + 736] - mem[32 * mem[1536] + 1440] * admin_fee / 10**10
       require mem[1536] < 3
       require mem[1536] < 3
-      require mem[32 * mem[1536] + 736] >= mem[32 * mem[1536] + 1440]
-      mem[32 * mem[1536] + 736] = mem[32 * mem[1536] + 736] - mem[32 * mem[1536] + 1440]
+      mem[32 * mem[1536] + 736] = SafeMath.sub(mem[32 * mem[1536] + 736], mem[32 * mem[1536] + 1440])
       _185 = mem[1536]
       mem[1536] = mem[1536] + 1
       continue
@@ -3246,8 +3002,7 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
   mem[384] = _228
   mem[480] = 1000000000000 * 10**18
   mem[512] = 1000000000000 * 10**18
-  require 10**18 * mem[736] / 10**18 == mem[736]
-  mem[448] = 10**18 * mem[736] / 10**18
+  mem[448] = SafeMath.mul(10**18, mem[736]) / 10**18
   _262 = 0
   mem[544] = 1
   while _262 + 1 != 3:
@@ -3289,8 +3044,7 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
       _267 = mem[32 * mem[544] + 320]
       mem[512] = mem[32 * mem[544] + 320]
       _268 = mem[480]
-      require mem[480] + _267 >= mem[480]
-      mem[480] = mem[480] + _267
+      mem[480] = SafeMath.add(mem[480], _267)
       _269 = mem[544]
       mem[544] = mem[544] + 1
       continue
@@ -3307,8 +3061,7 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
           _291 = mem[640]
           require mem[640] * mem[640] / mem[640] == mem[640] or not mem[640]
           require 3 * _265 / _265 == 3 or not _265
-          require 3 * _265
-          mem[736] = mem[640] * mem[640] / (3 * _265)
+          mem[736] = SafeMath.div(mem[640] * mem[640], 3 * _265)
           _292 = 0
           mem[800] = 1
           while _292 + 1 != 3:
@@ -3318,8 +3071,7 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
               _291 = mem[640]
               require mem[736] * mem[640] / mem[736] == mem[640] or not mem[736]
               require 3 * _289 / _289 == 3 or not _289
-              require 3 * _289
-              mem[736] = mem[736] * mem[640] / (3 * _289)
+              mem[736] = SafeMath.div(mem[736] * mem[640], 3 * _289)
               _292 = mem[800]
               mem[800] = mem[800] + 1
               continue
@@ -3327,26 +3079,22 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
           mem[608] = mem[640]
           require 3 * _4 * mem[480] / (3 * _4) == mem[480] or not 3 * _4
           require 3 * (_290 * _291 / (3 * _289)) / (_290 * _291 / (3 * _289)) == 3 or not _290 * _291 / (3 * _289)
-          require 3 * _4 * mem[480] + 3 * (_290 * _291 / (3 * _289)) >= 3 * _4 * mem[480]
           _296 = mem[640]
-          require (3 * _4 * mem[480] * mem[640] + 3 * (_290 * _291 / (3 * _289)) * mem[640]) / (3 * _4 * mem[480] + 3 * (_290 * _291 / (3 * _289))) == mem[640] or not 3 * _4 * mem[480] + 3 * (_290 * _291 / (3 * _289))
-          require 3 * _4 >= 1
+          require (3 * _4 * mem[480] * mem[640] + 3 * (_290 * _291 / (3 * _289)) * mem[640]) / SafeMath.add(3 * _4 * mem[480], 3 * (_290 * _291 / (3 * _289))) == mem[640] or not SafeMath.add(3 * _4 * mem[480], 3 * (_290 * _291 / (3 * _289)))
           _298 = mem[640]
-          require (-mem[640] + 3 * _4 * mem[640]) / (3 * _4 - 1) == mem[640] or 3 * _4 == 1
+          require (-mem[640] + 3 * _4 * mem[640]) / SafeMath.sub(3 * _4, 1) == mem[640] or 3 * _4 == 1
           require Mask(254, 0, _290 * _291 / (3 * _289)) == _290 * _291 / (3 * _289)
           require -mem[640] + 3 * _4 * mem[640] + 4 * (_290 * _291 / (3 * _289)) >= -mem[640] + 3 * _4 * mem[640]
           require 3 * _4 * mem[640] + 4 * (_290 * _291 / (3 * _289)) != mem[640]
           mem[640] = (3 * _4 * mem[480] * mem[640] + 3 * (_290 * _291 / (3 * _289)) * mem[640]) / (-mem[640] + 3 * _4 * mem[640] + 4 * (_290 * _291 / (3 * _289)))
           if (3 * _4 * mem[480] * _296 + 3 * (_290 * _291 / (3 * _289)) * _296) / (-_298 + 3 * _4 * _298 + 4 * (_290 * _291 / (3 * _289))) <= _293:
-              require _293 >= (3 * _4 * mem[480] * _296 + 3 * (_290 * _291 / (3 * _289)) * _296) / (-_298 + 3 * _4 * _298 + 4 * (_290 * _291 / (3 * _289)))
-              if _293 - (3 * _4 * mem[480] * _296 + 3 * (_290 * _291 / (3 * _289)) * _296) / (-_298 + 3 * _4 * _298 + 4 * (_290 * _291 / (3 * _289))) > 1:
+              if SafeMath.sub(_293, (3 * _4 * mem[480] * _296 + 3 * (_290 * _291 / (3 * _289)) * _296) / (-_298 + 3 * _4 * _298 + 4 * (_290 * _291 / (3 * _289)))) > 1:
                   _299 = mem[704]
                   mem[704] = mem[704] + 1
                   if _299 + 1 != 255:
                       continue
           else:
-              require (3 * _4 * mem[480] * _296 + 3 * (_290 * _291 / (3 * _289)) * _296) / (-_298 + 3 * _4 * _298 + 4 * (_290 * _291 / (3 * _289))) >= _293
-              if (3 * _4 * mem[480] * _296 + 3 * (_290 * _291 / (3 * _289)) * _296) / (-_298 + 3 * _4 * _298 + 4 * (_290 * _291 / (3 * _289))) - _293 > 1:
+              if SafeMath.sub((3 * _4 * mem[480] * _296 + 3 * (_290 * _291 / (3 * _289)) * _296) / (-_298 + 3 * _4 * _298 + 4 * (_290 * _291 / (3 * _289))), _293) > 1:
                   _300 = mem[704]
                   mem[704] = mem[704] + 1
                   if _300 + 1 != 255:
@@ -3355,16 +3103,13 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
           break
   else:
       _301 = 0
-  require _202 >= _301
-  require (_202 * ext_call.return_data[0] - _301 * ext_call.return_data[0]) / (_202 - _301) == ext_call.return_data[0] or _202 == _301
-  require _202
-  require (_202 * ext_call.return_data[0] - _301 * ext_call.return_data[0]) / _202
-  require (_202 * ext_call.return_data[0] - _301 * ext_call.return_data[0]) / _202 + 1 >= (_202 * ext_call.return_data[0] - _301 * ext_call.return_data[0]) / _202
-  if (_202 * ext_call.return_data[0] - _301 * ext_call.return_data[0]) / _202 + 1 > _max_burn_amount:
+  require (_202 * ext_call.return_data[0] - _301 * ext_call.return_data[0]) / SafeMath.sub(_202, _301) == ext_call.return_data[0] or _202 == _301
+  require SafeMath.div(_202 * ext_call.return_data[0] - _301 * ext_call.return_data[0], _202)
+  if SafeMath.add(SafeMath.div(_202 * ext_call.return_data[0] - _301 * ext_call.return_data[0], _202), 1) > _max_burn_amount:
       revert with 'Slippage screwed you'
   call stor5.burnFrom(address _from, uint256 _value) with:
        gas gas_remaining
-      args caller, (_202 * ext_call.return_data[0] - _301 * ext_call.return_data[0]) / _202 + 1
+      args caller, SafeMath.add(SafeMath.div(_202 * ext_call.return_data[0] - _301 * ext_call.return_data[0], _202), 1)
   require ext_call.success
   require return_data.size > 31
   if _amounts[0]:
@@ -3419,8 +3164,7 @@ def remove_liquidity_imbalance(uint256[3] _amounts, uint256 _max_burn_amount) pa
       _327 = mem[2304]
       mem[2304] = mem[2304] + 1
       continue
-  require _186 >= (_202 * _186 - _301 * _186) / _202 + 1
-  log RemoveLiquidityImbalance(address provider, uint256[3] token_amounts, uint256[3] fees, uint256 invariant, uint256 token_supply): _amounts[0], _amounts[1], _amounts[2], _221, _222, _223, _212, _186 - (_202 * _186 - _301 * _186) / _202 - 1, indexed caller
+  log RemoveLiquidityImbalance(address provider, uint256[3] token_amounts, uint256[3] fees, uint256 invariant, uint256 token_supply): _amounts[0], _amounts[1], _amounts[2], _221, _222, _223, _212, SafeMath.sub(_186, (_202 * _186 - _301 * _186) / _202 + 1), indexed caller
   stor16777215 = 0
 
 def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable: 
@@ -3434,20 +3178,16 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
   else:
       if future_A <= initial_A:
           require initial_A >= future_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == block.timestamp - initial_A_time or initial_A == future_A
+          require (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (initial_A - future_A) == SafeMath.sub(block.timestamp, initial_A_time) or initial_A == future_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A >= (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
-          _7 = initial_A - (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time)
+          _7 = SafeMath.sub(initial_A, (block.timestamp * initial_A - initial_A_time * initial_A - block.timestamp * future_A + initial_A_time * future_A) / (future_A_time - initial_A_time))
       else:
           require future_A >= initial_A
-          require block.timestamp >= initial_A_time
-          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == block.timestamp - initial_A_time or future_A == initial_A
+          require (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A - initial_A) == SafeMath.sub(block.timestamp, initial_A_time) or future_A == initial_A
           require future_A_time >= initial_A_time
           require future_A_time != initial_A_time
-          require initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time) >= initial_A
-          _7 = initial_A + (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time)
+          _7 = SafeMath.add(initial_A, (block.timestamp * future_A - initial_A_time * future_A - block.timestamp * initial_A + initial_A_time * initial_A) / (future_A_time - initial_A_time))
   mem[544] = _7
   mem[448] = admin_fee
   mem[416] = 3 * fee / 8
@@ -3482,8 +3222,7 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
       mem[384] = balances[2]
       mem[480] = 1000000000000 * 10**18
       mem[512] = 1000000000000 * 10**18
-      require 10**18 * balances[0] / 10**18 == balances[0]
-      mem[448] = 10**18 * balances[0] / 10**18
+      mem[448] = SafeMath.mul(10**18, balances[0]) / 10**18
       _115 = 0
       mem[544] = 1
       while _115 + 1 != 3:
@@ -3525,8 +3264,7 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
           _142 = mem[32 * mem[544] + 320]
           mem[512] = mem[32 * mem[544] + 320]
           _143 = mem[480]
-          require mem[480] + _142 >= mem[480]
-          mem[480] = mem[480] + _142
+          mem[480] = SafeMath.add(mem[480], _142)
           _149 = mem[544]
           mem[544] = mem[544] + 1
           continue
@@ -3543,8 +3281,7 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
               _184 = mem[640]
               require mem[640] * mem[640] / mem[640] == mem[640] or not mem[640]
               require 3 * _122 / _122 == 3 or not _122
-              require 3 * _122
-              mem[736] = mem[640] * mem[640] / (3 * _122)
+              mem[736] = SafeMath.div(mem[640] * mem[640], 3 * _122)
               _187 = 0
               mem[800] = 1
               while _187 + 1 != 3:
@@ -3554,8 +3291,7 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
                   _184 = mem[640]
                   require mem[736] * mem[640] / mem[736] == mem[640] or not mem[736]
                   require 3 * _182 / _182 == 3 or not _182
-                  require 3 * _182
-                  mem[736] = mem[736] * mem[640] / (3 * _182)
+                  mem[736] = SafeMath.div(mem[736] * mem[640], 3 * _182)
                   _187 = mem[800]
                   mem[800] = mem[800] + 1
                   continue
@@ -3563,26 +3299,22 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
               mem[608] = mem[640]
               require 3 * _7 * mem[480] / (3 * _7) == mem[480] or not 3 * _7
               require 3 * (_183 * _184 / (3 * _182)) / (_183 * _184 / (3 * _182)) == 3 or not _183 * _184 / (3 * _182)
-              require 3 * _7 * mem[480] + 3 * (_183 * _184 / (3 * _182)) >= 3 * _7 * mem[480]
               _193 = mem[640]
-              require (3 * _7 * mem[480] * mem[640] + 3 * (_183 * _184 / (3 * _182)) * mem[640]) / (3 * _7 * mem[480] + 3 * (_183 * _184 / (3 * _182))) == mem[640] or not 3 * _7 * mem[480] + 3 * (_183 * _184 / (3 * _182))
-              require 3 * _7 >= 1
+              require (3 * _7 * mem[480] * mem[640] + 3 * (_183 * _184 / (3 * _182)) * mem[640]) / SafeMath.add(3 * _7 * mem[480], 3 * (_183 * _184 / (3 * _182))) == mem[640] or not SafeMath.add(3 * _7 * mem[480], 3 * (_183 * _184 / (3 * _182)))
               _196 = mem[640]
-              require (-mem[640] + 3 * _7 * mem[640]) / (3 * _7 - 1) == mem[640] or 3 * _7 == 1
+              require (-mem[640] + 3 * _7 * mem[640]) / SafeMath.sub(3 * _7, 1) == mem[640] or 3 * _7 == 1
               require Mask(254, 0, _183 * _184 / (3 * _182)) == _183 * _184 / (3 * _182)
               require -mem[640] + 3 * _7 * mem[640] + 4 * (_183 * _184 / (3 * _182)) >= -mem[640] + 3 * _7 * mem[640]
               require 3 * _7 * mem[640] + 4 * (_183 * _184 / (3 * _182)) != mem[640]
               mem[640] = (3 * _7 * mem[480] * mem[640] + 3 * (_183 * _184 / (3 * _182)) * mem[640]) / (-mem[640] + 3 * _7 * mem[640] + 4 * (_183 * _184 / (3 * _182)))
               if (3 * _7 * mem[480] * _193 + 3 * (_183 * _184 / (3 * _182)) * _193) / (-_196 + 3 * _7 * _196 + 4 * (_183 * _184 / (3 * _182))) <= _188:
-                  require _188 >= (3 * _7 * mem[480] * _193 + 3 * (_183 * _184 / (3 * _182)) * _193) / (-_196 + 3 * _7 * _196 + 4 * (_183 * _184 / (3 * _182)))
-                  if _188 - (3 * _7 * mem[480] * _193 + 3 * (_183 * _184 / (3 * _182)) * _193) / (-_196 + 3 * _7 * _196 + 4 * (_183 * _184 / (3 * _182))) > 1:
+                  if SafeMath.sub(_188, (3 * _7 * mem[480] * _193 + 3 * (_183 * _184 / (3 * _182)) * _193) / (-_196 + 3 * _7 * _196 + 4 * (_183 * _184 / (3 * _182)))) > 1:
                       _197 = mem[704]
                       mem[704] = mem[704] + 1
                       if _197 + 1 != 255:
                           continue
               else:
-                  require (3 * _7 * mem[480] * _193 + 3 * (_183 * _184 / (3 * _182)) * _193) / (-_196 + 3 * _7 * _196 + 4 * (_183 * _184 / (3 * _182))) >= _188
-                  if (3 * _7 * mem[480] * _193 + 3 * (_183 * _184 / (3 * _182)) * _193) / (-_196 + 3 * _7 * _196 + 4 * (_183 * _184 / (3 * _182))) - _188 > 1:
+                  if SafeMath.sub((3 * _7 * mem[480] * _193 + 3 * (_183 * _184 / (3 * _182)) * _193) / (-_196 + 3 * _7 * _196 + 4 * (_183 * _184 / (3 * _182))), _188) > 1:
                       _198 = mem[704]
                       mem[704] = mem[704] + 1
                       if _198 + 1 != 255:
@@ -3648,8 +3380,7 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
           require mem[1472] <=′ 32
           require mem[1472] >=′ 0
           require mem[1504] / 256**(-mem[1472] + 32)
-  require mem[768] + _amounts[0] >= mem[768]
-  mem[1120] = mem[768] + _amounts[0]
+  mem[1120] = SafeMath.add(mem[768], _amounts[0])
   _280 = 0
   mem[1216] = 1
   while _280 + 1 != 3:
@@ -3706,8 +3437,7 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
               mem[2272 len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
               require ext_call.success
               require return_data.size > 31
-              require ext_call.return_data[0] >= mem[1248]
-              mem[1248] = ext_call.return_data[0] - mem[1248]
+              mem[1248] = SafeMath.sub(ext_call.return_data[0], mem[1248])
       require mem[1216] < 3
       require mem[32 * mem[1216] + 768] + mem[1248] >= mem[32 * mem[1216] + 768]
       require mem[1216] < 3
@@ -3799,8 +3529,7 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
   mem[384] = mem[1184]
   mem[480] = 1000000000000 * 10**18
   mem[512] = 1000000000000 * 10**18
-  require 10**18 * mem[1120] / 10**18 == mem[1120]
-  mem[448] = 10**18 * mem[1120] / 10**18
+  mem[448] = SafeMath.mul(10**18, mem[1120]) / 10**18
   _379 = 0
   mem[544] = 1
   while _379 + 1 != 3:
@@ -3842,8 +3571,7 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
       _384 = mem[32 * mem[544] + 320]
       mem[512] = mem[32 * mem[544] + 320]
       _385 = mem[480]
-      require mem[480] + _384 >= mem[480]
-      mem[480] = mem[480] + _384
+      mem[480] = SafeMath.add(mem[480], _384)
       _386 = mem[544]
       mem[544] = mem[544] + 1
       continue
@@ -3860,8 +3588,7 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
           _408 = mem[640]
           require mem[640] * mem[640] / mem[640] == mem[640] or not mem[640]
           require 3 * _382 / _382 == 3 or not _382
-          require 3 * _382
-          mem[736] = mem[640] * mem[640] / (3 * _382)
+          mem[736] = SafeMath.div(mem[640] * mem[640], 3 * _382)
           _409 = 0
           mem[800] = 1
           while _409 + 1 != 3:
@@ -3871,8 +3598,7 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
               _408 = mem[640]
               require mem[736] * mem[640] / mem[736] == mem[640] or not mem[736]
               require 3 * _406 / _406 == 3 or not _406
-              require 3 * _406
-              mem[736] = mem[736] * mem[640] / (3 * _406)
+              mem[736] = SafeMath.div(mem[736] * mem[640], 3 * _406)
               _409 = mem[800]
               mem[800] = mem[800] + 1
               continue
@@ -3880,26 +3606,22 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
           mem[608] = mem[640]
           require 3 * _346 * mem[480] / (3 * _346) == mem[480] or not 3 * _346
           require 3 * (_407 * _408 / (3 * _406)) / (_407 * _408 / (3 * _406)) == 3 or not _407 * _408 / (3 * _406)
-          require 3 * _346 * mem[480] + 3 * (_407 * _408 / (3 * _406)) >= 3 * _346 * mem[480]
           _413 = mem[640]
-          require (3 * _346 * mem[480] * mem[640] + 3 * (_407 * _408 / (3 * _406)) * mem[640]) / (3 * _346 * mem[480] + 3 * (_407 * _408 / (3 * _406))) == mem[640] or not 3 * _346 * mem[480] + 3 * (_407 * _408 / (3 * _406))
-          require 3 * _346 >= 1
+          require (3 * _346 * mem[480] * mem[640] + 3 * (_407 * _408 / (3 * _406)) * mem[640]) / SafeMath.add(3 * _346 * mem[480], 3 * (_407 * _408 / (3 * _406))) == mem[640] or not SafeMath.add(3 * _346 * mem[480], 3 * (_407 * _408 / (3 * _406)))
           _415 = mem[640]
-          require (-mem[640] + 3 * _346 * mem[640]) / (3 * _346 - 1) == mem[640] or 3 * _346 == 1
+          require (-mem[640] + 3 * _346 * mem[640]) / SafeMath.sub(3 * _346, 1) == mem[640] or 3 * _346 == 1
           require Mask(254, 0, _407 * _408 / (3 * _406)) == _407 * _408 / (3 * _406)
           require -mem[640] + 3 * _346 * mem[640] + 4 * (_407 * _408 / (3 * _406)) >= -mem[640] + 3 * _346 * mem[640]
           require 3 * _346 * mem[640] + 4 * (_407 * _408 / (3 * _406)) != mem[640]
           mem[640] = (3 * _346 * mem[480] * mem[640] + 3 * (_407 * _408 / (3 * _406)) * mem[640]) / (-mem[640] + 3 * _346 * mem[640] + 4 * (_407 * _408 / (3 * _406)))
           if (3 * _346 * mem[480] * _413 + 3 * (_407 * _408 / (3 * _406)) * _413) / (-_415 + 3 * _346 * _415 + 4 * (_407 * _408 / (3 * _406))) <= _410:
-              require _410 >= (3 * _346 * mem[480] * _413 + 3 * (_407 * _408 / (3 * _406)) * _413) / (-_415 + 3 * _346 * _415 + 4 * (_407 * _408 / (3 * _406)))
-              if _410 - (3 * _346 * mem[480] * _413 + 3 * (_407 * _408 / (3 * _406)) * _413) / (-_415 + 3 * _346 * _415 + 4 * (_407 * _408 / (3 * _406))) > 1:
+              if SafeMath.sub(_410, (3 * _346 * mem[480] * _413 + 3 * (_407 * _408 / (3 * _406)) * _413) / (-_415 + 3 * _346 * _415 + 4 * (_407 * _408 / (3 * _406)))) > 1:
                   _416 = mem[704]
                   mem[704] = mem[704] + 1
                   if _416 + 1 != 255:
                       continue
           else:
-              require (3 * _346 * mem[480] * _413 + 3 * (_407 * _408 / (3 * _406)) * _413) / (-_415 + 3 * _346 * _415 + 4 * (_407 * _408 / (3 * _406))) >= _410
-              if (3 * _346 * mem[480] * _413 + 3 * (_407 * _408 / (3 * _406)) * _413) / (-_415 + 3 * _346 * _415 + 4 * (_407 * _408 / (3 * _406))) - _410 > 1:
+              if SafeMath.sub((3 * _346 * mem[480] * _413 + 3 * (_407 * _408 / (3 * _406)) * _413) / (-_415 + 3 * _346 * _415 + 4 * (_407 * _408 / (3 * _406))), _410) > 1:
                   _417 = mem[704]
                   mem[704] = mem[704] + 1
                   if _417 + 1 != 255:
@@ -3981,38 +3703,30 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
   else:
       _429 = _295
       require _418 * _295 / _418 == _295 or not _418
-      require _294
-      mem[2656] = _418 * _295 / _294
-      if _418 * _295 / _294 <= _306:
-          require _306 >= _418 * _295 / _294
-          mem[2688] = _306 - _418 * _295 / _294
+      mem[2656] = SafeMath.div(_418 * _295, _294)
+      if SafeMath.div(_418 * _295, _294) <= _306:
+          mem[2688] = SafeMath.sub(_306, SafeMath.div(_418 * _295, _294))
       else:
-          require _418 * _295 / _294 >= _306
-          mem[2688] = _418 * _295 / _294 - _306
+          mem[2688] = SafeMath.sub(SafeMath.div(_418 * _295, _294), _306)
       require _284 * mem[2688] / _284 == mem[2688] or not _284
       mem[320] = _284 * mem[2688] / 10**10
       require _284 * mem[2688] / 10**10 * _285 / (_284 * mem[2688] / 10**10) == _285 or not _284 * mem[2688] / 10**10
-      require _306 >= _284 * mem[2688] / 10**10 * _285 / 10**10
-      balances[0] = _306 - _284 * mem[2688] / 10**10 * _285 / 10**10
-      require _306 >= _284 * mem[2688] / 10**10
-      mem[1120] = _306 - _284 * mem[2688] / 10**10
+      balances[0] = SafeMath.sub(_306, _284 * mem[2688] / 10**10 * _285 / 10**10)
+      mem[1120] = SafeMath.sub(_306, _284 * mem[2688] / 10**10)
       _451 = 0
       mem[2624] = 1
       while _451 + 1 != 3:
           require mem[2624] < 3
           _429 = mem[32 * mem[2624] + 768]
           require mem[2304] * mem[32 * mem[2624] + 768] / mem[2304] == mem[32 * mem[2624] + 768] or not mem[2304]
-          require mem[736]
-          mem[2656] = mem[2304] * mem[32 * mem[2624] + 768] / mem[736]
+          mem[2656] = SafeMath.div(mem[2304] * mem[32 * mem[2624] + 768], mem[736])
           mem[2688] = 0
           require mem[2624] < 3
           require mem[2624] < 3
           if mem[2304] * _429 / mem[736] <= mem[32 * mem[2624] + 1120]:
-              require mem[32 * mem[2624] + 1120] >= mem[2304] * _429 / mem[736]
-              mem[2688] = mem[32 * mem[2624] + 1120] - mem[2304] * _429 / mem[736]
+              mem[2688] = SafeMath.sub(mem[32 * mem[2624] + 1120], mem[2304] * _429 / mem[736])
           else:
-              require mem[2304] * _429 / mem[736] >= mem[32 * mem[2624] + 1120]
-              mem[2688] = mem[2304] * _429 / mem[736] - mem[32 * mem[2624] + 1120]
+              mem[2688] = SafeMath.sub(mem[2304] * _429 / mem[736], mem[32 * mem[2624] + 1120])
           require mem[416] * mem[2688] / mem[416] == mem[2688] or not mem[416]
           require mem[2624] < 3
           mem[32 * mem[2624] + 320] = mem[416] * mem[2688] / 10**10
@@ -4025,8 +3739,7 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
           balances[mem[2624]] = mem[32 * mem[2624] + 1120] - mem[32 * mem[2624] + 320] * mem[448] / 10**10
           require mem[2624] < 3
           require mem[2624] < 3
-          require mem[32 * mem[2624] + 1120] >= mem[32 * mem[2624] + 320]
-          mem[32 * mem[2624] + 1120] = mem[32 * mem[2624] + 1120] - mem[32 * mem[2624] + 320]
+          mem[32 * mem[2624] + 1120] = SafeMath.sub(mem[32 * mem[2624] + 1120], mem[32 * mem[2624] + 320])
           _451 = mem[2624]
           mem[2624] = mem[2624] + 1
           continue
@@ -4059,8 +3772,7 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
       mem[384] = mem[1184]
       mem[480] = 1000000000000 * 10**18
       mem[512] = 1000000000000 * 10**18
-      require 10**18 * mem[1120] / 10**18 == mem[1120]
-      mem[448] = 10**18 * mem[1120] / 10**18
+      mem[448] = SafeMath.mul(10**18, mem[1120]) / 10**18
       _560 = 0
       mem[544] = 1
       while _560 + 1 != 3:
@@ -4102,8 +3814,7 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
           _565 = mem[32 * mem[544] + 320]
           mem[512] = mem[32 * mem[544] + 320]
           _566 = mem[480]
-          require mem[480] + _565 >= mem[480]
-          mem[480] = mem[480] + _565
+          mem[480] = SafeMath.add(mem[480], _565)
           _567 = mem[544]
           mem[544] = mem[544] + 1
           continue
@@ -4120,8 +3831,7 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
               _589 = mem[640]
               require mem[640] * mem[640] / mem[640] == mem[640] or not mem[640]
               require 3 * _563 / _563 == 3 or not _563
-              require 3 * _563
-              mem[736] = mem[640] * mem[640] / (3 * _563)
+              mem[736] = SafeMath.div(mem[640] * mem[640], 3 * _563)
               _590 = 0
               mem[800] = 1
               while _590 + 1 != 3:
@@ -4131,8 +3841,7 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
                   _589 = mem[640]
                   require mem[736] * mem[640] / mem[736] == mem[640] or not mem[736]
                   require 3 * _587 / _587 == 3 or not _587
-                  require 3 * _587
-                  mem[736] = mem[736] * mem[640] / (3 * _587)
+                  mem[736] = SafeMath.div(mem[736] * mem[640], 3 * _587)
                   _590 = mem[800]
                   mem[800] = mem[800] + 1
                   continue
@@ -4140,26 +3849,22 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
               mem[608] = mem[640]
               require 3 * _527 * mem[480] / (3 * _527) == mem[480] or not 3 * _527
               require 3 * (_588 * _589 / (3 * _587)) / (_588 * _589 / (3 * _587)) == 3 or not _588 * _589 / (3 * _587)
-              require 3 * _527 * mem[480] + 3 * (_588 * _589 / (3 * _587)) >= 3 * _527 * mem[480]
               _594 = mem[640]
-              require (3 * _527 * mem[480] * mem[640] + 3 * (_588 * _589 / (3 * _587)) * mem[640]) / (3 * _527 * mem[480] + 3 * (_588 * _589 / (3 * _587))) == mem[640] or not 3 * _527 * mem[480] + 3 * (_588 * _589 / (3 * _587))
-              require 3 * _527 >= 1
+              require (3 * _527 * mem[480] * mem[640] + 3 * (_588 * _589 / (3 * _587)) * mem[640]) / SafeMath.add(3 * _527 * mem[480], 3 * (_588 * _589 / (3 * _587))) == mem[640] or not SafeMath.add(3 * _527 * mem[480], 3 * (_588 * _589 / (3 * _587)))
               _596 = mem[640]
-              require (-mem[640] + 3 * _527 * mem[640]) / (3 * _527 - 1) == mem[640] or 3 * _527 == 1
+              require (-mem[640] + 3 * _527 * mem[640]) / SafeMath.sub(3 * _527, 1) == mem[640] or 3 * _527 == 1
               require Mask(254, 0, _588 * _589 / (3 * _587)) == _588 * _589 / (3 * _587)
               require -mem[640] + 3 * _527 * mem[640] + 4 * (_588 * _589 / (3 * _587)) >= -mem[640] + 3 * _527 * mem[640]
               require 3 * _527 * mem[640] + 4 * (_588 * _589 / (3 * _587)) != mem[640]
               mem[640] = (3 * _527 * mem[480] * mem[640] + 3 * (_588 * _589 / (3 * _587)) * mem[640]) / (-mem[640] + 3 * _527 * mem[640] + 4 * (_588 * _589 / (3 * _587)))
               if (3 * _527 * mem[480] * _594 + 3 * (_588 * _589 / (3 * _587)) * _594) / (-_596 + 3 * _527 * _596 + 4 * (_588 * _589 / (3 * _587))) <= _591:
-                  require _591 >= (3 * _527 * mem[480] * _594 + 3 * (_588 * _589 / (3 * _587)) * _594) / (-_596 + 3 * _527 * _596 + 4 * (_588 * _589 / (3 * _587)))
-                  if _591 - (3 * _527 * mem[480] * _594 + 3 * (_588 * _589 / (3 * _587)) * _594) / (-_596 + 3 * _527 * _596 + 4 * (_588 * _589 / (3 * _587))) > 1:
+                  if SafeMath.sub(_591, (3 * _527 * mem[480] * _594 + 3 * (_588 * _589 / (3 * _587)) * _594) / (-_596 + 3 * _527 * _596 + 4 * (_588 * _589 / (3 * _587)))) > 1:
                       _597 = mem[704]
                       mem[704] = mem[704] + 1
                       if _597 + 1 != 255:
                           continue
               else:
-                  require (3 * _527 * mem[480] * _594 + 3 * (_588 * _589 / (3 * _587)) * _594) / (-_596 + 3 * _527 * _596 + 4 * (_588 * _589 / (3 * _587))) >= _591
-                  if (3 * _527 * mem[480] * _594 + 3 * (_588 * _589 / (3 * _587)) * _594) / (-_596 + 3 * _527 * _596 + 4 * (_588 * _589 / (3 * _587))) - _591 > 1:
+                  if SafeMath.sub((3 * _527 * mem[480] * _594 + 3 * (_588 * _589 / (3 * _587)) * _594) / (-_596 + 3 * _527 * _596 + 4 * (_588 * _589 / (3 * _587))), _591) > 1:
                       _598 = mem[704]
                       mem[704] = mem[704] + 1
                       if _598 + 1 != 255:
@@ -4176,10 +3881,8 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
       mem[320] = _452
       mem[2592] = _599
   if mem[576]:
-      require mem[2592] >= mem[736]
-      require (mem[2592] * mem[576] - mem[736] * mem[576]) / mem[576] == mem[2592] - mem[736] or not mem[576]
-      require mem[736]
-      mem[2976] = (mem[2592] * mem[576] - mem[736] * mem[576]) / mem[736]
+      require (mem[2592] * mem[576] - mem[736] * mem[576]) / mem[576] == SafeMath.sub(mem[2592], mem[736]) or not mem[576]
+      mem[2976] = SafeMath.div(mem[2592] * mem[576] - mem[736] * mem[576], mem[736])
   else:
       mem[2976] = mem[2304]
   if mem[2976] < _min_mint_amount:
@@ -4189,8 +3892,7 @@ def add_liquidity(uint256[3] _amounts, uint256 _min_mint_amount) payable:
       args caller, mem[2976]
   require ext_call.success
   require return_data.size > 31
-  require mem[576] + mem[2976] >= mem[576]
-  log AddLiquidity(address provider, uint256[3] token_amounts, uint256[3] fees, uint256 invariant, uint256 token_supply): _amounts[0], _amounts[1], _amounts[2], mem[320 len 96], mem[2304], mem[576] + mem[2976], indexed caller
+  log AddLiquidity(address provider, uint256[3] token_amounts, uint256[3] fees, uint256 invariant, uint256 token_supply): _amounts[0], _amounts[1], _amounts[2], mem[320 len 96], mem[2304], SafeMath.add(mem[576], mem[2976]), indexed caller
   stor16777215 = 0
 
 

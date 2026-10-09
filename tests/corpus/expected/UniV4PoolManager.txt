@@ -9,6 +9,20 @@ def storage:
   allowance is mapping of mapping of mapping of uint256 at storage 5
   stor6 is mapping of struct of 6 slots at storage 6
 
+def SafeMath:
+  def add(a, b):  # solidity >= 0.8
+      if a > a + b:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      return a + b
+  def sub(a, b):  # solidity >= 0.8
+      if a - b > a:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      return a - b
+  def div(a, b):  # solidity >= 0.8
+      if not b:
+          revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
+      return a / b
+
 def balanceOf(address account, uint256 id): # not payable
   require calldata.size - 4 >=′ 64
   require not Mask(96, 160, account)
@@ -111,6 +125,19 @@ def unknown35fd631a(uint256 _param1, uint256 _param2): # not payable
     from 160
      len 32 * _param2 + 64
 
+def transfer(address _to, uint256 _value, uint256 _code): # not payable
+  require calldata.size - 4 >=′ 96
+  require not Mask(96, 160, _to)
+  balanceOf[caller][_value] = SafeMath.sub(balanceOf[caller][_value], _code)
+  balanceOf[_to][_value] = SafeMath.add(balanceOf[_to][_value], _code)
+  log Transfer(
+        address _spender=caller,
+        address indexed _from=caller,
+        address indexed _to=_to,
+        uint256 indexed _id=_value,
+        uint256 _value=_code)
+  return 1
+
 def unknowndbd035ff(array _param1): # not payable
   require calldata.size - 4 >=′ 32
   require _param1 <= 18446744073709551615
@@ -186,23 +213,6 @@ def unknown52759651(uint256 _param1, uint256 _param2, uint256 _param3, int24 _pa
       revert with 0x486aa307
   uint24(stor6[sha3(_param1, _param2, _param3, _param4, _param5)].field_208) = _param6
 
-def transfer(address _to, uint256 _value, uint256 _code): # not payable
-  require calldata.size - 4 >=′ 96
-  require not Mask(96, 160, _to)
-  if balanceOf[caller][_value] - _code > balanceOf[caller][_value]:
-      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-  balanceOf[caller][_value] -= _code
-  if balanceOf[_to][_value] > balanceOf[_to][_value] + _code:
-      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-  balanceOf[_to][_value] += _code
-  log Transfer(
-        address _spender=caller,
-        address indexed _from=caller,
-        address indexed _to=_to,
-        uint256 indexed _id=_value,
-        uint256 _value=_code)
-  return 1
-
 def unknown7e87ce7d(uint256 _param1, uint256 _param2, uint256 _param3, int24 _param4, uint256 _param5, uint256 _param6): # not payable
   require calldata.size - 4 >=′ 192
   require calldata.size - 4 >=′ 160
@@ -228,15 +238,9 @@ def transferFrom(address from_, address to_, uint256 tokenId_, uint256 transferU
   _3 = from_ != caller and not isOperator[from_][caller]
   if _3:
       if allowance[from_][caller][tokenId_] != -1:
-          if allowance[from_][caller][tokenId_] - transferUnits_ > allowance[from_][caller][tokenId_]:
-              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          allowance[from_][caller][tokenId_] -= transferUnits_
-  if balanceOf[from_][tokenId_] - transferUnits_ > balanceOf[from_][tokenId_]:
-      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-  balanceOf[from_][tokenId_] -= transferUnits_
-  if balanceOf[to_][tokenId_] > balanceOf[to_][tokenId_] + transferUnits_:
-      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-  balanceOf[to_][tokenId_] += transferUnits_
+          allowance[from_][caller][tokenId_] = SafeMath.sub(allowance[from_][caller][tokenId_], transferUnits_)
+  balanceOf[from_][tokenId_] = SafeMath.sub(balanceOf[from_][tokenId_], transferUnits_)
+  balanceOf[to_][tokenId_] = SafeMath.add(balanceOf[to_][tokenId_], transferUnits_)
   log Transfer(
         address _spender=caller,
         address indexed _from=from_,
@@ -280,9 +284,7 @@ def unknown8161b874(uint256 _param1, uint256 _param2, uint256 _param3): # not pa
   else:
       _3 = stor1[_param2]
       _4 = stor1[_param2]
-  if stor1[_param2] - _4 > stor1[_param2]:
-      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-  stor1[_param2] -= _4
+  stor1[_param2] = SafeMath.sub(stor1[_param2], _4)
   if _param2:
       call _param2.transfer(address recipient, uint256 amount) with:
            gas gas_remaining
@@ -334,15 +336,42 @@ def mint(address user, uint256 amount, uint256 index): # not payable
       else:
           if not _5:
               transient[0x7d4b3164c6e45b97e7d87b7125a44c5828d005af88f9d751cfd78729c5d99a0b] = transient[0x7d4b3164c6e45b97e7d87b7125a44c5828d005af88f9d751cfd78729c5d99a0b] + 1
-  if balanceOf[user][address(amount)] > balanceOf[user][address(amount)] + index:
-      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-  balanceOf[user][address(amount)] += index
+  balanceOf[user][address(amount)] = SafeMath.add(balanceOf[user][address(amount)], index)
   log Transfer(
         address _spender=caller,
         address indexed _from=0,
         address indexed _to=user,
         uint256 indexed _id=address(amount),
         uint256 _value=index)
+
+def burn(address account, uint256 id, uint256 value): # not payable
+  require calldata.size - 4 >=′ 96
+  require not Mask(96, 160, account)
+  if not transient[0xc090fc4683624cfc3884e9d8de5eca132f2d0ec062aff75d43c0465d5ceeab23]:
+      revert with 0x54e3ca0d
+  if value >= 0x80000000000000000000000000000000:
+      revert with 0x93dafdf1
+  if int128(value):
+      if transient[sha3(caller, address(id))] >=′ 0 and transient[sha3(caller, address(id))] + int128(value) <′ int128(value) or transient[sha3(caller, address(id))] <′ 0 and transient[sha3(caller, address(id))] + int128(value) >=′ int128(value):
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      _10 = transient[sha3(caller, address(id))]
+      transient[sha3(caller, address(id))] = transient[sha3(caller, address(id))] + int128(value)
+      if not _10 + int128(value):
+          transient[0x7d4b3164c6e45b97e7d87b7125a44c5828d005af88f9d751cfd78729c5d99a0b] = transient[0x7d4b3164c6e45b97e7d87b7125a44c5828d005af88f9d751cfd78729c5d99a0b] - 1
+      else:
+          if not _10:
+              transient[0x7d4b3164c6e45b97e7d87b7125a44c5828d005af88f9d751cfd78729c5d99a0b] = transient[0x7d4b3164c6e45b97e7d87b7125a44c5828d005af88f9d751cfd78729c5d99a0b] + 1
+  _17 = account != caller and not isOperator[account][caller]
+  if _17:
+      if allowance[account][caller][address(id)] != -1:
+          allowance[account][caller][address(id)] = SafeMath.sub(allowance[account][caller][address(id)], value)
+  balanceOf[account][address(id)] = SafeMath.sub(balanceOf[account][address(id)], value)
+  log Transfer(
+        address _spender=caller,
+        address indexed _from=account,
+        address indexed _to=0,
+        uint256 indexed _id=address(id),
+        uint256 _value=value)
 
 def unknown48c89491(array _param1): # not payable
   require calldata.size - 4 >=′ 32
@@ -426,39 +455,6 @@ def settle() payable:
           if not _13:
               transient[0x7d4b3164c6e45b97e7d87b7125a44c5828d005af88f9d751cfd78729c5d99a0b] = transient[0x7d4b3164c6e45b97e7d87b7125a44c5828d005af88f9d751cfd78729c5d99a0b] + 1
   return _9
-
-def burn(address account, uint256 id, uint256 value): # not payable
-  require calldata.size - 4 >=′ 96
-  require not Mask(96, 160, account)
-  if not transient[0xc090fc4683624cfc3884e9d8de5eca132f2d0ec062aff75d43c0465d5ceeab23]:
-      revert with 0x54e3ca0d
-  if value >= 0x80000000000000000000000000000000:
-      revert with 0x93dafdf1
-  if int128(value):
-      if transient[sha3(caller, address(id))] >=′ 0 and transient[sha3(caller, address(id))] + int128(value) <′ int128(value) or transient[sha3(caller, address(id))] <′ 0 and transient[sha3(caller, address(id))] + int128(value) >=′ int128(value):
-          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-      _10 = transient[sha3(caller, address(id))]
-      transient[sha3(caller, address(id))] = transient[sha3(caller, address(id))] + int128(value)
-      if not _10 + int128(value):
-          transient[0x7d4b3164c6e45b97e7d87b7125a44c5828d005af88f9d751cfd78729c5d99a0b] = transient[0x7d4b3164c6e45b97e7d87b7125a44c5828d005af88f9d751cfd78729c5d99a0b] - 1
-      else:
-          if not _10:
-              transient[0x7d4b3164c6e45b97e7d87b7125a44c5828d005af88f9d751cfd78729c5d99a0b] = transient[0x7d4b3164c6e45b97e7d87b7125a44c5828d005af88f9d751cfd78729c5d99a0b] + 1
-  _17 = account != caller and not isOperator[account][caller]
-  if _17:
-      if allowance[account][caller][address(id)] != -1:
-          if allowance[account][caller][address(id)] - value > allowance[account][caller][address(id)]:
-              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          allowance[account][caller][address(id)] -= value
-  if balanceOf[account][address(id)] - value > balanceOf[account][address(id)]:
-      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-  balanceOf[account][address(id)] -= value
-  log Transfer(
-        address _spender=caller,
-        address indexed _from=account,
-        address indexed _to=0,
-        uint256 indexed _id=address(id),
-        uint256 _value=value)
 
 def unknown3dd45adb(uint256 _param1) payable: 
   require calldata.size - 4 >=′ 32
@@ -3414,31 +3410,19 @@ def unknownf3cd914c(uint256 _param1, uint256 _param2, uint256 _param3, int24 _pa
                           _2434 = (((_2323 << 96) - mulmod(_2323, 0x1000000000000000000000000, mem[_59 + 80 len 16])) / (-mem[_59 + 80 len 16] & mem[_59 + 80 len 16]) | _2430) * _2429
                       _2444 = _2434
                   else:
-                      if not mem[_59 + 80 len 16]:
-                          revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                      _2444 = (_2323 << 96) / mem[_59 + 80 len 16]
-                  if mem[_59 + 12 len 20] > mem[_59 + 12 len 20] + _2444:
-                      revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                  if address(mem[_59 + 12 len 20] + _2444) - mem[_59 + 12 len 20] - _2444:
+                      _2444 = SafeMath.div(_2323 << 96, mem[_59 + 80 len 16])
+                  if address(SafeMath.add(mem[_59 + 12 len 20], _2444)) - mem[_59 + 12 len 20] - _2444:
                       revert with 0x93dafdf1
-                  _2503 = address(mem[_59 + 12 len 20] + _2444)
+                  _2503 = address(SafeMath.add(mem[_59 + 12 len 20], _2444))
               else:
                   if not _2323:
                       _2503 = mem[_59 + 12 len 20]
                   else:
                       if _2323 * mem[_59 + 12 len 20] / _2323 != mem[_59 + 12 len 20]:
-                          if not mem[_59 + 12 len 20]:
-                              revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                          if (uint128(mem[_59 + 64]) << 96) / mem[_59 + 12 len 20] > (uint128(mem[_59 + 64]) << 96) / mem[_59 + 12 len 20] + _2323:
-                              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                          _2503 = address((uint128(mem[_59 + 64]) << 96) / ((uint128(mem[_59 + 64]) << 96) / mem[_59 + 12 len 20] + _2323) + bool((uint128(mem[_59 + 64]) << 96) % ((uint128(mem[_59 + 64]) << 96) / mem[_59 + 12 len 20] + _2323)))
+                          _2503 = address((uint128(mem[_59 + 64]) << 96) / SafeMath.add(SafeMath.div(uint128(mem[_59 + 64]) << 96, mem[_59 + 12 len 20]), _2323) + bool((uint128(mem[_59 + 64]) << 96) % SafeMath.add(SafeMath.div(uint128(mem[_59 + 64]) << 96, mem[_59 + 12 len 20]), _2323)))
                       else:
                           if (uint128(mem[_59 + 64]) << 96) + _2323 * mem[_59 + 12 len 20] < uint128(mem[_59 + 64]) << 96:
-                              if not mem[_59 + 12 len 20]:
-                                  revert with Panic(18)  # If you divide or modulo by zero (e.g. 5 / 0 or 23 % 0).
-                              if (uint128(mem[_59 + 64]) << 96) / mem[_59 + 12 len 20] > (uint128(mem[_59 + 64]) << 96) / mem[_59 + 12 len 20] + _2323:
-                                  revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-                              _2503 = address((uint128(mem[_59 + 64]) << 96) / ((uint128(mem[_59 + 64]) << 96) / mem[_59 + 12 len 20] + _2323) + bool((uint128(mem[_59 + 64]) << 96) % ((uint128(mem[_59 + 64]) << 96) / mem[_59 + 12 len 20] + _2323)))
+                              _2503 = address((uint128(mem[_59 + 64]) << 96) / SafeMath.add(SafeMath.div(uint128(mem[_59 + 64]) << 96, mem[_59 + 12 len 20]), _2323) + bool((uint128(mem[_59 + 64]) << 96) % SafeMath.add(SafeMath.div(uint128(mem[_59 + 64]) << 96, mem[_59 + 12 len 20]), _2323)))
                           else:
                               require (uint128(mem[_59 + 64]) << 96) + _2323 * mem[_59 + 12 len 20] > mulmod(uint128(mem[_59 + 64]) << 96, mem[_59 + 12 len 20], -1) - (uint128(mem[_59 + 64]) << 96) * mem[_59 + 12 len 20] - (mulmod(uint128(mem[_59 + 64]) << 96, mem[_59 + 12 len 20], -1) < (uint128(mem[_59 + 64]) << 96) * mem[_59 + 12 len 20])
                               if mulmod(uint128(mem[_59 + 64]) << 96, mem[_59 + 12 len 20], -1) - (uint128(mem[_59 + 64]) << 96) * mem[_59 + 12 len 20] == (mulmod(uint128(mem[_59 + 64]) << 96, mem[_59 + 12 len 20], -1) < (uint128(mem[_59 + 64]) << 96) * mem[_59 + 12 len 20]):
@@ -3540,9 +3524,7 @@ def unknownf3cd914c(uint256 _param1, uint256 _param2, uint256 _param3, int24 _pa
       else:
           if mem[_1220 + 160] <′ 0:
               revert with 0x93dafdf1
-          if mem[_1220 + 128] > mem[_1220 + 128] + mem[_1220 + 192]:
-              revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
-          if mem[_1220 + 128] + mem[_1220 + 192] <′ 0:
+          if SafeMath.add(mem[_1220 + 128], mem[_1220 + 192]) <′ 0:
               revert with 0x93dafdf1
           if t - mem[_1220 + 128] - mem[_1220 + 192] >′ t:
               revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.

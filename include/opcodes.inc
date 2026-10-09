@@ -216,4 +216,9 @@
 .set OP_VYPER, 215
 .set OP_SOLIDITY, 216
 .set OP_CLZ, 217
-.set OP_COUNT, 217
+.set OP_SAFEMATH, 218
+.set OP_PANIC, 219
+.set OP_ERROR, 220
+.set OP_INC, 221
+.set OP_DEC, 222
+.set OP_COUNT, 222
