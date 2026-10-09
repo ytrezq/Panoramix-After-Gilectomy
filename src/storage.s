@@ -25,6 +25,7 @@
 # vyper, 0 for solidity.
 
 .include "defs.inc"
+.include "storage.inc"
 
 .set E_STFAIL, 40               # a Fail that python lets through (raw's)
 .set E_UNKNOWN, 41              # storage's Unknown (the check)
@@ -53,8 +54,6 @@ st_hinit:       .long 0, 0      # pthread_once_t of each table
 .Ls_index:      .asciz "list index out of range"
 .Ls_tindex:     .asciz "tuple index out of range"
 .Ls_zero_div:   .asciz "integer division or modulo by zero"
-.Ls_neg_type:   .asciz "bad operand type for unary -"
-.Ls_width_type: .asciz "unsupported operand type(s) for //"
 .Ls_max_empty:  .asciz "max() arg is an empty sequence"
 .Ls_steps_kind: .asciz "steps: a path of an unknown kind"
 .Ls_raw_fail:   .asciz "storage: a write of the length of a bytes (raw's Fail)"
@@ -1012,25 +1011,6 @@ FUNC st_linear
         LEAVE
 ENDF st_linear
 
-# st_check_width(w): python's TypeError of `256 // w`, ZeroDivisionError
-# of a 0 (w: an int or not)
-FUNC st_check_width
-        ENTER
-        mov rbx, rdi
-        call is_int
-        test eax, eax
-        jz 1f
-        cmp rbx, 1
-        je 2f
-        LEAVE
-1:      mov edi, E_TYPE
-        lea rsi, [rip + .Ls_width_type]
-        call err_throw
-2:      mov edi, E_ZERO_DIV
-        lea rsi, [rip + .Ls_zero_div]
-        call err_throw
-ENDF st_check_width
-
 # st_packed(e, off, width) -> rax: python's packed - the index of the
 # element of `width` bits at slot + e, bits off, of an array packed
 # 256 / width in a slot, or 0 (None) if it isn't one
@@ -1043,8 +1023,14 @@ FUNC st_packed
         mov rbx, rdi
         mov r12, rsi
         mov r13, rdx
-        mov rdi, rdx
-        call st_check_width
+        mov rdi, rdx                    # (an access of a size computed at
+        call is_int                     # runtime, say: none)
+        test eax, eax
+        jz .Lpk_none
+        cmp r13, 1
+        jle .Lpk_none
+        cmp r13, (256 << 1) | 1
+        jg .Lpk_none
         mov edi, (256 << 1) | 1
         mov rsi, r13
         call int_floordiv               # per = 256 // width
@@ -1306,6 +1292,31 @@ FUNC st_is_bytes_slot
 9:      mov eax, 1
         LEAVE
 ENDF st_is_bytes_slot
+
+# st_reads_bytes_length(pairs) -> eax: the fields (size, off) read are
+# all of those of a bytes' length, {(1, 0), (7, 1), (255, 1)} <= pairs
+FUNC st_reads_bytes_length
+        ENTER
+        mov rbx, rdi
+        mov esi, 3
+        mov edx, 1
+        call st_pair_is                 # (1, 0)
+        test eax, eax
+        jz 8f
+        mov rdi, rbx
+        mov esi, (7 << 1) | 1
+        mov edx, 3
+        call st_pair_is                 # (7, 1)
+        test eax, eax
+        jz 8f
+        mov rdi, rbx
+        mov esi, (255 << 1) | 1
+        mov edx, 3
+        call st_pair_is                 # (255, 1)
+        LEAVE
+8:      xor eax, eax
+        LEAVE
+ENDF st_reads_bytes_length
 
 # st_step_kind(st) -> eax: the kind of the first step of a list of steps:
 # 0 none, OP_MAP, OP_DATA, OP_BLEN, OP_OFF
@@ -1872,21 +1883,6 @@ FUNC st_value_width
 1:      LEAVE
 ENDF st_value_width
 
-# st_neg(v) -> value: python's -v, a TypeError for what isn't a number
-FUNC st_neg
-        ENTER
-        mov rbx, rdi
-        call is_int
-        test eax, eax
-        jz 1f
-        mov rdi, rbx
-        call int_neg
-        LEAVE
-1:      mov edi, E_TYPE
-        lea rsi, [rip + .Ls_neg_type]
-        call err_throw
-ENDF st_neg
-
 # st_mk_st(size, loc, width) -> ('st', size, loc, width)
 FUNC st_mk_st
         mov rcx, rdx
@@ -1977,8 +1973,9 @@ FUNC st_form
         jz 1f
         mov rax, r13
         jmp .Lfo_ret
-1:      mov rdi, [rsp + FO_OFF]
-        call st_neg
+1:      mov rdi, -1                     # (mul_op(-1, off): of an offset
+        mov rsi, [rsp + FO_OFF]         # computed at runtime too)
+        call alg_mul2
         mov rcx, rax
         LOADS rdi, MASK_SHL
         mov rsi, [rsp + FO_SIZE]
@@ -3085,15 +3082,19 @@ FUNC st_language
         LEAVE
 ENDF st_language
 
-# st_checked_below(trace) -> od: python's checked_below - {x: n} for the
-# checks that x < n, that revert otherwise
+# st_checked_below(trace, flags) -> od: python's checked_below - {x: n} for
+# the checks that x < n, that revert otherwise; with CB_LOOPS the
+# conditions x < n of the loops as well (in their bodies); with CB_ANY, x
+# < y whatever y is (a length read from the storage), n None
 FUNC st_checked_below
         ENTER
         mov rbx, rdi
+        mov r13, rsi
         call od_new
         mov r12, rax
         mov rdi, rbx
         mov rsi, r12
+        mov rdx, r13
         call st_cb_visit
         mov rax, r12
         LEAVE
@@ -3116,12 +3117,14 @@ FUNC st_cb_reverts
 1:      LEAVE
 ENDF st_cb_reverts
 
-# st_cb_visit(lines, od)
+# st_cb_visit(lines, od, flags)
 FUNC st_cb_visit
         STACK_CHECK
         ENTER
+        sub rsp, 16
         mov rbx, rdi
         mov r12, rsi
+        mov [rsp], rdx                  # flags
         xor r13d, r13d
 1:      cmp r13d, [rbx + N_AUX]
         jae 9f
@@ -3141,6 +3144,7 @@ FUNC st_cb_visit
         jz 2f
         mov rdi, [r14 + N_DATA + 8]
         mov rsi, r12
+        mov rdx, [rsp]
         call st_cb_add
 2:      mov rdi, [r14 + N_DATA + 16]    # if_true reverts: not cond
         call st_cb_reverts
@@ -3151,34 +3155,49 @@ FUNC st_cb_visit
         call mk2
         mov rdi, rax
         mov rsi, r12
+        mov rdx, [rsp]
         call st_cb_add
 3:      mov rdi, [r14 + N_DATA + 16]
         mov rsi, r12
+        mov rdx, [rsp]
         call st_cb_visit
         mov rdi, [r14 + N_DATA + 24]
         mov rsi, r12
+        mov rdx, [rsp]
         call st_cb_visit
         jmp 1b
-5:      cmp dword ptr [r14 + N_AUX], 3
+5:      test qword ptr [rsp], CB_LOOPS  # (a loop goes on while its cond
+        jz 6f                           # holds, in its body)
+        cmp dword ptr [r14 + N_AUX], 2
+        jb .Lcv_index
+        mov rdi, [r14 + N_DATA + 8]
+        mov rsi, r12
+        mov rdx, [rsp]
+        call st_cb_add
+6:      cmp dword ptr [r14 + N_AUX], 3
         jb .Lcv_index
         mov rdi, [r14 + N_DATA + 16]
         mov rsi, r12
+        mov rdx, [rsp]
         call st_cb_visit
         jmp 1b
-9:      LEAVE
+9:      add rsp, 16
+        LEAVE
 .Lcv_index:
         mov edi, E_INDEX
         lea rsi, [rip + .Ls_tindex]
         call err_throw
 ENDF st_cb_visit
 
-# st_cb_add(cond, od): cond must hold for the execution to go on
+# st_cb_add(cond, od, flags): cond must hold for the execution to go on
 FUNC st_cb_add
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE + 16
         .set CA_OD, MATCH_BINDINGS_SIZE
+        .set CA_FLAGS, MATCH_BINDINGS_SIZE + 8
         mov rbx, rdi
         mov [rsp + CA_OD], rsi
+        mov [rsp + CA_FLAGS], rdx
 1:      PAT rsi, "('iszero', ('iszero', ':c'))"
         mov rdi, rbx
         mov rdx, rsp
@@ -3188,6 +3207,8 @@ FUNC st_cb_add
         mov rbx, [rsp]
         jmp 1b
 2:      # (pattern, delta): x < n, x <= n - 1...
+        test qword ptr [rsp + CA_FLAGS], CB_ANY
+        jnz 3f
         PAT rsi, "('lt', ':x', ':int:n')"
         xor r12d, r12d
         call .Lca_try
@@ -3214,6 +3235,25 @@ FUNC st_cb_add
         call .Lca_try_nx
         add rsp, MATCH_BINDINGS_SIZE + 16
         LEAVE
+3:      # (whatever n is)
+        PAT rsi, "('lt', ':x', ':n')"
+        call .Lca_try
+        PAT rsi, "('gt', ':n', ':x')"
+        call .Lca_try_nx
+        PAT rsi, "('le', ':x', ':n')"
+        call .Lca_try
+        PAT rsi, "('ge', ':n', ':x')"
+        call .Lca_try_nx
+        PAT rsi, "('iszero', ('ge', ':x', ':n'))"
+        call .Lca_try
+        PAT rsi, "('iszero', ('le', ':n', ':x'))"
+        call .Lca_try_nx
+        PAT rsi, "('iszero', ('gt', ':x', ':n'))"
+        call .Lca_try
+        PAT rsi, "('iszero', ('lt', ':n', ':x'))"
+        call .Lca_try_nx
+        add rsp, MATCH_BINDINGS_SIZE + 16
+        LEAVE
 # a pattern binding x then n (.Lca_try) or n then x (.Lca_try_nx), rsi;
 # r12: the delta
 .Lca_try:
@@ -3235,7 +3275,14 @@ FUNC st_cb_add
         call is_int
         test eax, eax
         jnz 9f
-        mov rdi, [rsp]                  # 0 < n + delta < 2**32
+        test qword ptr [rsp + 16 + CA_FLAGS], CB_ANY
+        jz 3f
+        mov rdi, [rsp + 16 + CA_OD]     # res[x] = None
+        mov rsi, r14
+        lea rdx, [rip + sp_none]
+        call od_put
+        jmp 9f
+3:      mov rdi, [rsp]                  # 0 < n + delta < 2**32
         mov rsi, r12
         TAG rsi
         call int_add
@@ -3265,6 +3312,311 @@ FUNC st_cb_add
 9:      add rsp, 8
         ret
 ENDF st_cb_add
+
+# st_var_values(trace) -> od: python's var_values - name -> the values (a
+# vec) a variable is set to in a trace: by setvars, at the start of a
+# loop, by its steps
+FUNC st_var_values
+        ENTER
+        mov rbx, rdi
+        call od_new
+        mov r12, rax
+        mov rdi, rbx
+        mov rsi, r12
+        call st_vv_visit
+        mov rax, r12
+        LEAVE
+ENDF st_var_values
+
+# st_vv_visit(lines, od)
+FUNC st_vv_visit
+        STACK_CHECK
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        call is_seq
+        test eax, eax
+        jz 9f
+        xor r13d, r13d
+1:      cmp r13d, [rbx + N_AUX]
+        jae 9f
+        mov r14, [rbx + N_DATA + r13*8]
+        inc r13d
+        mov rdi, r14
+        call opcode_of
+        cmp eax, OP_SETVAR
+        je 2f
+        cmp eax, OP_IF
+        je 3f
+        cmp eax, OP_WHILE
+        je 5f
+        cmp eax, OP_CONTINUE
+        je 6f
+        jmp 1b
+2:      cmp dword ptr [r14 + N_AUX], 3  # res[name] += [value]
+        jne 1b
+        mov rdi, r12
+        mov rsi, [r14 + N_DATA + 8]
+        call st_od_group
+        mov rdi, rax
+        mov rsi, [r14 + N_DATA + 16]
+        call vec_push
+        jmp 1b
+3:      mov qword ptr [rsp], 2          # the branches of an if
+4:      mov rcx, [rsp]
+        cmp ecx, [r14 + N_AUX]
+        jae 1b
+        mov rdi, [r14 + N_DATA + rcx*8]
+        inc qword ptr [rsp]
+        mov rsi, r12
+        call st_vv_visit
+        jmp 4b
+5:      cmp dword ptr [r14 + N_AUX], 5  # the body of a loop, its start
+        jb .Lvv_index
+        mov rdi, [r14 + N_DATA + 16]
+        mov rsi, r12
+        call st_vv_visit
+        mov rdi, [r14 + N_DATA + 32]
+        mov rsi, r12
+        call st_vv_visit
+        jmp 1b
+6:      cmp dword ptr [r14 + N_AUX], 3  # the steps of a continue
+        jb .Lvv_index
+        mov rdi, [r14 + N_DATA + 16]
+        mov rsi, r12
+        call st_vv_visit
+        jmp 1b
+9:      add rsp, 16
+        LEAVE
+.Lvv_index:
+        mov edi, E_INDEX
+        lea rsi, [rip + .Ls_tindex]
+        call err_throw
+ENDF st_vv_visit
+
+# st_points(v) -> eax: python's points - v may be a slot a storage pointer
+# holds: a hash, a number that big (not within 2**32 of 0), a word of the
+# memory (where solidity keeps them) - in it
+FUNC st_points
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        call is_int
+        test eax, eax
+        jz 1f
+        mov rdi, rbx
+        mov rsi, (-(1 << 32) + 1) * 2 + 1
+        mov rdx, (1 << 33) | 1
+        call st_int_in
+        xor eax, 1
+        LEAVE
+1:      mov rdi, rbx
+        call is_seq
+        test eax, eax
+        jz 8f
+        mov rdi, rbx
+        call opcode_of
+        cmp eax, OP_SHA3
+        je 7f
+        cmp eax, OP_MEM
+        je 7f
+        xor r12d, r12d
+2:      cmp r12d, [rbx + N_AUX]
+        jae 8f
+        mov rdi, [rbx + N_DATA + r12*8]
+        inc r12d
+        call st_points
+        test eax, eax
+        jz 2b
+7:      mov eax, 1
+        LEAVE
+8:      xor eax, eax
+        LEAVE
+ENDF st_points
+
+# st_index_like(e, bounded, values, seen) -> eax: python's index_like -
+# whether e is an index, of a fixed array its element at the slot plus e:
+# made of numbers, of what the code checks is below something (a param, a
+# loop's counter), of variables set to such (from 0 on), of numbers of a
+# few bits (a uint16) or remainders. Not a pointer to the storage (a hash,
+# a slot read from the memory, a param it doesn't check): the slot it
+# points to plus a member's offset is no element of an array at that
+# offset. bounded: an od of what the code checks is below something (see
+# st_checked_below); values: the values of the variables (st_var_values);
+# seen: a vec of the names of the variables looked into (their steps, from
+# themselves)
+FUNC st_index_like
+        STACK_CHECK
+        ENTER
+        sub rsp, 32
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        mov [rsp], rcx                  # seen
+        call is_int
+        test eax, eax
+        jz 1f
+        mov rdi, rbx                    # -(2**32) < e < 2**32
+        mov rsi, (-(1 << 32) + 1) * 2 + 1
+        mov rdx, (1 << 33) | 1
+        call st_int_in
+        jmp .Lil_ret
+1:      mov rdi, rbx
+        call opcode_of
+        mov r14d, eax
+        cmp eax, OP_VAR
+        jne 5f
+        cmp dword ptr [rbx + N_AUX], 2
+        jb .Lil_index
+        mov rax, [rbx + N_DATA + 8]     # its name
+        mov [rsp + 8], rax
+        mov rdi, [rsp]                  # (its step, from itself: s + 1)
+        mov rsi, rax
+        call .Lil_in_vec
+        test eax, eax
+        jnz .Lil_yes
+        mov rdi, r13                    # vs = values.get(name, [])
+        mov rsi, [rsp + 8]
+        call od_get
+        mov [rsp + 16], rax             # (0: none)
+        test rax, rax
+        jz 3f
+        xor r14d, r14d                  # (a pointer, below the end of what
+2:      mov rax, [rsp + 16]             # it points to, say)
+        cmp r14, [rax + VEC_LEN]
+        jae 3f
+        mov rax, [rax + VEC_DATA]
+        mov rdi, [rax + r14*8]
+        inc r14
+        call st_points
+        test eax, eax
+        jnz .Lil_no
+        jmp 2b
+3:      mov rdi, r12                    # checked below something
+        mov rsi, rbx
+        call od_get
+        test rax, rax
+        jnz .Lil_yes
+        mov rax, [rsp + 16]             # all of its values (some)
+        test rax, rax
+        jz .Lil_no
+        cmp qword ptr [rax + VEC_LEN], 0
+        je .Lil_no
+        call vec_new                    # seen + (name,)
+        mov [rsp + 24], rax
+        mov rdi, rax
+        mov rsi, [rsp]
+        mov rdx, [rsi + VEC_LEN]
+        mov rsi, [rsi + VEC_DATA]
+        call vec_extend
+        mov rdi, [rsp + 24]
+        mov rsi, [rsp + 8]
+        call vec_push
+        xor r14d, r14d
+4:      mov rax, [rsp + 16]
+        cmp r14, [rax + VEC_LEN]
+        jae .Lil_yes
+        mov rax, [rax + VEC_DATA]
+        mov rdi, [rax + r14*8]
+        inc r14
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, [rsp + 24]
+        call st_index_like
+        test eax, eax
+        jz .Lil_no
+        jmp 4b
+5:      mov rdi, r12                    # checked below something
+        mov rsi, rbx
+        call od_get
+        test rax, rax
+        jnz .Lil_yes
+        cmp r14d, OP_ADD                # sums, products, quotients of them
+        je 6f
+        cmp r14d, OP_MUL
+        je 6f
+        cmp r14d, OP_DIV
+        je 6f
+        cmp r14d, OP_MOD                # (a remainder: below what it's
+        je .Lil_yes                     # taken of)
+        cmp r14d, OP_MASK_SHL
+        jne .Lil_no
+        mov r14d, 1                     # (a mask's size, offset, shift
+51:     cmp r14d, 4                     # numbers)
+        jae 52f
+        cmp r14d, [rbx + N_AUX]
+        jae 52f
+        mov rdi, [rbx + N_DATA + r14*8]
+        inc r14d
+        call is_int
+        test eax, eax
+        jz .Lil_no
+        jmp 51b
+52:     cmp dword ptr [rbx + N_AUX], 2  # of a few bits, or of an index
+        jb .Lil_index
+        mov rdi, [rbx + N_DATA + 8]
+        mov esi, (64 << 1) | 1
+        call int_cmp
+        cmp eax, 0
+        jle .Lil_yes
+        cmp dword ptr [rbx + N_AUX], 5
+        jb .Lil_index
+        mov rdi, [rbx + N_DATA + 32]
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, [rsp]
+        call st_index_like
+        jmp .Lil_ret
+6:      mov r14d, 1
+7:      cmp r14d, [rbx + N_AUX]
+        jae .Lil_yes
+        mov rdi, [rbx + N_DATA + r14*8]
+        inc r14d
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, [rsp]
+        call st_index_like
+        test eax, eax
+        jz .Lil_no
+        jmp 7b
+.Lil_yes:
+        mov eax, 1
+        jmp .Lil_ret
+.Lil_no:
+        xor eax, eax
+.Lil_ret:
+        add rsp, 32
+        LEAVE
+.Lil_index:
+        mov edi, E_INDEX
+        lea rsi, [rip + .Ls_tindex]
+        call err_throw
+# local: eax 1 when the value rsi is in the vec rdi (python's ==)
+.Lil_in_vec:
+        push rbx
+        push r12
+        push r13
+        mov rbx, rdi
+        mov r12, rsi
+        xor r13d, r13d
+1:      cmp r13, [rbx + VEC_LEN]
+        jae 2f
+        mov rax, [rbx + VEC_DATA]
+        mov rdi, [rax + r13*8]
+        inc r13
+        mov rsi, r12
+        call py_equal
+        test eax, eax
+        jz 1b
+        mov eax, 1
+        jmp 3f
+2:      xor eax, eax
+3:      pop r13
+        pop r12
+        pop rbx
+        ret
+ENDF st_index_like
 
 # st_narrow(exp, arg) -> value: python's narrow - a read of the storage as
 # wide as what's used of it

@@ -299,10 +299,11 @@ ENDF bt_collect_ints
 
 # bt_worlds(bt, trace, selector): python's worlds of bytes_tail - the
 # lengths (13, and about the numbers of the code), contents from
-# random.Random(0), params clean and dirty; two calldatas too short
+# random.Random(0), params clean and dirty, and of the numbers the code
+# compares with (bt_near); two calldatas too short
 FUNC bt_worlds
         ENTER
-        sub rsp, 80
+        sub rsp, 112
         .set BX_SEL, 0
         .set BX_SET, 8                  # the numbers (a byte each, 4096 + 2)
         .set BX_AROUND, 16              # around - lengths, sorted (a byte set)
@@ -310,8 +311,12 @@ FUNC bt_worlds
         .set BX_MT, 32
         .set BX_I, 40
         .set BX_W, 48
+        .set BX_TRACE, 56
+        .set BX_NEAR, 64                # bt_near's numbers
+        .set BX_WORD, 80                # (32 bytes)
         mov rbx, rdi
         mov [rsp + BX_SEL], rdx
+        mov [rsp + BX_TRACE], rsi
         mov r12, rsi
         mov edi, 4096 + 16
         call arena_alloc
@@ -368,7 +373,10 @@ FUNC bt_worlds
         inc r14d
 51:     inc ecx
         jmp 5b
-6:      # the worlds
+6:      mov rdi, [rsp + BX_TRACE]
+        call bt_near
+        mov [rsp + BX_NEAR], rax
+        # the worlds
         mov edi, MT_SIZEOF
         call arena_alloc
         mov [rsp + BX_MT], rax
@@ -378,6 +386,8 @@ FUNC bt_worlds
         mov rax, [rsp + BX_LENS]
         mov rdi, [rax + VEC_LEN]
         add rdi, 2
+        mov rax, [rsp + BX_NEAR]
+        add rdi, [rax + VEC_LEN]
         mov [rbx + BT_NWORLDS], rdi
         imul rdi, rdi, BW_SIZEOF
         call arena_alloc
@@ -434,13 +444,75 @@ FUNC bt_worlds
         jmp 82b
 83:     inc qword ptr [rsp + BX_I]
         jmp 7b
-9:      # calldata too short for a param: b"\x01" * n, content b"ab"
+9:      # and params of the numbers the conditions of the code compare
+        # with, and of the ones next to them: `if tokenId == 1337: return
+        # ''` is a branch none of the values takes - of the lengths in turn
+        mov qword ptr [rsp + BX_I], 0
+91:     mov rax, [rsp + BX_NEAR]
+        mov rcx, [rsp + BX_I]
+        cmp rcx, [rax + VEC_LEN]
+        jae 99f
+        mov rax, [rsp + BX_LENS]
+        add rcx, [rax + VEC_LEN]
+        imul r13, rcx, BW_SIZEOF
+        add r13, [rbx + BT_WORLDS]      # the world
+        mov rax, [rsp + BX_I]           # lengths[n % len(lengths)]
+        xor edx, edx
+        mov rcx, [rsp + BX_LENS]
+        div qword ptr [rcx + VEC_LEN]
+        mov rax, [rcx + VEC_DATA]
+        mov r14, [rax + rdx*8]
+        lea rdi, [r14 + 1]
+        call arena_alloc_raw
+        mov [r13 + BW_CONTENT], rax
+        mov [r13 + BW_CLEN], r14
+        xor r12d, r12d
+92:     cmp r12, r14
+        jae 93f
+        mov rdi, [rsp + BX_MT]
+        mov esi, 255
+        call mt_randrange
+        inc eax
+        mov rcx, [r13 + BW_CONTENT]
+        mov [rcx + r12], al
+        inc r12
+        jmp 92b
+93:     mov edi, 4 + 8 * 32             # the selector, then the number 8
+        call arena_alloc                # times
+        mov [r13 + BW_CD], rax
+        mov qword ptr [r13 + BW_CDLEN], 4 + 8 * 32
+        mov rdi, rax
+        mov rsi, [rsp + BX_SEL]
+        call bt_put_selector
+        mov rax, [rsp + BX_NEAR]
+        mov rax, [rax + VEC_DATA]
+        mov rcx, [rsp + BX_I]
+        mov rsi, [rax + rcx*8]
+        lea rdi, [rsp + BX_WORD]
+        call w_from_value
+        xor r12d, r12d
+94:     cmp r12d, 8
+        jae 95f
+        mov eax, r12d
+        shl eax, 5
+        mov rdi, [r13 + BW_CD]
+        lea rdi, [rdi + rax + 4]
+        mov esi, 32
+        lea rdx, [rsp + BX_WORD]
+        call ck_word_to_be
+        inc r12d
+        jmp 94b
+95:     inc qword ptr [rsp + BX_I]
+        jmp 91b
+99:     # calldata too short for a param: b"\x01" * n, content b"ab"
         xor r12d, r12d
 10:     cmp r12d, 2
         jae 12f
         mov rax, [rsp + BX_LENS]
         mov rcx, [rax + VEC_LEN]
         add rcx, r12
+        mov rax, [rsp + BX_NEAR]
+        add rcx, [rax + VEC_LEN]
         imul r13, rcx, BW_SIZEOF
         add r13, [rbx + BT_WORLDS]
         mov edi, 4 + 32
@@ -467,9 +539,176 @@ FUNC bt_worlds
         mov qword ptr [r13 + BW_CLEN], 2
         inc r12d
         jmp 10b
-12:     add rsp, 80
+12:     add rsp, 112
         LEAVE
 ENDF bt_worlds
+
+# bt_conds(exp, out): python's find_f_list(trace, the conditions of the
+# ifs and the whiles) - pushed
+FUNC bt_conds
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        test bl, 1
+        jnz 9f
+        test rbx, rbx
+        jz 9f
+        mov eax, [rbx + N_KIND]
+        cmp eax, K_LIST
+        je 2f
+        cmp eax, K_TUPLE
+        jne 9f
+        cmp dword ptr [rbx + N_AUX], 2
+        jb 2f
+        mov rdi, rbx
+        call opcode_of
+        cmp eax, OP_IF
+        je 1f
+        cmp eax, OP_WHILE
+        jne 2f
+1:      mov rdi, r12
+        mov rsi, [rbx + N_DATA + 8]
+        call vec_push
+2:      xor r13d, r13d
+3:      cmp r13d, [rbx + N_AUX]
+        jae 9f
+        mov rdi, [rbx + N_DATA + r13*8]
+        inc r13d
+        mov rsi, r12
+        call bt_conds
+        jmp 3b
+9:      LEAVE
+ENDF bt_conds
+
+# bt_ints(exp, out): python's find_f_list(exp, the ints) - pushed
+FUNC bt_ints
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call is_int
+        test eax, eax
+        jz 1f
+        mov rdi, r12
+        mov rsi, rbx
+        call vec_push
+        jmp 9f
+1:      mov rdi, rbx
+        call is_seq
+        test eax, eax
+        jz 9f
+        xor r13d, r13d
+3:      cmp r13d, [rbx + N_AUX]
+        jae 9f
+        mov rdi, [rbx + N_DATA + r13*8]
+        inc r13d
+        mov rsi, r12
+        call bt_ints
+        jmp 3b
+9:      LEAVE
+ENDF bt_ints
+
+# bt_near(trace) -> vec: python's near - the numbers the conditions of the
+# trace compare with, and the ones next to them (mod 2**256), but the
+# values of the params: sorted, the first 64 of them
+FUNC bt_near
+        ENTER
+        sub rsp, 144
+        .set BN_CONDS, 0
+        .set BN_INTS, 8
+        .set BN_NEAR, 16
+        .set BN_OUT, 24
+        .set BN_W, 48                   # (32 bytes)
+        .set BN_BE, 80                  # (32 bytes)
+        .set BN_TMP, 112                # (32 bytes)
+        mov rbx, rdi
+        call vec_new
+        mov [rsp + BN_CONDS], rax
+        mov rdi, rbx
+        mov rsi, rax
+        call bt_conds
+        call vec_new
+        mov [rsp + BN_INTS], rax
+        xor r12d, r12d
+1:      mov rax, [rsp + BN_CONDS]
+        cmp r12, [rax + VEC_LEN]
+        jae 2f
+        mov rax, [rax + VEC_DATA]
+        mov rdi, [rax + r12*8]
+        inc r12
+        mov rsi, [rsp + BN_INTS]
+        call bt_ints
+        jmp 1b
+2:      call vec_new
+        mov [rsp + BN_NEAR], rax
+        xor r12d, r12d
+3:      mov rax, [rsp + BN_INTS]
+        cmp r12, [rax + VEC_LEN]
+        jae 5f
+        mov rax, [rax + VEC_DATA]
+        mov r13, [rax + r12*8]          # c
+        inc r12
+        mov r14, -1                     # (c + d) % 2**256, d from -1 to 1
+4:      mov rdi, r13
+        lea rsi, [r14 + r14 + 1]
+        call int_add
+        mov rdi, rax
+        mov esi, 256
+        call int_mod_2exp
+        mov rdi, [rsp + BN_NEAR]
+        mov rsi, rax
+        call vec_push_unique
+        inc r14
+        cmp r14, 1
+        jle 4b
+        jmp 3b
+5:      call vec_new                    # but the values of the params
+        mov [rsp + BN_OUT], rax
+        xor r12d, r12d
+6:      mov rax, [rsp + BN_NEAR]
+        cmp r12, [rax + VEC_LEN]
+        jae 8f
+        mov rax, [rax + VEC_DATA]
+        mov r13, [rax + r12*8]
+        inc r12
+        lea rdi, [rsp + BN_W]
+        mov rsi, r13
+        call w_from_value
+        lea rdi, [rsp + BN_BE]
+        mov esi, 32
+        lea rdx, [rsp + BN_W]
+        call ck_word_to_be
+        xor r14d, r14d
+7:      cmp r14d, 9
+        jae 71f
+        lea rdi, [rsp + BN_TMP]
+        mov esi, r14d
+        call bt_put_value
+        lea rdi, [rsp + BN_BE]
+        lea rsi, [rsp + BN_TMP]
+        mov edx, 32
+        call memcmp@PLT
+        test eax, eax
+        jz 6b
+        inc r14d
+        jmp 7b
+71:     mov rdi, [rsp + BN_OUT]
+        mov rsi, r13
+        call vec_push
+        jmp 6b
+8:      mov rdi, [rsp + BN_OUT]         # sorted, the first 64
+        lea rsi, [rip + py_lt]
+        xor edx, edx
+        call py_sort
+        mov rax, [rsp + BN_OUT]
+        cmp qword ptr [rax + VEC_LEN], 64
+        jbe 9f
+        mov qword ptr [rax + VEC_LEN], 64
+9:      mov rax, [rsp + BN_OUT]
+        add rsp, 144
+        LEAVE
+ENDF bt_near
 
 # bt_put_selector(dst, selector): selector.to_bytes(4, "big")
 FUNC bt_put_selector
@@ -702,10 +941,13 @@ FUNC bt_splits
 ENDF bt_splits
 
 # bt_same(bt, world, r) -> eax: the run of a candidate gives the original
-# run r: (kind, data) the same, and the bytes reached when it returns
+# run r: (kind, data) the same - and where r returned the bytes of the
+# world, the bytes the candidate's tail returns, not what's kept of the
+# code (a branch kept returns something else: `return ''`)
 FUNC bt_same
         ENTER
         mov rbx, rdi
+        mov r13, rsi
         mov r12, rdx
         mov rax, [rbx + BT_M]
         mov rcx, [rax + RM_KIND]
@@ -721,49 +963,118 @@ FUNC bt_same
         call memcmp@PLT
         test eax, eax
         jnz 8f
-1:      LOADS rax, RETURN
-        cmp [r12 + BR_KIND], rax
-        jne 9f
+1:      cmp qword ptr [r13 + BW_CLEN], 0
+        je 9f
         cmp qword ptr [rbx + BT_REACHED], 0
-        je 8f
+        jne 9f
+        mov rdi, r12
+        mov rsi, r13
+        call bt_returns_bytes
+        test eax, eax
+        jnz 8f
 9:      mov eax, 1
         LEAVE
 8:      xor eax, eax
         LEAVE
 ENDF bt_same
 
+# bt_returns_bytes(r, world) -> eax: python's returns_bytes - the run r
+# returned the content of the world, ABI-encoded: 32, its length, its
+# bytes padded with zeroes to whole words
+FUNC bt_returns_bytes
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        xor eax, eax
+        LOADS rcx, RETURN
+        cmp [rbx + BR_KIND], rcx
+        jne 9f
+        mov r13, [r12 + BW_CLEN]
+        lea rcx, [r13 + 31]
+        and rcx, -32
+        add rcx, 64
+        cmp [rbx + BR_DLEN], rcx
+        jne 9f
+        mov r14, [rbx + BR_DATA]
+        mov rax, [r14 + 24]             # the first word: 32
+        bswap rax
+        cmp rax, 32
+        jne 8f
+        mov rax, [r14]
+        or rax, [r14 + 8]
+        or rax, [r14 + 16]
+        jnz 8f
+        mov rax, [r14 + 56]             # the second: the length
+        bswap rax
+        cmp rax, r13
+        jne 8f
+        mov rax, [r14 + 32]
+        or rax, [r14 + 40]
+        or rax, [r14 + 48]
+        jnz 8f
+        lea rdi, [r14 + 64]             # the bytes
+        mov rsi, [r12 + BW_CONTENT]
+        mov rdx, r13
+        call memcmp@PLT
+        test eax, eax
+        jnz 8f
+        lea rcx, [r13 + 31]             # zeroes after them
+        and rcx, -32
+1:      cmp r13, rcx
+        jae 2f
+        cmp byte ptr [r14 + 64 + r13], 0
+        jne 8f
+        inc r13
+        jmp 1b
+2:      mov eax, 1
+        LEAVE
+8:      xor eax, eax
+9:      LEAVE
+ENDF bt_returns_bytes
+
 # bt_try(bt, cand) -> eax: 1 to stop - when the candidate gives what the
-# trace gives in every world (BT_RESULT), or after 200 of them
+# trace gives in every world, the bytes reached in one of them at least
+# (BT_RESULT), or after 200 of them
 FUNC bt_try
         ENTER
+        sub rsp, 16
         mov rbx, rdi
         mov r12, rsi
         mov rax, [rbx + BT_N]
         inc qword ptr [rbx + BT_N]
         cmp rax, 200
         ja 8f
+        mov qword ptr [rsp], 0          # reached
         xor r13d, r13d
 1:      cmp r13, [rbx + BT_NWORLDS]
         jae 7f
-        imul rdx, r13, BW_SIZEOF
-        add rdx, [rbx + BT_WORLDS]
+        imul r14, r13, BW_SIZEOF
+        add r14, [rbx + BT_WORLDS]
         mov rdi, rbx
         mov rsi, r12
+        mov rdx, r14
         call bt_run
         test eax, eax
         jz 9f
         imul rdx, r13, BR_SIZEOF
         add rdx, [rbx + BT_ORIG]
         mov rdi, rbx
+        mov rsi, r14
         call bt_same
         test eax, eax
         jz 9f
+        mov rax, [rbx + BT_REACHED]
+        or [rsp], rax
         inc r13
         jmp 1b
-7:      mov [rbx + BT_RESULT], r12
+7:      cmp qword ptr [rsp], 0
+        je 9f
+        mov [rbx + BT_RESULT], r12
 8:      mov eax, 1
+        add rsp, 16
         LEAVE
 9:      xor eax, eax
+        add rsp, 16
         LEAVE
 ENDF bt_try
 

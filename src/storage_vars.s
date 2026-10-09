@@ -1041,10 +1041,13 @@ ENDF st_none_nil
 # sg_new(functions, lang) -> sg: python's Storage(functions, lang)
 FUNC sg_new
         ENTER
-        sub rsp, 48
+        sub rsp, 64
         .set SN_FUNCS, 0
         .set SN_BY, 8
         .set SN_I, 16
+        .set SN_WHERE, 32               # access -> where it's made (st_access_where)
+        .set SN_PTRS, 40                # the accesses at a slot plus what's no index
+        .set SN_OTHERS, 48              # the roots of the others
         mov [rsp + SN_FUNCS], rdi
         mov r12, rsi
         mov edi, SG_SIZEOF
@@ -1054,10 +1057,13 @@ FUNC sg_new
         mov rdi, [rsp + SN_FUNCS]
         call st_functions_accesses
         mov [rbx + SG_ACCESSES], rax
+        mov rdi, [rsp + SN_FUNCS]
+        call st_access_where
+        mov [rsp + SN_WHERE], rax
         call od_new
         mov [rbx + SG_STEPS], rax
-        call od_new
-        mov [rsp + SN_BY], rax
+        call vec_new
+        mov [rsp + SN_PTRS], rax
         mov qword ptr [rsp + SN_I], 0
 1:      mov rdi, [rbx + SG_ACCESSES]
         call od_len
@@ -1067,10 +1073,6 @@ FUNC sg_new
         mov rsi, [rsp + SN_I]
         call od_key
         mov r12, rax                    # a = (size, off, idx)
-        mov rdi, [rbx + SG_ACCESSES]
-        mov rsi, [rsp + SN_I]
-        call od_val
-        mov r14, rax                    # written
         inc qword ptr [rsp + SN_I]
         mov rdi, [r12 + N_DATA + 16]
         mov rsi, [rbx + SG_LANG]
@@ -1082,13 +1084,151 @@ FUNC sg_new
         mov rsi, r12
         mov rdx, rax
         call od_put
+        # a slot plus what's no index - of any of the functions that make
+        # the access (a storage pointer plus a member's offset, a slot
+        # read from the calldata)
         test r13, r13
         jz 1b
+        mov rax, [r13 + N_DATA + 8]     # its first step: ('off', e) of an e
+        cmp dword ptr [rax + N_AUX], 0  # that isn't a number
+        je 1b
+        mov rdi, [rax + N_DATA]
+        call opcode_of
+        cmp eax, OP_OFF
+        jne 1b
+        mov rax, [r13 + N_DATA + 8]
+        mov rax, [rax + N_DATA]
+        cmp dword ptr [rax + N_AUX], 2
+        jb .Lsn_index
+        mov r14, [rax + N_DATA + 8]     # e
+        mov rdi, r14
+        call is_int
+        test eax, eax
+        jnz 1b
+        mov rdi, [rsp + SN_WHERE]
+        mov rsi, r12
+        call od_get
+        mov r13, rax                    # (a vec of (bounded, values))
+        xor ecx, ecx
+2:      cmp rcx, [r13 + VEC_LEN]
+        jae 21f
+        mov [rsp + 24], rcx
+        mov rax, [r13 + VEC_DATA]
+        mov rax, [rax + rcx*8]
+        mov rdi, r14
+        mov rsi, [rax]
+        mov rdx, [rax + 8]
+        call vec_new                    # (seen)
+        mov rcx, rax
+        mov rax, [r13 + VEC_DATA]
+        mov rdx, [rsp + 24]
+        mov rax, [rax + rdx*8]
+        mov rdi, r14
+        mov rsi, [rax]
+        mov rdx, [rax + 8]
+        call st_index_like
+        test eax, eax
+        jnz 1b                          # (an index there)
+        mov rcx, [rsp + 24]
+        inc rcx
+        jmp 2b
+21:     mov rdi, [rsp + SN_PTRS]
+        mov rsi, r12
+        call vec_push
+        jmp 1b
+3:      # A slot plus what's no index (a storage pointer plus a member's
+        # offset, a slot read from the calldata) is taken for an element
+        # of a fixed array only where nothing else is: not to make the
+        # variable, the mapping or the array at that slot an array of what
+        # it isn't - it's the slot it is then.
+        call vec_new
+        mov [rsp + SN_OTHERS], rax
+        mov qword ptr [rsp + SN_I], 0
+31:     mov rdi, [rbx + SG_STEPS]
+        call od_len
+        cmp [rsp + SN_I], rax
+        jae 33f
+        mov rdi, [rbx + SG_STEPS]
+        mov rsi, [rsp + SN_I]
+        call od_val
+        mov r13, rax
+        mov rdi, [rbx + SG_STEPS]
+        mov rsi, [rsp + SN_I]
+        call od_key
+        inc qword ptr [rsp + SN_I]
+        lea rcx, [rip + sp_none]
+        cmp r13, rcx
+        je 31b
+        mov rdi, [rsp + SN_PTRS]
+        mov rsi, rax
+        call vec_has_ptr
+        test eax, eax
+        jnz 31b
+        mov rdi, [rsp + SN_OTHERS]
+        mov rsi, [r13 + N_DATA]
+        call vec_push_unique
+        jmp 31b
+33:     xor r12d, r12d
+34:     mov rax, [rsp + SN_PTRS]
+        cmp r12, [rax + VEC_LEN]
+        jae 36f
+        mov rax, [rax + VEC_DATA]
+        mov r13, [rax + r12*8]          # a
+        inc r12
+        mov rdi, [rbx + SG_STEPS]
+        mov rsi, r13
+        call od_get
+        mov r14, [rax + N_DATA]         # its root
+        mov rax, [rsp + SN_OTHERS]
+        xor ecx, ecx
+35:     cmp rcx, [rax + VEC_LEN]
+        jae 34b
+        mov [rsp + 24], rcx
+        mov rax, [rax + VEC_DATA]
+        mov rdi, [rax + rcx*8]
+        mov rsi, r14
+        call values_equal
+        test eax, eax
+        jnz 351f
+        mov rcx, [rsp + 24]
+        inc rcx
+        mov rax, [rsp + SN_OTHERS]
+        jmp 35b
+351:    mov rdi, [rbx + SG_STEPS]
+        mov rsi, r13
+        lea rdx, [rip + sp_none]
+        call od_put
+        jmp 34b
+36:     # by_root[root] += (st, size, off, written), of the accesses of a
+        # known size
+        call od_new
+        mov [rsp + SN_BY], rax
+        mov qword ptr [rsp + SN_I], 0
+37:     mov rdi, [rbx + SG_STEPS]
+        call od_len
+        cmp [rsp + SN_I], rax
+        jae 39f
+        mov rdi, [rbx + SG_STEPS]
+        mov rsi, [rsp + SN_I]
+        call od_key
+        mov r12, rax                    # a
+        mov rdi, [rbx + SG_STEPS]
+        mov rsi, [rsp + SN_I]
+        call od_val
+        mov r13, rax                    # st
+        inc qword ptr [rsp + SN_I]
+        lea rcx, [rip + sp_none]
+        cmp r13, rcx
+        je 37b
         mov rdi, [r12 + N_DATA]
         call is_int
         test eax, eax
-        jz 1b
-        mov rdi, [rsp + SN_BY]          # by_root[root] += (st, size, off, written)
+        jz 37b
+        mov rdi, [rbx + SG_ACCESSES]
+        mov rsi, r12
+        call od_get
+        mov r14, rax                    # written
+        mov rdi, [rsp + SN_BY]
         mov rsi, [r13 + N_DATA]
         call st_od_group
         mov [rsp + 24], rax
@@ -1100,16 +1240,22 @@ FUNC sg_new
         mov rdi, [rsp + 24]
         mov rsi, rax
         call vec_push
-        jmp 1b
-3:      mov rdi, rbx
+        jmp 37b
+39:     mov rdi, rbx
         mov rsi, [rsp + SN_BY]
         call sg_type_roots
         # the fixed arrays whose length the functions check: the slots after
-        # the first are theirs, not other variables
+        # the first are theirs, not other variables - but the ones a getter
+        # returns, as a variable (an array found at the slot plus an index
+        # that is one after another's, its length absorbed them)
         mov rdi, rbx
         mov rsi, [rsp + SN_FUNCS]
         call sg_fixed_lengths
         mov [rbx + SG_LENGTHS], rax
+        mov rdi, rbx
+        mov rsi, [rsp + SN_FUNCS]
+        call sg_named
+        mov rdx, rax
         mov rdi, rbx
         mov rsi, [rsp + SN_BY]
         call sg_move_fixed
@@ -1144,9 +1290,109 @@ FUNC sg_new
         mov rsi, [rsp + SN_FUNCS]
         call sg_names
         mov rax, rbx
-        add rsp, 48
+        add rsp, 64
         LEAVE
+.Lsn_index:
+        mov edi, E_INDEX
+        lea rsi, [rip + .Ls_gtindex]
+        call err_throw
 ENDF sg_new
+
+# st_access_where(functions) -> od: access -> the vec of where it's made:
+# (what's bounded, the variables' values) - st_checked_below with the
+# loops' conditions and whatever x is checked below, st_var_values - of
+# each function that makes it (16 bytes each: those two ods)
+FUNC st_access_where
+        ENTER
+        sub rsp, 32
+        mov rbx, rdi
+        call od_new
+        mov r12, rax
+        xor r13d, r13d
+1:      cmp r13, [rbx + VEC_LEN]
+        jae 9f
+        mov rax, [rbx + VEC_DATA]
+        mov r14, [rax + r13*8]          # f
+        inc r13
+        call od_new
+        mov [rsp], rax                  # its accesses
+        mov rdi, [r14 + FN_TRACE]
+        mov rsi, rax
+        call st_find_accesses
+        mov rdi, [rsp]
+        call od_len
+        test rax, rax
+        jz 1b
+        mov edi, 16
+        call arena_alloc
+        mov [rsp + 8], rax              # known
+        mov rdi, [r14 + FN_TRACE]
+        mov esi, CB_LOOPS | CB_ANY
+        call st_checked_below
+        mov rcx, [rsp + 8]
+        mov [rcx], rax
+        mov rdi, [r14 + FN_TRACE]
+        call st_var_values
+        mov rcx, [rsp + 8]
+        mov [rcx + 8], rax
+        mov qword ptr [rsp + 16], 0
+2:      mov rdi, [rsp]
+        call od_len
+        cmp [rsp + 16], rax
+        jae 1b
+        mov rdi, [rsp]
+        mov rsi, [rsp + 16]
+        call od_key
+        inc qword ptr [rsp + 16]
+        mov rdi, r12
+        mov rsi, rax
+        call st_od_group
+        mov rdi, rax
+        mov rsi, [rsp + 8]
+        call vec_push
+        jmp 2b
+9:      mov rax, r12
+        add rsp, 32
+        LEAVE
+ENDF st_access_where
+
+# sg_named(sg, functions) -> vec: the roots a getter returns as a variable
+# (its access at the slot itself, no steps from it)
+FUNC sg_named
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call vec_new
+        mov r13, rax
+        xor r14d, r14d
+1:      cmp r14, [r12 + VEC_LEN]
+        jae 9f
+        mov rax, [r12 + VEC_DATA]
+        mov rdi, [rax + r14*8]
+        inc r14
+        call st_getter_access
+        test rax, rax
+        jz 1b
+        LOADS rcx, ROOT
+        cmp [rax + N_DATA], rcx
+        je 1b
+        mov rdi, [rbx + SG_STEPS]
+        mov rsi, rax
+        call od_get
+        mov rdi, rax
+        call st_none_nil
+        test rax, rax
+        jz 1b
+        mov rcx, [rax + N_DATA + 8]
+        cmp dword ptr [rcx + N_AUX], 0
+        jne 1b
+        mov rdi, r13
+        mov rsi, [rax + N_DATA]
+        call vec_push_unique
+        jmp 1b
+9:      mov rax, r13
+        LEAVE
+ENDF sg_named
 
 # sg_type_roots(sg, by_root): python's Storage.type_roots - what's at each
 # root (a value 0 in by_root: popped)
@@ -1203,11 +1449,16 @@ FUNC sg_type_roots
         test eax, eax
         jz .Ltr_typeof
         jmp 3b
-4:      # (size, off): a bytes, else the variables of the slot
+4:      # (size, off): a bytes, else the variables of the slot - none of
+        # its data read, a bytes, or a string, only if its length is read
+        # as theirs is: the lowest bit tells a short one, whose length is
+        # the 7 bits from the bit 1, from a long one, the bits from 1 on (a
+        # flag in the bit 0 of an uint8 and the 7 bits above it are no
+        # bytes)
         mov edi, 1
         call .Ltr_project
         mov rdi, rax
-        call st_is_bytes_slot
+        call st_reads_bytes_length
         test eax, eax
         jz 5f
         LOADS rdi, BYTES
@@ -1345,6 +1596,7 @@ FUNC sg_fixed_lengths
         mov rsi, rax
         call st_find_accesses
         mov rdi, [r12 + FN_TRACE]
+        xor esi, esi
         call st_checked_below
         mov [rsp + FL_CHECKED], rax
         mov rdi, rax
@@ -1463,12 +1715,13 @@ FUNC sg_fixed_lengths
         LEAVE
 ENDF sg_fixed_lengths
 
-# sg_move_fixed(sg, by_root) -> eax: the slots after the first of a fixed
-# array whose length is known, moved from roots of their own to it (by_root
-# changed; the steps of their accesses too) - 1 when some were
+# sg_move_fixed(sg, by_root, named) -> eax: the slots after the first of a
+# fixed array whose length is known, moved from roots of their own to it
+# (by_root changed; the steps of their accesses too) - but the ones a
+# getter returns, as a variable (named, a vec) - 1 when some were
 FUNC sg_move_fixed
         ENTER
-        sub rsp, 96
+        sub rsp, 112
         .set MF_BY, 0
         .set MF_ITEMS, 8
         .set MF_I, 16
@@ -1479,8 +1732,10 @@ FUNC sg_move_fixed
         .set MF_MOVED, 56
         .set MF_STEP, 64                # [('off', r - n)]
         .set MF_R, 72
+        .set MF_NAMED, 96
         mov rbx, rdi
         mov [rsp + MF_BY], rsi
+        mov [rsp + MF_NAMED], rdx
         mov qword ptr [rsp + MF_MOVED], 0
         call vec_new                    # sorted(self.lengths.items())
         mov [rsp + MF_ITEMS], rax
@@ -1609,6 +1864,19 @@ FUNC sg_move_fixed
         test rax, rax
         jz .Lmf_r
         mov r14, rax                    # its accesses
+        xor r12d, r12d                  # (r not named)
+71:     mov rax, [rsp + MF_NAMED]
+        cmp r12, [rax + VEC_LEN]
+        jae 72f
+        mov rax, [rax + VEC_DATA]
+        mov rdi, [rax + r12*8]
+        inc r12
+        mov rsi, [rsp + MF_R]
+        call values_equal
+        test eax, eax
+        jnz .Lmf_r
+        jmp 71b
+72:
         mov rdi, [rsp + MF_R]           # [('off', r - n)]
         mov rsi, [rsp + MF_N]
         call int_sub
@@ -1673,7 +1941,7 @@ FUNC sg_move_fixed
         jmp .Lmf_r
 .Lmf_done:
         mov rax, [rsp + MF_MOVED]
-        add rsp, 96
+        add rsp, 112
         LEAVE
 ENDF sg_move_fixed
 
@@ -2147,12 +2415,12 @@ FUNC st_getter_access
         cmp dword ptr [r13 + N_AUX], 2
         jb .Lga_index
         mov r14, [r13 + N_DATA + 8]     # s_size
+        mov rdi, r14                    # (a read of a size computed at
+        call is_int                     # runtime is no getter's)
+        test eax, eax
+        jz 5f
         cmp qword ptr [rsp + 8], 1      # shl == 0 and size >= s_size
         jne 4f
-        mov rdi, r14
-        call is_int
-        test eax, eax
-        jz .Lga_type
         mov rdi, [rsp]
         mov rsi, r14
         call int_cmp
@@ -2188,15 +2456,10 @@ FUNC st_getter_access
         mov edi, E_INDEX
         lea rsi, [rip + .Ls_gtindex]
         call err_throw
-.Lga_type:
-        mov edi, E_TYPE
-        lea rsi, [rip + .Ls_gtype]
-        call err_throw
 ENDF st_getter_access
 
         .section .rodata
 .Ls_gtindex:    .asciz "tuple index out of range"
-.Ls_gtype:      .asciz "'>=' not supported between instances"
 .Ls_unpack_none: .asciz "cannot unpack non-iterable NoneType object"
 .Ls_key_length: .asciz "storage: the length of a bytes getter without its steps"
         .text
@@ -2296,31 +2559,6 @@ FUNC st_getter_path
         LEAVE
 ENDF st_getter_path
 
-# st_int_add_checked(a, b) -> value: python's a + b of two ints, its
-# TypeError for anything else (an expression)
-FUNC st_int_add_checked
-        ENTER
-        mov rbx, rdi
-        mov r12, rsi
-        call is_int
-        test eax, eax
-        jz 1f
-        mov rdi, r12
-        call is_int
-        test eax, eax
-        jz 1f
-        mov rdi, rbx
-        mov rsi, r12
-        call int_add
-        LEAVE
-1:      mov edi, E_TYPE
-        lea rsi, [rip + .Ls_add_type]
-        call err_throw
-ENDF st_int_add_checked
-
-        .section .rodata
-.Ls_add_type:   .asciz "unsupported operand type(s) for +"
-        .text
 
 # st_fn_name_lt(a, b, arg) -> eax: a.name < b.name
 FUNC st_fn_name_lt
@@ -2443,12 +2681,17 @@ FUNC sg_names
         jne 4f
         mov rsi, [rax + N_DATA + 8]
         jmp .Lna_root
-4:      mov rdi, rbx                    # its steps
-        mov rsi, rax
-        call sg_steps_get
+4:      mov rdi, [rbx + SG_STEPS]       # its steps: self.steps[a] where
+        mov rsi, rax                    # it has them (None: not a getter's),
+        call od_get                     # else of its parse
         test rax, rax
-        jnz 5f
-        mov rax, [rsp + NA_A]
+        jz 41f
+        mov rdi, rax
+        call st_none_nil
+        test rax, rax
+        jz .Lna_func
+        jmp 5f
+41:     mov rax, [rsp + NA_A]
         mov rdi, [rax + N_DATA + 16]
         mov rsi, [rbx + SG_LANG]
         call st_parse
@@ -2465,10 +2708,22 @@ FUNC sg_names
         mov rax, [r13 + N_DATA + 8]
         cmp dword ptr [rax + N_AUX], 0
         jne 6f
+        # (a field is bits known: not the bits of an access at a place
+        # computed at runtime, a byte of the slot by an index)
+        mov rax, [rsp + NA_A]
+        mov rdi, [rax + N_DATA + 8]
+        call is_int
+        test eax, eax
+        jz .Lna_func
+        mov rax, [rsp + NA_A]
+        mov rdi, [rax + N_DATA]
+        call is_int
+        test eax, eax
+        jz .Lna_func
         mov rax, [rsp + NA_A]           # ('field', n, off, off + size)
         mov rdi, [rax + N_DATA + 8]
         mov rsi, [rax + N_DATA]
-        call st_int_add_checked
+        call int_add
         mov rcx, rax
         mov rax, [rsp + NA_A]
         mov rdx, [rax + N_DATA + 8]

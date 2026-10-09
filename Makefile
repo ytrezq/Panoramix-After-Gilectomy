@@ -22,7 +22,7 @@ all: build/panasm build/panoramix_asm$(PY_EXT) build/libpanoramix_asm.so
 include/opcodes.inc src/opcodes_table.s: tools/gen_opcodes.py
 	python3 tools/gen_opcodes.py
 
-build/%.o: src/%.s include/defs.inc include/opcodes.inc
+build/%.o: src/%.s include/defs.inc include/opcodes.inc include/storage.inc
 	@mkdir -p build
 	$(AS) $(ASFLAGS) -o $@ $<
 

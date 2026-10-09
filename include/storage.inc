@@ -14,3 +14,8 @@
 .set SG_MEMO, 80                # rewrite_accesses' walk (a map), or 0
 .set SG_FORMFN, 88              # what makes the forms: 0 sg_form, 1 st_raw
 .set SG_SIZEOF, 96
+
+# checked_below's options: with the conditions of the loops (loops=True),
+# of whatever x is compared with, as None (numbers=False)
+.set CB_LOOPS, 1
+.set CB_ANY, 2

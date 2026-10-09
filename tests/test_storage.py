@@ -408,8 +408,28 @@ def find_accesses(exp):
     return list(res.items())
 
 
-def checked_below(trace):
-    return list(S.checked_below(trace).items())
+def checked_below(trace, loops=False, numbers=True):
+    return list(S.checked_below(trace, loops=loops, numbers=numbers).items())
+
+
+def var_values(trace):
+    return list(S.var_values(trace).items())
+
+
+def index_like(e, bounded, values):
+    return S.index_like(e, dict(bounded), dict(values))
+
+
+def index_candidates(trace):
+    """what's added to a slot in the trace's accesses: the terms of their
+    indexes, and the indexes"""
+    res = []
+    for a in S.find_f_list(trace, lambda e: [e] if S.opcode(e) == "storage" and len(e) == 4 else []):
+        idx = a[3]
+        res.append(idx)
+        if S.opcode(idx) == "add":
+            res += list(idx[1:])
+    return res[:20]
 
 
 def t_trace_functions():
@@ -418,6 +438,15 @@ def t_trace_functions():
         run("find_accesses", find_accesses, traces)
         for t in traces:
             run("checked_below", checked_below, t)
+            run("checked_below", checked_below, t, True, False)
+            run("checked_below", checked_below, t, True, True)
+            run("checked_below", checked_below, t, False, False)
+            run("var_values", var_values, t)
+            bounded = checked_below(t, True, False)
+            values = var_values(t)
+            for e in index_candidates(t):
+                run("index_like", index_like, e, bounded, values)
+                run("points", S.points, e)
             run("narrow", lambda t: replace_f(t, S.narrow), t)
         code = cap["code"]
         run("language", lambda c, a: S.language(bytes.fromhex(c) if c is not None else None, {x: False for x in a}),
@@ -711,9 +740,23 @@ def raccess(vyper):
     return size, off, idx
 
 
-def rline(vyper, getter):
+def rline(vyper, getter, d=0):
     r = rnd.random()
     size, off, idx = raccess(vyper)
+    if d < 2 and rnd.random() < 0.1:
+        # a loop over a fixed array, a pointer: its counter set to what it
+        # starts at, the condition its bound
+        n = rnd.choice([0, 1, 2, 5, 8, 2**160])
+        start = rnd.choice([0, 0, 1, ("sha3", n), ("mem", ("range", 64, 32)), ("cd", 4), 2**200])
+        bound = rnd.choice([3, 10, ("storage", 256, 0, n), ("cd", 36), ("mem", ("range", 96, 32))])
+        i = ("var", "i")
+        body = [rline(vyper, getter, d + 1) for _ in range(rnd.randrange(0, 2))]
+        body.append(rnd.choice([("setvar", "_7", ("storage", 256, 0, ("add", n, i))),
+                                ("store", 256, 0, ("add", n, i), 0),
+                                ("setvar", "_7", ("storage", 256, 0, ("add", 1, i)))]))
+        return ("while", ("lt", i, bound), body, "jd%d" % d, [("setvar", "i", start)])
+    if d < 2 and rnd.random() < 0.05:
+        return ("setvar", "i", rnd.choice([0, ("add", ("var", "i"), 1), ("sha3", 3), ("mem", ("range", 64, 32))]))
     if r < 0.3:
         return ("setvar", "_" + str(rnd.randrange(5)), ("storage", size, off, idx))
     if r < 0.6 and not getter:
@@ -722,9 +765,10 @@ def rline(vyper, getter):
             idx = idx[1][1]
         return ("store", size, off, idx, val)
     if r < 0.7:
-        return ("if", ("lt", rnd.choice(INDEXES[:3]), rnd.choice([3, 4, 10, 32])), [rline(vyper, getter)], [("revert", None)])
+        return ("if", ("lt", rnd.choice(INDEXES[:3]), rnd.choice([3, 4, 10, 32, ("storage", 256, 0, 1)])),
+                [rline(vyper, getter, d + 1)], [("revert", None)])
     if r < 0.8:
-        return ("if", ("iszero", ("storage", size, off, idx)), [("revert", None)], [rline(vyper, getter)])
+        return ("if", ("iszero", ("storage", size, off, idx)), [("revert", None)], [rline(vyper, getter, d + 1)])
     return ("setvar", "_9", ("add", 1, ("storage", size, off, idx)))
 
 

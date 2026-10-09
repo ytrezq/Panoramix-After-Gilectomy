@@ -4,6 +4,7 @@
 # See tests/test_storage.py.
 
 .include "defs.inc"
+.include "storage.inc"
 
         .section .data.rel.ro
         .align 8
@@ -25,6 +26,9 @@ sth_table:
         .quad .Lh_find_accesses, sth_find_accesses
         .quad .Lh_language, sth_language
         .quad .Lh_checked_below, sth_checked_below
+        .quad .Lh_var_values, sth_var_values
+        .quad .Lh_points, sth_points
+        .quad .Lh_index_like, sth_index_like
         .quad .Lh_narrow, sth_narrow
         .quad .Lh_ev, sth_ev
         .quad .Lh_evb, sth_evb
@@ -57,6 +61,9 @@ sth_table:
 .Lh_slot_class: .asciz "slot_class"
 .Lh_find_accesses: .asciz "find_accesses"
 .Lh_language:   .asciz "language"
+.Lh_var_values: .asciz "var_values"
+.Lh_points:     .asciz "points"
+.Lh_index_like: .asciz "index_like"
 .Lh_checked_below: .asciz "checked_below"
 .Lh_narrow:     .asciz "narrow"
 .Lh_ev:         .asciz "ev"
@@ -405,11 +412,112 @@ FUNC sth_language
         LEAVE
 ENDF sth_language
 
-# ('checked_below', trace) -> [(x, n)...]
-FUNC sth_checked_below
+# ('var_values', trace) -> [(name, [values])...]
+FUNC sth_var_values
         ENTER
         mov rbx, rdi
         ARG rdi, 0
+        call st_var_values
+        mov r12, rax
+        xor r13d, r13d                  # (the vecs as lists)
+1:      mov rdi, r12
+        call od_len
+        cmp r13, rax
+        jae 2f
+        mov rdi, r12
+        mov rsi, r13
+        call od_val
+        mov rdi, rax
+        call vec_to_list
+        mov rdi, r12
+        mov rsi, r13
+        mov rdx, rax
+        call od_set_val
+        inc r13
+        jmp 1b
+2:      mov rdi, r12
+        call sth_od_items
+        LEAVE
+ENDF sth_var_values
+
+# ('points', v) -> bool
+FUNC sth_points
+        ENTER
+        mov rbx, rdi
+        ARG rdi, 0
+        call st_points
+        mov edi, eax
+        call sth_bool
+        LEAVE
+ENDF sth_points
+
+# ('index_like', e, [(x, n)...], [(name, [values])...]) -> bool
+FUNC sth_index_like
+        ENTER
+        mov rbx, rdi
+        call od_new                     # bounded
+        mov r12, rax
+        call od_new                     # values
+        mov r13, rax
+        xor r14d, r14d
+1:      ARG rax, 1
+        cmp r14d, [rax + N_AUX]
+        jae 2f
+        mov rax, [rax + N_DATA + r14*8]
+        inc r14d
+        mov rdi, r12
+        mov rsi, [rax + N_DATA]
+        mov rdx, [rax + N_DATA + 8]
+        call od_put
+        jmp 1b
+2:      xor r14d, r14d
+3:      ARG rax, 2
+        cmp r14d, [rax + N_AUX]
+        jae 4f
+        mov rax, [rax + N_DATA + r14*8]
+        inc r14d
+        push rax
+        push rax
+        mov rdi, [rax + N_DATA + 8]
+        call sth_vec_of
+        pop rcx
+        pop rcx
+        mov rdi, r13
+        mov rsi, [rcx + N_DATA]
+        mov rdx, rax
+        call od_put
+        jmp 3b
+4:      call vec_new                    # seen
+        mov rcx, rax
+        ARG rdi, 0
+        mov rsi, r12
+        mov rdx, r13
+        call st_index_like
+        mov edi, eax
+        call sth_bool
+        LEAVE
+ENDF sth_index_like
+
+# ('checked_below', trace[, loops, numbers]) -> [(x, n)...]
+FUNC sth_checked_below
+        ENTER
+        mov rbx, rdi
+        xor esi, esi                    # (trace[, loops, numbers])
+        cmp dword ptr [rbx + N_AUX], 4
+        jb 1f
+        ARG rdi, 1
+        call py_truthy
+        mov esi, eax                    # CB_LOOPS
+        ARG rdi, 2
+        push rsi
+        push rsi
+        call py_truthy
+        pop rsi
+        pop rsi
+        test eax, eax
+        jnz 1f
+        or esi, CB_ANY
+1:      ARG rdi, 0
         call st_checked_below
         mov rdi, rax
         call sth_od_items
