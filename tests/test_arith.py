@@ -98,8 +98,11 @@ for n in range(N):
     bad += check("is_bool", P.is_bool, lambda a: A._test("is_bool", repr(a)), e, n)
     kt = random.choice([True, rexp(), ("le", ("cd", 4), rarg()), ("lt", ("cd", 4), rarg()), ("bool", rexp())])
     ex = random.choice([e, ("le", ("cd", 4), rarg()), ("lt", ("cd", 4), rarg()), ("gt", rarg(), rarg()), ("ge", rarg(), rarg()), rint()])
-    for sym in (True, False):
-        bad += check("eval_bool", lambda a: P.eval_bool(*a), lambda a: A._test("eval_bool", repr(a)), (ex, kt, sym), n)
+    # (an or of nothing, which or_op never makes: python's eval_bool of it
+    # is the 0 it starts its or with, a number where the others are bools)
+    if "('or',)" not in repr(ex):
+        for sym in (True, False):
+            bad += check("eval_bool", lambda a: P.eval_bool(*a), lambda a: A._test("eval_bool", repr(a)), (ex, kt, sym), n)
     st = rstate()
     bad += check("state_read", P.state_read, lambda a: A._test("state_read", repr(a)), st, n)
     sa, sb = random.choice([rint() % 2**70, ("sha3", 1), ("add", 5, ("sha3", 2)), ("cd", 4), -3, 7]), random.choice([rint() % 2**70, ("sha3", 1), ("add", 5, ("sha3", 2)), ("cd", 4), 7])

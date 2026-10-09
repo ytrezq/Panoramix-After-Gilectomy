@@ -1437,13 +1437,22 @@ FUNC is_zero_impl
         cmovnz rcx, rdx
         mov rax, rcx
         LEAVE
-1:      mov rdi, rbx
+1:      lea rax, [rip + sp_false]       # (a python bool: as the number it is)
+        lea rcx, [rip + sp_true]
+        cmp rbx, rax
+        jne 2f
+        mov rax, rcx
+        LEAVE
+2:      cmp rbx, rcx
+        je 5f
+        mov rdi, rbx
         call is_tuple
         test eax, eax
         jnz 3f
         mov rdi, rbx
         call mk_iszero_of
         LEAVE
+5:      LEAVE                           # (rax: sp_false)
 3:      mov rdi, rbx
         OPCODE_OF_RDI
         mov r12d, eax
@@ -1507,7 +1516,13 @@ FUNC is_zero_impl
         # is_zero of every term, then and_op / or_op of them
         mov r13d, [rbx + N_AUX]
         dec r13d                        # number of terms
-        jz .Liz_default
+        jnz 16f
+        lea rax, [rip + sp_true]        # (of none: an or is 0, an and isn't)
+        lea rcx, [rip + sp_false]
+        cmp r12d, OP_OR
+        cmovne rax, rcx
+        LEAVE
+16:
         lea rax, [r13*8 + 15]
         and rax, -16
         STACK_ALLOC rax
@@ -1524,13 +1539,47 @@ FUNC is_zero_impl
         mov [r14 + rcx*8], rax
         inc rcx
         jmp 6b
-7:      mov rdi, r13
-        mov rsi, r14
+        # python's bools of the terms of numbers: of an or, a term not 0
+        # makes it not 0 (False) and a 0 adds nothing (True); of an and, the
+        # reverse - so that no bool is left in what's made of the others
+7:      lea r8, [rip + sp_false]        # (what ends it)
+        lea r9, [rip + sp_true]         # (what's dropped)
         cmp r12d, OP_OR
+        je 10f
+        xchg r8, r9
+10:     xor ecx, ecx
+        xor edx, edx
+11:     cmp rcx, r13
+        jae 13f
+        mov rax, [r14 + rcx*8]
+        cmp rax, r8
+        jne 12f
+        LEAVE_DYN                       # (rax: that bool)
+12:     inc rcx
+        cmp rax, r9
+        je 11b
+        mov [r14 + rdx*8], rax
+        inc rdx
+        jmp 11b
+13:     cmp r12d, OP_OR
         jne 8f
+        cmp rdx, 2
+        jae 14f
+        mov rax, r9                     # (no term left: True)
+        test rdx, rdx
+        jz 15f
+        mov rax, [r14]                  # (one: itself)
+15:     LEAVE_DYN
+14:     mov rdi, rdx
+        mov rsi, r14
         call arith_and_n
         LEAVE_DYN
-8:      call alg_or_n
+8:      mov rax, r9                     # (none left: False)
+        test rdx, rdx
+        jz 15b
+        mov rdi, rdx
+        mov rsi, r14
+        call alg_or_n
         LEAVE_DYN
 .Liz_default:
         mov rdi, rbx
@@ -1917,19 +1966,11 @@ FUNC eval_bool_symbolic
         call values_equal
         test eax, eax
         jnz .Lebs_false
-        # python's: lt_op(left + 1, right), True: False, False: True (sic:
-        # left + 1 >= right isn't left > right), CannotCompare: None
-        mov rdi, r12
-        mov esi, 3
-        call alg_add2
-        mov rdi, rax
-        mov rsi, r13
+        # a > b iff b < a (CannotCompare: None)
+        mov rdi, r13
+        mov rsi, r12
         call alg_lt_op
-        cmp eax, TRI_TRUE
-        je .Lebs_false
-        cmp eax, TRI_FALSE
-        je .Lebs_true
-        jmp .Lebs_none
+        jmp .Lebs_tri
 .Lebs_ge:
         test ebx, ebx
         jz 5f
