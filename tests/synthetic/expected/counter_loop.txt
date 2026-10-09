@@ -2,8 +2,8 @@
 
 def _fallback(?) payable: # default function
   s = 0
-  while 1:
+  while True:
       s = s + 1
-      continue 
+      continue
 
 

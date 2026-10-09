@@ -11,9 +11,11 @@ definitions, the language, every function's trace after it).
 
 The captures: tests/storage_capture.py HEXFILE OUT.pkl (pypy) runs
 python's decompiler on a contract and pickles what storage.rewrite_functions
-is given; DIR holds one .pkl per contract ($STORAGE_CAPS by default). The
-whole storage of a contract depends on simplify (not the port's yet, maybe):
-that's why it's compared on python's own traces.
+is given; DIR holds one .pkl per contract ($STORAGE_CAPS, or
+build/storage_caps: make storage-caps). STORAGE_DUMP=DIR writes both
+results of a whole contract that differ to DIR/diff_NAME.txt. The
+storage of a whole contract depends on all that comes before it: it's
+compared on python's own traces.
 """
 import os, sys, random, pickle, glob, copy, time
 sys.path.insert(0, os.environ.get("PANORAMIX_PY", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "panoramix")))
@@ -41,7 +43,8 @@ while i < len(sys.argv):
     i += 1
 SEED = int(args[0]) if args else 1
 N = int(args[1]) if len(args) > 1 else 300
-CAPS = opts.get("caps") or os.environ.get("STORAGE_CAPS") or "/tmp/claude-0/-home-claude/0fe601fa-3d3d-56af-9a22-c5068d00d0e0/scratchpad/storage/cap"
+BUILD_DIR = os.environ.get("PANASM_BUILD") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build")
+CAPS = opts.get("caps") or os.environ.get("STORAGE_CAPS") or os.path.join(BUILD_DIR, "storage_caps")
 ONLY = opts.get("only")
 rnd = random.Random(SEED)
 
@@ -583,7 +586,10 @@ def t_whole():
             ok = check("rewrite_functions", name, p, a)
             print(f"   {'ok  ' if ok else 'DIFF'} {name}: py {t1 - t0:.1f}s asm {t2 - t1:.1f}s", flush=True)
             if not ok and os.environ.get("STORAGE_DUMP"):
-                open(f"/tmp/claude-0/-home-claude/0fe601fa-3d3d-56af-9a22-c5068d00d0e0/scratchpad/storage/diff_{name}.txt", "w").write(f"{p}\n{a}\n")
+                # (python's, then the port's: $STORAGE_DUMP/diff_NAME.txt)
+                os.makedirs(os.environ["STORAGE_DUMP"], exist_ok=True)
+                with open(os.path.join(os.environ["STORAGE_DUMP"], f"diff_{name}.txt"), "w") as out:
+                    out.write(f"{p}\n{a}\n")
 
 
 def bytes_keys(f, s):

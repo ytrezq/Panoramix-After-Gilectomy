@@ -16,8 +16,9 @@
 #   "Hostile input";
 # - the differential tests of the layers on tests/corpus (test_vm
 #   --functions, test_whiles, test_simplify: an hour or so; test_function
-#   and test_folder on python's own inputs of them, from make fn-inputs;
-#   not with --quick);
+#   and test_folder on python's own inputs of them, from make fn-inputs,
+#   test_storage on python's own traces, from make storage-caps; not with
+#   --quick);
 # - make check.
 #
 # The python implementation is found as the tests find it ($PANORAMIX_PY,
@@ -85,9 +86,9 @@ if [ -n "$NPM_CORPUS" ] && [ -n "$NPM_REFS" ]; then
     step npm_compact with PANORAMIX_COMPACT_MIB=1 corpus "${N[@]}"
 fi
 step algebra with BIG=1 python3 tests/test_algebra.py $seed 300
-step agz python3 tests/test_agz.py $seed 1000
-step agz_family python3 tests/test_agz_family.py $seed 300
+step ranges python3 tests/test_ranges.py $seed 400
 step simplify_exp python3 tests/test_simplify_exp.py $seed 300
+step conds python3 tests/test_conds.py $seed 300
 step memloc python3 tests/test_memloc.py $seed
 step rewriter python3 tests/test_rewriter.py $seed 500
 step arith python3 tests/test_arith.py $seed
@@ -98,13 +99,15 @@ step fold_random python3 tests/test_fold_random.py $seed 1000
 step function_random python3 tests/test_function_random.py $seed 300
 step postprocess python3 tests/test_postprocess.py $seed 1000
 step trace_random with PANORAMIX_CHECK_LCA=1 python3 tests/test_trace_random.py $seed 150
+step vm_names python3 tests/test_vm_names.py
 if [ $quick -eq 0 ]; then
     step vm with PANORAMIX_CHECK_LCA=1 python3 tests/test_vm.py --functions
     step whiles with PANORAMIX_CHECK_LCA=1 python3 tests/test_whiles.py
     step simplify python3 tests/test_simplify.py
-    # (on python's own inputs, when make fn-inputs has made them)
+    # (on python's own inputs, when make fn-inputs and storage-caps have made them)
     step function python3 tests/test_function.py
     step folder python3 tests/test_folder.py
+    step storage python3 tests/test_storage.py $seed 300
 fi
 step security tests/security.sh
 step make_check env -u PANORAMIX_SIGDB make check   # (it has its own)

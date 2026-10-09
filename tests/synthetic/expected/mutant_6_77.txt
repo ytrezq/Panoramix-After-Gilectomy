@@ -1,9 +1,7 @@
 # Palkeoramix decompiler. 
-#
-#  I failed with these: 
-#  - destroyAndTransfer(address to)
-#  All the rest is below.
-#
+
+def destroyAndTransfer(address to) payable: 
+  invalid
 
 def _fallback(?) payable: # default function
   revert

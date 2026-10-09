@@ -3,24 +3,19 @@
 const MAX_UINT = -1
 
 def storage:
-  paused is uint8 at storage 0 offset 160
-  stor0 is uint128 at storage 0 offset 160
   owner is address at storage 0
-  _totalSupply is uint256 at storage 1
+  paused is uint8 at storage 0 offset 160
+  stor1 is uint256 at storage 1
   balances is mapping of uint256 at storage 2
   basisPointsRate is uint256 at storage 3
   maximumFee is uint256 at storage 4
-  allowed is mapping of uint256 at storage 5
-  stor6 is mapping of uint8 at storage 6
-  name is array of uint256 at storage 7
-  symbol is array of uint256 at storage 8
+  allowed is mapping of mapping of uint256 at storage 5
+  blackListStatus is mapping of uint8 at storage 6
+  name is bytes at storage 7
+  symbol is bytes at storage 8
   decimals is uint256 at storage 9
-  deprecated is uint8 at storage 10 offset 160
-  stor10 is uint128 at storage 10 offset 160
   upgradedAddress is address at storage 10
-
-def name(): # not payable
-  return name[0 len name.length]
+  deprecated is uint8 at storage 10 offset 160
 
 def deprecated(): # not payable
   return bool(deprecated)
@@ -29,7 +24,7 @@ def upgradedAddress(): # not payable
   return upgradedAddress
 
 def balances(address _param1): # not payable
-  return balances[_param1]
+  return balances[address(_param1)]
 
 def decimals(): # not payable
   return decimals
@@ -38,13 +33,13 @@ def maximumFee(): # not payable
   return maximumFee
 
 def _totalSupply(): # not payable
-  return _totalSupply
+  return stor1
 
 def getBlackListStatus(address _maker): # not payable
-  return bool(stor6[address(_maker)])
+  return bool(blackListStatus[address(_maker)])
 
 def allowed(address _param1, address _param2): # not payable
-  return allowed[_param1][_param2]
+  return allowed[address(_param1)][address(_param2)]
 
 def paused(): # not payable
   return bool(paused)
@@ -55,14 +50,11 @@ def getOwner(): # not payable
 def owner(): # not payable
   return owner
 
-def symbol(): # not payable
-  return symbol[0 len symbol.length]
-
 def basisPointsRate(): # not payable
   return basisPointsRate
 
 def isBlackListed(address _param1): # not payable
-  return bool(stor6[_param1])
+  return bool(blackListStatus[address(_param1)])
 
 #
 #  Regular functions
@@ -71,89 +63,71 @@ def isBlackListed(address _param1): # not payable
 def _fallback(?) payable: # default function
   revert
 
-def transferOwnership(address newOwner): # not payable
-  require caller == owner
-  if newOwner:
-      owner = newOwner
+def name(): # not payable
+  return Array(len=name.length, data=name[all])
 
 def unpause(): # not payable
   require caller == owner
   require paused
-  Mask(96, 0, stor0.field_160) = 0
+  paused = 0
   log Unpause()
 
 def pause(): # not payable
   require caller == owner
   require not paused
-  Mask(96, 0, stor0.field_160) = 1
+  paused = 1
   log Pause()
 
-def deprecate(address _upgradedAddress): # not payable
+def symbol(): # not payable
+  return Array(len=symbol.length, data=symbol[all])
+
+def transferOwnership(address newOwner): # not payable
   require caller == owner
-  stor10 = 1
-  upgradedAddress = _upgradedAddress
-  log Deprecate(address newAddress=_upgradedAddress)
+  if address(newOwner):
+      owner = address(newOwner)
 
 def addBlackList(address _evilUser): # not payable
   require caller == owner
-  stor6[address(_evilUser)] = 1
-  log AddedBlackList(address _user=_evilUser)
+  blackListStatus[address(_evilUser)] = 1
+  log AddedBlackList(address _user=address(_evilUser))
 
 def removeBlackList(address _clearedUser): # not payable
   require caller == owner
-  stor6[address(_clearedUser)] = 0
-  log RemovedBlackList(address _user=_clearedUser)
+  blackListStatus[address(_clearedUser)] = 0
+  log RemovedBlackList(address _user=address(_clearedUser))
 
-def totalSupply(): # not payable
-  if not deprecated:
-      _8 = _totalSupply
-  else:
-      require ext_code.size(upgradedAddress)
-      call upgradedAddress.totalSupply() with:
-           gas gas_remaining - 710 wei
-      require ext_call.success
-      _8 = ext_call.return_data[0]
-  return _8
+def deprecate(address _upgradedAddress): # not payable
+  require caller == owner
+  deprecated = 1
+  upgradedAddress = address(_upgradedAddress)
+  log Deprecate(address newAddress=address(_upgradedAddress))
 
 def redeem(uint256 amount): # not payable
   require caller == owner
-  require _totalSupply >= amount
-  require balances[address(stor0.field_0)] >= amount
-  _totalSupply -= amount
-  balances[address(stor0.field_0)] -= amount
+  require stor1 >= amount
+  require balances[owner] >= amount
+  stor1 -= amount
+  balances[owner] -= amount
   log Redeem(uint256 amount=amount)
-
-def balanceOf(address account): # not payable
-  if not deprecated:
-      _7 = balances[address(account)]
-  else:
-      require ext_code.size(upgradedAddress)
-      call upgradedAddress.balanceOf(address account) with:
-           gas gas_remaining - 710 wei
-          args account
-      require ext_call.success
-      _7 = ext_call.return_data[0]
-  return _7
 
 def issue(uint256 amount): # not payable
   require caller == owner
-  require _totalSupply + amount > _totalSupply
-  require balances[address(stor0.field_0)] + amount > balances[address(stor0.field_0)]
-  balances[address(stor0.field_0)] += amount
-  _totalSupply += amount
+  require stor1 + amount > stor1
+  require balances[owner] + amount > balances[owner]
+  balances[owner] += amount
+  stor1 += amount
   log Issue(uint256 amount=amount)
 
-def allowance(address owner, address spender): # not payable
+def totalSupply(): # not payable
   if not deprecated:
-      _8 = allowed[address(owner)][address(spender)]
+      _3 = stor1
   else:
       require ext_code.size(upgradedAddress)
-      call upgradedAddress.allowance(address owner, address spender) with:
-           gas gas_remaining - 710 wei
-          args address(owner), spender
+      call upgradedAddress.totalSupply() with:
+           gas gas_remaining - 710
       require ext_call.success
-      _8 = ext_call.return_data[0]
-  return _8
+      _3 = concat(ext_call.return_data[0 len min(32, return_data.size)], Bytes(-min(32, return_data.size) + 32, Mask(-(8 * min(32, return_data.size)) + 256, 0, 0x18160ddd00000000000000000000000000000000000000000000000000000000)))
+  return _3
 
 def setParams(uint256 newBasisPoints, uint256 newMaxFee): # not payable
   require caller == owner
@@ -161,131 +135,153 @@ def setParams(uint256 newBasisPoints, uint256 newMaxFee): # not payable
   require newMaxFee < 50
   basisPointsRate = newBasisPoints
   if newMaxFee:
-      require newMaxFee
-      require newMaxFee * 10^decimals / newMaxFee == 10^decimals
-      _3 = newMaxFee * 10^decimals
+      assert newMaxFee
+      assert newMaxFee * 10**decimals / newMaxFee == 10**decimals
+      _1 = newMaxFee * 10**decimals
   else:
-      _3 = 0
-  maximumFee = _3
+      _1 = 0
+  maximumFee = _1
   log Params(
         uint256 feeBasisPoints=basisPointsRate,
         uint256 maxFee=maximumFee)
 
-def destroyBlackFunds(address _blackListedUser): # not payable
-  require caller == owner
-  require stor6[address(_blackListedUser)]
+def balanceOf(address account): # not payable
   if not deprecated:
-      _8 = balances[address(_blackListedUser)]
+      _4 = balances[address(account)]
   else:
+      mem[96] = 0x70a0823100000000000000000000000000000000000000000000000000000000
+      mem[100] = address(account)
       require ext_code.size(upgradedAddress)
       call upgradedAddress.balanceOf(address account) with:
-           gas gas_remaining - 710 wei
-          args _blackListedUser
+           gas gas_remaining - 710
+          args address(account)
+      mem[96 len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
       require ext_call.success
-      _8 = ext_call.return_data[0]
-  balances[address(_blackListedUser)] = 0
-  _totalSupply -= _8
-  log DestroyedBlackFunds(
-        address _blackListedUser=address(_blackListedUser),
-        uint256 _balance=_8)
+      _4 = concat(ext_call.return_data[0 len min(32, return_data.size)], mem[min(32, return_data.size) + 96 len -min(32, return_data.size) + 32])
+  return _4
 
 def approve(address spender, uint256 amount): # not payable
   require calldata.size >= 68
   if not deprecated:
-      if not amount:
-          _5 = bool(amount)
-      else:
-          _5 = bool(allowed[caller][address(spender)])
-      require not _5
+      _4 = amount and bool(allowed[caller][address(spender)])
+      require not _4
       allowed[caller][address(spender)] = amount
       log Approval(
-            address owner=amount,
-            address spender=caller,
-            uint256 value=spender)
+            address indexed owner=caller,
+            address indexed spender=address(spender),
+            uint256 value=amount)
   else:
       require ext_code.size(upgradedAddress)
-      call upgradedAddress.approveByLegacy(address _param1, address _param2, uint256 _param3) with:
-           gas gas_remaining - 710 wei
+      call upgradedAddress.approveByLegacy(address, address, uint256) with:
+           gas gas_remaining - 710
           args caller, address(spender), amount
       require ext_call.success
 
+def allowance(address _owner, address spender): # not payable
+  if not deprecated:
+      _5 = allowed[address(_owner)][address(spender)]
+  else:
+      mem[96] = 0xdd62ed3e00000000000000000000000000000000000000000000000000000000
+      mem[100] = address(_owner)
+      require ext_code.size(upgradedAddress)
+      call upgradedAddress.allowance(address owner, address spender) with:
+           gas gas_remaining - 710
+          args address(_owner), address(spender)
+      mem[96 len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
+      require ext_call.success
+      _5 = concat(ext_call.return_data[0 len min(32, return_data.size)], mem[min(32, return_data.size) + 96 len -min(32, return_data.size) + 32])
+  return _5
+
+def destroyBlackFunds(address _blackListedUser): # not payable
+  require caller == owner
+  require blackListStatus[address(_blackListedUser)]
+  if not deprecated:
+      _5 = balances[address(_blackListedUser)]
+  else:
+      mem[96] = 0x70a0823100000000000000000000000000000000000000000000000000000000
+      mem[100] = address(_blackListedUser)
+      require ext_code.size(upgradedAddress)
+      call upgradedAddress.balanceOf(address account) with:
+           gas gas_remaining - 710
+          args address(_blackListedUser)
+      mem[96 len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]
+      require ext_call.success
+      _5 = concat(ext_call.return_data[0 len min(32, return_data.size)], mem[min(32, return_data.size) + 96 len -min(32, return_data.size) + 32])
+  balances[address(_blackListedUser)] = 0
+  stor1 -= _5
+  log DestroyedBlackFunds(
+        address _blackListedUser=address(_blackListedUser),
+        uint256 _balance=_5)
+
 def transfer(address recipient, uint256 amount): # not payable
   require not paused
-  require not stor6[caller]
+  require not blackListStatus[caller]
   if not deprecated:
       require calldata.size >= 68
       if amount:
-          require amount
-          require amount * basisPointsRate / amount == basisPointsRate
-          _4 = amount * basisPointsRate
+          assert amount
+          assert amount * basisPointsRate / amount == basisPointsRate
+          _3 = amount * basisPointsRate
       else:
-          _4 = 0
-      if _4 / 10000 <= maximumFee:
-          _6 = _4 / 10000
-      else:
-          _6 = maximumFee
-      require _6 <= amount
-      require amount <= balances[caller]
+          _3 = 0
+      assert min(_3 / 10000, maximumFee) <= amount
+      assert amount <= balances[caller]
       balances[caller] -= amount
-      require balances[address(recipient)] + amount - _6 >= balances[address(recipient)]
-      balances[address(recipient)] = balances[address(recipient)] + amount - _6
-      if _6 > 0:
-          require balances[address(stor0.field_0)] + _6 >= balances[address(stor0.field_0)]
-          balances[address(stor0.field_0)] += _6
+      assert balances[address(recipient)] + amount - min(_3 / 10000, maximumFee) >= balances[address(recipient)]
+      balances[address(recipient)] = balances[address(recipient)] + amount - min(_3 / 10000, maximumFee)
+      if min(_3 / 10000, maximumFee) > 0:
+          assert balances[owner] + min(_3 / 10000, maximumFee) >= balances[owner]
+          balances[owner] += min(_3 / 10000, maximumFee)
           log Transfer(
-                address from=_6,
-                address to=caller,
-                uint256 value=owner)
+                address indexed from=caller,
+                address indexed to=owner,
+                uint256 value=min(_3 / 10000, maximumFee))
       log Transfer(
-            address from=(amount - _6),
-            address to=caller,
-            uint256 value=recipient)
+            address indexed from=caller,
+            address indexed to=address(recipient),
+            uint256 value=amount - min(_3 / 10000, maximumFee))
   else:
       require ext_code.size(upgradedAddress)
-      call upgradedAddress.transferByLegacy(address _param1, address _param2, uint256 _param3) with:
-           gas gas_remaining - 710 wei
+      call upgradedAddress.transferByLegacy(address, address, uint256) with:
+           gas gas_remaining - 710
           args caller, address(recipient), amount
       require ext_call.success
 
 def transferFrom(address sender, address recipient, uint256 amount): # not payable
   require not paused
-  require not stor6[address(sender)]
+  require not blackListStatus[address(sender)]
   if not deprecated:
       require calldata.size >= 100
       if amount:
-          require amount
-          require amount * basisPointsRate / amount == basisPointsRate
-          _6 = amount * basisPointsRate
+          assert amount
+          assert amount * basisPointsRate / amount == basisPointsRate
+          _5 = amount * basisPointsRate
       else:
-          _6 = 0
-      if _6 / 10000 <= maximumFee:
-          _8 = _6 / 10000
-      else:
-          _8 = maximumFee
-      if allowed[address(sender)][caller] < -1:
-          require amount <= allowed[address(sender)][caller]
+          _5 = 0
+      if allowed[address(sender)][caller] < 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:
+          assert amount <= allowed[address(sender)][caller]
           allowed[address(sender)][caller] -= amount
-      require _8 <= amount
-      require amount <= balances[address(sender)]
+      assert min(_5 / 10000, maximumFee) <= amount
+      assert amount <= balances[address(sender)]
       balances[address(sender)] -= amount
-      require balances[address(recipient)] + amount - _8 >= balances[address(recipient)]
-      balances[address(recipient)] = balances[address(recipient)] + amount - _8
-      if _8 > 0:
-          require balances[address(stor0.field_0)] + _8 >= balances[address(stor0.field_0)]
-          balances[address(stor0.field_0)] += _8
+      assert balances[address(recipient)] + amount - min(_5 / 10000, maximumFee) >= balances[address(recipient)]
+      balances[address(recipient)] = balances[address(recipient)] + amount - min(_5 / 10000, maximumFee)
+      if min(_5 / 10000, maximumFee) > 0:
+          assert balances[owner] + min(_5 / 10000, maximumFee) >= balances[owner]
+          balances[owner] += min(_5 / 10000, maximumFee)
           log Transfer(
-                address from=_8,
-                address to=sender,
-                uint256 value=owner)
+                address indexed from=address(sender),
+                address indexed to=owner,
+                uint256 value=min(_5 / 10000, maximumFee))
       log Transfer(
-            address from=(amount - _8),
-            address to=sender,
-            uint256 value=recipient)
+            address indexed from=address(sender),
+            address indexed to=address(recipient),
+            uint256 value=amount - min(_5 / 10000, maximumFee))
   else:
       require ext_code.size(upgradedAddress)
-      call upgradedAddress.transferFromByLegacy(address _param1, address _param2, address _param3, uint256 _param4) with:
-           gas gas_remaining - 710 wei
-          args 0, uint32(caller), address(sender), address(recipient), amount
+      call upgradedAddress.transferFromByLegacy(address, address, address, uint256) with:
+           gas gas_remaining - 710
+          args caller, address(sender), address(recipient), amount
       require ext_call.success
 
 

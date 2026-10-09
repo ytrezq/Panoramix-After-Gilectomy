@@ -94,6 +94,15 @@ fn-inputs:
 	PANORAMIX_PY=$(PANORAMIX_REPO) PANORAMIX_TIMEOUT=5 PYTHONINTMAXSTRDIGITS=0 \
 	  $(PANORAMIX_PYTHON) tests/gen_function_inputs.py build/fn_inputs tests/synthetic/*.hex tests/corpus/*.hex
 
+# what python's storage.rewrite_functions is given in its decompilations of
+# the corpus and the synthetic programs (pypy, ~20 minutes), for
+# tests/test_storage.py
+storage-caps:
+	mkdir -p build/storage_caps
+	for f in tests/synthetic/*.hex tests/corpus/*.hex; do n=$$(basename $$f .hex); \
+	  [ -f build/storage_caps/$$n.pkl ] || PANORAMIX_PY=$(PANORAMIX_REPO) PANORAMIX_TIMEOUT=5 PYTHONINTMAXSTRDIGITS=0 \
+	    $(PANORAMIX_PYTHON) tests/storage_capture.py $$f build/storage_caps/$$n.pkl; done
+
 # python's --verbose and --explain outputs of small contracts of the
 # corpus, and its text with --repr and --returns in sys.argv (pypy, a few
 # minutes), for tests/test_verbose.py
@@ -117,4 +126,4 @@ install: build/panasm build/libpanoramix_asm.so
 clean:
 	rm -rf build
 
-.PHONY: all clean check install json-expected verbose-expected fn-inputs coverage
+.PHONY: all clean check install json-expected verbose-expected fn-inputs storage-caps coverage

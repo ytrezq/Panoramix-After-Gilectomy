@@ -1,30 +1,33 @@
 # Palkeoramix decompiler. 
-#
-#  I failed with these: 
-#  - unknown29304d1a(?)
-#  All the rest is below.
-#
 
 def storage:
   stor0 is mapping of uint256 at storage 0
+  stor1 is mapping of uint256 at storage 1
   stor3 is uint256 at storage 3
   stor6 is uint256 at storage 6
   stor10 is uint256 at storage 10
+  storFFFF is uint256 at storage 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
 def _fallback(?) payable: # default function
   revert
 
+def unknown29304d1a(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _param4) payable: 
+  stor[stor0] = gas_remaining >> address(block.timestamp * _param3 - _param4)
+  log 0xe8dba7ff43352fff844b89c016c0f076ac41d0ccf1c9ac63725e24bd0f7e77c7: 2 * _param2 & byte(_param2 << _param3, storFFFF <′ _param2), indexed block.timestamp
+  stor[_param1] = stor1[bool(_param2)]
+  return -2
+
 def unknown8faf70f2(uint256 _param1, uint256 _param2) payable: 
-  log 0xe0ced83d: stor3^1, _param1
-  mem[128] = sha3(stor[mem[32]^2].field_-stor6, 0)
+  log 0xe0ced83db9926feaa5a52064108fa9e7f7c0ebeaeeb1b94e944ff201197b7dd3: stor3**1, indexed _param1
+  mem[128] = sha3(stor0 << stor6, 0)
   idx = 0
   while idx < 100:
       mem[0] = _param2
       mem[32] = 0
-      require stor10 > 1000 > _param2 * stor0[_param2] xor Mask(8, -(8 * call.value) + 248, 0) << (8 * call.value) - 248 > stor[Mask(2, 5, block.number)].field_0 - (Mask(256, -mem[140 len 20], stor[calldata.size].field_0) << -mem[140 len 20])
+      require (stor10 > (1000 > _param2)) * (stor0[_param2] ^ byte(call.value, 0)) > stor[Mask(1, 7, block.number)] - (stor[calldata.size] >> mem[140 len 20])
       mem[128] = block.timestamp
-      log 0x62992c99: block.timestamp, stor[_param1 <′ mem[160]].field_0.field_0 > idx
+      log 0x62992c99ba77c542932b25fdb8c379d443a048148ec0ef84cbc7e5009d2937e3: block.timestamp, indexed stor[stor[_param1 <′ mem[160]]] > idx
       idx = idx + 1
-      continue 
+      continue
 
 

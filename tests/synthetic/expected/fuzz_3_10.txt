@@ -1,49 +1,80 @@
 # Palkeoramix decompiler. 
-#
-#  I failed with these: 
-#  - unknown91478de4(?)
-#  All the rest is below.
-#
 
 def storage:
-  stor1 is array of uint256 at storage 1
-  stor2 is uint256 at storage 2
-  stor3 is array of uint256 at storage 3
-  stor4 is array of uint256 at storage 4
-  stor5 is uint256 at storage 5
+  stor0 is mapping of uint256 at storage 0
+  stor1 is mapping of uint256 at storage 1
+  stor2 is mapping of uint256 at storage 2
+  stor3 is mapping of uint256 at storage 3
+  stor4 is mapping of uint256 at storage 4
+  stor5 is mapping of uint256 at storage 5
   stor6 is uint256 at storage 6
+  stor7 is uint256 at storage 7
   stor10 is address at storage 10
+  stor255 is uint256 at storage 255
+  storDE0B is uint256 at storage 0xde0b6b3a7640000
 
 def _fallback(?) payable: # default function
   stop
 
 def unknown1acdacc2(uint256 _param1) payable: 
-  stor1.length = _param1
+  stor1 = _param1
 
 def unknownb26bf3be(uint256 _param1, uint256 _param2) payable: 
-  hash = sha256hash(None) # precompiled
+  hash = sha256hash() # precompiled
   require sha256hash.result
-  stor1.length = stor[_param2 % gas_remaining]
-  if gas_remaining > stor4.length:
-      return not stor3.length
-  call sha3((_param1 or 0x8000000000000000000000000000000000000000000000000000000000000000)^2, 0)^2 with:
-     value mem[160] wei
-       gas gas_remaining wei
+  stor[stor1] = stor[_param2 % gas_remaining]
+  if gas_remaining > stor4:
+      return not stor3
+  call sha3((_param1 | 0x8000000000000000000000000000000000000000000000000000000000000000)**2, 0)**2 with:
+       gas gas_remaining
   require ext_call.success
-  return (this.address - 2)
+  return this.address - 2
 
 def unknown00c001da(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _param4) payable: 
-  mem[64] = 96
   require stor10 > 256
-  stor1[caller] = address(gas_remaining) - !calldata.size <= mem[160]
-  mem[160] = _param3 - stor6
-  mem[0] = 10
-  mem[32] = 4
-  if stor0.length <′ _param4 or 4^0 != unknowndeadbeef() xor stor4[10] < calldata.size > 0x8000000000000000000000000000000000000000000000000000000000000000:
-      stor[Mask(8, -(8 * -1 % _param1 - 0x8000000000000000000000000000000000000000000000000000000000000000) + 248, stor3[32] - gas_remaining) << (8 * -1 % _param1 - 0x8000000000000000000000000000000000000000000000000000000000000000) - 248] = stor0[stor1[gas_remaining] == _param1 < _param1 == _param2].field_0
+  stor[stor1[0]] = address(gas_remaining) - ~calldata.size <= 0
+  if (stor[stor0] <′ _param4 or 1) != 3735928559 ^ (stor4[10] < (calldata.size > 0x8000000000000000000000000000000000000000000000000000000000000000)):
+      stor[stor[byte(-1 % (_param1 + 0x8000000000000000000000000000000000000000000000000000000000000000), stor3[32] - gas_remaining)]] = stor0[(stor1[gas_remaining] == _param1) < (_param1 == _param2)]
   else:
-      stor[Mask(256, -('map', ('gt', 4, ('not', ('stor', ('name', 'stor5', 5)))), ('name', 'stor1', 1)), stor[_param3^2] and !_param3) << -('map', ('gt', 4, ('not', ('stor', ('name', 'stor5', 5)))), ('name', 'stor1', 1))] = !block.number % 0 >> 0x80000000000000000000000000000000000000000000000000000000000000ff
-      stor[block.number] = sha3(255, 0)
-      log 0x51657575: stor0.length, (_param4 - 1)^0 + (stor3[stor4.length] or sha3(10^18, 4)) and Mask((8 * (stor2 < _param3) + 32) + 8, 0, stor0.length.field_-(8 * (stor2 < _param3) + 32) + 248)
+      mem[0] = 4 > ~stor5
+      stor[(stor[_param3**2] & ~_param3) >> sha3(mem[0], 1)] = 0
+      stor[stor[block.number]] = sha3(255, 0)
+      log 0x5165757593e1d1a57a06db4a1cd712bac107f978ce5e1797084c251d613965d4: stor0, indexed (_param4 - 1)**0 + (stor3[stor4] | sha3(10**18, 4)) & byte((stor2 < _param3) + 32, stor0)
+
+def unknown91478de4(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _param4, uint256 _param5) payable: 
+  mem[64] = 128
+  if _param2 > stor[address(stor0.field_0) % (_param5 / 1000)]:
+      mem[0] = stor7
+      mem[32] = 2
+      stor[mem[stor2[concat(mem[0])]]] = ~_param3 < _param2 ^ 256
+  if (stor0 == 1) <′ stor[address(_param5)]:
+      require Mask(1, 5, _param1 << calldata.size) <′ call.value
+  mem[0] = stor4
+  mem[32] = 3
+  mem[128] = stor3[stor4]**1
+  log 0x0a9f79a439116b91645f7bb638b6c3e553f0dca20fb0d604c7533806bb8b10fe: stor3[stor4]**1, indexed (storDE0B | (block.timestamp << stor2 == mem[_param2])) % _param1
+  if not stor[_param3]:
+      stor[(stor5[byte(_param2, _param5)] > _param1) | mem[stor1]**3 & mem[stor6**3]] = 3
+  else:
+      if stor1 > calldata.size:
+          if (not stor[stor[stor6]]) <′ mem[_param1] << _param4 << address(_param5):
+              mem[0] = _param3 ^ stor3
+              mem[32] = 2
+              mem[128] = stor255 - sha3(_param3 ^ stor3, 2) <′ calldata.size
+              log 0x86eadc7c95c90089be7b738c2580f6cafee7fab978f5dd98e1419a88e664b3b0: stor255 - sha3(_param3 ^ stor3, 2) <′ calldata.size, indexed _param4 + _param3 << (block.timestamp <′ (caller & _param1) % calldata.size**2)
+              _22 = stor3
+              call mem[stor4] with:
+                 value 3735928559 ^ _param3 wei
+                   gas gas_remaining
+              require ext_call.success
+              mem[128] = stor6
+              log 0x9fecfbf22e70ba139030181b3055633e5794da0da57012c27c951a98a208ba92: stor6, indexed _param3 ^ _22
+      mem[0] = mem[_param1 * stor5]
+      mem[32] = 2
+      call stor[_param2] with:
+         value stor2[concat(mem[0])]**2 wei
+           gas gas_remaining
+      require ext_call.success
+      stor[(stor5[byte(_param2, _param5)] > _param1) | mem[stor1]**3 & mem[stor6**3]] = 2
 
 

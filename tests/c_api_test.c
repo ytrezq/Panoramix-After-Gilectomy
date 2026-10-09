@@ -40,7 +40,7 @@ int main(void)
     /* the text again, with python's json */
     pan_output o;
     int rc = pan_decompile_data(code, code_len, 1, NULL, PAN_NO_COLOR | PAN_JSON, &o);
-    int ok = strcmp(ta, tb) == 0 && strstr(ta, "def storage:") && strstr(ta, "def get() payable:")
+    int ok = strcmp(ta, tb) == 0 && strstr(ta, "def storage:") && strstr(ta, "def get(): # not payable")
              && strchr(ta, '\033') == NULL && strstr(dis, "jumpdest")
              && rc == 0 && strcmp(o.text, ta) == 0 && o.datalen == strlen(o.data)
              && strncmp(o.data, "{\"problems\": {}, \"stor_defs\": [", 31) == 0

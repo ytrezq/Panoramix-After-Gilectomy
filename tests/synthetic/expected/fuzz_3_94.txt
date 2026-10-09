@@ -1,37 +1,44 @@
 # Palkeoramix decompiler. 
-#
-#  I failed with these: 
-#  - unknown16cdd6c9(?)
-#  All the rest is below.
-#
 
 def storage:
   stor0 is mapping of uint256 at storage 0
-  stor1 is uint256 at storage 1
+  stor1 is mapping of uint256 at storage 1
   stor2 is mapping of uint256 at storage 2
   stor3 is uint256 at storage 3
   stor4 is uint256 at storage 4
+  stor5 is mapping of uint256 at storage 5
+  stor6 is address at storage 6
   stor7 is uint256 at storage 7
   stor256 is uint256 at storage 256
-  storDEAD is uint256 at storage 0xdeadbeef
+  stor3735928559 is uint256 at storage 3735928559
 
 def _fallback(?) payable: # default function
   revert
 
 def unknown8d2a8a5e(uint256 _param1) payable: 
-  stor2[stor[mem[160]]] = _param1
+  mem[0] = stor0
+  stor[stor2[concat(mem[0])]] = _param1
 
 def unknownb847dd8a(uint256 _param1) payable: 
   stor256 = stor1 / stor4
-  stor[address(-1 / stor7) + this.address < ('map', ('not', ('add', ('stor', ('name', 'stor3', 3)), ('mul', -1, ('param', '_param1')))), ('name', 'stor5', 5))] = storDEAD
+  mem[0] = ~(stor3 - _param1)
+  stor[address(-1 / stor7) + this.address < sha3(mem[0], 5)] = stor3735928559
   stor[calldata.size] = _param1
 
 def unknown919ee3df(uint256 _param1, uint256 _param2) payable: 
-  mem[64] = 96
+  mem[64] = 128
   mem[0] = stor0[calldata.size]
   mem[32] = 1
-  mem[128] = !sha3(stor0[calldata.size], 1)
+  mem[128] = ~sha3(stor0[calldata.size], 1)
   stor[_param1] = mem[_param1] / _param2
-  return unknowndeadbeef()
+  return 3735928559
+
+def unknown16cdd6c9(uint256 _param1, uint256 _param2, uint256 _param3, uint256 _param4) payable: 
+  stor[_param4] = stor2
+  log 0x4d2f27c2a72cc7eb581c84e45b06051d5c4aa26a0dde94975db498bf913bc014: stor6, indexed 0
+  if 1000 <= stor1[_param2]:
+      stor[not stor5[call.value]] = (stor7 * stor[_param3] - _param1 * stor[_param3]) % 2
+  else:
+      stor[stor5 & stor2[3735928559] < _param2] = stor3
 
 

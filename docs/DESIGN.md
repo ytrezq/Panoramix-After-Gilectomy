@@ -336,9 +336,12 @@ with numbers past 2^62 -, `test_arith.py`, `test_memloc.py`: the
 memory model, the stores and setmems of several parts that read what the
 others write among them; `test_rewriter.py`: datas with arrays, padded or
 not, and the ifs on the lengths of strings; `test_stack.py`, `test_simplify_exp.py`, `test_prettify_random.py`,
-`test_agz.py`: sums of many terms sharing variables, for `add_ge_zero`;
-`test_agz_family.py`: many adds sharing their terms after the number,
-asked in one context, for `add_ge_zero`'s and `add_op`'s families;
+`test_ranges.py`: what an expression is as an integer - `value_range`,
+the comparisons it decides - under the states of `set_variables` (a
+trace's variables, its small words) and both free memory pointer
+assumptions; `test_conds.py`: what a condition says of what it compares,
+the mins of the ifs, the results of the precompiled contracts, the small
+words of random traces;
 `test_fold_random.py`: paths sharing beginnings and endings, some in
 two groups the folder's `fold_or` splits, through `fold_paths`;
 `test_trace_random.py`: random traces - the lines of the VM, loops
@@ -373,7 +376,8 @@ python3, the module in `build/` and the python repository in
 functions found, the whiles, every simplifier pass on every corpus
 trace, the folder, every sub-expression through prettify with every
 combination of its flags, the function analysis, the whole contract
-postprocessing. `tests/compare_output.py` compares the final text with
+postprocessing; and the names the VM gives its variables when a function
+is given the dispatcher's (`test_vm_names.py`, on small programs). `tests/compare_output.py` compares the final text with
 `decompile_bytecode`'s (both without the signature database);
 `corpus/run_one.sh` produces the references with the database, from
 pypy, to diff against `panasm decompile --no-color`.
@@ -391,7 +395,12 @@ sides. `test_function_random.py` takes random traces made for the
 checks of the params (`require x == address(x)`), the params guessed
 from the uses of the calldata, the check of the value sent (an or, after
 setmems), the constants and the getters; `test_postprocess.py` random
-ifs whose branches set a variable (`logical`).
+ifs whose branches set a variable (`logical`). The storage is compared
+on python's own traces too: `tests/storage_capture.py` (pypy) records
+what python's `storage.rewrite_functions` is given - `make storage-caps`,
+into `build/storage_caps/` - and `test_storage.py` runs both sides'
+functions of the storage on it, random inputs around it, then the
+storage of each whole contract.
 
 `make coverage` builds `build/cov/` - the tool and the module - with a
 counter of the calls of every function (`COV_COUNT` in `FUNC`: `pushf`,
