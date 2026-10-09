@@ -244,7 +244,15 @@ is the CLI, `build/panoramix_asm*.so` the module.
     chunk, a hash-cons table that can't be had fail the function (or
     the fold, or the call of the C interface) as python's MemoryError
     would, and the process lives on (`robustness.sh` decompiles under
-    address space limits).
+    address space limits). So does what the C allocator refuses
+    (`xmalloc` and the like: the string builders, the interned strings,
+    the loader, the signature database): python's MemoryError where the
+    thread's own context has a handler for it (`xalloc_throw`), the locks
+    of the string table and of the signature database's loading released
+    on the way, a builder's capacity changed only once it's had; a
+    function that failed for want of memory may not even get its name
+    interned, and is reported under its selector then. Fatal only where
+    nothing can take it.
     Sharing the table across threads (a lock-free one, with a global
     arena) was considered and rejected: `mk_seq` is the hottest
     function, and a global arena could never be freed per function,

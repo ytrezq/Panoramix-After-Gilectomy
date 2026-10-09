@@ -734,17 +734,28 @@ FUNC decompile
         lea rsi, [rip + .Ls_logname]
         lea rdx, [rip + .Ls_problem]
         call log_fmt
+        # the name, as python's problems hold it - the hash itself where the
+        # system has no memory left for it (a job that failed for want of
+        # it: interning the name may fail too)
         mov rdi, [rsp + ERR_SIZEOF]
-        mov rsi, [rdi + JB_HASH]
-        mov rdi, [rsp + ERR_SIZEOF + 24 + 8 + DE_PROBLEMS]
-        push rdi
-        push rdi
-        mov rdi, rsi
+        mov rax, [rdi + JB_HASH]
+        mov [rsp + ERR_SIZEOF + 16], rax
+        lea rdi, [rsp]
+        call err_catch
+        test eax, eax
+        jnz 4f
+        mov rdi, [rsp + ERR_SIZEOF]
+        mov rdi, [rdi + JB_HASH]
         call abi_of
         mov rdi, rax
         xor esi, esi
-        call abi_func_name              # the name, as python's problems hold it
-        mov rsi, rax                    # (hash, name): problems[hash] = fname
+        call abi_func_name
+        mov [rsp + ERR_SIZEOF + 16], rax
+        call err_end
+4:      mov rdi, [rsp + ERR_SIZEOF + 24 + 8 + DE_PROBLEMS]
+        push rdi
+        push rdi
+        mov rsi, [rsp + 16 + ERR_SIZEOF + 16]   # (hash, name): problems[hash] = fname
         mov rdi, [rsp + 16 + ERR_SIZEOF]
         mov rdi, [rdi + JB_HASH]
         call mk2

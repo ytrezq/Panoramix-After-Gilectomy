@@ -201,11 +201,15 @@ FUNC decoder_add_idiom
         cmp rax, [rbx + LD_CAPIDIOMS]
         jb 2f
         lea rsi, [rax + rax + 16]       # (twice as many)
-        mov [rbx + LD_CAPIDIOMS], rsi
+        push rsi
+        push rsi
         shl rsi, 3
         mov rdi, [rbx + LD_IDIOMS]
         call xrealloc
         mov [rbx + LD_IDIOMS], rax
+        pop rsi
+        pop rsi
+        mov [rbx + LD_CAPIDIOMS], rsi
 2:      mov rax, [rbx + LD_NINSTR]
         dec rax
         shl rax, 8

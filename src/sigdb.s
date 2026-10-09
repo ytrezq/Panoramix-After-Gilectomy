@@ -175,16 +175,22 @@ ENDF cache_dir_path
 # python's check_supplements does
 FUNC sigdb_load
         ENTER
-        sub rsp, 176
+        sub rsp, 176 + ERR_SIZEOF
         .set SL_ST, 0                   # struct stat (144 bytes)
         .set SL_SB, 144
         .set SL_FD, 152
         .set SL_DUMP, 160               # the dump to build from (an sb), or 0
         .set SL_BUILT, 168              # built once already
+        .set SL_ERR, 176                # what throws (the system's memory, the
+                                        # time limit) goes on, the lock released
         cmp qword ptr [rip + sigdb_state], 0
         jne .Lsl_done
         lea rdi, [rip + sigdb_lock]
         call spin_lock
+        lea rdi, [rsp + SL_ERR]
+        call err_catch
+        test eax, eax
+        jnz .Lsl_thrown
         cmp qword ptr [rip + sigdb_state], 0
         jne .Lsl_unlock
         call sb_new
@@ -367,14 +373,22 @@ FUNC sigdb_load
         jz .Lsl_unlock
         call sb_free
 .Lsl_unlock:
+        call err_end
         lea rdi, [rip + sigdb_lock]
         call spin_unlock
 .Lsl_done:
         xor eax, eax
         cmp qword ptr [rip + sigdb_state], 1
         sete al
-        add rsp, 176
+        add rsp, 176 + ERR_SIZEOF
         LEAVE
+.Lsl_thrown:
+        mov ebx, eax
+        lea rdi, [rip + sigdb_lock]
+        call spin_unlock
+        mov edi, ebx
+        mov rsi, [r15 + CTX_ERR_MSG]
+        call err_throw
 ENDF sigdb_load
 
 # sigdb_env_dump(&sb) -> eax: 1 when $PANORAMIX_ABI_DUMP names a dump,

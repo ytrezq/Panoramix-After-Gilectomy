@@ -92,6 +92,8 @@ FUNC str_intern
         cmp rax, [rip + str_cap]
         jb 1f
         call str_grow
+        test eax, eax
+        jz .Lstr_no_memory
 1:      mov rbx, [rip + str_table]
         mov r13, [rip + str_cap]
         dec r13
@@ -125,7 +127,9 @@ FUNC str_intern
         mov rdi, [rsp + 8]
         add rdi, N_DATA + 4 + 1 + 15
         and rdi, -16
-        call xmalloc
+        call malloc@PLT
+        test rax, rax
+        jz .Lstr_no_memory
         mov r14, rax
         mov dword ptr [r14 + N_KIND], K_STR
         mov rax, [rsp + 24]
@@ -146,6 +150,14 @@ FUNC str_intern
         mov rax, r14
         add rsp, 32
         LEAVE
+.Lstr_no_memory:
+        # the system has no more: the table as it was, python's MemoryError
+        # where there's a handler for it (else fatal, see xalloc_throw)
+        call str_lock_release
+        lea rdi, [rip + .Lmsg_str_oom]
+        add rsp, 32                     # (the frame dropped: it never returns)
+        LEAVE_NORET
+        jmp xalloc_throw
 ENDF str_intern
 
 # str_scan_flags(ptr, len) -> eax: STR_VOLATILE if the string mentions one
@@ -486,15 +498,19 @@ scan_first:
         .text
 
 
-# str_grow(): double the intern table (lock held)
+# str_grow() -> eax: double the intern table (lock held) - 0 when the
+# system has no memory for it (the table as it was)
 FUNC str_grow
         ENTER
         mov r12, [rip + str_table]
         mov r13, [rip + str_cap]
         lea rdi, [r13 * 2]
-        mov [rip + str_cap], rdi
         mov esi, 8
-        call xcalloc
+        call calloc@PLT
+        test rax, rax
+        jz 9f
+        lea rcx, [r13 * 2]
+        mov [rip + str_cap], rcx
         mov [rip + str_table], rax
         mov rbx, rax
         xor r14d, r14d
@@ -517,8 +533,13 @@ FUNC str_grow
         jmp 1b
 3:      mov rdi, r12
         call free@PLT
-        LEAVE
+        mov eax, 1
+9:      LEAVE
 ENDF str_grow
+
+        .section .rodata
+.Lmsg_str_oom:  .asciz "out of memory: the system gave no more (malloc failed)"
+        .text
 
 # str_intern_c(cstr) -> rax
 FUNC str_intern_c
@@ -604,16 +625,16 @@ FUNC sb_reserve
         inc rax
         cmp rax, [rbx + SB_CAP]
         jbe 1f
-        mov rcx, [rbx + SB_CAP]
-2:      shl rcx, 1
-        cmp rax, rcx
+        mov r12, [rbx + SB_CAP]
+2:      shl r12, 1
+        cmp rax, r12
         ja 2b
-        mov [rbx + SB_CAP], rcx
         mov rdi, [rbx + SB_BUF]
-        mov rsi, rcx
+        mov rsi, r12
         call xrealloc
         mov [rbx + SB_BUF], rax
-1:      LEAVE
+        mov [rbx + SB_CAP], r12         # (once it's had: a builder kept
+1:      LEAVE                           # after a MemoryError stays sound)
 ENDF sb_reserve
 
 # sb_append(sb, ptr, len)

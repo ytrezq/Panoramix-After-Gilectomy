@@ -1036,15 +1036,18 @@ FUNC gmp_free
 ENDF gmp_free
 
 # xmalloc(size) / xcalloc(n, size) / xrealloc(ptr, size): the C
-# allocator's, a fatal "out of memory" instead of a NULL (for what lives
-# outside the arenas: the contexts, the hash-cons and string tables, the
-# loader, the signature database)
+# allocator's (for what lives outside the arenas: the contexts, the
+# hash-cons and string tables, the loader, the signature database, the
+# string builders), python's MemoryError instead of a NULL where the
+# thread's context has a handler for it, else a fatal "out of memory"
+# (see xalloc_throw: what holds a lock while it allocates releases it
+# on the way)
 FUNC xmalloc
         push rdi
         call malloc@PLT
         pop rdi
         test rax, rax
-        jz xalloc_failed
+        jz xalloc_oom
         ret
 ENDF xmalloc
 
@@ -1053,7 +1056,7 @@ FUNC xcalloc
         call calloc@PLT
         pop rdi
         test rax, rax
-        jz xalloc_failed
+        jz xalloc_oom
         ret
 ENDF xcalloc
 
@@ -1062,9 +1065,34 @@ FUNC xrealloc
         call realloc@PLT
         pop rdi
         test rax, rax
-        jz xalloc_failed
+        jz xalloc_oom
         ret
 ENDF xrealloc
+
+FUNC xalloc_oom
+        lea rdi, [rip + .Lmsg_xalloc_throw]
+        jmp xalloc_throw
+ENDF xalloc_oom
+
+# xalloc_throw(message): an allocation the system refused - python's
+# MemoryError (E_MEMORY, the message) where the thread's own context has a
+# handler for it, else the fatal "out of memory"
+FUNC xalloc_throw
+        sub rsp, 8
+        test r15, r15
+        jz 1f
+        mov [rsp], rdi
+        call ctx_current
+        mov rsi, [rsp]
+        cmp rax, r15
+        jne 1f
+        cmp qword ptr [r15 + CTX_ERR_BUF], 0
+        je 1f
+        mov edi, E_MEMORY
+        call err_throw
+1:      add rsp, 8
+        jmp xalloc_failed
+ENDF xalloc_throw
 
 FUNC xalloc_failed
         sub rsp, 8
