@@ -45,10 +45,14 @@
 .set HT_SIZE, HT_COUNT * HT_ENTRY
 .set MAX_DELTA, 65536           # what's added to a hash to reach a member
 
-        .section .bss
-        .align 16
-st_htabs:       .space 2 * HT_SIZE
-st_hinit:       .long 0, 0      # pthread_once_t of each table
+        # (made at build time: tools/gen_htab.c, with keccak.s - every
+        # process made them at its first storage constant, 10240 hashes)
+        .section .rodata
+        .p2align 6
+st_htabs:       .incbin "build/storage_htab.bin"
+        .if . - st_htabs - 2 * HT_SIZE
+        .error "build/storage_htab.bin: not the two tables of HT_COUNT entries"
+        .endif
 
         .section .rodata
 .Ls_index:      .asciz "list index out of range"
@@ -63,101 +67,14 @@ st_hinit:       .long 0, 0      # pthread_once_t of each table
 # ---------------------------------------------------------------------
 # the hash table
 
-# st_htab_build(lang): the table of the language, made (pthread_once)
-FUNC st_htab_build
-        ENTER
-        sub rsp, 80
-        imul rbx, rdi, HT_SIZE
-        lea rax, [rip + st_htabs]
-        add rbx, rax                    # the next entry
-        mov r14, rbx                    # the table
-        mov r13d, edi                   # the language
-        xor r12d, r12d
-1:      mov rdi, rsp                    # keccak(w32(n))
-        xor esi, esi
-        mov edx, 64
-        call memset@PLT
-        mov eax, r12d
-        mov [rsp + 31], al
-        shr eax, 8
-        mov [rsp + 30], al
-        mov rdi, rsp
-        mov esi, 32
-        lea rdx, [rbx + HT_HASH]
-        call keccak256
-        mov [rbx + HT_N], r12d
-        mov dword ptr [rbx + HT_K], -1
-        add rbx, HT_ENTRY
-        inc r12d
-        cmp r12d, DATA_SLOTS
-        jb 1b
-        xor r12d, r12d                  # n * MAP_KEYS + k
-2:      mov rdi, rsp
-        xor esi, esi
-        mov edx, 64
-        call memset@PLT
-        mov eax, r12d
-        shr eax, 4                      # n
-        mov ecx, r12d
-        and ecx, MAP_KEYS - 1           # k
-        test r13d, r13d
-        jz 3f
-        mov [rsp + 31], al              # vyper: w32(n) + w32(k)
-        mov [rsp + 63], cl
-        jmp 4f
-3:      mov [rsp + 31], cl              # solidity: w32(k) + w32(n)
-        mov [rsp + 63], al
-4:      mov [rbx + HT_N], eax
-        mov [rbx + HT_K], ecx
-        mov rdi, rsp
-        mov esi, 64
-        lea rdx, [rbx + HT_HASH]
-        call keccak256
-        add rbx, HT_ENTRY
-        inc r12d
-        cmp r12d, MAP_SLOTS * MAP_KEYS
-        jb 2b
-        mov rdi, r14
-        mov esi, HT_COUNT
-        mov edx, HT_ENTRY
-        lea rcx, [rip + st_htab_cmp]
-        call qsort@PLT
-        add rsp, 80
-        LEAVE
-ENDF st_htab_build
-
-FUNC st_htab_cmp
-        mov edx, 32
-        jmp memcmp@PLT
-ENDF st_htab_cmp
-
-FUNC st_htab_init0
-        xor edi, edi
-        jmp st_htab_build
-ENDF st_htab_init0
-
-FUNC st_htab_init1
-        mov edi, 1
-        jmp st_htab_build
-ENDF st_htab_init1
-
-# st_htab(lang) -> rax: the table of the language (hash_table), made the
-# first time (once per process: python's lru_cache)
+# st_htab(lang) -> rax: the table of the language (hash_table: python's
+# lru_cache - here, made at build time, read only)
 FUNC st_htab
-        ENTER
-        mov ebx, edi
-        and ebx, 1
-        lea rdi, [rip + st_hinit]
-        lea rdi, [rdi + rbx*4]
-        lea rsi, [rip + st_htab_init0]
-        lea rax, [rip + st_htab_init1]
-        test ebx, ebx
-        cmovnz rsi, rax
-        call pthread_once@PLT
-        imul rax, rbx, HT_SIZE
+        and edi, 1
+        imul rax, rdi, HT_SIZE
         lea rcx, [rip + st_htabs]
         add rax, rcx
-        LEAVE
+        ret
 ENDF st_htab
 
 # st_be32(dst, v): (v % 2**256).to_bytes(32, "big") of an int v

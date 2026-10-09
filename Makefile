@@ -52,6 +52,17 @@ build/%.o: src/%.s include/defs.inc include/opcodes.inc include/storage.inc
 	@mkdir -p build
 	$(AS) $(ASFLAGS) -o $@ $<
 
+# the tables of the hashes a compiler writes as numbers (src/storage.s
+# includes them, .incbin): made once here, with keccak.s, where every
+# process made them (tools/gen_htab.c)
+build/gen_htab: tools/gen_htab.c build/keccak.o
+	$(CC) -O2 -Wall -o $@ tools/gen_htab.c build/keccak.o
+
+build/storage_htab.bin: build/gen_htab
+	build/gen_htab $@
+
+build/storage.o build/cov/storage.o: build/storage_htab.bin
+
 build/panasm: $(OBJS)
 	$(CC) -pie $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)
 
