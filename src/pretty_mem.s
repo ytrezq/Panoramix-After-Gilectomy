@@ -12,7 +12,6 @@
 .Ls_rparen:     .asciz ")"
 .Ls_0x:         .asciz "0x"
 .Ls_zero:       .asciz "0"
-.Ls_empty_call: .asciz "empty()"
 .Ls_array_len:  .asciz "Array(len="
 .Ls_data_eq:    .asciz ", data="
 .Ls_unknown:    .asciz "unknown"
@@ -24,8 +23,6 @@
 .Ls_stor_:      .asciz "stor["
 .Ls_param_:     .asciz " _param"
 .Ls_pm_index:   .asciz "IndexError: tuple index out of range (pretty_memory)"
-.Ls_neg_length: .asciz "ValueError: length argument must be non-negative"
-.Ls_too_big:    .asciz "MemoryError: bytes of a size too big"
 .Ls_loc_type:   .asciz "TypeError: a place of the storage that isn't a sequence"
 
         .text
@@ -225,36 +222,12 @@ FUNC data_bytes_into
         call is_int
         test eax, eax
         jz 9f
-        # 0 <= val < 2 ** (8 * size)
         mov rdi, r14
-        call int_sign
-        cmp eax, -1
-        je 9f
-        mov rdi, r13
-        call int_sign
-        cmp eax, -1
-        jne 2f
-        # a negative size: 2 ** (8 * size) is a float, only 0 below it -
-        # whose to_bytes of that size is a ValueError (0.0, an underflow,
-        # from 8 * size < -1074: nothing below it)
-        cmp r14, 1
-        jne 9f
-        mov rdi, r13
-        mov rsi, (-134 << 1) | 1
-        call int_cmp
-        cmp eax, -1
-        je 9f
-        mov edi, E_VALUE
-        lea rsi, [rip + .Ls_neg_length]
-        call err_throw
-2:      mov rdi, r13
-        call bytes_size
+        mov rsi, r13
+        call fits_bytes
+        test rax, rax
+        js 9f
         mov r13, rax                    # (untagged)
-        mov rdi, r14
-        call int_bit_length
-        lea rcx, [r13*8]
-        cmp rax, rcx
-        ja 9f
         mov rdi, rbx
         mov rsi, r14
         mov rdx, r13
@@ -284,20 +257,36 @@ FUNC data_bytes_into
         LEAVE
 ENDF data_bytes_into
 
-# bytes_size(size) -> rax: a size of bytes (a non-negative int) as a
-# count, python's MemoryError past 2^24 (python would make them)
-FUNC bytes_size
-        test dil, 1
-        jz 1f
-        mov rax, rdi
-        sar rax, 1
-        cmp rax, 1 << 24
-        ja 1f
-        ret
-1:      mov edi, E_MEMORY
-        lea rsi, [rip + .Ls_too_big]
-        jmp err_throw
-ENDF bytes_size
+# fits_bytes(val, size) -> rax: python's fits_bytes - whether the number
+# val is written in size bytes: neither of them negative (a size of a
+# length that is), nor so many bytes that python would run out of memory
+# writing them (past 2^24) - the size as a count, -1 when it isn't (val
+# and size ints)
+FUNC fits_bytes
+        ENTER
+        mov rbx, rdi
+        mov rax, -1
+        test sil, 1                     # (a size past 2^62 isn't)
+        jz 9f
+        mov r12, rsi
+        sar r12, 1
+        test r12, r12
+        js 9f
+        cmp r12, 1 << 24
+        ja 9f
+        call int_sign
+        cmp eax, -1
+        mov rax, -1
+        je 9f
+        mov rdi, rbx
+        call int_bit_length
+        lea rcx, [r12*8]
+        cmp rax, rcx
+        mov rax, -1
+        ja 9f
+        mov rax, r12
+9:      LEAVE
+ENDF fits_bytes
 
 # has_data_bytes(exp) -> eax: data_bytes(exp) is not None
 FUNC has_data_bytes
@@ -460,7 +449,7 @@ FUNC pretty_bytes
 11:     call prettify
         add rsp, 32
         LEAVE
-1:      # an int val of an int size, 0 <= val < 2 ** (8 * size)
+1:      # an int val of an int size, that it's written in
         mov rdi, r12
         call is_int
         test eax, eax
@@ -470,33 +459,11 @@ FUNC pretty_bytes
         test eax, eax
         jz .Lpb_any
         mov rdi, r12
-        call int_sign
-        cmp eax, -1
-        je .Lpb_any
-        mov rdi, rbx
-        call int_sign
-        cmp eax, -1
-        jne 2f
-        # (a negative size: 0 alone is below its float, and can't be made
-        # bytes of that size)
-        cmp r12, 1
-        jne .Lpb_any
-        mov rdi, rbx
-        mov rsi, (-134 << 1) | 1
-        call int_cmp
-        cmp eax, -1
-        je .Lpb_any
-        mov edi, E_VALUE
-        lea rsi, [rip + .Ls_neg_length]
-        call err_throw
-2:      mov rdi, rbx
-        call bytes_size
+        mov rsi, rbx
+        call fits_bytes
+        test rax, rax
+        js .Lpb_any
         mov r14, rax
-        mov rdi, r12
-        call int_bit_length
-        lea rcx, [r14*8]
-        cmp rax, rcx
-        ja .Lpb_any
         # text, as a string literal (short: a separator)
         call sb_new
         mov [rsp + 8], rax
@@ -905,15 +872,15 @@ FUNC pm_word
         LEAVE
 ENDF pm_word
 
-# pretty_memory(exp, flags) -> list of str, or a str: python's
-# pretty_memory - the elements of a list of data, as they're printed.
-# PF_ABI_TEXT (abi_text): it's the data of a return or a revert, where a
-# string that's all the data (after a selector) is the ABI-encoded string
-# - printed 'text' there, and bytes of text that are all the data
-# Bytes(n, 'text'). Elsewhere a string is its bytes, and an ABI-encoded
-# one an Array(len=n, data='text'). Python gives a bare string for "mem"
-# and for a data of no elements ("empty()"), which its callers iterate:
-# a str here (pm_join, pm_list).
+# pretty_memory(exp, flags) -> list of str: python's pretty_memory - the
+# elements of a list of data, as they're printed. PF_ABI_TEXT (abi_text):
+# it's the data of a return or a revert, where a string that's all the
+# data (after a selector) is the ABI-encoded string - printed 'text'
+# there, and bytes of text that are all the data Bytes(n, 'text').
+# Elsewhere a string is its bytes, and an ABI-encoded one an
+# Array(len=n, data='text'). PF_SELECTOR (selector): it's the data of a
+# revert or of a call, whose first 4 bytes are a selector, printed as the
+# error or the function it is (elsewhere they're 4 bytes).
 FUNC pretty_memory
         STACK_CHECK
         ENTER
@@ -941,6 +908,8 @@ FUNC pretty_memory
         PF_COLOR_OF rsi, r12
         or rsi, PF_PARENS
         call prettify
+        mov rdi, rax
+        call mk_list1
         jmp .Lpm_ret
 2:      mov rdi, rbx
         call opcode_of
@@ -959,8 +928,9 @@ FUNC pretty_memory
         jmp .Lpm_ret
 3:      cmp dword ptr [rbx + N_AUX], 1
         jne 4f
-        lea rdi, [rip + .Ls_empty_call]
-        call str_new_c
+        xor edi, edi                    # (no data: no element)
+        xor esi, esi
+        call mk_list
         jmp .Lpm_ret
 4:      call vec_new
         mov [rsp + PM_OUT], rax
@@ -974,6 +944,8 @@ FUNC pretty_memory
         mov r13, [rbx + N_DATA + rcx*8]         # el
         cmp rcx, 1
         jne 5f
+        test r12, PF_SELECTOR
+        jz 5f
         # a selector: of an error, of an event... - its 8 digits when it's
         # not known (a word that small is printed in decimal)
         PAT rsi, "('bytes', 4, ':int:selector')"

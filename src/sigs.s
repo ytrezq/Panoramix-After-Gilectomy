@@ -210,12 +210,21 @@ ENDF hex_digits
 
 # padded_hex(v, n) -> str: helpers.padded_hex - "0x" and the hex digits
 # padded with zeros to n of them, or n question marks when there are more
+# (of a negative v, a word written as the negative number it is, the n
+# lowest digits of the word)
 FUNC padded_hex
         ENTER
         sub rsp, 16
         mov rbx, rdi
         mov r12, rsi
-        call sb_new
+        call int_sign
+        cmp eax, -1
+        jne 6f
+        mov rdi, rbx
+        lea rsi, [r12*4]
+        call int_mod_2exp
+        mov rbx, rax
+6:      call sb_new
         mov r13, rax
         mov rdi, rax
         mov rsi, rbx
@@ -1090,15 +1099,6 @@ FUNC abi_hashes_to
         ret
 ENDF abi_hashes_to
 
-# sig_db_present() -> eax: there is a signature database
-FUNC sig_db_present
-        cmp qword ptr [rip + sig_db_hook], 0
-        je 1f
-        mov eax, 1
-        ret
-1:      jmp sigdb_load
-ENDF sig_db_present
-
 # event_abi(topic) -> abi or 0: prettify.event_abi - the abi of the event
 # whose signature is topic, if it's known (the database is by the first
 # 4 bytes: the whole signature must match)
@@ -1109,21 +1109,14 @@ FUNC event_abi
         call is_int
         test eax, eax
         jz 9f
-        mov rdi, rbx
+        mov rdi, rbx                    # (-1 is the word 2**256 - 1, see
+        mov esi, 256                    # simplify_exp)
+        call int_mod_2exp
+        mov rbx, rax
+        mov rdi, rax
         mov esi, 64
         call padded_hex
-        mov r12, rax
-        cmp byte ptr [r12 + N_DATA + 4], '?'
-        jne 1f
-        # more than 64 digits: python's int("??????????", 16), with a
-        # database (without one, fetch_sig is never asked)
-        call sig_db_present
-        test eax, eax
-        jz 9f
-        mov edi, E_VALUE
-        lea rsi, [rip + .Ls_invalid_literal]
-        call err_throw
-1:      mov rdi, r12
+        mov rdi, rax
         xor esi, esi
         mov edx, 10
         call str_slice
@@ -1141,11 +1134,6 @@ FUNC event_abi
         call str_eq_c
         test eax, eax
         jz 9f
-        # topic.to_bytes(32): python's OverflowError for a negative one
-        mov rdi, rbx
-        call int_sign
-        cmp eax, -1
-        je .Lea_overflow
         call sb_new
         mov r13, rax
         mov rdi, rax
@@ -1171,16 +1159,10 @@ FUNC event_abi
 9:      xor eax, eax
         add rsp, 32
         LEAVE
-.Lea_overflow:
-        mov edi, E_OVERFLOW
-        lea rsi, [rip + .Ls_negative_bytes]
-        call err_throw
 ENDF event_abi
 
         .section .rodata
 .Ls_event:      .asciz "event"
-.Ls_invalid_literal: .asciz "ValueError: invalid literal for int() with base 16"
-.Ls_negative_bytes: .asciz "OverflowError: can't convert negative int to unsigned"
 .Ls_0x_sig:     .asciz "0x"
         .text
 

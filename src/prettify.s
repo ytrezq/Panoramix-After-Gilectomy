@@ -549,40 +549,6 @@ ENDF pow2_exact
 .Ls_pow2_big: .asciz "MemoryError: 2 ** k of a k too big"
         .text
 
-# pm_join(sep_cstr, pm) -> str: python's sep.join(...) of what
-# pretty_memory gave: its strings, or the characters of the bare string
-# it gives for no element ("empty()") or for "mem"
-FUNC pm_join
-        ENTER
-        mov rbx, rdi
-        mov r12, rsi
-        mov rdi, rsi
-        call is_str
-        test eax, eax
-        jz 1f
-        mov rdi, r12
-        call str_chars
-        mov r12, rax
-1:      mov rdi, rbx
-        mov rsi, r12
-        call str_join
-        LEAVE
-ENDF pm_join
-
-# pm_list(pm) -> list: what pretty_memory gave, as python's list() of it
-FUNC pm_list
-        ENTER
-        mov rbx, rdi
-        call is_str
-        test eax, eax
-        jz 1f
-        mov rdi, rbx
-        call str_chars
-        LEAVE
-1:      mov rax, rbx
-        LEAVE
-ENDF pm_list
-
 # --- prettify ---
 
 FUNC prettify
@@ -788,7 +754,7 @@ FUNC prettify
         call pretty_memory
         lea rdi, [rip + .Ls_comma_sp]
         mov rsi, rax
-        call pm_join
+        call str_join
         mov rdi, r13
         mov rsi, rax
         call sb_append_str
@@ -848,7 +814,7 @@ FUNC prettify
         call pretty_memory
         lea rdi, [rip + .Ls_comma_sp]
         mov rsi, rax
-        call pm_join
+        call str_join
         mov rdi, r13
         mov rsi, rax
         call sb_append_str
@@ -1148,7 +1114,7 @@ FUNC prettify
         call pretty_memory
         lea rdi, [rip + .Ls_comma_sp]
         mov rsi, rax
-        call pm_join
+        call str_join
         mov r14, rax
         call sb_new
         mov r13, rax
@@ -1560,7 +1526,7 @@ FUNC prettify
         call pretty_memory
         lea rdi, [rip + .Ls_comma_sp]
         mov rsi, rax
-        call pm_join
+        call str_join
         mov rdi, r14
         mov rsi, rax
         call sb_append_str
@@ -1747,7 +1713,8 @@ FUNC prettify
         jz .Lms_c
         # e.g. Mask(255, 1, eth.balance(this.address)) >> 1 is
         # eth.balance(this.address) / 2, for offsets smaller than 8:
-        # size + offset == 256 and offset == -shl and offset < 8
+        # size + offset == 256 and offset == -shl and offset < 8, of a word
+        # (the top of the mask is its top)
         mov rdi, r13
         mov rsi, r14
         call int_add
@@ -1765,6 +1732,10 @@ FUNC prettify
         call int_cmp
         cmp eax, -1
         jne .Lms_b
+        mov rdi, [rsp + PF_T3]
+        call may_be_wide
+        test eax, eax
+        jnz .Lms_b
         mov rdi, [rsp + PF_T2]
         mov rsi, (8 << 1) | 1
         call int_cmp
@@ -1799,21 +1770,29 @@ FUNC prettify
         call int_cmp
         cmp eax, -1
         jne .Lms_c
-        # val = ('mask', size + offset, 0, val) unless size + offset is 256
-        # or val a store (a hotfix of python's)
-        mov rdi, r13
-        mov rsi, r14
-        call int_add
-        cmp rax, (256 << 1) | 1
-        je 2f
-        mov [rsp + PF_T1], rax
+        # val = ('mask', size, offset, val) - the bits [offset, offset +
+        # size) in place: not the ones below offset, which the mask clears
+        # (nor, of a value of more than a word, the ones past 256) - unless
+        # it's the whole word (size + offset 256, offset 0, val a word) or
+        # val a store (a hotfix of python's)
         mov rdi, [rsp + PF_T3]
         call opcode_of
         cmp eax, OP_STORE
         je 2f
-        LOADS rdi, MASK
-        mov rsi, [rsp + PF_T1]
-        mov edx, 1
+        cmp r14, 1
+        jne 1f
+        mov rdi, r13
+        mov rsi, r14
+        call int_add
+        cmp rax, (256 << 1) | 1
+        jne 1f
+        mov rdi, [rsp + PF_T3]
+        call may_be_wide
+        test eax, eax
+        jz 2f
+1:      LOADS rdi, MASK
+        mov rsi, r13
+        mov rdx, r14
         mov rcx, [rsp + PF_T3]
         call mk4
         mov [rsp + PF_T3], rax
@@ -1858,10 +1837,7 @@ FUNC prettify
         mov rdx, r14
         mov rcx, [rsp + PF_T2]
         call alg_apply_mask
-        mov rdi, rax
-        PF_COLOR_OF rsi, r12
-        call prettify
-        jmp .Lpf_ret
+        jmp .Lms_pret_ctx
 .Lms_d:
         # val >> offset, with the bits above size cut off if there are any
         # (Mask(16, 160, x) >> 160 is uint16(x >> 160)): concrete, offset ==

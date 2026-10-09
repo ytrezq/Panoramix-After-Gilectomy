@@ -764,6 +764,7 @@ ENDF \fname
 .set PF_TOP, 4              # top_level=True
 .set PF_COLOR, 8            # add_color=True
 .set PF_ABI_TEXT, 16        # pretty_memory's abi_text=True (pretty_mem.s)
+.set PF_SELECTOR, 32        # pretty_memory's selector=True (pretty_mem.s)
 # parentheses=<a precedence> (prettify's context, see there): bits 8..11
 .set PF_CTX_SHIFT, 8
 .set PF_CTX_MASK, 0xf << PF_CTX_SHIFT

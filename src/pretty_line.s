@@ -228,15 +228,7 @@ FUNC pretty_line
         xor esi, esi
         call pretty_memory
         mov [rsp + PL_T1], rax          # data_params
-        mov rdi, rax
-        call is_str                     # ("empty()": none)
-        test eax, eax
-        jz 1f
-        xor edi, edi
-        xor esi, esi
-        call mk_list
-        mov [rsp + PL_T1], rax
-1:      call vec_new                    # topic_params
+        call vec_new                    # topic_params
         mov r14, rax
         mov qword ptr [rsp + PL_I], 3
 2:      mov rcx, [rsp + PL_I]
@@ -437,20 +429,30 @@ FUNC pretty_line
         cmp ecx, r14d
         jne .Lpl_log_other
         # p_list: (type[ indexed], name, param) of in_log and res_params, in
-        # the order of the declaration
+        # the order of the declaration - by the inputs themselves, two of
+        # them may be alike (and are one here, hash-consed): the place in
+        # in_log of an input not indexed is the next of the data's, of an
+        # indexed one the next of the topics'
         call vec_new
         mov r13, rax
+        xor r14d, r14d                  # (the next of the data's)
+        mov rax, [rsp + PL_T8]
+        mov [rsp + PL_SB], rax          # (the next of the topics')
         mov qword ptr [rsp + PL_I], 0
 7:      mov rax, [rsp + PL_T5]
         mov rcx, [rsp + PL_I]
         cmp ecx, [rax + N_AUX]
         jae 8f
-        # its place in in_log: in_log.index(i)
-        mov rsi, [rax + N_DATA + rcx*8]
-        mov rdi, [rsp + PL_T7]
-        call seq_index                  # (the inputs are hash-consed: equal ones are one)
-        mov [rsp + PL_SB], rax
-        mov rcx, [rsp + PL_T7]
+        mov rdi, [rax + N_DATA + rcx*8]
+        call input_indexed
+        test eax, eax
+        jnz 73f
+        mov rax, r14
+        inc r14
+        jmp 74f
+73:     mov rax, [rsp + PL_SB]
+        inc qword ptr [rsp + PL_SB]
+74:     mov rcx, [rsp + PL_T7]
         mov rdi, [rcx + N_DATA + rax*8]
         mov rcx, [rsp + PL_T3]
         mov rsi, [rcx + N_DATA + rax*8]
@@ -679,10 +681,6 @@ FUNC pretty_line
         PF_COLOR_OF rsi, r12
         call prettify
         mov [rsp + PL_T3], rax          # gas
-        mov rdi, [rsp + PL_T4]
-        mov rsi, r12
-        call pretty_memory
-        mov [rsp + PL_T4], rax          # fparams, as text
         # "{WARNING}codecall{ENDC} {addr}[.{name}] with:"
         call sb_new
         mov r14, rax
@@ -743,10 +741,9 @@ FUNC pretty_line
 5:      lea rdi, [rip + .Ls_gas5]
         mov rsi, [rsp + PL_T3]
         call .Lpl_prefixed
-        # "    args {', '.join(fparams)}" (fparams, from pretty_memory, isn't None)
         lea rdi, [rip + .Ls_args4]
         mov rsi, [rsp + PL_T4]
-        call .Lpl_args_line
+        call .Lpl_fparams_line
         jmp .Lpl_ret
 
 # locals (pretty_line's frame 8 bytes up): the "   value {wei} {GRAY}wei{ENDC}"
@@ -813,13 +810,27 @@ FUNC pretty_line
         call vec_push
         add rsp, 24
         ret
-# "{prefix cstr rdi}{', '.join(pm rsi)}" (pm: pretty_memory's, a list or a
-# bare str - joined character by character there too)
+# "{prefix cstr rdi}{', '.join(fparams)}", fparams pretty_memory's of the
+# data rsi of a call (whose first 4 bytes are a selector) - if it has any
+.Lpl_fparams_line:
+        sub rsp, 24
+        mov [rsp], rdi
+        mov rdi, rsi
+        mov rsi, r12
+        or rsi, PF_SELECTOR
+        call pretty_memory
+        mov rsi, rax
+        mov rdi, [rsp]
+        add rsp, 24
+        cmp dword ptr [rsi + N_AUX], 0
+        jne .Lpl_args_line
+        ret
+# "{prefix cstr rdi}{', '.join(list rsi)}"
 .Lpl_args_line:
         sub rsp, 24
         mov [rsp], rdi
         lea rdi, [rip + .Ls_comma_sp]
-        call pm_join
+        call str_join
         mov rsi, rax
         mov rdi, [rsp]
         add rsp, 24
@@ -910,7 +921,7 @@ FUNC pretty_line
         call pretty_memory
         lea rdi, [rip + .Ls_comma_sp]
         mov rsi, rax
-        call pm_join
+        call str_join
         mov rdi, r13
         mov rsi, rax
         call sb_append_str
@@ -1051,16 +1062,9 @@ FUNC pretty_line
         lea rdi, [rip + .Ls_gas5]
         mov rsi, [rsp + PL_T3]
         call .Lpl_prefixed
-        mov rdi, [rsp + PL_T4]
-        call is_none
-        test eax, eax
-        jnz .Lpl_ret
-        mov rdi, [rsp + PL_T4]
-        mov rsi, r12
-        call pretty_memory
         lea rdi, [rip + .Ls_args4]
-        mov rsi, rax
-        call .Lpl_args_line
+        mov rsi, [rsp + PL_T4]
+        call .Lpl_fparams_line
         jmp .Lpl_ret
 # "{T7}{addr}.{name} with:", or "{T7}{addr} with:" and, when there's a
 # fname, "{T8}{pret(fname)}" (pretty_line's frame 8 bytes up)
@@ -1156,16 +1160,9 @@ FUNC pretty_line
         lea rdi, [rip + .Ls_gas8]
         mov rsi, [rsp + PL_T3]
         call .Lpl_prefixed
-        mov rdi, [rsp + PL_T4]
-        call is_none
-        test eax, eax
-        jnz .Lpl_ret
-        mov rdi, [rsp + PL_T4]
-        mov rsi, r12
-        call pretty_memory
         lea rdi, [rip + .Ls_args7]
-        mov rsi, rax
-        call .Lpl_args_line
+        mov rsi, [rsp + PL_T4]
+        call .Lpl_fparams_line
         jmp .Lpl_ret
 
 .Lpl_label:
@@ -1294,8 +1291,6 @@ FUNC pretty_line
         jz 2f
         mov rdi, [r14 + N_DATA + 8]
         mov [rsp + PL_T2], rdi
-        cmp rdi, 1                      # assert v != 0
-        je .Lpl_assert_set
         cmp rdi, -1                     # tagged -1
         je .Lpl_set_suffix
         cmp rdi, 3                      # tagged 1
@@ -1579,12 +1574,25 @@ FUNC pretty_line
         call mk2
         mov r14, rax
 2:      mov rdi, r14
-        mov esi, PF_COLOR | PF_ABI_TEXT
+        mov esi, PF_COLOR | PF_ABI_TEXT # (a revert's data: from a selector)
+        mov eax, PF_COLOR | PF_ABI_TEXT | PF_SELECTOR
+        cmp r13d, OP_REVERT
+        cmove esi, eax
         call pretty_memory
-        mov rdi, rax
-        call pm_list
         mov [rsp + PL_T1], rax          # res_mem
-        lea rdi, [rip + .Ls_comma_sp]
+        cmp dword ptr [rax + N_AUX], 0
+        jne 21f
+        # no data (see OUTPUT.md)
+        lea rdi, [rip + .Ls_stop]
+        lea rax, [rip + .Ls_revert]
+        cmp r13d, OP_REVERT
+        cmove rdi, rax
+        call str_new_c
+        mov rdi, [rsp + PL_OUT]
+        mov rsi, rax
+        call vec_push
+        jmp .Lpl_ret
+21:     lea rdi, [rip + .Ls_comma_sp]
         mov rsi, rax
         call str_join
         mov [rsp + PL_T2], rax          # ret_val
@@ -1902,15 +1910,10 @@ FUNC pretty_line
         mov edi, E_INDEX
         lea rsi, [rip + .Ls_index]
         call err_throw
-.Lpl_assert_set:
-        mov edi, E_ASSERT
-        lea rsi, [rip + .Ls_assert_set]
-        call err_throw
 ENDF pretty_line
 
         .section .rodata
 .Ls_index:      .asciz "pretty_line: an index out of range"
-.Ls_assert_set: .asciz "pretty_line: a set of the same plus 0"
 .Ls_no_inputs:  .asciz "KeyError: 'inputs'"
         .text
 

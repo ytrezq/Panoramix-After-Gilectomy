@@ -373,9 +373,9 @@ for n in range(N):
           run(lambda: py_with_names(storage, params, lambda: list(P.pretty_line(line, add_color=True)))), "names %d" % n)
     # the data
     data = random.choice([rdata(), rexp(), ("data",), "mem", None, rbytes(), rarr()])
-    for flags in (0, PF_COLOR, PF_COLOR | 16, 16):
+    for flags in (0, PF_COLOR, PF_COLOR | 16, 16, 32, PF_COLOR | 16 | 32):
         check("pretty_memory_l", (data, flags),
-              run(lambda: list(P.pretty_memory(data, add_color=bool(flags & PF_COLOR), abi_text=bool(flags & 16)))), "data %d" % n)
+              run(lambda: list(P.pretty_memory(data, add_color=bool(flags & PF_COLOR), abi_text=bool(flags & 16), selector=bool(flags & 32)))), "data %d" % n)
     el = random.choice([rbytes(), rexp(), rst(), rdata(), rword_text()])
     check("pretty_with_width", el, run(P.with_width, el), "width %d" % n)
     nn = random.choice([1, 4, 20, 32, 33])

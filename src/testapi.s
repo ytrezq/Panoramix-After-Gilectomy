@@ -2742,15 +2742,14 @@ FUNC tf_get_param_name
         LEAVE
 ENDF tf_get_param_name
 
-# (exp, flags) -> list of str: list(pretty_memory(...)) (PF_ABI_TEXT: 16)
+# (exp, flags) -> list of str: list(pretty_memory(...)) (PF_ABI_TEXT: 16,
+# PF_SELECTOR: 32)
 FUNC tf_pretty_memory_l
         ENTER
         mov rsi, [rdi + N_DATA + 8]
         sar rsi, 1
         mov rdi, [rdi + N_DATA]
         call pretty_memory
-        mov rdi, rax
-        call pm_list
         LEAVE
 ENDF tf_pretty_memory_l
 

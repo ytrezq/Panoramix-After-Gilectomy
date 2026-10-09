@@ -303,18 +303,23 @@ FUNC loader_entries
 ENDF loader_entries
 
 # padded_hex8(hash) -> string: python's padded_hex(hash, 8) - '0x' and 8
-# hex digits (of the absolute value of a negative one: python's hex(-5) is
-# '-0x5', whose 3: are its digits), or '????????' when there are more
+# hex digits (of a negative one, a word written as the negative number it
+# is, the 8 lowest digits of the word), or '????????' when there are more
 FUNC padded_hex8
         ENTER
         sub rsp, 32
-        test dil, 1
+        mov rbx, rdi
+        call int_sign
+        cmp eax, -1
+        jne 2f
+        mov rdi, rbx
+        mov esi, 32
+        call int_mod_2exp
+        mov rbx, rax
+2:      test bl, 1
         jz 1f
-        mov rcx, rdi
+        mov rcx, rbx
         sar rcx, 1
-        mov rax, rcx
-        neg rax
-        cmovns rcx, rax                 # |hash|
         mov rax, rcx
         shr rax, 32
         jnz 1f
