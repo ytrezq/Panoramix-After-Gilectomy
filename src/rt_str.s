@@ -1074,30 +1074,6 @@ FUNC str_join
         LEAVE
 ENDF str_join
 
-# str_chars(str) -> rax: the list of its one-character strings (python
-# iterating over a string where a tuple of strings was expected)
-FUNC str_chars
-        ENTER
-        mov rbx, rdi
-        call vec_new
-        mov r12, rax
-        xor r13d, r13d
-1:      cmp r13d, [rbx + N_DATA]
-        jae 2f
-        lea rdi, [rbx + N_DATA + 4 + r13]
-        mov esi, 1
-        call str_new
-        mov rdi, r12
-        mov rsi, rax
-        call vec_push
-        inc r13d
-        jmp 1b
-2:      mov rdi, r12
-        call vec_to_list
-        LEAVE
-ENDF str_chars
-
-
 # str_charlen(str) -> eax: python's len() - the characters (code points)
 # of the UTF-8 text, not its bytes
 FUNC str_charlen
