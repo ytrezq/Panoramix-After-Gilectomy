@@ -35,7 +35,10 @@ def rcond():
     elif r < 0.8: c = (random.choice(["and", "or"]),) + tuple(rcond() for _ in range(random.randint(2, 3)))
     elif r < 0.85: c = ("add", h, sel)
     elif r < 0.9: c = ("eq", "('cd', 0)", h)
-    else: c = ("sub", h, sel)
+    elif r < 0.95: c = ("sub", h, sel)
+    else:
+        # the selector itself (solc's iszero(selector) for the hash 0)
+        c = random.choice(SEL + [("mask_shl", 32, 224, 0, ("cd", 0)), ("mask_shl", 32, 224, -224, ("cd", 4))])
     for _ in range(random.choice([0, 0, 0, 1, 2])):
         c = ("iszero", c)
     return c

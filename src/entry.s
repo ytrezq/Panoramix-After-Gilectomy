@@ -224,7 +224,34 @@ FUNC selector_test
         jz .Lst_none
         xor edx, 1                      # (num, not taken)
         jmp .Lst_ret
-1:      cmp eax, OP_AND
+1:      cmp eax, OP_MASK_SHL
+        jne 11f
+        # the selector itself, its being not 0: of the hash 0 - solc's
+        # optimizer tests `iszero(selector)` for `selector == 0`
+        cmp dword ptr [rbx + N_AUX], 5
+        jne .Lst_none
+        cmp qword ptr [rbx + N_DATA + 8], (32 << 1) | 1
+        jne .Lst_none
+        cmp qword ptr [rbx + N_DATA + 16], (224 << 1) | 1
+        jne .Lst_none
+        mov rcx, [rbx + N_DATA + 24]
+        cmp rcx, 1                      # (a shift of 0
+        je 12f
+        cmp rcx, (-224 << 1) | 1        # or of -224)
+        jne .Lst_none
+12:     mov rdi, [rbx + N_DATA + 32]
+        mov esi, OP_CD
+        mov edx, 2
+        call is_op_n
+        test eax, eax
+        jz .Lst_none
+        mov rcx, [rbx + N_DATA + 32]
+        cmp qword ptr [rcx + N_DATA + 8], 1     # ('cd', 0)
+        jne .Lst_none
+        mov eax, 1                      # (0, False)
+        xor edx, edx
+        jmp .Lst_ret
+11:     cmp eax, OP_AND
         je 2f
         cmp eax, OP_OR
         jne 5f
@@ -309,7 +336,11 @@ FUNC selector_test
         mov esi, 256
         call int_mod_2exp
         mov r12, rax
-8:      mov rdi, r12                    # num < 2^32
+8:      mov rdi, r12                    # 0 <= num < 2^32
+        call int_sign
+        test eax, eax
+        js .Lst_none
+        mov rdi, r12
         mov rsi, (0x100000000 << 1) | 1
         call int_cmp
         cmp eax, 0
@@ -328,9 +359,10 @@ FUNC selector_test
         add rsp, 32
         LEAVE
 
-# local: (num, other) of an eq or a xor (r12d) -> rax: num (a number) when
-# other mentions the selector - rdx 1 for an eq; for a xor, num < 2^32,
-# rdx 0 - else 0
+# local: (num, other) of an eq or a xor (r12d) -> rax: num (a number of 4
+# bytes: a selector is 4 bytes, a number past them is no hash but a
+# comparison of more of the calldata - a word of it, say) when other
+# mentions the selector, rdx 1 for an eq, 0 for a xor - else 0
 .Lst_num_other:
         push r13
         push r14
@@ -340,21 +372,23 @@ FUNC selector_test
         call is_int                     # (type(num) is int: no bool)
         test eax, eax
         jz 1f
-        mov rdi, r14
-        call mentions_cd0
+        mov rdi, r13
+        call int_sign
         test eax, eax
-        jz 1f
-        mov rax, r13
-        mov edx, 1
-        cmp r12d, OP_EQ
-        je 2f
+        js 1f
         mov rdi, r13
         mov rsi, (0x100000000 << 1) | 1
         call int_cmp
         cmp eax, 0
         jge 1f
+        mov rdi, r14
+        call mentions_cd0
+        test eax, eax
+        jz 1f
         mov rax, r13
         xor edx, edx
+        cmp r12d, OP_EQ
+        sete dl
         jmp 2f
 1:      xor eax, eax
 2:      add rsp, 8

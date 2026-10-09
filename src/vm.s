@@ -12,9 +12,8 @@
 .Ls_stopped:        .asciz "VM stopped prematurely. Node count %d, after %d ms."
 .Ls_runtime_param:  .asciz "jump to a parameter computed at runtime"
 .Ls_jumdest:        .asciz "jumdest"
-.Ls_jumpdest:       .asciz "jumpdest"
 .Ls_jump:           .asciz "jump"
-.Ls_eof:            .asciz "eof?"
+.Ls_stack_underflow: .asciz "stack underflow"
 .Ls_safe:           .asciz "safe"
 .Ls_storage:        .asciz "storage"
 .Ls_var_fmt:        .asciz "_%lu"
@@ -2694,7 +2693,7 @@ FUNC vm_exec
         mov rsi, r13
         call loader_instr_at
         test rax, rax
-        jz .Lex_bad_jumdest
+        jz .Lex_no_line
         mov r14, rax                    # the instruction
         cmp qword ptr [rsp + 8], 0
         jne 1f
@@ -2712,9 +2711,17 @@ FUNC vm_exec
         mov rsi, r13
         call loader_instr_at
         test rax, rax
-        jz .Lex_eof
-        mov r14, rax
+        jz .Lex_stop                    # (the last instruction: past it,
+        mov r14, rax                    # the code stops)
 .Lex_loop:
+        # fewer words on the stack than the instruction uses: the code
+        # halts there, as at an invalid instruction
+        movzx eax, byte ptr [r14 + IN_OP]
+        lea rcx, [rip + stack_inputs]
+        movzx eax, byte ptr [rcx + rax]
+        mov rcx, [rbx + VM_STACK]
+        cmp [rcx + VEC_LEN], rax
+        jb .Lex_underflow
         mov rdi, r14
         mov rsi, [rsp + 24]
         call vm_step
@@ -2728,12 +2735,24 @@ FUNC vm_exec
         mov rsi, r13
         call loader_instr_at
         test rax, rax
-        jz .Lex_past_end
-        mov r14, rax
+        jz .Lex_stop                    # (past the last instruction: the
+        mov r14, rax                    # code stops there)
         jmp .Lex_loop
-.Lex_past_end:
+.Lex_no_line:
+        # what follows the last instruction (a jumpi's other branch): the
+        # code stops there, as at a stop
+        cmp qword ptr [rsp + 8], 0
+        je .Lex_bad_jumdest
+        cmp r13, [r12 + LD_LASTLINE]
+        jne .Lex_bad_jumdest
+.Lex_stop:
+        LOADS rdi, STOP
+        call mk1
+        call .Lex_push_line
+        jmp .Lex_done
+.Lex_underflow:
         LOADS rdi, INVALID
-        lea rsi, [rip + .Ls_jumpdest]
+        lea rsi, [rip + .Ls_stack_underflow]
         call .Lex_line_c
         jmp .Lex_done
 .Lex_runtime_param:
@@ -2757,11 +2776,6 @@ FUNC vm_exec
 .Lex_bad_jump:
         LOADS rdi, INVALID
         lea rsi, [rip + .Ls_jump]
-        call .Lex_line_c
-        jmp .Lex_done
-.Lex_eof:
-        LOADS rdi, INVALID
-        lea rsi, [rip + .Ls_eof]
         call .Lex_line_c
 .Lex_done:
         mov rax, [rbx + VM_TRACE]
@@ -2792,6 +2806,34 @@ FUNC vm_exec
         ret
 ENDF vm_exec
 
+# vm_jumpdest_target(target) -> rax: where a jump to target goes - target,
+# or -1 where it can't, an int where there's no jumpdest (python's
+# lines.get(target, (None, None))[1] != "jumpdest")
+FUNC vm_jumpdest_target
+        ENTER
+        mov rbx, rdi
+        call is_int
+        test eax, eax
+        jz 1f
+        mov rax, -1                     # (a tagged -1)
+        test bl, 1
+        jz 2f                           # (past 2^62: no instruction)
+        mov rsi, rbx
+        sar rsi, 1
+        js 2f
+        mov rdi, [r15 + CTX_VM]
+        mov rdi, [rdi + VM_LOADER]
+        call loader_instr_at
+        mov rcx, rax
+        mov rax, -1
+        test rcx, rcx
+        jz 2f
+        cmp byte ptr [rcx + IN_OP], 0x5b
+        jne 2f
+1:      mov rax, rbx
+2:      LEAVE
+ENDF vm_jumpdest_target
+
 # --- one instruction: handle_jumps + apply_stack ---
 
 .macro VPOP reg
@@ -2816,7 +2858,7 @@ ENDF vm_exec
 step_table:
         .quad .Lop_stop, .Lop_add, .Lop_mul, .Lop_sub, .Lop_arith, .Lop_arith, .Lop_arith, .Lop_arith    # 00-07
         .quad .Lop_mulmod, .Lop_mulmod, .Lop_arith, .Lop_arith, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown   # 08-0f
-        .quad .Lop_arith, .Lop_arith, .Lop_arith, .Lop_arith, .Lop_arith, .Lop_unary, .Lop_and, .Lop_or   # 10-17
+        .quad .Lop_arith, .Lop_arith, .Lop_arith, .Lop_arith, .Lop_arith, .Lop_iszero, .Lop_and, .Lop_or   # 10-17
         .quad .Lop_arith, .Lop_unary, .Lop_byte, .Lop_shl, .Lop_shr, .Lop_sar, .Lop_unknown, .Lop_unknown   # 18-1f
         .quad .Lop_sha3, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown   # 20-27
         .quad .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown, .Lop_unknown   # 28-2f
@@ -2867,6 +2909,27 @@ step_class:
         .byte 2                         # fa staticcall
         .byte 0, 0                      # fb, fc
         .byte 3, 3, 3                   # fd revert, fe invalid, ff selfdestruct
+
+# stack_inputs: the words of the stack each instruction uses (python's
+# stack_inputs, from its stack_diffs: dup n n, swap n n + 1, an invalid
+# instruction none)
+stack_inputs:
+        .byte 0, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 0, 0, 0, 0   # 00-0f
+        .byte 2, 2, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 2, 2, 0, 0   # 10-1f
+        .byte 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0   # 20-2f
+        .byte 0, 1, 0, 0, 0, 1, 0, 3, 0, 3, 0, 1, 4, 0, 3, 1   # 30-3f
+        .byte 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0   # 40-4f
+        .byte 1, 1, 2, 2, 1, 2, 1, 2, 0, 0, 0, 0, 1, 2, 3, 0   # 50-5f
+        .byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0   # 60-6f
+        .byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0   # 70-7f
+        .byte 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16   # 80-8f
+        .byte 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17   # 90-9f
+        .byte 2, 3, 4, 5, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0   # a0-af
+        .byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0   # b0-bf
+        .byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0   # c0-cf
+        .byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0   # d0-df
+        .byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0   # e0-ef
+        .byte 3, 7, 7, 2, 6, 4, 0, 0, 0, 0, 6, 0, 0, 2, 0, 1   # f0-ff
 
         .text
 
@@ -3203,6 +3266,25 @@ FUNC vm_step
         VPUSH rax
         jmp .Lstep_epilogue
 
+# iszero of a number: the number (the cleanup would make ('iszero', n) a
+# ('bool', n), which the algebra doesn't compute with - a jump to
+# iszero(0) * 12 + 13)
+.Lop_iszero:
+        mov rax, [rbx + VM_STACK]
+        mov rcx, [rax + VEC_LEN]
+        mov rax, [rax + VEC_DATA]
+        mov rdi, [rax + rcx*8 - 8]      # (the top: vm_exec saw it's there)
+        call is_int
+        test eax, eax
+        jz .Lop_unary
+        VPOP rcx
+        xor eax, eax
+        cmp rcx, 1                      # (0)
+        sete al
+        lea rdi, [rax + rax + 1]
+        call vm_push
+        jmp .Lstep_epilogue
+
 .Lop_sha3:
         VPOP [rsp]
         VPOP rsi
@@ -3256,18 +3338,18 @@ FUNC vm_step
         mov edi, 1                      # 0
         VPUSH rdi
         jmp .Lstep_epilogue
-2:      mov rax, [rsp]                  # off = 248 - 8 i: mask_op(x, 8, off, shr=off)
-        sar rax, 1
-        shl rax, 3
-        mov ecx, 248
-        sub rcx, rax
+2:      mov rax, [rsp]                  # off = 248 - 8 i: mask_value(x,
+        sar rax, 1                      # 8, off, -off) (of a number, the
+        shl rax, 3                      # number)
+        mov edx, 248
+        sub rdx, rax
+        mov rcx, rdx
+        neg rcx
+        TAG rdx
         TAG rcx
-        mov rdx, rcx
-        mov r8, rcx
         mov rdi, [rsp + 8]
         mov esi, (8 << 1) | 1
-        mov ecx, 1
-        call alg_mask_op
+        call mask_value
         VPUSH rax
         jmp .Lstep_epilogue
 
@@ -3420,12 +3502,11 @@ FUNC vm_step
         mov esi, (1 << 1) | 1
         call mk_range
         mov [rsp], rax
-        VPOP rdi                         # val
-        mov esi, (8 << 1) | 1
+        VPOP rdi                         # val: mask_value(val, 8) (of a
+        mov esi, (8 << 1) | 1           # number, the number)
         mov edx, 1
         mov ecx, 1
-        mov r8d, 1
-        call alg_mask_op
+        call mask_value
         mov rdx, rax
         mov rsi, [rsp]
         LOADS rdi, SETMEM
@@ -3820,13 +3901,19 @@ FUNC vm_step
         test rax, rax
         jz 1f
         mov [rsp + 48], rax             # fx_hash
-        mov rsi, [rsp + 24]             # the node it's taken to
-        mov rcx, [rsp]                  # and where it goes
         test edx, edx
         jnz 4f
-        mov rsi, [rsp + 40]
+        mov rsi, [rsp + 40]             # not taken: the fall through
         mov rcx, [rsi + ND_START]
-4:      mov [rsp + 56], rsi
+        jmp 5f
+4:      # taken: where it jumps - where a jump can't go (no jumpdest), the
+        # function is that invalid jump, as it is from where no
+        # instruction is (-1)
+        mov rdi, [rsp]
+        call vm_jumpdest_target
+        mov rcx, rax
+        mov rsi, [rsp + 24]
+5:      mov [rsp + 56], rsi
         mov rdx, rcx
         mov rcx, [rsp + 16]
         mov rsi, [rsp + 48]

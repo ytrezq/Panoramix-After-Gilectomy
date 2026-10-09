@@ -351,7 +351,8 @@ FUNC loader_load
         jb 3f
         cmp al, 0x7f
         ja 3f
-        # push n: n = op - 0x5f bytes, fewer at the end of the code
+        # push n: n = op - 0x5f bytes - past the end of the code, they're
+        # 0 (as the EVM reads them)
         sub eax, 0x5f
         inc r14
         lea rdi, [r12 + r14]            # bytes start
@@ -360,8 +361,16 @@ FUNC loader_load
         cmp rsi, rax
         cmovae rsi, rax
         add r14, rsi
+        sub rax, rsi
+        shl rax, 3
+        mov [rsp + 8], rax              # (the bits of the missing ones)
         call mk_int_bytes_be
-        mov rcx, [rsp]
+        mov rsi, [rsp + 8]
+        test rsi, rsi
+        jz 21f
+        mov rdi, rax
+        call int_shl_bits
+21:     mov rcx, [rsp]
         mov [rcx + IN_PARAM], rax
         mov byte ptr [rcx + IN_FLAGS], IF_PARAM
         jmp .Lld_loop

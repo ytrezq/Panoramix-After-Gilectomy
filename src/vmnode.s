@@ -77,7 +77,9 @@ FUNC node_new
 ENDF node_new
 
 # stack_jump_dests(stack) -> tuple of the decimal strings of the stack
-# values that are jumpdests (or look like ones: 2000 < v < 5000)
+# values that are jumpdests: the places the code may jump back to (not any
+# number - one between 2000 and 5000, as python took them, made a loop over
+# a memory pointer there unrolled until the pointer got past 5000)
 FUNC stack_jump_dests
         ENTER
         mov rbx, rdi
@@ -91,17 +93,13 @@ FUNC stack_jump_dests
         jz 4f
         sar rdi, 1
         mov r14, rdi
-        cmp rdi, 2000
-        jle 2f
-        cmp rdi, 5000
-        jl 3f
-2:      mov rsi, rdi
+        mov rsi, rdi
         mov rdi, [r15 + CTX_VM]
         mov rdi, [rdi + VM_LOADER]
         call loader_is_jumpdest
         test eax, eax
         jz 4f
-3:      mov rdi, r14
+        mov rdi, r14
         call str_of_int
         mov rdi, r12
         mov rsi, rax

@@ -34,7 +34,6 @@
 .Ls_no_ctx:     .asciz "out of memory: the system gave no more (mmap failed)"
 .Ls_loader_issue: .asciz "Loader issue: %s"
 .Ls_timed_out:  .asciz "the function took more than 3 minutes"
-.Ls_no_target:  .asciz "KeyError: its jump destination isn't an instruction"
 .Ls_thread_failed: .asciz "pthread_create failed"
 .Ls_peak:       .asciz "%S: the arena took %u MiB at most"
 .Ls_peak_main:  .asciz "the contract: the arena took %u MiB at most"
@@ -161,8 +160,6 @@ FUNC decompile_worker
         mov rdi, r15
         mov rsi, rax
         call watch_start
-        cmp qword ptr [r12 + JB_TARGET], 0
-        je .Ldw_no_target
         mov edi, LOG_INFO
         lea rsi, [rip + .Ls_logname]
         lea rdx, [rip + .Ls_interpreting]
@@ -271,11 +268,6 @@ FUNC decompile_worker
         lea rdi, [rbx + DC_MUTEX]
         call pthread_mutex_unlock@PLT
         jmp .Ldw_next
-# the function's target isn't an instruction (python: loader.lines[target])
-.Ldw_no_target:
-        mov edi, E_KEY
-        lea rsi, [rip + .Ls_no_target]
-        call err_throw
 # the function's overall time limit (python's 3 minutes)
 .Ldw_check_deadline:
         sub rsp, 8
@@ -646,31 +638,30 @@ FUNC decompile
 1:      mov eax, 1
         add rsp, 8
         ret
-# a target on a jumpdest moves past it (python: lines[target][1] ==
-# "jumpdest" -> target += 1), for targets above 1; one that isn't an
-# instruction is 0 (python's KeyError there fails the function)
+# a target on a jumpdest moves past it (python: lines.get(target, (None,
+# None))[1] == "jumpdest" and target > 1 -> target += 1); one that isn't an
+# instruction stays (the VM's run from it is an invalid jump, or a stop
+# past the last instruction)
 .Lde_past_jumpdest:
         mov rax, rdi
+        test dil, 1
+        jz 1f                           # (not a small int: no instruction)
         cmp rdi, 3                      # tagged 1
         jle 1f
-        test dil, 1
-        jz 2f                           # (not even a small int)
         mov rcx, rdi
         UNTAG rcx
         cmp rcx, [rbx + LD_CODELEN]
-        jae 2f
+        jae 1f
         mov rdx, [rbx + LD_PC2IDX]
         mov edx, [rdx + rcx*4]
         cmp edx, -1
-        je 2f
+        je 1f
         imul rdx, rdx, IN_SIZEOF
         add rdx, [rbx + LD_INSTRS]
         cmp byte ptr [rdx + IN_OP], 0x5b
         jne 1f
         add rax, 2                      # pc + 1
 1:      ret
-2:      xor eax, eax
-        ret
 # a job done and not imported yet, or 0 (under the mutex)
 .Lde_find_done:
         mov rcx, [rdi + DC_NJOBS]

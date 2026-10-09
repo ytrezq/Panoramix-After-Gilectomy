@@ -267,7 +267,9 @@ ENDF read_memory
 # memory start..start + size is known to be zeroes: each word of it reads
 # 0 (python reads them one by one; a word that touches no fact reads 0 in
 # a fresh memory, nothing otherwise - the run of them up to the next fact
-# is skipped at once)
+# is skipped at once). Not for more than MAX_ZEROES_SIZE bytes (python's
+# loop over a call's output of 2**255 bytes, say, wouldn't end).
+        .set MAX_ZEROES_SIZE, 1 << 16
 FUNC known_zeroes
         ENTER
         sub rsp, 48
@@ -291,6 +293,11 @@ FUNC known_zeroes
         call int_sign
         cmp eax, 0
         jle .Lkz_no
+        mov rdi, rbx                    # not for more than MAX_ZEROES_SIZE
+        mov esi, (MAX_ZEROES_SIZE << 1) | 1
+        call int_cmp
+        cmp eax, 0
+        jg .Lkz_no
         mov rdi, [rsp + KZ_START]
         mov rsi, rbx
         call int_add
@@ -1800,12 +1807,16 @@ ENDF forget
 
 # entry_memory(entries) -> rax: python's entry_memory - what's known of
 # the memory when a function starts: what every path of the dispatcher to
-# it (an entry: its lines) wrote, in a memory of zeroes; sorted by str.
-# entries: a list of entries, or NIL / None.
+# it (an entry: its lines) wrote, in a memory of zeroes - what only some of
+# them wrote isn't known (not even that it's still zero), as where paths
+# merge (see vm_merge_at); sorted by str. entries: a list of entries, or
+# NIL / None.
 FUNC entry_memory
         ENTER
-        sub rsp, 16
+        sub rsp, 32
         mov rbx, rdi
+        call vec_new
+        mov [rsp + 16], rax             # every (a set)
         xor r12d, r12d                  # res (a vec), 0: python's None
         test rbx, rbx
         jz .Lem_done
@@ -1845,7 +1856,19 @@ FUNC entry_memory
         mov [rsp + 8], rax
         mov rcx, [rsp]
         jmp 1b
-3:      test r12, r12
+3:      mov rax, [rsp + 8]              # every |= set(known)
+        xor ecx, ecx
+32:     cmp ecx, [rax + N_AUX]
+        jae 33f
+        mov rsi, [rax + N_DATA + rcx*8]
+        inc ecx
+        mov [rsp], rcx
+        mov rdi, [rsp + 16]
+        call vec_push_unique
+        mov rcx, [rsp]
+        mov rax, [rsp + 8]
+        jmp 32b
+33:     test r12, r12
         jnz 4f
         call vec_new                    # set(known)
         mov r12, rax
@@ -1888,16 +1911,44 @@ FUNC entry_memory
         jz 9f
         cmp qword ptr [r12 + VEC_LEN], 0
         je 9f
+        # what only some of them wrote: ('memory', s, n, None)
+        xor r13d, r13d
+10:     mov rax, [rsp + 16]
+        cmp r13, [rax + VEC_LEN]
+        jae 12f
+        mov rax, [rax + VEC_DATA]
+        mov r14, [rax + r13*8]
+        inc r13
         mov rdi, r12
+        mov rsi, r14
+        call vec_has_ptr
+        test eax, eax
+        jnz 10b
+        mov rdi, r14
+        mov esi, OP_MEMORY
+        mov edx, 4
+        call is_op_n
+        test eax, eax
+        jz 10b
+        mov rsi, [r14 + N_DATA + 8]
+        mov rdx, [r14 + N_DATA + 16]
+        lea rcx, [rip + sp_none]
+        LOADS rdi, MEMORY
+        call mk4
+        mov rdi, r12
+        mov rsi, rax
+        call vec_push_unique
+        jmp 10b
+12:     mov rdi, r12
         call sort_by_str
         mov rdi, r12
         call vec_to_tuple
-        add rsp, 16
+        add rsp, 32
         LEAVE
 9:      xor edi, edi
         xor esi, esi
         call mk_tuple
-        add rsp, 16
+        add rsp, 32
         LEAVE
 ENDF entry_memory
 

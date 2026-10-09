@@ -144,9 +144,9 @@ for n in range(N):
     if v is None: v = random.choice([5, ("cd", 4)])
     check("write_memory", (known, rng, v), run(V.write_memory, known, rng, v))
     # known_zeroes
-    st, sz = random.choice([0, 32, 64, 0x80, 0x90, ("cd", 4)]), random.choice([0, 1, 32, 64, 96, 4, -1, 2**130, ("cd", 4)])
-    if not (type(sz) is int and sz > 10**6 and ("memory_fresh",) in known and type(st) is int):
-        check("known_zeroes", (known, st, sz), run(V.known_zeroes, known, st, sz))
+    # (up to MAX_ZEROES_SIZE bytes: past it, not known)
+    st, sz = random.choice([0, 32, 64, 0x80, 0x90, ("cd", 4)]), random.choice([0, 1, 32, 64, 96, 4, -1, 2**16, 2**16 + 1, 2**130, ("cd", 4)])
+    check("known_zeroes", (known, st, sz), run(V.known_zeroes, known, st, sz))
     # forget
     kind = random.choice([0, 1, 2])
     check("forget", (known, kind), run(V.forget, known, NAMES[kind]))
