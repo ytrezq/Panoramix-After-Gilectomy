@@ -1532,8 +1532,41 @@ FUNC vm_attached
 ENDF vm_attached
 
 # vm_below(node, p) -> eax: python's below - node is p, or a node of the
-# tree below it
+# tree below it: python's walk up; by the jump pointers while the depths
+# are consistent, as vm_common_ancestor (both, compared, with
+# PANORAMIX_CHECK_LCA set) - merge_branches asks it of every merged node
+# it meets, and the walk took three quarters of the time of a function
+# twenty thousand nodes deep (aave3's MockReentrantInitializableImple)
 FUNC vm_below
+        mov rax, [r15 + CTX_VM]
+        cmp qword ptr [rax + VM_STALE_DEPTHS], 0
+        jne vm_below_walk
+        cmp qword ptr [rax + VM_CHECK_LCA], 0
+        je vm_below_jumps
+        push rbx
+        push rdi
+        push rsi
+        call vm_below_jumps
+        mov ebx, eax
+        mov rsi, [rsp]
+        mov rdi, [rsp + 8]
+        call vm_below_walk
+        cmp eax, ebx
+        jne 1f
+        pop rsi
+        pop rdi
+        pop rbx
+        ret
+1:      lea rdi, [rip + .Ls_below_mismatch]
+        call rt_fatal
+ENDF vm_below
+
+        .section .rodata
+.Ls_below_mismatch: .asciz "vm_below: the jump pointers and the walk disagree"
+        .text
+
+# vm_below_walk(node, p) -> eax: python's walk up, a step at a time
+FUNC vm_below_walk
 1:      test rdi, rdi
         jz 9f
         cmp rdi, rsi
@@ -1544,7 +1577,29 @@ FUNC vm_below
         ret
 9:      xor eax, eax
         ret
-ENDF vm_below
+ENDF vm_below_walk
+
+# vm_below_jumps(node, p) -> eax: node's ancestor at p's depth is p - up
+# by the jump pointers (vm_common_ancestor_jumps) where they don't go
+# past that depth
+FUNC vm_below_jumps
+        xor eax, eax
+        test rdi, rdi
+        jz 9f
+        mov rdx, [rsi + ND_DEPTH]
+1:      cmp [rdi + ND_DEPTH], rdx
+        jle 3f
+        mov r8, [rdi + ND_JUMP]
+        cmp [r8 + ND_DEPTH], rdx
+        jl 2f
+        mov rdi, r8
+        jmp 1b
+2:      mov rdi, [rdi + ND_PREV]
+        jmp 1b
+3:      cmp rdi, rsi
+        sete al
+9:      ret
+ENDF vm_below_jumps
 
 # vm_in_merged_branch(node, p) -> eax: python's in_merged_branch - node,
 # below the `if` node p, is in a branch of an `if` between them whose

@@ -763,6 +763,12 @@ for the rest of the run (`VM_STALE_DEPTHS`, never seen on the corpora:
 a build comparing both answers at every call agreed on all of them;
 `PANORAMIX_CHECK_LCA=1` does the same, aborting on a disagreement, and
 `difffuzz.py` runs the port with it). 1.50G instructions to 0.98G.
+`below` - whether a merged node's merge point is under the `if` being
+merged, asked of every merged node `merge_branches`' visits meet - is the
+same walk up, to the root when the answer is no: its jumps stop at the
+`if`'s depth (aave3's MockReentrantInitializableImple, whose
+`initialize` runs to the VM's 20000 nodes: three quarters of its time in
+the walk; 19943 nodes in five minutes before, the 20000 in 100 s).
 Then: `is_volatile` (the VM's `forget_volatile`, of every fact known at
 every loop's head) reads a mention flag, `HF_VOLATILE`, set on the
 strings that name a volatile thing and OR'ed up by the hash-consing,
