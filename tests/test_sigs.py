@@ -135,4 +135,14 @@ for n in range(N):
             comps = port_inputs([i])[0][2] if len(port_inputs([i])[0]) > 2 else None
             check("canonical_type", (i["type"], comps), run(SIG.canonical_type, i["type"], i.get("components")), "params %d" % n)
             check("is_dynamic", (i["type"], comps), run(SIG.is_dynamic, i["type"], i.get("components")), "params %d" % n)
+# the static arrays of more words than calldata holds: one word (the
+# database has bytes32[1263941234127518272])
+for inputs in ([{"type": "bytes32[1263941234127518272]", "name": "a"}],
+               [{"type": "uint256[65536]", "name": "a"}, {"type": "uint8", "name": "b"}],
+               [{"type": "uint256[65537]", "name": "a"}, {"type": "uint8", "name": "b"}],
+               [{"type": "uint256[2][32768]", "name": "a"}],
+               [{"type": "uint256[2][32769]", "name": "a"}],
+               [{"type": "tuple[100000]", "name": "t", "components": []}],
+               [{"type": "tuple[3]", "name": "t", "components": [{"type": "uint256[30000]", "name": "x"}]}]):
+    check("calldata_params", port_inputs(inputs), run(lambda: list(SIG.calldata_params(inputs).values())), "big array")
 print(f"{test_simplify.cases} cases, {test_simplify.bad} mismatches")

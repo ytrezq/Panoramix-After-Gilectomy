@@ -579,7 +579,10 @@ ENDF is_dynamic
 # head_words(vec, kind, name, components): signatures.head_words - the
 # (type, name) of the words a param takes in the head of the calldata
 # (all the elements of a static tuple or array, the offset to anything
-# dynamic), pushed
+# dynamic - a static array of more words than calldata can hold, past
+# MAX_HEAD_WORDS, as one: the database has bytes32[1263941234127518272]),
+# pushed
+        .set MAX_HEAD_WORDS, 1 << 16
 FUNC head_words
         STACK_CHECK
         ENTER
@@ -588,6 +591,7 @@ FUNC head_words
         .set HW_BASE, 8
         .set HW_COUNT, 16
         .set HW_I, 24
+        .set HW_START, 32               # (the vec's length before an array's words)
         mov [rsp + HW_VEC], rdi
         mov rbx, rsi
         mov r12, rdx
@@ -611,10 +615,15 @@ FUNC head_words
         mov rsi, r14
         call str_new
         mov [rsp + HW_BASE], rax
+        mov rax, [rsp + HW_VEC]
+        mov rax, [rax + VEC_LEN]
+        mov [rsp + HW_START], rax
         mov qword ptr [rsp + HW_I], 0
 1:      mov rax, [rsp + HW_I]
         cmp rax, [rsp + HW_COUNT]
         jae 9f
+        cmp rax, MAX_HEAD_WORDS         # (python's range(min(count,
+        ja 9f                           # MAX_HEAD_WORDS + 1)))
         mov rax, [rsp + HW_VEC]         # (python's list: a million words at
         cmp qword ptr [rax + VEC_LEN], 1 << 20  # most here, its MemoryError past)
         ja .Lhw_too_many
@@ -641,7 +650,15 @@ FUNC head_words
         mov rcx, r13
         call head_words
         inc qword ptr [rsp + HW_I]
-        jmp 1b
+        mov rcx, [rsp + HW_VEC]         # more words than calldata holds:
+        mov rcx, [rcx + VEC_LEN]        # the array as one
+        sub rcx, [rsp + HW_START]
+        cmp rcx, MAX_HEAD_WORDS
+        jbe 1b
+        mov rax, [rsp + HW_VEC]
+        mov rcx, [rsp + HW_START]
+        mov [rax + VEC_LEN], rcx
+        jmp .Lhw_word
 3:      mov rdi, rbx
         lea rsi, [rip + .Ls_tuple]
         call str_eq_c
