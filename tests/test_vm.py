@@ -10,11 +10,8 @@ holds in the default function, the entries (what the dispatcher does before
 each function). --functions: every function's trace, as the decompiler runs
 the VM for it (its stack, what's known, its entry and the memory then), the
 port's loader finding them on its side.
-
-Python's loop numbers (vm.loop_keys) are global to the process; the port's
-start at 1 for each VM: python's counter is reset before each run.
 """
-import itertools, os, sys, glob, time
+import os, sys, glob, time
 sys.path.insert(0, os.environ.get("PANORAMIX_PY", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "panoramix")))
 sys.path.insert(0, os.environ.get("PANASM_BUILD") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build"))
 import logging; logging.disable(logging.CRITICAL)
@@ -38,9 +35,6 @@ class PyTimeout(BaseException): pass
 def _alarm(*a): raise PyTimeout()
 signal.signal(signal.SIGALRM, _alarm)
 
-def fresh_keys():
-    panoramix.vm.loop_keys = itertools.count(1)
-
 def load(code):
     loader = Loader()
     loader.load_binary(code)
@@ -48,7 +42,6 @@ def load(code):
 
 def py_dispatcher(code):
     loader = load(code)
-    fresh_keys()
     return VM(loader, just_fdests=True).run(0, entry=())
 
 def asm_dispatcher(code):
@@ -56,7 +49,6 @@ def asm_dispatcher(code):
 
 def py_loader(code):
     loader = load(code)
-    fresh_keys()
     loader.run(VM(loader, just_fdests=True))
     funcs = [(h, t, s) for h, f, t, s in loader.func_list]
     entries = tuple((h, list(e)) for h, e in loader.entries.items())
@@ -66,7 +58,6 @@ def py_function(loader, hash, target, stack):
     if target > 1 and loader.lines[target][1] == "jumpdest":
         target += 1
     known = loader.fallback_known if hash == "_fallback" and target == 0 else ()
-    fresh_keys()
     return VM(loader).run(target, stack=stack, known=known, entry=loader.entry(hash),
                           memory=entry_memory(loader.entries.get(hash)))
 
@@ -84,7 +75,6 @@ def functions_of(code):
     """(name, target, stack, run) of every function, from python's loader -
     target past its jumpdest, run what py_run is given for known"""
     loader = load(code)
-    fresh_keys()
     loader.run(VM(loader, just_fdests=True))
     res = []
     for hash, fname, target, stack in loader.func_list:
@@ -98,7 +88,6 @@ def py_run(code, start, just_fdests, stack=(), known=()):
     """python's VM run - known: what's known, or a Run (functions_of's)"""
     loader = load(code)
     vm = VM(loader, just_fdests=just_fdests)
-    fresh_keys()
     if isinstance(known, Run):
         return vm.run(start, stack=stack, known=known.known, entry=known.entry, memory=known.memory)
     return vm.run(start, stack=stack, known=known)

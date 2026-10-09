@@ -79,7 +79,7 @@ for n in range(N):
     f, v = fold_stacks(first, second, depth)
     check("fold_stacks", repr((tuple(first), tuple(second), depth)), repr((tuple(f), tuple(v))))
     # the positions of the variables given (continue_loops'): python's
-    # depth is a loop's number (vm.loop_key)
+    # depth is a loop's number (VM.loop_key)
     positions = set(random.sample(range(len(first)), random.randint(0, len(first))))
     depth = random.choice([0, 1, 2, 9, 10, 123])
     f, v = stack_vars(tuple(first), positions, depth)

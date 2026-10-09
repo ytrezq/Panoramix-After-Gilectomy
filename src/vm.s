@@ -128,6 +128,143 @@ FUNC vm_should_quit
         LEAVE
 ENDF vm_should_quit
 
+# vm_name_past(stack, known, entry, memory): python's VM.name_past - the
+# VM's own variables named past those in what it's given: a function's
+# stack, what's known there and what runs before it come from the
+# dispatcher, whose variables another VM named - the same name would be two
+# variables. The next loop number (VM_LOOP_KEY: a loop's variables are
+# 1000 * its number + a place on the stack), the counter of the _1, _2...
+# names (VM_COUNTER), the counters of the precompiles' results (signer,
+# signer2...: VM_PRECOMPILES)
+FUNC vm_name_past
+        ENTER
+        sub rsp, 16
+        .set NP_I, 0                    # the precompile looked at (1..8)
+        .set NP_COUNT, 8                # its count, in the name
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        mov r14, rcx
+        call vec_new
+        mov rdi, rbx
+        mov rbx, rax                    # the variables in them
+        mov esi, OP_VAR
+        mov rdx, rbx
+        call find_op_list
+        mov rdi, r12
+        mov esi, OP_VAR
+        mov rdx, rbx
+        call find_op_list
+        mov rdi, r13
+        mov esi, OP_VAR
+        mov rdx, rbx
+        call find_op_list
+        mov rdi, r14
+        mov esi, OP_VAR
+        mov rdx, rbx
+        call find_op_list
+        mov r14, [r15 + CTX_VM]
+        xor r12d, r12d
+1:      cmp r12, [rbx + VEC_LEN]
+        jae 9f
+        mov rax, [rbx + VEC_DATA]
+        mov rax, [rax + r12*8]
+        inc r12
+        cmp dword ptr [rax + N_AUX], 2
+        jne 1b
+        mov rdi, [rax + N_DATA + 8]     # its name
+        test dil, 1
+        jz 3f
+        # a loop's (see loop_key): name // 1000 + 1 (one below 0 isn't
+        # past anything)
+        sar rdi, 1
+        js 1b
+        mov rax, rdi
+        xor edx, edx
+        mov ecx, 1000
+        div rcx
+        inc rax
+        cmp rax, [r14 + VM_LOOP_KEY]
+        jbe 1b
+        mov [r14 + VM_LOOP_KEY], rax
+        jmp 1b
+3:      test rdi, rdi
+        jz 1b
+        cmp dword ptr [rdi + N_KIND], K_STR
+        jne 1b
+        lea r13, [rdi + N_DATA + 4]     # its text
+        cmp byte ptr [r13], '_'
+        jne 4f
+        # _1, _2...
+        lea rdi, [r13 + 1]
+        call vm_name_count
+        test rax, rax
+        jle 1b
+        cmp rax, [r14 + VM_COUNTER]
+        jbe 1b
+        mov [r14 + VM_COUNTER], rax
+        jmp 1b
+4:      # a precompile's result: signer, signer2...
+        mov qword ptr [rsp + NP_I], 0
+5:      mov rcx, [rsp + NP_I]
+        inc rcx
+        cmp rcx, 8
+        ja 1b
+        mov [rsp + NP_I], rcx
+        imul rax, rcx, 24
+        lea rdx, [rip + precompiled_names]
+        mov rsi, [rdx + rax + 8]        # the name of its result
+        test rsi, rsi
+        jz 5b
+        mov rdi, r13
+        call st_prefix
+        test rax, rax
+        js 5b
+        lea rdi, [r13 + rax]
+        mov qword ptr [rsp + NP_COUNT], 1       # the name itself: the first
+        cmp byte ptr [rdi], 0
+        je 6f
+        call vm_name_count
+        test rax, rax
+        js 5b
+        mov [rsp + NP_COUNT], rax
+6:      imul rax, [rsp + NP_I], 24
+        lea rdx, [rip + precompiled_names]
+        mov rax, [rdx + rax + 16]       # its counter
+        lea rsi, [r14 + VM_PRECOMPILES + rax*8]
+        mov rdx, [rsp + NP_COUNT]
+        cmp rdx, [rsi]
+        jbe 5b
+        mov [rsi], rdx
+        jmp 5b
+9:      add rsp, 16
+        LEAVE
+ENDF vm_name_past
+
+# vm_name_count(p) -> rax: the number the ASCII digits at p (up to the NUL)
+# make, -1 if there are none, or something else, or more than 18 of them
+FUNC vm_name_count
+        xor eax, eax
+        xor edx, edx                    # how many
+1:      movzx ecx, byte ptr [rdi + rdx]
+        test ecx, ecx
+        jz 3f
+        sub ecx, '0'
+        cmp ecx, 9
+        ja 2f
+        cmp edx, 18
+        jae 2f
+        imul rax, rax, 10
+        add rax, rcx
+        inc edx
+        jmp 1b
+2:      mov rax, -1
+        ret
+3:      test edx, edx
+        jz 2b
+        ret
+ENDF vm_name_count
+
 # vm_run(start, stack, known, timeout_ns, entry, memory) -> rax: the
 # decompiled trace (a list) of the function starting at `start` with
 # `stack` (a tuple), given the conditions `known` to hold there. entry:
@@ -145,6 +282,11 @@ FUNC vm_run
         mov [rbx + VM_TIMEOUT], rcx
         mov [rsp + 48], r8              # entry
         mov [rsp + 56], r9              # memory
+        mov rdi, rsi
+        mov rsi, rdx
+        mov rdx, r8
+        mov rcx, r9
+        call vm_name_past
         call monotonic_ns
         mov [rbx + VM_TIME_START], rax
         mov qword ptr [rbx + VM_NODE_COUNT], 0

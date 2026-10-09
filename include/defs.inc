@@ -685,7 +685,7 @@ ENDF \fname
 .set VM_STALE_DEPTHS, 152   # 1: a node with children was hung elsewhere (vm_common_ancestor)
 .set VM_CHECK_LCA, 160      # 1: PANORAMIX_CHECK_LCA - both walks, compared (vm_common_ancestor)
 .set VM_UNEXP_VALID, 168    # 1: VM_SCR_UNEXP is the unexpanded nodes still (no merge since mb_all_nodes)
-.set VM_LOOP_KEY, 176       # loop_key's next number (python's loop_keys, itertools.count(1))
+.set VM_LOOP_KEY, 176       # loop_key's next number (python's VM.next_loop_key)
 .set VM_PENDING, 184        # merge_branches' pending merges: a vec of (p, jd) pairs, in python's dict order
 .set VM_PRECOMPILES, 192    # how many results of each precompile were named: 6 counters (VM_PC_*)
 .set VM_HALTED, 240         # 1: the instruction ended the path (returndatacopy's)

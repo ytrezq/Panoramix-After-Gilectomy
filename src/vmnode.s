@@ -494,7 +494,7 @@ ENDF in_dispatcher
 
 # loop_key(head) -> rax: python's loop_key - the number of the loop that
 # starts at the node head, the variables of the loop are numbered after: a
-# number of its own (VM_LOOP_KEY: python's itertools.count(1)), the same
+# number of its own (VM_LOOP_KEY: python's VM.next_loop_key), the same
 # when it's found again
 FUNC loop_key
         mov rax, [rdi + ND_LOOP_KEY]
