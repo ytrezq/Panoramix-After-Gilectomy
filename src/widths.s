@@ -602,13 +602,27 @@ FUNC mv_word_above_zero
         LEAVE
 ENDF mv_word_above_zero
 
-# low_zero_bits(exp) -> rax: python's low_zero_bits - how many of the
-# lowest bits of exp are sure to be 0
+# low_zero_bits(exp) -> rax: python's memloc.low_zero_bits - how many of
+# the lowest bits of exp are sure to be 0
 FUNC low_zero_bits
+        mov esi, 1
+        jmp lzb_impl
+ENDF low_zero_bits
+
+# s_low_zero_bits(exp) -> rax: python's simplify.low_zero_bits - the same,
+# but for a mask's: off + shl, not capped at 256
+FUNC s_low_zero_bits
+        xor esi, esi
+        jmp lzb_impl
+ENDF s_low_zero_bits
+
+# lzb_impl(exp, cap) -> rax: low_zero_bits (cap 1) or s_low_zero_bits
+FUNC lzb_impl
         STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
+        mov r13d, esi
         call is_int
         test eax, eax
         jz 1f
@@ -635,7 +649,8 @@ FUNC low_zero_bits
         mov eax, 1
         jmp .Llz_ret
 .Llz_mask:
-        # ('mask_shl', _, int off, int shl, _): max(0, min(256, off + shl))
+        # ('mask_shl', _, int off, int shl, _): max(0, min(256, off + shl)),
+        # without the min for s_low_zero_bits
         cmp dword ptr [rbx + N_AUX], 5
         jne 7f
         mov rdi, [rbx + N_DATA + 16]
@@ -650,10 +665,12 @@ FUNC low_zero_bits
         mov rdi, [rsp]
         mov rsi, rax
         call int_add
+        test r13d, r13d
+        jz 71f
         mov rdi, rax
         mov esi, (256 << 1) | 1
         call int_min
-        mov rdi, rax
+71:     mov rdi, rax
         mov esi, 1
         call int_max
         jmp .Llz_ret
@@ -667,7 +684,8 @@ FUNC low_zero_bits
         jae 3f
         mov rdi, [rbx + N_DATA + r12*8]
         inc r12d
-        call low_zero_bits
+        mov esi, r13d
+        call lzb_impl
         mov rdi, [rsp]
         mov rsi, rax
         call int_add
@@ -687,7 +705,8 @@ FUNC low_zero_bits
         jae 5f
         mov rdi, [rbx + N_DATA + r12*8]
         inc r12d
-        call low_zero_bits
+        mov esi, r13d
+        call lzb_impl
         cmp qword ptr [rsp], 0
         je 6f
         mov rdi, [rsp]
@@ -705,7 +724,7 @@ FUNC low_zero_bits
         mov edi, E_VALUE
         lea rsi, [rip + .Ls_min_empty_lz]
         call err_throw
-ENDF low_zero_bits
+ENDF lzb_impl
 
         .section .rodata
 .Ls_min_empty_lz: .asciz "min() arg is an empty sequence"

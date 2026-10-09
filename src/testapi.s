@@ -63,7 +63,6 @@ test_table:
         .quad .Ln_simplify_mask, simplify_mask
         .quad .Ln_cleanup_mask_data, cleanup_mask_data
         .quad .Ln_canonise_max, canonise_max
-        .quad .Ln_sizeof_s, tf_sizeof_s
         .quad .Ln_cleanup_conds, cleanup_conds
         .quad .Ln_cleanup_msize, cleanup_msize
         .quad .Ln_cleanup_mems, tf_cleanup_mems
@@ -336,7 +335,6 @@ test_table:
 .Ln_simplify_mask: .asciz "simplify_mask"
 .Ln_cleanup_mask_data: .asciz "cleanup_mask_data"
 .Ln_canonise_max: .asciz "canonise_max"
-.Ln_sizeof_s:  .asciz "sizeof_s"
 .Ln_cleanup_conds: .asciz "cleanup_conds"
 .Ln_cleanup_msize: .asciz "cleanup_msize"
 .Ln_cleanup_mems: .asciz "cleanup_mems"
@@ -1847,14 +1845,6 @@ FUNC tf_range_contains
         call tri_value
         LEAVE
 ENDF tf_range_contains
-
-FUNC tf_sizeof_s
-        ENTER
-        call sizeof_s
-        mov rdi, rax
-        call none_if_nil
-        LEAVE
-ENDF tf_sizeof_s
 
 # the simplifier passes
 FUNC tf_cleanup_mems
