@@ -224,6 +224,7 @@ ENDF immutable
         OPSET_MEMBER sv_exits, OP_GOTO
         OPSET_MEMBER sv_exits, OP_CONTINUE
         OPSET_MEMBER sv_exits, OP_UNDEFINED
+        OPSET_MEMBER sv_exits, OP_LEAVE
         OPSET_END sv_exits, OP_COUNT
 
         OPSET_MEMBER sv_reverts, OP_REVERT

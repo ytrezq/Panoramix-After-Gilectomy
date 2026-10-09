@@ -816,6 +816,8 @@ FUNC leaves_loop
         je 9f
         cmp ebx, OP_UNDEFINED
         je 9f
+        cmp ebx, OP_LEAVE
+        je 9f
         cmp ebx, OP_GOTO
         je 9f
 8:      mov eax, 1

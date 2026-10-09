@@ -215,6 +215,8 @@ FUNC overwrites_mem
         OPCODE_OF_RDI
         cmp eax, OP_WHILE
         je 3f
+        cmp eax, OP_INTERNAL            # a recursive internal function (vm.s,
+        je .Lom_yes                     # vm_internal_call) may write any memory
         cmp eax, OP_IF
         jne .Lom_no
         cmp dword ptr [rbx + N_AUX], 4
@@ -266,6 +268,9 @@ FUNC overwrites_mem
         mov rdx, r12
         call memo2_put
         mov eax, [rsp]
+        jmp .Lom_done
+.Lom_yes:
+        mov eax, 1
         jmp .Lom_done
 .Lom_no:
         xor eax, eax
@@ -512,6 +517,10 @@ FUNC mem_use
         OPCODE_OF_RDI
         cmp eax, OP_CONTINUE
         je .Lmu_used
+        cmp eax, OP_INTERNAL
+        je 6f
+        cmp eax, OP_LEAVE
+        je 6f
         mov rdi, r14
         mov rsi, r12
         call exp_uses_mem
@@ -525,6 +534,25 @@ FUNC mem_use
         jz .Lmu_line
         mov eax, MU_OVERWRITTEN
         jmp .Lmu_done
+6:      # a recursive internal function may read any memory (vm.s,
+        # vm_internal_call), and its caller once it returns - but solidity's
+        # scratch space, which is read where it's written (a hash's words) -
+        # and what it's given, what it returns
+        mov rdi, r12
+        call in_scratch
+        test eax, eax
+        jz .Lmu_used
+        mov rdi, r14
+        mov rsi, r12
+        call exp_uses_mem
+        test eax, eax
+        jnz .Lmu_used
+        mov rdi, r14
+        OPCODE_OF_RDI
+        cmp eax, OP_LEAVE
+        jne .Lmu_line
+        mov eax, MU_OVERWRITTEN
+        jmp .Lmu_done
 .Lmu_used:
         mov eax, MU_USED
         jmp .Lmu_done
@@ -534,6 +562,31 @@ FUNC mem_use
         add rsp, MATCH_BINDINGS_SIZE + 32
         LEAVE
 ENDF mem_use
+
+# in_scratch(mem_idx) -> eax: mem_idx is in solidity's scratch space, the
+# first 64 bytes: ('range', begin, size), numbers, begin + size <= 64
+FUNC in_scratch
+        ENTER
+        mov rbx, rdi
+        OP_N_CHECK OP_RANGE, 3, 9f
+        mov rax, [rbx + N_DATA + 8]
+        mov rcx, [rbx + N_DATA + 16]
+        test al, 1
+        jz 9f
+        test cl, 1
+        jz 9f
+        sar rax, 1
+        js 9f
+        sar rcx, 1
+        js 9f
+        add rax, rcx
+        cmp rax, 64
+        ja 9f
+        mov eax, 1
+        LEAVE
+9:      xor eax, eax
+        LEAVE
+ENDF in_scratch
 
 # branch_mem_use(branch, mem_idx) -> eax: mem_use, NEITHER counting as
 # OVERWRITTEN when the branch ends the execution
@@ -1362,6 +1415,8 @@ FUNC replace_mem_impl
         cmp eax, OP_STATICCALL
         je 61f
         cmp eax, OP_DELEGATECALL
+        je 61f
+        cmp eax, OP_INTERNAL
         je 61f
         cmp eax, OP_CALLCODE
         jne .Lrp_from_here

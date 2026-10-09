@@ -17,6 +17,14 @@ from panoramix.utils import signatures as SIG
 random.seed(int(sys.argv[1]) if len(sys.argv) > 1 else 1)
 N = int(sys.argv[2]) if len(sys.argv) > 2 else 2000
 
+# python makes the range of a mask with 2 ** size: for a size of 2^40 or
+# so, it takes all the memory there is before its MemoryError (an
+# inconclusive case, see check): 4 GiB of address space at most
+import resource
+_soft, _hard = resource.getrlimit(resource.RLIMIT_AS)
+if _soft == resource.RLIM_INFINITY or _soft > (4 << 30):
+    resource.setrlimit(resource.RLIMIT_AS, (4 << 30, _hard))
+
 def rint():
     r = random.random()
     if r < 0.35: return random.choice([0, 1, 2, 3, 4, 8, 31, 32, 64, 96, 128, 160, 224, 248, 255, 256, 3600, 86400, 10**6, 10**18])
@@ -246,6 +254,11 @@ def rline():
     if r < 0.88: return random.choice([("invalid",), ("invalid", 5), ("stop",), ("undefined", "x", 5), ("break",)])
     if r < 0.9: return random.choice([["x", e, rexp()], ["y"], "a comment", ("comment", e)])
     if r < 0.92: return ("label", "loop", rsetvars())
+    if r < 0.95:
+        # the call of a recursive internal function, its end (vm.VM.internal)
+        return random.choice([("internal", random.choice([0x1a2, 0xffff]), tuple(rexp(1) for _ in range(random.randint(0, 3))),
+                               tuple(random.sample(["_1", "_2", "_3"], random.randint(0, 2)))),
+                              ("leave", tuple(rexp(1) for _ in range(random.randint(0, 2))))])
     return ("selfdestruct", e)
 
 def rtrace(d=0, loops=()):

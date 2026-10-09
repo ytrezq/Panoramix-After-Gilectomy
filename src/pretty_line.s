@@ -42,6 +42,7 @@
 .Ls_plus_eq:    .asciz " += "
 .Ls_eq_sp:      .asciz " = "
 .Ls_stop:       .asciz "stop"
+.Ls_return_kw:  .asciz "return"
 .Ls_dots:       .asciz "..."
 .Ls_aborted:    .asciz "  # Decompilation aborted, sorry: "
 .Ls_invalid:    .asciz "invalid"
@@ -216,7 +217,82 @@ FUNC pretty_line
         JT_CASE pretty_line, OP_RETURN, .Lpl_revert_return
         JT_CASE pretty_line, OP_STORE, .Lpl_store
         JT_CASE pretty_line, OP_TSTORE, .Lpl_tstore
+        JT_CASE pretty_line, OP_INTERNAL, .Lpl_internal
+        JT_CASE pretty_line, OP_LEAVE, .Lpl_leave
         JT_END pretty_line, OP_COUNT, .Lpl_other
+
+.Lpl_internal:
+        # the call of a recursive internal function (vm.s,
+        # vm_internal_call), the variables of its results:
+        # `_1, _2 = internal_0x...(args)`
+        cmp dword ptr [rbx + N_AUX], 4
+        jne .Lpl_other
+        call sb_new
+        mov r13, rax
+        mov r14, [rbx + N_DATA + 24]    # the results
+        mov qword ptr [rsp + PL_I], 0
+1:      mov rcx, [rsp + PL_I]
+        cmp ecx, [r14 + N_AUX]
+        jae 2f
+        test ecx, ecx
+        jz 11f
+        mov rdi, r13
+        lea rsi, [rip + .Ls_comma_sp]
+        call sb_append_c
+11:     mov rcx, [rsp + PL_I]
+        LOADS rdi, VAR
+        mov rsi, [r14 + N_DATA + rcx*8]
+        call mk2
+        mov rdi, r13
+        mov rsi, rax
+        PF_COLOR_OF rdx, r12
+        call sb_append_pret
+        inc qword ptr [rsp + PL_I]
+        jmp 1b
+2:      cmp dword ptr [r14 + N_AUX], 0
+        je 3f
+        mov rdi, r13
+        lea rsi, [rip + .Ls_eq_sp]
+        call sb_append_c
+3:      mov rdi, [rbx + N_DATA + 8]
+        call internal_name
+        mov rdi, r13
+        mov rsi, rax
+        call sb_append_str
+        mov rdi, r13
+        mov esi, '('
+        call sb_append_char
+        mov rdi, r13
+        mov rsi, [rbx + N_DATA + 16]
+        xor edx, edx
+        PF_COLOR_OF rcx, r12
+        call sb_append_pret_join
+        mov rdi, r13
+        mov esi, ')'
+        call sb_append_char
+        jmp .Lpl_yield_finish
+
+.Lpl_leave:
+        # the end of a recursive internal function: `return` its results
+        cmp dword ptr [rbx + N_AUX], 2
+        jne .Lpl_other
+        call sb_new
+        mov r13, rax
+        mov rdi, rax
+        lea rsi, [rip + .Ls_return_kw]
+        call sb_append_c
+        mov r14, [rbx + N_DATA + 8]     # the values
+        cmp dword ptr [r14 + N_AUX], 0
+        je .Lpl_yield_finish
+        mov rdi, r13
+        mov esi, ' '
+        call sb_append_char
+        mov rdi, r13
+        mov rsi, r14
+        xor edx, edx
+        PF_COLOR_OF rcx, r12
+        call sb_append_pret_join
+        jmp .Lpl_yield_finish
 
 .Lpl_log:
         # ('log', params, *topics): the params of a log are its data, then
@@ -2780,6 +2856,7 @@ ENDF check_word
         OPSET_MEMBER ends_path, OP_CONTINUE
         OPSET_MEMBER ends_path, OP_BREAK
         OPSET_MEMBER ends_path, OP_UNDEFINED
+        OPSET_MEMBER ends_path, OP_LEAVE
         OPSET_END ends_path, OP_COUNT
 
 # add_breaks(path) -> list: python's add_breaks - the body of a loop, with

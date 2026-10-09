@@ -696,7 +696,10 @@ ENDF \fname
 .set VM_FRONTIER, 248       # the nodes still to explore, as last counted (VM.run's frontier)
 .set VM_LOOPS_STALE, 256    # 1: VM_LOOPS may miss loops (continue_loops returned early): walk the tree
 .set VM_MAX_NODES, 264      # MAX_NODE_COUNT, or MAX_FDESTS_NODE_COUNT for just_fdests
-.set VM_SIZEOF, 272
+.set VM_INTERNAL, 272       # the recursive internal functions known: a vec of (entry, n, m, frame), or 0 (vmrec.s)
+.set VM_FOUND, 280          # those found, in the order found: a vec, or 0
+.set VM_INSIDE, 288         # 1: the run is an internal function's, decompiled apart (no entry, nothing known)
+.set VM_SIZEOF, 296
 
 .set MAX_NODE_COUNT, 20000
 .set WIDE_NODE_COUNT, 5000
@@ -817,7 +820,9 @@ ENDF \fname
 .set FN_PRIORITY, 136       # the priority + 2, once computed (0 = not yet)
 .set FN_VALUE_FAILS, 144    # what it does when sent ether, if it isn't payable:
                             # the string "revert" or "invalid", or 0 (None)
-.set FN_SIZEOF, 152
+.set FN_INTERNAL, 152       # a recursive internal function's (entry, n, m, frame),
+                            # see vmrec.s - or 0: a function of the abi
+.set FN_SIZEOF, 160
 
 # ordered dicts (pyutil.s)
 .set OD_KEYS, 0             # a vec
@@ -834,7 +839,8 @@ ENDF \fname
 .set CT_CODE, 40            # the code (the loader's), or 0 (None)
 .set CT_CODELEN, 48
 .set CT_SAFEMATH, 56        # list of the functions of its def SafeMath (safemath.s's defs)
-.set CT_SIZEOF, 64
+.set CT_INTERNAL, 64        # a vec of its recursive internal functions (FN_INTERNAL), by entry
+.set CT_SIZEOF, 72
 
 # a trace run on values (runtrace.s, python's runtrace.Machine). Words are
 # 256-bit numbers in 32 bytes, the least significant limb first.

@@ -681,7 +681,7 @@ ENDF as_paths_f
 # --- the final folding rules (fold_aux) ---
 
 # is_terminating_op(id) -> eax: return, stop, selfdestruct, invalid,
-# assert_fail, revert, continue, undefined
+# assert_fail, revert, continue, undefined, leave
         OPSET_FUNC is_terminating_op, terminating
         OPSET_MEMBER terminating, OP_RETURN
         OPSET_MEMBER terminating, OP_STOP
@@ -691,6 +691,7 @@ ENDF as_paths_f
         OPSET_MEMBER terminating, OP_REVERT
         OPSET_MEMBER terminating, OP_CONTINUE
         OPSET_MEMBER terminating, OP_UNDEFINED
+        OPSET_MEMBER terminating, OP_LEAVE
         OPSET_END terminating, OP_COUNT
 
 # car_opcode(seq) -> eax: the opcode of the first element (0 when empty)

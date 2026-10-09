@@ -37,6 +37,10 @@
 .Ls_stor_defs:  .asciz "stor_defs"
 .Ls_functions:  .asciz "functions"
 .Ls_safemath:   .asciz "safemath"
+.Ls_internal:   .asciz "internal"
+.Ls_k_entry:    .asciz "entry"
+.Ls_k_results:  .asciz "results"
+.Ls_k_frame:    .asciz "frame"
 .Ls_k_hash:     .asciz "hash"
 .Ls_k_name:     .asciz "name"
 .Ls_k_color_name: .asciz "color_name"
@@ -508,11 +512,15 @@ FUNC contract_data
         mov rdi, r12
         mov esi, '{'
         mov edx, 3                      # (and the SafeMath, when it has
-        mov rax, [rbx + CT_SAFEMATH]    # functions)
-        cmp dword ptr [rax + N_AUX], 0
+        mov rax, [rbx + CT_SAFEMATH]    # functions; the recursive internal
+        cmp dword ptr [rax + N_AUX], 0  # functions, when it has some)
         je 11f
         inc edx
-11:     mov ecx, r13d
+11:     mov rax, [rbx + CT_INTERNAL]
+        cmp qword ptr [rax + VEC_LEN], 0
+        je 12f
+        inc edx
+12:     mov ecx, r13d
         call data_open
         # the problems: {hash: name}
         mov rdi, r12
@@ -642,13 +650,127 @@ FUNC contract_data
         mov rdi, r12
         mov edx, r13d
         call data_value
-7:      mov rdi, r12
+7:      # the recursive internal functions (its last key)
+        mov rax, [rbx + CT_INTERNAL]
+        cmp qword ptr [rax + VEC_LEN], 0
+        je 9f
+        mov rdi, [rbx + CT_SAFEMATH]    # (its index: 3, or 4 after the SafeMath)
+        mov esi, 3
+        cmp dword ptr [rdi + N_AUX], 0
+        je 71f
+        inc esi
+71:     mov rdi, r12
+        mov edx, r13d
+        call data_sep
+        mov rdi, r12
+        lea rsi, [rip + .Ls_internal]
+        mov edx, r13d
+        call data_key
+        mov rax, [rbx + CT_INTERNAL]
+        mov [rsp], rax
+        mov rdi, r12
+        mov esi, '['
+        mov edx, [rax + VEC_LEN]
+        mov ecx, r13d
+        call data_open
+        xor r14d, r14d
+8:      mov rax, [rsp]
+        cmp r14, [rax + VEC_LEN]
+        jae 81f
+        mov rdi, r12
+        mov esi, r14d
+        mov edx, r13d
+        call data_sep
+        mov rax, [rsp]
+        mov rax, [rax + VEC_DATA]
+        mov rdi, [rax + r14*8]
+        mov rsi, r12
+        mov edx, r13d
+        call internal_data
+        inc r14
+        jmp 8b
+81:     mov rdi, r12
+        mov esi, '['
+        mov edx, r13d
+        call data_close
+9:      mov rdi, r12
         mov esi, '{'
         mov edx, r13d
         call data_close
         add rsp, 16
         LEAVE
 ENDF contract_data
+
+# internal_data(fn, sb, mode): InternalFunction.serialize() - its name, its
+# entry, the words of its params, of its results, of a call of itself, its
+# text, its trace
+FUNC internal_data
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13d, edx
+        mov rdi, r12
+        mov esi, '{'
+        mov edx, 7
+        mov ecx, r13d
+        call data_open
+        xor r14d, r14d                  # the index of the key
+        lea rsi, [rip + .Ls_k_name]
+        mov rdx, [rbx + FN_NAME]
+        call .Lid_field
+        mov rax, [rbx + FN_INTERNAL]    # (entry, n, m, frame)
+        mov [rsp], rax
+        lea rsi, [rip + .Ls_k_entry]
+        mov rdx, [rax + N_DATA]
+        call .Lid_field
+        lea rsi, [rip + .Ls_k_params]
+        mov rdx, [rsp]
+        mov rdx, [rdx + N_DATA + 8]
+        call .Lid_field
+        lea rsi, [rip + .Ls_k_results]
+        mov rdx, [rsp]
+        mov rdx, [rdx + N_DATA + 16]
+        call .Lid_field
+        lea rsi, [rip + .Ls_k_frame]
+        mov rdx, [rsp]
+        mov rdx, [rdx + N_DATA + 24]
+        call .Lid_field
+        mov rdi, rbx
+        call fn_print
+        lea rsi, [rip + .Ls_k_print]
+        mov rdx, rax
+        call .Lid_field
+        lea rsi, [rip + .Ls_k_trace]
+        mov rdx, [rbx + FN_TRACE]
+        call .Lid_field
+        mov rdi, r12
+        mov esi, '{'
+        mov edx, r13d
+        call data_close
+        add rsp, 16
+        LEAVE
+# the separator, the key rsi, then the value rdx
+.Lid_field:
+        push rdx
+        push rsi
+        sub rsp, 8                      # (aligned for the calls)
+        mov rdi, r12
+        mov esi, r14d
+        mov edx, r13d
+        call data_sep
+        inc r14d
+        mov rsi, [rsp + 8]
+        mov rdi, r12
+        mov edx, r13d
+        call data_key
+        mov rsi, [rsp + 16]
+        mov rdi, r12
+        mov edx, r13d
+        call data_value
+        add rsp, 24
+        ret
+ENDF internal_data
 
 # data_colon(sb, mode): between a key and its value (json)
 FUNC data_colon

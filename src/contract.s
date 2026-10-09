@@ -36,6 +36,8 @@ FUNC contract_new
         xor esi, esi
         call mk_list
         mov [r13 + CT_SAFEMATH], rax
+        call vec_new                    # (the decompiler's, see there)
+        mov [r13 + CT_INTERNAL], rax
         mov rax, [r15 + CTX_LOADER]
         test rax, rax
         jz 1f
@@ -48,17 +50,36 @@ FUNC contract_new
 ENDF contract_new
 
 # contract_postprocess(contract): the storage (storage.s), the parameter
-# names, the constants, the asts
+# names, the constants, the asts - the storage, the asts and the SafeMath
+# of the recursive internal functions too (after the others)
 FUNC contract_postprocess
         ENTER
         sub rsp, ERR_SIZEOF + 16
         .set CP_NAMES, ERR_SIZEOF
+        .set CP_ALL, ERR_SIZEOF + 8     # the functions, then the internal ones
         mov rbx, rdi
-        mov rdi, rsp
+        mov rax, [rbx + CT_FUNCS]
+        mov [rsp + CP_ALL], rax
+        mov rax, [rbx + CT_INTERNAL]
+        cmp qword ptr [rax + VEC_LEN], 0
+        je 0f
+        call vec_new
+        mov [rsp + CP_ALL], rax
+        mov rdi, rax
+        mov rsi, [rbx + CT_FUNCS]
+        mov rdx, [rsi + VEC_LEN]
+        mov rsi, [rsi + VEC_DATA]
+        call vec_extend
+        mov rdi, [rsp + CP_ALL]
+        mov rsi, [rbx + CT_INTERNAL]
+        mov rdx, [rsi + VEC_LEN]
+        mov rsi, [rsi + VEC_DATA]
+        call vec_extend
+0:      mov rdi, rsp
         call err_catch
         test eax, eax
         jnz 1f
-        mov rdi, [rbx + CT_FUNCS]
+        mov rdi, [rsp + CP_ALL]
         mov rsi, [rbx + CT_CODE]
         mov rdx, [rbx + CT_CODELEN]
         call st_rewrite_functions
@@ -80,7 +101,7 @@ FUNC contract_postprocess
         xor esi, esi
         call mk_list
         mov [rbx + CT_STOR_DEFS], rax
-        mov rdi, [rbx + CT_FUNCS]       # the accesses as the slots they are
+        mov rdi, [rsp + CP_ALL]         # the accesses as the slots they are
         call st_rewrite_raw
 2:      # (not the names of variables nor of params, see prettify.set_names)
         call vec_new
@@ -125,26 +146,29 @@ FUNC contract_postprocess
         mov rdi, rbx
         mov esi, 1
         call contract_consts
-        mov rdi, rbx
+        mov rdi, [rsp + CP_ALL]
         call make_asts
         mov rdi, rbx
+        mov rsi, [rsp + CP_ALL]
         call contract_safemath
         add rsp, ERR_SIZEOF + 16
         LEAVE
 ENDF contract_postprocess
 
-# contract_safemath(contract): python's postprocess's SafeMath - the asts'
-# checked arithmetic calls of the functions of the contract's def SafeMath
-# (safemath.s); an error leaves the asts as they are, the block empty
+# contract_safemath(contract, functions): python's postprocess's SafeMath -
+# the asts' checked arithmetic calls of the functions of the contract's def
+# SafeMath (safemath.s); an error leaves the asts as they are, the block
+# empty
 FUNC contract_safemath
         ENTER
         sub rsp, ERR_SIZEOF + 16
         mov rbx, rdi
+        mov [rsp + ERR_SIZEOF], rsi
         mov rdi, rsp
         call err_catch
         test eax, eax
         jnz 8f
-        mov r12, [rbx + CT_FUNCS]
+        mov r12, [rsp + ERR_SIZEOF]
         call vec_new
         mov r13, rax
         xor r14d, r14d
@@ -275,14 +299,14 @@ ENDF replace_param_names
 
 # --- the asts ---
 
-# make_asts(contract): python's make_asts - the ast of every function
-# (make_ast): short_circuits, the folds (all of them on threads:
-# fold_many), then the rewrites for display (make_ast_folded)
+# make_asts(functions): python's make_asts - the ast of every function (a
+# vec: the contract's, then its internal ones) (make_ast): short_circuits,
+# the folds (all of them on threads: fold_many), then the rewrites for
+# display (make_ast_folded)
 FUNC make_asts
         ENTER
         sub rsp, 16
-        mov rbx, rdi
-        mov r12, [rbx + CT_FUNCS]
+        mov r12, rdi
         call vec_new
         mov r13, rax
         xor r14d, r14d

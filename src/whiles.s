@@ -318,6 +318,8 @@ FUNC falls_through
         je 9f
         cmp eax, OP_UNDEFINED
         je 9f
+        cmp eax, OP_LEAVE
+        je 9f
         mov edi, eax
         call is_ends_execution_op
         test eax, eax
@@ -341,6 +343,7 @@ ENDF falls_through
         OPSET_MEMBER pure_lines, OP_JUMP
         OPSET_MEMBER pure_lines, OP_JUMPDEST
         OPSET_MEMBER pure_lines, OP_UNDEFINED
+        OPSET_MEMBER pure_lines, OP_LEAVE
         OPSET_MEMBER pure_lines, OP_LOG
         OPSET_MEMBER pure_lines, OP_REVERT
         OPSET_MEMBER pure_lines, OP_RETURN

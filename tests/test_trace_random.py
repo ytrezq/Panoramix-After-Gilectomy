@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Random differential test of the simplifier on random traces - the
 shapes of whiles.make's output (memory and storage writes, variables,
-ifs, logs, calls, returns) over expressions of memory ranges, variables
-and calldata - against panoramix.simplify: every pass of
-tests/test_simplify.py, and the whole simplify_trace.
+ifs, logs, calls - of recursive internal functions too -, returns) over
+expressions of memory ranges, variables and calldata - against
+panoramix.simplify: every pass of tests/test_simplify.py, and the whole
+simplify_trace.
 
     tests/test_trace_random.py [SEED [COUNT]]
 
@@ -163,6 +164,11 @@ def rother():
         return ("if", ("lt", random.choice(["returndatasize", 0]), ("add", random.choice([0, 32]), random.choice([32, ("cd", 4)]))),
                 [("invalid", "returndatacopy")], [])
     if r < 0.87: return ("setmem", rrange(), ("ext_call.return_data", random.choice([0, 4]), rlen()))
+    if r < 0.93:
+        # the call of a recursive internal function (vm.VM.internal): its
+        # arguments, the names of its results
+        return ("internal", random.choice([0x1a2, 0x3f6]), tuple(rexp(1) for _ in range(random.randint(0, 3))),
+                tuple(random.sample(["_1", "_2", "_3"], random.randint(0, 2))))
     return ("log", ("mem", rrange()), random.choice([0xddf252ad, rint()]))
 
 LOOP_VARS = [15001, 15002, 27001]
@@ -200,7 +206,9 @@ def rtrace(d=0):
     elif end < 0.8: t.append(("stop",))
     elif end < 0.9 and OTHERS:
         t.append(random.choice([("selfdestruct", random.choice(["caller", ("cd", 4), rexp(1)])), ("invalid",),
-                                ("assert_fail",), ("revert", ("mem", rrange())), ("return", 0)]))
+                                ("assert_fail",), ("revert", ("mem", rrange())), ("return", 0),
+                                # the end of a recursive internal function: its results
+                                ("leave", tuple(rexp(1) for _ in range(random.randint(0, 2))))]))
     return t
 
 # cases the random runs found once: always checked

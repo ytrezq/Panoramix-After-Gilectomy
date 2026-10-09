@@ -851,6 +851,8 @@ FUNC changes_reads
         je .Lcr_call
         cmp eax, OP_PRECOMPILED
         je .Lcr_precompiled
+        cmp eax, OP_INTERNAL
+        je .Lcr_internal
         cmp eax, OP_IF
         je .Lcr_if
         cmp eax, OP_WHILE
@@ -869,6 +871,11 @@ FUNC changes_reads
         mov rdx, [rbx + N_DATA + 8]
         mov esi, OP_TSTORE
         jmp 1f
+.Lcr_internal:
+        # a recursive internal function (vm.s, vm_internal_call): it may do
+        # anything a call does
+        mov eax, OP_DELEGATECALL
+        jmp .Lcr_call
 .Lcr_precompiled:
         # a call too: what calls return is what it returns
         mov eax, OP_STATICCALL

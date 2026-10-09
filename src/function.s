@@ -32,6 +32,11 @@
 .Ls_q_tstore:   .asciz "'tstore'"
 .Ls_q_create2:  .asciz "'create2'"
 .Ls_q_log:      .asciz "'log'"
+.Ls_q_internal: .asciz "'internal'"
+.Ls_internal_fmt: .asciz "internal_0x%lx"
+.Ls_param_fmt:  .asciz "_param%ld"
+.Ls_paren_colon_sp: .asciz "): "
+.Ls_recursive_fmt: .asciz "# recursive, a call takes %ld of the 1024 words of the stack"
 .Ls_selfdestruct: .asciz "selfdestruct"
 .Ls_const_:     .asciz "const "
 .Ls_eq_sp:      .asciz " = "
@@ -55,10 +60,11 @@
         .section .data.rel.ro
         .align 8
         # the opcodes that make a function not read-only (what changes the
-        # state, or does something that stays: a log), quoted as in
-        # python's str(trace)
+        # state, or does something that stays: a log - or may: a recursive
+        # internal function, see vm_internal_call), quoted as in python's
+        # str(trace)
 not_read_only:
-        .quad .Ls_q_store, .Ls_q_tstore, .Ls_q_selfdestruct, .Ls_q_call, .Ls_q_delegatecall, .Ls_q_callcode, .Ls_q_create, .Ls_q_create2, .Ls_q_log, 0
+        .quad .Ls_q_store, .Ls_q_tstore, .Ls_q_selfdestruct, .Ls_q_call, .Ls_q_delegatecall, .Ls_q_callcode, .Ls_q_create, .Ls_q_create2, .Ls_q_log, .Ls_q_internal, 0
 
         .text
 
@@ -2494,6 +2500,164 @@ ENDF function_new
 
 # --- the text ---
 
+# internal_name(entry) -> str: helpers.internal_name - the name of the
+# recursive internal function at entry (see vm_internal_call)
+FUNC internal_name
+        ENTER
+        sub rsp, 48
+        mov rcx, rdi
+        sar rcx, 1
+        mov rdi, rsp
+        mov esi, 48
+        lea rdx, [rip + .Ls_internal_fmt]
+        xor eax, eax
+        call snprintf@PLT
+        mov rdi, rsp
+        mov esi, eax
+        call str_intern
+        add rsp, 48
+        LEAVE
+ENDF internal_name
+
+# internal_param_names(n) -> list of str: _param1, _param2... _paramn (n
+# tagged), the params of a recursive internal function (python's
+# InternalFunction.param_names)
+FUNC internal_param_names
+        ENTER
+        sub rsp, 32
+        mov rbx, rdi
+        sar rbx, 1
+        call vec_new
+        mov r12, rax
+        xor r13d, r13d
+1:      cmp r13, rbx
+        jae 2f
+        inc r13
+        mov rdi, rsp
+        mov esi, 32
+        lea rdx, [rip + .Ls_param_fmt]
+        mov rcx, r13
+        xor eax, eax
+        call snprintf@PLT
+        mov rdi, rsp
+        mov esi, eax
+        call str_intern
+        mov rdi, r12
+        mov rsi, rax
+        call vec_push
+        jmp 1b
+2:      mov rdi, r12
+        call vec_to_list
+        add rsp, 32
+        LEAVE
+ENDF internal_param_names
+
+# internal_function_new(record, trace) -> fn: python's InternalFunction -
+# the recursive internal function (entry, n, m, frame) decompiled apart
+# (see vm_internal_call): named after its entry, its params the n words
+# its calls push above the address it returns to, its results the m it
+# leaves there; no abi, not a getter nor a constant (see storage), not
+# analysed
+FUNC internal_function_new
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov edi, FN_SIZEOF
+        call arena_alloc
+        mov r14, rax
+        mov [r14 + FN_INTERNAL], rbx
+        mov rdi, [rbx + N_DATA]
+        call internal_name
+        mov [r14 + FN_HASH], rax
+        mov [r14 + FN_NAME], rax
+        mov [r14 + FN_COLOR_NAME], rax
+        mov [r14 + FN_ABI_NAME], rax
+        mov [r14 + FN_TRACE], r12
+        mov [r14 + FN_ORIG_TRACE], r12
+        xor edi, edi
+        xor esi, esi
+        call mk_list
+        mov [r14 + FN_PARAMS], rax
+        mov [r14 + FN_RETURNS], rax
+        mov rax, r14
+        LEAVE
+ENDF internal_function_new
+
+# internal_print_lines(fn) -> list of str: InternalFunction.print's lines -
+# `def internal_0x..(_param1, ...): # recursive, a call takes K of the 1024
+# words of the stack`, then its ast (its trace while it has none). Printed
+# as no function of the abi: its calldata as it is (python's _func
+# cleared, see get_param_name - FN_INPUTS is 0).
+FUNC internal_print_lines
+        ENTER
+        sub rsp, 112
+        mov rbx, rdi
+        mov rax, [r15 + CTX_FUNC]
+        mov [rsp], rax                  # (restored after)
+        mov [r15 + CTX_FUNC], rbx
+        mov rax, [rbx + FN_INTERNAL]
+        mov rdi, [rax + N_DATA + 8]
+        call internal_param_names
+        mov [rsp + 8], rax
+        # set_names(params=...): the variables of its loops have other names
+        xor edi, edi
+        mov rsi, rax
+        call set_names
+        call sb_new
+        mov r13, rax
+        mov rdi, rax
+        lea rsi, [rip + .Ls_def_]
+        lea rdx, [rip + C_HEADER]
+        mov ecx, PF_COLOR
+        call sb_append_col_c
+        mov rdi, r13
+        mov rsi, [rbx + FN_NAME]
+        call sb_append_str
+        mov rdi, r13
+        mov esi, '('
+        call sb_append_char
+        lea rdi, [rip + .Ls_comma_sp]
+        mov rsi, [rsp + 8]
+        call str_join
+        mov rdi, r13
+        mov rsi, rax
+        call sb_append_str
+        mov rdi, r13
+        lea rsi, [rip + .Ls_paren_colon_sp]
+        call sb_append_c
+        mov rax, [rbx + FN_INTERNAL]
+        mov rcx, [rax + N_DATA + 24]
+        sar rcx, 1                      # the frame
+        lea rdi, [rsp + 16]
+        mov esi, 96
+        lea rdx, [rip + .Ls_recursive_fmt]
+        xor eax, eax
+        call snprintf@PLT
+        mov rdi, r13
+        lea rsi, [rsp + 16]
+        lea rdx, [rip + C_GRAY]
+        mov ecx, PF_COLOR
+        call sb_append_col_c
+        mov rdi, r13
+        call sb_finish
+        mov rdi, rax
+        call mk_list1
+        mov r14, rax                    # the header line
+        mov rdi, [rbx + FN_AST]
+        test rdi, rdi
+        jnz 1f
+        mov rdi, [rbx + FN_TRACE]
+1:      mov esi, 2
+        call pprint_logic
+        mov rdi, r14
+        mov rsi, rax
+        call list_concat
+        mov rcx, [rsp]
+        mov [r15 + CTX_FUNC], rcx
+        add rsp, 112
+        LEAVE
+ENDF internal_print_lines
+
 # fn_print_lines(fn) -> list of str: Function._print
 FUNC fn_print_lines
         ENTER
@@ -2684,8 +2848,12 @@ FUNC fn_print
         mov rax, [rbx + FN_PRINT]
         test rax, rax
         jnz 1f
+        cmp qword ptr [rbx + FN_INTERNAL], 0
+        jne 2f
         call fn_print_lines
-        lea rdi, [rip + .Ls_newline]
+        jmp 3f
+2:      call internal_print_lines       # (a recursive internal function's)
+3:      lea rdi, [rip + .Ls_newline]
         mov rsi, rax
         call str_join
         mov [rbx + FN_PRINT], rax
@@ -2882,7 +3050,7 @@ ENDF print_one
 # the fields of a function that hold values of its context
 fn_value_fields:
         .long FN_ABI, FN_INPUTS, FN_TRACE, FN_ORIG_TRACE, FN_PARAMS, FN_CONST
-        .long FN_GETTER, FN_RETURNS, FN_AST, -1
+        .long FN_GETTER, FN_RETURNS, FN_AST, FN_INTERNAL, -1
         .text
 
         .section .note.GNU-stack,"",@progbits

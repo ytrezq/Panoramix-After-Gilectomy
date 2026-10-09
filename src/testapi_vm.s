@@ -477,6 +477,75 @@ FUNC tf_vm_func
         LEAVE
 ENDF tf_vm_func
 
+# vm_internal((hexcode, (entry, n, m, frame)[, flags])): the trace of the
+# recursive internal function, as the decompiler runs its VM for it
+# (vmrec.s): knowing only itself, from its entry with its params above
+# RETURN_ADDRESS, nothing known - and the records of those its VM found:
+# (trace, found)
+FUNC tf_vm_internal
+        ENTER
+        sub rsp, 96                     # the error handler, the loader, the result
+        mov rbx, rdi
+        cmp dword ptr [rbx + N_AUX], 3  # (python's --verbose, --explain: VB_*)
+        jb 1f
+        mov rax, [rbx + N_DATA + 16]
+        sar rax, 1
+        mov [r15 + CTX_VERBOSE], rax
+1:      mov rdi, [rbx + N_DATA]
+        call tv_loader
+        mov [rsp + 72], rax
+        mov r12, rax
+        mov rdi, r12
+        xor esi, esi
+        call vm_new
+        mov rdi, rsp
+        call err_catch
+        test eax, eax
+        jnz 6f
+        mov r13, [rbx + N_DATA + 8]     # the record
+        mov rdi, r13
+        xor esi, esi
+        call vm_internal_add
+        mov rax, [r15 + CTX_VM]
+        mov qword ptr [rax + VM_INSIDE], 1
+        mov rdi, [r13 + N_DATA + 8]
+        call vm_internal_stack
+        mov r14, rax
+        xor edi, edi
+        xor esi, esi
+        call mk_tuple
+        mov rdx, rax                    # nothing known
+        mov r9, rax                     # nor of the memory
+        mov rdi, [r13 + N_DATA]
+        mov rsi, r14
+        xor ecx, ecx                    # (no time limit)
+        xor r8d, r8d                    # (no entry)
+        call vm_run
+        mov [rsp + 80], rax
+        mov rax, [r15 + CTX_VM]         # the records found
+        mov rdi, [rax + VM_FOUND]
+        test rdi, rdi
+        jz 2f
+        call vec_to_tuple
+        jmp 3f
+2:      xor edi, edi
+        xor esi, esi
+        call mk_tuple
+3:      mov rsi, rax
+        mov rdi, [rsp + 80]
+        call mk2
+        mov [rsp + 80], rax
+        call err_end
+        jmp 9f
+6:      call tf_exc_value
+        mov [rsp + 80], rax
+9:      mov rdi, r12
+        call loader_free
+        mov rax, [rsp + 80]
+        add rsp, 96
+        LEAVE
+ENDF tf_vm_internal
+
         .section .rodata
 .Ltv_fallback: .asciz "_fallback"
 .Ltv_key: .asciz "the target is not an instruction"

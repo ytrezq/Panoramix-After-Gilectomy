@@ -1,0 +1,77 @@
+# Palkeoramix decompiler. 
+
+def storage:
+  memo is mapping of uint256 at storage 0
+
+def SafeMath:
+  def add(a, b):  # solidity >= 0.8
+      if a > a + b:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      return a + b
+  def sub(a, b):  # solidity >= 0.8
+      if a - b > a:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      return a - b
+
+def memo(uint256 _param1): # not payable
+  require calldata.size - 4 >=′ 32
+  return memo[_param1]
+
+#
+#  Regular functions
+#
+
+def _fallback(?) payable: # default function
+  revert
+
+def fib(uint256 _param1): # not payable
+  mem[64] = 128
+  require calldata.size - 4 >=′ 32
+  _1 = internal_0x13b(_param1)
+  return _1
+
+def unknown0b95d228(uint256 _param1): # not payable
+  mem[64] = 128
+  require calldata.size - 4 >=′ 32
+  _1 = internal_0x1e1(_param1)
+  return _1
+
+def unknownef0baad9(uint256 _param1): # not payable
+  mem[64] = 128
+  require calldata.size - 4 >=′ 32
+  _1 = internal_0x18a(_param1)
+  return _1
+
+#
+#  Internal functions
+#
+
+def internal_0x13b(_param1): # recursive, a call takes 3 of the 1024 words of the stack
+  if _param1 >= 2:
+      _1 = internal_0x13b(SafeMath.sub(_param1, 2))
+      _2 = internal_0x13b(SafeMath.sub(_param1, 1))
+      _3 = SafeMath.add(_2, _1)
+  else:
+      _3 = _param1
+  return _3
+
+def internal_0x18a(_param1): # recursive, a call takes 4 of the 1024 words of the stack
+  if _param1:
+      _1 = internal_0x18a(SafeMath.sub(_param1, 1))
+      memo[_param1] = SafeMath.add(_param1, _1)
+      _3 = _param1 + _1
+  else:
+      _3 = 0
+  return _3
+
+def internal_0x1e1(_param1): # recursive, a call takes 3 of the 1024 words of the stack
+  if _param1 > 1:
+      _1 = internal_0x1e1(SafeMath.sub(_param1, 1))
+      if _param1 and _1 != _param1 * _1 / _param1:
+          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow outside of an unchecked { ... } block.
+      _2 = _param1 * _1
+  else:
+      _2 = 1
+  return _2
+
+

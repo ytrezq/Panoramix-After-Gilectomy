@@ -9,7 +9,10 @@ Loader.run makes it). --loader: what Loader.run finds - the functions, what
 holds in the default function, the entries (what the dispatcher does before
 each function). --functions: every function's trace, as the decompiler runs
 the VM for it (its stack, what's known, its entry and the memory then), the
-port's loader finding them on its side.
+port's loader finding them on its side - then the recursive internal
+functions python's VMs found, each one's trace as the decompiler runs its
+VM (knowing only itself, from its entry: VM.internal) and what that VM
+found, wave after wave.
 """
 import os, sys, glob, time
 sys.path.insert(0, os.environ.get("PANORAMIX_PY", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "panoramix")))
@@ -24,7 +27,7 @@ import panoramix.vm
 # the signature database needs pypy's dbm here; the names don't matter
 panoramix.loader.make_abi = lambda targets: None
 panoramix.loader.get_func_name = lambda h: h
-from panoramix.vm import VM, entry_memory
+from panoramix.vm import VM, RETURN_ADDRESS, entry_memory
 
 CORPUS = os.environ.get("CORPUS", os.path.join(os.path.dirname(os.path.abspath(__file__)), "corpus"))
 # python's VM is slow: a run past PY_LIMIT seconds is skipped
@@ -54,12 +57,28 @@ def py_loader(code):
     entries = tuple((h, list(e)) for h, e in loader.entries.items())
     return loader, (funcs, loader.fallback_known, entries or None)
 
-def py_function(loader, hash, target, stack):
+def py_function(loader, hash, target, stack, found=None):
+    """found: a dict the recursive internal functions its VM found go
+    into (their first record kept)"""
     if target > 1 and loader.lines[target][1] == "jumpdest":
         target += 1
     known = loader.fallback_known if hash == "_fallback" and target == 0 else ()
-    return VM(loader).run(target, stack=stack, known=known, entry=loader.entry(hash),
-                          memory=entry_memory(loader.entries.get(hash)))
+    vm = VM(loader)
+    trace = vm.run(target, stack=stack, known=known, entry=loader.entry(hash),
+                   memory=entry_memory(loader.entries.get(hash)))
+    if found is not None:
+        for entry, rec in vm.found.items():
+            found.setdefault(entry, rec)
+    return trace
+
+def py_internal(loader, rec):
+    """(trace, found) of the recursive internal function (entry, n, m,
+    frame), as the decompiler runs its VM"""
+    entry, n, m, frame = rec
+    vm = VM(loader, internal={entry: (n, m, frame)})
+    trace = vm.run(entry, stack=(RETURN_ADDRESS,) + tuple(("param", f"_param{i + 1}") for i in range(n)),
+                   inside=True)
+    return trace, tuple((e,) + r for e, r in vm.found.items())
 
 class Run:
     """How the decompiler runs the VM for a function (functions_of): what's
@@ -152,10 +171,30 @@ if __name__ == "__main__":
             r = compare(name + " loader", lambda: expected, lambda: A._test("find_functions", repr(code)))
             bad += r is False
             continue
+        found = {}
         for hash, target, stack in expected[0]:
-            r = compare(f"{name} {hash}", lambda: py_function(loader, hash, target, stack),
+            r = compare(f"{name} {hash}", lambda: py_function(loader, hash, target, stack, found),
                         lambda: A._test("vm_func", repr((code, hash, flags))))
             bad += r is False
             skipped += r is None
+        # the recursive internal functions, wave after wave (decompiler.py)
+        todo = sorted(found)
+        while todo:
+            new = []
+            for entry in todo:
+                rec = (entry,) + found[entry]
+                runs = []
+                def py():
+                    runs.append(py_internal(loader, rec))
+                    return runs[-1]
+                r = compare(f"{name} internal_{hex(entry)}", py,
+                            lambda: A._test("vm_internal", repr((code, rec, flags))))
+                bad += r is False
+                skipped += r is None
+                for e, *more in (runs[-1][1] if runs else ()):
+                    if e not in found:
+                        found[e] = tuple(more)
+                        new.append(e)
+            todo = sorted(new)
     print("failures:", bad, " skipped:", skipped)
     sys.exit(1 if bad else 0)

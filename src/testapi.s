@@ -206,6 +206,7 @@ test_table:
         .quad .Ln_vm_helper, tf_vm_helper
         .quad .Ln_entry_helper, tf_entry_helper
         .quad .Ln_vm_func, tf_vm_func
+        .quad .Ln_vm_internal, tf_vm_internal
         .quad .Ln_storage, tf_storage
         .quad 0, 0
 
@@ -215,6 +216,7 @@ test_table:
 .Ln_vm_helper: .asciz "vm_helper"
 .Ln_entry_helper: .asciz "entry_helper"
 .Ln_vm_func: .asciz "vm_func"
+.Ln_vm_internal: .asciz "vm_internal"
         .text
 
         .section .rodata

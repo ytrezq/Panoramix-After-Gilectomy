@@ -58,6 +58,9 @@ FUNC vm_new
         mov qword ptr [rax + VM_TIMEOUT], 0
         mov qword ptr [rax + VM_GEN], 1 # (a new node's stamp, 0, is never the current one)
         mov qword ptr [rax + VM_LOOP_KEY], 1    # (loop_key's next number)
+        mov qword ptr [rax + VM_INTERNAL], 0
+        mov qword ptr [rax + VM_FOUND], 0
+        mov qword ptr [rax + VM_INSIDE], 0
         mov [r15 + CTX_VM], rax
         mov r12, rax
         # the context works on the loader's contract: the memory model's
@@ -298,6 +301,8 @@ FUNC vm_run
         mov [rbx + VM_MAX_NODES], rax
         call vec_new
         mov r13, rax                    # the root's trace: before, then the jump
+        cmp qword ptr [rbx + VM_INSIDE], 0      # (an internal function's: nothing
+        jne 2f                                  # runs before, nothing's known)
         cmp qword ptr [rsp + 48], 0
         jne 1f
         # no entry: mem[64] = 0x60, if it's the free memory pointer
@@ -416,9 +421,15 @@ FUNC vm_run
         # (with a similar stack, otherwise we'd catch function calls as
         # all), replace them with 'loop' identifiers (the unexpanded
         # nodes: the ones expand_trace just made, see there)
+        mov [rsp + 40], rax
         mov rdi, r14
         mov rsi, rax
         call vm_replace_loops
+        # the calls of a function in its own call: not unrolled (vmrec.s)
+        mov rdi, r14
+        mov rsi, [rsp + 40]
+        call vm_replace_recursions
+        mov qword ptr [rsp + 40], 0
         # turn them into loops right away: the later this is done, the
         # bigger the subtree that gets thrown away and explored again
         mov rdi, r14
@@ -1774,6 +1785,7 @@ ENDF mb_by_jd
         OPSET_MEMBER terminal, OP_ASSERT_FAIL
         OPSET_MEMBER terminal, OP_SELFDESTRUCT
         OPSET_MEMBER terminal, OP_UNDEFINED
+        OPSET_MEMBER terminal, OP_LEAVE
         OPSET_MEMBER terminal, OP_GOTO
         OPSET_END terminal, OP_COUNT
 
@@ -2874,7 +2886,18 @@ FUNC vm_exec
         call vec_extend_seq
         call vec_new
         mov [rbx + VM_TRACE], rax
-        mov r12, [rbx + VM_LOADER]
+        cmp qword ptr [rbx + VM_INTERNAL], 0    # the call of a recursive internal
+        je 01f                                  # function (vmrec.s)
+        mov rdi, [rsp]
+        mov rsi, [rsp + 16]
+        call vm_internal_call_at
+        test eax, eax
+        jz 01f
+        mov rdi, [rsp]
+        mov rsi, [rsp + 24]
+        call vm_internal_call
+        jmp .Lex_done
+01:     mov r12, [rbx + VM_LOADER]
         mov rdi, [rsp]
         test dil, 1
         jnz 0f
@@ -4037,7 +4060,20 @@ FUNC vm_step
 
 .Lop_jump:
         VPOP [rsp]                       # target
+        mov rax, [rsp]                   # the end of the internal function
+        test al, 1                       # decompiled apart (vmrec.s): what's
+        jnz 1f                           # on the stack, its results
+        call vm_return_address
+        cmp rax, [rsp]
+        jne 1f
         mov rdi, [rbx + VM_STACK]
+        call vec_to_tuple
+        mov rsi, rax
+        LOADS rdi, LEAVE
+        call mk2
+        call .Lstep_push_line
+        jmp .Lstep_finished
+1:      mov rdi, [rbx + VM_STACK]
         call vec_to_tuple
         mov rdx, rax
         mov rdi, [rsp]

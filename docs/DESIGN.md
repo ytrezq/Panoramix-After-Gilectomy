@@ -38,6 +38,8 @@ database, liblzma. Everything else is assembly (GNU as, Intel syntax).
     src/masks.s           to_mask, find_mask (core/masks.py)
     src/stack.s           the symbolic stack (stack.py)
     src/vmnode.s, vm.s    the symbolic VM (vm.py): nodes, jump tables of the opcodes
+    src/vmrec.s           the recursive internal functions (vm.py's VM.internal,
+                          replace_recursions): their calls, lines of the traces
     src/whiles.s          loops to whiles (whiles.py)
     src/memloc.s          memory locations (core/memloc.py)
     src/simplify_exp.s    simplify_exp and its helpers
@@ -329,6 +331,49 @@ is the CLI, `build/panoramix_asm*.so` the module.
     An error (python's `except Exception`) leaves the asts as they are,
     the block empty, and logs it, as python does.
 
+20. [x] recursive internal functions (`vmrec.s`, python's `VM.internal`
+    and `replace_recursions`): the call of an internal function in its
+    own call isn't unrolled until the VM stops - the EVM's stack of 1024
+    words is what bounds such a recursion at run time, not anything the
+    VM could see -, it's a line, `('internal', entry, args, results)`,
+    after which the VM goes on where the call returns, variables for
+    its results on the stack, the state as a call may leave it (what's
+    known of the storage and of the memory forgotten, a `delegatecall`'s
+    snapshot). A node is such a call (`vm_recursion_of`) when an ancestor
+    started at the same jump destination with the address its call
+    returns to - the topmost jump destination of its stack - on the
+    node's stack, all below that the same and as many words above it;
+    the function's entry is the outermost node of the ancestor's call
+    that the node's call has too (not a block the first one jumps to,
+    which would make what it pushes before arguments), its params the
+    words above the address there, its results the words one of its
+    calls left where it returned (none returned yet: the recursion is
+    unrolled another level - and one that never returns, but by
+    reverting, is unrolled as it was before), its frame the words
+    between two of its entries, printed in its header (`# recursive, a
+    call takes K of the 1024 words of the stack`). Once found, the calls
+    of it the VM explored already are explored again as lines
+    (`vm_replace_recursions`, between `replace_loops` and
+    `continue_loops`; the loops found may be gone with them:
+    `VM_LOOPS_STALE`). Each one is decompiled apart, as python's waves
+    do: those the functions of the abi found, by entry, then those
+    found by these, and so on, a batch of jobs each (`decompile`:
+    `JB_INTERNAL`; the records found merged in the order of the jobs,
+    those of the functions made only, `dc_merge_found`); its VM knows
+    only itself, starts at its entry with its params, `('param',
+    '_paramN')`, above `RETURN_ADDRESS` (`VM_INSIDE`: nothing ran
+    before, nothing is known), and a jump to that address is its end,
+    `('leave', values)`. What the VM found leaves its context in a
+    buffer (`vm_found_buffer`): the compaction of the context drops the
+    VM. The postprocessing takes them after the functions (the storage,
+    the asts, the SafeMath; not the parameters, which have their names
+    already); they're printed after the regular functions, under the
+    calldata as it is (python's `_func` cleared: whichever function was
+    printed before isn't theirs), and given in the json's `internal`. A
+    function calling one isn't read-only; the passes over the memory
+    take the line as a call - one that may read and write any memory
+    but solidity's scratch space, which is read where it's written.
+
 ## The decoder
 
 The bytecode isn't decoded by a loop written by hand but by an automaton
@@ -414,7 +459,8 @@ place; the functions solc's dispatcher compares the selector with.
 `tests/test_verbose.py` and `tests/test_fetch.py`.
 The first compares the 30 contracts of
 `tests/corpus` (mainnet bytecode, see `SOURCES`) and the programs of
-`tests/synthetic` (each one a difference the port had) with python's
+`tests/synthetic` (each one a difference the port had, and the
+recursive internal functions of `recursion.sol`, compiled) with python's
 output in their `expected` directories (pypy's `python -m panoramix`,
 colors removed, with the signature database, which the script builds
 from panoramix's `data/abi_dump.xz`). The second feeds it inputs that

@@ -133,12 +133,14 @@ def raux(d=0):
 # storage, a call's result, the gas), ifs whose branches go on after them
 SLINES = [("setvar", 1, ("add", ("var", 1), 1)), ("setvar", 2, 5), ("setmem", ("range", 64, 32), ("cd", 4)),
           ("store", 256, 0, 1, ("cd", 36)), ("log", ("data",), 7), ("call", "gas", ("cd", 4), 0, None, None),
-          ("staticcall", "gas", ("cd", 4), 0, None, None), ("tstore", 1, 2), "a comment", ("jd", "100", ())]
+          ("staticcall", "gas", ("cd", 4), 0, None, None), ("tstore", 1, 2), "a comment", ("jd", "100", ()),
+          ("internal", 0x1a2, (("var", 1),), ("_1",))]
 SCONDS = [("lt", ("var", 1), 5), ("iszero", ("var", 2)), ("eq", ("storage", 256, 0, 1), 0),
           ("lt", ("mem", ("range", 64, 32)), 9), ("eq", "ext_call.success", 0), ("lt", "gas", 2300),
           ("gt", "msize", 64), ("lt", "callvalue", 3), ("eq", ("cd", 4), 1), ("tload", 1),
           ("eq", ("balance", "caller"), 0), ("lt", ("var", "_msize"), 5)]
-SENDS = [[("stop",)], [("revert", None)], [("return", ("data", 1))], [("invalid",)], [("revert", ("data", 2))]]
+SENDS = [[("stop",)], [("revert", None)], [("return", ("data", 1))], [("invalid",)], [("revert", ("data", 2))],
+         [("leave", (("var", 1),))]]
 
 
 def rfold(d=0):

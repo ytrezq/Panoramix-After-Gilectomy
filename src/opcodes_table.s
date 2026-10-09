@@ -226,7 +226,10 @@ opcode_names:
         .quad .Lopname_219
         .quad .Lopname_220
         .quad .Lopname_221
-opcode_names_count: .quad 222
+        .quad .Lopname_222
+        .quad .Lopname_223
+        .quad .Lopname_224
+opcode_names_count: .quad 225
 .Lopname_0: .asciz "add"
 .Lopname_1: .asciz "mul"
 .Lopname_2: .asciz "sub"
@@ -449,9 +452,12 @@ opcode_names_count: .quad 222
 .Lopname_219: .asciz "error"
 .Lopname_220: .asciz "inc"
 .Lopname_221: .asciz "dec"
+.Lopname_222: .asciz "internal"
+.Lopname_223: .asciz "leave"
+.Lopname_224: .asciz "return_address"
         .section .bss
         .align 8
         .globl opcode_nodes
         .hidden opcode_nodes
-opcode_nodes: .space 1784
+opcode_nodes: .space 1808
         .section .note.GNU-stack,"",@progbits

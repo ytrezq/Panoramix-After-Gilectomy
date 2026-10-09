@@ -22,6 +22,7 @@
 .Ls_def_safemath: .asciz "SafeMath:"
 .Ls_def_:       .asciz "def "
 .Ls_regular:    .asciz "#\n#  Regular functions\n#"
+.Ls_internal:   .asciz "#\n#  Internal functions\n#"
 .Ls_fallback:   .asciz "_fallback"
 .Ls_unknown:    .asciz "unknown"
 .Ls_param_:     .asciz "_param"
@@ -65,7 +66,13 @@
         .set JB_EXPLAIN_FIRST, 80       # the first trace explained, or 0
         .set JB_EXPLAIN_LAST, 88        # the last one, or 0
         .set JB_EXPLAIN_CUT, 96         # what the first one's text took
-        .set JB_SIZEOF, 104
+        # a recursive internal function's job (see vmrec.s): its record
+        # (entry, n, m, frame) (main context), or 0 for a function of the abi
+        .set JB_INTERNAL, 104
+        # the recursive internal functions its VM found (vm_found_buffer's,
+        # xmalloc'd), or 0
+        .set JB_FOUND, 112
+        .set JB_SIZEOF, 120
 
         # the shared state of the decompilation
         .set DC_LOADER, 0
@@ -78,7 +85,11 @@
         .set DC_MEMLIMIT, 128           # CTX_MEM_LIMIT of the workers' contexts
         .set DC_VERBOSE, 136            # CTX_VERBOSE of the workers' contexts
         .set DC_EXPLAIN_SB, 144         # where the jobs' --explain goes, in order
-        .set DC_SIZEOF, 152
+        # the jobs run in batches: the functions of the abi, then the
+        # recursive internal functions, wave after wave (see decompile)
+        .set DC_BASE, 152               # the jobs of the batches before (their order)
+        .set DC_EXPLAIN_PREV, 160       # --explain: the trace printed last (0: none yet)
+        .set DC_SIZEOF, 168
 
         # the decompilation thread (decompile_run)
         .set DR_CODE, 0
@@ -168,6 +179,8 @@ FUNC decompile_worker
         mov rdi, [rbx + DC_LOADER]
         xor esi, esi
         call vm_new
+        cmp qword ptr [r12 + JB_INTERNAL], 0
+        jne .Ldw_internal
         mov rdi, [r12 + JB_STACK]
         call value_import_root
         mov r13, rax
@@ -183,7 +196,43 @@ FUNC decompile_worker
         mov rdx, [r12 + JB_TARGET]
         mov rcx, r13
         call vm_run_function
+        jmp .Ldw_ran
+        # a recursive internal function's (vmrec.s): its VM knows it, starts
+        # at its entry with its params where its calls push them, above the
+        # address it returns to - nothing ran before, nothing is known
+.Ldw_internal:
+        mov rdi, [r12 + JB_INTERNAL]
+        call value_import_root
+        mov [rsp + DW_TMP], rax
+        mov rdi, rax
+        xor esi, esi
+        call vm_internal_add
+        mov rax, [r15 + CTX_VM]
+        mov qword ptr [rax + VM_INSIDE], 1
+        mov rdi, [rsp + DW_TMP]
+        mov rdi, [rdi + N_DATA + 8]
+        call vm_internal_stack
         mov r13, rax
+        xor edi, edi
+        xor esi, esi
+        call mk_tuple
+        mov r14, rax                    # ()
+        mov rdi, VM_TIMEOUT_NS
+        call scaled_ns
+        mov rcx, rax
+        mov rdi, [rsp + DW_TMP]
+        mov rdi, [rdi + N_DATA]         # the entry
+        mov rsi, r13
+        mov rdx, r14
+        xor r8d, r8d                    # (no entry: python's None)
+        mov r9, r14
+        call vm_run
+.Ldw_ran:
+        mov r13, rax
+        # the recursive internal functions its VM found, for the decompiler
+        # (python's vm.found)
+        call vm_found_buffer
+        mov [r12 + JB_FOUND], rax
         call .Ldw_check_deadline
         test qword ptr [r15 + CTX_VERBOSE], VB_EXPLAIN
         jz 1f
@@ -292,9 +341,13 @@ ENDF decompile_worker
 # decompile(code, len, threads, only_func, out): the text of the
 # decompiled contract appended to the builder `out`. only_func (a C
 # string or 0) keeps only the functions whose name starts with it.
+#
+# The jobs run in batches: the functions of the abi, then the recursive
+# internal functions their VMs found (vmrec.s), decompiled apart - those
+# they call, then those these call, and so on (python's waves), by entry.
 FUNC decompile
         ENTER
-        sub rsp, ERR_SIZEOF + 112
+        sub rsp, ERR_SIZEOF + 144
         .set DE_CODE, ERR_SIZEOF
         .set DE_LEN, ERR_SIZEOF + 8
         .set DE_THREADS, ERR_SIZEOF + 16
@@ -309,6 +362,10 @@ FUNC decompile
         .set DE_CONTRACT, ERR_SIZEOF + 88
         .set DE_SHOWN, ERR_SIZEOF + 96
         .set DE_ATTR, ERR_SIZEOF + 104
+        .set DE_REQ, ERR_SIZEOF + 112   # the threads asked for (each batch's)
+        .set DE_RECS, ERR_SIZEOF + 120  # the recursive internal functions found: records, as found
+        .set DE_NEW, ERR_SIZEOF + 128   # those the last batch found first: the next wave
+        .set DE_INTERNAL, ERR_SIZEOF + 136      # their functions (FN_INTERNAL)
         mov [rsp + DE_CODE], rdi
         mov [rsp + DE_LEN], rsi
         mov [rsp + DE_THREADS], rdx
@@ -455,6 +512,10 @@ FUNC decompile
         jmp 3b
 5:      # the workers
         mov rdi, [rsp + DE_THREADS]
+        test rdi, rdi
+        jnz 51f
+        mov edi, 1
+51:     mov [rsp + DE_REQ], rdi
         cmp rdi, [r13 + DC_NJOBS]
         jbe 6f
         mov rdi, [r13 + DC_NJOBS]
@@ -466,7 +527,7 @@ FUNC decompile
         call mem_limit_for
         mov [r13 + DC_MEMLIMIT], rax
         mov [r15 + CTX_CHILD_LIMIT], rax        # (the folder's contexts)
-        mov rdi, [rsp + DE_THREADS]
+        mov rdi, [rsp + DE_REQ]         # (as many as a batch may have)
         shl rdi, 3
         call arena_alloc
         mov [rsp + DE_TIDS], rax
@@ -481,6 +542,19 @@ FUNC decompile
         mov rdi, [rsp + DE_ATTR]
         mov esi, WORKER_STACK
         call pthread_attr_setstacksize@PLT
+        # the results, imported as they come (the contexts they are on
+        # are freed then), the functions made from them
+        call vec_new
+        mov [rsp + DE_FUNCS], rax
+        call vec_new
+        mov [rsp + DE_PROBLEMS], rax
+        call vec_new
+        mov [rsp + DE_RECS], rax
+        call vec_new
+        mov [rsp + DE_NEW], rax
+        call vec_new
+        mov [rsp + DE_INTERNAL], rax
+.Lde_batch:
         mov qword ptr [rsp + DE_I], 0
 8:      mov rax, [rsp + DE_I]
         cmp rax, [rsp + DE_THREADS]
@@ -509,15 +583,7 @@ FUNC decompile
         call decompile_worker
         mov rdi, r15
         call ctx_bind                   # (the worker bound its contexts to this thread)
-9:      mov rdi, [rsp + DE_ATTR]
-        call pthread_attr_destroy@PLT
-        # the results, imported as they come (the contexts they are on
-        # are freed then), the functions made from them
-        call vec_new
-        mov [rsp + DE_FUNCS], rax
-        call vec_new
-        mov [rsp + DE_PROBLEMS], rax
-        mov qword ptr [rsp + DE_I], 0   # imported so far
+9:      mov qword ptr [rsp + DE_I], 0   # imported so far
 .Lde_wait:
         mov rax, [rsp + DE_I]
         cmp rax, [r13 + DC_NJOBS]
@@ -558,7 +624,57 @@ FUNC decompile
 13:     test qword ptr [r15 + CTX_VERBOSE], VB_EXPLAIN
         jz 16f
         call .Lde_explain_merge
-16:     mov edi, LOG_INFO
+16:     # the recursive internal functions the batch's VMs found (python's
+        # internal.setdefault, then new), then the next wave: those new, by
+        # entry - a job each
+        mov rdi, [r13 + DC_JOBS]
+        mov rsi, [r13 + DC_NJOBS]
+        mov rdx, [rsp + DE_RECS]
+        mov rcx, [rsp + DE_NEW]
+        call dc_merge_found
+        mov rdi, [rsp + DE_NEW]
+        cmp qword ptr [rdi + VEC_LEN], 0
+        je .Lde_batches_done
+        lea rsi, [rip + record_entry_lt]
+        xor edx, edx
+        call py_sort
+        mov rax, [r13 + DC_NJOBS]
+        add [r13 + DC_BASE], rax
+        mov rax, [rsp + DE_NEW]
+        mov rax, [rax + VEC_LEN]
+        mov [r13 + DC_NJOBS], rax
+        mov qword ptr [r13 + DC_NEXT], 0
+        mov qword ptr [r13 + DC_DONE], 0
+        imul rdi, rax, JB_SIZEOF
+        call arena_alloc
+        mov [r13 + DC_JOBS], rax
+        mov r12, rax
+        xor r14d, r14d
+17:     mov rax, [rsp + DE_NEW]
+        cmp r14, [rax + VEC_LEN]
+        jae 18f
+        mov rax, [rax + VEC_DATA]
+        mov rax, [rax + r14*8]          # (entry, n, m, frame)
+        mov [r12 + JB_INTERNAL], rax
+        mov rdi, [rax + N_DATA]
+        mov [r12 + JB_TARGET], rdi
+        call internal_name              # (its name: the logs', the problems')
+        mov [r12 + JB_HASH], rax
+        add r12, JB_SIZEOF
+        inc r14
+        jmp 17b
+18:     mov rax, [rsp + DE_NEW]
+        mov qword ptr [rax + VEC_LEN], 0
+        mov rdi, [rsp + DE_REQ]
+        cmp rdi, [r13 + DC_NJOBS]
+        jbe 19f
+        mov rdi, [r13 + DC_NJOBS]
+19:     mov [rsp + DE_THREADS], rdi
+        jmp .Lde_batch
+.Lde_batches_done:
+        mov rdi, [rsp + DE_ATTR]
+        call pthread_attr_destroy@PLT
+        mov edi, LOG_INFO
         lea rsi, [rip + .Ls_logname]
         lea rdx, [rip + .Ls_finished]
         call log_fmt
@@ -575,12 +691,23 @@ FUNC decompile
         mov rdi, [rsp + DE_FUNCS]
         call contract_new
         mov [rsp + DE_CONTRACT], rax
+        mov rdi, [rsp + DE_INTERNAL]    # (the internal ones by entry)
+        lea rsi, [rip + internal_entry_lt]
+        xor edx, edx
+        call py_sort
+        mov rax, [rsp + DE_CONTRACT]
+        mov rcx, [rsp + DE_INTERNAL]
+        mov [rax + CT_INTERNAL], rcx
         mov rdi, rax
         call contract_postprocess
         # every function printed now, on threads (the json and the text
         # take them as they are then)
         mov rdi, [rsp + DE_CONTRACT]
         mov rdi, [rdi + CT_FUNCS]
+        mov rsi, [r15 + CTX_FOLD_THREADS]
+        call print_many
+        mov rdi, [rsp + DE_CONTRACT]
+        mov rdi, [rdi + CT_INTERNAL]
         mov rsi, [r15 + CTX_FOLD_THREADS]
         call print_many
         # python's decompilation.json, when asked for (before the text,
@@ -617,7 +744,7 @@ FUNC decompile
         mov rcx, [r15 + CTX_ARENA_PEAK]
         shr rcx, 20
         call log_fmt
-        add rsp, ERR_SIZEOF + 112
+        add rsp, ERR_SIZEOF + 144
         LEAVE
 
 # locals of decompile
@@ -697,6 +824,10 @@ FUNC decompile
         call value_import_root
         mov [rsp + ERR_SIZEOF + 8], rax
         mov rdi, [rsp + ERR_SIZEOF]
+        mov rdi, [rdi + JB_INTERNAL]
+        test rdi, rdi
+        jnz 5f
+        mov rdi, [rsp + ERR_SIZEOF]
         mov rdi, [rdi + JB_HASH]
         call abi_of
         mov rdx, rax
@@ -708,18 +839,25 @@ FUNC decompile
         call err_end
         mov qword ptr [r15 + CTX_EXPLAIN_SB], 0
         # (fn, job index) - the order is restored later
-        mov rsi, [rsp + ERR_SIZEOF]
-        sub rsi, [r13 + DC_JOBS]
-        mov rax, rsi
-        xor edx, edx
-        mov ecx, JB_SIZEOF
-        div rcx
+        mov rdi, [rsp + ERR_SIZEOF]
+        call .Lde_job_index
         mov rsi, rax
-        TAG rsi
         mov rdi, [rsp + ERR_SIZEOF + 16]
         call mk2
         mov rdi, [rsp + ERR_SIZEOF + 24 + 8 + DE_FUNCS]
         mov rsi, rax
+        call vec_push
+        add rsp, ERR_SIZEOF + 24
+        ret
+5:      # a recursive internal function (vmrec.s), its record in rdi - put
+        # in the order of the entries later
+        mov rsi, [rsp + ERR_SIZEOF + 8]
+        call internal_function_new
+        mov [rsp + ERR_SIZEOF + 16], rax
+        call err_end
+        mov qword ptr [r15 + CTX_EXPLAIN_SB], 0
+        mov rdi, [rsp + ERR_SIZEOF + 24 + 8 + DE_INTERNAL]
+        mov rsi, [rsp + ERR_SIZEOF + 16]
         call vec_push
         add rsp, ERR_SIZEOF + 24
         ret
@@ -741,6 +879,8 @@ FUNC decompile
         mov rdi, [rsp + ERR_SIZEOF]
         mov rax, [rdi + JB_HASH]
         mov [rsp + ERR_SIZEOF + 16], rax
+        cmp qword ptr [rdi + JB_INTERNAL], 0    # (a recursive internal function:
+        jne 4f                                  # its name, problems[name] = name)
         lea rdi, [rsp]
         call err_catch
         test eax, eax
@@ -761,16 +901,12 @@ FUNC decompile
         mov rdi, [rdi + JB_HASH]
         call mk2
         mov [rsp + 16 + ERR_SIZEOF + 8], rax
-        # ((hash, name), job index): python's dict has them in the loader's order,
-        # the jobs finish in any order
-        mov rsi, [rsp + 16 + ERR_SIZEOF]
-        sub rsi, [r13 + DC_JOBS]
-        mov rax, rsi
-        xor edx, edx
-        mov ecx, JB_SIZEOF
-        div rcx
+        # ((hash, name), job index): python's dict has them in the loader's order
+        # (then the recursive internal functions', in the order of the
+        # waves), the jobs finish in any order
+        mov rdi, [rsp + 16 + ERR_SIZEOF]
+        call .Lde_job_index
         mov rsi, rax
-        TAG rsi
         mov rdi, [rsp + 16 + ERR_SIZEOF + 8]
         call mk2
         pop rdi
@@ -778,6 +914,16 @@ FUNC decompile
         mov rsi, rax
         call vec_push
         add rsp, ERR_SIZEOF + 24
+        ret
+# rax: the index of the job rdi among the jobs of all the batches (tagged)
+.Lde_job_index:
+        mov rax, rdi
+        sub rax, [r13 + DC_JOBS]
+        xor edx, edx
+        mov ecx, JB_SIZEOF
+        div rcx
+        add rax, [r13 + DC_BASE]
+        TAG rax
         ret
 # --explain: the first and last traces the job (rdi) explained, imported
 # (its context is freed next), and what the first one's text took
@@ -804,15 +950,16 @@ FUNC decompile
         ret
 # --explain: what the jobs printed, one after the other into
 # DC_EXPLAIN_SB (the context's builder again) - python's prev_trace, the
-# trace printed last, carried from each job to the next: a job's first
-# trace equal to it wasn't printed. Their builders freed.
+# trace printed last, carried from each job to the next (and from a batch
+# to the next): a job's first trace equal to it wasn't printed. Their
+# builders freed.
 .Lde_explain_merge:
         push rbx
         push r12
         push r14
         mov rax, [r13 + DC_EXPLAIN_SB]
         mov [r15 + CTX_EXPLAIN_SB], rax
-        xor r14d, r14d                  # the trace printed last (0: none yet)
+        mov r14, [r13 + DC_EXPLAIN_PREV]        # the trace printed last (0: none yet)
         mov rbx, [r13 + DC_JOBS]
         mov r12, [r13 + DC_NJOBS]
 1:      test r12, r12
@@ -850,7 +997,8 @@ FUNC decompile
 4:      add rbx, JB_SIZEOF
         dec r12
         jmp 1b
-5:      pop r14
+5:      mov [r13 + DC_EXPLAIN_PREV], r14
+        pop r14
         pop r12
         pop rbx
         ret
@@ -886,6 +1034,87 @@ FUNC job_order_lt
         movzx eax, al
         ret
 ENDF job_order_lt
+
+# record_entry_lt(rec, rec2, arg) -> eax: the records (entry, n, m, frame)
+# of recursive internal functions by entry (a number: tagged small ints
+# keep their order)
+FUNC record_entry_lt
+        mov rax, [rdi + N_DATA]
+        cmp rax, [rsi + N_DATA]
+        setl al
+        movzx eax, al
+        ret
+ENDF record_entry_lt
+
+# internal_entry_lt(fn, fn2, arg) -> eax: recursive internal functions by
+# entry
+FUNC internal_entry_lt
+        mov rdi, [rdi + FN_INTERNAL]
+        mov rsi, [rsi + FN_INTERNAL]
+        jmp record_entry_lt
+ENDF internal_entry_lt
+
+# dc_merge_found(jobs, njobs, recs, new): python's merge of the recursive
+# internal functions the VMs of a batch of jobs found (decompiler.py:
+# internal.setdefault, new.append) - in the order of the jobs, those whose
+# function was made (JB_ERR 0): each record (entry, n, m, frame) whose
+# entry isn't one of recs' yet goes there, and to new. The jobs' buffers
+# (JB_FOUND, vm_found_buffer's) freed.
+FUNC dc_merge_found
+        ENTER
+        sub rsp, 32
+        .set MF_RECS, 0
+        .set MF_NEW, 8
+        .set MF_REC, 16
+        mov rbx, rdi                    # the job
+        mov r12, rsi                    # the jobs left
+        mov [rsp + MF_RECS], rdx
+        mov [rsp + MF_NEW], rcx
+1:      test r12, r12
+        jz 9f
+        mov r13, [rbx + JB_FOUND]
+        test r13, r13
+        jz 5f
+        cmp qword ptr [rbx + JB_ERR], 0
+        jne 4f
+        xor r14d, r14d
+2:      cmp r14, [r13]
+        jae 4f
+        mov rsi, r14
+        shl rsi, 5
+        lea rsi, [r13 + 8 + rsi]        # the record's numbers
+        inc r14
+        mov rdx, [rsi]                  # its entry: known?
+        mov rdi, [rsp + MF_RECS]
+        mov rcx, [rdi + VEC_LEN]
+        mov r8, [rdi + VEC_DATA]
+3:      test rcx, rcx
+        jz 31f
+        mov rax, [r8]
+        cmp [rax + N_DATA], rdx
+        je 2b
+        add r8, 8
+        dec rcx
+        jmp 3b
+31:     mov edi, 4
+        call mk_tuple
+        mov [rsp + MF_REC], rax
+        mov rdi, [rsp + MF_RECS]
+        mov rsi, rax
+        call vec_push
+        mov rdi, [rsp + MF_NEW]
+        mov rsi, [rsp + MF_REC]
+        call vec_push
+        jmp 2b
+4:      mov rdi, r13
+        call free@PLT
+        mov qword ptr [rbx + JB_FOUND], 0
+5:      add rbx, JB_SIZEOF
+        dec r12
+        jmp 1b
+9:      add rsp, 32
+        LEAVE
+ENDF dc_merge_found
 
 # decompile_run(code, len, threads, only_func, out) -> eax: decompile()
 # on a thread of its own, with a stack as big as the workers' (the folder
@@ -1224,7 +1453,39 @@ FUNC contract_text
 133:    call .Lct_newline
 131:    inc r14
         jmp 13b
-14:     add rsp, 32
+14:     # the recursive internal functions, by entry (vmrec.s)
+        mov r13, [rbx + CT_INTERNAL]
+        cmp qword ptr [r13 + VEC_LEN], 0
+        je 16f
+        mov rdi, r12
+        lea rsi, [rip + C_GRAY]
+        call sb_append_c
+        mov rdi, r12
+        lea rsi, [rip + .Ls_internal]
+        call sb_append_c
+        mov rdi, r12
+        lea rsi, [rip + C_ENDC]
+        call sb_append_c
+        call .Lct_newline
+        call .Lct_newline
+        xor r14d, r14d
+15:     cmp r14, [r13 + VEC_LEN]
+        jae 16f
+        mov rax, [r13 + VEC_DATA]
+        mov rdi, [rax + r14*8]
+        call .Lct_print_function
+        test qword ptr [r15 + CTX_VERBOSE], VB_REPR
+        jz 151f
+        mov rax, [r13 + VEC_DATA]       # --repr: pprint_repr(func.orig_trace)
+        mov rax, [rax + r14*8]
+        mov rsi, [rax + FN_ORIG_TRACE]
+        mov rdi, r12
+        xor edx, edx
+        call pprint_repr
+151:    call .Lct_newline
+        inc r14
+        jmp 15b
+16:     add rsp, 32
         LEAVE
 # locals
 .Lct_newline:
