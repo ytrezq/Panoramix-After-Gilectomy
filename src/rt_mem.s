@@ -1021,6 +1021,11 @@ memo_kinds:
         .byte 3                         # LE_M (pairs)
         .byte 0                         # OVERWRITES_NB (pairs)
         .byte 0                         # EXTRACT_SETMEMS_NB
+        .byte 0                         # CALLDATA_PARAMS
+        .byte 0                         # LINE_SUMMARY
+        .if . - memo_kinds - MEMO_COUNT
+        .error "memo_kinds: not a kind for every memo table (MEMO_COUNT)"
+        .endif
         .text
 
 # memo_sizes_log(): DEBUG: the number of entries of every memo table
