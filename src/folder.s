@@ -20,6 +20,7 @@
 .Ls_assert_merged:  .asciz "folder: a merged if left"
 .Ls_index_if:       .asciz "folder: an if without an else"
 .Ls_index_path:     .asciz "folder: an empty path"
+.Ls_index_setvar:   .asciz "folder: a setvar of no variable"
 
         .text
 
@@ -951,7 +952,8 @@ FUNC join_if
 ENDF join_if
 
 # try_merge_ifs(cond, if_true, if_false, &out): the common beginning of
-# the branches (out[0], a list) moved before the if (out[1])
+# the branches (out[0], a list) moved before the if (out[1]) - before its
+# condition is evaluated: up to a line that may change what it reads
 FUNC try_merge_ifs
         ENTER
         sub rsp, 16
@@ -967,6 +969,11 @@ FUNC try_merge_ifs
         mov rax, [r12 + N_DATA + r14*8]
         cmp rax, [r13 + N_DATA + r14*8]
         jne 2f
+        mov rdi, rax
+        mov rsi, rbx
+        call changes_read
+        test eax, eax
+        jnz 2f
         inc r14d
         jmp 1b
 2:      mov edi, r14d
@@ -990,6 +997,254 @@ FUNC try_merge_ifs
         add rsp, 16
         LEAVE
 ENDF try_merge_ifs
+
+# --- what the lines moved above an if may change of its condition ---
+
+# the operations a line may change the value of, that a condition reads
+# (python's STATE_READS)
+        OPSET_FUNC is_state_read_op, state_reads
+        OPSET_MEMBER state_reads, OP_ST
+        OPSET_MEMBER state_reads, OP_SALL
+        OPSET_MEMBER state_reads, OP_STORAGE
+        OPSET_MEMBER state_reads, OP_STOR
+        OPSET_MEMBER state_reads, OP_MEM
+        OPSET_MEMBER state_reads, OP_VAR
+        OPSET_MEMBER state_reads, OP_TLOAD
+        OPSET_MEMBER state_reads, OP_BALANCE
+        OPSET_MEMBER state_reads, OP_EXTCODESIZE
+        OPSET_MEMBER state_reads, OP_EXTCODEHASH
+        OPSET_END state_reads, OP_COUNT
+
+# the reads of the storage (what a store changes)
+        OPSET_FUNC is_storage_read_op, storage_reads
+        OPSET_MEMBER storage_reads, OP_ST
+        OPSET_MEMBER storage_reads, OP_SALL
+        OPSET_MEMBER storage_reads, OP_STORAGE
+        OPSET_MEMBER storage_reads, OP_STOR
+        OPSET_END storage_reads, OP_COUNT
+
+# the calls and the creations: they change the state, the memory, what
+# they return - not a variable
+        OPSET_FUNC is_call_or_create, calls_creates
+        OPSET_MEMBER calls_creates, OP_CALL
+        OPSET_MEMBER calls_creates, OP_STATICCALL
+        OPSET_MEMBER calls_creates, OP_DELEGATECALL
+        OPSET_MEMBER calls_creates, OP_CALLCODE
+        OPSET_MEMBER calls_creates, OP_CREATE
+        OPSET_MEMBER calls_creates, OP_CREATE2
+        OPSET_END calls_creates, OP_COUNT
+
+# the names of what changes as the contract runs, in a symbol (python's
+# STATE_SYMBOLS): (the text, its length), up to a 0
+        .section .rodata
+.Lss_ext_call:          .ascii "ext_call"
+.Lss_return_data:       .ascii "return_data"
+.Lss_returndatasize:    .ascii "returndatasize"
+.Lss_return_code:       .ascii "return_code"
+.Lss_new_address:       .ascii "new_address"
+.Lss_result:            .ascii ".result"
+.Lss_memcopy:           .ascii "memcopy"
+.Lss_gas:               .ascii "gas"
+.Lss_msize:             .ascii "msize"
+        .section .data.rel.ro
+        .align 8
+state_symbols:
+        .quad .Lss_ext_call, 8, .Lss_return_data, 11, .Lss_returndatasize, 14
+        .quad .Lss_return_code, 11, .Lss_new_address, 11, .Lss_result, 7
+        .quad .Lss_memcopy, 7, .Lss_gas, 3, .Lss_msize, 5, 0, 0
+        .text
+
+# reads_state(exp, novar) -> eax: python's reads_state - exp reads what a
+# line may change: an operation of STATE_READS (a variable but with
+# novar), or a symbol naming state that changes (STATE_SYMBOLS in it)
+FUNC reads_state
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        mov r12d, esi
+        test bl, 1
+        jnz 8f
+        test rbx, rbx
+        jz 8f
+        mov eax, [rbx + N_KIND]
+        cmp eax, K_STR
+        je 5f
+        cmp eax, K_LIST
+        je 3f                           # (python's opcode() of a list: None)
+        cmp eax, K_TUPLE
+        jne 8f
+        mov rdi, rbx
+        call opcode_of
+        mov r13d, eax
+        mov edi, eax
+        call is_state_read_op
+        test eax, eax
+        jz 3f
+        test r12d, r12d
+        jz 9f
+        cmp r13d, OP_VAR
+        jne 9f
+3:      xor r13d, r13d                  # or what's in it
+4:      cmp r13d, [rbx + N_AUX]
+        jae 8f
+        mov rdi, [rbx + N_DATA + r13*8]
+        inc r13d
+        mov esi, r12d
+        call reads_state
+        test eax, eax
+        jz 4b
+9:      mov eax, 1
+        LEAVE
+5:      test dword ptr [rbx + N_AUX], STR_FLOAT
+        jnz 8f                          # (a python float isn't a str)
+        lea r13, [rip + state_symbols]
+6:      mov rdx, [r13]
+        test rdx, rdx
+        jz 8f
+        mov rcx, [r13 + 8]
+        add r13, 16
+        lea rdi, [rbx + N_DATA + 4]
+        mov esi, [rbx + N_DATA]
+        call memmem@PLT
+        test rax, rax
+        jnz 9b
+        jmp 6b
+8:      xor eax, eax
+        LEAVE
+ENDF reads_state
+
+# has_storage_op(exp) -> eax: python's any(get_op(exp, k) is not None for
+# k in ("st", "sall", "storage", "stor")) - a read of the storage in exp,
+# itself or below (the first element of a sequence isn't looked into)
+FUNC has_storage_op
+        STACK_CHECK
+        test dil, 1
+        jnz 8f
+        test rdi, rdi
+        jz 8f
+        mov eax, [rdi + N_KIND]
+        cmp eax, K_TUPLE
+        je 1f
+        cmp eax, K_LIST
+        jne 8f
+1:      ENTER
+        mov rbx, rdi
+        call opcode_of
+        mov edi, eax
+        call is_storage_read_op
+        test eax, eax
+        jnz 7f
+        mov r12d, 1
+3:      cmp r12d, [rbx + N_AUX]
+        jae 6f
+        mov rdi, [rbx + N_DATA + r12*8]
+        inc r12d
+        call has_storage_op
+        test eax, eax
+        jz 3b
+7:      mov eax, 1
+        LEAVE
+6:      xor eax, eax
+        LEAVE
+8:      xor eax, eax
+        ret
+ENDF has_storage_op
+
+# changes_read(line, cond) -> eax: python's changes_read - the line may
+# change what cond reads
+FUNC changes_read
+        STACK_CHECK
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        mov r12, rsi
+        # (the gas left, the size of the memory: any line may change them)
+        mov rdi, r12
+        LOADS rsi, GAS
+        call contains
+        test eax, eax
+        jnz .Lcr_yes
+        mov rdi, r12
+        LOADS rsi, MSIZE
+        call contains
+        test eax, eax
+        jnz .Lcr_yes
+        mov rdi, rbx
+        call opcode_of
+        mov r13d, eax
+        cmp eax, OP_SETVAR
+        jne 1f
+        cmp dword ptr [rbx + N_AUX], 2
+        jb .Lcr_index
+        LOADS rdi, VAR                  # what reads its variable
+        mov rsi, [rbx + N_DATA + 8]
+        call mk2
+        mov rdi, r12
+        mov rsi, rax
+        call contains
+        jmp .Lcr_ret
+1:      cmp eax, OP_SETMEM
+        jne 2f
+        mov rdi, r12                    # what reads the memory
+        call has_mem_op
+        jmp .Lcr_ret
+2:      cmp eax, OP_STORE
+        jne 3f
+        mov rdi, r12                    # what reads the storage
+        call has_storage_op
+        jmp .Lcr_ret
+3:      cmp eax, OP_IF
+        jne 4f
+        # (one-sided, or with an else): its lines
+        mov r14d, 2
+31:     cmp r14d, [rbx + N_AUX]
+        jae .Lcr_no
+        mov rax, [rbx + N_DATA + r14*8]
+        inc r14d
+        mov [rsp], rax
+        mov qword ptr [rsp + 8], 0
+32:     mov rax, [rsp]
+        mov rcx, [rsp + 8]
+        cmp ecx, [rax + N_AUX]
+        jae 31b
+        mov rdi, [rax + N_DATA + rcx*8]
+        inc qword ptr [rsp + 8]
+        mov rsi, r12
+        call changes_read
+        test eax, eax
+        jnz .Lcr_yes
+        jmp 32b
+4:      mov rdi, rbx                    # a comment, a log, a jd, an end
+        call is_str
+        test eax, eax
+        jnz .Lcr_no
+        cmp r13d, OP_LOG
+        je .Lcr_no
+        cmp r13d, OP_JD
+        je .Lcr_no
+        mov edi, r13d
+        call is_terminating_op
+        test eax, eax
+        jnz .Lcr_no
+        mov edi, r13d                   # a call, a creation: not a variable
+        call is_call_or_create
+        mov esi, eax
+        mov rdi, r12
+        call reads_state
+        jmp .Lcr_ret
+.Lcr_yes:
+        mov eax, 1
+        jmp .Lcr_ret
+.Lcr_no:
+        xor eax, eax
+.Lcr_ret:
+        add rsp, 16
+        LEAVE
+.Lcr_index:
+        mov edi, E_INDEX
+        lea rsi, [rip + .Ls_index_setvar]
+        call err_throw
+ENDF changes_read
 
 # --- the folder proper ---
 
@@ -1160,7 +1415,22 @@ FUNC try_merge
         jmp 2b
 3:      dec r14d
         jz 5f
-        # [('or', one[:-idx], two[:-idx])] + one[-idx:]
+        # (the line after a one-sided or is the guard of what follows it,
+        # that cleanup_ors skips: it stays with its or)
+31:     mov rdi, rbx
+        mov esi, r14d
+        call .Ltm_or1_before
+        test eax, eax
+        jnz 32f
+        mov rdi, r12
+        mov esi, r14d
+        call .Ltm_or1_before
+        test eax, eax
+        jz 4f
+32:     dec r14d
+        jnz 31b
+        jmp 5f
+4:      # [('or', one[:-idx], two[:-idx])] + one[-idx:]
         mov edi, [rbx + N_AUX]
         sub edi, r14d
         lea rsi, [rbx + N_DATA]
@@ -1202,6 +1472,32 @@ FUNC try_merge
         mov edi, E_INDEX
         lea rsi, [rip + .Ls_index_path]
         call err_throw
+# local: eax 1 when x[-idx - 1] of the path rdi (esi: idx) is a one-sided
+# or (a leaf: rax and rcx changed)
+.Ltm_or1_before:
+        mov ecx, [rdi + N_AUX]
+        sub ecx, esi
+        dec ecx
+        mov rcx, [rdi + N_DATA + rcx*8]
+        xor eax, eax
+        test cl, 1
+        jnz 1f
+        test rcx, rcx
+        jz 1f
+        cmp dword ptr [rcx + N_KIND], K_TUPLE
+        jne 1f
+        cmp dword ptr [rcx + N_AUX], 2
+        jne 1f
+        mov rcx, [rcx + N_DATA]
+        test cl, 1
+        jnz 1f
+        cmp dword ptr [rcx + N_KIND], K_STR
+        jne 1f
+        mov ecx, [rcx + N_AUX]
+        and ecx, STR_ID_MASK
+        cmp ecx, OP_OR
+        sete al
+1:      ret
 ENDF try_merge
 
 # cleanup_ors(path) -> list: the conditions leave the ors (the second
@@ -1413,7 +1709,30 @@ FUNC merge_ifs
         call list_from
         mov rdi, rax
         call merge_ifs
-        mov rdx, rax
+        mov [rsp + 8], rax
+        # - when its body ends the execution: else what follows runs after
+        # it too, it's no else, nothing of the two is the same code
+        mov rdi, [rsp]
+        call seq_last
+        test rax, rax
+        jz 3f
+        mov rdi, rax
+        call opcode_of
+        mov edi, eax
+        call is_terminating_op
+        test eax, eax
+        jnz 4f
+3:      mov rdi, [r14 + N_DATA + 8]
+        mov rsi, [rsp]
+        call mk_if1
+        mov rdi, r12
+        mov rsi, rax
+        call vec_push
+        mov rdi, r12
+        mov rsi, [rsp + 8]
+        call vec_extend_seq
+        jmp .Lmg_done
+4:      mov rdx, [rsp + 8]
         mov rdi, [r14 + N_DATA + 8]
         mov rsi, [rsp]
         lea rcx, [rsp + 16]

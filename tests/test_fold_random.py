@@ -101,6 +101,31 @@ def raux(d=0):
     return lines + copy.deepcopy(rnd.choice(ENDS))
 
 
+# the whole fold (as_paths, meta_fold_paths - fold_paths, flatten's
+# try_merge, cleanup_ors, make_ifs, merge_ifs and its try_merge_ifs -
+# fold_aux) on traces like the VM's: branches beginning alike, conditions
+# reading what the lines before them change (a variable, the memory, the
+# storage, a call's result, the gas), ifs whose branches go on after them
+SLINES = [("setvar", 1, ("add", ("var", 1), 1)), ("setvar", 2, 5), ("setmem", ("range", 64, 32), ("cd", 4)),
+          ("store", 256, 0, 1, ("cd", 36)), ("log", ("data",), 7), ("call", "gas", ("cd", 4), 0, None, None),
+          ("staticcall", "gas", ("cd", 4), 0, None, None), ("tstore", 1, 2), "a comment", ("jd", "100", ())]
+SCONDS = [("lt", ("var", 1), 5), ("iszero", ("var", 2)), ("eq", ("storage", 256, 0, 1), 0),
+          ("lt", ("mem", ("range", 64, 32)), 9), ("eq", "ext_call.success", 0), ("lt", "gas", 2300),
+          ("gt", "msize", 64), ("lt", "callvalue", 3), ("eq", ("cd", 4), 1), ("tload", 1),
+          ("eq", ("balance", "caller"), 0), ("lt", ("var", "_msize"), 5)]
+SENDS = [[("stop",)], [("revert", None)], [("return", ("data", 1))], [("invalid",)], [("revert", ("data", 2))]]
+
+
+def rfold(d=0):
+    lines = [rnd.choice(SLINES) for _ in range(rnd.randint(0, 3))]
+    if d < 3 and rnd.random() < 0.6:
+        common = [rnd.choice(SLINES) for _ in range(rnd.randint(0, 3))]
+        lines.append(("if", rnd.choice(SCONDS), common + rfold(d + 1), common + rfold(d + 1)))
+        if rnd.random() < 0.2:
+            lines += [rnd.choice(SLINES)] + copy.deepcopy(rnd.choice(SENDS))
+        return lines
+    return lines + copy.deepcopy(rnd.choice(SENDS))
+
 
 if __name__ == "__main__":
     # python loops forever on some (the same path twice: the beginning they
@@ -136,5 +161,9 @@ if __name__ == "__main__":
         check("is_end_block", tr, run(lambda x: x == [("return", 0)] or x == [("revert", None)]
                                       or (len(x) > 0 and isinstance(x[0], tuple) and x[0][:1] == ("invalid",)), tr),
               f"is_end_block case {i}")
+
+    for i in range(count):
+        tr = rfold()
+        check("fold", tr, run(lambda x: folder.fold(copy.deepcopy(x)), tr), f"fold case {i}")
     print(f"{test_simplify.cases} cases, {test_simplify.bad} mismatches ({skipped} where python loops, skipped)")
     sys.exit(1 if test_simplify.bad else 0)
