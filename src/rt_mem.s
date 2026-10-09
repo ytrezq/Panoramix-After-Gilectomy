@@ -100,17 +100,18 @@ FUNC ctx_try_new
         mov edx, CTX_SIZE
         call memset@PLT
         mov qword ptr [rbx + CTX_ARENA_CHUNKSZ], ARENA_CHUNK_DEFAULT
-        # first chunk
+        # first chunk: one of the default size, from the pool (its payload
+        # was the default size: a chunk of its own, mapped and unmapped for
+        # every context - 1024 page faults each, then 2 MiB huge pages)
         mov rdi, rbx
-        mov esi, ARENA_CHUNK_DEFAULT
+        mov esi, ARENA_CHUNK_DEFAULT - CHUNK_DATA
         mov edx, 2                      # (0 if it can't be had)
         call arena_new_chunk
         test rax, rax
         jz 8f
         # hash-cons table: 4096 entries to start with
         mov edi, 4096
-        mov esi, 8
-        call calloc@PLT
+        call hc_table_alloc
         test rax, rax
         jz 7f
         mov [rbx + CTX_HC_TABLE], rax
@@ -166,7 +167,8 @@ FUNC ctx_free
         mov rsi, [rbx + CTX_ARENA_CUR]
         call chunks_release
         mov rdi, [rbx + CTX_HC_TABLE]
-        call free@PLT
+        mov rsi, [rbx + CTX_HC_CAP]
+        call hc_table_free
         mov rdi, rbx
         call free@PLT
         LEAVE
@@ -187,6 +189,8 @@ FUNC arena_new_chunk
         mov rax, [rbx + CTX_ARENA_CHUNKSZ]
         cmp r12, rax
         cmovb r12, rax
+        add r12, HUGE_PAGE - 1          # (a chunk past the default size:
+        and r12, -HUGE_PAGE             # whole huge pages, see below)
         test edx, edx
         jz 1f
         mov rax, [rbx + CTX_MEM_LIMIT]
@@ -203,10 +207,22 @@ FUNC arena_new_chunk
         call pool_pop                   # a chunk used before
         test rax, rax
         jnz 4f
+        mov edi, ARENA_CHUNK_DEFAULT
         call chunk_map_huge             # a new one, on huge pages if it can
         test rax, rax
         jnz 4f
-3:      xor edi, edi
+        jmp 6f
+3:      # a bigger one, for a block past the default size (a vector, a
+        # memo table's entries, of 4 MiB and up): on huge pages too, as
+        # many as it takes - a page fault per 2 MiB where it was one per
+        # 4 KiB, 1024 per such block, and each context makes its own
+        # (what's left of the last huge page is for the blocks that
+        # follow, the chunk being the current one)
+        mov rdi, r12
+        call chunk_map_huge
+        test rax, rax
+        jnz 4f
+6:      xor edi, edi
         mov rsi, r12
         mov edx, 3                      # PROT_READ | PROT_WRITE
         mov ecx, 0x22                   # MAP_PRIVATE | MAP_ANONYMOUS
@@ -428,14 +444,18 @@ ENDF mem_limit_for
 .Ls_cgroup_max:  .asciz "/sys/fs/cgroup/memory.max"
         .text
 
-# chunk_map_huge() -> rax: a new chunk of the default size, aligned on
-# 2 MiB and advised to be backed by huge pages (transparent huge pages:
-# a fault per 2 MiB instead of per 4 KiB - the arenas are touched
-# linearly and mostly used); 0 if the mapping failed
+# chunk_map_huge(size) -> rax: a new mapping of size bytes (a multiple of
+# 2 MiB), aligned on 2 MiB and advised to be backed by huge pages
+# (transparent huge pages: a fault per 2 MiB instead of per 4 KiB - the
+# arenas are touched linearly and mostly used; and a TLB entry per 2 MiB
+# for the hash-cons table, read all over); 0 if the mapping failed. Zeroed,
+# as any new mapping. (madvise and the munmaps of the slack act on this
+# mapping only, which no other thread knows of yet.)
 FUNC chunk_map_huge
         ENTER
+        mov r13, rdi
         xor edi, edi
-        mov esi, ARENA_CHUNK_DEFAULT + HUGE_PAGE
+        lea rsi, [r13 + HUGE_PAGE]
         mov edx, 3                      # PROT_READ | PROT_WRITE
         mov ecx, 0x22                   # MAP_PRIVATE | MAP_ANONYMOUS
         mov r8, -1
@@ -451,13 +471,13 @@ FUNC chunk_map_huge
         jz 1f
         mov rdi, rbx
         call munmap@PLT
-1:      lea rdi, [r12 + ARENA_CHUNK_DEFAULT]
-        lea rsi, [rbx + ARENA_CHUNK_DEFAULT + HUGE_PAGE]
+1:      lea rdi, [r12 + r13]
+        lea rsi, [rbx + r13 + HUGE_PAGE]
         sub rsi, rdi                    # and the tail
         jz 2f
         call munmap@PLT
 2:      mov rdi, r12
-        mov esi, ARENA_CHUNK_DEFAULT
+        mov rsi, r13
         mov edx, 14                     # MADV_HUGEPAGE (a hint: its failure changes nothing)
         call madvise@PLT
         mov rax, r12
@@ -465,6 +485,53 @@ FUNC chunk_map_huge
 8:      xor eax, eax
         LEAVE
 ENDF chunk_map_huge
+
+# hc_table_alloc(slots) -> rax: a zeroed hash-cons table (8-byte slots), 0
+# if the system has no more. One of 2 MiB and more on huge pages
+# (chunk_map_huge): the probes land all over it, a TLB miss each on 4 KiB
+# pages, and each table was a page fault per 4 KiB - 512 per 4 MiB, for
+# every table of every context and every doubling (two thirds of the page
+# faults of cETH). A smaller one from the C allocator.
+FUNC hc_table_alloc
+        shl rdi, 3
+        cmp rdi, HUGE_PAGE
+        jae 1f
+        mov esi, 1
+        jmp calloc@PLT
+1:      add rdi, HUGE_PAGE - 1
+        and rdi, -HUGE_PAGE
+        ENTER
+        mov r14, rdi
+        call chunk_map_huge
+        test rax, rax
+        jnz 2f
+        xor edi, edi                    # (no huge pages: any mapping)
+        mov rsi, r14
+        mov edx, 3                      # PROT_READ | PROT_WRITE
+        mov ecx, 0x22                   # MAP_PRIVATE | MAP_ANONYMOUS
+        mov r8, -1
+        xor r9d, r9d
+        call mmap@PLT
+        cmp rax, -1
+        jne 2f
+        xor eax, eax
+2:      LEAVE
+ENDF hc_table_alloc
+
+# hc_table_free(table, slots): a table of hc_table_alloc's, of that many
+# slots
+FUNC hc_table_free
+        test rdi, rdi
+        jz 2f
+        shl rsi, 3
+        cmp rsi, HUGE_PAGE
+        jae 1f
+        jmp free@PLT
+1:      add rsi, HUGE_PAGE - 1
+        and rsi, -HUGE_PAGE
+        jmp munmap@PLT
+2:      ret
+ENDF hc_table_free
 
 # chunks_release(head, cur) -> rax: the bytes released. A context's chunks
 # (a list, `head` the current one, bump-allocated up to `cur`) go back:
@@ -681,8 +748,7 @@ FUNC ctx_compact
         mov qword ptr [r15 + CTX_ARENA_TOTAL], 0
         mov qword ptr [r15 + CTX_HC_TABLE], 0
         mov edi, 4096
-        mov esi, 8
-        call calloc@PLT
+        call hc_table_alloc
         test rax, rax
         jz .Lcc_no_table
         mov [r15 + CTX_HC_TABLE], rax
@@ -696,7 +762,7 @@ FUNC ctx_compact
         # the new arena's first chunk, where the scratch mpz go (GMP's
         # allocations don't throw: this one does)
         mov rdi, r15
-        mov esi, ARENA_CHUNK_DEFAULT
+        mov esi, ARENA_CHUNK_DEFAULT - CHUNK_DATA       # (one of the pool's)
         mov edx, 1
         call arena_new_chunk
         call ctx_init_mpz
@@ -751,7 +817,8 @@ FUNC ctx_compact
         call chunks_release
         mov [rsp + CC_FREED], rax
         mov rdi, r13
-        call free@PLT
+        mov rsi, [rsp + CC_OLD + 16]
+        call hc_table_free
         # set_variables' tables, made again of what it was given
         mov rax, [rsp + CC_NEW + 16]
         mov [r15 + CTX_VR_ARGS], rax
@@ -773,7 +840,8 @@ FUNC ctx_compact
         mov rsi, [r15 + CTX_ARENA_CUR]
         call chunks_release
         mov rdi, [r15 + CTX_HC_TABLE]
-        call free@PLT
+        mov rsi, [r15 + CTX_HC_CAP]
+        call hc_table_free
         mov [r15 + CTX_ARENA_CHUNKS], r12      # (r12, r13, r14: as they were
         mov [r15 + CTX_HC_TABLE], r13          # at err_catch)
         mov [r15 + CTX_ARENA_CUR], r14

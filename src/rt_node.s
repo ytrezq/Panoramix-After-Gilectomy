@@ -223,8 +223,7 @@ FUNC hc_grow
         jb 7f
         shl rdi, 1
 7:      mov [rsp], rdi
-        mov esi, 8
-        call calloc@PLT
+        call hc_table_alloc
         test rax, rax
         jz .Lhc_no_table
         mov rcx, [rsp]
@@ -260,7 +259,8 @@ FUNC hc_grow
 2:      inc r14
         jmp 1b
 3:      mov rdi, r12
-        call free@PLT
+        mov rsi, r13
+        call hc_table_free
         add rsp, 16
         LEAVE
 .Lhc_no_table:
