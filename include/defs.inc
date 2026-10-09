@@ -622,7 +622,8 @@ ENDF \fname
 .set MEMO_OVERWRITES_NB, 42 # MEMO_OVERWRITES of a loop without its breaks (breaks=False)
 .set MEMO_EXTRACT_SETMEMS_NB, 43 # MEMO_EXTRACT_SETMEMS without the breaks (breaks=False)
 .set MEMO_CALLDATA_PARAMS, 44 # an abi's inputs -> calldata_params of them (sigs.s)
-.set MEMO_COUNT, 45         # (at most 64: CTX_MEMO's slots)
+.set MEMO_LINE_SUMMARY, 45  # an if or a while -> line_summary of it (tagged: conds.s)
+.set MEMO_COUNT, 46         # (at most 64: CTX_MEMO's slots)
 # sentinel values stored in memo tables for python's None / False (values
 # and pointers are never 2 or 4)
 .set MEMO_NONE, 2
@@ -630,6 +631,20 @@ ENDF \fname
 .set MEMO_TRUE, 6
 .set MEMO_CANNOT, 8
 .set SIGN_NONE, 0x40000000     # get_sign: unknown (python None)
+
+# what changes_reads finds in a line (conds.s, line_summary), and the kinds
+# of the state an expression reads (arith.s, state_kinds): a writer's bit
+# is the kind of the state it changes, but LS_CALL's (it changes them all)
+.set LS_OK, 1                 # walked through without an error of the walk's own
+.set LS_CALL, 2               # a call, a creation, a recursive internal function
+.set LS_STATIC, 4             # a staticcall, a precompiled: what calls return
+.set LS_STORE, 8              # a store
+.set LS_TSTORE, 16            # a tstore
+.set LS_WRITERS, LS_CALL | LS_STATIC | LS_STORE | LS_TSTORE
+.set SK_CALL, LS_STATIC       # a result of the last call
+.set SK_STORAGE, LS_STORE
+.set SK_TLOAD, LS_TSTORE
+.set SK_ACCOUNT, 32           # a balance, a code (only LS_CALL changes it)
 
 # --- the symbolic VM (vmnode.s, vm.s) ---
 

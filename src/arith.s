@@ -2240,6 +2240,52 @@ FUNC state_read
         ret
 ENDF state_read
 
+# state_kinds(exp) -> eax: the kinds of the state exp reads, the state_read
+# of each of its parts (the parts changed_reads walks: the tuples' and
+# exp), as SK_ bits (defs.inc). Every one of them involves a volatile
+# string (storage, tload, balance, extcodesize, extcodehash, the
+# CALL_RESULTS): a tuple without one in it (HF_VOLATILE) reads none, and
+# isn't walked.
+FUNC state_kinds
+        STACK_CHECK
+        xor eax, eax
+        test dil, 1
+        jnz 9f
+        test rdi, rdi
+        jz 9f
+        mov ecx, [rdi + N_KIND]
+        cmp ecx, K_STR
+        je 5f
+        cmp ecx, K_TUPLE
+        jne 9f
+        movabs rcx, HF_VOLATILE
+        test [rdi + N_HASH], rcx
+        jz 9f
+        ENTER
+        mov rbx, rdi
+        call state_read
+        lea rcx, [rip + .Lsk_of_sr]
+        movzx r12d, byte ptr [rcx + rax]
+        xor r13d, r13d
+1:      cmp r13d, [rbx + N_AUX]
+        jae 2f
+        mov rdi, [rbx + N_DATA + r13*8]
+        inc r13d
+        call state_kinds
+        or r12d, eax
+        jmp 1b
+2:      mov eax, r12d
+        LEAVE
+5:      test dword ptr [rdi + N_AUX], STR_CALLRES
+        jz 9f
+        mov eax, SK_CALL
+9:      ret
+ENDF state_kinds
+
+        .section .rodata
+.Lsk_of_sr:     .byte 0, SK_STORAGE, SK_TLOAD, SK_ACCOUNT, SK_CALL
+        .text
+
 # may_alias(a, b) -> eax: python's may_alias - 0 when the storage slots
 # (or transient keys) a and b are sure to differ
 FUNC may_alias

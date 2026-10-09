@@ -825,11 +825,31 @@ ENDF precompiled_results
 # changes_reads(line, exp) -> eax: python's changes_reads - the line may
 # change something that exp reads from the state (see
 # arithmetic.changed_by): the storage it writes, what a call can change...
+# The ifs and the whiles are asked of again and again, for one expression
+# after the other (replace_mem: does each if affect what it replaces, then
+# each if in it, and so on): what they hold is summarized once
+# (line_summary), and one that writes none of the state exp reads isn't
+# walked again - the answer is no, as python's walk gives it, and that
+# walk has no error on the way (the summary says so; where it would, it's
+# the walk, as python's).
 FUNC changes_reads
+        ENTER
+        sub rsp, 16
+        mov qword ptr [rsp], -1         # the kinds of state exp reads: not known yet
+        mov rdx, rsp
+        call cr_walk
+        add rsp, 16
+        LEAVE
+ENDF changes_reads
+
+# cr_walk(line, exp, kinds) -> eax: changes_reads, kinds pointing to what
+# state_kinds(exp) is (-1 until it's asked: once for the whole walk)
+FUNC cr_walk
         STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
+        mov r13, rdx
         OPCODE_OF_RDI
         cmp eax, OP_STORE
         je .Lcr_store
@@ -857,6 +877,7 @@ FUNC changes_reads
         je .Lcr_if
         cmp eax, OP_WHILE
         je .Lcr_while
+.Lcr_no:
         xor eax, eax
         LEAVE
 .Lcr_store:
@@ -888,42 +909,59 @@ FUNC changes_reads
 .Lcr_if:
         cmp dword ptr [rbx + N_AUX], 4
         jb .Lcr_index
+        mov rdi, rbx
+        mov rsi, r12
+        mov rdx, r13
+        call cr_settled
+        test eax, eax
+        jnz .Lcr_no
         mov rdi, [rbx + N_DATA + 16]
         mov rsi, r12
-        call any_changes_reads
+        mov rdx, r13
+        call cr_walk_lines
         test eax, eax
         jnz 2f
         mov rdi, [rbx + N_DATA + 24]
         mov rsi, r12
-        call any_changes_reads
+        mov rdx, r13
+        call cr_walk_lines
 2:      LEAVE
 .Lcr_while:
         cmp dword ptr [rbx + N_AUX], 3
         jb .Lcr_index
+        mov rdi, rbx
+        mov rsi, r12
+        mov rdx, r13
+        call cr_settled
+        test eax, eax
+        jnz .Lcr_no
         mov rdi, [rbx + N_DATA + 16]
         mov rsi, r12
-        call any_changes_reads
+        mov rdx, r13
+        call cr_walk_lines
         LEAVE
 .Lcr_index:
         call cn_index_error
-ENDF changes_reads
+ENDF cr_walk
 
-# any_changes_reads(lines, exp) -> eax: changes_reads of one of the lines
-FUNC any_changes_reads
+# cr_walk_lines(lines, exp, kinds) -> eax: cr_walk of one of the lines
+FUNC cr_walk_lines
         STACK_CHECK
         ENTER
         mov rbx, rdi
         mov r12, rsi
+        mov r13, rdx
         IS_SEQ_RDI
         test eax, eax
         jz 9f
-        xor r13d, r13d
-1:      cmp r13d, [rbx + N_AUX]
+        xor r14d, r14d
+1:      cmp r14d, [rbx + N_AUX]
         jae 2f
-        mov rdi, [rbx + N_DATA + r13*8]
-        inc r13d
+        mov rdi, [rbx + N_DATA + r14*8]
+        inc r14d
         mov rsi, r12
-        call changes_reads
+        mov rdx, r13
+        call cr_walk
         test eax, eax
         jz 1b
         LEAVE
@@ -932,15 +970,174 @@ FUNC any_changes_reads
 9:      mov edi, E_TYPE
         lea rsi, [rip + .Ls_cn_type]
         call err_throw
-ENDF any_changes_reads
+ENDF cr_walk_lines
+
+# cr_settled(line, exp, kinds) -> eax: 1 when the line (an if, a while)
+# writes none of the kinds of state exp reads, and the walk of it has no
+# error (its summary: then cr_walk's answer is 0, without the walk); 0
+# when it's for the walk to say. The kinds are worked out here, the
+# first time they're needed.
+FUNC cr_settled
+        ENTER
+        mov r12, rsi
+        mov r13, rdx
+        call line_summary
+        test eax, LS_OK
+        jz 8f
+        test eax, LS_WRITERS
+        jz 9f                           # (no writer: whatever exp reads)
+        mov ebx, eax
+        mov eax, [r13]
+        test eax, eax
+        jns 1f
+        mov rdi, r12
+        call state_kinds
+        mov [r13], eax
+1:      test eax, eax
+        jz 9f                           # (exp reads none of the state)
+        test ebx, LS_CALL
+        jnz 8f
+        test eax, ebx
+        jnz 8f
+9:      mov eax, 1
+        LEAVE
+8:      xor eax, eax
+        LEAVE
+ENDF cr_settled
+
+# line_summary(line) -> eax: what cr_walk finds in the line, LS_ bits: the
+# writers in it, and LS_OK if it walks the whole of it without an error
+# of its own (a line too short for what's read of it, branches that
+# aren't sequences). An if's and a while's memoized (MEMO_LINE_SUMMARY):
+# they're asked of again and again.
+FUNC line_summary
+        STACK_CHECK
+        OPCODE_OF_RDI
+        cmp eax, OP_STORE
+        je 3f
+        cmp eax, OP_TSTORE
+        je 4f
+        cmp eax, OP_IF
+        je 5f
+        cmp eax, OP_WHILE
+        je 5f
+        cmp eax, OP_STATICCALL
+        je 2f
+        cmp eax, OP_PRECOMPILED
+        je 2f
+        cmp eax, OP_CALL
+        je 1f
+        cmp eax, OP_DELEGATECALL
+        je 1f
+        cmp eax, OP_CALLCODE
+        je 1f
+        cmp eax, OP_CODECALL
+        je 1f
+        cmp eax, OP_CREATE
+        je 1f
+        cmp eax, OP_CREATE2
+        je 1f
+        cmp eax, OP_INTERNAL
+        je 1f
+        mov eax, LS_OK
+        ret
+1:      mov eax, LS_OK | LS_CALL
+        ret
+2:      mov eax, LS_OK | LS_STATIC
+        ret
+3:      xor eax, eax                    # (too short: cr_walk's IndexError)
+        cmp dword ptr [rdi + N_AUX], 4
+        jb 9f
+        mov eax, LS_OK | LS_STORE
+9:      ret
+4:      xor eax, eax
+        cmp dword ptr [rdi + N_AUX], 2
+        jb 9b
+        mov eax, LS_OK | LS_TSTORE
+        ret
+5:      ENTER
+        mov rbx, rdi
+        mov r12d, eax
+        mov edi, MEMO_LINE_SUMMARY
+        mov rsi, rbx
+        call memo_get
+        test rax, rax
+        jz 1f
+        shr eax, 1                      # (tagged)
+        LEAVE
+1:      xor r13d, r13d                  # (too short: cr_walk's IndexError)
+        cmp r12d, OP_IF
+        jne 2f
+        cmp dword ptr [rbx + N_AUX], 4
+        jb 6f
+        mov rdi, [rbx + N_DATA + 16]
+        call lines_summary
+        mov r13d, eax
+        mov rdi, [rbx + N_DATA + 24]
+        call lines_summary
+        mov ecx, eax
+        and eax, r13d                   # LS_OK if in both
+        or ecx, r13d                    # the writers of either
+        and eax, LS_OK
+        and ecx, LS_WRITERS
+        or eax, ecx
+        mov r13d, eax
+        jmp 6f
+2:      cmp dword ptr [rbx + N_AUX], 3
+        jb 6f
+        mov rdi, [rbx + N_DATA + 16]
+        call lines_summary
+        mov r13d, eax
+6:      mov edi, MEMO_LINE_SUMMARY
+        mov rsi, rbx
+        lea rdx, [r13*2 + 1]
+        call memo_put
+        mov eax, r13d
+        LEAVE
+ENDF line_summary
+
+# lines_summary(lines) -> eax: line_summary of a branch, a body - LS_OK if
+# it's a sequence and in every line of it
+FUNC lines_summary
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        IS_SEQ_RDI
+        test eax, eax
+        jz 9f
+        mov r12d, LS_OK
+        xor r13d, r13d
+1:      cmp r13d, [rbx + N_AUX]
+        jae 8f
+        mov rdi, [rbx + N_DATA + r13*8]
+        inc r13d
+        call line_summary
+        mov ecx, eax
+        and eax, LS_WRITERS
+        or ecx, ~LS_OK
+        or r12d, eax                    # the writers of any
+        and r12d, ecx                   # LS_OK if in each
+        jmp 1b
+8:      mov eax, r12d
+9:      LEAVE
+ENDF lines_summary
 
 # changed_any(exp, op, target) -> eax: python's bool(changed_reads(exp, op,
-# target)) - a read of the state in exp that op may change
+# target)) - a read of the state in exp that op may change. A tuple
+# without a volatile string (HF_VOLATILE) reads none of the state, in it or
+# in its parts (state_kinds): not walked.
 FUNC changed_any
         STACK_CHECK
         test dil, 1
         jnz 8f                          # (a number reads nothing)
-        ENTER
+        test rdi, rdi
+        jz 0f
+        cmp dword ptr [rdi + N_KIND], K_TUPLE
+        jne 0f
+        movabs rax, HF_VOLATILE
+        test [rdi + N_HASH], rax
+        jz 8f
+0:      ENTER
         mov rbx, rdi
         mov r12d, esi
         mov r13, rdx
