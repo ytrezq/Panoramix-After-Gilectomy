@@ -2,7 +2,10 @@
 """The folder's fold_paths on random paths against python's: paths of
 lines from a small alphabet, made to share beginnings and endings (the
 merges, the ors split in two - fold_or's search for the two stretches -
-and the ors that can't be).
+and the ors that can't be); the paths of traces whose ifs nest deep (one
+branch ending: a path a level, a line shorter each). Both of their
+folds: on stretches of the paths (fold_paths), and on lists, the paths
+copied at each level (fold_path_lists, python's original algorithm).
 
     tests/test_fold_random.py [SEED [COUNT]]
 """
@@ -11,7 +14,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.environ.get("PANORAMIX_PY", os.path.join(HERE, "..", "..", "panoramix")))
 sys.path.insert(0, os.environ.get("PANASM_BUILD") or os.path.join(HERE, "..", "build"))
 import logging; logging.disable(logging.CRITICAL)
-sys.setrecursionlimit(10000)
+sys.setrecursionlimit(100000)
+import resource
+_soft, _hard = resource.getrlimit(resource.RLIMIT_STACK)
+if _soft != resource.RLIM_INFINITY and _soft < (512 << 20):
+    resource.setrlimit(resource.RLIMIT_STACK, (512 << 20 if _hard == resource.RLIM_INFINITY else min(512 << 20, _hard), _hard))
 import panoramix_asm as A
 from panoramix import folder
 from test_simplify import check, run
@@ -79,6 +86,24 @@ def paths():
             p = rpath(rnd.randint(1, 5))
         res.append(begin + p + end if rnd.random() < 0.7 else p)
     return [p for p in res if p]
+
+def deep_trace(depth):
+    """ifs nested depth deep: one branch ends (a revert, an invalid), the
+    other goes on - now and then with lines before, or both going on"""
+    if depth == 0:
+        return [rnd.choice(SLINES)] + copy.deepcopy(rnd.choice(SENDS))
+    lines = [rnd.choice(SLINES) for _ in range(rnd.choice([0, 0, 0, 1, 2]))]
+    cond = ("eq", ("cd", 4 + 32 * depth), rnd.randint(0, 3))
+    end = copy.deepcopy(rnd.choice(SENDS))
+    rest = deep_trace(depth - 1)
+    if rnd.random() < 0.05 and depth < 40:
+        branches = [rest, deep_trace(depth - 1)]
+    else:
+        branches = [rest, [rnd.choice(SLINES)] * rnd.randint(0, 1) + end]
+    if rnd.random() < 0.5:
+        branches.reverse()
+    return lines + [("if", cond, branches[0], branches[1])]
+
 
 # fold_aux, its final rules: a one-sided if followed by an end (a revert
 # with no data, a return of 0, an invalid) takes the end in
@@ -154,6 +179,28 @@ if __name__ == "__main__":
             skipped += 1
             continue
         check("fold_paths", ps, expected, f"case {i}")
+        # and on lists (python loops forever on the same path twice)
+        signal.alarm(5)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                expected = run(lambda x: folder.fold_path_lists(copy.deepcopy(x)), ps)
+        except PyTimeout:
+            skipped += 1
+            continue
+        finally:
+            signal.alarm(0)
+        if "PyTimeout" not in expected:
+            check("fold_path_lists", ps, expected, f"case {i}")
+
+    for i in range(max(count // 50, 2)):
+        # (the paths of n levels: n**2 lines, the text of the test a lot more)
+        tr = deep_trace(rnd.randint(1, 250))
+        ps = folder.as_paths(tr)
+        check("fold_paths", ps, run(lambda x: folder.fold_paths(list(x)), ps), f"deep case {i}")
+        check("fold_path_lists", ps, run(lambda x: folder.fold_path_lists(list(x)), ps), f"deep case {i}")
+        if i % 5 == 0:
+            tr = deep_trace(rnd.randint(250, 1500))
+        check("fold", tr, run(lambda x: folder.fold(copy.deepcopy(x)), tr), f"deep fold case {i}")
 
     for i in range(count):
         tr = raux()

@@ -2496,9 +2496,11 @@ FUNC sort_by_length_desc
         LEAVE
 ENDF sort_by_length_desc
 
-# fold_paths(paths) -> list: merges the beginnings and the endings of the
-# paths recursively
-FUNC fold_paths
+# fold_path_lists(paths) -> list: merges the beginnings and the endings of
+# the paths recursively, on lists (python's fold_path_lists): the paths
+# with a line that's a list or an or, which folder_or and folder_and
+# expand - fold_paths folds the others on stretches of them
+FUNC fold_path_lists
         STACK_CHECK
         ENTER
         sub rsp, 64
@@ -2677,7 +2679,7 @@ FUNC fold_paths
 .Lfp_done:
         add rsp, 64
         LEAVE
-ENDF fold_paths
+ENDF fold_path_lists
 
 # list_prepend(list, x) -> [x] + list
 FUNC list_prepend
@@ -2840,5 +2842,627 @@ FUNC fold_or
         lea rsi, [rip + .Ls_index_path]
         call err_throw
 ENDF fold_or
+
+# fold_paths(paths) -> list: python's fold_paths - the paths folded on
+# stretches of them (fold_stretches), not on copies: each level of the
+# recursion takes the same lines off the beginnings or the ends of all
+# its paths, and copying what's left at each level took a trace whose
+# ifs nest n deep n**3 of the memory (past a thousand levels, more than a
+# function is given). The paths with a line that's a list or an or, as
+# lists (fold_path_lists).
+FUNC fold_paths
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        xor r12d, r12d
+1:      cmp r12d, [rbx + N_AUX]
+        jae 2f
+        mov rdi, [rbx + N_DATA + r12*8]
+        call and_plain
+        test eax, eax
+        jz 3f
+        inc r12d
+        jmp 1b
+2:      mov edi, [rbx + N_AUX]
+        call vec_new_cap
+        mov r12, rax
+        mov rdi, rax
+        mov rsi, rbx
+        call vec_extend_seq
+        mov rdi, r12
+        xor esi, esi
+        xor edx, edx
+        call fold_stretches
+        LEAVE
+3:      mov rdi, rbx
+        call fold_path_lists
+        LEAVE
+ENDF fold_paths
+
+# fold_stretches(paths, start, trim) -> list: python's _fold_stretches -
+# fold_path_lists of the stretches path[start : len(path) - trim] of the
+# paths, a vector of them that this sorts and takes
+FUNC fold_stretches
+        STACK_CHECK
+        ENTER
+        sub rsp, 64
+        .set FT_START, 0
+        .set FT_TRIM, 8
+        .set FT_BEGIN, 16               # the lines all the paths begin with
+        .set FT_END, 24                 # and end with
+        .set FT_OUT, 32
+        .set FT_ORS, 40                 # fold_or_stretches' results: the or,
+        .set FT_REST, 48                # and the rest folded
+        mov rbx, rdi
+        mov [rsp + FT_START], rsi
+        mov [rsp + FT_TRIM], rdx
+        mov rcx, [rbx + VEC_LEN]
+        test rcx, rcx
+        jnz 1f
+        xor edi, edi
+        xor esi, esi
+        call mk_list
+        jmp .Lft_done
+1:      cmp rcx, 1
+        jne 2f
+        # a single path: its stretch
+        mov rax, [rbx + VEC_DATA]
+        mov rax, [rax]
+        mov edi, [rax + N_AUX]
+        sub rdi, [rsp + FT_TRIM]
+        mov rcx, [rsp + FT_START]
+        sub rdi, rcx
+        lea rsi, [rax + N_DATA + rcx*8]
+        call mk_list
+        jmp .Lft_done
+2:      mov rdi, rbx
+        call sort_by_length_desc
+        mov rax, [rbx + VEC_DATA]
+        mov r13, [rax]                  # the first, the longest
+        mov r14d, [r13 + N_AUX]
+        sub r14, [rsp + FT_TRIM]        # where its stretch ends
+        # the lines all the paths begin with as the first does (all of it at
+        # most), a line at a time: n of them for n paths that don't (where
+        # their stretches, past the first lines, are as long)
+        xor r12d, r12d
+3:      mov rax, r14
+        sub rax, [rsp + FT_START]
+        cmp r12, rax
+        jae 4f
+        mov rcx, [rsp + FT_START]
+        add rcx, r12                    # the line's index
+        mov r8, [r13 + N_DATA + rcx*8]
+        mov rsi, [rbx + VEC_DATA]
+        xor edx, edx
+31:     cmp rdx, [rbx + VEC_LEN]
+        jae 32f
+        mov rdi, [rsi + rdx*8]
+        mov eax, [rdi + N_AUX]
+        sub rax, [rsp + FT_TRIM]
+        cmp rcx, rax
+        jae 4f                          # (past the path's stretch)
+        cmp r8, [rdi + N_DATA + rcx*8]
+        jne 4f
+        inc rdx
+        jmp 31b
+32:     inc r12
+        jmp 3b
+4:      mov [rsp + FT_BEGIN], r12
+        # and those they all end with
+        xor r12d, r12d
+5:      mov rax, r14
+        sub rax, [rsp + FT_START]
+        cmp r12, rax
+        jae 51f
+        mov rcx, r14
+        sub rcx, r12
+        dec rcx
+        mov r8, [r13 + N_DATA + rcx*8]
+        mov rsi, [rbx + VEC_DATA]
+        xor edx, edx
+52:     cmp rdx, [rbx + VEC_LEN]
+        jae 53f
+        mov rdi, [rsi + rdx*8]
+        mov eax, [rdi + N_AUX]
+        sub rax, [rsp + FT_TRIM]        # where its stretch ends
+        mov r9, rax
+        sub r9, [rsp + FT_START]
+        cmp r9, r12
+        jbe 51f                         # (no line there)
+        sub rax, r12
+        dec rax
+        cmp r8, [rdi + N_DATA + rax*8]
+        jne 51f
+        inc rdx
+        jmp 52b
+53:     inc r12
+        jmp 5b
+51:     mov [rsp + FT_END], r12
+6:      # the output begins with the lines they all begin with
+        call vec_new
+        mov [rsp + FT_OUT], rax
+        mov rdi, rax
+        mov rcx, [rsp + FT_START]
+        lea rsi, [r13 + N_DATA + rcx*8]
+        mov rdx, [rsp + FT_BEGIN]
+        call vec_extend
+        # the paths without them, and without those they all end with:
+        # the ones too short for both aren't in the or (compacted out)
+        mov rax, [rsp + FT_BEGIN]
+        add [rsp + FT_START], rax
+        mov rax, [rsp + FT_END]
+        test rax, rax
+        jz 8f
+        mov rsi, [rbx + VEC_DATA]
+        xor ecx, ecx
+        xor edx, edx
+7:      cmp rcx, [rbx + VEC_LEN]
+        jae 71f
+        mov rdi, [rsi + rcx*8]
+        mov r8d, [rdi + N_AUX]
+        sub r8, [rsp + FT_TRIM]
+        sub r8, [rsp + FT_START]
+        cmp r8, rax
+        jl 72f
+        mov [rsi + rdx*8], rdi
+        inc rdx
+72:     inc rcx
+        jmp 7b
+71:     mov [rbx + VEC_LEN], rdx
+        add [rsp + FT_TRIM], rax
+8:      # the or of them, the shortest first
+        mov rdi, rbx
+        call sort_shortest_first
+        mov rdi, rbx
+        mov rsi, [rsp + FT_START]
+        mov rdx, [rsp + FT_TRIM]
+        lea rcx, [rsp + FT_ORS]
+        call fold_or_stretches
+        mov rdi, [rsp + FT_OUT]
+        mov rsi, [rsp + FT_ORS]
+        call vec_push
+        mov rdi, [rsp + FT_OUT]
+        mov rsi, [rsp + FT_REST]
+        call vec_extend_seq
+        # and the lines they all end with
+        mov rdi, [rsp + FT_OUT]
+        mov rdx, [rsp + FT_END]
+        mov rcx, r14
+        sub rcx, rdx
+        lea rsi, [r13 + N_DATA + rcx*8]
+        call vec_extend
+        mov rdi, [rsp + FT_OUT]
+        call vec_to_list
+.Lft_done:
+        add rsp, 64
+        LEAVE
+ENDF fold_stretches
+
+# sort_shortest_first(vec): the vector, sorted by length the longest first
+# (stably), sorted the shortest first (stably): the whole reversed, then
+# each run of the same length back in its order
+FUNC sort_shortest_first
+        mov rsi, [rdi + VEC_DATA]
+        mov rcx, [rdi + VEC_LEN]
+        xor eax, eax
+        lea rdx, [rcx - 1]
+1:      cmp rax, rdx
+        jge 2f
+        mov r8, [rsi + rax*8]
+        mov r9, [rsi + rdx*8]
+        mov [rsi + rax*8], r9
+        mov [rsi + rdx*8], r8
+        inc rax
+        dec rdx
+        jmp 1b
+2:      xor eax, eax                    # where the run begins
+3:      cmp rax, rcx
+        jae 9f
+        mov r8, [rsi + rax*8]
+        mov r10d, [r8 + N_AUX]
+        lea rdx, [rax + 1]              # and where it ends
+4:      cmp rdx, rcx
+        jae 5f
+        mov r8, [rsi + rdx*8]
+        cmp r10d, [r8 + N_AUX]
+        jne 5f
+        inc rdx
+        jmp 4b
+5:      mov r11, rdx
+        dec rdx
+6:      cmp rax, rdx
+        jge 7f
+        mov r8, [rsi + rax*8]
+        mov r9, [rsi + rdx*8]
+        mov [rsi + rax*8], r9
+        mov [rsi + rdx*8], r8
+        inc rax
+        dec rdx
+        jmp 6b
+7:      mov rax, r11
+        jmp 3b
+9:      ret
+ENDF sort_shortest_first
+
+# fold_or_stretches(sides, start, trim, &out): python's _fold_or_stretches
+# - out[0] the or of the stretches of the sides (a vector of them, the
+# shortest first, that this takes), out[1] what's left of them, folded.
+# An or that isn't of two groups of sides, each beginning with a line of
+# its own, is fold_or's (which fails on it), on lists.
+FUNC fold_or_stretches
+        STACK_CHECK
+        ENTER
+        sub rsp, 80
+        .set FOS_START, 0
+        .set FOS_TRIM, 8
+        .set FOS_OUT, 16
+        .set FOS_SHORTEST, 24
+        .set FOS_LONGEST, 32
+        .set FOS_A, 40                  # the sides beginning as the shortest
+        .set FOS_ARGS, 48               # two slots: the arguments of or/and
+        .set FOS_X, 64                  # idx1 and idx2, or s1 and s2
+        .set FOS_Y, 72
+        mov rbx, rdi
+        mov [rsp + FOS_START], rsi
+        mov [rsp + FOS_TRIM], rdx
+        mov [rsp + FOS_OUT], rcx
+        mov r12, [rbx + VEC_DATA]
+        mov r13, [rbx + VEC_LEN]
+        cmp r13, 2
+        jb .Lfos_listed                 # (a single side)
+        mov rax, [r12]
+        mov eax, [rax + N_AUX]
+        sub rax, [rsp + FOS_TRIM]
+        cmp rax, [rsp + FOS_START]
+        je .Lfos_listed                 # (an empty side: the shortest)
+        mov rcx, [rsp + FOS_START]
+        mov rax, [r12 + r13*8 - 8]
+        mov [rsp + FOS_LONGEST], rax
+        mov r14, [rax + N_DATA + rcx*8] # its first line
+        # the first side beginning otherwise
+        xor edx, edx
+1:      mov rax, [r12 + rdx*8]
+        cmp r14, [rax + N_DATA + rcx*8]
+        jne 2f
+        inc rdx
+        cmp rdx, r13
+        jb 1b
+        jmp .Lfos_listed                # (they all begin alike)
+2:      mov [rsp + FOS_SHORTEST], rax
+        mov r8, [rax + N_DATA + rcx*8]
+        # every side begins with one of the two lines
+        xor edx, edx
+3:      cmp rdx, r13
+        jae 4f
+        mov rax, [r12 + rdx*8]
+        mov rax, [rax + N_DATA + rcx*8]
+        cmp rax, r14
+        je 31f
+        cmp rax, r8
+        jne .Lfos_listed                # (another first line)
+31:     inc rdx
+        jmp 3b
+4:      # the sides beginning as the shortest, into a vector of their own;
+        # the others, as the longest, stay in this one
+        mov rdi, r13
+        call vec_new_cap
+        mov [rsp + FOS_A], rax
+        xor r12d, r12d
+        xor r13d, r13d
+41:     cmp r12, [rbx + VEC_LEN]
+        jae 44f
+        mov rax, [rbx + VEC_DATA]
+        mov rsi, [rax + r12*8]
+        mov rcx, [rsp + FOS_START]
+        mov rdx, [rsi + N_DATA + rcx*8]
+        mov rax, [rsp + FOS_SHORTEST]
+        cmp rdx, [rax + N_DATA + rcx*8]
+        jne 42f
+        mov rdi, [rsp + FOS_A]
+        call vec_push
+        jmp 43f
+42:     mov rax, [rbx + VEC_DATA]
+        mov [rax + r13*8], rsi
+        inc r13
+43:     inc r12
+        jmp 41b
+44:     mov [rbx + VEC_LEN], r13
+        # as many of each: the stretches that split the or in two?
+        mov rdi, [rsp + FOS_A]
+        cmp r13, [rdi + VEC_LEN]
+        jne .Lfos_cut
+        mov rsi, rbx
+        mov rdx, [rsp + FOS_SHORTEST]
+        mov rcx, [rsp + FOS_LONGEST]
+        mov r8, [rsp + FOS_START]
+        mov r9, [rsp + FOS_TRIM]
+        call fold_split_stretches
+        test rax, rax
+        jz .Lfos_cut
+        mov [rsp + FOS_X], rax
+        mov [rsp + FOS_Y], rdx
+        # the or of the shortest's first idx1 lines and the longest's first
+        # idx2, and the sides beginning as the shortest past their idx1
+        mov rax, [rsp + FOS_SHORTEST]
+        mov rcx, [rsp + FOS_START]
+        lea rsi, [rax + N_DATA + rcx*8]
+        mov rdi, [rsp + FOS_X]
+        call mk_list
+        mov [rsp + FOS_ARGS], rax
+        mov rax, [rsp + FOS_LONGEST]
+        mov rcx, [rsp + FOS_START]
+        lea rsi, [rax + N_DATA + rcx*8]
+        mov rdi, [rsp + FOS_Y]
+        call mk_list
+        mov [rsp + FOS_ARGS + 8], rax
+        lea rdi, [rsp + FOS_ARGS]
+        mov esi, 2
+        call folder_or
+        mov rcx, [rsp + FOS_OUT]
+        mov [rcx], rax
+        mov rdi, [rsp + FOS_A]
+        mov rsi, [rsp + FOS_START]
+        add rsi, [rsp + FOS_X]
+        mov rdx, [rsp + FOS_TRIM]
+        call fold_stretches
+        mov rcx, [rsp + FOS_OUT]
+        mov [rcx + 8], rax
+        add rsp, 80
+        LEAVE
+.Lfos_cut:
+        # cut the first line, merge the remaining paths if possible
+        mov rdi, [rsp + FOS_A]
+        mov rsi, [rsp + FOS_START]
+        inc rsi
+        mov rdx, [rsp + FOS_TRIM]
+        call fold_stretches
+        mov [rsp + FOS_X], rax          # s1
+        mov rdi, rbx
+        mov rsi, [rsp + FOS_START]
+        inc rsi
+        mov rdx, [rsp + FOS_TRIM]
+        call fold_stretches
+        mov [rsp + FOS_Y], rax          # s2
+        # ('or', and(shortest[0], s1), and(longest[0], s2)), []
+        mov rax, [rsp + FOS_SHORTEST]
+        mov rcx, [rsp + FOS_START]
+        mov rax, [rax + N_DATA + rcx*8]
+        mov [rsp + FOS_ARGS], rax
+        mov rax, [rsp + FOS_X]
+        mov [rsp + FOS_ARGS + 8], rax
+        lea rdi, [rsp + FOS_ARGS]
+        mov esi, 2
+        call folder_and
+        mov [rsp + FOS_X], rax          # the shorter path
+        mov rax, [rsp + FOS_LONGEST]
+        mov rcx, [rsp + FOS_START]
+        mov rax, [rax + N_DATA + rcx*8]
+        mov [rsp + FOS_ARGS], rax
+        mov rax, [rsp + FOS_Y]
+        mov [rsp + FOS_ARGS + 8], rax
+        lea rdi, [rsp + FOS_ARGS]
+        mov esi, 2
+        call folder_and
+        mov rdx, rax                    # the longer path
+        mov rsi, [rsp + FOS_X]
+        LOADS rdi, OR
+        call mk3
+        mov rcx, [rsp + FOS_OUT]
+        mov [rcx], rax
+        xor edi, edi
+        xor esi, esi
+        call mk_list
+        mov rcx, [rsp + FOS_OUT]
+        mov [rcx + 8], rax
+        add rsp, 80
+        LEAVE
+.Lfos_listed:
+        # ('or',) + the stretches, to fold_or (out[1]: the paths left to
+        # fold, folded)
+        call vec_new
+        mov r14, rax
+        mov rdi, rax
+        LOADS rsi, OR
+        call vec_push
+        xor r12d, r12d
+5:      cmp r12, [rbx + VEC_LEN]
+        jae 6f
+        mov rax, [rbx + VEC_DATA]
+        mov rax, [rax + r12*8]
+        mov edi, [rax + N_AUX]
+        sub rdi, [rsp + FOS_TRIM]
+        mov rcx, [rsp + FOS_START]
+        sub rdi, rcx
+        lea rsi, [rax + N_DATA + rcx*8]
+        call mk_list
+        mov rdi, r14
+        mov rsi, rax
+        call vec_push
+        inc r12
+        jmp 5b
+6:      mov rdi, r14
+        call vec_to_tuple
+        mov rdi, rax
+        lea rsi, [rsp + FOS_ARGS]
+        call fold_or
+        mov rax, [rsp + FOS_ARGS]
+        mov rcx, [rsp + FOS_OUT]
+        mov [rcx], rax
+        mov rdi, [rsp + FOS_ARGS + 8]
+        call fold_paths
+        mov rcx, [rsp + FOS_OUT]
+        mov [rcx + 8], rax
+        add rsp, 80
+        LEAVE
+ENDF fold_or_stretches
+
+# fold_split_stretches(a, b, shortest, longest, start, trim) -> rax: idx1,
+# rdx: idx2 - python's _split_stretches: a and b, vectors of as many
+# sides each, those beginning as the shortest and the others; the first
+# pair of stretches (idx1 lines of the shortest, idx2 of the longest)
+# that split the or in two, or rax = 0. idx2 - idx1 is the difference d
+# of the lengths of the k-th of a and b, the same for all k; idx1 at most
+# the lines all of a share with the shortest (idx1 + d, all of b with
+# the longest), and at least where each pair begins to end alike
+FUNC fold_split_stretches
+        ENTER
+        sub rsp, 64
+        .set SS_START, 0
+        .set SS_TRIM, 8
+        .set SS_D, 16
+        .set SS_LO, 24
+        .set SS_HI, 32
+        .set SS_K, 40
+        .set SS_SHORTEST, 48
+        mov rbx, rdi
+        mov r12, rsi
+        mov [rsp + SS_SHORTEST], rdx
+        mov r13, rcx
+        mov [rsp + SS_START], r8
+        mov [rsp + SS_TRIM], r9
+        # d, the same for each pair
+        mov rax, [rbx + VEC_DATA]
+        mov rax, [rax]
+        mov ecx, [rax + N_AUX]
+        mov rax, [r12 + VEC_DATA]
+        mov rax, [rax]
+        mov eax, [rax + N_AUX]
+        sub rax, rcx
+        mov [rsp + SS_D], rax
+        xor ecx, ecx
+1:      cmp rcx, [rbx + VEC_LEN]
+        jae 2f
+        mov rax, [rbx + VEC_DATA]
+        mov rdi, [rax + rcx*8]
+        mov rax, [r12 + VEC_DATA]
+        mov rsi, [rax + rcx*8]
+        mov eax, [rsi + N_AUX]
+        mov edx, [rdi + N_AUX]
+        sub rax, rdx
+        cmp rax, [rsp + SS_D]
+        jne .Lss_none
+        inc rcx
+        jmp 1b
+2:      # hi = min(the lines all of a share with the shortest, those all
+        # of b share with the longest - d, len(shortest) - 1,
+        # len(longest) - 1 - d)
+        mov rdi, rbx
+        mov rsi, [rsp + SS_SHORTEST]
+        call .Lss_shared
+        mov [rsp + SS_HI], rax
+        mov rdi, r12
+        mov rsi, r13
+        call .Lss_shared
+        sub rax, [rsp + SS_D]
+        cmp rax, [rsp + SS_HI]
+        jge 3f
+        mov [rsp + SS_HI], rax
+3:      mov rdx, [rsp + SS_SHORTEST]
+        mov eax, [rdx + N_AUX]
+        sub rax, [rsp + SS_TRIM]
+        sub rax, [rsp + SS_START]
+        dec rax
+        cmp rax, [rsp + SS_HI]
+        jge 4f
+        mov [rsp + SS_HI], rax
+4:      mov eax, [r13 + N_AUX]
+        sub rax, [rsp + SS_TRIM]
+        sub rax, [rsp + SS_START]
+        dec rax
+        sub rax, [rsp + SS_D]
+        cmp rax, [rsp + SS_HI]
+        jge 5f
+        mov [rsp + SS_HI], rax
+5:      # lo = max(1, 1 - d), then past where each pair begins to end alike
+        mov rax, 1
+        sub rax, [rsp + SS_D]
+        mov ecx, 1
+        cmp rax, rcx
+        cmovl rax, rcx
+        mov [rsp + SS_LO], rax
+        mov qword ptr [rsp + SS_K], 0
+.Lss_pair:
+        mov rax, [rsp + SS_LO]
+        cmp rax, [rsp + SS_HI]
+        jg .Lss_none
+        mov rcx, [rsp + SS_K]
+        cmp rcx, [rbx + VEC_LEN]
+        jae .Lss_found
+        mov rax, [rbx + VEC_DATA]
+        mov rdi, [rax + rcx*8]          # a_k
+        mov rax, [r12 + VEC_DATA]
+        mov rsi, [rax + rcx*8]          # b_k
+        mov r8d, [rdi + N_AUX]
+        sub r8, [rsp + SS_TRIM]         # where a_k's stretch ends
+        mov r9d, [rsi + N_AUX]
+        sub r9, [rsp + SS_TRIM]         # and b_k's
+        mov r10, r8
+        sub r10, [rsp + SS_START]
+        sub r10, [rsp + SS_LO]          # a_k's lines past lo
+        mov r11, r9
+        sub r11, [rsp + SS_START]
+        mov rdx, r10
+        cmp r11, rdx
+        cmovl rdx, r11                  # (as many of b_k's, at most)
+        xor eax, eax
+        lea rcx, [r8 - 1]
+        lea r14, [r9 - 1]
+6:      cmp rax, rdx
+        jge 7f
+        mov r11, [rdi + N_DATA + rcx*8]
+        cmp r11, [rsi + N_DATA + r14*8]
+        jne 7f
+        dec rcx
+        dec r14
+        inc rax
+        jmp 6b
+7:      cmp rax, r10
+        jge 8f                          # (they all end alike)
+        mov rcx, r8
+        sub rcx, [rsp + SS_START]
+        sub rcx, rax
+        mov [rsp + SS_LO], rcx
+8:      inc qword ptr [rsp + SS_K]
+        jmp .Lss_pair
+.Lss_found:
+        mov rax, [rsp + SS_LO]
+        mov rdx, rax
+        add rdx, [rsp + SS_D]
+        add rsp, 64
+        LEAVE
+.Lss_none:
+        xor eax, eax
+        xor edx, edx
+        add rsp, 64
+        LEAVE
+# local: rax = the lines all the sides of the vector rdi begin with as
+# rsi's stretch does (all of it at most); the start, the trim:
+# [rsp + 8 + SS_START], [rsp + 8 + SS_TRIM]
+.Lss_shared:
+        mov r9d, [rsi + N_AUX]
+        sub r9, [rsp + 8 + SS_TRIM]
+        mov rcx, [rsp + 8 + SS_START]
+        xor eax, eax
+1:      cmp rcx, r9
+        jae 3f
+        mov r10, [rsi + N_DATA + rcx*8]
+        xor edx, edx
+2:      cmp rdx, [rdi + VEC_LEN]
+        jae 21f
+        mov r11, [rdi + VEC_DATA]
+        mov r11, [r11 + rdx*8]
+        mov r14d, [r11 + N_AUX]
+        sub r14, [rsp + 8 + SS_TRIM]
+        cmp rcx, r14
+        jae 3f
+        cmp r10, [r11 + N_DATA + rcx*8]
+        jne 3f
+        inc rdx
+        jmp 2b
+21:     inc rax
+        inc rcx
+        jmp 1b
+3:      ret
+ENDF fold_split_stretches
 
         .section .note.GNU-stack,"",@progbits

@@ -108,6 +108,7 @@ test_table:
         .quad .Ln_fold, fold
         .quad .Ln_as_paths, as_paths
         .quad .Ln_fold_paths, fold_paths
+        .quad .Ln_fold_path_lists, fold_path_lists
         .quad .Ln_fold_aux, fold_aux
         .quad .Ln_prettify, tf_prettify
         .quad .Ln_pretty_stor, tf_pretty_stor
@@ -379,6 +380,7 @@ test_table:
 .Ln_fold: .asciz "fold"
 .Ln_as_paths: .asciz "as_paths"
 .Ln_fold_paths: .asciz "fold_paths"
+.Ln_fold_path_lists: .asciz "fold_path_lists"
 .Ln_fold_aux: .asciz "fold_aux"
 .Ln_prettify: .asciz "prettify"
 .Ln_pretty_stor: .asciz "pretty_stor"

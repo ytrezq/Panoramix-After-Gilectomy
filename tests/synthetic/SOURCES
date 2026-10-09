@@ -1,7 +1,9 @@
 # Programs no compiler made, with python's output (pypy's `python -m
 # panoramix`, colors removed) - each one a difference the port had:
 counter_loop     for(;;) i++ : a loop without an exit condition (whiles)
-nested_ifs_200   200 nested requires (python fails from ~700 on, RecursionError)
+nested_ifs_200   200 nested requires (python failed from ~700 on, RecursionError)
+nested_ifs_2000  2000 nested requires: python's recursion as deep, and both folders on stretches of
+                 the paths (the copies took n^3 of the memory, the port's fold past 1 GiB from 700 on)
 fuzz_1_3         tests/difffuzz.py 1, case 3: masks with offsets past 2^62 (big ints)
 fuzz_2_11        tests/difffuzz.py 2, case 11: Mask(-744, ...) prints % 2**-744, a float
 fuzz_3_10        difffuzz 3, case 10: a parameter whose size is an expression (a TypeError in python, a crash here)

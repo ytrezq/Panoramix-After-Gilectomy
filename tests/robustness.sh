@@ -8,18 +8,20 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 fail=0
 
-# hex of a 2-byte big-endian number
-h2() { printf "%02x%02x" $(($1 >> 8 & 255)) $(($1 & 255)); }
+# hex of a 3-byte big-endian number
+h3() { printf "%02x%02x%02x" $(($1 >> 16 & 255)) $(($1 >> 8 & 255)) $(($1 & 255)); }
 
-# n nested ifs: require(!cd[4 + 32 i]) n times (python: a RecursionError
-# from 700 on; the folder's paths grow as n^3)
+# n nested ifs: require(!cd[4 + 32 i]) n times (python's recursion failed
+# from some 300 on, its folder copied its paths n^3 - the port's took
+# more than the memory of a fold past 700: the paths are folded on
+# stretches of them now). The VM's rounds take a path 4000 jumps deep.
 nested_ifs() {
     local n=$1 code="6080604052" i len dest
     len=5
     for ((i = 0; i < n; i++)); do
-        dest=$((len + 10))
-        code+="61$(h2 $((4 + 32 * i)))351561$(h2 $dest)57fe5b"
-        len=$((len + 11))
+        dest=$((len + 12))
+        code+="62$(h3 $((4 + 32 * i)))351562$(h3 $dest)57fe5b"
+        len=$((len + 13))
     done
     echo "${code}00"
 }
@@ -45,6 +47,10 @@ run() {
         echo "FAIL $name: rc=$rc"
         head -5 "$tmp/$name.err"
         fail=1
+    elif [ -n "$FOLDS" ] && grep -q "folder failed" "$tmp/$name.err"; then
+        echo "FAIL $name: the folder failed"
+        grep "folder failed" "$tmp/$name.err" | head -2
+        fail=1
     elif [ $((e - s)) -gt "$limit_s" ]; then
         echo "SLOW $name: $((e - s)) s"
         fail=1
@@ -54,7 +60,9 @@ run() {
 }
 
 nested_ifs 2000 > "$tmp/nested_ifs_2000.hex"
-run nested_ifs_2000 60
+FOLDS=1 run nested_ifs_2000 60
+nested_ifs 4500 > "$tmp/nested_ifs_4500.hex"
+FOLDS=1 run nested_ifs_4500 60
 cd_chain 20000 > "$tmp/cd_chain_20000.hex"
 run cd_chain_20000 60
 echo "60" > "$tmp/truncated_push.hex"          # a push without its bytes

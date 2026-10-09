@@ -172,12 +172,22 @@ is the CLI, `build/panoramix_asm*.so` the module.
   context, which nobody writes meanwhile (`par_for`: its thread waits).
   What is left on one thread is the storage's analysis and the rewrites
   of the asts, which take the whole contract.
-- The folder (`fold_isolated`) runs on a context of its own too: python
-  slices its lists of paths at every level and frees the slices, an
-  arena keeps them (n nested ifs: n^3 bytes), so its garbage goes with
-  that context, and past 1 GiB (700 nested ifs, where python stops at
-  a RecursionError) the trace is left unfolded, as python does when
-  folding fails. The corpora's folds take 24 MiB at most.
+- The folder (`fold_isolated`) runs on a context of its own too, its
+  garbage going with that context; past 1 GiB the trace is left
+  unfolded, as python does when folding fails. The corpora's folds take
+  24 MiB at most. Its paths are folded on stretches of them
+  (`fold_stretches`, as python's `fold_paths` now): each level of the
+  recursion takes the same lines off the beginnings or the ends of all
+  its paths, which python sliced, copying what was left of them - for n
+  nested ifs (n paths of up to n lines, each level a line less) n^3 of
+  the memory (1 GiB at 700 levels) and of the time, where the stretches
+  (a start and a trim for all the paths of a level) take the n^2 of the
+  paths themselves: 4000 levels, the most the VM's rounds go to, in
+  0.2 s and 200 MiB. The paths with a line that's a list or an or, which `folder_or`
+  and `folder_and` expand, are folded as lists (`fold_path_lists`,
+  python's algorithm, as python does); an or that isn't of two groups of
+  sides, each beginning with its line, too (`fold_or`, which fails on
+  it).
 - Python's floats: `2 ** k` for a negative k (the masks' printing), as
   the shortest decimal that reads back as the double (`float_repr`,
   python's repr), carried as a string flagged `STR_FLOAT`.
@@ -433,7 +443,9 @@ assumptions; `test_conds.py`: what a condition says of what it compares,
 the mins of the ifs, the results of the precompiled contracts, the small
 words of random traces;
 `test_fold_random.py`: paths sharing beginnings and endings, some in
-two groups the folder's `fold_or` splits, through `fold_paths`;
+two groups the folder's `fold_or` splits, through `fold_paths` and
+`fold_path_lists`; the paths of traces whose ifs nest hundreds deep, and
+the fold of traces nesting them a thousand deep;
 `test_trace_random.py`: random traces - the lines of the VM, loops
 included - through every pass of the simplifier and the whole
 `simplify_trace`; a trace on which python takes more than `PY_LIMIT`
@@ -655,7 +667,10 @@ the difference of the two lengths, and the first length is where the
 common endings of the pairs begin (unless that passes the beginning the
 group shares) - one pass over the sides (`fold_or_split`). With
 `--verbose`, whose paths have thousands of lines, UniV2Pair went from
-13 s to 3 s.
+13 s to 3 s. (The same on stretches, `fold_split_stretches`, is now
+python's too, `_split_stretches`: the lines the groups share with the
+shortest and the longest found a line at a time for all the sides, the
+common endings of the pairs compared past the lower bound only.)
 
 Then, on UniV3Pool: `cleanup_vars`' `required_after` (the variables of
 the rest of the trace, at every if and while) makes each level's map at
