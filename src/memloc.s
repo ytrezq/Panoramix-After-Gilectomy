@@ -503,7 +503,33 @@ FUNC split_or
         mov [rsp + SO_SHL], rax
         mov rax, [r13 + N_DATA + 32]
         mov [rsp + SO_VALUE], rax
-        # stor_offset = offset + shl; shl = shl - stor_offset
+        # a part that goes past the top of the word: x << 128 is all of x
+        # moved, as the code shifted it (see shl_op), not 256 bits of the
+        # word - the word is written whole, as it's computed
+        mov rdi, [rsp + SO_SIZE]
+        call is_int
+        test eax, eax
+        jz 25f
+        mov rdi, [rsp + SO_OFFSET]
+        call is_int
+        test eax, eax
+        jz 25f
+        mov rdi, [rsp + SO_SHL]
+        call is_int
+        test eax, eax
+        jz 25f
+        mov rdi, [rsp + SO_SIZE]
+        mov rsi, [rsp + SO_OFFSET]
+        call int_add
+        mov rdi, rax
+        mov rsi, [rsp + SO_SHL]
+        call int_add
+        mov rdi, rax
+        mov esi, (256 << 1) | 1
+        call int_cmp
+        test eax, eax
+        jg .Lso_whole
+25:     # stor_offset = offset + shl; shl = shl - stor_offset
         mov rdi, [rsp + SO_OFFSET]
         mov rsi, [rsp + SO_SHL]
         call alg_add2
@@ -1096,18 +1122,24 @@ FUNC store_reads_written
         call is_int
         test eax, eax
         jz 8f
-        # r_off < off + size and off < r_off + r_size
+        # r_off < off + size and off < r_off + r_size - of a field moved
+        # left (r_off < 0, see algebra.apply_mask_to_storage), the bits
+        # from 0
+        mov rax, [rsp]
+        mov rdi, [rax + N_DATA + 16]
+        mov esi, 1
+        call int_max
+        mov [rsp + 8], rax              # r_off
         mov rdi, [r12 + N_DATA + 16]
         mov rsi, [r12 + N_DATA + 8]
         call int_add
         mov rsi, rax
-        mov rax, [rsp]
-        mov rdi, [rax + N_DATA + 16]
+        mov rdi, [rsp + 8]
         call int_cmp
         test eax, eax
         jns 1b
         mov rax, [rsp]
-        mov rdi, [rax + N_DATA + 16]
+        mov rdi, [rsp + 8]
         mov rsi, [rax + N_DATA + 8]
         call int_add
         mov rsi, rax
@@ -2728,7 +2760,12 @@ FUNC fill_mem
         mov [rsp + FM_S_RIGHT], rax
         # all of it was written: that part of the value (maybe none of it,
         # for a length that may be 0 - the padding of an array to whole
-        # words)
+        # words). A read of a negative length, its end before its start,
+        # isn't in anything.
+        mov rdi, [r13 + N_DATA + 16]
+        call mem_safe_ge_zero
+        cmp eax, TRI_FALSE
+        je 2f
         mov rdi, r12
         mov rsi, r13
         call range_contains

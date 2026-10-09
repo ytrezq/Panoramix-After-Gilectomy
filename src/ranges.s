@@ -1634,11 +1634,12 @@ ENDF vr_rebuild
 # clear_caches(): python's helpers.clear_caches - what was computed and
 # remembered is forgotten, when what it rests on changes. Python clears its
 # @cached functions' (simplify, add_op, lt_op, le_op, the ranges, to_mask,
-# simplify_exp, find_mems, replace_mem_exp, range_overlaps...): the memo
-# tables here, but for mask_op's (python's mask_dict isn't one of them) and
-# the ones of what no comparison decides (the signature database, an
-# import's, the lines' variables, the tests' nodes).
-        .set CLEAR_CACHES_KEEP, (1 << MEMO_MASK) | (1 << MEMO_TEST_NODES) | (1 << MEMO_SIGDB) | (1 << MEMO_IMPORT) | (1 << MEMO_LINE_VARS) | (1 << MEMO_LINE_SETVARS)
+# simplify_exp, find_mems, replace_mem_exp, range_overlaps...) and mask_op's
+# mask_dict (what a mask makes of an expression may rest on what's known of
+# its variables): the memo tables here, but for the ones of what no
+# comparison decides (the signature database, an import's, the lines'
+# variables, the tests' nodes).
+        .set CLEAR_CACHES_KEEP, (1 << MEMO_TEST_NODES) | (1 << MEMO_SIGDB) | (1 << MEMO_IMPORT) | (1 << MEMO_LINE_VARS) | (1 << MEMO_LINE_SETVARS)
 
 FUNC clear_caches
         xor eax, eax

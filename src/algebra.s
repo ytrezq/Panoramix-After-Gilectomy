@@ -297,7 +297,11 @@ FUNC mask_to_int
         LEAVE
 ENDF mask_to_int
 
-# alg_apply_mask(val, size, offset, shl) -> value (all ints)
+# alg_apply_mask(val, size, offset, shl) -> value (all ints): a word (of
+# -2^256 < val < 2^256: -1 is 2^256 - 1, see simplify_exp) is its 256
+# bits, and what the mask makes of it a word - the bits moved past its top
+# are gone. (A number of more bytes, of a long memory range, is as wide as
+# it is.)
 FUNC alg_apply_mask
         ENTER
         mov rbx, rdi
@@ -305,8 +309,19 @@ FUNC alg_apply_mask
         mov rdi, rsi
         mov rsi, rdx
         call mask_to_int
+        mov r14, rax                    # the mask
         mov rdi, rbx
-        mov rsi, rax
+        call int_bit_length
+        xor r13d, r13d                  # r13d: a word
+        cmp rax, 256
+        ja 3f
+        mov r13d, 1
+        mov rdi, rbx
+        mov esi, 256
+        call int_mod_2exp
+        mov rbx, rax
+3:      mov rdi, rbx
+        mov rsi, r14
         call ev_and
         mov rbx, rax
         test r12b, 1
@@ -329,7 +344,10 @@ FUNC alg_apply_mask
         mov rsi, rdi
         mov rdx, r12
         call __gmpz_mul_2exp@PLT
-        call arith_result
+        test r13d, r13d
+        jz 4f
+        call arith_wrap_r               # (of a word, a word)
+4:      call arith_result
         LEAVE
 2:      # val >> -shl
         neg rax
@@ -4782,7 +4800,13 @@ FUNC alg_shl_op
         ENTER
         mov rbx, rdi
         mov r12, rsi
-        mov rdi, rsi
+        mov esi, 1                      # exp == 0: 0 (moved by anything)
+        call py_equal
+        test eax, eax
+        jz 0f
+        mov eax, 1
+        LEAVE
+0:      mov rdi, r12
         call is_int                     # (type(off) is int: not a bool)
         test eax, eax
         jz 2f
@@ -4805,6 +4829,15 @@ FUNC alg_shl_op
         call is_word
         test eax, eax
         jz 3f
+        mov rdi, r12                    # one that may be 256 or more shifts
+        xor esi, esi                    # it all out, but known it may be a
+        xor edx, edx                    # word written negative, -8: a mask
+        call value_range                # would move it right
+        mov rdi, rdx
+        mov esi, (256 << 1) | 1
+        call int_cmp
+        test eax, eax
+        jns 3f
         mov rdi, rbx
         mov esi, (256 << 1) | 1
         mov edx, 1

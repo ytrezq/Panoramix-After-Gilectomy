@@ -176,8 +176,31 @@ FUNC value_bits
         mov rsi, rsp
         call storage_ints
         test eax, eax
-        jz 9f
+        jz 8f
         mov rax, [rsp]                  # its size
+        jmp .Lvb_ret
+8:      mov rdi, rbx                    # more than a word (a long range of
+        call may_be_wide                # memory, a data): as many bits
+        test eax, eax
+        jz 9f
+        mov rdi, rbx
+        call width_of
+        test rax, rax
+        jz 7f
+        mov r12, rax
+        mov rdi, rax
+        call is_int
+        test eax, eax
+        jz 7f
+        mov rdi, r12
+        mov esi, (256 << 1) | 1
+        call int_cmp
+        cmp eax, 0
+        jle 7f
+        mov rax, r12
+        jmp .Lvb_ret
+7:      mov edi, 64                     # (not known: 2**64)
+        call pow2
         jmp .Lvb_ret
 9:      mov eax, (256 << 1) | 1
 .Lvb_ret:
@@ -452,12 +475,17 @@ FUNC max_value
         mov rsi, rax
         call int_shl_bits
         mov r13, rax                    # the mask
+        mov rdi, [rsp + 24]             # (of an x of more than a word, the
+        call may_be_wide                # mask)
+        test eax, eax
+        jnz 6f
         mov rdi, [rsp + 24]
         call max_value
         mov rdi, rax
         mov rsi, r13
         call int_min
         mov r13, rax                    # its bits
+6:
         mov rdi, [rsp + 16]
         call int_sign
         test eax, eax
