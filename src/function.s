@@ -27,8 +27,11 @@
 .Ls_q_selfdestruct: .asciz "'selfdestruct'"
 .Ls_q_call:     .asciz "'call'"
 .Ls_q_delegatecall: .asciz "'delegatecall'"
-.Ls_q_codecall: .asciz "'codecall'"
+.Ls_q_callcode: .asciz "'callcode'"
 .Ls_q_create:   .asciz "'create'"
+.Ls_q_tstore:   .asciz "'tstore'"
+.Ls_q_create2:  .asciz "'create2'"
+.Ls_q_log:      .asciz "'log'"
 .Ls_selfdestruct: .asciz "selfdestruct"
 .Ls_const_:     .asciz "const "
 .Ls_eq_sp:      .asciz " = "
@@ -51,10 +54,11 @@
 
         .section .data.rel.ro
         .align 8
-        # the opcodes that make a function not read-only, quoted as in
+        # the opcodes that make a function not read-only (what changes the
+        # state, or does something that stays: a log), quoted as in
         # python's str(trace)
 not_read_only:
-        .quad .Ls_q_store, .Ls_q_selfdestruct, .Ls_q_call, .Ls_q_delegatecall, .Ls_q_codecall, .Ls_q_create, 0
+        .quad .Ls_q_store, .Ls_q_tstore, .Ls_q_selfdestruct, .Ls_q_call, .Ls_q_delegatecall, .Ls_q_callcode, .Ls_q_create, .Ls_q_create2, .Ls_q_log, 0
 
         .text
 
@@ -268,9 +272,8 @@ FUNC make_params
         call vec_new
         mov [rsp + MP_OCC], rax
         mov rdi, [rbx + FN_TRACE]
-        lea rsi, [rip + pred_cd_ref]
-        mov rdx, rax
-        call walk_collect
+        mov rsi, rax
+        call cd_reads
         call od_new
         mov [rsp + MP_USES], rax
         call vec_new
@@ -515,7 +518,34 @@ FUNC make_params
         lea rdi, [rip + .Ls_bool]
         call str_intern_c
         jmp 104f
-105:    mov rdi, r12
+105:    # (of a whole number of bytes, its type: uint24, not the uint32
+        # that's the next one mask_to_type knows)
+        test r12b, 1
+        jz 106f
+        mov rax, r12
+        sar rax, 1
+        test rax, rax
+        jle 106f
+        cmp rax, 256
+        jge 106f
+        test al, 7
+        jnz 106f
+        mov rdi, r12
+        xor esi, esi
+        call mask_to_type
+        test rax, rax
+        jz 107f
+        lea rcx, [rip + sp_none]
+        cmp rax, rcx
+        je 107f
+        mov rdi, rax
+        call .Lmp_interned
+        jmp 104f
+107:    lea rsi, [rip + .Ls_uint]
+        mov rdx, r12
+        call .Lfc_text_int
+        jmp 104f
+106:    mov rdi, r12
         mov esi, 1
         call mask_to_type
         test rax, rax
@@ -607,8 +637,9 @@ FUNC make_params
         mov eax, ecx
         add rsp, 8
         ret
-# rax: min() of the sizes of the vec rdi (python's, comparing with <:
-# TypeError for an expression and an int), or 0 when one is None
+# rax: min() of the sizes of the vec rdi, or 0 when one is None or isn't
+# a known size (an int, 0 < s <= 256: masked everywhere, as the compilers
+# did before validating the params, by masks of known sizes)
 .Lmp_min_size:
         push rbx
         push r12
@@ -618,10 +649,14 @@ FUNC make_params
 1:      cmp r12, [rbx + VEC_LEN]
         jae 2f
         mov rax, [rbx + VEC_DATA]
-        mov rdi, [rax + r12*8]
-        call is_none
-        test eax, eax
-        jnz 8f
+        mov rax, [rax + r12*8]
+        test al, 1                      # (a small int: the known sizes are)
+        jz 8f
+        sar rax, 1
+        test rax, rax
+        jle 8f
+        cmp rax, 256
+        jg 8f
         inc r12
         jmp 1b
 2:      mov rax, [rbx + VEC_DATA]
@@ -687,6 +722,54 @@ FUNC make_params
         add rsp, 24
         ret
 ENDF make_params
+
+# cd_reads(exp, out): python's reads of make_params - every
+# ('mask_shl', _, _, _, ('cd', _)) and ('cd', _) of exp, depth first. A
+# mask of a read is that read: not, as find_f_list would have it, the read
+# inside it as well, unmasked (its size, offset and shift, and what the
+# read is of, are walked).
+FUNC cd_reads
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call is_seq
+        test eax, eax
+        jz 9f
+        mov rdi, rbx
+        call pred_cd_ref
+        test eax, eax
+        jz 5f
+        mov rdi, r12
+        mov rsi, rbx
+        call vec_push
+        mov rdi, rbx
+        call opcode_of
+        cmp eax, OP_CD
+        je 4f
+        mov r13d, 1                     # the mask's size, offset, shift
+1:      cmp r13d, 4
+        jae 2f
+        mov rdi, [rbx + N_DATA + r13*8]
+        mov rsi, r12
+        call cd_reads
+        inc r13d
+        jmp 1b
+2:      mov rbx, [rbx + N_DATA + 32]    # and the read's
+4:      mov rdi, [rbx + N_DATA + 8]
+        mov rsi, r12
+        call cd_reads
+        jmp 9f
+5:      xor r13d, r13d
+6:      cmp r13d, [rbx + N_AUX]
+        jae 9f
+        mov rdi, [rbx + N_DATA + r13*8]
+        mov rsi, r12
+        call cd_reads
+        inc r13d
+        jmp 6b
+9:      LEAVE
+ENDF cd_reads
 
 # pred_cd_ref(exp) -> eax: ('mask_shl', _, _, _, ('cd', _)) or ('cd', _)
 FUNC pred_cd_ref
@@ -1595,6 +1678,11 @@ FUNC fn_rename_params
         call rp_taken
         test eax, eax
         jz .Lrp_input
+        mov rdi, [rsp + RP_RENAMES]     # (once for a name two of them have)
+        mov rsi, r14
+        call rp_find
+        test rax, rax
+        jnz .Lrp_input
         # new = "_" + name, then "_" + new while it's taken or a param's
         mov rdi, r14
         call rp_underscore
@@ -1613,22 +1701,14 @@ FUNC fn_rename_params
         call rp_underscore
         mov [rsp + RP_NEW], rax
         jmp 3b
-4:      # renames[name] = new (in place for a name renamed before)
+4:      # renames[name] = new
         mov rdi, [rsp + RP_RENAMES]
-        mov rsi, r14
-        call rp_find
-        test rax, rax
-        jz 41f
-        mov rcx, [rsp + RP_NEW]
-        mov [rax], rcx
-        jmp 42f
-41:     mov rdi, [rsp + RP_RENAMES]
         mov rsi, r14
         call vec_push
         mov rdi, [rsp + RP_RENAMES]
         mov rsi, [rsp + RP_NEW]
         call vec_push
-42:     mov rdi, [rsp + RP_NAMES]
+        mov rdi, [rsp + RP_NAMES]
         mov rsi, [rsp + RP_NEW]
         call vec_push
         jmp .Lrp_input
@@ -2486,7 +2566,7 @@ FUNC fn_print_lines
         call pretty_memory
         lea rdi, [rip + .Ls_comma_sp]
         mov rsi, rax
-        call pm_join
+        call str_join
         mov rdi, r13
         mov rsi, rax
         call sb_append_str
