@@ -48,7 +48,11 @@ int pan_decompile_ex(const uint8_t *code, size_t len, size_t threads,
 /* The text as pan_decompile_ex gives it, and python's
  * decompilation.json - the problems, the storage definitions, and for
  * each function its hash, names, length, getter, constant, payable,
- * printed text, trace and parameters. flags: PAN_NO_COLOR (the text's),
+ * printed text, trace and parameters; the text of the contract's def
+ * SafeMath: block ("safemath") and its recursive internal functions
+ * ("internal": each one's name, entry, words of params, of results and
+ * of the stack a call takes, text and trace) when it has some.
+ * flags: PAN_NO_COLOR (the text's),
  * and PAN_JSON for the data as the JSON text json.dumps makes of it;
  * without it, the data is a binary form of python's objects (tuples
  * apart from lists, the keys' types), which the python module reads:
