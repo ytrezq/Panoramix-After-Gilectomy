@@ -67,6 +67,7 @@
 .Ls_var:        .asciz "var"
 .Ls_mem:        .asciz "mem"
 .Ls_call_data:  .asciz "call.data"
+.Ls_calldata:   .asciz "calldata"
 .Ls_sha3:       .asciz "sha3"
 .Ls_width:      .asciz "width"
 .Ls_memory:     .asciz "memory"
@@ -84,7 +85,6 @@
 .Ls_unpack:     .asciz "not enough values to unpack"
 .Ls_unpack5:    .asciz "a while of other than 5 elements"
 .Ls_neg_shift:  .asciz "negative shift count"
-.Ls_overflow:   .asciz "cannot fit 'int' into an index-sized integer"
 .Ls_shift_count: .asciz "shift count too large"
 .Ls_too_big:    .asciz "a byte string past runtrace's limit (python's MemoryError)"
 .Ls_cont_out:   .asciz "a continue out of its loops"
@@ -932,12 +932,22 @@ FUNC rt_cd_word
 ENDF rt_cd_word
 
 # rt_cdbytes(off, n) -> rax: the offset of python's cdbytes(off, n) pushed
-# on the scratch, rdx: n (off and n words)
+# on the scratch, rdx: n (off and n words) - Unsupported past 2^20 bytes
+# (as the memory: bytes of a length read from the calldata, say, would
+# never be made)
 FUNC rt_cdbytes
         ENTER
         sub rsp, 32
         mov rbx, rdi
         mov r12, rsi
+        mov rdi, rsi
+        mov esi, 1 << 20
+        call w_le_u64
+        test eax, eax
+        jnz 0f
+        lea rdi, [rip + .Ls_calldata]
+        call rt_unsup
+0:      mov rdi, rbx
         xor r13d, r13d                  # the calldata's bytes in it
         mov rsi, [r14 + RM_CDLEN]
         test rsi, rsi
@@ -954,15 +964,7 @@ FUNC rt_cdbytes
         test eax, eax
         jz 1f
         mov r13, [r12]                  # n bytes there
-1:      # b"\0" * (n - len(chunk)): an index-sized count, or OverflowError
-        mov rax, [r12 + 8]
-        or rax, [r12 + 16]
-        or rax, [r12 + 24]
-        jnz .Lcdb_overflow
-        mov rax, [r12]
-        sub rax, r13
-        js .Lcdb_overflow
-        mov rdi, [r12]
+1:      mov rdi, [r12]                  # (and b"\0" * (n - len(chunk)))
         call rt_scr_alloc
         mov [rsp], rax
         mov rdi, [r14 + RM_SCR]
@@ -984,10 +986,6 @@ FUNC rt_cdbytes
         mov rdx, [r12]
         add rsp, 32
         LEAVE
-.Lcdb_overflow:
-        mov edi, E_OVERFLOW
-        lea rsi, [rip + .Ls_overflow]
-        call err_throw
 ENDF rt_cdbytes
 
 # ---------------------------------------------------------------------
@@ -2143,7 +2141,8 @@ FUNC rt_evb
 
 .Leb_bytes:
         # ('bytes', n, v): n bytes of v - of an int as it is when it is
-        # past 2^256; past 32 bytes, of an int >= 0 only
+        # past 2^256; past 32 bytes, of an int >= 0 only; past 2^20 bytes,
+        # none (as the memory, never made)
         cmp dword ptr [rbx + N_AUX], 2
         jb rt_index_error
         mov rdi, [rbx + N_DATA + 8]
@@ -2170,7 +2169,12 @@ FUNC rt_evb
         jg 2f
 3:      lea rdi, [rip + .Ls_bytes]
         call rt_unsup
-2:      cmp dword ptr [rbx + N_AUX], 3
+2:      lea rdi, [rbp + EB_N]
+        mov esi, 1 << 20
+        call w_le_u64
+        test eax, eax
+        jz 3b
+        cmp dword ptr [rbx + N_AUX], 3
         jb rt_index_error
         mov rdi, [rbx + N_DATA + 16]
         test dil, 1
@@ -2189,17 +2193,7 @@ FUNC rt_evb
         call rt_evw
         lea r12, [rbp + EB_W]
         mov r13d, 32
-5:      lea rdi, [rbp + EB_N]           # 1 << (8 * n): a shift count past
-        mov rsi, (1 << 60) - 1          # 2^63 is pypy's OverflowError, past
-        call w_le_u64                   # RT_BITS_MAX python's MemoryError
-        test eax, eax
-        jz rt_shift_overflow
-        lea rdi, [rbp + EB_N]
-        mov esi, RT_BYTES_MAX
-        call w_le_u64
-        test eax, eax
-        jz rt_too_big
-        mov rdi, [rbp + EB_N]
+5:      mov rdi, [rbp + EB_N]
         call rt_scr_alloc
         mov rbx, rax
         mov rdi, [r14 + RM_SCR]
@@ -2768,21 +2762,9 @@ FUNC rt_run_line
         je .Lrl_unsup_size
         cmp eax, OP_CALL_DATA
         je .Lrl_unsup_size
-        test eax, eax                   # (a tuple whose head isn't an
-        jz 2f                           # opcode: maybe "bytes")
-        jmp 3f
-2:      test dil, 1
-        jnz 3f
-        test rdi, rdi
-        jz 3f
-        cmp dword ptr [rdi + N_KIND], K_TUPLE
-        jne 3f
-        cmp dword ptr [rdi + N_AUX], 0
-        je 3f
-        mov rax, [rdi + N_DATA]
-        cmp rax, [r14 + RM_S_BYTES]
+        cmp eax, OP_BYTES
         je .Lrl_unsup_size
-3:      lea rdi, [rsp + RL_B]
+        lea rdi, [rsp + RL_B]
         mov esi, 32
         call w_le_u64
         test eax, eax
