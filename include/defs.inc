@@ -623,7 +623,8 @@ ENDF \fname
 .set MEMO_EXTRACT_SETMEMS_NB, 43 # MEMO_EXTRACT_SETMEMS without the breaks (breaks=False)
 .set MEMO_CALLDATA_PARAMS, 44 # an abi's inputs -> calldata_params of them (sigs.s)
 .set MEMO_LINE_SUMMARY, 45  # an if or a while -> line_summary of it (tagged: conds.s)
-.set MEMO_COUNT, 46         # (at most 64: CTX_MEMO's slots)
+.set MEMO_MENTIONS_MIN, 46  # a tuple or a list -> "min" in str() of it (MEMO_TRUE, MEMO_FALSE)
+.set MEMO_COUNT, 47         # (at most 64: CTX_MEMO's slots)
 # sentinel values stored in memo tables for python's None / False (values
 # and pointers are never 2 or 4)
 .set MEMO_NONE, 2

@@ -497,8 +497,7 @@ FUNC apply_constraint
         ENTER
         mov rbx, rdi
         mov r12, rsi
-        lea rsi, [rip + .Ls_min]        # ("min" in str(exp))
-        call mentions_c
+        call mentions_min               # ("min" in str(exp))
         test eax, eax
         jz 9f
         mov rdi, r12
@@ -513,6 +512,51 @@ FUNC apply_constraint
 9:      mov rax, rbx
         LEAVE
 ENDF apply_constraint
+
+# mentions_min(exp) -> eax: python's "min" in str(exp) (mentions_c), a
+# tuple's and a list's remembered (MEMO_MENTIONS_MIN): replace_mem asks
+# it of the memory it replaces and of its value at every if of the rest
+# of the trace, for both branches - the same expressions, walked whole
+# each time (a memmem of every string: 1.4% of the corpus' time)
+FUNC mentions_min
+        test dil, 1
+        jnz 8f
+        test rdi, rdi
+        jz 8f
+        mov eax, [rdi + N_KIND]
+        cmp eax, K_TUPLE
+        je 1f
+        cmp eax, K_LIST
+        je 1f
+        lea rsi, [rip + .Ls_min]
+        jmp mentions_c
+1:      ENTER
+        mov rbx, rdi
+        mov edi, MEMO_MENTIONS_MIN
+        mov rsi, rbx
+        call memo_get
+        test rax, rax
+        jz 2f
+        cmp rax, MEMO_TRUE
+        sete al
+        movzx eax, al
+        LEAVE
+2:      mov rdi, rbx
+        lea rsi, [rip + .Ls_min]
+        call mentions_c
+        mov r12d, eax
+        mov edi, MEMO_MENTIONS_MIN
+        mov rsi, rbx
+        mov edx, MEMO_FALSE
+        mov ecx, MEMO_TRUE
+        test r12d, r12d
+        cmovnz edx, ecx
+        call memo_put
+        mov eax, r12d
+        LEAVE
+8:      xor eax, eax
+        ret
+ENDF mentions_min
 
 # apply_constraint_f(e, bounds): a min of two that the bounds decide
 FUNC apply_constraint_f

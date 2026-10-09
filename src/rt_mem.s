@@ -1023,6 +1023,7 @@ memo_kinds:
         .byte 0                         # EXTRACT_SETMEMS_NB
         .byte 0                         # CALLDATA_PARAMS
         .byte 0                         # LINE_SUMMARY
+        .byte 2                         # MENTIONS_MIN: codes
         .if . - memo_kinds - MEMO_COUNT
         .error "memo_kinds: not a kind for every memo table (MEMO_COUNT)"
         .endif
