@@ -426,6 +426,7 @@ FUNC is_list
 ENDF is_list
 
 # replace(exp, what, by) -> exp with every occurrence of `what` replaced
+# (what's bytes in it as wide as it was, see keep_widths)
 FUNC replace
         # the mention flags of `what` (a string's, or a tuple's: the or of
         # its elements'): a tuple without all of them can't hold it, and
@@ -538,6 +539,9 @@ FUNC replace_fl
         mov esi, [rbx + N_AUX]
         mov rdx, [rsp]
         call mk_seq
+        mov rdi, rbx                    # (what's bytes in it as wide as it
+        mov rsi, rax                    # was, as with replace_f)
+        call keep_widths_seq
 6:      add rsp, 32
         LEAVE
 .Lrp_int0:
