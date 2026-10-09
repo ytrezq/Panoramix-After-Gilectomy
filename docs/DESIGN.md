@@ -77,7 +77,11 @@ database, liblzma. Everything else is assembly (GNU as, Intel syntax).
                           instructions and the idioms by the letter of spec/evm.def)
     tools/psamp.c         a sampling profiler (perf_event_open's CPU clock, the
                           frames' return addresses), tools/psym.py its report
-    tools/bench.py        the CPU time of a corpus, binaries compared
+    tools/bench.py        the CPU time of a corpus, binaries compared: means of runs
+    tools/prof_corpus.sh  the corpus under cachegrind, DynamoRIO (tools/bbfreq, a
+                          client counting every instruction's executions:
+                          tools/bbf_agg.py its report) or perf, several at a time
+    tools/gen_htab.c      the storage's hash tables (keccak of slots), at build time
     tests/                comparisons with the python implementation
 
 Build: `make` (needs python3 headers for the module). `build/panasm`
@@ -1020,6 +1024,143 @@ and -1% on the model (1.5% more instructions for the chunk of an index,
 12 to 20% fewer L2 misses). Contiguous entries copied at each doubling
 were worse than the old tables (+1 to 3%: the copies and their garbage),
 and so were slots grown by two past 4096 (+0.1 to 1.5%).
+
+### The whole corpus, instruction by instruction
+
+Then profiled on the whole corpus as a benchmark: the 1121 contracts of
+tests/corpus, tests/synthetic, the npm, modern and vyper corpora, each
+decompiled without time limits (`PANORAMIX_TIMEOUT=0`: the same work at
+any speed), the measure being the corpus' total, its mean over several
+runs (`tools/bench.py DIR[:DIR...] BIN BIN --runs 3`: the binaries take
+turns contract by contract; the mean of the runs' user + system time, its
+standard deviation, the elapsed time). Three tools, as none sees it all:
+
+- valgrind's cachegrind, the caches and the branches simulated (the L1s
+  of a Sapphire Rapids, 32 KiB and 48 KiB, its 2 MiB L2 as the last
+  level), the cost of a function estimated as instructions + 10 L1
+  misses + 60 last-level misses + 4 and 30 for the writes' + 15
+  mispredictions. No valgrind has AVX-512 (Intel's port of 2022 was
+  never merged): it runs the AVX2 paths (`PANORAMIX_ISA=avx2`).
+- DynamoRIO, built from its sources, which runs AVX-512 natively, with a
+  client of ours (`tools/bbfreq`): a counter per basic block, the
+  executions of every instruction of the binary, summed over the corpus
+  by function and by source line (`tools/bbf_agg.py`; the lines of the
+  .s files are the instructions). A run of the corpus takes 20 minutes
+  on two threads, where cachegrind takes hours.
+- perf, sampling the CPU clock (this machine, a VM, has no hardware
+  counters: no cycles, no cache events), natively, the kernel included:
+  what the page faults, the zeroing of pages and the TLB shootdowns
+  cost, and the callers (`perf record -g`; the frames are walked by
+  their rbp).
+
+`tools/prof_corpus.sh cachegrind|bbfreq|perf BIN OUTDIR DIR[:DIR...]
+WORKERS` runs a profiler over the corpus, contract by contract, several
+at a time.
+
+The corpus took 484G instructions (DynamoRIO's count), and the time
+went to:
+
+- `changes_reads` and its walks, 28% of the instructions (135G:
+  `replace_mem` asks it of every if of the rest of the trace, then of
+  every if inside): the ifs and the whiles summarized (3.3G).
+- `mv_visit`, python's visit of `_merge_at`, 10% (13% with its walks up
+  the tree), 66% of zx_Staking's time: the rests of the walks that can
+  only end false skipped (`mv_skip`; 62G to 10G).
+- keccak, 5.6%: the storage's hash tables, made by every process,
+  made at build time (`tools/gen_htab.c`, included read only; 26.9G to
+  2.1G, the keccaks the contracts ask for).
+- Wyvern's hash-consing, 3%: tuples of strings made again and again,
+  each new (`calldata_params` remembered); and `"min" in str(exp)`,
+  `apply_constraint`'s, 1.4% of the time (remembered).
+- the page faults: cETH's 30140, two thirds of them in the first chunk
+  of every context, mapped and unmapped for every function (its payload
+  one chunk too big for the pool), and the growths of the hash-cons
+  table; 4.0M on the corpus, 11% of the time in the kernel.
+
+What they became, on the whole corpus (three runs each, one thread per
+contract, then two):
+
+                         before                   after
+    -j 1   CPU    105.14 s +- 0.89        51.64 s +- 0.37   (-50.9%)
+           user    93.75 s                45.42 s
+           sys     11.40 s                 6.23 s
+    -j 2   CPU    112.04 s +- 4.48        57.98 s +- 1.05   (-48.3%)
+           elapsed 75.37 s                38.68 s
+    page faults    4.0M                    0.62M
+    instructions   484.1G                  225.9G   (-53.3%)
+
+zx_Exchange 31.9 s to 8.5 s, Wyvern 8.8 s to 0.42 s, zx_Staking 7.4 s to
+2.1 s; the same texts on the 1121 contracts, with the VM's checks and
+with a compaction at every round. What's left is flat: `mk_seq` 5.5% of
+the instructions, the hashing of sequences 4%, `mv_visit` 3.6%, the memo
+tables' lookups 5%, the walks of the VM's tree 2.3%.
+
+Madvise. The arenas' chunks of the default size were on huge pages
+already (`chunk_map_huge`, `MADV_HUGEPAGE`): a page fault per 2 MiB
+instead of per 4 KiB, and a TLB entry. A context's first chunk is one
+of them now, from the pool, where it had a mapping of its own. A chunk
+past the default size (a vector, a memo table's entries, from 4 MiB) is
+on huge pages too, rounded up to whole ones, and so is a hash-cons table
+of 2 MiB and more (`hc_table_alloc`), which the probes read all over (a
+TLB miss each on 4 KiB pages): against calloc's, 3% of the CPU time with
+two threads (fewer faults, less system time, a smaller RSS). Huge pages
+cost their zeroing, 2 MiB at the first touch (8921 of them on the
+corpus, 5% of the time, mostly memory used whole): a contract of a few
+functions zeroes three to five, a few milliseconds where its 4 KiB pages
+took one or two. Mapping a context's first chunk with 4 KiB pages when
+the pool has none gave them back, and made the corpus 7% slower: those
+chunks go to the pool, and serve the big contexts after.
+
+Prefetches, measured (the time, as nothing else measures them here:
+cachegrind ignores them; the corpus' contracts heaviest in the function,
+rounds of them taking turns, an A/A of one binary against its copy at
++-1%):
+
+- `prefetcht0` of the two cache lines of each child `mv_visit` pushes:
+  6% slower. The DFS visits the first child at once (too soon for its
+  prefetch) and the others after its subtree, their lines evicted from
+  the L1 by then, and the prefetches took the place of lines in use.
+- `prefetchw` of the arena past the bump pointer as `mk_seq` makes a
+  node (the next nodes' lines, for writing): 0.9986 of the time over 20
+  rounds, no difference. The arena is written in sequence, and the L2's
+  streamer already fetches its lines for ownership; the other writes to
+  cold lines read them first (a probe of the hash-cons table, of a memo
+  table) or go in streams (the rehashing of a table doubled writes 2 or
+  4 sequences).
+
+Not kept either: filters of the ancestors' jumpdests and starts (64
+bits, made when a node is hung) for `node_history` and
+`vm_recursion_of` - the deep trees fill them, no fewer instructions;
+the children pushed by `mv_visit` without `vec_push` (5% fewer
+instructions on its heaviest contract; slower in the mean of the runs,
+faster in the best ones).
+
+Thread safety, change by change:
+
+- The memo tables added (`MEMO_LINE_SUMMARY`, `MEMO_MENTIONS_MIN`,
+  `MEMO_CALLDATA_PARAMS`) are the context's, a thread's own, and go with
+  it; a compaction drops them or imports them by their kind
+  (`memo_kinds`, now checked to have one per table).
+- The subtree summaries of `mv_skip` are in the VM's nodes, the VM a
+  context's; their validity is the nodes' stamps (`node_touch`, at
+  every change), on the VM of the thread that runs it.
+- The storage's hash tables were built at their first use, behind a
+  `pthread_once` per table that every lookup called; they are read-only
+  data now, shared by the threads without a lock.
+- mmap, madvise and munmap act on mappings of the calling context, which
+  no other thread knows of (a chunk goes from one thread to another only
+  through the pool, under its spinlock). But munmap of pages present is
+  a TLB shootdown: an interrupt to every CPU running a thread of the
+  process, which waits for it - 2.4% of the time with two threads
+  (`smp_call_function_many_cond`), from the old hash-cons tables freed at
+  each doubling, the 64 MiB stacks of the workers at each join (past
+  glibc's cache), the string table's growths. With more threads it costs
+  more; a pool of tables would avoid most of it.
+- Prefetches are hints, without effect on what a program computes; a
+  `prefetchw` takes the line for writing, from the other cores' caches
+  (as a write would): never on shared data - the string table, the
+  loader, the signature database, the pool's lock - where it would
+  invalidate the readers' copies. None was kept.
 
 ## Hostile input
 

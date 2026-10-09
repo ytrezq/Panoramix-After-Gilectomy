@@ -10,11 +10,12 @@ by default), the binaries taking turns file by file and in turns of order
 (the machine's drifts shared between them), R times (1 by default). For
 each binary: the mean of the runs' totals of user + system time, their
 standard deviation, the best and the worst run, the user and system
-means, the largest peak RSS; with two binaries, the ratio of the means
-and the contracts whose mean times differ the most. --json: every time
-measured, by binary, contract and run (for a later comparison).
+means, the mean of the runs' elapsed times (what threads, -j, shorten),
+the largest peak RSS; with two binaries, the ratio of the means and the
+contracts whose mean times differ the most. --json: every time measured,
+by binary, contract and run (for a later comparison).
 """
-import glob, json, math, os, subprocess, sys
+import glob, json, math, os, subprocess, sys, time
 
 args = sys.argv[1:]
 threads, runs, out, env_extra = "1", 1, None, {}
@@ -36,15 +37,16 @@ files = sorted(f for d in dirs for f in glob.glob(os.path.join(d, "*.hex")))
 if not files:
     sys.exit("no .hex in " + args[0])
 env = dict(os.environ, PANORAMIX_LOG="error", **env_extra)
-# times[b][f] = [(user, sys, maxrss_kib), ...] one per run
+# times[b][f] = [(user, sys, maxrss_kib, elapsed), ...] one per run
 times = {b: {f: [] for f in files} for b in bins}
 for r in range(runs):
     for i, f in enumerate(files):
         for b in (bins if (i + r) % 2 == 0 else bins[::-1]):
+            t0 = time.monotonic()
             p = subprocess.Popen([b, "decompile", f, "--no-color", "-j", threads],
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
             _, _, ru = os.wait4(p.pid, 0)
-            times[b][f].append((ru.ru_utime, ru.ru_stime, ru.ru_maxrss))
+            times[b][f].append((ru.ru_utime, ru.ru_stime, ru.ru_maxrss, time.monotonic() - t0))
 
 
 def mean(xs):
@@ -62,10 +64,12 @@ for b in bins:
     totals = [sum(sum(times[b][f][r][:2]) for f in files) for r in range(runs)]
     users = [sum(times[b][f][r][0] for f in files) for r in range(runs)]
     syss = [sum(times[b][f][r][1] for f in files) for r in range(runs)]
+    walls = [sum(times[b][f][r][3] for f in files) for r in range(runs)]
     rss = max(t[2] for f in files for t in times[b][f])
     means[b] = mean(totals)
-    print("%8.2f s  +- %5.2f (best %.2f, worst %.2f; user %.2f, sys %.2f; peak RSS %d MiB)  %s"
-          % (mean(totals), stdev(totals), min(totals), max(totals), mean(users), mean(syss), rss >> 10, b))
+    print("%8.2f s  +- %5.2f (best %.2f, worst %.2f; user %.2f, sys %.2f; elapsed %.2f; peak RSS %d MiB)  %s"
+          % (mean(totals), stdev(totals), min(totals), max(totals), mean(users), mean(syss), mean(walls),
+             rss >> 10, b))
 if len(bins) > 1:
     b0, b1 = bins[0], bins[1]
     print("ratio of the means: %.4f (%+.2f%%)" % (means[b1] / means[b0], 100 * (means[b1] / means[b0] - 1)))
