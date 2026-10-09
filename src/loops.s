@@ -11,7 +11,10 @@
 .Ls_find_setmems:   .asciz "Error in find_setmems"
 .Ls_unknown:        .asciz "unknown"
 .Ls_assert_while:   .asciz "not a while"
-.Ls_assert_counter: .asciz "parse_counters: unexpected counter step"
+.Ls_lp_index:       .asciz "tuple index out of range"
+.Ls_lp_key:         .asciz "KeyError: a variable without its value after the loop"
+.Ls_lp_unpack:      .asciz "too many values to unpack (a line of another length)"
+.Ls_assert_setvars: .asciz "memidx_to_memrange: not a setvar"
 .Ls_assert_memloc:  .asciz "not a memory location"
 .Ls_assert_move:    .asciz "move_right: a list"
 .Ls_assert_normalize: .asciz "normalize: unexpected variables"
@@ -409,6 +412,7 @@ FUNC parse_counters_impl
         .set PC_L_DIFF, MATCH_BINDINGS_SIZE + 32
         .set PC_L_I, MATCH_BINDINGS_SIZE + 40
         .set PC_L_STEPVARS, MATCH_BINDINGS_SIZE + 48
+        .set PC_L_NUM, MATCH_BINDINGS_SIZE + 56
         mov rbx, rdi
         call assert_while
         call pc_new
@@ -512,30 +516,36 @@ FUNC parse_counters_impl
 8:      mov rax, [rsp + PC_L_CONTS]
         cmp qword ptr [rax + VEC_LEN], 1
         ja .Lpc_done
-        mov rdi, [rsp + PC_L_DIFF]
-        call opcode_of
-        cmp eax, OP_ADD
-        jne .Lpc_done
-        # counter_diff = ('add', to_real_int(diff[1]), diff[2]), with a
-        # ('mul', 1, x) as diff[2] being x
+        # the counter plus a number: ('add', int, ('var', counter)), the
+        # variable maybe as ('mul', 1, var)
         mov r13, [rsp + PC_L_DIFF]
+        mov rdi, r13
+        mov esi, OP_ADD
+        mov edx, 3
+        call is_op_n
+        test eax, eax
+        jz .Lpc_done
         mov rdi, [r13 + N_DATA + 8]
         call is_int
         test eax, eax
-        jz .Lpc_assert
+        jz .Lpc_done                    # (not the counter plus a number)
         mov r14, [r13 + N_DATA + 16]
         mov rdi, r14
-        call opcode_of
+        OPCODE_OF_RDI
         cmp eax, OP_MUL
         jne 9f
+        cmp dword ptr [r14 + N_AUX], 2
+        jb .Lpc_index
         cmp qword ptr [r14 + N_DATA + 8], 3
         jne 9f
+        cmp dword ptr [r14 + N_AUX], 3
+        jb .Lpc_index
         mov r14, [r14 + N_DATA + 16]
 9:      LOADS rdi, VAR
         mov rsi, [r12 + PC_COUNTER]
         call mk2
         cmp rax, r14
-        jne .Lpc_assert
+        jne .Lpc_done                   # (the counter set from another variable)
         mov rdi, [r13 + N_DATA + 8]
         call to_real_int
         mov [r12 + PC_STEP], rax
@@ -549,17 +559,18 @@ FUNC parse_counters_impl
         mov rdi, rax
         mov rsi, [r12 + PC_STEP]
         call alg_div_op
-        mov [rsp + PC_L_COND], rax      # (reused: num_loops)
+        mov [rsp + PC_L_NUM], rax
         mov rdi, rax
         call opcode_of
         cmp eax, OP_DIV
         je .Lpc_done                    # so, no obvious divider
-        mov rax, [rsp + PC_L_COND]
+        mov rax, [rsp + PC_L_NUM]
         mov [r12 + PC_NUM_LOOPS], rax
-        # endvars: the value of every variable after the loop, when it
-        # gets incremented on every iteration
+        # lastvars: the value of every variable after the last iteration,
+        # when it gets incremented by the same amount on every iteration
+        # (not one set in a branch, nor `s += i * i`)
         call vec_new
-        mov [rsp + PC_L_STARTVARS], rax # (reused: endvars)
+        mov [rsp + PC_L_STARTVARS], rax # (reused: lastvars)
         mov r13, [r12 + PC_SETVARS]
         mov qword ptr [rsp + PC_L_I], 0
 10:     mov rcx, [rsp + PC_L_I]
@@ -571,26 +582,35 @@ FUNC parse_counters_impl
         call dict_get
         mov [rsp + PC_L_DIFF], rax      # step
         test rax, rax
-        jz .Lpc_done                    # (no step: not incremented on every iteration)
+        jz .Lpc_done
         PAT rsi, "('add', ':diff', ('var', ':var_idx'))"
         mov rdi, rax
         mov rdx, rsp
         call pat_match
         test eax, eax
         jz 12f
-        B rax, 1
-        cmp rax, [r14 + N_DATA + 8]
-        je 13f
+        B rdi, 1
+        mov rsi, [r14 + N_DATA + 8]
+        call values_equal
+        test eax, eax
+        jnz 13f
 12:     PAT rsi, "('add', ':diff', ('mul', 1, ('var', ':var_idx')))"
         mov rdi, [rsp + PC_L_DIFF]
         mov rdx, rsp
         call pat_match
         test eax, eax
         jz .Lpc_done
-        B rax, 1
-        cmp rax, [r14 + N_DATA + 8]
-        jne .Lpc_done
-13:     # var_stop = to_real_int(var_val) + to_real_int(diff) * num_loops
+        B rdi, 1
+        mov rsi, [r14 + N_DATA + 8]
+        call values_equal
+        test eax, eax
+        jz .Lpc_done
+13:     mov rax, [rsp + PC_L_DIFF]
+        mov rdi, [rax + N_DATA + 8]
+        call is_loop_invariant
+        test eax, eax
+        jz .Lpc_done
+        # var_stop = to_real_int(var_val) + to_real_int(diff) * num_loops
         mov rax, [rsp + PC_L_DIFF]
         mov rdi, [rax + N_DATA + 8]
         call to_real_int
@@ -609,8 +629,73 @@ FUNC parse_counters_impl
         call dict_put
         inc qword ptr [rsp + PC_L_I]
         jmp 10b
-14:     mov rdi, [rsp + PC_L_STARTVARS]
+14:     # the values after the last iteration if there is one, which is
+        # enough to tell what memory the loop touches
+        mov rdi, [rsp + PC_L_STARTVARS]
         call vec_to_list
+        mov [r12 + PC_LASTVARS], rax
+        # num_loops is the number of iterations only if the counter doesn't
+        # start beyond where it stops - otherwise there are none, and it's
+        # negative
+        mov rax, [rsp + PC_L_COND]
+        mov rdi, rax
+        OPCODE_OF_RDI
+        cmp eax, OP_LE
+        je 15f
+        cmp eax, OP_GE
+        jne .Lpc_done
+        mov rdi, [r12 + PC_STEP]        # ge, a step below 0
+        call int_sign
+        test eax, eax
+        jns .Lpc_done
+        mov rdi, [r12 + PC_STOP]
+        mov rsi, [r12 + PC_STEP]
+        call alg_add2
+        mov rdi, rax
+        mov rsi, [r12 + PC_START]
+        call mem_safe_le_op
+        jmp 16f
+15:     mov rdi, [r12 + PC_STEP]        # le, a step above 0
+        call int_sign
+        cmp eax, 0
+        jle .Lpc_done
+        mov rdi, [r12 + PC_STOP]
+        mov rsi, [r12 + PC_STEP]
+        call alg_add2
+        mov rsi, rax
+        mov rdi, [r12 + PC_START]
+        call mem_safe_le_op
+16:     cmp eax, TRI_TRUE
+        jne .Lpc_done
+        # the values after the loop - but where a break leaves it before, or
+        # where what they're computed from (where the counter stops: the
+        # length of an array the body pops) changes in the body
+        mov rdi, [rbx + N_DATA + 16]
+        call leaves_loop
+        test eax, eax
+        jnz .Lpc_done
+        mov r13, [rbx + N_DATA + 16]    # the path
+        mov qword ptr [rsp + PC_L_I], 0
+17:     mov rcx, [rsp + PC_L_I]
+        cmp ecx, [r13 + N_AUX]
+        jae 19f
+        mov r14, [r12 + PC_LASTVARS]
+        mov qword ptr [rsp + PC_L_DIFF], 0
+18:     mov rcx, [rsp + PC_L_DIFF]
+        cmp ecx, [r14 + N_AUX]
+        jae 181f
+        mov rax, [r14 + N_DATA + rcx*8]
+        mov rsi, [rax + N_DATA + 8]     # a value
+        mov rcx, [rsp + PC_L_I]
+        mov rdi, [r13 + N_DATA + rcx*8] # a line
+        call changes_value
+        test eax, eax
+        jnz .Lpc_done
+        inc qword ptr [rsp + PC_L_DIFF]
+        jmp 18b
+181:    inc qword ptr [rsp + PC_L_I]
+        jmp 17b
+19:     mov rax, [r12 + PC_LASTVARS]
         mov [r12 + PC_ENDVARS], rax
 .Lpc_done:
         mov rax, r12
@@ -620,11 +705,124 @@ FUNC parse_counters_impl
         call pc_new
         add rsp, MATCH_BINDINGS_SIZE + 64
         LEAVE
-.Lpc_assert:
-        mov edi, E_ASSERT
-        lea rsi, [rip + .Ls_assert_counter]
+.Lpc_index:
+        mov edi, E_INDEX
+        lea rsi, [rip + .Ls_lp_index]
         call err_throw
 ENDF parse_counters_impl
+
+# what can have a different value in every iteration of a loop: its
+# variables, and what reads the state (python's LOOP_VARIANT)
+        .section .rodata
+.Llv_var:       .asciz "var"
+.Llv_storage:   .asciz "storage"
+.Llv_tload:     .asciz "tload"
+.Llv_mem:       .asciz "mem"
+.Llv_msize:     .asciz "msize"
+.Llv_gas:       .asciz "gas"
+.Llv_balance:   .asciz "balance"
+.Llv_extcodesize: .asciz "extcodesize"
+.Llv_extcodehash: .asciz "extcodehash"
+.Llv_returndatasize: .asciz "returndatasize"
+.Llv_ext_call:  .asciz "ext_call"
+.Llv_return_data: .asciz "return_data"
+.Llv_return_code: .asciz "return_code"
+.Llv_new_address: .asciz "new_address"
+.Llv_result:    .asciz ".result"
+        .section .data.rel.ro, "aw"
+        .align 8
+.Llv_names:
+        .quad .Llv_var, .Llv_storage, .Llv_tload, .Llv_mem, .Llv_msize
+        .quad .Llv_gas, .Llv_balance, .Llv_extcodesize, .Llv_extcodehash
+        .quad .Llv_returndatasize, .Llv_ext_call, .Llv_return_data
+        .quad .Llv_return_code, .Llv_new_address, .Llv_result, 0
+        .text
+
+# is_loop_invariant(exp) -> eax: python's is_loop_invariant - exp is sure
+# to have the same value in every iteration of a loop: a number, a string
+# naming none of LOOP_VARIANT, a tuple of these
+FUNC is_loop_invariant
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        call is_int
+        test eax, eax
+        jnz 8f
+        mov rdi, rbx
+        call is_str
+        test eax, eax
+        jz 3f
+        test dword ptr [rbx + N_AUX], STR_FLOAT
+        jnz 9f                          # (a python float: not a str)
+        lea r12, [rip + .Llv_names]
+1:      mov rsi, [r12]
+        test rsi, rsi
+        jz 8f
+        mov rdi, rbx
+        call mentions_c
+        test eax, eax
+        jnz 9f
+        add r12, 8
+        jmp 1b
+3:      mov rdi, rbx
+        call is_tuple
+        test eax, eax
+        jz 9f
+        xor r12d, r12d
+4:      cmp r12d, [rbx + N_AUX]
+        jae 8f
+        mov rdi, [rbx + N_DATA + r12*8]
+        inc r12d
+        call is_loop_invariant
+        test eax, eax
+        jnz 4b
+9:      xor eax, eax
+        LEAVE
+8:      mov eax, 1
+        LEAVE
+ENDF is_loop_invariant
+
+# leaves_loop(path) -> eax: python's leaves_loop - a path of the body of a
+# loop gets to its end: it leaves the loop there (a break, see
+# prettify.add_breaks) for what follows it, rather than continue it or end
+# the execution
+FUNC leaves_loop
+        STACK_CHECK
+        ENTER
+        mov rbx, rdi
+        call seq_last
+        test rax, rax
+        jz 8f                           # (an empty path)
+        mov r12, rax
+        mov rdi, rax
+        OPCODE_OF_RDI
+        cmp eax, OP_IF
+        jne 2f
+        cmp dword ptr [r12 + N_AUX], 4
+        jb 8f
+        mov rdi, [r12 + N_DATA + 16]
+        call leaves_loop
+        test eax, eax
+        jnz 8f
+        mov rdi, [r12 + N_DATA + 24]
+        call leaves_loop
+        LEAVE
+2:      mov ebx, eax
+        mov edi, eax
+        call is_ends_execution_op
+        test eax, eax
+        jnz 9f
+        cmp ebx, OP_CONTINUE
+        je 9f
+        cmp ebx, OP_UNDEFINED
+        je 9f
+        cmp ebx, OP_GOTO
+        je 9f
+8:      mov eax, 1
+        LEAVE
+9:      xor eax, eax
+        LEAVE
+ENDF leaves_loop
 
 # --- the memory a loop touches ---
 
@@ -711,16 +909,25 @@ FUNC memloc_of
 ENDF memloc_of
 
 # make_range(left, right) -> ('range', left, right - left), of length 0
-# when that's negative for sure
+# when right is before left for sure - as words, not wrapping around 2**256
 FUNC make_range
         ENTER
         mov rbx, rdi
+        mov r13, rsi
         mov rdi, rsi
         mov rsi, rbx
         call alg_sub_op
         mov r12, rax
-        mov rdi, rax
-        call alg_safe_ge_zero
+        mov rdi, rbx
+        call mem_words
+        test eax, eax
+        jz 1f
+        mov rdi, r13
+        call mem_words
+        test eax, eax
+        jz 1f
+        mov rdi, r12
+        call mem_safe_ge_zero
         cmp eax, TRI_FALSE
         jne 1f
         mov r12d, 1
@@ -730,127 +937,109 @@ FUNC make_range
         LEAVE
 ENDF make_range
 
-# while_max_memidx(line) -> value: the rightmost memory index a loop writes
-FUNC while_max_memidx
-        ENTER
-        sub rsp, ERR_SIZEOF + 48
-        .set WM_A, ERR_SIZEOF
-        .set WM_SETMEMS, ERR_SIZEOF + 8
-        .set WM_BEGIN, ERR_SIZEOF + 16
-        .set WM_END, ERR_SIZEOF + 24
-        .set WM_COLLECTED, ERR_SIZEOF + 32
-        mov rbx, rdi
-        call parse_counters
-        mov [rsp + WM_A], rax
-        mov rdi, rbx
-        call assert_while
-        mov rdi, rsp
-        call err_catch
-        test eax, eax
-        jnz .Lwm_error
-        mov rdi, [rbx + N_DATA + 16]
-        call find_setmems
-        mov [rsp + WM_SETMEMS], rax
-        call err_end
-        mov r12, [rsp + WM_SETMEMS]
-        cmp dword ptr [r12 + N_AUX], 0
-        jne 1f
-        mov eax, 1
-        jmp .Lwm_done
-1:      mov qword ptr [rsp + WM_COLLECTED], 1
-        mov rax, [rsp + WM_A]
-        cmp qword ptr [rax + PC_ENDVARS], 0
-        jne 3f
-        xor r13d, r13d
-2:      cmp r13d, [r12 + N_AUX]
-        jae .Lwm_collected
-        mov rdi, [r12 + N_DATA + r13*8]
-        call memloc_right
-        mov rdi, [rsp + WM_COLLECTED]
-        mov rsi, rax
-        call alg_max_op2
-        mov [rsp + WM_COLLECTED], rax
-        inc r13d
-        jmp 2b
-3:      # with the variables at their first and last values
-        mov rdi, r12
-        mov rsi, [rsp + WM_A]
-        call setmems_at_bounds          # -> rax = begin, rdx = end
-        mov [rsp + WM_BEGIN], rax
-        mov [rsp + WM_END], rdx
-        xor r13d, r13d
-4:      cmp r13d, [r12 + N_AUX]
-        jae .Lwm_collected
-        mov rax, [rsp + WM_BEGIN]
-        mov rdi, [rax + N_DATA + r13*8]
-        call memloc_right
-        mov rdi, [rsp + WM_COLLECTED]
-        mov rsi, rax
-        call alg_max_op2
-        mov [rsp + WM_COLLECTED], rax
-        mov rax, [rsp + WM_END]
-        mov rdi, [rax + N_DATA + r13*8]
-        call memloc_right
-        mov rdi, [rsp + WM_COLLECTED]
-        mov rsi, rax
-        call alg_max_op2
-        mov [rsp + WM_COLLECTED], rax
-        inc r13d
-        jmp 4b
-.Lwm_collected:
-        mov rax, [rsp + WM_COLLECTED]
-.Lwm_done:
-        add rsp, ERR_SIZEOF + 48
-        LEAVE
-.Lwm_error:
-        mov edi, eax                    # (python's timeout isn't an Exception)
-        call err_rethrow_timeout
-        mov edi, LOG_ERROR
-        lea rsi, [rip + .Ls_logname]
-        lea rdx, [rip + .Ls_find_setmems]
-        call log_fmt
-        lea rdi, [rip + .Ls_unknown]
-        call str_intern_c
-        add rsp, ERR_SIZEOF + 48
-        LEAVE
-ENDF while_max_memidx
 
 # setmems_at_bounds(lines, pc) -> rax, rdx: the lines (setmems or mems)
-# with every loop variable at its start value, and at its end value
+# with every loop variable at its start value, and at its value after the
+# last iteration (lastvars) - each all at once, see replace_vars
 FUNC setmems_at_bounds
         STACK_CHECK
         ENTER
-        sub rsp, 32
-        mov [rsp], rdi                  # begin
-        mov [rsp + 8], rdi              # end
+        sub rsp, 16
+        mov rbx, rdi
         mov r12, [rsi + PC_SETVARS]
-        mov r13, [rsi + PC_ENDVARS]
-        xor r14d, r14d
-1:      cmp r14d, [r12 + N_AUX]
+        mov r13, [rsi + PC_LASTVARS]
+        mov rdi, r12
+        call pairs_of_setvars
+        mov rsi, rax
+        mov rdi, rbx
+        call replace_vars
+        mov [rsp], rax                  # begin
+        call vec_new                    # {v[1]: lastvars[v[1]] for v in setvars}
+        mov r14, rax
+        mov qword ptr [rsp + 8], 0
+1:      mov rcx, [rsp + 8]
+        cmp ecx, [r12 + N_AUX]
         jae 3f
-        mov rax, [r12 + N_DATA + r14*8] # ('setvar', v_idx, v_start)
-        mov rdi, [rsp]
+        mov rax, [r12 + N_DATA + rcx*8]
+        inc qword ptr [rsp + 8]
+        mov rdi, r14
         mov rsi, [rax + N_DATA + 8]
-        mov rdx, [rax + N_DATA + 16]
-        call replace_var
-        mov [rsp], rax
-        mov rax, [r12 + N_DATA + r14*8]
+        call vec_push
+        mov rcx, [rsp + 8]
+        mov rax, [r12 + N_DATA + rcx*8 - 8]
         mov rdi, r13
         mov rsi, [rax + N_DATA + 8]
         call dict_get
-        mov rdx, rax
-        mov rax, [r12 + N_DATA + r14*8]
-        mov rsi, [rax + N_DATA + 8]
-        mov rdi, [rsp + 8]
-        call replace_var
-        mov [rsp + 8], rax
-        inc r14d
+        test rax, rax
+        jz .Lsb_key
+        mov rdi, r14
+        mov rsi, rax
+        call vec_push
         jmp 1b
-3:      mov rax, [rsp]
-        mov rdx, [rsp + 8]
-        add rsp, 32
+3:      mov rdi, rbx
+        mov rsi, r14
+        call replace_vars
+        mov rdx, rax
+        mov rax, [rsp]
+        add rsp, 16
         LEAVE
+.Lsb_key:
+        mov edi, E_KEY
+        lea rsi, [rip + .Ls_lp_key]
+        call err_throw
 ENDF setmems_at_bounds
+
+# pairs_of_setvars(setvars) -> vec: python's {v[1]: v[2] for v in setvars},
+# as the flat pairs replace_vars takes
+FUNC pairs_of_setvars
+        ENTER
+        mov rbx, rdi
+        call vec_new
+        mov r12, rax
+        xor r13d, r13d
+1:      cmp r13d, [rbx + N_AUX]
+        jae 2f
+        mov r14, [rbx + N_DATA + r13*8]
+        inc r13d
+        cmp dword ptr [r14 + N_AUX], 3
+        jb .Lps_index
+        mov rdi, r12
+        mov rsi, [r14 + N_DATA + 8]
+        call vec_push
+        mov rdi, r12
+        mov rsi, [r14 + N_DATA + 16]
+        call vec_push
+        jmp 1b
+2:      mov rax, r12
+        LEAVE
+.Lps_index:
+        mov edi, E_INDEX
+        lea rsi, [rip + .Ls_lp_index]
+        call err_throw
+ENDF pairs_of_setvars
+
+# pairs_of_dict(pairs) -> vec: python's dict(pairs) for a list of (i, value)
+# pairs (endvars...), as the flat pairs replace_vars takes
+FUNC pairs_of_dict
+        ENTER
+        mov rbx, rdi
+        call vec_new
+        mov r12, rax
+        xor r13d, r13d
+1:      cmp r13d, [rbx + N_AUX]
+        jae 2f
+        mov r14, [rbx + N_DATA + r13*8]
+        inc r13d
+        mov rdi, r12
+        mov rsi, [r14 + N_DATA]
+        call vec_push
+        mov rdi, r12
+        mov rsi, [r14 + N_DATA + 8]
+        call vec_push
+        jmp 1b
+2:      mov rax, r12
+        LEAVE
+ENDF pairs_of_dict
 
 # list_append(list, x) -> list + [x]
 FUNC list_append
@@ -870,20 +1059,30 @@ FUNC list_append
         LEAVE
 ENDF list_append
 
-# extract_setmems(while) -> list: the setmems of the loop body that are
-# on a path to a continue, without duplicates (remembered for the line)
+# extract_setmems(while, breaks) -> list: python's extract_setmems - the
+# setmems of the loop body that are on a path to a continue, or to its end
+# - a break, after which what follows the loop runs (the ones on the paths
+# that end the execution don't matter to what comes after it); without
+# breaks (0), those on a path to a continue only: what the loop's next
+# iterations may read. Without duplicates, remembered for the line.
 FUNC extract_setmems
         ENTER
         mov rbx, rdi
-        mov rsi, rdi
-        mov edi, MEMO_EXTRACT_SETMEMS
+        mov r13d, esi
+        mov r14d, MEMO_EXTRACT_SETMEMS
+        test esi, esi
+        jnz 2f
+        mov r14d, MEMO_EXTRACT_SETMEMS_NB
+2:      mov rsi, rdi
+        mov edi, r14d
         call memo_get
         test rax, rax
         jnz 1f
         mov rdi, rbx
+        mov esi, r13d
         call extract_setmems_impl
         mov r12, rax
-        mov edi, MEMO_EXTRACT_SETMEMS
+        mov edi, r14d
         mov rsi, rbx
         mov rdx, rax
         call memo_put
@@ -895,9 +1094,10 @@ FUNC extract_setmems_impl
         ENTER
         sub rsp, 16
         mov rbx, rdi
+        mov r12d, esi
         call assert_while
         mov rdi, [rbx + N_DATA + 16]
-        xor esi, esi
+        mov esi, r12d
         lea rdx, [rsp]
         call extract_setmems_f
         mov rbx, rax
@@ -914,8 +1114,8 @@ FUNC extract_setmems_impl
 ENDF extract_setmems_impl
 
 # extract_setmems_f(trace, after, &reach) -> list: `after` says whether a
-# continue is reachable from the end of the trace; *reach whether there
-# are paths through it that reach one
+# continue, or the end of the body, is reachable from the end of the
+# trace; *reach whether there are paths through it that reach one
 FUNC extract_setmems_f
         STACK_CHECK
         ENTER
@@ -1212,25 +1412,30 @@ FUNC ranges_overlap_any
         LEAVE
 ENDF ranges_overlap_any
 
-# while_touches_mem(line, mem_idx) -> eax: the loop may write the memory
+# while_touches_mem(line, mem_idx, breaks) -> eax: python's
+# while_touches_mem - the loop may write the memory (without its breaks
+# with breaks 0: as its next iterations see it)
 FUNC while_touches_mem
         STACK_CHECK
         ENTER
         sub rsp, 16
         mov rbx, rdi
         mov r12, rsi
+        mov [rsp], edx
         call parse_counters
         mov r13, rax
         mov rdi, rbx
         call assert_while
         mov rdi, rbx
+        mov esi, [rsp]
         call extract_setmems
         mov r14, rax
         cmp dword ptr [r14 + N_AUX], 0
         je .Lwt_no
-        cmp qword ptr [r13 + PC_ENDVARS], 0
+        cmp qword ptr [r13 + PC_LASTVARS], 0
         jne 1f
-        # no endvars: comparing just with a 'var' assumes 'var' is any natural number
+        # no lastvars: comparing just with a 'var' assumes 'var' is any
+        # natural number
         mov rdi, r14
         mov rsi, r12
         call ranges_overlap_any
@@ -1262,7 +1467,7 @@ FUNC while_uses_mem
         mov r14, rax
         cmp dword ptr [r14 + N_AUX], 0
         je .Lwu_no
-        cmp qword ptr [r13 + PC_ENDVARS], 0
+        cmp qword ptr [r13 + PC_LASTVARS], 0
         jne 1f
         mov rdi, r14
         mov rsi, r12
@@ -1520,37 +1725,58 @@ FUNC storage_sha3
         LEAVE
 ENDF storage_sha3
 
-# path_only_add_in_continue(path) -> eax
-FUNC path_only_add_in_continue
+# steps_only_add(steps) -> eax: python's path_only_add_in_continue - the
+# steps of the loop (the setvars of its continues) only add to the
+# variables
+FUNC steps_only_add
         ENTER
         mov rbx, rdi
         xor r12d, r12d
-1:      cmp r12d, [rbx + N_AUX]
-        jae .Lpo_yes
-        mov r13, [rbx + N_DATA + r12*8]
-        mov rdi, r13
-        call opcode_of
-        cmp eax, OP_CONTINUE
-        jne 3f
-        mov r13, [r13 + N_DATA + 16]    # instrs
-        xor r14d, r14d
-2:      cmp r14d, [r13 + N_AUX]
-        jae 3f
-        mov rdi, [r13 + N_DATA + r14*8]
+1:      cmp r12, [rbx + VEC_LEN]
+        jae 2f
+        mov rax, [rbx + VEC_DATA]
+        mov rdi, [rax + r12*8]
+        inc r12
         call only_add_in_expr
         test eax, eax
-        jz .Lpo_no
-        inc r14d
-        jmp 2b
-3:      inc r12d
+        jnz 1b
+        LEAVE
+2:      mov eax, 1
+        LEAVE
+ENDF steps_only_add
+
+# loop_steps(line) -> vec: the steps of the loop - the setvars of the
+# continues of its own, as deep as they are
+FUNC loop_steps
+        ENTER
+        mov rbx, rdi
+        mov rdi, [rbx + N_DATA + 16]
+        call find_conts
+        mov r13, rax
+        call vec_new
+        mov r12, rax
+        xor r14d, r14d
+1:      cmp r14, [r13 + VEC_LEN]
+        jae 3f
+        mov rax, [r13 + VEC_DATA]
+        mov rax, [rax + r14*8]
+        inc r14
+        cmp dword ptr [rax + N_AUX], 3
+        jb .Lst_index
+        mov rcx, [rax + N_DATA + 8]
+        cmp rcx, [rbx + N_DATA + 24]
+        jne 1b
+        mov rsi, [rax + N_DATA + 16]
+        mov rdi, r12
+        call vec_extend_seq
         jmp 1b
-.Lpo_yes:
-        mov eax, 1
+3:      mov rax, r12
         LEAVE
-.Lpo_no:
-        xor eax, eax
-        LEAVE
-ENDF path_only_add_in_continue
+.Lst_index:
+        mov edi, E_INDEX
+        lea rsi, [rip + .Ls_lp_index]
+        call err_throw
+ENDF loop_steps
 
 # add_sha3(t, arg) -> value or 0: replace_f_stop's f in
 # propagate_storage_in_loop; arg = (('var', var_id), sha3)
@@ -1574,8 +1800,12 @@ FUNC add_sha3
         LEAVE
 ENDF add_sha3
 
-# propagate_storage_in_loop(line) -> list: the sha3 of the storage index
-# variables moved out of the loop
+# propagate_storage_in_loop(line, after) -> list: python's
+# propagate_storage_in_loop - a loop variable that starts at a slot
+# sha3(...) + k, made to start at k and read as itself + sha3(...) in the
+# loop. (Not one that `after`, what runs after the loop - a tuple of
+# traces - reads: it'd read it moved - nor one the step of another
+# variable reads.)
 FUNC propagate_storage_in_loop
         ENTER
         sub rsp, 64
@@ -1584,13 +1814,21 @@ FUNC propagate_storage_in_loop
         .set PS_NEW, 16
         .set PS_SHA3, 24
         .set PS_ARG, 32
-        .set PS_SETVAR, 40
+        .set PS_STEPS, 40
+        .set PS_AFTER, 48
+        .set PS_VAR, 56
         mov rbx, rdi
+        mov [rsp + PS_AFTER], rsi
         call assert_while
         mov rax, [rbx + N_DATA + 8]
         mov [rsp + PS_COND], rax
         mov rax, [rbx + N_DATA + 16]
         mov [rsp + PS_PATH], rax
+        # the steps of the loop, at the continues of its own, as deep as
+        # they are
+        mov rdi, rbx
+        call loop_steps
+        mov [rsp + PS_STEPS], rax
         call vec_new
         mov [rsp + PS_NEW], rax
         mov r12, [rbx + N_DATA + 32]    # setvars
@@ -1598,18 +1836,35 @@ FUNC propagate_storage_in_loop
 1:      cmp r13d, [r12 + N_AUX]
         jae 5f
         mov r14, [r12 + N_DATA + r13*8] # ('setvar', var_id, value)
-        mov [rsp + PS_SETVAR], r14
+        cmp dword ptr [r14 + N_AUX], 3
+        jne .Lps_unpack
         mov rdi, [r14 + N_DATA + 16]
         call storage_sha3
         mov [rsp + PS_SHA3], rax
         test rax, rax
         jz 2f
-        # if the continues don't only add to the index variable, it isn't
-        # safe to proceed
-        mov rdi, [rsp + PS_PATH]
-        call path_only_add_in_continue
+        # if the steps don't only add to the variables, it isn't safe to
+        # proceed: of i = i * 2, a constant can't be subtracted
+        mov rdi, [rsp + PS_STEPS]
+        call steps_only_add
         test eax, eax
         jz 2f
+        # what follows the loop, or the step of another variable, reads it
+        LOADS rdi, VAR
+        mov rsi, [r14 + N_DATA + 8]
+        call mk2
+        mov [rsp + PS_VAR], rax
+        mov rdi, [rsp + PS_AFTER]
+        mov rsi, rax
+        call contains_value
+        test eax, eax
+        jnz 2f
+        mov rdi, [rsp + PS_STEPS]
+        mov rsi, [r14 + N_DATA + 8]
+        mov rdx, [rsp + PS_VAR]
+        call steps_read_var
+        test eax, eax
+        jnz 2f
         # ('setvar', var_id, value - sha3)
         mov rdi, [r14 + N_DATA + 16]
         mov rsi, [rsp + PS_SHA3]
@@ -1622,10 +1877,7 @@ FUNC propagate_storage_in_loop
         mov rsi, rax
         call vec_push
         # the variable becomes var + sha3 in the path and the condition
-        mov rsi, [r14 + N_DATA + 8]
-        LOADS rdi, VAR
-        call mk2
-        mov rdi, rax
+        mov rdi, [rsp + PS_VAR]
         mov rsi, [rsp + PS_SHA3]
         call mk2
         mov [rsp + PS_ARG], rax
@@ -1656,39 +1908,141 @@ FUNC propagate_storage_in_loop
         call mk_list1
         add rsp, 64
         LEAVE
+.Lps_unpack:
+        mov edi, E_VALUE
+        lea rsi, [rip + .Ls_lp_unpack]
+        call err_throw
 ENDF propagate_storage_in_loop
 
-# propagate_storage_in_loops(trace) -> list
-FUNC propagate_storage_in_loops
-        ENTER
-        lea rsi, [rip + propagate_touch]
-        xor edx, edx
-        call rewrite_trace
-        LEAVE
-ENDF propagate_storage_in_loops
-
-FUNC propagate_touch
+# steps_read_var(steps, var_id, var) -> eax: a step of another variable
+# than var_id reads var (python's `instr[1] != var_id and contains(instr[2],
+# var)`)
+FUNC steps_read_var
         ENTER
         mov rbx, rdi
-        mov r12, rdx
-        call is_while_line
+        mov r12, rsi
+        mov r13, rdx
+        xor r14d, r14d
+1:      cmp r14, [rbx + VEC_LEN]
+        jae 8f
+        mov rax, [rbx + VEC_DATA]
+        mov rax, [rax + r14*8]
+        inc r14
+        cmp dword ptr [rax + N_AUX], 3
+        jb .Lsr_index
+        push rax
+        push rax
+        mov rdi, [rax + N_DATA + 8]
+        mov rsi, r12
+        call values_equal
+        pop rcx
+        pop rcx
         test eax, eax
-        jz 1f
-        mov rdi, rbx
+        jnz 1b
+        mov rdi, [rcx + N_DATA + 16]
+        mov rsi, r13
+        call contains_value
+        test eax, eax
+        jz 1b
+        mov eax, 1
+        LEAVE
+8:      xor eax, eax
+        LEAVE
+.Lsr_index:
+        mov edi, E_INDEX
+        lea rsi, [rip + .Ls_lp_index]
+        call err_throw
+ENDF steps_read_var
+
+# propagate_storage_in_loops(trace, after) -> list: python's
+# propagate_storage_in_loops - `after`: what runs after `trace` (a branch
+# of an if), its parts: a tuple of traces, or 0 for none
+FUNC propagate_storage_in_loops
+        STACK_CHECK
+        ENTER
+        sub rsp, 32
+        .set PL_AFTER, 0
+        .set PL_REST, 8
+        .set PL_TRUE, 16
+        mov rbx, rdi
+        test rsi, rsi
+        jnz 1f
+        xor edi, edi
+        xor esi, esi
+        call mk_tuple
+        mov rsi, rax
+1:      mov [rsp + PL_AFTER], rsi
+        call vec_new
+        mov r12, rax
+        xor r13d, r13d
+2:      cmp r13d, [rbx + N_AUX]
+        jae 9f
+        mov r14, [rbx + N_DATA + r13*8]
+        inc r13d
+        mov rdi, r14
+        OPCODE_OF_RDI
+        cmp eax, OP_IF
+        je 3f
+        cmp eax, OP_WHILE
+        je 4f
+        mov rdi, r12
+        mov rsi, r14
+        call vec_push
+        jmp 2b
+3:      cmp dword ptr [r14 + N_AUX], 4
+        jne .Lpl_unpack
+        call .Lpl_rest                  # (trace[idx + 1:],) + after
+        mov [rsp + PL_REST], rax
+        mov rdi, [r14 + N_DATA + 16]
+        mov rsi, rax
+        call propagate_storage_in_loops
+        mov [rsp + PL_TRUE], rax
+        mov rdi, [r14 + N_DATA + 24]
+        mov rsi, [rsp + PL_REST]
+        call propagate_storage_in_loops
+        mov rdx, rax
+        mov rsi, [rsp + PL_TRUE]
+        mov rdi, [r14 + N_DATA + 8]
+        call mk_if
+        mov rdi, r12
+        mov rsi, rax
+        call vec_push
+        jmp 2b
+4:      call .Lpl_rest
+        mov rsi, rax
+        mov rdi, r14
         call propagate_storage_in_loop
         mov rdi, r12
         mov rsi, rax
         call vec_extend_seq
-        LEAVE
-1:      mov rdi, r12
+        jmp 2b
+9:      mov rdi, r12
         mov rsi, rbx
-        call vec_push
+        call vec_to_list_like
+        add rsp, 32
         LEAVE
-ENDF propagate_touch
+.Lpl_unpack:
+        mov edi, E_VALUE
+        lea rsi, [rip + .Ls_lp_unpack]
+        call err_throw
+# (trace[idx + 1:],) + after (rbx the trace, r13 idx + 1; the caller's
+# frame past the return address)
+.Lpl_rest:
+        sub rsp, 8
+        mov rdi, rbx
+        mov rsi, r13
+        call list_from
+        mov rdi, [rsp + 16 + PL_AFTER]
+        mov rsi, rax
+        call tuple_prepend
+        add rsp, 8
+        ret
+ENDF propagate_storage_in_loops
 
 # memidx_to_memrange(mem_idx, setvars, stepvars, endvars) -> rax, rdx:
 # the range a memory index covers over the loop, and the step (32 or
-# -32); 0 when the step isn't a word
+# -32); 0 when the step isn't a word. (The values of the next iteration,
+# of the last, of the first: each all at once, see replace_vars.)
 FUNC memidx_to_memrange
         ENTER
         sub rsp, 48
@@ -1703,10 +2057,17 @@ FUNC memidx_to_memrange
         mov [rsp + MM_STEPVARS], rdx
         mov [rsp + MM_ENDVARS], rcx
         mov rbx, rdi
+        # (all of them setvars)
+        mov rdi, rdx
+        call assert_setvars
+        mov rdi, [rsp + MM_SETVARS]
+        call assert_setvars
         # mem_idx_next: with the step applied
+        mov rdi, [rsp + MM_STEPVARS]
+        call pairs_of_setvars
+        mov rsi, rax
         mov rdi, rbx
-        mov rsi, rdx
-        call replace_vars_by_setvars
+        call replace_vars
         mov [rsp + MM_NEXT], rax
         mov rdi, rax
         mov rsi, rbx
@@ -1716,13 +2077,17 @@ FUNC memidx_to_memrange
         je 1f
         cmp rax, (-32 << 1) | 1
         jne .Lmm_none
-1:      mov rdi, rbx
-        mov rsi, [rsp + MM_ENDVARS]
-        call replace_vars_by_pairs
-        mov [rsp + MM_LAST], rax
+1:      mov rdi, [rsp + MM_ENDVARS]
+        call pairs_of_dict
+        mov rsi, rax
         mov rdi, rbx
-        mov rsi, [rsp + MM_SETVARS]
-        call replace_vars_by_setvars
+        call replace_vars
+        mov [rsp + MM_LAST], rax
+        mov rdi, [rsp + MM_SETVARS]
+        call pairs_of_setvars
+        mov rsi, rax
+        mov rdi, rbx
+        call replace_vars
         mov r13, rax                    # first
         cmp r12, (32 << 1) | 1
         jne 2f
@@ -1760,54 +2125,24 @@ FUNC memidx_to_memrange
         LEAVE
 ENDF memidx_to_memrange
 
-# replace_vars_by_setvars(exp, setvars) -> exp with every ('var', idx)
-# replaced by its value in the ('setvar', idx, value) sequence
-FUNC replace_vars_by_setvars
+# assert_setvars(seq): every element a ('setvar', ...) - python's
+# AssertionError otherwise
+FUNC assert_setvars
         ENTER
         mov rbx, rdi
-        mov r12, rsi
-        xor r13d, r13d
-1:      cmp r13d, [r12 + N_AUX]
+        xor r12d, r12d
+1:      cmp r12d, [rbx + N_AUX]
         jae 2f
-        mov rax, [r12 + N_DATA + r13*8]
-        mov rsi, [rax + N_DATA + 8]
-        LOADS rdi, VAR
-        call mk2
-        mov rsi, rax
-        mov rax, [r12 + N_DATA + r13*8]
-        mov rdx, [rax + N_DATA + 16]
-        mov rdi, rbx
-        call replace
-        mov rbx, rax
-        inc r13d
-        jmp 1b
-2:      mov rax, rbx
-        LEAVE
-ENDF replace_vars_by_setvars
-
-# replace_vars_by_pairs(exp, pairs): the same for a dict of (idx, value)
-FUNC replace_vars_by_pairs
-        ENTER
-        mov rbx, rdi
-        mov r12, rsi
-        xor r13d, r13d
-1:      cmp r13d, [r12 + N_AUX]
-        jae 2f
-        mov rax, [r12 + N_DATA + r13*8]
-        mov rsi, [rax + N_DATA]
-        LOADS rdi, VAR
-        call mk2
-        mov rsi, rax
-        mov rax, [r12 + N_DATA + r13*8]
-        mov rdx, [rax + N_DATA + 8]
-        mov rdi, rbx
-        call replace
-        mov rbx, rax
-        inc r13d
-        jmp 1b
-2:      mov rax, rbx
-        LEAVE
-ENDF replace_vars_by_pairs
+        mov rdi, [rbx + N_DATA + r12*8]
+        inc r12d
+        call opcode_of
+        cmp eax, OP_SETVAR
+        je 1b
+        mov edi, E_ASSERT
+        lea rsi, [rip + .Ls_assert_setvars]
+        call err_throw
+2:      LEAVE
+ENDF assert_setvars
 
 # loop_to_setmem_impl(line) -> list or 0: a loop that writes one word
 # per iteration becomes a setmem of the whole range

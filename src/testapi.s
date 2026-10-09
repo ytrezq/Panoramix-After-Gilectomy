@@ -64,7 +64,6 @@ test_table:
         .quad .Ln_cleanup_mask_data, cleanup_mask_data
         .quad .Ln_canonise_max, canonise_max
         .quad .Ln_cleanup_conds, cleanup_conds
-        .quad .Ln_cleanup_msize, cleanup_msize
         .quad .Ln_cleanup_mems, tf_cleanup_mems
         .quad .Ln_cleanup_vars, tf_cleanup_vars
         .quad .Ln_cleanup_vars_req, tf_cleanup_vars_req
@@ -72,18 +71,23 @@ test_table:
         .quad .Ln_replace_mem, tf_replace_mem
         .quad .Ln_parse_counters, tf_parse_counters
         .quad .Ln_loop_to_setmem, tf_loop_to_setmem
-        .quad .Ln_propagate_storage_in_loops, propagate_storage_in_loops
-        .quad .Ln_readability, readability
+        .quad .Ln_propagate_storage_in_loops, tf_propagate_storage_in_loops
+        .quad .Ln_readability, tf_readability
+        .quad .Ln_min_ifs, min_ifs
+        .quad .Ln_precompiled_results, tf_precompiled_results
+        .quad .Ln_small_words, tf_small_words
+        .quad .Ln_variable_values, variable_values
+        .quad .Ln_cond_bounds, tf_cond_bounds
+        .quad .Ln_apply_constraint, tf_apply_constraint
+        .quad .Ln_changes_value, tf_changes_value
         .quad .Ln_replace_bytes_or_string_length, replace_bytes_or_string_length
         .quad .Ln_postprocess_exp, tf_postprocess_exp
         .quad .Ln_postprocess_trace, tf_postprocess_trace
-        .quad .Ln_rewrite_string_stores, tf_rewrite_string_stores
         .quad .Ln_pp_cleanup_mul_1, pp_cleanup_mul_1
         .quad .Ln_simplify_trace, tf_simplify_trace
         .quad .Ln_simplify_trace_deadline, tf_simplify_trace_deadline
         .quad .Ln_make_whiles, tf_make_whiles
-        .quad .Ln_while_max_memidx, while_max_memidx
-        .quad .Ln_extract_setmems, extract_setmems
+        .quad .Ln_extract_setmems, tf_extract_setmems
         .quad .Ln_while_touches_mem, tf_while_touches_mem
         .quad .Ln_while_uses_mem, tf_while_uses_mem
         .quad .Ln_exp_uses_mem, tf_exp_uses_mem
@@ -336,7 +340,6 @@ test_table:
 .Ln_cleanup_mask_data: .asciz "cleanup_mask_data"
 .Ln_canonise_max: .asciz "canonise_max"
 .Ln_cleanup_conds: .asciz "cleanup_conds"
-.Ln_cleanup_msize: .asciz "cleanup_msize"
 .Ln_cleanup_mems: .asciz "cleanup_mems"
 .Ln_cleanup_vars: .asciz "cleanup_vars"
 .Ln_cleanup_vars_req: .asciz "cleanup_vars_req"
@@ -346,15 +349,20 @@ test_table:
 .Ln_loop_to_setmem: .asciz "loop_to_setmem"
 .Ln_propagate_storage_in_loops: .asciz "propagate_storage_in_loops"
 .Ln_readability: .asciz "readability"
+.Ln_min_ifs: .asciz "min_ifs"
+.Ln_precompiled_results: .asciz "precompiled_results"
+.Ln_small_words: .asciz "small_words"
+.Ln_variable_values: .asciz "variable_values"
+.Ln_cond_bounds: .asciz "cond_bounds"
+.Ln_apply_constraint: .asciz "apply_constraint"
+.Ln_changes_value: .asciz "changes_value"
 .Ln_replace_bytes_or_string_length: .asciz "replace_bytes_or_string_length"
 .Ln_postprocess_exp: .asciz "postprocess_exp"
 .Ln_postprocess_trace: .asciz "postprocess_trace"
-.Ln_rewrite_string_stores: .asciz "rewrite_string_stores"
 .Ln_pp_cleanup_mul_1: .asciz "pp_cleanup_mul_1"
 .Ln_simplify_trace: .asciz "simplify_trace"
 .Ln_simplify_trace_deadline: .asciz "simplify_trace_deadline"
 .Ln_make_whiles: .asciz "make_whiles"
-.Ln_while_max_memidx: .asciz "while_max_memidx"
 .Ln_extract_setmems: .asciz "extract_setmems"
 .Ln_while_touches_mem: .asciz "while_touches_mem"
 .Ln_while_uses_mem: .asciz "while_uses_mem"
@@ -1882,26 +1890,116 @@ FUNC tf_replace_mem
         jmp replace_mem
 ENDF tf_replace_mem
 
-# parse_counters(line) -> (setvars, jds, stepvars, counter, start, stop, step, num_loops, endvars), None for absent
+# parse_counters(line) -> (setvars, jds, stepvars, counter, start, stop, step, num_loops, endvars, lastvars), None for absent
 FUNC tf_parse_counters
         ENTER
         sub rsp, 80
         call parse_counters
         mov rbx, rax
         xor r12d, r12d
-1:      cmp r12d, 9
+1:      cmp r12d, 10
         jae 2f
         mov rdi, [rbx + r12*8]
         call none_if_nil
         mov [rsp + r12*8], rax
         inc r12d
         jmp 1b
-2:      mov edi, 9
+2:      mov edi, 10
         mov rsi, rsp
         call mk_tuple
         add rsp, 80
         LEAVE
 ENDF tf_parse_counters
+
+FUNC tf_extract_setmems
+        mov esi, 1                      # (breaks=True)
+        jmp extract_setmems
+ENDF tf_extract_setmems
+
+FUNC tf_readability
+        xor esi, esi
+        jmp readability
+ENDF tf_readability
+
+FUNC tf_propagate_storage_in_loops
+        xor esi, esi
+        jmp propagate_storage_in_loops
+ENDF tf_propagate_storage_in_loops
+
+FUNC tf_precompiled_results
+        xor esi, esi
+        jmp precompiled_results
+ENDF tf_precompiled_results
+
+# small_words(trace) -> the words, sorted by their repr (python's set)
+FUNC tf_small_words
+        ENTER
+        mov rbx, rdi
+        call variable_values
+        mov rsi, rax
+        mov rdi, rbx
+        call small_words
+        mov rbx, rax
+        call vec_new
+        mov r12, rax
+        mov rdi, rax
+        mov rsi, rbx
+        call vec_extend_seq
+        mov rdi, r12
+        call sort_by_repr
+        mov rdi, r12
+        call vec_to_tuple
+        LEAVE
+ENDF tf_small_words
+
+# cond_bounds(cond) -> ((x, lo, hi), ...)
+FUNC tf_cond_bounds
+        ENTER
+        call cond_bounds
+        test rax, rax
+        jz 2f
+        mov rbx, rax
+        call vec_new
+        mov r12, rax
+        xor r13d, r13d
+1:      cmp r13, [rbx + VEC_LEN]
+        jae 3f
+        mov rax, [rbx + VEC_DATA]
+        mov rdi, [rax + r13*8]
+        mov rsi, [rax + r13*8 + 8]
+        mov rdx, [rax + r13*8 + 16]
+        call mk3
+        mov rdi, r12
+        mov rsi, rax
+        call vec_push
+        add r13, 3
+        jmp 1b
+3:      mov rdi, r12
+        call vec_to_tuple
+        LEAVE
+2:      xor edi, edi
+        xor esi, esi
+        call mk_tuple
+        LEAVE
+ENDF tf_cond_bounds
+
+# apply_constraint((exp, constr))
+FUNC tf_apply_constraint
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        jmp apply_constraint
+ENDF tf_apply_constraint
+
+# changes_value((line, exp))
+FUNC tf_changes_value
+        ENTER
+        mov rsi, [rdi + N_DATA + 8]
+        mov rdi, [rdi + N_DATA]
+        call changes_value
+        mov edi, eax
+        call tri_value
+        LEAVE
+ENDF tf_changes_value
 
 FUNC tf_loop_to_setmem
         ENTER
@@ -1936,17 +2034,6 @@ FUNC tf_postprocess_trace
         LEAVE
 ENDF tf_postprocess_trace
 
-FUNC tf_rewrite_string_stores
-        ENTER
-        mov rbx, rdi
-        xor edi, edi
-        xor esi, esi
-        call mk_list
-        mov rdi, rbx
-        mov rsi, rax
-        call rewrite_string_stores
-        LEAVE
-ENDF tf_rewrite_string_stores
 
 # (exp, flags) -> str
 FUNC tf_prettify
@@ -2375,6 +2462,7 @@ FUNC tf_while_touches_mem
         ENTER
         mov rsi, [rdi + N_DATA + 8]
         mov rdi, [rdi + N_DATA]
+        mov edx, 1                      # (breaks=True)
         call while_touches_mem
         mov edi, eax
         call tri_value
@@ -2405,6 +2493,7 @@ FUNC tf_affects
         ENTER
         mov rsi, [rdi + N_DATA + 8]
         mov rdi, [rdi + N_DATA]
+        mov edx, 1                      # (breaks=True)
         call affects
         mov edi, eax
         call tri_value
@@ -2415,6 +2504,7 @@ FUNC tf_overwrites_mem
         ENTER
         mov rsi, [rdi + N_DATA + 8]
         mov rdi, [rdi + N_DATA]
+        mov edx, 1                      # (breaks=True)
         call overwrites_mem
         mov edi, eax
         call tri_value
@@ -2487,7 +2577,7 @@ FUNC tf_fix_storages_trace
 ENDF tf_fix_storages_trace
 
 # "using heuristics to clean up some things": max_to_add, postprocess_exp
-# twice, postprocess_trace on the ifs, rewrite_string_stores
+# twice, postprocess_trace on the ifs
 FUNC tf_heuristics
         ENTER
         lea rsi, [rip + max_to_add_cb]
@@ -2505,13 +2595,6 @@ FUNC tf_heuristics
         lea rsi, [rip + postprocess_trace]
         xor edx, edx
         call rewrite_trace_ifs
-        mov rbx, rax
-        xor edi, edi
-        xor esi, esi
-        call mk_list
-        mov rdi, rbx
-        mov rsi, rax
-        call rewrite_string_stores
         LEAVE
 ENDF tf_heuristics
 

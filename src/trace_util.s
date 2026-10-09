@@ -674,13 +674,13 @@ FUNC replace_f
         LEAVE
 ENDF replace_f
 
-# replace_vars(exp, values) -> rax: python's helpers.replace_vars - exp with
-# each ('var', i) of `values` (an emap {i: value}, or 0 for none) replaced
-# by its value, all at once (as the setvars of a continue happen)
+
+# replace_vars(exp, pairs) -> rax: python's helpers.replace_vars of a
+# dict given as a vec of flat pairs i, value (a later one of the same i
+# wins, as in the dict made of them): each ('var', i) replaced by its value,
+# all at once
 FUNC replace_vars
-        test rsi, rsi
-        jz 1f
-        cmp qword ptr [rsi + EMAP_COUNT], 0
+        cmp qword ptr [rsi + VEC_LEN], 0
         je 1f
         mov rdx, rsi
         lea rsi, [rip + replace_vars_f]
@@ -697,14 +697,20 @@ FUNC replace_vars_f
         mov edx, 2
         call is_op_n
         test eax, eax
-        jz 1f
-        mov rdi, r12
+        jz 9f
+        mov r13, [r12 + VEC_LEN]        # from the last one
+1:      sub r13, 2
+        js 9f
+        mov rax, [r12 + VEC_DATA]
+        mov rdi, [rax + r13*8]
         mov rsi, [rbx + N_DATA + 8]
-        call emap_get
-        test rax, rax
-        jz 1f
+        call values_equal
+        test eax, eax
+        jz 1b
+        mov rax, [r12 + VEC_DATA]
+        mov rax, [rax + r13*8 + 8]
         LEAVE
-1:      mov rax, rbx
+9:      mov rax, rbx
         LEAVE
 ENDF replace_vars_f
 

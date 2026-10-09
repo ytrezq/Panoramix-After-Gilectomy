@@ -1996,4 +1996,8 @@ ENDF proven_le
         OPSET_MEMBER vr_computed, OP_DATA
         OPSET_END vr_computed, OP_COUNT
 
+# is_computed_op(id) -> eax: one of python's algebra.COMPUTED (what's
+# computed from the words it's made of)
+        OPSET_FUNC is_computed_op, vr_computed
+
         .section .note.GNU-stack,"",@progbits

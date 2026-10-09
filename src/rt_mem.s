@@ -951,6 +951,8 @@ memo_kinds:
         .byte 1                         # TR_M
         .byte 2                         # UNCHECKED: codes
         .byte 3                         # LE_M (pairs)
+        .byte 0                         # OVERWRITES_NB (pairs)
+        .byte 0                         # EXTRACT_SETMEMS_NB
         .text
 
 # memo_sizes_log(): DEBUG: the number of entries of every memo table

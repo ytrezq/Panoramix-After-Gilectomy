@@ -615,7 +615,9 @@ ENDF \fname
 .set MEMO_TR_M, 39          # the same, top MEMORY_TOP (MEMO_TR_W + 1)
 .set MEMO_UNCHECKED, 40     # a term -> _of_unchecked (MEMO_TRUE, MEMO_FALSE)
 .set MEMO_LE_M, 41          # (left, right) -> le_op(left, right, MEMORY_TOP) (pairs)
-.set MEMO_COUNT, 42         # (at most 64: CTX_MEMO's slots)
+.set MEMO_OVERWRITES_NB, 42 # MEMO_OVERWRITES of a loop without its breaks (breaks=False)
+.set MEMO_EXTRACT_SETMEMS_NB, 43 # MEMO_EXTRACT_SETMEMS without the breaks (breaks=False)
+.set MEMO_COUNT, 44         # (at most 64: CTX_MEMO's slots)
 # sentinel values stored in memo tables for python's None / False (values
 # and pointers are never 2 or 4)
 .set MEMO_NONE, 2
@@ -756,6 +758,7 @@ ENDF \fname
 .set PC_STEP, 48
 .set PC_NUM_LOOPS, 56
 .set PC_ENDVARS, 64         # list of (idx, value): the values after the loop
+.set PC_LASTVARS, 72        # list of (idx, value): the values after its last iteration, if any
 .set PC_SIZEOF, 80
 
 # prettify flags (prettify.s)

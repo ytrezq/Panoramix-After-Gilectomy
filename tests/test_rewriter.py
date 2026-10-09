@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Random differential tests of rewriter.s against panoramix.rewriter:
 postprocess_exp (the arrays of a data, ABI-encoded: abi_content,
-byte_size), postprocess_trace (through rewrite_trace_ifs, as
-simplify_trace does) and rewrite_string_stores.
+byte_size) and postprocess_trace (through rewrite_trace_ifs, as
+simplify_trace does).
 
     python3 tests/test_rewriter.py SEED COUNT     (ONLY=name,... MAXBAD=n)
 """

@@ -11,9 +11,10 @@
 .Lx_simplify:   .asciz "simplify expressions"
 .Lx_vars:       .asciz "cleanup variables"
 .Lx_mems:       .asciz "cleanup mems"
+.Lx_precompiled: .asciz "results of precompiled contracts"
+.Lx_mins:       .asciz "minimums"
 .Lx_split:      .asciz "split setmems & storages"
 .Lx_vars2:      .asciz "cleanup vars"
-.Lx_msize:      .asciz "calculate msize"
 .Lx_length:     .asciz "replace storage with length"
 .Lx_ifs:        .asciz "cleanup unused ifs"
 .Lx_loops:      .asciz "convert loops to setmems"
@@ -37,8 +38,50 @@
         call explain
 .endm
 
-# simplify_trace(trace, timeout_ns) -> list
+# simplify_trace(trace, timeout_ns) -> list: python's simplify_trace - the
+# trace, simplified. While it is, the comparisons know that a variable is
+# one of the values it's set to (set_variables): a snapshot of the free
+# memory pointer is at least 0x60. And which of the words the contract is
+# given are small (small_words). Forgotten afterwards, whatever happens.
 FUNC simplify_trace
+        ENTER
+        sub rsp, ERR_SIZEOF + 16
+        mov rbx, rdi
+        mov r12, rsi
+        call variable_values
+        mov r13, rax
+        mov rdi, rbx
+        mov rsi, rax
+        call small_words
+        mov rsi, rax
+        mov rdi, r13
+        call mk2                        # (vars, small)
+        mov rdi, rax
+        call set_variables
+        mov rdi, rsp
+        call err_catch
+        test eax, eax
+        jnz 1f
+        mov rdi, rbx
+        mov rsi, r12
+        call simplify_trace_impl
+        mov rbx, rax
+        call err_end
+        xor edi, edi
+        call set_variables
+        mov rax, rbx
+        add rsp, ERR_SIZEOF + 16
+        LEAVE
+1:      mov [rsp + ERR_SIZEOF], eax
+        xor edi, edi
+        call set_variables
+        mov edi, [rsp + ERR_SIZEOF]
+        mov rsi, [r15 + CTX_ERR_MSG]
+        call err_throw
+ENDF simplify_trace
+
+# simplify_trace_impl(trace, timeout_ns) -> list: python's _simplify_trace
+FUNC simplify_trace_impl
         ENTER
         sub rsp, 48
         .set ST_TIMEOUT, 0
@@ -78,6 +121,15 @@ FUNC simplify_trace
         mov rbx, rax
         EXPLAIN .Lx_mems
         mov rdi, rbx
+        xor esi, esi
+        call precompiled_results        # results of precompiled contracts
+        mov rbx, rax
+        EXPLAIN .Lx_precompiled
+        mov rdi, rbx
+        call min_ifs                    # minimums
+        mov rbx, rax
+        EXPLAIN .Lx_mins
+        mov rdi, rbx
         lea rsi, [rip + split_setmem]
         xor edx, edx
         call rewrite_trace              # split setmems & storages
@@ -104,10 +156,6 @@ FUNC simplify_trace
         mov rbx, rax
         EXPLAIN .Lx_simplify
         mov rdi, rbx
-        call cleanup_msize              # calculate msize
-        mov rbx, rax
-        EXPLAIN .Lx_msize
-        mov rdi, rbx
         call replace_bytes_or_string_length     # replace storage with length
         mov rbx, rax
         EXPLAIN .Lx_length
@@ -122,6 +170,7 @@ FUNC simplify_trace
         mov rbx, rax
         EXPLAIN .Lx_loops
         mov rdi, rbx
+        xor esi, esi
         call propagate_storage_in_loops # move loop indexes outside of loops
         mov rbx, rax
         EXPLAIN .Lx_indexes
@@ -165,13 +214,9 @@ FUNC simplify_trace
         xor edx, edx
         call rewrite_trace_ifs
         mov rbx, rax
-        xor edi, edi
-        xor esi, esi
-        call mk_list
-        mov rdi, rbx
-        mov rsi, rax
-        call rewrite_string_stores      # using heuristics to clean up some things
-        mov rbx, rax
+        # (a string written to storage is left as the loops that copy it: no
+        # notation says a store of all of its bytes, nor does storage.py
+        # read it)
         EXPLAIN .Lx_heuristics
         call .Lst_should_quit
         test eax, eax
@@ -185,6 +230,10 @@ FUNC simplify_trace
         dec r12d
         jnz 1b
 2:      mov rdi, rbx
+        xor esi, esi
+        call precompiled_results
+        mov rbx, rax
+        mov rdi, rbx
         call cleanup_conds              # final setmem/condition cleanup
         mov rbx, rax
         EXPLAIN .Lx_final
@@ -198,11 +247,16 @@ FUNC simplify_trace
         mov rbx, rax
         EXPLAIN .Lx_storages
         mov rdi, rbx
+        xor esi, esi
         call readability                # adding nicer variable names
         mov rbx, rax
         EXPLAIN .Lx_names
         mov rdi, rbx
         call pp_cleanup_mul_1
+        # the conditions readability turned around may be known now: `if
+        # not (1 | x)` is `if 0`
+        mov rdi, rax
+        call cleanup_conds
         add rsp, 48
         LEAVE
 
@@ -225,13 +279,14 @@ FUNC simplify_trace
 3:      xor eax, eax
         add rsp, 8
         ret
-ENDF simplify_trace
+ENDF simplify_trace_impl
 
 FUNC max_to_add_cb
         jmp alg_max_to_add
 ENDF max_to_add_cb
 
-# fix_storages(exp, arg): a storage with a negative offset gets 0
+# fix_storages(exp, arg): a field moved left (see
+# algebra.apply_mask_to_storage): the field, shifted
 FUNC fix_storages
         ENTER
         sub rsp, MATCH_BINDINGS_SIZE
@@ -245,11 +300,21 @@ FUNC fix_storages
         call int_sign
         cmp eax, -1
         jne 1f
+        # ('mask_shl', size, 0, -off, ('storage', size, 0, loc))
         B rcx, 2
         B rsi, 0
         LOADS rdi, STORAGE
         mov edx, 1
         call mk4
+        mov r12, rax
+        B rdi, 1
+        call int_neg
+        mov rcx, rax
+        mov r8, r12
+        B rsi, 0
+        LOADS rdi, MASK_SHL
+        mov edx, 1
+        call mk5
         add rsp, MATCH_BINDINGS_SIZE
         LEAVE
 1:      mov rax, rbx
