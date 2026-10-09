@@ -1500,14 +1500,18 @@ FUNC is_zero_impl
         mov ecx, [rcx + r12*4]
         test ecx, ecx
         jz .Liz_default
-        cmp dword ptr [rbx + N_AUX], 3
-        jne .Liz_default
+        cmp dword ptr [rbx + N_AUX], 3  # (python takes the first two operands:
+        jb .Liz_index                   # an IndexError without them)
         lea rdi, [rip + opcode_nodes]
         mov rdi, [rdi + rcx*8]
         mov rsi, [rbx + N_DATA + 8]
         mov rdx, [rbx + N_DATA + 16]
         call mk3
         LEAVE
+.Liz_index:
+        mov edi, E_INDEX
+        lea rsi, [rip + .Ls_iz_index]
+        call err_throw
 .Liz_iszero:
         cmp dword ptr [rbx + N_AUX], 2
         jne .Liz_default
@@ -2423,5 +2427,9 @@ FUNC arith_module_init
         call iszero_swap_init
         LEAVE
 ENDF arith_module_init
+
+        .section .rodata
+.Ls_iz_index:   .asciz "IndexError: tuple index out of range (is_zero)"
+        .text
 
         .section .note.GNU-stack,"",@progbits
