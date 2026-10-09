@@ -721,10 +721,20 @@ ENDF head_words
 
 # calldata_params(inputs) -> list: signatures.calldata_params - the
 # (type, name) of the words of the params, the i-th at 4 + 32 i in the
-# calldata (python's dict of those positions)
+# calldata (python's dict of those positions). Remembered for the inputs
+# (a pure function of them, asked again for every calldata word the
+# printer names: the names head_words makes are strings of the arena,
+# not interned, so the tuples of each call were new ones, of the same
+# hashes as the last call's - a chain of them in the hash-cons table,
+# compared one by one at every call: 90% of Wyvern's time)
 FUNC calldata_params
         ENTER
         mov rbx, rdi
+        mov edi, MEMO_CALLDATA_PARAMS
+        mov rsi, rbx
+        call memo_get
+        test rax, rax
+        jnz 9f
         call vec_new
         mov r12, rax
         xor r13d, r13d
@@ -742,7 +752,13 @@ FUNC calldata_params
         jmp 1b
 2:      mov rdi, r12
         call vec_to_list
-        LEAVE
+        mov r12, rax
+        mov edi, MEMO_CALLDATA_PARAMS
+        mov rsi, rbx
+        mov rdx, rax
+        call memo_put
+        mov rax, r12
+9:      LEAVE
 ENDF calldata_params
 
 # has_length(kind) -> eax: signatures.has_length - the data a param

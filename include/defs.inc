@@ -621,7 +621,8 @@ ENDF \fname
 .set MEMO_LE_M, 41          # (left, right) -> le_op(left, right, MEMORY_TOP) (pairs)
 .set MEMO_OVERWRITES_NB, 42 # MEMO_OVERWRITES of a loop without its breaks (breaks=False)
 .set MEMO_EXTRACT_SETMEMS_NB, 43 # MEMO_EXTRACT_SETMEMS without the breaks (breaks=False)
-.set MEMO_COUNT, 44         # (at most 64: CTX_MEMO's slots)
+.set MEMO_CALLDATA_PARAMS, 44 # an abi's inputs -> calldata_params of them (sigs.s)
+.set MEMO_COUNT, 45         # (at most 64: CTX_MEMO's slots)
 # sentinel values stored in memo tables for python's None / False (values
 # and pointers are never 2 or 4)
 .set MEMO_NONE, 2
