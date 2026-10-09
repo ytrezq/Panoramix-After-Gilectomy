@@ -568,6 +568,33 @@ FUNC sb_new
         LEAVE
 ENDF sb_new
 
+# sb_try_new_cap(cap) -> rax: a builder with room for cap bytes (and a
+# NUL), or 0 when the system has no memory to give (logging: a line
+# about the memory running out mustn't abort for want of it)
+FUNC sb_try_new_cap
+        ENTER
+        lea r12, [rdi + 1]
+        mov edi, SB_SIZEOF
+        call malloc@PLT
+        test rax, rax
+        jz 9f
+        mov rbx, rax
+        mov rdi, r12
+        call malloc@PLT
+        test rax, rax
+        jz 8f
+        mov [rbx + SB_BUF], rax
+        mov qword ptr [rbx + SB_LEN], 0
+        mov [rbx + SB_CAP], r12
+        mov byte ptr [rax], 0
+        mov rax, rbx
+        LEAVE
+8:      mov rdi, rbx
+        call free@PLT
+        xor eax, eax
+9:      LEAVE
+ENDF sb_try_new_cap
+
 # sb_reserve(sb, extra): make room for `extra` more bytes plus a NUL
 FUNC sb_reserve
         ENTER

@@ -27,6 +27,8 @@ log_initialized: .quad 0
 .Lc_bold:       .asciz "\033[1m"
 .Lc_reset:      .asciz "\033[0m"
 .Ltimefmt:      .asciz "%Y-%m-%d %H:%M:%S"
+.Ls_space:      .asciz " "
+.Ls_nl:         .asciz "\n"
 .Ls_debug:      .asciz "DEBUG"
 .Ls_info:       .asciz "INFO"
 .Ls_warning:    .asciz "WARNING"
@@ -111,149 +113,152 @@ FUNC sb_color
 1:      ret
 ENDF sb_color
 
-# log_msg(level, name_cstr, msg_cstr): one line on stderr
+# log_msg(level, name_cstr, msg_cstr): one line on stderr, its pieces
+# written together (writev) as they are: no memory taken for it - a line
+# about the memory running out mustn't fail for want of memory
 FUNC log_msg
         ENTER
-        sub rsp, 96
+        sub rsp, 528
+        .set LM_IOV, 0                  # the pieces: up to 24 iovecs
+        .set LM_TS, 384                 # struct timespec
+        .set LM_TM, 400                 # struct tm (56 bytes)
+        .set LM_TIME, 456               # the date and time, its milliseconds
+        .set LM_PID, 488                # "[pid]": where it begins, then it
         cmp rdi, [rip + log_level]
         jl .Llog_skip
         mov r12, rdi                    # level
         mov r13, rsi                    # name
         mov r14, rdx                    # message
-        call sb_new
-        mov rbx, rax
+        xor ebx, ebx                    # the pieces so far
         # timestamp
-        mov edi, 0                      # CLOCK_REALTIME
-        lea rsi, [rsp]                  # struct timespec (16 bytes)
+        xor edi, edi                    # CLOCK_REALTIME
+        lea rsi, [rsp + LM_TS]
         call clock_gettime@PLT
-        lea rdi, [rsp]
-        lea rsi, [rsp + 16]             # struct tm (56 bytes)
+        lea rdi, [rsp + LM_TS]
+        lea rsi, [rsp + LM_TM]
         call localtime_r@PLT
-        mov rdi, rbx
-        lea rsi, [rip + .Lc_green]
-        call sb_color
-        lea rdi, [rsp + 72]             # 24-byte buffer
+        lea rdi, [rsp + LM_TIME]
         mov esi, 24
         lea rdx, [rip + .Ltimefmt]
-        lea rcx, [rsp + 16]
+        lea rcx, [rsp + LM_TM]
         call strftime@PLT
-        mov rdi, rbx
-        lea rsi, [rsp + 72]
-        call sb_append_c
-        mov rdi, rbx
-        mov esi, ','
-        call sb_append_char
-        mov rax, [rsp + 8]              # tv_nsec
+        lea rdi, [rsp + LM_TIME + rax]
+        mov byte ptr [rdi], ','
+        mov rax, [rsp + LM_TS + 8]      # tv_nsec
         xor edx, edx
         mov ecx, 1000000
-        div rcx                         # rax = milliseconds
-        lea rdi, [rsp + 72]
-        mov byte ptr [rdi + 3], 0
+        div rcx                         # milliseconds
         mov ecx, 10
         xor edx, edx
         div ecx
         add dl, '0'
-        mov [rdi + 2], dl
+        mov [rdi + 3], dl
         xor edx, edx
         div ecx
         add dl, '0'
-        mov [rdi + 1], dl
+        mov [rdi + 2], dl
         add al, '0'
-        mov [rdi], al
-        mov rsi, rdi
-        mov rdi, rbx
-        call sb_append_c
-        mov rdi, rbx
-        lea rsi, [rip + .Lc_reset]
-        call sb_color
-        # hostname
-        mov rdi, rbx
-        mov esi, ' '
-        call sb_append_char
-        mov rdi, rbx
-        lea rsi, [rip + .Lc_magenta]
-        call sb_color
-        mov rdi, rbx
-        lea rsi, [rip + log_hostname]
-        call sb_append_c
-        mov rdi, rbx
-        lea rsi, [rip + .Lc_reset]
-        call sb_color
-        # name[pid]
-        mov rdi, rbx
-        mov esi, ' '
-        call sb_append_char
-        mov rdi, rbx
-        lea rsi, [rip + .Lc_blue]
-        call sb_color
-        mov rdi, rbx
-        mov rsi, r13
-        call sb_append_c
-        mov rdi, rbx
-        mov esi, '['
-        call sb_append_char
-        mov rdi, rbx
-        mov rsi, [rip + log_pid]
-        call sb_append_u64
-        mov rdi, rbx
-        mov esi, ']'
-        call sb_append_char
-        mov rdi, rbx
-        lea rsi, [rip + .Lc_reset]
-        call sb_color
-        # level
-        mov rdi, rbx
-        mov esi, ' '
-        call sb_append_char
-        mov rdi, rbx
-        lea rsi, [rip + .Lc_bold]
-        call sb_color
+        mov [rdi + 1], al
+        mov byte ptr [rdi + 4], 0
+        # [pid], from its end
+        lea rdi, [rsp + LM_PID + 31]
+        mov byte ptr [rdi], 0
+        dec rdi
+        mov byte ptr [rdi], ']'
+        mov rax, [rip + log_pid]
+        mov ecx, 10
+1:      xor edx, edx
+        div rcx
+        add dl, '0'
+        dec rdi
+        mov [rdi], dl
+        test rax, rax
+        jnz 1b
+        dec rdi
+        mov byte ptr [rdi], '['
+        mov [rsp + LM_PID], rdi
+        # the pieces
+        lea rdi, [rip + .Lc_green]
+        call .Llm_color
+        lea rdi, [rsp + LM_TIME]
+        call .Llm_add
+        lea rdi, [rip + .Lc_reset]
+        call .Llm_color
+        lea rdi, [rip + .Ls_space]
+        call .Llm_add
+        lea rdi, [rip + .Lc_magenta]
+        call .Llm_color
+        lea rdi, [rip + log_hostname]
+        call .Llm_add
+        lea rdi, [rip + .Lc_reset]
+        call .Llm_color
+        lea rdi, [rip + .Ls_space]
+        call .Llm_add
+        lea rdi, [rip + .Lc_blue]
+        call .Llm_color
+        mov rdi, r13
+        call .Llm_add
+        mov rdi, [rsp + LM_PID]
+        call .Llm_add
+        lea rdi, [rip + .Lc_reset]
+        call .Llm_color
+        lea rdi, [rip + .Ls_space]
+        call .Llm_add
+        lea rdi, [rip + .Lc_bold]
+        call .Llm_color
         mov rdi, r12
         call log_level_name
-        mov rsi, rax
-        mov rdi, rbx
-        call sb_append_c
-        mov rdi, rbx
-        lea rsi, [rip + .Lc_reset]
-        call sb_color
-        mov rdi, rbx
-        mov esi, ' '
-        call sb_append_char
-        # message, colored by level
+        mov rdi, rax
+        call .Llm_add
+        lea rdi, [rip + .Lc_reset]
+        call .Llm_color
+        lea rdi, [rip + .Ls_space]
+        call .Llm_add
+        # the message, colored by its level
         cmp r12, LOG_WARNING
-        jl 1f
-        lea rsi, [rip + .Lc_yellow]
-        cmp r12, LOG_ERROR
         jl 2f
-        lea rsi, [rip + .Lc_red]
-2:      mov rdi, rbx
-        call sb_color
-1:      cmp r12, LOG_DEBUG
-        jne 3f
-        mov rdi, rbx
-        lea rsi, [rip + .Lc_green]
-        call sb_color
-3:      mov rdi, rbx
-        mov rsi, r14
-        call sb_append_c
-        mov rdi, rbx
-        lea rsi, [rip + .Lc_reset]
-        call sb_color
-        mov rdi, rbx
-        mov esi, '\n'
-        call sb_append_char
-        # write it out under a lock so that lines from threads don't mix
+        lea rdi, [rip + .Lc_yellow]
+        cmp r12, LOG_ERROR
+        jl 3f
+        lea rdi, [rip + .Lc_red]
+3:      call .Llm_color
+2:      cmp r12, LOG_DEBUG
+        jne 4f
+        lea rdi, [rip + .Lc_green]
+        call .Llm_color
+4:      mov rdi, r14
+        call .Llm_add
+        lea rdi, [rip + .Lc_reset]
+        call .Llm_color
+        lea rdi, [rip + .Ls_nl]
+        call .Llm_add
+        # written under a lock, so that lines from threads don't mix
         call log_lock_acquire
         mov edi, 2
-        mov rsi, [rbx + SB_BUF]
-        mov rdx, [rbx + SB_LEN]
-        call write@PLT
+        lea rsi, [rsp + LM_IOV]
+        mov edx, ebx
+        call writev@PLT
         call log_lock_release
-        mov rdi, rbx
-        call sb_free
 .Llog_skip:
-        add rsp, 96
+        add rsp, 528
         LEAVE
+# local: the C string rdi, the next piece (rbx: the pieces so far) - an
+# escape sequence only if colors are on
+.Llm_color:
+        cmp qword ptr [rip + log_color], 0
+        jle 9f
+.Llm_add:
+        sub rsp, 8                      # (aligned)
+        mov [rsp], rdi
+        call strlen@PLT
+        mov rdi, [rsp]
+        mov rcx, rbx
+        shl rcx, 4
+        mov [rsp + 16 + LM_IOV + rcx], rdi
+        mov [rsp + 16 + LM_IOV + rcx + 8], rax
+        inc rbx
+        add rsp, 8
+9:      ret
 ENDF log_msg
 
 FUNC log_level_name
@@ -391,7 +396,11 @@ FUNC log_fmt
         mov [rsp], rcx
         mov [rsp + 8], r8
         mov [rsp + 16], r9
-        call sb_new
+        # (no memory for the message: its format, as it is)
+        mov edi, 1024
+        call sb_try_new_cap
+        test rax, rax
+        jz 2f
         mov rbx, rax
         mov rdi, rbx
         mov rsi, r14
@@ -404,6 +413,12 @@ FUNC log_fmt
         mov rdi, rbx
         call sb_free
 1:      add rsp, 32
+        LEAVE
+2:      mov rdi, r12
+        mov rsi, r13
+        mov rdx, r14
+        call log_msg
+        add rsp, 32
         LEAVE
 ENDF log_fmt
 
