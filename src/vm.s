@@ -1789,27 +1789,49 @@ ENDF mb_by_jd
         OPSET_MEMBER terminal, OP_GOTO
         OPSET_END terminal, OP_COUNT
 
-# mv_visit(start, p, jd, hits, continues) -> eax: python's visit (vm.py,
-# _merge_at) - TRI_TRUE if every path below `start` either ends, reaches
-# `jd` (a hit, pushed on hits; not one in a branch of an if between p and
-# it whose paths were merged already), or loops back (a goto: one to p or
-# its label - the loop p is the head of - pushed on continues); TRI_FALSE
-# if one is the head of a loop at jd, or a merged node whose paths go on
-# above p; TRI_NONE if it's too early to tell. Depth first, the children
-# in order, on the VM's scratch stack (find_nodes': not in use meanwhile).
+# SUM_JD_BIT dst, jd: dst = jd's bit in a summary's mask (ND_SUM_MASK: one
+# of 62, by a hash of the tuple's address - jds are hash-consed); rcx
+# clobbered
+.macro SUM_JD_BIT dst, jd
+        movabs rcx, 0x9e3779b97f4a7c15
+        imul rcx, \jd
+        shr rcx, 58
+        cmp ecx, 62
+        jb .Lsjb\@
+        sub ecx, 62                     # (62, 63: the mask's flags)
+.Lsjb\@:
+        mov \dst, 1
+        shl \dst, cl
+.endm
+
+# mv_visit(start, p, jd, hits, continues, false_only) -> eax: python's
+# visit (vm.py, _merge_at) - TRI_TRUE if every path below `start` either
+# ends, reaches `jd` (a hit, pushed on hits; not one in a branch of an if
+# between p and it whose paths were merged already), or loops back (a
+# goto: one to p or its label - the loop p is the head of - pushed on
+# continues); TRI_FALSE if one is the head of a loop at jd, or a merged
+# node whose paths go on above p; TRI_NONE if it's too early to tell.
+# Depth first, the children in order, on the VM's scratch stack
+# (find_nodes': not in use meanwhile). false_only: the other side was
+# none - only a false of this one changes _merge_at's answer (and once
+# this one is none, the same): the subtrees that can't give one are
+# skipped (mv_skip), the hits and the continues of the rest no longer
+# matter.
 FUNC mv_visit
         ENTER
-        sub rsp, 48
+        sub rsp, 64
         .set MV_P, 0
         .set MV_JD, 8
         .set MV_HITS, 16
         .set MV_CONTS, 24
         .set MV_RES, 32
+        .set MV_FALSE_ONLY, 48
         mov rbx, rdi
         mov [rsp + MV_P], rsi
         mov [rsp + MV_JD], rdx
         mov [rsp + MV_HITS], rcx
         mov [rsp + MV_CONTS], r8
+        mov [rsp + MV_FALSE_ONLY], r9
         mov qword ptr [rsp + MV_RES], TRI_TRUE
         mov rax, [r15 + CTX_VM]
         mov r14, [rax + VM_SCR_VISIT]
@@ -1831,7 +1853,20 @@ FUNC mv_visit
         mov [r14 + VEC_LEN], rcx
         mov rax, [r14 + VEC_DATA]
         mov rbx, [rax + rcx*8]          # n
-        cmp qword ptr [rbx + ND_MERGED], 0
+        cmp qword ptr [rsp + MV_RES], TRI_NONE
+        je 1f
+        cmp qword ptr [rsp + MV_FALSE_ONLY], 0
+        je 0f
+1:      # it's none already, or false: what's left of the walk only looks
+        # for a false - not in a subtree without the merged nodes or the
+        # loops that would give one (mv_skip)
+        mov rdi, rbx
+        mov rsi, [rsp + MV_P]
+        mov rdx, [rsp + MV_JD]
+        call mv_skip
+        test eax, eax
+        jnz .Lmv_pop
+0:      cmp qword ptr [rbx + ND_MERGED], 0
         je 2f
         # goes on in the continuation of the `if` it was merged at, which
         # will be visited as well - if that's below p; one above it: the
@@ -1909,13 +1944,295 @@ FUNC mv_visit
         jmp .Lmv_pop
 .Lmv_end:
         mov eax, [rsp + MV_RES]
-        add rsp, 48
+        add rsp, 64
         LEAVE
 .Lmv_false:
         mov eax, TRI_FALSE
-        add rsp, 48
+        add rsp, 64
         LEAVE
 ENDF mv_visit
+
+# mv_skip(n, p, jd) -> eax: 1 if nothing in n's subtree can make
+# mv_visit's walk from p's branch false (the walk is none already, or its
+# other side was: the hits and the continues it finds no longer count,
+# only a false would): no merged node whose merge point isn't below p
+# there, no loop at jd - its summary (mv_summary) says so. The ones below
+# n are below p as long as n is, its merge points outside it are checked
+# one by one. 84% of the nodes zx_Staking's merges walked were such a
+# rest, 52% of cETH's. (PANORAMIX_CHECK_LCA=1 walks the subtree as python
+# does for every subtree skipped, aborting where it finds a false.)
+FUNC mv_skip
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        call mv_summary
+        mov rax, [rbx + ND_STAMP]
+        inc rax
+        cmp [rbx + ND_SUM_STAMP], rax
+        jne 8f                          # (no summary: a cycle met)
+        mov r14, [rbx + ND_SUM_MASK]
+        SUM_JD_BIT rax, r13
+        test r14, rax
+        jnz 8f                          # (a loop at jd, maybe)
+        bt r14, 63                      # (SUM_UNKNOWN)
+        jc 8f
+        bt r14, 62                      # (SUM_MERGED)
+        jnc 7f
+        mov rdi, rbx                    # its merge points below n: below p
+        mov rsi, r12
+        call vm_below
+        test eax, eax
+        jz 8f
+        xor r14d, r14d                  # and those outside n
+1:      cmp r14, [rbx + ND_SUM_EN]
+        jae 7f
+        mov rdi, [rbx + ND_SUM_E + r14*8]
+        mov rsi, r12
+        call vm_below
+        test eax, eax
+        jz 8f
+        inc r14
+        jmp 1b
+7:      mov rax, [r15 + CTX_VM]
+        cmp qword ptr [rax + VM_CHECK_LCA], 0
+        je 9f
+        mov rdi, rbx
+        mov rsi, r12
+        mov rdx, r13
+        call mv_skip_check
+9:      mov eax, 1
+        LEAVE
+8:      xor eax, eax
+        LEAVE
+ENDF mv_skip
+
+# mv_skip_check(n, p, jd): PANORAMIX_CHECK_LCA's check of a subtree
+# skipped - the walk python's visit would make looking for a false, every
+# node of it and below (none of its hits and its nodes not run yet stop
+# it: more than python's), the merge points walked up to p
+FUNC mv_skip_check
+        ENTER
+        mov r12, rsi
+        mov r13, rdx
+        mov rbx, rdi
+        call vec_new
+        mov r14, rax
+        mov rdi, r14
+        mov rsi, rbx
+        call vec_push
+1:      mov rcx, [r14 + VEC_LEN]
+        test rcx, rcx
+        jz 9f
+        dec rcx
+        mov [r14 + VEC_LEN], rcx
+        mov rax, [r14 + VEC_DATA]
+        mov rbx, [rax + rcx*8]
+        cmp qword ptr [rbx + ND_MERGED], 0
+        je 2f
+        mov rdi, [rbx + ND_MERGE_POINT]
+        mov rsi, r12
+        call vm_below_walk
+        test eax, eax
+        jz 8f
+        jmp 1b
+2:      cmp qword ptr [rbx + ND_LABEL], 0
+        je 3f
+        cmp [rbx + ND_JD], r13
+        je 8f
+3:      mov rax, [rbx + ND_NEXT]
+        mov rcx, [rax + VEC_LEN]
+        mov rax, [rax + VEC_DATA]
+4:      dec rcx
+        js 1b
+        push rax
+        push rcx
+        mov rdi, r14
+        mov rsi, [rax + rcx*8]
+        call vec_push
+        pop rcx
+        pop rax
+        jmp 4b
+9:      LEAVE
+8:      lea rdi, [rip + .Ls_skip_mismatch]
+        call rt_fatal
+ENDF mv_skip_check
+
+        .section .rodata
+.Ls_skip_mismatch: .asciz "mv_skip: a subtree skipped where python's walk finds a false"
+        .text
+
+# mv_summary(n): n's subtree summarized for mv_skip, unless it is already
+# (ND_SUM_STAMP: n's stamp + 1 when it was made - nothing changed below n
+# since, see node_touch): the jds of the loops (labels) in it, as bits
+# (SUM_JD_BIT), whether it holds merged nodes (SUM_MERGED), and the merge
+# points of those that aren't in it (ND_SUM_E: SUM_UNKNOWN past
+# SUM_E_ROOM). Over the whole subtree, as python's walk would go if
+# nothing stopped it (but at a merged node, as it does). Made bottom up,
+# the subtrees whose summary holds kept, on a stack of the VM's own (the
+# trees are thousands deep); a node met again while its subtree is being
+# made (a cycle: the tree never has one) gets no summary, nor do the
+# nodes above it (SUM_UNKNOWN).
+FUNC mv_summary
+        mov rax, [rdi + ND_STAMP]
+        inc rax
+        cmp [rdi + ND_SUM_STAMP], rax
+        jne 1f
+        ret
+1:      ENTER
+        mov rbx, rdi
+        mov rax, [r15 + CTX_VM]
+        mov r14, [rax + VM_SCR_SUM]
+        test r14, r14
+        jnz 2f
+        call vec_new
+        mov r14, rax
+        mov rax, [r15 + CTX_VM]
+        mov [rax + VM_SCR_SUM], r14
+2:      mov qword ptr [r14 + VEC_LEN], 0
+        mov rdi, r14
+        mov rsi, rbx
+        call vec_push
+.Lms_top:
+        mov rcx, [r14 + VEC_LEN]
+        test rcx, rcx
+        jz .Lms_done
+        mov rax, [r14 + VEC_DATA]
+        mov rbx, [rax + rcx*8 - 8]
+        test bl, 1
+        jnz .Lms_finish                 # (its children done)
+        mov rax, [rbx + ND_STAMP]
+        inc rax
+        cmp [rbx + ND_SUM_STAMP], rax
+        je .Lms_drop                    # (summarized already)
+        cmp qword ptr [rbx + ND_SUM_STAMP], -1
+        je .Lms_drop                    # (being made: a cycle - see .Lms_finish)
+        cmp qword ptr [rbx + ND_MERGED], 0
+        jne .Lms_merged
+        # its children first, then itself (tagged on the stack)
+        mov qword ptr [rbx + ND_SUM_STAMP], -1
+        mov rax, [r14 + VEC_DATA]
+        lea rdx, [rbx + 1]
+        mov [rax + rcx*8 - 8], rdx
+        mov rax, [rbx + ND_NEXT]
+        mov r12, [rax + VEC_LEN]
+        mov r13, [rax + VEC_DATA]
+3:      dec r12
+        js .Lms_top
+        mov rsi, [r13 + r12*8]
+        mov rax, [rsi + ND_STAMP]
+        inc rax
+        cmp [rsi + ND_SUM_STAMP], rax
+        je 3b
+        cmp qword ptr [rsi + ND_SUM_STAMP], -1
+        je 3b
+        mov rdi, r14
+        call vec_push
+        jmp 3b
+.Lms_drop:
+        dec qword ptr [r14 + VEC_LEN]
+        jmp .Lms_top
+.Lms_merged:
+        # a merged node (python's walk stops there): its merge point, if
+        # it's not below it
+        dec qword ptr [r14 + VEC_LEN]
+        mov rax, SUM_MERGED
+        mov [rbx + ND_SUM_MASK], rax
+        mov qword ptr [rbx + ND_SUM_EN], 0
+        mov rdi, [rbx + ND_MERGE_POINT]
+        mov rsi, rbx
+        call vm_below
+        test eax, eax
+        jnz 4f
+        mov rax, [rbx + ND_MERGE_POINT]
+        mov [rbx + ND_SUM_E], rax
+        mov qword ptr [rbx + ND_SUM_EN], 1
+4:      jmp .Lms_store
+.Lms_finish:
+        dec qword ptr [r14 + VEC_LEN]
+        and rbx, -2
+        # its own loop's jd, its children's summaries, their merge points
+        # that aren't below it
+        xor eax, eax
+        cmp qword ptr [rbx + ND_LABEL], 0
+        je 5f
+        SUM_JD_BIT rax, [rbx + ND_JD]
+5:      mov [rbx + ND_SUM_MASK], rax
+        mov qword ptr [rbx + ND_SUM_EN], 0
+        mov rax, [rbx + ND_NEXT]
+        mov r12, [rax + VEC_LEN]
+        mov r13, [rax + VEC_DATA]
+.Lms_child:
+        dec r12
+        js .Lms_store
+        mov rsi, [r13 + r12*8]
+        mov rax, [rsi + ND_STAMP]
+        inc rax
+        cmp [rsi + ND_SUM_STAMP], rax
+        jne .Lms_unknown                # (a cycle: being made, or dropped)
+        mov rax, [rsi + ND_SUM_MASK]
+        or [rbx + ND_SUM_MASK], rax
+        bt rax, 63
+        jc .Lms_store                   # (unknown below: unknown here)
+        xor ecx, ecx
+6:      cmp rcx, [rsi + ND_SUM_EN]
+        jae .Lms_child
+        mov rdi, [rsi + ND_SUM_E + rcx*8]
+        push rsi
+        push rcx
+        call ms_add_outside
+        pop rcx
+        pop rsi
+        test eax, eax
+        jz .Lms_unknown
+        inc rcx
+        jmp 6b
+.Lms_unknown:
+        mov rax, SUM_UNKNOWN
+        or [rbx + ND_SUM_MASK], rax
+.Lms_store:
+        mov rax, [rbx + ND_STAMP]
+        inc rax
+        mov [rbx + ND_SUM_STAMP], rax
+        jmp .Lms_top
+.Lms_done:
+        # a change below from now on begins a generation (node_touch)
+        mov rax, [r15 + CTX_VM]
+        mov qword ptr [rax + VM_VISITED], 1
+        LEAVE
+ENDF mv_summary
+
+# ms_add_outside(e) -> eax: mv_summary's merge point e of a child of rbx
+# added to rbx's (ND_SUM_E) unless it's below rbx or there already; 0 when
+# there's no room left
+FUNC ms_add_outside
+        push rbx
+        push rdi
+        sub rsp, 8
+        mov rsi, rbx
+        call vm_below
+        add rsp, 8
+        pop rdi
+        pop rbx
+        test eax, eax
+        jnz 8f
+        mov rcx, [rbx + ND_SUM_EN]
+        xor edx, edx
+1:      cmp rdx, rcx
+        jae 2f
+        cmp [rbx + ND_SUM_E + rdx*8], rdi
+        je 8f
+        inc rdx
+        jmp 1b
+2:      cmp rcx, SUM_E_ROOM
+        jae 9f
+        mov [rbx + ND_SUM_E + rcx*8], rdi
+        inc qword ptr [rbx + ND_SUM_EN]
+8:      mov eax, 1
+        ret
+9:      xor eax, eax
+        ret
+ENDF ms_add_outside
 
 # pred_merged_out(m, h) -> eax: m is a merged node whose merge point isn't
 # h nor below it (_merge_at's check of the hits)
@@ -1970,6 +2287,7 @@ FUNC vm_merge_at
         mov rdx, r12
         mov rcx, r13
         mov r8, [rsp + MA_CONTS]
+        xor r9d, r9d
         call mv_visit
         cmp eax, TRI_FALSE
         je .Lma_false
@@ -1979,6 +2297,9 @@ FUNC vm_merge_at
         mov rdx, r12
         mov rcx, r13
         mov r8, [rsp + MA_CONTS]
+        xor r9d, r9d                    # (the first side none: only a false
+        cmp eax, TRI_NONE               # of this one would change the
+        sete r9b                        # answer)
         call mv_visit
         cmp eax, TRI_FALSE
         je .Lma_false

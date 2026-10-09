@@ -665,8 +665,9 @@ ENDF \fname
 .set ND_LABEL, 88           # node*: the loop head this node is the body of
 .set ND_PREV, 96            # node*, 0 for the root
 .set ND_STAMP, 104          # the VM's generation when it or a node below last changed (node_touch)
-.set ND_VC_JD, 112          # merge_visit's answer for its subtree: the jd asked (0: none),
-.set ND_VC, 120             #   and the stamp then << 3 | the answer (MC_*)
+.set ND_SUM_STAMP, 112      # the subtree's summary (vm.s, mv_summary): ND_STAMP + 1 when it was
+.set ND_SUM_MASK, 120       #   made (0: none, -1: being made), the jds of its labels (62 bits,
+                            #   SUM_*), and the merge points of its merged nodes not in it
 .set ND_JUMP, 128           # node*: an ancestor, for vm_common_ancestor's skips (see there)
 .set ND_DEPTH, 136
 .set ND_START, 144          # value: the pc, or a symbolic jump target
@@ -681,7 +682,12 @@ ENDF \fname
 .set ND_MERGE_POINT, 216    # node*: the `if` node a merged node's paths were merged at
 .set ND_ASSUMED_MEM, 224    # tuple: the memory facts a loop's body assumes (set_label), or 0
 .set ND_REJECTED_MEM, 232   # tuple: the ones an iteration broke (continue_loops), or 0
-.set ND_SIZEOF, 240
+.set ND_SUM_EN, 240         # (the summary's merge points outside the subtree: how many, then
+.set ND_SUM_E, 248          #   SUM_E_ROOM of them)
+.set SUM_E_ROOM, 3
+.set ND_SIZEOF, 272
+.set SUM_MERGED, 1 << 62    # (ND_SUM_MASK: a merged node in the subtree)
+.set SUM_UNKNOWN, 1 << 63   # (ND_SUM_MASK: too many merge points outside it, or a cycle)
 
 .set VM_LOADER, 0
 .set VM_JUST_FDESTS, 8
@@ -715,7 +721,8 @@ ENDF \fname
 .set VM_INTERNAL, 272       # the recursive internal functions known: a vec of (entry, n, m, frame), or 0 (vmrec.s)
 .set VM_FOUND, 280          # those found, in the order found: a vec, or 0
 .set VM_INSIDE, 288         # 1: the run is an internal function's, decompiled apart (no entry, nothing known)
-.set VM_SIZEOF, 296
+.set VM_SCR_SUM, 296        # mv_summary's stack (a vec, reused; 0 until needed)
+.set VM_SIZEOF, 304
 
 .set MAX_NODE_COUNT, 20000
 .set WIDE_NODE_COUNT, 5000
