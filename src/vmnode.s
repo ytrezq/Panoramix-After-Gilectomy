@@ -576,6 +576,15 @@ FUNC find_nodes_into
         mov rbx, [r14 + VEC_LEN]
         mov r12, [r14 + VEC_DATA]
 .Lfn_pop:
+        # the walk is iterative and the rounds call it over every node: it
+        # is where a hostile contract spends its time (vm_recursion_of
+        # asks it of every ancestor of every unexpanded node). The check
+        # costs a compare and lets the watchdog end it: it turns
+        # CTX_STACK_LOW into -1, and a phase with no STACK_CHECK anywhere
+        # could not be timed out. The length in rbx is ahead of the vec's
+        # (written back only to grow it), which is why throwing here is
+        # safe: every find_nodes_into sets VEC_LEN to 0 first.
+        STACK_CHECK
         test rbx, rbx
         jz .Lfn_done
         dec rbx

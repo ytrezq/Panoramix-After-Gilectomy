@@ -2326,6 +2326,12 @@ FUNC loop_to_setmem_from_storage
         cmp eax, OP_STORAGE
         jne .Llf_none
         mov rax, [rsp + LF_MEM_VAL]
+        cmp dword ptr [rax + N_AUX], 4  # ('storage', 256, 0, idx) whole: the
+        jb .Llf_none                    # three reads below are its elements,
+                                        # and opcode_of only makes it a
+                                        # non-empty tuple (python matches the
+                                        # shape and simply fails on a short
+                                        # one, as this now does)
         cmp qword ptr [rax + N_DATA + 8], (256 << 1) | 1
         jne .Llf_none
         cmp qword ptr [rax + N_DATA + 16], 1

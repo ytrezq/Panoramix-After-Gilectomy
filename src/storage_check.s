@@ -97,32 +97,49 @@ ENDF ck_reserve
 # ck_digest(ck, e, out, n): blake2b(f"{seed}:{e!r}", digest_size=n) at out
 FUNC ck_digest
         ENTER
+        sub rsp, ERR_SIZEOF + 16
+        .set CD_SB, ERR_SIZEOF
         mov rbx, rdi
         mov r12, rsi
         mov r13, rdx
         mov r14, rcx
         call sb_new
-        push rax
-        push rax
-        mov rdi, rax
+        mov [rsp + CD_SB], rax
+        # value_print has a STACK_CHECK: a symbol nested past the stack's
+        # margin throws E_RECURSION mid-print, which the storage code's
+        # handlers swallow and go on - the builder (xmalloc'd, outside the
+        # arena) was lost each time. Freed, then the same error goes on.
+        mov rdi, rsp
+        call err_catch
+        test eax, eax
+        jnz .Lcd_throw
+        mov rdi, [rsp + CD_SB]
         mov rsi, [rbx + CK_SEED]
         call sb_append_u64
-        mov rdi, [rsp]
+        mov rdi, [rsp + CD_SB]
         mov esi, ':'
         call sb_append_char
-        mov rdi, [rsp]
+        mov rdi, [rsp + CD_SB]
         mov rsi, r12
         call value_print
-        mov rax, [rsp]
+        mov rax, [rsp + CD_SB]
         mov rdi, r13
         mov rsi, r14
         mov rdx, [rax + SB_BUF]
         mov rcx, [rax + SB_LEN]
         call blake2b
-        pop rdi
-        pop rax
+        call err_end
+        mov rdi, [rsp + CD_SB]
         call sb_free
+        add rsp, ERR_SIZEOF + 16
         LEAVE
+.Lcd_throw:                             # (the handler is unlinked already)
+        mov r12d, eax                   # the error's code
+        mov rdi, [rsp + CD_SB]
+        call sb_free
+        mov edi, r12d
+        mov rsi, [r15 + CTX_ERR_MSG]
+        call err_throw
 ENDF ck_digest
 
 # ck_be_to_word(dst, be32): the number of 32 big-endian bytes
@@ -604,6 +621,8 @@ FUNC ck_read_loc
         je .Lrl_si
         call ck_unknown
 .Lrl_sv:
+        cmp dword ptr [rbx + N_AUX], 2  # (as .Lrl_inner)
+        jb ck_index
         mov rdi, [rsp + RLx_DEFS]
         mov rsi, [rbx + N_DATA + 8]
         call od_get
@@ -637,6 +656,8 @@ FUNC ck_read_loc
         mov rdi, [rsp + RLx_OUT]
         cmp qword ptr [rdi + RL_BLEN], 0
         jne .Lrl_type
+        cmp dword ptr [rbx + N_AUX], 3  # (as .Lrl_inner)
+        jb ck_index
         mov r12, [rbx + N_DATA + 16]    # n: (slot + n // 256, n % 256,
         mov rdi, r12                    # 256 - n % 256, None)
         call is_int
@@ -682,6 +703,8 @@ FUNC ck_read_loc
         mov r12, [rdi + RL_TYPE]
         test r12, r12
         jz .Lrl_unknown
+        cmp dword ptr [rbx + N_AUX], 3  # (as .Lrl_inner)
+        jb ck_index
         mov r13, [rbx + N_DATA + 16]    # key
         mov rdi, r12
         call opcode_of
@@ -824,6 +847,10 @@ FUNC ck_read_loc
         LEAVE
 # read_loc(loc[1]) into out
 .Lrl_inner:
+        cmp dword ptr [rbx + N_AUX], 2  # python's IndexError for a shape
+        jb ck_index                     # shorter than the opcode's (the VM
+                                        # builds them whole; opcode_of has
+                                        # made this a non-empty tuple)
         mov rdi, [rsp + RLx_OUT + 8]
         mov rsi, [rbx + N_DATA + 8]
         mov rdx, [rsp + RLx_DEFS + 8]

@@ -57,6 +57,7 @@
 .Ls_null:           .asciz "null"
 .Ls_chunked:        .asciz "chunked"
 .Ls_too_long:       .asciz "the IPC socket's path is too long: "
+.Ls_empty_path:     .asciz "no path to an IPC socket in "
 .Ls_cant_send:      .asciz "the request couldn't be sent to "
 
                 .set RESP_MAX, 256 << 20        # the biggest answer taken from a node
@@ -192,12 +193,28 @@ FUNC fetch_code
         call rpc_code
         test eax, eax
         jnz .Lfc_fail
+        # the code logged escaped and bounded: it is the node's text, not
+        # yet decoded as hex (the caller does that), and log_msg writes it
+        # with writev as it is - a node could put escapes on the
+        # operator's terminal. A real answer is hex, so cleaning leaves it
+        # alone; the answer's own builder is the scratch for it (rpc_code
+        # is done with it, and .Lfc_free frees it).
+        cmp qword ptr [rip + log_level], LOG_DEBUG
+        ja .Lfc_logged
+        mov rdi, [rsp + FC_RESP]
+        call sb_reset
+        mov rax, [rsp + FC_OUT]
+        mov rdi, [rsp + FC_RESP]
+        mov rsi, [rax + SB_BUF]
+        mov rdx, 256 << 10
+        call sb_append_clean_max
         mov edi, LOG_DEBUG
         lea rsi, [rip + .Ls_loader]
         lea rdx, [rip + .Ls_code_dbg]
-        mov rcx, [rsp + FC_OUT]
+        mov rcx, [rsp + FC_RESP]
         mov rcx, [rcx + SB_BUF]
         call log_fmt
+.Lfc_logged:
         xor ebx, ebx
         jmp .Lfc_free
 .Lfc_failed:                            # the message is the answer's builder's
@@ -224,9 +241,10 @@ FUNC fetch_code
         mov rdi, [rsp + FC_OUT]
         lea rsi, [rip + .Ls_bad_addr]
         call sb_append_c
-        mov rdi, [rsp + FC_OUT]
-        mov rsi, rbx
-        call sb_append_c
+        mov rdi, [rsp + FC_OUT]         # escaped and bounded: the argument is
+        mov rsi, rbx                    # whoever's who asked for the address,
+        mov edx, 200                    # and it went to stderr as it came
+        call sb_append_clean_max
         mov eax, -1
         add rsp, 80
         LEAVE
@@ -407,6 +425,9 @@ FUNC rpc_ipc
         call strlen@PLT
         cmp rax, 107
         ja .Lri_too_long
+        test rax, rax                   # an empty path (WEB3_PROVIDER_URI of
+        jz .Lri_empty_path              # "file://") made the name an abstract
+        mov [rsp + 112], rax            # socket's, of 107 bytes of this frame
         mov edi, 1                      # AF_UNIX
         mov esi, 1                      # SOCK_STREAM
         xor edx, edx
@@ -416,13 +437,18 @@ FUNC rpc_ipc
         mov r14d, eax
         mov edi, r14d
         call sock_timeouts
+        mov rdi, rsp                    # the struct zeroed, and the length
+        xor esi, esi                    # given to connect the one it has:
+        mov edx, 112                    # it was handed 110 bytes whatever the
+        call memset@PLT                 # path, so whoever listened was told
         mov word ptr [rsp], 1           # sun_family
         lea rdi, [rsp + 2]
         mov rsi, rbx
         call strcpy@PLT
         mov edi, r14d
         mov rsi, rsp
-        mov edx, 110
+        mov rdx, [rsp + 112]
+        add rdx, 3                      # sun_family, the path and its NUL
         call connect@PLT
         test eax, eax
         jnz .Lri_close_unreachable
@@ -437,9 +463,11 @@ FUNC rpc_ipc
         mov edi, 65536
         call xmalloc
         mov r12, rax                    # (the body sent: its register reused)
-1:      mov edi, r14d
-        mov rsi, r12
-        mov edx, 65536
+1:      cmp qword ptr [r13 + SB_LEN], RESP_MAX
+        jae 2f                          # what a node gets to send, as over
+        mov edi, r14d                   # HTTP (read_fd_max): a node that never
+        mov rsi, r12                    # ends its value was read until malloc
+        mov edx, 65536                  # failed, which aborts the process
         call read@PLT
         test rax, rax
         jle 2f
@@ -447,7 +475,33 @@ FUNC rpc_ipc
         mov rsi, r12
         mov rdx, rax
         call sb_append
-        mov rdi, [r13 + SB_BUF]         # a whole answer yet?
+        # a whole answer yet? Asked only when the last byte that isn't a
+        # blank closes a value: json_skip_value scans from the start, and
+        # asking it after each 64 KiB read cost n^2 for an answer of n
+        # bytes (32 MiB took 31 s, where HTTP takes under 5 s for 256
+        # MiB), and an answer that opens a value it never closes kept a
+        # core busy. An answer of JSON-RPC is an object, so it ends with
+        # '}' (web3's IPC provider tests the same way); anything else is
+        # read to the end of the answer, as it was before.
+        mov rdi, [r13 + SB_BUF]
+        mov rax, [r13 + SB_LEN]
+3:      test rax, rax
+        jz 1b
+        dec rax
+        movzx ecx, byte ptr [rdi + rax]
+        cmp ecx, ' '
+        je 3b
+        cmp ecx, 9                      # \t
+        je 3b
+        cmp ecx, 10                     # \n
+        je 3b
+        cmp ecx, 13                     # \r
+        je 3b
+        cmp ecx, '}'
+        je 4f
+        cmp ecx, ']'
+        jne 1b
+4:      mov rdi, [r13 + SB_BUF]
         mov rsi, rdi
         add rsi, [r13 + SB_LEN]
         call json_skip_value
@@ -474,12 +528,20 @@ FUNC rpc_ipc
         mov eax, RPC_FAILED
         add rsp, 128
         LEAVE
+.Lri_empty_path:
+        mov rdi, r13
+        call sb_reset
+        mov rdi, r13
+        lea rsi, [rip + .Ls_empty_path]
+        call sb_append_c
+        jmp .Lri_bad_path
 .Lri_too_long:
         mov rdi, r13
         call sb_reset
         mov rdi, r13
         lea rsi, [rip + .Ls_too_long]
         call sb_append_c
+.Lri_bad_path:
         mov rdi, r13
         mov rsi, rbx
         call sb_append_c
@@ -803,9 +865,10 @@ FUNC rpc_http
         test rax, rax
         jnz 21f
         mov rsi, r12                    # (none: "")
-21:     mov rdi, [rsp + RH_RESP]
-        call sb_append_clean_c
-        mov rdi, [rsp + RH_RESP]
+21:     mov rdi, [rsp + RH_RESP]        # an excerpt: a status line that never
+        mov edx, 200                    # ends its reason (no CR) is the whole
+        call sb_append_clean_max        # answer, 8 MiB of it making 32
+        mov rdi, [rsp + RH_RESP]        # escaped
         lea rsi, [rip + .Ls_for_url]
         call sb_append_c
         mov rdi, [rsp + RH_RESP]
@@ -815,9 +878,10 @@ FUNC rpc_http
 3:      mov rdi, [rsp + RH_RESP]
         lea rsi, [rip + .Ls_http_answer]
         call sb_append_c
-        mov rdi, [rsp + RH_RESP]
-        mov rsi, rbx
-        call sb_append_clean_c
+        mov rdi, [rsp + RH_RESP]        # (an excerpt too: the status line is
+        mov rsi, rbx                    # as long as the node makes it)
+        mov edx, 200
+        call sb_append_clean_max
 4:      mov rdi, [rsp + RH_ANS]
         call free@PLT
         mov eax, RPC_FAILED
@@ -890,10 +954,13 @@ FUNC rpc_code
         mov rdi, r13
         lea rsi, [rip + .Ls_rpc_error]
         call sb_append_c
-        mov rdi, r13
+        mov rdx, [rsp]                  # an excerpt, as .Lrc_not_rpc takes
+        sub rdx, r14                    # one: an error member of 250 MiB of
+        cmp rdx, 200                    # control bytes became a message of
+        jbe 4f                          # 1 GiB (escaped four times over, then
+        mov edx, 200                    # copied again by err_line)
+4:      mov rdi, r13
         mov rsi, r14
-        mov rdx, [rsp]
-        sub rdx, r14
         call sb_append_clean
         jmp .Lrc_failed
 1:      mov rdi, rbx
@@ -933,10 +1000,13 @@ FUNC rpc_code
         mov rdi, r13
         lea rsi, [rip + .Ls_no_code]
         call sb_append_c
-        mov rdi, r13
+        mov rdx, [rsp]                  # (an excerpt too: a result that isn't
+        sub rdx, r14                    # a string is as big as the node likes)
+        cmp rdx, 200
+        jbe 5f
+        mov edx, 200
+5:      mov rdi, r13
         mov rsi, r14
-        mov rdx, [rsp]
-        sub rdx, r14
         call sb_append_clean
         jmp .Lrc_failed
 .Lrc_not_rpc:

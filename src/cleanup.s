@@ -2040,6 +2040,12 @@ FUNC cleanup_vars
         call vec_push
         jmp .Lcv_line
 .Lcv_setvar:
+        cmp dword ptr [r14 + N_AUX], 3  # ('setvar', name, value) whole: the
+        jb .Lcv_type                    # value below is its third element,
+                                        # and opcode_of only makes it a
+                                        # non-empty tuple (python's
+                                        # IndexError; the VM builds them
+                                        # whole, so no bytecode gets here)
         mov rdi, [r14 + N_DATA + 16]
         mov esi, MAX_EXP_SIZE
         call exp_size_over
@@ -2180,6 +2186,10 @@ FUNC cleanup_vars
         call vec_to_list_like           # (the trace itself when unchanged)
         add rsp, 48
         LEAVE
+.Lcv_type:
+        mov edi, E_INDEX
+        lea rsi, [rip + .Ls_not_lines]
+        call err_throw
 .Lcv_unpack:
         mov edi, E_VALUE
         lea rsi, [rip + .Ls_unpack_line]

@@ -2340,13 +2340,23 @@ ENDF canonise_max
 # ints keyed with a space in front (so first)
 FUNC sort_by_repr
         ENTER
-        sub rsp, 16
+        sub rsp, ERR_SIZEOF + 16
+        .set SR_I, ERR_SIZEOF
         mov rbx, rdi
         mov r12, [rbx + VEC_LEN]
-        # the keys, malloc'ed C strings
-        lea rdi, [r12*8 + 8]
-        call xmalloc
+        # the keys, malloc'ed C strings. A key's repr_key can throw (a deep
+        # term: value_print's STACK_CHECK, the watchdog): the array and the
+        # keys made were lost. The array is zeroed, so the handler frees
+        # every slot (free(0) does nothing) - r14, the count made, is put
+        # back by the throw to what it was at err_catch, not where it got.
+        lea rdi, [r12 + 1]
+        mov esi, 8
+        call xcalloc
         mov r13, rax
+        mov rdi, rsp
+        call err_catch
+        test eax, eax
+        jnz .Lsr_throw
         xor r14d, r14d
 1:      cmp r14, r12
         jae 2f
@@ -2356,18 +2366,19 @@ FUNC sort_by_repr
         mov [r13 + r14*8], rax
         inc r14
         jmp 1b
-2:      # insertion sort (stable), on the keys and the values together
+2:      call err_end                    # (the sort below only compares)
+        # insertion sort (stable), on the keys and the values together
         mov r14d, 1
 3:      cmp r14, r12
         jae 6f
         mov rcx, r14
 4:      test rcx, rcx
         jz 5f
-        mov [rsp], rcx
+        mov [rsp + SR_I], rcx           # (past the handler's buffer)
         mov rdi, [r13 + rcx*8 - 8]
         mov rsi, [r13 + rcx*8]
         call strcmp@PLT
-        mov rcx, [rsp]
+        mov rcx, [rsp + SR_I]
         test eax, eax
         jle 5f
         mov rax, [r13 + rcx*8 - 8]
@@ -2390,17 +2401,36 @@ FUNC sort_by_repr
         jmp 7b
 8:      mov rdi, r13
         call free@PLT
-        add rsp, 16
+        add rsp, ERR_SIZEOF + 16
         LEAVE
+.Lsr_throw:                             # (the handler is unlinked already)
+        mov ebx, eax                    # the error's code (the vec is done with)
+        xor r14d, r14d
+9:      cmp r14, r12
+        jae 10f
+        mov rdi, [r13 + r14*8]          # (0 past the keys made)
+        call free@PLT
+        inc r14
+        jmp 9b
+10:     mov rdi, r13
+        call free@PLT
+        mov edi, ebx
+        mov rsi, [r15 + CTX_ERR_MSG]
+        call err_throw
 ENDF sort_by_repr
 
 # repr_key(v) -> rax: a malloc'ed C string, the repr of the value, with
 # a space in front for ints
 FUNC repr_key
         ENTER
+        sub rsp, ERR_SIZEOF + 16
         mov r12, rdi
         call sb_new
         mov rbx, rax
+        mov rdi, rsp                    # (value_print can throw: the builder
+        call err_catch                  # freed, then the error goes on)
+        test eax, eax
+        jnz .Lrk_throw
         mov rdi, r12
         call is_int
         test eax, eax
@@ -2422,11 +2452,20 @@ FUNC repr_key
 3:      mov rdi, rbx
         xor esi, esi
         call sb_append_char             # NUL
+        call err_end
         mov r12, [rbx + SB_BUF]
         mov rdi, rbx
         call free@PLT                   # (the builder, not its buffer)
         mov rax, r12
+        add rsp, ERR_SIZEOF + 16
         LEAVE
+.Lrk_throw:                             # (the handler is unlinked already)
+        mov r12d, eax
+        mov rdi, rbx
+        call sb_free
+        mov edi, r12d
+        mov rsi, [r15 + CTX_ERR_MSG]
+        call err_throw
 ENDF repr_key
 
         .section .note.GNU-stack,"",@progbits

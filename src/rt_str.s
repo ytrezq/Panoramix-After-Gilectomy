@@ -539,6 +539,7 @@ ENDF str_grow
 
         .section .rodata
 .Lmsg_str_oom:  .asciz "out of memory: the system gave no more (malloc failed)"
+.Lmsg_sb_oom:   .asciz "out of memory: a text longer than the address space"
         .text
 
 # str_intern_c(cstr) -> rax
@@ -622,7 +623,9 @@ FUNC sb_reserve
         mov rbx, rdi
         mov rax, [rbx + SB_LEN]
         add rax, rsi
-        inc rax
+        jc .Lsb_too_big                 # a length that wrapped would reserve
+        inc rax                         # nothing and let the caller write
+        jc .Lsb_too_big                 # past the buffer: no memory instead
         cmp rax, [rbx + SB_CAP]
         jbe 1f
         mov r12, [rbx + SB_CAP]
@@ -635,6 +638,10 @@ FUNC sb_reserve
         mov [rbx + SB_BUF], rax
         mov [rbx + SB_CAP], r12         # (once it's had: a builder kept
 1:      LEAVE                           # after a MemoryError stays sound)
+.Lsb_too_big:
+        lea rdi, [rip + .Lmsg_sb_oom]
+        LEAVE_NORET                     # (the frame dropped: it never returns)
+        jmp xalloc_throw
 ENDF sb_reserve
 
 # sb_append(sb, ptr, len)
@@ -817,6 +824,27 @@ FUNC sb_append_clean_c
         call sb_append_clean
         LEAVE
 ENDF sb_append_clean_c
+
+# sb_append_clean_max(sb, cstr, max): the same, of the first `max` bytes
+# at most - for text from outside that goes in a message (an argument
+# echoed back, a node's answer): escaped, so it cannot forge lines or
+# drive a terminal, and bounded, so a megabyte of it doesn't become the
+# message
+FUNC sb_append_clean_max
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        mov rdi, rsi
+        call strlen@PLT
+        cmp rax, r13
+        cmova rax, r13
+        mov rdi, rbx
+        mov rsi, r12
+        mov rdx, rax
+        call sb_append_clean
+        LEAVE
+ENDF sb_append_clean_max
 
 # sb_append_byte_hex(sb, byte): \xNN
 FUNC sb_append_byte_hex

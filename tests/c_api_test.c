@@ -37,6 +37,21 @@ int main(void)
     pthread_join(a, (void **)&ta);
     pthread_join(b, (void **)&tb);
     pan_disasm(code, code_len, &dis, &dlen);
+    /* a thread count a caller can pass but no machine has: the library
+     * settles it (the same text at any count). (size_t)-1 divided the
+     * memory by the count plus one, i.e. by zero - a SIGFPE; 2^61 times
+     * eight wrapped to a few bytes for the array of thread ids. */
+    char *tbig = NULL, *thuge = NULL;
+    size_t lbig = 0, lhuge = 0;
+    int rcbig = pan_decompile_ex(code, code_len, (size_t)-1, NULL, &tbig, &lbig,
+                                 PAN_NO_COLOR);
+    int rchuge = pan_decompile_ex(code, code_len, (size_t)1 << 61, NULL, &thuge,
+                                  &lhuge, PAN_NO_COLOR);
+    int ok_threads = rcbig == 0 && rchuge == 0 && tbig && thuge
+                     && strcmp(tbig, ta) == 0 && strcmp(thuge, ta) == 0;
+    printf("threads settled: %s\n", ok_threads ? "ok" : "FAILED");
+    pan_free(tbig);
+    pan_free(thuge);
     /* the text again, with python's json */
     pan_output o;
     int rc = pan_decompile_data(code, code_len, 1, NULL, PAN_NO_COLOR | PAN_JSON, &o);
@@ -78,7 +93,7 @@ int main(void)
     printf("%s", ta);
     printf("%.200s...\n", o.data);
     printf("%.300s...\n", e.explain);
-    printf("c_api_test: %s\n", ok && ok_explain ? "ok" : "FAILED");
+    printf("c_api_test: %s\n", ok && ok_explain && ok_threads ? "ok" : "FAILED");
     pan_free(ta);
     pan_free(tb);
     pan_free(dis);
@@ -89,5 +104,5 @@ int main(void)
     pan_free(e.explain);
     pan_free(te);
     pan_free(tv);
-    return ok && ok_explain ? 0 : 1;
+    return ok && ok_explain && ok_threads ? 0 : 1;
 }

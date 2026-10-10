@@ -105,9 +105,14 @@ build/psamp: tools/psamp.c
 build/c_api_test: tests/c_api_test.c include/panoramix_asm.h build/libpanoramix_asm.so
 	$(CC) -O2 -Wall -Iinclude -o $@ tests/c_api_test.c -Lbuild -lpanoramix_asm -Wl,-rpath,'$$ORIGIN'
 
-check: build/c_api_test all
+build/init_race_test: tests/init_race_test.c include/panoramix_asm.h build/libpanoramix_asm.so
+	$(CC) -O2 -Wall -Iinclude -o $@ tests/init_race_test.c -Lbuild -lpanoramix_asm -lpthread -Wl,-rpath,'$$ORIGIN'
+
+check: build/c_api_test build/init_race_test all
 	python3 tools/recursion.py --check
 	build/c_api_test
+	for i in $$(seq 30); do build/init_race_test 8 || exit 1; done
+	tests/security.sh
 	tests/run_corpus.sh
 	tests/robustness.sh
 	python3 tests/test_watchdog.py

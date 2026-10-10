@@ -90,6 +90,10 @@
         .set DC_BASE, 152               # the jobs of the batches before (their order)
         .set DC_EXPLAIN_PREV, 160       # --explain: the trace printed last (0: none yet)
         .set DC_SIZEOF, 168
+        # the most threads a decompilation runs at once: the output is the
+        # same at any count (the results go by the jobs' order), and the
+        # arrays of a batch's threads are sized by it
+        .set DC_MAX_THREADS, 1024
 
         # the decompilation thread (decompile_run)
         .set DR_CODE, 0
@@ -150,10 +154,12 @@ FUNC decompile_worker
         mov [r15 + CTX_VERBOSE], rax
         test rax, VB_EXPLAIN
         jz 1f
-        call sb_new                     # (what the job explains)
-        mov [r15 + CTX_EXPLAIN_SB], rax
-        mov [r12 + JB_EXPLAIN], rax
-1:
+        mov edi, 255                    # (what the job explains - asked for
+        call sb_try_new_cap             # without throwing: this is before the
+        mov [r15 + CTX_EXPLAIN_SB], rax # handler below, so a system with no
+        mov [r12 + JB_EXPLAIN], rax     # memory left went to rt_fatal, an
+1:                                      # abort. 0 is "none", which `explain`
+                                        # and the merge both take)
         call monotonic_ns
         mov [rsp + DW_START], rax
         mov edi, LOG_INFO
@@ -368,9 +374,43 @@ FUNC decompile
         .set DE_INTERNAL, ERR_SIZEOF + 136      # their functions (FN_INTERNAL)
         mov [rsp + DE_CODE], rdi
         mov [rsp + DE_LEN], rsi
-        mov [rsp + DE_THREADS], rdx
+        # the count of threads, settled here once and for all: 0 asks for
+        # one, and a count past DC_MAX_THREADS is that maximum. Everything
+        # below takes it as it is - mem_limit_for divides the memory by it
+        # and the arrays of a batch's threads are sized by it, and neither
+        # held for a count of (size_t)-1 from an API caller (the divisor
+        # was 0: SIGFPE) or of 2^61 (times 8: a few bytes). The output is
+        # the same at any count, so capping it changes nothing else.
+        test rdx, rdx
+        jnz 01f
+        mov edx, 1
+01:     cmp rdx, DC_MAX_THREADS
+        jbe 02f
+        mov edx, DC_MAX_THREADS
+02:     mov [rsp + DE_THREADS], rdx
         mov [rsp + DE_ONLY], rcx
         mov [rsp + DE_OUT], r8
+        # the contract phase - the loader's light run to find the
+        # functions, then (below) the import of the workers' results, the
+        # post-processing and the printing - runs on this context (the main
+        # one). It is bounded like a function's: a memory limit and the
+        # watchdog's deadline, so a small input that makes the function
+        # discovery, a post-processing walk or the printer spend gigabytes
+        # or minutes is cut here too (it was not: the limit and the
+        # watchdog were a worker's only).
+        #
+        # The discovery gets half of it, and the phases after it the rest:
+        # what an arena has taken is never given back (CTX_ARENA_TOTAL
+        # only grows, and nothing compacts this context), so a discovery
+        # that ran to the limit before it threw left the import of the
+        # results, the post-processing and the printing with nothing, and
+        # a contract that is merely expensive to discover came out with no
+        # text at all rather than with the problem reported. Half is a
+        # bound either way: the phase as a whole stays under the limit.
+        mov rdi, [rsp + DE_THREADS]
+        call mem_limit_for
+        shr rax, 1
+        mov [r15 + CTX_MEM_LIMIT], rax
         # the loader: the code disassembled, the functions found
         call loader_new
         mov rbx, rax
@@ -390,12 +430,24 @@ FUNC decompile
         jnz .Lde_loader_issue
         mov rdi, LOADER_TIMEOUT_NS
         call scaled_ns
-        mov rdi, rbx
+        mov r12, rax
+        call monotonic_ns
+        add rax, r12                    # the deadline: now + the limit
+        mov rdi, r15
         mov rsi, rax
+        call watch_start
+        mov rdi, rbx
+        mov rsi, r12
         call loader_find_functions
+        mov rdi, r15
+        call watch_stop
         call err_end
         jmp 1f
 .Lde_loader_issue:
+        # (watched above: the deadline has to go, or a STACK_CHECK of the
+        # phases below would throw for a limit that is past)
+        mov rdi, r15
+        call watch_stop
         mov edi, LOG_ERROR
         lea rsi, [rip + .Ls_logname]
         lea rdx, [rip + .Ls_loader_issue]
@@ -511,11 +563,9 @@ FUNC decompile
         mov [rcx + JB_KNOWN], rax
         jmp 3b
 5:      # the workers
-        mov rdi, [rsp + DE_THREADS]
-        test rdi, rdi
-        jnz 51f
-        mov edi, 1
-51:     mov [rsp + DE_REQ], rdi
+        mov rdi, [rsp + DE_THREADS]     # (1 to DC_MAX_THREADS: settled at the
+        mov [rsp + DE_REQ], rdi         # entry, so the array below is sized by
+                                        # a count that times 8 cannot wrap)
         cmp rdi, [r13 + DC_NJOBS]
         jbe 6f
         mov rdi, [r13 + DC_NJOBS]
@@ -527,6 +577,10 @@ FUNC decompile
         call mem_limit_for
         mov [r13 + DC_MEMLIMIT], rax
         mov [r15 + CTX_CHILD_LIMIT], rax        # (the folder's contexts)
+        mov [r15 + CTX_MEM_LIMIT], rax          # (this context: the import of
+                                                # the results, the
+                                                # post-processing, the text -
+                                                # see the loader above)
         mov rdi, [rsp + DE_REQ]         # (as many as a batch may have)
         shl rdi, 3
         call arena_alloc
@@ -1062,14 +1116,25 @@ ENDF internal_entry_lt
 # (JB_FOUND, vm_found_buffer's) freed.
 FUNC dc_merge_found
         ENTER
-        sub rsp, 32
+        sub rsp, 32 + ERR_SIZEOF
         .set MF_RECS, 0
         .set MF_NEW, 8
         .set MF_REC, 16
+        .set MF_ERR, 32
         mov rbx, rdi                    # the job
         mov r12, rsi                    # the jobs left
         mov [rsp + MF_RECS], rdx
         mov [rsp + MF_NEW], rcx
+        # the buffers are malloc'd (vm_found_buffer), outside any arena,
+        # and mk_tuple and vec_push below allocate on this context, which
+        # has a memory limit of its own now: a throw there left the
+        # current job's buffer and every later one behind, for the life of
+        # the process. rbx and r12 come back as they are here, so the
+        # handler walks every job of the batch (one already freed is 0).
+        lea rdi, [rsp + MF_ERR]
+        call err_catch
+        test eax, eax
+        jnz .Lmf_threw
 1:      test r12, r12
         jz 9f
         mov r13, [rbx + JB_FOUND]
@@ -1112,8 +1177,24 @@ FUNC dc_merge_found
 5:      add rbx, JB_SIZEOF
         dec r12
         jmp 1b
-9:      add rsp, 32
+9:      call err_end
+        add rsp, 32 + ERR_SIZEOF
         LEAVE
+.Lmf_threw:                             # (the handler is unlinked already)
+        mov r13d, eax                   # the error's code
+6:      test r12, r12
+        jz 8f
+        mov rdi, [rbx + JB_FOUND]
+        test rdi, rdi
+        jz 7f
+        mov qword ptr [rbx + JB_FOUND], 0
+        call free@PLT
+7:      add rbx, JB_SIZEOF
+        dec r12
+        jmp 6b
+8:      mov edi, r13d
+        mov rsi, [r15 + CTX_ERR_MSG]
+        call err_throw
 ENDF dc_merge_found
 
 # decompile_run(code, len, threads, only_func, out) -> eax: decompile()

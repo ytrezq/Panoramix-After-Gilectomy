@@ -7,10 +7,14 @@
 
 .include "defs.inc"
 
+        # the biggest block an arena gives (64 TiB, past any machine's
+        # memory): a bigger request is a size that wrapped
+        .set ARENA_MAX_BLOCK, 1 << 46
+
         .section .bss
         .align 8
 ctx_key:        .quad 0          # pthread_key_t
-rt_initialized: .quad 0
+rt_once:        .quad 0          # pthread_once_t (PTHREAD_ONCE_INIT is 0)
         .globl global_ctx
         .hidden global_ctx
 global_ctx:     .quad 0          # a context for process-wide constants (never reset)
@@ -21,12 +25,32 @@ chunk_poison:   .quad 0          # PANORAMIX_POISON set: the released chunks fil
 
         .text
 
-# rt_init(): process-wide initialization, idempotent.
+# rt_init(): process-wide initialization, idempotent, and safe to call
+# from several threads at once (the C API's promise): the first call does
+# the work, the others wait until it is done. A flag tested then set let a
+# second thread through before the tables were made - str_intern then
+# probed a table of capacity 0 (mask -1: reads and a write anywhere).
 FUNC rt_init
+        sub rsp, 8                      # (aligned for the call)
+        lea rdi, [rip + rt_once]
+        lea rsi, [rip + rt_init_once]
+        call pthread_once@PLT
+        add rsp, 8
+        ret
+ENDF rt_init
+
+# rt_init_once(): rt_init's work, run once (pthread_once). Nothing in it
+# may longjmp out (an err_throw): pthread_once would stay in progress and
+# the other threads wait forever. So r15 is 0 until the global context is
+# made (xalloc_throw takes 0 for "no handler": rt_fatal), and that context
+# has no handler either - a failed allocation here is fatal, as it must be
+# (nothing works without these tables). The caller's r15 (C code's own
+# register, or a context of the thread's) is never used.
+FUNC rt_init_once
         ENTER
-        cmp qword ptr [rip + rt_initialized], 0
-        jne 9f
-        mov qword ptr [rip + rt_initialized], 1
+        push r15
+        push r15
+        xor r15d, r15d
         lea rdi, [rip + ctx_key]
         xor esi, esi
         call pthread_key_create@PLT
@@ -50,8 +74,6 @@ FUNC rt_init
         mov rbx, rax
         call ctx_new
         mov [rip + global_ctx], rax
-        push r15
-        push r15
         mov r15, rax
         mov rdi, rax
         call ctx_bind
@@ -63,14 +85,14 @@ FUNC rt_init
         call matcher_init
         call prettify_init
         call patterns_init
-        pop r15
-        pop r15
         test rbx, rbx
         jz 9f
         mov rdi, rbx
         call ctx_bind
-9:      LEAVE
-ENDF rt_init
+9:      pop r15
+        pop r15
+        LEAVE
+ENDF rt_init_once
 
 # ctx_new() -> rax: a fresh thread context, bound to the thread (see
 # ctx_bind); a fatal "out of memory" if there's none to have (the
@@ -184,6 +206,12 @@ FUNC arena_new_chunk
         mov [rsp], rdx                  # check (for a failed mmap too)
         mov rbx, rdi
         mov r12, rsi
+        # a block no address space holds is a size that wrapped (a count
+        # times 8 past 2^64): no memory, as for a failed mmap - before the
+        # roundings below wrap it back to a small chunk
+        mov rax, ARENA_MAX_BLOCK
+        cmp r12, rax
+        ja .Lchunk_fail
         add r12, CHUNK_DATA + 15
         and r12, -16
         mov rax, [rbx + CTX_ARENA_CHUNKSZ]
@@ -312,11 +340,14 @@ ENDF arena_alloc_nl
 # and vectors that are all written at once, and take arena_alloc_raw.
 FUNC arena_alloc_check
         add rsi, 15
+        jc .Laa_wrapped                 # (a size within 15 of 2^64)
         and rsi, -16
         mov rax, [rdi + CTX_ARENA_CUR]
         lea rcx, [rax + rsi]
         cmp rcx, [rdi + CTX_ARENA_END]
         ja .Laa_slow
+        cmp rcx, rax                    # past 2^64: a "negative" size, that
+        jb .Laa_wrapped                 # moved the pointer back (-j -4)
         mov [rdi + CTX_ARENA_CUR], rcx
 .Laa_zero:                              # rsi bytes at rax, a multiple of 16
         cmp rsi, 512
@@ -339,8 +370,10 @@ FUNC arena_alloc_check
         call memset@PLT
         pop rax
         ret
-.Laa_slow:
-        ENTER
+.Laa_wrapped:
+        mov rsi, -1                     # (refused by arena_new_chunk: it
+.Laa_slow:                              # throws E_MEMORY or is fatal, never
+        ENTER                           # returns - check is 0 or 1 here)
         mov rbx, rdi
         mov r12, rsi
         call arena_new_chunk            # (rdi, rsi, edx: the same)
@@ -355,13 +388,17 @@ ENDF arena_alloc_check
 # arena_alloc_check_raw(ctx, size, check) -> rax: the same, not zeroed
 FUNC arena_alloc_check_raw
         add rsi, 15
+        jc 2f                           # (wrapped sizes: see arena_alloc_check)
         and rsi, -16
         mov rax, [rdi + CTX_ARENA_CUR]
         lea rcx, [rax + rsi]
         cmp rcx, [rdi + CTX_ARENA_END]
         ja 1f
+        cmp rcx, rax
+        jb 2f
         mov [rdi + CTX_ARENA_CUR], rcx
         ret
+2:      mov rsi, -1
 1:      ENTER
         mov rbx, rdi
         mov r12, rsi
@@ -390,7 +427,11 @@ FUNC mem_limit_for
         xor esi, esi
         mov edx, 10
         call strtoull@PLT
-        shl rax, 20
+        mov rdx, rax                    # MiB to bytes, saturated: a value of
+        shl rax, 20                     # 2^44 and more wrapped, and a product
+        shr rdx, 44                     # of 0 is "no limit" at all
+        jz 9f
+        mov rax, -1
         jmp 9f
 1:      mov edi, 85                     # _SC_PHYS_PAGES
         call sysconf@PLT
@@ -428,10 +469,13 @@ FUNC mem_limit_for
         jz 3f
         cmp rax, r12
         cmovb r12, rax
-3:      lea rcx, [rbx + 1]
-        mov rax, r12
-        xor edx, edx
-        div rcx
+3:      lea rcx, [rbx + 1]              # the threads, and the main one
+        test rcx, rcx                   # (lea sets no flag, and 3: is jumped
+        jnz 31f                         # to with any: the test is its own) -
+        mov rcx, rbx                    # a count of (size_t)-1 left 0 as the
+31:     mov rax, r12                    # divisor, a SIGFPE where a caller had
+        xor edx, edx                    # not settled the count; the share is
+        div rcx                         # then the smallest, the floor below
         mov ecx, 1 << 30
         cmp rax, rcx
         cmovb rax, rcx

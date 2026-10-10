@@ -4,6 +4,7 @@
 # (a tuple of arguments when there are several) and return a value.
 
 .include "defs.inc"
+.include "evm_dfa.inc"                  # DFA_STATES (tf_dfa_step's bound)
 
         .section .data.rel.ro
         .align 8
@@ -1099,6 +1100,8 @@ tw_world:        .quad tw_sload, tw_bytes_length, tw_bytes_data
 tw_world_nodata: .quad tw_sload, tw_bytes_length, 0
         .section .rodata
 .Ls_another_slot: .asciz "another slot"
+.Ls_t_want_str: .asciz "a string was expected"
+.Ls_t_want_step: .asciz "a (state, byte) of a state of the automaton and a byte was expected"
         .text
 
 FUNC tf_runtrace
@@ -1606,6 +1609,15 @@ ENDF tf_find_functions
 FUNC tf_decode
         ENTER
         sub rsp, 48
+        # a string, or nothing to decode: the length below is read from
+        # the payload, so an int (a tagged word) or a tuple had whatever
+        # is at that address taken for it
+        test dil, 1
+        jnz .Ltd_not_str
+        test rdi, rdi
+        jz .Ltd_not_str
+        cmp dword ptr [rdi + N_KIND], K_STR
+        jne .Ltd_not_str
         mov r12, rdi                    # the code, as a hex string
         mov edi, [r12 + N_DATA]
         shr edi, 1
@@ -1714,6 +1726,10 @@ FUNC tf_decode
         mov rax, [rsp + 40]
         add rsp, 48
         LEAVE
+.Ltd_not_str:
+        mov edi, E_TYPE
+        lea rsi, [rip + .Ls_t_want_str]
+        call err_throw
 ENDF tf_decode
 
 # dfa_step((state, byte)) -> (state, (action codes...)): the decoder's
@@ -1721,10 +1737,30 @@ ENDF tf_decode
 FUNC tf_dfa_step
         ENTER
         sub rsp, 16
+        # (state, byte), both small ints and both in range: the state
+        # indexes dfa_states and the byte masks into dfa_trans, so a state
+        # of 100000000 read a word far past the table and then indexed
+        # dfa_trans with it
+        test dil, 1
+        jnz .Ltds_bad
+        test rdi, rdi
+        jz .Ltds_bad
+        cmp dword ptr [rdi + N_KIND], K_TUPLE
+        jne .Ltds_bad
+        cmp dword ptr [rdi + N_AUX], 2
+        jne .Ltds_bad
         mov rax, [rdi + N_DATA]
+        test al, 1
+        jz .Ltds_bad
         sar rax, 1                      # the state
+        cmp rax, DFA_STATES
+        jae .Ltds_bad
         mov rcx, [rdi + N_DATA + 8]
+        test cl, 1
+        jz .Ltds_bad
         sar rcx, 1                      # the byte
+        cmp rcx, 255
+        ja .Ltds_bad
         lea rdx, [rip + dfa_states]
         mov rdx, [rdx + rax*8]
         mov rax, rdx
@@ -1756,6 +1792,10 @@ FUNC tf_dfa_step
         call mk2
         add rsp, 16
         LEAVE
+.Ltds_bad:
+        mov edi, E_VALUE
+        lea rsi, [rip + .Ls_t_want_step]
+        call err_throw
 ENDF tf_dfa_step
 
 # whiles_make(trace) -> list, or the error
@@ -2829,6 +2869,11 @@ FUNC pan_test
         mov r15, rax
         mov rdi, r15
         call ctx_bind
+        call ctx_set_stack              # the thread's stack bounds: without
+                                        # them CTX_STACK_LOW stayed 0, every
+                                        # STACK_CHECK passed, and a literal
+                                        # nested 100000 deep ran into the
+                                        # guard page instead of throwing
         call sb_new
         mov rbx, rax                    # output builder
         # find the function
@@ -2843,16 +2888,16 @@ FUNC pan_test
         add r12, 16
         jmp 1b
 2:      mov r13, [r12 + 8]              # the function
-        mov rdi, [rsp + 8]
-        mov rsi, [rsp + 16]
+        lea rdi, [rsp + 48]
+        call err_catch                  # (installed before the parse:
+        test eax, eax                   # parse_literal has a STACK_CHECK of
+        jnz 3f                          # its own, and threw with no handler
+        mov rdi, [rsp + 8]              # to take it - rt_fatal, or the guard
+        mov rsi, [rsp + 16]             # page when the limit was 0)
         call parse_literal
         test rax, rax
-        jz .Lt_parse_err
+        jz .Lt_parse_caught
         mov r14, rax
-        lea rdi, [rsp + 48]
-        call err_catch
-        test eax, eax
-        jnz 3f
         mov rdi, r14
         call r13
         mov r14, rax
@@ -2871,6 +2916,8 @@ FUNC pan_test
         lea rsi, [rip + .Ls_unknown_fn]
         call sb_append_c
         jmp .Lt_out
+.Lt_parse_caught:                       # (the literal wasn't one: the
+        call err_end                    # handler dropped, then as before)
 .Lt_parse_err:
         mov rdi, rbx
         lea rsi, [rip + .Ls_parse_err]

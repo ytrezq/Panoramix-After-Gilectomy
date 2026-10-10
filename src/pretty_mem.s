@@ -6,6 +6,18 @@
 
 .include "defs.inc"
 
+        # the bytes pretty_memory concatenates to test whether the data is
+        # text, at most: the same 16 MiB fits_bytes allows one term, so a
+        # term that was printable alone still is. The builders are
+        # xmalloc'd, outside the arena and so outside CTX_MEM_LIMIT, and
+        # the terms of a data are as many as the contract writes: a
+        # contract of 170 bytes returning regions filled with zeroes made
+        # hundreds of MiB of them, and the printing is past the watchdog.
+        # A data whose bytes pass this is printed term by term, where
+        # python would build the whole string - RT_BYTES_MAX's class of
+        # divergence (docs/DESIGN.md, "Hostile input").
+        .set PM_BYTES_MAX, 1 << 24
+
         .section .rodata
 .Ls_bytes_:     .asciz "Bytes("
 .Ls_comma_sp:   .asciz ", "
@@ -170,13 +182,25 @@ FUNC sb_append_be
         mov rax, r13
         sub rax, rcx                    # the zeroes before them
         mov [rsp + 8], rax
-2:      cmp qword ptr [rsp + 8], 0
+        # in one go: a Bytes(n, 0) wrote its n zeroes one sb_append_char
+        # at a time, which is where a contract that returns a region
+        # filled with zeroes spent its minutes (16 MiB a term, as many
+        # terms as it has)
+        test rax, rax
         jle 3f
         mov rdi, rbx
+        mov rsi, rax
+        call sb_reserve
+        mov rdi, [rbx + SB_BUF]         # (reserve may have moved it)
+        add rdi, [rbx + SB_LEN]
         xor esi, esi
-        call sb_append_char
-        dec qword ptr [rsp + 8]
-        jmp 2b
+        mov rdx, [rsp + 8]
+        call memset@PLT
+        mov rax, [rsp + 8]
+        add [rbx + SB_LEN], rax
+        mov rcx, [rbx + SB_BUF]
+        add rcx, [rbx + SB_LEN]
+        mov byte ptr [rcx], 0           # (as sb_append leaves it)
 3:      mov rsi, [rsp]
         test rsi, rsi
         jz 4f
@@ -324,17 +348,26 @@ ENDF sb_any_nonzero
 # text, as a string literal
 FUNC arr_text
         ENTER
-        sub rsp, 16
+        sub rsp, ERR_SIZEOF + 16
+        .set AT_FLAG, ERR_SIZEOF        # a term without bytes
+        .set AT_END, ERR_SIZEOF + 8     # where b[l:] starts
         mov rbx, rdi
         call opcode_of
         cmp eax, OP_ARR
-        jne 9f
+        jne 8f                          # (no builder yet)
         cmp dword ptr [rbx + N_AUX], 2
-        jb 9f
-        # the bytes of the terms (all of them: python makes the list first)
+        jb 8f
+        # the bytes of the terms (all of them: python makes the list first).
+        # The builder is xmalloc'd (not in the arena): a throw of
+        # data_bytes_into / value_print (a deep term: E_RECURSION, or the
+        # watchdog's E_TIMEOUT) would leak it, call after call in a server
         call sb_new
         mov r12, rax
-        mov qword ptr [rsp], 0          # a term without bytes
+        mov rdi, rsp
+        call err_catch
+        test eax, eax
+        jnz .Lat_throw
+        mov qword ptr [rsp + AT_FLAG], 0
         mov r13d, 2
 1:      cmp r13d, [rbx + N_AUX]
         jae 2f
@@ -343,10 +376,10 @@ FUNC arr_text
         call data_bytes_into
         test eax, eax
         jnz 11f
-        mov qword ptr [rsp], 1
+        mov qword ptr [rsp + AT_FLAG], 1
 11:     inc r13d
         jmp 1b
-2:      cmp qword ptr [rsp], 0
+2:      cmp qword ptr [rsp + AT_FLAG], 0
         jne 9f
         mov r13, [rbx + N_DATA + 8]     # l
         test r13b, 1
@@ -362,20 +395,34 @@ FUNC arr_text
         add rsi, r14
         jns 3f
         xor esi, esi
-3:      mov [rsp + 8], rsi              # where b[l:] starts, b[:l] ends
+3:      mov [rsp + AT_END], rsi         # where b[l:] starts, b[:l] ends
         mov rdi, r12
-        call sb_any_nonzero
+        call sb_any_nonzero             # (rsi: the start, as set above)
         test eax, eax
         jnz 9f
         mov rdi, [r12 + SB_BUF]
-        mov rsi, [rsp + 8]
+        mov rsi, [rsp + AT_END]
         xor edx, edx
-        call pretty_text
-        add rsp, 16
+        call pretty_text                # (a string of its own: the builder's
+        mov r13, rax                    # bytes are read, not kept)
+        jmp 10f
+9:      xor r13d, r13d
+10:     call err_end
+        mov rdi, r12
+        call sb_free
+        mov rax, r13
+        add rsp, ERR_SIZEOF + 16
         LEAVE
-9:      xor eax, eax
-        add rsp, 16
+8:      xor eax, eax                    # (before the builder: nothing to free)
+        add rsp, ERR_SIZEOF + 16
         LEAVE
+.Lat_throw:                             # (the handler is unlinked already)
+        mov r13d, eax                   # the error's code
+        mov rdi, r12
+        call sb_free
+        mov edi, r13d
+        mov rsi, [r15 + CTX_ERR_MSG]
+        call err_throw
 ENDF arr_text
 
 # raw_text(el, printed) -> str: python's raw_text - printed, the element el
@@ -1060,8 +1107,10 @@ FUNC pretty_memory
         mov rax, [rax + SB_LEN]
         cmp rax, [rsp + PM_SIZE]
         jae 9f
-        mov rdi, [rsp + PM_SB]
-        mov rsi, [rbx + N_DATA + rcx*8]
+        cmp rax, PM_BYTES_MAX           # (a length past 2^40 leaves PM_SIZE
+        jae .Lpm_element                # at -1, which no length reaches: the
+        mov rdi, [rsp + PM_SB]          # terms were all concatenated, then
+        mov rsi, [rbx + N_DATA + rcx*8] # thrown away)
         call data_bytes_into
         test eax, eax
         jz 9f
@@ -1124,9 +1173,12 @@ FUNC pretty_memory
 11:     mov rcx, [rsp + PM_END]
         cmp ecx, [rbx + N_AUX]
         jae 12f
-        mov rdi, [rsp + PM_SB]
-        mov rsi, [rbx + N_DATA + rcx*8]
-        call data_bytes_into
+        mov rax, [rsp + PM_SB]          # (the terms are the contract's to
+        cmp qword ptr [rax + SB_LEN], PM_BYTES_MAX      # count: printed one
+        jae .Lpm_element                # by one past the bytes of one term,
+        mov rdi, [rsp + PM_SB]          # rather than a text of them all -
+        mov rsi, [rbx + N_DATA + rcx*8] # never a text of some of them, which
+        call data_bytes_into            # would drop the rest)
         test eax, eax
         jz 12f
         inc qword ptr [rsp + PM_END]

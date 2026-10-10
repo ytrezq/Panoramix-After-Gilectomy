@@ -4,31 +4,61 @@
 
         .text
 
-# read_file(path, &len) -> rax: malloc'ed contents (NUL-terminated), or 0
+        # the biggest file read whole, the same an answer from a node gets
+        # (RESP_MAX): past it, "can't read the file" rather than a
+        # truncated contract
+        .set READ_FILE_MAX, 256 << 20
+
+# read_file(path, &len) -> rax: malloc'ed contents (NUL-terminated), or 0.
+# A regular file only, of READ_FILE_MAX at most: the command line tries
+# its argument as a path, and a character device or a fifo named there
+# was read without end - /dev/zero took the memory until malloc failed
+# (which aborts), a fifo waited for ever.
 FUNC read_file
         ENTER
+        sub rsp, 160                    # a struct stat (144 bytes)
         mov r12, rsi                    # &len
-        xor esi, esi                    # O_RDONLY
-        call open@PLT
-        test eax, eax
-        js .Lrf_fail
+        mov esi, 2048                   # O_RDONLY | O_NONBLOCK: opening a
+        call open@PLT                   # fifo waits for a writer, which is
+        test eax, eax                   # before the fstat below could refuse
+        js .Lrf_fail                    # it (a regular file reads the same)
         mov ebx, eax                    # fd
         mov edi, ebx
-        call read_fd
+        mov rsi, rsp
+        call fstat@PLT
+        test eax, eax
+        js .Lrf_close_fail
+        mov eax, [rsp + 24]             # st_mode
+        and eax, 0xf000                 # S_IFMT
+        cmp eax, 0x8000                 # S_IFREG
+        jne .Lrf_close_fail
+        mov rax, [rsp + 48]             # st_size
+        cmp rax, READ_FILE_MAX
+        ja .Lrf_close_fail
+        mov edi, ebx
+        mov esi, READ_FILE_MAX          # (a backstop: a file can grow
+        call read_fd_max                # between the fstat and the read)
         mov r14, rax
         mov [r12], rdx
         mov edi, ebx
         call close@PLT
         mov rax, r14
+        add rsp, 160
         LEAVE
+.Lrf_close_fail:
+        mov edi, ebx
+        call close@PLT
 .Lrf_fail:
         xor eax, eax
+        add rsp, 160
         LEAVE
 ENDF read_file
 
-# read_fd(fd) -> rax: malloc'ed contents (NUL-terminated), rdx: the length
+# read_fd(fd) -> rax: malloc'ed contents (NUL-terminated), rdx: the
+# length - of READ_FILE_MAX at most (the bytecode on standard input: what
+# is piped in has to end somewhere, whoever pipes it)
 FUNC read_fd
-        xor esi, esi
+        mov esi, READ_FILE_MAX
         jmp read_fd_max
 ENDF read_fd
 

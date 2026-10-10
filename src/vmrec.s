@@ -451,6 +451,10 @@ ENDF pred_internal_call
 # as one of the calls of it returned them (none known: 0 - the recursion
 # is unrolled another level, until one is). 0 if node isn't one.
 FUNC vm_recursion_of
+        # (at the entry, before anything is touched: the walks below have
+        # no STACK_CHECK of their own to be timed out at - see
+        # find_nodes_into)
+        STACK_CHECK
         ENTER
         sub rsp, 96
         .set RO_Q, 0

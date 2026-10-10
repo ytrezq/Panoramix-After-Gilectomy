@@ -1282,6 +1282,140 @@ that is expensive to fold burns CPU until the function's own limit ends
 it. On a server, `PANORAMIX_MAX_MEMORY` and a process per request are
 the way to bound it.
 
+### The second review, a year of changes later
+
+The sources were reviewed again at `a04fa87`, some 55,000 lines later
+(the fourteen areas by a reader each, the brief the same, plus the
+crafted inputs and the bounded fuzzing of each). What it found, and what
+each is now:
+
+One read out of bounds, and the only one reachable from bytecode alone:
+`get_param_name` took a calldata offset of the contract's, divided it by
+32 and indexed the signature's parameters with it, checking the index on
+32 bits and reading with the full 64 (`sigs.s`). An offset of
+`4 + 32 * 2^32` read 32 GiB past the tuple - a contract of 38 bytes and
+the database as it ships, a SIGSEGV. The compare is 64-bit now, and
+python prints the word as it is (`loc not in params`).
+
+The contract phase had neither of the two bounds. `CTX_MEM_LIMIT` and
+the watchdog were set on a worker's context only, so the loader's light
+run to find the functions, the import of the results, the
+post-processing and the printing all ran on the main context with no
+limit and no deadline: `60005b80808080808080808080600256` (sixteen
+bytes, a block that grows the stack and jumps to itself - never folded
+into a loop, since `vm_replace_loops` needs the same stack length)
+reached 5 GiB, and an expression that doubles at each step 2.4 GiB from
+476 bytes. Both are the main context's now, and the discovery gets half
+of the limit so that what it spends cannot starve the phases after it -
+an arena never gives back what it took, so a discovery that ran to the
+limit before it threw used to leave the printing with nothing, and the
+contract came out with no text rather than with the problem reported.
+
+The printer concatenated the bytes of every term of a data to test
+whether they are text, into builders that are `xmalloc`'d - outside the
+arena, so outside the limit - and printing is past the watchdog. 170
+bytes of contract returning regions filled with zeroes took 153 MiB and
+13 s, 650 bytes more than 535 MiB; and `sb_append_be` wrote the zeroes
+of a `Bytes(n, 0)` one `sb_append_char` at a time. The bytes it
+concatenates are capped at `PM_BYTES_MAX` (the 16 MiB `fits_bytes`
+allows one term, so a term printable alone still is), a data past it is
+printed term by term, and the zeroes go in one `memset`: 0.2 s and 41
+MiB.
+
+`rt_init` was a flag tested then set *before* the work, so a second
+thread whose first library call came at the same moment ran on tables
+not yet made - `str_intern` probing a table of capacity 0 (mask -1: a
+read, and a write, anywhere). About one run in three of eight threads
+crashed or gave a wrong text. It is a `pthread_once` now (and so is
+`log_init`), and `tests/init_race_test.c` keeps the case. The CLI and
+the python module were never exposed: both initialize before any thread.
+
+The loader's tables are `malloc`'d, not in the arena, and
+`decompile_api` freed the context but not them: every call through the
+C API or the module leaked about 22 bytes per byte of code (2.1 MB a
+call on 100 KB). Freed now, on the error path too.
+
+A thread count no machine has: `8 * 2^61` wrapped to a few bytes for the
+array of thread ids, and a negative one moved the arena's pointer back
+and then zeroed about 2^64 bytes. The count is settled once, at the
+entry of `decompile` (1 to `DC_MAX_THREADS`), `mem_limit_for` no longer
+divides by it without a guard (`(size_t)-1` plus one is zero: a SIGFPE),
+and `arena_alloc` refuses a size that wrapped.
+
+A node's answer over IPC had no cap - `read_fd_max`'s 256 MiB was
+`rpc_http`'s only - and the whole buffer was rescanned for a complete
+JSON value after every 64 KiB read: an answer that never ends its value
+was read until `malloc` failed (which aborts), and a valid one of 32 MiB
+took 31 s to receive where HTTP takes under 5 s for 256 MiB. The cap is
+the same for both now, and the scan is asked only when the last byte
+that isn't a blank closes a value (web3's IPC provider tests the same
+way): 1.3 s for those 32 MiB.
+
+Text from outside reached stderr as it came: bytecode on standard input
+beginning with an escape set the terminal's title, cleared its screen
+and forged lines, 50 MB of it made 50 MB of stderr, an `error` member of
+250 MiB became a single line of 1 GiB (escaped four times over), and the
+DEBUG log printed the node's `result` before it was known to be hex.
+Every one of them goes through `sb_append_clean` with an excerpt limit
+now.
+
+The command line tried its argument as a path before anything else, so a
+server running `panasm decompile <what it was sent>` opened whatever
+path it was given: `/dev/zero` was read until `malloc` failed, a fifo
+waited for a writer, and `disasm` printed any local file of hex. The
+argument is an address or bytecode first (python never opens its
+argument), and `read_file` takes regular files only, of
+`READ_FILE_MAX`, opened `O_NONBLOCK` so that a fifo cannot wait.
+
+Resources not released when something threw: the builders of `arr_text`,
+`sort_by_repr`, `repr_key` and `ck_digest` (all `xmalloc`'d, outside the
+arena, and `value_print` has a `STACK_CHECK` to throw at), the
+`JB_FOUND` buffers of a batch in `dc_merge_found`, and the loader of
+`pan_disasm` and of the command line's `decode` - which had no handler
+at all, so a failed allocation went to `rt_fatal`, an abort. Each has
+one now, and `build-db` throws `E_MEMORY` where it used to `rt_fatal`
+past 4 GiB of strings.
+
+The watchdog cannot end a phase with no `STACK_CHECK` anywhere in it: it
+works by making `CTX_STACK_LOW` unreachable, so the next check throws.
+The replacement of the recursions had none - `vm_recursion_of` asking
+`find_nodes` of every ancestor of every unexpanded node - and a
+`PANORAMIX_TIMEOUT` of 2 s was overshot five to fourteen times over, the
+bound being the memory limit instead. Both have one now.
+
+Found safe, and left as they are: the sizes and the growths of the
+allocators (every count comes from an `N_AUX` of 32 bits, so `count * 8`
+stays far from 2^64), the rollback of `ctx_compact` and the kinds of the
+memo tables, the clamps on the magnitudes that reach GMP, the bounds of
+the SIMD loops, the determinism of the threads (the same bytes at `-j 1`
+and `-j 64`, the results placed by the jobs' order), the header and the
+offsets of the signature database and its temporary file, the parsing of
+URLs and of chunked answers, the JSON scanner and the escaping of what
+it yields, the lengths of the binary form the module reads, and the
+shapes the VM's machine reads from a trace. The arity checks the first
+review added defensively were extended to the few places a second pass
+found reading an element of a shape on the opcode alone (`storage_check`,
+`storage`, `storage_getter`, `loops`, `ranges`).
+
+What is still accepted: `PANORAMIX_MAX_MEMORY` by default is the
+machine's memory shared by the threads, so the contract phase is bounded
+by a share of the machine rather than by a small number - a server wants
+it set, as it did before. The builders of the printer and of the storage
+check are `xmalloc`'d and still outside the limit; the cap on what they
+concatenate bounds them, not the limit. The fetch of the code has no
+deadline of its own (each read has one, 10 s), so a node that distils
+its answer holds a thread. `--json` nests as deep as the trace, with no
+sharing broken out into `_1 = ...` as the text has, so a contract of
+chained checks gives JSON that `python3 -m json` refuses at its default
+recursion limit - python's `json.dumps` nests the same way. And
+`panoramix_asm._test`, the test interface the unit tests go through,
+trusts the shape of its argument: it has the thread's stack bounds and a
+handler now (a literal nested 100000 deep is an exception, not the guard
+page), and the hooks that take machine values check them, but a trace
+built by hand with a line of the wrong shape still reaches code that was
+written for the shapes the VM builds. A published build should not
+export it.
+
 ## Deduplication in a thread (tried, removed)
 
 Tried: the duplicates merged by a thread of their own, as UKSM merges

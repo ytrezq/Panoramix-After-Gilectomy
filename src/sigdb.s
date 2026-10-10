@@ -993,10 +993,11 @@ FUNC builder_string
         xor eax, eax
         add rsp, 16
         LEAVE
-.Lbs_too_big:
-        lea rdi, [rip + .Ls_too_big]
-        call rt_fatal
-ENDF builder_string
+.Lbs_too_big:                           # (sigdb_build's handler: it logs the
+        mov edi, E_MEMORY               # dump as bad and returns -1, where
+        lea rsi, [rip + .Ls_too_big]    # rt_fatal aborted the process - a
+        call err_throw                  # hostile dump of unique names past
+ENDF builder_string                     # 4 GiB was a SIGABRT)
 
 # builder_grow_table(bd): the dedup table doubled
 FUNC builder_grow_table
@@ -1496,9 +1497,12 @@ FUNC bl_input_array
         xor eax, eax
         add rsp, 80
         LEAVE
-.Lia_too_big:
-        lea rdi, [rip + .Ls_too_big]
-        call rt_fatal
+.Lia_too_big:                           # (this array's records first: the
+        mov rdi, [rsp + IA_BUF]         # throw doesn't come back here, and
+        call free@PLT                   # they are malloc'd, not in an arena)
+        mov edi, E_MEMORY
+        lea rsi, [rip + .Ls_too_big]
+        call err_throw
 # a local: a string value read into the strings, its offset at [rdi]
 # (eax 0 when it isn't a string; null and the rest are skipped: "")
 .Lia_string:
@@ -1535,10 +1539,16 @@ ENDF bl_input_array
 # js_selector(cstr) -> rax: the value of "0x12345678"
 FUNC js_selector
         ENTER
-        add rdi, 2
+        cmp byte ptr [rdi], 0           # "0x" skipped only when there are
+        je 1f                           # two bytes to skip: "" or "0" read
+        cmp byte ptr [rdi + 1], 0       # the byte past the end (harmless in
+        je 1f                           # a 256-byte buffer, but a read past
+        add rdi, 2                      # what the string holds)
         xor esi, esi
         mov edx, 16
         call strtoul@PLT
+        LEAVE
+1:      xor eax, eax
         LEAVE
 ENDF js_selector
 

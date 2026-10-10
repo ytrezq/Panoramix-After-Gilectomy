@@ -772,6 +772,10 @@ ENDF bt_put_value
 FUNC bt_ends
         ENTER
         xor eax, eax
+        IS_SEQ_RDI                      # a tuple or a list: the count below
+        test eax, eax                   # is read from the payload, so an int
+        jz 1f                           # (a tagged word) or NIL had whatever
+        xor eax, eax                    # is at that address taken for it
         mov ecx, [rdi + N_AUX]
         test ecx, ecx
         jz 1f

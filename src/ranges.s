@@ -1018,8 +1018,22 @@ FUNC vr_whole_term_range
         LEAVE
 
 .Lvw_cleared:
-        # the bits a mask clears (see vr_linear): 0 to 2 ** off - 1
+        # the bits a mask clears (see vr_linear): 0 to 2 ** off - 1.
+        # ("cleared", mask_shl) and the mask's five elements, checked:
+        # vr_linear is the only maker of this head and builds it whole,
+        # but the reads below are two levels deep and cost one compare
+        # each to make safe
+        cmp dword ptr [rbx + N_AUX], 2
+        jb .Lvw_bool
         mov rax, [rbx + N_DATA + 8]
+        test al, 1
+        jnz .Lvw_bool
+        test rax, rax
+        jz .Lvw_bool
+        cmp dword ptr [rax + N_KIND], K_TUPLE
+        jne .Lvw_bool
+        cmp dword ptr [rax + N_AUX], 3
+        jb .Lvw_bool
         mov rdi, [rax + N_DATA + 16]
         call vr_number                  # (True: 1)
         mov rdi, rax

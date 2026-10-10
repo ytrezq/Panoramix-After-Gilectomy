@@ -38,7 +38,11 @@ ENDF pan_log_level_from_name
 API pan_disasm
         push r15
         ENTER
-        sub rsp, 40
+        sub rsp, 40 + ERR_SIZEOF
+        .set DIS_ERR, 40                # (a handler: the tables of a code of
+                                        # tens of MiB are malloc'd, and a
+                                        # failed one went to rt_fatal - an
+                                        # abort - for want of one)
         mov [rsp], rdi                  # code
         mov [rsp + 8], rsi              # len
         mov [rsp + 16], rdx             # out
@@ -52,6 +56,12 @@ API pan_disasm
         mov r15, rax
         mov rdi, r15
         call ctx_bind
+        xor ebx, ebx                    # the loader and the builder, 0 until
+        xor r12d, r12d                  # they are made: the handler frees
+        lea rdi, [rsp + DIS_ERR]        # what exists, and a throw puts them
+        call err_catch                  # back as they were here
+        test eax, eax
+        jnz .Ldis_threw
         call loader_new
         mov rbx, rax
         mov rdi, rbx
@@ -63,6 +73,7 @@ API pan_disasm
         mov rdi, rbx
         mov rsi, r12
         call loader_disasm
+        call err_end
         mov rax, [rsp + 16]
         mov rcx, [r12 + SB_BUF]
         mov [rax], rcx
@@ -78,17 +89,31 @@ API pan_disasm
         mov rdi, [rsp + 32]
         call ctx_bind
         xor eax, eax
-        add rsp, 40
+        add rsp, 40 + ERR_SIZEOF
         LEAVE_NORET
         pop r15
         ret
+.Ldis_threw:                            # (the handler is unlinked already)
+        test r12, r12
+        jz 1f
+        mov rdi, r12                    # the builder and its buffer: no text
+        call sb_free                    # of it reached the caller
+1:      test rbx, rbx
+        jz .Ldis_no_ctx_bound
+        mov rdi, rbx
+        call loader_free
+.Ldis_no_ctx_bound:
+        mov rdi, r15
+        call ctx_free
+        mov rdi, [rsp + 32]
+        call ctx_bind
 .Ldis_no_ctx:                           # (no memory: -1, nothing)
         mov rax, [rsp + 16]
         mov qword ptr [rax], 0
         mov rax, [rsp + 24]
         mov qword ptr [rax], 0
         mov eax, -1
-        add rsp, 40
+        add rsp, 40 + ERR_SIZEOF
         LEAVE_NORET
         pop r15
         ret
@@ -354,7 +379,19 @@ FUNC decompile_api
         call free@PLT
 5:      mov qword ptr [r15 + CTX_DATA_SB], 0
         mov qword ptr [r15 + CTX_EXPLAIN_SB], 0
-        mov rdi, r15
+        # the loader's tables (the code, the instructions, pc -> index, the
+        # jumpdests, the idioms) are malloc'd, not in the arena: ctx_free
+        # leaves them, and a server that decompiles call after call grew by
+        # ~22 bytes per byte of code every time. The decompilation is over
+        # here (its thread was joined by decompile_run, and the text is in
+        # the builders), so nothing points into them any more. 0 when
+        # loader_new itself failed.
+        mov rdi, [r15 + CTX_LOADER]
+        test rdi, rdi
+        jz 9f
+        mov qword ptr [r15 + CTX_LOADER], 0
+        call loader_free
+9:      mov rdi, r15
         call ctx_free
         mov edi, CHUNK_POOL_KEEP        # (the memory of the arenas back, but a little)
         call chunk_pool_trim

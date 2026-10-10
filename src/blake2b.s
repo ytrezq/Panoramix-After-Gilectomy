@@ -309,11 +309,16 @@ FUNC mt_randrange
         ENTER
         mov rbx, rdi
         mov r12, rsi
-        lea rax, [r12 - 1]              # k = n.bit_length()
-        bsr r13, r12
+        cmp r12, 2                      # 0 or 1: 0, as python's _randbelow -
+        jb 2f                           # n of 0 left bsr's result undefined
+                                        # and nothing was ever below it (it
+                                        # looped for ever); n past 2^32 has
+                                        # no k of 32 bits, and 32 - k wrapped
+        bsr r13, r12                    # k = n.bit_length()
         inc r13d
         mov ecx, 32
         sub ecx, r13d
+        jb 2f
         mov r14d, ecx
 1:      mov rdi, rbx
         call mt_next
@@ -321,6 +326,8 @@ FUNC mt_randrange
         shr eax, cl
         cmp rax, r12
         jae 1b
+        LEAVE
+2:      xor eax, eax
         LEAVE
 ENDF mt_randrange
 

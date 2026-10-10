@@ -599,6 +599,14 @@ FUNC min_ifs
         .set MI_V, MATCH_BINDINGS_SIZE + 24
         .set MI_X, MATCH_BINDINGS_SIZE + 32
         .set MI_Y, MATCH_BINDINGS_SIZE + 40
+        # the trace, python's TypeError for what isn't one: the recursion
+        # below goes into a while's body (line[2]) on the opcode alone,
+        # and a body that is a number had its N_AUX read from that
+        # address. The VM and whiles build the lines whole, so no
+        # bytecode reaches this; a trace handed to the test interface can
+        IS_SEQ_RDI
+        test eax, eax
+        jz .Lmi_type
         mov rbx, rdi
         call vec_new
         mov r12, rax
@@ -735,6 +743,10 @@ FUNC min_ifs
         LEAVE
 .Lmi_index:
         call cn_index_error
+.Lmi_type:
+        mov edi, E_TYPE
+        lea rsi, [rip + .Ls_cn_type]
+        call err_throw
 ENDF min_ifs
 
 # precompiled_results(trace, name) -> list: python's precompiled_results -

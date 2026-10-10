@@ -41,6 +41,7 @@
 .Ls_badlevel_end:
 .Ls_badhex:     .asciz "not a valid hex file: "
 .Ls_noread:     .asciz "can't read the file: "
+.Ls_decode_failed: .asciz "the code couldn't be read: "
 .Ls_main:       .asciz "panoramix.main"
 .Lf_loaded:     .asciz "%u bytes of code, %u instructions, %u jumpdests"
 
@@ -56,7 +57,10 @@
         .set M_JSON, 64
         .set M_VERBOSE, 72              # VB_ASM, VB_EXPLAIN...
         .set M_STATUS, 80
-        .set M_SIZEOF, 88
+        .set M_LIST, 88                 # the copy of a list split at its commas
+        .set M_ERR, 96                  # decode's and disasm's handler
+        .set M_SIZEOF, 104 + ERR_SIZEOF # (8 mod 16, with r15 and ENTER's
+                                        # five pushes: rsp stays aligned)
 
         .text
 
@@ -117,9 +121,16 @@ FUNC err_line
         mov rdi, r13
         mov rsi, rbx
         call sb_append_c
+        # the second part is what came in (the text of a bad hex file, the
+        # path that couldn't be read): escaped and cut to an excerpt. It
+        # went to stderr as it came, so bytecode on stdin starting with an
+        # escape set the terminal's title, cleared its screen or forged
+        # lines, and 50 MB of it made 50 MB of stderr. The first part is a
+        # message of ours, or one fetch_code has already cleaned.
         mov rdi, r13
         mov rsi, r12
-        call sb_append_c
+        mov edx, 200
+        call sb_append_clean_max
         mov rdi, r13
         mov esi, 10
         call sb_append_char
@@ -138,6 +149,8 @@ ENDF err_line
 FUNC input_code
         ENTER
         sub rsp, 16
+        .set IC_OWNED, 8                # the hex text to free, or 0 (argv's)
+        mov qword ptr [rsp + IC_OWNED], 0
         mov rbx, rdi
         lea rsi, [rip + .Ls_dash]
         call strcmp@PLT
@@ -145,6 +158,7 @@ FUNC input_code
         jnz 1f
         xor edi, edi
         call read_fd
+        mov [rsp + IC_OWNED], rax       # (what to free: rbx moves below)
         mov rbx, rax                    # stripped (python's .strip()): an address?
         lea rcx, [rax + rdx]
 71:     cmp rcx, rbx
@@ -171,11 +185,33 @@ FUNC input_code
         mov rdx, rax
         mov rax, rbx
         jmp .Lic_hex
-1:      mov rdi, rbx
+1:      # an address, then the bytecode itself, before the argument is
+        # tried as a path: a server that runs `panasm decompile <what it
+        # was sent>` (as `python -m panoramix <hex>` is run, and python
+        # never opens its argument) opened whatever path it was given
+        # instead - a fifo or /dev/zero to hang it, or any local file of
+        # hex to have it printed, and the two messages told a file apart
+        # from none. The address comes first: it is 40 hex digits, so it
+        # is hex too, and python reads a 42-character argument as one.
+        mov rdi, rbx
+        call is_address_arg
+        test eax, eax
+        jnz .Lic_address
+        mov rdi, rbx
+        call is_hex_arg
+        test eax, eax
+        jz 11f
+        mov rdi, rbx
+        call strlen@PLT
+        mov rdx, rax
+        mov rax, rbx
+        jmp .Lic_hex
+11:     mov rdi, rbx
         mov rsi, rsp
         call read_file
         test rax, rax
         jz 2f
+        mov [rsp + IC_OWNED], rax
         mov rdx, [rsp]
         jmp .Lic_hex
 2:      mov rdi, rbx                    # no file: an address?
@@ -192,6 +228,7 @@ FUNC input_code
         jnz .Lic_fetch_failed
         mov rax, [r12 + SB_BUF]
         mov rdx, [r12 + SB_LEN]
+        mov [rsp + IC_OWNED], rax       # (the buffer is ours now)
         mov rdi, r12
         push rax
         push rdx
@@ -221,15 +258,27 @@ FUNC input_code
         je .Lic_badhex
         mov rdx, rax
         mov rax, r14
-        add rsp, 16
+        mov rdi, [rsp + IC_OWNED]       # the hex text read or fetched (one
+        test rdi, rdi                   # per address of a list, up to the
+        jz 9f                           # 256 MiB a node's answer may be)
+        push rax
+        push rdx
+        call free@PLT
+        pop rdx
+        pop rax
+9:      add rsp, 16
         LEAVE
 .Lic_badhex:
         mov rdi, r14
         call free@PLT
         lea rdi, [rip + .Ls_badhex]
         mov rsi, rbx
-        call err_line
-        xor eax, eax
+        call err_line                   # (rbx points into the text: after it)
+        mov rdi, [rsp + IC_OWNED]
+        test rdi, rdi
+        jz 8f
+        call free@PLT
+8:      xor eax, eax
         add rsp, 16
         LEAVE
 .Lic_fetch_failed:
@@ -348,7 +397,12 @@ FUNC decompile_one
         mov qword ptr [r15 + CTX_DATA_SB], 0
 7:      mov rdi, [rsp + DO_CODE]
         call free@PLT
-        mov eax, [rsp + DO_STATUS]
+        mov rdi, [r15 + CTX_LOADER]     # (malloc'd: see decompile_api - the
+        test rdi, rdi                   # command line decompiles a list of
+        jz 8f                           # them on this one context)
+        mov qword ptr [r15 + CTX_LOADER], 0
+        call loader_free
+8:      mov eax, [rsp + DO_STATUS]
         add rsp, 32
         LEAVE
 .Ldo_no_input:
@@ -467,6 +521,8 @@ FUNC main
         jae .Lusage_exit
         mov rdi, [r13 + rax*8]
         call atol@PLT
+        test rax, rax                   # (a negative count is no count; the
+        js .Lusage_exit                 # library caps the others)
         mov [rsp + M_THREADS], rax
         add qword ptr [rsp + M_I], 2
         jmp 2b
@@ -531,6 +587,14 @@ FUNC main
         jz .Lfail_exit
         mov r14, rax
         mov [rsp + M_CODELEN], rdx
+        # the tables of the loader are malloc'd and sized by the code (a
+        # code of tens of MiB needs hundreds of them): a failed one threw
+        # with no handler here, which is rt_fatal - an abort, where a
+        # message and a failure are what the rest of the command line does
+        lea rdi, [rsp + M_ERR]
+        call err_catch
+        test eax, eax
+        jnz .Ldecode_failed
         call loader_new
         mov [rsp + M_LOADER], rax
         mov rdi, rax
@@ -554,12 +618,18 @@ FUNC main
         call decoder_report
         jmp 53f
 52:     call loader_disasm
-53:     mov edi, 1
+53:     call err_end
+        mov edi, 1
         mov rsi, [rbx + SB_BUF]
         mov rdx, [rbx + SB_LEN]
         call write_all
         xor eax, eax
         jmp .Lmain_exit
+.Ldecode_failed:                        # (the handler is unlinked already;
+        lea rdi, [rip + .Ls_decode_failed]      # the process ends here, so
+        mov rsi, [r15 + CTX_ERR_MSG]            # the tables go with it)
+        call err_line
+        jmp .Lfail_exit
 .Ldecompile:
         # a list separated by commas (unless it is a file's name): each
         # in turn, as python -m panoramix does
@@ -576,6 +646,7 @@ FUNC main
         jz 7f
         mov rdi, [rsp + M_PATH]
         call strdup@PLT
+        mov [rsp + M_LIST], rax         # (freed after the last part)
         mov rbx, rax                    # the part's start
 6:      mov rdi, rbx
         mov esi, ','
@@ -589,9 +660,12 @@ FUNC main
         call decompile_one
         or [rsp + M_STATUS], rax
         test r14, r14
-        jz 8f
+        jz 62f
         lea rbx, [r14 + 1]
         jmp 6b
+62:     mov rdi, [rsp + M_LIST]
+        call free@PLT
+        jmp 8f
 7:      mov rdi, rsp
         mov rsi, [rsp + M_PATH]
         call decompile_one

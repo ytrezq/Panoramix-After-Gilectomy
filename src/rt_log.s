@@ -16,7 +16,7 @@ log_color:      .quad -1        # -1: decide from isatty(2)
 log_hostname:   .space 72
 log_pid:        .quad 0
 log_lock:       .quad 0
-log_initialized: .quad 0
+log_once:       .quad 0          # pthread_once_t (PTHREAD_ONCE_INIT is 0)
 
         .section .rodata
 .Lc_green:      .asciz "\033[32m"
@@ -42,12 +42,27 @@ log_initialized: .quad 0
 
 # log_init(): hostname, pid, color detection, and the level from
 # PANORAMIX_LOG=debug|info|warning|error (once: a level set later by
-# pan_set_log_level stays)
+# pan_set_log_level stays). Safe from several threads at once
+# (pthread_once: the others wait until it is done - a flag tested then set
+# let one log with a half-written hostname, or read PANORAMIX_LOG after
+# pan_set_log_level had set the level).
 FUNC log_init
+        sub rsp, 8                      # (aligned for the call)
+        lea rdi, [rip + log_once]
+        lea rsi, [rip + log_init_once]
+        call pthread_once@PLT
+        add rsp, 8
+        ret
+ENDF log_init
+
+# log_init_once(): log_init's work (pthread_once). As rt_init_once, it must
+# not longjmp out: r15 is 0, so a failed allocation (the message of
+# simd_log) is fatal rather than a throw to a handler of the caller's.
+FUNC log_init_once
         ENTER
-        cmp qword ptr [rip + log_initialized], 0
-        jne 2f
-        mov qword ptr [rip + log_initialized], 1
+        push r15
+        push r15
+        xor r15d, r15d
         lea rdi, [rip + log_hostname]
         mov esi, 64
         call gethostname@PLT
@@ -69,8 +84,10 @@ FUNC log_init
         js 3f
         mov [rip + log_level], rax
 3:      call simd_log                   # (chosen before the level was known)
-2:      LEAVE
-ENDF log_init
+        pop r15
+        pop r15
+        LEAVE
+ENDF log_init_once
 
 # log_level_from_name(cstr) -> rax: the level of a name (any case), or -1
 FUNC log_level_from_name

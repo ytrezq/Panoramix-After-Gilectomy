@@ -1086,6 +1086,10 @@ FUNC st_elem_width
         call opcode_of
         cmp eax, OP_VALUE
         jne 8f
+        cmp dword ptr [rbx + N_AUX], 2  # python's IndexError of t[1] for a
+        jb st_throw_index               # ('value',) of one element (the VM
+                                        # builds them whole; opcode_of has
+                                        # made this a non-empty tuple)
         mov r12, [rbx + N_DATA + 8]     # w < 256 and 256 % w == 0 and w >= 8
         mov rdi, r12
         call is_int

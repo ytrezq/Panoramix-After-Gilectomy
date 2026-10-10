@@ -1498,10 +1498,11 @@ FUNC get_param_name
         jnz 1f
         shr rdi, 5
         mov rax, [rsp + 8 + GP_PARAMS]
-        cmp edi, [rax + N_AUX]
-        jae 1f
-        mov rax, [rax + N_DATA + rdi*8]
-        ret
+        mov ecx, [rax + N_AUX]          # the count, zero extended: the index is
+        cmp rdi, rcx                    # the contract's, up to 2^57 - compared
+        jae 1f                          # on 32 bits, an offset of 4 + 32 * 2^32
+        mov rax, [rax + N_DATA + rdi*8] # read past the tuple (python: loc not
+        ret                             # in params - the loc is printed as is)
 1:      xor eax, eax
         ret
 # a local, through the frame: python's names.get(name, "") - the kind of
