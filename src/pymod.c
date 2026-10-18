@@ -5,6 +5,56 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdint.h>
+#include <signal.h>
+#include <pthread.h>
+
+/* A call into the library is not interrupted halfway (a CTRL+C waits for
+ * it to return). The signals that have a handler - python's own for SIGINT,
+ * any the program set with signal.signal - are held on this thread for the
+ * length of the call: their handlers only set a flag for the main thread's
+ * next bytecode, so they could not stop the call anyway, but delivered in
+ * the middle of one they made the system calls running on this thread fail
+ * with EINTR (a node's connection given up, its answer cut short). Released
+ * when the call returns, they are delivered at once, and PyErr_CheckSignals
+ * runs their python handler: the exception it raises (KeyboardInterrupt) is
+ * the call's, and what the call made is freed. Stopping a decompilation
+ * halfway would need everything it made freed on the way out, threads
+ * joined, the shared tables left sound - holding is the simple way, and
+ * every call is bounded (a function's 3 minutes, a node's 60 s).
+ * The signals left to their default action (SIGTERM or SIGQUIT when nothing
+ * handles them) are not held: they still end the process at once. Nor are
+ * the synchronous ones (a fault). The library's own threads block them all
+ * (thread_create). */
+typedef struct {
+    sigset_t prev;
+} held_signals;
+
+static void hold_signals(held_signals *h)
+{
+    sigset_t set;
+    int s;
+
+    sigemptyset(&set);
+    for (s = 1; s < NSIG; s++) {
+        struct sigaction sa;
+        if (s == SIGKILL || s == SIGSTOP || s == SIGSEGV || s == SIGBUS || s == SIGFPE
+            || s == SIGILL || s == SIGTRAP || s == SIGSYS || s == SIGABRT)
+            continue;
+        if (sigaction(s, NULL, &sa) != 0)   /* (glibc's own: refused, skipped) */
+            continue;
+        if ((sa.sa_flags & SA_SIGINFO) || (sa.sa_handler != SIG_DFL && sa.sa_handler != SIG_IGN))
+            sigaddset(&set, s);
+    }
+    pthread_sigmask(SIG_BLOCK, &set, &h->prev);
+}
+
+/* the signals held delivered (now: before the call's result is looked at),
+ * then their python handlers run - -1 when one of them raised */
+static int release_signals(held_signals *h)
+{
+    pthread_sigmask(SIG_SETMASK, &h->prev, NULL);
+    return PyErr_CheckSignals();
+}
 
 int pan_init(void);
 int pan_disasm(const unsigned char *code, size_t len, char **out, size_t *outlen);
@@ -134,10 +184,16 @@ static PyObject *py_disasm(PyObject *self, PyObject *args)
 
     if (!PyArg_ParseTuple(args, "O", &arg)) return NULL;
     if (get_code(arg, &code, &len, &ref)) return NULL;
+    held_signals held;
+    hold_signals(&held);
     Py_BEGIN_ALLOW_THREADS
     rc = pan_disasm(code, len, &out, &outlen);
     Py_END_ALLOW_THREADS
     release_code(&ref);
+    if (release_signals(&held) < 0) {
+        if (!rc) pan_free(out);
+        return NULL;
+    }
     if (rc) {
         PyErr_SetString(PyExc_RuntimeError, "disassembly failed");
         return NULL;
@@ -168,10 +224,16 @@ static PyObject *py_decompile(PyObject *self, PyObject *args, PyObject *kwargs)
         if (threads <= 0) threads = 1;
     }
     flags = (color ? 0 : PAN_NO_COLOR) | (verbose ? PAN_VERBOSE : 0) | (explain ? PAN_EXPLAIN : 0);
+    held_signals held;
+    hold_signals(&held);
     Py_BEGIN_ALLOW_THREADS
     rc = pan_decompile_ex(code, len, (size_t)threads, function, &out, &outlen, flags);
     Py_END_ALLOW_THREADS
     release_code(&ref);
+    if (release_signals(&held) < 0) {
+        pan_free(out);              /* (the text, or the message) */
+        return NULL;
+    }
     if (rc) {
         /* out: the message */
         PyErr_SetString(PyExc_RuntimeError, out ? out : "decompilation failed");
@@ -337,6 +399,8 @@ static PyObject *decompilation(unsigned char *code, size_t len, code_ref *ref, c
     int rc, asm_rc;
 
     memset(&out, 0, sizeof out);
+    held_signals held;
+    hold_signals(&held);
     Py_BEGIN_ALLOW_THREADS
     rc = pan_decompile_data(code, len, (size_t)threads, function, flags, &out);
     asm_rc = rc ? 0 : pan_disasm(code, len, &asm_out, &asmlen);
@@ -345,6 +409,13 @@ static PyObject *decompilation(unsigned char *code, size_t len, code_ref *ref, c
         release_code(ref);
     else
         pan_free(code);
+    if (release_signals(&held) < 0) {
+        pan_free(out.text);
+        pan_free(out.data);
+        pan_free(out.explain);
+        if (!rc && !asm_rc) pan_free(asm_out);
+        return NULL;
+    }
     if (out.explain) {
         /* printed along the way by python, even when it failed after */
         if (!rc) explained = PyUnicode_DecodeUTF8(out.explain, (Py_ssize_t)out.explainlen, "surrogateescape");
@@ -437,9 +508,16 @@ static PyObject *py_decompile_address(PyObject *self, PyObject *args, PyObject *
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|znpOO", kwlist, &address, &function, &threads, &color, &verbose, &explain)) return NULL;
     if (decompilation_flags(color, verbose, explain, &threads, &flags)) return NULL;
+    held_signals held;
+    hold_signals(&held);
     Py_BEGIN_ALLOW_THREADS
     rc = pan_fetch_code(address, &code, &len, &err);
     Py_END_ALLOW_THREADS
+    if (release_signals(&held) < 0) {
+        if (rc) pan_free(err);
+        else pan_free(code);
+        return NULL;
+    }
     if (rc) {
         PyErr_SetString(PyExc_ConnectionError, err ? err : "the code couldn't be fetched");
         pan_free(err);
@@ -454,9 +532,13 @@ static PyObject *py_build_signature_db(PyObject *self, PyObject *args)
     int rc;
 
     if (!PyArg_ParseTuple(args, "s|z", &xz, &out)) return NULL;
+    held_signals held;
+    hold_signals(&held);
     Py_BEGIN_ALLOW_THREADS
     rc = pan_build_sigdb(xz, out);
     Py_END_ALLOW_THREADS
+    if (release_signals(&held) < 0)
+        return NULL;                /* (the database built or not: as it is) */
     if (rc) {
         PyErr_SetString(PyExc_RuntimeError, "building the signature database failed");
         return NULL;

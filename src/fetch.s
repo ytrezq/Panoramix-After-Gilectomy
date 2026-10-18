@@ -12,6 +12,11 @@
 .include "defs.inc"
 
         .set RPC_TIMEOUT, 10            # seconds (web3's)
+        # the whole of a fetch, every provider tried: each read and write
+        # has RPC_TIMEOUT, but an answer that comes a byte every few seconds
+        # had none at all - it held the call (and a CTRL+C, which takes
+        # effect when the call returns) for as long as the node liked
+        .set FETCH_DEADLINE_NS, 60 * 1000000000
         .set RPC_UNREACHABLE, -1        # the provider can't be reached: the next one
         .set RPC_FAILED, -2             # no code out of the answer: the message
 
@@ -58,6 +63,7 @@
 .Ls_chunked:        .asciz "chunked"
 .Ls_too_long:       .asciz "the IPC socket's path is too long: "
 .Ls_empty_path:     .asciz "no path to an IPC socket in "
+.Ls_too_slow:       .asciz "the node took more than 60 s to answer: "
 .Ls_cant_send:      .asciz "the request couldn't be sent to "
 
                 .set RESP_MAX, 256 << 20        # the biggest answer taken from a node
@@ -72,6 +78,7 @@ FUNC fetch_code
         .set FC_REQ, 8                  # the request's body
         .set FC_RESP, 16                # the answer's JSON (or a message)
         .set FC_ADDR, 24                # the address, lowercase: 43 bytes
+        .set FC_DEADLINE, 72            # (monotonic_ns) the fetch's end at the latest
         mov [rsp + FC_OUT], rsi
         mov rbx, rdi
         call strlen@PLT
@@ -116,6 +123,10 @@ FUNC fetch_code
         call sb_append_c
         call sb_new
         mov [rsp + FC_RESP], rax
+        call monotonic_ns
+        movabs rcx, FETCH_DEADLINE_NS
+        add rax, rcx
+        mov [rsp + FC_DEADLINE], rax
         # the provider of the environment
         lea rdi, [rip + .Ls_env_uri]
         call getenv@PLT
@@ -126,6 +137,7 @@ FUNC fetch_code
         mov rdi, rax
         mov rsi, [rsp + FC_REQ]
         mov rdx, [rsp + FC_RESP]
+        mov rcx, [rsp + FC_DEADLINE]
         call rpc_uri
         test eax, eax
         jz .Lfc_answer
@@ -148,6 +160,7 @@ FUNC fetch_code
         mov rdi, rax
         mov rsi, [rsp + FC_REQ]
         mov rdx, [rsp + FC_RESP]
+        mov rcx, [rsp + FC_DEADLINE]
         call rpc_ipc
         mov r13d, eax
         mov rdi, r12
@@ -167,6 +180,7 @@ FUNC fetch_code
 7:      mov rdi, rax
         mov rsi, [rsp + FC_REQ]
         mov rdx, [rsp + FC_RESP]
+        mov rcx, [rsp + FC_DEADLINE]
         call rpc_uri
         test eax, eax
         jz .Lfc_answer
@@ -267,9 +281,9 @@ FUNC ipc_default
         mov rdi, r13
         mov rsi, r12
         call sb_append_c
-        mov rbx, [r13 + SB_BUF]
         mov rdi, r13
-        call free@PLT                   # (the builder, not its buffer)
+        call sb_take                    # (the builder freed, not its buffer)
+        mov rbx, rax
         mov rdi, rbx
         xor esi, esi                    # F_OK
         call access@PLT
@@ -290,6 +304,7 @@ FUNC rpc_uri
         mov rbx, rdi
         mov r12, rsi
         mov r13, rdx
+        mov r14, rcx                    # the deadline
         lea rsi, [rip + .Ls_http]
         call prefix_nocase
         test eax, eax
@@ -297,6 +312,7 @@ FUNC rpc_uri
         mov rdi, rbx
         mov rsi, r12
         mov rdx, r13
+        mov rcx, r14
         call rpc_http
         LEAVE
 1:      mov rdi, rbx
@@ -315,6 +331,7 @@ FUNC rpc_uri
         lea rdi, [rip + .Ls_slash + 1]  # (none: "", which can't be reached)
 2:      mov rsi, r12
         mov rdx, r13
+        mov rcx, r14
         call rpc_ipc
         LEAVE
 3:      mov rdi, rbx                    # TLS, websockets: refused
@@ -414,14 +431,79 @@ FUNC sock_timeouts
         LEAVE
 ENDF sock_timeouts
 
+# connect_retry(fd, addr, len) -> eax: connect's (0, or -1), a signal not
+# taken for a failure - with SO_SNDTIMEO set, Linux has connect return
+# EINTR for a handler's signal even with SA_RESTART, and a timer or a
+# SIGCHLD of a program's lost it the provider. The connection goes on in
+# the kernel: waited for (POLLOUT) for what is left of RPC_TIMEOUT, its
+# outcome read (SO_ERROR) - connect again would be EALREADY.
+FUNC connect_retry
+        ENTER
+        sub rsp, 32
+        .set CR_POLL, 0                 # a struct pollfd
+        .set CR_ERR, 8                  # SO_ERROR's, and its length
+        .set CR_ERRLEN, 12
+        mov ebx, edi
+        call connect@PLT
+        test eax, eax
+        jz 9f
+        call __errno_location@PLT
+        cmp dword ptr [rax], 4          # EINTR
+        jne 8f
+        call monotonic_ns
+        mov r14, RPC_TIMEOUT * 1000000000
+        add r14, rax                    # until then
+1:      call monotonic_ns
+        mov rcx, r14
+        sub rcx, rax
+        jle 8f
+        mov rax, rcx                    # (what's left, in ms, rounded up)
+        xor edx, edx
+        mov ecx, 1000000
+        div rcx
+        lea edx, [eax + 1]
+        mov [rsp + CR_POLL], ebx
+        mov dword ptr [rsp + CR_POLL + 4], 4    # POLLOUT (revents 0)
+        lea rdi, [rsp + CR_POLL]
+        mov esi, 1
+        call poll@PLT
+        test eax, eax
+        jg 2f
+        jz 8f                           # (the time's up)
+        call __errno_location@PLT
+        cmp dword ptr [rax], 4          # (a signal again: what's left of it)
+        je 1b
+        jmp 8f
+2:      mov dword ptr [rsp + CR_ERR], 0
+        mov dword ptr [rsp + CR_ERRLEN], 4
+        mov edi, ebx
+        mov esi, 1                      # SOL_SOCKET
+        mov edx, 4                      # SO_ERROR
+        lea rcx, [rsp + CR_ERR]
+        lea r8, [rsp + CR_ERRLEN]
+        call getsockopt@PLT
+        test eax, eax
+        jnz 8f
+        cmp dword ptr [rsp + CR_ERR], 0
+        jne 8f
+9:      xor eax, eax
+        add rsp, 32
+        LEAVE
+8:      mov eax, -1
+        add rsp, 32
+        LEAVE
+ENDF connect_retry
+
 # rpc_ipc(path, body, resp) -> eax: the request on the node's unix socket,
 # the answer read until it is a whole JSON value
 FUNC rpc_ipc
         ENTER
         sub rsp, 128                    # struct sockaddr_un (110 bytes)
+        .set RI_DEADLINE, 120           # (fetch_code's: monotonic_ns, 0 none)
         mov rbx, rdi
         mov r12, rsi
         mov r13, rdx
+        mov [rsp + RI_DEADLINE], rcx
         call strlen@PLT
         cmp rax, 107
         ja .Lri_too_long
@@ -449,13 +531,13 @@ FUNC rpc_ipc
         mov rsi, rsp
         mov rdx, [rsp + 112]
         add rdx, 3                      # sun_family, the path and its NUL
-        call connect@PLT
+        call connect_retry
         test eax, eax
         jnz .Lri_close_unreachable
         mov edi, r14d
         mov rsi, [r12 + SB_BUF]
         mov rdx, [r12 + SB_LEN]
-        call write_all
+        call send_all
         test eax, eax
         jnz .Lri_cant_send
         mov rdi, r13
@@ -465,13 +547,23 @@ FUNC rpc_ipc
         mov r12, rax                    # (the body sent: its register reused)
 1:      cmp qword ptr [r13 + SB_LEN], RESP_MAX
         jae 2f                          # what a node gets to send, as over
-        mov edi, r14d                   # HTTP (read_fd_max): a node that never
-        mov rsi, r12                    # ends its value was read until malloc
-        mov edx, 65536                  # failed, which aborts the process
+        cmp qword ptr [rsp + RI_DEADLINE], 0    # HTTP (read_fd_max): a node
+        je 11f                          # that never ends its value was read
+        call monotonic_ns               # until malloc failed (an abort) -
+        cmp rax, [rsp + RI_DEADLINE]    # and in time: one that sends a byte
+        jae .Lri_too_slow               # every few seconds never ended
+11:     mov edi, r14d
+        mov rsi, r12
+        mov edx, 65536
         call read@PLT
         test rax, rax
-        jle 2f
-        mov rdi, r13
+        jg 12f
+        jz 2f                           # 0: the node closed, the end
+        call __errno_location@PLT       # a signal is not the end (EINTR: the
+        cmp dword ptr [rax], 4          # answer was cut where it came, and
+        je 1b                           # taken for the whole of it)
+        jmp 2f
+12:     mov rdi, r13
         mov rsi, r12
         mov rdx, rax
         call sb_append
@@ -512,6 +604,22 @@ FUNC rpc_ipc
         mov edi, r14d
         call close@PLT
         xor eax, eax                    # (whole or not: rpc_code says)
+        add rsp, 128
+        LEAVE
+.Lri_too_slow:
+        mov rdi, r12
+        call free@PLT
+        mov edi, r14d
+        call close@PLT
+        mov rdi, r13
+        call sb_reset
+        mov rdi, r13
+        lea rsi, [rip + .Ls_too_slow]
+        call sb_append_c
+        mov rdi, r13
+        mov rsi, rbx
+        call sb_append_c
+        mov eax, RPC_FAILED
         add rsp, 128
         LEAVE
 .Lri_cant_send:
@@ -562,7 +670,7 @@ ENDF rpc_ipc
 # end), the answer's body in resp (a chunked one put together)
 FUNC rpc_http
         ENTER
-        sub rsp, 400
+        sub rsp, 416
         .set RH_URI, 0
         .set RH_BODY, 8
         .set RH_RESP, 16
@@ -578,7 +686,10 @@ FUNC rpc_http
         .set RH_HINTS, 96               # struct addrinfo (48 bytes)
         .set RH_PORT, 144               # 16 bytes
         .set RH_HOST, 160               # 240 bytes
+        .set RH_DEADLINE, 400           # (fetch_code's: monotonic_ns, 0 none)
+        .set RH_LATE, 408               # 1: the answer stopped at the deadline
         mov [rsp + RH_URI], rdi
+        mov [rsp + RH_DEADLINE], rcx
         mov [rsp + RH_BODY], rsi
         mov [rsp + RH_RESP], rdx
         lea rbx, [rdi + 7]              # after "http://"
@@ -694,7 +805,7 @@ FUNC rpc_http
         mov edi, r12d
         mov rsi, [rbx + 24]             # ai_addr
         mov edx, [rbx + 16]             # ai_addrlen
-        call connect@PLT
+        call connect_retry
         test eax, eax
         jz 14f
         mov edi, r12d
@@ -748,7 +859,7 @@ FUNC rpc_http
         mov edi, [rsp + RH_FD]
         mov rsi, [rax + SB_BUF]
         mov rdx, [rax + SB_LEN]
-        call write_all
+        call send_all
         mov ebx, eax
         mov rdi, [rsp + RH_REQ]
         call sb_free
@@ -756,11 +867,15 @@ FUNC rpc_http
         jnz .Lrh_cant_send
         mov edi, [rsp + RH_FD]
         mov esi, RESP_MAX               # (a node that never stops: what
-        call read_fd_max                # came in that much is all it gets)
+        mov rdx, [rsp + RH_DEADLINE]    # came in that much is all it gets,
+        call read_fd_until              # and in the fetch's time)
         mov [rsp + RH_ANS], rax
         mov [rsp + RH_ANSLEN], rdx
+        mov [rsp + RH_LATE], rcx
         mov edi, [rsp + RH_FD]
         call close@PLT
+        cmp qword ptr [rsp + RH_LATE], 0
+        jne .Lrh_too_slow
         # "HTTP/1.x 200 OK": the status
         mov rbx, [rsp + RH_ANS]
         mov r12, rbx
@@ -833,7 +948,7 @@ FUNC rpc_http
         mov rdi, [rsp + RH_ANS]
         call free@PLT
         xor eax, eax
-        add rsp, 400
+        add rsp, 416
         LEAVE
 .Lrh_status:                            # requests' raise_for_status
         mov rdi, [rsp + RH_RESP]
@@ -885,7 +1000,21 @@ FUNC rpc_http
 4:      mov rdi, [rsp + RH_ANS]
         call free@PLT
         mov eax, RPC_FAILED
-        add rsp, 400
+        add rsp, 416
+        LEAVE
+.Lrh_too_slow:                          # (what came by the deadline: dropped,
+        mov rdi, [rsp + RH_ANS]         # the fetch is over)
+        call free@PLT
+        mov rdi, [rsp + RH_RESP]
+        call sb_reset
+        mov rdi, [rsp + RH_RESP]
+        lea rsi, [rip + .Ls_too_slow]
+        call sb_append_c
+        mov rdi, [rsp + RH_RESP]
+        mov rsi, [rsp + RH_URI]
+        call sb_append_c
+        mov eax, RPC_FAILED
+        add rsp, 416
         LEAVE
 .Lrh_bad_answer:
         mov rdi, [rsp + RH_RESP]
@@ -903,7 +1032,7 @@ FUNC rpc_http
         mov rdi, [rsp + RH_ANS]
         call free@PLT
         mov eax, RPC_FAILED
-        add rsp, 400
+        add rsp, 416
         LEAVE
 .Lrh_cant_send:
         mov edi, [rsp + RH_FD]
@@ -917,12 +1046,12 @@ FUNC rpc_http
         mov rsi, [rsp + RH_URI]
         call sb_append_c
         mov eax, RPC_FAILED
-        add rsp, 400
+        add rsp, 416
         LEAVE
 .Lrh_bad_uri:                           # (as a provider that can't be reached)
 .Lrh_unreachable:
         mov eax, RPC_UNREACHABLE
-        add rsp, 400
+        add rsp, 416
         LEAVE
 ENDF rpc_http
 

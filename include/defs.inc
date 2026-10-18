@@ -126,7 +126,11 @@
 .set CTX_VR_SEEN_U, CTX_VR_ARGS + 40            # unchecked's seen (an emap, reused), or 0
 .set CTX_VR_SEEN_M, CTX_VR_ARGS + 48            # mentions_var's
 .set CTX_VR_NO_FMP, CTX_VR_ARGS + 56            # without a loader: no free memory pointer (the tests')
-.set CTX_SIZE, CTX_VR_ARGS + 64
+.set CTX_IMPORT_STRS, CTX_VR_ARGS + 64          # value_import copies arena strings too (fn_import's), or 0
+.set CTX_SBS, CTX_VR_ARGS + 72                  # the builders made while it was bound, not freed (rt_str.s)
+.set CTX_WATCH_MSG, CTX_VR_ARGS + 80            # the error's message past CTX_DEADLINE (0: a function's; rt_watch.s)
+.set CTX_WATCHED, CTX_VR_ARGS + 88              # on the watchdog's table (1), or 0 (rt_watch.s)
+.set CTX_SIZE, CTX_VR_ARGS + 96
 
 # error handler buffer (rt_err.s)
 .set ERR_RBX, 0
@@ -166,12 +170,24 @@
 .set HUGE_PAGE, 0x200000   # 2 MiB: the chunks of the default size are aligned on it
 .set CHUNK_POOL_MAX, 256    # chunks of ARENA_CHUNK_DEFAULT kept for reuse (1 GiB)
 .set CHUNK_POOL_KEEP, 16    # kept between two decompilations (64 MiB)
+.set READ_DUMP_MAX, 1 << 30 # the most of a signature dump read whole (rt_io.s: the real one is 24 MB)
 
-# string builder
+# string builder (rt_str.s). Each one made while a context is bound to
+# the thread is on that context's list (CTX_SBS) until it's freed, and
+# ctx_free frees those that are left: a throw that unwound past the
+# function holding one (a memory limit, the watchdog's deadline, a
+# recursion) left it allocated outside any arena - call after call, in a
+# program that decompiles many. One that has to outlive the context it
+# was made on is taken off its list (sb_untrack).
 .set SB_BUF, 0
 .set SB_LEN, 8
 .set SB_CAP, 16
-.set SB_SIZEOF, 24
+.set SB_PREV, 24            # the context's list (0: first, or not on one)
+.set SB_NEXT, 32
+.set SB_OWNER, 40           # the context whose list it's on, or 0
+.set SB_MAX, 48             # value_print stops past this length (0: no limit; sb_format's %v)
+.set SB_LIMITED, 56         # made under a memory limit: held to it (sb_reserve), or 0
+.set SB_SIZEOF, 64
 
 # loader
 .set LD_CODE, 0

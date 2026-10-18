@@ -54,13 +54,18 @@ FUNC rt_init_once
         lea rdi, [rip + ctx_key]
         xor esi, esi
         call pthread_key_create@PLT
+        lea rdi, [rip + gmp_prev_alloc] # (the program's, for its threads: see
+        lea rsi, [rip + gmp_prev_realloc]       # gmp_alloc)
+        lea rdx, [rip + gmp_prev_free]
+        call __gmp_get_memory_functions@PLT
         lea rdi, [rip + gmp_alloc]
         lea rsi, [rip + gmp_realloc]
         lea rdx, [rip + gmp_free]
         call __gmp_set_memory_functions@PLT
-        mov edi, 13                     # SIGPIPE ignored: a node that closes
-        mov esi, 1                      # its socket must not end the process
-        call signal@PLT                 # (write() gives EPIPE instead)
+        lea rdi, [rip + rt_atfork_prepare]      # (a fork while calls are in
+        lea rsi, [rip + rt_atfork_parent]       # progress: see there)
+        lea rdx, [rip + rt_atfork_child]
+        call pthread_atfork@PLT
         lea rdi, [rip + .Ls_env_poison]
         call getenv@PLT
         test rax, rax
@@ -68,8 +73,13 @@ FUNC rt_init_once
         call simd_init
         call str_init
         call opcodes_init
-        # the global context: bound while the constants get made, and left
-        # bound for the calling thread if it had nothing (the CLI)
+        # the global context: bound while the constants get made, then the
+        # thread's binding as it was - none, for a thread of a program the
+        # library is in. It was left bound to the first thread that called
+        # the library: GMP's memory functions are this library's for the
+        # whole process (they're GMP's only ones), and a GMP of the
+        # program's own on that thread (gmpy2...) allocated in this
+        # context's arena for good (gmp_free frees nothing there)
         call ctx_current
         mov rbx, rax
         call ctx_new
@@ -85,14 +95,48 @@ FUNC rt_init_once
         call matcher_init
         call prettify_init
         call patterns_init
-        test rbx, rbx
-        jz 9f
-        mov rdi, rbx
+        call str_snapshot_base          # (what every decompilation has)
+        mov rdi, rbx                    # (0: none)
         call ctx_bind
-9:      pop r15
+        pop r15
         pop r15
         LEAVE
 ENDF rt_init_once
+
+# rt_atfork_prepare / _parent / _child (pthread_atfork, rt_init_once's): a
+# program that forks while calls of the library are in progress on other
+# threads - multiprocessing does, by default on Linux, and the python
+# module lets go of the GIL during its calls. The child has only the
+# thread that forked: the locks the others held stayed held there (the
+# intern table's, the chunk pool's, the log's, the signature database's:
+# its first call to take one waited for good), and the count of the calls
+# in progress never came back to 0 (no purge of the strings ever, and once
+# one was asked for, every call waited for it). The prepare takes what
+# guards shared tables (a purge or an intern done first, the tables whole);
+# the child has every lock free and no call in progress. (The watchdog's
+# are rt_watch.s', its own.)
+FUNC rt_atfork_prepare
+        ENTER
+        call str_atfork_prepare         # (the strings' then the pool's: a
+        call pool_fork_lock             # leaf, held for a few instructions)
+        LEAVE
+ENDF rt_atfork_prepare
+
+FUNC rt_atfork_parent
+        ENTER
+        call pool_fork_unlock
+        call str_atfork_parent
+        LEAVE
+ENDF rt_atfork_parent
+
+FUNC rt_atfork_child
+        ENTER
+        call pool_fork_unlock
+        call str_atfork_child
+        call log_atfork_child
+        call sigdb_atfork_child
+        LEAVE
+ENDF rt_atfork_child
 
 # ctx_new() -> rax: a fresh thread context, bound to the thread (see
 # ctx_bind); a fatal "out of memory" if there's none to have (the
@@ -181,11 +225,20 @@ ENDF ctx_current
 FUNC ctx_free
         ENTER
         mov rbx, rdi
+        cmp qword ptr [rbx + CTX_WATCHED], 0
+        je 0f
+        call watch_stop                 # (off the watchdog's table, which
+0:                                      # its thread reads)
         mov rdi, [rbx + CTX_ASM_SB]     # (vm.s's scratch builder)
         test rdi, rdi
         jz 1f
         call sb_free
-1:      mov rdi, [rbx + CTX_ARENA_CHUNKS]
+1:      mov rdi, [rbx + CTX_SBS]        # the builders made while it was
+        test rdi, rdi                   # bound and never freed - a throw
+        jz 2f                           # unwound past what held them
+        call sb_free                    # (it takes it off the list)
+        jmp 1b
+2:      mov rdi, [rbx + CTX_ARENA_CHUNKS]
         mov rsi, [rbx + CTX_ARENA_CUR]
         call chunks_release
         mov rdi, [rbx + CTX_HC_TABLE]
@@ -663,6 +716,18 @@ FUNC pool_push
         ret
 ENDF pool_push
 
+# pool_fork_lock() / pool_fork_unlock(): the pool's lock across a fork
+# (rt_atfork_*: the list whole in the child, and its lock free there)
+FUNC pool_fork_lock
+        POOL_LOCK
+        ret
+ENDF pool_fork_lock
+
+FUNC pool_fork_unlock
+        POOL_UNLOCK
+        ret
+ENDF pool_fork_unlock
+
 # chunk_pool_trim(keep): the pool's chunks past `keep` back to the system
 FUNC chunk_pool_trim
         ENTER
@@ -687,6 +752,51 @@ FUNC stack_overflow
         lea rsi, [rip + .Lmsg_recursion]
         jmp err_throw
 ENDF stack_overflow
+
+# ctx_usage() -> rax: what r15's context counts against its limit (its
+# arena and its hash-cons table, as arena_new_chunk counts them)
+FUNC ctx_usage
+        mov rax, [r15 + CTX_HC_CAP]
+        shl rax, 3
+        add rax, [r15 + CTX_ARENA_TOTAL]
+        ret
+ENDF ctx_usage
+
+# ctx_limit_at(base, amount): r15's limit set to base + amount (no wrap),
+# or to none for an amount of 0 (no limit)
+FUNC ctx_limit_at
+        xor eax, eax
+        test rsi, rsi
+        jz 1f
+        mov rax, rdi
+        add rax, rsi
+        jnc 1f
+        mov rax, -1
+1:      mov [r15 + CTX_MEM_LIMIT], rax
+        ret
+ENDF ctx_limit_at
+
+# ctx_half_budget() -> rax: r15's limit as it was; the limit lowered to
+# half of what is left under it (none stays none) - for a step that has a
+# fallback when it fails: one that ran into the limit leaves half of it
+# to the steps after it, rather than nothing (put the limit back after)
+FUNC ctx_half_budget
+        mov rdx, [r15 + CTX_MEM_LIMIT]
+        test rdx, rdx
+        jz 1f
+        mov rax, [r15 + CTX_HC_CAP]
+        shl rax, 3
+        add rax, [r15 + CTX_ARENA_TOTAL]
+        cmp rdx, rax
+        jbe 1f
+        mov rcx, rdx
+        sub rcx, rax
+        shr rcx, 1
+        add rax, rcx
+        mov [r15 + CTX_MEM_LIMIT], rax
+1:      mov rax, rdx
+        ret
+ENDF ctx_half_budget
 
 # ctx_set_stack(): CTX_STACK_LOW of r15 from the calling thread's stack
 # (the recursions throw E_RECURSION a margin above its end)
@@ -856,7 +966,26 @@ FUNC ctx_compact
         mov qword ptr [r15 + CTX_RV_MAP], 0
         mov qword ptr [r15 + CTX_LV_SET], 0
         mov qword ptr [r15 + CTX_VM], 0         # (the VM, done, was there)
-        mov rdi, r12
+        # prettify's names record (CTX_NAMES) and the function printed
+        # (CTX_FUNC), where this context made them in the old arena:
+        # --explain prints the traces between the rounds, and its
+        # prettify made the record there (one without names - those are
+        # set for the text only, on contexts that never compact) and
+        # read it again after the round's compaction, out of a chunk
+        # given back by then: a word of whatever was there next used as
+        # a C string (a SIGSEGV on Seaport15 with --explain alone).
+        # names_state makes the record again when it's next asked for.
+        # One made elsewhere (a printing thread takes the main context's)
+        # isn't this arena's and stays.
+        mov rdi, [r15 + CTX_NAMES]
+        call .Lcc_in_old
+        jz 7f
+        mov qword ptr [r15 + CTX_NAMES], 0
+7:      mov rdi, [r15 + CTX_FUNC]
+        call .Lcc_in_old
+        jz 8f
+        mov qword ptr [r15 + CTX_FUNC], 0
+8:      mov rdi, r12
         mov rsi, r14
         call chunks_release
         mov [rsp + CC_FREED], rax
@@ -921,6 +1050,26 @@ FUNC ctx_compact
         mov edi, E_MEMORY
         lea rsi, [rip + .Lmsg_xalloc_throw]
         call err_throw
+# (local) ZF clear, eax 1: rdi points into one of the old chunks (r12's
+# list, not released yet); ZF set, eax 0: it doesn't (or is 0)
+.Lcc_in_old:
+        xor eax, eax
+        test rdi, rdi
+        jz 2f
+        mov rcx, r12
+1:      test rcx, rcx
+        jz 2f
+        cmp rdi, rcx
+        jb 3f
+        mov rdx, rcx
+        add rdx, [rcx + CHUNK_SIZE]
+        cmp rdi, rdx
+        jb 4f
+3:      mov rcx, [rcx + CHUNK_NEXT]
+        jmp 1b
+4:      mov eax, 1
+2:      test eax, eax
+        ret
 ENDF ctx_compact
 
         .section .rodata
@@ -1117,14 +1266,35 @@ FUNC ctx_init_mpz
 ENDF ctx_init_mpz
 
 # --- GMP memory callbacks (C ABI, context from the pthread key) ---
+#
+# GMP has one set of memory functions for the whole process, and these
+# are them once the library is initialized: a thread with a context bound
+# (the library's own work) allocates in its arena, freed with it; a
+# thread with none is the program's - a GMP of its own (gmpy2's, or the
+# program's C), whose numbers live as long as it keeps them: the
+# functions that were GMP's before (its own, malloc's, or the program's).
+# It was the arena of no context: a NULL pointer read, a SIGSEGV in the
+# program's thread.
+
+        .section .bss
+        .align 8
+gmp_prev_alloc:   .quad 0
+gmp_prev_realloc: .quad 0
+gmp_prev_free:    .quad 0
+        .text
 
 FUNC gmp_alloc
         ENTER
         mov rbx, rdi
         call ctx_current
+        test rax, rax
+        jz 1f
         mov rdi, rax
         mov rsi, rbx
         call arena_alloc_nl
+        LEAVE
+1:      mov rdi, rbx
+        call [rip + gmp_prev_alloc]
         LEAVE
 ENDF gmp_alloc
 
@@ -1135,6 +1305,8 @@ FUNC gmp_realloc
         mov r12, rsi
         mov r13, rdx
         call ctx_current
+        test rax, rax
+        jz 1f
         mov rdi, rax
         mov rsi, r13
         call arena_alloc_nl
@@ -1147,10 +1319,25 @@ FUNC gmp_realloc
         call memcpy@PLT
         mov rax, r14
         LEAVE
+1:      mov rdi, rbx
+        mov rsi, r12
+        mov rdx, r13
+        call [rip + gmp_prev_realloc]
+        LEAVE
 ENDF gmp_realloc
 
+# gmp_free(ptr, size): an arena's is freed with its context
 FUNC gmp_free
-        ret
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call ctx_current
+        test rax, rax
+        jnz 1f
+        mov rdi, rbx
+        mov rsi, r12
+        call [rip + gmp_prev_free]
+1:      LEAVE
 ENDF gmp_free
 
 # xmalloc(size) / xcalloc(n, size) / xrealloc(ptr, size): the C

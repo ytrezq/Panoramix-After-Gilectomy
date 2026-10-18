@@ -28,6 +28,7 @@ log_once:       .quad 0          # pthread_once_t (PTHREAD_ONCE_INIT is 0)
 .Lc_reset:      .asciz "\033[0m"
 .Ltimefmt:      .asciz "%Y-%m-%d %H:%M:%S"
 .Ls_space:      .asciz " "
+.Ls_fmt_cut:    .asciz " ..."
 .Ls_nl:         .asciz "\n"
 .Ls_debug:      .asciz "DEBUG"
 .Ls_info:       .asciz "INFO"
@@ -307,10 +308,19 @@ FUNC log_lock_release
         ret
 ENDF log_lock_release
 
+# log_atfork_child(): in a fork's child, the lock free (a thread of the
+# parent's writing a line held it, and that thread isn't in the child:
+# its first line waited for good - see rt_atfork_child)
+FUNC log_atfork_child
+        mov dword ptr [rip + log_lock], 0
+        ret
+ENDF log_atfork_child
+
 # sb_free(sb): release a builder and its buffer
 FUNC sb_free
         ENTER
         mov rbx, rdi
+        call sb_untrack
         mov rdi, [rbx + SB_BUF]
         call free@PLT
         mov rdi, rbx
@@ -385,7 +395,16 @@ FUNC sb_format
 10:     cmp al, 'v'
         jne 11f
         add r13, 8
-        call value_print
+        mov r14, [rbx + SB_LEN]         # (64 KiB of it at most, then " ...":
+        add r14, 65536                  # a value printed whole is as long as
+        mov [rbx + SB_MAX], r14         # the tree its shared parts make - a
+        call value_print                # line of stderr of the machine's
+        mov qword ptr [rbx + SB_MAX], 0 # memory, or the builder's limit)
+        cmp [rbx + SB_LEN], r14
+        jb 1b
+        mov rdi, rbx
+        lea rsi, [rip + .Ls_fmt_cut]
+        call sb_append_c
         jmp 1b
 11:     cmp al, '%'
         jne 12f

@@ -38,8 +38,12 @@ ENDF pan_log_level_from_name
 API pan_disasm
         push r15
         ENTER
-        sub rsp, 40 + ERR_SIZEOF
-        .set DIS_ERR, 40                # (a handler: the tables of a code of
+        sub rsp, 56 + ERR_SIZEOF
+        .set DIS_LOADER, 40             # the loader and the builder, 0 until
+        .set DIS_SB, 48                 # they are made (in memory: a throw
+                                        # puts the registers back as they
+                                        # were at err_catch, when they were 0)
+        .set DIS_ERR, 56                # (a handler: the tables of a code of
                                         # tens of MiB are malloc'd, and a
                                         # failed one went to rt_fatal - an
                                         # abort - for want of one)
@@ -48,6 +52,7 @@ API pan_disasm
         mov [rsp + 16], rdx             # out
         mov [rsp + 24], rcx             # outlen
         call pan_init
+        call str_session_enter          # (no purge of the strings meanwhile)
         call ctx_current
         mov [rsp + 32], rax             # previous binding, restored on exit
         call ctx_try_new
@@ -56,51 +61,53 @@ API pan_disasm
         mov r15, rax
         mov rdi, r15
         call ctx_bind
-        xor ebx, ebx                    # the loader and the builder, 0 until
-        xor r12d, r12d                  # they are made: the handler frees
-        lea rdi, [rsp + DIS_ERR]        # what exists, and a throw puts them
-        call err_catch                  # back as they were here
-        test eax, eax
-        jnz .Ldis_threw
-        call loader_new
+        mov qword ptr [rsp + DIS_LOADER], 0     # (the handler frees what
+        mov qword ptr [rsp + DIS_SB], 0         # exists: the loader's tables
+        lea rdi, [rsp + DIS_ERR]                # of a code that failed to load
+        call err_catch                          # leaked - 120 MiB a call for a
+        test eax, eax                           # code of 120 MiB - when rbx
+        jnz .Ldis_threw                         # and r12 held them, 0 again
+        call loader_new                         # after the throw)
         mov rbx, rax
+        mov [rsp + DIS_LOADER], rax
         mov rdi, rbx
         mov rsi, [rsp]
         mov rdx, [rsp + 8]
         call loader_load
         call sb_new
         mov r12, rax
+        mov [rsp + DIS_SB], rax
         mov rdi, rbx
         mov rsi, r12
         call loader_disasm
         call err_end
-        mov rax, [rsp + 16]
-        mov rcx, [r12 + SB_BUF]
-        mov [rax], rcx
         mov rax, [rsp + 24]
         mov rcx, [r12 + SB_LEN]
         mov [rax], rcx
         mov rdi, r12
-        call free@PLT                   # the builder, not its buffer
+        call sb_take                    # the builder freed, not its buffer
+        mov rcx, [rsp + 16]
+        mov [rcx], rax
         mov rdi, rbx
         call loader_free
         mov rdi, r15
         call ctx_free
         mov rdi, [rsp + 32]
         call ctx_bind
+        call str_session_exit
         xor eax, eax
-        add rsp, 40 + ERR_SIZEOF
+        add rsp, 56 + ERR_SIZEOF
         LEAVE_NORET
         pop r15
         ret
 .Ldis_threw:                            # (the handler is unlinked already)
-        test r12, r12
+        mov rdi, [rsp + DIS_SB]
+        test rdi, rdi
         jz 1f
-        mov rdi, r12                    # the builder and its buffer: no text
-        call sb_free                    # of it reached the caller
-1:      test rbx, rbx
+        call sb_free                    # the builder and its buffer: no text
+1:      mov rdi, [rsp + DIS_LOADER]     # of it reached the caller
+        test rdi, rdi
         jz .Ldis_no_ctx_bound
-        mov rdi, rbx
         call loader_free
 .Ldis_no_ctx_bound:
         mov rdi, r15
@@ -112,8 +119,9 @@ API pan_disasm
         mov qword ptr [rax], 0
         mov rax, [rsp + 24]
         mov qword ptr [rax], 0
+        call str_session_exit
         mov eax, -1
-        add rsp, 40 + ERR_SIZEOF
+        add rsp, 56 + ERR_SIZEOF
         LEAVE_NORET
         pop r15
         ret
@@ -276,6 +284,7 @@ FUNC decompile_api
         mov [rsp + 32], r8              # flags
         mov [rsp + 40], r9              # po
         call pan_init
+        call str_session_enter          # (no purge of the strings meanwhile)
         call ctx_current
         mov [rsp + 48], rax
         call ctx_try_new
@@ -340,10 +349,10 @@ FUNC decompile_api
         jmp 3f
 2:      test r13, r13                   # (failed: no data)
         jz 3f
-        mov rdi, [r13 + SB_BUF]
-        call free@PLT
-        mov qword ptr [r13 + SB_BUF], 0
-        mov qword ptr [r13 + SB_LEN], 0
+        mov rdi, r13
+        call sb_free
+        xor r13d, r13d
+        mov qword ptr [r15 + CTX_DATA_SB], 0
 3:      mov rax, [rsp + 40]
         mov rcx, [r12 + SB_BUF]
         mov [rax + PO_TEXT], rcx
@@ -370,13 +379,13 @@ FUNC decompile_api
         mov [rax + PO_EXPLAINLEN], rdx
         test rdi, rdi
         jz 41f
-        call free@PLT                   # (the builder, not its buffer)
+        call sb_take                    # (the builder freed, not its buffer)
 41:     mov rdi, r12
-        call free@PLT                   # the builders, not their buffers
+        call sb_take                    # the builders, not their buffers
         test r13, r13
         jz 5f
         mov rdi, r13
-        call free@PLT
+        call sb_take
 5:      mov qword ptr [r15 + CTX_DATA_SB], 0
         mov qword ptr [r15 + CTX_EXPLAIN_SB], 0
         # the loader's tables (the code, the instructions, pc -> index, the
@@ -401,7 +410,10 @@ FUNC decompile_api
         test ebx, ebx
         jz 6f
         mov eax, -1
-6:      add rsp, 72
+6:      mov ebx, eax
+        call str_session_exit           # (a purge, if the strings have grown)
+        mov eax, ebx
+        add rsp, 72
         LEAVE_NORET
         pop r15
         ret
@@ -444,6 +456,7 @@ API pan_fetch_code
         mov [rsp + 16], rdx
         mov [rsp + 24], rcx
         call pan_init
+        call str_session_enter          # (no purge of the strings meanwhile)
         mov rax, [rsp + 8]
         mov qword ptr [rax], 0
         mov rax, [rsp + 16]
@@ -475,6 +488,7 @@ API pan_fetch_code
         mov [rcx], rax
         mov rdi, rbx
         call sb_free
+        call str_session_exit
         xor eax, eax
         add rsp, 32
         LEAVE
@@ -490,14 +504,15 @@ API pan_fetch_code
         mov rax, [rsp + 24]
         test rax, rax
         jz 2f
-        mov rcx, [rbx + SB_BUF]         # the message: the builder's buffer
-        mov [rax], rcx
-        mov rdi, rbx
-        call free@PLT
+        mov rdi, rbx                    # the message: the builder's buffer
+        call sb_take
+        mov rcx, [rsp + 24]
+        mov [rcx], rax
         jmp 3f
 2:      mov rdi, rbx
         call sb_free
-3:      mov eax, -1
+3:      call str_session_exit
+        mov eax, -1
         add rsp, 32
         LEAVE
 ENDF pan_fetch_code
@@ -514,6 +529,9 @@ API pan_build_sigdb
         mov [rsp], rdi
         mov [rsp + 8], rsi
         call pan_init
+        # (no session of the strings, str_session_enter: the build interns
+        # none and holds none - and a build reading a dump from a pipe that
+        # never ends kept every purge waiting, the calls after it with them)
         call ctx_current
         mov [rsp + 16], rax
         call ctx_try_new

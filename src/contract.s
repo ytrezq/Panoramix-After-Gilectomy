@@ -54,9 +54,10 @@ ENDF contract_new
 # of the recursive internal functions too (after the others)
 FUNC contract_postprocess
         ENTER
-        sub rsp, ERR_SIZEOF + 16
+        sub rsp, ERR_SIZEOF + 32
         .set CP_NAMES, ERR_SIZEOF
         .set CP_ALL, ERR_SIZEOF + 8     # the functions, then the internal ones
+        .set CP_LIMIT, ERR_SIZEOF + 16  # the context's limit, while a step has half of it
         mov rbx, rdi
         mov rax, [rbx + CT_FUNCS]
         mov [rsp + CP_ALL], rax
@@ -75,7 +76,14 @@ FUNC contract_postprocess
         mov rdx, [rsi + VEC_LEN]
         mov rsi, [rsi + VEC_DATA]
         call vec_extend
-0:      mov rdi, rsp
+0:      # the storage's analysis, which has a fallback when it fails
+        # (python's): half of what is left of the limit, so that one that
+        # ran into it leaves the rest for the steps below (the fallback,
+        # the names, the text) - it left them nothing, and the whole
+        # contract failed where python prints it with its storage raw
+        call ctx_half_budget
+        mov [rsp + CP_LIMIT], rax
+        mov rdi, rsp
         call err_catch
         test eax, eax
         jnz 1f
@@ -86,10 +94,14 @@ FUNC contract_postprocess
         mov [rbx + CT_STOR_DEFS], rax
         mov [rbx + CT_LANG], rdx
         call err_end
+        mov rax, [rsp + CP_LIMIT]
+        mov [r15 + CTX_MEM_LIMIT], rax
         jmp 2f
 1:      # this is critical, because it causes the full contract to
         # display very badly, and cannot be limited in scope to just one
         # affected function
+        mov rcx, [rsp + CP_LIMIT]
+        mov [r15 + CTX_MEM_LIMIT], rcx
         mov edi, eax
         call st_catch_all
         mov edi, LOG_ERROR
@@ -148,10 +160,14 @@ FUNC contract_postprocess
         call contract_consts
         mov rdi, [rsp + CP_ALL]
         call make_asts
-        mov rdi, rbx
+        call ctx_half_budget            # (SafeMath has its fallback too:
+        mov [rsp + CP_LIMIT], rax       # half of what's left, the rest for
+        mov rdi, rbx                    # the text)
         mov rsi, [rsp + CP_ALL]
         call contract_safemath
-        add rsp, ERR_SIZEOF + 16
+        mov rax, [rsp + CP_LIMIT]
+        mov [r15 + CTX_MEM_LIMIT], rax
+        add rsp, ERR_SIZEOF + 32
         LEAVE
 ENDF contract_postprocess
 

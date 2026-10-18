@@ -1414,7 +1414,194 @@ handler now (a literal nested 100000 deep is an exception, not the guard
 page), and the hooks that take machine values check them, but a trace
 built by hand with a line of the wrong shape still reaches code that was
 written for the shapes the VM builds. A published build should not
-export it.
+export it. (The third review, below, changed some of these: the
+builders are held to the limit, the fetch has a deadline.)
+
+### The third review: the seams between components
+
+The sources were reviewed at `52d0930` once more, across the files
+rather than file by file: eight seams (the command line, the API and the
+network into the loader; the main context's new limit and watchdog; the
+signature database into the names; the rewriters of the traces; the
+printer and the json; the algebra into the storage analysis; the
+dispatcher into the jobs; the contexts, arenas and threads), each reader
+looking for a value one component takes as valid and another one breaks
+on. The fixes were then read for the same thing: what each one let
+another file receive. What came out of it:
+
+Two uses after free. `ctx_compact` frees the arena it compacts, and
+gave the context a new one without `CTX_NAMES`, the record of
+`set_names` - which `--explain`'s `prettify` makes in the arena between
+the rounds of the simplification, and read again after the round's
+compaction, out of a chunk given back by then (a SIGSEGV on Seaport15
+with `--explain` alone, on ChainlinkETHUSD with a compaction at every
+round). The record, and `CTX_FUNC`, are dropped when they lie in the old
+arena, and `names_state` makes the record again. And the import of the
+batches' results, which the main context's new limit had made a thing
+that can throw: an import that failed recorded the problem with
+allocations outside any handler, whose `E_MEMORY` left `decompile` with
+the workers still running, and `decompile_api` freed the loader and the
+context (the jobs, the mutex) under them. A handler covers the batches
+now: no job is handed out any more, the workers are joined, what the
+jobs left is freed, and the error goes on with no thread of ours
+running.
+
+GMP has one set of memory functions for the whole process, and the
+library's replaced them: a GMP of the program's own (gmpy2, a C
+program's) allocated in the arena of the thread's context - none, on a
+thread of the program's: a NULL read, a SIGSEGV; and on the first thread
+that called the library, which `rt_init` left bound to the global
+context, in that arena for good. A thread with no context bound uses
+`malloc`, `realloc` and `free` now, and `rt_init` leaves the thread as it
+found it. The library also had the process ignore SIGPIPE, whatever the
+program wanted of it: its sockets send with `MSG_NOSIGNAL` now, and the
+command line ignores the signal itself.
+
+The names of the signature database are anybody's who made it (the
+cache is a file, `PANORAMIX_SIGDB` a path, `build-db` takes any dump),
+and a parameter's name isn't in the hash a signature is checked with: an
+ESC in one set the terminal's title of whoever read the text, newlines
+forged lines of it, `--no-color` or not. `db_intern` writes every
+character that isn't text (C0, DEL, C1, the line separators, the marks
+and overrides of the direction, a byte of no valid UTF-8) as `\xNN`; the
+real dump has none in its 1.5 million entries, and a function's name
+with one no longer hashes to its selector.
+
+The limit of the contract phase was one limit for all of it, and an
+arena never gives back what it took. A discovery that ran into its half
+left the fallback's 48 bytes to throw at the same half; the imports,
+copies of what each function's own limit bounds, used the limit up for
+the post-processing - and with more memory, more functions were
+imported: OneInchV5 had its text at 18 and 26 MiB and none at 21 to 24.
+The command line decompiled a list of contracts on one context, each
+limited after what those before it had taken (the same contract nine
+times at 64 MiB: three texts). The limit counts from what the context
+had when the decompilation began now (and the command line gives each
+contract a context of its own), not what the imports take; the phases
+after the discovery have the rest of it, each import a limit of its
+own, and the storage analysis and SafeMath, which have a fallback when
+they fail, half of what is left. The function objects are made by the
+workers (`function_new`, python's `Function()`), under the job's limit
+and deadline, and imported whole (`fn_import`, the strings of that arena
+copied: `CTX_IMPORT_STRS`): on the main context, one function whose
+walks blew up took the contract's limit with it, and had no deadline at
+all. The discovery's watchdog had the VM's own deadline, so the walks
+after a VM stopped at its limit were cut and what it had found thrown
+away; it has the VM's limit and a function's 3 minutes after it. The
+post-processing and the text have a deadline too, which the comment
+always said they had - and so have the folds and the functions' texts,
+made on contexts of their own, which the watchdog didn't watch: a
+context made for another one's work is watched with that one's deadline
+(`watch_like`), and `ctx_free` takes a context off the watchdog's table
+whatever path led there (`CTX_WATCHED`: the watchdog's thread reads the
+contexts of its table). Each deadline has its own message.
+
+The text of a function is made on a context of its own even with one
+thread (`print_many`), and one that fails at a limit of the port's
+(the memory's, the deadline's) says so in place of its body - python
+would have gone on for as long as it took - rather than failing the
+contract. A builder is on the list of the context bound when it was
+made (`CTX_SBS`), and `ctx_free` frees what is left there: a throw
+unwound past the functions that held them, and they leaked, call after
+call in a server (the printer's under the main context's limit). One
+that outlives its context is taken off (`sb_untrack`: a job's
+`--explain` text). A builder made under a limit grows to that limit at
+most: the text of a value with shared parts, written out whole, is as
+long as the tree they make, and nothing else bounded `str(trace)` or a
+value in a log message; a message prints 64 KiB of a value.
+
+Memory a long-running program accumulated per call: the loader and the
+code of a `pan_disasm` that failed (the handler's registers were put
+back to 0 by the throw: it freed nothing, 120 MiB a call for a code of
+120 MiB), `build-db`'s 72 MiB of tables, the strings interned by every
+decompilation (12 MiB a call with `--verbose`, 70 KiB without: the
+assembly's comments, the unknown functions' names, the revert messages).
+The strings interned since the initialization are freed once 64 MiB of
+them have accumulated and no call is in progress (`str_session_enter`,
+`_exit` around every entry point; `PANORAMIX_PURGE_MIB` sets the amount,
+0 for a purge after every call, for the tests). Past four times that,
+the calls that begin wait for the purge (calls that always overlap
+would put it off for good), 10 s at most: they waited for the slowest
+call in progress, minutes, or for ever for a `build_signature_db`
+reading a pipe - which is no session now, as it interns no string.
+Past the 10 s the purge is put off, four times the amount further.
+
+Signals: the library's threads inherited the mask of whoever called it,
+so a signal of the program's could be delivered to one of them (its
+handler run in the middle of our code) and cut our system calls short
+with EINTR. `thread_create` starts every thread with the asynchronous
+signals blocked, the reads and writes retry after EINTR, and the python
+module holds the signals that have a handler for the length of a call:
+python's handlers only set a flag for the main thread's next bytecode,
+so a CTRL+C waits for the call anyway, and after it the module runs
+them (`PyErr_CheckSignals`) - the `KeyboardInterrupt` is the call's, and
+what it made is freed. A node's answer has a deadline as a whole (60 s),
+not each read alone: an answer of a byte every few seconds held the call
+for as long as the node liked.
+
+And smaller ones: the concatenations of `arr_text` and of SafeMath's
+revert messages are capped as `pretty_memory`'s are; `pretty_bytes`
+writes its zeroes in one `memset`; the shifts of the storage's packed
+numbers are clamped (`st_int_shl`: a field 2^32 bits wide was a shift of
+as many, an abort, or a SIGFPE in GMP at 2^40); `code_bytes_value` and
+`str_of_value` don't leak what they hold when what they call throws; a
+job's target is imported (an expression of the main context's, read by
+a worker); standard input past 256 MiB is refused rather than cut there
+and decompiled; the argument as a path reads regular files only, while
+`build-db` still reads its dump from a fifo; a path in a message is cut
+at `PATH_MAX`, not at 200 bytes.
+
+The fixes themselves, read again by three readers who hadn't made them
+(the lifetimes of what they hold, the flow of `decompile`, the signals,
+the I/O and the host process), gave as many more. A program that forks
+while a call is in progress on another of its threads (multiprocessing
+does, the module lets go of the GIL): the child had the count of the
+calls in progress, which never came back to 0 there - no purge ever,
+and once one was asked for, every call of the child waited for it - and
+the locks the other threads held (the strings', the chunk pool's, the
+log's, the signature database's). `rt_init` registers `pthread_atfork`
+handlers: the tables are taken whole across the fork, and the child has
+every lock free and no call in progress. A signature database names the
+dump it was built from, read again at each load to see if it changed:
+`read_file` had been made to read any file for `build-db`, so a
+database naming a fifo or `/dev/zero` (it's anybody's) hung every
+decompilation or took all the memory - the dump a database names is
+read only when it is a regular file of 1 GiB at most, and only a regular
+dump is recorded; `read_file` reads 1 GiB at most and closes its file
+when a throw goes through it. The dump's JSON reader didn't stop at the
+end of the line it was given: a line cut short was read on into what the
+buffer still held, the text of the dump built just before - each line
+ends with a NUL now. The database is loaded by `decompile` before the
+jobs, outside any deadline: the functions are made on the workers now,
+and the first job loaded it, a build of seconds under that function's
+deadline (past it, no database for the process's life). The next wave
+of internal functions was counted before its array was made, and the
+batches' handler walked the last batch's array with that count; a
+failed import recorded the limit `.Lde_imported` left in `rax` as its
+error code (0 without a limit: the job "made"); `--explain`'s traces and
+the function shared one limit to be imported in; the copy of the
+functions' texts leaked what it hadn't copied when it threw, and copied
+them into what was left of the contract's limit; the json's handler
+took the deadline for a failure of the json (`{}`, then the text with
+no deadline); `fold_isolated` lost the fold's context when the import of
+its result threw. And older ones they had left: an O_NONBLOCK standard
+input was cut where its pipe ran dry (EAGAIN taken for the end), a
+`connect` cut by a signal was a node unreachable (EINTR, with
+`SO_SNDTIMEO`, even with `SA_RESTART`), `builder_new` lost what it had
+made when an allocation failed, and a message cut at 64 KiB went on
+with a separator and a closing per element left.
+
+Found sound: the kinds of the memo tables kept across a compaction, the
+import of a trace's strings (all interned), `dc_merge_found`'s handler,
+the rollback of `ctx_compact`, the decoder's tables and their bounds,
+the stack lengths of a jd's hits, the JSON of hostile values, the
+escaping of a node's answers. Left as they are: a while's setvars made
+a list by one rewriter are not cleaned by `pp_cleanup_mul_1`, which
+cleans a tuple (the json shows it, the text doesn't; python's
+comprehension makes a list too); `ck_checks` lets `E_INDEX` through, as
+python's `checks` does; an argument of the command line that is all hex
+digits is the bytecode, not a file of that name (python never opens its
+argument); and `_test` still trusts the shapes it is given.
 
 ## Deduplication in a thread (tried, removed)
 

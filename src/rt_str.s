@@ -9,8 +9,41 @@ str_table:      .quad 0         # node* array
 str_cap:        .quad 0
 str_count:      .quad 0
 str_lock:       .quad 0
+        # the table as the initialization left it (str_snapshot_base): the
+        # strings every decompilation has (the opcodes', the constants'),
+        # kept when the others are dropped (str_purge)
+str_base_table: .quad 0
+str_base_cap:   .quad 0
+str_base_count: .quad 0
+str_grown:      .quad 0         # the bytes interned since
+str_purge_at:   .quad 0         # str_grown's for a purge (STR_PURGE_BYTES, or PANORAMIX_PURGE_MIB's)
+str_hard_at:    .quad 0         # str_grown's for a purge the calls wait for (see str_session_exit)
+        # the calls in progress (str_session_enter / _exit), and a purge
+        # waiting for them to end
+        .align 64
+str_sess_mutex: .zero 40        # pthread_mutex_t (zero: the initializer)
+str_sess_cond:  .zero 48        # pthread_cond_t
+str_sess_active: .quad 0
+str_sess_want:  .quad 0         # a purge once no call is in progress
+str_sess_purge: .quad 0         # the same, the calls that begin waiting for it
+str_sess_until: .zero 16        # until then (a timespec, CLOCK_REALTIME)
 
         .text
+
+        # a purge once this many bytes of strings were interned since the
+        # initialization: what a decompilation interns (its comments of
+        # assembly with --verbose, its names of unknown functions, its
+        # messages) is the process's for good otherwise - 12 MiB a call
+        # with --verbose, 70 KiB without, call after call in a server
+        .set STR_PURGE_BYTES, 64 << 20
+        # it's made once no call is in progress. Past STR_PURGE_HARD times
+        # the bytes, the calls that begin wait for it (calls that always
+        # overlap put it off for good otherwise) - STR_PURGE_WAIT seconds
+        # at most: they all waited for the slowest call in progress, a call
+        # of minutes, or one that never ended, holding every other one as
+        # long. Past that it's put off, tried again as many bytes later.
+        .set STR_PURGE_HARD, 4
+        .set STR_PURGE_WAIT, 10
 
 FUNC str_init
         ENTER
@@ -146,6 +179,10 @@ FUNC str_intern
         mov byte ptr [r14 + N_DATA + 4 + rax], 0
         mov [rbx + r12*8], r14
         inc qword ptr [rip + str_count]
+        mov rcx, [rsp + 8]              # (what it took, for str_session_exit)
+        add rcx, N_DATA + 4 + 1 + 15
+        and rcx, -16
+        add [rip + str_grown], rcx
         call str_lock_release
         mov rax, r14
         add rsp, 32
@@ -498,6 +535,221 @@ scan_first:
         .text
 
 
+# str_snapshot_base(): the table as it is, kept as the base (the end of
+# rt_init_once: what's interned then is every decompilation's). Without
+# the memory for a copy, there's no base: no purge (its thresholds out of
+# reach - at 0, every call's end asked for one, the calls serialized for
+# a purge that does nothing).
+FUNC str_snapshot_base
+        ENTER
+        mov qword ptr [rip + str_purge_at], -1
+        mov qword ptr [rip + str_hard_at], -1
+        mov rdi, [rip + str_cap]
+        shl rdi, 3
+        call malloc@PLT
+        test rax, rax
+        jz 1f
+        mov rbx, rax
+        mov rdi, rax
+        mov rsi, [rip + str_table]
+        mov rdx, [rip + str_cap]
+        shl rdx, 3
+        call memcpy@PLT
+        mov [rip + str_base_table], rbx
+        mov rax, [rip + str_cap]
+        mov [rip + str_base_cap], rax
+        mov rax, [rip + str_count]
+        mov [rip + str_base_count], rax
+        mov qword ptr [rip + str_grown], 0
+        mov qword ptr [rip + str_purge_at], STR_PURGE_BYTES
+        lea rdi, [rip + .Ls_env_purge]  # (the tests': 0, a purge after every
+        call getenv@PLT                 # call that interned anything)
+        test rax, rax
+        jz 2f
+        mov rdi, rax
+        xor esi, esi
+        mov edx, 10
+        call strtoul@PLT
+        mov rcx, 1 << 23                # (MiB, at most 2^23 of them)
+        cmp rax, rcx
+        cmova rax, rcx
+        shl rax, 20
+        mov [rip + str_purge_at], rax
+2:      mov rax, [rip + str_purge_at]
+        imul rax, rax, STR_PURGE_HARD
+        mov [rip + str_hard_at], rax
+1:      LEAVE
+ENDF str_snapshot_base
+
+# str_purge(): every string interned since the base freed, the table the
+# base's again, str_of_int's cache emptied - when no call is in progress
+# (str_session_exit): nothing holds one of them then (a decompilation's
+# values are of its contexts, freed; what it gave back are copies), and
+# what interns them next makes them again. Without the memory for the new
+# table, nothing (it's tried again at the next call's end).
+FUNC str_purge
+        ENTER
+        cmp qword ptr [rip + str_base_table], 0
+        je 9f
+        call str_lock_acquire
+        mov rdi, [rip + str_base_cap]
+        shl rdi, 3
+        call malloc@PLT
+        test rax, rax
+        jz 8f
+        mov r14, rax                    # the new table: the base's copy
+        mov rdi, rax
+        mov rsi, [rip + str_base_table]
+        mov rdx, [rip + str_base_cap]
+        shl rdx, 3
+        call memcpy@PLT
+        mov r12, [rip + str_table]
+        xor ebx, ebx
+1:      cmp rbx, [rip + str_cap]
+        jae 4f
+        mov rdi, [r12 + rbx*8]
+        test rdi, rdi
+        jz 3f
+        mov rax, [rip + str_base_table] # one of the base?
+        mov rcx, [rip + str_base_cap]
+        dec rcx
+        mov rdx, [rdi + N_HASH]
+        and rdx, rcx
+2:      mov rsi, [rax + rdx*8]
+        test rsi, rsi
+        jz 21f
+        cmp rsi, rdi
+        je 3f
+        inc rdx
+        and rdx, rcx
+        jmp 2b
+21:     call free@PLT
+3:      inc rbx
+        jmp 1b
+4:      mov rdi, r12
+        call free@PLT
+        mov [rip + str_table], r14
+        mov rax, [rip + str_base_cap]
+        mov [rip + str_cap], rax
+        mov rax, [rip + str_base_count]
+        mov [rip + str_count], rax
+        mov qword ptr [rip + str_grown], 0
+        call str_of_int_cache_clear
+8:      call str_lock_release
+9:      LEAVE
+ENDF str_purge
+
+# str_session_enter(): a call of the library begins (the API's, a
+# contract of the command line's) - after a purge the calls wait for, if
+# there's one (STR_PURGE_WAIT at most: then it's put off)
+FUNC str_session_enter
+        ENTER
+        lea rdi, [rip + str_sess_mutex]
+        call pthread_mutex_lock@PLT
+1:      cmp qword ptr [rip + str_sess_purge], 0
+        je 2f
+        lea rdi, [rip + str_sess_cond]
+        lea rsi, [rip + str_sess_mutex]
+        lea rdx, [rip + str_sess_until]
+        call pthread_cond_timedwait@PLT
+        cmp eax, 110                    # ETIMEDOUT: put off (the calls in
+        jne 1b                          # progress went on past it), tried
+        cmp qword ptr [rip + str_sess_purge], 0 # again when as many bytes
+        je 2f                           # more are interned - every waiter
+        mov qword ptr [rip + str_sess_purge], 0 # in now
+        mov rax, [rip + str_purge_at]
+        imul rax, rax, STR_PURGE_HARD
+        add rax, [rip + str_grown]
+        mov [rip + str_hard_at], rax
+        lea rdi, [rip + str_sess_cond]
+        call pthread_cond_broadcast@PLT
+2:      inc qword ptr [rip + str_sess_active]
+        lea rdi, [rip + str_sess_mutex]
+        call pthread_mutex_unlock@PLT
+        LEAVE
+ENDF str_session_enter
+
+# str_session_exit(): it ended - the strings purged when they've grown
+# past STR_PURGE_BYTES since the base and it was the last call in
+# progress; past STR_PURGE_HARD times that, the calls that begin wait for
+# it (so that calls always overlapping can't put it off for good), until
+# STR_PURGE_WAIT seconds from now at most
+FUNC str_session_exit
+        ENTER
+        lea rdi, [rip + str_sess_mutex]
+        call pthread_mutex_lock@PLT
+        cmp qword ptr [rip + str_sess_active], 0       # (0: a fork's child
+        je 0f                                           # - see str_atfork)
+        dec qword ptr [rip + str_sess_active]
+0:      mov rax, [rip + str_grown]
+        test rax, rax                   # (nothing interned: nothing to purge)
+        jz 1f
+        cmp rax, [rip + str_purge_at]
+        jb 1f
+        mov qword ptr [rip + str_sess_want], 1
+        cmp rax, [rip + str_hard_at]
+        jb 1f
+        cmp qword ptr [rip + str_sess_purge], 0
+        jne 1f
+        mov qword ptr [rip + str_sess_purge], 1
+        xor edi, edi                    # CLOCK_REALTIME (the condition's)
+        lea rsi, [rip + str_sess_until]
+        call clock_gettime@PLT
+        add qword ptr [rip + str_sess_until], STR_PURGE_WAIT
+1:      mov rax, [rip + str_sess_want]
+        or rax, [rip + str_sess_purge]
+        jz 2f
+        cmp qword ptr [rip + str_sess_active], 0
+        jne 2f
+        call str_purge
+        mov qword ptr [rip + str_sess_want], 0
+        mov qword ptr [rip + str_sess_purge], 0
+        mov rax, [rip + str_purge_at]
+        imul rax, rax, STR_PURGE_HARD
+        mov [rip + str_hard_at], rax
+        lea rdi, [rip + str_sess_cond]
+        call pthread_cond_broadcast@PLT
+2:      lea rdi, [rip + str_sess_mutex]
+        call pthread_mutex_unlock@PLT
+        LEAVE
+ENDF str_session_exit
+
+# str_atfork_prepare / _parent / _child (rt_atfork_*): a fork while calls
+# are in progress on other threads (multiprocessing forks, by default on
+# Linux, and the module lets go of the GIL during its calls). The child
+# had their count, and their threads aren't in it: no purge could ever be
+# made there, and once one was asked for, every call of the child waited
+# for it for good. The table is taken whole first (the lock held across
+# the fork, a purge done), and the child has no call in progress.
+FUNC str_atfork_prepare
+        ENTER
+        lea rdi, [rip + str_sess_mutex]
+        call pthread_mutex_lock@PLT
+        call str_lock_acquire
+        LEAVE
+ENDF str_atfork_prepare
+
+FUNC str_atfork_parent
+        ENTER
+        call str_lock_release
+        lea rdi, [rip + str_sess_mutex]
+        call pthread_mutex_unlock@PLT
+        LEAVE
+ENDF str_atfork_parent
+
+FUNC str_atfork_child
+        ENTER
+        call str_lock_release
+        lea rdi, [rip + str_sess_mutex] # (the mutex and the condition anew:
+        xor esi, esi                    # the waiters were the parent's)
+        mov edx, str_sess_active - str_sess_mutex
+        call memset@PLT
+        mov qword ptr [rip + str_sess_active], 0
+        mov qword ptr [rip + str_sess_want], 0
+        mov qword ptr [rip + str_sess_purge], 0
+        LEAVE
+ENDF str_atfork_child
+
 # str_grow() -> eax: double the intern table (lock held) - 0 when the
 # system has no memory for it (the table as it was)
 FUNC str_grow
@@ -539,7 +791,9 @@ ENDF str_grow
 
         .section .rodata
 .Lmsg_str_oom:  .asciz "out of memory: the system gave no more (malloc failed)"
+.Ls_env_purge:  .asciz "PANORAMIX_PURGE_MIB"
 .Lmsg_sb_oom:   .asciz "out of memory: a text longer than the address space"
+.Lmsg_sb_limit: .asciz "out of memory: a text past a function's memory limit (PANORAMIX_MAX_MEMORY)"
         .text
 
 # str_intern_c(cstr) -> rax
@@ -580,15 +834,81 @@ FUNC sb_new
         mov edi, SB_SIZEOF
         call xmalloc
         mov rbx, rax
-        mov edi, 256
+        mov qword ptr [rbx + SB_OWNER], 0       # (not on a list yet: a throw of
+        mov edi, 256                            # the next xmalloc loses it alone)
         call xmalloc
         mov [rbx + SB_BUF], rax
         mov qword ptr [rbx + SB_LEN], 0
         mov qword ptr [rbx + SB_CAP], 256
+        mov qword ptr [rbx + SB_MAX], 0
         mov byte ptr [rax], 0
+        mov rdi, rbx
+        call sb_track
         mov rax, rbx
         LEAVE
 ENDF sb_new
+
+# sb_track(sb): on the list of the context bound to this thread (none:
+# on no list)
+FUNC sb_track
+        ENTER
+        mov rbx, rdi
+        call ctx_current
+        mov [rbx + SB_OWNER], rax
+        mov qword ptr [rbx + SB_PREV], 0
+        mov qword ptr [rbx + SB_LIMITED], 0
+        xor ecx, ecx
+        test rax, rax
+        jz 1f
+        cmp qword ptr [rax + CTX_MEM_LIMIT], 0  # (made while the context has a
+        setne cl                                # limit: a text of the work done
+        mov [rbx + SB_LIMITED], rcx             # under it - not the output a
+        xor ecx, ecx                            # caller made before, which is
+        mov rcx, [rax + CTX_SBS]                # every function's text)
+        mov [rax + CTX_SBS], rbx
+        test rcx, rcx
+        jz 1f
+        mov [rcx + SB_PREV], rbx
+1:      mov [rbx + SB_NEXT], rcx
+        LEAVE
+ENDF sb_track
+
+# sb_untrack(sb): off its context's list - a builder that outlives the
+# context it was made on (a job's --explain text: its context is freed
+# when the job is imported, the text printed after), or one being freed
+FUNC sb_untrack
+        mov rax, [rdi + SB_OWNER]
+        test rax, rax
+        jz 9f
+        mov rcx, [rdi + SB_PREV]
+        mov rdx, [rdi + SB_NEXT]
+        test rcx, rcx
+        jz 1f
+        mov [rcx + SB_NEXT], rdx
+        jmp 2f
+1:      mov [rax + CTX_SBS], rdx
+2:      test rdx, rdx
+        jz 3f
+        mov [rdx + SB_PREV], rcx
+3:      xor eax, eax
+        mov [rdi + SB_OWNER], rax
+        mov [rdi + SB_PREV], rax
+        mov [rdi + SB_NEXT], rax
+9:      ret
+ENDF sb_untrack
+
+# sb_take(sb) -> rax: the builder's buffer, now the caller's (to free with
+# free()): the builder itself freed
+FUNC sb_take
+        ENTER
+        mov rbx, rdi
+        call sb_untrack
+        mov r12, [rbx + SB_BUF]
+        mov rdi, rbx
+        call free@PLT
+        mov rax, r12
+        LEAVE
+ENDF sb_take
 
 # sb_try_new_cap(cap) -> rax: a builder with room for cap bytes (and a
 # NUL), or 0 when the system has no memory to give (logging: a line
@@ -608,7 +928,10 @@ FUNC sb_try_new_cap
         mov [rbx + SB_BUF], rax
         mov qword ptr [rbx + SB_LEN], 0
         mov [rbx + SB_CAP], r12
+        mov qword ptr [rbx + SB_MAX], 0
         mov byte ptr [rax], 0
+        mov rdi, rbx
+        call sb_track
         mov rax, rbx
         LEAVE
 8:      mov rdi, rbx
@@ -617,7 +940,12 @@ FUNC sb_try_new_cap
 9:      LEAVE
 ENDF sb_try_new_cap
 
-# sb_reserve(sb, extra): make room for `extra` more bytes plus a NUL
+# sb_reserve(sb, extra): make room for `extra` more bytes plus a NUL. A
+# builder of the thread's own context, where it has a memory limit and a
+# handler, grows to that limit at most (E_MEMORY past it): the text of a
+# value with shared parts, written out whole, is as long as the tree the
+# parts make, and nothing else bounded it - outside the arena, it took
+# what the machine had (str(trace) of a function, a value in a message)
 FUNC sb_reserve
         ENTER
         mov rbx, rdi
@@ -632,7 +960,23 @@ FUNC sb_reserve
 2:      shl r12, 1
         cmp rax, r12
         ja 2b
-        mov rdi, [rbx + SB_BUF]
+        cmp qword ptr [rbx + SB_LIMITED], 0
+        je 3f
+        mov rcx, [rbx + SB_OWNER]       # the limit, if it's this thread's
+        test rcx, rcx                   # context's and there's a handler
+        jz 3f
+        cmp rcx, r15
+        jne 3f
+        cmp qword ptr [rcx + CTX_ERR_BUF], 0
+        je 3f
+        mov rcx, [rcx + CTX_MEM_LIMIT]
+        test rcx, rcx
+        jz 3f
+        cmp rax, rcx
+        ja .Lsb_past_limit
+        cmp r12, rcx                    # (doubled up to it, no further)
+        cmova r12, rcx
+3:      mov rdi, [rbx + SB_BUF]
         mov rsi, r12
         call xrealloc
         mov [rbx + SB_BUF], rax
@@ -642,6 +986,10 @@ FUNC sb_reserve
         lea rdi, [rip + .Lmsg_sb_oom]
         LEAVE_NORET                     # (the frame dropped: it never returns)
         jmp xalloc_throw
+.Lsb_past_limit:
+        mov edi, E_MEMORY
+        lea rsi, [rip + .Lmsg_sb_limit]
+        call err_throw
 ENDF sb_reserve
 
 # sb_append(sb, ptr, len)
@@ -1183,6 +1531,51 @@ FUNC sb_finish_intern
         mov rax, r12
         LEAVE
 ENDF sb_finish_intern
+
+# str_is_interned(s) -> eax: 1 when s is the interned node of its text
+# (str_intern's, the process's), 0 when it is an arena string - the
+# table probed as str_intern probes it, for this very node
+FUNC str_is_interned
+        ENTER
+        mov rbx, rdi
+        call str_lock_acquire
+        mov rax, [rip + str_table]
+        mov rcx, [rip + str_cap]
+        dec rcx
+        mov rdx, [rbx + N_HASH]
+        and rdx, rcx
+        xor r12d, r12d
+1:      mov rsi, [rax + rdx*8]
+        test rsi, rsi
+        jz 2f                           # (an empty slot: it isn't there)
+        cmp rsi, rbx
+        je 3f
+        inc rdx
+        and rdx, rcx
+        jmp 1b
+3:      mov r12d, 1
+2:      call str_lock_release
+        mov eax, r12d
+        LEAVE
+ENDF str_is_interned
+
+# str_copy(s) -> rax: an arena string of this context, s's copy (its
+# hash, flags and text as they are)
+FUNC str_copy
+        ENTER
+        mov rbx, rdi
+        mov r12d, [rbx + N_DATA]
+        lea r13, [r12 + N_DATA + 4 + 1]
+        mov rdi, r13
+        call arena_alloc_raw
+        mov r14, rax
+        mov rdi, rax
+        mov rsi, rbx
+        mov rdx, r13
+        call memcpy@PLT
+        mov rax, r14
+        LEAVE
+ENDF str_copy
 
 # str_interned(str) -> rax: the interned node of a string's text
 FUNC str_interned

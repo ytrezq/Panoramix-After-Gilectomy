@@ -25,6 +25,7 @@
         .section .rodata
 .Ls_logname:    .asciz "panoramix.storage"
 .Ls_path_exc:   .asciz "storage path of %v"
+.Ls_negative_shift: .asciz "negative shift count"
 .Ls_type_exc:   .asciz "storage type at %v"
 .Ls_no_read:    .asciz "storage access %v printed as %v doesn't read as it"
         .text
@@ -391,7 +392,11 @@ FUNC rg_trace
         LEAVE
 ENDF rg_trace
 
-# st_int_bits(v, shift, width) -> value: python's (v >> shift) % 2**width
+# st_int_bits(v, shift, width) -> value: python's (v >> shift) % 2**width.
+# The counts are the fields' offsets and widths - within a word of the
+# storage, but they reach GMP as unsigned: a negative one is python's
+# ValueError (it was a count of 2^64 - n), and a width is clamped to
+# 65536 bits (2**width of a negative v is as many bits, all allocated)
 FUNC st_int_bits
         ENTER
         mov rbx, rsi
@@ -401,13 +406,20 @@ FUNC st_int_bits
         call value_set_mpz
         mov rdi, rbx
         call int_to_i64
+        test rax, rax
+        js st_negative_shift
         lea rdi, [r15 + CTX_MPZ_R]
         mov rsi, rdi
         mov rdx, rax
         call __gmpz_fdiv_q_2exp@PLT
         mov rdi, r12
         call int_to_i64
-        lea rdi, [r15 + CTX_MPZ_R]
+        test rax, rax
+        js st_negative_shift
+        cmp rax, 65536
+        jle 1f
+        mov eax, 65536
+1:      lea rdi, [r15 + CTX_MPZ_R]
         mov rsi, rdi
         mov rdx, rax
         call __gmpz_fdiv_r_2exp@PLT
@@ -415,7 +427,11 @@ FUNC st_int_bits
         LEAVE
 ENDF st_int_bits
 
-# st_int_shl(v, k) -> value: python's v << k (k >= 0, exact)
+# st_int_shl(v, k) -> value: python's v << k (k >= 0, exact) - k clamped
+# to 4096 bits as pow2's is (a field's offset in its word, legitimately;
+# a field 2^32 bits wide made it a shift of as many, past the arena and
+# its limit: GMP's allocation failed, an abort - or past GMP's own size,
+# a SIGFPE). A negative k is python's ValueError.
 FUNC st_int_shl
         ENTER
         mov rbx, rsi
@@ -424,13 +440,25 @@ FUNC st_int_shl
         call value_set_mpz
         mov rdi, rbx
         call int_to_i64
-        lea rdi, [r15 + CTX_MPZ_R]
+        test rax, rax
+        js st_negative_shift
+        cmp rax, 4096
+        jle 1f
+        mov eax, 4096
+1:      lea rdi, [r15 + CTX_MPZ_R]
         mov rsi, rdi
         mov rdx, rax
         call __gmpz_mul_2exp@PLT
         call arith_result
         LEAVE
 ENDF st_int_shl
+
+# (st_int_bits', st_int_shl's) python's ValueError for a negative count
+FUNC st_negative_shift
+        mov edi, E_VALUE
+        lea rsi, [rip + .Ls_negative_shift]
+        call err_throw
+ENDF st_negative_shift
 
 # rg_whole(fields, size, off) -> eax: python's run.whole - the bits
 # [off, off + size) are whole variables of the fields

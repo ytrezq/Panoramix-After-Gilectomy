@@ -12,6 +12,12 @@
 # back first). The handlers that stand for python's `except Exception`
 # let E_TIMEOUT through, as python's TimeoutInterrupt is a
 # BaseException (err_rethrow_timeout).
+#
+# The contexts a watched one makes for its work (a fold's, a function's
+# text's) are watched with its deadline (watch_like): the work done there
+# is cut where its own is. And ctx_free takes a context off the table
+# (watch_stop), whatever path led there: the thread reads the contexts
+# of the table, and a context freed on it was a block it wrote into.
 
 .include "defs.inc"
 
@@ -30,15 +36,18 @@ wd_atfork:      .quad 0
 .Ls_timed_out:  .asciz "the function took more than 3 minutes"
         .text
 
-# watch_start(ctx, deadline_ns): ctx is watched until watch_stop; the
-# first call starts the thread
+# watch_start(ctx, deadline_ns, msg): ctx is watched until watch_stop;
+# past the deadline, E_TIMEOUT with msg (0: a function's, python's 3
+# minutes); the first call starts the thread
 FUNC watch_start
         ENTER
         mov rbx, rdi
         mov r12, rsi
+        mov r13, rdx
         lea rdi, [rip + wd_mutex]
         call pthread_mutex_lock@PLT
         mov [rbx + CTX_DEADLINE], r12
+        mov [rbx + CTX_WATCH_MSG], r13
         mov qword ptr [rbx + CTX_TIMED_OUT], 0
         xor ecx, ecx
 1:      cmp ecx, WD_MAX
@@ -49,6 +58,7 @@ FUNC watch_start
         inc ecx
         jmp 1b
 2:      mov [rax + rcx*8], rbx
+        mov qword ptr [rbx + CTX_WATCHED], 1
 3:      cmp qword ptr [rip + wd_started], 0
         jne 4f
         mov qword ptr [rip + wd_started], 1
@@ -70,7 +80,7 @@ FUNC watch_start
         mov rsi, rsp
         lea rdx, [rip + watch_loop]
         xor ecx, ecx
-        call pthread_create@PLT
+        call thread_create
         mov rdi, rsp
         call pthread_attr_destroy@PLT
         add rsp, 64
@@ -79,6 +89,16 @@ FUNC watch_start
         LEAVE
 ENDF watch_start
 
+# watch_like(ctx, deadline_ns, msg): watch_start's, if there's a deadline
+# (0: none) - a context made for the work of another one, with that one's
+# CTX_DEADLINE and CTX_WATCH_MSG as they were when the work was handed
+# out (read on its thread: the watchdog's thread doesn't write them)
+FUNC watch_like
+        test rsi, rsi
+        jnz watch_start
+        ret
+ENDF watch_like
+
 # watch_stop(ctx): no longer watched (its stack's limit as it was)
 FUNC watch_stop
         ENTER
@@ -86,6 +106,7 @@ FUNC watch_stop
         lea rdi, [rip + wd_mutex]
         call pthread_mutex_lock@PLT
         mov qword ptr [rbx + CTX_DEADLINE], 0
+        mov qword ptr [rbx + CTX_WATCHED], 0
         call watch_disarm_locked
         xor ecx, ecx
         lea rax, [rip + wd_ctxs]
@@ -168,7 +189,10 @@ FUNC watch_expired
         call pthread_mutex_unlock@PLT
         pop rbx
         mov edi, E_TIMEOUT
-        lea rsi, [rip + .Ls_timed_out]
+        mov rsi, [r15 + CTX_WATCH_MSG]
+        lea rax, [rip + .Ls_timed_out]
+        test rsi, rsi
+        cmovz rsi, rax
         jmp err_throw
 ENDF watch_expired
 

@@ -18,7 +18,13 @@ FUNC value_print
         ENTER
         mov rbx, rdi
         mov r12, rsi
-        test sil, 1
+        mov rax, [rbx + SB_MAX]         # (a builder with a limit - a message's
+        test rax, rax                   # value, sb_format's %v: nothing more
+        jz 0f                           # past it, each node returning at once)
+        cmp [rbx + SB_LEN], rax
+        jb 0f
+        LEAVE
+0:        test sil, 1
         jz 1f
         mov edx, 10
         call sb_append_int
@@ -73,6 +79,7 @@ FUNC value_print
         mov esi, '('
         call sb_append_char
         call .Lp_elems
+        jnz 9f                          # (cut: no closing either)
         mov rdi, rbx
         cmp dword ptr [r12 + N_AUX], 1
         jne 4f
@@ -81,15 +88,16 @@ FUNC value_print
         LEAVE
 4:      mov esi, ')'
         call sb_append_char
-        LEAVE
+9:      LEAVE
 .Lp_list:
         mov esi, '['
         call sb_append_char
         call .Lp_elems
+        jnz 9f
         mov rdi, rbx
         mov esi, ']'
         call sb_append_char
-        LEAVE
+9:      LEAVE
 
 # str_repr(sb, strnode): python's repr of a string: quoted with ' unless
 # it contains a ' and no ", the quote and backslashes escaped, and the
@@ -189,12 +197,20 @@ ENDF str_repr
         .text
 
 # local helper: print the elements of r12, comma separated (rbx = sb)
+# (the elements, ", " between them; ZF clear when the builder's SB_MAX cut
+# them: no separators for the elements left, nor the closings - a message
+# cut there ended ", , , ])) ...")
 .Lp_elems:
         push r13
         push r14
         sub rsp, 8                      # the call pushed 8: realign
         xor r13d, r13d
-5:      mov eax, [r12 + N_AUX]
+5:      mov rax, [rbx + SB_MAX]
+        test rax, rax
+        jz 51f
+        cmp [rbx + SB_LEN], rax
+        jae 8f
+51:     mov eax, [r12 + N_AUX]
         cmp r13, rax
         jae 6f
         test r13, r13
@@ -207,7 +223,10 @@ ENDF str_repr
         call value_print
         inc r13
         jmp 5b
-6:      add rsp, 8
+6:      xor eax, eax                    # (ZF set: whole)
+        jmp 9f
+8:      or eax, 1                       # (ZF clear: cut)
+9:      lea rsp, [rsp + 8]              # (lea, pop: the flags kept)
         pop r14
         pop r13
         ret

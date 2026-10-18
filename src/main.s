@@ -41,7 +41,9 @@
 .Ls_badlevel_end:
 .Ls_badhex:     .asciz "not a valid hex file: "
 .Ls_noread:     .asciz "can't read the file: "
+.Ls_stdin_too_long: .asciz "the standard input is longer than 256 MiB"
 .Ls_decode_failed: .asciz "the code couldn't be read: "
+.Ls_no_memory:  .asciz "out of memory: the system gave no more"
 .Ls_main:       .asciz "panoramix.main"
 .Lf_loaded:     .asciz "%u bytes of code, %u instructions, %u jumpdests"
 
@@ -111,11 +113,13 @@ FUNC is_address_arg
 1:      ret
 ENDF is_address_arg
 
-# err_line(msg, arg): "msg" "arg" and a newline, on stderr
+# err_line(msg, arg, max): "msg" "arg" and a newline, on stderr - arg
+# escaped and cut to max bytes
 FUNC err_line
         ENTER
         mov rbx, rdi
         mov r12, rsi
+        mov r14, rdx
         call sb_new
         mov r13, rax
         mov rdi, r13
@@ -129,7 +133,7 @@ FUNC err_line
         # message of ours, or one fetch_code has already cleaned.
         mov rdi, r13
         mov rsi, r12
-        mov edx, 200
+        mov rdx, r14
         call sb_append_clean_max
         mov rdi, r13
         mov esi, 10
@@ -148,9 +152,13 @@ ENDF err_line
 # address (fetched), or the bytecode in hex.
 FUNC input_code
         ENTER
-        sub rsp, 16
+        sub rsp, 32
         .set IC_OWNED, 8                # the hex text to free, or 0 (argv's)
+        .set IC_STDIN, 16               # an address read on stdin, once fetched
+        .set IC_FILE, 24                # 1: the text was a file's (rbx its path)
         mov qword ptr [rsp + IC_OWNED], 0
+        mov qword ptr [rsp + IC_STDIN], 0
+        mov qword ptr [rsp + IC_FILE], 0
         mov rbx, rdi
         lea rsi, [rip + .Ls_dash]
         call strcmp@PLT
@@ -158,6 +166,8 @@ FUNC input_code
         jnz 1f
         xor edi, edi
         call read_fd
+        test rax, rax                   # (0: past the 256 MiB a file may
+        jz .Lic_stdin_too_long          # have - refused, not cut there)
         mov [rsp + IC_OWNED], rax       # (what to free: rbx moves below)
         mov rbx, rax                    # stripped (python's .strip()): an address?
         lea rcx, [rax + rdx]
@@ -206,12 +216,13 @@ FUNC input_code
         mov rdx, rax
         mov rax, rbx
         jmp .Lic_hex
-11:     mov rdi, rbx
-        mov rsi, rsp
-        call read_file
+11:     mov rdi, rbx                    # (a regular file of 256 MiB at most:
+        mov rsi, rsp                    # the argument may be anybody's - a
+        call read_code_file             # fifo, /dev/zero read without end)
         test rax, rax
         jz 2f
         mov [rsp + IC_OWNED], rax
+        mov qword ptr [rsp + IC_FILE], 1
         mov rdx, [rsp]
         jmp .Lic_hex
 2:      mov rdi, rbx                    # no file: an address?
@@ -226,15 +237,16 @@ FUNC input_code
         call fetch_code
         test eax, eax
         jnz .Lic_fetch_failed
-        mov rax, [r12 + SB_BUF]
-        mov rdx, [r12 + SB_LEN]
-        mov [rsp + IC_OWNED], rax       # (the buffer is ours now)
-        mov rdi, r12
-        push rax
+        mov rax, [rsp + IC_OWNED]       # (the address read on stdin: its
+        mov [rsp + IC_STDIN], rax       # text, freed at the end - it leaked;
+        mov rdx, [r12 + SB_LEN]         # rbx points into it until then)
         push rdx
-        call free@PLT                   # (the builder, not its buffer)
+        push rdx
+        mov rdi, r12
+        call sb_take                    # (the builder freed, not its buffer)
         pop rdx
-        pop rax
+        pop rdx
+        mov [rsp + IC_OWNED], rax       # (the buffer is ours now)
         jmp .Lic_hex
 3:      mov rdi, rbx                    # the bytecode itself?
         call is_hex_arg
@@ -258,44 +270,60 @@ FUNC input_code
         je .Lic_badhex
         mov rdx, rax
         mov rax, r14
-        mov rdi, [rsp + IC_OWNED]       # the hex text read or fetched (one
-        test rdi, rdi                   # per address of a list, up to the
-        jz 9f                           # 256 MiB a node's answer may be)
         push rax
         push rdx
+        mov rdi, [rsp + 16 + IC_OWNED]  # the hex text read or fetched (one
+        call free@PLT                   # per address of a list, up to the
+        mov rdi, [rsp + 16 + IC_STDIN]  # 256 MiB a node's answer may be)
         call free@PLT
         pop rdx
         pop rax
-9:      add rsp, 16
+        add rsp, 32
         LEAVE
 .Lic_badhex:
         mov rdi, r14
         call free@PLT
         lea rdi, [rip + .Ls_badhex]
         mov rsi, rbx
-        call err_line                   # (rbx points into the text: after it)
+        mov edx, 200                    # (an excerpt of the text - a file's
+        cmp qword ptr [rsp + IC_FILE], 0        # path whole, PATH_MAX: it was
+        je 1f                           # cut at 200 bytes too)
+        mov edx, 4096
+1:      call err_line                   # (rbx points into the text: after it)
         mov rdi, [rsp + IC_OWNED]
-        test rdi, rdi
-        jz 8f
         call free@PLT
-8:      xor eax, eax
-        add rsp, 16
+        mov rdi, [rsp + IC_STDIN]
+        call free@PLT
+        xor eax, eax
+        add rsp, 32
         LEAVE
 .Lic_fetch_failed:
         mov rdi, [r12 + SB_BUF]
         lea rsi, [rip + .Ls_dash + 1]   # ("")
+        xor edx, edx
         call err_line
         mov rdi, r12
         call sb_free
+        mov rdi, [rsp + IC_OWNED]       # (an address read on stdin)
+        call free@PLT
         xor eax, eax
-        add rsp, 16
+        add rsp, 32
         LEAVE
 .Lic_noread:
         lea rdi, [rip + .Ls_noread]
         mov rsi, rbx
+        mov edx, 4096                   # (a path: PATH_MAX, not an excerpt -
+        call err_line                   # 200 bytes cut a real one short)
+        xor eax, eax
+        add rsp, 32
+        LEAVE
+.Lic_stdin_too_long:
+        lea rdi, [rip + .Ls_stdin_too_long]
+        lea rsi, [rip + .Ls_dash + 1]   # ("")
+        xor edx, edx
         call err_line
         xor eax, eax
-        add rsp, 16
+        add rsp, 32
         LEAVE
 ENDF input_code
 
@@ -303,18 +331,34 @@ ENDF input_code
 # printed). The options are read from main's frame.
 FUNC decompile_one
         ENTER
-        sub rsp, 32
+        sub rsp, 48
         .set DO_EXPLAIN, 0              # --explain's builder
         .set DO_CODE, 8
         .set DO_CODELEN, 16
         .set DO_STATUS, 24
+        .set DO_CTX, 32                 # the command line's context, back after
         mov rbx, rdi                    # the frame
-        mov rdi, rsi
-        call input_code
+        mov [rsp + DO_STATUS], rsi      # (the input, a moment)
+        call str_session_enter          # (the strings of a list's contracts
+        mov rdi, [rsp + DO_STATUS]      # purged between them, as a server's
+        call input_code                 # between its calls)
         test rax, rax
         jz .Ldo_no_input
         mov [rsp + DO_CODE], rax
         mov [rsp + DO_CODELEN], rdx
+        # a context of its own for each contract, as decompile_api makes
+        # one per call: a list of them shared one, whose arena never gives
+        # back what it takes - the limits of the contract phase came after
+        # what the contracts before had taken (with PANORAMIX_MAX_MEMORY=64,
+        # a list of the same contract nine times: three texts, then six
+        # "decompilation failed"), and the memory of all of them stayed
+        mov [rsp + DO_CTX], r15
+        call ctx_try_new
+        test rax, rax
+        jz .Ldo_no_ctx
+        mov r15, rax
+        mov rdi, rax
+        call ctx_bind
         mov qword ptr [r15 + CTX_DATA_SB], 0
         mov qword ptr [r15 + CTX_DATA_MODE], 0
         cmp qword ptr [rbx + M_JSON], 0
@@ -397,17 +441,33 @@ FUNC decompile_one
         mov qword ptr [r15 + CTX_DATA_SB], 0
 7:      mov rdi, [rsp + DO_CODE]
         call free@PLT
-        mov rdi, [r15 + CTX_LOADER]     # (malloc'd: see decompile_api - the
-        test rdi, rdi                   # command line decompiles a list of
-        jz 8f                           # them on this one context)
+        mov rdi, [r15 + CTX_LOADER]     # (malloc'd: see decompile_api)
+        test rdi, rdi
+        jz 8f
         mov qword ptr [r15 + CTX_LOADER], 0
         call loader_free
-8:      mov eax, [rsp + DO_STATUS]
-        add rsp, 32
+8:      mov rdi, r15
+        call ctx_free
+        mov edi, CHUNK_POOL_KEEP        # (the memory of the arenas back, but a little)
+        call chunk_pool_trim
+        mov r15, [rsp + DO_CTX]
+        mov rdi, r15
+        call ctx_bind
+        call str_session_exit
+        mov eax, [rsp + DO_STATUS]
+        add rsp, 48
         LEAVE
+.Ldo_no_ctx:
+        mov rdi, [rsp + DO_CODE]
+        call free@PLT
+        lea rdi, [rip + .Ls_no_memory]
+        lea rsi, [rip + .Ls_dash + 1]   # ("")
+        xor edx, edx
+        call err_line
 .Ldo_no_input:
+        call str_session_exit
         mov eax, 1
-        add rsp, 32
+        add rsp, 48
         LEAVE
 ENDF decompile_one
 
@@ -417,7 +477,10 @@ FUNC main
         sub rsp, M_SIZEOF               # 5 pushes + r15: 8 mod 16 keeps rsp aligned
         mov r12, rdi                    # argc
         mov r13, rsi                    # argv
-        call rt_init
+        mov edi, 13                     # SIGPIPE ignored: the text written to
+        mov esi, 1                      # a pipe closed early is EPIPE, and an
+        call signal@PLT                 # error, as it was (the library's
+        call rt_init                    # sockets send with MSG_NOSIGNAL)
         call log_init
         call ctx_new
         mov r15, rax
@@ -628,6 +691,7 @@ FUNC main
 .Ldecode_failed:                        # (the handler is unlinked already;
         lea rdi, [rip + .Ls_decode_failed]      # the process ends here, so
         mov rsi, [r15 + CTX_ERR_MSG]            # the tables go with it)
+        mov edx, 200
         call err_line
         jmp .Lfail_exit
 .Ldecompile:

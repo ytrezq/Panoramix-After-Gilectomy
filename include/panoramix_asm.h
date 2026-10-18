@@ -2,7 +2,31 @@
  *
  * Link with -lpanoramix_asm (build/libpanoramix_asm.so), which needs
  * libgmp, liblzma and libpthread. Every function may be called from any
- * thread, several at once. */
+ * thread, several at once.
+ *
+ * What the library does to the process it is in:
+ * - GMP's memory functions are the library's once it is initialized
+ *   (GMP has one set for the whole process). On a thread of the
+ *   program's, they call the functions that were GMP's before (its own,
+ *   or the program's): a GMP of the program's keeps working. A program
+ *   that sets GMP's memory functions after it breaks the library.
+ * - The threads it starts block the asynchronous signals: a signal of the
+ *   program's is delivered to one of the program's threads, never in the
+ *   middle of the library's work. A call runs to its end (a function's
+ *   limits bound it: PANORAMIX_MAX_MEMORY, PANORAMIX_TIMEOUT); the
+ *   library's reads and writes go on after an EINTR, and its sockets send
+ *   with MSG_NOSIGNAL (no SIGPIPE: the signal's disposition is left as the
+ *   program set it).
+ * - The strings a decompilation interns are freed once 64 MiB of them
+ *   have accumulated and no call is in progress (PANORAMIX_PURGE_MIB sets
+ *   the amount). Past four times that, a call that begins waits for the
+ *   calls in progress to end, 10 s at most.
+ * - It registers pthread_atfork handlers: a program may fork while calls
+ *   are in progress on its other threads (multiprocessing); the child
+ *   has the library's locks free and no call in progress.
+ * - The signature database's dump (build-db's, $PANORAMIX_ABI_DUMP) is
+ *   read whole, 1 GiB at most; the dump a database names is read again,
+ *   to see if it changed, only when it is a regular file. */
 #ifndef PANORAMIX_ASM_H
 #define PANORAMIX_ASM_H
 
@@ -82,7 +106,8 @@ int pan_decompile_data(const uint8_t *code, size_t len, size_t threads,
  * file://PATH for the node's IPC socket), else the first of the default
  * IPC sockets that exists (~/.ethereum/geth.ipc, parity's, trinity's),
  * else $WEB3_HTTP_PROVIDER_URI or http://localhost:8545; each tried when
- * the one before can't be reached (10 s at most each). No TLS (https://)
+ * the one before can't be reached (10 s at most each), and the node's
+ * answer 60 s at most as a whole. No TLS (https://)
  * nor websockets. Returns 0 with the raw bytecode in *code (malloc'ed,
  * *len bytes: none for an address without code), or -1 with the reason
  * in *err (malloc'ed; err may be NULL). */

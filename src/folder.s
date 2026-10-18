@@ -108,7 +108,11 @@ FUNC fold_isolated
         mov [rax + CTX_LOADER], rcx
         mov rcx, [r15 + CTX_FUNC]
         mov [rax + CTX_FUNC], rcx
+        mov rdi, rax                    # (the deadline of the context it
+        mov rsi, [r15 + CTX_DEADLINE]   # folds for, which it had none of;
+        mov rdx, [r15 + CTX_WATCH_MSG]  # off the table in ctx_free)
         mov r15, rax
+        call watch_like
         mov rdi, rsp
         call err_catch
         test eax, eax
@@ -122,9 +126,14 @@ FUNC fold_isolated
         mov r15, [rsp + FI_MAIN]
         mov rdi, r15
         call ctx_bind
-        mov rdi, rbx
+        mov rdi, rsp                    # the result imported, under a
+        call err_catch                  # handler of this context's: what
+        test eax, eax                   # the import throws (its limit, its
+        jnz .Lfi_import_failed          # deadline) left the fold's context
+        mov rdi, rbx                    # allocated, a GiB at most a call
         call value_import_root
         mov rbx, rax
+        call err_end
         mov edi, LOG_DEBUG
         lea rsi, [rip + .Ls_logname]
         lea rdx, [rip + .Ls_fold_peak]
@@ -139,6 +148,15 @@ FUNC fold_isolated
         LEAVE_NORET
         pop r15
         ret
+.Lfi_import_failed:                     # (the fold's context freed, the
+        mov r15, [rsp + FI_MAIN]        # error on up)
+        mov rbx, rax
+        mov r12, [r15 + CTX_ERR_MSG]
+        mov rdi, [rsp + FI_CTX]
+        call ctx_free
+        mov edi, ebx
+        mov rsi, r12
+        call err_throw
 .Lfi_failed:
         mov rbx, [r15 + CTX_ERR_MSG]
         mov r15, [rsp + FI_MAIN]
@@ -187,7 +205,9 @@ ENDF fold_isolated
         .set FM_LIMIT, 112              # the folds' memory limit
         .set FM_LOADER, 120
         .set FM_FUNC, 128
-        .set FM_SIZEOF, 136
+        .set FM_DEADLINE, 136           # the folds' deadline and its message:
+        .set FM_WATCHMSG, 144           # this context's (watch_like)
+        .set FM_SIZEOF, 152
         .set FOLD_WORKER_STACK, 64 << 20
 
 # fold_many(traces) -> list: the traces (a list) folded, as fold_isolated
@@ -244,6 +264,10 @@ FUNC fold_many
         mov [r12 + FM_LOADER], rax
         mov rax, [r15 + CTX_FUNC]
         mov [r12 + FM_FUNC], rax
+        mov rax, [r15 + CTX_DEADLINE]
+        mov [r12 + FM_DEADLINE], rax
+        mov rax, [r15 + CTX_WATCH_MSG]
+        mov [r12 + FM_WATCHMSG], rax
         # the threads: as many as asked, no more than the folds
         mov rax, [r15 + CTX_FOLD_THREADS]
         cmp rax, [r12 + FM_N]
@@ -269,7 +293,7 @@ FUNC fold_many
         mov rsi, [rsp + FMA_ATTR]
         lea rdx, [rip + fold_worker]
         mov rcx, r12
-        call pthread_create@PLT
+        call thread_create
         test eax, eax
         jnz 4f                          # (no more threads: the ones there are do it)
         inc qword ptr [rsp + FMA_NT]
@@ -451,6 +475,10 @@ FUNC fold_worker
         mov [r15 + CTX_LOADER], rax
         mov rax, [rbx + FM_FUNC]
         mov [r15 + CTX_FUNC], rax
+        mov rdi, r15                    # (off the table in ctx_free)
+        mov rsi, [rbx + FM_DEADLINE]
+        mov rdx, [rbx + FM_WATCHMSG]
+        call watch_like
         mov rdi, rsp
         call err_catch
         test eax, eax

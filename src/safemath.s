@@ -201,8 +201,11 @@ FUNC sm_failure
 4:      mov rax, [rsp]
         cmp [rax + SB_LEN], r14
         jae 5f
-        cmp ebx, [r13 + N_AUX]
-        jae 5f
+        cmp qword ptr [rax + SB_LEN], 1 << 24   # (no message past 16 MiB of
+        jae 8f                          # bytes, as pretty_memory's text: the
+        cmp ebx, [r13 + N_AUX]          # declared length bounded nothing, and
+        jae 5f                          # the parts are 16 MiB each, outside
+                                        # the arena)
         mov rdi, [rsp]
         mov rsi, [r13 + N_DATA + rbx*8]
         call data_bytes_into

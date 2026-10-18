@@ -149,24 +149,49 @@ ENDF str_of_int
 str_of_int_cache:   .zero STR_OF_INT_CACHED * 8
         .text
 
+# str_of_int_cache_clear(): str_of_int's cache emptied (str_purge, which
+# frees the strings it holds)
+FUNC str_of_int_cache_clear
+        ENTER
+        lea rdi, [rip + str_of_int_cache]
+        xor esi, esi
+        mov edx, STR_OF_INT_CACHED * 8
+        call memset@PLT
+        LEAVE
+ENDF str_of_int_cache_clear
+
 # str_of_value(v) -> rax: the interned python repr of a value (str(jd[0])
 # for a symbolic jump target)
 FUNC str_of_value
         ENTER
+        sub rsp, ERR_SIZEOF + 16
         mov r12, rdi
         call sb_new
         mov rbx, rax
-        mov rdi, rax
-        mov rsi, r12
+        mov rdi, rsp                    # (value_print can throw - its
+        call err_catch                  # STACK_CHECK: the recursion, the
+        test eax, eax                   # watchdog's deadline - and so can
+        jnz .Lsv_throw                  # str_intern: the builder freed,
+        mov rdi, rbx                    # then the error goes on, as
+        mov rsi, r12                    # repr_key does it)
         call value_print
         mov rdi, [rbx + SB_BUF]
         mov rsi, [rbx + SB_LEN]
         call str_intern
         mov r12, rax
+        call err_end
         mov rdi, rbx
         call sb_free
         mov rax, r12
+        add rsp, ERR_SIZEOF + 16
         LEAVE
+.Lsv_throw:                             # (the handler is unlinked already)
+        mov r12d, eax
+        mov rdi, rbx
+        call sb_free
+        mov edi, r12d
+        mov rsi, [r15 + CTX_ERR_MSG]
+        call err_throw
 ENDF str_of_value
 
 # node_touch(node): the node changed - its trace, its children, its label,

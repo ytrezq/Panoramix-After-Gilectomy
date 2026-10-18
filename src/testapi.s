@@ -2660,6 +2660,7 @@ FUNC tf_simplify_trace_deadline
         imul rcx, rcx, 1000000
         lea rsi, [rax + rcx]
         mov rdi, r15
+        xor edx, edx                    # (a function's message)
         call watch_start
         mov rdi, rsp
         call err_catch
@@ -2863,6 +2864,7 @@ FUNC pan_test
         mov [rsp + 24], rcx             # &out
         mov [rsp + 32], r8              # &outlen
         call pan_init
+        call str_session_enter          # (no purge of the strings meanwhile)
         call ctx_current
         mov [rsp + 40], rax
         call ctx_new
@@ -2924,18 +2926,18 @@ FUNC pan_test
         lea rdx, [rip + parse_error_pos]
         call sb_format
 .Lt_out:
-        mov rax, [rsp + 24]
-        mov rcx, [rbx + SB_BUF]
-        mov [rax], rcx
         mov rax, [rsp + 32]
         mov rcx, [rbx + SB_LEN]
         mov [rax], rcx
         mov rdi, rbx
-        call free@PLT
+        call sb_take
+        mov rcx, [rsp + 24]
+        mov [rcx], rax
         mov rdi, r15
         call ctx_free
         mov rdi, [rsp + 40]
         call ctx_bind
+        call str_session_exit
         xor eax, eax
         add rsp, 120
         LEAVE_NORET

@@ -49,6 +49,7 @@
 .Ls_and_default: .asciz ", default function"
 .Ls_fallback_q: .asciz "_fallback(?)"
 .Ls_stop_line:  .asciz "  stop"
+.Ls_print_failed: .asciz "# its text couldn't be made: "
 .Ls_empty_paren: .asciz "()"
 .Ls_newline:    .asciz "\n"
 .Ls_assert_trace: .asciz "AssertionError: function: an empty trace"
@@ -2896,14 +2897,17 @@ ENDF fn_priority
         .set PT_TEXT, 0                 # the text (malloc'd), or 0 when it failed
         .set PT_LEN, 8
         .set PT_PRIORITY, 16            # FN_PRIORITY's value
-        .set PT_SIZEOF, 24
+        .set PT_ERRMSG, 24              # why it failed at a limit (strdup'd), or 0
+        .set PT_SIZEOF, 32
         # print_many's shared state
         .set PM_FUNCS, 0                # the vec of functions
         .set PM_TASKS, 8
         .set PM_LIMIT, 16
         .set PM_LOADER, 24
         .set PM_NAMES, 32               # the main context's CTX_NAMES (set_names')
-        .set PM_SIZEOF, 40
+        .set PM_DEADLINE, 40            # its CTX_DEADLINE and CTX_WATCH_MSG
+        .set PM_WATCHMSG, 48            # (the texts' too: watch_like)
+        .set PM_SIZEOF, 56
 
 # print_many(funcs, threads): every function printed (fn_print) and its
 # priority computed (fn_priority), on threads - what the contract's text
@@ -2913,16 +2917,22 @@ ENDF fn_priority
 # by pointer: both must be of the same context), with the names of the
 # main context (set_names: the storage's). The texts are made strings of
 # this context after, in order. A function whose printing fails is left
-# as it was: fn_print, later, fails the same way where python does.
+# as it was: fn_print, later, fails the same way where python does -
+# unless it failed at a limit of the port's own (the memory's, the
+# watchdog's deadline), where python would have gone on for as long as
+# it took: then its text says so (fn_print_failed), and the others are
+# printed. With one thread too, on contexts of their own: one function's
+# text that ran to the limit took the memory of this context (which
+# gives nothing back) and the whole contract failed with it. Their
+# contexts have this one's deadline (they had none: a text that took
+# forever held the call as long).
 FUNC print_many
         ENTER
-        sub rsp, 16
+        sub rsp, 16 + ERR_SIZEOF
         mov rbx, rdi
         mov r13, rsi
-        cmp r13, 1
-        jbe 9f
-        cmp qword ptr [rbx + VEC_LEN], 1
-        jbe 9f
+        cmp qword ptr [rbx + VEC_LEN], 0
+        je .Lpm_none
         mov edi, PM_SIZEOF
         call arena_alloc
         mov r12, rax
@@ -2937,12 +2947,40 @@ FUNC print_many
         mov [r12 + PM_LOADER], rax
         mov rax, [r15 + CTX_NAMES]
         mov [r12 + PM_NAMES], rax
+        mov rax, [r15 + CTX_DEADLINE]
+        mov [r12 + PM_DEADLINE], rax
+        mov rax, [r15 + CTX_WATCH_MSG]
+        mov [r12 + PM_WATCHMSG], rax
         mov rdi, [rbx + VEC_LEN]
         mov rsi, r13
         lea rdx, [rip + print_one]
         mov rcx, r12
         call par_for
-        # the texts, strings of this context now
+        # the texts, strings of this context now - under its limit raised
+        # by what they take (each import has its own: one function's text
+        # near its own limit, copied into what was left of this one's,
+        # failed the whole contract), and under a handler (a throw left
+        # every text not copied yet allocated, call after call)
+        mov rdi, [r15 + CTX_MEM_LIMIT]
+        test rdi, rdi
+        jz 5f                           # (no limit)
+        mov rdx, [r12 + PM_TASKS]
+        xor ecx, ecx
+4:      cmp rcx, [rbx + VEC_LEN]
+        jae 41f
+        add rdi, [rdx + PT_LEN]         # (0 for one that failed)
+        jc 42f
+        add rdi, 256                    # (the node's header; a failed one's
+        jc 42f                          # line, fn_print_failed's)
+        add rdx, PT_SIZEOF
+        inc rcx
+        jmp 4b
+42:     mov rdi, -1                     # (no limit, as good as)
+41:     mov [r15 + CTX_MEM_LIMIT], rdi
+5:      mov rdi, rsp
+        call err_catch
+        test eax, eax
+        jnz .Lpm_failed
         xor r14d, r14d
 1:      cmp r14, [rbx + VEC_LEN]
         jae 9f
@@ -2950,7 +2988,7 @@ FUNC print_many
         add r13, [r12 + PM_TASKS]
         mov rdi, [r13 + PT_TEXT]
         test rdi, rdi
-        jz 2f
+        jz 3f
         mov rsi, [r13 + PT_LEN]
         call str_new
         mov rcx, [rbx + VEC_DATA]
@@ -2959,11 +2997,40 @@ FUNC print_many
         mov rax, [r13 + PT_PRIORITY]
         mov [rcx + FN_PRIORITY], rax
         mov rdi, [r13 + PT_TEXT]
+        mov qword ptr [r13 + PT_TEXT], 0        # (freed: not the handler's)
+        call free@PLT
+        jmp 2f
+3:      mov rsi, [r13 + PT_ERRMSG]      # (failed at a limit: its text says so)
+        test rsi, rsi
+        jz 2f
+        mov rcx, [rbx + VEC_DATA]
+        mov rdi, [rcx + r14*8]
+        call fn_print_failed
+        mov rdi, [r13 + PT_ERRMSG]
+        mov qword ptr [r13 + PT_ERRMSG], 0
         call free@PLT
 2:      inc r14
         jmp 1b
-9:      add rsp, 16
+9:      call err_end
+.Lpm_none:
+        add rsp, 16 + ERR_SIZEOF
         LEAVE
+.Lpm_failed:                            # (what is left freed, then on up)
+        mov [rsp + ERR_SIZEOF], rax
+        mov r13, [r12 + PM_TASKS]
+        xor r14d, r14d
+6:      cmp r14, [rbx + VEC_LEN]
+        jae 7f
+        mov rdi, [r13 + PT_TEXT]
+        call free@PLT
+        mov rdi, [r13 + PT_ERRMSG]
+        call free@PLT
+        add r13, PT_SIZEOF
+        inc r14
+        jmp 6b
+7:      mov edi, [rsp + ERR_SIZEOF]
+        mov rsi, [r15 + CTX_ERR_MSG]
+        call err_throw
 ENDF print_many
 
 # print_one(i, pm): print_many's iteration i (see there)
@@ -2992,10 +3059,14 @@ FUNC print_one
         mov [r15 + CTX_LOADER], rax
         mov rax, [rbx + PM_NAMES]       # (a record that never changes)
         mov [r15 + CTX_NAMES], rax
+        mov rdi, r15                    # (the main context's deadline; off
+        mov rsi, [rbx + PM_DEADLINE]    # the watchdog's table in ctx_free)
+        mov rdx, [rbx + PM_WATCHMSG]
+        call watch_like
         mov rdi, rsp
         call err_catch
         test eax, eax
-        jnz 7f
+        jnz .Lpo_failed
         # the copy, its values imported
         mov edi, FN_SIZEOF
         call arena_alloc
@@ -3043,7 +3114,60 @@ FUNC print_one
         LEAVE_NORET
         pop r15
         ret
+.Lpo_failed:                            # (the handler is unlinked already;
+        cmp eax, E_MEMORY               # r15 the child's, r12 the task)
+        je 1f
+        cmp eax, E_TIMEOUT
+        jne 7b
+1:      mov rdi, [r15 + CTX_ERR_MSG]    # (a limit of the port's: why, for
+        test rdi, rdi                   # its text - copied, the context's
+        jz 7b                           # freed next)
+        call strdup@PLT
+        mov [r12 + PT_ERRMSG], rax
+        jmp 7b
 ENDF print_one
+
+# fn_print_failed(fn, msg): the text of a function whose printing ran into
+# a limit of the port's (print_many): its def line, and why there's nothing
+# under it - FN_PRINT, and FN_PRIORITY as fn_priority makes it of a text
+FUNC fn_print_failed
+        ENTER
+        mov rbx, rdi
+        mov r12, rsi
+        call sb_new
+        mov r13, rax
+        mov rdi, rax
+        lea rsi, [rip + .Ls_def_]
+        lea rdx, [rip + C_HEADER]
+        mov ecx, PF_COLOR
+        call sb_append_col_c
+        mov rdi, r13
+        mov rsi, [rbx + FN_COLOR_NAME]
+        call sb_append_str
+        mov rdi, r13
+        lea rsi, [rip + .Ls_colon_sp]
+        call sb_append_c
+        mov rdi, r13
+        lea rsi, [rip + C_GRAY]
+        call sb_append_c
+        mov rdi, r13
+        lea rsi, [rip + .Ls_print_failed]
+        call sb_append_c
+        mov rdi, r13
+        mov rsi, r12
+        call sb_append_clean_c
+        mov rdi, r13
+        lea rsi, [rip + C_ENDC]
+        call sb_append_c
+        mov rdi, r13
+        call sb_finish
+        mov [rbx + FN_PRINT], rax
+        mov rdi, rax
+        call str_charlen
+        add rax, 2
+        mov [rbx + FN_PRIORITY], rax
+        LEAVE
+ENDF fn_print_failed
 
         .section .rodata
         .align 4
@@ -3051,6 +3175,49 @@ ENDF print_one
 fn_value_fields:
         .long FN_ABI, FN_INPUTS, FN_TRACE, FN_ORIG_TRACE, FN_PARAMS, FN_CONST
         .long FN_GETTER, FN_RETURNS, FN_AST, FN_INTERNAL, -1
+        # (fn_import's: those, and the strings - its names, made where it
+        # was, and what it does when sent ether, an opcode's name)
+fn_import_fields:
+        .long FN_HASH, FN_NAME, FN_COLOR_NAME, FN_ABI_NAME, FN_VALUE_FAILS
+        .long FN_ABI, FN_INPUTS, FN_TRACE, FN_ORIG_TRACE, FN_PARAMS, FN_CONST
+        .long FN_GETTER, FN_RETURNS, FN_AST, FN_INTERNAL, -1
         .text
+
+# fn_import(fn) -> rax: a function object made on another context (a
+# job's: decompile_worker makes it there, under that job's limit and
+# deadline), copied onto this one before that context is freed - its
+# values imported in one import (what FN_TRACE and FN_ORIG_TRACE share is
+# copied once), and its strings made in that arena (the names of
+# abi_func_name, of make_names) copied too: value_import keeps a string
+# as it is, which holds for the interned ones only (CTX_IMPORT_STRS).
+# The flags and counts (FN_READ_ONLY, FN_PAYABLE, FN_IS_REGULAR) are
+# words, copied with the rest; it hasn't been printed yet (FN_PRINT 0).
+FUNC fn_import
+        ENTER
+        mov r12, rdi
+        mov edi, FN_SIZEOF
+        call arena_alloc
+        mov r14, rax
+        mov rdi, rax
+        mov rsi, r12
+        mov edx, FN_SIZEOF
+        call memcpy@PLT
+        mov qword ptr [r15 + CTX_MEMO + MEMO_IMPORT * 8], 0
+        mov qword ptr [r15 + CTX_IMPORT_STRS], 1
+        lea rbx, [rip + fn_import_fields]
+1:      mov ecx, [rbx]
+        cmp ecx, -1
+        je 2f
+        mov rdi, [r14 + rcx]
+        call value_import
+        mov ecx, [rbx]
+        mov [r14 + rcx], rax
+        add rbx, 4
+        jmp 1b
+2:      mov qword ptr [r15 + CTX_IMPORT_STRS], 0
+        mov qword ptr [r15 + CTX_MEMO + MEMO_IMPORT * 8], 0
+        mov rax, r14
+        LEAVE
+ENDF fn_import
 
         .section .note.GNU-stack,"",@progbits

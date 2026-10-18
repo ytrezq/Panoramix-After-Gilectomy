@@ -51,7 +51,14 @@ contracts at once, in one process, each call using `threads` threads
 for the functions of its contract (by default as many as the machine
 has cores). A function that fails is reported in the text, as python
 does ("I failed with these"); an error where python would have printed
-a traceback raises `RuntimeError`.
+a traceback raises `RuntimeError`. A CTRL+C (or any signal python has a
+handler for) waits for the call to end, as it would for python's own -
+the limits bound it (3 minutes a function, the functions `threads` at a
+time; 4 for finding them, 3 for the post-processing and the text), and
+a node's answer takes 60 s at most, and connecting to it 10 s - and its
+`KeyboardInterrupt` is raised then, the call's result dropped. A
+program may fork while calls are in progress on its other threads
+(`multiprocessing`): the child has none in progress.
 
 `decompile_bytecode` gives what panoramix's function of that name gives:
 `json` is python's `decompilation.json` - the problems, the storage

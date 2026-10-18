@@ -420,20 +420,41 @@ FUNC sigdb_env_dump
 ENDF sigdb_env_dump
 
 # spin_lock(&word) / spin_unlock(&word)
+# spin_lock(lock): sigdb_load's - held for a load, or a build of seconds:
+# the others wait a millisecond at a time (they spun, a core each, for as
+# long as the build took)
 FUNC spin_lock
+        push rbx
+        mov rbx, rdi
 1:      xor eax, eax
         mov ecx, 1
-        lock cmpxchg [rdi], rcx
+        lock cmpxchg [rbx], rcx
         jz 2f
-        pause
+        sub rsp, 16                     # a timespec: 1 ms
+        mov qword ptr [rsp], 0
+        mov qword ptr [rsp + 8], 1000000
+        mov rdi, rsp
+        xor esi, esi
+        call nanosleep@PLT
+        add rsp, 16
         jmp 1b
-2:      ret
+2:      pop rbx
+        ret
 ENDF spin_lock
 
 FUNC spin_unlock
         mov qword ptr [rdi], 0
         ret
 ENDF spin_unlock
+
+# sigdb_atfork_child(): in a fork's child, the database's lock free (a
+# thread of the parent's loading or building it held it, and isn't in the
+# child; the state is set last, so the child has the database whole, or
+# loads it again - see rt_atfork_child)
+FUNC sigdb_atfork_child
+        mov qword ptr [rip + sigdb_lock], 0
+        ret
+ENDF sigdb_atfork_child
 
 # sigdb_lookup(selector) -> rax: the (name, inputs, type) of a selector,
 # or 0 (memoized on the context: the same entry is asked for repeatedly).
@@ -492,11 +513,11 @@ FUNC sigdb_lookup
         mov [rsp], rax
         mov edi, [r14 + SE_KIND]
         add rdi, [rip + sigdb_strings]
-        call str_intern_c
+        call db_intern
         mov [rsp + 8], rax
         mov edi, [r14 + SE_NAME]
         add rdi, [rip + sigdb_strings]
-        call str_intern_c
+        call db_intern
         mov rdi, rax
         mov rsi, [rsp]
         mov rdx, [rsp + 8]
@@ -554,14 +575,14 @@ FUNC sigdb_read_inputs
         jae 9f
         mov edi, [rax + SI_TYPE]
         add rdi, [rip + sigdb_strings]
-        call str_intern_c
+        call db_intern
         mov [rsp + SQ_TYPE], rax
         lea rax, [rbx + r14]
         imul rax, rax, SI_SIZEOF
         add rax, [rip + sigdb_inputs]
         mov edi, [rax + SI_NAME]
         add rdi, [rip + sigdb_strings]
-        call str_intern_c
+        call db_intern
         mov [rsp + SQ_NAME], rax
         mov qword ptr [rsp + SQ_COMPS], 0
         lea rax, [rbx + r14]
@@ -612,6 +633,199 @@ FUNC sigdb_read_inputs
         LEAVE
 ENDF sigdb_read_inputs
 
+# db_intern(cstr) -> rax: str_intern_c of a string of the database - a
+# name or a type, which the text prints as it is. The database is
+# anybody's who made it (the cache is a file, PANORAMIX_SIGDB a path,
+# build-db takes any dump), and the names of the parameters aren't in the
+# hash a signature is checked with: an ESC in one drove the terminal of
+# whoever read the text, a newline forged lines of it, --no-color or not.
+# Every character that isn't text - C0 and DEL, C1 (U+0080..U+009F), the
+# line and paragraph separators (U+2028, U+2029), the marks and overrides
+# of the direction (U+061C, U+200E, U+200F, U+202A..U+202E,
+# U+2066..U+2069: a name that reorders the line it's on), a byte of no
+# valid UTF-8 - is written \xNN, each of its bytes. The real dump has none
+# of them in its 1.5 million entries, so the text is python's for all of
+# them; a function's name with one doesn't hash to its selector any more,
+# and is as if unknown.
+FUNC db_intern
+        ENTER
+        sub rsp, 16
+        mov rbx, rdi
+        call strlen@PLT
+        lea r12, [rbx + rax]            # the end
+        mov [rsp], rax                  # the length
+        mov r13, rbx                    # anything to escape?
+1:      cmp r13, r12
+        jae .Ldi_plain
+        mov rdi, r13
+        mov rsi, r12
+        call utf8_char
+        test edx, edx
+        jnz .Ldi_escape
+        add r13, rax
+        jmp 1b
+.Ldi_plain:
+        mov rdi, rbx
+        mov rsi, [rsp]
+        call str_intern
+        add rsp, 16
+        LEAVE
+.Ldi_escape:
+        call sb_new
+        mov r14, rax
+        mov rdi, r14                    # what came before it, as it is
+        mov rsi, rbx
+        mov rdx, r13
+        sub rdx, rbx
+        call sb_append
+2:      cmp r13, r12
+        jae 5f
+        mov rdi, r13
+        mov rsi, r12
+        call utf8_char
+        mov [rsp + 8], rax              # its length
+        test edx, edx
+        jnz 3f
+        mov rdi, r14
+        mov rsi, r13
+        mov rdx, rax
+        call sb_append
+        add r13, [rsp + 8]
+        jmp 2b
+3:      movzx esi, byte ptr [r13]       # each of its bytes, \xNN
+        mov rdi, r14
+        call sb_append_byte_hex
+        inc r13
+        dec qword ptr [rsp + 8]
+        jnz 3b
+        jmp 2b
+5:      mov rdi, r14
+        call sb_finish_intern
+        add rsp, 16
+        LEAVE
+ENDF db_intern
+
+# utf8_char(ptr, end) -> eax: the length of the character at ptr (1 to 4,
+# within end; 1 for a byte of no valid UTF-8), edx: 1 when it isn't text
+# to print as it is (see db_intern), else 0
+FUNC utf8_char
+        movzx eax, byte ptr [rdi]
+        cmp eax, 0x20
+        jb .Luc_bad1
+        cmp eax, 0x7f
+        jb .Luc_ok1
+        je .Luc_bad1
+        cmp eax, 0xc2
+        jb .Luc_bad1                    # (a continuation, or an overlong lead)
+        cmp eax, 0xe0
+        jb .Luc_two
+        cmp eax, 0xf0
+        jb .Luc_three
+        cmp eax, 0xf5
+        jb .Luc_four
+.Luc_bad1:
+        mov eax, 1
+        mov edx, 1
+        ret
+.Luc_ok1:
+        mov eax, 1
+        xor edx, edx
+        ret
+.Luc_two:                               # C2..DF: one continuation
+        lea rcx, [rdi + 2]
+        cmp rcx, rsi
+        ja .Luc_bad1
+        movzx ecx, byte ptr [rdi + 1]
+        mov r8d, ecx
+        and r8d, 0xc0
+        cmp r8d, 0x80
+        jne .Luc_bad1
+        mov edx, eax
+        shl edx, 8
+        or edx, ecx                     # the two bytes, big-endian
+        mov eax, 2
+        cmp edx, 0xc2a0                 # U+0080..U+009F: C2 80..C2 9F
+        jb 1f
+        cmp edx, 0xd89c                 # U+061C: D8 9C
+        je 1f
+        xor edx, edx
+        ret
+1:      mov edx, 1
+        ret
+.Luc_three:                             # E0..EF: two continuations
+        lea rcx, [rdi + 3]
+        cmp rcx, rsi
+        ja .Luc_bad1
+        movzx ecx, byte ptr [rdi + 1]
+        mov r8d, 0x80
+        mov r9d, 0xbf
+        cmp eax, 0xe0
+        jne 2f
+        mov r8d, 0xa0                   # (E0: no overlong form)
+2:      cmp eax, 0xed
+        jne 3f
+        mov r9d, 0x9f                   # (ED: no surrogate)
+3:      cmp ecx, r8d
+        jb .Luc_bad1
+        cmp ecx, r9d
+        ja .Luc_bad1
+        movzx r8d, byte ptr [rdi + 2]
+        mov r9d, r8d
+        and r9d, 0xc0
+        cmp r9d, 0x80
+        jne .Luc_bad1
+        mov edx, eax
+        shl edx, 16
+        shl ecx, 8
+        or edx, ecx
+        or edx, r8d                     # the three bytes, big-endian
+        mov eax, 3
+        cmp edx, 0xe2808e               # U+200E, U+200F
+        je 4f
+        cmp edx, 0xe2808f
+        je 4f
+        cmp edx, 0xe280a8               # U+2028..U+202E: E2 80 A8..AE
+        jb 5f
+        cmp edx, 0xe280ae
+        jbe 4f
+        cmp edx, 0xe281a6               # U+2066..U+2069: E2 81 A6..A9
+        jb 5f
+        cmp edx, 0xe281a9
+        jbe 4f
+5:      xor edx, edx
+        ret
+4:      mov edx, 1
+        ret
+.Luc_four:                              # F0..F4: three continuations
+        lea rcx, [rdi + 4]
+        cmp rcx, rsi
+        ja .Luc_bad1
+        movzx ecx, byte ptr [rdi + 1]
+        mov r8d, 0x80
+        mov r9d, 0xbf
+        cmp eax, 0xf0
+        jne 6f
+        mov r8d, 0x90                   # (F0: no overlong form)
+6:      cmp eax, 0xf4
+        jne 7f
+        mov r9d, 0x8f                   # (F4: U+10FFFF at most)
+7:      cmp ecx, r8d
+        jb .Luc_bad1
+        cmp ecx, r9d
+        ja .Luc_bad1
+        movzx ecx, byte ptr [rdi + 2]
+        and ecx, 0xc0
+        cmp ecx, 0x80
+        jne .Luc_bad1
+        movzx ecx, byte ptr [rdi + 3]
+        and ecx, 0xc0
+        cmp ecx, 0x80
+        jne .Luc_bad1
+        mov eax, 4
+        xor edx, edx
+        ret
+ENDF utf8_char
+
 # --- building ---
 
         # the builder's state
@@ -638,7 +852,7 @@ ENDF sigdb_read_inputs
 # the cache path.
 FUNC sigdb_build
         ENTER
-        sub rsp, LZ_SIZEOF + 152        # (a multiple of 16)
+        sub rsp, LZ_SIZEOF + 168        # (a multiple of 16)
         .set BF_LZ, 0
         .set BF_XZ, LZ_SIZEOF
         .set BF_OUT, LZ_SIZEOF + 8
@@ -654,8 +868,26 @@ FUNC sigdb_build
         .set BF_ERR, LZ_SIZEOF + 88     # (a dump that isn't one: its json
                                         # nested past the recursion limit,
                                         # its strings past what fits)
+        .set BF_CODE, LZ_SIZEOF + 152   # what was thrown (E_TIMEOUT goes on)
         mov [rsp + BF_XZ], rdi
         mov [rsp + BF_OUT], rsi
+        mov qword ptr [rsp + BF_CODE], 0
+        # what the build holds - the output's path, the compressed input,
+        # the text buffer, the decoder, the builder's tables (some 72 MiB,
+        # of which none was ever freed: a program building the database
+        # again and again, through the module or the C API, grew by that
+        # much each time) - 0 until made, and freed on every way out
+        # (.Lsb_out). A zeroed stream is lzma's LZMA_STREAM_INIT, which
+        # lzma_end leaves alone.
+        xor eax, eax
+        mov [rsp + BF_IN], rax
+        mov [rsp + BF_BUF], rax
+        mov [rsp + BF_BD], rax
+        mov [rsp + BF_OUTSB], rax
+        lea rdi, [rsp + BF_LZ]
+        xor esi, esi
+        mov edx, LZ_SIZEOF
+        call memset@PLT
         lea rdi, [rsp + BF_ERR]
         call err_catch
         test eax, eax
@@ -684,11 +916,7 @@ FUNC sigdb_build
         test rax, rax
         jz .Lsb_cant_read
         mov [rsp + BF_IN], rax
-        # the decoder
-        lea rdi, [rsp + BF_LZ]
-        xor esi, esi
-        mov edx, LZ_SIZEOF
-        call memset@PLT
+        # the decoder (on the stream zeroed above)
         lea rdi, [rsp + BF_LZ]
         mov rsi, -1                     # no memory limit
         mov edx, LZMA_CONCATENATED
@@ -704,21 +932,28 @@ FUNC sigdb_build
         mov [rsp + BF_BUF], rax
         mov qword ptr [rsp + BF_BUFCAP], 4 << 20
         mov qword ptr [rsp + BF_BUFLEN], 0
-        call builder_new
-        mov [rsp + BF_BD], rax
-        mov rdi, rax
+        lea rdi, [rsp + BF_BD]          # (there as soon as it's made: what
+        call builder_new                # it makes after is freed with it)
+        mov rdi, [rsp + BF_BD]
         mov rsi, [rsp + BF_XZ]
         mov rdx, [rsp + BF_IN]
         mov rcx, [rsp + BF_INLEN]
         call builder_dump
 .Lsb_decode:
         # decode into the free part of the buffer, then take the complete
-        # lines out of it
+        # lines out of it - each one ended by a NUL where its newline was
+        # (the last one too: a byte of the buffer is kept for it). The JSON
+        # reader stops at a NUL, not at the end of the line it was given: a
+        # line cut short was read on into the next one, or past the text
+        # into what the buffer held before (the text of the dump built
+        # before it, malloc giving the same block back: a broken dump
+        # accepted, completed with another one's bytes)
         mov rax, [rsp + BF_BUF]
         add rax, [rsp + BF_BUFLEN]
         mov [rsp + BF_LZ + LZ_NEXT_OUT], rax
         mov rax, [rsp + BF_BUFCAP]
         sub rax, [rsp + BF_BUFLEN]
+        dec rax
         mov [rsp + BF_LZ + LZ_AVAIL_OUT], rax
         lea rdi, [rsp + BF_LZ]
         xor esi, esi                    # LZMA_RUN, LZMA_FINISH once the input is consumed
@@ -733,6 +968,7 @@ FUNC sigdb_build
         jne .Lsb_lzma_error
 3:      mov rax, [rsp + BF_BUFCAP]
         sub rax, [rsp + BF_LZ + LZ_AVAIL_OUT]
+        dec rax                         # (the byte kept)
         mov [rsp + BF_BUFLEN], rax
         # the lines
         mov rbx, [rsp + BF_BUF]         # the start of the current line
@@ -746,6 +982,7 @@ FUNC sigdb_build
         test rax, rax
         jz 5f
         mov r13, rax                    # the newline
+        mov byte ptr [r13], 0
         mov rdi, [rsp + BF_BD]
         mov rsi, rbx
         mov rdx, r13
@@ -763,8 +1000,9 @@ FUNC sigdb_build
         call memmove@PLT
         cmp qword ptr [rsp + BF_RC], LZMA_STREAM_END
         je 6f
-        # a line longer than the buffer? grow it
+        # a line longer than the buffer (its byte kept)? grow it
         mov rax, [rsp + BF_BUFLEN]
+        inc rax
         cmp rax, [rsp + BF_BUFCAP]
         jb .Lsb_decode
         mov rax, [rsp + BF_BUFCAP]
@@ -775,21 +1013,24 @@ FUNC sigdb_build
         call xrealloc
         mov [rsp + BF_BUF], rax
         jmp .Lsb_decode
-6:      # the last line, without a newline
+6:      # the last line, without a newline (its NUL in the byte kept)
         cmp qword ptr [rsp + BF_BUFLEN], 0
         je 7f
         mov rdi, [rsp + BF_BD]
         mov rsi, [rsp + BF_BUF]
         mov rdx, rsi
         add rdx, [rsp + BF_BUFLEN]
+        mov byte ptr [rdx], 0
         call builder_line
         test eax, eax
         jnz .Lsb_json_error
-7:      lea rdi, [rsp + BF_LZ]
-        call lzma_end@PLT
-        mov rdi, [rsp + BF_IN]
-        call free@PLT
+7:      lea rdi, [rsp + BF_LZ]          # (the input and the text, done
+        call lzma_end@PLT               # with: freed before the file is
+        mov rdi, [rsp + BF_IN]          # written - and their slots 0, for
+        mov qword ptr [rsp + BF_IN], 0  # .Lsb_out; lzma_end leaves the
+        call free@PLT                   # stream as one it leaves alone)
         mov rdi, [rsp + BF_BUF]
+        mov qword ptr [rsp + BF_BUF], 0
         call free@PLT
         # the file
         mov rdi, [rsp + BF_BD]
@@ -806,20 +1047,21 @@ FUNC sigdb_build
         mov rax, [rsp + BF_BD]
         mov r8, [rax + BD_NENTRIES]
         call log_fmt
-        xor eax, eax
         call err_end
-        add rsp, LZ_SIZEOF + 152
-        LEAVE
+        mov qword ptr [rsp + BF_RC], 0
+        jmp .Lsb_out
 .Lsb_threw:
-        mov edi, LOG_ERROR
-        lea rsi, [rip + .Ls_logname]
+        mov [rsp + BF_CODE], rax
+        cmp eax, E_TIMEOUT              # (python's time limit isn't the
+        je 1f                           # dump's fault: freed, then on up -
+        mov edi, LOG_ERROR              # it made the database "none" for
+        lea rsi, [rip + .Ls_logname]    # the process's life, see sigdb_load)
         lea rdx, [rip + .Ls_dump_bad]
         mov rcx, [rsp + BF_XZ]
         mov r8, [r15 + CTX_ERR_MSG]
         call log_fmt
-        mov eax, -1
-        add rsp, LZ_SIZEOF + 152
-        LEAVE
+1:      mov qword ptr [rsp + BF_RC], -1
+        jmp .Lsb_out
 .Lsb_cant_read:
         mov edi, LOG_ERROR
         lea rsi, [rip + .Ls_logname]
@@ -854,18 +1096,60 @@ FUNC sigdb_build
         # (the handler is left before the message's own paths return)
 .Lsb_fail:
         call err_end
-        mov eax, 1
-        add rsp, LZ_SIZEOF + 152
+        mov qword ptr [rsp + BF_RC], 1
+.Lsb_out:                               # (BF_RC: what to return)
+        lea rdi, [rsp + BF_LZ]
+        call lzma_end@PLT
+        mov rdi, [rsp + BF_IN]
+        call free@PLT
+        mov rdi, [rsp + BF_BUF]
+        call free@PLT
+        mov rdi, [rsp + BF_BD]
+        call builder_free
+        mov rdi, [rsp + BF_OUTSB]
+        test rdi, rdi
+        jz 1f
+        call sb_free
+1:      cmp dword ptr [rsp + BF_CODE], E_TIMEOUT
+        je 2f
+        mov rax, [rsp + BF_RC]
+        add rsp, LZ_SIZEOF + 168
         LEAVE
+2:      mov edi, E_TIMEOUT
+        mov rsi, [r15 + CTX_ERR_MSG]
+        call err_throw
 ENDF sigdb_build
 
-# builder_new() -> rax
+# builder_free(bd): builder_new's, and what it has grown (0: nothing)
+FUNC builder_free
+        ENTER
+        mov rbx, rdi
+        test rbx, rbx
+        jz 1f
+        mov rdi, [rbx + BD_ENTRIES]
+        call free@PLT
+        mov rdi, [rbx + BD_INPUTS]
+        call free@PLT
+        mov rdi, [rbx + BD_STRINGS]
+        call free@PLT
+        mov rdi, [rbx + BD_TABLE]
+        call free@PLT
+        mov rdi, rbx
+        call free@PLT
+1:      LEAVE
+ENDF builder_free
+
+# builder_new(&bd): the builder, in *bd as soon as it's made (its tables 0
+# then): when one of its tables can't be had, what was had is freed with it
+# by builder_free (it was lost, the builder known to no one yet)
 FUNC builder_new
         ENTER
+        mov r12, rdi
         mov edi, 1
         mov esi, BD_SIZEOF
         call xcalloc
         mov rbx, rax
+        mov [r12], rax
         mov edi, 1 << 20
         mov esi, SE_SIZEOF
         call xcalloc
@@ -1658,7 +1942,9 @@ FUNC builder_write
 ENDF builder_write
 
 # builder_dump(bd, xz_path, data, len): the dump the database comes from
-# (its version from its contents, its size and mtime, its absolute path)
+# (its version from its contents, its size and mtime, its absolute path -
+# not a dump that isn't a regular file: a fifo can't be read again, and
+# the next load read it to see if it changed, waiting for a writer)
 FUNC builder_dump
         ENTER
         sub rsp, 16
@@ -1673,6 +1959,8 @@ FUNC builder_dump
         mov [rbx + BD_DUMPSIZE], rax
         mov [rbx + BD_DUMPMTIME], rdx
         mov qword ptr [rbx + BD_DUMPPATH], -1
+        cmp rax, -1
+        je 1f
         mov rdi, r12
         xor esi, esi
         call realpath@PLT
@@ -1693,7 +1981,8 @@ FUNC builder_dump
 ENDF builder_dump
 
 # file_stamp(path) -> rax: its size, rdx: its mtime in ns (rax = -1: no
-# such file)
+# such file - or not a regular one: a dump is read again only when it is
+# one, see dump_version)
 FUNC file_stamp
         ENTER
         sub rsp, 144
@@ -1701,6 +1990,10 @@ FUNC file_stamp
         call stat@PLT
         test eax, eax
         jnz 1f
+        mov eax, [rsp + 24]             # st_mode
+        and eax, 0xf000                 # S_IFMT
+        cmp eax, 0x8000                 # S_IFREG
+        jne 1f
         mov rax, [rsp + 88]             # st_mtim
         imul rax, rax, 1000000000
         add rax, [rsp + 96]
@@ -1838,6 +2131,8 @@ FUNC js_string
         inc r13
         jmp 1b
 2:      movzx eax, byte ptr [r13 + 1]
+        test eax, eax                   # (a backslash at the line's end: the
+        jz .Ljs_bad                     # NUL is the end, not escaped past)
         add r13, 2
         cmp eax, 'u'
         je 3f

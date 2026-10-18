@@ -221,12 +221,17 @@ FUNC dump_version_buf
         LEAVE
 ENDF dump_version_buf
 
-# dump_version(path) -> rax: the same of a file, or 0 if it can't be read
+# dump_version(path) -> rax: the same of a file, or 0 if it can't be read -
+# a regular one of READ_DUMP_MAX at most: the dump a database names (at
+# every load, to see if it changed) is anybody's, as the database is, and a
+# fifo or /dev/zero named there hung every decompilation or took all the
+# memory (read_regular_file)
 FUNC dump_version
         ENTER
         sub rsp, 16
         mov rsi, rsp
-        call read_file                  # (malloc'ed)
+        mov edx, READ_DUMP_MAX
+        call read_regular_file          # (malloc'ed)
         test rax, rax
         jz 9f
         mov rbx, rax

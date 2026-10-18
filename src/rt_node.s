@@ -787,7 +787,10 @@ ENDF value_import_root
 # function's trace, the loader's values) is imported before being
 # compared by pointer with this thread's - and before that thread's
 # arena is freed, which also holds its big integers (copied here).
-# Strings are global: kept.
+# Strings are kept: the interned ones are global, and a trace has no
+# other - but a function object has (its names: arena strings, made
+# where it was), and in fn_import's mode (CTX_IMPORT_STRS) a string that
+# isn't the interned one is copied.
 FUNC value_import
         STACK_CHECK
         ENTER
@@ -839,9 +842,10 @@ FUNC value_import
         add rsp, 16
         LEAVE
 5:      cmp dword ptr [rbx + N_KIND], K_VMNODE
-        jne 3f
-        # a node of the VM (the label of a loop, in a while's jds and its
-        # continues): a stub with the same identity - the same copy for
+        jne 7f
+        # a node of the VM (the label of a loop: in a trace as the VM made
+        # it - --explain's first one - since make_whiles makes them strings
+        # of their jds): a stub with the same identity - the same copy for
         # the same node - and its jd, the only field read after the VM
         mov edi, MEMO_IMPORT
         mov rsi, rbx
@@ -863,6 +867,31 @@ FUNC value_import
         mov [r12 + ND_JD], rax
         mov rax, r12
 6:      add rsp, 16
+        LEAVE
+7:      cmp dword ptr [rbx + N_KIND], K_STR
+        jne 3f
+        cmp qword ptr [r15 + CTX_IMPORT_STRS], 0
+        je 3f
+        # (fn_import's) a string of the other context's arena: copied,
+        # once per string (the memo) - the interned one stays
+        mov edi, MEMO_IMPORT
+        mov rsi, rbx
+        call memo_get
+        test rax, rax
+        jnz 6b
+        mov rdi, rbx
+        call str_is_interned
+        test eax, eax
+        jnz 3f
+        mov rdi, rbx
+        call str_copy
+        mov [rsp], rax
+        mov edi, MEMO_IMPORT
+        mov rsi, rbx
+        mov rdx, rax
+        call memo_put
+        mov rax, [rsp]
+        add rsp, 16
         LEAVE
 3:      mov rax, rbx
         add rsp, 16

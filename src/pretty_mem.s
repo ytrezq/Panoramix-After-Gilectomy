@@ -371,9 +371,11 @@ FUNC arr_text
         mov r13d, 2
 1:      cmp r13d, [rbx + N_AUX]
         jae 2f
-        mov rdi, r12
-        mov rsi, [rbx + N_DATA + r13*8]
-        call data_bytes_into
+        cmp qword ptr [r12 + SB_LEN], PM_BYTES_MAX      # (as pretty_memory's:
+        jae 9f                          # past 16 MiB of bytes no text, the
+        mov rdi, r12                    # terms printed as they are - they
+        mov rsi, [rbx + N_DATA + r13*8] # were concatenated whatever their
+        call data_bytes_into            # count, 16 MiB each, outside the arena)
         test eax, eax
         jnz 11f
         mov qword ptr [rsp + AT_FLAG], 1
@@ -553,15 +555,24 @@ FUNC pretty_bytes
         mov rdi, r12
         call hex_digit_count
         lea rcx, [r14*2]
-        sub rcx, rax                    # the zeroes before the digits
-        mov [rsp + 16], rcx
-4:      cmp qword ptr [rsp + 16], 0
-        jle 41f
-        mov rdi, [rsp + 8]
+        sub rcx, rax                    # the zeroes before the digits, in
+        jle 41f                         # one go as sb_append_be's are (one
+        mov [rsp + 16], rcx             # sb_append_char a zero was 33
+        mov rdi, [rsp + 8]              # million calls for a Bytes of 2^24
+        mov rsi, rcx                    # bytes with a small value)
+        call sb_reserve
+        mov rax, [rsp + 8]
+        mov rdi, [rax + SB_BUF]
+        add rdi, [rax + SB_LEN]
         mov esi, '0'
-        call sb_append_char
-        dec qword ptr [rsp + 16]
-        jmp 4b
+        mov rdx, [rsp + 16]
+        call memset@PLT
+        mov rax, [rsp + 8]
+        mov rcx, [rsp + 16]
+        add rcx, [rax + SB_LEN]
+        mov [rax + SB_LEN], rcx
+        mov rdx, [rax + SB_BUF]
+        mov byte ptr [rdx + rcx], 0
 41:     mov rdi, [rsp + 8]
         mov rsi, r12
         call hex_digits

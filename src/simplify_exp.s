@@ -2453,10 +2453,8 @@ FUNC repr_key
         xor esi, esi
         call sb_append_char             # NUL
         call err_end
-        mov r12, [rbx + SB_BUF]
         mov rdi, rbx
-        call free@PLT                   # (the builder, not its buffer)
-        mov rax, r12
+        call sb_take                    # (the builder freed, not its buffer)
         add rsp, ERR_SIZEOF + 16
         LEAVE
 .Lrk_throw:                             # (the handler is unlinked already)

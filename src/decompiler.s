@@ -36,6 +36,11 @@
 .Ls_no_ctx:     .asciz "out of memory: the system gave no more (mmap failed)"
 .Ls_loader_issue: .asciz "Loader issue: %s"
 .Ls_timed_out:  .asciz "the function took more than 3 minutes"
+        # (the watchdog's message past the deadline of the discovery, a
+        # VM's minute and a function's 3; of the post-processing and the
+        # text: the function's was everyone's)
+.Ls_discovery_timed_out: .asciz "finding the functions took more than 4 minutes"
+.Ls_post_timed_out: .asciz "the post-processing and the text took more than 3 minutes"
 .Ls_thread_failed: .asciz "pthread_create failed"
 .Ls_peak:       .asciz "%S: the arena took %u MiB at most"
 .Ls_peak_main:  .asciz "the contract: the arena took %u MiB at most"
@@ -52,7 +57,7 @@
 
         # a job: one function to decompile
         .set JB_HASH, 0                 # str (main context)
-        .set JB_TARGET, 8               # tagged pc
+        .set JB_TARGET, 8               # tagged pc, or an expression (main context)
         .set JB_STACK, 16               # tuple (main context)
         .set JB_KNOWN, 24               # tuple (main context)
         .set JB_CTX, 32                 # the context it ran on
@@ -72,7 +77,10 @@
         # the recursive internal functions its VM found (vm_found_buffer's,
         # xmalloc'd), or 0
         .set JB_FOUND, 112
-        .set JB_SIZEOF, 120
+        # the function made of its trace, on JB_CTX (function_new's, or
+        # internal_function_new's), or 0
+        .set JB_FN, 120
+        .set JB_SIZEOF, 128
 
         # the shared state of the decompilation
         .set DC_LOADER, 0
@@ -158,8 +166,11 @@ FUNC decompile_worker
         call sb_try_new_cap             # without throwing: this is before the
         mov [r15 + CTX_EXPLAIN_SB], rax # handler below, so a system with no
         mov [r12 + JB_EXPLAIN], rax     # memory left went to rt_fatal, an
-1:                                      # abort. 0 is "none", which `explain`
-                                        # and the merge both take)
+        test rax, rax                   # abort. 0 is "none", which `explain`
+        jz 1f                           # and the merge both take - and off
+        mov rdi, rax                    # this context's list of builders: the
+        call sb_untrack                 # main thread prints it after the
+1:                                      # context is freed)
         call monotonic_ns
         mov [rsp + DW_START], rax
         mov edi, LOG_INFO
@@ -177,6 +188,7 @@ FUNC decompile_worker
         add rax, [rsp + DW_START]
         mov rdi, r15
         mov rsi, rax
+        xor edx, edx                    # (a function's message)
         call watch_start
         mov edi, LOG_INFO
         lea rsi, [rip + .Ls_logname]
@@ -190,6 +202,17 @@ FUNC decompile_worker
         mov rdi, [r12 + JB_STACK]
         call value_import_root
         mov r13, rax
+        # the target: a pc, or what the dispatcher jumped to where it isn't
+        # one (vm_jumpdest_target leaves an expression as it is) - a value
+        # of the main context, imported as the stack is
+        mov rdi, [r12 + JB_TARGET]
+        test dil, 1
+        jnz 2f
+        test rdi, rdi
+        jz 2f
+        call value_import_root
+        mov rdi, rax
+2:      mov r14, rdi
         mov rdi, VM_TIMEOUT_NS
         call scaled_ns
         # the VM run as python's decompiler makes it: what no selector
@@ -199,7 +222,7 @@ FUNC decompile_worker
         mov r8, rax
         mov rdi, [rbx + DC_LOADER]
         mov rsi, [r12 + JB_HASH]
-        mov rdx, [r12 + JB_TARGET]
+        mov rdx, r14
         mov rcx, r13
         call vm_run_function
         jmp .Ldw_ran
@@ -274,7 +297,31 @@ FUNC decompile_worker
         lea rdi, [rip + explain_s_folded]
         mov rsi, rax
         call explain
-1:      call .Ldw_check_deadline
+1:      # the function made of the trace - here, on this job's context
+        # (python makes it in its main process): what making it takes is
+        # this job's, under its limit and deadline, and freed with its
+        # context. On the main context, which gives nothing back, the
+        # walks of one function that blew up there took the whole
+        # contract's limit with them: every function imported after it a
+        # problem, the post-processing failed, no text at all - a way to
+        # keep a contract from being read. The main thread imports it.
+        mov rdi, [r12 + JB_INTERNAL]
+        test rdi, rdi
+        jnz 2f
+        mov rdi, [r12 + JB_HASH]
+        call abi_of
+        mov rdx, rax
+        mov rdi, [r12 + JB_HASH]
+        mov rsi, [r12 + JB_TRACE]
+        call function_new
+        jmp 3f
+2:      mov rdi, [r12 + JB_INTERNAL]    # (the record imported again: the
+        call value_import_root          # copy made for the VM was in an arena
+        mov rdi, rax                    # make_whiles' compactions gave back)
+        mov rsi, [r12 + JB_TRACE]
+        call internal_function_new
+3:      mov [r12 + JB_FN], rax
+        call .Ldw_check_deadline
         call err_end
         mov qword ptr [r12 + JB_ERR], 0
         jmp .Ldw_finish
@@ -353,7 +400,7 @@ ENDF decompile_worker
 # they call, then those these call, and so on (python's waves), by entry.
 FUNC decompile
         ENTER
-        sub rsp, ERR_SIZEOF + 144
+        sub rsp, ERR_SIZEOF + 176
         .set DE_CODE, ERR_SIZEOF
         .set DE_LEN, ERR_SIZEOF + 8
         .set DE_THREADS, ERR_SIZEOF + 16
@@ -372,6 +419,10 @@ FUNC decompile
         .set DE_RECS, ERR_SIZEOF + 120  # the recursive internal functions found: records, as found
         .set DE_NEW, ERR_SIZEOF + 128   # those the last batch found first: the next wave
         .set DE_INTERNAL, ERR_SIZEOF + 136      # their functions (FN_INTERNAL)
+        .set DE_LIVE, ERR_SIZEOF + 144  # the batch's threads not joined yet
+        .set DE_X, ERR_SIZEOF + 152     # mem_limit_for(the threads asked for)
+        .set DE_BASE, ERR_SIZEOF + 160  # what the context had taken at the start
+        .set DE_IMPORTED, ERR_SIZEOF + 168      # what the imports have taken since
         mov [rsp + DE_CODE], rdi
         mov [rsp + DE_LEN], rsi
         # the count of threads, settled here once and for all: 0 asks for
@@ -399,18 +450,30 @@ FUNC decompile
         # or minutes is cut here too (it was not: the limit and the
         # watchdog were a worker's only).
         #
-        # The discovery gets half of it, and the phases after it the rest:
-        # what an arena has taken is never given back (CTX_ARENA_TOTAL
-        # only grows, and nothing compacts this context), so a discovery
-        # that ran to the limit before it threw left the import of the
-        # results, the post-processing and the printing with nothing, and
-        # a contract that is merely expensive to discover came out with no
-        # text at all rather than with the problem reported. Half is a
-        # bound either way: the phase as a whole stays under the limit.
+        # What an arena has taken is never given back (CTX_ARENA_TOTAL only
+        # grows, and nothing compacts this context): the limit counts from
+        # what the context had taken when this began (DE_BASE - the command
+        # line decompiled a list of contracts on one context, each limited
+        # after what those before had taken), and not what the imports of
+        # the functions take (DE_IMPORTED): what each import copies is
+        # bounded by its function's own limit, and all of them together are
+        # the contract's output - counted, a contract whose functions all
+        # decompiled under the limit came out with problems for the last of
+        # them, the post-processing failed, and with less memory, fewer
+        # functions imported, it didn't (no text at all at 21 MiB, all of it
+        # at 18 or 26). The discovery gets half of the limit, the phases
+        # after it the rest (a discovery that ran to its end leaves the
+        # fallback that much); each import has a limit of its own.
+        call ctx_usage
+        mov [rsp + DE_BASE], rax
+        mov qword ptr [rsp + DE_IMPORTED], 0
         mov rdi, [rsp + DE_THREADS]
         call mem_limit_for
-        shr rax, 1
-        mov [r15 + CTX_MEM_LIMIT], rax
+        mov [rsp + DE_X], rax
+        mov rsi, rax
+        shr rsi, 1
+        mov rdi, [rsp + DE_BASE]
+        call ctx_limit_at
         # the loader: the code disassembled, the functions found
         call loader_new
         mov rbx, rax
@@ -428,13 +491,24 @@ FUNC decompile
         call err_catch
         test eax, eax
         jnz .Lde_loader_issue
+        # the VM stops at its limit (python's), and the walks of what it
+        # found follow, which python doesn't limit: the watchdog's deadline
+        # is the VM's limit and a function's 3 minutes after it. It was the
+        # VM's limit alone: a run stopped there, its nodes found, then
+        # thrown away by the walks' first STACK_CHECK - the contract a
+        # fallback alone, the functions found lost.
         mov rdi, LOADER_TIMEOUT_NS
         call scaled_ns
-        mov r12, rax
+        mov r12, rax                    # the VM's limit
+        mov rdi, FUNC_TIMEOUT_NS
+        call scaled_ns
+        add rax, r12
+        mov [rsp + DE_I], rax           # (DE_I: unused until the batches)
         call monotonic_ns
-        add rax, r12                    # the deadline: now + the limit
+        add rax, [rsp + DE_I]           # the deadline: now + both
         mov rdi, r15
         mov rsi, rax
+        lea rdx, [rip + .Ls_discovery_timed_out]
         call watch_start
         mov rdi, rbx
         mov rsi, r12
@@ -442,13 +516,19 @@ FUNC decompile
         mov rdi, r15
         call watch_stop
         call err_end
+        mov rdi, [rsp + DE_BASE]        # (the jobs': the rest of the limit)
+        mov rsi, [rsp + DE_X]
+        call ctx_limit_at
         jmp 1f
 .Lde_loader_issue:
         # (watched above: the deadline has to go, or a STACK_CHECK of the
         # phases below would throw for a limit that is past)
         mov rdi, r15
         call watch_stop
-        mov edi, LOG_ERROR
+        mov rdi, [rsp + DE_BASE]        # (the fallback's: the rest of the
+        mov rsi, [rsp + DE_X]           # limit - the discovery may have run
+        call ctx_limit_at               # to its half, the chunk full, and the
+        mov edi, LOG_ERROR              # fallback's 48 bytes threw at the half)
         lea rsi, [rip + .Ls_logname]
         lea rdx, [rip + .Ls_loader_issue]
         mov rcx, [r15 + CTX_ERR_MSG]
@@ -562,7 +642,15 @@ FUNC decompile
         mov rax, [rbx + LD_FALLBACK_KNOWN]
         mov [rcx + JB_KNOWN], rax
         jmp 3b
-5:      # the workers
+5:      # the signature database, loaded here - built first when it has to
+        # be (no file yet, its dump changed). The functions are made on the
+        # workers now, with their abi (abi_of), and the first job there
+        # loaded it: a build of seconds under that function's deadline
+        # (past it, the build thrown away and the database none for the
+        # process's life, every name unknown), the other workers spinning
+        # on its lock meanwhile. Here, no deadline runs.
+        call sigdb_load
+        # the workers
         mov rdi, [rsp + DE_THREADS]     # (1 to DC_MAX_THREADS: settled at the
         mov [rsp + DE_REQ], rdi         # entry, so the array below is sized by
                                         # a count that times 8 cannot wrap)
@@ -577,10 +665,9 @@ FUNC decompile
         call mem_limit_for
         mov [r13 + DC_MEMLIMIT], rax
         mov [r15 + CTX_CHILD_LIMIT], rax        # (the folder's contexts)
-        mov [r15 + CTX_MEM_LIMIT], rax          # (this context: the import of
-                                                # the results, the
-                                                # post-processing, the text -
-                                                # see the loader above)
+        mov rsi, rax                    # (this context: the rest of the
+        mov rdi, [rsp + DE_BASE]        # limit, which may be more for fewer
+        call ctx_limit_at               # threads; each import has its own)
         mov rdi, [rsp + DE_REQ]         # (as many as a batch may have)
         shl rdi, 3
         call arena_alloc
@@ -608,6 +695,22 @@ FUNC decompile
         mov [rsp + DE_NEW], rax
         call vec_new
         mov [rsp + DE_INTERNAL], rax
+        # the batches run with workers alongside, this thread importing
+        # their results as they come - on this context, which has a memory
+        # limit of its own now. An import that failed for it recorded the
+        # problem with three allocations outside any handler, whose
+        # E_MEMORY then went out of decompile with the workers still
+        # running: decompile_api freed the loader and this context (the
+        # jobs, the mutex and the condition the workers use) under them.
+        # Any throw from here to the last join comes to this handler
+        # instead: no job is handed out any more, the workers are joined,
+        # what the jobs left (contexts not imported, buffers) is freed, and
+        # the error goes on with no thread of ours running.
+        mov qword ptr [rsp + DE_LIVE], 0
+        mov rdi, rsp
+        call err_catch
+        test eax, eax
+        jnz .Lde_batches_failed
 .Lde_batch:
         mov qword ptr [rsp + DE_I], 0
 8:      mov rax, [rsp + DE_I]
@@ -618,10 +721,11 @@ FUNC decompile
         mov rsi, [rsp + DE_ATTR]
         lea rdx, [rip + decompile_worker]
         mov rcx, r13
-        call pthread_create@PLT
+        call thread_create
         test eax, eax
         jnz .Lde_thread_failed
         inc qword ptr [rsp + DE_I]
+        inc qword ptr [rsp + DE_LIVE]   # (running now: the handler joins it)
         jmp 8b
 .Lde_thread_failed:
         # (no more threads: the ones there are do the work, or this one)
@@ -662,6 +766,7 @@ FUNC decompile
         mov rdi, [r12 + JB_CTX]
         test rdi, rdi                   # (0: it had none)
         jz .Lde_wait
+        mov qword ptr [r12 + JB_CTX], 0 # (freed: the handler frees the others)
         call ctx_free
         jmp .Lde_wait
 .Lde_joined:
@@ -675,7 +780,8 @@ FUNC decompile
         call pthread_join@PLT
         inc qword ptr [rsp + DE_I]
         jmp 12b
-13:     test qword ptr [r15 + CTX_VERBOSE], VB_EXPLAIN
+13:     mov qword ptr [rsp + DE_LIVE], 0        # (all joined)
+        test qword ptr [r15 + CTX_VERBOSE], VB_EXPLAIN
         jz 16f
         call .Lde_explain_merge
 16:     # the recursive internal functions the batch's VMs found (python's
@@ -692,6 +798,11 @@ FUNC decompile
         lea rsi, [rip + record_entry_lt]
         xor edx, edx
         call py_sort
+        mov rax, [rsp + DE_NEW]         # the jobs' array first: it may throw,
+        mov rax, [rax + VEC_LEN]        # and the batches' handler walked the
+        imul rdi, rax, JB_SIZEOF        # last batch's array with the count
+        call arena_alloc                # of this one (set before) - freeing
+        mov r12, rax                    # what lay past it
         mov rax, [r13 + DC_NJOBS]
         add [r13 + DC_BASE], rax
         mov rax, [rsp + DE_NEW]
@@ -699,10 +810,7 @@ FUNC decompile
         mov [r13 + DC_NJOBS], rax
         mov qword ptr [r13 + DC_NEXT], 0
         mov qword ptr [r13 + DC_DONE], 0
-        imul rdi, rax, JB_SIZEOF
-        call arena_alloc
-        mov [r13 + DC_JOBS], rax
-        mov r12, rax
+        mov [r13 + DC_JOBS], r12
         xor r14d, r14d
 17:     mov rax, [rsp + DE_NEW]
         cmp r14, [rax + VEC_LEN]
@@ -726,12 +834,33 @@ FUNC decompile
 19:     mov [rsp + DE_THREADS], rdi
         jmp .Lde_batch
 .Lde_batches_done:
+        call err_end                    # (the batches' handler)
         mov rdi, [rsp + DE_ATTR]
         call pthread_attr_destroy@PLT
         mov edi, LOG_INFO
         lea rsi, [rip + .Ls_logname]
         lea rdx, [rip + .Ls_finished]
         call log_fmt
+        # the post-processing and the text: the rest of the limit (as the
+        # imports left it), and a deadline - they had none, the watchdog
+        # was armed for the discovery alone, whatever this said. Past it,
+        # the decompilation fails (decompile_thread stops the watch), as it
+        # does for python's exception there. The folds and the functions'
+        # texts, on contexts of their own, have the same deadline
+        # (watch_like): they had none.
+        mov rdi, [rsp + DE_BASE]
+        add rdi, [rsp + DE_IMPORTED]
+        mov rsi, [r13 + DC_MEMLIMIT]
+        call ctx_limit_at
+        mov rdi, FUNC_TIMEOUT_NS
+        call scaled_ns
+        mov r12, rax
+        call monotonic_ns
+        add rax, r12
+        mov rdi, r15
+        mov rsi, rax
+        lea rdx, [rip + .Ls_post_timed_out]
+        call watch_start
         # the functions in the order of the jobs (python's dict), then
         # the contract
         mov rdi, [rsp + DE_FUNCS]
@@ -778,7 +907,9 @@ FUNC decompile
         call contract_data
         call err_end
         jmp 14f
-15:     mov edi, LOG_ERROR
+15:     mov edi, eax                    # (python's except Exception: the
+        call err_rethrow_timeout        # deadline goes on - it was a json of
+        mov edi, LOG_ERROR              # {}, then the text with no deadline)
         lea rsi, [rip + .Ls_logname]
         lea rdx, [rip + .Ls_json_failed]
         mov rcx, [r15 + CTX_ERR_MSG]
@@ -791,6 +922,8 @@ FUNC decompile
 14:     mov rdi, [rsp + DE_CONTRACT]
         mov rsi, [rsp + DE_OUT]
         call contract_text
+        mov rdi, r15
+        call watch_stop
 .Lde_ret:
         mov edi, LOG_DEBUG
         lea rsi, [rip + .Ls_logname]
@@ -798,8 +931,58 @@ FUNC decompile
         mov rcx, [r15 + CTX_ARENA_PEAK]
         shr rcx, 20
         call log_fmt
-        add rsp, ERR_SIZEOF + 144
+        add rsp, ERR_SIZEOF + 176
         LEAVE
+.Lde_batches_failed:                    # (the handler is unlinked already;
+        mov ebx, eax                    # r13 is the decompilation again)
+        mov rax, [r13 + DC_NJOBS]       # no job handed out any more: a worker
+        xchg [r13 + DC_NEXT], rax       # finishes the one it has (bounded by
+        xor r12d, r12d                  # its own limits) and takes no other
+1:      cmp r12, [rsp + DE_LIVE]
+        jae 2f
+        mov rdi, [rsp + DE_TIDS]
+        mov rdi, [rdi + r12*8]
+        xor esi, esi
+        call pthread_join@PLT
+        inc r12
+        jmp 1b
+2:      # what the jobs left: the contexts of those done and not imported
+        # (an imported one's is 0 by now), the buffers of the recursive
+        # internal functions their VMs found, --explain's builders - the
+        # one of the job being imported when the throw came was this
+        # context's CTX_EXPLAIN_SB, which goes back to the context's own
+        # (as .Lde_explain_merge puts it back) before it is freed
+        mov rax, [r13 + DC_EXPLAIN_SB]
+        mov [r15 + CTX_EXPLAIN_SB], rax
+        mov r12, [r13 + DC_JOBS]
+        mov r14, [r13 + DC_NJOBS]
+3:      test r14, r14
+        jz 4f
+        mov rdi, [r12 + JB_CTX]
+        test rdi, rdi
+        jz 31f
+        mov qword ptr [r12 + JB_CTX], 0
+        call ctx_free
+31:     mov rdi, [r12 + JB_FOUND]
+        test rdi, rdi
+        jz 32f
+        mov qword ptr [r12 + JB_FOUND], 0
+        call free@PLT
+32:     mov rdi, [r12 + JB_EXPLAIN]
+        test rdi, rdi
+        jz 33f
+        mov qword ptr [r12 + JB_EXPLAIN], 0
+        call sb_free
+33:     add r12, JB_SIZEOF
+        dec r14
+        jmp 3b
+4:      mov rdi, [rsp + DE_ATTR]
+        call pthread_attr_destroy@PLT
+        mov rdi, r15                    # (this thread's context, as it was:
+        call ctx_bind                   # an inline worker binds its own)
+        mov edi, ebx
+        mov rsi, [r15 + CTX_ERR_MSG]
+        call err_throw
 
 # locals of decompile
 # eax: the function's name starts with only_func (or there's none)
@@ -857,41 +1040,39 @@ FUNC decompile
         jmp 1b
 2:      xor eax, eax
 3:      ret
-# the job's result made into a function of the main context (or a problem)
+# the job's result made into a function of the main context (or a
+# problem): the function its worker made, imported - and with --explain,
+# the first and last traces it explained - under a handler, and a budget
+# of its own (a function's limit more than what the context has taken:
+# what one import copies, its own function's limit bounds)
 .Lde_import_job:
         sub rsp, ERR_SIZEOF + 24
         mov [rsp + ERR_SIZEOF], rdi
-        test qword ptr [r15 + CTX_VERBOSE], VB_EXPLAIN
-        jz 1f
-        call .Lde_import_explain
-        mov rdi, [rsp + ERR_SIZEOF]
-        mov rax, [rdi + JB_EXPLAIN]     # (the traits of its function, there)
-        mov [r15 + CTX_EXPLAIN_SB], rax
-1:      cmp qword ptr [rdi + JB_ERR], 0
-        jne 2f
+        call ctx_usage
+        mov [rsp + ERR_SIZEOF + 8], rax # (what it takes: DE_IMPORTED's)
+        mov rdi, rax
+        mov rsi, [r13 + DC_MEMLIMIT]
+        call ctx_limit_at
         lea rdi, [rsp]
         call err_catch
         test eax, eax
         jnz 3f
-        mov rdi, [rsp + ERR_SIZEOF]
-        mov rdi, [rdi + JB_TRACE]
-        call value_import_root
-        mov [rsp + ERR_SIZEOF + 8], rax
-        mov rdi, [rsp + ERR_SIZEOF]
-        mov rdi, [rdi + JB_INTERNAL]
-        test rdi, rdi
-        jnz 5f
-        mov rdi, [rsp + ERR_SIZEOF]
-        mov rdi, [rdi + JB_HASH]
-        call abi_of
-        mov rdx, rax
-        mov rdi, [rsp + ERR_SIZEOF]
-        mov rdi, [rdi + JB_HASH]
-        mov rsi, [rsp + ERR_SIZEOF + 8]
-        call function_new
+        test qword ptr [r15 + CTX_VERBOSE], VB_EXPLAIN
+        jz 1f
+        mov rdi, [rsp + ERR_SIZEOF]     # (a job that failed too: what it
+        call .Lde_import_explain        # explained before is printed)
+        call .Lde_import_budget         # (the function's own, after them)
+1:      mov rdi, [rsp + ERR_SIZEOF]
+        cmp qword ptr [rdi + JB_ERR], 0
+        jne 6f                          # (failed in its worker: a problem)
+        mov rdi, [rdi + JB_FN]
+        call fn_import
         mov [rsp + ERR_SIZEOF + 16], rax
         call err_end
-        mov qword ptr [r15 + CTX_EXPLAIN_SB], 0
+        call .Lde_imported
+        mov rdi, [rsp + ERR_SIZEOF]
+        cmp qword ptr [rdi + JB_INTERNAL], 0
+        jne 5f
         # (fn, job index) - the order is restored later
         mov rdi, [rsp + ERR_SIZEOF]
         call .Lde_job_index
@@ -903,24 +1084,31 @@ FUNC decompile
         call vec_push
         add rsp, ERR_SIZEOF + 24
         ret
-5:      # a recursive internal function (vmrec.s), its record in rdi - put
-        # in the order of the entries later
-        mov rsi, [rsp + ERR_SIZEOF + 8]
-        call internal_function_new
-        mov [rsp + ERR_SIZEOF + 16], rax
-        call err_end
-        mov qword ptr [r15 + CTX_EXPLAIN_SB], 0
+5:      # a recursive internal function (vmrec.s) - put in the order of
+        # the entries later
         mov rdi, [rsp + ERR_SIZEOF + 24 + 8 + DE_INTERNAL]
         mov rsi, [rsp + ERR_SIZEOF + 16]
         call vec_push
         add rsp, ERR_SIZEOF + 24
         ret
-3:      mov rdi, [rsp + ERR_SIZEOF]
+6:      call err_end
+        call .Lde_imported
+        jmp 2f
+3:      # (an import that threw - for want of memory: fn_import's mode and
+        # the import's memo are this context's, back as they were; its
+        # worker's error, if it had one, stays the problem's)
+        mov [rsp + ERR_SIZEOF + 16], rax        # (the code: .Lde_imported
+        mov qword ptr [r15 + CTX_IMPORT_STRS], 0        # leaves its limit in
+        mov qword ptr [r15 + CTX_MEMO + MEMO_IMPORT * 8], 0     # rax, 0 for
+        call .Lde_imported              # none - the job "made" then, the
+        mov rdi, [rsp + ERR_SIZEOF]     # functions its VM found decompiled
+        cmp qword ptr [rdi + JB_ERR], 0 # under a caller that's a problem)
+        jne 2f
         mov rsi, [r15 + CTX_ERR_MSG]
         mov [rdi + JB_ERRMSG], rsi
+        mov rax, [rsp + ERR_SIZEOF + 16]
         mov [rdi + JB_ERR], rax
-2:      mov qword ptr [r15 + CTX_EXPLAIN_SB], 0
-        mov rdi, [rsp + ERR_SIZEOF]
+2:      mov rdi, [rsp + ERR_SIZEOF]
         mov r8, [rdi + JB_ERRMSG]
         mov rcx, [rdi + JB_HASH]
         mov edi, LOG_ERROR
@@ -994,6 +1182,7 @@ FUNC decompile
         jz 2f
         call value_import_root
         mov [rbx + JB_EXPLAIN_FIRST], rax
+        call .Lde_import_budget         # (the last one's own)
 2:      mov rcx, [rbx + JB_CTX]
         mov rdi, [rcx + CTX_EXPLAIN_PREV]
         test rdi, rdi
@@ -1001,6 +1190,19 @@ FUNC decompile
         call value_import_root
         mov [rbx + JB_EXPLAIN_LAST], rax
 1:      pop rbx
+        ret
+# the import's limit anew, a function's from what this context has now:
+# the job held its first trace explained (before its compactions), its
+# last one and its function at different times, each within its limit -
+# under one limit for the three, a function near it was a problem with
+# --explain alone
+.Lde_import_budget:
+        sub rsp, 8
+        call ctx_usage
+        mov rdi, rax
+        mov rsi, [r13 + DC_MEMLIMIT]
+        call ctx_limit_at
+        add rsp, 8
         ret
 # --explain: what the jobs printed, one after the other into
 # DC_EXPLAIN_SB (the context's builder again) - python's prev_trace, the
@@ -1077,6 +1279,21 @@ FUNC decompile
         jmp 1b
 2:      mov rax, [rsp]
         add rsp, 24
+        ret
+# (.Lde_import_job's) what the import took, added to DE_IMPORTED, and the
+# limit of the phases put back: the rest of it, the imports apart
+.Lde_imported:
+        sub rsp, 8
+        call ctx_usage
+        sub rax, [rsp + 8 + 8 + ERR_SIZEOF + 8]         # (the usage before)
+        mov rcx, [rsp + 8 + 8 + ERR_SIZEOF + 24 + 8 + DE_IMPORTED]
+        add rcx, rax
+        mov [rsp + 8 + 8 + ERR_SIZEOF + 24 + 8 + DE_IMPORTED], rcx
+        mov rdi, [rsp + 8 + 8 + ERR_SIZEOF + 24 + 8 + DE_BASE]
+        add rdi, rcx
+        mov rsi, [r13 + DC_MEMLIMIT]
+        call ctx_limit_at
+        add rsp, 8
         ret
 ENDF decompile
 
@@ -1222,7 +1439,7 @@ FUNC decompile_run
         lea rsi, [rsp + DR_ATTR]
         lea rdx, [rip + decompile_thread]
         mov rcx, rsp
-        call pthread_create@PLT
+        call thread_create
         mov ebx, eax
         lea rdi, [rsp + DR_ATTR]
         call pthread_attr_destroy@PLT
@@ -1276,11 +1493,16 @@ FUNC decompile_thread
         call err_end
         jmp 2f
 1:      mov [rbx + DR_STATUS], rax
+        mov r15, [rbx + DR_CTX]
         mov rcx, [r15 + CTX_ERR_MSG]
         mov [rbx + DR_MSG], rcx
+        mov rdi, r15                    # (the post-processing's deadline, if
+        call watch_stop                 # it threw there: the watchdog would
+                                        # write into the context, freed next)
         mov edi, LOG_ERROR
         lea rsi, [rip + .Ls_logname]
         lea rdx, [rip + .Ls_failed]
+        mov rcx, [rbx + DR_MSG]
         call log_fmt
 2:      xor eax, eax
         add rsp, ERR_SIZEOF + 8

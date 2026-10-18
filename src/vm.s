@@ -5885,7 +5885,9 @@ ENDF int_sar
 # the digits of a number it prints); else 0
 FUNC code_bytes_value
         ENTER
-        sub rsp, 16
+        sub rsp, MAX_CODECOPY_SIZE + 16 # (the bytes, on the stack: the int
+                                        # made of them can throw - a memory
+                                        # limit - and a malloc'd copy leaked)
         test dil, 1
         jz .Lcb_no
         test sil, 1
@@ -5903,9 +5905,11 @@ FUNC code_bytes_value
         jz .Lcb_zero
         mov rax, [r15 + CTX_VM]
         mov r13, [rax + VM_LOADER]
-        mov rdi, r12
-        call xcalloc_bytes
-        mov r14, rax
+        lea r14, [rsp + 16]
+        mov rdi, r14
+        xor esi, esi
+        mov rdx, r12
+        call memset@PLT
         # the bytes pos .. min(pos + len, codelen), then zeroes
         mov rcx, [r13 + LD_CODELEN]
         cmp rbx, rcx
@@ -5921,19 +5925,15 @@ FUNC code_bytes_value
 1:      mov rdi, r14
         mov rsi, r12
         call mk_int_bytes_be
-        mov [rsp], rax
-        mov rdi, r14
-        call free@PLT
-        mov rax, [rsp]
-        add rsp, 16
+        add rsp, MAX_CODECOPY_SIZE + 16
         LEAVE
 .Lcb_zero:
         mov eax, 1                      # (the small int 0)
-        add rsp, 16
+        add rsp, MAX_CODECOPY_SIZE + 16
         LEAVE
 .Lcb_no:
         xor eax, eax
-        add rsp, 16
+        add rsp, MAX_CODECOPY_SIZE + 16
         LEAVE
 ENDF code_bytes_value
 

@@ -57,7 +57,7 @@ FUNC par_for
         mov rsi, [rsp + PR_ATTR]
         lea rdx, [rip + par_worker]
         mov rcx, rsp                    # (the shared state, at PR_ST)
-        call pthread_create@PLT
+        call thread_create
         test eax, eax
         jnz 2f
         inc qword ptr [rsp + PR_NT]
@@ -107,5 +107,53 @@ FUNC par_worker
         pop r15
         ret
 ENDF par_worker
+
+# thread_create(tid, attr, fn, arg) -> eax: pthread_create's, the thread
+# started with the asynchronous signals blocked. Every thread the library
+# starts is made so (the decompilation's, the workers, the folds', the
+# printing's, the watchdog): they inherited the mask of whoever called the
+# library, so a signal of the program's (SIGINT, a SIGALRM of its own...)
+# could be delivered to one of them - its handler then ran on a thread the
+# program knows nothing of, in the middle of our code, and cut our system
+# calls short with EINTR. Now such a signal goes to one of the program's
+# threads. The synchronous ones (a fault: SIGSEGV, SIGBUS, SIGFPE, SIGILL,
+# SIGTRAP, SIGSYS, and SIGABRT) stay as they were: blocked, the kernel
+# would kill the process without its handler (faulthandler's traceback).
+# The creator's mask is back on return (what came for it meanwhile is
+# delivered then).
+FUNC thread_create
+        ENTER
+        sub rsp, 272                    # two sigset_t of 128 bytes, and 16
+        .set TC_SET, 0
+        .set TC_OLD, 128
+        mov rbx, rdi
+        mov r12, rsi
+        mov r13, rdx
+        mov r14, rcx
+        lea rdi, [rsp + TC_SET]
+        call sigfillset@PLT
+        .irp sig, 4, 5, 6, 7, 8, 11, 31
+        lea rdi, [rsp + TC_SET]
+        mov esi, \sig
+        call sigdelset@PLT
+        .endr
+        xor edi, edi                    # SIG_BLOCK
+        lea rsi, [rsp + TC_SET]
+        lea rdx, [rsp + TC_OLD]
+        call pthread_sigmask@PLT
+        mov rdi, rbx
+        mov rsi, r12
+        mov rdx, r13
+        mov rcx, r14
+        call pthread_create@PLT         # (the real one: this is its wrapper)
+        mov ebx, eax
+        mov edi, 2                      # SIG_SETMASK
+        lea rsi, [rsp + TC_OLD]
+        xor edx, edx
+        call pthread_sigmask@PLT
+        mov eax, ebx
+        add rsp, 272
+        LEAVE
+ENDF thread_create
 
         .section .note.GNU-stack,"",@progbits
