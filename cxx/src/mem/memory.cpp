@@ -46,10 +46,30 @@ std::optional<i64> nat(Value v) noexcept {
 
 // ---- comparisons of positions (addresses, sizes, offsets in bytes) -----------------
 
+// the decisions without facts, memoized per pair of positions (the same pairs
+// come back at every round of the simplifier's memory cleanups); forgotten
+// with the context's caches - set_variables and the free memory pointer flag
+// clear them, as the decisions read the variables' ranges
+struct PosMemo final : ModuleState {
+    Memo<Key2, Tri> le, lt;
+    void clear_caches() override {
+        le.clear();
+        lt.clear();
+    }
+};
+
 Tri pos_le(Value a, Value b, const Facts* f) {
     if (a == b) return Tri::True;
     if (auto x = nat(a))
         if (auto y = nat(b)) return tri(*x <= *y);
+    if (!f && !a.nil()) {
+        PosMemo& m = cx().state<PosMemo>();
+        if (const Tri* t = m.le.find(key2(a, b))) return *t;
+        Tri t = alg::le(a, b, Top::Memory, nullptr);
+        t = t == Tri::Cannot ? Tri::None : t;
+        m.le.put(key2(a, b), t);
+        return t;
+    }
     Tri t = alg::le(a, b, Top::Memory, f);
     return t == Tri::Cannot ? Tri::None : t;
 }
@@ -57,6 +77,14 @@ Tri pos_lt(Value a, Value b, const Facts* f) {
     if (a == b) return Tri::False;
     if (auto x = nat(a))
         if (auto y = nat(b)) return tri(*x < *y);
+    if (!f && !a.nil()) {
+        PosMemo& m = cx().state<PosMemo>();
+        if (const Tri* t = m.lt.find(key2(a, b))) return *t;
+        Tri t = alg::lt(a, b, Top::Memory, nullptr);
+        t = t == Tri::Cannot ? Tri::None : t;
+        m.lt.put(key2(a, b), t);
+        return t;
+    }
     Tri t = alg::lt(a, b, Top::Memory, f);
     return t == Tri::Cannot ? Tri::None : t;
 }

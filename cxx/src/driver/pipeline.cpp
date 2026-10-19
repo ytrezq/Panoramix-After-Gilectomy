@@ -221,6 +221,30 @@ void check_deadline(i64 deadline)
 
 Stage jobs_last(Stage upto) noexcept { return upto < Stage::Simplified ? upto : Stage::Simplified; }
 
+void Explainer::trace(std::string_view title, Value t)
+{
+    const u64 h = t.hash();
+    if (last && h == last_hash)
+        return;  // python's explain: not the trace printed last
+    if (cut_)
+        return;
+    const usize before = out.size();
+    output::explain_trace(out, title, t, output::TraceContext{fn_, db_, color_});
+    if (out.size() > EXPLAIN_MAX) {
+        out.resize(before);
+        out += EXPLAIN_CUT;
+        cut_ = true;
+        return;
+    }
+    if (!first) {
+        first = true;
+        first_hash = h;
+        first_end = out.size();
+    }
+    last = true;
+    last_hash = h;
+}
+
 i64 deadline_after(i64 base_ns) noexcept
 {
     if (!timeouts_enabled())

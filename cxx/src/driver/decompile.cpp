@@ -13,6 +13,7 @@
 #include "core/platform.hpp"
 #include "core/watchdog.hpp"
 #include "driver/internal.hpp"
+#include "output/output.hpp"
 #include "sigdb.hpp"
 
 namespace pan::driver {
@@ -74,7 +75,7 @@ Decompilation decompile_here(std::span<const u8> code, const DecompileOptions& o
         run->functions();
         Decompilation d;
         if (!run->result().has_code) {
-            d.text = detail::no_code_text(o.color);
+            d.text = output::no_code_text(o.color);
             if (o.json)
                 d.json = "{}";
             return d;
@@ -91,17 +92,25 @@ Decompilation decompile_here(std::span<const u8> code, const DecompileOptions& o
         run->set_post_deadline(deadline);
         run->contract_phase();
         const ContractResult& r = run->result();
+        // lot 10's printer (python's: the disassembly, the json, then the text)
+        output::PrintOptions po;
+        po.color = o.color;
+        po.repr = o.repr;
+        po.returns = o.returns;
+        po.threads = threads;
+        po.db = s.options.db;
+        po.deadline_ns = deadline;
         if (o.asm_lines)
             d.asm_lines = evm::disassembly_lines(code);
         if (o.json) {
             try {
-                d.json = detail::contract_json(r, o, s.options.db);
+                d.json = output::to_json(r, po);
             } catch (const Error& e) {  // (python's except Exception: the deadline goes on)
                 log(log_error, detail::LOGGER, std::string("Failed json serialization. (") + e.what() + ")");
                 d.json = "{}";
             }
         }
-        d.text = detail::contract_text(r, o, s.options.db);
+        d.text = output::print_contract(r, po);
         if (deadline && platform::monotonic_ns() > deadline)
             throw Timeout(detail::MSG_POST_TIMEOUT);
         d.explain = run->take_explain();

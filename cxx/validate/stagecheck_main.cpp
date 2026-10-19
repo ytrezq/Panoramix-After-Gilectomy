@@ -439,9 +439,9 @@ int main(int argc, char** argv)
         std::cerr << usage;
         return 1;
     }
-    if (!pan::driver::stage_available(static_cast<pan::driver::Stage>(o.check.upto)))
-        std::cout << "(the stages past " << stage_name(static_cast<Stage>(pan::driver::last_available()))
-                  << " aren't in this build: not checked)\n";
+    for (unsigned s = 0; s <= static_cast<unsigned>(o.check.upto); ++s)
+        if (!pan::driver::stage_available(static_cast<pan::driver::Stage>(s)))
+            std::cout << "(the " << stage_name(static_cast<Stage>(s)) << " stage isn't in this build: not checked)\n";
     std::cout << "stagecheck: " << paths.size() << " contracts, seed " << o.check.seed << ", "
               << (o.check.db != nullptr ? "typed" : "untyped") << " calldata, "
               << (o.check.empty_world ? (o.check.random_world ? "empty and random worlds" : "the empty world") :

@@ -81,39 +81,38 @@ public:
     Value run(Value trace) {
         const u32 p = opts_.passes;
         auto on = [&](u32 bit) { return (p & bit) != 0; };
+        const loops::RewriteOptions lo{opts_.dubious};
         for (u32 round = 0; round < opts_.max_rounds && !timed_out(); ++round) {
             const Value old = trace;
-            if (on(P_EXPS)) trace = step(timed(0, [&] { return simplify_exps(trace); }), ExplainStage::SimplifyExpressions);
-            if (on(P_VARS)) trace = step(timed(1, [&] { return cleanup_vars(trace); }), ExplainStage::CleanupVariables);
-            if (on(P_MEMS)) trace = step(timed(2, [&] { return cleanup_mems(trace); }), ExplainStage::CleanupMems);
-            if (on(P_PRECOMPILED))
-                trace = step(timed(3, [&] { return precompiled_results(trace); }), ExplainStage::PrecompiledResults);
-            if (on(P_MIN_IFS)) trace = step(timed(4, [&] { return min_ifs(trace); }), ExplainStage::Minimums);
-            if (on(P_SPLIT)) trace = step(timed(5, [&] { return split_lines(trace); }), ExplainStage::SplitSetmemsStorages);
-            if (on(P_VARS)) trace = step(timed(1, [&] { return cleanup_vars(trace); }), ExplainStage::CleanupVars);
-            if (on(P_EXPS)) trace = step(timed(0, [&] { return simplify_exps(trace); }), ExplainStage::SimplifyExpressions);
+            if (on(P_EXPS)) trace = step(pass(0, 0, trace, simplify_exps), ExplainStage::SimplifyExpressions);
+            if (on(P_VARS)) trace = step(pass(1, 1, trace, cleanup_vars), ExplainStage::CleanupVariables);
+            if (on(P_MEMS)) trace = step(pass(2, 2, trace, cleanup_mems), ExplainStage::CleanupMems);
+            if (on(P_PRECOMPILED)) trace = step(pass(3, 3, trace, precompiled_results), ExplainStage::PrecompiledResults);
+            if (on(P_MIN_IFS)) trace = step(pass(4, 4, trace, min_ifs), ExplainStage::Minimums);
+            if (on(P_SPLIT)) trace = step(pass(5, 5, trace, split_lines), ExplainStage::SplitSetmemsStorages);
+            if (on(P_VARS)) trace = step(pass(1, 1, trace, cleanup_vars), ExplainStage::CleanupVars);
+            if (on(P_EXPS)) trace = step(pass(0, 0, trace, simplify_exps), ExplainStage::SimplifyExpressions);
             trace = step(cleanup_mul_1(trace), ExplainStage::SimplifyExpressions);
             if (on(P_LENGTH))
-                trace = step(timed(6, [&] { return replace_bytes_or_string_length(trace); }),
-                             ExplainStage::ReplaceStorageWithLength);
-            if (on(P_CONDS)) trace = step(timed(7, [&] { return cleanup_conds(trace); }), ExplainStage::CleanupUnusedIfs);
+                trace = step(pass(6, 6, trace, replace_bytes_or_string_length), ExplainStage::ReplaceStorageWithLength);
+            if (on(P_CONDS)) trace = step(pass(7, 7, trace, cleanup_conds), ExplainStage::CleanupUnusedIfs);
             if (on(P_LOOPS)) {
-                trace = step(timed(9, [&] { return loops::loops_to_setmems(trace, loops::RewriteOptions{opts_.dubious}); }),
+                trace = step(pass(8, 9, trace, [&](Value t) { return loops::loops_to_setmems(t, lo); }),
                              ExplainStage::ConvertLoopsToSetmems);
-                trace = step(timed(9, [&] { return loops::propagate_storage_in_loops(trace); }),
-                             ExplainStage::MoveLoopIndexes);
+                trace = step(pass(9, 9, trace, loops::propagate_storage_in_loops), ExplainStage::MoveLoopIndexes);
             }
             if (trace == old) break;
             trace = maybe_compact(trace);
         }
         if (!opts_.final_passes || !on(P_FINAL)) return trace;
-        // the final passes (python: they would break the rounds)
+        // the final passes (python: they would break the rounds); on the
+        // rounds' last trace they are what that round made (pass())
         const i64 f0 = platform::monotonic_ns();
         if (!timed_out()) {
             if (on(P_MEMS))
-                for (int k = 0; k < 3; ++k) trace = timed(2, [&] { return cleanup_mems(trace); });
-            if (on(P_EXPS)) trace = timed(0, [&] { return simplify_exps(trace); });
-            if (on(P_VARS)) trace = timed(1, [&] { return cleanup_vars(trace); });
+                for (int k = 0; k < 3; ++k) trace = pass(2, 2, trace, cleanup_mems);
+            if (on(P_EXPS)) trace = pass(0, 0, trace, simplify_exps);
+            if (on(P_VARS)) trace = pass(1, 1, trace, cleanup_vars);
         }
         struct Final {
             i64 f0;
@@ -137,6 +136,21 @@ private:
         if (explain_) explain_->stage(s, trace);
         return trace;
     }
+    // A pass run on the trace (timed into stats index `stat`), or what it
+    // made the last time when its input is that trace again: during a run a
+    // pass is a function of its input (the algebra's variables and the
+    // run's flags are fixed, its caches only remember), so a round that
+    // changes nothing and the final passes after it don't redo the work.
+    // (slot: the pass; the Values forgotten when the context compacts.)
+    template <class F>
+    Value pass(u32 slot, u32 stat, Value trace, F&& f) {
+        Last& l = last_[slot];
+        if (!l.in.nil() && l.in == trace) return l.out;
+        Value r = timed(stat, [&] { return f(trace); });
+        l.in = trace;
+        l.out = r;
+        return r;
+    }
     bool timed_out() const { return deadline_ != 0 && platform::monotonic_ns() > deadline_; }
     // (every Value the run holds is among the roots or in a state that
     // imports it: the trace, the caller's roots, the run's flags' entry lines)
@@ -152,12 +166,17 @@ private:
         for (Value v : opts_.compact_roots) roots.push_back(v);
         c.compact(roots);
         for (usize i = 0; i < opts_.compact_roots.size(); ++i) opts_.compact_roots[i] = roots[i + 1];
+        for (Last& l : last_) l = Last{};  // (freed)
         return roots[0];
     }
 
+    struct Last {
+        Value in, out;
+    };
     SimplifyOptions opts_;
     ExplainHook* explain_;
     i64 deadline_ = 0;
+    Last last_[10];
 };
 
 }  // namespace

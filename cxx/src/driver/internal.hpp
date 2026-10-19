@@ -1,6 +1,5 @@
 // The driver's own parts (lot 12 only): the run of the pipeline as
-// decompile() and run_pipeline() share it, --explain's text of a job, and
-// the placeholders of lot 10's outputs until it lands (output.cpp).
+// decompile() and run_pipeline() share it, --explain's text of a job.
 #pragma once
 
 #include <mutex>
@@ -48,11 +47,11 @@ private:
     Budget& b_;
 };
 
-// --explain's text of a job (python's explain / explain_text, the
-// placeholder of lot 10's printer): a section per trace, none for the trace
-// printed last (python's prev_trace, compared by content hash: the traces
-// may be in arenas a compaction gave back since). The jobs' texts are
-// merged in job order (Run::merge_explain), prev_trace carried across.
+// --explain's text of a job (python's explain): a section per trace (lot
+// 10's output::explain_trace), none for the trace printed last (python's
+// prev_trace, compared by content hash: the traces may be in arenas a
+// compaction gave back since). The jobs' texts are merged in job order
+// (Run::run_wave), prev_trace carried across.
 class Explainer {
 public:
     // fn: the function explained (its names; the struct, not its values:
@@ -145,15 +144,5 @@ private:
 
 // the last stage the jobs make (the stages after it are the contract phase's)
 Stage jobs_last(Stage upto) noexcept;
-
-// --- the placeholders of lot 10's outputs (output.cpp) ---
-
-// python's "# No code found for this contract."
-std::string no_code_text(bool color);
-// the text of the contract as python's decompiler prints it (the
-// placeholder: the functions' last traces as S-expressions)
-std::string contract_text(const ContractResult& r, const DecompileOptions& o, const sigdb::Database* db);
-// python's decompilation.json (the placeholder: the problems, the functions' names and texts)
-std::string contract_json(const ContractResult& r, const DecompileOptions& o, const sigdb::Database* db);
 
 }  // namespace pan::driver::detail
