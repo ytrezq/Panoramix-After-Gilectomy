@@ -1,6 +1,6 @@
 // Path facts: see facts.hpp. Python vm.py's known, write_memory,
 // read_memory, known_zeroes, forget, is_known, decided, upper_bound, bound,
-// write_range; arithmetic.eval_bool(exp, fact, symbolic=False);
+// write_range; arithmetic.eval_bool(exp, fact, symbolic=False) (match);
 // memloc.max_value_bits. (The memory facts as lot 5 first wrote them.)
 #include "algebra/facts.hpp"
 
@@ -52,13 +52,11 @@ bool mentions(Value v, Forget what) {
 Value fact_cond(Value a) { return a.is(Op::BOOL, 1) ? a[0] : a; }
 
 // a <= b for every value of what they're made of, as words (python
-// algebra.proven_le with is_word: here only what is certain without ranges)
+// algebra.proven_le with is_word: here only what is certain without ranges;
+// eval_bool asks the ranges)
 bool proven_le_words(Value a, Value b) {
     if (a == b) return true;
-    if (a.is_int() && b.is_int()) {
-        if (int_sign(a) < 0 || int_sign(b) < 0) return false;
-        return int_cmp(a, b) <= 0;
-    }
+    if (a.is_int() && b.is_int()) return !(word_of(b) < word_of(a));
     return false;
 }
 
@@ -70,7 +68,7 @@ Tri match_one(Value exp, Value iz_exp, Value kt, Value iz_kt) {
     if (iz_exp == kt) return Tri::False;
     if (exp == iz_kt) return Tri::False;
     if (exp.is_bool()) return tri(exp.is_true());
-    if (exp.is_int()) return tri(!Word256::from_value(exp).is_zero());
+    if (exp.is_int()) return tri(!word_of(exp).is_zero());
     if (!exp.is_expr()) return Tri::None;
     switch (exp.op()) {
         case Op::BOOL:
@@ -118,18 +116,26 @@ u32 max_value_bits(Value v, const Facts* facts) { return range_bits(v, Top::Word
 
 // ---- the list -------------------------------------------------------------------
 
-const Facts::Cell* Facts::cons(const Fact& f, const Cell* next) {
-    Cell c{next, f, Value(), Value(), Value()};
+const Facts::Cell* Facts::cons(const Fact& f, const Cell* next, const Cell* same) {
+    const CondBound* b = nullptr;
+    u32 nb = 0;
     if (f.kind == FactKind::Cond) {
-        CondBounds b = cond_bounds(f.a);
-        if (!b.empty()) {
-            c.bx = b[0].x;
-            c.blo = b[0].lo;
-            c.bhi = b[0].hi;
+        if (same && same->f.kind == FactKind::Cond && same->f.a == f.a) {
+            b = same->b;
+            nb = same->nb;
+        } else {
+            CondBounds cb = cond_bounds(f.a);
+            if (!cb.empty()) {
+                void* p = cx().arena.alloc_raw(cb.size() * sizeof(CondBound));
+                CondBound* arr = static_cast<CondBound*>(p);
+                for (usize i = 0; i < cb.size(); ++i) new (arr + i) CondBound(cb[i]);
+                b = arr;
+                nb = u32(cb.size());
+            }
         }
     }
     void* p = cx().arena.alloc_raw(sizeof(Cell));
-    return new (p) Cell(c);
+    return new (p) Cell{next, f, b, nb};
 }
 
 Facts Facts::with(const Fact& f) const {
@@ -141,11 +147,33 @@ Facts Facts::with(const Fact& f) const {
     }
     r.head_ = cons(g, head_);
     r.n_ = n_ + 1;
-    r.nbounds_ = nbounds_ + (r.head_->bx.nil() ? 0 : 1);
+    r.nbounds_ = nbounds_ + r.head_->nb;
     return r;
 }
 
 Facts Facts::with(Value cond, bool holds) const { return with_cond(holds ? cond : iszero(cond)); }
+
+Facts Facts::from_cells(std::span<const Cell* const> oldest_first) {
+    Facts r;
+    for (const Cell* c : oldest_first) {
+        r.head_ = cons(c->f, r.head_, c);
+        ++r.n_;
+        r.nbounds_ += r.head_->nb;
+    }
+    return r;
+}
+
+namespace {
+
+// the cells of a list, oldest first
+template <class Cell>
+void cells_of(const Cell* head, SmallVec<const Cell*, 32>& out) {
+    out.clear();
+    for (const Cell* c = head; c; c = c->next) out.push_back(c);
+    std::reverse(out.begin(), out.end());
+}
+
+}  // namespace
 
 bool Facts::contains(const Fact& f) const noexcept {
     for (const Cell* c = head_; c; c = c->next) {
@@ -187,7 +215,7 @@ bool Facts::operator==(const Facts& o) const noexcept {
 }
 
 Tri Facts::match(Value exp) const {
-    if (exp.is_int()) return tri(!Word256::from_value(exp).is_zero());
+    if (exp.is_int()) return tri(!word_of(exp).is_zero());
     if (exp.is_bool()) return tri(exp.is_true());
     Value iz_exp;
     for (const Cell* c = head_; c; c = c->next) {
@@ -195,8 +223,16 @@ Tri Facts::match(Value exp) const {
         if (f.kind != FactKind::Cond) continue;
         poll();
         if (iz_exp.nil()) iz_exp = iszero(exp);
-        Tri r = match_one(exp, iz_exp, fact_cond(f.a), f.c);
+        const Value kt = fact_cond(f.a);
+        Tri r = match_one(exp, iz_exp, kt, f.c);
         if (r != Tri::None) return r;
+        if (kt.is(Op::AND)) {
+            // an AND that isn't 0: none of them is
+            for (Value k : kt.args()) {
+                r = match_one(exp, iz_exp, fact_cond(k), iszero(fact_cond(k)));
+                if (r != Tri::None) return r;
+            }
+        }
     }
     return Tri::None;
 }
@@ -213,23 +249,17 @@ Value Facts::decided(Value exp) const {
 
 std::optional<Range> Facts::bounds(Value x) const {
     std::optional<Range> res;
-    for (const Cell* c = head_; c; c = c->next) {
-        if (c->bx != x) continue;
-        Range r{EvmInt(c->blo), EvmInt(c->bhi)};
+    auto take = [&](const Range& r) {
         if (!res) {
             res = r;
         } else if (auto m = res->meet(r)) {
             res = *m;
         }
-    }
-    if (u32 b = var_bits(x)) {
-        Range r = Range::bits(b);
-        if (!res) {
-            res = r;
-        } else if (auto m = res->meet(r)) {
-            res = *m;
-        }
-    }
+    };
+    each_bound([&](Value bx, Value lo, Value hi) {
+        if (bx == x) take(Range{EvmInt(lo), EvmInt(hi)});
+    });
+    if (u32 b = var_bits(x)) take(Range::bits(b));
     return res;
 }
 
@@ -247,9 +277,11 @@ Facts Facts::forget(Forget what) const {
         }
     }
     if (!any) return *this;
-    SmallVec<Fact, 32> v, out;
-    to_vector(v);
-    for (Fact f : v) {
+    SmallVec<const Cell*, 32> cs;
+    cells_of(head_, cs);
+    Facts r;
+    for (const Cell* c : cs) {
+        Fact f = c->f;
         switch (f.kind) {
             case FactKind::Cond:
             case FactKind::VarBits:
@@ -264,9 +296,11 @@ Facts Facts::forget(Forget what) const {
             case FactKind::Fresh:
                 break;
         }
-        out.push_back(f);
+        r.head_ = cons(f, r.head_, c);
+        ++r.n_;
+        r.nbounds_ += r.head_->nb;
     }
-    return from(out.span());
+    return r;
 }
 
 Facts Facts::forget_flags(u8 flags) const {
@@ -282,9 +316,11 @@ Facts Facts::forget_flags(u8 flags) const {
         }
     }
     if (!any) return *this;
-    SmallVec<Fact, 32> v, out;
-    to_vector(v);
-    for (Fact f : v) {
+    SmallVec<const Cell*, 32> cs;
+    cells_of(head_, cs);
+    Facts r;
+    for (const Cell* c : cs) {
+        Fact f = c->f;
         switch (f.kind) {
             case FactKind::Cond:
             case FactKind::VarBits:
@@ -299,9 +335,11 @@ Facts Facts::forget_flags(u8 flags) const {
             case FactKind::Fresh:
                 break;
         }
-        out.push_back(f);
+        r.head_ = cons(f, r.head_, c);
+        ++r.n_;
+        r.nbounds_ += r.head_->nb;
     }
-    return from(out.span());
+    return r;
 }
 
 Facts Facts::without_memory() const {
@@ -309,11 +347,11 @@ Facts Facts::without_memory() const {
     for (const Cell* c = head_; c && !any; c = c->next)
         any = c->f.kind == FactKind::Mem || c->f.kind == FactKind::Fresh;
     if (!any) return *this;
-    SmallVec<Fact, 32> v, out;
-    to_vector(v);
-    for (const Fact& f : v)
-        if (f.kind != FactKind::Mem && f.kind != FactKind::Fresh) out.push_back(f);
-    return from(out.span());
+    SmallVec<const Cell*, 32> cs, keep;
+    cells_of(head_, cs);
+    for (const Cell* c : cs)
+        if (c->f.kind != FactKind::Mem && c->f.kind != FactKind::Fresh) keep.push_back(c);
+    return from_cells(keep.span());
 }
 
 // ---- memory -------------------------------------------------------------------------
@@ -354,16 +392,23 @@ Facts Facts::write_memory(Value start, Value size, Value value) const {
     }
     Fact nf{FactKind::Mem, Value::small(i64(st)), Value::small(i64(*n)), value};
     if (!overlap) return with(nf);
-    SmallVec<Fact, 32> v, out;
-    to_vector(v);
-    for (const Fact& f : v) {
+    SmallVec<const Cell*, 32> cs;
+    cells_of(head_, cs);
+    Facts r;
+    auto push = [&](const Fact& f, const Cell* same) {
+        r.head_ = cons(f, r.head_, same);
+        ++r.n_;
+        r.nbounds_ += r.head_->nb;
+    };
+    for (const Cell* c : cs) {
+        const Fact& f = c->f;
         if (f.kind != FactKind::Mem) {
-            out.push_back(f);
+            push(f, c);
             continue;
         }
         u64 fs = u64(f.a.small_val()), fe = fs + u64(f.b.small_val());
         if (fe <= st || end <= fs) {
-            out.push_back(f);
+            push(f, c);
             continue;
         }
         // what the write leaves of a value written before, on each side
@@ -371,16 +416,16 @@ Facts Facts::write_memory(Value start, Value size, Value value) const {
             u64 k = st - fs;
             i64 off = i64(8 * (fe - st));
             Value nv = f.c.nil() || f.c == Value::small(0) ? f.c : mask_value(f.c, i64(8 * k), off, -off);
-            out.push_back(Fact{FactKind::Mem, f.a, Value::small(i64(k)), nv});
+            push(Fact{FactKind::Mem, f.a, Value::small(i64(k)), nv}, nullptr);
         }
         if (end < fe) {
             u64 k = fe - end;
             Value nv = f.c.nil() || f.c == Value::small(0) ? f.c : mask_value(f.c, i64(8 * k));
-            out.push_back(Fact{FactKind::Mem, Value::small(i64(end)), Value::small(i64(k)), nv});
+            push(Fact{FactKind::Mem, Value::small(i64(end)), Value::small(i64(k)), nv}, nullptr);
         }
     }
-    out.push_back(nf);
-    return from(out.span());
+    push(nf, nullptr);
+    return r;
 }
 
 Value Facts::read_memory(Value addr) const {
@@ -391,11 +436,12 @@ Value Facts::read_memory(Value addr) const {
         any = c->f.kind == FactKind::Mem || c->f.kind == FactKind::Fresh;
     if (!any) return Value();
     const u64 end = *a + 32;
-    SmallVec<Fact, 32> v;
-    to_vector(v);
+    SmallVec<const Cell*, 32> cs;
+    cells_of(head_, cs);
     Value res = Value::small(0);
     u64 covered = 0;
-    for (const Fact& f : v) {
+    for (const Cell* c : cs) {
+        const Fact& f = c->f;
         if (f.kind != FactKind::Mem) continue;
         u64 fs = u64(f.a.small_val()), fe = fs + u64(f.b.small_val());
         u64 lo = std::max(fs, *a), hi = std::min(fe, end);
@@ -426,11 +472,11 @@ bool Facts::known_zeroes(Value start, Value size) const {
 
 std::optional<EvmInt> Facts::upper_bound(Value v) const {
     std::optional<EvmInt> res;
-    for (const Cell* c = head_; c; c = c->next) {
-        if (c->bx != v) continue;
-        EvmInt n(c->bhi);
+    each_bound([&](Value x, Value, Value hi) {
+        if (x != v) return;
+        EvmInt n(hi);
         if (!res || n < *res) res = n;
-    }
+    });
     return res;
 }
 
@@ -448,12 +494,10 @@ std::optional<EvmInt> Facts::bound(Value v) const {
         if (top && ok(*top)) return top;
         return std::nullopt;
     }
-    std::optional<EvmInt> top = upper_bound(v);
-    if (!top) {
-        u32 b = max_value_bits(v, this);
-        if (b <= 128) top = EvmInt::pow2(b) - EvmInt(1);
-    }
-    if (top && ok(*top)) return top;
+    // the known conditions and what v is made of: its range (python's
+    // upper_bound, else max_value_bits - the range has both)
+    Range r = range(v, Top::Word, this);
+    if (ok(r.hi)) return r.hi;
     return std::nullopt;
 }
 
