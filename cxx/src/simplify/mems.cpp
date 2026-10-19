@@ -27,6 +27,7 @@
 #include "core/memo.hpp"
 #include "algebra/compare.hpp"
 #include "algebra/construct.hpp"
+#include "loops/loops.hpp"
 #include "mem/memory.hpp"
 
 namespace pan::simplify {
