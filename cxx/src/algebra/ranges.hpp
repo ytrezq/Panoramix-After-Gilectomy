@@ -37,6 +37,16 @@
 //    pointer can wrap) unless small_words says it's small. An assumption of
 //    the memory model (lot 4) for the executions that don't run out of gas.
 //
+// One question, one point of the trace: the expressions asked about and the
+// facts given are read at the same point (a read of memory, storage, the
+// balances... is the state there - comparing reads made before and after a
+// write is the caller's business: Facts::forget). A variable's values are
+// read where it is set (set_variables): its range is the union of theirs
+// (without the facts when a value reads state), and a variable set to one
+// value is that value in a sum only when the value reads no state
+// (F_VOLATILE: tmp8 = mem[64] is no mem[64] once the free memory pointer
+// has moved).
+//
 // The free memory pointer (python variants.FREE_MEMORY_POINTER): mem[64] is
 // at least 0x60 when the loader says the contract is solidity's (on by
 // default, as python; set_free_memory_pointer).

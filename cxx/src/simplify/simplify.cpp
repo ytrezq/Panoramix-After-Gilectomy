@@ -28,6 +28,7 @@ std::vector<std::pair<Value, Value>> variable_values(Value trace) {
     SmallVec<Value, 64> todo{trace};
     MemoSet<Value> seen;
     MemoSet<Key2> pairs;
+    MemoSet<Value> volatile_names;
     while (!todo.empty()) {
         poll();
         Value v = todo.back();
@@ -35,15 +36,24 @@ std::vector<std::pair<Value, Value>> variable_values(Value trace) {
         if (!(v.is_list() || v.is_expr())) continue;
         if (v.is_expr() && !has(v.op(), LINE)) continue;
         if (!seen.add(v)) continue;
+        // (variables set otherwise: by a precompile's call, an internal call)
+        if (v.is(Op::PRECOMPILED, 4) && v[1].is_name()) volatile_names.add(v[1]);
+        if (v.is(Op::INTERNAL, 3))
+            if (Value results = v[2]; results.is_list())
+                for (Value n : results.args()) volatile_names.add(n);
         if (v.is(Op::SETVAR, 2)) {
-            // (a value that reads what changes - memory, storage, the state -
-            // isn't the variable's value wherever it's read: the algebra would
-            // take one for the other; left out, the variable is any word)
-            if (!v[1].has_flags(F_VOLATILE) && pairs.add(Key2{v[0].raw(), v[1].raw()})) out.emplace_back(v[0], v[1]);
+            if (v[1].has_flags(F_VOLATILE))
+                volatile_names.add(v[0]);
+            else if (pairs.add(Key2{v[0].raw(), v[1].raw()}))
+                out.emplace_back(v[0], v[1]);
             continue;
         }
         for (Value x : v.children()) todo.push_back(x);
     }
+    // (a value that reads what changes - memory, storage, the state - isn't
+    // the variable's value wherever it's read: the algebra would take one for
+    // the other; such a variable is left out: any word)
+    std::erase_if(out, [&](const auto& p) { return volatile_names.contains(p.first); });
     std::sort(out.begin(), out.end(), [](const auto& a, const auto& b) {
         int c = compare(a.first, b.first);
         return c != 0 ? c < 0 : compare(a.second, b.second) < 0;

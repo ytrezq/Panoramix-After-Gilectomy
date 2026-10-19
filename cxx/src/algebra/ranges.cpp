@@ -627,7 +627,9 @@ struct RangeQuery::Impl {
             if (!nodes.add(v)) continue;
             if (budget-- == 0) return false;
             if (v.is_name()) {
-                for (Value x : st.values_of(v)) work.push_back(x);
+                // (a value that reads state is ranged without the facts)
+                for (Value x : st.values_of(v))
+                    if (!x.has_flags(F_VOLATILE)) work.push_back(x);
             } else {
                 for (Value a : v.children()) work.push_back(a);
             }
@@ -758,15 +760,21 @@ struct RangeQuery::Impl {
 
     bool unchecked_of(Value t);
 
+    // python's: the union of the ranges of the values it's set to. A value
+    // that reads state is read where the variable is set: the facts (of
+    // here) say nothing of it - its range without them
     XRange var_range(Value name, Top top) {
         if (st.cyclic.contains(name) || visiting(st, name)) return xr_word();
         std::span<const Value> vals = st.values_of(name);
         if (vals.empty()) return xr_word();
         Visiting guard(st, name);
-        XRange r = word(vals[0], top);
+        auto value_range = [&](Value x) {
+            return with_facts() && x.has_flags(F_VOLATILE) ? no_facts().word(x, top) : word(x, top);
+        };
+        XRange r = value_range(vals[0]);
         for (usize i = 1; i < vals.size(); ++i) {
             poll();
-            r = xr_hull(r, word(vals[i], top));
+            r = xr_hull(r, value_range(vals[i]));
         }
         return r;
     }
@@ -864,9 +872,14 @@ struct RangeQuery::Impl {
         }
         if (v.is_name() && st.is_var(v) && !st.cyclic.contains(v) && !visiting(st, v)) {
             // a variable set to one value is that value (python's
-            // cleanup_vars replaces it); its integer only when that's a word
+            // cleanup_vars replaces it) - when the value reads no state: its
+            // reads are made where the variable is set, the same expression
+            // here may read something else since (tmp8 = mem[64] before the
+            // free memory pointer moves is no mem[64] after); its integer
+            // only when that's a word
             std::span<const Value> vals = st.values_of(v);
-            if (vals.size() == 1 && (md == Md::Word || xr_is_word(intv(vals[0], top)))) {
+            if (vals.size() == 1 && !vals[0].has_flags(F_VOLATILE) &&
+                (md == Md::Word || xr_is_word(intv(vals[0], top)))) {
                 Visiting guard(st, v);
                 expand(vals[0], mult, rd, md, top, acc);
                 return;

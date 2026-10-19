@@ -67,8 +67,10 @@ const char* tstr(Tri t) { return t == Tri::True ? "True" : t == Tri::False ? "Fa
 // edge words included (RandomEnv's). Given leaves: a value in their range.
 struct TestEnv final : A::Env {
     u64 seed;
+    u64 state_seed;  // the reads of state (F_VOLATILE): another moment, another state
     std::vector<std::pair<Value, std::pair<EvmInt, EvmInt>>> ranges;  // leaf -> [lo, hi]
-    explicit TestEnv(u64 s) : seed(s) {}
+    std::vector<std::pair<Value, Word256>> fixed;                       // name -> its value
+    explicit TestEnv(u64 s) : seed(s), state_seed(s) {}
 
     static Word256 in_range(const EvmInt& lo, const EvmInt& hi, const Word256& w) {
         // lo, hi, lo + 1, hi - 1, or lo + (w mod (hi - lo + 1))
@@ -83,20 +85,23 @@ struct TestEnv final : A::Env {
     }
 
     std::optional<Word256> value(Value v, A::Evaluator& ev) override {
+        for (auto& [x, w] : fixed)
+            if (x == v) return w;
+        const u64 sd = v.has_flags(F_VOLATILE) ? state_seed : seed;
         for (auto& [x, r] : ranges)
-            if (x == v) return in_range(r.first, r.second, A::RandomEnv::word_for(seed ^ 0x77, v.hash()));
+            if (x == v) return in_range(r.first, r.second, A::RandomEnv::word_for(sd ^ 0x77, v.hash()));
         if (v.is(Op::STORAGE, 3) && v[0].is_small() && v[1].is_small() && v[0].small_val() >= 0 &&
             v[1].small_val() >= 0) {
             auto slot = ev.try_eval(v[2]);
             if (!slot) return std::nullopt;
             u64 h = 0x51ed2701;
             for (u64 l : slot->limb) h = h * 0x9e3779b97f4a7c15ull ^ l;
-            Word256 s = A::RandomEnv::word_for(seed ^ 0x5707a6e, h);
+            Word256 s = A::RandomEnv::word_for(sd ^ 0x5707a6e, h);
             i64 size = v[0].small_val(), off = v[1].small_val();
             if (off >= 256) return Word256{};
             return pan::band(pan::shr(Word256::of(u64(off)), s), A::mask_word(size, 0));
         }
-        Word256 w = A::RandomEnv::word_for(seed, v.hash());
+        Word256 w = A::RandomEnv::word_for(sd, v.hash());
         if (info(v.op()).sort == Sort::Bool) return Word256::of(w.limb[0] & 1);
         if (v.is_leaf()) {
             switch (v.op()) {
@@ -767,6 +772,115 @@ TEST_CASE("ranges: path facts") {
     CHECK(vb.var_bits(V("tmp4")) == 8u);
     CHECK(A::range(V("tmp4"), A::Top::Word, &vb) == A::Range::bits(8));
     CHECK(A::lt(V("tmp4"), A::add(V("tmp4"), mk_int(1)), A::Top::Word, &vb) == Tri::True);
+}
+
+TEST_CASE("ranges: a variable set before the state changed (lot 7's stETH case)") {
+    Fixture f;
+    // tmp8 = mem[64] (a snapshot of the free memory pointer); later the
+    // pointer moves: tmp8 + 64 and mem[64] + 36 differ by no constant
+    const Value t8 = V("tmp8"), fmp = V("(mem (range 64 32))");
+    std::vector<std::pair<Value, Value>> vals = {{t8, fmp}};
+    A::set_variables(vals, {});
+    const Value a = A::add(t8, mk_int(64)), b = A::add(fmp, mk_int(36));
+    CHECK(!A::word_diff(a, b).is_point());
+    CHECK(A::lt(b, a) == Tri::None);
+    CHECK(A::le(a, b) == Tri::None);
+    CHECK(A::eq(a, b) == Tri::None);
+    CHECK(A::eval_bool(A::cmp(Op::LT, b, a)) == Tri::None);
+    // its range: the value's, whatever it reads (mem[64] >= 0x60)
+    CHECK(A::range(t8) == A::Range::of(EvmInt(0x60), word_max()));
+    // a fact of here about mem[64] says nothing of the snapshot
+    A::Facts k = A::Facts().with_cond(A::cmp(Op::LT, fmp, mk_int(1000)));
+    CHECK(A::range(fmp, A::Top::Word, &k) == A::Range::of(EvmInt(0x60), EvmInt(999)));
+    CHECK(A::range(t8, A::Top::Word, &k) == A::Range::of(EvmInt(0x60), word_max()));
+    CHECK(A::eval_bool(A::cmp(Op::LT, t8, mk_int(1000)), &k) == Tri::None);
+    // a value that reads no state is the variable's value: tmp9 = cd[4] + 1
+    const Value t9 = V("tmp9"), x = V("(calldataload 4)");
+    std::vector<std::pair<Value, Value>> v2 = {{t8, fmp}, {t9, A::add(x, mk_int(1))}};
+    A::set_variables(v2, {});
+    CHECK(A::lt(x, t9) == Tri::None);  // x + 1 may wrap
+    A::Facts kx = A::Facts().with_cond(A::cmp(Op::LT, x, mk_int(50)));
+    CHECK(A::lt(x, t9, A::Top::Word, &kx) == Tri::True);
+    CHECK(A::range(t9, A::Top::Word, &kx) == A::Range::of(EvmInt(1), EvmInt(50)));
+    A::clear_variables();
+}
+
+TEST_CASE("ranges: variables set in one state, read in another, by sampling") {
+    Fixture f;
+    Gen g(271828);
+    std::mt19937_64 rng(11);
+    const Value t1 = V("tmp1"), t2 = V("tmp2");
+    const Value states[] = {V("(mem (range 64 32))"), V("(storage 256 0 5)"), V("(storage 8 160 3)"),
+                            V("(mem (range 128 32))"), V("gas"), V("(balance caller)")};
+    int bad = 0, decided = 0, total = 0;
+    static const Op ops[] = {Op::LT, Op::LE, Op::EQ, Op::GT, Op::SLT};
+    for (int round = 0; round < 300 && bad < 6; ++round) {
+        // the values: random, reads of state among them, no variables
+        auto value = [&] {
+            Value v;
+            switch (rng() % 3) {
+                case 0: v = states[rng() % std::size(states)]; break;
+                case 1: v = A::add(states[rng() % std::size(states)], mk_int(i64(rng() % 100))); break;
+                default: do v = A::normalize(g.rexp(2)); while (v.has_flags(F_VAR)); break;
+            }
+            return v;
+        };
+        const Value v1 = value(), v2 = value();
+        std::vector<std::pair<Value, Value>> vals = {{t1, v1}, {t2, v2}};
+        A::set_variables(vals, {});
+        // facts of the read's point, sometimes: a read of state bounded there
+        A::Facts k;
+        std::vector<std::pair<Value, std::pair<EvmInt, EvmInt>>> rs;
+        if (rng() % 2) {
+            static const int bounded[] = {0, 1, 3};  // (not the 8-bit field: past 255 it can't be)
+            const Value s = states[bounded[rng() % 3]];
+            const i64 c = 0x61 + i64(rng() % 4000);
+            k = k.with_cond(A::cmp(Op::LT, s, mk_int(c)));
+            rs.push_back({s, {s == states[0] ? EvmInt(0x60) : EvmInt(0), EvmInt(c - 1)}});
+        }
+        for (int q = 0; q < 16; ++q) {
+            // the variables beside the reads they were set from
+            Value a, b;
+            switch (rng() % 4) {
+                case 0: a = A::add(t1, mk_int(i64(rng() % 100))); b = A::add(v1, mk_int(i64(rng() % 100))); break;
+                case 1: a = A::add(t1, t2); b = A::add(v1, v2); break;
+                case 2: a = A::normalize(g.rexp(2)); b = g.related(a); break;
+                default: a = t1; b = A::add(states[rng() % std::size(states)], mk_int(i64(rng() % 50))); break;
+            }
+            if (rng() % 2) std::swap(a, b);
+            const A::Facts* fk = rng() % 2 ? &k : nullptr;
+            const A::Range ra = A::range(a, A::Top::Word, fk);
+            for (Op op : ops) {
+                ++total;
+                const Tri t = A::decide_cmp(op, a, b, A::Top::Word, fk);
+                if (t != Tri::None) ++decided;
+                for (u64 s = 0; s < 24; ++s) {
+                    TestEnv set_env(s * 7919 + u64(round));
+                    set_env.state_seed = s * 104729 + 1;
+                    TestEnv read_env(s * 7919 + u64(round));
+                    read_env.state_seed = s * 104729 + 2;
+                    if (fk) read_env.ranges = rs;
+                    read_env.fixed = {{t1, ev(v1, set_env)}, {t2, ev(v2, set_env)}};
+                    const Word256 wa = ev(a, read_env), wb = ev(b, read_env);
+                    if (op == Op::LT && !ra.contains(I(wa))) {
+                        ++bad;
+                        FAIL_CHECK("outside its range: ", dump(a), " = ", hexw(wa), " not in ", str(ra), " (t1 = ",
+                                   dump(v1), ", t2 = ", dump(v2), ")");
+                        break;
+                    }
+                    if (t != Tri::None && holds(op, wa, wb) != (t == Tri::True)) {
+                        ++bad;
+                        FAIL_CHECK("wrong decision ", tstr(t), " of ", op_name(op), " ", dump(a), " ", dump(b),
+                                   " (t1 = ", dump(v1), ", t2 = ", dump(v2), ", seed ", s, ")");
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    A::clear_variables();
+    CHECK(bad == 0);
+    MESSAGE("variables across states: ", decided, " of ", total, " decided");
 }
 
 TEST_CASE("ranges: long paths of facts") {
