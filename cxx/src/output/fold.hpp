@@ -16,5 +16,8 @@ Value with_entry(Value entry_lines, Value trace);
 Value snapshot_call_results(Value trace);
 // an if whose branches are the same but for their calls' ids: its lines
 Value merge_same_branches(Value ast);
+// every UNDEFINED(UNFINISHED, pc) one line (the smallest pc's): python's has
+// no pc, its folder merges the paths that end so
+Value one_unfinished(Value trace);
 
 }  // namespace pan::output::detail

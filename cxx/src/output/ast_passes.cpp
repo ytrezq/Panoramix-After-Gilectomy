@@ -13,6 +13,8 @@
 //    on call k (its offsets and lengths of numbers or of call k's size).
 //  - An if whose branches are the same lines but for the ids of the calls
 //    they make (python has no ids: they're equal there) is its lines.
+//  - The paths the VM didn't finish end in one line (python's has no pc:
+//    its folder merges them).
 #include <algorithm>
 #include <optional>
 #include <unordered_map>
@@ -22,6 +24,7 @@
 #include "algebra/eval.hpp"
 #include "core/budget.hpp"
 #include "core/context.hpp"
+#include "core/contract.hpp"
 #include "output/fold.hpp"
 
 namespace pan::output::detail {
@@ -513,7 +516,76 @@ bool read_before_written(Value lines, const EvmInt& a, const EvmInt& n, std::uno
     return r;
 }
 
+// ---- the paths the VM didn't finish ------------------------------------------------------
+
+bool unfinished(Value l) noexcept
+{
+    return l.is(Op::UNDEFINED, 2) && l[0].is_small() && l[0].small_val() == i64(UndefinedReason::UNFINISHED);
+}
+
+// the smallest pc of the trace's UNDEFINED(UNFINISHED, pc) lines
+void first_unfinished(Value v, std::optional<i64>& pc, std::unordered_set<u64>& seen)
+{
+    check_stack();
+    if (!(v.is_expr() || v.is_list()) || !seen.insert(v.raw()).second)
+        return;
+    if (unfinished(v)) {
+        const Value p = v[1];
+        if (p.is_small() && (!pc || p.small_val() < *pc))
+            pc = p.small_val();
+        return;
+    }
+    if (v.is_expr() && !v.is(Op::IF) && !v.is(Op::WHILE) && !v.is(Op::MERGED_IF))
+        return;  // (a line: lists of lines are only in these)
+    for (const Value a : v.args())
+        first_unfinished(a, pc, seen);
+}
+
+// every UNDEFINED(UNFINISHED, pc) as the one of the smallest pc
+Value as_one(Value v, Value one, std::unordered_map<u64, Value>& memo)
+{
+    check_stack();
+    if (unfinished(v))
+        return one;
+    if (!(v.is_list() || v.is(Op::IF) || v.is(Op::WHILE) || v.is(Op::MERGED_IF)))
+        return v;
+    if (const auto it = memo.find(v.raw()); it != memo.end())
+        return it->second;
+    std::vector<Value> args;
+    args.reserve(v.size());
+    bool changed = false;
+    for (const Value a : v.args()) {
+        const Value b = as_one(a, one, memo);
+        changed = changed || b != a;
+        args.push_back(b);
+    }
+    Value r = v;
+    if (changed) {
+        r = mk_like(v, args);
+        if (v.is_expr())
+            cx().pcs.inherit(r, v);
+    }
+    memo.emplace(v.raw(), r);
+    return r;
+}
+
 }  // namespace
+
+Value one_unfinished(Value trace)
+{
+    // python's undefined line has no pc: the paths its VM didn't finish end
+    // the same, and its folder makes them one
+    std::optional<i64> pc;
+    {
+        std::unordered_set<u64> seen;
+        first_unfinished(trace, pc, seen);
+    }
+    if (!pc)
+        return trace;
+    const Value one = mk(Op::UNDEFINED, Value::small(i64(UndefinedReason::UNFINISHED)), Value::small(*pc));
+    std::unordered_map<u64, Value> memo;
+    return as_one(trace, one, memo);
+}
 
 Value with_entry(Value entry_lines, Value trace)
 {

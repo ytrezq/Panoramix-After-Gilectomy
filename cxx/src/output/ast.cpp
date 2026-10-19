@@ -47,6 +47,7 @@ Value ast_here(Value trace, Value entry_lines, const AstOptions& opts)
     if (opts.short_circuits)
         t = simplify::short_circuits(t);
     if (opts.fold) {
+        t = detail::one_unfinished(t);
         t = detail::fold_trace(t);
         t = detail::merge_same_branches(t);
     }
