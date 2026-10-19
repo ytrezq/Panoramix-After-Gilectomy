@@ -1,7 +1,8 @@
 // Comparisons decided by ranges, truth values decided by ranges and path
-// facts (python algebra.ge_zero lt_op le_op max_op min_op _max_op
-// max_to_add, arithmetic.is_zero / eval_bool, simplify.cond_bounds
-// decide_le apply_constraint; asm ranges.s, conds.s).
+// facts (python algebra.ge_zero lt_op le_op max_op min_op _max_op,
+// arithmetic.is_zero / eval_bool, vm.is_known, simplify.cond_bounds
+// decide_le apply_constraint; asm ranges.s, conds.s). (python's max_to_add
+// isn't: a comparison with a MAX / MIN is decided by its operands.)
 //
 // Every answer is Tri (core/smallvec.hpp): True / False only when it holds
 // for every value of what the operands are made of (within top's
@@ -120,8 +121,9 @@ Value decide(Value cond, const Facts* facts = nullptr);
 // what cond (known to hold) says of expressions compared with constants:
 // x in [lo, hi] (CondBound, ranges.hpp: unsigned words; a signed comparison
 // when x < 2^255 for sure and the constant is below 2^255; through ISZERO /
-// BOOL; x itself, not 0, or ISZERO(x), 0; an AND of truth values, each of
-// them; the operands of a MIN compared from below: each is at least lo)
+// BOOL; x itself: not 0, ISZERO(x): 0; an AND that holds: each of its
+// operands; an OR that doesn't: none of them; the operands of a MIN
+// compared from below: each is at least lo)
 CondBounds cond_bounds(Value cond);
 // exp where cond holds: its MIN / MAX that cond decides made the operand
 // they are (python apply_constraint: min(32, returndatasize) is 32 once
