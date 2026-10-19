@@ -590,7 +590,8 @@ void Run::copy_out(BytesView src, const Word& at, std::size_t n, Bytes& out)
     if (at < Word{src.size()})
     {
         const auto a = static_cast<std::size_t>(at);
-        std::memcpy(out.data() + start, src.data() + a, std::min(n, src.size() - a));
+        const std::size_t k = std::min(n, src.size() - a);
+        if (k) std::memcpy(out.data() + start, src.data() + a, k);  // (no memcpy of 0 bytes from/to null)
     }
 }
 

@@ -415,6 +415,14 @@ struct ExpImpl {
                     o.col(Col::blue, text);
                     return;
                 }
+        if (p.raw_view() && n.is_name(NameKind::PARAM)) {
+            // (python's view before the traits: the word of the calldata it is)
+            const FunctionInfo* fn = env.fn();
+            if (fn && n.name_id() < fn->params.size()) {
+                o.put(std::format("cd[{}]", fn->params[n.name_id()].calldata_offset));
+                return;
+            }
+        }
         o.col(env.name_color(n), env.name_text(n));
     }
 
@@ -698,10 +706,10 @@ struct ExpImpl {
     // python's ("iszero", val) case
     void iszero_case(Value val, int ctx)
     {
-        // (an unsigned comparison's numbers: their words, see arith)
+        // (python's unsigned() of an lt's, a gt's numbers: their words)
         auto operand = [&](Value x, bool ordering) {
             if (ordering && x.is_int())
-                print_word(EvmInt(x), P_CMP + 1);
+                print_word(EvmInt(x).word(), P_CMP + 1);
             else
                 exp(x, P_CMP + 1, false);
         };
@@ -864,15 +872,15 @@ struct ExpImpl {
         // the operands after the first bind tighter: a / (b / c) isn't a / b / c
         const int rest_prec = prec + 1;
         const int first_prec = prec == P_CMP ? P_CMP + 1 : prec;  // (comparisons don't chain)
-        // (the numbers an unsigned comparison is made with are the words
-        // python's trace has: `x < 0xff..ff`, never `x < -1`)
+        // python's unsigned(): the numbers of an unsigned comparison as the
+        // words they are - `x < 0xff..ff`, never `x < -1`
         const bool ordering = op == Op::LT || op == Op::GT || op == Op::LE || op == Op::GE;
         Wrap w(o, prec, ctx);
         for (usize i = 0; i < args.size(); ++i) {
             if (i)
                 op_form(form);
             if (ordering && args[i].is_int())
-                print_word(EvmInt(args[i]), i ? rest_prec : first_prec);
+                print_word(EvmInt(args[i]).word(), i ? rest_prec : first_prec);
             else
                 exp(args[i], i ? rest_prec : first_prec, false);
         }
@@ -1190,14 +1198,57 @@ struct ExpImpl {
     struct ParamWordView {
         const ParamWord* word = nullptr;
     };
-    const ParamWord* env_word(i64 loc) const noexcept { return env.word_at(loc); }
+    // (python's raw view: no param names)
+    const ParamWord* env_word(i64 loc) const noexcept { return p.raw_view() ? nullptr : env.word_at(loc); }
     ParamWordView param_of(Value v) const noexcept
     {
+        if (p.raw_view())
+            return {};
         if (v.is(Op::CALLDATALOAD, 1) && v[0].is_small())
             return {env.word_at(v[0].small_val())};
         if (v.is_name(NameKind::PARAM))
             return {env.word_of_param(v.name_id())};
         return {};
+    }
+
+    // python's str() of a term of its IR (a tuple the prettifier doesn't
+    // know - a storage read before the storage analysis): ('storage', 256,
+    // 0, 7), its numbers decimal, its names ('var', '_1')
+    void pyrepr(Value v)
+    {
+        check_stack();
+        if (v.is_int()) {
+            o.put(int_dec(EvmInt(v)));
+            return;
+        }
+        if (v.is_name(NameKind::TMP)) {
+            o.put(std::format("('var', '_{}')", v.name_id()));
+            return;
+        }
+        if (v.is_leaf()) {
+            o.put('\'');
+            o.put(op_name(v.op()));
+            o.put('\'');
+            return;
+        }
+        if (v.is_expr()) {
+            o.put("('");
+            switch (v.op()) {
+                case Op::CALLDATALOAD: o.put("cd"); break;
+                case Op::SIZED: o.put("bytes"); break;
+                default: o.put(op_name(v.op())); break;
+            }
+            o.put('\'');
+            for (const Value a : v.args()) {
+                o.put(", ");
+                pyrepr(a);
+            }
+            if (v.size() == 0)
+                o.put(',');
+            o.put(')');
+            return;
+        }
+        pret(v);
     }
 
     // ---- the expression ops ----
@@ -1366,6 +1417,11 @@ struct ExpImpl {
                 break;
             case Op::STORAGE:
                 if (n == 3) {
+                    if (p.raw_view()) {
+                        // python's VM's term, which its prettifier doesn't know
+                        pyrepr(e);
+                        return;
+                    }
                     storage_read(e[0], e[1], e[2], ctx);
                     return;
                 }

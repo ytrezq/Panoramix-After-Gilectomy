@@ -45,19 +45,19 @@ namespace {
         ib = p + 1;
     }
     action insn_jump {
-        if (verbose) asm_line(insn_of(p));
+        if (explain) asm_line(insn_of(p));
         jump(pc_of(ib)); ended = true; fbreak;
     }
     action insn_jumpi {
-        if (verbose) asm_line(insn_of(p));
+        if (explain) asm_line(insn_of(p));
         jumpi(pc_of(ib), pc_of(p + 1)); ended = true; fbreak;
     }
     action insn_halt {
-        if (verbose) asm_line(insn_of(p));
+        if (explain) asm_line(insn_of(p));
         halt(*ib, pc_of(ib)); ended = true; fbreak;
     }
     action insn_unknown {
-        if (verbose) asm_line(insn_of(p));
+        if (explain) asm_line(insn_of(p));
         unknown(*ib, pc_of(ib)); ended = true; fbreak;
     }
 
@@ -78,6 +78,7 @@ void Vm::exec_block(u32 start) {
     const u8* const pe = code + size;
     const u8* ib = p;  // where the instruction being read starts
     const bool verbose = setup_.verbose;
+    const bool explain = setup_.explain;  // the control flow's ASM lines (python: --explain only)
     bool ended = false;
     const auto pc_of = [code](const u8* q) { return u32(q - code); };
     // the instruction from ib to last (its last byte)

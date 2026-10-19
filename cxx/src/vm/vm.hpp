@@ -70,6 +70,9 @@ struct InternalEntry {
 
 struct VmOptions {
     bool verbose = false;  // ASM lines (the CLI's --verbose / --explain)
+    // also the ASM lines of the control flow: jump, jumpi, stop, return, revert,
+    // invalid, selfdestruct (python records those under --explain only)
+    bool explain = false;
     // the recursive internal functions known (found by the earlier waves; for
     // an internal function's own run, its entry is among them): a call of one
     // is an INTERNAL line

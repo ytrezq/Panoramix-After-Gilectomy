@@ -55,6 +55,7 @@ VmResult run_function(const ContractShared& contract, const FunctionInfo& fn, co
     if (!contract.map) throw Unsupported("vm: no code map");
     RunSetup s;
     s.verbose = opts.verbose;
+    s.explain = opts.explain;
     s.max_nodes = opts.max_nodes;
     s.deadline_ns = vm_deadline(opts.timeout_ns, limits::VM_TIMEOUT_NS);
     if (opts.known_internals) s.internal = *opts.known_internals;

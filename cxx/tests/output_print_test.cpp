@@ -401,6 +401,21 @@ TEST_CASE("output: SafeMath's calls and def SafeMath (lot 8)")
                  "\n");
 }
 
+TEST_CASE("output: python's view in --explain and --verbose")
+{
+    Fixture f;
+    // --explain: the traces before the traits and the storage - a storage
+    // read is python's tuple
+    std::string ex;
+    explain_trace(ex, "Initial decompiled trace", V("{(return (sized 32 (storage 160 0 (add 1 tmp2))))}"), {});
+    CHECK(ex == "\n Initial decompiled trace: \n\n  return ('storage', 160, 0, ('add', 1, ('var', '_2')))\n\n\n");
+    // the final text: the asm's form of the analysis' failure
+    CHECK(L("{(return (sized 32 (storage 160 0 (add 1 tmp2))))}") == "  return address(stor[_2 + 1])\n");
+    // --verbose: the VM's stacks as python printed them in its VM
+    CHECK(L("{(asm 7 0x54 None [(storage 256 0 7) 5]) (stop)}") ==
+          "  #        [('storage', 256, 0, 7), 5]\n  # \n  # [7] sload\n");
+}
+
 TEST_CASE("output: the folder")
 {
     Fixture f;

@@ -296,6 +296,23 @@ public:
         const Subst* prev_;
     };
     const Subst* subst() const noexcept { return subst_; }
+
+    // python's view of a trace before its function's traits and storage
+    // (--explain's sections; the stacks of --verbose's lines, strings python
+    // made in its VM): the calldata as cd[k] - no param names -, a storage
+    // read as python's tuple ('storage', size, off, slot)
+    class RawView {
+    public:
+        explicit RawView(Printer& p, bool on = true) : p_(p), prev_(p.raw_view_) { p.raw_view_ = on; }
+        ~RawView() { p_.raw_view_ = prev_; }
+        RawView(const RawView&) = delete;
+        RawView& operator=(const RawView&) = delete;
+
+    private:
+        Printer& p_;
+        bool prev_;
+    };
+    bool raw_view() const noexcept { return raw_view_; }
     // python's pretty_line / pprint_logic: the lines of a trace at an
     // indentation (loops: the loops it's in)
     struct LoopRef {
@@ -314,6 +331,7 @@ private:
     Out& o_;
     const FnEnv& env_;
     const Subst* subst_ = nullptr;
+    bool raw_view_ = false;
 };
 
 // ---- the contract's text (contract.cpp) --------------------------------------------------

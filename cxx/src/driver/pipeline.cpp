@@ -591,6 +591,7 @@ void Run::run_job(bool internal, u32 i, JobOut& out)
         info(" -> Interpreting EVM on function...");
         vm::VmOptions vo;
         vo.verbose = s_.options.verbose || s_.explain;
+        vo.explain = s_.explain;  // python: the control flow's ASM lines under --explain only
         std::vector<vm::InternalEntry> own;
         if (internal) {
             own.push_back(recs_[i]);

@@ -175,6 +175,7 @@ struct RunSetup {
     bool just_fdests = false;  // discovery
     bool inside = false;       // an internal function's body
     bool verbose = false;
+    bool explain = false;      // + the control flow's ASM lines (python: --explain only)
     u32 max_nodes = 0;
     i64 deadline_ns = 0;       // 0: none
     std::vector<InternalEntry> internal;  // known recursive functions

@@ -31,18 +31,30 @@ std::string print_function(const driver::ContractResult& r, const FunctionInfo& 
     return std::move(function_text(&r, fn, opts).s);
 }
 
-std::string print_trace(Value trace, const TraceContext& ctx, u32 indent)
+namespace {
+
+// a trace's lines; raw: python's view of it before the traits and the
+// storage (--explain's sections)
+std::string trace_lines(Value trace, const TraceContext& ctx, u32 indent, bool raw)
 {
     Out o(ctx.color);
     const ContractNames names = contract_names(ctx.storage, ctx.safemath, ctx.db);
     const FnEnv env(ctx.fn, ctx.db, trace, &names);
     Printer p(o, env);
+    Printer::RawView view(p, raw);
     p.lines(trace, indent);
     if (o.s.empty()) {
         o.spaces(indent);
         o.put("stop\n");
     }
     return std::move(o.s);
+}
+
+}  // namespace
+
+std::string print_trace(Value trace, const TraceContext& ctx, u32 indent)
+{
+    return trace_lines(trace, ctx, indent, false);
 }
 
 std::string print_exp(Value e, const TraceContext& ctx)
@@ -68,7 +80,9 @@ void explain_trace(std::string& out, std::string_view title, Value trace, const 
     o.end();
     o.put("\n\n");
     out += o.s;
-    out += print_trace(trace, ctx, 2);
+    // (python's explain runs while the function is decompiled: before its
+    // params have names, before the storage analysis)
+    out += trace_lines(trace, ctx, 2, true);
     out += "\n\n";
 }
 

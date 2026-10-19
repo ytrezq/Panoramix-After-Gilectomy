@@ -471,7 +471,10 @@ struct LineImpl {
         o.code(Col::asm_code);
         o.put("       [");
         if (stack.is_list()) {
+            // (python's text of its VM's stack: made before the traits and
+            // the storage - no param names, raw storage reads)
             AddColor plain(o, false);
+            Printer::RawView raw(p);
             for (u32 i = 0; i < stack.size(); ++i) {
                 if (i)
                     o.put(", ");
