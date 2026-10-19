@@ -274,6 +274,12 @@ TEST_CASE("mem: concat and as_word") {
     CHECK(D(concat(parts3)) == "(sized 4 65538)");
     Value parts4[] = {V("(data (sized 1 1) (mem (range 0 1)))"), V("(mem (range 1 1))")};
     CHECK(D(concat(parts4)) == "(data (sized 1 1) (mem (range 0 2)))");
+    Value parts5[] = {V("(sized 12 0)"), V("(sized 20 caller)")};
+    CHECK(D(concat(parts5)) == "(sized 32 caller)");
+    Value parts6[] = {V("(sized 12 0)"), V("(sized 20 (calldataload 4))")};
+    CHECK(D(concat(parts6)) == "(data (sized 12 0) (sized 20 (calldataload 4)))");
+    Value parts7[] = {V("(sized 40 0)"), V("(sized 30 0)")};
+    CHECK(D(concat(parts7)) == "(sized 70 0)");
 
     CHECK(D(as_word(V("(sized 32 caller)"))) == "caller");
     CHECK(D(as_word(V("(sized 20 caller)"))) == "(mask_shl 160 0 0 caller)");

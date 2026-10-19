@@ -302,6 +302,14 @@ std::optional<Value> merge2(Value a, Value b, const Facts* f) {
                 if (o == 0 && k == 32) return sized(small(32), fa->y);
                 return sized(small(k), alg::mask(8 * k, o, -o, fa->y));
             }
+            // zeroes, then a number below 2^(8w) on w bytes: that number on
+            // all of them (python data_elements: an address in a word)
+            if (a[1] == kZero && b.size() == 2 && !is_bytes(b[1]) && !b[1].is_int()) {
+                auto z = nat(a[0]), w = nat(b[0]);
+                if (z && w && *z > 0 && *w > 0 && *z + *w <= 32 &&
+                    std::min(alg::max_bits(b[1]), alg::range_bits(b[1])) <= u32(8 * *w))
+                    return mk(Op::SIZED, small(*z + *w), b[1]);
+            }
             return merge_constants(a, b);
         }
         default:

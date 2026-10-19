@@ -92,6 +92,19 @@ Value reduce_minmax(Value v, Top top = Top::Word, const Facts* facts = nullptr);
 // values decided by ranges - Top::Word only: sound for every execution, the
 // VM prunes its jumps with it.
 Tri eval_bool(Value cond, const Facts* facts = nullptr);
+// what decided eval_bool's answers, on this thread (for the tools and the
+// tests: python decided with constants and the facts' conditions alone -
+// `beyond` counts what only the ranges, the comparisons taken apart and the
+// facts' comparisons chained decide)
+struct EvalStats {
+    u64 calls = 0;      // eval_bool
+    u64 constant = 0;   // its value (eval_const)
+    u64 matched = 0;    // a fact's condition, or its negation (Facts::match: python's is_known)
+    u64 beyond = 0;     // the rest
+    u64 undecided = 0;
+};
+EvalStats& eval_stats() noexcept;
+
 // cond == 0 as an expression: alg::iszero (the structural one: ISZERO
 // pushed through comparisons, BOOL, OR, AND) with what eval_bool decides:
 // the int 1 / 0 when decided
