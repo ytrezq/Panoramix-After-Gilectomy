@@ -266,35 +266,29 @@ Value mask_concrete(i64 s, i64 o, i64 h, Value x, int depth);
 Value build_term(const Acc& a, bool* exact) {
     const Word256& k = a.k;
     if (k.is_zero()) return small(0);
-    if (!is_field(a) || (a.off == 0 && a.size >= 256)) {
-        Value b = a.base;
-        if (k == Word256::of(1)) return b;
+    // k times the whole of x
+    auto whole = [&](Value x) -> Value {
+        if (k == Word256::of(1)) return x;
         Value ks = signed_value(k);
-        if (b.is(Op::MUL)) {
+        if (x.is(Op::MUL) && !is_const(x[0])) {  // a product's base: one MUL
             SmallVec<Value, 8> f;
             f.push_back(ks);
-            for (Value y : b.args()) f.push_back(y);
+            for (Value y : x.args()) f.push_back(y);
             return mk(Op::MUL, f.span());
         }
-        return mk(Op::MUL, ks, b);
-    }
+        if (x.is(Op::MUL) || x.is(Op::ADD)) {  // (a field of it became all of it)
+            *exact = false;
+            return mul(ks, x);
+        }
+        return mk(Op::MUL, ks, x);
+    };
+    if (!is_field(a) || (a.off == 0 && a.size >= 256)) return whole(a.base);
     u32 p = tz(k);
     if (p >= 256) return small(0);
     i32 s = a.size;
     if (i32(256 - p) < s) s = i32(256 - p);
     if (s <= 0) return small(0);
-    if (a.off == 0 && s == i32(256 - p)) {
-        // the whole of x times k
-        Value ks = signed_value(k);
-        if (k == Word256::of(1)) return a.base;
-        if (a.base.is(Op::MUL)) {
-            SmallVec<Value, 8> f;
-            f.push_back(ks);
-            for (Value y : a.base.args()) f.push_back(y);
-            return mk(Op::MUL, f.span());
-        }
-        return mk(Op::MUL, ks, a.base);
-    }
+    if (a.off == 0 && s == i32(256 - p)) return whole(a.base);
     // (through mask(): a narrower field may simplify what it is made of)
     const i64 h = i64(p) - a.off;
     Value m = mask_concrete(s, a.off, h, a.base, 0);
