@@ -20,6 +20,7 @@
 #include "core/errors.hpp"
 #include "evm/decoder.hpp"
 #include "hex.hpp"
+#include "loops/loops.hpp"
 #include "sigdb.hpp"
 #include "simplify/simplify.hpp"
 #include "validate/stage_check.hpp"
@@ -64,7 +65,11 @@ TEST_CASE("simplify: dump (PANORAMIX_SIMPLIFY_DUMP)") {
                 auto r = vm::run_function(shared, fn, o);
                 fn.trace = r.trace;
                 if (show_raw) std::printf("==== %s raw\n%s\n", name, dump_trace(fn.trace).c_str());
+                fn.calls = std::move(r.calls);
+                fn.loops = std::move(r.loops);
                 FunctionInfo g = fn;
+                loops::whiles_function(g);
+                if (show_raw) std::printf("==== %s whiles\n%s\n", name, dump_trace(g.trace).c_str());
                 simplify::simplify_function(g);
                 std::printf("==== %s simplified\n%s\n", name, dump_trace(g.trace).c_str());
             } catch (const Error& e) {
@@ -145,9 +150,13 @@ TEST_CASE("simplify: stage check (PANORAMIX_SIMPLIFY_CHECK)") {
         for (const auto& [internal, i] : todo)
             if (internal && internals[i].trace.nil()) internals[i].problem = 0;
         c.made[0] = true;
+        constexpr auto w = static_cast<unsigned>(validate::Stage::whiles);
+        loops::whiles_stage(c.functions[0], c.functions[w]);
+        loops::whiles_stage(c.internals[0], c.internals[w]);
+        c.made[w] = true;
         constexpr auto s = static_cast<unsigned>(validate::Stage::simplified);
-        simplify::simplify_stage(c.functions[0], c.functions[s], opts);
-        simplify::simplify_stage(c.internals[0], c.internals[s], opts);
+        simplify::simplify_stage(c.functions[w], c.functions[s], opts);
+        simplify::simplify_stage(c.internals[w], c.internals[s], opts);
         c.made[s] = true;
     };
     auto rep = validate::check_contract(*bytes, cfg, pipeline);
