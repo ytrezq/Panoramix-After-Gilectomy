@@ -133,6 +133,7 @@ void Vm::expand_trace() {
         }
     }
     frontier_.swap(next);
+    if (check_ && !dirty_ && reborn_.empty()) check_frontier();
 }
 
 void Vm::fold_stacks(Value first, Value second, u32 key, Value& folded, std::pmr::vector<LoopVar>& vars) const {
@@ -473,11 +474,14 @@ std::optional<bool> Vm::merge_at(NodeId p, Value jd, bool loop_exit) {
     // the answer for p's subtree as it was, if it hasn't changed since (the
     // answer reads nothing else: asm's merge_visit stamps)
     const Key2 key{(u64(p) + 1) << 1 | u64(loop_exit), jd.raw()};
+    std::optional<std::optional<bool>> memoized;
     if (const MergeMemo* m = merge_memo_.find(key); m && m->stamp == nodes_[p].stamp) {
-        if (m->result == 0) return false;
-        return std::nullopt;
+        memoized = m->result == 0 ? std::optional<bool>(false) : std::nullopt;
+        if (!check_) return *memoized;
     }
     auto memo = [&](std::optional<bool> r) {
+        if (memoized && *memoized != r)
+            throw InternalError("vm: a memoized merge answer differs (PANORAMIX_VM_CHECK)");
         merge_memo_.put(key, MergeMemo{nodes_[p].stamp, i8(r ? 0 : 2)});
         return r;
     };
@@ -593,6 +597,7 @@ std::optional<bool> Vm::merge_at(NodeId p, Value jd, bool loop_exit) {
     for (NodeId h : hits)
         if (nodes_[h].last_call != last_call) last_call = kAmbiguousCall;
 
+    if (memoized) throw InternalError("vm: a memoized merge answer differs (PANORAMIX_VM_CHECK)");
     ++gen_;  // (a merge: the memo's answers below p and above it no longer hold)
     for (usize k = 0; k < hits.size(); ++k) {
         Node& h = nodes_[hits[k]];

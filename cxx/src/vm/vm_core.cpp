@@ -162,6 +162,14 @@ Vm::Vm(const ContractShared& contract, const RunSetup& setup)
       walk_(res_),
       out_(res_) {
     internal_ = setup.internal;
+    check_ = platform::env("PANORAMIX_VM_CHECK") != nullptr;
+}
+
+void Vm::check_frontier() const {
+    std::pmr::vector<NodeId> walk(res_);
+    unexpanded(walk);
+    if (walk.size() != frontier_.size() || !std::equal(walk.begin(), walk.end(), frontier_.begin()))
+        throw InternalError("vm: the frontier differs from the tree's walk (PANORAMIX_VM_CHECK)");
 }
 
 Value Vm::jd_of(u32 start, u32 sw, Value stack) const {
@@ -281,6 +289,7 @@ void Vm::refresh_frontier() {
     }
     reborn_.clear();
     dirty_ = false;
+    if (check_) check_frontier();
 }
 
 bool Vm::dfs_less(NodeId u, NodeId v) const {

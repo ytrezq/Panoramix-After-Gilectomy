@@ -87,7 +87,8 @@ struct TestEnv final : A::Env {
     std::optional<Word256> value(Value v, A::Evaluator& ev) override {
         for (auto& [x, w] : fixed)
             if (x == v) return w;
-        const u64 sd = v.has_flags(F_VOLATILE) ? state_seed : seed;
+        // (a loop's variable moves as the state does)
+        const u64 sd = v.has_flags(F_VOLATILE) || v.is_name(NameKind::LOOP) ? state_seed : seed;
         for (auto& [x, r] : ranges)
             if (x == v) return in_range(r.first, r.second, A::RandomEnv::word_for(sd ^ 0x77, v.hash()));
         if (v.is(Op::STORAGE, 3) && v[0].is_small() && v[1].is_small() && v[0].small_val() >= 0 &&
@@ -585,7 +586,9 @@ TEST_CASE("ranges: the variables and the memory top") {
     CHECK(A::range(t1) == A::Range::of(EvmInt(5), EvmInt(10)));
     CHECK(A::range(t2) == A::Range::of(EvmInt(6), EvmInt(11)));
     CHECK(A::range(l7) == A::Range::word());  // cyclic: a loop's counter
-    CHECK(A::lt(t1, t2) == Tri::True);
+    // (tmp2 = tmp1 + 1, but tmp1 has two values: set in a loop, it may have
+    // moved since tmp2 was - not substituted; python's ranges can't either)
+    CHECK(A::lt(t1, t2) == Tri::None);
     CHECK(A::eval_bool(A::cmp(Op::LT, t1, mk_int(11))) == Tri::True);
     // the memory top: unchecked words aren't below 2^64, the small ones are
     CHECK(A::unchecked(V("(calldataload 4)")));
@@ -802,6 +805,17 @@ TEST_CASE("ranges: a variable set before the state changed (lot 7's stETH case)"
     A::Facts kx = A::Facts().with_cond(A::cmp(Op::LT, x, mk_int(50)));
     CHECK(A::lt(x, t9, A::Top::Word, &kx) == Tri::True);
     CHECK(A::range(t9, A::Top::Word, &kx) == A::Range::of(EvmInt(1), EvmInt(50)));
+    // tmp5 = loop7 + 1 set in a loop's body: once loop7 moved, no loop7 + 1
+    const Value t5 = V("tmp5"), l7 = V("loop7");
+    std::vector<std::pair<Value, Value>> v3 = {
+        {l7, mk_int(0)}, {l7, A::add(l7, mk_int(1))}, {t5, A::add(l7, mk_int(1))}, {t9, A::add(x, mk_int(1))},
+        {V("tmp10"), A::add(t9, mk_int(1))}, {V("tmp11"), A::add(t5, mk_int(1))}};
+    A::set_variables(v3, {});
+    CHECK(A::eq(t5, A::add(l7, mk_int(1))) == Tri::None);
+    CHECK(A::eq(V("tmp11"), A::add(l7, mk_int(2))) == Tri::None);
+    // a chain of stable ones: tmp10 = tmp9 + 1 = cd[4] + 2
+    CHECK(A::lt(x, V("tmp10"), A::Top::Word, &kx) == Tri::True);
+    CHECK(A::word_diff(t9, V("tmp10"), A::Top::Word, &kx) == A::Range::point(EvmInt(1)));
     A::clear_variables();
 }
 
@@ -815,18 +829,32 @@ TEST_CASE("ranges: variables set in one state, read in another, by sampling") {
     int bad = 0, decided = 0, total = 0;
     static const Op ops[] = {Op::LT, Op::LE, Op::EQ, Op::GT, Op::SLT};
     for (int round = 0; round < 300 && bad < 6; ++round) {
-        // the values: random, reads of state among them, no variables
+        // the values: random, reads of state among them, a loop's variable
+        // (it moves too), no tmp1 / tmp2
+        const Value l7 = V("loop7");
+        auto mentions_tmp = [&](Value v) {
+            SmallVec<Value, 16> work{v};
+            while (!work.empty()) {
+                Value x = work.back();
+                work.pop_back();
+                if (x == t1 || x == t2) return true;
+                for (Value c : x.children()) work.push_back(c);
+            }
+            return false;
+        };
         auto value = [&] {
             Value v;
-            switch (rng() % 3) {
+            switch (rng() % 4) {
                 case 0: v = states[rng() % std::size(states)]; break;
                 case 1: v = A::add(states[rng() % std::size(states)], mk_int(i64(rng() % 100))); break;
-                default: do v = A::normalize(g.rexp(2)); while (v.has_flags(F_VAR)); break;
+                case 2: v = A::add(l7, mk_int(i64(rng() % 100))); break;
+                default: do v = A::normalize(g.rexp(2)); while (mentions_tmp(v)); break;
             }
             return v;
         };
         const Value v1 = value(), v2 = value();
-        std::vector<std::pair<Value, Value>> vals = {{t1, v1}, {t2, v2}};
+        std::vector<std::pair<Value, Value>> vals = {
+            {t1, v1}, {t2, v2}, {l7, mk_int(0)}, {l7, A::add(l7, mk_int(1))}};
         A::set_variables(vals, {});
         // facts of the read's point, sometimes: a read of state bounded there
         A::Facts k;
@@ -841,8 +869,9 @@ TEST_CASE("ranges: variables set in one state, read in another, by sampling") {
         for (int q = 0; q < 16; ++q) {
             // the variables beside the reads they were set from
             Value a, b;
-            switch (rng() % 4) {
+            switch (rng() % 5) {
                 case 0: a = A::add(t1, mk_int(i64(rng() % 100))); b = A::add(v1, mk_int(i64(rng() % 100))); break;
+                case 4: a = A::add(t2, mk_int(i64(rng() % 9))); b = A::add(l7, mk_int(i64(rng() % 9))); break;
                 case 1: a = A::add(t1, t2); b = A::add(v1, v2); break;
                 case 2: a = A::normalize(g.rexp(2)); b = g.related(a); break;
                 default: a = t1; b = A::add(states[rng() % std::size(states)], mk_int(i64(rng() % 50))); break;

@@ -11,6 +11,7 @@
 #include "core/errors.hpp"
 #include "core/jobs.hpp"
 #include "core/platform.hpp"
+#include "loops/loops.hpp"
 #include "sigdb.hpp"
 #include "simplify/simplify.hpp"
 #include "vm/vm.hpp"
@@ -144,16 +145,23 @@ void raw_pipeline(Decompiled& c, Stage, pan::Budget& budget)
     c.made[static_cast<unsigned>(Stage::raw)] = true;
 }
 
-/// raw_pipeline, then the stages made from it so far: the simplified traces
-/// (lot 7) from the raw ones (whiles, lot 6, not yet: left unmade).
+/// raw_pipeline, then the stages made from it so far: the whiles (lot 6)
+/// from the raw traces, the simplified traces (lot 7) from the whiles.
 void pipeline(Decompiled& c, Stage upto, pan::Budget& budget)
 {
     raw_pipeline(c, upto, budget);
+    constexpr auto w = static_cast<unsigned>(Stage::whiles);
+    if (upto >= Stage::whiles)
+    {
+        pan::loops::whiles_stage(c.functions[0], c.functions[w]);
+        pan::loops::whiles_stage(c.internals[0], c.internals[w]);
+        c.made[w] = true;
+    }
     if (upto >= Stage::simplified)
     {
         constexpr auto s = static_cast<unsigned>(Stage::simplified);
-        pan::simplify::simplify_stage(c.functions[0], c.functions[s]);
-        pan::simplify::simplify_stage(c.internals[0], c.internals[s]);
+        pan::simplify::simplify_stage(c.functions[w], c.functions[s]);
+        pan::simplify::simplify_stage(c.internals[w], c.internals[s]);
         c.made[s] = true;
     }
 }
@@ -496,7 +504,7 @@ int main(int argc, char** argv)
         return 1;
     }
     if (o.check.upto > Stage::raw)
-        std::cout << "(the stages made so far: raw, simplified (from raw: whiles needs lot 6); past "
+        std::cout << "(the stages made so far: raw, whiles, simplified (from whiles); past "
                      "simplified, lot 12's pipeline)\n";
     std::cout << "stagecheck: " << paths.size() << " contracts, seed " << o.check.seed << ", "
               << (o.check.db != nullptr ? "typed" : "untyped") << " calldata, "

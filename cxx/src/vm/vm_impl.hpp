@@ -291,6 +291,10 @@ private:
         i8 result;  // 0: false, 2: too early to tell
     };
     Memo<Key2, MergeMemo> merge_memo_;
+    // PANORAMIX_VM_CHECK: the incremental frontier and the merge memo
+    // checked against python's walks (InternalError on a difference)
+    bool check_ = false;
+    void check_frontier() const;
     // the loops replace_loops made this round, in the order of the tree; and
     // whether some of an earlier round's are left (a walk finds them)
     std::pmr::vector<NodeId> new_loops_;
