@@ -93,6 +93,12 @@ std::optional<Value> resize_bytes(Value b, Value n);
 // of old_elem, new_elem). old_elem itself when new_elem can't be made that
 // wide (old_elem's width unknown and new_elem a word).
 Value keep_width(Value old_elem, Value new_elem);
+// new_exp, old_exp with its operands rewritten (the same op and operand
+// count), its byte operands as wide as they were (python keep_widths:
+// keep_width on each byte_operands position that changed) and a SETMEM's
+// value as many bytes as its range (sized when it is bytes of another
+// width); new_exp itself when nothing needs it
+Value keep_widths(Value old_exp, Value new_exp);
 
 // The width a word element would be printed with if its SIZED were left
 // out (python sizeof, for the printer's fix_widths - lot 10 - and the

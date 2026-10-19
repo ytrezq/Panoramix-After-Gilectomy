@@ -587,6 +587,32 @@ Value keep_width(Value old_elem, Value new_elem) {
     return sized(*w, new_elem);
 }
 
+Value keep_widths(Value old_exp, Value new_exp) {
+    if (new_exp == old_exp || !old_exp.is_expr() || !new_exp.is_expr() || old_exp.op() != new_exp.op() ||
+        old_exp.size() != new_exp.size())
+        return new_exp;
+    SmallVec<Value, 8> args;
+    for (Value a : new_exp.args()) args.push_back(a);
+    bool changed = false;
+    for (u8 i : byte_operands(new_exp)) {
+        if (args[i] == old_exp[i]) continue;
+        Value k = keep_width(old_exp[i], args[i]);
+        changed |= k != args[i];
+        args[i] = k;
+    }
+    if (new_exp.is(Op::SETMEM, 2) && is_range(new_exp[0]) && is_bytes(args[1]) && !args[1].is_none()) {
+        const Value len = new_exp[0][1];
+        auto w = width_of(args[1]);
+        if (!(w && same_int(*w, len))) {
+            Value k = sized(len, args[1]);
+            changed |= k != args[1];
+            args[1] = k;
+        }
+    }
+    if (!changed) return new_exp;
+    return mk(new_exp.op(), args.span());
+}
+
 std::optional<u32> implicit_width(Value word) noexcept {
     auto bytes_of = [](i64 bits) -> std::optional<u32> {
         if (bits <= 0 || bits > 256 || bits % 8) return std::nullopt;
