@@ -465,7 +465,14 @@ void Run::run_wave(const std::vector<std::pair<bool, u32>>& jobs)
             usize from = 0;
             if (out.explain_first && explain_prev_ && out.first_hash == explain_prev_hash_)
                 from = out.first_end;
-            explain_.append(out.explain, from, std::string::npos);
+            if (!explain_cut_) {
+                if (explain_.size() + (out.explain.size() - std::min(from, out.explain.size())) > EXPLAIN_MAX) {
+                    explain_ += EXPLAIN_CUT;
+                    explain_cut_ = true;
+                } else {
+                    explain_.append(out.explain, std::min(from, out.explain.size()), std::string::npos);
+                }
+            }
             out.explain.clear();
             out.explain.shrink_to_fit();
             if (out.explain_last) {
@@ -759,8 +766,14 @@ void Run::assemble()
 void Run::contract_phase()
 {
     ContractResult& r = result_;
-    // (Analysed: lot 9's storage over every function, lot 8's SafeMath;
-    // Folded: lot 10's folds - when they land)
+    // When they land (python's Contract.postprocess): lot 8's traits run in
+    // the jobs after Simplified (python's Function(): params, payable - the
+    // callvalue check out of the trace -, read_only, const, getter; --explain's
+    // "function traits"); here lot 9's storage over every function (Analysed:
+    // the storage forms, ContractResult::storage; its fallback the raw
+    // accesses), lot 10's folds, each function on a context of its own on
+    // threads under the post-processing's deadline (Folded), lot 8's SafeMath
+    // on the asts (ContractResult::safemath).
     if (StageObserver* o = s_.options.observer)
         for (unsigned s = 0; s < STAGE_COUNT; ++s)
             if (r.made[s] && r.kept[s])

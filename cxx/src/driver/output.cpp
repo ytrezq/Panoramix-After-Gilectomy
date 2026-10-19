@@ -143,10 +143,19 @@ void Explainer::trace(std::string_view title, Value t)
     const u64 h = t.hash();
     if (last && h == last_hash)
         return;  // python's explain: not the trace printed last
+    if (cut_)
+        return;
     const Colors c(color_);
+    const usize before = out.size();
     out += std::format("\n{} {}: {}\n\n", c.green_back, title, c.end);
     append_lines(out, t, 2);
     out += "\n\n";
+    if (out.size() > EXPLAIN_MAX) {
+        out.resize(before);
+        out += EXPLAIN_CUT;
+        cut_ = true;
+        return;
+    }
     if (!first) {
         first = true;
         first_hash = h;

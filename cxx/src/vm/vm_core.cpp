@@ -238,7 +238,10 @@ NodeId Vm::new_node(u32 start, bool safe, Value stack, Value condition, const Fa
 }
 
 void Vm::set_prev(NodeId child, NodeId parent) {
-    nodes_[child].dead = false;
+    // in the tree when its parent is (python's attached: continue_loops
+    // makes labels of loops a former one cut off, as python does - they stay
+    // off the tree, out of the frontier)
+    nodes_[child].dead = nodes_[parent].dead;
     Link& c = links_[child];
     const Link& p = links_[parent];
     c.prev = parent;

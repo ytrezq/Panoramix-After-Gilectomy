@@ -25,6 +25,12 @@ inline constexpr const char* MSG_DISCOVERY_TIMEOUT = "finding the functions took
 inline constexpr const char* MSG_POST_TIMEOUT = "the post-processing and the text took more than 3 minutes";
 inline constexpr const char* MSG_NO_MEMORY = "out of memory: the system gave no more";
 
+// --explain's text: at most this much of it, a job's and the whole (python
+// prints it as it goes; here it is kept until the text is made), the rest
+// cut with a line that says so
+inline constexpr usize EXPLAIN_MAX = usize{1} << 30;
+inline constexpr std::string_view EXPLAIN_CUT = "\n(--explain: the text past 1024 MiB is cut)\n";
+
 // now + base scaled by PANORAMIX_TIMEOUT (scaled_timeout); 0: no time limit
 i64 deadline_after(i64 base_ns) noexcept;
 // the earlier of two deadlines (0: none)
@@ -60,6 +66,7 @@ public:
 
 private:
     bool color_;
+    bool cut_ = false;  // past EXPLAIN_MAX: no more sections
 };
 
 // The settings of a run of the pipeline.
@@ -123,7 +130,7 @@ private:
     std::vector<vm::InternalEntry> recs_;   // ints_'s records
     std::vector<JobOut> fn_out_, int_out_;
     std::string explain_;
-    bool explain_prev_ = false;
+    bool explain_prev_ = false, explain_cut_ = false;
     u64 explain_prev_hash_ = 0;
     ContractResult result_;
 };

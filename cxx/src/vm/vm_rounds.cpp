@@ -263,10 +263,16 @@ bool Vm::continue_loops() {
     // the loops replace_loops just made - or, when the tree changed since or
     // an earlier round left some, all of them (python find_nodes)
     std::pmr::vector<NodeId> loops(res_);
-    if (dirty_ || stale_loops_)
+    if (dirty_ || stale_loops_) {
         find_nodes(root_, [](const Node& n) { return n.end == End::Loop; }, loops);
-    else
+    } else {
         loops.assign(new_loops_.begin(), new_loops_.end());
+        if (check_) {
+            std::pmr::vector<NodeId> walk(res_);
+            find_nodes(root_, [](const Node& n) { return n.end == End::Loop; }, walk);
+            if (walk != loops) throw InternalError("vm: the new loops differ from the tree's (PANORAMIX_VM_CHECK)");
+        }
+    }
     new_loops_.clear();
     stale_loops_ = true;  // (until all are done)
     for (NodeId id : loops) {
