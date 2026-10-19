@@ -30,6 +30,7 @@
 #include "core/contract.hpp"
 #include "core/dump.hpp"
 #include "core/errors.hpp"
+#include "core/platform.hpp"
 #include "core/smallvec.hpp"
 #include "hex.hpp"
 #include "mem/memory.hpp"
@@ -372,6 +373,7 @@ TEST_CASE("mem: corpus by execution (PANORAMIX_MEM_CORPUS)") {
     init();
     PassCounts total;
     unsigned long done = 0, index = 0, worse = 0, failed = 0;
+    i64 total_pass_ns = 0;
     unsigned long same[2] = {}, diff[2] = {}, bugs[2] = {}, inc[2] = {};
     for (const std::string& p : paths) {
         if (index++ < skip) continue;
@@ -390,10 +392,13 @@ TEST_CASE("mem: corpus by execution (PANORAMIX_MEM_CORPUS)") {
         cfg.db = db.get();
         cfg.timeout_ns = 600 * limits::SEC;
         cfg.keep = 2;
+        i64 pass_ns = 0;
         auto pipeline = [&](validate::Decompiled& c, validate::Stage, Budget& budget) {
             raw_stage(c, budget);
+            const i64 t0 = platform::monotonic_ns();
             for (const auto& fn : c.functions[0]) c.functions[1].push_back(with_memory_model(fn, n));
             for (const auto& fn : c.internals[0]) c.internals[1].push_back(with_memory_model(fn, n));
+            pass_ns = platform::monotonic_ns() - t0;
             c.made[1] = true;
         };
         validate::StageReport r = validate::check_contract(*bytes, cfg, pipeline);
@@ -419,10 +424,12 @@ TEST_CASE("mem: corpus by execution (PANORAMIX_MEM_CORPUS)") {
         total.setmems_split += n.setmems_split;
         total.stores += n.stores;
         total.stores_split += n.stores_split;
-        std::printf("%-40s raw: %s | mem: %s | reads %llu filled %llu setmems %llu/%llu stores %llu/%llu%s\n",
+        std::printf("%-40s raw: %s | mem: %s | reads %llu filled %llu setmems %llu/%llu stores %llu/%llu pass %lld ms%s\n",
                     name.c_str(), stage_line(s0).c_str(), stage_line(s1).c_str(), (unsigned long long)n.reads,
                     (unsigned long long)n.filled, (unsigned long long)n.setmems_split, (unsigned long long)n.setmems,
-                    (unsigned long long)n.stores_split, (unsigned long long)n.stores, bad ? " WORSE" : "");
+                    (unsigned long long)n.stores_split, (unsigned long long)n.stores, (long long)(pass_ns / 1000000),
+                    bad ? " WORSE" : "");
+        total_pass_ns += pass_ns;
         if (bad && !quiet)
             for (const auto& x : s1.examples)
                 std::printf("    [%s] %s\n      %s\n      where: %s\n      expected: %s\n      actual: %s\n",
@@ -431,10 +438,11 @@ TEST_CASE("mem: corpus by execution (PANORAMIX_MEM_CORPUS)") {
         std::fflush(stdout);
     }
     std::printf("TOTAL %lu contracts (%lu failed): raw same %lu diff %lu bugs %lu inc %lu | mem same %lu diff %lu bugs "
-                "%lu inc %lu | worse %lu | reads %llu filled %llu setmems split %llu/%llu stores split %llu/%llu\n",
+                "%lu inc %lu | worse %lu | reads %llu filled %llu setmems split %llu/%llu stores split %llu/%llu | pass %lld ms\n",
                 done, failed, same[0], diff[0], bugs[0], inc[0], same[1], diff[1], bugs[1], inc[1], worse,
                 (unsigned long long)total.reads, (unsigned long long)total.filled,
                 (unsigned long long)total.setmems_split, (unsigned long long)total.setmems,
-                (unsigned long long)total.stores_split, (unsigned long long)total.stores);
+                (unsigned long long)total.stores_split, (unsigned long long)total.stores,
+                (long long)(total_pass_ns / 1000000));
     CHECK(worse == 0);
 }

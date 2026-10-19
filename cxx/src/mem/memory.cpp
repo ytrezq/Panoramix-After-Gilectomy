@@ -186,6 +186,7 @@ bool const_bytes(Value b, std::vector<u8>& out) {
 }
 
 bool is_const_bytes(Value b) {
+    check_stack();
     if (b.is_bytes() || is_long_const(b)) return true;
     if (b.is(Op::SIZED, 2)) return nat(b[0]).has_value() && (b[1].is_int() || is_const_bytes(b[1]));
     if (b.is(Op::DATA)) {
