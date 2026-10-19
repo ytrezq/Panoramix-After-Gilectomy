@@ -4,6 +4,7 @@
 // gotos (continue_loops), merge the branches that meet again
 // (merge_branches) - and the trace of the tree (make_trace).
 #include <algorithm>
+#include <cstdio>
 
 #include "algebra/construct.hpp"
 #include "algebra/eval.hpp"
@@ -80,6 +81,7 @@ void Vm::explore() {
     for (u32 j = 0; j < limits::VM_ROUNDS; ++j) {
         for (u32 i = 0; i < limits::VM_ROUND_STEPS; ++i) {
             poll();
+            ++stats_.rounds;
             refresh_frontier();
             expand_trace();
             replace_loops();
@@ -93,6 +95,19 @@ void Vm::explore() {
         continue_loops();
         refresh_frontier();
         if (frontier_.empty() || should_quit()) break;
+    }
+    if (stats_on_) {
+        const Stats& s = stats_;
+        std::fprintf(stderr,
+                     "vm stats: start %u nodes %u steps %llu passes %llu pairs %llu merge_at %llu memo %llu "
+                     "pops %llu skips %llu summarized %llu merged-branch steps %llu recursion steps %llu "
+                     "merges %llu\n",
+                     setup_.start, node_count_, (unsigned long long)s.rounds, (unsigned long long)s.passes,
+                     (unsigned long long)s.pairs, (unsigned long long)s.merge_calls,
+                     (unsigned long long)s.memo_hits, (unsigned long long)s.visit_pops,
+                     (unsigned long long)s.skips, (unsigned long long)s.summarized,
+                     (unsigned long long)s.merged_branch_steps, (unsigned long long)s.recursion_steps,
+                     (unsigned long long)s.merges);
     }
 }
 
@@ -387,6 +402,7 @@ bool Vm::in_merged_branch(NodeId n, NodeId p) const {
     NodeId a = nodes_[n].prev;
     while (a != NO_NODE && a != p) {
         const Node& x = nodes_[a];
+        ++stats_.merged_branch_steps;
         if (x.end == End::If && x.cont != NO_NODE && (x.a == child || x.b == child)) return true;
         child = a;
         a = x.prev;
@@ -420,6 +436,7 @@ void Vm::merge_unexpanded(std::pmr::vector<NodeId>& unexp) {
     struct Group {
         u32 off, len;
     };
+    ++stats_.passes;
     std::pmr::vector<Group> groups(res_);
     std::pmr::vector<NodeId> members(res_), tmp(res_);
     Memo<Value, u32> index;  // jd -> 1 + its group
@@ -446,6 +463,7 @@ void Vm::merge_unexpanded(std::pmr::vector<NodeId>& unexp) {
             if (other == node) continue;
             // the paths to node and other diverged at their closest common
             // ancestor: if it's an IF, that's where they could be merged
+            ++stats_.pairs;
             NodeId p = common_ancestor(node, other);
             const Node& pn = nodes_[p];
             if (!(pn.end == End::If && pn.cont == NO_NODE)) continue;
@@ -474,8 +492,10 @@ std::optional<bool> Vm::merge_at(NodeId p, Value jd, bool loop_exit) {
     // answer reads nothing else: asm's merge_visit stamps)
     const Key2 key{(u64(p) + 1) << 1 | u64(loop_exit), jd.raw()};
     std::optional<std::optional<bool>> memoized;
+    ++stats_.merge_calls;
     if (const MergeMemo* m = merge_memo_.find(key); m && m->stamp == nodes_[p].stamp) {
         memoized = m->result == 0 ? std::optional<bool>(false) : std::nullopt;
+        ++stats_.memo_hits;
         if (!check_) return *memoized;
     }
     auto memo = [&](std::optional<bool> r) {
@@ -570,6 +590,7 @@ std::optional<bool> Vm::merge_at(NodeId p, Value jd, bool loop_exit) {
 
     if (memoized) throw InternalError("vm: a memoized merge answer differs (PANORAMIX_VM_CHECK)");
     ++gen_;  // (a merge: the memo's answers below p and above it no longer hold)
+    ++stats_.merges;
     for (usize k = 0; k < hits.size(); ++k) {
         Node& h = nodes_[hits[k]];
         h.lines.assign(setvars[k].begin(), setvars[k].end());
@@ -601,10 +622,14 @@ std::optional<bool> Vm::merge_visit(NodeId start, NodeId p, Value jd, bool false
         poll();
         NodeId n = todo.back();
         todo.pop_back();
+        ++stats_.visit_pops;
         // only a false would change the answer now: not in a subtree that
         // can't give one (84% of the nodes zx_Staking's merges walked were
         // such a rest, says the asm)
-        if (skips && (false_only || !result) && can_skip(n, p, jd)) continue;
+        if (skips && (false_only || !result) && can_skip(n, p, jd)) {
+            ++stats_.skips;
+            continue;
+        }
         const Node& x = nodes_[n];
         if (x.merged) {
             // goes on in the continuation of the IF it was merged at,
@@ -671,6 +696,7 @@ void Vm::summarize(NodeId root) {
             continue;
         }
         st.pop_back();
+        ++stats_.summarized;
         // its own loop's jd, its children's summaries, their merge points
         // that aren't below it
         u64 mask = x.label != NO_NODE ? sum_jd_bit(x.jd) : 0;
@@ -806,6 +832,7 @@ std::optional<InternalEntry> Vm::recursion_of(NodeId id) {
     std::pmr::vector<NodeId> found(res_);
     for (NodeId prev = node.prev; prev != NO_NODE; prev = nodes_[prev].prev) {
         poll();
+        ++stats_.recursion_steps;
         const Node& pn = nodes_[prev];
         if (pn.start != start || pn.sw || pn.stack.size() >= nstack.size()) continue;
         auto p = top_dest(pn.stack);

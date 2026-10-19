@@ -39,6 +39,7 @@
 #include "core/base.hpp"
 #include "core/contract.hpp"
 #include "core/value.hpp"
+#include "decompile.hpp"
 #include "vm/vm.hpp"
 
 namespace pan {
@@ -158,6 +159,14 @@ ContractResult run_pipeline(std::span<const u8> code, const PipelineOptions& opt
 
 // run_pipeline up to a stage (lot 11's hook)
 ContractResult run_until(std::span<const u8> code, Stage upto, const PipelineOptions& options);
+
+// decompile.hpp's decompile (pan::decompile is this): the pipeline to its
+// last stage on a thread of limits::WORKER_STACK, on a context of its own
+// (the asm's phase limits: the discovery half of a function's limit, the
+// post-processing and the text base + imports + a function's limit), then
+// the outputs. Throws DecompileError ("decompilation failed: ...": the
+// contract phase's limits, a code past 4 GiB) and std::bad_alloc.
+Decompilation decompile(std::span<const u8> code, const DecompileOptions& options);
 
 // python's get_func_name(hash) of a function of the dispatcher (no color):
 // its signature from the database, "unknown%08x(?)" for a selector it doesn't

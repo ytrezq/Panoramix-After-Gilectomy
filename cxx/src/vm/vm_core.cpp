@@ -164,6 +164,7 @@ Vm::Vm(const ContractShared& contract, const RunSetup& setup)
       out_(res_) {
     internal_ = setup.internal;
     check_ = platform::env("PANORAMIX_VM_CHECK") != nullptr;
+    stats_on_ = platform::env("PANORAMIX_VM_STATS") != nullptr;
 }
 
 void Vm::check_frontier() const {

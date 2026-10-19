@@ -337,6 +337,13 @@ private:
     // PANORAMIX_VM_CHECK: the incremental frontier and the merge memo
     // checked against python's walks (InternalError on a difference)
     bool check_ = false;
+    // PANORAMIX_VM_STATS: what the rounds did, on stderr at the end
+    struct Stats {
+        u64 rounds = 0, passes = 0, pairs = 0, merge_calls = 0, memo_hits = 0, visit_pops = 0, skips = 0,
+            summarized = 0, merged_branch_steps = 0, recursion_steps = 0, merges = 0;
+    };
+    mutable Stats stats_;
+    bool stats_on_ = false;
     void check_frontier() const;
     // the loops replace_loops made this round, in the order of the tree; and
     // whether some of an earlier round's are left (a walk finds them)

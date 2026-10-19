@@ -254,12 +254,32 @@ TEST_CASE("loops: no rotation when it isn't equivalent") {
 
 TEST_CASE("loops: while True, its exits inside") {
     Fixture f;
-    // a return inside, no exit test
+    // a return inside, no exit test but that check: `while not check`
     Value u = whiles(
         "{(label loopid1 {(setvar loop1 0)})"
         " (if (eq loop1 (mask_shl 3 0 0 (calldataload 4))) {(return (sized 32 loop1))} {})"
         " (goto loopid1 {(setvar loop1 (add 1 loop1))})}");
     Value w = first_while(u);
+    REQUIRE(!w.nil());
+    CHECK(!is_true_cond(w[0]));
+    // two returns: the first is the exit, the second a check in the body
+    u = whiles(
+        "{(label loopid1 {(setvar loop1 0)})"
+        " (if (eq loop1 (mask_shl 3 0 0 (calldataload 4))) {(return (sized 32 loop1))} {})"
+        " (if (eq loop1 (mask_shl 3 0 0 (calldataload 36))) {(return (sized 32 (add 100 loop1)))} {})"
+        " (goto loopid1 {(setvar loop1 (add 1 loop1))})}");
+    w = first_while(u);
+    REQUIRE(!w.nil());
+    CHECK(!is_true_cond(w[0]));
+    // the plain form: while True
+    L::WhilesOptions plain;
+    plain.exit_test = false;
+    u = whiles(
+        "{(label loopid1 {(setvar loop1 0)})"
+        " (if (eq loop1 (mask_shl 3 0 0 (calldataload 4))) {(return (sized 32 loop1))} {})"
+        " (goto loopid1 {(setvar loop1 (add 1 loop1))})}",
+        plain);
+    w = first_while(u);
     REQUIRE(!w.nil());
     CHECK(is_true_cond(w[0]));
     // both branches loop back

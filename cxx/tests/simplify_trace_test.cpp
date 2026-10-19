@@ -221,3 +221,63 @@ TEST_CASE("simplify: the driver") {
         "0 (sha3 (sized 32 tmp1) (sized 32 0)) (calldataload 36)) (log1 None 5) (stop)}",
         whole);
 }
+
+TEST_CASE("simplify: compaction mid-run") {
+    Fixture f;
+    // the outcomes of the trace before it is simplified (its Values are gone
+    // after the first compaction: only plain data kept)
+    const char* text =
+        "{(setvar tmp1 (calldataload 4)) (setmem (range 128 32) tmp1) (setvar tmp2 (mem (range 128 32))) (setmem (range "
+        "160 32) (add tmp2 (mem (range 64 32)))) (setvar tmp3 (mem (range 160 32))) (if (lt tmp3 5) {(revert None)} {}) "
+        "(return (mem (range 128 64)))}";
+    struct Run {
+        exec::Status status;
+        std::vector<u8> data;
+        std::vector<exec::SimpleHost::Effect> effects;
+    };
+    std::vector<Run> before;
+    {
+        Value t = V(text);
+        Value entry = V("{(setmem (range 64 32) 128)}");
+        FunctionInfo fn;
+        exec::Program p;
+        exec::Machine m(p);
+        for (int s = 0; s < 8; ++s) {
+            World w{u64(s)};
+            // (the entry lines first, as the dispatcher runs them)
+            SmallVec<Value, 16> lines;
+            lines.push_back(entry[0]);
+            for (Value l : t.args()) lines.push_back(l);
+            exec::Outcome o = m.run(w, fn, mk_trace(lines.span()));
+            before.push_back({o.status, o.data, w.effects});
+        }
+    }
+    Value t = V(text);
+    Value keep = V("(add 1 (calldataload 4))");
+    std::vector<Value> roots{keep};
+    S::SimplifyOptions o;
+    o.compact = true;
+    o.compact_threshold = 1;  // after every round that changed something
+    o.entry_lines = V("{(setmem (range 64 32) 128)}");
+    o.compact_roots = roots;
+    const void* old_node = t.node();
+    Value r = S::simplify_trace(t, o);
+    // (it compacted: the input's nodes are gone)
+    CHECK(!cx().arena.owns(old_node));
+    CHECK(!dump_trace(r).empty());
+    CHECK(dump(roots[0]) == "(add 1 (calldataload 4))");
+    FunctionInfo fn;
+    exec::Program p;
+    exec::Machine m(p);
+    Value entry = V("{(setmem (range 64 32) 128)}");
+    for (int s = 0; s < 8; ++s) {
+        World w{u64(s)};
+        SmallVec<Value, 16> lines;
+        lines.push_back(entry[0]);
+        for (Value l : r.args()) lines.push_back(l);
+        exec::Outcome out = m.run(w, fn, mk_trace(lines.span()));
+        CHECK(out.status == before[usize(s)].status);
+        CHECK(out.data == before[usize(s)].data);
+        CHECK(w.effects == before[usize(s)].effects);
+    }
+}
