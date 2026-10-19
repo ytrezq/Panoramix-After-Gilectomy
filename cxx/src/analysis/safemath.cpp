@@ -196,6 +196,28 @@ std::optional<Failure> failure_of_line(Value l)
     return std::nullopt;
 }
 
+// two failures no call can tell apart: the same revert data (none and an
+// empty DATA alike), the same panic, or both INVALID (no data, every gas
+// spent - its reason and pc aren't seen)
+bool alike(const Failure& f, const Failure& g) noexcept
+{
+    if (f.kind != g.kind)
+        return false;
+    switch (f.kind) {
+        case FailKind::Invalid:
+            return true;
+        case FailKind::Panic:
+            return f.panic == g.panic;
+        case FailKind::Revert: {
+            const auto empty = [](Value d) { return d.is_none() || (d.is(Op::DATA) && d.size() == 0); };
+            return f.data == g.data || (empty(f.data) && empty(g.data));
+        }
+        case FailKind::Error:
+            return f.data == g.data;
+    }
+    return false;
+}
+
 // python failure(body): a branch that only fails
 std::optional<Failure> failure_of(Value branch)
 {
@@ -600,24 +622,28 @@ struct Site {
     Value a, b;
 };
 
-// The two caps only narrow the search, they never change what a rewrite
+// The caps only narrow the search, they never change what a rewrite
 // means: every call made is verified the same way (call(): the result and
 // each check, abstracted then made concrete again, the same values), and
 // what a cap leaves out keeps its plain arithmetic and its checks as they
-// were. A cap hit is counted (Rewriter::capped) and logged at debug level.
+// were. A cap hit is counted (Rewriter::capped_*) and logged at debug level.
 //
 // A group of checks is this many at most: a library's, then the compiler's
 // of the same operation (python tried every run of consecutive checks as a
 // group, the longest first: cubic in a run's length - 2000 asserts in a
-// row). Past it, a group of a longer run is only tried with the check
-// right after it (python's own rule for a group that isn't a whole run):
-// a run longer than this may keep checks python would have made a call of.
+// row). A run longer than this is tried by groups of this many at most, as
+// a group that isn't a whole run is (convert): it may keep checks python
+// would have made a call of.
 constexpr usize kMaxGroup = 8;
 // The lines from its first use the call is put in (python: until one
 // changes what the result reads), at most: the lines past keep the plain
 // arithmetic - the same value, nothing having changed what it reads, and
 // the checks having passed at the first use.
 constexpr usize kMaxUses = 512;
+// The checks of other operations a group's call may be put past, at most
+// (they fail as the group's checks do: see convert); past them the
+// group's checks stay as they are.
+constexpr usize kMaxPassed = 8;
 
 // The rewrite of the asts (python block / inside / _convert / _call / _uses):
 // each distinct trace once, each line's check and failure once (memoized).
@@ -625,8 +651,9 @@ class Rewriter {
 public:
     std::vector<Site> sites;
     // the times a cap narrowed the search: a run of checks longer than a
-    // group, a use past kMaxUses lines (diagnostics: see the caps)
-    usize capped_groups = 0, capped_uses = 0;
+    // group, a use past kMaxUses lines, more than kMaxPassed checks before
+    // a use (diagnostics: see the caps)
+    usize capped_groups = 0, capped_uses = 0, capped_passes = 0;
 
     Value ast(Value trace) { return block(trace); }
 
@@ -855,7 +882,25 @@ private:
         return m;
     }
 
+    // a check fails as every check of the group does
+    static bool fails_alike(const Check& c, std::span<const Check> group) noexcept
+    {
+        for (const Check& g : group)
+            if (!alike(c.fail, g.fail))
+                return false;
+        return true;
+    }
+
     // python _convert: the lines from i on, the checks there made a call
+    // where the result is first used. Between the group and that use:
+    //  - python's lines past a whole run of checks: lines that can't fail
+    //    and don't change what the checks read (transparent) - what they
+    //    write is undone when a check fails, the checks see the same values;
+    //  - (not python's) the checks of other operations that fail as each of
+    //    the group's does, kMaxPassed at most: the group's checks then run
+    //    after them, a different order no call can tell (one of them
+    //    failing, the call fails the same way: solc >= 0.8's Panic(0x11)
+    //    of an add then of a mul, the sum and product used together).
     std::optional<Values> convert(const Values& lines, usize i)
     {
         // the run of checks from i, as far as a group reaches
@@ -868,13 +913,13 @@ private:
             } else {
                 break;
             }
-        // (a run longer than a group: only a check's use in the next one's condition)
+        // (a run longer than a group: its groups of kMaxGroup checks at most)
         const bool longer = run.size() > kMaxGroup;
         capped_groups += longer;
         // (the most checks first: a library's, then the compiler's of it)
         for (usize e = std::min(end, i + kMaxGroup); e > i; --e) {
             const std::span<const Check> checks(run.data(), e - i);
-            const bool after_run = e == end && !longer;  // python's e == end
+            usize passed = 0;
             for (usize j = e; j < lines.size(); ++j) {
                 poll();
                 const Value line = lines[j];
@@ -888,7 +933,16 @@ private:
                             if (auto r = call(lines, e, j, checks, res, *m))
                                 return r;
                 }
-                if (!after_run || !transparent(line))
+                if (const Check* c = check_of(line)) {
+                    if (!fails_alike(*c, checks))
+                        break;
+                    if (++passed > kMaxPassed) {
+                        ++capped_passes;
+                        break;
+                    }
+                    continue;
+                }
+                if (!transparent(line))
                     break;
                 bool changes = false;
                 for (const Check& c : checks)
@@ -1172,12 +1226,12 @@ std::shared_ptr<const SafeMathTable> rewrite(std::span<FunctionInfo> functions, 
             if (r != f.trace)
                 done.emplace_back(&f, r);
         }
-    if ((rw.capped_groups || rw.capped_uses) && log_enabled(log_debug))
+    if ((rw.capped_groups || rw.capped_uses || rw.capped_passes) && log_enabled(log_debug))
         try {
             pan::log(log_debug, "panoramix.decompiler",
-                     std::format("SafeMath: searched in part ({} runs of checks longer than {}, {} uses past {} lines): "
-                                 "those keep their plain arithmetic",
-                                 rw.capped_groups, kMaxGroup, rw.capped_uses, kMaxUses));
+                     std::format("SafeMath: searched in part ({} runs of checks longer than {}, {} uses past {} lines, "
+                                 "{} uses past more than {} checks): those keep their plain arithmetic",
+                                 rw.capped_groups, kMaxGroup, rw.capped_uses, kMaxUses, rw.capped_passes, kMaxPassed));
         } catch (...) {
         }
     if (rw.sites.empty())

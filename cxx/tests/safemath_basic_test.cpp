@@ -335,6 +335,37 @@ TEST_CASE("safemath: mul, div, solidity >= 0.8's panics, inc")
     }
 }
 
+TEST_CASE("safemath: checks that fail alike - a call put past another operation's check")
+{
+    Fixture fx;
+    const Value a = cd(4), b = cd(36), c = cd(68);
+    const Value sum = alg::add(a, st(1));
+    const Value prod = alg::mul(b, c);
+    const Value ck_mul =
+        check(alg::band(alg::iszero(alg::cmp(Op::EQ, c, alg::div(prod, b))), alg::to_bool(b)), panic_line(0x11));
+    SUBCASE("the same panic: both calls (solidity >= 0.8's add, then mul, used together)")
+    {
+        const Value ck_add = check(alg::cmp(Op::GT, st(1), sum), panic_line(0x11));
+        const Value body = tr({ck_add, ck_mul, mk(Op::LOG2, None, sum, prod), stop()});
+        Rewritten r = rewrite({fn_of(body)});
+        REQUIRE(r.table);
+        CHECK(r.table->fns.size() == 2);
+        CHECK_FALSE(mentions(r.after[0].trace, Op::IF));
+        same_runs(r.before, r.after, r.table.get());
+    }
+    SUBCASE("another failure: the first check stays (the order of the two failures kept)")
+    {
+        const Value ck_add = check(alg::cmp(Op::GT, st(1), sum), revert_line(error_data("SafeMath: addition overflow")));
+        const Value body = tr({ck_add, ck_mul, mk(Op::LOG2, None, sum, prod), stop()});
+        Rewritten r = rewrite({fn_of(body)});
+        REQUIRE(r.table);
+        REQUIRE(r.table->fns.size() == 1);
+        CHECK(r.table->fns[0].op == Table::Arith::Mul);
+        CHECK(mentions(r.after[0].trace, Op::IF));
+        same_runs(r.before, r.after, r.table.get());
+    }
+}
+
 TEST_CASE("safemath: what stays as it is")
 {
     Fixture fx;
