@@ -48,6 +48,27 @@ std::optional<Value> negated(Value x) {
     return std::nullopt;
 }
 
+}  // namespace
+
+std::optional<Value> same_truth_factor(Value x) {
+    if (!x.is(Op::MUL, 2) || !x[0].is_int()) return std::nullopt;
+    const Word256 c = alg::word_of(x[0]);
+    if (c.is_zero()) return std::nullopt;
+    u32 tz = 0;
+    for (int k = 0; k < 4; ++k) {
+        if (c.limb[k] == 0) {
+            tz += 64;
+            continue;
+        }
+        tz += u32(__builtin_ctzll(c.limb[k]));
+        break;
+    }
+    if (tz == 0 || alg::range_bits(x[1]) + tz <= 256) return x[1];
+    return std::nullopt;
+}
+
+namespace {
+
 // python equals: c + x == 0 as a comparison
 Value equals(Value x, Value c) {
     if (auto y = negated(x)) return alg::cmp(Op::EQ, *y, alg::word_int(c));
@@ -80,8 +101,8 @@ std::optional<Value> iszero_rule(Value x) {
     if (auto eq = difference_eq(x)) return *eq;
     // a xor b is 0 when they're equal
     if (x.is(Op::XOR, 2)) return alg::cmp(Op::EQ, x[0], x[1]);
-    // -x is 0 when x is
-    if (auto y = negated(x)) return alg::iszero(*y);
+    // -x, 3x, 2x of a small x are 0 when x is
+    if (auto y = same_truth_factor(x)) return alg::iszero(*y);
     // a shift that loses none of the mask's bits doesn't change whether they're all 0
     if (auto m = alg::as_mask(x); m && m->concrete() && m->ishl() != 0) {
         const i64 s = m->isize(), o = m->ioff(), h = m->ishl();
@@ -208,7 +229,7 @@ std::optional<Value> word_rule(Value r) {
             return std::nullopt;
         }
         case Op::BOOL: {
-            if (auto y = negated(r[0])) return alg::to_bool(*y);
+            if (auto y = same_truth_factor(r[0])) return alg::to_bool(*y);
             Tri t = alg::eval_bool(r[0]);
             if (alg::decided(t)) return small(t == Tri::True ? 1 : 0);
             return std::nullopt;

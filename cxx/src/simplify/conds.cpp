@@ -50,7 +50,7 @@ std::optional<Value> difference_eq(Value e) {
 // python truth: a simpler condition that holds when cond isn't 0
 Value truth(Value cond) {
     for (int k = 0; k < 16; ++k) {
-        if (auto y = negated(cond)) {
+        if (auto y = same_truth_factor(cond)) {
             cond = *y;
             continue;
         }

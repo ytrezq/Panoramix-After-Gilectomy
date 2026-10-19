@@ -1,6 +1,7 @@
 // The simplifier's own helpers, shared by its files (not a public API).
 #pragma once
 
+#include <optional>
 #include <span>
 
 #include "core/base.hpp"
@@ -22,6 +23,9 @@ Pos operand_pos(Op op, u32 i, u32 n);
 Value simplify_word(Value e);
 Value simplify_bytes(Value e);
 Value simplify_at(Value e, Pos pos);
+// x = MUL(c, y) zero exactly when y is: c odd (a bijection mod 2^256), or y
+// below 2^(256 - the trailing zeros of c) - y then; nullopt otherwise
+std::optional<Value> same_truth_factor(Value x);
 
 // ---- lines (lines.cpp) ----------------------------------------------------------------
 
