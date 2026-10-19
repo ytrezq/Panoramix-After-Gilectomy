@@ -47,6 +47,18 @@ inline constexpr usize kStackLimit = 1024;
 // INVALID's reason for it
 inline constexpr InvalidReason kStackOverflow = InvalidReason::STACK_OVERFLOW;
 
+// a subtree's summary (Node::sum_mask, Vm::summarize): its labels' jds as
+// bits of their hash below these flags
+inline constexpr u64 kSumMerged = u64{1} << 62;   // a merged node in it
+inline constexpr u64 kSumUnknown = u64{1} << 63;  // more than kSumRoom merge points outside it
+inline constexpr u32 kSumJdBits = 62;
+inline constexpr u32 kSumRoom = 3;
+inline u64 sum_jd_bit(Value jd) {
+    u32 b = u32((jd.raw() * 0x9e3779b97f4a7c15ull) >> 58);
+    if (b >= kSumJdBits) b -= kSumJdBits;
+    return u64{1} << b;
+}
+
 // how a node's trace ends (python's last line of node.trace)
 enum class End : u8 {
     None,      // not run yet (python trace None)
@@ -82,6 +94,12 @@ struct Node {
     bool switched = false;  // a code switch's path (never merged)
     End end = End::None;    // how its trace ends (None: not run yet)
     u32 stamp = 0;          // the generation of the last change in its subtree (touch)
+    // the subtree's summary for merge_at's walks (summarize): good while
+    // sum_stamp is stamp + 1 (0: none) - the jds of its labels (kSumJdBits
+    // bits of a hash), whether it holds merged nodes, too many merge points
+    // outside it (kSumUnknown)
+    u32 sum_stamp = 0;
+    u64 sum_mask = 0;
 
     // --- where, and with what (python Node.__init__) ---
     Value condition;    // the condition it's reached under (True: none)
@@ -114,6 +132,10 @@ struct Node {
 
     // --- merges ---
     NodeId merge_point = NO_NODE;
+    // (the summary's merge points of merged nodes in the subtree that
+    // aren't in it: kSumRoom at most)
+    u8 sum_en = 0;
+    NodeId sum_e[3] = {};
 
     // --- discovery ---
     i8 dispatch = -1;  // in_dispatcher, memoized
@@ -201,12 +223,25 @@ private:
     // unexpanded (became_unexpanded) put at their place in the tree's order
     void refresh_frontier();
     void became_unexpanded(NodeId n) { reborn_.push_back(n); }
-    // x changed (its trace, its children): its subtree's stamp, and its
-    // ancestors', the current generation (merge_at's memo is good while
-    // the stamp of its IF node holds)
+    // x changed (its trace, its children, its label, merged): its stamp,
+    // and its ancestors', the current generation - merge_at's memo and the
+    // summaries hold while the stamp of their node does. A new generation
+    // begins at the first change after one was made (visited_); a node
+    // already of the current one has its ancestors of it too.
     void touch(NodeId x) {
+        if (visited_) {
+            ++gen_;
+            visited_ = false;
+        }
         for (; x != NO_NODE && nodes_[x].stamp != gen_; x = nodes_[x].prev) nodes_[x].stamp = gen_;
     }
+    // n's subtree summarized (Node::sum_mask), unless it is already: over
+    // the whole subtree, as python's walk would go if nothing stopped it
+    // (but at a merged node, as it does)
+    void summarize(NodeId n);
+    // nothing in n's subtree can make merge_at's walk from p false: no
+    // merged node whose merge point isn't below p, no loop at jd
+    bool can_skip(NodeId n, NodeId p, Value jd);
     // n's live nodes at jd, in the order of the tree (python by_jd's)
     void same_jd(Value jd, std::pmr::vector<NodeId>& out) const;
     // u before v in the tree's depth first order (python find_nodes')
@@ -244,6 +279,12 @@ private:
     void merge_branches();
     void merge_unexpanded(std::pmr::vector<NodeId>& unexp);
     std::optional<bool> merge_at(NodeId p, Value jd, bool loop_exit);
+    // python's visit (in _merge_at): from start, a branch of the IF p; the
+    // walk skips what can't make it false once only a false would count
+    // (skips: false_only - the other branch too early to tell - or once
+    // this one is)
+    std::optional<bool> merge_visit(NodeId start, NodeId p, Value jd, bool false_only, bool skips,
+                                    std::pmr::vector<NodeId>& hits, std::pmr::vector<NodeId>& continues);
     bool in_merged_branch(NodeId n, NodeId p) const;
     bool ends_execution(u32 pc) const;
     void set_label(NodeId self, NodeId loop_dest, std::span<const LoopVar> vars, Value stack);
@@ -286,6 +327,8 @@ private:
     // the generation of the changes (touch); merge_at's answers that merged
     // nothing, by (IF node, jd, loop_exit), with the IF node's stamp then
     u32 gen_ = 1;
+    bool visited_ = false;  // a memo answer or a summary made in this generation
+    mutable std::pmr::vector<u64> sum_walk_;  // summarize's (node << 1 | its children done)
     struct MergeMemo {
         u32 stamp;
         i8 result;  // 0: false, 2: too early to tell

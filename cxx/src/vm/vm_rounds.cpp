@@ -241,6 +241,7 @@ void Vm::set_label(NodeId self_id, NodeId dest_id, std::span<const LoopVar> vars
         }
     }
     s.known = known;
+    touch(self_id);  // (a label now)
 }
 
 bool Vm::continue_loops() {
@@ -430,7 +431,7 @@ void Vm::merge_unexpanded(std::pmr::vector<NodeId>& unexp) {
         members.insert(members.end(), tmp.begin(), tmp.end());
         g = u32(groups.size());
     }
-    std::pmr::vector<std::pair<NodeId, u64>> tried(res_);
+    Memo<Key2, u8> tried;  // (p + 1, jd)
 
     for (NodeId node : unexp) {
         poll();
@@ -448,9 +449,7 @@ void Vm::merge_unexpanded(std::pmr::vector<NodeId>& unexp) {
             NodeId p = common_ancestor(node, other);
             const Node& pn = nodes_[p];
             if (!(pn.end == End::If && pn.cont == NO_NODE)) continue;
-            auto key = std::pair<NodeId, u64>(p, jd.raw());
-            if (std::find(tried.begin(), tried.end(), key) != tried.end()) continue;
-            tried.push_back(key);
+            if (!tried.add(Key2{u64(p) + 1, jd.raw()})) continue;
             auto merged = merge_at(p, jd, false);
             if (merged && *merged) break;
             if (!merged && is_label(p)) {
@@ -483,58 +482,30 @@ std::optional<bool> Vm::merge_at(NodeId p, Value jd, bool loop_exit) {
         if (memoized && *memoized != r)
             throw InternalError("vm: a memoized merge answer differs (PANORAMIX_VM_CHECK)");
         merge_memo_.put(key, MergeMemo{nodes_[p].stamp, i8(r ? 0 : 2)});
+        visited_ = true;
         return r;
     };
-    std::pmr::vector<NodeId> hits(res_), continues(res_), todo(res_);
-    const NodeId plabel = nodes_[p].label;
-
-    // every path below start ends, reaches jd, or loops back: true; one
-    // doesn't: false; too early to tell: nullopt
-    auto visit = [&](NodeId start) -> std::optional<bool> {
-        std::optional<bool> result = true;
-        todo.clear();
-        todo.push_back(start);
-        while (!todo.empty()) {
-            poll();
-            NodeId n = todo.back();
-            todo.pop_back();
-            const Node& x = nodes_[n];
-            if (x.merged) {
-                // goes on in the continuation of the IF it was merged at,
-                // visited as well if that's below p
-                if (!below(x.merge_point, p)) return false;
-                continue;
-            }
-            if (x.label != NO_NODE) {
-                // the head of a loop: kept so
-                if (x.jd == jd) return false;
-            } else if (x.jd == jd && !in_merged_branch(n, p)) {
-                hits.push_back(n);
-                continue;
-            }
-            if (x.end == End::None) {
-                result = std::nullopt;
-                continue;
-            }
-            if (!x.next.empty()) {
-                for (auto it = x.next.rbegin(); it != x.next.rend(); ++it) todo.push_back(*it);
-                continue;
-            }
-            if (x.end == End::Goto) {
-                if (x.dest == p || x.dest == plabel) continues.push_back(n);
-                continue;
-            }
-            if (x.end == End::Halt || x.end == End::Merged) continue;
-            // (a loop not turned into a label yet)
-            result = std::nullopt;
-        }
-        return result;
-    };
+    std::pmr::vector<NodeId> hits(res_), continues(res_);
 
     const NodeId if_true = nodes_[p].a, if_false = nodes_[p].b;
-    std::optional<bool> s1 = visit(if_true);
+    std::optional<bool> s1 = merge_visit(if_true, p, jd, false, true, hits, continues);
+    std::optional<bool> s2;
+    if (!s1 || *s1) s2 = merge_visit(if_false, p, jd, !s1, true, hits, continues);
+    if (check_) {
+        // the walks' answer as python's, which skips nothing
+        std::pmr::vector<NodeId> h(res_), c(res_);
+        std::optional<bool> t1 = merge_visit(if_true, p, jd, false, false, h, c), t2;
+        if (!t1 || *t1) t2 = merge_visit(if_false, p, jd, false, false, h, c);
+        auto answer = [](std::optional<bool> a, std::optional<bool> b) -> std::optional<bool> {
+            if ((a && !*a) || (b && !*b)) return false;
+            if (!a || !b) return std::nullopt;
+            return true;
+        };
+        if (answer(s1, s2) != answer(t1, t2) ||
+            (answer(t1, t2) == std::optional<bool>(true) && (h != hits || c != continues)))
+            throw InternalError("vm: a merge's walk with skips differs (PANORAMIX_VM_CHECK)");
+    }
     if (s1 && !*s1) return memo(false);
-    std::optional<bool> s2 = visit(if_false);
     if (s2 && !*s2) return memo(false);
     if (!s1 || !s2) return memo(std::nullopt);
     if (hits.size() < 2) return memo(false);
@@ -604,16 +575,137 @@ std::optional<bool> Vm::merge_at(NodeId p, Value jd, bool loop_exit) {
         h.lines.assign(setvars[k].begin(), setvars[k].end());
         for (Value l : setvars[k]) cx().pcs.note(l, h.start);
         h.end = End::Merged;
-        cut(hits[k]);
         h.cont = NO_NODE;
         h.merged = true;
         h.merge_point = p;
+        cut(hits[k]);  // (and touched: merged now)
     }
     const Node& h0 = nodes_[hits[0]];
     NodeId node = new_node(h0.start, h0.safe, mk_list(merged.span()), Value(true), known, last_call, h0.sw);
     set_prev(node, p);
     nodes_[p].cont = node;
     became_unexpanded(node);
+    return true;
+}
+
+// Every path below start ends, reaches jd, or loops back: true; one doesn't
+// (the head of a loop at jd, or a merged node whose paths go on above p):
+// false; too early to tell: nullopt. Depth first, the children in order.
+std::optional<bool> Vm::merge_visit(NodeId start, NodeId p, Value jd, bool false_only, bool skips,
+                                    std::pmr::vector<NodeId>& hits, std::pmr::vector<NodeId>& continues) {
+    std::optional<bool> result = true;
+    const NodeId plabel = nodes_[p].label;
+    std::pmr::vector<NodeId> todo(res_);
+    todo.push_back(start);
+    while (!todo.empty()) {
+        poll();
+        NodeId n = todo.back();
+        todo.pop_back();
+        // only a false would change the answer now: not in a subtree that
+        // can't give one (84% of the nodes zx_Staking's merges walked were
+        // such a rest, says the asm)
+        if (skips && (false_only || !result) && can_skip(n, p, jd)) continue;
+        const Node& x = nodes_[n];
+        if (x.merged) {
+            // goes on in the continuation of the IF it was merged at,
+            // visited as well if that's below p
+            if (!below(x.merge_point, p)) return false;
+            continue;
+        }
+        if (x.label != NO_NODE) {
+            // the head of a loop: kept so
+            if (x.jd == jd) return false;
+        } else if (x.jd == jd && !in_merged_branch(n, p)) {
+            hits.push_back(n);
+            continue;
+        }
+        if (x.end == End::None) {
+            result = std::nullopt;
+            continue;
+        }
+        if (!x.next.empty()) {
+            for (auto it = x.next.rbegin(); it != x.next.rend(); ++it) todo.push_back(*it);
+            continue;
+        }
+        if (x.end == End::Goto) {
+            if (x.dest == p || x.dest == plabel) continues.push_back(n);
+            continue;
+        }
+        if (x.end == End::Halt || x.end == End::Merged) continue;
+        // (a loop not turned into a label yet)
+        result = std::nullopt;
+    }
+    return result;
+}
+
+void Vm::summarize(NodeId root) {
+    auto good = [this](NodeId n) { return nodes_[n].sum_stamp == nodes_[n].stamp + 1; };
+    if (good(root)) return;
+    // bottom up, the subtrees whose summary holds kept (the trees are
+    // thousands deep: a stack of its own)
+    std::pmr::vector<u64>& st = sum_walk_;
+    st.clear();
+    st.push_back(u64(root) << 1);
+    while (!st.empty()) {
+        const u64 top = st.back();
+        const NodeId n = NodeId(top >> 1);
+        Node& x = nodes_[n];
+        if (!(top & 1)) {
+            if (good(n)) {
+                st.pop_back();
+                continue;
+            }
+            if (x.merged) {
+                // (python's walk stops there): its merge point, outside it
+                st.pop_back();
+                x.sum_mask = kSumMerged;
+                x.sum_en = 0;
+                if (!below(x.merge_point, n)) x.sum_e[x.sum_en++] = x.merge_point;
+                x.sum_stamp = x.stamp + 1;
+                continue;
+            }
+            // its children first, then itself
+            st.back() = top | 1;
+            for (auto it = x.next.rbegin(); it != x.next.rend(); ++it)
+                if (!good(*it)) st.push_back(u64(*it) << 1);
+            continue;
+        }
+        st.pop_back();
+        // its own loop's jd, its children's summaries, their merge points
+        // that aren't below it
+        u64 mask = x.label != NO_NODE ? sum_jd_bit(x.jd) : 0;
+        u8 en = 0;
+        for (NodeId c : x.next) {
+            const Node& y = nodes_[c];
+            mask |= y.sum_mask;
+            if (mask & kSumUnknown) break;
+            for (u32 i = 0; i < y.sum_en && !(mask & kSumUnknown); ++i) {
+                const NodeId e = y.sum_e[i];
+                if (below(e, n) || std::find(x.sum_e, x.sum_e + en, e) != x.sum_e + en) continue;
+                if (en == kSumRoom)
+                    mask |= kSumUnknown;
+                else
+                    x.sum_e[en++] = e;
+            }
+        }
+        x.sum_mask = mask;
+        x.sum_en = en;
+        x.sum_stamp = x.stamp + 1;
+    }
+    visited_ = true;
+}
+
+bool Vm::can_skip(NodeId n, NodeId p, Value jd) {
+    summarize(n);
+    const Node& x = nodes_[n];
+    if (x.sum_mask & (kSumUnknown | sum_jd_bit(jd))) return false;  // (a loop at jd, maybe)
+    if (x.sum_mask & kSumMerged) {
+        // its merge points below n are below p as long as n is; those
+        // outside it, one by one
+        if (!below(n, p)) return false;
+        for (u32 i = 0; i < x.sum_en; ++i)
+            if (!below(x.sum_e[i], p)) return false;
+    }
     return true;
 }
 

@@ -97,13 +97,15 @@ struct Induction {
     Value var;          // the counter: a variable of the loop (its WHILE's setvars)
     Value start;        // its value as the loop starts (its setvar's)
     Value step;         // what every CONTINUE of the loop adds to it: an int in [-2^255, 2^255), not 0
-    Cmp cmp = Cmp::Lt;  // the loop goes on while `var cmp bound`
+    Value offset;       // an int: the condition compares var + offset (mod 2^256) with the bound (0 mostly)
+    Cmp cmp = Cmp::Lt;  // the loop goes on while `var + offset cmp bound`
     Value bound;        // loop invariant: nothing the loop changes is read in it
     // The proven part (NIL when not proven):
     //  - trips: how many times the body runs when the loop is left by its
-    //    condition: the counter starts on the right side of the bound (or
-    //    on it) for every value, and steps to the bound without wrapping
-    //    (for every value of what start and bound are made of);
+    //    condition, for every value of what start and bound are made of: the
+    //    counter can't wrap on its way to the bound (from the bound's range),
+    //    and a start past the bound counts 0 (a MAX in it: lot 7 drops it
+    //    where the ranges decide it);
     //  - last: the counter's value once the condition fails (start + step *
     //    trips);
     //  - endvars: LIST of SETVAR(v, e), every loop variable v that every

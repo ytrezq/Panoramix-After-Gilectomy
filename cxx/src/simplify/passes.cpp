@@ -5,6 +5,9 @@
 #include "simplify/internal.hpp"
 #include "simplify/simplify.hpp"
 
+#include <algorithm>
+#include <vector>
+
 #include "algebra/compare.hpp"
 #include "algebra/construct.hpp"
 #include "algebra/eval.hpp"
@@ -12,6 +15,7 @@
 #include "algebra/ranges.hpp"
 #include "core/context.hpp"
 #include "core/intops.hpp"
+#include "loops/loops.hpp"
 #include "mem/memory.hpp"
 
 namespace pan::simplify {
@@ -304,37 +308,137 @@ Value max_to_add(Value trace) {
 
 namespace {
 
-Value readability_trace(Value trace) {
+// the loop variables' ids a value mentions (read or set)
+using Ids = std::vector<u32>;
+void loop_ids(Value v, Ids& out, MemoSet<Value>& seen) {
+    if (v.is_name(NameKind::LOOP)) {
+        out.push_back(v.name_id());
+        return;
+    }
+    if (!(v.is_expr() || v.is_list()) || !v.has_flags(F_VAR)) return;
+    if (!seen.add(v)) return;
+    check_stack();
+    for (Value x : v.children()) loop_ids(x, out, seen);
+}
+Ids ids_of(std::span<const Value> lines) {
+    Ids out;
+    MemoSet<Value> seen;
+    for (Value l : lines) loop_ids(l, out, seen);
+    std::sort(out.begin(), out.end());
+    out.erase(std::unique(out.begin(), out.end()), out.end());
+    return out;
+}
+bool has_id(const Ids& ids, u32 x) { return std::binary_search(ids.begin(), ids.end(), x); }
+void add_ids(Ids& a, const Ids& b) {
+    a.insert(a.end(), b.begin(), b.end());
+    std::sort(a.begin(), a.end());
+    a.erase(std::unique(a.begin(), a.end()), a.end());
+}
+bool has_loop(Value t) {
+    SmallVec<Value, 16> todo{t};
+    while (!todo.empty()) {
+        Value x = todo.back();
+        todo.pop_back();
+        if (!x.is_list()) continue;
+        for (Value l : x.args()) {
+            if (l.is(Op::WHILE)) return true;
+            if (l.is(Op::IF, 3)) {
+                todo.push_back(l[1]);
+                todo.push_back(l[2]);
+            }
+        }
+    }
+    return false;
+}
+
+// python readability: the revert branch of an if first; each loop's
+// variables renamed, its counter 0 (printed idx), the others 1, 2... (s, t,
+// ...) - python replace_while_var - avoiding the ids taken around them;
+// `after`: the ids read past this trace (what follows the ifs and loops it
+// is in): a variable read there keeps its name
+Value readability_trace(Value trace, const Ids& outer, const Ids& after) {
     if (!trace.is_list()) return trace;
     check_stack();
     SmallVec<Value, 32> out;
     bool changed = false;
-    for (Value l : trace.args()) {
+    const u32 n = trace.size();
+    for (u32 i = 0; i < n; ++i) {
         poll();
-        Value r = l;
+        Value l = trace[i];
         if (l.is(Op::IF, 3)) {
-            Value t = readability_trace(l[1]), e = readability_trace(l[2]);
+            Ids around = outer, aft = after;
+            const Ids rest_ids = ids_of(trace.args().subspan(i + 1));
+            if (has_loop(l[1]) || has_loop(l[2])) add_ids(around, rest_ids);
+            add_ids(aft, rest_ids);
+            Value t = readability_trace(l[1], around, aft), e = readability_trace(l[2], around, aft);
+            Value r = l;
             // the revert first: `if not cond: revert`
             if (e.size() == 1 && e[0].is(Op::REVERT) && !(t.size() == 1 && t[0].is(Op::REVERT)))
                 r = mk(Op::IF, alg::iszero(l[0]), e, t);
             else if (t != l[1] || e != l[2])
                 r = mk(Op::IF, l[0], t, e);
-        } else if (l.is(Op::WHILE, 4)) {
-            Value body = readability_trace(l[1]);
-            if (body != l[1]) r = mk(Op::WHILE, l[0], body, l[2], l[3]);
+            if (r != l) {
+                changed = true;
+                cx().pcs.inherit(r, l);
+            }
+            out.push_back(r);
+            continue;
         }
-        if (r != l) {
-            changed = true;
-            cx().pcs.inherit(r, l);
+        if (l.is(Op::WHILE, 4)) {
+            // the loop's variables renamed in it and what follows it here
+            Value rest = mk_trace(trace.args().subspan(i));
+            Ids taken = ids_of(trace.args().subspan(i));
+            add_ids(taken, outer);
+            const Ids before_ids = ids_of(trace.args().subspan(0, i));
+            auto rename = [&](Value var, u32 from_id) {
+                // (a variable read where the renaming doesn't reach keeps its name)
+                if (!var.is_name(NameKind::LOOP) || has_id(after, var.name_id()) || has_id(before_ids, var.name_id()))
+                    return from_id;
+                u32 id = from_id;
+                while (has_id(taken, id) && id != var.name_id()) ++id;
+                add_ids(taken, Ids{id});
+                Value to = Value::name(NameKind::LOOP, id);
+                if (to != var) rest = loops::rename_var(rest, var, to);
+                return id;
+            };
+            Value counter;
+            if (auto ind = loops::induction(l)) {
+                counter = ind->var;
+                rename(counter, 0);
+            }
+            u32 next = 1;
+            if (Value svs = l[3]; svs.is_list())
+                for (Value sv : svs.args())
+                    if (sv.is(Op::SETVAR, 2) && sv[0] != counter) next = rename(sv[0], next) + 1;
+            Value w = rest[0];
+            const auto tail = rest.args().subspan(1);
+            Ids inner = outer;
+            add_ids(inner, ids_of(std::span<const Value>(&w, 1)));
+            const Ids tail_ids = ids_of(tail);
+            add_ids(inner, tail_ids);
+            Ids aft = after;
+            add_ids(aft, tail_ids);
+            add_ids(aft, ids_of(std::span<const Value>({w[0], w[3]})));
+            Value body = readability_trace(w[1], inner, aft);
+            Value nw = body == w[1] ? w : mk(Op::WHILE, w[0], body, w[2], w[3]);
+            if (nw != l) {
+                changed = true;
+                cx().pcs.inherit(nw, l);
+            }
+            out.push_back(nw);
+            Value more = readability_trace(mk_trace(tail), outer, after);
+            for (Value x : more.args()) out.push_back(x);
+            if (rest != mk_trace(trace.args().subspan(i)) || more != mk_trace(tail)) changed = true;
+            return changed ? mk_trace(out.span()) : trace;
         }
-        out.push_back(r);
+        out.push_back(l);
     }
     return changed ? mk_trace(out.span()) : trace;
 }
 
 }  // namespace
 
-Value readability(Value trace) { return readability_trace(trace); }
+Value readability(Value trace) { return readability_trace(trace, Ids{}, Ids{}); }
 
 namespace {
 

@@ -158,6 +158,7 @@ Vm::Vm(const ContractShared& contract, const RunSetup& setup)
       nodes_(std::pmr::polymorphic_allocator<Node>(res_)),
       frontier_(res_),
       reborn_(res_),
+      sum_walk_(res_),
       new_loops_(res_),
       walk_(res_),
       out_(res_) {
