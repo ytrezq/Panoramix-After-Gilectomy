@@ -84,7 +84,27 @@ struct SimplifyOptions {
     // place); off: never compacted
     bool compact = false;
     std::span<Value> compact_roots{};
+    // what runs before the trace (EntryCondition::entry_lines: the
+    // dispatcher's SETMEMs and checks), and whether the memory is zeroes
+    // before them (a call's start: not an internal function's) - what the
+    // trace's memory reads may be filled from
+    Value entry_lines{};
+    bool fresh_memory = false;
+    // the passes run (debugging: a pass left out to find which one breaks a
+    // trace); all by default
+    u32 passes = ~0u;
 };
+
+// SimplifyOptions::passes
+inline constexpr u32 P_EXPS = 1u << 0;         // simplify_exps
+inline constexpr u32 P_VARS = 1u << 1;         // cleanup_vars
+inline constexpr u32 P_MEMS = 1u << 2;         // cleanup_mems
+inline constexpr u32 P_PRECOMPILED = 1u << 3;  // precompiled_results
+inline constexpr u32 P_MIN_IFS = 1u << 4;      // min_ifs
+inline constexpr u32 P_SPLIT = 1u << 5;        // split_lines
+inline constexpr u32 P_LENGTH = 1u << 6;       // replace_bytes_or_string_length
+inline constexpr u32 P_CONDS = 1u << 7;        // cleanup_conds
+inline constexpr u32 P_FINAL = 1u << 8;        // max_to_add, fix_storages, readability...
 
 // ---- expressions ------------------------------------------------------------------
 
@@ -104,7 +124,8 @@ Value simplify_exp(Value e);
 // Budget's (MemoryLimit, Timeout, DepthLimit); Unsupported never (a pass
 // that can't leaves its input).
 Value simplify_trace(Value trace, const SimplifyOptions& opts = {}, ExplainHook* explain = nullptr);
-// fn.trace simplified (simplify_trace), on cx()
+// fn.trace simplified (simplify_trace, its entry lines and fresh memory
+// from fn), on cx()
 void simplify_function(FunctionInfo& fn, const SimplifyOptions& opts = {}, ExplainHook* explain = nullptr);
 // The simplified stage of a contract's functions (stagecheck, lot 12): out
 // = in with each trace simplified; a function that failed before (problem)

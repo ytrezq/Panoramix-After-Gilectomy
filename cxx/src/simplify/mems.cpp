@@ -396,8 +396,10 @@ private:
 
 Value cleanup_mems(Value trace) {
     if (!trace.is_list() || run_flags().msize) return trace;
-    mem::MemState st(false);
+    mem::MemState st(run_flags().fresh);
     Forward fw;
+    // what the lines before the trace wrote (the dispatcher's)
+    if (run_flags().entry_lines.is_list()) (void)fw.walk(run_flags().entry_lines, st);
     Value t = fw.walk(trace, st);
     Backward bw;
     Live live;

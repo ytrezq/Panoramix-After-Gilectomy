@@ -336,10 +336,70 @@ Value readability_trace(Value trace) {
 
 Value readability(Value trace) { return readability_trace(trace); }
 
+namespace {
+
+// an ABI-encoded array in a DATA - its offset among the head words, then at
+// that offset its length and its content in whole words - as ARR(len,
+// content...) in the offset's place (python rewriter.postprocess_exp): the
+// same bytes (the machine encodes an ARR so: its offset in the head, its
+// length and content, padded to whole words, after the heads)
+Value abi_array(Value d) {
+    if (!d.is(Op::DATA) || d.size() < 3) return d;
+    const u32 n = d.size();
+    auto word_const = [](Value e) -> std::optional<i64> {
+        if (e.is(Op::SIZED, 2) && is_int(e[0], 32) && e[1].is_small() && e[1].small_val() >= 0) return e[1].small_val();
+        return std::nullopt;
+    };
+    // the offset: the one constant multiple of 32 among the words before what it points at
+    i64 at = -1, loc = -1;
+    for (u32 i = 0; i < n; ++i) {
+        auto c = word_const(d[i]);
+        if (!c || *c % 32 != 0 || *c == 0) continue;
+        if (at >= 0) return d;  // several: ambiguous
+        at = i;
+        loc = *c / 32;
+    }
+    if (at < 0 || loc <= at || loc + 1 >= i64(n)) return d;
+    for (i64 i = 0; i <= loc; ++i) {
+        auto w = mem::width_u64(d[u32(i)]);
+        if (!w || *w != 32) return d;
+    }
+    Value lenw = d[u32(loc)];
+    if (!lenw.is(Op::SIZED, 2)) return d;
+    Value len = lenw[1];
+    // the content: whole words
+    SmallVec<Value, 8> content;
+    u64 total = 0;
+    for (u32 i = u32(loc) + 1; i < n; ++i) {
+        auto w = mem::width_u64(d[i]);
+        if (!w) return d;
+        total += *w;
+        content.push_back(d[i]);
+    }
+    if (total % 32 != 0) return d;
+    // without the zeroes past its length, when they're only that
+    if (len.is_small()) {
+        u64 kept = total;
+        usize k = content.size();
+        while (k > 0 && content[k - 1].is(Op::SIZED, 2) && is_int(content[k - 1][1], 0)) {
+            kept -= *mem::width_u64(content[k - 1]);
+            --k;
+        }
+        if (i64(kept) == len.small_val() && (kept + 31) / 32 * 32 == total)
+            while (content.size() > k) content.pop_back();
+    }
+    SmallVec<Value, 8> arr;
+    arr.push_back(len);
+    for (Value c : content) arr.push_back(c);
+    SmallVec<Value, 8> out;
+    for (i64 i = 0; i < loc; ++i) out.push_back(i == at ? mk(Op::ARR, arr.span()) : d[u32(i)]);
+    return mk(Op::DATA, out.span());
+}
+
+}  // namespace
+
 Value postprocess_exps(Value trace) {
-    // (python rewriter.postprocess_exp: ABI arrays in data as Array(...): a
-    // display rewrite, not made yet)
-    return trace;
+    return rewrite_exprs(trace, [](Value e, Pos pos) -> Value { return pos == Pos::Bytes ? abi_array(e) : e; });
 }
 
 }  // namespace pan::simplify

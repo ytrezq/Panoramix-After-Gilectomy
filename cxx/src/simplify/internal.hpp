@@ -49,6 +49,8 @@ Value map_line_exprs(Value line, F&& f);
 struct RunFlags {
     bool msize = false;    // the trace reads MSIZE: memory reads and writes stay where they are
     bool dubious = false;  // SimplifyOptions::dubious
+    Value entry_lines;     // SimplifyOptions::entry_lines
+    bool fresh = false;    // SimplifyOptions::fresh_memory
 };
 RunFlags& run_flags();
 

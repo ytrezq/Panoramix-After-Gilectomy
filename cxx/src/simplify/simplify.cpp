@@ -36,7 +36,10 @@ std::vector<std::pair<Value, Value>> variable_values(Value trace) {
         if (v.is_expr() && !has(v.op(), LINE)) continue;
         if (!seen.add(v)) continue;
         if (v.is(Op::SETVAR, 2)) {
-            if (pairs.add(Key2{v[0].raw(), v[1].raw()})) out.emplace_back(v[0], v[1]);
+            // (a value that reads what changes - memory, storage, the state -
+            // isn't the variable's value wherever it's read: the algebra would
+            // take one for the other; left out, the variable is any word)
+            if (!v[1].has_flags(F_VOLATILE) && pairs.add(Key2{v[0].raw(), v[1].raw()})) out.emplace_back(v[0], v[1]);
             continue;
         }
         for (Value x : v.children()) todo.push_back(x);
@@ -58,39 +61,42 @@ public:
 
     Value run(Value trace) {
         Value old;
+        const u32 p = opts_.passes;
+        auto on = [&](u32 bit) { return (p & bit) != 0; };
         for (u32 round = 0; round < opts_.max_rounds && trace != old && !timed_out(); ++round) {
             old = trace;
-            trace = step(simplify_exps(trace), ExplainStage::SimplifyExpressions);
-            trace = step(cleanup_vars(trace), ExplainStage::CleanupVariables);
-            trace = step(cleanup_mems(trace), ExplainStage::CleanupMems);
-            trace = step(precompiled_results(trace), ExplainStage::PrecompiledResults);
-            trace = step(min_ifs(trace), ExplainStage::Minimums);
-            trace = step(split_lines(trace), ExplainStage::SplitSetmemsStorages);
-            trace = step(cleanup_vars(trace), ExplainStage::CleanupVars);
-            trace = step(simplify_exps(trace), ExplainStage::SimplifyExpressions);
+            if (on(P_EXPS)) trace = step(simplify_exps(trace), ExplainStage::SimplifyExpressions);
+            if (on(P_VARS)) trace = step(cleanup_vars(trace), ExplainStage::CleanupVariables);
+            if (on(P_MEMS)) trace = step(cleanup_mems(trace), ExplainStage::CleanupMems);
+            if (on(P_PRECOMPILED)) trace = step(precompiled_results(trace), ExplainStage::PrecompiledResults);
+            if (on(P_MIN_IFS)) trace = step(min_ifs(trace), ExplainStage::Minimums);
+            if (on(P_SPLIT)) trace = step(split_lines(trace), ExplainStage::SplitSetmemsStorages);
+            if (on(P_VARS)) trace = step(cleanup_vars(trace), ExplainStage::CleanupVars);
+            if (on(P_EXPS)) trace = step(simplify_exps(trace), ExplainStage::SimplifyExpressions);
             trace = step(cleanup_mul_1(trace), ExplainStage::SimplifyExpressions);
-            trace = step(replace_bytes_or_string_length(trace), ExplainStage::ReplaceStorageWithLength);
-            trace = step(cleanup_conds(trace), ExplainStage::CleanupUnusedIfs);
+            if (on(P_LENGTH)) trace = step(replace_bytes_or_string_length(trace), ExplainStage::ReplaceStorageWithLength);
+            if (on(P_CONDS)) trace = step(cleanup_conds(trace), ExplainStage::CleanupUnusedIfs);
             // (lot 6's loop_to_setmem and propagate_storage_in_loops go here)
             trace = maybe_compact(trace);
         }
-        if (!opts_.final_passes) return trace;
+        if (!opts_.final_passes || !on(P_FINAL)) return trace;
         // the final passes (python: they would break the rounds)
         if (!timed_out()) {
-            for (int k = 0; k < 3; ++k) trace = cleanup_mems(trace);
-            trace = simplify_exps(trace);
-            trace = cleanup_vars(trace);
+            if (on(P_MEMS))
+                for (int k = 0; k < 3; ++k) trace = cleanup_mems(trace);
+            if (on(P_EXPS)) trace = simplify_exps(trace);
+            if (on(P_VARS)) trace = cleanup_vars(trace);
         }
         trace = max_to_add(trace);
         trace = postprocess_exps(trace);
         trace = step(trace, ExplainStage::Heuristics);
-        trace = precompiled_results(trace);
-        trace = step(cleanup_conds(trace), ExplainStage::FinalCleanup);
+        if (on(P_PRECOMPILED)) trace = precompiled_results(trace);
+        if (on(P_CONDS)) trace = step(cleanup_conds(trace), ExplainStage::FinalCleanup);
         trace = fix_storages(trace);
-        trace = step(cleanup_conds(trace), ExplainStage::CleaningStorages);
+        if (on(P_CONDS)) trace = step(cleanup_conds(trace), ExplainStage::CleaningStorages);
         trace = readability(trace);
         trace = step(cleanup_mul_1(trace), ExplainStage::NicerNames);
-        trace = cleanup_conds(trace);
+        if (on(P_CONDS)) trace = cleanup_conds(trace);
         return trace;
     }
 
@@ -130,14 +136,22 @@ Value simplify_trace(Value trace, const SimplifyOptions& opts, ExplainHook* expl
         ~Clear() { alg::clear_variables(); }
     } clear;
     RunFlags& f = run_flags();
-    f.msize = trace.has_flags(F_MSIZE);
+    f.msize = trace.has_flags(F_MSIZE) || (opts.entry_lines.is_list() && opts.entry_lines.has_flags(F_MSIZE));
     f.dubious = opts.dubious;
+    f.entry_lines = opts.entry_lines;
+    f.fresh = opts.fresh_memory;
+    struct Reset {
+        ~Reset() { run_flags() = RunFlags{}; }
+    } reset;
     Driver d(opts, explain);
     return d.run(trace);
 }
 
 void simplify_function(FunctionInfo& fn, const SimplifyOptions& opts, ExplainHook* explain) {
-    fn.trace = simplify_trace(fn.trace, opts, explain);
+    SimplifyOptions o = opts;
+    o.entry_lines = fn.entry.entry_lines;
+    o.fresh_memory = fn.kind != FunctionInfo::Kind::Internal;
+    fn.trace = simplify_trace(fn.trace, o, explain);
 }
 
 void simplify_stage(const std::vector<FunctionInfo>& in, std::vector<FunctionInfo>& out, const SimplifyOptions& opts) {
