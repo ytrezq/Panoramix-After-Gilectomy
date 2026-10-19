@@ -482,6 +482,8 @@ TEST_CASE("algebra: masks") {
     // the complement of a mask: the bits around it
     CHECK(A::band(x, EvmInt(~EvmInt::mask(8, 8)).mod_2exp(256).value()) ==
           A::bor(A::mask(240, 16, 0, x), A::mask(8, 0, 0, x)));
+    CHECK(A::neg_mask(mk_int(8), mk_int(8), x) == A::bor(A::mask(240, 16, 0, x), A::mask(8, 0, 0, x)));
+    CHECK(A::neg_mask(mk_int(160), mk_int(0), V("(storage 256 0 0)")) == V("(mask_shl 96 160 0 (storage 256 0 0))"));
     // a 0/1 value under a mask that keeps bit 0
     Value lt = V("(lt caller 5)");
     CHECK(A::mask(8, 0, 0, lt) == lt);

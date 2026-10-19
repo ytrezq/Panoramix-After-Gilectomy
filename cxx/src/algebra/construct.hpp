@@ -57,6 +57,7 @@
 #include <optional>
 #include <span>
 
+#include "algebra/masks.hpp"  // MaskShl, max_bits, low_zero_bits...: one include for the constructors' users
 #include "core/value.hpp"
 
 namespace pan::alg {
@@ -87,6 +88,9 @@ Value exp(Value base, Value e);
 // is a negative shl). Fields: small ints, or word expressions.
 Value mask(Value size, Value off, Value shl, Value x);
 Value mask(i64 size, i64 off, i64 shl, Value x);
+// x with the bits [off, off + size) cleared: the OR of the masks below and
+// above them (python neg_mask_op)
+Value neg_mask(Value size, Value off, Value x);
 Value shl(Value shift, Value x);  // EVM order: x << shift
 Value shr(Value shift, Value x);  // x >> shift
 Value sar(Value shift, Value x);

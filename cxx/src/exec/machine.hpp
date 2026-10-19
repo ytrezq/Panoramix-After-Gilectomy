@@ -19,8 +19,8 @@
 //      Unsupported.
 //   3. entry.entry_lines: the dispatcher's lines on the path (SETMEMs, and
 //      an IF per check whose other branch halts), run as trace lines.
-//   4. entry.nonpayable and callvalue != 0: REVERT of no data (the check
-//      lot 8 took out of the body).
+//   4. entry.nonpayable and callvalue != 0: entry.value_fails, the halting
+//      line of the check lot 8 took out of the body (NIL: REVERT of no data).
 //   5. the trace (the body).
 //
 // Words (ir.md 4.3): mod 2^256; the pure ops through alg::eval_op (the one
@@ -40,8 +40,8 @@
 // bytes expression of another length: resized, zeroes before or its last n
 // bytes); DATA: concatenation, an ARR element ABI-encoded (its offset in the
 // head, length + content padded in the tail); MEM(RANGE(p, n)),
-// CALLDATA_BYTES, CODE_BYTES, EXTCODE_BYTES (zero padded), RETURNDATA_BYTES
-// (past the end: an exceptional halt, as RETURNDATACOPY); a BYTES node: its
+// CALLDATA_BYTES, CODE_BYTES, EXTCODE_BYTES, RETURNDATA_BYTES (zero padded
+// past the end: the VM makes RETURNDATACOPY's halt an explicit IF); a BYTES node: its
 // bytes (a codecopy of known code); None: no bytes. A word without SIZED is
 // as wide as it is written: MASK_SHL(size, off, shl, x) (size + off + shl) /
 // 8 bytes, STORAGE/ST size / 8, an int of more than 256 bits its bytes,
@@ -63,8 +63,9 @@
 // records, Name(PARAM, k) = args[k]; its LEAVE([values]) binds names[i] :=
 // values[i] in the caller), RETURN, REVERT, STOP, INVALID,
 // SELFDESTRUCT (then stop), ASM (nothing), UNDEFINED (Status::Undefined:
-// inconclusive), REQUIRE (revert of no data when 0), ASSERT (invalid when
-// 0), MERGED_IF (as IF). The end of the trace: stop.
+// inconclusive), REQUIRE(cond[, data]) (when 0: revert of data, none when
+// absent or None), ASSERT (invalid when 0), MERGED_IF (as IF). The end of
+// the trace: stop.
 //
 // Limits: steps (lines and loop rounds), the bytes of one byte string,
 // the bytes all of a run's byte strings make (work), the memory, the depth
@@ -234,7 +235,7 @@ enum class Status : u8 {
     Stop,         // STOP, the end of the trace, SELFDESTRUCT
     Return,       // RETURN(data)
     Revert,       // REVERT(data)
-    Invalid,      // INVALID, ASSERT, an exceptional halt (RETURNDATA past its end)
+    Invalid,      // INVALID, ASSERT
     Exhausted,    // a limit (steps, bytes, work, memory, depth): inconclusive
     Undefined,    // an UNDEFINED line (the decompiler gave up there): inconclusive
     Unsupported,  // the machine can't run it (no function for the call, a failed

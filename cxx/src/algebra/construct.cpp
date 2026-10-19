@@ -600,14 +600,14 @@ bool merge_or_fields(SmallVec<Value, 8>& v) {
     return false;
 }
 
-Value neg_mask(Value x, Value size, Value off) {
+}  // namespace
+
+Value neg_mask(Value size, Value off, Value x) {
     // the bits outside [off, off + size)
     Value top = mask(sub(small(256), add(size, off)), add(off, size), small(0), x);
     Value low = mask(off, small(0), small(0), x);
     return bor(top, low);
 }
-
-}  // namespace
 
 // ================================================================ public
 
@@ -865,7 +865,7 @@ Value band(std::span<const Value> args) {
         Value cv = wv(c);
         Value inner = rest.size() == 1 ? rest[0] : mk(Op::AND, rest.span());
         if (auto m = to_mask(cv)) return mask(m->size, m->off, small(0), inner);
-        if (auto m = to_neg_mask(cv)) return neg_mask(inner, m->size, m->off);
+        if (auto m = to_neg_mask(cv)) return neg_mask(m->size, m->off, inner);
         SmallVec<Value, 8> ops;
         for (Value a : rest) ops.push_back(a);
         ops.push_back(cv);
