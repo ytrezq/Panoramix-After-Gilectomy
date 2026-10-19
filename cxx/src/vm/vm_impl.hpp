@@ -77,7 +77,7 @@ struct Node {
     u32 depth = 0;
     NodeId jump = NO_NODE;  // skew-binary jump pointer (O(log n) ancestors)
     std::pmr::vector<NodeId> next;
-    bool dead = false;          // cut off the tree (python: no longer attached)
+    bool dead = true;           // not in the tree (python: not attached): until linked, once cut
     NodeId same_jd = NO_NODE;   // the node made before it at the same jd (the jd's list)
 
     // --- the trace ---
@@ -278,7 +278,7 @@ private:
     u32 next_loop_id_ = 1;   // LOOP_IDs
     u32 precompile_count_[9] = {};
     u32 node_count_ = 0;
-    u32 frontier_ = 0;
+    u32 frontier_count_ = 0;
     bool quit_ = false;
     bool complete_ = true;
 

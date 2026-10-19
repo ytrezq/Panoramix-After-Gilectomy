@@ -931,6 +931,13 @@ MemState::MemState(bool fresh, const Facts* facts)
       spans_(cx().budget.resource()),
       written_(cx().budget.resource()) {}
 
+MemState::MemState(const MemState& o)
+    : facts_(o.facts_),
+      fresh_(o.fresh_),
+      pieces_(o.pieces_, o.pieces_.get_allocator()),
+      spans_(o.spans_, o.spans_.get_allocator()),
+      written_(o.written_, o.written_.get_allocator()) {}
+
 void MemState::unfresh() noexcept {
     fresh_ = false;
     spans_.clear();
@@ -1082,6 +1089,9 @@ std::optional<Value> MemState::read(Value range) const {
     const Facts* f = facts_;
     const Value sr = range[0], len = range[1];
     if (is_empty(len, f) == Tri::True) return mk(Op::DATA, std::span<const Value>{});
+    // a piece of that very range: it (the pieces are disjoint)
+    for (const Piece& p : pieces_)
+        if (p.range == range) return p.value;
     const Value er = range_end(range);
     // the pieces it meets for sure, where: [a, b) from the read's start
     struct Part {

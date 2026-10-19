@@ -670,3 +670,107 @@ TEST_CASE("mem: byte_field_store") {
         CHECK(h1.storage == h2.storage);
     }
 }
+
+// The bytes algebra on random bytes expressions, by execution: a slice is
+// those bytes, sized / resize_bytes / concat / as_word are what SIZED / DATA
+// / the read as a word are.
+TEST_CASE("mem: bytes algebra agrees with execution") {
+    Fixture fx;
+    Rng rng{2024};
+    auto word = [&]() -> Value {
+        switch (rng.below(5)) {
+            case 0: return mk_int(i64(rng.next() >> 2));
+            case 1: return alg::mask(160, 0, 0, V("caller"));
+            case 2: return alg::mask(i64(8 * (1 + rng.below(32))), i64(8 * rng.below(4)), 0,
+                                     mk(Op::CALLDATALOAD, S(i64(4 + 32 * rng.below(12)))));
+            default: return mk(Op::CALLDATALOAD, S(i64(4 + 32 * rng.below(12))));
+        }
+    };
+    // a bytes expression of known width
+    auto gen = [&](auto&& self, int depth) -> Value {
+        const i64 n = 1 + i64(rng.below(rng.coin(4) ? 80 : 33));
+        switch (depth > 2 ? rng.below(5) : rng.below(7)) {
+            case 0: return mk(Op::SIZED, S(n), word());
+            case 1: return mk(Op::MEM, R(i64(rng.below(100)), n));
+            case 2: return mk(Op::CALLDATA_BYTES, S(i64(rng.below(400))), S(n));
+            case 3: {
+                std::vector<u8> bytes(static_cast<usize>(n), u8(0));
+                for (u8& c : bytes) c = u8(rng.next());
+                return n > 32 ? mk_bytes(bytes) : mk(Op::SIZED, S(n), mk_int_be(bytes));
+            }
+            case 4: return mk(Op::CODE_BYTES, S(i64(rng.below(220))), S(n));
+            case 5: {
+                SmallVec<Value, 4> parts;
+                const int k = 1 + int(rng.below(3));
+                for (int i = 0; i < k; ++i) parts.push_back(self(self, depth + 1));
+                return mk(Op::DATA, parts.span());
+            }
+            default: return mk(Op::SIZED, S(n), self(self, depth + 1));
+        }
+    };
+    // memory with something in it
+    const Value pre = mk_trace({mk(Op::SETMEM, R(0, 64), V("(calldata_bytes 4 64)")),
+                                mk(Op::SETMEM, R(64, 64), V("(calldata_bytes 100 64)"))});
+    int checked = 0, sliced = 0, worded = 0;
+    for (int round = 0; round < 600; ++round) {
+        exec::SimpleHost host = random_host(rng);
+        Value b = gen(gen, 0);
+        auto bytes = returned(pre, b, host);
+        REQUIRE(bytes.has_value());
+        const auto w = width_u64(b);
+        REQUIRE(w.has_value());
+        CHECK(bytes->size() == *w);
+        INFO("b: " << D(b));
+        // slices
+        for (int k = 0; k < 3; ++k) {
+            const i64 lo = i64(rng.below(*w + 1)), hi = lo + i64(rng.below(*w - u64(lo) + 1));
+            auto s = slice(b, S(lo), S(hi));
+            if (!s) continue;
+            ++sliced;
+            auto got = returned(pre, *s, host);
+            INFO("slice [" << lo << ", " << hi << "): " << D(*s));
+            REQUIRE(got.has_value());
+            CHECK(*got == std::vector<u8>(bytes->begin() + lo, bytes->begin() + hi));
+        }
+        // sized / resize_bytes: what SIZED(n, b) is
+        const i64 n = i64(rng.below(*w + 40));
+        Value raw = mk(Op::SIZED, S(n), b);
+        Value norm = sized(n, b);
+        auto want = returned(pre, raw, host);
+        auto have = returned(pre, norm, host);
+        INFO("sized " << n << ": " << D(norm));
+        REQUIRE(want.has_value());
+        REQUIRE(have.has_value());
+        CHECK(*want == *have);
+        if (auto r = resize_bytes(b, S(n))) {
+            auto hr = returned(pre, *r, host);
+            INFO("resize_bytes: " << D(*r));
+            REQUIRE(hr.has_value());
+            CHECK(*want == *hr);
+        }
+        // concat of it and another one: DATA of both
+        Value c = gen(gen, 1);
+        Value both[] = {b, c};
+        auto wd = returned(pre, mk(Op::DATA, both[0], both[1]), host);
+        auto hd = returned(pre, concat(both), host);
+        INFO("concat: " << D(concat(both)));
+        REQUIRE(wd.has_value());
+        REQUIRE(hd.has_value());
+        CHECK(*wd == *hd);
+        // as a word
+        if (*w <= 32) {
+            if (auto x = as_word(b)) {
+                ++worded;
+                auto ww = returned(pre, mk(Op::SIZED, S(32), b), host);
+                auto hw = returned(pre, mk(Op::SIZED, S(32), *x), host);
+                INFO("as_word: " << D(*x));
+                REQUIRE(ww.has_value());
+                REQUIRE(hw.has_value());
+                CHECK(*ww == *hw);
+            }
+        }
+        ++checked;
+    }
+    MESSAGE("bytes algebra checked: " << checked << " (slices " << sliced << ", words " << worded << ")");
+    CHECK(sliced > 600);
+}

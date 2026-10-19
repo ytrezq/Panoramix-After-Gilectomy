@@ -4,7 +4,6 @@
 // gotos (continue_loops), merge the branches that meet again
 // (merge_branches) - and the trace of the tree (make_trace).
 #include <algorithm>
-#include <unordered_map>
 
 #include "algebra/construct.hpp"
 #include "algebra/eval.hpp"
@@ -32,7 +31,7 @@ bool Vm::should_quit() {
     if (quit_) return true;
     const u32 max_nodes = setup_.max_nodes ? setup_.max_nodes : limits::MAX_NODE_COUNT;
     if (node_count_ > max_nodes ||
-        (node_count_ > limits::WIDE_NODE_COUNT && u64(16) * frontier_ > node_count_) ||
+        (node_count_ > limits::WIDE_NODE_COUNT && u64(16) * frontier_count_ > node_count_) ||
         (setup_.deadline_ns && platform::monotonic_ns() > setup_.deadline_ns))
         quit_ = true;
     return quit_;
@@ -70,51 +69,71 @@ void Vm::explore() {
     {
         Node& r = nodes_[root_];
         r.jump = root_;
+        r.dead = false;
         r.lines.assign(setup_.before.begin(), setup_.before.end());
         r.end = End::Jump;
         r.a = func;
     }
     set_prev(func, root_);
 
-    std::pmr::vector<NodeId> unexp(res_);
+    dirty_ = true;
     for (u32 j = 0; j < limits::VM_ROUNDS; ++j) {
         for (u32 i = 0; i < limits::VM_ROUND_STEPS; ++i) {
             poll();
+            refresh_frontier();
             expand_trace();
             replace_loops();
             replace_recursions();
             continue_loops();
             merge_branches();
-            unexpanded(unexp);
-            frontier_ = u32(unexp.size());
-            if (unexp.empty() || should_quit()) break;
+            refresh_frontier();
+            frontier_count_ = u32(frontier_.size());
+            if (frontier_.empty() || should_quit()) break;
         }
         continue_loops();
-        unexpanded(unexp);
-        if (unexp.empty() || should_quit()) break;
+        refresh_frontier();
+        if (frontier_.empty() || should_quit()) break;
     }
 }
 
 void Vm::expand_trace() {
-    std::pmr::vector<NodeId> nodes(res_);
-    unexpanded(nodes);
+    // the nodes not run yet, run in the order of the tree; each run node's
+    // place in the frontier taken by its children not run yet
+    bool dispatch_only = false;
     if (setup_.just_fdests) {
         // the dispatcher first, a function's body with the nodes left once
         // it's done (explored with it, the default function's body took all
         // the nodes, and the functions past where the dispatcher was cut were
         // left to it)
-        std::pmr::vector<NodeId> dispatch(res_);
-        for (NodeId n : nodes)
-            if (in_dispatcher(n)) dispatch.push_back(n);
-        if (!dispatch.empty()) nodes.swap(dispatch);
+        for (NodeId n : frontier_)
+            if (in_dispatcher(n)) {
+                dispatch_only = true;
+                break;
+            }
     }
-    for (NodeId n : nodes) {
-        // (one node's run can take long when the expressions get big)
-        if (should_quit()) break;
-        poll();
-        if (nodes_[n].end != End::None) continue;
-        run_node(n);
+    std::pmr::vector<NodeId> next(res_), below(res_);
+    next.reserve(frontier_.size() * 2);
+    bool quit = false;
+    for (NodeId n : frontier_) {
+        if (!quit && nodes_[n].end == End::None && (!dispatch_only || in_dispatcher(n))) {
+            // (one node's run can take long when the expressions get big)
+            if (should_quit()) {
+                quit = true;
+            } else {
+                poll();
+                run_node(n);
+            }
+        }
+        if (nodes_[n].end == End::None) {
+            next.push_back(n);
+        } else {
+            find_nodes(n, [](const Node& x) { return x.end == End::None; }, below);
+            next.insert(next.end(), below.begin(), below.end());
+        }
     }
+    frontier_.swap(next);
+    // (the runs changed nothing else in the tree)
+    dirty_ = false;
 }
 
 void Vm::fold_stacks(Value first, Value second, u32 key, Value& folded, std::pmr::vector<LoopVar>& vars) const {
@@ -151,15 +170,27 @@ void Vm::stack_vars(Value first, std::span<const u32> positions, u32 key, Value&
 void Vm::replace_loops() {
     // the paths that get back to a jumpdest an ancestor started at, with the
     // same stack layout (the return addresses on it the same: not a
-    // function's call), loop
-    std::pmr::vector<NodeId> nodes(res_);
-    unexpanded(nodes);
-    for (NodeId id : nodes) {
+    // function's call), loop - the nearest such ancestor (python history)
+    // among the nodes at the same jd
+    new_loops_.clear();
+    std::pmr::vector<NodeId> rest(res_);
+    rest.reserve(frontier_.size());
+    for (NodeId id : frontier_) {
         Node& n = nodes_[id];
-        if (n.stack.size() == 0) continue;
-        NodeId a = n.prev;
-        while (a != NO_NODE && nodes_[a].jd != n.jd) a = nodes_[a].prev;
-        if (a == NO_NODE) continue;
+        NodeId a = NO_NODE;
+        if (n.stack.size() != 0) {
+            const u32* head = jd_head_.find(n.jd);
+            for (NodeId c = head ? *head - 1 : NO_NODE; c != NO_NODE; c = nodes_[c].same_jd) {
+                const Node& x = nodes_[c];
+                if (c == id || x.dead || x.depth >= n.depth) continue;
+                if ((a == NO_NODE || x.depth > nodes_[a].depth) && below(id, c)) a = c;
+            }
+        }
+        if (a == NO_NODE) {
+            rest.push_back(id);
+            continue;
+        }
+        new_loops_.push_back(id);
         Value folded;
         std::pmr::vector<LoopVar> vars(res_);
         fold_stacks(nodes_[a].stack, n.stack, loop_key(a), folded, vars);
@@ -170,6 +201,7 @@ void Vm::replace_loops() {
         m.loop_folded = folded;
         m.loop_vars.assign(vars.begin(), vars.end());
     }
+    frontier_.swap(rest);
 }
 
 void Vm::set_label(NodeId self_id, NodeId dest_id, std::span<const LoopVar> vars, Value stack) {
@@ -185,7 +217,7 @@ void Vm::set_label(NodeId self_id, NodeId dest_id, std::span<const LoopVar> vars
     dest.end = End::Jump;
     dest.a = self_id;
     dest.cont = NO_NODE;
-    dest.next.clear();
+    cut(dest_id);
     set_prev(self_id, dest_id);
     // This node is now the body of a loop, executed for every iteration,
     // the first one included: what is known there is what was known before
@@ -210,8 +242,15 @@ void Vm::set_label(NodeId self_id, NodeId dest_id, std::span<const LoopVar> vars
 }
 
 bool Vm::continue_loops() {
+    // the loops replace_loops just made - or, when the tree changed since or
+    // an earlier round left some, all of them (python find_nodes)
     std::pmr::vector<NodeId> loops(res_);
-    find_nodes(root_, [](const Node& n) { return n.end == End::Loop; }, loops);
+    if (dirty_ || stale_loops_)
+        find_nodes(root_, [](const Node& n) { return n.end == End::Loop; }, loops);
+    else
+        loops.assign(new_loops_.begin(), new_loops_.end());
+    new_loops_.clear();
+    stale_loops_ = true;  // (until all are done)
     for (NodeId id : loops) {
         poll();
         if (nodes_[id].end != End::Loop) continue;
@@ -236,7 +275,7 @@ bool Vm::continue_loops() {
                 d.assumed_memory = still;
                 for (const Fact& f : broken) d.rejected_memory.push_back(f);
                 d.end = End::None;
-                d.next.clear();
+                cut(dest);
                 return false;
             }
             // the iterations may differ in the call whose return data they
@@ -244,7 +283,7 @@ bool Vm::continue_loops() {
             if (n.last_call != d.last_call && d.last_call != kAmbiguousCall) {
                 d.last_call = kAmbiguousCall;
                 d.end = End::None;
-                d.next.clear();
+                cut(dest);
                 return false;
             }
             const Value old_stack = d.stack;
@@ -291,7 +330,7 @@ bool Vm::continue_loops() {
                 stack_vars(nodes_[head].stack, positions.span(), loop_key(head), folded, vars);
                 Node& dd = nodes_[dest];
                 dd.end = End::None;
-                dd.next.clear();
+                cut(dest);
                 set_label(dest, head, vars, folded);
                 // (the other loops found in this pass may be in the part of
                 // the tree just thrown away)
@@ -308,6 +347,7 @@ bool Vm::continue_loops() {
             set_label(id, dest, vars, m.loop_folded);
         }
     }
+    stale_loops_ = false;
     return true;
 }
 
@@ -359,27 +399,43 @@ void Vm::merge_branches() {
         else
             ++i;
     }
-    std::pmr::vector<NodeId> unexp(res_);
-    unexpanded(unexp);
-    if (!unexp.empty()) merge_unexpanded(unexp);
+    refresh_frontier();
+    if (!frontier_.empty()) {
+        // (a copy: the merges change the tree)
+        std::pmr::vector<NodeId> unexp(frontier_.begin(), frontier_.end(), res_);
+        merge_unexpanded(unexp);
+    }
 }
 
 void Vm::merge_unexpanded(std::pmr::vector<NodeId>& unexp) {
-    std::pmr::vector<NodeId> all(res_);
-    find_nodes(root_, [](const Node&) { return true; }, all);
-    std::unordered_map<u64, std::vector<NodeId>> by_jd;
-    for (NodeId n : all) by_jd[nodes_[n].jd.raw()].push_back(n);
-    std::vector<std::pair<NodeId, u64>> tried;
+    // the live nodes at the jds of the unexpanded ones, in the order of the
+    // tree, as the pass starts (python's by_jd)
+    struct Group {
+        u32 off, len;
+    };
+    std::pmr::vector<Group> groups(res_);
+    std::pmr::vector<NodeId> members(res_), tmp(res_);
+    Memo<Value, u32> index;  // jd -> 1 + its group
+    for (NodeId node : unexp) {
+        u32& g = index.slot(nodes_[node].jd);
+        if (g) continue;
+        same_jd(nodes_[node].jd, tmp);
+        groups.push_back({u32(members.size()), u32(tmp.size())});
+        members.insert(members.end(), tmp.begin(), tmp.end());
+        g = u32(groups.size());
+    }
+    std::pmr::vector<std::pair<NodeId, u64>> tried(res_);
 
     for (NodeId node : unexp) {
         poll();
         const Node& x = nodes_[node];
         if (x.end != End::None) continue;  // merged into another during this pass
         if (x.switched) continue;          // a code switch's path: merged, what it copies wouldn't be known
-        const auto& same = by_jd[x.jd.raw()];
-        if (same.size() < 2 || (x.sw == 0 && ends_execution(x.start))) continue;
+        const Group grp = groups[*index.find(x.jd) - 1];
+        if (grp.len < 2 || (x.sw == 0 && ends_execution(x.start))) continue;
         const Value jd = x.jd;
-        for (NodeId other : same) {
+        for (u32 k = 0; k < grp.len; ++k) {
+            const NodeId other = members[grp.off + k];
             if (other == node) continue;
             // the paths to node and other diverged at their closest common
             // ancestor: if it's an IF, that's where they could be merged
@@ -526,7 +582,7 @@ std::optional<bool> Vm::merge_at(NodeId p, Value jd, bool loop_exit) {
         h.lines.assign(setvars[k].begin(), setvars[k].end());
         for (Value l : setvars[k]) cx().pcs.note(l, h.start);
         h.end = End::Merged;
-        h.next.clear();
+        cut(hits[k]);
         h.cont = NO_NODE;
         h.merged = true;
         h.merge_point = p;
@@ -674,8 +730,8 @@ void Vm::replace_recursions() {
     // the function is a recursive one: every call of it is a line - those of
     // the path explored, the first one included, explored again as such
     if (setup_.just_fdests) return;
-    std::pmr::vector<NodeId> nodes(res_), redo(res_);
-    unexpanded(nodes);
+    refresh_frontier();
+    std::pmr::vector<NodeId> nodes(frontier_.begin(), frontier_.end(), res_), redo(res_);
     for (NodeId id : nodes) {
         poll();
         const Node& n = nodes_[id];
@@ -695,7 +751,7 @@ void Vm::replace_recursions() {
         for (NodeId x : redo) {
             Node& m = nodes_[x];
             m.end = End::None;
-            m.next.clear();
+            cut(x);
             m.lines.clear();
             m.cont = NO_NODE;
         }

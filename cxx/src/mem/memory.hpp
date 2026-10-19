@@ -33,6 +33,9 @@
 // a kept value or range reads, msize never kept); the rest of the state
 // (storage, calls, variables set again: lot 7's effect summaries) is the
 // caller's: forget_flags / forget_name / clear where the trace changes it.
+// A read replaced by what it reads no longer touches that memory: where the
+// trace reads msize (MSIZE, the _msize variable), what a run touches is
+// observable - don't replace reads there (the corpus check skips them).
 //
 // Caps: constant byte strings made here (slices of BYTES nodes, of long
 // constants) at most 2^24 bytes (MemoryLimit past it, the asm's); zeroes of
@@ -81,6 +84,8 @@ std::optional<u64> width_u64(Value b);
 // where they fall: slice); else SIZED(n, v).
 Value sized(Value n, Value v);
 inline Value sized(i64 n, Value v) { return sized(Value::small(n), v); }
+// (the brief's name, python's argument order)
+inline Value with_width(Value v, Value n) { return sized(n, v); }
 // b (bytes) as n bytes without a SIZED of bytes of another width (python
 // resize_bytes): b when it is n bytes, zeroes then b, or b's last n bytes
 // cut where they fall; nullopt when they can't be cut there (b's width or n
@@ -222,6 +227,11 @@ public:
     };
 
     explicit MemState(bool fresh = false, const alg::Facts* facts = nullptr);
+    // (copies on the same memory resource: the budget's)
+    MemState(const MemState& o);
+    MemState& operator=(const MemState& o) = default;
+    MemState(MemState&& o) noexcept = default;
+    MemState& operator=(MemState&& o) = default;
 
     // the path facts the comparisons use (may be null)
     void set_facts(const alg::Facts* facts) noexcept { facts_ = facts; }
