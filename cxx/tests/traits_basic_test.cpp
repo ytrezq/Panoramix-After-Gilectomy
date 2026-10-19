@@ -403,6 +403,32 @@ TEST_CASE("traits: read_only, const, getter")
         // what it returns varies
         CHECK_FALSE(analysed(fn_of("{(if callvalue {(revert None)} {(return (sized 32 caller))})}")).is_const);
         CHECK(analysed(fn_of("{(if callvalue {(revert None)} {(return (sized 32 address))})}")).is_const);
+        // setmems before the return: still one path
+        CHECK(analysed(fn_of("{(setmem (range 64 32) (sized 32 128)) (if callvalue {(revert None)} {(setmem (range 128 32) "
+                             "(sized 32 7)) (return (sized 32 7))})}"))
+                  .is_const);
+    }
+    SUBCASE("a condition on the context: not a const (python's would be, hiding the revert)")
+    {
+        // UUPS's notDelegated: require(address(this) == SELF), SELF 0 here -
+        // every real call reverts; a `const` would say it returns the UUID
+        const FunctionInfo g = analysed(fn_of(
+            "{(if callvalue {(revert None)} {(if address {(revert None)} {(return (sized 32 0x3608))})})}"));
+        CHECK(g.read_only);
+        CHECK_FALSE(g.is_const);
+        CHECK_FALSE(g.getter);
+        CHECK(traits::const_of(g).nil());
+        same_runs(fn_of("{(if callvalue {(revert None)} {(if address {(revert None)} {(return (sized 32 0x3608))})})}"), g);
+        // the same with a require
+        CHECK_FALSE(analysed(fn_of("{(if callvalue {(revert None)} {(require (iszero address)) (return (sized 32 0x3608))})}"))
+                        .is_const);
+        // the dispatcher's lines aren't the function's paths: solc's size check
+        const FunctionInfo d = analysed(fn_of(
+            "{(return (sized 32 18))}",
+            "{(setmem (range 64 32) (sized 32 128)) (if (iszero callvalue) {} {(revert None)}) (if (lt calldatasize 4) "
+            "{(revert None)} {})}"));
+        CHECK(d.entry.nonpayable);
+        CHECK(d.is_const);
     }
     SUBCASE("not read only")
     {
@@ -448,7 +474,7 @@ TEST_CASE("traits: the abi's params (a database when there is one)")
     }
     // transfer(address,uint256)
     const auto e = db->function(0xa9059cbb);
-    if (!e || e->trust() != sigdb::Trust::verified)
+    if (!e || !e->known())
         return;
     const auto ps = traits::abi_params(*e);
     REQUIRE(ps.size() == 2);

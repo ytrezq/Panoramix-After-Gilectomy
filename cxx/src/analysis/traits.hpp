@@ -7,7 +7,7 @@
 // analyse_function(fn, shared), on cx(), fn changed in place:
 //  - fn.params: a ParamInfo per word of the head of the calldata a param
 //    takes, by calldata offset (python inferred_params): a known function's
-//    (the signature database's entry, verified: its params' words - each
+//    (the signature database's entry, known: its params' words - each
 //    word of a static tuple or array, a dynamic param's offset - abi_index
 //    the param's place in the signature), else inferred from the trace's
 //    CALLDATALOAD(4 + 32k) (python make_params: masked everywhere to N bits
@@ -15,8 +15,9 @@
 //    reads -> an array, solc >= 0.8's validation `require x == address(x)`
 //    -> its type; none at all when a constant offset isn't 4 + 32k). The
 //    fallback's are inferred too; an internal function's are left alone.
-//  - fn.name_known: the database knows the selector (Trust::verified: an
-//    unverified entry is panoramix's own guess, never a name).
+//  - fn.name_known: the database knows the selector (Entry::known():
+//    verified or repaired, both hash to it; an unverified entry is
+//    panoramix's own guess, never a name).
 //  - fn.entry.nonpayable / value_fails: the body's first line past SETMEM /
 //    SETVAR lines is `if callvalue: revert` (REVERT(None) or INVALID) -> it
 //    is taken out of the body (the trace machine checks it first:
@@ -35,8 +36,12 @@
 //    str(trace), by the ops); fn.is_const: read only, one RETURN, nothing
 //    read that varies (calldata, state, environment - but ADDRESS and
 //    CODESIZE), nonpayable failing on value with REVERT(None) (python
-//    const); fn.getter: read only, not a const, one RETURN of a storage
-//    read, a struct of consecutive words, or kitties-style (getter_of).
+//    const), and - unlike python - one path: the body only SETMEM/SETVAR
+//    lines before the RETURN (the entry lines are the dispatcher's), so
+//    that no condition on the context (`require this.address == SELF`)
+//    hides a revert behind `const`; fn.getter: read only, not a const,
+//    one RETURN of a storage read, a struct of consecutive words, or
+//    kitties-style (getter_of).
 // An internal function is left as it is (python doesn't analyse them).
 // Errors: the Budget's (MemoryLimit, Timeout, DepthLimit).
 #pragma once

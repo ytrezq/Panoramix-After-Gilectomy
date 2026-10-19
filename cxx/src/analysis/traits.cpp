@@ -951,6 +951,26 @@ bool reads_varying(Value v, Memo<Value, u8>& memo)
     return r;
 }
 
+// one path, no condition: lines that neither branch nor halt (SETMEM,
+// SETVAR, --verbose's ASM), then the RETURN as the last line. A constant
+// is what every call returns: the python/asm rule (one return, nothing
+// varying read) would also take a body whose other paths revert on the
+// context - `require address(this) == SELF` of a delegatecall guard,
+// ADDRESS being one of the contract's constants - and the printed `const`
+// would hide that revert.
+bool straight_line(Value trace) noexcept
+{
+    const auto ls = lines_of(trace);
+    for (usize k = 0; k < ls.size(); ++k) {
+        const Value l = ls[k];
+        if (k + 1 == ls.size())
+            return l.is(Op::RETURN);
+        if (!(l.is(Op::SETMEM) || l.is(Op::SETVAR) || l.is(Op::ASM)))
+            return false;
+    }
+    return false;
+}
+
 // python word(): a word of data (SIZED(32, v)) as its value
 Value word(Value d) noexcept
 {
@@ -1098,10 +1118,11 @@ void analyse_function(FunctionInfo& fn, const ContractShared& shared, const Opti
 {
     if (fn.kind == FunctionInfo::Kind::Internal || !fn.trace.is_trace())
         return;
-    // the signature database's entry (python fetch_sig: only a verified one)
+    // the signature database's entry (python fetch_sig): a known one -
+    // verified or repaired, both hash to the selector
     std::optional<sigdb::Entry> entry;
     if (fn.kind == FunctionInfo::Kind::Selector && shared.db)
-        if (auto e = shared.db->function(fn.selector); e && e->trust() == sigdb::Trust::verified)
+        if (auto e = shared.db->function(fn.selector); e && e->known())
             entry = e;
     fn.name_known = entry.has_value();
 
@@ -1168,7 +1189,9 @@ void analyse_function(FunctionInfo& fn, const ContractShared& shared, const Opti
         Memo<Value, u8> vmemo;
         const bool reverts_on_value = fn.entry.nonpayable && fn.entry.value_fails.is(Op::REVERT, 1) &&
                                       fn.entry.value_fails[0].is_none();
-        fn.is_const = reverts_on_value && !reads_varying(body, vmemo);
+        // (the body's paths: the entry lines are the dispatcher's, shared -
+        // solc's `if calldata.size < 4: revert` isn't the function's)
+        fn.is_const = reverts_on_value && !reads_varying(body, vmemo) && straight_line(body);
         if (!fn.is_const)
             fn.getter = getter_of_return(first_return(body)).has_value();
     }

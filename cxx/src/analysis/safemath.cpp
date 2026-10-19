@@ -17,10 +17,12 @@
 
 #include <algorithm>
 #include <deque>
+#include <format>
 #include <memory_resource>
 #include <utility>
 #include <vector>
 
+#include "decompile.hpp"
 #include "algebra/construct.hpp"
 #include "algebra/eval.hpp"
 #include "core/budget.hpp"
@@ -598,13 +600,23 @@ struct Site {
     Value a, b;
 };
 
+// The two caps only narrow the search, they never change what a rewrite
+// means: every call made is verified the same way (call(): the result and
+// each check, abstracted then made concrete again, the same values), and
+// what a cap leaves out keeps its plain arithmetic and its checks as they
+// were. A cap hit is counted (Rewriter::capped) and logged at debug level.
+//
 // A group of checks is this many at most: a library's, then the compiler's
 // of the same operation (python tried every run of consecutive checks as a
-// group, the longest first: cubic in a run's length - 2000 asserts in a row)
+// group, the longest first: cubic in a run's length - 2000 asserts in a
+// row). Past it, a group of a longer run is only tried with the check
+// right after it (python's own rule for a group that isn't a whole run):
+// a run longer than this may keep checks python would have made a call of.
 constexpr usize kMaxGroup = 8;
-// the lines from its first use the call is put in (python: until one changes
-// what the result reads), at most: the rest keep the arithmetic (the checks
-// ran at the first use)
+// The lines from its first use the call is put in (python: until one
+// changes what the result reads), at most: the lines past keep the plain
+// arithmetic - the same value, nothing having changed what it reads, and
+// the checks having passed at the first use.
 constexpr usize kMaxUses = 512;
 
 // The rewrite of the asts (python block / inside / _convert / _call / _uses):
@@ -612,6 +624,9 @@ constexpr usize kMaxUses = 512;
 class Rewriter {
 public:
     std::vector<Site> sites;
+    // the times a cap narrowed the search: a run of checks longer than a
+    // group, a use past kMaxUses lines (diagnostics: see the caps)
+    usize capped_groups = 0, capped_uses = 0;
 
     Value ast(Value trace) { return block(trace); }
 
@@ -855,6 +870,7 @@ private:
             }
         // (a run longer than a group: only a check's use in the next one's condition)
         const bool longer = run.size() > kMaxGroup;
+        capped_groups += longer;
         // (the most checks first: a library's, then the compiler's of it)
         for (usize e = std::min(end, i + kMaxGroup); e > i; --e) {
             const std::span<const Check> checks(run.data(), e - i);
@@ -923,7 +939,7 @@ private:
     // python _uses: the lines from j on with the call in place of the result,
     // until one changes what it reads - in that one, where it's read before
     // (a write's value, an if's condition); not in a loop that changes it
-    static void uses(const Values& lines, usize j, Value res, Value call, Values& out)
+    void uses(const Values& lines, usize j, Value res, Value call, Values& out)
     {
         Memo<Value, Value> memo;
         auto replace = [&](Value v) { return replace_in(v, res, call, memo); };
@@ -931,6 +947,7 @@ private:
             poll();
             const Value line = lines[k];
             if (k - j >= kMaxUses) {
+                ++capped_uses;
                 out.insert(out.end(), lines.begin() + isize(k), lines.end());
                 return;
             }
@@ -1154,6 +1171,14 @@ std::shared_ptr<const SafeMathTable> rewrite(std::span<FunctionInfo> functions, 
             const Value r = rw.ast(f.trace);
             if (r != f.trace)
                 done.emplace_back(&f, r);
+        }
+    if ((rw.capped_groups || rw.capped_uses) && log_enabled(log_debug))
+        try {
+            pan::log(log_debug, "panoramix.decompiler",
+                     std::format("SafeMath: searched in part ({} runs of checks longer than {}, {} uses past {} lines): "
+                                 "those keep their plain arithmetic",
+                                 rw.capped_groups, kMaxGroup, rw.capped_uses, kMaxUses));
+        } catch (...) {
         }
     if (rw.sites.empty())
         return nullptr;
