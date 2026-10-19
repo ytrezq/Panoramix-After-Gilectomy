@@ -41,14 +41,6 @@ void append_word(Bytes& out, const Word& w)
     out.insert(out.end(), b.begin(), b.end());
 }
 
-namespace
-{
-void append_address(Bytes& out, const Word& a)
-{
-    const auto b = to_bytes(a);
-    out.insert(out.end(), b.begin() + 12, b.end());
-}
-}  // namespace
 
 Word create_address(const Word& sender, std::uint64_t nonce) noexcept
 {
@@ -59,31 +51,32 @@ Word create_address(const Word& sender, std::uint64_t nonce) noexcept
         ++n;
     for (unsigned i = 0; i < n; ++i)
         nonce_bytes[i] = static_cast<std::uint8_t>(nonce >> (8 * (n - 1 - i)));
-    Bytes rlp;
+    std::uint8_t rlp[32];
     const unsigned nonce_len = (nonce != 0 && nonce < 0x80) ? 1 : 1 + n;
-    rlp.push_back(static_cast<std::uint8_t>(0xc0 + 21 + nonce_len));
-    rlp.push_back(0x94);
-    append_address(rlp, sender);
+    rlp[0] = static_cast<std::uint8_t>(0xc0 + 21 + nonce_len);
+    rlp[1] = 0x94;
+    const auto s = to_bytes(sender);
+    std::memcpy(rlp + 2, s.data() + 12, 20);
     if (nonce == 0)
-        rlp.push_back(0x80);
+        rlp[22] = 0x80;
     else if (nonce < 0x80)
-        rlp.push_back(static_cast<std::uint8_t>(nonce));
+        rlp[22] = static_cast<std::uint8_t>(nonce);
     else
     {
-        rlp.push_back(static_cast<std::uint8_t>(0x80 + n));
-        rlp.insert(rlp.end(), nonce_bytes, nonce_bytes + n);
+        rlp[22] = static_cast<std::uint8_t>(0x80 + n);
+        std::memcpy(rlp + 23, nonce_bytes, n);
     }
-    return to_address(keccak256(rlp));
+    return to_address(keccak256({rlp, 22 + std::size_t{nonce_len}}));
 }
 
 Word create2_address(const Word& sender, const Word& salt, BytesView init_code) noexcept
 {
-    Bytes buf;
-    buf.reserve(85);
-    buf.push_back(0xff);
-    append_address(buf, sender);
-    append_word(buf, salt);
-    append_word(buf, keccak256(init_code));
+    std::uint8_t buf[85];
+    buf[0] = 0xff;
+    const auto s = to_bytes(sender);
+    std::memcpy(buf + 1, s.data() + 12, 20);
+    intx::be::unsafe::store(buf + 21, salt);
+    intx::be::unsafe::store(buf + 53, keccak256(init_code));
     return to_address(keccak256(buf));
 }
 
@@ -112,12 +105,22 @@ enum Kind : std::uint8_t
     k_mix_address,
 };
 
-Bytes key_of(std::initializer_list<Word> words)
+/// The key of words, then of bytes: sized once (GCC's LTO warns of the
+/// reallocations of the growing vectors, wrongly).
+Bytes key_of(std::initializer_list<Word> words, BytesView tail = {}, int tag = -1)
 {
-    Bytes key;
-    key.reserve(32 * words.size());
+    const std::size_t head = tag >= 0 ? 1 : 0;
+    Bytes key(head + 32 * words.size() + tail.size());
+    if (tag >= 0)
+        key[0] = static_cast<std::uint8_t>(tag);
+    auto* p = key.data() + head;
     for (const auto& w : words)
-        append_word(key, w);
+    {
+        intx::be::unsafe::store(p, w);
+        p += 32;
+    }
+    if (!tail.empty())
+        std::memcpy(p, tail.data(), tail.size());
     return key;
 }
 
@@ -146,12 +149,12 @@ SeededWorld::SeededWorld(const WorldConfig& config) : config_{config}
 
 Word SeededWorld::hash(std::uint8_t kind, BytesView key) const
 {
-    Bytes buf;
-    buf.reserve(9 + key.size());
-    for (int i = 7; i >= 0; --i)
-        buf.push_back(static_cast<std::uint8_t>(config_.seed >> (8 * i)));
-    buf.push_back(kind);
-    buf.insert(buf.end(), key.begin(), key.end());
+    Bytes buf(9 + key.size());
+    for (int i = 0; i < 8; ++i)
+        buf[static_cast<std::size_t>(i)] = static_cast<std::uint8_t>(config_.seed >> (8 * (7 - i)));
+    buf[8] = kind;
+    if (!key.empty())
+        std::memcpy(buf.data() + 9, key.data(), key.size());
     return keccak256(buf);
 }
 
@@ -270,13 +273,7 @@ BlockContext SeededWorld::block() const
 CallResult SeededWorld::call(CallKind kind, const Word& target, const Word& value,
     BytesView input) const
 {
-    Bytes key;
-    key.reserve(1 + 64 + input.size());
-    key.push_back(static_cast<std::uint8_t>(kind));
-    append_word(key, target);
-    append_word(key, value);
-    key.insert(key.end(), input.begin(), input.end());
-    const auto r = hash(k_call, key);
+    const auto r = hash(k_call, key_of({target, value}, input, static_cast<int>(kind)));
     const auto output_word = [&](unsigned i) {
         return word(k_call_output, key_of({r, i}));
     };
@@ -328,13 +325,7 @@ CallResult SeededWorld::call(CallKind kind, const Word& target, const Word& valu
 CallResult SeededWorld::create(CreateKind kind, const Word& address, const Word& value,
     BytesView init_code) const
 {
-    Bytes key;
-    key.reserve(1 + 64 + init_code.size());
-    key.push_back(static_cast<std::uint8_t>(kind));
-    append_word(key, address);
-    append_word(key, value);
-    key.insert(key.end(), init_code.begin(), init_code.end());
-    const auto r = hash(k_create, key);
+    const auto r = hash(k_create, key_of({address, value}, init_code, static_cast<int>(kind)));
     CallResult result;
     result.success = r % 100 < config_.create_success_percent;
     if (!result.success && (r >> 8) % 2 != 0)

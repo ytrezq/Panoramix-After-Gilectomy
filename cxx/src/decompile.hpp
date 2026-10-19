@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace pan {
@@ -66,7 +67,10 @@ struct Decompilation {
 // prints on stderr: "decompilation failed: <why>".
 class DecompileError : public std::runtime_error {
 public:
-    explicit DecompileError(const std::string& message, std::string explain = {});
+    explicit DecompileError(const std::string& message, std::string explain = {})
+        : std::runtime_error(message), explain_(std::move(explain))
+    {
+    }
     // what --explain had printed when it failed (printed all the same)
     const std::string& explain() const noexcept { return explain_; }
 

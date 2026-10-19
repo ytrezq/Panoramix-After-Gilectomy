@@ -59,7 +59,13 @@ EVMONE_CPPFLAGS := \
 
 EVMONE_CXXFLAGS := -Wno-attributes
 
-VALIDATE_CPPFLAGS := -I . $(EVMONE_CPPFLAGS)
+# (third-party headers as system ones: their warnings aren't ours)
+VALIDATE_CPPFLAGS := -I . \
+	-isystem $(EVMONE_DIR)/include \
+	-isystem $(EVMONE_DIR)/lib \
+	-isystem third_party/evmc/include \
+	-isystem third_party/intx/include \
+	-DEVMONE_FIXED_GAS=30000000
 
 VALIDATE_TOOLS := validate/evmrun.cpp
 

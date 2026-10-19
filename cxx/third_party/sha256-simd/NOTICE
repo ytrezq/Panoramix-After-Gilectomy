@@ -1,0 +1,68 @@
+sha256-simd: SHA-256 in Go, with x86-64 assembly for the SHA extensions,
+AVX2, AVX and SSSE3 - the source of cxx/src/sha256_*.S and of parts of
+cxx/src/sha256.cpp. Nothing in this directory is compiled.
+
+Origin:   https://github.com/libonomy/sha256-simd (a fork of
+          https://github.com/minio/sha256-simd)
+Version:  commit df94ecd9f4af2a3cd417022b73b5f9ba4d6f3c61 (2020-05-15), the
+          repository's only commit (it has no tags)
+License:  Apache License 2.0, LICENSE (Minio, Inc.); cpuid_amd64.s: MIT,
+          Copyright (c) 2015 Klaus Post (in its header). The AVX2, AVX and
+          SSSE3 code is based on Intel's "Fast SHA-256 Implementations on
+          Intel Architecture Processors" (J. Guilford, K. Yap, T. Chen).
+Files:    the ones used, byte for byte (sha256sum):
+  cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30  LICENSE
+  318b2478f210cb53e10a08c128c8d23764b2ae33fa52685a24cd274977b59b6b  cpuid.go
+  73d4213b99462979a2b758bc7a70327beb5168dac0fc2000f95789f05d50c9bb  cpuid_amd64.go
+  4c4d07dbd6f99e0322b5d8b8c044fe546052f6f91b27a7c9debf394a05a5db95  cpuid_amd64.s
+  1e1fb26de5d1bf770fc69ca6a03f35a6ae2fa72ccb97fe2660cebc10d243f444  sha256.go
+  39534e49a96e5210f87e5d8fd2f151980a24175904a85f3f3fed2fcb23064e32  sha256blockAvx2_amd64.go
+  411141ec8d8cba16dc139bce0acd2990ca734aebd3934e3cce8637835791bbb6  sha256blockAvx2_amd64.s
+  f05add60ee5f4117a0e98f6d6bf488753ab1be4952fa3001dc2719be83f7c7ff  sha256blockAvx_amd64.go
+  c1a618cf6cdd1f4352021d48fa881527b8c5df057ec46449abfc486377180f23  sha256blockAvx_amd64.s
+  b89c6ee13c83f6725412a8edde0092c9367a3332918aea0d765ea979fbcc6918  sha256blockSha_amd64.go
+  0967503d8cbaf80cdd43e7bf87938c3dd0c5a63f66e08428a28a2288463d0a23  sha256blockSha_amd64.s
+  99f8bddafc30a6540aa20d06895d025094d75a6c6d2949a361d137713178cd1b  sha256blockSsse_amd64.go
+  08ad999e4ed0db57842819fe7a083363f978c67e3825b2997454b36f59e8ec95  sha256blockSsse_amd64.s
+  c17a46c749b7fe0c3dbbab81a8aa5d86ec9c3245e7c8fce0a6eb025461d8f7c6  sha256block_amd64.go
+  c1e6e54f9c8956d879181a356f8bd1aaed9496d9d495c101d091a094be1ded0f  sha256block_noasm.go
+
+What became what (the translations are derivative works of these files,
+each marked as changed in its header, as the license asks):
+  sha256blockSha_amd64.s   -> cxx/src/sha256_shani.S  (blockSha, the one
+                              sha256.go dispatches to; blockIntelSha, the
+                              other SHA-NI version, is unused there and here)
+  sha256blockAvx2_amd64.s  -> cxx/src/sha256_avx2.S
+  sha256blockAvx_amd64.s   -> cxx/src/sha256_avx.S
+  sha256blockSsse_amd64.s  -> cxx/src/sha256_ssse3.S
+  sha256block_noasm.go     -> cxx/src/sha256.cpp: blocks_generic (blockGeneric)
+  sha256.go                -> cxx/src/sha256.cpp: the choice of the block
+                              function (init, block), the padding (checkSum)
+  cpuid.go, cpuid_amd64.s  -> cxx/src/sha256.cpp: detect() (cpuid, xgetbv)
+  sha256block*_amd64.go    -> the functions' arguments (documented in the .S)
+The AVX-512 multi-buffer server (16 independent hashes at once), the ARM64
+code and the Go API are not ported: one stream is hashed at a time.
+
+Local changes:
+  - The Go (Plan 9) assembly is written in GNU as's Intel syntax: the same
+    instructions, byte for byte. The instructions the Go files give as
+    encoded bytes (BYTE/WORD/LONG, with the mnemonic in a comment) are
+    written as their mnemonics; the macros are .macro's. Verified: the
+    objects of the four .S files were disassembled against the Go
+    assembler's objects of the originals (go1.24.7 `go tool asm`): the code
+    is identical but for the entries and exits below (one register move of
+    the AVX2 code takes GNU as's `{load}` to keep the original's encoding).
+  - The entries and exits: the System V calling convention (arguments in
+    rdi, rsi, rdx) instead of Go's frame of arguments, and the callee-saved
+    registers the code uses saved; the AVX and SSSE3 code keeps its scratch
+    where Go's frame was (its 4 reserved arguments), in 80 bytes of stack.
+    Symbols: pan_sha256_blocks_shani, _avx2, _avx, _ssse3 (hidden), with
+    the CET marking (endbr64, the property note) of cxx/src/sha256_asm.h.
+    The functions are declared sysv_abi in sha256.cpp, for the MinGW port.
+  - The AVX2 code is chosen only where BMI1 and BMI2 are there too (it uses
+    andn and rorx; sha256-simd checks AVX2 alone).
+  - Tests (cxx/tests/sha256_test.cpp): the NIST CAVP vectors (ShortMsg,
+    part of LongMsg, Monte Carlo) and FIPS 180-2's examples through every
+    implementation the processor has, and random messages in random pieces
+    against the generic one. The SHA-NI code was run under
+    `qemu-x86_64 -cpu max` (QEMU 8.2), the machine having none.

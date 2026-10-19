@@ -185,6 +185,8 @@ std::string to_string(Fault fault)
         return "stack overflow";
     case Fault::static_violation:
         return "static mode violation";
+    case Fault::memory_access:
+        return "return data access out of bounds";
     case Fault::other:
         return "other";
     }
@@ -285,7 +287,11 @@ Comparison compare(const Effects& expected, const Effects& actual, const Compare
 
     const auto& ee = expected.end;
     const auto& ae = actual.end;
-    if (ee.status != ae.status || (options.faults && ee.fault != ae.fault))
+    // STOP is RETURN of no data (evmone can't tell them apart)
+    const auto status = [](const End& e) {
+        return e.status == Status::return_ && e.data.empty() ? Status::stop : e.status;
+    };
+    if (status(ee) != status(ae) || (options.faults && ee.fault != ae.fault))
         return {Verdict::different,
             "end: expected " + to_string(ee) + ", got " + to_string(ae)};
     if (ee.data != ae.data)

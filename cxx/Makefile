@@ -53,8 +53,8 @@ JOBS      ?= 2
 CORPUS    ?= /tmp/claude-0/-home-claude/0fe601fa-3d3d-56af-9a22-c5068d00d0e0/scratchpad/prof/all_hex.txt
 ABI_DUMP  ?= /home/claude/panoramix/panoramix/data/abi_dump.xz
 SIGDB     ?= $(B)/sigdb1.bin
-ASM       ?= ../build/panasm
-ASM_SIGDB ?= ../build/abi_db.bin
+ASM       ?= $(abspath ../build/panasm)
+ASM_SIGDB ?= $(abspath ../build/abi_db.bin)
 TEST_ARGS ?=
 BENCH_ARGS ?=
 EXTRA_CXXFLAGS ?=
@@ -220,8 +220,7 @@ $(SIGDB): $(ABI_DUMP) $(B)/pancxx
 	$(Q)$(B)/pancxx build-db $(ABI_DUMP) $@.tmp && mv -f $@.tmp $@
 
 ifeq ($(VARIANT),release)
-pgo:
-	$(Q)$(MAKE) VARIANT=release sigdb
+pgo: $(SIGDB)
 	@find $(B)/pgo -name '*.gcda' -delete 2>/dev/null; true
 	$(Q)$(MAKE) VARIANT=pgo-gen cli
 	$(call say,TRAIN,$(CORPUS))
@@ -232,8 +231,7 @@ pgo:
 debug:
 	$(Q)$(MAKE) VARIANT=debug lib cli unit
 
-bench: all
-	$(Q)$(MAKE) VARIANT=release sigdb
+bench: all $(SIGDB)
 	$(Q)$(PYTHON) tools/bench.py --asm $(ASM) --asm-sigdb $(abspath $(ASM_SIGDB)) \
 	  --cxx $(B)/pancxx --pgo $(B)/pgo/pancxx --sigdb $(abspath $(SIGDB)) $(BENCH_ARGS) $(CORPUS)
 endif
@@ -246,21 +244,31 @@ FORCE:
 
 # --- the links ------------------------------------------------------------------
 
+# an archive is made anew (gcc-ar: the LTO objects' symbol index); the list
+# of its members is a stamp, so that a deleted source rebuilds it too
 $(D)/%.a:
 	@mkdir -p $(@D)
 	$(call say,AR,$@)
-	$(Q)rm -f $@ && $(AR) rcs $@ $^
+	$(Q)rm -f $@ && $(AR) rcs $@ $(filter %.o,$^)
 
-$(LIB): $(LIB_OBJS)
-$(D)/libvalidate.a: $(VAL_OBJS)
-$(D)/libevmone.a: $(EVM_OBJS)
+$(LIB): $(LIB_OBJS) $(O)/lib.list
+$(D)/libvalidate.a: $(VAL_OBJS) $(O)/validate.list
+$(D)/libevmone.a: $(EVM_OBJS) $(O)/evmone.list
+$(O)/lib.list: FORCE
+	$(call write_if_changed,$@,'$(LIB_OBJS)')
+$(O)/validate.list: FORCE
+	$(call write_if_changed,$@,'$(VAL_OBJS)')
+$(O)/evmone.list: FORCE
+	$(call write_if_changed,$@,'$(EVM_OBJS)')
+$(O)/tests.list: FORCE
+	$(call write_if_changed,$@,'$(TEST_OBJS)')
 
 # the links run with `+`: -flto=auto then shares make's job slots
 $(D)/pancxx: $(O)/src/main.cpp.o $(LIB) $(O)/ldflags
 	$(call say,LD,$@)
 	+$(Q)$(CXX) $(LDFLAGS) -o $@ $< $(LIB) $(LDLIBS)
 
-$(TEST_BIN): $(TEST_OBJS) $(VAL_LIB) $(EVM_LIB) $(LIB) $(O)/ldflags
+$(TEST_BIN): $(TEST_OBJS) $(VAL_LIB) $(EVM_LIB) $(LIB) $(O)/ldflags $(O)/tests.list
 	$(call say,LD,$@)
 	+$(Q)$(CXX) $(LDFLAGS) -o $@ $(TEST_OBJS) $(VAL_LIB) $(EVM_LIB) $(LIB) $(LDLIBS) $(VALIDATE_LDLIBS)
 
@@ -286,23 +294,29 @@ $(O)/pymod.map:
 
 # --- the compilations -------------------------------------------------------------
 
-# the stamps: a change of the flags rebuilds the objects (a PGO phase, a
-# variable of the command line), of the link flags relinks
-$(O)/flags: FORCE
-	$(call write_if_changed,$@,'$(call shq,$(CXX) $(CC) | $(CXXFLAGS) | $(CFLAGS) | $(ASFLAGS) | $(WARN) $(VWARN) $(GENWARN) | $(TP_INC) | $(VALIDATE_CPPFLAGS) | $(EVMONE_CPPFLAGS) | $(EVMONE_CXXFLAGS) | $(PY_INC))')
+# the stamps of the flags, one per kind of source: a change rebuilds those
+# objects (a PGO phase, a variable of the command line, validate/Makefile.inc
+# for validate/ and third_party/ only); of the link flags, relinks
+FLAGS_ALL = $(CXX) $(CC) | $(CXXFLAGS) | $(CFLAGS) | $(ASFLAGS) | $(WARN) $(VWARN) $(GENWARN)
+FLAGS_src = $(FLAGS_ALL) | $(CPPFLAGS_SRC) | $(PY_INC)
+FLAGS_val = $(FLAGS_ALL) | $(CPPFLAGS_VAL)
+FLAGS_tst = $(FLAGS_ALL) | $(CPPFLAGS_TST)
+FLAGS_tp  = $(FLAGS_ALL) | $(CPPFLAGS_TP) | $(EVMONE_CXXFLAGS)
+$(O)/flags.%: FORCE
+	$(call write_if_changed,$@,'$(call shq,$(FLAGS_$*))')
 $(O)/ldflags: FORCE
 	$(call write_if_changed,$@,'$(call shq,$(LDFLAGS) | $(LDLIBS) | $(VALIDATE_LDLIBS))')
 
 # for `pancxx --version` (src/version.cpp): the build and its flags
 NATIVE = $(shell $(CXX) -march=native -Q --help=target 2>/dev/null | awk '$$1 == "-march=" { print $$2; exit }')
-BUILD_FLAGS = $(CXXFLAGS)$(if $(filter -march=native,$(CXXFLAGS)), (native: $(NATIVE)))
+BUILD_FLAGS = $(strip $(CXXFLAGS))$(if $(filter -march=native,$(CXXFLAGS)), (native: $(NATIVE)))
 $(O)/build_info.h: FORCE
 	$(call write_if_changed,$@,'#define PANORAMIX_VARIANT "$(VNAME)"' '#define PANORAMIX_FLAGS "$(call shq,$(call cq,$(BUILD_FLAGS)))"')
 $(O)/src/version.cpp.o: $(O)/build_info.h
 $(O)/src/version.cpp.o: private XFLAGS := -I$(O)
 
 $(O)/src/pymod.cpp.o: private XFLAGS := -DPAN_PYMODULE=panoramix_cxx -isystem $(PY_INC)
-$(O)/src/pymod_compat.cpp.o: src/pymod.cpp $(O)/flags
+$(O)/src/pymod_compat.cpp.o: src/pymod.cpp $(O)/flags.src
 	@mkdir -p $(@D)
 	$(call say,CXX,$< (panoramix_asm))
 	$(Q)$(CXX) $(CPPFLAGS_SRC) -DPAN_PYMODULE=panoramix_asm -isystem $(PY_INC) $(CXXFLAGS) $(WARN) $(VWARN) -MMD -MP -c -o $@ $<
@@ -312,48 +326,48 @@ $(G)/%.cpp: %.rl $(RLH)
 	$(call say,RAGEL,$<)
 	$(Q)$(RAGEL) -G2 -I $(<D) -I src -o $@ $<
 
-$(O)/src/%.cpp.o: src/%.cpp $(O)/flags
+$(O)/src/%.cpp.o: src/%.cpp $(O)/flags.src
 	@mkdir -p $(@D)
 	$(call say,CXX,$<)
 	$(Q)$(CXX) $(CPPFLAGS_SRC) $(XFLAGS) $(CXXFLAGS) $(WARN) $(VWARN) -MMD -MP -c -o $@ $<
 
-$(O)/gen/src/%.cpp.o: $(G)/src/%.cpp $(O)/flags
+$(O)/gen/src/%.cpp.o: $(G)/src/%.cpp $(O)/flags.src
 	@mkdir -p $(@D)
 	$(call say,CXX,$<)
 	$(Q)$(CXX) $(CPPFLAGS_SRC) $(CXXFLAGS) $(WARN) $(GENWARN) $(VWARN) -MMD -MP -c -o $@ $<
 
-$(O)/src/%.S.o: src/%.S $(O)/flags
+$(O)/src/%.S.o: src/%.S $(O)/flags.src
 	@mkdir -p $(@D)
 	$(call say,AS,$<)
 	$(Q)$(CC) $(CPPFLAGS_SRC) $(ASFLAGS) -MMD -MP -c -o $@ $<
 
-$(O)/tests/%.cpp.o: tests/%.cpp $(O)/flags
+$(O)/tests/%.cpp.o: tests/%.cpp $(O)/flags.tst
 	@mkdir -p $(@D)
 	$(call say,CXX,$<)
 	$(Q)$(CXX) $(CPPFLAGS_TST) $(CXXFLAGS) $(WARN) $(VWARN) -MMD -MP -c -o $@ $<
 
-$(O)/validate/%.cpp.o: validate/%.cpp $(O)/flags
+$(O)/validate/%.cpp.o: validate/%.cpp $(O)/flags.val
 	@mkdir -p $(@D)
 	$(call say,CXX,$<)
 	$(Q)$(CXX) $(CPPFLAGS_VAL) $(CXXFLAGS) $(WARN) $(VWARN) -MMD -MP -c -o $@ $<
 
-$(O)/gen/validate/%.cpp.o: $(G)/validate/%.cpp $(O)/flags
+$(O)/gen/validate/%.cpp.o: $(G)/validate/%.cpp $(O)/flags.val
 	@mkdir -p $(@D)
 	$(call say,CXX,$<)
 	$(Q)$(CXX) $(CPPFLAGS_VAL) $(CXXFLAGS) $(WARN) $(GENWARN) $(VWARN) -MMD -MP -c -o $@ $<
 
-$(O)/validate/%.S.o: validate/%.S $(O)/flags
+$(O)/validate/%.S.o: validate/%.S $(O)/flags.val
 	@mkdir -p $(@D)
 	$(call say,AS,$<)
 	$(Q)$(CC) $(CPPFLAGS_VAL) $(ASFLAGS) -MMD -MP -c -o $@ $<
 
 # third-party code: its own flags, no warnings of ours
-$(O)/third_party/%.cpp.o: third_party/%.cpp $(O)/flags
+$(O)/third_party/%.cpp.o: third_party/%.cpp $(O)/flags.tp
 	@mkdir -p $(@D)
 	$(call say,CXX,$<)
 	$(Q)$(CXX) $(CPPFLAGS_TP) $(CXXFLAGS) $(VWARN) $(EVMONE_CXXFLAGS) -MMD -MP -c -o $@ $<
 
-$(O)/third_party/%.c.o: third_party/%.c $(O)/flags
+$(O)/third_party/%.c.o: third_party/%.c $(O)/flags.tp
 	@mkdir -p $(@D)
 	$(call say,CC,$<)
 	$(Q)$(CC) $(CPPFLAGS_TP) $(CFLAGS) $(VWARN) -MMD -MP -c -o $@ $<

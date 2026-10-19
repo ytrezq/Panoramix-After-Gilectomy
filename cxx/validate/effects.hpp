@@ -86,7 +86,7 @@ using Event = std::variant<StorageWrite, TransientWrite, Log, ExternalCall, Crea
 /// How a call ended.
 enum class Status : std::uint8_t
 {
-    stop,         ///< STOP, the end of the code, SELFDESTRUCT
+    stop,         ///< STOP, the end of the code, SELFDESTRUCT (= return_ of no data)
     return_,      ///< RETURN(data)
     revert,       ///< REVERT(data)
     invalid,      ///< an exceptional halt: no data, nothing persists (see Fault)
@@ -105,6 +105,7 @@ enum class Fault : std::uint8_t
     stack_underflow,
     stack_overflow,
     static_violation,       ///< a state change in a static call
+    memory_access,          ///< RETURNDATACOPY past the end of the return data
     other,
 };
 
