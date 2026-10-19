@@ -14,6 +14,7 @@
 #include "core/errors.hpp"
 #include "core/order.hpp"
 #include "core/platform.hpp"
+#include "loops/loops.hpp"
 #include "simplify/internal.hpp"
 
 namespace pan::simplify {
@@ -86,7 +87,11 @@ public:
             trace = step(cleanup_mul_1(trace), ExplainStage::SimplifyExpressions);
             if (on(P_LENGTH)) trace = step(replace_bytes_or_string_length(trace), ExplainStage::ReplaceStorageWithLength);
             if (on(P_CONDS)) trace = step(cleanup_conds(trace), ExplainStage::CleanupUnusedIfs);
-            // (lot 6's loop_to_setmem and propagate_storage_in_loops go here)
+            if (on(P_LOOPS)) {
+                trace = step(loops::loops_to_setmems(trace, loops::RewriteOptions{opts_.dubious}),
+                             ExplainStage::ConvertLoopsToSetmems);
+                trace = step(loops::propagate_storage_in_loops(trace), ExplainStage::MoveLoopIndexes);
+            }
             trace = maybe_compact(trace);
         }
         if (!opts_.final_passes || !on(P_FINAL)) return trace;
