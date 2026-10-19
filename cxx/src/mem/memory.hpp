@@ -258,10 +258,22 @@ public:
     bool fresh() const noexcept { return fresh_; }
 
 private:
+    // fresh: what was written since the start - known places as sorted
+    // disjoint spans, the others' ranges (at most kMaxSymbolicWritten: past
+    // them, fresh off)
+    struct Span {
+        u64 lo, hi;
+    };
+    static constexpr usize kMaxSymbolicWritten = 256;
+    void unfresh() noexcept;
+    void note_written(Value range);
+    bool untouched_since_start(Value gap) const;
+
     const alg::Facts* facts_ = nullptr;
     bool fresh_ = false;
     std::pmr::vector<Piece> pieces_;
-    std::pmr::vector<Value> written_;  // fresh: every range written since the start
+    std::pmr::vector<Span> spans_;
+    std::pmr::vector<Value> written_;
 };
 
 // MEM(read_range) after the writes, in order (the oldest first; nothing

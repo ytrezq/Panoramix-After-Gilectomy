@@ -343,6 +343,26 @@ TEST_CASE("mem: python splits_mem") {
         CHECK(!st.read(R(32, 64)));
     }
     {
+        // fresh memory: the places written merged, a copy of zeroes
+        MemState st(true);
+        st.write(R(0, 32), V("tmp1"));
+        st.write(R(64, 32), V("tmp2"));
+        st.write(R(32, 32), V("(mem (range 200 32))"));
+        CHECK(D(st.read(R(32, 32))) == "(sized 32 0)");
+        CHECK(D(st.read(R(96, 64))) == "(sized 64 0)");
+        CHECK(D(st.read(R(90, 10))) == "(data (sized 6 (mask_shl 48 0 0 tmp2)) (sized 4 0))");
+        // where paths meet: written on either, not fresh there
+        MemState a(true), b(true);
+        a.write(R(0, 32), V("tmp1"));
+        b.write(R(32, 32), V("tmp2"));
+        a.meet(b);
+        CHECK(!a.read(R(0, 64)));
+        CHECK(D(a.read(R(64, 32))) == "(sized 32 0)");
+        // a write at a place the fresh memory can't place
+        a.write(make_range(V("(calldataload 4)"), S(32)), V("tmp3"));
+        CHECK(!a.read(R(64, 32)));
+    }
+    {
         // the facts' and variables' forgetting
         MemState st;
         st.write(R(0, 32), V("(storage 256 0 1)"));
@@ -470,8 +490,16 @@ TEST_CASE("mem: split_word") {
     CHECK(((*f)[0].off == 0 && (*f)[0].size == 160 && D((*f)[0].value) == "(mask_shl 160 0 0 caller)"));
     CHECK(((*f)[1].off == 160 && (*f)[1].size == 64 && (*f)[1].value == S(0)));
     CHECK(((*f)[2].off == 224 && (*f)[2].size == 32 && D((*f)[2].value) == "(mask_shl 32 0 0 tmp1)"));
-    CHECK(!split_word(V("caller")));
+    CHECK(!split_word(V("tmp1")));
+    CHECK(split_word(V("caller"))->size() == 2);  // (160 bits, then zeroes)
     CHECK(!split_word(alg::bor(V("tmp1"), V("tmp2"))));
+    // an address is 160 bits, a read of 4 bytes 32
+    auto g = split_word(alg::bor(alg::mask(32, 0, 224, V("tmp1")), V("caller")));
+    REQUIRE(g);
+    CHECK(((*g)[0].size == 160 && D((*g)[0].value) == "caller"));
+    auto h = split_word(alg::bor(alg::mask(32, 0, 224, V("tmp1")), V("(mem (range 64 4))")));
+    REQUIRE(h);
+    CHECK(((*h)[0].size == 32 && D((*h)[0].value) == "(mem (range 64 4))"));
 
     // the fields recompose to the word, for any value of what it's made of
     Rng rng{31337};

@@ -14,6 +14,7 @@
 
 #include "core/base.hpp"
 #include "core/contract.hpp"
+#include "core/memo.hpp"
 #include "core/smallvec.hpp"
 #include "core/value.hpp"
 #include "evm/decoder.hpp"
@@ -76,6 +77,8 @@ struct Node {
     u32 depth = 0;
     NodeId jump = NO_NODE;  // skew-binary jump pointer (O(log n) ancestors)
     std::pmr::vector<NodeId> next;
+    bool dead = false;          // cut off the tree (python: no longer attached)
+    NodeId same_jd = NO_NODE;   // the node made before it at the same jd (the jd's list)
 
     // --- the trace ---
     End end = End::None;
@@ -181,6 +184,15 @@ private:
     template <class F>
     void find_nodes(NodeId from, F&& f, std::pmr::vector<NodeId>& out) const;
     void unexpanded(std::pmr::vector<NodeId>& out) const;
+    // the node's children cut off the tree: its subtree dead (python's
+    // node.next = [])
+    void cut(NodeId n);
+    // frontier_ made again from the tree when its shape changed (dirty_)
+    void refresh_frontier();
+    // n's live nodes at jd, in the order of the tree (python by_jd's)
+    void same_jd(Value jd, std::pmr::vector<NodeId>& out) const;
+    // u before v in the tree's depth first order (python find_nodes')
+    bool dfs_less(NodeId u, NodeId v) const;
     bool is_label(NodeId n) const { return nodes_[n].label != NO_NODE; }
     u32 loop_key(NodeId head);
 
@@ -244,6 +256,19 @@ private:
     std::pmr::memory_resource* res_;
     std::pmr::deque<Node> nodes_;
     NodeId root_ = NO_NODE;
+    // the last node made at each jd (+ 1): the head of the jd's list
+    Memo<Value, u32> jd_head_;
+    // the nodes not run yet, in the order of the tree (python's
+    // find_nodes(root, unexpanded)), kept up to date as the nodes run, made
+    // again by a walk when the tree's shape changes elsewhere (dirty_)
+    std::pmr::vector<NodeId> frontier_;
+    bool dirty_ = true;
+    // the loops replace_loops made this round, in the order of the tree; and
+    // whether some of an earlier round's are left (a walk finds them)
+    std::pmr::vector<NodeId> new_loops_;
+    bool stale_loops_ = false;
+    // scratch of the walks (never two at once)
+    mutable std::pmr::vector<NodeId> walk_;
 
     // counters (python's, per VM)
     u32 counter_ = 0;        // TMP names
@@ -280,7 +305,8 @@ private:
 template <class F>
 void Vm::find_nodes(NodeId from, F&& f, std::pmr::vector<NodeId>& out) const {
     out.clear();
-    std::pmr::vector<NodeId> todo(res_);
+    std::pmr::vector<NodeId>& todo = walk_;
+    todo.clear();
     todo.push_back(from);
     while (!todo.empty()) {
         poll();

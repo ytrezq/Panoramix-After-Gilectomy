@@ -156,6 +156,9 @@ Vm::Vm(const ContractShared& contract, const RunSetup& setup)
       setup_(setup),
       res_(cx().budget.resource()),
       nodes_(std::pmr::polymorphic_allocator<Node>(res_)),
+      frontier_(res_),
+      new_loops_(res_),
+      walk_(res_),
       out_(res_) {
     internal_ = setup.internal;
 }
@@ -180,12 +183,17 @@ NodeId Vm::new_node(u32 start, bool safe, Value stack, Value condition, const Fa
     n.known = known;
     n.last_call = last_call;
     n.jd = jd_of(start, sw, stack);
+    // (the jd's list: the loops' heads and the merges' mates found there)
+    u32& head = jd_head_.slot(n.jd);
+    n.same_jd = head ? head - 1 : NO_NODE;
+    head = id + 1;
     return id;
 }
 
 void Vm::set_prev(NodeId child, NodeId parent) {
     Node& c = nodes_[child];
     Node& p = nodes_[parent];
+    c.dead = false;
     c.prev = parent;
     c.depth = p.depth + 1;
     // skew-binary jump pointers (Myers): ancestors in O(log n)
@@ -228,16 +236,52 @@ bool Vm::below(NodeId n, NodeId p) const {
     return ancestor_at(n, nodes_[p].depth) == p;
 }
 
-bool Vm::attached(NodeId n) const {
-    while (n != root_) {
+bool Vm::attached(NodeId n) const { return !nodes_[n].dead; }
+
+void Vm::cut(NodeId n) {
+    // every node below n is cut off the tree with it
+    std::pmr::vector<NodeId>& todo = walk_;
+    todo.clear();
+    for (NodeId c : nodes_[n].next) todo.push_back(c);
+    while (!todo.empty()) {
         poll();
-        NodeId parent = nodes_[n].prev;
-        if (parent == NO_NODE) return false;
-        const auto& nx = nodes_[parent].next;
-        if (std::find(nx.begin(), nx.end(), n) == nx.end()) return false;
-        n = parent;
+        NodeId x = todo.back();
+        todo.pop_back();
+        Node& m = nodes_[x];
+        if (m.dead) continue;
+        m.dead = true;
+        for (NodeId c : m.next) todo.push_back(c);
     }
-    return true;
+    nodes_[n].next.clear();
+    dirty_ = true;
+}
+
+void Vm::refresh_frontier() {
+    if (!dirty_) return;
+    unexpanded(frontier_);
+    dirty_ = false;
+}
+
+bool Vm::dfs_less(NodeId u, NodeId v) const {
+    if (u == v) return false;
+    const NodeId w = common_ancestor(u, v);
+    if (w == u) return true;
+    if (w == v) return false;
+    const u32 d = nodes_[w].depth + 1;
+    const NodeId cu = ancestor_at(u, d), cv = ancestor_at(v, d);
+    for (NodeId c : nodes_[w].next) {
+        if (c == cu) return true;
+        if (c == cv) return false;
+    }
+    return u < v;
+}
+
+void Vm::same_jd(Value jd, std::pmr::vector<NodeId>& out) const {
+    out.clear();
+    const u32* head = jd_head_.find(jd);
+    for (NodeId x = head ? *head - 1 : NO_NODE; x != NO_NODE; x = nodes_[x].same_jd)
+        if (!nodes_[x].dead && nodes_[x].jd == jd) out.push_back(x);
+    std::sort(out.begin(), out.end(), [this](NodeId a, NodeId b) { return dfs_less(a, b); });
 }
 
 void Vm::unexpanded(std::pmr::vector<NodeId>& out) const {
@@ -263,7 +307,7 @@ void Vm::run_node(NodeId id) {
     out_.clear();
     halted_ = false;
     n.lines.clear();
-    n.next.clear();
+    if (!n.next.empty()) cut(id);
     n.cont = NO_NODE;
 
     if (!internal_.empty() && internal_call_at(n.start, n.stack)) {

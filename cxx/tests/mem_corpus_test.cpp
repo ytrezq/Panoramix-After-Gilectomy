@@ -44,6 +44,7 @@ namespace {
 struct PassCounts {
     u64 reads = 0, filled = 0, setmems = 0, setmems_split = 0, stores = 0, stores_split = 0;
     u32 show = 0;  // examples of splits and fills printed (PANORAMIX_MEM_SHOW)
+    u32 miss = 0;  // reads not filled printed, with what's known (PANORAMIX_MEM_MISS)
 };
 
 // the memory model over a trace, along its paths
@@ -81,6 +82,14 @@ struct MemPass {
                     }
                     return *got;
                 }
+                if (n.miss) {
+                    --n.miss;
+                    std::printf("  miss %s %s (%zu pieces)\n", bytes_ctx ? "bytes" : "word", dump(r2).c_str(),
+                                st.pieces().size());
+                    usize k = 0;
+                    for (const auto& p : st.pieces())
+                        if (k++ < 6) std::printf("     piece %s = %s\n", dump(p.range).c_str(), dump(p.value).substr(0, 100).c_str());
+                }
             }
             return r2 == r ? e : mk(Op::MEM, r2);
         }
@@ -96,13 +105,57 @@ struct MemPass {
         return alg::apply(e.op(), args.span());
     }
 
+    // what lines may change, written over what's known: their SETMEMs as
+    // writes of unknown bytes, the state their stores and calls may change
+    static void havoc(std::span<const Value> lines, mem::MemState& st) {
+        for (Value l : lines) {
+            poll();
+            switch (l.op()) {
+                case Op::SETMEM:
+                    st.write(mem::is_range(l[0]) ? l[0] : Value{}, Value{});
+                    break;
+                case Op::STORE:
+                    st.forget_flags(F_STORAGE);
+                    break;
+                case Op::CALL: case Op::CALLCODE: case Op::DELEGATECALL: case Op::STATICCALL:
+                case Op::CREATE: case Op::CREATE2: case Op::PRECOMPILED: case Op::TSTORE: case Op::SELFDESTRUCT:
+                    st.forget_flags(F_STORAGE | F_STATE);
+                    break;
+                case Op::INTERNAL:
+                    st.clear();
+                    break;
+                case Op::IF: {
+                    const Value t = l[1], e = l[2];
+                    havoc(t.args(), st);
+                    havoc(e.args(), st);
+                    break;
+                }
+                case Op::SETVAR:
+                    st.forget_name(l[0]);
+                    break;
+                case Op::LABEL: case Op::GOTO: {
+                    const Value svs = l[1];
+                    if (svs.is_list())
+                        for (Value sv : svs.args())
+                            if (sv.is(Op::SETVAR, 2)) st.forget_name(sv[0]);
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
+    }
+
     // the lines of a trace; *falls: its end is reached (no halt, no goto)
     Value trace(Value t, mem::MemState& st, bool* falls) {
         check_stack();
         SmallVec<Value, 32> out;
         bool f = true;
-        for (Value l : t.args()) {
+        const auto lines = t.args();
+        for (usize i = 0; i < lines.size(); ++i) {
             poll();
+            Value l = lines[i];
+            if (l.is(Op::LABEL, 2)) havoc(lines.subspan(i), st);
             line(l, st, out, &f);
             if (!f) break;
         }
@@ -177,8 +230,9 @@ struct MemPass {
                 return;
             }
             case Op::LABEL:
-                // a loop's head: what the iterations before wrote isn't known
-                st.clear();
+                // a loop's head: what the iterations before may have written
+                // isn't known (trace(): the rest of the trace, the loop's body
+                // and what follows it, written over what's known)
                 out.push_back(l);
                 return;
             case Op::GOTO:
@@ -330,6 +384,7 @@ TEST_CASE("mem: corpus by execution (PANORAMIX_MEM_CORPUS)") {
         if (!bytes) continue;
         PassCounts n;
         if (const char* sh = std::getenv("PANORAMIX_MEM_SHOW")) n.show = u32(std::strtoul(sh, nullptr, 10));
+        if (const char* ms = std::getenv("PANORAMIX_MEM_MISS")) n.miss = u32(std::strtoul(ms, nullptr, 10));
         validate::CheckConfig cfg;
         cfg.upto = validate::Stage::whiles;
         cfg.db = db.get();

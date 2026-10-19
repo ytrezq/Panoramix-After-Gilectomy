@@ -925,7 +925,58 @@ MemWrite as_write(Value line) {
 }
 
 MemState::MemState(bool fresh, const Facts* facts)
-    : facts_(facts), fresh_(fresh), pieces_(cx().budget.resource()), written_(cx().budget.resource()) {}
+    : facts_(facts),
+      fresh_(fresh),
+      pieces_(cx().budget.resource()),
+      spans_(cx().budget.resource()),
+      written_(cx().budget.resource()) {}
+
+void MemState::unfresh() noexcept {
+    fresh_ = false;
+    spans_.clear();
+    written_.clear();
+}
+
+void MemState::note_written(Value range) {
+    const auto s = nat(range[0]), n = nat(range[1]);
+    if (s && n) {
+        if (*n == 0) return;
+        // [lo, hi) into the sorted disjoint spans, merged with those it meets
+        u64 lo = u64(*s), hi = u64(*s) + u64(*n);
+        auto it = std::lower_bound(spans_.begin(), spans_.end(), lo,
+                                   [](const Span& x, u64 v) { return x.hi < v; });
+        auto first = it;
+        while (it != spans_.end() && it->lo <= hi) {
+            lo = std::min(lo, it->lo);
+            hi = std::max(hi, it->hi);
+            ++it;
+        }
+        it = spans_.erase(first, it);
+        spans_.insert(it, Span{lo, hi});
+        return;
+    }
+    if (written_.size() >= kMaxSymbolicWritten) {
+        unfresh();
+        return;
+    }
+    written_.push_back(range);
+}
+
+bool MemState::untouched_since_start(Value gap) const {
+    const Facts* f = facts_;
+    if (auto s = nat(gap[0]), n = nat(gap[1]); s && n) {
+        const u64 lo = u64(*s), hi = u64(*s) + u64(*n);
+        auto it = std::lower_bound(spans_.begin(), spans_.end(), lo,
+                                   [](const Span& x, u64 v) { return x.hi <= v; });
+        if (it != spans_.end() && it->lo < hi) return false;
+    } else {
+        for (const Span& sp : spans_)
+            if (overlaps(make_range(small(i64(sp.lo)), small(i64(sp.hi - sp.lo))), gap, f) != Tri::False) return false;
+    }
+    for (Value w : written_)
+        if (overlaps(w, gap, f) != Tri::False) return false;
+    return true;
+}
 
 void MemState::write(Value range, Value value) {
     if (range.nil() || !is_range(range)) {
@@ -983,12 +1034,10 @@ void MemState::write(Value range, Value value) {
                 stable = false;
                 break;
             }
-        if (stable) {
-            written_.push_back(range);
-        } else {
-            fresh_ = false;
-            written_.clear();
-        }
+        if (stable)
+            note_written(range);
+        else
+            unfresh();
     }
     // the write itself, when its value and range stand for its bytes later
     if (!value.nil() && !value.has_flags(F_MSIZE) && !range.has_flags(F_MSIZE) && !reads_mem_in(value, range, f) &&
@@ -1005,8 +1054,7 @@ void MemState::write(Value range, Value value) {
 
 void MemState::clear() noexcept {
     pieces_.clear();
-    written_.clear();
-    fresh_ = false;
+    unfresh();
 }
 
 void MemState::forget_flags(u8 content_flags) {
@@ -1015,8 +1063,7 @@ void MemState::forget_flags(u8 content_flags) {
     });
     for (Value w : written_)
         if (w.has_flags(content_flags)) {
-            fresh_ = false;
-            written_.clear();
+            unfresh();
             break;
         }
 }
@@ -1025,8 +1072,7 @@ void MemState::forget_name(Value name) {
     std::erase_if(pieces_, [&](const Piece& p) { return mentions(p.range, name) || mentions(p.value, name); });
     for (Value w : written_)
         if (mentions(w, name)) {
-            fresh_ = false;
-            written_.clear();
+            unfresh();
             break;
         }
 }
@@ -1077,14 +1123,7 @@ std::optional<Value> MemState::read(Value range) const {
         if (fresh_) {
             auto n = nat(glen);
             if (n && *n <= i64(limits::MAX_ZEROES_SIZE)) {
-                const Value g = make_range(start, glen);
-                bool untouched = true;
-                for (Value w : written_)
-                    if (overlaps(w, g, f) != Tri::False) {
-                        untouched = false;
-                        break;
-                    }
-                if (untouched) {
+                if (untouched_since_start(make_range(start, glen))) {
                     known = true;
                     out.push_back(mk(Op::SIZED, glen, kZero));
                     return;
@@ -1112,18 +1151,20 @@ std::optional<Value> MemState::read_word(Value range) const {
 }
 
 void MemState::meet(const MemState& other) {
+    if (&other == this) return;
     MemoSet<Key2> theirs;
     for (const Piece& p : other.pieces_) theirs.add(Key2{p.range.raw(), p.value.raw()});
     std::erase_if(pieces_, [&](const Piece& p) { return !theirs.contains(Key2{p.range.raw(), p.value.raw()}); });
-    fresh_ = fresh_ && other.fresh_;
-    if (!fresh_) {
-        written_.clear();
+    if (!(fresh_ && other.fresh_)) {
+        unfresh();
         return;
     }
+    // written on either path
+    for (const Span& sp : other.spans_) note_written(make_range(small(i64(sp.lo)), small(i64(sp.hi - sp.lo))));
     MemoSet<Value> mine;
     for (Value r : written_) mine.add(r);
     for (Value r : other.written_)
-        if (mine.add(r)) written_.push_back(r);
+        if (fresh_ && mine.add(r)) note_written(r);
 }
 
 std::optional<Value> fill(Value read_range, std::span<const MemWrite> writes, const Facts* facts) {
@@ -1166,7 +1207,11 @@ std::optional<SmallVec<Field, 8>> split_word(Value word) {
                 continue;
             }
         }
-        const u32 b = alg::max_bits(t);
+        // anything else at bit 0: as many bits as it may have (a truth value
+        // 1, an address 160, a read of k bytes of memory 8k...)
+        u32 b = std::min(alg::max_bits(t), alg::range_bits(t));
+        if (is_bytes(t))
+            if (auto w = width_u64(t); w && *w < 32) b = std::min<u32>(b, u32(8 * *w));
         if (b >= 256) return std::nullopt;
         if (b == 0) continue;
         rows.push_back(Row{0, i64(b), t});
