@@ -50,6 +50,8 @@ Value signed_value(const Word256& w) {
 
 // the value of an int-like operand as a signed field, clamped (masks)
 inline i64 field_of(Value v) { return clamp_field(cw(v)); }
+// an operand of a node made as it is: a constant as its word (one node per value)
+inline Value cn(Value v) { return is_const(v) ? wv(cw(v)) : v; }
 
 Value fold(Op op, std::span<const Value> args) {
     SmallVec<Word256, 4> w;
@@ -63,32 +65,6 @@ bool all_const(std::span<const Value> args) noexcept {
     for (Value a : args)
         if (!is_const(a)) return false;
     return true;
-}
-
-// x may be wider than a word (python may_be_wide): a byte string of more
-// than 32 bytes, or not known to be at most 32
-bool may_be_wide(Value x) {
-    auto len_le32 = [](Value n) { return n.is_small() && n.small_val() >= 0 && n.small_val() <= 32; };
-    switch (x.op()) {
-        case Op::DATA:
-        case Op::ARR:
-        case Op::SALL:
-        case Op::SBYTES:
-            return true;
-        case Op::SIZED:
-            return x.size() == 2 && !len_le32(x[0]);
-        case Op::MEM:
-            return !(x.size() == 1 && x[0].is(Op::RANGE, 2) && len_le32(x[0][1]));
-        case Op::CALLDATA_BYTES:
-        case Op::CODE_BYTES:
-            return !(x.size() == 2 && len_le32(x[1]));
-        case Op::RETURNDATA_BYTES:
-            return !(x.size() == 3 && len_le32(x[2]));
-        case Op::EXTCODE_BYTES:
-            return !(x.size() == 2 && x[1].is(Op::RANGE, 2) && len_le32(x[1][1]));
-        default:
-            return false;
-    }
 }
 
 // ---------------------------------------------------------------- memo
@@ -704,7 +680,7 @@ Value div(Value a, Value b) {
         if (auto p = log2_exact(w)) return mask(256 - i64(*p), i64(*p), -i64(*p), a);
     }
     if (is_const(a) && cw(a).is_zero()) return small(0);
-    return mk(Op::DIV, a, b);
+    return mk(Op::DIV, cn(a), cn(b));
 }
 
 Value sdiv(Value a, Value b) {
@@ -716,7 +692,7 @@ Value sdiv(Value a, Value b) {
         if (w == w_ones()) return neg(a);
     }
     if (is_const(a) && cw(a).is_zero()) return small(0);
-    return mk(Op::SDIV, a, b);
+    return mk(Op::SDIV, cn(a), cn(b));
 }
 
 Value mod(Value a, Value b) {
@@ -727,7 +703,7 @@ Value mod(Value a, Value b) {
     }
     if (is_const(a) && cw(a).is_zero()) return small(0);
     if (a == b && !a.has_flags(F_VOLATILE)) return small(0);
-    return mk(Op::MOD, a, b);
+    return mk(Op::MOD, cn(a), cn(b));
 }
 
 Value smod(Value a, Value b) {
@@ -737,7 +713,7 @@ Value smod(Value a, Value b) {
         if (w.is_zero() || w == Word256::of(1) || w == w_ones()) return small(0);
     }
     if (is_const(a) && cw(a).is_zero()) return small(0);
-    return mk(Op::SMOD, a, b);
+    return mk(Op::SMOD, cn(a), cn(b));
 }
 
 Value addmod(Value a, Value b, Value n) {
@@ -746,7 +722,7 @@ Value addmod(Value a, Value b, Value n) {
         Word256 w = cw(n);
         if (w.is_zero() || w == Word256::of(1)) return small(0);
     }
-    return mk(Op::ADDMOD, a, b, n);
+    return mk(Op::ADDMOD, cn(a), cn(b), cn(n));
 }
 
 Value mulmod(Value a, Value b, Value n) {
@@ -756,7 +732,7 @@ Value mulmod(Value a, Value b, Value n) {
         if (w.is_zero() || w == Word256::of(1)) return small(0);
     }
     if ((is_const(a) && cw(a).is_zero()) || (is_const(b) && cw(b).is_zero())) return small(0);
-    return mk(Op::MULMOD, a, b, n);
+    return mk(Op::MULMOD, cn(a), cn(b), cn(n));
 }
 
 Value exp(Value base, Value e) {
@@ -771,7 +747,7 @@ Value exp(Value base, Value e) {
         if (w.is_zero()) return iszero(e);  // 0 ** 0 = 1
         if (w == Word256::of(1)) return small(1);
     }
-    return mk(Op::EXP, base, e);
+    return mk(Op::EXP, cn(base), cn(e));
 }
 
 // ---------------------------------------------------------------- masks
@@ -786,7 +762,8 @@ Value mask(Value size, Value off, Value shl, Value x) {
     if (is_const(size) && is_const(off) && is_const(shl)) return mask_concrete(field_of(size), field_of(off), field_of(shl), x, 0);
     if (is_const(size) && field_of(size) <= 0) return small(0);
     if (is_const(x) && cw(x).is_zero()) return small(0);
-    return mk(Op::MASK_SHL, size, off, shl, x);
+    auto fld = [](Value v) { return is_const(v) ? small(field_of(v)) : v; };
+    return mk(Op::MASK_SHL, fld(size), fld(off), fld(shl), cn(x));
 }
 
 Value shl(Value shift, Value x) {
@@ -799,8 +776,8 @@ Value shl(Value shift, Value x) {
     }
     if (is_const(x) && cw(x).is_zero()) return small(0);
     // a shift below 256 for every value: the mask (python shl_op)
-    if (max_bits(shift) <= 8) return mk(Op::MASK_SHL, small(256), small(0), shift, x);
-    return mk(Op::SHL, shift, x);
+    if (max_bits(shift) <= 8) return mk(Op::MASK_SHL, small(256), small(0), shift, cn(x));
+    return mk(Op::SHL, shift, cn(x));
 }
 
 Value shr(Value shift, Value x) {
@@ -812,7 +789,7 @@ Value shr(Value shift, Value x) {
         return mask_concrete(256 - i64(*k), i64(*k), -i64(*k), x, 0);
     }
     if (is_const(x) && cw(x).is_zero()) return small(0);
-    return mk(Op::SHR, shift, x);
+    return mk(Op::SHR, shift, cn(x));
 }
 
 Value sar(Value shift, Value x) {
@@ -824,7 +801,7 @@ Value sar(Value shift, Value x) {
     if (is_const(shift) && cw(shift).is_zero()) return x;
     // a non-negative x: a logical shift
     if (max_bits(x) <= 255) return shr(shift, x);
-    return mk(Op::SAR, shift, x);
+    return mk(Op::SAR, cn(shift), cn(x));
 }
 
 Value byte(Value idx, Value x) {
@@ -836,12 +813,12 @@ Value byte(Value idx, Value x) {
         return mask_concrete(8, off, -off, x, 0);
     }
     if (is_const(x) && cw(x).is_zero()) return small(0);
-    return mk(Op::BYTE, idx, x);
+    return mk(Op::BYTE, idx, cn(x));
 }
 
 Value signextend(Value b, Value x) {
     if (is_const(b) && is_const(x)) return wv(pan::signextend(cw(b), cw(x)));
-    if (!is_const(b)) return mk(Op::SIGNEXTEND, b, x);
+    if (!is_const(b)) return mk(Op::SIGNEXTEND, b, cn(x));
     auto bb = cw(b).as_u64();
     if (!bb || *bb >= 31) return x;
     const i64 bits = 8 * (i64(*bb) + 1);
@@ -855,11 +832,11 @@ Value signextend(Value b, Value x) {
     // more bits is narrowed, or its value itself when it starts at 0
     if (auto f = field_of_mask(x); f && f->off + f->shl == 0) {
         if (f->off == 0) return signextend(b, f->x);
-        if (f->size > bits) return mk(Op::SIGNEXTEND, b, mask_concrete(bits, f->off, -f->off, f->x, 0));
+        if (f->size > bits) return mk(Op::SIGNEXTEND, cn(b), mask_concrete(bits, f->off, -f->off, f->x, 0));
     }
     if (x.is(Op::STORAGE, 3) && x[0].is_small() && x[0].small_val() > bits && x[1].is_small() && x[1].small_val() >= 0)
-        return mk(Op::SIGNEXTEND, b, mk(Op::STORAGE, small(bits), x[1], x[2]));
-    return mk(Op::SIGNEXTEND, b, x);
+        return mk(Op::SIGNEXTEND, cn(b), mk(Op::STORAGE, small(bits), x[1], x[2]));
+    return mk(Op::SIGNEXTEND, cn(b), x);
 }
 
 // ---------------------------------------------------------------- bitwise
@@ -974,7 +951,7 @@ Value bxor(Value a, Value b) {
     if (is_const(b) && cw(b).is_zero()) return a;
     if (is_const(a) && cw(a) == w_ones()) return bnot(b);
     if (is_const(b) && cw(b) == w_ones()) return bnot(a);
-    return mk(Op::XOR, a, b);
+    return mk(Op::XOR, cn(a), cn(b));
 }
 
 Value bnot(Value a) {
@@ -1074,6 +1051,22 @@ Value iszero(Value a) {
     return mk(Op::ISZERO, a);
 }
 
+Value truth(Value a) {
+    for (int i = 0; i < 64; ++i) {
+        if (a.is(Op::BOOL, 1)) {
+            a = a[0];
+        } else if (a.is(Op::ISZERO, 1) && a[0].is(Op::ISZERO, 1)) {
+            a = a[0][0];
+        } else if (a.is(Op::ISZERO, 1)) {
+            Value in = truth(a[0]);
+            return in == a[0] ? a : iszero(in);
+        } else {
+            return a;
+        }
+    }
+    return a;
+}
+
 Value to_bool(Value a) {
     if (is_const(a)) return small(cw(a).is_zero() ? 0 : 1);
     if (is_bool(a)) return a;
@@ -1124,7 +1117,7 @@ Value cmp(Op op, Value a, Value b) {
         default:
             break;
     }
-    return mk(op, a, b);
+    return mk(op, cn(a), cn(b));
 }
 
 Value max(std::span<const Value> args) {

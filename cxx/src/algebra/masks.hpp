@@ -64,6 +64,13 @@ struct BitSpan {
 };
 BitSpan find_mask(const Word256& w) noexcept;
 
+// x may be wider than a word (python algebra.may_be_wide): a byte string of
+// more than 32 bytes, or not known to be at most 32 (DATA, ARR, SALL,
+// SBYTES, SIZED / MEM / CALLDATA_BYTES / CODE_BYTES / RETURNDATA_BYTES /
+// EXTCODE_BYTES of a length that isn't an int <= 32). A mask of it keeps
+// its fields as given (bits past 256 exist); the Evaluator asks the env.
+bool may_be_wide(Value x) noexcept;
+
 // ---- structural bit facts (sound for every value of the leaves) ----------
 
 // v < 2^max_bits(v) as a word, for any value of what v is made of: ints

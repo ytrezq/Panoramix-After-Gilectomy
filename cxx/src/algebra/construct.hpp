@@ -114,6 +114,10 @@ Value iszero(Value a);
 Value to_bool(Value a);
 // whether a's value is 0 or 1 for every value of the leaves (python is_bool)
 bool is_bool(Value a) noexcept;
+// an expression with the same TRUTH as a (zero exactly when a is), not the
+// same value: BOOL(x) is x, ISZERO(ISZERO(x)) is x (python
+// arithmetic.simplify_bool) - for conditions only (if, while, require)
+Value truth(Value a);
 // op one of LT GT SLT SGT EQ LE GE SLE SGE
 Value cmp(Op op, Value a, Value b);
 // MAX, MIN (unsigned), structural only

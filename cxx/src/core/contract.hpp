@@ -31,6 +31,11 @@ struct ContractShared {
     bool free_memory_pointer = true;  // solidity's fmp idiom (mem[64]) assumed
 };
 
+// INVALID(reason, pc): why the path ends invalid
+enum class InvalidReason : u32 { OPCODE = 1, ASSERT_FAIL, JUMP, JUMPDEST, STACK_UNDERFLOW, RETURNDATACOPY };
+// UNDEFINED(reason, pc): why the VM stopped exploring a path (the run is then inconclusive)
+enum class UndefinedReason : u32 { UNFINISHED = 1, COMPUTED_JUMP, AMBIGUOUS_CALL };
+
 enum class AbiKind : u8 { Word, Uint, Int, Address, Bool, BytesN, Bytes, String, Array, Tuple, Unknown };
 
 // Name(PARAM, k) -> FunctionInfo::params[k]
@@ -48,6 +53,7 @@ struct EntryCondition {
     Value checks;                 // a LIST of bool exprs that held on the dispatcher's path
     bool nonpayable = false;      // `if callvalue: revert` before the body
     Value entry_lines;            // a TRACE: the dispatcher's lines before the body (setmems)
+    Value vm_state;               // the VM's state at entry_pc (lot 5's, opaque; NIL for internals)
 };
 
 // a call line's id -> what it was (CALL_SUCCESS / RETURNDATA_BYTES(id, ...) refer to it)

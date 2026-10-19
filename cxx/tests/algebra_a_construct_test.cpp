@@ -528,6 +528,39 @@ TEST_CASE("algebra: truth values") {
     CHECK(A::is_bool(V("(mask_shl 1 0 0 caller)")));
     CHECK(!A::is_bool(V("(mask_shl 1 1 0 caller)")));
     CHECK(A::exp(mk_int(0), x) == V("(iszero caller)"));
+    // truth: the same zero-ness, not the same value
+    CHECK(A::truth(V("(bool caller)")) == x);
+    CHECK(A::truth(V("(iszero (iszero caller))")) == x);
+    CHECK(A::truth(V("(iszero (bool caller))")) == V("(iszero caller)"));
+    CHECK(A::truth(V("(iszero caller)")) == V("(iszero caller)"));
+}
+
+TEST_CASE("algebra: truth keeps zero-ness") {
+    Fixture f;
+    Gen g(808);
+    int bad = 0;
+    for (int i = 0; i < 2000 && bad < 5; ++i) {
+        Value e = A::normalize(g.rexp(1));
+        Value w = g.chance(1, 2) ? A::to_bool(e) : A::iszero(A::iszero(e));
+        if (g.chance(1, 3)) w = mk(Op::ISZERO, mk(Op::BOOL, w));
+        Value t = A::truth(w);
+        for (u64 s : {kSeeds[i % 8], kSeeds[(i + 1) % 8]}) {
+            if (ev(w, s).is_zero() != ev(t, s).is_zero()) {
+                ++bad;
+                MESSAGE(dump(w), " -> ", dump(t));
+                break;
+            }
+        }
+    }
+    CHECK(bad == 0);
+    CHECK(A::may_be_wide(V("(mem (range 0 64))")));
+    CHECK(A::may_be_wide(V("(mem (range 0 tmp1))")));
+    CHECK(!A::may_be_wide(V("(mem (range 0 32))")));
+    CHECK(A::may_be_wide(V("(data 1 2)")));
+    CHECK(!A::may_be_wide(V("caller")));
+    // a mask of a wide value keeps its fields: bits past 256 exist
+    Value m = A::mask(256, 256, -256, V("(mem (range 0 64))"));
+    CHECK(m == V("(mask_shl 256 256 -256 (mem (range 0 64)))"));
 }
 
 TEST_CASE("algebra: signextend, sar, apply of the other ops") {

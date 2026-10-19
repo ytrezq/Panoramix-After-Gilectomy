@@ -1,6 +1,8 @@
 // Concrete evaluation (eval.hpp).
 #include "algebra/eval.hpp"
 
+#include "algebra/masks.hpp"
+
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "core/errors.hpp"
@@ -232,7 +234,7 @@ std::optional<Word256> Evaluator::run(Value v) {
     check_stack();
     std::optional<Word256> res;
     Op op = v.op();
-    if (v.is_expr() && is_pure(op)) {
+    if (v.is_expr() && is_pure(op) && !(op == Op::MASK_SHL && v.size() == 4 && may_be_wide(v[3]))) {
         if (op == Op::LAND || op == Op::LOR) {
             // python's and / or: the second operand only when it decides
             if (v.size() == 2) {

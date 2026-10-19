@@ -127,6 +127,30 @@ BitSpan find_mask(const Word256& w) noexcept {
     return BitSpan{end - pos, pos};
 }
 
+bool may_be_wide(Value x) noexcept {
+    auto len_le32 = [](Value n) { return n.is_small() && n.small_val() >= 0 && n.small_val() <= 32; };
+    switch (x.op()) {
+        case Op::DATA:
+        case Op::ARR:
+        case Op::SALL:
+        case Op::SBYTES:
+            return true;
+        case Op::SIZED:
+            return x.size() == 2 && !len_le32(x[0]);
+        case Op::MEM:
+            return !(x.size() == 1 && x[0].is(Op::RANGE, 2) && len_le32(x[0][1]));
+        case Op::CALLDATA_BYTES:
+        case Op::CODE_BYTES:
+            return !(x.size() == 2 && len_le32(x[1]));
+        case Op::RETURNDATA_BYTES:
+            return !(x.size() == 3 && len_le32(x[2]));
+        case Op::EXTCODE_BYTES:
+            return !(x.size() == 2 && x[1].is(Op::RANGE, 2) && len_le32(x[1][1]));
+        default:
+            return false;
+    }
+}
+
 // ---------------------------------------------------------------- bit facts
 
 namespace {
@@ -145,13 +169,49 @@ std::optional<u32> small_field(Value v) noexcept {
     return u32(x);
 }
 
+// the bit facts of the nodes, per context (pure: never cleared). A slot
+// holds the value + 1 (0: not computed).
+struct BitsState final : ModuleState {
+    Memo<Value, u32> max_bits, low_zero;
+};
+
+u32 max_bits_of(Value v);
+u32 low_zero_bits_of(Value v);
+
 }  // namespace
 
 u32 max_bits(Value v) {
     if (v.is_int()) return bitlen_word(Word256::from_value(v));
     if (v.is_bool()) return v.is_true() ? 1 : 0;
     if (!v.is_expr()) return 256;
+    BitsState& S = cx().state<BitsState>();
+    if (const u32* r = S.max_bits.find(v); r && *r) return *r - 1;
     check_stack();
+    u32 r = max_bits_of(v);
+    S.max_bits.put(v, r + 1);
+    return r;
+}
+
+u32 low_zero_bits(Value v) {
+    if (v.is_int()) {
+        Word256 w = Word256::from_value(v);
+        if (w.is_zero()) return 256;
+        for (u32 i = 0; i < 4; ++i)
+            if (w.limb[i]) return i * 64 + u32(__builtin_ctzll(w.limb[i]));
+        return 256;
+    }
+    if (!v.is_expr()) return 0;
+    BitsState& S = cx().state<BitsState>();
+    if (const u32* r = S.low_zero.find(v); r && *r) return *r - 1;
+    check_stack();
+    u32 r = low_zero_bits_of(v);
+    S.low_zero.put(v, r + 1);
+    return r;
+}
+
+namespace {
+
+u32 max_bits_of(Value v) {
     switch (v.op()) {
         case Op::LT: case Op::GT: case Op::SLT: case Op::SGT: case Op::EQ: case Op::ISZERO:
         case Op::BOOL: case Op::LE: case Op::GE: case Op::SLE: case Op::SGE:
@@ -250,16 +310,7 @@ u32 max_bits(Value v) {
     }
 }
 
-u32 low_zero_bits(Value v) {
-    if (v.is_int()) {
-        Word256 w = Word256::from_value(v);
-        if (w.is_zero()) return 256;
-        for (u32 i = 0; i < 4; ++i)
-            if (w.limb[i]) return i * 64 + u32(__builtin_ctzll(w.limb[i]));
-        return 256;
-    }
-    if (!v.is_expr()) return 0;
-    check_stack();
+u32 low_zero_bits_of(Value v) {
     switch (v.op()) {
         case Op::MASK_SHL: {
             if (v.size() != 4 || !v[1].is_small() || !v[2].is_small()) return 0;
@@ -312,5 +363,7 @@ u32 low_zero_bits(Value v) {
             return 0;
     }
 }
+
+}  // namespace
 
 }  // namespace pan::alg
