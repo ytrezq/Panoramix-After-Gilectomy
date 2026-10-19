@@ -240,7 +240,8 @@ TEST_CASE("mem: slices") {
     CHECK(D(slice(m, S(0), S(2))) == "(sized 2 (mask_shl 16 16 -16 (calldataload 0)))");
     CHECK(D(slice(V("(sized 32 caller)"), S(12), S(32))) == "(sized 20 (mask_shl 160 0 0 caller))");
     CHECK(D(slice(V("(sized 32 (mask_shl 160 0 0 caller))"), S(0), S(12))) == "(sized 12 0)");
-    CHECK(D(slice(V("(sized 40 caller)"), S(4), S(12))) == "(data (sized 4 0) (sized 4 (mask_shl 32 224 -224 caller)))");
+    // (zeroes then a 4-byte number: that number on 8 bytes)
+    CHECK(D(slice(V("(sized 40 caller)"), S(4), S(12))) == "(sized 8 (mask_shl 32 224 -224 caller))");
     CHECK(D(slice(V("(calldata_bytes 4 (calldataload 4))"), S(32), S(64))).find("calldata_bytes 36") !=
           std::string::npos);
     CHECK(D(slice(V("(data (sized 4 caller) (mem (range 0 28)))"), S(2), S(10))) ==

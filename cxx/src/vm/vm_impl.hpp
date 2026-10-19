@@ -44,8 +44,8 @@ inline constexpr u32 kAmbiguousCall = ~u32{0};
 
 // the EVM's stack: 1024 words at most (a push past it halts)
 inline constexpr usize kStackLimit = 1024;
-// INVALID's reason for it (core/contract.hpp: STACK_OVERFLOW, asked of main)
-inline constexpr InvalidReason kStackOverflow = InvalidReason(7);
+// INVALID's reason for it
+inline constexpr InvalidReason kStackOverflow = InvalidReason::STACK_OVERFLOW;
 
 // how a node's trace ends (python's last line of node.trace)
 enum class End : u8 {

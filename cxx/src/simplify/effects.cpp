@@ -197,6 +197,14 @@ EffectSummary setvars_summary(Value list) {
     return s;
 }
 
+// the region of a slot's bits: a LENGTH(key) slot is the word at key (the
+// length decoded from it), a LOC(n) the slot n
+Value region(Value size, Value off, Value slot) {
+    if (slot.is(Op::LENGTH, 1)) return mk(Op::STORAGE, Value::small(256), Value::small(0), region(Value::small(256), Value::small(0), slot[0])[2]);
+    if (slot.is(Op::LOC, 1)) slot = slot[0];
+    return mk(Op::STORAGE, size, off, slot);
+}
+
 EffectSummary storage_region_read(Value region, Value operands_of) {
     EffectSummary s = operands(operands_of);
     add_place(s, false, S_STORAGE, region);
@@ -221,8 +229,8 @@ EffectSummary expr_summary(Value v) {
                 add_any(s, false, S_MEM);
             return s;
         }
-        case Op::STORAGE: return storage_region_read(v, v);
-        case Op::LENGTH: return storage_region_read(mk(Op::STORAGE, Value::small(256), Value::small(0), v[0]), v);
+        case Op::STORAGE: return storage_region_read(region(v[0], v[1], v[2]), v);
+        case Op::LENGTH: return storage_region_read(region(Value::small(256), Value::small(0), v[0]), v);
         case Op::SBYTES:
         case Op::SALL:
         case Op::ST:
@@ -279,8 +287,7 @@ EffectSummary expr_summary(Value v) {
             return s;
         case Op::STORE: {
             s = operands(v);
-            Value region = mk(Op::STORAGE, v[0], v[1], v[2]);
-            add_place(s, true, S_STORAGE, region);
+            add_place(s, true, S_STORAGE, region(v[0], v[1], v[2]));
             touch(s);
             return s;
         }

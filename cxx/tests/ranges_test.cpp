@@ -769,6 +769,35 @@ TEST_CASE("ranges: path facts") {
     CHECK(A::lt(V("tmp4"), A::add(V("tmp4"), mk_int(1)), A::Top::Word, &vb) == Tri::True);
 }
 
+TEST_CASE("ranges: long paths of facts") {
+    Fixture f;
+    // 300 conditions on 300 words (a long path: the index of the bounds)
+    A::Facts k;
+    std::vector<Value> xs;
+    for (int i = 0; i < 300; ++i) {
+        Value x = mk(Op::CALLDATALOAD, mk_int(4 + 32 * i));
+        xs.push_back(x);
+        k = k.with_cond(A::cmp(Op::LT, x, mk_int(1000 + i)));
+    }
+    for (int i = 0; i < 300; i += 37) {
+        CHECK(A::range(xs[usize(i)], A::Top::Word, &k) == A::Range::of(EvmInt(0), EvmInt(999 + i)));
+        CHECK(A::eval_bool(A::cmp(Op::LT, A::add(xs[usize(i)], mk_int(1)), mk_int(1001 + i)), &k) == Tri::True);
+        CHECK(A::eval_bool(A::cmp(Op::LT, xs[usize(i)], mk_int(999 + i)), &k) == Tri::None);
+    }
+    // the same expression bounded twice: both
+    A::Facts k2 = k.with_cond(A::iszero(A::cmp(Op::LT, xs[5], mk_int(500))));
+    CHECK(A::range(xs[5], A::Top::Word, &k2) == A::Range::of(EvmInt(500), EvmInt(1004)));
+    // a question about an expression no fact bounds: the facts cost nothing
+    A::RangeQuery q(&k2, std::span<const Value>(&xs[0], 1));
+    CHECK(q.range(xs[0]) == A::Range::of(EvmInt(0), EvmInt(999)));
+    CHECK(q.range(V("calldatasize")) == A::Range::bits(64));
+    // a bound on a variable's value, through the variable
+    std::vector<std::pair<Value, Value>> vals = {{V("tmp9"), A::add(xs[7], mk_int(2))}};
+    A::set_variables(vals, {});
+    CHECK(A::range(V("tmp9"), A::Top::Word, &k) == A::Range::of(EvmInt(2), EvmInt(1008)));
+    A::clear_variables();
+}
+
 TEST_CASE("ranges: hostile shapes stay bounded") {
     Fixture f;
     // a long sum of products of masks: coefficients past 2^320 say nothing

@@ -68,6 +68,8 @@ TEST_CASE("vm: corpus (PANORAMIX_VM_CORPUS)") {
     const unsigned long limit = lim ? std::strtoul(lim, nullptr, 10) : 0;
     const unsigned long skip = skp ? std::strtoul(skp, nullptr, 10) : 0;
     const bool per_function = std::getenv("PANORAMIX_VM_VERBOSE") != nullptr;
+    const bool selectors = std::getenv("PANORAMIX_VM_SELECTORS") != nullptr;
+    const bool discovery_only = selectors && std::getenv("PANORAMIX_VM_DISCOVERY_ONLY") != nullptr;
     std::ifstream in(list);
     std::string path;
     std::vector<std::string> paths;
@@ -108,6 +110,22 @@ TEST_CASE("vm: corpus (PANORAMIX_VM_CORPUS)") {
             shared.free_memory_pointer = map.fmp;
             try {
                 std::vector<FunctionInfo> fns = vm::discover(shared, budget);
+                if (selectors) {
+                    std::string line = "SEL " + p.substr(p.rfind('/') + 1);
+                    char buf[32];
+                    for (const auto& fn : fns) {
+                        if (fn.kind == FunctionInfo::Kind::Selector)
+                            std::snprintf(buf, sizeof buf, " %08x@%u", fn.selector, fn.entry_pc);
+                        else
+                            std::snprintf(buf, sizeof buf, " fallback@%u", fn.entry_pc);
+                        line += buf;
+                    }
+                    std::printf("%s\n", line.c_str());
+                    if (discovery_only) {
+                        c.functions = fns.size();
+                        throw Unsupported("discovery only");
+                    }
+                }
                 std::vector<FunctionInfo> internals;
                 std::vector<vm::InternalEntry> known;
                 for (unsigned wave = 0; wave < 8; ++wave) {
@@ -150,6 +168,11 @@ TEST_CASE("vm: corpus (PANORAMIX_VM_CORPUS)") {
                         fi.params.resize(e.nargs);
                         internals.push_back(std::move(fi));
                     }
+                }
+            } catch (const Unsupported& e) {
+                if (!discovery_only) {
+                    problem = std::string("discovery: ") + e.what();
+                    ++c.failed;
                 }
             } catch (const Error& e) {
                 problem = std::string("discovery: ") + e.what();

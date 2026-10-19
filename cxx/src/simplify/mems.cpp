@@ -227,6 +227,18 @@ struct Live {
             if (mem::overlaps(w, r) != Tri::False) return true;
         return false;
     }
+    // before a line that changes what a live range reads (its address,
+    // its length: memory, variables...), that range isn't the same bytes:
+    // anything may be read
+    void before(const EffectSummary& s) {
+        if (all || !s.writes) return;
+        for (Value r : ranges)
+            if (changes(s, summary(r))) {
+                all = true;
+                ranges.clear();
+                return;
+            }
+    }
     // what a write of w leaves to be read from before it
     void overwrite(Value w) {
         if (all) return;
@@ -307,6 +319,7 @@ private:
                     return l;
                 }
                 if (!live.read(w)) return Value();  // no read sees it
+                live.before(summary(l));
                 live.overwrite(w);
                 // what it reads: its range's and its value's
                 add_reads(summary(l), live);
@@ -333,6 +346,8 @@ private:
                 loops_.pop_back();
                 live = head;
                 live.unite(in_body);
+                live.before(summary(l[3]));
+                add_reads(summary(l[3]), live);
                 Value r = body == l[1] ? l : mk(Op::WHILE, l[0], body, l[2], l[3]);
                 cx().pcs.inherit(r, l);
                 return r;
@@ -346,11 +361,13 @@ private:
                     live = Live{};
                     live.all = true;
                 }
+                live.before(summary(l));
                 add_reads(summary(l), live);
                 return l;
             }
             case Op::LABEL: {
                 if (const Live* head = loop_head(l[0])) live.unite(*head);
+                live.before(summary(l));
                 add_reads(summary(l), live);
                 return l;
             }
@@ -367,9 +384,7 @@ private:
             return l;
         }
         if (s.control & C_ENDS) live = Live{};
-        if ((s.writes & S_MEM) && (s.writes_any & S_MEM)) {
-            // (an INTERNAL: it reads anything too, below)
-        }
+        live.before(s);
         add_reads(s, live);
         return l;
     }
