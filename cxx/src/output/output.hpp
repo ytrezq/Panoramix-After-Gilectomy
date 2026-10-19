@@ -181,14 +181,19 @@ std::string to_json(const driver::ContractResult& r, const PrintOptions& opts);
 // ---- 4. --explain ------------------------------------------------------------------------
 
 // python's explain(title, trace): "\n" + C.green_back + " title: " + C.end
-// + "\n\n" + the trace's lines (pprint_trace) + "\n\n" appended to out.
+// + "\n\n" + the trace's lines (pprint_trace) + "\n\n" appended to out - as
+// python prints them while the function is decompiled: the calldata as
+// cd[k] (no param names yet), a storage read as python's tuple ('storage',
+// 256, 0, 7) (no storage analysis yet). --verbose's ASM lines print their
+// stacks so everywhere (python made them strings in its VM).
 void explain_trace(std::string& out, std::string_view title, Value trace, const TraceContext& ctx);
 // python's explain_text(title, params): "\n" + C.blue_back + " title: " +
 // C.end + "\n\n" + a line " name: value" each + "\n".
 void explain_text(std::string& out, std::string_view title,
                   std::span<const std::pair<std::string, std::string>> items, bool color);
 // python's "function traits" (Function.analyse's explain_text): the return
-// lines, payable, read_only, const, getter of fn.
+// lines (python's str() of them: its IR's tuples), payable, read_only,
+// const, getter of fn (lot 8's traits).
 void explain_traits(std::string& out, const FunctionInfo& fn, const TraceContext& ctx);
 
 }  // namespace pan::output
