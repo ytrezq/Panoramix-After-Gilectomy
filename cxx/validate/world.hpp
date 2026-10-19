@@ -83,32 +83,32 @@ enum class CreateKind : std::uint8_t
 /// The block of a call. number, timestamp and gas_limit are below 2^63.
 struct BlockContext
 {
-    Word number;                    ///< NUMBER
-    Word timestamp;                 ///< TIMESTAMP
-    Word coinbase;                  ///< COINBASE
-    Word prevrandao;                ///< PREVRANDAO (DIFFICULTY)
-    Word gas_limit;                 ///< GASLIMIT
-    Word chain_id;                  ///< CHAINID
-    Word base_fee;                  ///< BASEFEE
-    Word blob_base_fee;             ///< BLOBBASEFEE
-    std::vector<Word> blob_hashes;  ///< BLOBHASH(i), zero past the end
+    Word number{};                    ///< NUMBER
+    Word timestamp{};                 ///< TIMESTAMP
+    Word coinbase{};                  ///< COINBASE
+    Word prevrandao{};                ///< PREVRANDAO (DIFFICULTY)
+    Word gas_limit{};                 ///< GASLIMIT
+    Word chain_id{};                  ///< CHAINID
+    Word base_fee{};                  ///< BASEFEE
+    Word blob_base_fee{};             ///< BLOBBASEFEE
+    std::vector<Word> blob_hashes{};  ///< BLOBHASH(i), zero past the end
 };
 
 /// The inputs of one call of the contract (its address is the State's).
 struct CallContext
 {
-    Word caller;     ///< CALLER
-    Word origin;     ///< ORIGIN
-    Word value;      ///< CALLVALUE
-    Word gas_price;  ///< GASPRICE
-    Bytes calldata;  ///< CALLDATALOAD, CALLDATASIZE, CALLDATACOPY
+    Word caller{};     ///< CALLER
+    Word origin{};     ///< ORIGIN
+    Word value{};      ///< CALLVALUE
+    Word gas_price{};  ///< GASPRICE
+    Bytes calldata{};  ///< CALLDATALOAD, CALLDATASIZE, CALLDATACOPY
 };
 
 /// What an external call gives back (or a creation: output = its revert data).
 struct CallResult
 {
     bool success = false;
-    Bytes output;  ///< the return data (RETURNDATASIZE, RETURNDATACOPY)
+    Bytes output{};  ///< the return data (RETURNDATASIZE, RETURNDATACOPY)
 
     friend bool operator==(const CallResult&, const CallResult&) = default;
 };
@@ -118,8 +118,8 @@ struct CallResult
 struct CreateResult
 {
     bool success = false;
-    Word address;
-    Bytes output;
+    Word address{};
+    Bytes output{};
 
     friend bool operator==(const CreateResult&, const CreateResult&) = default;
 };

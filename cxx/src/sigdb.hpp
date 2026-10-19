@@ -274,7 +274,7 @@ private:
 
     std::unique_ptr<Mapping> map_;
     const std::uint8_t* base_ = nullptr;
-    const std::uint32_t* buckets_ = nullptr;  // (unaligned reads: memcpy)
+    const std::uint8_t* buckets_ = nullptr;
     const std::uint8_t* index_ = nullptr;
     const std::uint8_t* records_ = nullptr;
     const std::uint8_t* strings_ = nullptr;

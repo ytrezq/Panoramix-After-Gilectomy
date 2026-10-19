@@ -1,0 +1,12 @@
+intx - extended precision integer library
+
+Origin:   https://github.com/chfast/intx
+Version:  v0.15.0 (tag; commit 0306b495820a5259563e5055f0a8b726b9ae4e0b,
+          2026-01-30) - the version evmone v0.24.0 pins
+          (cmake/Hunter/config.cmake)
+License:  Apache License 2.0 (LICENSE). Copyright Pawel Bylica.
+
+What is here: include/intx/intx.hpp (header-only). Left out: the tests,
+the examples, the CMake files.
+
+Local changes: none.

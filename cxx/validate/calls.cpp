@@ -34,7 +34,18 @@ void append_selector(Bytes& out, std::uint32_t selector)
 
 CallGenerator::CallGenerator(const SeededWorld& world, BytesView code, CallConfig config)
   : world_{&world}, config_{config}, selectors_{find_selectors(code)}
-{}
+{
+    if (config_.probe)
+    {
+        auto probed = probe_selectors(code, world);
+        for (const auto s : probed.selectors)
+            if (std::ranges::find(selectors_, s) == selectors_.end())
+                selectors_.push_back(s);
+        for (const auto& a : probed.callers)
+            if (std::ranges::find(world.actors(), a) == world.actors().end())
+                privileged_.push_back(a);
+    }
+}
 
 Word CallGenerator::calldata_word(std::uint32_t selector, unsigned variant, unsigned index,
     unsigned words) const
@@ -106,9 +117,15 @@ CallContext CallGenerator::context_for(std::uint32_t key, unsigned variant, Byte
     const auto actors = world_->actors();
     if (!actors.empty())
     {
-        // the first actor most of the time
-        const auto pick = static_cast<unsigned>(r % 10);
-        c.caller = pick < 6 ? actors[0] : actors[static_cast<std::size_t>((r >> 8) % actors.size())];
+        // the first actor most of the time, sometimes an owner the code
+        // checks the caller against
+        const auto pick = static_cast<unsigned>(r % 20);
+        if (pick < 12)
+            c.caller = actors[0];
+        else if (pick < 17 || privileged_.empty())
+            c.caller = actors[static_cast<std::size_t>((r >> 8) % actors.size())];
+        else
+            c.caller = privileged_[static_cast<std::size_t>((r >> 8) % privileged_.size())];
     }
     c.origin = c.caller;
     if ((r >> 16) % 100 < config_.value_percent)

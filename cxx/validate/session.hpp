@@ -22,7 +22,13 @@
 // failure": success 0, no data, no event); a call to an account without
 // code succeeds with no data; the precompiles are computed (not the world's);
 // value transfers move balances; CREATE's address comes from the contract's
-// nonce, which every creation that reaches the world increments.
+// nonce, which every creation that reaches the world increments; a created
+// account's code is one STOP (its init code never runs); SELFDESTRUCT moves
+// the balance (EIP-6780: the code stays). Not modeled: the caller paying the
+// value or the gas, address collisions of the creations, re-entrance.
+//
+// Limits: at most `max_events` events (a memory limit), past it the end is
+// `exhausted`.
 #pragma once
 
 #include "effects.hpp"
@@ -75,11 +81,16 @@ public:
 
     const std::vector<Event>& events() const noexcept { return events_; }
 
+    /// The events a call may make (a memory limit): past it they're not
+    /// recorded, and the call ends `exhausted`.
+    std::size_t max_events = 100'000;
+
     /// The end of the call; its effects. The Session is spent after it.
     Effects finish(End end);
 
 private:
     void transfer(const Word& from, const Word& to, const Word& value);
+    void record(Event e);
 
     State* state_;
     CallContext context_;
@@ -89,6 +100,7 @@ private:
     std::map<Word, std::uint64_t> nonces_;  // the nonces changed by the call
     std::set<Word> created_;
     std::vector<Event> events_;
+    bool too_many_events_ = false;
     bool finished_ = false;
 };
 

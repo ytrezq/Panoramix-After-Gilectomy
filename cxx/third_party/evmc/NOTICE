@@ -1,0 +1,16 @@
+EVMC - Ethereum Client-VM Connector API
+
+Origin:   https://github.com/ethereum/evmone/tree/v0.24.0/evmc - the EVMC
+          that evmone carries in its own tree since it merged it (EVMC ABI
+          version 19, with get_nonce and the VM computing the creation
+          addresses); originally https://github.com/ethereum/evmc
+Version:  evmone v0.24.0 (tag; commit 2a4decd05b7e088b2da0e1f1924f8968e14e3586,
+          2026-09-23), the version of ../evmone
+License:  Apache License 2.0 (LICENSE: evmone's copy, the same license).
+          Copyright The EVMC Authors.
+
+What is here: include/evmc/ evmc.h evmc.hpp helpers.h utils.h bytes.hpp
+hex.hpp filter_iterator.hpp (header-only). Left out: mocked_host.hpp, the
+CMake files.
+
+Local changes: none.

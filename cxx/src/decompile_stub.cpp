@@ -68,12 +68,4 @@ std::string decode_report(std::span<const std::uint8_t> code)
     return std::format("{} bytes of code (stub: the decoder isn't there yet)\n", code.size());
 }
 
-int build_signature_db(const std::string& dump_path, const std::string&)
-{
-    log(log_error, "panoramix.sigdb",
-        std::format("(stub) can't build the signature database from {}: its builder isn't linked yet",
-                    hex::escape(dump_path)));
-    return 1;
-}
-
 }  // namespace pan

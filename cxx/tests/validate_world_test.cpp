@@ -4,7 +4,7 @@
 #include "validate/session.hpp"
 #include "validate/world.hpp"
 
-#include <doctest/doctest.h>
+#include "validate_test_util.hpp"
 
 #include <map>
 
@@ -303,4 +303,21 @@ TEST_CASE("validate: the precompiles")
     // the BLS12-381 and the point evaluation aren't built: they fail
     CHECK_FALSE(run_precompile(0x0a, {}).success);
     CHECK_FALSE(run_precompile(0x12, {}).success);
+}
+
+TEST_CASE("validate: a session records at most max_events events")
+{
+    const SeededWorld w{{.seed = 13}};
+    State state{w, w.contract_address(), bytes("0x00")};
+    Session s{state, {}};
+    s.max_events = 10;
+    for (unsigned i = 0; i < 20; ++i)
+        s.sstore(i, i + 1);
+    CHECK(s.events().size() == 10);
+    CHECK(s.sload(15) == 16);  // still written
+    const auto e = s.finish(End::stop());
+    CHECK(e.end.status == Status::exhausted);
+    CHECK(e.end.note == "more than 10 events");
+    CHECK(e.storage_diff.empty());
+    CHECK(state.written_storage().empty());
 }

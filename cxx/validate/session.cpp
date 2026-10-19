@@ -86,21 +86,29 @@ Word Session::blob_hash(const Word& index) const
     return hashes[static_cast<std::size_t>(index)];
 }
 
+void Session::record(Event e)
+{
+    if (events_.size() < max_events)
+        events_.push_back(std::move(e));
+    else
+        too_many_events_ = true;
+}
+
 void Session::sstore(const Word& slot, const Word& value)
 {
     storage_[slot] = value;
-    events_.emplace_back(StorageWrite{slot, value});
+    record(StorageWrite{slot, value});
 }
 
 void Session::tstore(const Word& slot, const Word& value)
 {
     transient_[slot] = value;
-    events_.emplace_back(TransientWrite{slot, value});
+    record(TransientWrite{slot, value});
 }
 
 void Session::log(std::span<const Word> topics, BytesView data)
 {
-    events_.emplace_back(Log{{topics.begin(), topics.end()}, Bytes(data.begin(), data.end())});
+    record(Log{{topics.begin(), topics.end()}, Bytes(data.begin(), data.end())});
 }
 
 void Session::transfer(const Word& from, const Word& to, const Word& value)
@@ -136,7 +144,7 @@ CallResult Session::call(CallKind kind, const Word& target, const Word& value, B
     if (event.result.success && kind == CallKind::call)
         transfer(address(), to, v);
     auto result = event.result;
-    events_.emplace_back(std::move(event));
+    record(std::move(event));
     return result;
 }
 
@@ -151,8 +159,9 @@ CreateResult Session::create(CreateKind kind, const Word& value, BytesView init_
     const auto new_address = kind == CreateKind::create ? create_address(address(), n) :
                                                           create2_address(address(), salt, init_code);
     auto result = create_at(kind, new_address, value, init_code);
-    if (kind == CreateKind::create2)
-        std::get<Creation>(events_.back()).salt = salt;
+    if (kind == CreateKind::create2 && !events_.empty())
+        if (auto* c = std::get_if<Creation>(&events_.back()); c && c->address == new_address)
+            c->salt = salt;
     return result;
 }
 
@@ -167,7 +176,7 @@ CreateResult Session::create_at(CreateKind kind, const Word& address_, const Wor
         created_.insert(a);
         transfer(address(), a, value);
     }
-    events_.emplace_back(Creation{kind, value, Bytes(init_code.begin(), init_code.end()),
+    record(Creation{kind, value, Bytes(init_code.begin(), init_code.end()),
         std::nullopt, a, r});
     if (!r.success)
         return {false, 0, r.output};
@@ -178,7 +187,7 @@ void Session::selfdestruct(const Word& beneficiary)
 {
     const auto b = to_address(beneficiary);
     transfer(address(), b, balance(address()));
-    events_.emplace_back(SelfDestruct{b});
+    record(SelfDestruct{b});
 }
 
 Effects Session::finish(End end)
@@ -191,6 +200,8 @@ Effects Session::finish(End end)
         return effects;
     }
     finished_ = true;
+    if (too_many_events_)
+        effects.end = End::exhausted("more than " + std::to_string(max_events) + " events");
     if (!effects.end.success())
         return effects;
 

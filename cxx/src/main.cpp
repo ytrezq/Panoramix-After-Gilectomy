@@ -34,6 +34,7 @@
 #include "fetch.hpp"
 #include "hex.hpp"
 #include "io.hpp"
+#include "sigdb.hpp"
 #include "version.hpp"
 
 namespace {
@@ -188,19 +189,28 @@ int main(int argc, char** argv)
 {
     // the text written to a pipe closed early is an error (EPIPE), as it was
     io::ignore_broken_pipe();
-    const std::vector<std::string_view> args(argv + (argc > 0), argv + argc);
-    return std::visit(overloaded{
-                          [](const cli::Usage&) {
-                              io::write_all(io::Stream::err, cli::usage);
-                              return 2;
+    // (the signature database's messages: the log's)
+    sigdb::set_log_sink(&pan::log);
+    try {
+        const std::vector<std::string_view> args(argv + (argc > 0), argv + argc);
+        return std::visit(overloaded{
+                              [](const cli::Usage&) {
+                                  io::write_all(io::Stream::err, cli::usage);
+                                  return 2;
+                              },
+                              [](const cli::BadLogLevel&) {
+                                  io::write_all(io::Stream::err, cli::bad_log_level);
+                                  return 1;
+                              },
+                              [](const cli::Version&) { return version(); },
+                              [](const cli::BuildDb& db) { return build_signature_db(db.dump, db.out); },
+                              [](const cli::Run& r) { return run(r); },
                           },
-                          [](const cli::BadLogLevel&) {
-                              io::write_all(io::Stream::err, cli::bad_log_level);
-                              return 1;
-                          },
-                          [](const cli::Version&) { return version(); },
-                          [](const cli::BuildDb& db) { return build_signature_db(db.dump, db.out); },
-                          [](const cli::Run& r) { return run(r); },
-                      },
-                      cli::parse(args));
+                          cli::parse(args));
+    } catch (const std::bad_alloc&) {  // (what the decompilations' handlers don't take)
+        error_line(no_memory);
+    } catch (const std::exception& e) {
+        error_line(e.what());
+    }
+    return 1;
 }

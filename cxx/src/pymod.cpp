@@ -28,6 +28,7 @@
 #include "fetch.hpp"
 #include "hex.hpp"
 #include "io.hpp"
+#include "sigdb.hpp"
 #include "version.hpp"
 
 #ifndef PAN_PYMODULE
@@ -544,6 +545,7 @@ PyMODINIT_FUNC PAN_CONCAT(PyInit_, PAN_PYMODULE)(void)
         // `python -m panoramix`)
         if (!std::getenv("PANORAMIX_LOG"))
             pan::set_log_level(pan::log_warning);
+        pan::sigdb::set_log_sink(&pan::log);  // (the signature database's messages: the log's)
         PyObject* m = PyModule_Create(&module);
         if (!m)
             return nullptr;

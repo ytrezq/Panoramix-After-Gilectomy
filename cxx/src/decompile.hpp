@@ -118,11 +118,8 @@ bool log_enabled(int level) noexcept;
 // threads don't mix. The signature of sigdb's LogSink: pass &pan::log.
 void log(int level, std::string_view logger, std::string_view message) noexcept;
 
-// The signature database (function names): panoramix's abi_dump.xz made
-// into the file the decompilations read. out_path empty: the default one
-// (the cache directory). Logs as it goes; returns the exit code of
-// `pancxx build-db`: 0 built, 1 failed, -1 not a dump it can read.
-// (Declared here until the sigdb worker's src/sigdb.hpp links.)
-int build_signature_db(const std::string& dump_path, const std::string& out_path);
+// (The signature database's build-db is sigdb.hpp's
+// pan::build_signature_db: its messages reach log() through
+// pan::sigdb::set_log_sink(&pan::log), which the front-ends call first.)
 
 }  // namespace pan

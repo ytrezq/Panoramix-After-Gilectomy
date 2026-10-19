@@ -1,0 +1,33 @@
+evmone - Fast Ethereum Virtual Machine implementation
+
+Origin:   https://github.com/ethereum/evmone
+Version:  v0.24.0 (tag; commit 2a4decd05b7e088b2da0e1f1924f8968e14e3586,
+          2026-09-23)
+License:  Apache License 2.0 (LICENSE). Copyright The evmone Authors;
+          lib/evmone_precompiles/keccak.* Copyright Pawel Bylica (ethash),
+          Apache License 2.0.
+
+What is here (the files cxx/validate needs, unchanged but the one below):
+  include/evmone/evmone.h
+  lib/evmone/*.cpp *.hpp           the VM (but cpu_check.cpp: -march=native)
+  lib/evmone_precompiles/          ethash's keccak (keccak.c .h .hpp,
+                                   hash_types.h), and the precompiles that
+                                   don't need blst: blake2b, bn254 (with
+                                   pairing/), ecc.hpp, modarith.hpp, modexp,
+                                   mulmod, ripemd160, secp256k1, secp256r1,
+                                   sha256
+Left out: the BLS12-381 and KZG precompiles (bls.*, kzg*.*: they need blst),
+expmod.tmpl (a generator's template), evmc/ (in ../evmc), the CMake files,
+the tests, the tools, the docs.
+
+Built by cxx/Makefile with cxx/validate/Makefile.inc (EVMONE_SRCS,
+EVMONE_CSRCS, EVMONE_CPPFLAGS, EVMONE_CXXFLAGS) and the project's flags
+(-march=native -mtune=native -Ofast -flto -fmerge-all-constants -fweb):
+they work as they are (evmone has no floating point).
+
+Local changes:
+  - lib/evmone/instructions.hpp (gas) and lib/evmone/advanced_instructions.cpp
+    (op_gas): when EVMONE_FIXED_GAS is defined, GAS pushes it instead of the
+    gas left, so that gas never matters in the validation by execution
+    (cxx/validate/world.hpp: fixed_gas, the same value). Marked
+    "local change" in the code.

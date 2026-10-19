@@ -96,10 +96,9 @@ std::string text(const unsigned char* begin, const unsigned char* end)
 
     action minus { negative = true; }
     action digit {
-        if (magnitude <= limit)
-            magnitude = magnitude * 10 + static_cast<unsigned>(fc - '0');
-        if (magnitude > limit)
-            magnitude = limit + 1;
+        // (2^63 at most: LONG_MAX past it, LONG_MIN for its negative)
+        const unsigned d = static_cast<unsigned>(fc - '0');
+        magnitude = magnitude > (limit + 1 - d) / 10 ? limit + 1 : magnitude * 10 + d;
     }
 
     # (space: ragel's, C's isspace)

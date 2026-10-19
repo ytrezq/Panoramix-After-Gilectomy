@@ -7,6 +7,7 @@
 #include "session.hpp"
 #include "world.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <fstream>
@@ -74,6 +75,7 @@ struct Tally
     unsigned long calls = 0, stops = 0, returns = 0, reverts = 0, invalids = 0, exhausted = 0,
                   errors = 0, events = 0, mismatches = 0;
     double seconds = 0;
+    std::vector<float> times;  ///< of every call, in microseconds (--corpus)
 
     void add(const Effects& e)
     {
@@ -114,6 +116,22 @@ struct Tally
         events += t.events;
         mismatches += t.mismatches;
         seconds += t.seconds;
+        times.insert(times.end(), t.times.begin(), t.times.end());
+    }
+
+    /// The distribution of the times of the calls.
+    std::string distribution()
+    {
+        if (times.empty())
+            return {};
+        std::ranges::sort(times);
+        const auto at = [&](double q) {
+            return times[std::min(times.size() - 1, static_cast<std::size_t>(q * static_cast<double>(times.size())))];
+        };
+        char buf[160];
+        std::snprintf(buf, sizeof buf, "us/call: median %.1f, p90 %.1f, p99 %.1f, p99.9 %.1f, max %.0f",
+            at(0.5), at(0.9), at(0.99), at(0.999), times.back());
+        return buf;
     }
 
     std::string str() const
@@ -159,7 +177,10 @@ Tally run_calls(EvmRunner& runner, const SeededWorld& world, const Word& address
     for (std::size_t i = 0; i < calls.size(); ++i)
     {
         State single{world, address, code};
+        const auto call_start = std::chrono::steady_clock::now();
         auto effects = runner.run(o.each ? single : sequence, calls[i].context);
+        t.times.push_back(static_cast<float>(
+            std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - call_start).count()));
         t.add(effects);
         if (print)
             std::cout << call_header(i, calls[i]) << "\n" << to_string(effects) << "\n";
@@ -247,7 +268,7 @@ int run_corpus(const Options& o)
         modes = {false, true};
     Tally total[2];
     unsigned contracts = 0, unreadable = 0;
-    double slowest = 0;
+    double slowest = 0, generation = 0;
     std::string slowest_name;
     std::string path;
     while (std::getline(list, path))
@@ -269,8 +290,11 @@ int run_corpus(const Options& o)
             auto config = o.world;
             config.random = random;
             const SeededWorld world{config};
+            const auto gen_start = std::chrono::steady_clock::now();
             const CallGenerator gen{world, *code, o.calls};
-            const auto t = run_calls(runner, world, world.contract_address(), *code, gen.calls(), o, false);
+            const auto planned = gen.calls();
+            generation += std::chrono::duration<double>(std::chrono::steady_clock::now() - gen_start).count();
+            const auto t = run_calls(runner, world, world.contract_address(), *code, planned, o, false);
             if (t.seconds > slowest)
             {
                 slowest = t.seconds;
@@ -288,8 +312,10 @@ int run_corpus(const Options& o)
         std::cout << " (" << unreadable << " unreadable)";
     std::cout << "\n";
     for (const bool random : modes)
-        std::cout << (random ? "random world: " : "empty world:  ") << total[random].str() << "\n";
+        std::cout << (random ? "random world: " : "empty world:  ") << total[random].str() << "\n  "
+                  << total[random].distribution() << "\n";
     std::cout << "slowest contract: " << slowest_name << " (" << slowest << " s)\n";
+    std::cout << "the calls' generation (selectors found, probed): " << generation << " s\n";
     return (total[0].mismatches + total[1].mismatches) != 0 ? 2 : 0;
 }
 }  // namespace

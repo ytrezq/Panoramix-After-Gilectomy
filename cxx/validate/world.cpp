@@ -41,7 +41,6 @@ void append_word(Bytes& out, const Word& w)
     out.insert(out.end(), b.begin(), b.end());
 }
 
-
 Word create_address(const Word& sender, std::uint64_t nonce) noexcept
 {
     // rlp([sender, nonce]): the list's payload is at most 21 + 9 bytes
@@ -102,7 +101,6 @@ enum Kind : std::uint8_t
     k_create,
     k_actor,
     k_contract,
-    k_mix_address,
 };
 
 /// The key of words, then of bytes: sized once (GCC's LTO warns of the
@@ -217,14 +215,19 @@ Word SeededWorld::balance(const Word& account) const
     if (pick < 40)
         return 1 + rest % 1'000'000;
     if (pick < 90)
-        return rest % intx::from_string<Word>("1000000000000000000000");  // < 1000 ether
+    {
+        static constexpr Word thousand_ether = Word{1000} * Word{1'000'000'000'000'000'000ULL};
+        return rest % thousand_ether;
+    }
     return rest % (Word{1} << 128);
 }
 
 std::uint64_t SeededWorld::nonce(const Word& account) const
 {
+    if (account == contract_)
+        return 1;  // a contract's first: EIP-161
     if (!config_.random)
-        return account == contract_ ? 1 : 0;
+        return 0;
     if (!code(account).empty())
         return 1;
     return static_cast<std::uint64_t>(hash(k_nonce, key_of({account})) % 4);

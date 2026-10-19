@@ -2,7 +2,7 @@
 #include "validate/calls.hpp"
 #include "validate/effects.hpp"
 
-#include <doctest/doctest.h>
+#include "validate_test_util.hpp"
 
 using namespace validate;
 
