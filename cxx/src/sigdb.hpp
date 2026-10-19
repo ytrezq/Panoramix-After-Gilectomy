@@ -9,9 +9,9 @@
 // knows a selector where the dump's last line with that selector has a
 // signature that hashes to it (fetch_sig/hashes_to): a quarter of the dump is
 // what decompilers guessed - unknown12345678(uint64 _param1) - not
-// signatures. Here every line is kept, its Trust told: verified, repaired (a
-// variant of its signature hashes), unverified. The checks are made when the
-// file is built.
+// signatures. Here every selector of the dump has its entry, its best line,
+// its Trust told: verified, repaired (a variant of its signature hashes),
+// unverified. The checks are made when the file is built.
 //
 // Everything here reads the file without copying it: the views (Entry, Type,
 // Field...) point into the mapping and live as long as their Database. The
@@ -25,10 +25,13 @@
 //   buckets  u32[2^B + 1]: bucket b (the selector's top B bits) is
 //            index[buckets[b] .. buckets[b+1])
 //   index    {u32 selector, u32 record offset} by selector
-//   records  per entry: kind, [an event's topic0], name, the parameters'
-//            count, [an event's indexed flags], the parameters (their names
-//            as references to the strings, their types as codes, see Type)
-//   strings  the parameters' names, the named types (varint length, bytes)
+//   records  per entry: kind and trust, [an event's topic0], name, the
+//            parameters' count, [an event's indexed flags], the parameters
+//            (their names as references to the strings, their types as
+//            codes, see Type), [the dump's texts of the types not repaired
+//            to the letter]
+//   strings  the parameters' names, the named types, the texts (varint
+//            length, bytes)
 // A lookup: the bucket (one cache line), its few index entries (one or
 // two), the record (one or two).
 #pragma once
@@ -223,7 +226,8 @@ public:
     std::string_view written_type(std::size_t i) const noexcept;
     // An event's input i is indexed (a topic).
     bool indexed(std::size_t i) const noexcept;
-    // An event's topic0: the keccak of its signature (zeros for the rest).
+    // An event's topic0: the keccak of its signature (zeros for the rest,
+    // and for an unverified event).
     std::span<const std::uint8_t, 32> topic() const noexcept;
     // The selector is the hash of the signature without its spaces (a
     // library of an old compiler: getMin(uint32[]storage)).
@@ -273,7 +277,9 @@ public:
 
     // The entry of a selector (a function, an error... or an event: the
     // dump's entries are by 4 bytes, events by their topic's first ones), or
-    // nothing: python's fetch_sig where its trust() isn't unverified.
+    // nothing. Python's fetch_sig is the entry where its trust() is verified
+    // (python knowing none, though, when a later line of the selector isn't
+    // verified); a repaired or unverified entry is for want of one.
     std::optional<Entry> function(std::uint32_t selector) const noexcept;
     // python's event_abi: the event whose topic0 this is (verified or
     // repaired), or nothing.

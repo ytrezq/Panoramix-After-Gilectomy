@@ -16,7 +16,7 @@ machine has 2 CPUs shared by every worker), with
   PANORAMIX_TIMEOUT=0       no time limit inside the decompiler: the same
                             work at any speed (comparable timings)
   PANORAMIX_SIGDB=--sigdb   the signature database (default: SIGDB of the
-                            environment, or cxx/$B/sigdb1.bin when it exists)
+                            environment, or cxx/$B/sigdb2.bin when it exists)
   PANORAMIX_LOG=error
 and --kill-after S (600 by default, 0: never) kills a run taking longer: a
 timeout. A run is ok (exit 0), failed (exit != 0), crashed (a signal) or a
@@ -177,7 +177,7 @@ def environment(sigdb=None, abi_dump=None, extra=()):
 def default_sigdb():
     if os.environ.get("SIGDB"):
         return os.environ["SIGDB"]
-    path = os.path.join(CXX_DIR, os.environ.get("B", "build"), "sigdb1.bin")
+    path = os.path.join(CXX_DIR, os.environ.get("B", "build"), "sigdb2.bin")
     return path if os.path.exists(path) else None
 
 

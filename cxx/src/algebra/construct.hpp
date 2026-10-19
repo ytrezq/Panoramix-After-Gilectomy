@@ -19,8 +19,10 @@
 //    in [-2^255, 2^255) other than 0 and 1; a base is anything but an int,
 //    an ADD, or a MUL whose first operand is an int (a product of several
 //    symbolic factors MUL(f1, ..., fm) is one base: MUL(k, f1, ..., fm) is
-//    k times it). The terms are in compare() order of their bases, one term
-//    per base. Terms over the same x that are fields of it combine
+//    k times it). A term is read as k times a field of a value x (x itself,
+//    or MASK_SHL(size, off, shl, x) as 2^(off + shl) times its bits moved
+//    to 0); the terms are ordered by x (compare()), then off, then size,
+//    one term per field. Terms over the same x that are fields of it combine
 //    (try_add: x - (x & 31) is MASK_SHL(251, 5, 0, x), adjacent fields of
 //    x are one field).
 //  - products: MUL(k, f1, ..., fm), k first (absent when 1, the product is
@@ -62,11 +64,13 @@ namespace pan::alg {
 // ---- sums and products ------------------------------------------------------
 
 Value add(std::span<const Value> args);
+inline Value add(std::initializer_list<Value> args) { return add(std::span<const Value>(args.begin(), args.size())); }
 Value add(Value a, Value b);
 Value add(Value a, Value b, Value c);
 Value sub(Value a, Value b);  // a - b
 Value neg(Value a);           // -a (python minus_op)
 Value mul(std::span<const Value> args);
+inline Value mul(std::initializer_list<Value> args) { return mul(std::span<const Value>(args.begin(), args.size())); }
 Value mul(Value a, Value b);
 
 Value div(Value a, Value b);   // a / b (EVM: x / 0 = 0)
@@ -92,8 +96,10 @@ Value signextend(Value b, Value x);
 // ---- bitwise ------------------------------------------------------------------
 
 Value band(std::span<const Value> args);  // AND (masks recognized, python vm.and_op)
+inline Value band(std::initializer_list<Value> args) { return band(std::span<const Value>(args.begin(), args.size())); }
 Value band(Value a, Value b);
 Value bor(std::span<const Value> args);   // OR
+inline Value bor(std::initializer_list<Value> args) { return bor(std::span<const Value>(args.begin(), args.size())); }
 Value bor(Value a, Value b);
 Value bxor(Value a, Value b);
 Value bnot(Value a);
@@ -113,6 +119,8 @@ Value cmp(Op op, Value a, Value b);
 // MAX, MIN (unsigned), structural only
 Value max(std::span<const Value> args);
 Value min(std::span<const Value> args);
+inline Value max(std::initializer_list<Value> args) { return max(std::span<const Value>(args.begin(), args.size())); }
+inline Value min(std::initializer_list<Value> args) { return min(std::span<const Value>(args.begin(), args.size())); }
 
 // ---- bit counts and bytes ----------------------------------------------------
 

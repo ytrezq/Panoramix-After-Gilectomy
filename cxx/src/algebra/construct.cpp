@@ -103,15 +103,15 @@ inline CtorState& st() { return cx().state<CtorState>(); }
 
 // ---------------------------------------------------------------- terms
 
-// A term of a sum, k * base: a plain base, or a field of x (bits
-// [off, off + size) of x moved down to bit 0: MASK_SHL(size, off, -off, x),
-// x itself when off = 0 and size = 256).
+// A term of a sum, k * base: a field of x (bits [off, off + size) of x
+// moved down to bit 0, MASK_SHL(size, off, -off, x); x itself when off = 0
+// and size = 256), or a plain base (a value wider than a word). The terms
+// are ordered by x (compare()), then off, then size.
 struct Acc {
-    Value base;  // plain: the base; field: x
+    Value base;  // field: x; plain: the base
     Word256 k;   // the coefficient, mod 2^256
     i32 off;     // field: off >= 0; plain: -1
-    i32 size;    // field: 0 < size <= 256 - off
-    Value key;   // the base node for sorting and merging (computed by key_of)
+    i32 size;    // field: 0 < size <= 256 - off (256: the whole of x)
 };
 
 inline bool is_field(const Acc& a) noexcept { return a.off >= 0; }
@@ -127,11 +127,6 @@ i32 eff_size(const Acc& a) noexcept {
     return s < room ? s : room;
 }
 
-// the node of a field at bit 0
-Value field_node(Value x, i32 off, i32 size) {
-    if (off == 0 && size >= 256) return x;
-    return mk(Op::MASK_SHL, small(size), small(off), small(-off), x);
-}
 
 // is v a concrete canonical mask of a word: its field (off, size, shl)
 struct FieldOf {
@@ -147,19 +142,7 @@ std::optional<FieldOf> field_of_mask(Value v) {
     return FieldOf{v[3], i32(o), i32(s), i32(h)};
 }
 
-// the base of a product of non-constant factors (sorted), with the powers
-// of two of its mask factors moved out into *k
-Value product_base(SmallVec<Value, 8>& f, Word256* k) {
-    for (Value& x : f) {
-        if (auto m = field_of_mask(x); m && m->off + m->shl > 0) {
-            *k = pan::mul(*k, pow2w(u32(m->off + m->shl)));
-            x = field_node(m->x, m->off, m->size);
-        }
-    }
-    std::sort(f.begin(), f.end(), StructuralLess{});
-    if (f.size() == 1) return f[0];
-    return mk(Op::MUL, f.span());
-}
+Value mask_concrete(i64 s, i64 o, i64 h, Value x, int depth);
 
 void push_term(SmallVec<Acc, 8>& out, Word256& c, Value t, const Word256& k, int depth = 0);
 
@@ -202,8 +185,23 @@ void push_product(SmallVec<Acc, 8>& out, Word256& c, std::span<const Value> fact
         }
         return;
     }
-    Value base = product_base(f, &k);
-    out.push_back(Acc{base, k, 0, 256, Value()});
+    // the powers of two of the mask factors moved out into k (their
+    // fields at bit 0, through mask(): a storage read narrows...)
+    bool redo = false;
+    for (Value& x : f) {
+        if (auto m = field_of_mask(x); m && m->off + m->shl > 0) {
+            k = pan::mul(k, pow2w(u32(m->off + m->shl)));
+            x = mask_concrete(m->size, m->off, -m->off, m->x, depth + 1);
+            if (is_const(x) || x.is(Op::ADD) || x.is(Op::MUL)) redo = true;
+        }
+    }
+    if (k.is_zero()) return;
+    if (redo) {
+        push_product(out, c, f.span(), k, depth + 1);
+        return;
+    }
+    std::sort(f.begin(), f.end(), StructuralLess{});
+    out.push_back(Acc{mk(Op::MUL, f.span()), k, 0, 256});
 }
 
 void push_term(SmallVec<Acc, 8>& out, Word256& c, Value t, const Word256& k, int depth) {
@@ -226,36 +224,46 @@ void push_term(SmallVec<Acc, 8>& out, Word256& c, Value t, const Word256& k, int
         push_product(out, c, t.args(), k, depth);
         return;
     }
+    if (t.is(Op::MASK_SHL, 4) && is_const(t[0]) && is_const(t[1]) && is_const(t[2]) && is_const(t[3])) {
+        c = pan::add(c, pan::mul(k, mask_shl_word(cw(t[0]), cw(t[1]), cw(t[2]), cw(t[3]))));
+        return;
+    }
     if (auto m = field_of_mask(t)) {
         Word256 kk = pan::mul(k, pow2w(u32(m->off + m->shl)));
         if (kk.is_zero()) return;
-        out.push_back(Acc{m->x, kk, m->off, m->size, Value()});
+        out.push_back(Acc{m->x, kk, m->off, m->size});
         return;
     }
     // anything else: the whole of t (a field [0, 256) of it)
     if (may_be_wide(t))
-        out.push_back(Acc{t, k, -1, 0, t});
+        out.push_back(Acc{t, k, -1, 0});
     else
-        out.push_back(Acc{t, k, 0, 256, Value()});
+        out.push_back(Acc{t, k, 0, 256});
 }
 
+// a field's size as k leaves it (0: the term is 0)
 void set_key(Acc& a) {
-    if (!is_field(a)) {
-        a.key = a.base;
-        return;
-    }
+    if (!is_field(a)) return;
     i32 s = eff_size(a);
     if (s <= 0) {
         a.k = Word256{};
-        a.key = Value();
         return;
     }
     a.size = s;  // 256: the whole of x (off 0)
-    a.key = field_node(a.base, a.off, s);
 }
 
-// the term k * base, built in its normal form
-Value build_term(const Acc& a) {
+int acc_cmp(const Acc& a, const Acc& b) {
+    if (int c = compare(a.base, b.base)) return c;
+    if (a.off != b.off) return a.off < b.off ? -1 : 1;
+    if (a.size != b.size) return a.size < b.size ? -1 : 1;
+    return 0;
+}
+
+Value mask_concrete(i64 s, i64 o, i64 h, Value x, int depth);
+
+// the term k * base, built in its normal form; *exact = false when the
+// mask rules changed the field (the sum is then made again from the terms)
+Value build_term(const Acc& a, bool* exact) {
     const Word256& k = a.k;
     if (k.is_zero()) return small(0);
     if (!is_field(a) || (a.off == 0 && a.size >= 256)) {
@@ -287,9 +295,14 @@ Value build_term(const Acc& a) {
         }
         return mk(Op::MUL, ks, a.base);
     }
-    Value m = mk(Op::MASK_SHL, small(s), small(a.off), small(i64(p) - a.off), a.base);
+    // (through mask(): a narrower field may simplify what it is made of)
+    const i64 h = i64(p) - a.off;
+    Value m = mask_concrete(s, a.off, h, a.base, 0);
+    if (!(m.is(Op::MASK_SHL, 4) && m[3] == a.base && int_is(m[0], s) && int_is(m[1], a.off) && int_is(m[2], h)))
+        *exact = false;
     Word256 odd = pan::sar(Word256::of(p), k);  // the signed odd part
     if (odd == Word256::of(1)) return m;
+    if (!*exact) return mul(signed_value(odd), m);
     return mk(Op::MUL, signed_value(odd), m);
 }
 
@@ -347,7 +360,7 @@ bool merge_fields(SmallVec<Acc, 8>& terms) {
             i32 sh = p.lo + d;  // >= 0: lo >= some off of the group
             Word256 k = pan::mul(p.w, pow2w(u32(sh)));
             if (sh >= 256 || k.is_zero()) continue;
-            terms.push_back(Acc{x, k, p.lo, p.hi - p.lo, Value()});
+            terms.push_back(Acc{x, k, p.lo, p.hi - p.lo});
         }
         changed = true;
     }
@@ -365,13 +378,13 @@ Value add_terms(SmallVec<Acc, 8>& terms, Word256 c, int round) {
         std::sort(terms.begin(), terms.end(), [](const Acc& a, const Acc& b) {
             if (a.k.is_zero() != b.k.is_zero()) return b.k.is_zero();
             if (a.k.is_zero()) return false;
-            return compare(a.key, b.key) < 0;
+            return acc_cmp(a, b) < 0;
         });
         while (!terms.empty() && terms.back().k.is_zero()) terms.pop_back();
         bool merged = false;
         SmallVec<Acc, 8> out;
         for (const Acc& a : terms) {
-            if (!out.empty() && out.back().key == a.key) {
+            if (!out.empty() && acc_cmp(out.back(), a) == 0) {
                 Acc& b = out.back();
                 b.k = pan::add(b.k, a.k);
                 merged = true;
@@ -390,7 +403,9 @@ Value add_terms(SmallVec<Acc, 8>& terms, Word256 c, int round) {
     bool again = false;
     for (const Acc& a : terms) {
         if (a.k.is_zero()) continue;
-        Value t = build_term(a);
+        bool exact = true;
+        Value t = build_term(a, &exact);
+        if (!exact) again = true;
         if (is_const(t)) {
             c = pan::add(c, cw(t));
             continue;
@@ -436,11 +451,6 @@ Value mask_rules(i64 s, i64 o, i64 h, Value x, int depth) {
     if (low_zero_bits(x) >= hi) return small(0);
     u32 mb = max_bits(x);
     if (mb <= o) return small(0);
-    if (i64(mb) <= hi && i64(low_zero_bits(x)) >= o) {
-        // every bit x may have is in the field: x moved
-        if (h == 0) return x;
-        if (h > 0) return mul(wv(pow2w(u32(h))), x);
-    }
     // a mask of a mask (or of x * 2^p): one mask
     if (auto f = field_of_mask(x)) {
         i64 a = std::max<i64>(o, f->off + f->shl), b = std::min<i64>(hi, f->off + f->size + f->shl);
@@ -454,6 +464,12 @@ Value mask_rules(i64 s, i64 o, i64 h, Value x, int depth) {
             return mask_concrete(b - a, a - *p, i64(*p) + h, x[1], depth + 1);
         }
     }
+    if (i64(mb) <= hi && i64(low_zero_bits(x)) >= o) {
+        // every bit x may have is in the field: x moved
+        if (h == 0) return x;
+        if (h > 0) return mul(wv(pow2w(u32(h))), x);
+    }
+
     switch (x.op()) {
         case Op::ADD: {
             // the terms with no bit below the field's top don't change it
@@ -500,15 +516,15 @@ Value mask_rules(i64 s, i64 o, i64 h, Value x, int depth) {
             break;
         }
         case Op::STORAGE: {
-            // a field of a storage read: a narrower read (python apply_mask_to_storage)
-            if (x.size() == 3 && x[0].is_small() && x[1].is_small() && x[0].small_val() > 0 && x[1].small_val() >= 0 &&
-                x[0].small_val() <= 256 && x[1].small_val() < 256) {
+            // a field of a storage read moved down to bit 0: a narrower read
+            // (python apply_mask_to_storage); elsewhere the mask stays (the
+            // fields of one read add up as fields of it)
+            if (o + h == 0 && x.size() == 3 && x[0].is_small() && x[1].is_small() && x[0].small_val() > 0 &&
+                x[1].small_val() >= 0 && x[0].small_val() <= 256 && x[1].small_val() < 256) {
                 i64 ss = x[0].small_val(), so = x[1].small_val();
                 i64 ns = std::min<i64>(s, ss - o);
                 if (ns <= 0) return small(0);
-                Value rd = mk(Op::STORAGE, small(ns), small(so + o), x[2]);
-                if (o + h == 0) return rd;
-                return mask_concrete(ns, 0, o + h, rd, depth + 1);
+                return mk(Op::STORAGE, small(ns), small(so + o), x[2]);
             }
             break;
         }
@@ -766,7 +782,11 @@ Value exp(Value base, Value e) {
 
 // ---------------------------------------------------------------- masks
 
-Value mask(i64 size, i64 off, i64 shl, Value x) { return mask_concrete(size, off, shl, x, 0); }
+Value mask(i64 size, i64 off, i64 shl, Value x) {
+    // (fields past +-4096 behave as +-4096: eval.hpp clamp_field)
+    auto clamp = [](i64 v) { return v > 4096 ? 4096 : v < -4096 ? -4096 : v; };
+    return mask_concrete(clamp(size), clamp(off), clamp(shl), x, 0);
+}
 
 Value mask(Value size, Value off, Value shl, Value x) {
     if (is_const(size) && is_const(off) && is_const(shl)) return mask_concrete(field_of(size), field_of(off), field_of(shl), x, 0);

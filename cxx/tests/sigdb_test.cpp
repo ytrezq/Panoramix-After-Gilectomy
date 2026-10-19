@@ -1,8 +1,10 @@
 // The signature database (sigdb.hpp): Keccak, the types' codes, a dump
-// built and read back (python's rules: the last line of a selector, only
+// built and read back (python's rules: the last line of a selector, the
 // signatures that hash to it), events, the JSON as python reads it, the
-// file's checks, the rebuild when the dump changes. The real dump is
-// opt-in: PANORAMIX_TEST_ABI_DUMP=path/to/abi_dump.xz.
+// file's checks, the rebuild when the dump changes; the lenient reading of
+// the types, the repaired and unverified entries and the choice among a
+// selector's lines. The real dump is opt-in:
+// PANORAMIX_TEST_ABI_DUMP=path/to/abi_dump.xz.
 #include <doctest/doctest.h>
 
 #include <lzma.h>
@@ -160,14 +162,15 @@ std::string mini_dump()
               R"({"name": "Approval", "type": "event", "inputs": [{"name": "owner", "type": "address", "indexed": 1}, {"name": "spender", "type": "address", "indexed": "yes"}, {"name": "value", "type": "uint256", "indexed": []}]})");
     d += line("0x4e487b71", R"({"name": "Panic", "type": "error", "inputs": [{"name": "code", "type": "uint256"}]})");
     // a real collision (Poly Network): the last line of the selector wins
+    // (both hash to it)
     d += line("0x41973cd9", R"({"name": "putCurEpochConPubKeyBytes", "inputs": [{"name": "", "type": "bytes"}]})");
     d += line("0x41973cd9",
               R"({"name": "f1121318093", "inputs": [{"name": "a", "type": "bytes"}, {"name": "b", "type": "bytes"}, {"name": "c", "type": "uint64"}]})");
     // the last one doesn't hash to its selector (python knows none): the
-    // verified one first
+    // one that does, before it, wins
     d += line(sel("mint(address,uint256)"), R"({"name": "mint", "inputs": [{"name": "to", "type": "address"}, {"name": "amount", "type": "uint256"}]})");
     d += line(sel("mint(address,uint256)"), R"({"name": "unknown40c10f19", "inputs": [{"name": "_param1", "type": "uint64"}]})");
-    // the first one doesn't, the last one does
+    // the first one doesn't, the last one does: the last
     d += line(sel("burn(uint256)"), R"({"name": "unknown42966c68", "inputs": []})");
     d += line(sel("burn(uint256)"), R"({"name": "burn", "inputs": [{"name": "amount", "type": "uint256"}]})");
     // a key python never asks for: "0x" and 8 lowercase digits only
@@ -209,7 +212,7 @@ std::string mini_dump()
 struct Mini {
     TempDir dir;
     fs::path dump = dir.path / "abi_dump.xz";
-    fs::path db = dir.path / "cache" / "sigdb1.bin";
+    fs::path db = dir.path / "cache" / "sigdb2.bin";
     sigdb::BuildStats stats;
     std::unique_ptr<sigdb::Database> open;
     Mini()
@@ -303,6 +306,8 @@ TEST_CASE("sigdb: a dump built and read back")
     const sigdb::Database& db = *m.open;
     CHECK(m.stats.lines == 33);
     CHECK(db.size() == m.stats.entries);
+    CHECK(m.stats.entries == 23);
+    CHECK(m.stats.verified == 23);  // (the guesses beaten by signatures)
     CHECK(db.file_size() == m.stats.file_size);
     CHECK(db.dump_sha256() == pan::sha256::hash(read_file(m.dump)));
     CHECK(db.dump_size() == fs::file_size(m.dump));
@@ -334,7 +339,7 @@ TEST_CASE("sigdb: a dump built and read back")
         CHECK_FALSE(db.function(0));
         CHECK_FALSE(db.function(0xffffffff));
     }
-    SUBCASE("the last line of a selector, if it hashes to it")
+    SUBCASE("a selector's lines: the last one that hashes to it")
     {
         auto c = db.function(0x41973cd9);
         REQUIRE(c);
@@ -527,7 +532,7 @@ TEST_CASE("sigdb: dumps it refuses")
     write_file(dir.path / "ok.xz", xz(ok));
     CHECK(pan::build_signature_db((dir.path / "ok.xz").string(), (dir.path / "db.bin").string()) == 0);
     CHECK(c.count("20 Loading") == 3);
-    CHECK(c.count("is ready: 1 signatures") == 1);
+    CHECK(c.count("is ready: 1 signatures (1 verified, 0 repaired, 0 unverified)") == 1);
 }
 
 TEST_CASE("sigdb: the file is checked")
@@ -578,7 +583,7 @@ TEST_CASE("sigdb: built again when its dump changes")
 {
     Capture c;
     TempDir dir;
-    fs::path dump = dir.path / "abi_dump.xz", db = dir.path / "cache" / "sigdb1.bin";
+    fs::path dump = dir.path / "abi_dump.xz", db = dir.path / "cache" / "sigdb2.bin";
     // none, no dump: nothing
     CHECK_FALSE(sigdb::load(db, std::nullopt));
     CHECK(c.count("30 no signature database") == 1);
@@ -646,8 +651,8 @@ TEST_CASE("sigdb: the real dump (PANORAMIX_TEST_ABI_DUMP)")
         return;
     }
     TempDir dir;
-    sigdb::BuildStats s = sigdb::build(dump, dir.path / "sigdb1.bin");
-    auto db = sigdb::Database::open(dir.path / "sigdb1.bin");
+    sigdb::BuildStats s = sigdb::build(dump, dir.path / "sigdb2.bin");
+    auto db = sigdb::Database::open(dir.path / "sigdb2.bin");
     MESSAGE(s.lines, " lines, ", s.entries, " selectors: ", s.verified, " verified, ", s.repaired,
             " repaired, ", s.unverified, " unverified; ", s.events, " events, ", s.file_size, " bytes");
     CHECK(db->size() == s.entries);

@@ -17,7 +17,7 @@ PANORAMIX_TIMEOUT=0, and a run longer than --kill-after S is killed.
 
 The binaries: --asm (/home/claude/wt-cxx/build/panasm, with
 PANORAMIX_SIGDB=--asm-sigdb, the asm's database), --cxx (cxx/$B/pancxx) and
---pgo (cxx/$B/pgo/pancxx), both with --sigdb (cxx/$B/sigdb1.bin), and any
+--pgo (cxx/$B/pgo/pancxx), both with --sigdb (cxx/$B/sigdb2.bin), and any
 --bin LABEL=PATH[:SIGDB]; a missing one is left out; `--asm ''` leaves the
 asm out. The table, per binary: the contracts ok and not ok (failed,
 crashed or timed out in a run), the CPU time (user + system) in total and
@@ -47,7 +47,7 @@ def main():
     ap.add_argument("--asm-sigdb", default=os.path.join(REPO, "build", "abi_db.bin"))
     ap.add_argument("--cxx", default=os.path.join(BUILD, "pancxx"))
     ap.add_argument("--pgo", default=os.path.join(BUILD, "pgo", "pancxx"))
-    ap.add_argument("--sigdb", default=os.path.join(BUILD, "sigdb1.bin"))
+    ap.add_argument("--sigdb", default=os.path.join(BUILD, "sigdb2.bin"))
     ap.add_argument("--bin", action="append", default=[], metavar="LABEL=PATH[:SIGDB]")
     ap.add_argument("--runs", type=int, default=1)
     ap.add_argument("-j", "--jobs", type=int, default=1, help="contracts at a time (1)")

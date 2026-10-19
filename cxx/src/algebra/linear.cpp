@@ -12,18 +12,13 @@ namespace pan::alg {
 
 namespace {
 
-struct LinState final : ModuleState {
-    Memo<Value, Value> canon;  // v -> its canonical sum (pure: never cleared)
-};
-
-// v as a canonical sum (constructors' normal form)
+// v as a canonical sum (constructors' normal form; normalize is memoized
+// and a normal v is its own normal form)
 Value canonical(Value v) {
     if (v.is_int()) return signed_int(v);
-    if (!(v.is(Op::ADD) || v.is(Op::MUL) || v.is(Op::SUB) || v.is(Op::MASK_SHL))) return v;
-    LinState& S = cx().state<LinState>();
-    if (Value* r = S.canon.find(v)) return *r;
-    Value r = add(std::span<const Value>(&v, 1));
-    S.canon.put(v, r);
+    if (!v.is_expr()) return v;
+    Value r = normalize(v);
+    if (r.is_int()) r = signed_int(r);
     return r;
 }
 

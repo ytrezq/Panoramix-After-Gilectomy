@@ -17,7 +17,7 @@ builds in its own directory, `B=build-NAME` (`build*/` is ignored by git).
 | `check`    | `$(B)/pancxx_test` (every `tests/*_test.cpp` + `libvalidate.a` + `libevmone.a` + the library), run with `$(TEST_ARGS)` (doctest's: `-tc='sigdb*'`, `-s`...); then every `tests/*.py`, run as `python3 tests/X.py $(B)` |
 | `unit`     | only the doctest binary, built and run |
 | `validate` | the validation tools (`$(B)/evmrun`...), `libvalidate.a`, `libevmone.a` |
-| `sigdb`    | `$(SIGDB)` (`$(B)/sigdb1.bin`): `pancxx build-db $(ABI_DUMP)` |
+| `sigdb`    | `$(SIGDB)` (`$(B)/sigdb2.bin`): `pancxx build-db $(ABI_DUMP)` |
 | `pgo`      | the PGO build in `$(B)/pgo/` (below) |
 | `debug`    | `$(B)/debug/`: `-O1 -g`, ASan + UBSan (`-fno-sanitize-recover=all`), `_GLIBCXX_ASSERTIONS`, no LTO; builds the CLI and the unit tests and runs them. Any target in that build: `make VARIANT=debug validate` |
 | `bench`    | `tools/bench.py`: the asm, `$(B)/pancxx`, `$(B)/pgo/pancxx` over `$(CORPUS)` |
@@ -33,7 +33,7 @@ builds in its own directory, `B=build-NAME` (`build*/` is ignored by git).
 | `JOBS` | `2` | contracts decompiled at once by the PGO training |
 | `CORPUS` | the scratchpad's `prof/all_hex.txt` (1121 contracts) | a list of `.hex` paths, a directory, or `.hex` files |
 | `ABI_DUMP` | `/home/claude/panoramix/panoramix/data/abi_dump.xz` | for `sigdb` |
-| `SIGDB` | `$(B)/sigdb1.bin` | the C++ CLI's database (not the asm's format) |
+| `SIGDB` | `$(B)/sigdb2.bin` | the C++ CLI's database (not the asm's format) |
 | `ASM`, `ASM_SIGDB` | `../build/panasm`, `../build/abi_db.bin` | the asm, for `bench` |
 | `TEST_ARGS`, `BENCH_ARGS` | | passed to the doctest binary, to `bench.py` |
 | `EXTRA_CXXFLAGS`, `EXTRA_LDFLAGS` | | experiments only |
@@ -99,7 +99,7 @@ A source changed between 2 and 4 only loses its profile (a warning).
   [--json F] [--limit N] [--kill-after S] [--train] [-- CLI ARGS]`:
   `CLI decompile X --no-color` for each contract, N at a time, with
   `PANORAMIX_TIMEOUT=0` and `PANORAMIX_SIGDB` (`--sigdb`, default
-  `$(B)/sigdb1.bin`): a line per contract, then the counts (ok, failed,
+  `$(B)/sigdb2.bin`): a line per contract, then the counts (ok, failed,
   crashed, timeouts), the CPU time (total, median, p90, p99, max), the peak
   RSS, the slowest, the failures. Exit 1 when one is not ok.
 - `bench.py [LIST...] [--runs R] [-j N] [--limit N] [--bin LABEL=PATH[:DB]]`:

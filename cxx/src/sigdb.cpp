@@ -23,7 +23,9 @@
 //            u8 the kind (Kind, bits 0-2) | 8 when the selector is the hash
 //               of the signature without its spaces | the Trust << 4 |
 //               0x40 when the dump's texts of the types follow
-//            [an event: its topic0, 32 bytes (zeros: unverified)]
+//            [an event: its topic0, 32 bytes: the keccak of python's text
+//             (verified), of the variant that hashed (repaired), zeros
+//             (unverified)]
 //            the name: its length (varint), its bytes
 //            the inputs: their count n (varint)
 //            [an event: the indexed ones, a bit each, (n + 7) / 8 bytes]
@@ -1484,7 +1486,9 @@ BuildStats build(const std::filesystem::path& dump, const std::filesystem::path&
     xz.reset();
     BuildStats stats =
         write_database(b, out, sha, stamp.value_or(platform::Stamp{}), dump_ref, parser.lines());
-    log(log_info, out.string() + " is ready: " + std::to_string(stats.entries) + " signatures");
+    log(log_info, out.string() + " is ready: " + std::to_string(stats.entries) + " signatures (" +
+                      std::to_string(stats.verified) + " verified, " + std::to_string(stats.repaired) +
+                      " repaired, " + std::to_string(stats.unverified) + " unverified)");
     return stats;
 }
 
