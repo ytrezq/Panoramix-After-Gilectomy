@@ -235,3 +235,15 @@ TEST_CASE("vm: code switch") {
                        " {(setmem (range 0 2) (sized 2 24)) (stop)}"
                        " {(setmem (range 0 2) (sized 2 26)) (invalid 1 27)})}"));
 }
+
+TEST_CASE("vm: stack overflow") {
+    Fixture fx;
+    // a block that grows the stack and jumps to itself: never a loop (the
+    // stack's length differs), it ends where the EVM's does, past 1024 words
+    Code c("60005b80808080808080808080600256");
+    auto r = run_at(c);
+    CHECK(r.complete);
+    CHECK(r.nodes < 300);
+    std::string t = dump_trace(r.trace);
+    CHECK(t.find("(invalid 7 ") != std::string::npos);
+}

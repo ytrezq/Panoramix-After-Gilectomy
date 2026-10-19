@@ -231,37 +231,45 @@ Tri Facts::match_all(Value exp) const {
     if (exp.is_bool()) return tri(exp.is_true());
     if (!head_) return Tri::None;
     if (auto w = eval_const(exp)) return tri(!w->is_zero());
-    // (per fact: a few compares, unless exp needs python's walk through
-    // BOOL / ISZERO / OR / AND, or is x < b)
-    const Value iz_exp = iszero(exp);
-    const bool deep = exp.is(Op::BOOL, 1) || exp.is(Op::ISZERO, 1) || exp.is(Op::OR) || exp.is(Op::AND);
-    const bool ltle = exp.is(Op::LE, 2) || exp.is(Op::LT, 2);
+    // exp's truth is its core's (pos) or the negation of it, through BOOL /
+    // ISZERO - peeled once, so that a fact costs a few compares unless the
+    // core needs python's walk through OR / AND, or is x < b
+    Value core = exp;
+    bool pos = true;
+    while (core.is(Op::BOOL, 1) || core.is(Op::ISZERO, 1)) {
+        if (core.is(Op::ISZERO)) pos = !pos;
+        core = core[0];
+    }
+    if (core.is_int() || core.is_bool()) return Tri::None;  // (eval_const said)
+    const Value iz_core = iszero(core);
+    const bool deep = core.is(Op::OR) || core.is(Op::AND);
+    const bool ltle = core.is(Op::LE, 2) || core.is(Op::LT, 2);
+    auto as_exp = [&](Tri core_truth) { return pos ? core_truth : tri_not(core_truth); };
+    // core against a condition k known to hold (iz_k: its negation, or NIL)
+    auto against = [&](Value k, Value iz_k) {
+        if (core == k) return as_exp(Tri::True);
+        if (iz_core == k || (!iz_k.nil() && core == iz_k)) return as_exp(Tri::False);
+        if (deep) {
+            Tri r = match_one(core, iz_core, k, iz_k.nil() ? iszero(k) : iz_k);
+            if (r != Tri::None) return as_exp(r);
+        } else if (ltle && k.is(core.op(), 2) && core[0] == k[0] && proven_le_words(k[1], core[1])) {
+            // x < b where x < a is known: when a <= b, as words
+            return as_exp(Tri::True);
+        }
+        return Tri::None;
+    };
     for (const Cell* c = head_; c; c = c->next) {
         const Fact& f = c->f;
         if (f.kind != FactKind::Cond) continue;
         poll();
         const Value kt = fact_cond(f.a);
-        if (exp == kt) return Tri::True;
-        if (iz_exp == kt || exp == f.c) return Tri::False;
-        if (deep) {
-            Tri r = match_one(exp, iz_exp, kt, f.c);
-            if (r != Tri::None) return r;
-        } else if (ltle && kt.is(exp.op(), 2) && exp[0] == kt[0] && proven_le_words(kt[1], exp[1])) {
-            // x < b where x < a is known: when a <= b, as words
-            return Tri::True;
-        }
+        Tri r = against(kt, f.c);
+        if (r != Tri::None) return r;
         if (kt.is(Op::AND)) {
             // an AND that isn't 0: none of its operands is
-            for (Value k0 : kt.args()) {
-                const Value k = fact_cond(k0);
-                if (exp == k) return Tri::True;
-                if (iz_exp == k) return Tri::False;
-                if (deep) {
-                    Tri r = match_one(exp, iz_exp, k, iszero(k));
-                    if (r != Tri::None) return r;
-                } else if (ltle && k.is(exp.op(), 2) && exp[0] == k[0] && proven_le_words(k[1], exp[1])) {
-                    return Tri::True;
-                }
+            for (Value k : kt.args()) {
+                r = against(fact_cond(k), Value());
+                if (r != Tri::None) return r;
             }
         }
     }

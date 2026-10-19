@@ -435,9 +435,23 @@ void Vm::asm_line(const Insn& in) {
     cx().pcs.note(line, in.pc);
 }
 
-void Vm::push(const Insn& in) { st_.push_back(push_word(in).to_value()); }
+bool Vm::overflow(u8 op, u32 pc) {
+    if (st_.size() - kStackIn[op] + kStackOut[op] <= kStackLimit) return false;
+    finish_halt(mk(Op::INVALID, small(i64(kStackOverflow)), small(pc)), pc);
+    return true;
+}
 
-void Vm::dup(u32 n, u32) { st_.push_back(st_[st_.size() - n]); }
+bool Vm::push(const Insn& in) {
+    if (overflow(in.op, in.pc)) return false;
+    st_.push_back(push_word(in).to_value());
+    return true;
+}
+
+bool Vm::dup(u32 n, u32 pc) {
+    if (overflow(u8(u32(Op::DUP1) + n - 1), pc)) return false;
+    st_.push_back(st_[st_.size() - n]);
+    return true;
+}
 
 void Vm::swap(u32 n, u32) { std::swap(st_[st_.size() - 1], st_[st_.size() - 1 - n]); }
 
@@ -713,7 +727,7 @@ Value Vm::code_bytes(Value pos, Value len) const {
 }
 
 bool Vm::plain(u8 op8, u32 pc) {
-    if (underflow(op8, pc)) return false;
+    if (underflow(op8, pc) || overflow(op8, pc)) return false;
     const Op op = Op(op8);
 
     // what the instruction may change is read first, then forgotten

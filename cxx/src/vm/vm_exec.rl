@@ -25,13 +25,12 @@ namespace {
     }
     action insn_push {
         if (verbose) asm_line(insn_of(p));
-        push(insn_of(p));
+        if (!push(insn_of(p))) { ended = true; fbreak; }
         ib = p + 1;
     }
     action insn_dup {
         if (verbose) asm_line(insn_of(p));
-        if (underflow(*ib, pc_of(ib))) { ended = true; fbreak; }
-        dup(u32(*ib - 0x7f), pc_of(ib));
+        if (underflow(*ib, pc_of(ib)) || !dup(u32(*ib - 0x7f), pc_of(ib))) { ended = true; fbreak; }
         ib = p + 1;
     }
     action insn_swap {
@@ -93,7 +92,7 @@ void Vm::exec_block(u32 start) {
         if (cs != vm_exec_start) {
             Insn in{pc_of(ib), *ib, u8(pe - ib - 1), kImm[*ib], 0, ib + 1};
             if (verbose) asm_line(in);
-            push(in);
+            if (!push(in)) return;
         }
         fell_off(size);
     }

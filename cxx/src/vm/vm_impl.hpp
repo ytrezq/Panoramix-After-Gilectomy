@@ -42,6 +42,11 @@ inline constexpr Value kReturnAddress = Value::leaf(kOpReturnAddress);
 // head, after an internal call)
 inline constexpr u32 kAmbiguousCall = ~u32{0};
 
+// the EVM's stack: 1024 words at most (a push past it halts)
+inline constexpr usize kStackLimit = 1024;
+// INVALID's reason for it (core/contract.hpp: STACK_OVERFLOW, asked of main)
+inline constexpr InvalidReason kStackOverflow = InvalidReason(7);
+
 // how a node's trace ends (python's last line of node.trace)
 enum class End : u8 {
     None,      // not run yet (python trace None)
@@ -160,8 +165,8 @@ public:
     // --- the exec machine's handlers (vm_exec: called by the block's run) ---
     // each returns false when the block ends there
     bool plain(u8 op, u32 pc);
-    void push(const Insn& in);
-    void dup(u32 n, u32 pc);
+    bool push(const Insn& in);
+    bool dup(u32 n, u32 pc);
     void swap(u32 n, u32 pc);
     void jump(u32 pc);
     void jumpi(u32 pc, u32 next);
@@ -170,6 +175,7 @@ public:
     void split(u32 pc);     // a JUMPDEST in the middle: the next node starts there
     void fell_off(u32 pc);  // the end of the code: STOP
     bool underflow(u8 op, u32 pc);  // fewer words than op takes: INVALID, true
+    bool overflow(u8 op, u32 pc);   // more words than the EVM's 1024 after op: INVALID, true
     void asm_line(const Insn& in);  // --verbose
 
 private:

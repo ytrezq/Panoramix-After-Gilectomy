@@ -32,7 +32,15 @@ struct ContractShared {
 };
 
 // INVALID(reason, pc): why the path ends invalid
-enum class InvalidReason : u32 { OPCODE = 1, ASSERT_FAIL, JUMP, JUMPDEST, STACK_UNDERFLOW, RETURNDATACOPY };
+enum class InvalidReason : u32 {
+    OPCODE = 1,
+    ASSERT_FAIL,
+    JUMP,
+    JUMPDEST,
+    STACK_UNDERFLOW,
+    RETURNDATACOPY,
+    STACK_OVERFLOW,  // a push past the EVM's 1024 words
+};
 // UNDEFINED(reason, pc): why the VM stopped exploring a path (the run is then inconclusive)
 enum class UndefinedReason : u32 { UNFINISHED = 1, COMPUTED_JUMP, AMBIGUOUS_CALL };
 
