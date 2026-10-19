@@ -433,6 +433,37 @@ TEST_CASE("output: python's view in --explain and --verbose")
                 "   ('revert', None), \n ] \n");
 }
 
+TEST_CASE("output: make_ast's passes")
+{
+    Fixture f;
+    auto ast_text = [](std::string_view trace, std::string_view entry = "{}") {
+        FunctionInfo fn;
+        fn.kind = FunctionInfo::Kind::Fallback;
+        fn.trace = V(trace);
+        fn.entry.entry_lines = V(entry);
+        return print_trace(make_ast(fn), TraceContext{&fn});
+    };
+    // a call's result read after another call: a variable right after it
+    CHECK(ast_text("{(staticcall 1 (gas 1) caller (sized 4 0x0dfe1681) None)"
+                   " (staticcall 2 (gas 2) caller (sized 4 0xd21220a7) None)"
+                   " (if (eq (returndata_bytes 1 0 32) (returndata_bytes 2 0 32)) {(revert None)}"
+                   " {(return (sized 32 (returndata_bytes 1 0 32)))})}") ==
+          "  static call caller.unknown0dfe1681(?) with:\n          gas gas_remaining\n"
+          "  _1 = ext_call.return_data[0]\n"
+          "  static call caller.unknownd21220a7(?) with:\n          gas gas_remaining\n"
+          "  require _1 != ext_call.return_data[0]\n  return _1\n");
+    // the entry's SETMEMs the body reads before it writes them
+    CHECK(ast_text("{(log1 (mem (range (mem (range 64 32)) 32)) 4660)}", "{(setmem (range 64 32) 128)}") ==
+          "  mem[64] = 128\n  log 0x0000000000000000000000000000000000000000000000000000000000001234: mem[mem[64]]\n");
+    CHECK(ast_text("{(setmem (range 64 32) 160) (log1 (mem (range (mem (range 64 32)) 32)) 4660)}",
+                   "{(setmem (range 64 32) 128)}") ==
+          "  mem[64] = 160\n  log 0x0000000000000000000000000000000000000000000000000000000000001234: mem[mem[64]]\n");
+    // an if of the same lines but for its calls' ids (and gas reads): its lines
+    CHECK(ast_text("{(if (iszero tmp1) {(call 1 (gas 1) caller 5 None None) (stop)}"
+                   " {(call 2 (gas 2) caller 5 None None) (stop)})}") ==
+          "  call caller with:\n     value 5 wei\n       gas gas_remaining\n");
+}
+
 TEST_CASE("output: the folder")
 {
     Fixture f;

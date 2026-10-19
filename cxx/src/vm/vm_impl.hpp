@@ -39,9 +39,27 @@ inline constexpr NodeId NO_NODE = ~u32{0};
 inline constexpr Op kOpReturnAddress = Op(0x1e0);
 inline constexpr Value kReturnAddress = Value::leaf(kOpReturnAddress);
 
-// the last call of a path when it depends on the path (merged paths, a loop's
-// head, after an internal call)
+// the last call of a path when it depends on the path in a way the VM can't
+// tell (a loop's head, after an internal call)
 inline constexpr u32 kAmbiguousCall = ~u32{0};
+// the last call of merged paths that differ in it: kMergedCall | the index
+// of the merge's record (Vm::call_merges_)
+inline constexpr u32 kMergedCall = u32{1} << 31;
+inline bool is_merged_call(u32 c) noexcept { return c != kAmbiguousCall && (c & kMergedCall); }
+
+// A merge of paths whose last calls differ (merge_at): each path's hit and
+// last call (0: none yet, a call's id, another merge's); the variables the
+// reads of the return data after the merge take, set at the end of each
+// path - made at the first read (most merges are never read after)
+struct CallPath {
+    NodeId hit;
+    u32 call;
+};
+struct CallMerge {
+    std::vector<CallPath> paths;
+    Value size;  // TMP: the return data's size (NIL: none made yet)
+    Value id;    // TMP: the call's id, for the copies (NIL: none made yet)
+};
 
 // the EVM's stack: 1024 words at most (a push past it halts)
 inline constexpr usize kStackLimit = 1024;
@@ -294,6 +312,12 @@ private:
     Value fresh_tmp() { return Value::name(NameKind::TMP, ++counter_); }
     void snapshot(Op op, Value target, u32 pc);
     Value returndatasize(u32 pc);
+    // the variables of a merge's return data (kMergedCall | index), made on
+    // the merged paths at the first read
+    Value merged_size(u32 call);
+    Value merged_id(u32 call);
+    void merged_ids(u32 call, SmallVec<u32, 8>& out) const;  // the ids it may be (0: none)
+    void merged_copy(Value dst, Value src, Value n, u32 pc);  // a RETURNDATACOPY of it
     void handle_call(u8 op, u32 pc);
     void output_write(u32 id, Value ret_start, Value ret_len, u32 pc);
     std::pair<Value, Value> call_data(Value arg_start, Value arg_len);
@@ -402,6 +426,8 @@ private:
     std::vector<LoopInfo> loops_;
     // pending merges at loop heads (python pending_merges): (p, jd)
     std::vector<std::pair<NodeId, Value>> pending_;
+    // the merges of paths whose last calls differ (kMergedCall)
+    std::vector<CallMerge> call_merges_;
 
     // --- the block being run ---
     NodeId cur_ = NO_NODE;

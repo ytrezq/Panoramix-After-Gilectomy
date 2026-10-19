@@ -101,7 +101,7 @@ struct StorageVar {
     u32 type = 0;    // its type (an index of StorageLayout::types); a field is a Value
     // Its name (text: lot 10's only):
     //  - getter set: the name of that function's signature (the signature
-    //    database's entry of the selector, verified), python's
+    //    database's entry of the selector, known(): verified or repaired), python's
     //    f.name.split("(")[0] - without its "get" when strip_get (getBalance ->
     //    balance: the 4th character lowercased, the 3 first dropped);
     //  - else python's default: stor<slot> (slot < 2^32, decimal), else

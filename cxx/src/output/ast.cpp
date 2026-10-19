@@ -33,31 +33,23 @@ private:
     Budget& b_;
 };
 
-// the entry's checks (EntryCondition::entry_lines' IFs: a dispatcher's check
-// whose other branch halts), then the body (python's apply_entry): what the
-// function's text runs
-Value with_entry_checks(Value entry_lines, Value trace)
-{
-    if (!entry_lines.is_trace() || !trace.is_trace())
-        return trace;
-    std::vector<Value> lines;
-    for (const Value l : entry_lines.args())
-        if (l.is(Op::IF, 3))
-            lines.push_back(l);
-    if (lines.empty())
-        return trace;
-    lines.insert(lines.end(), trace.begin(), trace.end());
-    return mk_trace(std::span<const Value>(lines.data(), lines.size()));
-}
-
-// the ast on cx() (no isolation): the folder's failures leave the trace unfolded
+// the ast on cx() (no isolation): the entry's checks (EntryCondition::
+// entry_lines' IFs: a dispatcher's check whose other branch halts) and the
+// SETMEMs the body may read, then the body (python's apply_entry: what the
+// function's text runs); its calls' results kept where the text would take
+// them for another call's; lot 7's short_circuits; the folder (its failures
+// leave the trace unfolded); the ifs of branches the same but for their
+// calls' ids gone
 Value ast_here(Value trace, Value entry_lines, const AstOptions& opts)
 {
-    Value t = opts.entry_checks ? with_entry_checks(entry_lines, trace) : trace;
+    Value t = opts.entry_checks ? detail::with_entry(entry_lines, trace) : trace;
+    t = detail::snapshot_call_results(t);
     if (opts.short_circuits)
         t = simplify::short_circuits(t);
-    if (opts.fold)
+    if (opts.fold) {
         t = detail::fold_trace(t);
+        t = detail::merge_same_branches(t);
+    }
     return t;
 }
 

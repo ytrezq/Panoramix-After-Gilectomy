@@ -650,7 +650,99 @@ Value Vm::returndatasize(u32 pc) {
         finish_halt(mk(Op::UNDEFINED, small(i64(UndefinedReason::AMBIGUOUS_CALL)), small(pc)), pc);
         return Value();
     }
+    // merged paths that differ in their last call: a variable each sets
+    if (is_merged_call(last_call_)) return merged_size(last_call_);
     return Value::leaf(Op::RETURNDATASIZE, last_call_);
+}
+
+// The variable a merge's paths set to the size of their last call's return
+// data (python's `returndatasize`, the last call's whichever it is): one
+// SETVAR at the end of each path - the merge's own lines, before its
+// continuation - made at the first read.
+Value Vm::merged_size(u32 call) {
+    CallMerge* m = &call_merges_[call & ~kMergedCall];
+    if (!m->size.nil()) return m->size;
+    const Value t = fresh_tmp();
+    for (usize k = 0; k < m->paths.size(); ++k) {
+        const CallPath path = m->paths[k];
+        Value v = path.call == 0 ? small(0)
+                  : is_merged_call(path.call) ? merged_size(path.call)
+                                              : Value::leaf(Op::RETURNDATASIZE, path.call);
+        m = &call_merges_[call & ~kMergedCall];  // (again: the nested merge's made in between)
+        Value l = mk(Op::SETVAR, t, v);
+        Node& h = nodes_[path.hit];
+        h.lines.push_back(l);
+        cx().pcs.note(l, h.start);
+    }
+    m->size = t;
+    return t;
+}
+
+// the variable a merge's paths set to their last call's id (0: none): the
+// copies of the return data after the merge test it
+Value Vm::merged_id(u32 call) {
+    CallMerge* m = &call_merges_[call & ~kMergedCall];
+    if (!m->id.nil()) return m->id;
+    const Value t = fresh_tmp();
+    for (usize k = 0; k < m->paths.size(); ++k) {
+        const CallPath path = m->paths[k];
+        Value v = is_merged_call(path.call) ? merged_id(path.call) : small(i64(path.call));
+        m = &call_merges_[call & ~kMergedCall];
+        Value l = mk(Op::SETVAR, t, v);
+        Node& h = nodes_[path.hit];
+        h.lines.push_back(l);
+        cx().pcs.note(l, h.start);
+    }
+    m->id = t;
+    return t;
+}
+
+// A copy of the return data after merged paths that differ in their last
+// call: the copy of each call's, by the variable of its id. A path without a
+// call copies nothing (its copy of n > 0 bytes halted at the check).
+void Vm::merged_copy(Value dst, Value src, Value n, u32 pc) {
+    SmallVec<u32, 8> ids, calls;
+    merged_ids(last_call_, ids);
+    bool none = false;
+    for (u32 c : ids) {
+        if (c == 0)
+            none = true;
+        else
+            calls.push_back(c);
+    }
+    auto copy = [&](u32 c) {
+        Value l = mk(Op::SETMEM, range(dst, n), mk(Op::RETURNDATA_BYTES, small(i64(c)), src, n));
+        cx().pcs.note(l, pc);
+        return l;
+    };
+    if (!calls.empty() && !none && calls.size() == 1) {
+        emit(copy(calls[0]), pc);
+        return;
+    }
+    if (!calls.empty()) {
+        const Value tid = merged_id(last_call_);
+        // IF(id == c1, {copy c1}, {IF(id == c2, ...)}), the last one the else
+        // (or nothing, for the paths without a call)
+        usize k = calls.size();
+        Value rest = none ? mk_trace({}) : mk_trace({copy(calls[--k])});
+        while (k-- > 0) {
+            Value l = mk(Op::IF, alg::cmp(Op::EQ, tid, small(i64(calls[k]))), mk_trace({copy(calls[k])}), rest);
+            cx().pcs.note(l, pc);
+            rest = mk_trace({l});
+        }
+        for (Value l : rest.args()) emit(l, pc);
+    }
+    known_ = known_.write_memory(dst, n, Value());
+}
+
+void Vm::merged_ids(u32 call, SmallVec<u32, 8>& out) const {
+    for (const CallPath& path : call_merges_[call & ~kMergedCall].paths) {
+        if (is_merged_call(path.call)) {
+            merged_ids(path.call, out);
+        } else if (std::find(out.begin(), out.end(), path.call) == out.end()) {
+            out.push_back(path.call);
+        }
+    }
 }
 
 // Before an instruction that changes the state, what was read from it and
@@ -959,6 +1051,10 @@ bool Vm::plain(u8 op8, u32 pc) {
                 return false;
             }
             if (!is_zero_int(n)) {
+                if (!known_.rdzero() && is_merged_call(last_call_)) {
+                    merged_copy(dst, src, n, pc);
+                    return true;
+                }
                 u32 id = known_.rdzero() ? 0 : last_call_;
                 emit(mk(Op::SETMEM, range(dst, n), mk(Op::RETURNDATA_BYTES, small(id), src, n)), pc);
             }

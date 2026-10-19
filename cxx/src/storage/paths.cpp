@@ -2,24 +2,15 @@
 // hash_table / hash_constant, word, is_word, parse, steps, from_calldata,
 // linear, packed).
 #include <algorithm>
-#include <array>
 #include <bit>
-#include <mutex>
 
 #include "algebra/construct.hpp"
 #include "core/context.hpp"
 #include "core/errors.hpp"
 #include "exec/machine.hpp"
 #include "mem/memory.hpp"
+#include "storage/htab_gen.hpp"  // (generated: the Makefile's STORAGE_HTAB)
 #include "storage/internal.hpp"
-
-// (the hash table made at build time: tools/gen_storage_htab.cpp)
-#if __has_include("storage/htab_gen.hpp")
-#include "storage/htab_gen.hpp"
-#define PAN_STORAGE_HTAB_GEN 1
-#else
-#define PAN_STORAGE_HTAB_GEN 0
-#endif
 
 namespace pan::storage::detail {
 
@@ -85,23 +76,14 @@ bool from_calldata(Value e) {
 // ---- the hash table --------------------------------------------------------------------
 // keccak(w32(n)) n < DATA_SLOTS, keccak(w32(k) ++ w32(n)) (vyper: w32(n) ++
 // w32(k)) k < MAP_KEYS, n < MAP_SLOTS; sorted by (hash, n, key), key -1 for
-// keccak(n). Made at build time (tools/gen_storage_htab.cpp, with exec's
-// keccak: the Makefile's $(G)/src/storage/htab_gen.hpp, as the asm's
-// tools/gen_htab.c); without it, by the process at its first lookup (10240
-// hashes and a sort: ~15 ms).
+// keccak(n): made at build time (htab_gen.hpp, by tools/gen_storage_htab.cpp
+// with exec's keccak, as the asm's tools/gen_htab.c) - not by every process
+// at its first lookup (10240 hashes and a sort: ~15 ms).
 
 namespace {
 
 constexpr u32 DATA_SLOTS = 4096, MAP_KEYS = 16, MAP_SLOTS = 64;
 constexpr u32 MAX_DELTA = 1u << 16;
-
-struct HashEntry {
-    Word256 hash;
-    u32 n;
-    i32 key;  // -1: keccak(n)
-};
-
-#if PAN_STORAGE_HTAB_GEN
 
 static_assert(htab::DATA_SLOTS == DATA_SLOTS && htab::MAP_KEYS == MAP_KEYS && htab::MAP_SLOTS == MAP_SLOTS &&
               htab::COUNT == DATA_SLOTS + MAP_KEYS * MAP_SLOTS);
@@ -110,82 +92,39 @@ std::span<const htab::Entry> hash_table(Lang lang) noexcept {
     return lang == Lang::Vyper ? std::span<const htab::Entry>(htab::vyper) : std::span<const htab::Entry>(htab::solidity);
 }
 
-HashEntry entry(const htab::Entry& e) noexcept {
-    return HashEntry{Word256{{e.limb[0], e.limb[1], e.limb[2], e.limb[3]}}, e.n, e.key};
+Word256 hash_of(const htab::Entry& e) noexcept { return Word256{{e.limb[0], e.limb[1], e.limb[2], e.limb[3]}}; }
+
+HashHit hit_of(const htab::Entry& e, u32 delta) noexcept {
+    HashHit h;
+    h.n = e.n;
+    if (e.key >= 0) h.key = u32(e.key);
+    h.delta = delta;
+    return h;
 }
-
-#else
-
-std::span<const HashEntry> hash_table(Lang lang) {
-    static std::array<std::vector<HashEntry>, 2> tables;  // solidity, vyper
-    static std::once_flag once;
-    std::call_once(once, [] {
-        for (int vyper = 0; vyper < 2; ++vyper) {
-            std::vector<HashEntry>& v = tables[vyper];
-            v.reserve(DATA_SLOTS + MAP_SLOTS * MAP_KEYS);
-            u8 buf[64] = {};
-            for (u32 n = 0; n < DATA_SLOTS; ++n) {
-                Word256::of(n).to_be(buf);
-                v.push_back({exec::keccak256(std::span<const u8>(buf, 32)), n, -1});
-            }
-            for (u32 n = 0; n < MAP_SLOTS; ++n)
-                for (u32 k = 0; k < MAP_KEYS; ++k) {
-                    Word256::of(vyper ? n : k).to_be(buf);
-                    Word256::of(vyper ? k : n).to_be(buf + 32);
-                    v.push_back({exec::keccak256(std::span<const u8>(buf, 64)), n, i32(k)});
-                }
-            std::sort(v.begin(), v.end(), [](const HashEntry& a, const HashEntry& b) {
-                if (a.hash != b.hash) return a.hash < b.hash;
-                if (a.n != b.n) return a.n < b.n;
-                return a.key < b.key;
-            });
-        }
-    });
-    return tables[lang == Lang::Vyper ? 1 : 0];
-}
-
-const HashEntry& entry(const HashEntry& e) noexcept { return e; }
-
-#endif
 
 }  // namespace
 
 std::optional<HashHit> hash_constant(const Word256& c, Lang lang) {
     const auto t = hash_table(lang);
     // the last entry whose hash is <= c (python's bisect_right of (c, "~"))
-    auto it = std::upper_bound(t.begin(), t.end(), c, [](const Word256& x, const auto& e) { return x < entry(e).hash; });
+    auto it = std::upper_bound(t.begin(), t.end(), c, [](const Word256& x, const htab::Entry& e) { return x < hash_of(e); });
     if (it == t.begin()) return std::nullopt;
     // (entries of one hash: the greatest by python's tuple order - the last)
-    const HashEntry e = entry(*--it);
-    const auto du = pan::sub(c, e.hash).as_u64();
+    --it;
+    const auto du = pan::sub(c, hash_of(*it)).as_u64();
     if (!du || *du >= MAX_DELTA) return std::nullopt;
-    HashHit h;
-    h.n = e.n;
-    if (e.key >= 0) h.key = u32(e.key);
-    h.delta = u32(*du);
-    return h;
+    return hit_of(*it, u32(*du));
 }
 
 std::vector<std::pair<Word256, HashHit>> hash_table_entries(Lang lang) {
     std::vector<std::pair<Word256, HashHit>> res;
-    for (const auto& x : hash_table(lang)) {
-        const HashEntry e = entry(x);
-        HashHit h;
-        h.n = e.n;
-        if (e.key >= 0) h.key = u32(e.key);
-        res.emplace_back(e.hash, h);
-    }
+    for (const htab::Entry& e : hash_table(lang)) res.emplace_back(hash_of(e), hit_of(e, 0));
     return res;
 }
 
 // ---- linear, packed ------------------------------------------------------------------------
 
 namespace {
-
-std::optional<EvmInt> int_of(Value v) {
-    if (v.is_int()) return EvmInt(v);
-    return std::nullopt;
-}
 
 std::optional<u32> log2_of(i64 n) {
     if (n <= 0 || (n & (n - 1))) return std::nullopt;

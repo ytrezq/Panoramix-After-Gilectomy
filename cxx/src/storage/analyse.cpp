@@ -753,7 +753,7 @@ void Analysis::names() {
         if (f.kind != FunctionInfo::Kind::Selector) continue;
         if (!f.getter && !bytes_getters_[fi]) continue;
         const auto e = db->function(f.selector);
-        if (!e || e->trust() != sigdb::Trust::verified) continue;
+        if (!e || !e->known()) continue;
         order.push_back(Named{e->name(), fi});
     }
     std::stable_sort(order.begin(), order.end(), [&](const Named& a, const Named& b) {

@@ -218,7 +218,7 @@ public:
         std::string type, name;
     };
     const std::vector<Param>& params() const noexcept { return params_; }
-    // the database's entry of the function, when it knows it (verified)
+    // the database's entry of the function, when it knows it (Entry::known: verified or repaired)
     bool known() const noexcept { return known_; }
     // the head word of the known function's params at a calldata offset
     const ParamWord* word_at(i64 offset) const noexcept;

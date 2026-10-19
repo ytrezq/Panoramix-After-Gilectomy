@@ -187,7 +187,7 @@ std::optional<std::string> getter_name(const StorageVar& v, const sigdb::Databas
     if (!v.getter || !db)
         return std::nullopt;
     const auto e = db->function(*v.getter);
-    if (!e || e->trust() != sigdb::Trust::verified)
+    if (!e || !e->known())
         return std::nullopt;
     std::string name(e->name());
     if (name.empty())
@@ -252,7 +252,7 @@ FnEnv::FnEnv(const FunctionInfo* fn, const sigdb::Database* db, Value trace, con
     // the params, as the header names them (python inferred_params: the
     // ABI's, renamed past the storage's names and the builtins; _paramN)
     if (fn && fn->kind == FunctionInfo::Kind::Selector && db) {
-        if (const auto e = db->function(fn->selector); e && e->trust() == sigdb::Trust::verified) {
+        if (const auto e = db->function(fn->selector); e && e->known()) {
             known_ = true;
             usize i = 0;
             for (const sigdb::Field f : e->params()) {
@@ -498,7 +498,7 @@ bool known_fname(Out& o, const sigdb::Database* db, u32 selector)
     if (!db)
         return false;
     const auto e = db->function(selector);
-    if (!e || e->trust() != sigdb::Trust::verified)
+    if (!e || !e->known())
         return false;
     std::string name = db_text(e->name());
     // (a name of the database that's no name: python's

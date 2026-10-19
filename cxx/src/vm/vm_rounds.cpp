@@ -623,13 +623,27 @@ std::optional<bool> Vm::merge_at(NodeId p, Value jd, bool loop_exit) {
             if (!known.contains(u)) known = known.with(u);
         }
     }
+    // the last call: the paths' if they have the same, else a record of
+    // each path's (the return data read after the merge: variables the
+    // paths set, merged_size) - but where one can't tell its own
     u32 last_call = nodes_[hits[0]].last_call;
-    for (NodeId h : hits)
-        if (nodes_[h].last_call != last_call) last_call = kAmbiguousCall;
+    bool differ = false, ambiguous = false;
+    for (NodeId h : hits) {
+        differ |= nodes_[h].last_call != last_call;
+        ambiguous |= nodes_[h].last_call == kAmbiguousCall;
+    }
 
     if (memoized) throw InternalError("vm: a memoized merge answer differs (PANORAMIX_VM_CHECK)");
     ++gen_;  // (a merge: the memo's answers below p and above it no longer hold)
     ++stats_.merges;
+    if (differ && ambiguous) {
+        last_call = kAmbiguousCall;
+    } else if (differ) {
+        CallMerge m;
+        for (NodeId h : hits) m.paths.push_back(CallPath{h, nodes_[h].last_call});
+        last_call = kMergedCall | u32(call_merges_.size());
+        call_merges_.push_back(std::move(m));
+    }
     for (usize k = 0; k < hits.size(); ++k) {
         Node& h = nodes_[hits[k]];
         h.lines.assign(setvars[k].begin(), setvars[k].end());
