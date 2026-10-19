@@ -23,7 +23,8 @@ namespace storage {
 
 namespace {
 
-[[noreturn]] PAN_COLD void unsupported(const char* why, Value loc) {
+// a form the layout doesn't have: the stage that made it broke the IR
+[[noreturn]] PAN_COLD void malformed(const char* why, Value loc) {
     std::string s = "storage: ";
     s += why;
     s += ": ";
@@ -33,7 +34,7 @@ namespace {
         d += "...";
     }
     s += d;
-    throw Unsupported(s);
+    throw InternalError(s);
 }
 
 bool is_bytes_expr(Value v) noexcept { return v.is_bytes() || (v.is_expr() && info(v.op()).sort == Sort::Bytes); }
@@ -70,7 +71,7 @@ Place locate(const StorageLayout& layout, Value loc, Eval& eval) {
     switch (loc.op()) {
         case Op::SV: {
             if (!loc.is(Op::SV, 1) || !loc[0].is_name(NameKind::STORVAR) || loc[0].name_id() >= layout.vars.size())
-                unsupported("not a variable of the layout", loc);
+                malformed("not a variable of the layout", loc);
             const StorageVar& v = layout.vars[loc[0].name_id()];
             return Place{v.slot, v.off, false, v.type};
         }
@@ -81,7 +82,7 @@ Place locate(const StorageLayout& layout, Value loc, Eval& eval) {
         case Op::SBL: {
             if (loc.size() != 1) break;
             Place p = locate(layout, loc[0], eval);
-            if (p.length) unsupported("the length of a length", loc);
+            if (p.length) malformed("the length of a length", loc);
             p.type.reset();
             p.length = loc.op() == Op::SBL;
             return p;
@@ -89,7 +90,7 @@ Place locate(const StorageLayout& layout, Value loc, Eval& eval) {
         case Op::SF: {
             if (!loc.is(Op::SF, 2)) break;
             Place p = locate(layout, loc[0], eval);
-            if (p.length) unsupported("a field of a length", loc);
+            if (p.length) malformed("a field of a length", loc);
             const Value n = loc[1];
             // bit(base) + n, a signed word: the slot moves by its floor / 256
             const Word256 t = pan::add(n.is_small() ? small_word(n.small_val()) : eval.word(n), Word256::of(p.bit));
@@ -102,7 +103,7 @@ Place locate(const StorageLayout& layout, Value loc, Eval& eval) {
             if (!loc.is(Op::SI, 2)) break;
             const Place base = locate(layout, loc[0], eval);
             if (base.length || !base.type || *base.type >= layout.types.size())
-                unsupported("an element of a place of no type", loc);
+                malformed("an element of a place of no type", loc);
             const StorageType& t = layout.types[*base.type];
             const Value key = loc[1];
             switch (t.kind) {
@@ -143,12 +144,12 @@ Place locate(const StorageLayout& layout, Value loc, Eval& eval) {
                 case StorageType::Kind::Struct:
                     break;
             }
-            unsupported("an element of what has none", loc);
+            malformed("an element of what has none", loc);
         }
         default:
             break;
     }
-    unsupported("not a location", loc);
+    malformed("not a location", loc);
 }
 
 }  // namespace storage

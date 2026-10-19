@@ -167,9 +167,10 @@ struct Place {
                                 // SR, SF, SL, SBL (no SI over them)
 };
 
-// The place of loc (SV SI SL SBL SF SR) - Unsupported when it isn't one the
-// layout has: a STORVAR past vars, an SI over a place of no type or of a
-// Value/Struct, anything else than a location.
+// The place of loc (SV SI SL SBL SF SR) - InternalError when it isn't one
+// the layout has (the machine's Status::Bug): a STORVAR past vars, an SI
+// over a place of no type or of a Value/Struct, anything else than a
+// location. Eval's own exceptions go through.
 //   SI(base, key) by base's type (base's bit ignored):
 //     Mapping: keccak(K ++ w32(slot)) (Vyper: w32(slot) ++ K), K = bytes(key)
 //              when key is a bytes expression, else w32(word(key)); type elem

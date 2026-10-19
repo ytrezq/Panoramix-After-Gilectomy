@@ -26,6 +26,7 @@
 #include "core/memo.hpp"
 #include "core/node.hpp"
 #include "core/smallvec.hpp"
+#include "storage/storage.hpp"
 
 namespace pan::exec {
 
@@ -402,6 +403,52 @@ struct Machine::Impl {
         return alg::mask_shl_word(size, off, -off, s);
     }
 
+    // ---- the storage forms (lot 9's P forms: storage/storage.hpp) ----------------------
+
+    // what storage::locate evaluates with: this run's words and bytes
+    struct FormEval final : storage::Eval {
+        Impl& m;
+        explicit FormEval(Impl& im) : m(im) {}
+        Word256 word(Value e) override { return m.ev(e); }
+        void bytes(Value e, std::vector<u8>& out) override { m.evb(e, out); }
+    };
+
+    // the place of a location form (SV SI SL SBL SF SR) by the layout; a form
+    // the layout doesn't have: locate's InternalError (Status::Bug)
+    storage::Place place(Value loc) {
+        if (!program.layout) unsupported("the storage forms need lot 9's layout: " + show(loc));
+        FormEval e{*this};
+        return storage::locate(*program.layout, loc, e);
+    }
+
+    // ST(size, loc, width): the `size` bits at loc's place (width: the printer's)
+    Word256 st_read(Value v) {
+        if (!v.is(Op::ST, 3)) bug("a malformed ST: " + show(v));
+        const i64 size = field(v[0]);
+        const storage::Place p = place(v[1]);
+        const Word256 w = host->sload(p.slot);
+        const Word256 s = p.length ? storage::bytes_length(w) : w;
+        return alg::mask_shl_word(size, i64(p.bit), -i64(p.bit), s);
+    }
+
+    // SET(ST(size, loc, width), v): the bits [bit, bit + size) of loc's slot
+    // set to the low `size` bits of v, the others kept
+    void set_line(Value target, Value v) {
+        if (!target.is(Op::ST, 3)) bug("SET of something else than an ST: " + show(cur_line));
+        const i64 size = field(target[0]);
+        const storage::Place p = place(target[1]);
+        if (p.length) bug("a SET of a bytes length: " + show(cur_line));
+        const Word256 val = ev(v);
+        if (size >= 256 && p.bit == 0) {
+            host->sstore(p.slot, val);
+            return;
+        }
+        const Word256 m = alg::mask_word(size, i64(p.bit));
+        const Word256 placed = pan::shl(Word256::of(p.bit), val);
+        const Word256 old = host->sload(p.slot);
+        host->sstore(p.slot, pan::bor(pan::band(old, pan::bnot(m)), pan::band(placed, m)));
+    }
+
     // ---- words ------------------------------------------------------------------------
 
     i64 field(Value v) {
@@ -497,14 +544,14 @@ struct Machine::Impl {
             case Op::SBYTES:
             case Op::SALL:
                 return bytes_word(v);
-            case Op::ST:
+            case Op::ST: return st_read(v);
             case Op::SV:
             case Op::SI:
             case Op::SL:
             case Op::SBL:
             case Op::SF:
             case Op::SR:
-                unsupported("the storage forms need lot 9's layout: " + show(v));
+                bug("a storage location as a word: " + show(v));
             case Op::SAFEMATH:
                 unsupported("SAFEMATH needs lot 8's table: " + show(v));
             default:
@@ -739,8 +786,12 @@ struct Machine::Impl {
                 case Op::SBYTES:
                     solidity_bytes(ev(a[0]), out);
                     return;
-                case Op::SALL:
-                    unsupported("the storage forms need lot 9's layout: " + show(e));
+                case Op::SALL: {  // the bytes/string at loc's slot (solidity's encoding)
+                    const storage::Place p = place(a[0]);
+                    if (p.length) bug("SALL of a bytes length: " + show(e));
+                    solidity_bytes(p.slot, out);
+                    return;
+                }
                 case Op::RANGE:
                     bug("a RANGE as bytes: " + show(e));
                 default:
@@ -899,7 +950,9 @@ struct Machine::Impl {
                 touch();
                 return Sig::None;
             case Op::SET:
-                unsupported("the storage forms need lot 9's layout: " + show(line));
+                set_line(a[0], a[1]);
+                touch();
+                return Sig::None;
             case Op::TSTORE: {
                 const Word256 k = ev(a[0]);
                 const Word256 v = ev(a[1]);

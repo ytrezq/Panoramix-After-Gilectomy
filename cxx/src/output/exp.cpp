@@ -93,55 +93,124 @@ bool fits_bytes(const EvmInt& v, i64 size)
     return size >= 0 && size <= (i64(1) << 24) && v.sign() >= 0 && v.bit_length() <= u64(8) * u64(size);
 }
 
-// the bytes of a non-negative int, big-endian, n of them
-std::vector<u8> int_bytes(const EvmInt& v, usize n)
+// the significant bytes of a non-negative int, big-endian (none for 0):
+// as many as the int is long, never more
+std::vector<u8> int_sig_bytes(const EvmInt& v)
 {
+    const usize n = usize((v.bit_length() + 7) / 8);
     std::vector<u8> b(n, 0);
     if (v.fits_i64()) {
         u64 m = u64(v.to_i64());
-        for (usize i = 0; i < n && m; ++i, m >>= 8)
+        for (usize i = 0; i < n; ++i, m >>= 8)
             b[n - 1 - i] = u8(m & 0xff);
         return b;
     }
-    const mpz_class& z = *v.big();
     usize count = 0;
-    std::vector<u8> tmp((mpz_sizeinbase(z.get_mpz_t(), 2) + 7) / 8 + 1);
-    mpz_export(tmp.data(), &count, 1, 1, 1, 0, z.get_mpz_t());
-    for (usize i = 0; i < count && i < n; ++i)
-        b[n - 1 - i] = tmp[count - 1 - i];
+    mpz_export(b.data(), &count, 1, 1, 1, 0, v.big()->get_mpz_t());
     return b;
 }
 
-// python's data_bytes(e): the bytes of an element of a data, if they're
-// known - Bytes(n, int), an int word, the contract's bytes
-std::optional<std::vector<u8>> data_bytes(Value e)
+// the bytes past which pretty_memory no longer looks for text in the
+// elements of a data (the asm's PM_BYTES_MAX, 16 MiB: what fits_bytes
+// allows one element) - the elements are then printed one by one
+constexpr u64 kTextBytesMax = u64(1) << 24;
+
+// python's data_bytes(e), the bytes of an element of a data if they're
+// known (Bytes(n, int), an int word, the contract's bytes), as `zeros`
+// zeroes then `rest` (an int's significant bytes, the contract's bytes):
+// no zero is text, so its zeroes are counted, never written out - a
+// Bytes(2^24, 0) is 16 MiB of them
+struct ElemBytes {
+    u64 zeros = 0;
+    std::vector<u8> rest;
+    u64 size() const noexcept { return zeros + rest.size(); }
+};
+
+std::optional<ElemBytes> elem_bytes(Value e)
 {
+    const auto of_int = [](const EvmInt& v, u64 n) {
+        ElemBytes b;
+        b.rest = int_sig_bytes(v);
+        b.zeros = n - b.rest.size();
+        return b;
+    };
+    const auto of_bytes = [](Value b) {
+        const auto s = b.bytes();
+        ElemBytes r;
+        r.rest.assign(s.begin(), s.end());
+        return r;
+    };
     if (e.is(Op::SIZED, 2) && e[0].is_small()) {
         const i64 n = e[0].small_val();
         if (e[1].is_int()) {
             const EvmInt v(e[1]);
             if (fits_bytes(v, n))
-                return int_bytes(v, usize(n));
+                return of_int(v, u64(n));
             return std::nullopt;
         }
-        if (e[1].is_bytes() && i64(e[1].size()) == n) {
-            const auto s = e[1].bytes();
-            return std::vector<u8>(s.begin(), s.end());
-        }
+        if (e[1].is_bytes() && i64(e[1].size()) == n)
+            return of_bytes(e[1]);
         return std::nullopt;
     }
     if (e.is_int()) {
         const EvmInt v(e);
         if (v.sign() >= 0 && v.bit_length() <= 256)
-            return int_bytes(v, 32);
+            return of_int(v, 32);
         return std::nullopt;
     }
-    if (e.is_bytes()) {
-        const auto s = e.bytes();
-        return std::vector<u8>(s.begin(), s.end());
-    }
+    if (e.is_bytes())
+        return of_bytes(e);
     return std::nullopt;
 }
+
+// the bytes of elements of a data, one after the other as python
+// concatenates them (b += data_bytes(el)), in their parts
+struct DataBytes {
+    struct Part {
+        u64 at;  // where its zeroes start; its rest is at + zeros
+        u64 zeros;
+        std::vector<u8> rest;
+    };
+    std::vector<Part> parts;
+    u64 size = 0;
+
+    void add(ElemBytes&& b)
+    {
+        const u64 n = b.size();
+        parts.push_back(Part{size, b.zeros, std::move(b.rest)});
+        size += n;
+    }
+
+    // not any(b[from:])
+    bool zero_from(u64 from) const
+    {
+        for (const Part& p : parts) {
+            const u64 r = p.at + p.zeros;
+            if (r + p.rest.size() <= from)
+                continue;
+            for (u64 i = from > r ? from - r : 0; i < p.rest.size(); ++i)
+                if (p.rest[i])
+                    return false;
+        }
+        return true;
+    }
+
+    // python's pretty_text(b[:end], short): b[:end] is made only when none
+    // of the parts' zeroes is in it (a zero is no text)
+    std::optional<std::string> text(u64 end, bool short_ok = false) const
+    {
+        std::vector<u8> b;
+        for (const Part& p : parts) {
+            if (p.at >= end)
+                break;
+            if (p.zeros)
+                return std::nullopt;
+            const u64 k = std::min<u64>(p.rest.size(), end - p.at);
+            b.insert(b.end(), p.rest.begin(), p.rest.begin() + i64(k));
+        }
+        return pretty_text(b, short_ok);
+    }
+};
 
 // python's word(e) of pretty_memory: the int a word of the data is
 std::optional<EvmInt> word_int(Value e)
@@ -850,11 +919,14 @@ struct ExpImpl {
             const EvmInt v(val);
             const i64 n = size.small_val();
             if (fits_bytes(v, n)) {
-                const auto b = int_bytes(v, usize(n));
-                if (auto t = pretty_text(b, true)) {
-                    o.put(*t);
-                    return;
-                }
+                // text, as a string literal (short: a separator) - which
+                // the n bytes aren't when a zero comes before v's own
+                const auto b = int_sig_bytes(v);
+                if (i64(b.size()) == n)
+                    if (auto t = pretty_text(b, true)) {
+                        o.put(*t);
+                        return;
+                    }
                 o.col(Col::gray, "Bytes(");
                 o.put(std::to_string(n));
                 o.col(Col::gray, ", ");
@@ -940,18 +1012,25 @@ struct ExpImpl {
         if (!e.is(Op::ARR) || e.size() < 2 || !e[0].is_small())
             return std::nullopt;
         const i64 l = e[0].small_val();
-        std::vector<u8> b;
+        DataBytes b;
         for (const Value t : e.args().subspan(1)) {
-            auto c = data_bytes(t);
+            // (past 16 MiB of bytes no text, as pretty_memory's)
+            if (b.size >= kTextBytesMax)
+                return std::nullopt;
+            auto c = elem_bytes(t);
             if (!c)
                 return std::nullopt;
-            b.insert(b.end(), c->begin(), c->end());
+            b.add(std::move(*c));
         }
-        if (l < 0 || i64(b.size()) < l)
+        // len(b) >= l, not any(b[l:]), pretty_text(b[:l]) - python's
+        // slices of a negative l
+        const i64 size = i64(b.size);
+        if (size < l)
             return std::nullopt;
-        if (std::any_of(b.begin() + l, b.end(), [](u8 c) { return c != 0; }))
+        const u64 end = u64(l >= 0 ? l : std::max<i64>(0, l + size));
+        if (!b.zero_from(end))
             return std::nullopt;
-        return pretty_text(std::span<const u8>(b.data(), usize(l)));
+        return b.text(end);
     }
 
     // python's raw_text(el, printed): Bytes(n, 'text') when it's bytes of text
@@ -959,7 +1038,7 @@ struct ExpImpl {
     {
         if (item.s.empty() || item.s[0] != '\'')
             return;
-        const auto b = data_bytes(el);
+        const auto b = elem_bytes(el);
         if (!b)
             return;
         Out r = item.sub();
@@ -1814,24 +1893,33 @@ void ExpImpl::memory_elements(std::span<const Value> els, const MemoryOpts& m, s
                 continue;
             }
         }
+        // past 16 MiB of the bytes of its elements, an element is printed as
+        // it is (the asm's PM_BYTES_MAX)
+        bool as_element = false;
         if (first && idx + 1 < n) {
             const auto w0 = word_int(el);
             const auto w1 = word_int(copy[idx + 1]);
-            if (w0 && *w0 == 32 && w1 && w1->sign() > 0 && w1->bit_length() <= 32) {
-                const u64 length = w1->to_u64().value_or(0);
-                const u64 size = 32 * ((length + 31) / 32);
-                std::vector<u8> b;
+            if (w0 && *w0 == 32 && w1 && w1->sign() > 0) {
+                // size = 32 * ((length + 31) // 32); a length past 2^40 is
+                // past any data, its bytes made all the same (as the asm)
+                const bool big = w1->bit_length() > 40;
+                const u64 length = big ? ~u64(0) : w1->to_u64().value_or(0);
+                const u64 size = big ? ~u64(0) : 32 * ((length + 31) / 32);
+                DataBytes b;
                 usize end = idx + 2;
-                while (end < n && b.size() < size) {
-                    auto chunk = data_bytes(copy[end]);
+                while (end < n && b.size < size) {
+                    if (b.size >= kTextBytesMax) {
+                        as_element = true;
+                        break;
+                    }
+                    auto chunk = elem_bytes(copy[end]);
                     if (!chunk)
                         break;
-                    b.insert(b.end(), chunk->begin(), chunk->end());
+                    b.add(std::move(*chunk));
                     end += 1;
                 }
-                if (b.size() == size && end == n &&
-                    std::none_of(b.begin() + i64(length), b.end(), [](u8 c) { return c != 0; })) {
-                    if (auto t = pretty_text(std::span<const u8>(b.data(), usize(length)))) {
+                if (!as_element && b.size == size && end == n && b.zero_from(length)) {
+                    if (auto t = b.text(length)) {
                         if (!m.abi_text)
                             item.put(std::format("Array(len={}, data={})", length, *t));
                         else
@@ -1843,20 +1931,30 @@ void ExpImpl::memory_elements(std::span<const Value> els, const MemoryOpts& m, s
                 }
             }
         }
-        {
+        if (!as_element) {
+            // bytes that are text, as parts of the data (hashed, say): no
+            // zero is text, so the first element with one ends the search
             usize end = idx;
-            std::vector<u8> b;
+            DataBytes b;
+            bool zero = false;
             while (end < n) {
-                auto c = data_bytes(copy[end]);
+                if (b.size >= kTextBytesMax) {
+                    as_element = true;
+                    break;
+                }
+                auto c = elem_bytes(copy[end]);
                 if (!c)
                     break;
-                b.insert(b.end(), c->begin(), c->end());
+                zero = zero || c->zeros > 0 || std::ranges::find(c->rest, u8(0)) != c->rest.end();
+                b.add(std::move(*c));
                 ++end;
+                if (zero)
+                    break;
             }
-            if (b.size() >= 4) {
-                if (auto t = pretty_text(b)) {
+            if (!as_element && !zero && b.size >= 4) {
+                if (auto t = b.text(b.size)) {
                     if (m.abi_text && first && end == n)
-                        item.put(std::format("Bytes({}, {})", b.size(), *t));
+                        item.put(std::format("Bytes({}, {})", b.size, *t));
                     else
                         item.put(*t);
                     items.push_back(std::move(item));
