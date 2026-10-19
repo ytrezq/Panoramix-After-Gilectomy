@@ -302,6 +302,13 @@ TEST_CASE("simplify: calls' selectors, ABI arrays") {
         "{(call 1 (gas 1) (calldataload 4) 0 None (data (sized 4 0xa9059cbb) (sized 32 caller) (sized 32 5))) (stop)}",
         S::simplify_exps);
     CHECK(u[0][4].is(Op::SIZED));
+    // the selector in a wider first part (the address word's zeroes after it)
+    u = check_trace(
+        "{(call 1 (gas 1) (calldataload 4) 0 None (data (sized 16 0xa9059cbb000000000000000000000000) (sized 20 caller) "
+        "(sized 32 5))) (stop)}",
+        S::simplify_exps);
+    CHECK(u[0][4].is(Op::SIZED));
+    MESSAGE(dump(u[0]));
     u = check_trace("{(return (data (sized 32 32) (sized 32 5) (sized 5 0x1122334455) (sized 27 0)))}", S::postprocess_exps);
     CHECK(u[0][0].is(Op::DATA));
     CHECK(u[0][0][0].is(Op::ARR));
