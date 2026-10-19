@@ -166,6 +166,9 @@ TEST_CASE("output: lines")
           "  call caller with:\n     value 5 wei\n       gas gas_remaining\n");
     CHECK(L("{(precompiled 1 prec_1_1 1 (mem (range 0 128)))}") == "  signer = ecrecover(mem[0 len 128]) # precompiled\n");
     CHECK(L("{(internal 4660 [1 tmp2] [tmp5]) (leave [tmp5])}") == "  _5 = internal_0x1234(1, _2)\n  return _5\n");
+    // python's other_2: `if a == b: return a == b` returns True
+    CHECK(L("{(if (eq tmp1 5) {(return (sized 32 (eq tmp1 5)))} {}) (return (sized 32 0))}") ==
+          "  if _1 == 5:\n      return True\n  return 0\n");
 }
 
 TEST_CASE("output: loops")
@@ -414,6 +417,20 @@ TEST_CASE("output: python's view in --explain and --verbose")
     // --verbose: the VM's stacks as python printed them in its VM
     CHECK(L("{(asm 7 0x54 None [(storage 256 0 7) 5]) (stop)}") ==
           "  #        [('storage', 256, 0, 7), 5]\n  # \n  # [7] sload\n");
+    // --explain's function traits: python's str() of its return lines
+    FunctionInfo fn;
+    fn.trace = V("{(return (sized 32 5))}");
+    fn.is_const = fn.read_only = fn.entry.nonpayable = true;
+    std::string tr;
+    explain_traits(tr, fn, TraceContext{&fn});
+    CHECK(tr == "\n function traits: \n\n possible return values: [('return', ('bytes', 32, 5))]\n payable: False\n"
+                " read_only: True\n const: ('return', ('bytes', 32, 5))\n\n");
+    // --repr: python's pprint_repr, its IR's tuples
+    std::string rp;
+    pan::output::detail::repr_lines(
+        rp, V("{(if (iszero callvalue) {(return (sized 32 (storage 160 0 7)))} {(revert None)})}"), 0);
+    CHECK(rp == " [if, ('iszero', 'callvalue'), [\n   ('return', ('bytes', 32, ('storage', 160, 0, 7))), \n ],[\n"
+                "   ('revert', None), \n ] \n");
 }
 
 TEST_CASE("output: the folder")

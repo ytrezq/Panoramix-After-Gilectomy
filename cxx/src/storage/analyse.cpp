@@ -721,7 +721,7 @@ void Analysis::find_bytes_getters() {
                 detail::form(FormCtx{types_, layout_->lang}, sv_form(NO_VAR), *rit->second.type, st->steps, 256, small(0));
             if (!(f_len.is(Op::ST, 3) && is_small(f_len[0], 256) && f_len[1].is(Op::SBL, 1) && is_small(f_len[2], 256)))
                 continue;
-            BytesTail bt(f, internals_, &shared_);
+            BytesTail bt(f, internals_, &shared_, opts_.deadline_ns);
             const Value t = bt.find(fns_[fi].trace, key);
             if (!t.nil()) {
                 bytes_getters_[fi] = std::make_pair(key, t);

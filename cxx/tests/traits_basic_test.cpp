@@ -270,6 +270,12 @@ TEST_CASE("traits: params inferred from the calldata's uses")
               V("{(if param2 {(store 256 0 (mask_shl 160 0 0 param0) (mask_shl 8 0 0 param1))} {(store 256 0 1 "
                 "(calldataload (add 4 param3)))}) (stop)}"));
         same_runs(f, g);
+        // analysed again: the same
+        const FunctionInfo h = analysed(g);
+        CHECK(h.trace == g.trace);
+        CHECK(h.params.size() == g.params.size());
+        CHECK(h.entry.nonpayable == g.entry.nonpayable);
+        CHECK(h.entry.value_fails == g.entry.value_fails);
     }
     SUBCASE("a word read at no place of a param: none at all")
     {

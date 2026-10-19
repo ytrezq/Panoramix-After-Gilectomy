@@ -271,6 +271,47 @@ TEST_CASE("safemath: mul, div, solidity >= 0.8's panics, inc")
         CHECK(r.table->fns[0].op == Table::Arith::Mul);
         same_runs(r.before, r.after, r.table.get());
     }
+    SUBCASE("solidity >= 0.8's mul: b == a * b / a unless a is 0 - a a product of two")
+    {
+        const Value a2 = alg::mul(cd(4), cd(68));
+        const Value prod = alg::mul(a2, b);
+        const Value cond = alg::band(alg::iszero(alg::cmp(Op::EQ, b, alg::div(prod, a2))), alg::to_bool(a2));
+        const Value body = tr({check(cond, panic_line(0x11)), store(1, prod), stop()});
+        Rewritten r = rewrite({fn_of(body)});
+        REQUIRE(r.table);
+        CHECK(r.table->fns[0].op == Table::Arith::Mul);
+        same_runs(r.before, r.after, r.table.get());
+    }
+    SUBCASE("a product the algebra distributed: (x - y) * 997")
+    {
+        const Value a2 = alg::sub(st(1), a);
+        const Value prod = alg::mul(a2, Value::small(997));
+        CHECK(prod.is(Op::ADD));
+        const Value cond = alg::band(alg::to_bool(a2), alg::iszero(alg::cmp(Op::EQ, alg::div(prod, a2), Value::small(997))));
+        const Value body = tr({check(cond, panic_line(0x11)), store(5, prod), stop()});
+        Rewritten r = rewrite({fn_of(body)});
+        REQUIRE(r.table);
+        CHECK(r.table->fns[0].op == Table::Arith::Mul);
+        same_runs(r.before, r.after, r.table.get());
+    }
+    SUBCASE("x - (y - 1) checked against x (the algebra's sum)")
+    {
+        const Value res = alg::add({Value::small(1), alg::neg(b), a});
+        const Value body = tr({check(alg::cmp(Op::GT, res, a), panic_line(0x11)), store(1, res), stop()});
+        Rewritten r = rewrite({fn_of(body)});
+        REQUIRE(r.table);
+        CHECK(r.table->fns[0].op == Table::Arith::Sub);
+        same_runs(r.before, r.after, r.table.get());
+    }
+    SUBCASE("an addition of a difference: x + (y - z), the sum checked against x")
+    {
+        const Value sum = alg::add({st(1), b, alg::neg(cd(68))});
+        const Value body = tr({mk(Op::ASSERT, alg::cmp(Op::GE, sum, st(1))), store(1, sum), stop()});
+        Rewritten r = rewrite({fn_of(body)});
+        REQUIRE(r.table);
+        CHECK(r.table->fns[0].op == Table::Arith::Add);
+        same_runs(r.before, r.after, r.table.get());
+    }
     SUBCASE("div by zero, Panic(0x12)")
     {
         const Value q = alg::div(a, b);

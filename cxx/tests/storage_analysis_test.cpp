@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "algebra/construct.hpp"
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "core/contract.hpp"
@@ -337,6 +338,9 @@ TEST_CASE("storage: what no path reads stays raw - and runs the same") {
         fn(0x03030303, "{(return (sized 32 (storage 8 (mask_shl 5 0 3 (calldataload 4)) 12)))}"),
         fn(0x04040404, "{(return (sized 32 (storage 256 0 (length (loc 13)))))}"),
         fn(0x05050505, "{(store 16 -8 14 0xffff) (stop)}"),
+        // bits past the word, a field wider than it
+        fn(0x06060606, "{(store 8 300 15 1) (return (sized 32 (storage 8 300 15)))}"),
+        fn(0x07070707, "{(store 300 0 16 (calldataload 4)) (return (sized 32 (storage 256 0 16)))}"),
     };
     const Analysed a = analyse(fns);
     for (const FunctionInfo& fi : a.after) {
@@ -366,5 +370,56 @@ TEST_CASE("storage: rewrite_raw - every access as its slot") {
         INFO(dump(fi.trace));
         CHECK(no_pre_p(fi.trace));
     }
+    same_runs(a);
+}
+
+TEST_CASE("storage: packed arrays indexed by a field, reads at runtime offsets, ASM lines") {
+    Fixture f;
+    using pan::Value;
+    auto small = [](i64 n) { return Value::small(n); };
+    auto storage = [&](i64 size, i64 off, Value slot) { return mk(Op::STORAGE, small(size), small(off), slot); };
+    // a uint32[14] at 3 - 8 a slot - read as solidity does: the word at
+    // 3 + i / 8, the 32 bits at (i % 8) * 32 (a runtime offset)
+    auto element = [&](Value i) {
+        const Value off = alg::mask(3, 0, 5, i);
+        const Value word = storage(256, 0, alg::add(small(3), alg::mask(253, 3, -3, i)));
+        return alg::mask(small(32), off, alg::mul(small(-1), off), word);
+    };
+    const Value cd4 = mk(Op::CALLDATALOAD, small(4));
+    // its index a uint16 field of slot 9 (the algebra makes masks of it one mask)
+    const Value field = storage(16, 224, small(9));
+    std::vector<FunctionInfo> fns(4);
+    for (u32 i = 0; i < fns.size(); ++i) {
+        fns[i].kind = FunctionInfo::Kind::Selector;
+        fns[i].selector = 0x01010101 * (i + 1);
+    }
+    // cooldowns(i): its index checked below 14
+    fns[0].trace = mk_trace({mk(Op::IF, alg::cmp(Op::LT, cd4, small(14)),
+                                mk_trace({mk(Op::RETURN, mk(Op::SIZED, small(32), element(cd4)))}),
+                                mk_trace({mk(Op::REVERT, None)}))});
+    fns[1].trace = mk_trace({mk(Op::RETURN, mk(Op::SIZED, small(32), element(field)))});
+    fns[2].trace = mk_trace({mk(Op::STORE, small(16), small(224), small(9), cd4), mk(Op::STOP)});
+    // an ASM line (--verbose) keeps its stack as it is
+    const Value asm_line = mk(Op::ASM, small(1), small(0x54), small(0), mk_list({storage(256, 0, small(77))}));
+    fns[3].trace = mk_trace({asm_line, mk(Op::RETURN, mk(Op::SIZED, small(32), storage(256, 0, small(5))))});
+    const Analysed a = analyse(fns);
+    const StorageLayout& l = *a.layout;
+    bool cooldowns = false;
+    for (const StorageVar& v : l.vars) {
+        const StorageType& t = l.types[v.type];
+        if (v.slot == Word256::of(3))
+            cooldowns = t.kind == Kind::Fixed && l.types[t.elem].kind == Kind::Value && l.types[t.elem].width == 32 &&
+                        t.length == std::optional<u64>(14);
+        CHECK(v.slot != Word256::of(77));  // (no variable of the ASM's stack)
+    }
+    CHECK(cooldowns);
+    for (const FunctionInfo& fi : a.after) {
+        INFO(dump(fi.trace));
+        bool raw = false;
+        for (Value l2 : fi.trace.args())
+            if (!l2.is(Op::ASM) && !no_pre_p(l2)) raw = true;
+        CHECK(!raw);
+    }
+    CHECK(a.after[3].trace[0] == asm_line);
     same_runs(a);
 }

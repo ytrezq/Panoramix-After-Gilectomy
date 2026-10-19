@@ -79,8 +79,11 @@ Regroup::Regroup(const Accesses& accesses, Parser& parser) {
         for (const RootAccess& r : accs_[id])
             if (!r.size.is_small() || !r.off.is_small()) ints = false;
         if (ints) {
-            fields_[id] = fields_layout(accs_[id]);
-            has_fields_.push_back(id);
+            try {
+                fields_[id] = fields_layout(accs_[id]);
+                has_fields_.push_back(id);
+            } catch (const Unsupported&) {  // (bits out of the word: no variables)
+            }
         }
     }
 }
@@ -96,6 +99,9 @@ std::optional<u32> Regroup::class_of(const Access& a) const noexcept {
 
 std::optional<Regroup::Store> Regroup::store(Value line) const {
     if (!line.is(Op::STORE, 4) || !line[0].is_small() || !line[1].is_small()) return std::nullopt;
+    // (bits of the word: fields of no other size are no variable's)
+    if (line[0].small_val() <= 0 || line[0].small_val() > 256 || line[1].small_val() < 0 || line[1].small_val() >= 256)
+        return std::nullopt;
     const auto c = class_of(Access{line[0], line[1], line[2]});
     if (!c || *c == NO_CLASS || !has_fields(*c)) return std::nullopt;
     return Store{*c, line[0].small_val(), line[1].small_val(), line[3], line[2], line};

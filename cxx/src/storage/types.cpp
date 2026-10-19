@@ -306,6 +306,7 @@ std::vector<Range> fields_layout(std::span<const RootAccess> accs) {
     for (const RootAccess& a : accs) {
         const auto size = small_of(a.size), off = small_of(a.off);
         if (!size || !off) throw Unsupported("storage: a field of no known bits");
+        if (*size <= 0 || *size > 256 || *off < 0 || *off >= 256) throw Unsupported("storage: bits out of the word");
         all.emplace_back(*size, *off);
         if (a.written == Written::Yes) written.emplace_back(*size, *off);
         if (a.written == Written::Const) numbers.emplace_back(*size, *off);

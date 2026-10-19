@@ -16,6 +16,7 @@
 #include "analysis/safemath.hpp"
 
 #include <algorithm>
+#include <memory_resource>
 #include <utility>
 #include <vector>
 
@@ -54,6 +55,10 @@ std::optional<i64> small_of(Value v) noexcept
 std::span<const Value> lines_of(Value t) noexcept { return t.is_list() ? t.args() : std::span<const Value>{}; }
 
 bool empty_trace(Value t) noexcept { return t.is_list() && t.size() == 0; }
+
+// a per-job vector of values (the budget's memory)
+using Values = std::pmr::vector<Value>;
+Values values() { return Values(cx().budget.resource()); }
 
 // ---- how a check fails (python failure) ----------------------------------------------
 
@@ -308,11 +313,49 @@ SmallVec<Value, 3> complements(Value b)
     return r;
 }
 
+// x and y have the same value (the abstraction's insurance, below)
+bool same_value(Value x, Value y);
+
 bool fails_overflow(const Failure& f) noexcept { return f.kind == FailKind::Panic && f.panic == PANIC_OVERFLOW; }
 
 std::optional<Match> match_check(Value cond, const Failure& fail, Value res)
 {
     const Value zero = Value::small(0), minus1 = Value::small(-1);
+    if ((res.is(Op::MUL) || res.is(Op::ADD)) && res.size() >= 2) {
+        // a * b: divided by a, it's b (where a isn't 0) - a and b as the
+        // condition has them (a may be a product of several factors of res,
+        // res a product the algebra distributed over a sum): ne = ISZERO(EQ(res
+        // / a, b)) (either side), alone or with a's test of not being 0 (a,
+        // BOOL(a)); res is a * b
+        {
+            SmallVec<Value, 2> parts;
+            if (cond.is(Op::AND, 2)) {
+                parts.push_back(cond[0]);
+                parts.push_back(cond[1]);
+            } else {
+                parts.push_back(cond);
+            }
+            for (usize k = 0; k < parts.size(); ++k) {
+                const Value ne = parts[k];
+                if (!ne.is(Op::ISZERO, 1) || !ne[0].is(Op::EQ, 2))
+                    continue;
+                for (int side = 0; side < 2; ++side) {
+                    const Value q = ne[0][side], b = ne[0][1 - side];
+                    if (!q.is(Op::DIV, 2) || q[0] != res)
+                        continue;
+                    const Value a = q[1];
+                    if (parts.size() == 2) {
+                        const Value other = parts[1 - k];
+                        if (!(other == a || other == alg::to_bool(a) || (other.is(Op::BOOL, 1) && other[0] == a)))
+                            continue;
+                    }
+                    const Value ab = alg::mul(a, b);
+                    if (ab == res || same_value(ab, res))
+                        return Match{Arith::Mul, a, b};
+                }
+            }
+        }
+    }
     if (res.is(Op::ADD) && res.size() >= 2) {
         const auto terms = res.args();
         SmallVec<Value, 4> neg, pos;
@@ -329,11 +372,20 @@ std::optional<Match> match_check(Value cond, const Failure& fail, Value res)
             if (is_cmp(cond, Op::GT, b, a) || is_cmp(cond, Op::LT, a, b) || is_cmp(cond, Op::GT, res, a) ||
                 is_cmp(cond, Op::LT, a, res))
                 return Match{Arith::Sub, a, b};
+            // a - b with a, where the algebra moved a constant between them
+            // (x - (y - 1) is 1 + x - y): a the term compared, b what makes res
+            const auto term = [&](Value x) {
+                return !x.is_int() && std::find(terms.begin(), terms.end(), x) != terms.end();
+            };
+            if (cond.is(Op::GT, 2) && cond[0] == res && term(cond[1]))
+                return Match{Arith::Sub, cond[1], alg::sub(cond[1], res)};
+            if (cond.is(Op::LT, 2) && cond[1] == res && term(cond[0]))
+                return Match{Arith::Sub, cond[0], alg::sub(cond[0], res)};
             // solidity's a - 1 since 0.8: a isn't 0
             if (b == Value::small(1) && fails_overflow(fail) &&
                 (cond == alg::iszero(a) || is_cmp(cond, Op::EQ, a, zero) || is_cmp(cond, Op::EQ, zero, a)))
                 return Match{Arith::Dec, a, NIL};
-            return std::nullopt;
+            // (else an addition of a difference: x + (y - z), the sum checked)
         }
         for (usize i = 0; i < terms.size(); ++i) {
             const Value a = terms[i];
@@ -361,7 +413,6 @@ std::optional<Match> match_check(Value cond, const Failure& fail, Value res)
         return std::nullopt;
     }
     if (res.is(Op::MUL) && res.size() >= 2) {
-        // a * b: divided by a, it's b (where a isn't 0)
         const auto terms = res.args();
         for (usize i = 0; i < terms.size(); ++i) {
             const Value a = terms[i];
@@ -556,7 +607,7 @@ public:
 private:
     // python's folder flattening of an IF one branch of which only fails: the
     // check, then the other branch's lines
-    void flatten_into(std::vector<Value>& out, Value trace)
+    void flatten_into(Values& out, Value trace)
     {
         check_stack();
         for (const Value l : lines_of(trace)) {
@@ -580,9 +631,9 @@ private:
         check_stack();
         if (!trace.is_list())
             return trace;
-        std::vector<Value> lines;
+        Values lines = values();
         flatten_into(lines, trace);
-        std::vector<Value> out;
+        Values out = values();
         bool changed = false;
         usize i = 0;
         while (i < lines.size()) {
@@ -671,7 +722,7 @@ private:
 
     // python candidates: the results of arithmetic in exp, the outer ones
     // first (each once) - but a * b / a, which only a check of a * b computes
-    static void candidates(Value exp, std::vector<Value>& out)
+    static void candidates(Value exp, Values& out)
     {
         check_stack();
         if (!exp.is_expr() && !exp.is_list())
@@ -724,7 +775,7 @@ private:
     }
 
     // python _convert: the lines from i on, the checks there made a call
-    std::optional<std::vector<Value>> convert(const std::vector<Value>& lines, usize i)
+    std::optional<Values> convert(const Values& lines, usize i)
     {
         usize end = i;
         while (end < lines.size() && as_check(lines[end]))
@@ -739,7 +790,7 @@ private:
                 const Value line = lines[j];
                 const Value now = now_of(line);
                 if (!now.nil()) {
-                    std::vector<Value> cands;
+                    Values cands = values();
                     candidates(now, cands);
                     for (const Value res : cands)
                         if (const auto m = of(checks, res))
@@ -760,7 +811,7 @@ private:
 
     // python _call: the site recorded (its checks abstracted, verified), the
     // lines from e on with the call where the result is used
-    std::optional<std::vector<Value>> call(const std::vector<Value>& lines, usize e, usize j,
+    std::optional<Values> call(const Values& lines, usize e, usize j,
                                            const std::vector<Check>& checks, Value res, const Match& m)
     {
         Site s;
@@ -788,7 +839,8 @@ private:
         if (params_of(m.op) == 2)
             ops.push_back(m.b);
         const Value call = mk(Op::SAFEMATH, ops.span());
-        std::vector<Value> out(lines.begin() + isize(e), lines.begin() + isize(j));
+        Values out = values();
+        out.assign(lines.begin() + isize(e), lines.begin() + isize(j));
         uses(lines, j, res, call, out);
         return out;
     }
@@ -796,7 +848,7 @@ private:
     // python _uses: the lines from j on with the call in place of the result,
     // until one changes what it reads - in that one, where it's read before
     // (a write's value, an if's condition); not in a loop that changes it
-    static void uses(const std::vector<Value>& lines, usize j, Value res, Value call, std::vector<Value>& out)
+    static void uses(const Values& lines, usize j, Value res, Value call, Values& out)
     {
         Memo<Value, Value> memo;
         auto replace = [&](Value v) { return replace_in(v, res, call, memo); };

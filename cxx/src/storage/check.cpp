@@ -165,6 +165,9 @@ std::optional<SymPlace> sym_place(const StorageLayout& L, Value loc) {
             if (!loc.is(Op::SF, 2) || !loc[1].is_small()) return std::nullopt;
             std::optional<SymPlace> p = sym_place(L, loc[0]);
             if (!p || p->length || !p->bit.is_small()) return std::nullopt;
+            if (loc[1].small_val() < -(i64(1) << 60) || loc[1].small_val() > (i64(1) << 60) ||
+                p->bit.small_val() < 0 || p->bit.small_val() >= 256)
+                return std::nullopt;
             const i64 t = p->bit.small_val() + loc[1].small_val();
             const i64 q = t >= 0 ? t / 256 : -((-t + 255) / 256);
             return SymPlace{q ? alg::add(p->slot, small(q)) : p->slot, small(t - 256 * q), false, std::nullopt};

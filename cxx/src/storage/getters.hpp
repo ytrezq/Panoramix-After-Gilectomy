@@ -33,7 +33,11 @@ std::optional<GetterAccess> getter_access(const traits::Getter& g, Value narrowe
 // does: the rewrite holds on any storage); NIL else.
 class BytesTail {
 public:
-    BytesTail(const FunctionInfo& fn, std::span<const FunctionInfo> internals, const ContractShared* shared);
+    // deadline_ns: monotonic, 0 for none (Timeout past it); the runs of one
+    // function's check take MAX_STEPS steps at most - past them, no rewrite
+    static constexpr u64 MAX_STEPS = 50'000'000;
+    BytesTail(const FunctionInfo& fn, std::span<const FunctionInfo> internals, const ContractShared* shared,
+              i64 deadline_ns = 0);
     ~BytesTail();
     BytesTail(const BytesTail&) = delete;
     BytesTail& operator=(const BytesTail&) = delete;
@@ -41,6 +45,8 @@ public:
 
 private:
     FunctionInfo fn_;
+    i64 deadline_;
+    u64 steps_ = 0;
     StorageLayout layout_;  // (none of its own: the tail's SR forms only)
     exec::Program program_;
     std::unique_ptr<exec::Machine> machine_;

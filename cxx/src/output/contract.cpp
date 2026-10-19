@@ -292,26 +292,33 @@ void safemath_block(Out& t, const ContractNames& names, const sigdb::Database* d
     t.put('\n');
 }
 
-// python's pprint_repr of a trace (--repr): the lines as the IR's
-// S-expressions, an if's and a while's branches indented
+// python's pprint_repr of a trace (--repr): the lines as python's str() of
+// its IR's tuples (python_repr), an if's and a while's branches indented
 void repr_lines(std::string& out, Value trace, u32 indent)
 {
     check_stack();
     if (!trace.is_list())
         return;
     for (const Value l : trace.args()) {
+        poll();
         if (l.is(Op::IF, 3)) {
-            out += std::string(indent, ' ') + " [if, " + dump(l[0]) + ", [\n";
+            out += std::string(indent, ' ') + " [if, ";
+            python_repr(out, l[0]);
+            out += ", [\n";
             repr_lines(out, l[1], indent + 2);
             out += std::string(indent, ' ') + " ],[\n";
             repr_lines(out, l[2], indent + 2);
             out += std::string(indent, ' ') + " ] \n";
         } else if (l.is(Op::WHILE, 4)) {
-            out += std::string(indent, ' ') + " [while, " + dump(l[0]) + ", [\n";
+            out += std::string(indent, ' ') + " [while, ";
+            python_repr(out, l[0]);
+            out += ", [\n";
             repr_lines(out, l[1], indent + 2);
             out += std::string(indent, ' ') + " ], \n";
         } else {
-            out += std::string(indent, ' ') + " " + dump(l) + ", \n";
+            out += std::string(indent, ' ') + " ";
+            python_repr(out, l);
+            out += ", \n";
         }
     }
 }

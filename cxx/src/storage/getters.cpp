@@ -12,6 +12,7 @@
 #include "algebra/masks.hpp"
 #include "core/context.hpp"
 #include "core/errors.hpp"
+#include "core/platform.hpp"
 #include "exec/machine.hpp"
 
 namespace pan::storage::detail {
@@ -188,8 +189,9 @@ struct Result {
 
 }  // namespace
 
-BytesTail::BytesTail(const FunctionInfo& fn, std::span<const FunctionInfo> internals, const ContractShared* shared)
-    : fn_(fn) {
+BytesTail::BytesTail(const FunctionInfo& fn, std::span<const FunctionInfo> internals, const ContractShared* shared,
+                     i64 deadline_ns)
+    : fn_(fn), deadline_(deadline_ns) {
     program_.functions = std::span<const FunctionInfo>(&fn_, 1);
     program_.internals = internals;
     program_.shared = shared;
@@ -315,10 +317,12 @@ Value BytesTail::find(Value trace, Value key) {
 
     auto run = [&](Value t, const World& w) -> Result {
         poll();
+        if (steps_ > MAX_STEPS) return Result{};  // (too long a check: no rewrite)
         GetterHost host;
         host.calldata = w.calldata;
         // the slot of the bytes, with this calldata
         const exec::Outcome ko = machine_->run(host, fn_, key_trace);
+        steps_ += ko.steps;
         if (ko.status != exec::Status::Return || ko.data.size() != 32) return Result{};
         const Word256 slot = Word256::from_be(ko.data);
         host.storage[slot] = w.word;
@@ -327,6 +331,7 @@ Value BytesTail::find(Value trace, Value key) {
             for (usize i = 0; i < w.data.size(); ++i) host.storage[pan::add(base, Word256::of(i))] = w.data[i];
         }
         const exec::Outcome o = machine_->run(host, fn_, t);
+        steps_ += o.steps;
         if (!o.halted()) return Result{};
         Result r;
         r.ok = true;
@@ -359,7 +364,9 @@ Value BytesTail::find(Value trace, Value key) {
     Value found;
     usize count = 0;
     splits(trace.args(), tail_line, [&](Value cand) {
-        if (count++ >= MAX_CANDIDATES) return false;
+        if (count++ >= MAX_CANDIDATES || steps_ > MAX_STEPS) return false;
+        if (deadline_ && platform::monotonic_ns() > deadline_)
+            throw Timeout("the post-processing and the text took more than 3 minutes");
         bool reached = false;
         for (usize k = 0; k < worlds.size(); ++k) {
             const Result got = run(cand, worlds[k]);

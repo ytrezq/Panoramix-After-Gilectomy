@@ -305,6 +305,15 @@ struct LineImpl {
         lines(body, indent + INDENT_LEN, inner, true);
     }
 
+    // the branch is one return of the if's condition, an a == b (a word of it)
+    static bool returns_its_eq(Value c, Value branch) noexcept
+    {
+        if (!c.is(Op::EQ, 2) || !branch.is_list() || branch.size() != 1 || !branch[0].is(Op::RETURN, 1))
+            return false;
+        const Value d = branch[0][0];
+        return d == c || (d.is(Op::SIZED, 2) && is_small(d[0], 32) && d[1] == c);
+    }
+
     void if_line(Value l, u32 indent, std::span<const Printer::LoopRef> loops, bool add_breaks)
     {
         Value c = l[0], t = l[1], f = l[2];
@@ -329,7 +338,14 @@ struct LineImpl {
             cond(c);
             o.put(':');
             nl();
-            lines(t, indent + INDENT_LEN, loops, false);
+            if (returns_its_eq(c, t)) {
+                // python's other_2: `if a == b: return a == b` returns True
+                start(indent + INDENT_LEN);
+                o.put("return True");
+                nl();
+            } else {
+                lines(t, indent + INDENT_LEN, loops, false);
+            }
             if (add_breaks) {
                 start(indent);
                 green("break");

@@ -156,6 +156,10 @@ int num_precedence(std::string_view text) noexcept;
 // (to_real_int) - `!= -1`, `const MAX_UINT = -1` - but unsigned comparisons
 // print their words (`x < 0xff..ff`: the asm's texts)
 EvmInt display_int(const EvmInt& x);
+// python's str() of a term of its IR, as python's --repr and its prettifier's
+// fallback print one: ('storage', 256, 0, 7) - numbers decimal, the leaves
+// 'caller', the VM's variables ('var', '_1'), lists [...]
+void python_repr(std::string& out, Value v);
 
 // ---- the names of a function ----------------------------------------------------------
 

@@ -11,6 +11,7 @@
 #include "algebra/masks.hpp"
 #include "analysis/safemath.hpp"
 #include "core/budget.hpp"
+#include "core/dump.hpp"
 #include "core/node.hpp"
 #include "mem/memory.hpp"
 #include "output/print.hpp"
@@ -295,6 +296,86 @@ bool padding_at_end(std::span<const Value> terms, Value len) noexcept
 }
 
 }  // namespace
+
+void python_repr(std::string& out, Value v)
+{
+    check_stack();
+    if (v.is_int()) {
+        out += int_dec(EvmInt(v));
+        return;
+    }
+    if (v.is_bool()) {
+        out += v.is_true() ? "True" : "False";
+        return;
+    }
+    if (v.is_none() || v.nil()) {
+        out += "None";
+        return;
+    }
+    if (v.is_name()) {
+        switch (v.name_kind()) {
+            case NameKind::TMP: out += std::format("('var', '_{}')", v.name_id()); return;
+            case NameKind::LOOP: out += std::format("('var', {})", v.name_id()); return;
+            case NameKind::PARAM: out += std::format("('param', {})", v.name_id()); return;
+            default: out += dump(v); return;
+        }
+    }
+    if (v.is_leaf()) {
+        // (python's names of them; a numbered one, gas, is the name alone)
+        out += '\'';
+        out += v.op() == Op::CALL_SUCCESS ? std::string_view("ext_call.success") : std::string_view(op_name(v.op()));
+        out += '\'';
+        return;
+    }
+    if (v.is_list()) {
+        out += '[';
+        for (u32 i = 0; i < v.size(); ++i) {
+            if (i)
+                out += ", ";
+            python_repr(out, v[i]);
+        }
+        out += ']';
+        return;
+    }
+    if (v.is_expr()) {
+        // python's spellings, its calls with no id (the IR's numbering)
+        std::span<const Value> args = v.args();
+        out += "('";
+        switch (v.op()) {
+            case Op::CALLDATALOAD: out += "cd"; break;
+            case Op::SIZED: out += "bytes"; break;
+            case Op::CALLDATA_BYTES: out += "call.data"; break;
+            case Op::RETURNDATA_BYTES:
+                out += "ext_call.return_data";
+                args = args.subspan(std::min<usize>(1, args.size()));
+                break;
+            case Op::CALL:
+            case Op::CALLCODE:
+            case Op::DELEGATECALL:
+            case Op::STATICCALL:
+            case Op::CREATE:
+            case Op::CREATE2:
+                out += op_name(v.op());
+                args = args.subspan(std::min<usize>(1, args.size()));
+                break;
+            default: out += op_name(v.op()); break;
+        }
+        out += '\'';
+        for (const Value a : args) {
+            out += ", ";
+            // (a word of a data: python's element is the number)
+            if (v.is(Op::DATA) && a.is(Op::SIZED, 2) && a[0].is_small() && a[0].small_val() == 32)
+                python_repr(out, a[1]);
+            else
+                python_repr(out, a);
+        }
+        if (args.empty())
+            out += ',';
+        out += ')';
+        return;
+    }
+    out += dump(v);  // (the contract's bytes)
+}
 
 EvmInt display_int(const EvmInt& x)
 {
@@ -1211,44 +1292,13 @@ struct ExpImpl {
         return {};
     }
 
-    // python's str() of a term of its IR (a tuple the prettifier doesn't
-    // know - a storage read before the storage analysis): ('storage', 256,
-    // 0, 7), its numbers decimal, its names ('var', '_1')
+    // python's str() of a term of its IR (a storage read before the storage
+    // analysis, which the prettifier doesn't know): python_repr's
     void pyrepr(Value v)
     {
-        check_stack();
-        if (v.is_int()) {
-            o.put(int_dec(EvmInt(v)));
-            return;
-        }
-        if (v.is_name(NameKind::TMP)) {
-            o.put(std::format("('var', '_{}')", v.name_id()));
-            return;
-        }
-        if (v.is_leaf()) {
-            o.put('\'');
-            o.put(op_name(v.op()));
-            o.put('\'');
-            return;
-        }
-        if (v.is_expr()) {
-            o.put("('");
-            switch (v.op()) {
-                case Op::CALLDATALOAD: o.put("cd"); break;
-                case Op::SIZED: o.put("bytes"); break;
-                default: o.put(op_name(v.op())); break;
-            }
-            o.put('\'');
-            for (const Value a : v.args()) {
-                o.put(", ");
-                pyrepr(a);
-            }
-            if (v.size() == 0)
-                o.put(',');
-            o.put(')');
-            return;
-        }
-        pret(v);
+        std::string s;
+        python_repr(s, v);
+        o.put(s);
     }
 
     // ---- the expression ops ----

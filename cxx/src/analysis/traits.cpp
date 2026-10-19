@@ -36,6 +36,10 @@ std::optional<i64> small_of(Value v) noexcept
 
 std::span<const Value> lines_of(Value t) noexcept { return t.is_list() ? t.args() : std::span<const Value>{}; }
 
+// a per-job vector of values (the budget's memory)
+using Values = std::pmr::vector<Value>;
+Values values() { return Values(cx().budget.resource()); }
+
 bool is_node_with_children(Value v) noexcept { return v.is_expr() || v.is_list(); }
 
 // a line rebuilt with these operands: a pure op through the algebra (its
@@ -99,7 +103,8 @@ private:
 template <class F>
 void each_line(Value trace, F&& f)
 {
-    std::vector<Value> todo{trace};
+    Values todo = values();
+    todo.push_back(trace);
     MemoSet<Value> seen;
     while (!todo.empty()) {
         poll();
@@ -122,7 +127,8 @@ void each_line(Value trace, F&& f)
 template <class F>
 void each_node(Value root, F&& f)
 {
-    std::vector<Value> todo{root};
+    Values todo = values();
+    todo.push_back(root);
     MemoSet<Value> seen;
     while (!todo.empty()) {
         poll();
@@ -623,7 +629,8 @@ std::optional<Value> without_value_check(Value body, Value& fails_line)
     fails_line = fl[0];
     // the lines before it, then what runs when there's no value, then the
     // lines after it (an IF's continuation)
-    std::vector<Value> out(ls.begin(), ls.begin() + isize(k));
+    Values out = values();
+    out.assign(ls.begin(), ls.begin() + isize(k));
     if (!others.empty()) {
         // (Vyper 0.3.10: `if call.value or calldata.size < 36: revert` - the
         // size check stays)
@@ -692,7 +699,8 @@ std::optional<Value> entry_without_value_check(Value entry, Value& fails_line)
             return std::nullopt;
     }
     fails_line = *fail;
-    std::vector<Value> out(ls.begin(), ls.end());
+    Values out = values();
+    out.assign(ls.begin(), ls.end());
     out.erase(out.begin() + isize(k));
     return mk_trace(std::span<const Value>(out.data(), out.size()));
 }
@@ -1067,8 +1075,9 @@ void analyse_function(FunctionInfo& fn, const ContractShared& shared, const Opti
     Value body = fn.trace;
     Value entry_lines = fn.entry.entry_lines;
 
-    // the params: the abi's words, or what the calldata's uses say
-    if (opts.params) {
+    // the params: the abi's words, or what the calldata's uses say (once:
+    // analysed again, its reads are its params' names already)
+    if (opts.params && fn.params.empty()) {
         if (entry) {
             fn.params = abi_params(*entry);
         } else {

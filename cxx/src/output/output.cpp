@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "analysis/traits.hpp"
 #include "core/dump.hpp"
 #include "driver/pipeline.hpp"
 #include "output/print.hpp"
@@ -115,37 +116,52 @@ void explain_traits(std::string& out, const FunctionInfo& fn, const TraceContext
     // python Function.analyse's: the possible return values, payable,
     // read_only, const, getter
     std::vector<std::pair<std::string, std::string>> items;
+    // python's prettify(self.returns): str() of the list of its return lines
+    // (find_f_list's order: the lines', depth first)
+    std::vector<Value> returns;
+    traits::returns_of(fn.trace, returns);
     std::string rets = "[";
-    {
-        std::vector<Value> todo{fn.trace};
-        bool first = true;
-        while (!todo.empty()) {
-            const Value t = todo.back();
-            todo.pop_back();
-            if (!t.is_list())
-                continue;
-            for (const Value l : t.args()) {
-                if (l.is(Op::RETURN)) {
-                    if (!first)
-                        rets += ", ";
-                    first = false;
-                    rets += print_exp(l[0], TraceContext{ctx.fn, ctx.db, false, ctx.storage, ctx.safemath});
-                }
-                if (l.is_expr())
-                    for (const Value a : l.args())
-                        if (a.is_list())
-                            todo.push_back(a);
-            }
-        }
+    for (usize i = 0; i < returns.size(); ++i) {
+        if (i)
+            rets += ", ";
+        python_repr(rets, returns[i]);
     }
     rets += "]";
     items.emplace_back("possible return values", rets);
     items.emplace_back("payable", fn.entry.nonpayable ? "False" : "True");
     items.emplace_back("read_only", fn.read_only ? "True" : "False");
-    if (fn.is_const)
-        items.emplace_back("const", "True");
+    if (fn.is_const && !returns.empty()) {
+        // python's self.const: its return line
+        std::string c;
+        python_repr(c, returns[0]);
+        items.emplace_back("const", std::move(c));
+    }
     if (fn.getter)
-        items.emplace_back("getter for", "True");
+        if (const auto g = traits::getter_of(fn)) {
+            // python's prettify(self.getter): the storage read (a tuple its
+            // prettifier doesn't know), bool() of it; a struct's place
+            std::string t;
+            switch (g->kind) {
+                case traits::Getter::Kind::Read:
+                    if (g->value.is(Op::BOOL, 1) && g->value[0] == g->read) {
+                        t = "bool(";
+                        python_repr(t, g->read);
+                        t += ')';
+                    } else {
+                        python_repr(t, g->read);
+                    }
+                    break;
+                case traits::Getter::Kind::Struct:
+                    t = "('struct', ('loc', ";
+                    python_repr(t, g->read.is(Op::STORAGE, 3) ? g->read[2] : g->read);
+                    t += "))";
+                    break;
+                case traits::Getter::Kind::Kitties:
+                    t = std::format("('struct', ('loc', {}))", g->slot);
+                    break;
+            }
+            items.emplace_back("getter for", std::move(t));
+        }
     explain_text(out, "function traits", items, ctx.color);
 }
 
