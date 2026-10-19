@@ -67,6 +67,8 @@ struct AstOptions {
     // the fold's own context's memory (the asm's FOLD_LIMIT): past it, the
     // trace is left unfolded (the rest of make_ast still applies)
     usize fold_limit = limits::FOLD_LIMIT;
+    // the fold's deadline (monotonic; 0: none): Timeout past it
+    i64 deadline_ns = 0;
 };
 
 // The folder alone (python folder.fold) on cx(): a trace (IF / WHILE ...)
