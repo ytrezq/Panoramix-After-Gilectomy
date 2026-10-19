@@ -223,6 +223,18 @@ struct Metadata {
 [[nodiscard]] std::optional<Metadata> metadata(std::span<const u8> code);
 
 // ---------------------------------------------------------------------------
+// For the tests: what the grammar makes of each opcode, read from the machine
+// `main := insn;` run on the opcode followed by zeroes
+
+struct GrammarClass {
+    InsnClass cls;     // the class action that fired (the last one, if several)
+    u8 length;         // the byte it fired on, + 1: the instruction's length
+    u8 actions;        // how many class actions fired (1)
+    u8 imm_bytes;      // how many bytes had $imm_byte (kImm)
+};
+[[nodiscard]] std::array<GrammarClass, 256> grammar_classes();
+
+// ---------------------------------------------------------------------------
 // Text: the CLI's `disasm` and `decode` (byte-identical to panasm's)
 
 namespace evm {

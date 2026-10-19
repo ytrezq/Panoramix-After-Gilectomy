@@ -75,7 +75,8 @@ struct TestEnv final : A::Env {
 // differential tests' distributions (tests/test_algebra.py, test_arith.py)
 struct Gen {
     std::mt19937_64 rng;
-    explicit Gen(u64 seed) : rng(seed) {}
+    int max_depth = 3;
+    explicit Gen(u64 seed, int depth = 3) : rng(seed), max_depth(depth) {}
     u64 next() { return rng(); }
     u64 below(u64 n) { return next() % n; }
     bool chance(u64 num, u64 den) { return below(den) < num; }
@@ -163,7 +164,7 @@ struct Gen {
     }
 
     Value rexp(int depth = 0) {
-        if (depth > 3 || chance(3, 10)) return leafish();
+        if (depth > max_depth || chance(3, 10)) return leafish();
         auto sub = [&] { return rexp(depth + 1); };
         switch (below(34)) {
             case 0: case 1: case 2: {
@@ -698,7 +699,7 @@ TEST_CASE("algebra: fuzz normalize and the constructors against evaluation" * do
     Fixture f;
     int bad = 0, cases = 0, not_fix = 0;
     for (u64 round = 1; round <= 40 && bad < 10; ++round) {
-        Gen g(round * 0x9e3779b97f4a7c15ull);
+        Gen g(round * 0x9e3779b97f4a7c15ull, round % 2 ? 3 : 5);
         for (int i = 0; i < 5000 && bad < 10; ++i) {
             Value e = g.rexp();
             if (g.chance(1, 4)) e = mk(Op::ADD, e, g.rexp(), g.rexp());
