@@ -750,6 +750,20 @@ public:
     Value trace(Value t, const std::vector<Known>& known)
     {
         check_stack();
+        if (!t.is_list())
+            return t;
+        // (each trace once per set of knowns: a trace shared by branches)
+        const Key2 key{t.raw(), u64(set_of(known)) + 1};
+        if (const Value* r = done_.find(key))
+            return *r;
+        const Value r = lines(t, known);
+        done_.put(key, r);
+        return r;
+    }
+
+private:
+    Value lines(Value t, const std::vector<Known>& known)
+    {
         const auto ls = lines_of(t);
         SmallVec<Value, 32> out;
         bool changed = false;
@@ -798,21 +812,24 @@ public:
         return changed ? mk_trace(out.span()) : t;
     }
 
-private:
-    // a Subst per set of knowns (few: a param's check each)
-    Subst& subst_for(const std::vector<Known>& known)
+    // the index of a set of knowns (few: a param's check each), its Subst made
+    usize set_of(const std::vector<Known>& known)
     {
-        for (auto& [k, s] : substs_)
+        for (usize i = 0; i < substs_.size(); ++i) {
+            const auto& k = substs_[i].first;
             if (k.size() == known.size() &&
                 std::equal(k.begin(), k.end(), known.begin(), [](const Known& a, const Known& b) { return a.x == b.x && a.cd == b.cd; }))
-                return *s;
+                return i;
+        }
         substs_.emplace_back(known, std::make_unique<Subst>());
         Subst& s = *substs_.back().second;
         for (const Known& k : known)
             s.add(k.x, k.cd);
-        return s;
+        return substs_.size() - 1;
     }
+    Subst& subst_for(const std::vector<Known>& known) { return *substs_[set_of(known)].second; }
     std::vector<std::pair<std::vector<Known>, std::unique_ptr<Subst>>> substs_;
+    Memo<Key2, Value> done_;
 };
 
 // ---- the traits -------------------------------------------------------------------------
@@ -965,15 +982,23 @@ std::optional<i64> small_sha3_slot(Value x) noexcept
 }
 
 // python find_f(e, l2): the first (pre-order) small slot in e
-std::optional<i64> find_small_slot(Value e)
+// (each node once: a node seen again held none)
+std::optional<i64> find_small_slot(Value e, MemoSet<Value>& seen)
 {
     check_stack();
     if (const auto n = small_sha3_slot(e))
         return n;
+    if (!is_node_with_children(e) || !seen.add(e))
+        return std::nullopt;
     for (const Value c : e.children())
-        if (const auto n = find_small_slot(c))
+        if (const auto n = find_small_slot(c, seen))
             return n;
     return std::nullopt;
+}
+std::optional<i64> find_small_slot(Value e)
+{
+    MemoSet<Value> seen;
+    return find_small_slot(e, seen);
 }
 
 std::optional<Getter> getter_of_return(Value ret)
@@ -1022,19 +1047,27 @@ std::optional<Getter> getter_of_return(Value ret)
 }
 
 // the first RETURN line of a trace (pre-order), NIL when none
-Value first_return(Value trace)
+// (each trace once: a trace seen again held none)
+Value first_return(Value trace, MemoSet<Value>& seen)
 {
     check_stack();
+    if (!trace.is_list() || !seen.add(trace))
+        return NIL;
     for (const Value l : lines_of(trace)) {
         if (l.is(Op::RETURN))
             return l;
         if (l.is_expr())
             for (const Value a : l.args())
                 if (a.is_trace())
-                    if (const Value r = first_return(a); !r.nil())
+                    if (const Value r = first_return(a, seen); !r.nil())
                         return r;
     }
     return NIL;
+}
+Value first_return(Value trace)
+{
+    MemoSet<Value> seen;
+    return first_return(trace, seen);
 }
 
 // ---- CALLDATALOAD(4 + 32k) -> Name(PARAM, k) ---------------------------------------------

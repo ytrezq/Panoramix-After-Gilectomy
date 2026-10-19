@@ -16,6 +16,7 @@
 #include "analysis/safemath.hpp"
 
 #include <algorithm>
+#include <deque>
 #include <memory_resource>
 #include <utility>
 #include <vector>
@@ -597,7 +598,17 @@ struct Site {
     Value a, b;
 };
 
-// The rewrite of the asts (python block / inside / _convert / _call / _uses).
+// A group of checks is this many at most: a library's, then the compiler's
+// of the same operation (python tried every run of consecutive checks as a
+// group, the longest first: cubic in a run's length - 2000 asserts in a row)
+constexpr usize kMaxGroup = 8;
+// the lines from its first use the call is put in (python: until one changes
+// what the result reads), at most: the rest keep the arithmetic (the checks
+// ran at the first use)
+constexpr usize kMaxUses = 512;
+
+// The rewrite of the asts (python block / inside / _convert / _call / _uses):
+// each distinct trace once, each line's check and failure once (memoized).
 class Rewriter {
 public:
     std::vector<Site> sites;
@@ -605,14 +616,60 @@ public:
     Value ast(Value trace) { return block(trace); }
 
 private:
+    // python failure() of a branch (one line that only fails), memoized
+    std::optional<Failure> failure_of_cached(Value branch)
+    {
+        const auto ls = lines_of(branch);
+        if (ls.size() != 1 || !ls[0].is_expr())
+            return std::nullopt;
+        const Value l = ls[0];
+        if (const u32* k = fail_ix_.find(l))
+            return *k ? std::optional<Failure>(fails_[*k - 1]) : std::nullopt;
+        u32 k = 0;
+        if (const auto f = failure_of_line(l)) {
+            fails_.push_back(*f);
+            k = u32(fails_.size());
+        }
+        fail_ix_.put(l, k);
+        return k ? std::optional<Failure>(fails_[k - 1]) : std::nullopt;
+    }
+
+    // as_check, memoized (with the branches' failures)
+    const Check* check_of(Value l)
+    {
+        if (!l.is_expr())
+            return nullptr;
+        if (const u32* k = check_ix_.find(l))
+            return *k ? &checks_[*k - 1] : nullptr;
+        std::optional<Check> c;
+        if (l.is(Op::IF, 3)) {
+            if (empty_trace(l[2]))
+                if (const auto f = failure_of_cached(l[1]))
+                    c = Check{l[0], *f};
+            if (!c && empty_trace(l[1]))
+                if (const auto f = failure_of_cached(l[2]))
+                    c = Check{alg::iszero(l[0]), *f};
+        } else if (l.is(Op::REQUIRE) || l.is(Op::ASSERT, 1)) {
+            c = as_check(l);
+        }
+        u32 k = 0;
+        if (c) {
+            checks_.push_back(*c);
+            k = u32(checks_.size());
+        }
+        check_ix_.put(l, k);
+        return k ? &checks_[k - 1] : nullptr;
+    }
+
     // python's folder flattening of an IF one branch of which only fails: the
     // check, then the other branch's lines
     void flatten_into(Values& out, Value trace)
     {
         check_stack();
         for (const Value l : lines_of(trace)) {
+            poll();
             if (l.is(Op::IF, 3) && !empty_trace(l[1]) && !empty_trace(l[2])) {
-                const bool t_fails = failure_of(l[1]).has_value(), f_fails = failure_of(l[2]).has_value();
+                const bool t_fails = failure_of_cached(l[1]).has_value(), f_fails = failure_of_cached(l[2]).has_value();
                 if (t_fails != f_fails) {
                     const Value none = mk_trace({});
                     const Value c = t_fails ? mk(Op::IF, l[0], l[1], none) : mk(Op::IF, l[0], none, l[2]);
@@ -631,6 +688,8 @@ private:
         check_stack();
         if (!trace.is_list())
             return trace;
+        if (const Value* r = blocks_.find(trace))
+            return *r;
         Values lines = values();
         flatten_into(lines, trace);
         Values out = values();
@@ -638,7 +697,7 @@ private:
         usize i = 0;
         while (i < lines.size()) {
             poll();
-            if (as_check(lines[i]))
+            if (check_of(lines[i]))
                 if (auto rest = convert(lines, i)) {
                     lines.resize(i);
                     lines.insert(lines.end(), rest->begin(), rest->end());
@@ -650,9 +709,9 @@ private:
             out.push_back(nl);
             ++i;
         }
-        if (!changed)
-            return trace;
-        return mk_trace(std::span<const Value>(out.data(), out.size()));
+        const Value r = changed ? mk_trace(std::span<const Value>(out.data(), out.size())) : trace;
+        blocks_.put(trace, r);
+        return r;
     }
 
     // python inside: the checked arithmetic of a line's branches
@@ -691,7 +750,7 @@ private:
     }
 
     // what can't fail nor change what a check reads unless it says so
-    static bool transparent(Value l) noexcept
+    bool transparent(Value l)
     {
         switch (l.op()) {
             case Op::SETVAR:
@@ -709,36 +768,43 @@ private:
         }
     }
 
-    static bool contains_safemath(Value v)
+    bool contains_safemath(Value v)
     {
         check_stack();
         if (v.is(Op::SAFEMATH))
             return true;
+        if (!v.is_expr() && !v.is_list())
+            return false;
+        if (const u8* m = has_sm_.find(v))
+            return *m == 2;
+        bool r = false;
         for (const Value c : v.children())
-            if (c.is_node() && contains_safemath(c))
-                return true;
-        return false;
+            if (contains_safemath(c)) {
+                r = true;
+                break;
+            }
+        has_sm_.put(v, r ? 2 : 1);
+        return r;
     }
 
     // python candidates: the results of arithmetic in exp, the outer ones
     // first (each once) - but a * b / a, which only a check of a * b computes
-    static void candidates(Value exp, Values& out)
+    static void candidates(Value exp, Values& out, MemoSet<Value>& seen)
     {
         check_stack();
-        if (!exp.is_expr() && !exp.is_list())
+        if ((!exp.is_expr() && !exp.is_list()) || !seen.add(exp))
             return;
         const bool arith = exp.is(Op::ADD) || exp.is(Op::MUL) || exp.is(Op::DIV, 2) || exp.is(Op::MOD, 2);
         const bool mul_div = exp.is(Op::DIV, 2) && exp[0].is(Op::MUL) &&
                              std::find(exp[0].args().begin(), exp[0].args().end(), exp[1]) != exp[0].args().end();
-        if (arith && !mul_div && std::find(out.begin(), out.end(), exp) == out.end())
+        if (arith && !mul_div)
             out.push_back(exp);
         for (const Value c : exp.children())
-            if (c.is_expr() || c.is_list())
-                candidates(c, out);
+            candidates(c, out, seen);
     }
 
     // python _of: the operation all the checks are of, if res is its result
-    static std::optional<Match> of(const std::vector<Check>& checks, Value res)
+    static std::optional<Match> of(std::span<const Check> checks, Value res)
     {
         const Check& last = checks.back();
         const auto m = match_check(last.cond, last.fail, res);
@@ -777,27 +843,36 @@ private:
     // python _convert: the lines from i on, the checks there made a call
     std::optional<Values> convert(const Values& lines, usize i)
     {
+        // the run of checks from i, as far as a group reaches
+        std::vector<Check> run;
         usize end = i;
-        while (end < lines.size() && as_check(lines[end]))
-            ++end;
+        while (end < lines.size() && run.size() <= kMaxGroup)
+            if (const Check* c = check_of(lines[end])) {
+                run.push_back(*c);
+                ++end;
+            } else {
+                break;
+            }
+        // (a run longer than a group: only a check's use in the next one's condition)
+        const bool longer = run.size() > kMaxGroup;
         // (the most checks first: a library's, then the compiler's of it)
-        for (usize e = end; e > i; --e) {
-            std::vector<Check> checks;
-            for (usize k = i; k < e; ++k)
-                checks.push_back(*as_check(lines[k]));
+        for (usize e = std::min(end, i + kMaxGroup); e > i; --e) {
+            const std::span<const Check> checks(run.data(), e - i);
+            const bool after_run = e == end && !longer;  // python's e == end
             for (usize j = e; j < lines.size(); ++j) {
                 poll();
                 const Value line = lines[j];
                 const Value now = now_of(line);
                 if (!now.nil()) {
                     Values cands = values();
-                    candidates(now, cands);
+                    MemoSet<Value> seen;
+                    candidates(now, cands, seen);
                     for (const Value res : cands)
                         if (const auto m = of(checks, res))
                             if (auto r = call(lines, e, j, checks, res, *m))
                                 return r;
                 }
-                if (e < end || !transparent(line))
+                if (!after_run || !transparent(line))
                     break;
                 bool changes = false;
                 for (const Check& c : checks)
@@ -811,8 +886,8 @@ private:
 
     // python _call: the site recorded (its checks abstracted, verified), the
     // lines from e on with the call where the result is used
-    std::optional<Values> call(const Values& lines, usize e, usize j,
-                                           const std::vector<Check>& checks, Value res, const Match& m)
+    std::optional<Values> call(const Values& lines, usize e, usize j, std::span<const Check> checks, Value res,
+                               const Match& m)
     {
         Site s;
         s.op = m.op;
@@ -855,6 +930,10 @@ private:
         for (usize k = j; k < lines.size(); ++k) {
             poll();
             const Value line = lines[k];
+            if (k - j >= kMaxUses) {
+                out.insert(out.end(), lines.begin() + isize(k), lines.end());
+                return;
+            }
             const bool changes = simplify::affects(line, res);
             if (changes && (line.is(Op::WHILE) || line.is(Op::LOOP_PATH))) {
                 out.insert(out.end(), lines.begin() + isize(k), lines.end());
@@ -900,6 +979,12 @@ private:
         memo.put(v, r);
         return r;
     }
+
+    Memo<Value, u32> fail_ix_, check_ix_;  // a line -> 1 + its index in fails_ / checks_, 0: none
+    std::deque<Failure> fails_;
+    std::deque<Check> checks_;
+    Memo<Value, Value> blocks_;  // a trace -> its block
+    Memo<Value, u8> has_sm_;     // contains_safemath
 };
 
 // ---- the table -------------------------------------------------------------------------
