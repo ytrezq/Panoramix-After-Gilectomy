@@ -27,6 +27,10 @@ Value simplify_at(Value e, Pos pos);
 // below 2^(256 - the trailing zeros of c) - y then; nullopt otherwise
 std::optional<Value> same_truth_factor(Value x);
 
+// lot 4's mem::overlaps, memoized per pair until the context's caches are
+// cleared (effects.cpp)
+Tri overlaps(Value r1, Value r2);
+
 // ---- lines (lines.cpp) ----------------------------------------------------------------
 
 // what an operand of a line is

@@ -18,6 +18,7 @@
 #include "core/contract.hpp"
 #include "core/dump.hpp"
 #include "core/errors.hpp"
+#include "core/platform.hpp"
 #include "evm/decoder.hpp"
 #include "hex.hpp"
 #include "loops/loops.hpp"
@@ -51,6 +52,16 @@ void show_loops(Value t) {
     }
 }
 
+// --explain's stages, printed when the trace changed
+struct Explain final : simplify::ExplainHook {
+    Value last;
+    void stage(simplify::ExplainStage st, Value trace) override {
+        if (trace == last) return;
+        last = trace;
+        std::printf("---- stage %d\n%s\n", int(st), dump_trace(trace).c_str());
+    }
+};
+
 }  // namespace
 
 TEST_CASE("simplify: dump (PANORAMIX_SIMPLIFY_DUMP)") {
@@ -59,6 +70,9 @@ TEST_CASE("simplify: dump (PANORAMIX_SIMPLIFY_DUMP)") {
     const char* sel = std::getenv("PANORAMIX_SIMPLIFY_SEL");
     const char* raw = std::getenv("PANORAMIX_SIMPLIFY_RAW");
     const bool show_raw = !raw || std::string(raw) != "0";
+    const bool quiet = std::getenv("PANORAMIX_SIMPLIFY_QUIET") != nullptr;
+    i64 t_vm = 0, t_whiles = 0, t_simplify = 0;
+    simplify::simplify_stats() = simplify::SimplifyStats{};
     std::ifstream f(path, std::ios::binary);
     std::stringstream ss;
     ss << f.rdbuf();
@@ -87,22 +101,41 @@ TEST_CASE("simplify: dump (PANORAMIX_SIMPLIFY_DUMP)") {
             vm::VmOptions o;
             o.known_internals = &known;
             try {
+                const i64 t0 = platform::monotonic_ns();
                 auto r = vm::run_function(shared, fn, o);
+                const i64 t1 = platform::monotonic_ns();
                 fn.trace = r.trace;
-                if (show_raw) std::printf("==== %s raw\n%s\n", name, dump_trace(fn.trace).c_str());
+                if (show_raw && !quiet) std::printf("==== %s raw\n%s\n", name, dump_trace(fn.trace).c_str());
                 fn.calls = std::move(r.calls);
                 fn.loops = std::move(r.loops);
                 FunctionInfo g = fn;
                 loops::whiles_function(g);
-                if (show_raw) std::printf("==== %s whiles\n%s\n", name, dump_trace(g.trace).c_str());
+                const i64 t2 = platform::monotonic_ns();
+                if (show_raw && !quiet) std::printf("==== %s whiles\n%s\n", name, dump_trace(g.trace).c_str());
                 if (std::getenv("PANORAMIX_SIMPLIFY_LOOPS")) show_loops(g.trace);
-                simplify::simplify_function(g);
-                std::printf("==== %s simplified\n%s\n", name, dump_trace(g.trace).c_str());
+                Explain ex;
+                ex.last = g.trace;
+                simplify::simplify_function(g, {}, std::getenv("PANORAMIX_SIMPLIFY_EXPLAIN") ? &ex : nullptr);
+                const i64 t3 = platform::monotonic_ns();
+                t_vm += t1 - t0;
+                t_whiles += t2 - t1;
+                t_simplify += t3 - t2;
+                if (quiet)
+                    std::printf("%s: vm %lld ms, whiles %lld ms, simplify %lld ms\n", name, (long long)((t1 - t0) / 1000000),
+                                (long long)((t2 - t1) / 1000000), (long long)((t3 - t2) / 1000000));
+                else
+                    std::printf("==== %s simplified\n%s\n", name, dump_trace(g.trace).c_str());
             } catch (const Error& e) {
                 std::printf("==== %s failed: %s\n", name, e.what());
             }
         }
     }
+    const auto& st = simplify::simplify_stats();
+    std::printf("total: vm %lld ms, whiles %lld ms, simplify %lld ms; passes (ms/runs):", (long long)(t_vm / 1000000),
+                (long long)(t_whiles / 1000000), (long long)(t_simplify / 1000000));
+    static const char* const names[12] = {"exps", "vars", "mems", "precompiled", "min_ifs", "split", "length", "conds", "final", "loops", "-", "-"};
+    for (int k = 0; k < 10; ++k) std::printf(" %s %llu/%llu", names[k], (unsigned long long)(st.ns[k] / 1000000), (unsigned long long)st.runs[k]);
+    std::printf("\n");
     budget.detach_thread();
 }
 

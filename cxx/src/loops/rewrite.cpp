@@ -110,6 +110,9 @@ Value loop_to_setmem(Value w, const RewriteOptions& opts) {
     }
     SmallVec<Value, 8> lines;
     Value set = mk(Op::SETMEM, mem::make_range(p_lo, len), value);
+    // (the endvars run after it: what they read unchanged by it)
+    for (Value e : ind->endvars.args())
+        if (simplify::affects(set, e[1])) return w;
     cx().pcs.inherit(set, sm);
     lines.push_back(set);
     for (Value e : ind->endvars.args()) lines.push_back(e);

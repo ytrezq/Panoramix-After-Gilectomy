@@ -21,6 +21,7 @@
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "core/contract.hpp"
+#include "core/dump.hpp"
 #include "core/errors.hpp"
 #include "core/platform.hpp"
 #include "core/smallvec.hpp"
@@ -36,7 +37,13 @@ struct Counts {
     u64 functions = 0, internals = 0, nodes = 0, incomplete = 0, failed = 0;
     u64 undefined[4] = {};
     u64 lines = 0;
+    u64 hash = 0;  // PANORAMIX_VM_HASH: of the traces' dumps, in the functions' order
 };
+
+u64 fnv(const std::string& s, u64 h) {
+    for (unsigned char c : s) h = (h ^ c) * 0x100000001b3ull;
+    return h;
+}
 
 void count_lines(Value t, Counts& c) {
     SmallVec<Value, 64> todo{t};
@@ -68,6 +75,7 @@ TEST_CASE("vm: corpus (PANORAMIX_VM_CORPUS)") {
     const unsigned long limit = lim ? std::strtoul(lim, nullptr, 10) : 0;
     const unsigned long skip = skp ? std::strtoul(skp, nullptr, 10) : 0;
     const bool per_function = std::getenv("PANORAMIX_VM_VERBOSE") != nullptr;
+    const bool hashes = std::getenv("PANORAMIX_VM_HASH") != nullptr;
     const bool selectors = std::getenv("PANORAMIX_VM_SELECTORS") != nullptr;
     const bool discovery_only = selectors && std::getenv("PANORAMIX_VM_DISCOVERY_ONLY") != nullptr;
     // PANORAMIX_VM_ONLY=sel,sel,...: only these selectors' functions (hex)
@@ -157,6 +165,7 @@ TEST_CASE("vm: corpus (PANORAMIX_VM_CORPUS)") {
                             w.nodes += r.nodes;
                             w.incomplete += !r.complete;
                             count_lines(r.trace, w);
+                            if (hashes) w.hash = fnv(dump_trace(r.trace), w.hash * 31 + 7);
                             for (const auto& e : r.found_internals)
                                 if (std::find(known.begin(), known.end(), e) == known.end() &&
                                     std::find(found.begin(), found.end(), e) == found.end())
@@ -193,11 +202,13 @@ TEST_CASE("vm: corpus (PANORAMIX_VM_CORPUS)") {
         budget.detach_thread();
         const i64 ns = platform::monotonic_ns() - t0;
         std::string name = p.substr(p.rfind('/') + 1);
-        std::printf("%-40s fns %3llu int %2llu nodes %7llu lines %7llu incomplete %llu failed %llu undef %llu/%llu/%llu %6lld ms%s%s\n",
+        char hash[32] = "";
+        if (hashes) std::snprintf(hash, sizeof hash, " hash %016llx", (unsigned long long)c.hash);
+        std::printf("%-40s fns %3llu int %2llu nodes %7llu lines %7llu incomplete %llu failed %llu undef %llu/%llu/%llu%s %6lld ms%s%s\n",
                     name.c_str(), (unsigned long long)c.functions, (unsigned long long)c.internals,
                     (unsigned long long)c.nodes, (unsigned long long)c.lines, (unsigned long long)c.incomplete,
                     (unsigned long long)c.failed, (unsigned long long)c.undefined[1],
-                    (unsigned long long)c.undefined[2], (unsigned long long)c.undefined[3],
+                    (unsigned long long)c.undefined[2], (unsigned long long)c.undefined[3], hash,
                     (long long)(ns / 1000000), problem.empty() ? "" : " ", problem.c_str());
         std::fflush(stdout);
         total.functions += c.functions;

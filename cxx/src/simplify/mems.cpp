@@ -69,17 +69,17 @@ void forget(mem::MemState& st, const EffectSummary& s) {
 // once return_data.size >= 32 is checked) - the pieces' expressions are
 // evaluated here, where cond holds
 mem::MemState constrained(const mem::MemState& st, Value cond) {
-    if (st.fresh() || st.pieces().empty()) return st;
+    if (st.pieces().empty()) return st;
     SmallVec<mem::MemState::Piece, 16> ps;
-    bool any = false;
     for (const auto& p : st.pieces()) {
         Value r = alg::apply_constraint(p.range, cond);
         Value v = alg::apply_constraint(p.value, cond);
-        if (r != p.range || v != p.value) any = true;
-        ps.push_back({r, v});
+        if (r != p.range || v != p.value) ps.push_back({r, v});
     }
-    if (!any) return st;
-    mem::MemState s2(false, st.facts());
+    if (ps.empty()) return st;
+    // the pieces it changes written again over them: the same bytes where
+    // cond holds (what's fresh stays as it was)
+    mem::MemState s2(st);
     for (const auto& p : ps) s2.write(p.range, p.value);
     return s2;
 }
@@ -254,7 +254,7 @@ struct Live {
     bool read(Value w) const {
         if (all) return true;
         for (Value r : ranges)
-            if (mem::overlaps(w, r) != Tri::False) return true;
+            if (overlaps(w, r) != Tri::False) return true;
         return false;
     }
     // before a line that changes what a live range reads (its address,
@@ -293,7 +293,7 @@ struct Live {
         if (all) return;
         std::vector<Value> next;
         for (Value r : ranges) {
-            if (mem::overlaps(w, r) == Tri::False) {
+            if (overlaps(w, r) == Tri::False) {
                 next.push_back(r);
                 continue;
             }

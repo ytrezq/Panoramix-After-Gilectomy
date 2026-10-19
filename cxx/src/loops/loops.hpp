@@ -14,10 +14,11 @@
 //    with the start values and again before each CONTINUE with the next ones -
 //    only when that is equivalent (they set no loop variable, no value of the
 //    setvars reads what they change, no jump or loop in them; a call in them
-//    copied with its id, as python did); the exit branch's merge setvars renamed away (python
-//    exit_values) only when that is equivalent; a loop whose only way out is
-//    a check of its variables whose branch ends the run (python: while
-//    True) as `while not check`, that branch after it. Otherwise the loop is
+//    copied with its id, as python did); the exit branch's merge setvars
+//    renamed away (python exit_values) only when that is equivalent, or the
+//    exit branch run after the loop when no path of the body falls off it; a
+//    loop whose only way out is a check whose branch ends the run (python:
+//    while True) as `while not check`, that branch after it. Otherwise the loop is
 //    `while True` (BOOL(1)) with its exits inside: the general form, always
 //    equivalent to the LABEL / GOTO it replaces. Nested labels: each its
 //    loop. A GOTO with no LABEL of its loop around it, a LABEL / GOTO malformed:
@@ -27,9 +28,10 @@
 //    may write and read, its paths (breaks, continues) and its induction.
 // 3. induction: the loop's counter (python parse_counters, as a proof rather
 //    than a shape): start, constant step, bound, comparison; the trip count
-//    and the values after the loop only when proven (the counter starts on
-//    the right side of the bound, never wraps, reaches it exactly; no break;
-//    nothing the loop changes read by the bound).
+//    and the values after the loop only when proven (the counter can't wrap
+//    on its way to the bound, nothing the loop changes read by the bound, a
+//    start past it 0 trips; the values after the loop: no break, nothing the
+//    loop changes read by them).
 // 4. rewrites, each sound by construction (and checked by execution, M2):
 //    loop_to_setmem (only with the trip count proven, a copy only when its
 //    source and destination can't overlap the wrong way - else behind
@@ -114,9 +116,11 @@ struct Induction {
     //  - endvars: LIST of SETVAR(v, e), every loop variable v that every
     //    CONTINUE moves by the same loop-invariant amount, e its value once
     //    the loop is left - made of the values before the loop (start values,
-    //    the bound) - valid after the WHILE line only: set when no path of
-    //    the body leaves the loop to what follows it but the condition (no
-    //    break) and trips is proven.
+    //    the bound) that the loop doesn't change (e is the same evaluated
+    //    after the loop as before it) - valid after the WHILE line only: set
+    //    when no path of the body leaves the loop to what follows it but the
+    //    condition (no break) and trips is proven; a variable whose e the
+    //    loop would change is left out.
     Value trips;
     Value last;
     Value endvars;
@@ -143,8 +147,12 @@ struct LoopSummary {
     // variables the loop sets (`written`: read as free atoms) - to be written
     // with value NIL into a mem::MemState at the loop's head after what the
     // loop changes was forgotten there (forget_name of `written`, the
-    // effects' other writes) - or, when the induction bounds them, one range
-    // over all the iterations made of the values before the loop. *_any: a
+    // effects' other writes) - or, when the induction proves trips and the
+    // range moves by the same constant D at every CONTINUE (its length loop
+    // invariant), one range over all the iterations made of the values before
+    // the loop: RANGE(p0, D k + n) (D >= 0) or RANGE(p0 - |D| k, |D| k + n),
+    // p0 its start, k = trips - 1 (writes) or trips (reads: the condition's
+    // too). *_any: a
     // write (read) the ranges don't bound (a SETMEM of no RANGE, an
     // INTERNAL, a LEAVE...).
     Value mem_writes, mem_reads;

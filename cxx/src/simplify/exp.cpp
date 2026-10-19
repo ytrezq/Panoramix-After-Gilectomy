@@ -253,12 +253,17 @@ std::optional<Value> word_rule(Value r) {
         case Op::SHA3: {
             // the parts of a DATA operand as operands (the same bytes), no part of no bytes
             bool splice = false;
+            auto has_arr = [](Value d) {
+                for (Value e : d.args())
+                    if (e.is(Op::ARR)) return true;
+                return false;
+            };
             for (Value a : r.args())
-                if (a.is(Op::DATA) || a.is_none()) splice = true;
+                if ((a.is(Op::DATA) && !has_arr(a)) || a.is_none()) splice = true;
             if (!splice) return std::nullopt;
             SmallVec<Value, 8> parts;
             for (Value a : r.args()) {
-                if (a.is(Op::DATA))
+                if (a.is(Op::DATA) && !has_arr(a))
                     for (Value q : a.args()) parts.push_back(q);
                 else if (!a.is_none())
                     parts.push_back(a);
@@ -312,9 +317,17 @@ std::optional<Value> bytes_rule(Value r) {
             return std::nullopt;
         }
         case Op::DATA: {
+            // (an ARR's offset counts from the start of the DATA it's in: a
+            // DATA with one isn't flattened, nor what has one)
+            auto has_arr = [](Value d) {
+                for (Value e : d.args())
+                    if (e.is(Op::ARR)) return true;
+                return false;
+            };
+            if (has_arr(r)) return std::nullopt;
             SmallVec<Value, 16> parts;
             for (Value p : r.args()) {
-                if (p.is(Op::DATA))
+                if (p.is(Op::DATA) && !has_arr(p))
                     for (Value q : p.args()) parts.push_back(q);
                 else
                     parts.push_back(p);

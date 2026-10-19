@@ -78,13 +78,37 @@ Value line_rules(Value l) {
         case Op::DELEGATECALL:
         case Op::STATICCALL: {
             const u32 s = l.size() - 2, p = l.size() - 1;
-            if ((!l[s].is_none() && no_bytes(l[s])) || (!l[p].is_none() && no_bytes(l[p]))) {
-                SmallVec<Value, 6> a(l.args());
-                if (no_bytes(a[s])) a[s] = None;
-                if (no_bytes(a[p])) a[p] = None;
-                return mk_like(l, a.span());
+            SmallVec<Value, 6> a(l.args());
+            bool changed = false;
+            if (!a[s].is_none() && no_bytes(a[s])) {
+                a[s] = None;
+                changed = true;
             }
-            return l;
+            if (!a[p].is_none() && no_bytes(a[p])) {
+                a[p] = None;
+                changed = true;
+            }
+            // the selector: the input's first 4 bytes, apart (python's
+            // fname / fdata; the input is sel ++ params all the same)
+            if (a[s].is_none() && !a[p].is_none()) {
+                Value d = a[p];
+                if (auto w = mem::width_u64(d); w && *w == 4) {
+                    a[s] = d;
+                    a[p] = None;
+                    changed = true;
+                } else if (d.is(Op::DATA) && d.size() >= 2) {
+                    if (auto w0 = mem::width_u64(d[0]); w0 && *w0 == 4) {
+                        bool arr = false;
+                        for (Value e : d.args()) arr = arr || e.is(Op::ARR);
+                        if (!arr) {
+                            a[s] = d[0];
+                            a[p] = d.size() == 2 ? d[1] : mk(Op::DATA, d.args().subspan(1));
+                            changed = true;
+                        }
+                    }
+                }
+            }
+            return changed ? mk_like(l, a.span()) : l;
         }
         default: return l;
     }

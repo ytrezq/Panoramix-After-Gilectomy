@@ -11,10 +11,8 @@
 #include "core/errors.hpp"
 #include "core/jobs.hpp"
 #include "core/platform.hpp"
-#include "loops/loops.hpp"
+#include "driver/pipeline.hpp"
 #include "sigdb.hpp"
-#include "simplify/simplify.hpp"
-#include "vm/vm.hpp"
 
 #include <algorithm>
 #include <fstream>
@@ -75,95 +73,28 @@ struct Options
     bool untyped = false;
 };
 
-/// The pipeline until lot 12's run_until: lot 5's raw traces - the functions
-/// the dispatcher reaches (discover), each one's trace (run_function), and
-/// the recursive internal functions found, in waves: a wave runs again the
-/// functions that found new ones (their recursions become INTERNAL lines),
-/// and the new ones (a call of a known one inlined elsewhere stays valid).
-void raw_pipeline(Decompiled& c, Stage, pan::Budget& budget)
+/// The decompiler's pipeline (lot 12's driver::run_until): one run makes
+/// every stage up to `upto` the build has (driver::stage_available) - the
+/// functions the dispatcher reaches, each on a context of its own (lot 5's
+/// VM, lot 6's whiles, lot 7's simplifier...), the recursive internal
+/// functions in waves - and keeps each stage's traces, imported into the
+/// check's context. A function that fails at a stage has no trace there
+/// (problem set); its earlier stages are checked.
+void pipeline(Decompiled& c, Stage upto, pan::Budget& budget, const pan::sigdb::Database* db)
 {
-    constexpr unsigned max_waves = 8;
-    auto& fns = c.functions[0];
-    auto& internals = c.internals[0];
-    fns = pan::vm::discover(c.shared, budget);
-    std::vector<pan::vm::InternalEntry> known;
-    // the functions to run: (internal?, index)
-    std::vector<std::pair<bool, std::size_t>> todo;
-    for (std::size_t i = 0; i < fns.size(); ++i)
-        todo.emplace_back(false, i);
-    for (unsigned wave = 0; wave < max_waves && !todo.empty(); ++wave)
-    {
-        std::vector<pan::vm::InternalEntry> found;
-        std::vector<std::pair<bool, std::size_t>> again;
-        for (const auto& [internal, i] : todo)
+    pan::driver::PipelineOptions o;
+    o.threads = 1;  // (the contracts are checked in parallel)
+    o.keep = pan::driver::KEEP_ALL;
+    o.db = db;
+    o.function_memory = budget.limits().memory;
+    const auto r = pan::driver::run_until(c.code, static_cast<pan::driver::Stage>(upto), o);
+    for (unsigned s = 0; s < stage_count; ++s)
+        if (r.kept[s])
         {
-            auto& f = internal ? internals[i] : fns[i];
-            pan::vm::VmOptions opts;
-            opts.known_internals = &known;
-            try
-            {
-                auto r = pan::vm::run_function(c.shared, f, opts);
-                f.trace = r.trace;
-                f.calls = std::move(r.calls);
-                f.loops = std::move(r.loops);
-                f.problem.reset();
-                bool new_ones = false;
-                for (const auto& e : r.found_internals)
-                    if (std::find(known.begin(), known.end(), e) == known.end())
-                    {
-                        new_ones = true;
-                        if (std::find(found.begin(), found.end(), e) == found.end())
-                            found.push_back(e);
-                    }
-                if (new_ones)
-                    again.emplace_back(internal, i);
-            }
-            catch (const pan::Error&)
-            {
-                f.trace = pan::Value{};
-                f.problem = 0;
-            }
+            c.functions[s] = r.functions[s];
+            c.internals[s] = r.internals[s];
+            c.made[s] = true;
         }
-        todo = std::move(again);
-        if (found.empty())
-            break;
-        for (const auto& e : found)
-        {
-            known.push_back(e);
-            pan::FunctionInfo f;
-            f.kind = pan::FunctionInfo::Kind::Internal;
-            f.entry_pc = e.entry;
-            f.params.resize(e.nargs);
-            todo.emplace_back(true, internals.size());
-            internals.push_back(std::move(f));
-        }
-    }
-    // the internals the last wave left unrun: failed
-    for (const auto& [internal, i] : todo)
-        if (internal && internals[i].trace.nil())
-            internals[i].problem = 0;
-    c.made[static_cast<unsigned>(Stage::raw)] = true;
-}
-
-/// raw_pipeline, then the stages made from it so far: the whiles (lot 6)
-/// from the raw traces, the simplified traces (lot 7) from the whiles.
-void pipeline(Decompiled& c, Stage upto, pan::Budget& budget)
-{
-    raw_pipeline(c, upto, budget);
-    constexpr auto w = static_cast<unsigned>(Stage::whiles);
-    if (upto >= Stage::whiles)
-    {
-        pan::loops::whiles_stage(c.functions[0], c.functions[w]);
-        pan::loops::whiles_stage(c.internals[0], c.internals[w]);
-        c.made[w] = true;
-    }
-    if (upto >= Stage::simplified)
-    {
-        constexpr auto s = static_cast<unsigned>(Stage::simplified);
-        pan::simplify::simplify_stage(c.functions[w], c.functions[s]);
-        pan::simplify::simplify_stage(c.internals[w], c.internals[s]);
-        c.made[s] = true;
-    }
 }
 
 std::optional<Bytes> read_hex_file(const std::string& path)
@@ -503,9 +434,9 @@ int main(int argc, char** argv)
         std::cerr << usage;
         return 1;
     }
-    if (o.check.upto > Stage::raw)
-        std::cout << "(the stages made so far: raw, whiles, simplified (from whiles); past "
-                     "simplified, lot 12's pipeline)\n";
+    if (!pan::driver::stage_available(static_cast<pan::driver::Stage>(o.check.upto)))
+        std::cout << "(the stages past " << stage_name(static_cast<Stage>(pan::driver::last_available()))
+                  << " aren't in this build: not checked)\n";
     std::cout << "stagecheck: " << paths.size() << " contracts, seed " << o.check.seed << ", "
               << (o.check.db != nullptr ? "typed" : "untyped") << " calldata, "
               << (o.check.empty_world ? (o.check.random_world ? "empty and random worlds" : "the empty world") :
@@ -523,7 +454,9 @@ int main(int argc, char** argv)
         try
         {
             if (const auto code = read_hex_file(paths[i]))
-                d.report = check_contract(*code, o.check, pipeline);
+                d.report = check_contract(*code, o.check, [&](Decompiled& c, Stage upto, pan::Budget& b) {
+                    pipeline(c, upto, b, db);
+                });
             else
                 d.readable = false;
         }

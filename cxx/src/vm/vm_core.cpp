@@ -162,6 +162,7 @@ Vm::Vm(const ContractShared& contract, const RunSetup& setup)
       sum_walk_(res_),
       new_loops_(res_),
       walk_(res_),
+      visit_walk_(res_),
       out_(res_) {
     internal_ = setup.internal;
     check_ = platform::env("PANORAMIX_VM_CHECK") != nullptr;
@@ -226,7 +227,15 @@ void Vm::set_prev(NodeId child, NodeId parent) {
     else
         c.jump = parent;
     touch(parent);
-    nodes_[parent].next.push_back(child);
+    // the last of parent's children (a node hung elsewhere: its place in
+    // its former parent's list forgotten - that list was cut)
+    Node& pn = nodes_[parent];
+    nodes_[child].sibling = NO_NODE;
+    if (pn.last == NO_NODE)
+        pn.first = child;
+    else
+        nodes_[pn.last].sibling = child;
+    pn.last = child;
 }
 
 NodeId Vm::ancestor_at(NodeId n, u32 depth) const {
@@ -267,7 +276,7 @@ void Vm::cut(NodeId n) {
     // every node below n is cut off the tree with it
     std::pmr::vector<NodeId>& todo = walk_;
     todo.clear();
-    for (NodeId c : nodes_[n].next) todo.push_back(c);
+    for (NodeId c = nodes_[n].first; c != NO_NODE; c = nodes_[c].sibling) todo.push_back(c);
     while (!todo.empty()) {
         poll();
         NodeId x = todo.back();
@@ -275,9 +284,9 @@ void Vm::cut(NodeId n) {
         Node& m = nodes_[x];
         if (m.dead) continue;
         m.dead = true;
-        for (NodeId c : m.next) todo.push_back(c);
+        for (NodeId c = m.first; c != NO_NODE; c = nodes_[c].sibling) todo.push_back(c);
     }
-    nodes_[n].next.clear();
+    nodes_[n].first = nodes_[n].last = NO_NODE;
     dirty_ = true;
     touch(n);
 }
@@ -314,7 +323,7 @@ bool Vm::dfs_less(NodeId u, NodeId v) const {
     if (w == v) return false;
     const u32 d = links_[w].depth + 1;
     const NodeId cu = ancestor_at(u, d), cv = ancestor_at(v, d);
-    for (NodeId c : nodes_[w].next) {
+    for (NodeId c = nodes_[w].first; c != NO_NODE; c = nodes_[c].sibling) {
         if (c == cu) return true;
         if (c == cv) return false;
     }
@@ -357,7 +366,7 @@ void Vm::run_block(NodeId id) {
     out_.clear();
     halted_ = false;
     n.lines.clear();
-    if (!n.next.empty()) cut(id);
+    if (n.has_children()) cut(id);
     n.cont = NO_NODE;
 
     if (!internal_.empty() && internal_call_at(n.start, n.stack)) {

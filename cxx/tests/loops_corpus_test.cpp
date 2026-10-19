@@ -1,6 +1,7 @@
 // Lot 6 over a corpus (opt-in: PANORAMIX_LOOPS_CORPUS=a list of .hex paths,
 // PANORAMIX_LOOPS_LIMIT=N the first N, PANORAMIX_LOOPS_SKIP=N skipped first,
-// PANORAMIX_LOOPS_DUMP=1 each loop's head printed): every function's raw
+// PANORAMIX_LOOPS_DUMP=1 each loop's head printed, PANORAMIX_LOOPS_SIMPLIFY=1
+// lot 7's simplify_function after: the loops left): every function's raw
 // trace (lot 5's VM) through make_whiles - what its loops became (an exit
 // test, rotated, renamed, while True), the failures, the time - and the
 // analyses of each WHILE (induction: counters found, trips and endvars
@@ -25,6 +26,7 @@
 #include "evm/decoder.hpp"
 #include "hex.hpp"
 #include "loops/loops.hpp"
+#include "simplify/simplify.hpp"
 #include "vm/vm.hpp"
 
 using namespace pan;
@@ -34,7 +36,30 @@ namespace {
 
 struct LoopCounts {
     u64 whiles = 0, counters = 0, trips = 0, endvars = 0, breaks = 0;
+    u64 simplified_whiles = 0, simplified_failed = 0;
 };
+
+u64 count_whiles(Value t) {
+    u64 n = 0;
+    SmallVec<Value, 64> todo{t};
+    while (!todo.empty()) {
+        Value v = todo.back();
+        todo.pop_back();
+        if (v.is_list()) {
+            for (Value l : v.args()) todo.push_back(l);
+            continue;
+        }
+        if (v.is(Op::IF, 3)) {
+            todo.push_back(v[1]);
+            todo.push_back(v[2]);
+        }
+        if (v.is(Op::WHILE, 4)) {
+            ++n;
+            todo.push_back(v[1]);
+        }
+    }
+    return n;
+}
 
 void walk_whiles(Value t, LoopCounts& c, bool show) {
     SmallVec<Value, 64> todo{t};
@@ -81,6 +106,7 @@ TEST_CASE("loops: corpus (PANORAMIX_LOOPS_CORPUS)") {
     const char* lim = std::getenv("PANORAMIX_LOOPS_LIMIT");
     const char* skp = std::getenv("PANORAMIX_LOOPS_SKIP");
     const bool show = std::getenv("PANORAMIX_LOOPS_DUMP") != nullptr;
+    const bool simplify = std::getenv("PANORAMIX_LOOPS_SIMPLIFY") != nullptr;
     const unsigned long limit = lim ? std::strtoul(lim, nullptr, 10) : 0;
     const unsigned long skip = skp ? std::strtoul(skp, nullptr, 10) : 0;
     std::ifstream in(list);
@@ -139,6 +165,15 @@ TEST_CASE("loops: corpus (PANORAMIX_LOOPS_CORPUS)") {
                         Value w = L::make_whiles(raw, fn.loops);
                         ns += platform::monotonic_ns() - t0;
                         walk_whiles(w, c, show);
+                        if (simplify) {
+                            fn.trace = w;
+                            try {
+                                simplify::simplify_function(fn);
+                                c.simplified_whiles += count_whiles(fn.trace);
+                            } catch (const Error&) {
+                                ++c.simplified_failed;
+                            }
+                        }
                     } catch (const Error& e) {
                         ++failed;
                         problem = e.what();
@@ -175,6 +210,8 @@ TEST_CASE("loops: corpus (PANORAMIX_LOOPS_CORPUS)") {
         lc.trips += c.trips;
         lc.endvars += c.endvars;
         lc.breaks += c.breaks;
+        lc.simplified_whiles += c.simplified_whiles;
+        lc.simplified_failed += c.simplified_failed;
         whiles_ns += ns;
     }
     std::printf("TOTAL %lu contracts, %llu functions (vm failed %llu), make_whiles failed %llu: loops %llu: exit test %llu "
@@ -188,5 +225,8 @@ TEST_CASE("loops: corpus (PANORAMIX_LOOPS_CORPUS)") {
                 (unsigned long long)total.no_loop, (unsigned long long)lc.whiles, (unsigned long long)lc.counters,
                 (unsigned long long)lc.trips, (unsigned long long)lc.endvars, (unsigned long long)lc.breaks,
                 (long long)(whiles_ns / 1000000));
+    if (simplify)
+        std::printf("simplified (lot 7): whiles left %llu (simplify failed %llu)\n",
+                    (unsigned long long)lc.simplified_whiles, (unsigned long long)lc.simplified_failed);
     CHECK(failed == 0);
 }

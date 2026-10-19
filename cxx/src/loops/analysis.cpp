@@ -185,9 +185,18 @@ std::optional<CondForm> cond_form(Value cond, std::span<const Value> names) {
         case Op::LE: return cond.size() == 2 ? two(cond[0], cond[1], Cmp::Le, Cmp::Ge) : std::nullopt;
         case Op::GE: return cond.size() == 2 ? two(cond[0], cond[1], Cmp::Ge, Cmp::Le) : std::nullopt;
         case Op::ISZERO: {
+            // a comparison negated (the algebra's normal forms have none: a
+            // pass's may)
             const Value x = cond[0];
-            if (x.is(Op::EQ, 2)) return two(x[0], x[1], Cmp::Ne, Cmp::Ne);
-            return std::nullopt;
+            if (x.size() != 2) return std::nullopt;
+            switch (x.op()) {
+                case Op::EQ: return two(x[0], x[1], Cmp::Ne, Cmp::Ne);
+                case Op::LT: return two(x[0], x[1], Cmp::Ge, Cmp::Le);  // !(a < b): a >= b
+                case Op::GT: return two(x[0], x[1], Cmp::Le, Cmp::Ge);
+                case Op::LE: return two(x[0], x[1], Cmp::Gt, Cmp::Lt);
+                case Op::GE: return two(x[0], x[1], Cmp::Lt, Cmp::Gt);
+                default: return std::nullopt;
+            }
         }
         default:
             // the condition itself a counter: it goes on while u != 0
@@ -286,11 +295,13 @@ std::optional<Induction> compute_induction(Value w) {
     // ---- the values after the loop -------------------------------------------------------
     // (a path that falls off the body leaves the loop with other values)
     if (falls_through(body) || bw.breaks_id) return ind;
+    // (each value made of what the loop doesn't change: the same evaluated
+    // after it as before it, where the start values were)
     SmallVec<Value, 8> ends;
     for (usize i = 0; i < names.size(); ++i) {
         const Value x = names[i];
         if (x == v) {
-            ends.push_back(mk(Op::SETVAR, x, ind.last));
+            if (invariant(eff, ind.last)) ends.push_back(mk(Op::SETVAR, x, ind.last));
             continue;
         }
         if (std::find(bw.sets.begin(), bw.sets.end(), x) != bw.sets.end()) continue;
@@ -307,7 +318,8 @@ std::optional<Induction> compute_induction(Value w) {
             if (!ok) break;
         }
         if (!ok || move.nil() || !invariant(eff, move)) continue;
-        ends.push_back(mk(Op::SETVAR, x, alg::add(starts[i], alg::mul(move, trips))));
+        const Value end = alg::add(starts[i], alg::mul(move, trips));
+        if (invariant(eff, end)) ends.push_back(mk(Op::SETVAR, x, end));
     }
     ind.endvars = mk_list(ends.span());
     return ind;

@@ -6,6 +6,7 @@
 // recursion_of, internal_call) and the trace (make_trace).
 #pragma once
 
+#include <algorithm>
 #include <deque>
 #include <memory_resource>
 #include <optional>
@@ -107,8 +108,16 @@ struct Node {
     u32 start = 0;          // the pc
     u32 sw = 0;             // a code switch's case node: 1 + k (python start ("switch", pc, k))
     NodeId same_jd = NO_NODE;  // the node made before it at the same jd (the jd's list)
+    NodeId label = NO_NODE;    // python node.label: the head whose loop this node is the body of
     Value stack;            // LIST, bottom first
     Value jd;               // LIST (start, sw, stack length, the jumpdests on the stack)
+    // its children (python node.next), in order: the first, the last, and
+    // each one's next one (a list through the nodes: what the walks down
+    // read is in the line they read anyway)
+    NodeId first = NO_NODE;
+    NodeId last = NO_NODE;
+    NodeId sibling = NO_NODE;  // the next child of its parent
+    NodeId dest = NO_NODE;     // Loop, Goto: the node looped back to
     bool dead = true;       // not in the tree (python: not attached): until linked, once cut
     bool safe = false;      // reached by a fall-through: no JUMPDEST check
     bool merged = false;    // its paths go on at merge_point's continuation
@@ -121,9 +130,6 @@ struct Node {
     Facts known;
     u32 last_call = 0;  // the call whose return data the path has (0: none yet)
 
-    // --- the tree ---
-    std::pmr::vector<NodeId> next;
-
     // --- the trace ---
     std::pmr::vector<Value> lines;
     u32 end_pc = 0;           // the pc of the instruction that ended the block
@@ -131,14 +137,12 @@ struct Node {
     NodeId a = NO_NODE;       // Jump: the child; If: the true branch
     NodeId b = NO_NODE;       // If: the false branch
     NodeId cont = NO_NODE;    // If: the continuation of the merged paths
-    NodeId dest = NO_NODE;    // Loop, Goto: the node looped back to
     Value loop_stack;         // Loop: the stack it arrived with
     Value loop_folded;        // Loop: the folded stack (variables)
     std::pmr::vector<LoopVar> loop_vars;  // Loop: the variables
     Value setvars;            // Goto: TRACE of SETVAR lines
 
     // --- loops ---
-    NodeId label = NO_NODE;  // python node.label: the head whose loop this node is the body of
     std::pmr::vector<LoopVar> begin_vars;  // (on a head) python begin_vars
     u32 loop_key = 0;        // python loop_key (0: none yet)
     u32 loop_id = 0;         // the LOOP_ID of its LABEL (0: none yet)
@@ -157,7 +161,8 @@ struct Node {
     u32 fsel = 0;      // FuncCall: the selector
     i64 ftarget = 0;   // FuncCall: where the function starts (-1: an invalid jump)
 
-    explicit Node(std::pmr::memory_resource* r) : next(r), lines(r), loop_vars(r), begin_vars(r) {}
+    explicit Node(std::pmr::memory_resource* r) : lines(r), loop_vars(r), begin_vars(r) {}
+    bool has_children() const noexcept { return first != NO_NODE; }
 };
 
 // what a run is for
@@ -231,6 +236,12 @@ private:
     bool attached(NodeId n) const;
     template <class F>
     void find_nodes(NodeId from, F&& f, std::pmr::vector<NodeId>& out) const;
+    // x's children on a walk's stack, the first on top (popped first)
+    void push_children(const Node& x, std::pmr::vector<NodeId>& todo) const {
+        const usize base = todo.size();
+        for (NodeId c = x.first; c != NO_NODE; c = nodes_[c].sibling) todo.push_back(c);
+        std::reverse(todo.begin() + isize(base), todo.end());
+    }
     void unexpanded(std::pmr::vector<NodeId>& out) const;
     // the node's children cut off the tree: its subtree dead (python's
     // node.next = [])
@@ -367,8 +378,9 @@ private:
     // whether some of an earlier round's are left (a walk finds them)
     std::pmr::vector<NodeId> new_loops_;
     bool stale_loops_ = false;
-    // scratch of the walks (never two at once)
+    // scratch of the walks (never two at once), and merge_visit's
     mutable std::pmr::vector<NodeId> walk_;
+    std::pmr::vector<NodeId> visit_walk_;
 
     // counters (python's, per VM)
     u32 counter_ = 0;        // TMP names
@@ -414,7 +426,7 @@ void Vm::find_nodes(NodeId from, F&& f, std::pmr::vector<NodeId>& out) const {
         todo.pop_back();
         const Node& x = nodes_[n];
         if (f(x)) out.push_back(n);
-        for (auto it = x.next.rbegin(); it != x.next.rend(); ++it) todo.push_back(*it);
+        push_children(x, todo);
     }
 }
 

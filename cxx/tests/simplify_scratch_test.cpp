@@ -39,6 +39,10 @@ TEST_CASE("simplify: scratch (PANORAMIX_SIMPLIFY_SCRATCH)") {
         std::printf("constraint: %s\n", dump(alg::apply_constraint(mn, alg::normalize(c))).c_str());
         Value t2 = V("{(staticcall 1 (gas 1) caller None None) (setmem (range 128 (min 32 (returndatasize 1))) (returndata_bytes 1 0 (min 32 (returndatasize 1)))) (if (iszero (call_success 1)) {(revert None)} {(if (lt (returndatasize 1) 32) {(revert None)} {(setvar tmp4 (mem (range 128 32))) (return (sized 32 tmp4))})})}");
         std::printf("mems: %s\n", dump_trace(simplify::cleanup_mems(t2)).c_str());
+        Value t3 = V("{(setmem (range 128 32) (sized 32 7)) (setmem (range 132 32) (sized 32 caller)) (staticcall 1 (gas 1) caller None None) (setmem (range 128 (min 32 (returndatasize 1))) (returndata_bytes 1 0 (min 32 (returndatasize 1)))) (if (call_success 1) {(if (ge (returndatasize 1) 32) {(setvar tmp4 (mem (range 128 32))) (return (sized 32 tmp4))} {(revert None)})} {(revert None)})}");
+        std::printf("mems3: %s\n", dump_trace(simplify::cleanup_mems(t3)).c_str());
+        Value t4 = V("{(staticcall 1 (gas 1) caller None None) (setmem (range 128 (min 32 (returndatasize 1))) (returndata_bytes 1 0 (min 32 (returndatasize 1)))) (if (call_success 1) {(if (ge (returndatasize 1) 32) {(setvar tmp4 (mem (range 128 32))) (return (sized 32 tmp4))} {(revert None)})} {(revert None)})}");
+        std::printf("mems4: %s\n", dump_trace(simplify::cleanup_mems(t4)).c_str());
     }
     budget.detach_thread();
 }

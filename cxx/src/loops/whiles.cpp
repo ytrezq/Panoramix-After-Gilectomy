@@ -93,7 +93,8 @@ private:
     bool check_exit(const Lines& body, std::span<const usize> checks, const Label& lb, Made& m);
     bool exit_values(Value out, Value body, std::span<const Value> after, const Label& lb, Value& body2,
                      Lines& after2);
-    bool break_setvars(Value trace, bool tail, std::span<const Value> from, std::span<const Value> to);
+    bool break_setvars(Value trace, bool tail, std::span<const Value> from, std::span<const Value> to,
+                       std::span<const Value> group);
     bool rotates(const Lines& path, Value body, const Label& lb);
     Value add_path(Value trace, const Lines& path, const Label& lb);
     void substituted(const Lines& path, const Label& lb, Value setvars, Lines& out);
@@ -437,10 +438,11 @@ bool Whiles::exit_values(Value out, Value body, std::span<const Value> after, co
                          Lines& after2) {
     const Value after_t = trace_of(after);
     Renamer ren;
-    SmallVec<Value, 8> from, to;
+    SmallVec<Value, 8> from, to, group;
     for (Value l : out.args()) {
         if (!l.is(Op::SETVAR, 2)) return false;
         const Value name = l[0], value = l[1];
+        group.push_back(name);
         if (!reads_name(after_t, name)) continue;  // (nobody reads what it sets)
         if (!value.is_name(NameKind::LOOP)) return false;
         if (std::find(lb.names.begin(), lb.names.end(), value) == lb.names.end()) return false;
@@ -461,7 +463,8 @@ bool Whiles::exit_values(Value out, Value body, std::span<const Value> after, co
     // body's end), and none of those setvars reads another one's new name
     // (they run one after the other: a swap would read it set)
     if (!break_setvars(body, true, std::span<const Value>(from.data(), from.size()),
-                       std::span<const Value>(to.data(), to.size())))
+                       std::span<const Value>(to.data(), to.size()),
+                       std::span<const Value>(group.data(), group.size())))
         return false;
     body2 = ren(body);
     const Value a2 = ren(after_t);
@@ -470,15 +473,18 @@ bool Whiles::exit_values(Value out, Value body, std::span<const Value> after, co
 }
 
 // In trace (a part of the body: `tail` says whether falling off its end
-// goes on to the body's end through nothing but setvars of `from`), every
-// line setting a name of `from` is a SETVAR followed by nothing but such
-// setvars to the body's end, its value reading no other name of `to`.
-bool Whiles::break_setvars(Value trace, bool tail, std::span<const Value> from, std::span<const Value> to) {
+// goes on to the body's end through nothing but setvars of the merge's
+// variables - `group`, those the exit branch sets), every line setting a
+// name of `from` is a SETVAR followed by nothing but such setvars to the
+// body's end, its value reading no other name of `to` (the group's others
+// that `after` doesn't read: dead, whatever they read).
+bool Whiles::break_setvars(Value trace, bool tail, std::span<const Value> from, std::span<const Value> to,
+                           std::span<const Value> group) {
     if (!trace.is_list()) return true;
     check_stack();
     const u32 n = trace.size();
     auto is_from_setvar = [&](Value l) {
-        return l.is(Op::SETVAR, 2) && std::find(from.begin(), from.end(), l[0]) != from.end();
+        return l.is(Op::SETVAR, 2) && std::find(group.begin(), group.end(), l[0]) != group.end();
     };
     // ok[i]: the lines from i on are such setvars
     SmallVec<u8, 32> ok;
@@ -499,7 +505,7 @@ bool Whiles::break_setvars(Value trace, bool tail, std::span<const Value> from, 
             continue;
         }
         if (l.is(Op::IF, 3) || l.is(Op::MERGED_IF, 3)) {
-            if (!break_setvars(l[1], t, from, to) || !break_setvars(l[2], t, from, to)) return false;
+            if (!break_setvars(l[1], t, from, to, group) || !break_setvars(l[2], t, from, to, group)) return false;
             continue;
         }
         for (Value name : from)

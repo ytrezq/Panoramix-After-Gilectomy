@@ -263,6 +263,16 @@ TEST_CASE("mem: slices") {
     CHECK(D(bare_element(V("(sized 32 caller)"))) == "caller");
     // a source whose offset may wrap around 2^256 isn't moved
     CHECK(!slice(V("(calldata_bytes (calldataload 4) 64)"), S(32), S(64)));
+    // zeroes are zeroes at any length, symbolic bounds included (the ABI padding after a
+    // calldata copy: a read of ceil32(cds) - cds of the 32 zero bytes written past it)
+    Value lo = V("(add 4 calldatasize)"), hi = V("(add 30 calldatasize)");
+    auto z = slice(V("(sized 32 0)"), lo, hi);
+    REQUIRE(z);
+    CHECK(D(*z) == "(sized 26 0)");
+    auto zs = slice(V("(sized 32 0)"), S(0), V("(mask_shl 5 0 0 calldatasize)"));
+    REQUIRE(zs);
+    CHECK(width_of(*zs) == V("(mask_shl 5 0 0 calldatasize)"));
+    CHECK(as_word(*zs) == std::optional<Value>(S(0)));
 }
 
 TEST_CASE("mem: concat and as_word") {

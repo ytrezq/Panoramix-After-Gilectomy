@@ -213,6 +213,12 @@ TEST_CASE("loops: induction of counted loops, endvars checked by execution") {
         " (while (iszero (eq loop1 tmp1)) {(continue loopid1 {(setvar loop1 (add 1 loop1)) (setvar loop2 (add 64 "
         "loop2))})} loopid1 {(setvar loop1 0) (setvar loop2 0)})"
         " (return (data (sized 32 loop1) (sized 32 loop2)))}");
+    // a negated comparison (a pass's form): while not (i >= n)
+    check(
+        "{(setvar tmp1 (mask_shl 6 0 0 (calldataload 4)))"
+        " (while (iszero (ge loop1 tmp1)) {(continue loopid1 {(setvar loop1 (add 1 loop1)) (setvar loop2 (add 5 "
+        "loop2))})} loopid1 {(setvar loop1 0) (setvar loop2 3)})"
+        " (return (data (sized 32 loop1) (sized 32 loop2)))}");
     // the counter as the condition (while i: i -= 1)
     check(
         "{(while loop1 {(continue loopid1 {(setvar loop1 (add -1 loop1)) (setvar loop2 (add 1 loop2))})} loopid1 "
@@ -285,6 +291,18 @@ TEST_CASE("loops: no induction, no endvars") {
         false);
     REQUIRE(ind);
     CHECK(ind->trips.nil());
+    // a start value read from memory the loop writes: that variable's
+    // value after the loop isn't its start's plus the moves (evaluated after)
+    ind = check(
+        "{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+        " (setmem (range 0 32) (sized 32 64))"
+        " (while (lt loop1 tmp1) {(setmem (range 0 32) (sized 32 loop1)) (continue loopid1 {(setvar loop1 (add 1 "
+        "loop1)) (setvar loop2 (add 32 loop2))})} loopid1 {(setvar loop1 0) (setvar loop2 (mem (range 0 32)))})"
+        " (return (sized 32 loop1))}",
+        false);
+    REQUIRE(ind);
+    REQUIRE(!ind->endvars.nil());
+    CHECK(ind->endvars.size() == 1);
     // a break: trips, no endvars
     ind = check(
         "{(setvar tmp1 (mask_shl 6 0 0 (calldataload 4)))"

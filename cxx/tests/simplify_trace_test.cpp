@@ -295,3 +295,22 @@ TEST_CASE("simplify: the length of a storage bytes") {
         "(calldataload 4)))))))))}",
         S::replace_bytes_or_string_length);
 }
+
+TEST_CASE("simplify: calls' selectors, ABI arrays") {
+    Fixture f;
+    Value u = check_trace(
+        "{(call 1 (gas 1) (calldataload 4) 0 None (data (sized 4 0xa9059cbb) (sized 32 caller) (sized 32 5))) (stop)}",
+        S::simplify_exps);
+    CHECK(u[0][4].is(Op::SIZED));
+    u = check_trace("{(return (data (sized 32 32) (sized 32 5) (sized 5 0x1122334455) (sized 27 0)))}", S::postprocess_exps);
+    CHECK(u[0][0].is(Op::DATA));
+    CHECK(u[0][0][0].is(Op::ARR));
+    // two heads before it, a symbolic length padded to whole words
+    u = check_trace(
+        "{(return (data (sized 32 caller) (sized 32 64) (sized 32 calldatasize) (calldata_bytes 0 calldatasize) (sized (add "
+        "(mask_shl 251 5 0 (add 31 calldatasize)) (mul -1 calldatasize)) 0)))}",
+        S::postprocess_exps);
+    CHECK(u[0][0][1].is(Op::ARR));
+    // not an encoding: as it is
+    check_trace("{(return (data (sized 32 32) (sized 32 5) (sized 3 0x112233)))}", S::postprocess_exps);
+}

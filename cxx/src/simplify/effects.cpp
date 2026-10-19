@@ -1,5 +1,6 @@
 // Effect summaries (effects.hpp).
 #include "simplify/effects.hpp"
+#include "simplify/internal.hpp"
 
 #include <deque>
 #include <memory_resource>
@@ -27,6 +28,13 @@ struct EffectsState final : ModuleState {
     std::pmr::deque<EffectSummary> sums;
     EffectsState() : sums(cx().budget.resource()) {}
     // summaries are structural: nothing to forget when the algebra changes
+};
+
+// the answers of mem::overlaps, per pair: they depend on the algebra's
+// context (the variables' ranges), cleared with it
+struct OverlapState final : ModuleState {
+    Memo<Key2, i8> memo;  // the Tri + 3 (never 0: an empty slot's value)
+    void clear_caches() override { memo.clear(); }
 };
 
 // ---- places: sorted (compare()) lists without duplicates ------------------------
@@ -490,7 +498,7 @@ Tri slots_may_alias(Value a, Value b) {
     return Tri::None;
 }
 
-bool mem_may_overlap(Value w, Value r) { return mem::overlaps(w, r) != Tri::False; }
+bool mem_may_overlap(Value w, Value r) { return overlaps(w, r) != Tri::False; }
 
 bool key_may_alias(Value a, Value b) {
     if (a == b) return true;
@@ -563,6 +571,15 @@ bool classes_meet(u32 ca, u32 any_a, bool a_writes, const EffectSummary& a, u32 
 }  // namespace
 
 // ---- the API ------------------------------------------------------------------------------
+
+Tri overlaps(Value r1, Value r2) {
+    if (r1.nil() || r2.nil()) return mem::overlaps(r1, r2);
+    const Key2 k{r1.raw(), r2.raw()};
+    if (const i8* t = cx().state<OverlapState>().memo.find(k)) return Tri(*t - 3);
+    const Tri t = mem::overlaps(r1, r2);
+    cx().state<OverlapState>().memo.put(k, i8(i8(t) + 3));
+    return t;
+}
 
 const EffectSummary& summary(Value v) {
     if (v.nil() || v.is_int() || v.is_bool() || v.is_none() || v.is_bytes()) return kEmpty;

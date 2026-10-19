@@ -108,6 +108,14 @@ inline constexpr u32 P_CONDS = 1u << 7;        // cleanup_conds
 inline constexpr u32 P_FINAL = 1u << 8;        // max_to_add, fix_storages, readability...
 inline constexpr u32 P_LOOPS = 1u << 9;        // lot 6's loops_to_setmems, propagate_storage_in_loops
 
+// the time each pass took on this thread (profiling: the dump test prints
+// them), by P_* bit index (10: summaries' combine, 11: the rest)
+struct SimplifyStats {
+    u64 ns[12] = {};
+    u64 runs[12] = {};
+};
+SimplifyStats& simplify_stats() noexcept;
+
 // ---- expressions ------------------------------------------------------------------
 
 // e with the local rules applied to a fixpoint, any depth (python

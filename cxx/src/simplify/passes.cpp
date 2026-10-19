@@ -470,18 +470,24 @@ Value abi_array(Value d) {
     Value lenw = d[u32(loc)];
     if (!lenw.is(Op::SIZED, 2)) return d;
     Value len = lenw[1];
-    // the content: whole words
+    // the content: whole words (its width a multiple of 32 for every value)
     SmallVec<Value, 8> content;
     u64 total = 0;
+    bool known = true;
+    SmallVec<Value, 8> widths;
     for (u32 i = u32(loc) + 1; i < n; ++i) {
-        auto w = mem::width_u64(d[i]);
+        auto w = mem::width_of(d[i]);
         if (!w) return d;
-        total += *w;
+        widths.push_back(*w);
+        if (auto k = mem::width_u64(d[i]))
+            total += *k;
+        else
+            known = false;
         content.push_back(d[i]);
     }
-    if (total % 32 != 0) return d;
+    if (known ? total % 32 != 0 : alg::low_zero_bits(alg::add(widths.span())) < 5) return d;
     // without the zeroes past its length, when they're only that
-    if (len.is_small()) {
+    if (known && len.is_small()) {
         u64 kept = total;
         usize k = content.size();
         while (k > 0 && content[k - 1].is(Op::SIZED, 2) && is_int(content[k - 1][1], 0)) {

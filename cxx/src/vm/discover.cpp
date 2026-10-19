@@ -239,7 +239,7 @@ bool Discovery::has_funccall(NodeId n) const {
         todo.pop_back();
         const Node& m = node(x);
         if (m.end == End::FuncCall) return true;
-        for (NodeId c : m.next) todo.push_back(c);
+        for (NodeId c = m.first; c != NO_NODE; c = node(c).sibling) todo.push_back(c);
     }
     return false;
 }

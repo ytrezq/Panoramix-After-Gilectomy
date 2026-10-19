@@ -755,6 +755,9 @@ std::optional<Value> slice(Value b, Value lo, Value hi, const Facts* f) {
             if (b.size() != 2) return std::nullopt;
             const Value n = b[0], x = b[1];
             if (!is_bytes(x) && !is_long_const(x)) {
+                // zeroes are zeroes at any length: hi - lo of them, whatever lo and hi
+                // (the caller's 0 <= lo <= hi <= n), symbolic bounds included
+                if (x == kZero) return sized(alg::sub(hi, lo), kZero);
                 auto nn = nat(n);
                 if (!nn || !ilo || !ihi || *ilo > *ihi || *ihi > *nn) return std::nullopt;
                 return word_slice(x, *nn, *ilo, *ihi);

@@ -616,7 +616,8 @@ std::optional<bool> Vm::merge_visit(NodeId start, NodeId p, Value jd, bool false
                                     std::pmr::vector<NodeId>& hits, std::pmr::vector<NodeId>& continues) {
     std::optional<bool> result = true;
     const NodeId plabel = nodes_[p].label;
-    std::pmr::vector<NodeId> todo(res_);
+    std::pmr::vector<NodeId>& todo = visit_walk_;
+    todo.clear();
     todo.push_back(start);
     while (!todo.empty()) {
         poll();
@@ -648,8 +649,8 @@ std::optional<bool> Vm::merge_visit(NodeId start, NodeId p, Value jd, bool false
             result = std::nullopt;
             continue;
         }
-        if (!x.next.empty()) {
-            for (auto it = x.next.rbegin(); it != x.next.rend(); ++it) todo.push_back(*it);
+        if (x.has_children()) {
+            push_children(x, todo);
             continue;
         }
         if (x.end == End::Goto) {
@@ -691,8 +692,8 @@ void Vm::summarize(NodeId root) {
             }
             // its children first, then itself
             st.back() = top | 1;
-            for (auto it = x.next.rbegin(); it != x.next.rend(); ++it)
-                if (!good(*it)) st.push_back(u64(*it) << 1);
+            for (NodeId c = x.first; c != NO_NODE; c = nodes_[c].sibling)
+                if (!good(c)) st.push_back(u64(c) << 1);
             continue;
         }
         st.pop_back();
@@ -701,7 +702,7 @@ void Vm::summarize(NodeId root) {
         // that aren't below it
         u64 mask = x.label != NO_NODE ? sum_jd_bit(x.jd) : 0;
         u8 en = 0;
-        for (NodeId c : x.next) {
+        for (NodeId c = x.first; c != NO_NODE; c = nodes_[c].sibling) {
             const u64 cm = links_[c].sum_mask;
             mask |= cm;
             if (mask & kSumUnknown) break;
