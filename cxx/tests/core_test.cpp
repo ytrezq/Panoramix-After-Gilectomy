@@ -16,6 +16,7 @@
 #include "core/jobs.hpp"
 #include "core/order.hpp"
 #include "core/platform.hpp"
+#include "core/smallvec.hpp"
 #include "core/value.hpp"
 #include "core/watchdog.hpp"
 
@@ -364,4 +365,22 @@ TEST_CASE("core: the watchdog expires a budget") {
         CHECK(timed_out);
     }
     b.detach_thread();
+}
+
+TEST_CASE("core: SmallVec grows from its own elements") {
+    SmallVec<u64, 2> v;
+    v.push_back(7);
+    v.push_back(8);
+    for (int i = 0; i < 100; i++) v.push_back(v.back());  // the argument is in the buffer grow frees
+    CHECK(v.size() == 102);
+    CHECK(v.back() == 8);
+    SmallVec<u64, 2> w;
+    w.push_back(1);
+    w.push_back(2);
+    for (int i = 0; i < 6; i++) w.append(w.span());  // the source is the vector itself
+    CHECK(w.size() == 128);
+    CHECK(w[127] == 2);
+    for (int i = 0; i < 10; i++) w.insert_front(w.back());
+    CHECK(w[0] == 2);
+    CHECK(w.size() == 138);
 }

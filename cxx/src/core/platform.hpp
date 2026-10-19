@@ -59,4 +59,8 @@ bool is_tty(int fd);
 // spawn's threads start that way.
 void block_async_signals();
 
+// fork handlers (pthread_atfork): prepare runs in the parent before a fork,
+// parent after it, child in the new process (any may be null)
+void at_fork(void (*prepare)(), void (*parent)(), void (*child)());
+
 }  // namespace pan::platform

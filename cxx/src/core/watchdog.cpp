@@ -19,7 +19,12 @@ constexpr usize WATCHDOG_STACK = usize(1) << 20;
 
 Watchdog& Watchdog::instance() {
     // leaked on purpose: no destruction at exit while the thread runs
-    static Watchdog* const wd = new Watchdog();
+    static Watchdog* const wd = [] {
+        auto* w = new Watchdog();
+        // a forked child has no watchdog thread: the next Watch starts one
+        platform::at_fork(nullptr, nullptr, [] { Watchdog::after_fork_child(); });
+        return w;
+    }();
     return *wd;
 }
 

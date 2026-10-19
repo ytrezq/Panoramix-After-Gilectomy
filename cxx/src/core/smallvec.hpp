@@ -51,39 +51,49 @@ public:
     std::span<const T> span() const { return {data(), n_}; }
 
     void push_back(const T& x) {
-        if (n_ == cap_) grow(n_ + 1);
+        if (PAN_UNLIKELY(n_ == cap_)) {
+            T copy = x;  // x may be in the buffer grow frees
+            std::free(grow(n_ + 1));
+            data()[n_++] = copy;
+            return;
+        }
         data()[n_++] = x;
     }
     void pop_back() { n_--; }
     void append(std::span<const T> s) {
-        if (n_ + s.size() > cap_) grow(n_ + s.size());
+        void* old = n_ + s.size() > cap_ ? grow(n_ + s.size()) : nullptr;
         if (!s.empty()) std::memcpy(data() + n_, s.data(), s.size() * sizeof(T));
         n_ += s.size();
+        std::free(old);  // after the copy: s may point into it
     }
     void insert_front(const T& x) {
-        if (n_ == cap_) grow(n_ + 1);
+        T copy = x;  // x may be in the buffer grow frees
+        if (n_ == cap_) std::free(grow(n_ + 1));
         std::memmove(data() + 1, data(), n_ * sizeof(T));
-        data()[0] = x;
+        data()[0] = copy;
         n_++;
     }
     void resize(usize n) {
-        if (n > cap_) grow(n);
+        if (n > cap_) std::free(grow(n));
         if (n > n_) std::memset(data() + n_, 0, (n - n_) * sizeof(T));
         n_ = n;
     }
     void clear() { n_ = 0; }
 
 private:
-    void grow(usize need) {
+    // a bigger buffer holding the elements; returns the old heap buffer
+    // (nullptr: none), which the caller frees once it no longer reads it
+    [[nodiscard]] void* grow(usize need) {
         usize cap = cap_ * 2;
         if (cap < need) cap = need;
         T* p = static_cast<T*>(std::malloc(cap * sizeof(T)));
         // the system gave no more: the job maps bad_alloc to MemoryLimit
         if (PAN_UNLIKELY(!p)) throw std::bad_alloc();
         std::memcpy(p, data(), n_ * sizeof(T));
-        if (heap_) std::free(heap_);
+        void* old = heap_;
         heap_ = p;
         cap_ = cap;
+        return old;
     }
 
     T* heap_ = nullptr;

@@ -15,6 +15,8 @@
 
 #include "core/platform.hpp"
 
+#include "core/budget.hpp"
+
 namespace pan::platform {
 
 namespace {
@@ -94,7 +96,7 @@ usize physical_memory() {
         close(fd);
         if (n > 0 && buf[0] >= '0' && buf[0] <= '9') {
             buf[n] = 0;
-            unsigned long long v = std::strtoull(buf, nullptr, 10);
+            u64 v = env::parse_u64(buf);  // a Ragel machine (core/env.rl)
             if (v && (mem == 0 || v < mem)) mem = usize(v);
         }
     }
@@ -154,5 +156,7 @@ void block_async_signals() {
     async_signals(&async);
     pthread_sigmask(SIG_BLOCK, &async, nullptr);
 }
+
+void at_fork(void (*prepare)(), void (*parent)(), void (*child)()) { pthread_atfork(prepare, parent, child); }
 
 }  // namespace pan::platform

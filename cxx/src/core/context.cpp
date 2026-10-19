@@ -427,6 +427,8 @@ Context& global_context() noexcept { return *g_global; }
 
 void init() {
     std::call_once(g_init_once, [] {
+        // a fork while another thread holds the chunk pool's lock
+        platform::at_fork([] { pool_lock.lock(); }, [] { pool_lock.unlock(); }, [] { pool_lock.reset(); });
         static Budget global_budget(Budget::Limits{});
         g_global = new Context(global_budget, nullptr);
         g_global->hc.init(1 << 14);
