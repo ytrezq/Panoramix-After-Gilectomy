@@ -822,6 +822,22 @@ void Run::contract_phase()
         ao.deadline_ns = post_deadline_;
         ao.shared = &shared_;
         constexpr unsigned f = stage_index(Stage::Folded);
+        // (what they import: a function's result each, bounded by its fold's
+        // own limit - not by the contract's, as the jobs' imports)
+        const usize before = main_budget_.counting().used();
+        if (s_.own_contract)
+            main_budget_.counting().set_limit(0);
+        struct Phase {
+            Run& run;
+            usize before;
+            ~Phase()
+            {
+                const usize after = run.main_budget_.counting().used();
+                if (after > before)
+                    run.imported_ += after - before;
+                run.set_phase_limit();
+            }
+        } phase{*this, before};
         output::ast_stage(r.functions[from], r.functions[f], ao);
         output::ast_stage(r.internals[from], r.internals[f], ao);
         r.made[f] = r.kept[f] = true;

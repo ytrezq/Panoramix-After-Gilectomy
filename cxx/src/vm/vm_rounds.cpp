@@ -454,6 +454,24 @@ void Vm::merge_unexpanded(std::pmr::vector<NodeId>& unexp) {
         members.insert(members.end(), tmp.begin(), tmp.end());
         g = u32(groups.size());
     }
+    if (check_) {
+        // the groups as python's by_jd makes them: a walk of the whole tree
+        std::pmr::vector<NodeId> all(res_);
+        find_nodes(root_, [](const Node&) { return true; }, all);
+        std::pmr::vector<u32> seen(groups.size(), 0, res_);
+        for (NodeId n : all) {
+            const u32* g = index.find(nodes_[n].jd);
+            if (!g) continue;
+            const Group& grp = groups[*g - 1];
+            u32& k = seen[*g - 1];
+            if (k >= grp.len || members[grp.off + k] != n)
+                throw InternalError("vm: a merge pass's group differs from python's by_jd (PANORAMIX_VM_CHECK)");
+            ++k;
+        }
+        for (usize i = 0; i < groups.size(); ++i)
+            if (seen[i] != groups[i].len)
+                throw InternalError("vm: a merge pass's group differs from python's by_jd (PANORAMIX_VM_CHECK)");
+    }
     Memo<Key2, u8> tried;  // (p + 1, jd)
 
     for (NodeId node : unexp) {
