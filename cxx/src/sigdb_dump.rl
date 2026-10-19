@@ -216,7 +216,7 @@ struct DumpParser::State {
     void line_end(std::uint64_t line)
     {
         if (!has_selector || !has_abi)
-            throw Error(Error::Code::bad_dump,
+            throw Error(Error::Code::failed,
                         "line " + std::to_string(line) + ": no \"" +
                             (has_selector ? "abi" : "selector") + "\"");
         RawEntry e;
@@ -428,7 +428,7 @@ void DumpParser::parse(const std::uint8_t* p, const std::uint8_t* pe)
         throw Error(Error::Code::bad_dump,
                     "line " + std::to_string(line + 1) + ": nested too deep");
     if (cs < dump_first_final || p != pe)
-        throw Error(Error::Code::bad_dump,
+        throw Error(Error::Code::failed,
                     "line " + std::to_string(line + 1) + ": not the JSON expected");
 }
 

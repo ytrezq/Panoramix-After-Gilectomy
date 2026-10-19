@@ -940,11 +940,11 @@ private:
 
 // The dump decompressed (xz or lzma, as python's lzma.open) and given to the
 // parser by whole lines.
-void read_dump(std::span<const std::uint8_t> xz, DumpParser& parser, const std::string& name)
+void read_dump(std::span<const std::uint8_t> xz, DumpParser& parser)
 {
     lzma_stream strm = LZMA_STREAM_INIT;
     if (lzma_auto_decoder(&strm, UINT64_MAX, LZMA_CONCATENATED) != LZMA_OK)
-        throw Error(Error::Code::failed, name + ": lzma can't decode");
+        throw Error(Error::Code::failed, "lzma can't decode");
     struct End {
         lzma_stream* s;
         ~End() { lzma_end(s); }
@@ -959,7 +959,7 @@ void read_dump(std::span<const std::uint8_t> xz, DumpParser& parser, const std::
         lzma_ret r = lzma_code(&strm, LZMA_FINISH);
         len = buf.size() - strm.avail_out;
         if (r != LZMA_OK && r != LZMA_STREAM_END)
-            throw Error(Error::Code::failed, name + ": lzma error " + std::to_string(r));
+            throw Error(Error::Code::failed, "lzma error " + std::to_string(r));
         std::string_view text(reinterpret_cast<const char*>(buf.data()), len);
         std::size_t last = text.rfind('\n');
         if (last != std::string_view::npos) {
@@ -978,7 +978,7 @@ void read_dump(std::span<const std::uint8_t> xz, DumpParser& parser, const std::
         if (len == buf.size()) {  // a line longer than the buffer
             if (buf.size() >= max_line)
                 throw Error(Error::Code::bad_dump,
-                            name + ": line " + std::to_string(parser.lines() + 1) + " is too long");
+                            "line " + std::to_string(parser.lines() + 1) + " is too long");
             buf.resize(buf.size() * 2);
         }
     }
@@ -1091,8 +1091,11 @@ BuildStats build(const std::filesystem::path& dump, const std::filesystem::path&
 
     DumpParser parser(b);
     try {
-        read_dump(xz->bytes(), parser, dump.string());
+        read_dump(xz->bytes(), parser);
     } catch (const Error& e) {
+        // (the asm's messages: what it can't read, what it reads but refuses)
+        if (e.code() == Error::Code::failed)
+            throw Error(e.code(), dump.string() + ": " + e.what());
         throw Error(e.code(), dump.string() + " isn't a signature dump this can read: " + e.what());
     }
     xz.reset();
@@ -1130,16 +1133,15 @@ bool dump_changed(const Database& db, const std::filesystem::path& dump)
     }
 }
 
-std::unique_ptr<Database> load_default()
+}  // namespace
+
+std::unique_ptr<Database> load(const std::filesystem::path& path,
+                               const std::optional<std::filesystem::path>& env_dump)
 {
-    std::filesystem::path path = default_path();
     if (path.empty()) {
         log(log_warning, "no signature database (no HOME, no PANORAMIX_SIGDB): the functions will be unknown");
         return nullptr;
     }
-    std::optional<std::filesystem::path> env_dump;
-    if (const char* e = std::getenv("PANORAMIX_ABI_DUMP"); e && *e)
-        env_dump = e;
     bool built = false;
     auto rebuild = [&](const std::filesystem::path& dump) {
         built = true;
@@ -1187,15 +1189,16 @@ std::unique_ptr<Database> load_default()
     }
 }
 
-}  // namespace
-
 const Database* get() noexcept
 {
     static std::once_flag once;
     static std::unique_ptr<Database> db;
     std::call_once(once, [] {
         try {
-            db = load_default();
+            std::optional<std::filesystem::path> dump;
+            if (const char* e = std::getenv("PANORAMIX_ABI_DUMP"); e && *e)
+                dump = e;
+            db = load(default_path(), dump);
         } catch (const std::exception& e) {
             log(log_error, std::string("the signature database: ") + e.what());
         }

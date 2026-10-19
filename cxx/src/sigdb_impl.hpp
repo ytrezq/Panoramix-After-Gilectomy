@@ -79,6 +79,13 @@ private:
 
 }  // namespace platform
 
+// get()'s work (without the once): the database at path, built again first
+// when the dump it was built from changed (dump's, when given, else the one
+// it names), built when there is none (or not one of this format) and dump
+// is given; nullptr when there is none (logged).
+std::unique_ptr<Database> load(const std::filesystem::path& path,
+                               const std::optional<std::filesystem::path>& dump);
+
 // --- small things ------------------------------------------------------------------
 
 void log(int level, std::string_view message);
