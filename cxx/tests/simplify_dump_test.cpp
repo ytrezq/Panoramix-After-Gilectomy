@@ -28,6 +28,31 @@
 
 using namespace pan;
 
+namespace {
+
+// the WHILE lines of a trace (any depth), with lot 6's facts on them
+void show_loops(Value t) {
+    if (!t.is_list()) return;
+    for (Value l : t.args()) {
+        if (l.is(Op::WHILE, 4)) {
+            const loops::LoopSummary& s = loops::summary(l);
+            std::printf("  loop %s: writes %s%s reads %s%s\n", dump(l[2]).c_str(), dump(s.mem_writes).c_str(),
+                        s.mem_writes_any ? " (any)" : "", dump(s.mem_reads).c_str(), s.mem_reads_any ? " (any)" : "");
+            if (auto ind = loops::induction(l))
+                std::printf("    induction %s start %s step %s bound %s trips %s endvars %s\n", dump(ind->var).c_str(),
+                            dump(ind->start).c_str(), dump(ind->step).c_str(), dump(ind->bound).c_str(),
+                            dump(ind->trips).c_str(), dump(ind->endvars).c_str());
+            show_loops(l[1]);
+        }
+        if (l.is(Op::IF, 3)) {
+            show_loops(l[1]);
+            show_loops(l[2]);
+        }
+    }
+}
+
+}  // namespace
+
 TEST_CASE("simplify: dump (PANORAMIX_SIMPLIFY_DUMP)") {
     const char* path = std::getenv("PANORAMIX_SIMPLIFY_DUMP");
     if (!path) return;
@@ -70,6 +95,7 @@ TEST_CASE("simplify: dump (PANORAMIX_SIMPLIFY_DUMP)") {
                 FunctionInfo g = fn;
                 loops::whiles_function(g);
                 if (show_raw) std::printf("==== %s whiles\n%s\n", name, dump_trace(g.trace).c_str());
+                if (std::getenv("PANORAMIX_SIMPLIFY_LOOPS")) show_loops(g.trace);
                 simplify::simplify_function(g);
                 std::printf("==== %s simplified\n%s\n", name, dump_trace(g.trace).c_str());
             } catch (const Error& e) {

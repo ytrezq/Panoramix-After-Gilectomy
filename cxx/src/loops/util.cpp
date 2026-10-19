@@ -15,17 +15,6 @@ struct JumpState final : ModuleState {
     Memo<Key2, u8> memo;  // 1 + answer
 };
 
-// the lines a line holds (IF branches, a WHILE's body...): the traces among its operands
-bool holds_traces(Value l) {
-    switch (l.op()) {
-        case Op::IF:
-        case Op::MERGED_IF:
-        case Op::WHILE:
-        case Op::LOOP_PATH: return true;
-        default: return false;
-    }
-}
-
 }  // namespace
 
 bool has_jump_to(Value v, Value id) {
@@ -181,12 +170,6 @@ bool sets_name(Value v, Value name) {
             }
         },
         [](Value x) { return x.is_list() || has(x.op(), LINE); });
-}
-
-bool has_numbered_line(Value v) {
-    return walk_find(
-        v, [](Value x) { return x.is_expr() && has(x.op(), LINE) && has(x.op(), NUMBERED); },
-        [](Value x) { return x.is_list() || (x.is_expr() && holds_traces(x)); });
 }
 
 u32 node_count(Value v, u32 cap) {

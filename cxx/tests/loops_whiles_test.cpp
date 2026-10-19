@@ -229,11 +229,20 @@ TEST_CASE("loops: no rotation when it isn't equivalent") {
     w = first_while(u);
     REQUIRE(!w.nil());
     CHECK(is_true_cond(w[0]));
-    // a call before the test: its id isn't copied
+    // a call before the test: copied with its id (python's), its results read after it
     u = whiles(
         "{(label loopid1 {(setvar loop1 0)})"
         " (call 1 (gas 1) (calldataload 4) 0 None None)"
-        " (if (lt loop1 3) {(goto loopid1 {(setvar loop1 (add 1 loop1))})} {})"
+        " (if (lt loop1 (add 2 (call_success 1))) {(goto loopid1 {(setvar loop1 (add 1 loop1))})} {})"
+        " (return (sized 32 loop1))}");
+    w = first_while(u);
+    REQUIRE(!w.nil());
+    CHECK(!is_true_cond(w[0]));
+    // the next value reads the call's result the copy would run again: not rotated
+    u = whiles(
+        "{(label loopid1 {(setvar loop1 0)})"
+        " (call 1 (gas 1) (calldataload 4) 0 None None)"
+        " (if (lt loop1 5) {(goto loopid1 {(setvar loop1 (add 1 (call_success 1) loop1))})} {})"
         " (return (sized 32 loop1))}");
     w = first_while(u);
     REQUIRE(!w.nil());
@@ -531,4 +540,24 @@ TEST_CASE("loops: a check as the exit test (its branch ends the run)") {
     w = first_while(u);
     REQUIRE(!w.nil());
     CHECK(is_true_cond(w[0]));
+}
+
+TEST_CASE("loops: Vyper's loops, their counter in memory, tested at the end") {
+    Fixture f;
+    // (the shape of Curve3pool's donate_admin_fees: no loop variable, the
+    // test before the back edge, a STOP when it fails)
+    Value u = whiles(
+        "{(setmem (range 320 32) (sized 32 0))"
+        " (label loopid1 {})"
+        " (setvar tmp3 (mem (range 320 32)))"
+        " (if (lt tmp3 3)"
+        "   {(store 256 0 (add 100 tmp3) (calldataload (add 4 (mul 32 tmp3))))"
+        "    (setvar tmp8 (mem (range 320 32)))"
+        "    (setmem (range 320 32) (sized 32 (add 1 tmp8)))"
+        "    (if (iszero (eq 3 (add 1 tmp8))) {(goto loopid1 {})} {(stop)})}"
+        "   {(revert None)})}");
+    Value w = first_while(u);
+    REQUIRE(!w.nil());
+    CHECK(!is_true_cond(w[0]));
+    CHECK(u[u.size() - 1].is(Op::STOP));
 }

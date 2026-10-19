@@ -13,8 +13,8 @@
 //    leaves; the lines before it (checks, reads) rotated - run before the loop
 //    with the start values and again before each CONTINUE with the next ones -
 //    only when that is equivalent (they set no loop variable, no value of the
-//    setvars reads what they change, no CONTINUE in them, no call id
-//    duplicated); the exit branch's merge setvars renamed away (python
+//    setvars reads what they change, no jump or loop in them; a call in them
+//    copied with its id, as python did); the exit branch's merge setvars renamed away (python
 //    exit_values) only when that is equivalent; a loop whose only way out is
 //    a check of its variables whose branch ends the run (python: while
 //    True) as `while not check`, that branch after it. Otherwise the loop is

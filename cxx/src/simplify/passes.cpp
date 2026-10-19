@@ -218,15 +218,11 @@ Value split_lines(Value trace) {
 namespace {
 
 // solidity's length of the bytes at slot key, from its word x = stor[key]:
-// (x & (256 * iszero(x & 1) - 1)) >> 1 - as the algebra's normal form makes
-// it: the bits [1, 256) of AND(x, 255 + 2^256 - 256 * ... )...; matched by
-// evaluating: the shape below built for the slot and compared
-Value length_idiom(Value key, i64 size, i64 off) {
+// (x & (256 * iszero(x & 1) - 1)) >> 1 - the mask's normal form (the AND's
+// operands in the order they come)
+Value length_mask(Value key) {
     Value x = mk(Op::STORAGE, small(256), small(0), key);
-    Value low = alg::band(x, small(1));
-    Value m = alg::add(alg::mul(small(256), alg::iszero(low)), small(-1));
-    Value v = alg::band(x, m);
-    return alg::mask(size, off, -1, v);
+    return alg::add(alg::mul(small(256), alg::iszero(alg::band(x, small(1)))), small(-1));
 }
 
 }  // namespace
@@ -234,17 +230,20 @@ Value length_idiom(Value key, i64 size, i64 off) {
 Value replace_bytes_or_string_length(Value trace) {
     return rewrite_exprs(trace, [](Value e, Pos) -> Value {
         auto m = alg::as_mask(e);
-        if (!m || !m->concrete() || m->ishl() != -1 || m->ioff() < 1 || m->isize() + m->ioff() > 256) return e;
-        if (!m->x.is(Op::AND)) return e;
-        // the slot: the STORAGE(256, 0, key) operand of the AND
-        for (Value t : m->x.args()) {
+        if (!m || !m->concrete() || m->ioff() < 1 || m->isize() + m->ioff() > 256) return e;
+        if (!m->x.is(Op::AND, 2)) return e;
+        // the slot: the STORAGE(256, 0, key) operand of the AND, the other its mask
+        for (u32 i = 0; i < 2; ++i) {
+            Value t = m->x[i];
             if (!t.is(Op::STORAGE, 3) || !is_int(t[0], 256) || !is_int(t[1], 0)) continue;
             Value key = t[2];
-            if (length_idiom(key, m->isize(), m->ioff()) != e) continue;
+            if (m->x[1 - i] != length_mask(key)) continue;
+            // (x & mask) is twice the length, plus the low bit of x: its bits
+            // from 1 on are the length's from 0
             Value k = key.is_int() ? mk(Op::LOC, key) : key;
             Value len = mk(Op::STORAGE, small(256), small(0), mk(Op::LENGTH, k));
-            if (m->isize() == 255 && m->ioff() == 1) return len;
-            return alg::mask(m->isize(), m->ioff() - 1, 0, len);
+            if (m->isize() == 255 && m->ioff() == 1 && m->ishl() == -1) return len;
+            return alg::mask(m->isize(), m->ioff() - 1, m->ishl() + 1, len);
         }
         return e;
     });

@@ -39,10 +39,6 @@ bool reads_any(Value v, std::span<const Value> names);
 // the lines of v (any depth) that set `name`: SETVAR lines and setvars of
 // WHILE / CONTINUE / LABEL / GOTO, PRECOMPILED and INTERNAL results
 bool sets_name(Value v, Value name);
-// v holds a numbered line (a call, a creation, a precompile: its id would
-// be duplicated by a copy of it)
-bool has_numbered_line(Value v);
-
 // the nodes of v, counted up to cap
 u32 node_count(Value v, u32 cap);
 

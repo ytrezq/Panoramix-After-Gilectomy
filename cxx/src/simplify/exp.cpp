@@ -155,6 +155,8 @@ std::optional<Value> mask_rule(Value r) {
         // the mask keeps every bit that may be set
         if (shl == 0 && size + off >= 256 && (x.is(Op::ADD) || x.is(Op::MUL)) && alg::low_zero_bits(x) >= u32(off))
             return x;
+        // ... by its range: address(caller) is caller (python cleanup_mul_1)
+        if (shl == 0 && off == 0 && size > 0 && !alg::may_be_wide(x) && alg::range_bits(x) <= u32(size)) return x;
         // a field of storage (at bit 0) moved down past 0
         if (x.is(Op::STORAGE, 3) && x[0].is_small() && x[1].is_small() && x[1].small_val() >= 0 &&
             x[0].small_val() >= 0 && x[0].small_val() <= -shl)

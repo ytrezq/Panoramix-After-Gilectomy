@@ -24,9 +24,10 @@
 //                                           preceded by P[v := Sk]
 //
 // equivalent when (rotation) P sets no loop variable, holds no loop control
-// (no jump, no loop) and no numbered line (a call's id copied), and no line
+// (no jump, no loop), and no line
 // of P[v := S] changes what a value of S reads (S: S0, each Sk) - the
-// values are the same evaluated after it, where the setvars are now; and
+// values are the same evaluated after it, where the setvars are now (a call
+// in P copied with its id: each run of a copy is that call's latest); and
 // when O, which ran before R when the condition failed, is nothing once its
 // merge variables are renamed (python exit_values: each one R reads a loop
 // variable R neither reads nor sets, the breaks of B setting it instead -
@@ -228,22 +229,23 @@ void Whiles::as_while_true(Made& m, const Lines& body, std::span<const Value> re
 //
 // (B': B with P[v := Sk] before each GOTO, the rotation's conditions on P).
 // X runs where the loop is left, in the state the check saw. The check
-// chosen: the first one whose condition reads a variable of the loop and
-// whose X isn't a lone REVERT / INVALID (those stay checks, python's).
+// chosen, among those whose X isn't a lone REVERT / INVALID (those stay
+// checks, python's): the first whose condition reads a variable of the loop
+// (a counter's test at the head), else the last one (a test at the end, the
+// loop's state in memory: Vyper's, python's exit test there).
 bool Whiles::check_exit(const Lines& body, std::span<const usize> checks, const Label& lb, Made& m) {
     if (!opts_.exit_test || checks.empty()) return false;
     std::pmr::memory_resource* res = cx().budget.resource();
     const std::span<const Value> names(lb.names.data(), lb.names.size());
-    for (usize k : checks) {
+    auto lone_fail = [](Value x) { return x.size() == 1 && (x[0].is(Op::REVERT) || x[0].is(Op::INVALID)); };
+    auto attempt = [&](usize k) {
         const Value chk = body[k];
         const Value c = chk[0], x = chk[1];
-        if (!reads_any(c, names)) continue;
-        if (x.size() == 1 && (x[0].is(Op::REVERT) || x[0].is(Op::INVALID))) continue;
         const Value rest = trace_of(std::span<const Value>(body.data() + k + 1, body.size() - k - 1));
         // (no break: X only when the check holds)
         if (falls_through(rest)) return false;
         Lines p(body.begin(), body.begin() + isize(k), res);
-        if (!rotates(p, rest, lb)) continue;
+        if (!rotates(p, rest, lb)) return false;
         Lines before(res);
         substituted(p, lb, lb.setvars, before);
         m.before.swap(before);
@@ -253,6 +255,16 @@ bool Whiles::check_exit(const Lines& body, std::span<const usize> checks, const 
         m.loop = true;
         m.check_exit = true;
         return true;
+    };
+    for (usize k : checks) {
+        const Value chk = body[k];
+        if (lone_fail(chk[1]) || !reads_any(chk[0], names)) continue;
+        if (attempt(k)) return true;
+    }
+    for (usize i = checks.size(); i-- > 0;) {
+        const usize k = checks[i];
+        if (lone_fail(body[k][1])) continue;
+        return attempt(k);
     }
     return false;
 }
@@ -544,7 +556,8 @@ bool Whiles::rotates(const Lines& path, Value body, const Label& lb) {
     std::pmr::memory_resource* res = cx().budget.resource();
     const Value pt = trace_of(std::span<const Value>(path.data(), path.size()));
     if (pt.has_flags(F_LOOPCTL)) return false;  // a jump, a loop: not copied
-    if (has_numbered_line(pt)) return false;    // a call's id: not copied
+    // (a call in it: copied with its id, as python did - each run of a copy
+    // is the call's latest, as each run of it was)
     for (Value name : lb.names)
         if (sets_name(pt, name)) return false;
     SmallVec<Value, 8> gs;

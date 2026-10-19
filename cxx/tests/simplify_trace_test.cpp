@@ -281,3 +281,17 @@ TEST_CASE("simplify: compaction mid-run") {
         CHECK(w.effects == before[usize(s)].effects);
     }
 }
+
+TEST_CASE("simplify: the length of a storage bytes") {
+    Fixture f;
+    Value u = check_trace(
+        "{(return (sized 32 (mask_shl 255 1 -1 (and (add -1 (mul 256 (iszero (storage 1 0 6)))) (storage 256 0 6)))))}",
+        S::replace_bytes_or_string_length);
+    CHECK(u[0][0][1].is(Op::STORAGE));
+    check_trace("{(return (sized 32 (mask_shl 255 1 0 (and (storage 256 0 6) (add -1 (mul 256 (iszero (storage 1 0 6))))))))}",
+                S::replace_bytes_or_string_length);
+    check_trace(
+        "{(return (sized 32 (mask_shl 250 6 -1 (and (storage 256 0 (calldataload 4)) (add -1 (mul 256 (iszero (storage 1 0 "
+        "(calldataload 4)))))))))}",
+        S::replace_bytes_or_string_length);
+}
