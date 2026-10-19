@@ -281,8 +281,9 @@ TEST_CASE("sigdb: the codes of the types")
     CHECK(code_of("tuple") == "6d01");  // (without components: the text)
     CHECK(code_of("uint") == "6d01");
     CHECK(code_of("tuples") == "6d01");
+    CHECK(code_of("uint08") == "6d01");  // (an identifier: a named type)
     // what isn't a type exactly: refused (kept as text by the builder)
-    for (std::string_view t : {"uint7"sv, "uint264"sv, "uint08"sv, "int0"sv, "bytes0"sv, "bytes33"sv,
+    for (std::string_view t : {"uint7"sv, "uint264"sv, "int0"sv, "bytes0"sv, "bytes33"sv,
                                "fixed0x1"sv, "fixed128x81"sv, " uint256"sv, "uint256 "sv,
                                "uint256[01]"sv, "uint256["sv, "uint256[]]"sv, "address payable"sv,
                                "(uint256"sv, "(uint256,)"sv, "uint256 storage memory"sv, ""sv,
@@ -495,7 +496,7 @@ TEST_CASE("sigdb: dumps it refuses")
         }
         CHECK_FALSE(fs::exists(dir.path / "db.bin"));
     };
-    std::string ok = line("0xa9059cbb", R"({"name": "transfer", "inputs": []})");
+    std::string ok = line("0xa9059cbb", R"({"name": "transfer", "inputs": [{"name": "to", "type": "address"}, {"name": "value", "type": "uint256"}]})");
     fails(ok + "{\"selector\": \"0x12345678\", \"abi\": {]}\n", sigdb::Error::Code::failed,
           "line 2: not the JSON expected");
     fails(ok + ok + "{\"abi\": {}}\n", sigdb::Error::Code::failed, "line 3: no \"selector\"");
