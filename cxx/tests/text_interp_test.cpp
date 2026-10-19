@@ -2,6 +2,7 @@
 // effects - the meaning of each construct.
 #include "validate/text_interp.hpp"
 #include "validate/scan.hpp"
+#include "validate/text_check.hpp"
 #include "validate/text_parser.hpp"
 
 #include "validate_test_util.hpp"
@@ -345,21 +346,98 @@ TEST_CASE("text interp: the members of a struct param, the params' places")
     });
     CHECK(t.call(fill).end.data == words({3, 2, 4}));
 
-    // an unknown function's params: the first words, unless placed
+    // which functions' params the text doesn't place
+    const auto& fs = t.program.functions;
+    REQUIRE(fs.size() == 3);
+    CHECK(!fs[0].places_unknown);
+    CHECK(fs[1].places_unknown);
+    CHECK(fs[2].places_unknown);
+    CHECK(fs[2].params.size() == 2);  // _param1, _param2: those it reads
+    CHECK(!fs[2].params[1].typed);
+
+    // an unknown function's params: the first words, unless placed by side
+    // information
     Bytes unknown{0x12, 0x34, 0x56, 0x78};
     for (const Word w : {Word{5}, Word{6}, Word{7}, Word{8}})
         append_word(unknown, w);
+    CHECK(t.interp.function_for(unknown) == 1u);
     CHECK(t.call(unknown).end.data == words({5, 6}));
-    const std::uint32_t places[] = {68, 100};
+    const ParamPlace places[] = {{68, {}}, {100, {}}};
+    CHECK(!place_params(t.program, 0x12345678u, std::span(places).first(1)));  // not as many
+    CHECK(!fs[1].placed);
     CHECK(place_params(t.program, 0x12345678u, places));
+    CHECK(fs[1].placed);
     CHECK(t.call(unknown).end.data == words({7, 8}));
+    // a known function's params are where its signature says
+    CHECK(!place_params(t.program, selector_of("fill((uint256,address,uint256),uint256)"), places));
 
     // the fallback's _paramN: the words it reads
     Bytes other{1, 2, 3, 4};
     for (const Word w : {Word{5}, Word{6}, Word{7}})
         append_word(other, w);
+    CHECK(t.interp.function_for(other) == 2u);
+    CHECK(t.interp.function_for(Bytes{1, 2}) == 2u);
     CHECK(t.call(other).end.data == words({6}));
-    const std::uint32_t fallback[] = {4, 68};
+    const ParamPlace fallback[] = {{4, {}}, {68, {}}, {100, {}}};  // more than it reads: fine
     CHECK(place_params(t.program, std::nullopt, fallback));
     CHECK(t.call(other).end.data == words({7}));
+}
+
+TEST_CASE("text interp: side information - the types of the fallback's params")
+{
+    Text t(
+        "def _fallback(?) payable: # default function\n"
+        "  return _param1, _param2.length\n");
+    Bytes cd{1, 2, 3, 4};
+    for (const Word w : {Word{7}, Word{0x40}, Word{3}})  // _param2: its offset 0x40, its length 3
+        append_word(cd, w);
+    // _param2 a word: it has no length
+    CHECK(t.call(cd).end.status == Status::unsupported);
+    // the side information's lines (text_check --params), the types read
+    // as a signature's
+    const auto side = parse_side_info("0x12345678 68 100:uint256\n_fallback 4:uint256 36:array\n");
+    REQUIRE(side);
+    REQUIRE(side->size() == 2);
+    CHECK((*side)[0].selector == 0x12345678u);
+    CHECK((*side)[0].places.size() == 2);
+    CHECK((*side)[0].places[0].offset == 68);
+    CHECK((*side)[0].places[0].type.empty());
+    CHECK((*side)[0].places[1].type == "uint256");
+    CHECK(!(*side)[1].selector);
+    CHECK((*side)[1].places[1].offset == 36);
+    CHECK((*side)[1].places[1].type == "array");
+    CHECK(!parse_side_info("0x1234 4:\n"));
+    CHECK(!parse_side_info("_fallback 4"));  // the line's end
+    std::vector<ParamPlace> places;
+    for (const auto& p : (*side)[1].places)
+        places.push_back({p.offset, parse_type(p.type)});
+    CHECK(place_params(t.program, std::nullopt, places));
+    CHECK(t.call(cd).end.data == words({7, 3}));
+}
+
+TEST_CASE("text parser: a param's type alone")
+{
+    const auto word = parse_type("uint256");
+    REQUIRE(word);
+    CHECK(!word->dynamic);
+    CHECK(word->words == 1);
+    const auto array = parse_type("array");
+    REQUIRE(array);
+    CHECK(array->dynamic);
+    CHECK(array->has_length);
+    CHECK(array->is_array);
+    const auto tuples = parse_type("(uint256,bytes)[]");
+    REQUIRE(tuples);
+    CHECK(tuples->dynamic);
+    CHECK(tuples->is_array);
+    CHECK(tuples->elem_dynamic);
+    const auto fixed = parse_type("(uint256,address)[3]");
+    REQUIRE(fixed);
+    CHECK(!fixed->dynamic);
+    CHECK(fixed->words == 6);
+    CHECK(fixed->canonical == "(uint256,address)[3]");
+    CHECK(!parse_type("tuple"));  // the JSON's word for a tuple: no type of a signature
+    CHECK(!parse_type("uint256 x"));
+    CHECK(!parse_type(""));
+    CHECK(!parse_type("uint256) + (1"));
 }

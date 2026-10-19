@@ -99,6 +99,9 @@ public:
     const Program& program() const noexcept { return *program_; }
     /// The function a selector calls (none: the fallback's).
     std::optional<std::uint32_t> function_of(std::uint32_t selector) const;
+    /// The function a call runs: its selector's, else the fallback (none:
+    /// there's none, the run is unsupported).
+    std::optional<std::uint32_t> function_for(const Bytes& calldata) const;
     /// How many runs were unsupported, by reason.
     const std::array<std::uint64_t, static_cast<std::size_t>(Unsupported::count)>& unsupported() const noexcept
     {

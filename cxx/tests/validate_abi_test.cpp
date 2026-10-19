@@ -2,7 +2,8 @@
 // codes, the ABI encoding (the specification's examples), the generated
 // calls (deterministic, well-formed but for the malformed share, the values
 // that exercise the branches), the encoder of a database as the call
-// generator's hook.
+// generator's hook; evm_runner.hpp's count of the instructions, evmrun's
+// options of the typed calls.
 #include "validate/abi_encode.hpp"
 #include "validate/evm_runner.hpp"
 #include "validate/scan.hpp"

@@ -186,6 +186,8 @@ public:
     explicit Parser(std::string_view text) : text_(text), lx_(lex(text)) {}
 
     Program run();
+    /// The text `f(TYPE)`: its one param's type (parse_type).
+    std::optional<PType> type_alone();
 
 private:
     // --- the tokens
@@ -2326,6 +2328,19 @@ Program Parser::run()
     }
     return std::move(prog_);
 }
+
+std::optional<PType> Parser::type_alone()
+{
+    if (!lx_.error.empty() || lx_.lines.size() != 1 || kind(lx_.lines[0].first) != T_IDENT_CALL)
+        return std::nullopt;
+    k0_ = lx_.kinds.data();
+    line_ = 0;
+    // one param, typed, without a name - and nothing after its `)`
+    if (!parse_sig(lx_.lines[0].first, SigMode::selector) || sig_.unknown || sig_.params.size() != 1
+        || !sig_.params[0].typed || sig_.params[0].name != none || pos_ + 1 != lx_.lines[0].last)
+        return std::nullopt;
+    return std::move(sig_.params[0].type);
+}
 }  // namespace
 
 Program parse(std::string_view text)
@@ -2333,17 +2348,33 @@ Program parse(std::string_view text)
     return Parser(text).run();
 }
 
-bool place_params(Program& program, std::optional<std::uint32_t> selector, std::span<const std::uint32_t> positions)
+std::optional<PType> parse_type(std::string_view type)
+{
+    std::string sig = "f(";
+    sig += type;
+    sig += ')';
+    return Parser(sig).type_alone();
+}
+
+bool place_params(Program& program, std::optional<std::uint32_t> selector, std::span<const ParamPlace> places)
 {
     for (auto& f : program.functions)
     {
         if (selector ? f.kind != Function::regular || f.selector != *selector : f.kind != Function::fallback)
             continue;
-        // a signature without its params (?): those the text uses, by number
-        if (f.unknown_params ? f.params.size() > positions.size() : f.params.size() != positions.size())
+        // only where the text doesn't say: a signature without its params
+        // (?) has those the text uses, by number
+        if (!f.places_unknown
+            || (f.unknown_params ? f.params.size() > places.size() : f.params.size() != places.size()))
             return false;
         for (std::size_t i = 0; i < f.params.size(); ++i)
-            f.params[i].position = positions[i];
+        {
+            auto& p = f.params[i];
+            p.position = places[i].offset;
+            if (!p.typed && places[i].type)
+                p.type = *places[i].type;
+        }
+        f.placed = true;
         return true;
     }
     return false;

@@ -51,40 +51,43 @@ constexpr unsigned hex_value(unsigned char c) noexcept
 }  // namespace
 
 %%{
-  machine param_positions;
+  machine side_info;
   alphtype unsigned char;
 
   action sel_digit { sel = sel << 4 | hex_value(fc); }
   action pos_start { pos = 0; }
   action pos_digit { if (pos < 0xffffffffull) pos = pos * 10 + (fc - '0'); }
-  action pos_end { positions.push_back(static_cast<std::uint32_t>(pos)); }
-  action line_start { sel = 0; fallback = false; positions.clear(); }
-  action fallback { fallback = true; }
-  action line_end {
-      out.emplace_back(fallback ? std::nullopt : std::optional<std::uint32_t>(sel), positions);
+  action pos_end { places.push_back({static_cast<std::uint32_t>(pos), {}}); }
+  action type_start { type = fpc; }
+  action type_end {
+      places.back().type = std::string_view(reinterpret_cast<const char*>(type), static_cast<std::size_t>(fpc - type));
   }
+  action line_start { sel = 0; fallback = false; places.clear(); }
+  action fallback { fallback = true; }
+  action line_end { out.push_back({fallback ? std::nullopt : std::optional<std::uint32_t>(sel), places}); }
 
-  line = ( ( '0x' ( [0-9a-fA-F] @sel_digit ){1,8} | '_fallback' @fallback )
-           ( ' ' ( [0-9] @pos_digit )+ >pos_start %pos_end )* ) >line_start '\n' @line_end;
+  place = ( [0-9] @pos_digit )+ >pos_start %pos_end ( ':' ( [^ \n]+ >type_start %type_end ) )?;
+  line = ( ( '0x' ( [0-9a-fA-F] @sel_digit ){1,8} | '_fallback' @fallback ) ( ' ' place )* ) >line_start
+         '\n' @line_end;
   main := line*;
 }%%
 
 %% write data noerror noentry;
 
-std::optional<std::vector<std::pair<std::optional<std::uint32_t>, std::vector<std::uint32_t>>>>
-parse_param_positions(std::string_view text)
+std::optional<std::vector<SideInfo>> parse_side_info(std::string_view text)
 {
-    std::vector<std::pair<std::optional<std::uint32_t>, std::vector<std::uint32_t>>> out;
+    std::vector<SideInfo> out;
     std::uint32_t sel = 0;
     bool fallback = false;
     std::uint64_t pos = 0;
-    std::vector<std::uint32_t> positions;
+    std::vector<SidePlace> places;
+    const unsigned char* type = nullptr;
     int cs;
     const auto* p = reinterpret_cast<const unsigned char*>(text.data());
     const auto* pe = p + text.size();
     %% write init;
     %% write exec;
-    if (cs < param_positions_first_final)
+    if (cs < side_info_first_final)
         return std::nullopt;
     return out;
 }

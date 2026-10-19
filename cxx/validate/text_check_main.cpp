@@ -28,8 +28,9 @@
 #include <iostream>
 #include <algorithm>
 #include <map>
-#include <span>
 #include <memory>
+#include <ranges>
+#include <span>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -49,8 +50,10 @@ CallGenerator's, against the same SeededWorld) and compares the effects.
   --empty           the empty world (default: both worlds)
   --random          the random world
   --per-selector N  the generated calls per selector (4)
-  --params DIR      the params' positions: DIR/NAME.txt, lines 0xSELECTOR POS...
-                    (the text doesn't say where an unknown function's params are)
+  --params DIR      side information: DIR/NAME.txt, lines 0xSELECTOR OFFSET[:TYPE]...
+                    (_fallback OFFSET[:TYPE]...): where an unknown function's, the
+                    fallback's params are, which the text doesn't say (without it:
+                    at consecutive places, and their calls are counted apart)
   --each            each call from the world's state (default: a sequence)
   --sigdb FILE      the signature database (the names of a struct param's members)
   --call N          the call N only, its effects (with --each: from the world's state)
@@ -157,31 +160,21 @@ struct Options
     std::vector<std::string> args;
 };
 
-struct Tally
+struct Counts
 {
     unsigned long calls = 0, same = 0, different = 0, unsupported = 0, exhausted = 0, evm_inconclusive = 0;
     unsigned long same_success = 0, same_events = 0;  // the same calls that succeeded, that had events
-    unsigned contracts = 0, unparsed_contracts = 0, all_same = 0;
-    std::array<std::uint64_t, static_cast<std::size_t>(Unsupported::count)> reasons{};
-    std::map<std::string, unsigned long> differences;  // the first words of the messages
 
-    void add(const Tally& t)
+    void add(const Counts& c)
     {
-        calls += t.calls;
-        same += t.same;
-        same_success += t.same_success;
-        same_events += t.same_events;
-        different += t.different;
-        unsupported += t.unsupported;
-        exhausted += t.exhausted;
-        evm_inconclusive += t.evm_inconclusive;
-        contracts += t.contracts;
-        unparsed_contracts += t.unparsed_contracts;
-        all_same += t.all_same;
-        for (std::size_t i = 0; i < reasons.size(); ++i)
-            reasons[i] += t.reasons[i];
-        for (const auto& [k, n] : t.differences)
-            differences[k] += n;
+        calls += c.calls;
+        same += c.same;
+        same_success += c.same_success;
+        same_events += c.same_events;
+        different += c.different;
+        unsupported += c.unsupported;
+        exhausted += c.exhausted;
+        evm_inconclusive += c.evm_inconclusive;
     }
 
     std::string str() const
@@ -194,6 +187,47 @@ struct Tally
         return buf;
     }
 };
+
+struct Tally
+{
+    Counts exact;    // the calls of functions whose params' places the text, or side information, says
+    Counts guessed;  // the others' (an unknown function's, the fallback's): consecutive places
+    unsigned contracts = 0, unparsed_contracts = 0, all_same = 0;
+    std::array<std::uint64_t, static_cast<std::size_t>(Unsupported::count)> reasons{};
+    std::map<std::string, unsigned long> differences;  // the first words of the messages
+
+    void add(const Tally& t)
+    {
+        exact.add(t.exact);
+        guessed.add(t.guessed);
+        contracts += t.contracts;
+        unparsed_contracts += t.unparsed_contracts;
+        all_same += t.all_same;
+        for (std::size_t i = 0; i < reasons.size(); ++i)
+            reasons[i] += t.reasons[i];
+        for (const auto& [k, n] : t.differences)
+            differences[k] += n;
+    }
+
+    bool all_agree() const
+    {
+        return exact.different + exact.unsupported + exact.exhausted + guessed.different + guessed.unsupported
+                   + guessed.exhausted
+               == 0;
+    }
+
+    std::string str() const
+    {
+        return exact.str() + (guessed.calls != 0 ? " + guessed params' places: " + guessed.str() : "");
+    }
+};
+
+/// Whether a function's params are at places guessed: the text doesn't say
+/// where, and no side information did (place_params).
+bool guessed_places(const Function& f)
+{
+    return f.places_unknown && !f.placed && !f.params.empty();
+}
 
 std::string call_header(std::size_t i, const PlannedCall& c)
 {
@@ -249,7 +283,10 @@ Tally run_contract(const Bytes& code, const Program& program, const Options& o, 
         State text_single{world, world.contract_address(), code};
         const Effects evm = runner.run(o.each ? evm_single : evm_state, call);
         const Effects mine = interp.run(o.each ? text_single : text_state, call);
-        ++t.calls;
+        const auto fn = interp.function_for(call.calldata);
+        const bool guessed = fn && guessed_places(program.functions[*fn]);
+        Counts& n = guessed ? t.guessed : t.exact;
+        ++n.calls;
         const auto c = compare(evm, mine);
         if (!o.each && c.verdict != Verdict::same)
         {
@@ -258,26 +295,28 @@ Tally run_contract(const Bytes& code, const Program& program, const Options& o, 
             text_state = evm_state;
         }
         if (o.verbose)
-            std::cout << call_header(i, planned[i]) << "\n  evm:  " << to_string(evm.end) << "\n  text: "
-                      << to_string(mine.end) << "\n  " << (c.verdict == Verdict::same ? "same" : c.message) << "\n";
+            std::cout << call_header(i, planned[i]) << (guessed ? " (guessed params' places)" : "") << "\n  evm:  "
+                      << to_string(evm.end) << "\n  text: " << to_string(mine.end) << "\n  "
+                      << (c.verdict == Verdict::same ? "same" : c.message) << "\n";
         if (evm.end.inconclusive())
-            ++t.evm_inconclusive;
+            ++n.evm_inconclusive;
         else if (mine.end.status == Status::unsupported || mine.end.status == Status::error)
-            ++t.unsupported;
+            ++n.unsupported;
         else if (mine.end.status == Status::exhausted)
-            ++t.exhausted;
+            ++n.exhausted;
         else if (c.verdict == Verdict::same)
         {
-            ++t.same;
-            t.same_success += evm.end.success() ? 1 : 0;
-            t.same_events += evm.events.empty() ? 0 : 1;
+            ++n.same;
+            n.same_success += evm.end.success() ? 1 : 0;
+            n.same_events += evm.events.empty() ? 0 : 1;
         }
         else
         {
-            ++t.different;
+            ++n.different;
             ++t.differences[difference_kind(c.message)];
             if (first_difference != nullptr && first_difference->empty())
-                *first_difference = call_header(i, planned[i]) + ": " + c.message;
+                *first_difference = call_header(i, planned[i]) + (guessed ? " (guessed params' places)" : "") + ": "
+                                    + c.message;
         }
     }
     t.reasons = interp.unsupported();
@@ -329,33 +368,42 @@ int run(const Options& o)
             line += " (" + std::to_string(program.errors.size()) + " lines unparsed)";
         if (!o.params.empty())
         {
-            // the params' positions the text doesn't say (an unknown function's)
+            // the side information: where the params the text doesn't place
+            // are (an unknown function's, the fallback's), their types
             const auto file = read_file(o.params + "/" + std::filesystem::path(hex_path).stem().string() + ".txt");
-            const auto positions = file ? parse_param_positions(*file) : std::nullopt;
+            const auto side = file ? parse_side_info(*file) : std::nullopt;
             unsigned moved = 0;
-            if (positions)
-                for (const auto& [sel, pos] : *positions)
+            if (side)
+                for (const auto& s : *side)
                 {
+                    std::vector<ParamPlace> places;
+                    for (const auto& sp : s.places)
+                        places.push_back({sp.offset, sp.type.empty() ? std::nullopt : parse_type(sp.type)});
                     std::vector<std::uint32_t> before;
                     for (const auto& f : program.functions)
-                        if (sel ? f.kind == Function::regular && f.selector == *sel : f.kind == Function::fallback)
+                        if (s.selector ? f.kind == Function::regular && f.selector == *s.selector
+                                       : f.kind == Function::fallback)
                             for (const auto& p : f.params)
                                 before.push_back(p.position);
-                    if (place_params(program, sel, pos) && !std::ranges::equal(before, std::span(pos).first(before.size())))
+                    if (place_params(program, s.selector, places)
+                        && !std::ranges::equal(before, s.places | std::views::take(before.size())
+                                                           | std::views::transform(&SidePlace::offset)))
                         ++moved;
                 }
             else
-                line += " (no params' positions)";
+                line += " (no side information)";
             if (moved != 0)
-                line += " (" + std::to_string(moved) + " functions' params placed)";
+                line += " (" + std::to_string(moved) + " functions' params moved)";
         }
+        if (const auto n = std::ranges::count_if(program.functions, guessed_places); n != 0)
+            line += " (" + std::to_string(n) + " functions' params at guessed places)";
         for (const bool random : modes)
         {
             std::string first;
             Tally t = run_contract(*code, program, o, random, &first);
             t.contracts = 1;
             t.unparsed_contracts = program.errors.empty() ? 0 : 1;
-            t.all_same = t.different == 0 && t.unsupported == 0 && t.exhausted == 0 ? 1 : 0;
+            t.all_same = t.all_agree() ? 1 : 0;
             line += std::string(random ? " | random: " : " | empty: ") + t.str();
             if (!first.empty())
                 line += "\n    first difference: " + first;
@@ -368,8 +416,12 @@ int run(const Options& o)
     {
         const Tally& t = total[random];
         std::cout << (random ? "random world: " : "empty world:  ") << t.contracts << " contracts ("
-                  << t.unparsed_contracts << " with unparsed lines, " << t.all_same << " all same), " << t.str()
-                  << "\n";
+                  << t.unparsed_contracts << " with unparsed lines, " << t.all_same << " all same), "
+                  << t.exact.str() << "\n";
+        if (t.guessed.calls != 0)
+            std::cout << "    apart, the calls of the functions whose params' places are guessed (no side "
+                         "information): "
+                      << t.guessed.str() << "\n";
         for (std::size_t i = 0; i < t.reasons.size(); ++i)
             if (t.reasons[i] != 0)
                 std::cout << "    unsupported: " << to_string(static_cast<Unsupported>(i)) << ": " << t.reasons[i]

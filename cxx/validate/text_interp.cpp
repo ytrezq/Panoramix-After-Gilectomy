@@ -1451,14 +1451,17 @@ std::optional<std::uint32_t> Interpreter::function_of(std::uint32_t selector) co
     return std::nullopt;
 }
 
+std::optional<std::uint32_t> Interpreter::function_for(const Bytes& calldata) const
+{
+    std::optional<std::uint32_t> fn;
+    if (calldata.size() >= 4)
+        fn = function_of(static_cast<std::uint32_t>(load_word(calldata, 0) >> 224));
+    return fn ? fn : fallback_;
+}
+
 Effects Interpreter::run(Session& session)
 {
-    const Bytes& cd = session.context().calldata;
-    std::optional<std::uint32_t> fn;
-    if (cd.size() >= 4)
-        fn = function_of(static_cast<std::uint32_t>(load_word(cd, 0) >> 224));
-    if (!fn)
-        fn = fallback_;
+    const auto fn = function_for(session.context().calldata);
     Run run(*this, session);
     End end = run.call(fn ? &program_->functions[*fn] : nullptr);
     return session.finish(std::move(end));

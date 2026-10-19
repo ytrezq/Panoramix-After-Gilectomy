@@ -34,11 +34,26 @@ enum class CheckWord : std::uint8_t
 
 CheckWord check_word(std::string_view arg) noexcept;
 
-/// The calldata positions of the params of a contract's functions, the
-/// lines "0xSELECTOR POS POS ..." ("_fallback POS ..." for the fallback) of
-/// a file (text_check --params: the asm's --json gives them; the text
-/// doesn't for an unknown function, whose params are the words of calldata
-/// it reads, named in their order).
-std::optional<std::vector<std::pair<std::optional<std::uint32_t>, std::vector<std::uint32_t>>>>
-parse_param_positions(std::string_view text);
+/// A param's side information in a --params file: its calldata offset, the
+/// text of its type (empty: not given).
+struct SidePlace
+{
+    std::uint32_t offset = 4;
+    std::string_view type;
+};
+
+/// The side information of a function (place_params of text_parser.hpp).
+struct SideInfo
+{
+    std::optional<std::uint32_t> selector;  ///< nullopt: the fallback
+    std::vector<SidePlace> places;          ///< the params', in their order
+};
+
+/// The side information of a contract's functions whose params' places the
+/// text doesn't say (an unknown function's, the fallback's: the words of
+/// calldata they read, named in their order), the lines of a file
+/// "0xSELECTOR OFFSET[:TYPE] ..." ("_fallback OFFSET[:TYPE] ..." for the
+/// fallback): text_check --params, made from the asm's --json. The types are
+/// views of the text.
+std::optional<std::vector<SideInfo>> parse_side_info(std::string_view text);
 }  // namespace validate::text
