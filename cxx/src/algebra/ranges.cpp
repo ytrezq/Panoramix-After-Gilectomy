@@ -431,7 +431,9 @@ struct RangeState final : ModuleState {
     bool any_vars() const noexcept { return !var_index.empty(); }
 
     bool compact_prepare(Importer& imp) override {
-        if (var_index.empty() && small.empty() && fmp) return false;
+        // (nothing to keep: the state is made again, its flag the contract's)
+        const bool fmp_default = cx().shared ? cx().shared->free_memory_pointer : true;
+        if (var_index.empty() && small.empty() && fmp == fmp_default) return false;
         new_index.clear();
         new_values.clear();
         new_cyclic.clear();

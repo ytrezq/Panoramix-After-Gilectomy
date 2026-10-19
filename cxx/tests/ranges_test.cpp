@@ -596,6 +596,15 @@ TEST_CASE("ranges: the variables and the memory top") {
     CHECK(A::lt(V("(storage 256 0 1)"), A::add(V("(storage 256 0 1)"), mk_int(32)), A::Top::Memory) == Tri::True);
     // a mask of -x: not clamped
     CHECK(A::memory_range(A::mask(5, 0, 0, A::neg(V("(storage 256 0 1)")))) == A::Range::bits(5));
+    // a compaction keeps the variables (their values imported)
+    {
+        std::vector<std::pair<Value, Value>> v2 = {{t1, mk_int(5)}, {t2, V("(add 1 calldatasize)")}};
+        A::set_variables(v2, {});
+        Value roots[1] = {t1};
+        cx().compact(roots);
+        CHECK(A::range(t1) == A::Range::of(EvmInt(5), EvmInt(5)));
+        CHECK(A::range(t2) == A::Range::of(EvmInt(1), EvmInt::pow2(64)));
+    }
     A::clear_variables();
     CHECK(A::range(t1) == A::Range::word());
 }

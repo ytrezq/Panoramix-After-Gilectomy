@@ -125,8 +125,9 @@ Value bare_element(Value elem) noexcept;
 // for CALLDATA_BYTES CODE_BYTES RETURNDATA_BYTES EXTCODE_BYTES; adjacent
 // bytes of one word, SIZED(k, mask(8k, 8j, -8j, x)) SIZED(j, mask(8j, 0, 0,
 // x)), are SIZED(k + j, mask(8(k + j), 0, 0, x)); adjacent constants of 32
-// bytes at most together one SIZED constant). One part: that part; none:
-// DATA().
+// bytes at most together one SIZED constant, zeroes of any length one
+// SIZED(n, 0), BYTES nodes one). A DATA with an ARR in it stays one part (its
+// ABI offsets count from its own start). One part: that part; none: DATA().
 Value concat(std::span<const Value> parts);
 
 // A bytes expression of 32 bytes at most as the word it is read as (its
@@ -301,18 +302,19 @@ struct Field {
 };
 // The word as its fields, disjoint, by offset, covering [0, 256) (python
 // split_or): the terms of an OR (or one term) that are masks (MASK_SHL with
-// concrete fields, a multiple x * 2^k), constants (their byte-rounded span),
-// truth values and narrow reads (STORAGE(size, off >= 0, _)) at bit 0;
-// zeroes between them; a field followed by zeroes it fits in grown to them.
-// nullopt when it isn't such an OR (a term that may have any bit, terms
-// whose bits overlap).
+// concrete fields; x * 2^k: x's bits moved up), constants (their
+// byte-rounded span), anything else at bit 0 as many bits as it may have
+// (a truth value 1, STORAGE(size, off >= 0, _) size, an address 160 by the
+// ranges, a read of k bytes 8k); zeroes between them. nullopt when it isn't
+// such an OR (a term that may have any bit, terms whose bits overlap).
 std::optional<SmallVec<Field, 8>> split_word(Value word);
 
-// A SETMEM(RANGE(p, n), SIZED(n, v)) (n a known int <= 32) of a v made of
-// fields as the SETMEMs of its whole bytes, one per run of bytes a field (or
-// fields sharing a byte) is in, zeroes included (python split_setmem): in an
-// order where none reads memory one before it wrote (python in_order), else
-// not split. {line} when it isn't split.
+// A SETMEM(RANGE(p, n), SIZED(n, v)) (n a known int <= 32) of an OR v made
+// of fields (split_word; no msize read) as the SETMEMs of its whole bytes,
+// one per run of bytes a field (or fields sharing a byte) is in, zeroes
+// included, the lowest bytes first (python split_setmem): in an order where
+// none reads memory one before it wrote (python in_order), else not split.
+// {line} when it isn't split.
 SmallVec<Value, 4> split_setmem(Value line);
 
 // A STORE(256, 0, slot, v) of a whole slot as the STOREs of its fields
