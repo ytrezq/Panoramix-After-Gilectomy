@@ -303,6 +303,16 @@ TEST_CASE("loops: no induction, no endvars") {
     REQUIRE(ind);
     REQUIRE(!ind->endvars.nil());
     CHECK(ind->endvars.size() == 1);
+    // degenerate conditions: no induction, no crash
+    for (const char* c : {"(iszero loop1)", "(iszero 5)", "(iszero tmp9)", "7", "tmp9", "(bool loop1)", "(iszero (add 1 loop1))",
+                          "(lt 3 4)", "(eq loop1 3)", "(slt loop1 3)"}) {
+        std::string text = std::string("(while ") + c +
+                           " {(continue loopid1 {(setvar loop1 (add 1 loop1))})} loopid1 {(setvar loop1 0)})";
+        Value w = V(text);
+        auto i2 = L::induction(w);
+        (void)i2;
+        (void)L::summary(w);
+    }
     // a break: trips, no endvars
     ind = check(
         "{(setvar tmp1 (mask_shl 6 0 0 (calldataload 4)))"

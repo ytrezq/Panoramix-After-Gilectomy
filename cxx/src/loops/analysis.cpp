@@ -188,7 +188,7 @@ std::optional<CondForm> cond_form(Value cond, std::span<const Value> names) {
             // a comparison negated (the algebra's normal forms have none: a
             // pass's may)
             const Value x = cond[0];
-            if (x.size() != 2) return std::nullopt;
+            if (!x.is_expr() || x.size() != 2) return std::nullopt;
             switch (x.op()) {
                 case Op::EQ: return two(x[0], x[1], Cmp::Ne, Cmp::Ne);
                 case Op::LT: return two(x[0], x[1], Cmp::Ge, Cmp::Le);  // !(a < b): a >= b

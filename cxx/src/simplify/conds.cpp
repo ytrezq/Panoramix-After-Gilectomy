@@ -8,6 +8,7 @@
 #include "algebra/compare.hpp"
 #include "algebra/construct.hpp"
 #include "algebra/eval.hpp"
+#include "algebra/facts.hpp"
 #include "core/context.hpp"
 #include "core/intops.hpp"
 
@@ -83,84 +84,157 @@ std::optional<SmallVec<Value, 8>> sequential(Value setvars) {
     return out;
 }
 
-void conds_into(Value trace, SmallVec<Value, 32>& res, bool& changed);
-
-Value conds_trace(Value trace) {
-    if (!trace.is_list()) return trace;
-    check_stack();
-    SmallVec<Value, 32> res;
-    bool changed = false;
-    conds_into(trace, res, changed);
-    return changed ? mk_trace(res.span()) : trace;
-}
-
-void conds_into(Value trace, SmallVec<Value, 32>& res, bool& changed) {
-    for (Value line : trace.args()) {
-        poll();
-        if (line.is(Op::WHILE, 4)) {
-            Value path = conds_trace(line[1]);
-            Tri ev = alg::eval_bool(line[0]);
-            if (ev == Tri::True && !line[0].is(Op::BOOL, 1)) {
-                res.push_back(mk(Op::WHILE, mk(Op::BOOL, small(1)), path, line[2], line[3]));
-                changed = true;
+// The conditions known to hold where a line is (the enclosing ifs' and
+// whiles', the checks passed - python's cleanup_conds decided its ifs by
+// constants alone): lot 3's facts, each condition dropped where a line may
+// change what it reads (effects.hpp), so that every fact holds at the point
+// of the question.
+class Conds {
+public:
+    Value trace(Value t) {
+        if (!t.is_list()) return t;
+        check_stack();
+        SmallVec<Value, 32> res;
+        bool changed = false;
+        const u32 n = t.size();
+        for (u32 i = 0; i < n; ++i) {
+            poll();
+            Value line = t[i];
+            if (line.is(Op::LABEL, 2)) {
+                // a loop's head: what the lines after it change, forgotten
+                EffectSummary rest = summary(line);
+                for (u32 j = i + 1; j < n; ++j) rest = combine(rest, summary(t[j]), true);
+                forget(rest);
+                res.push_back(line);
                 continue;
             }
-            if (ev == Tri::False) {
-                // the loop never runs: but what it sets its variables to first
-                if (auto sv = sequential(line[3])) {
-                    for (Value s : *sv) res.push_back(s);
+            if (line.is(Op::WHILE, 4)) {
+                const EffectSummary& ls = summary(line);
+                forget(ls);
+                Tri ev = decide(line[0]);
+                // the body: where the condition holds (and what the loop doesn't change)
+                const Saved saved = save();
+                assume(line[0]);
+                Value path = trace(line[1]);
+                restore(saved);
+                if (ev == Tri::True && !line[0].is(Op::BOOL, 1)) {
+                    res.push_back(mk(Op::WHILE, mk(Op::BOOL, small(1)), path, line[2], line[3]));
                     changed = true;
                     continue;
                 }
+                if (ev == Tri::False) {
+                    // the loop never runs: but what it sets its variables to first
+                    if (auto sv = sequential(line[3])) {
+                        for (Value x : *sv) res.push_back(x);
+                        changed = true;
+                        continue;
+                    }
+                }
+                Value r = path == line[1] ? line : mk(Op::WHILE, line[0], path, line[2], line[3]);
+                if (r != line) {
+                    changed = true;
+                    cx().pcs.inherit(r, line);
+                }
+                res.push_back(r);
+                continue;
             }
-            Value r = path == line[1] ? line : mk(Op::WHILE, line[0], path, line[2], line[3]);
-            if (r != line) {
-                changed = true;
-                cx().pcs.inherit(r, line);
+            if (line.is(Op::IF, 3)) {
+                Value cond = truth(line[0]);
+                Tri ev = decide(cond);
+                if (ev == Tri::True || ev == Tri::False) {
+                    // the branch it takes, in its place (its lines walked here)
+                    Value b = trace(ev == Tri::True ? line[1] : line[2]);
+                    for (Value l : b.args()) res.push_back(l);
+                    changed = true;
+                    // (what follows: after it, as if its lines were here - they were walked)
+                    continue;
+                }
+                const Saved saved = save();
+                assume(cond);
+                Value tt = trace(line[1]);
+                restore(saved);
+                assume(alg::iszero(cond));
+                Value ee = trace(line[2]);
+                restore(saved);
+                const bool t_ends = ends(tt), e_ends = ends(ee);
+                forget(summary(line));
+                // what follows runs after the branch that goes on, if one ends
+                if (t_ends != e_ends) {
+                    Value holds = t_ends ? alg::iszero(cond) : cond;
+                    if (!changes(summary(t_ends ? ee : tt), summary(holds))) assume(holds);
+                }
+                if (tt.size() == 0 && ee.size() == 0) {
+                    // (once the branches of a merged if are simplified)
+                    changed = true;
+                    continue;
+                }
+                if (tt == ee) {
+                    // whatever the condition
+                    for (Value l : tt.args()) res.push_back(l);
+                    changed = true;
+                    continue;
+                }
+                Value r;
+                if (tt.size() == 0)
+                    r = mk(Op::IF, alg::iszero(cond), ee, tt);
+                else
+                    r = mk(Op::IF, cond, tt, ee);
+                if (r != line) {
+                    changed = true;
+                    cx().pcs.inherit(r, line);
+                }
+                res.push_back(r);
+                continue;
             }
-            res.push_back(r);
-            continue;
+            forget(summary(line));
+            res.push_back(line);
         }
-        if (line.is(Op::IF, 3)) {
-            Value cond = truth(line[0]);
-            Value t = conds_trace(line[1]);
-            Value e = conds_trace(line[2]);
-            Tri ev = alg::eval_bool(cond);
-            if (ev == Tri::True) {
-                for (Value l : t.args()) res.push_back(l);
-                changed = true;
-                continue;
-            }
-            if (ev == Tri::False) {
-                for (Value l : e.args()) res.push_back(l);
-                changed = true;
-                continue;
-            }
-            if (t.size() == 0 && e.size() == 0) {
-                // (once the branches of a merged if are simplified)
-                changed = true;
-                continue;
-            }
-            if (t == e) {
-                // whatever the condition
-                for (Value l : t.args()) res.push_back(l);
-                changed = true;
-                continue;
-            }
-            Value r;
-            if (t.size() == 0)
-                r = mk(Op::IF, alg::iszero(cond), e, t);
-            else
-                r = mk(Op::IF, cond, t, e);
-            if (r != line) {
-                changed = true;
-                cx().pcs.inherit(r, line);
-            }
-            res.push_back(r);
-            continue;
-        }
-        res.push_back(line);
+        return changed ? mk_trace(res.span()) : t;
     }
+
+private:
+    Tri decide(Value cond) {
+        Tri t = alg::eval_bool(cond, known_.empty() ? nullptr : &facts_);
+        return t == Tri::True || t == Tri::False ? t : Tri::None;
+    }
+    // (at most this many: past them, the newer ones aren't kept - fewer
+    // facts are as sound; 4000 nested ifs stay linear)
+    static constexpr usize kMaxKnown = 32;
+    struct Saved {
+        SmallVec<Value, 16> known;
+        alg::Facts facts;
+    };
+    Saved save() const { return Saved{known_, facts_}; }
+    void restore(const Saved& s) {
+        known_ = s.known;
+        facts_ = s.facts;
+    }
+    void assume(Value cond) {
+        if (cond.is_int() || known_.size() >= kMaxKnown) return;
+        known_.push_back(cond);
+        facts_ = facts_.with_cond(cond);
+    }
+    void rebuild() {
+        facts_ = alg::Facts();
+        for (Value c : known_) facts_ = facts_.with_cond(c);
+    }
+    void forget(const EffectSummary& s) {
+        if (!s.writes || known_.empty()) return;
+        SmallVec<Value, 16> kept;
+        for (Value c : known_)
+            if (!changes(s, summary(c))) kept.push_back(c);
+        if (kept.size() == known_.size()) return;
+        known_ = kept;
+        rebuild();
+    }
+
+    SmallVec<Value, 16> known_;
+    alg::Facts facts_;
+};
+
+Value conds_trace(Value trace) {
+    Conds c;
+    return c.trace(trace);
 }
 
 // ---- min_ifs ----------------------------------------------------------------------------
