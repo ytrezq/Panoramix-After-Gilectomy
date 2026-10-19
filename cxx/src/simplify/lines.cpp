@@ -97,12 +97,22 @@ Value line_rules(Value l) {
                     a[p] = None;
                     changed = true;
                 } else if (d.is(Op::DATA) && d.size() >= 2) {
-                    if (auto w0 = mem::width_u64(d[0]); w0 && *w0 == 4) {
-                        bool arr = false;
-                        for (Value e : d.args()) arr = arr || e.is(Op::ARR);
-                        if (!arr) {
-                            a[s] = d[0];
-                            a[p] = d.size() == 2 ? d[1] : mk(Op::DATA, d.args().subspan(1));
+                    bool arr = false;
+                    for (Value e : d.args()) arr = arr || e.is(Op::ARR);
+                    auto w0 = mem::width_u64(d[0]);
+                    if (arr) {
+                    } else if (w0 && *w0 == 4) {
+                        a[s] = d[0];
+                        a[p] = d.size() == 2 ? d[1] : mk(Op::DATA, d.args().subspan(1));
+                        changed = true;
+                    } else if (w0 && *w0 > 4) {
+                        // (a first part wider than the selector: cut)
+                        auto w = mem::width_of(d);
+                        auto sel = mem::slice(d, Value::small(0), Value::small(4));
+                        auto rest = w ? mem::slice(d, Value::small(4), *w) : std::nullopt;
+                        if (sel && rest) {
+                            a[s] = *sel;
+                            a[p] = *rest;
                             changed = true;
                         }
                     }
