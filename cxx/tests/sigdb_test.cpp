@@ -707,6 +707,7 @@ TEST_CASE("sigdb: the real dump (PANORAMIX_TEST_ABI_DUMP)")
     for (std::size_t i = 0; i < db->size(); i++) {
         auto e = db->at(i);
         REQUIRE(e);
+        CHECK(e->known() == (e->trust() != sigdb::Trust::unverified));
         if (e->trust() == sigdb::Trust::unverified) {
             unverified++;
             continue;
@@ -867,6 +868,7 @@ TEST_CASE("sigdb: repairs, unverified entries")
     auto repaired = [&](std::string_view signature) {
         sigdb::Entry e = get(signature);
         CHECK_MESSAGE(e.trust() == sigdb::Trust::repaired, signature);
+        CHECK(e.known());  // (a name to use: what hashed is the variant)
         CHECK(e.signature() == signature);
         return e;
     };
@@ -932,6 +934,7 @@ TEST_CASE("sigdb: repairs, unverified entries")
         auto u = db->function(0x12345678);
         REQUIRE(u);
         CHECK(u->trust() == sigdb::Trust::unverified);
+        CHECK_FALSE(u->known());  // (a guess: its types for the validation's calldata only)
         CHECK(u->name() == "unknown12345678");
         CHECK(u->params()[0].type().bits() == 256);
         CHECK(u->params()[1].type().kind() == sigdb::TypeKind::array);

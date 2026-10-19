@@ -215,6 +215,10 @@ public:
     std::uint32_t selector() const noexcept { return selector_; }
     Kind kind() const noexcept;
     Trust trust() const noexcept;
+    // A name to use: its signature, or a variant of it, hashes to the
+    // selector (verified or repaired; python knows the verified ones only,
+    // which are all of panoramix's dump). Unverified: a guess, never shown.
+    bool known() const noexcept { return trust() != Trust::unverified; }
     // The name, raw bytes as in the dump.
     std::string_view name() const noexcept;
     // The inputs.

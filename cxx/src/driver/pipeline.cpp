@@ -47,7 +47,7 @@ std::string function_name(const sigdb::Database* db, const FunctionInfo& fn)
             break;
     }
     if (db)
-        if (const auto e = db->function(fn.selector); e && e->trust() == sigdb::Trust::verified) {
+        if (const auto e = db->function(fn.selector); e && e->known()) {
             // python's get_func_name: name(type name, ...), an unnamed param _param<i + 1>
             std::string s(e->name());
             s += '(';
