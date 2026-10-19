@@ -511,9 +511,12 @@ void Analysis::type_roots() {
         poll();
         r.type.reset();
         r.fields.reset();
-        bool direct = true;
-        for (const RootAccess& a : r.accs)
+        bool direct = true, in_word = true;
+        for (const RootAccess& a : r.accs) {
             if (!a.steps.empty() || !a.off.is_small()) direct = false;
+            else if (a.off.small_val() < 0 || a.off.small_val() >= 256) in_word = false;
+        }
+        if (direct && !in_word) continue;  // (bits out of the word: raw, stor[slot])
         if (direct) {
             auto read = [&](i64 s, i64 o) {
                 for (const RootAccess& a : r.accs)
@@ -904,14 +907,14 @@ private:
     Memo<Value, Value> memo_;
 };
 
-// SBYTES(key) -> SALL(loc), any depth
+// SALL(SR(key)) -> SALL(loc), any depth (the tail of a bytes getter)
 class SallMap final : public TraceMap {
 public:
     SallMap(Value key, Value loc) : key_(key), loc_(loc) {}
     Value exp(Value e) override {
         check_stack();
         if (!e.is_expr() || !e.has_flags(F_STORAGE)) return e;
-        if (e.is(Op::SBYTES, 1) && e[0] == key_) return mk(Op::SALL, loc_);
+        if (e.is(Op::SALL, 1) && e[0].is(Op::SR, 1) && e[0][0] == key_) return mk(Op::SALL, loc_);
         if (const Value* m = memo_.find(e)) return *m;
         const Value r = children(e);
         memo_.put(e, r);

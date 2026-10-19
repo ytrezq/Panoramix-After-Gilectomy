@@ -112,7 +112,7 @@ StorageLayout layout(Lang lang) {
     l.vars = {var(0, 0, 8), var(0, 160, 4), var(3, 0, 1), var(4, 0, 2), var(5, 0, 3),
               var(6, 0, 5), var(7, 0, 6), var(8, 0, 7), var(9, 0, 9)};
     StorageVar big;
-    big.slot = Word256{{0x2076cc3735a920a3ull, 0x8dca3e2076cc3735ull, 0xa3210667c828492dull, 0x360894a13ba1a321ull}};
+    big.slot = Word256{{0x20a3ca505d382bbcull, 0xca3e2076cc3735a9ull, 0x0667c828492db98dull, 0x360894a13ba1a321ull}};
     big.type = 0;
     l.vars.push_back(big);  // stor9
     return l;
@@ -228,21 +228,58 @@ TEST_CASE("storage: forms - writes") {
     same_write(l, "(set (st 16 (sf (sr 77) 248) 8) 0x1234)", "(store 16 248 77 0x1234)");  // past the word: cut
 }
 
-TEST_CASE("storage: forms - SALL is the bytes of the storage bytes") {
+TEST_CASE("storage: forms - SALL is what a getter copies of the storage bytes") {
     Fixture f;
     const StorageLayout l = layout(Lang::Solidity);
-    // (the worlds' words at slot 8: short ones and long ones)
-    for (u64 seed = 0; seed < 8; ++seed) {
-        const Run a = run(&l, "{(return (data (arr (st 256 (sbl (sv stor7)) 256) (sall (sv stor7)))))}", seed);
-        const Run b = run(&l, "{(return (data (arr (storage 256 0 (length 8)) (sbytes 8))))}", seed);
-        INFO(a.out.note, " / ", b.out.note);
-        if (b.out.status == exec::Status::Exhausted) {
-            CHECK(a.out.status == exec::Status::Exhausted);  // (a long one of a hash's length)
-            continue;
-        }
-        REQUIRE(b.out.status == exec::Status::Return);
-        CHECK(a.out.status == exec::Status::Return);
-        CHECK(a.out.data == b.out.data);
+    auto word_bytes = [](const Word256& w) {
+        Bytes b(32);
+        w.to_be(b.data());
+        return b;
+    };
+    auto sall = [&](exec::SimpleHost& host) {
+        std::vector<FunctionInfo> fns(1);
+        fns[0].trace = V("{(return (sall (sv stor7)))}");
+        exec::Program p;
+        p.functions = fns;
+        p.layout = &l;
+        exec::Machine m(p);
+        const exec::Outcome o = m.run(host, fns[0]);
+        REQUIRE(o.status == exec::Status::Return);
+        return o.data;
+    };
+    const Word256 base = storage::keccak_word(Word256::of(8));
+    {  // none: an empty one
+        exec::SimpleHost host;
+        CHECK(sall(host).empty());
+    }
+    {  // a short one: the word, its low byte cleared (garbage past the bytes kept)
+        exec::SimpleHost host;
+        const Word256 s = pan::bor(pan::shl(Word256::of(232), Word256::of(0x616263)), Word256{{0x1200 | 6, 0, 0, 0}});
+        host.storage[Word256::of(8)] = s;
+        CHECK(sall(host) == word_bytes(pan::band(s, pan::bnot(Word256::of(0xff)))));
+    }
+    {  // a long one: whole words from keccak(slot)
+        exec::SimpleHost host;
+        host.storage[Word256::of(8)] = Word256::of(81);  // 40 bytes
+        host.storage[base] = Word256::of(0x11);
+        host.storage[pan::add(base, Word256::of(1))] = Word256::of(0x22);
+        Bytes want = word_bytes(Word256::of(0x11));
+        const Bytes w2 = word_bytes(Word256::of(0x22));
+        want.insert(want.end(), w2.begin(), w2.end());
+        CHECK(sall(host) == want);
+    }
+    {  // what no solc keeps: a short encoding of 100 bytes - copied as a long one
+        exec::SimpleHost host;
+        host.storage[Word256::of(8)] = Word256::of(200);
+        host.storage[pan::add(base, Word256::of(3))] = Word256::of(7);
+        const Bytes got = sall(host);
+        REQUIRE(got.size() == 128);
+        CHECK(got[127] == 7);
+    }
+    {  // a long encoding of 5 bytes: copied as a short one
+        exec::SimpleHost host;
+        host.storage[Word256::of(8)] = Word256::of(11);
+        CHECK(sall(host) == word_bytes(Word256::of(0)));
     }
 }
 

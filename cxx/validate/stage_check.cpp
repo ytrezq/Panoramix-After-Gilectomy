@@ -347,6 +347,8 @@ struct Checker
             p.functions = contract.functions[s];
             p.internals = contract.internals[s];
             p.shared = &contract.shared;
+            p.layout = contract.storage.get();
+            p.safemath = contract.safemath.get();
             machines[s] = std::make_unique<pan::exec::Machine>(p, config.machine);
             report.stages[s].ran = true;
         }

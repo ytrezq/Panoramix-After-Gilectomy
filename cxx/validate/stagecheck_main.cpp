@@ -96,6 +96,8 @@ void pipeline(Decompiled& c, Stage upto, pan::Budget& budget, const pan::sigdb::
             c.internals[s] = r.internals[s];
             c.made[s] = true;
         }
+    c.storage = r.storage;
+    c.safemath = r.safemath;
 }
 
 std::optional<Bytes> read_hex_file(const std::string& path)

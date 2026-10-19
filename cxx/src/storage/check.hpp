@@ -38,9 +38,12 @@ public:
     ~Worlds();
     // python checks(): f reads as the access a, in every world
     bool check(const StorageLayout& layout, Value f, const Access& a);
+    u64 proven() const noexcept { return proven_; }    // by the linear forms
+    u64 checked() const noexcept { return checked_; }  // by the worlds
 
 private:
     std::vector<std::unique_ptr<World>> w_;
+    u64 proven_ = 0, checked_ = 0;
 };
 
 }  // namespace pan::storage::detail

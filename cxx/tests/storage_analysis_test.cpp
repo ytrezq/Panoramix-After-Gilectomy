@@ -195,12 +195,12 @@ TEST_CASE("storage: a token - values, mappings, mappings of mappings") {
            "{(return (sized 32 (storage 256 0 (sha3 (sized 32 (mask_shl 160 0 0 (calldataload 36))) (sized 32 (sha3 (sized "
            "32 (mask_shl 160 0 0 (calldataload 4))) (sized 32 4)))))))}"),
         fn(0xa9059cbb,
-           "{[if (lt (storage 256 0 (sha3 (sized 32 caller) (sized 32 3))) (calldataload 36)) {(revert None)} {"
+           "{(if (lt (storage 256 0 (sha3 (sized 32 caller) (sized 32 3))) (calldataload 36)) {(revert None)} {"
            "(store 256 0 (sha3 (sized 32 caller) (sized 32 3)) (add (mul -1 (calldataload 36)) (storage 256 0 (sha3 (sized 32 "
            "caller) (sized 32 3)))))"
            "(store 256 0 (sha3 (sized 32 (mask_shl 160 0 0 (calldataload 4))) (sized 32 3)) (add (calldataload 36) (storage 256 0 "
            "(sha3 (sized 32 (mask_shl 160 0 0 (calldataload 4))) (sized 32 3)))))"
-           "(return (sized 32 1))}]}"),
+           "(return (sized 32 1))})}"),
         fn(0x095ea7b3,
            "{(store 256 0 (sha3 (sized 32 (mask_shl 160 0 0 (calldataload 4))) (sized 32 (sha3 (sized 32 caller) (sized 32 4)))) "
            "(calldataload 36)) (return (sized 32 1))}"),
@@ -235,23 +235,34 @@ TEST_CASE("storage: packed fields, split stores regrouped") {
         // an address at 0 and a flag at 160 of slot 1: a delete of the slot, split
         fn(0x22222222, "{(return (sized 32 (storage 160 0 1)))}"),
         fn(0x33333333, "{(return (sized 32 (storage 8 160 1)))}"),
-        fn(0x44444444, "{(store 160 0 1 caller) (store 8 160 1 1) (stop)}"),
+        fn(0x44444444, "{(store 160 0 1 caller) (store 8 160 1 (iszero (calldataload 4))) (stop)}"),
         fn(0x55555555, "{(store 160 0 1 0) (store 96 160 1 0) (stop)}"),
+        // two numbers in one variable (a split store of 0x0102 in a uint16): one store
+        fn(0x66666666, "{(return (sized 32 (storage 16 0 2)))}"),
+        fn(0x77777777, "{(store 16 0 2 (calldataload 4)) (stop)}"),
+        fn(0x88888888, "{(store 8 0 2 2) (store 8 8 2 1) (stop)}"),
     };
     const Analysed a = analyse(fns);
     const StorageLayout& l = *a.layout;
-    REQUIRE(l.vars.size() == 5);
+    // slot 1: the address, the flag, the bits the delete clears above them;
+    // slot 2: the uint16; slot 8: the reserves
+    REQUIRE(l.vars.size() == 7);
     CHECK(l.vars[0].slot == Word256::of(1));
     CHECK(l.vars[0].off == 0);
     CHECK(l.types[l.vars[0].type].width == 160);
     CHECK(l.vars[1].slot == Word256::of(1));
     CHECK(l.vars[1].off == 160);
     CHECK(l.types[l.vars[1].type].width == 8);
-    CHECK(l.vars[2].off == 0);
-    CHECK(l.vars[3].off == 112);
-    CHECK(l.vars[4].off == 224);
+    CHECK(l.vars[2].off == 168);
+    CHECK(l.vars[3].slot == Word256::of(2));
+    CHECK(l.types[l.vars[3].type].width == 16);
+    CHECK(l.vars[4].off == 0);
+    CHECK(l.vars[5].off == 112);
+    CHECK(l.vars[6].off == 224);
     CHECK(a.after[0].trace ==
-          V("{(return (data (sized 32 (st 112 (sv stor2) 112)) (sized 32 (st 112 (sv stor3) 112)) (sized 32 (st 32 (sv stor4) 32))))}"));
+          V("{(return (data (sized 32 (st 112 (sv stor4) 112)) (sized 32 (st 112 (sv stor5) 112)) (sized 32 (st 32 (sv stor6) 32))))}"));
+    // the split number regrouped
+    CHECK(a.after[8].trace == V("{(set (st 16 (sv stor3) 16) 258) (stop)}"));
     same_runs(a);
 }
 
@@ -260,14 +271,14 @@ TEST_CASE("storage: dynamic arrays, packed arrays, fixed arrays, structs in mapp
     // keccak(5) (the data of the array at 5) as the simplifier leaves it: a sha3 of the slot
     std::vector<FunctionInfo> fns{
         fn(0x01010101, "{(return (sized 32 (storage 256 0 5)))}"),
-        fn(0x02020202, "{[if (lt (calldataload 4) (storage 256 0 5)) {(return (sized 32 (storage 256 0 (add (calldataload 4) (sha3 (sized 32 5))))))} {(revert None)}]}"),
+        fn(0x02020202, "{(if (lt (calldataload 4) (storage 256 0 5)) {(return (sized 32 (storage 256 0 (add (calldataload 4) (sha3 (sized 32 5))))))} {(revert None)})}"),
         fn(0x03030303, "{(store 256 0 (add (calldataload 4) (sha3 (sized 32 5))) (calldataload 36)) (stop)}"),
         // a mapping of structs of 3 words: members 0 and 2
         fn(0x04040404, "{(return (sized 32 (storage 256 0 (sha3 (sized 32 caller) (sized 32 7)))))}"),
         fn(0x05050505, "{(return (sized 32 (storage 256 0 (add 2 (sha3 (sized 32 caller) (sized 32 7))))))}"),
         fn(0x06060606, "{(store 256 0 (add 2 (sha3 (sized 32 caller) (sized 32 7))) 9) (stop)}"),
         // a fixed array of 4 words at 10, its index checked
-        fn(0x07070707, "{[if (lt (calldataload 4) 4) {(return (sized 32 (storage 256 0 (add 10 (calldataload 4)))))} {(revert None)}]}"),
+        fn(0x07070707, "{(if (lt (calldataload 4) 4) {(return (sized 32 (storage 256 0 (add 10 (calldataload 4)))))} {(revert None)})}"),
     };
     const Analysed a = analyse(fns);
     const StorageLayout& l = *a.layout;

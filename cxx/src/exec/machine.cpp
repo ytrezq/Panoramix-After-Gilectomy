@@ -26,6 +26,7 @@
 #include "core/memo.hpp"
 #include "core/node.hpp"
 #include "core/smallvec.hpp"
+#include "analysis/safemath.hpp"
 #include "storage/storage.hpp"
 
 namespace pan::exec {
@@ -43,6 +44,10 @@ struct Stop {
     std::string note;
     u32 reason = 0;
 };
+
+// a halt found deep in an expression (a SAFEMATH's check that fails): the
+// run's Outcome holds it already (thrown, caught by call() / run())
+struct Halted {};
 
 [[noreturn]] PAN_COLD void stop(Status s, std::string note, u32 reason = 0) { throw Stop{s, std::move(note), reason}; }
 [[noreturn]] PAN_COLD void bug(std::string note) { stop(Status::Bug, std::move(note)); }
@@ -368,6 +373,34 @@ struct Machine::Impl {
         return Word256::of((s.limb[0] & 0xff) >> 1);
     }
 
+    // SALL's (lot 9): the bytes a solidity getter copies from the bytes/string
+    // at a slot, whatever the slot holds - its length decoded as LENGTH's
+    // (len); none when 0; below 32 the word with its low byte cleared (32
+    // bytes); else the words from keccak(slot) on, ceil32(len) bytes, the last
+    // one whole (solc's copy, legacy and IR - the IR's after its check of the
+    // encoding, Panic(0x22): the same on what it lets through)
+    void getter_bytes(const Word256& slot, Bytes& out) {
+        const Word256 s = host->sload(slot);
+        const Word256 lw = (s.limb[0] & 1) ? pan::shr(Word256::of(1), s) : Word256::of((s.limb[0] & 0xff) >> 1);
+        if (lw.is_zero()) return;
+        u8 w[32];
+        if (lw < Word256::of(32)) {
+            pan::band(s, pan::bnot(Word256::of(0xff))).to_be(w);
+            append(out, w, 32);
+            return;
+        }
+        const u64 len = length(lw);
+        u8 key[32];
+        slot.to_be(key);
+        const Word256 base = keccak256(std::span<const u8>(key, 32));
+        for (u64 i = 0; i * 32 < len; ++i) {
+            const Word256 word = host->sload(pan::add(base, Word256::of(i)));
+            word.to_be(w);
+            append(out, w, 32);
+            if ((i & 255) == 255) poll();
+        }
+    }
+
     // solidity's bytes/string at a slot: short (even: its length (s & 0xff) / 2,
     // its bytes the high ones of s - zeroes past the word when the length is
     // more than an encoding of solc's holds), long (odd: length (s - 1) / 2,
@@ -553,7 +586,7 @@ struct Machine::Impl {
             case Op::SR:
                 bug("a storage location as a word: " + show(v));
             case Op::SAFEMATH:
-                unsupported("SAFEMATH needs lot 8's table: " + show(v));
+                return safemath_call(a);
             default:
                 break;
         }
@@ -668,6 +701,39 @@ struct Machine::Impl {
     void set_var(Value name, const Word256& w) {
         if (!is_var_name(name)) bug("not a variable: " + show(name));
         frame().vars.put(name.raw(), w);
+    }
+
+    // SAFEMATH(n, a[, b][, d...]) (lot 8, analysis/safemath.hpp): a and b
+    // evaluated, Name(SAFEMATH_PARAM, 0 / 1) bound to them, the table's checks
+    // of fns[n] in order - one that holds halts the run with its line, or with
+    // REVERT(d_k) for a message parameter -, then its result
+    Word256 safemath_call(std::span<const Value> a) {
+        if (!program.safemath) unsupported("SAFEMATH needs lot 8's table: " + show(cur_line));
+        const auto& fns = program.safemath->fns;
+        if (a.empty() || !a[0].is_small() || a[0].small_val() < 0 || u64(a[0].small_val()) >= fns.size())
+            bug("SAFEMATH of no function of the table: " + show(cur_line));
+        const SafeMathTable::Fn& fn = fns[usize(a[0].small_val())];
+        if (fn.params < 1 || fn.params > 2 || a.size() != 1 + fn.params + fn.messages)
+            bug("SAFEMATH of another arity than its function's: " + show(cur_line));
+        Word256 params[2]{};
+        for (u32 k = 0; k < fn.params; ++k) params[k] = ev(a[1 + k]);
+        for (u32 k = 0; k < fn.params; ++k) set_var(Value::name(NameKind::SAFEMATH_PARAM, k), params[k]);
+        touch();  // (what was evaluated with other values of the params)
+        for (const SafeMathTable::Check& c : fn.checks) {
+            if (ev(c.cond).is_zero()) continue;
+            if (c.message) {
+                if (*c.message >= fn.messages) bug("a SafeMath check of no message parameter");
+                out.data.clear();
+                evb(a[1 + fn.params + *c.message], out.data);
+                halt(Status::Revert);
+            } else {
+                const Value at = cur_line;  // (the run ends at the SAFEMATH's line)
+                if (c.fail.nil() || run_line(c.fail) != Sig::Halt) bug("a SafeMath check without its halting line");
+                cur_line = at;
+            }
+            throw Halted{};
+        }
+        return ev(fn.result);
     }
 
     // ---- bytes ------------------------------------------------------------------------
@@ -786,10 +852,10 @@ struct Machine::Impl {
                 case Op::SBYTES:
                     solidity_bytes(ev(a[0]), out);
                     return;
-                case Op::SALL: {  // the bytes/string at loc's slot (solidity's encoding)
+                case Op::SALL: {  // what a getter copies of the bytes/string at loc's slot
                     const storage::Place p = place(a[0]);
                     if (p.length) bug("SALL of a bytes length: " + show(e));
-                    solidity_bytes(p.slot, out);
+                    getter_bytes(p.slot, out);
                     return;
                 }
                 case Op::RANGE:
@@ -1273,6 +1339,7 @@ struct Machine::Impl {
     Outcome guarded(F&& f) {
         try {
             f();
+        } catch (const Halted&) {  // (out holds the halt)
         } catch (const Stop& s) {
             out.status = s.status;
             out.note = s.note;

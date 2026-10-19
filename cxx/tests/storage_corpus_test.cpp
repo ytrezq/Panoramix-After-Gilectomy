@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "analysis/traits.hpp"
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "core/contract.hpp"
@@ -71,32 +72,6 @@ private:
     u64 seed_;
 };
 
-bool writes(Value v) {
-    switch (v.op()) {
-        case Op::STORE:
-        case Op::SET:
-        case Op::TSTORE:
-        case Op::SELFDESTRUCT:
-        case Op::CALL:
-        case Op::CALLCODE:
-        case Op::DELEGATECALL:
-        case Op::CREATE:
-        case Op::CREATE2:
-        case Op::LOG0:
-        case Op::LOG1:
-        case Op::LOG2:
-        case Op::LOG3:
-        case Op::LOG4:
-        case Op::INTERNAL:
-            return true;
-        default:
-            break;
-    }
-    for (Value c : v.children())
-        if (writes(c)) return true;
-    return false;
-}
-
 struct Forms {
     u64 typed = 0, raw = 0;
 };
@@ -147,6 +122,8 @@ TEST_CASE("storage: corpus (opt-in)") {
         try {
             auto ctx = Context::create(budget);
             ContextScope scope(*ctx);
+            // the simplified stage, lot 8's traits on it (the analysed stage
+            // before the storage forms, whether the driver makes them or not)
             driver::PipelineOptions o;
             o.threads = 1;
             o.keep = driver::keep_bit(driver::Stage::Simplified);
@@ -158,17 +135,16 @@ TEST_CASE("storage: corpus (opt-in)") {
                 budget.detach_thread();
                 continue;
             }
-            std::vector<FunctionInfo> before = r.functions[s], before_int = r.internals[s];
-            // (lot 8's read_only, until it lands: no line that writes)
-            for (FunctionInfo& fi : before)
-                if (fi.trace.is_trace()) fi.read_only = !writes(fi.trace);
-            std::vector<FunctionInfo> after = before, after_int = before_int;
             CodeMap map = analyse(*bytes);
             ContractShared shared;
             shared.code = *bytes;
             shared.map = &map;
             shared.db = o.db;
             if (const auto md = metadata(*bytes)) shared.lang = md->lang;
+            std::vector<FunctionInfo> before, before_int;
+            traits::analyse_stage(r.functions[s], before, shared);
+            traits::analyse_stage(r.internals[s], before_int, shared);
+            std::vector<FunctionInfo> after = before, after_int = before_int;
             std::shared_ptr<const StorageLayout> layout;
             const i64 t0 = platform::monotonic_ns();
             try {

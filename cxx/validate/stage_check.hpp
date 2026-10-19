@@ -36,6 +36,7 @@
 #include <array>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -192,6 +193,11 @@ struct Decompiled
     std::array<std::vector<pan::FunctionInfo>, stage_count> functions;  ///< per stage: selectors, fallback
     std::array<std::vector<pan::FunctionInfo>, stage_count> internals;  ///< per stage: internal functions
     std::array<bool, stage_count> made{};                              ///< the stages made
+    /// what the later stages' forms read (the machine's Program): lot 9's
+    /// storage layout (the storage forms: Analysed, Folded), lot 8's SafeMath
+    /// table (SAFEMATH: Folded); null when not made
+    std::shared_ptr<const pan::StorageLayout> storage;
+    std::shared_ptr<const pan::SafeMathTable> safemath;
 
     explicit Decompiled(BytesView code);
     Decompiled(const Decompiled&) = delete;

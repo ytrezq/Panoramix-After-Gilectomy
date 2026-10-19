@@ -26,8 +26,11 @@ std::optional<GetterAccess> getter_access(const traits::Getter& g, Value narrowe
 // python bytes_tail: a function's trace with what's after a first part of it
 // (its checks of the params, say) replaced by the return of the bytes at the
 // slot key, ABI-encoded - RETURN(DATA(ARR(STORAGE(256, 0, LENGTH(key)),
-// SBYTES(key)))) - when running both on the storage worlds says it is the
-// same; NIL else.
+// SALL(SR(key))))) - when running both on the storage worlds says it is the
+// same: python's (bytes as solidity keeps them, short and long, of the
+// lengths the code may treat apart), and those words with garbage past the
+// bytes, and encodings no solc makes (SALL is what solc's copy makes of
+// anything: the rewrite holds on any storage); NIL else.
 class BytesTail {
 public:
     BytesTail(const FunctionInfo& fn, std::span<const FunctionInfo> internals, const ContractShared* shared);
@@ -38,6 +41,7 @@ public:
 
 private:
     FunctionInfo fn_;
+    StorageLayout layout_;  // (none of its own: the tail's SR forms only)
     exec::Program program_;
     std::unique_ptr<exec::Machine> machine_;
 };

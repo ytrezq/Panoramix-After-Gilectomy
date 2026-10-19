@@ -313,8 +313,42 @@ private:
     }
 };
 
+// A failing condition that holds unless a param is a valid value of a type,
+// as the algebra writes `x != cleaned(x)`: the bits above the type set
+// (MASK_SHL(256 - n, n, 0 or -n, x): x isn't an n-bit number), or the bits
+// below a left-aligned type's (MASK_SHL(n, 0, 0, x): x isn't a bytesN of
+// 256 - n bits). The param and its clean form (what equals it past the
+// check), the type.
+struct MaskCheck {
+    Value cd, clean;
+    PType type;
+};
+std::optional<MaskCheck> mask_check(Value cond)
+{
+    if (!cond.is(Op::MASK_SHL, 4) || !cd_offset(cond[3]))
+        return std::nullopt;
+    const auto size = small_of(cond[0]), off = small_of(cond[1]), shl = small_of(cond[2]);
+    if (!size || !off || !shl)
+        return std::nullopt;
+    const Value cd = cond[3];
+    if (*size + *off == 256 && *off > 0 && *off < 256 && (*shl == 0 || *shl == -*off)) {
+        PType t = mask_to_type_forced(*off);
+        if (*off % 8 == 0) {
+            if (const auto m = mask_to_type(*off))
+                t = *m;
+            else
+                t = PType{AbiKind::Uint, u16(*off), false};
+        }
+        return MaskCheck{cd, alg::mask(*off, 0, 0, cd), t};
+    }
+    if (*off == 0 && *shl == 0 && *size > 0 && *size < 256 && (256 - *size) % 8 == 0)
+        return MaskCheck{cd, alg::mask(256 - *size, *size, 0, cd), PType{AbiKind::BytesN, u16(256 - *size), false}};
+    return std::nullopt;
+}
+
 // python validation(idx) for every offset at once: the types each param is
-// checked to be a valid value of (`require x == address(x)`)
+// checked to be a valid value of (`require x == address(x)`, and the mask
+// forms of the checks that fail unless it is)
 void validations(Value root, std::pmr::vector<std::pair<i64, std::pmr::vector<PType>>>& found)
 {
     auto add = [&](i64 off, PType t) {
@@ -337,6 +371,9 @@ void validations(Value root, std::pmr::vector<std::pair<i64, std::pmr::vector<PT
                 if (const auto t = validation_type(other, cd))
                     add(*off, *t);
             }
+        if (v.is(Op::IF, 3) && reverts(v[1]))
+            if (const auto m = mask_check(v[0]))
+                add(*cd_offset(m->cd), m->type);
         return true;
     });
 }
@@ -690,12 +727,9 @@ std::optional<Known> validated(Value cond)
         }
     }
     // the bits above the type are 0 (python: a mask at shl 0; a right shift
-    // of them to 0 is as true)
-    if (cond.is(Op::MASK_SHL, 4) && cd_offset(cond[3])) {
-        const auto size = small_of(cond[0]), off = small_of(cond[1]), shl = small_of(cond[2]);
-        if (size && off && shl && *size + *off == 256 && *off > 0 && (*shl == 0 || *shl == -*off))
-            return Known{alg::mask(*off, 0, 0, cond[3]), cond[3]};
-    }
+    // of them to 0 is as true), or those below a left-aligned one's
+    if (const auto m = mask_check(cond))
+        return Known{m->clean, m->cd};
     return std::nullopt;
 }
 
@@ -943,6 +977,12 @@ std::optional<Getter> getter_of_return(Value ret)
         return Getter{Getter::Kind::Read, v[0], v, 0};
     if (v.is(Op::MASK_SHL, 4) && v[3].is(Op::STORAGE, 3))
         return Getter{Getter::Kind::Read, v[3], v, 0};
+    // (a read moved left: the algebra's 2^k * x)
+    if (v.is(Op::MUL, 2) && v[1].is(Op::STORAGE, 3) && v[0].is_int()) {
+        const EvmInt k(v[0]);
+        if (k.sign() > 0 && (k & (k - EvmInt(Value::small(1)))).is_zero())
+            return Getter{Getter::Kind::Read, v[1], v, 0};
+    }
     if (v.is(Op::STORAGE, 3))
         return Getter{Getter::Kind::Read, v, v, 0};
     if (v.is(Op::DATA) && v.size() > 0) {
@@ -1050,13 +1090,24 @@ void analyse_function(FunctionInfo& fn, const ContractShared& shared, const Opti
     // function is payable), or of the body's start, out of the trace
     if (opts.payable && !fn.entry.nonpayable) {
         Value fails;
+        bool done = false;
         if (entry_lines.is_trace())
             if (const auto e = entry_without_value_check(entry_lines, fails)) {
                 entry_lines = *e;
-                fn.entry.nonpayable = true;
-                fn.entry.value_fails = fails;
+                done = true;
+                // a body that fails the same way at once (past its SETMEMs)
+                // whatever it's sent: payable as python has it (its
+                // simplifier merged the check's branches), the check gone
+                const auto ls = lines_of(body);
+                usize k = 0;
+                while (k < ls.size() && (ls[k].is(Op::SETMEM) || ls[k].is(Op::SETVAR)))
+                    ++k;
+                if (!(k < ls.size() && is_halting_failure(ls[k]) && same_failure(ls[k], fails))) {
+                    fn.entry.nonpayable = true;
+                    fn.entry.value_fails = fails;
+                }
             }
-        if (!fn.entry.nonpayable)
+        if (!done)
             if (const auto b = without_value_check(body, fails)) {
                 body = *b;
                 fn.entry.nonpayable = true;

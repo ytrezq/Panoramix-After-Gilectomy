@@ -144,9 +144,39 @@ public:
     }
 };
 
+// a storage world: the calldata, the bytes (python's content, when clean:
+// as solidity keeps them), the slot's word and the words from keccak(slot) on
 struct World {
     std::vector<u8> calldata, content;
+    bool clean = true;
+    Word256 word{};
+    std::vector<Word256> data;
 };
+
+// the words of bytes as solidity keeps them (python's), garbage past them
+// when dirty
+void encode(World& w, Rng& rnd, bool dirty) {
+    const usize len = w.content.size();
+    if (len < 32) {
+        u8 b[32] = {};
+        std::copy(w.content.begin(), w.content.end(), b);
+        if (dirty)
+            for (usize i = len; i < 31; ++i) b[i] = u8(1 + rnd.next() % 255);
+        b[31] = u8(2 * len);
+        w.word = Word256::from_be(std::span<const u8>(b, 32));
+        w.data.clear();
+        return;
+    }
+    w.word = pan::add(pan::shl(Word256::of(1), Word256::of(len)), Word256::of(1));
+    std::vector<u8> padded = w.content;
+    while (padded.size() % 32) padded.push_back(dirty ? u8(1 + rnd.next() % 255) : 0);
+    w.data.clear();
+    for (usize i = 0; i < padded.size() / 32 + 1; ++i) {
+        u8 b[32] = {};
+        if (32 * i < padded.size()) std::copy(padded.begin() + 32 * i, padded.begin() + 32 * i + 32, b);
+        w.data.push_back(Word256::from_be(std::span<const u8>(b, 32)));
+    }
+}
 
 struct Result {
     bool ok = false;  // halted (else the run says nothing)
@@ -163,6 +193,7 @@ BytesTail::BytesTail(const FunctionInfo& fn, std::span<const FunctionInfo> inter
     program_.functions = std::span<const FunctionInfo>(&fn_, 1);
     program_.internals = internals;
     program_.shared = shared;
+    program_.layout = &layout_;
     machine_ = std::make_unique<exec::Machine>(program_, exec::MachineLimits::storage_check());
 }
 
@@ -210,6 +241,7 @@ Value BytesTail::find(Value trace, Value key) {
         w.content = rnd.content(usize(std::max<i64>(lengths[n], 0)));
         w.calldata.assign(selb, selb + 4);
         for (usize k = 0; k < 8; ++k) put_word(w.calldata, values[(n + 3 * k) % NV]);
+        encode(w, rnd, false);
         worlds.push_back(std::move(w));
     }
     {
@@ -229,6 +261,7 @@ Value BytesTail::find(Value trace, Value key) {
             w.content = rnd.content(usize(std::max<i64>(lengths[n % lengths.size()], 0)));
             w.calldata.assign(selb, selb + 4);
             for (int k = 0; k < 8; ++k) put_word(w.calldata, v);
+            encode(w, rnd, false);
             worlds.push_back(std::move(w));
             ++n;
         }
@@ -238,12 +271,46 @@ Value BytesTail::find(Value trace, Value key) {
         w.calldata.assign(selb, selb + 4);
         w.calldata.insert(w.calldata.end(), n, u8(1));
         w.content = {u8('a'), u8('b')};
+        encode(w, rnd, false);
         worlds.push_back(std::move(w));
+    }
+    // and what no solc keeps, as a random world holds: garbage past the bytes,
+    // a short encoding of a length past 31 (its data words read by a legacy
+    // copy), a long one of a length below 32
+    {
+        const usize base = worlds.size();
+        for (usize n = 0; n < 13 && n < base; ++n) {
+            World w = worlds[n];
+            if (w.content.empty()) continue;
+            w.clean = false;
+            encode(w, rnd, true);
+            worlds.push_back(std::move(w));
+        }
+        for (u64 len : {u64(32), u64(33), u64(50), u64(64), u64(127)}) {
+            World w;
+            w.clean = false;
+            w.calldata = worlds[len % base].calldata;
+            u8 b[32];
+            for (u8& c : b) c = u8(rnd.next());
+            b[31] = u8(2 * len);
+            w.word = Word256::from_be(std::span<const u8>(b, 32));
+            for (u64 i = 0; i < (len + 31) / 32 + 1; ++i)
+                w.data.push_back(Word256{{rnd.next(), rnd.next(), rnd.next(), rnd.next()}});
+            worlds.push_back(std::move(w));
+        }
+        for (u64 len : {u64(0), u64(1), u64(5), u64(31)}) {
+            World w;
+            w.clean = false;
+            w.calldata = worlds[len % base].calldata;
+            w.word = Word256::of(2 * len + 1);
+            for (u64 i = 0; i < 2; ++i) w.data.push_back(Word256{{rnd.next(), rnd.next(), rnd.next(), rnd.next()}});
+            worlds.push_back(std::move(w));
+        }
     }
 
     const Value tail_line =
         mk(Op::RETURN, mk(Op::DATA, mk(Op::ARR, mk(Op::STORAGE, small(256), small(0), mk(Op::LENGTH, key)),
-                                       mk(Op::SBYTES, key))));
+                                       mk(Op::SALL, mk(Op::SR, key)))));
     const Value key_trace = mk_trace({mk(Op::RETURN, mk(Op::SIZED, small(32), key))});
 
     auto run = [&](Value t, const World& w) -> Result {
@@ -254,22 +321,10 @@ Value BytesTail::find(Value trace, Value key) {
         const exec::Outcome ko = machine_->run(host, fn_, key_trace);
         if (ko.status != exec::Status::Return || ko.data.size() != 32) return Result{};
         const Word256 slot = Word256::from_be(ko.data);
-        const usize len = w.content.size();
-        std::vector<u8> padded = w.content;
-        padded.resize((len + 31) / 32 * 32, 0);
-        if (len < 32) {
-            u8 b[32] = {};
-            std::copy(w.content.begin(), w.content.end(), b);
-            b[31] = u8(2 * len);
-            host.storage[slot] = Word256::from_be(std::span<const u8>(b, 32));
-        } else {
-            host.storage[slot] = pan::add(pan::shl(Word256::of(1), Word256::of(len)), Word256::of(1));
+        host.storage[slot] = w.word;
+        if (!w.data.empty()) {
             const Word256 base = keccak_word(slot);
-            for (usize i = 0; i < padded.size() / 32 + 1; ++i) {
-                u8 b[32] = {};
-                if (32 * i < padded.size()) std::copy(padded.begin() + 32 * i, padded.begin() + 32 * i + 32, b);
-                host.storage[pan::add(base, Word256::of(i))] = Word256::from_be(std::span<const u8>(b, 32));
-            }
+            for (usize i = 0; i < w.data.size(); ++i) host.storage[pan::add(base, Word256::of(i))] = w.data[i];
         }
         const exec::Outcome o = machine_->run(host, fn_, t);
         if (!o.halted()) return Result{};
@@ -311,7 +366,9 @@ Value BytesTail::find(Value trace, Value key) {
             if (!got.ok || !(got == orig[k])) return true;
             // the bytes returned by what's kept of the code, not by the tail
             // (a branch kept returns something else: `return ''`)
-            if (!worlds[k].content.empty() && returns_bytes(orig[k], worlds[k].content) && !got.reached) return true;
+            if (worlds[k].clean && !worlds[k].content.empty() && returns_bytes(orig[k], worlds[k].content) &&
+                !got.reached)
+                return true;
             reached |= got.reached;
         }
         if (!reached) return true;
