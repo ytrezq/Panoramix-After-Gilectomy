@@ -198,9 +198,11 @@ TEST_CASE("driver: decompile - the text, no code, the JSON")
     const auto code = bytes_of(TINY);
     const Decompilation d = driver::decompile(code, o);
     CHECK(d.text.starts_with("# Palkeoramix decompiler. \n\n"));
-    CHECK(d.text.find("def _fallback(?):") != std::string::npos);
+    CHECK(d.text.find("def _fallback(?)") != std::string::npos);
     CHECK(d.text.find('\033') == std::string::npos);
-    CHECK(d.json.starts_with("{\"problems\": {}"));
+    CHECK(d.json.starts_with("{"));
+    CHECK(d.json.find("\"problems\": {}") != std::string::npos);
+    CHECK(d.json.find("\"functions\": [") != std::string::npos);
     CHECK(!d.asm_lines.empty());
     CHECK(d.asm_lines[0] == "0x0, push1, 0x0");
     CHECK(d.explain.empty());
@@ -221,17 +223,19 @@ TEST_CASE("driver: --explain and --verbose")
     QuietLog quiet;
     DecompileOptions o;
     o.color = false;
-    o.explain = true;
     const auto code = bytes_of(TINY);
+    const Decompilation plain = driver::decompile(code, o);
+    o.explain = true;
     const Decompilation d = driver::decompile(code, o);
     CHECK(d.explain.starts_with("\n Initial decompiled trace: \n\n"));
     CHECK(d.explain.find(" Without assembly: ") != std::string::npos);
     // (the ASM lines dropped after the first trace explained)
-    CHECK(d.text.find("(asm ") == std::string::npos);
+    CHECK(d.text == plain.text);
     o.explain = false;
     o.verbose = true;
     const Decompilation v = driver::decompile(code, o);
-    CHECK(v.text.find("(asm ") != std::string::npos);
+    CHECK(v.text != plain.text);  // (the instructions run, as comments)
+    CHECK(v.text.starts_with("# Palkeoramix decompiler. "));
     CHECK(v.explain.empty());
 }
 
@@ -382,7 +386,7 @@ TEST_CASE("driver: thread counts past the cap")
     o.color = false;
     o.threads = usize{1} << 62;
     const auto code = bytes_of("6000356000556001600055");
-    CHECK(driver::decompile(code, o).text.find("def _fallback(?):") != std::string::npos);
+    CHECK(driver::decompile(code, o).text.find("def _fallback(?)") != std::string::npos);
 }
 
 TEST_CASE("driver: hostile inputs - a 20000-deep expression, 2000 nested ifs, no instruction but a cut push")

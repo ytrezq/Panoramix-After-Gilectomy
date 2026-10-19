@@ -183,6 +183,9 @@ End to_end(const pan::exec::Outcome& o)
         case pan::InvalidReason::RETURNDATACOPY:
             fault = Fault::memory_access;
             break;
+        case pan::InvalidReason::STACK_OVERFLOW:
+            fault = Fault::stack_overflow;
+            break;
         }
         return End::invalid(fault);
     }
