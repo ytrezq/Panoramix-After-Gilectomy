@@ -27,9 +27,23 @@ namespace {
     throw DecompileError(message, std::move(explain));
 }
 
-Decompilation decompile_here(std::span<const u8> code, const DecompileOptions& o)
+// The contract's budget and context, made before its thread is: with their
+// first chunk, so that a system that has no more memory to give (an address
+// space limit) fails the functions, whose contexts can't be had, and not the
+// contract (the asm's: the host process lives on, the text says so).
+struct Contract {
+    Budget budget{Budget::Limits{}};
+    std::unique_ptr<Context> ctx;
+    Contract()
+    {
+        ctx = Context::create(budget);
+        ContextScope scope(*ctx);
+        mk_list({mk_int(0)});  // (a node: the arena's first chunk)
+    }
+};
+
+Decompilation decompile_here(std::span<const u8> code, const DecompileOptions& o, Contract& c)
 {
-    init();
     detail::Settings s;
     usize threads = o.threads == 0 ? platform::cpu_count() : o.threads;
     if (threads > limits::MAX_THREADS)
@@ -46,19 +60,16 @@ Decompilation decompile_here(std::span<const u8> code, const DecompileOptions& o
     s.own_contract = true;
     s.fn_memory = job_memory_limit(threads);
 
-    Budget budget{Budget::Limits{}};
+    Budget& budget = c.budget;
     detail::Attach attach(budget);
-    std::unique_ptr<Context> ctx;
-    std::optional<ContextScope> scope;
+    ContextScope scope(*c.ctx);
     std::optional<detail::Run> run;
     try {
-        ctx = Context::create(budget);
-        scope.emplace(*ctx);
         run.emplace(code, s);  // (the code analysed: SizeLimit past 4 GiB)
     } catch (const Error& e) {
         failed(e.what(), {});
     }
-    ctx->shared = &run->shared();
+    c.ctx->shared = &run->shared();
     try {
         run->functions();
         Decompilation d;
@@ -110,11 +121,18 @@ Decompilation decompile_here(std::span<const u8> code, const DecompileOptions& o
 
 Decompilation decompile(std::span<const u8> code, const DecompileOptions& options)
 {
+    init();
+    std::optional<Contract> contract;
+    try {
+        contract.emplace();
+    } catch (const Error& e) {
+        failed(e.what(), {});
+    }
     std::optional<Decompilation> d;
     std::exception_ptr error;
     auto body = [&] {
         try {
-            d.emplace(decompile_here(code, options));
+            d.emplace(decompile_here(code, options, *contract));
         } catch (...) {
             error = std::current_exception();
         }
@@ -128,6 +146,8 @@ Decompilation decompile(std::span<const u8> code, const DecompileOptions& option
     }
     if (!ran)
         body();  // (no thread: on this one, its stack bounded by check_stack)
+    contract.reset();
+    chunk_pool_trim();  // (the arenas' memory back to the system, but a few chunks)
     if (error)
         std::rethrow_exception(error);
     return std::move(*d);
