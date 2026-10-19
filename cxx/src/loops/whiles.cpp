@@ -78,7 +78,7 @@ private:
         Lines remaining;
         Value cond;
         bool loop = true;  // false: nothing loops back (the setvars, then the lines)
-        bool renamed = false, exit_after = false;  // (stats)
+        bool renamed = false, exit_after = false, check_exit = false;  // (stats)
     };
 
     struct Label {
@@ -89,6 +89,7 @@ private:
 
     void to_while(std::span<const Value> rest, const Label& lb, Made& m);
     void as_while_true(Made& m, const Lines& body, std::span<const Value> remaining);
+    bool check_exit(const Lines& body, std::span<const usize> checks, const Label& lb, Made& m);
     bool exit_values(Value out, Value body, std::span<const Value> after, const Label& lb, Value& body2,
                      Lines& after2);
     bool break_setvars(Value trace, bool tail, std::span<const Value> from, std::span<const Value> to);
@@ -162,6 +163,7 @@ Value Whiles::make(Value trace) {
                             if (!m.before.empty()) ++ws.rotated;
                             if (m.renamed) ++ws.renamed;
                             if (m.exit_after) ++ws.exit_after;
+                            if (m.check_exit) ++ws.check_exit;
                         }
                     }
                 }
@@ -218,12 +220,50 @@ void Whiles::as_while_true(Made& m, const Lines& body, std::span<const Value> re
     m.loop = true;
 }
 
+// A loop whose only way out (but halts and outer loops) is a check - IF(c,
+// X, []) on its path, X ending the run (a return of what the loop made):
+//
+//   LABEL(id, S0); P; IF(c, X, []); B          (no path of B falls off it)
+//   P[v := S0]; WHILE(iszero(c), B', id, S0); X
+//
+// (B': B with P[v := Sk] before each GOTO, the rotation's conditions on P).
+// X runs where the loop is left, in the state the check saw. The check
+// chosen: the first one whose condition reads a variable of the loop and
+// whose X isn't a lone REVERT / INVALID (those stay checks, python's).
+bool Whiles::check_exit(const Lines& body, std::span<const usize> checks, const Label& lb, Made& m) {
+    if (!opts_.exit_test || checks.empty()) return false;
+    std::pmr::memory_resource* res = cx().budget.resource();
+    const std::span<const Value> names(lb.names.data(), lb.names.size());
+    for (usize k : checks) {
+        const Value chk = body[k];
+        const Value c = chk[0], x = chk[1];
+        if (!reads_any(c, names)) continue;
+        if (x.size() == 1 && (x[0].is(Op::REVERT) || x[0].is(Op::INVALID))) continue;
+        const Value rest = trace_of(std::span<const Value>(body.data() + k + 1, body.size() - k - 1));
+        // (no break: X only when the check holds)
+        if (falls_through(rest)) return false;
+        Lines p(body.begin(), body.begin() + isize(k), res);
+        if (!rotates(p, rest, lb)) continue;
+        Lines before(res);
+        substituted(p, lb, lb.setvars, before);
+        m.before.swap(before);
+        m.body = add_path(rest, p, lb);
+        m.remaining.assign(x.args().begin(), x.args().end());
+        m.cond = alg::iszero(c);
+        m.loop = true;
+        m.check_exit = true;
+        return true;
+    }
+    return false;
+}
+
 // python to_while: the lines after the label (rest) as before, the loop's
 // condition and body, what follows the loop
 void Whiles::to_while(std::span<const Value> rest, const Label& lb, Made& m) {
     std::pmr::memory_resource* res = cx().budget.resource();
     const Value id = lb.id;
     Lines path(res);
+    std::pmr::vector<usize> checks(res);  // the checks spliced into the path: their places in it
     Lines lines(rest.begin(), rest.end(), res);  // the lines left, from `at`
     usize at = 0;
     // the lines left that jump back to the label
@@ -260,6 +300,7 @@ void Whiles::to_while(std::span<const Value> rest, const Label& lb, Made& m) {
                 if (is_check_branch(t)) {
                     Value r = mk(line.op(), c, t, mk_trace(std::span<const Value>()));
                     cx().pcs.inherit(r, line);
+                    checks.push_back(path.size());
                     path.push_back(r);
                     splice(e);
                     continue;
@@ -267,6 +308,7 @@ void Whiles::to_while(std::span<const Value> rest, const Label& lb, Made& m) {
                 if (is_check_branch(e)) {
                     Value r = mk(line.op(), alg::iszero(c), e, mk_trace(std::span<const Value>()));
                     cx().pcs.inherit(r, line);
+                    checks.push_back(path.size());
                     path.push_back(r);
                     splice(t);
                     continue;
@@ -334,6 +376,7 @@ void Whiles::to_while(std::span<const Value> rest, const Label& lb, Made& m) {
                     }
                 }
                 path.push_back(line);
+                if (check_exit(path, checks, lb, m)) return;
                 as_while_true(m, path, {});
                 return;
             }
@@ -344,6 +387,7 @@ void Whiles::to_while(std::span<const Value> rest, const Label& lb, Made& m) {
                     // (what follows the goto never runs: left where it is)
                     path.push_back(line);
                     path.insert(path.end(), left().begin(), left().end());
+                    if (check_exit(path, checks, lb, m)) return;
                     as_while_true(m, path, {});
                     return;
                 }

@@ -451,3 +451,64 @@ TEST_CASE("loops: the plain form, every loop while True") {
     REQUIRE(!w.nil());
     CHECK(is_true_cond(w[0]));
 }
+
+TEST_CASE("loops: a check as the exit test (its branch ends the run)") {
+    Fixture f;
+    // the exit's code inlined at the test: a return of what the loop made
+    Value u = whiles(
+        "{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+        " (label loopid1 {(setvar loop1 0)})"
+        " (if (ge loop1 tmp1) {(setvar tmp2 (mem (range 0 32))) (return (mem (range 0 (add 64 tmp2))))} {})"
+        " (setmem (range (add 64 (mul 32 loop1)) 32) (add 7 loop1))"
+        " (goto loopid1 {(setvar loop1 (add 1 loop1))})}");
+    Value w = first_while(u);
+    REQUIRE(!w.nil());
+    CHECK(!is_true_cond(w[0]));
+    CHECK(w[0] == V("(lt loop1 tmp1)"));
+    CHECK(u[u.size() - 1].is(Op::RETURN));
+    // with lines before the check (rotated), and a revert check in the body
+    u = whiles(
+        "{(setmem (range 0 32) (mask_shl 3 0 0 (calldataload 4)))"
+        " (label loopid1 {(setvar loop1 0)})"
+        " (setvar tmp3 (mem (range 0 32)))"
+        " (if (ge loop1 tmp3) {(setvar tmp2 (mem (range 32 32))) (return (data (sized 32 tmp2) (sized 32 loop1)))} {})"
+        " (if (eq loop1 (mask_shl 3 0 0 (calldataload 36))) {(revert None)} {})"
+        " (setmem (range 32 32) (add loop1 (mem (range 32 32))))"
+        " (goto loopid1 {(setvar loop1 (add 1 loop1))})}");
+    w = first_while(u);
+    REQUIRE(!w.nil());
+    CHECK(!is_true_cond(w[0]));
+    // a lone revert: a check, not the exit
+    u = whiles(
+        "{(label loopid1 {(setvar loop1 0)})"
+        " (if (ge loop1 (mask_shl 3 0 0 (calldataload 4))) {(revert None)} {})"
+        " (if (eq loop1 3) {(return (sized 32 loop1))} {})"
+        " (goto loopid1 {(setvar loop1 (add 1 loop1))})}");
+    w = first_while(u);
+    REQUIRE(!w.nil());
+    // (the second check is the exit: it reads the loop's variable and returns)
+    CHECK(!is_true_cond(w[0]));
+    CHECK(w[0] == V("(iszero (eq loop1 3))"));
+    // a check that doesn't read the loop's variables: not the exit
+    u = whiles(
+        "{(setvar tmp1 (mask_shl 1 0 0 (calldataload 4)))"
+        " (label loopid1 {(setvar loop1 0)})"
+        " (if tmp1 {(setmem (range 0 32) 5) (return (mem (range 0 32)))} {})"
+        " (if (eq loop1 4) {(stop)} {})"
+        " (goto loopid1 {(setvar loop1 (add 1 loop1))})}");
+    w = first_while(u);
+    REQUIRE(!w.nil());
+    CHECK(w[0] == V("(iszero (eq loop1 4))"));
+    // a body that may fall off (a break): while True
+    u = whiles(
+        "{(if (calldataload 4)"
+        "   {(label loopid1 {(setvar loop1 0)})"
+        "    (if (ge loop1 5) {(return (sized 32 loop1))} {})"
+        "    (if (mask_shl 1 0 0 loop1) {(if (eq loop1 (mask_shl 2 0 0 (calldataload 36))) {(goto loopid1 {(setvar loop1 "
+        "(add 1 loop1))})} {})} {(goto loopid1 {(setvar loop1 (add 1 loop1))})})}"
+        "   {})"
+        " (return (sized 32 99))}");
+    w = first_while(u);
+    REQUIRE(!w.nil());
+    CHECK(is_true_cond(w[0]));
+}

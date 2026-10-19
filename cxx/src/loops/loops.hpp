@@ -15,7 +15,9 @@
 //    only when that is equivalent (they set no loop variable, no value of the
 //    setvars reads what they change, no CONTINUE in them, no call id
 //    duplicated); the exit branch's merge setvars renamed away (python
-//    exit_values) only when that is equivalent. Otherwise the loop is
+//    exit_values) only when that is equivalent; a loop whose only way out is
+//    a check of its variables whose branch ends the run (python: while
+//    True) as `while not check`, that branch after it. Otherwise the loop is
 //    `while True` (BOOL(1)) with its exits inside: the general form, always
 //    equivalent to the LABEL / GOTO it replaces. Nested labels: each its
 //    loop. A GOTO with no LABEL of its loop around it, a LABEL / GOTO malformed:
@@ -83,6 +85,7 @@ struct WhilesStats {
     u64 rotated = 0;     //   with lines rotated (run before the loop and each CONTINUE)
     u64 renamed = 0;     //   with the exit's merge variables renamed (python exit_values)
     u64 exit_after = 0;  //   with the exit branch run after the loop (no break)
+    u64 check_exit = 0;  //   its exit a check (the code that ends the run after the loop)
     u64 while_true = 0;  // `while True`
     u64 no_loop = 0;     // nothing loops back: plain SETVARs
 };

@@ -83,6 +83,35 @@ mem::MemState constrained(const mem::MemState& st, Value cond) {
     return s2;
 }
 
+// what a loop changes (lot 6's summary: the names it sets, the memory any
+// iteration may write), forgotten from what's known at its head
+void forget_loop(mem::MemState& st, Value while_line) {
+    const loops::LoopSummary& ls = loops::summary(while_line);
+    const EffectSummary& e = ls.effects;
+    if (!ls.written.nil())
+        for (Value n : ls.written.args()) st.forget_name(n);
+    if ((e.writes & S_VARS) && (e.writes_any & S_VARS)) st.forget_flags(F_VAR);
+    if (e.writes & S_STORAGE) st.forget_flags(F_STORAGE);
+    if (e.writes & (S_TRANSIENT | S_ACCOUNT | S_CALLRES)) st.forget_flags(F_STATE);
+    if (ls.mem_writes_any || ((e.writes & S_MEM) && ls.mem_writes.nil())) {
+        st.clear();
+        return;
+    }
+    if (ls.mem_writes.nil()) return;
+    // (a range that reads what the loop changes but its variables - memory,
+    // storage - isn't where the writes are: anywhere)
+    EffectSummary others = e;
+    others.writes &= ~S_VARS;
+    others.writes_any &= ~S_VARS;
+    others.var_writes = Value();
+    for (Value r : ls.mem_writes.args())
+        if (changes(others, summary(r))) {
+            st.clear();
+            return;
+        }
+    for (Value r : ls.mem_writes.args()) st.write(r, Value());
+}
+
 class Forward {
 public:
     Value walk(Value trace, mem::MemState& st) {
@@ -153,7 +182,7 @@ private:
             }
             case Op::WHILE: {
                 Value sv = map_line_exprs(mk(Op::CONTINUE, l[2], l[3]), [&](Value e, Pos pos) { return reads(e, pos, st); });
-                forget(st, summary(l));
+                forget_loop(st, l);
                 mem::MemState inside(st);
                 Value cond = reads(l[0], Pos::Word, inside);
                 Value body = walk(l[1], inside);

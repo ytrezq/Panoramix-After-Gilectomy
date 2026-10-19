@@ -148,11 +148,12 @@ TEST_CASE("loops: corpus (PANORAMIX_LOOPS_CORPUS)") {
                 problem = std::string("discovery: ") + e.what();
             }
             const L::WhilesStats& s = L::whiles_stats();
-            std::printf("%-40s fns %3llu loops %3llu: test %3llu (rotated %llu renamed %llu after %llu) true %3llu "
-                        "plain %llu | counters %llu trips %llu endvars %llu breaks %llu | %lld us%s%s\n",
+            std::printf("%-40s fns %3llu loops %3llu: test %3llu (rotated %llu renamed %llu after %llu check %llu) "
+                        "true %3llu plain %llu | counters %llu trips %llu endvars %llu breaks %llu | %lld us%s%s\n",
                         name.c_str(), (unsigned long long)fns, (unsigned long long)s.labels,
                         (unsigned long long)s.exit_test, (unsigned long long)s.rotated,
                         (unsigned long long)s.renamed, (unsigned long long)s.exit_after,
+                        (unsigned long long)s.check_exit,
                         (unsigned long long)s.while_true, (unsigned long long)s.no_loop,
                         (unsigned long long)c.counters, (unsigned long long)c.trips, (unsigned long long)c.endvars,
                         (unsigned long long)c.breaks, (long long)(ns / 1000), problem.empty() ? "" : " ",
@@ -163,6 +164,7 @@ TEST_CASE("loops: corpus (PANORAMIX_LOOPS_CORPUS)") {
             total.rotated += s.rotated;
             total.renamed += s.renamed;
             total.exit_after += s.exit_after;
+            total.check_exit += s.check_exit;
             total.while_true += s.while_true;
             total.no_loop += s.no_loop;
         }
@@ -176,12 +178,13 @@ TEST_CASE("loops: corpus (PANORAMIX_LOOPS_CORPUS)") {
         whiles_ns += ns;
     }
     std::printf("TOTAL %lu contracts, %llu functions (vm failed %llu), make_whiles failed %llu: loops %llu: exit test %llu "
-                "(rotated %llu renamed %llu exit after %llu), while True %llu, no loop %llu; whiles %llu: counters %llu "
-                "trips %llu endvars %llu breaks %llu; make_whiles %lld ms\n",
+                "(rotated %llu renamed %llu exit after %llu check %llu), while True %llu, no loop %llu; whiles %llu: "
+                "counters %llu trips %llu endvars %llu breaks %llu; make_whiles %lld ms\n",
                 done, (unsigned long long)functions, (unsigned long long)vm_failed, (unsigned long long)failed,
                 (unsigned long long)total.labels, (unsigned long long)total.exit_test,
                 (unsigned long long)total.rotated, (unsigned long long)total.renamed,
-                (unsigned long long)total.exit_after, (unsigned long long)total.while_true,
+                (unsigned long long)total.exit_after, (unsigned long long)total.check_exit,
+                (unsigned long long)total.while_true,
                 (unsigned long long)total.no_loop, (unsigned long long)lc.whiles, (unsigned long long)lc.counters,
                 (unsigned long long)lc.trips, (unsigned long long)lc.endvars, (unsigned long long)lc.breaks,
                 (long long)(whiles_ns / 1000000));

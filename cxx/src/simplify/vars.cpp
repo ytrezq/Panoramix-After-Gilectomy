@@ -31,6 +31,7 @@
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "core/memo.hpp"
+#include "loops/loops.hpp"
 
 namespace pan::simplify {
 
@@ -207,6 +208,12 @@ private:
                 Value body = walk(l[1], inside);
                 Value r = mk(Op::WHILE, cond, body, l[2], sv);
                 cx().pcs.inherit(r, l);
+                // after it, the loop's variables' last values when lot 6
+                // proves them (made of what the loop doesn't change)
+                if (auto ind = loops::induction(l); ind && ind->endvars.is_list())
+                    for (Value e : ind->endvars.args())
+                        if (e.is(Op::SETVAR, 2) && is_var(e[0]) && !changes(s, summary(e[1])) && movable(e[0], e[1]))
+                            env.set(e[0], e[1]);
                 return r;
             }
             case Op::LABEL: {
@@ -233,20 +240,24 @@ private:
         Value r = subst_line(l, env);
         if (r != l) cx().pcs.inherit(r, l);
         env.kill(summary(r));
-        if (r.is(Op::SETVAR, 2) && is_var(r[0])) {
-            Value v = r[1];
-            const EffectSummary& vs = summary(v);
-            bool self = false;
-            if (vs.reads & S_VARS) {
-                if (vs.reads_any & S_VARS) self = true;
-                else if (!vs.var_reads.nil())
-                    for (Value x : vs.var_reads.args())
-                        if (x == r[0]) self = true;
-            }
-            const bool movable = !(run_flags().msize && (vs.reads & (S_MEM | S_MSIZE))) && !(vs.control & C_FAILS);
-            if (!self && movable && exp_size(v, limits::MAX_EXP_SIZE) <= limits::MAX_EXP_SIZE) env.set(r[0], v);
-        }
+        if (r.is(Op::SETVAR, 2) && is_var(r[0]) && movable(r[0], r[1])) env.set(r[0], r[1]);
         return r;
+    }
+
+    // v's value may stand for it where it's read: not reading v itself, not
+    // past MAX_EXP_SIZE, nothing that may fail, no memory moved where msize
+    // is read
+    static bool movable(Value name, Value v) {
+        const EffectSummary& vs = summary(v);
+        if (vs.reads & S_VARS) {
+            if (vs.reads_any & S_VARS) return false;
+            if (!vs.var_reads.nil())
+                for (Value x : vs.var_reads.args())
+                    if (x == name) return false;
+        }
+        if (run_flags().msize && (vs.reads & (S_MEM | S_MSIZE))) return false;
+        if (vs.control & C_FAILS) return false;
+        return exp_size(v, limits::MAX_EXP_SIZE) <= limits::MAX_EXP_SIZE;
     }
 
     Value subst_setvars(Value sv, const Env& env) {
