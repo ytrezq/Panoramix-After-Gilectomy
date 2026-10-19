@@ -468,7 +468,7 @@ TEST_CASE("validate: the ABI encoding: the specification's examples")
     // a dynamic tuple, int<N> sign-extended (the words as given), bytes of 32
     expect("h((int8,bytes),bytes32[])", params({"690200200063", "675f"}),
         list({list({~Word{0}, Bytes(32, 0xab)}), list({})}),
-        "0x00000000"
+        "0x1f7fffd2"
         "0000000000000000000000000000000000000000000000000000000000000040"
         "00000000000000000000000000000000000000000000000000000000000000c0"
         "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -480,7 +480,7 @@ TEST_CASE("validate: the ABI encoding: the specification's examples")
     expect("k((uint8,address),function)", params({"690200000060", "64"}),
         list({list({Word{7}, Word{0xbeef}}),
             *parse_number("0x1122334455667788990011223344556677889900aabbccdd0000000000000000")}),
-        "0x00000000"
+        "0xd3a9f7c5"
         "0000000000000000000000000000000000000000000000000000000000000007"
         "000000000000000000000000000000000000000000000000000000000000beef"
         "1122334455667788990011223344556677889900aabbccdd0000000000000000");

@@ -248,6 +248,7 @@ struct Param
     std::string name;
     PType type;
     std::uint32_t position = 4;  ///< the calldata offset of its first head word
+    bool typed = true;           ///< its type printed (not a _paramN of _fallback(?): a word)
 };
 
 struct Function
@@ -265,6 +266,11 @@ struct Function
     bool payable = true;
     bool value_invalid = false;   ///< # not payable (invalid): an invalid opcode
     bool unknown_params = false;  ///< f(?): its params, _param1..., the words it reads
+    /// The text doesn't say where its params are - unknown1234abcd(...),
+    /// f(?), _fallback(?): the words of calldata it reads, in their order;
+    /// at 4 + 32 i unless side information placed them (place_params).
+    bool places_unknown = false;
+    bool placed = false;          ///< its params placed by side information
     std::vector<Param> params;
     std::vector<StmtId> body;
     std::vector<ExprId> data;     ///< a constant's data

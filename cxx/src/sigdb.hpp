@@ -23,9 +23,9 @@
 //   buckets  u32[2^B + 1]: bucket b (the selector's top B bits) is
 //            index[buckets[b] .. buckets[b+1])
 //   index    {u32 selector, u32 record offset} by selector
-//   records  per entry: kind, [an event's topic0], name, parameters (their
-//            names as references to the strings, their types as codes, see
-//            Type), [an event's indexed flags]
+//   records  per entry: kind, [an event's topic0], name, the parameters'
+//            count, [an event's indexed flags], the parameters (their names
+//            as references to the strings, their types as codes, see Type)
 //   strings  the parameters' names, the named types (varint length, bytes)
 // A lookup: the bucket (one cache line), its few index entries (one or
 // two), the record (one or two).
@@ -230,7 +230,9 @@ private:
 class Error : public std::runtime_error {
 public:
     // python's build_signature_db failure codes (the asm's sigdb_build):
-    // 1 can't read / write / decompress, -1 the dump isn't one it can read
+    // 1 can't read, decompress or write, or a line isn't the JSON expected;
+    // -1 the dump goes past the limits (nesting, a line's length, 4 GiB of
+    // strings or records)
     enum class Code : int { failed = 1, bad_dump = -1 };
     Error(Code code, const std::string& what) : std::runtime_error(what), code_(code) {}
     Code code() const noexcept { return code_; }

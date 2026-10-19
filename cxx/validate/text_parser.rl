@@ -594,8 +594,8 @@ ExprId Parser::name_leaf(std::uint32_t tok)
         if (const auto it = param_names_.find(name); it != param_names_.end())
             return leaf(Op::param, it->second);
         // _fallback(?) (a signature without its params): its _paramN are
-        // the words of calldata it reads - where, the text doesn't say (the
-        // N-th word by default, see place_params)
+        // the words of calldata it reads - where, of which type, the text
+        // doesn't say (the N-th word by default, see place_params)
         auto& fn = prog_.functions[fn_];
         if (fn.unknown_params && fn.kind != Function::internal)
             if (const auto n = param_number(name); n && *n <= 65536)
@@ -605,6 +605,7 @@ ExprId Parser::name_leaf(std::uint32_t tok)
                     Param p;
                     p.name = "_param" + std::to_string(fn.params.size() + 1);
                     p.position = static_cast<std::uint32_t>(4 + 32 * fn.params.size());
+                    p.typed = false;
                     fn.params.push_back(std::move(p));
                 }
                 return leaf(Op::param, *n - 1);
@@ -1756,9 +1757,12 @@ void Parser::s_def(std::uint32_t name_tok, std::uint32_t comment_tok)
     default: f.payable = true; break;
     }
     f.unknown_params = sig_.unknown;
+    f.places_unknown = sig_.unknown || f.kind == Function::fallback;
     if (f.kind == Function::regular)
     {
-        f.selector = sig_selector(sig_);
+        const auto unknown = unknown_selector(sig_.name);
+        f.selector = unknown ? *unknown : selector_of(canonical(sig_));
+        f.places_unknown = f.places_unknown || unknown.has_value();
         f.name = canonical(sig_);
         if (sig_.unknown)
             f.name = std::string(sig_.name) + "(?)";

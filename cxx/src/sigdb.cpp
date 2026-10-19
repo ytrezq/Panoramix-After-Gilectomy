@@ -63,6 +63,7 @@ constexpr std::size_t section_align = 64;
 constexpr unsigned max_bucket_bits = 24;
 constexpr std::uint64_t max_line = 256u << 20;  // a line of the dump, decompressed
 constexpr std::uint64_t max_params = 1u << 20;  // of an entry
+constexpr std::uint64_t max_xz_memory = 1u << 30;  // the decompressor's (the dump's: 64 MiB)
 
 std::atomic<LogSink> log_sink{nullptr};
 
@@ -1036,7 +1037,7 @@ private:
     void decompress()
     {
         lzma_stream strm = LZMA_STREAM_INIT;
-        if (lzma_auto_decoder(&strm, UINT64_MAX, LZMA_CONCATENATED) != LZMA_OK)
+        if (lzma_auto_decoder(&strm, max_xz_memory, LZMA_CONCATENATED) != LZMA_OK)
             throw Error(Error::Code::failed, "lzma can't decode");
         struct End {
             lzma_stream* s;
@@ -1051,6 +1052,8 @@ private:
             strm.avail_out = buf.size() - len;
             lzma_ret r = lzma_code(&strm, LZMA_FINISH);
             len = buf.size() - strm.avail_out;
+            if (r == LZMA_MEMLIMIT_ERROR)
+                throw Error(Error::Code::bad_dump, "its decompression needs more than 1 GiB");
             if (r != LZMA_OK && r != LZMA_STREAM_END)
                 throw Error(Error::Code::failed, "lzma error " + std::to_string(r));
             if (r == LZMA_STREAM_END) {
