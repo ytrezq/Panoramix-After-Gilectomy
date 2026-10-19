@@ -2,10 +2,10 @@
 // one. See sigdb.hpp; the parsers are sigdb_dump.rl and sigdb_type.rl, the
 // platform's part sigdb_posix.cpp.
 //
-// The file, version 1 (little-endian):
+// The file, version 2 (little-endian):
 //   header (136 bytes)
 //     0  "PANSIGDB"
-//     8  u32 the version (1)        12  u32 the header's size (136)
+//     8  u32 the version (2)        12  u32 the header's size (136)
 //    16  u64 the file's size        24  u8[32] the dump's SHA-256
 //    56  u64 the dump's size        64  i64 the dump's mtime (ns)
 //    72  u32 the entries (n)        76  u32 B, the bucket bits
@@ -18,14 +18,18 @@
 //            b, is index[buckets[b] .. buckets[b + 1])
 //   index    n x {u32 selector, u32 its record's offset in the records},
 //            by selector
-//   records  by selector, each:
+//   records  by selector (one each: the verified line, else the repaired
+//            one, else the unverified one; among equals the last), each:
 //            u8 the kind (Kind, bits 0-2) | 8 when the selector is the hash
-//               of the signature without its spaces
-//            [an event: its topic0, 32 bytes]
+//               of the signature without its spaces | the Trust << 4 |
+//               0x40 when the dump's texts of the types follow
+//            [an event: its topic0, 32 bytes (zeros: unverified)]
 //            the name: its length (varint), its bytes
 //            the inputs: their count n (varint)
 //            [an event: the indexed ones, a bit each, (n + 7) / 8 bytes]
 //            n x {the name (a string reference, varint), the type's code}
+//            [0x40: n x the dump's text of the type (a string reference, 0:
+//             its code's text)]
 //   strings  each: its length (varint), its bytes; a reference is its
 //            offset (0: the empty string)
 // Each section begins at a multiple of 64 bytes. The file is checked when
@@ -57,7 +61,7 @@ static_assert(std::endian::native == std::endian::little, "the file is read in p
 namespace {
 
 constexpr char magic[8] = {'P', 'A', 'N', 'S', 'I', 'G', 'D', 'B'};
-constexpr std::uint32_t version = 1;
+constexpr std::uint32_t version = 2;
 constexpr std::size_t header_size = 136;
 constexpr std::size_t section_align = 64;
 constexpr unsigned max_bucket_bits = 24;
@@ -600,7 +604,8 @@ Field Fields::operator[](std::size_t i) const noexcept
 }
 
 namespace {
-constexpr std::uint8_t kind_mask = 7, no_spaces = 8;
+constexpr std::uint8_t kind_mask = 7, no_spaces = 8, trust_shift = 4, trust_mask = 0x30,
+                         has_written = 0x40;
 const std::array<std::uint8_t, 32> no_topic{};
 
 // the record's parts: past the kind and the topic, the name
@@ -611,6 +616,31 @@ const std::uint8_t* record_name(const std::uint8_t* record) noexcept
 }  // namespace
 
 Kind Entry::kind() const noexcept { return static_cast<Kind>(record_[0] & kind_mask); }
+
+Trust Entry::trust() const noexcept
+{
+    return static_cast<Trust>((record_[0] & trust_mask) >> trust_shift);
+}
+
+std::string_view Entry::written_type(std::size_t i) const noexcept
+{
+    if (!(record_[0] & has_written))
+        return {};
+    const std::uint8_t* q = record_name(record_);
+    q += get_varint(q);
+    std::uint64_t n = get_varint(q);
+    if (i >= n)
+        return {};
+    if (kind() == Kind::event)
+        q += (n + 7) / 8;
+    for (std::uint64_t k = 0; k < n; k++) {  // (past the inputs)
+        get_varint(q);
+        q = skip_code(q);
+    }
+    for (std::size_t k = 0; k < i; k++)
+        get_varint(q);
+    return string_at(strings_, get_varint(q));
+}
 
 bool Entry::hashed_without_spaces() const noexcept { return record_[0] & no_spaces; }
 
@@ -740,7 +770,7 @@ bool check_record(const std::uint8_t* p, const std::uint8_t* end, const std::uin
     if (p >= end)
         return false;
     std::uint8_t head = *p++;
-    if (head & ~(kind_mask | no_spaces))
+    if (head & 0x80 || (head & trust_mask) >> trust_shift > static_cast<int>(Trust::unverified))
         return false;
     bool event = (head & kind_mask) == static_cast<int>(Kind::event);
     if (event) {
@@ -766,6 +796,12 @@ bool check_record(const std::uint8_t* p, const std::uint8_t* end, const std::uin
         if (!skip_type(p, end, strings, strings_size))  // (the type, its strings)
             return false;
     }
+    if (head & has_written)
+        for (std::uint64_t i = 0; i < n; i++) {
+            std::uint64_t ref;
+            if (!get_varint(p, end, ref) || !check_string(ref, strings, strings_size))
+                return false;
+        }
     return true;
 }
 }  // namespace
@@ -806,7 +842,8 @@ std::optional<Entry> Database::event(std::span<const std::uint8_t, 32> topic) co
     std::uint32_t selector = std::uint32_t{topic[0]} << 24 | std::uint32_t{topic[1]} << 16 |
                              std::uint32_t{topic[2]} << 8 | topic[3];
     std::optional<Entry> e = function(selector);
-    if (!e || e->kind() != Kind::event || !std::ranges::equal(e->topic(), topic))
+    if (!e || e->kind() != Kind::event || e->trust() == Trust::unverified ||
+        !std::ranges::equal(e->topic(), topic))
         return std::nullopt;
     return e;
 }
@@ -815,27 +852,28 @@ std::optional<Entry> Database::event(std::span<const std::uint8_t, 32> topic) co
 
 namespace {
 
-// The entries of the dump, as they come: the valid ones' records made.
+// The entries of the dump, as they come, each line's record made: verified
+// (its signature hashes to its selector, as python checks it), repaired (a
+// variant of it does: IERC20 written for an address...), or unverified (none
+// does: kept for want of better - panoramix's guesses, unknown12345678(...)).
 class Builder final : public EntrySink {
 public:
     struct Item {
         std::uint32_t selector;
-        bool valid;
+        Trust trust;
         std::uint64_t offset;  // its record in records
         std::uint32_t size;
     };
 
     void entry(const RawEntry& e) override
     {
-        if (!e.selector_ok)
-            return;  // (a key python never asks for)
-        Item item{e.selector, false, 0, 0};
-        if (e.ok && check(e)) {
-            item.valid = true;
-            item.offset = records.size();
-            encode(e);
-            item.size = static_cast<std::uint32_t>(records.size() - item.offset);
-        }
+        if (!e.selector_ok || !e.ok)
+            return;  // (a key python never asks for; a line python can't read)
+        Item item{e.selector, Trust::verified, records.size(), 0};
+        if (!check(e))
+            item.trust = repair(e) ? Trust::repaired : Trust::unverified;
+        encode(e, item.trust);
+        item.size = static_cast<std::uint32_t>(records.size() - item.offset);
         items.push_back(item);
     }
 
@@ -844,8 +882,34 @@ public:
     std::vector<Item> items;
 
 private:
-    // python's hashes_to: the signature (or the same without its spaces)
-    // hashes to the selector
+    static constexpr std::size_t max_variants = 256;  // of a signature (2^-24 of a false match)
+
+    static std::uint32_t be32(const std::array<std::uint8_t, 32>& h)
+    {
+        return std::uint32_t{h[0]} << 24 | std::uint32_t{h[1]} << 16 | std::uint32_t{h[2]} << 8 |
+               h[3];
+    }
+
+    // text hashes to the selector, or text without its spaces does (the
+    // hash of text kept: a verified event's topic, as python checks it; and
+    // the hash of the text that matched: a repaired one's)
+    bool hashes(const std::string& text, std::uint32_t selector)
+    {
+        hash_ = keccak256(text);
+        matched_hash_ = hash_;
+        no_spaces_ = false;
+        if (be32(hash_) == selector)
+            return true;
+        if (text.find(' ') == std::string::npos)
+            return false;
+        std::string squeezed;
+        std::ranges::copy_if(text, std::back_inserter(squeezed), [](char c) { return c != ' '; });
+        matched_hash_ = keccak256(squeezed);
+        no_spaces_ = be32(matched_hash_) == selector;
+        return no_spaces_;
+    }
+
+    // python's hashes_to: its signature as python writes it
     bool check(const RawEntry& e)
     {
         text_.assign(e.name);
@@ -856,24 +920,10 @@ private:
             text_ += e.params[i].canonical;
         }
         text_ += ')';
-        hash_ = keccak256(text_);
-        no_spaces_ = false;
-        if (be32(hash_) == e.selector)
-            return true;
-        std::string squeezed;
-        std::ranges::copy_if(text_, std::back_inserter(squeezed), [](char c) { return c != ' '; });
-        if (squeezed.size() != text_.size() && be32(keccak256(squeezed)) == e.selector) {
-            no_spaces_ = true;
-            return true;
-        }
-        return false;
+        return hashes(text_, e.selector);
     }
 
-    static std::uint32_t be32(const std::array<std::uint8_t, 32>& h)
-    {
-        return std::uint32_t{h[0]} << 24 | std::uint32_t{h[1]} << 16 | std::uint32_t{h[2]} << 8 |
-               h[3];
-    }
+    // --- the codes of the types ---
 
     // The tuple of a parameter's components (TupleSource for parse_type).
     struct Components final : TupleSource {
@@ -897,6 +947,30 @@ private:
         }
     };
 
+    // a code made at start: within the depth, its strings there
+    bool sound(const std::string& code, std::size_t start) const
+    {
+        const auto* q = reinterpret_cast<const std::uint8_t*>(code.data() + start);
+        const auto* end = reinterpret_cast<const std::uint8_t*>(code.data() + code.size());
+        return skip_type(q, end, reinterpret_cast<const std::uint8_t*>(pool.bytes().data()),
+                         pool.bytes().size()) &&
+               q == end;
+    }
+
+    std::string text_of(const std::string& code, std::size_t start = 0) const
+    {
+        std::string text;
+        const auto* q = reinterpret_cast<const std::uint8_t*>(code.data() + start);
+        append_type_text(q, reinterpret_cast<const std::uint8_t*>(pool.bytes().data()), text);
+        return text;
+    }
+
+    void named(const RawParam& p, std::string& code)
+    {
+        code.push_back(static_cast<char>(code::named));
+        put_varint(code, pool.intern(p.canonical));
+    }
+
     // the code of a parameter's type: what parse_type makes of it, or a
     // named type of python's text (canonical_type) where it can't, where
     // that isn't python's text, or nests too deep
@@ -904,35 +978,190 @@ private:
     {
         std::size_t start = code.size();
         Components comps(*this, p, arena);
-        bool ok = parse_type(p.type, p.has_components ? &comps : nullptr, pool, code);
-        if (ok) {
-            const auto* q = reinterpret_cast<const std::uint8_t*>(code.data() + start);
-            const std::uint8_t* end = reinterpret_cast<const std::uint8_t*>(code.data() + code.size());
-            ok = skip_type(q, end, reinterpret_cast<const std::uint8_t*>(pool.bytes().data()),
-                           pool.bytes().size()) &&
-                 q == end;
-            if (ok && p.has_components) {
-                // ("tuple" substituted: the text must still be python's)
-                std::string text;
-                const auto* r = reinterpret_cast<const std::uint8_t*>(code.data() + start);
-                append_type_text(r, reinterpret_cast<const std::uint8_t*>(pool.bytes().data()), text);
-                ok = text == p.canonical;
-            }
-        }
+        bool python_tuple = p.tuple_text && p.has_components;
+        bool ok = parse_type(p.type, python_tuple ? &comps : nullptr, pool, code) &&
+                  sound(code, start);
+        // ("tuple" substituted: the text must still be python's)
+        if (ok && python_tuple)
+            ok = text_of(code, start) == p.canonical;
         if (!ok) {
             code.resize(start);
-            code.push_back(static_cast<char>(code::named));
-            put_varint(code, pool.intern(p.canonical));
+            named(p, code);
         }
     }
 
-    void encode(const RawEntry& e)
+    // The tuple of a parameter's components, read leniently.
+    struct LenientComponents final : TupleSource {
+        Builder& b;
+        const RawParam& param;
+        std::span<const RawParam> arena;
+        Slots& slots;
+        LenientComponents(Builder& bb, const RawParam& p, std::span<const RawParam> a, Slots& s)
+            : b(bb), param(p), arena(a), slots(s)
+        {
+        }
+        bool tuple(std::string& code) override
+        {
+            code.push_back(static_cast<char>(code::tuple));
+            put_varint(code, param.child_count);
+            for (std::uint32_t i = 0; i < param.child_count; i++) {
+                const RawParam& c = arena[param.children + i];
+                put_varint(code, b.pool.intern(c.name));
+                b.lenient_code(c, arena, slots, code);
+            }
+            return true;
+        }
+    };
+
+    void lenient_code(const RawParam& p, std::span<const RawParam> arena, Slots& slots,
+                      std::string& code)
+    {
+        std::size_t start = code.size();
+        LenientComponents comps(*this, p, arena, slots);
+        if (!(parse_type_lenient(p.type, p.has_components ? &comps : nullptr, pool, code, slots) &&
+              sound(code, start))) {
+            code.resize(start);
+            named(p, code);
+        }
+    }
+
+    // the parameters' codes, read leniently with the slots' choices (each
+    // parameter's slots from where the discovery found them)
+    void lenient_codes(const RawEntry& e, Slots& slots, std::vector<std::string>& codes)
+    {
+        codes.resize(e.params.size());
+        if (slots.discovering)
+            first_slot_.resize(e.params.size());
+        for (std::size_t i = 0; i < e.params.size(); i++) {
+            if (slots.discovering)
+                first_slot_[i] = slots.next;
+            else
+                slots.next = first_slot_[i];
+            codes[i].clear();
+            lenient_code(e.params[i], e.arena, slots, codes[i]);
+        }
+    }
+
+    // a signature of these codes hashes to the selector
+    bool hashes(const RawEntry& e, const std::vector<std::string>& codes)
+    {
+        variant_text_.assign(e.name);
+        variant_text_ += '(';
+        for (std::size_t i = 0; i < codes.size(); i++) {
+            if (i)
+                variant_text_ += ',';
+            variant_text_ += text_of(codes[i]);
+        }
+        variant_text_ += ')';
+        if (variant_text_ == text_)
+            return false;  // (python's text: it doesn't)
+        return hashes(variant_text_, e.selector);
+    }
+
+    // what a slot may be, the likeliest first (keep: the name itself, as a
+    // library's signature has it)
+    static std::vector<Choice> candidates(const Slots::Found& f)
+    {
+        switch (f.hint) {
+        case Hint::contract:
+            return {Choice::address, Choice::keep};
+        case Hint::enumeration:
+            return {Choice::uint8, Choice::keep};
+        case Hint::structure:
+            return f.components ? std::vector{Choice::components, Choice::keep}
+                                : std::vector{Choice::keep};
+        case Hint::bare:
+            break;
+        }
+        std::vector<Choice> c;
+        if (f.components)
+            c.push_back(Choice::components);
+        for (Choice x : {Choice::address, Choice::uint8, Choice::uint256, Choice::bytes32, Choice::keep})
+            c.push_back(x);
+        return c;
+    }
+
+    // The variants of a signature that doesn't hash: read leniently (its
+    // case, aliases, words after the types, references to memory...), its
+    // named types made of what they may be. The first that hashes to the
+    // selector is the entry (codes_); else the lenient reading with the named
+    // types kept is, unverified.
+    bool repair(const RawEntry& e)
+    {
+        Slots slots;
+        lenient_codes(e, slots, normalized_);
+        codes_ = normalized_;
+        if (hashes(e, normalized_))
+            return true;
+        if (slots.found.empty())
+            return false;
+        slots.discovering = false;
+        std::vector<std::vector<Choice>> cands;
+        std::size_t combos = 1, widest = 0;
+        for (const Slots::Found& f : slots.found) {
+            cands.push_back(candidates(f));
+            widest = std::max(widest, cands.back().size());
+            combos = combos > max_variants ? combos : combos * cands.back().size();
+        }
+        std::vector<Choice> a(cands.size());
+        auto attempt = [&] {
+            slots.assignment = a;
+            lenient_codes(e, slots, variant_);
+            if (!hashes(e, variant_))
+                return false;
+            codes_ = variant_;
+            return true;
+        };
+        if (combos <= max_variants) {
+            // every choice of every slot, the first candidates first
+            std::vector<std::size_t> at(cands.size(), 0);
+            for (;;) {
+                for (std::size_t i = 0; i < cands.size(); i++)
+                    a[i] = cands[i][at[i]];
+                if (attempt())
+                    return true;
+                std::size_t k = at.size();
+                while (k > 0 && ++at[k - 1] == cands[k - 1].size())
+                    at[--k] = 0;
+                if (k == 0)
+                    return false;
+            }
+        }
+        // too many: the same choice for them all
+        for (std::size_t c = 0; c < widest; c++) {
+            for (std::size_t i = 0; i < cands.size(); i++)
+                a[i] = cands[i][std::min(c, cands[i].size() - 1)];
+            if (attempt())
+                return true;
+        }
+        return false;
+    }
+
+    void encode(const RawEntry& e, Trust trust)
     {
         bool event = e.kind == Kind::event;
-        records.push_back(static_cast<char>(static_cast<std::uint8_t>(e.kind) |
-                                            (no_spaces_ ? no_spaces : 0)));
-        if (event)
-            records.append(reinterpret_cast<const char*>(hash_.data()), 32);
+        // the dump's text of a parameter, where it isn't its code's
+        // (repaired, unverified)
+        std::vector<std::uint32_t> written;
+        if (trust != Trust::verified) {
+            written.resize(e.params.size(), 0);
+            for (std::size_t i = 0; i < e.params.size(); i++)
+                if (text_of(codes_[i]) != e.params[i].canonical)
+                    written[i] = pool.intern(e.params[i].canonical);
+            if (std::ranges::all_of(written, [](std::uint32_t w) { return w == 0; }))
+                written.clear();
+        }
+        records.push_back(static_cast<char>(
+            static_cast<std::uint8_t>(e.kind) | (no_spaces_ && trust != Trust::unverified ? no_spaces : 0) |
+            static_cast<std::uint8_t>(trust) << trust_shift | (written.empty() ? 0 : has_written)));
+        if (event) {
+            if (trust == Trust::unverified)
+                records.append(32, '\0');  // (no topic hashes to it)
+            else
+                records.append(reinterpret_cast<const char*>(
+                                   (trust == Trust::verified ? hash_ : matched_hash_).data()),
+                               32);
+        }
         put_varint(records, e.name.size());
         records.append(e.name);
         put_varint(records, e.params.size());
@@ -943,15 +1172,22 @@ private:
                 if (e.params[i].indexed)
                     records[at + i / 8] = static_cast<char>(records[at + i / 8] | 1 << (i % 8));
         }
-        for (const RawParam& p : e.params) {
-            put_varint(records, pool.intern(p.name));
-            type_code(p, e.arena, records);
+        for (std::size_t i = 0; i < e.params.size(); i++) {
+            put_varint(records, pool.intern(e.params[i].name));
+            if (trust == Trust::verified)
+                type_code(e.params[i], e.arena, records);
+            else
+                records += codes_[i];
         }
+        for (std::uint32_t w : written)
+            put_varint(records, w);
     }
 
-    std::string text_;
-    std::array<std::uint8_t, 32> hash_{};
+    std::string text_, variant_text_;
+    std::array<std::uint8_t, 32> hash_{}, matched_hash_{};
     bool no_spaces_ = false;
+    std::vector<std::string> normalized_, variant_, codes_;
+    std::vector<std::size_t> first_slot_;
 };
 
 // The dump decompressed (xz or lzma, as python's lzma.open) by a second
@@ -1119,7 +1355,7 @@ void read_dump(std::span<const std::uint8_t> xz, DumpParser& parser)
 
 std::size_t aligned(std::size_t n) { return (n + section_align - 1) / section_align * section_align; }
 
-// The file: the last line of each selector, if its signature is valid.
+// The file: each selector's best line (see the records, above).
 BuildStats write_database(Builder& b, const std::filesystem::path& out,
                           const sha256::Digest& sha, const platform::Stamp& stamp,
                           std::uint32_t dump_path, std::uint64_t lines)
@@ -1127,14 +1363,26 @@ BuildStats write_database(Builder& b, const std::filesystem::path& out,
     std::vector<Builder::Item>& items = b.items;
     if (!std::ranges::is_sorted(items, {}, &Builder::Item::selector))
         std::ranges::stable_sort(items, {}, &Builder::Item::selector);
+    // a selector's entry: the verified ones first, then the repaired ones,
+    // then the rest; among equals, the last line (python's dict)
     std::vector<const Builder::Item*> kept;
-    for (std::size_t i = 0; i < items.size(); i++)
-        if ((i + 1 == items.size() || items[i + 1].selector != items[i].selector) && items[i].valid)
-            kept.push_back(&items[i]);
+    for (std::size_t i = 0; i < items.size();) {
+        const Builder::Item* best = &items[i];
+        std::size_t j = i + 1;
+        for (; j < items.size() && items[j].selector == items[i].selector; j++)
+            if (items[j].trust <= best->trust)
+                best = &items[j];
+        kept.push_back(best);
+        i = j;
+    }
 
     BuildStats stats;
     stats.lines = lines;
     stats.entries = kept.size();
+    for (const Builder::Item* it : kept)
+        (it->trust == Trust::verified   ? stats.verified
+         : it->trust == Trust::repaired ? stats.repaired
+                                        : stats.unverified)++;
     unsigned bits = std::min<unsigned>(max_bucket_bits,
                                        std::max(4, static_cast<int>(std::bit_width(kept.size())) - 4));
     std::size_t nbuckets = std::size_t{1} << bits;
@@ -1247,7 +1495,7 @@ std::filesystem::path default_path()
     if (const char* e = std::getenv("PANORAMIX_SIGDB"); e && *e)
         return e;
     std::filesystem::path dir = platform::cache_dir();
-    return dir.empty() ? dir : dir / "sigdb1.bin";
+    return dir.empty() ? dir : dir / "sigdb2.bin";
 }
 
 namespace {

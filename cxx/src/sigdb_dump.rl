@@ -156,9 +156,9 @@ struct DumpParser::State {
         bool tuple_text = f.type_tuple;  // (python's kind.startswith("tuple"))
         if (tuple_text && f.comps_set && !f.comps_list)
             r.ok = false;  // (python iterates what isn't a list)
+        r.tuple_text = tuple_text;
         if (tuple_text && f.comps_list) {
             // python's canonical_type: the components' types in parentheses
-            r.has_components = true;
             r.canonical = "(";
             for (std::size_t i = f.comps_begin; i < f.comps_end; i++) {
                 if (i > f.comps_begin)
@@ -168,12 +168,17 @@ struct DumpParser::State {
             }
             r.canonical += ')';
             r.canonical.append(f.type, 5);
+        } else {
+            r.canonical = f.type;
+        }
+        if (f.comps_list) {
+            // (kept even where python ignores them: what a struct written by
+            // its name is made of, for the repairs)
+            r.has_components = true;
             r.children = static_cast<std::uint32_t>(arena.size());
             r.child_count = static_cast<std::uint32_t>(f.comps_end - f.comps_begin);
             for (std::size_t i = f.comps_begin; i < f.comps_end; i++)
                 arena.push_back(std::move(done[i]));
-        } else {
-            r.canonical = f.type;
         }
         if (f.comps_set)
             done.resize(f.comps_begin);  // (the components: the last ones)

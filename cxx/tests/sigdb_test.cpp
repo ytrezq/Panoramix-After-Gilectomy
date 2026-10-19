@@ -163,7 +163,8 @@ std::string mini_dump()
     d += line("0x41973cd9", R"({"name": "putCurEpochConPubKeyBytes", "inputs": [{"name": "", "type": "bytes"}]})");
     d += line("0x41973cd9",
               R"({"name": "f1121318093", "inputs": [{"name": "a", "type": "bytes"}, {"name": "b", "type": "bytes"}, {"name": "c", "type": "uint64"}]})");
-    // the last one doesn't hash to its selector: python knows none
+    // the last one doesn't hash to its selector (python knows none): the
+    // verified one first
     d += line(sel("mint(address,uint256)"), R"({"name": "mint", "inputs": [{"name": "to", "type": "address"}, {"name": "amount", "type": "uint256"}]})");
     d += line(sel("mint(address,uint256)"), R"({"name": "unknown40c10f19", "inputs": [{"name": "_param1", "type": "uint64"}]})");
     // the first one doesn't, the last one does
@@ -320,6 +321,8 @@ TEST_CASE("sigdb: a dump built and read back")
         CHECK(t->params()[1].type().kind() == sigdb::TypeKind::uintN);
         CHECK(t->params()[1].type().bits() == 256);
         CHECK_FALSE(t->hashed_without_spaces());
+        CHECK(t->trust() == sigdb::Trust::verified);
+        CHECK(t->written_type(0).empty());
         auto b = db.function(0x70a08231);
         REQUIRE(b);
         CHECK(b->kind() == sigdb::Kind::unspecified);
@@ -336,7 +339,10 @@ TEST_CASE("sigdb: a dump built and read back")
         auto c = db.function(0x41973cd9);
         REQUIRE(c);
         CHECK(c->signature() == "f1121318093(bytes,bytes,uint64)");
-        CHECK_FALSE(db.function(sel32("mint(address,uint256)")));
+        auto mint = db.function(sel32("mint(address,uint256)"));
+        REQUIRE(mint);
+        CHECK(mint->trust() == sigdb::Trust::verified);
+        CHECK(mint->signature() == "mint(address,uint256)");
         auto burn = db.function(sel32("burn(uint256)"));
         REQUIRE(burn);
         CHECK(burn->signature() == "burn(uint256)");
@@ -542,8 +548,10 @@ TEST_CASE("sigdb: the file is checked")
     other[0] = 'X';
     refused(other);  // another format
     other = bytes;
-    other[8] = 2;
+    other[8] = 1;
     refused(other);  // another version
+    other[8] = 3;
+    refused(other);
     // a record damaged: that entry unknown, the others as they were
     std::string damaged = bytes;
     std::size_t at = damaged.find("\x08transfer\x02");
@@ -624,7 +632,7 @@ TEST_CASE("sigdb: the default path")
     ::unsetenv("PANORAMIX_SIGDB");
     fs::path p = sigdb::default_path();
     if (!p.empty())
-        CHECK(p.filename() == "sigdb1.bin");
+        CHECK(p.filename() == "sigdb2.bin");
     if (old)
         ::setenv("PANORAMIX_SIGDB", saved.c_str(), 1);
 }
@@ -640,8 +648,10 @@ TEST_CASE("sigdb: the real dump (PANORAMIX_TEST_ABI_DUMP)")
     TempDir dir;
     sigdb::BuildStats s = sigdb::build(dump, dir.path / "sigdb1.bin");
     auto db = sigdb::Database::open(dir.path / "sigdb1.bin");
-    MESSAGE(s.lines, " lines, ", s.entries, " signatures, ", s.events, " events, ", s.file_size, " bytes");
+    MESSAGE(s.lines, " lines, ", s.entries, " selectors: ", s.verified, " verified, ", s.repaired,
+            " repaired, ", s.unverified, " unverified; ", s.events, " events, ", s.file_size, " bytes");
     CHECK(db->size() == s.entries);
+    CHECK(s.entries == s.verified + s.repaired + s.unverified);
     struct Known {
         std::uint32_t selector;
         std::string_view signature;
@@ -661,15 +671,269 @@ TEST_CASE("sigdb: the real dump (PANORAMIX_TEST_ABI_DUMP)")
         REQUIRE(e);
         CHECK(e->signature() == ev);
     }
-    // every entry hashes to its selector
+    // every entry but the unverified ones hashes to its selector
+    std::size_t unverified = 0;
     for (std::size_t i = 0; i < db->size(); i++) {
         auto e = db->at(i);
         REQUIRE(e);
+        if (e->trust() == sigdb::Trust::unverified) {
+            unverified++;
+            continue;
+        }
         std::string text = e->signature();
         if (e->hashed_without_spaces())
             std::erase(text, ' ');
         auto h = sigdb::keccak256(text);
         REQUIRE((std::uint32_t{h[0]} << 24 | std::uint32_t{h[1]} << 16 | std::uint32_t{h[2]} << 8 | h[3]) ==
                 e->selector());
+    }
+    CHECK(unverified == s.unverified);
+}
+
+namespace {
+
+// the lenient reading of a type: its code (hex), its slots' hints
+struct Lenient {
+    std::string code;
+    std::vector<sigdb::Hint> hints;
+};
+Lenient lenient(std::string_view text, std::vector<sigdb::Choice> choices = {})
+{
+    sigdb::StringPool pool;
+    sigdb::Slots slots;
+    std::string code;
+    if (!choices.empty()) {
+        // (the slots met first, then the choices made)
+        std::string scratch;
+        sigdb::parse_type_lenient(text, nullptr, pool, scratch, slots);
+        slots.discovering = false;
+        slots.assignment = choices;
+        slots.next = 0;
+    }
+    if (!sigdb::parse_type_lenient(text, nullptr, pool, code, slots))
+        return {"refused", {}};
+    Lenient l{hex({reinterpret_cast<const std::uint8_t*>(code.data()), code.size()}), {}};
+    for (const sigdb::Slots::Found& f : slots.found)
+        l.hints.push_back(f.hint);
+    return l;
+}
+
+}  // namespace
+
+TEST_CASE("sigdb: the lenient reading of the types")
+{
+    // the exact texts: the same codes
+    CHECK(lenient("uint256").code == "1f");
+    CHECK(lenient("(uint256,address)[]").code == "676902001f0060");
+    CHECK(lenient("uint32[] storage").code == "6a6703");
+    // case, aliases, panoramix's array
+    CHECK(lenient("Address").code == "60");
+    CHECK(lenient("UINT256").code == "1f");
+    CHECK(lenient("uint").code == "1f");
+    CHECK(lenient("int").code == "3f");
+    CHECK(lenient("byte").code == "40");
+    CHECK(lenient("Bytes32").code == "5f");
+    CHECK(lenient("fixed").code == "650f12");
+    CHECK(lenient("uint[]").code == "671f");
+    CHECK(lenient("array").code == "671f");
+    // words after a type, memory and calldata, spaces
+    CHECK(lenient("address payable").code == "60");
+    CHECK(lenient("uint256 amount").code == "1f");
+    CHECK(lenient("address indexed from").code == "60");
+    CHECK(lenient("bytes memory data").code == "63");
+    CHECK(lenient("uint256[] calldata ids").code == "671f");
+    CHECK(lenient("uint256 [ 2 ]").code == "68021f");
+    CHECK(lenient(" bool ").code == "61");
+    // tuples written out: tuple(...), spaces, names
+    CHECK(lenient("tuple(address,uint256)[]").code == "676902006000" "1f");
+    CHECK(lenient("( address to , uint256 amount )").code == "690200600" "01f");
+    CHECK(lenient("tuple()").code == "6900");
+    // named types: slots, with what precedes them
+    Lenient l = lenient("IERC20");
+    CHECK(l.code == "6d01");
+    CHECK(l.hints == std::vector{sigdb::Hint::bare});
+    CHECK(lenient("contract IERC20").hints == std::vector{sigdb::Hint::contract});
+    CHECK(lenient("interface IERC20[]").hints == std::vector{sigdb::Hint::contract});
+    CHECK(lenient("enum Side").hints == std::vector{sigdb::Hint::enumeration});
+    CHECK(lenient("struct Lib.Order memory").hints == std::vector{sigdb::Hint::structure});
+    CHECK(lenient("(IERC20,enum Side)[]").hints ==
+          std::vector{sigdb::Hint::bare, sigdb::Hint::enumeration});
+    // a variant: each slot made of its choice
+    CHECK(lenient("(IERC20,enum Side)[]", {sigdb::Choice::address, sigdb::Choice::uint8}).code ==
+          "676902006000" "00");
+    CHECK(lenient("Price", {sigdb::Choice::uint256}).code == "1f");
+    CHECK(lenient("Id[2]", {sigdb::Choice::bytes32}).code == "68025f");
+    // what isn't a type
+    for (std::string_view t : {"mapping(address => uint256)"sv, "uint256[x]"sv, "(uint256"sv,
+                               "1abc"sv, "address,"sv, ""sv})
+        CHECK_MESSAGE(lenient(t).code == "refused", t);
+}
+
+namespace {
+
+std::string repairs_dump()
+{
+    std::string d;
+    // named types for what selectors hash: a contract, an enum, a value type
+    d += line(sel("pay(address,uint256)"), R"({"name": "pay", "inputs": [{"name": "token", "type": "IERC20"}, {"name": "amount", "type": "uint256"}]})");
+    d += line(sel("setSide(uint8)"), R"({"name": "setSide", "inputs": [{"name": "side", "type": "enum Side"}]})");
+    d += line(sel("setPrice(uint256)"), R"({"name": "setPrice", "inputs": [{"name": "price", "type": "Price"}]})");
+    d += line(sel("swap(address,uint8)"), R"({"name": "swap", "inputs": [{"name": "token", "type": "IERC20"}, {"name": "side", "type": "Side"}]})");
+    // a struct by its name, with its components (one of them a named type)
+    d += line(sel("fill((address,uint256))"),
+              R"({"name": "fill", "inputs": [{"name": "order", "type": "Order", "components": [{"name": "maker", "type": "address"}, {"name": "amount", "type": "uint256"}]}]})");
+    d += line(sel("fill2((address,uint256),address)"),
+              R"({"name": "fill2", "inputs": [{"name": "order", "type": "struct Order", "components": [{"name": "maker", "type": "IERC20"}, {"name": "amount", "type": "uint256"}]}, {"name": "to", "type": "Recipient"}]})");
+    // texts: tuple(...), memory, names, case, aliases
+    d += line(sel("batch2((address,uint256)[])"), R"({"name": "batch2", "inputs": [{"name": "calls", "type": "tuple(address,uint256)[]"}]})");
+    d += line(sel("call2(bytes,uint256)"), R"({"name": "call2", "inputs": [{"name": "data", "type": "bytes memory data"}, {"name": "v", "type": "uint256 value"}]})");
+    d += line(sel("own(address)"), R"({"name": "own", "inputs": [{"name": "a", "type": "Address"}]})");
+    d += line(sel("g(uint256)"), R"({"name": "g", "inputs": [{"name": "v", "type": "uint"}]})");
+    // a library's, without its space
+    d += line(sel("sum(Lib.Datastorage,uint256)"),
+              R"({"name": "sum", "inputs": [{"name": "self", "type": "Lib.Data storage ref"}, {"name": "n", "type": "uint"}]})");
+    // an event, its indexed inputs written so
+    d += line(sel("Moved(address,uint256)"),
+              R"({"name": "Moved", "type": "event", "inputs": [{"name": "from", "type": "address indexed", "indexed": true}, {"name": "value", "type": "uint256", "indexed": false}]})");
+    // guesses: unverified
+    d += line("0x12345678", R"({"name": "unknown12345678", "type": "function", "inputs": [{"name": "_param1", "type": "uint256"}, {"name": "_param2", "type": "array"}], "stateMutability": "payable"})");
+    d += line("0x0badbad0", R"({"name": "Bad", "type": "event", "inputs": [{"name": "x", "type": "uint256", "indexed": true}]})");
+    // the choice among a selector's lines: unverified ones, the last
+    d += line("0x0000beef", R"({"name": "first", "inputs": []})");
+    d += line("0x0000beef", R"({"name": "second", "inputs": []})");
+    // a verified line beats a repaired one, before or after it
+    d += line(sel("pay2(address)"), R"({"name": "pay2", "inputs": [{"name": "t", "type": "IERC20"}]})");
+    d += line(sel("pay2(address)"), R"({"name": "pay2", "inputs": [{"name": "who", "type": "address"}]})");
+    d += line(sel("pay3(address)"), R"({"name": "pay3", "inputs": [{"name": "who", "type": "address"}]})");
+    d += line(sel("pay3(address)"), R"({"name": "pay3", "inputs": [{"name": "t", "type": "IERC20"}]})");
+    // a repaired line beats an unverified one, before or after it
+    d += line(sel("pay4(address)"), R"({"name": "unknownpay4", "inputs": []})");
+    d += line(sel("pay4(address)"), R"({"name": "pay4", "inputs": [{"name": "t", "type": "IERC20"}]})");
+    return d;
+}
+
+std::string written(const sigdb::Entry& e, std::size_t i) { return std::string(e.written_type(i)); }
+
+}  // namespace
+
+TEST_CASE("sigdb: repairs, unverified entries")
+{
+    TempDir dir;
+    fs::path dump = dir.path / "d.xz", file = dir.path / "db.bin";
+    write_file(dump, xz(repairs_dump()));
+    sigdb::BuildStats st = sigdb::build(dump, file);
+    auto db = sigdb::Database::open(file);
+    CHECK(st.lines == 22);
+    CHECK(st.entries == 18);
+    CHECK(st.verified == 2);
+    CHECK(st.repaired == 13);
+    CHECK(st.unverified == 3);
+    auto get = [&](std::string_view signature) {
+        auto e = db->function(sel32(signature));
+        REQUIRE_MESSAGE(e, signature);
+        return *e;
+    };
+    auto repaired = [&](std::string_view signature) {
+        sigdb::Entry e = get(signature);
+        CHECK_MESSAGE(e.trust() == sigdb::Trust::repaired, signature);
+        CHECK(e.signature() == signature);
+        return e;
+    };
+
+    SUBCASE("named types")
+    {
+        sigdb::Entry pay = repaired("pay(address,uint256)");
+        CHECK(pay.params()[0].type().kind() == sigdb::TypeKind::address);
+        CHECK(pay.params()[0].name() == "token");
+        CHECK(written(pay, 0) == "IERC20");
+        CHECK(written(pay, 1).empty());
+        CHECK(written(repaired("setSide(uint8)"), 0) == "enum Side");
+        CHECK(written(repaired("setPrice(uint256)"), 0) == "Price");
+        sigdb::Entry swap = repaired("swap(address,uint8)");
+        CHECK(written(swap, 1) == "Side");
+    }
+    SUBCASE("structs by their names")
+    {
+        sigdb::Entry fill = repaired("fill((address,uint256))");
+        sigdb::Type order = fill.params()[0].type();
+        REQUIRE(order.kind() == sigdb::TypeKind::tuple);
+        CHECK(order.fields()[0].name() == "maker");
+        CHECK(order.fields()[1].name() == "amount");
+        CHECK(written(fill, 0) == "Order");
+        sigdb::Entry fill2 = repaired("fill2((address,uint256),address)");
+        CHECK(fill2.params()[0].type().fields()[0].type().kind() == sigdb::TypeKind::address);
+        CHECK(written(fill2, 0) == "struct Order");
+        CHECK(written(fill2, 1) == "Recipient");
+    }
+    SUBCASE("texts")
+    {
+        CHECK(written(repaired("batch2((address,uint256)[])"), 0) == "tuple(address,uint256)[]");
+        sigdb::Entry c = repaired("call2(bytes,uint256)");
+        CHECK(written(c, 0) == "bytes memory data");
+        CHECK(written(c, 1) == "uint256 value");
+        CHECK(written(repaired("own(address)"), 0) == "Address");
+        CHECK(written(repaired("g(uint256)"), 0) == "uint");
+        auto lib = db->function(sel32("sum(Lib.Datastorage,uint256)"));
+        REQUIRE(lib);
+        CHECK(lib->trust() == sigdb::Trust::repaired);
+        CHECK(lib->hashed_without_spaces());
+        CHECK(lib->signature() == "sum(Lib.Data storage,uint256)");
+        CHECK(written(*lib, 0) == "Lib.Data storage ref");
+    }
+    SUBCASE("events")
+    {
+        auto moved = db->event(sigdb::keccak256("Moved(address,uint256)"));
+        REQUIRE(moved);
+        CHECK(moved->trust() == sigdb::Trust::repaired);
+        CHECK(moved->indexed(0));
+        CHECK_FALSE(moved->indexed(1));
+        CHECK(written(*moved, 0) == "address indexed");
+        // an unverified event: no topic finds it
+        auto bad = db->function(0x0badbad0);
+        REQUIRE(bad);
+        CHECK(bad->trust() == sigdb::Trust::unverified);
+        CHECK(bad->kind() == sigdb::Kind::event);
+        CHECK(hex(bad->topic()) == std::string(64, '0'));
+        CHECK_FALSE(db->event(sigdb::keccak256("Bad(uint256)")));
+    }
+    SUBCASE("unverified")
+    {
+        auto u = db->function(0x12345678);
+        REQUIRE(u);
+        CHECK(u->trust() == sigdb::Trust::unverified);
+        CHECK(u->name() == "unknown12345678");
+        CHECK(u->params()[0].type().bits() == 256);
+        CHECK(u->params()[1].type().kind() == sigdb::TypeKind::array);
+        CHECK(u->params()[1].type().element().bits() == 256);
+        CHECK(written(*u, 0).empty());
+        CHECK(written(*u, 1) == "array");
+        CHECK(u->signature() == "unknown12345678(uint256,uint256[])");
+    }
+    SUBCASE("the choice among a selector's lines")
+    {
+        CHECK(db->function(0x0000beef)->name() == "second");
+        sigdb::Entry pay2 = get("pay2(address)");
+        CHECK(pay2.trust() == sigdb::Trust::verified);
+        CHECK(pay2.params()[0].name() == "who");
+        sigdb::Entry pay3 = get("pay3(address)");
+        CHECK(pay3.trust() == sigdb::Trust::verified);
+        CHECK(pay3.params()[0].name() == "who");
+        CHECK(get("pay4(address)").trust() == sigdb::Trust::repaired);
+    }
+    SUBCASE("a damaged text: the entry unknown")
+    {
+        std::string bytes = read_file(file);
+        std::size_t at = bytes.find("\x03pay\x02");
+        REQUIRE(at != std::string::npos);
+        // (pay: its name, 2 inputs: token's name, address, amount's, uint256,
+        // then its texts: IERC20's reference, 0)
+        std::size_t texts = at + 5 + 2 + 2;
+        REQUIRE(bytes[texts + 1] == 0);
+        bytes[texts + 1] = static_cast<char>(0x7f);  // (past the strings? at least not one)
+        bytes[texts] = static_cast<char>(0xff);       // (a varint that doesn't end there)
+        write_file(dir.path / "damaged.bin", bytes);
+        auto d = sigdb::Database::open(dir.path / "damaged.bin");
+        CHECK_FALSE(d->function(sel32("pay(address,uint256)")));
+        CHECK(d->function(sel32("own(address)")));
     }
 }

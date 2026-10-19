@@ -186,6 +186,7 @@ struct RawParam {
     std::uint32_t children = 0;      // its components: the parser's arena[children ..
     std::uint32_t child_count = 0;   //   children + child_count)
     bool has_components = false;     // "components" is a list
+    bool tuple_text = false;         // its type begins with "tuple": python's components
     bool indexed = false;            // "indexed", truthy
     bool ok = true;                  // nothing python would choke on
 };
@@ -204,6 +205,44 @@ protected:
 };
 bool parse_type(std::string_view text, TupleSource* components, StringPool& pool,
                 std::string& code);
+
+// The lenient parser (sigdb_type.rl): what a type's text may have meant (any
+// case, the aliases, a name after the type, a reference to memory...), its
+// named types as slots, each one made of what the caller chooses - a
+// signature's variants, made by parsing it again with other choices. The
+// slots are numbered in the order met, those of the components a slot may be
+// made of right after it (met when discovering, skipped when it isn't made of
+// them). A text it can't read is refused (its slots taken back).
+enum class Hint : std::uint8_t {
+    bare,         // IERC20, Status, Lib.Data
+    contract,     // contract X, interface X
+    enumeration,  // enum X
+    structure,    // struct X
+};
+enum class Choice : std::uint8_t { keep, components, address, uint8, uint256, bytes32 };
+struct Slots {
+    struct Found {
+        Hint hint;
+        bool components;          // the parameter's components could be it
+        std::uint32_t inner = 0;  // the slots of those components (numbered after it)
+    };
+    std::vector<Found> found;            // the slots met when discovering
+    std::span<const Choice> assignment;  // else: a choice for each
+    bool discovering = true;
+    std::size_t next = 0;  // the slot met next
+
+    Choice take(Hint hint, bool components)
+    {
+        std::size_t i = next++;
+        if (discovering) {
+            found.push_back({hint, components});
+            return Choice::keep;
+        }
+        return i < assignment.size() ? assignment[i] : Choice::keep;
+    }
+};
+bool parse_type_lenient(std::string_view text, TupleSource* components, StringPool& pool,
+                        std::string& code, Slots& slots);
 
 // One line of the dump, as its parser hands it to the builder.
 struct RawEntry {

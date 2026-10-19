@@ -5,18 +5,20 @@
 //     {"selector": "0xa9059cbb", "abi": {"name": "transfer", "type": "function",
 //      "inputs": [{"name": "to", "type": "address"}, ...], ...}}
 // It is parsed once (Ragel: sigdb_dump.rl, the types by sigdb_type.rl) into
-// a file of our own format, mmap-ed afterwards and read in place. As in
-// python, a selector is the dump's last line with that selector, and it is
-// known only where its signature hashes to it (fetch_sig/hashes_to): a
-// quarter of the dump is what decompilers guessed - unknown12345678(uint64
-// _param1) - not signatures. That check is made when the file is built.
+// a file of our own format, mmap-ed afterwards and read in place. Python
+// knows a selector where the dump's last line with that selector has a
+// signature that hashes to it (fetch_sig/hashes_to): a quarter of the dump is
+// what decompilers guessed - unknown12345678(uint64 _param1) - not
+// signatures. Here every line is kept, its Trust told: verified, repaired (a
+// variant of its signature hashes), unverified. The checks are made when the
+// file is built.
 //
 // Everything here reads the file without copying it: the views (Entry, Type,
 // Field...) point into the mapping and live as long as their Database. The
 // names are raw bytes from a file anybody may have made (the cache directory,
 // PANORAMIX_SIGDB, any dump): escape them when printing.
 //
-// The file (version 1, little-endian; see sigdb.cpp for the details):
+// The file (version 2, little-endian; see sigdb.cpp for the details):
 //   header   136 bytes: "PANSIGDB", the version, the sizes and offsets of
 //            the sections, the dump's SHA-256 (the cache key), size, mtime
 //            and path
@@ -183,6 +185,16 @@ private:
 
 // --- the entries -----------------------------------------------------------------
 
+// How sure an entry is: its signature hashes to its selector (python's
+// fetch_sig: the only ones python knows), a variant of it does (repaired:
+// IERC20 written for an address, an enum for uint8, Address, uint256 amount,
+// tuple(...), bytes memory...: its codes are the variant's, its texts the
+// dump's - written_type), or none does (unverified: what the dump says, read
+// the same way, kept for want of better - in panoramix's dump, its own
+// guesses: unknown12345678(uint256 _param1)). A selector's entry is its best:
+// verified, else repaired, else unverified; among equals, its last line.
+enum class Trust : std::uint8_t { verified, repaired, unverified };
+
 // The abi's "type" (python only tells events from the rest).
 enum class Kind : std::uint8_t {
     unspecified,  // no "type" (a third of the dump: functions)
@@ -199,10 +211,16 @@ class Entry {
 public:
     std::uint32_t selector() const noexcept { return selector_; }
     Kind kind() const noexcept;
+    Trust trust() const noexcept;
     // The name, raw bytes as in the dump.
     std::string_view name() const noexcept;
     // The inputs.
     Fields params() const noexcept;
+    // Input i's type as the dump writes it, where that isn't its code's text
+    // (a repaired entry: IERC20 where the code says address; an unverified
+    // one: panoramix's "array", a uint256[]); empty otherwise. For printing:
+    // the code is what to decode with.
+    std::string_view written_type(std::size_t i) const noexcept;
     // An event's input i is indexed (a topic).
     bool indexed(std::size_t i) const noexcept;
     // An event's topic0: the keccak of its signature (zeros for the rest).
@@ -210,7 +228,8 @@ public:
     // The selector is the hash of the signature without its spaces (a
     // library of an old compiler: getMin(uint32[]storage)).
     bool hashed_without_spaces() const noexcept;
-    // name(type,type...): the signature (what hashes to the selector).
+    // name(type,type...): the signature of the codes - what hashes to the
+    // selector (not an unverified entry's).
     std::string signature() const;
 
 private:
@@ -252,11 +271,12 @@ public:
     Database(const Database&) = delete;
     Database& operator=(const Database&) = delete;
 
-    // python's fetch_sig: the entry of a selector (a function, an error...
-    // or an event: the dump's entries are by 4 bytes, events by their topic's
-    // first ones), or nothing.
+    // The entry of a selector (a function, an error... or an event: the
+    // dump's entries are by 4 bytes, events by their topic's first ones), or
+    // nothing: python's fetch_sig where its trust() isn't unverified.
     std::optional<Entry> function(std::uint32_t selector) const noexcept;
-    // python's event_abi: the event whose topic0 this is, or nothing.
+    // python's event_abi: the event whose topic0 this is (verified or
+    // repaired), or nothing.
     std::optional<Entry> event(std::span<const std::uint8_t, 32> topic) const noexcept;
 
     std::size_t size() const noexcept { return count_; }
@@ -289,7 +309,7 @@ private:
 };
 
 // Where the database is: $PANORAMIX_SIGDB, else
-// $XDG_CACHE_HOME/panoramix/sigdb1.bin, else ~/.cache/panoramix/sigdb1.bin
+// $XDG_CACHE_HOME/panoramix/sigdb2.bin, else ~/.cache/panoramix/sigdb2.bin
 // (python's cache_dir, the asm's file name with the format's version).
 std::filesystem::path default_path();
 
@@ -303,8 +323,9 @@ std::filesystem::path default_path();
 const Database* get() noexcept;
 
 struct BuildStats {
-    std::uint64_t lines = 0;      // of the dump
-    std::uint64_t entries = 0;    // in the database (the selectors known)
+    std::uint64_t lines = 0;    // of the dump
+    std::uint64_t entries = 0;  // in the database (a selector each)
+    std::uint64_t verified = 0, repaired = 0, unverified = 0;  // (of entries)
     std::uint64_t events = 0;
     std::uint64_t file_size = 0;  // bytes
 };
