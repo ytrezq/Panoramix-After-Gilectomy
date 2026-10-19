@@ -28,6 +28,9 @@
 //    id), RETURNDATA_BYTES(id, off, len), Leaf(CREATE_ADDRESS, id) - never
 //    "the last call". Leaf(RETURNDATASIZE, 0) is the return data size before
 //    any call of the run: 0.
+//  - numbered reads: each GAS a Leaf(GAS, n) of its own (n = 1, 2... per
+//    function: two reads aren't the same value); MSIZE a SETVAR(tmp,
+//    Leaf(MSIZE)) where it's read.
 //  - --verbose: ASM(pc, op, imm or None, [stack]) before each instruction.
 //
 // Values: everything is made on cx(); a FunctionInfo given to run_function
@@ -47,8 +50,9 @@ namespace pan::vm {
 // The reasons of INVALID(reason, pc) and UNDEFINED(reason, pc) are the core's
 // (core/contract.hpp): InvalidReason::OPCODE (INVALID 0xfe or an undefined
 // instruction), JUMP (to a place that isn't a JUMPDEST), JUMPDEST (past the
-// code), STACK_UNDERFLOW, RETURNDATACOPY (past the return data; ASSERT_FAIL
-// is never made); UndefinedReason::UNFINISHED (a cap or the VM's time
+// code), STACK_UNDERFLOW, STACK_OVERFLOW (past the EVM's 1024 words),
+// RETURNDATACOPY (past the return data; ASSERT_FAIL is never made);
+// UndefinedReason::UNFINISHED (a cap or the VM's time
 // limit), COMPUTED_JUMP (to an address computed at runtime), AMBIGUOUS_CALL
 // (return data read where the last call depends on the path: merged paths).
 

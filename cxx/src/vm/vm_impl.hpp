@@ -48,7 +48,7 @@ inline constexpr usize kStackLimit = 1024;
 // INVALID's reason for it
 inline constexpr InvalidReason kStackOverflow = InvalidReason::STACK_OVERFLOW;
 
-// a subtree's summary (Node::sum_mask, Vm::summarize): its labels' jds as
+// a subtree's summary (Link::sum_mask, Vm::summarize): its labels' jds as
 // bits of their hash below these flags
 inline constexpr u64 kSumMerged = u64{1} << 62;   // a merged node in it
 inline constexpr u64 kSumUnknown = u64{1} << 63;  // more than kSumRoom merge points outside it
@@ -118,7 +118,8 @@ struct Node {
     NodeId last = NO_NODE;
     NodeId sibling = NO_NODE;  // the next child of its parent
     NodeId dest = NO_NODE;     // Loop, Goto: the node looped back to
-    bool dead = true;       // not in the tree (python: not attached): until linked, once cut
+    bool dead = true;       // not in the tree (python: not attached): until linked (below a
+                            // node in it), once cut
     bool safe = false;      // reached by a fall-through: no JUMPDEST check
     bool merged = false;    // its paths go on at merge_point's continuation
     bool switched = false;  // a code switch's path (never merged)
