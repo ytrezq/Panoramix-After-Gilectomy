@@ -114,6 +114,21 @@ TEST_CASE("output: expressions")
     CHECK(E("(sized 3 0x616263)") == "'abc'");
     CHECK(E("(land tmp1 tmp2)") == "_1 and _2");
     CHECK(E("(lor (iszero tmp1) tmp2)") == "not _1 or _2");
+    // the top of the words as python's trace has them (simplify_exp's
+    // to_real_int), but in unsigned comparisons
+    const std::string max = "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+    CHECK(E(max) == "-1");
+    CHECK(E("(eq tmp1 " + max + ")") == "_1 == -1");
+    CHECK(E("(iszero (eq tmp1 " + max + "))") == "_1 != -1");
+    CHECK(E("(lt tmp1 " + max + ")") == "_1 < " + max);
+    CHECK(E("(iszero (lt tmp1 " + max + "))") == "_1 >= " + max);
+    CHECK(E("(gt tmp1 (div " + max + " tmp2))") == "_1 > -1 / _2");
+    CHECK(E("(add 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc calldatasize)") ==
+          "calldata.size - 4");
+    CHECK(E("(mul " + max + " tmp1)") == "-_1");
+    CHECK(E("(sized 32 " + max + ")") == "-1");
+    CHECK(E("0x8000000000000000000000000000000000000000000000000000000000000000") ==
+          "0x8000000000000000000000000000000000000000000000000000000000000000");
     CHECK(E("loop0") == "idx");
     CHECK(E("loop1") == "s");
     CHECK(E("_msize") == "_msize");

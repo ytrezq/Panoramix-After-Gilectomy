@@ -88,6 +88,15 @@ std::optional<std::string_view> mask_to_type(i64 size) noexcept
 // a python atom (a str of the IR, an int): what the eq printing puts on the right
 bool atom_or_int(Value v) noexcept { return v.is_int() || v.is_leaf(); }
 
+// python's to_real_int: a number whose bit 255 is set as the negative of
+// its word (pretty_adds' constant)
+EvmInt to_real_int(const EvmInt& x)
+{
+    if (x.test_bit(255))
+        return x.word() - two_256();
+    return x;
+}
+
 // python's fits_bytes(val, size)
 bool fits_bytes(const EvmInt& v, i64 size)
 {
@@ -287,6 +296,18 @@ bool padding_at_end(std::span<const Value> terms, Value len) noexcept
 
 }  // namespace
 
+EvmInt display_int(const EvmInt& x)
+{
+    // python's simplify_exp: an int whose to_real_int is past -(8**22) is it
+    if (x.sign() > 0 && x.bit_length() == 256) {
+        static const EvmInt limit = -EvmInt::pow2(66);
+        EvmInt r = x - two_256();
+        if (r > limit)
+            return r;
+    }
+    return x;
+}
+
 std::optional<std::string> error_message_text(Value data)
 {
     // python safemath.failure: data[0] the selector of Error(string), data[1]
@@ -346,7 +367,12 @@ struct ExpImpl {
     void pret(Value e) { exp(e, P_NONE, false); }
 
     // ---- ints ----
-    void print_int(const EvmInt& x, int ctx)
+    // an int as python's trace has it (display_int: the top of the words as
+    // negatives), printed
+    void print_int(const EvmInt& x, int ctx) { print_word(display_int(x), ctx); }
+
+    // python's prettify of an int as it is
+    void print_word(const EvmInt& x, int ctx)
     {
         static const EvmInt day(i64(24 * 3600)), hour(i64(3600));
         if (x > day && pymod(x, day).is_zero()) {
@@ -672,20 +698,27 @@ struct ExpImpl {
     // python's ("iszero", val) case
     void iszero_case(Value val, int ctx)
     {
-        auto comparison = [&](Value l, std::string_view op, Value r) {
+        // (an unsigned comparison's numbers: their words, see arith)
+        auto operand = [&](Value x, bool ordering) {
+            if (ordering && x.is_int())
+                print_word(EvmInt(x), P_CMP + 1);
+            else
+                exp(x, P_CMP + 1, false);
+        };
+        auto comparison = [&](Value l, std::string_view op, Value r, bool ordering) {
             Wrap w(o, P_CMP, ctx);
-            exp(l, P_CMP + 1, false);
+            operand(l, ordering);
             o.put(op);
-            exp(r, P_CMP + 1, false);
+            operand(r, ordering);
         };
         if (val.is(Op::GT, 2))
-            return comparison(val[0], " <= ", val[1]);
+            return comparison(val[0], " <= ", val[1], true);
         if (val.is(Op::LT, 2))
-            return comparison(val[0], " >= ", val[1]);
+            return comparison(val[0], " >= ", val[1], true);
         if (val.is(Op::EQ, 2)) {
             if (atom_or_int(val[0]))
-                return comparison(val[1], " != ", val[0]);
-            return comparison(val[0], " != ", val[1]);
+                return comparison(val[1], " != ", val[0], false);
+            return comparison(val[0], " != ", val[1], false);
         }
         // (of its operand, only the truth counts: not bool(x) is not x)
         Wrap w(o, P_NOT, ctx);
@@ -831,11 +864,17 @@ struct ExpImpl {
         // the operands after the first bind tighter: a / (b / c) isn't a / b / c
         const int rest_prec = prec + 1;
         const int first_prec = prec == P_CMP ? P_CMP + 1 : prec;  // (comparisons don't chain)
+        // (the numbers an unsigned comparison is made with are the words
+        // python's trace has: `x < 0xff..ff`, never `x < -1`)
+        const bool ordering = op == Op::LT || op == Op::GT || op == Op::LE || op == Op::GE;
         Wrap w(o, prec, ctx);
         for (usize i = 0; i < args.size(); ++i) {
             if (i)
                 op_form(form);
-            exp(args[i], i ? rest_prec : first_prec, false);
+            if (ordering && args[i].is_int())
+                print_word(EvmInt(args[i]), i ? rest_prec : first_prec);
+            else
+                exp(args[i], i ? rest_prec : first_prec, false);
         }
     }
 
@@ -845,7 +884,7 @@ struct ExpImpl {
         std::span<const Value> terms = e.args();
         std::optional<EvmInt> real;
         if (!terms.empty() && terms[0].is_int()) {
-            real = EvmInt(terms[0]);
+            real = to_real_int(EvmInt(terms[0]));
             terms = terms.subspan(1);
         }
         Wrap w(o, P_ADD, ctx);
@@ -856,7 +895,7 @@ struct ExpImpl {
                 first = false;
                 continue;
             }
-            if (x.is(Op::MUL) && x.size() >= 2 && x[0].is_int() && EvmInt(x[0]).sign() < 0) {
+            if (x.is(Op::MUL) && x.size() >= 2 && x[0].is_int() && display_int(EvmInt(x[0])).sign() < 0) {
                 o.put(" - ");
                 mul_minus(x, P_ADD + 1);
                 continue;
@@ -869,10 +908,10 @@ struct ExpImpl {
             if (real->sign() > 0 || *real <= -big) {
                 // a big one - a hash, say - is added, however large it is
                 o.put(" + ");
-                print_int(real->word(), P_ADD);
+                print_word(real->word(), P_ADD);
             } else if (real->sign() < 0) {
                 o.put(" - ");
-                print_int(-*real, P_ADD + 1);
+                print_word(-*real, P_ADD + 1);
             }
         }
     }
@@ -880,7 +919,7 @@ struct ExpImpl {
     // python: operand(minus_op(x), ctx) for x = MUL(-k, f...): k times them
     void mul_minus(Value x, int ctx)
     {
-        const EvmInt k = -EvmInt(x[0]);
+        const EvmInt k = -display_int(EvmInt(x[0]));
         std::span<const Value> fs = x.args().subspan(1);
         if (k == 1) {
             if (fs.size() == 1) {
@@ -937,7 +976,7 @@ struct ExpImpl {
     void mul(Value e, int ctx)
     {
         if (e.size() >= 1 && e[0].is_int())
-            mul_parts(EvmInt(e[0]), e.args().subspan(1), ctx);
+            mul_parts(display_int(EvmInt(e[0])), e.args().subspan(1), ctx);
         else
             mul_parts(std::nullopt, e.args(), ctx);
     }
@@ -951,7 +990,8 @@ struct ExpImpl {
             return;
         }
         if (size.is_small() && val.is_int()) {
-            const EvmInt v(val);
+            // (python's trace has the top of the words as negatives: no bytes)
+            const EvmInt v = display_int(EvmInt(val));
             const i64 n = size.small_val();
             if (fits_bytes(v, n)) {
                 // text, as a string literal (short: a separator) - which

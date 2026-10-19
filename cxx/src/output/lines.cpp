@@ -894,7 +894,7 @@ struct LineImpl {
         if (val.is(Op::ADD, 2)) {
             const Value a = val[0], b = val[1];
             if (a.is_int() && same(b)) {
-                const EvmInt v(a);
+                const EvmInt v = display_int(EvmInt(a));
                 target();
                 if (v == -1)
                     o.put("--");

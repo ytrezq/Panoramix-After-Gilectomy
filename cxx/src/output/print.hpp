@@ -151,6 +151,11 @@ std::string padded_hex(const EvmInt& x, u32 digits);
 std::string pretty_num(const EvmInt& x);
 // python's num_precedence of pretty_num's text
 int num_precedence(std::string_view text) noexcept;
+// An int as python's trace has it, the IR keeping words in [0, 2^256):
+// python's simplify_exp makes one in (2^256 - 8**22, 2^256) its negative
+// (to_real_int) - `!= -1`, `const MAX_UINT = -1` - but unsigned comparisons
+// print their words (`x < 0xff..ff`: the asm's texts)
+EvmInt display_int(const EvmInt& x);
 
 // ---- the names of a function ----------------------------------------------------------
 

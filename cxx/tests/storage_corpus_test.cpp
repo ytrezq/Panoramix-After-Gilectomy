@@ -59,18 +59,45 @@ public:
         call_env.number = Word256::of(18000000 + seed);
         call_env.gas = Word256::of(10000000);
     }
+    // (as the stage checks' random worlds mix them: zero, one, small, an
+    // address, a large word, the largest)
     Word256 initial(const Word256& slot) override {
         if (seed_ == 0) return Word256{};
         u8 buf[40];
         slot.to_be(buf);
         for (int i = 0; i < 8; ++i) buf[32 + i] = u8(seed_ >> (8 * i));
         const Word256 h = exec::keccak256(std::span<const u8>(buf, 40));
-        return seed_ & 1 ? Word256::of(h.limb[0] & 0xff) : h;
+        switch (h.limb[0] % 6) {
+            case 0: return Word256{};
+            case 1: return Word256::of(1);
+            case 2: return Word256::of(2 + h.limb[1] % 62);
+            case 3: return Word256{{h.limb[1], h.limb[2], h.limb[3] & 0xffffffff, 0}};
+            case 4: return h;
+            default: return Word256{{~u64(0), ~u64(0), ~u64(0), ~u64(0)}};
+        }
     }
 
 private:
     u64 seed_;
 };
+
+// the effects as the stage checks compare them (validate/effects.hpp): the
+// events but the storage writes in their order, and the storage at the end
+bool same_effects(exec::SimpleHost& a, exec::SimpleHost& b) {
+    auto events = [](const exec::SimpleHost& h) {
+        std::vector<exec::SimpleHost::Effect> e;
+        for (const auto& x : h.effects)
+            if (!std::holds_alternative<exec::SimpleHost::Sstore>(x)) e.push_back(x);
+        return e;
+    };
+    if (events(a) != events(b)) return false;
+    for (const auto* h : {&a, &b})
+        for (const auto& [slot, value] : h->storage) {
+            (void)value;
+            if (a.sload(slot) != b.sload(slot)) return false;
+        }
+    return true;
+}
 
 struct Forms {
     u64 typed = 0, raw = 0;
@@ -186,7 +213,7 @@ TEST_CASE("storage: corpus (opt-in)") {
             for (usize i = 0; i < before.size(); ++i) {
                 if (!before[i].trace.is_trace() || before[i].problem) continue;
                 ++fns;
-                for (u64 seed = 0; seed < 6; ++seed) {
+                for (u64 seed = 0; seed < 8; ++seed) {
                     CorpusWorld w0(seed, before[i], *bytes), w1(seed, before[i], *bytes);
                     const exec::Outcome o0 = m0.run(w0, before[i]);
                     const exec::Outcome o1 = m1.run(w1, after[i]);
@@ -201,7 +228,7 @@ TEST_CASE("storage: corpus (opt-in)") {
                         ++inconclusive;
                         continue;
                     }
-                    if (o0.status == o1.status && o0.data == o1.data && w0.effects == w1.effects) {
+                    if (o0.status == o1.status && o0.data == o1.data && same_effects(w0, w1)) {
                         ++same;
                         ++c_same;
                     } else {

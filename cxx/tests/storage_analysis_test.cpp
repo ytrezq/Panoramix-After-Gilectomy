@@ -71,6 +71,24 @@ private:
     u64 seed_;
 };
 
+// the effects as the stage checks compare them (validate/effects.hpp): the
+// events but the storage writes in their order, and the storage at the end
+bool same_effects(exec::SimpleHost& a, exec::SimpleHost& b) {
+    auto events = [](const exec::SimpleHost& h) {
+        std::vector<exec::SimpleHost::Effect> e;
+        for (const auto& x : h.effects)
+            if (!std::holds_alternative<exec::SimpleHost::Sstore>(x)) e.push_back(x);
+        return e;
+    };
+    if (events(a) != events(b)) return false;
+    for (const auto* h : {&a, &b})
+        for (const auto& [slot, value] : h->storage) {
+            (void)value;
+            if (a.sload(slot) != b.sload(slot)) return false;
+        }
+    return true;
+}
+
 FunctionInfo fn(u32 selector, std::string_view trace) {
     FunctionInfo f;
     f.kind = FunctionInfo::Kind::Selector;
@@ -113,7 +131,7 @@ void same_runs(const Analysed& a) {
             CHECK(o1.status != exec::Status::Bug);
             CHECK(o0.status == o1.status);
             CHECK(o0.data == o1.data);
-            CHECK(w0.effects == w1.effects);
+            CHECK(same_effects(w0, w1));
         }
     }
 }
