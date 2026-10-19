@@ -75,8 +75,9 @@ struct Options
 
 /// The pipeline until lot 12's run_until: lot 5's raw traces - the functions
 /// the dispatcher reaches (discover), each one's trace (run_function), and
-/// the recursive internal functions found, in waves (each wave runs every
-/// function again with the internals known so far).
+/// the recursive internal functions found, in waves: a wave runs again the
+/// functions that found new ones (their recursions become INTERNAL lines),
+/// and the new ones (a call of a known one inlined elsewhere stays valid).
 void raw_pipeline(Decompiled& c, Stage, pan::Budget& budget)
 {
     constexpr unsigned max_waves = 8;
@@ -84,10 +85,17 @@ void raw_pipeline(Decompiled& c, Stage, pan::Budget& budget)
     auto& internals = c.internals[0];
     fns = pan::vm::discover(c.shared, budget);
     std::vector<pan::vm::InternalEntry> known;
-    for (unsigned wave = 0; wave < max_waves; ++wave)
+    // the functions to run: (internal?, index)
+    std::vector<std::pair<bool, std::size_t>> todo;
+    for (std::size_t i = 0; i < fns.size(); ++i)
+        todo.emplace_back(false, i);
+    for (unsigned wave = 0; wave < max_waves && !todo.empty(); ++wave)
     {
         std::vector<pan::vm::InternalEntry> found;
-        const auto run = [&](pan::FunctionInfo& f) {
+        std::vector<std::pair<bool, std::size_t>> again;
+        for (const auto& [internal, i] : todo)
+        {
+            auto& f = internal ? internals[i] : fns[i];
             pan::vm::VmOptions opts;
             opts.known_internals = &known;
             try
@@ -97,21 +105,24 @@ void raw_pipeline(Decompiled& c, Stage, pan::Budget& budget)
                 f.calls = std::move(r.calls);
                 f.loops = std::move(r.loops);
                 f.problem.reset();
+                bool new_ones = false;
                 for (const auto& e : r.found_internals)
-                    if (std::find(known.begin(), known.end(), e) == known.end() &&
-                        std::find(found.begin(), found.end(), e) == found.end())
-                        found.push_back(e);
+                    if (std::find(known.begin(), known.end(), e) == known.end())
+                    {
+                        new_ones = true;
+                        if (std::find(found.begin(), found.end(), e) == found.end())
+                            found.push_back(e);
+                    }
+                if (new_ones)
+                    again.emplace_back(internal, i);
             }
             catch (const pan::Error&)
             {
                 f.trace = pan::Value{};
                 f.problem = 0;
             }
-        };
-        for (auto& f : fns)
-            run(f);
-        for (auto& f : internals)
-            run(f);
+        }
+        todo = std::move(again);
         if (found.empty())
             break;
         for (const auto& e : found)
@@ -121,9 +132,14 @@ void raw_pipeline(Decompiled& c, Stage, pan::Budget& budget)
             f.kind = pan::FunctionInfo::Kind::Internal;
             f.entry_pc = e.entry;
             f.params.resize(e.nargs);
+            todo.emplace_back(true, internals.size());
             internals.push_back(std::move(f));
         }
     }
+    // the internals the last wave left unrun: failed
+    for (const auto& [internal, i] : todo)
+        if (internal && internals[i].trace.nil())
+            internals[i].problem = 0;
     c.made[static_cast<unsigned>(Stage::raw)] = true;
 }
 

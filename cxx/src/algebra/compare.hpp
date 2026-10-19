@@ -104,16 +104,11 @@ Value decide(Value cond, const Facts* facts = nullptr);
 
 // ---- conditions as bounds (python simplify.cond_bounds, decide_le, apply_constraint) --
 
-// what cond (known to hold) says of an expression compared with a constant:
-// x in [lo, hi] (unsigned words; a signed comparison when x < 2^255 for
-// sure and the constant is below 2^255; through ISZERO / BOOL; the operands
-// of a MIN compared from below: each is at least lo). lo, hi: int Values.
-struct CondBound {
-    Value x;
-    Value lo, hi;
-    Range range() const { return Range{EvmInt(lo), EvmInt(hi)}; }
-};
-using CondBounds = SmallVec<CondBound, 4>;
+// what cond (known to hold) says of expressions compared with constants:
+// x in [lo, hi] (CondBound, ranges.hpp: unsigned words; a signed comparison
+// when x < 2^255 for sure and the constant is below 2^255; through ISZERO /
+// BOOL; x itself, not 0, or ISZERO(x), 0; an AND of truth values, each of
+// them; the operands of a MIN compared from below: each is at least lo)
 CondBounds cond_bounds(Value cond);
 // exp where cond holds: its MIN / MAX that cond decides made the operand
 // they are (python apply_constraint: min(32, returndatasize) is 32 once

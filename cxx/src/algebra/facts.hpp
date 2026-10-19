@@ -109,12 +109,13 @@ public:
     // what the conditions say of x's word (x compared with constants,
     // var_bits): the intersection of their bounds; nullopt when none
     std::optional<Range> bounds(Value x) const;
-    // f(Value x, const Value& lo, const Value& hi) for every bound a fact
-    // puts on an expression (lo, hi: int Values), newest first
+    // f(Value x, Value lo, Value hi) for every bound a condition puts on an
+    // expression (compare.hpp cond_bounds; lo, hi: int Values), newest first
     template <class F>
     void each_bound(F&& f) const {
+        if (!nbounds_) return;
         for (const Cell* c = head_; c; c = c->next)
-            if (!c->bx.nil()) f(c->bx, c->blo, c->bhi);
+            for (u32 i = 0; i < c->nb; ++i) f(c->b[i].x, c->b[i].lo, c->b[i].hi);
     }
     bool any_bound() const noexcept { return nbounds_ != 0; }
 
@@ -176,13 +177,18 @@ private:
     struct Cell {
         const Cell* next;
         Fact f;
-        // a condition's bound: x in [blo, bhi] (int Values); bx NIL: none
-        Value bx, blo, bhi;
+        // a condition's bounds (cond_bounds), in the arena
+        const CondBound* b;
+        u32 nb;
     };
-    static const Cell* cons(const Fact& f, const Cell* next);
+    // a cell for f; its bounds computed, or taken from a cell of the same
+    // fact (a rebuild)
+    static const Cell* cons(const Fact& f, const Cell* next, const Cell* same = nullptr);
+    // the list rebuilt from cells (oldest first), their bounds kept
+    static Facts from_cells(std::span<const Cell* const> oldest_first);
     const Cell* head_ = nullptr;
     u32 n_ = 0;
-    u32 nbounds_ = 0;  // the cells with a bound
+    u32 nbounds_ = 0;  // the bounds of all the cells
 };
 
 }  // namespace pan::alg

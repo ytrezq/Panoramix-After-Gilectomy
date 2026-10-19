@@ -103,6 +103,15 @@ struct SignRange {
     bool nonzero() const noexcept { return lo > 0 || hi < 0; }
 };
 
+// a bound on an expression's word: x in [lo, hi] (lo, hi: int Values, words)
+// - what a condition says (compare.hpp cond_bounds), what the facts keep
+struct CondBound {
+    Value x;
+    Value lo, hi;
+    Range range() const { return Range{EvmInt(lo), EvmInt(hi)}; }
+};
+using CondBounds = SmallVec<CondBound, 4>;
+
 // the range of v's WORD for every value of what it's made of, within top's
 // assumptions and what the facts say (python value_range, its sums made
 // words). v: any word expression (an int, True/False, a leaf, a name, an
