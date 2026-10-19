@@ -179,8 +179,21 @@ void Vm::check_frontier() const {
     auto at = [&](const std::pmr::vector<NodeId>& v) {
         if (i >= v.size()) return std::string("-");
         const Node& x = nodes_[v[i]];
-        return std::to_string(v[i]) + "@" + std::to_string(x.start) + (x.dead ? " dead" : "") +
-               " end " + std::to_string(int(x.end));
+        std::string s = std::to_string(v[i]) + "@" + std::to_string(x.start) + (x.dead ? " dead" : "") +
+                        " end " + std::to_string(int(x.end));
+        // the first link up that its parent's children don't have
+        for (NodeId c = v[i]; links_[c].prev != NO_NODE; c = links_[c].prev) {
+            const NodeId p = links_[c].prev;
+            bool in = false;
+            for (NodeId k = nodes_[p].first; k != NO_NODE && !in; k = nodes_[k].sibling) in = k == c;
+            if (!in) {
+                s += " (not a child of its parent " + std::to_string(p) + "@" + std::to_string(nodes_[p].start) +
+                     (nodes_[p].dead ? " dead" : "") + " end " + std::to_string(int(nodes_[p].end)) + ", below it " +
+                     std::to_string(c) + ")";
+                break;
+            }
+        }
+        return s;
     };
     throw InternalError("vm: the frontier differs from the tree's walk (PANORAMIX_VM_CHECK): " +
                         std::to_string(frontier_.size()) + " nodes, the walk's " + std::to_string(walk.size()) +

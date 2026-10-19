@@ -15,6 +15,7 @@
 #include "sigdb.hpp"
 
 #include <algorithm>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -264,6 +265,10 @@ struct Totals
 
 int main(int argc, char** argv)
 {
+    // the decompiler's log: its warnings and errors only (its INFO lines,
+    // a few per function, would drown the report), unless PANORAMIX_LOG says
+    if (!std::getenv("PANORAMIX_LOG"))
+        pan::set_log_level(pan::log_warning);
     Options o;
     o.check.timeout_ns = 900 * pan::limits::SEC;
     for (int i = 1; i < argc; ++i)
