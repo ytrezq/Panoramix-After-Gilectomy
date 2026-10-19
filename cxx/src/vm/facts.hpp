@@ -44,6 +44,10 @@ enum class Forget : u8 {
     Volatile,  // a call, a create, a loop's head: those mentioning any volatile read (F_VOLATILE)
 };
 
+// what a memory fact keeps of a SETMEM's value: the word of a SIZED(n, v)
+// (its low n bytes are what was written), anything else as it is
+inline Value fact_value(Value v) { return v.is(Op::SIZED, 2) ? v[1] : v; }
+
 // Python's mask_value: alg::mask, the whole word left as it is.
 Value mask_value(Value v, i64 size, i64 off = 0, i64 shl = 0);
 

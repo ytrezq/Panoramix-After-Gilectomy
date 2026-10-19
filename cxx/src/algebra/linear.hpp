@@ -15,7 +15,9 @@
 // equals v's word only when 0 <= I < 2^256 for every value of the leaves:
 // a comparison of sums as integers (lot 3: ranges, compare) is sound only
 // with that no-wrap side condition proven - never x + 1 > x for free (x =
-// 2^256 - 1 wraps it to 0).
+// 2^256 - 1 wraps it to 0). More generally word(v) = I - j * 2^256 when
+// j * 2^256 <= I < (j + 1) * 2^256 for every value (x - 1 with x >= 1
+// known: j = 0; -x with x >= 1: j = -1, the word 2^256 - x).
 //
 // The canonical sum (construct.hpp add) IS the linear form: linear() of a
 // normal sum only reads it; anything else is normalized first (memoized).

@@ -806,3 +806,36 @@ TEST_CASE("algebra: bench the constructors" * doctest::skip()) {
             " ns; normalize random depth-3: ", (t5 - t4) / 20000, " ns");
     CHECK(!acc.nil());
 }
+
+TEST_CASE("algebra: bench fresh sums" * doctest::skip()) {
+    Fixture f;
+    Value acc;
+    for (u32 i = 0; i < 30000; ++i)
+        acc = A::add({Value::name(NameKind::TMP, i), mk_int(i64(i)), A::mul(mk_int(32), Value::name(NameKind::LOOP, i))});
+    for (u32 i = 0; i < 30000; ++i) acc = A::mask(8, 8, -8, A::add(Value::name(NameKind::PARAM, i), mk_int(256)));
+    CHECK(!acc.nil());
+}
+
+TEST_CASE("algebra: bench phases" * doctest::skip()) {
+    Fixture f;
+    const u32 N = 100000;
+    std::vector<Value> m(N), t(N);
+    auto t0 = platform::monotonic_ns();
+    for (u32 i = 0; i < N; ++i) t[i] = mk(Op::MUL, mk_int(32), Value::name(NameKind::LOOP, i));
+    auto t1 = platform::monotonic_ns();
+    for (u32 i = 0; i < N; ++i) m[i] = A::mul(mk_int(32), Value::name(NameKind::LOOP, i + N));
+    auto t2 = platform::monotonic_ns();
+    Value acc;
+    for (u32 i = 0; i < N; ++i) acc = mk(Op::ADD, mk_int(i64(i)), Value::name(NameKind::TMP, i), m[i]);
+    auto t3 = platform::monotonic_ns();
+    for (u32 i = 0; i < N; ++i) acc = A::add({Value::name(NameKind::TMP, i + N), mk_int(i64(i)), m[i]});
+    auto t4 = platform::monotonic_ns();
+    for (u32 i = 0; i < N; ++i) acc = A::add(Value::name(NameKind::TMP, i + 2 * N), m[i]);
+    auto t5 = platform::monotonic_ns();
+    for (u32 i = 0; i < N; ++i) acc = A::mask(8, 8, -8, Value::name(NameKind::PARAM, i));
+    auto t6 = platform::monotonic_ns();
+    MESSAGE("raw mk MUL: ", (t1 - t0) / N, " ns; mul(32, x): ", (t2 - t1) / N, " ns; raw mk ADD3: ", (t3 - t2) / N,
+            " ns; add of 3: ", (t4 - t3) / N, " ns; add of 2: ", (t5 - t4) / N, " ns; mask of a leaf: ", (t6 - t5) / N,
+            " ns");
+    CHECK(!acc.nil());
+}

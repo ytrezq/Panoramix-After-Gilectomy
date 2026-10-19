@@ -93,8 +93,8 @@ VmResult run_function(const ContractShared& contract, const FunctionInfo& fn, co
             // 0x60, as the old compilers set it
             s.stack = mk_list({});
             if (contract.free_memory_pointer)
-                s.before.push_back(
-                    mk(Op::SETMEM, mk(Op::RANGE, Value::small(0x40), Value::small(32)), Value::small(0x60)));
+                s.before.push_back(mk(Op::SETMEM, mk(Op::RANGE, Value::small(0x40), Value::small(32)),
+                                      mk(Op::SIZED, Value::small(32), Value::small(0x60))));
         }
         s.given = mk_list({fn.entry.vm_state.nil() ? Value::none() : fn.entry.vm_state,
                            fn.entry.entry_lines.nil() ? Value::none() : fn.entry.entry_lines});

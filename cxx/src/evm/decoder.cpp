@@ -23,6 +23,72 @@ std::optional<u64> push_u64(const Insn& in) noexcept
     return v;
 }
 
+bool sets_free_memory_pointer(std::span<const u8> code)
+{
+    // the first 32 instructions are in the first 32 * 33 bytes
+    constexpr usize kInsns = 32, kBytes = kInsns * 33;
+    struct Walk {
+        // the stack's words: a number below 2^64, or nullopt (unknown, or more)
+        std::optional<u64> stack[kInsns];
+        usize depth = 0, seen = 0;
+        enum : u8 { Open, Yes, No } verdict = Open;
+    } w;
+    for_each_insn(
+        code.first(code.size() < kBytes ? code.size() : kBytes),
+        [](const Insn& in, void* data) {
+            auto& w = *static_cast<Walk*>(data);
+            if (w.verdict != Walk::Open || w.seen++ == kInsns) {
+                if (w.verdict == Walk::Open) w.verdict = Walk::No;
+                return;
+            }
+            const auto pop_push = [&](usize popped) {
+                if (w.depth < popped) return false;
+                w.depth -= popped;
+                w.stack[w.depth++] = std::nullopt;
+                return true;
+            };
+            switch (in.op) {
+            case 0x52:  // mstore: of a number at 0x40?
+                if (w.depth < 2) break;
+                {
+                    const auto addr = w.stack[w.depth - 1], value = w.stack[w.depth - 2];
+                    w.verdict = addr == 0x40u && value && *value >= 0x60 && *value < 0x10000 ? Walk::Yes : Walk::No;
+                }
+                return;
+            case 0x30: case 0x34: case 0x36:  // address, callvalue, calldatasize
+                if (pop_push(0)) return;
+                break;
+            case 0x15:  // iszero
+                if (pop_push(1)) return;
+                break;
+            case 0x10: case 0x11: case 0x14:  // lt, gt, eq
+                if (pop_push(2)) return;
+                break;
+            default:
+                switch (kClass[in.op]) {
+                case InsnClass::Push: w.stack[w.depth++] = push_u64(in); return;
+                case InsnClass::Dup: {
+                    const usize n = usize(in.op - 0x7f);
+                    if (w.depth < n) break;
+                    w.stack[w.depth] = w.stack[w.depth - n];
+                    ++w.depth;
+                    return;
+                }
+                case InsnClass::Swap: {
+                    const usize n = usize(in.op - 0x8f);
+                    if (w.depth <= n) break;
+                    std::swap(w.stack[w.depth - 1], w.stack[w.depth - 1 - n]);
+                    return;
+                }
+                default: break;
+                }
+            }
+            w.verdict = Walk::No;
+        },
+        &w);
+    return w.verdict == Walk::Yes;
+}
+
 Insn CodeMap::insn_at(u32 pc) const noexcept
 {
     const u8 op = code[pc];

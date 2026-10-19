@@ -54,6 +54,7 @@ std::optional<MaskFields> to_mask(Value v);
 std::optional<MaskFields> to_neg_mask(Value v);
 // k when w == 2^k
 std::optional<u32> log2_exact(const Word256& w) noexcept;
+
 // k when v is the int 2^k (k < 256: a word)
 std::optional<u32> to_exp2(Value v);
 
@@ -63,6 +64,8 @@ struct BitSpan {
     u32 size, off;
 };
 BitSpan find_mask(const Word256& w) noexcept;
+// (size, off) when the set bits of w are one run: bits [off, off + size)
+std::optional<BitSpan> as_bit_run(const Word256& w) noexcept;
 
 // x may be wider than a word (python algebra.may_be_wide): a byte string of
 // more than 32 bytes, or not known to be at most 32 (DATA, ARR, SALL,

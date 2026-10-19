@@ -115,3 +115,115 @@ TEST_CASE("vm: call") {
     MESSAGE(dump_trace(r.trace));
     CHECK(r.calls.size() == 1);
 }
+
+TEST_CASE("vm: recursive internal function") {
+    Fixture fx;
+    // main: fact(calldataload(0)) returning to 8, mem[0] = result, return it
+    // fact (17): [ret, n] -> n == 0 ? 1 : n * fact(n - 1)
+    Code c("60086000356011565b60005260206000f35b80156026578060019003602290601156"
+           "5b0290565b5060019056");
+    auto r = run_at(c);
+    MESSAGE(dump_trace(r.trace));
+    REQUIRE(r.found_internals.size() == 1);
+    CHECK(r.found_internals[0] == vm::InternalEntry{17, 1, 1, 2});
+    CHECK(r.trace == V("{(internal 17 [(calldataload 0)] [tmp1]) (setmem (range 0 32) (sized 32 tmp1))"
+                       " (return (mem (range 0 32)))}"));
+
+    // the function apart: its own calls are INTERNAL lines, its end LEAVE
+    FunctionInfo f;
+    f.kind = FunctionInfo::Kind::Internal;
+    f.entry_pc = 17;
+    f.params.resize(1);
+    vm::VmOptions o;
+    o.known_internals = &r.found_internals;
+    auto ri = vm::run_function(c.shared, f, o);
+    MESSAGE(dump_trace(ri.trace));
+    CHECK(ri.complete);
+}
+
+TEST_CASE("vm: discovery") {
+    Fixture fx;
+    // solc-like: fmp; calldatasize < 4 -> fallback; selector 0x12345678 ->
+    // 43 (returns 1), 0xaabbccdd -> 54 (non-payable: invalid when value);
+    // fallback (38) reverts
+    Code c("6080604052600436106026576000356" "0e01c806312345678146 02b5780" "63aabbccdd14603657"
+           "5b600080fd5b600160005260206000f35b3415603d57fe5b00",
+           true);
+    Budget b{Budget::Limits{}};
+    auto fns = vm::discover(c.shared, b);
+    REQUIRE(fns.size() == 3);
+    CHECK(fns[0].kind == FunctionInfo::Kind::Selector);
+    CHECK(fns[0].selector == 0x12345678);
+    CHECK(fns[0].entry_pc == 43);
+    CHECK(fns[1].selector == 0xaabbccdd);
+    CHECK(fns[1].entry_pc == 54);
+    CHECK(fns[2].kind == FunctionInfo::Kind::Fallback);
+    CHECK(fns[2].entry_pc == 38);
+    for (const auto& f : fns) {
+        MESSAGE(dump(f.entry.entry_lines), " ", dump(f.entry.checks), " ", dump(f.entry.vm_state));
+        auto r = vm::run_function(c.shared, f, {});
+        MESSAGE(dump_trace(r.trace));
+        CHECK(r.complete);
+    }
+    CHECK(fns[0].entry.entry_lines == V("{(setmem (range 64 32) (sized 32 128))}"));
+}
+
+TEST_CASE("vm: merge of branches") {
+    Fixture fx;
+    // v = calldataload(0) ? 2 : 1; mem[0] = v; return mem[0..32]
+    Code c("600035600b576001600e565b60025b60005260206000f3");
+    auto r = run_at(c);
+    INFO(dump_trace(r.trace));
+    CHECK(r.trace == V("{(if (calldataload 0) {(setvar tmp1 2)} {(setvar tmp1 1)})"
+                       " (setmem (range 0 32) (sized 32 tmp1)) (return (mem (range 0 32)))}"));
+}
+
+TEST_CASE("vm: snapshot of storage reads") {
+    Fixture fx;
+    // x = sload(0); sstore(0, 5); sstore(1, x): x is read before the first store
+    // PUSH1 0 SLOAD PUSH1 5 PUSH1 0 SSTORE PUSH1 1 SSTORE STOP
+    Code c("6000546005600055600155 00");
+    auto r = run_at(c);
+    INFO(dump_trace(r.trace));
+    CHECK(r.trace == V("{(setvar tmp1 (storage 256 0 0)) (store 256 0 0 5) (store 256 0 1 tmp1) (stop)}"));
+}
+
+TEST_CASE("vm: verbose") {
+    Fixture fx;
+    Code c("6001600201600052 60206000f3");
+    vm::VmOptions o;
+    o.verbose = true;
+    auto r = run_at(c, 0, o);
+    INFO(dump_trace(r.trace));
+    REQUIRE(r.trace.size() > 2);
+    CHECK(r.trace[0] == V("(asm 0 96 1 [])"));
+    CHECK(r.trace[1] == V("(asm 2 96 2 [1])"));
+}
+
+TEST_CASE("vm: stack underflow, invalid jumps, unknown opcode") {
+    Fixture fx;
+    CHECK(run_at(Code("01")).trace == V("{(invalid 5 0)}"));
+    CHECK(run_at(Code("600556")).trace == V("{(invalid 4 5)}"));            // past the code
+    CHECK(run_at(Code("6003565b00")).trace == V("{(invalid 3 3)}"));        // not a jumpdest
+    CHECK(run_at(Code("0c")).trace == V("{(invalid 1 0)}"));
+    CHECK(run_at(Code("6000")).trace == V("{(stop)}"));                     // falls off the end
+    CHECK(run_at(Code("61ff")).trace == V("{(stop)}"));                     // a cut push
+    CHECK(run_at(Code("600035 56")).trace == V("{(undefined 2 3)}"));       // computed jump
+}
+
+TEST_CASE("vm: code switch") {
+    Fixture fx;
+    // Vyper's table dispatch: codecopy(0, 30 + (cd[0] % 2) * 2, 2), then a
+    // jump to mload(0) >> 240: 24 (STOP) or 26 (INVALID)
+    Code c("6002" "6002" "600035" "06" "6002" "02" "601e" "01" "6000" "39" "600051" "60f01c" "56"
+           "5b00" "5bfe" "0000" "0018" "001a");
+    Budget b{Budget::Limits{}};
+    auto fns = vm::discover(c.shared, b);
+    REQUIRE(fns.size() == 1);
+    auto r = vm::run_function(c.shared, fns[0], {});
+    INFO(dump_trace(r.trace));
+    CHECK(r.complete);
+    CHECK(r.trace == V("{(if (eq (mod (calldataload 0) 2) 0)"
+                       " {(setmem (range 0 2) (sized 2 24)) (stop)}"
+                       " {(setmem (range 0 2) (sized 2 26)) (invalid 1 27)})}"));
+}

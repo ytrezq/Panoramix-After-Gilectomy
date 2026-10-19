@@ -487,6 +487,39 @@ TEST_CASE("evm: metadata tails")
     }
 }
 
+TEST_CASE("evm: sets_free_memory_pointer (python's loader)")
+{
+    const auto sets = [](std::string_view hex_text) { return sets_free_memory_pointer(bytes_of(hex_text)); };
+    CHECK(sets("6080604052348015600f57600080fd5b50"));  // solc >= 0.4.22
+    CHECK(sets("6060604052"));                          // solc before
+    CHECK(sets("608080604052"));                        // via IR: PUSH1 0x80 DUP1 PUSH1 0x40 MSTORE
+    CHECK(sets("6040608090" "52"));                     // a swap
+    CHECK(sets("3460806040" "52"));                     // callvalue before
+    CHECK(sets("61ffff604052"));                        // 2^16 - 1
+    CHECK(!sets("620100006040" "52"));                  // 2^16
+    CHECK(!sets("605f604052"));                         // below 0x60
+    CHECK(!sets("6080604152"));                         // not at 0x40
+    CHECK(!sets("6080604051"));                         // no mstore: an mload
+    CHECK(!sets("608052"));                             // two words needed
+    CHECK(!sets("5b6080604052"));                       // a jumpdest first
+    CHECK(!sets("8152"));                               // a dup too deep
+    CHECK(!sets("15"));                                 // iszero of nothing
+    CHECK(!sets("3415604052"));                         // an unknown value
+    CHECK(!sets(""));
+    CHECK(!sets("5f608090506040" "52"));                // a pop: not one of python's STACK_EFFECTS
+    CHECK(sets("5f6080" "6040" "52"));                  // push0 below
+    // the first 32 instructions only: 29 ADDRESS, then 3 instructions / 30, then 3
+    std::string addresses;
+    for (int i = 0; i < 29; ++i) addresses += "30";
+    CHECK(sets(addresses + "6080604052"));
+    CHECK(!sets(addresses + "30" + "6080604052"));
+    // the idiom implies it
+    for (const auto& code : {bytes_of("6080604052"), bytes_of("60ff604052600056")}) {
+        CHECK(analyse(code).fmp);
+        CHECK(sets_free_memory_pointer(code));
+    }
+}
+
 TEST_CASE("evm: metadata on mutated and random tails")
 {
     const std::vector<u8> body = bytes_of("6080604052600080fd");
@@ -563,7 +596,7 @@ TEST_CASE("evm: the corpus - the analysis against the reference, the metadata, t
         MESSAGE("no corpus (PANCXX_CORPUS): skipped");
         return;
     }
-    usize bad = 0, solidity = 0, vyper = 0, bytes = 0, insns = 0;
+    usize bad = 0, solidity = 0, vyper = 0, bytes = 0, insns = 0, fmp = 0;
     for (usize i = 0; i < all.size() && bad < 5; ++i) {
         CAPTURE(names[i]);
         bad += !same_as_reference(all[i]);
@@ -577,12 +610,19 @@ TEST_CASE("evm: the corpus - the analysis against the reference, the metadata, t
             solidity += md->lang == Lang::Solidity;
             vyper += md->lang == Lang::Vyper;
         }
+        const bool fmp_walk = sets_free_memory_pointer(all[i]);
+        fmp += fmp_walk;
+        if (analyse(all[i]).fmp && !fmp_walk) {
+            FAIL_CHECK("the fmp idiom without sets_free_memory_pointer");
+            ++bad;
+        }
         bytes += all[i].size();
         insns += seen.insns.size();
     }
     CHECK(bad == 0);
     MESSAGE(all.size() << " contracts, " << bytes << " bytes, " << insns << " instructions: " << solidity
-                        << " with solc's metadata, " << vyper << " with vyper's");
+                        << " with solc's metadata, " << vyper << " with vyper's, " << fmp
+                        << " setting the free memory pointer first");
     // the blocks from every jumpdest, on a sample
     for (usize i = 0; i < all.size(); i += 37) CHECK(blocks_same_as_reference(all[i]));
 

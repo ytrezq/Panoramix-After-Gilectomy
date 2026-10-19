@@ -10,12 +10,15 @@
 //                 The VM's own exec machine (src/vm/vm_exec.rl, lot 5) copies its
 //                 skeleton with inline handlers.
 //   metadata.rl   the CBOR metadata tail (solc / vyper)
+//   classes.rl    (tests) the class action the grammar fires for each opcode
+//   text.cpp      `pancxx disasm` / `pancxx decode`, over listing and analysis
 //
 // Nothing per instruction is stored: an Insn is a 16-byte view into the code,
 // handed from an action to its consumer and never kept (NaCl's struct
 // Instruction). What persists is the CodeMap (3 bits per byte + the idioms).
 //
 // The grammar (for the consumers' .rl files):
+//     alphtype unsigned char;  action imm_byte {...}  action insn_plain {...} ...
 //     include evm_grammar "evm/evm_grammar.rlh";
 //   defines, from spec/evm.def:
 //     insn       one instruction: an alternative per opcode, a push followed by
@@ -24,9 +27,10 @@
 //                  insn_plain insn_push insn_dup insn_swap insn_jump insn_jumpi
 //                  insn_jumpdest insn_halt insn_unknown
 //                (the class of kClass[op], core/ops_gen.hpp; a test checks they
-//                agree). The consumer defines these 10 actions (and imm_byte)
+//                agree). The consumer defines these 9 actions and imm_byte
 //                BEFORE the include. `main := insn*;` has one final state, the
-//                start state (proved: cxx/tests/evm_dfa_proof.py).
+//                start state (proved: cxx/tests/evm_dfa_proof.py, run by make
+//                check, with the analysis's idioms).
 //     op_<name>  the bare bytes of each opcode, no actions (op_push2 = 0x61
 //                any{2}); op_unknown; push_any (op_push0 | ... | op_push32):
 //                the idioms' building blocks.
@@ -189,6 +193,13 @@ struct CodeMap {
 // The code must be smaller than 4 GiB - 1 (the front-ends cap it at 128 MiB).
 // Throws only std::bad_alloc.
 [[nodiscard]] CodeMap analyse(std::span<const u8> code);
+
+// python's loader.sets_free_memory_pointer (ContractShared::free_memory_pointer):
+// the code starts as solidity's does - its first MSTORE, within its first 32
+// instructions, writes a number in [0x60, 2^16) at 0x40, the stack before it
+// made of pushes, dups, swaps and ADDRESS CALLVALUE CALLDATASIZE ISZERO EQ LT
+// GT (their results unknown). CodeMap::fmp (the idiom) implies it.
+[[nodiscard]] bool sets_free_memory_pointer(std::span<const u8> code);
 
 // ---------------------------------------------------------------------------
 // The machines with a callback (NaCl's ProcessInstructionFunc): the

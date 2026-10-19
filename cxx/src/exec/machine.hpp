@@ -25,7 +25,9 @@
 //
 // Words (ir.md 4.3): mod 2^256; the pure ops through alg::eval_op (the one
 // definition of MASK_SHL, BOOL, LE..SGE, MAX, MIN on words); LAND/LOR short
-// circuit; True/False are 1/0. Name(PARAM, k): in a selector function or
+// circuit; True/False are 1/0. A MASK_SHL (or MASK) of a byte string reads
+// its big-endian number whatever its length: past 32 bytes its bits past
+// 256 exist (lot 2's may_be_wide), the result is mod 2^256. Name(PARAM, k): in a selector function or
 // the fallback the calldata word at params[k].calldata_offset (raw, never
 // masked), in an internal function its k-th argument. Names TMP, LOOP,
 // MSIZE_VAR, PRECOMPILE, SAFEMATH_PARAM: the frame's variables; reading one
@@ -41,13 +43,17 @@
 // bytes); DATA: concatenation, an ARR element ABI-encoded (its offset in the
 // head, length + content padded in the tail); MEM(RANGE(p, n)),
 // CALLDATA_BYTES, CODE_BYTES, EXTCODE_BYTES, RETURNDATA_BYTES (zero padded
-// past the end: the VM makes RETURNDATACOPY's halt an explicit IF); a BYTES node: its
-// bytes (a codecopy of known code); None: no bytes. A word without SIZED is
-// as wide as it is written: MASK_SHL(size, off, shl, x) (size + off + shl) /
-// 8 bytes, STORAGE/ST size / 8, an int of more than 256 bits its bytes,
-// anything else 32. As a word, a bytes expression of at most 32 bytes is
-// its big-endian number (more: Bug). SETMEM(RANGE(p, n), v): a word v gives
-// its low n bytes; a bytes v must have n bytes (else Bug).
+// past the end: the VM makes RETURNDATACOPY's halt an explicit IF); a BYTES
+// node: its bytes (a codecopy of known code); None: no bytes. Every byte
+// element of a DATA, SHA3, LOG, call, RETURN/REVERT payload carries its width
+// (SIZED, set by the stage that knows it); a word without one is a stage's
+// bug, counted in Outcome::unsized and run with ir.md 4.2's fallback
+// (python's sizeof, not stable under the algebra's normal forms):
+// MASK_SHL(size, off, shl, x) (size + off + shl) / 8 bytes, STORAGE/ST
+// size / 8, an int of more than 256 bits its bytes, anything else 32. As a
+// word, a bytes expression of at most 32 bytes is its big-endian number
+// (more: Bug). SETMEM(RANGE(p, n), v): a word v gives its low n bytes (the
+// range is its width); a bytes v must have n bytes (else Bug).
 //
 // Lines (ir.md 4.4): SETVAR, SETMEM (the range's n bytes: a value's low n
 // bytes), STORE (read-modify-write of the bits [off, off + size)), TSTORE,
@@ -252,6 +258,9 @@ struct Outcome {
     Value line;                         // the line the run ended at (Bug: where), NIL when none
     std::optional<usize> function;      // call(): the function run (index in Program::functions)
     u64 steps = 0;                      // lines and loop rounds run
+    u32 unsized = 0;                    // byte elements without SIZED (their width guessed): a stage's bug
+    Value unsized_element;              // the first of them (NIL: none)
+    Value unsized_line;                 // the line it was in
 
     bool halted() const noexcept { return status <= Status::Invalid; }  // conclusive
     bool success() const noexcept { return status == Status::Stop || status == Status::Return; }

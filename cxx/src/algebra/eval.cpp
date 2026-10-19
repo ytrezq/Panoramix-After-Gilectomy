@@ -6,20 +6,55 @@
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "core/errors.hpp"
+#include "core/node.hpp"
 #include "core/smallvec.hpp"
 
 namespace pan::alg {
 
 // ---------------------------------------------------------------- ints
 
+Word256 word_of(Value v) noexcept {
+    if (v.is_small()) {
+        i64 x = v.small_val();
+        u64 fill = x < 0 ? ~u64(0) : 0;
+        return Word256{{u64(x), fill, fill, fill}};
+    }
+    if (v.is_bool()) return Word256::of(v.is_true() ? 1 : 0);
+    if (!v.is_big()) return Word256{};
+    const NodeHeader* n = v.node();
+    const mp_limb_t* l = node_limbs(n);
+    Word256 w{};
+    for (u32 i = 0; i < n->size && i < 4; ++i) w.limb[i] = l[i];
+    if (n->op) w = pan::sub(Word256{}, w);  // negative: the magnitude's two's complement
+    return w;
+}
+
+namespace {
+// a Value of the magnitude m (sign: neg), through a read-only mpz view
+Value int_of_limbs(const Word256& m, bool neg) {
+    mp_size_t sz = 4;
+    while (sz > 0 && !m.limb[sz - 1]) --sz;
+    if (sz <= 1 && m.limb[0] <= u64(SMALL_MAX)) return Value::small(neg ? -i64(m.limb[0]) : i64(m.limb[0]));
+    mpz_t t;
+    return mk_int_mpz(mpz_roinit_n(t, m.limb, neg ? -sz : sz));
+}
+}  // namespace
+
+Value value_of(const Word256& w) { return int_of_limbs(w, false); }
+
+Value signed_value_of(const Word256& w) {
+    if (!(w.limb[3] >> 63)) return int_of_limbs(w, false);
+    return int_of_limbs(pan::sub(Word256{}, w), true);
+}
+
 Value word_int(Value v) {
     if (v.is_small() && v.small_val() >= 0) return v;
-    return EvmInt(v).word().value();
+    return value_of(word_of(v));
 }
 
 Value signed_int(Value v) {
     if (v.is_small()) return v;  // |small| < 2^62
-    return EvmInt(v).to_signed().value();
+    return signed_value_of(word_of(v));
 }
 
 i64 clamp_field(const Word256& x) noexcept {
@@ -179,7 +214,7 @@ struct EvalState final : ModuleState {
 };
 
 std::optional<Word256> const_rec(Value v, EvalState& st) {
-    if (v.is_int()) return Word256::from_value(v);
+    if (v.is_int()) return word_of(v);
     if (v.is_bool()) return Word256::of(v.is_true() ? 1 : 0);
     if (!v.is_expr() || !is_pure(v.op())) return std::nullopt;
     if (const ConstSlot* s = st.memo.find(v)) {
@@ -215,7 +250,7 @@ std::optional<Word256> const_rec(Value v, EvalState& st) {
 }  // namespace
 
 std::optional<Word256> eval_const(Value v) {
-    if (v.is_int()) return Word256::from_value(v);
+    if (v.is_int()) return word_of(v);
     if (v.is_bool()) return Word256::of(v.is_true() ? 1 : 0);
     if (!v.is_expr()) return std::nullopt;
     return const_rec(v, cx().state<EvalState>());
@@ -224,7 +259,7 @@ std::optional<Word256> eval_const(Value v) {
 // ---------------------------------------------------------------- Evaluator
 
 std::optional<Word256> Evaluator::run(Value v) {
-    if (v.is_int()) return Word256::from_value(v);
+    if (v.is_int()) return word_of(v);
     if (v.is_bool()) return Word256::of(v.is_true() ? 1 : 0);
     if (v.nil()) return std::nullopt;
     if (const Slot* s = memo_.find(v)) {

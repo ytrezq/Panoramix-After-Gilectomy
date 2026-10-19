@@ -48,10 +48,8 @@ std::optional<u32> to_exp2(Value v) {
     return log2_exact(w);
 }
 
-namespace {
-
 // (size, off) of a word whose set bits are one run
-std::optional<BitSpan> run_of_ones(const Word256& w) noexcept {
+std::optional<BitSpan> as_bit_run(const Word256& w) noexcept {
     if (w.is_zero()) return std::nullopt;
     u32 lo = 256, hi = 0;
     for (u32 i = 0; i < 4; ++i) {
@@ -67,13 +65,15 @@ std::optional<BitSpan> run_of_ones(const Word256& w) noexcept {
     return BitSpan{hi - lo, lo};
 }
 
+namespace {
+
 // e for 2^(k*e) - 1 as SUB(EXP(2^k, e), 1) or ADD(-1, EXP(2^k, e)), when
 // k * e < 2^256 structurally: the size k * e as a value
 std::optional<Value> symbolic_low_mask(Value v) {
     Value ex;
     if (v.is(Op::SUB, 2) && int_is(v[1], 1))
         ex = v[0];
-    else if (v.is(Op::ADD, 2) && v[0].is_int() && Word256::from_value(v[0]) == pan::bnot(Word256{}))
+    else if (v.is(Op::ADD, 2) && v[0].is_int() && word_of(v[0]) == pan::bnot(Word256{}))
         ex = v[1];
     else
         return std::nullopt;
@@ -94,7 +94,7 @@ std::optional<Value> symbolic_low_mask(Value v) {
 std::optional<MaskFields> to_mask(Value v) {
     if (v.is_int()) {
         auto w = eval_const(v);
-        auto r = run_of_ones(*w);
+        auto r = as_bit_run(*w);
         if (!r) return std::nullopt;
         return MaskFields{Value::small(r->size), Value::small(r->off)};
     }
@@ -106,8 +106,8 @@ std::optional<MaskFields> to_mask(Value v) {
 std::optional<MaskFields> to_neg_mask(Value v) {
     if (v.is(Op::NOT, 1)) return to_mask(v[0]);
     if (!v.is_int()) return std::nullopt;
-    Word256 w = pan::bnot(Word256::from_value(v));
-    auto r = run_of_ones(w);
+    Word256 w = pan::bnot(word_of(v));
+    auto r = as_bit_run(w);
     if (!r) return std::nullopt;
     return MaskFields{Value::small(r->size), Value::small(r->off)};
 }
@@ -181,7 +181,7 @@ u32 low_zero_bits_of(Value v);
 }  // namespace
 
 u32 max_bits(Value v) {
-    if (v.is_int()) return bitlen_word(Word256::from_value(v));
+    if (v.is_int()) return bitlen_word(word_of(v));
     if (v.is_bool()) return v.is_true() ? 1 : 0;
     if (!v.is_expr()) return 256;
     BitsState& S = cx().state<BitsState>();
@@ -194,7 +194,7 @@ u32 max_bits(Value v) {
 
 u32 low_zero_bits(Value v) {
     if (v.is_int()) {
-        Word256 w = Word256::from_value(v);
+        Word256 w = word_of(v);
         if (w.is_zero()) return 256;
         for (u32 i = 0; i < 4; ++i)
             if (w.limb[i]) return i * 64 + u32(__builtin_ctzll(w.limb[i]));

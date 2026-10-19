@@ -572,7 +572,7 @@ void Vm::internal_call(NodeId id) {
     emit(mk(Op::INTERNAL, small(start), mk_list(args.span()), mk_list(results.span())), start);
     known_ = known_.forget(Forget::Volatile).without_memory();
     last_call_ = kAmbiguousCall;
-    st_.resize(len - n - 1);
+    while (st_.size() > len - n - 1) st_.pop_back();
     for (Value r : results) st_.push_back(r);
     NodeId c = child_at(ret, false, condition_, known_, start);
     Node& x = nodes_[id];

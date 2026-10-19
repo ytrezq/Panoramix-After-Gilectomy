@@ -243,6 +243,8 @@ const char* category_name(Category c) noexcept
         return "storage";
     case Category::bug:
         return "bug";
+    case Category::unsized:
+        return "unsized";
     }
     return "?";
 }
@@ -366,6 +368,23 @@ struct Checker
     {
         auto& r = report.stages[s];
         using pan::exec::Status;
+        if (o.unsized != 0)
+        {
+            ++r.unsized;
+            ++r.by_category[static_cast<unsigned>(Category::unsized)];
+            if (r.examples.size() < config.keep)
+            {
+                Example x;
+                x.category = Category::unsized;
+                x.call = call_description(random, i, call);
+                x.message = std::to_string(o.unsized) + " byte element(s) without SIZED, the first: " +
+                            pan::dump(o.unsized_element);
+                pan::exec::Outcome at;
+                at.line = o.unsized_line;
+                x.where = where(at);
+                r.examples.push_back(std::move(x));
+            }
+        }
         if (o.status == Status::Bug)
         {
             ++r.bugs;
@@ -378,14 +397,40 @@ struct Checker
         {
         case Verdict::same:
             ++r.same;
+            switch (expected.end.status)
+            {
+            case validate::Status::stop:
+                ++r.same_by_end[0];
+                break;
+            case validate::Status::return_:
+                ++r.same_by_end[expected.end.data.empty() ? 0 : 1];
+                break;
+            case validate::Status::revert:
+                ++r.same_by_end[2];
+                break;
+            default:
+                ++r.same_by_end[3];
+                break;
+            }
             return;
         case Verdict::inconclusive: {
             ++r.inconclusive;
             auto why = Why::evm;
             if (!expected.end.inconclusive())
+            {
                 why = o.status == Status::Exhausted ? Why::exhausted :
                       o.status == Status::Undefined ? Why::undefined :
                                                       Why::unsupported;
+                if (r.inconclusive_examples.size() < config.keep)
+                {
+                    Example x;
+                    x.call = call_description(random, i, call);
+                    x.message = std::string{why_name(why)} + ": " + o.note;
+                    x.where = where(o);
+                    x.expected = to_string(expected);
+                    r.inconclusive_examples.push_back(std::move(x));
+                }
+            }
             ++r.by_why[static_cast<unsigned>(why)];
             return;
         }
@@ -526,13 +571,15 @@ std::string summary(const StageReport& report)
         const auto& r = report.stages[i];
         if (!r.ran)
             continue;
-        s += std::string{" | "} + stage_name(static_cast<Stage>(i)) + ": same " + std::to_string(r.same);
+        s += std::string{" | "} + stage_name(static_cast<Stage>(i)) + ": same " + std::to_string(r.same) + " (stop " +
+             std::to_string(r.same_by_end[0]) + " return " + std::to_string(r.same_by_end[1]) + " revert " +
+             std::to_string(r.same_by_end[2]) + " invalid " + std::to_string(r.same_by_end[3]) + ")";
         if (r.different != 0)
         {
             s += ", DIFFERENT " + std::to_string(r.different) + " (";
             bool first = true;
             for (unsigned c = 0; c < category_count; ++c)
-                if (c != static_cast<unsigned>(Category::bug) && r.by_category[c] != 0)
+                if (c < static_cast<unsigned>(Category::bug) && r.by_category[c] != 0)
                 {
                     s += (first ? "" : " ") + std::string{category_name(static_cast<Category>(c))} + " " +
                          std::to_string(r.by_category[c]);
@@ -542,6 +589,8 @@ std::string summary(const StageReport& report)
         }
         if (r.bugs != 0)
             s += ", BUGS " + std::to_string(r.bugs);
+        if (r.unsized != 0)
+            s += ", UNSIZED " + std::to_string(r.unsized);
         if (r.inconclusive != 0)
         {
             s += ", inconclusive " + std::to_string(r.inconclusive) + " (";

@@ -10,6 +10,8 @@
 ##              as `$(PYTHON) tests/X.py $(B)`
 ##   unit       only the doctest binary, built and run
 ##   validate   the validation tools (validate/; validate/Makefile.inc)
+##   stagecheck the stage checks over $(CORPUS): evmone vs each stage's trace
+##              ($(D)/stagecheck, niced, -j $(JOBS)), $(STAGECHECK_ARGS)
 ##   sigdb      $(SIGDB), the signature database: `pancxx build-db $(ABI_DUMP)`
 ##   pgo        the PGO build in $(B)/pgo/: instrumented, trained over
 ##              $(CORPUS) (tools/corpus.py --train), rebuilt -fprofile-use
@@ -235,6 +237,12 @@ pytests: all
 
 validate: $(VAL_BINS) $(VAL_LIB) $(EVM_LIB)
 
+# the stage checks over the corpus (validate/stage_check: evmone vs each
+# stage's trace run by the trace machine), niced: it is long
+STAGECHECK_ARGS ?=
+stagecheck: $(D)/stagecheck
+	$(Q)nice -n 10 $(D)/stagecheck --corpus $(CORPUS) -j $(JOBS) --quiet $(STAGECHECK_ARGS)
+
 help:
 	@sed -n 's/^## \{0,1\}//p' Makefile
 
@@ -266,7 +274,7 @@ endif
 clean:
 	rm -rf $(B)
 
-.PHONY: all lib cli pymod check unit pytests validate help sigdb pgo debug bench clean FORCE
+.PHONY: all lib cli pymod check unit pytests validate stagecheck help sigdb pgo debug bench clean FORCE
 FORCE:
 
 # --- the links ------------------------------------------------------------------

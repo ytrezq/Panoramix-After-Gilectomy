@@ -181,8 +181,20 @@ std::string render(const std::string& path, const Done& d, const Options& o)
             s += "    " + x.message + "\n";
             if (!x.where.empty())
                 s += "    at " + x.where + "\n";
-            s += "    evm:\n" + indent(x.expected, "      ");
-            s += "    machine:\n" + indent(x.actual, "      ");
+            if (!x.expected.empty())
+                s += "    evm:\n" + indent(x.expected, "      ");
+            if (!x.actual.empty())
+                s += "    machine:\n" + indent(x.actual, "      ");
+        }
+        shown = 0;
+        for (const auto& x : r.inconclusive_examples)
+        {
+            if (shown++ >= o.show)
+                break;
+            s += std::string{"  "} + stage_name(static_cast<Stage>(i)) + " inconclusive: " + x.call + "\n";
+            s += "    " + x.message + "\n";
+            if (!x.where.empty())
+                s += "    at " + x.where + "\n";
         }
     }
     return s;
@@ -222,6 +234,9 @@ struct Totals
             t.different += r.different;
             t.inconclusive += r.inconclusive;
             t.bugs += r.bugs;
+            t.unsized += r.unsized;
+            for (unsigned e = 0; e < t.same_by_end.size(); ++e)
+                t.same_by_end[e] += r.same_by_end[e];
             for (unsigned c = 0; c < category_count; ++c)
                 t.by_category[c] += r.by_category[c];
             for (unsigned w = 0; w < why_count; ++w)
@@ -246,12 +261,14 @@ struct Totals
             const auto calls = t.same + t.different + t.inconclusive + t.bugs;
             s += std::string{"stage "} + stage_name(static_cast<Stage>(i)) + ": " + std::to_string(ran[i]) +
                  " contracts, " + std::to_string(clean[i]) + " with no difference; calls " + std::to_string(calls) +
-                 ": same " + std::to_string(t.same) + ", different " + std::to_string(t.different) + " (";
-            for (unsigned c = 0; c < category_count; ++c)
-                if (c != static_cast<unsigned>(Category::bug))
-                    s += std::string{c ? " " : ""} + category_name(static_cast<Category>(c)) + " " +
-                         std::to_string(t.by_category[c]);
-            s += "), bugs " + std::to_string(t.bugs) + ", inconclusive " + std::to_string(t.inconclusive) + " (";
+                 ": same " + std::to_string(t.same) + " (stop " + std::to_string(t.same_by_end[0]) + " return " +
+                 std::to_string(t.same_by_end[1]) + " revert " + std::to_string(t.same_by_end[2]) + " invalid " +
+                 std::to_string(t.same_by_end[3]) + "), different " + std::to_string(t.different) + " (";
+            for (unsigned c = 0; c < static_cast<unsigned>(Category::bug); ++c)
+                s += std::string{c ? " " : ""} + category_name(static_cast<Category>(c)) + " " +
+                     std::to_string(t.by_category[c]);
+            s += "), bugs " + std::to_string(t.bugs) + ", unsized " + std::to_string(t.unsized) +
+                 ", inconclusive " + std::to_string(t.inconclusive) + " (";
             for (unsigned w = 0; w < why_count; ++w)
                 s += std::string{w ? " " : ""} + why_name(static_cast<Why>(w)) + " " + std::to_string(t.by_why[w]);
             s += ")\n";

@@ -51,6 +51,9 @@ namespace {
 Value small(i64 x) { return Value::small(x); }
 
 Value range(Value start, Value len) { return mk(Op::RANGE, start, len); }
+// a word written as n bytes: its width explicit (the algebra's masks say
+// nothing of a width)
+Value sized(i64 n, Value v) { return mk(Op::SIZED, Value::small(n), v); }
 Value mem(Value start, Value len) { return mk(Op::MEM, range(start, len)); }
 
 bool is_zero_int(Value v) { return v.is_int() && int_sign(v) == 0; }
@@ -283,7 +286,7 @@ void Vm::run_node(NodeId id) {
 void Vm::emit(Value line, u32 pc) {
     out_.push_back(line);
     cx().pcs.note(line, pc);
-    if (line.is(Op::SETMEM, 2)) known_ = known_.write_memory(line[0][0], line[0][1], line[1]);
+    if (line.is(Op::SETMEM, 2)) known_ = known_.write_memory(line[0][0], line[0][1], fact_value(line[1]));
 }
 
 void Vm::finish_halt(Value line, u32 pc) {
@@ -602,7 +605,7 @@ void Vm::handle_call(u8 op, u32 pc) {
         if (ret_len == small(32) && known_.known_zeroes(ret_start, small(32))) {
             // the word it returns, or zeroes (ecrecover of a wrong signature
             // returns nothing): the result
-            emit(mk(Op::SETMEM, range(ret_start, small(32)), name), pc);
+            emit(mk(Op::SETMEM, range(ret_start, small(32)), sized(32, name)), pc);
         } else {
             output_write(id, ret_start, ret_len, pc);
         }
@@ -634,7 +637,7 @@ Value Vm::code_bytes(Value pos, Value len) const {
         SmallVec<u8, 64> bytes;
         bytes.resize(n);
         for (u64 i = 0; i < n; ++i) bytes[i] = p + i < code_.size() ? code_[p + i] : 0;
-        if (n <= 32) return mk_int_be(bytes.span());
+        if (n <= 32) return sized(i64(n), mk_int_be(bytes.span()));
         return mk_bytes(bytes.span());
     }
     return mk(Op::CODE_BYTES, pos, len);
@@ -739,13 +742,13 @@ bool Vm::plain(u8 op8, u32 pc) {
         }
         case Op::MSTORE: {
             Value addr = pop(), v = pop();
-            emit(mk(Op::SETMEM, range(addr, small(32)), v), pc);
+            emit(mk(Op::SETMEM, range(addr, small(32)), sized(32, v)), pc);
             return true;
         }
         case Op::MSTORE8: {
             Value addr = pop(), v = pop();
             // the lowest byte of v, into one byte of memory
-            emit(mk(Op::SETMEM, range(addr, small(1)), mask_value(v, 8)), pc);
+            emit(mk(Op::SETMEM, range(addr, small(1)), sized(1, mask_value(v, 8))), pc);
             return true;
         }
         case Op::SLOAD:

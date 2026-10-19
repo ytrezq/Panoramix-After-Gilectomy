@@ -106,8 +106,9 @@ enum class Category : std::uint8_t
     events,      ///< logs, calls, creations, selfdestructs
     storage,     ///< the storage written
     bug,         ///< the machine found the trace breaking the IR's rules
+    unsized,     ///< (not a difference) a byte element without SIZED: its width guessed
 };
-inline constexpr unsigned category_count = 5;
+inline constexpr unsigned category_count = 6;
 const char* category_name(Category c) noexcept;
 
 /// Why a call was inconclusive.
@@ -153,9 +154,16 @@ struct StageResult
 {
     bool ran = false;  ///< the stage's traces were made
     unsigned long same = 0, different = 0, inconclusive = 0, bugs = 0;
-    std::array<unsigned long, category_count> by_category{};  ///< different and bugs
+    /// the calls whose run met a byte element without SIZED (whatever their
+    /// verdict): the stage's bug to report, not a difference
+    unsigned long unsized = 0;
+    /// the calls the same, by how they ended: stop, return, revert, invalid
+    std::array<unsigned long, 4> same_by_end{};
+    std::array<unsigned long, category_count> by_category{};  ///< different, bugs, unsized
     std::array<unsigned long, why_count> by_why{};            ///< inconclusive
     std::vector<Example> examples;
+    /// calls the machine left inconclusive (exhausted, undefined, unsupported) and evmone didn't
+    std::vector<Example> inconclusive_examples;
 };
 
 /// The check of one contract.

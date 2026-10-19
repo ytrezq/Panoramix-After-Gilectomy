@@ -20,8 +20,8 @@ namespace {
 // ---------------------------------------------------------------- words
 
 inline bool is_const(Value v) noexcept { return v.is_int() || v.is_bool(); }
-inline Word256 cw(Value v) { return v.is_bool() ? Word256::of(v.is_true() ? 1 : 0) : Word256::from_value(v); }
-inline Value wv(const Word256& w) { return w.to_value(); }
+inline Word256 cw(Value v) noexcept { return word_of(v); }
+inline Value wv(const Word256& w) { return value_of(w); }
 inline Word256 w_ones() noexcept { return Word256{{~u64(0), ~u64(0), ~u64(0), ~u64(0)}}; }
 inline bool w_neg(const Word256& w) noexcept { return w.limb[3] >> 63; }
 inline Value small(i64 x) noexcept { return Value::small(x); }
@@ -39,14 +39,7 @@ Word256 pow2w(u32 k) noexcept {
 }
 
 // the signed representative of a word, [-2^255, 2^255)
-Value signed_value(const Word256& w) {
-    if (w_neg(w)) {
-        Word256 n = pan::sub(Word256{}, w);
-        if (!(n.limb[1] | n.limb[2] | n.limb[3]) && n.limb[0] <= u64(SMALL_MAX)) return small(-i64(n.limb[0]));
-        return (-n.to_int()).value();
-    }
-    return w.to_value();
-}
+inline Value signed_value(const Word256& w) { return signed_value_of(w); }
 
 // the value of an int-like operand as a signed field, clamped (masks)
 inline i64 field_of(Value v) { return clamp_field(cw(v)); }
@@ -70,7 +63,7 @@ bool all_const(std::span<const Value> args) noexcept {
 // ---------------------------------------------------------------- memo
 
 struct CtorState final : ModuleState {
-    Memo<Key2, Value> add2, mul2, mask;
+    Memo<Key2, Value> add2, mul2, mask, and2, or2;
     Memo<Value, Value> norm;
     // pure functions of their operands: nothing to forget at clear_caches
 };
@@ -288,62 +281,73 @@ Value build_term(const Acc& a, bool* exact) {
 }
 
 // merges the terms of one x, one displacement, that make fewer fields
-// together (python try_add: x - (x & 31), adjacent fields of x)
+// together (python try_add: x - (x & 31), adjacent fields of x). The terms
+// are sorted: the fields of one x are a run.
+bool merge_group(SmallVec<Acc, 8>& terms, const usize* grp, usize ng, Value x, i32 d) {
+    // the weights per bit interval: the signed odd parts summed
+    SmallVec<i32, 16> cuts;
+    for (usize g = 0; g < ng; ++g) {
+        cuts.push_back(terms[grp[g]].off);
+        cuts.push_back(terms[grp[g]].off + terms[grp[g]].size);
+    }
+    std::sort(cuts.begin(), cuts.end());
+    struct Piece {
+        i32 lo, hi;
+        Word256 w;
+    };
+    SmallVec<Piece, 16> pieces;
+    for (usize c = 0; c + 1 < cuts.size(); ++c) {
+        i32 lo = cuts[c], hi = cuts[c + 1];
+        if (lo == hi) continue;
+        Word256 w{};
+        for (usize g = 0; g < ng; ++g) {
+            const Acc& t = terms[grp[g]];
+            if (t.off <= lo && hi <= t.off + t.size) w = pan::add(w, pan::sar(Word256::of(tz(t.k)), t.k));
+        }
+        if (!pieces.empty() && pieces.back().hi == lo && pieces.back().w == w)
+            pieces.back().hi = hi;
+        else
+            pieces.push_back(Piece{lo, hi, w});
+    }
+    usize nonzero = 0;
+    for (const Piece& p : pieces)
+        if (!p.w.is_zero()) ++nonzero;
+    if (nonzero >= ng) return false;
+    // replace: the group's terms zeroed, the pieces appended
+    for (usize g = 0; g < ng; ++g) terms[grp[g]].k = Word256{};
+    for (const Piece& p : pieces) {
+        if (p.w.is_zero()) continue;
+        i32 sh = p.lo + d;  // >= 0: lo >= some off of the group
+        if (sh >= 256) continue;
+        Word256 k = pan::mul(p.w, pow2w(u32(sh)));
+        if (!k.is_zero()) terms.push_back(Acc{x, k, p.lo, p.hi - p.lo});
+    }
+    return true;
+}
+
 bool merge_fields(SmallVec<Acc, 8>& terms) {
     bool changed = false;
-    for (usize i = 0; i < terms.size(); ++i) {
-        if (!is_field(terms[i]) || terms[i].k.is_zero()) continue;
-        // the displacement: where bit off lands (tz(k) - off)
-        Value x = terms[i].base;
-        i32 d = i32(tz(terms[i].k)) - terms[i].off;
-        SmallVec<usize, 8> grp;
-        for (usize j = i; j < terms.size(); ++j) {
-            const Acc& t = terms[j];
-            if (!is_field(t) || t.k.is_zero() || !(t.base == x)) continue;
-            if (i32(tz(t.k)) - t.off != d) continue;
-            grp.push_back(j);
-        }
-        if (grp.size() < 2) continue;
-        // the weights per bit interval: the signed odd parts summed
-        SmallVec<i32, 16> cuts;
-        for (usize j : grp) {
-            cuts.push_back(terms[j].off);
-            cuts.push_back(terms[j].off + terms[j].size);
-        }
-        std::sort(cuts.begin(), cuts.end());
-        struct Piece {
-            i32 lo, hi;
-            Word256 w;
-        };
-        SmallVec<Piece, 16> pieces;
-        for (usize c = 0; c + 1 < cuts.size(); ++c) {
-            i32 lo = cuts[c], hi = cuts[c + 1];
-            if (lo == hi) continue;
-            Word256 w{};
-            for (usize j : grp) {
-                const Acc& t = terms[j];
-                if (t.off <= lo && hi <= t.off + t.size)
-                    w = pan::add(w, pan::sar(Word256::of(tz(t.k)), t.k));
+    const usize n = terms.size();
+    for (usize i = 0; i < n;) {
+        usize j = i + 1;
+        while (j < n && terms[j].base == terms[i].base) ++j;
+        if (j - i >= 2 && is_field(terms[i])) {
+            // the run's fields grouped by displacement (where bit off lands: tz(k) - off)
+            SmallVec<u8, 16> done;
+            done.resize(j - i);
+            for (usize a = i; a < j; ++a) {
+                if (done[a - i] || terms[a].k.is_zero()) continue;
+                const i32 d = i32(tz(terms[a].k)) - terms[a].off;
+                SmallVec<usize, 8> grp;
+                for (usize b = a; b < j; ++b) {
+                    if (done[b - i] || terms[b].k.is_zero() || i32(tz(terms[b].k)) - terms[b].off != d) continue;
+                    done[b - i] = 1;
+                    grp.push_back(b);
+                }
+                if (grp.size() >= 2 && merge_group(terms, grp.data(), grp.size(), terms[a].base, d)) changed = true;
             }
-            if (!pieces.empty() && pieces.back().hi == lo && pieces.back().w == w)
-                pieces.back().hi = hi;
-            else
-                pieces.push_back(Piece{lo, hi, w});
         }
-        usize nonzero = 0;
-        for (const Piece& p : pieces)
-            if (!p.w.is_zero()) ++nonzero;
-        if (nonzero >= grp.size()) continue;
-        // replace: the group's terms zeroed, the pieces appended
-        for (usize j : grp) terms[j].k = Word256{};
-        for (const Piece& p : pieces) {
-            if (p.w.is_zero()) continue;
-            i32 sh = p.lo + d;  // >= 0: lo >= some off of the group
-            Word256 k = pan::mul(p.w, pow2w(u32(sh)));
-            if (sh >= 256 || k.is_zero()) continue;
-            terms.push_back(Acc{x, k, p.lo, p.hi - p.lo});
-        }
-        changed = true;
+        i = j;
     }
     return changed;
 }
@@ -541,7 +545,8 @@ Value mask_concrete(i64 s, i64 o, i64 h, Value x, int depth) {
         }
     }
     if (is_const(x) && !wide) return wv(mask_shl_word(s, o, h, cw(x)));
-    if (x.is_int() && int_is(x, 0)) return small(0);
+    // a leaf, a name: no rule applies (no memo needed)
+    if (!x.is_node()) return mk(Op::MASK_SHL, small(s), small(o), small(h), x);
     // memo
     Key2 key{(u64(s + 8192) | u64(o + 8192) << 16 | u64(h + 8192) << 32) << 1 | 1, x.raw()};
     CtorState& S = st();
@@ -634,8 +639,30 @@ Value add(std::span<const Value> args) {
     return add_impl(args);
 }
 
+// a term that is the whole of itself in a sum: no constant, sum, product,
+// difference or mask (the fast paths of add and mul)
+inline bool simple_term(Value v) noexcept {
+    if (is_const(v)) return false;
+    switch (v.op()) {
+        case Op::ADD: case Op::MUL: case Op::SUB: case Op::MASK_SHL:
+            return false;
+        default:
+            return true;
+    }
+}
+
 Value add(Value a, Value b) {
     if (is_const(a) && is_const(b)) return wv(pan::add(cw(a), cw(b)));
+    // x + c, x + y: their normal form at once
+    if (is_const(b) && simple_term(a)) std::swap(a, b);
+    if (is_const(a) && simple_term(b)) {
+        Word256 c = cw(a);
+        return c.is_zero() ? b : mk(Op::ADD, signed_value(c), b);
+    }
+    if (simple_term(a) && simple_term(b)) {
+        if (a == b) return mk(Op::MUL, small(2), a);
+        return compare(a, b) < 0 ? mk(Op::ADD, a, b) : mk(Op::ADD, b, a);
+    }
     if (is_const(a) && cw(a).is_zero()) {
         const Value one[] = {b};
         return add(std::span<const Value>(one));
@@ -675,6 +702,14 @@ Value mul(std::span<const Value> args) {
 
 Value mul(Value a, Value b) {
     if (is_const(a) && is_const(b)) return wv(pan::mul(cw(a), cw(b)));
+    // k * x: its normal form at once
+    if (is_const(b) && simple_term(a)) std::swap(a, b);
+    if (is_const(a) && simple_term(b)) {
+        Word256 k = cw(a);
+        if (k.is_zero()) return small(0);
+        if (k == Word256::of(1)) return b;
+        return mk(Op::MUL, signed_value(k), b);
+    }
     Key2 key = a.raw() < b.raw() ? Key2{a.raw(), b.raw()} : Key2{b.raw(), a.raw()};
     CtorState& S = st();
     if (Value* r = S.mul2.find(key)) return *r;
@@ -873,13 +908,12 @@ Value band(std::span<const Value> args) {
     if (rest.empty()) return wv(c);
     Value r = rest.size() == 1 ? rest[0] : Value();
     if (any_const && !(c == w_ones())) {
-        Value cv = wv(c);
         Value inner = rest.size() == 1 ? rest[0] : mk(Op::AND, rest.span());
-        if (auto m = to_mask(cv)) return mask(m->size, m->off, small(0), inner);
-        if (auto m = to_neg_mask(cv)) return neg_mask(m->size, m->off, inner);
+        if (auto m = as_bit_run(c)) return mask_concrete(m->size, m->off, 0, inner, 0);
+        if (auto m = as_bit_run(pan::bnot(c))) return neg_mask(small(m->size), small(m->off), inner);
         SmallVec<Value, 8> ops;
         for (Value a : rest) ops.push_back(a);
-        ops.push_back(cv);
+        ops.push_back(wv(c));
         return mk(Op::AND, ops.span());
     }
     if (!r.nil()) return r;
@@ -912,8 +946,14 @@ Value band(std::span<const Value> args) {
 }
 
 Value band(Value a, Value b) {
+    if (is_const(a) && is_const(b)) return wv(pan::band(cw(a), cw(b)));
+    Key2 key{a.raw(), b.raw()};  // (the operands' order is kept)
+    CtorState& S = st();
+    if (Value* r = S.and2.find(key)) return *r;
     const Value args[] = {a, b};
-    return band(std::span<const Value>(args));
+    Value r = band(std::span<const Value>(args));
+    S.and2.put(key, r);
+    return r;
 }
 
 Value bor(std::span<const Value> args) {
@@ -953,8 +993,14 @@ Value bor(std::span<const Value> args) {
 }
 
 Value bor(Value a, Value b) {
+    if (is_const(a) && is_const(b)) return wv(pan::bor(cw(a), cw(b)));
+    Key2 key{a.raw(), b.raw()};
+    CtorState& S = st();
+    if (Value* r = S.or2.find(key)) return *r;
     const Value args[] = {a, b};
-    return bor(std::span<const Value>(args));
+    Value r = bor(std::span<const Value>(args));
+    S.or2.put(key, r);
+    return r;
 }
 
 Value bxor(Value a, Value b) {

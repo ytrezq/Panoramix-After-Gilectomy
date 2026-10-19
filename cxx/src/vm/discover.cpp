@@ -282,8 +282,10 @@ void Discovery::entry_paths(Leaf&& is_leaf, std::vector<std::pair<EntryPath, Nod
             const Node& m = node(n);
             if (is_leaf(n)) out.push_back({entry, n});
             if (m.end == End::None) break;
+            // (the SETVARs too, unlike python: a variable of the dispatcher's
+            // may be on the stack the function starts with)
             for (Value l : m.lines)
-                if (l.is(Op::SETMEM, 2)) entry.push_back(EntryItem{false, l, {}, false, {}});
+                if (l.is(Op::SETMEM, 2) || l.is(Op::SETVAR, 2)) entry.push_back(EntryItem{false, l, {}, false, {}});
             if (m.end == End::Jump) {
                 n = m.a;
                 continue;
@@ -346,7 +348,8 @@ FunctionInfo Discovery::make(FunctionInfo::Kind kind, u32 sel, i64 target, Value
     for (const EntryPath& p : paths) {
         PathFacts k = PathFacts().with_fresh();
         for (const EntryItem& it : p)
-            if (!it.check) k = k.write_memory(it.line[0][0], it.line[0][1], it.line[1]);
+            if (!it.check && it.line.is(Op::SETMEM, 2))
+                k = k.write_memory(it.line[0][0], it.line[0][1], fact_value(it.line[1]));
         SmallVec<Fact, 32> v;
         k.to_vector(v);
         for (const Fact& x : v)

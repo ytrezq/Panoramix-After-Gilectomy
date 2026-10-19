@@ -457,8 +457,12 @@ struct Machine::Impl {
                 for (Value x : a)
                     if (!ev(x).is_zero()) return Word256::of(1);
                 return Word256{};
+            case Op::MASK_SHL:
+                if (a.size() == 4 && is_bytes_value(a[3])) return mask_bytes(field(a[0]), field(a[1]), field(a[2]), a[3]);
+                break;
             case Op::MASK: {  // print form: the bits [off, off + size) of x, moved to 0
                 const i64 off = field(a[1]);
+                if (is_bytes_value(a[2])) return mask_bytes(field(a[0]), off, -off, a[2]);
                 return alg::mask_shl_word(field(a[0]), off, -off, ev(a[2]));
             }
             case Op::SHA3: {
@@ -506,6 +510,40 @@ struct Machine::Impl {
             if (const auto r = alg::eval_op(op, w.span())) return *r;
         }
         bug("not a word: " + show(v));
+    }
+
+    // MASK_SHL(size, off, shl, x) of a byte string x: its big-endian number,
+    // wider than a word when it has more than 32 bytes - its bits past 256
+    // exist (lot 2's may_be_wide, python's unbounded ints)
+    Word256 mask_bytes(i64 size, i64 off, i64 shl, Value x) {
+        Lease l(*this);
+        evb(x, l.b);
+        if (l.b.size() <= 32) return alg::mask_shl_word(size, off, shl, Word256::from_be(l.b));
+        return mask_shl_wide(size, off, shl, l.b);
+    }
+
+    // the bits [off, off + size) of the big-endian number of `be` (any
+    // length), moved left by shl, mod 2^256
+    static Word256 mask_shl_wide(i64 size, i64 off, i64 shl, std::span<const u8> be) noexcept {
+        if (off < 0) {
+            size += off;
+            off = 0;
+        }
+        if (size <= 0) return Word256{};
+        const i64 nbits = i64(be.size()) * 8;
+        const i64 lo = std::max(off, -shl);  // the bits that land in [0, 256)
+        const i64 hi = std::min({off + size, nbits, 256 - shl});
+        if (lo >= hi) return Word256{};
+        // the bits [lo, lo + 320) of the number, then [lo, hi) at bit 0
+        const u64 k = u64(lo) / 8;
+        const unsigned r = unsigned(lo % 8);
+        u64 limbs[5] = {};
+        for (u64 j = 0; j < 40 && k + j < be.size(); ++j)
+            limbs[j / 8] |= u64(be[be.size() - 1 - (k + j)]) << (8 * (j % 8));
+        Word256 w;
+        for (int i = 0; i < 4; ++i) w.limb[i] = r ? (limbs[i] >> r) | (limbs[i + 1] << (64 - r)) : limbs[i];
+        w = pan::band(w, alg::mask_word(hi - lo, 0));
+        return pan::shl(Word256::of(u64(lo + shl)), w);
     }
 
     // a bytes expression as a word: its big-endian number (32 bytes at most)
@@ -611,6 +649,13 @@ struct Machine::Impl {
         }
     }
 
+    void note_unsized(Value e) noexcept {
+        if (out.unsized++ == 0) {
+            out.unsized_element = e;
+            out.unsized_line = cur_line;
+        }
+    }
+
     // the bytes of e as an element of a byte string (python runtrace.evb)
     void evb(Value e, Bytes& out) {
         check_stack();
@@ -620,6 +665,7 @@ struct Machine::Impl {
             return;
         }
         if (e.is_big() && big_bits(e) > 256) {
+            note_unsized(e);
             big_bytes(e, out);
             return;
         }
@@ -693,7 +739,9 @@ struct Machine::Impl {
         } else if (e.is_list() || e.nil()) {
             bug("not bytes: " + show(e));
         }
-        // a word, as wide as it is written
+        // a word without its width: a stage's bug (counted), run as wide as
+        // it is written (ir.md 4.2, the fallback)
+        note_unsized(e);
         const u64 n = implicit_width(e);
         u8 w[32];
         ev(e).to_be(w);

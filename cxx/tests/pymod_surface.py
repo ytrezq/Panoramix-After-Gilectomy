@@ -54,6 +54,9 @@ def fnv1a64(code):
 
 
 CODE = bytes.fromhex("6080604052348015600f57600080fd5b50")
+# panasm's own disassembly of CODE
+DISASM = ("0x0, push1, 0x80\n0x2, push1, 0x40\n0x4, mstore, \n0x5, callvalue, \n0x6, dup1, \n0x7, iszero, \n"
+          "0x8, push1, 0xf\n0xa, jumpi, \n0xb, push1, 0x0\n0xd, dup1, \n0xe, revert, \n0xf, jumpdest, \n0x10, pop, \n")
 FAIL = bytes.fromhex("deadbeef00")   # (the stub fails on it)
 
 # a node: eth_getCode of two addresses, an error for a third
@@ -226,7 +229,7 @@ def surface(m, name):
 
     # disasm
     t = m.disasm(CODE)
-    check(p + "disasm", isinstance(t, str) and fnv1a64(CODE) in t and t == m.disasm(CODE.hex()), t)
+    check(p + "disasm", t == DISASM and t == m.disasm(CODE.hex()), t)
     check(p + "disasm: not code", raises(lambda: m.disasm(1.5), TypeError))
     check(p + "disasm: two arguments", raises(lambda: m.disasm(CODE, CODE), TypeError))
 

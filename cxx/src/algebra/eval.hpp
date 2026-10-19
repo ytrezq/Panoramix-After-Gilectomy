@@ -30,6 +30,11 @@ namespace pan::alg {
 // constant), and in [-2^255, 2^255) (a constant or coefficient in a sum)
 Value word_int(Value int_value);
 Value signed_int(Value int_value);
+// an int Value (or True/False) mod 2^256 as a word, and back (on cx()):
+// no GMP allocation (the big ints' limbs are read and written in place)
+Word256 word_of(Value int_value) noexcept;
+Value value_of(const Word256& w);         // in [0, 2^256)
+Value signed_value_of(const Word256& w);  // in [-2^255, 2^255)
 // x as a signed 256-bit integer clamped to [-4096, 4096]: the reading of a
 // mask's size/offset/shift (fields past +-4096 behave as +-4096)
 i64 clamp_field(const Word256& x) noexcept;
@@ -66,8 +71,10 @@ std::optional<Word256> eval_const(Value v);
 class Evaluator;
 
 // What the evaluator can't compute: a leaf, a name, a node whose op isn't
-// pure (calldataload, mem, storage, sha3, call results...). Its operands
-// through ev(...). nullopt: unknown (the evaluation fails).
+// pure (calldataload, mem, storage, sha3, call results...), a MASK_SHL of a
+// value wider than a word (masks.hpp may_be_wide: its bits past 256 are no
+// Word256's). Its operands through ev(...). nullopt: unknown (the
+// evaluation fails).
 class Env {
 public:
     virtual std::optional<Word256> value(Value v, Evaluator& ev) = 0;

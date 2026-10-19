@@ -261,6 +261,48 @@ TEST_CASE("exec: byte strings: widths, sized, data, arr") {
     CHECK(r.data.empty());
 }
 
+TEST_CASE("exec: masks of byte strings wider than a word") {
+    Fixture fx;
+    const Word256 A = pan::sub(Word256{}, W(0x1234));  // the first 32 bytes
+    const Word256 B = W(0xabcdef);                      // the next 32
+    auto word = [&](std::string_view e) {
+        std::string t = "{(setmem (range 0 32) (sub 0 0x1234)) (setmem (range 32 32) 0xabcdef) (return (sized 32 ";
+        t += e;
+        t += "))}";
+        return returned_word(t);
+    };
+    // the high word, the low word, a field across both, at another place
+    CHECK(word("(mask_shl 256 256 -256 (mem (range 0 64)))") == A);
+    CHECK(word("(mask_shl 256 0 0 (mem (range 0 64)))") == B);
+    CHECK(word("(mask_shl 64 224 -192 (mem (range 0 64)))") ==
+          pan::shl(W(32), pan::bor(pan::shl(W(32), pan::band(A, W(0xffffffff))), pan::shr(W(224), B))));
+    CHECK(word("(mask_shl 8 504 -504 (mem (range 0 64)))") == W(0xff));
+    // past the string: nothing; a shift out of the word: nothing
+    CHECK(word("(mask_shl 8 512 -512 (mem (range 0 64)))") == W(0));
+    CHECK(word("(mask_shl 8 256 0 (mem (range 0 64)))") == W(0));
+    // the print form
+    // (bits 248..263 of the 512: B's top byte 0x00 below A's low byte 0xcc)
+    CHECK(word("(mask 16 248 (mem (range 0 64)))") == W(0xcc00));
+    CHECK(word("(mask 16 256 (mem (range 0 64)))") == W(0xedcc));
+    // 32 bytes or fewer: a word, as eval_op has it
+    CHECK(word("(mask_shl 8 0 0 (mem (range 0 1)))") == W(0xff));
+}
+
+TEST_CASE("exec: byte elements without SIZED are counted") {
+    Fixture fx;
+    Outcome o = run_trace("{(return (data (mask_shl 160 0 0 caller) (sized 1 7) 5))}");
+    CHECK(o.status == Status::Return);
+    CHECK(o.unsized == 2);
+    CHECK(dump(o.unsized_element) == "(mask_shl 160 0 0 caller)");
+    CHECK(dump(o.unsized_line) == "(return (data (mask_shl 160 0 0 caller) (sized 1 7) 5))");
+    // explicit widths, a word in a SETMEM (the range is its width), bytes: none
+    o = run_trace("{(setmem (range 0 32) 5) (log1 (data (sized 32 1) (mem (range 0 3)) b\"ab\") 7)"
+                  " (return (sha3 (sized 32 11)))}");
+    CHECK(o.status == Status::Return);
+    CHECK(o.unsized == 0);
+    CHECK(o.unsized_element.nil());
+}
+
 TEST_CASE("exec: memory") {
     Fixture fx;
     CHECK(returned("{(setmem (range 64 32) 128) (return (mem (range 64 32)))}") == word_bytes(W(128)));
