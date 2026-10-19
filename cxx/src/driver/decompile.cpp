@@ -54,7 +54,11 @@ Decompilation decompile_here(std::span<const u8> code, const DecompileOptions& o
     s.options.verbose = o.verbose || o.explain;
     s.options.upto = last_available();
     // what the outputs read: the last stage's traces (and --repr python's orig_trace)
-    s.options.keep = keep_bit(last_available()) | (o.repr ? keep_bit(Stage::Simplified) : 0);
+    // --repr prints python's orig_trace (simplified); the JSON's "trace" is python's func.trace,
+    // the unfolded one: the analysed stage once it exists, else the simplified one
+    const Stage unfolded = stage_available(Stage::Analysed) ? Stage::Analysed : Stage::Simplified;
+    s.options.keep = keep_bit(last_available()) | (o.repr ? keep_bit(Stage::Simplified) : 0) |
+                     (o.json ? keep_bit(unfolded) : 0);
     s.options.db = sigdb::get();
     s.explain = o.explain;
     s.color = o.color;

@@ -1218,8 +1218,13 @@ struct ExpImpl {
                 break;
             case Op::LENGTH:
                 if (n == 1) {
-                    stor_slot(e[0]);
-                    o.col(Col::green, ".length");
+                    bytes_length(e[0], ctx);
+                    return;
+                }
+                break;
+            case Op::LOC:
+                if (n == 1) {
+                    exp(e[0], ctx, false);
                     return;
                 }
                 break;
@@ -1386,14 +1391,63 @@ struct ExpImpl {
     // as the slot it is) ----
     void stor_slot(Value slot)
     {
+        if (slot.is(Op::LOC, 1))
+            slot = slot[0];
         o.col(Col::green, "stor[");
         pret(slot);
         o.col(Col::green, "]");
     }
 
-    // python raw(size, off, idx): st(size, sr(idx), 256), st(size, sf(sr(idx), off), 256 - off)
+    // python storage.raw of the length of a bytes (solidity's: the slot's
+    // low bit says short or long): (stor[k] & 256 * (not uint1(stor[k])) - 1) / 2
+    void bytes_length(Value key, int ctx)
+    {
+        if (key.is(Op::LOC, 1))
+            key = key[0];
+        Wrap w(o, P_MUL, ctx);
+        o.put('(');
+        stor_slot(key);
+        op_form(" & ");
+        print_int(EvmInt(i64(256)), P_MUL);
+        op_form(" * ");
+        o.put("(not ");
+        o.col(Col::gray, "uint1(");
+        stor_slot(key);
+        o.col(Col::gray, ")");
+        o.put(')');
+        o.put(" - ");
+        print_int(EvmInt(i64(1)), P_ADD + 1);
+        o.put(')');
+        op_form(" / ");
+        print_int(EvmInt(i64(2)), P_MUL + 1);
+    }
+
+    // python raw(size, off, idx): st(size, sr(idx), 256), st(size, sf(sr(idx),
+    // off), 256 - off); at an offset computed at runtime mask_shl(size, off,
+    // -off, st(256, sr(idx), 256)); a bytes' length mask_shl(size, off, -off,
+    // its formula)
     void storage_read(Value size, Value off, Value slot, int ctx)
     {
+        if (slot.is(Op::LENGTH, 1)) {
+            const Value key = slot[0];
+            if (is_small(size, 256) && is_small(off, 0)) {
+                bytes_length(key, ctx);
+                return;
+            }
+            if (off.is_small()) {
+                mask_shl_v(size, off, Value::small(-off.small_val()), [&](int c) { bytes_length(key, c); }, false, false,
+                           ctx);
+                return;
+            }
+            o.put("Mask(");
+            pret(size);
+            o.put(", ");
+            pret(off);
+            o.put(", ");
+            bytes_length(key, P_NONE);
+            o.put(')');
+            return;
+        }
         if (size.is_small() && off.is_small() && off.small_val() >= 0) {
             const i64 s = size.small_val(), f = off.small_val();
             const i64 width = 256 - f;
@@ -1410,27 +1464,34 @@ struct ExpImpl {
                 o.col(Col::gray, ")");
             return;
         }
+        if (off.is_small()) {
+            mask_shl_v(size, off, Value::small(-off.small_val()), [&](int) { stor_slot(slot); }, false, false, ctx);
+            return;
+        }
         // bits at an offset computed at runtime: Mask(size, off, stor[idx]) >> off
         Wrap w(o, P_SHIFT, ctx);
-        o.put("Mask(");
-        pret(size);
-        o.put(", ");
-        pret(off);
-        o.put(", ");
-        stor_slot(slot);
-        o.put(')');
+        mask_v(size, off, [&](int) { stor_slot(slot); }, false, P_SHIFT);
         op_form(" >> ");
         exp(off, P_SHIFT + 1, false);
     }
 
     // ---- masks: python's mask_shl and mask cases ----
+    // (the value masked: a Value, or a form python made of one - a storage
+    // read - printed by a callback val(ctx); wide: it may have more than 256
+    // bits (python's may_be_wide); data: it is a DATA)
 
     // python's ("mask", size, off, val) printed at ctx
     void mask(Value size, Value off, Value val, int ctx)
     {
+        mask_v(size, off, [&](int c) { exp(val, c, false); }, alg::may_be_wide(val), ctx);
+    }
+
+    template <class F>
+    void mask_v(Value size, Value off, F&& val, bool wide, int ctx)
+    {
         if (is_small(off, 0)) {
-            if (is_small(size, 256) && !alg::may_be_wide(val)) {
-                exp(val, ctx, false);
+            if (is_small(size, 256) && !wide) {
+                val(ctx);
                 return;
             }
             if (size.is_small()) {
@@ -1446,7 +1507,7 @@ struct ExpImpl {
                         type_name = std::format("uint{}", s);
                     if (type_name) {
                         o.col(Col::gray, *type_name + "(");
-                        pret(val);
+                        val(P_NONE);
                         o.col(Col::gray, ")");
                         return;
                     }
@@ -1456,7 +1517,7 @@ struct ExpImpl {
         if (size.is_small() && is_small(off, 0) && size.small_val() < 64) {
             // ("mod", val, 2**size)
             Wrap w(o, P_MUL, ctx);
-            exp(val, P_MUL, false);
+            val(P_MUL);
             op_form(" % ");
             const i64 s = size.small_val();
             print_int(s >= 0 ? EvmInt::pow2(u64(s)) : EvmInt(i64(0)), P_MUL + 1);
@@ -1467,7 +1528,7 @@ struct ExpImpl {
         o.put(", ");
         pret(off);
         o.put(", ");
-        pret(val);
+        val(P_NONE);
         o.put(')');
     }
 
@@ -1486,15 +1547,9 @@ struct ExpImpl {
         const bool concrete = size.is_small() && off.is_small() && shl.is_small();
         const i64 s = concrete ? size.small_val() : 0, f = concrete ? off.small_val() : 0, h = concrete ? shl.small_val() : 0;
         // ceil32 / floor32
-        if (concrete && s == 251 && f == 5 && h == 0) {
-            if (val.is(Op::ADD, 2) && is_small(val[0], 31)) {
-                o.put("ceil32(");
-                pret(val[1]);
-                o.put(')');
-                return;
-            }
-            o.put("floor32(");
-            pret(val);
+        if (concrete && s == 251 && f == 5 && h == 0 && val.is(Op::ADD, 2) && is_small(val[0], 31)) {
+            o.put("ceil32(");
+            pret(val[1]);
             o.put(')');
             return;
         }
@@ -1524,33 +1579,47 @@ struct ExpImpl {
                 return;
             }
         }
+        mask_shl_v(size, off, shl, [&](int c) { exp(val, c, false); }, alg::may_be_wide(val), val.is(Op::DATA), ctx);
+    }
+
+    template <class F>
+    void mask_shl_v(Value size, Value off, Value shl, F&& val, bool wide, bool data, int ctx)
+    {
+        const bool concrete = size.is_small() && off.is_small() && shl.is_small();
+        const i64 s = concrete ? size.small_val() : 0, f = concrete ? off.small_val() : 0, h = concrete ? shl.small_val() : 0;
+        if (concrete && s == 251 && f == 5 && h == 0) {
+            o.put("floor32(");
+            val(P_NONE);
+            o.put(')');
+            return;
+        }
         // python's other_2: Mask(size, off, e) >> off for off in 1..8 and a
         // usual top: uintN(e) / 2**off
         if (concrete && h == -f && f >= 1 && f <= 8) {
             const i64 top = s + f;
             if (top == 8 || top == 16 || top == 32 || top == 64 || top == 128 || top == 256) {
-                div_pow2([&](int c) { mask(Value::small(top), Value::small(0), val, c); }, u64(f), ctx);
+                div_pow2([&](int c) { mask_v(Value::small(top), Value::small(0), val, wide, c); }, u64(f), ctx);
                 return;
             }
         }
         if (concrete) {
             // python A: of a word, the top of the mask its top, a small offset: a division
-            if (s + f == 256 && f == -h && f < 8 && !alg::may_be_wide(val)) {
+            if (s + f == 256 && f == -h && f < 8 && !wide) {
                 if (f <= 0) {
-                    exp(val, ctx, false);
+                    val(ctx);
                     return;
                 }
-                div_pow2([&](int c) { exp(val, c, false); }, u64(f), ctx);
+                div_pow2(val, u64(f), ctx);
                 return;
             }
             // python B: moved left by its offset (< 8): the bits in place, times 2**shl
             if (f == h && f < 8) {
-                const bool keep_mask = s + f != 256 || f != 0 || alg::may_be_wide(val);
+                const bool keep_mask = s + f != 256 || f != 0 || wide;
                 auto inner = [&](int c) {
                     if (keep_mask)
-                        mask(size, off, val, c);
+                        mask_v(size, off, val, wide, c);
                     else
-                        exp(val, c, false);
+                        val(c);
                 };
                 if (h == 0) {
                     inner(ctx);
@@ -1576,9 +1645,9 @@ struct ExpImpl {
                 return;
             }
             // python D: val >> offset, with the bits above size cut off
-            if (f == -h && f >= 8 && f < 256 && s > 0 && s <= 256 - f && !val.is(Op::DATA)) {
+            if (f == -h && f >= 8 && f < 256 && s > 0 && s <= 256 - f && !data) {
                 auto shifted = [&]() {
-                    exp(val, P_SHIFT, false);
+                    val(P_SHIFT);
                     op_form(" >> ");
                     print_int(EvmInt(f), P_NONE);
                 };
@@ -1611,7 +1680,7 @@ struct ExpImpl {
             }
         }
         // python F: the mask, then the shift
-        auto the_mask = [&](int c) { mask(size, off, val, c); };
+        auto the_mask = [&](int c) { mask_v(size, off, val, wide, c); };
         if (is_small(shl, 0)) {
             the_mask(ctx);
             return;
@@ -1620,7 +1689,7 @@ struct ExpImpl {
         if (sign == 1) {
             if (concrete && s + h == 256 && f == 0) {
                 // the bits that the multiplication keeps: ("mul", 2**shl, val)
-                mul_pow2(u64(h), [&](int c) { exp(val, c, false); }, ctx);
+                mul_pow2(u64(h), val, ctx);
                 return;
             }
             if (shl.is_small() && shl.small_val() < 7) {

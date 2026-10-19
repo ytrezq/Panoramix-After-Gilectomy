@@ -1,5 +1,5 @@
 // lot 10's entries (output.hpp): the texts, the JSON, --explain - on the
-// printer (print.hpp) - and, until the folder lands, the ast as the trace.
+// printer (print.hpp); the ast's are ast.cpp's.
 #include "output/output.hpp"
 
 #include <format>
@@ -13,15 +13,6 @@
 namespace pan::output {
 
 using namespace detail;
-
-Value fold(Value trace) { return trace; }
-
-Value make_ast(const FunctionInfo& fn, const AstOptions&) { return fn.trace; }
-
-void ast_stage(std::span<const FunctionInfo> in, std::vector<FunctionInfo>& out, const AstStageOptions&)
-{
-    out.assign(in.begin(), in.end());
-}
 
 std::string no_code_text(bool color)
 {

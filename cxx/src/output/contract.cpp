@@ -4,9 +4,14 @@
 // getters, the regular functions by priority, the recursive internal
 // functions.
 #include <algorithm>
+#include <atomic>
 #include <format>
+#include <optional>
+#include <unordered_set>
 
+#include "core/budget.hpp"
 #include "core/dump.hpp"
+#include "core/jobs.hpp"
 #include "core/errors.hpp"
 #include "core/platform.hpp"
 #include "driver/pipeline.hpp"
@@ -21,15 +26,12 @@ namespace {
 bool has_line(Value trace, Op op)
 {
     std::vector<Value> todo{trace};
-    std::vector<u64> seen;
+    std::unordered_set<u64> seen;
     while (!todo.empty()) {
         const Value t = todo.back();
         todo.pop_back();
-        if (!t.is_list())
+        if (!t.is_list() || !seen.insert(t.raw()).second)
             continue;
-        if (std::find(seen.begin(), seen.end(), t.raw()) != seen.end())
-            continue;
-        seen.push_back(t.raw());
         for (const Value l : t.args()) {
             if (l.is(op))
                 return true;
@@ -223,17 +225,68 @@ const FunctionInfo* at_stage(const driver::ContractResult& r, driver::Stage s, c
     return nullptr;
 }
 
-void check_deadline(i64 deadline)
+}  // namespace
+
+// Every function's text (the regular ones, the internal ones), on
+// min(threads, n) threads (the asm's print_many): the printer makes no Value,
+// the contract's context is only read
+struct Texts {
+    std::vector<std::optional<Out>> fns, ints;
+};
+
+namespace {
+
+Out failed_text(const FunctionInfo& f, const PrintOptions& s, const char* why)
 {
-    poll();
-    if (deadline && platform::monotonic_ns() > deadline)
+    // (python lets the error through; here the function says it)
+    Out o(s.color);
+    o.col(Col::header, "def ");
+    o.put(db_text(driver::function_name(s.db, f)));
+    o.put(": ");
+    o.col(Col::gray, std::string("# the text couldn't be made: ") + why);
+    return o;
+}
+
+Texts all_texts(const driver::ContractResult& r, const PrintOptions& s)
+{
+    const auto& fns = r.final_functions();
+    const auto& ints = r.final_internals();
+    Texts t;
+    t.fns.resize(fns.size());
+    t.ints.resize(ints.size());
+    const usize n = fns.size() + ints.size();
+    const usize threads = s.threads ? s.threads : 1;
+    std::atomic<bool> late{false};
+    parallel_for(n, threads, [&](usize k) {
+        const bool internal = k >= fns.size();
+        const FunctionInfo& f = internal ? ints[k - fns.size()] : fns[k];
+        if (f.problem || late.load(std::memory_order_relaxed))
+            return;
+        if (s.deadline_ns && platform::monotonic_ns() > s.deadline_ns) {
+            late.store(true);
+            return;
+        }
+        Budget budget{Budget::Limits{}};
+        budget.attach_thread();
+        std::optional<Out> text;
+        try {
+            text.emplace(function_text(&r, f, s));
+        } catch (const Error& e) {
+            text.emplace(failed_text(f, s, e.what()));
+        }
+        budget.detach_thread();
+        (internal ? t.ints[k - fns.size()] : t.fns[k]) = std::move(text);
+    });
+    if (late.load())
         throw Timeout("the post-processing and the text took more than 3 minutes");
+    return t;
 }
 
 }  // namespace
 
 std::string contract_text(const driver::ContractResult& r, const PrintOptions& s)
 {
+    Texts texts = all_texts(r, s);
     Out t(s.color);
     t.col(Col::gray, "# Palkeoramix decompiler. ");
     t.put('\n');
@@ -264,7 +317,7 @@ std::string contract_text(const driver::ContractResult& r, const PrintOptions& s
         std::vector<usize> consts_lower, consts_upper;
         for (usize i = 0; i < fns.size(); ++i) {
             const FunctionInfo& f = fns[i];
-            if (f.problem || !f.is_const)
+            if (f.problem || !f.is_const || !texts.fns[i])
                 continue;
             const std::string name = driver::function_name(s.db, f);
             const bool upper = std::none_of(name.begin(), name.end(), [](char c) { return c >= 'a' && c <= 'z'; });
@@ -273,8 +326,7 @@ std::string contract_text(const driver::ContractResult& r, const PrintOptions& s
         bool any = false;
         for (const auto* list : {&consts_lower, &consts_upper})
             for (const usize i : *list) {
-                check_deadline(s.deadline_ns);
-                t.append(function_text(&r, fns[i], s));
+                t.append(*texts.fns[i]);
                 t.put('\n');
                 shown[i] = true;
                 any = true;
@@ -287,10 +339,9 @@ std::string contract_text(const driver::ContractResult& r, const PrintOptions& s
     // the getters
     for (usize i = 0; i < fns.size(); ++i) {
         const FunctionInfo& f = fns[i];
-        if (f.problem || shown[i] || !f.getter)
+        if (f.problem || shown[i] || !f.getter || !texts.fns[i])
             continue;
-        check_deadline(s.deadline_ns);
-        t.append(function_text(&r, f, s));
+        t.append(*texts.fns[i]);
         t.put('\n');
         if (s.repr) {
             t.put('\n');
@@ -305,19 +356,16 @@ std::string contract_text(const driver::ContractResult& r, const PrintOptions& s
     // the regular functions, by priority: the self-destructing ones first,
     // then by the length of their (colored) text
     struct Printed {
-        Out text;
         i64 priority;
         usize index;
     };
     std::vector<Printed> printed;
     for (usize i = 0; i < fns.size(); ++i) {
         const FunctionInfo& f = fns[i];
-        if (f.problem || shown[i])
+        if (f.problem || shown[i] || !texts.fns[i])
             continue;
-        check_deadline(s.deadline_ns);
-        Out text = function_text(&r, f, s);
-        const i64 priority = has_line(f.trace, Op::SELFDESTRUCT) ? -1 : i64(text.python_chars());
-        printed.push_back(Printed{std::move(text), priority, i});
+        const i64 priority = has_line(f.trace, Op::SELFDESTRUCT) ? -1 : i64(texts.fns[i]->python_chars());
+        printed.push_back(Printed{priority, i});
     }
     std::stable_sort(printed.begin(), printed.end(),
                      [](const Printed& a, const Printed& b) { return a.priority < b.priority; });
@@ -327,9 +375,9 @@ std::string contract_text(const driver::ContractResult& r, const PrintOptions& s
         t.end();
         t.put("\n\n");
     }
-    for (Printed& p : printed) {
+    for (const Printed& p : printed) {
         const FunctionInfo& f = fns[p.index];
-        t.append(p.text);
+        t.append(*texts.fns[p.index]);
         t.put('\n');
         if (s.returns) {
             std::vector<Value> rets;
@@ -352,11 +400,11 @@ std::string contract_text(const driver::ContractResult& r, const PrintOptions& s
         t.put("#\n#  Internal functions\n#");
         t.end();
         t.put("\n\n");
-        for (const FunctionInfo& f : ints) {
-            if (f.problem)
+        for (usize k = 0; k < ints.size(); ++k) {
+            const FunctionInfo& f = ints[k];
+            if (f.problem || !texts.ints[k])
                 continue;
-            check_deadline(s.deadline_ns);
-            t.append(function_text(&r, f, s));
+            t.append(*texts.ints[k]);
             t.put('\n');
             if (s.repr)
                 if (const FunctionInfo* g = at_stage(r, driver::Stage::Simplified, f, true)) {
