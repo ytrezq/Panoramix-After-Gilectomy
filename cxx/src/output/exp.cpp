@@ -9,10 +9,11 @@
 #include <format>
 
 #include "algebra/masks.hpp"
+#include "analysis/safemath.hpp"
+#include "core/budget.hpp"
 #include "core/node.hpp"
 #include "mem/memory.hpp"
 #include "output/print.hpp"
-#include "core/budget.hpp"
 
 namespace pan::output::detail {
 
@@ -285,6 +286,40 @@ bool padding_at_end(std::span<const Value> terms, Value len) noexcept
 }
 
 }  // namespace
+
+std::optional<std::string> error_message_text(Value data)
+{
+    // python safemath.failure: data[0] the selector of Error(string), data[1]
+    // 32, data[2] the length (> 0), then the words of the bytes - what
+    // follows them in the last word isn't part of the string
+    if (!data.is(Op::DATA))
+        return std::nullopt;
+    std::vector<Value> els;
+    flat_elements(data, els);
+    if (els.size() < 3)
+        return std::nullopt;
+    const auto sel = selector_int(els[0]);
+    const auto w1 = word_int(els[1]);
+    const auto w2 = word_int(els[2]);
+    if (!sel || *sel != EvmInt(i64(0x08c379a0)) || !w1 || *w1 != EvmInt(i64(32)) || !w2)
+        return std::nullopt;
+    const EvmInt& len = *w2;
+    if (len.sign() <= 0 || len.bit_length() > 40)
+        return std::nullopt;
+    const u64 length = len.to_u64().value_or(0);
+    DataBytes b;
+    for (usize i = 3; i < els.size() && b.size < length; ++i) {
+        if (b.size >= kTextBytesMax)
+            return std::nullopt;
+        auto c = elem_bytes(els[i]);
+        if (!c)
+            return std::nullopt;
+        b.add(std::move(*c));
+    }
+    if (b.size < length)
+        return std::nullopt;
+    return b.text(length);
+}
 
 // ---- the printer -----------------------------------------------------------------------
 
@@ -1307,6 +1342,35 @@ struct ExpImpl {
                     return;
                 }
                 break;
+            case Op::ST:
+                if (n == 3) {
+                    st(e[0], e[1], e[2]);
+                    return;
+                }
+                break;
+            case Op::SALL:
+                if (n == 1) {
+                    // the bytes of a bytes (or string) of the storage
+                    loc(e[0]);
+                    o.col(Col::green, "[all]");
+                    return;
+                }
+                break;
+            case Op::SV:
+            case Op::SI:
+            case Op::SL:
+            case Op::SBL:
+            case Op::SF:
+            case Op::SR:
+                // (a place alone: only inside ST, SET, SALL)
+                loc(e);
+                return;
+            case Op::SAFEMATH:
+                if (n >= 2 && e[0].is_small() && e[0].small_val() >= 0) {
+                    safemath_call(e);
+                    return;
+                }
+                break;
             case Op::MASK_SHL:
                 if (n == 4) {
                     mask_shl(e[0], e[1], e[2], e[3], ctx);
@@ -1415,13 +1479,127 @@ struct ExpImpl {
             default:
                 break;
         }
-        // anything else: its op and operands (python's str(exp) of a tuple it can't print)
-        o.put(op_name(op));
+        generic(e);
+    }
+
+    // anything else: its op and operands (python's str(exp) of a tuple it can't print)
+    void generic(Value e)
+    {
+        o.put(op_name(e.op()));
         o.put('(');
-        for (u32 i = 0; i < n; ++i) {
+        for (u32 i = 0; i < e.size(); ++i) {
             if (i)
                 o.put(", ");
             pret(e[i]);
+        }
+        o.put(')');
+    }
+
+    // ---- lot 9's storage forms (python pretty_loc, prettify's st, sall) ----
+
+    // python's pretty_loc: a place of the storage - name[key].field_n,
+    // name.length, stor[slot]
+    void loc(Value l)
+    {
+        check_stack();
+        switch (l.op()) {
+            case Op::SV:
+                if (l.size() == 1 && l[0].is_name()) {
+                    o.col(Col::green, env.name_text(l[0]));
+                    return;
+                }
+                break;
+            case Op::SI:
+                if (l.size() == 2) {
+                    loc(l[0]);
+                    o.col(Col::green, "[");
+                    pret(l[1]);
+                    o.col(Col::green, "]");
+                    return;
+                }
+                break;
+            case Op::SL:
+            case Op::SBL:
+                if (l.size() == 1) {
+                    loc(l[0]);
+                    o.col(Col::green, ".length");
+                    return;
+                }
+                break;
+            case Op::SF:
+                if (l.size() == 2) {
+                    loc(l[0]);
+                    o.col(Col::green, ".field_");
+                    pret(l[1]);
+                    return;
+                }
+                break;
+            case Op::SR:
+                if (l.size() == 1) {
+                    o.col(Col::green, "stor[");
+                    pret(l[0]);
+                    o.col(Col::green, "]");
+                    return;
+                }
+                break;
+            default:
+                break;
+        }
+        // (python's str(loc): no place)
+        if (l.is_expr())
+            generic(l);
+        else
+            pret(l);
+    }
+
+    // python's st: an access of the storage - the place, cast when fewer
+    // bits are read than the place has
+    void st(Value size, Value l, Value width)
+    {
+        if (size == width || width.is_none() || width.nil()) {
+            loc(l);
+            return;
+        }
+        // (address or uint{pret(size)})(text)
+        Out name = o.sub();
+        if (is_small(size, 160)) {
+            name.put("address");
+        } else {
+            name.put("uint");
+            ExpImpl sub(p, name);
+            sub.pret(size);
+        }
+        name.put('(');
+        if (o.add_color)
+            o.code(Col::gray);
+        o.append(name);
+        if (o.add_color)
+            o.end();
+        loc(l);
+        o.col(Col::gray, ")");
+    }
+
+    // a call of a function of the contract's SafeMath (lot 8): its operands,
+    // then the messages it fails with, string literals
+    void safemath_call(Value e)
+    {
+        const SafeMathTable* t = env.safemath();
+        const u32 index = u32(std::min<i64>(e[0].small_val(), i64(UINT32_MAX)));
+        const bool known = t && index < t->fns.size();
+        const u32 operands = known ? t->fns[index].params : std::min<u32>(2, e.size() - 1);
+        o.put("SafeMath.");
+        o.put(known ? safemath_name(*t, index) : std::format("f{}", index));
+        o.put('(');
+        for (u32 i = 1; i < e.size(); ++i) {
+            if (i > 1)
+                o.put(", ");
+            if (i <= operands) {
+                pret(e[i]);
+            } else if (const auto m = error_message_text(e[i])) {
+                o.put(*m);
+            } else {
+                pret(e[i]);
+            }
         }
         o.put(')');
     }
@@ -1625,6 +1803,31 @@ struct ExpImpl {
     {
         const bool concrete = size.is_small() && off.is_small() && shl.is_small();
         const i64 s = concrete ? size.small_val() : 0, f = concrete ? off.small_val() : 0, h = concrete ? shl.small_val() : 0;
+        // a storage access (lot 9's ST) under a mask, shifted right by its
+        // offset: its bits from off on
+        if (concrete && f > 0 && h == -f && val.is(Op::ST, 3) && val[0].is_small()) {
+            const i64 bits = val[0].small_val();
+            const i64 top = s + f;
+            const bool usual = top == 8 || top == 16 || top == 32 || top == 64 || top == 128 || top == 256;
+            // python's other_2: no wider than the mask's top, off 1..8: val / 2**off
+            if (f <= 8 && usual && bits <= top) {
+                div_pow2([&](int c) { exp(val, c, false); }, u64(f), ctx);
+                return;
+            }
+            // prettify's: of fewer bits than the mask's top - val / 2**off
+            // (off < 8), val >> off
+            if (bits <= top) {
+                if (f < 8) {
+                    div_pow2([&](int c) { exp(val, c, false); }, u64(f), ctx);
+                    return;
+                }
+                Wrap w(o, P_SHIFT, ctx);
+                exp(val, P_SHIFT, false);
+                op_form(" >> ");
+                print_int(EvmInt(f), P_NONE);
+                return;
+            }
+        }
         // ceil32 / floor32
         if (concrete && s == 251 && f == 5 && h == 0 && val.is(Op::ADD, 2) && is_small(val[0], 31)) {
             o.put("ceil32(");

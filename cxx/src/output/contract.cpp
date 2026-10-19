@@ -9,14 +9,16 @@
 #include <optional>
 #include <unordered_set>
 
+#include "analysis/safemath.hpp"
 #include "core/budget.hpp"
 #include "core/dump.hpp"
-#include "core/jobs.hpp"
 #include "core/errors.hpp"
+#include "core/jobs.hpp"
 #include "core/platform.hpp"
 #include "driver/pipeline.hpp"
 #include "output/print.hpp"
 #include "sigdb.hpp"
+#include "storage/storage.hpp"
 
 namespace pan::output::detail {
 
@@ -112,10 +114,16 @@ void function_header_name(Out& o, const FunctionInfo& fn, const FnEnv& env)
 
 // One function's text (python Function._print / InternalFunction.print),
 // its lines joined with "\n" (no newline at the end).
-Out function_text(const driver::ContractResult* r, const FunctionInfo& fn, const PrintOptions& s)
+Out function_text(const driver::ContractResult* r, const FunctionInfo& fn, const PrintOptions& s,
+                  const ContractNames* names)
 {
+    std::optional<ContractNames> own;
+    if (!names && r) {
+        own.emplace(contract_names(r->storage.get(), r->safemath.get(), s.db));
+        names = &*own;
+    }
     Out o(s.color);
-    const FnEnv env(&fn, s.db, fn.trace);
+    const FnEnv env(&fn, s.db, fn.trace, names);
     Printer p(o, env);
     if (fn.kind == FunctionInfo::Kind::Internal) {
         const vm::InternalEntry* rec = r ? record_of(*r, fn) : nullptr;
@@ -180,6 +188,108 @@ Out function_text(const driver::ContractResult* r, const FunctionInfo& fn, const
         o.put("  stop\n");
     o.s.pop_back();  // (python's "\n".join)
     return o;
+}
+
+namespace {
+
+// python storage.pretty_type: what a variable is - uint8, address, mapping
+// of mapping of uint256, struct of 2 slots, uint8[3]...
+void storage_type_text(std::string& out, const StorageLayout& l, u32 type, usize depth)
+{
+    if (type >= l.types.size() || depth > l.types.size()) {
+        out += '?';  // (no type of the layout, a cycle: no layout lot 9 makes)
+        return;
+    }
+    const StorageType& t = l.types[type];
+    switch (t.kind) {
+        case StorageType::Kind::Value:
+            out += t.width == 160 ? std::string("address") : std::format("uint{}", t.width);
+            return;
+        case StorageType::Kind::Struct:
+            if (!t.slots)
+                out += "struct";
+            else
+                out += std::format("struct of {} slot{}", *t.slots, *t.slots != 1 ? "s" : "");
+            return;
+        case StorageType::Kind::Mapping:
+            out += "mapping of ";
+            storage_type_text(out, l, t.elem, depth + 1);
+            return;
+        case StorageType::Kind::Array:
+            out += "array of ";
+            storage_type_text(out, l, t.elem, depth + 1);
+            return;
+        case StorageType::Kind::Fixed:
+            if (t.length && t.elem < l.types.size() && l.types[t.elem].kind == StorageType::Kind::Value) {
+                storage_type_text(out, l, t.elem, depth + 1);
+                out += std::format("[{}]", *t.length);
+                return;
+            }
+            if (t.length)
+                out += std::format("fixed array of {} ", *t.length);
+            else
+                out += "fixed array of ";
+            storage_type_text(out, l, t.elem, depth + 1);
+            return;
+        case StorageType::Kind::Bytes:
+            out += "bytes";
+            return;
+    }
+}
+
+}  // namespace
+
+// python decompiler.py's `def storage:` and storage.pretty_def: a line per
+// variable, `  name is type at storage slot[ offset off]`
+void storage_block(Out& t, const ContractNames& names)
+{
+    const StorageLayout* l = names.storage;
+    if (!l || l->vars.empty())
+        return;
+    t.code(Col::green);
+    t.put("def ");
+    t.end();
+    t.put(l->lang == Lang::Vyper ? "storage (vyper):\n" : "storage:\n");
+    for (usize i = 0; i < l->vars.size(); ++i) {
+        poll();
+        const StorageVar& v = l->vars[i];
+        t.put("  ");
+        t.code(Col::green);
+        t.put(i < names.storage_names.size() ? names.storage_names[i] : std::format("stor{}", i));
+        t.end();
+        t.put(" is ");
+        std::string type;
+        storage_type_text(type, *l, v.type, 0);
+        t.put(type);
+        t.put(' ');
+        t.code(Col::gray);
+        // the slot: hex past 2^32
+        const auto small = v.slot.as_u64();
+        t.put("at storage ");
+        t.put(small && *small < (u64(1) << 32) ? std::to_string(*small) : int_hex(v.slot.to_int()));
+        if (v.off)
+            t.put(std::format(" offset {}", v.off));
+        t.end();
+        t.put('\n');
+    }
+    t.put('\n');
+}
+
+// python decompiler.py's `def SafeMath:` and safemath.pretty_defs
+void safemath_block(Out& t, const ContractNames& names, const sigdb::Database* db)
+{
+    const SafeMathTable* sm = names.safemath;
+    if (!sm || sm->fns.empty())
+        return;
+    t.code(Col::green);
+    t.put("def ");
+    t.end();
+    t.put("SafeMath:\n");
+    // (the names of no function: a and b, unless the storage has them)
+    const FnEnv env(nullptr, db, Value(), &names);
+    Printer p(t, env);
+    p.safemath_defs(*sm);
+    t.put('\n');
 }
 
 // python's pprint_repr of a trace (--repr): the lines as the IR's
@@ -247,7 +357,7 @@ Out failed_text(const FunctionInfo& f, const PrintOptions& s, const char* why)
     return o;
 }
 
-Texts all_texts(const driver::ContractResult& r, const PrintOptions& s)
+Texts all_texts(const driver::ContractResult& r, const PrintOptions& s, const ContractNames& names)
 {
     const auto& fns = r.final_functions();
     const auto& ints = r.final_internals();
@@ -270,7 +380,7 @@ Texts all_texts(const driver::ContractResult& r, const PrintOptions& s)
         budget.attach_thread();
         std::optional<Out> text;
         try {
-            text.emplace(function_text(&r, f, s));
+            text.emplace(function_text(&r, f, s, &names));
         } catch (const Error& e) {
             text.emplace(failed_text(f, s, e.what()));
         }
@@ -286,7 +396,8 @@ Texts all_texts(const driver::ContractResult& r, const PrintOptions& s)
 
 std::string contract_text(const driver::ContractResult& r, const PrintOptions& s)
 {
-    Texts texts = all_texts(r, s);
+    const ContractNames names = contract_names(r.storage.get(), r.safemath.get(), s.db);
+    Texts texts = all_texts(r, s, names);
     Out t(s.color);
     t.col(Col::gray, "# Palkeoramix decompiler. ");
     t.put('\n');
@@ -334,7 +445,9 @@ std::string contract_text(const driver::ContractResult& r, const PrintOptions& s
         if (any)
             t.put('\n');
     }
-    // (def storage: lot 9's layout; def SafeMath: lot 8's table - when they land)
+    // the storage's variables (lot 9), the SafeMath's functions (lot 8)
+    storage_block(t, names);
+    safemath_block(t, names, s.db);
     bool any_shown = std::any_of(shown.begin(), shown.end(), [](bool b) { return b; });
     // the getters
     for (usize i = 0; i < fns.size(); ++i) {

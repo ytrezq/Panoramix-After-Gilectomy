@@ -45,14 +45,6 @@ Word256 small_word(i64 n) noexcept {
     return Word256{{u64(n), hi, hi, hi}};
 }
 
-// keccak of a and b's 32 bytes each, a first
-Word256 keccak_pair(const Word256& a, const Word256& b) noexcept {
-    u8 buf[64];
-    a.to_be(buf);
-    b.to_be(buf + 32);
-    return exec::keccak256(std::span<const u8>(buf, 64));
-}
-
 }  // namespace
 
 Word256 bytes_length(const Word256& s) noexcept {

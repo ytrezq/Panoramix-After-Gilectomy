@@ -6,9 +6,11 @@
 #include <format>
 #include <unordered_set>
 
+#include "analysis/safemath.hpp"
 #include "core/budget.hpp"
 #include "output/print.hpp"
 #include "sigdb.hpp"
+#include "storage/storage.hpp"
 
 namespace pan::output::detail {
 
@@ -110,6 +112,8 @@ void head_words(const sigdb::Type& t, const std::string& name, std::vector<Param
     auto one = [&]() {
         ParamWord w;
         w.name = name;
+        t.append_text(w.type);
+        w.type = db_text(w.type);
         const sigdb::TypeKind k = t.kind();
         w.has_length = k == sigdb::TypeKind::bytes || k == sigdb::TypeKind::string || k == sigdb::TypeKind::array;
         w.array_of_words = k == sigdb::TypeKind::array && head_count(t.element(), kMaxHeadWords) == 1;
@@ -152,11 +156,101 @@ bool builtin_name(std::string_view name) noexcept
     return std::binary_search(std::begin(kBuiltins), std::end(kBuiltins), name);
 }
 
-FnEnv::FnEnv(const FunctionInfo* fn, const sigdb::Database* db, Value trace) : fn_(fn), db_(db)
+namespace {
+
+// python's hex(n) of a slot: its digits, no leading zero
+std::string slot_hex_digits(const Word256& w) { return int_hex(w.to_int()).substr(2); }
+
+// python Storage.names' default(n, off): stor<n> (n < 2^32), else stor and
+// the first 4 hex digits of n, uppercase; a field past bit 0: _<off>
+std::string default_storage_name(const StorageVar& v)
 {
+    std::string name;
+    if (const auto s = v.slot.as_u64(); s && *s < (u64(1) << 32)) {
+        name = std::format("stor{}", *s);
+    } else {
+        std::string h = slot_hex_digits(v.slot).substr(0, 4);
+        for (char& c : h)
+            if (c >= 'a' && c <= 'f')
+                c = char(c - 'a' + 'A');
+        name = "stor" + h;
+    }
+    if (v.off)
+        name += std::format("_{}", v.off);
+    return name;
+}
+
+// the name of the getter of a variable (python's f.name.split("(")[0],
+// getBalance -> balance), or none when the database doesn't know it
+std::optional<std::string> getter_name(const StorageVar& v, const sigdb::Database* db)
+{
+    if (!v.getter || !db)
+        return std::nullopt;
+    const auto e = db->function(*v.getter);
+    if (!e || e->trust() != sigdb::Trust::verified)
+        return std::nullopt;
+    std::string name(e->name());
+    if (name.empty())
+        return std::nullopt;
+    if (v.strip_get && name.size() > 3) {
+        const char c = name[3];
+        name = std::string(1, c >= 'A' && c <= 'Z' ? char(c - 'A' + 'a') : c) + name.substr(4);
+    }
+    return name;
+}
+
+}  // namespace
+
+ContractNames contract_names(const StorageLayout* storage, const SafeMathTable* safemath, const sigdb::Database* db)
+{
+    ContractNames n;
+    n.storage = storage;
+    n.safemath = safemath;
+    if (!storage)
+        return n;
+    // python's unique(): the variables in their order, a name taken
+    // already + _<slot> (decimal below 2^32, else its first 8 hex digits),
+    // then _2, _3... while taken
+    std::unordered_set<std::string> taken;
+    n.storage_names.reserve(storage->vars.size());
+    for (const StorageVar& v : storage->vars) {
+        std::string name = getter_name(v, db).value_or(default_storage_name(v));
+        if (taken.contains(name)) {
+            const auto s = v.slot.as_u64();
+            name += "_" + (s && *s < (u64(1) << 32) ? std::to_string(*s) : slot_hex_digits(v.slot).substr(0, 8));
+        }
+        const std::string base = name;
+        for (u64 k = 2; taken.contains(name); ++k)
+            name = std::format("{}_{}", base, k);
+        taken.insert(name);
+        n.storage_names.push_back(db_text(name));
+    }
+    return n;
+}
+
+std::string safemath_name(const SafeMathTable& t, u32 index)
+{
+    static constexpr std::string_view ops[] = {"add", "sub", "mul", "div", "mod", "inc", "dec"};
+    if (index >= t.fns.size())
+        return std::format("f{}", index);
+    const SafeMathTable::Fn& f = t.fns[index];
+    const usize op = usize(f.op);
+    std::string name(op < std::size(ops) ? ops[op] : std::string_view("op"));
+    if (f.number > 1)
+        name += std::to_string(f.number);
+    return name;
+}
+
+FnEnv::FnEnv(const FunctionInfo* fn, const sigdb::Database* db, Value trace, const ContractNames* names)
+    : fn_(fn), db_(db), names_c_(names)
+{
+    // the storage's names (python's _names["storage"])
+    const auto storage_name = [&](std::string_view n) {
+        return names_c_ && std::find(names_c_->storage_names.begin(), names_c_->storage_names.end(), n) !=
+                               names_c_->storage_names.end();
+    };
     // the params, as the header names them (python inferred_params: the
     // ABI's, renamed past the storage's names and the builtins; _paramN)
-    std::vector<std::string> abi_names;
     if (fn && fn->kind == FunctionInfo::Kind::Selector && db) {
         if (const auto e = db->function(fn->selector); e && e->trust() == sigdb::Trust::verified) {
             known_ = true;
@@ -181,10 +275,11 @@ FnEnv::FnEnv(const FunctionInfo* fn, const sigdb::Database* db, Value trace) : f
                     p.name = it->second;
                     continue;
                 }
-                if (!builtin_name(p.name))
+                if (!builtin_name(p.name) && !storage_name(p.name))
                     continue;
                 std::string fresh = "_" + p.name;
-                while (builtin_name(fresh) || std::find(names.begin(), names.end(), fresh) != names.end())
+                while (builtin_name(fresh) || storage_name(fresh) ||
+                       std::find(names.begin(), names.end(), fresh) != names.end())
                     fresh = "_" + fresh;
                 renames.emplace_back(p.name, fresh);
                 names.push_back(fresh);
@@ -217,6 +312,9 @@ FnEnv::FnEnv(const FunctionInfo* fn, const sigdb::Database* db, Value trace) : f
     // python's _names["taken"]: the builtins, the storage's names, the params'
     for (const std::string_view b : kBuiltins)
         taken_.emplace_back(b);
+    if (names_c_)
+        for (const std::string& n : names_c_->storage_names)
+            taken_.push_back(n);
     for (const Param& p : params_)
         taken_.emplace_back(base_name(p.name));
     std::sort(taken_.begin(), taken_.end());
@@ -341,13 +439,24 @@ const std::string& FnEnv::name_text(Value name) const
             break;
         }
         case NameKind::PARAM:
-            if (id < params_.size())
+            // FunctionInfo::params[id]: a word of the head of the calldata -
+            // a known function's by the name of that word (python's
+            // calldata_params: desc.srcToken, amounts[2]), else _param<k+1>
+            if (known_) {
+                const ParamWord* w = word_of_param(id);
+                t = w ? w->name : std::format("_param{}", id + 1);
+            } else if (id < params_.size()) {
                 t = params_[id].name;
-            else
+            } else {
                 t = std::format("_param{}", id + 1);
+            }
             break;
         case NameKind::STORVAR:
-            t = std::format("stor{}", id);  // (lot 9's names, when it lands)
+            // StorageLayout::vars[id]'s name
+            if (names_c_ && id < names_c_->storage_names.size())
+                t = names_c_->storage_names[id];
+            else
+                t = std::format("stor{}", id);
             break;
         case NameKind::FUNC:
             t = std::format("unknown{:08x}", id);
@@ -362,7 +471,8 @@ const std::string& FnEnv::name_text(Value name) const
             t = std::format("loop{}", id);
             break;
         case NameKind::SAFEMATH_PARAM:
-            t = id == 0 ? "a" : id == 1 ? "b" : std::format("arg{}", id);
+            // python's ("var", "a"): var_name's
+            t = var_name(id == 0 ? std::string("a") : id == 1 ? std::string("b") : std::format("arg{}", id));
             break;
         default:
             t = std::format("name_{}_{}", u32(name.name_kind()), id);

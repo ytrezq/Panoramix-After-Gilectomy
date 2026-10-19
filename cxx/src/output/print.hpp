@@ -25,6 +25,11 @@ class Database;
 class Entry;
 }  // namespace pan::sigdb
 
+namespace pan {
+struct StorageLayout;  // storage/storage.hpp (lot 9)
+struct SafeMathTable;  // analysis/safemath.hpp (lot 8)
+}  // namespace pan
+
 namespace pan::output::detail {
 
 // ---- colors -----------------------------------------------------------------------
@@ -126,6 +131,10 @@ std::string db_text(std::string_view raw);
 // \\ \' \n \r \t) if they're text - the printable ASCII and \n \r \t only,
 // a letter or a digit among them (or, short, at most 2 of them)
 std::optional<std::string> pretty_text(std::span<const u8> b, bool short_ok = false);
+// python safemath.failure's message: the string of an Error(string) revert's
+// data (its selector, 32, its length, the words of its bytes) as a string
+// literal, if it's text
+std::optional<std::string> error_message_text(Value data);
 
 // ---- numbers ------------------------------------------------------------------------
 
@@ -152,19 +161,34 @@ int num_precedence(std::string_view text) noexcept;
 struct ParamWord {
     i64 offset = 0;           // its place: 4 + 32 k
     std::string name;         // python's: name, name.member, name[2]
+    std::string type;         // its type's text (the element's, the member's)
     bool has_length = false;  // bytes, string, T[]: the data it points to starts with its length
     bool array_of_words = false;  // T[] of one head word each: name[k] is its k-th
 };
 
+// What the contract's analyses made that the text names (lots 8 and 9):
+// the storage's variables (python Storage.names: a getter's name, else
+// stor<slot>, made unique), the functions of its SafeMath.
+struct ContractNames {
+    const StorageLayout* storage = nullptr;
+    const SafeMathTable* safemath = nullptr;
+    std::vector<std::string> storage_names;  // vars[i]'s, as printed
+};
+ContractNames contract_names(const StorageLayout* storage, const SafeMathTable* safemath, const sigdb::Database* db);
+// a function of the SafeMath as its calls name it: add, add2, sub...
+std::string safemath_name(const SafeMathTable& t, u32 index);
+
 // What the printer knows of the function printed (python's set_names,
 // set_func): the names its text has for its params and loop variables, the
-// call kinds of its call ids, the database.
+// call kinds of its call ids, the database, the contract's names.
 class FnEnv {
 public:
-    FnEnv(const FunctionInfo* fn, const sigdb::Database* db, Value trace);
+    FnEnv(const FunctionInfo* fn, const sigdb::Database* db, Value trace, const ContractNames* names = nullptr);
 
     const FunctionInfo* fn() const noexcept { return fn_; }
     const sigdb::Database* db() const noexcept { return db_; }
+    const ContractNames* names() const noexcept { return names_c_; }
+    const SafeMathTable* safemath() const noexcept { return names_c_ ? names_c_->safemath : nullptr; }
 
     // python's _names["taken"]: BUILTIN_NAMES, the storage's names, the params'
     bool taken(std::string_view name) const noexcept;
@@ -196,6 +220,7 @@ private:
     void scan(Value trace);
     const FunctionInfo* fn_;
     const sigdb::Database* db_;
+    const ContractNames* names_c_;
     std::vector<std::string> taken_;  // sorted
     std::vector<Param> params_;
     std::vector<ParamWord> words_;  // by offset
@@ -275,6 +300,9 @@ public:
     void lines(Value trace, u32 indent, std::span<const LoopRef> loops = {}, bool add_breaks = false);
     // one line's text lines (python pretty_line), each at indent
     void line(Value l, u32 indent, std::span<const LoopRef> loops);
+    // python safemath.pretty_defs: the lines of the functions of the
+    // contract's `def SafeMath:` block
+    void safemath_defs(const SafeMathTable& t);
 
 private:
     friend struct ExpImpl;
@@ -287,8 +315,14 @@ private:
 
 // One function's text (python Function.print / InternalFunction.print): its
 // lines joined with "\n"; r: the contract's result (an internal function's
-// record), may be null
-Out function_text(const driver::ContractResult* r, const FunctionInfo& fn, const PrintOptions& s);
+// record, the storage's and the SafeMath's names), may be null; names: the
+// contract's names when they're made already (else made of r's)
+Out function_text(const driver::ContractResult* r, const FunctionInfo& fn, const PrintOptions& s,
+                  const ContractNames* names = nullptr);
+// the contract's `def storage:` block (python decompiler.py's), and its
+// `def SafeMath:` block: nothing when it has none
+void storage_block(Out& t, const ContractNames& names);
+void safemath_block(Out& t, const ContractNames& names, const sigdb::Database* db);
 // the whole text (python decompiler.py's)
 std::string contract_text(const driver::ContractResult& r, const PrintOptions& s);
 // python's pprint_repr (--repr): the lines as S-expressions

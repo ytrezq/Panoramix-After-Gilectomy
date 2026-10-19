@@ -5,6 +5,7 @@
 #include <format>
 #include <unordered_set>
 
+#include "analysis/safemath.hpp"
 #include "core/budget.hpp"
 #include "core/contract.hpp"
 #include "output/print.hpp"
@@ -701,6 +702,15 @@ struct LineImpl {
                     return;
                 }
                 break;
+            case Op::SET:
+                if (n == 2) {
+                    // lot 9's write of the storage: SET(ST(size, loc, width), v)
+                    start(indent);
+                    assign(l[0], l[1], [&] { pret(l[0]); });
+                    nl();
+                    return;
+                }
+                break;
             case Op::TSTORE:
                 if (n == 2) {
                     start(indent);
@@ -870,8 +880,17 @@ struct LineImpl {
     void store_line(Value size, Value off, Value slot, Value val, u32 indent)
     {
         start(indent);
+        // (the value's reads of the place: STORAGE(size, off, slot))
         auto same = [&](Value r) { return r.is(Op::STORAGE, 3) && r[0] == size && r[1] == off && r[2] == slot; };
-        auto target = [&]() { store_target(size, off, slot); };
+        assign_if(val, same, [&] { store_target(size, off, slot); });
+        nl();
+    }
+
+    // python's ("set", idx, val) line: idx++, idx--, idx += v, idx -= v,
+    // idx = val - `same` tells the reads of idx in val
+    template <class Same, class Target>
+    void assign_if(Value val, Same&& same, Target&& target)
+    {
         if (val.is(Op::ADD, 2)) {
             const Value a = val[0], b = val[1];
             if (a.is_int() && same(b)) {
@@ -888,42 +907,42 @@ struct LineImpl {
                     o.put(" += ");
                     p.integer(v, P_NONE);
                 }
-                nl();
                 return;
             }
             if (same(a) && b.is(Op::MUL, 2) && is_small(b[0], -1)) {
                 target();
                 o.put(" -= ");
                 pret(b[1]);
-                nl();
                 return;
             }
             if (same(a)) {
                 target();
                 o.put(" += ");
                 pret(b);
-                nl();
                 return;
             }
             if (same(b) && a.is(Op::MUL, 2) && is_small(a[0], -1)) {
                 target();
                 o.put(" -= ");
                 pret(a[1]);
-                nl();
                 return;
             }
             if (same(b)) {
                 target();
                 o.put(" += ");
                 pret(a);
-                nl();
                 return;
             }
         }
         target();
         o.put(" = ");
         pret(val);
-        nl();
+    }
+
+    template <class Target>
+    void assign(Value idx, Value val, Target&& target)
+    {
+        assign_if(val, [&](Value r) { return r == idx; }, target);
     }
 
     // python's revert / return lines
@@ -1404,6 +1423,109 @@ struct LineImpl {
             t.pop_back();
         gray_line(t);
     }
+
+    // ---- the contract's def SafeMath (python safemath.pretty_defs) ----
+    void safemath_defs(const SafeMathTable& t)
+    {
+        constexpr u32 body = 6;
+        for (u32 i = 0; i < t.fns.size(); ++i) {
+            poll();
+            const SafeMathTable::Fn& f = t.fns[i];
+            // "  def name(a, b, errorMessage, errorMessage2...):", a comment
+            // where the compiler's checks are (a panic)
+            std::vector<std::string> params{"a"};
+            if (f.params != 1)
+                params.emplace_back("b");
+            for (u32 k = 0; k < f.messages; ++k)
+                params.push_back(k == 0 ? std::string("errorMessage") : std::format("errorMessage{}", k + 1));
+            o.put("  ");
+            green("def ");
+            o.put(safemath_name(t, i));
+            o.put('(');
+            for (usize k = 0; k < params.size(); ++k) {
+                if (k)
+                    o.put(", ");
+                o.put(params[k]);
+            }
+            o.put("):");
+            if (std::any_of(f.checks.begin(), f.checks.end(),
+                            [](const SafeMathTable::Check& c) { return c.kind == SafeMathTable::Fail::Panic; })) {
+                o.put("  ");
+                o.code(Col::gray);
+                o.put("# solidity >= 0.8");
+                o.end();
+            }
+            nl();
+            for (const SafeMathTable::Check& c : f.checks)
+                safemath_check(c);
+            revert_return(Op::RETURN, f.result, body);
+        }
+    }
+
+    // a check of a function of the SafeMath: python's pprint_logic([("if",
+    // cond, [fail_line(kind, message)])], 6) - or, failing with a message
+    // parameter, `if cond: revert with errorMessage`
+    void safemath_check(const SafeMathTable::Check& c)
+    {
+        constexpr u32 body = 6;
+        if (c.message) {
+            start(body);
+            o.put("if ");
+            cond(c.cond);
+            o.put(':');
+            nl();
+            start(body + INDENT_LEN);
+            o.put("revert with ");
+            o.put(*c.message == 0 ? std::string("errorMessage") : std::format("errorMessage{}", *c.message + 1));
+            nl();
+            return;
+        }
+        switch (c.kind) {
+            case SafeMathTable::Fail::Revert:
+            case SafeMathTable::Fail::Invalid:
+                // python's check_word: require / assert, the condition negated
+                start(body);
+                o.put(c.kind == SafeMathTable::Fail::Revert ? "require " : "assert ");
+                p.negated(c.cond);
+                nl();
+                return;
+            case SafeMathTable::Fail::Panic:
+            case SafeMathTable::Fail::Error:
+                break;
+        }
+        start(body);
+        o.put("if ");
+        cond(c.cond);
+        o.put(':');
+        nl();
+        if (c.kind == SafeMathTable::Fail::Panic) {
+            // revert with Panic(code), as python's fail_line makes it
+            start(body + INDENT_LEN);
+            o.put("revert with Panic(");
+            o.put(std::to_string(c.panic));
+            o.put(") ");
+            if (const char* why = panic_text(EvmInt(i64(c.panic)))) {
+                o.put(' ');
+                o.code(Col::gray);
+                o.put("# ");
+                o.put(why);
+                o.end();
+            }
+            nl();
+            return;
+        }
+        // revert with 'message' (the first call's): python's fail_line of it
+        if (c.fail.is(Op::REVERT, 1))
+            if (const auto m = error_message_text(c.fail[0])) {
+                start(body + INDENT_LEN);
+                o.put("revert with ");
+                o.put(*m);
+                nl();
+                return;
+            }
+        if (c.fail.is_expr())
+            line(c.fail, body + INDENT_LEN, {}, false);
+    }
 };
 
 // ---- Printer's entries ----------------------------------------------------------------------
@@ -1418,6 +1540,12 @@ void Printer::line(Value l, u32 indent, std::span<const LoopRef> loops)
 {
     LineImpl x(*this);
     x.line(l, indent, loops, false);
+}
+
+void Printer::safemath_defs(const SafeMathTable& t)
+{
+    LineImpl x(*this);
+    x.safemath_defs(t);
 }
 
 }  // namespace pan::output::detail

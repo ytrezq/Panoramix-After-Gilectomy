@@ -8,11 +8,13 @@
 #include <format>
 #include <unordered_map>
 
+#include "analysis/safemath.hpp"
 #include "core/budget.hpp"
 #include "core/node.hpp"
 #include "driver/pipeline.hpp"
 #include "output/print.hpp"
 #include "sigdb.hpp"
+#include "storage/storage.hpp"
 
 namespace pan::output::detail {
 
@@ -223,12 +225,86 @@ std::string_view lang_text(Lang l) noexcept
     return "unknown";
 }
 
+// a number of the storage: a JSON number below 2^53, else {"int": "0x..."}
+void word_json(std::string& out, const Word256& w)
+{
+    if (const auto s = w.as_u64(); s && *s < (u64(1) << 53)) {
+        out += std::to_string(*s);
+        return;
+    }
+    out += "{\"int\": ";
+    json_string(out, int_hex(w.to_int()));
+    out += '}';
+}
+
+// python storage.py's type of a variable: ["value", width], ["struct",
+// slots], ["mapping", t], ["array", t, stride], ["fixed", t, stride[,
+// length]], ["bytes"]
+void storage_type_json(std::string& out, const StorageLayout& l, u32 type, usize depth)
+{
+    if (type >= l.types.size() || depth > l.types.size()) {
+        out += "null";
+        return;
+    }
+    const StorageType& t = l.types[type];
+    switch (t.kind) {
+        case StorageType::Kind::Value:
+            out += std::format("[\"value\", {}]", t.width);
+            return;
+        case StorageType::Kind::Struct:
+            out += "[\"struct\", ";
+            out += t.slots ? std::to_string(*t.slots) : std::string("null");
+            out += ']';
+            return;
+        case StorageType::Kind::Mapping:
+            out += "[\"mapping\", ";
+            storage_type_json(out, l, t.elem, depth + 1);
+            out += ']';
+            return;
+        case StorageType::Kind::Array:
+        case StorageType::Kind::Fixed:
+            out += t.kind == StorageType::Kind::Array ? "[\"array\", " : "[\"fixed\", ";
+            storage_type_json(out, l, t.elem, depth + 1);
+            out += std::format(", {}", t.stride);
+            if (t.kind == StorageType::Kind::Fixed && t.length)
+                out += std::format(", {}", *t.length);
+            out += ']';
+            return;
+        case StorageType::Kind::Bytes:
+            out += "[\"bytes\"]";
+            return;
+    }
+    out += "null";
+}
+
+// python's stor_defs (Storage.header): ["sdef", name, slot, off, type] for
+// each variable, by slot and offset
+void stor_defs_json(std::string& out, const ContractNames& names)
+{
+    out += '[';
+    if (const StorageLayout* l = names.storage)
+        for (usize i = 0; i < l->vars.size(); ++i) {
+            const StorageVar& v = l->vars[i];
+            if (i)
+                out += ", ";
+            out += "[\"sdef\", ";
+            json_string(out, i < names.storage_names.size() ? names.storage_names[i] : std::format("stor{}", i));
+            out += ", ";
+            word_json(out, v.slot);
+            out += std::format(", {}, ", v.off);
+            storage_type_json(out, *l, v.type, 0);
+            out += ']';
+        }
+    out += ']';
+}
+
 }  // namespace
 
 std::string contract_json(const driver::ContractResult& r, const PrintOptions& o)
 {
     PrintOptions colored = o;
     colored.color = true;
+    const ContractNames names = contract_names(r.storage.get(), r.safemath.get(), o.db);
     std::string j = "{\"problems\": {";
     bool first = true;
     for (const driver::Problem& p : r.problems) {
@@ -240,8 +316,10 @@ std::string contract_json(const driver::ContractResult& r, const PrintOptions& o
         j += ": ";
         json_string(j, db_text(driver::function_name(o.db, f)));
     }
-    j += "}, \"stor_defs\": [], \"lang\": ";
-    json_string(j, lang_text(r.lang));
+    j += "}, \"stor_defs\": ";
+    stor_defs_json(j, names);
+    j += ", \"lang\": ";
+    json_string(j, lang_text(r.storage ? r.storage->lang : r.lang));
     j += ", \"functions\": [";
     first = true;
     for (const FunctionInfo& f : r.final_functions()) {
@@ -251,7 +329,7 @@ std::string contract_json(const driver::ContractResult& r, const PrintOptions& o
         if (!first)
             j += ", ";
         first = false;
-        const FnEnv env(&f, o.db, Value());
+        const FnEnv env(&f, o.db, Value(), &names);
         Out plain(false), color(true);
         function_header_name(plain, f, env);
         function_header_name(color, f, env);
@@ -269,7 +347,7 @@ std::string contract_json(const driver::ContractResult& r, const PrintOptions& o
             }
             abi += ')';
         }
-        const Out text = function_text(&r, f, colored);
+        const Out text = function_text(&r, f, colored, &names);
         u64 lines = 1;
         for (const char c : text.s)
             lines += c == '\n';
@@ -289,16 +367,29 @@ std::string contract_json(const driver::ContractResult& r, const PrintOptions& o
         j += payable ? "null" : f.entry.value_fails.is(Op::INVALID) ? "\"invalid\"" : "\"revert\"";
         j += ", \"print\": ";
         json_string(j, text.s);
+        // python's inferred_params: {offset: [type, name]} of the words of
+        // the head of the calldata (a known function's by its ABI: a static
+        // tuple's members, an array's elements)
         j += ", \"params\": {";
         bool pf = true;
         for (usize k = 0; k < f.params.size(); ++k) {
             if (!pf)
                 j += ", ";
             pf = false;
+            std::string type = "uint256", name = std::format("_param{}", k + 1);
+            if (env.known()) {
+                if (const ParamWord* w = env.word_at(i64(f.params[k].calldata_offset))) {
+                    type = w->type;
+                    name = w->name;
+                }
+            } else if (k < env.params().size()) {
+                type = env.params()[k].type;
+                name = env.params()[k].name;
+            }
             j += std::format("\"{}\": [", f.params[k].calldata_offset);
-            json_string(j, k < env.params().size() ? env.params()[k].type : std::string("uint256"));
+            json_string(j, type);
             j += ", ";
-            json_string(j, k < env.params().size() ? env.params()[k].name : std::format("_param{}", k + 1));
+            json_string(j, name);
             j += ']';
         }
         j += "}, \"trace\": ";
@@ -306,6 +397,17 @@ std::string contract_json(const driver::ContractResult& r, const PrintOptions& o
         j += '}';
     }
     j += ']';
+    // python's "\n".join(safemath.pretty_defs(...)): the functions' lines
+    if (names.safemath && !names.safemath->fns.empty()) {
+        Out defs(true);
+        const FnEnv env(nullptr, o.db, Value(), &names);
+        Printer p(defs, env);
+        p.safemath_defs(*names.safemath);
+        if (!defs.s.empty() && defs.s.back() == '\n')
+            defs.s.pop_back();
+        j += ", \"safemath\": ";
+        json_string(j, defs.s);
+    }
     const auto& ints = r.final_internals();
     if (std::any_of(ints.begin(), ints.end(), [](const FunctionInfo& f) { return !f.problem; })) {
         j += ", \"internal\": [";
@@ -325,7 +427,7 @@ std::string contract_json(const driver::ContractResult& r, const PrintOptions& o
             json_string(j, hash_of(f));
             j += std::format(", \"entry\": {}, \"params\": {}, \"results\": {}, \"frame\": {}, \"print\": ", f.entry_pc,
                              e ? e->nargs : 0, e ? e->nresults : 0, e ? e->frame : 0);
-            json_string(j, function_text(&r, f, colored).s);
+            json_string(j, function_text(&r, f, colored, &names).s);
             j += ", \"trace\": ";
             trace_json(j, json_trace(r, f, true));
             j += '}';

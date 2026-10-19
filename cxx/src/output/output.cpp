@@ -34,7 +34,8 @@ std::string print_function(const driver::ContractResult& r, const FunctionInfo& 
 std::string print_trace(Value trace, const TraceContext& ctx, u32 indent)
 {
     Out o(ctx.color);
-    const FnEnv env(ctx.fn, ctx.db, trace);
+    const ContractNames names = contract_names(ctx.storage, ctx.safemath, ctx.db);
+    const FnEnv env(ctx.fn, ctx.db, trace, &names);
     Printer p(o, env);
     p.lines(trace, indent);
     if (o.s.empty()) {
@@ -47,7 +48,8 @@ std::string print_trace(Value trace, const TraceContext& ctx, u32 indent)
 std::string print_exp(Value e, const TraceContext& ctx)
 {
     Out o(ctx.color);
-    const FnEnv env(ctx.fn, ctx.db, Value());
+    const ContractNames names = contract_names(ctx.storage, ctx.safemath, ctx.db);
+    const FnEnv env(ctx.fn, ctx.db, Value(), &names);
     Printer p(o, env);
     p.exp(e);
     return std::move(o.s);
@@ -113,7 +115,7 @@ void explain_traits(std::string& out, const FunctionInfo& fn, const TraceContext
                     if (!first)
                         rets += ", ";
                     first = false;
-                    rets += print_exp(l[0], TraceContext{ctx.fn, ctx.db, false});
+                    rets += print_exp(l[0], TraceContext{ctx.fn, ctx.db, false, ctx.storage, ctx.safemath});
                 }
                 if (l.is_expr())
                     for (const Value a : l.args())

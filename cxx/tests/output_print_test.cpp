@@ -5,11 +5,13 @@
 #include <optional>
 #include <string>
 
+#include "analysis/safemath.hpp"
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "core/dump.hpp"
 #include "output/output.hpp"
 #include "output/print.hpp"
+#include "storage/storage.hpp"
 
 using namespace pan;
 using namespace pan::output;
@@ -191,6 +193,197 @@ TEST_CASE("output: escapes of the database's text")
     const u8 punct[] = {',', ' '};
     CHECK(!pretty_text(punct));
     CHECK(pretty_text(punct, true) == std::optional<std::string>("', '"));
+}
+
+namespace {
+
+// a layout of each kind of variable (lot 9's StorageLayout), no getter: the
+// names are python's defaults
+StorageLayout test_layout()
+{
+    using K = StorageType::Kind;
+    const auto type = [](K kind, u16 width = 256, u32 elem = 0, std::optional<u64> slots = std::nullopt,
+                         std::optional<u64> length = std::nullopt) {
+        StorageType t;
+        t.kind = kind;
+        t.width = width;
+        t.elem = elem;
+        t.slots = slots;
+        t.length = length;
+        return t;
+    };
+    const auto var = [](const Word256& slot, u32 type, u16 off = 0) {
+        StorageVar v;
+        v.slot = slot;
+        v.off = off;
+        v.type = type;
+        return v;
+    };
+    StorageLayout l;
+    l.types = {
+        type(K::Value),                    // 0 uint256
+        type(K::Mapping, 256, 0),          // 1 mapping of uint256
+        type(K::Bytes),                    // 2 bytes
+        type(K::Value, 8),                 // 3 uint8
+        type(K::Mapping, 256, 1),          // 4 mapping of mapping of uint256
+        type(K::Struct, 256, 0, 2),        // 5 struct of 2 slots
+        type(K::Fixed, 256, 3, {}, 3),     // 6 uint8[3]
+        type(K::Array, 256, 0),            // 7 array of uint256
+        type(K::Value, 160),               // 8 address
+    };
+    const Word256 big = Word256::from_int(EvmInt(i64(0x1234)) * EvmInt::pow2(200));
+    l.vars = {
+        var(Word256::of(0), 2),                     // stor0: bytes
+        var(Word256::of(3), 1),                     // stor3: mapping
+        var(Word256::of(4), 4),                     // stor4: mapping of mapping
+        var(Word256::of(5), 8),                     // stor5: address
+        var(Word256::of(5), 3, 160),                // stor5_160: uint8
+        var(Word256::of(9), 6),                     // stor9: uint8[3]
+        var(Word256::of(10), 5),                    // stor10: struct
+        var(Word256::of(11), 7),                    // stor11: array
+        var(big, 0),                                // stor1234
+        var(pan::add(big, Word256::of(1)), 0),      // stor1234 taken: stor1234_12340000
+    };
+    return l;
+}
+
+}  // namespace
+
+TEST_CASE("output: the storage's forms and def storage (lot 9)")
+{
+    Fixture f;
+    const StorageLayout l = test_layout();
+    const TraceContext c{nullptr, nullptr, false, &l, nullptr};
+    auto e = [&](std::string_view s) { return print_exp(V(s), c); };
+    auto t = [&](std::string_view s) { return print_trace(V(s), c); };
+    CHECK(e("(st 256 (si (sv stor1) caller) 256)") == "stor3[caller]");
+    CHECK(e("(st 256 (si (si (sv stor2) caller) (calldataload 4)) 256)") == "stor4[caller][cd[4]]");
+    CHECK(e("(st 160 (sv stor3) 160)") == "stor5");
+    CHECK(e("(st 160 (sv stor3) 256)") == "address(stor5)");
+    CHECK(e("(st 8 (sv stor4) 8)") == "stor5_160");
+    CHECK(e("(st 8 (sv stor4) None)") == "stor5_160");
+    CHECK(e("(st 256 (sbl (sv stor0)) 256)") == "stor0.length");
+    CHECK(e("(st 256 (sl (sv stor7)) 256)") == "stor11.length");
+    CHECK(e("(sall (sv stor0))") == "stor0[all]");
+    CHECK(e("(st 256 (sr 7) 256)") == "stor[7]");
+    CHECK(e("(st 8 (sf (sr 7) 8) 8)") == "stor[7].field_8");
+    CHECK(e("(st 8 (si (sv stor5) 2) 8)") == "stor9[2]");
+    CHECK(e("(st 256 (sv stor8) 256)") == "stor1234");
+    CHECK(e("(st 256 (sv stor9) 256)") == "stor1234_12340000");
+    // under a mask, shifted by its offset (python's other_2, prettify's st rule)
+    CHECK(e("(mask_shl 8 8 -8 (st 16 (sv stor4) 16))") == "stor5_160 / 256");
+    CHECK(e("(mask_shl 7 1 -1 (st 8 (sv stor4) 8))") == "stor5_160 / 2");
+    CHECK(e("(mask_shl 8 16 -16 (st 24 (sv stor3) 24))") == "stor5 >> 16");
+    // the writes
+    CHECK(t("{(set (st 256 (si (sv stor1) caller) 256) (add callvalue (st 256 (si (sv stor1) caller) 256)))}") ==
+          "  stor3[caller] += call.value\n");
+    CHECK(t("{(set (st 8 (sv stor4) 8) (add 1 (st 8 (sv stor4) 8)))}") == "  stor5_160++\n");
+    CHECK(t("{(set (st 160 (sv stor3) 160) caller)}") == "  stor5 = caller\n");
+    CHECK(t("{(set (st 256 (sr 7) 256) (add (st 256 (sr 7) 256) (mul -1 tmp1)))}") == "  stor[7] -= _1\n");
+    // def storage: a line each, by slot
+    pan::output::detail::Out o(false);
+    pan::output::detail::storage_block(o, pan::output::detail::contract_names(&l, nullptr, nullptr));
+    CHECK(o.s == "def storage:\n"
+                 "  stor0 is bytes at storage 0\n"
+                 "  stor3 is mapping of uint256 at storage 3\n"
+                 "  stor4 is mapping of mapping of uint256 at storage 4\n"
+                 "  stor5 is address at storage 5\n"
+                 "  stor5_160 is uint8 at storage 5 offset 160\n"
+                 "  stor9 is uint8[3] at storage 9\n"
+                 "  stor10 is struct of 2 slots at storage 10\n"
+                 "  stor11 is array of uint256 at storage 11\n"
+                 "  stor1234 is uint256 at storage 0x123400000000000000000000000000000000000000000000000000\n"
+                 "  stor1234_12340000 is uint256 at storage 0x123400000000000000000000000000000000000000000000000001\n"
+                 "\n");
+    // the params named as the storage's variables are not: python's _name
+    // (the loop variables either)
+    StorageLayout s = l;
+    s.vars.resize(1);
+    s.vars[0].slot = Word256::of(1);  // stor1
+    const TraceContext cs{nullptr, nullptr, false, &s, nullptr};
+    CHECK(print_exp(V("(st 256 (sbl (sv stor0)) 256)"), cs) == "stor1.length");
+}
+
+namespace {
+
+// a SafeMath of each kind of check (lot 8's SafeMathTable)
+SafeMathTable test_safemath()
+{
+    using A = SafeMathTable::Arith;
+    using F = SafeMathTable::Fail;
+    const auto check = [](std::string_view cond, F kind, std::string_view fail, u32 panic = 0,
+                          std::optional<u32> message = std::nullopt) {
+        SafeMathTable::Check c;
+        c.cond = V(cond);
+        c.kind = kind;
+        c.panic = panic;
+        if (!fail.empty())
+            c.fail = V(fail);
+        c.message = message;
+        return c;
+    };
+    const auto fn = [](A op, u32 number, u32 params, u32 messages, std::string_view result) {
+        SafeMathTable::Fn f;
+        f.op = op;
+        f.number = number;
+        f.params = params;
+        f.messages = messages;
+        f.result = V(result);
+        return f;
+    };
+    SafeMathTable t;
+    t.fns.push_back(fn(A::Add, 1, 2, 0, "(add sm0 sm1)"));
+    t.fns.back().checks.push_back(check("(lt (add sm0 sm1) sm0)", F::Error,
+                                        "(revert (data (sized 4 0x08c379a0) 32 27 "
+                                        "0x536166654d6174683a206164646974696f6e206f766572666c6f770000000000))"));
+    t.fns.push_back(fn(A::Sub, 1, 2, 1, "(add sm0 (mul -1 sm1))"));
+    t.fns.back().checks.push_back(check("(gt sm1 sm0)", F::Error, "", 0, 0));
+    t.fns.push_back(fn(A::Sub, 2, 2, 0, "(add sm0 (mul -1 sm1))"));
+    t.fns.back().checks.push_back(
+        check("(gt (add sm0 (mul -1 sm1)) sm0)", F::Panic, "(revert (data (sized 4 0x4e487b71) 17))", 0x11));
+    t.fns.push_back(fn(A::Div, 1, 2, 0, "(div sm0 sm1)"));
+    t.fns.back().checks.push_back(check("(iszero sm1)", F::Revert, "(revert None)"));
+    t.fns.push_back(fn(A::Inc, 1, 1, 0, "(add 1 sm0)"));
+    t.fns.back().checks.push_back(check("(iszero sm0)", F::Invalid, "(invalid 2 7)"));
+    return t;
+}
+
+}  // namespace
+
+TEST_CASE("output: SafeMath's calls and def SafeMath (lot 8)")
+{
+    Fixture f;
+    const SafeMathTable sm = test_safemath();
+    const TraceContext c{nullptr, nullptr, false, nullptr, &sm};
+    CHECK(print_exp(V("(safemath 0 tmp1 tmp2)"), c) == "SafeMath.add(_1, _2)");
+    CHECK(print_exp(V("(safemath 1 tmp1 (mul 2 tmp2) (data (sized 4 0x08c379a0) 32 27 "
+                      "0x536166654d6174683a206164646974696f6e206f766572666c6f770000000000))"),
+                    c) == "SafeMath.sub(_1, 2 * _2, 'SafeMath: addition overflow')");
+    CHECK(print_exp(V("(safemath 4 tmp1)"), c) == "SafeMath.inc(_1)");
+    CHECK(print_exp(V("(add 1 (safemath 2 tmp1 tmp2))"), c) == "SafeMath.sub2(_1, _2) + 1");
+    pan::output::detail::Out o(false);
+    pan::output::detail::safemath_block(o, pan::output::detail::contract_names(nullptr, &sm, nullptr), nullptr);
+    CHECK(o.s == "def SafeMath:\n"
+                 "  def add(a, b):\n"
+                 "      if a + b < a:\n"
+                 "          revert with 'SafeMath: addition overflow'\n"
+                 "      return a + b\n"
+                 "  def sub(a, b, errorMessage):\n"
+                 "      if b > a:\n"
+                 "          revert with errorMessage\n"
+                 "      return a - b\n"
+                 "  def sub2(a, b):  # solidity >= 0.8\n"
+                 "      if a - b > a:\n"
+                 "          revert with Panic(17)  # If an arithmetic operation results in underflow or overflow "
+                 "outside of an unchecked { ... } block.\n"
+                 "      return a - b\n"
+                 "  def div(a, b):\n"
+                 "      require b\n"
+                 "      return a / b\n"
+                 "  def inc(a):\n"
+                 "      assert a\n"
+                 "      return a + 1\n"
+                 "\n");
 }
 
 TEST_CASE("output: the folder")
