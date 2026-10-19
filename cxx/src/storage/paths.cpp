@@ -35,7 +35,8 @@ void Accesses::add(const Access& a, Written w) {
 
 void Accesses::walk(Value v, Memo<Value, u8>& seen) {
     check_stack();
-    if (!v.is_node() || !v.has_flags(F_STORAGE | F_WRITES)) return;
+    // (not an ASM line's: --verbose's stacks are no accesses of the code's)
+    if (!v.is_node() || !v.has_flags(F_STORAGE | F_WRITES) || v.is(Op::ASM)) return;
     if (v.is_expr() || v.is_list()) {
         if (!seen.add(v)) return;
         poll();
@@ -210,13 +211,29 @@ Value packed(Value e, Value off, Value width_v) {
         }
         return Value();
     }
-    // off = (x % per) * width: MASK_SHL(a, 0, lw, x)
+    // off = (x % per) * width, e = x / per: off is a field of some y moved to
+    // the bit lw - y's bits [o, o + a) - and x a field of y from o (python's
+    // MASK_SHL(a, 0, lw, x) when x is all of y; the algebra makes one mask of
+    // a mask of a field: uint16 fields of a word as indexes), checked by
+    // making both again from x
     const auto m = alg::as_mask(off);
-    if (!m || !m->concrete() || m->ioff() != 0 || m->ishl() != i64(*lw)) return Value();
-    const i64 a = m->isize();
-    const Value x = m->x;
-    if (a == i64(*lp) && e == alg::mask(256 - i64(*lp), i64(*lp), -i64(*lp), x)) return x;
-    if (a < i64(*lp) && is_small(e, 0)) return alg::mask(a, 0, 0, x);
+    const i64 LP = i64(*lp), LW = i64(*lw);
+    if (!m || !m->concrete() || m->ioff() + m->ishl() != LW || m->isize() <= 0 || m->isize() > LP) return Value();
+    const i64 a = m->isize(), o = m->ioff();
+    const Value y = m->x;
+    auto made = [&](Value x) { return alg::mask(LP, 0, LW, x) == off && alg::mask(256 - LP, LP, -LP, x) == e; };
+    if (o == 0 && a == LP && made(y)) return y;
+    if (a < LP) {
+        const Value x = alg::mask(a, o, -o, y);
+        if (is_small(e, 0) && made(x)) return x;
+        return Value();
+    }
+    const alg::MaskShl ev = alg::mask_view(e);
+    if (ev.concrete() && ev.x == y && ev.ioff() == o + LP && ev.ishl() == -(o + LP) && ev.isize() > 0 &&
+        ev.isize() + LP + o <= 256) {
+        const Value x = alg::mask(ev.isize() + LP, o, -o, y);
+        if (made(x)) return x;
+    }
     return Value();
 }
 

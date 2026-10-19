@@ -47,7 +47,8 @@ public:
         bool changed = false;
         for (Value l : t.args()) {
             poll();
-            const Value nl = line(l);
+            // (an ASM line - --verbose's instruction and stack - stays as it is)
+            const Value nl = l.is(Op::ASM) ? l : line(l);
             changed |= nl != l;
             lines.push_back(nl);
         }
@@ -120,8 +121,9 @@ public:
         if (!e.is_expr() || !e.has_flags(F_STORAGE)) return e;
         if (const Value* m = memo_.find(e)) return *m;
         Value r = children(e);
-        if (const auto m = alg::as_mask(r); m && m->size.is_small() && m->off.is_small() && m->x.is(Op::STORAGE, 3) &&
-                                            m->x[0].is_small() && m->x[1].is_small()) {
+        const auto m = alg::as_mask(r);
+        if (m && m->size.is_small() && m->off.is_small() && m->x.is(Op::STORAGE, 3) && m->x[0].is_small() &&
+            m->x[1].is_small()) {
             const i64 size = m->size.small_val(), moff = m->off.small_val();
             const i64 s_size = m->x[0].small_val(), s_off = m->x[1].small_val();
             const bool word_times = s_size == 256 && s_off == 0 && moff == 0 && is_small(m->shl, 256 - size) && size % 8;
@@ -130,6 +132,12 @@ public:
                 const Value shl = moff ? alg::add(m->shl, small(moff)) : m->shl;
                 r = alg::mask(small(size), small(0), shl, mk(Op::STORAGE, small(size), small(s_off + moff), m->x[2]));
             }
+        } else if (m && m->size.is_small() && !m->off.is_int() && m->x.is(Op::STORAGE, 3) && is_small(m->x[0], 256) &&
+                   is_small(m->x[1], 0) && m->size.small_val() > 0 && m->size.small_val() <= 256 &&
+                   m->shl == alg::mul(small(-1), m->off) && alg::max_bits(m->off) <= 8) {
+            // the bits at an offset computed at runtime (below 256) moved to
+            // the bit 0: a read of them (python's VM made it so)
+            r = mk(Op::STORAGE, m->size, m->off, m->x[2]);
         }
         memo_.put(e, r);
         return r;
@@ -675,7 +683,7 @@ void Analysis::find_bytes_getters() {
             // (pre-order, as python's find_f_list)
             auto visit = [&](auto&& self, Value v) -> void {
                 check_stack();
-                if (!(v.is_expr() || v.is_list()) || !v.has_flags(F_STORAGE) || !seen.add(v)) return;
+                if (!(v.is_expr() || v.is_list()) || !v.has_flags(F_STORAGE) || v.is(Op::ASM) || !seen.add(v)) return;
                 if (v.is(Op::STORAGE, 3)) {
                     Value k;
                     if (v[2].is(Op::LENGTH, 1))
@@ -732,13 +740,33 @@ void Analysis::names() {
     std::map<Word256, Name> root_names;
     std::map<std::pair<Word256, std::pair<i64, i64>>, Name> field_names;
     const sigdb::Database* db = shared_.db;
-    for (usize fi = 0; fi < fns_.size(); ++fi) {
+    // python: the functions sorted by name - the signature database's names
+    // (bytes from outside, compared as python's sorted() of them does: the
+    // first getter of a variable names it), then by selector
+    struct Named {
+        std::string_view name;
+        usize fi;
+    };
+    std::vector<Named> order;
+    for (usize fi = 0; fi < fns_.size() && db; ++fi) {
         const FunctionInfo& f = *fns_[fi].info;
-        if (f.kind != FunctionInfo::Kind::Selector || !db) continue;
+        if (f.kind != FunctionInfo::Kind::Selector) continue;
         if (!f.getter && !bytes_getters_[fi]) continue;
         const auto e = db->function(f.selector);
         if (!e || e->trust() != sigdb::Trust::verified) continue;
-        const std::string_view nm = e->name();
+        order.push_back(Named{e->name(), fi});
+    }
+    std::stable_sort(order.begin(), order.end(), [&](const Named& a, const Named& b) {
+        const auto ua = std::span<const u8>(reinterpret_cast<const u8*>(a.name.data()), a.name.size());
+        const auto ub = std::span<const u8>(reinterpret_cast<const u8*>(b.name.data()), b.name.size());
+        if (std::ranges::lexicographical_compare(ua, ub)) return true;
+        if (std::ranges::lexicographical_compare(ub, ua)) return false;
+        return fns_[a.fi].info->selector < fns_[b.fi].info->selector;
+    });
+    for (const Named& nmd : order) {
+        const usize fi = nmd.fi;
+        const FunctionInfo& f = *fns_[fi].info;
+        const std::string_view nm = nmd.name;
         const GetterName gn = getter_name(std::span<const u8>(reinterpret_cast<const u8*>(nm.data()), nm.size()));
         if (!gn.good) continue;
         const Name name{f.selector, gn.strip};

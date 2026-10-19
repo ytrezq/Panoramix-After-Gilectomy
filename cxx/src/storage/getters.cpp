@@ -74,7 +74,7 @@ void ints_of(Value v, Memo<Value, u8>& seen, std::vector<Word256>& out, bool all
         if (all) out.push_back(Word256::from_value(v));
         return;
     }
-    if (!(v.is_expr() || v.is_list()) || !seen.add(v)) return;
+    if (!(v.is_expr() || v.is_list()) || v.is(Op::ASM) || !seen.add(v)) return;
     for (Value c : v.children()) ints_of(c, seen, out, all);
 }
 
