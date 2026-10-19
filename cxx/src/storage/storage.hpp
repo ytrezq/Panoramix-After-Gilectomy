@@ -43,8 +43,16 @@
 // as the base of another loc.
 //
 // After this stage a function's trace has no STORAGE / STORE / LENGTH /
-// LOC / SBYTES left: every access is one of these forms (an access that
-// can't be printed as its path: the raw forms, SR-based, below).
+// LOC / SBYTES left (but in ASM lines - --verbose's stacks, as they were -
+// and in the entry's lines, EntryCondition, not rewritten): every access is
+// one of these forms. An access that can't be printed as its path, or whose
+// path doesn't check, is raw: ST(size, SR(slot), 256), ST(size, SF(SR(slot),
+// off), 256 - off) for 0 < off < 256, MASK_SHL(size, off, -off, ST(256,
+// SR(slot), 256)) for an offset computed at runtime (MASK_SHL(size, 0, -off,
+// ST(size, SR(slot), 256)) for a negative one), ST(256, SBL(SR(slot)), 256)
+// for a bytes length; a write of bits no form names sets the whole word:
+// SET(ST(256, SR(slot), 256), OR(AND(ST(256, SR(slot), 256), NOT(mask)),
+// MASK_SHL(size, 0, off, v))).
 #pragma once
 
 #include <memory>
