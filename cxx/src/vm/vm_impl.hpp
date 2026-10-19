@@ -81,6 +81,7 @@ struct Node {
     bool merged = false;    // its paths go on at merge_point's continuation
     bool switched = false;  // a code switch's path (never merged)
     End end = End::None;    // how its trace ends (None: not run yet)
+    u32 stamp = 0;          // the generation of the last change in its subtree (touch)
 
     // --- where, and with what (python Node.__init__) ---
     Value condition;    // the condition it's reached under (True: none)
@@ -200,6 +201,12 @@ private:
     // unexpanded (became_unexpanded) put at their place in the tree's order
     void refresh_frontier();
     void became_unexpanded(NodeId n) { reborn_.push_back(n); }
+    // x changed (its trace, its children): its subtree's stamp, and its
+    // ancestors', the current generation (merge_at's memo is good while
+    // the stamp of its IF node holds)
+    void touch(NodeId x) {
+        for (; x != NO_NODE && nodes_[x].stamp != gen_; x = nodes_[x].prev) nodes_[x].stamp = gen_;
+    }
     // n's live nodes at jd, in the order of the tree (python by_jd's)
     void same_jd(Value jd, std::pmr::vector<NodeId>& out) const;
     // u before v in the tree's depth first order (python find_nodes')
@@ -209,6 +216,7 @@ private:
 
     // --- a node's run (python Node.run, VM._run) ---
     void run_node(NodeId id);
+    void run_block(NodeId id);
     void exec_block(u32 start);
     void finish_halt(Value line, u32 pc);
     NodeId child_at(Value target, bool safe, Value condition, const Facts& known, u32 pc);
@@ -275,6 +283,14 @@ private:
     std::pmr::vector<NodeId> frontier_;
     bool dirty_ = true;
     std::pmr::vector<NodeId> reborn_;  // nodes unexpanded again or new, outside the runs
+    // the generation of the changes (touch); merge_at's answers that merged
+    // nothing, by (IF node, jd, loop_exit), with the IF node's stamp then
+    u32 gen_ = 1;
+    struct MergeMemo {
+        u32 stamp;
+        i8 result;  // 0: false, 2: too early to tell
+    };
+    Memo<Key2, MergeMemo> merge_memo_;
     // the loops replace_loops made this round, in the order of the tree; and
     // whether some of an earlier round's are left (a walk finds them)
     std::pmr::vector<NodeId> new_loops_;

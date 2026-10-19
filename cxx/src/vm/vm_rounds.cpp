@@ -111,6 +111,7 @@ void Vm::expand_trace() {
                 break;
             }
     }
+    ++gen_;  // (the changes of this round, until the merges)
     std::pmr::vector<NodeId> next(res_), below(res_);
     next.reserve(frontier_.size() * 2);
     bool quit = false;
@@ -194,6 +195,7 @@ void Vm::replace_loops() {
         fold_stacks(nodes_[a].stack, n.stack, loop_key(a), folded, vars);
         Node& m = nodes_[id];
         m.end = End::Loop;
+        touch(id);
         m.dest = a;
         m.loop_stack = m.stack;
         m.loop_folded = folded;
@@ -307,6 +309,7 @@ bool Vm::continue_loops() {
                 Node& m = nodes_[id];
                 m.end = End::Goto;
                 m.setvars = mk_trace({});
+                touch(id);
                 continue;
             }
             SmallVec<Value, 16> setvars;
@@ -340,6 +343,7 @@ bool Vm::continue_loops() {
             Node& m = nodes_[id];
             m.end = End::Goto;
             m.setvars = mk_trace(setvars.span());
+            touch(id);
             for (Value l : setvars) cx().pcs.note(l, m.start);
         } else {
             Node& m = nodes_[id];
@@ -466,6 +470,17 @@ std::optional<bool> Vm::merge_at(NodeId p, Value jd, bool loop_exit) {
         const Node& pn = nodes_[p];
         if (jd == pn.jd || !(pn.end == End::If && pn.cont == NO_NODE)) return false;
     }
+    // the answer for p's subtree as it was, if it hasn't changed since (the
+    // answer reads nothing else: asm's merge_visit stamps)
+    const Key2 key{(u64(p) + 1) << 1 | u64(loop_exit), jd.raw()};
+    if (const MergeMemo* m = merge_memo_.find(key); m && m->stamp == nodes_[p].stamp) {
+        if (m->result == 0) return false;
+        return std::nullopt;
+    }
+    auto memo = [&](std::optional<bool> r) {
+        merge_memo_.put(key, MergeMemo{nodes_[p].stamp, i8(r ? 0 : 2)});
+        return r;
+    };
     std::pmr::vector<NodeId> hits(res_), continues(res_), todo(res_);
     const NodeId plabel = nodes_[p].label;
 
@@ -514,22 +529,22 @@ std::optional<bool> Vm::merge_at(NodeId p, Value jd, bool loop_exit) {
 
     const NodeId if_true = nodes_[p].a, if_false = nodes_[p].b;
     std::optional<bool> s1 = visit(if_true);
-    if (s1 && !*s1) return false;
+    if (s1 && !*s1) return memo(false);
     std::optional<bool> s2 = visit(if_false);
-    if (s2 && !*s2) return false;
-    if (!s1 || !s2) return std::nullopt;
-    if (hits.size() < 2) return false;
+    if (s2 && !*s2) return memo(false);
+    if (!s1 || !s2) return memo(std::nullopt);
+    if (hits.size() < 2) return memo(false);
     if (loop_exit) {
         bool direct = false;
         for (NodeId h : hits) direct |= h == if_true || h == if_false;
-        if (continues.empty() || !direct) return false;
+        if (continues.empty() || !direct) return memo(false);
     }
     std::pmr::vector<NodeId> found(res_);
     for (NodeId h : hits) {
         // the path from h was merged with others further down, at an IF
         // above p: cut at h, it wouldn't get to that merge any more
         find_nodes(h, [&](const Node& m) { return m.merged && !below(m.merge_point, h); }, found);
-        if (!found.empty()) return false;
+        if (!found.empty()) return memo(false);
     }
 
     const u32 len = nodes_[hits[0]].stack.size();
@@ -549,7 +564,7 @@ std::optional<bool> Vm::merge_at(NodeId p, Value jd, bool loop_exit) {
         }
         // (not a jump destination as a variable)
         for (Value v : vals)
-            if (is_jumpdest_int(map_, v)) return false;
+            if (is_jumpdest_int(map_, v)) return memo(false);
         Value t = fresh_tmp();
         merged[idx] = t;
         for (usize k = 0; k < hits.size(); ++k) setvars[k].push_back(mk(Op::SETVAR, t, vals[k]));
@@ -578,6 +593,7 @@ std::optional<bool> Vm::merge_at(NodeId p, Value jd, bool loop_exit) {
     for (NodeId h : hits)
         if (nodes_[h].last_call != last_call) last_call = kAmbiguousCall;
 
+    ++gen_;  // (a merge: the memo's answers below p and above it no longer hold)
     for (usize k = 0; k < hits.size(); ++k) {
         Node& h = nodes_[hits[k]];
         h.lines.assign(setvars[k].begin(), setvars[k].end());

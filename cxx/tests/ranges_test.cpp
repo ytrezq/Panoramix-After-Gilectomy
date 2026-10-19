@@ -332,7 +332,7 @@ TEST_CASE("ranges: decided comparisons hold on every sample") {
                 const bool h = holds(op, ev(a, env), ev(b, env));
                 if (h != (t == Tri::True)) {
                     ++bad;
-                    FAIL_CHECK("wrong decision ", tstr(t), " of ", op_name(op), " ", dump(a), " ", dump(b), " (seed ", s,
+                    FAIL_CHECK("wrong decision ", std::string(tstr(t)), " of ", std::string(op_name(op)), " ", dump(a), " ", dump(b), " (seed ", s,
                                ": ", hexw(ev(a, env)), " ", hexw(ev(b, env)), ")");
                     break;
                 }
@@ -457,7 +457,7 @@ TEST_CASE("ranges: decisions under facts hold wherever the facts do") {
                 const bool h = !ev(cond, env).is_zero();
                 if (h != (t == Tri::True)) {
                     ++bad;
-                    FAIL_CHECK("wrong decision ", tstr(t), " of ", dump(cond), " under facts (seed ", s, ")");
+                    FAIL_CHECK("wrong decision ", std::string(tstr(t)), " of ", dump(cond), " under facts (seed ", s, ")");
                     break;
                 }
             }
@@ -870,7 +870,7 @@ TEST_CASE("ranges: variables set in one state, read in another, by sampling") {
                     }
                     if (t != Tri::None && holds(op, wa, wb) != (t == Tri::True)) {
                         ++bad;
-                        FAIL_CHECK("wrong decision ", tstr(t), " of ", op_name(op), " ", dump(a), " ", dump(b),
+                        FAIL_CHECK("wrong decision ", std::string(tstr(t)), " of ", std::string(op_name(op)), " ", dump(a), " ", dump(b),
                                    " (t1 = ", dump(v1), ", t2 = ", dump(v2), ", seed ", s, ")");
                         break;
                     }

@@ -196,6 +196,7 @@ void Vm::set_prev(NodeId child, NodeId parent) {
     Node& p = nodes_[parent];
     c.dead = false;
     c.prev = parent;
+    touch(parent);
     c.depth = p.depth + 1;
     // skew-binary jump pointers (Myers): ancestors in O(log n)
     NodeId pj = p.jump;
@@ -255,6 +256,7 @@ void Vm::cut(NodeId n) {
     }
     nodes_[n].next.clear();
     dirty_ = true;
+    touch(n);
 }
 
 void Vm::refresh_frontier() {
@@ -316,6 +318,11 @@ u32 Vm::loop_key(NodeId head) {
 // ---- a node's run --------------------------------------------------------------------
 
 void Vm::run_node(NodeId id) {
+    run_block(id);
+    touch(id);
+}
+
+void Vm::run_block(NodeId id) {
     cur_ = id;
     Node& n = nodes_[id];
     st_.clear();
