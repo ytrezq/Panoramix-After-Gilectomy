@@ -78,11 +78,26 @@ void Vm::explore() {
     set_prev(func, root_);
 
     dirty_ = true;
+    // PANORAMIX_VM_STATS=2: the frontier at each step too (python's
+    // find_nodes before expand_trace: start/stack length, in order)
+    const char* stats_env = platform::env("PANORAMIX_VM_STATS");
+    const bool log_steps = stats_env && stats_env[0] == '2';
     for (u32 j = 0; j < limits::VM_ROUNDS; ++j) {
         for (u32 i = 0; i < limits::VM_ROUND_STEPS; ++i) {
             poll();
             ++stats_.rounds;
             refresh_frontier();
+            if (log_steps) {
+                std::string line = "step " + std::to_string(stats_.rounds - 1) + " nodes " +
+                                   std::to_string(node_count_) + " frontier " + std::to_string(frontier_.size()) + ":";
+                for (NodeId n : frontier_) {
+                    const Node& x = nodes_[n];
+                    line += x.sw ? " sw" + std::to_string(x.start) + "." + std::to_string(x.sw - 1)
+                                 : " " + std::to_string(x.start);
+                    line += "/" + std::to_string(x.stack.size());
+                }
+                std::fprintf(stderr, "%s\n", line.c_str());
+            }
             expand_trace();
             replace_loops();
             replace_recursions();
