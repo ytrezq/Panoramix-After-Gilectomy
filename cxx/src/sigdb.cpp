@@ -742,16 +742,11 @@ std::unique_ptr<Database> Database::open(const std::filesystem::path& file)
     db->dump_path_ = load32(h + 128);
     if (!check_string(db->dump_path_, db->strings_, strings_size))
         throw bad("its dump's path");
-    // the buckets: in order, the index whole
-    std::uint32_t prev = 0;
+    // the buckets: the index whole between the first and the last; each
+    // bucket is checked where a lookup reads it (function: within the index),
+    // not all of them here - the open stays O(1), its pages untouched
     const std::uint8_t* bk = h + buckets;
-    for (std::uint64_t i = 0; i <= (std::uint64_t{1} << bits); i++) {
-        std::uint32_t v = load32(bk + 4 * i);
-        if (v < prev || v > count || (i == 0 && v != 0))
-            throw bad("its buckets");
-        prev = v;
-    }
-    if (prev != count)
+    if (load32(bk) != 0 || load32(bk + 4 * (std::uint64_t{1} << bits)) != count)
         throw bad("its buckets");
     return db;
 }
@@ -829,6 +824,8 @@ std::optional<Entry> Database::function(std::uint32_t selector) const noexcept
 {
     std::uint32_t b = bucket_bits_ ? selector >> (32 - bucket_bits_) : 0;
     std::uint32_t lo = load32(buckets_ + 4 * b), hi = load32(buckets_ + 4 * b + 4);
+    if (hi > count_)
+        return std::nullopt;  // (a damaged bucket: its selectors unknown)
     for (std::uint32_t i = lo; i < hi; i++) {
         std::uint32_t s = load32(index_ + 8 * i);
         if (s == selector)

@@ -125,3 +125,11 @@ left out). The op table is generated: `tools/gen_ops.py` reads
 `$(B)/gen/src/core/ops_gen.hpp` (included as `core/ops.hpp`); every object
 waits for it. The library links GMP (`-lgmpxx -lgmp`).
 
+The storage analysis' table of the hashes compilers write as numbers
+(keccak of the first 4096 slots, of the first 16 keys of the first 64
+mappings, solidity's and vyper's orders) is made at the build:
+`tools/gen_storage_htab.cpp`, compiled with `$(HOSTCXX)` (the build
+machine's compiler: it runs during the build, even for a cross build) and
+exec's keccak, writes `$(B)/gen/src/storage/htab_gen.hpp` - not computed by
+every process at its first storage constant (~15 ms).
+

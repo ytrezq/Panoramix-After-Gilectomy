@@ -4,6 +4,7 @@
 // raw ones on storage worlds: the same ends, the same writes.
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <vector>
@@ -15,6 +16,7 @@
 #include "core/dump.hpp"
 #include "core/evmint.hpp"
 #include "exec/machine.hpp"
+#include "storage/internal.hpp"
 #include "storage/names.hpp"
 #include "storage/storage.hpp"
 
@@ -203,6 +205,61 @@ TEST_CASE("storage: getter names (Ragel)") {
     gn = getter_name(bytes("getX"));
     CHECK(gn.good);
     CHECK(gn.strip);
+}
+
+TEST_CASE("storage: the hash table - exec's keccak, sorted, every entry found") {
+    using storage::detail::hash_constant;
+    for (const Lang lang : {Lang::Solidity, Lang::Vyper}) {
+        CAPTURE(int(lang));
+        const auto t = storage::detail::hash_table_entries(lang);
+        REQUIRE(t.size() == 4096 + 16 * 64);
+        std::vector<u8> seen(t.size(), 0);
+        u8 buf[64] = {};
+        bool good = true;
+        for (usize i = 0; i < t.size(); ++i) {
+            const auto& [hash, h] = t[i];
+            Word256 k;
+            if (!h.key) {
+                REQUIRE(h.n < 4096);
+                Word256::of(h.n).to_be(buf);
+                k = exec::keccak256(std::span<const u8>(buf, 32));
+                ++seen[h.n];
+            } else {
+                REQUIRE(h.n < 64);
+                REQUIRE(*h.key < 16);
+                const bool vy = lang == Lang::Vyper;
+                Word256::of(vy ? h.n : *h.key).to_be(buf);
+                Word256::of(vy ? *h.key : h.n).to_be(buf + 32);
+                k = exec::keccak256(std::span<const u8>(buf, 64));
+                ++seen[4096 + h.n * 16 + *h.key];
+            }
+            good &= k == hash && h.delta == 0;
+            good &= i == 0 || t[i - 1].first < hash;  // (sorted; no two of one hash)
+        }
+        CHECK(good);
+        CHECK(std::all_of(seen.begin(), seen.end(), [](u8 s) { return s == 1; }));
+        // a hash and up to 2^16 - 1 past it: its entry and the delta; 2^16 past it, none
+        for (const usize i : {usize(0), usize(1), usize(777), usize(4500), t.size() - 1}) {
+            const auto& [hash, h] = t[i];
+            for (const u64 d : {u64(0), u64(1), u64(65535)}) {
+                const auto hit = hash_constant(pan::add(hash, Word256::of(d)), lang);
+                REQUIRE(hit);
+                CHECK(hit->n == h.n);
+                CHECK(hit->key == h.key);
+                CHECK(hit->delta == d);
+            }
+            CHECK(!hash_constant(pan::add(hash, Word256::of(65536)), lang));
+        }
+        CHECK(!hash_constant(Word256::of(5), lang));
+        CHECK(!hash_constant(pan::sub(t[0].first, Word256::of(1)), lang));
+    }
+    // keccak(w32(0)): the data of slot 0
+    const auto z = hash_constant(
+        Word256{{0x362f93160ef3e563u, 0x4ba6bc95484008f6u, 0xd60345a988386fc8u, 0x290decd9548b62a8u}}, Lang::Solidity);
+    REQUIRE(z);
+    CHECK(z->n == 0);
+    CHECK(!z->key);
+    CHECK(z->delta == 0);
 }
 
 TEST_CASE("storage: a token - values, mappings, mappings of mappings") {

@@ -174,8 +174,10 @@ else:
           and "INFO Functions decompilation finished, now doing post-processing." in err, err[-600:])
     # --function: only those, the others not even decompiled
     rc, out, err, s = pancxx(["decompile", weth, "--no-color", "--function", "_fallback"], env(PANORAMIX_LOG="info"))
-    check("--function _fallback", rc == 0 and out.count("\ndef ") == 1 and "Decompiling 0xa9059cbb" not in err,
-          (out[-300:], err[-300:]))
+    # (the function headers: def name(...); def storage: and def SafeMath: are blocks)
+    headers = [l for l in out.split("\n") if l.startswith("def ") and "(" in l.split(":")[0]]
+    check("--function _fallback", rc == 0 and len(headers) == 1 and headers[0].startswith("def _fallback(")
+          and "Decompiling 0xa9059cbb" not in err, (out[-300:], err[-300:]))
 
 # the same text and JSON at any thread count
 for f in ["WETH.hex", "Multicall3.hex", "USDC_proxy.hex", "AaveV3Pool_proxy.hex", "ENSRegistry.hex"]:

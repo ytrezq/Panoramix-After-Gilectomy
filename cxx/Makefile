@@ -167,6 +167,23 @@ $(EVM_GRAMMAR): ../spec/evm.def tools/gen_grammar.py
 	@mkdir -p $(@D)
 	$(call say,GEN,$@)
 	$(Q)$(PYTHON) tools/gen_grammar.py --evm ../spec/evm.def -o $@
+# the storage analysis' hash table (src/storage/paths.cpp's hash_constant):
+# keccak(n) n < 4096, keccak(k . n) (vyper: n . k) k < 16 n < 64, sorted -
+# made at the build with exec's keccak (as the asm's tools/gen_htab.c), not by
+# every process at its first storage constant (~15 ms). The generator runs
+# during the build: the build machine's compiler (a MinGW cross $(CXX) would
+# make an .exe), with the user's flags all the same.
+HOSTCXX := g++-14
+STORAGE_HTAB := $(G)/src/storage/htab_gen.hpp
+$(G)/tools/gen_storage_htab: tools/gen_storage_htab.cpp src/exec/keccak.cpp src/core/evmint.cpp | $(G)/src/core/ops_gen.hpp
+	@mkdir -p $(@D)
+	$(call say,HOSTCXX,$@)
+	$(Q)$(HOSTCXX) -std=gnu++23 $(OPTLINK) -pthread $(CPPFLAGS_SRC) $(WARN) -o $@ $^ -lgmpxx -lgmp
+$(STORAGE_HTAB): $(G)/tools/gen_storage_htab
+	@mkdir -p $(@D)
+	$(call say,GEN,$@)
+	$(Q)$< $@.tmp && mv -f $@.tmp $@
+GEN_HDRS += $(STORAGE_HTAB)
 
 LIB_OBJS := $(call obj,$(LIB_SRCS))
 LIB      := $(D)/libpanoramix_cxx.a

@@ -576,6 +576,32 @@ TEST_CASE("sigdb: the file is checked")
     db = sigdb::Database::open(f);
     CHECK_FALSE(db->function(0x23b872dd));
     CHECK(db->function(0xa9059cbb));
+    // the buckets (the header's u32 bits at 76, u64 offset at 80): the first
+    // and the last checked at the open, the others where a lookup reads them
+    auto le = [&](std::size_t at, int n) {
+        std::uint64_t v = 0;
+        for (int i = n - 1; i >= 0; i--)
+            v = v << 8 | static_cast<std::uint8_t>(bytes[at + i]);
+        return v;
+    };
+    const std::size_t buckets = le(80, 8), nbuckets = std::size_t{1} << le(76, 4);
+    auto set32 = [](std::string& s, std::size_t at, std::uint32_t v) {
+        for (int i = 0; i < 4; i++)
+            s[at + i] = static_cast<char>(v >> 8 * i);
+    };
+    damaged = bytes;
+    set32(damaged, buckets, 1);
+    refused(damaged);  // the first isn't 0
+    damaged = bytes;
+    set32(damaged, buckets + 4 * nbuckets, 7);
+    refused(damaged);  // the last isn't the count
+    damaged = bytes;
+    const std::size_t b = 0xa9059cbbu >> (32 - le(76, 4));
+    set32(damaged, buckets + 4 * (b + 1), 0xffffffffu);  // transfer's: past the index
+    write_file(f, damaged);
+    db = sigdb::Database::open(f);
+    CHECK_FALSE(db->function(0xa9059cbb));
+    CHECK(db->function(0x23b872dd));
     CHECK_THROWS_AS(sigdb::Database::open(dir.path / "missing.bin"), sigdb::Error);
 }
 

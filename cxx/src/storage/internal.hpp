@@ -90,6 +90,8 @@ struct HashHit {
     u32 delta = 0;
 };
 std::optional<HashHit> hash_constant(const Word256& c, Lang lang);
+// the table's entries in its order, (hash, its n and key) - the tests'
+std::vector<std::pair<Word256, HashHit>> hash_table_entries(Lang lang);
 
 // python steps(parse(idx, lang)), memoized per idx
 class Parser {
