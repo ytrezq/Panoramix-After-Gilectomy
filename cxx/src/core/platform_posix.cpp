@@ -16,6 +16,7 @@
 #include "core/platform.hpp"
 
 #include "core/budget.hpp"
+#include "core/sync.hpp"
 
 namespace pan::platform {
 
@@ -30,13 +31,22 @@ void async_signals(sigset_t* set) {
 
 }  // namespace
 
+// the lock of the creations (below); a fork waits for a creation to end
+// (prepare), and the child starts with it free
+namespace {
+SpinLock spawn_lock;
+[[maybe_unused]] const int spawn_lock_at_fork = [] {
+    pthread_atfork([] { spawn_lock.lock(); }, [] { spawn_lock.unlock(); }, [] { spawn_lock.reset(); });
+    return 0;
+}();
+}  // namespace
+
 std::thread spawn(std::function<void()> fn, usize stack_size) {
     // std::thread takes the process's default attributes: the stack's size
     // set there for the length of the creation (a lock: two creations at
     // once would put back each other's), and the signals the new thread
     // inherits from this one blocked meanwhile
-    static std::mutex m;
-    std::lock_guard<std::mutex> g(m);
+    std::lock_guard<SpinLock> g(spawn_lock);
     pthread_attr_t old;
     bool have_old = pthread_getattr_default_np(&old) == 0;
     bool set = false;
