@@ -1,0 +1,13 @@
+doctest — the C++ unit-test framework (single header)
+
+Origin:   https://github.com/doctest/doctest
+Version:  v2.5.3 (tag commit 2d0a9359a60c51affe2a9bebb1be1dca47868151,
+          2026-07-07)
+File:     doctest/doctest.h, the release's single header, byte for byte
+          (sha256 cfd518a3ef90f67e1f3ba514df23fb3627437de1a2feeba78cf5062a40021421)
+License:  MIT, Copyright (c) 2016-2023 Viktor Kirilov — see LICENSE.txt
+Local changes: none.
+
+Use: the include path is cxx/third_party/doctest, so tests write
+    #include <doctest/doctest.h>
+and cxx/tests/main_test.cpp alone defines DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN.
