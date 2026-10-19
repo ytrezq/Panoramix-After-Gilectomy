@@ -312,7 +312,7 @@ public:
             }
         }
         SmallVec<Value, 32> out;
-        out.resize(n);
+        for (u32 i = 0; i < n; ++i) out.push_back(Value());
         u32 kept = n;
         bool changed = false;
         for (u32 i = n; i-- > 0;) {

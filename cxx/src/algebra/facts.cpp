@@ -229,20 +229,39 @@ Tri Facts::match(Value exp) const {
 Tri Facts::match_all(Value exp) const {
     if (exp.is_int()) return tri(!word_of(exp).is_zero());
     if (exp.is_bool()) return tri(exp.is_true());
-    Value iz_exp;
+    if (!head_) return Tri::None;
+    if (auto w = eval_const(exp)) return tri(!w->is_zero());
+    // (per fact: a few compares, unless exp needs python's walk through
+    // BOOL / ISZERO / OR / AND, or is x < b)
+    const Value iz_exp = iszero(exp);
+    const bool deep = exp.is(Op::BOOL, 1) || exp.is(Op::ISZERO, 1) || exp.is(Op::OR) || exp.is(Op::AND);
+    const bool ltle = exp.is(Op::LE, 2) || exp.is(Op::LT, 2);
     for (const Cell* c = head_; c; c = c->next) {
         const Fact& f = c->f;
         if (f.kind != FactKind::Cond) continue;
         poll();
-        if (iz_exp.nil()) iz_exp = iszero(exp);
         const Value kt = fact_cond(f.a);
-        Tri r = match_one(exp, iz_exp, kt, f.c);
-        if (r != Tri::None) return r;
+        if (exp == kt) return Tri::True;
+        if (iz_exp == kt || exp == f.c) return Tri::False;
+        if (deep) {
+            Tri r = match_one(exp, iz_exp, kt, f.c);
+            if (r != Tri::None) return r;
+        } else if (ltle && kt.is(exp.op(), 2) && exp[0] == kt[0] && proven_le_words(kt[1], exp[1])) {
+            // x < b where x < a is known: when a <= b, as words
+            return Tri::True;
+        }
         if (kt.is(Op::AND)) {
-            // an AND that isn't 0: none of them is
-            for (Value k : kt.args()) {
-                r = match_one(exp, iz_exp, fact_cond(k), iszero(fact_cond(k)));
-                if (r != Tri::None) return r;
+            // an AND that isn't 0: none of its operands is
+            for (Value k0 : kt.args()) {
+                const Value k = fact_cond(k0);
+                if (exp == k) return Tri::True;
+                if (iz_exp == k) return Tri::False;
+                if (deep) {
+                    Tri r = match_one(exp, iz_exp, k, iszero(k));
+                    if (r != Tri::None) return r;
+                } else if (ltle && k.is(exp.op(), 2) && exp[0] == k[0] && proven_le_words(k[1], exp[1])) {
+                    return Tri::True;
+                }
             }
         }
     }

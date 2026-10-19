@@ -182,7 +182,7 @@ std::optional<Value> word_rule(Value r) {
             if (is_int(b, 1) && alg::is_bool(a)) return a;
             if (is_int(a, 1) && alg::is_bool(b)) return b;
             Tri t = alg::decide_cmp(op, a, b);
-            if (decided(t)) return small(t == Tri::True ? 1 : 0);
+            if (alg::decided(t)) return small(t == Tri::True ? 1 : 0);
             return std::nullopt;
         }
         case Op::LT:
@@ -194,7 +194,7 @@ std::optional<Value> word_rule(Value r) {
         case Op::SLE:
         case Op::SGE: {
             Tri t = alg::decide_cmp(op, r[0], r[1]);
-            if (decided(t)) return small(t == Tri::True ? 1 : 0);
+            if (alg::decided(t)) return small(t == Tri::True ? 1 : 0);
             if (op == Op::LT || op == Op::GT || op == Op::LE || op == Op::GE)
                 if (auto c = cancel_common(op, r[0], r[1])) return *c;
             return std::nullopt;
@@ -202,13 +202,13 @@ std::optional<Value> word_rule(Value r) {
         case Op::ISZERO: {
             if (auto x = iszero_rule(r[0])) return *x;
             Tri t = alg::eval_bool(r[0]);
-            if (decided(t)) return small(t == Tri::True ? 0 : 1);
+            if (alg::decided(t)) return small(t == Tri::True ? 0 : 1);
             return std::nullopt;
         }
         case Op::BOOL: {
             if (auto y = negated(r[0])) return alg::to_bool(*y);
             Tri t = alg::eval_bool(r[0]);
-            if (decided(t)) return small(t == Tri::True ? 1 : 0);
+            if (alg::decided(t)) return small(t == Tri::True ? 1 : 0);
             return std::nullopt;
         }
         case Op::MAX:

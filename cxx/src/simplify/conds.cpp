@@ -7,6 +7,7 @@
 
 #include "algebra/compare.hpp"
 #include "algebra/construct.hpp"
+#include "algebra/eval.hpp"
 #include "core/context.hpp"
 #include "core/intops.hpp"
 

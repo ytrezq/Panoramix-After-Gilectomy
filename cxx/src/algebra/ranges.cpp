@@ -593,30 +593,73 @@ struct RangeQuery::Impl {
         XRange r;
     };
     SmallVec<FB, 8> fb;
+    Memo<Value, u32> fb_index;  // x -> its place in fb + 1 (when fb is long)
     Memo<Key2, XRange> word_local, int_local;
     u32 visits = 0;
     Impl* plain = nullptr;  // without the facts (past the budget)
 
     static constexpr u32 kFactsBudget = 4096;
+    static constexpr u32 kAboutBudget = 2048;  // the nodes of `about` looked at
+    static constexpr usize kLinearBounds = 16;  // past it, fb_index
 
-    explicit Impl(const Facts* facts) : st(rst()) {
+    explicit Impl(const Facts* facts, std::span<const Value> about = {}) : st(rst()) {
         // (the conditions' bounds and the variables' bits)
-        if (facts && facts->any_bound())
-            facts->each_bound([&](Value x, Value lo, Value hi) { add_bound(x, XRange{xi_value(lo), xi_value(hi)}); });
+        if (!facts || !facts->any_bound()) return;
+        MemoSet<Value> nodes;
+        const bool all = about.empty() || !collect(about, nodes);
+        facts->each_bound([&](Value x, Value lo, Value hi) {
+            if (all || nodes.contains(x)) add_bound(x, XRange{xi_value(lo), xi_value(hi)});
+        });
     }
     ~Impl() { delete plain; }
     Impl(const Impl&) = delete;
     Impl& operator=(const Impl&) = delete;
 
-    void add_bound(Value x, const XRange& r) {
-        for (FB& b : fb)
-            if (b.x == x) {
-                b.r = xr_narrow(b.r, r);
-                return;
+    // the nodes of what the questions are about (and the values of their
+    // variables): false past kAboutBudget
+    bool collect(std::span<const Value> about, MemoSet<Value>& nodes) {
+        SmallVec<Value, 32> work(about);
+        u32 budget = kAboutBudget;
+        while (!work.empty()) {
+            Value v = work.back();
+            work.pop_back();
+            if (!v.is_expr() && !v.is_leaf() && !v.is_name()) continue;
+            if (!nodes.add(v)) continue;
+            if (budget-- == 0) return false;
+            if (v.is_name()) {
+                for (Value x : st.values_of(v)) work.push_back(x);
+            } else {
+                for (Value a : v.children()) work.push_back(a);
             }
+        }
+        return true;
+    }
+
+    void add_bound(Value x, const XRange& r) {
+        if (fb.size() < kLinearBounds) {
+            for (FB& b : fb)
+                if (b.x == x) {
+                    b.r = xr_narrow(b.r, r);
+                    return;
+                }
+            fb.push_back(FB{x, r});
+            if (fb.size() == kLinearBounds)
+                for (usize i = 0; i < fb.size(); ++i) fb_index.put(fb[i].x, u32(i + 1));
+            return;
+        }
+        u32& at = fb_index[x];
+        if (at) {
+            fb[at - 1].r = xr_narrow(fb[at - 1].r, r);
+            return;
+        }
+        at = u32(fb.size() + 1);
         fb.push_back(FB{x, r});
     }
     const XRange* bound_of(Value v) const noexcept {
+        if (fb.size() >= kLinearBounds) {
+            const u32* at = fb_index.find(v);
+            return at ? &fb[*at - 1].r : nullptr;
+        }
         for (const FB& b : fb)
             if (b.x == v) return &b.r;
         return nullptr;
@@ -1217,7 +1260,7 @@ XRange RangeQuery::Impl::structural(Value v, Top top) {
 
 // ================================================================ the public side
 
-RangeQuery::RangeQuery(const Facts* facts) : impl_(new Impl(facts)) {}
+RangeQuery::RangeQuery(const Facts* facts, std::span<const Value> about) : impl_(new Impl(facts, about)) {}
 RangeQuery::~RangeQuery() { delete impl_; }
 
 namespace {
@@ -1308,16 +1351,28 @@ Range Range::as_word() const {
     return Range{lo - shift, hi - shift};
 }
 
-Range range(Value v, Top top, const Facts* facts) { return RangeQuery(facts).range(v, top); }
-Range signed_range(Value v, Top top, const Facts* facts) { return RangeQuery(facts).signed_range(v, top); }
-Range word_diff(Value a, Value b, Top top, const Facts* facts) { return RangeQuery(facts).word_diff(a, b, top); }
-SignRange diff_sign(Value a, Value b, Top top, const Facts* facts) { return RangeQuery(facts).diff_sign(a, b, top); }
-Range int_range(const Linear& l, Top top, const Facts* facts) { return RangeQuery(facts).int_range(l, top); }
-Range int_range(Value v, Top top, const Facts* facts) { return RangeQuery(facts).int_range(v, top); }
-SignRange int_diff_sign(Value a, Value b, Top top, const Facts* facts) {
-    return RangeQuery(facts).int_diff_sign(a, b, top);
+Range range(Value v, Top top, const Facts* facts) { return RangeQuery(facts, {&v, 1}).range(v, top); }
+Range signed_range(Value v, Top top, const Facts* facts) { return RangeQuery(facts, {&v, 1}).signed_range(v, top); }
+Range word_diff(Value a, Value b, Top top, const Facts* facts) {
+    const Value ab[2] = {a, b};
+    return RangeQuery(facts, ab).word_diff(a, b, top);
 }
-u32 range_bits(Value v, Top top, const Facts* facts) { return RangeQuery(facts).range_bits(v, top); }
+SignRange diff_sign(Value a, Value b, Top top, const Facts* facts) {
+    const Value ab[2] = {a, b};
+    return RangeQuery(facts, ab).diff_sign(a, b, top);
+}
+Range int_range(const Linear& l, Top top, const Facts* facts) {
+    SmallVec<Value, 8> about;
+    for (const LinTerm& t : l.terms) about.push_back(t.term);
+    if (about.empty()) about.push_back(l.constant);
+    return RangeQuery(facts, about.span()).int_range(l, top);
+}
+Range int_range(Value v, Top top, const Facts* facts) { return RangeQuery(facts, {&v, 1}).int_range(v, top); }
+SignRange int_diff_sign(Value a, Value b, Top top, const Facts* facts) {
+    const Value ab[2] = {a, b};
+    return RangeQuery(facts, ab).int_diff_sign(a, b, top);
+}
+u32 range_bits(Value v, Top top, const Facts* facts) { return RangeQuery(facts, {&v, 1}).range_bits(v, top); }
 
 bool is_word(Value v, Top top, const Facts* facts) { return int_range(v, top, facts).is_word(); }
 

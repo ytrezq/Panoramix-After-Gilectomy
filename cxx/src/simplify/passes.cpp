@@ -160,7 +160,10 @@ Value rewrite_lines(Value trace, F& f) {
 Value precompiled_results(Value trace) {
     // the precompiles' calls: id -> their result variable (not the identity's,
     // whose output is its input; not modexp's, of any length)
-    SmallVec<std::pair<Value, Value>, 8> results;
+    struct Result {
+        Value id, name;
+    };
+    SmallVec<Result, 8> results;
     SmallVec<Value, 64> todo{trace};
     while (!todo.empty()) {
         Value t = todo.back();
@@ -179,8 +182,8 @@ Value precompiled_results(Value trace) {
     if (results.empty()) return trace;
     return rewrite_exprs(trace, [&](Value e, Pos pos) -> Value {
         if (e.is(Op::RETURNDATA_BYTES, 3) && is_int(e[1], 0) && is_int(e[2], 32))
-            for (const auto& [id, name] : results)
-                if (e[0] == id) return pos == Pos::Bytes ? mk(Op::SIZED, small(32), name) : name;
+            for (const Result& x : results)
+                if (e[0] == x.id) return pos == Pos::Bytes ? mk(Op::SIZED, small(32), x.name) : x.name;
         return e;
     });
 }

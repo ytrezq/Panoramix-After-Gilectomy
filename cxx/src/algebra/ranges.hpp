@@ -152,11 +152,14 @@ std::optional<int> shift_sign(Value v);
 
 // Several range questions under the same facts: the facts' bounds gathered
 // once, one memo for all of them (the free functions above make one each).
+// `about`: the expressions the questions will be about - only the facts'
+// bounds on them and on what they're made of are gathered (the others say
+// nothing there; a long path's facts cost nothing then); empty: all of them.
 // On the thread's context; not to be kept past a change of the context's
 // variables.
 class RangeQuery {
 public:
-    explicit RangeQuery(const Facts* facts = nullptr);
+    explicit RangeQuery(const Facts* facts = nullptr, std::span<const Value> about = {});
     ~RangeQuery();
     RangeQuery(const RangeQuery&) = delete;
     RangeQuery& operator=(const RangeQuery&) = delete;

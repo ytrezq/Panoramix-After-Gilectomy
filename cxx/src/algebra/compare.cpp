@@ -69,7 +69,9 @@ bool is_cmp_op(Op op) noexcept {
 // RangeQuery), the facts' conditions
 class Decider {
 public:
-    Decider(const Facts* facts, Top top) : facts_(facts && !facts->empty() ? facts : nullptr), q_(facts_), top_(top) {}
+    // about: what the questions will be about (RangeQuery: the facts' bounds on them)
+    Decider(const Facts* facts, Top top, std::span<const Value> about)
+        : facts_(facts && !facts->empty() ? facts : nullptr), q_(facts_, about), top_(top) {}
 
     RangeQuery& q() { return q_; }
 
@@ -302,16 +304,14 @@ private:
 // ---- integers ----------------------------------------------------------------------
 
 Tri ge_zero(const Linear& l, Top top, const Facts* facts) {
-    RangeQuery q(facts);
-    Range r = q.int_range(l, top);
+    Range r = int_range(l, top, facts);
     if (r.lo.sign() >= 0) return Tri::True;
     if (r.hi.sign() < 0) return Tri::False;
     return Tri::None;
 }
 
 Tri gt_zero(const Linear& l, Top top, const Facts* facts) {
-    RangeQuery q(facts);
-    Range r = q.int_range(l, top);
+    Range r = int_range(l, top, facts);
     if (r.lo.sign() > 0) return Tri::True;
     if (r.hi.sign() <= 0) return Tri::False;
     return Tri::None;
@@ -358,12 +358,14 @@ Tri int_cmp(Value a, Value b, bool strict, Top top, RangeQuery& q) {
 }  // namespace
 
 Tri int_lt(Value a, Value b, Top top, const Facts* facts) {
-    RangeQuery q(facts);
+    const Value ab[2] = {a, b};
+    RangeQuery q(facts, ab);
     return guarded([&] { return int_cmp(a, b, true, top, q); }, Tri::None);
 }
 
 Tri int_le(Value a, Value b, Top top, const Facts* facts) {
-    RangeQuery q(facts);
+    const Value ab[2] = {a, b};
+    RangeQuery q(facts, ab);
     return guarded([&] { return int_cmp(a, b, false, top, q); }, Tri::None);
 }
 
@@ -371,7 +373,8 @@ Tri int_le(Value a, Value b, Top top, const Facts* facts) {
 
 Tri decide_cmp(Op op, Value a, Value b, Top top, const Facts* facts) {
     if (!is_cmp_op(op)) return Tri::None;
-    Decider d(facts, top);
+    const Value ab[2] = {a, b};
+    Decider d(facts, top, ab);
     return guarded([&] { return d.decide_op(op, a, b); }, Tri::None);
 }
 
@@ -400,13 +403,15 @@ std::optional<Value> pick(Value a, Value b, bool max, Decider& d) {
 
 std::optional<Value> max_of(Value a, Value b, Top top, const Facts* facts) {
     if (a == b) return a;
-    Decider d(facts, top);
+    const Value ab[2] = {a, b};
+    Decider d(facts, top, ab);
     return guarded([&] { return pick(a, b, true, d); }, std::optional<Value>());
 }
 
 std::optional<Value> min_of(Value a, Value b, Top top, const Facts* facts) {
     if (a == b) return a;
-    Decider d(facts, top);
+    const Value ab[2] = {a, b};
+    Decider d(facts, top, ab);
     return guarded([&] { return pick(a, b, false, d); }, std::optional<Value>());
 }
 
@@ -414,7 +419,7 @@ namespace {
 
 Value reduce_minmax_(Value v, Top top, const Facts* facts) {
     const bool is_max = v.is(Op::MAX);
-    Decider d(facts, top);
+    Decider d(facts, top, {&v, 1});
     // an operand that can't be the result: one at most (least) another
     SmallVec<Value, 8> kept;
     for (Value e : v.args()) {
@@ -481,7 +486,7 @@ Tri eval_bool(Value cond, const Facts* facts) {
                     return m;
                 }
             }
-            Decider d(facts, Top::Word);
+            Decider d(facts, Top::Word, {&cond, 1});
             Tri t = d.beyond(cond);
             ++(t == Tri::None ? s.undecided : s.beyond);
             return t;
@@ -497,7 +502,7 @@ Value is_zero(Value cond, const Facts* facts) {
 }
 
 Value decide(Value cond, const Facts* facts) {
-    Decider d(facts, Top::Word);
+    Decider d(facts, Top::Word, {&cond, 1});
     return guarded([&] { return d.decide(cond, true); }, cond);
 }
 
