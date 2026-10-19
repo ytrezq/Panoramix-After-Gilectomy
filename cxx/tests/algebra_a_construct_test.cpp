@@ -579,6 +579,51 @@ TEST_CASE("algebra: signextend, sar, apply of the other ops") {
     CHECK(A::normalize(V("(and caller 0xffffffffffffffffffffffffffffffffffffffff)")) == V("(mask_shl 160 0 0 caller)"));
 }
 
+TEST_CASE("algebra: what solc's code makes") {
+    Fixture f;
+    Value len = V("(calldataload (add 4 (calldataload 36)))"), p = V("tmp3");
+    // ceil32 three ways: and(add(len, 31), not(31)); mul(div(add(len, 31), 32), 32); shl(5, shr(5, ..))
+    Value c1 = A::band(A::add(len, mk_int(31)), A::bnot(mk_int(31)));
+    Value c2 = A::mul(A::div(A::add(len, mk_int(31)), mk_int(32)), mk_int(32));
+    Value c3 = A::shl(mk_int(5), A::shr(mk_int(5), A::add(len, mk_int(31))));
+    CHECK(c1 == V("(mask_shl 251 5 0 (add 31 (calldataload (add 4 (calldataload 36)))))"));
+    CHECK(c2 == c1);
+    CHECK(c3 == c1);
+    // the free memory pointer moved by 0x20 twice
+    CHECK(A::add(A::add(p, mk_int(32)), mk_int(32)) == V("(add 64 tmp3)"));
+    // a packed field: (sload(0) / 2^160) & 0xff, and its write mask
+    Value s0 = V("(storage 256 0 0)");
+    CHECK(A::band(A::div(s0, pow2(160)), mk_int(0xff)) == V("(storage 8 160 0)"));
+    CHECK(A::band(A::shr(mk_int(160), s0), mk_int(0xff)) == V("(storage 8 160 0)"));
+    Value keep = A::band(s0, A::bnot(A::shl(mk_int(160), mk_int(0xff))));
+    CHECK(keep == A::bor(V("(mask_shl 88 168 0 (storage 256 0 0))"), V("(storage 160 0 0)")));
+    // the selector of old and new solc
+    Value cd0 = V("(calldataload 0)");
+    CHECK(A::band(A::div(cd0, pow2(224)), mk_int(0xffffffff)) == A::shr(mk_int(224), cd0));
+    // an address argument, an overflow check that must stay a check
+    CHECK(A::band(V("(calldataload 4)"), pow2m1(160)) == V("(mask_shl 160 0 0 (calldataload 4))"));
+    Value a = V("(calldataload 4)"), b = V("(calldataload 36)");
+    CHECK(A::cmp(Op::LT, A::add(a, b), a) == V("(lt (add (calldataload 4) (calldataload 36)) (calldataload 4))"));
+    CHECK(A::cmp(Op::GT, a, A::add(a, mk_int(1))) == V("(gt (calldataload 4) (add 1 (calldataload 4)))"));
+    // x - 1 as add(x, not(0))
+    CHECK(A::add(a, A::bnot(mk_int(0))) == V("(add -1 (calldataload 4))"));
+    // a byte of a word read from memory
+    CHECK(A::byte(mk_int(0), V("(mem (range 64 32))")) == V("(mask_shl 8 248 -248 (mem (range 64 32)))"));
+    // bytes4(x): the high 4 bytes in place
+    CHECK(A::band(a, V("0xffffffff00000000000000000000000000000000000000000000000000000000")) ==
+          V("(mask_shl 32 224 0 (calldataload 4))"));
+    // uint8(x) >> 3 << 3 (python's to_bytes of a bit count)
+    A::ToBytes tb = A::to_bytes(A::bits(V("tmp1")));
+    CHECK(tb.bytes == V("tmp1"));
+    CHECK(tb.rem == 0u);
+    A::ToBytes t2 = A::to_bytes(mk_int(13));
+    CHECK(t2.bytes == mk_int(2));
+    CHECK(t2.rem == 5u);
+    A::ToBytes t3 = A::to_bytes(V("tmp1"));
+    CHECK(!t3.rem);
+    CHECK(t3.bytes == V("(mask_shl 253 3 -3 tmp1)"));
+}
+
 TEST_CASE("algebra: masks.hpp views and constants") {
     Fixture f;
     auto m = A::as_mask(V("(mask_shl 160 0 0 caller)"));

@@ -55,7 +55,7 @@ std::optional<MaskFields> to_neg_mask(Value v);
 // k when w == 2^k
 std::optional<u32> log2_exact(const Word256& w) noexcept;
 // k when v is the int 2^k (k < 256: a word)
-std::optional<u32> to_exp2(Value v) noexcept;
+std::optional<u32> to_exp2(Value v);
 
 // the byte-rounded mask that covers the set bits of w: (size, off), both
 // multiples of 8 (python find_mask: the printer's casts)

@@ -10,6 +10,7 @@
 #include <iterator>
 
 #include "decompile.hpp"
+#include "evm/decoder.hpp"
 #include "hex.hpp"
 
 namespace pan {
@@ -58,14 +59,9 @@ Decompilation decompile(std::span<const std::uint8_t> code, const DecompileOptio
     return d;
 }
 
-std::string disassemble(std::span<const std::uint8_t> code)
-{
-    return std::format("(stub) {} bytes of code, fnv1a64 {:016x}\n", code.size(), fingerprint(code));
-}
+// the decoder's (lot 1, src/evm/)
+std::string disassemble(std::span<const std::uint8_t> code) { return evm::disassemble(code); }
 
-std::string decode_report(std::span<const std::uint8_t> code)
-{
-    return std::format("{} bytes of code (stub: the decoder isn't there yet)\n", code.size());
-}
+std::string decode_report(std::span<const std::uint8_t> code) { return evm::decode_report(code); }
 
 }  // namespace pan

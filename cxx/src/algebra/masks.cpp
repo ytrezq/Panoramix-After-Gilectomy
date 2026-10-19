@@ -34,7 +34,7 @@ std::optional<u32> log2_exact(const Word256& w) noexcept {
     return u32(idx * 64 + __builtin_ctzll(w.limb[idx]));
 }
 
-std::optional<u32> to_exp2(Value v) noexcept {
+std::optional<u32> to_exp2(Value v) {
     if (v.is_small()) {
         i64 x = v.small_val();
         if (x <= 0 || (x & (x - 1))) return std::nullopt;

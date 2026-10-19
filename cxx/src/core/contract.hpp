@@ -52,6 +52,8 @@ struct EntryCondition {
     std::optional<u32> selector;  // none: the fallback, an internal function
     Value checks;                 // a LIST of bool exprs that held on the dispatcher's path
     bool nonpayable = false;      // `if callvalue: revert` before the body
+    Value value_fails;            // the halting line of that check: REVERT(data) or INVALID(reason, pc);
+                                  // NIL = REVERT of no data
     Value entry_lines;            // a TRACE: the dispatcher's lines before the body (setmems)
     Value vm_state;               // the VM's state at entry_pc (lot 5's, opaque; NIL for internals)
 };

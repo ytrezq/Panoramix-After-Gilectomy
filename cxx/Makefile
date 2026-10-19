@@ -157,6 +157,15 @@ $(G)/src/core/ops_gen.hpp: ../spec/evm.def ../spec/ops.def tools/gen_ops.py
 	@mkdir -p $(@D)
 	$(call say,GEN,$@)
 	$(Q)$(PYTHON) tools/gen_ops.py --evm ../spec/evm.def --ops ../spec/ops.def -o $@
+# the EVM decoder's grammar (src/evm/decoder.hpp): spec/evm.def -> a Ragel
+# machine per opcode with its class action; any .rl includes it with
+# include evm_grammar "evm/evm_grammar.rlh";
+EVM_GRAMMAR := $(G)/src/evm/evm_grammar.rlh
+$(EVM_GRAMMAR): ../spec/evm.def tools/gen_grammar.py
+	@mkdir -p $(@D)
+	$(call say,GEN,$@)
+	$(Q)$(PYTHON) tools/gen_grammar.py --evm ../spec/evm.def -o $@
+
 LIB_OBJS := $(call obj,$(LIB_SRCS))
 LIB      := $(D)/libpanoramix_cxx.a
 
@@ -339,10 +348,10 @@ $(O)/src/pymod_compat.cpp.o: src/pymod.cpp $(O)/flags.src | $(GEN_HDRS)
 	$(call say,CXX,$< (panoramix_asm))
 	$(Q)$(CXX) $(CPPFLAGS_SRC) -DPAN_PYMODULE=panoramix_asm -isystem $(PY_INC) $(CXXFLAGS) $(WARN) $(VWARN) -MMD -MP -c -o $@ $<
 
-$(G)/%.cpp: %.rl $(RLH)
+$(G)/%.cpp: %.rl $(RLH) $(EVM_GRAMMAR)
 	@mkdir -p $(@D)
 	$(call say,RAGEL,$<)
-	$(Q)$(RAGEL) -G2 -I $(<D) -I src -o $@ $<
+	$(Q)$(RAGEL) -G2 -I $(<D) -I src -I $(G)/src -o $@ $<
 
 $(O)/src/%.cpp.o: src/%.cpp $(O)/flags.src | $(GEN_HDRS)
 	@mkdir -p $(@D)

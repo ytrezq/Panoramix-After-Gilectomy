@@ -201,10 +201,11 @@ using InsnFunc = void (*)(const Insn& insn, void* data);
 void for_each_insn(std::span<const u8> code, InsnFunc fn, void* data);
 
 // The reference exec machine: from `start` (an instruction start < size, or
-// size), every instruction of the block through fn, the block's end returned:
-// JUMP / JUMPI / a halt / an unknown byte (each handed to fn first), a JUMPDEST
-// that isn't the first instruction (Split: not handed to fn), the end of the
-// code (FellOff: a cut push handed to fn first).
+// size), every instruction of the block through fn (a JUMPDEST first one
+// too), the block's end returned: JUMP / JUMPI / a halt / an unknown byte
+// (each handed to fn first), a JUMPDEST that isn't the first instruction
+// (Split: not handed to fn), the end of the code (FellOff: a cut push handed
+// to fn first).
 BlockEnd exec_block_ref(std::span<const u8> code, u32 start, InsnFunc fn, void* data);
 
 // ---------------------------------------------------------------------------

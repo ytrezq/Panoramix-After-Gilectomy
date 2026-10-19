@@ -10,18 +10,18 @@
 // validation converts at its boundary.
 //
 // A call (Machine::call):
-//   1. dispatch: the first function of Program::functions whose entry
-//      conditions hold - a Selector function when `calldataload(0) >> 224`
-//      (the EVM's zero-padded word) is its selector and every expression of
-//      entry.checks is not 0; a Fallback function when every one of its
-//      checks holds. The selector functions are tried before the fallbacks
-//      (the hinted one first: the result is the same when the dispatcher's
-//      paths are disjoint). None: the run is Unsupported.
+//   1. dispatch (lot 5's discovery): with 4 bytes of calldata or more, the
+//      first Selector function of Program::functions whose selector is
+//      calldataload(0) >> 224 (the hinted one tried first); else, or when
+//      none is, the first Fallback function. None: Unsupported.
+//      entry.checks are facts for the VM, never evaluated here.
 //   2. a function whose decompilation failed (`problem`, or no trace):
 //      Unsupported.
-//   3. entry.nonpayable and callvalue != 0: the value-fails line
-//      (entry.value_fails when main adds it, else REVERT of no data).
-//   4. entry.entry_lines (the dispatcher's setmems), then the trace.
+//   3. entry.entry_lines: the dispatcher's lines on the path (SETMEMs, and
+//      an IF per check whose other branch halts), run as trace lines.
+//   4. entry.nonpayable and callvalue != 0: REVERT of no data (the check
+//      lot 8 took out of the body).
+//   5. the trace (the body).
 //
 // Words (ir.md 4.3): mod 2^256; the pure ops through alg::eval_op (the one
 // definition of MASK_SHL, BOOL, LE..SGE, MAX, MIN on words); LAND/LOR short
@@ -41,11 +41,13 @@
 // bytes); DATA: concatenation, an ARR element ABI-encoded (its offset in the
 // head, length + content padded in the tail); MEM(RANGE(p, n)),
 // CALLDATA_BYTES, CODE_BYTES, EXTCODE_BYTES (zero padded), RETURNDATA_BYTES
-// (past the end: an exceptional halt, as RETURNDATACOPY); None: no bytes. A
-// word without SIZED is as wide as it is written: MASK_SHL(size, off, shl,
-// x) (size + off + shl) / 8 bytes, STORAGE/ST size / 8, an int of more than
-// 256 bits its bytes, anything else 32. As a word, a bytes expression of at
-// most 32 bytes is its big-endian number (more: Bug).
+// (past the end: an exceptional halt, as RETURNDATACOPY); a BYTES node: its
+// bytes (a codecopy of known code); None: no bytes. A word without SIZED is
+// as wide as it is written: MASK_SHL(size, off, shl, x) (size + off + shl) /
+// 8 bytes, STORAGE/ST size / 8, an int of more than 256 bits its bytes,
+// anything else 32. As a word, a bytes expression of at most 32 bytes is
+// its big-endian number (more: Bug). SETMEM(RANGE(p, n), v): a word v gives
+// its low n bytes; a bytes v must have n bytes (else Bug).
 //
 // Lines (ir.md 4.4): SETVAR, SETMEM (the range's n bytes: a value's low n
 // bytes), STORE (read-modify-write of the bits [off, off + size)), TSTORE,
@@ -56,8 +58,10 @@
 // that holds it), all setvars simultaneous; LOGk, the calls (input =
 // bytes(selector) ++ bytes(params); the output's setmem is the next line,
 // never the machine's), CREATE/CREATE2, PRECOMPILED (its name := the first
-// word of the output), INTERNAL (the internal function at that entry pc in
-// a fresh frame, LEAVE binds the results), RETURN, REVERT, STOP, INVALID,
+// word of the output), INTERNAL(entry, [args], [names]) (the internal
+// function at that entry pc in a fresh frame - its own variables and call
+// records, Name(PARAM, k) = args[k]; its LEAVE([values]) binds names[i] :=
+// values[i] in the caller), RETURN, REVERT, STOP, INVALID,
 // SELFDESTRUCT (then stop), ASM (nothing), UNDEFINED (Status::Undefined:
 // inconclusive), REQUIRE (revert of no data when 0), ASSERT (invalid when
 // 0), MERGED_IF (as IF). The end of the trace: stop.

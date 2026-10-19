@@ -44,23 +44,13 @@
 
 namespace pan::vm {
 
-// INVALID(reason, pc): why a path halts exceptionally (the printer's words:
-// python's ("invalid", "jump"), ("invalid", "jumdest", pc)...)
-enum class InvalidReason : u32 {
-    OPCODE = 1,           // INVALID (0xfe) or an undefined instruction
-    ASSERT_FAIL = 2,      // (old solc's assert: not made by this VM)
-    JUMP = 3,             // a jump to a place that isn't a JUMPDEST
-    JUMPDEST = 4,         // a jump past the code
-    STACK_UNDERFLOW = 5,  // fewer words than the instruction takes
-    RETURNDATACOPY = 6,   // a copy past the end of the return data
-};
-
-// UNDEFINED(reason, pc): the VM gave up on the path there
-enum class UndefinedReason : u32 {
-    UNFINISHED = 1,     // a cap or the VM's time limit (python: "decompilation didn't finish")
-    COMPUTED_JUMP = 2,  // a jump to an address computed at runtime
-    AMBIGUOUS_CALL = 3, // return data read where the last call depends on the path (merged paths)
-};
+// The reasons of INVALID(reason, pc) and UNDEFINED(reason, pc) are the core's
+// (core/contract.hpp): InvalidReason::OPCODE (INVALID 0xfe or an undefined
+// instruction), JUMP (to a place that isn't a JUMPDEST), JUMPDEST (past the
+// code), STACK_UNDERFLOW, RETURNDATACOPY (past the return data; ASSERT_FAIL
+// is never made); UndefinedReason::UNFINISHED (a cap or the VM's time
+// limit), COMPUTED_JUMP (to an address computed at runtime), AMBIGUOUS_CALL
+// (return data read where the last call depends on the path: merged paths).
 
 // A recursive internal function (python VM.internal: entry -> (n, m, frame)):
 // a function called again in its own call - its calls are INTERNAL lines and

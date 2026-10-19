@@ -113,7 +113,7 @@ Value iszero(Value a);
 // a != 0 as a 0/1 value (BOOL): a itself when it is 0/1 already
 Value to_bool(Value a);
 // whether a's value is 0 or 1 for every value of the leaves (python is_bool)
-bool is_bool(Value a) noexcept;
+bool is_bool(Value a);
 // an expression with the same TRUTH as a (zero exactly when a is), not the
 // same value: BOOL(x) is x, ISZERO(ISZERO(x)) is x (python
 // arithmetic.simplify_bool) - for conditions only (if, while, require)

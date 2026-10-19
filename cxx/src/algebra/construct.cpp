@@ -511,8 +511,9 @@ Value mask_concrete(i64 s, i64 o, i64 h, Value x, int depth) {
         s += o;
         o = 0;
     }
-    if (s <= 0 || h >= 256 || h <= -256) return small(0);
+    if (s <= 0) return small(0);
     if (!wide) {
+        if (h >= 256 || h <= -256) return small(0);
         if (o >= 256) return small(0);
         if (o + s > 256) s = 256 - o;
         if (o + h < 0) {  // bits shifted out at the bottom
@@ -947,7 +948,7 @@ Value bor(Value a, Value b) {
 
 Value bxor(Value a, Value b) {
     if (is_const(a) && is_const(b)) return wv(pan::bxor(cw(a), cw(b)));
-    if (a == b) return small(0);
+    if (a == b && !a.has_flags(F_VOLATILE)) return small(0);
     if (is_const(a) && cw(a).is_zero()) return b;
     if (is_const(b) && cw(b).is_zero()) return a;
     if (is_const(a) && cw(a) == w_ones()) return bnot(b);
@@ -968,7 +969,7 @@ Value clz(Value a) {
 
 // ---------------------------------------------------------------- truth values
 
-bool is_bool(Value a) noexcept {
+bool is_bool(Value a) {
     if (a.is_bool()) return true;
     if (a.is_int()) return a.is_small() && (a.small_val() == 0 || a.small_val() == 1);
     if (a.is_leaf()) return info(a.op()).sort == Sort::Bool;

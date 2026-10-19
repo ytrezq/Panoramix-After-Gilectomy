@@ -160,7 +160,7 @@
 0x1c4   for              2+      bool print_only
 0x1c5   merged_if        3       line control print_only
 0x1c6   loop_path        2       line print_only
-0x1c7   require          1       line
+0x1c7   require          1-2     line
 0x1c8   assert           1       line
 0x1c9   safemath         1+      word
 0x1ca   break            1       line control print_only
