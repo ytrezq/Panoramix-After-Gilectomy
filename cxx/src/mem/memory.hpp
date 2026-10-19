@@ -81,6 +81,11 @@ std::optional<u64> width_u64(Value b);
 // where they fall: slice); else SIZED(n, v).
 Value sized(Value n, Value v);
 inline Value sized(i64 n, Value v) { return sized(Value::small(n), v); }
+// b (bytes) as n bytes without a SIZED of bytes of another width (python
+// resize_bytes): b when it is n bytes, zeroes then b, or b's last n bytes
+// cut where they fall; nullopt when they can't be cut there (b's width or n
+// not known ints, a cut that isn't decided)
+std::optional<Value> resize_bytes(Value b, Value n);
 
 // new_elem, worth what old_elem is (a rewrite of a byte element), as wide
 // as old_elem is (python keep_width): new_elem when it is bytes (it says its
@@ -97,6 +102,10 @@ Value keep_width(Value old_elem, Value new_elem);
 // whole number of bytes in (0, 32] (a bytes expression: nullopt too).
 // Display only: never a width for the IR.
 std::optional<u32> implicit_width(Value word) noexcept;
+// An element as python printed it (prettify's fix_widths, inverted): a
+// SIZED(n, v) of a word whose implicit_width is n is v; anything else as it
+// is. Display only.
+Value bare_element(Value elem) noexcept;
 
 // The concatenation of parts as one bytes expression (python data_elements
 // and simplify's data rules): nested DATA flattened, parts of no bytes
@@ -118,6 +127,13 @@ Value concat(std::span<const Value> parts);
 // BYTES node: its int. nullopt when its width isn't a known int <= 32 or a
 // part can't be a word (ARR, SALL...).
 std::optional<Value> as_word(Value b);
+
+// A mask of whole bytes of a memory read as the read of those bytes (python
+// simplify's mask of mem, apply_mask_to_range): MASK_SHL(8k, 8j, shl,
+// MEM(RANGE(p, n))) (n a known int <= 32, j + k <= n) is MEM(RANGE(p + n -
+// j - k, k)) as a word, moved left by 8j + shl (alg::mask); nullopt when the
+// word isn't that.
+std::optional<Value> narrow_mem_mask(Value word);
 
 // The bytes [lo, hi) of the bytes expression b (0 <= lo <= hi <= width:
 // the caller's; lo, hi ints or expressions) as a bytes expression of hi - lo
@@ -206,7 +222,9 @@ public:
     const alg::Facts* facts() const noexcept { return facts_; }
 
     // a SETMEM's write; range NIL: anywhere (everything forgotten, fresh
-    // off); value NIL: unknown bytes there
+    // off); value NIL: unknown bytes there. A copy of memory (a MEM value,
+    // a DATA's MEM parts) is first read from what's known (as the line
+    // reads it, before it writes).
     void write(Value range, Value value);
     void write(const MemWrite& w) { write(w.range, w.value); }
     // nothing known (fresh off)

@@ -28,6 +28,7 @@
 #include "algebra/masks.hpp"
 #include "core/budget.hpp"
 #include "core/context.hpp"
+#include "core/contract.hpp"
 #include "core/errors.hpp"
 #include "core/intops.hpp"
 #include "core/memo.hpp"
@@ -258,16 +259,15 @@ XInt xi_value(Value v) noexcept {
     return negative ? xneg(x) : x;
 }
 
-XInt xi_evmint(const EvmInt& e) {
-    if (e.fits_i64()) return xi(e.to_i64());
-    if (e.bit_length() >= kSatBits) return xi_inf(e.sign());
-    mpz_class z = e.to_mpz();
-    const bool negative = mpz_sgn(z.get_mpz_t()) < 0;
-    mpz_abs(z.get_mpz_t(), z.get_mpz_t());
-    XInt x{};
-    const usize n = mpz_size(z.get_mpz_t());
-    for (usize i = 0; i < n && i < kSatLimbs; ++i) x.l[i] = mpz_getlimbn(z.get_mpz_t(), mp_size_t(i));
-    return negative ? xneg(x) : x;
+// an int Value as lot 2's linear forms read it: its word in [-2^255, 2^255)
+XInt xi_signed(Value v) noexcept {
+    if (v.is_small()) return xi(v.small_val());
+    if (v.is_bool()) return xi(v.is_true() ? 1 : 0);
+    XInt x = xi_word(word_of(v));
+    if (x.l[3] >> 63) {
+        for (u32 i = 4; i < kLimbs; ++i) x.l[i] = ~u64(0);
+    }
+    return x;
 }
 
 // the public side: infinities reported as +-2^600
@@ -410,7 +410,11 @@ struct RangeState final : ModuleState {
           new_index(cx().budget.resource()),
           new_values(cx().budget.resource()),
           new_cyclic(cx().budget.resource()),
-          new_small(cx().budget.resource()) {}
+          new_small(cx().budget.resource()) {
+        // the loader's decision about the contract (python
+        // variants.FREE_MEMORY_POINTER); set_free_memory_pointer changes it
+        if (cx().shared) fmp = cx().shared->free_memory_pointer;
+    }
 
     void clear_caches() override {
         word_memo.clear();
@@ -506,7 +510,7 @@ struct LinItem {
 
 struct Lin {
     XInt c = kZero;
-    SmallVec<LinItem, 12> items;
+    SmallVec<LinItem, 6> items;
     bool overflow = false;  // a coefficient past 2^320: the reading says nothing
     u32 masks = 0;          // masks read (the readings differ only then)
 
@@ -594,13 +598,9 @@ struct RangeQuery::Impl {
     static constexpr u32 kFactsBudget = 4096;
 
     explicit Impl(const Facts* facts) : st(rst()) {
-        if (!facts) return;
-        facts->each_bound([&](Value x, Value lo, Value hi) { add_bound(x, XRange{xi_value(lo), xi_value(hi)}); });
-        facts->each_newest_first([&](const Fact& f) {
-            if (f.kind == FactKind::VarBits && f.b.is_small() && f.b.small_val() >= 0)
-                add_bound(f.a, xr_bits(u32(std::min<i64>(256, f.b.small_val()))));
-            return true;
-        });
+        // (the conditions' bounds and the variables' bits)
+        if (facts && facts->any_bound())
+            facts->each_bound([&](Value x, Value lo, Value hi) { add_bound(x, XRange{xi_value(lo), xi_value(hi)}); });
     }
     ~Impl() { delete plain; }
     Impl(const Impl&) = delete;
@@ -745,7 +745,7 @@ struct RangeQuery::Impl {
     // ---- python's integers ----
 
     XRange intv(Value v, Top top) {
-        if (v.is_int()) return xr_point(xi_value(v));
+        if (v.is_int()) return xr_point(xi_signed(v));
         if (v.is_bool()) return xr_point(xi(v.is_true() ? 1 : 0));
         if (!is_sum(v) && !v.is(Op::MASK_SHL, 4)) return word(v, top);
         Memo<Key2, XRange>& memo = with_facts() ? int_local : st.int_memo;
@@ -808,12 +808,24 @@ struct RangeQuery::Impl {
         check_stack();
         if (acc.overflow) return;
         if (v.is_int() || v.is_bool()) {
+            // (python's integers: lot 2's, a word in [-2^255, 2^255); a word
+            // reading takes any representative)
             XInt t;
-            if (!mul_exact(t, mult, xi_value(v)))
+            if (!mul_exact(t, mult, md == Md::Int ? xi_signed(v) : xi_value(v)))
                 acc.overflow = true;
             else
                 acc.add_c(t);
             return;
+        }
+        if (v.is_name() && st.is_var(v) && !st.cyclic.contains(v) && !visiting(st, v)) {
+            // a variable set to one value is that value (python's
+            // cleanup_vars replaces it); its integer only when that's a word
+            std::span<const Value> vals = st.values_of(v);
+            if (vals.size() == 1 && (md == Md::Word || xr_is_word(intv(vals[0], top)))) {
+                Visiting guard(st, v);
+                expand(vals[0], mult, rd, md, top, acc);
+                return;
+            }
         }
         if (v.is_expr()) {
             switch (v.op()) {
@@ -826,7 +838,7 @@ struct RangeQuery::Impl {
                 case Op::MUL:
                     if (v.size() >= 2 && v[0].is_int()) {
                         XInt k;
-                        if (!mul_exact(k, mult, xi_value(v[0]))) {
+                        if (!mul_exact(k, mult, md == Md::Int ? xi_signed(v[0]) : xi_value(v[0]))) {
                             acc.overflow = true;
                             return;
                         }
@@ -1206,23 +1218,67 @@ XRange RangeQuery::Impl::structural(Value v, Top top) {
 RangeQuery::RangeQuery(const Facts* facts) : impl_(new Impl(facts)) {}
 RangeQuery::~RangeQuery() { delete impl_; }
 
-Range RangeQuery::range(Value v, Top top) { return to_range(impl_->word(v, top)); }
-Range RangeQuery::signed_range(Value v, Top top) { return to_range(xr_signed(impl_->word(v, top))); }
-Range RangeQuery::word_diff(Value a, Value b, Top top) { return to_range(impl_->diff(a, b, top)); }
-SignRange RangeQuery::diff_sign(Value a, Value b, Top top) { return sign_of(impl_->diff(a, b, top)); }
-Range RangeQuery::int_range(Value v, Top top) { return to_range(impl_->intv(v, top)); }
-Range RangeQuery::int_range(const Linear& l, Top top) { return to_range(impl_->int_linear(l, top)); }
-SignRange RangeQuery::int_diff_sign(Value a, Value b, Top top) { return sign_of(impl_->int_diff(a, b, top)); }
+namespace {
+
+// an expression too deep for the stack (DepthLimit, never a Timeout): what
+// holds without looking - the ranges are a refinement, never needed
+template <class F, class R>
+R guarded(F&& f, R fallback) {
+    try {
+        return f();
+    } catch (const DepthLimit&) {
+        return fallback;
+    }
+}
+
+const XRange kAnyDiff = XRange{xneg(kWordMax), kWordMax};
+const XRange kAnySigned = XRange{xneg(kTwo255), add_hi(kTwo255, xi(-1))};
+
+}  // namespace
+
+Range RangeQuery::range(Value v, Top top) {
+    return to_range(guarded([&] { return impl_->word(v, top); }, xr_word()));
+}
+Range RangeQuery::signed_range(Value v, Top top) {
+    return to_range(guarded([&] { return xr_signed(impl_->word(v, top)); }, kAnySigned));
+}
+Range RangeQuery::word_diff(Value a, Value b, Top top) {
+    return to_range(guarded([&] { return impl_->diff(a, b, top); }, kAnyDiff));
+}
+SignRange RangeQuery::diff_sign(Value a, Value b, Top top) {
+    return sign_of(guarded([&] { return impl_->diff(a, b, top); }, kAnyDiff));
+}
+Range RangeQuery::int_range(Value v, Top top) {
+    return to_range(guarded([&] { return impl_->intv(v, top); }, xr_all()));
+}
+Range RangeQuery::int_range(const Linear& l, Top top) {
+    return to_range(guarded([&] { return impl_->int_linear(l, top); }, xr_all()));
+}
+SignRange RangeQuery::int_diff_sign(Value a, Value b, Top top) {
+    return sign_of(guarded([&] { return impl_->int_diff(a, b, top); }, xr_all()));
+}
 u32 RangeQuery::range_bits(Value v, Top top) {
-    const XRange r = impl_->word(v, top);
+    const XRange r = guarded([&] { return impl_->word(v, top); }, xr_word());
     return std::min<u32>(256, bitlen(r.hi));
 }
-Tri RangeQuery::lt(Value a, Value b, Top top) { return impl_->lt(a, b, top); }
-Tri RangeQuery::le(Value a, Value b, Top top) { return impl_->le(a, b, top); }
-Tri RangeQuery::eq(Value a, Value b, Top top) { return impl_->eq(a, b, top); }
-Tri RangeQuery::slt(Value a, Value b, Top top) { return impl_->slt(a, b, top, true); }
-Tri RangeQuery::sle(Value a, Value b, Top top) { return impl_->slt(a, b, top, false); }
-Tri RangeQuery::nonzero(Value v, Top top) { return impl_->nonzero(v, top); }
+Tri RangeQuery::lt(Value a, Value b, Top top) {
+    return guarded([&] { return impl_->lt(a, b, top); }, Tri::None);
+}
+Tri RangeQuery::le(Value a, Value b, Top top) {
+    return guarded([&] { return impl_->le(a, b, top); }, Tri::None);
+}
+Tri RangeQuery::eq(Value a, Value b, Top top) {
+    return guarded([&] { return impl_->eq(a, b, top); }, Tri::None);
+}
+Tri RangeQuery::slt(Value a, Value b, Top top) {
+    return guarded([&] { return impl_->slt(a, b, top, true); }, Tri::None);
+}
+Tri RangeQuery::sle(Value a, Value b, Top top) {
+    return guarded([&] { return impl_->slt(a, b, top, false); }, Tri::None);
+}
+Tri RangeQuery::nonzero(Value v, Top top) {
+    return guarded([&] { return impl_->nonzero(v, top); }, Tri::None);
+}
 
 Range Range::word() { return Range{EvmInt(0), word_max()}; }
 

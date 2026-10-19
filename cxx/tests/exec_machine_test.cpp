@@ -566,6 +566,12 @@ TEST_CASE("exec: creations, precompiles") {
     REQUIRE(host.effects.size() == 1);
     CHECK(std::get<SimpleHost::Call>(host.effects[0]).kind == CallKind::StaticCall);
     CHECK(std::get<SimpleHost::Call>(host.effects[0]).target == W(2));
+    // nothing returned (ecrecover of a wrong signature): its name 0
+    host.call_answer = CallResult{true, {}};
+    o = run_trace("{(precompiled 1 prec_1_0 1 (sized 128 0)) (return (sized 32 (add prec_1_0 (returndatasize 1))))}",
+                  host);
+    CHECK(o.status == Status::Return);
+    CHECK(Word256::from_be(o.data) == W(0));
 }
 
 TEST_CASE("exec: internal functions") {

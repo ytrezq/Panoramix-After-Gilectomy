@@ -119,19 +119,23 @@ u32 max_value_bits(Value v, const Facts* facts) { return range_bits(v, Top::Word
 const Facts::Cell* Facts::cons(const Fact& f, const Cell* next, const Cell* same) {
     const CondBound* b = nullptr;
     u32 nb = 0;
-    if (f.kind == FactKind::Cond) {
-        if (same && same->f.kind == FactKind::Cond && same->f.a == f.a) {
-            b = same->b;
-            nb = same->nb;
-        } else {
-            CondBounds cb = cond_bounds(f.a);
-            if (!cb.empty()) {
-                void* p = cx().arena.alloc_raw(cb.size() * sizeof(CondBound));
-                CondBound* arr = static_cast<CondBound*>(p);
-                for (usize i = 0; i < cb.size(); ++i) new (arr + i) CondBound(cb[i]);
-                b = arr;
-                nb = u32(cb.size());
-            }
+    if (same && same->f.kind == f.kind && same->f.a == f.a && same->f.b == f.b) {
+        b = same->b;
+        nb = same->nb;
+    } else if (f.kind == FactKind::Cond || f.kind == FactKind::VarBits) {
+        // a condition's bounds; a variable's bits: [0, 2^bits - 1]
+        CondBounds cb;
+        if (f.kind == FactKind::Cond) {
+            cb = cond_bounds(f.a);
+        } else if (f.b.is_small() && f.b.small_val() >= 0 && f.b.small_val() < 256) {
+            cb.push_back(CondBound{f.a, Value::small(0), (EvmInt::pow2(u64(f.b.small_val())) - EvmInt(1)).value()});
+        }
+        if (!cb.empty()) {
+            void* p = cx().arena.alloc_raw(cb.size() * sizeof(CondBound));
+            CondBound* arr = static_cast<CondBound*>(p);
+            for (usize i = 0; i < cb.size(); ++i) new (arr + i) CondBound(cb[i]);
+            b = arr;
+            nb = u32(cb.size());
         }
     }
     void* p = cx().arena.alloc_raw(sizeof(Cell));
@@ -215,6 +219,14 @@ bool Facts::operator==(const Facts& o) const noexcept {
 }
 
 Tri Facts::match(Value exp) const {
+    try {
+        return match_all(exp);
+    } catch (const DepthLimit&) {
+        return Tri::None;  // (too deep for the stack: undecided)
+    }
+}
+
+Tri Facts::match_all(Value exp) const {
     if (exp.is_int()) return tri(!word_of(exp).is_zero());
     if (exp.is_bool()) return tri(exp.is_true());
     Value iz_exp;

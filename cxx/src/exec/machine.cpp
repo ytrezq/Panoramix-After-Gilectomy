@@ -1083,7 +1083,7 @@ struct Machine::Impl {
         evb(line[3], l.b);
         CallResult r = host->call(CallKind::StaticCall, address, Word256{}, l.b);
         u8 first[32] = {};
-        std::memcpy(first, r.output.data(), std::min<usize>(32, r.output.size()));
+        if (!r.output.empty()) std::memcpy(first, r.output.data(), std::min<usize>(32, r.output.size()));
         Record& rec = record_to_write(id);
         rec.written = true;
         rec.success = r.success;

@@ -110,7 +110,8 @@ public:
     // var_bits): the intersection of their bounds; nullopt when none
     std::optional<Range> bounds(Value x) const;
     // f(Value x, Value lo, Value hi) for every bound a condition puts on an
-    // expression (compare.hpp cond_bounds; lo, hi: int Values), newest first
+    // expression (compare.hpp cond_bounds) or var_bits on a variable ([0,
+    // 2^bits - 1]); lo, hi: int Values; newest first
     template <class F>
     void each_bound(F&& f) const {
         if (!nbounds_) return;
@@ -181,6 +182,7 @@ private:
         const CondBound* b;
         u32 nb;
     };
+    Tri match_all(Value cond) const;
     // a cell for f; its bounds computed, or taken from a cell of the same
     // fact (a rebuild)
     static const Cell* cons(const Fact& f, const Cell* next, const Cell* same = nullptr);

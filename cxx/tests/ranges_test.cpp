@@ -44,12 +44,7 @@ struct Fixture {
     }
 };
 
-Value big(const char* hex) {
-    mpz_class z(hex, 16);
-    return mk_int_mpz(z.get_mpz_t());
-}
 Value pow2(u32 k) { return EvmInt::pow2(k).value(); }
-Value pow2m1(u32 k) { return (EvmInt::pow2(k) - EvmInt(1)).value(); }
 EvmInt I(const Word256& w) { return w.to_int(); }
 std::string hexw(const Word256& w) {
     static const char* d = "0123456789abcdef";
@@ -655,6 +650,14 @@ TEST_CASE("ranges: max, min, cond_bounds, apply_constraint") {
     CHECK(A::reduce_minmax(A::max({cds, A::add(cds, mk_int(1)), mk_int(3)})) == A::max({A::add(cds, mk_int(1)), mk_int(3)}));
     CHECK(A::reduce_minmax(A::max({V("(mask_shl 8 0 0 caller)"), mk_int(256)})) == mk_int(256));
     CHECK(A::reduce_minmax(A::min({V("(mask_shl 8 0 0 caller)"), mk_int(256)})) == V("(mask_shl 8 0 0 caller)"));
+    // a comparison with a MAX / MIN by its operands
+    const Value y = V("(calldataload 36)");
+    CHECK(A::le(x, A::max({x, y})) == Tri::True);
+    CHECK(A::lt(A::max({x, y}), x) == Tri::False);
+    CHECK(A::le(A::min({x, y}), y) == Tri::True);
+    CHECK(A::lt(x, A::min({x, y})) == Tri::False);
+    CHECK(A::lt(A::max({V("(mask_shl 8 0 0 caller)"), V("(mask_shl 16 0 0 caller)")}), pow2(16)) == Tri::True);
+    CHECK(A::le(x, A::max({y, A::add(cds, mk_int(1))})) == Tri::None);
     // cond_bounds
     A::CondBounds b = A::cond_bounds(A::cmp(Op::LT, x, mk_int(10)));
     REQUIRE(b.size() == 1);
@@ -718,7 +721,8 @@ TEST_CASE("ranges: path facts") {
     CHECK(!m.known_zeroes(mk_int(0), mk_int(96)));
     m = m.write_memory(mk_int(80), mk_int(32), x);
     CHECK(m.read_memory(mk_int(80)) == x);
-    CHECK(m.read_memory(mk_int(64)) == mk_int(0));  // the 0x80 was in the low bytes, overwritten
+    // the 0x80 was in the low bytes, overwritten by x's high ones
+    CHECK(m.read_memory(mk_int(64)) == A::mask(128, 128, -128, x));
     // a write somewhere unknown: memory facts dropped
     A::Facts u = m.write_memory(x, mk_int(32), mk_int(1));
     CHECK(u.read_memory(mk_int(80)).nil());
@@ -751,10 +755,17 @@ TEST_CASE("ranges: hostile shapes stay bounded") {
     A::Range r = A::range(e);
     CHECK(r.is_word());
     // deep nesting
+    // (past what the stack holds: the answers that hold without looking)
     Value d = V("calldatasize");
     for (int i = 0; i < 3000; ++i) d = A::mask(251, 5, 0, A::add(d, mk_int(31)));
     CHECK(A::range(d).is_word());
     CHECK(A::lt(d, A::add(d, mk_int(1))) != Tri::False);
+    CHECK(A::eval_bool(A::cmp(Op::LT, d, mk_int(5))) != Tri::True);
+    Value e2 = V("calldatasize");
+    for (int i = 0; i < 200; ++i) e2 = A::mask(251, 5, 0, A::add(e2, mk_int(31)));
+    A::Range r2 = A::range(e2);  // (each level adds 31 at most, nothing wraps)
+    CHECK(r2.hi <= EvmInt::pow2(64) + EvmInt(31 * 201));
+    CHECK(A::le(V("calldatasize"), e2) == Tri::True);
     // a big constant times a word: the integer saturates, the word is fine
     Value p = A::mul(pow2(255), V("(calldataload 4)"));
     CHECK(A::range(p).is_word());

@@ -85,7 +85,7 @@ TEST_CASE("vm: straight line") {
     auto r = run_at(c);
     INFO(dump_trace(r.trace));
     CHECK(r.complete);
-    CHECK(r.trace == V("{(setmem (range 0 32) 3) (return (mem (range 0 32)))}"));
+    CHECK(r.trace == V("{(setmem (range 0 32) (sized 32 3)) (return (mem (range 0 32)))}"));
 }
 
 TEST_CASE("vm: if") {
@@ -170,12 +170,20 @@ TEST_CASE("vm: discovery") {
 
 TEST_CASE("vm: merge of branches") {
     Fixture fx;
-    // v = calldataload(0) ? 2 : 1; mem[0] = v; return mem[0..32]
-    Code c("600035600b576001600e565b60025b60005260206000f3");
+    // v = calldataload(0) ? 2 : 1; mem[0] = v; then a jump to the return
+    // (python merges only where the block doesn't just end the execution)
+    Code c("600035600b576001600e565b60025b6000526015565b60206000f3");
     auto r = run_at(c);
     INFO(dump_trace(r.trace));
     CHECK(r.trace == V("{(if (calldataload 0) {(setvar tmp1 2)} {(setvar tmp1 1)})"
                        " (setmem (range 0 32) (sized 32 tmp1)) (return (mem (range 0 32)))}"));
+
+    // the block at the meeting point only returns: no merge
+    Code d("600035600b576001600e565b60025b60005260206000f3");
+    auto rd = run_at(d);
+    INFO(dump_trace(rd.trace));
+    CHECK(rd.trace == V("{(if (calldataload 0) {(setmem (range 0 32) (sized 32 2)) (return (mem (range 0 32)))}"
+                        " {(setmem (range 0 32) (sized 32 1)) (return (mem (range 0 32)))})}"));
 }
 
 TEST_CASE("vm: snapshot of storage reads") {
@@ -204,7 +212,7 @@ TEST_CASE("vm: stack underflow, invalid jumps, unknown opcode") {
     Fixture fx;
     CHECK(run_at(Code("01")).trace == V("{(invalid 5 0)}"));
     CHECK(run_at(Code("600556")).trace == V("{(invalid 4 5)}"));            // past the code
-    CHECK(run_at(Code("6003565b00")).trace == V("{(invalid 3 3)}"));        // not a jumpdest
+    CHECK(run_at(Code("6004565b00")).trace == V("{(invalid 3 4)}"));        // not a jumpdest
     CHECK(run_at(Code("0c")).trace == V("{(invalid 1 0)}"));
     CHECK(run_at(Code("6000")).trace == V("{(stop)}"));                     // falls off the end
     CHECK(run_at(Code("61ff")).trace == V("{(stop)}"));                     // a cut push

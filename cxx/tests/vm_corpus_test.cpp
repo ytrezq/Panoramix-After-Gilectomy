@@ -23,6 +23,7 @@
 #include "core/contract.hpp"
 #include "core/errors.hpp"
 #include "core/platform.hpp"
+#include "core/smallvec.hpp"
 #include "evm/decoder.hpp"
 #include "hex.hpp"
 #include "vm/vm.hpp"
@@ -66,6 +67,7 @@ TEST_CASE("vm: corpus (PANORAMIX_VM_CORPUS)") {
     const char* skp = std::getenv("PANORAMIX_VM_SKIP");
     const unsigned long limit = lim ? std::strtoul(lim, nullptr, 10) : 0;
     const unsigned long skip = skp ? std::strtoul(skp, nullptr, 10) : 0;
+    const bool per_function = std::getenv("PANORAMIX_VM_VERBOSE") != nullptr;
     std::ifstream in(list);
     std::string path;
     std::vector<std::string> paths;
@@ -115,7 +117,13 @@ TEST_CASE("vm: corpus (PANORAMIX_VM_CORPUS)") {
                         vm::VmOptions o;
                         o.known_internals = &known;
                         try {
+                            const i64 f0 = platform::monotonic_ns();
                             auto r = vm::run_function(shared, fn, o);
+                            const i64 fns = platform::monotonic_ns() - f0;
+                            if (per_function && (fns > 1000000000 || !r.complete))
+                                std::printf("  fn kind %d sel %08x pc %u: nodes %u complete %d %lld ms\n", int(fn.kind),
+                                            fn.selector, fn.entry_pc, r.nodes, int(r.complete),
+                                            (long long)(fns / 1000000));
                             ++w.functions;
                             w.nodes += r.nodes;
                             w.incomplete += !r.complete;

@@ -44,6 +44,17 @@ std::optional<Cmp> as_cmp(Value cond, bool holds) {
     }
 }
 
+// an expression too deep for the stack (DepthLimit, never a Timeout): what
+// holds without deciding
+template <class F, class R>
+R guarded(F&& f, R fallback) {
+    try {
+        return f();
+    } catch (const DepthLimit&) {
+        return fallback;
+    }
+}
+
 bool is_cmp_op(Op op) noexcept {
     switch (op) {
         case Op::LT: case Op::GT: case Op::SLT: case Op::SGT: case Op::EQ:
@@ -62,14 +73,53 @@ public:
 
     RangeQuery& q() { return q_; }
 
-    // a < b / a <= b by the ranges, then by the facts' comparisons
-    Tri cmp(const Cmp& c) {
+    // a < b / a <= b by the ranges, MAX / MIN taken apart, then by the
+    // facts' comparisons
+    Tri cmp(const Cmp& c, u32 depth = 0) {
         Tri t = c.sign ? (c.strict ? q_.slt(c.a, c.b, top_) : q_.sle(c.a, c.b, top_))
                        : (c.strict ? q_.lt(c.a, c.b, top_) : q_.le(c.a, c.b, top_));
-        if (t != Tri::None || !facts_) return t;
+        if (t != Tri::None) return t;
+        if (!c.sign && depth < 3) {
+            t = minmax(c, depth + 1);
+            if (t != Tri::None) return t;
+        }
+        if (!facts_) return Tri::None;
         if (chain(c)) return Tri::True;
         // its negation: b <= a (a < b), b < a (a <= b)
         if (chain(Cmp{c.b, c.a, !c.strict, c.sign})) return Tri::False;
+        return Tri::None;
+    }
+
+    // an unsigned comparison with a MAX or a MIN, by its operands (python
+    // lt_op: below the largest is below all of them...): exact for words
+    Tri minmax(const Cmp& c, u32 depth) {
+        check_stack();
+        // any / all of the operands' comparisons
+        auto any_of = [&](Value m, bool left) {
+            bool all_false = true;
+            for (Value e : m.args()) {
+                Tri t = cmp(left ? Cmp{e, c.b, c.strict, false} : Cmp{c.a, e, c.strict, false}, depth);
+                if (t == Tri::True) return Tri::True;
+                if (t != Tri::False) all_false = false;
+            }
+            return all_false ? Tri::False : Tri::None;
+        };
+        auto all_of = [&](Value m, bool left) {
+            bool all_true = true;
+            for (Value e : m.args()) {
+                Tri t = cmp(left ? Cmp{e, c.b, c.strict, false} : Cmp{c.a, e, c.strict, false}, depth);
+                if (t == Tri::False) return Tri::False;
+                if (t != Tri::True) all_true = false;
+            }
+            return all_true ? Tri::True : Tri::None;
+        };
+        Tri t = Tri::None;
+        // a <(=) MAX(b...): one of them; MIN(a...) <(=) b: one of them
+        if (c.b.is(Op::MAX) && (t = any_of(c.b, false)) != Tri::None) return t;
+        if (c.a.is(Op::MIN) && (t = any_of(c.a, true)) != Tri::None) return t;
+        // MAX(a...) <(=) b: all of them; a <(=) MIN(b...): all of them
+        if (c.a.is(Op::MAX) && (t = all_of(c.a, true)) != Tri::None) return t;
+        if (c.b.is(Op::MIN) && (t = all_of(c.b, false)) != Tri::None) return t;
         return Tri::None;
     }
 
@@ -303,26 +353,27 @@ Tri int_cmp(Value a, Value b, bool strict, Top top, RangeQuery& q) {
 
 Tri int_lt(Value a, Value b, Top top, const Facts* facts) {
     RangeQuery q(facts);
-    return int_cmp(a, b, true, top, q);
+    return guarded([&] { return int_cmp(a, b, true, top, q); }, Tri::None);
 }
 
 Tri int_le(Value a, Value b, Top top, const Facts* facts) {
     RangeQuery q(facts);
-    return int_cmp(a, b, false, top, q);
+    return guarded([&] { return int_cmp(a, b, false, top, q); }, Tri::None);
 }
 
 // ---- words -------------------------------------------------------------------------
 
-Tri lt(Value a, Value b, Top top, const Facts* facts) { return Decider(facts, top).decide_op(Op::LT, a, b); }
-Tri le(Value a, Value b, Top top, const Facts* facts) { return Decider(facts, top).decide_op(Op::LE, a, b); }
-Tri eq(Value a, Value b, Top top, const Facts* facts) { return Decider(facts, top).decide_op(Op::EQ, a, b); }
-Tri slt(Value a, Value b, Top top, const Facts* facts) { return Decider(facts, top).decide_op(Op::SLT, a, b); }
-Tri sle(Value a, Value b, Top top, const Facts* facts) { return Decider(facts, top).decide_op(Op::SLE, a, b); }
-
 Tri decide_cmp(Op op, Value a, Value b, Top top, const Facts* facts) {
     if (!is_cmp_op(op)) return Tri::None;
-    return Decider(facts, top).decide_op(op, a, b);
+    Decider d(facts, top);
+    return guarded([&] { return d.decide_op(op, a, b); }, Tri::None);
 }
+
+Tri lt(Value a, Value b, Top top, const Facts* facts) { return decide_cmp(Op::LT, a, b, top, facts); }
+Tri le(Value a, Value b, Top top, const Facts* facts) { return decide_cmp(Op::LE, a, b, top, facts); }
+Tri eq(Value a, Value b, Top top, const Facts* facts) { return decide_cmp(Op::EQ, a, b, top, facts); }
+Tri slt(Value a, Value b, Top top, const Facts* facts) { return decide_cmp(Op::SLT, a, b, top, facts); }
+Tri sle(Value a, Value b, Top top, const Facts* facts) { return decide_cmp(Op::SLE, a, b, top, facts); }
 
 // ---- max / min ---------------------------------------------------------------------
 
@@ -344,17 +395,18 @@ std::optional<Value> pick(Value a, Value b, bool max, Decider& d) {
 std::optional<Value> max_of(Value a, Value b, Top top, const Facts* facts) {
     if (a == b) return a;
     Decider d(facts, top);
-    return pick(a, b, true, d);
+    return guarded([&] { return pick(a, b, true, d); }, std::optional<Value>());
 }
 
 std::optional<Value> min_of(Value a, Value b, Top top, const Facts* facts) {
     if (a == b) return a;
     Decider d(facts, top);
-    return pick(a, b, false, d);
+    return guarded([&] { return pick(a, b, false, d); }, std::optional<Value>());
 }
 
-Value reduce_minmax(Value v, Top top, const Facts* facts) {
-    if (!(v.is(Op::MAX) || v.is(Op::MIN)) || v.size() < 2) return v;
+namespace {
+
+Value reduce_minmax_(Value v, Top top, const Facts* facts) {
     const bool is_max = v.is(Op::MAX);
     Decider d(facts, top);
     // an operand that can't be the result: one at most (least) another
@@ -383,9 +435,19 @@ Value reduce_minmax(Value v, Top top, const Facts* facts) {
     return is_max ? max(kept.span()) : min(kept.span());
 }
 
+}  // namespace
+
+Value reduce_minmax(Value v, Top top, const Facts* facts) {
+    if (!(v.is(Op::MAX) || v.is(Op::MIN)) || v.size() < 2) return v;
+    return guarded([&] { return reduce_minmax_(v, top, facts); }, v);
+}
+
 // ---- truth values -------------------------------------------------------------------
 
-Tri eval_bool(Value cond, const Facts* facts) { return Decider(facts, Top::Word).eval(cond); }
+Tri eval_bool(Value cond, const Facts* facts) {
+    Decider d(facts, Top::Word);
+    return guarded([&] { return d.eval(cond); }, Tri::None);
+}
 
 Value is_zero(Value cond, const Facts* facts) {
     Tri t = eval_bool(cond, facts);
@@ -396,7 +458,7 @@ Value is_zero(Value cond, const Facts* facts) {
 
 Value decide(Value cond, const Facts* facts) {
     Decider d(facts, Top::Word);
-    return d.decide(cond, true);
+    return guarded([&] { return d.decide(cond, true); }, cond);
 }
 
 // ---- conditions as bounds ------------------------------------------------------------
@@ -499,7 +561,11 @@ void bounds_into(Value cond, bool neg, CondBounds& res, u32 depth) {
 
 CondBounds cond_bounds(Value cond) {
     CondBounds res;
-    bounds_into(cond, false, res, 0);
+    try {
+        bounds_into(cond, false, res, 0);
+    } catch (const DepthLimit&) {
+        // (each bound found holds on its own)
+    }
     return res;
 }
 
@@ -543,7 +609,7 @@ Value apply_constraint(Value exp, Value cond) {
     }
     Facts f = Facts().with_cond(cond);
     Memo<Value, Value> memo;
-    return constrain(exp, f, memo);
+    return guarded([&] { return constrain(exp, f, memo); }, exp);
 }
 
 }  // namespace pan::alg
