@@ -195,7 +195,7 @@ void Vm::set_label(NodeId self_id, NodeId dest_id, std::span<const LoopVar> vars
     // them (see continue_loops).
     Node& s = nodes_[self_id];
     const Node& d = nodes_[dest_id];
-    PathFacts known = d.known.forget(Forget::Volatile).without_memory();
+    Facts known = d.known.forget(Forget::Volatile).without_memory();
     s.assumed_memory.clear();
     SmallVec<Fact, 32> v;
     d.known.to_vector(v);
@@ -229,7 +229,7 @@ bool Vm::continue_loops() {
                 d.known.to_vector(v);
                 for (const Fact& f : v)
                     if (std::find(broken.begin(), broken.end(), f) == broken.end()) keep.push_back(f);
-                d.known = PathFacts::from(keep.span());
+                d.known = Facts::from(keep.span());
                 SmallVec<Fact, 2> still;
                 for (const Fact& f : d.assumed_memory)
                     if (std::find(broken.begin(), broken.end(), f) == broken.end()) still.push_back(f);
@@ -507,7 +507,7 @@ std::optional<bool> Vm::merge_at(NodeId p, Value jd, bool loop_exit) {
         for (usize k = 1; k < hits.size() && all; ++k) all = nodes_[hits[k]].known.contains(f);
         if (all) keep.push_back(f);
     }
-    PathFacts known = PathFacts::from(keep.span());
+    Facts known = Facts::from(keep.span());
     for (NodeId h : hits) {
         SmallVec<Fact, 32> v;
         nodes_[h].known.to_vector(v);

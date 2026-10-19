@@ -265,8 +265,11 @@ struct Machine::Impl {
         touch();
     }
 
+    // a call's id: 1, 2... per function (the records are a vector by id)
+    static constexpr i64 kMaxCallId = i64{1} << 16;
     u32 call_id(Value v) {
-        if (!v.is_small() || v.small_val() < 1 || v.small_val() > (1 << 24)) bug("not a call id: " + show(v));
+        if (!v.is_small() || v.small_val() < 1) bug("not a call id: " + show(v));
+        if (v.small_val() > kMaxCallId) exhausted("a call id past " + std::to_string(kMaxCallId));
         return u32(v.small_val());
     }
     Record& record_to_write(u32 id) {
@@ -365,14 +368,17 @@ struct Machine::Impl {
     }
 
     // solidity's bytes/string at a slot: short (even: its length (s & 0xff) / 2,
-    // its bytes the high ones of s), long (odd: length (s - 1) / 2, its words
-    // from keccak(slot) on)
+    // its bytes the high ones of s - zeroes past the word when the length is
+    // more than an encoding of solc's holds), long (odd: length (s - 1) / 2,
+    // its words from keccak(slot) on)
     void solidity_bytes(const Word256& slot, Bytes& out) {
         const Word256 s = host->sload(slot);
         u8 w[32];
         if (!(s.limb[0] & 1)) {
             s.to_be(w);
-            append(out, w, (s.limb[0] & 0xff) >> 1);
+            const usize len = (s.limb[0] & 0xff) >> 1;
+            append(out, w, std::min<usize>(len, 32));
+            if (len > 32) append_zeros(out, len - 32);
             return;
         }
         const u64 len = length(pan::shr(Word256::of(1), s));
@@ -675,7 +681,11 @@ struct Machine::Impl {
                 case Op::SIZED: {
                     const u64 n = length(ev(a[0]));
                     const Value x = a[1];
-                    if (is_bytes_value(x) || big_bits(x) > 256) {
+                    if (big_bits(x) > 256) {  // a long constant: its low n bytes
+                        Lease l(*this);
+                        big_bytes(x, l.b);
+                        append_resized(out, l.b, n);
+                    } else if (is_bytes_value(x)) {
                         Lease l(*this);
                         evb(x, l.b);
                         append_resized(out, l.b, n);
@@ -960,14 +970,17 @@ struct Machine::Impl {
         if (!range.is(Op::RANGE, 2)) bug("SETMEM of something else than a RANGE: " + show(cur_line));
         const Word256 p = ev(range[0]);
         const u64 n = length(ev(range[1]));
-        if (is_bytes_value(v) || big_bits(v) > 256) {
+        if (big_bits(v) > 256) {  // a long constant: its low n bytes (the range is its width)
+            Lease l(*this);
+            Lease m(*this);
+            big_bytes(v, l.b);
+            append_resized(m.b, l.b, n);
+            if (n) std::memcpy(mem_at(p, n), m.b.data(), n);
+            return;
+        }
+        if (is_bytes_value(v)) {
             Lease l(*this);
             evb(v, l.b);
-            if (big_bits(v) > 256 && l.b.size() != n) {  // a number: its low n bytes
-                Lease m(*this);
-                append_resized(m.b, l.b, n);
-                std::swap(l.b, m.b);
-            }
             if (l.b.size() != n)
                 bug("SETMEM of " + std::to_string(n) + " bytes with " + std::to_string(l.b.size()) + " bytes: " +
                     show(cur_line));

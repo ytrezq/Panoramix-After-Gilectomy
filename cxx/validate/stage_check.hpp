@@ -128,15 +128,17 @@ struct CheckConfig
     std::uint64_t seed = 0;
     bool empty_world = true;   ///< the calls in a sequence on the empty world
     bool random_world = true;  ///< each call alone on the random world
+    unsigned random_seeds = 1;  ///< random worlds: seed, seed + 1...
     CallConfig calls{};
     RunOptions evm{};
     pan::exec::MachineLimits machine{};
     CompareOptions compare{};
     const pan::sigdb::Database* db = nullptr;  ///< typed calldata for the selectors it knows
     AbiConfig abi{};
-    std::size_t memory = std::size_t{2} << 30;  ///< the contract's memory limit (0: none)
+    std::size_t memory = std::size_t{1} << 30;  ///< the contract's memory limit (0: none)
     std::int64_t timeout_ns = 0;                ///< the contract's time limit (0: none)
     unsigned keep = 3;                          ///< the examples kept per stage
+    std::optional<std::uint32_t> only;          ///< the calls of this selector only
 };
 
 /// A call that differed (or a bug), for the report.
@@ -175,6 +177,8 @@ struct StageReport
     unsigned long calls = 0;                               ///< planned, per world
     std::array<StageResult, stage_count> stages{};
     std::optional<Stage> first_divergent;  ///< the first stage with a difference or a bug
+    std::int64_t decompile_ns = 0;         ///< the pipeline's time
+    std::int64_t check_ns = 0;             ///< the calls' (evmone and the machines)
 };
 
 /// A contract decompiled up to some stage: what the machines run. Its
@@ -223,6 +227,8 @@ enum class StagecheckOption : std::uint8_t
     timeout,
     steps,
     gas,
+    function,
+    seeds,
     help,
 };
 StagecheckOption stagecheck_option(std::string_view arg);

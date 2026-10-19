@@ -42,6 +42,7 @@ totals and the first stage that diverges.
   --corpus LIST     the contracts of LIST (a file of .hex paths, one per line)
   --limit N         the first N contracts of the corpus only
   --seed N          the worlds' seed (0)
+  --seeds N         the random worlds (seed, seed + 1...: 1)
   --empty           the empty world's sequence only
   --random          the random world's calls only
   --per-selector N  the calls per selector (4)
@@ -54,6 +55,7 @@ totals and the first stage that diverges.
   --timeout S       the time limit of a contract, in seconds (900; 0: none)
   --steps N         the trace machine's steps per call (4000000)
   --gas N           evmone's gas per call (100000000)
+  --function SEL    the calls of that selector only (0x... or decimal)
 Exit status: 0 when no stage differs, 2 when one does, 1 on an error.
 )";
 
@@ -400,6 +402,16 @@ int main(int argc, char** argv)
             if (!(n = number()) || *n == 0)
                 break;
             o.check.evm.gas = static_cast<std::int64_t>(*n);
+            continue;
+        case StagecheckOption::function:
+            if (!(n = number()) || *n > 0xffffffffu)
+                break;
+            o.check.only = static_cast<std::uint32_t>(*n);
+            continue;
+        case StagecheckOption::seeds:
+            if (!(n = number()) || *n == 0 || *n > 1000)
+                break;
+            o.check.random_seeds = static_cast<unsigned>(*n);
             continue;
         case StagecheckOption::help:
             std::cout << usage;

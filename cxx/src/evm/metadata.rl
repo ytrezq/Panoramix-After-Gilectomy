@@ -77,6 +77,7 @@ enum class Key : u8 { None, Ipfs, Bzzr0, Bzzr1, Solc, Experimental, Vyper };
 
 std::optional<Metadata> metadata(std::span<const u8> code)
 {
+    check_code_size(code);
     const usize n = code.size();
     if (n < 3) return std::nullopt;
     const usize len_cbor = usize(code[n - 2]) << 8 | code[n - 1];

@@ -4,7 +4,9 @@
 #include <algorithm>
 
 #include "algebra/construct.hpp"
+#include "algebra/compare.hpp"
 #include "algebra/eval.hpp"
+#include "algebra/ranges.hpp"
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "core/errors.hpp"
@@ -165,7 +167,7 @@ Value Vm::jd_of(u32 start, u32 sw, Value stack) const {
     return mk_list(items.span());
 }
 
-NodeId Vm::new_node(u32 start, bool safe, Value stack, Value condition, const PathFacts& known, u32 last_call,
+NodeId Vm::new_node(u32 start, bool safe, Value stack, Value condition, const Facts& known, u32 last_call,
                     u32 sw) {
     ++node_count_;
     NodeId id = NodeId(nodes_.size());
@@ -286,7 +288,7 @@ void Vm::run_node(NodeId id) {
 void Vm::emit(Value line, u32 pc) {
     out_.push_back(line);
     cx().pcs.note(line, pc);
-    if (line.is(Op::SETMEM, 2)) known_ = known_.write_memory(line[0][0], line[0][1], fact_value(line[1]));
+    if (line.is(Op::SETMEM, 2)) known_ = known_.write_memory(line[0][0], line[0][1], alg::fact_value(line[1]));
 }
 
 void Vm::finish_halt(Value line, u32 pc) {
@@ -319,7 +321,7 @@ void Vm::link(NodeId id) {
 
 // a node for a jump to target (or the fall-through when safe): one already
 // run when the jump can't go there (python makes it and runs it at once)
-NodeId Vm::child_at(Value target, bool safe, Value condition, const PathFacts& known, u32 pc) {
+NodeId Vm::child_at(Value target, bool safe, Value condition, const Facts& known, u32 pc) {
     Value stack = mk_list(st_.span());
     auto done = [&](Value line, u32 at) {
         ++node_count_;
@@ -449,9 +451,9 @@ void Vm::jumpi(u32 pc, u32 next) {
         }
     }
 
-    std::optional<bool> decided;
-    if (auto w = alg::eval_const(cond)) decided = !w->is_zero();
-    if (!decided) decided = known_.is_known(cond);
+    // decided by the constants, the path's facts and the ranges (sound for
+    // every execution: the paths pruned are impossible)
+    std::optional<bool> decided = alg::as_bool(alg::eval_bool(cond, &known_));
 
     Node& n = nodes_[cur_];
     n.lines.assign(out_.begin(), out_.end());
@@ -529,7 +531,7 @@ void Vm::snapshot(Op op, Value target, u32 pc) {
         Value t = fresh_tmp();
         emit(mk(Op::SETVAR, t, substitute(r, names)), pc);
         names.push_back(Subst{r, t});
-        u32 b = max_value_bits(r, nullptr);
+        u32 b = alg::max_value_bits(r, nullptr);
         // what it was is as small as that (a size): for where memory is
         // written, not to decide conditions
         if (b <= 128) known_ = known_.with_var_bits(t, b);
@@ -544,7 +546,10 @@ std::pair<Value, Value> Vm::call_data(Value arg_start, Value arg_len) {
     if (is_zero_int(arg_len)) return {Value::none(), Value::none()};
     if (arg_len == small(4)) return {mem(arg_start, small(4)), Value::none()};
     bool split = false;
-    if (arg_len.is_int()) split = int_cmp(arg_len, small(4)) > 0;
+    if (arg_len.is_int())
+        split = int_cmp(arg_len, small(4)) > 0;
+    else
+        split = alg::range(arg_len, alg::Top::Word, &known_).lo >= EvmInt(4);
     if (split)
         return {mem(arg_start, small(4)), mem(alg::add(arg_start, small(4)), alg::sub(arg_len, small(4)))};
     return {Value::none(), mem(arg_start, arg_len)};
@@ -555,7 +560,8 @@ std::pair<Value, Value> Vm::call_data(Value arg_start, Value arg_len) {
 // were. Where the memory is known to be zeroes, the return data padded with
 // zeroes (python output_write).
 void Vm::output_write(u32 id, Value ret_start, Value ret_len, u32 pc) {
-    if (auto w = alg::eval_const(ret_len); w && w->is_zero()) return;
+    // (nothing to write when it's 0 for sure)
+    if (alg::eval_bool(ret_len, &known_) == Tri::False) return;
     if (known_.known_zeroes(ret_start, ret_len)) {
         emit(mk(Op::SETMEM, range(ret_start, ret_len), mk(Op::RETURNDATA_BYTES, small(id), small(0), ret_len)), pc);
         return;
@@ -586,8 +592,8 @@ void Vm::handle_call(u8 op, u32 pc) {
             size = int_cmp(ret_len, arg_len) <= 0 ? ret_len : arg_len;
         else
             size = alg::min({ret_len, arg_len});
-        auto w = alg::eval_const(size);
-        if (!(w && w->is_zero())) emit(mk(Op::SETMEM, range(ret_start, size), mem(arg_start, size)), pc);
+        if (alg::eval_bool(size, &known_) != Tri::False)
+            emit(mk(Op::SETMEM, range(ret_start, size), mem(arg_start, size)), pc);
         last_call_ = id;
         push_value(Value::leaf(Op::CALL_SUCCESS, id), pc);
         return;
@@ -753,7 +759,7 @@ bool Vm::plain(u8 op8, u32 pc) {
         case Op::MSTORE8: {
             Value addr = pop(), v = pop();
             // the lowest byte of v, into one byte of memory
-            emit(mk(Op::SETMEM, range(addr, small(1)), sized(1, mask_value(v, 8))), pc);
+            emit(mk(Op::SETMEM, range(addr, small(1)), sized(1, alg::mask_value(v, 8))), pc);
             return true;
         }
         case Op::SLOAD:
@@ -797,9 +803,7 @@ bool Vm::plain(u8 op8, u32 pc) {
             if (size.nil()) return false;
             Value end = alg::add(src, n);
             Value beyond = alg::cmp(Op::LT, size, end);
-            std::optional<bool> decided;
-            if (auto w = alg::eval_const(beyond)) decided = !w->is_zero();
-            if (!decided) decided = known_.is_known(beyond);
+            std::optional<bool> decided = alg::as_bool(alg::eval_bool(beyond, &known_));
             if (!decided) {
                 Value inv = mk(Op::INVALID, small(i64(InvalidReason::RETURNDATACOPY)), small(pc));
                 cx().pcs.note(inv, pc);
@@ -903,8 +907,7 @@ bool Vm::code_switch(u32 pc) {
 
     SmallVec<Value, 16> cases;
     for (Value k : values) {
-        auto r = known_.is_known(alg::cmp(Op::EQ, m, k));
-        if (!(r && !*r)) cases.push_back(k);
+        if (alg::eval_bool(alg::cmp(Op::EQ, m, k), &known_) != Tri::False) cases.push_back(k);
     }
     known_.each_newest_first([&](const Fact& f) {
         if (f.kind == FactKind::Cond && f.a.is(Op::EQ, 2) && f.a[0] == m && f.a[1].is_int()) {

@@ -47,6 +47,7 @@ namespace {
 
 BlockEnd exec_block_ref(std::span<const u8> bytes, u32 start, InsnFunc fn, void* data)
 {
+    check_code_size(bytes);
     const u8* const code = bytes.data();
     const u32 size = u32(bytes.size());
     const u8* const first = code + start;

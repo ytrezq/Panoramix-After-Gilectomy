@@ -17,10 +17,16 @@
 #include "core/smallvec.hpp"
 #include "core/value.hpp"
 #include "evm/decoder.hpp"
-#include "vm/facts.hpp"
+#include "algebra/facts.hpp"
 #include "vm/vm.hpp"
 
 namespace pan::vm {
+
+// the path facts are lot 3's (algebra/facts.hpp)
+using alg::Fact;
+using alg::FactKind;
+using alg::Facts;
+using alg::Forget;
 
 using NodeId = u32;
 inline constexpr NodeId NO_NODE = ~u32{0};
@@ -61,7 +67,7 @@ struct Node {
     bool safe = false;  // reached by a fall-through: no JUMPDEST check
     Value stack;        // LIST, bottom first
     Value condition;    // the condition it's reached under (True: none)
-    PathFacts known;
+    Facts known;
     u32 last_call = 0;  // the call whose return data the path has (0: none yet)
     Value jd;           // LIST (start, sw, stack length, the jumpdests on the stack)
 
@@ -110,7 +116,7 @@ struct Node {
 struct RunSetup {
     u32 start = 0;
     Value stack;               // LIST
-    PathFacts known;           // at start
+    Facts known;           // at start
     std::vector<Value> before; // lines before the function (python `before`: the fmp)
     bool just_fdests = false;  // discovery
     bool inside = false;       // an internal function's body
@@ -164,7 +170,7 @@ public:
 private:
     friend struct BlockRun;
     // --- nodes ---
-    NodeId new_node(u32 start, bool safe, Value stack, Value condition, const PathFacts& known, u32 last_call,
+    NodeId new_node(u32 start, bool safe, Value stack, Value condition, const Facts& known, u32 last_call,
                     u32 sw = 0);
     Value jd_of(u32 start, u32 sw, Value stack) const;
     void set_prev(NodeId child, NodeId parent);
@@ -182,7 +188,7 @@ private:
     void run_node(NodeId id);
     void exec_block(u32 start);
     void finish_halt(Value line, u32 pc);
-    NodeId child_at(Value target, bool safe, Value condition, const PathFacts& known, u32 pc);
+    NodeId child_at(Value target, bool safe, Value condition, const Facts& known, u32 pc);
     void link(NodeId id);
 
     // --- effects ---
@@ -261,7 +267,7 @@ private:
     // --- the block being run ---
     NodeId cur_ = NO_NODE;
     SmallVec<Value, 64> st_;
-    PathFacts known_;
+    Facts known_;
     u32 last_call_ = 0;
     Value condition_;
     std::pmr::vector<Value> out_;

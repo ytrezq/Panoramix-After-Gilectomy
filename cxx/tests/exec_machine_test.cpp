@@ -295,9 +295,19 @@ TEST_CASE("exec: byte elements without SIZED are counted") {
     CHECK(o.unsized == 2);
     CHECK(dump(o.unsized_element) == "(mask_shl 160 0 0 caller)");
     CHECK(dump(o.unsized_line) == "(return (data (mask_shl 160 0 0 caller) (sized 1 7) 5))");
+    // a long constant: unsized alone, sized in a SIZED or a SETMEM (its low n bytes)
+    o = run_trace("{(return 0x0102030405060708091011121314151617181920212223242526272829303132333435)}");
+    CHECK(o.unsized == 1);
+    o = run_trace("{(setmem (range 0 2) 0x0102030405060708091011121314151617181920212223242526272829303132333435)"
+                  " (return (sized 3 0x0102030405060708091011121314151617181920212223242526272829303132333435))}");
+    CHECK(o.unsized == 0);
+    CHECK(o.data == Bytes{0x33, 0x34, 0x35});
+    o = run_trace("{(setmem (range 0 2) 0x0102030405060708091011121314151617181920212223242526272829303132333435)"
+                  " (return (mem (range 0 2)))}");
+    CHECK(o.data == Bytes{0x34, 0x35});
     // explicit widths, a word in a SETMEM (the range is its width), bytes: none
     o = run_trace("{(setmem (range 0 32) 5) (log1 (data (sized 32 1) (mem (range 0 3)) b\"ab\") 7)"
-                  " (return (sha3 (sized 32 11)))}");
+                  " (return (sized 32 (sha3 (sized 32 11))))}");
     CHECK(o.status == Status::Return);
     CHECK(o.unsized == 0);
     CHECK(o.unsized_element.nil());
@@ -459,6 +469,14 @@ TEST_CASE("exec: storage before the P forms") {
     CHECK(word("{(return (length 10))}") == W(40));
     o = run_trace("{(return (sbytes 10))}", host);
     CHECK(o.data == cat({Bytes(32, 'x'), Bytes(8, 'y')}));
+    // a short encoding with more than a word's length (no solc makes it: a
+    // random world's word): the word, then zeroes
+    host.storage[W(11)] = pan::bor(pan::shl(W(248), W(0x61)), W(200));
+    o = run_trace("{(return (sbytes 11))}", host);
+    REQUIRE(o.data.size() == 100);
+    CHECK(o.data[0] == 0x61);
+    CHECK(o.data[31] == 200);
+    CHECK(o.data[99] == 0);
     // the P forms need lot 9's layout
     CHECK(run_trace("{(return (st 256 (sr 5) 256))}", host).status == Status::Unsupported);
 }

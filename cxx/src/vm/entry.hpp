@@ -4,13 +4,13 @@
 #pragma once
 
 #include "core/value.hpp"
-#include "vm/facts.hpp"
+#include "algebra/facts.hpp"
 
 namespace pan::vm {
 
-Value encode_state(Value stack, const PathFacts& known);
+Value encode_state(Value stack, const alg::Facts& known);
 // false when state isn't one (then stack and known are left as they were)
-bool decode_state(Value state, Value& stack, PathFacts& known);
+bool decode_state(Value state, Value& stack, alg::Facts& known);
 // the monotonic deadline of a VM run: timeout_ns, else base scaled by
 // PANORAMIX_TIMEOUT; 0: none
 i64 vm_deadline(i64 timeout_ns, i64 base_ns);

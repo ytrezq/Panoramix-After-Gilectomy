@@ -346,10 +346,10 @@ FunctionInfo Discovery::make(FunctionInfo::Kind kind, u32 sel, i64 target, Value
     std::vector<Fact> every;
     bool first = true;
     for (const EntryPath& p : paths) {
-        PathFacts k = PathFacts().with_fresh();
+        Facts k = Facts().with_fresh();
         for (const EntryItem& it : p)
             if (!it.check && it.line.is(Op::SETMEM, 2))
-                k = k.write_memory(it.line[0][0], it.line[0][1], fact_value(it.line[1]));
+                k = k.write_memory(it.line[0][0], it.line[0][1], alg::fact_value(it.line[1]));
         SmallVec<Fact, 32> v;
         k.to_vector(v);
         for (const Fact& x : v)
@@ -381,7 +381,7 @@ FunctionInfo Discovery::make(FunctionInfo::Kind kind, u32 sel, i64 target, Value
     std::vector<Value> conds = fallback_known;
     for (Value c : checks) conds.push_back(c);
     f.entry.checks = mk_list(std::span<const Value>(conds.data(), conds.size()));
-    PathFacts known;
+    Facts known;
     for (Value c : conds) known = known.with_cond(c);
     if (target == 0 && common.empty()) known = known.with_fresh();
     for (const Fact& x : res)
@@ -491,7 +491,7 @@ std::vector<FunctionInfo> discover(const ContractShared& contract, Budget&) {
     RunSetup s;
     s.start = 0;
     s.stack = mk_list({});
-    s.known = PathFacts().with_fresh().with_rdzero();
+    s.known = Facts().with_fresh().with_rdzero();
     s.just_fdests = true;
     s.max_nodes = limits::MAX_FDESTS_NODE_COUNT;
     s.deadline_ns = vm_deadline(0, limits::LOADER_TIMEOUT_NS);

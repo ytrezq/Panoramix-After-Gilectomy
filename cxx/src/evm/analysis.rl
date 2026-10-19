@@ -106,6 +106,7 @@ struct Analysis {
 
 CodeMap analyse(std::span<const u8> code_bytes)
 {
+    check_code_size(code_bytes);
     CodeMap m;
     const usize n = code_bytes.size();
     m.code = code_bytes;

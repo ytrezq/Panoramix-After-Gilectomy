@@ -1,7 +1,16 @@
-// The decoder's small helpers: a push's value, the instruction at a pc.
+// The decoder's small helpers: a push's value, the instruction at a pc,
+// python's sets_free_memory_pointer, the size guard.
 #include "evm/decoder.hpp"
 
+#include "core/errors.hpp"
+
 namespace pan {
+
+void check_code_size(std::span<const u8> code)
+{
+    if (code.size() > kMaxCodeSize) [[unlikely]]
+        throw SizeLimit("the code is larger than 4 GiB: its offsets don't fit 32 bits");
+}
 
 Word256 push_word(const Insn& in) noexcept
 {

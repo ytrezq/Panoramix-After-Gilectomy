@@ -18,7 +18,7 @@ Value unopt(Value v) { return v.is_none() ? Value() : v; }
 
 }  // namespace
 
-Value encode_state(Value stack, const PathFacts& known) {
+Value encode_state(Value stack, const Facts& known) {
     SmallVec<Fact, 32> v;
     known.to_vector(v);
     SmallVec<Value, 32> facts;
@@ -29,7 +29,7 @@ Value encode_state(Value stack, const PathFacts& known) {
     return mk_list({stack, mk_list(facts.span())});
 }
 
-bool decode_state(Value state, Value& stack, PathFacts& known) {
+bool decode_state(Value state, Value& stack, Facts& known) {
     if (!state.is_list() || state.size() != 2 || !state[0].is_list() || !state[1].is_list()) return false;
     stack = state[0];
     SmallVec<Fact, 32> v;
@@ -40,7 +40,7 @@ bool decode_state(Value state, Value& stack, PathFacts& known) {
         if (k < i64(FactKind::Cond) || k > i64(FactKind::VarBits)) return false;
         v.push_back(Fact{FactKind(k), unopt(f[1]), unopt(f[2]), unopt(f[3])});
     }
-    known = PathFacts();
+    known = Facts();
     for (const Fact& f : v) known = known.with(f);  // (a condition gets its cache back)
     return true;
 }
@@ -84,7 +84,7 @@ VmResult run_function(const ContractShared& contract, const FunctionInfo& fn, co
         if (start > 1 && map.is_jumpdest(start)) start += 1;
         s.start = start;
         Value stack;
-        PathFacts known;
+        Facts known;
         if (!fn.entry.vm_state.nil() && decode_state(fn.entry.vm_state, stack, known)) {
             s.stack = stack;
             s.known = known;

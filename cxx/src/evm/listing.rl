@@ -35,6 +35,7 @@ namespace {
 
 void for_each_insn(std::span<const u8> bytes, InsnFunc fn, void* data)
 {
+    check_code_size(bytes);
     const u8* const code = bytes.data();
     const u8* p = code;
     const u8* const pe = code + bytes.size();

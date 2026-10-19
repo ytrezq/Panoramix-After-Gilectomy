@@ -278,10 +278,10 @@ namespace
 {
 // ---------------------------------------------------------------- the calls
 
-std::string call_description(bool random, std::size_t i, const PlannedCall& c)
+std::string call_description(bool random, std::uint64_t seed, std::size_t i, const PlannedCall& c)
 {
     char buf[64];
-    std::string s = random ? "random world, call " : "empty world, call ";
+    std::string s = std::string{random ? "random" : "empty"} + " world " + std::to_string(seed) + ", call ";
     s += std::to_string(i);
     if (c.selector)
     {
@@ -332,6 +332,7 @@ struct Checker
     StageReport& report;
     EvmRunner runner;
     std::array<std::unique_ptr<pan::exec::Machine>, stage_count> machines;
+    std::uint64_t world_seed = 0;
 
     Checker(const CheckConfig& cfg, Decompiled& c, StageReport& r) : config{cfg}, contract{c}, report{r}, runner{c.code, cfg.evm}
     {
@@ -355,7 +356,7 @@ struct Checker
             return;
         Example x;
         x.category = category;
-        x.call = call_description(random, i, call);
+        x.call = call_description(random, world_seed, i, call);
         x.message = std::move(message);
         x.where = where(o);
         x.expected = to_string(expected);
@@ -376,7 +377,7 @@ struct Checker
             {
                 Example x;
                 x.category = Category::unsized;
-                x.call = call_description(random, i, call);
+                x.call = call_description(random, world_seed, i, call);
                 x.message = std::to_string(o.unsized) + " byte element(s) without SIZED, the first: " +
                             pan::dump(o.unsized_element);
                 pan::exec::Outcome at;
@@ -424,7 +425,7 @@ struct Checker
                 if (r.inconclusive_examples.size() < config.keep)
                 {
                     Example x;
-                    x.call = call_description(random, i, call);
+                    x.call = call_description(random, world_seed, i, call);
                     x.message = std::string{why_name(why)} + ": " + o.note;
                     x.where = where(o);
                     x.expected = to_string(expected);
@@ -444,10 +445,11 @@ struct Checker
         }
     }
 
-    void run_world(bool random)
+    void run_world(bool random, std::uint64_t seed)
     {
+        world_seed = seed;
         WorldConfig wc;
-        wc.seed = config.seed;
+        wc.seed = seed;
         wc.random = random;
         const SeededWorld world{wc};
         CallGenerator gen{world, contract.code, config.calls};
@@ -461,6 +463,8 @@ struct Checker
         {
             pan::poll();
             const auto& call = calls[i];
+            if (config.only && call.selector != config.only)
+                continue;
             std::optional<State> fresh;
             if (random)
                 fresh.emplace(world, address, contract.code);
@@ -486,7 +490,8 @@ StageReport check_contract(BytesView code, const CheckConfig& config, const Pipe
 {
     StageReport report;
     pan::init();
-    const std::int64_t deadline = config.timeout_ns > 0 ? pan::platform::monotonic_ns() + config.timeout_ns : 0;
+    const auto start = pan::platform::monotonic_ns();
+    const std::int64_t deadline = config.timeout_ns > 0 ? start + config.timeout_ns : 0;
     pan::Budget budget{pan::Budget::Limits{.memory = config.memory, .deadline_ns = deadline}};
     budget.attach_thread();
     struct Detach
@@ -510,8 +515,17 @@ StageReport check_contract(BytesView code, const CheckConfig& config, const Pipe
         catch (const pan::Error& e)
         {
             report.failure = std::string{"the decompilation failed: "} + e.what();
+            report.decompile_ns = pan::platform::monotonic_ns() - start;
             return report;
         }
+        const auto decompiled = pan::platform::monotonic_ns();
+        report.decompile_ns = decompiled - start;
+        struct Clock
+        {
+            StageReport& r;
+            std::int64_t from;
+            ~Clock() { r.check_ns = pan::platform::monotonic_ns() - from; }
+        } clock{report, decompiled};
         // the counts of the first stage made
         for (unsigned s = 0; s < stage_count; ++s)
         {
@@ -527,9 +541,10 @@ StageReport check_contract(BytesView code, const CheckConfig& config, const Pipe
         }
         Checker checker{config, contract, report};
         if (config.empty_world)
-            checker.run_world(false);
+            checker.run_world(false, config.seed);
         if (config.random_world)
-            checker.run_world(true);
+            for (unsigned k = 0; k < std::max(config.random_seeds, 1u); ++k)
+                checker.run_world(true, config.seed + k);
         for (unsigned s = 0; s < stage_count; ++s)
             if (report.stages[s].different + report.stages[s].bugs != 0)
             {
@@ -539,6 +554,8 @@ StageReport check_contract(BytesView code, const CheckConfig& config, const Pipe
     }
     catch (const pan::Timeout&)
     {
+        if (!report.ran)
+            report.decompile_ns = pan::platform::monotonic_ns() - start;
         report.failure = "the time limit";
     }
     catch (const pan::Abort& e)
@@ -559,7 +576,7 @@ StageReport check_contract(BytesView code, const CheckConfig& config, const Pipe
 std::string summary(const StageReport& report)
 {
     if (!report.failure.empty() && !report.ran)
-        return "FAILED: " + report.failure;
+        return "FAILED: " + report.failure + " (after " + std::to_string(report.decompile_ns / 1'000'000) + " ms)";
     std::string s = std::to_string(report.functions) + " functions";
     if (report.internals != 0)
         s += " + " + std::to_string(report.internals) + " internal";
@@ -607,6 +624,8 @@ std::string summary(const StageReport& report)
     }
     if (!report.failure.empty())
         s += " | stopped: " + report.failure;
+    s += " | " + std::to_string(report.decompile_ns / 1'000'000) + " + " + std::to_string(report.check_ns / 1'000'000) +
+         " ms";
     return s;
 }
 }  // namespace validate

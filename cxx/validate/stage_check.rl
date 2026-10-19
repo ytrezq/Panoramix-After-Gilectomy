@@ -23,6 +23,8 @@ namespace validate
         | '--timeout' @{ id = StagecheckOption::timeout; }
         | '--steps' @{ id = StagecheckOption::steps; }
         | '--gas' @{ id = StagecheckOption::gas; }
+        | '--function' @{ id = StagecheckOption::function; }
+        | '--seeds' @{ id = StagecheckOption::seeds; }
         | ('--help' | '-h') @{ id = StagecheckOption::help; };
 }%%
 

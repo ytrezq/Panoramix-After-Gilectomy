@@ -189,9 +189,14 @@ struct CodeMap {
     [[nodiscard]] Insn insn_at(u32 pc) const noexcept;
 };
 
+// The largest code the decoder takes: its pcs are u32, the code's size
+// included (the CLI caps its input at 128 MiB of code; the python module
+// doesn't). Every entry point below throws SizeLimit past it.
+inline constexpr usize kMaxCodeSize = 0xffffffff;
+void check_code_size(std::span<const u8> code);
+
 // The analysis pass: one linear run of the analysis machine over the code.
-// The code must be smaller than 4 GiB - 1 (the front-ends cap it at 128 MiB).
-// Throws only std::bad_alloc.
+// Throws std::bad_alloc, and SizeLimit past kMaxCodeSize.
 [[nodiscard]] CodeMap analyse(std::span<const u8> code);
 
 // python's loader.sets_free_memory_pointer (ContractShared::free_memory_pointer):
