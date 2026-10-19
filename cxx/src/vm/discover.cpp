@@ -128,7 +128,7 @@ bool Vm::in_dispatcher(NodeId n) {
     NodeId x = n;
     while (x != NO_NODE && nodes_[x].dispatch < 0) {
         chain.push_back(x);
-        x = nodes_[x].prev;
+        x = links_[x].prev;
     }
     bool res = x == NO_NODE || nodes_[x].dispatch > 0;
     for (usize i = chain.size(); i-- > 0;) {

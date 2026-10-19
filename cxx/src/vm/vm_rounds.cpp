@@ -67,9 +67,9 @@ void Vm::explore() {
     const u32 last_call = setup_.inside ? kAmbiguousCall : 0;
     NodeId func = new_node(setup_.start, true, setup_.stack, Value(true), setup_.known, last_call);
     root_ = new_node(setup_.start, true, setup_.stack, Value(true), setup_.known, last_call);
+    links_[root_].jump = root_;
     {
         Node& r = nodes_[root_];
-        r.jump = root_;
         r.dead = false;
         r.lines.assign(setup_.before.begin(), setup_.before.end());
         r.end = End::Jump;
@@ -195,10 +195,10 @@ void Vm::replace_loops() {
         NodeId a = NO_NODE;
         if (n.stack.size() != 0) {
             const u32* head = jd_head_.find(n.jd);
+            const u32 depth = links_[id].depth;
             for (NodeId c = head ? *head - 1 : NO_NODE; c != NO_NODE; c = nodes_[c].same_jd) {
-                const Node& x = nodes_[c];
-                if (c == id || x.dead || x.depth >= n.depth) continue;
-                if ((a == NO_NODE || x.depth > nodes_[a].depth) && below(id, c)) a = c;
+                if (c == id || nodes_[c].dead || links_[c].depth >= depth) continue;
+                if ((a == NO_NODE || links_[c].depth > links_[a].depth) && below(id, c)) a = c;
             }
         }
         if (a == NO_NODE) {
@@ -399,13 +399,13 @@ bool Vm::in_merged_branch(NodeId n, NodeId p) const {
     // n, below p, is in a branch of an IF between them whose paths were
     // merged: its path goes on in that IF's continuation, not after p's
     NodeId child = n;
-    NodeId a = nodes_[n].prev;
+    NodeId a = links_[n].prev;
     while (a != NO_NODE && a != p) {
         const Node& x = nodes_[a];
         ++stats_.merged_branch_steps;
         if (x.end == End::If && x.cont != NO_NODE && (x.a == child || x.b == child)) return true;
         child = a;
-        a = x.prev;
+        a = links_[a].prev;
     }
     return false;
 }
@@ -493,7 +493,7 @@ std::optional<bool> Vm::merge_at(NodeId p, Value jd, bool loop_exit) {
     const Key2 key{(u64(p) + 1) << 1 | u64(loop_exit), jd.raw()};
     std::optional<std::optional<bool>> memoized;
     ++stats_.merge_calls;
-    if (const MergeMemo* m = merge_memo_.find(key); m && m->stamp == nodes_[p].stamp) {
+    if (const MergeMemo* m = merge_memo_.find(key); m && m->stamp == links_[p].stamp) {
         memoized = m->result == 0 ? std::optional<bool>(false) : std::nullopt;
         ++stats_.memo_hits;
         if (!check_) return *memoized;
@@ -501,7 +501,7 @@ std::optional<bool> Vm::merge_at(NodeId p, Value jd, bool loop_exit) {
     auto memo = [&](std::optional<bool> r) {
         if (memoized && *memoized != r)
             throw InternalError("vm: a memoized merge answer differs (PANORAMIX_VM_CHECK)");
-        merge_memo_.put(key, MergeMemo{nodes_[p].stamp, i8(r ? 0 : 2)});
+        merge_memo_.put(key, MergeMemo{links_[p].stamp, i8(r ? 0 : 2)});
         visited_ = true;
         return r;
     };
@@ -664,7 +664,7 @@ std::optional<bool> Vm::merge_visit(NodeId start, NodeId p, Value jd, bool false
 }
 
 void Vm::summarize(NodeId root) {
-    auto good = [this](NodeId n) { return nodes_[n].sum_stamp == nodes_[n].stamp + 1; };
+    auto good = [this](NodeId n) { return links_[n].sum_stamp == links_[n].stamp + 1; };
     if (good(root)) return;
     // bottom up, the subtrees whose summary holds kept (the trees are
     // thousands deep: a stack of its own)
@@ -683,10 +683,10 @@ void Vm::summarize(NodeId root) {
             if (x.merged) {
                 // (python's walk stops there): its merge point, outside it
                 st.pop_back();
-                x.sum_mask = kSumMerged;
                 x.sum_en = 0;
                 if (!below(x.merge_point, n)) x.sum_e[x.sum_en++] = x.merge_point;
-                x.sum_stamp = x.stamp + 1;
+                links_[n].sum_mask = kSumMerged;
+                links_[n].sum_stamp = links_[n].stamp + 1;
                 continue;
             }
             // its children first, then itself
@@ -702,9 +702,11 @@ void Vm::summarize(NodeId root) {
         u64 mask = x.label != NO_NODE ? sum_jd_bit(x.jd) : 0;
         u8 en = 0;
         for (NodeId c : x.next) {
-            const Node& y = nodes_[c];
-            mask |= y.sum_mask;
+            const u64 cm = links_[c].sum_mask;
+            mask |= cm;
             if (mask & kSumUnknown) break;
+            if (!(cm & kSumMerged)) continue;
+            const Node& y = nodes_[c];
             for (u32 i = 0; i < y.sum_en && !(mask & kSumUnknown); ++i) {
                 const NodeId e = y.sum_e[i];
                 if (below(e, n) || std::find(x.sum_e, x.sum_e + en, e) != x.sum_e + en) continue;
@@ -714,21 +716,22 @@ void Vm::summarize(NodeId root) {
                     x.sum_e[en++] = e;
             }
         }
-        x.sum_mask = mask;
         x.sum_en = en;
-        x.sum_stamp = x.stamp + 1;
+        links_[n].sum_mask = mask;
+        links_[n].sum_stamp = links_[n].stamp + 1;
     }
     visited_ = true;
 }
 
 bool Vm::can_skip(NodeId n, NodeId p, Value jd) {
     summarize(n);
-    const Node& x = nodes_[n];
-    if (x.sum_mask & (kSumUnknown | sum_jd_bit(jd))) return false;  // (a loop at jd, maybe)
-    if (x.sum_mask & kSumMerged) {
+    const u64 mask = links_[n].sum_mask;
+    if (mask & (kSumUnknown | sum_jd_bit(jd))) return false;  // (a loop at jd, maybe)
+    if (mask & kSumMerged) {
         // its merge points below n are below p as long as n is; those
         // outside it, one by one
         if (!below(n, p)) return false;
+        const Node& x = nodes_[n];
         for (u32 i = 0; i < x.sum_en; ++i)
             if (!below(x.sum_e[i], p)) return false;
     }
@@ -793,8 +796,8 @@ void Vm::call_entry(NodeId prev, u32 p, NodeId node, u32 q, u32& entry, u32& nar
     };
     const Value pstack = nodes_[prev].stack, nstack = nodes_[node].stack;
     SmallVec<NodeId, 32> outer, inner;
-    for (NodeId x = prev; x != NO_NODE && within(x, p, pstack); x = nodes_[x].prev) outer.push_back(x);
-    for (NodeId y = node; y != NO_NODE && within(y, q, nstack); y = nodes_[y].prev) inner.push_back(y);
+    for (NodeId x = prev; x != NO_NODE && within(x, p, pstack); x = links_[x].prev) outer.push_back(x);
+    for (NodeId y = node; y != NO_NODE && within(y, q, nstack); y = links_[y].prev) inner.push_back(y);
     for (usize i = outer.size(); i-- > 0;) {
         const Node& x = nodes_[outer[i]];
         for (NodeId yi : inner) {
@@ -830,11 +833,14 @@ std::optional<InternalEntry> Vm::recursion_of(NodeId id) {
     const Value nstack = node.stack;
     std::optional<InternalEntry> rec;
     std::pmr::vector<NodeId> found(res_);
-    for (NodeId prev = node.prev; prev != NO_NODE; prev = nodes_[prev].prev) {
+    for (NodeId prev = links_[id].prev; prev != NO_NODE; prev = links_[prev].prev) {
         poll();
         ++stats_.recursion_steps;
+        {
+            const Link& l = links_[prev];
+            if (l.start != start || l.sw || l.nstack >= nstack.size()) continue;
+        }
         const Node& pn = nodes_[prev];
-        if (pn.start != start || pn.sw || pn.stack.size() >= nstack.size()) continue;
         auto p = top_dest(pn.stack);
         if (!p || *p >= *q || pn.stack.size() - *p != nstack.size() - *q) continue;
         bool same = true;

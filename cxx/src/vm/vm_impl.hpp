@@ -78,13 +78,34 @@ struct LoopVar {
     u32 pos;    // its index in the stack (bottom first)
 };
 
+// A node's place in the tree, apart from the node: the walks up (common
+// ancestors, below, touch) and the summaries' checks read nothing else - a
+// contiguous array of these, a few hundred KB for the 20000 nodes of a
+// run, where the nodes are hundreds of bytes each.
+struct Link {
+    NodeId prev = NO_NODE;  // the parent
+    u32 depth = 0;
+    NodeId jump = NO_NODE;  // skew-binary jump pointer (O(log n) ancestors)
+    u32 stamp = 0;          // the generation of the last change in its subtree (touch)
+    // the subtree's summary for merge_at's walks (summarize): good while
+    // sum_stamp is stamp + 1 (0: none) - the jds of its labels (kSumJdBits
+    // bits of a hash), whether it holds merged nodes, too many merge points
+    // outside it (kSumUnknown)
+    u32 sum_stamp = 0;
+    // (copies of the node's, which never change: what recursion_of's walk
+    // up compares)
+    u32 start = 0;
+    u64 sum_mask = 0;
+    u16 sw = 0;
+    u16 nstack = 0;  // the stack's length
+    u32 unused = 0;
+};
+static_assert(sizeof(Link) == 40);
+
 struct Node {
     // --- what the walks of the tree read: first (one cache line) ---
     u32 start = 0;          // the pc
     u32 sw = 0;             // a code switch's case node: 1 + k (python start ("switch", pc, k))
-    NodeId prev = NO_NODE;  // the parent
-    u32 depth = 0;
-    NodeId jump = NO_NODE;  // skew-binary jump pointer (O(log n) ancestors)
     NodeId same_jd = NO_NODE;  // the node made before it at the same jd (the jd's list)
     Value stack;            // LIST, bottom first
     Value jd;               // LIST (start, sw, stack length, the jumpdests on the stack)
@@ -93,13 +114,7 @@ struct Node {
     bool merged = false;    // its paths go on at merge_point's continuation
     bool switched = false;  // a code switch's path (never merged)
     End end = End::None;    // how its trace ends (None: not run yet)
-    u32 stamp = 0;          // the generation of the last change in its subtree (touch)
-    // the subtree's summary for merge_at's walks (summarize): good while
-    // sum_stamp is stamp + 1 (0: none) - the jds of its labels (kSumJdBits
-    // bits of a hash), whether it holds merged nodes, too many merge points
-    // outside it (kSumUnknown)
-    u32 sum_stamp = 0;
-    u64 sum_mask = 0;
+    // (its place in the tree: Vm::links_)
 
     // --- where, and with what (python Node.__init__) ---
     Value condition;    // the condition it's reached under (True: none)
@@ -180,6 +195,7 @@ public:
 
     // --- for the discovery (discover.cpp) ---
     const Node& node(NodeId id) const { return nodes_[id]; }
+    NodeId parent(NodeId id) const { return links_[id].prev; }
     NodeId root() const noexcept { return root_; }
     const CodeMap& map() const noexcept { return map_; }
     Value make_trace_of(NodeId n);  // the trace from n (a branch)
@@ -206,6 +222,7 @@ private:
     // --- nodes ---
     NodeId new_node(u32 start, bool safe, Value stack, Value condition, const Facts& known, u32 last_call,
                     u32 sw = 0);
+    NodeId add_node();  // a node and its link, blank
     Value jd_of(u32 start, u32 sw, Value stack) const;
     void set_prev(NodeId child, NodeId parent);
     NodeId ancestor_at(NodeId n, u32 depth) const;
@@ -233,7 +250,7 @@ private:
             ++gen_;
             visited_ = false;
         }
-        for (; x != NO_NODE && nodes_[x].stamp != gen_; x = nodes_[x].prev) nodes_[x].stamp = gen_;
+        for (; x != NO_NODE && links_[x].stamp != gen_; x = links_[x].prev) links_[x].stamp = gen_;
     }
     // n's subtree summarized (Node::sum_mask), unless it is already: over
     // the whole subtree, as python's walk would go if nothing stopped it
@@ -315,6 +332,7 @@ private:
     RunSetup setup_;
     std::pmr::memory_resource* res_;
     std::pmr::deque<Node> nodes_;
+    std::pmr::vector<Link> links_;  // nodes_[i]'s place in the tree
     NodeId root_ = NO_NODE;
     // the last node made at each jd (+ 1): the head of the jd's list
     Memo<Value, u32> jd_head_;

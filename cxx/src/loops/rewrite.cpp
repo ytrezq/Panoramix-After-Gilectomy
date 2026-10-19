@@ -49,43 +49,6 @@ namespace {
 
 Value small(i64 x) { return Value::small(x); }
 
-// the loop's effects, its own variables' writes left out (what the
-// induction accounts for)
-simplify::EffectSummary but_vars(const simplify::EffectSummary& e, std::span<const Value> names, bool& ok) {
-    simplify::EffectSummary r = e;
-    ok = true;
-    if (!(e.writes & simplify::S_VARS)) return r;
-    if (e.writes_any & simplify::S_VARS) {
-        ok = false;
-        return r;
-    }
-    SmallVec<Value, 16> keep;
-    if (!e.var_writes.nil())
-        for (Value x : e.var_writes.args())
-            if (std::find(names.begin(), names.end(), x) == names.end()) keep.push_back(x);
-    r.var_writes = keep.empty() ? Value() : mk_list(keep.span());
-    if (keep.empty()) r.writes &= ~simplify::S_VARS;
-    return r;
-}
-
-// e with the loop's variables replaced by the values of setvars
-Value at(Value e, std::span<const Value> names, Value setvars) {
-    Subst s;
-    for (Value n : names) {
-        Value v = setvar_of(setvars, n);
-        if (!v.nil()) s.add(n, v);
-    }
-    return s(e);
-}
-
-// an address made of the loop's variables and what the loop doesn't change,
-// moving by a constant every iteration: its move (an int)
-std::optional<Value> move_of(Value p, std::span<const Value> names, Value cont_setvars,
-                             const simplify::EffectSummary& others) {
-    if (simplify::changes(others, simplify::summary(p))) return std::nullopt;
-    return alg::const_diff(at(p, names, cont_setvars), p);
-}
-
 }  // namespace
 
 Value loop_to_setmem(Value w, const RewriteOptions& opts) {

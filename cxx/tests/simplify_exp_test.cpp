@@ -133,6 +133,14 @@ TEST_CASE("simplify: iszero rules") {
     // iszero(-x), bool(-x)
     check(mk(Op::ISZERO, A::neg(x)));
     check(mk(Op::BOOL, A::neg(x)));
+    // multiples: odd factors, small operands
+    s = check(mk(Op::ISZERO, A::mul(small(3), x)));
+    CHECK(s == A::iszero(x));
+    s = check(mk(Op::ISZERO, A::mul(small(2), A::mask(64, 0, 0, x))));
+    CHECK(s == A::iszero(A::mask(64, 0, 0, x)));
+    s = check(mk(Op::ISZERO, A::mul(small(2), x)));
+    CHECK(s != A::iszero(x));
+    check(mk(Op::BOOL, A::mul(small(6), A::mask(8, 0, 0, y))));
     // a shift that loses none of the bits
     check(mk(Op::ISZERO, mk(Op::MASK_SHL, small(8), small(8), small(-8), x)));
     check(mk(Op::ISZERO, mk(Op::MASK_SHL, small(8), small(0), small(16), x)));

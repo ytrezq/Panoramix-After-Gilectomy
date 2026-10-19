@@ -3,6 +3,7 @@
 #include <doctest/doctest.h>
 
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <memory>
 #include <optional>
@@ -79,6 +80,13 @@ std::optional<std::vector<u8>> contract(std::string_view rel)
     return *b;
 }
 
+// the log quiet for a test (the driver's INFO lines), as it was after
+struct QuietLog {
+    int saved = log_level();
+    QuietLog() { set_log_level(log_critical); }
+    ~QuietLog() { set_log_level(saved); }
+};
+
 // stor0 = cd[0]; stor0 = 1 (no dispatcher: the fallback alone)
 constexpr std::string_view TINY = "6000356000556001600055";
 
@@ -122,6 +130,7 @@ std::string dump_result(const ContractResult& r)
 
 TEST_CASE("driver: the stages of a contract, one run")
 {
+    QuietLog quiet;
     Fixture fx;
     const auto code = bytes_of(TINY);
     Seen seen;
@@ -166,6 +175,7 @@ TEST_CASE("driver: the stages of a contract, one run")
 
 TEST_CASE("driver: names, as python's get_func_name")
 {
+    QuietLog quiet;
     FunctionInfo f;
     f.kind = FunctionInfo::Kind::Selector;
     f.selector = 0xa9059cbb;
@@ -181,6 +191,7 @@ TEST_CASE("driver: names, as python's get_func_name")
 
 TEST_CASE("driver: decompile - the text, no code, the JSON")
 {
+    QuietLog quiet;
     DecompileOptions o;
     o.color = false;
     o.json = true;
@@ -208,6 +219,7 @@ TEST_CASE("driver: decompile - the text, no code, the JSON")
 
 TEST_CASE("driver: --explain and --verbose")
 {
+    QuietLog quiet;
     DecompileOptions o;
     o.color = false;
     o.explain = true;
@@ -226,6 +238,7 @@ TEST_CASE("driver: --explain and --verbose")
 
 TEST_CASE("driver: only_function")
 {
+    QuietLog quiet;
     const auto code = contract("corpus/WETH.hex");
     if (!code) {
         MESSAGE("no tests/corpus/WETH.hex");
@@ -251,6 +264,7 @@ TEST_CASE("driver: only_function")
 
 TEST_CASE("driver: the waves of recursive internal functions")
 {
+    QuietLog quiet;
     const auto code = contract("synthetic/recursion_0.hex");
     if (!code) {
         MESSAGE("no tests/synthetic/recursion_0.hex");
@@ -286,6 +300,7 @@ TEST_CASE("driver: the waves of recursive internal functions")
 
 TEST_CASE("driver: problems - a function's memory limit, the loader's fallback")
 {
+    QuietLog quiet;
     Fixture fx;
     const auto code = bytes_of(TINY);
     driver::PipelineOptions o;
@@ -306,6 +321,7 @@ TEST_CASE("driver: problems - a function's memory limit, the loader's fallback")
 
 TEST_CASE("driver: a caller's deadline past - the functions stop, then the run")
 {
+    QuietLog quiet;
     init();
     Fixture fx(Budget::Limits{.deadline_ns = platform::monotonic_ns() - 1});
     const auto code = bytes_of(TINY);
@@ -315,6 +331,7 @@ TEST_CASE("driver: a caller's deadline past - the functions stop, then the run")
 
 TEST_CASE("driver: the same text and JSON at 1, 2 and 8 threads")
 {
+    QuietLog quiet;
     const char* names[] = {"corpus/WETH.hex", "corpus/Multicall3.hex", "corpus/USDC_proxy.hex",
                            "synthetic/recursion_0.hex", "synthetic/recursion2_0.hex", "synthetic/fuzz_2_11.hex"};
     unsigned tested = 0;
@@ -359,9 +376,36 @@ TEST_CASE("driver: the same text and JSON at 1, 2 and 8 threads")
 
 TEST_CASE("driver: thread counts past the cap")
 {
+    QuietLog quiet;
     DecompileOptions o;
     o.color = false;
     o.threads = usize{1} << 62;
     const auto code = bytes_of("6000356000556001600055");
     CHECK(driver::decompile(code, o).text.find("def _fallback(?):") != std::string::npos);
+}
+
+TEST_CASE("driver: hostile inputs - a 20000-deep expression, 2000 nested ifs, no instruction but a cut push")
+{
+    QuietLog quiet;
+    // cd[cd[cd[...]]]: an expression 20000 deep (the asm's robustness.sh)
+    std::string chain = "600435";
+    for (int i = 0; i < 20000; ++i)
+        chain += "35";
+    chain += "60005500";
+    // require(!cd[4 + 32 i]) 2000 times: a path 2000 jumps deep
+    std::string ifs = "6080604052";
+    usize size = 5;
+    for (int i = 0; i < 2000; ++i) {
+        ifs += std::format("62{:06x}351562{:06x}57fe5b", 4 + 32 * i, size + 12);
+        size += 13;
+    }
+    ifs += "00";
+    for (const std::string& hex : {chain, ifs, std::string("60"), std::string("fe")}) {
+        DecompileOptions o;
+        o.color = false;
+        o.threads = 2;
+        const auto code = bytes_of(hex);
+        const Decompilation d = driver::decompile(code, o);
+        CHECK(d.text.starts_with("# Palkeoramix decompiler. "));
+    }
 }

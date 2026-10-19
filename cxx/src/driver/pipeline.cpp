@@ -159,15 +159,14 @@ Value drop_asm(Value trace, std::unordered_map<u64, Value>& memo)
     return r;
 }
 
-// the entry's lines, then the body: python's trace (apply_entry), what
-// --explain shows of the VM's run
-Value with_entry(const FunctionInfo& fn)
+// the entry's lines, then the body: python's trace (apply_entry: what
+// --explain shows of every stage; the stages keep the entry apart)
+Value with_entry(Value entry_lines, Value trace)
 {
-    const Value e = fn.entry.entry_lines;
-    if (!e.is_trace() || e.size() == 0 || !fn.trace.is_trace())
-        return fn.trace;
-    std::vector<Value> lines(e.begin(), e.end());
-    lines.insert(lines.end(), fn.trace.begin(), fn.trace.end());
+    if (!entry_lines.is_trace() || entry_lines.size() == 0 || !trace.is_trace())
+        return trace;
+    std::vector<Value> lines(entry_lines.begin(), entry_lines.end());
+    lines.insert(lines.end(), trace.begin(), trace.end());
     return mk_trace(std::span<const Value>(lines.data(), lines.size()));
 }
 
@@ -197,11 +196,13 @@ std::string_view stage_title(simplify::ExplainStage s)
 
 class ExplainStages final : public simplify::ExplainHook {
 public:
-    explicit ExplainStages(Explainer& x) : x_(x) {}
-    void stage(simplify::ExplainStage s, Value trace) override { x_.trace(stage_title(s), trace); }
+    // entry_lines: where the job holds them (a compaction moves them)
+    ExplainStages(Explainer& x, const Value* entry_lines) : x_(x), entry_(entry_lines) {}
+    void stage(simplify::ExplainStage s, Value trace) override { x_.trace(stage_title(s), with_entry(*entry_, trace)); }
 
 private:
     Explainer& x_;
+    const Value* entry_;
 };
 
 // a function's time limit, checked between the stages (the asm's
@@ -256,6 +257,50 @@ struct Run::Local {
         stage[stage_index(s)] = fn;
         has[stage_index(s)] = true;
     }
+};
+
+// The values a job holds besides the trace being simplified: the roots of
+// the simplifier's compactions, written back when it's done - or when it
+// throws (a compaction gave the old ones back).
+struct Run::Roots {
+    Roots(FunctionInfo& fn, Local& local) : fn_(fn), local_(local), held_(local.has)
+    {
+        hold(fn_, false);
+        for (unsigned s = 0; s < STAGE_COUNT; ++s)
+            if (held_[s])
+                hold(local_.stage[s], true);
+    }
+    ~Roots()
+    {
+        usize k = 0;
+        back(fn_, false, k);
+        for (unsigned s = 0; s < STAGE_COUNT; ++s)
+            if (held_[s])
+                back(local_.stage[s], true, k);
+    }
+    Roots(const Roots&) = delete;
+    Roots& operator=(const Roots&) = delete;
+    std::vector<Value> values;
+
+private:
+    void hold(const FunctionInfo& f, bool with_trace)
+    {
+        values.insert(values.end(), {f.entry.checks, f.entry.value_fails, f.entry.entry_lines, f.entry.vm_state});
+        if (with_trace)
+            values.push_back(f.trace);
+    }
+    void back(FunctionInfo& f, bool with_trace, usize& k) noexcept
+    {
+        f.entry.checks = values[k++];
+        f.entry.value_fails = values[k++];
+        f.entry.entry_lines = values[k++];
+        f.entry.vm_state = values[k++];
+        if (with_trace)
+            f.trace = values[k++];
+    }
+    FunctionInfo& fn_;
+    Local& local_;
+    const std::array<bool, STAGE_COUNT> held_;  // the stages held (local.has then)
 };
 
 Run::Run(std::span<const u8> code, const Settings& settings)
@@ -520,10 +565,10 @@ void Run::run_job(bool internal, u32 i, JobOut& out)
         local.found = std::move(r.found_internals);
         check_deadline(deadline);
         if (explainer) {
-            explainer->trace("Initial decompiled trace", with_entry(fn));
+            explainer->trace("Initial decompiled trace", with_entry(fn.entry.entry_lines, fn.trace));
             std::unordered_map<u64, Value> memo;
             fn.trace = drop_asm(fn.trace, memo);
-            explainer->trace("Without assembly", with_entry(fn));
+            explainer->trace("Without assembly", with_entry(fn.entry.entry_lines, fn.trace));
         }
         local.keep(Stage::Raw, fn);
         // lot 6: python's make_whiles (whiles.make)
@@ -532,21 +577,28 @@ void Run::run_job(bool internal, u32 i, JobOut& out)
             info(" -> Cleaning up AST, identifying loops...");
             loops::whiles_function(fn);
             if (explainer)
-                explainer->trace("Loops -> whiles", fn.trace);
+                explainer->trace("Loops -> whiles", with_entry(fn.entry.entry_lines, fn.trace));
             check_deadline(deadline);
             local.keep(Stage::Whiles, fn);
         }
         // lot 7: python's simplify_trace (make_whiles' end)
         if (upto >= Stage::Simplified) {
             at = Stage::Simplified;
-            simplify::SimplifyOptions so;
-            so.compact = false;  // (until the simplifier's compaction keeps its entry lines)
-            std::optional<ExplainStages> hook;
+            {
+                // compacted between its rounds past the threshold (the job
+                // owns its context): every other value the job holds a root,
+                // written back whatever happens (a compaction freed the old ones)
+                Roots roots(fn, local);
+                simplify::SimplifyOptions so;
+                so.compact = true;
+                so.compact_roots = roots.values;
+                std::optional<ExplainStages> hook;
+                if (explainer)
+                    hook.emplace(*explainer, &roots.values[2]);  // (fn's entry lines: Roots::hold)
+                simplify::simplify_function(fn, so, hook ? &*hook : nullptr);
+            }
             if (explainer)
-                hook.emplace(*explainer);
-            simplify::simplify_function(fn, so, hook ? &*hook : nullptr);
-            if (explainer)
-                explainer->trace("final", fn.trace);
+                explainer->trace("final", with_entry(fn.entry.entry_lines, fn.trace));
             check_deadline(deadline);
             local.keep(Stage::Simplified, fn);
         }
@@ -618,14 +670,22 @@ void Run::import_job(Local& local, Context& from, JobOut& out)
             collect_pcs(from, imp, local.stage[s].trace, out.pcs);
         }
     } catch (...) {
-        // (the system's memory: the function is a problem, nothing of it kept)
+        // (the system's memory, or the caller's limit: the function is a
+        // problem, nothing of it kept)
+        std::string why = MSG_NO_MEMORY;
+        try {
+            throw;
+        } catch (const MemoryLimit& e) {
+            why = e.what();
+        } catch (...) {
+        }
         out.has = {};
         out.pcs.clear();
         out.found.clear();
         if (out.done) {
             out.done = false;
             out.at = Stage::Raw;
-            out.message = MSG_NO_MEMORY;
+            out.message = std::move(why);
         }
     }
     const usize after = main_budget_.counting().used();

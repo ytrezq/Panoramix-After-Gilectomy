@@ -1,6 +1,7 @@
 // Lot 6's own helpers, shared by its files (not a public API).
 #pragma once
 
+#include <optional>
 #include <span>
 
 #include "core/base.hpp"
@@ -8,6 +9,7 @@
 #include "core/memo.hpp"
 #include "core/smallvec.hpp"
 #include "core/value.hpp"
+#include "simplify/effects.hpp"
 
 namespace pan::loops::detail {
 
@@ -82,5 +84,19 @@ private:
 
 // a new trace from lines
 inline Value trace_of(std::span<const Value> lines) { return mk_trace(lines); }
+
+// ---- what an iteration moves ----------------------------------------------------------------
+
+// the loop's effects but its own variables' writes (what the induction
+// accounts for); ok false when they can't be told apart (names anywhere)
+simplify::EffectSummary but_vars(const simplify::EffectSummary& e, std::span<const Value> names, bool& ok);
+// e with the loop's variables (names) replaced by the values setvars gives
+// them (all at once; those it doesn't give left as they are)
+Value at(Value e, std::span<const Value> names, Value setvars);
+// what an expression made of the loop's variables and of what the loop
+// doesn't change (others: but_vars' effects) moves by at a CONTINUE whose
+// setvars these are: an int, when it moves by a constant
+std::optional<Value> move_of(Value p, std::span<const Value> names, Value cont_setvars,
+                             const simplify::EffectSummary& others);
 
 }  // namespace pan::loops::detail

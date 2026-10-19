@@ -48,23 +48,28 @@ Decompilation decompile_here(std::span<const u8> code, const DecompileOptions& o
 
     Budget budget{Budget::Limits{}};
     detail::Attach attach(budget);
-    std::string explain;
+    std::unique_ptr<Context> ctx;
+    std::optional<ContextScope> scope;
+    std::optional<detail::Run> run;
     try {
-        std::unique_ptr<Context> ctx = Context::create(budget);
-        ContextScope scope(*ctx);
-        detail::Run run(code, s);
-        ctx->shared = &run.shared();
-        run.functions();
-        explain = run.take_explain();
+        ctx = Context::create(budget);
+        scope.emplace(*ctx);
+        run.emplace(code, s);  // (the code analysed: SizeLimit past 4 GiB)
+    } catch (const Error& e) {
+        failed(e.what(), {});
+    }
+    ctx->shared = &run->shared();
+    try {
+        run->functions();
         Decompilation d;
-        if (!run.result().has_code) {
+        if (!run->result().has_code) {
             d.text = detail::no_code_text(o.color);
             if (o.json)
                 d.json = "{}";
             return d;
         }
         // the post-processing and the text: the rest of the limit, a deadline
-        run.set_phase_limit();
+        run->set_phase_limit();
         const i64 deadline = detail::deadline_after(limits::POST_TIMEOUT_NS);
         std::optional<Watchdog::Watch> watch;
         if (deadline)
@@ -72,8 +77,8 @@ Decompilation decompile_here(std::span<const u8> code, const DecompileOptions& o
                 watch.emplace(budget, deadline);
             } catch (const std::system_error&) {
             }
-        run.contract_phase();
-        const ContractResult& r = run.result();
+        run->contract_phase();
+        const ContractResult& r = run->result();
         if (o.asm_lines)
             d.asm_lines = evm::disassembly_lines(code);
         if (o.json) {
@@ -87,17 +92,17 @@ Decompilation decompile_here(std::span<const u8> code, const DecompileOptions& o
         d.text = detail::contract_text(r, o, s.options.db);
         if (deadline && platform::monotonic_ns() > deadline)
             throw Timeout(detail::MSG_POST_TIMEOUT);
-        d.explain = std::move(explain);
+        d.explain = run->take_explain();
         if (log_enabled(log_debug))
             log(log_debug, detail::LOGGER,
                 std::format("the contract: the arena took {} MiB at most", budget.counting().peak() >> 20));
         return d;
     } catch (const Timeout&) {
-        failed(detail::MSG_POST_TIMEOUT, std::move(explain));
+        failed(detail::MSG_POST_TIMEOUT, run->take_explain());
     } catch (const Abort& e) {
-        failed(e.what(), std::move(explain));
+        failed(e.what(), run->take_explain());
     } catch (const Error& e) {
-        failed(e.what(), std::move(explain));
+        failed(e.what(), run->take_explain());
     }
 }
 

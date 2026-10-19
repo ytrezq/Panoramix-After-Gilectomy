@@ -334,3 +334,93 @@ TEST_CASE("loops: summary") {
     CHECK(L::may_write(w3, V("(range 0 32)")) == Tri::False);
     CHECK(L::summary(w3).mem_writes.nil());
 }
+
+namespace {
+
+// the trace of lines with the WHILE w and a return of data
+Value make(std::initializer_list<Value> lines) { return mk_trace(lines); }
+
+}  // namespace
+
+TEST_CASE("loops: summary ranges at the loop's bounds, checked by execution") {
+    Fixture f;
+    // BAYC's copy of a string (name()): the counter 160, 192, ... step 32
+    const Value prefix1 = V("(setmem (range 64 32) (sized 32 128))");
+    const Value prefix2 = V("(setmem (range 160 128) (calldata_bytes 4 128))");
+    const Value bound = V("(setvar tmp1 (mul 32 (mask_shl 2 0 0 (calldataload 4))))");
+    const Value w = V(
+        "(while (lt loop1 (add 160 tmp1)) {(setmem (range (add 32 loop1) 32) (mem (range loop1 32))) (continue loopid1 "
+        "{(setvar loop1 (add 32 loop1))})} loopid1 {(setvar loop1 160)})");
+    const Value all = make({prefix1, prefix2, bound, w, V("(stop)")});
+    Vars vars(all);
+    const L::LoopSummary& s = L::summary(w);
+    REQUIRE(s.ind.has_value());
+    REQUIRE(!s.ind->trips.nil());
+    REQUIRE(!s.mem_writes.nil());
+    REQUIRE(s.mem_writes.size() == 1);
+    const Value hw = s.mem_writes[0];
+    CHECK(hw[0] == V("192"));
+    MESSAGE("writes " << dump(s.mem_writes) << " reads " << dump(s.mem_reads));
+    // the free memory pointer out of it
+    CHECK(L::may_write(w, V("(range 64 32)")) == Tri::False);
+    CHECK(L::may_write(w, V("(range 192 32)")) != Tri::False);
+    // every word around: what the summary says it doesn't write is as it was
+    const Value sent = V("(sized 32 0x5e5e5e)");
+    int decided = 0;
+    for (int q = 0; q <= 640; q += 16) {
+        const Value r = mk(Op::RANGE, Value::small(q), Value::small(32));
+        if (L::may_write(w, r) != Tri::False) continue;
+        ++decided;
+        Value ta = make({prefix1, prefix2, bound, mk(Op::SETMEM, r, sent), w, mk(Op::RETURN, mk(Op::MEM, r))});
+        Value tb = make({prefix1, prefix2, bound, mk(Op::SETMEM, r, sent), w, mk(Op::RETURN, sent)});
+        CHECK_MESSAGE(same_runs(ta, tb), "q " << q);
+    }
+    CHECK(decided > 10);
+    // what it says it doesn't read changes nothing it does
+    const Value out = V("(return (mem (range 192 128)))");
+    decided = 0;
+    for (int q = 0; q <= 640; q += 16) {
+        if (q + 32 > 192 && q < 320) continue;  // (the returned bytes)
+        const Value r = mk(Op::RANGE, Value::small(q), Value::small(32));
+        if (L::may_read(w, r) != Tri::False) continue;
+        ++decided;
+        Value ta = make({prefix1, prefix2, bound, w, out});
+        Value tb = make({prefix1, prefix2, bound, mk(Op::SETMEM, r, sent), w, out});
+        CHECK_MESSAGE(same_runs(ta, tb), "q " << q);
+    }
+    CHECK(decided > 5);
+}
+
+TEST_CASE("loops: summary ranges downwards, and kept per iteration when unproven") {
+    Fixture f;
+    const Value bound = V("(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))");
+    // downwards: writes at 512 - 32 j
+    const Value w = V(
+        "(while (gt loop1 0) {(setmem (range (add 480 (mul 32 loop1)) 32) loop1) (continue loopid1 {(setvar loop1 (add -1 "
+        "loop1))})} loopid1 {(setvar loop1 tmp1)})");
+    const Value all = make({bound, w, V("(stop)")});
+    Vars vars(all);
+    const L::LoopSummary& s = L::summary(w);
+    REQUIRE(!s.mem_writes.nil());
+    MESSAGE("writes " << dump(s.mem_writes));
+    const Value sent = V("(sized 32 0x77)");
+    int decided = 0;
+    for (int q = 256; q <= 1024; q += 16) {
+        const Value r = mk(Op::RANGE, Value::small(q), Value::small(32));
+        if (L::may_write(w, r) != Tri::False) continue;
+        ++decided;
+        Value ta = make({bound, mk(Op::SETMEM, r, sent), w, mk(Op::RETURN, mk(Op::MEM, r))});
+        Value tb = make({bound, mk(Op::SETMEM, r, sent), w, mk(Op::RETURN, sent)});
+        CHECK_MESSAGE(same_runs(ta, tb), "q " << q);
+    }
+    CHECK(decided > 10);
+    CHECK(L::may_write(w, V("(range 256 32)")) == Tri::False);
+    CHECK(L::may_write(w, V("(range 512 32)")) != Tri::False);
+    // a step that isn't additive: the range per iteration, the counter free
+    const Value w2 = V(
+        "(while (lt loop1 64) {(setmem (range (add 480 loop1) 32) loop1) (continue loopid1 {(setvar loop1 (mul 2 "
+        "loop1))})} loopid1 {(setvar loop1 1)})");
+    const L::LoopSummary& s2 = L::summary(w2);
+    REQUIRE(!s2.mem_writes.nil());
+    CHECK(s2.mem_writes[0] == V("(range (add 480 loop1) 32)"));
+}

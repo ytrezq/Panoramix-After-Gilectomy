@@ -156,6 +156,7 @@ Vm::Vm(const ContractShared& contract, const RunSetup& setup)
       setup_(setup),
       res_(cx().budget.resource()),
       nodes_(std::pmr::polymorphic_allocator<Node>(res_)),
+      links_(res_),
       frontier_(res_),
       reborn_(res_),
       sum_walk_(res_),
@@ -181,11 +182,21 @@ Value Vm::jd_of(u32 start, u32 sw, Value stack) const {
     return mk_list(items.span());
 }
 
-NodeId Vm::new_node(u32 start, bool safe, Value stack, Value condition, const Facts& known, u32 last_call,
-                    u32 sw) {
+NodeId Vm::add_node() {
     ++node_count_;
     NodeId id = NodeId(nodes_.size());
-    Node& n = nodes_.emplace_back(res_);
+    nodes_.emplace_back(res_);
+    links_.emplace_back();
+    return id;
+}
+
+NodeId Vm::new_node(u32 start, bool safe, Value stack, Value condition, const Facts& known, u32 last_call,
+                    u32 sw) {
+    NodeId id = add_node();
+    Node& n = nodes_[id];
+    links_[id].start = start;
+    links_[id].sw = u16(sw);
+    links_[id].nstack = u16(stack.size());
     n.start = start;
     n.sw = sw;
     n.safe = safe;
@@ -202,50 +213,52 @@ NodeId Vm::new_node(u32 start, bool safe, Value stack, Value condition, const Fa
 }
 
 void Vm::set_prev(NodeId child, NodeId parent) {
-    Node& c = nodes_[child];
-    Node& p = nodes_[parent];
-    c.dead = false;
+    nodes_[child].dead = false;
+    Link& c = links_[child];
+    const Link& p = links_[parent];
     c.prev = parent;
-    touch(parent);
     c.depth = p.depth + 1;
     // skew-binary jump pointers (Myers): ancestors in O(log n)
-    NodeId pj = p.jump;
-    NodeId pjj = nodes_[pj].jump;
-    if (p.depth - nodes_[pj].depth == nodes_[pj].depth - nodes_[pjj].depth && pj != parent)
+    const NodeId pj = p.jump;
+    const NodeId pjj = links_[pj].jump;
+    if (p.depth - links_[pj].depth == links_[pj].depth - links_[pjj].depth && pj != parent)
         c.jump = pjj;
     else
         c.jump = parent;
-    p.next.push_back(child);
+    touch(parent);
+    nodes_[parent].next.push_back(child);
 }
 
 NodeId Vm::ancestor_at(NodeId n, u32 depth) const {
-    while (nodes_[n].depth > depth) {
-        NodeId j = nodes_[n].jump;
-        n = nodes_[j].depth >= depth ? j : nodes_[n].prev;
+    const Link* l = links_.data();
+    while (l[n].depth > depth) {
+        NodeId j = l[n].jump;
+        n = l[j].depth >= depth ? j : l[n].prev;
     }
     return n;
 }
 
 NodeId Vm::common_ancestor(NodeId a, NodeId b) const {
-    u32 d = std::min(nodes_[a].depth, nodes_[b].depth);
+    const Link* l = links_.data();
+    u32 d = std::min(l[a].depth, l[b].depth);
     a = ancestor_at(a, d);
     b = ancestor_at(b, d);
     while (a != b) {
-        NodeId ja = nodes_[a].jump, jb = nodes_[b].jump;
+        NodeId ja = l[a].jump, jb = l[b].jump;
         if (ja != jb) {
             a = ja;
             b = jb;
         } else {
-            a = nodes_[a].prev;
-            b = nodes_[b].prev;
+            a = l[a].prev;
+            b = l[b].prev;
         }
     }
     return a;
 }
 
 bool Vm::below(NodeId n, NodeId p) const {
-    if (nodes_[n].depth < nodes_[p].depth) return false;
-    return ancestor_at(n, nodes_[p].depth) == p;
+    if (links_[n].depth < links_[p].depth) return false;
+    return ancestor_at(n, links_[p].depth) == p;
 }
 
 bool Vm::attached(NodeId n) const { return !nodes_[n].dead; }
@@ -299,7 +312,7 @@ bool Vm::dfs_less(NodeId u, NodeId v) const {
     const NodeId w = common_ancestor(u, v);
     if (w == u) return true;
     if (w == v) return false;
-    const u32 d = nodes_[w].depth + 1;
+    const u32 d = links_[w].depth + 1;
     const NodeId cu = ancestor_at(u, d), cv = ancestor_at(v, d);
     for (NodeId c : nodes_[w].next) {
         if (c == cu) return true;
@@ -405,9 +418,10 @@ void Vm::link(NodeId id) {
 NodeId Vm::child_at(Value target, bool safe, Value condition, const Facts& known, u32 pc) {
     Value stack = mk_list(st_.span());
     auto done = [&](Value line, u32 at) {
-        ++node_count_;
-        NodeId id = NodeId(nodes_.size());
-        Node& n = nodes_.emplace_back(res_);
+        NodeId id = add_node();
+        Node& n = nodes_[id];
+        links_[id].start = at;
+        links_[id].nstack = u16(stack.size());
         n.start = at;
         n.safe = safe;
         n.stack = stack;

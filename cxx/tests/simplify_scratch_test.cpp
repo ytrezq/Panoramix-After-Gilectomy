@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <optional>
 
+#include "algebra/compare.hpp"
 #include "algebra/construct.hpp"
 #include "core/budget.hpp"
 #include "core/context.hpp"
@@ -33,6 +34,11 @@ TEST_CASE("simplify: scratch (PANORAMIX_SIMPLIFY_SCRATCH)") {
         std::printf("vm:   %s same %d\n", dump(vm).c_str(), int(vm == d));
         Value t = V("{(return (sized 32 (mask_shl 255 1 -1 (and (add -1 (mul 256 (iszero (storage 1 0 6)))) (storage 256 0 6)))))}");
         std::printf("len: %s\n", dump_trace(simplify::replace_bytes_or_string_length(t)).c_str());
+        Value mn = V("(min 32 (returndatasize 1))");
+        Value c = V("(iszero (lt (returndatasize 1) 32))");
+        std::printf("constraint: %s\n", dump(alg::apply_constraint(mn, alg::normalize(c))).c_str());
+        Value t2 = V("{(staticcall 1 (gas 1) caller None None) (setmem (range 128 (min 32 (returndatasize 1))) (returndata_bytes 1 0 (min 32 (returndatasize 1)))) (if (iszero (call_success 1)) {(revert None)} {(if (lt (returndatasize 1) 32) {(revert None)} {(setvar tmp4 (mem (range 128 32))) (return (sized 32 tmp4))})})}");
+        std::printf("mems: %s\n", dump_trace(simplify::cleanup_mems(t2)).c_str());
     }
     budget.detach_thread();
 }

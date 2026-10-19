@@ -101,6 +101,7 @@ public:
 private:
     struct JobOut;
     struct Local;
+    struct Roots;
     void discover();
     void run_wave(const std::vector<std::pair<bool, u32>>& jobs);
     void job(bool internal, u32 i) noexcept;

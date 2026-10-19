@@ -327,6 +327,67 @@ std::optional<Induction> induction(Value while_line) {
 
 // ---- the summary ------------------------------------------------------------------------------
 
+namespace {
+
+// A range RANGE(p, n) the loop reads or writes, over all its iterations,
+// made of the values before the loop (NIL when it can't be): n loop
+// invariant, p made of the loop's variables and of what the loop doesn't
+// change, moving by the same constant D at every CONTINUE, the loop's trips
+// proven - iteration j (j < trips: the body's; j <= trips: the
+// condition's, the CONTINUEs' values) at p0 + j D, p0 its value at the
+// start:
+//   D >= 0: RANGE(p0, D k + n)          k = trips - 1 (writes: the body's)
+//   D < 0:  RANGE(p0 - |D| k, |D| k + n)    or trips (reads: the condition's too)
+// (a loop left before - a break, a halt - runs fewer: inside it too; with
+// no iteration the range is past what's needed: an over-approximation).
+struct Hull {
+    std::span<const Value> names;
+    Value setvars;
+    std::span<const Value> conts;
+    const simplify::EffectSummary* eff;
+    const simplify::EffectSummary* others;
+    Value trips;
+
+    Value of(Value r, bool write) const {
+        if (!r.is(Op::RANGE, 2)) return Value();
+        const Value p = r[0], n = r[1];
+        if (simplify::changes(*eff, simplify::summary(n))) return Value();
+        std::optional<Value> d;
+        for (Value c : conts) {
+            auto dc = move_of(p, names, c[1], *others);
+            if (!dc || (d && *d != *dc)) return Value();
+            d = dc;
+        }
+        if (!d) return Value();
+        const Value p0 = at(p, names, setvars);
+        if (*d == small(0)) return mem::make_range(p0, n);
+        const Value k = write ? alg::sub(trips, small(1)) : trips;
+        const EvmInt dd(*d);
+        if (dd.sign() > 0) return mem::make_range(p0, alg::add(alg::mul(*d, k), n));
+        const Value span = alg::mul((-dd).value(), k);
+        return mem::make_range(alg::sub(p0, span), alg::add(span, n));
+    }
+};
+
+// the ranges of a places LIST, each made a hull where it can be
+Value hulls(Value ranges, const Hull* h, bool write) {
+    if (ranges.nil() || !h) return ranges;
+    SmallVec<Value, 16> out;
+    bool changed = false;
+    for (Value r : ranges.args()) {
+        poll();
+        Value x = h->of(r, write);
+        if (x.nil()) x = r;
+        changed |= x != r;
+        if (std::find(out.begin(), out.end(), x) == out.end()) out.push_back(x);
+    }
+    if (!changed) return ranges;
+    std::sort(out.begin(), out.end(), StructuralLess{});
+    return mk_list(out.span());
+}
+
+}  // namespace
+
 const LoopSummary& summary(Value while_line) {
     if (!while_line.is(Op::WHILE, 4)) throw InternalError("loops::summary of something else than a WHILE");
     LoopsState& st = lst();
@@ -348,14 +409,29 @@ const LoopSummary& summary(Value while_line) {
     for (Value x : bw.sets) BodyWalk::add(written, x);
     std::sort(written.begin(), written.end(), StructuralLess{});
     s.written = written.empty() ? Value() : mk_list(written.span());
-    s.mem_writes = e.mem_writes;
-    s.mem_reads = e.mem_reads;
-    s.mem_writes_any = (e.writes_any & simplify::S_MEM) != 0;
-    s.mem_reads_any = (e.reads_any & simplify::S_MEM) != 0;
     s.breaks = falls_through(body) || bw.breaks_id;
     s.continues_outer = bw.continues_outer;
     s.continues = u32(bw.conts.size());
     s.ind = induction(while_line);
+    // the memory, at the loop's bounds where the induction proves them
+    std::optional<Hull> hull;
+    simplify::EffectSummary others;
+    if (s.ind && !s.ind->trips.nil()) {
+        SmallVec<Value, 8> starts;
+        setvar_values(sv, starts);
+        bool plain_starts = true;
+        for (Value x : starts)
+            if (reads_any(x, std::span<const Value>(vars.data(), vars.size()))) plain_starts = false;
+        bool ok = false;
+        others = but_vars(e, std::span<const Value>(vars.data(), vars.size()), ok);
+        if (ok && plain_starts)
+            hull = Hull{std::span<const Value>(vars.data(), vars.size()), sv,
+                        std::span<const Value>(bw.conts.data(), bw.conts.size()), &e, &others, s.ind->trips};
+    }
+    s.mem_writes = hulls(e.mem_writes, hull ? &*hull : nullptr, true);
+    s.mem_reads = hulls(e.mem_reads, hull ? &*hull : nullptr, false);
+    s.mem_writes_any = (e.writes_any & simplify::S_MEM) != 0;
+    s.mem_reads_any = (e.reads_any & simplify::S_MEM) != 0;
     st.summaries.push_back(s);
     st.summary_index.put(while_line, u32(st.summaries.size()));
     return st.summaries.back();
