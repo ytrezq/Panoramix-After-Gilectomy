@@ -242,6 +242,7 @@ private:
     // counters (python's, per VM)
     u32 counter_ = 0;        // TMP names
     u32 call_ids_ = 0;       // call ids
+    u32 gas_reads_ = 0;      // GAS leaves (each read its own)
     u32 next_loop_key_ = 1;  // loop keys
     u32 next_loop_id_ = 1;   // LOOP_IDs
     u32 precompile_count_[9] = {};

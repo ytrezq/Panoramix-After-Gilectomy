@@ -690,8 +690,13 @@ bool Vm::plain(u8 op8, u32 pc) {
         }
         case Op::ADDRESS: case Op::ORIGIN: case Op::CALLER: case Op::CALLVALUE: case Op::CALLDATASIZE:
         case Op::GASPRICE: case Op::COINBASE: case Op::TIMESTAMP: case Op::NUMBER: case Op::DIFFICULTY:
-        case Op::GASLIMIT: case Op::CHAINID: case Op::BASEFEE: case Op::BLOBBASEFEE: case Op::GAS:
+        case Op::GASLIMIT: case Op::CHAINID: case Op::BASEFEE: case Op::BLOBBASEFEE:
             st_.push_back(Value::leaf(op));
+            return true;
+        case Op::GAS:
+            // each read its own number: two reads aren't the same value (the
+            // algebra would fold gas - gas)
+            st_.push_back(Value::leaf(op, ++gas_reads_));
             return true;
         case Op::RETURNDATASIZE: {
             Value v = returndatasize(pc);

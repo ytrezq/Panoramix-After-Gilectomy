@@ -8,6 +8,7 @@
 
 #include "algebra/construct.hpp"
 #include "algebra/eval.hpp"
+#include "algebra/masks.hpp"
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "core/intops.hpp"
