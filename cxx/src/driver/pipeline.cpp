@@ -14,6 +14,7 @@
 #include <unordered_set>
 #include <utility>
 
+#include "analysis/traits.hpp"
 #include "core/errors.hpp"
 #include "core/jobs.hpp"
 #include "core/platform.hpp"
@@ -29,7 +30,7 @@ namespace pan::driver {
 
 // (Analysed: lots 8 and 9's, when they land; Folded: lot 10's asts of the
 // stage before it)
-bool stage_available(Stage s) noexcept { return s != Stage::Analysed; }
+bool stage_available(Stage) noexcept { return true; }
 
 Stage last_available() noexcept { return Stage::Folded; }
 
@@ -219,7 +220,7 @@ void check_deadline(i64 deadline)
 
 }  // namespace
 
-Stage jobs_last(Stage upto) noexcept { return upto < Stage::Simplified ? upto : Stage::Simplified; }
+Stage jobs_last(Stage upto) noexcept { return upto < Stage::Analysed ? upto : Stage::Analysed; }
 
 void Explainer::trace(std::string_view title, Value t)
 {
@@ -640,7 +641,16 @@ void Run::run_job(bool internal, u32 i, JobOut& out)
             check_deadline(deadline);
             local.keep(Stage::Simplified, fn);
         }
-        // (Analysed: lot 8's traits, when it lands)
+        // lot 8: python's Function() - params, payable (the callvalue check
+        // out of the trace), read_only, is_const, getter; fn in place
+        if (upto >= Stage::Analysed) {
+            at = Stage::Analysed;
+            traits::analyse_function(fn, shared_);
+            if (explainer)
+                output::explain_traits(explainer->out, fn, output::TraceContext{&fn, s_.options.db, s_.color});
+            check_deadline(deadline);
+            local.keep(Stage::Analysed, fn);
+        }
     } catch (const Timeout&) {
         failed = true;
         message = MSG_FUNCTION_TIMEOUT;

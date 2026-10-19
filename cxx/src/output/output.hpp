@@ -32,10 +32,13 @@
 //     the function's traits (explain_text); the driver (lot 12) calls them.
 //
 // What lots 8 and 9 add (FunctionInfo's traits and params, the storage
-// layout, the SafeMath table) is printed when it is there: before lot 9 the
-// storage is read as the asm prints it when its storage analysis fails
-// (STORAGE(size, off, slot) as stor[slot], casts and fields), before lot 8
-// the calldata as cd[k].
+// layout, the SafeMath table) is printed when it is there: lot 9's forms
+// (ST, SET, SALL over SV SI SL SBL SF SR) by the layout's names - a getter's,
+// else stor<slot> - with `def storage:`; lot 8's SAFEMATH calls with `def
+// SafeMath:`, Name(PARAM, k) by the name of its head word. Without them the
+// storage reads as the asm prints it when its storage analysis fails
+// (STORAGE(size, off, slot) as stor[slot], casts and fields), the calldata
+// as cd[k].
 #pragma once
 
 #include <span>
@@ -55,6 +58,10 @@ class Database;  // src/sigdb.hpp
 namespace pan::driver {
 struct ContractResult;  // driver/pipeline.hpp (lot 12)
 }
+namespace pan {
+struct StorageLayout;  // storage/storage.hpp (lot 9)
+struct SafeMathTable;  // analysis/safemath.hpp (lot 8)
+}  // namespace pan
 
 namespace pan::output {
 
@@ -130,11 +137,15 @@ std::string print_contract(const driver::ContractResult& r, const PrintOptions& 
 std::string print_function(const driver::ContractResult& r, const FunctionInfo& fn, const PrintOptions& opts);
 
 // What the printer needs of a function beside its trace (names, call
-// kinds): the trace's own FunctionInfo, or null for a bare trace.
+// kinds): the trace's own FunctionInfo, or null for a bare trace; the
+// contract's storage layout and SafeMath (ContractResult::storage,
+// ::safemath) for the names of their variables and functions, when there.
 struct TraceContext {
     const FunctionInfo* fn = nullptr;
     const sigdb::Database* db = nullptr;
     bool color = false;
+    const StorageLayout* storage = nullptr;
+    const SafeMathTable* safemath = nullptr;
 };
 // A trace's lines (python pprint_logic), each indented by indent spaces and
 // ended by "\n" (python pprint_ast: "  stop" for an empty one).
@@ -146,13 +157,18 @@ std::string print_exp(Value e, const TraceContext& ctx = {});
 
 // python's decompilation.json, as JSON text (the python module json.loads
 // it; pymod rebuilds python's tuples from the node tables):
-//   {"problems": {hash: name}, "stor_defs": [...], "lang": "solidity",
+//   {"problems": {hash: name}, "stor_defs": [SDEF...], "lang": "solidity",
 //    "functions": [{"hash", "name", "color_name", "abi_name", "length": [lines, chars],
 //                   "getter": bool, "const": text|null, "payable", "value_fails",
 //                   "print": colored text, "params": {"offset": [type, name]},
 //                   "trace": TRACE}],
 //    "safemath": text, "internal": [{"name", "entry", "params", "results",
 //                   "frame", "print", "trace": TRACE}]}
+// SDEF (python Storage.header's): ["sdef", name, slot, off, TYPE] - slot a
+// number, or {"int": "0x..."} past 2^53; TYPE ["value", width], ["struct",
+// slots|null], ["mapping", TYPE], ["array", TYPE, stride], ["fixed", TYPE,
+// stride(, length)], ["bytes"]. "safemath": the `def SafeMath:` block's
+// lines (colored), joined by "\n" - only when the contract has one.
 // TRACE: {"root": id, "nodes": [node...]}, the trace's distinct nodes once
 // each, operands before their users (ids: indexes in nodes); a node is
 //   ["op", operand...]   an EXPR (op: spec/ops.def's name)
