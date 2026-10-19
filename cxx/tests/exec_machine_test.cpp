@@ -210,7 +210,12 @@ TEST_CASE("exec: the context, calldata and params") {
     // the selector word
     CHECK(word("{(return (mask_shl 32 224 -224 (calldataload 0)))}") == W(0x11223344));
     // params: the raw word at their offset
-    CHECK(word("{(return param1)}", {ParamInfo{4}, ParamInfo{36}}) == W(0x66));
+    const auto at = [](u32 offset) {
+        ParamInfo p;
+        p.calldata_offset = offset;
+        return p;
+    };
+    CHECK(word("{(return param1)}", {at(4), at(36)}) == W(0x66));
     // a byte range of the calldata, zero padded
     const Outcome o = run_trace("{(return (calldata_bytes 60 12))}", host);
     CHECK(o.data == Bytes{0, 0, 0, 0, 0, 0, 0, 0x66, 0, 0, 0, 0});
