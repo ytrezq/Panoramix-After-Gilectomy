@@ -556,6 +556,7 @@ Value mul_impl(std::span<const Value> args) {
 
 // the flattened operands of an n-ary op
 void flatten(Op op, std::span<const Value> args, SmallVec<Value, 8>& out) {
+    check_stack();
     for (Value a : args) {
         if (a.is(op))
             flatten(op, a.args(), out);
@@ -972,6 +973,7 @@ bool is_bool(Value a) noexcept {
     if (a.is_int()) return a.is_small() && (a.small_val() == 0 || a.small_val() == 1);
     if (a.is_leaf()) return info(a.op()).sort == Sort::Bool;
     if (!a.is_expr()) return false;
+    check_stack();
     switch (a.op()) {
         case Op::LOR:
             return a.size() == 2 && is_bool(a[0]) && is_bool(a[1]);
@@ -995,6 +997,7 @@ bool is_bool(Value a) noexcept {
 
 Value iszero(Value a) {
     if (is_const(a)) return small(cw(a).is_zero() ? 1 : 0);
+    check_stack();
     switch (a.op()) {
         case Op::ISZERO:
             if (a.size() == 1) return to_bool(a[0]);
@@ -1052,6 +1055,7 @@ Value iszero(Value a) {
 }
 
 Value truth(Value a) {
+    check_stack();
     for (int i = 0; i < 64; ++i) {
         if (a.is(Op::BOOL, 1)) {
             a = a[0];
