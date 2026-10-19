@@ -610,7 +610,9 @@ Value keep_widths(Value old_exp, Value new_exp) {
         }
     }
     if (!changed) return new_exp;
-    return mk(new_exp.op(), args.span());
+    Value r = mk(new_exp.op(), args.span());
+    cx().pcs.inherit(r, new_exp);
+    return r;
 }
 
 std::optional<u32> implicit_width(Value word) noexcept {

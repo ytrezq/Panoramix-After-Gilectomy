@@ -155,6 +155,10 @@ TEST_CASE("mem: widths") {
     CHECK(D(keep_width(V("(sized 20 caller)"), V("(calldataload 4)"))) == "(sized 20 (calldataload 4))");
     CHECK(D(keep_width(V("(mem (range 64 32))"), V("(mem (range 0 32))"))) == "(mem (range 0 32))");
     CHECK(D(keep_width(V("caller"), V("origin"))) == "caller");
+    CHECK(D(keep_widths(V("(return (mem (range 0 32)))"), V("(return caller)"))) == "(return (sized 32 caller))");
+    CHECK(D(keep_widths(V("(setmem (range 0 4) (mem (range 64 4)))"), V("(setmem (range 0 4) (mem (range 64 32)))"))) ==
+          "(setmem (range 0 4) (mem (range 92 4)))");
+    CHECK(D(keep_widths(V("(log1 (mem (range 0 32)) 7)"), V("(log1 (mem (range 0 32)) 8)"))) == "(log1 (mem (range 0 32)) 8)");
 
     // implicit widths (the printer's)
     CHECK(implicit_width(V("caller")) == 32u);
