@@ -648,6 +648,19 @@ TEST_CASE("ranges: eval_bool, is_zero, decide") {
     CHECK(A::decide(c, &k) == A::cmp(Op::LT, x, mk_int(5)));
     CHECK(A::decide(c, nullptr) == c);
     CHECK(k.decided(A::cmp(Op::LT, x, mk_int(20))) == mk_int(1));
+    // what decided them
+    A::EvalStats s0 = A::eval_stats();
+    CHECK(A::eval_bool(mk_int(3)) == Tri::True);
+    CHECK(A::eval_bool(A::cmp(Op::LT, x, mk_int(10)), &k) == Tri::True);  // the fact itself
+    CHECK(A::eval_bool(A::cmp(Op::LT, x, mk_int(11)), &k) == Tri::True);  // python's x < a rule: matched
+    CHECK(A::eval_bool(A::cmp(Op::LE, x, mk_int(11)), &k) == Tri::True);  // the ranges
+    CHECK(A::eval_bool(A::cmp(Op::LT, x, mk_int(5)), &k) == Tri::None);
+    A::EvalStats s1 = A::eval_stats();
+    CHECK(s1.calls - s0.calls == 5);
+    CHECK(s1.constant - s0.constant == 1);
+    CHECK(s1.matched - s0.matched == 2);
+    CHECK(s1.beyond - s0.beyond == 1);
+    CHECK(s1.undecided - s0.undecided == 1);
 }
 
 TEST_CASE("ranges: max, min, cond_bounds, apply_constraint") {

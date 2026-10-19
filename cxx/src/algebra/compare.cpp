@@ -156,6 +156,12 @@ public:
             Tri m = facts_->match(c);
             if (m != Tri::None) return m;
         }
+        return beyond(c);
+    }
+
+    // what python's eval_bool and is_known don't decide: through BOOL /
+    // ISZERO / OR / AND, the comparisons, the ranges
+    Tri beyond(Value c) {
         if (c.is_expr()) {
             switch (c.op()) {
                 case Op::BOOL:
@@ -444,9 +450,43 @@ Value reduce_minmax(Value v, Top top, const Facts* facts) {
 
 // ---- truth values -------------------------------------------------------------------
 
+namespace {
+inline thread_local EvalStats tl_eval_stats PAN_TLS;
+}
+
+EvalStats& eval_stats() noexcept { return tl_eval_stats; }
+
 Tri eval_bool(Value cond, const Facts* facts) {
-    Decider d(facts, Top::Word);
-    return guarded([&] { return d.eval(cond); }, Tri::None);
+    EvalStats& s = tl_eval_stats;
+    ++s.calls;
+    if (cond.is_int() || cond.is_bool()) {
+        ++s.constant;
+        return tri(cond.is_bool() ? cond.is_true() : !word_of(cond).is_zero());
+    }
+    if (!cond.is_expr() && !cond.is_leaf() && !cond.is_name()) {
+        ++s.undecided;
+        return Tri::None;
+    }
+    return guarded(
+        [&] {
+            // python's: the constants, then the facts' conditions
+            if (auto w = eval_const(cond)) {
+                ++s.constant;
+                return tri(!w->is_zero());
+            }
+            if (facts && !facts->empty()) {
+                Tri m = facts->match(cond);
+                if (m != Tri::None) {
+                    ++s.matched;
+                    return m;
+                }
+            }
+            Decider d(facts, Top::Word);
+            Tri t = d.beyond(cond);
+            ++(t == Tri::None ? s.undecided : s.beyond);
+            return t;
+        },
+        Tri::None);
 }
 
 Value is_zero(Value cond, const Facts* facts) {

@@ -132,8 +132,6 @@ void Vm::expand_trace() {
         }
     }
     frontier_.swap(next);
-    // (the runs changed nothing else in the tree)
-    dirty_ = false;
 }
 
 void Vm::fold_stacks(Value first, Value second, u32 key, Value& folded, std::pmr::vector<LoopVar>& vars) const {
@@ -219,6 +217,7 @@ void Vm::set_label(NodeId self_id, NodeId dest_id, std::span<const LoopVar> vars
     dest.cont = NO_NODE;
     cut(dest_id);
     set_prev(self_id, dest_id);
+    became_unexpanded(self_id);
     // This node is now the body of a loop, executed for every iteration,
     // the first one included: what is known there is what was known before
     // the loop, not what the first iteration found out on its way here.
@@ -276,6 +275,7 @@ bool Vm::continue_loops() {
                 for (const Fact& f : broken) d.rejected_memory.push_back(f);
                 d.end = End::None;
                 cut(dest);
+                became_unexpanded(dest);
                 return false;
             }
             // the iterations may differ in the call whose return data they
@@ -284,6 +284,7 @@ bool Vm::continue_loops() {
                 d.last_call = kAmbiguousCall;
                 d.end = End::None;
                 cut(dest);
+                became_unexpanded(dest);
                 return false;
             }
             const Value old_stack = d.stack;
@@ -591,6 +592,7 @@ std::optional<bool> Vm::merge_at(NodeId p, Value jd, bool loop_exit) {
     NodeId node = new_node(h0.start, h0.safe, mk_list(merged.span()), Value(true), known, last_call, h0.sw);
     set_prev(node, p);
     nodes_[p].cont = node;
+    became_unexpanded(node);
     return true;
 }
 
@@ -754,6 +756,7 @@ void Vm::replace_recursions() {
             cut(x);
             m.lines.clear();
             m.cont = NO_NODE;
+            became_unexpanded(x);
         }
         return;
     }

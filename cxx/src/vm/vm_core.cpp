@@ -157,6 +157,7 @@ Vm::Vm(const ContractShared& contract, const RunSetup& setup)
       res_(cx().budget.resource()),
       nodes_(std::pmr::polymorphic_allocator<Node>(res_)),
       frontier_(res_),
+      reborn_(res_),
       new_loops_(res_),
       walk_(res_),
       out_(res_) {
@@ -257,8 +258,26 @@ void Vm::cut(NodeId n) {
 }
 
 void Vm::refresh_frontier() {
-    if (!dirty_) return;
-    unexpanded(frontier_);
+    if (!dirty_ && reborn_.empty()) return;
+    if (root_ == NO_NODE) return;
+    if (frontier_.empty() && reborn_.empty() && dirty_) {
+        // (the first: a walk)
+        unexpanded(frontier_);
+        dirty_ = false;
+        return;
+    }
+    // the nodes cut off or run since dropped
+    std::erase_if(frontier_, [this](NodeId n) { return nodes_[n].dead || nodes_[n].end != End::None; });
+    // those unexpanded again (or new) at their place in the tree's order
+    for (NodeId n : reborn_) {
+        const Node& x = nodes_[n];
+        if (x.dead || x.end != End::None) continue;
+        auto it = std::lower_bound(frontier_.begin(), frontier_.end(), n,
+                                   [this](NodeId a, NodeId b) { return dfs_less(a, b); });
+        if (it != frontier_.end() && *it == n) continue;
+        frontier_.insert(it, n);
+    }
+    reborn_.clear();
     dirty_ = false;
 }
 

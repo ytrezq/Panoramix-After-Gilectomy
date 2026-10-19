@@ -62,26 +62,30 @@ struct LoopVar {
 };
 
 struct Node {
+    // --- what the walks of the tree read: first (one cache line) ---
+    u32 start = 0;          // the pc
+    u32 sw = 0;             // a code switch's case node: 1 + k (python start ("switch", pc, k))
+    NodeId prev = NO_NODE;  // the parent
+    u32 depth = 0;
+    NodeId jump = NO_NODE;  // skew-binary jump pointer (O(log n) ancestors)
+    NodeId same_jd = NO_NODE;  // the node made before it at the same jd (the jd's list)
+    Value stack;            // LIST, bottom first
+    Value jd;               // LIST (start, sw, stack length, the jumpdests on the stack)
+    bool dead = true;       // not in the tree (python: not attached): until linked, once cut
+    bool safe = false;      // reached by a fall-through: no JUMPDEST check
+    bool merged = false;    // its paths go on at merge_point's continuation
+    bool switched = false;  // a code switch's path (never merged)
+    End end = End::None;    // how its trace ends (None: not run yet)
+
     // --- where, and with what (python Node.__init__) ---
-    u32 start = 0;      // the pc
-    u32 sw = 0;         // a code switch's case node: 1 + k (python start ("switch", pc, k))
-    bool safe = false;  // reached by a fall-through: no JUMPDEST check
-    Value stack;        // LIST, bottom first
     Value condition;    // the condition it's reached under (True: none)
     Facts known;
     u32 last_call = 0;  // the call whose return data the path has (0: none yet)
-    Value jd;           // LIST (start, sw, stack length, the jumpdests on the stack)
 
     // --- the tree ---
-    NodeId prev = NO_NODE;
-    u32 depth = 0;
-    NodeId jump = NO_NODE;  // skew-binary jump pointer (O(log n) ancestors)
     std::pmr::vector<NodeId> next;
-    bool dead = true;           // not in the tree (python: not attached): until linked, once cut
-    NodeId same_jd = NO_NODE;   // the node made before it at the same jd (the jd's list)
 
     // --- the trace ---
-    End end = End::None;
     std::pmr::vector<Value> lines;
     u32 end_pc = 0;           // the pc of the instruction that ended the block
     Value cond;               // If
@@ -103,9 +107,7 @@ struct Node {
     bool has_assumed = false;
 
     // --- merges ---
-    bool merged = false;
     NodeId merge_point = NO_NODE;
-    bool switched = false;
 
     // --- discovery ---
     i8 dispatch = -1;  // in_dispatcher, memoized
@@ -187,8 +189,11 @@ private:
     // the node's children cut off the tree: its subtree dead (python's
     // node.next = [])
     void cut(NodeId n);
-    // frontier_ made again from the tree when its shape changed (dirty_)
+    // frontier_ brought up to date after the tree changed elsewhere than
+    // in the nodes run: the nodes dead or run dropped, those that became
+    // unexpanded (became_unexpanded) put at their place in the tree's order
     void refresh_frontier();
+    void became_unexpanded(NodeId n) { reborn_.push_back(n); }
     // n's live nodes at jd, in the order of the tree (python by_jd's)
     void same_jd(Value jd, std::pmr::vector<NodeId>& out) const;
     // u before v in the tree's depth first order (python find_nodes')
@@ -263,6 +268,7 @@ private:
     // again by a walk when the tree's shape changes elsewhere (dirty_)
     std::pmr::vector<NodeId> frontier_;
     bool dirty_ = true;
+    std::pmr::vector<NodeId> reborn_;  // nodes unexpanded again or new, outside the runs
     // the loops replace_loops made this round, in the order of the tree; and
     // whether some of an earlier round's are left (a walk finds them)
     std::pmr::vector<NodeId> new_loops_;
