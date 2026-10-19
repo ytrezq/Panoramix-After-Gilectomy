@@ -14,11 +14,22 @@ namespace {
 
 struct LineState final : ModuleState {
     Memo<Value, Value> line, trace;
-    RunFlags flags;
     void clear_caches() override {
         line.clear();
         trace.clear();
     }
+};
+
+// the run's flags: kept through a compaction (their entry lines imported)
+struct RunState final : ModuleState {
+    RunFlags flags;
+    Value next_entry;
+    bool compact_prepare(Importer& imp) override {
+        next_entry = flags.entry_lines.nil() ? Value() : imp(flags.entry_lines);
+        return true;
+    }
+    void compact_commit() noexcept override { flags.entry_lines = next_entry; }
+    void compact_abort() noexcept override { next_entry = Value(); }
 };
 
 LineState& lst() { return cx().state<LineState>(); }
@@ -81,7 +92,7 @@ Value line_rules(Value l) {
 
 }  // namespace
 
-RunFlags& run_flags() { return lst().flags; }
+RunFlags& run_flags() { return cx().state<RunState>().flags; }
 
 Arg arg_kind(Op op, u32 i) {
     switch (op) {

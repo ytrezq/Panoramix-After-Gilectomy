@@ -84,6 +84,7 @@ struct SimplifyOptions {
     // place); off: never compacted
     bool compact = false;
     std::span<Value> compact_roots{};
+    usize compact_threshold = 0;  // the context's usage past which it compacts (0: core's compact_threshold)
     // what runs before the trace (EntryCondition::entry_lines: the
     // dispatcher's SETMEMs and checks), and whether the memory is zeroes
     // before them (a call's start: not an internal function's) - what the

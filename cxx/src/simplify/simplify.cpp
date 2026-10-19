@@ -67,11 +67,10 @@ public:
     }
 
     Value run(Value trace) {
-        Value old;
         const u32 p = opts_.passes;
         auto on = [&](u32 bit) { return (p & bit) != 0; };
-        for (u32 round = 0; round < opts_.max_rounds && trace != old && !timed_out(); ++round) {
-            old = trace;
+        for (u32 round = 0; round < opts_.max_rounds && !timed_out(); ++round) {
+            const Value old = trace;
             if (on(P_EXPS)) trace = step(simplify_exps(trace), ExplainStage::SimplifyExpressions);
             if (on(P_VARS)) trace = step(cleanup_vars(trace), ExplainStage::CleanupVariables);
             if (on(P_MEMS)) trace = step(cleanup_mems(trace), ExplainStage::CleanupMems);
@@ -88,6 +87,7 @@ public:
                              ExplainStage::ConvertLoopsToSetmems);
                 trace = step(loops::propagate_storage_in_loops(trace), ExplainStage::MoveLoopIndexes);
             }
+            if (trace == old) break;
             trace = maybe_compact(trace);
         }
         if (!opts_.final_passes || !on(P_FINAL)) return trace;
@@ -117,10 +117,14 @@ private:
         return trace;
     }
     bool timed_out() const { return deadline_ != 0 && platform::monotonic_ns() > deadline_; }
+    // (every Value the run holds is among the roots or in a state that
+    // imports it: the trace, the caller's roots, the run's flags' entry lines)
     Value maybe_compact(Value trace) {
         if (!opts_.compact) return trace;
         Context& c = cx();
-        if (c.usage() <= compact_threshold(c.budget.limits().memory)) return trace;
+        const usize threshold =
+            opts_.compact_threshold ? opts_.compact_threshold : compact_threshold(c.budget.limits().memory);
+        if (c.usage() <= threshold) return trace;
         std::vector<Value> roots;
         roots.reserve(opts_.compact_roots.size() + 1);
         roots.push_back(trace);
@@ -154,7 +158,9 @@ Value simplify_trace(Value trace, const SimplifyOptions& opts, ExplainHook* expl
     struct Reset {
         ~Reset() { run_flags() = RunFlags{}; }
     } reset;
-    Driver d(opts, explain);
+    SimplifyOptions o = opts;
+    o.entry_lines = Value();  // (run_flags() holds them, through compactions)
+    Driver d(o, explain);
     return d.run(trace);
 }
 
