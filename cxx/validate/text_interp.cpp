@@ -285,9 +285,15 @@ private:
     Loc loc(ExprId e);
     Word read(const Loc& l);
     void write(const Loc& l, const Word& value, unsigned bits);
-    std::pair<std::uint32_t, const PType*> param_place(ExprId e);
+    struct Place
+    {
+        std::uint32_t pos = 0;
+        const PType* type = nullptr;
+        const Interpreter::IdTree* names = nullptr;  // its components' names (the database's)
+    };
+    Place param_place(ExprId e);
     Word param_value(ExprId e);
-    const std::vector<NameTree>* names_of_params();
+    const std::vector<Interpreter::IdTree>* names_of_params();
 
     // statements
     Flow block(const std::vector<StmtId>& b);
@@ -315,7 +321,7 @@ private:
     Bytes ret_;
     Word last_success_ = 0;
     Word create_address_ = 0;
-    std::optional<std::vector<NameTree>> names_;
+    const std::vector<Interpreter::IdTree>* names_ = nullptr;
     bool names_asked_ = false;
 };
 
@@ -966,22 +972,23 @@ void Run::write(const Loc& l, const Word& value, unsigned bits)
     s_.sstore(l.slot, (old & ~m) | ((value << l.bit) & m));
 }
 
-const std::vector<NameTree>* Run::names_of_params()
+const std::vector<Interpreter::IdTree>* Run::names_of_params()
 {
     if (!names_asked_)
     {
         names_asked_ = true;
         const Function* fn = frames_.empty() ? nullptr : frames_.front().fn;
-        if (fn != nullptr && in_.param_names_ && fn->kind == Function::regular)
-            names_ = in_.param_names_(fn->selector);
+        if (fn != nullptr && fn->kind == Function::regular)
+            names_ = in_.id_trees(static_cast<std::uint32_t>(fn - P.functions.data()));
     }
-    return names_ ? &*names_ : nullptr;
+    return names_;
 }
 
-std::pair<std::uint32_t, const PType*> Run::param_place(ExprId e)
+Run::Place Run::param_place(ExprId e)
 {
     // the calldata offset of a static place of a param: the param, an
-    // element of a static array, a member of a static tuple
+    // element of a static array, a member of a static tuple (by the names
+    // of the signature database)
     const Expr& x = ex(e);
     const Function* fn = frame().fn;
     switch (x.op)
@@ -991,37 +998,34 @@ std::pair<std::uint32_t, const PType*> Run::param_place(ExprId e)
         if (fn->kind == Function::internal || x.aux >= fn->params.size())
             throw Unsup{Unsupported::param_path};
         const Param& p = fn->params[x.aux];
-        return {p.position, &p.type};
+        const auto* names = names_of_params();
+        const Interpreter::IdTree* tree = names != nullptr && x.aux < names->size() ? &(*names)[x.aux] : nullptr;
+        return {p.position, &p.type, tree};
     }
     case Op::index:
     {
-        const auto [pos, t] = param_place(kid(e, 0));
+        const Place b = param_place(kid(e, 0));
+        const PType* t = b.type;
         if (!t->is_array || t->dynamic || t->count == 0 || t->components.empty())
             throw Unsup{Unsupported::param_path};
         const Word k = eval(kid(e, 1));
         if (k >= Word{t->count})
             throw Unsup{Unsupported::param_path};
-        return {pos + 32 * static_cast<std::uint32_t>(k) * t->elem_words, &t->components[0]};
+        // (the names of an array's elements: its own, the element's fields)
+        return {b.pos + 32 * static_cast<std::uint32_t>(k) * t->elem_words, &t->components[0], b.names};
     }
     case Op::member:
     {
-        // the names of the tuple's components: the signature database's
-        const ExprId base = kid(e, 0);
-        if (ex(base).op != Op::param)
+        const Place b = param_place(kid(e, 0));
+        const PType* t = b.type;
+        if (b.names == nullptr || t->dynamic || t->is_array || b.names->components.size() != t->components.size())
             throw Unsup{Unsupported::member};
-        const auto* names = names_of_params();
-        const Param& p = fn->params[ex(base).aux];
-        if (names == nullptr || ex(base).aux >= names->size() || p.type.dynamic)
-            throw Unsup{Unsupported::member};
-        const NameTree& tree = (*names)[ex(base).aux];
-        if (tree.components.size() != p.type.components.size())
-            throw Unsup{Unsupported::member};
-        std::uint32_t pos = p.position;
-        for (std::size_t i = 0; i < tree.components.size(); ++i)
+        std::uint32_t pos = b.pos;
+        for (std::size_t i = 0; i < t->components.size(); ++i)
         {
-            if (tree.components[i].name == P.names[x.aux])
-                return {pos, &p.type.components[i]};
-            pos += 32 * p.type.components[i].words;
+            if (b.names->components[i].name == x.aux)
+                return {pos, &t->components[i], &b.names->components[i]};
+            pos += 32 * t->components[i].words;
         }
         throw Unsup{Unsupported::member};
     }
@@ -1046,33 +1050,27 @@ Word Run::param_value(ExprId e)
     {
         // p.length: the word of calldata at 4 + p
         const ExprId base = kid(e, 0);
-        const auto [pos, t] = param_place(base);
-        if (!t->has_length)
+        const Place b = param_place(base);
+        if (!b.type->has_length)
             throw Unsup{Unsupported::param_path};
-        return load_word(ctx_.calldata, load_word(ctx_.calldata, Word{pos}) + 4);
+        return load_word(ctx_.calldata, load_word(ctx_.calldata, Word{b.pos}) + 4);
     }
     case Op::index:
     {
         const ExprId base = kid(e, 0);
-        const auto [pos, t] = param_place(base);
-        if (t->is_array && t->dynamic)
+        const Place b = param_place(base);
+        if (b.type->is_array && b.type->dynamic)
         {
             // an element of a dynamic array of words: at p + 36 + 32 k
-            if (t->elem_words != 1 || t->elem_dynamic)
+            if (b.type->elem_words != 1 || b.type->elem_dynamic)
                 throw Unsup{Unsupported::param_path};
-            const Word p = load_word(ctx_.calldata, Word{pos});
+            const Word p = load_word(ctx_.calldata, Word{b.pos});
             return load_word(ctx_.calldata, p + 36 + 32 * eval(kid(e, 1)));
         }
-        const auto [epos, et] = param_place(e);
-        (void)et;
-        return load_word(ctx_.calldata, Word{epos});
+        return load_word(ctx_.calldata, Word{param_place(e).pos});
     }
     default:
-    {
-        const auto [pos, t] = param_place(e);
-        (void)t;
-        return load_word(ctx_.calldata, Word{pos});
-    }
+        return load_word(ctx_.calldata, Word{param_place(e).pos});
     }
 }
 
@@ -1080,6 +1078,8 @@ Word Run::param_value(ExprId e)
 
 void Run::assign(ExprId lhs, const Word& value)
 {
+    if (in_.trace_)
+        in_.trace_(0, &value);
     const Expr& x = ex(lhs);
     switch (x.op)
     {
@@ -1212,7 +1212,10 @@ void Run::internal_call(const Stmt& s)
         args.push_back(eval(e));
     if (args.size() != callee.params.size())
         throw Unsup{Unsupported::results};
-    if (frames_.size() > lim_.internal_depth)
+    // the EVM's stack: 1024 words, `frame` of them a call - past them, it
+    // fails where the text can't tell exactly
+    if (frames_.size() > lim_.internal_depth
+        || (callee.frame != 0 && frames_.size() * callee.frame > 1024))
         throw Unsup{Unsupported::recursion};
     Frame f;
     f.fn = &callee;
@@ -1269,6 +1272,8 @@ Run::Flow Run::exec(StmtId id)
 {
     step();
     const Stmt& s = P.stmts[id];
+    if (in_.trace_)
+        in_.trace_(s.line, nullptr);
     switch (s.kind)
     {
     case St::assign:
@@ -1387,6 +1392,42 @@ End Run::call(const Function* fn)
 }
 
 // --- the interpreter ----------------------------------------------------------------------------------
+
+namespace
+{
+/// A name tree as the ids of the text's names: the binding of the database's
+/// names to the text's, once.
+Interpreter::IdTree id_tree(const NameTree& tree, const std::unordered_map<std::string_view, std::uint32_t>& ids)
+{
+    Interpreter::IdTree t;
+    if (const auto it = ids.find(tree.name); it != ids.end())
+        t.name = it->second;
+    for (const auto& c : tree.components)
+        t.components.push_back(id_tree(c, ids));
+    return t;
+}
+}  // namespace
+
+const std::vector<Interpreter::IdTree>* Interpreter::id_trees(std::uint32_t function)
+{
+    if (!param_names_)
+        return nullptr;
+    auto [it, added] = id_trees_.try_emplace(function);
+    if (added)
+    {
+        if (name_ids_.empty())
+            for (std::uint32_t i = 0; i < program_->names.size(); ++i)
+                name_ids_.emplace(program_->names[i], i);
+        if (const auto names = param_names_(program_->functions[function].selector))
+        {
+            std::vector<IdTree> trees;
+            for (const auto& t : *names)
+                trees.push_back(id_tree(t, name_ids_));
+            it->second = std::move(trees);
+        }
+    }
+    return it->second ? &*it->second : nullptr;
+}
 
 Interpreter::Interpreter(const Program& program, InterpLimits limits)
   : program_(&program), limits_(limits)

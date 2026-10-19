@@ -325,3 +325,41 @@ TEST_CASE("text interp: what can't be run precisely is unsupported")
     CHECK(u[static_cast<std::size_t>(Unsupported::aborted)] == 1);
     CHECK(u[static_cast<std::size_t>(Unsupported::unset_variable)] == 1);
 }
+
+TEST_CASE("text interp: the members of a struct param, the params' places")
+{
+    Text t(
+        "def fill((uint256,address,uint256) order, uint256 x): # not payable\n"
+        "  return order.amount, order.maker, x\n"
+        "\n"
+        "def unknown12345678(uint256 _param1, uint256 _param2): # not payable\n"
+        "  return _param1, _param2\n"
+        "\n"
+        "def _fallback(?) payable: # default function\n"
+        "  return _param2\n");
+    const auto fill = calldata("fill((uint256,address,uint256),uint256)", {1, 2, 3, 4});
+    // the members' names are the ABI's: unsupported without them
+    CHECK(t.call(fill).end.status == Status::unsupported);
+    t.interp.set_param_names([](std::uint32_t) -> std::optional<std::vector<NameTree>> {
+        return std::vector<NameTree>{{"order", {{"salt", {}}, {"maker", {}}, {"amount", {}}}}, {"x", {}}};
+    });
+    CHECK(t.call(fill).end.data == words({3, 2, 4}));
+
+    // an unknown function's params: the first words, unless placed
+    Bytes unknown{0x12, 0x34, 0x56, 0x78};
+    for (const Word w : {Word{5}, Word{6}, Word{7}, Word{8}})
+        append_word(unknown, w);
+    CHECK(t.call(unknown).end.data == words({5, 6}));
+    const std::uint32_t places[] = {68, 100};
+    CHECK(place_params(t.program, 0x12345678u, places));
+    CHECK(t.call(unknown).end.data == words({7, 8}));
+
+    // the fallback's _paramN: the words it reads
+    Bytes other{1, 2, 3, 4};
+    for (const Word w : {Word{5}, Word{6}, Word{7}})
+        append_word(other, w);
+    CHECK(t.call(other).end.data == words({6}));
+    const std::uint32_t fallback[] = {4, 68};
+    CHECK(place_params(t.program, std::nullopt, fallback));
+    CHECK(t.call(other).end.data == words({7}));
+}

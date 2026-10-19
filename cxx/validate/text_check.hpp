@@ -26,15 +26,19 @@ enum class CheckWord : std::uint8_t
     texts,
     help,
     params,
+    call,
+    trace,
+    sigdb,
     unknown,  ///< an option that isn't one of them
 };
 
 CheckWord check_word(std::string_view arg) noexcept;
 
 /// The calldata positions of the params of a contract's functions, the
-/// lines "0xSELECTOR POS POS ..." of a file (text_check --params: the
-/// asm's --json gives them; the text doesn't for an unknown function, whose
-/// params are the words of calldata it reads, named in their order).
-std::optional<std::vector<std::pair<std::uint32_t, std::vector<std::uint32_t>>>>
+/// lines "0xSELECTOR POS POS ..." ("_fallback POS ..." for the fallback) of
+/// a file (text_check --params: the asm's --json gives them; the text
+/// doesn't for an unknown function, whose params are the words of calldata
+/// it reads, named in their order).
+std::optional<std::vector<std::pair<std::optional<std::uint32_t>, std::vector<std::uint32_t>>>>
 parse_param_positions(std::string_view text);
 }  // namespace validate::text

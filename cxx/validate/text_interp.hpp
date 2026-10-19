@@ -21,6 +21,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace validate::text
@@ -29,8 +30,9 @@ struct InterpLimits
 {
     std::uint64_t steps = 20'000'000;      ///< statements and expressions a call evaluates
     std::uint64_t memory = 8u << 20;       ///< the bytes of memory a call may use
-    std::uint32_t depth = 2000;            ///< nested blocks and expressions (the C++ stack)
+    std::uint32_t depth = 10000;           ///< nested blocks and expressions (the C++ stack)
     std::uint32_t internal_depth = 1024;   ///< nested calls of the recursive internal functions
+                                           ///< (and the EVM's 1024 words: depth * frame)
 };
 
 /// Why a run was unsupported.
@@ -70,6 +72,10 @@ struct NameTree
 /// selector -> one NameTree per param of the function (nullopt: not known).
 using ParamNames = std::function<std::optional<std::vector<NameTree>>(std::uint32_t selector)>;
 
+/// The statements a call runs, for debugging: the line of each one, and the
+/// value it sets (a variable, the storage, the memory's word...), if any.
+using Trace = std::function<void(std::uint32_t line, const Word* value)>;
+
 class Interpreter
 {
 public:
@@ -77,7 +83,12 @@ public:
 
     /// The names of the struct params' members (none by default: such a
     /// member is unsupported).
-    void set_param_names(ParamNames names) { param_names_ = std::move(names); }
+    void set_param_names(ParamNames names)
+    {
+        param_names_ = std::move(names);
+        id_trees_.clear();
+    }
+    void set_trace(Trace trace) { trace_ = std::move(trace); }
 
     /// Runs the session's call - the function of its selector, the fallback
     /// when there's none - and finishes the session.
@@ -94,12 +105,26 @@ public:
         return unsupported_;
     }
 
+    /// The names of a param's components as the text's names (their ids in
+    /// Program::names, `none` for a name the text doesn't use).
+    struct IdTree
+    {
+        std::uint32_t name = none;
+        std::vector<IdTree> components;
+    };
+
 private:
     friend class Run;
+
+    /// The id trees of a function's params, from param_names_: made once.
+    const std::vector<IdTree>* id_trees(std::uint32_t function);
 
     const Program* program_;
     InterpLimits limits_;
     ParamNames param_names_;
+    Trace trace_;
+    std::unordered_map<std::uint32_t, std::optional<std::vector<IdTree>>> id_trees_;
+    std::unordered_map<std::string_view, std::uint32_t> name_ids_;  // Program::names
     std::vector<std::pair<std::uint32_t, std::uint32_t>> by_selector_;  // sorted (selector, function)
     std::optional<std::uint32_t> fallback_;
     std::array<std::uint64_t, static_cast<std::size_t>(Unsupported::count)> unsupported_{};

@@ -214,6 +214,7 @@ private:
     static std::optional<std::uint32_t> type_bits(std::string_view type);
     static std::optional<std::uint32_t> field_bits(std::string_view member);
     static std::optional<std::uint32_t> recursive_frame(std::string_view comment);
+    static std::optional<std::uint32_t> param_number(std::string_view name);
 
     // --- the names
     ExprId name_leaf(std::uint32_t tok);
@@ -544,6 +545,29 @@ std::optional<std::uint32_t> Parser::recursive_frame(std::string_view comment)
     return n;
 }
 
+%%{
+  machine param_name;
+  alphtype unsigned char;
+
+  action digit { if (n < 100000) n = n * 10 + (fc - '0'); }
+  main := '_param' ( [0-9] @digit )+;
+}%%
+
+%% write data noerror noentry;
+
+std::optional<std::uint32_t> Parser::param_number(std::string_view name)
+{
+    std::uint32_t n = 0;
+    int cs;
+    const auto* p = reinterpret_cast<const unsigned char*>(name.data());
+    const auto* pe = p + name.size();
+    %% write init;
+    %% write exec;
+    if (cs < param_name_first_final || n == 0)
+        return std::nullopt;
+    return n;
+}
+
 // --- the names ------------------------------------------------------------------------
 
 std::uint32_t Parser::local(std::string_view name)
@@ -569,6 +593,22 @@ ExprId Parser::name_leaf(std::uint32_t tok)
     {
         if (const auto it = param_names_.find(name); it != param_names_.end())
             return leaf(Op::param, it->second);
+        // _fallback(?) (a signature without its params): its _paramN are
+        // the words of calldata it reads - where, the text doesn't say (the
+        // N-th word by default, see place_params)
+        auto& fn = prog_.functions[fn_];
+        if (fn.unknown_params && fn.kind != Function::internal)
+            if (const auto n = param_number(name); n && *n <= 65536)
+            {
+                while (fn.params.size() < *n)
+                {
+                    Param p;
+                    p.name = "_param" + std::to_string(fn.params.size() + 1);
+                    p.position = static_cast<std::uint32_t>(4 + 32 * fn.params.size());
+                    fn.params.push_back(std::move(p));
+                }
+                return leaf(Op::param, *n - 1);
+            }
     }
     if (const auto it = storage_names_.find(name); it != storage_names_.end())
         return leaf(Op::stor_var, it->second);
@@ -1715,6 +1755,7 @@ void Parser::s_def(std::uint32_t name_tok, std::uint32_t comment_tok)
     case T_C_NOT_PAYABLE_DEFAULT: f.payable = false; break;
     default: f.payable = true; break;
     }
+    f.unknown_params = sig_.unknown;
     if (f.kind == Function::regular)
     {
         f.selector = sig_selector(sig_);
@@ -2288,15 +2329,16 @@ Program parse(std::string_view text)
     return Parser(text).run();
 }
 
-bool place_params(Program& program, std::uint32_t selector, std::span<const std::uint32_t> positions)
+bool place_params(Program& program, std::optional<std::uint32_t> selector, std::span<const std::uint32_t> positions)
 {
     for (auto& f : program.functions)
     {
-        if (f.kind != Function::regular || f.selector != selector)
+        if (selector ? f.kind != Function::regular || f.selector != *selector : f.kind != Function::fallback)
             continue;
-        if (f.params.size() != positions.size())
+        // a signature without its params (?): those the text uses, by number
+        if (f.unknown_params ? f.params.size() > positions.size() : f.params.size() != positions.size())
             return false;
-        for (std::size_t i = 0; i < positions.size(); ++i)
+        for (std::size_t i = 0; i < f.params.size(); ++i)
             f.params[i].position = positions[i];
         return true;
     }

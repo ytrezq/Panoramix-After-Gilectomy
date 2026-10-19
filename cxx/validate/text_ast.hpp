@@ -264,6 +264,7 @@ struct Function
     std::uint32_t selector = 0;   ///< regular, constant
     bool payable = true;
     bool value_invalid = false;   ///< # not payable (invalid): an invalid opcode
+    bool unknown_params = false;  ///< f(?): its params, _param1..., the words it reads
     std::vector<Param> params;
     std::vector<StmtId> body;
     std::vector<ExprId> data;     ///< a constant's data

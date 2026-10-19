@@ -249,11 +249,9 @@ bool check_string(std::uint64_t ref, const std::uint8_t* strings,
     return len <= static_cast<std::uint64_t>(strings + strings_size - p);
 }
 
-bool skip_type(const std::uint8_t*& p, const std::uint8_t* end, std::uint64_t strings_size,
-               unsigned depth) noexcept
+bool skip_type(const std::uint8_t*& p, const std::uint8_t* end, const std::uint8_t* strings,
+               std::uint64_t strings_size, unsigned depth) noexcept
 {
-    // (the strings themselves aren't checked here: check_string, by the
-    // record's checker, which has them)
     if (p == end || depth > code::max_depth)
         return false;
     std::uint8_t c = *p++;
@@ -277,21 +275,21 @@ bool skip_type(const std::uint8_t*& p, const std::uint8_t* end, std::uint64_t st
     case code::storage:
     case code::memory:
     case code::calldata:
-        return skip_type(p, end, strings_size, depth + 1);
+        return skip_type(p, end, strings, strings_size, depth + 1);
     case code::static_array:
-        return get_varint(p, end, v) && skip_type(p, end, strings_size, depth + 1);
+        return get_varint(p, end, v) && skip_type(p, end, strings, strings_size, depth + 1);
     case code::tuple:
         if (!get_varint(p, end, v) || v > max_params)
             return false;
         for (std::uint64_t i = 0; i < v; i++) {
             std::uint64_t name;
-            if (!get_varint(p, end, name) || name >= strings_size ||
-                !skip_type(p, end, strings_size, depth + 1))
+            if (!get_varint(p, end, name) || !check_string(name, strings, strings_size) ||
+                !skip_type(p, end, strings, strings_size, depth + 1))
                 return false;
         }
         return true;
     case code::named:
-        return get_varint(p, end, v) && v < strings_size;
+        return get_varint(p, end, v) && check_string(v, strings, strings_size);
     default:
         return false;
     }
@@ -697,7 +695,6 @@ std::unique_ptr<Database> Database::open(const std::filesystem::path& file)
         throw bad("its sections");
 
     std::unique_ptr<Database> db(new Database(std::move(map)));
-    db->base_ = h;
     db->buckets_ = h + buckets;
     db->index_ = h + index;
     db->records_ = h + records;
@@ -730,8 +727,8 @@ std::size_t Database::file_size() const noexcept { return map_->bytes().size(); 
 
 std::filesystem::path Database::dump_path() const
 {
-    std::string_view s = string_at(strings_, dump_path_);
-    return std::filesystem::path(std::string(s));
+    std::string_view s = string_at(strings_, dump_path_);  // (UTF-8)
+    return std::filesystem::path(std::u8string(reinterpret_cast<const char8_t*>(s.data()), s.size()));
 }
 
 namespace {
@@ -765,45 +762,7 @@ bool check_record(const std::uint8_t* p, const std::uint8_t* end, const std::uin
         std::uint64_t name;
         if (!get_varint(p, end, name) || !check_string(name, strings, strings_size))
             return false;
-        // the type, and the strings it refers to
-        const std::uint8_t* t = p;
-        if (!skip_type(p, end, strings_size))
-            return false;
-        // (its strings: walked again, now that it is known whole)
-        struct Walk {
-            const std::uint8_t* strings;
-            std::uint64_t size;
-            bool ok(const std::uint8_t*& q) const
-            {
-                std::uint8_t c = *q++;
-                std::uint64_t v;
-                switch (c) {
-                case code::fixed:
-                case code::ufixed:
-                    q += 2;
-                    return true;
-                case code::array:
-                case code::storage:
-                case code::memory:
-                case code::calldata:
-                    return ok(q);
-                case code::static_array:
-                    get_varint(q);
-                    return ok(q);
-                case code::tuple:
-                    v = get_varint(q);
-                    for (std::uint64_t j = 0; j < v; j++)
-                        if (!check_string(get_varint(q), strings, size) || !ok(q))
-                            return false;
-                    return true;
-                case code::named:
-                    return check_string(get_varint(q), strings, size);
-                default:
-                    return true;
-                }
-            }
-        };
-        if (!Walk{strings, strings_size}.ok(t))
+        if (!skip_type(p, end, strings, strings_size))  // (the type, its strings)
             return false;
     }
     return true;
@@ -948,7 +907,9 @@ private:
         if (ok) {
             const auto* q = reinterpret_cast<const std::uint8_t*>(code.data() + start);
             const std::uint8_t* end = reinterpret_cast<const std::uint8_t*>(code.data() + code.size());
-            ok = skip_type(q, end, pool.bytes().size()) && q == end;
+            ok = skip_type(q, end, reinterpret_cast<const std::uint8_t*>(pool.bytes().data()),
+                           pool.bytes().size()) &&
+                 q == end;
             if (ok && p.has_components) {
                 // ("tuple" substituted: the text must still be python's)
                 std::string text;
@@ -1255,8 +1216,10 @@ BuildStats build(const std::filesystem::path& dump, const std::filesystem::path&
     Builder b;
     std::uint32_t dump_ref = 0;
     if (stamp)
-        if (std::optional<std::filesystem::path> real = platform::real_path(dump))
-            dump_ref = b.pool.intern(real->string());
+        if (std::optional<std::filesystem::path> real = platform::real_path(dump)) {
+            std::u8string u = real->u8string();
+            dump_ref = b.pool.intern(std::string_view(reinterpret_cast<const char*>(u.data()), u.size()));
+        }
 
     DumpParser parser(b);
     try {

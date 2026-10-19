@@ -8,7 +8,7 @@ namespace validate::text
   alphtype unsigned char;
 
   known = '--seed' | '--empty' | '--random' | '--per-selector' | '--each' | '--verbose' | '--quiet'
-        | '--corpus' | '--texts' | '--params' | '-h' | '--help';
+        | '--corpus' | '--texts' | '--params' | '--call' | '--trace' | '--sigdb' | '-h' | '--help';
   main := ( 'parse' %{ w = CheckWord::parse; }
           | 'run' %{ w = CheckWord::run; }
           | '--seed' %{ w = CheckWord::seed; }
@@ -21,6 +21,9 @@ namespace validate::text
           | '--corpus' %{ w = CheckWord::corpus; }
           | '--texts' %{ w = CheckWord::texts; }
           | '--params' %{ w = CheckWord::params; }
+          | '--call' %{ w = CheckWord::call; }
+          | '--trace' %{ w = CheckWord::trace; }
+          | '--sigdb' %{ w = CheckWord::sigdb; }
           | ( '-h' | '--help' ) %{ w = CheckWord::help; }
           | ( ( '-' any* ) - known ) %{ w = CheckWord::unknown; } );
 }%%
@@ -55,21 +58,25 @@ constexpr unsigned hex_value(unsigned char c) noexcept
   action pos_start { pos = 0; }
   action pos_digit { if (pos < 0xffffffffull) pos = pos * 10 + (fc - '0'); }
   action pos_end { positions.push_back(static_cast<std::uint32_t>(pos)); }
-  action line_start { sel = 0; positions.clear(); }
-  action line_end { out.emplace_back(sel, positions); }
+  action line_start { sel = 0; fallback = false; positions.clear(); }
+  action fallback { fallback = true; }
+  action line_end {
+      out.emplace_back(fallback ? std::nullopt : std::optional<std::uint32_t>(sel), positions);
+  }
 
-  line = ( '0x' ( [0-9a-fA-F] @sel_digit ){1,8}
+  line = ( ( '0x' ( [0-9a-fA-F] @sel_digit ){1,8} | '_fallback' @fallback )
            ( ' ' ( [0-9] @pos_digit )+ >pos_start %pos_end )* ) >line_start '\n' @line_end;
   main := line*;
 }%%
 
 %% write data noerror noentry;
 
-std::optional<std::vector<std::pair<std::uint32_t, std::vector<std::uint32_t>>>>
+std::optional<std::vector<std::pair<std::optional<std::uint32_t>, std::vector<std::uint32_t>>>>
 parse_param_positions(std::string_view text)
 {
-    std::vector<std::pair<std::uint32_t, std::vector<std::uint32_t>>> out;
+    std::vector<std::pair<std::optional<std::uint32_t>, std::vector<std::uint32_t>>> out;
     std::uint32_t sel = 0;
+    bool fallback = false;
     std::uint64_t pos = 0;
     std::vector<std::uint32_t> positions;
     int cs;

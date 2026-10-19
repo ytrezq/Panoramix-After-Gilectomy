@@ -18,13 +18,18 @@
 #include "validate/text_parser.hpp"
 #include "validate/world.hpp"
 
+#include "sigdb.hpp"
+
 #include <array>
 #include <chrono>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <algorithm>
 #include <map>
+#include <span>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -47,9 +52,50 @@ CallGenerator's, against the same SeededWorld) and compares the effects.
   --params DIR      the params' positions: DIR/NAME.txt, lines 0xSELECTOR POS...
                     (the text doesn't say where an unknown function's params are)
   --each            each call from the world's state (default: a sequence)
+  --sigdb FILE      the signature database (the names of a struct param's members)
+  --call N          the call N only, its effects (with --each: from the world's state)
+  --trace           the lines of the text the calls run, the values they set
   --verbose         every call's effects, both sides (one contract)
   --quiet           the totals only
 )";
+
+/// The names of a param's components (a tuple's fields, through its arrays):
+/// the signature database's, python's _param<i + 1> for those it hasn't.
+NameTree name_tree(std::string_view name, pan::sigdb::Type type, unsigned index)
+{
+    using pan::sigdb::TypeKind;
+    NameTree n;
+    n.name = name.empty() ? "_param" + std::to_string(index + 1) : std::string(name);
+    for (;;)
+    {
+        const auto k = type.kind();
+        if (k != TypeKind::array && k != TypeKind::static_array && k != TypeKind::storage
+            && k != TypeKind::memory && k != TypeKind::calldata)
+            break;
+        type = type.element();
+    }
+    if (type.kind() == TypeKind::tuple)
+    {
+        unsigned i = 0;
+        for (const auto field : type.fields())
+            n.components.push_back(name_tree(field.name(), field.type(), i++));
+    }
+    return n;
+}
+
+ParamNames param_names(const pan::sigdb::Database& db)
+{
+    return [&db](std::uint32_t selector) -> std::optional<std::vector<NameTree>> {
+        const auto entry = db.function(selector);
+        if (!entry)
+            return std::nullopt;
+        std::vector<NameTree> out;
+        unsigned i = 0;
+        for (const auto field : entry->params())
+            out.push_back(name_tree(field.name(), field.type(), i++));
+        return out;
+    };
+}
 
 std::optional<std::string> read_file(const std::string& path)
 {
@@ -100,16 +146,21 @@ struct Options
     CallConfig calls;
     bool each = false;
     bool verbose = false;
+    std::optional<std::size_t> only;  // --call N: that call only (and --trace its statements)
+    bool trace = false;
     bool quiet = false;
     std::string corpus;
     std::string texts;
     std::string params;  // a directory of NAME.txt: the params' positions
+    std::string sigdb;   // the signature database: the names of the struct params' members
+    const pan::sigdb::Database* db = nullptr;
     std::vector<std::string> args;
 };
 
 struct Tally
 {
     unsigned long calls = 0, same = 0, different = 0, unsupported = 0, exhausted = 0, evm_inconclusive = 0;
+    unsigned long same_success = 0, same_events = 0;  // the same calls that succeeded, that had events
     unsigned contracts = 0, unparsed_contracts = 0, all_same = 0;
     std::array<std::uint64_t, static_cast<std::size_t>(Unsupported::count)> reasons{};
     std::map<std::string, unsigned long> differences;  // the first words of the messages
@@ -118,6 +169,8 @@ struct Tally
     {
         calls += t.calls;
         same += t.same;
+        same_success += t.same_success;
+        same_events += t.same_events;
         different += t.different;
         unsupported += t.unsupported;
         exhausted += t.exhausted;
@@ -135,8 +188,9 @@ struct Tally
     {
         char buf[256];
         std::snprintf(buf, sizeof buf,
-            "calls %lu: same %lu, different %lu, unsupported %lu, exhausted %lu, evm inconclusive %lu",
-            calls, same, different, unsupported, exhausted, evm_inconclusive);
+            "calls %lu: same %lu (%lu succeeded, %lu with events), different %lu, unsupported %lu, exhausted %lu, "
+            "evm inconclusive %lu",
+            calls, same, same_success, same_events, different, unsupported, exhausted, evm_inconclusive);
         return buf;
     }
 };
@@ -175,10 +229,21 @@ Tally run_contract(const Bytes& code, const Program& program, const Options& o, 
     const auto planned = gen.calls();
     EvmRunner runner{code};
     Interpreter interp{program};
+    if (o.db != nullptr)
+        interp.set_param_names(param_names(*o.db));
     State evm_state{world, world.contract_address(), code};
     State text_state{world, world.contract_address(), code};
+    if (o.trace)
+        interp.set_trace([](std::uint32_t line, const Word* value) {
+            if (value == nullptr)
+                std::cout << "  line " << line << "\n";
+            else
+                std::cout << "    = " << hex(*value) << "\n";
+        });
     for (std::size_t i = 0; i < planned.size(); ++i)
     {
+        if (o.only && *o.only != i)
+            continue;
         const auto& call = planned[i].context;
         State evm_single{world, world.contract_address(), code};
         State text_single{world, world.contract_address(), code};
@@ -186,6 +251,12 @@ Tally run_contract(const Bytes& code, const Program& program, const Options& o, 
         const Effects mine = interp.run(o.each ? text_single : text_state, call);
         ++t.calls;
         const auto c = compare(evm, mine);
+        if (!o.each && c.verdict != Verdict::same)
+        {
+            // the sequence goes on from the same state on both sides: no
+            // difference (an inconclusive call) passed on to the next calls
+            text_state = evm_state;
+        }
         if (o.verbose)
             std::cout << call_header(i, planned[i]) << "\n  evm:  " << to_string(evm.end) << "\n  text: "
                       << to_string(mine.end) << "\n  " << (c.verdict == Verdict::same ? "same" : c.message) << "\n";
@@ -196,7 +267,11 @@ Tally run_contract(const Bytes& code, const Program& program, const Options& o, 
         else if (mine.end.status == Status::exhausted)
             ++t.exhausted;
         else if (c.verdict == Verdict::same)
+        {
             ++t.same;
+            t.same_success += evm.end.success() ? 1 : 0;
+            t.same_events += evm.events.empty() ? 0 : 1;
+        }
         else
         {
             ++t.different;
@@ -263,10 +338,10 @@ int run(const Options& o)
                 {
                     std::vector<std::uint32_t> before;
                     for (const auto& f : program.functions)
-                        if (f.kind == Function::regular && f.selector == sel)
+                        if (sel ? f.kind == Function::regular && f.selector == *sel : f.kind == Function::fallback)
                             for (const auto& p : f.params)
                                 before.push_back(p.position);
-                    if (place_params(program, sel, pos) && before != pos)
+                    if (place_params(program, sel, pos) && !std::ranges::equal(before, std::span(pos).first(before.size())))
                         ++moved;
                 }
             else
@@ -372,6 +447,21 @@ int main(int argc, char** argv)
         case CheckWord::params:
             o.params = value();
             break;
+        case CheckWord::call:
+        {
+            const auto n = parse_number(value());
+            if (!n || *n > 1000000)
+                return std::cerr << usage, 1;
+            o.only = static_cast<std::size_t>(*n);
+            o.verbose = true;
+            break;
+        }
+        case CheckWord::trace:
+            o.trace = true;
+            break;
+        case CheckWord::sigdb:
+            o.sigdb = value();
+            break;
         case CheckWord::none:
             o.args.emplace_back(a);
             break;
@@ -382,6 +472,20 @@ int main(int argc, char** argv)
             std::cerr << usage;
             return 1;
         }
+    }
+    std::unique_ptr<pan::sigdb::Database> db;
+    if (!o.sigdb.empty())
+    {
+        try
+        {
+            db = pan::sigdb::Database::open(o.sigdb);
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "text_check: " << o.sigdb << ": " << e.what() << "\n";
+            return 1;
+        }
+        o.db = db.get();
     }
     return run(o);
 }

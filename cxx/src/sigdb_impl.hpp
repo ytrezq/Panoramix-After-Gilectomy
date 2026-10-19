@@ -145,9 +145,9 @@ inline constexpr unsigned max_depth = 64;  // of the types' nesting
 // references point (the file's strings, or a StringPool's bytes).
 void append_type_text(const std::uint8_t*& p, const std::uint8_t* strings, std::string& out);
 // p moved past the code (checked: false when it goes past end, is deeper
-// than code::max_depth, or refers past the strings).
-bool skip_type(const std::uint8_t*& p, const std::uint8_t* end, std::uint64_t strings_size,
-               unsigned depth = 0) noexcept;
+// than code::max_depth, or refers to what isn't a string of strings).
+bool skip_type(const std::uint8_t*& p, const std::uint8_t* end, const std::uint8_t* strings,
+               std::uint64_t strings_size, unsigned depth = 0) noexcept;
 // A string reference (checked).
 bool check_string(std::uint64_t ref, const std::uint8_t* strings, std::uint64_t strings_size) noexcept;
 inline std::string_view string_at(const std::uint8_t* strings, std::uint64_t ref) noexcept

@@ -273,7 +273,6 @@ private:
     std::optional<Entry> entry_at(std::size_t i) const noexcept;
 
     std::unique_ptr<Mapping> map_;
-    const std::uint8_t* base_ = nullptr;
     const std::uint8_t* buckets_ = nullptr;
     const std::uint8_t* index_ = nullptr;
     const std::uint8_t* records_ = nullptr;
