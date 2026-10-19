@@ -12,6 +12,7 @@
 #include "core/dump.hpp"
 #include "driver/internal.hpp"
 #include "hex.hpp"
+#include "output/output.hpp"
 
 namespace pan::driver::detail {
 
@@ -145,11 +146,8 @@ void Explainer::trace(std::string_view title, Value t)
         return;  // python's explain: not the trace printed last
     if (cut_)
         return;
-    const Colors c(color_);
     const usize before = out.size();
-    out += std::format("\n{} {}: {}\n\n", c.green_back, title, c.end);
-    append_lines(out, t, 2);
-    out += "\n\n";
+    output::explain_trace(out, title, t, output::TraceContext{fn_, db_, color_});
     if (out.size() > EXPLAIN_MAX) {
         out.resize(before);
         out += EXPLAIN_CUT;

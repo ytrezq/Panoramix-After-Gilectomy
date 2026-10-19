@@ -21,14 +21,17 @@
 #include "core/watchdog.hpp"
 #include "driver/internal.hpp"
 #include "loops/loops.hpp"
+#include "output/output.hpp"
 #include "sigdb.hpp"
 #include "simplify/simplify.hpp"
 
 namespace pan::driver {
 
-bool stage_available(Stage s) noexcept { return s <= last_available(); }
+// (Analysed: lots 8 and 9's, when they land; Folded: lot 10's asts of the
+// stage before it)
+bool stage_available(Stage s) noexcept { return s != Stage::Analysed; }
 
-Stage last_available() noexcept { return Stage::Simplified; }
+Stage last_available() noexcept { return Stage::Folded; }
 
 std::string function_name(const sigdb::Database* db, const FunctionInfo& fn)
 {
@@ -215,6 +218,8 @@ void check_deadline(i64 deadline)
 }
 
 }  // namespace
+
+Stage jobs_last(Stage upto) noexcept { return upto < Stage::Simplified ? upto : Stage::Simplified; }
 
 i64 deadline_after(i64 base_ns) noexcept
 {
@@ -540,8 +545,9 @@ void Run::run_job(bool internal, u32 i, JobOut& out)
         }
     Local local;
     std::optional<Explainer> explainer;
+    FunctionInfo fn;
     if (s_.explain)
-        explainer.emplace(s_.color);
+        explainer.emplace(s_.color, &fn, s_.options.db);
     const Stage upto = s_.options.upto;
     Stage at = Stage::Raw;
     bool failed = false;
@@ -551,7 +557,6 @@ void Run::run_job(bool internal, u32 i, JobOut& out)
         ctx = Context::create(budget, &shared_);
         ContextScope scope(*ctx);
         info("Decompiling " + out.name + "...");
-        FunctionInfo fn;
         {
             Importer imp;
             fn = import_info(imp, src);
@@ -604,8 +609,10 @@ void Run::run_job(bool internal, u32 i, JobOut& out)
                     hook.emplace(*explainer, &roots.values[2]);  // (fn's entry lines: Roots::hold)
                 simplify::simplify_function(fn, so, hook ? &*hook : nullptr);
             }
-            if (explainer)
+            if (explainer) {
                 explainer->trace("final", with_entry(fn.entry.entry_lines, fn.trace));
+                explainer->trace("folded", output::fold(with_entry(fn.entry.entry_lines, fn.trace)));
+            }
             check_deadline(deadline);
             local.keep(Stage::Simplified, fn);
         }
@@ -654,9 +661,7 @@ void Run::run_job(bool internal, u32 i, JobOut& out)
 
 void Run::import_job(Local& local, Context& from, JobOut& out)
 {
-    u32 wanted = s_.options.keep;
-    if (s_.options.observer)
-        wanted = KEEP_ALL;
+    const u32 wanted = wanted_stages();
     std::lock_guard<std::mutex> lock(import_mutex_);
     // on this thread for the import: a budget of no deadline (the job's may
     // have expired), the contract's context with no limit of its own (what a
@@ -741,10 +746,8 @@ void Run::assemble()
         f.problem = problem;
         return f;
     };
-    u32 wanted = s_.options.keep;
-    if (s_.options.observer)
-        wanted = KEEP_ALL;
-    for (unsigned s = 0; s <= stage_index(upto); ++s) {
+    const u32 wanted = wanted_stages();
+    for (unsigned s = 0; s <= stage_index(jobs_last(upto)); ++s) {
         r.made[s] = true;
         r.last = Stage(s);
         if (!(wanted & (u32(1) << s)))
@@ -763,6 +766,18 @@ void Run::assemble()
     int_out_.clear();
 }
 
+// the stages imported from the jobs: those kept, every one for the
+// observer, and the one the contract phase starts from
+u32 Run::wanted_stages() const noexcept
+{
+    u32 w = s_.options.keep;
+    if (s_.options.observer)
+        w = KEEP_ALL;
+    if (s_.options.upto > jobs_last(s_.options.upto))
+        w |= keep_bit(jobs_last(s_.options.upto));
+    return w;
+}
+
 void Run::contract_phase()
 {
     ContractResult& r = result_;
@@ -771,15 +786,29 @@ void Run::contract_phase()
     // callvalue check out of the trace -, read_only, const, getter; --explain's
     // "function traits"); here lot 9's storage over every function (Analysed:
     // the storage forms, ContractResult::storage; its fallback the raw
-    // accesses), lot 10's folds, each function on a context of its own on
-    // threads under the post-processing's deadline (Folded), lot 8's SafeMath
-    // on the asts (ContractResult::safemath).
+    // accesses), then lot 8's SafeMath on the asts (ContractResult::safemath).
+    //
+    // Folded: lot 10's asts (python's make_asts) of the last stage made, each
+    // function on a context of its own, on threads, to the contract phase's
+    // deadline (a fold that can't leaves the trace unfolded)
+    if (s_.options.upto >= Stage::Folded && r.made[stage_index(r.last)] && r.kept[stage_index(r.last)]) {
+        const unsigned from = stage_index(r.last);
+        output::AstStageOptions ao;
+        ao.threads = s_.options.threads;
+        ao.deadline_ns = post_deadline_;
+        ao.shared = &shared_;
+        constexpr unsigned f = stage_index(Stage::Folded);
+        output::ast_stage(r.functions[from], r.functions[f], ao);
+        output::ast_stage(r.internals[from], r.internals[f], ao);
+        r.made[f] = r.kept[f] = true;
+        r.last = Stage::Folded;
+    }
     if (StageObserver* o = s_.options.observer)
         for (unsigned s = 0; s < STAGE_COUNT; ++s)
             if (r.made[s] && r.kept[s])
                 o->stage(Stage(s), r.functions[s], r.internals[s]);
     for (unsigned s = 0; s < STAGE_COUNT; ++s)
-        if (r.kept[s] && !(s_.options.keep & (u32(1) << s))) {
+        if (r.kept[s] && !(s_.options.keep & (u32(1) << s)) && Stage(s) != r.last) {
             r.kept[s] = false;
             r.functions[s].clear();
             r.functions[s].shrink_to_fit();
@@ -806,6 +835,7 @@ ContractResult run_pipeline(std::span<const u8> code, const PipelineOptions& opt
     if (const Budget* b = Budget::current())
         s.parent_deadline = b->limits().deadline_ns;
     detail::Run run(code, s);
+    run.set_post_deadline(s.parent_deadline);
     run.functions();
     run.contract_phase();
     return std::move(run.result());

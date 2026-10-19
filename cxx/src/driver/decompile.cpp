@@ -88,6 +88,7 @@ Decompilation decompile_here(std::span<const u8> code, const DecompileOptions& o
                 watch.emplace(budget, deadline);
             } catch (const std::system_error&) {
             }
+        run->set_post_deadline(deadline);
         run->contract_phase();
         const ContractResult& r = run->result();
         if (o.asm_lines)

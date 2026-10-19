@@ -141,8 +141,12 @@ TEST_CASE("driver: the stages of a contract, one run")
     CHECK(r.has_code);
     CHECK(r.problems.empty());
     CHECK(r.last == driver::last_available());
-    for (unsigned s = 0; s <= driver::stage_index(r.last); ++s) {
-        CHECK(r.made[s]);
+    std::vector<Stage> made;
+    for (unsigned s = 0; s < driver::STAGE_COUNT; ++s) {
+        CHECK(r.made[s] == driver::stage_available(Stage(s)));
+        if (!r.made[s])
+            continue;
+        made.push_back(Stage(s));
         CHECK(r.kept[s]);
         REQUIRE(r.functions[s].size() == 1);
         CHECK(r.functions[s][0].kind == FunctionInfo::Kind::Fallback);
@@ -150,14 +154,9 @@ TEST_CASE("driver: the stages of a contract, one run")
         CHECK(!r.functions[s][0].problem);
         CHECK(r.internals[s].empty());
     }
-    for (unsigned s = driver::stage_index(r.last) + 1; s < driver::STAGE_COUNT; ++s) {
-        CHECK(!r.made[s]);
-        CHECK(!driver::stage_available(Stage(s)));
-    }
-    // the observer: each stage once, in order, the whole contract
-    REQUIRE(seen.stages.size() == driver::stage_index(r.last) + 1);
+    // the observer: each stage made once, in order, the whole contract
+    REQUIRE(seen.stages == made);
     for (usize k = 0; k < seen.stages.size(); ++k) {
-        CHECK(seen.stages[k] == Stage(k));
         CHECK(seen.functions[k] == 1);
         CHECK(seen.internals[k] == 0);
     }
@@ -312,7 +311,9 @@ TEST_CASE("driver: problems - a function's memory limit, the loader's fallback")
     CHECK(!r.problems[0].internal);
     CHECK(r.problems[0].index == 0);
     CHECK(r.problems[0].message.find("memory limit") != std::string::npos);
-    for (unsigned s = 0; s <= driver::stage_index(r.last); ++s) {
+    for (unsigned s = 0; s < driver::STAGE_COUNT; ++s) {
+        if (!r.made[s])
+            continue;
         REQUIRE(r.functions[s].size() == 1);
         CHECK(r.functions[s][0].trace.nil());
         CHECK(r.functions[s][0].problem == 0u);

@@ -55,7 +55,9 @@ private:
 // merged in job order (Run::merge_explain), prev_trace carried across.
 class Explainer {
 public:
-    explicit Explainer(bool color) : color_(color) {}
+    // fn: the function explained (its names; the struct, not its values:
+    // they may change), db: the signature database's
+    Explainer(bool color, const FunctionInfo* fn, const sigdb::Database* db) : color_(color), fn_(fn), db_(db) {}
     void trace(std::string_view title, Value trace);
     std::string out;
     bool first = false;  // a trace printed: the first one's hash and where its section ends
@@ -66,6 +68,8 @@ public:
 
 private:
     bool color_;
+    const FunctionInfo* fn_;
+    const sigdb::Database* db_;
     bool cut_ = false;  // past EXPLAIN_MAX: no more sections
 };
 
@@ -104,6 +108,8 @@ public:
     const std::string& explain() const noexcept { return explain_; }
     // own_contract: the post-processing's memory limit (base + imports + a function's)
     void set_phase_limit();
+    // the contract phase's deadline (decompile: the post-processing's; run_pipeline: the caller's)
+    void set_post_deadline(i64 deadline_ns) noexcept { post_deadline_ = deadline_ns; }
 
 private:
     struct JobOut;
@@ -116,6 +122,7 @@ private:
     void import_job(Local& local, Context& from, JobOut& out);
     void merge_wave(const std::vector<std::pair<bool, u32>>& jobs, std::vector<vm::InternalEntry>& fresh);
     void assemble();
+    u32 wanted_stages() const noexcept;
     JobOut& out_of(bool internal, u32 i);
 
     std::span<const u8> code_;
@@ -125,6 +132,7 @@ private:
     Context& main_;
     Budget& main_budget_;
     usize base_ = 0, imported_ = 0;
+    i64 post_deadline_ = 0;
     std::mutex import_mutex_;
     std::vector<FunctionInfo> fns_, ints_;  // main's: the functions run, the internal ones as found
     std::vector<vm::InternalEntry> recs_;   // ints_'s records
@@ -134,6 +142,9 @@ private:
     u64 explain_prev_hash_ = 0;
     ContractResult result_;
 };
+
+// the last stage the jobs make (the stages after it are the contract phase's)
+Stage jobs_last(Stage upto) noexcept;
 
 // --- the placeholders of lot 10's outputs (output.cpp) ---
 
