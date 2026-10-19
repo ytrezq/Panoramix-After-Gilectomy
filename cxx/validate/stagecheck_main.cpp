@@ -12,6 +12,7 @@
 #include "core/jobs.hpp"
 #include "core/platform.hpp"
 #include "sigdb.hpp"
+#include "simplify/simplify.hpp"
 #include "vm/vm.hpp"
 
 #include <algorithm>
@@ -141,6 +142,20 @@ void raw_pipeline(Decompiled& c, Stage, pan::Budget& budget)
         if (internal && internals[i].trace.nil())
             internals[i].problem = 0;
     c.made[static_cast<unsigned>(Stage::raw)] = true;
+}
+
+/// raw_pipeline, then the stages made from it so far: the simplified traces
+/// (lot 7) from the raw ones (whiles, lot 6, not yet: left unmade).
+void pipeline(Decompiled& c, Stage upto, pan::Budget& budget)
+{
+    raw_pipeline(c, upto, budget);
+    if (upto >= Stage::simplified)
+    {
+        constexpr auto s = static_cast<unsigned>(Stage::simplified);
+        pan::simplify::simplify_stage(c.functions[0], c.functions[s]);
+        pan::simplify::simplify_stage(c.internals[0], c.internals[s]);
+        c.made[s] = true;
+    }
 }
 
 std::optional<Bytes> read_hex_file(const std::string& path)
@@ -481,7 +496,8 @@ int main(int argc, char** argv)
         return 1;
     }
     if (o.check.upto > Stage::raw)
-        std::cout << "(the stages past raw need lot 12's pipeline: only raw is checked for now)\n";
+        std::cout << "(the stages made so far: raw, simplified (from raw: whiles needs lot 6); past "
+                     "simplified, lot 12's pipeline)\n";
     std::cout << "stagecheck: " << paths.size() << " contracts, seed " << o.check.seed << ", "
               << (o.check.db != nullptr ? "typed" : "untyped") << " calldata, "
               << (o.check.empty_world ? (o.check.random_world ? "empty and random worlds" : "the empty world") :
@@ -499,7 +515,7 @@ int main(int argc, char** argv)
         try
         {
             if (const auto code = read_hex_file(paths[i]))
-                d.report = check_contract(*code, o.check, raw_pipeline);
+                d.report = check_contract(*code, o.check, pipeline);
             else
                 d.readable = false;
         }

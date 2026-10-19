@@ -26,6 +26,9 @@
 // (alg::set_variables) by simplify_trace for its run and cleared after.
 #pragma once
 
+#include <span>
+#include <vector>
+
 #include "core/base.hpp"
 #include "core/budget.hpp"
 #include "core/contract.hpp"
@@ -75,6 +78,12 @@ struct SimplifyOptions {
     // `len % 32` branches assumed equal, replace_var into setmems past
     // clobbers): off unless execution confirms them
     bool dubious = false;
+    // compact the context between rounds past its threshold (python's
+    // PANORAMIX_COMPACT_MIB): only when the caller owns the context - every
+    // Value it still holds besides the trace is in compact_roots (updated in
+    // place); off: never compacted
+    bool compact = false;
+    std::span<Value> compact_roots{};
 };
 
 // ---- expressions ------------------------------------------------------------------
@@ -97,6 +106,12 @@ Value simplify_exp(Value e);
 Value simplify_trace(Value trace, const SimplifyOptions& opts = {}, ExplainHook* explain = nullptr);
 // fn.trace simplified (simplify_trace), on cx()
 void simplify_function(FunctionInfo& fn, const SimplifyOptions& opts = {}, ExplainHook* explain = nullptr);
+// The simplified stage of a contract's functions (stagecheck, lot 12): out
+// = in with each trace simplified; a function that failed before (problem)
+// is copied as it is; one whose simplification fails (an Error) gets no
+// trace and problem = 0. Timeout (Abort) goes through.
+void simplify_stage(const std::vector<FunctionInfo>& in, std::vector<FunctionInfo>& out,
+                    const SimplifyOptions& opts = {});
 
 // ---- the passes (each: a trace in, the trace out - itself when unchanged) ----------
 

@@ -2,12 +2,26 @@
 // pass returns its input (trivially correct).
 #include "simplify/simplify.hpp"
 
+#include "core/errors.hpp"
+
 namespace pan::simplify {
 
 Value simplify_exp(Value e) { return e; }
 Value simplify_trace(Value trace, const SimplifyOptions&, ExplainHook*) { return trace; }
 void simplify_function(FunctionInfo& fn, const SimplifyOptions& opts, ExplainHook* explain) {
     fn.trace = simplify_trace(fn.trace, opts, explain);
+}
+void simplify_stage(const std::vector<FunctionInfo>& in, std::vector<FunctionInfo>& out, const SimplifyOptions& opts) {
+    out = in;
+    for (FunctionInfo& f : out) {
+        if (f.problem || f.trace.nil()) continue;
+        try {
+            simplify_function(f, opts);
+        } catch (const Error&) {
+            f.trace = Value();
+            f.problem = 0;
+        }
+    }
 }
 Value simplify_exps(Value trace) { return trace; }
 Value cleanup_vars(Value trace) { return trace; }
