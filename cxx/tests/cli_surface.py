@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""pancxx's command line against the core's stub (src/decompile_stub.cpp:
-placeholder text saying what it was given - the code's size and FNV-1a, the
-options): its inputs (hex, files, standard input, lists, addresses fetched
+"""pancxx's command line over the core (lot 12's driver; the decompilation's
+text is the stages' as far as they go - what's checked here doesn't depend on
+how it's printed): its inputs (hex, files, standard input, lists, addresses fetched
 from a node of our own over HTTP - plain and chunked - and IPC, found as
 web3 finds it), its options, messages and exit codes; the hostile inputs of
 the asm's tests/security.sh; and, when the asm's panasm is there, the same
@@ -35,9 +35,8 @@ def fnv1a64(code):
     return "%016x" % h
 
 
-def stub_says(code):
-    """what the stub's text says of the code"""
-    return "# %d bytes of code, fnv1a64 %s\n" % (len(code), fnv1a64(code))
+HEADER = "# Palkeoramix decompiler. "
+NO_CODE = "# No code found for this contract."
 
 
 tmp = tempfile.mkdtemp()
@@ -169,43 +168,62 @@ check("--version", rc == 0 and out.startswith("pancxx ") and len(out.splitlines(
 
 H = CODE1.hex()
 rc, out, err = run(["decompile", H, "--no-color", "-j", "2"])
-check("decompile HEX", rc == 0 and stub_says(CODE1) in out and "threads=2" in out and out.endswith("\n")
-      and "\x1b" not in out, (rc, out, err))
+check("decompile HEX", rc == 0 and out.startswith(HEADER + "\n") and "def _fallback(?)" in out
+      and out.endswith("\n") and "\x1b" not in out, (rc, out, err))
+REF1 = out  # (CODE1's text: what the other inputs of it must give)
+REF2 = run(["decompile", CODE2.hex(), "--no-color", "-j", "2"])[1]
+check("two codes, two texts", REF1 != REF2 and REF2.startswith(HEADER), REF2)
 rc, out2, err = run(["decompile", "0x" + H.upper(), "--no-color", "-j", "2"])
 check("decompile 0xHEX", out2 == out, out2)
+check("decompile: the same text at -j 1, 2, 8", all(run(["decompile", H, "--no-color", "-j", j])[1] == REF1
+                                                    for j in ("1", "8", "0")))
 rc, out, err = run(["decompile", H])
-check("decompile: colors by default", rc == 0 and "\x1b[" in out and "threads=0 function='' color=1" in out, out)
-rc, out, err = run(["decompile", H, "--no-color", "--function", "trans", "-j", "0", "--verbose", "--repr", "--returns"])
-check("decompile: the options reach the core",
-      "threads=1 function='trans' color=0 verbose=1 explain=0 repr=1 returns=1 json=0" in out, out)
+check("decompile: colors by default", rc == 0 and "\x1b[" in out, out)
+rc, out, err = run(["decompile", H, "--no-color", "--function", "trans"])
+check("decompile: --function, none of them", rc == 0 and out.startswith(HEADER) and "def " not in out, out)
+rc, out, err = run(["decompile", H, "--no-color", "--function", "_fallback"])
+check("decompile: --function, that one", rc == 0 and out == REF1, out)
+rc, out, err = run(["decompile", H, "--no-color", "--verbose"])
+check("decompile: --verbose (the instructions run in the text)", rc == 0 and out != REF1 and out.startswith(HEADER),
+      out)
+rc, out, err = run(["decompile", H, "--no-color", "--repr"])
+check("decompile: --repr (the traces after the functions)", rc == 0 and out != REF1 and out.startswith(REF1[:20]),
+      out)
 rc, out, err = run(["decompile", H, "--json"])
-check("--json", rc == 0 and json.loads(out)["bytes"] == len(CODE1) and out.endswith("}\n"), out)
+js = json.loads(out) if rc == 0 and out.startswith("{") else {}
+check("--json", rc == 0 and js.get("problems") == {} and len(js.get("functions", ())) == 1 and out.endswith("}\n"),
+      out)
 rc, out, err = run(["decompile", H, "--explain", "--no-color"])
-check("--explain: its text first", rc == 0 and out.startswith("(stub) what --explain prints")
-      and stub_says(CODE1) in out and "verbose=1 explain=1" in out, out)
-rc, out, err = run(["decompile", "deadbeef", "--explain", "--no-color"])
-check("a failure: --explain's text, the message, 1", rc == 1 and out.startswith("(stub) what --explain")
-      and err == "decompilation failed: (stub) the code asked for a failure\n", (rc, out, err))
-
+check("--explain: its text first", rc == 0 and out.startswith("\n Initial decompiled trace: \n\n")
+      and out.endswith(REF1) and len(out) > len(REF1), out)
+# a function's memory limit below an arena's chunk: every function fails at
+# it, the contract's text says so (the asm's: the process lives on, rc 0)
+rc, out, err = run(["decompile", H, "--explain", "--no-color"], env(PANORAMIX_MAX_MEMORY="1", PANORAMIX_LOG="critical"))
+check("a function's memory limit: a problem, the text, 0", rc == 0 and out.startswith(HEADER) and
+      "#  I failed with these: \n#  - _fallback(?)\n" in out and not err, (rc, out, err))
+# (a decompilation that fails - "decompilation failed: ..." on stderr, 1 - is
+# one past the post-processing's deadline, or one whose contract's own
+# context the system can't give: no input makes one at will; pymod_surface's
+# code of 4 GiB does, through the module)
 f = os.path.join(tmp, "c.hex")
 open(f, "w").write("0x" + H[:10] + "\n" + H[10:] + "\n")
 rc, out, err = run(["decompile", f, "--no-color"])
-check("a file", rc == 0 and stub_says(CODE1) in out, (rc, out, err))
+check("a file", rc == 0 and out == REF1, (rc, out, err))
 rc, out, err = run(["decompile", "-", "--no-color"], stdin=("  0x%s \n" % H).encode())
-check("standard input", rc == 0 and stub_says(CODE1) in out, (rc, out, err))
+check("standard input", rc == 0 and out == REF1, (rc, out, err))
 rc, out, err = run(["decompile", "-", "--no-color"])
-check("standard input, empty", rc == 0 and stub_says(b"") in out, (rc, out, err))
+check("standard input, empty", rc == 0 and out == NO_CODE + "\n", (rc, out, err))
 rc, out, err = run(["disasm", f])
 check("disasm", rc == 0 and out.startswith("0x0, push1, 0x80\n") and "0xf, jumpdest, \n" in out, (rc, out, err))
 rc, out, err = run(["decode", "0x" + H])
 check("decode", rc == 0 and "%d bytes of code" % len(CODE1) in out, (rc, out, err))
 rc, out, err = run(["decompile", "%s,nothing,0x%s" % (H, CODE2.hex()), "--no-color"])
-check("a list with a bad input", rc == 1 and out.count("Palkeoramix") == 2 and stub_says(CODE1) in out
-      and stub_says(CODE2) in out and err == "can't read the file: nothing\n", (rc, out, err))
+check("a list with a bad input", rc == 1 and out == REF1 + REF2 and err == "can't read the file: nothing\n",
+      (rc, out, err))
 fc = os.path.join(tmp, "a,b.hex")
 open(fc, "w").write(H)
 rc, out, err = run(["decompile", fc, "--no-color"])
-check("a file named with a comma", rc == 0 and out.count("Palkeoramix") == 1 and stub_says(CODE1) in out, (rc, err))
+check("a file named with a comma", rc == 0 and out == REF1, (rc, err))
 fb = os.path.join(tmp, "bad.hex")
 open(fb, "w").write("60zz")
 rc, out, err = run(["decompile", fb])
@@ -271,7 +289,7 @@ for name, e in [("http", env(WEB3_PROVIDER_URI=URL)),
                 ("ipc, the provider of the environment unreachable", env(HOME=HOME, WEB3_PROVIDER_URI="http://127.0.0.1:1")),
                 ("http, WEB3_HTTP_PROVIDER_URI", env(WEB3_HTTP_PROVIDER_URI=URL))]:
     rc, out, err = run(["decompile", A1, "--no-color", "-j", "2"], e)
-    check("fetch: " + name, rc == 0 and out == text_of[A1] and stub_says(CODE1) in out, (rc, err, out))
+    check("fetch: " + name, rc == 0 and out == text_of[A1] == REF1, (rc, err, out))
 rc, out, err = run(["decompile", "%s,%s,%s" % (A1, A2, A3), "--no-color", "-j", "2"], env(WEB3_PROVIDER_URI=URL))
 check("fetch: a list", rc == 0 and out == text_of[A1] + text_of[A2] + text_of[A3], err)
 rc, out, err = run(["decompile", A1.upper().replace("0X", "0x"), "--no-color", "-j", "2"], env(WEB3_PROVIDER_URI=URL))

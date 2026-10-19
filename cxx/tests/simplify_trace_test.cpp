@@ -321,3 +321,30 @@ TEST_CASE("simplify: calls' selectors, ABI arrays") {
     // not an encoding: as it is
     check_trace("{(return (data (sized 32 32) (sized 32 5) (sized 3 0x112233)))}", S::postprocess_exps);
 }
+
+TEST_CASE("simplify: conditions known on the path") {
+    Fixture f;
+    // a check passed holds until what it reads changes: the same check again is decided
+    Value u = check_trace(
+        "{(if (iszero (storage 8 64 7)) {(revert None)} {}) (store 8 0 7 1) (if (iszero (storage 8 64 7)) {(revert "
+        "None)} {}) (stop)}",
+        S::cleanup_conds);
+    CHECK(u.size() == 3);
+    // ... and isn't once it changes
+    u = check_trace(
+        "{(if (iszero (storage 8 64 7)) {(revert None)} {}) (store 8 64 7 (calldataload 4)) (if (iszero (storage 8 64 "
+        "7)) {(revert None)} {}) (stop)}",
+        S::cleanup_conds);
+    CHECK(u.size() == 4);
+    // nested: the inner test decided by the outer one
+    u = check_trace(
+        "{(if (lt (calldataload 4) 10) {(if (lt (calldataload 4) 20) {(return (sized 32 1))} {(return (sized 32 2))})} "
+        "{(stop)})}",
+        S::cleanup_conds);
+    CHECK(u[0][1][0].is(Op::RETURN));
+    // a variable set again
+    check_trace(
+        "{(setvar tmp1 (calldataload 4)) (if (iszero tmp1) {(revert None)} {}) (setvar tmp1 (calldataload 36)) (if "
+        "(iszero tmp1) {(revert None)} {}) (stop)}",
+        S::cleanup_conds);
+}

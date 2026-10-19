@@ -172,8 +172,19 @@ Vm::Vm(const ContractShared& contract, const RunSetup& setup)
 void Vm::check_frontier() const {
     std::pmr::vector<NodeId> walk(res_);
     unexpanded(walk);
-    if (walk.size() != frontier_.size() || !std::equal(walk.begin(), walk.end(), frontier_.begin()))
-        throw InternalError("vm: the frontier differs from the tree's walk (PANORAMIX_VM_CHECK)");
+    if (walk.size() == frontier_.size() && std::equal(walk.begin(), walk.end(), frontier_.begin())) return;
+    // (where they part, to tell why)
+    usize i = 0;
+    while (i < walk.size() && i < frontier_.size() && walk[i] == frontier_[i]) ++i;
+    auto at = [&](const std::pmr::vector<NodeId>& v) {
+        if (i >= v.size()) return std::string("-");
+        const Node& x = nodes_[v[i]];
+        return std::to_string(v[i]) + "@" + std::to_string(x.start) + (x.dead ? " dead" : "") +
+               " end " + std::to_string(int(x.end));
+    };
+    throw InternalError("vm: the frontier differs from the tree's walk (PANORAMIX_VM_CHECK): " +
+                        std::to_string(frontier_.size()) + " nodes, the walk's " + std::to_string(walk.size()) +
+                        ", at " + std::to_string(i) + ": " + at(frontier_) + " / " + at(walk));
 }
 
 Value Vm::jd_of(u32 start, u32 sw, Value stack) const {

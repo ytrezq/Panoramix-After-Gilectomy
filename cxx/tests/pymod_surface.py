@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """The python module's surface: the asm's panoramix_asm module's functions
 and objects (without _test), their arguments, results and exceptions -
-against the core's stub (src/decompile_stub.cpp: placeholder text saying
-what it was given), for both builds of the module (panoramix_cxx, and
+over the core (lot 12's driver: what's checked doesn't depend on how the
+text is printed), for both builds of the module (panoramix_cxx, and
 compat/panoramix_asm). decompile_address against a node of our own.
 
     tests/pymod_surface.py BUILD_DIR
@@ -57,7 +57,15 @@ CODE = bytes.fromhex("6080604052348015600f57600080fd5b50")
 # panasm's own disassembly of CODE
 DISASM = ("0x0, push1, 0x80\n0x2, push1, 0x40\n0x4, mstore, \n0x5, callvalue, \n0x6, dup1, \n0x7, iszero, \n"
           "0x8, push1, 0xf\n0xa, jumpi, \n0xb, push1, 0x0\n0xd, dup1, \n0xe, revert, \n0xf, jumpdest, \n0x10, pop, \n")
-FAIL = bytes.fromhex("deadbeef00")   # (the stub fails on it)
+HEADER = "# Palkeoramix decompiler. "
+NO_CODE = "# No code found for this contract."
+
+
+# a code past 4 GiB (a mapping of zeroes, never touched): the decompilation
+# fails at once - "decompilation failed: ...", python's RuntimeError
+def huge():
+    import mmap
+    return memoryview(mmap.mmap(-1, (1 << 32) + 1))
 
 # a node: eth_getCode of two addresses, an error for a third
 A1 = "0x00000000000000000000000000000000000000a1"
@@ -136,28 +144,32 @@ def surface(m, name):
     # decompile: the code as bytes, bytes-like, hex
     m.set_log_level("error")
     t = m.decompile(CODE, threads=2, color=False)
-    check(p + "decompile(bytes)", "# %d bytes of code, fnv1a64 %s" % (len(CODE), fnv1a64(CODE)) in t
-          and "threads=2" in t and "color=0" in t and "\x1b" not in t and not t.endswith("\n"), t)
+    check(p + "decompile(bytes)", t.startswith(HEADER) and "def _fallback(?)" in t and "\x1b" not in t, t)
+    ref = t
     for what, arg in [("bytearray", bytearray(CODE)), ("memoryview", memoryview(CODE)),
                       ("str", CODE.hex()), ("str 0x", "0x" + CODE.hex()), ("str 0X, blanks", " 0X" + CODE.hex().upper() + "\n"),
                       ("a buffer of 0x60 80... in an array", __import__("array").array("B", CODE))]:
         check(p + "decompile(%s)" % what, m.decompile(arg, threads=2, color=False) == t)
     check(p + "decompile: color", "\x1b[" in m.decompile(CODE))
     t = m.decompile(CODE, 3, "trans", False, True, False)
-    check(p + "decompile: positional options", "threads=3 function='trans' color=0 verbose=1 explain=0" in t, t)
-    t = m.decompile(CODE, threads=0, function=None)
-    check(p + "decompile: threads=0 (one per CPU), no function", "threads=0 function=''" in t, t)
-    t = m.decompile(CODE, threads=-5)
-    check(p + "decompile: threads<0 (one per CPU)", "threads=0" in t, t)
+    check(p + "decompile: positional options (function, color)", t.startswith(HEADER) and "def " not in t
+          and "\x1b" not in t, t)
+    t = m.decompile(CODE, 3, None, False, True, False)
+    check(p + "decompile: positional options (verbose)", t.startswith(HEADER) and t != ref, t)
+    t = m.decompile(CODE, threads=0, function=None, color=False)
+    check(p + "decompile: threads=0 (one per CPU), no function", t == ref, t)
+    t = m.decompile(CODE, threads=-5, color=False)
+    check(p + "decompile: threads<0 (one per CPU)", t == ref, t)
     t = m.decompile(CODE, explain=True, color=False)
-    check(p + "decompile: --explain's text first", t.startswith("(stub) what --explain prints")
-          and "verbose=1 explain=1" in t, t)
+    check(p + "decompile: --explain's text first", t.startswith("\n Initial decompiled trace: \n\n")
+          and t.endswith(ref), t)
     check(p + "decompile: odd hex", raises(lambda: m.decompile("608"), ValueError, "odd"))
     check(p + "decompile: not hex", raises(lambda: m.decompile("60zz"), ValueError, "position 2"))
     check(p + "decompile: not code", raises(lambda: m.decompile(12), TypeError, "expected bytes"))
-    check(p + "decompile: a failure", raises(lambda: m.decompile(FAIL), RuntimeError, "decompilation failed: (stub)"))
+    check(p + "decompile: a failure", raises(lambda: m.decompile(huge()), RuntimeError,
+                                             "decompilation failed: the code is larger than 4 GiB"))
     check(p + "decompile: a bad keyword", raises(lambda: m.decompile(CODE, colour=False), TypeError))
-    check(p + "decompile: empty code", "# 0 bytes of code" in m.decompile(b""))
+    check(p + "decompile: empty code", m.decompile(b"", color=False) == NO_CODE)
 
     # decompile_bytecode: Decompilation(text, asm, json), explain
     saved = sys.argv
@@ -165,37 +177,40 @@ def surface(m, name):
     d = m.decompile_bytecode(CODE, threads=2, color=False)
     check(p + "decompile_bytecode", isinstance(d, D) and len(d) == 3 and d.text == d[0] and d.asm == d[1]
           and d.json == d[2] and d.explain is None, repr(d)[:300])
-    check(p + "decompile_bytecode: the text", "json=1 asm_lines=1" in d.text and fnv1a64(CODE) in d.text, d.text)
+    check(p + "decompile_bytecode: the text", d.text == ref, d.text)
     check(p + "decompile_bytecode: asm, a list of str", isinstance(d.asm, list) and all(isinstance(x, str) for x in d.asm)
           and d.asm, d.asm)
-    check(p + "decompile_bytecode: json, a dict", isinstance(d.json, dict) and d.json.get("bytes") == len(CODE), d.json)
+    check(p + "decompile_bytecode: json, a dict", isinstance(d.json, dict) and d.json.get("problems") == {}
+          and len(d.json.get("functions", ())) == 1, d.json)
     text, asm, js = d
     check(p + "decompile_bytecode: unpacked", text == d.text and asm == d.asm and js == d.json)
     match d:
         case D(text=tx, asm=a, json=j):
             check(p + "decompile_bytecode: match", tx == d.text and a == d.asm and j == d.json)
     d = m.decompile_bytecode(CODE.hex(), "trans", 4, False)
-    check(p + "decompile_bytecode: positional", "threads=4 function='trans' color=0" in d.text, d.text)
+    check(p + "decompile_bytecode: positional", d.text.startswith(HEADER) and "def " not in d.text
+          and "\x1b" not in d.text, d.text)
     # python's flags of sys.argv, or the arguments
     sys.argv = ["x", "--verbose", "--repr", "--returns"]
     d = m.decompile_bytecode(CODE, color=False)
-    check(p + "decompile_bytecode: sys.argv's flags", "verbose=1 explain=0 repr=1 returns=1" in d.text, d.text)
-    d = m.decompile_bytecode(CODE, color=False, verbose=False)
-    check(p + "decompile_bytecode: verbose=False over sys.argv", "verbose=0" in d.text, d.text)
+    d2 = m.decompile_bytecode(CODE, color=False, verbose=False)
+    check(p + "decompile_bytecode: sys.argv's flags (--repr)", d2.text != ref and d2.text.startswith(HEADER), d2.text)
+    check(p + "decompile_bytecode: verbose=False over sys.argv", d.text != d2.text, d.text)
     sys.argv = ["x", "--explain"]
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
         d = m.decompile_bytecode(CODE, color=False)
-    check(p + "decompile_bytecode: --explain printed and kept", out.getvalue().startswith("(stub) what --explain")
-          and d.explain == out.getvalue() and "explain=1" in d.text, (out.getvalue(), d.explain))
+    check(p + "decompile_bytecode: --explain printed and kept",
+          out.getvalue().startswith("\n Initial decompiled trace: \n\n") and d.explain == out.getvalue(),
+          (out.getvalue(), d.explain))
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
         d = m.decompile_bytecode(CODE, color=False, explain=0)
     check(p + "decompile_bytecode: explain=0 over sys.argv", out.getvalue() == "" and d.explain is None)
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
-        ok = raises(lambda: m.decompile_bytecode(FAIL, explain=True), RuntimeError, "decompilation failed")
-    check(p + "decompile_bytecode: a failure, --explain printed first", ok and out.getvalue().startswith("(stub)"),
+        ok = raises(lambda: m.decompile_bytecode(huge(), explain=True), RuntimeError, "decompilation failed")
+    check(p + "decompile_bytecode: a failure, --explain's text (none yet) printed first", ok and out.getvalue() == "",
           out.getvalue())
     sys.argv = saved
     check(p + "decompile_bytecode: not code", raises(lambda: m.decompile_bytecode(None), TypeError))
@@ -208,7 +223,7 @@ def surface(m, name):
         check(p + "decompile_address", isinstance(d, D) and d.text == ref.text and d.asm == ref.asm and d.json == ref.json)
         check(p + "decompile_address: in capitals", m.decompile_address(A1.upper().replace("0X", "0x"),
               threads=2, color=False).text == ref.text)
-        check(p + "decompile_address: no code", "# 0 bytes of code" in m.decompile_address(A2).text)
+        check(p + "decompile_address: no code", NO_CODE in m.decompile_address(A2).text)
         check(p + "decompile_address: the node's error", raises(lambda: m.decompile_address(BOOM), ConnectionError, "boom"))
         check(p + "decompile_address: not an address", raises(lambda: m.decompile_address("0x12"), ConnectionError,
                                                               "not an address"))

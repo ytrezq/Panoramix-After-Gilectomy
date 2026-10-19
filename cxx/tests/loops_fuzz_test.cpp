@@ -289,6 +289,32 @@ private:
     u32 ntmp_ = 0, nloop_ = 0;
 };
 
+// the trace's variables installed in the algebra (as lot 7's simplify_trace does)
+struct Vars {
+    explicit Vars(Value trace) {
+        std::vector<std::pair<Value, Value>> pairs;
+        std::vector<Value> todo{trace};
+        while (!todo.empty()) {
+            Value v = todo.back();
+            todo.pop_back();
+            if (!(v.is_list() || v.is_expr())) continue;
+            if (v.is(Op::SETVAR, 2)) {
+                std::pair<Value, Value> p{v[0], v[1]};
+                if (std::find(pairs.begin(), pairs.end(), p) == pairs.end()) pairs.push_back(p);
+                continue;
+            }
+            if (v.is_expr() && !has(v.op(), LINE)) continue;
+            for (Value x : v.children()) todo.push_back(x);
+        }
+        std::sort(pairs.begin(), pairs.end(), [](const auto& a, const auto& b) {
+            int c = compare(a.first, b.first);
+            return c != 0 ? c < 0 : compare(a.second, b.second) < 0;
+        });
+        alg::set_variables(pairs, {});
+    }
+    ~Vars() { alg::clear_variables(); }
+};
+
 std::string show(const exec::Outcome& o) {
     std::string s = exec::status_name(o.status);
     s += " data " + std::to_string(o.data.size());
@@ -324,6 +350,54 @@ bool same_runs(Value t, Value u, int n, int& conclusive, bool quiet = false) {
     return true;
 }
 
+// After every WHILE whose induction proves endvars, an assertion of each:
+// IF(eq(v, e), [], [REVERT(0xdead)]) - a run that reaches it with v != e
+// ends otherwise than the trace without them. Every WHILE's summary made
+// (that it runs). `checked`: the endvars asserted.
+Value with_endvar_checks(Value t, int& checked) {
+    if (!t.is_list()) return t;
+    std::vector<Value> out;
+    for (Value l : t.args()) {
+        if (l.is(Op::IF, 3)) {
+            out.push_back(mk(Op::IF, l[0], with_endvar_checks(l[1], checked), with_endvar_checks(l[2], checked)));
+            continue;
+        }
+        if (l.is(Op::WHILE, 4)) {
+            (void)L::summary(l);
+            Value w = mk(Op::WHILE, l[0], with_endvar_checks(l[1], checked), l[2], l[3]);
+            out.push_back(w);
+            if (auto ind = L::induction(l); ind && !ind->endvars.nil()) {
+                for (Value e : ind->endvars.args()) {
+                    ++checked;
+                    out.push_back(mk(Op::IF, mk(Op::EQ, e[0], e[1]), mk_trace({}),
+                                     mk_trace({mk(Op::REVERT, mk(Op::SIZED, sm(32), sm(0xdead)))})));
+                }
+            }
+            continue;
+        }
+        out.push_back(l);
+    }
+    return mk_trace(std::span<const Value>(out.data(), out.size()));
+}
+
+// the WHILEs' bodies as they are, the checks out: the same trace (for the comparison)
+Value rebuilt(Value t) {
+    if (!t.is_list()) return t;
+    std::vector<Value> out;
+    for (Value l : t.args()) {
+        if (l.is(Op::IF, 3)) {
+            out.push_back(mk(Op::IF, l[0], rebuilt(l[1]), rebuilt(l[2])));
+            continue;
+        }
+        if (l.is(Op::WHILE, 4)) {
+            out.push_back(mk(Op::WHILE, l[0], rebuilt(l[1]), l[2], l[3]));
+            continue;
+        }
+        out.push_back(l);
+    }
+    return mk_trace(std::span<const Value>(out.data(), out.size()));
+}
+
 }  // namespace
 
 TEST_CASE("loops: make_whiles on random raw traces, checked by execution") {
@@ -331,7 +405,7 @@ TEST_CASE("loops: make_whiles on random raw traces, checked by execution") {
     const char* env = std::getenv("PANORAMIX_LOOPS_FUZZ");
     const int count = env ? std::atoi(env) : 400;
     L::whiles_stats() = {};
-    int conclusive = 0, failed = 0;
+    int conclusive = 0, failed = 0, endvars_checked = 0;
     for (int i = 0; i < count && failed < 3; ++i) {
         Gen g(u64(i) * 1000003u + 17);
         Value t = g.trace();
@@ -347,47 +421,35 @@ TEST_CASE("loops: make_whiles on random raw traces, checked by execution") {
         if (!same_runs(t, u, 8, conclusive)) {
             ++failed;
             FAIL_CHECK("trace " << i << ":\n" << dump_trace(t) << "\n->\n" << dump_trace(u));
+            continue;
+        }
+        // the analyses of its loops: the endvars hold after them
+        Value checked_u;
+        {
+            Vars vars(u);
+            checked_u = with_endvar_checks(u, endvars_checked);
+        }
+        int c3 = 0;
+        if (!same_runs(rebuilt(u), checked_u, 8, c3)) {
+            ++failed;
+            FAIL_CHECK("endvars of trace " << i << ":\n" << dump_trace(checked_u));
         }
     }
     const L::WhilesStats& s = L::whiles_stats();
     MESSAGE("loops " << s.labels << ": exit test " << s.exit_test << " (rotated " << s.rotated << " renamed "
                      << s.renamed << " after " << s.exit_after << " check " << s.check_exit << "), while True "
-                     << s.while_true << ", no loop " << s.no_loop << "; conclusive runs " << conclusive);
+                     << s.while_true << ", no loop " << s.no_loop << "; conclusive runs " << conclusive
+                     << "; endvars asserted " << endvars_checked);
     CHECK(failed == 0);
     CHECK(conclusive > count);
     CHECK(s.exit_test > 0);
     CHECK(s.while_true > 0);
     CHECK(s.rotated > 0);
     CHECK(s.check_exit > 0);
+    CHECK(endvars_checked > 0);
 }
 
 namespace {
-
-// the trace's variables installed in the algebra (as lot 7's simplify_trace does)
-struct Vars {
-    explicit Vars(Value trace) {
-        std::vector<std::pair<Value, Value>> pairs;
-        std::vector<Value> todo{trace};
-        while (!todo.empty()) {
-            Value v = todo.back();
-            todo.pop_back();
-            if (!(v.is_list() || v.is_expr())) continue;
-            if (v.is(Op::SETVAR, 2)) {
-                std::pair<Value, Value> p{v[0], v[1]};
-                if (std::find(pairs.begin(), pairs.end(), p) == pairs.end()) pairs.push_back(p);
-                continue;
-            }
-            if (v.is_expr() && !has(v.op(), LINE)) continue;
-            for (Value x : v.children()) todo.push_back(x);
-        }
-        std::sort(pairs.begin(), pairs.end(), [](const auto& a, const auto& b) {
-            int c = compare(a.first, b.first);
-            return c != 0 ? c < 0 : compare(a.second, b.second) < 0;
-        });
-        alg::set_variables(pairs, {});
-    }
-    ~Vars() { alg::clear_variables(); }
-};
 
 // a random copy / fill loop of python's loop_to_setmem shape
 Value copy_loop(Rng& r) {
