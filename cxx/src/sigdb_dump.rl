@@ -14,8 +14,9 @@
 // that isn't an object, a string that isn't valid Unicode (a lone surrogate):
 // such an entry isn't one (RawEntry::ok false, RawParam::ok false). A line
 // that isn't JSON, or has no "selector" or no "abi", fails the whole dump, as
-// in python. (Keys are matched as they are written: json.dumps never escapes
-// the letters of these; a key written with escapes is another key here.)
+// in python. (Keys, the kinds and a type's "tuple" are matched as they are
+// written: json.dumps never escapes letters; written with escapes, they are
+// other words here.)
 #include <string>
 #include <vector>
 
@@ -52,7 +53,7 @@ struct DumpParser::State {
     // the inputs' objects open (a stack: frames[0 .. depth))
     struct Frame {
         std::string name, type;
-        bool name_ok, has_type, type_ok, comps_set, comps_list, indexed;
+        bool name_ok, has_type, type_ok, type_tuple, comps_set, comps_list, indexed;
         std::size_t comps_begin, comps_end;
     };
     std::vector<Frame> frames;
@@ -137,7 +138,8 @@ struct DumpParser::State {
         Frame& f = frames[depth++];
         f.name.clear();
         f.type.clear();
-        f.name_ok = f.has_type = f.type_ok = f.comps_set = f.comps_list = f.indexed = false;
+        f.name_ok = f.has_type = f.type_ok = f.type_tuple = false;
+        f.comps_set = f.comps_list = f.indexed = false;
         f.comps_begin = f.comps_end = 0;
     }
     // an element of a list that isn't an object: python can't read it
@@ -151,7 +153,7 @@ struct DumpParser::State {
         Frame& f = frames[--depth];
         RawParam r;
         r.ok = f.has_type && f.type_ok;
-        bool tuple_text = std::string_view(f.type).starts_with("tuple");
+        bool tuple_text = f.type_tuple;  // (python's kind.startswith("tuple"))
         if (tuple_text && f.comps_set && !f.comps_list)
             r.ok = false;  // (python iterates what isn't a list)
         if (tuple_text && f.comps_list) {
@@ -353,7 +355,15 @@ param_list := ws ( ']' @list_end | element ws ( ',' ws element ws )* ']' @list_e
 
 action pname_reset { st.frame().name_ok = false; }
 action pname_set { st.frame().name_ok = st.string_ok(); st.frame().name = st.buf; }
-action ptype_reset { st.frame().has_type = true; st.frame().type_ok = false; st.frame().type.clear(); }
+action ptype_reset {
+    st.frame().has_type = true;
+    st.frame().type_ok = st.frame().type_tuple = false;
+    st.frame().type.clear();
+}
+action ptype_tuple { st.frame().type_tuple = true; }
+# an input's type: the same, telling whether it begins with "tuple" (python
+# substitutes the components there)
+type_string = '"' @c_begin ( 'tuple' @ptype_tuple )? ( str_char | escape )* '"' @c_flush;
 action ptype_set { st.frame().type_ok = st.string_ok(); st.frame().type = st.buf; }
 action comps_reset { st.comps_reset(); }
 action comps_null { st.frame().comps_set = false; }
@@ -384,7 +394,7 @@ ix_object := ws ( '}' @ix_false_ret | member ws ( ',' ws member ws )* '}' @ix_tr
 
 param_keys = '"name"' | '"type"' | '"components"' | '"indexed"';
 param_member = '"name"' ws ':' @pname_reset ws ( cstring @pname_set | value )
-             | '"type"' ws ':' @ptype_reset ws ( cstring @ptype_set | value )
+             | '"type"' ws ':' @ptype_reset ws ( type_string @ptype_set | value )
              | '"components"' ws ':' @comps_reset ws
                  ( '[' @call_comps | 'null' @comps_null | ( scalar - 'null' ) | '{' @call_skip_object )
              | '"indexed"' ws ':' ws indexed

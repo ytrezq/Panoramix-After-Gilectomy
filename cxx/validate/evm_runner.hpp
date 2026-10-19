@@ -24,6 +24,16 @@ struct RunOptions
     /// The gas of the call: its budget of steps and memory (100M: ~7 MB of
     /// memory, ~0.1 s of the longest loops).
     std::int64_t gas = 100'000'000;
+    /// Count the instructions each call executes (RunCost; an evmone
+    /// tracer: slower).
+    bool count_instructions = false;
+};
+
+/// What a call used.
+struct RunCost
+{
+    std::int64_t gas = 0;            ///< of RunOptions::gas (all of it when the call ended invalid)
+    std::uint64_t instructions = 0;  ///< executed (RunOptions::count_instructions, else 0)
 };
 
 /// A runtime bytecode ready to run (analyzed once). Not thread-safe: one
@@ -38,6 +48,8 @@ public:
 
     const Bytes& code() const noexcept;
     RunOptions& options() noexcept;
+    /// What the last call run used.
+    const RunCost& cost() const noexcept;
 
     /// Runs the session's call and finishes the session (the State must
     /// hold the same code).

@@ -40,6 +40,10 @@ enum class EvmrunOption : std::uint8_t
     corpus,
     each,
     compare,
+    sigdb,      ///< the signature database of the typed arguments
+    untyped,    ///< no typed arguments
+    malformed,  ///< the percent of the typed calls malformed
+    count,      ///< count the instructions executed
     help,
 };
 EvmrunOption evmrun_option(std::string_view arg);

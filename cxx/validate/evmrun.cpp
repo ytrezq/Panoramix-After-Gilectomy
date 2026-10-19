@@ -1,5 +1,6 @@
 // evmrun: a runtime bytecode run by evmone against a deterministic world, the
 // effects of its calls printed readably; or a whole corpus run, counted.
+#include "abi_encode.hpp"
 #include "calls.hpp"
 #include "effects.hpp"
 #include "evm_runner.hpp"
@@ -7,11 +8,14 @@
 #include "session.hpp"
 #include "world.hpp"
 
+#include "sigdb.hpp"
+
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -41,6 +45,12 @@ generated from the selectors found in the code, and the fallback's.
                     line): its calls counted, per contract and in total
   --compare         run every sequence twice, compare the effects (the
                     harness's determinism, compare()'s self-check)
+  --sigdb FILE      the signature database (pancxx's: $PANORAMIX_SIGDB, else
+                    the cache's): the selectors it knows get typed arguments
+  --untyped         random words for every selector (the calls of the
+                    selectors the database knows still counted apart)
+  --malformed N     the percent of the typed calls malformed (10)
+  --count           count the instructions executed (slower)
 )";
 
 struct Options
@@ -57,6 +67,31 @@ struct Options
     bool compare = false;
     std::string corpus;
     std::vector<std::string> args;
+    std::string sigdb;
+    bool untyped = false;
+    AbiConfig abi;
+};
+
+/// The typed arguments: the signature database, its encoder.
+struct Typing
+{
+    std::unique_ptr<pan::sigdb::Database> owned;  // --sigdb's
+    const pan::sigdb::Database* db = nullptr;
+    std::optional<AbiEncoder> encoder;  // the selectors known (typed or not)
+    bool typed = false;                 // the generator's hook
+
+    void hook(CallGenerator& gen) const
+    {
+        if (typed && encoder)
+            gen.set_encoder(*encoder);
+    }
+    std::string describe() const
+    {
+        if (!encoder)
+            return "untyped (no signature database)";
+        return std::string{typed ? "typed" : "untyped (--untyped)"} + ", " +
+               std::to_string(db->size()) + " signatures";
+    }
 };
 
 std::optional<Bytes> read_hex_file(const std::string& path)
@@ -74,13 +109,15 @@ struct Tally
 {
     unsigned long calls = 0, stops = 0, returns = 0, reverts = 0, invalids = 0, exhausted = 0,
                   errors = 0, events = 0, mismatches = 0;
+    unsigned long long instructions = 0;
     double seconds = 0;
     std::vector<float> times;  ///< of every call, in microseconds (--corpus)
 
-    void add(const Effects& e)
+    void add(const Effects& e, const RunCost& cost)
     {
         ++calls;
         events += e.events.size();
+        instructions += cost.instructions;
         switch (e.end.status)
         {
         case Status::stop:
@@ -115,6 +152,7 @@ struct Tally
         errors += t.errors;
         events += t.events;
         mismatches += t.mismatches;
+        instructions += t.instructions;
         seconds += t.seconds;
         times.insert(times.end(), t.times.begin(), t.times.end());
     }
@@ -136,16 +174,36 @@ struct Tally
 
     std::string str() const
     {
-        char buf[256];
+        const auto per_call = [&](double v) { return calls != 0 ? v / static_cast<double>(calls) : 0.0; };
+        char buf[320];
         std::snprintf(buf, sizeof buf,
-            "calls %lu: stop %lu return %lu revert %lu invalid %lu exhausted %lu error %lu, "
-            "events %lu, %.1f us/call",
-            calls, stops, returns, reverts, invalids, exhausted, errors, events,
-            calls != 0 ? 1e6 * seconds / static_cast<double>(calls) : 0.0);
+            "calls %lu: stop %lu return %lu revert %lu invalid %lu exhausted %lu error %lu "
+            "(succeeded %.1f%%), events %lu, %.1f us/call",
+            calls, stops, returns, reverts, invalids, exhausted, errors,
+            100 * per_call(static_cast<double>(stops + returns)), events, 1e6 * per_call(seconds));
         std::string s = buf;
+        if (instructions != 0)
+        {
+            std::snprintf(buf, sizeof buf, ", instructions %llu (%.0f/call)", instructions,
+                per_call(static_cast<double>(instructions)));
+            s += buf;
+        }
         if (mismatches != 0)
             s += ", MISMATCHES " + std::to_string(mismatches);
         return s;
+    }
+};
+
+/// A run's counts: all the calls, and those of the selectors the signature
+/// database knows (the ones typed arguments change).
+struct Tallies
+{
+    Tally all, known;
+
+    void add(const Tallies& t)
+    {
+        all.add(t.all);
+        known.add(t.known);
     }
 };
 
@@ -167,10 +225,10 @@ std::string call_header(std::size_t i, const PlannedCall& c)
 }
 
 /// The calls of one contract, run (a sequence, or each one from the world).
-Tally run_calls(EvmRunner& runner, const SeededWorld& world, const Word& address, const Bytes& code,
-    const std::vector<PlannedCall>& calls, const Options& o, bool print)
+Tallies run_calls(EvmRunner& runner, const SeededWorld& world, const Word& address, const Bytes& code,
+    const std::vector<PlannedCall>& calls, const Options& o, const Typing& typing, bool print)
 {
-    Tally t;
+    Tallies t;
     State sequence{world, address, code};
     std::vector<Effects> first;
     const auto start = std::chrono::steady_clock::now();
@@ -179,15 +237,20 @@ Tally run_calls(EvmRunner& runner, const SeededWorld& world, const Word& address
         State single{world, address, code};
         const auto call_start = std::chrono::steady_clock::now();
         auto effects = runner.run(o.each ? single : sequence, calls[i].context);
-        t.times.push_back(static_cast<float>(
-            std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - call_start).count()));
-        t.add(effects);
+        const auto us = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - call_start).count();
+        t.all.times.push_back(static_cast<float>(us));
+        t.all.add(effects, runner.cost());
+        if (calls[i].selector && typing.encoder && typing.encoder->knows(*calls[i].selector))
+        {
+            t.known.add(effects, runner.cost());
+            t.known.seconds += us / 1e6;
+        }
         if (print)
             std::cout << call_header(i, calls[i]) << "\n" << to_string(effects) << "\n";
         if (o.compare)
             first.push_back(std::move(effects));
     }
-    t.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+    t.all.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
     if (o.compare)
     {
         // the same calls again, from a new state: the same effects
@@ -200,7 +263,7 @@ Tally run_calls(EvmRunner& runner, const SeededWorld& world, const Word& address
             if (c.verdict == Verdict::different ||
                 (c.verdict == Verdict::inconclusive && !first[i].end.inconclusive()))
             {
-                ++t.mismatches;
+                ++t.all.mismatches;
                 std::cout << "MISMATCH " << call_header(i, calls[i]) << ": " << c.message << "\n";
             }
         }
@@ -208,7 +271,7 @@ Tally run_calls(EvmRunner& runner, const SeededWorld& world, const Word& address
     return t;
 }
 
-int run_contract(const std::string& path, const Options& o)
+int run_contract(const std::string& path, const Options& o, const Typing& typing)
 {
     const auto code = read_hex_file(path);
     if (!code)
@@ -218,6 +281,7 @@ int run_contract(const std::string& path, const Options& o)
     }
     const SeededWorld world{o.world};
     CallGenerator gen{world, *code, o.calls};
+    typing.hook(gen);
     if (o.selectors)
     {
         for (const auto s : gen.selectors())
@@ -247,13 +311,15 @@ int run_contract(const std::string& path, const Options& o)
             calls.push_back(std::move(c));
         }
     EvmRunner runner{*code, o.run};
-    const auto t = run_calls(runner, world, world.contract_address(), *code, calls, o, !o.quiet);
+    const auto t = run_calls(runner, world, world.contract_address(), *code, calls, o, typing, !o.quiet);
     std::cout << path << ": " << (o.world.random ? "random" : "empty") << " world, "
-              << gen.selectors().size() << " selectors, " << t.str() << "\n";
-    return t.mismatches != 0 ? 2 : 0;
+              << gen.selectors().size() << " selectors, " << t.all.str() << "\n";
+    if (typing.encoder && t.known.calls != 0)
+        std::cout << "  the selectors known, " << typing.describe() << ": " << t.known.str() << "\n";
+    return t.all.mismatches != 0 ? 2 : 0;
 }
 
-int run_corpus(const Options& o)
+int run_corpus(const Options& o, const Typing& typing)
 {
     std::ifstream list{o.corpus};
     if (!list)
@@ -266,8 +332,9 @@ int run_corpus(const Options& o)
         modes.push_back(o.world.random);
     else
         modes = {false, true};
-    Tally total[2];
+    Tallies total[2];
     unsigned contracts = 0, unreadable = 0;
+    unsigned long selectors = 0, known = 0;
     double slowest = 0, generation = 0;
     std::string slowest_name;
     std::string path;
@@ -291,17 +358,25 @@ int run_corpus(const Options& o)
             config.random = random;
             const SeededWorld world{config};
             const auto gen_start = std::chrono::steady_clock::now();
-            const CallGenerator gen{world, *code, o.calls};
+            CallGenerator gen{world, *code, o.calls};
+            typing.hook(gen);
             const auto planned = gen.calls();
             generation += std::chrono::duration<double>(std::chrono::steady_clock::now() - gen_start).count();
-            const auto t = run_calls(runner, world, world.contract_address(), *code, planned, o, false);
-            if (t.seconds > slowest)
+            if (random == modes.back())
             {
-                slowest = t.seconds;
+                selectors += gen.selectors().size();
+                if (typing.encoder)
+                    for (const auto s : gen.selectors())
+                        known += typing.encoder->knows(s);
+            }
+            const auto t = run_calls(runner, world, world.contract_address(), *code, planned, o, typing, false);
+            if (t.all.seconds > slowest)
+            {
+                slowest = t.all.seconds;
                 slowest_name = path;
             }
             line += std::string{random ? " | random: " : " | empty: "} + std::to_string(gen.selectors().size()) +
-                    " selectors, " + t.str();
+                    " selectors, " + t.all.str();
             total[random].add(t);
         }
         if (!o.quiet)
@@ -310,13 +385,20 @@ int run_corpus(const Options& o)
     std::cout << contracts << " contracts";
     if (unreadable != 0)
         std::cout << " (" << unreadable << " unreadable)";
-    std::cout << "\n";
+    std::cout << ", " << selectors << " selectors";
+    if (typing.encoder)
+        std::cout << ", " << known << " known to the signature database";
+    std::cout << "; " << typing.describe() << "\n";
     for (const bool random : modes)
-        std::cout << (random ? "random world: " : "empty world:  ") << total[random].str() << "\n  "
-                  << total[random].distribution() << "\n";
+    {
+        std::cout << (random ? "random world: " : "empty world:  ") << total[random].all.str() << "\n";
+        if (typing.encoder)
+            std::cout << "  the selectors known: " << total[random].known.str() << "\n";
+        std::cout << "  " << total[random].all.distribution() << "\n";
+    }
     std::cout << "slowest contract: " << slowest_name << " (" << slowest << " s)\n";
     std::cout << "the calls' generation (selectors found, probed): " << generation << " s\n";
-    return (total[0].mismatches + total[1].mismatches) != 0 ? 2 : 0;
+    return (total[0].all.mismatches + total[1].all.mismatches) != 0 ? 2 : 0;
 }
 }  // namespace
 
@@ -398,6 +480,24 @@ int main(int argc, char** argv)
         case EvmrunOption::compare:
             o.compare = true;
             continue;
+        case EvmrunOption::sigdb:
+            if (const auto v = value())
+            {
+                o.sigdb = *v;
+                continue;
+            }
+            break;
+        case EvmrunOption::untyped:
+            o.untyped = true;
+            continue;
+        case EvmrunOption::malformed:
+            if (!(n = number()) || *n > 100)
+                break;
+            o.abi.malformed_percent = static_cast<unsigned>(*n);
+            continue;
+        case EvmrunOption::count:
+            o.run.count_instructions = true;
+            continue;
         case EvmrunOption::help:
             std::cout << usage;
             return 0;
@@ -405,8 +505,31 @@ int main(int argc, char** argv)
         std::cerr << "evmrun: " << a << ": a value is missing or wrong\n" << usage;
         return 1;
     }
+
+    Typing typing;
+    if (!o.sigdb.empty())
+    {
+        try
+        {
+            typing.owned = pan::sigdb::Database::open(o.sigdb);
+        }
+        catch (const pan::sigdb::Error& e)
+        {
+            std::cerr << "evmrun: " << o.sigdb << ": " << e.what() << "\n";
+            return 1;
+        }
+        typing.db = typing.owned.get();
+    }
+    else
+        typing.db = pan::sigdb::get();
+    if (typing.db != nullptr)
+    {
+        typing.encoder.emplace(*typing.db, o.abi);
+        typing.typed = !o.untyped;
+    }
+
     if (!o.corpus.empty())
-        return run_corpus(o);
+        return run_corpus(o, typing);
     if (o.args.empty())
     {
         std::cerr << usage;
@@ -414,5 +537,5 @@ int main(int argc, char** argv)
     }
     const auto path = o.args.front();
     o.args.erase(o.args.begin());
-    return run_contract(path, o);
+    return run_contract(path, o, typing);
 }

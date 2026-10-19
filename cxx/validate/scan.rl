@@ -147,6 +147,10 @@ std::vector<std::uint32_t> find_selectors(BytesView code)
         | '--corpus' @{ id = EvmrunOption::corpus; }
         | '--each' @{ id = EvmrunOption::each; }
         | '--compare' @{ id = EvmrunOption::compare; }
+        | '--sigdb' @{ id = EvmrunOption::sigdb; }
+        | '--untyped' @{ id = EvmrunOption::untyped; }
+        | '--malformed' @{ id = EvmrunOption::malformed; }
+        | '--count' @{ id = EvmrunOption::count; }
         | ('--help' | '-h') @{ id = EvmrunOption::help; };
 }%%
 

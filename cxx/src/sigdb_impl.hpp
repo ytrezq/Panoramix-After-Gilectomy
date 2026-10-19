@@ -13,7 +13,6 @@
 #include <span>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <vector>
 
 #include "sigdb.hpp"
@@ -165,20 +164,18 @@ inline std::string_view string_at(const std::uint8_t* strings, std::uint64_t ref
 // its offset. Offset 0: the empty string.
 class StringPool {
 public:
-    StringPool() { bytes_.push_back('\0'); }
+    StringPool();
     std::uint32_t intern(std::string_view s);  // throws Error past 4 GiB
     const std::string& bytes() const noexcept { return bytes_; }
 
 private:
-    struct Hash {
-        using is_transparent = void;
-        std::size_t operator()(std::string_view s) const noexcept
-        {
-            return std::hash<std::string_view>{}(s);
-        }
-    };
+    std::uint64_t hash(std::string_view s) const noexcept;
+    void grow();
     std::string bytes_;
-    std::unordered_map<std::string, std::uint32_t, Hash, std::equal_to<>> refs_;
+    // open addressing: the hash's top 32 bits, the offset + 1 (0: empty)
+    std::vector<std::uint64_t> slots_;
+    std::size_t count_ = 0;
+    std::uint64_t seed_;
 };
 
 // A parameter, or a field of a tuple, as the dump's parser leaves it.

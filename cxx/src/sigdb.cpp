@@ -38,9 +38,14 @@
 #include <algorithm>
 #include <atomic>
 #include <bit>
+#include <condition_variable>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
+#include <exception>
 #include <mutex>
+#include <random>
+#include <thread>
 #include <utility>
 
 #include "sigdb_impl.hpp"
@@ -168,18 +173,67 @@ void set_log_sink(LogSink sink) noexcept { log_sink.store(sink, std::memory_orde
 
 // --- the types' codes ----------------------------------------------------------------
 
+StringPool::StringPool() : slots_(std::size_t{1} << 16, 0), seed_(std::random_device{}())
+{
+    bytes_.push_back('\0');  // (offset 0: the empty string)
+}
+
+// (seeded: a dump made to collide can't make the build quadratic)
+std::uint64_t StringPool::hash(std::string_view s) const noexcept
+{
+    std::uint64_t h = seed_ ^ (s.size() * 0x9e3779b97f4a7c15);
+    const char* p = s.data();
+    std::size_t n = s.size();
+    for (; n >= 8; p += 8, n -= 8) {
+        std::uint64_t v;
+        std::memcpy(&v, p, 8);
+        h = std::rotl((h ^ v) * 0xbf58476d1ce4e5b9, 31);
+    }
+    std::uint64_t v = 0;
+    std::memcpy(&v, p, n);
+    h = (h ^ v) * 0x94d049bb133111eb;
+    h ^= h >> 29;
+    h *= 0xbf58476d1ce4e5b9;
+    return h ^ (h >> 32);
+}
+
+void StringPool::grow()
+{
+    std::vector<std::uint64_t> old(slots_.size() * 2, 0);
+    old.swap(slots_);
+    std::size_t mask = slots_.size() - 1;
+    for (std::uint64_t slot : old) {
+        if (!slot)
+            continue;
+        std::string_view s = string_at(reinterpret_cast<const std::uint8_t*>(bytes_.data()),
+                                       (slot & 0xffffffff) - 1);
+        std::size_t i = hash(s) & mask;
+        while (slots_[i])
+            i = (i + 1) & mask;
+        slots_[i] = slot;
+    }
+}
+
 std::uint32_t StringPool::intern(std::string_view s)
 {
     if (s.empty())
         return 0;
-    if (auto it = refs_.find(s); it != refs_.end())
-        return it->second;
+    std::uint64_t h = hash(s);
+    std::size_t mask = slots_.size() - 1, i = h & mask;
+    for (; slots_[i]; i = (i + 1) & mask)
+        if ((slots_[i] >> 32) == (h >> 32)) {
+            std::uint64_t at = (slots_[i] & 0xffffffff) - 1;
+            if (string_at(reinterpret_cast<const std::uint8_t*>(bytes_.data()), at) == s)
+                return static_cast<std::uint32_t>(at);
+        }
     std::size_t at = bytes_.size();
-    if (at + s.size() + 10 > UINT32_MAX)
+    if (at + s.size() + 10 >= UINT32_MAX)
         throw Error(Error::Code::bad_dump, "the signature dump's strings go past 4 GiB");
     put_varint(bytes_, s.size());
     bytes_.append(s);
-    refs_.emplace(std::string(s), static_cast<std::uint32_t>(at));
+    slots_[i] = (h >> 32) << 32 | (at + 1);
+    if (++count_ * 2 > slots_.size())
+        grow();
     return static_cast<std::uint32_t>(at);
 }
 
@@ -938,49 +992,164 @@ private:
     bool no_spaces_ = false;
 };
 
-// The dump decompressed (xz or lzma, as python's lzma.open) and given to the
-// parser by whole lines.
+// The dump decompressed (xz or lzma, as python's lzma.open) by a second
+// thread - two fifths of the work - and given to the parser here, in chunks of
+// whole lines.
+struct LineTooLong {};  // (its number: the parser's, see read_dump)
+
+class Decompressor {
+public:
+    explicit Decompressor(std::span<const std::uint8_t> xz) : xz_(xz) {}
+    ~Decompressor()
+    {
+        {
+            std::lock_guard lock(m_);
+            stop_ = true;
+        }
+        cv_.notify_all();
+    }  // (then the thread, declared last, is joined)
+
+    // The next chunk (complete lines, the last one ended by '\n'), empty
+    // at the end; throws what the decompression threw.
+    std::vector<std::uint8_t> next()
+    {
+        std::unique_lock lock(m_);
+        cv_.wait(lock, [&] { return !ready_.empty() || finished_; });
+        if (ready_.empty()) {
+            if (error_)
+                std::rethrow_exception(error_);
+            return {};
+        }
+        std::vector<std::uint8_t> chunk = std::move(ready_.front());
+        ready_.pop_front();
+        cv_.notify_all();
+        return chunk;
+    }
+    // a chunk parsed: its buffer for another one
+    void recycle(std::vector<std::uint8_t> chunk)
+    {
+        std::lock_guard lock(m_);
+        if (spare_.size() < queue)
+            spare_.push_back(std::move(chunk));
+    }
+
+private:
+    static constexpr std::size_t chunk_size = 4u << 20, queue = 3;
+
+    std::vector<std::uint8_t> take_spare()
+    {
+        std::lock_guard lock(m_);
+        if (spare_.empty())
+            return {};
+        std::vector<std::uint8_t> b = std::move(spare_.back());
+        spare_.pop_back();
+        return b;
+    }
+    // false when stopped
+    bool hand_over(std::vector<std::uint8_t> chunk)
+    {
+        std::unique_lock lock(m_);
+        cv_.wait(lock, [&] { return ready_.size() < queue || stop_; });
+        if (stop_)
+            return false;
+        ready_.push_back(std::move(chunk));
+        cv_.notify_all();
+        return true;
+    }
+
+    void run()
+    {
+        try {
+            decompress();
+        } catch (...) {
+            std::lock_guard lock(m_);
+            error_ = std::current_exception();
+        }
+        {
+            std::lock_guard lock(m_);
+            finished_ = true;
+        }
+        cv_.notify_all();
+    }
+
+    void decompress()
+    {
+        lzma_stream strm = LZMA_STREAM_INIT;
+        if (lzma_auto_decoder(&strm, UINT64_MAX, LZMA_CONCATENATED) != LZMA_OK)
+            throw Error(Error::Code::failed, "lzma can't decode");
+        struct End {
+            lzma_stream* s;
+            ~End() { lzma_end(s); }
+        } end{&strm};
+        strm.next_in = xz_.data();
+        strm.avail_in = xz_.size();
+        std::vector<std::uint8_t> buf(chunk_size);
+        std::size_t len = 0;
+        for (;;) {
+            strm.next_out = buf.data() + len;
+            strm.avail_out = buf.size() - len;
+            lzma_ret r = lzma_code(&strm, LZMA_FINISH);
+            len = buf.size() - strm.avail_out;
+            if (r != LZMA_OK && r != LZMA_STREAM_END)
+                throw Error(Error::Code::failed, "lzma error " + std::to_string(r));
+            if (r == LZMA_STREAM_END) {
+                if (len && buf[len - 1] != '\n') {  // the last line, without its newline
+                    buf.resize(std::max(buf.size(), len + 1));
+                    buf[len++] = '\n';
+                }
+                buf.resize(len);
+                if (len)
+                    hand_over(std::move(buf));
+                return;
+            }
+            if (len < buf.size())
+                continue;
+            // full: its whole lines go, the rest begins the next chunk
+            std::string_view text(reinterpret_cast<const char*>(buf.data()), len);
+            std::size_t last = text.rfind('\n');
+            if (last == std::string_view::npos) {  // a line longer than the buffer
+                if (buf.size() >= max_line)
+                    throw LineTooLong{};
+                buf.resize(buf.size() * 2);
+                continue;
+            }
+            std::vector<std::uint8_t> next = take_spare();
+            next.resize(std::max(chunk_size, len - last - 1 + chunk_size / 2));
+            std::copy(buf.begin() + static_cast<std::ptrdiff_t>(last) + 1,
+                      buf.begin() + static_cast<std::ptrdiff_t>(len), next.begin());
+            len -= last + 1;
+            buf.resize(last + 1);
+            if (!hand_over(std::move(buf)))
+                return;
+            buf = std::move(next);
+        }
+    }
+
+    std::span<const std::uint8_t> xz_;
+    std::mutex m_;
+    std::condition_variable cv_;
+    std::deque<std::vector<std::uint8_t>> ready_;
+    std::vector<std::vector<std::uint8_t>> spare_;
+    bool finished_ = false, stop_ = false;
+    std::exception_ptr error_;
+    std::jthread thread_{[this] { run(); }};  // (last: started once the rest is there)
+};
+
 void read_dump(std::span<const std::uint8_t> xz, DumpParser& parser)
 {
-    lzma_stream strm = LZMA_STREAM_INIT;
-    if (lzma_auto_decoder(&strm, UINT64_MAX, LZMA_CONCATENATED) != LZMA_OK)
-        throw Error(Error::Code::failed, "lzma can't decode");
-    struct End {
-        lzma_stream* s;
-        ~End() { lzma_end(s); }
-    } end{&strm};
-    strm.next_in = xz.data();
-    strm.avail_in = xz.size();
-    std::vector<std::uint8_t> buf(4u << 20);
-    std::size_t len = 0;
+    Decompressor d(xz);
     for (;;) {
-        strm.next_out = buf.data() + len;
-        strm.avail_out = buf.size() - len;
-        lzma_ret r = lzma_code(&strm, LZMA_FINISH);
-        len = buf.size() - strm.avail_out;
-        if (r != LZMA_OK && r != LZMA_STREAM_END)
-            throw Error(Error::Code::failed, "lzma error " + std::to_string(r));
-        std::string_view text(reinterpret_cast<const char*>(buf.data()), len);
-        std::size_t last = text.rfind('\n');
-        if (last != std::string_view::npos) {
-            parser.parse(buf.data(), buf.data() + last + 1);
-            std::memmove(buf.data(), buf.data() + last + 1, len - last - 1);
-            len -= last + 1;
+        std::vector<std::uint8_t> chunk;
+        try {
+            chunk = d.next();
+        } catch (const LineTooLong&) {  // (the lines before it parsed)
+            throw Error(Error::Code::bad_dump,
+                        "line " + std::to_string(parser.lines() + 1) + " is too long");
         }
-        if (r == LZMA_STREAM_END) {
-            if (len) {  // the last line, without its newline
-                buf.resize(std::max(buf.size(), len + 1));
-                buf[len] = '\n';
-                parser.parse(buf.data(), buf.data() + len + 1);
-            }
+        if (chunk.empty())
             return;
-        }
-        if (len == buf.size()) {  // a line longer than the buffer
-            if (buf.size() >= max_line)
-                throw Error(Error::Code::bad_dump,
-                            "line " + std::to_string(parser.lines() + 1) + " is too long");
-            buf.resize(buf.size() * 2);
-        }
+        parser.parse(chunk.data(), chunk.data() + chunk.size());
+        d.recycle(std::move(chunk));
     }
 }
 

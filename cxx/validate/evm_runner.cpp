@@ -3,6 +3,7 @@
 
 #include <evmc/evmc.hpp>
 #include <evmone/baseline.hpp>
+#include <evmone/tracing.hpp>
 #include <evmone/vm.hpp>
 
 #include <algorithm>
@@ -201,6 +202,24 @@ private:
     std::set<Word> accessed_slots_;
 };
 
+/// RunOptions::count_instructions: the instructions executed, counted.
+class InstructionCounter final : public evmone::Tracer
+{
+public:
+    explicit InstructionCounter(std::uint64_t& count) noexcept : count_{count} {}
+
+private:
+    void on_execution_start(evmc_revision, const evmc_message&, evmone::bytes_view) noexcept override {}
+    void on_instruction_start(uint32_t, const intx::uint256*, int, int64_t,
+        const evmone::ExecutionState&) noexcept override
+    {
+        ++count_;
+    }
+    void on_execution_end(const evmc_result&) noexcept override {}
+
+    std::uint64_t& count_;
+};
+
 End end_of(const evmc::Result& r)
 {
     const Bytes data(r.output_data, r.output_data + r.output_size);
@@ -242,6 +261,8 @@ struct EvmRunner::Impl
     RunOptions options;
     evmone::VM vm;
     evmone::baseline::CodeAnalysis analysis;
+    RunCost cost;
+    bool counting = false;  // the InstructionCounter is the VM's tracer
 
     Impl(Bytes c, RunOptions o)
       : code{std::move(c)}, options{o}, analysis{evmone::baseline::analyze({code.data(), code.size()})}
@@ -266,8 +287,22 @@ RunOptions& EvmRunner::options() noexcept
     return impl_->options;
 }
 
+const RunCost& EvmRunner::cost() const noexcept
+{
+    return impl_->cost;
+}
+
 Effects EvmRunner::run(Session& session)
 {
+    auto& impl = *impl_;
+    if (impl.options.count_instructions != impl.counting)
+    {
+        impl.vm.remove_tracers();
+        if (impl.options.count_instructions)
+            impl.vm.add_tracer(std::make_unique<InstructionCounter>(impl.cost.instructions));
+        impl.counting = impl.options.count_instructions;
+    }
+    impl.cost = {};
     SessionHost host{session};
     const auto& context = session.context();
     evmc_message msg{};
@@ -284,6 +319,7 @@ Effects EvmRunner::run(Session& session)
     msg.code_size = impl_->code.size();
     const evmc::Result result{evmone::baseline::execute(impl_->vm, evmc::Host::get_interface(),
         host.to_context(), EVMC_OSAKA, msg, impl_->analysis)};
+    impl.cost.gas = msg.gas - result.gas_left;
     return session.finish(end_of(result));
 }
 
