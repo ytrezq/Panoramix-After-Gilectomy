@@ -15,6 +15,7 @@
 #include "core/context.hpp"
 #include "core/dump.hpp"
 #include "core/evmint.hpp"
+#include "core/platform.hpp"
 
 using namespace pan;
 namespace A = pan::alg;
@@ -477,6 +478,13 @@ TEST_CASE("algebra: masks") {
           V("(mask_shl 251 5 0 caller)"));
     CHECK(A::sub(x, A::mask(5, 0, 0, x)) == V("(mask_shl 251 5 0 caller)"));
     CHECK(A::mask(251, 5, 0, A::add(x, mk_int(31))) == V("(mask_shl 251 5 0 (add 31 caller))"));
+    // k times a field: moved by p for k = +-2^p, else k times the field at bit 0
+    CHECK(A::neg(A::mask(251, 5, 0, x)) == V("(mul -1 (mask_shl 251 5 0 caller))"));
+    CHECK(A::mul(mk_int(96), A::mask(8, 0, 0, x)) == V("(mul 96 (mask_shl 8 0 0 caller))"));
+    CHECK(A::mul(mk_int(3), A::mask(8, 0, 5, x)) == V("(mul 96 (mask_shl 8 0 0 caller))"));
+    CHECK(A::mul(mk_int(32), A::mask(8, 0, 0, x)) == V("(mask_shl 8 0 5 caller)"));
+    CHECK(A::mul(mk_int(-32), A::mask(8, 8, -8, x)) == V("(mul -1 (mask_shl 8 8 -3 caller))"));
+    CHECK(A::mul(mk_int(2), A::mask(251, 5, 0, x)) == V("(mask_shl 250 5 1 caller)"));
     // adjacent fields of one value are one field
     CHECK(A::add(A::mask(8, 0, 0, x), A::mask(248, 8, 0, x)) == x);
     CHECK(A::bor(A::mask(8, 0, 0, x), A::mask(8, 8, 0, x)) == V("(mask_shl 16 0 0 caller)"));
@@ -627,6 +635,25 @@ TEST_CASE("algebra: what solc's code makes") {
     CHECK(t3.bytes == V("(mask_shl 253 3 -3 tmp1)"));
 }
 
+TEST_CASE("algebra: python's own asserts (algebra.py, masks.py)") {
+    Fixture f;
+    // to_bytes(8 * a - 8 * b) == (a - b, 0) - the bits of two byte counts
+    Value a = V("(calldataload (add 4 (calldataload 36)))"), b = A::add(mk_int(36), V("(calldataload 36)"));
+    A::ToBytes tb = A::to_bytes(A::sub(A::bits(a), A::bits(b)));
+    CHECK(tb.rem == 0u);
+    CHECK(tb.bytes == A::sub(a, b));
+    // add_op(64, var) is (add 64 var)
+    CHECK(A::add(mk_int(64), V("tmp4")) == V("(add 64 tmp4)"));
+    // find_mask rounds to bytes
+    A::BitSpan m1 = A::find_mask(Word256::from_value(mk_int(0x7ABBA20000)));
+    CHECK(m1.size == 24);
+    CHECK(m1.off == 16);
+    // to_mask: a run of ones; not one
+    CHECK(A::to_mask(mk_int(0xff00))->off == mk_int(8));
+    CHECK(!A::to_mask(mk_int(0xff00ff)));
+    CHECK(A::to_neg_mask(A::bnot(mk_int(0xff00)))->size == mk_int(8));
+}
+
 TEST_CASE("algebra: masks.hpp views and constants") {
     Fixture f;
     auto m = A::as_mask(V("(mask_shl 160 0 0 caller)"));
@@ -721,4 +748,61 @@ TEST_CASE("algebra: fuzz normalize and the constructors against evaluation" * do
     MESSAGE(cases, " evaluations");
     CHECK(bad == 0);
     CHECK(not_fix == 0);
+}
+
+TEST_CASE("algebra: hostile shapes stay bounded") {
+    Fixture f;
+    // a product of 8 sums of 8 terms: distributed only while small
+    std::vector<Value> sums;
+    for (int i = 0; i < 8; ++i) {
+        std::vector<Value> t;
+        for (int j = 0; j < 8; ++j) t.push_back(Value::name(NameKind::TMP, u32(i * 8 + j + 1)));
+        sums.push_back(A::add(t));
+    }
+    Value p = A::mul(sums);
+    CHECK(p.is_expr());
+    CHECK(A::normalize(p) == p);
+    // the value is kept
+    Word256 want = Word256::of(1);
+    for (Value s : sums) want = pan::mul(want, ev(s, 3));
+    CHECK(ev(p, 3) == want);
+    // a long chain of nested adds and masks
+    Value v = V("caller");
+    for (int i = 0; i < 2000; ++i) v = A::mask(255, 0, 0, A::add(v, mk_int(i)));
+    CHECK(v.is_expr());
+    // a deep raw nesting through normalize
+    Value r = V("caller");
+    for (int i = 0; i < 3000; ++i) r = mk(Op::ADD, r, mk_int(1));
+    CHECK(A::normalize(r) == A::add(V("caller"), mk_int(3000)));
+}
+
+// rough costs of the hot constructors: -tc='algebra: bench*' --no-skip
+TEST_CASE("algebra: bench the constructors" * doctest::skip()) {
+    Fixture f;
+    Gen g(1);
+    std::vector<Value> xs;
+    for (int i = 0; i < 2000; ++i) xs.push_back(A::normalize(g.rexp(2)));
+    auto t0 = platform::monotonic_ns();
+    Value acc = mk_int(0);
+    usize n = 0;
+    for (int r = 0; r < 50; ++r)
+        for (usize i = 0; i + 1 < xs.size(); ++i, ++n) acc = A::add(xs[i], xs[i + 1]);
+    auto t1 = platform::monotonic_ns();
+    for (int r = 0; r < 50; ++r)
+        for (usize i = 0; i < xs.size(); ++i) acc = A::band(xs[i], pow2m1(160));
+    auto t2 = platform::monotonic_ns();
+    // fresh work: sums of fresh terms (no memo hits)
+    usize m = 0;
+    for (u32 i = 0; i < 200000; ++i, ++m)
+        acc = A::add({Value::name(NameKind::TMP, i), mk_int(i64(i)), A::mul(mk_int(32), Value::name(NameKind::LOOP, i))});
+    auto t3 = platform::monotonic_ns();
+    for (u32 i = 0; i < 200000; ++i)
+        acc = A::mask(8, 8, -8, A::add(Value::name(NameKind::PARAM, i), mk_int(256)));
+    auto t4 = platform::monotonic_ns();
+    for (int i = 0; i < 20000; ++i) acc = A::normalize(g.rexp(3));
+    auto t5 = platform::monotonic_ns();
+    MESSAGE("add of 2 (memo mostly): ", (t1 - t0) / i64(n), " ns; band address: ", (t2 - t1) / i64(50 * xs.size()),
+            " ns; fresh 3-term sums: ", (t3 - t2) / i64(m), " ns; fresh masks of sums: ", (t4 - t3) / 200000,
+            " ns; normalize random depth-3: ", (t5 - t4) / 20000, " ns");
+    CHECK(!acc.nil());
 }

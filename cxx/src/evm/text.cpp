@@ -115,19 +115,19 @@ std::string decode_report(std::span<const u8> code)
 {
     const CodeMap m = analyse(code);
     // what the report counts of the instructions: the bytes that aren't
-    // opcodes, the jumps, the last instruction (a push the end cuts)
-    struct Walk {
-        std::vector<Insn> unknown;
-        u64 jumps = 0;
+    // opcodes, the jumps (a walk; the unknown bytes are listed by a second
+    // one, as the asm does: nothing per instruction is kept)
+    struct Count {
+        u64 unknown = 0, jumps = 0;
     } w;
     for_each_insn(
         code,
         [](const Insn& in, void* data) {
-            auto& walk = *static_cast<Walk*>(data);
+            auto& count = *static_cast<Count*>(data);
             switch (kClass[in.op]) {
-            case InsnClass::Unknown: walk.unknown.push_back(in); break;
+            case InsnClass::Unknown: ++count.unknown; break;
             case InsnClass::Jump:
-            case InsnClass::JumpI: ++walk.jumps; break;
+            case InsnClass::JumpI: ++count.jumps; break;
             default: break;
             }
         },
@@ -157,16 +157,21 @@ std::string decode_report(std::span<const u8> code)
         append_u(s, in.imm_size);
         s += " bytes\n";
     }
-    if (!w.unknown.empty()) {
-        append_u(s, w.unknown.size());
+    if (w.unknown) {
+        append_u(s, w.unknown);
         s += " bytes that aren't opcodes:\n";
-        for (const Insn& in : w.unknown) {
-            s += "  ";
-            append_hex(s, in.pc);
-            s += ": ";
-            append_hex(s, in.op);
-            s += '\n';
-        }
+        for_each_insn(
+            code,
+            [](const Insn& in, void* data) {
+                if (kClass[in.op] != InsnClass::Unknown) return;
+                auto& out = *static_cast<std::string*>(data);
+                out += "  ";
+                append_hex(out, in.pc);
+                out += ": ";
+                append_hex(out, in.op);
+                out += '\n';
+            },
+            &s);
     }
     // the static jumps, and those to no jumpdest (the EVM's jump fails there)
     u64 nstatic = 0, nbad = 0;

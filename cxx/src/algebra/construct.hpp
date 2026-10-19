@@ -21,15 +21,19 @@
 //    symbolic factors MUL(f1, ..., fm) is one base: MUL(k, f1, ..., fm) is
 //    k times it). A term is read as k times a field of a value x (x itself,
 //    or MASK_SHL(size, off, shl, x) as 2^(off + shl) times its bits moved
-//    to 0); the terms are ordered by x (compare()), then off, then size,
-//    one term per field. Terms over the same x that are fields of it combine
-//    (try_add: x - (x & 31) is MASK_SHL(251, 5, 0, x), adjacent fields of
-//    x are one field).
+//    to 0, F = MASK_SHL(size, off, -off, x)); the terms are ordered by x
+//    (compare()), then off, then size, one term per field. Terms over the
+//    same x that are fields of it combine (try_add: x - (x & 31) is
+//    MASK_SHL(251, 5, 0, x), adjacent fields of x are one field).
+//  - k times a field F of x is written: x itself or MUL(k, x) for all of
+//    x; the field moved by p for k = 2^p (MASK_SHL(251, 5, 0, x) =
+//    floor32(x)), MUL(-1, that) for k = -2^p; else MUL(k, F) (96 *
+//    uint8(x) is MUL(96, MASK_SHL(8, 0, 0, x))). 2^p times anything that
+//    isn't a field stays MUL(2^p, x) (x << 5 is MUL(32, x)).
 //  - products: MUL(k, f1, ..., fm), k first (absent when 1, the product is
-//    then f1 when m = 1), factors in compare() order, products of sums
-//    distributed (while small). 2^p times a field of x is a field
-//    (MASK_SHL with p added to its shl); 2^p times anything else stays
-//    MUL(2^p, x).
+//    then f1 when m = 1), factors in compare() order (mask factors at bit
+//    0, their powers of two in k), products of sums distributed (while
+//    small).
 //  - masks: MASK_SHL(size, off, shl, x) in the canonical form of masks.hpp
 //    (every bit it takes is kept; size 0 is the int 0); a mask of a mask is
 //    one mask when the fields are concrete; AND with a mask constant, SHR

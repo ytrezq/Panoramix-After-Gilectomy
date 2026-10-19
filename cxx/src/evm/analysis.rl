@@ -73,11 +73,7 @@ struct Analysis {
     action insn_jumpdest { jumpdests[usize(p - code) >> 6] |= u64{1} << (usize(p - code) & 63); }
 
     # an instruction starts at p
-    action begin {
-        starts[usize(p - code) >> 6] |= u64{1} << (usize(p - code) & 63);
-        last = p;
-        ++ninsn;
-    }
+    action begin { starts[usize(p - code) >> 6] |= u64{1} << (usize(p - code) & 63); }
 
     action static_jump { a.static_jump(IdiomKind::StaticJump, u32(p - code)); }
     action static_jumpi { a.static_jump(IdiomKind::StaticJumpI, u32(p - code)); }
@@ -122,8 +118,6 @@ CodeMap analyse(std::span<const u8> code_bytes)
     u64* const starts = m.insn_start.words().data();
     u64* const jumpdests = m.jumpdest.words().data();
     Analysis a{m, code, n};
-    const u8* last = nullptr;  // the last instruction's start
-    u32 ninsn = 0;
 
     const u8* p = code;
     const u8* const pe = code + n;
@@ -132,9 +126,10 @@ CodeMap analyse(std::span<const u8> code_bytes)
     %% write exec;
     (void)cs;
 
-    m.ninsn = ninsn;
+    m.ninsn = u32(m.insn_start.count());
     // a push the end cuts: the last instruction, open
-    if (last && usize(pe - last) < 1u + kImm[*last]) m.cut_push = u32(last - code);
+    if (const usize last = m.insn_start.prev(n); last < n && n - last < 1u + kImm[code[last]])
+        m.cut_push = u32(last);
     m.njumpdest = u32(m.jumpdest.count());
     // the static jumps to no jumpdest (NaCl's ProcessInvalidJumpTargets),
     // word by word

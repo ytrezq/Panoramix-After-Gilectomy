@@ -3,6 +3,7 @@
 // write_range; arithmetic.eval_bool; memloc.max_value_bits.
 #include "vm/facts.hpp"
 
+#include <algorithm>
 #include <new>
 
 #include "algebra/construct.hpp"
@@ -23,16 +24,6 @@ std::optional<u64> small_place(Value v) {
     i64 x = v.small_val();
     if (x < 0 || x >= (i64(1) << 48)) return std::nullopt;
     return u64(x);
-}
-
-bool is_cmp(Op op) {
-    switch (op) {
-        case Op::LT: case Op::GT: case Op::LE: case Op::GE: case Op::EQ:
-        case Op::SLT: case Op::SGT: case Op::SLE: case Op::SGE:
-            return true;
-        default:
-            return false;
-    }
 }
 
 // whether v reads transient storage (a walk only below values with F_STATE)
@@ -254,9 +245,8 @@ bool PathFacts::has(FactKind k) const noexcept {
 
 void PathFacts::to_vector(SmallVec<Fact, 32>& out) const {
     out.clear();
-    out.resize(n_);
-    usize i = n_;
-    for (const Cell* c = head_; c; c = c->next) out[--i] = c->f;
+    for (const Cell* c = head_; c; c = c->next) out.push_back(c->f);
+    std::reverse(out.begin(), out.end());
 }
 
 PathFacts PathFacts::from(std::span<const Fact> oldest_first) {

@@ -268,6 +268,23 @@ private:
     bool rdzero_ = false;  // RETURNDATASIZE is 0 (python RETURNDATASIZE_ZERO known)
 };
 
+// the nodes below `from` (itself included) where f is true, depth first, the
+// children in order (python find_nodes)
+template <class F>
+void Vm::find_nodes(NodeId from, F&& f, std::pmr::vector<NodeId>& out) const {
+    out.clear();
+    std::pmr::vector<NodeId> todo(res_);
+    todo.push_back(from);
+    while (!todo.empty()) {
+        poll();
+        NodeId n = todo.back();
+        todo.pop_back();
+        const Node& x = nodes_[n];
+        if (f(x)) out.push_back(n);
+        for (auto it = x.next.rbegin(); it != x.next.rend(); ++it) todo.push_back(*it);
+    }
+}
+
 // python simplify_bool: the condition of a JUMPI without its BOOL
 Value simplify_bool(Value e);
 // python exp_size: the size of v as a tree, counted up to cap

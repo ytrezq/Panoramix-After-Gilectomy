@@ -122,6 +122,9 @@ Value mask_concrete(i64 s, i64 o, i64 h, Value x, int depth);
 
 void push_term(SmallVec<Acc, 8>& out, Word256& c, Value t, const Word256& k, int depth = 0);
 
+// the most terms a product of sums is distributed into
+constexpr usize kMaxExpansion = 64;
+
 // a product k * f1 * ... * fm (constants folded into k) as terms
 void push_product(SmallVec<Acc, 8>& out, Word256& c, std::span<const Value> factors, Word256 k, int depth) {
     SmallVec<Value, 8> f;
@@ -148,18 +151,22 @@ void push_product(SmallVec<Acc, 8>& out, Word256& c, std::span<const Value> fact
         push_term(out, c, f[0], k, depth + 1);
         return;
     }
-    // a product of a sum: distributed (while small)
-    for (usize i = 0; i < f.size(); ++i) {
-        if (!f[i].is(Op::ADD)) continue;
-        usize n = f[i].size();
-        if (n > 16 || out.size() + n > 256) break;
-        Value s = f[i];
-        for (Value t : s.args()) {
-            SmallVec<Value, 8> g;
-            for (usize j = 0; j < f.size(); ++j) g.push_back(j == i ? t : f[j]);
-            push_product(out, c, g.span(), k, depth + 1);
+    // a product of sums: distributed when the whole expansion is small (a
+    // decision of the factors alone: the result is a fixpoint either way)
+    usize expansion = 1;
+    for (Value x : f)
+        if (x.is(Op::ADD) && (expansion *= x.size()) > kMaxExpansion) break;
+    if (expansion > 1 && expansion <= kMaxExpansion) {
+        for (usize i = 0; i < f.size(); ++i) {
+            if (!f[i].is(Op::ADD)) continue;
+            Value s = f[i];
+            for (Value t : s.args()) {
+                SmallVec<Value, 8> g;
+                for (usize j = 0; j < f.size(); ++j) g.push_back(j == i ? t : f[j]);
+                push_product(out, c, g.span(), k, depth + 1);
+            }
+            return;
         }
-        return;
     }
     // the powers of two of the mask factors moved out into k (their
     // fields at bit 0, through mask(): a storage read narrows...)
@@ -265,15 +272,19 @@ Value build_term(const Acc& a, bool* exact) {
     if (i32(256 - p) < s) s = i32(256 - p);
     if (s <= 0) return small(0);
     if (a.off == 0 && s == i32(256 - p)) return whole(a.base);
+    // k = +-2^p: the field moved by p (floor32(x), -floor32(x), uint8(x) << 5);
+    // else k times the field at bit 0 (96 * uint8(x), 3 * (x >> 8 & 0xff))
+    const Word256 odd = pan::sar(Word256::of(p), k);  // the signed odd part
+    const bool unit = odd == Word256::of(1) || odd == w_ones();
+    const i64 h = unit ? i64(p) - a.off : -i64(a.off);
     // (through mask(): a narrower field may simplify what it is made of)
-    const i64 h = i64(p) - a.off;
     Value m = mask_concrete(s, a.off, h, a.base, 0);
     if (!(m.is(Op::MASK_SHL, 4) && m[3] == a.base && int_is(m[0], s) && int_is(m[1], a.off) && int_is(m[2], h)))
         *exact = false;
-    Word256 odd = pan::sar(Word256::of(p), k);  // the signed odd part
-    if (odd == Word256::of(1)) return m;
-    if (!*exact) return mul(signed_value(odd), m);
-    return mk(Op::MUL, signed_value(odd), m);
+    if (unit && odd == Word256::of(1)) return m;
+    Value ks = unit ? small(-1) : signed_value(k);
+    if (!*exact) return mul(ks, m);
+    return mk(Op::MUL, ks, m);
 }
 
 // merges the terms of one x, one displacement, that make fewer fields
