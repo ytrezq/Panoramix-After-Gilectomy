@@ -29,8 +29,8 @@ std::optional<GetterAccess> getter_access(const traits::Getter& g, Value narrowe
 // SALL(SR(key))))) - when running both on the storage worlds says it is the
 // same: python's (bytes as solidity keeps them, short and long, of the
 // lengths the code may treat apart), and those words with garbage past the
-// bytes, and encodings no solc makes (SALL is what solc's copy makes of
-// anything: the rewrite holds on any storage); NIL else.
+// bytes, and encodings no solc makes (SALL reads anything as solc's copy
+// does: the rewrite holds on any storage); NIL else.
 class BytesTail {
 public:
     BytesTail(const FunctionInfo& fn, std::span<const FunctionInfo> internals, const ContractShared* shared);

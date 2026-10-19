@@ -14,6 +14,7 @@
 #include <unordered_set>
 #include <utility>
 
+#include "analysis/safemath.hpp"
 #include "analysis/traits.hpp"
 #include "core/errors.hpp"
 #include "core/jobs.hpp"
@@ -883,6 +884,13 @@ void Run::contract_phase()
         output::ast_stage(r.internals[from], r.internals[f], ao);
         r.made[f] = r.kept[f] = true;
         r.last = Stage::Folded;
+        // lot 8: the checked arithmetic of the asts as calls of the
+        // contract's SafeMath (python safemath.rewrite: all or nothing)
+        try {
+            r.safemath = safemath::rewrite(r.functions[f], r.internals[f], shared_);
+        } catch (const Error& e) {
+            log(log_warning, LOGGER, std::string("SafeMath failed: the arithmetic stays as it is. (") + e.what() + ")");
+        }
     }
     if (StageObserver* o = s_.options.observer)
         for (unsigned s = 0; s < STAGE_COUNT; ++s)

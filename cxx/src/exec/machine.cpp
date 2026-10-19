@@ -373,20 +373,20 @@ struct Machine::Impl {
         return Word256::of((s.limb[0] & 0xff) >> 1);
     }
 
-    // SALL's (lot 9): the bytes a solidity getter copies from the bytes/string
-    // at a slot, whatever the slot holds - its length decoded as LENGTH's
-    // (len); none when 0; below 32 the word with its low byte cleared (32
-    // bytes); else the words from keccak(slot) on, ceil32(len) bytes, the last
-    // one whole (solc's copy, legacy and IR - the IR's after its check of the
-    // encoding, Panic(0x22): the same on what it lets through)
+    // SALL's (lot 9): the bytes/string at a slot as solidity's copy of it to
+    // the memory reads it, whatever the slot holds - its length decoded as
+    // LENGTH's (len), then short or long by the length (not by the low bit):
+    // below 32 the word's len high bytes, else len bytes of the words from
+    // keccak(slot) on (a getter's ARR pads them with zeroes, as solc's
+    // encoder clears the rest of the last word)
     void getter_bytes(const Word256& slot, Bytes& out) {
         const Word256 s = host->sload(slot);
         const Word256 lw = (s.limb[0] & 1) ? pan::shr(Word256::of(1), s) : Word256::of((s.limb[0] & 0xff) >> 1);
         if (lw.is_zero()) return;
         u8 w[32];
         if (lw < Word256::of(32)) {
-            pan::band(s, pan::bnot(Word256::of(0xff))).to_be(w);
-            append(out, w, 32);
+            s.to_be(w);
+            append(out, w, lw.limb[0]);
             return;
         }
         const u64 len = length(lw);
@@ -396,7 +396,7 @@ struct Machine::Impl {
         for (u64 i = 0; i * 32 < len; ++i) {
             const Word256 word = host->sload(pan::add(base, Word256::of(i)));
             word.to_be(w);
-            append(out, w, 32);
+            append(out, w, std::min<u64>(32, len - i * 32));
             if ((i & 255) == 255) poll();
         }
     }

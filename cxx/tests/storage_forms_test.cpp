@@ -252,34 +252,34 @@ TEST_CASE("storage: forms - SALL is what a getter copies of the storage bytes") 
         exec::SimpleHost host;
         CHECK(sall(host).empty());
     }
-    {  // a short one: the word, its low byte cleared (garbage past the bytes kept)
+    {  // a short one: its bytes, the high ones of the word (not the garbage past them)
         exec::SimpleHost host;
         const Word256 s = pan::bor(pan::shl(Word256::of(232), Word256::of(0x616263)), Word256{{0x1200 | 6, 0, 0, 0}});
         host.storage[Word256::of(8)] = s;
-        CHECK(sall(host) == word_bytes(pan::band(s, pan::bnot(Word256::of(0xff)))));
+        CHECK(sall(host) == Bytes{'a', 'b', 'c'});
     }
-    {  // a long one: whole words from keccak(slot)
+    {  // a long one: from the words at keccak(slot)
         exec::SimpleHost host;
         host.storage[Word256::of(8)] = Word256::of(81);  // 40 bytes
         host.storage[base] = Word256::of(0x11);
-        host.storage[pan::add(base, Word256::of(1))] = Word256::of(0x22);
+        host.storage[pan::add(base, Word256::of(1))] = pan::shl(Word256::of(248), Word256::of(0x22));
         Bytes want = word_bytes(Word256::of(0x11));
-        const Bytes w2 = word_bytes(Word256::of(0x22));
-        want.insert(want.end(), w2.begin(), w2.end());
+        want.push_back(0x22);
+        want.insert(want.end(), 7, 0);
         CHECK(sall(host) == want);
     }
-    {  // what no solc keeps: a short encoding of 100 bytes - copied as a long one
+    {  // what no solc keeps: a short encoding of 100 bytes - read as a long one
         exec::SimpleHost host;
         host.storage[Word256::of(8)] = Word256::of(200);
-        host.storage[pan::add(base, Word256::of(3))] = Word256::of(7);
+        host.storage[pan::add(base, Word256::of(3))] = pan::shl(Word256::of(248), Word256::of(0x77));
         const Bytes got = sall(host);
-        REQUIRE(got.size() == 128);
-        CHECK(got[127] == 7);
+        REQUIRE(got.size() == 100);
+        CHECK(got[96] == 0x77);
     }
-    {  // a long encoding of 5 bytes: copied as a short one
+    {  // a long encoding of 5 bytes: read as a short one
         exec::SimpleHost host;
         host.storage[Word256::of(8)] = Word256::of(11);
-        CHECK(sall(host) == word_bytes(Word256::of(0)));
+        CHECK(sall(host) == Bytes(5, 0));
     }
 }
 

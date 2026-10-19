@@ -31,13 +31,14 @@
 //   SET(ST(size, loc, width), v)   a line: the bits [bit, bit + size) of the
 //                         slot (those under 256) set to the low bits of v, the
 //                         others kept (read-modify-write; SBL: a bug)
-//   SALL(loc)             a bytes expression: what a solidity getter copies of
-//                         the bytes/string at loc's slot, whatever it holds:
-//                         len = its length as SBL decodes it; none when 0;
-//                         below 32 the slot's word with its low byte cleared
-//                         (32 bytes); else ceil32(len) bytes, the words from
-//                         keccak(slot) on (the last one whole) - in a getter's
-//                         ARR(len, SALL(loc)) the ABI encoding it returns
+//   SALL(loc)             a bytes expression: the bytes/string at loc's slot
+//                         as solidity's copy to the memory reads it, whatever
+//                         the slot holds: len = its length as SBL decodes it;
+//                         short or long by the length (not by the low bit):
+//                         below 32 the slot word's len high bytes, else len
+//                         bytes of the words from keccak(slot) on - in a
+//                         getter's ARR(len, SALL(loc)), zero padded: the ABI
+//                         encoding it returns
 // SV SI SL SBL SF SR are never words: only inside ST, SET's target, SALL, and
 // as the base of another loc.
 //
