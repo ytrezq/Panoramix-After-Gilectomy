@@ -108,3 +108,20 @@ A source changed between 2 and 4 only loses its profile (a warning).
   contract, peak RSS, the ratios to the asm.
 
 Try them on a few contracts first (`--limit 20`): the whole corpus is long.
+
+## Sanitizers and the optimized builds
+
+ASan and UBSan are only in `VARIANT=debug`. The optimized builds (release, the
+PGO instrumented build `pgo-gen`, its training run, the PGO build `pgo-use`)
+never use them: the Makefile stops with an error if `-fsanitize` appears in
+their flags (`EXTRA_CXXFLAGS`/`EXTRA_LDFLAGS` included).
+
+## The core and the stages
+
+Every directory `src/<dir>/` is compiled into the library (`*.cpp`, `*.rl`
+through `ragel -G2`, `*.S`; the other platform's `*_posix`/`*_win32` files
+left out). The op table is generated: `tools/gen_ops.py` reads
+`../spec/evm.def` and `../spec/ops.def` and writes
+`$(B)/gen/src/core/ops_gen.hpp` (included as `core/ops.hpp`); every object
+waits for it. The library links GMP (`-lgmpxx -lgmp`).
+

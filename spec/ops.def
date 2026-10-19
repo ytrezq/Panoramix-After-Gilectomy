@@ -1,0 +1,168 @@
+# Every operation of the decompiler's IR, with the decompiler's properties:
+# the source of cxx/src/core/ops_gen.hpp (cxx/tools/gen_ops.py).
+#
+#   op      name             arity   props...            [prec=N]
+#
+# op: an EVM byte (the name must be spec/evm.def's for that byte) or
+#     0x100..0x1ff (the decompiler's own; numbers are never reused).
+# arity: N | N+ | N-M | leaf   (IR operands, not EVM stack words: sha3 takes
+#     bytes expressions, call takes (call_id, gas, addr, value, sel, params)...)
+# props: a sort (word bool bytes range loc line) + flags:
+#     comm assoc r_mem r_msize r_storage r_transient r_calldata r_account
+#     r_callres r_gas r_ctx w_mem w_storage w_transient w_log w_call halt
+#     control loopctl numbered print_only
+# prec=N: the printer's precedence (lot 10 fills; 0 by default).
+#
+# An EVM instruction of evm.def missing here (push, dup, swap, pop, jump,
+# mload, sstore...) still has its enumerator and a defined entry (arity: its
+# stack words, no sort, no flag): the VM consumes it, the IR never holds it.
+
+# --- EVM: arithmetic -------------------------------------------------------
+0x00    stop             0       line halt
+0x01    add              2+      word comm assoc
+0x02    mul              2+      word comm assoc
+0x03    sub              2       word
+0x04    div              2       word
+0x05    sdiv             2       word
+0x06    mod              2       word
+0x07    smod             2       word
+0x08    addmod           3       word
+0x09    mulmod           3       word
+0x0a    exp              2       word
+0x0b    signextend       2       word
+
+# --- EVM: comparisons, bitwise ---------------------------------------------
+0x10    lt               2       bool
+0x11    gt               2       bool
+0x12    slt              2       bool
+0x13    sgt              2       bool
+0x14    eq               2       bool comm
+0x15    iszero           1       bool
+0x16    and              2+      word comm assoc
+0x17    or               2+      word comm assoc
+0x18    xor              2       word comm
+0x19    not              1       word
+0x1a    byte             2       word
+0x1b    shl              2       word
+0x1c    shr              2       word
+0x1d    sar              2       word
+0x1e    clz              1       word
+
+# --- EVM: hashing (operands: bytes expressions) -----------------------------
+0x20    sha3             1+      word
+
+# --- EVM: context reads (leaves, n = 0) and unary reads ---------------------
+0x30    address          leaf    word r_ctx
+0x31    balance          1       word r_account
+0x32    origin           leaf    word r_ctx
+0x33    caller           leaf    word r_ctx
+0x34    callvalue        leaf    word r_ctx
+0x35    calldataload     1       word r_calldata
+0x36    calldatasize     leaf    word r_calldata r_ctx
+0x38    codesize         leaf    word r_ctx
+0x3a    gasprice         leaf    word r_ctx
+0x3b    extcodesize      1       word r_account
+0x3d    returndatasize   leaf    word r_callres numbered
+0x3f    extcodehash      1       word r_account
+0x40    blockhash        1       word r_ctx
+0x41    coinbase         leaf    word r_ctx
+0x42    timestamp        leaf    word r_ctx
+0x43    number           leaf    word r_ctx
+0x44    difficulty       leaf    word r_ctx
+0x45    gaslimit         leaf    word r_ctx
+0x46    chainid          leaf    word r_ctx
+0x47    selfbalance      leaf    word r_account
+0x48    basefee          leaf    word r_ctx
+0x49    blobhash         1       word r_ctx
+0x4a    blobbasefee      leaf    word r_ctx
+0x59    msize            leaf    word r_msize
+0x5a    gas              leaf    word r_gas
+0x5c    tload            1       word r_transient
+
+# --- EVM: lines (IR operands) -----------------------------------------------
+0x5d    tstore           2       line w_transient
+0xa0    log0             1       line w_log
+0xa1    log1             2       line w_log
+0xa2    log2             3       line w_log
+0xa3    log3             4       line w_log
+0xa4    log4             5       line w_log
+0xf0    create           3       line w_call numbered
+0xf1    call             6       line w_call numbered
+0xf2    callcode         6       line w_call numbered
+0xf3    return           1       line halt
+0xf4    delegatecall     5       line w_call numbered
+0xf5    create2          4       line w_call numbered
+0xfa    staticcall       5       line w_call numbered
+0xfd    revert           1       line halt
+0xfe    invalid          2       line halt
+0xff    selfdestruct     1       line halt w_call
+
+# --- 0x100-0x11f arithmetic, masks, comparisons -----------------------------
+0x100   mask_shl         4       word
+0x101   bool             1       bool
+0x102   le               2       bool
+0x103   ge               2       bool
+0x104   sle              2       bool
+0x105   sge              2       bool
+0x106   max              2+      word comm assoc
+0x107   min              2+      word comm assoc
+
+# --- 0x120-0x13f bytes, memory, byte-range sources --------------------------
+0x120   sized            2       bytes
+0x121   data             0+      bytes
+0x122   arr              1+      bytes
+0x123   range            2       range
+0x124   mem              1       bytes r_mem
+0x125   calldata_bytes   2       bytes r_calldata
+0x126   code_bytes       2       bytes
+0x127   extcode_bytes    2       bytes r_account
+0x128   returndata_bytes 3       bytes r_callres numbered
+
+# --- 0x140-0x15f numbered results (leaves, n = call id) ---------------------
+0x140   call_success     leaf    bool r_callres numbered
+0x141   create_address   leaf    word r_callres numbered
+
+# --- 0x160-0x17f storage -----------------------------------------------------
+0x160   storage          3       word r_storage
+0x161   length           1       word r_storage
+0x162   loc              1       loc
+0x163   sbytes           1       bytes r_storage
+0x164   st               3       word r_storage
+0x165   sv               1       loc
+0x166   si               2       loc
+0x167   sl               1       loc
+0x168   sbl              1       loc
+0x169   sf               2       loc
+0x16a   sr               1       loc
+0x16b   sall             1       bytes r_storage
+
+# --- 0x180-0x1bf lines and control -------------------------------------------
+0x180   setvar           2       line
+0x181   setmem           2       line w_mem
+0x182   store            4       line w_storage
+0x183   set              2       line w_storage
+0x184   if               3       line control
+0x185   while            4       line control
+0x186   continue         2       line control loopctl
+0x187   label            2       line control loopctl
+0x188   goto             2       line control loopctl
+0x189   internal         3       line w_call
+0x18a   leave            1       line halt
+0x18b   undefined        2       line halt
+0x18c   precompiled      4       line numbered
+0x18d   asm              4       line
+
+# --- 0x1c0-0x1df ast / print forms -------------------------------------------
+0x1c0   mask             3       word print_only
+0x1c1   land             2       word
+0x1c2   lor              2       word
+0x1c3   fand             2+      bool print_only
+0x1c4   for              2+      bool print_only
+0x1c5   merged_if        3       line control print_only
+0x1c6   loop_path        2       line print_only
+0x1c7   require          1       line
+0x1c8   assert           1       line
+0x1c9   safemath         1+      word
+0x1ca   break            1       line control print_only
+
+# 0x1e0-0x1ff: reserved for the VM's private nodes (lot 5) and tests.

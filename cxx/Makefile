@@ -103,6 +103,14 @@ else
 $(error VARIANT=$(VARIANT): release, debug, pgo-gen or pgo-use)
 endif
 
+# the user's rule: the optimized builds (release, the PGO instrumented build,
+# its training run, the PGO build) never use sanitizers - only VARIANT=debug
+ifneq ($(VARIANT),debug)
+ifneq ($(findstring -fsanitize,$(VFLAGS) $(VLDFLAGS) $(EXTRA_CXXFLAGS) $(EXTRA_LDFLAGS)),)
+$(error VARIANT=$(VARIANT): no sanitizer in an optimized build (they are for VARIANT=debug only))
+endif
+endif
+
 O := $(D)/obj
 G := $(B)/gen
 
@@ -112,7 +120,7 @@ CXXFLAGS := -std=gnu++23 $(VFLAGS) -fPIC -pthread $(EXTRA_CXXFLAGS)
 CFLAGS   := -std=gnu17 $(VFLAGS) -fPIC -pthread $(EXTRA_CXXFLAGS)
 ASFLAGS  := $(VFLAGS) -fPIC -Wa,--noexecstack
 LDFLAGS  := $(VLDFLAGS) -pthread -Wl,-z,noexecstack -Wl,-z,text $(EXTRA_LDFLAGS)
-LDLIBS   := -llzma
+LDLIBS   := -lgmpxx -lgmp -llzma
 
 # --- the sources ----------------------------------------------------------------
 
@@ -132,13 +140,23 @@ obj = $(foreach s,$(1),$(if $(filter %.rl,$(s)),$(O)/gen/$(s:.rl=.cpp).o,$(O)/$(
 -include validate/Makefile.inc
 
 TP_INC := $(patsubst %,-isystem %,$(wildcard third_party/*/include))
-CPPFLAGS_SRC := -Isrc $(TP_INC)
-CPPFLAGS_VAL := -Isrc -I. $(TP_INC) $(VALIDATE_CPPFLAGS)
-CPPFLAGS_TST := -Isrc -I. $(TP_INC) -isystem third_party/doctest $(VALIDATE_CPPFLAGS)
+CPPFLAGS_SRC := -Isrc -I$(G)/src $(TP_INC)
+CPPFLAGS_VAL := -Isrc -I$(G)/src -I. $(TP_INC) $(VALIDATE_CPPFLAGS)
+CPPFLAGS_TST := -Isrc -I$(G)/src -I. $(TP_INC) -isystem third_party/doctest $(VALIDATE_CPPFLAGS)
 CPPFLAGS_TP  := $(EVMONE_CPPFLAGS)
 
-# the library: everything in src/ but the two front-ends' main files
-LIB_SRCS := $(filter-out src/main.cpp src/pymod.cpp,$(call sources,src))
+# the library: everything in src/ and its subdirectories (src/core/, the
+# stages') but the two front-ends' main files
+SRC_DIRS := src $(patsubst %/,%,$(wildcard src/*/))
+LIB_SRCS := $(filter-out src/main.cpp src/pymod.cpp,$(foreach d,$(SRC_DIRS),$(call sources,$(d))))
+
+# the generated headers: the op table (spec/evm.def + spec/ops.def); every
+# object waits for them (order-only: the .d files track the real uses)
+GEN_HDRS := $(G)/src/core/ops_gen.hpp
+$(G)/src/core/ops_gen.hpp: ../spec/evm.def ../spec/ops.def tools/gen_ops.py
+	@mkdir -p $(@D)
+	$(call say,GEN,$@)
+	$(Q)$(PYTHON) tools/gen_ops.py --evm ../spec/evm.def --ops ../spec/ops.def -o $@
 LIB_OBJS := $(call obj,$(LIB_SRCS))
 LIB      := $(D)/libpanoramix_cxx.a
 
@@ -167,7 +185,7 @@ PYMODS   := $(D)/panoramix_cxx$(PY_EXT) $(D)/compat/panoramix_asm$(PY_EXT)
 endif
 endif
 
-RLH := $(wildcard src/*.rlh validate/*.rlh)
+RLH := $(wildcard src/*.rlh src/*/*.rlh validate/*.rlh)
 
 # --- the output -----------------------------------------------------------------
 
@@ -316,7 +334,7 @@ $(O)/src/version.cpp.o: $(O)/build_info.h
 $(O)/src/version.cpp.o: private XFLAGS := -I$(O)
 
 $(O)/src/pymod.cpp.o: private XFLAGS := -DPAN_PYMODULE=panoramix_cxx -isystem $(PY_INC)
-$(O)/src/pymod_compat.cpp.o: src/pymod.cpp $(O)/flags.src
+$(O)/src/pymod_compat.cpp.o: src/pymod.cpp $(O)/flags.src | $(GEN_HDRS)
 	@mkdir -p $(@D)
 	$(call say,CXX,$< (panoramix_asm))
 	$(Q)$(CXX) $(CPPFLAGS_SRC) -DPAN_PYMODULE=panoramix_asm -isystem $(PY_INC) $(CXXFLAGS) $(WARN) $(VWARN) -MMD -MP -c -o $@ $<
@@ -326,12 +344,12 @@ $(G)/%.cpp: %.rl $(RLH)
 	$(call say,RAGEL,$<)
 	$(Q)$(RAGEL) -G2 -I $(<D) -I src -o $@ $<
 
-$(O)/src/%.cpp.o: src/%.cpp $(O)/flags.src
+$(O)/src/%.cpp.o: src/%.cpp $(O)/flags.src | $(GEN_HDRS)
 	@mkdir -p $(@D)
 	$(call say,CXX,$<)
 	$(Q)$(CXX) $(CPPFLAGS_SRC) $(XFLAGS) $(CXXFLAGS) $(WARN) $(VWARN) -MMD -MP -c -o $@ $<
 
-$(O)/gen/src/%.cpp.o: $(G)/src/%.cpp $(O)/flags.src
+$(O)/gen/src/%.cpp.o: $(G)/src/%.cpp $(O)/flags.src | $(GEN_HDRS)
 	@mkdir -p $(@D)
 	$(call say,CXX,$<)
 	$(Q)$(CXX) $(CPPFLAGS_SRC) $(CXXFLAGS) $(WARN) $(GENWARN) $(VWARN) -MMD -MP -c -o $@ $<
@@ -341,17 +359,17 @@ $(O)/src/%.S.o: src/%.S $(O)/flags.src
 	$(call say,AS,$<)
 	$(Q)$(CC) $(CPPFLAGS_SRC) $(ASFLAGS) -MMD -MP -c -o $@ $<
 
-$(O)/tests/%.cpp.o: tests/%.cpp $(O)/flags.tst
+$(O)/tests/%.cpp.o: tests/%.cpp $(O)/flags.tst | $(GEN_HDRS)
 	@mkdir -p $(@D)
 	$(call say,CXX,$<)
 	$(Q)$(CXX) $(CPPFLAGS_TST) $(CXXFLAGS) $(WARN) $(VWARN) -MMD -MP -c -o $@ $<
 
-$(O)/validate/%.cpp.o: validate/%.cpp $(O)/flags.val
+$(O)/validate/%.cpp.o: validate/%.cpp $(O)/flags.val | $(GEN_HDRS)
 	@mkdir -p $(@D)
 	$(call say,CXX,$<)
 	$(Q)$(CXX) $(CPPFLAGS_VAL) $(CXXFLAGS) $(WARN) $(VWARN) -MMD -MP -c -o $@ $<
 
-$(O)/gen/validate/%.cpp.o: $(G)/validate/%.cpp $(O)/flags.val
+$(O)/gen/validate/%.cpp.o: $(G)/validate/%.cpp $(O)/flags.val | $(GEN_HDRS)
 	@mkdir -p $(@D)
 	$(call say,CXX,$<)
 	$(Q)$(CXX) $(CPPFLAGS_VAL) $(CXXFLAGS) $(WARN) $(GENWARN) $(VWARN) -MMD -MP -c -o $@ $<

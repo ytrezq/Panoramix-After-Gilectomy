@@ -28,7 +28,9 @@ asm and python are references for the algorithms, not for the exact output.
    `std::atomic`...), no pthread; anything POSIX isolated in a `*_posix.cpp`
    (a MinGW port will add `*_win32.cpp`).
 4. **Always the same flags**: `-march=native -mtune=native -Ofast -flto
-   -fmerge-all-constants -fweb` (and PGO later). `-Ofast` is `-ffast-math`:
+   -fmerge-all-constants -fweb` (and PGO later). The optimized builds (release, the PGO
+   instrumented build, its training run, the PGO build) never use
+   sanitizers: ASan/UBSan only in `VARIANT=debug`. `-Ofast` is `-ffast-math`:
    no floating point anywhere in the algorithms (python's few floats are
    gone: integers only). Never rely on two constants having distinct
    addresses.
