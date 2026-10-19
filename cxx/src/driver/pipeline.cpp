@@ -25,6 +25,7 @@
 #include "output/output.hpp"
 #include "sigdb.hpp"
 #include "simplify/simplify.hpp"
+#include "storage/storage.hpp"
 
 namespace pan::driver {
 
@@ -821,7 +822,36 @@ void Run::contract_phase()
     // "function traits"); here lot 9's storage over every function (Analysed:
     // the storage forms, ContractResult::storage; its fallback the raw
     // accesses), then lot 8's SafeMath on the asts (ContractResult::safemath).
-    //
+
+    // lot 9: the storage forms of every function (python's
+    // storage.rewrite_functions), with half of what the contract's memory
+    // limit leaves (the asm's); its fallback every access as its slot
+    // (python's rewrite_raw) with the rest
+    if (constexpr unsigned a = stage_index(Stage::Analysed);
+        s_.options.upto >= Stage::Analysed && r.made[a] && r.kept[a]) {
+        if (s_.own_contract)
+            main_budget_.half_budget();
+        struct Restore {
+            Run& run;
+            ~Restore() { run.set_phase_limit(); }
+        } restore{*this};
+        storage::Options so;
+        so.deadline_ns = post_deadline_;
+        try {
+            r.storage = storage::analyse(r.functions[a], r.internals[a], shared_, so);
+        } catch (const Error& e) {
+            log(log_critical, LOGGER, std::string("Storage postprocessing failed. This is very bad! (") + e.what() + ")");
+            set_phase_limit();
+            try {
+                r.storage = storage::rewrite_raw(r.functions[a], r.internals[a], shared_.lang);
+            } catch (const Error&) {  // (the accesses as they were: STORAGE / STORE)
+                r.storage.reset();
+            }
+        }
+        if (r.storage)
+            r.lang = r.storage->lang;
+    }
+
     // Folded: lot 10's asts (python's make_asts) of the last stage made, each
     // function on a context of its own, on threads, to the contract phase's
     // deadline (a fold that can't leaves the trace unfolded)
