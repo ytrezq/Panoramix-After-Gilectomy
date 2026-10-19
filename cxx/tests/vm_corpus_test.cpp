@@ -70,6 +70,14 @@ TEST_CASE("vm: corpus (PANORAMIX_VM_CORPUS)") {
     const bool per_function = std::getenv("PANORAMIX_VM_VERBOSE") != nullptr;
     const bool selectors = std::getenv("PANORAMIX_VM_SELECTORS") != nullptr;
     const bool discovery_only = selectors && std::getenv("PANORAMIX_VM_DISCOVERY_ONLY") != nullptr;
+    // PANORAMIX_VM_ONLY=sel,sel,...: only these selectors' functions (hex)
+    std::vector<u32> only;
+    if (const char* o = std::getenv("PANORAMIX_VM_ONLY")) {
+        std::stringstream os(o);
+        std::string s;
+        while (std::getline(os, s, ','))
+            if (!s.empty()) only.push_back(u32(std::strtoul(s.c_str(), nullptr, 16)));
+    }
     std::ifstream in(list);
     std::string path;
     std::vector<std::string> paths;
@@ -132,6 +140,9 @@ TEST_CASE("vm: corpus (PANORAMIX_VM_CORPUS)") {
                     std::vector<vm::InternalEntry> found;
                     Counts w;
                     auto run = [&](FunctionInfo& fn) {
+                        if (!only.empty() && (fn.kind != FunctionInfo::Kind::Selector ||
+                                              std::find(only.begin(), only.end(), fn.selector) == only.end()))
+                            return;
                         vm::VmOptions o;
                         o.known_internals = &known;
                         try {

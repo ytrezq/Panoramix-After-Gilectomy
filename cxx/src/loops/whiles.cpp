@@ -78,6 +78,7 @@ private:
         Lines remaining;
         Value cond;
         bool loop = true;  // false: nothing loops back (the setvars, then the lines)
+        bool renamed = false, exit_after = false;  // (stats)
     };
 
     struct Label {
@@ -148,6 +149,22 @@ Value Whiles::make(Value trace) {
                 }
                 Made m(res);
                 to_while(std::span<const Value>(trace.data() + i + 1, n - i - 1), lb, m);
+                {
+                    WhilesStats& ws = whiles_stats();
+                    if (!m.loop)
+                        ++ws.no_loop;
+                    else {
+                        ++ws.labels;
+                        if (m.cond.is(Op::BOOL, 1) && m.cond[0] == small(1)) {
+                            ++ws.while_true;
+                        } else {
+                            ++ws.exit_test;
+                            if (!m.before.empty()) ++ws.rotated;
+                            if (m.renamed) ++ws.renamed;
+                            if (m.exit_after) ++ws.exit_after;
+                        }
+                    }
+                }
                 // what runs before the loop (no jump of its own: make for the
                 // outer loops' gotos all the same)
                 if (!m.before.empty()) {
@@ -273,6 +290,7 @@ void Whiles::to_while(std::span<const Value> rest, const Label& lb, Made& m) {
                             m.body = add_path(body2, path, lb);
                             m.remaining.swap(after2);
                             m.cond = cond;
+                            m.renamed = body2 != body;
                             return;
                         }
                         if (!falls_through(body) && rotates(path, body, lb)) {
@@ -284,6 +302,7 @@ void Whiles::to_while(std::span<const Value> rest, const Label& lb, Made& m) {
                             m.remaining.assign(out.args().begin(), out.args().end());
                             m.remaining.insert(m.remaining.end(), left().begin(), left().end());
                             m.cond = cond;
+                            m.exit_after = out.size() != 0;
                             return;
                         }
                     }
@@ -310,6 +329,7 @@ void Whiles::to_while(std::span<const Value> rest, const Label& lb, Made& m) {
                         m.body = add_path(body, path, lb);
                         m.remaining.assign(out.args().begin(), out.args().end());
                         m.cond = jt ? c : alg::iszero(c);
+                        m.exit_after = out.size() != 0;
                         return;
                     }
                 }
@@ -536,6 +556,11 @@ Value Whiles::add_path(Value trace, const Lines& path, const Label& lb) {
 }
 
 }  // namespace
+
+WhilesStats& whiles_stats() noexcept {
+    static thread_local WhilesStats s;
+    return s;
+}
 
 Value make_whiles(Value trace, std::vector<LoopInfo>& loops, const WhilesOptions& opts) {
     if (!trace.is_list() || !trace.has_flags(F_LOOPCTL)) return trace;

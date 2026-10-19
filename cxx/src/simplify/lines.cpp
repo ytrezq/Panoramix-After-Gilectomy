@@ -119,6 +119,59 @@ Value mk_like_checked(Value orig, std::span<const Value> args) {
 
 Value make_trace(std::span<const Value> lines) { return mk_trace(lines); }
 
+namespace {
+
+Value subst_rec(Value e, std::span<const Value> from, std::span<const Value> to, Memo<Value, Value>& memo) {
+    if (e.is_name()) {
+        for (usize i = 0; i < from.size(); ++i)
+            if (from[i] == e) return to[i];
+        return e;
+    }
+    if (!(e.is_expr() || e.is_list()) || !e.has_flags(F_VAR)) return e;
+    if (const Value* r = memo.find(e)) return *r;
+    check_stack();
+    SmallVec<Value, 8> args;
+    bool changed = false;
+    for (Value a : e.args()) {
+        Value n = subst_rec(a, from, to, memo);
+        if (n != a) changed = true;
+        args.push_back(n);
+    }
+    Value r = changed ? mk_like_checked(e, args.span()) : e;
+    memo.put(e, r);
+    return r;
+}
+
+}  // namespace
+
+Value substitute(Value e, std::span<const Value> from, std::span<const Value> to) {
+    if (from.empty() || !e.has_flags(F_VAR)) return e;
+    Memo<Value, Value> memo;
+    return subst_rec(e, from, to, memo);
+}
+
+void setvars_of(Value setvars, SmallVec<Value, 8>& names, SmallVec<Value, 8>& values) {
+    if (!setvars.is_list()) return;
+    for (Value sv : setvars.args())
+        if (sv.is(Op::SETVAR, 2)) {
+            names.push_back(sv[0]);
+            values.push_back(sv[1]);
+        }
+}
+
+bool assignments(Value line, SmallVec<Value, 8>& names, SmallVec<Value, 8>& values) {
+    if (line.is(Op::SETVAR, 2)) {
+        names.push_back(line[0]);
+        values.push_back(line[1]);
+        return true;
+    }
+    if (line.is(Op::CONTINUE, 2) || line.is(Op::GOTO, 2) || line.is(Op::LABEL, 2)) {
+        setvars_of(line[1], names, values);
+        return true;
+    }
+    return false;
+}
+
 u32 exp_size(Value e, u32 cap) {
     if (!e.is_expr() && !e.is_list()) return 1;
     u32 n = 1;

@@ -60,6 +60,14 @@ u32 exp_size(Value e, u32 cap);
 // a trace from lines
 Value make_trace(std::span<const Value> lines);
 
+// e with the names from[i] replaced by to[i] (all at once)
+Value substitute(Value e, std::span<const Value> from, std::span<const Value> to);
+// the variables a line assigns and their values (all at once): a SETVAR's,
+// the setvars of a CONTINUE / GOTO / LABEL (the WHILE's: setvars_of(l[3]));
+// false when it assigns none that way
+bool assignments(Value line, SmallVec<Value, 8>& names, SmallVec<Value, 8>& values);
+void setvars_of(Value setvars, SmallVec<Value, 8>& names, SmallVec<Value, 8>& values);
+
 // ---- template ---------------------------------------------------------------------------
 
 Value mk_like_checked(Value orig, std::span<const Value> args);

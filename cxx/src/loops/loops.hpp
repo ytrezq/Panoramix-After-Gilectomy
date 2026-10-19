@@ -76,6 +76,18 @@ void whiles_function(FunctionInfo& fn, const WhilesOptions& opts = {});
 void whiles_stage(const std::vector<FunctionInfo>& in, std::vector<FunctionInfo>& out,
                   const WhilesOptions& opts = {});
 
+// what make_whiles made, on this thread (the tools, the tests)
+struct WhilesStats {
+    u64 labels = 0;      // LABELs made loops
+    u64 exit_test = 0;   // `while cond`: an exit test found...
+    u64 rotated = 0;     //   with lines rotated (run before the loop and each CONTINUE)
+    u64 renamed = 0;     //   with the exit's merge variables renamed (python exit_values)
+    u64 exit_after = 0;  //   with the exit branch run after the loop (no break)
+    u64 while_true = 0;  // `while True`
+    u64 no_loop = 0;     // nothing loops back: plain SETVARs
+};
+WhilesStats& whiles_stats() noexcept;
+
 // ---- 3. induction variables -----------------------------------------------------------
 
 // the loop goes on while `counter cmp bound` holds (unsigned words)

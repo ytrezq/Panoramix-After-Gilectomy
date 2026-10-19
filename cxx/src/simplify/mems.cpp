@@ -228,8 +228,20 @@ struct Live {
         return false;
     }
     // before a line that changes what a live range reads (its address,
-    // its length: memory, variables...), that range isn't the same bytes:
-    // anything may be read
+    // its length: memory...), that range isn't the same bytes: anything may
+    // be read; before an assignment of variables (a SETVAR, setvars), the
+    // range with their values in their place (what it is before it)
+    void before(Value line) {
+        if (all || ranges.empty()) return;
+        const EffectSummary& s = summary(line);
+        if (!s.writes) return;
+        SmallVec<Value, 8> names, values;
+        if (s.writes == S_VARS && assignments(line, names, values)) {
+            assign(names, values);
+            return;
+        }
+        before(s);
+    }
     void before(const EffectSummary& s) {
         if (all || !s.writes) return;
         for (Value r : ranges)
@@ -239,6 +251,13 @@ struct Live {
                 return;
             }
     }
+    void assign(std::span<const Value> names, std::span<const Value> values) {
+        if (all || names.empty()) return;
+        for (Value& r : ranges) r = substitute(r, names, values);
+    }
+    // the ranges must not read what s changes (a loop's head: ranges valid
+    // at every iteration), else anything may be read
+    void invariant(const EffectSummary& s) { before(s); }
     // what a write of w leaves to be read from before it
     void overwrite(Value w) {
         if (all) return;
@@ -264,8 +283,14 @@ public:
         for (u32 i = 0; i < n; ++i) {
             Value l = trace[i];
             if (l.is(Op::LABEL, 2)) {
+                // at the loop's head (any iteration): what follows the trace
+                // reads, and what the lines after the label read - when none
+                // of those ranges reads what the loop changes
+                EffectSummary region;
+                for (u32 j = i + 1; j < n; ++j) region = combine(region, summary(trace[j]), true);
                 Live head = live;
-                for (u32 j = i + 1; j < n; ++j) add_reads(summary(trace[j]), head);
+                add_reads(region, head);
+                head.invariant(region);
                 loops_.push_back({l[0], std::move(head)});
             }
         }
@@ -319,7 +344,7 @@ private:
                     return l;
                 }
                 if (!live.read(w)) return Value();  // no read sees it
-                live.before(summary(l));
+                live.before(l);
                 live.overwrite(w);
                 // what it reads: its range's and its value's
                 add_reads(summary(l), live);
@@ -338,15 +363,25 @@ private:
                 return r;
             }
             case Op::WHILE: {
+                // at its head (any iteration): what follows it reads and what
+                // it reads anywhere, when none of those ranges reads what the
+                // loop changes
+                const EffectSummary& ls = summary(l);
                 Live head = live;
-                add_reads(summary(l), head);
+                add_reads(ls, head);
+                head.invariant(ls);
                 loops_.push_back({l[2], head});
                 Live in_body = live;
                 Value body = walk(l[1], in_body);
                 loops_.pop_back();
                 live = head;
                 live.unite(in_body);
-                live.before(summary(l[3]));
+                // before its setvars (the first iteration's values)
+                {
+                    SmallVec<Value, 8> names, values;
+                    setvars_of(l[3], names, values);
+                    live.assign(names, values);
+                }
                 add_reads(summary(l[3]), live);
                 Value r = body == l[1] ? l : mk(Op::WHILE, l[0], body, l[2], l[3]);
                 cx().pcs.inherit(r, l);
@@ -361,13 +396,13 @@ private:
                     live = Live{};
                     live.all = true;
                 }
-                live.before(summary(l));
+                live.before(l);
                 add_reads(summary(l), live);
                 return l;
             }
             case Op::LABEL: {
                 if (const Live* head = loop_head(l[0])) live.unite(*head);
-                live.before(summary(l));
+                live.before(l);
                 add_reads(summary(l), live);
                 return l;
             }
@@ -384,7 +419,7 @@ private:
             return l;
         }
         if (s.control & C_ENDS) live = Live{};
-        live.before(s);
+        live.before(l);
         add_reads(s, live);
         return l;
     }
