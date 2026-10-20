@@ -439,6 +439,20 @@ TEST_CASE("simplify: memory at offsets the checks bound") {
                         .c_str(),
                     whole);
     CHECK(!has_op(u, Op::MEM));
+    // a function that always reverts (its result reverted): both branches
+    // revert, the rest of the trace in the larger one
+    const std::string rbody = "(setmem (range (add 160 " + x + ") 32) 64) (setmem (range 64 32) (add 256 " + x +
+                              ")) (revert (sized 32 (mem (range (add 160 " + x + ") 32))))";
+    u = check_trace(("{(if (gt (calldataload 4) 4294967296) {(revert None)} {" + rbody + "})}").c_str(), whole);
+    CHECK(!has_op(u, Op::MEM));
+    u = check_trace(("{(if (le (calldataload 4) 4294967296) {" + rbody + "} {(revert None)})}").c_str(), whole);
+    CHECK(!has_op(u, Op::MEM));
+    // ... a position reading it in the smaller one: not small
+    u = check_trace(("{(if (le (calldataload 4) 4294967296) {" + rbody + "} {(setmem (range (add 192 " + x +
+                     ") 32) 7) (revert None)})}")
+                        .c_str(),
+                    whole);
+    CHECK(has_op(u, Op::MEM));
     // not without the check, nor with a position reading it before the check
     u = check_trace(("{" + body).c_str(), whole);
     CHECK(has_op(u, Op::MEM));

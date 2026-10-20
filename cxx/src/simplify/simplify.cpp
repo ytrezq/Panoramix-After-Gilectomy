@@ -107,15 +107,19 @@ private:
                 note(l[0]);
                 // the branch that's gone: one that ends while the other goes
                 // on - or, both ending (the rest of the trace in one of them),
-                // the one that reverts: the check fails there
+                // the one that reverts: the check fails there; both
+                // reverting (a function that always reverts: its result
+                // reverted) or neither, the smaller one. Either is sound: the
+                // gone one is noted before the bound, what's bounded holds
+                // in the one followed
                 const bool t_ends = ends(l[1]), e_ends = ends(l[2]);
                 int gone = -1;  // 1: the true branch, 2: the false one
                 if (t_ends != e_ends) {
                     gone = t_ends ? 1 : 2;
                 } else if (t_ends) {
                     const bool t_rev = reverts(l[1]), e_rev = reverts(l[2]);
-                    if (t_rev == e_rev) return false;
-                    gone = t_rev ? 1 : 2;
+                    if (t_rev != e_rev) gone = t_rev ? 1 : 2;
+                    else gone = exp_size(l[1], 256) <= exp_size(l[2], 256) ? 1 : 2;
                 }
                 if (gone < 0) {
                     note(l);
