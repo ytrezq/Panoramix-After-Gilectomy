@@ -34,6 +34,7 @@
 
 #include "core/budget.hpp"
 #include "core/context.hpp"
+#include "core/evmint.hpp"
 #include "core/memo.hpp"
 #include "algebra/compare.hpp"
 #include "algebra/construct.hpp"
@@ -63,10 +64,16 @@ public:
         known_ = s.known;
         facts_ = s.facts;
     }
+    // (only what bounds something from above - `len <= 2^32`: what keeps a
+    // position from wrapping; the rest costs the comparisons and decides
+    // nothing of where memory is)
     void assume(Value cond) {
         if (cond.is_int() || cond.nil() || known_.size() >= kMax) return;
         for (Value c : known_)
             if (c == cond) return;
+        bool above = false;
+        for (const alg::CondBound& b : alg::cond_bounds(cond)) above = above || b.range().hi < word_max();
+        if (!above) return;
         known_.push_back(cond);
         facts_ = facts_.with_cond(cond);
     }
