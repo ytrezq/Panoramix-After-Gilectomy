@@ -392,6 +392,27 @@ TEST_CASE("simplify: memory where msize is read") {
         whole);
 }
 
+TEST_CASE("simplify: memory a loop's iterations write") {
+    Fixture f;
+    // each iteration reads what the one before wrote (the step not
+    // constant: no induction, the loop's writes made of its variable);
+    // fresh memory: the read isn't zeroes
+    S::SimplifyOptions o;
+    o.fresh_memory = true;
+    Value t = V(
+        "{(setmem (range 64 32) 128) (while (lt loop1 (mask_shl 8 0 0 (calldataload 4))) {(setmem (range (add 160 loop1) "
+        "32) (add 1 (mem (range (add 128 loop1) 32)))) (continue loopid1 [(setvar loop1 (add 32 loop1 (mul 32 (mask_shl 1 "
+        "0 0 (calldataload 36)))))])} loopid1 [(setvar loop1 0)]) (return (mem (range 128 160)))}");
+    Value u = S::simplify_trace(t, o);
+    CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
+    // the step constant, the bound unknown
+    t = V("{(setmem (range 64 32) 128) (while (lt loop1 (mask_shl 8 0 0 (calldataload 4))) {(setmem (range (add 160 loop1) "
+          "32) (add 1 (mem (range (add 128 loop1) 32)))) (continue loopid1 [(setvar loop1 (add 32 loop1))])} loopid1 "
+          "[(setvar loop1 0)]) (return (mem (range 128 160)))}");
+    u = S::simplify_trace(t, o);
+    CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
+}
+
 TEST_CASE("simplify: memory at offsets the path bounds") {
     Fixture f;
     // X = ceil32(len) of a word of calldata: X + k may wrap, unless len <=

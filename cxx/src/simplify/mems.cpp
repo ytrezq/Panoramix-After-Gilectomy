@@ -136,9 +136,12 @@ mem::MemState constrained(const mem::MemState& st, Value cond) {
     return s2;
 }
 
+// the ids of the atoms forget_loop makes (LOOP names no trace has)
+constexpr u32 kFreshAtoms = 0xfff00000u;
+
 // what a loop changes (lot 6's summary: the names it sets, the memory any
 // iteration may write), forgotten from what's known at its head
-void forget_loop(mem::MemState& st, Value while_line) {
+void forget_loop(mem::MemState& st, Value while_line, u32& fresh) {
     const loops::LoopSummary& ls = loops::summary(while_line);
     const EffectSummary& e = ls.effects;
     if (!ls.written.nil())
@@ -163,6 +166,18 @@ void forget_loop(mem::MemState& st, Value while_line) {
             return;
         }
     for (Value r : ls.mem_writes.args()) st.write(r, Value());
+    // A range made of the loop's variables is where SOME iteration writes:
+    // written again with them as atoms of their own (never in a trace), so
+    // that what the body asks of the current values - a read below where the
+    // previous iteration wrote - isn't taken as never written (fresh zeroes)
+    if (ls.written.nil()) return;
+    SmallVec<Value, 8> from, to;
+    for (Value n : ls.written.args()) {
+        from.push_back(n);
+        to.push_back(Value::name(NameKind::LOOP, kFreshAtoms + (fresh++ & 0xffff)));
+    }
+    for (Value r : ls.mem_writes.args())
+        if (Value r2 = substitute(r, from, to); r2 != r) st.write(r2, Value());
 }
 
 class Forward {
@@ -262,7 +277,7 @@ private:
                 // without them
                 facts_.forget(summary(l));
                 sync(st);
-                forget_loop(st, l);
+                forget_loop(st, l, fresh_);
                 mem::MemState inside(st);
                 const PathFacts::Saved saved = facts_.save();
                 Value cond = reads(l[0], Pos::Word, inside);
@@ -317,6 +332,7 @@ private:
     }
 
     PathFacts facts_;
+    u32 fresh_ = 0;  // (forget_loop's atoms)
 };
 
 // ---- backward: dead writes ------------------------------------------------------------------
