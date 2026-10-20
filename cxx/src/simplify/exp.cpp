@@ -182,8 +182,10 @@ std::optional<Value> mask_rule(Value r) {
         if (x.is(Op::STORAGE, 3) && x[0].is_small() && x[1].is_small() && x[1].small_val() >= 0 &&
             x[0].small_val() >= 0 && x[0].small_val() <= -shl)
             return small(0);
-        // a whole-bytes mask of a memory read: the narrower read
-        if (x.is(Op::MEM, 1))
+        // a whole-bytes mask of a memory read: the narrower read (where
+        // msize is read, only one that ends where the read did: the memory
+        // touched is the same)
+        if (x.is(Op::MEM, 1) && (off == 0 || !run_flags().msize))
             if (auto n = mem::narrow_mem_mask(r)) return *n;
     }
     // mask(size, 0, 0, x / 256^shr): the bits from 8 * shr

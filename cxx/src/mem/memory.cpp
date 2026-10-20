@@ -49,7 +49,9 @@ std::optional<i64> nat(Value v) noexcept {
 // the decisions without facts, memoized per pair of positions (the same pairs
 // come back at every round of the simplifier's memory cleanups); forgotten
 // with the context's caches - set_variables and the free memory pointer flag
-// clear them, as the decisions read the variables' ranges
+// clear them, as the decisions read the variables' ranges. With facts: the
+// decision without them when there is one (facts only narrow the values:
+// what holds for all of them holds), else the facts' (not memoized).
 struct PosMemo final : ModuleState {
     Memo<Key2, Tri> le, lt;
     void clear_caches() override {
@@ -62,13 +64,17 @@ Tri pos_le(Value a, Value b, const Facts* f) {
     if (a == b) return Tri::True;
     if (auto x = nat(a))
         if (auto y = nat(b)) return tri(*x <= *y);
-    if (!f && !a.nil()) {
+    if (!a.nil()) {
         PosMemo& m = cx().state<PosMemo>();
-        if (const Tri* t = m.le.find(key2(a, b))) return *t;
-        Tri t = alg::le(a, b, Top::Memory, nullptr);
-        t = t == Tri::Cannot ? Tri::None : t;
-        m.le.put(key2(a, b), t);
-        return t;
+        Tri t;
+        if (const Tri* p = m.le.find(key2(a, b))) {
+            t = *p;
+        } else {
+            t = alg::le(a, b, Top::Memory, nullptr);
+            t = t == Tri::Cannot ? Tri::None : t;
+            m.le.put(key2(a, b), t);
+        }
+        if (t != Tri::None || !f) return t;
     }
     Tri t = alg::le(a, b, Top::Memory, f);
     return t == Tri::Cannot ? Tri::None : t;
@@ -77,13 +83,17 @@ Tri pos_lt(Value a, Value b, const Facts* f) {
     if (a == b) return Tri::False;
     if (auto x = nat(a))
         if (auto y = nat(b)) return tri(*x < *y);
-    if (!f && !a.nil()) {
+    if (!a.nil()) {
         PosMemo& m = cx().state<PosMemo>();
-        if (const Tri* t = m.lt.find(key2(a, b))) return *t;
-        Tri t = alg::lt(a, b, Top::Memory, nullptr);
-        t = t == Tri::Cannot ? Tri::None : t;
-        m.lt.put(key2(a, b), t);
-        return t;
+        Tri t;
+        if (const Tri* p = m.lt.find(key2(a, b))) {
+            t = *p;
+        } else {
+            t = alg::lt(a, b, Top::Memory, nullptr);
+            t = t == Tri::Cannot ? Tri::None : t;
+            m.lt.put(key2(a, b), t);
+        }
+        if (t != Tri::None || !f) return t;
     }
     Tri t = alg::lt(a, b, Top::Memory, f);
     return t == Tri::Cannot ? Tri::None : t;

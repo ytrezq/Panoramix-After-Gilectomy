@@ -116,6 +116,15 @@ Value check_trace(const char* text, Value (*pass)(Value)) {
 
 Value whole(Value t) { return S::simplify_trace(t); }
 
+// x appears in v (any depth)
+bool contains(Value v, Value x) {
+    if (v == x) return true;
+    if (!(v.is_expr() || v.is_list())) return false;
+    for (Value a : v.args())
+        if (contains(a, x)) return true;
+    return false;
+}
+
 }  // namespace
 
 TEST_CASE("simplify: cleanup_vars inlines and drops") {
@@ -347,4 +356,70 @@ TEST_CASE("simplify: conditions known on the path") {
         "{(setvar tmp1 (calldataload 4)) (if (iszero tmp1) {(revert None)} {}) (setvar tmp1 (calldataload 36)) (if "
         "(iszero tmp1) {(revert None)} {}) (stop)}",
         S::cleanup_conds);
+}
+
+TEST_CASE("simplify: memory where msize is read") {
+    Fixture f;
+    // a read of what was written: its bytes (it touches no more memory); a
+    // read of memory nothing wrote: kept (it moves msize - not zeroes); the
+    // writes all kept
+    Value u = check_trace(
+        "{(setmem (range 0 32) caller) (setmem (range 32 32) 0) (setvar tmp1 (sha3 (mem (range 0 64)))) (setvar tmp2 (mem "
+        "(range 256 32))) (setvar tmp3 msize) (return (data (sized 32 tmp1) (sized 32 tmp2) (sized 32 tmp3)))}",
+        whole);
+    CHECK(!contains(u, V("(mem (range 0 64))")));
+    CHECK(contains(u, V("(mem (range 256 32))")));
+    CHECK(contains(u, V("(setmem (range 0 32) caller)")));
+    // a revert's message written before it, then msize read on the other path
+    u = check_trace(
+        "{(if (calldataload 4) {(setmem (range 128 32) 0x8c379a000000000000000000000000000000000000000000000000000000000) "
+        "(setmem (range 132 32) 32) (setmem (range 164 32) 18) (setmem (range 196 32) "
+        "0x5661742f6e6f742d617574686f72697a65640000000000000000000000000000) (revert (mem (range 128 100)))} "
+        "{(setvar tmp1 msize) (setmem (range tmp1 32) 5) (return (data (sized 32 tmp1) (sized 32 msize)))})}",
+        whole);
+    CHECK(!contains(u, V("(mem (range 128 100))")));
+    // a piece made of msize isn't kept past what moves it
+    check_trace(
+        "{(setmem (range 64 32) msize) (setmem (range 512 32) 1) (return (mem (range 64 32)))}", whole);
+    check_trace(
+        "{(setmem (range msize 32) 7) (setmem (range 512 32) 1) (return (mem (range msize 32)))}", whole);
+    // a whole-bytes mask of a read narrowed only where it ends the same
+    check_trace(
+        "{(setvar tmp1 (mask_shl 160 96 -96 (mem (range 200 32)))) (return (data (sized 32 tmp1) (sized 32 msize)))}",
+        whole);
+}
+
+TEST_CASE("simplify: memory at offsets the path bounds") {
+    Fixture f;
+    // ceil32(len) + k: len <= 2^32 checked, so a write at 64 doesn't meet it
+    // (len = cd[4] >> 32: below 2^32 in the worlds of small words)
+    Value u = check_trace(
+        "{(if (gt (div (calldataload 4) 4294967296) 4294967296) {(revert None)} {}) (setvar tmp1 (mask_shl 251 5 0 (add 31 "
+        "(div (calldataload 4) 4294967296)))) (setmem (range (add 160 tmp1) 32) 64) (setmem (range 64 32) (add 256 tmp1)) "
+        "(return (sized 32 (mem (range (add 160 tmp1) 32))))}",
+        S::cleanup_mems);
+    CHECK(!contains(u, V("(mem (range (add 160 tmp1) 32))")));
+    // not without the check: the read stays
+    u = check_trace(
+        "{(setvar tmp1 (mask_shl 251 5 0 (add 31 (div (calldataload 4) 4294967296)))) (setmem (range (add 160 tmp1) 32) "
+        "64) (setmem (range 64 32) (add 256 tmp1)) (return (sized 32 (mem (range (add 160 tmp1) 32))))}",
+        S::cleanup_mems);
+    CHECK(contains(u, V("(mem (range (add 160 tmp1) 32))")));
+    // Error(string)'s layout at ceil32(len) + 160: partly overlapping writes
+    u = check_trace(
+        "{(if (gt (div (calldataload 4) 4294967296) 4294967296) {(revert None)} {}) (setvar tmp1 (mask_shl 251 5 0 (add 31 "
+        "(div (calldataload 4) 4294967296)))) (setmem (range (add 160 tmp1) 32) "
+        "0x8c379a000000000000000000000000000000000000000000000000000000000) (setmem (range (add 164 tmp1) 32) 32) (setmem "
+        "(range (add 196 tmp1) 32) 18) (setmem (range (add 228 tmp1) 32) "
+        "0x5661742f6e6f742d617574686f72697a65640000000000000000000000000000) (revert (mem (range (add 160 tmp1) 100)))}",
+        S::cleanup_mems);
+    CHECK(!contains(u, V("(mem (range (add 160 tmp1) 100))")));
+    // the check's condition no longer holds once what it reads changes (a
+    // variable set again)
+    u = check_trace(
+        "{(setvar tmp1 (div (calldataload 4) 4294967296)) (if (gt tmp1 4294967296) {(revert None)} {}) (setvar tmp1 "
+        "(calldataload 36)) (setvar tmp2 (mask_shl 251 5 0 (add 31 tmp1))) (setmem (range (add 160 tmp2) 32) 64) (setmem "
+        "(range 64 32) (add 256 tmp2)) (return (sized 32 (mem (range (add 160 tmp2) 32))))}",
+        S::cleanup_mems);
+    CHECK(contains(u, V("(mem (range (add 160 tmp2) 32))")));
 }

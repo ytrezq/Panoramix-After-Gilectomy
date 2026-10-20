@@ -395,7 +395,9 @@ private:
             case Op::SETVAR: {
                 if (is_var(l[0]) && !live.has(index(l[0]))) {
                     const EffectSummary& vs = summary(l[1]);
-                    const bool droppable = !(vs.control & C_FAILS) && !(run_flags().msize && (vs.reads & (S_MEM | S_MSIZE)));
+                    // (where msize is read, a read of memory moves it; a
+                    // read of msize itself changes nothing)
+                    const bool droppable = !(vs.control & C_FAILS) && !(run_flags().msize && (vs.reads & S_MEM));
                     if (droppable) return Value();
                 }
                 live.remove(index(l[0]));

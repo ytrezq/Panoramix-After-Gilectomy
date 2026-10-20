@@ -9,17 +9,27 @@
 //     changes forgotten first; the other state a piece's value reads
 //     (storage, calls, variables set again) forgotten where a line changes
 //     it (effects.hpp).
+//     The memory model's comparisons use the conditions known on the path
+//     (the enclosing ifs', the checks passed: `require len <= 2^32` keeps
+//     ceil32(len) + k from wrapping, so a write at 64 doesn't meet it).
 //  2. backward, the memory live (read later on some path): a SETMEM no read
 //     may see dropped (python: kept while the rest of the trace uses it).
 //     At a CONTINUE / GOTO, whatever the loop reads anywhere is live; an
 //     INTERNAL, a LEAVE, an UNDEFINED read all of it.
 //
-// Not in a trace that reads msize (run_flags().msize): which memory a run
-// touches would change what it reads there.
+// In a trace that reads msize (run_flags().msize) the msize it reads must
+// stay what it was. Forward, without fresh memory's zeroes: a read replaced
+// by what writes before it on its path wrote touches no byte they didn't
+// (a read partly known keeps reading the rest, a value that is a copy of
+// memory was read when it was written); a piece whose range or value reads
+// msize isn't kept (msize moves). Backward, a write no read sees is dropped
+// only where no msize is read after it on any path, or where it ends within
+// the memory the entry lines made (it moves nothing).
 #include "simplify/effects.hpp"
 #include "simplify/internal.hpp"
 #include "simplify/simplify.hpp"
 
+#include <algorithm>
 #include <vector>
 
 #include "core/budget.hpp"
@@ -27,12 +37,54 @@
 #include "core/memo.hpp"
 #include "algebra/compare.hpp"
 #include "algebra/construct.hpp"
+#include "algebra/facts.hpp"
 #include "loops/loops.hpp"
 #include "mem/memory.hpp"
 
 namespace pan::simplify {
 
 namespace {
+
+// The conditions known where a line is, as lot 3's facts for the memory
+// model's comparisons: each dropped where a line may change what it reads
+// (effects.hpp), so that they hold at the point of every question (at most
+// kMax: past them the newer ones aren't kept - fewer facts are as sound).
+class PathFacts {
+public:
+    static constexpr usize kMax = 32;
+    struct Saved {
+        SmallVec<Value, 16> known;
+        alg::Facts facts;
+    };
+    // (null when none: the memory model's comparisons without facts are memoized)
+    const alg::Facts* get() const noexcept { return known_.empty() ? nullptr : &facts_; }
+    Saved save() const { return Saved{known_, facts_}; }
+    void restore(const Saved& s) {
+        known_ = s.known;
+        facts_ = s.facts;
+    }
+    void assume(Value cond) {
+        if (cond.is_int() || cond.nil() || known_.size() >= kMax) return;
+        for (Value c : known_)
+            if (c == cond) return;
+        known_.push_back(cond);
+        facts_ = facts_.with_cond(cond);
+    }
+    void forget(const EffectSummary& s) {
+        if (!s.writes || known_.empty()) return;
+        SmallVec<Value, 16> kept;
+        for (Value c : known_)
+            if (!changes(s, summary(c))) kept.push_back(c);
+        if (kept.size() == known_.size()) return;
+        known_ = kept;
+        facts_ = alg::Facts();
+        for (Value c : known_) facts_ = facts_.with_cond(c);
+    }
+
+private:
+    SmallVec<Value, 16> known_;
+    alg::Facts facts_;
+};
 
 // ---- forward: reads replaced --------------------------------------------------------------
 
@@ -123,6 +175,7 @@ public:
         for (u32 i = 0; i < trace.size(); ++i) {
             poll();
             Value l = trace[i];
+            sync(st);
             Value r = line(l, st, trace, i);
             if (r != l) changed = true;
             out.push_back(r);
@@ -131,6 +184,14 @@ public:
     }
 
 private:
+    // the state's comparisons with the facts known here
+    void sync(mem::MemState& st) const { st.set_facts(facts_.get()); }
+    // a write (a SETMEM's, or what a line's summary writes) where msize is
+    // read: a piece reading msize isn't the same bytes later (msize moves)
+    static bool keeps(Value range, Value value) {
+        return !run_flags().msize || !(range.has_flags(F_MSIZE) || (!value.nil() && value.has_flags(F_MSIZE)));
+    }
+
     // e (at pos) with its memory reads replaced by what's known
     Value reads(Value e, Pos pos, const mem::MemState& st) {
         if (!e.has_flags(F_MEM)) return e;
@@ -166,8 +227,14 @@ private:
             case Op::MERGED_IF: {
                 Value cond = reads(l[0], Pos::Word, st);
                 mem::MemState st_t = constrained(st, cond), st_e = constrained(st, alg::iszero(cond));
+                // each branch where its condition holds
+                const PathFacts::Saved saved = facts_.save();
+                facts_.assume(cond);
                 Value t = walk(l[1], st_t);
+                facts_.restore(saved);
+                facts_.assume(alg::iszero(cond));
                 Value e = walk(l[2], st_e);
+                facts_.restore(saved);
                 const bool t_ends = ends(t), e_ends = ends(e);
                 if (t_ends && !e_ends) {
                     st = std::move(st_e);
@@ -179,14 +246,29 @@ private:
                 }
                 Value r = mk_like(l, std::span<const Value>({cond, t, e}));
                 cx().pcs.inherit(r, l);
+                // after it: what the branches change forgotten; the condition
+                // of the branch that goes on when the other ends (a check)
+                facts_.forget(summary(r));
+                if (t_ends != e_ends) {
+                    Value holds = t_ends ? alg::iszero(cond) : cond;
+                    if (!changes(summary(t_ends ? e : t), summary(holds))) facts_.assume(holds);
+                }
                 return r;
             }
             case Op::WHILE: {
                 Value sv = map_line_exprs(mk(Op::CONTINUE, l[2], l[3]), [&](Value e, Pos pos) { return reads(e, pos, st); });
+                // at its head (any iteration): what it changes forgotten -
+                // the facts first, the ranges it writes are then decided
+                // without them
+                facts_.forget(summary(l));
+                sync(st);
                 forget_loop(st, l);
                 mem::MemState inside(st);
+                const PathFacts::Saved saved = facts_.save();
                 Value cond = reads(l[0], Pos::Word, inside);
+                facts_.assume(cond);
                 Value body = walk(l[1], inside);
+                facts_.restore(saved);
                 Value r = mk(Op::WHILE, cond, body, l[2], sv[1]);
                 cx().pcs.inherit(r, l);
                 return r;
@@ -194,25 +276,35 @@ private:
             case Op::LABEL: {
                 Value r = line_reads(l, st);
                 forget(st, summary(r));
+                facts_.forget(summary(r));
                 EffectSummary rest;
                 for (u32 j = i + 1; j < trace.size(); ++j) rest = combine(rest, summary(trace[j]), true);
+                facts_.forget(rest);
+                sync(st);
                 forget(st, rest);
                 return r;
             }
             case Op::LOOP_PATH: {
+                facts_.forget(summary(l));
+                sync(st);
                 forget(st, summary(l));
                 mem::MemState inside(st);
+                const PathFacts::Saved saved = facts_.save();
                 Value t = walk(l[0], inside);
+                facts_.restore(saved);
                 return t == l[0] ? l : mk(Op::LOOP_PATH, t, l[1]);
             }
             case Op::SETMEM: {
                 Value r = line_reads(l, st);
                 if (r != l) cx().pcs.inherit(r, l);
                 // (its other effects: none; its write)
-                if (r[0].is(Op::RANGE, 2))
+                if (!r[0].is(Op::RANGE, 2))
+                    st.clear();
+                else if (keeps(r[0], r[1]))
                     st.write(r[0], r[1]);
                 else
-                    st.clear();
+                    st.write(r[0], Value());
+                facts_.forget(summary(r));
                 return r;
             }
             default: break;
@@ -220,8 +312,11 @@ private:
         Value r = line_reads(l, st);
         if (r != l) cx().pcs.inherit(r, l);
         forget(st, summary(r));
+        facts_.forget(summary(r));
         return r;
     }
+
+    PathFacts facts_;
 };
 
 // ---- backward: dead writes ------------------------------------------------------------------
@@ -231,6 +326,7 @@ constexpr usize kMaxLive = 64;
 struct Live {
     bool all = false;
     std::vector<Value> ranges;  // RANGEs that may be read later
+    bool msize = false;         // msize may be read later (the trace reads it)
 
     void add(Value r) {
         if (all) return;
@@ -243,6 +339,7 @@ struct Live {
         }
     }
     void unite(const Live& o) {
+        msize = msize || o.msize;
         if (o.all) {
             all = true;
             ranges.clear();
@@ -305,6 +402,11 @@ struct Live {
 
 class Backward {
 public:
+    // where msize is read: msize is at least `msize_lo` bytes everywhere in
+    // the trace (what the entry lines wrote) - a write within it doesn't
+    // move msize
+    explicit Backward(u64 msize_lo = 0) : msize_lo_(msize_lo) {}
+
     Value walk(Value trace, Live& live) {
         if (!trace.is_list()) return trace;
         check_stack();
@@ -349,6 +451,7 @@ private:
     };
 
     static void add_reads(const EffectSummary& s, Live& live) {
+        if ((s.reads | s.reads_any) & S_MSIZE) live.msize = true;
         if (!(s.reads & S_MEM)) return;
         if (s.reads_any & S_MEM) {
             live.all = true;
@@ -373,7 +476,9 @@ private:
                     add_reads(summary(l), live);
                     return l;
                 }
-                if (!live.read(w)) return Value();  // no read sees it
+                // no read sees it (where msize is read: nor msize, or it
+                // doesn't move it)
+                if (!live.read(w) && (!run_flags().msize || !live.msize || within_lo(w))) return Value();
                 live.before(l);
                 live.overwrite(w);
                 // what it reads: its range's and its value's
@@ -425,6 +530,7 @@ private:
                 } else {
                     live = Live{};
                     live.all = true;
+                    live.msize = true;
                 }
                 live.before(l);
                 add_reads(summary(l), live);
@@ -446,27 +552,52 @@ private:
         if (s.control & C_UNDEFINED) {
             live = Live{};
             live.all = true;
+            live.msize = true;
             return l;
         }
         if (s.control & C_ENDS) live = Live{};
+        // (a LEAVE: the caller goes on, and may read msize)
+        if (s.control & C_LEAVES) live.msize = true;
         live.before(l);
         add_reads(s, live);
         return l;
     }
 
+    // w (a RANGE) ends within the memory that's there anyway
+    bool within_lo(Value w) const {
+        if (!w[0].is_small() || !w[1].is_small()) return false;
+        const i64 p = w[0].small_val(), n = w[1].small_val();
+        if (p < 0 || n < 0 || p > (i64(1) << 40) || n > (i64(1) << 40)) return false;
+        return u64(p + n) <= msize_lo_;
+    }
+
     std::vector<Loop> loops_;
+    u64 msize_lo_ = 0;
 };
 
 }  // namespace
 
 Value cleanup_mems(Value trace) {
-    if (!trace.is_list() || run_flags().msize) return trace;
-    mem::MemState st(run_flags().fresh);
+    if (!trace.is_list()) return trace;
+    const bool msize = run_flags().msize;
+    // (where msize is read, a read of memory nothing wrote touches it: not
+    // zeroes)
+    mem::MemState st(run_flags().fresh && !msize);
     Forward fw;
     // what the lines before the trace wrote (the dispatcher's)
     if (run_flags().entry_lines.is_list()) (void)fw.walk(run_flags().entry_lines, st);
     Value t = fw.walk(trace, st);
-    Backward bw;
+    // where msize is read, a write no read sees is dropped only where msize
+    // isn't read after it or where it doesn't move it (within what the entry
+    // lines wrote: the memory is that large on every path)
+    u64 lo = 0;
+    if (msize && run_flags().entry_lines.is_list())
+        for (Value l : run_flags().entry_lines.args())
+            if (l.is(Op::SETMEM, 2) && l[0].is(Op::RANGE, 2) && l[0][0].is_small() && l[0][1].is_small()) {
+                const i64 p = l[0][0].small_val(), n = l[0][1].small_val();
+                if (p >= 0 && n > 0 && p <= (i64(1) << 40) && n <= (i64(1) << 40)) lo = std::max(lo, (u64(p + n) + 31) & ~u64(31));
+            }
+    Backward bw(lo);
     Live live;
     return bw.walk(t, live);
 }

@@ -111,7 +111,7 @@ public:
             if (line.is(Op::WHILE, 4)) {
                 const EffectSummary& ls = summary(line);
                 forget(ls);
-                Tri ev = decide(line[0]);
+                Tri ev = kept_read(line[0]) ? Tri::None : decide(line[0]);
                 // the body: where the condition holds (and what the loop doesn't change)
                 const Saved saved = save();
                 assume(line[0]);
@@ -140,7 +140,9 @@ public:
             }
             if (line.is(Op::IF, 3)) {
                 Value cond = truth(line[0]);
-                Tri ev = decide(cond);
+                // (a condition whose memory read must stay: the if too)
+                const bool keep = kept_read(line[0]);
+                Tri ev = keep ? Tri::None : decide(cond);
                 if (ev == Tri::True || ev == Tri::False) {
                     // the branch it takes, in its place (its lines walked here)
                     Value b = trace(ev == Tri::True ? line[1] : line[2]);
@@ -163,12 +165,12 @@ public:
                     Value holds = t_ends ? alg::iszero(cond) : cond;
                     if (!changes(summary(t_ends ? ee : tt), summary(holds))) assume(holds);
                 }
-                if (tt.size() == 0 && ee.size() == 0) {
+                if (tt.size() == 0 && ee.size() == 0 && !keep) {
                     // (once the branches of a merged if are simplified)
                     changed = true;
                     continue;
                 }
-                if (tt == ee) {
+                if (tt == ee && !keep) {
                     // whatever the condition
                     for (Value l : tt.args()) res.push_back(l);
                     changed = true;
@@ -193,6 +195,9 @@ public:
     }
 
 private:
+    // where msize is read, a condition's read of memory may move it: the
+    // condition stays evaluated where it was
+    static bool kept_read(Value cond) { return run_flags().msize && cond.has_flags(F_MEM); }
     Tri decide(Value cond) {
         Tri t = alg::eval_bool(cond, known_.empty() ? nullptr : &facts_);
         return t == Tri::True || t == Tri::False ? t : Tri::None;
