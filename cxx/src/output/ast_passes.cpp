@@ -11,10 +11,15 @@
 //    each call k line, read there instead (python's VM snapshots them: `_1 =
 //    ext_call.return_data[0]`) - the variable of a result that only depends
 //    on call k (its offsets and lengths of numbers or of call k's size).
+//  - Gas reads kept: the text's gas_remaining is the gas left where it's
+//    printed, the IR's reads are numbered. A read printed with a later one,
+//    or again after a line that printed another, gets a variable (GasReads).
 //  - An if whose branches are the same lines but for the ids of the calls
 //    they make (python has no ids: they're equal there) is its lines.
 //  - The paths the VM didn't finish end in one line (python's has no pc:
 //    its folder merges them).
+// And the text's view (printing only, no value made): the ifs whose
+// branches print the same, the variables only their conditions read.
 #include <algorithm>
 #include <optional>
 #include <set>
