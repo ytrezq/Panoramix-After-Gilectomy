@@ -475,6 +475,19 @@ TEST_CASE("output: make_ast's passes")
                    " (return (sized 32 (sub (gas 2) (gas 4))))}") ==
           "  log gas_remaining\n  _1 = gas_remaining\n  call caller with:\n       gas gas_remaining\n"
           "  return _1 - gas_remaining\n");
+    // printed again after a line that printed another
+    CHECK(ast_text("{(call 1 (gas 1) caller 0 None None) (call 2 (gas 2) caller 0 None None)"
+                   " (log0 (sized 32 (gas 1)))}") ==
+          "  _1 = gas_remaining\n  call caller with:\n       gas _1\n  call caller with:\n       gas gas_remaining\n"
+          "  log _1\n");
+    // the VM's numbers out of the paths' order (its loops, its merges): no
+    // variable for that alone; one needed, right before its first use
+    CHECK(ast_text("{(call 1 (gas 5) caller 0 None None) (call 2 (gas 3) caller 0 None None)}") ==
+          "  call caller with:\n       gas gas_remaining\n  call caller with:\n       gas gas_remaining\n");
+    CHECK(ast_text("{(call 1 (gas 5) caller 0 None None) (call 2 (gas 3) caller 0 None None)"
+                   " (return (sized 32 (sub (gas 4) (gas 6))))}") ==
+          "  call caller with:\n       gas gas_remaining\n  call caller with:\n       gas gas_remaining\n"
+          "  _1 = gas_remaining\n  return _1 - gas_remaining\n");
 }
 
 TEST_CASE("output: the ifs whose branches print the same")

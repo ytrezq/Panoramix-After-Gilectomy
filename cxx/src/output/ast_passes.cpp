@@ -377,25 +377,36 @@ std::vector<u32> own_gas_reads(Value l)
     return g;
 }
 
-// The VM numbers its GAS reads in the order it makes them; the text has one
-// name, gas_remaining (the gas left where it is printed). A read printed in
-// one line with a later one, or after a line that printed a later one (on
-// some path), gets a variable: `_N = gas_remaining` where the read can be -
-// right after the last line that prints an earlier read as itself (python's
-// VM read them where they're used; a measure, `g = gasleft(); ...; g -
-// gasleft()`, reads early). A loop's variable is set in it when only its
-// body reads it, else before it.
+// The VM numbers its GAS reads (in the order it explores the code: its
+// loops and merges may number a later read first); the text has one name,
+// gas_remaining, the gas left where it is printed. A read printed in one line
+// with a later-numbered one, or printed again after a line that printed
+// another (on some path), gets a variable, `_N = gas_remaining`, set as
+// early as the read can be: right after the last line that prints an
+// earlier read as itself (a measure, `g = gasleft(); ...; g - gasleft()`,
+// reads early; python's VM printed reads where they're used) - when the
+// reads printed as themselves come in their numbers' order on every path;
+// else right before its first use. Always before its first use on every
+// path; a loop's variable set in it when only its body reads it, else
+// before it.
 class GasReads {
 public:
     Value run(Value trace)
     {
         {
-            u32 m = 0;
-            need(trace, m);
+            Seen st;
+            need(trace, st);
         }
         if (needed_.empty() || needed_.size() > 64 || steps_ > kMaxSteps)
             return trace;
         reads_.assign(needed_.begin(), needed_.end());
+        {
+            steps_ = 0;
+            u32 m = 0;
+            order(trace, m);
+            if (steps_ > kMaxSteps)
+                return trace;
+        }
         vars_ = fresh_tmps(trace, reads_.size());
         steps_ = 0;
         const u64 all = reads_.size() == 64 ? ~u64(0) : (u64(1) << reads_.size()) - 1;
@@ -407,14 +418,83 @@ public:
 private:
     static constexpr u64 kMaxSteps = u64(1) << 21;  // (a walk past it: the trace as it is)
 
-    // pass 1: the reads that need a variable, m the latest read printed so
-    // far on the path
-    void need(Value lines, u32& m)
+    // the reads printed so far on a path, and those of the last line that
+    // printed any (sorted)
+    struct Seen {
+        std::vector<u32> all, last;
+        bool operator==(const Seen&) const = default;
+    };
+    static std::vector<u32> unite(const std::vector<u32>& a, const std::vector<u32>& b)
+    {
+        std::vector<u32> r;
+        std::set_union(a.begin(), a.end(), b.begin(), b.end(), std::back_inserter(r));
+        return r;
+    }
+    static std::vector<u32> minus(const std::vector<u32>& a, const std::vector<u32>& b)
+    {
+        std::vector<u32> r;
+        std::set_difference(a.begin(), a.end(), b.begin(), b.end(), std::back_inserter(r));
+        return r;
+    }
+    // (a read another line printed after, on either path, stays so)
+    static Seen join(const Seen& a, const Seen& b)
+    {
+        Seen r;
+        r.all = unite(a.all, b.all);
+        r.last = minus(r.all, unite(minus(a.all, a.last), minus(b.all, b.last)));
+        return r;
+    }
+    static bool has(const std::vector<u32>& v, u32 k) { return std::binary_search(v.begin(), v.end(), k); }
+
+    // pass 1: the reads that need a variable
+    void need(Value lines, Seen& st)
     {
         check_stack();
         if (!lines.is_list())
             return;
         if (const auto it = seen_.find(lines.raw()); it != seen_.end())
+            for (const auto& [before, after] : it->second)
+                if (before == st) {
+                    st = after;
+                    return;
+                }
+        if (++steps_ > kMaxSteps)
+            return;
+        poll();
+        const Seen before = st;
+        for (const Value l : lines.args()) {
+            const std::vector<u32> own = own_gas_reads(l);
+            if (!own.empty()) {
+                for (usize i = 0; i + 1 < own.size(); ++i)
+                    needed_.insert(own[i]);
+                for (const u32 k : own)
+                    if (has(st.all, k) && !has(st.last, k))
+                        needed_.insert(k);
+                st.all = unite(st.all, own);
+                st.last = own;
+            }
+            if (is_if(l)) {
+                Seen a = st, b = st;
+                need(l[1], a);
+                need(l[2], b);
+                st = join(a, b);
+            } else if (l.is(Op::WHILE, 4)) {
+                Seen b = st;
+                need(l[1], b);
+                st = join(st, b);
+            }
+        }
+        seen_[lines.raw()].emplace_back(before, st);
+    }
+
+    // pass 1b: do the reads printed as themselves come in their numbers'
+    // order on every path (m: the latest so far)
+    void order(Value lines, u32& m)
+    {
+        check_stack();
+        if (!lines.is_list() || !early_)
+            return;
+        if (const auto it = order_.find(lines.raw()); it != order_.end())
             for (const auto& [before, after] : it->second)
                 if (before == m) {
                     m = after;
@@ -425,24 +505,25 @@ private:
         poll();
         const u32 before = m;
         for (const Value l : lines.args()) {
-            const std::vector<u32> own = own_gas_reads(l);
-            for (const u32 k : own)
-                if (k < m || k < own.back())
-                    needed_.insert(k);
-            if (!own.empty())
-                m = std::max(m, own.back());
+            for (const u32 k : own_gas_reads(l)) {
+                if (index(k) >= 0)
+                    continue;
+                if (k < m)
+                    early_ = false;
+                m = std::max(m, k);
+            }
             if (is_if(l)) {
                 u32 a = m, b = m;
-                need(l[1], a);
-                need(l[2], b);
+                order(l[1], a);
+                order(l[2], b);
                 m = std::max(a, b);
             } else if (l.is(Op::WHILE, 4)) {
                 u32 b = m;
-                need(l[1], b);
+                order(l[1], b);
                 m = std::max(m, b);
             }
         }
-        seen_[lines.raw()].emplace_back(before, m);
+        order_[lines.raw()].emplace_back(before, m);
     }
 
     // what a path reads: the first read printed as itself, the variables'
@@ -517,9 +598,11 @@ private:
 
     Value set_line(usize i) const { return mk(Op::SETVAR, vars_[i], Value::leaf(Op::GAS, reads_[i])); }
 
-    // the variables whose reads can be here (the path from here prints no
-    // earlier read as itself); those the path doesn't read: none
-    void set_here(u64& pend, Sum rest, std::vector<Value>& out) const
+    // the variables whose reads can be here: those the line (its own part:
+    // an if's condition) reads; early, those whose earlier reads the path
+    // from here prints none of as themselves; those the path doesn't read:
+    // none
+    void set_here(u64& pend, Sum rest, u64 here, std::vector<Value>& out) const
     {
         for (usize i = 0; i < reads_.size(); ++i) {
             const u64 bit = u64(1) << i;
@@ -529,10 +612,10 @@ private:
                 pend &= ~bit;
                 continue;
             }
-            if (rest.lo < reads_[i])
-                break;  // (and the later ones: after it)
-            out.push_back(set_line(i));
-            pend &= ~bit;
+            if ((here & bit) || (early_ && rest.lo > reads_[i])) {
+                out.push_back(set_line(i));
+                pend &= ~bit;
+            }
         }
     }
 
@@ -566,7 +649,10 @@ private:
         out.reserve(n + 2);
         for (usize i = 0; i < n; ++i) {
             const Value l = lines[i];
-            set_here(pend, rest[i], out);
+            const u64 here = is_if(l)                ? sum(l[0]).uses
+                             : l.is(Op::WHILE, 4) ? join(sum(l[0]), sum(l[3])).uses
+                                                    : sum(l).uses;
+            set_here(pend, rest[i], here, out);
             if (is_if(l)) {
                 // (the others: set in its branches, or after it)
                 u64 a = 0, b = 0;
@@ -609,10 +695,12 @@ private:
         Value result;
     };
     u64 steps_ = 0;
+    bool early_ = true;  // (the reads printed as themselves in their order)
     std::set<u32> needed_;
     std::vector<u32> reads_;   // the reads given a variable (ascending)
     std::vector<Value> vars_;  // theirs
-    std::unordered_map<u64, std::vector<std::pair<u32, u32>>> seen_;  // lines -> (m before, after)
+    std::unordered_map<u64, std::vector<std::pair<Seen, Seen>>> seen_;  // lines -> (before, after)
+    std::unordered_map<u64, std::vector<std::pair<u32, u32>>> order_;  // lines -> (m before, after)
     std::unordered_map<u64, Sum> sums_;
     std::unordered_map<u64, Value> uses_;
     std::unordered_map<u64, std::vector<Placed>> placed_;
