@@ -123,7 +123,9 @@ Out function_text(const driver::ContractResult* r, const FunctionInfo& fn, const
         names = &*own;
     }
     Out o(s.color);
-    const FnEnv env(&fn, s.db, fn.trace, names);
+    FnEnv env(&fn, s.db, fn.trace, names);
+    if (fn.trace.is_trace())
+        env.set_view(text_view(fn.trace));  // (the ifs that print the same either way: their lines)
     Printer p(o, env);
     if (fn.kind == FunctionInfo::Kind::Internal) {
         const vm::InternalEntry* rec = r ? record_of(*r, fn) : nullptr;

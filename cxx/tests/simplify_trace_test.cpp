@@ -14,6 +14,7 @@
 #include "core/dump.hpp"
 #include "core/errors.hpp"
 #include "core/evmint.hpp"
+#include "algebra/ranges.hpp"
 #include "exec/machine.hpp"
 #include "simplify/effects.hpp"
 #include "simplify/simplify.hpp"
@@ -98,6 +99,8 @@ bool same_runs(Value t, Value u, int n = 24) {
             MESSAGE("bug: " << show(a) << " / " << show(b));
             return false;
         }
+        // (a limit - memory past the machine's - is inconclusive, as in stagecheck)
+        if (a.status == exec::Status::Exhausted || b.status == exec::Status::Exhausted) continue;
         if (a.status != b.status || a.data != b.data || w1.effects != w2.effects) {
             MESSAGE("world " << s << ": " << show(a) << " vs " << show(b) << " effects " << w1.effects.size() << " vs "
                               << w2.effects.size());
@@ -391,35 +394,48 @@ TEST_CASE("simplify: memory where msize is read") {
 
 TEST_CASE("simplify: memory at offsets the path bounds") {
     Fixture f;
-    // ceil32(len) + k: len <= 2^32 checked, so a write at 64 doesn't meet it
-    // (len = cd[4] >> 32: below 2^32 in the worlds of small words)
-    Value u = check_trace(
-        "{(if (gt (div (calldataload 4) 4294967296) 4294967296) {(revert None)} {}) (setvar tmp1 (mask_shl 251 5 0 (add 31 "
-        "(div (calldataload 4) 4294967296)))) (setmem (range (add 160 tmp1) 32) 64) (setmem (range 64 32) (add 256 tmp1)) "
-        "(return (sized 32 (mem (range (add 160 tmp1) 32))))}",
-        S::cleanup_mems);
-    CHECK(!contains(u, V("(mem (range (add 160 tmp1) 32))")));
+    // X = ceil32(len) of a word of calldata: X + k may wrap, unless len <=
+    // 2^32 is checked - then a write at 64 doesn't meet X + 160
+    const std::string x = "(mask_shl 251 5 0 (add 31 (calldataload 4)))";
+    const std::string check = "(if (gt (calldataload 4) 4294967296) {(revert None)} {}) ";
+    const std::string body = "(setmem (range (add 160 " + x + ") 32) 64) (setmem (range 64 32) (add 256 " + x +
+                             ")) (return (sized 32 (mem (range (add 160 " + x + ") 32))))}";
+    const Value read = V(("(mem (range (add 160 " + x + ") 32))").c_str());
+    Value u = check_trace(("{" + check + body).c_str(), S::cleanup_mems);
+    CHECK(!contains(u, read));
     // not without the check: the read stays
-    u = check_trace(
-        "{(setvar tmp1 (mask_shl 251 5 0 (add 31 (div (calldataload 4) 4294967296)))) (setmem (range (add 160 tmp1) 32) "
-        "64) (setmem (range 64 32) (add 256 tmp1)) (return (sized 32 (mem (range (add 160 tmp1) 32))))}",
-        S::cleanup_mems);
-    CHECK(contains(u, V("(mem (range (add 160 tmp1) 32))")));
-    // Error(string)'s layout at ceil32(len) + 160: partly overlapping writes
-    u = check_trace(
-        "{(if (gt (div (calldataload 4) 4294967296) 4294967296) {(revert None)} {}) (setvar tmp1 (mask_shl 251 5 0 (add 31 "
-        "(div (calldataload 4) 4294967296)))) (setmem (range (add 160 tmp1) 32) "
-        "0x8c379a000000000000000000000000000000000000000000000000000000000) (setmem (range (add 164 tmp1) 32) 32) (setmem "
-        "(range (add 196 tmp1) 32) 18) (setmem (range (add 228 tmp1) 32) "
-        "0x5661742f6e6f742d617574686f72697a65640000000000000000000000000000) (revert (mem (range (add 160 tmp1) 100)))}",
-        S::cleanup_mems);
-    CHECK(!contains(u, V("(mem (range (add 160 tmp1) 100))")));
-    // the check's condition no longer holds once what it reads changes (a
-    // variable set again)
-    u = check_trace(
-        "{(setvar tmp1 (div (calldataload 4) 4294967296)) (if (gt tmp1 4294967296) {(revert None)} {}) (setvar tmp1 "
-        "(calldataload 36)) (setvar tmp2 (mask_shl 251 5 0 (add 31 tmp1))) (setmem (range (add 160 tmp2) 32) 64) (setmem "
-        "(range 64 32) (add 256 tmp2)) (return (sized 32 (mem (range (add 160 tmp2) 32))))}",
-        S::cleanup_mems);
-    CHECK(contains(u, V("(mem (range (add 160 tmp2) 32))")));
+    u = check_trace(("{" + body).c_str(), S::cleanup_mems);
+    CHECK(contains(u, read));
+    // Error(string)'s layout at X + 160: partly overlapping writes
+    u = check_trace(("{" + check + "(setmem (range (add 160 " + x +
+                     ") 32) 0x8c379a000000000000000000000000000000000000000000000000000000000) (setmem (range (add 164 " + x +
+                     ") 32) 32) (setmem (range (add 196 " + x + ") 32) 18) (setmem (range (add 228 " + x +
+                     ") 32) 0x5661742f6e6f742d617574686f72697a65640000000000000000000000000000) (revert (mem (range (add 160 " +
+                     x + ") 100)))}")
+                        .c_str(),
+                    S::cleanup_mems);
+    CHECK(!contains(u, V(("(mem (range (add 160 " + x + ") 100))").c_str())));
+    // the check no longer holds once what it reads changes: a variable set
+    // again (its values installed: words of calldata)
+    {
+        const std::pair<Value, Value> values[] = {{V("tmp1"), V("(calldataload 4)")}, {V("tmp1"), V("(calldataload 36)")}};
+        alg::set_variables(values, {});
+        const std::string y = "(mask_shl 251 5 0 (add 31 tmp1))";
+        u = check_trace(("{(setvar tmp1 (calldataload 4)) (if (gt tmp1 4294967296) {(revert None)} {}) (setvar tmp1 "
+                         "(calldataload 36)) (setmem (range (add 160 " +
+                         y + ") 32) 64) (setmem (range 64 32) (add 256 " + y + ")) (return (sized 32 (mem (range (add 160 " +
+                         y + ") 32))))}")
+                            .c_str(),
+                        S::cleanup_mems);
+        CHECK(contains(u, V(("(mem (range (add 160 " + y + ") 32))").c_str())));
+        // ... and holds while it isn't
+        u = check_trace(("{(setvar tmp1 (calldataload 4)) (if (gt tmp1 4294967296) {(revert None)} {}) (setmem (range "
+                         "(add 160 " +
+                         y + ") 32) 64) (setmem (range 64 32) (add 256 " + y + ")) (return (sized 32 (mem (range (add 160 " +
+                         y + ") 32))))}")
+                            .c_str(),
+                        S::cleanup_mems);
+        CHECK(!contains(u, V(("(mem (range (add 160 " + y + ") 32))").c_str())));
+        alg::clear_variables();
+    }
 }

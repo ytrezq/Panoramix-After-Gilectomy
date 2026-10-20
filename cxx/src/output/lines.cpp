@@ -266,9 +266,17 @@ struct LineImpl {
             case Op::IF:
             case Op::MERGED_IF:
                 if (l.size() == 3) {
+                    if (env.one_branch(l)) {
+                        lines(l[1], indent, loops, add_breaks);  // (both branches print it)
+                        return;
+                    }
                     if_line(l, indent, loops, add_breaks);
                     return;
                 }
+                break;
+            case Op::SETVAR:
+                if (l.size() == 2 && env.unset(l[0]))
+                    return;  // (only the conditions of such ifs read it)
                 break;
             case Op::ASM:
                 asm_lines(l, indent);

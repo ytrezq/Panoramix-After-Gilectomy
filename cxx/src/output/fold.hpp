@@ -14,6 +14,9 @@ Value with_entry(Value entry_lines, Value trace);
 // a call's results read where another call may have been made since: a
 // variable set right after the call (python's VM snapshot, `_1 = ...`)
 Value snapshot_call_results(Value trace);
+// a gas read printed with a later one, or after it: a variable set where the
+// read can be, as early as it can
+Value snapshot_gas_reads(Value trace);
 // an if whose branches are the same but for their calls' ids: its lines
 Value merge_same_branches(Value ast);
 // every UNDEFINED(UNFINISHED, pc) one line (the smallest pc's): python's has

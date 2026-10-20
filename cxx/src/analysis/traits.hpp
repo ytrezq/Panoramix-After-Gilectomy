@@ -13,8 +13,11 @@
 //    CALLDATALOAD(4 + 32k) (python make_params: masked everywhere to N bits
 //    -> uintN / address, only a truth value -> bool, the offset of other
 //    reads -> an array, solc >= 0.8's validation `require x == address(x)`
-//    -> its type; none at all when a constant offset isn't 4 + 32k). The
-//    fallback's are inferred too; an internal function's are left alone.
+//    -> its type, and - not python's - the validation's mask forms
+//    `require not Mask(96, 160, x)` -> address (uintN, bytesN alike: the
+//    asm says uint256 there); none at all when a constant offset isn't
+//    4 + 32k). The fallback's are inferred too; an internal function's are
+//    left alone.
 //  - fn.name_known: the database knows the selector (Entry::known():
 //    verified or repaired, both hash to it; an unverified entry is
 //    panoramix's own guess, never a name).
@@ -24,8 +27,11 @@
 //    machine.hpp step 4), value_fails = that halting line (Vyper's `if
 //    callvalue or calldatasize < 36: revert` keeps the rest of its
 //    condition). Or the dispatcher's hoisted check (solc's, when no function
-//    is payable): the last check of fn.entry.entry_lines, then removed from
-//    them. fn.payable = !nonpayable.
+//    is payable): the first check of fn.entry.entry_lines past SETMEM /
+//    SETVAR lines, when every check after it fails the same way, then
+//    removed from them (a body that at once fails that same way stays
+//    payable: python's simplifier merged those branches). fn.payable =
+//    !nonpayable.
 //  - the trace: past a param's validation (`if x != address(x): revert`),
 //    its clean form (address(x)) is x (python cleanup_masks: never before
 //    the check, solc < 0.5 has none); CALLDATALOAD(4 + 32k) of a param ->

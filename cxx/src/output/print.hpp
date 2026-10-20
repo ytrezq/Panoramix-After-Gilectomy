@@ -12,6 +12,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 #include "core/base.hpp"
@@ -187,12 +188,29 @@ ContractNames contract_names(const StorageLayout* storage, const SafeMathTable* 
 // a function of the SafeMath as its calls name it: add, add2, sub...
 std::string safemath_name(const SafeMathTable& t, u32 index);
 
+// The text's view of a function's ast (printing only, not the IR's
+// semantics): the text names no call by its id, so an if whose branches
+// print the same (but for their calls' ids and gas reads: the VM's choice of
+// the return data of the call its path made, `if _20 == 1: ... else: ...`)
+// and whose condition can't fail prints as its then-branch; the _N only such
+// conditions read aren't set (their SETVARs not printed).
+struct TextView {
+    std::unordered_set<u64> one_branch;  // IF / MERGED_IF lines
+    std::unordered_set<u64> unset;       // Name(TMP)s
+};
+TextView text_view(Value ast);  // (makes no value: functions print on threads)
+
 // What the printer knows of the function printed (python's set_names,
 // set_func): the names its text has for its params and loop variables, the
-// call kinds of its call ids, the database, the contract's names.
+// call kinds of its call ids, the database, the contract's names; the text's
+// view of its ast (when set).
 class FnEnv {
 public:
     FnEnv(const FunctionInfo* fn, const sigdb::Database* db, Value trace, const ContractNames* names = nullptr);
+
+    void set_view(TextView v) { view_ = std::move(v); }
+    bool one_branch(Value if_line) const noexcept { return view_.one_branch.contains(if_line.raw()); }
+    bool unset(Value name) const noexcept { return view_.unset.contains(name.raw()); }
 
     const FunctionInfo* fn() const noexcept { return fn_; }
     const sigdb::Database* db() const noexcept { return db_; }
@@ -240,6 +258,7 @@ private:
         u32 addr;
     };
     std::vector<CallRec> calls_;  // by id
+    TextView view_;
     struct NameCache {
         u64 raw;
         std::string text;

@@ -15,11 +15,14 @@
 // `a + b < a`, `b > a` for a - b, `a == 0 or a * b / a == b`, `b == 0` for a
 // / b, solidity's `a == max` for a + 1...) whose result is used after them,
 // with nothing between that may fail or change what they read (lot 7's
-// affects: only SETVAR SETMEM STORE SET LOG lines) are removed, the result
-// being a SAFEMATH call where it is used - in that line, and the lines after
-// it until one changes what the result reads (python _uses). The checks only
-// move past lines that can't fail and change nothing they read: the order
-// in which the run may fail is the original's.
+// affects: only SETVAR SETMEM STORE SET LOG lines - and, not python's, the
+// checks of other operations that fail exactly as they do) are removed,
+// the result being a SAFEMATH call where it is used - in that line, and the
+// lines after it until one changes what the result reads (python _uses).
+// The checks only move past lines that can't fail and change nothing they
+// read, and past checks failing the same way (the same revert data, the
+// same panic, both INVALID: an order no call can tell): how a run fails is
+// the original's.
 #pragma once
 
 #include <memory>

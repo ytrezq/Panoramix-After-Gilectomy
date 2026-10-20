@@ -462,6 +462,47 @@ TEST_CASE("output: make_ast's passes")
     CHECK(ast_text("{(if (iszero tmp1) {(call 1 (gas 1) caller 5 None None) (stop)}"
                    " {(call 2 (gas 2) caller 5 None None) (stop)})}") ==
           "  call caller with:\n     value 5 wei\n       gas gas_remaining\n");
+    // the paths the VM didn't finish (at two pcs) end the same: merged
+    CHECK(ast_text("{(if (iszero tmp1) {(log0 None) (undefined 1 10)}"
+                   " {(if (lt tmp2 3) {(log0 None) (undefined 1 20)} {(return (sized 32 tmp2))})})}") ==
+          "  if _1:\n      if _2 >= 3:\n          return _2\n  log\n"
+          "  ...  # Decompilation aborted, sorry: (\"decompilation didn't finish\",)\n");
+    // a gas read printed with a later one, or after a later one's line: a
+    // variable, set as early as the read can be
+    CHECK(ast_text("{(if (lt tmp1 3) {(revert None)} {(return (sized 32 (sub (gas 1) (gas 2))))})}") ==
+          "  _2 = gas_remaining\n  require _1 >= 3\n  return _2 - gas_remaining\n");
+    CHECK(ast_text("{(log0 (sized 32 (gas 1))) (call 1 (gas 3) caller 0 None None)"
+                   " (return (sized 32 (sub (gas 2) (gas 4))))}") ==
+          "  log gas_remaining\n  _1 = gas_remaining\n  call caller with:\n       gas gas_remaining\n"
+          "  return _1 - gas_remaining\n");
+}
+
+TEST_CASE("output: the ifs whose branches print the same")
+{
+    Fixture f;
+    FunctionInfo fn;
+    fn.kind = FunctionInfo::Kind::Fallback;
+    // the VM's choice of the return data of the call the path made
+    fn.trace = V("{(if (iszero tmp1)"
+                 " {(call 1 (gas 1) caller 0 None None) (setvar tmp3 (call_success 1)) (setvar tmp2 1)}"
+                 " {(delegatecall 2 (gas 2) caller None None) (setvar tmp3 (call_success 2)) (setvar tmp2 2)})"
+                 " (if (eq tmp2 1) {(setmem (range 0 32) (returndata_bytes 1 0 32))}"
+                 " {(setmem (range 0 32) (returndata_bytes 2 0 32))})"
+                 " (return (sized 32 tmp3))}");
+    PrintOptions o;
+    o.color = false;
+    CHECK(pan::output::detail::function_text(nullptr, fn, o).s ==
+          "def _fallback(?) payable: # default function\n"
+          "  if not _1:\n      call caller with:\n           gas gas_remaining\n      _3 = ext_call.success\n"
+          "  else:\n      delegate caller with:\n           gas gas_remaining\n      _3 = delegate.return_code\n"
+          "  mem[0] = ext_call.return_data[0]\n  return _3");
+    // (a branch with a call result of another kind prints otherwise: kept)
+    fn.trace = V("{(if (iszero tmp1) {(call 1 (gas 1) caller 0 None None) (setvar tmp2 1)}"
+                 " {(delegatecall 2 (gas 2) caller None None) (setvar tmp2 2)})"
+                 " (if (eq tmp2 1) {(return (sized 32 (call_success 1)))} {(return (sized 32 (call_success 2)))})}");
+    const std::string kept = pan::output::detail::function_text(nullptr, fn, o).s;
+    CHECK(kept.find("if _2 == 1:") != std::string::npos);
+    CHECK(kept.find("_2 = 2") != std::string::npos);
 }
 
 TEST_CASE("output: the folder")

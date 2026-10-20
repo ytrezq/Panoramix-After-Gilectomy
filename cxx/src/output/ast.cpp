@@ -1,5 +1,6 @@
 // The ast of a function (python Contract.make_ast): its entry checks and
-// trace, lot 7's short_circuits, the folder - on a context and budget of its
+// trace (its call results and gas reads given variables where the text would
+// take them for others'), lot 7's short_circuits, the folder - on a context and budget of its
 // own (the asm's fold_isolated: FOLD_LIMIT; past it, the trace unfolded) -
 // the result imported into the caller's context; the Folded stage of a
 // contract, the functions on threads (the asm's fold_many).
@@ -37,13 +38,15 @@ private:
 // entry_lines' IFs: a dispatcher's check whose other branch halts) and the
 // SETMEMs the body may read, then the body (python's apply_entry: what the
 // function's text runs); its calls' results kept where the text would take
-// them for another call's; lot 7's short_circuits; the folder (its failures
+// them for another call's, its gas reads where it would take them for later
+// ones; lot 7's short_circuits; the folder (its failures
 // leave the trace unfolded); the ifs of branches the same but for their
 // calls' ids gone
 Value ast_here(Value trace, Value entry_lines, const AstOptions& opts)
 {
     Value t = opts.entry_checks ? detail::with_entry(entry_lines, trace) : trace;
     t = detail::snapshot_call_results(t);
+    t = detail::snapshot_gas_reads(t);
     if (opts.short_circuits)
         t = simplify::short_circuits(t);
     if (opts.fold) {
