@@ -377,6 +377,11 @@ namespace {
 //   D < 0:  RANGE(p0 - |D| k, |D| k + n)    or trips (reads: the condition's too)
 // (a loop left before - a break, a halt - runs fewer: inside it too; with
 // no iteration the range is past what's needed: an over-approximation).
+//
+// With others_nw (the loop's effects but its variables and its memory
+// writes), an address may also read memory the loop writes - taken as the
+// same in every iteration, the address added to `deferred`: what it reads
+// in memory has to be shown out of every write's range (summary_ranges).
 struct Hull {
     std::span<const Value> names;
     Value setvars;
@@ -384,18 +389,25 @@ struct Hull {
     const simplify::EffectSummary* eff;
     const simplify::EffectSummary* others;
     Value trips;
+    const simplify::EffectSummary* others_nw = nullptr;
 
-    Value of(Value r, bool write) const {
+    Value of(Value r, bool write, SmallVec<Value, 8>* deferred = nullptr) const {
         if (!r.is(Op::RANGE, 2)) return Value();
         const Value p = r[0], n = r[1];
         if (simplify::changes(*eff, simplify::summary(n))) return Value();
         std::optional<Value> d;
+        bool defer = false;
         for (Value c : conts) {
             auto dc = move_of(p, names, c[1], *others);
+            if (!dc && deferred && others_nw) {
+                dc = move_of(p, names, c[1], *others_nw);
+                defer = dc.has_value();
+            }
             if (!dc || (d && *d != *dc)) return Value();
             d = dc;
         }
         if (!d) return Value();
+        if (defer) deferred->push_back(p);
         const Value p0 = at(p, names, setvars);
         if (*d == small(0)) return mem::make_range(p0, n);
         const Value k = write ? alg::sub(trips, small(1)) : trips;
@@ -407,13 +419,13 @@ struct Hull {
 };
 
 // the ranges of a places LIST, each made a hull where it can be
-Value hulls(Value ranges, const Hull* h, bool write) {
+Value hulls(Value ranges, const Hull* h, bool write, SmallVec<Value, 8>* deferred = nullptr) {
     if (ranges.nil() || !h) return ranges;
     SmallVec<Value, 16> out;
     bool changed = false;
     for (Value r : ranges.args()) {
         poll();
-        Value x = h->of(r, write);
+        Value x = h->of(r, write, deferred);
         if (x.nil()) x = r;
         changed |= x != r;
         if (std::find(out.begin(), out.end(), x) == out.end()) out.push_back(x);
@@ -421,6 +433,38 @@ Value hulls(Value ranges, const Hull* h, bool write) {
     if (!changed) return ranges;
     std::sort(out.begin(), out.end(), StructuralLess{});
     return mk_list(out.span());
+}
+
+// The summary's ranges (writes, reads): each a hull where it can be - first
+// with addresses reading nothing the loop writes; then, when some address
+// reads memory only the loop's writes could change (the free memory
+// pointer: mem[64] + 32 + idx), with it taken as the same in every
+// iteration, kept when every write is a hull (made of the values at the
+// start) and none meets what those addresses read in memory: by induction
+// over the iterations, each reads what it read at the start, every write is
+// in its hull.
+void summary_ranges(const simplify::EffectSummary& e, const Hull* h, std::span<const Value> written, Value& writes,
+                    Value& reads) {
+    writes = hulls(e.mem_writes, h, true);
+    reads = hulls(e.mem_reads, h, false);
+    if (!h || !h->others_nw || (e.writes_any & simplify::S_MEM) || e.mem_writes.nil()) return;
+    SmallVec<Value, 8> deferred;
+    const Value w2 = hulls(e.mem_writes, h, true, &deferred);
+    if (deferred.empty() || w2.nil()) return;
+    const Value r2 = hulls(e.mem_reads, h, false, &deferred);
+    for (Value x : w2.args())
+        if (reads_any(x, written)) return;
+    for (Value p : deferred) {
+        const simplify::EffectSummary& sp = simplify::summary(p);
+        if ((sp.reads_any & simplify::S_MEM) || sp.mem_reads.nil()) return;
+        for (Value m : sp.mem_reads.args()) {
+            if (reads_any(m, written) || (simplify::summary(m).reads & simplify::S_MEM)) return;
+            for (Value x : w2.args())
+                if (mem::overlaps(x, m) != Tri::False) return;
+        }
+    }
+    writes = w2;
+    reads = r2;
 }
 
 }  // namespace
@@ -452,7 +496,7 @@ const LoopSummary& summary(Value while_line) {
     s.ind = induction(while_line);
     // the memory, at the loop's bounds where the induction proves them
     std::optional<Hull> hull;
-    simplify::EffectSummary others;
+    simplify::EffectSummary others, others_nw;
     if (s.ind && !s.ind->trips.nil()) {
         SmallVec<Value, 8> starts;
         setvar_values(sv, starts);
@@ -461,12 +505,16 @@ const LoopSummary& summary(Value while_line) {
             if (reads_any(x, std::span<const Value>(vars.data(), vars.size()))) plain_starts = false;
         bool ok = false;
         others = but_vars(e, std::span<const Value>(vars.data(), vars.size()), ok);
+        others_nw = others;
+        others_nw.writes &= ~simplify::S_MEM;
+        others_nw.writes_any &= ~simplify::S_MEM;
+        others_nw.mem_writes = Value();
         if (ok && plain_starts)
             hull = Hull{std::span<const Value>(vars.data(), vars.size()), sv,
-                        std::span<const Value>(bw.conts.data(), bw.conts.size()), &e, &others, s.ind->trips};
+                        std::span<const Value>(bw.conts.data(), bw.conts.size()), &e, &others, s.ind->trips, &others_nw};
     }
-    s.mem_writes = hulls(e.mem_writes, hull ? &*hull : nullptr, true);
-    s.mem_reads = hulls(e.mem_reads, hull ? &*hull : nullptr, false);
+    summary_ranges(e, hull ? &*hull : nullptr, std::span<const Value>(written.data(), written.size()), s.mem_writes,
+                   s.mem_reads);
     s.mem_writes_any = (e.writes_any & simplify::S_MEM) != 0;
     s.mem_reads_any = (e.reads_any & simplify::S_MEM) != 0;
     st.summaries.push_back(s);

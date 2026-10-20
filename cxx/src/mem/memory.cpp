@@ -15,7 +15,6 @@
 #include "algebra/compare.hpp"
 #include "algebra/construct.hpp"
 #include "algebra/eval.hpp"
-#include "algebra/facts.hpp"
 #include "algebra/linear.hpp"
 #include "algebra/masks.hpp"
 #include "algebra/ranges.hpp"
@@ -50,86 +49,44 @@ std::optional<i64> nat(Value v) noexcept {
 // the decisions without facts, memoized per pair of positions (the same pairs
 // come back at every round of the simplifier's memory cleanups); forgotten
 // with the context's caches - set_variables and the free memory pointer flag
-// clear them, as the decisions read the variables' ranges. With facts: the
-// decision without them when there is one (facts only narrow the values:
-// what holds for all of them holds), else the facts' when a position is
-// made of a word the contract is given (what may wrap), memoized per pair
-// and facts (the same facts come back along a path and at every round).
+// clear them, as the decisions read the variables' ranges
 struct PosMemo final : ModuleState {
-    struct WithFacts {
-        Facts facts;
-        Tri t;
-    };
     Memo<Key2, Tri> le, lt;
-    Memo<Key2, u32> le_f, lt_f;  // -> pool: the facts asked with, their answers
-    std::vector<SmallVec<WithFacts, 2>> pool;
     void clear_caches() override {
         le.clear();
         lt.clear();
-        le_f.clear();
-        lt_f.clear();
-        pool.clear();
     }
 };
-
-// (at most this many facts remembered per pair)
-constexpr usize kFactsPerPair = 8;
-
-template <class Decide>
-Tri pos_cmp(Value a, Value b, const Facts* f, Memo<Key2, Tri> PosMemo::*plain, Memo<Key2, u32> PosMemo::*with,
-            Decide&& decide) {
-    PosMemo& m = cx().state<PosMemo>();
-    const Key2 k = key2(a, b);
-    Tri t;
-    if (const Tri* p = (m.*plain).find(k)) {
-        t = *p;
-    } else {
-        t = decide(nullptr);
-        t = t == Tri::Cannot ? Tri::None : t;
-        (m.*plain).put(k, t);
-    }
-    if (t != Tri::None || !f || f->empty()) return t;
-    // (the facts bound what may wrap: a word the contract is given; the
-    // other words of a position are below 2^64 already - Top::Memory)
-    if (!alg::unchecked(a) && !alg::unchecked(b)) return t;
-    std::optional<u32> at;
-    if (const u32* i = (m.*with).find(k)) {
-        at = *i;
-        for (const auto& w : m.pool[*i])
-            if (w.facts == *f) return w.t;
-    }
-    t = decide(f);
-    t = t == Tri::Cannot ? Tri::None : t;
-    if (!at) {
-        at = u32(m.pool.size());
-        (m.*with).put(k, *at);
-        m.pool.emplace_back();
-    }
-    if (m.pool[*at].size() < kFactsPerPair) m.pool[*at].push_back(PosMemo::WithFacts{*f, t});
-    return t;
-}
 
 Tri pos_le(Value a, Value b, const Facts* f) {
     if (a == b) return Tri::True;
     if (auto x = nat(a))
         if (auto y = nat(b)) return tri(*x <= *y);
-    if (a.nil()) {
-        Tri t = alg::le(a, b, Top::Memory, f);
-        return t == Tri::Cannot ? Tri::None : t;
+    if (!f && !a.nil()) {
+        PosMemo& m = cx().state<PosMemo>();
+        if (const Tri* t = m.le.find(key2(a, b))) return *t;
+        Tri t = alg::le(a, b, Top::Memory, nullptr);
+        t = t == Tri::Cannot ? Tri::None : t;
+        m.le.put(key2(a, b), t);
+        return t;
     }
-    return pos_cmp(a, b, f, &PosMemo::le, &PosMemo::le_f,
-                   [&](const Facts* g) { return alg::le(a, b, Top::Memory, g); });
+    Tri t = alg::le(a, b, Top::Memory, f);
+    return t == Tri::Cannot ? Tri::None : t;
 }
 Tri pos_lt(Value a, Value b, const Facts* f) {
     if (a == b) return Tri::False;
     if (auto x = nat(a))
         if (auto y = nat(b)) return tri(*x < *y);
-    if (a.nil()) {
-        Tri t = alg::lt(a, b, Top::Memory, f);
-        return t == Tri::Cannot ? Tri::None : t;
+    if (!f && !a.nil()) {
+        PosMemo& m = cx().state<PosMemo>();
+        if (const Tri* t = m.lt.find(key2(a, b))) return *t;
+        Tri t = alg::lt(a, b, Top::Memory, nullptr);
+        t = t == Tri::Cannot ? Tri::None : t;
+        m.lt.put(key2(a, b), t);
+        return t;
     }
-    return pos_cmp(a, b, f, &PosMemo::lt, &PosMemo::lt_f,
-                   [&](const Facts* g) { return alg::lt(a, b, Top::Memory, g); });
+    Tri t = alg::lt(a, b, Top::Memory, f);
+    return t == Tri::Cannot ? Tri::None : t;
 }
 // len is 0 (True), > 0 (False)
 Tri is_empty(Value len, const Facts* f) {

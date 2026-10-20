@@ -128,6 +128,15 @@ bool contains(Value v, Value x) {
     return false;
 }
 
+// an op appears in v (any depth)
+bool has_op(Value v, Op op) {
+    if (!(v.is_expr() || v.is_list())) return false;
+    if (v.is_expr() && v.op() == op) return true;
+    for (Value a : v.args())
+        if (has_op(a, op)) return true;
+    return false;
+}
+
 }  // namespace
 
 TEST_CASE("simplify: cleanup_vars inlines and drops") {
@@ -413,20 +422,28 @@ TEST_CASE("simplify: memory a loop's iterations write") {
     CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
 }
 
-TEST_CASE("simplify: memory at offsets the path bounds") {
+TEST_CASE("simplify: memory at offsets the checks bound") {
     Fixture f;
     // X = ceil32(len) of a word of calldata: X + k may wrap, unless len <=
-    // 2^32 is checked - then a write at 64 doesn't meet X + 160
+    // 2^32 is checked before any memory position reads it (a small word) -
+    // then a write at 64 doesn't meet X + 160
     const std::string x = "(mask_shl 251 5 0 (add 31 (calldataload 4)))";
     const std::string check = "(if (gt (calldataload 4) 4294967296) {(revert None)} {}) ";
     const std::string body = "(setmem (range (add 160 " + x + ") 32) 64) (setmem (range 64 32) (add 256 " + x +
                              ")) (return (sized 32 (mem (range (add 160 " + x + ") 32))))}";
-    const Value read = V(("(mem (range (add 160 " + x + ") 32))").c_str());
-    Value u = check_trace(("{" + check + body).c_str(), S::cleanup_mems);
-    CHECK(!contains(u, read));
-    // not without the check: the read stays
-    u = check_trace(("{" + body).c_str(), S::cleanup_mems);
-    CHECK(contains(u, read));
+    Value u = check_trace(("{" + check + body).c_str(), whole);
+    CHECK(!has_op(u, Op::MEM));
+    // the rest of the trace in the branch where it holds (the VM's form)
+    u = check_trace(("{(if (le (calldataload 4) 4294967296) {" + body.substr(0, body.size() - 1) +
+                     "} {(revert None)})}")
+                        .c_str(),
+                    whole);
+    CHECK(!has_op(u, Op::MEM));
+    // not without the check, nor with a position reading it before the check
+    u = check_trace(("{" + body).c_str(), whole);
+    CHECK(has_op(u, Op::MEM));
+    u = check_trace(("{(setmem (range (add 192 " + x + ") 32) 7) " + check + body).c_str(), whole);
+    CHECK(has_op(u, Op::MEM));
     // Error(string)'s layout at X + 160: partly overlapping writes
     u = check_trace(("{" + check + "(setmem (range (add 160 " + x +
                      ") 32) 0x8c379a000000000000000000000000000000000000000000000000000000000) (setmem (range (add 164 " + x +
@@ -434,29 +451,23 @@ TEST_CASE("simplify: memory at offsets the path bounds") {
                      ") 32) 0x5661742f6e6f742d617574686f72697a65640000000000000000000000000000) (revert (mem (range (add 160 " +
                      x + ") 100)))}")
                         .c_str(),
-                    S::cleanup_mems);
-    CHECK(!contains(u, V(("(mem (range (add 160 " + x + ") 100))").c_str())));
-    // the check no longer holds once what it reads changes: a variable set
-    // again (its values installed: words of calldata)
-    {
-        const std::pair<Value, Value> values[] = {{V("tmp1"), V("(calldataload 4)")}, {V("tmp1"), V("(calldataload 36)")}};
-        alg::set_variables(values, {});
-        const std::string y = "(mask_shl 251 5 0 (add 31 tmp1))";
-        u = check_trace(("{(setvar tmp1 (calldataload 4)) (if (gt tmp1 4294967296) {(revert None)} {}) (setvar tmp1 "
-                         "(calldataload 36)) (setmem (range (add 160 " +
-                         y + ") 32) 64) (setmem (range 64 32) (add 256 " + y + ")) (return (sized 32 (mem (range (add 160 " +
-                         y + ") 32))))}")
-                            .c_str(),
-                        S::cleanup_mems);
-        CHECK(contains(u, V(("(mem (range (add 160 " + y + ") 32))").c_str())));
-        // ... and holds while it isn't
-        u = check_trace(("{(setvar tmp1 (calldataload 4)) (if (gt tmp1 4294967296) {(revert None)} {}) (setmem (range "
-                         "(add 160 " +
-                         y + ") 32) 64) (setmem (range 64 32) (add 256 " + y + ")) (return (sized 32 (mem (range (add 160 " +
-                         y + ") 32))))}")
-                            .c_str(),
-                        S::cleanup_mems);
-        CHECK(!contains(u, V(("(mem (range (add 160 " + y + ") 32))").c_str())));
-        alg::clear_variables();
-    }
+                    whole);
+    CHECK(!has_op(u, Op::MEM));
+    // a variable set twice isn't the same word everywhere: not small
+    const std::string y = "(mask_shl 251 5 0 (add 31 tmp1))";
+    u = check_trace(("{(setvar tmp1 (calldataload 4)) (if (gt tmp1 4294967296) {(revert None)} {}) (setvar tmp1 "
+                     "(calldataload 36)) (setmem (range (add 160 " +
+                     y + ") 32) 64) (setmem (range 64 32) (add 256 " + y + ")) (return (sized 32 (mem (range (add 160 " + y +
+                     ") 32))))}")
+                        .c_str(),
+                    whole);
+    CHECK(has_op(u, Op::MEM));
+    // ... once: its value is
+    u = check_trace(("{(setvar tmp1 (calldataload 4)) (if (gt tmp1 4294967296) {(revert None)} {}) (setmem (range (add "
+                     "160 " +
+                     y + ") 32) 64) (setmem (range 64 32) (add 256 " + y + ")) (return (sized 32 (mem (range (add 160 " + y +
+                     ") 32))))}")
+                        .c_str(),
+                    whole);
+    CHECK(!has_op(u, Op::MEM));
 }

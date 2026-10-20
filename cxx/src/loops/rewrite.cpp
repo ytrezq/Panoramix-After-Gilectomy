@@ -21,9 +21,14 @@
 //          for overwrites here, but skipping for now")
 //      v = CALLDATALOAD(q), q moving by D: SETMEM(range, CALLDATA_BYTES(...))
 //    python's loop_to_setmem_from_storage (its storage range of slots) has
-//    no form here: such a loop stays. loops_to_setmems also unrolls a loop
-//    whose induction proves it runs once or never (trips 1 or 0: the tail
-//    of a copy of 20 bytes in words...).
+//    no form here: such a loop stays. An address may read memory that only
+//    the loop's own write could change (the free memory pointer: mem[64] +
+//    32 + idx) when that write over all the iterations misses it. In
+//    loops_to_setmems (given a function's whole trace) the body may also
+//    start with a SETVAR of the SETMEM's value to a name the function never
+//    reads (kept by lot 7 for msize), dropped. loops_to_setmems also
+//    unrolls a loop whose induction proves it runs once or never (trips 1
+//    or 0: the tail of a copy of 20 bytes in words...).
 //  - propagate_storage_in_loops: a loop variable v starting at h + k (h a
 //    SHA3 term the loop doesn't change: a storage array's start) as v' = v -
 //    h: its start k, every read of it in the loop v' + h, every write of it
@@ -101,19 +106,64 @@ alg::Facts forget(const alg::Facts& facts, Value line) {
     return r;
 }
 
+// The range a loop writes over all its iterations (made of the values where
+// it starts) misses every memory range x reads, each made of what the loop
+// doesn't change (not its variables, not what's in memory): then no
+// iteration's write changes what x reads - by induction, each reads it as
+// it was where the loop starts.
+bool misses(Value dst, Value x, std::span<const Value> ns, const alg::Facts* facts) {
+    const simplify::EffectSummary& e = simplify::summary(x);
+    if (!(e.reads & simplify::S_MEM)) return true;
+    if ((e.reads_any & simplify::S_MEM) || e.mem_reads.nil()) return false;
+    for (Value r : e.mem_reads.args()) {
+        if (reads_any(r, ns) || (simplify::summary(r).reads & simplify::S_MEM)) return false;
+        if (mem::overlaps(dst, r, facts) != Tri::False) return false;
+    }
+    return true;
+}
+
+// the names no line of the function reads (its trace's summary)
+struct Unread {
+    bool known = false;
+    Value reads;  // LIST of the names read anywhere, NIL for none
+    bool has(Value n) const {
+        if (!known || !n.is_name()) return false;
+        if (reads.nil()) return true;
+        for (Value x : reads.args())
+            if (x == n) return false;
+        return true;
+    }
+};
+
+// a word's 32 bytes written as they are: SIZED(32, x) is x
+Value word_value(Value x) { return x.is(Op::SIZED, 2) && x[0] == small(32) ? x[1] : x; }
+
 // loop_to_setmem where the path's facts hold (they bound what the proofs
 // read: lengths checked against 2^32...); the trip count's wrap proven
 // under lot 4's memory model too (Top::Memory: a counter that moves the
 // address of a write every iteration never wraps in a run that pays for its
 // memory). The variables' last values, evaluated where the loop starts, are
-// set first, then the SETMEM (made of the values there too).
-Value to_setmem(Value w, const RewriteOptions& opts, const alg::Facts* facts) {
+// set first, then the SETMEM (made of the values there too). The body: the
+// SETMEM and the CONTINUE - or before them a SETVAR of the SETMEM's value to
+// a name the function reads nowhere (kept for msize: the SETMEM reads the
+// same bytes), dropped.
+Value to_setmem(Value w, const RewriteOptions& opts, const alg::Facts* facts, const Unread* unread) {
     if (!w.is(Op::WHILE, 4)) return w;
     const Value body = w[1], sv = w[3];
-    if (!body.is_list() || body.size() != 2 || !sv.is_list()) return w;
-    const Value sm = body[0], cont = body[1];
+    if (!body.is_list() || !sv.is_list()) return w;
+    Value sm, cont;
+    if (body.size() == 2) {
+        sm = body[0];
+        cont = body[1];
+    } else if (body.size() == 3 && unread && body[0].is(Op::SETVAR, 2) && unread->has(body[0][0])) {
+        sm = body[1];
+        cont = body[2];
+        if (!sm.is(Op::SETMEM, 2) || word_value(body[0][1]) != word_value(sm[1])) return w;
+    } else {
+        return w;
+    }
     if (!sm.is(Op::SETMEM, 2) || !cont.is(Op::CONTINUE, 2) || cont[0] != w[2]) return w;
-    const Value r = sm[0], v = sm[1];
+    const Value r = sm[0], v = word_value(sm[1]);
     if (!r.is(Op::RANGE, 2) || r[1] != small(32)) return w;
     Value finals;
     const auto ind = induction_at(w, alg::Top::Memory, facts, &finals);
@@ -128,8 +178,22 @@ Value to_setmem(Value w, const RewriteOptions& opts, const alg::Facts* facts) {
     bool ok = false;
     const simplify::EffectSummary others = but_vars(simplify::summary(w), ns, ok);
     if (!ok) return w;
+    // (an address may read memory only the loop's SETMEM - its only write -
+    // could change, the free memory pointer...: checked once the range it
+    // writes over all the iterations is known)
+    simplify::EffectSummary others_nw = others;
+    others_nw.writes &= ~simplify::S_MEM;
+    others_nw.writes_any &= ~simplify::S_MEM;
+    others_nw.mem_writes = Value();
+    SmallVec<Value, 2> deferred;
+    auto moves = [&](Value x) -> std::optional<Value> {
+        if (auto d = move_of(x, ns, cont[1], others)) return d;
+        auto d = move_of(x, ns, cont[1], others_nw);
+        if (d) deferred.push_back(x);
+        return d;
+    };
     const Value p = r[0];
-    const auto dp = move_of(p, ns, cont[1], others);
+    const auto dp = moves(p);
     if (!dp || !(*dp == small(32) || *dp == small(-32))) return w;
     const bool up = *dp == small(32);
     const Value len = alg::mul(small(32), ind->trips);
@@ -145,7 +209,7 @@ Value to_setmem(Value w, const RewriteOptions& opts, const alg::Facts* facts) {
         value = small(0);
     } else if (v.is(Op::MEM, 1) && v[0].is(Op::RANGE, 2) && v[0][1] == small(32)) {
         const Value q = v[0][0];
-        const auto dq = move_of(q, ns, cont[1], others);
+        const auto dq = moves(q);
         if (!dq || *dq != *dp) return w;
         const Value q_lo = low(q);
         if (!opts.dubious) {
@@ -160,13 +224,18 @@ Value to_setmem(Value w, const RewriteOptions& opts, const alg::Facts* facts) {
         value = mk(Op::MEM, mem::make_range(q_lo, len));
     } else if (v.is(Op::CALLDATALOAD, 1)) {
         const Value q = v[0];
-        const auto dq = move_of(q, ns, cont[1], others);
+        const auto dq = moves(q);
         if (!dq || *dq != *dp) return w;
         value = mk(Op::CALLDATA_BYTES, low(q), len);
     } else {
         return w;
     }
-    Value set = mk(Op::SETMEM, mem::make_range(p_lo, len), value);
+    // what the addresses read that the SETMEM could change: missed by every
+    // iteration's write (by induction over them: each reads it as it was)
+    const Value dst = mem::make_range(p_lo, len);
+    for (Value x : deferred)
+        if (!misses(dst, x, ns, facts)) return w;
+    Value set = mk(Op::SETMEM, dst, value);
     // (the SETMEM runs after the variables are set: none read in it)
     if (reads_any(set, ns)) return w;
     cx().pcs.inherit(set, sm);
@@ -261,7 +330,7 @@ bool run_once(Value w, const alg::Facts* facts, SmallVec<Value, 32>& out) {
 // forgotten after it, what a loop writes in it and after it)
 class SetmemWalk {
 public:
-    explicit SetmemWalk(const RewriteOptions& o) : opts_(o) {}
+    SetmemWalk(const RewriteOptions& o, const Unread& u) : opts_(o), unread_(u) {}
 
     Value trace(Value t, alg::Facts facts) {
         if (!t.is_list() || !t.has_flags(F_LOOPCTL)) return t;
@@ -299,7 +368,7 @@ public:
                     Value b = trace(l[1], head.with(l[0], true));
                     Value x = b == l[1] ? l : mk(Op::WHILE, l[0], b, l[2], l[3]);
                     if (x != l) cx().pcs.inherit(x, l);
-                    Value r = to_setmem(x, opts_, &head);
+                    Value r = to_setmem(x, opts_, &head, &unread_);
                     if (r.is_list()) {
                         for (Value y : r.args()) out.push_back(y);
                         changed = true;
@@ -324,16 +393,22 @@ public:
 
 private:
     const RewriteOptions& opts_;
+    const Unread& unread_;
     SmallVec<Value, 32> once_;
 };
 
 }  // namespace
 
-Value loop_to_setmem(Value w, const RewriteOptions& opts) { return to_setmem(w, opts, nullptr); }
+Value loop_to_setmem(Value w, const RewriteOptions& opts) { return to_setmem(w, opts, nullptr, nullptr); }
 
 Value loops_to_setmems(Value trace, const RewriteOptions& opts) {
     if (!trace.is_list() || !trace.has_flags(F_LOOPCTL)) return trace;
-    SetmemWalk walk(opts);
+    // (the trace: a function's - the names it reads)
+    Unread unread;
+    const simplify::EffectSummary& all = simplify::summary(trace);
+    unread.known = !(all.reads_any & simplify::S_VARS);
+    unread.reads = all.var_reads;
+    SetmemWalk walk(opts, unread);
     return walk.trace(trace, alg::Facts{});
 }
 

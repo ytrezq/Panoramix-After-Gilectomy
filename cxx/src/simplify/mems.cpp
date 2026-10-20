@@ -9,9 +9,10 @@
 //     changes forgotten first; the other state a piece's value reads
 //     (storage, calls, variables set again) forgotten where a line changes
 //     it (effects.hpp).
-//     The memory model's comparisons use the conditions known on the path
-//     (the enclosing ifs', the checks passed: `require len <= 2^32` keeps
-//     ceil32(len) + k from wrapping, so a write at 64 doesn't meet it).
+//     (A position made of a word the contract is given may wrap around
+//     2^256, unless it's small: simplify_trace's small words, the ones a
+//     check bounds before any position reads them - `require len <= 2^32`
+//     keeps ceil32(len) + k from meeting a write at 64.)
 //  2. backward, the memory live (read later on some path): a SETMEM no read
 //     may see dropped (python: kept while the rest of the trace uses it).
 //     At a CONTINUE / GOTO, whatever the loop reads anywhere is live; an
@@ -34,67 +35,15 @@
 
 #include "core/budget.hpp"
 #include "core/context.hpp"
-#include "core/evmint.hpp"
 #include "core/memo.hpp"
 #include "algebra/compare.hpp"
 #include "algebra/construct.hpp"
-#include "algebra/facts.hpp"
-#include "algebra/ranges.hpp"
 #include "loops/loops.hpp"
 #include "mem/memory.hpp"
 
 namespace pan::simplify {
 
 namespace {
-
-// The conditions known where a line is, as lot 3's facts for the memory
-// model's comparisons: each dropped where a line may change what it reads
-// (effects.hpp), so that they hold at the point of every question (at most
-// kMax: past them the newer ones aren't kept - fewer facts are as sound).
-class PathFacts {
-public:
-    static constexpr usize kMax = 32;
-    struct Saved {
-        SmallVec<Value, 16> known;
-        alg::Facts facts;
-    };
-    // (null when none: the memory model's comparisons without facts are memoized)
-    const alg::Facts* get() const noexcept { return known_.empty() ? nullptr : &facts_; }
-    Saved save() const { return Saved{known_, facts_}; }
-    void restore(const Saved& s) {
-        known_ = s.known;
-        facts_ = s.facts;
-    }
-    // (only what bounds a word the contract is given from above - `len <=
-    // 2^32`: what keeps a position from wrapping, the memory model assuming
-    // the others below 2^64; the rest costs the comparisons and decides
-    // nothing of where memory is)
-    void assume(Value cond) {
-        if (cond.is_int() || cond.nil() || known_.size() >= kMax) return;
-        for (Value c : known_)
-            if (c == cond) return;
-        bool above = false;
-        for (const alg::CondBound& b : alg::cond_bounds(cond))
-            above = above || (b.range().hi < word_max() && alg::unchecked(b.x));
-        if (!above) return;
-        known_.push_back(cond);
-        facts_ = facts_.with_cond(cond);
-    }
-    void forget(const EffectSummary& s) {
-        if (!s.writes || known_.empty()) return;
-        SmallVec<Value, 16> kept;
-        for (Value c : known_)
-            if (!changes(s, summary(c))) kept.push_back(c);
-        if (kept.size() == known_.size()) return;
-        known_ = kept;
-        facts_ = alg::Facts();
-        for (Value c : known_) facts_ = facts_.with_cond(c);
-    }
-
-private:
-    SmallVec<Value, 16> known_;
-    alg::Facts facts_;
-};
 
 // ---- forward: reads replaced --------------------------------------------------------------
 
@@ -170,6 +119,23 @@ void forget_loop(mem::MemState& st, Value while_line, u32& fresh) {
     others.writes &= ~S_VARS;
     others.writes_any &= ~S_VARS;
     others.var_writes = Value();
+    // (lot 6's ranges, when none is made of the loop's variables, hold for
+    // every iteration - a hull over them made of the values before the
+    // loop: what a range reads is changed only where they meet it)
+    bool over_all = !ls.mem_writes_any;
+    for (Value r : ls.mem_writes.args()) {
+        const EffectSummary& rs = summary(r);
+        if (!(rs.reads & S_VARS)) continue;
+        if (rs.reads_any & S_VARS) over_all = false;
+        if (!rs.var_reads.nil() && !ls.written.nil())
+            for (Value n : rs.var_reads.args())
+                for (Value w : ls.written.args())
+                    if (n == w) over_all = false;
+    }
+    if (over_all) {
+        others.mem_writes = ls.mem_writes;
+        others.writes_any &= ~S_MEM;
+    }
     for (Value r : ls.mem_writes.args())
         if (changes(others, summary(r))) {
             st.clear();
@@ -200,7 +166,6 @@ public:
         for (u32 i = 0; i < trace.size(); ++i) {
             poll();
             Value l = trace[i];
-            sync(st);
             Value r = line(l, st, trace, i);
             if (r != l) changed = true;
             out.push_back(r);
@@ -209,8 +174,6 @@ public:
     }
 
 private:
-    // the state's comparisons with the facts known here
-    void sync(mem::MemState& st) const { st.set_facts(facts_.get()); }
     // a write (a SETMEM's, or what a line's summary writes) where msize is
     // read: a piece reading msize isn't the same bytes later (msize moves)
     static bool keeps(Value range, Value value) {
@@ -252,14 +215,8 @@ private:
             case Op::MERGED_IF: {
                 Value cond = reads(l[0], Pos::Word, st);
                 mem::MemState st_t = constrained(st, cond), st_e = constrained(st, alg::iszero(cond));
-                // each branch where its condition holds
-                const PathFacts::Saved saved = facts_.save();
-                facts_.assume(cond);
                 Value t = walk(l[1], st_t);
-                facts_.restore(saved);
-                facts_.assume(alg::iszero(cond));
                 Value e = walk(l[2], st_e);
-                facts_.restore(saved);
                 const bool t_ends = ends(t), e_ends = ends(e);
                 if (t_ends && !e_ends) {
                     st = std::move(st_e);
@@ -271,29 +228,15 @@ private:
                 }
                 Value r = mk_like(l, std::span<const Value>({cond, t, e}));
                 cx().pcs.inherit(r, l);
-                // after it: what the branches change forgotten; the condition
-                // of the branch that goes on when the other ends (a check)
-                facts_.forget(summary(r));
-                if (t_ends != e_ends) {
-                    Value holds = t_ends ? alg::iszero(cond) : cond;
-                    if (!changes(summary(t_ends ? e : t), summary(holds))) facts_.assume(holds);
-                }
                 return r;
             }
             case Op::WHILE: {
                 Value sv = map_line_exprs(mk(Op::CONTINUE, l[2], l[3]), [&](Value e, Pos pos) { return reads(e, pos, st); });
-                // at its head (any iteration): what it changes forgotten -
-                // the facts first, the ranges it writes are then decided
-                // without them
-                facts_.forget(summary(l));
-                sync(st);
+                // at its head (any iteration): what it changes forgotten
                 forget_loop(st, l, fresh_);
                 mem::MemState inside(st);
-                const PathFacts::Saved saved = facts_.save();
                 Value cond = reads(l[0], Pos::Word, inside);
-                facts_.assume(cond);
                 Value body = walk(l[1], inside);
-                facts_.restore(saved);
                 Value r = mk(Op::WHILE, cond, body, l[2], sv[1]);
                 cx().pcs.inherit(r, l);
                 return r;
@@ -301,22 +244,15 @@ private:
             case Op::LABEL: {
                 Value r = line_reads(l, st);
                 forget(st, summary(r));
-                facts_.forget(summary(r));
                 EffectSummary rest;
                 for (u32 j = i + 1; j < trace.size(); ++j) rest = combine(rest, summary(trace[j]), true);
-                facts_.forget(rest);
-                sync(st);
                 forget(st, rest);
                 return r;
             }
             case Op::LOOP_PATH: {
-                facts_.forget(summary(l));
-                sync(st);
                 forget(st, summary(l));
                 mem::MemState inside(st);
-                const PathFacts::Saved saved = facts_.save();
                 Value t = walk(l[0], inside);
-                facts_.restore(saved);
                 return t == l[0] ? l : mk(Op::LOOP_PATH, t, l[1]);
             }
             case Op::SETMEM: {
@@ -329,7 +265,6 @@ private:
                     st.write(r[0], r[1]);
                 else
                     st.write(r[0], Value());
-                facts_.forget(summary(r));
                 return r;
             }
             default: break;
@@ -337,11 +272,9 @@ private:
         Value r = line_reads(l, st);
         if (r != l) cx().pcs.inherit(r, l);
         forget(st, summary(r));
-        facts_.forget(summary(r));
         return r;
     }
 
-    PathFacts facts_;
     u32 fresh_ = 0;  // (forget_loop's atoms)
 };
 

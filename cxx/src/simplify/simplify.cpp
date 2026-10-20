@@ -8,13 +8,18 @@
 #include <utility>
 #include <vector>
 
+#include "algebra/compare.hpp"
+#include "algebra/construct.hpp"
 #include "algebra/ranges.hpp"
+#include "core/evmint.hpp"
+#include "core/memo.hpp"
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "core/errors.hpp"
 #include "core/order.hpp"
 #include "core/platform.hpp"
 #include "loops/loops.hpp"
+#include "simplify/effects.hpp"
 #include "simplify/internal.hpp"
 
 namespace pan::simplify {
@@ -69,6 +74,149 @@ std::vector<std::pair<Value, Value>> variable_values(Value trace) {
     });
     return out;
 }
+
+// python small_words, made sound: the words the contract is given (what may
+// make a memory position wrap: alg::unchecked), the same wherever they are
+// (python immutable: made of the calldata, the call's context, variables
+// set once to such), that a check bounds below 2^64 - an if one branch of
+// which ends: `if len > 2^64 - 1: revert` - with
+// no memory position of the trace reading them before it (where the check
+// may not have passed yet: what the lines before it touch, the branch that
+// ends included, the variables' values too). Every position they're in is
+// then evaluated where they are below 2^64: the memory model takes them for
+// words that small (ceil32(len) + k doesn't wrap). A variable set once:
+// its value too (cleanup_vars puts it in its place). Not past a LABEL (a
+// raw trace's loop).
+class SmallWords {
+public:
+    explicit SmallWords(const std::vector<std::pair<Value, Value>>& values) : values_(values) {}
+    std::vector<Value> run(Value trace) {
+        (void)spine(trace);
+        return std::move(small_);
+    }
+
+private:
+    // the lines every execution that goes on runs, in order; false where
+    // nothing after runs
+    bool spine(Value trace) {
+        if (!trace.is_list()) return true;
+        check_stack();
+        for (Value l : trace.args()) {
+            poll();
+            if (l.is(Op::IF, 3) || l.is(Op::MERGED_IF, 3)) {
+                note(l[0]);
+                // the branch that's gone: one that ends while the other goes
+                // on - or, both ending (the rest of the trace in one of them),
+                // the one that reverts: the check fails there
+                const bool t_ends = ends(l[1]), e_ends = ends(l[2]);
+                int gone = -1;  // 1: the true branch, 2: the false one
+                if (t_ends != e_ends) {
+                    gone = t_ends ? 1 : 2;
+                } else if (t_ends) {
+                    const bool t_rev = reverts(l[1]), e_rev = reverts(l[2]);
+                    if (t_rev == e_rev) return false;
+                    gone = t_rev ? 1 : 2;
+                }
+                if (gone < 0) {
+                    note(l);
+                    continue;
+                }
+                note(l[u32(gone)]);
+                bound(gone == 1 ? alg::iszero(l[0]) : l[0]);
+                if (!spine(l[gone == 1 ? 2u : 1u])) return false;
+                if (t_ends && e_ends) return false;
+                continue;
+            }
+            if (l.is(Op::LABEL)) return false;
+            note(l);
+            if (ends(l)) return false;
+        }
+        return true;
+    }
+    // every path of t reverts (or runs an invalid opcode)
+    static bool reverts(Value t) {
+        if (!t.is_list() || t.size() == 0) return false;
+        Value last = t[t.size() - 1];
+        if (last.is(Op::REVERT) || last.is(Op::INVALID)) return true;
+        if (last.is(Op::IF, 3) || last.is(Op::MERGED_IF, 3)) return reverts(last[1]) && reverts(last[2]);
+        return false;
+    }
+    // what holds from here on: the words it bounds below 2^64
+    void bound(Value holds) {
+        static const EvmInt top = EvmInt::pow2(64);
+        for (const alg::CondBound& b : alg::cond_bounds(holds)) {
+            if (!(b.range().hi < top)) continue;
+            add(b.x);
+            if (b.x.is_name()) {
+                // (a variable set once: its value)
+                Value v;
+                u32 n = 0;
+                for (const auto& [name, value] : values_)
+                    if (name == b.x) {
+                        v = value;
+                        ++n;
+                    }
+                if (n == 1) add(v);
+            }
+        }
+    }
+    void add(Value x) {
+        if (x.is_int() || x.is(Op::ADD) || x.is(Op::MUL)) return;  // (a sum may be small only modulo 2^256)
+        if (!alg::unchecked(x) || !immutable(x, 0) || seen_.contains(x)) return;
+        for (Value y : small_)
+            if (y == x) return;
+        small_.push_back(x);
+    }
+    // x is the same word wherever it is: it reads the calldata, the call's
+    // context and variables set once to such words only
+    bool immutable(Value x, u32 depth) {
+        if (depth > 16) return false;
+        if (x.is_name()) {
+            if (x.is_name(NameKind::PARAM)) return true;
+            Value v;
+            u32 n = 0;
+            for (const auto& [name, value] : values_)
+                if (name == x) {
+                    v = value;
+                    ++n;
+                }
+            return n == 1 && immutable(v, depth + 1);
+        }
+        const EffectSummary& s = summary(x);
+        if (s.writes || s.control || (s.reads & ~(S_CALLDATA | S_CTX | S_VARS)) || (s.reads_any & S_VARS)) return false;
+        if (!s.var_reads.nil())
+            for (Value n : s.var_reads.args())
+                if (!immutable(n, depth + 1)) return false;
+        return true;
+    }
+    // the subterms of v's memory positions (its RANGEs, any depth; the
+    // values of the variables in them) as seen
+    void note(Value v) {
+        if (!(v.is_expr() || v.is_list())) return;
+        if (!noted_.add(v)) return;
+        check_stack();
+        if (v.is(Op::RANGE, 2)) {
+            subterms(v);
+            return;
+        }
+        for (Value a : v.args()) note(a);
+    }
+    void subterms(Value v) {
+        if (!seen_.add(v)) return;
+        check_stack();
+        if (v.is_name()) {
+            for (const auto& [name, value] : values_)
+                if (name == v) subterms(value);
+            return;
+        }
+        if (v.is_expr() || v.is_list())
+            for (Value a : v.args()) subterms(a);
+    }
+
+    const std::vector<std::pair<Value, Value>>& values_;
+    MemoSet<Value> noted_, seen_;
+    std::vector<Value> small_;
+};
 
 class Driver {
 public:
@@ -184,9 +332,10 @@ private:
 Value simplify_trace(Value trace, const SimplifyOptions& opts, ExplainHook* explain) {
     if (!trace.is_list()) return trace;
     const auto values = variable_values(trace);
-    // (small_words: none assumed yet - the memory model keeps its own
-    // assumptions)
     alg::set_variables(values, {});
+    // (the small words: with the variables installed - unchecked reads them)
+    if (const std::vector<Value> small = SmallWords(values).run(trace); !small.empty())
+        alg::set_variables(values, small);
     struct Clear {
         ~Clear() { alg::clear_variables(); }
     } clear;

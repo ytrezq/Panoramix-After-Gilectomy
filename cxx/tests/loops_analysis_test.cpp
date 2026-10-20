@@ -452,3 +452,44 @@ TEST_CASE("loops: summary ranges downwards, and kept per iteration when unproven
     REQUIRE(!s2.mem_writes.nil());
     CHECK(s2.mem_writes[0] == V("(range (add 480 loop1) 32)"));
 }
+
+TEST_CASE("loops: summary ranges of an address read from memory the loop doesn't write") {
+    Fixture f;
+    // words written above the free memory pointer, read in every iteration:
+    // one range made of its value at the start (no iteration writes it)
+    const Value fill = V("(setmem (range 128 896) (calldata_bytes 4 896))");
+    const Value fmp = V("(setmem (range 64 32) (add 128 (mask_shl 3 5 0 (calldataload 4))))");
+    const Value w = V(
+        "(while (lt loop0 (mask_shl 3 5 0 (calldataload 36))) {(setmem (range (add 96 loop0 (mem (range 64 32))) 32) "
+        "(sized 32 7)) (continue loopid1 {(setvar loop0 (add 32 loop0))})} loopid1 {(setvar loop0 0)})");
+    const Value all = make({fill, fmp, w, V("(stop)")});
+    Vars vars(all);
+    const L::LoopSummary& s = L::summary(w);
+    REQUIRE(!s.mem_writes.nil());
+    REQUIRE(s.mem_writes.size() == 1);
+    MESSAGE("writes " << dump(s.mem_writes));
+    CHECK(s.mem_writes[0][0] == V("(add 96 (mem (range 64 32)))"));
+    CHECK(L::may_write(w, V("(range 64 32)")) == Tri::False);
+    // every word it says no iteration writes is as it was (the free memory
+    // pointer left at least 0x60: the ranges' assumption for solidity's
+    // code - no sentinel over part of it)
+    const Value sent = V("(sized 32 0x100)");
+    int decided = 0;
+    for (int q = 0; q <= 1024; q += 16) {
+        if (q + 32 > 64 && q < 96 && q != 64) continue;
+        const Value r = mk(Op::RANGE, Value::small(q), Value::small(32));
+        if (L::may_write(w, r) != Tri::False) continue;
+        ++decided;
+        Value ta = make({fill, fmp, mk(Op::SETMEM, r, sent), w, mk(Op::RETURN, mk(Op::MEM, r))});
+        Value tb = make({fill, fmp, mk(Op::SETMEM, r, sent), w, mk(Op::RETURN, sent)});
+        CHECK_MESSAGE(same_runs(ta, tb), "q " << q);
+    }
+    CHECK(decided > 5);
+    // a write that may reach the word its address reads: per iteration
+    const Value w2 = V(
+        "(while (lt loop0 (mask_shl 3 5 0 (calldataload 36))) {(setmem (range (add loop0 (mask_shl 6 0 0 (mem (range 64 "
+        "32)))) 32) (sized 32 7)) (continue loopid1 {(setvar loop0 (add 32 loop0))})} loopid1 {(setvar loop0 0)})");
+    const L::LoopSummary& s2 = L::summary(w2);
+    REQUIRE(!s2.mem_writes.nil());
+    CHECK(L::may_write(w2, V("(range 64 32)")) != Tri::False);
+}

@@ -257,12 +257,13 @@ TEST_CASE("loops: loop_to_setmem, what the path knows and the variables' last va
         CHECK(!has_while(pass_setmems(t)));
     }
     // a copy to ceil32(len) + 32 past its source, len checked below 2^32
-    // first: apart (the trip count's wrap proven by the check)
-    const std::string y = "(mask_shl 251 5 0 (add 31 tmp1))";
-    const std::string apart = "{(setvar tmp1 (calldataload 4))"
-                              " (if (gt tmp1 4294967296) {(revert None)} {})"
+    // first: apart (the trip count's wrap proven by the check). (The length
+    // read where it's used: the ranges don't carry a fact on a variable to
+    // its value.)
+    const std::string y = "(mask_shl 251 5 0 (add 31 (calldataload 4)))";
+    const std::string apart = "{(if (gt (calldataload 4) 4294967296) {(revert None)} {})"
                               " (setmem (range 0 1024) (calldata_bytes 4 1024))"
-                              " (while (lt loop1 tmp1) {(setmem (range (add 160 " +
+                              " (while (lt loop1 (calldataload 4)) {(setmem (range (add 160 " +
                               y +
                               " loop1) 32) (mem (range (add 128 loop1) 32))) (continue loopid1 {(setvar loop1 (add 32 "
                               "loop1))})} loopid1 {(setvar loop1 0)})"
@@ -274,14 +275,96 @@ TEST_CASE("loops: loop_to_setmem, what the path knows and the variables' last va
         CHECK(!has_while(pass_setmems(t)));
     }
     // ... not without the check (calldata: its length may be any word)
-    const std::string unchecked = "{(setvar tmp1 (calldataload 4))"
-                                  " (setmem (range 0 1024) (calldata_bytes 4 1024))"
-                                  " (while (lt loop1 tmp1) {(setmem (range (add 160 " +
+    const std::string unchecked = "{(setmem (range 0 1024) (calldata_bytes 4 1024))"
+                                  " (while (lt loop1 (calldataload 4)) {(setmem (range (add 160 " +
                                   y +
                                   " loop1) 32) (mem (range (add 128 loop1) 32))) (continue loopid1 {(setvar loop1 (add "
                                   "32 loop1))})} loopid1 {(setvar loop1 0)})"
                                   " (return (data (mem (range 0 1024)) (sized 32 loop1)))}";
     CHECK(!check(unchecked.c_str(), pass_setmems));
+}
+
+TEST_CASE("loops: loop_to_setmem, addresses read from memory the loop doesn't write") {
+    Fixture f;
+    // zeroes at the free memory pointer (read in every iteration: the loop
+    // never writes it, its range over all iterations above it)
+    const char* zeroes =
+        "{(setmem (range 128 896) (calldata_bytes 4 896))"
+        " (setmem (range 64 32) (add 128 (mask_shl 3 5 0 (calldataload 4))))"
+        " (while (lt loop0 (mask_shl 3 5 0 (calldataload 36))) {(setmem (range (add 96 loop0 (mem (range 64 32))) 32) 0) "
+        "(continue loopid1 {(setvar loop0 (add 32 loop0))})} loopid1 {(setvar loop0 0)})"
+        " (return (data (mem (range 0 1024)) (sized 32 loop0)))}";
+    CHECK(check(zeroes, pass_setmems));
+    {
+        Value t = V(zeroes);
+        Vars vars(t);
+        CHECK(!has_while(pass_setmems(t)));
+    }
+    // a copy there from ahead of it
+    const char* ahead =
+        "{(setmem (range 128 896) (calldata_bytes 4 896))"
+        " (setmem (range 64 32) (add 128 (mask_shl 3 5 0 (calldataload 4))))"
+        " (while (lt loop0 (mask_shl 3 5 0 (calldataload 36))) {(setmem (range (add 96 loop0 (mem (range 64 32))) 32) "
+        "(mem (range (add 160 loop0 (mem (range 64 32))) 32))) (continue loopid1 {(setvar loop0 (add 32 loop0))})} loopid1 "
+        "{(setvar loop0 0)})"
+        " (return (data (mem (range 0 1024)) (sized 32 loop0)))}";
+    CHECK(check(ahead, pass_setmems));
+    {
+        Value t = V(ahead);
+        Vars vars(t);
+        CHECK(!has_while(pass_setmems(t)));
+    }
+    // ... from behind, overlapping: kept
+    CHECK(!check("{(setmem (range 128 896) (calldata_bytes 4 896))"
+                 " (setmem (range 64 32) (add 128 (mask_shl 3 5 0 (calldataload 4))))"
+                 " (while (lt loop0 (mask_shl 3 5 0 (calldataload 36))) {(setmem (range (add 160 loop0 (mem (range 64 32))) "
+                 "32) (mem (range (add 96 loop0 (mem (range 64 32))) 32))) (continue loopid1 {(setvar loop0 (add 32 loop0))})} "
+                 "loopid1 {(setvar loop0 0)})"
+                 " (return (data (mem (range 0 1024)) (sized 32 loop0)))}",
+                 pass_setmems));
+    // a write that may reach the word the address reads: kept
+    CHECK(!check("{(setmem (range 0 1024) (calldata_bytes 4 1024))"
+                 " (while (lt loop0 (mask_shl 3 5 0 (calldataload 36))) {(setmem (range (add loop0 (mask_shl 6 0 0 (mem (range "
+                 "64 32)))) 32) 0) (continue loopid1 {(setvar loop0 (add 32 loop0))})} loopid1 {(setvar loop0 0)})"
+                 " (return (data (mem (range 0 1024)) (sized 32 loop0)))}",
+                 pass_setmems));
+}
+
+TEST_CASE("loops: loop_to_setmem, a SIZED word, a SETVAR of the value read nowhere") {
+    Fixture f;
+    // (sized 32 0): zeroes
+    const char* sized =
+        "{(setmem (range 0 1024) (calldata_bytes 4 1024))"
+        " (while (lt loop1 (mask_shl 3 0 0 (calldataload 4))) {(setmem (range (add 64 (mul 32 loop1)) 32) (sized 32 0)) "
+        "(continue loopid1 {(setvar loop1 (add 1 loop1))})} loopid1 {(setvar loop1 0)})"
+        " (return (data (mem (range 0 1024)) (sized 32 loop1)))}";
+    CHECK(check(sized, pass_setmems));
+    {
+        Value t = V(sized);
+        Vars vars(t);
+        CHECK(!has_while(pass_setmems(t)));
+    }
+    // a copy whose word is also set to a variable the function never reads
+    // (lot 7 keeps such a SETVAR where msize is read): dropped
+    const char* dead =
+        "{(setmem (range 0 1024) (calldata_bytes 4 1024))"
+        " (while (lt loop1 (mask_shl 3 0 0 (calldataload 4))) {(setvar tmp9 (mem (range (add 96 (mul 32 loop1)) 32))) "
+        "(setmem (range (add 64 (mul 32 loop1)) 32) (mem (range (add 96 (mul 32 loop1)) 32))) (continue loopid1 {(setvar "
+        "loop1 (add 1 loop1))})} loopid1 {(setvar loop1 0)})"
+        " (return (data (mem (range 0 1024)) (sized 32 loop1) (sized 32 msize)))}";
+    CHECK(check(dead, pass_setmems));
+    {
+        Value t = V(dead);
+        Vars vars(t);
+        CHECK(!has_while(pass_setmems(t)));
+    }
+    // ... read after the loop: kept
+    CHECK(!check("{(setmem (range 0 1024) (calldata_bytes 4 1024)) (setvar tmp9 5)"
+                 " (while (lt loop1 (mask_shl 3 0 0 (calldataload 4))) {(setvar tmp9 (mem (range (add 96 (mul 32 loop1)) "
+                 "32))) (setmem (range (add 64 (mul 32 loop1)) 32) (mem (range (add 96 (mul 32 loop1)) 32))) (continue "
+                 "loopid1 {(setvar loop1 (add 1 loop1))})} loopid1 {(setvar loop1 0)})"
+                 " (return (data (mem (range 0 1024)) (sized 32 loop1) (sized 32 tmp9)))}",
+                 pass_setmems));
 }
 
 TEST_CASE("loops: a loop that runs once or never") {
@@ -317,7 +400,7 @@ TEST_CASE("loops: a loop that runs once or never") {
                  " (return (data (mem (range 0 128)) (sized 32 loop0)))}",
                  pass_setmems));
     // a start value reading a variable of the loop: kept
-    CHECK(!check("{(setvar loop1 5) (while (lt loop0 20) {(setmem (range loop0 32) loop1) (continue loopid1 {(setvar "
+    CHECK(!check("{(setvar loop0 9) (setvar loop1 5) (while (lt loop0 20) {(setmem (range loop0 32) loop1) (continue loopid1 {(setvar "
                  "loop0 (add 32 loop0))})} loopid1 {(setvar loop0 0) (setvar loop1 (add 1 loop0))})"
                  " (return (data (mem (range 0 128)) (sized 32 loop0) (sized 32 loop1)))}",
                  pass_setmems));
