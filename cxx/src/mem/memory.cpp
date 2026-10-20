@@ -52,8 +52,9 @@ std::optional<i64> nat(Value v) noexcept {
 // with the context's caches - set_variables and the free memory pointer flag
 // clear them, as the decisions read the variables' ranges. With facts: the
 // decision without them when there is one (facts only narrow the values:
-// what holds for all of them holds), else the facts', memoized per pair and
-// facts (the same facts come back along a path and at every round).
+// what holds for all of them holds), else the facts' when a position is
+// made of a word the contract is given (what may wrap), memoized per pair
+// and facts (the same facts come back along a path and at every round).
 struct PosMemo final : ModuleState {
     struct WithFacts {
         Facts facts;
@@ -88,6 +89,9 @@ Tri pos_cmp(Value a, Value b, const Facts* f, Memo<Key2, Tri> PosMemo::*plain, M
         (m.*plain).put(k, t);
     }
     if (t != Tri::None || !f || f->empty()) return t;
+    // (the facts bound what may wrap: a word the contract is given; the
+    // other words of a position are below 2^64 already - Top::Memory)
+    if (!alg::unchecked(a) && !alg::unchecked(b)) return t;
     std::optional<u32> at;
     if (const u32* i = (m.*with).find(k)) {
         at = *i;

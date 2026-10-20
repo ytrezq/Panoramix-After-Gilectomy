@@ -8,8 +8,14 @@
 #include "core/context.hpp"
 #include "core/memo.hpp"
 #include "core/smallvec.hpp"
+#include "algebra/ranges.hpp"  // Top
 #include "core/value.hpp"
+#include "loops/loops.hpp"
 #include "simplify/effects.hpp"
+
+namespace pan::alg {
+class Facts;  // algebra/facts.hpp
+}
 
 namespace pan::loops::detail {
 
@@ -84,6 +90,14 @@ private:
 
 // a new trace from lines
 inline Value trace_of(std::span<const Value> lines) { return mk_trace(lines); }
+
+// ---- the induction, with what the path knows ------------------------------------------------
+
+// induction() with the proofs of the trip count under wrap_top and the
+// path's facts (not memoized), and the values of every loop variable once
+// the loop is left by its condition, evaluated where it starts (finals:
+// NIL unless all are linear, the trips proven and no break)
+std::optional<Induction> induction_at(Value w, alg::Top wrap_top, const alg::Facts* facts, Value* finals);
 
 // ---- what an iteration moves ----------------------------------------------------------------
 

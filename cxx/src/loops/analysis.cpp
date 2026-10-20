@@ -26,6 +26,7 @@
 #include <memory_resource>
 
 #include "algebra/compare.hpp"
+#include "algebra/facts.hpp"
 #include "algebra/construct.hpp"
 #include "algebra/eval.hpp"
 #include "algebra/linear.hpp"
@@ -211,7 +212,20 @@ bool invariant(const simplify::EffectSummary& loop, Value e) {
     return !simplify::changes(loop, simplify::summary(e));
 }
 
-std::optional<Induction> compute_induction(Value w) {
+}  // namespace
+
+// The induction (the public one: wrap_top Word, no facts, memoized). wrap_top
+// and facts: what the proofs that the counter can't wrap may assume (the
+// path's conditions; lot 4's memory model for a counter that indexes
+// memory); the MAXes of the trip count decided by the ranges under the
+// facts. finals (when not null): a LIST of SETVAR(v, e) for every variable of
+// the loop, e its value once the loop is left by its condition - evaluated
+// where the loop starts (made of the start values) - NIL unless every one of
+// them moves by the same loop-invariant amount at every CONTINUE, the trips
+// are proven and no path of the body falls off it.
+std::optional<Induction> detail::induction_at(Value w, alg::Top wrap_top, const alg::Facts* facts, Value* finals) {
+    if (finals) *finals = Value();
+    if (!w.is(Op::WHILE, 4)) return std::nullopt;
     const Value cond = w[0], body = w[1], id = w[2], sv = w[3];
     if (!sv.is_list() || !body.is_list()) return std::nullopt;
     SmallVec<Value, 8> names, starts;
@@ -256,29 +270,31 @@ std::optional<Induction> compute_induction(Value w) {
     // ---- the trip count, when the counter can't wrap on its way --------------------
     const EvmInt d = EvmInt(*step);
     const Value su = alg::add(s, ind.offset);  // u's start
-    const alg::Range br = alg::range(b);
+    const alg::Range br = alg::range(b, wrap_top, facts);
     Value trips;
     auto ceil_div = [&](Value x, const EvmInt& e) -> Value {
         if (e == EvmInt(1)) return x;
         return alg::div(alg::add(x, (e - 1).value()), e.value());
     };
+    // the larger of two words, decided where the ranges (and the facts) can
+    auto larger = [&](Value x, Value y) { return alg::reduce_minmax(alg::max({x, y}), alg::Top::Word, facts); };
     switch (ind.cmp) {
         case Cmp::Lt:
-            if (d.sign() > 0 && br.hi <= two_256() - d) trips = ceil_div(alg::sub(alg::max({b, su}), su), d);
+            if (d.sign() > 0 && br.hi <= two_256() - d) trips = ceil_div(alg::sub(larger(b, su), su), d);
             break;
         case Cmp::Le:
             if (d.sign() > 0 && br.hi <= two_256() - 1 - d) {
                 const Value b1 = alg::add(b, small(1));
-                trips = ceil_div(alg::sub(alg::max({b1, su}), su), d);
+                trips = ceil_div(alg::sub(larger(b1, su), su), d);
             }
             break;
         case Cmp::Gt:
-            if (d.sign() < 0 && br.lo >= -d - 1) trips = ceil_div(alg::sub(alg::max({su, b}), b), -d);
+            if (d.sign() < 0 && br.lo >= -d - 1) trips = ceil_div(alg::sub(larger(su, b), b), -d);
             break;
         case Cmp::Ge:
             if (d.sign() < 0 && br.lo >= -d) {
                 const Value b1 = alg::sub(b, small(1));
-                trips = ceil_div(alg::sub(alg::max({su, b1}), b1), -d);
+                trips = ceil_div(alg::sub(larger(su, b1), b1), -d);
             }
             break;
         case Cmp::Ne:
@@ -295,16 +311,22 @@ std::optional<Induction> compute_induction(Value w) {
     // ---- the values after the loop -------------------------------------------------------
     // (a path that falls off the body leaves the loop with other values)
     if (falls_through(body) || bw.breaks_id) return ind;
-    // (each value made of what the loop doesn't change: the same evaluated
-    // after it as before it, where the start values were)
-    SmallVec<Value, 8> ends;
+    // (endvars: each value made of what the loop doesn't change - the same
+    // evaluated after it as before it, where the start values were; finals:
+    // evaluated where the loop starts, all of them)
+    SmallVec<Value, 8> ends, all;
+    bool every = true;
     for (usize i = 0; i < names.size(); ++i) {
         const Value x = names[i];
         if (x == v) {
             if (invariant(eff, ind.last)) ends.push_back(mk(Op::SETVAR, x, ind.last));
+            all.push_back(mk(Op::SETVAR, x, ind.last));
             continue;
         }
-        if (std::find(bw.sets.begin(), bw.sets.end(), x) != bw.sets.end()) continue;
+        if (std::find(bw.sets.begin(), bw.sets.end(), x) != bw.sets.end()) {
+            every = false;
+            continue;
+        }
         // its move at every CONTINUE: the same, loop invariant
         Value move;
         bool ok = true;
@@ -317,21 +339,24 @@ std::optional<Induction> compute_induction(Value w) {
                 ok = false;
             if (!ok) break;
         }
-        if (!ok || move.nil() || !invariant(eff, move)) continue;
+        if (!ok || move.nil() || !invariant(eff, move)) {
+            every = false;
+            continue;
+        }
         const Value end = alg::add(starts[i], alg::mul(move, trips));
         if (invariant(eff, end)) ends.push_back(mk(Op::SETVAR, x, end));
+        all.push_back(mk(Op::SETVAR, x, end));
     }
     ind.endvars = mk_list(ends.span());
+    if (finals && every) *finals = mk_list(all.span());
     return ind;
 }
-
-}  // namespace
 
 std::optional<Induction> induction(Value while_line) {
     if (!while_line.is(Op::WHILE, 4)) return std::nullopt;
     LoopsState& st = lst();
     if (const u32* k = st.induction_index.find(while_line)) return st.inductions[*k - 1];
-    std::optional<Induction> r = compute_induction(while_line);
+    std::optional<Induction> r = induction_at(while_line, alg::Top::Word, nullptr, nullptr);
     st.inductions.push_back(r);
     st.induction_index.put(while_line, u32(st.inductions.size()));
     return r;

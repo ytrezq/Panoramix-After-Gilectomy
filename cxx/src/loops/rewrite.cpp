@@ -3,11 +3,14 @@
 // construction:
 //
 //  - loop_to_setmem: WHILE(cond, {SETMEM(RANGE(p, 32), v), CONTINUE(id, S)},
-//    id, S0) whose induction is proven (trips, endvars of every variable), p
-//    made of the loop's variables and what the loop doesn't change, moving
-//    by D = +-32 every iteration: the iterations write [p0, p0 + 32 trips)
-//    (D = 32) or [p_end + 32, p0 + 32) (D = -32), p0 = p at the start, p_end
-//    = p after the last iteration - as one SETMEM, then the endvars:
+//    id, S0) whose induction is proven (trips, the last value of every
+//    variable), p made of the loop's variables and what the loop doesn't
+//    change, moving by D = +-32 every iteration: the iterations write [p0,
+//    p0 + 32 trips) (D = 32) or [p_end + 32, p0 + 32) (D = -32), p0 = p at
+//    the start, p_end = p after the last iteration - the variables' last
+//    values (evaluated where the loop starts), then one SETMEM; the proofs
+//    under the path's facts (loops_to_setmems carries them: `require len <=
+//    2^32`...) and, for the counter's wrap, lot 4's memory model:
 //      v = 0                    SETMEM(range, 0)
 //      v = MEM(RANGE(q, 32)), q moving by D too: SETMEM(range, MEM(range of
 //          q)), a copy - one SETMEM reads all of its source before it writes,
@@ -33,6 +36,7 @@
 #include <vector>
 
 #include "algebra/compare.hpp"
+#include "algebra/facts.hpp"
 #include "algebra/construct.hpp"
 #include "algebra/linear.hpp"
 #include "core/budget.hpp"
@@ -51,7 +55,31 @@ Value small(i64 x) { return Value::small(x); }
 
 }  // namespace
 
-Value loop_to_setmem(Value w, const RewriteOptions& opts) {
+namespace {
+
+// what a line writes, as the content flags of the facts it may make wrong
+u8 changed_flags(const simplify::EffectSummary& s) {
+    u8 f = 0;
+    if (s.writes & (simplify::S_MEM | simplify::S_MSIZE)) f |= F_MEM | F_MSIZE;
+    if (s.writes & simplify::S_STORAGE) f |= F_STORAGE;
+    if (s.writes & (simplify::S_TRANSIENT | simplify::S_ACCOUNT | simplify::S_CALLRES)) f |= F_STATE;
+    if (s.writes & simplify::S_VARS) f |= F_VAR;
+    return f;
+}
+
+alg::Facts forget(const alg::Facts& facts, Value line) {
+    if (facts.empty()) return facts;
+    const u8 f = changed_flags(simplify::summary(line));
+    return f ? facts.forget_flags(f) : facts;
+}
+
+// loop_to_setmem where the path's facts hold (they bound what the proofs
+// read: lengths checked against 2^32...); the trip count's wrap proven
+// under lot 4's memory model too (Top::Memory: a counter that moves the
+// address of a write every iteration never wraps in a run that pays for its
+// memory). The variables' last values, evaluated where the loop starts, are
+// set first, then the SETMEM (made of the values there too).
+Value to_setmem(Value w, const RewriteOptions& opts, const alg::Facts* facts) {
     if (!w.is(Op::WHILE, 4)) return w;
     const Value body = w[1], sv = w[3];
     if (!body.is_list() || body.size() != 2 || !sv.is_list()) return w;
@@ -59,14 +87,15 @@ Value loop_to_setmem(Value w, const RewriteOptions& opts) {
     if (!sm.is(Op::SETMEM, 2) || !cont.is(Op::CONTINUE, 2) || cont[0] != w[2]) return w;
     const Value r = sm[0], v = sm[1];
     if (!r.is(Op::RANGE, 2) || r[1] != small(32)) return w;
-    const auto ind = induction(w);
-    if (!ind || ind->trips.nil() || ind->endvars.nil()) return w;
+    Value finals;
+    const auto ind = induction_at(w, alg::Top::Memory, facts, &finals);
+    if (!ind || ind->trips.nil() || finals.nil()) return w;
     SmallVec<Value, 8> names;
     setvar_names(sv, names);
     const std::span<const Value> ns(names.data(), names.size());
-    // every variable's value after the loop known
-    if (ind->endvars.size() != names.size()) return w;
-    for (Value e : ind->endvars.args())
+    // every variable's last value, made of the values where the loop starts
+    if (finals.size() != names.size()) return w;
+    for (Value e : finals.args())
         if (reads_any(e[1], ns)) return w;
     bool ok = false;
     const simplify::EffectSummary others = but_vars(simplify::summary(w), ns, ok);
@@ -80,7 +109,7 @@ Value loop_to_setmem(Value w, const RewriteOptions& opts) {
     auto low = [&](Value addr) {
         const Value first = at(addr, ns, sv);
         if (up) return first;
-        return alg::add(at(addr, ns, ind->endvars), small(32));
+        return alg::add(at(addr, ns, finals), small(32));
     };
     const Value p_lo = low(p);
     Value value;
@@ -95,8 +124,9 @@ Value loop_to_setmem(Value w, const RewriteOptions& opts) {
             // the loop never reads a word it wrote: the source not behind the
             // destination in the copy's direction, or apart
             const Value dst = mem::make_range(p_lo, len), src = mem::make_range(q_lo, len);
-            const bool apart = mem::overlaps(dst, src) == Tri::False;
-            const bool ahead = up ? alg::le(p_lo, q_lo) == Tri::True : alg::le(q_lo, p_lo) == Tri::True;
+            const bool apart = mem::overlaps(dst, src, facts) == Tri::False;
+            const bool ahead = up ? alg::le(p_lo, q_lo, alg::Top::Memory, facts) == Tri::True
+                                  : alg::le(q_lo, p_lo, alg::Top::Memory, facts) == Tri::True;
             if (!apart && !ahead) return w;
         }
         value = mk(Op::MEM, mem::make_range(q_lo, len));
@@ -108,56 +138,91 @@ Value loop_to_setmem(Value w, const RewriteOptions& opts) {
     } else {
         return w;
     }
-    SmallVec<Value, 8> lines;
     Value set = mk(Op::SETMEM, mem::make_range(p_lo, len), value);
-    // (the endvars run after it: what they read unchanged by it)
-    for (Value e : ind->endvars.args())
-        if (simplify::affects(set, e[1])) return w;
+    // (the SETMEM runs after the variables are set: none read in it)
+    if (reads_any(set, ns)) return w;
     cx().pcs.inherit(set, sm);
+    SmallVec<Value, 8> lines;
+    for (Value e : finals.args()) lines.push_back(e);
     lines.push_back(set);
-    for (Value e : ind->endvars.args()) lines.push_back(e);
     return mk_trace(lines.span());
 }
 
-Value loops_to_setmems(Value trace, const RewriteOptions& opts) {
-    if (!trace.is_list() || !trace.has_flags(F_LOOPCTL)) return trace;
-    check_stack();
-    SmallVec<Value, 32> out;
-    bool changed = false;
-    for (Value l : trace.args()) {
-        poll();
-        if (!l.is_expr() || !l.has_flags(F_LOOPCTL)) {
-            out.push_back(l);
-            continue;
-        }
-        switch (l.op()) {
-            case Op::IF:
-            case Op::MERGED_IF: {
-                Value t = loops_to_setmems(l[1], opts), e = loops_to_setmems(l[2], opts);
-                Value r = mk_like(l, std::span<const Value>({l[0], t, e}));
-                cx().pcs.inherit(r, l);
-                changed |= r != l;
-                out.push_back(r);
-                break;
+// loops_to_setmems' walk: the path's facts carried (an IF's condition in its
+// branches, after it what the branch that goes on knows; what a line writes
+// forgotten after it, what a loop writes in it and after it)
+class SetmemWalk {
+public:
+    explicit SetmemWalk(const RewriteOptions& o) : opts_(o) {}
+
+    Value trace(Value t, alg::Facts facts) {
+        if (!t.is_list() || !t.has_flags(F_LOOPCTL)) return t;
+        check_stack();
+        SmallVec<Value, 32> out;
+        bool changed = false;
+        for (Value l : t.args()) {
+            poll();
+            if (!l.is_expr()) {
+                out.push_back(l);
+                continue;
             }
-            case Op::WHILE: {
-                Value b = loops_to_setmems(l[1], opts);
-                Value x = b == l[1] ? l : mk(Op::WHILE, l[0], b, l[2], l[3]);
-                if (x != l) cx().pcs.inherit(x, l);
-                Value r = loop_to_setmem(x, opts);
-                if (r.is_list()) {
-                    for (Value y : r.args()) out.push_back(y);
-                    changed = true;
-                } else {
+            switch (l.op()) {
+                case Op::IF:
+                case Op::MERGED_IF: {
+                    const Value c = l[0];
+                    const Value tt = l[1].has_flags(F_LOOPCTL) ? trace(l[1], facts.with(c, true)) : l[1];
+                    const Value ee = l[2].has_flags(F_LOOPCTL) ? trace(l[2], facts.with(c, false)) : l[2];
+                    Value r = mk_like(l, std::span<const Value>({c, tt, ee}));
+                    cx().pcs.inherit(r, l);
                     changed |= r != l;
                     out.push_back(r);
+                    // (the condition known after it, then what its branches
+                    // write forgotten - the condition too if it reads that)
+                    const bool t_ends = simplify::ends(tt), e_ends = simplify::ends(ee);
+                    if (t_ends && !e_ends)
+                        facts = facts.with(c, false);
+                    else if (e_ends && !t_ends)
+                        facts = facts.with(c, true);
+                    facts = forget(facts, r);
+                    break;
                 }
-                break;
+                case Op::WHILE: {
+                    const alg::Facts head = forget(facts, l);
+                    Value b = trace(l[1], head.with(l[0], true));
+                    Value x = b == l[1] ? l : mk(Op::WHILE, l[0], b, l[2], l[3]);
+                    if (x != l) cx().pcs.inherit(x, l);
+                    Value r = to_setmem(x, opts_, &head);
+                    if (r.is_list()) {
+                        for (Value y : r.args()) out.push_back(y);
+                        changed = true;
+                    } else {
+                        changed |= r != l;
+                        out.push_back(r);
+                    }
+                    facts = head;
+                    break;
+                }
+                default:
+                    out.push_back(l);
+                    facts = forget(facts, l);
+                    break;
             }
-            default: out.push_back(l); break;
         }
+        return changed ? mk_trace(out.span()) : t;
     }
-    return changed ? mk_trace(out.span()) : trace;
+
+private:
+    const RewriteOptions& opts_;
+};
+
+}  // namespace
+
+Value loop_to_setmem(Value w, const RewriteOptions& opts) { return to_setmem(w, opts, nullptr); }
+
+Value loops_to_setmems(Value trace, const RewriteOptions& opts) {
+    if (!trace.is_list() || !trace.has_flags(F_LOOPCTL)) return trace;
+    SetmemWalk walk(opts);
+    return walk.trace(trace, alg::Facts{});
 }
 
 // ---- propagate_storage_in_loops ------------------------------------------------------------------
