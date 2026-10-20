@@ -851,7 +851,20 @@ decompilations, 0 differences), 30 contracts with the same text and JSON
 at -j 1, 2, 8; the triage's 1121 texts identical at -j 1 and the default,
 136 contracts under ASan and UBSan with no report.
 
-**(The final whole-corpus numbers of every stage and of the printed text: filled in by main.)**
+**The final whole-corpus run** (20 Oct, tree abd917c then d44fbe0, release build,
+`stagecheck --stage folded --timeout 300`, seed 0, the empty world's sequence and a random
+world, 4 calls per selector typed by the signature database): 1,121 contracts, none failed;
+at every stage (raw, whiles, simplified, analysed, folded) 0 different, 0 bugs. Raw: 90,580
+calls, 90,221 the same, 359 inconclusive (evm 311, exhausted 40, undefined 8); folded:
+90,579 calls, 90,221 the same, 358 inconclusive; one contract stopped at the time limit
+(safe_MockContract, on evmone's side). The 18 contracts whose text d44fbe0 changes,
+rechecked: 2,564 calls, 0 different at every stage. The printed text of all 1,121 contracts
+(`text_check`, the params' places from pancxx's own JSON for all 11,135 functions, none
+guessed): 0 unparsed lines; empty world 45,307 calls, 45,241 the same, 0 different (24
+unsupported, 42 evm inconclusive); random world 45,311 calls, 44,803 the same, 0 different
+(243 unsupported - 220 of them storage bytes the random world fills with invalid encodings -
+and 265 evm inconclusive). Unit tests: 317 cases, 241,362 assertions; the python tests
+(surfaces, robustness, threads, the decoder's proof): 0 failures.
 
 ## Hostile input
 
@@ -1101,4 +1114,8 @@ zx_Exchange and zx_Staking came from paths given up (triage issue 1). B's
 two regressions - SafeMath on nested ifs and the storage table built by
 every process - were fixed after the triage (lots 8 and 9, above).
 
-**(The PGO build and the final benchmark against the asm: filled in by main.)**
+**Not run yet:** the PGO build trained on the corpus (`make pgo`) and the final benchmark
+against the asm (`make bench`) - the work stopped at the user's request before them. The
+triage's measurements above are the latest; since then the storage hash table moved to the
+build (the corpus' median 23.6 -> 10.4 ms per contract, total 79.2 -> 70.0 s at -j 2) and
+the memory forwarding of triage issues 6 and 7 added about 15% (73.4 -> 84.6 s).
