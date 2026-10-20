@@ -21,7 +21,9 @@
 //          for overwrites here, but skipping for now")
 //      v = CALLDATALOAD(q), q moving by D: SETMEM(range, CALLDATA_BYTES(...))
 //    python's loop_to_setmem_from_storage (its storage range of slots) has
-//    no form here: such a loop stays.
+//    no form here: such a loop stays. loops_to_setmems also unrolls a loop
+//    whose induction proves it runs once or never (trips 1 or 0: the tail
+//    of a copy of 20 bytes in words...).
 //  - propagate_storage_in_loops: a loop variable v starting at h + k (h a
 //    SHA3 term the loop doesn't change: a storage array's start) as v' = v -
 //    h: its start k, every read of it in the loop v' + h, every write of it
@@ -57,20 +59,46 @@ Value small(i64 x) { return Value::small(x); }
 
 namespace {
 
-// what a line writes, as the content flags of the facts it may make wrong
+// what a line writes but variables, as the content flags of the facts it
+// may make wrong
 u8 changed_flags(const simplify::EffectSummary& s) {
     u8 f = 0;
     if (s.writes & (simplify::S_MEM | simplify::S_MSIZE)) f |= F_MEM | F_MSIZE;
     if (s.writes & simplify::S_STORAGE) f |= F_STORAGE;
     if (s.writes & (simplify::S_TRANSIENT | simplify::S_ACCOUNT | simplify::S_CALLRES)) f |= F_STATE;
-    if (s.writes & simplify::S_VARS) f |= F_VAR;
     return f;
 }
 
+// the facts but those that read one of the names (a LIST)
+alg::Facts forget_names(const alg::Facts& facts, Value names) {
+    if (!names.is_list() || names.size() == 0) return facts;
+    SmallVec<Value, 8> ns;
+    for (Value n : names.args()) ns.push_back(n);
+    const std::span<const Value> span(ns.data(), ns.size());
+    SmallVec<alg::Fact, 32> all, kept;
+    facts.to_vector(all);
+    for (const alg::Fact& f : all)
+        if (!(reads_any(f.a, span) || reads_any(f.b, span) || reads_any(f.c, span) ||
+              (f.kind == alg::FactKind::VarBits && std::find(ns.begin(), ns.end(), f.a) != ns.end())))
+            kept.push_back(f);
+    if (kept.size() == all.size()) return facts;
+    return alg::Facts::from(std::span<const alg::Fact>(kept.data(), kept.size()));
+}
+
+// the facts that still hold after the line: those reading what it changes
+// dropped (the variables it sets by name when it says which)
 alg::Facts forget(const alg::Facts& facts, Value line) {
     if (facts.empty()) return facts;
-    const u8 f = changed_flags(simplify::summary(line));
-    return f ? facts.forget_flags(f) : facts;
+    const simplify::EffectSummary& s = simplify::summary(line);
+    const u8 f = changed_flags(s);
+    alg::Facts r = f ? facts.forget_flags(f) : facts;
+    if (s.writes & simplify::S_VARS) {
+        if ((s.writes_any & simplify::S_VARS) || s.var_writes.nil())
+            r = r.forget_flags(F_VAR);
+        else
+            r = forget_names(r, s.var_writes);
+    }
+    return r;
 }
 
 // loop_to_setmem where the path's facts hold (they bound what the proofs
@@ -148,6 +176,86 @@ Value to_setmem(Value w, const RewriteOptions& opts, const alg::Facts* facts) {
     return mk_trace(lines.span());
 }
 
+// The SETVARs of a LIST of them as lines, in an order that sets them all at
+// once (a value read before a name it reads is set: a name's SETVAR after
+// every other one reading it); false when there's none (a cycle, a name set
+// twice).
+bool one_by_one(Value setvars, SmallVec<Value, 8>& out) {
+    out.clear();
+    if (!setvars.is_list()) return false;
+    SmallVec<Value, 8> pending;
+    for (Value x : setvars.args()) {
+        if (!x.is(Op::SETVAR, 2)) return false;
+        for (Value y : pending)
+            if (y[0] == x[0]) return false;
+        pending.push_back(x);
+    }
+    while (!pending.empty()) {
+        bool found = false;
+        for (usize j = 0; j < pending.size() && !found; ++j) {
+            bool read = false;
+            for (usize i = 0; i < pending.size() && !read; ++i)
+                read = i != j && reads_name(pending[i][1], pending[j][0]);
+            if (read) continue;
+            out.push_back(pending[j]);
+            for (usize k = j; k + 1 < pending.size(); ++k) pending[k] = pending[k + 1];
+            pending.pop_back();
+            found = true;
+        }
+        if (!found) return false;
+    }
+    return true;
+}
+
+// A loop the induction proves runs its body once (trips 1) or never (trips
+// 0) - its condition false at the start, or after the first iteration:
+// its start values set (none reads a variable of the loop: one by one is
+// all at once), then (trips 1) the body once - lines without a jump back to
+// the loop but its last, the CONTINUE that ends it, made its SETVARs (in an
+// order that sets them all at once). (A path that leaves the body otherwise
+// - a halt, a jump to a loop around it - does the same where it's unrolled.)
+// The lines replacing the loop, false when it isn't one.
+bool run_once(Value w, const alg::Facts* facts, SmallVec<Value, 32>& out) {
+    out.clear();
+    if (!w.is(Op::WHILE, 4)) return false;
+    const Value body = w[1], id = w[2], sv = w[3];
+    if (!body.is_list() || !sv.is_list()) return false;
+    const auto ind = induction_at(w, alg::Top::Word, facts, nullptr);
+    if (!ind || !ind->trips.is_int()) return false;
+    const bool once = ind->trips == small(1);
+    if (!once && ind->trips != small(0)) return false;
+    SmallVec<Value, 8> names;
+    setvar_names(sv, names);
+    const std::span<const Value> ns(names.data(), names.size());
+    for (Value x : sv.args())
+        if (!x.is(Op::SETVAR, 2) || reads_any(x[1], ns)) return false;
+    for (usize i = 0; i < names.size(); ++i)
+        for (usize j = 0; j < i; ++j)
+            if (names[i] == names[j]) return false;
+    SmallVec<Value, 8> next;
+    if (once) {
+        if (body.size() == 0) return false;
+        const Value last = body[body.size() - 1];
+        if (!last.is(Op::CONTINUE, 2) || last[0] != id) return false;
+        for (usize i = 0; i + 1 < body.size(); ++i)
+            if (has_jump_to(body[i], id)) return false;
+        if (summary(w).breaks) return false;
+        if (!one_by_one(last[1], next)) return false;
+    }
+    for (Value x : sv.args()) {
+        cx().pcs.inherit(x, w);
+        out.push_back(x);
+    }
+    if (once) {
+        for (usize i = 0; i + 1 < body.size(); ++i) out.push_back(body[i]);
+        for (Value x : next) {
+            cx().pcs.inherit(x, body[body.size() - 1]);
+            out.push_back(x);
+        }
+    }
+    return true;
+}
+
 // loops_to_setmems' walk: the path's facts carried (an IF's condition in its
 // branches, after it what the branch that goes on knows; what a line writes
 // forgotten after it, what a loop writes in it and after it)
@@ -195,6 +303,9 @@ public:
                     if (r.is_list()) {
                         for (Value y : r.args()) out.push_back(y);
                         changed = true;
+                    } else if (run_once(x, &head, once_)) {
+                        for (Value y : once_) out.push_back(y);
+                        changed = true;
                     } else {
                         changed |= r != l;
                         out.push_back(r);
@@ -213,6 +324,7 @@ public:
 
 private:
     const RewriteOptions& opts_;
+    SmallVec<Value, 32> once_;
 };
 
 }  // namespace

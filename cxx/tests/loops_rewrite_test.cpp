@@ -239,6 +239,96 @@ TEST_CASE("loops: loop_to_setmem, zeroes and copies") {
     CHECK(u != t);
 }
 
+TEST_CASE("loops: loop_to_setmem, what the path knows and the variables' last values") {
+    Fixture f;
+    // solc <= 0.5's word loop: a length counted down while >= 32, read from
+    // memory the copy overwrites (the variables' last values set first)
+    const char* down =
+        "{(setmem (range 0 1024) (calldata_bytes 4 1024))"
+        " (setmem (range 512 32) (calldataload 36))"
+        " (while (ge loop0 32) {(setmem (range loop2 32) (mem (range loop1 32))) (continue loopid1 {(setvar loop1 (add "
+        "32 loop1)) (setvar loop2 (add 32 loop2)) (setvar loop0 (add -32 loop0))})} loopid1 {(setvar loop1 64) (setvar "
+        "loop2 480) (setvar loop0 (mask_shl 8 0 0 (mem (range 512 32))))})"
+        " (return (data (mem (range 0 1024)) (sized 32 loop0) (sized 32 loop1) (sized 32 loop2)))}";
+    CHECK(check(down, pass_setmems));
+    {
+        Value t = V(down);
+        Vars vars(t);
+        CHECK(!has_while(pass_setmems(t)));
+    }
+    // a copy to ceil32(len) + 32 past its source, len checked below 2^32
+    // first: apart (the trip count's wrap proven by the check)
+    const std::string y = "(mask_shl 251 5 0 (add 31 tmp1))";
+    const std::string apart = "{(setvar tmp1 (calldataload 4))"
+                              " (if (gt tmp1 4294967296) {(revert None)} {})"
+                              " (setmem (range 0 1024) (calldata_bytes 4 1024))"
+                              " (while (lt loop1 tmp1) {(setmem (range (add 160 " +
+                              y +
+                              " loop1) 32) (mem (range (add 128 loop1) 32))) (continue loopid1 {(setvar loop1 (add 32 "
+                              "loop1))})} loopid1 {(setvar loop1 0)})"
+                              " (return (data (mem (range 0 1024)) (sized 32 loop1)))}";
+    CHECK(check(apart.c_str(), pass_setmems));
+    {
+        Value t = V(apart.c_str());
+        Vars vars(t);
+        CHECK(!has_while(pass_setmems(t)));
+    }
+    // ... not without the check (calldata: its length may be any word)
+    const std::string unchecked = "{(setvar tmp1 (calldataload 4))"
+                                  " (setmem (range 0 1024) (calldata_bytes 4 1024))"
+                                  " (while (lt loop1 tmp1) {(setmem (range (add 160 " +
+                                  y +
+                                  " loop1) 32) (mem (range (add 128 loop1) 32))) (continue loopid1 {(setvar loop1 (add "
+                                  "32 loop1))})} loopid1 {(setvar loop1 0)})"
+                                  " (return (data (mem (range 0 1024)) (sized 32 loop1)))}";
+    CHECK(!check(unchecked.c_str(), pass_setmems));
+}
+
+TEST_CASE("loops: a loop that runs once or never") {
+    Fixture f;
+    // once: its body, then its CONTINUE's values (set in an order that sets
+    // them all at once: loop1 reads loop0's value before the iteration)
+    const char* once =
+        "{(setmem (range 0 1024) (calldata_bytes 4 1024))"
+        " (while (lt loop0 20) {(setmem (range (add 670 loop0) 32) (add loop1 (mem (range (add 582 loop0) 32)))) "
+        "(continue loopid1 {(setvar loop0 (add 32 loop0)) (setvar loop1 (add 7 loop0))})} loopid1 {(setvar loop0 0) "
+        "(setvar loop1 (calldataload 36))})"
+        " (return (data (mem (range 0 1024)) (sized 32 loop0) (sized 32 loop1)))}";
+    CHECK(check(once, pass_setmems));
+    {
+        Value t = V(once);
+        Vars vars(t);
+        CHECK(!has_while(pass_setmems(t)));
+    }
+    // never: its start values
+    const char* never =
+        "{(while (lt loop0 20) {(setmem (range loop0 32) 1) (continue loopid1 {(setvar loop0 (add 32 loop0))})} "
+        "loopid1 {(setvar loop0 50)})"
+        " (return (data (mem (range 0 128)) (sized 32 loop0)))}";
+    CHECK(check(never, pass_setmems));
+    {
+        Value t = V(never);
+        Vars vars(t);
+        CHECK(!has_while(pass_setmems(t)));
+    }
+    // twice: kept
+    CHECK(!check("{(while (lt loop0 40) {(setmem (range loop0 32) (add 1 loop0)) (continue loopid1 {(setvar loop0 (add "
+                 "32 loop0))})} loopid1 {(setvar loop0 0)})"
+                 " (return (data (mem (range 0 128)) (sized 32 loop0)))}",
+                 pass_setmems));
+    // a start value reading a variable of the loop: kept
+    CHECK(!check("{(setvar loop1 5) (while (lt loop0 20) {(setmem (range loop0 32) loop1) (continue loopid1 {(setvar "
+                 "loop0 (add 32 loop0))})} loopid1 {(setvar loop0 0) (setvar loop1 (add 1 loop0))})"
+                 " (return (data (mem (range 0 128)) (sized 32 loop0) (sized 32 loop1)))}",
+                 pass_setmems));
+    // the CONTINUE's values a cycle (a swap): kept
+    CHECK(!check("{(while (lt loop0 20) {(setmem (range 0 32) loop1) (continue loopid1 {(setvar loop0 (add 32 loop0)) "
+                 "(setvar loop1 loop2) (setvar loop2 loop1)})} loopid1 {(setvar loop0 0) (setvar loop1 3) (setvar loop2 "
+                 "4)})"
+                 " (return (data (mem (range 0 32)) (sized 32 loop1) (sized 32 loop2)))}",
+                 pass_setmems));
+}
+
 TEST_CASE("loops: propagate_storage_in_loops") {
     Fixture f;
     // a storage array read from its start: the variable moved, read as itself + sha3
