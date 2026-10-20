@@ -25,9 +25,8 @@
 //     and the text took more than 3 minutes": the decompilation fails).
 // The results are placed by job order: the same at any thread count.
 //
-// The stages of the lots not written yet are not made (stage_available): a
-// function goes through the stages there are, and the output is made of the
-// last one (the driver's placeholders print it until lot 10 lands).
+// Every stage is written (stage_available is true for all, last_available
+// is Folded); the two hooks stay for a build that leaves a stage out.
 #pragma once
 
 #include <array>

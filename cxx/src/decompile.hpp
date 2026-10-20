@@ -3,8 +3,8 @@
 // The code they hand over is always raw bytecode: hex text is turned into
 // bytes before it gets here (hex.hpp), whatever it came from.
 //
-// Until the core exists, decompile_stub.cpp implements the decompilation
-// with placeholder text; the logging (log.cpp) is real.
+// driver/api.cpp implements them on the pipeline (driver/pipeline.hpp); a
+// C++ interface (nothing is exported as extern "C").
 #pragma once
 
 #include <cstddef>

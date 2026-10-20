@@ -155,8 +155,8 @@ std::string print_exp(Value e, const TraceContext& ctx = {});
 
 // ---- 3. JSON -----------------------------------------------------------------------------
 
-// python's decompilation.json, as JSON text (the python module json.loads
-// it; pymod rebuilds python's tuples from the node tables):
+// python's decompilation.json, as JSON text (the python module hands it to
+// json.loads):
 //   {"problems": {hash: name}, "stor_defs": [SDEF...], "lang": "solidity",
 //    "functions": [{"hash", "name", "color_name", "abi_name", "length": [lines, chars],
 //                   "getter": bool, "const": text|null, "payable", "value_fails",
