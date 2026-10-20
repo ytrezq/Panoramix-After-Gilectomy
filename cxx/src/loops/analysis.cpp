@@ -223,8 +223,10 @@ bool invariant(const simplify::EffectSummary& loop, Value e) {
 // where the loop starts (made of the start values) - NIL unless every one of
 // them moves by the same loop-invariant amount at every CONTINUE, the trips
 // are proven and no path of the body falls off it.
-std::optional<Induction> detail::induction_at(Value w, alg::Top wrap_top, const alg::Facts* facts, Value* finals) {
+std::optional<Induction> detail::induction_at(Value w, alg::Top wrap_top, const alg::Facts* facts, Value* finals,
+                                              Value* deferred_bound) {
     if (finals) *finals = Value();
+    if (deferred_bound) *deferred_bound = Value();
     if (!w.is(Op::WHILE, 4)) return std::nullopt;
     const Value cond = w[0], body = w[1], id = w[2], sv = w[3];
     if (!sv.is_list() || !body.is_list()) return std::nullopt;
@@ -253,7 +255,16 @@ std::optional<Induction> detail::induction_at(Value w, alg::Top wrap_top, const 
     }
     const simplify::EffectSummary& eff = simplify::summary(w);
     const Value b = form->bound;
-    if (!invariant(eff, b)) return std::nullopt;
+    if (!invariant(eff, b)) {
+        // (read from memory the loop's writes only may change: the caller's)
+        if (!deferred_bound) return std::nullopt;
+        simplify::EffectSummary nw = eff;
+        nw.writes &= ~simplify::S_MEM;
+        nw.writes_any &= ~simplify::S_MEM;
+        nw.mem_writes = Value();
+        if (!invariant(nw, b)) return std::nullopt;
+        *deferred_bound = b;
+    }
     Value s;
     for (usize i = 0; i < names.size(); ++i)
         if (names[i] == v) s = starts[i];

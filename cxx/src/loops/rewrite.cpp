@@ -21,9 +21,10 @@
 //          for overwrites here, but skipping for now")
 //      v = CALLDATALOAD(q), q moving by D: SETMEM(range, CALLDATA_BYTES(...))
 //    python's loop_to_setmem_from_storage (its storage range of slots) has
-//    no form here: such a loop stays. An address may read memory that only
-//    the loop's own write could change (the free memory pointer: mem[64] +
-//    32 + idx) when that write over all the iterations misses it. In
+//    no form here: such a loop stays. An address (or the bound) may read
+//    memory that only the loop's own write could change (the free memory
+//    pointer: mem[64] + 32 + idx; while idx < mem[128]) when that write over
+//    all the iterations misses it. In
 //    loops_to_setmems (given a function's whole trace) the body may also
 //    start with a SETVAR of the SETMEM's value to a name the function never
 //    reads (kept by lot 7 for msize), dropped. loops_to_setmems also
@@ -165,8 +166,8 @@ Value to_setmem(Value w, const RewriteOptions& opts, const alg::Facts* facts, co
     if (!sm.is(Op::SETMEM, 2) || !cont.is(Op::CONTINUE, 2) || cont[0] != w[2]) return w;
     const Value r = sm[0], v = word_value(sm[1]);
     if (!r.is(Op::RANGE, 2) || r[1] != small(32)) return w;
-    Value finals;
-    const auto ind = induction_at(w, alg::Top::Memory, facts, &finals);
+    Value finals, bound;
+    const auto ind = induction_at(w, alg::Top::Memory, facts, &finals, &bound);
     if (!ind || ind->trips.nil() || finals.nil()) return w;
     SmallVec<Value, 8> names;
     setvar_names(sv, names);
@@ -186,6 +187,7 @@ Value to_setmem(Value w, const RewriteOptions& opts, const alg::Facts* facts, co
     others_nw.writes_any &= ~simplify::S_MEM;
     others_nw.mem_writes = Value();
     SmallVec<Value, 2> deferred;
+    if (!bound.nil()) deferred.push_back(bound);
     auto moves = [&](Value x) -> std::optional<Value> {
         if (auto d = move_of(x, ns, cont[1], others)) return d;
         auto d = move_of(x, ns, cont[1], others_nw);
@@ -230,8 +232,9 @@ Value to_setmem(Value w, const RewriteOptions& opts, const alg::Facts* facts, co
     } else {
         return w;
     }
-    // what the addresses read that the SETMEM could change: missed by every
-    // iteration's write (by induction over them: each reads it as it was)
+    // what the addresses and the bound read that the SETMEM could change:
+    // missed by every iteration's write (by induction over them: each reads
+    // it as it was)
     const Value dst = mem::make_range(p_lo, len);
     for (Value x : deferred)
         if (!misses(dst, x, ns, facts)) return w;

@@ -322,6 +322,24 @@ TEST_CASE("loops: loop_to_setmem, addresses read from memory the loop doesn't wr
                  "loopid1 {(setvar loop0 0)})"
                  " (return (data (mem (range 0 1024)) (sized 32 loop0)))}",
                  pass_setmems));
+    // a bound read from memory the loop doesn't write
+    const char* bound =
+        "{(setmem (range 0 1024) (calldata_bytes 4 1024))"
+        " (while (lt loop0 (mask_shl 8 0 0 (mem (range 128 32)))) {(setmem (range (add 512 loop0) 32) 0) (continue loopid1 "
+        "{(setvar loop0 (add 32 loop0))})} loopid1 {(setvar loop0 0)})"
+        " (return (data (mem (range 0 1024)) (sized 32 loop0)))}";
+    CHECK(check(bound, pass_setmems));
+    {
+        Value t = V(bound);
+        Vars vars(t);
+        CHECK(!has_while(pass_setmems(t)));
+    }
+    // ... one it may write: kept
+    CHECK(!check("{(setmem (range 0 1024) (calldata_bytes 4 1024))"
+                 " (while (lt loop0 (mask_shl 8 0 0 (mem (range 128 32)))) {(setmem (range (add 96 loop0) 32) 0) (continue "
+                 "loopid1 {(setvar loop0 (add 32 loop0))})} loopid1 {(setvar loop0 0)})"
+                 " (return (data (mem (range 0 1024)) (sized 32 loop0)))}",
+                 pass_setmems));
     // a write that may reach the word the address reads: kept
     CHECK(!check("{(setmem (range 0 1024) (calldata_bytes 4 1024))"
                  " (while (lt loop0 (mask_shl 3 5 0 (calldataload 36))) {(setmem (range (add loop0 (mask_shl 6 0 0 (mem (range "

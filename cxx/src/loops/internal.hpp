@@ -96,8 +96,12 @@ inline Value trace_of(std::span<const Value> lines) { return mk_trace(lines); }
 // induction() with the proofs of the trip count under wrap_top and the
 // path's facts (not memoized), and the values of every loop variable once
 // the loop is left by its condition, evaluated where it starts (finals:
-// NIL unless all are linear, the trips proven and no break)
-std::optional<Induction> induction_at(Value w, alg::Top wrap_top, const alg::Facts* facts, Value* finals);
+// NIL unless all are linear, the trips proven and no break). With
+// deferred_bound, a bound read from memory only the loop's memory writes
+// could change is taken as the same in every iteration and returned there
+// (NIL otherwise): the caller shows those writes miss what it reads.
+std::optional<Induction> induction_at(Value w, alg::Top wrap_top, const alg::Facts* facts, Value* finals,
+                                      Value* deferred_bound = nullptr);
 
 // ---- what an iteration moves ----------------------------------------------------------------
 
