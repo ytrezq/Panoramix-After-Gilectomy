@@ -15,6 +15,7 @@
 #include "algebra/compare.hpp"
 #include "algebra/construct.hpp"
 #include "algebra/eval.hpp"
+#include "algebra/facts.hpp"
 #include "algebra/linear.hpp"
 #include "algebra/masks.hpp"
 #include "algebra/ranges.hpp"
@@ -51,52 +52,80 @@ std::optional<i64> nat(Value v) noexcept {
 // with the context's caches - set_variables and the free memory pointer flag
 // clear them, as the decisions read the variables' ranges. With facts: the
 // decision without them when there is one (facts only narrow the values:
-// what holds for all of them holds), else the facts' (not memoized).
+// what holds for all of them holds), else the facts', memoized per pair and
+// facts (the same facts come back along a path and at every round).
 struct PosMemo final : ModuleState {
+    struct WithFacts {
+        Facts facts;
+        Tri t;
+    };
     Memo<Key2, Tri> le, lt;
+    Memo<Key2, u32> le_f, lt_f;  // -> pool: the facts asked with, their answers
+    std::vector<SmallVec<WithFacts, 2>> pool;
     void clear_caches() override {
         le.clear();
         lt.clear();
+        le_f.clear();
+        lt_f.clear();
+        pool.clear();
     }
 };
+
+// (at most this many facts remembered per pair)
+constexpr usize kFactsPerPair = 8;
+
+template <class Decide>
+Tri pos_cmp(Value a, Value b, const Facts* f, Memo<Key2, Tri> PosMemo::*plain, Memo<Key2, u32> PosMemo::*with,
+            Decide&& decide) {
+    PosMemo& m = cx().state<PosMemo>();
+    const Key2 k = key2(a, b);
+    Tri t;
+    if (const Tri* p = (m.*plain).find(k)) {
+        t = *p;
+    } else {
+        t = decide(nullptr);
+        t = t == Tri::Cannot ? Tri::None : t;
+        (m.*plain).put(k, t);
+    }
+    if (t != Tri::None || !f || f->empty()) return t;
+    std::optional<u32> at;
+    if (const u32* i = (m.*with).find(k)) {
+        at = *i;
+        for (const auto& w : m.pool[*i])
+            if (w.facts == *f) return w.t;
+    }
+    t = decide(f);
+    t = t == Tri::Cannot ? Tri::None : t;
+    if (!at) {
+        at = u32(m.pool.size());
+        (m.*with).put(k, *at);
+        m.pool.emplace_back();
+    }
+    if (m.pool[*at].size() < kFactsPerPair) m.pool[*at].push_back(PosMemo::WithFacts{*f, t});
+    return t;
+}
 
 Tri pos_le(Value a, Value b, const Facts* f) {
     if (a == b) return Tri::True;
     if (auto x = nat(a))
         if (auto y = nat(b)) return tri(*x <= *y);
-    if (!a.nil()) {
-        PosMemo& m = cx().state<PosMemo>();
-        Tri t;
-        if (const Tri* p = m.le.find(key2(a, b))) {
-            t = *p;
-        } else {
-            t = alg::le(a, b, Top::Memory, nullptr);
-            t = t == Tri::Cannot ? Tri::None : t;
-            m.le.put(key2(a, b), t);
-        }
-        if (t != Tri::None || !f) return t;
+    if (a.nil()) {
+        Tri t = alg::le(a, b, Top::Memory, f);
+        return t == Tri::Cannot ? Tri::None : t;
     }
-    Tri t = alg::le(a, b, Top::Memory, f);
-    return t == Tri::Cannot ? Tri::None : t;
+    return pos_cmp(a, b, f, &PosMemo::le, &PosMemo::le_f,
+                   [&](const Facts* g) { return alg::le(a, b, Top::Memory, g); });
 }
 Tri pos_lt(Value a, Value b, const Facts* f) {
     if (a == b) return Tri::False;
     if (auto x = nat(a))
         if (auto y = nat(b)) return tri(*x < *y);
-    if (!a.nil()) {
-        PosMemo& m = cx().state<PosMemo>();
-        Tri t;
-        if (const Tri* p = m.lt.find(key2(a, b))) {
-            t = *p;
-        } else {
-            t = alg::lt(a, b, Top::Memory, nullptr);
-            t = t == Tri::Cannot ? Tri::None : t;
-            m.lt.put(key2(a, b), t);
-        }
-        if (t != Tri::None || !f) return t;
+    if (a.nil()) {
+        Tri t = alg::lt(a, b, Top::Memory, f);
+        return t == Tri::Cannot ? Tri::None : t;
     }
-    Tri t = alg::lt(a, b, Top::Memory, f);
-    return t == Tri::Cannot ? Tri::None : t;
+    return pos_cmp(a, b, f, &PosMemo::lt, &PosMemo::lt_f,
+                   [&](const Facts* g) { return alg::lt(a, b, Top::Memory, g); });
 }
 // len is 0 (True), > 0 (False)
 Tri is_empty(Value len, const Facts* f) {
