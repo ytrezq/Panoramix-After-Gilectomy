@@ -575,6 +575,35 @@ variables), `rename_var`. On the corpus (lot 6, before its second round):
 14,281 loops, 95.5% with a `while cond`; 3,353 trip counts proven of
 10,659 counters.
 
+The second round (triage issue 8, `analysis.cpp`, `rewrite.cpp`) gave
+`loops_to_setmems` the path's facts (IF conditions and requires, each
+dropped once a line changes what it mentions; the trip count's no-wrap
+proof also uses the memory model's bounds: `require len <= 2^32`, then a
+copy to `ceil32(len) + k`), sets each loop variable's last value before
+the single memory write (solc <= 0.5's `while idx >= 32` copies whose
+length is read from memory the copy overwrites), accepts addresses and
+bounds read from memory when the loop's writes over all its iterations
+provably miss what they read, and gives `LoopSummary::mem_writes` one range
+over all iterations for writes at the free memory pointer (the simplifier
+trusts it: mem[64] stays known past such loops). Copy-loop lines printed
+in the corpus: 1,403 in 164 contracts before, 1,055 in 92 after (the asm:
+242 in 19); `while` lines 11,071 -> 10,144 (the asm: 7,645); stagecheck
+folded on the 153 contracts concerned, 0 different at every stage.
+
+What stays a loop is mostly a copy into a fresh allocation at mem[64] from
+a pointer loaded from memory - an earlier allocation (UniversalResolver's
+abi.decode copies, zx_Coordinator's `bytes[]` signatures, most of
+zx_Exchange): that the two don't overlap follows from solc's allocation
+discipline (earlier allocations lie below the current mem[64]), which the
+loop alone can't show. The asm converts them with python's unchecked rule,
+which execution showed unsound on overlapping copies; no assumption is
+made here instead. Future work, with the simplifier: carry a lower bound F,
+mem[64] >= F, along the trace - kept where mem[64] is written with a value
+proven at least its old one (solc's overflow checks give it) and across
+writes and loops that provably miss [64, 96), F the new value; an ABI
+check placing a source inside an earlier allocation puts it below F, and a
+destination at or above F is then provably disjoint.
+
 ### The simplifier (lot 7, `src/simplify/`)
 
 `simplify_trace` installs the trace's variables in the algebra, then runs
