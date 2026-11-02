@@ -8,7 +8,6 @@
 #include "validate_test_util.hpp"
 
 #include <algorithm>
-#include <cstdlib>
 #include <string>
 #include <variant>
 
@@ -358,10 +357,13 @@ TEST_CASE("text interp: what can't be run precisely is unsupported")
 
 TEST_CASE("text interp: review 2026-11-02 F5 - bytes nested past the depth limit are an error, not a crash")
 {
-    // concat( in concat(, Array( in Array(, Bytes( in Bytes(: the parser
-    // nests without a cap (iterative), the interpreter's data() and elem()
-    // recurse - past the depth limit an Unsupported, as eval()'s, where a
-    // hostile text would overflow the C++ stack
+    // concat( in concat(, Array( in Array(, Bytes( in Bytes( (and an
+    // expression in an expression): the parser nests without a cap
+    // (iterative), the interpreter's data(), elem() and eval() recurse -
+    // past the depth limit an Unsupported, where a hostile text would
+    // overflow the C++ stack. The limit is a count of the levels and their
+    // bytes of stack: with the sanitizers' frames the count alone (10000)
+    // is reached long after the stack's end (eval's ~2000 levels)
     const auto nested = [](std::string_view open, std::string_view close, std::size_t n, std::string_view inner) {
         std::string s;
         s.reserve(n * (open.size() + close.size()) + inner.size());
@@ -372,30 +374,30 @@ TEST_CASE("text interp: review 2026-11-02 F5 - bytes nested past the depth limit
             s += close;
         return s;
     };
-    const std::size_t n = std::getenv("F5_N") ? std::strtoul(std::getenv("F5_N"), nullptr, 10) : 100000;
-    if (std::getenv("F5_EVAL")) {
-        Text e("def m(uint256 x): # not payable\n  return " + nested("(1 + ", ")", n, "x") + "\n");
-        MESSAGE(to_string(e.call(calldata("m(uint256)", {Word{1}})).end.status));
-        return;
-    }
+    const std::size_t n = 100000;
     Text t(
         "def m(uint256 x): # not payable\n"
         "  if x == 1:\n"
         "      return " + nested("concat(", ")", n, "Bytes(1, 0x66)") + "\n"
         "  if x == 2:\n"
         "      return " + nested("Array(len=1, data=", ")", n, "Bytes(1, 0x66)") + "\n"
-        "  return " + nested("Bytes(1, ", ")", n, "0x66") + "\n");
-    for (const Word x : {Word{1}, Word{2}, Word{3}})
+        "  if x == 3:\n"
+        "      return " + nested("Bytes(1, ", ")", n, "0x66") + "\n"
+        "  return " + nested("(1 + ", ")", n, "x") + "\n");
+    for (const Word x : {Word{1}, Word{2}, Word{3}, Word{4}})
         CHECK(t.call(calldata("m(uint256)", {x})).end.status == Status::unsupported);
-    CHECK(t.interp.unsupported()[static_cast<std::size_t>(Unsupported::depth)] == 3);
-    // within the limit: the bytes
+    CHECK(t.interp.unsupported()[static_cast<std::size_t>(Unsupported::depth)] == 4);
+    // within the limit (the sanitizers' frames: a few KiB a level): the bytes
     Text ok(
         "def m(uint256 x): # not payable\n"
         "  if x == 1:\n"
-        "      return " + nested("concat(", ")", 2000, "Bytes(1, 0x66)") + "\n"
-        "  return " + nested("Bytes(1, ", ")", 2000, "0x66") + "\n");
+        "      return " + nested("concat(", ")", 500, "Bytes(1, 0x66)") + "\n"
+        "  if x == 2:\n"
+        "      return " + nested("Bytes(1, ", ")", 500, "0x66") + "\n"
+        "  return " + nested("(1 + ", ")", 500, "x") + "\n");
     CHECK(ok.call(calldata("m(uint256)", {1})).end.data == Bytes{0x66});
     CHECK(ok.call(calldata("m(uint256)", {2})).end.data == Bytes{0x66});
+    CHECK(ok.call(calldata("m(uint256)", {3})).end.data == words({503}));
 }
 
 TEST_CASE("text interp: the members of a struct param, the params' places")
