@@ -671,6 +671,43 @@ TEST_CASE("ranges: eval_bool, is_zero, decide") {
     CHECK(s1.undecided - s0.undecided == 1);
 }
 
+TEST_CASE("ranges: review 2026-11-02 F3 - decide keeps the truth of an AND with a non-bool operand") {
+    Fixture f;
+    const Value y = V("(calldataload 4)"), p = V("(calldataload 36)"), q = V("(calldataload 68)");
+    // (y | 2) & (p < q): a bitwise AND of a word never 0 and a truth value -
+    // 0 whenever y is even, whatever p < q. is_bool(AND) holds (one operand
+    // is a truth value) but the AND's truth isn't its operands' truths.
+    const Value nz = A::bor(y, mk_int(2));
+    const Value lt = A::cmp(Op::LT, p, q);
+    const Value c = A::band(nz, lt);
+    REQUIRE(c == mk(Op::AND, nz, lt));
+    REQUIRE(A::eval_bool(nz) == Tri::True);
+    REQUIRE(A::eval_bool(c) == Tri::None);
+    const Value d = A::decide(c, nullptr);
+    // the truth of the decided condition is the condition's on every sample
+    int bad = 0;
+    for (u64 s = 1; s <= 64 && bad < 4; ++s) {
+        TestEnv env(s);
+        env.fixed.push_back({y, Word256::of(s % 4)});  // even and odd y
+        const bool before = !ev(c, env).is_zero(), after = !ev(d, env).is_zero();
+        if (before != after) {
+            ++bad;
+            MESSAGE("seed ", s, ": ", dump(c), " is ", before, " but decide gave ", dump(d), " = ", after);
+        }
+    }
+    CHECK(bad == 0);
+    CHECK(d == c);
+    // the same AND under a fact that decides the truth value: the AND of the
+    // rest, the word operand kept
+    A::Facts k = A::Facts().with_cond(A::cmp(Op::LT, p, mk_int(10))).with_cond(A::cmp(Op::GT, q, mk_int(20)));
+    CHECK(A::decide(c, &k) == A::band(nz, mk_int(1)));
+    // of truth values only, an AND is decided operand by operand
+    const Value b = A::band(A::cmp(Op::LT, y, mk_int(5)), lt);
+    CHECK(A::decide(b, &k) == A::cmp(Op::LT, y, mk_int(5)));
+    // an OR's truth is its operands': a word operand that isn't 0 decides it
+    CHECK(A::decide(A::bor(nz, lt), nullptr) == mk_int(1));
+}
+
 TEST_CASE("ranges: max, min, cond_bounds, apply_constraint") {
     Fixture f;
     const Value cds = V("calldatasize"), rds = V("(returndatasize 1)"), x = V("(calldataload 4)");

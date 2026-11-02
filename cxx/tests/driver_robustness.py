@@ -109,6 +109,19 @@ decompiled("invalid", hexfile("invalid", "fe"), 10)
 # a function whose memory limit is reached: a problem, the rest goes on
 out, err = decompiled("nested_ifs_2000, PANORAMIX_MAX_MEMORY=64", os.path.join(tmp, "nested_ifs_2000.hex"),
                       e=env(PANORAMIX_MAX_MEMORY=64))
+# (review 2026-11-02, driver F2) --explain's text counts against the function's
+# memory limit: 600 nested ifs decompile in 5 MiB but their first trace's
+# print is 15 MB (the asm lines) - under a limit of 24 MiB the text is cut
+# where it says so and the function is still decompiled, whole; with no limit
+# the whole text comes
+nested_600 = hexfile("nested_ifs_600", nested_ifs(600))
+rc, out, err, s = pancxx(["decompile", nested_600, "--no-color", "--explain", "-j", "1"], env(PANORAMIX_MAX_MEMORY=24))
+check("explain_memory_limit: cut, the function whole", rc == 0 and "(--explain: the text past the limit" in out
+      and "Initial decompiled trace" not in out and "def _fallback" in out and "assert not _param600" in out
+      and "Problem with" not in err, (rc, len(out), err[-300:]))
+rc, out, err, s = pancxx(["decompile", nested_600, "--no-color", "--explain", "-j", "1"])
+check("explain_memory_limit: no limit, the whole text", rc == 0 and "(--explain: the text past the limit" not in out
+      and "Initial decompiled trace" in out and len(out) > 10000000, (rc, len(out), err[-300:]))
 if FULL:
     decompiled("nested_ifs_4500", hexfile("nested_ifs_4500", nested_ifs(4500)))
 

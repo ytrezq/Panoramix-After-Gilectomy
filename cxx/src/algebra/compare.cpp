@@ -239,12 +239,15 @@ public:
             }
             case Op::OR:
             case Op::AND: {
-                // an OR's truth is its operands'; an AND's only for truth values
-                const bool sub = truth && (c.is(Op::OR) || is_bool(c));
+                // an OR's truth is its operands'; an AND's only its truth
+                // values' (a word operand counts by its value: AND(2, 1) is
+                // 0 - is_bool(c) says the AND is a truth value, not that
+                // every operand is)
+                const bool is_or = c.is(Op::OR);
                 SmallVec<Value, 8> args;
                 bool changed = false;
                 for (Value e : c.args()) {
-                    Value x = decide(e, sub);
+                    Value x = decide(e, truth && (is_or || is_bool(e)));
                     changed |= x != e;
                     args.push_back(x);
                 }

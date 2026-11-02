@@ -50,6 +50,9 @@ BlockEnd exec_block_ref(std::span<const u8> bytes, u32 start, InsnFunc fn, void*
     check_code_size(bytes);
     const u8* const code = bytes.data();
     const u32 size = u32(bytes.size());
+    // at or past the end: the EVM's implicit STOP, nothing to read (the
+    // machine's loop tests p == pe, never p < pe: p must start within the code)
+    if (start >= size) return BlockEnd{BlockEndKind::FellOff, 0, size, size};
     const u8* const first = code + start;
     const u8* p = first;
     const u8* const pe = code + size;

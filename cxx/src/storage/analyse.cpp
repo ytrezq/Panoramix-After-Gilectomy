@@ -757,10 +757,6 @@ void Analysis::names() {
         order.push_back(Named{e->name(), fi});
     }
     std::stable_sort(order.begin(), order.end(), [&](const Named& a, const Named& b) {
-        const auto ua = std::span<const u8>(reinterpret_cast<const u8*>(a.name.data()), a.name.size());
-        const auto ub = std::span<const u8>(reinterpret_cast<const u8*>(b.name.data()), b.name.size());
-        if (std::ranges::lexicographical_compare(ua, ub)) return true;
-        if (std::ranges::lexicographical_compare(ub, ua)) return false;
         return fns_[a.fi].info->selector < fns_[b.fi].info->selector;
     });
     for (const Named& nmd : order) {

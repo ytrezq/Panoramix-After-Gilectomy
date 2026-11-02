@@ -16,6 +16,7 @@
 #include "core/dump.hpp"
 #include "core/evmint.hpp"
 #include "core/platform.hpp"
+#include "exec/machine.hpp"
 
 using namespace pan;
 namespace A = pan::alg;
@@ -732,7 +733,8 @@ struct WideEnv final : A::Env {
     std::optional<Word256> value(Value v, A::Evaluator& ev) override {
         if (v.is(Op::MASK_SHL, 4) && v[3].is(Op::DATA) && v[0].is_small() && v[1].is_small() && v[2].is_small()) {
             EvmInt n;
-            for (Value e : v[3].args()) {
+            const Value data = v[3];
+            for (Value e : data.args()) {
                 if (!e.is(Op::SIZED, 2) || !(e[0] == mk_int(32))) return std::nullopt;
                 auto w = ev.try_eval(e[1]);
                 if (!w) return std::nullopt;
@@ -806,6 +808,63 @@ TEST_CASE("algebra: review 2026-11-02 F1 - max_bits of a mask of a wide value, a
     CHECK(e(A::signextend(mk_int(0), m8)) == Word256::from_value(V("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffab")));
     CHECK(e(A::sar(mk_int(1), m256)) == pan::sar(Word256::of(1), w1));
     CHECK(e(A::mask(8, 0, 0, m256)) == Word256::of(0xab));
+}
+
+// The invariant behind F2 (refuted): a MASK_SHL node's value is a word, mod
+// 2^256, whatever its operand's width (exec/machine.hpp: "the result is mod
+// 2^256"; eval.hpp); may_be_wide is a property of byte strings. So a mask of
+// a wide value whose field is not moved below bit 256 is the word 0, not a
+// wide value, and a mask of it finds nothing: the algebra's evaluation, its
+// structural facts and the trace machine agree.
+TEST_CASE("algebra: review 2026-11-02 F2 - a mask of a wide value is a word: masks of it agree with the trace machine") {
+    Fixture f;
+    Value d = V("(data (sized 32 tmp1) (sized 32 tmp2))");
+    WideEnv env;
+    const Word256 w1 = Word256::from_value(V("0x80000000000000000000000000000000000000000000000000000000000000ab"));
+    const Word256 w2 = Word256::from_value(V("0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
+    env.leaves.set(V("tmp1"), w1);
+    env.leaves.set(V("tmp2"), w2);
+    A::Evaluator e(env);
+    // bits [256, 320) of the data left in place: nothing of them lands in the word
+    Value in_place = A::mask(64, 256, 0, d);
+    REQUIRE(in_place == V("(mask_shl 64 256 0 (data (sized 32 tmp1) (sized 32 tmp2)))"));
+    CHECK(!A::may_be_wide(in_place));
+    CHECK(e(in_place) == Word256{});
+    CHECK(A::low_zero_bits(in_place) == 256);
+    // moved down to bit 0: the low 8 bytes of tmp1, a word
+    Value moved = A::mask(64, 256, -256, d);
+    CHECK(!A::may_be_wide(moved));
+    CHECK(e(moved) == Word256::of(0xab));
+    CHECK(A::max_bits(moved) == 64);
+    // the masks of them: of the word they are
+    Value outer_in_place = mk(Op::MASK_SHL, mk_int(8), mk_int(256), mk_int(-256), in_place);
+    Value outer_moved = mk(Op::MASK_SHL, mk_int(8), mk_int(0), mk_int(0), moved);
+    CHECK(e(outer_in_place) == Word256{});
+    CHECK(e(outer_moved) == Word256::of(0xab));
+    CHECK(A::mask(8, 256, -256, in_place) == mk_int(0));
+    CHECK(e(A::mask(8, 0, 0, moved)) == Word256::of(0xab));
+    // the trace machine on the same values, the data in memory
+    exec::SimpleHost host;
+    auto word = [&](Value expr) {
+        FunctionInfo fn;
+        fn.kind = FunctionInfo::Kind::Fallback;
+        fn.trace = mk_trace({
+            V("(setmem (range 0 32) 0x80000000000000000000000000000000000000000000000000000000000000ab)"),
+            V("(setmem (range 32 32) 0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef)"),
+            mk(Op::RETURN, mk(Op::SIZED, mk_int(32), expr))});
+        std::vector<FunctionInfo> fns{fn};
+        exec::Program p;
+        p.functions = fns;
+        exec::Machine m(p);
+        exec::Outcome o = m.run(host, fns[0]);
+        REQUIRE(o.status == exec::Status::Return);
+        REQUIRE(o.data.size() == 32);
+        return Word256::from_be(o.data);
+    };
+    Value mem = V("(mem (range 0 64))");
+    CHECK(word(mk(Op::MASK_SHL, mk_int(8), mk_int(256), mk_int(-256), mk(Op::MASK_SHL, mk_int(64), mk_int(256), mk_int(0), mem))) == Word256{});
+    CHECK(word(mk(Op::MASK_SHL, mk_int(8), mk_int(0), mk_int(0), mk(Op::MASK_SHL, mk_int(64), mk_int(256), mk_int(-256), mem))) == Word256::of(0xab));
+    CHECK(word(mk(Op::MASK_SHL, mk_int(64), mk_int(256), mk_int(0), mem)) == Word256{});
 }
 
 // The same properties on many more expressions, deeper ones, other seeds:

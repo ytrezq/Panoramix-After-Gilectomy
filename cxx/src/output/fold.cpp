@@ -283,7 +283,11 @@ Path Folder::fold_stretches(std::vector<const Path*> paths, usize start, usize t
     Path output = path_of(first.begin() + i64(start), first.begin() + i64(start + begin));
     const Path ending = path_of(first.begin() + i64(f_end - end), first.begin() + i64(f_end));
     // the paths without them (those too short for both, without the
-    // beginning, aren't in the or)
+    // beginning, aren't in the or - none is, from as_paths: a condition item
+    // is shared by no path taking the other side at every if of its
+    // condition, so the beginning and the ending hold lines only, and two
+    // paths or more of a level each hold a condition item between them;
+    // review 2026-11-02, 15-output1 F1)
     start += begin;
     if (end > 0) {
         std::vector<const Path*> kept;

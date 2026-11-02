@@ -1040,6 +1040,15 @@ bool Vm::plain(u8 op8, u32 pc) {
             if (size.nil()) return false;
             Value end = alg::add(src, n);
             Value beyond = alg::cmp(Op::LT, size, end);
+            // the EVM's src + n doesn't wrap: a carry (the word sum below
+            // src) is past any size - decided here when it can be (the
+            // usual constant src), else a disjunct of the condition
+            Value carry = alg::cmp(Op::LT, end, src);
+            if (std::optional<bool> c = alg::as_bool(alg::eval_bool(carry, &known_))) {
+                if (*c) beyond = small(1);
+            } else {
+                beyond = mk(Op::LOR, beyond, carry);
+            }
             std::optional<bool> decided = alg::as_bool(alg::eval_bool(beyond, &known_));
             if (!decided) {
                 Value inv = mk(Op::INVALID, small(i64(InvalidReason::RETURNDATACOPY)), small(pc));

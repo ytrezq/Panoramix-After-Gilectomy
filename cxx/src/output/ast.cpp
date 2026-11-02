@@ -74,40 +74,50 @@ Value isolated_ast(const FunctionInfo& fn, Context& into, std::mutex* lock, cons
         ContextScope scope(into);
         return make();
     };
-    try {
-        Budget budget{Budget::Limits{.memory = opts.fold_limit, .deadline_ns = opts.deadline_ns}};
-        Attach attach(budget);
-        std::optional<Watchdog::Watch> watch;
-        if (opts.deadline_ns)
-            try {
-                watch.emplace(budget, opts.deadline_ns);
-            } catch (const std::system_error&) {  // (no watchdog: the deadline checked between functions)
+    // the ast of o, made under the function's limits (a budget and a context
+    // of its own) and imported; nullopt when they don't suffice
+    auto attempt = [&](const AstOptions& o) -> std::optional<Value> {
+        try {
+            Budget budget{Budget::Limits{.memory = o.fold_limit, .deadline_ns = o.deadline_ns}};
+            Attach attach(budget);
+            std::optional<Watchdog::Watch> watch;
+            if (o.deadline_ns)
+                try {
+                    watch.emplace(budget, o.deadline_ns);
+                } catch (const std::system_error&) {  // (no watchdog: the deadline checked between functions)
+                }
+            std::unique_ptr<Context> ctx = Context::create(budget, shared);
+            Value ast;
+            {
+                ContextScope scope(*ctx);
+                Importer imp;
+                const Value trace = imp(fn.trace);
+                const Value entry = imp(fn.entry.entry_lines);
+                ast = ast_here(trace, entry, o);
             }
-        std::unique_ptr<Context> ctx = Context::create(budget, shared);
-        Value ast;
-        {
-            ContextScope scope(*ctx);
-            Importer imp;
-            const Value trace = imp(fn.trace);
-            const Value entry = imp(fn.entry.entry_lines);
-            ast = ast_here(trace, entry, opts);
+            return import_into([&] {
+                Importer imp;
+                return imp(ast);
+            });
+        } catch (const MemoryLimit&) {
+        } catch (const SizeLimit&) {
+        } catch (const DepthLimit&) {
+        } catch (const std::bad_alloc&) {
         }
-        return import_into([&] {
-            Importer imp;
-            return imp(ast);
-        });
-    } catch (const MemoryLimit&) {
-    } catch (const SizeLimit&) {
-    } catch (const DepthLimit&) {
-    } catch (const std::bad_alloc&) {
-    }
-    // (python: past FOLD_LIMIT, unfolded)
-    return import_into([&] {
-        AstOptions o = opts;
-        o.fold = false;
-        o.short_circuits = false;
-        return ast_here(fn.trace, fn.entry.entry_lines, o);
-    });
+        return std::nullopt;
+    };
+    if (const std::optional<Value> ast = attempt(opts))
+        return *ast;
+    // (python: past FOLD_LIMIT, unfolded) - the passes but the fold, under
+    // the same limits (review 2026-11-02, 15-output1 F2: they ran again
+    // with no memory cap, no deadline, under the lock)
+    AstOptions o = opts;
+    o.fold = false;
+    o.short_circuits = false;
+    if (const std::optional<Value> ast = attempt(o))
+        return *ast;
+    // past them even so: the trace as it is, but its entry checks
+    return import_into([&] { return opts.entry_checks ? detail::with_entry(fn.entry.entry_lines, fn.trace) : fn.trace; });
 }
 
 }  // namespace
