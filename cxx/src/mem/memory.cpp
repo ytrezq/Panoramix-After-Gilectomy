@@ -393,6 +393,9 @@ std::optional<Value> slice_parts(std::span<const Value> parts, Value lo, Value h
         auto a = pos_max(pos, lo, f);
         auto b = pos_min(end, hi, f);
         if (!a || !b) return std::nullopt;
+        // (the part and [lo, hi) may still be disjoint when neither test above
+        // was decided: a slice of a negative length - give up unless a <= b)
+        if (pos_le(*a, *b, f) != Tri::True) return std::nullopt;
         auto piece = slice(e, psub(*a, pos), psub(*b, pos), f);
         if (!piece) return std::nullopt;
         out.push_back(*piece);
