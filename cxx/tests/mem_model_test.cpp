@@ -500,6 +500,44 @@ TEST_CASE("mem: fills agree with execution") {
     CHECK(checked > 300);
 }
 
+TEST_CASE("mem: review 2026-11-02 F4 - slice_parts gives up on a part that may end before the slice starts") {
+    Fixture fx;
+    // A 72-byte string: the 40 bytes of memory at 200 in two parts cut at a
+    // length w1 (a copy of a dynamic length then the rest), then a calldata
+    // word. The ranges know w1 below 64 only; every execution the string is
+    // made for has w1 <= 40 (the second part's width is 40 - w1).
+    const Value w1 = alg::mask(6, 0, 0, V("(calldataload 4)"));
+    const Value e1 = mk(Op::MEM, make_range(S(200), w1));
+    const Value e2 = mk(Op::MEM, make_range(alg::add(S(200), w1), alg::sub(S(40), w1)));
+    const Value e3 = V("(sized 32 (calldataload 36))");
+    const Value d = mk(Op::DATA, e1, e2, e3);
+    REQUIRE(D(width_of(d)) == "72");
+    // the bytes [40, 72) are e3's. Whether the first part ends before 40 isn't
+    // decided (w1 <= 40 asks the ranges), so its slice [40, w1) is a slice of
+    // a negative length whenever w1 < 40: no answer (or e3), never a slice
+    const auto s = slice(d, S(40), S(72));
+    CHECK((!s || *s == e3));
+    // the same through a state: the string written at 300, its last word read
+    MemState st(false);
+    st.write(make_range(S(300), S(72)), d);
+    const auto r = st.read(make_range(S(340), S(32)));
+    CHECK((!r || *r == e3 || *r == mk(Op::MEM, make_range(S(340), S(32)))));
+    // by execution, with w1 = 10: what the read is, what slice_parts gave before
+    // the guard (DATA(MEM(RANGE(240, w1 - 40)), e3): a MEM of 2^256 - 30 bytes)
+    Rng rng{777};
+    exec::SimpleHost host = random_host(rng);
+    host.calldata[4 + 31] = 10;
+    const Value old = mk(Op::DATA, mk(Op::MEM, make_range(S(240), alg::sub(w1, S(40)))), e3);
+    const Value prefix = mk_trace({V("(setmem (range 200 40) (calldata_bytes 100 40))"), mk(Op::SETMEM, make_range(S(300), S(72)), d)});
+    const auto want = returned(prefix, mk(Op::MEM, make_range(S(340), S(32))), host);
+    REQUIRE(want.has_value());
+    CHECK(*want == std::vector<u8>(host.calldata.begin() + 36, host.calldata.begin() + 68));
+    const auto before = returned(prefix, old, host);
+    CHECK((!before || *before != *want));
+    if (s) CHECK(returned(prefix, *s, host) == want);
+    if (r) CHECK(returned(prefix, *r, host) == want);
+}
+
 TEST_CASE("mem: split_word") {
     Fixture fx;
     auto f = split_word(alg::bor(alg::mask(32, 0, 224, V("tmp1")), alg::mask(160, 0, 0, V("caller"))));
