@@ -104,9 +104,13 @@ std::optional<Value> iszero_rule(Value x) {
     // -x, 3x, 2x of a small x are 0 when x is
     if (auto y = same_truth_factor(x)) return alg::iszero(*y);
     // a shift that loses none of the mask's bits doesn't change whether they're all 0
+    // (of a wide operand - a DATA, a MEM of more than a word - the field must
+    // lie within the word: the IR's MASK_SHL is a word mod 2^256 whatever its
+    // operand, and a field left past bit 256 is 0; review 2026-11-02)
     if (auto m = alg::as_mask(x); m && m->concrete() && m->ishl() != 0) {
         const i64 s = m->isize(), o = m->ioff(), h = m->ishl();
-        if (-o <= h && h <= 256 - s - o) return alg::iszero(alg::mask(s, o, 0, m->x));
+        if (-o <= h && h <= 256 - s - o && (o + s <= 256 || !alg::may_be_wide(m->x)))
+            return alg::iszero(alg::mask(s, o, 0, m->x));
     }
     return std::nullopt;
 }

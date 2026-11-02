@@ -661,3 +661,22 @@ TEST_CASE("simplify: review 2026-11-02 F2 (11-simplify2) - truth(cond) is an equ
         CHECK_MESSAGE(!has_op(u[0][2], Op::IF), dump_trace(u));
     }
 }
+
+TEST_CASE("simplify: review 2026-11-02 F2 (04-algebra1) - iszero of a mask of a wide value keeps its shift") {
+    Fixture f;
+    // iszero(MASK_SHL(8, 256, -256, D)) - D two words: the byte at bit 256 of
+    // the data, moved down to bit 0 - was rewritten to iszero(MASK_SHL(8, 256,
+    // 0, D)): the field left past bit 256 is out of the word, so that is
+    // iszero(0) = 1 whatever the byte (the IR's MASK_SHL is a word mod 2^256
+    // whatever its operand: exec/machine.hpp). The rule holds when the field
+    // stays within the word.
+    Value t = V("{(if (iszero (mask_shl 8 256 -256 (data (sized 32 (calldataload 4)) (sized 32 (calldataload 36))))) "
+                "{(return (sized 32 1))} {(return (sized 32 2))})}");
+    Value u = S::simplify_trace(t);
+    CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
+    CHECK(u[0].is(Op::IF));
+    // the same mask of a word: the shift is dropped (the rule), the runs agree
+    t = V("{(if (iszero (mask_shl 8 8 -8 (calldataload 4))) {(return (sized 32 1))} {(return (sized 32 2))})}");
+    u = S::simplify_trace(t);
+    CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
+}
