@@ -2,15 +2,25 @@
 // asm prints them), the escapes, the folder.
 #include <doctest/doctest.h>
 
+#include <lzma.h>
+
+#include <atomic>
+#include <filesystem>
+#include <fstream>
 #include <optional>
+#include <random>
 #include <string>
 
 #include "analysis/safemath.hpp"
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "core/dump.hpp"
+#include "exec/machine.hpp"
+#include "output/fold.hpp"
 #include "output/output.hpp"
 #include "output/print.hpp"
+#include "sigdb.hpp"
+#include "sigdb_impl.hpp"
 #include "storage/storage.hpp"
 
 using namespace pan;
@@ -40,6 +50,97 @@ struct Fixture {
 std::string E(std::string_view s) { return print_exp(V(s)); }
 // a trace's lines, as a function's body prints them
 std::string L(std::string_view s) { return print_trace(V(s)); }
+
+// an op appears in v (any depth)
+bool has_op(Value v, Op op)
+{
+    if (!(v.is_expr() || v.is_list()))
+        return false;
+    if (v.is_expr() && v.op() == op)
+        return true;
+    for (Value a : v.args())
+        if (has_op(a, op))
+            return true;
+    return false;
+}
+
+// a world of four bits: the low bit of each of the calldata words 4, 36,
+// 68, 100 (the conditions of the traces), the calls' success the first
+struct BitsWorld final : exec::SimpleHost {
+    explicit BitsWorld(u64 bits)
+    {
+        calldata.resize(4 + 32 * 4);
+        for (u32 k = 0; k < 4; ++k)
+            calldata[4 + 32 * k + 31] = u8((bits >> k) & 1);
+        call_env.caller = Word256::of(0x1234);
+        call_answer = exec::CallResult{(bits & 1) != 0, std::vector<u8>(64, u8(bits))};
+    }
+};
+
+// t and u (a trace and its fold) run the same on every world
+bool same_runs(Value t, Value u)
+{
+    FunctionInfo fn;
+    fn.kind = FunctionInfo::Kind::Fallback;
+    exec::Program p;
+    exec::Machine m(p);
+    for (u64 bits = 0; bits < 16; ++bits) {
+        BitsWorld w1{bits}, w2{bits};
+        const exec::Outcome a = m.run(w1, fn, t), b = m.run(w2, fn, u);
+        if (a.status == exec::Status::Bug || b.status == exec::Status::Bug)
+            return false;
+        if (a.status != b.status || a.data != b.data || w1.effects != w2.effects)
+            return false;
+    }
+    return true;
+}
+
+// a signature database built from a dump's lines (python's format, xz'd in
+// a directory of its own)
+struct MiniDb {
+    std::filesystem::path dir;
+    std::unique_ptr<sigdb::Database> db;
+
+    // a line of the dump: a function of the signature, named as its JSON says
+    static std::string line(std::string_view signature, std::string_view json_name)
+    {
+        const auto h = sigdb::keccak256(signature);
+        static constexpr char digits[] = "0123456789abcdef";
+        std::string sel = "0x";
+        for (usize i = 0; i < 4; ++i) {
+            sel += digits[h[i] >> 4];
+            sel += digits[h[i] & 15];
+        }
+        return "{\"selector\": \"" + sel + "\", \"abi\": {\"name\": \"" + std::string(json_name) + "\", \"inputs\": []}}\n";
+    }
+
+    explicit MiniDb(std::string_view dump)
+    {
+        static std::atomic<int> n{0};
+        static const unsigned tag = std::random_device{}();
+        dir = std::filesystem::temp_directory_path() /
+              ("output_print_test." + std::to_string(tag) + "." + std::to_string(n++));
+        std::filesystem::create_directories(dir);
+        std::string xz(dump.size() + dump.size() / 2 + 4096, '\0');
+        usize pos = 0;
+        REQUIRE(lzma_easy_buffer_encode(6, LZMA_CHECK_CRC64, nullptr, reinterpret_cast<const u8*>(dump.data()),
+                                        dump.size(), reinterpret_cast<u8*>(xz.data()), &pos, xz.size()) == LZMA_OK);
+        xz.resize(pos);
+        {
+            std::ofstream f(dir / "abi_dump.xz", std::ios::binary | std::ios::trunc);
+            f.write(xz.data(), std::streamsize(xz.size()));
+            REQUIRE(f.good());
+        }
+        sigdb::build(dir / "abi_dump.xz", dir / "sigdb2.bin");
+        db = sigdb::Database::open(dir / "sigdb2.bin");
+    }
+    ~MiniDb()
+    {
+        db.reset();
+        std::error_code ec;
+        std::filesystem::remove_all(dir, ec);
+    }
+};
 
 }  // namespace
 
@@ -134,6 +235,25 @@ TEST_CASE("output: expressions")
     CHECK(E("_msize") == "_msize");
     CHECK(E("prec_1_1") == "signer");
     CHECK(E("prec_1_2") == "signer2");
+}
+
+TEST_CASE("output: review 2026-11-02 F1 - a Bytes(n, v) of a large n prints its value short")
+{
+    Fixture f;
+    // python pads the value to 2n hex digits (a width of 1 MiB: 2 MiB of
+    // zeroes, at every use of the node); past four words the value is its
+    // significant digits alone - the width says the rest, as Bytes(n, 0)'s
+    CHECK(E("(sized 1048576 1)") == "Bytes(1048576, 0x1)");
+    CHECK(E("(sized 16777216 0x1234)") == "Bytes(16777216, 0x1234)");
+    CHECK(E("(sized 129 1)") == "Bytes(129, 0x1)");
+    CHECK(E("(sized 1048576 0)") == "Bytes(1048576, 0)");
+    // up to four words, python's padded form
+    CHECK(E("(sized 12 0x2b)") == "Bytes(12, 0x00000000000000000000002b)");
+    CHECK(E("(sized 64 1)") == "Bytes(64, 0x" + std::string(127, '0') + "1)");
+    CHECK(E("(sized 128 1)") == "Bytes(128, 0x" + std::string(255, '0') + "1)");
+    // (a value whose digits fill the width: python's form at any width)
+    const std::string full = "0x" + std::string(2 * 129 - 1, 'f') + "e";
+    CHECK(E("(sized 129 " + full + ")") == "Bytes(129, " + full + ")");
 }
 
 TEST_CASE("output: lines")
@@ -320,6 +440,41 @@ TEST_CASE("output: the storage's forms and def storage (lot 9)")
     s.vars[0].slot = Word256::of(1);  // stor1
     const TraceContext cs{nullptr, nullptr, false, &s, nullptr};
     CHECK(print_exp(V("(st 256 (sbl (sv stor0)) 256)"), cs) == "stor1.length");
+}
+
+TEST_CASE("output: review 2026-11-02 F2 - storage names made unique as printed")
+{
+    Fixture f;
+    // two getters whose raw names differ but print alike: a newline is
+    // written \x0a, a backslash is text (kept) - python's unique() on the
+    // printed names, else two variables of one name
+    const MiniDb m(MiniDb::line("a\nb()", "a\\nb") + MiniDb::line("a\\x0ab()", "a\\\\x0ab"));
+    REQUIRE(m.db);
+    const auto selector = [](std::string_view signature) {
+        const auto h = sigdb::keccak256(signature);
+        return u32(h[0]) << 24 | u32(h[1]) << 16 | u32(h[2]) << 8 | u32(h[3]);
+    };
+    const u32 g1 = selector("a\nb()"), g2 = selector("a\\x0ab()");
+    REQUIRE(m.db->function(g1));
+    REQUIRE(m.db->function(g1)->known());
+    REQUIRE(m.db->function(g2));
+    REQUIRE(m.db->function(g2)->known());
+    StorageLayout l;
+    StorageType t;
+    t.kind = StorageType::Kind::Value;
+    t.width = 256;
+    l.types = {t};
+    StorageVar v1, v2;
+    v1.slot = Word256::of(1);
+    v1.getter = g1;
+    v2.slot = Word256::of(2);
+    v2.getter = g2;
+    l.vars = {v1, v2};
+    const pan::output::detail::ContractNames n = pan::output::detail::contract_names(&l, nullptr, m.db.get());
+    REQUIRE(n.storage_names.size() == 2);
+    CHECK(n.storage_names[0] == "a\\x0ab");
+    CHECK(n.storage_names[1] == "a\\x0ab_2");
+    CHECK(n.storage_names[0] != n.storage_names[1]);
 }
 
 namespace {
@@ -533,4 +688,115 @@ TEST_CASE("output: the folder")
     // an if whose branches join (merged): folded on its own
     const Value m = V("{(if tmp1 {(setvar tmp3 1)} {(setvar tmp3 2)}) (return (sized 32 tmp3))}");
     CHECK(print_trace(fold(m)) == "  if _1:\n      _3 = 1\n  else:\n      _3 = 2\n  return _3\n");
+}
+
+TEST_CASE("output: review 2026-11-02 F1 (15-output1) - fold_stretches loses no path")
+{
+    Fixture f;
+    // fold_stretches keeps only the paths long enough for the beginning and
+    // the ending it took off all of them (a path too short for both would be
+    // lost: python's fold_or fails on its empty side). as_paths can't make
+    // one: the items all the paths of a level share, from the start or from
+    // the end, are lines (a condition item is shared by no path taking the
+    // other side at every if of that condition), and every path of a level
+    // of two or more holds a condition item between its shared beginning and
+    // ending. The shapes nearest to it: the shared lines reaching into one
+    // another, nested ifs of one condition, a path ending with its condition
+    // item - folded, the same runs
+    const char* traces[] = {
+        // the same line before and after the if
+        "{(log0 None) (if (calldataload 4) {(log0 None) (stop)} {(log1 None 1) (log0 None) (stop)})}",
+        // nested ifs of one condition, the branches ending alike
+        "{(log0 None) (if (calldataload 4) {(log0 None) (stop)} {(if (calldataload 4) {(log0 None) (stop)} {(log1 None "
+        "1) (log0 None) (stop)})})}",
+        "{(log0 None) (if (calldataload 4) {(log0 None) (stop)} {(if (iszero (calldataload 4)) {(log1 None 1) (log0 "
+        "None) (stop)} {(log0 None) (stop)})})}",
+        // an empty branch: the path ends with its condition item
+        "{(log0 None) (if (calldataload 4) {} {(if (calldataload 36) {} {(log0 None)})})}",
+        "{(log0 None) (if (calldataload 4) {} {(if (calldataload 4) {} {(log0 None)})})}",
+        // the beginning of one path the ending of another
+        "{(if (calldataload 4) {(log0 None) (log1 None 1) (stop)} {(log1 None 1) (log0 None) (log1 None 1) (stop)})}",
+        "{(if (calldataload 4) {(log1 None 1) (log0 None)} {(log0 None) (if (calldataload 36) {(log1 None 1) (log0 "
+        "None)} {(log1 None 2) (log1 None 1) (log0 None)})})}",
+        // four paths, two of each first line, their rests alike (a split)
+        "{(log0 None) (if (calldataload 4) {(log1 None 1) (if (calldataload 36) {(log1 None 2) (log0 None) (stop)} "
+        "{(log1 None 3) (log0 None) (stop)})} {(log1 None 4) (log1 None 1) (if (calldataload 36) {(log1 None 2) (log0 "
+        "None) (stop)} {(log1 None 3) (log0 None) (stop)})})}",
+    };
+    for (const char* text : traces) {
+        const Value t = V(text);
+        const Value u = fold(t);
+        CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
+    }
+}
+
+TEST_CASE("output: review 2026-11-02 F2 (15-output1) - past the fold's limits, the passes keep them")
+{
+    Fixture f;
+    FunctionInfo fn;
+    fn.kind = FunctionInfo::Kind::Fallback;
+    fn.trace = V("{(staticcall 1 (gas 1) caller (sized 4 0x0dfe1681) None)"
+                 " (staticcall 2 (gas 2) caller (sized 4 0xd21220a7) None)"
+                 " (if (eq (returndata_bytes 1 0 32) (returndata_bytes 2 0 32)) {(revert None)}"
+                 " {(return (sized 32 (returndata_bytes 1 0 32)))})}");
+    fn.entry.entry_lines = V("{(if (lt calldatasize 4) {(revert None)} {})}");
+    // with the limits: the snapshot's variable, the entry's check
+    const Value full = make_ast(fn);
+    CHECK(has_op(full, Op::SETVAR));
+    CHECK(full[0].is(Op::IF));
+    // a limit nothing fits in (not even the fold's context): the fallback
+    // ran the passes but the fold with no limit at all - no memory cap, no
+    // deadline, under the import's lock - and made the snapshot's variable;
+    // past the function's limits, the trace stays as it is (python: past
+    // FOLD_LIMIT, unfolded) but its entry checks
+    AstOptions o;
+    o.fold_limit = 1;
+    const Value ast = make_ast(fn, o);
+    REQUIRE(ast.is_list());
+    CHECK(!has_op(ast, Op::SETVAR));
+    CHECK(ast.size() == fn.trace.size() + 1);
+    CHECK(ast[0].is(Op::IF));
+    for (u32 i = 0; i < fn.trace.size(); ++i)
+        CHECK(ast[i + 1] == fn.trace[i]);
+}
+
+TEST_CASE("output: review 2026-11-02 F3 (15-output1) - no call hoisted above an if reading a call's result")
+{
+    Fixture f;
+    FunctionInfo fn;
+    fn.kind = FunctionInfo::Kind::Fallback;
+    fn.trace = V("{(call 1 (gas 1) caller 0 None None)"
+                 " (if (call_success 1) {(call 2 (gas 2) caller 0 None None) (return (sized 32 1))}"
+                 " {(call 2 (gas 2) caller 0 None None) (return (sized 32 2))})}");
+    const Value ast = make_ast(fn);
+    // snapshot_call_results decides on the unfolded trace: call 1's success
+    // is read right after call 1, no variable. The folder then moved call 2,
+    // the branches' common first line, above the if (the IR's results are
+    // numbered: affects() says call 2 changes nothing call_success 1 reads)
+    // - but the text's ext_call.success is the last call's, call 2's after
+    // that. python's changes_read: a call changes what reads a call's result
+    REQUIRE(ast.size() >= 2);
+    CHECK(ast[1].is(Op::IF));
+    CHECK(print_trace(ast, TraceContext{&fn}) ==
+          "  call caller with:\n       gas gas_remaining\n"
+          "  if ext_call.success:\n"
+          "      call caller with:\n           gas gas_remaining\n"
+          "      return 1\n"
+          "  call caller with:\n       gas gas_remaining\n"
+          "  return 2\n");
+    CHECK(same_runs(fn.trace, ast));
+    // a line making no call is hoisted, as before; a call above an if reading
+    // no call's result too
+    fn.trace = V("{(call 1 (gas 1) caller 0 None None)"
+                 " (if (call_success 1) {(setmem (range 0 32) 7) (return (sized 32 1))}"
+                 " {(setmem (range 0 32) 7) (return (sized 32 2))})}");
+    CHECK(make_ast(fn)[1].is(Op::SETMEM));
+    fn.trace = V("{(if (calldataload 4) {(call 1 (gas 1) caller 0 None None) (return (sized 32 1))}"
+                 " {(call 1 (gas 1) caller 0 None None) (return (sized 32 2))})}");
+    CHECK(make_ast(fn)[0].is(Op::CALL));
+    // an internal call may make calls: not hoisted either
+    fn.trace = V("{(call 1 (gas 1) caller 0 None None)"
+                 " (if (call_success 1) {(internal 4660 [] []) (return (sized 32 1))}"
+                 " {(internal 4660 [] []) (return (sized 32 2))})}");
+    CHECK(make_ast(fn)[1].is(Op::IF));
 }

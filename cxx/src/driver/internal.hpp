@@ -25,10 +25,13 @@ inline constexpr const char* MSG_POST_TIMEOUT = "the post-processing and the tex
 inline constexpr const char* MSG_NO_MEMORY = "out of memory: the system gave no more";
 
 // --explain's text: at most this much of it, a job's and the whole (python
-// prints it as it goes; here it is kept until the text is made), the rest
-// cut with a line that says so
+// prints it as it goes; here it is kept until the text is made) - and no
+// more than the function's memory limit when there is one (a job's text is
+// charged to its budget, the whole is capped by the limit: rule 8) -, the
+// rest cut with a line that says so
 inline constexpr usize EXPLAIN_MAX = usize{1} << 30;
-inline constexpr std::string_view EXPLAIN_CUT = "\n(--explain: the text past 1024 MiB is cut)\n";
+inline constexpr std::string_view EXPLAIN_CUT = "\n(--explain: the text past the limit, 1024 MiB or the memory limit, is cut)\n";
+constexpr usize explain_cap(usize fn_memory) noexcept { return fn_memory && fn_memory < EXPLAIN_MAX ? fn_memory : EXPLAIN_MAX; }
 
 // now + base scaled by PANORAMIX_TIMEOUT (scaled_timeout); 0: no time limit
 i64 deadline_after(i64 base_ns) noexcept;
@@ -55,8 +58,16 @@ private:
 class Explainer {
 public:
     // fn: the function explained (its names; the struct, not its values:
-    // they may change), db: the signature database's
-    Explainer(bool color, const FunctionInfo* fn, const sigdb::Database* db) : color_(color), fn_(fn), db_(db) {}
+    // they may change), db: the signature database's, budget: the job's,
+    // the text's bytes charged to it (its memory limit cuts the text; it
+    // must outlive the Explainer, which gives them back), null: not counted
+    Explainer(bool color, const FunctionInfo* fn, const sigdb::Database* db, Budget* budget = nullptr)
+        : color_(color), fn_(fn), db_(db), budget_(budget)
+    {
+    }
+    ~Explainer();
+    Explainer(const Explainer&) = delete;
+    Explainer& operator=(const Explainer&) = delete;
     void trace(std::string_view title, Value trace);
     std::string out;
     bool first = false;  // a trace printed: the first one's hash and where its section ends
@@ -66,10 +77,15 @@ public:
     u64 last_hash = 0;
 
 private:
+    // out's capacity charged to the budget as it grows (MemoryLimit: nothing
+    // more is counted) and given back as it shrinks
+    void account();
     bool color_;
     const FunctionInfo* fn_;
     const sigdb::Database* db_;
-    bool cut_ = false;  // past EXPLAIN_MAX: no more sections
+    Budget* budget_;
+    usize charged_ = 0;  // what the budget holds of out
+    bool cut_ = false;   // past the cap or the budget: no more sections
 };
 
 // The settings of a run of the pipeline.

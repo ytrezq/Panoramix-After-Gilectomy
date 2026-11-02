@@ -720,6 +720,94 @@ TEST_CASE("algebra: magnitude guards") {
     CHECK_NOTHROW(A::normalize(V("(mask_shl 5000 -5000 300 caller)")));
 }
 
+namespace {
+
+// The env of the wide-value tests: a DATA of SIZED(32, x) elements is the
+// byte string of its elements' words, whose big-endian number has bits past
+// 256 (the first element's); a concrete MASK_SHL of it is the bits
+// [off, off + size) of that number moved by shl, mod 2^256 - the trace
+// machine's mask_shl_wide (exec/machine.cpp). The elements through the map.
+struct WideEnv final : A::Env {
+    A::MapEnv leaves;
+    std::optional<Word256> value(Value v, A::Evaluator& ev) override {
+        if (v.is(Op::MASK_SHL, 4) && v[3].is(Op::DATA) && v[0].is_small() && v[1].is_small() && v[2].is_small()) {
+            EvmInt n;
+            for (Value e : v[3].args()) {
+                if (!e.is(Op::SIZED, 2) || !(e[0] == mk_int(32))) return std::nullopt;
+                auto w = ev.try_eval(e[1]);
+                if (!w) return std::nullopt;
+                n = (n << 256) + w->to_int();
+            }
+            i64 size = v[0].small_val(), off = v[1].small_val(), shl = v[2].small_val();
+            if (off < 0) {
+                size += off;
+                off = 0;
+            }
+            if (size <= 0) return Word256{};
+            EvmInt r = n & EvmInt::mask(u64(size), u64(off));
+            r = shl >= 0 ? r << u64(shl) : r >> u64(-shl);
+            return Word256::from_int(r);
+        }
+        return leaves.value(v, ev);
+    }
+};
+
+}  // namespace
+
+TEST_CASE("algebra: review 2026-11-02 F1 - max_bits of a mask of a wide value, and what the constructors make of it") {
+    Fixture f;
+    // two words of calldata copied to memory: tmp1 (bits [256, 512) of the
+    // data) then tmp2 (bits [0, 256)); tmp1 has its top bit set and the low
+    // byte 0xab
+    Value d = V("(data (sized 32 tmp1) (sized 32 tmp2))");
+    REQUIRE(A::may_be_wide(d));
+    WideEnv env;
+    const Word256 w1 = Word256::from_value(V("0x80000000000000000000000000000000000000000000000000000000000000ab"));
+    const Word256 w2 = Word256::from_value(V("0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
+    env.leaves.set(V("tmp1"), w1);
+    env.leaves.set(V("tmp2"), w2);
+    A::Evaluator e(env);
+    // the low byte of the first word: bits [256, 264) of the data at bit 0
+    Value m8 = A::mask(8, 256, -256, d);
+    REQUIRE(m8 == V("(mask_shl 8 256 -256 (data (sized 32 tmp1) (sized 32 tmp2)))"));
+    REQUIRE(e(m8) == Word256::of(0xab));
+    // the whole first word
+    Value m256 = A::mask(256, 256, -256, d);
+    REQUIRE(m256 == V("(mask_shl 256 256 -256 (data (sized 32 tmp1) (sized 32 tmp2)))"));
+    REQUIRE(e(m256) == w1);
+    // bits [224, 288): the top 4 bytes of tmp2 and the low 4 of tmp1
+    Value m64 = A::mask(64, 224, -224, d);
+    REQUIRE(e(m64) == Word256::from_value(V("0x000000ab01234567")));
+    // the structural facts: sound bounds of the values above
+    CHECK(A::max_bits(m8) == 8);
+    CHECK(A::max_bits(m256) == 256);
+    CHECK(A::max_bits(m64) == 64);
+    CHECK(!A::is_bool(m256));
+    CHECK(!A::is_bool(m8));
+    // the constructors keep the value: and(0xff, byte), signextend(0, byte),
+    // sar(1, word), a mask of the word's low byte
+    struct Case {
+        std::string what;
+        Value got, want;
+    };
+    const Case cases[] = {
+        {"and 0xff", A::band(mk_int(0xff), m8), m8},
+        {"signextend 0", A::signextend(mk_int(0), m8), mk(Op::SIGNEXTEND, mk_int(0), m8)},
+        {"sar 1", A::sar(mk_int(1), m256), mk(Op::SAR, mk_int(1), m256)},
+        {"mask 8 0 0", A::mask(8, 0, 0, m256), mk(Op::MASK_SHL, mk_int(8), mk_int(0), mk_int(0), m256)},
+        {"mask 64 0 0 of m64", A::mask(64, 0, 0, m64), m64},
+    };
+    for (const Case& c : cases) {
+        INFO(c.what, ": ", dump(c.got), " want the value of ", dump(c.want));
+        CHECK(!(c.got == mk_int(0)));
+        CHECK(e(c.got) == e(c.want));
+    }
+    CHECK(e(A::band(mk_int(0xff), m8)) == Word256::of(0xab));
+    CHECK(e(A::signextend(mk_int(0), m8)) == Word256::from_value(V("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffab")));
+    CHECK(e(A::sar(mk_int(1), m256)) == pan::sar(Word256::of(1), w1));
+    CHECK(e(A::mask(8, 0, 0, m256)) == Word256::of(0xab));
+}
+
 // The same properties on many more expressions, deeper ones, other seeds:
 // run with  -tc='algebra: fuzz*' --no-skip
 TEST_CASE("algebra: fuzz normalize and the constructors against evaluation" * doctest::skip()) {

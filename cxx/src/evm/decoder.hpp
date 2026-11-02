@@ -216,12 +216,13 @@ using InsnFunc = void (*)(const Insn& insn, void* data);
 // imm_len short)
 void for_each_insn(std::span<const u8> code, InsnFunc fn, void* data);
 
-// The reference exec machine: from `start` (an instruction start < size, or
-// size), every instruction of the block through fn (a JUMPDEST first one
-// too), the block's end returned: JUMP / JUMPI / a halt / an unknown byte
-// (each handed to fn first), a JUMPDEST that isn't the first instruction
-// (Split: not handed to fn), the end of the code (FellOff: a cut push handed
-// to fn first).
+// The reference exec machine: from `start` (an instruction start < size),
+// every instruction of the block through fn (a JUMPDEST first one too), the
+// block's end returned: JUMP / JUMPI / a halt / an unknown byte (each handed
+// to fn first), a JUMPDEST that isn't the first instruction (Split: not
+// handed to fn), the end of the code (FellOff: a cut push handed to fn
+// first). A start at or past the size: FellOff{size, size}, nothing handed
+// over (the EVM's implicit STOP).
 BlockEnd exec_block_ref(std::span<const u8> code, u32 start, InsnFunc fn, void* data);
 
 // ---------------------------------------------------------------------------

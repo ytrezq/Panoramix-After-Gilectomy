@@ -426,6 +426,22 @@ TEST_CASE("evm: exec_block_ref's ends")
     CHECK(exec_block_ref(halts, 3, record, &s) == BlockEnd{BlockEndKind::Halt, 0xfd, 3, 4});
 }
 
+TEST_CASE("evm: review 2026-11-02 F1 - exec_block_ref from a start past the size reads nothing")
+{
+    // a start past the end is the EVM's implicit STOP, as `start == size` is:
+    // FellOff{size, size}, nothing handed over (before: p started past the
+    // buffer and the machine read on from there - ASan's heap-buffer-overflow)
+    const auto code = bytes_of("5b60005b570c61ff");
+    Seen s;
+    CHECK(exec_block_ref(code, 9, record, &s) == BlockEnd{BlockEndKind::FellOff, 0, 8, 8});
+    CHECK(s.insns.empty());
+    CHECK(exec_block_ref(code, 0xffffffffu, record, &s) == BlockEnd{BlockEndKind::FellOff, 0, 8, 8});
+    CHECK(s.insns.empty());
+    const std::vector<u8> empty;
+    CHECK(exec_block_ref(empty, 1, record, &s) == BlockEnd{BlockEndKind::FellOff, 0, 0, 0});
+    CHECK(s.insns.empty());
+}
+
 TEST_CASE("evm: metadata tails")
 {
     const std::vector<u8> body = bytes_of("6080604052600080fd");

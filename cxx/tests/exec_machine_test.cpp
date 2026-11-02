@@ -11,7 +11,9 @@
 #include "core/contract.hpp"
 #include "core/dump.hpp"
 #include "core/evmint.hpp"
+#include "evm/decoder.hpp"
 #include "exec/machine.hpp"
+#include "vm/vm.hpp"
 
 using namespace pan;
 using namespace pan::exec;
@@ -572,6 +574,124 @@ TEST_CASE("exec: creations, precompiles") {
                   host);
     CHECK(o.status == Status::Return);
     CHECK(Word256::from_be(o.data) == W(0));
+}
+
+TEST_CASE("exec: review 2026-11-02 F3 - a precompile's short output leaves the old memory word") {
+    // The name of a PRECOMPILED line is the output's first word, zeroes past
+    // its end: RETURNDATA_BYTES(id, 0, 32) as a word (simplify's
+    // precompiled_results makes the one the other). It is not the memory the
+    // call wrote: the VM writes SIZED(32, name) to the output range only
+    // when those 32 bytes were known zeroes (vm_core.cpp handle_call), where
+    // the EVM's memory after a short output is the output then zeroes too;
+    // else its output_write form writes min(ret_len, RETURNDATASIZE) bytes,
+    // and the old bytes stay where the output is short - the EVM's CALL.
+    Fixture fx;
+    // mem[0] = 0x1234; staticcall(gas, ecrecover, 0, 128, 0, 32); pop; return mem[0]
+    const std::vector<u8> old_word = hex("611234600052602060006080600060015afa5060206000f3");
+    // staticcall(gas, ecrecover, 0, 128, 0, 32) into fresh memory; pop; return mem[0]
+    const std::vector<u8> fresh = hex("602060006080600060015afa5060206000f3");
+    // (the discovery's entry state: the memory of zeroes a call starts with)
+    auto raw_trace = [&](const std::vector<u8>& code) {
+        CodeMap map = analyse(code);
+        ContractShared shared;
+        shared.code = code;
+        shared.map = &map;
+        const std::vector<FunctionInfo> fns = vm::discover(shared, fx.budget);
+        REQUIRE(fns.size() == 1);
+        const vm::VmResult r = vm::run_function(shared, fns[0], {});
+        REQUIRE(r.complete);
+        return dump(r.trace);
+    };
+    const std::string t_old = raw_trace(old_word);
+    const std::string t_fresh = raw_trace(fresh);
+    INFO(t_old);
+    INFO(t_fresh);
+    // the VM's forms: the name written to memory only where it was zeroes
+    CHECK(t_fresh.find("(setmem (range 0 32) (sized 32 prec_1_1))") != std::string::npos);
+    CHECK(t_old.find("(sized 32 prec_1_1)") == std::string::npos);
+    CHECK(t_old.find("(returndata_bytes 1 0 (min 32 (returndatasize 1)))") != std::string::npos);
+    // ecrecover of a wrong signature: nothing returned, success
+    SimpleHost host;
+    host.call_answer = CallResult{true, {}};
+    Outcome o = run_trace(t_old, host);
+    REQUIRE_MESSAGE(o.status == Status::Return, o.note);
+    CHECK(Word256::from_be(o.data) == W(0x1234));  // the EVM's: the word before the call
+    o = run_trace(t_fresh, host);
+    REQUIRE_MESSAGE(o.status == Status::Return, o.note);
+    CHECK(Word256::from_be(o.data) == W(0));  // the EVM's: the zeroes before the call
+    // a signer returned: its word, in both
+    host.call_answer = CallResult{true, word_bytes(W(0xabcdef))};
+    o = run_trace(t_old, host);
+    REQUIRE_MESSAGE(o.status == Status::Return, o.note);
+    CHECK(Word256::from_be(o.data) == W(0xabcdef));
+    o = run_trace(t_fresh, host);
+    REQUIRE_MESSAGE(o.status == Status::Return, o.note);
+    CHECK(Word256::from_be(o.data) == W(0xabcdef));
+    // the name is RETURNDATA_BYTES(id, 0, 32)'s word: zeroes past a short output
+    host.call_answer = CallResult{true, Bytes{0x12, 0x34}};
+    o = run_trace("{(precompiled 1 prec_1_1 1 (sized 128 0))"
+                  " (return (data (sized 32 prec_1_1) (returndata_bytes 1 0 32)))}",
+                  host);
+    REQUIRE_MESSAGE(o.status == Status::Return, o.note);
+    CHECK(o.data == cat({Bytes{0x12, 0x34}, Bytes(30, 0), Bytes{0x12, 0x34}, Bytes(30, 0)}));
+}
+
+TEST_CASE("exec: review 2026-11-02 F4 - RETURNDATA_BYTES past the return data is zero padded, no halt") {
+    // RETURNDATA_BYTES(id, p, n) is the n bytes of the return data from p,
+    // zeroes past its end (ir.md 4.2) - not RETURNDATACOPY's halt:
+    //  - the VM's output_write of a call whose output range was known
+    //    zeroes is SETMEM(range(ret_start, ret_len), RETURNDATA_BYTES(id, 0,
+    //    ret_len)), ret_len past a short output: the EVM's CALL copies
+    //    min(ret_len, size) bytes and the zeroes stay, no halt. A machine
+    //    halting there would diverge from evmone on a correct trace.
+    //  - RETURNDATACOPY's halt is the VM's explicit IF of INVALID (vm_core.cpp);
+    //    with the padding, a stage that dropped the IF continues where
+    //    evmone halts: a divergence stagecheck sees. A machine halting on the
+    //    read would agree with evmone with or without the IF - the drop hidden.
+    Fixture fx;
+    // call(gas, caller, 0, 0, 0, 0, 32) into fresh memory; pop; return mem[0]
+    const std::vector<u8> code = hex("60206000600060006000335af15060206000f3");
+    CodeMap map = analyse(code);
+    ContractShared shared;
+    shared.code = code;
+    shared.map = &map;
+    const std::vector<FunctionInfo> fns = vm::discover(shared, fx.budget);
+    REQUIRE(fns.size() == 1);
+    const vm::VmResult r = vm::run_function(shared, fns[0], {});
+    REQUIRE(r.complete);
+    const std::string t = dump(r.trace);
+    INFO(t);
+    CHECK(t.find("(setmem (range 0 32) (returndata_bytes 1 0 32))") != std::string::npos);
+    SimpleHost host;
+    host.call_answer = CallResult{true, {}};  // nothing returned: the zeroes stay
+    Outcome o = run_trace(t, host);
+    REQUIRE_MESSAGE(o.status == Status::Return, o.note);
+    CHECK(o.data == Bytes(32, 0));
+    host.call_answer = CallResult{true, Bytes{0x12, 0x34}};  // 2 bytes: then the zeroes
+    o = run_trace(t, host);
+    REQUIRE_MESSAGE(o.status == Status::Return, o.note);
+    CHECK(o.data == cat({Bytes{0x12, 0x34}, Bytes(30, 0)}));
+    // RETURNDATACOPY(0, 0, 32) as the VM emits it: the IF of its halt, then
+    // the read - invalid on a short output, as the EVM
+    const std::string guarded =
+        "{(call 1 gas caller 0 None None) (if (lt (returndatasize 1) 32) {(invalid 6 9)} {})"
+        " (setmem (range 0 32) (returndata_bytes 1 0 32)) (return (mem (range 0 32)))}";
+    host.call_answer = CallResult{true, {}};
+    o = run_trace(guarded, host);
+    CHECK(o.status == Status::Invalid);
+    CHECK(o.reason == u32(InvalidReason::RETURNDATACOPY));
+    host.call_answer = CallResult{true, word_bytes(W(0x5151))};
+    o = run_trace(guarded, host);
+    REQUIRE_MESSAGE(o.status == Status::Return, o.note);
+    CHECK(Word256::from_be(o.data) == W(0x5151));
+    // the IF dropped by a stage: the run goes on where the EVM halts - an
+    // outcome the comparison with evmone reports as different
+    const std::string dropped =
+        "{(call 1 gas caller 0 None None) (setmem (range 0 32) (returndata_bytes 1 0 32)) (return (mem (range 0 32)))}";
+    host.call_answer = CallResult{true, {}};
+    o = run_trace(dropped, host);
+    CHECK(o.status == Status::Return);
+    CHECK(o.data == Bytes(32, 0));
 }
 
 TEST_CASE("exec: internal functions") {

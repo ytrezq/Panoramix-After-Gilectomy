@@ -16,6 +16,7 @@
 #include "core/evmint.hpp"
 #include "algebra/ranges.hpp"
 #include "exec/machine.hpp"
+#include "loops/loops.hpp"
 #include "simplify/effects.hpp"
 #include "simplify/simplify.hpp"
 
@@ -507,4 +508,156 @@ TEST_CASE("simplify: review 2026-11-02 F1 (10-simplify1) - a write before a BREA
     t = V("{(setmem (range 0 32) 7) (break loopid9) (return (mem (range 0 32)))}");
     u = S::cleanup_mems(t);
     CHECK(has_op(u, Op::SETMEM));
+}
+
+TEST_CASE("simplify: review 2026-11-02 F2 (10-simplify1) - a read of memory moves msize") {
+    Fixture f;
+    // an MLOAD past msize grows the memory as a write does (the EVM, the
+    // trace machine's mem_at): a SETVAR whose value reads memory writes
+    // S_MSIZE, like every other line touching memory (effects.hpp) - the
+    // summary said S_VARS only, so a fact or a value reading msize was kept
+    // across it
+    const Value line = V("(setvar tmp1 (mem (range 1000 32)))");
+    CHECK((S::summary(line).writes & S::S_MSIZE) != 0);
+    CHECK(S::affects(line, V("msize")));
+    CHECK(S::affects(line, V("(add 32 _msize)")) == false);  // (a variable of its own: not msize itself)
+    // the setvars of a CONTINUE / WHILE / GOTO / LABEL too (their SETVARs' summaries)
+    CHECK((S::summary(V("(continue loopid1 [(setvar loop1 (mem (range 1000 32)))])")).writes & S::S_MSIZE) != 0);
+    CHECK((S::summary(V("(label loopid1 [(setvar loop1 (mem (range 1000 32)))])")).writes & S::S_MSIZE) != 0);
+    // a value reading no memory moves it not (a read of msize itself either)
+    CHECK(!S::affects(V("(setvar tmp1 msize)"), V("msize")));
+    CHECK(!S::affects(V("(setvar tmp1 (calldataload 4))"), V("msize")));
+    CHECK(!S::affects(V("(setvar tmp1 (add 1 tmp2))"), V("msize")));
+    // cleanup_conds: a check of msize passed, a read of memory past it, the
+    // same check again - not decided by the first (msize moved: the machine
+    // returns 2, the decided trace returned 1)
+    const char* text =
+        "{(if (lt msize 1000) {(setvar tmp1 (mem (range 1000 32))) (if (lt msize 1000) {(return (sized 32 1))} "
+        "{(return (sized 32 2))})} {(stop)})}";
+    Value u = check_trace(text, S::cleanup_conds);
+    CHECK(has_op(u[0][1], Op::IF));
+    u = check_trace(text, whole);
+    CHECK(has_op(u, Op::IF));
+    // ... and a check that stays decided: the read of memory before both
+    u = check_trace(
+        "{(setvar tmp1 (mem (range 1000 32))) (if (lt msize 2000) {(if (lt msize 2000) {(return (sized 32 1))} "
+        "{(return (sized 32 2))})} {(stop)})}",
+        S::cleanup_conds);
+    CHECK(!has_op(u[1][1], Op::IF));
+    // cleanup_mems keeps its precision on a SETVAR reading memory (a live
+    // range made of its variable is read before it as its value, not as
+    // anything): the write of 1024 is read by no one (tmp1 < 256)
+    u = check_trace(
+        "{(setmem (range 1024 32) 5) (setvar tmp1 (mask_shl 8 0 0 (mem (range 64 32)))) (return (mem (range tmp1 32)))}",
+        S::cleanup_mems);
+    CHECK(!has_op(u, Op::SETMEM));
+}
+
+TEST_CASE("simplify: review 2026-11-02 F3 (10-simplify1) - the live set at a WHILE body's end") {
+    Fixture f;
+    // a body whose end isn't a CONTINUE leaves the loop (loops.hpp, ir.md
+    // 4.4: the trace machine's while_line), so the backward walk of the body
+    // starts from what follows the WHILE: a write at the body's end, read
+    // after the loop only, is live there (the loop itself reads no memory)
+    Value t = V("{(while (lt loop1 4) {(if (lt loop1 3) {(continue loopid1 [(setvar loop1 (add 1 loop1))])} {}) "
+                "(setmem (range 0 32) loop1)} loopid1 [(setvar loop1 0)]) (return (mem (range 0 32)))}");
+    Value u = S::cleanup_mems(t);
+    CHECK(has_op(u, Op::SETMEM));
+    CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
+    // a write before a CONTINUE, read by the next iteration only (its first
+    // line; nothing after the loop reads memory): live through the loop's
+    // head. (The read isn't resolved by the forward pass: at the head, what
+    // the loop writes is forgotten.)
+    t = V("{(while (lt loop1 4) {(setvar tmp1 (mem (range 32 32))) (setmem (range 32 32) (add 2 tmp1)) (continue loopid1 "
+          "[(setvar loop1 (add 1 loop1))])} loopid1 [(setvar loop1 0)]) (return (sized 32 tmp1))}");
+    u = S::cleanup_mems(t);
+    CHECK(has_op(u, Op::SETMEM));
+    CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
+    // (a write read by the CONTINUE's setvars alone is read as its value by
+    // the forward pass: dead then, dropped - the same runs)
+    t = V("{(while (lt loop1 4) {(setmem (range 32 32) (add 1 loop1)) (continue loopid1 [(setvar loop1 (mem (range 32 "
+          "32)))])} loopid1 [(setvar loop1 0)]) (return (sized 32 loop1))}");
+    u = S::cleanup_mems(t);
+    CHECK(!has_op(u, Op::SETMEM));
+    CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
+    // ... and read by the condition of the next iteration
+    t = V("{(while (lt (mem (range 32 32)) 4) {(setmem (range 32 32) (add 1 (mem (range 32 32)))) (continue loopid1 "
+          "[])} loopid1 []) (return (sized 32 (mem (range 32 32))))}");
+    u = S::cleanup_mems(t);
+    CHECK(has_op(u, Op::SETMEM));
+    CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
+    // both at once: the write at the end read after the loop, the one before
+    // the CONTINUE read by the next round; the whole simplifier
+    t = V("{(while (lt loop1 4) {(setmem (range 32 32) (add 1 loop1)) (if (lt loop1 3) {(continue loopid1 [(setvar loop1 "
+          "(mem (range 32 32)))])} {}) (setmem (range 0 32) loop1)} loopid1 [(setvar loop1 0)]) (return (mem (range 0 "
+          "64)))}");
+    u = S::simplify_trace(t);
+    CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
+}
+
+TEST_CASE("simplify: review 2026-11-02 F1 (11-simplify2) - a LABEL precedes every GOTO to it") {
+    Fixture f;
+    // The VM makes a GOTO only in a node below its LABEL's (vm_rounds.cpp:
+    // replace_loops loops to an ancestor at the same jumpdest, set_label
+    // makes the label node the head's only child), so in its trace the
+    // LABEL comes before every GOTO to it, in the same trace or an enclosing
+    // one; make_whiles refuses a GOTO out of its LABEL's lines; the trace
+    // machine (ir.md 4.4) resumes a GOTO after a LABEL already run, and
+    // reports a bug otherwise. So cleanup_vars / cleanup_conds may take a
+    // LABEL for a loop's head: what the lines after it change is forgotten,
+    // what the lines before it know holds (every path to the label ran them).
+    // a value set before the label and in the loop: not inlined past it
+    Value u = check_trace(
+        "{(setvar tmp1 7) (label loopid1 [(setvar loop1 0)]) (if (lt loop1 3) {(setvar tmp1 (add loop1 tmp1)) (goto "
+        "loopid1 [(setvar loop1 (add 1 loop1))])} {}) (return (sized 32 tmp1))}",
+        S::cleanup_vars);
+    CHECK(contains(u, V("(return (sized 32 tmp1))")));
+    // a fact known before the label, changed in the loop: not decided after it
+    u = check_trace(
+        "{(setvar tmp1 0) (label loopid1 [(setvar loop1 0)]) (if (iszero tmp1) {(setvar tmp1 1) (goto loopid1 [(setvar "
+        "loop1 (add 1 loop1))])} {}) (return (sized 32 loop1))}",
+        S::cleanup_conds);
+    CHECK(has_op(u, Op::IF));
+    // a GOTO before its LABEL isn't a trace: make_whiles refuses it, the
+    // machine reports the stage's bug
+    Value fwd = V("{(if 1 {(goto loopid1 [(setvar loop1 1)])} {}) (setvar tmp1 7) (label loopid1 [(setvar loop1 0)]) "
+                  "(return (sized 32 tmp1))}");
+    std::vector<LoopInfo> loops;
+    CHECK_THROWS_AS((void)loops::make_whiles(fwd, loops), Unsupported);
+    FunctionInfo fn;
+    fn.kind = FunctionInfo::Kind::Selector;
+    exec::Program p;
+    exec::Machine m(p);
+    World w{1};
+    CHECK(m.run(w, fn, fwd).status == exec::Status::Bug);
+}
+
+TEST_CASE("simplify: review 2026-11-02 F2 (11-simplify2) - truth(cond) is an equivalence") {
+    Fixture f;
+    // alg::truth's contract (algebra/construct.hpp): zero exactly when cond
+    // is - an equivalence, as the local rules of conds.cpp are (an odd
+    // factor, c + x == 0 <=> x == -c, a - b, xor): the if's condition may be
+    // truth(cond) and its else branch may assume iszero(truth(cond)).
+    // Conditions whose truth isn't them as a value: the inner ifs (the
+    // condition as it was) are decided by the branch they're in, and the
+    // machine agrees on both values of the bit
+    const std::string b = "(mask_shl 1 0 0 (calldataload 4))";
+    const std::string conds[] = {
+        "(mul 3 " + b + ")",            // 3 * b is 0 exactly when b is (odd: a bijection)
+        "(mul 2 " + b + ")",            // 2 * b too, b below 2^255
+        "(bool " + b + ")",             // the same truth, 0 / 1 as a value
+        "(iszero (iszero " + b + "))",  // the same
+        "(add -1 " + b + ")",           // b - 1: 0 exactly when b == 1
+        "(xor 1 " + b + ")",            // b ^ 1: the same
+    };
+    for (const std::string& c : conds) {
+        const std::string text = "{(if " + c + " {(if " + c + " {(return (sized 32 1))} {(return (sized 32 2))})} {(if " +
+                                 c + " {(return (sized 32 3))} {(return (sized 32 4))})})}";
+        Value u = check_trace(text.c_str(), S::cleanup_conds);
+        REQUIRE(u.size() == 1);
+        REQUIRE(u[0].is(Op::IF, 3));
+        CHECK_MESSAGE(u[0][0] != V(c), dump(u[0][0]));  // (truth changed it)
+        CHECK_MESSAGE(!has_op(u[0][1], Op::IF), dump_trace(u));
+        CHECK_MESSAGE(!has_op(u[0][2], Op::IF), dump_trace(u));
+    }
 }

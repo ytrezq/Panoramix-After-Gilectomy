@@ -31,6 +31,9 @@ struct InterpLimits
     std::uint64_t steps = 20'000'000;      ///< statements and expressions a call evaluates
     std::uint64_t memory = 8u << 20;       ///< the bytes of memory a call may use
     std::uint32_t depth = 10000;           ///< nested blocks and expressions (the C++ stack)
+    std::uint64_t stack = 4u << 20;        ///< the bytes of the C++ stack those may take below the
+                                           ///< call's entry (a debug build's frames are many times a
+                                           ///< release's; a thread's stack is 8 MiB)
     std::uint32_t internal_depth = 1024;   ///< nested calls of the recursive internal functions
                                            ///< (and the EVM's 1024 words: depth * frame)
 };

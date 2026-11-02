@@ -842,7 +842,14 @@ struct Machine::Impl {
                     append_padded(out, code, p, n);
                     return;
                 }
-                case Op::RETURNDATA_BYTES: {  // zero padded: the VM makes the EVM's halt explicit
+                case Op::RETURNDATA_BYTES: {
+                    // zero padded, never RETURNDATACOPY's halt: the VM writes a
+                    // call's output to memory it knows zeroed as
+                    // RETURNDATA_BYTES(id, 0, ret_len), ret_len past a short
+                    // output (the EVM's CALL leaves the zeroes there), and makes
+                    // RETURNDATACOPY's halt an explicit IF - a stage dropping
+                    // that IF then runs on where evmone halts (a divergence
+                    // seen), where a halt here would agree either way
                     const u32 id = call_id(a[0]);
                     const Word256 p = ev(a[1]);
                     const u64 n = length(ev(a[2]));

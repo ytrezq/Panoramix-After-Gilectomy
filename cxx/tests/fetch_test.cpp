@@ -2,12 +2,14 @@
 // its chunks, the JSON-RPC answer.
 #include <doctest/doctest.h>
 
+#include <chrono>
 #include <format>
 #include <string>
 #include <string_view>
 #include <variant>
 
 #include "fetch.hpp"
+#include "net.hpp"
 
 namespace fetch = pan::fetch;
 
@@ -297,4 +299,18 @@ TEST_CASE("code_at: not an address")
     CHECK_THROWS_WITH_AS(fetch::code_at("0x" + std::string(40, 'g') + "\x1b"),
                          ("not an address (0x and 40 hex digits): 0x" + std::string(40, 'g') + "\\x1b").c_str(),
                          fetch::Error);
+}
+
+TEST_CASE("fetch: review 2026-11-02 F1 - connect_tcp's name resolution ends at the deadline")
+{
+    // a name no resolver knows, a deadline of 300 ms: nullopt by then (give
+    // or take the thread's start), whatever the resolver's own timeouts
+    // (offline, glibc retries for seconds) - getaddrinfo runs on a thread of
+    // its own, waited for until the deadline only
+    using namespace std::chrono_literals;
+    const auto start = pan::net::Clock::now();
+    const auto c = pan::net::connect_tcp("zz-probe-2026-11-02.invalid", "80", start + 300ms);
+    const auto took = pan::net::Clock::now() - start;
+    CHECK(!c.has_value());
+    CHECK(took < 2s);
 }

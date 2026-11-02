@@ -14,6 +14,7 @@
 #include "core/dump.hpp"
 #include "core/evmint.hpp"
 #include "exec/machine.hpp"
+#include "storage/internal.hpp"
 #include "storage/storage.hpp"
 
 using namespace pan;
@@ -294,4 +295,38 @@ TEST_CASE("storage: forms - what the layout doesn't have is a bug") {
     CHECK(run(&l, "{(set (sv stor0) 1)}", 0).out.status == exec::Status::Bug);
     // no layout: unsupported (inconclusive)
     CHECK(run(nullptr, "{(return (sized 32 (st 256 (sv stor0) 256)))}", 0).out.status == exec::Status::Unsupported);
+}
+
+TEST_CASE("storage: review 2026-11-02 F1 - a type of stride 0: no division by zero escapes the Error catches") {
+    Fixture fx;
+    // The analysis never makes one: types.cpp array_type's stride is 1 for a
+    // packed array, else the gcd of the elements' strides, 1 when there is
+    // none (StorageType's default: 1) - the only source of a stride. And
+    // were a layout made by hand with one, element()'s pymod / floordiv by
+    // zero throw Unsupported (a pan::Error, what regroup / check catch), and
+    // EvmInt::value() is a Value, not an optional: no foreign exception.
+    namespace sd = storage::detail;
+    std::vector<StorageType> table;
+    sd::Types T(table);
+    const u32 e = T.value(256);
+    const u32 arr0 = T.array(Kind::Array, e, 0), fix0 = T.array(Kind::Fixed, e, 0);
+    const u32 arr1 = T.array(Kind::Array, e, 1);
+    const sd::FormCtx c{T, Lang::Solidity};
+    const Value base = mk(Op::SR, Value::small(5));
+    const sd::Step data{sd::Step::Kind::Data, Value(), false};
+    const sd::Step off{sd::Step::Kind::Off, mk_int(3), false};
+    const sd::Step st[] = {data, off};
+    const sd::Step st1[] = {off};
+    CHECK_THROWS_AS(sd::form(c, base, arr0, st, 256, Value::small(0)), Unsupported);
+    CHECK_THROWS_AS(sd::form(c, base, fix0, st1, 256, Value::small(0)), Unsupported);
+    CHECK_THROWS_AS(sd::form(c, base, fix0, {}, 256, Value::small(0)), Unsupported);
+    bool pan_error = false;
+    try {
+        sd::form(c, base, arr0, st, 256, Value::small(0));
+    } catch (const Error&) {
+        pan_error = true;
+    }
+    CHECK(pan_error);
+    // the same type of stride 1: the element's form
+    CHECK(sd::form(c, base, arr1, st, 256, Value::small(0)) == V("(st 256 (si (sr 5) 3) 256)"));
 }

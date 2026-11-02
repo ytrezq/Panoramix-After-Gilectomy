@@ -78,7 +78,8 @@ bool may_be_wide(Value x) noexcept;
 
 // v < 2^max_bits(v) as a word, for any value of what v is made of: ints
 // their bit length; comparisons, ISZERO, BOOL 1; BYTE 8; CLZ 9; concrete
-// masks their top; AND the least of its operands', OR/XOR the most; SHR by
+// masks their top (of a wide x, whose bits past 256 exist: off + size + shl
+// clipped to the word); AND the least of its operands', OR/XOR the most; SHR by
 // a constant k: 256 - k; DIV by a constant; MOD by b: bits(b); sums of
 // non-negative terms and products of non-negative ones while they can't
 // wrap; STORAGE(size, off >= 0, _) size; else 256.

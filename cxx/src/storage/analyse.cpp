@@ -740,9 +740,9 @@ void Analysis::names() {
     std::map<Word256, Name> root_names;
     std::map<std::pair<Word256, std::pair<i64, i64>>, Name> field_names;
     const sigdb::Database* db = shared_.db;
-    // python: the functions sorted by name - the signature database's names
-    // (bytes from outside, compared as python's sorted() of them does: the
-    // first getter of a variable names it), then by selector
+    // the getters by selector (the functions' ids): the first getter of a
+    // variable names it (storage.hpp StorageVar; python sorts the functions
+    // by their names' text instead - rule 1: no ordering by text here)
     struct Named {
         std::string_view name;
         usize fi;

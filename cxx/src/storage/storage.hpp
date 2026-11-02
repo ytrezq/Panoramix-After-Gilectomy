@@ -103,7 +103,10 @@ struct StorageVar {
     //  - getter set: the name of that function's signature (the signature
     //    database's entry of the selector, known(): verified or repaired), python's
     //    f.name.split("(")[0] - without its "get" when strip_get (getBalance ->
-    //    balance: the 4th character lowercased, the 3 first dropped);
+    //    balance: the 4th character lowercased, the 3 first dropped). A
+    //    variable read by several getters is named by the one with the
+    //    smallest selector (python's: the first of the names sorted as text;
+    //    rule 1: the selectors are the functions' ids, no ordering by text);
     //  - else python's default: stor<slot> (slot < 2^32, decimal), else
     //    "stor" + the first 4 hex digits of the slot, uppercase (storA66D);
     //    a field at off > 0: + "_<off>" (stor0_160).

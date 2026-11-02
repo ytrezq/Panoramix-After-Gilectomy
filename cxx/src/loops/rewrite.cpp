@@ -69,7 +69,10 @@ namespace {
 // may make wrong
 u8 changed_flags(const simplify::EffectSummary& s) {
     u8 f = 0;
-    if (s.writes & (simplify::S_MEM | simplify::S_MSIZE)) f |= F_MEM | F_MSIZE;
+    // (a write of memory changes msize too; a read of memory - a SETVAR of
+    // a MEM - changes msize only: the facts that read memory stay)
+    if (s.writes & simplify::S_MEM) f |= F_MEM | F_MSIZE;
+    else if (s.writes & simplify::S_MSIZE) f |= F_MSIZE;
     if (s.writes & simplify::S_STORAGE) f |= F_STORAGE;
     if (s.writes & (simplify::S_TRANSIENT | simplify::S_ACCOUNT | simplify::S_CALLRES)) f |= F_STATE;
     return f;

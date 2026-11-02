@@ -23,7 +23,8 @@
 //    them anywhere); names S_VARS (the Name; a PARAM is calldata);
 //    CALLDATALOAD, CALLDATA_BYTES, CALLDATASIZE, PARAM S_CALLDATA; the
 //    context leaves S_CTX. A SAFEMATH may fail (C_FAILS).
-//  - lines write: SETVAR its name; SETMEM its range (and S_MSIZE: every line
+//  - lines write: SETVAR its name (and S_MSIZE when its value reads memory:
+//    an MLOAD past msize grows it); SETMEM its range (and S_MSIZE: every line
 //    that reads or writes memory may grow it); STORE(size, off, slot, _)
 //    STORAGE(size, off, slot) (SET of the P forms: anywhere); TSTORE its
 //    key; LOG S_LOG; CALL CALLCODE DELEGATECALL CREATE CREATE2 storage,

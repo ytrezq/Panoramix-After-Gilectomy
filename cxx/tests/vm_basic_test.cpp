@@ -116,6 +116,38 @@ TEST_CASE("vm: call") {
     CHECK(r.calls.size() == 1);
 }
 
+TEST_CASE("vm: review 2026-11-02 F1 - RETURNDATACOPY's bounds check doesn't wrap") {
+    Fixture fx;
+    // CALL(gas, caller, 0, 0, 0, 0, 32); POP; then a RETURNDATACOPY at 51:
+    // the EVM's src + n doesn't wrap: src = 2^256 - 1, n = 2 is past any
+    // return data (an exceptional halt), where the wrapping sum is 1
+    const std::string call = "60206000600060006000335af150";
+    Code c(call + "6002" "7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" "6000" "3e" "00");
+    auto r = run_at(c);
+    std::string t = dump_trace(r.trace);
+    INFO(t);
+    // (the trace: the call, its output's setmem, then the halt - no copy, no IF)
+    REQUIRE(r.trace.size() == 3);
+    CHECK(r.trace[2] == V("(invalid 6 51)"));
+    CHECK(t.find("(range 0 2)") == std::string::npos);
+    CHECK(t.find("(if ") == std::string::npos);  // decided: no IF on returndatasize
+    // the usual copy, src = 0, n = returndatasize: as before (no check needed)
+    Code d(call + "3d" "6000" "6000" "3e" "00");
+    auto rd = run_at(d);
+    INFO(dump_trace(rd.trace));
+    REQUIRE(rd.trace.size() == 4);
+    CHECK(rd.trace[2] == V("(setmem (range 0 (returndatasize 1)) (returndata_bytes 1 0 (returndatasize 1)))"));
+    CHECK(rd.trace[3] == V("(stop)"));
+    // src = 32, n = returndatasize - 32: the sum is returndatasize, a carry
+    // when returndatasize < 32 (then the EVM halts): the condition keeps it
+    Code e(call + "6020" "3d" "03" "6020" "6000" "3e" "00");
+    auto re = run_at(e);
+    std::string te = dump_trace(re.trace);
+    INFO(te);
+    CHECK(te.find("(invalid 6 ") != std::string::npos);
+    CHECK(te.find("(lt (returndatasize 1) 32)") != std::string::npos);
+}
+
 TEST_CASE("vm: recursive internal function") {
     Fixture fx;
     // main: fact(calldataload(0)) returning to 8, mem[0] = result, return it
@@ -166,6 +198,43 @@ TEST_CASE("vm: discovery") {
         CHECK(r.complete);
     }
     CHECK(fns[0].entry.entry_lines == V("{(setmem (range 64 32) (sized 32 128))}"));
+}
+
+TEST_CASE("vm: review 2026-11-02 F1 (discover) - the fallback's checks are the selector tests' negations only") {
+    Fixture fx;
+    // calldatasize < 4 -> 60 (receive: stop); sel 0x12345678 -> 38, where
+    // calldatasize < 36 reverts before the jump to 62; sel 0xaabbccdd -> 49
+    // (returns 1); else 33 reverts. Two default starts (60, 33): the fallback
+    // is all of the dispatcher, with what's known there: no selector
+    // matched. The calldatasize test under the matched selector is the
+    // function's (a FuncCall is the selector test's own branch): not a fact
+    // of the fallback - nor is the receive's calldatasize < 4 (no function
+    // ends either of its branches).
+    Code c("6004361060" "3c57" "60003560e01c" "80631234567814602657" "8063aabbccdd14603157" "5b600080fd"
+           "5b60243610602157603e56" "5b600160005260206000f3" "5b00" "5b00");
+    Budget b{Budget::Limits{}};
+    auto fns = vm::discover(c.shared, b);
+    REQUIRE(fns.size() == 3);
+    CHECK(fns[0].selector == 0x12345678);
+    CHECK(fns[0].entry_pc == 38);
+    CHECK(fns[1].selector == 0xaabbccdd);
+    CHECK(fns[1].entry_pc == 49);
+    const FunctionInfo& fb = fns[2];
+    CHECK(fb.kind == FunctionInfo::Kind::Fallback);
+    CHECK(fb.entry_pc == 0);
+    std::string checks = dump(fb.entry.checks);
+    INFO(checks);
+    REQUIRE(fb.entry.checks.size() == 2);
+    for (Value k : fb.entry.checks.args()) {
+        CHECK(k.is(Op::ISZERO, 1));
+        CHECK(k.has_flags(F_CALLDATA));
+    }
+    CHECK(checks.find("calldatasize") == std::string::npos);
+    auto r = vm::run_function(c.shared, fb, {});
+    INFO(dump_trace(r.trace));
+    CHECK(r.complete);
+    // the fallback's own trace: the receive and the revert, no function
+    CHECK(dump_trace(r.trace).find("(return") == std::string::npos);
 }
 
 TEST_CASE("vm: merge of branches") {

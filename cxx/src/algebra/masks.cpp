@@ -222,12 +222,22 @@ u32 max_bits_of(Value v) {
             return 9;
         case Op::MASK_SHL: {
             if (v.size() != 4 || !v[0].is_small() || !v[1].is_small() || !v[2].is_small()) return 256;
-            i64 size = v[0].small_val(), off = v[1].small_val(), shl = v[2].small_val();
+            // the fields as the evaluation reads them (eval.hpp clamp_field)
+            auto clamp = [](i64 f) { return f > 4096 ? 4096 : f < -4096 ? -4096 : f; };
+            i64 size = clamp(v[0].small_val()), off = clamp(v[1].small_val()), shl = clamp(v[2].small_val());
             if (off < 0) {
                 size += off;
                 off = 0;
             }
-            if (size <= 0 || off >= 256 || shl >= 256 || shl <= -256) return 0;
+            if (size <= 0) return 0;
+            if (may_be_wide(v[3])) {
+                // x has bits past 256: the field [off, off + size) is taken
+                // whole and moved by shl, what lands below bit 256 is the
+                // word (exec's mask_shl_wide; not bounded by x's bits)
+                i64 top = off + size + shl;
+                return top <= 0 ? 0 : top > 256 ? 256 : u32(top);
+            }
+            if (off >= 256 || shl >= 256 || shl <= -256) return 0;
             i64 top = off + size;
             i64 xb = max_bits(v[3]);
             if (xb < top) top = xb;

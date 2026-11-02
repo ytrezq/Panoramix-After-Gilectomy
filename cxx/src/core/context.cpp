@@ -382,6 +382,10 @@ void Context::clear_caches() {
 }
 
 void Context::compact(std::span<Value> roots) {
+    // the Importer rebuilds the roots on the thread's context: it must be
+    // this one, else they would land in another arena while this one's
+    // old arena, the only copy, is released
+    if (PAN_UNLIKELY(tl_ctx != this)) throw InternalError("Context::compact: not the thread's context");
     Arena old_arena(this);
     HashCons old_hc(this);
     old_arena.swap(arena);

@@ -276,6 +276,43 @@ TEST_CASE("core: EvmInt and Word256") {
     CHECK_THROWS_AS(EvmInt::pow2(u64(1) << 30), SizeLimit);
 }
 
+TEST_CASE("core: review 2026-11-02 F2 - EvmInt::mask with a wrapping size + off is a SizeLimit, not a shift past 64") {
+    // (the debug build has UBSan: a shift by >= 64 aborts the run)
+    CHECK_THROWS_AS(EvmInt::mask(1, ~u64(0)), SizeLimit);         // size + off wraps to 0
+    CHECK_THROWS_AS(EvmInt::mask(~u64(0) - 4, 10), SizeLimit);    // wraps to 5
+    CHECK_THROWS_AS(EvmInt::mask(~u64(0), 0), SizeLimit);         // size alone past the limit
+    CHECK_THROWS_AS(EvmInt::mask(8, kEvmIntMaxBits + 1), SizeLimit);
+    CHECK(EvmInt::mask(62, 0) == EvmInt((i64(1) << 62) - 1));    // the fast path's edges
+    CHECK(EvmInt::mask(1, 61) == EvmInt(i64(1) << 61));
+    CHECK(EvmInt::mask(1, 62) == EvmInt::pow2(62));
+    CHECK(EvmInt::mask(63, 0) == EvmInt::pow2(63) - 1);
+    CHECK(EvmInt::mask(8, 256) == EvmInt::pow2(264) - EvmInt::pow2(256));
+    CHECK(EvmInt::mask(0, ~u64(0)) == 0);
+}
+
+TEST_CASE("core: review 2026-11-02 F3 - Context::compact of a context that is not the thread's is an InternalError") {
+    init();
+    Budget b{Budget::Limits{}};
+    b.attach_thread();
+    auto c1 = Context::create(b);
+    auto c2 = Context::create(b);
+    Value v1;
+    {
+        ContextScope s(*c1);
+        v1 = mk(Op::ADD, mk_int(1), Value::leaf(Op::CALLER));
+    }
+    {
+        ContextScope s(*c2);
+        std::vector<Value> roots{v1};
+        CHECK_THROWS_AS(c1->compact(roots), InternalError);  // the roots would be rebuilt on c2
+        CHECK(roots[0] == v1);                                // c1 as it was
+        CHECK(c1->arena.owns(v1.node()));
+    }
+    c1.reset();
+    c2.reset();
+    b.detach_thread();
+}
+
 TEST_CASE("core: the budget") {
     init();
     {
@@ -318,6 +355,40 @@ TEST_CASE("core: the budget") {
         b.detach_thread();
     }
     CHECK_NOTHROW(poll());  // no budget: no limit
+}
+
+TEST_CASE("core: review 2026-11-02 F1 - a memo grown with no charger is charged once one exists") {
+    struct Counter : MemCharge {
+        isize total = 0;
+        void charge(isize bytes) override { total += bytes; }
+    };
+    Counter c;
+    Memo<Key2, u8> m;
+    {
+        MemChargeScope none(nullptr);  // no ContextScope: nothing to count to
+        m.put(Key2{1, 1}, 1);          // the first growth (64 slots)
+    }
+    CHECK(m.capacity() == 64);
+    CHECK(c.total == 0);
+    {
+        MemChargeScope sc(&c);  // a charger from now on: every growth counted, the whole table
+        for (u64 i = 2; i < 1000; i++) m.put(Key2{i, i}, 1);
+    }
+    CHECK(m.capacity() > 64);
+    CHECK(c.total == isize(m.bytes()));
+    m.clear();  // given back to the same one
+    CHECK(c.total == 0);
+    // a charger bound later than the first growth counts too
+    Memo<Key2, u8> n;
+    {
+        MemChargeScope none(nullptr);
+        n.put(Key2{1, 1}, 1);
+    }
+    n.bind(&c);
+    for (u64 i = 2; i < 100; i++) n.put(Key2{i, i}, 1);
+    CHECK(c.total == isize(n.bytes()));
+    n.clear();
+    CHECK(c.total == 0);
 }
 
 TEST_CASE("core: parallel_for is deterministic") {

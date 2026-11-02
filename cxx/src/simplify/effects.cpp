@@ -284,6 +284,9 @@ EffectSummary expr_summary(Value v) {
         case Op::SETVAR:
             s = operands(v, 1);
             add_place(s, true, S_VARS, v[0]);
+            // (a value reading memory past msize grows it, as an MLOAD does;
+            // review 2026-11-02, 10-simplify1 F2: it said S_VARS only)
+            touch(s);
             return s;
         case Op::SETMEM:
             s = operands(v);

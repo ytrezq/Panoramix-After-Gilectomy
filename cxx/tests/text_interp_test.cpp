@@ -7,6 +7,8 @@
 
 #include "validate_test_util.hpp"
 
+#include <algorithm>
+#include <cstdlib>
 #include <string>
 #include <variant>
 
@@ -215,6 +217,33 @@ TEST_CASE("text interp: memory, data, Bytes, Array, sha3")
     CHECK(t.call(calldata("m(uint256)", {4})).end.data == Bytes{'a', 'b', 'c', 'd', 'e', 'f', 'g'});
 }
 
+TEST_CASE("text interp: review 2026-11-02 F1 - a Bytes(n, v) of a large n, its value short or padded")
+{
+    // the printer writes a wide Bytes(n, v) as its significant digits alone
+    // (and up to four words as python's 2n digits): both are the n bytes
+    Text t(
+        "def m(uint256 x): # not payable\n"
+        "  if x == 1:\n"
+        "      return Bytes(129, 0x1)\n"
+        "  if x == 2:\n"
+        "      return Bytes(129, 0x" + std::string(257, '0') + "1)\n"
+        "  if x == 3:\n"
+        "      return Bytes(1048576, 0x1234)\n"
+        "  return Bytes(64, 0x" + std::string(127, '0') + "1)\n");
+    Bytes b129(129, 0);
+    b129.back() = 1;
+    CHECK(t.call(calldata("m(uint256)", {1})).end.data == b129);
+    CHECK(t.call(calldata("m(uint256)", {2})).end.data == b129);
+    const auto wide = t.call(calldata("m(uint256)", {3})).end.data;
+    REQUIRE(wide.size() == 1048576);
+    CHECK(wide[1048574] == 0x12);
+    CHECK(wide[1048575] == 0x34);
+    CHECK(std::all_of(wide.begin(), wide.end() - 2, [](std::uint8_t c) { return c == 0; }));
+    Bytes b64(64, 0);
+    b64.back() = 1;
+    CHECK(t.call(calldata("m(uint256)", {4})).end.data == b64);
+}
+
 TEST_CASE("text interp: logs, external calls, precompiles, creations")
 {
     Text t(
@@ -325,6 +354,48 @@ TEST_CASE("text interp: what can't be run precisely is unsupported")
     CHECK(u[static_cast<std::size_t>(Unsupported::msize)] == 1);
     CHECK(u[static_cast<std::size_t>(Unsupported::aborted)] == 1);
     CHECK(u[static_cast<std::size_t>(Unsupported::unset_variable)] == 1);
+}
+
+TEST_CASE("text interp: review 2026-11-02 F5 - bytes nested past the depth limit are an error, not a crash")
+{
+    // concat( in concat(, Array( in Array(, Bytes( in Bytes(: the parser
+    // nests without a cap (iterative), the interpreter's data() and elem()
+    // recurse - past the depth limit an Unsupported, as eval()'s, where a
+    // hostile text would overflow the C++ stack
+    const auto nested = [](std::string_view open, std::string_view close, std::size_t n, std::string_view inner) {
+        std::string s;
+        s.reserve(n * (open.size() + close.size()) + inner.size());
+        for (std::size_t i = 0; i < n; ++i)
+            s += open;
+        s += inner;
+        for (std::size_t i = 0; i < n; ++i)
+            s += close;
+        return s;
+    };
+    const std::size_t n = std::getenv("F5_N") ? std::strtoul(std::getenv("F5_N"), nullptr, 10) : 100000;
+    if (std::getenv("F5_EVAL")) {
+        Text e("def m(uint256 x): # not payable\n  return " + nested("(1 + ", ")", n, "x") + "\n");
+        MESSAGE(to_string(e.call(calldata("m(uint256)", {Word{1}})).end.status));
+        return;
+    }
+    Text t(
+        "def m(uint256 x): # not payable\n"
+        "  if x == 1:\n"
+        "      return " + nested("concat(", ")", n, "Bytes(1, 0x66)") + "\n"
+        "  if x == 2:\n"
+        "      return " + nested("Array(len=1, data=", ")", n, "Bytes(1, 0x66)") + "\n"
+        "  return " + nested("Bytes(1, ", ")", n, "0x66") + "\n");
+    for (const Word x : {Word{1}, Word{2}, Word{3}})
+        CHECK(t.call(calldata("m(uint256)", {x})).end.status == Status::unsupported);
+    CHECK(t.interp.unsupported()[static_cast<std::size_t>(Unsupported::depth)] == 3);
+    // within the limit: the bytes
+    Text ok(
+        "def m(uint256 x): # not payable\n"
+        "  if x == 1:\n"
+        "      return " + nested("concat(", ")", 2000, "Bytes(1, 0x66)") + "\n"
+        "  return " + nested("Bytes(1, ", ")", 2000, "0x66") + "\n");
+    CHECK(ok.call(calldata("m(uint256)", {1})).end.data == Bytes{0x66});
+    CHECK(ok.call(calldata("m(uint256)", {2})).end.data == Bytes{0x66});
 }
 
 TEST_CASE("text interp: the members of a struct param, the params' places")

@@ -4,8 +4,13 @@
 // raw ones on storage worlds: the same ends, the same writes.
 #include <doctest/doctest.h>
 
+#include <lzma.h>
+
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
 #include <optional>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -16,6 +21,7 @@
 #include "core/dump.hpp"
 #include "core/evmint.hpp"
 #include "exec/machine.hpp"
+#include "sigdb.hpp"
 #include "storage/internal.hpp"
 #include "storage/names.hpp"
 #include "storage/storage.hpp"
@@ -479,4 +485,66 @@ TEST_CASE("storage: packed arrays indexed by a field, reads at runtime offsets, 
     }
     CHECK(a.after[3].trace[0] == asm_line);
     same_runs(a);
+}
+
+namespace {
+
+// a signature database of a few functions, built in a directory of its own
+struct MiniDb {
+    std::filesystem::path dir;
+    std::unique_ptr<sigdb::Database> db;
+    explicit MiniDb(std::string_view dump_text) {
+        static const unsigned tag = std::random_device{}();
+        dir = std::filesystem::temp_directory_path() / ("storage_test." + std::to_string(tag));
+        std::filesystem::remove_all(dir);
+        std::filesystem::create_directories(dir);
+        std::string xz(dump_text.size() + dump_text.size() / 2 + 4096, '\0');
+        std::size_t pos = 0;
+        REQUIRE(lzma_easy_buffer_encode(6, LZMA_CHECK_CRC64, nullptr, reinterpret_cast<const std::uint8_t*>(dump_text.data()),
+                                        dump_text.size(), reinterpret_cast<std::uint8_t*>(xz.data()), &pos, xz.size()) == LZMA_OK);
+        xz.resize(pos);
+        {
+            std::ofstream f(dir / "abi_dump.xz", std::ios::binary | std::ios::trunc);
+            f.write(xz.data(), std::streamsize(xz.size()));
+            REQUIRE(f.good());
+        }
+        sigdb::build(dir / "abi_dump.xz", dir / "sigdb2.bin");
+        db = sigdb::Database::open(dir / "sigdb2.bin");
+    }
+    ~MiniDb() {
+        db.reset();
+        std::error_code ec;
+        std::filesystem::remove_all(dir, ec);
+    }
+};
+
+}  // namespace
+
+TEST_CASE("storage: review 2026-11-02 F5 - a slot read by several getters is named by the smallest selector") {
+    Fixture f;
+    // owner() 0x8da5cb5b and admin() 0xf851a440 both return slot 0: python
+    // names it by the first of the names sorted as text (admin); here by
+    // the first selector (rule 1: no ordering by text) - owner
+    MiniDb mini("{\"selector\": \"0x8da5cb5b\", \"abi\": {\"name\": \"owner\", \"type\": \"function\", \"inputs\": []}}\n"
+                "{\"selector\": \"0xf851a440\", \"abi\": {\"name\": \"admin\", \"type\": \"function\", \"inputs\": []}}\n");
+    REQUIRE(mini.db);
+    REQUIRE(mini.db->function(0x8da5cb5b));
+    REQUIRE(mini.db->function(0xf851a440));
+    for (const bool admin_first : {false, true}) {
+        std::vector<FunctionInfo> fns;
+        for (const u32 sel : admin_first ? std::vector<u32>{0xf851a440, 0x8da5cb5b} : std::vector<u32>{0x8da5cb5b, 0xf851a440}) {
+            FunctionInfo g = fn(sel, "{(return (sized 32 (storage 256 0 0)))}");
+            g.getter = g.read_only = true;
+            fns.push_back(g);
+        }
+        std::vector<FunctionInfo> after = fns, internals;
+        ContractShared shared;
+        shared.lang = Lang::Solidity;
+        shared.db = mini.db.get();
+        const auto layout = storage::analyse(after, internals, shared);
+        REQUIRE(layout->vars.size() == 1);
+        CHECK(layout->vars[0].slot == Word256::of(0));
+        CHECK(layout->vars[0].getter == 0x8da5cb5bu);  // (whatever the dispatcher's order)
+        CHECK(!layout->vars[0].strip_get);
+    }
 }

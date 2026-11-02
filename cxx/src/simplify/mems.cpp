@@ -322,7 +322,10 @@ struct Live {
         const EffectSummary& s = summary(line);
         if (!s.writes) return;
         SmallVec<Value, 8> names, values;
-        if (s.writes == S_VARS && assignments(line, names, values)) {
+        // (an assignment whose value reads memory also moves msize: a range
+        // reading msize isn't the same bytes before it - but every write is
+        // then kept anyway, msize being read after it: the msize rule)
+        if ((s.writes & ~S_MSIZE) == S_VARS && assignments(line, names, values)) {
             assign(names, values);
             return;
         }

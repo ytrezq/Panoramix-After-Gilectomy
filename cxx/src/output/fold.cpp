@@ -534,6 +534,20 @@ bool Folder::changes_read(Value line, Value cond)
     // (the gas left, the size of the memory: any line may change them)
     if (reads_gas_or_msize(cond))
         return true;
+    const simplify::EffectSummary& l = simplify::summary(line);
+    const simplify::EffectSummary& c = simplify::summary(cond);
+    // A call's results: the IR's are numbered (call 2 changes nothing
+    // call_success 1 reads), the text's ext_call.success, return_data...
+    // are the last call's - and snapshot_call_results gave them variables
+    // on the unfolded trace. A line making a call (an internal function may)
+    // doesn't go above a condition reading one: python's changes_read, its
+    // STATE_SYMBOLS (review 2026-11-02, 15-output1 F3).
+    if ((l.writes & simplify::S_CALLRES) && (c.reads & simplify::S_CALLRES))
+        return true;
+    // (and a line reading msize doesn't go above a condition whose read of
+    // memory may grow it)
+    if ((l.reads & simplify::S_MSIZE) && (c.reads & simplify::S_MEM))
+        return true;
     return simplify::affects(line, cond);
 }
 

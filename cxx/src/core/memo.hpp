@@ -128,8 +128,10 @@ constexpr bool key_eq(const K& x, const K& y) noexcept {
 // (calloc) slots: K and V trivially copyable, all-zero bytes a valid V (0,
 // NIL...). No erase: a memo is only filled, then cleared whole. The bytes
 // are charged to the bound MemCharge, or else to the current one
-// (tl_mem_charge) at the first growth, and given back to that same one: it
-// must outlive the memo (the budget outlives the context and its states).
+// (tl_mem_charge), from the first growth that finds one (a growth with
+// neither counts nothing; the next one with a charger counts the whole
+// table), and given back to that same one: it must outlive the memo (the
+// budget outlives the context and its states).
 // The iteration order is the table's (addresses): nothing may rely on it.
 template <class K, class V>
 class Memo {
@@ -234,8 +236,12 @@ private:
 
     void grow() {
         usize ncap = cap_ ? (cap_ >= 4096 ? cap_ * 4 : cap_ * 2) : 64;
-        MemCharge* c = cap_ ? charged_ : (bound_ ? bound_ : tl_mem_charge);
-        isize delta = isize((ncap - cap_) * sizeof(Slot));
+        // the charger holding the slots' bytes; none yet (no slots, or none
+        // existed when they were made): the bound one, else the current one,
+        // and the whole new table is charged to it (the old slots were never
+        // counted) - a memo is counted from the moment a charger exists
+        MemCharge* c = charged_ ? charged_ : (bound_ ? bound_ : tl_mem_charge);
+        isize delta = isize((charged_ ? ncap - cap_ : ncap) * sizeof(Slot));
         if (c) c->charge(delta);  // throws past the limit: the memo as it was
         auto* fresh = static_cast<Slot*>(std::calloc(ncap, sizeof(Slot)));
         if (!fresh) {

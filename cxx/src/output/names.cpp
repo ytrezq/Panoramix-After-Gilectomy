@@ -210,11 +210,13 @@ ContractNames contract_names(const StorageLayout* storage, const SafeMathTable* 
         return n;
     // python's unique(): the variables in their order, a name taken
     // already + _<slot> (decimal below 2^32, else its first 8 hex digits),
-    // then _2, _3... while taken
+    // then _2, _3... while taken - on the names as printed: db_text isn't
+    // injective (a newline is written \x0a, a backslash kept), and two
+    // variables of one printed name would be one to the text's reader
     std::unordered_set<std::string> taken;
     n.storage_names.reserve(storage->vars.size());
     for (const StorageVar& v : storage->vars) {
-        std::string name = getter_name(v, db).value_or(default_storage_name(v));
+        std::string name = db_text(getter_name(v, db).value_or(default_storage_name(v)));
         if (taken.contains(name)) {
             const auto s = v.slot.as_u64();
             name += "_" + (s && *s < (u64(1) << 32) ? std::to_string(*s) : slot_hex_digits(v.slot).substr(0, 8));
@@ -223,7 +225,7 @@ ContractNames contract_names(const StorageLayout* storage, const SafeMathTable* 
         for (u64 k = 2; taken.contains(name); ++k)
             name = std::format("{}_{}", base, k);
         taken.insert(name);
-        n.storage_names.push_back(db_text(name));
+        n.storage_names.push_back(std::move(name));
     }
     return n;
 }

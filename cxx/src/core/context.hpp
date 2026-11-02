@@ -183,7 +183,9 @@ public:
     void clear_caches();
     // a fresh arena holding the roots (imported), with the states that keep
     // something (imported too) and the pcs of the lines still alive; the
-    // rest freed. On an error (MemoryLimit...) the context is as it was.
+    // rest freed. Only on the thread's context (cx() == this, where the
+    // Importer rebuilds: InternalError else). On an error (MemoryLimit...)
+    // the context is as it was.
     void compact(std::span<Value> roots);
     // what counts against the budget: arena + table + memo tables
     usize usage() const noexcept { return charged_; }

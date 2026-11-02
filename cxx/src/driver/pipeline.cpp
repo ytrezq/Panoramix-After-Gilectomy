@@ -10,6 +10,7 @@
 #include <numeric>
 #include <optional>
 #include <system_error>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -224,6 +225,26 @@ void check_deadline(i64 deadline)
 
 Stage jobs_last(Stage upto) noexcept { return upto < Stage::Analysed ? upto : Stage::Analysed; }
 
+Explainer::~Explainer()
+{
+    if (budget_ && charged_)
+        budget_->charge(-isize(charged_));
+}
+
+void Explainer::account()
+{
+    if (!budget_)
+        return;
+    const usize cap = out.capacity();
+    if (cap > charged_) {
+        budget_->charge(isize(cap - charged_));  // (MemoryLimit: charged_ as it was)
+        charged_ = cap;
+    } else if (cap < charged_) {
+        budget_->charge(-isize(charged_ - cap));
+        charged_ = cap;
+    }
+}
+
 void Explainer::trace(std::string_view title, Value t)
 {
     const u64 h = t.hash();
@@ -233,10 +254,25 @@ void Explainer::trace(std::string_view title, Value t)
         return;
     const usize before = out.size();
     output::explain_trace(out, title, t, output::TraceContext{fn_, db_, color_});
-    if (out.size() > EXPLAIN_MAX) {
+    // the text counts against the function's memory limit (rule 8): its
+    // bytes charged to the job's budget as the string grows; past it, or
+    // past the cap, this section is dropped and the text is cut there
+    bool over = out.size() > explain_cap(budget_ ? budget_->limits().memory : 0);
+    if (!over)
+        try {
+            account();
+        } catch (const MemoryLimit&) {
+            over = true;
+        }
+    if (over) {
         out.resize(before);
+        out.shrink_to_fit();  // (the section's memory given back)
         out += EXPLAIN_CUT;
         cut_ = true;
+        try {
+            account();
+        } catch (const MemoryLimit&) {  // (the cut line itself, at the very limit: uncounted)
+        }
         return;
     }
     if (!first) {
@@ -268,7 +304,9 @@ struct Run::JobOut {
     bool ran = false;            // its job ran
     bool done = false;           // made to the last stage asked
     Stage at = Stage::Raw;       // else: the stage it failed at
-    std::string message;         // why
+    std::string message;         // why (made by the job)
+    const char* fixed = nullptr; // why, when no message could be made: a literal, set with no allocation
+    const char* why() const noexcept { return fixed ? fixed : message.c_str(); }
     std::array<FunctionInfo, STAGE_COUNT> stage{};
     std::array<bool, STAGE_COUNT> has{};
     std::vector<vm::InternalEntry> found;  // what its VM found (when done)
@@ -498,7 +536,9 @@ void Run::run_wave(const std::vector<std::pair<bool, u32>>& jobs)
             if (out.explain_first && explain_prev_ && out.first_hash == explain_prev_hash_)
                 from = out.first_end;
             if (!explain_cut_) {
-                if (explain_.size() + (out.explain.size() - std::min(from, out.explain.size())) > EXPLAIN_MAX) {
+                // (the whole: at most the cap, a function's memory limit when there is one)
+                if (explain_.size() + (out.explain.size() - std::min(from, out.explain.size())) >
+                    explain_cap(s_.fn_memory)) {
                     explain_ += EXPLAIN_CUT;
                     explain_cut_ = true;
                 } else {
@@ -545,15 +585,18 @@ void Run::job(bool internal, u32 i) noexcept
         out.name = log_name(internal ? ints_[i] : fns_[i]);
         run_job(internal, i, out);
     } catch (...) {
-        // (what the job's own handlers didn't take: its logs, the names - no memory)
+        // (what the job's own handlers didn't take: its logs, the names - no
+        // memory: nothing is allocated here, the function being noexcept)
+        static_assert(std::is_same_v<decltype(out.fixed), const char*> &&
+                      std::is_same_v<decltype(MSG_NO_MEMORY), const char* const>);
         out.done = false;
         if (out.message.empty())
-            out.message = MSG_NO_MEMORY;
+            out.fixed = MSG_NO_MEMORY;
     }
     out.ran = true;
     if (!out.done)
         try {
-            log(log_error, LOGGER, "Problem with " + out.name + ": " + out.message);
+            log(log_error, LOGGER, "Problem with " + out.name + ": " + out.why());
         } catch (...) {  // (no memory for the line: not written)
         }
 }
@@ -574,7 +617,7 @@ void Run::run_job(bool internal, u32 i, JobOut& out)
     std::optional<Explainer> explainer;
     FunctionInfo fn;
     if (s_.explain)
-        explainer.emplace(s_.color, &fn, s_.options.db);
+        explainer.emplace(s_.color, &fn, s_.options.db, &budget);  // (its text within the job's limit)
     const Stage upto = s_.options.upto;
     Stage at = Stage::Raw;
     bool failed = false;
@@ -765,12 +808,12 @@ void Run::assemble()
     for (u32 i = 0; i < fns_.size(); ++i)
         if (!fn_out_[i].done) {
             fn_problem[i] = u32(r.problems.size());
-            r.problems.push_back(Problem{false, i, fn_out_[i].at, fn_out_[i].message});
+            r.problems.push_back(Problem{false, i, fn_out_[i].at, fn_out_[i].why()});
         }
     for (u32 k = 0; k < ints_.size(); ++k)
         if (!int_out_[k].done) {
             int_problem[k] = u32(r.problems.size());
-            r.problems.push_back(Problem{true, where[k], int_out_[k].at, int_out_[k].message});
+            r.problems.push_back(Problem{true, where[k], int_out_[k].at, int_out_[k].why()});
         }
     // a function at a stage: its trace there, or (failed at it or before) none
     auto at_stage = [](const FunctionInfo& src, JobOut& out, std::optional<u32> problem, unsigned s) {

@@ -289,10 +289,12 @@ EvmInt EvmInt::mod_2exp(u64 k) const {
 
 EvmInt EvmInt::mask(u64 size, u64 off) {
     if (size == 0) return EvmInt(0);
-    if (size + off < 63) return EvmInt(((i64(1) << size) - 1) << off);
+    // (not `size + off < 63`: the sum wraps for a contract's huge width or
+    // offset, then the shift by >= 64 is undefined)
+    if (size < 63 && off < 63 - size) return EvmInt(((i64(1) << size) - 1) << off);
     check_bits(size);
     check_bits(off);
-    check_bits(size + off);
+    check_bits(size + off);  // (no wrap: both are <= 2^20 here)
     mpz_class z;
     mpz_setbit(z.get_mpz_t(), size);
     mpz_sub_ui(z.get_mpz_t(), z.get_mpz_t(), 1);

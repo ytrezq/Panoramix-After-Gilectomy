@@ -126,6 +126,13 @@ std::vector<u8> int_sig_bytes(const EvmInt& v)
 // allows one element) - the elements are then printed one by one
 constexpr u64 kTextBytesMax = u64(1) << 24;
 
+// the width up to which a Bytes(n, v) writes its value in 2n hex digits
+// (python's form: the bytes' layout); past these four words the value is
+// its significant digits alone (the width says the rest, as a Bytes(n, 0)'s
+// zeroes are never written out): python's 2n digits of a width of 16 MiB
+// are 32 MiB of zeroes, written again at every use of the node
+constexpr i64 kPaddedBytesMax = 128;
+
 // python's data_bytes(e), the bytes of an element of a data if they're
 // known (Bytes(n, int), an int word, the contract's bytes), as `zeros`
 // zeroes then `rest` (an int's significant bytes, the contract's bytes):
@@ -1097,9 +1104,10 @@ struct ExpImpl {
                 if (v.is_zero()) {
                     o.put('0');
                 } else {
+                    // (the text parser reads both forms as the number)
                     std::string h = int_hex(v).substr(2);
                     o.put("0x");
-                    if (h.size() < usize(2 * n))
+                    if (n <= kPaddedBytesMax && h.size() < usize(2 * n))
                         o.put(std::string(usize(2 * n) - h.size(), '0'));
                     o.put(h);
                 }

@@ -51,8 +51,10 @@ private:
     std::intptr_t handle_ = -1;
 };
 
-// The first of the host's addresses (getaddrinfo's) that takes the
-// connection, each given `timeout`, none past the deadline; nullopt if none.
+// The first of the host's addresses (getaddrinfo's: the name resolved
+// within `timeout` and the deadline too, on a thread of its own) that takes
+// the connection, each given `timeout`, none past the deadline; nullopt if
+// none.
 std::optional<Connection> connect_tcp(const std::string& host, const std::string& port,
                                       Clock::time_point deadline);
 

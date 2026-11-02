@@ -4,8 +4,13 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <condition_variable>
 #include <cstddef>
 #include <cstring>
+#include <memory>
+#include <mutex>
+#include <system_error>
+#include <thread>
 
 #include <fcntl.h>
 #include <netdb.h>
@@ -63,6 +68,56 @@ bool connect_wait(int fd, const sockaddr* address, socklen_t length, Clock::time
     if (::connect(fd, address, length) == 0)
         return true;
     return (errno == EINPROGRESS || errno == EINTR) && finish_connect(fd, deadline);
+}
+
+addrinfo* lookup(const std::string& host, const std::string& port) noexcept
+{
+    addrinfo hints{};
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    addrinfo* found = nullptr;
+    if (::getaddrinfo(host.c_str(), port.c_str(), &hints, &found) != 0)
+        return nullptr;
+    return found;
+}
+
+// The host's addresses (getaddrinfo's; the caller frees them), waited for
+// `timeout` at most and not past the deadline: getaddrinfo blocks for the
+// resolver's own time (its retries: tens of seconds), so it runs on a thread
+// of its own; when the time is up, nullptr - the thread goes on alone and
+// frees what it finds. (No thread to be had: on this one, for as long as it
+// takes.)
+addrinfo* resolve(const std::string& host, const std::string& port, Clock::time_point deadline)
+{
+    struct Lookup {
+        std::mutex mutex;
+        std::condition_variable done;
+        bool finished = false;
+        bool wanted = true;  // the caller still waits
+        addrinfo* found = nullptr;
+    };
+    const auto until = std::min(deadline, Clock::now() + timeout);
+    auto shared = std::make_shared<Lookup>();
+    try {
+        std::thread([shared, host, port] {
+            addrinfo* found = lookup(host, port);
+            std::lock_guard<std::mutex> lock(shared->mutex);
+            if (shared->wanted) {
+                shared->found = found;
+                shared->finished = true;
+                shared->done.notify_one();
+            } else if (found) {
+                ::freeaddrinfo(found);
+            }
+        }).detach();
+    } catch (const std::system_error&) {
+        return lookup(host, port);
+    }
+    std::unique_lock<std::mutex> lock(shared->mutex);
+    if (shared->done.wait_until(lock, until, [&] { return shared->finished; }))
+        return shared->found;
+    shared->wanted = false;
+    return nullptr;
 }
 
 }  // namespace
@@ -146,11 +201,8 @@ Connection::End Connection::receive(std::string& into, std::size_t max, Clock::t
 std::optional<Connection> connect_tcp(const std::string& host, const std::string& port,
                                       Clock::time_point deadline)
 {
-    addrinfo hints{};
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    addrinfo* found = nullptr;
-    if (::getaddrinfo(host.c_str(), port.c_str(), &hints, &found) != 0)
+    addrinfo* found = resolve(host, port, deadline);
+    if (!found)
         return std::nullopt;
     std::optional<Connection> connection;
     for (const addrinfo* a = found; a && !connection; a = a->ai_next) {

@@ -246,11 +246,16 @@ private:
             throw Halt{End::exhausted("the steps' limit")};
     }
 
+    /// A level of nesting (blocks, expressions, bytes): the C++ stack, as a
+    /// count of the levels and as their bytes below the call's entry - the
+    /// frames of a build with sanitizers are many times a release's, and
+    /// the count alone would let a hostile text overflow the stack first.
     struct Deeper
     {
         explicit Deeper(Run& r) : r_(r)
         {
-            if (++r_.depth_ > r_.lim_.depth)
+            const auto sp = reinterpret_cast<std::uintptr_t>(__builtin_frame_address(0));
+            if (++r_.depth_ > r_.lim_.depth || (sp < r_.stack_base_ && r_.stack_base_ - sp > r_.lim_.stack))
                 throw Unsup{Unsupported::depth};
         }
         ~Deeper() { --r_.depth_; }
@@ -314,6 +319,7 @@ private:
     const CallContext& ctx_;
     std::uint64_t steps_ = 0;
     std::uint32_t depth_ = 0;
+    std::uintptr_t stack_base_ = 0;  // the stack at the call's entry (Deeper)
     std::vector<Frame> frames_;
     std::vector<SmFrame> sm_;
     std::vector<Word> leave_;
@@ -598,6 +604,7 @@ void Run::copy_out(BytesView src, const Word& at, std::size_t n, Bytes& out)
 void Run::elem(ExprId e0, Bytes& out)
 {
     step();
+    const Deeper d(*this);  // (Bytes( in Bytes(...: the C++ stack)
     const ExprId e = resolve(e0);
     const Expr& x = ex(e);
     switch (x.op)
@@ -709,6 +716,8 @@ void Run::data(std::span<const ExprId> list, Bytes& out)
     // the elements one after the other - an Array(len=l, data=...) ABI-
     // encoded: its offset there, its length and its data (padded to a word)
     // after all of them (runtrace.evb's)
+    step();
+    const Deeper d(*this);  // (concat( in concat(, Array( in Array(: the C++ stack)
     Bytes heads;
     std::vector<std::size_t> offsets;
     std::vector<Bytes> tails;
@@ -1362,6 +1371,7 @@ Run::Flow Run::exec(StmtId id)
 
 End Run::call(const Function* fn)
 {
+    stack_base_ = reinterpret_cast<std::uintptr_t>(__builtin_frame_address(0));
     try
     {
         if (fn == nullptr)
