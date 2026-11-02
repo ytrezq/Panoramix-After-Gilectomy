@@ -375,6 +375,51 @@ TEST_CASE("loops: the exit's merge variables renamed (python exit_values)") {
     CHECK(is_true_cond(w[0]));
 }
 
+// The invariant behind F5 (refuted): exit_values looks for the reads of the
+// exit branch's setvars in the rest of the trace holding the LABEL only. In a
+// VM trace that is every read there is: the lines after an IF are the merge
+// of its branches, and a merge sets fresh variables (vm_rounds.cpp merge_at:
+// fresh_tmp per differing stack slot, the setvars the merging paths' last
+// lines). A value the lines after an enclosing IF read is the enclosing
+// merge's variable, set at the end of the branch - in that rest.
+TEST_CASE("loops: review 2026-11-02 F5 - a loop inside a branch: its exit's value read after the enclosing IF") {
+    Fixture f;
+    // tmp5: the inner merge's variable (the exit and the break); tmp6: the
+    // enclosing IF's, set at the end of both branches; the RETURN reads tmp6
+    Value u = whiles(
+        "{(setvar tmp9 (mask_shl 4 0 0 (calldataload 4)))"
+        " (if (lt tmp9 8)"
+        "   {(label loopid1 {(setvar loop1 0)})"
+        "    (if (lt loop1 4)"
+        "      {(if (eq loop1 tmp9) {(setvar tmp5 (add 100 loop1))} {(goto loopid1 {(setvar loop1 (add 1 loop1))})})}"
+        "      {(setvar tmp5 loop1)})"
+        "    (setvar tmp6 tmp5)}"
+        "   {(setvar tmp6 0)})"
+        " (return (sized 32 tmp6))}");
+    Value w = first_while(u);
+    REQUIRE(!w.nil());
+    CHECK(!is_true_cond(w[0]));
+    // the exit branch made nothing: tmp5 renamed loop1 in the break and after
+    REQUIRE(u.size() == 3);
+    REQUIRE(u[1].is(Op::IF, 3));
+    Value branch = u[1][1];
+    CHECK(branch[branch.size() - 1] == V("(setvar tmp6 loop1)"));
+    // the same with the loop's exit the last thing of the branch: its merge
+    // variable set at the end, read by the enclosing merge's setvar
+    u = whiles(
+        "{(setvar tmp9 (mask_shl 4 0 0 (calldataload 4)))"
+        " (if (lt tmp9 8)"
+        "   {(label loopid1 {(setvar loop1 0)})"
+        "    (if (lt loop1 4)"
+        "      {(setmem (range (mul 32 loop1) 32) tmp9) (goto loopid1 {(setvar loop1 (add 1 loop1))})}"
+        "      {(setvar tmp5 (add 7 loop1))})"
+        "    (setvar tmp6 tmp5)}"
+        "   {(setvar tmp6 0)})"
+        " (return (data (sized 32 tmp6) (mem (range 0 128))))}");
+    w = first_while(u);
+    REQUIRE(!w.nil());
+}
+
 TEST_CASE("loops: nested loops") {
     Fixture f;
     Value u = whiles(
