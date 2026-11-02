@@ -516,6 +516,7 @@ TEST_CASE("mem: review 2026-11-02 F4 - slice_parts gives up on a part that may e
     // decided (w1 <= 40 asks the ranges), so its slice [40, w1) is a slice of
     // a negative length whenever w1 < 40: no answer (or e3), never a slice
     const auto s = slice(d, S(40), S(72));
+    INFO("slice: ", D(s));
     CHECK((!s || *s == e3));
     // the same through a state: the string written at 300, its last word read
     MemState st(false);
