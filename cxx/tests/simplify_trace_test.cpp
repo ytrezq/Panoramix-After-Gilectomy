@@ -485,3 +485,26 @@ TEST_CASE("simplify: memory at offsets the checks bound") {
                     whole);
     CHECK(!has_op(u, Op::MEM));
 }
+
+TEST_CASE("simplify: review 2026-11-02 F1 (10-simplify1) - a write before a BREAK, read after the loop") {
+    Fixture f;
+    // the backward pass took a BREAK for the end of every path (C_ENDS) and
+    // dropped the write before it; a BREAK leaves the loop for what follows
+    // the WHILE. (BREAK is a print-only line today - never in a simplified
+    // trace - but the trace machine runs it, and the pass must be right on it.)
+    Value t = V("{(while (lt loop1 4) {(setmem (range 0 32) 7) (break loopid1)} loopid1 [(setvar loop1 0)]) "
+                "(return (mem (range 0 32)))}");
+    Value u = S::cleanup_mems(t);
+    CHECK(has_op(u, Op::SETMEM));
+    CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
+    // the write in the branch that breaks, the other path writing again
+    t = V("{(while (lt loop1 4) {(if (calldataload 4) {(setmem (range 0 32) 7) (break loopid1)} {}) (setmem (range 0 32) "
+          "9) (continue loopid1 [(setvar loop1 (add 1 loop1))])} loopid1 [(setvar loop1 0)]) (return (mem (range 0 32)))}");
+    u = S::cleanup_mems(t);
+    CHECK(has_op(u, Op::SETMEM));
+    CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
+    // a BREAK of a loop that isn't there: anything may be read after it
+    t = V("{(setmem (range 0 32) 7) (break loopid9) (return (mem (range 0 32)))}");
+    u = S::cleanup_mems(t);
+    CHECK(has_op(u, Op::SETMEM));
+}

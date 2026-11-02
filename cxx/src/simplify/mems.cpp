@@ -382,7 +382,7 @@ public:
                 Live head = live;
                 add_reads(region, head);
                 head.invariant(region);
-                loops_.push_back({l[0], std::move(head)});
+                loops_.push_back({l[0], std::move(head), Live{}});
             }
         }
         SmallVec<Value, 32> out;
@@ -407,6 +407,7 @@ private:
     struct Loop {
         Value id;
         Live head;
+        Live after;  // (a WHILE's: what follows it reads - where a BREAK goes)
     };
 
     static void add_reads(const EffectSummary& s, Live& live) {
@@ -423,6 +424,11 @@ private:
     const Live* loop_head(Value id) const {
         for (usize k = loops_.size(); k-- > 0;)
             if (loops_[k].id == id) return &loops_[k].head;
+        return nullptr;
+    }
+    const Live* loop_after(Value id) const {
+        for (usize k = loops_.size(); k-- > 0;)
+            if (loops_[k].id == id) return &loops_[k].after;
         return nullptr;
     }
 
@@ -464,7 +470,7 @@ private:
                 Live head = live;
                 add_reads(ls, head);
                 head.invariant(ls);
-                loops_.push_back({l[2], head});
+                loops_.push_back({l[2], head, live});
                 Live in_body = live;
                 Value body = walk(l[1], in_body);
                 loops_.pop_back();
@@ -493,6 +499,19 @@ private:
                 }
                 live.before(l);
                 add_reads(summary(l), live);
+                return l;
+            }
+            case Op::BREAK: {
+                // the loop is left for what follows its WHILE (review 2026-11-02,
+                // 10-simplify1 F1: C_ENDS emptied the live set, dropping a write
+                // before the BREAK that is read after the loop)
+                if (const Live* after = loop_after(l[0])) {
+                    live = *after;
+                } else {
+                    live = Live{};
+                    live.all = true;
+                    live.msize = true;
+                }
                 return l;
             }
             case Op::LABEL: {
