@@ -1,0 +1,10 @@
+authorizeInBridgeTransfer.t.sol
+├── when caller is not the controller contract
+│  └── it should revert with NotController
+└── when caller is the controller contract
+   ├── given the provided messageHash is already authorized
+   │  └── it should revert with MessageAlreadyAuthorized
+   └── given the provided messageHash is not already authorized
+      ├── it should mark the messageHash as authorized in adapter storage
+      └── it should emit a InBridgeTransferAuthorized event
+    

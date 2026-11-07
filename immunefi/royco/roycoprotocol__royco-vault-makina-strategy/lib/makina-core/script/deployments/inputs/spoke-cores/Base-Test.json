@@ -1,0 +1,40 @@
+{
+  "upgradeAdmin": "0xad60446470333ad23bececceda26071bb245ef6f",
+  "superAdmin": "0xad60446470333ad23bececceda26071bb245ef6f",
+  "infraSetupAdmin": "0xad60446470333ad23bececceda26071bb245ef6f",
+  "stratDeployAdmin": "0xad60446470333ad23bececceda26071bb245ef6f",
+  "stratCompSetupAdmin": "0xad60446470333ad23bececceda26071bb245ef6f",
+  "stratMgmtSetupAdmin": "0xad60446470333ad23bececceda26071bb245ef6f",
+  "hubChainId": 1,
+  "priceFeedRoutes": [
+    {
+      "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "feed1": "0x7e860098F58bBFC8648a4311b374B1D669a2bc6B",
+      "stalenessThreshold1": 86400,
+      "feed2": "0x0000000000000000000000000000000000000000",
+      "stalenessThreshold2": 0
+    }
+  ],
+  "foreignTokens": [
+    {
+      "localToken": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "foreignEvmChainId": 1,
+      "foreignToken": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+    }
+  ],
+  "swappersTargets": [
+    {
+      "swapperId": 1,
+      "approvalTarget": "0x19cEeAd7105607Cd444F5ad10dd51356436095a1",
+      "executionTarget": "0x19cEeAd7105607Cd444F5ad10dd51356436095a1"
+    }
+  ],
+  "bridgesTargets": [
+    {
+      "bridgeId": 1,
+      "approvalTarget": "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",
+      "executionTarget": "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",
+      "receiveSource": "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64"
+    }
+  ]
+}

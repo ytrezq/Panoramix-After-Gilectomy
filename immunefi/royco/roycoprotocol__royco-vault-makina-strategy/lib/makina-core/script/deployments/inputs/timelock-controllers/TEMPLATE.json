@@ -1,0 +1,8 @@
+{
+  "timelockControllerInitParams": {
+    "initialExecutors": ["0x0000000000000000000000000000000000000000"],
+    "initialMinDelay": 0,
+    "initialProposers": ["0x0000000000000000000000000000000000000000"]
+  },
+  "additionalCancellers": ["0x0000000000000000000000000000000000000000"]
+}

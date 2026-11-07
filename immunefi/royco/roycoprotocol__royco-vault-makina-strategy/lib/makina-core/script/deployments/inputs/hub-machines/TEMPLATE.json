@@ -1,0 +1,34 @@
+{
+  "machineInitParams": {
+    "initialDepositor": "0x0000000000000000000000000000000000000000",
+    "initialRedeemer": "0x0000000000000000000000000000000000000000",
+    "initialFeeManager": "0x0000000000000000000000000000000000000000",
+    "initialCaliberStaleThreshold": 0,
+    "initialMaxFixedFeeAccrualRate": 0,
+    "initialPerfFixedFeeAccrualRate": 0,
+    "initialFeeMintCooldown": 0,
+    "initialShareLimit": 0,
+    "initialMaxSharePriceChangeRate": 0
+  },
+  "caliberInitParams": {
+    "initialPosStaleThreshold": 0,
+    "initialAllowedInstrRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "initialTimelockDuration": 0,
+    "initialMaxPositionIncreaseLossBps": 0,
+    "initialMaxPositionDecreaseLossBps": 0,
+    "initialMaxSwapLossBps": 0,
+    "initialCooldownDuration": 0
+  },
+  "makinaGovernableInitParams": {
+    "initialMechanic": "0x0000000000000000000000000000000000000000",
+    "initialSecurityCouncil": "0x0000000000000000000000000000000000000000",
+    "initialRiskManager": "0x0000000000000000000000000000000000000000",
+    "initialRiskManagerTimelock": "0x0000000000000000000000000000000000000000",
+    "initialAuthority": "0x0000000000000000000000000000000000000000",
+    "initialRestrictedAccountingMode": false
+  },
+  "accountingToken": "0x0000000000000000000000000000000000000000",
+  "shareTokenName": "",
+  "shareTokenSymbol": "",
+  "salt": "0x0000000000000000000000000000000000000000000000000000000000000000"
+}
