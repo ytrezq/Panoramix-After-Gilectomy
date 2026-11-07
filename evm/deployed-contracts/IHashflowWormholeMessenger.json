@@ -1,0 +1,54 @@
+{
+    "wormhole1": {
+        "address": "0x1aBE68277AE236083947f2551FEe8b885efCA8f5",
+        "deploymentTransactionHash": "0x45967c9ff08014d541c30c3917c78e2fea8e7b8ae53162e879c9cd1e21ff6cce"
+    },
+    "wormhole2": {
+        "address": "0x1aBE68277AE236083947f2551FEe8b885efCA8f5",
+        "deploymentTransactionHash": "0xa7e269ec72adf7f551313eaad1f1f04e1c2dfa58dd512e4593a9033d2bb4fc5f"
+    },
+    "goerli": {
+        "address": "0xa4dF5Eb76f125cc2632Cd27d9d959457aBeB6c8b",
+        "deploymentTransactionHash": "0xaf5541e3cd5dad236efafb96a3f5fbd07c6dc169b73a927b2d8177539d9d40e1"
+    },
+    "mumbai": {
+        "address": "0x364A75c3769D234B8ACfAC3d3309A6A6a5a06D1c",
+        "deploymentTransactionHash": "0x8797457d6a1aa24d4f89fe8b2ce3a0e38697a76599f00e1e1d9eb37bd8aa048c"
+    },
+    "bnb-testnet": {
+        "address": "0x7CDAb80109D74372F1682ed0E4e65255f20ccbaA",
+        "deploymentTransactionHash": "0xb67eca8c556ed809de966590cfb347160f5ec272c5cbbe98036713dbb3944ab0"
+    },
+    "ethereum": {
+        "address": "0x0a09B370950f69ADC4c2FbF8677C7b0047599c9F",
+        "deploymentTransactionHash": "0xee560fcea50fd6f0fb5a7e8b6fec572164ee8b354d215bcc397702b486b82888"
+    },
+    "arbitrum": {
+        "address": "0xab24A3306748e72520Db800c3e93d6c861D1BA49",
+        "deploymentTransactionHash": "0x8766e570eb9366a3c977423bd2137154b1fa6b33a8e0210b04f1be3eff858e39"
+    },
+    "optimism": {
+        "address": "0x7CDAb80109D74372F1682ed0E4e65255f20ccbaA",
+        "deploymentTransactionHash": "0xe461f662b41ee62b54fe0ff2b9688e89e1d964cd33f2e528af3222130c344ff8"
+    },
+    "polygon": {
+        "address": "0xfaFb0fc30140D1071606489Ff36B9893F8db80bF",
+        "deploymentTransactionHash": "0x326d05c69b5af8d9e2c848ea2eed38bd89d6e3ff86bcc4126cb5fb3fdc526d9c"
+    },
+    "bnb": {
+        "address": "0x771CaD61ec6Dfde4a67891E982CF433aCA1Af7C8",
+        "deploymentTransactionHash": "0x62c4f3927e6217509c9d6b5c2cdaa117286fb85ad8644110706f641a4b8ece93"
+    },
+    "avalanche": {
+        "address": "0x771CaD61ec6Dfde4a67891E982CF433aCA1Af7C8",
+        "deploymentTransactionHash": "0x2ed10f979b20297a18d1a8bce05f8d6b9e223890d9d9b8457e38cb11655e9bf2"
+    },
+    "sepolia": {
+        "address": "0x6D551f4D999faC0984eb75B2B230ba7e7651BdE7",
+        "deploymentTransactionHash": "0x66e3e492f355c91f97e8dcf19340dfcc76a57268f9c4cc4a533ffa844badbc4d"
+    },
+    "base": {
+        "address": "0x6D551f4D999faC0984eb75B2B230ba7e7651BdE7",
+        "deploymentTransactionHash": "0x2c56c8326065c3fc52832b1aa4490b64fe3987a0692b2bbdf35c9ae6ea838eeb"
+    }
+}

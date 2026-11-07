@@ -1,0 +1,58 @@
+{
+    "goerli": {
+        "address": "0x7D916a5b5A23A9FB583Cd9B227B0a0b9C01eAA85",
+        "deploymentTransactionHash": "0x1db40b2f22f9f3f9fa31eed1a39fe0e9bac77bb37d92a1cb7e749146300a9ef9"
+    },
+    "mumbai": {
+        "address": "0x2524923e88Cc8356B35753C270214a2e2d70745F",
+        "deploymentTransactionHash": "0xacd5813cfe03c181a23ef3467f7eddf29f61dd9350e7eff6c87f474eedd72f81"
+    },
+    "bnb-testnet": {
+        "address": "0x2524923e88Cc8356B35753C270214a2e2d70745F",
+        "deploymentTransactionHash": "0x82f7a6c43b802a566b7edc0a2b99b5ac588d316414c04bd4f93a9257a48e9945"
+    },
+    "wormhole1": {
+        "address": "0x2c5f3c004878923f55A2a255F89Fe29393177509",
+        "deploymentTransactionHash": "0xf80cafd13d9283c49c9dea036524a8836363fb62f1630ea41e493a1d595aeb9c"
+    },
+    "wormhole2": {
+        "address": "0x2c5f3c004878923f55A2a255F89Fe29393177509",
+        "deploymentTransactionHash": "0x8b6d39285ebd82c30411f7f876c55ba32cad19cc7cc8212d9e2e5f9b4610a0b7"
+    },
+    "ethereum": {
+        "address": "0x55084eE0fEf03f14a305cd24286359A35D735151",
+        "deploymentTransactionHash": "0x89ded8a7efaec848cc4230e160dbfdb262008d43276b75d0647d2f96938aefb1"
+    },
+    "arbitrum": {
+        "address": "0x55084eE0fEf03f14a305cd24286359A35D735151",
+        "deploymentTransactionHash": "0xed0c8759a387acbba80a0ba985c151f3086fe407e0ffb1a83bdebb7ef44a724c"
+    },
+    "optimism": {
+        "address": "0xCa310B1B942A30Ff4b40a5E1b69AB4607eC79Bc1",
+        "deploymentTransactionHash": "0x7e34cd22200c7f85e40c654cbb6db0bccf168e645e09958faf8154a3e2768e3d"
+    },
+    "polygon": {
+        "address": "0x55084eE0fEf03f14a305cd24286359A35D735151",
+        "deploymentTransactionHash": "0xfaa849569efd415d8859217d2ec907ab531d932d625d8c9feeb48f4829b9fc34"
+    },
+    "bnb": {
+        "address": "0x55084eE0fEf03f14a305cd24286359A35D735151",
+        "deploymentTransactionHash": "0x094f160d022e2e4b6a0165a40064703e78373863de8cae38ba51e441a904e0cb"
+    },
+    "avalanche": {
+        "address": "0x55084eE0fEf03f14a305cd24286359A35D735151",
+        "deploymentTransactionHash": "0x5d2dc069f3f129d7f93b479644a3f58a87952bbd66ab465bf7013e5d5ca727aa"
+    },
+    "sepolia": {
+        "address": "0xCa310B1B942A30Ff4b40a5E1b69AB4607eC79Bc1",
+        "deploymentTransactionHash": "0x8eb19473b4eca8b271f6259038090581b18aed3434ebb151d567d643c44045d3"
+    },
+    "base": {
+        "address": "0xCa310B1B942A30Ff4b40a5E1b69AB4607eC79Bc1",
+        "deploymentTransactionHash": "0x06061ac736bb7db65d3d13821ba5ef60f4322c30c0ae2bb5674655e783c48ac7"
+    },
+    "monad-testnet": {
+        "address": "0xCa310B1B942A30Ff4b40a5E1b69AB4607eC79Bc1",
+        "deploymentTransactionHash": "0xd26aa21de1a307e520487bf255854fb74518e8cfddf7418dad5f5e60802d7c5f"
+    }
+}
