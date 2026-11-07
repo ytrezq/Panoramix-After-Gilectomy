@@ -1,0 +1,109 @@
+// SPDX-License-Identifier: SEL-1.0
+// Copyright © 2025 Veda Tech Labs
+// Derived from Boring Vault Software © 2025 Veda Tech Labs (TEST ONLY – NO COMMERCIAL USE)
+// Licensed under Software Evaluation License, Version 1.0
+// Last audited: boring-vault@4c9c671bb965899728167102a0e3ac22f4aabf7a — https://macroaudits.com/library/audits/sevenSeas-39
+pragma solidity 0.8.21;
+
+import {DecoderCustomTypes} from "src/interfaces/DecoderCustomTypes.sol";
+
+contract EigenLayerLSTStakingDecoderAndSanitizer {
+    //============================== ERRORS ===============================
+
+    error EigenLayerLSTStakingDecoderAndSanitizer__CanOnlyReceiveAsTokens();
+
+    //============================== EIGEN LAYER ===============================
+
+    function depositIntoStrategy(address strategy, address token, uint256 /*amount*/ )
+        external
+        pure
+        virtual
+        returns (bytes memory addressesFound)
+    {
+        addressesFound = abi.encodePacked(strategy, token);
+    }
+
+    function queueWithdrawals(DecoderCustomTypes.QueuedWithdrawalParams[] calldata queuedWithdrawalParams)
+        external
+        pure
+        virtual
+        returns (bytes memory addressesFound)
+    {
+        for (uint256 i = 0; i < queuedWithdrawalParams.length; i++) {
+            for (uint256 j = 0; j < queuedWithdrawalParams[i].strategies.length; j++) {
+                addressesFound = abi.encodePacked(addressesFound, queuedWithdrawalParams[i].strategies[j]);
+            }
+            addressesFound = abi.encodePacked(addressesFound, queuedWithdrawalParams[i].withdrawer);
+        }
+    }
+
+    function completeQueuedWithdrawals(
+        DecoderCustomTypes.Withdrawal[] calldata withdrawals,
+        address[][] calldata tokens,
+        uint256[] calldata, /*middlewareTimesIndexes*/
+        bool[] calldata receiveAsTokens
+    ) external pure virtual returns (bytes memory addressesFound) {
+        for (uint256 i = 0; i < withdrawals.length; i++) {
+            if (!receiveAsTokens[i]) revert EigenLayerLSTStakingDecoderAndSanitizer__CanOnlyReceiveAsTokens();
+
+            addressesFound = abi.encodePacked(
+                addressesFound, withdrawals[i].staker, withdrawals[i].delegatedTo, withdrawals[i].withdrawer
+            );
+            for (uint256 j = 0; j < withdrawals[i].strategies.length; j++) {
+                addressesFound = abi.encodePacked(addressesFound, withdrawals[i].strategies[j]);
+            }
+            for (uint256 j = 0; j < tokens[i].length; j++) {
+                addressesFound = abi.encodePacked(addressesFound, tokens[i][j]);
+            }
+        }
+    }
+
+    /// @notice support the new ELIP version
+    function completeQueuedWithdrawals(
+        DecoderCustomTypes.Withdrawal[] calldata withdrawals,
+        address[][] calldata tokens,
+        bool[] calldata receiveAsTokens
+    ) external pure virtual returns (bytes memory addressesFound) {
+        for (uint256 i = 0; i < withdrawals.length; i++) {
+            if (!receiveAsTokens[i]) revert EigenLayerLSTStakingDecoderAndSanitizer__CanOnlyReceiveAsTokens();
+
+            addressesFound = abi.encodePacked(
+                addressesFound, withdrawals[i].staker, withdrawals[i].delegatedTo, withdrawals[i].withdrawer
+            );
+            for (uint256 j = 0; j < withdrawals[i].strategies.length; j++) {
+                addressesFound = abi.encodePacked(addressesFound, withdrawals[i].strategies[j]);
+            }
+            for (uint256 j = 0; j < tokens[i].length; j++) {
+                addressesFound = abi.encodePacked(addressesFound, tokens[i][j]);
+            }
+        }
+    }
+
+    function delegateTo(
+        address operator,
+        DecoderCustomTypes.SignatureWithExpiry calldata, /*approverSignatureAndExpiry*/
+        bytes32 /*approverSalt*/
+    ) external pure returns (bytes memory addressesFound) {
+        addressesFound = abi.encodePacked(operator);
+    }
+
+    function undelegate(address staker) external pure returns (bytes memory addressesFound) {
+        addressesFound = abi.encodePacked(staker);
+    }
+
+    function setClaimerFor(address claimer) external pure returns (bytes memory addressesFound) {
+        addressesFound = abi.encodePacked(claimer);
+    }
+
+    /**
+     * @notice We intentionally do not report claim.earnerLeaf.earner, and claim.tokenLeaves[i].token
+     *         These addresses are not important for the security of the call.
+     */
+    function processClaim(DecoderCustomTypes.RewardsMerkleClaim calldata, /*claim*/ address recipient)
+        external
+        pure
+        returns (bytes memory addressesFound)
+    {
+        addressesFound = abi.encodePacked(recipient);
+    }
+}

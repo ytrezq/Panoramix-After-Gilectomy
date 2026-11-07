@@ -1,0 +1,237 @@
+// SPDX-License-Identifier: SEL-1.0
+// Copyright © 2025 Veda Tech Labs
+// Derived from Boring Vault Software © 2025 Veda Tech Labs (TEST ONLY – NO COMMERCIAL USE)
+// Licensed under Software Evaluation License, Version 1.0
+// Last audited: boring-vault-fixes@9ab12106d45f6e3ed0a3924fc49694e2acfad47b — file:audit/0xmacro-veda-91.pdf
+pragma solidity 0.8.21;
+
+import {BaseDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
+import {UniswapV3DecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/UniswapV3DecoderAndSanitizer.sol";
+import {BalancerV2DecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/BalancerV2DecoderAndSanitizer.sol";
+import {MorphoBlueDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/MorphoBlueDecoderAndSanitizer.sol";
+import {ERC4626DecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/ERC4626DecoderAndSanitizer.sol";
+import {CurveDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/CurveDecoderAndSanitizer.sol";
+import {AuraDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/AuraDecoderAndSanitizer.sol";
+import {ConvexDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/ConvexDecoderAndSanitizer.sol";
+import {EtherFiDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/EtherFiDecoderAndSanitizer.sol";
+import {NativeWrapperDecoderAndSanitizer} from
+    "src/base/DecodersAndSanitizers/Protocols/NativeWrapperDecoderAndSanitizer.sol";
+import {OneInchDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/OneInchDecoderAndSanitizer.sol";
+import {GearboxDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/GearboxDecoderAndSanitizer.sol";
+import {PendleRouterDecoderAndSanitizer} from
+    "src/base/DecodersAndSanitizers/Protocols/PendleRouterDecoderAndSanitizer.sol";
+import {AaveV3DecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/AaveV3DecoderAndSanitizer.sol";
+import {EigenLayerLSTStakingDecoderAndSanitizer} from
+    "src/base/DecodersAndSanitizers/Protocols/EigenLayerLSTStakingDecoderAndSanitizer.sol";
+import {SwellSimpleStakingDecoderAndSanitizer} from
+    "src/base/DecodersAndSanitizers/Protocols/SwellSimpleStakingDecoderAndSanitizer.sol";
+import {ZircuitSimpleStakingDecoderAndSanitizer} from
+    "src/base/DecodersAndSanitizers/Protocols/ZircuitSimpleStakingDecoderAndSanitizer.sol";
+import {FluidFTokenDecoderAndSanitizer} from
+    "src/base/DecodersAndSanitizers/Protocols/FluidFTokenDecoderAndSanitizer.sol";
+import {CCIPDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/CCIPDecoderAndSanitizer.sol";
+import {ArbitrumNativeBridgeDecoderAndSanitizer} from
+    "src/base/DecodersAndSanitizers/Protocols/ArbitrumNativeBridgeDecoderAndSanitizer.sol";
+import {OFTDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/OFTDecoderAndSanitizer.sol";
+import {StandardBridgeDecoderAndSanitizer} from
+    "src/base/DecodersAndSanitizers/Protocols/StandardBridgeDecoderAndSanitizer.sol";
+import {CompoundV3DecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/CompoundV3DecoderAndSanitizer.sol";
+import {MerklDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/MerklDecoderAndSanitizer.sol";
+import {LidoDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/LidoDecoderAndSanitizer.sol";
+import {TellerDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/TellerDecoderAndSanitizer.sol";
+import {ConvexFXDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/ConvexFXDecoderAndSanitizer.sol";
+import {OdosDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/OdosDecoderAndSanitizer.sol";
+import {FluidDexDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/FluidDexDecoderAndSanitizer.sol";
+
+contract LombardBtcDecoderAndSanitizer is
+    BaseDecoderAndSanitizer,
+    UniswapV3DecoderAndSanitizer,
+    BalancerV2DecoderAndSanitizer,
+    MorphoBlueDecoderAndSanitizer,
+    ERC4626DecoderAndSanitizer,
+    CurveDecoderAndSanitizer,
+    AuraDecoderAndSanitizer,
+    ConvexDecoderAndSanitizer,
+    EtherFiDecoderAndSanitizer,
+    NativeWrapperDecoderAndSanitizer,
+    OneInchDecoderAndSanitizer,
+    GearboxDecoderAndSanitizer,
+    PendleRouterDecoderAndSanitizer,
+    AaveV3DecoderAndSanitizer,
+    EigenLayerLSTStakingDecoderAndSanitizer,
+    SwellSimpleStakingDecoderAndSanitizer,
+    ZircuitSimpleStakingDecoderAndSanitizer,
+    FluidFTokenDecoderAndSanitizer,
+    CCIPDecoderAndSanitizer,
+    ArbitrumNativeBridgeDecoderAndSanitizer,
+    OFTDecoderAndSanitizer,
+    StandardBridgeDecoderAndSanitizer,
+    CompoundV3DecoderAndSanitizer,
+    MerklDecoderAndSanitizer,
+    LidoDecoderAndSanitizer,
+    TellerDecoderAndSanitizer,
+    ConvexFXDecoderAndSanitizer,
+    OdosDecoderAndSanitizer,
+    FluidDexDecoderAndSanitizer
+{
+    constructor(address _uniswapV3NonFungiblePositionManager, address _poolRegistry, address _odosRouter, address _fluidFactory)
+        UniswapV3DecoderAndSanitizer(_uniswapV3NonFungiblePositionManager)
+        ConvexFXDecoderAndSanitizer(_poolRegistry)
+        OdosDecoderAndSanitizer(_odosRouter)
+        FluidDexDecoderAndSanitizer(_fluidFactory)
+    {}
+
+    //============================== HANDLE FUNCTION COLLISIONS ===============================
+    /**
+     * @notice BalancerV2, ERC4626, and Curve all specify a `deposit(uint256,address)`,
+     *         all cases are handled the same way.
+     */
+    function deposit(uint256, address receiver)
+        external
+        pure
+        override(BalancerV2DecoderAndSanitizer, ERC4626DecoderAndSanitizer, CurveDecoderAndSanitizer)
+        returns (bytes memory addressesFound)
+    {
+        addressesFound = abi.encodePacked(receiver);
+    }
+
+    /**
+     * @notice Gearbox specifies a `deposit(uint256)`.
+     */
+    function deposit(uint256 /*amount*/ )
+        external
+        pure
+        override(GearboxDecoderAndSanitizer)
+        returns (bytes memory addressesFound)
+    {
+        return addressesFound;
+    }
+
+    /**
+     * @notice EtherFi, NativeWrapper all specify a `deposit()`,
+     *         all cases are handled the same way.
+     */
+    function deposit()
+        external
+        pure
+        override(EtherFiDecoderAndSanitizer, NativeWrapperDecoderAndSanitizer)
+        returns (bytes memory addressesFound)
+    {
+        return addressesFound;
+    }
+
+    /**
+     * @notice BalancerV2, NativeWrapper, Curve, Gearbox, and ConvexFX all specify a `withdraw(uint256)`,
+     *         all cases are handled the same way.
+     */
+    function withdraw(uint256)
+        external
+        pure
+        override(
+            BalancerV2DecoderAndSanitizer,
+            CurveDecoderAndSanitizer,
+            NativeWrapperDecoderAndSanitizer,
+            GearboxDecoderAndSanitizer,
+            ConvexFXDecoderAndSanitizer
+        )
+        returns (bytes memory addressesFound)
+    {
+        // Nothing to sanitize or return
+        return addressesFound;
+    }
+
+    /**
+     * @notice ZircuitSimpleStaking, CompoundV3 both specify a `withdraw(address,uint256)`,
+     *         all cases are handled the same way.
+     */
+    function withdraw(address a, uint256)
+        external
+        pure
+        override(ZircuitSimpleStakingDecoderAndSanitizer, CompoundV3DecoderAndSanitizer)
+        returns (bytes memory addressesFound)
+    {
+        addressesFound = abi.encodePacked(a);
+    }
+
+    /**
+     * @notice FluidFToken specifies a `withdraw(uint256,address,address,uint256)`.
+     */
+    function withdraw(uint256, /*assets_*/ address receiver_, address owner_, uint256 /*maxSharesBurn_*/ )
+        external
+        pure
+        override(FluidFTokenDecoderAndSanitizer)
+        returns (bytes memory addressesFound)
+    {
+        addressesFound = abi.encodePacked(receiver_, owner_);
+    }
+
+    /**
+     * @notice Aura, and Convex all specify a `getReward(address,bool)`,
+     *         all cases are handled the same way.
+     */
+    function getReward(address _addr, bool)
+        external
+        pure
+        override(AuraDecoderAndSanitizer, ConvexDecoderAndSanitizer)
+        returns (bytes memory addressesFound)
+    {
+        addressesFound = abi.encodePacked(_addr);
+    }
+
+    /**
+     * @notice AaveV3, and SwellSimpleStaking both specify a `withdraw(address,uint256,address)`,
+     *         all cases are handled the same way.
+     */
+    function withdraw(address _token, uint256, /*_amount*/ address _receiver)
+        external
+        pure
+        override(AaveV3DecoderAndSanitizer, SwellSimpleStakingDecoderAndSanitizer)
+        returns (bytes memory addressesFound)
+    {
+        addressesFound = abi.encodePacked(_token, _receiver);
+    }
+
+    /**
+     * @notice FluidFToken specifies a `redeem(uint256,address,address,uint256)`.
+     */
+    function redeem(uint256, address a, address b, uint256)
+        external
+        pure
+        override(FluidFTokenDecoderAndSanitizer)
+        returns (bytes memory addressesFound)
+    {
+        addressesFound = abi.encodePacked(a, b);
+    }
+
+    function wrap(uint256)
+        external
+        pure
+        override(EtherFiDecoderAndSanitizer, LidoDecoderAndSanitizer)
+        returns (bytes memory addressesFound)
+    {
+        // Nothing to sanitize or return
+        return addressesFound;
+    }
+
+    function unwrap(uint256)
+        external
+        pure
+        override(EtherFiDecoderAndSanitizer, LidoDecoderAndSanitizer)
+        returns (bytes memory addressesFound)
+    {
+        // Nothing to sanitize or return
+        return addressesFound;
+    }
+
+    /**
+     * @notice UniswapV3 specifies a `burn(uint256)`.
+     */
+    function burn(uint256 /*amount*/ )
+        external
+        pure
+        override(UniswapV3DecoderAndSanitizer)
+        returns (bytes memory addressesFound)
+    {
+        return addressesFound;
+    }
+}

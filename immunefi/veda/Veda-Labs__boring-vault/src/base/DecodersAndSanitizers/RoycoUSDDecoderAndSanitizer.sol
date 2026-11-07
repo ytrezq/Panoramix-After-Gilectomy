@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: SEL-1.0
+// Copyright © 2025 Veda Tech Labs
+// Derived from Boring Vault Software © 2025 Veda Tech Labs (TEST ONLY – NO COMMERCIAL USE)
+// Licensed under Software Evaluation License, Version 1.0
+// Last audited: boring-vault@4c9c671bb965899728167102a0e3ac22f4aabf7a — https://macroaudits.com/library/audits/sevenSeas-39
+pragma solidity 0.8.21;
+
+import {BaseDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
+import {RoycoWeirollDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/RoycoDecoderAndSanitizer.sol";
+import {BoringChefDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/BoringChefDecoderAndSanitizer.sol";
+import {TellerDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/TellerDecoderAndSanitizer.sol";
+import {OFTDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/OFTDecoderAndSanitizer.sol";
+import {OdosDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/OdosDecoderAndSanitizer.sol";
+
+/**
+ * @title RoycoUSDDecoderAndSanitizer
+ * @notice Decoder and sanitizer for RoycoUSD vault functionality including:
+ * - Fee claiming
+ * - Teller deposits/withdrawals for main vault
+ * - LayerZero bridging to Mainnet
+ * - Teller deposits/withdrawals for RoycoPlumeUSDC vault
+ * - Royco recipe markets and vault markets
+ * - BoringChef rewards claiming and distribution
+ * - Odos swapping functionality
+ * - ERC20 approvals
+ */
+contract RoycoUSDDecoderAndSanitizer is
+    BaseDecoderAndSanitizer,
+    RoycoWeirollDecoderAndSanitizer,
+    BoringChefDecoderAndSanitizer,
+    TellerDecoderAndSanitizer,
+    OFTDecoderAndSanitizer
+{
+    constructor(address _recipeMarketHub) RoycoWeirollDecoderAndSanitizer(_recipeMarketHub) {}
+}
+

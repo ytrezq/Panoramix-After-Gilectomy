@@ -1,0 +1,89 @@
+// SPDX-License-Identifier: SEL-1.0
+// Copyright © 2025 Veda Tech Labs
+// Derived from Boring Vault Software © 2025 Veda Tech Labs (TEST ONLY – NO COMMERCIAL USE)
+// Licensed under Software Evaluation License, Version 1.0
+// Last audited: boring-vault@b9eafd46e656c532ea2c28a1bd66ce271ebedbc7 — https://macroaudits.com/library/audits/sevenSeas-44
+pragma solidity 0.8.21;
+
+import {DecoderCustomTypes} from "src/interfaces/DecoderCustomTypes.sol";
+
+contract AgglayerDecoderAndSanitizer {
+    //============================== ERRORS ===============================
+    error AgglayerDecoderAndSanitizer__PermitDataNonZero();
+
+    function bridgeAsset(
+        uint32 destinationNetwork,
+        address destinationAddress,
+        uint256, /*amount*/
+        address token,
+        bool, /*forceUpdateGlobalExitRoot*/
+        bytes calldata permitData
+    ) external pure virtual returns (bytes memory addressesFound) {
+        if (permitData.length > 0) revert AgglayerDecoderAndSanitizer__PermitDataNonZero();
+
+        addressesFound = abi.encodePacked(address(uint160(destinationNetwork)), destinationAddress, token);
+    }
+
+    //tree depth: https://github.com/agglayer/ulxly-contracts/blob/ac153f7ca70d41f113820c5441363038a33baaef/contracts/v2/lib/DepositContractBase.sol#L15
+    /// @notice metadata here is token metadata does not need to be sanitized or checked for length, etc
+    function claimAsset(
+        bytes32[32] calldata, /*smtProofLocalExitRoot*/
+        bytes32[32] calldata, /*smtProofRollupExitRoot*/
+        uint256, /*globalIndex*/
+        bytes32, /*mainnetExitRoot*/
+        bytes32, /*rollupExitRoot*/
+        uint32 originNetwork,
+        address originTokenAddress,
+        uint32 destinationNetwork,
+        address destinationAddress,
+        uint256, /*amount*/
+        bytes calldata /*metadata*/
+    ) external pure virtual returns (bytes memory addressesFound) {
+        addressesFound = abi.encodePacked(
+            address(uint160(originNetwork)),
+            originTokenAddress,
+            address(uint160(destinationNetwork)),
+            destinationAddress
+        );
+    }
+
+    function bridgeMessage(
+        uint32 destinationNetwork,
+        address destinationAddress,
+        bool, /*forceUpdateGlobalExitRoot*/
+        bytes calldata /*metadata*/
+    ) external pure virtual returns (bytes memory addressesFound) {
+        addressesFound = abi.encodePacked(address(uint160(destinationNetwork)), destinationAddress);
+    }
+
+    function bridgeMessageWETH(
+        uint32 destinationNetwork,
+        address destinationAddress,
+        uint256, /*amountWETH*/
+        bool, /*forceUpdateGlobalExitRoot*/
+        bytes calldata /*metadata*/
+    ) external pure virtual returns (bytes memory addressesFound) {
+        addressesFound = abi.encodePacked(address(uint160(destinationNetwork)), destinationAddress);
+    }
+
+    function claimMessage(
+        bytes32[32] calldata, /*smtProofLocalExitRoot*/
+        bytes32[32] calldata, /*smtProofRollupExitRoot*/
+        uint256, /*globalIndex*/
+        bytes32, /*mainnetExitRoot*/
+        bytes32, /*rollupExitRoot*/
+        uint32 originNetwork,
+        address originAddress,
+        uint32 destinationNetwork,
+        address destinationAddress,
+        uint256, /*amount*/
+        bytes calldata /*metadata*/
+    ) external pure virtual returns (bytes memory addressesFound) {
+        addressesFound = abi.encodePacked(
+            address(uint160(originNetwork)),
+            originAddress,
+            address(uint160(destinationNetwork)),
+            destinationAddress
+        );
+    }
+}

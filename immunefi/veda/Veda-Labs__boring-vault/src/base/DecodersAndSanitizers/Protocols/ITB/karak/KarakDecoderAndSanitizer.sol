@@ -1,0 +1,65 @@
+// SPDX-License-Identifier: SEL-1.0
+// Copyright © 2025 Veda Tech Labs
+// Derived from Boring Vault Software © 2025 Veda Tech Labs (TEST ONLY – NO COMMERCIAL USE)
+// Licensed under Software Evaluation License, Version 1.0
+// Last audited: boring-vault@4c9c671bb965899728167102a0e3ac22f4aabf7a — https://macroaudits.com/library/audits/sevenSeas-39
+pragma solidity ^0.8.0;
+
+contract ITBKarakDecoderAndSanitizer {
+    function updatePositionConfig(address _underlying, address _vault)
+        external
+        pure
+        returns (bytes memory addressesFound)
+    {
+        addressesFound = abi.encodePacked(_underlying, _vault);
+    }
+
+    function updateVaultSupervisor(address _vault_supervisor) external pure returns (bytes memory addressesFound) {
+        addressesFound = abi.encodePacked(_vault_supervisor);
+    }
+
+    function deposit(uint256, uint256) external pure returns (bytes memory addressesFound) {
+        // Nothing to sanitize or return
+        return addressesFound;
+    }
+
+    function startWithdrawal(uint256) external pure returns (bytes memory addressesFound) {
+        // Nothing to sanitize or return
+        return addressesFound;
+    }
+
+    function completeWithdrawal(uint256, uint256) external pure returns (bytes memory addressesFound) {
+        // Nothing to sanitize or return
+        return addressesFound;
+    }
+
+    function completeNextWithdrawal(uint256) external pure returns (bytes memory addressesFound) {
+        // Nothing to sanitize or return
+        return addressesFound;
+    }
+
+    function completeNextWithdrawals(uint256) external pure returns (bytes memory addressesFound) {
+        // Nothing to sanitize or return
+        return addressesFound;
+    }
+
+    function overrideWithdrawalIndexes(uint256, uint256) external pure returns (bytes memory addressesFound) {
+        // Nothing to sanitize or return
+        return addressesFound;
+    }
+
+    function assemble(uint256) external pure returns (bytes memory addressesFound) {
+        // Nothing to sanitize or return
+        return addressesFound;
+    }
+
+    function disassemble(uint256, uint256) external pure returns (bytes memory addressesFound) {
+        // Nothing to sanitize or return
+        return addressesFound;
+    }
+
+    function fullDisassemble(uint256) external pure returns (bytes memory addressesFound) {
+        // Nothing to sanitize or return
+        return addressesFound;
+    }
+}

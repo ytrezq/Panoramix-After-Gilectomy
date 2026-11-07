@@ -1,0 +1,67 @@
+// SPDX-License-Identifier: SEL-1.0
+// Copyright © 2025 Veda Tech Labs
+// Derived from Boring Vault Software © 2025 Veda Tech Labs (TEST ONLY – NO COMMERCIAL USE)
+// Licensed under Software Evaluation License, Version 1.0
+// Last audited: boring-vault@b9eafd46e656c532ea2c28a1bd66ce271ebedbc7 — https://macroaudits.com/library/audits/sevenSeas-44
+pragma solidity 0.8.21;
+
+import {BaseDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
+
+contract CompoundV2DecoderAndSanitizer {
+    // ============================== Ctoken ===============================
+    function mint(uint256 /*mintAmount*/ ) external pure virtual returns (bytes memory addressesFound) {
+        return addressesFound;
+    }
+
+    function redeem(uint256 /*redeemTokens*/ ) external pure virtual returns (bytes memory addressesFound) {
+        return addressesFound;
+    }
+
+    function redeemUnderlying(uint256 /*redeemAmount*/ ) external pure virtual returns (bytes memory addressesFound) {
+        return addressesFound;
+    }
+
+    function borrow(uint256 /*borrowAmount*/ ) external pure virtual returns (bytes memory addressesFound) {
+        return addressesFound;
+    }
+
+    function repayBorrow(uint256 /*repayAmount*/ ) external pure virtual returns (bytes memory addressesFound) {
+        return addressesFound;
+    }
+
+    // ============================== CNative ===============================
+    function mint() external payable virtual returns (bytes memory addressesFound) {
+        return addressesFound;
+    }
+
+    function repayBorrow() external payable virtual returns (bytes memory addressesFound) {
+        return addressesFound;
+    }
+
+    // ============================== General Unitroller ==============================
+
+    function enterMarkets(address[] memory cTokens) external pure virtual returns (bytes memory addressesFound) {
+        for (uint256 i = 0; i < cTokens.length; i++) {
+            addressesFound = abi.encodePacked(addressesFound, cTokens[i]);
+        }
+    }
+
+    function exitMarket(address cToken) external pure virtual returns (bytes memory addressesFound) {
+        addressesFound = abi.encodePacked(cToken);
+    }
+
+    // ============================== Original Compound Unitroller ==============================
+    function claimComp(address holder) external pure virtual returns (bytes memory addressesFound) {
+        addressesFound = abi.encodePacked(holder);
+    }
+
+    // ============================== Kinetic-style Unitroller ==============================
+    function claimReward(uint8, /*rewardType*/ address holder)
+        external
+        pure
+        virtual
+        returns (bytes memory addressesFound)
+    {
+        addressesFound = abi.encodePacked(holder);
+    }
+}

@@ -1,0 +1,44 @@
+# Compiler files
+cache/
+out/
+broadcast/
+# vscode-solidity extension compile output
+bin/
+
+# Ignores development broadcast logs
+!/broadcast
+/broadcast/*/31337/
+/broadcast/**/dry-run/
+
+# Docs
+docs/
+
+# Dotenv file
+.env
+
+*.DS_Store
+broadcast/*
+leafs/TemporaryLeafs.json
+leafs/TemporaryCCTPLeafs.json
+dependencies/*
+
+CLAUDE.md
+.serena
+flatten.sol
+swapper_todos.txt
+decoder_regen_todos.txt
+
+tools/*
+
+# Node dependencies
+node_modules/
+test/limitOrders/
+test/limitOrders/*
+
+
+# certora
+.certora_internal/
+.properties-*/
+emv-*-certora-*/
+
+test/fixtures/

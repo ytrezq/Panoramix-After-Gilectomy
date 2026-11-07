@@ -1,0 +1,348 @@
+{
+  "deploymentParameters": {
+    "logLevel": 4,
+    "privateKeyEnvName": "BORING_DEVELOPER",
+    "chainName": "mainnet",
+    "evmVersion": "cancun",
+    "desiredNumberOfDeploymentTxs": 5,
+    "txBundlerAddressOrName": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "name": "txBundlerAddress"
+    },
+    "setupRoles": true,
+    "setupTestUser": true,
+    "saveDeploymentDetails": true,
+    "testUserAddressOrName": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "name": "dev1Address"
+    },
+    "deployerContractAddressOrName": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "name": "deployerAddress"
+    },
+    "nativeWrapperAddressOrName": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "name": "WETH"
+    },
+    "deploymentOwnerAddressOrName": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "name": "txBundlerAddress"
+    },
+    "deploymentFileName": "addresses/Mainnet/HyperETH.json"
+  },
+  "rolesAuthorityConfiguration": {
+    "rolesAuthorityDeploymentName": "HyperETH Roles Authority V0.0"
+  },
+  "lensConfiguration": {
+    "lensDeploymentName": "Arctic Architecture Lens V0.0"
+  },
+  "boringVaultConfiguration": {
+    "boringVaultDeploymentName": "HyperETH Boring Vault V0.0",
+    "boringVaultName": "HyperETH Vault",
+    "boringVaultSymbol": "hypeETH",
+    "boringVaultDecimals": 18
+  },
+  "managerConfiguration": {
+    "managerDeploymentName": "HyperETH Manager V0.0",
+    "balancerVaultAddressOrName": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "name": "balancerVault"
+    }
+  },
+  "accountantConfiguration": {
+    "accountantDeploymentName": "HyperETH Accountant V0.0",
+    "accountantParameters": {
+      "kind": {
+        "variableRate": true,
+        "fixedRate": false
+      },
+      "payoutConfiguration": {
+        "payoutTo": "0x0000000000000000000000000000000000000000",
+        "optionalPaymentSplitterName": "HyperETH Payment Splitter V0.0",
+        "splits": []
+      },
+      "accountantDeploymentParameters": {
+        "allowedExchangeRateChangeLower": 9900,
+        "allowedExchangeRateChangeUpper": 10000,
+        "baseAddressOrName": {
+          "address": "0x0000000000000000000000000000000000000000",
+          "name": "WETH"
+        },
+        "minimumUpateDelayInSeconds": 21600,
+        "performanceFee": 1000,
+        "platformFee": 0,
+        "startingExchangeRate": 1000000000000000000
+      }
+    }
+  },
+  "tellerConfiguration": {
+    "tellerDeploymentName": "HyperETH Teller V0.0",
+    "tellerParameters": {
+      "allowPublicDeposits": true,
+      "shareLockPeriod": 0,
+      "kind": {
+        "teller": false,
+        "tellerWithRemediation": false,
+        "tellerWithCcip": false,
+        "tellerWithLayerZero": true
+      },
+      "layerZero": {
+        "endpointAddressOrName": {
+          "address": "0x0000000000000000000000000000000000000000",
+          "name": "LayerZeroEndPoint"
+        },
+        "lzTokenAddressOrName": {
+          "address": "0x0000000000000000000000000000000000000000",
+          "name": "ZRO"
+        },
+        "lzChains": []
+      }
+    }
+  },
+  "boringQueueConfiguration": {
+    "boringQueueDeploymentName": "HyperETH Boring Queue V0.0",
+    "boringQueueSolverName": "HyperETH Boring Solver V0.0",
+    "queueParameters": {
+      "allowPublicWithdrawals": true,
+      "allowPublicSelfWithdrawals": true,
+      "kind": {
+        "boringQueue": true,
+        "boringQueueWithTracking": false
+      }
+    }
+  },
+  "droneConfiguration": {
+    "droneDeploymentBaseName": "HyperETH Drone V0.0",
+    "droneCount": 0,
+    "safeGasToForwardNative": 21000
+  },
+  "pauserConfiguration": {
+    "shouldDeploy": true,
+    "pauserDeploymentName": "HyperETH Pauser V0.0",
+    "makeGenericPauser": [
+      "0x0000000000000000000000000000000000000000"
+    ],
+    "makeGenericUnpauser": [
+      "0x0000000000000000000000000000000000000000"
+    ],
+    "makePauseAll": [
+      "0x0000000000000000000000000000000000000000"
+    ],
+    "makeUnpauseAll": [
+      "0x0000000000000000000000000000000000000000"
+    ],
+    "senderToPausable": [
+      {
+        "sender": "0x0000000000000000000000000000000000000000",
+        "pausable": "0x0000000000000000000000000000000000000000"
+      }
+    ]
+  },
+  "timelockConfiguration": {
+    "shouldDeploy": true,
+    "timelockDeploymentName": "HyperETH Timelock V0.0",
+    "timelockParameters": {
+      "minDelay": 300,
+      "proposers": [
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "executors": [
+        "0x0000000000000000000000000000000000000000"
+      ]
+    }
+  },
+  "accountantAssets": [
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "WSTETH"
+      },
+      "isPeggedToBase": false,
+      "rateProvider": "0x8A4207Bfc6fc475F172F929468aCDD4A2c4C3C19"
+    },
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "SWETH"
+        },
+      "isPeggedToBase": true,
+      "rateProvider": "0xf951E335afb289353dc249e82926178EaC7DEd78"
+    },
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "STONE"
+      },
+      "isPeggedToBase": true,
+      "rateProvider": "0x0000000000000000000000000000000000000000"
+    },
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "WEETH"
+      },
+      "isPeggedToBase": false,
+      "rateProvider": "0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee"
+    },
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "RSWETH"
+      },
+      "isPeggedToBase": false,
+      "rateProvider": "0xFAe103DC9cf190eD75350761e95403b7b8aFa6c0"
+    },
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "RSETH"
+      },
+      "isPeggedToBase": false,
+      "rateProvider": "0xf1b71B1Ce00e0f91ac92bD5a0d24eB75F0cA69Ad"
+    }
+  ],
+  "depositAssets": [
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "WSTETH"
+      },
+      "allowDeposits": true,
+      "allowWithdraws": true,
+      "sharePremium": 0
+    },
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "SWETH"
+      },
+      "allowDeposits": true,
+      "allowWithdraws": true,
+      "sharePremium": 0
+    },
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "STONE"
+      },
+      "allowDeposits": true,
+      "allowWithdraws": true,
+      "sharePremium": 0
+    },
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "WEETH"
+      },
+      "allowDeposits": true,
+      "allowWithdraws": true,
+      "sharePremium": 0
+    },
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "RSWETH"
+      },
+      "allowDeposits": true,
+      "allowWithdraws": true,
+      "sharePremium": 0
+    },
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "RSETH"
+      },
+      "allowDeposits": true,
+      "allowWithdraws": true,
+      "sharePremium": 0
+    },
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "WETH"
+      },
+      "allowDeposits": true,
+      "allowWithdraws": true,
+      "sharePremium": 0
+    }
+  ],
+  "withdrawAssets": [
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "WSTETH"
+      },
+      "maxDiscount": 10,
+      "minDiscount": 1,
+      "minimumSecondsToDeadline": 259200,
+      "minimumShares": 0,
+      "secondsToMaturity": 172800
+    },
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "SWETH"
+      },
+      "maxDiscount": 10,
+      "minDiscount": 1,
+      "minimumSecondsToDeadline": 259200,
+      "minimumShares": 0,
+      "secondsToMaturity": 172800
+    },
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "STONE"
+      },
+      "maxDiscount": 10,
+      "minDiscount": 1,
+      "minimumSecondsToDeadline": 259200,
+      "minimumShares": 0,
+      "secondsToMaturity": 172800
+    },
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "WEETH"
+      },
+      "maxDiscount": 10,
+      "minDiscount": 1,
+      "minimumSecondsToDeadline": 259200,
+      "minimumShares": 0,
+      "secondsToMaturity": 172800
+    },
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "RSWETH"
+      },
+      "maxDiscount": 10,
+      "minDiscount": 1,
+      "minimumSecondsToDeadline": 259200,
+      "minimumShares": 0,
+      "secondsToMaturity": 172800
+    },
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "RSETH"
+      },
+      "maxDiscount": 10,
+      "minDiscount": 1,
+      "minimumSecondsToDeadline": 259200,
+      "minimumShares": 0,
+      "secondsToMaturity": 172800
+    },
+    {
+      "addressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "WETH"
+      },
+      "maxDiscount": 10,
+      "minDiscount": 1,
+      "minimumSecondsToDeadline": 259200,
+      "minimumShares": 0,
+      "secondsToMaturity": 172800
+    }
+  ]
+}
