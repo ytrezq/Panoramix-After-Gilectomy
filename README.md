@@ -20,6 +20,7 @@ only holds data and the tools that make and use it.
 | `immunefi/SLUG/manifest.json` | per repository: its URL and commit, its submodules and Soldeer dependencies (with their commits), the npm packages fetched for its imports (with their versions), its license and the verdict, its languages, the files copied |
 | `immunefi/SLUG/notes.md` | how the repositories were found (the program's assets, its GitHub organization), what was left out and why |
 | `immunefi/SLUG/OWNER__REPO/` | the copy: every EVM source (`.sol .vy .vyi .yul .huff .fe .lll .se`) and build configuration (`foundry.toml`, `remappings.txt`, `package.json`, `hardhat.config.*`, ...) at the repository's own paths, its submodules' and dependencies' at the paths a build finds them (`lib/...`, `node_modules/...`, `dependencies/...`), the links of a workspace; or, for a repository whose license doesn't allow redistribution, the whole repository as a git subtree (below) |
+| `results/` | runs of the tools: the builds' errors, `compare_source.py`'s summary and per-artifact results (`results/sample-2026-11-08/`: 168 artifacts of 11 programs, solc 0.4.24 to 0.8.38 and Vyper 0.3.6 to 0.4.2 on five EVM versions) |
 | `reference/` | (ignored by git) local copies made by `tools/fetch_reference.py`, for a repository that isn't on GitHub |
 
 ## What is copied
