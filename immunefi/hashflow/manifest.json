@@ -32,8 +32,27 @@
    "languages": {
     ".sol": 74
    },
-   "copied": false,
-   "why": "reference only: no license allowing redistribution found"
+   "copied": true,
+   "why": "its license does not allow redistribution: added as git subtrees at the user's request, its license files kept in the tree",
+   "via": "git subtree",
+   "dest": "hashflownetwork__x-protocol",
+   "files": 1630,
+   "subtrees": [
+    {
+     "prefix": "hashflownetwork__x-protocol",
+     "url": "https://github.com/hashflownetwork/x-protocol",
+     "commit": "e41cfaadac7d9bacfa368be904a93bd98b5a2df6"
+    }
+   ],
+   "npm": {
+    "evm/node_modules/@openzeppelin/contracts": "4.9.2",
+    "evm/node_modules/@aave/core-v3": "1.17.2",
+    "hashverse-evm/node_modules/@openzeppelin/contracts-upgradeable": "4.9.2",
+    "hashverse-evm/node_modules/@openzeppelin/contracts": "4.9.2",
+    "hashverse-evm/node_modules/hardhat": "2.29.1",
+    "aggregator-evm/node_modules/@1inch/solidity-utils": "3.8.3",
+    "aggregator-evm/node_modules/@openzeppelin/contracts": "4.9.2"
+   }
   }
  ]
 }
