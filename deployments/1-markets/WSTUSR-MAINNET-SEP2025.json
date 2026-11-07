@@ -1,0 +1,15 @@
+{
+    "name": "WSTUSR-MAINNET-SEP2025",
+    "SY": "0x6c78661c00D797C9c7fCBE4BCacbD9612A61C07f",
+    "YT": "0x1E24B022329f3CA0083b12FAF75d19639FAebF6f",
+    "PT": "0x23E60d1488525bf4685f53b3aa8E676c30321066",
+    "market": "0x09fA04Aac9c6d1c6131352EE950CD67ecC6d4fB9",
+    "expiry": 1758758400,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "16240223350842364143",
+    "initialRateAnchor": "1098960161431879138",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0x07a010b9103385364b2bb3e7c1ec9a80994f8786cd924c770b2ef9ad9a881f0b",
+    "deployBlockNumber": 22073495,
+    "reversedFee": 0.9999999999830145
+}

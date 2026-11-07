@@ -1,0 +1,14 @@
+{
+    "name": "CONCRETE-BERA-WBTC-MAINNET-APR2025",
+    "SY": "0xa8aBe7ac0C4bb1adE8B22De6A33691fcEDCbd8d3",
+    "YT": "0xeEb27d72ab6e7539dCe4c377C95e9eF9e18bDcd8",
+    "PT": "0x96fE14bf8c1681db311fa95547b254a178ab5527",
+    "market": "0x9471d9c5B57b59d42B739b00389a6d520c33A7a9",
+    "expiry": 1744243200,
+    "scalarRoot": "14555971425000000000",
+    "initAnchor": "1049872528000000000",
+    "lnFeeRateRoot": "11928570865000000",
+    "deployTxHash": "0xaa761771ee5f8e5acd92b93cfbe285a93e2d6599ed922662e518b4fb0c1d0822",
+    "deployBlockNumber": 21623410,
+    "reversedFee": 1.19999999997229
+}

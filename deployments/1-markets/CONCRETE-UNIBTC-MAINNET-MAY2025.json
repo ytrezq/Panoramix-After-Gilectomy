@@ -1,0 +1,15 @@
+{
+    "name": "CONCRETE-UNIBTC-MAINNET-MAY2025",
+    "SY": "0xA424366BcF639628b400D7C0e0607C6B2E2B4E68",
+    "YT": "0x5184bCf8b8835B9229bd8291c3370d6001e307e9",
+    "PT": "0xe9824E10345Ecd5Cd43fC07d550e76159d0327c6",
+    "market": "0xEDda7526EC81055F2af99d51D968FC2FBca9Ee96",
+    "expiry": 1747872000,
+    "lnFeeRateRoot": "4987541511039073",
+    "scalarRoot": "50426222487063937075",
+    "initialRateAnchor": "1015715936268043137",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0x47314f559751990d481a1196575ed49e5df52276326f947b9fb5048d8dcc334a",
+    "deployBlockNumber": 21992611,
+    "reversedFee": 0.49999999999608136
+}

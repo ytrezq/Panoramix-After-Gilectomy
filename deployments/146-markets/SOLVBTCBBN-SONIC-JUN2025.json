@@ -1,0 +1,15 @@
+{
+    "name": "SOLVBTCBBN-SONIC-JUN2025",
+    "SY": "0x40Ae6da2d92aa3DCb7f8d7a7209FD12BDfcb7C85",
+    "YT": "0x253Bf4D07B1dF144301313752D4D5135B23b18Bb",
+    "PT": "0x15C2B34593E47253eD3fd1115887c5C2D73D5722",
+    "market": "0x4A54C1EB9125A5e3De8cC44f618dB45055952674",
+    "expiry": 1750896000,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "43706981649783782467",
+    "initialRateAnchor": "1016638275696746901",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0xbec3a3cfcb5e645dc05a8af4af1a64d4e6550062fd46d6e9d3927f5a3932d6a1",
+    "deployBlockNumber": 14179216,
+    "reversedFee": 0.9999999999830145
+}

@@ -1,0 +1,15 @@
+{
+    "name": "INFRARED-BGT-BERA-JUN2025",
+    "SY": "0xC61C866B6fDC36f88eC368b969C6d7cb810caFa9",
+    "YT": "0xb63aD66394E380c3C1023d3347F3036128056AFe",
+    "PT": "0xdda59E4D1AC10C73B87AAb69686a806732e5F137",
+    "market": "0x227d4a2E5734b500fA0bEd940E4df54bDda25636",
+    "expiry": 1750896000,
+    "lnFeeRateRoot": "48694921538758549",
+    "scalarRoot": "2985134006356987087",
+    "initialRateAnchor": "1232039337283471399",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0x3bff641e5b12a2b2c9b9d543ae7c950c2a9a08ce36b8bab4bd4d379bcb9672c8",
+    "deployBlockNumber": 2843485,
+    "reversedFee": 4.989999999920358
+}

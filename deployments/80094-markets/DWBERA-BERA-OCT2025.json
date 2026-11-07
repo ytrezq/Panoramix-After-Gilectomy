@@ -1,0 +1,15 @@
+{
+    "name": "DWBERA-BERA-OCT2025",
+    "SY": "0x9E88f2990C48315DacE55FFda9950FC287362109",
+    "YT": "0xcb623B3F6F216e36a599228b2921AcE0EA499d0d",
+    "PT": "0xd8711F912e52A78d0DdD13Fca2555700c31d61F4",
+    "market": "0x5200C9900436f649B4659dFc79213837DcCCaAB1",
+    "expiry": 1761782400,
+    "lnFeeRateRoot": "19802627296179713",
+    "scalarRoot": "7730843357798987163",
+    "initialRateAnchor": "1186862447638124842",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0xc0af014607193fcbc53e610a8b7265c3868a7d705e86b2f91f3dfc82b3ae9431",
+    "deployBlockNumber": 3434908,
+    "reversedFee": 1.999999999981661
+}

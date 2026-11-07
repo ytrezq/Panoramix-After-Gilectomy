@@ -1,0 +1,15 @@
+{
+    "name": "CONCRETE-USDE-MAY2025",
+    "SY": "0xab659cfa8a179fC305dF3a083f1400E6A230bf15",
+    "YT": "0xC0a710eec830747339FDb45522D47782F598CCEe",
+    "PT": "0x0F63b67Ff6563427bbD6447F58879b38BDA847B3",
+    "market": "0xE4AF6375F4424b61B91A1E96b9dE6ff8E842AA3A",
+    "expiry": 1746662400,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "20391489056399823995",
+    "initialRateAnchor": "1010871951187154494",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0xcd67e2547701461072e5fcaa442768f2c6919fa448d63117c99573fc6bd38c0d",
+    "deployBlockNumber": 22193886,
+    "reversedFee": 0.9999999999830145
+}

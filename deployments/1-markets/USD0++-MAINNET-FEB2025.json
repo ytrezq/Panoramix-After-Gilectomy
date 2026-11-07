@@ -1,0 +1,14 @@
+{
+    "name": "USD0++-MAINNET-FEB2025",
+    "SY": "0x52453825c287dDef62D647ce51C0979D27c461f7",
+    "YT": "0xf650494E751878b6b2B4006D2e0618ef3e9E2579",
+    "PT": "0x770751e8Ad85451754D3c23e71F4AfE19ce6afDb",
+    "market": "0x22a72B0C504cBb7f8245208f84D8f035c311aDec",
+    "expiry": 1740614400,
+    "scalarRoot": "14168154518000000000",
+    "initAnchor": "1078541736000000000",
+    "lnFeeRateRoot": "9950330853000000",
+    "deployTxHash": "0x9bf4e770751c3ef90d995a7428c1305e37d973a3b3fabc575f1347ae5d08ecdb",
+    "deployBlockNumber": 21372120,
+    "reversedFee": 0.9999999999830145
+}

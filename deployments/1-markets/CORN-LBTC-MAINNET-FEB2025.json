@@ -1,0 +1,14 @@
+{
+    "name": "CORN-LBTC-MAINNET-FEB2025",
+    "SY": "0x9d6Ec7a7B051B32205F74B140A0fa6f09D7F223E",
+    "YT": "0x510Db3F7d1d6e9F24B0c452b561257292DD6E4a8",
+    "PT": "0x29859bb7c30C0E36b69ef1ecb40396aB9b970b60",
+    "market": "0xC118635bcde024c5B01C6be2B0569a2608A8032C",
+    "expiry": 1740614400,
+    "scalarRoot": "32187305756000000000",
+    "initAnchor": "1022492599000000000",
+    "lnFeeRateRoot": "3992021269000000",
+    "deployTxHash": "0x9102f39d0f4cb98ae7d5ba3f9ccad672912c24865eb1a652e38562a5fb8d5225",
+    "deployBlockNumber": 21463628,
+    "reversedFee": 0.3999999999460435
+}

@@ -1,0 +1,15 @@
+{
+    "name": "STAKED-SONIC-MAY2025",
+    "SY": "0x7076dEE976098B444f68C6382E8f062237879a9F",
+    "YT": "0xD8f57B34E69270f7Ba179E854020Ee80F16Eebf4",
+    "PT": "0x420df605D062F8611EFb3F203BF258159b8FfFdE",
+    "market": "0x3aeF1d372d0a7a7E482F465Bc14A42D78f920392",
+    "expiry": 1748476800,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "19555104974015007585",
+    "initialRateAnchor": "1042267872162541871",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0x727be466db434355d4173aeae67b4265318de2d8460e783d0c1a622bc36a901f",
+    "deployBlockNumber": 11809277,
+    "reversedFee": 0.9999999999830145
+}

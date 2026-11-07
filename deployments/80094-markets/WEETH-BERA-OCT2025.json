@@ -1,0 +1,15 @@
+{
+    "name": "WEETH-BERA-OCT2025",
+    "SY": "0x43D03031FAb845065e9CEfE89Dd122d63F72011F",
+    "YT": "0x572689Db5724b2091AfBd8078EDF4Eb950c90ae2",
+    "PT": "0x1d513B989b93c438cE62eDF209aE00B6a410Cac4",
+    "market": "0x34634a7bBE5A3C234b931C79d4cC6785C5dd54C4",
+    "expiry": 1761782400,
+    "lnFeeRateRoot": "4987541511039073",
+    "scalarRoot": "74823648795996741874",
+    "initialRateAnchor": "1027596156569325284",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0x8647b5885cc091f11ecc3f51cd80c864ed0494135ade54e21c9daf70f8c518ca",
+    "deployBlockNumber": 3434920,
+    "reversedFee": 0.49999999999608136
+}

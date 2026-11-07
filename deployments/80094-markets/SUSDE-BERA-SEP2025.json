@@ -1,0 +1,15 @@
+{
+    "name": "SUSDE-BERA-SEP2025",
+    "SY": "0x40Ae6da2d92aa3DCb7f8d7a7209FD12BDfcb7C85",
+    "YT": "0x648f599Be3fAC91F42e1730d96fA83ce246AC75D",
+    "PT": "0x2719e657ec3B3CbE521a18E640CA55799836376f",
+    "market": "0xd8079e0929d67390067529974B116212903cAC69",
+    "expiry": 1758758400,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "17331467545679133266",
+    "initialRateAnchor": "1086608839120135735",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0xfd94afb2692295cc286de557e7e50ecb5ad3c98350964bc109f7d08b5c551dc1",
+    "deployBlockNumber": 2766348,
+    "reversedFee": 0.9999999999830145
+}

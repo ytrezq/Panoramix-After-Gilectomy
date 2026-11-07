@@ -1,0 +1,15 @@
+{
+    "name": "USDE-BERA-SEPT2025",
+    "SY": "0x0f2B6A162d14ae999a596A6b7459A9ef30cd9540",
+    "YT": "0x97428eb80eBe41EdC467b270D94D44EBD4e4C3d3",
+    "PT": "0xdc9b87e5eFD6Ca2BeAa33dDe9c544E1e98345De4",
+    "market": "0x0651C3F8BA59e312529d9A92FCebD8Bb159cbAed",
+    "expiry": 1758758400,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "21471686911004932129",
+    "initialRateAnchor": "1076716440748663439",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0xc28ebfe3ef4f8d5c7ef32d08714fd6b1f66dd82fd8915aeef9eca631eb027207",
+    "deployBlockNumber": 2766640,
+    "reversedFee": 0.9999999999830145
+}

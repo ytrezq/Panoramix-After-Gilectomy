@@ -1,0 +1,14 @@
+{
+    "name": "SOLVBTCBBN-MAINNET-MAR2025",
+    "SY": "0xD5cf704dC17403343965b4F9cd4D7B5e9b20CC52",
+    "YT": "0xdC3740c3C71F28285EA4cE6b74843D448a488379",
+    "PT": "0xd1A1984cc5CAcbd36F6a511877d13662C950fd62",
+    "market": "0x3Fd13BaD9Fc47E001Bf9088Afd1A1b2fc24673d5",
+    "expiry": 1743033600,
+    "scalarRoot": "57552349831000000000",
+    "initAnchor": "1020826201000000000",
+    "lnFeeRateRoot": "1498876123000000",
+    "deployTxHash": "0xf2d36e98a62cd9ccdab09d574013c871fc79d22c3f69de5fabec3cf70d238e05",
+    "deployBlockNumber": 21372039,
+    "reversedFee": 0.14999999992630908
+}

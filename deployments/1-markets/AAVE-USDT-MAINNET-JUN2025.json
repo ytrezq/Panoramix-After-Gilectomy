@@ -1,0 +1,15 @@
+{
+    "name": "AAVE-USDT-MAINNET-JUN2025",
+    "SY": "0x60AC70D1646c7B49840313Ef8008bd78f8901D75",
+    "YT": "0xD390d043D07887c5F03Bab87576c53F657222953",
+    "PT": "0xF358fFE722a0984E940351462fEf4a77ddE04c33",
+    "market": "0x12f6139a5DC6d80990D30a4d45bB86449FF804D8",
+    "expiry": 1750896000,
+    "lnFeeRateRoot": "1998002662000000",
+    "scalarRoot": "26582356835000000000",
+    "initAnchor": "1068303831000000000",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0xb458cb522d0fe33006210db909b82aebc769cf8fdf06e0e64e81c3e08f9548ea",
+    "deployBlockNumber": 21412153,
+    "reversedFee": 0.19999999993256523
+}

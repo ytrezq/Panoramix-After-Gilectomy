@@ -1,0 +1,15 @@
+{
+    "name": "SUSDS-ARBITRUM-AUG2025",
+    "SY": "0xc913698F534eD275f28d8379F5600f333f60594D",
+    "YT": "0x3b72b0171f5F37a4027b33bd902b088481cD70cd",
+    "PT": "0xBDcf887B8c8aC9FB27876C5376695008b13dbC63",
+    "market": "0xFF4d6991658c5844856FAEF5da9232C252896FCa",
+    "expiry": 1756339200,
+    "lnFeeRateRoot": "4987541511039073",
+    "scalarRoot": "31898541273326484140",
+    "initialRateAnchor": "1041505304080733960",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0x160faf7ee8690473e05dd3b902ac4c1d64b97f95d37996c67b48dd4f9b293177",
+    "deployBlockNumber": 317257500,
+    "reversedFee": 0.49999999999608136
+}

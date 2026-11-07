@@ -1,0 +1,14 @@
+{
+    "name": "WSTUSR-MAINNET-MAR2025",
+    "SY": "0x6c78661c00D797C9c7fCBE4BCacbD9612A61C07f",
+    "YT": "0xe0e034AfF49755e80b15594ce3A16d74d1a09b2F",
+    "PT": "0xA8c8861b5ccF8CCe0ade6811CD2A7A7d3222B0B8",
+    "market": "0x353d0B2EFB5B3a7987fB06D30Ad6160522d08426",
+    "expiry": 1743033600,
+    "scalarRoot": "10270497337000000000",
+    "initAnchor": "1095678313000000000",
+    "lnFeeRateRoot": "12422519998000000",
+    "deployTxHash": "0x69bffea8846421ff32f67f4cae85ab152a451d0d14648754173e9818fea79ea4",
+    "deployBlockNumber": 21463550,
+    "reversedFee": 1.2499999999435962
+}

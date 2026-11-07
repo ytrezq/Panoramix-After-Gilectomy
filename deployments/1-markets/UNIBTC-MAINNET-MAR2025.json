@@ -1,0 +1,14 @@
+{
+    "name": "UNIBTC-MAINNET-MAR2025",
+    "SY": "0x87b8E462080fa443a06d2BB119Adb3828C407d78",
+    "YT": "0x44CE0CaDa0FFBD8219B0F56aD7ba460130CDB842",
+    "PT": "0xD4fa2b2b7a3b2be26CA9349763f55DE07e2Fbfd0",
+    "market": "0x380C751BD0412f47Ca560B6AFeB566d88dc18630",
+    "expiry": 1743033600,
+    "scalarRoot": "57552349831000000000",
+    "initAnchor": "1020826201000000000",
+    "lnFeeRateRoot": "1498876123000000",
+    "deployTxHash": "0x3ef806ec22d7c1aeef42ea694eb7297a481795c1305d97dd9af1f0f51f17a036",
+    "deployBlockNumber": 21372067,
+    "reversedFee": 0.14999999992630908
+}

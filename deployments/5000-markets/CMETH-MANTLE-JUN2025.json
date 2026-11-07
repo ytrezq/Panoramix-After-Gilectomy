@@ -1,0 +1,15 @@
+{
+    "name": "CMETH-MANTLE-JUN2025",
+    "SY": "0x2aB88aC7458faeC2E952Bb79CC1be6577bF63E70",
+    "YT": "0x0348cd1f8133Fc2Dc9598dAC38D37F295CD961A6",
+    "PT": "0x94A9643A9056F8a4C75d6940dD0Cc26bdD779773",
+    "market": "0xeC3Fb79d229EF53C8B5Cd64c171097FfC8A00Dc5",
+    "expiry": 1750896000,
+    "lnFeeRateRoot": "4987541511039073",
+    "scalarRoot": "46249765086161447102",
+    "initialRateAnchor": "1030288396821963116",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0x6ca34f126170ea1ae4be82be2188e450ff7ac16d0ac53345063fdbc9ed69433b",
+    "deployBlockNumber": 75567711,
+    "reversedFee": 0.49999999999608136
+}

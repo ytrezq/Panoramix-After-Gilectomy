@@ -1,0 +1,15 @@
+{
+    "name": "AAVE-USDC-SONIC-AUG2025",
+    "SY": "0xc4A9d8b486f388CC0E4168d2904277e8C8372FA3",
+    "YT": "0x18D2D54f42ba720851bAE861b98A0F4B079e6027",
+    "PT": "0x930441Aa7Ab17654dF5663781CA0C02CC17e6643",
+    "market": "0x3F5EA53d1160177445B1898afbB16da111182418",
+    "expiry": 1755129600,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "17340155474892154533",
+    "initialRateAnchor": "1082452296601305860",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0xb471afaeae8e0a8edf7ab9862dbee919af6c5a7ff4ee2af5dc301a7571df3545",
+    "deployBlockNumber": 13022783,
+    "reversedFee": 0.9999999999830145
+}

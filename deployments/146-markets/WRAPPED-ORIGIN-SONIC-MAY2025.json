@@ -1,0 +1,15 @@
+{
+    "name": "WRAPPED-ORIGIN-SONIC-MAY2025",
+    "SY": "0xB261266Cb30c255CB9c73EBf4A3eaD9398D23AB4",
+    "YT": "0x1A1B312378e42dE5495d986c7948075A4723e660",
+    "PT": "0x46eb02b9F47634c4fab3110CC7ADc1C6311DfAC1",
+    "market": "0x4E82347Bc41CFD5d62cEF483C7f0a739a8158963",
+    "expiry": 1748476800,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "18623560878018015156",
+    "initialRateAnchor": "1044662898720178573",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0x8aca3cdc666adac2fec4d76bbfee9873ebf1396dd35b9510d0b04d3986688abd",
+    "deployBlockNumber": 11810628,
+    "reversedFee": 0.9999999999830145
+}

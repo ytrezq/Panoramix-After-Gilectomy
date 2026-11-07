@@ -1,0 +1,15 @@
+{
+    "name": "CURVE-GHOUSR-MAINNET-JUL2025",
+    "SY": "0xba04C9a4297484AA671Fd3425364994cF2AC8037",
+    "YT": "0x4263eDde8814056f8672ACc3a8D6a57160003245",
+    "PT": "0x27eB97233f6228704eA64Bb272fc8eecE68FD9f4",
+    "market": "0x82D810ededb09614144900F914e75Dd76700f19d",
+    "expiry": 1753920000,
+    "lnFeeRateRoot": "17839918128331000",
+    "scalarRoot": "9972338478471837430",
+    "initialRateAnchor": "1133642923479446710",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0x0a5795bd3d21e8d136bc437aca7b2efc4da56b6df971679b2b16eef66cd293a0",
+    "deployBlockNumber": 21828475,
+    "reversedFee": 1.7999999999662952
+}

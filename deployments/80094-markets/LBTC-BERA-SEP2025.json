@@ -1,0 +1,15 @@
+{
+    "name": "LBTC-BERA-SEP2025",
+    "SY": "0x428f2f93afAc3F96B0DE59854038c585e06165C8",
+    "YT": "0x56de1d6389858473015a8566485E7F08eCBeB7b8",
+    "PT": "0x83836B2c1D155Be83D374cB74D74a4d9F2281B38",
+    "market": "0xd8F42A92a0e2995Eee9aED66d630dE00a9B49e22",
+    "expiry": 1758758400,
+    "lnFeeRateRoot": "4987541511039073",
+    "scalarRoot": "64262475945950788896",
+    "initialRateAnchor": "1020558681446290248",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0x9af7b2220f3508341522d3408b58054cc6c6902ab9d29d049798dc9745f13f71",
+    "deployBlockNumber": 3412661,
+    "reversedFee": 0.49999999999608136
+}

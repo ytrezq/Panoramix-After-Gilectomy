@@ -1,0 +1,15 @@
+{
+    "name": "EPENDLE-ARBITRUM-JUNE2025",
+    "SY": "0xD302d7fD2c9375a433018fDfA5613Be6Ad3f18E3",
+    "YT": "0x4c5342A6107824A77E133136dF2b79029546410d",
+    "PT": "0x1942ee88b2ed1A848251f071Fb658922Ec8Fd4d9",
+    "market": "0xCAf560681233b54c996ba06C71566FD30F32C973",
+    "expiry": 1750896000,
+    "lnFeeRateRoot": "14888612493750654",
+    "scalarRoot": "11530923625247895996",
+    "initialRateAnchor": "1069433717704023997",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0xe62173906e873909ce8379d4cbe715f26d8d14d13215896fd4bb396278022124",
+    "deployBlockNumber": 314822687,
+    "reversedFee": 1.4999999999238067
+}

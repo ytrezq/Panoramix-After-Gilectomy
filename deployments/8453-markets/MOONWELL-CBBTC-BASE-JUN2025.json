@@ -1,0 +1,14 @@
+{
+    "name": "MOONWELL-CBBTC",
+    "SY": "0x7F5Efa1bb887a5080CEACd6F3E2C0FC16BD90c90",
+    "YT": "0xdc2ffC7b4Bd5A38D5842E5FDbb407E731DD30796",
+    "PT": "0x5C6593F57EE95519fF6a8Cd16A5e41Ff50af239a",
+    "market": "0xd94Fd7bcEb29159405Ae1E06Ce80e51EF1A484B0",
+    "expiry": 1750896000,
+    "scalarRoot": "80985860375000000000",
+    "initAnchor": "1018483262000000000",
+    "lnFeeRateRoot": "499875041000000",
+    "deployTxHash": "0xf0964d35bc4c0a020ec3ebde7e0efa786413ab5b13f7512a4238b50baf364a49",
+    "deployBlockNumber": 23119967,
+    "reversedFee": 0.04999999993486881
+}

@@ -1,0 +1,15 @@
+{
+    "name": "SLVLUSD-MAINNET-MAY2025",
+    "SY": "0x10222f882F3594455343Abc9831213854902eD8e",
+    "YT": "0x4d74Ad0287f5A3A799659AAd542e4D9d9f31D443",
+    "PT": "0x4D4062bAD41E03b1cdee4C06263F96EB81832341",
+    "market": "0x1C71752a6C10D66375702aaFAd4B6D20393702Cf",
+    "expiry": 1748476800,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "18028386827204172540",
+    "initialRateAnchor": "1051733109330076691",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0xff3a101f014f4baebcdf469724ed984a66c7bba904553067f0d5db4994615e48",
+    "deployBlockNumber": 21898468,
+    "reversedFee": 0.9999999999830145
+}

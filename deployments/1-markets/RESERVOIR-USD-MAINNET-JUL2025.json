@@ -1,0 +1,15 @@
+{
+    "name": "RESERVOIR-USD-MAINNET-JUL2025",
+    "SY": "0x43D6651FF941776976aE8e5B11Ef513E054A7931",
+    "YT": "0x050960D2438D151A246625916b64626f49A1Bc0a",
+    "PT": "0xf736acF34FF7Cd9B3565b73a1f15E652859bF322",
+    "market": "0x88C4F34B86907b7221c0061f7a0bBeC9391Ea727",
+    "expiry": 1753920000,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "15744858395751586318",
+    "initialRateAnchor": "1050963780756869776",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0x315bfe0a434def2d4ef8eb9c9061f9a6d085d3cf2361af9effa79f12776f709a",
+    "deployBlockNumber": 22271892,
+    "reversedFee": 0.9999999999830145
+}

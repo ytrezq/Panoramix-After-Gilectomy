@@ -1,0 +1,15 @@
+{
+    "name": "SKAITO-BASE-JUL2025",
+    "SY": "0x4B272672A58da22B213E733F5ABA48cfec534D30",
+    "YT": "0x5f42D7365Ed7B51A77c275e9F36A8D8F9Cc56750",
+    "PT": "0xA28a34f1E16d845A0a709BafaAc3831Ca7A417a7",
+    "market": "0xa46caC2243Ecd83A6a9Ad58232C1967EBD14D41B",
+    "expiry": 1753920000,
+    "lnFeeRateRoot": "14888612493750654",
+    "scalarRoot": "12133413729028111616",
+    "initialRateAnchor": "1073018552318938847",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0x05207866de88f1b690b521bbb0ef4289e1aa215f166da8e8326b1caf7d470faa",
+    "deployBlockNumber": 28949226,
+    "reversedFee": 1.4999999999238067
+}

@@ -1,0 +1,14 @@
+{
+    "name": "SYRUP-USDC-MAINNET-APR2025",
+    "SY": "0xc9e9C85B33E87fde85c44DBf72b4B842A071551D",
+    "YT": "0x01eCe02951395b7AdBa57cA3281C4d6a565d347e",
+    "PT": "0x2beEb2c4809954e5b514a3205afbDC097eb810B4",
+    "market": "0x580E40c15261F7Baf18eA50F562118aE99361096",
+    "expiry": 1745452800,
+    "scalarRoot": "16016082013000000000",
+    "initAnchor": "1057712692000000000",
+    "lnFeeRateRoot": "11928570865000000",
+    "deployTxHash": "0x326ed4f0890534471d7d6057b32f8cc35835eb6f7a8bb1895344c1c6c228fc6e",
+    "deployBlockNumber": 21669828,
+    "reversedFee": 1.19999999997229
+}
