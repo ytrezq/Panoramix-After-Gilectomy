@@ -1,0 +1,186 @@
+// SPDX-License-Identifier: AGPL-3.0
+pragma solidity >=0.7.5 <0.9.0;
+
+import 'forge-std/StdJson.sol';
+import 'forge-std/Test.sol';
+import {VmSafe} from 'forge-std/Vm.sol';
+import {IERC20} from 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
+import {MiscEthereum} from 'aave-address-book/MiscEthereum.sol';
+import {AaveV2EthereumAssets} from 'aave-address-book/AaveV2Ethereum.sol';
+import {AaveV3OptimismAssets} from 'aave-address-book/AaveV3Optimism.sol';
+import {AaveV3EthereumAssets} from 'aave-address-book/AaveV3Ethereum.sol';
+import {AaveV3PolygonAssets} from 'aave-address-book/AaveV3Polygon.sol';
+import {AaveV3AvalancheAssets} from 'aave-address-book/AaveV3Avalanche.sol';
+import {AaveV3ArbitrumAssets} from 'aave-address-book/AaveV3Arbitrum.sol';
+import {AaveV3GnosisAssets} from 'aave-address-book/AaveV3Gnosis.sol';
+import {AaveV3BaseAssets} from 'aave-address-book/AaveV3Base.sol';
+import {ChainIds} from 'solidity-utils/contracts/utils/ChainHelpers.sol';
+import {IPool} from 'aave-address-book/AaveV3.sol';
+import {IPayloadsControllerCore} from 'aave-address-book/GovernanceV3.sol';
+import {GovV3Helpers} from './GovV3Helpers.sol';
+
+struct ReserveTokens {
+  address aToken;
+  address stableDebtToken;
+  address variableDebtToken;
+}
+
+contract CommonTestBase is Test {
+  using stdJson for string;
+
+  address public constant ETH_MOCK_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
+  address public constant EOA = 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045;
+
+  function executePayload(Vm vm, address payload) internal virtual {
+    GovV3Helpers.executePayload(vm, payload);
+  }
+
+  function executePayload(Vm vm, address payload, IPool pool) internal virtual {
+    executePayload(vm, payload, GovV3Helpers.getPayloadsController(pool, block.chainid));
+  }
+
+  /**
+   * @dev executes the payload via an explicit payloadsController, for cases where the controller
+   * cannot be derived from the pool — e.g. a payload touching DAO-owned contracts on a chain where
+   * the only market is a whitelabel instance.
+   */
+  function executePayload(
+    Vm vm,
+    address payload,
+    IPayloadsControllerCore payloadsController
+  ) internal virtual {
+    GovV3Helpers.executePayload(vm, payload, address(payloadsController));
+  }
+
+  function _getMaxPayloadGas() internal view virtual returns (uint256) {
+    if (
+      block.chainid == ChainIds.MANTLE ||
+      block.chainid == ChainIds.MONAD ||
+      block.chainid == ChainIds.MEGAETH
+    ) return 30_000_000;
+    return 16_777_216;
+  }
+
+  function _assertPayloadGasWithinLimit(uint256 gasUsed) internal {
+    _requireIsolation();
+    assertLt(gasUsed, (_getMaxPayloadGas() * 95) / 100, 'TX_GAS_LIMIT_EXCEEDED'); // 5% is kept as a buffer
+  }
+
+  // The gas check is only meaningful under isolation (cold storage + tx intrinsic), and there is no
+  // cheatcode to query or enable it. Detect it instead: under isolation a top-level call is metered as
+  // a transaction (>= 21000 intrinsic gas), otherwise ~0. Fail loudly rather than silently under-count.
+  function _requireIsolation() internal {
+    (bool success, ) = address(0).call('');
+    success;
+    require(vm.lastCallGas().gasTotalUsed >= 21_000, 'PAYLOAD_GAS_CHECK_REQUIRES_ISOLATION');
+  }
+
+  /**
+   * @notice deal doesn't support amounts stored in a script right now.
+   * This function patches deal to mock and transfer funds instead.
+   * @param asset the asset to deal
+   * @param user the user to deal to
+   * @param amount the amount to deal
+   * @return bool true if the caller has changed due to prank usage
+   */
+  function _patchedDeal(address asset, address user, uint256 amount) internal returns (bool) {
+    if (block.chainid == ChainIds.MAINNET) {
+      // FXS
+      if (asset == 0x3432B6A60D23Ca0dFCa7761B7ab56459D9C964D0) {
+        vm.prank(0xF977814e90dA44bFA03b6295A0616a897441aceC);
+        IERC20(asset).transfer(user, amount);
+        return true;
+      }
+      // GUSD
+      if (asset == AaveV2EthereumAssets.GUSD_UNDERLYING) {
+        vm.prank(0x22FFDA6813f4F34C520bf36E5Ea01167bC9DF159);
+        IERC20(asset).transfer(user, amount);
+        return true;
+      }
+      // SNX
+      if (asset == AaveV2EthereumAssets.SNX_UNDERLYING) {
+        vm.prank(0x5Fd79D46EBA7F351fe49BFF9E87cdeA6c821eF9f);
+        IERC20(asset).transfer(user, amount);
+        return true;
+      }
+      // sUSD
+      if (asset == AaveV2EthereumAssets.sUSD_UNDERLYING) {
+        vm.prank(0x99F4176EE457afedFfCB1839c7aB7A030a5e4A92);
+        IERC20(asset).transfer(user, amount);
+        return true;
+      }
+      // stETH
+      if (asset == AaveV2EthereumAssets.stETH_UNDERLYING) {
+        vm.prank(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
+        IERC20(asset).transfer(user, amount);
+        return true;
+      }
+      // LDO
+      if (asset == AaveV3EthereumAssets.LDO_UNDERLYING) {
+        vm.prank(0x3e40D73EB977Dc6a537aF587D48316feE66E9C8c);
+        IERC20(asset).transfer(user, amount);
+        return true;
+      }
+      // AAVE
+      if (asset == AaveV3EthereumAssets.AAVE_UNDERLYING) {
+        vm.prank(MiscEthereum.ECOSYSTEM_RESERVE);
+        IERC20(asset).transfer(user, amount);
+        return true;
+      }
+    }
+    if (block.chainid == ChainIds.OPTIMISM) {
+      // sUSD
+      if (asset == AaveV3OptimismAssets.sUSD_UNDERLYING) {
+        deal(
+          0x92bAc115d89cA17fd02Ed9357CEcA32842ACB4c2,
+          0xf2107A85d8b79CBd2c5b2Bb63CA73Fd068040b67,
+          amount
+        );
+
+        vm.prank(0xf2107A85d8b79CBd2c5b2Bb63CA73Fd068040b67);
+        IERC20(asset).transfer(user, amount);
+        return true;
+      }
+    }
+    if (block.chainid == ChainIds.GNOSIS) {
+      if (asset == AaveV3GnosisAssets.EURe_UNDERLYING) {
+        vm.prank(0x845C8bc94610807fCbaB5dd2bc7aC9DAbaFf3c55);
+        IERC20(asset).transfer(user, amount);
+        return true;
+      }
+    }
+    if (block.chainid == ChainIds.AVALANCHE) {
+      // AUSD
+      if (asset == AaveV3AvalancheAssets.AUSD_UNDERLYING) {
+        vm.prank(0x12A0d0F4Ea75A01C69eD6bfD20aa7d1ef1550458);
+        IERC20(asset).transfer(user, amount);
+        return true;
+      }
+    }
+    if (block.chainid == ChainIds.CELO) {
+      // CELO
+      if (asset == 0x471EcE3750Da237f93B8E339c536989b8978a438) {
+        vm.deal(user, amount);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Patched version of deal
+   * @param asset to deal
+   * @param user to deal to
+   * @param amount to deal
+   */
+  function deal2(address asset, address user, uint256 amount) internal {
+    (VmSafe.CallerMode mode, address oldSender, ) = vm.readCallers();
+    if (mode != VmSafe.CallerMode.None) vm.stopPrank();
+    bool patched = _patchedDeal(asset, user, amount);
+    if (!patched) {
+      deal(asset, user, amount);
+    }
+    if (mode != VmSafe.CallerMode.None) vm.startPrank(oldSender);
+  }
+}

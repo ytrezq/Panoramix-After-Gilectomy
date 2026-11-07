@@ -1,0 +1,69 @@
+{
+  "name": "@wormhole-foundation/sdk-evm-ntt",
+  "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wormhole-foundation/native-token-transfers.git"
+  },
+  "bugs": {
+    "url": "https://github.com/wormhole-foundation/native-token-transfers"
+  },
+  "homepage": "https://github.com/wormhole-foundation/native-token-transfers#readme",
+  "directories": {
+    "test": "__tests__"
+  },
+  "license": "Apache-2.0",
+  "main": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "module": "./dist/esm/index.js",
+  "description": "NTT SDK for EVM chains",
+  "files": [
+    "dist/esm"
+  ],
+  "keywords": [
+    "wormhole",
+    "sdk",
+    "typescript",
+    "ntt",
+    "evm"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "sideEffects": true,
+  "scripts": {
+    "build:esm": "tsc -p ./tsconfig.esm.json",
+    "build": "bun run build:esm",
+    "rebuild": "bun run clean && bun run build",
+    "clean": "rm -rf ./dist",
+    "generate:test": "typechain --node16-modules --target ethers-v6 --out-dir ethers-ci-contracts '../out/!(build-info)/*.json'",
+    "generate:slim": "ABI_VERSION=`tsx scripts/readVersion.ts` && typechain --node16-modules --target ethers-v6 --out-dir src/ethers-contracts/$ABI_VERSION '../out/?(WormholeTransceiver.sol|NttManager.sol)/*.json'",
+    "generate": "bun run generate:slim",
+    "build:contracts": "cd ../.. && make build-evm-prod",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --config ./jest.config.ts",
+    "prettier": "prettier --write ./src ./__tests__"
+  },
+  "dependencies": {
+    "@wormhole-foundation/sdk-definitions-ntt": "1.0.0",
+    "ethers": "^6.5.1"
+  },
+  "devDependencies": {
+    "@typechain/ethers-v6": "^0.5.1",
+    "tsx": "^4.7.2",
+    "typechain": "^8.3.2"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "default": "./dist/esm/index.js"
+    }
+  },
+  "peerDependencies": {
+    "@wormhole-foundation/sdk-base": "6.1.6",
+    "@wormhole-foundation/sdk-definitions": "6.1.6",
+    "@wormhole-foundation/sdk-evm": "6.1.6",
+    "@wormhole-foundation/sdk-evm-core": "6.1.6"
+  }
+}

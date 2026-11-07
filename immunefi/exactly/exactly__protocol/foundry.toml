@@ -1,0 +1,55 @@
+[profile.default]
+solc_version = "0.8.26"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 1111
+revert_strings = "strip"
+isolate = true
+ignored_error_codes = ["unused-param", "code-size", "init-code-size"]
+
+ffi = true
+src = "contracts"
+out = "artifacts/foundry"
+script = "scripts"
+cache_path = "cache/foundry"
+fs_permissions = [{ access = "read", path = "./deployments" }]
+verbosity = 3
+gas_limit = 3_000_000_000
+
+[invariant]
+fail_on_revert = true
+show_solidity = true
+
+[fmt]
+tab_width = 2
+bracket_spacing = true
+number_underscore = "thousands"
+
+[lint]
+exclude_lints = [
+  "asm-keccak256",
+  "incorrect-shift",
+  "mixed-case-function",
+  "mixed-case-variable",
+  "screaming-snake-case-immutable",
+]
+ignore = ["**/*.t.sol", "**/mocks/**/*.sol"]
+
+[profile.snapshot]
+bytecode_hash = "none"
+
+[profile.snapshot.invariant]
+runs = 10
+
+[profile.production.fuzz]
+runs = 66_666
+
+[profile.production.invariant]
+runs = 666
+
+[profile.overkill.fuzz]
+runs = 6_666_666
+
+[profile.overkill.invariant]
+runs = 66_666
+depth = 666

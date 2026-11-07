@@ -1,0 +1,5 @@
+packages:
+  - "@gearbox-protocol/periphery-v3"
+minimumReleaseAge: 1440
+minimumReleaseAgeExclude:
+  - "@gearbox-protocol/*"

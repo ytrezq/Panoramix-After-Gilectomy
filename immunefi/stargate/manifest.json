@@ -1,0 +1,57 @@
+{
+ "program": "stargate",
+ "repos": [
+  {
+   "repo": "https://github.com/stargate-protocol/stargate-v2",
+   "ref": "main",
+   "scope_paths": [
+    "packages/stg-evm-v2"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "35e04fd94bd15cecaccb5c382bd642cafe87d96d",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": null,
+    "headers": {
+     "BUSL-1.1": 73,
+     "MIT": 19,
+     "Apache-2.0": 29,
+     "UNLICENSED": 77,
+     "(none)": 3
+    },
+    "headers_main": {
+     "BUSL-1.1": 63,
+     "MIT": 11,
+     "Apache-2.0": 29
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 201
+   },
+   "npm": {
+    "packages/stg-evm-v2/node_modules/@openzeppelin/contracts": "4.9.6",
+    "packages/stg-evm-v2/node_modules/@layerzerolabs/lz-evm-oapp-v2": "2.3.44",
+    "packages/stg-evm-v2/node_modules/@layerzerolabs/lz-evm-protocol-v2": "2.0.11",
+    "packages/stg-evm-v2/node_modules/@ensdomains/buffer": "0.1.3",
+    "packages/stg-evm-v2/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6",
+    "packages/stg-evm-v2/node_modules/@layerzerolabs/solidity-examples": "1.1.0",
+    "packages/stg-evm-v2/node_modules/@layerzerolabs/toolbox-foundry": "0.1.13",
+    "packages/stg-evm-v2/node_modules/@layerzerolabs/lz-evm-messagelib-v2": "2.0.11",
+    "packages/stg-evm-v2/node_modules/solidity-bytes-utils": "0.8.4",
+    "packages/stg-evm-v2/node_modules/@layerzerolabs/lz-evm-v1-0.7": "2.3.44",
+    "packages/stg-evm-v2/node_modules/erc721a": "4.3.0",
+    "packages/stg-evm-v2/node_modules/hardhat-deploy": "0.11.45",
+    "packages/stg-evm-v2/node_modules/@axelar-network/axelar-gmp-sdk-solidity": "5.10.0",
+    "packages/stg-evm-v2/node_modules/@chainlink/contracts-ccip": "0.7.6"
+   },
+   "copied": true,
+   "dest": "stargate-protocol__stargate-v2",
+   "files": 1213,
+   "bytes": 6044885,
+   "skipped_large": 0
+  }
+ ]
+}

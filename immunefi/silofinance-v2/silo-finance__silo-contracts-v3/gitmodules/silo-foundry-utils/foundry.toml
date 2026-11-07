@@ -1,0 +1,10 @@
+[profile.default]
+src = "contracts"
+out = "out"
+libs = ["lib"]
+
+# See more config options https://github.com/foundry-rs/foundry/tree/master/config
+fs_permissions = [
+    { access = "read", path = "./deployments/9119/Counter.vy.json"},
+    { access = "read", path = "./deployments/9119/Counter.sol.json"}
+]

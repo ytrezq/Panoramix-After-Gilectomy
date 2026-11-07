@@ -1,0 +1,162 @@
+// SPDX-License-Identifier: SEE LICENSE IN LICENSE
+pragma solidity 0.8.30;
+
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IRootChainManager} from "./msg/interfaces/IRootChainManager.sol";
+import {PolBridger} from "./polBridger.sol";
+import {sPOLController as IsPOLController} from "./sPOLController.sol";
+
+import {BaseRootTunnel} from "./msg/BaseRootTunnel.sol";
+import {MsgCoder} from "./MsgCoder.sol";
+import {Initializable} from "@openzeppelin-contracts-upgradeable/proxy/utils/Initializable.sol";
+import {
+    AccessManagedUpgradeable
+} from "@openzeppelin-contracts-upgradeable/access/manager/AccessManagedUpgradeable.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
+
+/// @title sPOL Messenger
+/// @notice L1 bridge coordinator for cross-chain sPOL operations
+/// @dev Processes L2 migration requests via Polygon's state sync. Handles POL/sPOL
+///      bridging between L1 and L2, and pushes exchange rate updates to L2.
+contract sPOLMessenger is Initializable, AccessManagedUpgradeable, ReentrancyGuardTransient, BaseRootTunnel, MsgCoder {
+    IERC20 public immutable polToken;
+    IERC20 public immutable sPOLToken;
+
+    IRootChainManager public immutable rootChainManager;
+    address public immutable depositManager;
+    IsPOLController public immutable sPOLController;
+
+    // Deprecated backfill slots, retained to preserve storage layout (backfill flow removed)
+    mapping(uint256 => bool) deprecated_completedBackfill;
+    mapping(uint256 => uint256) deprecated_backfillAmounts;
+    uint256 deprecated_currentActiveBackfillCycle;
+    PolBridger public polBridger;
+
+    event ExchangeRateUpdateSent(uint256 totalsPOLBalance, uint256 totaldPOLBalance);
+    event InvalidMessageType(uint8 msgType);
+    event MigrationProcessed(uint256 polAmount, uint256 mintedSPOL);
+    event PolBridgerUpdated(address indexed oldPolBridger, address indexed newPolBridger);
+
+    error NotEnoughPOLInMessenger(uint256 required, uint256 available);
+    error NotEnoughSPOLInMessenger(uint256 required, uint256 available);
+    error OnlyProxyAdmin();
+    error ZeroAddress();
+
+    constructor(
+        address _polToken,
+        address _sPOLToken,
+        address _sPOLController,
+        address _rootChainManager,
+        address _depositManager,
+        address _stateSender,
+        address _checkpointManager,
+        address _childTunnel
+    ) BaseRootTunnel(_stateSender, _checkpointManager, _childTunnel) {
+        require(_polToken != address(0), ZeroAddress());
+        require(_sPOLToken != address(0), ZeroAddress());
+        require(_sPOLController != address(0), ZeroAddress());
+        require(_rootChainManager != address(0), ZeroAddress());
+        require(_depositManager != address(0), ZeroAddress());
+        require(_stateSender != address(0), ZeroAddress());
+        require(_checkpointManager != address(0), ZeroAddress());
+        require(_childTunnel != address(0), ZeroAddress());
+
+        polToken = IERC20(_polToken);
+        sPOLToken = IERC20(_sPOLToken);
+        sPOLController = IsPOLController(_sPOLController);
+        rootChainManager = IRootChainManager(_rootChainManager);
+        depositManager = _depositManager;
+
+        _disableInitializers();
+    }
+
+    /// @notice Initializes the messenger with access control and token approvals
+    /// @dev Sets up approvals for sPOLController (POL staking) and bridge contracts (POL/sPOL transfers).
+    ///      Does NOT set `polBridger` — that's done in `reinitialize` so the polBridger pointer
+    ///      can be set atomically with a proxy upgrade in a single multisig transaction.
+    /// @param _authority AccessManager contract for restricted function access
+    /// @param _rcmERC20Predicate RootChainManager ERC20 predicate for sPOL bridge deposits
+    function initialize(address _authority, address _rcmERC20Predicate) external initializer {
+        require(_authority != address(0), ZeroAddress());
+        require(_rcmERC20Predicate != address(0), ZeroAddress());
+
+        __AccessManaged_init(_authority);
+
+        polToken.approve(address(sPOLController), type(uint256).max);
+        sPOLToken.approve(_rcmERC20Predicate, type(uint256).max);
+    }
+
+    /// @notice Sets the PolBridger pointer atomically alongside a proxy upgrade
+    /// @dev Callable exactly once (via the `reinitializer(2)` modifier) and only when invoked
+    ///      via `ProxyAdmin.upgradeAndCall(messengerProxy, newImpl, reinitialize(polBridger))`.
+    /// @param _polBridger PolBridger proxy address to wire into the messenger.
+    function reinitialize(address _polBridger) external reinitializer(2) {
+        require(msg.sender == ERC1967Utils.getAdmin(), OnlyProxyAdmin());
+        require(_polBridger != address(0), ZeroAddress());
+        polBridger = PolBridger(_polBridger);
+        emit PolBridgerUpdated(address(0), _polBridger);
+    }
+
+    /// @notice One-time cleanup that revokes the legacy Plasma DepositManager POL approval.
+    /// @dev The DepositManager was only used by the removed backfill flow; the max approval set in
+    ///      the original `initialize` lingers on the deployed proxy. This revokes it as part of the
+    ///      cleanup upgrade. Callable once via
+    ///      `ProxyAdmin.upgradeAndCall(messengerProxy, newImpl, reinitializeV3())`.
+    function reinitializeV3() external reinitializer(3) {
+        require(msg.sender == ERC1967Utils.getAdmin(), OnlyProxyAdmin());
+        polToken.approve(depositManager, 0);
+    }
+
+    function _processMessageFromChild(bytes memory _message) internal override {
+        (MsgType msgType, bytes memory actualMessage) = abi.decode(_message, (MsgType, bytes));
+        if (msgType == MsgType.L2_MIGRATION_REQUEST) {
+            _handleMigration(actualMessage);
+        } else {
+            emit InvalidMessageType(uint8(msgType));
+            return;
+        }
+    }
+
+    function _handleMigration(bytes memory _msg) internal {
+        (uint256 _polAmount, uint256 _mintedSPOL) = _decodeL2MigrationRequestMessage(_msg);
+        polBridger.takePOLL1(_polAmount);
+        uint256 polBalance = polToken.balanceOf(address(this));
+        require(polBalance >= _polAmount, NotEnoughPOLInMessenger(_polAmount, polBalance));
+
+        // +1 to compensate for rounding loss in the sPOL->POL->sPOL round-trip,
+        uint256 requiredPOL = sPOLController.convertSPOLtoPOL(_mintedSPOL) + 1;
+        sPOLController.buySPOL(requiredPOL);
+        // send surplus POL to controller, to be cleaned up later
+        polToken.transfer(address(sPOLController), polBalance - requiredPOL);
+        require(
+            sPOLToken.balanceOf(address(this)) >= _mintedSPOL,
+            NotEnoughSPOLInMessenger(_mintedSPOL, sPOLToken.balanceOf(address(this)))
+        );
+
+        rootChainManager.depositFor(childTunnel, address(sPOLToken), abi.encode(_mintedSPOL));
+        emit MigrationProcessed(_polAmount, _mintedSPOL);
+    }
+
+    /// @notice Sends current L1 exchange rate to L2 via state sync
+    /// @dev Reads totaldPOLBalance (minus fees) and totalsPOLBalance from controller, then sends to L2.
+    ///      L2 uses this to calculate buy/sell operations.
+    function updateL2ExchangeRate() external restricted nonReentrant {
+        uint256 totalsPOLBalance = sPOLController.totalsPOLBalance();
+        uint256 totaldPOLBalance = sPOLController.totaldPOLBalance() - sPOLController.feedPOLBalance();
+
+        _sendMessageToChild(
+            abi.encode(MsgType.EXCHANGE_UPDATE, _encodeExchangeUpdateMessage(totalsPOLBalance, totaldPOLBalance))
+        );
+        emit ExchangeRateUpdateSent(totalsPOLBalance, totaldPOLBalance);
+    }
+
+    /// @notice Sets or updates the PolBridger address
+    /// @dev Restricted to AccessManager.
+    /// @param _polBridger New PolBridger address
+    function updatePolBridger(address _polBridger) external restricted {
+        require(_polBridger != address(0), ZeroAddress());
+        emit PolBridgerUpdated(address(polBridger), _polBridger);
+        polBridger = PolBridger(_polBridger);
+    }
+}

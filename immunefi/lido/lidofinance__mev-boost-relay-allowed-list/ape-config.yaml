@@ -1,0 +1,16 @@
+name: mev-boost-relay-allowed-list
+
+plugins:
+  - name: foundry
+  - name: vyper
+
+node:
+  ethereum:
+    mainnet:
+      uri: $RPC_URL
+
+foundry:
+  fork:
+    ethereum:
+      mainnet:
+        upstream_provider: node

@@ -1,0 +1,36 @@
+{
+  "name": "@gearbox-protocol/bots-v3",
+  "version": "0.1.0",
+  "description": "Gearbox V3 bots",
+  "keywords": [
+    "gearbox"
+  ],
+  "homepage": "https://gearbox.fi",
+  "license": "GPL-2.0-or-later",
+  "author": "Gearbox Foundation",
+  "files": [
+    "contracts"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Gearbox-protocol/bots-v3"
+  },
+  "scripts": {
+    "prepare": "husky || true"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@commitlint/cli": "18.6.0",
+    "@commitlint/config-conventional": "18.6.0",
+    "husky": "^9.0.10",
+    "lint-staged": "^15.2.2"
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ]
+  },
+  "lint-staged": {
+    "*.sol": "forge fmt"
+  }
+}

@@ -1,0 +1,39 @@
+{
+ "program": "hashflow",
+ "repos": [
+  {
+   "repo": "https://github.com/hashflownetwork/x-protocol",
+   "ref": null,
+   "scope_paths": [
+    "evm"
+   ],
+   "fetched": "2026-11-07",
+   "note": "HashflowFactory, HashflowPool, HashflowRouter, HashflowWormholeMessenger",
+   "commit": "e41cfaadac7d9bacfa368be904a93bd98b5a2df6",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "UNLICENSED": 24,
+     "BUSL-1.1": 9,
+     "Apache": 4,
+     "MIT": 37
+    },
+    "headers_main": {
+     "UNLICENSED": 24,
+     "BUSL-1.1": 9,
+     "Apache": 4,
+     "MIT": 32
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 74
+   },
+   "copied": false,
+   "why": "reference only: no license allowing redistribution found"
+  }
+ ]
+}

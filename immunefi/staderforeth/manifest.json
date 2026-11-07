@@ -1,0 +1,54 @@
+{
+ "program": "staderforeth",
+ "repos": [
+  {
+   "repo": "https://github.com/stader-labs/ethx",
+   "ref": "mainnet_V0",
+   "scope_paths": [
+    "contracts"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "1cf1efeec3c18f60316d451f3ac3d32098d51ac3",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "fc560fa34fa12a335a50c35d92e55a6628ca467c"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": "ISC",
+    "headers": {
+     "GPL-3.0-or-later": 95,
+     "(none)": 1,
+     "UNLICENSED": 1
+    },
+    "headers_main": {
+     "GPL-3.0-or-later": 53
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 97
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.9.6",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.9.6",
+    "node_modules/@chainlink/contracts": "0.5.1",
+    "node_modules/@eth-optimism/contracts": "0.5.40"
+   },
+   "copied": true,
+   "dest": "stader-labs__ethx",
+   "files": 971,
+   "bytes": 4389995,
+   "skipped_large": 0
+  }
+ ]
+}

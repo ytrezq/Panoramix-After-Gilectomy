@@ -1,0 +1,38 @@
+{
+ "program": "nexusmutual",
+ "repos": [
+  {
+   "repo": "https://github.com/NexusMutual/smart-contracts",
+   "ref": "master",
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "67f531208b693f8edbc6ea46528f164046ed1f0b",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": "GPL-3.0",
+    "headers": {
+     "GPL-3.0-only": 195,
+     "AGPL-3.0-only": 4,
+     "(none)": 6,
+     "GPL-3.0-or-later": 1,
+     "MIT": 5,
+     "LGPL-3.0-or-later": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 213
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts-v4": "4.7.3"
+   },
+   "copied": true,
+   "dest": "NexusMutual__smart-contracts",
+   "files": 391,
+   "bytes": 1404999,
+   "skipped_large": 0
+  }
+ ]
+}

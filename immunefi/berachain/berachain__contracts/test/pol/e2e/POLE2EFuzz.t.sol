@@ -1,0 +1,84 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.26;
+
+import "./POLGasSim.t.sol";
+
+contract POLE2EFuzz is POLGasSimulationSimple {
+    uint256 internal constant PRECISION = 1e18;
+
+    event RewardAdded(uint256 bgtEmitted);
+
+    function setUp() public override {
+        super.setUp();
+        testGasPOLDistribution(); // advance to block > 0 to be able to use queued reward allocation
+    }
+
+    function testFuzzDistribution(uint96[] memory weights, uint256 numVaults, uint256 incentivesCount) public {
+        // Bound the number of vaults and incentives count within valid ranges
+        numVaults = bound(numVaults, 1, 10);
+        incentivesCount = bound(incentivesCount, 1, 2);
+
+        // Ensure the weights array has the same number of elements as the number of vaults
+        weights = new uint96[](numVaults); // Reinitialize weights array to match numVaults
+        for (uint256 i; i < numVaults; ++i) {
+            weights[i] = uint96(bound(weights[i], 1, 10_000)); // Ensure each weight is within a valid range
+        }
+
+        normalizeWeights(weights, numVaults); // Normalize weights
+        RewardVault[] memory vaults = setUpFuzz(weights, numVaults, incentivesCount); // Setup the
+        // environment with fuzzed data
+
+        // Total rewards for the block are set by super.setUp() to blockRewardController.rewardRate()
+        uint256 totalRewards = blockRewardController.rewardRate();
+
+        // Fund the BlockRewardController so processRewards can wrap rewards directly into WBERA,
+        // skipping the legacy BGT mint/redeem fallback path (BGT is being deprecated).
+        vm.deal(address(blockRewardController), blockRewardController.getMaxBGTPerBlock());
+
+        uint256[] memory undistributedBefore = new uint256[](numVaults);
+        for (uint256 i; i < numVaults; ++i) {
+            undistributedBefore[i] = vaults[i].undistributedRewards();
+        }
+
+        distributor.distributeFor(
+            lastProcessedTimestamp, valData.index, valData.pubkey, valData.proposerIndexProof, valData.pubkeyProof
+        );
+        lastProcessedTimestamp++;
+
+        // Each vault should have received its weighted share of the block rewards, scaled by PRECISION
+        // (StakingRewards._notifyRewardAmount stores undistributedRewards = reward * PRECISION).
+        for (uint256 i; i < numVaults; ++i) {
+            uint256 expectedReward = totalRewards * weights[i] * PRECISION / 10_000;
+            assertEq(
+                vaults[i].undistributedRewards() - undistributedBefore[i],
+                expectedReward,
+                "Mismatch in distributed reward"
+            );
+        }
+
+        // Verification
+        verifyWeights(numVaults, weights);
+    }
+
+    function verifyWeights(uint256 numVaults, uint96[] memory weights) internal view {
+        IRewardAllocation.RewardAllocation memory ra = beraChef.getActiveRewardAllocation(valData.pubkey);
+        assertEq(ra.weights.length, numVaults, "Mismatch in number of weights");
+        for (uint256 i; i < numVaults; ++i) {
+            assertEq(ra.weights[i].percentageNumerator, weights[i], "Mismatch in weight configuration");
+        }
+    }
+
+    function setUpFuzz(
+        uint96[] memory weights,
+        uint256 numVaults,
+        uint256 incentivesCount
+    )
+        internal
+        returns (RewardVault[] memory vaults)
+    {
+        vaults = createVaults(numVaults);
+        configureWeights(vaults, weights);
+        addIncentives(vaults, incentivesCount);
+        vm.roll(block.number + 1); // Ensure new reward allocation is active
+    }
+}

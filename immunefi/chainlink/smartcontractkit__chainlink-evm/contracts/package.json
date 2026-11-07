@@ -1,0 +1,75 @@
+{
+  "name": "@chainlink/contracts",
+  "version": "2.0.0",
+  "description": "Chainlink smart contracts",
+  "author": "Chainlink devs",
+  "repository": "github:smartcontractkit/chainlink-evm",
+  "license": "BUSL-1.1",
+  "private": false,
+  "scripts": {
+    "compile:native": "./scripts/native_solc_compile_all",
+    "publish-beta": "pnpm publish --tag beta",
+    "publish-prod": "pnpm publish --tag latest",
+    "solhint": "solhint --max-warnings 0 \"./src/v0.8/**/*.sol\"",
+    "solhint-test": "solhint --config \".solhint-test.json\"  --ignore-path \".solhintignore-test\" --max-warnings 0 \"./src/v0.8/**/*.sol\""
+  },
+  "files": [
+    "src/v0.6",
+    "src/v0.8",
+    "abi/v0.8",
+    "!**/test/**/*",
+    "src/**/test/mocks/**/*.sol",
+    "!src/**/test/mocks/test/*.sol",
+    "src/**/test/helpers/**/*.sol",
+    "foundry.toml",
+    "remappings.txt",
+    ".solhint.json",
+    ".solhint-test.json",
+    ".solhintignore",
+    ".solhintignore-test",
+    "!cre/**/*"
+  ],
+  "pnpm": {
+    "overrides": {
+      "@openzeppelin/contracts-upgradeable": "4.9.6",
+      "@openzeppelin/contracts": "4.9.6",
+      "js-yaml": "^4.2.0",
+      "lodash": "^4.17.23",
+      "ws": "^8.20.1",
+      "fast-uri": "^3.1.2",
+      "brace-expansion": "^5.0.9",
+      "minimatch": ">=3.1.4",
+      "picomatch": "^2.3.2",
+      "yaml": ">=1.10.3",
+      "bn.js": ">=5.2.3",
+      "tmp": "^0.2.6"
+    },
+    "onlyBuiltDependencies": []
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.31.1",
+    "@changesets/get-github-info": "^1.0.0",
+    "hardhat": "^3.13.0",
+    "solhint": "^6.2.4",
+    "solhint-plugin-chainlink-solidity": "github:smartcontractkit/chainlink-solhint-rules#v1.2.1",
+    "tsx": "^4.23.12",
+    "forge-std": "github:foundry-rs/forge-std#v1.16.2"
+  },
+  "dependencies": {
+    "@arbitrum/nitro-contracts": "3.0.0",
+    "@eth-optimism/contracts": "0.6.0",
+    "@openzeppelin/contracts-4.8.3": "npm:@openzeppelin/contracts@4.8.3",
+    "@openzeppelin/contracts-4.9.6": "npm:@openzeppelin/contracts@4.9.6",
+    "@openzeppelin/contracts-5.0.2": "npm:@openzeppelin/contracts@5.0.2",
+    "@openzeppelin/contracts-5.1.0": "npm:@openzeppelin/contracts@5.1.0",
+    "@openzeppelin/contracts-5.3.0": "npm:@openzeppelin/contracts@5.3.0",
+    "@openzeppelin/contracts-upgradeable": "4.9.6",
+    "@scroll-tech/contracts": "2.0.0",
+    "@zksync/contracts": "github:matter-labs/era-contracts#446d391d34bdb48255d5f8fef8a8248925fc98b9"
+  },
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10"
+  },
+  "type": "module"
+}

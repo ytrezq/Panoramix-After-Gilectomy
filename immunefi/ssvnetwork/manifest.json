@@ -1,0 +1,41 @@
+{
+ "program": "ssvnetwork",
+ "repos": [
+  {
+   "repo": "https://github.com/ssvlabs/ssv-network",
+   "ref": "v2.0.0",
+   "scope_paths": [
+    "contracts"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "9bb7b21d4432f34f623bed3e0bb3fa77f1e5d2b9",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": "MIT",
+    "headers": {
+     "GPL-3.0-or-later": 77,
+     "MIT": 12
+    },
+    "headers_main": {
+     "GPL-3.0-or-later": 40
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 89
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.9.6",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.9.6"
+   },
+   "symlinks": 5,
+   "copied": true,
+   "dest": "ssvlabs__ssv-network",
+   "files": 492,
+   "bytes": 2464464,
+   "skipped_large": 0
+  }
+ ]
+}

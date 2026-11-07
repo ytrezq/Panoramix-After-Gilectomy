@@ -1,0 +1,261 @@
+[invariant]
+
+[profile.default]
+libs = [
+    'gitmodules',
+    'node_modules',
+]
+out = 'cache/foundry/out'
+evm_version = 'cancun'
+gas_limit = '40000000000'
+optimizer = true
+optimizer_runs = 200
+via_ir = false
+allow_internal_expect_revert = true
+always_use_create_2_factory = true
+ignored_warnings_from = ['gitmodules']
+
+[profile.core]
+solc = '0.8.28'
+src = 'silo-core/contracts'
+out = 'cache/foundry/out/silo-core'
+broadcast = 'silo-core/broadcast'
+
+fs_permissions = [
+    { access = "read", path = "./cache/foundry/"},
+    { access = "read", path = "./silo-core/test/foundry/data/"},
+    { access = "read", path = "./silo-core/deploy/input/"},
+    { access = "read", path = "./silo-core/deploy/silo/_siloImplementations.json"},
+    { access = "read", path = "./silo-core/deploy/silo/_siloDeployments.json"},
+    { access = "read", path = "./silo-core/scripts/airdrop/output.json"}
+]
+
+[profile.core_with_test]
+solc = '0.8.28'
+src = 'silo-core/contracts'
+test = 'silo-core/test/foundry'
+out = 'cache/foundry/out/silo-core'
+broadcast = 'silo-core/broadcast'
+ignored_error_codes = ['code-size', 'init-code-size']
+
+fs_permissions = [
+    { access = "read", path = "./cache/foundry/"},
+    { access = "read", path = "./silo-core/test/foundry/data/"},
+    { access = "read", path = "./silo-core/deploy/input/"},
+    { access = "read", path = "./silo-core/deploy/silo/_siloDeployments.json"},
+    { access = "read", path = "./silo-core/deploy/silo/_siloImplementations.json"},
+    { access = "read", path = "./silo-core/scripts/airdrop/output.json"}
+]
+
+[profile.core-with-invariants]
+solc = '0.8.28'
+src = 'silo-core/contracts'
+test = 'silo-core/test/invariants'
+out = 'cache/foundry/out/silo-core'
+broadcast = 'silo-core/broadcast'
+ignored_error_codes = ['code-size', 'init-code-size']
+
+fs_permissions = [
+    { access = "read", path = "./cache/foundry/"},
+    { access = "read", path = "./silo-core/test/foundry/data/"},
+    { access = "read", path = "./silo-core/deploy/input/"}
+]
+
+[profile.echidna_dkink]
+solc = '0.8.28'
+src = 'silo-core/contracts'
+test = 'silo-core/test/echidna-dkink-irm'
+out = 'cache/foundry/out/silo-core'
+broadcast = 'silo-core/broadcast'
+
+[profile.echidna_leverage]
+solc = '0.8.28'
+src = 'silo-core/contracts'
+test = 'silo-core/test/echidna-leverage'
+out = 'cache/foundry/out/echidna-leverage'
+broadcast = 'silo-core/echidna/broadcast'
+ignored_error_codes = ['code-size', 'init-code-size']
+
+fs_permissions = [
+    { access = "read", path = "./cache/foundry/"},
+    { access = "read", path = "./silo-core/test/foundry/data/"},
+    { access = "read", path = "./silo-core/deploy/input/"}
+]
+
+[profile.echidna_defaulting]
+solc = '0.8.28'
+src = 'silo-core/contracts'
+test = 'silo-core/test/echidna-defaulting/siloHookV2'
+out = 'cache/foundry/out/echidna-defaulting/siloHookV2'
+broadcast = 'silo-core/echidna/broadcast'
+ignored_error_codes = ['code-size', 'init-code-size']
+
+[profile.echidna_hookV3]
+solc = '0.8.28'
+src = 'silo-core/contracts'
+test = 'silo-core/test/echidna-defaulting/siloHookV3'
+out = 'cache/foundry/out/echidna-defaulting/siloHookV3'
+broadcast = 'silo-core/echidna/broadcast'
+ignored_error_codes = ['code-size', 'init-code-size']
+
+
+[profile.core_test]
+solc = '0.8.28'
+src = 'silo-core/test/foundry'
+out = 'cache/foundry/out/silo-core'
+broadcast = 'silo-core/broadcast'
+ignored_error_codes = ['code-size', 'init-code-size']
+
+fs_permissions = [
+    { access = "read", path = "./cache/foundry/"},
+    { access = "read", path = "./silo-core/test/foundry/data/"},
+    { access = "read", path = "./silo-core/deploy/input/"},
+    { access = "read", path = "./silo-core/deploy/silo/_siloDeployments.json"},
+    { access = "read", path = "./silo-core/deploy/silo/_siloImplementations.json"},
+    { access = "read", path = "./scripts/tasks/"},
+    { access = "read", path = "./silo-core/scripts/airdrop/output.json"}
+]
+
+[profile.default.fmt]
+# Maximum line length where formatter will try to wrap the line
+line_length = 118
+# Number of spaces per indentation level
+tab_width = 4
+# Print spaces between brackets
+bracket_spacing = false
+# Style of uint/int256 types
+int_types = "long"
+# Style of quotation marks
+quote_style = "double"
+# Style of underscores in number literals
+number_underscore = "preserve"
+
+[profile.vaults]
+solc = '0.8.28'
+src = 'silo-vaults/contracts'
+out = 'cache/foundry/out/silo-vaults'
+broadcast = 'silo-vaults/broadcast'
+
+fs_permissions = [
+    { access = "read", path = "./cache/foundry/"},
+    { access = "read", path = "./silo-core/test/foundry/data/"},
+    { access = "read", path = "./silo-core/deploy/input/"}
+]
+
+[profile.vaults_tests]
+solc = '0.8.28'
+src = 'silo-vaults/test/foundry'
+out = 'cache/foundry/out/silo-vaults'
+broadcast = 'silo-vaults/broadcast'
+ignored_error_codes = ['code-size', 'init-code-size']
+
+fs_permissions = [
+    { access = "read", path = "./cache/foundry/"},
+    { access = "read", path = "./silo-core/test/foundry/data/"},
+    { access = "read", path = "./silo-core/deploy/input/"}
+]
+
+[profile.vaults_with_tests]
+solc = '0.8.28'
+src = 'silo-vaults/contracts'
+test = 'silo-vaults/test/foundry'
+out = 'cache/foundry/out/silo-vaults'
+broadcast = 'silo-vaults/broadcast'
+ignored_error_codes = ['code-size', 'init-code-size']
+
+fs_permissions = [
+    { access = "read", path = "./cache/foundry/"},
+    { access = "read", path = "./silo-core/test/foundry/data/"},
+    { access = "read", path = "./silo-core/deploy/input/"}
+]
+
+[profile.x_silo]
+solc = '0.8.28'
+src = 'x-silo/contracts'
+test = 'x-silo/test/foundry'
+out = 'cache/foundry/out/x-silo'
+broadcast = 'x-silo/broadcast'
+ignored_error_codes = ['code-size', 'init-code-size']
+
+[profile.x_silo_tests]
+solc = '0.8.28'
+src = 'x-silo/test/foundry'
+out = 'cache/foundry/out/x-silo'
+broadcast = 'x-silo/broadcast'
+ignored_error_codes = ['code-size', 'init-code-size']
+
+[profile.x_silo_echidna]
+solc = '0.8.28'
+src = 'x-silo/contracts'
+test = 'x-silo/test/echidna'
+out = 'cache/foundry/out/x-silo'
+broadcast = 'x-silo/broadcast'
+ignored_error_codes = ['code-size', 'init-code-size']
+
+fs_permissions = [
+    { access = "read", path = "./cache/foundry/"}
+]
+
+[profile.oracles]
+src = 'silo-oracles/contracts'
+out = 'cache/foundry/out/silo-oracles'
+test = 'silo-oracles/test'
+broadcast = 'silo-oracles/broadcast'
+ignored_error_codes = ['code-size', 'init-code-size']
+
+fs_permissions = [
+    { access = "read", path = "./cache/foundry/" },
+    { access = "read", path = "./silo-core/deploy/input/" },
+    { access = "read", path = "./silo-core/deploy/silo/_siloDeployments.json" },
+    { access = "read", path = "./silo-core/deploy/silo/_siloImplementations.json" },
+    { access = "read", path = "./common/addresses/" },
+]
+
+[fuzz]
+runs = 500
+max_test_rejects = 131072 # 65536 * 2 (doubled a default value)
+
+[rpc_endpoints]
+mainnet = "${RPC_MAINNET}"
+sepolia = "${RPC_SEPOLIA}"
+arbitrum_one = "${RPC_ARBITRUM}"
+optimism = "${RPC_OPTIMISM}"
+anvil = "${RPC_ANVIL}"
+sonic = "${RPC_SONIC}"
+ink = "${RPC_INK}"
+okx = "${RPC_OKX}"
+injective = "${RPC_INJECTIVE}"
+xdc = "${RPC_XDC}"
+mantle = "${RPC_MANTLE}"
+megaeth = "${RPC_MEGAETH}"
+pharos = "${RPC_PHAROS}"
+
+[etherscan]
+mainnet = { key = "${ETHERSCAN_API_KEY}", chain = 1, url = "${VERIFIER_URL_MAINNET}" }
+arbitrum_one = { key = "${ETHERSCAN_API_KEY}", chain = 42161, url = "${VERIFIER_URL_ARBISCAN}" }
+optimism = { key = "${ETHERSCAN_API_KEY}", chain = 10, url = "${VERIFIER_URL_OPTIMISM}" }
+avalanche = { key = "${ETHERSCAN_API_KEY}", chain = 43114, url = "${VERIFIER_URL_AVALANCHE}" }
+avalanche_snow = { key = "${ETHERSCAN_API_KEY}", chain = 43114, url = "${VERIFIER_URL_SNOWSCAN}" }
+base = { key = "${ETHERSCAN_API_KEY}", chain = 8453, url = "${VERIFIER_URL_BASE}" }
+bnb = { key = "${ETHERSCAN_API_KEY}", chain = 56, url = "https://api.etherscan.io/v2/api?chainid=56" }
+okx = { key = "${ETHERSCAN_API_KEY_OKX}", chain = 196, url = "${VERIFIER_URL_OKX}" }
+sonic = { key = "${VERIFIER_API_KEY_SONIC}", chain = 146, url = "${VERIFIER_URL_SONIC}" }
+ink = { key = "", chain = 57073, url = "https://explorer.inkonchain.com/api/", verifier = "blockscout" }
+injective = { key = "", chain = 1776, url = "https://blockscout-api.injective.network/api", verifier = "blockscout" }
+# On deployment, we need to disable the below line, and on verification, enable it.
+xdc = { key = "${ETHERSCAN_API_KEY}", chain = 50, url = "${VERIFIER_URL_XDC}", verifier = "custom" }
+mantle = { key = "${ETHERSCAN_API_KEY}", chain = 5000, url = "${VERIFIER_URL_MANTLE}" }
+# On deployment, we need to disable the below line, and on verification, enable it.
+megaeth = { key = "${ETHERSCAN_API_KEY}", chain = 4326, url = "https://api.etherscan.io/v2/api?chainid=4326" }
+# megaeth_scout = { key = "", chain = 4326, url = "${VERIFIER_URL_MEGAETH_SCOUT}", verifier = "blockscout" }
+pharos = { key = "${ETHERSCAN_API_KEY}", chain = 1672, url = "${VERIFIER_URL_PHAROS}", verifier = "blockscout"}
+
+[lint]
+exclude_lints = [
+    "mixed-case-function",
+    "mixed-case-variable",
+    "unwrapped-modifier-logic",
+    "pascal-case-struct"
+]
+
+# See more config options https://github.com/foundry-rs/foundry/tree/master/config

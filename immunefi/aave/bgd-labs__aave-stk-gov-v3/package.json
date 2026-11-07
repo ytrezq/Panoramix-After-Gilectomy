@@ -1,0 +1,30 @@
+{
+  "name": "stkaave-gov-v3",
+  "version": "1.0.0",
+  "scripts": {
+    "lint": "prettier ./",
+    "lint:fix": "npm run lint -- --write",
+    "test:getHolders": "ts-node scripts-ts/getStkAaveTokenHolders.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bgd-labs/stkaave-gov-v3.git"
+  },
+  "keywords": [],
+  "author": "BGD labs",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/bgd-labs/stkaave-gov-v3/issues"
+  },
+  "homepage": "https://github.com/bgd-labs/stkaave-gov-v3#readme",
+  "devDependencies": {
+    "prettier": "^2.7.1",
+    "prettier-plugin-solidity": "^1.0.0-beta.19",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.3",
+    "@types/node": "^18.15.11",
+    "dotenv": "^16.0.3",
+    "ethers": "^6.2.3",
+    "prettier": "^2.8.3"
+  }
+}

@@ -1,0 +1,141 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.25;
+
+import {ItoA} from "src/utils/ItoA.sol";
+
+library SafeConfig {
+    function _isTestnet() internal view returns (bool) {
+        if (
+            block.chainid == 11155111 // sepolia
+        ) {
+            return true;
+        }
+        if (
+            block.chainid == 1 // mainnet
+                || block.chainid == 10 // optimism
+                || block.chainid == 56 // bnb
+                || block.chainid == 130 // unichain
+                || block.chainid == 137 // polygon
+                || block.chainid == 143 // monad
+                || block.chainid == 480 // worldchain
+                || block.chainid == 999 // hyperevm
+                || block.chainid == 2741 // abstract
+                || block.chainid == 4217 // tempo
+                || block.chainid == 4663 // robinhood
+                || block.chainid == 5042 // arc
+                || block.chainid == 8453 // base
+                || block.chainid == 9745 // plasma
+                || block.chainid == 42161 // arbitrum
+                || block.chainid == 43114 // avalanche
+                || block.chainid == 57073 // ink
+                || block.chainid == 59144 // linea
+                || block.chainid == 99901 // elysium
+        ) {
+            return false;
+        }
+        revert(string.concat("Unrecognized chainid ", ItoA.itoa(block.chainid)));
+    }
+
+    function _isMainnet() internal view returns (bool) {
+        if (block.chainid == 1) {
+            return true;
+        }
+        if (
+            block.chainid == 10 // optimism
+                || block.chainid == 56 // bnb
+                || block.chainid == 130 // unichain
+                || block.chainid == 137 // polygon
+                || block.chainid == 143 // monad
+                || block.chainid == 480 // worldchain
+                || block.chainid == 999 // hyperevm
+                || block.chainid == 2741 // abstract
+                || block.chainid == 4217 // tempo
+                || block.chainid == 4663 // robinhood
+                || block.chainid == 5042 // arc
+                || block.chainid == 8453 // base
+                || block.chainid == 9745 // plasma
+                || block.chainid == 42161 // arbitrum
+                || block.chainid == 43114 // avalanche
+                || block.chainid == 57073 // ink
+                || block.chainid == 59144 // linea
+                || block.chainid == 99901 // elysium
+                || block.chainid == 11155111 // sepolia
+        ) {
+            return false;
+        }
+        revert(string.concat("Unrecognized chainid ", ItoA.itoa(block.chainid)));
+    }
+
+    function isEraVm() internal view returns (bool) {
+        if (
+            block.chainid == 2741 // abstract
+        ) {
+            return true;
+        }
+        if (
+            block.chainid == 1 // ethereum
+                || block.chainid == 10 // optimism
+                || block.chainid == 56 // bnb
+                || block.chainid == 130 // unichain
+                || block.chainid == 137 // polygon
+                || block.chainid == 143 // monad
+                || block.chainid == 480 // worldchain
+                || block.chainid == 999 // hyperevm
+                || block.chainid == 4217 // tempo
+                || block.chainid == 4663 // robinhood
+                || block.chainid == 5042 // arc
+                || block.chainid == 8453 // base
+                || block.chainid == 9745 // plasma
+                || block.chainid == 42161 // arbitrum
+                || block.chainid == 43114 // avalanche
+                || block.chainid == 57073 // ink
+                || block.chainid == 59144 // linea
+                || block.chainid == 99901 // elysium
+                || block.chainid == 11155111 // sepolia
+        ) {
+            return false;
+        }
+        revert(string.concat("Unrecognized chainid ", ItoA.itoa(block.chainid)));
+    }
+
+    uint256 internal constant upgradeSafeThreshold = 3;
+    uint24 internal constant upgradeSafeTimelockDelay = 5 days;
+
+    function getUpgradeSafeSigners() internal view returns (address[] memory) {
+        address[] memory result = new address[](5);
+        result[0] = 0x203393921A2E778fCB8619470ee0Cf399b6Ab4b2; // Chris
+        result[1] = 0x3C3a57b5CC72933E312e0b0bEBe031F72d47c30B; // Duncan
+        if (_isMainnet()) {
+            result[2] = 0x5ee2a00F8f01d099451844Af7F894f26A57FCbF2; // Amir
+            result[3] = 0x269984C978bFA5693D5915201e4dd1B7686aA6F7; // Jacob
+        } else {
+            result[2] = 0x9E4496adE6096b000C856219C27734F4f89A5210; // Amir
+            result[3] = 0x5A9d540A07a96a2bfC8a8dfd638359778C72526f; // Jacob
+        }
+        result[4] = 0xc3445Ec2E12Ba39E74922bD33559028985164bb4; // Phil
+        return result;
+    }
+
+    uint256 internal constant deploymentSafeThreshold = 2;
+
+    // forgefmt: disable-next-line
+    function getDeploymentSafeSigners() internal view returns (address[] memory) { // this is non-pure (view) on purpose
+        address[] memory result = new address[](6);
+        result[0] = 0x24420bC8C760787F3eEF3b809e81f44d31a9c5A2; // Jacob
+        result[1] = 0x052809d05DC83F317b2f578710411e6cbF88AC5a; // Josh
+        result[2] = 0xDCa4ee0070b4aa44b30D8af22F3CBbb2cC859dAf; // Kevin
+        result[3] = 0xD6B66609E5C05210BE0A690aB3b9788BA97aFa60; // Duncan
+        result[4] = 0xfE36AB308C8cBF8874fA9FD44FF40096E96e3154; // Lazaro
+        result[5] = 0x07DEE4CfA991D7a815CE878767FF1405406aF765; // Joshua
+        return result;
+    }
+
+    uint256 internal constant daoSafeThreshold = 2;
+
+    function getDAOSafeSigners() internal pure returns (address[] memory result) {
+        result = new address[](3);
+        result[0] = 0x3C6A208ae02554e744e0EF8fc6d1cd1afAF03B1C;
+        result[1] = 0x026f80585A532F6bB68A1c1Fda61F5DF71C2b10E;
+        result[2] = 0x0abaA253d9C3D9E94771D3daa662cdA5df69EA53;
+    }
+}

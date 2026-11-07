@@ -1,0 +1,310 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.7.6;
+pragma abicoder v2;
+
+import {SafeMathUpgradeable} from "@openzeppelin/v3/contracts-upgradeable/math/SafeMathUpgradeable.sol";
+import {SafeERC20} from "../../utils/SafeERC20.sol";
+import {IERC20} from "../../interfaces/IERC20.sol";
+import {Initializable} from "@openzeppelin/v3/contracts-upgradeable/proxy/Initializable.sol";
+import {EnumerableSetUpgradeable} from "@openzeppelin/v3/contracts-upgradeable/utils/EnumerableSetUpgradeable.sol";
+
+import {ISwapper} from "../../interfaces/flatMoney/swapper/ISwapper.sol";
+import {IHasAssetInfo} from "../../interfaces/IHasAssetInfo.sol";
+import {IHasSupportedAsset} from "../../interfaces/IHasSupportedAsset.sol";
+import {IPoolLogic} from "../../interfaces/IPoolLogic.sol";
+import {EasySwapperUniV3Helpers} from "../easySwapper/EasySwapperUniV3Helpers.sol";
+import {EasySwapperVelodromeCLHelpers} from "../easySwapper/EasySwapperVelodromeCLHelpers.sol";
+import {EasySwapperVelodromeLPHelpers} from "../easySwapper/EasySwapperVelodromeLPHelpers.sol";
+import {IEasySwapperV2} from "./interfaces/IEasySwapperV2.sol";
+import {IWithdrawalVault} from "./interfaces/IWithdrawalVault.sol";
+import {SwapperV2Helpers} from "./libraries/SwapperV2Helpers.sol";
+import {DytmWithdrawLib} from "./libraries/dytm/DytmWithdrawLib.sol";
+
+/// @author dHEDGE team
+contract WithdrawalVault is IWithdrawalVault, Initializable {
+  using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
+  using SafeERC20 for IERC20;
+  using SafeMathUpgradeable for uint256;
+
+  /// @dev Buffer value which estimates how many basic assets maximum can be unrolled out of single asset (eg. some LP token)
+  uint256 internal constant ASSET_MULTIPLIER = 5;
+
+  /// @dev Midas mTokens are tracked in-kind by `_unrollAssets` and refused as swap sources by
+  ///      `swapToSingleAsset` — the two must agree on the type.
+  uint16 private constant ASSET_TYPE_MIDAS_MTOKEN = 42;
+
+  /// @notice The address to which the vault belongs to
+  address public override depositor;
+  /// @notice Factory contract which spawned this vault
+  address public creator;
+
+  /// @dev Set of all basic assets that were unrolled from dHEDGE vaults
+  EnumerableSetUpgradeable.AddressSet private srcAssets;
+
+  modifier onlyCreator() {
+    require(msg.sender == creator, "only creator");
+    _;
+  }
+
+  /// @param _depositor Address of the depositor, who initiated witdrawal using EasySwapperv2
+  /// @param _creator Address of the creator (EasySwapperV2 contract)
+  function initialize(address _depositor, address _creator) external initializer {
+    require(_depositor != address(0), "invalid address");
+    require(_creator != address(0), "invalid address");
+
+    depositor = _depositor;
+    creator = _creator;
+  }
+
+  function withdrawDhedgeVault(
+    address _dHedgeVault,
+    uint256 _amountIn,
+    IPoolLogic.ComplexAsset[] memory _complexAssetsData
+  ) external override onlyCreator {
+    IPoolLogic(_dHedgeVault).withdrawToSafe(address(this), _amountIn, _complexAssetsData);
+  }
+
+  /// @notice Unroll assets from dHEDGE vault to basic ERC20 tokens that can be swapped via DEXes
+  /// @param _dHedgeVault dHEDGE Vault address
+  /// @param _complexAssetsData Complex assets data from pool withdrawal
+  function unrollAssets(
+    address _dHedgeVault,
+    IPoolLogic.ComplexAsset[] memory _complexAssetsData
+  ) external override onlyCreator {
+    _unrollAssets(_dHedgeVault, _complexAssetsData);
+  }
+
+  /// @notice Swaps basic assets to a single asset
+  /// @dev Client should call `getTrackedAssets` to be able to obtain swap txs
+  ///      High slippage check is performed downstream at Swapper contract
+  /// @param _swapData The struct containing all the data required to process the swap(s)
+  function swapToSingleAsset(
+    MultiInSingleOutData calldata _swapData,
+    uint256 _expectedDestTokenAmount
+  ) external override onlyCreator returns (uint256 balanceAfterSwaps) {
+    ISwapper swapper = IEasySwapperV2(creator).swapper();
+    address poolFactory = IEasySwapperV2(creator).dHedgePoolFactory();
+
+    for (uint256 i; i < _swapData.srcData.length; ++i) {
+      // Midas mTokens have no real secondary-market liquidity: any route the aggregator finds
+      // goes through some thin pool and burns the depositor's value, so refuse to swap them here.
+      // They stay tracked and can only be claimed in-kind via the no-swap `completeWithdrawal()`.
+      require(
+        IHasAssetInfo(poolFactory).getAssetType(address(_swapData.srcData[i].token)) != ASSET_TYPE_MIDAS_MTOKEN,
+        "src token not swappable"
+      );
+      // Can only swap all tracked assets at one go
+      require(
+        _swapData.srcData[i].token.balanceOf(address(this)) == _swapData.srcData[i].amount,
+        "src amount mismatch"
+      );
+      _swapData.srcData[i].token.safeIncreaseAllowance(address(swapper), _swapData.srcData[i].amount);
+    }
+
+    ISwapper.InOutData memory swapProps;
+    ISwapper.SrcData[] memory srcData = new ISwapper.SrcData[](1);
+    srcData[0].srcTokenSwapDetails = _swapData.srcData;
+    srcData[0].transferMethodData.method = ISwapper.TransferMethod.ALLOWANCE;
+    swapProps.srcData = srcData;
+    swapProps.destData = _swapData.destData;
+
+    swapper.swap(swapProps);
+
+    balanceAfterSwaps = _swapData.destData.destToken.balanceOf(address(this));
+
+    require(balanceAfterSwaps >= _expectedDestTokenAmount, "high swap slippage");
+
+    for (uint256 i; i < _swapData.srcData.length; ++i) {
+      srcAssets.remove(address(_swapData.srcData[i].token));
+    }
+    srcAssets.remove(address(_swapData.destData.destToken));
+
+    if (balanceAfterSwaps > 0) _swapData.destData.destToken.safeTransfer(depositor, balanceAfterSwaps);
+  }
+
+  /// @notice If depositor wants to recover their basic assets without swapping them
+  /// @dev Recover all tracked assets to the depositor
+  function recoverAssets() external override onlyCreator {
+    _recoverAllAssets(depositor);
+  }
+
+  function recoverAssets(uint256 _portion, address _to) external override onlyCreator {
+    if (_portion == 1e18) {
+      _recoverAllAssets(_to);
+    } else {
+      uint256 setLength = srcAssets.length();
+      address srcAsset;
+      uint256 portionToTransfer;
+      for (uint256 i; i < setLength; ++i) {
+        srcAsset = srcAssets.at(i);
+        portionToTransfer = IERC20(srcAsset).balanceOf(address(this)).mul(_portion).div(1e18);
+        if (portionToTransfer > 0) {
+          IERC20(srcAsset).safeTransfer(_to, portionToTransfer);
+        }
+      }
+    }
+  }
+
+  /// @notice For client code to know which assets are available for swapping
+  /// @return trackedAssets full array of basic assets and their balances
+  function getTrackedAssets() external view override returns (TrackedAsset[] memory trackedAssets) {
+    uint256 setLength = srcAssets.length();
+    trackedAssets = new TrackedAsset[](setLength);
+    for (uint256 i; i < setLength; ++i) {
+      trackedAssets[i] = TrackedAsset({
+        token: srcAssets.at(i),
+        balance: IERC20(srcAssets.at(i)).balanceOf(address(this))
+      });
+    }
+  }
+
+  function _unrollAssets(address _dHedgeVault, IPoolLogic.ComplexAsset[] memory _complexAssetsData) internal {
+    address poolManagerLogic = IPoolLogic(_dHedgeVault).poolManagerLogic();
+    IHasSupportedAsset.Asset[] memory supportedAssets = IHasSupportedAsset(poolManagerLogic).getSupportedAssets();
+    address poolFactory = IPoolLogic(_dHedgeVault).factory();
+    address[] memory basicAssets = new address[](supportedAssets.length.mul(ASSET_MULTIPLIER));
+    uint8 hits;
+
+    for (uint256 i; i < supportedAssets.length; ++i) {
+      address asset = supportedAssets[i].asset;
+      uint16 assetType = IHasAssetInfo(poolFactory).getAssetType(asset);
+      address[] memory unrolledAssets;
+
+      // Regular ERC20 tokens
+      if (assetType == 0 || assetType == 4 || assetType == 22 || assetType == 200) {
+        unrolledAssets = _arraify(asset);
+      }
+      // Nested vault: redeemed here, what it pays out is tracked by the recursive unroll
+      else if (assetType == 1) {
+        _unrollNestedVault(asset);
+      }
+      // Aave positions (8) are withdrawn as regular ERC20s, which are guaranteed to be in `supportedAssets`.
+      // Same for "Assets" which use outside liquidity for withdrawals, like Flat Money's Leverage and GMX. Underlying ERC20 is guaranteed to be in `supportedAssets`.
+      // Same for Midas pending redemption (43): its withdrawal leg is paid in the mToken, which is
+      // guaranteed to be in `supportedAssets` (type 42) and is tracked by its own entry.
+      else if (
+        assetType == 8 ||
+        assetType == 27 ||
+        assetType == 32 ||
+        assetType == 105 ||
+        assetType == 35 ||
+        assetType == 39 ||
+        assetType == 43
+        // solhint-disable-next-line no-empty-blocks
+      ) {}
+      // Hyperliquid spot: the HyperCore-held portion pays out USDC, tracked via USDC's own iteration.
+      // System addresses are not ERC20 contracts and must not be tracked, but a linked EVM token
+      // pays out its EVM-held portion in-kind, so the token itself must be tracked.
+      else if (assetType == 40) {
+        if (!SwapperV2Helpers.isHyperliquidSystemAddress(asset)) {
+          unrolledAssets = _arraify(asset);
+        }
+      }
+      // Uniswap V3 - already unrolled, just need the assets
+      else if (assetType == 7) {
+        unrolledAssets = EasySwapperUniV3Helpers.getUnsupportedUniV3Assets(_dHedgeVault, asset);
+      }
+      // Velodrome V2
+      else if (assetType == 25) {
+        unrolledAssets = EasySwapperVelodromeLPHelpers.unrollLpAndGetUnsupportedLpAssetsAndRewards(
+          poolFactory,
+          asset,
+          true
+        );
+      }
+      // Velodrome/Aerodrome CL
+      else if (assetType == 26) {
+        unrolledAssets = EasySwapperVelodromeCLHelpers.getUnsupportedCLAssetsAndRewards(_dHedgeVault, asset);
+      }
+      // Compound V3 Comet
+      else if (assetType == 28) {
+        unrolledAssets = _arraify(SwapperV2Helpers.getCompoundV3BaseAsset(asset));
+      }
+      // EasySwapperV2UnrolledAssets
+      else if (assetType == 30) {
+        unrolledAssets = SwapperV2Helpers.getUnrolledAssets(asset, _dHedgeVault);
+      }
+      // Pancake CL NFT
+      else if (assetType == 31) {
+        unrolledAssets = SwapperV2Helpers.getPancakeCLPositionAssets(_dHedgeVault, asset);
+      }
+      // Fluid Token
+      else if (assetType == 34) {
+        unrolledAssets = _arraify(SwapperV2Helpers.getFluidTokenUnderlying(asset));
+      }
+      // Pendle Principal Token
+      else if (assetType == 37) {
+        unrolledAssets = _arraify(SwapperV2Helpers.unrollPendlePT(_dHedgeVault, asset));
+      }
+      // Ondo GM Token — pool redeemed to USDC inside withdrawProcessing; track USDC.
+      else if (assetType == 41) {
+        unrolledAssets = _arraify(SwapperV2Helpers.ondoGMHelper(asset, poolFactory));
+      }
+      // Midas mToken (e.g. mAPOLLO) — withdrawn from the pool in-kind. mTokens have no
+      // secondary-market liquidity, so `swapToSingleAsset` cannot unroll them; tracked so the
+      // no-swap `completeWithdrawal()` claims the mToken as is.
+      else if (assetType == ASSET_TYPE_MIDAS_MTOKEN) {
+        unrolledAssets = _arraify(asset);
+      }
+      // DYTM Office
+      else if (assetType == 106) {
+        require(i < _complexAssetsData.length, "missing DYTM complex asset data");
+        unrolledAssets = DytmWithdrawLib.processDytmPosition(asset, _complexAssetsData[i], creator, _dHedgeVault);
+      } else {
+        revert("assetType not handled");
+      }
+
+      for (uint256 j; j < unrolledAssets.length; ++j) {
+        basicAssets[hits] = unrolledAssets[j];
+        hits++;
+      }
+    }
+
+    uint256 reduceLength = basicAssets.length.sub(hits);
+    assembly {
+      mstore(basicAssets, sub(mload(basicAssets), reduceLength))
+    }
+
+    for (uint256 i; i < basicAssets.length; ++i) {
+      address basicAsset = basicAssets[i];
+      if (basicAsset != address(0) && IERC20(basicAsset).balanceOf(address(this)) > 0) {
+        srcAssets.add(basicAsset);
+      }
+    }
+  }
+
+  /// @dev Redeems the whole balance of a nested vault and unrolls what it pays out
+  /// @param _nestedVault Vault token the withdrawing vault holds as an asset
+  function _unrollNestedVault(address _nestedVault) internal {
+    uint256 balance = IPoolLogic(_nestedVault).balanceOf(address(this));
+    if (balance == 0) return;
+
+    // Here we sacrifice slippage protection mechanism.
+    // This is equal to calling .withdrawSafe(balance, new IPoolLogic.ComplexAsset[](IHasSupportedAsset(IPoolLogic(_nestedVault).poolManagerLogic()).getSupportedAssets().length))
+    IPoolLogic(_nestedVault).withdraw(balance);
+    // Empty complexAssetsData: only DYTM (type 106) consumes it; nested vaults with DYTM
+    // positions will revert with "missing DYTM complex asset data".
+    _unrollAssets(_nestedVault, new IPoolLogic.ComplexAsset[](0));
+  }
+
+  /// @dev Helper function to convert address to address[]
+  /// @param _address The address to convert
+  /// @return arr Returns the address as an array
+  function _arraify(address _address) internal pure returns (address[] memory arr) {
+    arr = new address[](1);
+    arr[0] = _address;
+  }
+
+  function _recoverAllAssets(address _to) internal {
+    uint256 setLength = srcAssets.length();
+    address srcAsset;
+    uint256 balance;
+    for (uint256 i; i < setLength; ) {
+      srcAsset = srcAssets.at(i);
+      balance = IERC20(srcAsset).balanceOf(address(this));
+      srcAssets.remove(srcAsset);
+      setLength--;
+      IERC20(srcAsset).safeTransfer(_to, balance);
+    }
+  }
+}

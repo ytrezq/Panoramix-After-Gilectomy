@@ -1,0 +1,19 @@
+[submodule "lib/forge-std"]
+	path = lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "lib/diamond-pau"]
+	path = lib/diamond-pau
+	url = https://github.com/sky-ecosystem/diamond-pau
+	branch = dev
+[submodule "lib/dss-test"]
+	path = lib/dss-test
+	url = https://github.com/makerdao/dss-test
+[submodule "lib/spark-address-registry"]
+	path = lib/spark-address-registry
+	url = https://github.com/marsfoundation/spark-address-registry
+[submodule "lib/sky-pau-registry"]
+	path = lib/sky-pau-registry
+	url = https://github.com/sky-ecosystem/sky-pau-registry.git
+[submodule "lib/pau-administered-agent"]
+	path = lib/pau-administered-agent
+	url = https://github.com/sky-ecosystem/pau-administered-agent.git

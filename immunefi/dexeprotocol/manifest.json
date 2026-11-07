@@ -1,0 +1,46 @@
+{
+ "program": "dexeprotocol",
+ "repos": [
+  {
+   "repo": "https://github.com/dexe-network/DeXe-Protocol",
+   "ref": "master",
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "f09a3ba98c2e44c5c026667bb1a1495db74f6ee3",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": "MIT",
+    "headers": {
+     "MIT": 129
+    },
+    "headers_main": {
+     "MIT": 96
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 129
+   },
+   "npm": {
+    "node_modules/@uniswap/v2-periphery": "1.1.0-beta.0",
+    "node_modules/@uniswap/v3-periphery": "1.4.4",
+    "node_modules/@openzeppelin/contracts": "4.9.2",
+    "node_modules/@solarity/solidity-lib": "2.6.9",
+    "node_modules/@spherex-xyz/contracts": "1.0.5",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.9.2",
+    "node_modules/@spherex-xyz/engine-contracts": "0.0.1",
+    "node_modules/@uniswap/lib": "1.1.1",
+    "node_modules/@uniswap/v2-core": "1.0.0",
+    "node_modules/@uniswap/v3-core": "1.0.1",
+    "node_modules/base64-sol": "1.0.1"
+   },
+   "copied": true,
+   "dest": "dexe-network__DeXe-Protocol",
+   "files": 750,
+   "bytes": 2946850,
+   "skipped_large": 0
+  }
+ ]
+}

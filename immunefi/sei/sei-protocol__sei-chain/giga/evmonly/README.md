@@ -1,0 +1,340 @@
+# EVM-only giga execution
+
+This package contains the EVM-only execution boundary for the final-form giga
+path. It is intentionally separate from the current Cosmos-backed giga wiring in
+`app/app.go`.
+
+The target execution model is based on the `sei-v3` executor:
+
+- raw transaction bytes are Ethereum RLP transactions, not Cosmos SDK txs
+- state layout is EVM-native: balance, storage, code, and nonce are keyed by
+  EVM addresses and hashes
+- block execution can overlap with parsing or persistence work for nearby blocks
+- hot execution should not allocate `sdk.Context`, `sdk.Tx`,
+  `MsgEVMTransaction`, Cosmos messages, or Cosmos coins
+
+The current implementation executes raw RLP transactions with go-ethereum
+against an EVM-native state backend, then returns a changeset plus Ethereum
+receipts. Custom precompiles are being ported, one at a time, behind an
+EVM-native context that is visible to the executor's conflict tracking without
+reintroducing Cosmos keeper dependencies.
+
+## Current implementation
+
+The `evmonly` package currently provides:
+
+- sequential execution of the ordered block transaction list
+- parallel RLP decoding and sender recovery through go-ethereum signers
+- go-ethereum `core.ApplyMessage` execution against an SDK-free `vm.StateDB`
+- key-addressable state reads for balance, nonce, code, and storage
+- deterministic post-block `StateChangeSet` construction
+- direct snapshot reads and ordered state commits through `giga.StateDB`
+- optional executor-internal Block-STM-style execution for optimistic parallel
+  transaction execution with granular validation and reruns
+- Ethereum receipt construction with logs, bloom, gas, tx hash, block metadata,
+  contract address, and effective gas price
+- receipt persistence through the real Giga `ReceiptStore` backend in load-test
+  runtimes, with a concurrency-safe in-memory implementation for unit tests
+- a versioned `MemoryStore` giga implementation over an immutable `StateReader`
+  for tests and load generation
+- native custom precompiles run from a `precompiles.Registry`, starting with `gov`
+- a standalone load harness at `giga/evmonly/cmd/evmonly-loadtest` that feeds
+  generated transfer blocks through the in-memory giga store
+
+The executor accepts config for nonce checks, gas-price checks, minimum gas
+price, chain config, parse workers, OCC workers, result pooling, and the custom
+precompile registry. A nil chain config defaults to geth's
+`params.AllDevChainProtocolChanges`, which is convenient for tests and scaffold
+wiring; production callers should provide the chain's explicit EVM config.
+
+## Executor interface
+
+The boundary is:
+
+```go
+ExecuteBlock(context.Context, BlockRequest) (*BlockResult, error)
+```
+
+For callers that can pipeline stateless work across blocks, the concrete
+executor also supports:
+
+```go
+PrepareBlock(context.Context, BlockRequest) (PreparedBlock, error)
+ExecutePreparedBlock(context.Context, PreparedBlock) (*BlockResult, error)
+```
+
+`PrepareBlock` decodes transaction RLP and recovers senders using
+`ParseWorkers` goroutines while preserving transaction order. A parse failure
+cancels dispatch of remaining work and reports the failing transaction index.
+This work does not touch state, so block N+1 can be prepared while block N is
+still executing. `ExecuteBlock` remains the convenience path and performs
+prepare then execute in one call. `PreparedBlock` is trusted executor-produced
+data: callers should pass the result of `PrepareBlock` unchanged, because
+`ExecutePreparedBlock` does not recover senders again.
+
+The executor is always store-backed. `WithStorageManager(...)` selects the
+`bootstrap.GigaStorageManager` that provides both `giga.StateDB` and the ledger
+receipt store. Unit tests can supply those dependencies independently.
+Execution fails closed if the state store is missing.
+For each block the executor opens a current `giga.StateView`, executes against
+its EVM-native read methods, and passes the resulting `StateChangeSet` to
+`CommitStateChanges`. Execution and commit on an executor are serialized so
+blocks cannot share a stale snapshot or overlap commits; callers must still
+submit block heights in order. The snapshot stays open through the commit and
+is always closed afterward. An empty block still commits an empty
+`StateChangeSet` so the store can advance its height. Stateless preparation can
+continue concurrently with store-backed execution.
+
+The store owns its on-disk key layout: `giga.StateDB` converts a
+`StateChangeSet` to the rows it writes. Block-encoder, state commit, or
+receipt-store failures release the block result and return an error without
+invoking `ResultSink`. Ethereum receipts are converted into
+`receipt.ReceiptRecord` values and persisted through the shared
+`receipt.ReceiptStore` interface before the height-advancing state commit,
+including for empty blocks. A receipt failure leaves state unchanged so the
+block can be retried. A state failure can leave receipts behind, but retrying
+the block overwrites them. `ResultSink` runs only after both stores succeed.
+
+`ExecuteBlock` advances the state store's version itself, independently of any
+ABCI `Commit`, so what the store holds after a restart is decided by the
+storage layer (which flushes asynchronously and re-executes blocks from
+BlockDB), not by which `Commit` calls the application saw. An ABCI application
+built on the executor must therefore derive `Info()` from storage rather than
+from memory: after a restart, the Giga router calls `InitChain` and replays
+block 1 whenever `Info().LastBlockHeight` is zero, which fails against state
+that already exists. `WithBlockChangeSetEncoder(...)` lets the application
+commit its own named changesets (for example an execution cursor holding the
+app hash and parent hash) in the same `CommitStateChanges` call as the block's
+EVM state, so the two can never disagree on disk.
+
+The FlatKV encoder persists balance, nonce, code, and storage changes, and the
+executor reads them through the current Giga state view. EVM-only Autobahn load
+tests use `WithMissingAccountState(...)` to supply the initial funded state for
+synthetic accounts that have not appeared in FlatKV yet; after their first
+change, subsequent reads come from the persisted account row. The fallback
+answers only for balance, nonce, and code: storage is always read from FlatKV,
+so a slot written at an address with no account row reads back.
+
+`MemoryStore` and `MemoryReceiptStore` are non-persistent unit-test doubles.
+`MemoryStore` wraps an immutable `StateReader`, retains committed values in
+versioned overlays, and keeps current and historical snapshots stable without
+copying the complete base state per block. `MemoryReceiptStore` implements the
+shared receipt interface and indexes cloned Sei receipt records by block number
+and transaction hash. Load-test runtimes use the real Giga storage manager
+instead. Every base `StateReader` method must be safe for concurrent calls, and
+returned balances and code must remain immutable while read. Call `Close()` to
+disable future OCC execution on an executor.
+
+A non-nil `error` means block validation failed and the caller must not commit a
+partial output. EVM call failures inside an otherwise valid transaction are
+represented in `Receipts` and `Txs` with failed status.
+
+## Input block format
+
+`BlockRequest` is the expected input:
+
+- `Context` contains block-constant EVM fields:
+  - block number
+  - timestamp
+  - non-zero block gas limit
+  - chain ID
+  - base fee
+  - blob base fee, when enabled
+  - coinbase
+  - parent hash
+  - current block hash
+  - prevRandao
+- `Txs` is the canonical, already-ordered transaction list for the block.
+- Each tx is raw Ethereum transaction RLP bytes.
+- There is no Cosmos SDK tx envelope, `MsgEVMTransaction`, ante wrapper, memo,
+  fee object, account address mapping object, or Cosmos gas meter in the input.
+
+The runtime or consensus layer is responsible for choosing the block order and
+providing the block context. The executor is responsible for parsing tx RLP,
+recovering senders, validating EVM nonce/fee/intrinsic-gas rules, executing EVM
+state transitions, and producing deterministic outputs.
+
+`BlockHash` is used for receipts and log metadata. The current `BLOCKHASH`
+opcode callback only exposes `ParentHash`; older historical hashes require a
+runtime-provided hash source in a later integration step.
+
+## Output format
+
+`BlockResult` contains two primary outputs:
+
+- `ChangeSet`: the EVM-native state writes produced by the block.
+- `Receipts`: Ethereum receipts for the executed transactions.
+
+`ChangeSet` is expressed as post-block values, not deltas:
+
+- `Balances`: final balance for each changed EVM address
+- `Nonces`: final nonce for each changed EVM address
+- `Code`: final bytecode updates or deletions
+- `Storage`: final storage slot updates or deletions
+
+The changeset should be deterministic and serializable by the runtime layer.
+The executor should not require `sdk.Context` or Cosmos stores to build it.
+
+`Receipts` are emitted in transaction order and should contain the Ethereum
+receipt fields needed by RPC and indexing: status, cumulative gas used, bloom,
+logs, tx hash, contract address, and effective gas price metadata where needed.
+
+`Txs` carries per-transaction execution metadata used to build or enrich
+receipts and RPC responses. `GasUsed` is the total EVM gas consumed by the block.
+When result pooling is enabled, exhaustion allocates an unpooled result instead
+of blocking execution on a missing `Release` call. `ResultPoolStats` exposes the
+pool capacity, current availability, and overflow allocation count.
+
+## Open precompile work
+
+Native custom precompiles still need a separate design. If they introduce state
+outside balance, nonce, code, and storage, that state must either become part of
+the EVM-native changeset or be represented through an explicit extension that is
+visible to the OCC conflict tracker.
+
+The intended direction is to treat each custom precompile's migrated module
+state as contract storage owned by that precompile address. With no range reads
+and no side state, precompile reads and writes can then flow through ordinary
+`(address, slot)` storage tracking.
+
+A registered `precompiles.Contract` runs against the calling EVM's StateDB, so
+its reads and writes are tracked, for OCC included, and reverted like any other
+call's. After its flat `RequiredGas`, each storage read it makes is charged as
+an EIP-2929 SLOAD. An address registered without a contract stays a fail-closed
+placeholder that returns `ErrCustomPrecompilesOpen`. Each precompile's storage
+follows the solc layout of its schema in `docs/giga-storage/`, read and written
+through `precompiles/solstorage`. `precompiles/gov` (0x1006) is the first
+implementation.
+
+A contract that implements `precompiles.EndBlocker` runs once at the end of
+every block, empty blocks included, after the block's transactions. The
+registry's `EndBlockers` lists them in run order, and a registered EndBlocker
+left off that list is a construction-time panic. End blockers run on a fresh
+StateDB over the transactions' changeset; their writes are merged into it,
+keeping each entry's prior value from before the block. An error fails the
+block.
+
+## Block-STM execution
+
+When `OCCWorkers > 1`, there is more than one transaction, and custom precompiles
+are not enabled, the executor attempts optimistic parallel execution. Initial
+incarnations are split into execution ranges and run through the shared OCC
+worker pool against the base state. Worker fan-out is clamped to the amount of
+available work, so small blocks do not spawn idle workers and can still split
+down to one transaction per range. Validation then accepts transactions in
+block order, comparing each incarnation's recorded balance, nonce, code,
+account, and `(address, slot)` storage reads/writes against writes recorded
+between that incarnation's source prefix and its own index.
+
+Acceptance is the serial barrier, but the work behind it is spread across the
+pool: every incarnation's writes are indexed by transaction index up front, a
+parallel pass checks the pending run of transactions against that index and
+reports the first one the frontier would not accept, the accepted run is folded
+into the prefix shard by shard (shards are contiguous address ranges), and the
+frontier handles only the reported transaction on the calling goroutine. Each
+incarnation records the set of shards it touched, so a worker skips whole
+results that hold nothing of its own. The merge emits the changeset one shard at
+a time on the pool and concatenates the shards in order, which is canonical
+address order; a prefix with few keys is merged on the calling goroutine instead.
+
+- transactions with no dependency on newly accepted prior writes are retained
+  and accepted in block order without rerunning
+- transactions whose reads, writes, gas-pool availability, or execution errors
+  are invalidated at the validation frontier are rerun against that exact
+  accepted prefix
+- the accepted prefix, write index, cumulative gas, and validation frontier stay
+  live across reruns; validation resumes at the blocked transaction instead of
+  rebuilding and replaying the block prefix
+- only the earliest invalid transaction is rerun, so downstream dependency
+  chains do not spend incarnations against a prefix known to be incomplete
+- rerun outputs replace only that transaction's prior incarnation
+- the final changeset is generated from the accepted prefix state, not by
+  blindly merging mixed-base speculative writes
+
+This is intentionally conservative. A conflict can cause extra reruns, but it
+should not cause a whole-block sequential fallback. The current incarnation cap
+is 10; if a transaction still cannot validate by then, the executor falls back to
+the sequential path and marks `OCCStats.Fallback`. Coinbase fee credits are
+tracked as commutative balance deltas, so independent fee-paying transactions do
+not conflict only because they reward the same coinbase. If a later transaction
+reads or writes that balance, spends funds made available by that fee credit, or
+mixes a normal balance write with a fee credit to the same address, it is rerun
+against the updated prefix.
+
+The parallel acceptance helps most when a block touches many distinct
+addresses with few conflicts, such as plain transfers between many accounts.
+It helps little, or costs a few percent, when one address dominates the block.
+A hot contract's storage or a heavily used address sits in one shard, so one
+worker does its apply and merge work. Dependency chains fall back to the serial
+stretch. Addresses with leading zero bytes all land in the first shard.
+
+Local benchmarks of validate and merge per block show the range:
+
+- a conflict-free block of 1,800 transactions: 20% faster than the serial path
+- a sparse block of 1,800 transactions: 11% faster
+- a dense block of 320 transactions: 3.8% slower
+- a block of transfers to one hot recipient: 1.7% slower
+
+Speculative execution reuses scratch `nativeStateDB` instances from an executor
+pool. The returned receipts, logs, read/write sets, commutative balance deltas,
+and changesets are detached before the scratch state DB is reset. EVM snapshots
+inside `nativeStateDB` are journaled by mutation kind instead of cloning all side
+state at every snapshot; account contents, access lists, transient storage,
+tx-storage bookkeeping, preimages, finalise markers, and commutative balance
+deltas are restored by undo entries. Account snapshots retain only metadata;
+ordinary storage writes journal the affected slot, while operations that replace
+storage retain the old map until the snapshot is discarded. Loaded bytecode is
+immutable and shared across account snapshots, and code hashes are cached per
+loaded account.
+
+`OCCStats` reports whether optimistic execution was attempted, how many reruns
+and validation attempts were needed, the deepest incarnation any single
+transaction reached (`MaxIncarnation`, where `RerunCount` counts reruns across
+the whole block), and aggregated conflict samples. `Fallback` is reserved for
+cases where the executor gives up on the optimistic path, such as
+max-incarnation exhaustion or a concurrent `Close()` closing the shared OCC
+worker pool after OCC was selected; ordinary conflicts should be resolved by
+per-transaction reruns instead.
+
+`ExecutePreparedBlock` also emits those stats on the global OpenTelemetry meter,
+so OCC behavior is visible without reading `BlockResult`. The node binds the
+meter provider with a `sei_chain` Prometheus namespace, so each name below is
+scraped with that prefix:
+
+- `giga_occ_blocks_total{outcome}` — one sample per block. `parallel` and
+  `fallback` are the blocks that tried optimistic execution, `sequential` those
+  that had transactions but were ineligible (a single transaction,
+  `OCCWorkers <= 1`, or registered custom precompiles), and `empty` those with
+  no transactions. Splitting the last two keeps
+  `parallel / (parallel + fallback + sequential)` a statement about OCC rather
+  than about block rate.
+- `giga_occ_fallbacks_total{reason}` — blocks that abandoned the optimistic path,
+  by fallback reason.
+- `giga_occ_reruns_total` — transaction reruns scheduled by validation.
+- `giga_occ_conflicts_total{access,kind}` — validation conflicts.
+- `giga_occ_rerun_depth` — `MaxIncarnation` per optimistically executed block,
+  bucketed one per reachable incarnation.
+
+Every label vocabulary is closed in `metrics.go`: an outcome, reason, access, or
+state kind the emitter does not know collapses to `unknown` rather than adding a
+series. Conflict addresses and slots are deliberately not labels — they are
+per-contract and per-slot, so they would make the series unbounded, and they
+stay in `OCCStats.ConflictSamples` for logs and spans. Conflict samples are
+summed onto the access-by-kind series before being emitted, so the telemetry
+work per block is bounded by the label space rather than by the number of
+conflicting state keys.
+
+## Current limitations
+
+- Block-STM execution is optional and conservative; conflicts are resolved by
+  granular reruns, but the validator may rerun more transactions than a less
+  conservative implementation would.
+- State input is key-addressable only. The executor lazily reads storage slots
+  by `(address, slot)` and does not require or expose range iteration.
+- The map-backed `MemoryState` is for tests and early integration; production
+  should provide a durable native state backend.
+- Historical `BLOCKHASH` lookups beyond the parent block are not wired yet; this
+  needs an explicit runtime hash-source integration before consensus wiring.
+- Block-level blob gas accounting and `MaxBlobGasPerBlock` enforcement are not
+  wired yet; this needs explicit consensus integration before blob transactions
+  can be enabled. Blob transactions are rejected fail-closed until then.

@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+/// forge-lint: disable-start(mixed-case-function,mixed-case-variable)
+pragma solidity ^0.8.15;
+
+import {BatchScriptV2} from "src/scripts/ops/lib/BatchScriptV2.sol";
+import {console2} from "@forge-std-1.16.2/console2.sol";
+
+// Interfaces
+import {IEnabler} from "src/periphery/interfaces/IEnabler.sol";
+
+/// @notice Enables a periphery contract
+contract PeripheryEnable is BatchScriptV2 {
+    function enable(
+        bool useDaoMS_,
+        string calldata argsFile_,
+        string calldata ledgerDerivationPath
+    ) external setUp(useDaoMS_, argsFile_, ledgerDerivationPath) {
+        // Grab the contract key from the args file
+        string memory contractKey = _readBatchArgString("PeripheryEnable", "contract");
+
+        // Get the contract address from the environment file
+        address contractAddress = _envAddressNotZero(contractKey);
+
+        console2.log("Enabling contract");
+        addToBatch(
+            contractAddress,
+            abi.encodeWithSelector(IEnabler.enable.selector, abi.encode(""))
+        );
+
+        console2.log("Periphery enable batch prepared");
+        proposeBatch();
+    }
+}
+/// forge-lint: disable-end(mixed-case-function,mixed-case-variable)

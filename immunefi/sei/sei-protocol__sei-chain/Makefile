@@ -1,0 +1,799 @@
+#!/usr/bin/make -f
+
+# Resolve VERSION from branch or tag:
+# - Extract vX.Y.Z (+ any suffix) from the branch name when present.
+# - Compare only the base vX.Y.Z (strip any suffix) between branch/tag.
+# - Prefer tag if bases are equal; otherwise use whichever base is newer.
+BRANCH_NAME := $(shell git rev-parse --abbrev-ref HEAD)
+BRANCH_VERSION := $(shell echo "$(BRANCH_NAME)" | sed -E -n 's|.*(v[0-9]+\.[0-9]+\.[0-9]+[-A-Za-z0-9._]*).*|\1|p')
+TAG_VERSION := $(shell echo $(shell git describe --tags 2>/dev/null))
+VERSION := $(shell \
+	bv="$(BRANCH_VERSION)"; tv="$(TAG_VERSION)"; \
+	bb=$$(echo "$$bv" | sed 's/^\(v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/'); \
+	tb=$$(echo "$$tv" | sed 's/^\(v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/'); \
+	if [ -z "$$bv" ]; then echo "$$tv"; \
+	elif [ -z "$$tv" ] || [ "$$bb" = "$$tb" ]; then echo "$$tv"; \
+	elif [ "$$(printf '%s\n%s\n' "$$tb" "$$bb" | sort -V | tail -n 1)" = "$$bb" ]; then echo "$$bv"; \
+	else echo "$$tv"; fi)
+COMMIT := $(shell git log -1 --format='%H')
+
+BUILDDIR ?= $(CURDIR)/build
+INVARIANT_CHECK_INTERVAL ?= $(INVARIANT_CHECK_INTERVAL:-0)
+# Pinned here so the lint targets and .github/workflows/golangci.yml cannot drift apart.
+GOLANGCI_LINT := GOTOOLCHAIN=$(shell ./scripts/go-toolchain.sh) go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
+export PROJECT_HOME=$(shell git rev-parse --show-toplevel)
+# Parent of the Go module cache. Derived from `go env GOMODCACHE` so that the
+# container/compose mounts (`$(GO_PKG_PATH)/mod`) follow a relocated GOMODCACHE
+# (e.g. CI pointing it at /mnt) the same way the GOCACHE mounts follow
+# `go env GOCACHE`. Defaults to $HOME/go/pkg when GOMODCACHE is unset.
+export GO_PKG_PATH=$(shell dirname $(shell go env GOMODCACHE))
+export GO111MODULE = on
+
+# Process build tags.
+LEDGER_ENABLED ?= true
+build_tags = netgo
+ifeq ($(LEDGER_ENABLED),true)
+	ifeq ($(OS),Windows_NT)
+		GCCEXE = $(shell where gcc.exe 2> NUL)
+		ifeq ($(GCCEXE),)
+			$(error gcc.exe not installed for ledger support, please install or set LEDGER_ENABLED=false)
+		else
+			build_tags += ledger
+		endif
+	else
+		UNAME_S = $(shell uname -s)
+		ifeq ($(UNAME_S),OpenBSD)
+			$(warning OpenBSD detected, disabling ledger support (https://github.com/cosmos/cosmos-sdk/issues/1988))
+		else
+			GCC = $(shell command -v gcc 2> /dev/null)
+			ifeq ($(GCC),)
+				$(error gcc not installed for ledger support, please install or set LEDGER_ENABLED=false)
+			else
+				build_tags += ledger
+			endif
+		endif
+	endif
+endif
+
+build_tags += $(BUILD_TAGS)
+build_tags := $(strip $(build_tags))
+
+whitespace :=
+whitespace += $(whitespace)
+comma := ,
+build_tags_comma_sep := $(subst $(whitespace),$(comma),$(build_tags))
+
+# process linker flags
+
+ldflags = -X github.com/sei-protocol/sei-chain/sei-cosmos/version.Name=sei \
+			-X github.com/sei-protocol/sei-chain/sei-cosmos/version.AppName=seid \
+			-X github.com/sei-protocol/sei-chain/sei-cosmos/version.Version=$(VERSION) \
+			-X github.com/sei-protocol/sei-chain/sei-cosmos/version.Commit=$(COMMIT) \
+			-X "github.com/sei-protocol/sei-chain/sei-cosmos/version.BuildTags=$(build_tags_comma_sep)"
+
+# go 1.23+ needs a workaround to link memsize (see https://github.com/fjl/memsize).
+# NOTE: this is a terribly ugly and unstable way of comparing version numbers,
+# but that's what you get when you do anything nontrivial in a Makefile.
+ifeq ($(firstword $(sort go1.23 $(shell go env GOVERSION))), go1.23)
+	ldflags += -checklinkname=0
+endif
+ifeq ($(LINK_STATICALLY),true)
+	# STATIC_EXTRA_LDFLAGS lets the static build inject linker search paths, e.g.
+	# scripts/build-static.sh points it at the pinned pre-gcc-12 libgcc (see
+	# third_party/alpine-gcc10-libgcc/README.md).
+	ldflags += -linkmode=external -extldflags "-static $(STATIC_EXTRA_LDFLAGS)"
+endif
+ldflags += $(LDFLAGS)
+ldflags := $(strip $(ldflags))
+
+# BUILD_FLAGS := -tags "$(build_tags)" -ldflags '$(ldflags)' -race
+BUILD_FLAGS := -tags "$(build_tags)" -ldflags '$(ldflags)'
+BUILD_FLAGS_MOCK_BALANCES := -tags "$(build_tags) mock_balances" -ldflags '$(ldflags)'
+
+#### Command List ####
+
+all: lint install
+
+install: go.sum
+		go install $(BUILD_FLAGS) ./cmd/seid
+
+install-mock-balances: go.sum
+		go install $(BUILD_FLAGS_MOCK_BALANCES) ./cmd/seid
+
+install-with-race-detector: go.sum
+		go install -race $(BUILD_FLAGS) ./cmd/seid
+
+###############################################################################
+###                       RocksDB Backend Support                           ###
+###############################################################################
+# Prerequisites:
+# - build-essential (gcc, g++, make)
+# - pkg-config
+# - cmake
+# - git
+# - zlib development headers
+# - bzip2 development headers
+# - snappy development headers
+# - lz4 development headers
+# - zstd development headers
+# - jemalloc development headers
+# - gflags development headers
+# - liburing development headers
+#
+# Installation on Ubuntu/Debian:
+# sudo apt-get update
+# sudo apt-get install -y build-essential pkg-config cmake git zlib1g-dev \
+#     libbz2-dev libsnappy-dev liblz4-dev libzstd-dev libjemalloc-dev \
+#     libgflags-dev liburing-dev
+#
+# Usage:
+# 1. Build RocksDB (one time): make build-rocksdb
+# 2. Install seid with RocksDB: make install-rocksdb
+###############################################################################
+
+# Build and install RocksDB from source (one time setup)
+build-rocksdb:
+	@echo "Building RocksDB v8.9.1..."
+	@if [ -d "rocksdb" ]; then \
+		echo "rocksdb directory already exists, removing..."; \
+		rm -rf rocksdb; \
+	fi
+	git clone https://github.com/facebook/rocksdb.git
+	cd rocksdb && \
+		git checkout v8.9.1 && \
+		make clean && \
+		CXXFLAGS='-march=native -DNDEBUG' make -j"$$(nproc)" shared_lib && \
+		sudo make install-shared
+	@echo '/usr/local/lib' | sudo tee /etc/ld.so.conf.d/rocksdb.conf
+	@sudo ldconfig
+	@echo "RocksDB installation complete!"
+
+# Install seid with RocksDB backend support
+install-rocksdb: go.sum
+	@echo "Checking for RocksDB installation..."
+	@if ! ldconfig -p | grep -q librocksdb; then \
+		echo "Error: RocksDB not found. Please run 'make build-rocksdb' first."; \
+		exit 1; \
+	fi
+	@echo "RocksDB found, proceeding with installation..."
+	CGO_CFLAGS="-I/usr/local/include" \
+	CGO_LDFLAGS="-L/usr/local/lib -lrocksdb -lz -lbz2 -lsnappy -llz4 -lzstd -ljemalloc" \
+	go install $(BUILD_FLAGS) -tags "$(build_tags) rocksdbBackend" ./cmd/seid
+	@echo "seid installed with RocksDB backend support!"
+
+go.sum: go.mod
+		@echo "--> Ensure dependencies have not been modified"
+		@go mod verify
+
+lint:
+	$(GOLANGCI_LINT) run
+	$(GOLANGCI_LINT) fmt
+	go vet ./...
+	go mod tidy
+	go mod verify
+
+# Report any file gofmt or goimports would rewrite, without rewriting it. This is the
+# form CI gates on; `make lint` runs the same check in write mode.
+#
+# It is a separate invocation from `golangci-lint run` because that command honours
+# run.tests, which is false, so its formatters never see a _test.go file. `fmt` ignores
+# run.tests and therefore covers them.
+fmtcheck:
+	$(GOLANGCI_LINT) fmt --diff
+
+# Run lint on the sei-db package. Much faster than running lint on the entire project.
+# Makes life easier for storage team when iterating on changes inside the sei-db package.
+dblint:
+	$(GOLANGCI_LINT) run ./sei-db/...
+	$(GOLANGCI_LINT) fmt ./sei-db/...
+	go vet ./sei-db/...
+
+build:
+	mkdir -p ./build
+	go build $(BUILD_FLAGS) -o ./build/seid ./cmd/seid
+.PHONY: build
+
+build-frozen-rpc-router:
+	mkdir -p ./build
+	go build -o ./build/frozen-rpc-router ./cmd/frozen-rpc-router
+.PHONY: build-frozen-rpc-router
+
+build-autobahn-e2e:
+	go build -o ./autobahn-e2e ./cmd/autobahn-e2e
+.PHONY: build-autobahn-e2e
+
+build-verbose:
+	mkdir -p ./build
+	go build -x -v $(BUILD_FLAGS) -o ./build/seid ./cmd/seid
+.PHONY: build-verbose
+
+clean:
+	rm -rf ./build
+.PHONY: clean
+
+build-evmonly-loadtest:
+	mkdir -p ./build
+	go build -o ./build/evmonly-loadtest ./giga/evmonly/cmd/evmonly-loadtest
+.PHONY: build-evmonly-loadtest
+
+
+###############################################################################
+###                       Local testing using docker container              ###
+###############################################################################
+# To start a 4-node cluster from scratch:
+# make clean && make docker-cluster-start
+# To stop the 4-node cluster:
+# make docker-cluster-stop
+# If you have already built the binary, you can skip the build:
+# make docker-cluster-start-skipbuild
+###############################################################################
+
+
+# Build linux binary on other platforms
+build-linux:
+	@if [ "$$(uname -m)" = "aarch64" ] || [ "$$(uname -m)" = "arm64" ]; then \
+		echo "Building for ARM64..."; \
+		GOOS=linux GOARCH=arm64 CGO_ENABLED=1 make build; \
+	else \
+		echo "Building for AMD64..."; \
+		GOOS=linux GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-linux-gnu-gcc make build; \
+	fi
+.PHONY: build-linux
+
+# Auto-detect platform: arm64 on ARM Macs and Graviton (aarch64), amd64 elsewhere
+DOCKER_PLATFORM ?= $(shell if [ "$$(uname -m)" = "arm64" ] || [ "$$(uname -m)" = "aarch64" ]; then echo "linux/arm64"; else echo "linux/amd64"; fi)
+export DOCKER_PLATFORM
+
+# Build docker image for detected platform
+build-docker-node:
+	@echo "Building for $(DOCKER_PLATFORM)..."
+	@cd docker && docker build --tag sei-chain/localnode localnode --platform $(DOCKER_PLATFORM)
+.PHONY: build-docker-node
+
+build-rpc-node:
+	@cd docker && docker build --tag sei-chain/rpcnode rpcnode --platform $(DOCKER_PLATFORM)
+.PHONY: build-rpc-node
+
+# Integration-test CI: verify images pulled from GHCR by the matrix job.
+ensure-integration-ci-localnode-image:
+	@docker image inspect sei-chain/localnode >/dev/null 2>&1 || (echo "sei-chain/localnode image missing; pull from GHCR (see prepare-cluster job)" && exit 1)
+.PHONY: ensure-integration-ci-localnode-image
+
+ensure-integration-ci-rpcnode-image:
+	@docker image inspect sei-chain/rpcnode >/dev/null 2>&1 || (echo "sei-chain/rpcnode image missing; pull from GHCR (see prepare-rpcnode job)" && exit 1)
+.PHONY: ensure-integration-ci-rpcnode-image
+
+ensure-integration-ci-images: ensure-integration-ci-localnode-image ensure-integration-ci-rpcnode-image
+.PHONY: ensure-integration-ci-images
+
+# Build seid once inside the localnode image (integration-test prepare job).
+build-seid-in-localnode: build-docker-node
+	@mkdir -p build $(shell go env GOMODCACHE) $(shell go env GOCACHE)
+	@docker run --rm \
+		--user="$(shell id -u):$(shell id -g)" \
+		-v $(PROJECT_HOME):/sei-protocol/sei-chain:Z \
+		-v $(GO_PKG_PATH)/mod:/root/go/pkg/mod:Z \
+		-v $(shell go env GOCACHE):/root/.cache/go-build:Z \
+		--platform $(DOCKER_PLATFORM) \
+		-w /sei-protocol/sei-chain \
+		-e LEDGER_ENABLED=false \
+		sei-chain/localnode \
+		bash -c 'export PATH=/usr/local/go/bin:$$PATH && make clean && make build-linux && make build-frozen-rpc-router && mkdir -p build/generated && echo DONE > build/generated/build.complete'
+.PHONY: build-seid-in-localnode
+
+# CI variant: assumes localnode image already built by Buildx in prepare-cluster (skips docker build).
+build-seid-in-localnode-ci: ensure-integration-ci-localnode-image
+	@mkdir -p build $(shell go env GOMODCACHE) $(shell go env GOCACHE)
+	@docker run --rm \
+		--user="$(shell id -u):$(shell id -g)" \
+		-v $(PROJECT_HOME):/sei-protocol/sei-chain:Z \
+		-v $(GO_PKG_PATH)/mod:/root/go/pkg/mod:Z \
+		-v $(shell go env GOCACHE):/root/.cache/go-build:Z \
+		--platform $(DOCKER_PLATFORM) \
+		-w /sei-protocol/sei-chain \
+		-e LEDGER_ENABLED=false \
+		sei-chain/localnode \
+		bash -c 'export PATH=/usr/local/go/bin:$$PATH && make clean && make build-linux && make build-frozen-rpc-router && mkdir -p build/generated && echo DONE > build/generated/build.complete'
+.PHONY: build-seid-in-localnode-ci
+
+# Images plus seid and frozen-rpc-router binaries for integration-test CI.
+# build-seid-in-localnode already depends on build-docker-node, so omit it here to avoid building localnode twice.
+build-integration-ci-artifacts: build-rpc-node build-seid-in-localnode
+.PHONY: build-integration-ci-artifacts
+
+# Run a single node docker container
+run-local-node: kill-sei-node build-docker-node
+	@rm -rf $(PROJECT_HOME)/build/generated
+	docker run --rm \
+	--name sei-node \
+	--network host \
+	--user="$(shell id -u):$(shell id -g)" \
+	-v $(PROJECT_HOME):/sei-protocol/sei-chain:Z \
+	-v $(GO_PKG_PATH)/mod:/root/go/pkg/mod:Z \
+	-v $(shell go env GOCACHE):/root/.cache/go-build:Z \
+	--platform $(DOCKER_PLATFORM) \
+	sei-chain/localnode
+.PHONY: run-local-node
+
+# Run a single rpc state sync node docker container
+run-rpc-node: build-rpc-node
+	docker run --rm \
+	--name sei-rpc-node \
+	--network docker_localnet \
+	--user="$(shell id -u):$(shell id -g)" \
+	-v $(PROJECT_HOME):/sei-protocol/sei-chain:Z \
+	-v $(PROJECT_HOME)/../sei-tendermint:/sei-protocol/sei-tendermint:Z \
+	-v $(PROJECT_HOME)/../sei-cosmos:/sei-protocol/sei-cosmos:Z \
+	-v $(PROJECT_HOME)/../sei-db:/sei-protocol/sei-db:Z \
+	-v $(GO_PKG_PATH)/mod:/root/go/pkg/mod:Z \
+	-v $(shell go env GOCACHE):/root/.cache/go-build:Z \
+	-p 26668-26670:26656-26658 \
+	--platform $(DOCKER_PLATFORM) \
+	--env GIGA_STORAGE=${GIGA_STORAGE} \
+	--env GIGA_FLATKV_ONLY=${GIGA_FLATKV_ONLY} \
+	--env AUTOBAHN=${AUTOBAHN} \
+	--env EVM_GOVERNANCE_VOTING_PERIOD=${EVM_GOVERNANCE_VOTING_PERIOD} \
+	--env CLUSTER_SIZE=${CLUSTER_SIZE} \
+	--env RECEIPT_BACKEND=${RECEIPT_BACKEND} \
+	sei-chain/rpcnode
+.PHONY: run-rpc-node
+
+# Run the rpc node container against a prebuilt seid (SKIP_BUILD=true) with the sei-chain/rpcnode image.
+define RUN_RPC_NODE_SKIPBUILD
+	docker run --rm \
+	--name sei-rpc-node \
+	--network docker_localnet \
+	--user="$(shell id -u):$(shell id -g)" \
+	-v $(PROJECT_HOME):/sei-protocol/sei-chain:Z \
+	-v $(PROJECT_HOME)/../sei-tendermint:/sei-protocol/sei-tendermint:Z \
+	-v $(PROJECT_HOME)/../sei-cosmos:/sei-protocol/sei-cosmos:Z \
+	-v $(PROJECT_HOME)/../sei-db:/sei-protocol/sei-db:Z \
+	-v $(GO_PKG_PATH)/mod:/root/go/pkg/mod:Z \
+	-v $(shell go env GOCACHE):/root/.cache/go-build:Z \
+	-p 26668-26670:26656-26658 \
+	--platform $(DOCKER_PLATFORM) \
+	--env SKIP_BUILD=true \
+	--env GIGA_STORAGE=${GIGA_STORAGE} \
+	--env GIGA_FLATKV_ONLY=${GIGA_FLATKV_ONLY} \
+	--env AUTOBAHN=${AUTOBAHN} \
+	--env EVM_GOVERNANCE_VOTING_PERIOD=${EVM_GOVERNANCE_VOTING_PERIOD} \
+	--env CLUSTER_SIZE=${CLUSTER_SIZE} \
+	--env RECEIPT_BACKEND=${RECEIPT_BACKEND} \
+	sei-chain/rpcnode
+endef
+
+run-rpc-node-skipbuild: build-rpc-node
+	$(RUN_RPC_NODE_SKIPBUILD)
+.PHONY: run-rpc-node-skipbuild
+
+# Integration-test CI: same as run-rpc-node-skipbuild but with the rpcnode image pulled from GHCR
+# (see prepare-rpcnode job) instead of rebuilt here, so image build time never lands inside a
+# test's readiness budget.
+run-rpc-node-skipbuild-ci: ensure-integration-ci-rpcnode-image
+	$(RUN_RPC_NODE_SKIPBUILD)
+.PHONY: run-rpc-node-skipbuild-ci
+
+# Integration-test CI: RPC node with prebuilt image and seid (see .github/workflows/integration-test.yml).
+# Wait for the localnode cluster to produce block 100 (the first snapshot-interval) before
+# starting the rpc node. Without this, SKIP_BUILD=true causes step1_configure_init.sh to
+# read a trust-height of ~10-20, find no snapshot during discovery-time, and crash.
+run-rpc-node-integration-ci: kill-rpc-node ensure-integration-ci-images
+	@echo "Waiting for cluster to reach block 100 (first snapshot)..."
+	@# 192.168.10.10 is the node0 address defined in docker/localnet/; timeout after 15 × 20s = 5 min.
+	@n=0; until [ "$$(curl -sf http://192.168.10.10:26657/block | jq -r '.block.header.height // 0')" -ge 100 ] 2>/dev/null; do \
+		n=$$((n+1)); if [ $$n -ge 15 ]; then echo "Timed out waiting for block 100"; exit 1; fi; \
+		sleep 20; \
+	done
+	docker run --rm \
+	--name sei-rpc-node \
+	--network docker_localnet \
+	--user="$(shell id -u):$(shell id -g)" \
+	-v $(PROJECT_HOME):/sei-protocol/sei-chain:Z \
+	-v $(PROJECT_HOME)/../sei-tendermint:/sei-protocol/sei-tendermint:Z \
+	-v $(PROJECT_HOME)/../sei-cosmos:/sei-protocol/sei-cosmos:Z \
+	-v $(PROJECT_HOME)/../sei-db:/sei-protocol/sei-db:Z \
+	-v $(GO_PKG_PATH)/mod:/root/go/pkg/mod:Z \
+	-v $(shell go env GOCACHE):/root/.cache/go-build:Z \
+	-p 26668-26670:26656-26658 \
+	--platform $(DOCKER_PLATFORM) \
+	--env SKIP_BUILD=true \
+	--env GIGA_STORAGE=${GIGA_STORAGE} \
+	--env GIGA_FLATKV_ONLY=${GIGA_FLATKV_ONLY} \
+	--env RECEIPT_BACKEND=${RECEIPT_BACKEND} \
+	sei-chain/rpcnode
+.PHONY: run-rpc-node-integration-ci
+
+kill-sei-node:
+	docker ps --filter name=sei-node --filter status=running -aq | xargs docker kill 2> /dev/null || true
+
+kill-rpc-node:
+	docker ps --filter name=sei-rpc-node --filter status=running -aq | xargs docker kill 2> /dev/null || true
+
+CLUSTER_ENV_VARS = DOCKER_PLATFORM=$(DOCKER_PLATFORM) USERID=$(shell id -u) GROUPID=$(shell id -g) \
+	GOCACHE=$(shell go env GOCACHE) NUM_ACCOUNTS=10 \
+	INVARIANT_CHECK_INTERVAL=$(INVARIANT_CHECK_INTERVAL) \
+	UPGRADE_VERSION_LIST=$(UPGRADE_VERSION_LIST) \
+	MOCK_BALANCES=$(MOCK_BALANCES) \
+	GIGA_EXECUTOR=$(GIGA_EXECUTOR) \
+	GIGA_OCC=$(GIGA_OCC) \
+	RECEIPT_BACKEND=$(RECEIPT_BACKEND) \
+	AUTOBAHN=$(AUTOBAHN) \
+	EVM_GOVERNANCE_VOTING_PERIOD=$(EVM_GOVERNANCE_VOTING_PERIOD) \
+	GIGA_STORAGE=$(GIGA_STORAGE) \
+	GIGA_MIGRATE_FROM_MEMIAVL=$(GIGA_MIGRATE_FROM_MEMIAVL) \
+	GIGA_FLATKV_ONLY=$(GIGA_FLATKV_ONLY)
+
+FROZEN_RPC_COMPOSE_FILES = -f docker-compose.yml -f docker-compose.frozen-rpc-router.yml
+
+# Run a 4-node docker containers
+docker-cluster-start: docker-cluster-stop build-docker-node
+	@rm -rf $(PROJECT_HOME)/build/generated
+	@mkdir -p $(shell go env GOMODCACHE)
+	@mkdir -p $(shell go env GOCACHE)
+	@cd docker && \
+		if [ "$${DOCKER_DETACH:-}" = "true" ]; then \
+			DETACH_FLAG="-d"; \
+		else \
+			DETACH_FLAG=""; \
+		fi; \
+		$(CLUSTER_ENV_VARS) docker compose up $$DETACH_FLAG
+.PHONY: docker-cluster-start
+
+# Use this to skip the seid build process
+docker-cluster-start-skipbuild: docker-cluster-stop build-docker-node
+	@rm -rf $(PROJECT_HOME)/build/generated
+	@cd docker && \
+		if [ "$${DOCKER_DETACH:-}" = "true" ]; then \
+			DETACH_FLAG="-d"; \
+		else \
+			DETACH_FLAG=""; \
+		fi; \
+		$(CLUSTER_ENV_VARS) SKIP_BUILD=true docker compose up $$DETACH_FLAG
+.PHONY: docker-cluster-start-skipbuild
+
+# EVM RPC per-IP rate and burst for CI clusters, which drive node0 from a single IP.
+CI_EVM_IP_RATE_LIMIT_RPS ?= 300
+CI_EVM_IP_RATE_LIMIT_BURST ?= 1500
+
+# Integration-test matrix jobs: reuse prebuilt images and build/seid from prepare-cluster.
+docker-cluster-start-ci: docker-cluster-stop ensure-integration-ci-images
+	@rm -rf $(PROJECT_HOME)/build/generated
+	@test -f $(PROJECT_HOME)/build/seid || (echo "build/seid missing; download integration-build.tar.gz from prepare-cluster" && exit 1)
+	@mkdir -p $(shell go env GOMODCACHE)
+	@mkdir -p $(shell go env GOCACHE)
+	@cd docker && \
+		if [ "$${DOCKER_DETACH:-}" = "true" ]; then \
+			DETACH_FLAG="-d"; \
+		else \
+			DETACH_FLAG=""; \
+		fi; \
+		$(CLUSTER_ENV_VARS) SKIP_BUILD=true \
+		EVM_IP_RATE_LIMIT_RPS=$(CI_EVM_IP_RATE_LIMIT_RPS) EVM_IP_RATE_LIMIT_BURST=$(CI_EVM_IP_RATE_LIMIT_BURST) \
+		docker compose up $$DETACH_FLAG
+.PHONY: docker-cluster-start-ci
+
+# Stop 4-node docker containers
+docker-cluster-stop:
+	@cd docker && DOCKER_PLATFORM=$(DOCKER_PLATFORM) USERID=$(shell id -u) GROUPID=$(shell id -g) GOCACHE=$(shell go env GOCACHE) docker compose down
+.PHONY: docker-cluster-stop
+
+# Run the localnet with two non-validating archival nodes frozen before heights
+# 10 and 20, two live validators, and frozen-rpc-router published on port 8553.
+docker-frozen-rpc-cluster-start: docker-frozen-rpc-cluster-stop build-docker-node
+	@rm -rf $(PROJECT_HOME)/build/generated
+	@mkdir -p $(shell go env GOMODCACHE)
+	@mkdir -p $(shell go env GOCACHE)
+	@cd docker && \
+		if [ "$${DOCKER_DETACH:-}" = "true" ]; then \
+			DETACH_FLAG="-d"; \
+		else \
+			DETACH_FLAG=""; \
+		fi; \
+		$(CLUSTER_ENV_VARS) docker compose $(FROZEN_RPC_COMPOSE_FILES) up $$DETACH_FLAG
+.PHONY: docker-frozen-rpc-cluster-start
+
+# CI variant: use the prebuilt image and binaries from integration-build.tar.gz.
+docker-frozen-rpc-cluster-start-ci: docker-frozen-rpc-cluster-stop ensure-integration-ci-images
+	@rm -rf $(PROJECT_HOME)/build/generated
+	@test -f $(PROJECT_HOME)/build/seid || (echo "build/seid missing; download integration-build.tar.gz from prepare-cluster" && exit 1)
+	@test -f $(PROJECT_HOME)/build/frozen-rpc-router || (echo "build/frozen-rpc-router missing; download integration-build.tar.gz from prepare-cluster" && exit 1)
+	@mkdir -p $(shell go env GOMODCACHE)
+	@mkdir -p $(shell go env GOCACHE)
+	@cd docker && \
+		if [ "$${DOCKER_DETACH:-}" = "true" ]; then \
+			DETACH_FLAG="-d"; \
+		else \
+			DETACH_FLAG=""; \
+		fi; \
+		$(CLUSTER_ENV_VARS) SKIP_BUILD=true docker compose $(FROZEN_RPC_COMPOSE_FILES) up $$DETACH_FLAG
+.PHONY: docker-frozen-rpc-cluster-start-ci
+
+docker-frozen-rpc-cluster-stop:
+	@cd docker && DOCKER_PLATFORM=$(DOCKER_PLATFORM) USERID=$(shell id -u) GROUPID=$(shell id -g) GOCACHE=$(shell go env GOCACHE) docker compose $(FROZEN_RPC_COMPOSE_FILES) down --remove-orphans
+.PHONY: docker-frozen-rpc-cluster-stop
+
+frozen-rpc-router-integration-test:
+	@set -e; \
+		trap '$(MAKE) docker-frozen-rpc-cluster-stop' EXIT; \
+		DOCKER_DETACH=true $(MAKE) docker-frozen-rpc-cluster-start; \
+		go test -tags frozen_rpc_integration -v -count=1 -timeout 5m ./integration_test/frozen_rpc_router/...
+.PHONY: frozen-rpc-router-integration-test
+
+# Start 4-node cluster with Prometheus and Grafana monitoring
+docker-cluster-start-monitoring: docker-cluster-stop-monitoring build-docker-node
+	@rm -rf $(PROJECT_HOME)/build/generated
+	@mkdir -p $(shell go env GOMODCACHE)
+	@mkdir -p $(shell go env GOCACHE)
+	@cd docker && \
+		if [ "$${DOCKER_DETACH:-}" = "true" ]; then \
+			DETACH_FLAG="-d"; \
+		else \
+			DETACH_FLAG=""; \
+		fi; \
+		$(CLUSTER_ENV_VARS) docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up --no-attach grafana --no-attach prometheus $$DETACH_FLAG
+.PHONY: docker-cluster-start-monitoring
+
+# Stop monitoring containers (Prometheus and Grafana) and cluster
+docker-cluster-stop-monitoring:
+	@cd docker && DOCKER_PLATFORM=$(DOCKER_PLATFORM) USERID=$(shell id -u) GROUPID=$(shell id -g) GOCACHE=$(shell go env GOCACHE) docker compose -f docker-compose.yml -f docker-compose.monitoring.yml down
+.PHONY: docker-cluster-stop-monitoring
+
+# One Autobahn validator per AWS host. VALIDATOR_HOME is the persisted seid
+# directory and must live outside build/ so step0's `make clean` cannot delete it.
+AWS_VALIDATOR_COMPOSE = docker compose -f docker-compose.aws-validator.yml
+VALIDATOR_HOME ?= $(HOME)/.sei-autobahn-e2e-home
+
+docker-aws-validator-init:
+	@mkdir -p $(VALIDATOR_HOME)
+	@cd docker && $(CLUSTER_ENV_VARS) VALIDATOR_HOME=$(VALIDATOR_HOME) ID=$(ID) ADVERTISE_IP=$(ADVERTISE_IP) AUTOBAHN_E2E_PHASE=init SKIP_BUILD=$(SKIP_BUILD) \
+		$(AWS_VALIDATOR_COMPOSE) run --rm --no-deps node
+.PHONY: docker-aws-validator-init
+
+docker-aws-validator-genesis:
+	@mkdir -p $(VALIDATOR_HOME)
+	@cd docker && $(CLUSTER_ENV_VARS) VALIDATOR_HOME=$(VALIDATOR_HOME) ID=0 AUTOBAHN_E2E_PHASE=genesis SKIP_BUILD=true \
+		$(AWS_VALIDATOR_COMPOSE) run --rm --no-deps node
+.PHONY: docker-aws-validator-genesis
+
+docker-aws-validator-start:
+	@mkdir -p $(VALIDATOR_HOME)
+	@cd docker && $(CLUSTER_ENV_VARS) VALIDATOR_HOME=$(VALIDATOR_HOME) ID=$(ID) ADVERTISE_IP=$(ADVERTISE_IP) AUTOBAHN_E2E_PHASE=start SKIP_BUILD=true \
+		$(AWS_VALIDATOR_COMPOSE) up -d
+.PHONY: docker-aws-validator-start
+
+docker-aws-validator-stop:
+	@cd docker && $(CLUSTER_ENV_VARS) VALIDATOR_HOME=$(VALIDATOR_HOME) $(AWS_VALIDATOR_COMPOSE) down
+.PHONY: docker-aws-validator-stop
+
+docker-aws-load-start:
+	@cd docker && $(CLUSTER_ENV_VARS) docker compose -f docker-compose.aws-load.yml up -d
+.PHONY: docker-aws-load-start
+
+docker-aws-load-stop:
+	@cd docker && $(CLUSTER_ENV_VARS) docker compose -f docker-compose.aws-load.yml down
+.PHONY: docker-aws-load-stop
+
+# Run GIGA EVM integration tests with a GIGA-enabled cluster
+# This starts a fresh cluster with GIGA_EXECUTOR and GIGA_OCC enabled,
+# runs the EVM GIGA tests, then stops the cluster.
+giga-integration-test:
+	@echo "=== Starting GIGA Integration Tests ==="
+	@$(MAKE) docker-cluster-stop || true
+	@rm -rf $(PROJECT_HOME)/build/generated
+	@GIGA_EXECUTOR=true GIGA_OCC=true DOCKER_DETACH=true $(MAKE) docker-cluster-start
+	@echo "Waiting for cluster to be ready..."
+	@timeout=300; elapsed=0; \
+	while [ $$elapsed -lt $$timeout ]; do \
+		if [ -f "build/generated/launch.complete" ] && [ $$(cat build/generated/launch.complete | wc -l) -ge 4 ]; then \
+			echo "All 4 nodes are ready (took $${elapsed}s)"; \
+			break; \
+		fi; \
+		sleep 5; \
+		elapsed=$$((elapsed + 5)); \
+		echo "  Waiting... ($${elapsed}s elapsed)"; \
+	done; \
+	if [ $$elapsed -ge $$timeout ]; then \
+		echo "ERROR: Cluster failed to start within $${timeout}s"; \
+		$(MAKE) docker-cluster-stop; \
+		exit 1; \
+	fi
+	@echo "Waiting 10s for nodes to stabilize..."
+	@sleep 10
+	@echo "=== Running GIGA EVM Tests ==="
+	@./integration_test/evm_module/scripts/evm_giga_tests.sh || ($(MAKE) docker-cluster-stop && exit 1)
+	@echo "=== Stopping cluster ==="
+	@$(MAKE) docker-cluster-stop
+	@echo "=== GIGA Integration Tests Complete ==="
+.PHONY: giga-integration-test
+
+# Run Autobahn integration tests with an Autobahn-enabled cluster.
+# The cluster serves the EVM JSON-RPC only and uses the disk-backed EVM-only
+# executor (mock-app is not set).
+autobahn-integration-test:
+	@# The test drives cluster start/stop itself via TestMain — see
+	@# integration_test/autobahn/autobahn_test.go. GOWORK=off ignores an
+	@# ambient go.work so dependency resolution matches the module.
+	@GOWORK=off go test -tags autobahn_integration -v -count=1 -timeout 40m ./integration_test/autobahn/...
+.PHONY: autobahn-integration-test
+
+# Deprecated alias for autobahn-integration-test.
+autobahn-evmonly-integration-test: autobahn-integration-test
+.PHONY: autobahn-evmonly-integration-test
+
+# Run a mixed-mode cluster: node 0 uses GIGA_EXECUTOR with OCC, nodes 1-3 use standard V2.
+# (node-level GIGA_EXECUTOR/GIGA_OCC values are pinned in docker-compose.giga-mixed.yml)
+# Any determinism divergence between giga and V2 will cause the giga node to halt.
+docker-cluster-start-giga-mixed: docker-cluster-stop build-docker-node
+	@rm -rf $(PROJECT_HOME)/build/generated
+	@mkdir -p $(shell go env GOMODCACHE)
+	@mkdir -p $(shell go env GOCACHE)
+	@cd docker && \
+		if [ "$${DOCKER_DETACH:-}" = "true" ]; then \
+			DETACH_FLAG="-d"; \
+		else \
+			DETACH_FLAG=""; \
+		fi; \
+		DOCKER_PLATFORM=$(DOCKER_PLATFORM) USERID=$(shell id -u) GROUPID=$(shell id -g) GOCACHE=$(shell go env GOCACHE) NUM_ACCOUNTS=10 INVARIANT_CHECK_INTERVAL=${INVARIANT_CHECK_INTERVAL} UPGRADE_VERSION_LIST=${UPGRADE_VERSION_LIST} MOCK_BALANCES=${MOCK_BALANCES} GIGA_EXECUTOR=${GIGA_EXECUTOR} GIGA_OCC=${GIGA_OCC} RECEIPT_BACKEND=${RECEIPT_BACKEND} AUTOBAHN=${AUTOBAHN} GIGA_STORAGE=${GIGA_STORAGE} \
+		docker compose -f docker-compose.yml -f docker-compose.giga-mixed.yml up $$DETACH_FLAG
+.PHONY: docker-cluster-start-giga-mixed
+
+# CI variant: reuse the prebuilt image loaded from GHCR instead of rebuilding.
+docker-cluster-start-giga-mixed-ci: docker-cluster-stop ensure-integration-ci-images
+	@rm -rf $(PROJECT_HOME)/build/generated
+	@test -f $(PROJECT_HOME)/build/seid || (echo "build/seid missing; download integration-build.tar.gz from prepare-cluster" && exit 1)
+	@mkdir -p $(shell go env GOMODCACHE)
+	@mkdir -p $(shell go env GOCACHE)
+	@cd docker && \
+		if [ "$${DOCKER_DETACH:-}" = "true" ]; then \
+			DETACH_FLAG="-d"; \
+		else \
+			DETACH_FLAG=""; \
+		fi; \
+		$(CLUSTER_ENV_VARS) SKIP_BUILD=true docker compose -f docker-compose.yml -f docker-compose.giga-mixed.yml up $$DETACH_FLAG
+.PHONY: docker-cluster-start-giga-mixed-ci
+
+# Run the giga mixed-mode integration test.
+# Starts a cluster where only node 0 runs giga (concurrent, OCC), nodes 1-3 run standard V2.
+# Then runs hardhat tests. If giga produces different results, node 0 will halt.
+giga-mixed-integration-test:
+	@echo "=== Starting GIGA Mixed-Mode Integration Tests ==="
+	@echo "=== Node 0: GIGA_EXECUTOR=true GIGA_OCC=true, Nodes 1-3: standard V2 ==="
+	@$(MAKE) docker-cluster-stop || true
+	@rm -rf $(PROJECT_HOME)/build/generated
+	@DOCKER_DETACH=true $(MAKE) docker-cluster-start-giga-mixed
+	@echo "Waiting for cluster to be ready..."
+	@timeout=300; elapsed=0; \
+	while [ $$elapsed -lt $$timeout ]; do \
+		if [ -f "build/generated/launch.complete" ] && [ $$(cat build/generated/launch.complete | wc -l) -ge 4 ]; then \
+			echo "All 4 nodes are ready (took $${elapsed}s)"; \
+			break; \
+		fi; \
+		sleep 5; \
+		elapsed=$$((elapsed + 5)); \
+		echo "  Waiting... ($${elapsed}s elapsed)"; \
+	done; \
+	if [ $$elapsed -ge $$timeout ]; then \
+		echo "ERROR: Cluster failed to start within $${timeout}s"; \
+		$(MAKE) docker-cluster-stop; \
+		exit 1; \
+	fi
+	@echo "Waiting 10s for nodes to stabilize..."
+	@sleep 10
+	@echo "=== Running GIGA EVM Tests (mixed mode) ==="
+	@./integration_test/evm_module/scripts/evm_giga_tests.sh || (echo "TEST FAILURE - check if node 0 (giga) halted due to consensus mismatch" && $(MAKE) docker-cluster-stop && exit 1)
+	@echo "=== Stopping cluster ==="
+	@$(MAKE) docker-cluster-stop
+	@echo "=== GIGA Mixed-Mode Integration Tests Complete ==="
+.PHONY: giga-mixed-integration-test
+
+
+# Create the tagged app file in which a minor upgrade test is defined.
+#
+#   make new-upgrade-test FROM=v6.6 TO=v6.7
+new-upgrade-test:
+	@if [ -z "$(FROM)" ] || [ -z "$(TO)" ]; then \
+		echo "usage: make new-upgrade-test FROM=v6.6 TO=v6.7" >&2; \
+		exit 2; \
+	fi
+	@go run ./upgradetest/cmd/new -from "$(FROM)" -to "$(TO)"
+.PHONY: new-upgrade-test
+
+# Run only the tests added by the version-specific file for the minor upgrade
+# this build ships. Both the build tag and test names are discovered, so this
+# target keeps selecting the right file without naming a version.
+upgrade-test:
+	@set -e; \
+		boundary=$$(go run ./upgradetest/cmd/boundary); \
+		tag=$$(go run ./upgradetest/cmd/boundary tag) && \
+		tmp=$$(mktemp -d) && trap 'rm -rf "$$tmp"' 0; \
+		if ! go test -list '^Test' ./app > "$$tmp/base.stdout" 2> "$$tmp/base.stderr"; then \
+			echo "failed to list untagged app tests:" >&2; \
+			cat "$$tmp/base.stdout" "$$tmp/base.stderr" >&2; \
+			exit 1; \
+		fi; \
+		awk '/^Test/ { print }' "$$tmp/base.stdout" | sort > "$$tmp/base"; \
+		if ! go test -tags "$$tag" -list '^Test' ./app > "$$tmp/tagged.stdout" 2> "$$tmp/tagged.stderr"; then \
+			echo "failed to list app tests with build tag $$tag:" >&2; \
+			cat "$$tmp/tagged.stdout" "$$tmp/tagged.stderr" >&2; \
+			exit 1; \
+		fi; \
+		awk '/^Test/ { print }' "$$tmp/tagged.stdout" | sort > "$$tmp/tagged"; \
+		comm -13 "$$tmp/base" "$$tmp/tagged" > "$$tmp/selected"; \
+		if [ ! -s "$$tmp/selected" ]; then \
+			cat "$$tmp/tagged.stderr" >&2; \
+			echo "no tests were added by build tag $$tag" >&2; \
+			exit 1; \
+		fi; \
+		tests=$$(paste -sd'|' "$$tmp/selected"); \
+		echo "=== Upgrade boundary $$boundary (-tags $$tag) ==="; \
+		go test -tags "$$tag" -run "^($$tests)$$" -count=1 -timeout=10m ./app
+.PHONY: upgrade-test
+
+# Compile the current boundary's source phase against one ref, persist its app
+# database, compile the target phase against another ref to apply the upgrade,
+# then reopen the migrated database with the source branch.
+#
+#   make upgrade-test-offline \
+#     FROM_REF=release/v6.6 TO_REF=release/v6.7
+upgrade-test-offline:
+	@FROM_REF="$(FROM_REF)" TO_REF="$(TO_REF)" \
+		bash .github/scripts/offline-upgrade-test.sh
+.PHONY: upgrade-test-offline
+
+# Build two refs, create state with the source binary, coordinate the on-chain
+# upgrade, and run the current build tag's CrossVersion test before and after.
+#
+#   make upgrade-test-cross-version \
+#     FROM_REF=release/v6.6 TO_REF=release/v6.7
+upgrade-test-cross-version:
+	@RELEASE_BRANCH="$(FROM_REF)" MAIN_REF="$(TO_REF)" \
+		bash .github/scripts/release-upgrade-test.sh
+.PHONY: upgrade-test-cross-version
+
+# Compile every version-specific app upgrade test, including versions that have
+# already shipped. Offline phase files are compiled against their release side
+# because source-only APIs may no longer exist in the current checkout.
+upgrade-test-vet:
+	@set -e; \
+		for file in app/upgrade_v*_test.go; do \
+			[ -f "$$file" ] || continue; \
+			case "$$file" in *_offline_target_test.go) continue ;; esac; \
+			tag=$$(basename "$$file" _test.go); \
+			echo "=== Compiling $$file (-tags $$tag) ==="; \
+			go test -tags "$$tag" -run '^$$' ./app; \
+		done; \
+		bash upgradetest/compile_offline.sh
+.PHONY: upgrade-test-vet
+
+
+# Implements test splitting and running. This is pulled directly from
+# the github action workflows for better local reproducibility.
+
+GO_TEST_FILES != find $(CURDIR) -name "*_test.go"
+
+# default to four splits by default
+NUM_SPLIT ?= 4
+
+$(BUILDDIR):
+	mkdir -p $@
+
+# The format statement filters out all packages that don't have tests.
+# Note we need to check for both in-package tests (.TestGoFiles) and
+# out-of-package tests (.XTestGoFiles).
+$(BUILDDIR)/packages.txt:$(GO_TEST_FILES) $(BUILDDIR)
+	go list -f "{{ if (or .TestGoFiles .XTestGoFiles) }}{{ .ImportPath }}{{ end }}" ./... | sort > $@
+
+TARGET_PACKAGE := github.com/sei-protocol/sei-chain/occ_tests
+
+split-test-packages:$(BUILDDIR)/packages.txt
+	split -d -n l/$(NUM_SPLIT) $< $<.
+test-group-%:split-test-packages
+	@echo "🔍 Checking for special package: $(TARGET_PACKAGE)"
+	@if grep -q "$(TARGET_PACKAGE)" $(BUILDDIR)/packages.txt.$*; then \
+		echo "🔒 Found $(TARGET_PACKAGE), running with -parallel=1"; \
+		PARALLEL="-parallel=1"; \
+	else \
+		echo "⚡ Not found, running with -parallel=4"; \
+		PARALLEL="-parallel=4"; \
+	fi; \
+	cat $(BUILDDIR)/packages.txt.$* | xargs go test $$PARALLEL -mod=readonly -timeout=10m -race -coverprofile=$*.profile.out -covermode=atomic -coverpkg=./...

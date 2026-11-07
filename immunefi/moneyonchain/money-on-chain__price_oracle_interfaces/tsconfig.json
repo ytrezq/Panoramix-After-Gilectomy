@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "typechain-types": ["./typechain-types/index.ts"]
+    },
+    "target": "esnext",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "allowImportingTsExtensions": false,
+    "allowArbitraryExtensions": true,
+    "types": ["node", "mocha", "chai", "hardhat", "@nomicfoundation/hardhat-toolbox-mocha-ethers"]
+  },
+  "include": ["hardhat.config.ts", "scripts", "test", "typechain-types", "types"]
+}

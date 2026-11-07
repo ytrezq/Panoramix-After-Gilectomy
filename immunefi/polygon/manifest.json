@@ -1,0 +1,335 @@
+{
+ "program": "polygon",
+ "repos": [
+  {
+   "repo": "https://github.com/0xPolygon/pos-contracts",
+   "ref": null,
+   "scope_paths": [
+    "contracts"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "7acd372c1d712e3b5a45281986338146819b8e04",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c7be2a3481f9e51230880bb0949072c7e3a4da82"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": "MIT",
+    "headers": {
+     "SEE": 3,
+     "(none)": 117,
+     "MIT": 19,
+     "UNLICENSED": 1,
+     "Apache-2.0": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 141
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "0xPolygon__pos-contracts",
+   "files": 200,
+   "bytes": 1486509,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/0xPolygon/pol-token",
+   "ref": "main",
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "5dafabc532025fdb928fa480ba64aae3c4358f3a",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1714bee72e286e73f76e320d110e0eaf5c4e649d"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "e50c24f5839db17f46991478384bfda14acfb830"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "bc95521e34dcd49792065e264a7ad2b5a86f0091"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/forge-chronicles",
+     "url": "https://github.com/0xPolygon/forge-chronicles",
+     "commit": "c2be7a462d87b8e3a72f7e2b739cdf12807a71e4"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "MIT",
+    "package_json": null,
+    "headers": {
+     "(none)": 4,
+     "agpl-3.0": 1,
+     "MIT": 19
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 24
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "0xPolygon__pol-token",
+   "files": 816,
+   "bytes": 4092022,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/maticnetwork/pos-portal",
+   "ref": "master",
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "RootChainManager / ChildChainManager listed in 0xPolygon/security scope-pos-contracts.md",
+   "commit": "d17f6d8a8f61d0b3f67b4e7ad05aa0e2841ee6f2",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "beb836e33f9a207f4927abb7cd09ad0afe4b3f9f"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-v5",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "800200d452251cccef9dd8151ee9dd07b5e75d12"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-v5/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-v5/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-v5/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/safe-smart-account",
+     "url": "https://github.com/safe-global/safe-smart-account",
+     "commit": "b465773a63bbb48b7fb6db6ac02b480af96e6140"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": "MIT",
+    "headers": {
+     "(none)": 86,
+     "UNLICENSED": 8,
+     "MIT": 2,
+     "GPL-3.0": 9
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 105
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "3.1.0"
+   },
+   "copied": true,
+   "dest": "maticnetwork__pos-portal",
+   "files": 760,
+   "bytes": 4383871,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/0xPolygon/genesis-contracts",
+   "ref": "master",
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "BorValidatorSet / StateReceiver genesis contracts listed in scope-pos-contracts.md",
+   "commit": "a8138fae68c4b598c4b9da22c6608b8ca6b44301",
+   "submodules": [
+    {
+     "path": "matic-contracts",
+     "url": "https://github.com/maticnetwork/contracts.git",
+     "commit": "50db5e7c5a4149712ffae46219b18aeaa3ad3e66"
+    },
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "58d30519826c313ce47345abedfdc07679e944d1"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": "MIT",
+    "headers": {
+     "(none)": 22,
+     "UNLICENSED": 7,
+     "Apache-2.0": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 30
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "0xPolygon__genesis-contracts",
+   "files": 190,
+   "bytes": 1415184,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/0xPolygon/sPOL-contracts",
+   "ref": "main",
+   "scope_paths": [
+    "audits/1.0.0/ChainSecurity_Polygon_SPOL_Audit.pdf"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "efe29eb3cdec67d90618ebcda90467f60f721c6f",
+   "submodules": [],
+   "soldeer": [
+    {
+     "path": "dependencies/@openzeppelin-contracts-5.5.0",
+     "name": "@openzeppelin-contracts",
+     "version": "5.5.0",
+     "zip": "https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/5_5_0_01-11-2025_09:56:40_contracts.zip"
+    },
+    {
+     "path": "dependencies/@openzeppelin-contracts-upgradeable-5.5.0",
+     "name": "@openzeppelin-contracts-upgradeable",
+     "version": "5.5.0",
+     "zip": "https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts-upgradeable/5_5_0_01-11-2025_09:56:46_contracts-upgradeable.zip"
+    },
+    {
+     "path": "dependencies/forge-std-1.11.0",
+     "name": "forge-std",
+     "version": "1.11.0",
+     "zip": "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_11_0_09-10-2025_06:23:22_forge-std-1.11.zip"
+    }
+   ],
+   "license": {
+    "file": "LICENSE-APACHE.md",
+    "spdx": "Apache-2.0",
+    "package_json": null,
+    "headers": {
+     "SEE": 44,
+     "UNLICENSED": 6,
+     "MIT": 1,
+     "(none)": 2
+    },
+    "headers_main": {
+     "SEE": 13,
+     "UNLICENSED": 6,
+     "MIT": 1,
+     "(none)": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 53
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "0xPolygon__sPOL-contracts",
+   "files": 417,
+   "bytes": 3405464,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/agglayer/agglayer-contracts",
+   "ref": "main",
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "LXLY AggLayer addresses in scope (Gateway, RollupManager, BridgeV2, GlobalExitRoot)",
+   "commit": "110bda5a03e70ee7331bc06407a8e79226d3e520",
+   "submodules": [],
+   "soldeer": [
+    {
+     "path": "dependencies/forge-std-1.10.0",
+     "name": "forge-std",
+     "version": "1.10.0",
+     "zip": "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_10_0_02-08-2025_06:50:35_forge-std-1.10.zip"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": "pending",
+    "headers": {
+     "AGPL-3.0": 114,
+     "MIT": 14,
+     "GPL-3.0": 9,
+     "Apache-2.0": 1,
+     "(none)": 2
+    },
+    "headers_main": {
+     "AGPL-3.0": 95,
+     "MIT": 12,
+     "GPL-3.0": 9,
+     "Apache-2.0": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 140
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts-upgradeable4": "4.8.2",
+    "node_modules/@openzeppelin/contracts5": "5.0.0",
+    "node_modules/@openzeppelin/contracts4": "4.8.2",
+    "node_modules/@openzeppelin/contracts52": "5.2.0",
+    "node_modules/@openzeppelin/contracts-upgradeable5": "5.0.0",
+    "node_modules/hardhat": "2.29.1",
+    "node_modules/@openzeppelin/contracts": "5.0.0"
+   },
+   "copied": true,
+   "dest": "agglayer__agglayer-contracts",
+   "files": 1213,
+   "bytes": 7516105,
+   "skipped_large": 0
+  }
+ ]
+}

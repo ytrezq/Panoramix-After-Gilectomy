@@ -1,0 +1,892 @@
+{
+ "program": "yearnfinance",
+ "repos": [
+  {
+   "repo": "https://github.com/yearn/yearn-vaults-v3",
+   "ref": "v3.1.0",
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "5b698f9411e880a8f7d4370ad7a4478b24dc2535",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "bd325d56b4c62c9c5c1aff048c37c6bb18ac0290"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/tokenized-strategy",
+     "url": "https://github.com/yearn/tokenized-strategy",
+     "commit": "6e12ce08584b49c7560227e94810d2f0e3dec8b2"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "bd325d56b4c62c9c5c1aff048c37c6bb18ac0290"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0": 3,
+     "MIT": 3,
+     "UNLICENSED": 3,
+     "GPL-3.0-or-later": 1,
+     "(none)": 7,
+     "GPL-3.0": 11
+    },
+    "headers_main": {
+     "AGPL-3.0": 3,
+     "UNLICENSED": 2,
+     "GPL-3.0-or-later": 1,
+     "(none)": 2,
+     "GPL-3.0": 4,
+     "MIT": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 22,
+    ".vy": 6
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "yearn__yearn-vaults-v3",
+   "files": 907,
+   "bytes": 4829486,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/yearn/tokenized-strategy",
+   "ref": "v3.1.0",
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "8c8929f1878e8c5ad78aa0a6dabc877a890f68d9",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "bd325d56b4c62c9c5c1aff048c37c6bb18ac0290"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0": 15,
+     "UNLICENSED": 14,
+     "MIT": 1,
+     "GPL-3.0-or-later": 1,
+     "GPL-3.0": 7,
+     "(none)": 1
+    },
+    "headers_main": {
+     "AGPL-3.0": 10
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 39
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "yearn__tokenized-strategy",
+   "files": 462,
+   "bytes": 2724451,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/yearn/tokenized-strategy-periphery",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "1e334fbdd5955a50c085ec3662c6051efb7fc615",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "bd325d56b4c62c9c5c1aff048c37c6bb18ac0290"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/tokenized-strategy",
+     "url": "https://github.com/yearn/tokenized-strategy",
+     "commit": "48c53aba0395885b3f579d0a4b426de276a7b69e"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "bd325d56b4c62c9c5c1aff048c37c6bb18ac0290"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/yearn-vaults-v3",
+     "url": "https://github.com/yearn/yearn-vaults-v3",
+     "commit": "5b698f9411e880a8f7d4370ad7a4478b24dc2535"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "bd325d56b4c62c9c5c1aff048c37c6bb18ac0290"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/tokenized-strategy",
+     "url": "https://github.com/yearn/tokenized-strategy",
+     "commit": "6e12ce08584b49c7560227e94810d2f0e3dec8b2"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/tokenized-strategy/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/tokenized-strategy/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/tokenized-strategy/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "bd325d56b4c62c9c5c1aff048c37c6bb18ac0290"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/tokenized-strategy/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/tokenized-strategy/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/tokenized-strategy/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/tokenized-strategy/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0": 102,
+     "LGPL-3.0-or-later": 1,
+     "GPL-3.0-or-later": 3,
+     "MIT": 5,
+     "UNLICENSED": 2,
+     "GPL-3.0": 22,
+     "(none)": 1,
+     "GPL-2.0-or-later": 2
+    },
+    "headers_main": {
+     "AGPL-3.0": 66,
+     "LGPL-3.0-or-later": 1,
+     "GPL-3.0-or-later": 3,
+     "MIT": 3,
+     "(none)": 1,
+     "GPL-3.0": 4,
+     "GPL-2.0-or-later": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 138
+   },
+   "npm": {},
+   "skipped_unlicensed": 3,
+   "copied": true,
+   "dest": "yearn__tokenized-strategy-periphery",
+   "files": 1923,
+   "bytes": 10681474,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/yearn/yearn-boosted-staker",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "a6aee4bc56a5d6e17f001b73c00582fb6a8a66bb",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "GNU": 9,
+     "AGPL-3.0": 2
+    },
+    "headers_main": {
+     "GNU": 9,
+     "AGPL-3.0": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 11
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "yearn__yearn-boosted-staker",
+   "files": 13,
+   "bytes": 103442,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/yearn/woofy",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "f4a680238c6a0ac049c1d8aa9b82ce34951e7495",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "(none)": 1
+    },
+    "headers_main": {
+     "(none)": 1
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".vy": 1
+   },
+   "copied": false,
+   "why": "reference only: no license allowing redistribution found"
+  },
+  {
+   "repo": "https://github.com/yearn/yearn-yb",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "16d73ac2fcf6f6e34005d0a4ba91750733a4a64a",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8e40513d678f392f398620b3ef2b418648b33e89"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "fcbae5394ae8ad52d8e580a3477db99814b9d565"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/surl",
+     "url": "https://github.com/memester-xyz/surl",
+     "commit": "5f92a5260c8e0198ca3ee6a16255d6cda4e0887a"
+    },
+    {
+     "path": "lib/surl/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "066ff16c5c03e6f931cd041fd366bc4be1fae82a"
+    },
+    {
+     "path": "lib/surl/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/surl/lib/solidity-stringutils",
+     "url": "https://github.com/Arachnid/solidity-stringutils",
+     "commit": "4b2fcc43fa0426e19ce88b1f1ec16f5903a2e461"
+    },
+    {
+     "path": "lib/surl/lib/solidity-stringutils/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0": 7,
+     "MIT": 28,
+     "UNLICENSED": 1
+    },
+    "headers_main": {
+     "AGPL-3.0": 6,
+     "MIT": 11,
+     "UNLICENSED": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 36
+   },
+   "npm": {},
+   "skipped_unlicensed": 1,
+   "copied": true,
+   "dest": "yearn__yearn-yb",
+   "files": 624,
+   "bytes": 4562140,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/yearn/styfi",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "001dda500be30e16d0837f8e7e05a75c8fe9710f",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "GNU AGPLv3": 38,
+     "(none)": 16
+    },
+    "headers_main": {
+     "GNU AGPLv3": 38
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".vy": 54
+   },
+   "npm": {},
+   "skipped_unlicensed": 16,
+   "copied": true,
+   "dest": "yearn__styfi",
+   "files": 40,
+   "bytes": 377415,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/yearn/vault-periphery",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "9cc62d284bea834f82060ad066ba1a645b723449",
+   "submodules": [
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "bd325d56b4c62c9c5c1aff048c37c6bb18ac0290"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "4f57c59f066a03d13de8c65bb34fca8247f5fcb2"
+    },
+    {
+     "path": "lib/tokenized-strategy",
+     "url": "https://github.com/yearn/tokenized-strategy",
+     "commit": "48c53aba0395885b3f579d0a4b426de276a7b69e"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "bd325d56b4c62c9c5c1aff048c37c6bb18ac0290"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/tokenized-strategy/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/yearn-vaults-v3",
+     "url": "https://github.com/yearn/yearn-vaults-v3",
+     "commit": "5b698f9411e880a8f7d4370ad7a4478b24dc2535"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "bd325d56b4c62c9c5c1aff048c37c6bb18ac0290"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/tokenized-strategy",
+     "url": "https://github.com/yearn/tokenized-strategy",
+     "commit": "6e12ce08584b49c7560227e94810d2f0e3dec8b2"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/tokenized-strategy/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/tokenized-strategy/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/tokenized-strategy/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "bd325d56b4c62c9c5c1aff048c37c6bb18ac0290"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/tokenized-strategy/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/tokenized-strategy/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/tokenized-strategy/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/yearn-vaults-v3/lib/tokenized-strategy/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery",
+     "url": "https://github.com/yearn/tokenized-strategy-periphery",
+     "commit": "1e334fbdd5955a50c085ec3662c6051efb7fc615"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "bd325d56b4c62c9c5c1aff048c37c6bb18ac0290"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/tokenized-strategy",
+     "url": "https://github.com/yearn/tokenized-strategy",
+     "commit": "48c53aba0395885b3f579d0a4b426de276a7b69e"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/tokenized-strategy/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/tokenized-strategy/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/tokenized-strategy/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "bd325d56b4c62c9c5c1aff048c37c6bb18ac0290"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/tokenized-strategy/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/tokenized-strategy/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/tokenized-strategy/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/tokenized-strategy/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/yearn-vaults-v3",
+     "url": "https://github.com/yearn/yearn-vaults-v3",
+     "commit": "5b698f9411e880a8f7d4370ad7a4478b24dc2535"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "bd325d56b4c62c9c5c1aff048c37c6bb18ac0290"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/lib/tokenized-strategy",
+     "url": "https://github.com/yearn/tokenized-strategy",
+     "commit": "6e12ce08584b49c7560227e94810d2f0e3dec8b2"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/lib/tokenized-strategy/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/lib/tokenized-strategy/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/lib/tokenized-strategy/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "bd325d56b4c62c9c5c1aff048c37c6bb18ac0290"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/lib/tokenized-strategy/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/lib/tokenized-strategy/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/lib/tokenized-strategy/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0": 16,
+     "(none)": 2,
+     "UNLICENSED": 16,
+     "GNU AGPLv3": 13,
+     "MIT": 2,
+     "GPL-3.0": 1
+    },
+    "headers_main": {
+     "AGPL-3.0": 8,
+     "(none)": 2,
+     "GNU AGPLv3": 13,
+     "MIT": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 47,
+    ".vy": 3
+   },
+   "npm": {},
+   "skipped_unlicensed": 18,
+   "copied": true,
+   "dest": "yearn__vault-periphery",
+   "files": 3741,
+   "bytes": 20823653,
+   "skipped_large": 0
+  }
+ ]
+}

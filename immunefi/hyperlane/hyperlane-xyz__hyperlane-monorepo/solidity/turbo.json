@@ -1,0 +1,35 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "deps:hardhat": {
+      "cache": false,
+      "inputs": ["package.json"]
+    },
+    "deps:soldeer": {
+      "inputs": ["foundry.toml", "soldeer.lock"],
+      "outputs": ["dependencies/**"]
+    },
+    "version:update": {
+      "inputs": ["package.json", "bytecodeversion.sh"]
+    },
+    "build": {
+      "inputs": ["$TURBO_DEFAULT$", "!test/**"],
+      "dependsOn": ["deps:soldeer", "deps:hardhat", "version:update"],
+      "outputs": [
+        "artifacts/**",
+        "cache/**",
+        "core-utils/**",
+        "dist/**",
+        "!dist/tron/**",
+        "types/**"
+      ]
+    },
+    "coverage": {
+      "outputs": ["coverage/**", "fixtures/**", "lcov.info"]
+    },
+    "build:tron": {
+      "inputs": ["$TURBO_DEFAULT$", "!test/**"],
+      "dependsOn": ["deps:soldeer", "deps:hardhat", "version:update"]
+    }
+  }
+}

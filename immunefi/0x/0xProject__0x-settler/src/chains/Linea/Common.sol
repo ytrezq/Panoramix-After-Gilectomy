@@ -1,0 +1,103 @@
+// SPDX-License-Identifier: MIT
+pragma solidity =0.8.34;
+
+import {SettlerBase} from "../../SettlerBase.sol";
+import {Select} from "../../core/Select.sol";
+
+import {FreeMemory} from "../../utils/FreeMemory.sol";
+
+import {IERC20} from "@forge-std/interfaces/IERC20.sol";
+import {DodoV1, IDodoV1} from "../../core/DodoV1.sol";
+
+import {ISettlerActions} from "../../ISettlerActions.sol";
+import {ISignatureTransfer} from "@permit2/interfaces/ISignatureTransfer.sol";
+import {revertUnknownForkId} from "../../core/SettlerErrors.sol";
+
+import {
+    uniswapV3LineaFactory,
+    uniswapV3InitHash,
+    uniswapV3ForkId,
+    IUniswapV3Callback
+} from "../../core/univ3forks/UniswapV3.sol";
+import {sushiswapV3Factory, sushiswapV3ForkId} from "../../core/univ3forks/SushiswapV3.sol";
+import {
+    pancakeSwapV3Factory,
+    pancakeSwapV3InitHash,
+    pancakeSwapV3ForkId,
+    IPancakeSwapV3Callback
+} from "../../core/univ3forks/PancakeSwapV3.sol";
+import {IAlgebraCallback} from "../../core/univ3forks/Algebra.sol";
+import {lynexFactory, lynexInitHash, lynexForkId} from "../../core/univ3forks/Lynex.sol";
+
+// Solidity inheritance is stupid
+import {SettlerSwapAbstract} from "../../SettlerAbstract.sol";
+
+abstract contract LineaMixin is FreeMemory, SettlerBase, DodoV1 {
+    constructor() {
+        assert(block.chainid == _chainId() || block.chainid == 31337);
+    }
+
+    function _chainId() internal pure override returns (uint256) {
+        return 59144;
+    }
+
+    function _dispatch(uint256 i, uint256 action, bytes calldata data, AllowedSlippage memory slippage)
+        internal
+        virtual
+        override(SettlerSwapAbstract, SettlerBase)
+        DANGEROUS_freeMemory
+        returns (bool)
+    {
+        if (super._dispatch(i, action, data, slippage)) {
+            return true;
+        } else if (action == uint32(ISettlerActions.DODOV1.selector)) {
+            (IERC20 sellToken, uint256 ppm, IDodoV1 dodo, bool quoteForBase, uint256 minBuyAmount) =
+                abi.decode(data, (IERC20, uint256, IDodoV1, bool, uint256));
+
+            sellToDodoV1(sellToken, ppm, dodo, quoteForBase, minBuyAmount);
+        } else {
+            return false;
+        }
+        return true;
+    }
+
+    function _uniV3ForkInfo(uint8 forkId)
+        internal
+        pure
+        override
+        returns (address factory, bytes32 initHash, uint32 callbackSelector)
+    {
+        if (forkId == uniswapV3ForkId) {
+            factory = uniswapV3LineaFactory;
+            initHash = uniswapV3InitHash;
+            callbackSelector = uint32(IUniswapV3Callback.uniswapV3SwapCallback.selector);
+        } else if (forkId == pancakeSwapV3ForkId) {
+            factory = pancakeSwapV3Factory;
+            initHash = pancakeSwapV3InitHash;
+            callbackSelector = uint32(IPancakeSwapV3Callback.pancakeV3SwapCallback.selector);
+        } else if (forkId == sushiswapV3ForkId) {
+            factory = sushiswapV3Factory;
+            initHash = uniswapV3InitHash;
+            callbackSelector = uint32(IUniswapV3Callback.uniswapV3SwapCallback.selector);
+        } else if (forkId == lynexForkId) {
+            factory = lynexFactory;
+            initHash = lynexInitHash;
+            callbackSelector = uint32(IAlgebraCallback.algebraSwapCallback.selector);
+        } else {
+            revertUnknownForkId(forkId);
+        }
+    }
+}
+
+// `Select` is listed last so that candidate selection sits above the chain actions in the
+// linearization; see `Select`.
+abstract contract LineaCommon is LineaMixin, Select {
+    function _dispatch(uint256 i, uint256 action, bytes calldata data, AllowedSlippage memory slippage)
+        internal
+        virtual
+        override(LineaMixin, Select)
+        returns (bool)
+    {
+        return super._dispatch(i, action, data, slippage);
+    }
+}

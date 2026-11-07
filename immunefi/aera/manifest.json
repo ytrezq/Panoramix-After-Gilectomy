@@ -1,0 +1,44 @@
+{
+ "program": "aera",
+ "repos": [
+  {
+   "repo": "https://github.com/aera-finance/aera-contracts-public",
+   "ref": "3b1477c01c811a778a777ef90d40c41a00846109",
+   "scope_paths": [
+    "v3"
+   ],
+   "fetched": "2026-11-07",
+   "note": "Aera v3 at the last commit before the Provisioner/PriceAndFeeCalculator V2 upgrade (2026-07-16): v3/src/core/Provisioner.sol and PriceAndFeeCalculator.sol as verified on Sourcify for gtUSDa (solc 0.8.29)",
+   "commit": "3b1477c01c811a778a777ef90d40c41a00846109",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "MIT": 70,
+     "GPL-3.0-or-later": 56,
+     "BUSL-1.1": 79,
+     "(none)": 1
+    },
+    "headers_main": {
+     "MIT": 70,
+     "GPL-3.0-or-later": 55,
+     "BUSL-1.1": 79,
+     "(none)": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 206
+   },
+   "npm": {},
+   "skipped_unlicensed": 1,
+   "copied": true,
+   "dest": "aera-finance__aera-contracts-public",
+   "files": 212,
+   "bytes": 1203393,
+   "skipped_large": 0
+  }
+ ]
+}

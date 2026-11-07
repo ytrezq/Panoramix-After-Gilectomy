@@ -1,0 +1,37 @@
+{
+ "program": "ostium",
+ "repos": [
+  {
+   "repo": "https://github.com/0xOstium/smart-contracts-public",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "8390ce497f68fb128900840e0ec30683afa945d3",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "MIT",
+    "package_json": "ISC",
+    "headers": {
+     "MIT": 46
+    },
+    "headers_main": {
+     "MIT": 46
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 46
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts-upgradeable": "5.6.1",
+    "node_modules/@openzeppelin/contracts": "5.6.1"
+   },
+   "copied": true,
+   "dest": "0xOstium__smart-contracts-public",
+   "files": 367,
+   "bytes": 2272642,
+   "skipped_large": 0
+  }
+ ]
+}

@@ -1,0 +1,53 @@
+{
+ "program": "beefyfinance",
+ "repos": [
+  {
+   "repo": "https://github.com/beefyfinance/beefy-contracts",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "scope: 240 vault/strategy addresses on Polygon; default branch",
+   "commit": "2efe6f1a5db07a0fd85fa6a132a1bd0ceaf60669",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "MIT": 897,
+     "Unlicense": 1,
+     "GPL-2.0-or-later": 4,
+     "GPLv2": 2,
+     "BSD-4-Clause": 1,
+     "GPL-3.0": 10,
+     "(none)": 2
+    },
+    "headers_main": {
+     "MIT": 851,
+     "Unlicense": 1,
+     "GPL-2.0-or-later": 4,
+     "GPLv2": 2,
+     "BSD-4-Clause": 1,
+     "GPL-3.0": 10,
+     "(none)": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 917
+   },
+   "npm": {
+    "node_modules/forge-std": "1.15.0",
+    "node_modules/@openzeppelin-5/contracts": "5.6.1",
+    "node_modules/@openzeppelin-4/contracts": "4.7.2",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.9.6"
+   },
+   "skipped_unlicensed": 2,
+   "copied": true,
+   "dest": "beefyfinance__beefy-contracts",
+   "files": 1579,
+   "bytes": 9243380,
+   "skipped_large": 0
+  }
+ ]
+}

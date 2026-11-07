@@ -1,0 +1,165 @@
+{
+ "program": "wormhole",
+ "repos": [
+  {
+   "repo": "https://github.com/wormhole-foundation/wormhole",
+   "ref": "main",
+   "scope_paths": [
+    "ethereum"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "4725d90675b78c6881be0320a09f41aadb7c5e91",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "Apache-2.0",
+    "package_json": null,
+    "headers": {
+     "UNLICENSED": 15,
+     "Apache-2.0": 5,
+     "Apache": 78,
+     "MIT": 2,
+     "Unlicense": 2,
+     "GNU": 1,
+     "(none)": 2
+    },
+    "headers_main": {
+     "Apache": 53,
+     "MIT": 2,
+     "Unlicense": 2,
+     "Apache-2.0": 1,
+     "(none)": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 105
+   },
+   "npm": {
+    "ethereum/node_modules/@openzeppelin/contracts": "4.9.6",
+    "testing/contract-integrations/node_modules/@openzeppelin/contracts": "4.9.6"
+   },
+   "symlinks": 4,
+   "copied": true,
+   "dest": "wormhole-foundation__wormhole",
+   "files": 643,
+   "bytes": 2362690,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/wormhole-foundation/wormhole-circle-integration",
+   "ref": null,
+   "scope_paths": [
+    "evm"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "234202543cc96ba593449ca1b9d7cb2b9499668d",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "Apache-2.0",
+    "package_json": null,
+    "headers": {
+     "Apache": 24,
+     "UNLICENSED": 1
+    },
+    "headers_main": {
+     "Apache": 21,
+     "UNLICENSED": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 25
+   },
+   "npm": {
+    "evm/node_modules/@openzeppelin/contracts": "4.9.6"
+   },
+   "copied": true,
+   "dest": "wormhole-foundation__wormhole-circle-integration",
+   "files": 222,
+   "bytes": 834562,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/wormhole-foundation/native-token-transfers",
+   "ref": null,
+   "scope_paths": [
+    "evm"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "5e56c0a0bfce0b3705cc2c1beaffca83dfec5341",
+   "submodules": [
+    {
+     "path": "evm/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "36c303b7ffdd842d06b1ec2744c9b9b5fb3083f3"
+    },
+    {
+     "path": "evm/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "evm/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "0457042d93d9dfd760dbaa06a4d2f1216fdbe297"
+    },
+    {
+     "path": "evm/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ca8d6e00ea9cb035f6856ff732203c9a3c48b966"
+    },
+    {
+     "path": "evm/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    },
+    {
+     "path": "evm/lib/wormhole-solidity-sdk",
+     "url": "https://github.com/wormhole-foundation/wormhole-solidity-sdk",
+     "commit": "b9e129e65d34827d92fceeed8c87d3ecdfc801d0"
+    },
+    {
+     "path": "evm/lib/wormhole-solidity-sdk/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
+    },
+    {
+     "path": "evm/lib/wormhole-solidity-sdk/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "evm/lib/solidity-bytes-utils",
+     "url": "https://github.com/GNSPS/solidity-bytes-utils",
+     "commit": "e0115c4d231910df47ce3b60625ce562fe4af985"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "Apache-2.0",
+    "package_json": "Apache-2.0",
+    "headers": {
+     "Apache": 61,
+     "MIT": 4,
+     "(none)": 3
+    },
+    "headers_main": {
+     "Apache": 30,
+     "MIT": 4
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 68
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "wormhole-foundation__native-token-transfers",
+   "files": 581,
+   "bytes": 4242731,
+   "skipped_large": 0
+  }
+ ]
+}

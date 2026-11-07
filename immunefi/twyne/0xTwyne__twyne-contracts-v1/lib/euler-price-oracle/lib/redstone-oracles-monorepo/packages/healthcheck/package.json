@@ -1,0 +1,36 @@
+{
+  "name": "@redstone-finance/healthcheck",
+  "version": "0.9.0",
+  "main": "dist/src/index.js",
+  "exports": "./dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "license": "MIT",
+  "scripts": {
+    "clean": "yarn global:ts-clean",
+    "build": "yarn global:tsc -p tsconfig.build.json",
+    "build:turbo": "yarn global:turbo build",
+    "typecheck": "yarn global:tsc --noEmit",
+    "typecheck:turbo": "yarn global:turbo typecheck",
+    "preversion": "yarn build",
+    "lint": "yarn global:eslint .",
+    "lint:fix": "yarn global:eslint --fix .",
+    "test": "yarn global:jest:cov --runInBand",
+    "test:watch": "yarn global:jest --watch"
+  },
+  "dependencies": {
+    "@redstone-finance/utils": "workspace:*",
+    "dotenv": "^16.0.3",
+    "node-schedule": "^2.1.1",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node-schedule": "^2.1.0"
+  },
+  "files": [
+    "src",
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

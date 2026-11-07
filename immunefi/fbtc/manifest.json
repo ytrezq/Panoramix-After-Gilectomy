@@ -1,0 +1,36 @@
+{
+ "program": "fbtc",
+ "repos": [
+  {
+   "repo": "https://github.com/fbtc-xyz/fbtc-contract",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "4e4288a417b1f04157264a6fedcccf57470d8c4f",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "LGPL-3.0-only": 16,
+     "UNLICENSED": 4
+    },
+    "headers_main": {
+     "LGPL-3.0-only": 12
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 20
+   },
+   "npm": {},
+   "skipped_unlicensed": 4,
+   "copied": true,
+   "dest": "fbtc-xyz__fbtc-contract",
+   "files": 20,
+   "bytes": 78138,
+   "skipped_large": 0
+  }
+ ]
+}

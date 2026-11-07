@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleDetection": "force",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "checkJs": true,
+    "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": "../.cache/typescript/infra/tsconfig.tsbuildinfo",
+    "pretty": true,
+    "strict": true
+  },
+  "include": ["*.ts", "*.config.mjs"]
+}

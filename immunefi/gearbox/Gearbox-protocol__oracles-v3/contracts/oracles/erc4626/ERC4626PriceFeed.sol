@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Gearbox Protocol. Generalized leverage for DeFi protocols
+// (c) Gearbox Foundation, 2025.
+pragma solidity ^0.8.23;
+
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {SingleAssetLPPriceFeed} from "../SingleAssetLPPriceFeed.sol";
+
+/// @title ERC4626 vault shares price feed
+contract ERC4626PriceFeed is SingleAssetLPPriceFeed {
+    uint256 public constant override version = 3_11;
+    bytes32 public constant override contractType = "PRICE_FEED::ERC4626";
+
+    /// @dev Amount of shares comprising a single unit (accounting for decimals)
+    uint256 immutable _shareUnit;
+
+    /// @dev Amount of underlying asset comprising a single unit (accounting for decimals)
+    uint256 immutable _assetUnit;
+
+    constructor(address _owner, uint256 _lowerBound, address _vault, address _priceFeed, uint32 _stalenessPeriod)
+        SingleAssetLPPriceFeed(_owner, _vault, _vault, _priceFeed, _stalenessPeriod) // U:[TV-1]
+    {
+        _shareUnit = 10 ** IERC4626(_vault).decimals();
+        _assetUnit = 10 ** ERC20(IERC4626(_vault).asset()).decimals();
+        _setLimiter(_lowerBound); // U:[TV-1]
+    }
+
+    function getLPExchangeRate() public view override returns (uint256) {
+        return IERC4626(lpToken).convertToAssets(_shareUnit); // U:[TV-1]
+    }
+
+    function getScale() public view override returns (uint256) {
+        return _assetUnit; // U:[TV-1]
+    }
+}

@@ -1,0 +1,36 @@
+{
+ "program": "ichi",
+ "repos": [
+  {
+   "repo": "https://github.com/ichifarm/ichi-oneToken",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "4873873861da749481739f40de5a535841736518",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": "ISC",
+    "headers": {
+     "BUSL-1.1": 39,
+     "MIT": 16,
+     "ISC": 4,
+     "GNU": 6,
+     "GPL-3.0-or-later": 3,
+     "CC-BY-4.0": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 69
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "ichifarm__ichi-oneToken",
+   "files": 79,
+   "bytes": 343416,
+   "skipped_large": 0
+  }
+ ]
+}

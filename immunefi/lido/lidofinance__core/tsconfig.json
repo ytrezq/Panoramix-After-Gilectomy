@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "paths": {
+      "lib": ["./lib"],
+      "test": ["./test"],
+      "scripts": ["./scripts"],
+      "typechain-types": ["./typechain-types"],
+      "*": ["./*"]
+    }
+  },
+  "include": ["./test", "./typechain-types", "./lib", "./scripts", "./tasks", "./deployed-*.json"],
+  "exclude": ["**/archive"],
+  "files": ["./hardhat.config.ts", "./commitlint.config.ts", "./globals.d.ts"]
+}

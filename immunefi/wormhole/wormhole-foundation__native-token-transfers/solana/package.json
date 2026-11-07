@@ -1,0 +1,72 @@
+{
+  "name": "@wormhole-foundation/sdk-solana-ntt",
+  "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wormhole-foundation/native-token-transfers.git"
+  },
+  "bugs": {
+    "url": "https://github.com/wormhole-foundation/native-token-transfers"
+  },
+  "homepage": "https://github.com/wormhole-foundation/native-token-transfers#readme",
+  "directories": {
+    "test": "tests"
+  },
+  "license": "Apache-2.0",
+  "main": "./dist/esm/ts/index.js",
+  "types": "./dist/esm/ts/index.d.ts",
+  "module": "./dist/esm/ts/index.js",
+  "description": "NTT SDK for Solana",
+  "files": [
+    "dist/esm"
+  ],
+  "keywords": [
+    "wormhole",
+    "sdk",
+    "typescript",
+    "ntt",
+    "solana"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "sideEffects": true,
+  "scripts": {
+    "build:esm": "tsc -p ./tsconfig.esm.json",
+    "build": "bun run build:esm",
+    "rebuild": "bun run clean && bun run build",
+    "clean": "rm -rf ./dist",
+    "test:ci": "NODE_OPTIONS=--experimental-vm-modules jest --config ./jest.config.ts",
+    "build:contracts": "make build",
+    "prettier": "prettier --write ./tests ./ts"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.5",
+    "nock": "^13.3.3",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.7.2"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "0.29.0",
+    "@coral-xyz/borsh": "0.29.0",
+    "@solana/spl-token": "0.4.0",
+    "@solana/web3.js": "^1.95.8",
+    "@wormhole-foundation/sdk-definitions-ntt": "1.0.0",
+    "bn.js": "5.2.1"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/ts/index.d.ts",
+      "import": "./dist/esm/ts/index.js",
+      "default": "./dist/esm/ts/index.js"
+    }
+  },
+  "peerDependencies": {
+    "@wormhole-foundation/sdk-base": "6.1.6",
+    "@wormhole-foundation/sdk-definitions": "6.1.6",
+    "@wormhole-foundation/sdk-solana": "6.1.6",
+    "@wormhole-foundation/sdk-solana-core": "6.1.6"
+  }
+}

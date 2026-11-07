@@ -1,0 +1,43 @@
+{
+  "name": "@wormhole-foundation/sdk-examples-ntt",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "main": "./dist/cjs/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "module": "./dist/esm/index.js",
+  "description": "SDK for Solana, used in conjunction with @wormhole-foundation/sdk",
+  "files": [
+    "dist/esm",
+    "dist/cjs"
+  ],
+  "keywords": [
+    "wormhole",
+    "sdk",
+    "typescript",
+    "ntt",
+    "solana"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "scripts": {
+    "route": "tsx src/route.ts",
+    "demo": "tsx src/index.ts",
+    "prettier": "prettier --write ./src",
+    "multiToken": "tsx src/multiToken.ts"
+  },
+  "devDependencies": {
+    "dotenv": "^16.4.5",
+    "nock": "^13.3.3",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.7.2"
+  },
+  "dependencies": {
+    "@wormhole-foundation/sdk": "6.1.6",
+    "@wormhole-foundation/sdk-definitions-ntt": "1.0.0",
+    "@wormhole-foundation/sdk-evm-ntt": "1.0.0",
+    "@wormhole-foundation/sdk-route-ntt": "1.0.0",
+    "@wormhole-foundation/sdk-solana-ntt": "1.0.0"
+  }
+}

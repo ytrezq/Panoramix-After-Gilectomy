@@ -1,0 +1,19 @@
+{
+  "extends": "@hyperlane-xyz/tsconfig/tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./core-utils"
+  },
+  "exclude": [
+    "./test",
+    "hardhat.config.cts",
+    "./dist",
+    "zk-hardhat.config.cts",
+    "tron-hardhat.config.cts",
+    "rootHardhatConfig.cts",
+    "./plugins",
+    "./dependencies",
+    "./artifacts-tron",
+    "./multicollateral"
+  ]
+}

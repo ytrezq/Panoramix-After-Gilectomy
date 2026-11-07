@@ -1,0 +1,246 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.25;
+
+import {fastGetToken} from "../utils/TokenGetter.sol";
+
+import {IERC20} from "@forge-std/interfaces/IERC20.sol";
+import {ISignatureTransfer} from "@permit2/interfaces/ISignatureTransfer.sol";
+import {SettlerSwapAbstract} from "../SettlerAbstract.sol";
+import {AddressDerivation} from "../utils/AddressDerivation.sol";
+import {UnsafeMath} from "../utils/UnsafeMath.sol";
+import {SafeTransferLib} from "../vendor/SafeTransferLib.sol";
+import {Ternary} from "../utils/Ternary.sol";
+import {Revert} from "../utils/Revert.sol";
+import {FastLogic} from "../utils/FastLogic.sol";
+
+import {revertTooMuchSlippage} from "./SettlerErrors.sol";
+import "./Constants.sol" as Constants;
+
+// Maverick AMM V2 is not open-source. The source code was disclosed to the
+// developers of 0x Settler confidentially and recompiled privately. The
+// deployed bytecode inithash matches the privately recompiled inithash.
+bytes32 constant maverickV2InitHash = 0xbb7b783eb4b8ca46925c5384a6b9919df57cb83da8f76e37291f58d0dd5c439a;
+
+// https://docs.mav.xyz/technical-reference/contract-addresses/v2-contract-addresses
+// For chains: mainnet, base, bnb, arbitrum, sepolia
+address constant maverickV2Factory = 0x0A7e848Aca42d879EF06507Fca0E7b33A0a63c1e;
+
+interface IMaverickV2Pool {
+    /**
+     * @notice Parameters for swap.
+     * @param amount Amount of the token that is either the input if exactOutput is false
+     * or the output if exactOutput is true.
+     * @param tokenAIn Boolean indicating whether tokenA is the input.
+     * @param exactOutput Boolean indicating whether the amount specified is
+     * the exact output amount (true).
+     * @param tickLimit The furthest tick a swap will execute in. If no limit
+     * is desired, value should be set to type(int32).max for a tokenAIn swap
+     * and type(int32).min for a swap where tokenB is the input.
+     */
+    struct SwapParams {
+        uint256 amount;
+        bool tokenAIn;
+        bool exactOutput;
+        int32 tickLimit;
+    }
+
+    /**
+     * @notice Swap tokenA/tokenB assets in the pool.  The swap user has two
+     * options for funding their swap.
+     * - The user can push the input token amount to the pool before calling
+     * the swap function. In order to avoid having the pool call the callback,
+     * the user should pass a zero-length `data` bytes object with the swap
+     * call.
+     * - The user can send the input token amount to the pool when the pool
+     * calls the `maverickV2SwapCallback` function on the calling contract.
+     * That callback has input parameters that specify the token address of the
+     * input token, the input and output amounts, and the bytes data sent to
+     * the swap function.
+     * @dev  If the users elects to do a callback-based swap, the output
+     * assets will be sent before the callback is called, allowing the user to
+     * execute flash swaps.  However, the pool does have reentrancy protection,
+     * so a swapper will not be able to interact with the same pool again
+     * while they are in the callback function.
+     * @param recipient The address to receive the output tokens.
+     * @param params Parameters containing the details of the swap
+     * @param data Bytes information that gets passed to the callback.
+     */
+    function swap(address recipient, SwapParams calldata params, bytes calldata data)
+        external
+        returns (uint256 amountIn, uint256 amountOut);
+
+    /**
+     * @notice Pool tokenA.  Address of tokenA is such that tokenA < tokenB.
+     */
+    function tokenA() external view returns (IERC20);
+
+    /**
+     * @notice Pool tokenB.
+     */
+    function tokenB() external view returns (IERC20);
+
+    /**
+     * @notice State of the pool.
+     * @param reserveA Pool tokenA balanceOf at end of last operation
+     * @param reserveB Pool tokenB balanceOf at end of last operation
+     * @param lastTwaD8 Value of log time weighted average price at last block.
+     * Value is 8-decimal scale and is in the fractional tick domain.  E.g. a
+     * value of 12.3e8 indicates the TWAP was 3/10ths of the way into the 12th
+     * tick.
+     * @param lastLogPriceD8 Value of log price at last block. Value is
+     * 8-decimal scale and is in the fractional tick domain.  E.g. a value of
+     * 12.3e8 indicates the price was 3/10ths of the way into the 12th tick.
+     * @param lastTimestamp Last block.timestamp value in seconds for latest
+     * swap transaction.
+     * @param activeTick Current tick position that contains the active bins.
+     * @param isLocked Pool isLocked, E.g., locked or unlocked; isLocked values
+     * defined in Pool.sol.
+     * @param binCounter Index of the last bin created.
+     * @param protocolFeeRatioD3 Ratio of the swap fee that is kept for the
+     * protocol.
+     */
+    struct State {
+        uint128 reserveA;
+        uint128 reserveB;
+        int64 lastTwaD8;
+        int64 lastLogPriceD8;
+        uint40 lastTimestamp;
+        int32 activeTick;
+        bool isLocked;
+        uint32 binCounter;
+        uint8 protocolFeeRatioD3;
+    }
+
+    /**
+     * @notice External function to get the state of the pool.
+     */
+    function getState() external view returns (State memory);
+}
+
+library FastMaverickV2Pool {
+    using Ternary for bool;
+    using FastLogic for bool;
+
+    function fastTokenAOrB(IMaverickV2Pool pool, bool tokenAIn) internal view returns (IERC20) {
+        return fastGetToken(
+            address(pool),
+            tokenAIn.ternary(uint32(IMaverickV2Pool.tokenA.selector), uint32(IMaverickV2Pool.tokenB.selector))
+        );
+    }
+
+    function fastEncodeSwap(
+        IMaverickV2Pool,
+        address recipient,
+        uint256 amount,
+        bool tokenAIn,
+        int256 tickLimit,
+        bytes memory swapCallbackData
+    ) internal pure returns (bytes memory data) {
+        assembly ("memory-safe") {
+            data := mload(0x40)
+
+            let swapCallbackDataLength := mload(swapCallbackData)
+
+            mcopy(add(0xe4, data), swapCallbackData, add(0x20, swapCallbackDataLength))
+            mstore(add(0xc4, data), 0xc0)
+            mstore(add(0xa4, data), signextend(0x03, tickLimit))
+            mstore(add(0x84, data), 0x00) // exactOutput is false
+            mstore(add(0x64, data), lt(0x00, tokenAIn))
+            mstore(add(0x44, data), amount)
+            mstore(add(0x24, data), recipient)
+            mstore(add(0x10, data), 0x3eece7db000000000000000000000000) // selector for `swap(address,(uint256,bool,bool,int32),bytes)` with `recipient`'s padding
+            mstore(data, add(0xe4, swapCallbackDataLength))
+
+            mstore(0x40, add(0x120, add(data, swapCallbackDataLength)))
+        }
+    }
+
+    function fastGetFromPoolState(IMaverickV2Pool pool, uint256 pos, uint256 sizeBits)
+        internal
+        view
+        returns (uint256 r)
+    {
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            mstore(0x00, 0x1865c57d) // selector for `getState()`
+            if iszero(staticcall(gas(), pool, 0x1c, 0x04, ptr, 0x120)) {
+                let ptr_ := mload(0x40)
+                returndatacopy(ptr_, 0x00, returndatasize())
+                revert(ptr_, returndatasize())
+            }
+            r := mload(add(pos, ptr))
+            if or(gt(0x120, returndatasize()), shr(sizeBits, r)) { revert(0x00, 0x00) }
+        }
+    }
+
+    function fastGetReserveAOrB(IMaverickV2Pool pool, bool tokenAIn) internal view returns (uint128 r) {
+        return uint128(fastGetFromPoolState(pool, (!tokenAIn).toUint() << 5, 128));
+    }
+}
+
+interface IMaverickV2SwapCallback {
+    function maverickV2SwapCallback(IERC20 tokenIn, uint256 amountIn, uint256 amountOut, bytes calldata data) external;
+}
+
+abstract contract MaverickV2 is SettlerSwapAbstract {
+    using UnsafeMath for uint256;
+    using SafeTransferLib for IERC20;
+    using FastMaverickV2Pool for IMaverickV2Pool;
+    using Ternary for bool;
+    using Revert for bool;
+
+    function _sellToMaverickV2(
+        IMaverickV2Pool pool,
+        address recipient,
+        bool tokenAIn,
+        uint256 amount,
+        int32 tickLimit,
+        uint256 minBuyAmount
+    ) private returns (uint256 buyAmount) {
+        bytes memory data = pool.fastEncodeSwap(recipient, amount, tokenAIn, tickLimit, new bytes(0));
+
+        assembly ("memory-safe") {
+            if iszero(call(gas(), pool, 0x00, add(0x20, data), mload(data), 0x00, 0x40)) {
+                let ptr := mload(0x40)
+                returndatacopy(ptr, 0x00, returndatasize())
+                revert(ptr, returndatasize())
+            }
+            buyAmount := mload(0x20)
+        }
+
+        if (buyAmount < minBuyAmount) {
+            revertTooMuchSlippage(pool.fastTokenAOrB(!tokenAIn), minBuyAmount, buyAmount);
+        }
+    }
+
+    function sellToMaverickV2(
+        address recipient,
+        IERC20 sellToken,
+        uint256 ppm,
+        IMaverickV2Pool pool,
+        bool tokenAIn,
+        int32 tickLimit,
+        uint256 minBuyAmount
+    ) internal returns (uint256 buyAmount) {
+        uint256 sellAmount;
+        if (ppm != 0) {
+            unchecked {
+                // We don't care about phantom overflow here because reserves
+                // are limited to 128 bits. Any token balance that would
+                // overflow here would also break MaverickV2.
+                sellAmount = (sellToken.fastSpendableBalance() * ppm).unsafeDiv(Constants.BASIS);
+            }
+            _checkRecipient(address(this), address(pool), sellToken);
+            sellToken.safeTransfer(address(pool), sellAmount);
+        } else {
+            sellAmount = sellToken.fastBalanceOf(address(pool));
+            unchecked {
+                sellAmount -= pool.fastGetReserveAOrB(tokenAIn);
+            }
+        }
+        _checkRecipient(
+            address(pool), recipient, _recipientCheckNeedsToken() ? pool.fastTokenAOrB(!tokenAIn) : IERC20(address(0))
+        );
+        return _sellToMaverickV2(pool, recipient, tokenAIn, sellAmount, tickLimit, minBuyAmount);
+    }
+}

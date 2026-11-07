@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ESNext"],
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleDetection": "force",
+    "moduleResolution": "bundler",
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "checkJs": true,
+    "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": "../.cache/typescript/server/tsconfig.tsbuildinfo",
+    "pretty": true,
+    "strict": true
+  },
+  "include": [
+    "workers/**/*.ts",
+    "api/**/*.ts",
+    "database/**/*.ts",
+    "hooks/**/*.ts",
+    "i18n/**/*.ts",
+    "middleware/**/*.ts",
+    "utils/**/*.ts",
+    "script/**/*.ts",
+    "test/**/*.ts",
+    "index.ts",
+    "instrument.cjs",
+    "*.config.ts",
+    "*.config.mjs",
+    "*.config.mts"
+  ]
+}

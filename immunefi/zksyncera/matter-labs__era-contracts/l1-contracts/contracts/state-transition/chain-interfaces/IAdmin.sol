@@ -1,0 +1,190 @@
+// SPDX-License-Identifier: MIT
+// We use a floating point pragma here so it can be used within other projects that interact with the ZKsync ecosystem without using our exact pragma version.
+pragma solidity ^0.8.21;
+
+import {IZKChainBase} from "../chain-interfaces/IZKChainBase.sol";
+import {IChainUpgrader} from "../chain-interfaces/IChainUpgrader.sol";
+
+import {Diamond} from "../libraries/Diamond.sol";
+import {FeeParams, PubdataPricingMode} from "../chain-deps/ZKChainStorage.sol";
+import {L2DACommitmentScheme} from "../../common/Config.sol";
+
+/// @title The interface of the Admin Contract that controls access rights for contract management.
+/// @author Matter Labs
+/// @custom:security-contact security@matterlabs.dev
+interface IAdmin is IZKChainBase, IChainUpgrader {
+    /// @notice Starts the transfer of admin rights. Only the current admin can propose a new pending one.
+    /// @notice New admin can accept admin rights by calling `acceptAdmin` function.
+    /// @param _newPendingAdmin Address of the new admin
+    function setPendingAdmin(address _newPendingAdmin) external;
+
+    /// @notice Accepts transfer of admin rights. Only pending admin can accept the role.
+    function acceptAdmin() external;
+
+    /// @notice Change validator status (active or not active)
+    /// @param _validator Validator address
+    /// @param _active Active flag
+    function setValidator(address _validator, bool _active) external;
+
+    /// @notice Change zk porter availability
+    /// @param _zkPorterIsAvailable The availability of zk porter shard
+    function setPorterAvailability(bool _zkPorterIsAvailable) external;
+
+    /// @notice Change the max L2 gas limit for L1 -> L2 transactions
+    /// @param _newPriorityTxMaxGasLimit The maximum number of L2 gas that a user can request for L1 -> L2 transactions
+    function setPriorityTxMaxGasLimit(uint256 _newPriorityTxMaxGasLimit) external;
+
+    /// @notice Change the fee params for L1->L2 transactions
+    /// @param _newFeeParams The new fee params
+    function changeFeeParams(FeeParams calldata _newFeeParams) external;
+
+    /// @notice Change the token multiplier for L1->L2 transactions
+    function setTokenMultiplier(uint128 _nominator, uint128 _denominator) external;
+
+    /// @notice Change the pubdata pricing mode before the first batch is processed
+    /// @param _pricingMode The new pubdata pricing mode
+    function setPubdataPricingMode(PubdataPricingMode _pricingMode) external;
+
+    /// @notice Set the transaction filterer
+    function setTransactionFilterer(address _transactionFilterer) external;
+
+    /// @notice Sets the transaction filterer used in Priority Mode.
+    /// By default, there is no transaction filtering in Priority Mode. This is the recommended setup.
+    /// However, for some chains (e.g., Prividium or Gateway), a custom filterer may be required
+    /// for correct system operation. This function allows ZK Governance to set it.
+    function setPriorityModeTransactionFilterer(address _priorityModeTransactionFilterer) external;
+
+    /// @notice Allow EVM emulation on chain
+    function allowEvmEmulation() external returns (bytes32 canonicalTxHash);
+
+    /// @notice Sets the pre-V31 total supply on ZKOS chains.
+    /// @dev Sends a service transaction to L2BaseTokenZKOS to set the value.
+    /// @param _totalSupply The total supply that existed before the V31 upgrade.
+    function setZKsyncOSPreV31TotalSupply(uint256 _totalSupply) external returns (bytes32 canonicalTxHash);
+
+    /// @notice Allow Priority Mode to be activated on the chain (does not activate it).
+    function permanentlyAllowPriorityMode() external;
+
+    /// @notice Deactivate Priority Mode and return the chain to normal mode.
+    function deactivatePriorityMode() external;
+
+    /// @notice Activates the Priority Mode if the whitelisted operator fails
+    /// to process priority transactions within the allotted time.
+    /// @dev Priority Mode is an escape hatch mechanism in which anyone can settle batches (only with L1 -> L2 transactions).
+    /// @dev Priority Mode can be activated if:
+    ///      1. The Chain Admin has explicitly enabled the Priority Mode feature.
+    ///      2. A priority transaction has been outstanding for at least `PRIORITY_EXPIRATION` since it was requested.
+    function activatePriorityMode() external;
+
+    /// @inheritdoc IChainUpgrader
+    function upgradeChainFromVersion(
+        address _chainAddress,
+        uint256 _protocolVersion,
+        Diamond.DiamondCutData calldata _cutData
+    ) external override;
+
+    /// @notice Executes a proposed governor upgrade
+    /// @dev Only the ChainTypeManager contract can execute the upgrade
+    /// @param _diamondCut The diamond cut parameters to be executed
+    function executeUpgrade(Diamond.DiamondCutData calldata _diamondCut) external;
+
+    /// @notice Instantly pause the functionality of all freezable facets & their selectors
+    /// @dev Only the governance mechanism may freeze Diamond Proxy
+    function freezeDiamond() external;
+
+    /// @notice Unpause the functionality of all freezable facets & their selectors
+    /// @dev Only the CTM can unfreeze Diamond Proxy
+    function unfreezeDiamond() external;
+
+    function genesisUpgrade(
+        address _l1GenesisUpgrade,
+        address _ctmDeployer,
+        bytes calldata _forceDeploymentData,
+        bytes[] calldata _factoryDeps
+    ) external;
+
+    /// @notice Returns address of the RollupDAManager of the ZK Chain.
+    function getRollupDAManager() external view returns (address);
+
+    /// @notice Set the L1 DA validator address as well as the L2 DA commitment scheme.
+    /// @dev While in principle it is possible that updating only one of the values is needed,
+    /// usually these should work in pair and L1 validator typically expects a specific input from the L2 Validator.
+    /// That's why we change those together to prevent admins of chains from shooting themselves in the foot.
+    /// @param _l1DAValidator The address of the L1 DA validator
+    /// @param _l2DACommitmentScheme The scheme of the L2 DA commitment
+    function setDAValidatorPair(address _l1DAValidator, L2DACommitmentScheme _l2DACommitmentScheme) external;
+
+    /// @notice Makes the chain as permanent rollup.
+    /// @dev This is a security feature needed for chains that should be
+    /// trusted to keep their data available even if the chain admin becomes malicious
+    /// and tries to set the DA validator pair to something which does not publish DA to Ethereum.
+    /// @dev DANGEROUS: once activated, there is no way back!
+    function makePermanentRollup() external;
+
+    /// @notice Porter availability status changes
+    event IsPorterAvailableStatusUpdate(bool isPorterAvailable);
+
+    /// @notice Validator's status changed
+    event ValidatorStatusUpdate(address indexed validatorAddress, bool isActive);
+
+    /// @notice pendingAdmin is changed
+    /// @dev Also emitted when new admin is accepted and in this case, `newPendingAdmin` would be zero address
+    event NewPendingAdmin(address indexed oldPendingAdmin, address indexed newPendingAdmin);
+
+    /// @notice Admin changed
+    event NewAdmin(address indexed oldAdmin, address indexed newAdmin);
+
+    /// @notice Priority transaction max L2 gas limit changed
+    event NewPriorityTxMaxGasLimit(uint256 oldPriorityTxMaxGasLimit, uint256 newPriorityTxMaxGasLimit);
+
+    /// @notice Fee params for L1->L2 transactions changed
+    event NewFeeParams(FeeParams oldFeeParams, FeeParams newFeeParams);
+
+    /// @notice Validium mode status changed
+    event PubdataPricingModeUpdate(PubdataPricingMode validiumMode);
+
+    /// @notice The transaction filterer has been updated
+    event NewTransactionFilterer(address oldTransactionFilterer, address newTransactionFilterer);
+
+    /// @notice The address of the transaction filterer contract used when Priority Mode is activated
+    event NewPriorityModeTransactionFilterer(address oldTransactionFilterer, address newTransactionFilterer);
+
+    /// @notice BaseToken multiplier for L1->L2 transactions changed
+    event NewBaseTokenMultiplier(
+        uint128 oldNominator,
+        uint128 oldDenominator,
+        uint128 newNominator,
+        uint128 newDenominator
+    );
+
+    /// @notice Emitted when an upgrade is executed.
+    event ExecuteUpgrade(Diamond.DiamondCutData diamondCut);
+
+    /// @notice Emitted when the contract is frozen.
+    event Freeze();
+
+    /// @notice Emitted when the contract is unfrozen.
+    event Unfreeze();
+
+    /// @notice The EVM emulator has been enabled
+    event EnableEvmEmulator();
+
+    /// @notice Emitted when the ZKOS pre-V31 total supply is set via service transaction
+    event ZKsyncOSPreV31TotalSupplySet(uint256 totalSupply);
+
+    /// @notice New L2 DA commitment scheme set
+    event NewL2DACommitmentScheme(
+        L2DACommitmentScheme indexed oldL2DACommitmentScheme,
+        L2DACommitmentScheme indexed newL2DACommitmentScheme
+    );
+    event NewL1DAValidator(address indexed oldL1DAValidator, address indexed newL1DAValidator);
+
+    event BridgeMint(address indexed _account, uint256 _amount);
+
+    event PriorityModeAllowed();
+
+    event PriorityModeDeactivated();
+
+    /// @notice Emitted when Priority Mode is activated for the chain.
+    event PriorityModeActivated();
+}

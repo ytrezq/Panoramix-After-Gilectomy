@@ -1,0 +1,24 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib", "dependencies"]
+optimizer = true
+fs_permissions = [{ access = "read-write", path = "script"},{ access = "read", path = "test"}]
+always_use_create_2_factory = true
+
+
+[lint]
+lint_on_build= false
+
+
+[dependencies]
+forge-std = "1.11.0"
+"@openzeppelin-contracts" = "5.5.0"
+"@openzeppelin-contracts-upgradeable" = "5.5.0"
+
+[rpc_endpoints]
+anvil = "http://127.0.0.1:8545"
+mainnet = "https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}"
+sepolia = "https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_KEY}"
+polygon_pos = "https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}"
+amoy = "https://polygon-amoy.g.alchemy.com/v2/${ALCHEMY_KEY}"

@@ -1,0 +1,67 @@
+[profile.default]
+src = 'contracts'
+out = 'out'
+libs = ['node_modules', 'lib']
+no-match-contract = 'StakeManagerTestable'
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+cache_path = 'forge-cache'
+verbosity = 2
+memory_limit = 40003554432
+gas_limit = "18446744073709551615"
+ignored_warnings_from = ["tools/interfaces"]
+ffi = true
+remappings = [
+  "eth-gas-reporter/=node_modules/eth-gas-reporter/",
+  "forge-std/=lib/forge-std/src/",
+  "hardhat/=node_modules/hardhat/",
+]
+fs_permissions = [
+  { access = "read", path = "./script/" },
+  { access = "read", path = "./test/" },
+  { access = "read", path = "./out/" },
+]
+auto_detect_solc = true
+
+
+[invariant]
+fail_on_revert = false
+call_override = false
+dictionary_weight = 80
+include_storage = true
+include_push_bytes = true
+
+[profile.intense.fuzz]
+runs = 10000
+max_test_rejects = 999999
+
+[lint]
+lint_on_build = false
+
+[fmt]
+line_length = 120
+number_underscore = "thousands"
+multiline_func_header = "params_first_multi"
+wrap_comments = true
+single_line_statement_blocks = "preserve"
+ignore = [
+  "contracts/staking/StakingInfo.sol",
+  "contracts/common/mixin/ChainIdMixin.sol",
+]
+
+[rpc_endpoints]
+# Defaults use Tenderly's public gateways — no key required, rate-limited.
+# Override any of these by setting MAINNET_RPC_URL / POLYGON_POS_RPC_URL etc.
+# in your shell environment if you need higher limits or a private endpoint.
+anvil = "http://127.0.0.1:8545"
+mainnet = "https://mainnet.gateway.tenderly.co"
+sepolia = "https://sepolia.gateway.tenderly.co"
+polygon_pos = "https://polygon.gateway.tenderly.co"
+polygon_amoy = "https://polygon-amoy.gateway.tenderly.co"
+
+[etherscan]
+mainnet = { key = "${ETHERSCAN_API_KEY}" }
+sepolia = { key = "${ETHERSCAN_API_KEY}" }
+polygon_pos = { key = "${POLYGONSCAN_API_KEY}" }
+polygon_amoy = { key = "${POLYGONSCAN_API_KEY}" }

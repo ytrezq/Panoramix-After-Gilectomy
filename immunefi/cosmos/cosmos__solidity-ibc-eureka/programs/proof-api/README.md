@@ -1,0 +1,183 @@
+# IBC Proof API
+
+The proof API is a gRPC service that prepares IBC transactions and proofs for clients. It does not listen for events, sign, or submit transactions. Instead, clients provide transaction hashes and the service returns the corresponding IBC messages and proofs that must be signed and submitted elsewhere.
+
+The proof API:
+1. Queries the source chain for the given transaction hashes.
+2. Parses transaction events to extract packet data.
+3. Builds IBC messages plus the required proof(s).
+4. Returns an unsigned transaction payload to the caller.
+
+## Overview
+
+The service is composed of one-sided modules, each responsible for a specific source and target chain combination. Each module is a Rust struct that implements the `ProofApiModule` trait.
+
+The gRPC service definition is in [`proto/proofapi/proofapi.proto`](../../proto/proofapi/proofapi.proto).
+
+## Modules
+
+Each module runs in one direction and specializes in how it builds proofs and transactions:
+
+| Module | Source | Target | Tasks | Proof Modes |
+| --- | --- | --- | --- | --- |
+| `cosmos_to_eth` | Cosmos SDK | EVM | Parse Cosmos events, build EVM IBC txs | `sp1` — ZK proofs via SP1<br>`attested` — multisig attestations |
+| `eth_to_cosmos` | EVM | Cosmos SDK | Parse EVM events, build Cosmos IBC txs | `real` — ethereum mainnet beacon API proofs<br>`mock` — dev/test mode<br>`attested` — multisig attestations |
+| `eth_to_eth` | EVM | EVM | Parse EVM events, build attested txs | `attested` — multisig attestations |
+| `besu_to_eth` | Besu BFT EVM | EVM | Parse EVM events, build EVM real-proof txs | direct Besu light-client updates + Besu account/storage proofs |
+| `cosmos_to_cosmos` | Cosmos SDK | Cosmos SDK | Parse Cosmos events, build Cosmos IBC txs | ICS-07 light client proofs only (validator signatures and merkle proofs) |
+| `cosmos_to_solana` | Cosmos SDK | Solana | Parse Cosmos events, build Solana IBC txs | ICS-07 light client proofs only (validator signatures and merkle proofs) |
+| `solana_to_cosmos` | Solana | Cosmos SDK | Parse Solana events, build Cosmos IBC txs | multisig attestations only |
+
+## Build and Run
+
+1. Build/install the binary.
+
+   ```sh
+   just install-proof-api
+   ```
+
+2. Copy the example configuration and update it for your chains.
+
+   ```sh
+   cp programs/proof-api/config.example.json config.json
+   ```
+
+3. Start the service.
+
+   ```sh
+   proof-api start --config config.json
+   ```
+
+The gRPC server listens on `server.address:server.port` and the gRPC-web endpoint listens on `server.grpc_web_port`.
+
+## Configuration
+
+Configuration is provided as JSON. See the example in [`programs/proof-api/config.example.json`](./config.example.json).
+
+Key settings:
+
+- `server.address`: IP address to bind the gRPC server.
+- `server.port`: gRPC port.
+- `server.grpc_web_port`: gRPC-web port.
+- `observability.level`: Logging level (`trace`, `debug`, `info`, `warn`, `error`).
+- `observability.use_otel`: Enable OpenTelemetry export.
+- `observability.service_name`: Service name used in logs/traces.
+- `observability.otel_endpoint`: OpenTelemetry collector endpoint.
+- `modules`: List of modules to run, each with `name`, `src_chain`, `dst_chain`, `config`, and optional `enabled` (defaults to true). For EVM-to-EVM modules, `Info` returns the routed `src_chain` as the source identity and the destination RPC chain ID as the target identity.
+
+Module configuration varies by module type. Mode-specific options are enumerated below.
+
+Module configuration varies by module type:
+
+- `cosmos_to_eth`:
+  - `tm_rpc_url`: Tendermint RPC endpoint for the source chain.
+  - `eth_rpc_url`: EVM RPC endpoint for the destination chain.
+  - `ics26_address`: IBC router contract address on the destination chain.
+  - `ibc_multicall_address`: `IBCMulticall` contract address on the destination chain. Relay and update client
+    transactions are built for and submitted to it.
+  - `mode`: Proof mode object.
+  - `mode.type`: `sp1` or `attested`.
+  - `mode.sp1_prover`: SP1 prover config when `type: sp1`.
+    - `mode.sp1_prover.type`: `mock`, `env`, `network`, `cpu`, `cuda`.
+    - `mode.sp1_prover.network_private_key`: Optional hex key for `network`.
+    - `mode.sp1_prover.network_rpc_url`: Optional RPC URL for `network`.
+    - `mode.sp1_prover.private_cluster`: Optional boolean for `network`.
+  - `mode.sp1_programs`: SP1 program paths when `type: sp1`.
+    - `mode.sp1_programs.update_client`.
+    - `mode.sp1_programs.membership`.
+    - `mode.sp1_programs.update_client_and_membership`.
+    - `mode.sp1_programs.misbehaviour`.
+  - `mode.attestor`: Attestor config when `type: attested`.
+    - `mode.attestor.attestor_query_timeout_ms`.
+    - `mode.attestor.quorum_threshold`.
+    - `mode.attestor.attestor_endpoints`.
+  - `mode.cache`: Optional cache config when `type: attested`.
+    - `mode.cache.state_cache_max_entries`.
+    - `mode.cache.packet_cache_max_entries`.
+
+- `eth_to_cosmos`:
+  - `eth_rpc_url`: EVM RPC endpoint for the source chain.
+  - `eth_beacon_api_url`: Ethereum beacon API endpoint for consensus data (required for `real`).
+  - `tm_rpc_url`: Tendermint RPC endpoint for the destination chain.
+  - `ics26_address`: IBC router contract address on the destination chain.
+  - `signer_address`: Cosmos address used for message construction metadata.
+  - `mode`: Proof mode (string or object).
+  - `mode`: `real`, `mock`, or `{ "type": "attested", ... }`.
+  - `mode.attestor`: Attestor config when `type: attested`.
+    - `mode.attestor.attestor_query_timeout_ms`.
+    - `mode.attestor.quorum_threshold`.
+    - `mode.attestor.attestor_endpoints`.
+  - `mode.cache`: Optional cache config when `type: attested`.
+    - `mode.cache.state_cache_max_entries`.
+    - `mode.cache.packet_cache_max_entries`.
+- `eth_to_cosmos_compat`:
+  - Same settings as `eth_to_cosmos`, but routes requests to the v1.2 or current handler based on the client state checksum.
+
+- `eth_to_eth`:
+  - `src_rpc_url`: Source EVM RPC endpoint.
+  - `src_ics26_address`: Source IBC router contract address.
+  - `dst_rpc_url`: Destination EVM RPC endpoint.
+  - `dst_ics26_address`: Destination IBC router contract address.
+  - `dst_ibc_multicall_address`: Destination `IBCMulticall` contract address that relay and update client
+    transactions are submitted to.
+  - `mode`: Proof mode object.
+  - `mode.type`: `attested`.
+  - `mode.attestor`: Attestor config.
+    - `mode.attestor.attestor_query_timeout_ms`.
+    - `mode.attestor.quorum_threshold`.
+    - `mode.attestor.attestor_endpoints`.
+  - `mode.cache`: Optional cache config.
+    - `mode.cache.state_cache_max_entries`. (default: 10000)
+    - `mode.cache.packet_cache_max_entries`. (default: 10000)
+- `besu_to_eth`:
+  - `src_rpc_url`: Source Besu RPC endpoint.
+  - `src_ics26_address`: Source IBC router contract address.
+  - `dst_rpc_url`: Destination EVM RPC endpoint.
+  - `dst_ics26_address`: Destination IBC router contract address.
+  - `dst_ibc_multicall_address`: Destination `IBCMulticall` contract address that relay and update client
+    transactions are submitted to.
+  - `consensus_type`: Source Besu consensus type, `qbft` or `ibft2`. Selects the commit-seal signing form of the headers submitted in client updates.
+- `cosmos_to_cosmos`:
+  - `src_rpc_url`: RPC endpoint for the source chain.
+  - `target_rpc_url`: RPC endpoint for the destination chain.
+  - `signer_address`: Cosmos address used for message construction metadata.
+- `cosmos_to_solana`:
+  - `source_rpc_url`: Tendermint RPC endpoint for the source chain.
+  - `target_rpc_url`: Solana RPC endpoint.
+  - `solana_ics26_program_id`: Solana ICS26 router program ID.
+  - `solana_fee_payer`: Solana fee payer address.
+  - `solana_alt_address`: Address lookup table address (optional).
+  - `skip_pre_verify_threshold`: Skip pre-verification when signatures are below this threshold. (default: 50)
+- `solana_to_cosmos`:
+  - `solana_chain_id`: Solana chain ID label.
+  - `src_rpc_url`: Solana RPC endpoint.
+  - `target_rpc_url`: Tendermint RPC endpoint for the destination chain.
+  - `signer_address`: Cosmos address used for message construction metadata.
+  - `solana_ics26_program_id`: Solana ICS26 router program ID.
+
+## `besu_to_eth` create-client parameters
+
+`besu_to_eth` `CreateClient` returns only deployment calldata for `BesuLightClient`, which serves both QBFT and IBFT2 sources, bound to `dst_ics26_address` as the only router that can drive the client. It does not call `ICS26Router.addClient(...)`. Register the deployed client with the counterparty merkle prefix `[src_ics26_address, IBCSTORE_STORAGE_SLOT, ""]`, with the source router address as its raw 20 bytes and the `IBCStoreUpgradeable` ERC-7201 slot (`0x1260944489272988d9df285149b5aa1b0f48f2136d6f416159f840a3e0747600`) as its 32 bytes, because the client rejects proofs whose path does not start with the router it tracks and that slot.
+
+Required parameters:
+- `trusting_period`: Decimal seconds for the weak-subjectivity window.
+- `max_clock_drift`: Decimal seconds for allowed future header drift.
+
+Optional parameters:
+- `trust_level`: Minimum fraction of the trusted validator set that must sign an update, as `<numerator>/<denominator>` within `[1/3, 2/3]`. Defaults to `2/3`.
+- `trusted_height`: Decimal source block height. Defaults to the latest source block. The header at this height must still be within `trusting_period` when the calldata is deployed, or the constructor reverts.
+
+Operational notes:
+- `consensus_type` is fixed by module config and selects how client updates encode the header. Besu returns headers with the commit seals inside `extraData`; the update instead carries the header in its commit-seal signing form (QBFT: 5 `extraData` items ending in an empty seal list, IBFT2: 4 items) and the commit seals separately, ordered by recovered signer. A wrong `consensus_type` produces updates that the light client rejects.
+- `UpdateClient` is a single direct Besu update. No catch-up or intermediate-header search is performed.
+- `RelayByTx` uses real Besu proofs: the signing-form header RLP and commit seals in the client update, and a `MembershipProof` per packet call carrying the consensus state preimage and the storage proof for recv/ack/timeout verification. The client update carries no account proof.
+- `RelayByTx` fetches `eth_getProof` at the latest source block rather than at the event heights, so it keeps working after a Bonsai-backed Besu node has pruned the state at those heights. Packets that were already completed on the source chain by then (a recv whose commitment is gone, a timeout whose receipt exists) are skipped with a warning instead of being included as calls that would revert; if nothing is left, the request fails.
+- Within a batch only the first packet call carries the router account proof. The destination light client caches the proven storage root in transient storage for the remaining calls, so the destination chain must have Cancun (EIP-1153) enabled. See `ibc-solidity/contracts/light-clients/besu/README.md`.
+
+## Using the gRPC API
+
+After the service is running, use the gRPC endpoints defined in [`proto/proofapi/proofapi.proto`](../../proto/proofapi/proofapi.proto) to submit transaction hashes and retrieve the unsigned IBC transactions plus proofs. Typical usage is:
+
+1. Submit transaction hash(es) to the proof API for the relevant module.
+2. Receive the unsigned transaction payload with proof data.
+3. Sign and submit the transaction using your own wallet or service.

@@ -1,0 +1,187 @@
+{
+ "program": "beets",
+ "repos": [
+  {
+   "repo": "https://github.com/beethovenxfi/sonic-staking",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "Beets Staked Sonic (SonicStaking)",
+   "commit": "877087b5c3cbeb6830cc0aa1c2b4c5d958fc60b2",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "0e7097750918380d84dd3cfdef595bee74dabb70"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "ee3a7e4f38c62bcd22727489218b29f3b893594a"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "448efeea6640bbbc09373f03fbc9c88e280147ba"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "448efeea6640bbbc09373f03fbc9c88e280147ba"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
+     "commit": "16e0ae21e0e39049f619f2396fa28c57fad07368"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b6a506db2262cad5ff982a87789ee6d1558ec861"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils",
+     "url": "https://github.com/Arachnid/solidity-stringutils",
+     "commit": "4b2fcc43fa0426e19ce88b1f1ec16f5903a2e461"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "MIT": 5,
+     "UNLICENSED": 9
+    },
+    "headers_main": {
+     "MIT": 2,
+     "UNLICENSED": 1
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 14
+   },
+   "copied": false,
+   "why": "reference only: no license allowing redistribution found"
+  },
+  {
+   "repo": "https://github.com/beethovenxfi/beets-contracts",
+   "ref": null,
+   "scope_paths": [
+    "src/token/Beets.sol",
+    "src/token/SonicBeetsMigrator.sol"
+   ],
+   "fetched": "2026-11-07",
+   "note": "Beets token and token migrator",
+   "commit": "e5290eff157a0f721bb4d5b7a79c319dd779eef2",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "69c8def5f222ff96f2b5beff05dfba996368aa79"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "GPL-3.0-or-later": 6,
+     "MIT": 6,
+     "UNLICENSED": 3
+    },
+    "headers_main": {
+     "GPL-3.0-or-later": 6,
+     "MIT": 6
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 15
+   },
+   "npm": {},
+   "skipped_unlicensed": 3,
+   "copied": true,
+   "dest": "beethovenxfi__beets-contracts",
+   "files": 448,
+   "bytes": 3263785,
+   "skipped_large": 0
+  }
+ ]
+}

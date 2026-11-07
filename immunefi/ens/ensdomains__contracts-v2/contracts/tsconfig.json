@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleDetection": "force",
+    "strict": true,
+    "esModuleInterop": true,
+    "moduleResolution": "NodeNext",
+    "outDir": "build",
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "paths": {
+      "@rocketh": ["./rocketh/deploy.ts"],
+      "generated/*": ["./generated/*"],
+      "tsx": ["./script/tsx.ts"]
+    },
+    "noEmit": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "./plugins/**/*.ts",
+    "./test/**/*.ts",
+    "./artifacts/**/*.d.ts",
+    "./deploy/**/*.ts",
+    "./script/**/*.ts"
+  ],
+  "ts-node": {
+    "experimentalResolver": true,
+    "experimentalSpecifierResolution": "node",
+    "files": true
+  },
+  "files": ["hardhat.config.ts", "vitest.config.ts"],
+  "exclude": ["lib"]
+}

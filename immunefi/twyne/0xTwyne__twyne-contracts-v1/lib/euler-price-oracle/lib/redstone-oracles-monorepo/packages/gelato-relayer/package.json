@@ -1,0 +1,70 @@
+{
+  "name": "@redstone-finance/gelato-relayer",
+  "version": "0.9.0",
+  "description": "RedStone Relayer based on Gelato Web3 Functions",
+  "repository": "https://github.com/redstone-finance/redstone-oracles-monorepo",
+  "scripts": {
+    "clean": "yarn global:ts-hardhat-clean",
+    "build": " yarn global:tsc -p tsconfig.build.json",
+    "build:turbo": "yarn global:turbo build",
+    "typecheck": "yarn global:tsc --noEmit",
+    "typecheck:turbo": "yarn global:turbo typecheck",
+    "compile": "yarn compile-deps && hardhat compile",
+    "compile-deps": "yarn --cwd ../evm-adapters compile && yarn --cwd ../rpc-providers build",
+    "lint": "yarn global:eslint .",
+    "lint:fix": "yarn global:eslint --fix .",
+    "test": "hardhat test",
+    "w3f-run": "yarn build && hardhat w3f-run redstone --debug --logs",
+    "w3f-deploy": "yarn build && hardhat w3f-deploy redstone | tee /dev/tty | ts-node save-deploy-cid.ts"
+  },
+  "dependencies": {
+    "@gelatonetwork/web3-functions-sdk": "^2.4.4",
+    "@redstone-finance/evm-adapters": "workspace:*",
+    "@redstone-finance/on-chain-relayer": "workspace:*",
+    "@redstone-finance/sdk": "workspace:*",
+    "@redstone-finance/utils": "workspace:*"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@ethersproject/abi": "^5.6.3",
+    "@ethersproject/providers": "^5.6.8",
+    "@nomicfoundation/hardhat-chai-matchers": "^1.0.6",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.9",
+    "@nomicfoundation/hardhat-toolbox": "^2.0.2",
+    "@nomiclabs/hardhat-ethers": "^2.0.6",
+    "@nomiclabs/hardhat-etherscan": "^3.1.7",
+    "@openzeppelin/contracts": "^4.8.1",
+    "@redstone-finance/protocol": "workspace:*",
+    "@redstone-finance/rpc-providers": "workspace:*",
+    "@tsconfig/recommended": "1.0.2",
+    "@typechain/ethers-v5": "^10.2.0",
+    "@typechain/hardhat": "^6.1.2",
+    "@types/chai": "^4.3.4",
+    "@types/mocha": "^10.0.1",
+    "@types/sinon-chai": "^3.2.12",
+    "axios": "^1.13.2",
+    "chai": "^4.3.10",
+    "dotenv": "^16.0.3",
+    "ethers": "^5.7.2",
+    "hardhat": "^2.22.14",
+    "hardhat-deploy": "0.11.23",
+    "hardhat-gas-reporter": "^1.0.9",
+    "mocha": "^10.2.0",
+    "solidity-coverage": "^0.8.12",
+    "ts-generator": "0.1.1",
+    "typechain": "^8.1.1"
+  },
+  "overrides": {
+    "elliptic": "^6.6.1"
+  },
+  "resolutions": {
+    "elliptic": "^6.6.1"
+  },
+  "files": [
+    "web3-functions",
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,158 @@
+import '@typechain/hardhat'
+import '@nomicfoundation/hardhat-ethers'
+import '@nomicfoundation/hardhat-chai-matchers'
+import '@nomicfoundation/hardhat-verify'
+import 'hardhat-abi-exporter'
+import 'hardhat-gas-reporter'
+import 'hardhat-contract-sizer'
+import 'solidity-coverage'
+import 'hardhat-secure-accounts'
+import 'dotenv/config'
+// Tasks
+import './tasks/craft-calldata'
+import './tasks/post-calldata'
+import './tasks/deploy'
+
+import { HardhatUserConfig, task } from 'hardhat/config'
+
+// Networks
+
+interface NetworkConfig {
+  network: string
+  chainId: number
+  gas?: number | 'auto'
+  gasPrice?: number | 'auto'
+  url?: string
+}
+
+const networkConfigs: NetworkConfig[] = [
+  { network: 'mainnet', chainId: 1 },
+  { network: 'sepolia', chainId: 11155111 },
+  {
+    network: 'arbitrum-one',
+    chainId: 42161,
+    url: 'https://arb1.arbitrum.io/rpc',
+  },
+  {
+    network: 'arbitrum-sepolia',
+    chainId: 421614,
+    url: 'https://sepolia-rollup.arbitrum.io/rpcblock',
+  },
+]
+
+function getAccountMnemonic() {
+  return process.env.MNEMONIC || ''
+}
+
+function getAccountIndex() {
+  return process.env.ACCOUNT_INDEX ? parseInt(process.env.ACCOUNT_INDEX) : 0
+}
+
+function getDefaultProviderURL(network: string) {
+  return `https://${network}.infura.io/v3/${process.env.INFURA_KEY}`
+}
+
+function setupDefaultNetworkProviders(buidlerConfig) {
+  for (const netConfig of networkConfigs) {
+    buidlerConfig.networks[netConfig.network] = {
+      chainId: netConfig.chainId,
+      url: netConfig.url ? netConfig.url : getDefaultProviderURL(netConfig.network),
+      gas: netConfig.gasPrice || 'auto',
+      gasPrice: netConfig.gasPrice || 'auto',
+      accounts: {
+        mnemonic: getAccountMnemonic(),
+        path: "m/44'/60'/0'/0",
+        initialIndex: getAccountIndex(),
+      },
+    }
+  }
+}
+
+// Tasks
+
+task('accounts', 'Prints the list of accounts', async (_, bre) => {
+  const accounts = await bre.ethers.getSigners()
+  for (const account of accounts) {
+    console.log(await account.getAddress())
+  }
+})
+
+// Config
+const config: HardhatUserConfig = {
+  paths: {
+    sources: './contracts',
+    tests: './test',
+    artifacts: './artifacts',
+  },
+  solidity: {
+    compilers: [
+      {
+        version: '0.8.35',
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+          outputSelection: {
+            '*': {
+              '*': ['storageLayout'],
+            },
+          },
+        },
+      },
+    ],
+  },
+  defaultNetwork: 'hardhat',
+  networks: {
+    hardhat: {
+      chainId: 1337,
+      loggingEnabled: false,
+      gas: 1200000,
+      gasPrice: 'auto',
+      blockGasLimit: 12000000,
+      accounts: {
+        mnemonic: 'myth like bonus scare over problem client lizard pioneer submit female collect',
+      },
+      mining: {
+        auto: true,
+        interval: 0,
+      },
+    },
+    ganache: {
+      chainId: 1337,
+      url: 'http://localhost:8545',
+    },
+  },
+  etherscan: {
+    apiKey: {
+      mainnet: process.env.ETHERSCAN_API_KEY,
+      sepolia: process.env.ETHERSCAN_API_KEY,
+      arbitrumOne: process.env.ARBISCAN_API_KEY,
+      arbitrumSepolia: process.env.ARBISCAN_API_KEY,
+    },
+  },
+  gasReporter: {
+    enabled: process.env.REPORT_GAS ? true : false,
+    showTimeSpent: true,
+    currency: 'USD',
+    outputFile: 'reports/gas-report.log',
+  },
+  typechain: {
+    outDir: 'build/types',
+    target: 'ethers-v6',
+  },
+  abiExporter: {
+    path: './build/abis',
+    clear: false,
+    flat: true,
+  },
+  contractSizer: {
+    alphaSort: true,
+    runOnCompile: false,
+    disambiguatePaths: true,
+  },
+}
+
+setupDefaultNetworkProviders(config)
+
+export default config

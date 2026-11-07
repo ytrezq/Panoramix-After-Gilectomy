@@ -1,0 +1,136 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+pragma solidity ^0.8.24;
+
+import "forge-std/Test.sol";
+
+import { GroveBasin } from "src/GroveBasin.sol";
+
+import { IGroveBasinPocket }  from "src/interfaces/IGroveBasinPocket.sol";
+import { IGroveRateProvider } from "src/interfaces/IGroveRateProvider.sol";
+
+import { MockERC20 } from "erc20-helpers/MockERC20.sol";
+
+import { MockPocket }       from "test/mocks/MockPocket.sol";
+import { MockPSM }          from "test/mocks/MockPSM.sol";
+import { MockRateProvider } from "test/mocks/MockRateProvider.sol";
+
+contract GroveBasinTestBase is Test {
+
+    address public owner       = makeAddr("owner");
+    address public lp          = makeAddr("liquidityProvider");
+    address public groveProxy  = makeAddr("groveProxy");
+    address public pocket;
+
+    GroveBasin public groveBasin;
+
+    MockERC20 public swapToken;
+    MockERC20 public collateralToken;
+    MockERC20 public creditToken;
+    MockERC20 public usds;
+
+    MockPSM public psm;
+
+    IGroveRateProvider public swapTokenRateProvider;
+    IGroveRateProvider public collateralTokenRateProvider;
+    IGroveRateProvider public creditTokenRateProvider;
+
+    MockRateProvider public mockSwapTokenRateProvider;
+    MockRateProvider public mockCollateralTokenRateProvider;
+    MockRateProvider public mockCreditTokenRateProvider;
+
+    modifier assertAtomicGroveBasinValueDoesNotChange {
+        uint256 beforeValue = _getGroveBasinValue();
+        _;
+        assertEq(_getGroveBasinValue(), beforeValue);
+    }
+
+    // 1,000,000,000,000 of each token
+    uint256 public constant COLLATERAL_TOKEN_MAX = 1e30;
+    uint256 public constant CREDIT_TOKEN_MAX     = 1e30;
+    uint256 public constant SWAP_TOKEN_MAX  = 1e18;
+
+    function setUp() public virtual {
+        swapToken       = new MockERC20("swapToken",       "swapToken",       6);
+        collateralToken = new MockERC20("collateralToken", "collateralToken", 18);
+        creditToken     = new MockERC20("creditToken",     "creditToken",     18);
+        usds            = new MockERC20("usds",            "usds",            18);
+
+        mockSwapTokenRateProvider       = new MockRateProvider();
+        mockCollateralTokenRateProvider = new MockRateProvider();
+        mockCreditTokenRateProvider     = new MockRateProvider();
+
+        // Swap token (USDC) is priced at $1 by default
+        mockSwapTokenRateProvider.__setConversionRate(1e27);
+
+        // Collateral token is priced at $1 by default
+        mockCollateralTokenRateProvider.__setConversionRate(1e27);
+
+        // NOTE: Using 1.25 for easy two way conversions
+        mockCreditTokenRateProvider.__setConversionRate(1.25e27);
+
+        swapTokenRateProvider       = IGroveRateProvider(address(mockSwapTokenRateProvider));
+        collateralTokenRateProvider = IGroveRateProvider(address(mockCollateralTokenRateProvider));
+        creditTokenRateProvider     = IGroveRateProvider(address(mockCreditTokenRateProvider));
+
+        groveBasin = new GroveBasin(owner, lp, address(swapToken), address(collateralToken), address(creditToken), address(swapTokenRateProvider), address(collateralTokenRateProvider), address(creditTokenRateProvider));
+
+        psm = new MockPSM(address(usds), address(swapToken));
+        usds.mint(address(psm), type(uint128).max);
+        swapToken.mint(address(psm), type(uint128).max);
+
+        pocket = address(new MockPocket(
+            address(groveBasin),
+            address(swapToken),
+            address(usds),
+            address(psm)
+        ));
+
+        vm.startPrank(owner);
+        groveBasin.grantRole(groveBasin.MANAGER_ADMIN_ROLE(), owner);
+        groveBasin.grantRole(groveBasin.MANAGER_ROLE(),       owner);
+
+        groveBasin.setMaxSwapSizeBounds(0, 10_000_000_000_000_000e18);
+        groveBasin.setMaxSwapSize(10_000_000_000_000_000e18);
+
+        groveBasin.setPocket(pocket);
+        vm.stopPrank();
+
+        vm.label(address(swapToken),       "swapToken");
+        vm.label(address(collateralToken), "collateralToken");
+        vm.label(address(creditToken),     "creditToken");
+    }
+
+    function _pocketSwapBalance() internal view returns (uint256) {
+        return IGroveBasinPocket(pocket).availableBalance(address(swapToken));
+    }
+
+    function _getGroveBasinValue() internal view returns (uint256) {
+        return (creditToken.balanceOf(address(groveBasin)) * creditTokenRateProvider.getConversionRate() / 1e27)
+            + (_pocketSwapBalance() * swapTokenRateProvider.getConversionRate() / 1e15)
+            + (collateralToken.balanceOf(address(groveBasin)) * collateralTokenRateProvider.getConversionRate() / 1e27);
+    }
+
+    function _deposit(address asset, address user, uint256 amount) internal {
+        _deposit(asset, user, user, amount);
+    }
+
+    function _deposit(address asset, address user, address receiver, uint256 amount) internal {
+        address lp_ = groveBasin.liquidityProvider();
+        vm.startPrank(lp_);
+        MockERC20(asset).mint(lp_, amount);
+        MockERC20(asset).approve(address(groveBasin), amount);
+        groveBasin.deposit(asset, receiver, amount);
+        vm.stopPrank();
+    }
+
+    function _withdraw(address asset, address user, uint256 amount) internal {
+        _withdraw(asset, user, user, amount);
+    }
+
+    function _withdraw(address asset, address user, address receiver, uint256 amount) internal {
+        vm.prank(user);
+        groveBasin.withdraw(asset, receiver, amount);
+        vm.stopPrank();
+    }
+
+}

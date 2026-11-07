@@ -1,0 +1,204 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+pragma solidity ^0.8.34;
+
+import { RateLimits, IRateLimits } from "../../../src/RateLimits.sol";
+
+import {
+    makeAddressAddressAddressAddressKey as makeAddressAddressAddressAddressKeyImplementation,
+    makeAddressAddressAddressKey as makeAddressAddressAddressKeyImplementation,
+    makeAddressAddressBytes32Uint32Key as makeAddressAddressBytes32Uint32KeyImplementation,
+    makeAddressAddressKey as makeAddressAddressKeyImplementation,
+    makeAddressAddressUint32Key as makeAddressAddressUint32KeyImplementation,
+    makeAddressBytes32Key as makeAddressBytes32KeyImplementation,
+    makeAddressKey as makeAddressKeyImplementation,
+    makeAddressUint16AddressKey as makeAddressUint16AddressKeyImplementation,
+    makeAddressUint16Key as makeAddressUint16KeyImplementation,
+    makeAddressUint256AddressUint16AddressKey as makeAddressUint256AddressUint16AddressKeyImplementation,
+    makeAddressUint256Key as makeAddressUint256KeyImplementation,
+    makeBytes32Key as makeBytes32KeyImplementation,
+    makeUint32Key as makeUint32KeyImplementation
+} from "../../../src/libraries/RateLimitHelpers.sol";
+
+import { UnitTestBase } from "../UnitTestBase.t.sol";
+
+contract RateLimitHelpersHarness {
+
+    function makeAddressKey(bytes32 key, address arg) public pure returns (bytes32) {
+        return makeAddressKeyImplementation(key, arg);
+    }
+
+    function makeAddressAddressKey(bytes32 key, address arg1, address arg2) public pure returns (bytes32) {
+        return makeAddressAddressKeyImplementation(key, arg1, arg2);
+    }
+
+    function makeAddressAddressAddressKey(bytes32 key, address arg1, address arg2, address arg3) public pure returns (bytes32) {
+        return makeAddressAddressAddressKeyImplementation(key, arg1, arg2, arg3);
+    }
+
+    function makeAddressAddressAddressAddressKey(bytes32 key, address arg1, address arg2, address arg3, address arg4) public pure returns (bytes32) {
+        return makeAddressAddressAddressAddressKeyImplementation(key, arg1, arg2, arg3, arg4);
+    }
+
+    function makeAddressBytes32Key(bytes32 key, address arg1, bytes32 arg2) public pure returns (bytes32) {
+        return makeAddressBytes32KeyImplementation(key, arg1, arg2);
+    }
+
+    function makeAddressUint16Key(bytes32 key, address arg1, uint16 arg2) public pure returns (bytes32) {
+        return makeAddressUint16KeyImplementation(key, arg1, arg2);
+    }
+
+    function makeAddressUint16AddressKey(bytes32 key, address arg1, uint16 arg2, address arg3) public pure returns (bytes32) {
+        return makeAddressUint16AddressKeyImplementation(key, arg1, arg2, arg3);
+    }
+
+    function makeAddressUint256Key(bytes32 key, address arg1, uint256 arg2) public pure returns (bytes32) {
+        return makeAddressUint256KeyImplementation(key, arg1, arg2);
+    }
+
+    function makeAddressUint256AddressUint16AddressKey(bytes32 key, address arg1, uint256 arg2, address arg3, uint16 arg4, address arg5) public pure returns (bytes32) {
+        return makeAddressUint256AddressUint16AddressKeyImplementation(key, arg1, arg2, arg3, arg4, arg5);
+    }
+
+    function makeAddressAddressUint32Key(bytes32 key, address arg1, address arg2, uint32 arg3) public pure returns (bytes32) {
+        return makeAddressAddressUint32KeyImplementation(key, arg1, arg2, arg3);
+    }
+
+    function makeAddressAddressBytes32Uint32Key(bytes32 key, address arg1, address arg2, bytes32 arg3, uint32 arg4) public pure returns (bytes32) {
+        return makeAddressAddressBytes32Uint32KeyImplementation(key, arg1, arg2, arg3, arg4);
+    }
+
+    function makeBytes32Key(bytes32 key, bytes32 arg) public pure returns (bytes32) {
+        return makeBytes32KeyImplementation(key, arg);
+    }
+
+    function makeUint32Key(bytes32 key, uint32 arg) public pure returns (bytes32) {
+        return makeUint32KeyImplementation(key, arg);
+    }
+
+}
+
+contract RateLimitHelpers_Tests is UnitTestBase {
+
+    bytes32 internal constant KEY  = "KEY";
+    string  internal constant NAME = "NAME";
+
+    address internal controller = makeAddr("controller");
+
+    RateLimits              internal rateLimits;
+    RateLimitHelpersHarness internal wrapper;
+
+    function setUp() public {
+        // Set wrapper as admin so it can set rate limits
+        wrapper    = new RateLimitHelpersHarness();
+        rateLimits = new RateLimits(address(wrapper));
+    }
+
+    function _assertLimitData(
+        bytes32 key,
+        uint256 maxAmount,
+        uint256 slope,
+        uint256 lastAmount,
+        uint256 lastUpdated
+    )
+        internal view
+    {
+        IRateLimits.RateLimitData memory d = rateLimits.getRateLimitData(key);
+
+        assertEq(d.maxAmount,   maxAmount);
+        assertEq(d.slope,       slope);
+        assertEq(d.lastAmount,  lastAmount);
+        assertEq(d.lastUpdated, lastUpdated);
+    }
+
+    function test_makeAddressKey() external {
+        assertEq(
+            wrapper.makeAddressKey(KEY, makeAddr("arg")),
+            keccak256(abi.encode(KEY, makeAddr("arg")))
+        );
+    }
+
+    function test_makeAddressAddressKey() external {
+        assertEq(
+            wrapper.makeAddressAddressKey(KEY, makeAddr("arg1"), makeAddr("arg2")),
+            keccak256(abi.encode(KEY, makeAddr("arg1"), makeAddr("arg2")))
+        );
+    }
+
+    function test_makeAddressAddressAddressKey() external {
+        assertEq(
+            wrapper.makeAddressAddressAddressKey(KEY, makeAddr("arg1"), makeAddr("arg2"), makeAddr("arg3")),
+            keccak256(abi.encode(KEY, makeAddr("arg1"), makeAddr("arg2"), makeAddr("arg3")))
+        );
+    }
+
+    function test_makeAddressAddressAddressAddressKey() external {
+        assertEq(
+            wrapper.makeAddressAddressAddressAddressKey(KEY, makeAddr("arg1"), makeAddr("arg2"), makeAddr("arg3"), makeAddr("arg4")),
+            keccak256(abi.encode(KEY, makeAddr("arg1"), makeAddr("arg2"), makeAddr("arg3"), makeAddr("arg4")))
+        );
+    }
+
+    function test_makeAddressBytes32Key() external {
+        assertEq(
+            wrapper.makeAddressBytes32Key(KEY, makeAddr("arg1"), bytes32(type(uint256).max)),
+            keccak256(abi.encode(KEY, makeAddr("arg1"), bytes32(type(uint256).max)))
+        );
+    }
+
+    function test_makeAddressUint16Key() external {
+        assertEq(
+            wrapper.makeAddressUint16Key(KEY, makeAddr("arg1"), type(uint16).max),
+            keccak256(abi.encode(KEY, makeAddr("arg1"), uint16(type(uint16).max)))
+        );
+    }
+
+    function test_makeAddressUint16AddressKey() external {
+        assertEq(
+            wrapper.makeAddressUint16AddressKey(KEY, makeAddr("arg1"), type(uint16).max, makeAddr("arg3")),
+            keccak256(abi.encode(KEY, makeAddr("arg1"), uint16(type(uint16).max), makeAddr("arg3")))
+        );
+    }
+
+    function test_makeAddressUint256Key() external {
+        assertEq(
+            wrapper.makeAddressUint256Key(KEY, makeAddr("arg1"), type(uint256).max),
+            keccak256(abi.encode(KEY, makeAddr("arg1"), type(uint256).max))
+        );
+    }
+
+    function test_makeAddressUint256AddressUint16AddressKey() external {
+        assertEq(
+            wrapper.makeAddressUint256AddressUint16AddressKey(KEY, makeAddr("arg1"), type(uint256).max, makeAddr("arg3"), type(uint16).max, makeAddr("arg5")),
+            keccak256(abi.encode(KEY, makeAddr("arg1"), type(uint256).max, makeAddr("arg3"), uint16(type(uint16).max), makeAddr("arg5")))
+        );
+    }
+
+    function test_makeAddressAddressUint32Key() external {
+        assertEq(
+            wrapper.makeAddressAddressUint32Key(KEY, makeAddr("arg1"), makeAddr("arg2"), type(uint32).max),
+            keccak256(abi.encode(KEY, makeAddr("arg1"), makeAddr("arg2"), uint32(type(uint32).max)))
+        );
+    }
+
+    function test_makeAddressAddressBytes32Uint32Key() external {
+        assertEq(
+            wrapper.makeAddressAddressBytes32Uint32Key(KEY, makeAddr("arg1"), makeAddr("arg2"), bytes32(type(uint256).max), type(uint32).max),
+            keccak256(abi.encode(KEY, makeAddr("arg1"), makeAddr("arg2"), bytes32(type(uint256).max), uint32(type(uint32).max)))
+        );
+    }
+
+    function test_makeBytes32Key() external view {
+        assertEq(
+            wrapper.makeBytes32Key(KEY, bytes32(type(uint256).max)),
+            keccak256(abi.encode(KEY, bytes32(type(uint256).max)))
+        );
+    }
+
+    function test_makeUint32Key() external view {
+        assertEq(
+            wrapper.makeUint32Key(KEY, type(uint32).max),
+            keccak256(abi.encode(KEY, type(uint32).max))
+        );
+    }
+
+}

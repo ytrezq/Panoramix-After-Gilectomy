@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.23;
+
+import {Test} from "forge-std/Test.sol";
+
+import {IVersion} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IVersion.sol";
+import {ILPPriceFeed} from "../../interfaces/ILPPriceFeed.sol";
+import {ZeroAddressException} from "@gearbox-protocol/core-v3/contracts/interfaces/IExceptions.sol";
+
+import {ERC20Mock} from "@gearbox-protocol/core-v3/contracts/test/mocks/token/ERC20Mock.sol";
+
+import {LPPriceFeedHarness} from "./LPPriceFeed.harness.sol";
+
+/// @title LP price feed unit test
+/// @notice U:[LPPF]: Unit tests for LP price feed
+contract LPPriceFeedUnitTest is Test {
+    LPPriceFeedHarness priceFeed;
+
+    address owner;
+
+    ERC20Mock lpToken;
+    address lpContract;
+
+    function setUp() public {
+        owner = makeAddr("OWNER");
+
+        lpToken = new ERC20Mock("Test Token", "TEST", 18);
+
+        lpContract = makeAddr("LP_CONTRACT");
+
+        priceFeed = new LPPriceFeedHarness(owner, address(lpToken), lpContract);
+    }
+
+    /// @notice U:[LPPF-1]: Constructor works as expected
+    function test_U_LPPF_01_constructor_works_as_expected() public {
+        vm.expectRevert(ZeroAddressException.selector);
+        new LPPriceFeedHarness(owner, address(0), lpContract);
+
+        vm.expectRevert(ZeroAddressException.selector);
+        new LPPriceFeedHarness(owner, address(lpToken), address(0));
+
+        assertEq(priceFeed.lpToken(), address(lpToken), "Incorrect lpToken");
+        assertEq(priceFeed.lpContract(), address(lpContract), "Incorrect lpContract");
+    }
+
+    /// @notice U:[LPPF-2]: Price feed has correct metadata
+    function test_U_LPPF_02_price_feed_has_correct_metadata() public view {
+        assertEq(priceFeed.decimals(), 8, "Incorrect decimals");
+        assertEq(priceFeed.description(), "TEST / USD LP price feed", "Incorrect description");
+        assertTrue(priceFeed.skipPriceCheck(), "Incorrect skipPriceCheck");
+    }
+
+    /// @notice U:[LPPF-3]: `latestRoundData` works as expected
+    function test_U_LPPF_03_latestRoundData_works_as_expected() public {
+        priceFeed.hackLowerBound(1 ether);
+        priceFeed.hackAggregatePriceAndTimestamp(2e8, block.timestamp - 10);
+        priceFeed.hackScale(1 ether);
+
+        // reverts if exchange rate below lower bound
+        priceFeed.hackLPExchangeRate(1 ether - 1);
+        vm.expectRevert(ILPPriceFeed.ExchangeRateOutOfBoundsException.selector);
+        priceFeed.latestRoundData();
+
+        // computes normally if exchange rate within bounds
+        priceFeed.hackLPExchangeRate(1.01 ether);
+        (, int256 answer,, uint256 updatedAt,) = priceFeed.latestRoundData();
+        assertEq(answer, 2.02e8, "Incorrect answer (exchange rate within bounds)");
+        assertEq(updatedAt, block.timestamp - 10, "Incorrect update timestamp (exchange rate within bounds)");
+
+        // limits if exchange rate above upper bound
+        priceFeed.hackLPExchangeRate(2 ether);
+        (, answer,, updatedAt,) = priceFeed.latestRoundData();
+        assertEq(answer, 2.04e8, "Incorrect answer (exchange rate above upper bound)");
+        assertEq(updatedAt, block.timestamp - 10, "Incorrect update timestamp (exchange rate above upper bound)");
+    }
+
+    /// @notice U:[LPPF-4]: `upperBound` works as expected
+    function test_U_LPPF_04_upperBound_works_as_expected() public {
+        uint256[3] memory lowerBounds = [uint256(0), 100, 1 ether];
+        uint256[3] memory expectedUpperBounds = [uint256(0), 102, 1.02 ether];
+        for (uint256 i; i < lowerBounds.length; ++i) {
+            priceFeed.hackLowerBound(lowerBounds[i]);
+            assertEq(priceFeed.upperBound(), expectedUpperBounds[i], "Incorrect upperBound");
+        }
+    }
+
+    /// @notice U:[LPPF-6]: `setLimiter` works as expected
+    function test_U_LPPF_06_setLimiter_works_as_expected() public {
+        priceFeed.hackLPExchangeRate(1 ether);
+
+        // reverts if caller is not owner
+        vm.expectRevert("Ownable: caller is not the owner");
+        priceFeed.setLimiter(0);
+
+        vm.startPrank(owner);
+
+        // reverts if lower bound is zero
+        vm.expectRevert(ILPPriceFeed.LowerBoundCantBeZeroException.selector);
+        priceFeed.setLimiter(0);
+
+        // reverts if new bounds don't contain current exchange rate
+        vm.expectRevert(ILPPriceFeed.ExchangeRateOutOfBoundsException.selector);
+        priceFeed.setLimiter(0.5 ether);
+        vm.expectRevert(ILPPriceFeed.ExchangeRateOutOfBoundsException.selector);
+        priceFeed.setLimiter(2 ether);
+
+        // works as expected otherwise
+        vm.expectEmit(false, false, false, true);
+        emit ILPPriceFeed.SetBounds(0.99 ether, 1.0098 ether);
+        priceFeed.setLimiter(0.99 ether);
+
+        vm.stopPrank();
+    }
+}

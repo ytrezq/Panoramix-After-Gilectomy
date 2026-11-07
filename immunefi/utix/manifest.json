@@ -1,0 +1,41 @@
+{
+ "program": "utix",
+ "repos": [
+  {
+   "repo": "https://github.com/poanetwork/ico",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "POA Network token-wizard contracts, holding MintedTokenCappedCrowdsaleExt.sol (the scope contract's name)",
+   "commit": "3b46c44fa39e1f35c20df9e1325b83fab76a75d0",
+   "submodules": [
+    {
+     "path": "oracles-zeppelin",
+     "url": "https://github.com/oraclesorg/zeppelin-solidity",
+     "commit": "8f27a512cee1c1a08431d7602dac100e992f871d"
+    }
+   ],
+   "license": {
+    "file": "LICENSE.txt",
+    "spdx": "Apache-2.0",
+    "package_json": "ISC",
+    "headers": {
+     "(none)": 50
+    },
+    "headers_main": {
+     "(none)": 47
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 50
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "poanetwork__ico",
+   "files": 125,
+   "bytes": 227559,
+   "skipped_large": 0
+  }
+ ]
+}

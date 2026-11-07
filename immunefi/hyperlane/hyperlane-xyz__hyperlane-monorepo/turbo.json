@@ -1,0 +1,51 @@
+{
+  "ui": "stream",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "cache/**", "src/generated/**"]
+    },
+    "build:zk": {
+      "dependsOn": ["build"],
+      "outputs": ["dist/**", "artifacts-zk/**", "cache-zk/**"]
+    },
+    "build:tron": {
+      "dependsOn": ["build"],
+      "outputs": [
+        "cache-tron/**",
+        "artifacts-tron/**",
+        "dist/tron/typechain/**"
+      ]
+    },
+    "test:ci": {
+      "dependsOn": ["build", "^test:ci"]
+    },
+    "test": {
+      "dependsOn": ["build"]
+    },
+    "clean": {
+      "cache": false
+    },
+    "format": {},
+    "check": {
+      "dependsOn": ["^build"]
+    },
+    "version:update": {
+      "cache": false
+    },
+    "coverage": {
+      "dependsOn": ["build"],
+      "outputs": ["coverage/**", "fixtures/**"]
+    },
+    "bundle": {
+      "dependsOn": ["build"],
+      "env": ["RUNNER_OS", "RUNNER_ARCH"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/ncc.post-bundle.mjs",
+        "$TURBO_ROOT$/.nvmrc"
+      ],
+      "outputs": ["bundle/**"]
+    }
+  }
+}

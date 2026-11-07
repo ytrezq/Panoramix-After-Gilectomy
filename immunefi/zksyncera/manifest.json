@@ -1,0 +1,370 @@
+{
+ "program": "zksyncera",
+ "repos": [
+  {
+   "repo": "https://github.com/matter-labs/era-contracts",
+   "ref": "7b75e11e631936f8bd93ec7c03e7e4f4ac63f6b4",
+   "scope_paths": [
+    "l1-contracts",
+    "system-contracts",
+    "da-contracts"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "7b75e11e631936f8bd93ec7c03e7e4f4ac63f6b4",
+   "submodules": [
+    {
+     "path": "lib/murky",
+     "url": "https://github.com/dmfxyz/murky",
+     "commit": "5feccd1253d7da820f7cccccdedf64471025455d"
+    },
+    {
+     "path": "lib/murky/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "cb2aaaa04a292887c49839cd958b08a83979d746"
+    },
+    {
+     "path": "lib/murky/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/murky/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/murky/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/murky/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e4aef94c1768803a16fe19f7ce8b65defd027cfd"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable-v4",
+     "url": "https://github.com/Openzeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "2d081f24cac1a867f6f73d512f2022e1fa987854"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable-v4/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable-v4/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable-v4/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-v4",
+     "url": "https://github.com/Openzeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-v4/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-v4/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-v4/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
+    },
+    {
+     "path": "lib/@matterlabs/zksync-contracts",
+     "url": "https://github.com/matter-labs/zksync-contracts",
+     "commit": "e554ae64ec150c47d6f17786e7f4aacebc7bf945"
+    },
+    {
+     "path": "lib/@matterlabs/zksync-contracts/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527"
+    },
+    {
+     "path": "lib/@matterlabs/zksync-contracts/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
+    },
+    {
+     "path": "lib/@matterlabs/zksync-contracts/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/@matterlabs/zksync-contracts/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/@matterlabs/zksync-contracts/lib/openzeppelin-contracts-v4",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "bd325d56b4c62c9c5c1aff048c37c6bb18ac0290"
+    },
+    {
+     "path": "lib/@matterlabs/zksync-contracts/lib/openzeppelin-contracts-v4/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@matterlabs/zksync-contracts/lib/openzeppelin-contracts-v4/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@matterlabs/zksync-contracts/lib/openzeppelin-contracts-v4/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    }
+   ],
+   "license": {
+    "file": "LICENSE-MIT",
+    "spdx": "MIT",
+    "package_json": null,
+    "headers": {
+     "MIT": 976,
+     "(none)": 13,
+     "Apache-2.0": 9,
+     "UNLICENSED": 5
+    },
+    "headers_main": {
+     "MIT": 469,
+     "Apache-2.0": 9,
+     "UNLICENSED": 4,
+     "(none)": 7
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 978,
+    ".yul": 25
+   },
+   "npm": {
+    "gas-bound-caller/node_modules/@matterlabs/zksync-contracts": "0.6.2",
+    "gas-bound-caller/node_modules/@openzeppelin/contracts": "4.9.6",
+    "gas-bound-caller/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6"
+   },
+   "symlinks": 12,
+   "copied": true,
+   "dest": "matter-labs__era-contracts",
+   "files": 3658,
+   "bytes": 20781658,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/zksync-association/zk-governance",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "58df93fc38a0d439c9d2dff4563779251f1c0b64",
+   "submodules": [
+    {
+     "path": "l2-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1d0766bc5d814f117c7b1e643828f7d85024fb51"
+    },
+    {
+     "path": "l2-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "l2-contracts/lib/murky",
+     "url": "https://github.com/dmfxyz/murky",
+     "commit": "40de6e80117f39cda69d71b07b7c824adac91b29"
+    },
+    {
+     "path": "l2-contracts/lib/murky/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "cb14ea3c5c72151f254ec79866793ddf65f4c727"
+    },
+    {
+     "path": "l2-contracts/lib/murky/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "76e89e592ac58df4f0d16202ee230bbf0b8098fc"
+    },
+    {
+     "path": "l2-contracts/lib/murky/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "l2-contracts/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "2d081f24cac1a867f6f73d512f2022e1fa987854"
+    },
+    {
+     "path": "l2-contracts/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "l2-contracts/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "l2-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "l2-contracts/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "l2-contracts/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "l2-contracts/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "l2-contracts/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "l2-contracts/lib/flexible-voting",
+     "url": "https://github.com/ScopeLift/flexible-voting",
+     "commit": "d71c4e02256d4ef6c9067b947d398753402afdd2"
+    },
+    {
+     "path": "l2-contracts/lib/flexible-voting/lib/solmate",
+     "url": "https://github.com/rari-capital/solmate",
+     "commit": "8d910d876f51c3b2585c9109409d601f600e68e1"
+    },
+    {
+     "path": "l2-contracts/lib/flexible-voting/lib/solmate/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    },
+    {
+     "path": "l2-contracts/lib/flexible-voting/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "5bafa16b4a6aa67c503d96294be846a22a6f6efb"
+    },
+    {
+     "path": "l2-contracts/lib/flexible-voting/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "l2-contracts/lib/flexible-voting/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "fd81a96f01cc42ef1c9a5399364968d0e07e9e90"
+    },
+    {
+     "path": "l2-contracts/lib/flexible-voting/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "l2-contracts/lib/flexible-voting/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "l2-contracts/lib/flexible-voting/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "l1-contracts/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "fbdb824a735891908d5588b28e0da5852d7ed7ba"
+    },
+    {
+     "path": "l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "01ef448981be9d20ca85f2faf6ebdf591ce409f3"
+    },
+    {
+     "path": "l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    }
+   ],
+   "license": {
+    "file": "LICENSE-MIT",
+    "spdx": "MIT",
+    "package_json": null,
+    "headers": {
+     "MIT": 384,
+     "GPL-3.0-or-later": 2,
+     "AGPL-3.0": 2,
+     "BSD-3-Clause": 1
+    },
+    "headers_main": {
+     "MIT": 219,
+     "GPL-3.0-or-later": 2,
+     "AGPL-3.0": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 389
+   },
+   "npm": {
+    "l1-contracts/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6"
+   },
+   "workspace_links": {
+    "l1-contracts/lib/openzeppelin-contracts/lib/forge-std/node_modules/ds-test": "l1-contracts/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+    "l1-contracts/lib/openzeppelin-contracts/node_modules/forge-std": "l1-contracts/lib/forge-std",
+    "l1-contracts/node_modules/@openzeppelin/contracts": "l1-contracts/lib/openzeppelin-contracts/contracts",
+    "l1-contracts/node_modules/forge-std": "l1-contracts/lib/forge-std",
+    "l2-contracts/node_modules/forge-std": "l1-contracts/lib/forge-std"
+   },
+   "copied": true,
+   "dest": "zksync-association__zk-governance",
+   "files": 2807,
+   "bytes": 13679525,
+   "skipped_large": 0
+  }
+ ]
+}

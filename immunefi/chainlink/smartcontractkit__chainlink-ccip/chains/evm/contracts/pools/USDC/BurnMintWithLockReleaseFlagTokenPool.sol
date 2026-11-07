@@ -1,0 +1,77 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity ^0.8.24;
+
+import {IBurnMintERC20} from "../../interfaces/IBurnMintERC20.sol";
+import {IPoolV1} from "../../interfaces/IPool.sol";
+import {IPoolV2} from "../../interfaces/IPoolV2.sol";
+
+import {Pool} from "../../libraries/Pool.sol";
+import {USDCSourcePoolDataCodec} from "../../libraries/USDCSourcePoolDataCodec.sol";
+import {BurnMintTokenPool} from "../BurnMintTokenPool.sol";
+
+/// @notice A standard BurnMintTokenPool with modified destPoolData so that the remote pool knows to release tokens
+/// instead of minting. This enables interoperability with HybridLockReleaseUSDCTokenPool which uses
+// the destPoolData to determine whether to mint or release tokens.
+/// @dev The only difference between this contract and BurnMintTokenPool is the destPoolData returns the
+/// abi-encoded LOCK_RELEASE_FLAG instead of the local token decimals.
+contract BurnMintWithLockReleaseFlagTokenPool is BurnMintTokenPool {
+  /// @dev Using a function because constant state variables cannot be overridden by child contracts.
+  function typeAndVersion() external pure override returns (string memory) {
+    return "BurnMintWithLockReleaseFlagTokenPool 2.0.0";
+  }
+
+  constructor(
+    IBurnMintERC20 token,
+    uint8 localTokenDecimals,
+    address advancedPoolHooks,
+    address rmnProxy,
+    address router
+  ) BurnMintTokenPool(token, localTokenDecimals, advancedPoolHooks, rmnProxy, router) {}
+
+  /// @dev Performs the exact same functionality as BurnMintTokenPool, but returns the LOCK_RELEASE_FLAG
+  /// as the destPoolData to signal to the remote pool to release tokens instead of minting them.
+  /// @inheritdoc IPoolV1
+  function lockOrBurn(
+    Pool.LockOrBurnInV1 calldata lockOrBurnIn
+  ) public override returns (Pool.LockOrBurnOutV1 memory out) {
+    out = super.lockOrBurn(lockOrBurnIn);
+    out.destPoolData = abi.encode(USDCSourcePoolDataCodec.LOCK_RELEASE_FLAG);
+    return out;
+  }
+
+  /// @dev Performs the exact same functionality as BurnMintTokenPool, but returns the LOCK_RELEASE_FLAG
+  /// as the destPoolData to signal to the remote pool to release tokens instead of minting them.
+  /// @inheritdoc IPoolV2
+  function lockOrBurn(
+    Pool.LockOrBurnInV1 calldata lockOrBurnIn,
+    bytes4 requestedFinalityConfig,
+    bytes calldata tokenArgs
+  ) public override returns (Pool.LockOrBurnOutV1 memory out, uint256 destTokenAmount) {
+    (out, destTokenAmount) = super.lockOrBurn(lockOrBurnIn, requestedFinalityConfig, tokenArgs);
+    out.destPoolData = abi.encode(USDCSourcePoolDataCodec.LOCK_RELEASE_FLAG);
+    return (out, destTokenAmount);
+  }
+
+  /// @inheritdoc IPoolV2
+  function releaseOrMint(
+    Pool.ReleaseOrMintInV1 calldata releaseOrMintIn,
+    bytes4 requestedFinalityConfig
+  ) public virtual override returns (Pool.ReleaseOrMintOutV1 memory) {
+    // Since USDC is 6 decimals on all chains, we don't need to convert to a different denomination.
+    _validateReleaseOrMint(releaseOrMintIn, releaseOrMintIn.sourceDenominatedAmount, requestedFinalityConfig);
+
+    _releaseOrMint(
+      releaseOrMintIn.receiver, releaseOrMintIn.sourceDenominatedAmount, releaseOrMintIn.remoteChainSelector
+    );
+
+    emit ReleasedOrMinted({
+      remoteChainSelector: releaseOrMintIn.remoteChainSelector,
+      token: address(i_token),
+      sender: msg.sender,
+      recipient: releaseOrMintIn.receiver,
+      amount: releaseOrMintIn.sourceDenominatedAmount
+    });
+
+    return Pool.ReleaseOrMintOutV1({destinationAmount: releaseOrMintIn.sourceDenominatedAmount});
+  }
+}

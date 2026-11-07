@@ -1,0 +1,52 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["pull:env", "^build"],
+      "outputs": [".next/**", "!.next/cache/**"],
+      "env": [
+        "VERCEL_ENV",
+        "GOOGLE_ANALYTICS_ID",
+        "AMPLITUDE_API_KEY",
+        "CLICKHOUSE_URL",
+        "CLICKHOUSE_USERNAME",
+        "CLICKHOUSE_PASSWORD",
+        "SOLANA_RPC",
+        "DISABLE_ACCESSIBILITY_REPORTING"
+      ]
+    },
+    "fix:lint": {
+      "dependsOn": ["fix:lint:eslint", "fix:lint:stylelint"],
+      "cache": false
+    },
+    "fix:lint:eslint": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "fix:lint:stylelint": {
+      "cache": false
+    },
+    "pull:env": {
+      "outputs": [".env.local"],
+      "cache": false
+    },
+    "start:dev": {
+      "dependsOn": ["pull:env"],
+      "persistent": true,
+      "cache": false
+    },
+    "start:prod": {
+      "dependsOn": ["build"],
+      "persistent": true,
+      "cache": false
+    },
+    "test:lint": {
+      "dependsOn": ["test:lint:eslint", "test:lint:stylelint"]
+    },
+    "test:lint:eslint": {
+      "dependsOn": ["^build"]
+    },
+    "test:lint:stylelint": {}
+  }
+}

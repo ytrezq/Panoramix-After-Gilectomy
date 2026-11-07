@@ -1,0 +1,509 @@
+:toc: macro
+:icons: font
+
+= Keep Random Beacon v2
+
+https://github.com/threshold-network/keep-core/actions/workflows/contracts-random-beacon.yml[image:https://img.shields.io/github/actions/workflow/status/threshold-network/keep-core/contracts-random-beacon.yml?branch=main&event=push&label=Random%20Beacon%20contracts%20build[Random Beacon contracts build status]]
+
+The Keep Network requires a trusted source of randomness for the process of
+trustless group selection. While the network requires that randomness to function
+correctly, the source of randomness is itself broadly applicable. This trusted
+source of randomness takes the form of a BLS Threshold Relay.
+
+ifdef::env-github[]
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+endif::[]
+
+toc::[]
+
+== Overview
+
+The threshold relay is a way of generating verifiable randomness that is
+resistant to bad actors both in the relay network and on the anchoring Ethereum
+blockchain. The basic functioning of the relay is:
+
+- Some number of groups exist in the relay.
+- An arbitrary seed value `v_s` counts as the first entry in the relay.
+- A request `r_i` is dispatched to the chain for a new entry.
+- The previous entry `v_s` is used to choose a group to produce the response to
+  the request.
+- `v_s` is signed by at least a subset of the chosen group members, and the
+  resulting signature is the entry generated in response to the request. It is
+  published to the anchoring blockchain as the entry `v_i`.
+- The new entry `v_i` may trigger the formation of a new group from the set of
+  all members in the relay.
+- A group expires after a certain amount of time.
+
+== Prior Work
+
+Smart contracts for the first version of the random beacon are available in
+link:https://github.com/threshold-network/keep-core-v1/tree/main/solidity[the `keep-core-v1` repository].
+The new version uses the same approach for BLS signatures as v1 but replaces
+ticket-based group selection with an optimistic sortition pool call. It also
+redesigns staker rewards and offers a more operator-friendly approach for
+relay entry timeouts. Last but not least, most parameters for the relay are
+now governable. 
+
+== The Mechanism
+
+=== Group Creation
+
+New groups are created with a fixed frequency of relay requests.
+Instead of a v1 ticket-based approach for a signing group selection, we use
+a sortition pool. Group creation start transaction is embedded into relay request
+transaction and locks a sortition pool. From this moment, no operator can enter
+or leave the pool. Once a new relay entry appears on the chain, all off-chain
+clients perform group selection by calling `RandomBeacon.selectGroup()` view
+function for free. After determining group members, clients should perform
+off-chain distributed key generation (DKG).
+<<operator-only,One of the group members>> submits the result to the chain calling
+`RandomBeacon.submitDkgResult(DKG.Result calldata dkgResult)` function.
+Once the result is submitted, a challenge period starts.
+
+During the challenge period, anyone can notify that the submitted DKG result is
+malicious by calling `RandomBeacon.challengeDkgResult(DKG.Result calldata dkgResult)`
+function. A malicious DKG result may contain corrupted data, group members not
+selected by the pool, or incorrect supporting signatures. If such malicious
+result is submitted and successfully challenged, the result submitter gets
+slashed and the malicious result is immediately discarded. The address which
+notified about malicious DKG result is <<punishment,rewarded>>. DKG timeout
+timer is reset, and group members have another chance to submit a valid result.
+
+Once the challenge period passes, and no valid challenge is reported, the DKG
+result submitter should mark the DKG result as approved calling
+`RandomBeacon.approveDkgResult(DKG.Result calldata dkgResult)`.
+This transaction also unlocks the sortition pool.
+The submitter receives an ETH reimbursement for both `submitDkgResult` and
+`approveDkgResult` transactions as described in
+<<transaction-incentives,Transaction Incentives>> section. In case the original
+submitter does not call the `approveDkgResult` function within a specific number
+of blocks, anyone can do that and receive the submitter's reimbursement.
+
+There is a timeout before which a DKG result should be submitted.
+In case the DKG result was not submitted before the timeout, anyone can 
+notify about the timed out DKG by calling `RandomBeacon.notifyDkgTimeout()`
+function and unlock the sortition pool as part of this transaction. 
+DKG timeout includes the situation when no new relay entry was produced
+and sortition could not be performed.
+
+Off-chain clients are expected to follow the <<operator-only,submission order>>
+when submitting DKG result to avoid front-running and minimize the cost, but no
+ordering is enforced on-chain.
+
+The sortition pool weights operators by their authorized stake amount and allows
+selecting the same operator to the wallet signing group multiple times.
+Off-chain DKG protocol executes in the same way as for v1 and
+inactive/disqualified members during the off-chain protocol are marked as
+ineligible for <<rewards,rewards>> for a governable period of time when the DKG
+result is approved.
+
+Each group created in the system remains active for a certain period
+of time. A group that expired is no longer selected for any new work. Group
+expiration is performed in the relay request transaction.
+
+=== Relay Request and Relay Entry
+
+Authorized addresses can request a new relay entry (random number) by calling
+`RandomBeacon.requestRelayEntry(IRandomBeaconConsumer callbackContract)`
+function and providing an optional callback parameter.
+
+In `requestRelayEntry` transaction, groups that reached their maximum lifetime
+are getting expired and one of the remaining active groups is tasked with
+producing a new relay entry. The off-chain clients are expected to monitor the
+`RelayEntryRequested` event. If a client is a part of a picked group they should
+start the off-chain protocol to sign the previous relay entry producing a new one.
+
+Off-chain clients are expected to follow the <<operator-only,submission order>>
+when submitting relay entry to avoid front-running and minimize the cost, but no
+ordering is enforced on-chain. New relay entry should be submitted using 
+`RandomBeacon.submitRelayEntry(bytes calldata entry)` function.
+
+=== Callbacks
+
+Random Beacon supports simple, low-gas-budget callbacks from a relay entry
+submit transaction.
+
+When requesting a relay entry, it is possible to pass an optional address
+parameter - this is the address of a contract implementing
+`IRandomBeaconConsumer` interface that should be called when a new relay entry
+is submitted to the chain.
+
+Smart contract consuming new relay entry needs to implement `IRandomBeaconConsumer`
+interface. The gas limit for `__beaconCallback` is initially set to 56k gas
+which is enough to `SSTORE` new relay entry, `SSTORE` block height in which the entry was submitted, and to emit an event.
+Failure in the callback function does not revert the relay entry transaction.
+
+```solidity
+interface IRandomBeaconConsumer {
+    /// @notice Receives relay entry produced by Keep Random Beacon. This function
+    /// should be called only by Keep Random Beacon.
+    ///
+    /// @param relayEntry Relay entry (random number) produced by Keep Random
+    ///                   Beacon.
+    /// @param blockNumber Block number at which the relay entry was submitted
+    ///                    to the chain.
+    function __beaconCallback(uint256 relayEntry, uint256 blockNumber) external;
+}
+```
+
+=== Timeouts
+
+There are two timeouts for a relay entry to be provided by a group: soft timeout
+and hard timeout.
+
+==== Soft Relay Entry Timeout
+
+If no entry was provided within the soft timeout, all operators in the group
+start bleeding and losing their stake. The bleeding increases linearly from 0 to
+the slashing amount per operator over time, until the hard timeout is
+reached or until a relay entry is submitted by the group.
+
+The soft timeout is a governable parameter. This gives a chance to start
+with more forgiving penalties and increase them over time. In general, the
+slashing penalty should be proportional to rewards and the frequency of relay
+requests and associated risk.
+
+==== Hard Relay Entry Timeout
+
+When the hard timeout is reached, anyone can notify about this fact by calling
+`RandomBeacon.reportRelayEntryTimeout()` function and receive a
+<<punishment,notifier reward>> . The group which failed to submit a relay entry
+is terminated, group members are slashed, and if there are still active groups
+in the beacon, another group is selected and tasked with producing a relay entry
+for the given relay request. 
+
+==== DKG Timeout
+
+There is a governable timeout for DKG to complete and for the result to be
+submitted. DKG timeout includes the time it takes to execute off-chain protocol
+to generate a key, and the time it takes to submit the result.
+When DKG timeout is exceeded, anyone can call `RandomBeacon.notifyDkgTimeout()`.
+This function unlocks the sortition pool and clears up DKG data, but no slashing
+for DKG timeout is executed and no one is marked as ineligible for rewards.
+
+[[inactivity]]
+=== Inactivity notification
+
+Off-chain clients are free to execute any heartbeat protocol they want to ensure
+group member key material is still available and nodes are operating properly.
+
+[TIP]
+One example of a heartbeat protocol is signing some piece of information every
+n-th block and making sure this piece of information cannot be used for
+`RandomBeacon.reportUnauthorizedSigning()`. Specifically, the signed piece of
+information can not become `msg.sender` for `reportUnauthorizedSigning` call.
+
+Group members can agree to punish members who are permanently inactive and issue
+an operator inactivity claim. If the required threshold of group members signed
+the operator inactivity claim, they can submit it to
+`RandomBeacon.notifyOperatorInactivity(Inactivity.Claim calldata claim, uint256 nonce, int32[] calldata groupMembers)`
+function and have the group members who are inactive excluded from
+the sortition pool <<rewards,rewards>> for a governable time period.
+
+This approach is theoretically susceptible to group members colluding together,
+but because a reasonably high number of operators is needed to sign a claim and
+operators signing the claim receive nothing in return,
+we consider this approach safe and good enough. An important advantage of this
+approach is that honest players can decide off-chain when it makes sense to
+submit an operator inactivity claim and mark someone as ineligible for rewards.
+For example, marking an operator ineligible for rewards for the next two weeks
+has a higher impact than prolonging reward ineligibility for 10 minutes for an
+operator that was already marked as ineligible for rewards. This approach does
+not increase the gas cost of a happy path and leaves some freedom to group
+members. They can mark as ineligible operators who turned off their nodes,
+operators whose nodes never participate in signing because they are
+misconfigured, or operators who notoriously miss their turn in submitting relay
+entries.
+
+[[rewards]]
+=== Rewards
+
+T rewards are allocated to all operators registered in the beacon sortition
+pool, excluding operators who were marked as ineligible for rewards as a result
+of being reported by other group members as <<inactivity,inactive>> or as
+a result of being inactive or disqualified during the DKG. Rewards are allocated
+proportionally to the operator's weight in the pool. 
+
+[[transaction-incentives]]
+=== Transaction Incentives
+
+There are three types of transactions: <<operator-only,Operator-Only>>,
+<<public-knowledge,Public-Knowledge>>, and <<punishment,Punishment>>.
+
+[[operator-only]]
+==== Operator-Only
+Operator-Only transactions are where only the operators have access to the
+information required to assemble the transaction with the right input
+parameters.
+
+In order to avoid all operators racing to submit the transaction at the same
+time, we have an off-chain informal agreement to submit based on the operator's
+position in the group (can use the hash of the group's pubkey).
+
+If the designated operator does not submit their transaction before a timeout
+expires, the duty moves to the next operator and the group can sign a
+transaction to mark that operator as <<inactivity,inactive>>. Since there is no
+slashing reward, and since this transaction can only be submitted by an operator,
+this transaction is also Operator-Only.
+
+In order to compensate the operator for posting the transaction, the gas spent
+will be reimbursed by a DAO-funded ETH pool in the same transaction. It is
+important to note, that the system has a governable cap for the gas price to
+protect against malicious operators trying to drain the pool (see `Reimbursable`
+and `ReimbursementPool` smart contracts).
+
+Operator-only transactions are `submitDkgResult`, `submitRelayEntry`,
+`notifyOperatorInactivity`, and `approveDkgResult` for a certain number of
+blocks, before a timeout for the original DKG result submitter to call this
+function elapses.
+
+[[public-knowledge]]
+==== Public-Knowledge
+Public-Knowledge transactions are where anyone has access to the information
+required to assemble the transaction and the transaction does not lead to
+punishment.
+
+In order to prevent wasting gas on racing to submit, such transactions need to
+be executed rarely, and off-chain clients should follow the informal agreement
+about the submission order.
+
+To compensate these transactions, whoever posts them will have the gas spent
+reimbursed by a DAO-funded ETH pool in the same transaction.
+
+The only public knowledge transaction is `notifyDkgTimeout`.
+
+`approveDkgResult` turns into a public knowledge transaction in case the
+original submitter has not approved the result before the timeout.
+
+[[punishment]]
+==== Punishment
+Punishment transactions are where anyone has access to the information required
+to assemble the transaction (like <<public-knowledge,Public-Knowledge>>) and
+the transaction leads to slashing.
+
+In these transactions, maintaining system health is more important than
+optimizing gas via preventing racing, so we offer up bounties in the form of
+a notifier reward from slashed tokens to whichever submitter submits first. We
+do not compensate gas. Notification rewards are distributed by Threshold Network
+`TokenStaking` contract.
+
+Punishment transactions are: `challengeDkgResult`, `reportRelayEntryTimeout`,
+and `reportUnauthorizedSigning`.
+
+== Parameters
+
+[%header,cols="3m,4,^1,^2m"]
+|=== 
+^|Property Name
+^|Description
+|Governable
+|Default Value
+
+4+s|DKG
+
+|groupSize
+|Size of a group in the threshold relay.
+|No
+|`64`
+
+|groupThreshold
+|The minimum number of group members needed to interact according to the protocol
+to produce a signature
+|No
+|`33`
+
+|activeThreshold
+|The minimum number of active and properly behaving group members during the DKG
+needed to accept the result.
+|No
+d|`58` +
+_90% of groupSize_
+
+|singnatureByteSize
+|Size in bytes of a single signature produced by operator supporting DKG result.
+|No
+|`65`
+
+|resultChallengePeriodLength
+|Time in blocks during which the submitted DKG result can be challenged.
+|Yes
+d|`11_520 blocks` +
+_~48h assuming 15s block time_
+
+|resultSubmissionTimeout
+|Time in blocks during which a DKG result is expected to be submitted.
+|Yes
+d|`1280 blocks` +
+_64 members * 20 blocks = 1280 blocks_
+
+|submitterPrecedencePeriodLength
+|Time in blocks during which only the DKG result submitter is allowed to approve it.
+|Yes
+|`20 blocks`
+
+4+s|Groups
+
+|groupLifetime
+|Group lifetime in blocks.
+|Yes
+d|`259_200 blocks` +
+_~30 days assuming 15s block time_
+
+|groupCreationFrequency
+|The number of relay requests needed to kick off a new group creation process.
+|Yes
+|`2`
+
+4+s|Relay Entry
+
+|relayEntrySoftTimeout
+|Time in blocks during which a result is expected to be submitted.
+|Yes
+d|`1280 blocks` +
+_64 members * 20 blocks = 1280 blocks_
+
+|relayEntryHardTimeout
+|Hard timeout in blocks for a group to submit the relay entry.
+|Yes
+d|`5760 blocks` +
+_~24h assuming 15s block time_
+
+|callbackGasLimit
+|Relay entry callback gas limit.
+|Yes
+d|`64_000`
+
+4+s|Slashing
+
+|maliciousDkgResultSlashingAmount
+|Slashing amount for submitting malicious DKG result.
+|Yes
+d|`400e18` +
+_400 T_
+
+|dkgMaliciousResultNotificationRewardMultiplier
+|Percentage of the staking contract malicious behavior notification reward which
+will be transferred to the notifier reporting about a malicious DKG result.
+|Yes
+|`100`
+
+|relayEntrySubmissionFailureSlashingAmount
+|Slashing amount for not submitting relay entry.
+|Yes
+d|`400e18` +
+_400 T_
+
+|relayEntryTimeoutNotificationRewardMultiplier
+|Percentage of the staking contract malicious behavior notification reward which
+will be transferred to the notifier reporting about relay entry timeout.
+|Yes
+|`100`
+
+|unauthorizedSigningSlashingAmount
+|Slashing amount when an unauthorized signing has been proved.
+|Yes
+d|`400e18` +
+_400 T_
+
+|unauthorizedSigningNotificationRewardMultiplier
+|Percentage of the staking contract malicious behavior notification reward which
+will be transferred to the notifier reporting about unauthorized signing.
+|Yes
+|`100`
+
+|sortitionPoolRewardsBanDuration
+|Duration of the sortition pool rewards ban imposed on operators who were
+inactive/disqualified during off-chain DKG or were voted by the group as
+inactive for other reasons.
+|Yes
+|`2 weeks`
+
+4+s|Random Beacon
+
+|dkgResultSubmissionGas	
+|Calculated gas cost for submitting a DKG result. This will be refunded as part
+of the DKG approval process.
+|Yes
+|`235_000`
+
+|dkgResultApprovalGasOffset
+|Gas that is meant to balance the DKG result approval's overall cost.
+|Yes
+|`41_500`
+
+|notifyOperatorInactivityGasOffset
+|Gas that is meant to balance the operator inactivity notification cost.
+|Yes
+|`54_500`
+
+|relayEntrySubmissionGasOffset
+|Gas that is meant to balance the relay entry submission cost.
+|Yes
+|`11_250`
+
+|authorizedRequesters
+|Authorized addresses that can request a relay entry.
+|Yes
+|
+
+4+s|Authorization
+
+|minimumAuthorization
+|The minimum authorization amount required so that operator can participate in
+the Random Beacon.
+|Yes
+d|`40_000e18` +
+_40 000 T_
+
+|authorizationDecreaseDelay
+|Delay in seconds that needs to pass between the time authorization decrease is
+requested and the time that request gets approved.
+|Yes
+d|`3_888_000 seconds` +
+_45 days_
+
+|authorizationDecreaseChangePeriod
+|Time period in seconds before the authorization decrease delay end, during
+which the authorization decrease request can be overwritten.
+|Yes
+d|`3_888_000 seconds` +
+_45 days_
+
+|===
+
+== Build
+
+Random beacon contracts use https://hardhat.org/[*Hardhat*] development
+environment. To build and deploy these contracts, please follow the instructions
+presented below.
+
+=== Prerequisites
+
+Please make sure you have the following prerequisites installed on your machine:
+
+- https://nodejs.org[Node.js] >=14.18.2
+- https://yarnpkg.com[Yarn] >=1.22.17
+
+=== Build contracts
+
+To build the smart contracts, install node packages first:
+```sh
+yarn install
+```
+Once packages are installed, you can build the smart contracts using:
+```sh
+yarn build
+```
+Compiled contracts will land in the `build/` directory.
+
+=== Test contracts
+
+There are multiple test scenarios living in the `test` directory.
+You can run them by doing:
+```sh
+yarn test
+```

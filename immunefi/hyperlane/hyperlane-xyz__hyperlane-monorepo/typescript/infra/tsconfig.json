@@ -1,0 +1,21 @@
+{
+  "extends": "@hyperlane-xyz/tsconfig/tsconfig.json",
+  "compilerOptions": {
+    "declaration": false,
+    "declarationMap": false,
+    "outDir": "./dist/",
+    "rootDir": "./",
+    "noUnusedLocals": false,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node", "mocha"]
+  },
+  "exclude": ["./node_modules/", "./dist/", "./tmp.ts"],
+  "include": [
+    "./*.ts",
+    "./config/**/*.ts",
+    "./scripts/**/*.ts",
+    "./src/**/*.ts",
+    "./test/**/*.ts"
+  ]
+}

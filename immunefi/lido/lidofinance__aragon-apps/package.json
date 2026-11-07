@@ -1,0 +1,52 @@
+{
+  "name": "@aragon/monorepo-apps",
+  "version": "1.0.0",
+  "private": true,
+  "author": "Aragon Assocation <legal@aragon.org>",
+  "contributors": [
+    "Jorge Izquierdo <jorge@aragon.one>",
+    "Pierre Bertet <pierre@aragon.one>",
+    "Oliver Nordbjerg <oliver@aragon.one>",
+    "Brett Sun <brett@aragon.one>",
+    "ßingen <bingen@aragon.one>",
+    "Lisandro Corbalán <lisandro.corbalan@altoros.com>",
+    "Sebastián Galiano <sebastian.galiano@altoros.com>"
+  ],
+  "license": "(GPL-3.0-or-later OR AGPL-3.0-or-later)",
+  "devDependencies": {
+    "coveralls": "^3.0.1",
+    "lcov-result-merger": "^3.1.0",
+    "lerna": "^3.14.1"
+  },
+  "scripts": {
+    "lint": "lerna run --scope=@aragon/apps-* lint",
+    "test": "npm run test:all",
+    "test:all": "lerna run --scope=@aragon/apps-* --concurrency=1 --stream test",
+    "test:all:gas": "lerna run --scope=@aragon/apps-* --concurrency=1 --stream test:gas",
+    "test:agent": "lerna run --scope=@aragon/apps-agent --stream test",
+    "test:agreement": "lerna run --scope=@aragon/apps-agreement --stream test",
+    "test:finance": "lerna run --scope=@aragon/apps-finance --stream test",
+    "test:token-manager": "lerna run --scope=@aragon/apps-token-manager --stream test",
+    "test:token-manager:app": "npm test --prefix apps/token-manager/app",
+    "test:vault": "lerna run --scope=@aragon/apps-vault --stream test",
+    "test:voting": "lerna run --scope=@aragon/apps-voting --stream test",
+    "test:voting-disputable": "lerna run --scope=@aragon/apps-voting-disputable --stream test",
+    "coverage": "npm run coverage:all",
+    "coverage:all": "lerna run --scope=@aragon/apps-* --stream coverage",
+    "coverage:agent": "lerna run --scope=@aragon/apps-agent --stream coverage",
+    "coverage:agreement": "lerna run --scope=@aragon/apps-agreement --stream coverage",
+    "coverage:finance": "lerna run --scope=@aragon/apps-finance --stream coverage",
+    "coverage:token-manager": "lerna run --scope=@aragon/apps-token-manager --stream coverage",
+    "coverage:vault": "lerna run --scope=@aragon/apps-vault --stream coverage",
+    "coverage:voting": "lerna run --scope=@aragon/apps-voting --stream coverage",
+    "coverage:voting-disputable": "lerna run --scope=@aragon/apps-voting-disputable --stream coverage"
+  },
+  "workspaces": {
+    "packages": [
+      "apps/*"
+    ],
+    "nohoist": [
+      "**/@aragon/contract-helpers-test"
+    ]
+  }
+}

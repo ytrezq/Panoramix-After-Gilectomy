@@ -1,0 +1,237 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import { SpendingLimit } from "../libraries/SpendingLimitLib.sol";
+import { Mode, SafeTiers, BinSponsor } from "./ICashModule.sol";
+
+/**
+ * @title ICashEventEmitter
+ * @notice Interface for the CashEventEmitter contract that emits events for the Cash Module
+ */
+interface ICashEventEmitter {
+    /**
+     * @notice Emits the ModulesCanRequestWithdrawConfigured event
+     * @dev Can only be called by the Cash Module Controller
+     * @param modules Array of module addresses that can request withdrawals
+     * @param shouldWhitelist Array of boolean values indicating if the module should be whitelisted for withdrawal
+     */
+    function emitModulesCanRequestWithdrawConfigured(address[] calldata modules, bool[] calldata shouldWhitelist) external;
+
+    /**
+     * @notice Emits a module withdrawal-delay configuration change
+     * @param module Module whose delay override changed
+     * @param delay Configured delay in seconds
+     * @param enabled Whether the override is enabled
+     */
+    function emitModuleWithdrawalDelayConfigured(address module, uint64 delay, bool enabled) external;
+    
+    /**
+     * @notice Emits the SettlementDispatcheUpdated event
+     * @param binSponsor Bin sponsor for which the settlement dispatcher is updated
+     * @param oldDispatcher Address of the old dispatcher for the bin sponsor
+     * @param newDispatcher Address of the new dispatcher for the bin sponsor
+     */
+    function emitSettlementDispatcherUpdated(BinSponsor binSponsor, address oldDispatcher, address newDispatcher) external;
+
+    /// @notice Emits the LendGatewaySet event
+    function emitLendGatewaySet(address gateway) external;
+
+    /**
+     * @notice Emits an event when pending cashback is cleared
+     * @param recipient Address receiving the cashback
+     * @param cashbackToken Address of the cashback token
+     * @param cashbackAmount Amount of cashback token cleared
+     * @param cashbackInUsd USD value of the cashback
+     */
+    function emitPendingCashbackClearedEvent(address recipient, address cashbackToken, uint256 cashbackAmount, uint256 cashbackInUsd) external;
+
+    /**
+     * @notice Emits the Cashback event
+     * @dev Can only be called by the Cash Module
+     * @param safe Address of the safe
+     * @param spendingInUsd USD value of the spending
+     * @param recipient Address of the recipient of cashback
+     * @param cashbackToken Address of the cashback token
+     * @param cashbackAmountInToken Cashback token amount to the recipient 
+     * @param cashbackInUsd Cashback token amount in USD value to the recipient 
+     * @param cashbackType Type of cashback
+     * @param paid Whether the cashback was paid
+     */
+    function emitCashbackEvent(address safe, uint256 spendingInUsd, address recipient, address cashbackToken, uint256 cashbackAmountInToken, uint256 cashbackInUsd, uint256 cashbackType, bool paid) external;
+
+    /**
+     * @notice Emits the Spend event
+     * @dev Can only be called by the Cash Module
+     * @param safe Address of the safe
+     * @param txId Transaction identifier
+     * @param binSponsor Bin sponsor for the transaction
+     * @param tokens Addresses of the tokens
+     * @param amounts Amounts of tokens
+     * @param amountsInUsd Amounts in USD value
+     * @param totalUsdAmt Total amount in USD
+     * @param mode Operational mode
+     */
+    function emitSpend(address safe, bytes32 txId, BinSponsor binSponsor, address[] memory tokens, uint256[] memory amounts, uint256[] memory amountsInUsd, uint256 totalUsdAmt, Mode mode) external;
+    
+    /**
+     * @notice Emits an event when the mode is changed
+     * @param prevMode Previous mode
+     * @param newMode New mode
+     * @param incomingModeStartTime Timestamp when the new mode becomes effective
+     */
+    function emitSetMode(address safe, Mode prevMode, Mode newMode, uint256 incomingModeStartTime) external;
+
+    /**
+     * @notice Emits an event when a withdrawal is requested
+     * @param tokens Array of token addresses to withdraw
+     * @param amounts Array of token amounts to withdraw
+     * @param recipient Address to receive the withdrawn tokens
+     * @param finalizeTimestamp Timestamp when the withdrawal can be finalized
+     */
+    function emitWithdrawalRequested(address safe, address[] memory tokens, uint256[] memory amounts, address recipient, uint256 finalizeTimestamp) external;
+
+    /**
+     * @notice Emits an event when a withdrawal amount is updated
+     * @param token Address of the token
+     * @param amount Updated withdrawal amount
+     */
+    function emitWithdrawalAmountUpdated(address safe, address token, uint256 amount) external;
+
+    /**
+     * @notice Emits an event when a withdrawal is cancelled
+     * @param tokens Array of token addresses that were to be withdrawn
+     * @param amounts Array of token amounts that were to be withdrawn
+     * @param recipient Address that was to receive the withdrawn tokens
+     */
+    function emitWithdrawalCancelled(address safe, address[] memory tokens, uint256[] memory amounts, address recipient) external;
+
+    /**
+     * @notice Emits an event when a withdrawal is processed
+     * @param tokens Array of token addresses withdrawn
+     * @param amounts Array of token amounts withdrawn
+     * @param recipient Address receiving the withdrawn tokens
+     */
+    function emitWithdrawalProcessed(address safe, address[] memory tokens, uint256[] memory amounts, address recipient) external;
+
+    /**
+     * @notice Emits an event when tokens are transferred for spending
+     * @param token Address of the token transferred
+     * @param amount Amount of token transferred
+     */
+    function emitTransferForSpending(address safe, address token, uint256 amount) external;
+
+    /**
+     * @notice Emits an event when tokens are borrowed from the debt manager
+     * @param token Address of the token borrowed
+     * @param amount Amount of token borrowed
+     */
+    function emitBorrowFromDebtManager(address safe, address token, uint256 amount) external;
+
+    /**
+     * @notice Emits an event when a debt is repaid to the debt manager
+     * @param token Address of the token repaid
+     * @param amount Amount of token repaid
+     * @param amountInUsd USD value of the amount repaid
+     */
+    function emitRepayDebtManager(address safe, address token, uint256 amount, uint256 amountInUsd) external;
+
+    /**
+     * @notice Emits an event when a migrated safe repays debt on Aave via the gateway
+     * @param safe Address of the safe whose debt was repaid
+     * @param token Address of the token repaid
+     * @param amount Amount of token actually repaid (net of any refunded dust)
+     * @param amountInUsd USD value of the debt actually repaid
+     */
+    function emitRepay(address safe, address token, uint256 amount, uint256 amountInUsd) external;
+
+    /**
+     * @notice Emits an event when Aave debt is repaid using a token-denominated amount
+     * @param safe Address of the safe whose debt was repaid
+     * @param token Address of the token repaid
+     * @param amount Amount of token actually repaid
+     */
+    function emitRepayLendTokenAmount(address safe, address token, uint256 amount) external;
+
+    /**
+     * @notice Emits an event when loose collateral is supplied to cover a credit spend's borrowing shortfall
+     * @param safe Address of the safe
+     * @param token Collateral token supplied
+     * @param amount Token amount supplied
+     */
+    function emitCollateralResupplied(address safe, address token, uint256 amount) external;
+
+    /**
+     * @notice Emits an event when a best-effort lend supply fails
+     * @param safe Address of the safe
+     * @param token Token that could not be supplied as collateral
+     * @param amount Amount that remained loose in the safe
+     * @param reason Raw revert data from the lend gateway
+     */
+    function emitLendSupplyFailed(address safe, address token, uint256 amount, bytes calldata reason) external;
+
+    /**
+     * @notice Emits an event when a safe borrows from the lend market to itself (a borrow-page borrow)
+     * @param safe Address of the safe
+     * @param token Token borrowed
+     * @param amount Token amount borrowed
+     * @param amountInUsd USD value of the borrow
+     */
+    function emitLendBorrowed(address safe, address token, uint256 amount, uint256 amountInUsd) external;
+
+    /// @notice Emits the LendOptOutRequested event
+    function emitLendOptOutRequested(address safe, uint256 finalizeTime) external;
+
+    /// @notice Emits the LendOptOutExecuted event
+    function emitLendOptOutExecuted(address safe) external;
+
+    /// @notice Emits the LendOptedIn event
+    function emitLendOptedIn(address safe) external;
+
+    /**
+     * @notice Emits an event when spending limits are changed
+     * @param oldLimit Previous spending limit
+     * @param newLimit New spending limit
+     */
+    function emitSpendingLimitChanged(address safe, SpendingLimit memory oldLimit, SpendingLimit memory newLimit) external;
+
+    /**
+     * @notice Emits the SafeTiersSet event
+     * @dev Can only be called by the Cash Module
+     * @param safes Array of safe addresses
+     * @param safeTiers Array of tier configurations
+     */
+    function emitSetSafeTiers(address[] memory safes, SafeTiers[] memory safeTiers) external;
+    
+    /**
+     * @notice Emits the TierCashbackPercentageSet event
+     * @dev Can only be called by the Cash Module
+     * @param safeTiers Array of tiers
+     * @param cashbackPercentages Array of cashback percentages
+     */
+    function emitSetTierCashbackPercentage(SafeTiers[] memory safeTiers, uint256[] memory cashbackPercentages) external;
+    
+    /**
+     * @notice Emits the CashbackSplitToSafeBpsSet event
+     * @dev Can only be called by the Cash Module
+     * @param safe Address of the safe
+     * @param oldSplitInBps Previous split percentage
+     * @param newSplitInBps New split percentage
+     */
+    function emitSetCashbackSplitToSafeBps(address safe, uint256 oldSplitInBps, uint256 newSplitInBps) external;
+    
+    /**
+     * @notice Emits the DelaysSet event
+     * @dev Can only be called by the Cash Module
+     * @param withdrawalDelay Delay period for withdrawals
+     * @param spendingLimitDelay Delay period for spending limit changes
+     * @param modeDelay Delay period for mode changes
+     */
+    function emitSetDelays(uint64 withdrawalDelay, uint64 spendingLimitDelay, uint64 modeDelay) external;
+
+    /**
+     * @notice Emits the WithdrawTokensConfigured event
+     * @param tokens Address of the tokens
+     * @param shouldWhitelist Boolean value suggesting if the token should be whitelisted for withdrawal
+     */
+    function emitWithdrawTokensConfigured(address[] calldata tokens, bool[] calldata shouldWhitelist) external;
+}

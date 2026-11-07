@@ -1,0 +1,77 @@
+{
+ "program": "kleidi",
+ "repos": [
+  {
+   "repo": "https://github.com/solidity-labs-io/kleidi",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "1290079776ed84e207196a3683b99cc8501ca1dd",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "c80b675b8db1d951b8b3734df59530d0d3be064b"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/safe-smart-account",
+     "url": "https://github.com/safe-global/safe-smart-account",
+     "commit": "bf943f80fec5ac647159d26161446ac5d716a294"
+    },
+    {
+     "path": "lib/forge-proposal-simulator",
+     "url": "https://github.com/solidity-labs-io/forge-proposal-simulator",
+     "commit": "fcc79ed08ad4f8d6c61e1ed204943412fdadf8d2"
+    },
+    {
+     "path": "lib/forge-proposal-simulator/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e4aef94c1768803a16fe19f7ce8b65defd027cfd"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": null,
+    "headers": {
+     "(none)": 42,
+     "GPL-2.0-or-later": 1
+    },
+    "headers_main": {
+     "(none)": 15,
+     "GPL-2.0-or-later": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 43
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "solidity-labs-io__kleidi",
+   "files": 605,
+   "bytes": 4774240,
+   "skipped_large": 0
+  }
+ ]
+}

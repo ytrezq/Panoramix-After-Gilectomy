@@ -1,0 +1,7 @@
+= Admin API
+
+== Core
+
+{{Admin}}
+
+{{AdminSetup}}

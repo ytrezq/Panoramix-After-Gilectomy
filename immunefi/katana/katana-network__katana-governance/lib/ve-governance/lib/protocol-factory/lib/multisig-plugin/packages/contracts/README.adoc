@@ -1,0 +1,11 @@
+= Multisig API
+
+== Core
+
+{{Multisig}}
+
+{{MultisigSetup}}
+
+{{ListedCheckCondition}}
+
+

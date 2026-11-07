@@ -1,0 +1,23 @@
+{
+    "name": "@gearbox-protocol/governance",
+    "version": "1.0.0",
+    "description": "Gearbox Protocol governance contracts",
+    "type": "module",
+    "files": [
+        "contracts"
+    ],
+    "keywords": [
+        "gearbox"
+    ],
+    "license": "MIT",
+    "devDependencies": {
+        "@chainlink/contracts": "0.4.0",
+        "@gearbox-protocol/sdk-gov": "^2.1.0",
+        "@wagmi/cli": "^2.1.22"
+    },
+    "dependencies": {
+        "@redstone-finance/evm-connector": "^0.2.5",
+        "tsx": "^4.19.2"
+    },
+    "packageManager": "pnpm@9.15.4"
+}

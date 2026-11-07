@@ -1,0 +1,68 @@
+{
+ "program": "ondofinance",
+ "repos": [
+  {
+   "repo": "https://github.com/ondoprotocol/rwa-contracts",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "public Ondo repository holding OUSG/rOUSG, USDY managers, rUSDY, xManager, globalMarkets (GM, USDon)",
+   "commit": "4409cdac96f26bdce584c1078aa7a968dd937dc9",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": null,
+    "headers": {
+     "BUSL-1.1": 139,
+     "GPL-3.0": 2,
+     "MIT": 75,
+     "Apache-2.0": 2,
+     "(none)": 1,
+     "UNLICENSED": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 220
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "ondoprotocol__rwa-contracts",
+   "files": 223,
+   "bytes": 1271867,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/ondoprotocol/usdy",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "USDY token and manager",
+   "commit": "3912ca0698c2992e4db997d0855e62588c44e2c0",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": "BSD-3-Clause",
+    "headers": {
+     "MIT": 92,
+     "GPL-3.0-or-later": 4,
+     "BUSL-1.1": 40,
+     "(none)": 23,
+     "UNLICENSED": 7
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 166
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "ondoprotocol__usdy",
+   "files": 180,
+   "bytes": 1009548,
+   "skipped_large": 0
+  }
+ ]
+}

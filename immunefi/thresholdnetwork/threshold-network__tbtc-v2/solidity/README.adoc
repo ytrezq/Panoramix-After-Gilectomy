@@ -1,0 +1,77 @@
+:toc: macro
+
+= tBTC v2 contracts
+
+https://github.com/keep-network/tbtc-v2/actions/workflows/contracts.yml[image:https://img.shields.io/github/actions/workflow/status/keep-network/tbtc-v2/contracts.yml?branch=main&event=push&label=TBTC%20contracts%20build[TBTC contracts build status]]
+
+This package contains tBTC v2 contracts.
+
+toc::[]
+
+== Build, test and deploy
+
+tBTC v2 contracts use https://hardhat.org/[*Hardhat*] development environment.
+To build and deploy these contracts, please follow the instructions presented
+below.
+
+=== Prerequisites
+
+Please make sure you have the following prerequisites installed on your machine:
+
+- https://nodejs.org[Node.js] >14.17.4
+- https://yarnpkg.com[Yarn] >1.22.10
+
+=== Build contracts
+
+To build the smart contracts, install node packages first:
+```
+yarn install
+```
+Once packages are installed, you can build the smart contracts using:
+```
+yarn build
+```
+Compiled contracts will land in the `build` directory.
+
+*NOTE:* The `tbtc-v2` package contains an indirect dependency to
+`@summa-tx/relay-sol@2.0.2` package, which downloads one of its sub-dependencies
+via unathenticated `git://` protocol. That protocol is no longer supported by
+GitHub. This means that in certain situations installation of the package or
+update of its dependencies using Yarn may result in `The unauthenticated git
+protocol on port 9418 is no longer supported` error. +
+As a workaround, we advise changing Git configuration to use `https://` protocol
+instead of `git://` by executing:
+```
+git config --global url."https://".insteadOf git://
+```
+
+=== Test contracts
+
+There are multiple test scenarios living in the `test` directory.
+
+You can run unit tests with:
+```
+yarn test
+```
+
+The tests marked as "pending" during `yarn test` are integration tests.
+
+You can run integration tests with:
+
+```
+yarn test:integration
+```
+
+System tests are implemented separately, in the
+link:../system-tests/[`system-tests`] directory of the `tbtc-v2` repository.
+
+=== Deploy contracts
+
+To deploy all contracts on the given network, please run:
+```
+yarn deploy --network <network>
+```
+
+If contracts haven't been built yet or changes occurred, this task will build
+the contracts before running the deployment script. This command produces
+an `export.json` file containing contract deployment info.

@@ -1,0 +1,472 @@
+{
+ "program": "etherfi",
+ "repos": [
+  {
+   "repo": "https://github.com/etherfi-protocol/weETH-cross-chain",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "ac4bf655b79cc16d635f513d69bc6e8571061fb3",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "726a6ee5fc8427a0013d6f624e486c9130c0e336"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": "MIT",
+    "headers": {
+     "MIT": 88,
+     "UNLICENSED": 13,
+     "BUSL-1.1": 1,
+     "(none)": 4
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 106
+   },
+   "npm": {
+    "node_modules/@layerzerolabs/lz-evm-oapp-v2": "2.3.44",
+    "node_modules/@layerzerolabs/lz-evm-protocol-v2": "2.3.44",
+    "node_modules/layerzero-v2": "2.0.2",
+    "node_modules/solady": "0.1.26",
+    "node_modules/@layerzerolabs/lz-evm-messagelib-v2": "2.3.44",
+    "node_modules/@openzeppelin/contracts": "4.9.6",
+    "node_modules/solidity-bytes-utils": "0.8.4",
+    "node_modules/@layerzerolabs/lz-evm-v1-0.7": "2.3.44",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.9.6",
+    "node_modules/hardhat-deploy": "0.12.4",
+    "node_modules/layerzero-v2/protocol/node_modules/@openzeppelin/contracts": "4.9.6",
+    "node_modules/layerzero-v2/protocol/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6",
+    "node_modules/layerzero-v2/protocol/node_modules/hardhat-deploy": "0.11.45",
+    "node_modules/layerzero-v2/oapp/node_modules/@openzeppelin/contracts": "4.9.6",
+    "node_modules/layerzero-v2/oapp/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6",
+    "node_modules/layerzero-v2/oapp/node_modules/solidity-bytes-utils": "0.8.4",
+    "node_modules/layerzero-v2/oapp/node_modules/@layerzerolabs/lz-evm-v1-0.7": "2.3.44",
+    "node_modules/layerzero-v2/messagelib/node_modules/@layerzerolabs/lz-evm-v1-0.7": "2.3.44",
+    "node_modules/layerzero-v2/messagelib/node_modules/solidity-bytes-utils": "0.8.4",
+    "node_modules/layerzero-v2/messagelib/node_modules/@openzeppelin/contracts": "4.9.6",
+    "node_modules/layerzero-v2/messagelib/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6",
+    "node_modules/layerzero-v2/messagelib/node_modules/hardhat-deploy": "0.11.45",
+    "node_modules/layerzero-v2/messagelib/node_modules/@chainlink/contracts-ccip": "0.7.6",
+    "node_modules/layerzero-v2/messagelib/node_modules/@axelar-network/axelar-gmp-sdk-solidity": "5.10.0",
+    "node_modules/@chainlink/contracts-ccip": "0.7.6",
+    "node_modules/@arbitrum/nitro-contracts": "1.3.0",
+    "node_modules/@axelar-network/axelar-gmp-sdk-solidity": "5.10.0",
+    "node_modules/@eth-optimism/contracts": "0.6.0",
+    "node_modules/layerzero-v2/oapp/node_modules/hardhat-deploy": "0.12.4",
+    "node_modules/@offchainlabs/upgrade-executor": "1.1.0-beta.0"
+   },
+   "copied": true,
+   "dest": "etherfi-protocol__weETH-cross-chain",
+   "files": 3410,
+   "bytes": 17940665,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/PeggyJV/cellar-contracts",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "07efdfa9ae15beb66d248722cbbd596926b5d55f",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "f18e8aa3e72eef83518766eb34ad8c8d8e2aa0aa"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "a1948250ab8c441f6d327a65754cb20d2b1b4554"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ca8d6e00ea9cb035f6856ff732203c9a3c48b966"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    },
+    {
+     "path": "lib/chainlink",
+     "url": "https://github.com/smartcontractkit/chainlink",
+     "commit": "7168212ba6f57f26f39e4d0f4fd984746064a79e"
+    },
+    {
+     "path": "lib/solmate",
+     "url": "https://github.com/transmissions11/solmate",
+     "commit": "1b3adf677e7e383cc684b5d5bd441da86bf4bf1c"
+    },
+    {
+     "path": "lib/solmate/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/v3-core",
+     "url": "https://github.com/Uniswap/v3-core",
+     "commit": "6562c52e8f75f0c10f9deaf44861847585fc8129"
+    },
+    {
+     "path": "lib/v3-periphery",
+     "url": "https://github.com/Uniswap/v3-periphery",
+     "commit": "b325bb0905d922ae61fcc7df85ee802e8df5e96c"
+    },
+    {
+     "path": "lib/balancer-v2-monorepo",
+     "url": "https://github.com/balancer/balancer-v2-monorepo",
+     "commit": "8f5458b63dd2245adbfae35acd4dc362daff16e9"
+    },
+    {
+     "path": "lib/balancer-v2-monorepo/pvt/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "f36dab24d63d1c1945a05ed375ce341d3c1a49ed"
+    },
+    {
+     "path": "lib/balancer-v2-monorepo/pvt/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    },
+    {
+     "path": "lib/axelar-gmp-sdk-solidity",
+     "url": "https://github.com/axelarnetwork/axelar-gmp-sdk-solidity",
+     "commit": "3065d9730c47b5f94cc66bd5148054a222664213"
+    },
+    {
+     "path": "lib/pendle-core-v2-public",
+     "url": "https://github.com/pendle-finance/pendle-core-v2-public",
+     "commit": "4321be0e6b427bd92a1f190725e84a2bc7da283a"
+    },
+    {
+     "path": "lib/ccip",
+     "url": "https://github.com/smartcontractkit/ccip",
+     "commit": "c8eed8079feec16824e974c66819d3f857b3a49e"
+    },
+    {
+     "path": "lib/ccip/contracts/foundry-lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "f73c73d2018eb6a111f35e4dae7b4f27401e9421"
+    },
+    {
+     "path": "lib/ccip/contracts/foundry-lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "Apache-2.0",
+    "package_json": "Apache-2.0",
+    "headers": {
+     "Apache-2.0": 319,
+     "GPL-2.0-or-later": 16,
+     "(none)": 2,
+     "GPL-3.0-or-later": 22,
+     "MIT": 11,
+     "AGPL-3.0": 3,
+     "UNLICENSED": 2,
+     "BUSL-1.1": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 377
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "PeggyJV__cellar-contracts",
+   "files": 3382,
+   "bytes": 17261381,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/etherfi-protocol/smart-contracts",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "15ff96d4d5e8e6a19a472cd40a7bcb858c9e7a88",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "0457042d93d9dfd760dbaa06a4d2f1216fdbe297"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ca8d6e00ea9cb035f6856ff732203c9a3c48b966"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    },
+    {
+     "path": "lib/v3-core",
+     "url": "https://github.com/Uniswap/v3-core",
+     "commit": "e3589b192d0be27e100cd0daaf6c97204fdb1899"
+    },
+    {
+     "path": "lib/v3-periphery",
+     "url": "https://github.com/Uniswap/v3-periphery",
+     "commit": "80f26c86c57b8a5e4b913f42844d4c8bd274d058"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "f6c4c9c4ec601665ca74d2c9dddf547fc425658c"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/solady",
+     "url": "https://github.com/Vectorized/solady",
+     "commit": "8583a6e386b897f3db142a541f86d5953eccd835"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "MIT": 214,
+     "GPL-3.0-or-later": 1,
+     "(none)": 10,
+     "AGPL-3.0-only": 1,
+     "BUSL-1.1": 50,
+     "BSD-3-Clause": 1,
+     "CC0-1.0": 1,
+     "UNLICENSED": 36,
+     "Unlicense": 1
+    },
+    "headers_main": {
+     "MIT": 87,
+     "GPL-3.0-or-later": 1,
+     "(none)": 3,
+     "AGPL-3.0-only": 1,
+     "BUSL-1.1": 34,
+     "BSD-3-Clause": 1,
+     "CC0-1.0": 1,
+     "UNLICENSED": 1,
+     "Unlicense": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 315
+   },
+   "npm": {},
+   "skipped_unlicensed": 46,
+   "copied": true,
+   "dest": "etherfi-protocol__smart-contracts",
+   "files": 1422,
+   "bytes": 11238379,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/etherfi-protocol/cash-v3",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "ac89a4b94db4bd0c0b5dc0421137dd3afa1d7bc1",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/solady",
+     "url": "https://github.com/Vectorized/solady",
+     "commit": "5dd6f93498b8ebdc9d72194cfa680a90b738e1ad"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "3d5fa5c24c411112bab47bec25cfa9ad0af0e6e8"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/devtools",
+     "url": "https://github.com/LayerZero-Labs/devtools",
+     "commit": "128b697838f4b0fd53ae748093fd66cc409ae5c4"
+    },
+    {
+     "path": "lib/devtools/packages/toolbox-foundry/src/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "60acb7aaadcce2d68e52986a0a66fe79f07d138f"
+    },
+    {
+     "path": "lib/devtools/packages/toolbox-foundry/src/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/devtools/tests-user/lib/bats-core",
+     "url": "https://github.com/bats-core/bats-core.git",
+     "commit": "855844b8344e67d60dc0f43fa39817ed7787f141"
+    },
+    {
+     "path": "lib/devtools/tests-user/lib/bats-support",
+     "url": "https://github.com/bats-core/bats-support.git",
+     "commit": "0ad082d4590108684c68975ca517a90459f05cd0"
+    },
+    {
+     "path": "lib/devtools/tests-user/lib/bats-assert",
+     "url": "https://github.com/bats-core/bats-assert.git",
+     "commit": "912a98804efd34f24d5eae1bf97ee622ca770e99"
+    },
+    {
+     "path": "lib/LayerZero-v2",
+     "url": "https://github.com/LayerZero-Labs/LayerZero-v2",
+     "commit": "9c741e7f9790639537b1710a203bcdfd73b0b9ac"
+    },
+    {
+     "path": "lib/LayerZero-v2/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2f112697506eab12d433a65fdc31a639548fe365"
+    },
+    {
+     "path": "lib/LayerZero-v2/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/aave-v4",
+     "url": "https://github.com/etherfi-protocol/aave-v4",
+     "commit": "5635234e2ec39205b9f4c7c699354f24f4c28016"
+    },
+    {
+     "path": "lib/aave-v4/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "60acb7aaadcce2d68e52986a0a66fe79f07d138f"
+    },
+    {
+     "path": "lib/aave-v4/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/solidity-bytes-utils",
+     "url": "https://github.com/GNSPS/solidity-bytes-utils",
+     "commit": "f4413cd6137b78403e3a1156bee6aceab46b46fa"
+    },
+    {
+     "path": "lib/solidity-bytes-utils/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/solidity-bytes-utils/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "(none)": 3,
+     "MIT": 664,
+     "BUSL-1.1": 6
+    },
+    "headers_main": {
+     "MIT": 165,
+     "BUSL-1.1": 6
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 673
+   },
+   "npm": {},
+   "symlinks": 40,
+   "skipped_unlicensed": 3,
+   "copied": true,
+   "dest": "etherfi-protocol__cash-v3",
+   "files": 3718,
+   "bytes": 29610679,
+   "skipped_large": 0
+  }
+ ]
+}

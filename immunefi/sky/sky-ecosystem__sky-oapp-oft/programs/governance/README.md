@@ -1,0 +1,215 @@
+# Governance
+
+A program that can be used to send arbitrary transactions on connected blockchains. The so-called Omnichain Applications (OApps) deployed on different chains can send Governance Messages to each other. These messages may contain transactions that are used to control programs owned by Governance OApps.
+
+Blockchain messaging protocol used is LayerZero.
+
+## Preparation
+
+```
+pnpm i
+```
+
+## Deployment
+
+### Devnet
+
+Generate key:
+```
+solana-keygen new -o target/deploy/governance-keypair.json --force
+```
+
+Copy pubkey - it will be your Governance program pubkey (GOVERNANCE_ID).
+
+Build Governance program with your GOVERNANCE_ID:
+```
+GOVERNANCE_ID=XYZ anchor build
+```
+
+Deploy Governance Program to Solana Devnet:
+
+```
+solana program deploy target/deploy/governance.so -u devnet
+```
+
+Update `GOVERNANCE_PROGRAM_ID` in `.env` file. 
+
+Now you can generate TypeScript types for Governance:
+```
+pnpm generate:governance
+```
+
+Double check generated file: `src/generated/governance/index.ts` - variable `PROGRAM_ADDRESS` - make sure it matches Governance Program ID.
+
+Deploy EVM side:
+```
+pnpm hardhat lz:deploy
+
+✔ Which deploy script tags would you like to use? … GovernanceOAppSender
+```
+
+Take the deployed EVM address and put it as `GOVERNANCE_CONTROLLER_ADDRESS` in .env. Also update `programs/governance/tests/msg_codec.rs`: `FUJI_PEER_ADDRESS`.
+
+Verify EVM contract, eg. using:
+```
+npx @layerzerolabs/verify-contract@latest -d deployments -n avalanche-testnet
+```
+
+Now create an instance of Governance:
+```
+pnpm wire:governance:solana:testnet
+```
+
+"governancePDA base58" - logged from the command above is your "oapp" address for the next step.
+
+ Create "deployments/solana-testnet/OApp.json":
+```
+{
+    "programId": "SKYGRikJcGSa3jC5HDyzDrVsmkCk3e5SqAurycny8PW",
+    "oapp": "8vXXGiaXFrKFUDw21H5Z57ex552Lh8WP9rVd2ktzmcCy"
+}
+```
+
+Go to oapp.layerzero.testnet.config.ts and update solanaContract.address to the "oapp" address as well.
+
+Run:
+```
+npx hardhat lz:oft:solana:init-config --oapp-config oapp.layerzero.testnet.config.ts --oapp true
+```
+
+It will initialize Send and Receive configs.
+
+Now set the messaging Security Stack configuration and peer:
+```
+npx hardhat lz:oapp:wire --oapp-config oapp.layerzero.testnet.config.ts --oapp true
+```
+
+## Scenarios
+
+The Governance program includes support for Solana and the current repository heavily focuses on providing example code for testing EVM -> Solana scenarios mainly for controlling OFT.
+
+Example command to generate a Governance message based on scenarios in the test suite:
+```
+GOVERNANCE_ID=SKYGRikJcGSa3jC5HDyzDrVsmkCk3e5SqAurycny8PW cargo test -p governance --test msg_codec -- --exact --show-output test_msg_codec::test_hello_world
+```
+
+If you change `GOVERNANCE_ID` then make sure to run:
+```
+cargo clean --profile dev
+```
+
+to clean target/debug directory before running a test scenario.
+
+Tested scenarios include:
+1. Hello World | test_hello_world | [demo](https://explorer.solana.com/tx/XRH4UsQsGBsHrAwnaa2rWNCHfQNpintapm2SAQhTmETA7Vo5XRXGsWXySSufzz2CLANNivnCAViLL1bqwszyKwv?cluster=devnet) | CPI depth = 1
+2. SPL token transfer | test_spl_token_transfer | [demo](https://explorer.solana.com/tx/2sbHPSYeFEXhWXTANybsuv362YkwZp53BTPzgZensFUtUvHcpGf2D9LHc9qpLySPvvEx6KzS9F3eGqEyJvrDfvoK?cluster=devnet) | CPI depth = 1
+3. Transfer Program Upgrade Authority | test_transfer_upgrade_authority | [demo](https://explorer.solana.com/tx/54M3cD2KqBZrs7sG2Cr3wwiMwSVNYSyEUfbLXho3U11EcPffCyi4VtfnxFrjCGiuqokd1ABfBoxQRncvrZEDeEgu?cluster=devnet) | CPI depth = 1
+4. Upgrade Program | test_governance_message_upgrade_program | [demo](https://explorer.solana.com/tx/5We9jE5C2FqeEJscwWvB7ncwc2RmsjxucdkFcyaQfRPBVyJVZfNYK82xp1LMroSxcWLsXeNYjfLA6proJ6ZGy13j?cluster=devnet) | CPI depth = 1
+5. OFT pause | test_governance_message_pause_oft | [demo](https://explorer.solana.com/tx/GZsXYNiUkC8JC7z82x5iiqPVD11BqACJfEn6cBGF5jKGB8Nayb7AvLdyunFC8uimFZFjMbrct2VcLs42LZBobF3?cluster=devnet) | CPI depth = 1
+6. OFT unpause | test_governance_message_unpause_oft | [demo](https://explorer.solana.com/tx/4koxbrtyEexG9DaHHxjKDGrw4mebPrasaXFfqPqMzKfC9roaQ2bpbGxxn4pXyaVAmPSDsQQgrqyax8CL26T9dJiz?cluster=devnet) | CPI depth = 1
+7. OFT.setOFTConfig - setDelegate | test_governance_message_set_delegate | [demo](https://explorer.solana.com/tx/2q8YcQ7V1iJWJBfXo8uEhNV16Z3XnVssXzniBhhurgzxF9Hue668sborVRY6hmAqVxXSZQcBuFAPFAcHaUySCauN?cluster=devnet) | CPI depth = 3
+8. OFT.setOFTConfig - setAdmin | test_governance_message_set_admin | [demo](https://explorer.solana.com/tx/5WUAgnhckabp67RQ6BMnc3Q7qNjgEbpqLpsoh6TFY9XVFEHGrwadYqCSqPsp3tVmswDotcL8PQ7c8LDobQHMKKat?cluster=devnet) | CPI depth = 1
+9. OFT.setPeerConfig - setPeerAddress | test_set_peer_address | [demo](https://explorer.solana.com/tx/4b1pUMmpANDQFZuoJb56B4SnMmbPvtuc5jP3TvecatCTWTsqYmnjpdVZPzdbD3GwAQzd4DjiwJKCSyHeijNro51J?cluster=devnet) | CPI depth = 2
+10. Endpoint.initSendLibrary | test_init_send_library | [demo](https://explorer.solana.com/tx/5rz9LrS5gzFvgZHjUUdaXjq3NrXUHceKSHvWz4mRHE6E83uxTX2TGGVMyYoaM3y2cthoVsCVSkb7W7pjDwLAEoCa?cluster=devnet) | CPI depth = 2
+11. Endpoint.setSendLibrary | test_governance_message_set_send_library | [demo](https://explorer.solana.com/tx/4syvFDSawatbkbTqGpAmB4Zohqv1hrgJYpnvPggoZv1kwfvh9EJYMLebbyq3jQcxZ1sbTiEmDEbxeFrHYNgGhtRX?cluster=devnet) | CPI depth = 2
+12. Endpoint.initReceiveLibrary | test_init_receive_library | [demo](https://explorer.solana.com/tx/3WUPcxgmszKRrU4i1jPqcjdnTVqeCpHqt5fSzotjdFmH8tut43rY3VL7FCdSXd7ezsuw9eGwrLH8n8QUfHu5cReM?cluster=devnet) | CPI depth = 2
+13. Endpoint.setReceiveLibrary | test_set_receive_library | [demo](https://explorer.solana.com/tx/3H52Uxht5pV6Yuj8W5Ai6ZnVYJhwrqjxc8xSpFdEvYp758nWueAdtqXbneTR6vhpSFAeB89Q7uPUP9WVfAE2wB8n?cluster=devnet) | CEPI depth = 2
+14. OFT.setPeerConfig - setEnforcedOptions | test_governance_message_set_enforced_options | [demo](https://explorer.solana.com/tx/5ZQtDktmHRvjcvM2K9GohqsMLyXxDH8hRLxtYNPfyeceD9UBHC4dHGfirc3wZ92xhm4GMKxrfSLeMaFsTThJ7Sgj?cluster=devnet) | CPI depth = 1
+15. Endpoint.setConfig - setSendConfig | test_governance_message_set_send_config | [demo](https://explorer.solana.com/tx/5eeTsEU75UnM8VAjf9PxXLHUKiM1qkJD1rKBWAdTYVW4A4oCFobMSdr9QY47wr7N9fWv7F52J55RhvfSt6vkKGj6?cluster=devnet) | CPI depth = 3
+16. Endpoint.setConfig - setExecutorConfig | test_governance_message_set_executor_config | [demo](https://explorer.solana.com/tx/qminCQth3s7kvdC3P3BBLgr6qNckFnbuDv7EaUrhzUJX1HRAR7isLBAHSydQTavzNnBsSyZGexE7Ph3wh2XsBnd?cluster=devnet) | CPI depth = 3
+17. Endpoint.setConfig - setReceiveConfig | test_governance_message_set_receive_config | [demo](https://explorer.solana.com/tx/2T3aoUewbrU5Xwf9kF1ZQPXzYXx1wWoCce1PAHigUcHFqUm8LCEFjA7CS8Zvq7n6jT2mR2Wbm9mF2mZtRz3Tf8E8?cluster=devnet) | CPI depth = 3
+18. Endpoint.initNonce | test_governance_message_init_nonce | [demo](https://explorer.solana.com/tx/5ncNRyEwPUVwPb8mi5beLayDKXcwo38vauBVbCiTGmvs83g3hMQPnqcqCwJD6vW8memMgixVg2Ku4n8uRChzuYYx?cluster=devnet) | CPI depth = 2
+19. Squads.execute | test_squads_execute | [demo](https://explorer.solana.com/tx/5RgthGPgxUZLMswvWPtnwtZVB6oG4dAAKVjLaxtP5gFMG7PerZdP31togw8HFANBnB3QpBowCcj2XrAbaVzCt39c?cluster=devnet) | CPI depth = 2
+20. Endpoint.initConfig | test_endpoint_init_config | [demo](https://explorer.solana.com/tx/3T2EmnNU3zzrDgYXFiETFGgGnA259fQ3FuiNMXsfWMs36oNqscckPxXfK57uV8o1ESb4FtXqek9QLBCS3o8ESqfD?cluster=devnet) | CPI depth = 3
+
+The code used to craft the Governance Message for the scenarios above is located in [programs/governance/tests/msg_codec.rs](./tests/msg_codec.rs).
+
+## Sending transactions
+
+1. Obtain Governance message dstTarget and dstCallData
+2. Update `canCallTarget` mapping (args: srcSender, dstEid, dstTarget, canCall)
+```
+cast send $GOVERNANCE_CONTROLLER_ADDRESS --rpc-url https://api.avax-test.network/ext/bc/C/rpc --private-key $PRIVATE_KEY "setCanCallTarget(address,uint32,bytes32,bool)" 0x0804a6e2798F42C7F3c97215DdF958d5500f8ec8 40168 0x2c43318f0f99dfd8c0ebc65b0b23cc661fcd1df64af6aef33b7b83eca8e58197 true
+```
+3. Send
+```
+forge script scripts/SendGovernanceMessage.s.sol --rpc-url https://api.avax-test.network/ext/bc/C/rpc -s "run(uint32,bytes32,bytes)" 40168 0x2c43318f0f99dfd8c0ebc65b0b23cc661fcd1df64af6aef33b7b83eca8e58197 0x0000afaf6d1f0d989bed --broadcast
+```
+
+## Delivering transactions
+
+Currently only manual delivery of transactions is supported with the automatic delivery support coming soon.
+
+Example clear tx:
+
+```
+pnpm hardhat lz:oapp:solana:clear-v2 --src-tx-hash 0x41006c361e15153c0b2cae14f92121bd32e8484c2f0a3db54810e571fe8363d7
+```
+
+where --src-tx-hash is source transaction hash where the governance message was sent on the source chain.
+
+## (Optional) Configuring ALTs
+
+If you are sending transaction with a lot of accounts you can configure ALTs to be used when lz_receive is called. You can create ALTs eg. `createLookupTable()` from `tasks/solana/clearPayloadV2.ts`.
+
+Then you can set the ALT using following script:
+```
+pnpm hardhat lz:oapp:solana:setLzReceiveTypes --from-eid 40168 --alts GXR4civq2anMtcHGgApYrQWhpWJeqSybXkC4nVpAwWfg
+```
+
+## Advanced scenarios
+
+### Upgrading program via Governance account
+
+Before proceeding make sure your program upgrade authority is set to the OApp, like:
+```
+solana program set-upgrade-authority E2R6qMMzLBjCwXs66MPEg2zKfpt5AMxWNgSULsLYfPS2 --new-upgrade-authority 3qsePQwjm5kABtgHoq5ksNj2JbYQ8sczff25Q7gqX74a --upgrade-authority ~/.config/solana/devnet-w.json --skip-new-upgrade-authority-signer-check
+```
+
+1. Generate temporary buffer authority key
+```
+solana-keygen new -o buffer-keypair.json
+```
+
+2. Create buffer account with new program bytecode:
+```
+solana program write-buffer target/deploy/oft.so --buffer-authority buffer-keypair.json -u devnet
+```
+
+Example output:
+```
+Buffer: Dftwzc6mc1ZUxZQyhM2FpmDttjfNra4mawAQnF4EWZns
+```
+
+3. Transfer buffer authority to Governance OApp (according to [this](https://github.com/solana-labs/solana/blob/7700cb3128c1f19820de67b81aa45d18f73d2ac0/sdk/program/src/loader_upgradeable_instruction.rs#L84))
+```
+solana program set-buffer-authority Dftwzc6mc1ZUxZQyhM2FpmDttjfNra4mawAQnF4EWZns --new-buffer-authority 3qsePQwjm5kABtgHoq5ksNj2JbYQ8sczff25Q7gqX74a --buffer-authority buffer-keypair.json -u devnet
+```
+
+Example output:
+```
+solana program set-buffer-authority Dftwzc6mc1ZUxZQyhM2FpmDttjfNra4mawAQnF4EWZns --new-buffer-authority 3qsePQwjm5kABtgHoq5ksNj2JbYQ8sczff25Q7gqX74a --buffer-authority buffer-keypair.json -u devnet
+Account Type: Buffer
+Authority: 3qsePQwjm5kABtgHoq5ksNj2JbYQ8sczff25Q7gqX74a
+```
+
+4. Prepare BPF loader upgrade instruction encoded governance message using msg_codec, eg.:
+```
+cargo test --package governance --test msg_codec -- test_msg_codec::test_governance_message_upgrade_program --exact --show-output
+```
+
+5. Send the governance message using SendGovernanceMessage Foundry script.
+
+## Tests
+
+### Solana
+
+```
+pnpm run test:solana
+```
+
+## License
+
+License is [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0).
+
+See [LICENSE.md](./LICENSE.md) and [NOTICE.md](./NOTICE.md).

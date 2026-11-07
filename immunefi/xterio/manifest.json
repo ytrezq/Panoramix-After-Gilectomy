@@ -1,0 +1,58 @@
+{
+ "program": "xterio",
+ "repos": [
+  {
+   "repo": "https://github.com/XterioTech/xt-contracts",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "4959a1c1bbfc26435326da4118911d9a4c94d04e",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "MIT": 61,
+     "GPL-2.0-or-later": 1,
+     "GPL-3.0": 7
+    },
+    "headers_main": {
+     "MIT": 59,
+     "GPL-2.0-or-later": 1,
+     "GPL-3.0": 5
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 69
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.9.6",
+    "node_modules/@limitbreak/creator-token-contracts": "1.1.2",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.9.6",
+    "node_modules/@uniswap/v3-core": "1.0.1",
+    "node_modules/@chainlink/contracts": "1.5.0",
+    "node_modules/erc721a": "4.3.0",
+    "node_modules/@openzeppelin/contracts-4.8.3": "4.8.3",
+    "node_modules/@openzeppelin/contracts-5.0.2": "5.0.2",
+    "node_modules/@openzeppelin/contracts-4.9.6": "4.9.6",
+    "node_modules/@eth-optimism/contracts": "0.6.0",
+    "node_modules/@zksync/contracts": "0.1.0",
+    "node_modules/@scroll-tech/contracts": "2.0.0",
+    "node_modules/@openzeppelin/contracts-4.7.3": "4.7.3",
+    "node_modules/@openzeppelin/contracts-5.1.0": "5.1.0",
+    "node_modules/@zksync/contracts/l2-contracts/node_modules/@openzeppelin/contracts-upgradeable": "4.9.5",
+    "node_modules/@zksync/contracts/l2-contracts/node_modules/@openzeppelin/contracts": "4.9.5",
+    "node_modules/@zksync/contracts/gas-bound-caller/node_modules/@matterlabs/zksync-contracts": "0.6.2",
+    "node_modules/@zksync/contracts/gas-bound-caller/node_modules/@openzeppelin/contracts": "4.9.6",
+    "node_modules/@zksync/contracts/gas-bound-caller/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6"
+   },
+   "copied": true,
+   "dest": "XterioTech__xt-contracts",
+   "files": 3730,
+   "bytes": 18833139,
+   "skipped_large": 0
+  }
+ ]
+}

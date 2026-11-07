@@ -1,0 +1,54 @@
+{
+  "name": "arm-oeth",
+  "version": "0.0.1",
+  "description": "Automated Redemption Manager (ARM) for Origin ETH (OETH)",
+  "scripts": {
+    "lint": "eslint \"src/**/*.js\"",
+    "prettier": "prettier --write \"*.js\" \"src/js/**/*.js\" \"src/abis/**/*.json\"",
+    "prettier:check": "prettier -c \"src/js/**/*.js\" \"src/abis/**/*.json\"",
+    "typecheck": "tsc --noEmit",
+    "test": "forge test --fork-url=$MAINNET_URL --gas-report",
+    "snap": "npx hardhat snap --network mainnet --amount 100"
+  },
+  "repository": {
+    "type": "git",
+    "url": "github.com:originprotocol/arm-oeth"
+  },
+  "license": "MIT",
+  "packageManager": "pnpm@10.33.2",
+  "devDependencies": {
+    "@apollo/client": "^3.11.4",
+    "@ethersproject/providers": "^5.7.2",
+    "@lastdotnet/purrikey": "github:OriginProtocol/purrikey#3d10b79b567c52c0c37e630800dae6c7059bd9b8",
+    "@nomicfoundation/hardhat-ethers": "3.0.7",
+    "@nomicfoundation/hardhat-foundry": "^1.1.1",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.10",
+    "@solidity-parser/parser": "^0.18.0",
+    "axios": "^1.20.0",
+    "builtin-modules": "^3.3.0",
+    "chai": "^4.3.10",
+    "dayjs": "^1.11.12",
+    "dotenv": "^16.4.5",
+    "eslint": "^8.55.0",
+    "ethers": "6.13.2",
+    "graphql": "^16.9.0",
+    "hardhat": "^2.22.9",
+    "node-fetch": "^2.6.7",
+    "prettier": "^3.6.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.0"
+  },
+  "peerDependencies": {
+    "@oplabs/talos-client": "0.0.33"
+  },
+  "peerDependenciesMeta": {
+    "@oplabs/talos-client": {
+      "optional": true
+    }
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@lastdotnet/purrikey"
+    ]
+  }
+}

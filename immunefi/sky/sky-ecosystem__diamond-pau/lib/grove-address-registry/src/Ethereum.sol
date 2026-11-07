@@ -1,0 +1,277 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+pragma solidity >=0.8.0;
+
+library Ethereum {
+
+    /******************************************************************************************************************/
+    /*** Token Addresses                                                                                            ***/
+    /******************************************************************************************************************/
+
+    address internal constant AUSD   = 0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a;
+    address internal constant CBBTC  = 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf;
+    address internal constant DAI    = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
+    address internal constant EZETH  = 0xbf5495Efe5DB9ce00f80364C8B423567e58d2110;
+    address internal constant GNO    = 0x6810e776880C02933D47DB1b9fc05908e5386b96;
+    address internal constant LBTC   = 0x8236a87084f8B84306f72007F36F2618A5634494;
+    address internal constant MKR    = 0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2;
+    address internal constant PYUSD  = 0x6c3ea9036406852006290770BEdFcAbA0e23A0e8;
+    address internal constant RETH   = 0xae78736Cd615f374D3085123A210448E74Fc6393;
+    address internal constant RLUSD  = 0x8292Bb45bf1Ee4d140127049757C2E0fF06317eD;
+    address internal constant RSETH  = 0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7;
+    address internal constant SDAI   = 0x83F20F44975D03b1b09e64809B757c47f942BEeA;
+    address internal constant STUSDS = 0x99CD4Ec3f88A45940936F469E4bB72A2A701EEB9;
+    address internal constant SUSDC  = 0xBc65ad17c5C0a2A4D159fa5a503f4992c7B545FE;
+    address internal constant SUSDE  = 0x9D39A5DE30e57443BfF2A8307A4256c8797A3497;
+    address internal constant SUSDS  = 0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD;
+    address internal constant TBTC   = 0x18084fbA666a33d37592fA2633fD49a74DD93a88;
+    address internal constant USDC   = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address internal constant USDE   = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
+    address internal constant USDS   = 0xdC035D45d973E3EC169d2276DDab16f1e407384F;
+    address internal constant USCC   = 0x14d60E7FDC0D71d8611742720E4C50E7a974020c;
+    address internal constant USDT   = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+    address internal constant USTB   = 0x43415eB6ff9DB7E26A15b704e7A3eDCe97d31C4e;
+    address internal constant WBTC   = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
+    address internal constant WEETH  = 0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee;
+    address internal constant WETH   = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address internal constant WSTETH = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
+
+    /******************************************************************************************************************/
+    /*** Bridging Addresses                                                                                         ***/
+    /******************************************************************************************************************/
+
+    address internal constant CCTP_TOKEN_MESSENGER    = 0xBd3fa81B58Ba92a82136038B25aDec7066af3155;
+    address internal constant CCTP_TOKEN_MESSENGER_V2 = 0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d;
+
+    address internal constant USDS_SKYLINK_OFT = 0x1e1D42781FC170EF9da004Fb735f56F0276d01B8;
+
+    /******************************************************************************************************************/
+    /*** Sky Addresses                                                                                              ***/
+    /******************************************************************************************************************/
+
+    address internal constant AUTO_LINE   = 0xC7Bdd1F2B16447dcf3dE045C4a039A60EC2f0ba3;
+    address internal constant CHIEF       = 0x0a3f6849f78076aefaDf113F5BED87720274dDC0;
+    address internal constant DAI_USDS    = 0x3225737a9Bbb6473CB4a45b7244ACa2BeFdB276A;
+    address internal constant JUG         = 0x19c0976f590D67707E62397C87829d896Dc0f1F1;
+    address internal constant PAUSE_PROXY = 0xBE8E3e3618f7474F8cB1d074A26afFef007E98FB;
+    address internal constant POT         = 0x197E90f9FAD81970bA7976f33CbD77088E5D7cf7;
+    address internal constant PSM         = 0xf6e72Db5454dd049d0788e411b06CfAF16853042;  // Lite PSM
+    address internal constant VAT         = 0x35D1b3F3D7966A1DFe207aa4514C12a259A0492B;
+
+    address internal constant WRAPPER_USDS_LITE_PSM_USDC_A = 0xA188EEC8F81263234dA3622A406892F3D630f98c;
+    address internal constant LITE_PSM_USDC_A_POCKET       = 0x37305B1cD40574E4C5Ce33f8e8306Be057fD7341;
+
+    /******************************************************************************************************************/
+    /*** GroveDAO Addresses                                                                                         ***/
+    /******************************************************************************************************************/
+
+    address internal constant GROVE_PROXY      = 0x1369f7b2b38c76B6478c0f0E66D94923421891Ba;
+    address internal constant GROVE_STAR_GUARD = 0xfc51CAa049E8894bEcFfB68c61095C3F3Ec8a880;
+    address internal constant GROVE_TOKEN      = 0xB30FE1Cf884B48a22a50D22a9282004F2c5E9406;
+    address internal constant STAKED_GROVE     = 0xF3Ddcaa3BD5D04ba08beC69cf34D9d9C9c112d14;
+    address internal constant GROVE_FOUNDATION = 0xE3EC4CC359E68c9dCE15Bf667b1aD37Df54a5a42;
+    address internal constant GROVE_FARM       = 0x4E41488C19cD35EB4de3083Fc3e204854c75c86a;
+
+    /******************************************************************************************************************/
+    /*** Grove Allocation System Addresses                                                                          ***/
+    /******************************************************************************************************************/
+
+    address internal constant ALLOCATOR_ORACLE   = 0xc7B91C401C02B73CBdF424dFaaa60950d5040dB7;
+    address internal constant ALLOCATOR_REGISTRY = 0xCdCFA95343DA7821fdD01dc4d0AeDA958051bB3B;
+    address internal constant ALLOCATOR_ROLES	 = 0x9A865A710399cea85dbD9144b7a09C889e94E803;
+
+    address internal constant ALLOCATOR_BLOOM_A_BUFFER = 0x629aD4D779F46B8A1491D3f76f7E97Cb04D8b1Cd;
+    address internal constant ALLOCATOR_BLOOM_A_VAULT  = 0x26512A41C8406800f21094a7a7A0f980f6e25d43;
+
+    address internal constant ALLOCATOR_GROVE_A_BUFFER = 0x436DABce608f73BeA2b75fba35bffe72739697d5;
+    address internal constant ALLOCATOR_GROVE_A_VAULT  = 0xf739a30c74927dc6cFA3B67E4933872a1FC5F4EB;
+
+    /******************************************************************************************************************/
+    /*** Grove Liquidity Layer Addresses                                                                            ***/
+    /******************************************************************************************************************/
+
+    address internal constant ALM_CONTROLLER  = 0xfd9dEA9a8D5B955649579Af482DB7198A392A9F5;
+    address internal constant ALM_PROXY       = 0x491EDFB0B8b608044e227225C715981a30F3A44E;
+    address internal constant ALM_RATE_LIMITS = 0x5F5cfCB8a463868E37Ab27B5eFF3ba02112dF19a;
+
+    address internal constant ALM_FREEZER = 0xB0113804960345fd0a245788b3423319c86940e5;
+    address internal constant ALM_RELAYER = 0x0eEC86649E756a23CBc68d9EFEd756f16aD5F85f;
+
+    address internal constant GROVE_PRIMARY_RELAYER_OPERATOR   = 0x4364D17B578b0eD1c42Be9075D774D1d6AeAFe96;
+    address internal constant GROVE_SECONDARY_RELAYER_OPERATOR = 0x9187807e07112359C481870feB58f0c117a29179;
+
+    /******************************************************************************************************************/
+    /*** Grove Diamond PAU Addresses                                                                                ***/
+    /******************************************************************************************************************/
+
+    address internal constant PAU_PROXY              = 0x0DcD9298e163dFD3c0B5b00F0d9093C36e40A153;
+    address internal constant PAU_CONTROLLER         = 0xbf83F5974B932c7D842254042717D6A2706CE5eE;
+    address internal constant PAU_ACCESS_CONTROLS    = 0x4F6d1704700cd494DD4cd9bF59c0C39DA1Bc9164;
+    address internal constant PAU_RATE_LIMITS        = 0xE016Ae733A77Ba77E7907aAA749394Fc5e75C0e1;
+    address internal constant PAU_ADMINISTERED_AGENT = 0xdBD17832df0e57b1732cE1C84c652E820e549BAa;
+
+    address internal constant PAU_BEACON                     = 0x829dC2b7E94B1954F0764E573f2E0d45Afa28199;
+    address internal constant PAU_FACTORY                    = 0x69A5d548830AC2A4Ba90A44a2C75BDA71f97fc66;
+    address internal constant PAU_ADMINISTERED_AGENT_FACTORY = 0x2968c3b5478cF93B70aB1e24255d4EDBBd27a089;
+    address internal constant PAU_DEFAULT_ASSEMBLER          = 0xc812aAD3FaE2D3511C664374B601a9BeBFeCCa2E;
+
+    address internal constant PAU_BASIN_FACET = 0xC84825BCD13AEddc372400239499380376a44A39;
+    address internal constant PAU_PSM_FACET   = 0xE4A5dAc768a310cc2316f258901b32E499653064;
+    address internal constant PAU_USDS_FACET  = 0x1221CC4B85Ab260660aD21C2829e0EB516dffBc7;
+
+    /******************************************************************************************************************/
+    /*** Grove Basin Addresses                                                                                      ***/
+    /******************************************************************************************************************/
+
+    address internal constant JTRSY_GROVE_BASIN = 0xf08943f817e1F902dEbC884c7B19Ea5764594Ac9;
+    address internal constant BUIDL_GROVE_BASIN = 0xCBa428fB052B365557DAf52b744DFfF20d5FbEdD;
+
+    /******************************************************************************************************************/
+    /*** Miscellaneous Grove Addresses                                                                              ***/
+    /******************************************************************************************************************/
+
+    address internal constant GROVE_PSM_VARIANT_1_ACTIONS = 0x5C40DC1CcAA8CE64133D157ab838fa0c0f0d946f;
+
+    /******************************************************************************************************************/
+    /*** Ethena Addresses                                                                                           ***/
+    /******************************************************************************************************************/
+
+    address internal constant ETHENA_MINTER = 0xe3490297a08d6fC8Da46Edb7B6142E4F461b62D3;
+
+    /******************************************************************************************************************/
+    /*** Blackrock Securitize Addresses                                                                             ***/
+    /******************************************************************************************************************/
+
+    address internal constant BUIDL          = 0x7712c34205737192402172409a8F7ccef8aA2AEc;
+    address internal constant BUIDL_REDEEM   = 0x31D3F59Ad4aAC0eeE2247c65EBE8Bf6E9E470a53;  // Circle redeem
+    address internal constant BUIDLI         = 0x6a9DA2D710BB9B700acde7Cb81F10F1fF8C89041;
+    address internal constant BUIDLI_DEPOSIT = 0xD1917664bE3FdAea377f6E8D5BF043ab5C3b1312;
+    address internal constant BUIDLI_REDEEM  = 0x8780Dd016171B91E4Df47075dA0a947959C34200;  // Offchain redeem
+
+    address internal constant STAC_DEPOSIT = 0x51e4C4A356784D0B3b698BFB277C626b2b9fe178;
+    address internal constant STAC_REDEEM  = 0xbb543C77436645C8b95B64eEc39E3C0d48D4842b;
+    address internal constant STAC         = 0x51C2d74017390CbBd30550179A16A1c28F7210fc;
+
+    /******************************************************************************************************************/
+    /*** Centrifuge Addresses                                                                                       ***/
+    /******************************************************************************************************************/
+
+    address internal constant CENTRIFUGE_ACRDX_USDC = 0x74A739EA1Dc67c5a0179ebad665D1D3c4b80B712;
+    address internal constant CENTRIFUGE_JAAA_USDC  = 0x4880799eE5200fC58DA299e965df644fBf46780B;
+    address internal constant CENTRIFUGE_JTRSY_USDC = 0xFE6920eB6C421f1179cA8c8d4170530CDBdfd77A;
+
+    address internal constant CENTRIFUGE_JTRSY_USDS = 0x381f4F3B43C30B78C1f7777553236e57bB8AE9ff;
+
+    /******************************************************************************************************************/
+    /*** Fluid Addresses                                                                                            ***/
+    /******************************************************************************************************************/
+
+    address internal constant FLUID_SUSDS = 0x2BBE31d63E6813E3AC858C04dae43FB2a72B0D11;
+
+    /******************************************************************************************************************/
+    /*** Maple Addresses                                                                                            ***/
+    /******************************************************************************************************************/
+
+    address internal constant MAPLE_SYRUP_USDC = 0x80ac24aA929eaF5013f6436cdA2a7ba190f5Cc0b;
+
+    /******************************************************************************************************************/
+    /*** Merkl Addresses                                                                                            ***/
+    /******************************************************************************************************************/
+
+    address internal constant MERKL_DISTRIBUTOR = 0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae;
+
+    /******************************************************************************************************************/
+    /*** Morpho Addresses                                                                                           ***/
+    /******************************************************************************************************************/
+
+    address internal constant MORPHO = 0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb;
+
+    address internal constant GROVE_X_STEAKHOUSE_USDC_MORPHO_VAULT       = 0xBEEf2B5FD3D94469b7782aeBe6364E6e6FB1B709;
+    address internal constant GROVE_X_STEAKHOUSE_USDC_HY_V2_MORPHO_VAULT = 0xBeefF08dF54897e7544aB01d0e86f013DA354111;
+    address internal constant GROVE_X_STEAKHOUSE_AUSD_V2_MORPHO_VAULT    = 0xBEEfF0d672ab7F5018dFB614c93981045D4aA98a;
+    address internal constant GROVE_X_STEAKHOUSE_RLUSD_V2_MORPHO_VAULT   = 0xBeEff4fD39F8e48b6a6e475445D650cb11e9599F;
+
+    address internal constant STEAKHOUSE_PYUSD_MORPHO_VAULT = 0xd8A6511979D9C5D387c819E9F8ED9F3a5C6c5379;
+
+    address internal constant SENTORA_PYUSD_MAIN_V2_MORPHO_VAULT = 0xb576765fB15505433aF24FEe2c0325895C559FB2;
+    address internal constant SENTORA_RLUSD_MAIN_V2_MORPHO_VAULT = 0x6dC58a0FdfC8D694e571DC59B9A52EEEa780E6bf;
+
+    /******************************************************************************************************************/
+    /*** Superstate Addresses                                                                                       ***/
+    /******************************************************************************************************************/
+
+    address internal constant SUPERSTATE_REDEMPTION = 0x4c21B7577C8FE8b0B0669165ee7C8f67fa1454Cf;
+
+    /******************************************************************************************************************/
+    /*** Pendle Addresses                                                                                           ***/
+    /******************************************************************************************************************/
+
+    address public constant PENDLE_ROUTER = 0x888888888889758F76e7103c6CbF23ABbF58F946;
+
+    /******************************************************************************************************************/
+    /*** OTC Desks Addresses                                                                                        ***/
+    /******************************************************************************************************************/
+
+    address public constant FALCON_X_DEPOSIT = 0xD94F9ef3395BBE41C1f05ced3C9a7dc520D08036;
+
+    /******************************************************************************************************************/
+    /*** Aave V3 Addresses                                                                                          ***/
+    /******************************************************************************************************************/
+
+    address internal constant AAVE_CORE_USDC     = 0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c;
+    address internal constant AAVE_CORE_RLUSD    = 0xFa82580c16A31D0c1bC632A36F82e83EfEF3Eec0;
+    address internal constant AAVE_HORIZON_USDC  = 0x68215B6533c47ff9f7125aC95adf00fE4a62f79e;
+    address internal constant AAVE_HORIZON_RLUSD = 0xE3190143Eb552456F88464662f0c0C4aC67A77eB;
+
+    /******************************************************************************************************************/
+    /*** Aave V4 Addresses                                                                                          ***/
+    /******************************************************************************************************************/
+
+    address internal constant AAVE_V4_CORE_HUB = 0xCca852Bc40e560adC3b1Cc58CA5b55638ce826c9;
+
+    address internal constant AAVE_V4_MAIN_SPOKE  = 0x94e7A5dCbE816e498b89aB752661904E2F56c485;
+    address internal constant AAVE_V4_FOREX_SPOKE = 0xD8B93635b8C6d0fF98CbE90b5988E3F2d1Cd9da1;
+
+    /******************************************************************************************************************/
+    /*** Curve Addresses                                                                                            ***/
+    /******************************************************************************************************************/
+
+    address internal constant CURVE_AUSD_USDC  = 0xE79C1C7E24755574438A26D5e062Ad2626C04662;
+    address internal constant CURVE_RLUSD_USDC = 0xD001aE433f254283FeCE51d4ACcE8c53263aa186;
+    address internal constant CURVE_PYUSD_USDS = 0xA632D59b9B804a956BfaA9b48Af3A1b74808FC1f;
+
+    /******************************************************************************************************************/
+    /*** Uniswap V3 Addresses                                                                                       ***/
+    /******************************************************************************************************************/
+
+    address internal constant UNISWAP_V3_SWAP_ROUTER_02   = 0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45;
+    address internal constant UNISWAP_V3_POSITION_MANAGER = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88;
+
+    address internal constant UNISWAP_V3_AUSD_USDC = 0xbAFeAd7c60Ea473758ED6c6021505E8BBd7e8E5d;
+
+    /******************************************************************************************************************/
+    /*** Galaxy Addresses                                                                                           ***/
+    /******************************************************************************************************************/
+
+    address internal constant GALAXY_ARCH_CLO_DEPOSIT  = 0x2E3A11807B94E689387f60CD4BF52A56857f2eDC;
+    address internal constant GALAXY_WAREHOUSE_DEPOSIT = 0x3E23311f9FF660E3c3d87E4b7c207b3c3D7e04f0;
+
+    /******************************************************************************************************************/
+    /*** Ripple Addresses                                                                                           ***/
+    /******************************************************************************************************************/
+
+    address internal constant RLUSD_MINT_BURN = 0xD178a90C41ff3DcffbfDEF7De0BAF76Cbfe6a121;
+
+    /******************************************************************************************************************/
+    /*** Agora Addresses                                                                                            ***/
+    /******************************************************************************************************************/
+
+    address internal constant AGORA_AUSD_MINT   = 0x748b66a6b3666311F370218Bc2819c0bEe13677e;
+    address internal constant AGORA_AUSD_REDEEM = 0xab8306d9FeFBE8183c3C59cA897A2E0Eb5beFE67;
+
+    /******************************************************************************************************************/
+    /*** Paxos Addresses                                                                                            ***/
+    /******************************************************************************************************************/
+
+    address internal constant PAXOS_USDC_DEPOSIT_WALLET = 0x8C0A9E5939B97979f85d9aDA3d983C6E713Cc2dB;
+
+}

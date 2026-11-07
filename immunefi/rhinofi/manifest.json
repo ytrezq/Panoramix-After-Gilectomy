@@ -1,0 +1,35 @@
+{
+ "program": "rhinofi",
+ "repos": [
+  {
+   "repo": "https://github.com/rhinofi/contracts_public",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "rhino.fi bridge contracts (the scope's bridge addresses)",
+   "commit": "654c38c260eefa8a4491f3dd02390aedd0a2396e",
+   "submodules": [],
+   "license": {
+    "file": "LICENCE",
+    "spdx": "GPL-3.0",
+    "package_json": null,
+    "headers": {
+     "GPL-3.0-only": 4
+    },
+    "headers_main": {
+     "GPL-3.0-only": 4
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 4
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "rhinofi__contracts_public",
+   "files": 8,
+   "bytes": 60710,
+   "skipped_large": 0
+  }
+ ]
+}

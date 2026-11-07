@@ -1,0 +1,1391 @@
+{
+ "program": "gearbox",
+ "repos": [
+  {
+   "repo": "https://github.com/Gearbox-protocol/permissionless",
+   "ref": "master",
+   "scope_paths": [
+    "contracts"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "b1b5e5bac7d2183a1f10c4bcc3d4bbf88c8b7769",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "620536fa5277db4e3fd46772d5cbc1ea0696fb43"
+    },
+    {
+     "path": "lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/@solady",
+     "url": "https://github.com/Vectorized/solady",
+     "commit": "8d726fb1499f7f1d7459d05379efddcd500dab1a"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3",
+     "url": "https://github.com/Gearbox-protocol/core-v3",
+     "commit": "510fc6541c3767ce825929b4c311826fe81d6fa5"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "620536fa5277db4e3fd46772d5cbc1ea0696fb43"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "7c13707d584b3e7f394f732bdf5bdbe020283c59"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "GPL-2.0-or-later": 1,
+     "BUSL-1.1": 56,
+     "MIT": 30,
+     "UNLICENSED": 20
+    },
+    "headers_main": {
+     "GPL-2.0-or-later": 1,
+     "BUSL-1.1": 30,
+     "MIT": 30
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 107
+   },
+   "npm": {},
+   "skipped_unlicensed": 20,
+   "copied": true,
+   "dest": "Gearbox-protocol__permissionless",
+   "files": 1443,
+   "bytes": 10914965,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/Gearbox-protocol/core-v3",
+   "ref": "main",
+   "scope_paths": [
+    "contracts"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "a53223a54f19a46a5cffd8104d622ac69f49c311",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74302c55493479410b143d9dd08a60690c726ffe"
+    },
+    {
+     "path": "lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "7c13707d584b3e7f394f732bdf5bdbe020283c59"
+    },
+    {
+     "path": "lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/sdk-gov/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": null,
+    "headers": {
+     "BUSL-1.1": 34,
+     "UNLICENSED": 92,
+     "MIT": 36
+    },
+    "headers_main": {
+     "BUSL-1.1": 33,
+     "MIT": 36
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 162
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "Gearbox-protocol__core-v3",
+   "files": 706,
+   "bytes": 5367696,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/Gearbox-protocol/oracles-v3",
+   "ref": "main",
+   "scope_paths": [
+    "contracts"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "287739a0d85d4c1a2ad15b8aebcc2fcb4db0af4d",
+   "submodules": [
+    {
+     "path": "lib/@gearbox-protocol/core-v3",
+     "url": "https://github.com/Gearbox-protocol/core-v3",
+     "commit": "5144d61af7d117f86d3fa9b4e2aa05535e2e5433"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ee93fdc45d1e5e4dee883afe0103109881a83549"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "7c13707d584b3e7f394f732bdf5bdbe020283c59"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "affbbe5cde72c6f7796d3a4dae9fed305477fa9e"
+    },
+    {
+     "path": "lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/sdk-gov/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/@solady",
+     "url": "https://github.com/Vectorized/solady",
+     "commit": "8d726fb1499f7f1d7459d05379efddcd500dab1a"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless",
+     "url": "https://github.com/Gearbox-protocol/permissionless",
+     "commit": "0aab5ecec6de72176d7d2a8fae2cfa905d0206af"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1801b0541f4fda118a10798fd3486bb7051c5dd6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@solady",
+     "url": "https://github.com/Vectorized/solady",
+     "commit": "8d726fb1499f7f1d7459d05379efddcd500dab1a"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3",
+     "url": "https://github.com/Gearbox-protocol/core-v3",
+     "commit": "5144d61af7d117f86d3fa9b4e2aa05535e2e5433"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ee93fdc45d1e5e4dee883afe0103109881a83549"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "7c13707d584b3e7f394f732bdf5bdbe020283c59"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-2.0",
+    "package_json": "GPL-2.0-or-later",
+    "headers": {
+     "UNLICENSED": 23,
+     "GPL-2.0-or-later": 16,
+     "GPL-3.0-or-later": 1,
+     "MIT": 9
+    },
+    "headers_main": {
+     "GPL-2.0-or-later": 16,
+     "GPL-3.0-or-later": 1,
+     "MIT": 9
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 49
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "Gearbox-protocol__oracles-v3",
+   "files": 2472,
+   "bytes": 20283561,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/Gearbox-protocol/integrations-v3",
+   "ref": "main",
+   "scope_paths": [
+    "contracts"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "fefe3aed4bca75c9660bd058d0fd13049ab29acd",
+   "submodules": [
+    {
+     "path": "lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "ecc136f4fc0e0e6d19b9505e64de4f56d80899c2"
+    },
+    {
+     "path": "lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/sdk-gov/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3",
+     "url": "https://github.com/Gearbox-protocol/core-v3",
+     "commit": "bea9d96bef8a3842555a7e0cda5b36e1946a6739"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74302c55493479410b143d9dd08a60690c726ffe"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "7c13707d584b3e7f394f732bdf5bdbe020283c59"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@1inch/farming",
+     "url": "https://github.com/1inch/farming",
+     "commit": "47134f2828225a47183ad40bfc8f06a60bd018cd"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless",
+     "url": "https://github.com/Gearbox-protocol/permissionless",
+     "commit": "0aab5ecec6de72176d7d2a8fae2cfa905d0206af"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1801b0541f4fda118a10798fd3486bb7051c5dd6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@solady",
+     "url": "https://github.com/Vectorized/solady",
+     "commit": "8d726fb1499f7f1d7459d05379efddcd500dab1a"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3",
+     "url": "https://github.com/Gearbox-protocol/core-v3",
+     "commit": "5144d61af7d117f86d3fa9b4e2aa05535e2e5433"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ee93fdc45d1e5e4dee883afe0103109881a83549"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "7c13707d584b3e7f394f732bdf5bdbe020283c59"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": "BUSL-1.1",
+    "headers": {
+     "UNLICENSED": 117,
+     "GPL-2.0-or-later": 98,
+     "MIT": 56,
+     "(none)": 1,
+     "BUSL-1.1": 1,
+     "GPL-3.0": 5
+    },
+    "headers_main": {
+     "GPL-2.0-or-later": 96,
+     "MIT": 42,
+     "UNLICENSED": 27,
+     "BUSL-1.1": 1,
+     "GPL-3.0": 5
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 278
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "Gearbox-protocol__integrations-v3",
+   "files": 2583,
+   "bytes": 19135382,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/Gearbox-protocol/bots-v3",
+   "ref": "main",
+   "scope_paths": [
+    "contracts/bots"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "ebec19d2396a1abcf69e6496a193abb7a9f5c027",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "07263d193d621c4b2b0ce8b4d54af58f6957d97d"
+    },
+    {
+     "path": "lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "5b20da0496cfb535b4803fba816485564a895db8"
+    },
+    {
+     "path": "lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/sdk-gov/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3",
+     "url": "https://github.com/Gearbox-protocol/core-v3",
+     "commit": "9f228cf984d0a976e8fa0076fc7b2d958a02ad87"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1714bee72e286e73f76e320d110e0eaf5c4e649d"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "7c13707d584b3e7f394f732bdf5bdbe020283c59"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": "GPL-2.0-or-later",
+    "headers": {
+     "GPL-2.0-or-later": 1,
+     "UNLICENSED": 1,
+     "MIT": 1
+    },
+    "headers_main": {
+     "GPL-2.0-or-later": 1,
+     "MIT": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 3
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "Gearbox-protocol__bots-v3",
+   "files": 1237,
+   "bytes": 9238401,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/Gearbox-protocol/periphery-v3",
+   "ref": "main",
+   "scope_paths": [
+    "contracts/emergency",
+    "contracts/kyc",
+    "contracts/migration"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "2a63cf27b458c9c3b7824086da32f9dd6ee73613",
+   "submodules": [
+    {
+     "path": "lib/@gearbox-protocol/core-v3",
+     "url": "https://github.com/Gearbox-protocol/core-v3",
+     "commit": "b038597d9070d9fd18593a6ae9c3d28ca931bb73"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ee93fdc45d1e5e4dee883afe0103109881a83549"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "7c13707d584b3e7f394f732bdf5bdbe020283c59"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3",
+     "url": "https://github.com/Gearbox-protocol/integrations-v3",
+     "commit": "1a607b9f4c7e99c4fddc546dfe20f590ae50c437"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "ecc136f4fc0e0e6d19b9505e64de4f56d80899c2"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/core-v3",
+     "url": "https://github.com/Gearbox-protocol/core-v3",
+     "commit": "5144d61af7d117f86d3fa9b4e2aa05535e2e5433"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/core-v3/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ee93fdc45d1e5e4dee883afe0103109881a83549"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "7c13707d584b3e7f394f732bdf5bdbe020283c59"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/core-v3/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/core-v3/lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@1inch/farming",
+     "url": "https://github.com/1inch/farming",
+     "commit": "47134f2828225a47183ad40bfc8f06a60bd018cd"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/permissionless",
+     "url": "https://github.com/Gearbox-protocol/permissionless",
+     "commit": "0aab5ecec6de72176d7d2a8fae2cfa905d0206af"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/permissionless/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1801b0541f4fda118a10798fd3486bb7051c5dd6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/permissionless/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/permissionless/lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/permissionless/lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/permissionless/lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/permissionless/lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/permissionless/lib/@solady",
+     "url": "https://github.com/Vectorized/solady",
+     "commit": "8d726fb1499f7f1d7459d05379efddcd500dab1a"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3",
+     "url": "https://github.com/Gearbox-protocol/core-v3",
+     "commit": "5144d61af7d117f86d3fa9b4e2aa05535e2e5433"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ee93fdc45d1e5e4dee883afe0103109881a83549"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "7c13707d584b3e7f394f732bdf5bdbe020283c59"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@gearbox-protocol/integrations-v3/lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3",
+     "url": "https://github.com/Gearbox-protocol/oracles-v3",
+     "commit": "287739a0d85d4c1a2ad15b8aebcc2fcb4db0af4d"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/core-v3",
+     "url": "https://github.com/Gearbox-protocol/core-v3",
+     "commit": "5144d61af7d117f86d3fa9b4e2aa05535e2e5433"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/core-v3/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ee93fdc45d1e5e4dee883afe0103109881a83549"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "7c13707d584b3e7f394f732bdf5bdbe020283c59"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/core-v3/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/core-v3/lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "affbbe5cde72c6f7796d3a4dae9fed305477fa9e"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@solady",
+     "url": "https://github.com/Vectorized/solady",
+     "commit": "8d726fb1499f7f1d7459d05379efddcd500dab1a"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/permissionless",
+     "url": "https://github.com/Gearbox-protocol/permissionless",
+     "commit": "0aab5ecec6de72176d7d2a8fae2cfa905d0206af"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/permissionless/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1801b0541f4fda118a10798fd3486bb7051c5dd6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/permissionless/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/permissionless/lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/permissionless/lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/permissionless/lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/permissionless/lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/permissionless/lib/@solady",
+     "url": "https://github.com/Vectorized/solady",
+     "commit": "8d726fb1499f7f1d7459d05379efddcd500dab1a"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3",
+     "url": "https://github.com/Gearbox-protocol/core-v3",
+     "commit": "5144d61af7d117f86d3fa9b4e2aa05535e2e5433"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ee93fdc45d1e5e4dee883afe0103109881a83549"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "7c13707d584b3e7f394f732bdf5bdbe020283c59"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@gearbox-protocol/oracles-v3/lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@1inch/farming",
+     "url": "https://github.com/1inch/farming",
+     "commit": "47134f2828225a47183ad40bfc8f06a60bd018cd"
+    },
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1801b0541f4fda118a10798fd3486bb7051c5dd6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "528de13cdf76bc30435a2652d69b98c21aa83f6d"
+    },
+    {
+     "path": "lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/sdk-gov/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/@solady",
+     "url": "https://github.com/Vectorized/solady",
+     "commit": "8d726fb1499f7f1d7459d05379efddcd500dab1a"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless",
+     "url": "https://github.com/Gearbox-protocol/permissionless",
+     "commit": "6381ac0376fdfadf7f6662ac182c0ed03c5182d8"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1801b0541f4fda118a10798fd3486bb7051c5dd6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@solady",
+     "url": "https://github.com/Vectorized/solady",
+     "commit": "8d726fb1499f7f1d7459d05379efddcd500dab1a"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3",
+     "url": "https://github.com/Gearbox-protocol/core-v3",
+     "commit": "5144d61af7d117f86d3fa9b4e2aa05535e2e5433"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ee93fdc45d1e5e4dee883afe0103109881a83549"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "7c13707d584b3e7f394f732bdf5bdbe020283c59"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@gearbox-protocol/permissionless/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3",
+     "url": "https://github.com/Gearbox-protocol/bots-v3",
+     "commit": "bbbd3c7348918077d8d1fb71814b01ea7b74f9b5"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "07263d193d621c4b2b0ce8b4d54af58f6957d97d"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3/lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3/lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3/lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3/lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3/lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "5b20da0496cfb535b4803fba816485564a895db8"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3/lib/@gearbox-protocol/core-v3",
+     "url": "https://github.com/Gearbox-protocol/core-v3",
+     "commit": "9f228cf984d0a976e8fa0076fc7b2d958a02ad87"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3/lib/@gearbox-protocol/core-v3/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1714bee72e286e73f76e320d110e0eaf5c4e649d"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov",
+     "url": "https://github.com/Gearbox-protocol/sdk-gov",
+     "commit": "7c13707d584b3e7f394f732bdf5bdbe020283c59"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3/lib/@gearbox-protocol/core-v3/lib/@gearbox-protocol/sdk-gov/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3/lib/@gearbox-protocol/core-v3/lib/@1inch/solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3/lib/@gearbox-protocol/core-v3/lib/@openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/@gearbox-protocol/bots-v3/lib/@gearbox-protocol/core-v3/lib/@openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": "MIT",
+    "headers": {
+     "MIT": 75,
+     "GPL-2.0-or-later": 4,
+     "BUSL-1.1": 2,
+     "UNLICENSED": 30
+    },
+    "headers_main": {
+     "MIT": 75,
+     "GPL-2.0-or-later": 4,
+     "BUSL-1.1": 2,
+     "UNLICENSED": 3
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 111
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "Gearbox-protocol__periphery-v3",
+   "files": 9293,
+   "bytes": 71374693,
+   "skipped_large": 0
+  }
+ ]
+}

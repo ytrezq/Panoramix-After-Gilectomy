@@ -1,0 +1,67 @@
+{
+  "name": "@maticnetwork/pos-portal",
+  "version": "1.5.2",
+  "description": "Contracts to facilitate transfer of assets between Ethereum Main Network and Matic Network, using security of Matic POS layer",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "build": "hardhat compile",
+    "flatten": "hardhat flatten",
+    "fmt:js:check": "prettier --log-level warn scripts/**/*.js test/**/*.js --check",
+    "fmt:js:fix": "prettier --log-level warn scripts/**/*.js test/**/*.js --write",
+    "generate:interfaces": "scripts/helpers/generateInterfaces.sh",
+    "lint:js": "eslint test/**/*.js",
+    "test": "hardhat test",
+    "testrpc": "anvil --port 9545 --chain-id 53227 --gas-limit 8000000 --gas-price 0 --hardfork istanbul --mnemonic 'clock radar mass judge dismiss just intact mind resemble fringe diary casino'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maticnetwork/pos-portal.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/maticnetwork/pos-portal/issues"
+  },
+  "homepage": "https://github.com/maticnetwork/pos-portal#readme",
+  "engines": {
+    "npm": ">=11.10.0"
+  },
+  "config": {
+    "mnemonics": "clock radar mass judge dismiss just intact mind resemble fringe diary casino"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
+    "@nomiclabs/hardhat-truffle5": "^2.0.7",
+    "@nomiclabs/hardhat-web3": "^2.1.0",
+    "@openzeppelin/contracts": "=3.1.0",
+    "bip39": "^3.0.0",
+    "bn.js": "^4.12.2",
+    "chai": "^4.3.7",
+    "eslint": "^8.55.0",
+    "eth-sig-util": "^3.0.0",
+    "ethereumjs-tx": "^1.3.7",
+    "ethereumjs-util": "^7.1.5",
+    "ethereumjs-wallet": "^0.6.0",
+    "ethers": "^6.13.5",
+    "hardhat": "^2.23.0",
+    "merkle-patricia-tree": "^2.3.2",
+    "prettier": "^3.5.3",
+    "safe-buffer": "^5.2.1",
+    "tsx": "^4.19.4"
+  },
+  "eslintConfig": {
+    "env": {
+      "browser": false,
+      "es2022": true,
+      "mocha": true,
+      "node": true
+    },
+    "parserOptions": {
+      "sourceType": "module"
+    },
+    "globals": {
+      "web3": true
+    }
+  }
+}

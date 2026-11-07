@@ -1,0 +1,737 @@
+{
+ "program": "katana",
+ "repos": [
+  {
+   "repo": "https://github.com/katana-network/kat-token",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "548949891934a5d7a8d0b5fe5f75e3e983019413",
+   "submodules": [],
+   "soldeer": [
+    {
+     "path": "dependencies/@openzeppelin-contracts-5.1.0",
+     "name": "@openzeppelin-contracts",
+     "version": "5.1.0",
+     "zip": "https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/5_1_0_19-10-2024_10:28:52_contracts.zip"
+    },
+    {
+     "path": "dependencies/forge-std-1.9.4",
+     "name": "forge-std",
+     "version": "1.9.4",
+     "zip": "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_9_4_25-10-2024_14:36:59_forge-std-1.9.zip"
+    }
+   ],
+   "license": {
+    "file": "LICENSE-APACHE.md",
+    "spdx": "Apache-2.0",
+    "package_json": null,
+    "headers": {
+     "MIT": 1,
+     "Apache-2.0": 1,
+     "SEE": 4,
+     "UNLICENSED": 1
+    },
+    "headers_main": {
+     "MIT": 1,
+     "Apache-2.0": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 7
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "katana-network__kat-token",
+   "files": 226,
+   "bytes": 1904991,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/katana-network/katana-governance",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "2fe29c49bfbd6c7c116ddf56a1228de450a62728",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "0c71116a218268ee8c0157be8efcb13af0f7beaf"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/Openzeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "d83fc65ee4b24aa50a6d42e4510cee1566067a98"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "e8745a6a68d77c43c01e2cbe2c83a0b3d36ecc84"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/Openzeppelin/openzeppelin-contracts",
+     "commit": "e8745a6a68d77c43c01e2cbe2c83a0b3d36ecc84"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/osx-commons",
+     "url": "https://github.com/aragon/osx-commons",
+     "commit": "6627101992f2d41db2be7eee1696eb3fa81eed02"
+    },
+    {
+     "path": "lib/osx",
+     "url": "https://github.com/aragon/osx",
+     "commit": "df9a2acf3e0cce1d146d63c6894a8274d6786c17"
+    },
+    {
+     "path": "lib/merkl",
+     "url": "https://github.com/AngleProtocol/merkl-contracts",
+     "commit": "bd3bd1ead0cb421a09e60c046fad56ee26f34008"
+    },
+    {
+     "path": "lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/ve-governance",
+     "url": "https://github.com/aragon/ve-governance",
+     "commit": "8a37bbdb63129d501f473d46537b01b8c8fb40e1"
+    },
+    {
+     "path": "lib/ve-governance/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bf909b22fa55e244796dfa920c9639fdffa1c545"
+    },
+    {
+     "path": "lib/ve-governance/lib/openzeppelin-contracts",
+     "url": "https://github.com/Openzeppelin/openzeppelin-contracts",
+     "commit": "e50c24f5839db17f46991478384bfda14acfb830"
+    },
+    {
+     "path": "lib/ve-governance/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/ve-governance/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/ve-governance/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/ve-governance/lib/osx",
+     "url": "https://github.com/aragon/osx",
+     "commit": "ee4b3e4dbb3e6972fc1ce35c6864bfc8c2166b3d"
+    },
+    {
+     "path": "lib/ve-governance/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/Openzeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "bc95521e34dcd49792065e264a7ad2b5a86f0091"
+    },
+    {
+     "path": "lib/ve-governance/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/ve-governance/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/ve-governance/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/ve-governance/lib/solmate",
+     "url": "https://github.com/transmissions11/solmate",
+     "commit": "97bdb2003b70382996a79a406813f76417b1cf90"
+    },
+    {
+     "path": "lib/ve-governance/lib/solmate/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/ve-governance/lib/openzeppelin-foundry-upgrades",
+     "url": "https://github.com/Openzeppelin/openzeppelin-foundry-upgrades",
+     "commit": "cbce1e00305e943aa1661d43f41e5ac72c662b07"
+    },
+    {
+     "path": "lib/ve-governance/lib/openzeppelin-foundry-upgrades/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66"
+    },
+    {
+     "path": "lib/ve-governance/lib/multisig-plugin",
+     "url": "https://github.com/aragon/multisig-plugin",
+     "commit": "596935de4022470aa993998836ef3899b7e6ff04"
+    },
+    {
+     "path": "lib/ve-governance/lib/osx-commons",
+     "url": "https://github.com/aragon/osx-commons",
+     "commit": "6627101992f2d41db2be7eee1696eb3fa81eed02"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory",
+     "url": "https://github.com/aragon/protocol-factory",
+     "commit": "c5d3b20b51251d2a391238048de7b814cd8d13ca"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/osx",
+     "url": "https://github.com/aragon/osx",
+     "commit": "6f35a85f6159ae62c68776c5cff57d4e8cfe1549"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/osx-commons",
+     "url": "https://github.com/aragon/osx-commons",
+     "commit": "98c2b9672d07377e4b429595d21c1803c19581db"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/admin-plugin",
+     "url": "https://github.com/aragon/admin-plugin",
+     "commit": "7b54f175fe8353fe5a7c9e1de65e588bdafdfe4a"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/multisig-plugin",
+     "url": "https://github.com/aragon/multisig-plugin",
+     "commit": "391a1b1b9c5d4ee2180c370fdec4045d9189f202"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin",
+     "url": "https://github.com/aragon/token-voting-plugin",
+     "commit": "f9c66e2b427ea0044eefe0992c8d0f7f863d681a"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/osx",
+     "url": "https://github.com/aragon/osx",
+     "commit": "fc7403fcef660aa952c7e635e95257ee7f466efb"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/osx-commons",
+     "url": "https://github.com/aragon/osx-commons",
+     "commit": "869045b069679fad94d640a8a3e1a1b5538cf0f0"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/ens-contracts",
+     "url": "https://github.com/ensdomains/ens-contracts",
+     "commit": "f5f2ededccbb7e52be44925c0050620d71762e32"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "2d081f24cac1a867f6f73d512f2022e1fa987854"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/plugin-version-1.3",
+     "url": "https://github.com/aragon/token-voting-plugin-hardhat",
+     "commit": "44c445e5b084bb4b225ab5006427a99727cdd0b8"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/staged-proposal-processor-plugin",
+     "url": "https://github.com/aragon/staged-proposal-processor-plugin",
+     "commit": "67d17827650d524a22fa0f5d1ca1fecd7266be1c"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/ens-contracts",
+     "url": "https://github.com/ensdomains/ens-contracts",
+     "commit": "2736f15fb36345f0691deb77cba4d77760b15077"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "2d081f24cac1a867f6f73d512f2022e1fa987854"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/ve-governance/lib/protocol-factory/lib/buffer",
+     "url": "https://github.com/ensdomains/buffer",
+     "commit": "82cc81935de1d1a82e021cf1030d902c5248982b"
+    },
+    {
+     "path": "lib/protocol-factory",
+     "url": "https://github.com/aragon/protocol-factory",
+     "commit": "a103581428e2403fb798af8323e161639c9842a2"
+    },
+    {
+     "path": "lib/protocol-factory/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/protocol-factory/lib/osx",
+     "url": "https://github.com/aragon/osx",
+     "commit": "6f35a85f6159ae62c68776c5cff57d4e8cfe1549"
+    },
+    {
+     "path": "lib/protocol-factory/lib/osx-commons",
+     "url": "https://github.com/aragon/osx-commons",
+     "commit": "98c2b9672d07377e4b429595d21c1803c19581db"
+    },
+    {
+     "path": "lib/protocol-factory/lib/admin-plugin",
+     "url": "https://github.com/aragon/admin-plugin",
+     "commit": "7b54f175fe8353fe5a7c9e1de65e588bdafdfe4a"
+    },
+    {
+     "path": "lib/protocol-factory/lib/multisig-plugin",
+     "url": "https://github.com/aragon/multisig-plugin",
+     "commit": "391a1b1b9c5d4ee2180c370fdec4045d9189f202"
+    },
+    {
+     "path": "lib/protocol-factory/lib/token-voting-plugin",
+     "url": "https://github.com/aragon/token-voting-plugin",
+     "commit": "f9c66e2b427ea0044eefe0992c8d0f7f863d681a"
+    },
+    {
+     "path": "lib/protocol-factory/lib/token-voting-plugin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
+    },
+    {
+     "path": "lib/protocol-factory/lib/token-voting-plugin/lib/osx",
+     "url": "https://github.com/aragon/osx",
+     "commit": "fc7403fcef660aa952c7e635e95257ee7f466efb"
+    },
+    {
+     "path": "lib/protocol-factory/lib/token-voting-plugin/lib/osx-commons",
+     "url": "https://github.com/aragon/osx-commons",
+     "commit": "869045b069679fad94d640a8a3e1a1b5538cf0f0"
+    },
+    {
+     "path": "lib/protocol-factory/lib/token-voting-plugin/lib/ens-contracts",
+     "url": "https://github.com/ensdomains/ens-contracts",
+     "commit": "f5f2ededccbb7e52be44925c0050620d71762e32"
+    },
+    {
+     "path": "lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "2d081f24cac1a867f6f73d512f2022e1fa987854"
+    },
+    {
+     "path": "lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/protocol-factory/lib/token-voting-plugin/lib/plugin-version-1.3",
+     "url": "https://github.com/aragon/token-voting-plugin-hardhat",
+     "commit": "44c445e5b084bb4b225ab5006427a99727cdd0b8"
+    },
+    {
+     "path": "lib/protocol-factory/lib/staged-proposal-processor-plugin",
+     "url": "https://github.com/aragon/staged-proposal-processor-plugin",
+     "commit": "67d17827650d524a22fa0f5d1ca1fecd7266be1c"
+    },
+    {
+     "path": "lib/protocol-factory/lib/ens-contracts",
+     "url": "https://github.com/ensdomains/ens-contracts",
+     "commit": "2736f15fb36345f0691deb77cba4d77760b15077"
+    },
+    {
+     "path": "lib/protocol-factory/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/protocol-factory/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/protocol-factory/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/protocol-factory/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/protocol-factory/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "2d081f24cac1a867f6f73d512f2022e1fa987854"
+    },
+    {
+     "path": "lib/protocol-factory/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/protocol-factory/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/protocol-factory/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/protocol-factory/lib/buffer",
+     "url": "https://github.com/ensdomains/buffer",
+     "commit": "82cc81935de1d1a82e021cf1030d902c5248982b"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "MIT": 41,
+     "UNLICENSED": 3,
+     "AGPL-3.0": 1,
+     "(none)": 5
+    },
+    "headers_main": {
+     "MIT": 13,
+     "UNLICENSED": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 50
+   },
+   "npm": {},
+   "skipped_unlicensed": 8,
+   "copied": true,
+   "dest": "katana-network__katana-governance",
+   "files": 7417,
+   "bytes": 40946806,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/katana-network/lz-kat-upgradeable",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "fe5979e17bdb6b7b4667a108dd190ab6d8751791",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": "MIT",
+    "headers": {
+     "UNLICENSED": 14,
+     "MIT": 3
+    },
+    "headers_main": {
+     "MIT": 3,
+     "UNLICENSED": 3
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 17
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "5.6.1",
+    "node_modules/@layerzerolabs/test-devtools-evm-foundry": "8.0.1",
+    "node_modules/@openzeppelin/contracts-upgradeable": "5.6.1",
+    "node_modules/@layerzerolabs/oft-evm": "4.0.1",
+    "node_modules/@layerzerolabs/lz-evm-protocol-v2": "3.0.168",
+    "node_modules/@layerzerolabs/oapp-evm": "0.4.1",
+    "node_modules/@layerzerolabs/toolbox-foundry": "0.1.13",
+    "node_modules/@layerzerolabs/oft-evm-upgradeable": "4.0.2",
+    "node_modules/@layerzerolabs/lz-evm-messagelib-v2": "3.0.168",
+    "node_modules/@layerzerolabs/lz-evm-v1-0.7": "3.0.168",
+    "node_modules/hardhat-deploy": "0.12.4",
+    "node_modules/@layerzerolabs/oapp-evm-upgradeable": "0.1.3",
+    "node_modules/solidity-bytes-utils": "0.8.4",
+    "node_modules/@chainlink/contracts-ccip": "0.7.6",
+    "node_modules/@arbitrum/nitro-contracts": "1.3.0",
+    "node_modules/@axelar-network/axelar-gmp-sdk-solidity": "5.10.0",
+    "node_modules/@eth-optimism/contracts": "0.6.0",
+    "node_modules/@offchainlabs/upgrade-executor": "1.1.0-beta.0"
+   },
+   "copied": true,
+   "dest": "katana-network__lz-kat-upgradeable",
+   "files": 1157,
+   "bytes": 6308761,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/agglayer/vault-bridge",
+   "ref": "v1.0.0",
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "bd3ea7b42dd1d23121827abb6eb7191a80b8e720",
+   "submodules": [],
+   "soldeer": [
+    {
+     "path": "dependencies/@layerzerolabs-lz-evm-protocol-v2-3.0.139",
+     "name": "@layerzerolabs-lz-evm-protocol-v2",
+     "version": "3.0.139",
+     "zip": "https://soldeer-revisions.s3.amazonaws.com/@layerzerolabs-lz-evm-protocol-v2/3_0_139_09-10-2025_06:20:53_lz-evm-protocol-v2.zip"
+    },
+    {
+     "path": "dependencies/@layerzerolabs-oapp-evm-0.3.2",
+     "name": "@layerzerolabs-oapp-evm",
+     "version": "0.3.2",
+     "zip": "https://soldeer-revisions.s3.amazonaws.com/@layerzerolabs-oapp-evm/0_3_2_08-03-2025_08:55:58_oapp-evm.zip"
+    },
+    {
+     "path": "dependencies/@layerzerolabs-oapp-evm-upgradeable-0.1.2",
+     "name": "@layerzerolabs-oapp-evm-upgradeable",
+     "version": "0.1.2",
+     "zip": "https://soldeer-revisions.s3.amazonaws.com/@layerzerolabs-oapp-evm-upgradeable/0_1_2_08-03-2025_08:55:32_oapp-evm-upgradeable.zip"
+    },
+    {
+     "path": "dependencies/@layerzerolabs-oft-evm-3.2.1",
+     "name": "@layerzerolabs-oft-evm",
+     "version": "3.2.1",
+     "zip": "https://soldeer-revisions.s3.amazonaws.com/@layerzerolabs-oft-evm/3_2_1_30-08-2025_10:41:23_oft-evm.zip"
+    },
+    {
+     "path": "dependencies/@layerzerolabs-oft-evm-upgradeable-3.2.0",
+     "name": "@layerzerolabs-oft-evm-upgradeable",
+     "version": "3.2.0",
+     "zip": "https://soldeer-revisions.s3.amazonaws.com/@layerzerolabs-oft-evm-upgradeable/3_2_0_13-09-2025_06:13:38_oft-evm-upgradeable.zip"
+    },
+    {
+     "path": "dependencies/@openzeppelin-contracts-5.1.0",
+     "name": "@openzeppelin-contracts",
+     "version": "5.1.0",
+     "zip": "https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/5_1_0_19-10-2024_10:28:52_contracts.zip"
+    },
+    {
+     "path": "dependencies/@openzeppelin-contracts-upgradeable-5.1.0",
+     "name": "@openzeppelin-contracts-upgradeable",
+     "version": "5.1.0",
+     "zip": "https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts-upgradeable/5_1_0_19-10-2024_10:28:58_contracts-upgradeable.zip"
+    },
+    {
+     "path": "dependencies/forge-std-1.9.4",
+     "name": "forge-std",
+     "version": "1.9.4",
+     "zip": "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_9_4_25-10-2024_14:36:59_forge-std-1.9.zip"
+    }
+   ],
+   "license": {
+    "file": "LICENSE-SOURCE-AVAILABLE",
+    "spdx": "LicenseRef-PolygonLabs-Source-Available",
+    "package_json": null,
+    "headers": {
+     "LicenseRef-PolygonLabs-Open-Attribution": 1,
+     "(none)": 5,
+     "LicenseRef-PolygonLabs-Source-Available": 78,
+     "MIT": 2
+    },
+    "headers_main": {
+     "LicenseRef-PolygonLabs-Source-Available": 28
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 86
+   },
+   "copied": false,
+   "why": "reference only: no license allowing redistribution found"
+  },
+  {
+   "repo": "https://github.com/agglayer/agglayer-contracts",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "110bda5a03e70ee7331bc06407a8e79226d3e520",
+   "submodules": [],
+   "soldeer": [
+    {
+     "path": "dependencies/forge-std-1.10.0",
+     "name": "forge-std",
+     "version": "1.10.0",
+     "zip": "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_10_0_02-08-2025_06:50:35_forge-std-1.10.zip"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": "pending",
+    "headers": {
+     "AGPL-3.0": 114,
+     "MIT": 14,
+     "GPL-3.0": 9,
+     "Apache-2.0": 1,
+     "(none)": 2
+    },
+    "headers_main": {
+     "AGPL-3.0": 95,
+     "MIT": 12,
+     "GPL-3.0": 9,
+     "Apache-2.0": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 140
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts-upgradeable4": "4.8.2",
+    "node_modules/@openzeppelin/contracts5": "5.0.0",
+    "node_modules/@openzeppelin/contracts4": "4.8.2",
+    "node_modules/@openzeppelin/contracts52": "5.2.0",
+    "node_modules/@openzeppelin/contracts-upgradeable5": "5.0.0",
+    "node_modules/hardhat": "2.29.1",
+    "node_modules/@openzeppelin/contracts": "5.0.0"
+   },
+   "copied": true,
+   "dest": "agglayer__agglayer-contracts",
+   "files": 1213,
+   "bytes": 7516105,
+   "skipped_large": 0
+  }
+ ]
+}

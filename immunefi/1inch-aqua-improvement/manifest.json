@@ -1,0 +1,97 @@
+{
+ "program": "1inch-aqua-improvement",
+ "repos": [
+  {
+   "repo": "https://github.com/1inch/aqua",
+   "ref": "v1.0.0",
+   "scope_paths": [
+    "src"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "81c26e4619ce21556ab02b3284ee2685de21fb18",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "LicenseRef-Degensoft-Aqua-Source-1.1",
+    "package_json": "SEE LICENSE IN LICENSE",
+    "headers": {
+     "LicenseRef-Degensoft-Aqua-Source-1.1": 22
+    },
+    "headers_main": {
+     "LicenseRef-Degensoft-Aqua-Source-1.1": 7
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 22
+   },
+   "copied": false,
+   "why": "reference only: no license allowing redistribution found"
+  },
+  {
+   "repo": "https://github.com/1inch/swap-vm",
+   "ref": "v1.0.2",
+   "scope_paths": [
+    "src"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "32c687c2b73101fc26549e48fa1ff8a4d73afbac",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "LicenseRef-Degensoft-SwapVM-1.1",
+    "package_json": "SEE LICENSE IN LICENSE",
+    "headers": {
+     "LicenseRef-Degensoft-SwapVM-1.1": 152,
+     "LicenseRef-Degensoft-ARSL-1.0-Audit": 1,
+     "MIT": 2
+    },
+    "headers_main": {
+     "LicenseRef-Degensoft-SwapVM-1.1": 39,
+     "LicenseRef-Degensoft-ARSL-1.0-Audit": 1
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 155
+   },
+   "copied": false,
+   "why": "reference only: no license allowing redistribution found"
+  },
+  {
+   "repo": "https://github.com/1inch/solidity-utils",
+   "ref": "7.0.0",
+   "scope_paths": [
+    "contracts/libraries",
+    "contracts/mixins"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "9e506a39a00231ffb6ce2a9e5b479f05d8203dab",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE.md",
+    "spdx": "MIT",
+    "package_json": "MIT",
+    "headers": {
+     "MIT": 74
+    },
+    "headers_main": {
+     "MIT": 33
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 74
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "5.6.1",
+    "node_modules/@0xsequence/create3": "3.0.0"
+   },
+   "copied": true,
+   "dest": "1inch__solidity-utils",
+   "files": 319,
+   "bytes": 1619758,
+   "skipped_large": 0
+  }
+ ]
+}

@@ -1,0 +1,1250 @@
+{
+ "program": "aave",
+ "repos": [
+  {
+   "repo": "https://github.com/aave/protocol-v2",
+   "ref": "master",
+   "scope_paths": [
+    "contracts/protocol/configuration/LendingPoolAddressesProvider.sol",
+    "contracts/protocol/lendingpool/LendingPool.sol",
+    "contracts/protocol/lendingpool/LendingPoolCollateralManager.sol",
+    "contracts/protocol/lendingpool/DefaultReserveInterestRateStrategy.sol",
+    "contracts/protocol/lendingpool/LendingPoolConfigurator.sol",
+    "contracts/protocol/libraries/aave-upgradeability/BaseImmutableAdminUpgradeabilityProxy.sol",
+    "contracts/protocol/libraries/aave-upgradeability/InitializableImmutableAdminUpgradeabilityProxy.sol",
+    "contracts/protocol/libraries/aave-upgradeability/VersionedInitializable.sol",
+    "contracts/protocol/libraries/configuration/ReserveConfiguration.sol",
+    "contracts/protocol/libraries/configuration/UserConfiguration.sol",
+    "contracts/protocol/libraries/logic/GenericLogic.sol",
+    "contracts/protocol/libraries/logic/ReserveLogic.sol",
+    "contracts/protocol/libraries/logic/ValidationLogic.sol",
+    "contracts/protocol/libraries/math/MathUtils.sol",
+    "contracts/protocol/libraries/math/PercentageMath.sol",
+    "contracts/protocol/libraries/math/WadRayMath.sol",
+    "contracts/protocol/tokenization/AToken.sol",
+    "contracts/protocol/tokenization/VariableDebtToken.sol",
+    "contracts/protocol/tokenization/StableDebtToken.sol",
+    "contracts/misc/AaveOracle.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "ce53c4a8c8620125063168620eba0a8a92854eb8",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE.md",
+    "spdx": "AGPL-3.0",
+    "package_json": "AGPLv3",
+    "headers": {
+     "(none)": 4,
+     "agpl-3.0": 115,
+     "MIT": 5
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 124
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "3.1.0"
+   },
+   "copied": true,
+   "dest": "aave__protocol-v2",
+   "files": 208,
+   "bytes": 839871,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/bgd-labs/solidity-utils",
+   "ref": "7a7548c1d01f011febdb1c0d47e52c7ec6c30f9d",
+   "scope_paths": [
+    "src/contracts/transparent-proxy/TransparentUpgradeableProxy.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "7a7548c1d01f011febdb1c0d47e52c7ec6c30f9d",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "4a79aca83f8075f8b1b4fe9153945fef08375630"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "MIT",
+    "package_json": "ISC",
+    "headers": {
+     "MIT": 34,
+     "Unlicense": 1,
+     "AGPL-3.0": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 36
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "bgd-labs__solidity-utils",
+   "files": 85,
+   "bytes": 574307,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/bgd-labs/aave-governance-v3",
+   "ref": "main",
+   "scope_paths": [
+    "src/contracts/Governance.sol",
+    "src/contracts/voting/VotingStrategy.sol",
+    "src/contracts/GovernancePowerStrategy.sol",
+    "src/contracts/voting/VotingMachine.sol",
+    "src/contracts/voting/DataWarehouse.sol",
+    "src/contracts/payloads/Executor.sol",
+    "src/contracts/payloads/PayloadsController.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "497226efad1ca3723074034c8341fb90931fc2b2",
+   "submodules": [
+    {
+     "path": "lib/aave-delivery-infrastructure",
+     "url": "https://github.com/aave-dao/aave-delivery-infrastructure",
+     "commit": "e4e2500c58fa1eeaa3ffd8f352bdc55c576c1148"
+    },
+    {
+     "path": "lib/aave-delivery-infrastructure/lib/solidity-utils",
+     "url": "https://github.com/aave-dao/solidity-utils",
+     "commit": "7127aa8b7b3dd339157e94a8f159533ebd2c969d"
+    },
+    {
+     "path": "lib/aave-delivery-infrastructure/lib/solidity-utils/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "999be66ec94c78090087f674bbf52ce1cca12b75"
+    },
+    {
+     "path": "lib/aave-delivery-infrastructure/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "fa525310e45f91eb20a6d3baa2644be8e0adba31"
+    },
+    {
+     "path": "lib/aave-delivery-infrastructure/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/aave-delivery-infrastructure/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/aave-delivery-infrastructure/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/aave-delivery-infrastructure/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/aave-delivery-infrastructure/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "69c8def5f222ff96f2b5beff05dfba996368aa79"
+    },
+    {
+     "path": "lib/aave-delivery-infrastructure/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/aave-delivery-infrastructure/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/aave-delivery-infrastructure/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/aave-helpers",
+     "url": "https://github.com/aave-dao/aave-helpers",
+     "commit": "e31e62444964511bf8c8c39bbdb1669cba508826"
+    },
+    {
+     "path": "lib/aave-helpers/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "0844d7e1fc5e60d77b68e469bff60265f236c398"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book",
+     "url": "https://github.com/aave-dao/aave-address-book",
+     "commit": "21004a8871ca774b8da27114cbbd74931f3a436f"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book/lib/aave-v4",
+     "url": "https://github.com/aave/aave-v4",
+     "commit": "2524fe4018a42750300e114f2a8c4355df62a878"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book/lib/aave-v4/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "60acb7aaadcce2d68e52986a0a66fe79f07d138f"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book/lib/aave-v4/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book/lib/aave-v3-origin",
+     "url": "https://github.com/aave-dao/aave-v3-origin",
+     "commit": "fd1fbd9150426ca8ace9cee45b4acf912ae84f5b"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book/lib/aave-v3-origin/lib/solidity-utils",
+     "url": "https://github.com/aave-dao/solidity-utils",
+     "commit": "fdc69f984036585d508889147734902dc0c64bf3"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book/lib/aave-v3-origin/lib/solidity-utils/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "999be66ec94c78090087f674bbf52ce1cca12b75"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book/lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "fa525310e45f91eb20a6d3baa2644be8e0adba31"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book/lib/aave-v3-origin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "999be66ec94c78090087f674bbf52ce1cca12b75"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": "ISC",
+    "headers": {
+     "MIT": 54,
+     "BUSL-1.1": 71,
+     "Apache-2.0": 1,
+     "Unlicense": 1,
+     "(none)": 8,
+     "agpl-3.0": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 137
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "bgd-labs__aave-governance-v3",
+   "files": 2841,
+   "bytes": 19924556,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/aave-dao/aave-v3-origin",
+   "ref": "main",
+   "scope_paths": [
+    "src/contracts/protocol/configuration/PoolAddressesProvider.sol",
+    "src/contracts/protocol/configuration/ACLManager.sol",
+    "src/contracts/protocol/pool/Pool.sol",
+    "src/contracts/protocol/pool/L2Pool.sol",
+    "src/contracts/protocol/pool/PoolConfigurator.sol",
+    "src/contracts/misc/DefaultReserveInterestRateStrategyV2.sol",
+    "src/contracts/misc/aave-upgradeability/BaseImmutableAdminUpgradeabilityProxy.sol",
+    "src/contracts/misc/aave-upgradeability/InitializableImmutableAdminUpgradeabilityProxy.sol",
+    "src/contracts/misc/aave-upgradeability/VersionedInitializable.sol",
+    "src/contracts/protocol/libraries/configuration/ReserveConfiguration.sol",
+    "src/contracts/protocol/libraries/configuration/UserConfiguration.sol",
+    "src/contracts/protocol/libraries/logic/BorrowLogic.sol",
+    "src/contracts/protocol/libraries/logic/BridgeLogic.sol",
+    "src/contracts/protocol/libraries/logic/CalldataLogic.sol",
+    "src/contracts/protocol/libraries/logic/ConfiguratorLogic.sol",
+    "src/contracts/protocol/libraries/logic/EModeLogic.sol",
+    "src/contracts/protocol/libraries/logic/FlashLoanLogic.sol",
+    "src/contracts/protocol/libraries/logic/GenericLogic.sol",
+    "src/contracts/protocol/libraries/logic/IsolationModeLogic.sol",
+    "src/contracts/protocol/libraries/logic/LiquidationLogic.sol",
+    "src/contracts/protocol/libraries/logic/PoolLogic.sol",
+    "src/contracts/protocol/libraries/logic/ReserveLogic.sol",
+    "src/contracts/protocol/libraries/logic/SupplyLogic.sol",
+    "src/contracts/protocol/libraries/logic/ValidationLogic.sol",
+    "src/contracts/protocol/libraries/math/MathUtils.sol",
+    "src/contracts/protocol/libraries/math/PercentageMath.sol",
+    "src/contracts/protocol/libraries/math/WadRayMath.sol",
+    "src/contracts/protocol/tokenization/AToken.sol",
+    "src/contracts/protocol/tokenization/VariableDebtToken.sol",
+    "src/contracts/misc/AaveOracle.sol",
+    "src/contracts/helpers/L2Encoder.sol",
+    "src/contracts/misc/PriceOracleSentinel.sol",
+    "src/contracts/rewards/RewardsController.sol",
+    "src/contracts/rewards/EmissionManager.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "8305565ae342f1773c42cd2e4593f175fe5968a0",
+   "submodules": [
+    {
+     "path": "lib/solidity-utils",
+     "url": "https://github.com/aave-dao/solidity-utils",
+     "commit": "21dafc37b032aafac64fefb1a54d8be2ce137429"
+    },
+    {
+     "path": "lib/solidity-utils/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "999be66ec94c78090087f674bbf52ce1cca12b75"
+    },
+    {
+     "path": "lib/solidity-utils/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "fa525310e45f91eb20a6d3baa2644be8e0adba31"
+    },
+    {
+     "path": "lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "69c8def5f222ff96f2b5beff05dfba996368aa79"
+    },
+    {
+     "path": "lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "999be66ec94c78090087f674bbf52ce1cca12b75"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": "BUSL1.1",
+    "headers": {
+     "(none)": 11,
+     "agpl-3.0": 10,
+     "MIT": 174,
+     "BUSL-1.1": 212,
+     "LGPL-3.0-or-later": 1,
+     "UNLICENSED": 2,
+     "GPL-3.0": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 411
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "aave-dao__aave-v3-origin",
+   "files": 1248,
+   "bytes": 8461526,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/aave/aave-v3-core",
+   "ref": "master",
+   "scope_paths": [
+    "contracts/protocol/tokenization/StableDebtToken.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "782f51917056a53a2c228701058a6c3fb233684a",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE.md",
+    "spdx": "BUSL-1.1",
+    "package_json": "BUSL-1.1",
+    "headers": {
+     "BUSL-1.1": 69,
+     "(none)": 5,
+     "agpl-3.0": 2,
+     "AGPL-3.0": 43,
+     "MIT": 12,
+     "LGPL-3.0-or-later": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 132
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "aave__aave-v3-core",
+   "files": 143,
+   "bytes": 682409,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/bgd-labs/aave-collector-unification",
+   "ref": "main",
+   "scope_paths": [
+    "src/contracts/Collector.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "308489df2221a7e521b22ea01c9a350c0d1a0a6b",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "066ff16c5c03e6f931cd041fd366bc4be1fae82a"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/solidity-utils",
+     "url": "https://github.com/bgd-labs/solidity-utils",
+     "commit": "9d4d041562f7ac2918e216e2e7c74172afe3d2af"
+    },
+    {
+     "path": "lib/solidity-utils/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "0d0485bdea9f9455bd684acb0ba88548a104d99b"
+    },
+    {
+     "path": "lib/solidity-utils/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    },
+    {
+     "path": "lib/protocol-v2",
+     "url": "https://github.com/bgd-labs/protocol-v2",
+     "commit": "4314f9df732838bfc5d76e2c046d5b311482d0ee"
+    },
+    {
+     "path": "lib/aave-address-book",
+     "url": "https://github.com/bgd-labs/aave-address-book",
+     "commit": "29aed742774c1e76815daeffb8822feef9b2e7d2"
+    },
+    {
+     "path": "lib/aave-address-book/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "066ff16c5c03e6f931cd041fd366bc4be1fae82a"
+    },
+    {
+     "path": "lib/aave-address-book/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/aave-address-book/lib/aave-v3-core",
+     "url": "https://github.com/aave/aave-v3-core",
+     "commit": "ee7d556e1a968f8369ac5b65868edb4f5f066956"
+    },
+    {
+     "path": "lib/aave-helpers",
+     "url": "https://github.com/bgd-labs/aave-helpers",
+     "commit": "70219fff17b0a5b097571d7482a1bfea822209fc"
+    },
+    {
+     "path": "lib/aave-helpers/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "4a79aca83f8075f8b1b4fe9153945fef08375630"
+    },
+    {
+     "path": "lib/aave-helpers/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/aave-helpers/lib/solidity-utils",
+     "url": "https://github.com/bgd-labs/solidity-utils",
+     "commit": "21fec63a93ff6752a35cdaf347f0557b85d5b7c1"
+    },
+    {
+     "path": "lib/aave-helpers/lib/solidity-utils/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "4a79aca83f8075f8b1b4fe9153945fef08375630"
+    },
+    {
+     "path": "lib/aave-helpers/lib/solidity-utils/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book",
+     "url": "https://github.com/bgd-labs/aave-address-book",
+     "commit": "b32333a1b0e6bc5790f53a06f521a57ad61efc7a"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "066ff16c5c03e6f931cd041fd366bc4be1fae82a"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book/lib/aave-v3-core",
+     "url": "https://github.com/aave/aave-v3-core",
+     "commit": "ee7d556e1a968f8369ac5b65868edb4f5f066956"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "MIT",
+    "package_json": "MIT",
+    "headers": {
+     "MIT": 20,
+     "agpl-3.0": 7,
+     "GPL-3.0": 2,
+     "AGPL-3.0": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 30
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "bgd-labs__aave-collector-unification",
+   "files": 863,
+   "bytes": 5694597,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/aave-dao/gho-origin",
+   "ref": "main",
+   "scope_paths": [
+    "src/contracts/facilitators/aave/oracle/GhoOracle.so",
+    "src/contracts/facilitators/gsm/Gsm.sol",
+    "src/contracts/facilitators/gsm/priceStrategy/FixedPriceStrategy.sol",
+    "src/contracts/facilitators/gsm/feeStrategy/FixedFeeStrategy.sol",
+    "src/contracts/gho/UpgradeableGhoToken.sol",
+    "src/contracts/gho/GhoToken.sol",
+    "src/contracts/facilitators/flashMinter/GhoFlashMinter.sol",
+    "src/contracts/facilitators/gsm/Gsm4626.sol",
+    "src/contracts/facilitators/gsm/priceStrategy/FixedPriceStrategy4626.sol",
+    "src/contracts/facilitators/gsm/GhoReserve.sol",
+    "src/contracts/facilitators/gsm/OwnableFacilitator.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "45dda868ef45b45e2cf7d860b8b3838dc45d7e6b",
+   "submodules": [
+    {
+     "path": "lib/aave-v3-origin",
+     "url": "https://github.com/aave-dao/aave-v3-origin",
+     "commit": "d7919c0204cb26856fbd087b2e1c6d62a8916e3a"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils",
+     "url": "https://github.com/aave-dao/solidity-utils",
+     "commit": "7127aa8b7b3dd339157e94a8f159533ebd2c969d"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "999be66ec94c78090087f674bbf52ce1cca12b75"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "fa525310e45f91eb20a6d3baa2644be8e0adba31"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "69c8def5f222ff96f2b5beff05dfba996368aa79"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "999be66ec94c78090087f674bbf52ce1cca12b75"
+    },
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8bbcf6e3f8f62f419e5429a0bd89331c85c37824"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "MIT",
+    "package_json": "MIT",
+    "headers": {
+     "(none)": 14,
+     "agpl-3.0": 3,
+     "MIT": 132,
+     "No-License": 2,
+     "UNLICENSED": 1,
+     "MIT-only": 2,
+     "agpl-3": 5,
+     "BUSL-1.1": 1,
+     "AGPL-3.0": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 161
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "aave-dao__gho-origin",
+   "files": 1463,
+   "bytes": 10345292,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/bgd-labs/aave-stk-gov-v3",
+   "ref": "main",
+   "scope_paths": [
+    "src/contracts/StakedAaveV3.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "0c4cb0b71566cf91a62816e06199fdb3606608bc",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "5086c7a438a949012c5c6aa353e8f24c47d63237"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/aave-helpers",
+     "url": "https://github.com/bgd-labs/aave-helpers",
+     "commit": "983d26b013c2aab8001b77a217d7bc028e47816c"
+    },
+    {
+     "path": "lib/aave-helpers/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "66bf4e2c92cf507531599845e8d5a08cc2e3b5bb"
+    },
+    {
+     "path": "lib/aave-helpers/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/aave-helpers/lib/solidity-utils",
+     "url": "https://github.com/bgd-labs/solidity-utils",
+     "commit": "87553dfcf02f79fdab2d7f9557525673e812a257"
+    },
+    {
+     "path": "lib/aave-helpers/lib/solidity-utils/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "4a79aca83f8075f8b1b4fe9153945fef08375630"
+    },
+    {
+     "path": "lib/aave-helpers/lib/solidity-utils/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book",
+     "url": "https://github.com/bgd-labs/aave-address-book",
+     "commit": "1083db646b66c4807bd1f0315694b73183d04a4d"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "66bf4e2c92cf507531599845e8d5a08cc2e3b5bb"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book/lib/aave-v3-core",
+     "url": "https://github.com/aave/aave-v3-core",
+     "commit": "29ff9b9f89af7cd8255231bc5faf26c3ce0fb7ce"
+    },
+    {
+     "path": "lib/aave-helpers/lib/governance-crosschain-bridges",
+     "url": "https://github.com/aave/governance-crosschain-bridges",
+     "commit": "57dd43969a68eb076fdbeae2953b572534694986"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "f29307cfe08c7d76d96a38bf94bab5fec223c943"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/aave-address-book",
+     "url": "https://github.com/bgd-labs/aave-address-book",
+     "commit": "35285a26991ce19cddca48a8fe4f6ce50ece5943"
+    },
+    {
+     "path": "lib/aave-address-book/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "9838df8b281f2e5c1bda49632f1944ff0f86b4b5"
+    },
+    {
+     "path": "lib/aave-address-book/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/aave-address-book/lib/aave-v3-core",
+     "url": "https://github.com/aave/aave-v3-core",
+     "commit": "27a6d5c83560694210849d4abf09a09dec8da388"
+    },
+    {
+     "path": "lib/aave-token-v3",
+     "url": "https://github.com/bgd-labs/aave-token-v3",
+     "commit": "ec80c6d41f7ef1e43f31dbcf4eca59e8c6bceb87"
+    },
+    {
+     "path": "lib/aave-token-v3/lib/aave-token-v2",
+     "url": "https://github.com/aave/aave-token-v2",
+     "commit": "6ebf51ddbdfb6ae66de0b4c191b978ef5149a9ce"
+    },
+    {
+     "path": "lib/aave-token-v3/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "cffb5628775fbf120bfc3c123149f6a6d99dc275"
+    },
+    {
+     "path": "lib/aave-token-v3/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/aave-token-v3/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "e50c24f5839db17f46991478384bfda14acfb830"
+    },
+    {
+     "path": "lib/aave-token-v3/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/aave-token-v3/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/aave-token-v3/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "MIT",
+    "package_json": "MIT",
+    "headers": {
+     "agpl-3.0": 61,
+     "MIT": 24,
+     "(none)": 6
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 91
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "bgd-labs__aave-stk-gov-v3",
+   "files": 1689,
+   "bytes": 11475568,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/bgd-labs/stake-token",
+   "ref": "main",
+   "scope_paths": [
+    "src/contracts/StakeToken.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "5346765ccdeaa3a897247034bae46dc9be1e9462",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "155d547c449afa8715f538d69454b83944117811"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "932fddf69a699a9a80fd2396fd1a2ab91cdda123"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/aave-token-v3",
+     "url": "https://github.com/bgd-labs/aave-token-v3",
+     "commit": "994f1d39640c55ff0ddb59889f90ce78e854892c"
+    },
+    {
+     "path": "lib/aave-token-v3/lib/aave-token-v2",
+     "url": "https://github.com/aave/aave-token-v2",
+     "commit": "6ebf51ddbdfb6ae66de0b4c191b978ef5149a9ce"
+    },
+    {
+     "path": "lib/aave-token-v3/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "cffb5628775fbf120bfc3c123149f6a6d99dc275"
+    },
+    {
+     "path": "lib/aave-token-v3/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/aave-token-v3/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "e50c24f5839db17f46991478384bfda14acfb830"
+    },
+    {
+     "path": "lib/aave-token-v3/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/aave-token-v3/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/aave-token-v3/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/aave-helpers",
+     "url": "https://github.com/bgd-labs/aave-helpers",
+     "commit": "6cc788d1346e6bcaf8f02878841eb74662c87c17"
+    },
+    {
+     "path": "lib/aave-helpers/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "87a2a0afc5fafd6297538a45a52ac19e71a84562"
+    },
+    {
+     "path": "lib/aave-helpers/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/aave-helpers/lib/solidity-utils",
+     "url": "https://github.com/bgd-labs/solidity-utils",
+     "commit": "7a7548c1d01f011febdb1c0d47e52c7ec6c30f9d"
+    },
+    {
+     "path": "lib/aave-helpers/lib/solidity-utils/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "4a79aca83f8075f8b1b4fe9153945fef08375630"
+    },
+    {
+     "path": "lib/aave-helpers/lib/solidity-utils/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book",
+     "url": "https://github.com/bgd-labs/aave-address-book",
+     "commit": "a53910d9b71c6653f23d08443264ad898119b391"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c22437a63d1c3418869bc35a7c55a5175a09b701"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/aave-helpers/lib/aave-address-book/lib/aave-v3-core",
+     "url": "https://github.com/aave/aave-v3-core",
+     "commit": "6070e82d962d9b12835c88e68210d0e63f08d035"
+    },
+    {
+     "path": "lib/aave-helpers/lib/governance-crosschain-bridges",
+     "url": "https://github.com/aave/governance-crosschain-bridges",
+     "commit": "57dd43969a68eb076fdbeae2953b572534694986"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": "BUSL-1.1",
+    "headers": {
+     "agpl-3.0": 28,
+     "MIT": 23,
+     "(none)": 3,
+     "BUSL-1.1": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 56
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "bgd-labs__stake-token",
+   "files": 1519,
+   "bytes": 9498371,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/aave/ccip",
+   "ref": "d5c6cedde6fbca9890a92a55f2db80e94793d0ec",
+   "scope_paths": [
+    "contracts/src/v0.8/ccip/pools/GHO/UpgradeableLockReleaseTokenPool.sol",
+    "contracts/src/v0.8/ccip/pools/GHO/UpgradeableBurnMintTokenPool.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "d5c6cedde6fbca9890a92a55f2db80e94793d0ec",
+   "submodules": [
+    {
+     "path": "contracts/foundry-lib/gho-core",
+     "url": "https://github.com/aave/gho-core",
+     "commit": "a8d05e6e72409aa5ea6fd84d8a3c41e13887654d"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "73d44ec7d124e3831bc5f832267889ffb6f9bc3f"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-stk-v1-5",
+     "url": "https://github.com/bgd-labs/aave-stk-v1-5",
+     "commit": "0348eb110fcaf1937fcae3a1043ffe72bf98f82a"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-stk-v1-5/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3778c3cb8e4244cb5a1c3ef3ce1c71a3683e324a"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-stk-v1-5/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-stk-v1-5/lib/aave-helpers",
+     "url": "https://github.com/bgd-labs/aave-helpers",
+     "commit": "78b55aadb671b03cde196673d3524399a21bbf33"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-stk-v1-5/lib/aave-helpers/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "dc1901fa900fc2ceabb4aae91d8a3d6c0c2e0392"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-stk-v1-5/lib/aave-helpers/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-stk-v1-5/lib/aave-helpers/lib/solidity-utils",
+     "url": "https://github.com/bgd-labs/solidity-utils",
+     "commit": "21fec63a93ff6752a35cdaf347f0557b85d5b7c1"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-stk-v1-5/lib/aave-helpers/lib/solidity-utils/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "4a79aca83f8075f8b1b4fe9153945fef08375630"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-stk-v1-5/lib/aave-helpers/lib/aave-address-book",
+     "url": "https://github.com/bgd-labs/aave-address-book",
+     "commit": "751ffd0affc9bd1609753ea47a7d9ac23f391dd8"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-stk-v1-5/lib/aave-helpers/lib/aave-address-book/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "fd86115ed6aba8e234ee0fb86c12fe35eff0b2a0"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-stk-v1-5/lib/aave-helpers/lib/aave-address-book/lib/aave-v3-core",
+     "url": "https://github.com/aave/aave-v3-core",
+     "commit": "94e571f3a7465201881a59555314cd550ccfda57"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-stk-v1-5/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "3f610ebc25480bf6145e519c96e2f809996db8ed"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-stk-v1-5/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-stk-v1-5/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-stk-v1-5/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-stk-v1-5/lib/aave-address-book",
+     "url": "https://github.com/bgd-labs/aave-address-book",
+     "commit": "642dffde2456b04d2509a42391fddb622264aa09"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-stk-v1-5/lib/aave-address-book/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "fd86115ed6aba8e234ee0fb86c12fe35eff0b2a0"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-stk-v1-5/lib/aave-address-book/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "013e6c6451effc6055c69384d056eff9b18b8646"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-stk-v1-5/lib/aave-address-book/lib/aave-v3-core",
+     "url": "https://github.com/aave/aave-v3-core",
+     "commit": "94e571f3a7465201881a59555314cd550ccfda57"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-address-book",
+     "url": "https://github.com/bgd-labs/aave-address-book",
+     "commit": "e65e63cec1dd61e7a21ed0db34795a708577a503"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-address-book/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c22437a63d1c3418869bc35a7c55a5175a09b701"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-address-book/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-address-book/lib/aave-v3-core",
+     "url": "https://github.com/aave/aave-v3-core",
+     "commit": "6070e82d962d9b12835c88e68210d0e63f08d035"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/solidity-utils",
+     "url": "https://github.com/bgd-labs/solidity-utils",
+     "commit": "9d4d041562f7ac2918e216e2e7c74172afe3d2af"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/solidity-utils/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "0d0485bdea9f9455bd684acb0ba88548a104d99b"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/solidity-utils/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-v3-core",
+     "url": "https://github.com/aave/aave-v3-core",
+     "commit": "a00f28e3ad7c0e4a369d8e06e0ac9fd0acabcab7"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-token",
+     "url": "https://github.com/aave/aave-token",
+     "commit": "5d0da80ef130f8a6ee3a3a464db47843548f4cb1"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/aave-v3-periphery",
+     "url": "https://github.com/aave/aave-v3-periphery",
+     "commit": "222c1c678a2a8968eb8ee31404e3eef098a6f447"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/safety-module",
+     "url": "https://github.com/aave/safety-module",
+     "commit": "3c8d5c30302c35239b6ea8c23ad3df36b485d7b6"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "0457042d93d9dfd760dbaa06a4d2f1216fdbe297"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ca8d6e00ea9cb035f6856ff732203c9a3c48b966"
+    },
+    {
+     "path": "contracts/foundry-lib/gho-core/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    },
+    {
+     "path": "contracts/foundry-lib/solidity-utils",
+     "url": "https://github.com/bgd-labs/solidity-utils",
+     "commit": "9d4d041562f7ac2918e216e2e7c74172afe3d2af"
+    },
+    {
+     "path": "contracts/foundry-lib/solidity-utils/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "0d0485bdea9f9455bd684acb0ba88548a104d99b"
+    },
+    {
+     "path": "contracts/foundry-lib/solidity-utils/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": "MIT",
+    "headers": {
+     "agpl-3.0": 1,
+     "MIT": 655,
+     "BUSL-1.1": 271,
+     "(none)": 46,
+     "UNLICENSED": 61,
+     "LGPL-3.0-only": 2,
+     "Apache": 1,
+     "BSD-2-Clause": 1,
+     "GPL-3.0": 8,
+     "GPL-3.0-only": 2,
+     "Apache-2.0": 4,
+     "BUSL": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 1053
+   },
+   "npm": {
+    "contracts/node_modules/@openzeppelin/contracts": "4.9.3",
+    "contracts/node_modules/@arbitrum/token-bridge-contracts": "1.1.2",
+    "contracts/node_modules/@eth-optimism/contracts": "0.6.0",
+    "contracts/node_modules/@arbitrum/nitro-contracts": "1.1.1",
+    "contracts/node_modules/@zksync/contracts": "0.1.0",
+    "contracts/node_modules/@scroll-tech/contracts": "0.1.0",
+    "contracts/node_modules/@openzeppelin/contracts-upgradeable": "4.9.3",
+    "contracts/node_modules/@offchainlabs/upgrade-executor": "1.1.0-beta.0",
+    "contracts/node_modules/@zksync/contracts/l2-contracts/node_modules/@openzeppelin/contracts-upgradeable": "4.9.5",
+    "contracts/node_modules/@zksync/contracts/l2-contracts/node_modules/@openzeppelin/contracts": "4.9.5",
+    "contracts/node_modules/@zksync/contracts/gas-bound-caller/node_modules/@matterlabs/zksync-contracts": "0.6.2",
+    "contracts/node_modules/@zksync/contracts/gas-bound-caller/node_modules/@openzeppelin/contracts": "4.9.6",
+    "contracts/node_modules/@zksync/contracts/gas-bound-caller/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6"
+   },
+   "copied": true,
+   "dest": "aave__ccip",
+   "files": 5332,
+   "bytes": 29968288,
+   "skipped_large": 0
+  }
+ ]
+}

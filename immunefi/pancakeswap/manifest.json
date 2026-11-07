@@ -1,0 +1,576 @@
+{
+ "program": "pancakeswap",
+ "repos": [
+  {
+   "repo": "https://github.com/pancakeswap/infinity-core",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "3c5ef1be1f71442d8bc60cc6fd11f9c677b714df",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "726a6ee5fc8427a0013d6f624e486c9130c0e336"
+    },
+    {
+     "path": "lib/solmate",
+     "url": "https://github.com/transmissions11/solmate",
+     "commit": "fadb2e2778adbf01c80275bfb99e5c14969d964b"
+    },
+    {
+     "path": "lib/solmate/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "659f3063f82422cef820de746444e6f6cba6ca7c"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/pancake-create3-factory",
+     "url": "https://github.com/pancakeswap/pancake-create3-factory",
+     "commit": "959233c3742131de85443e7272999e2ab288852d"
+    },
+    {
+     "path": "lib/pancake-create3-factory/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
+    },
+    {
+     "path": "lib/pancake-create3-factory/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/pancake-create3-factory/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/pancake-create3-factory/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/pancake-create3-factory/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/pancake-create3-factory/lib/forge-gas-snapshot",
+     "url": "https://github.com/marktoda/forge-gas-snapshot",
+     "commit": "cf34ad1ed0a1f323e77557b9bce420f3385f7400"
+    }
+   ],
+   "soldeer": [
+    {
+     "path": "lib/pancake-create3-factory/lib/forge-gas-snapshot/dependencies/forge-std-1.9.2",
+     "name": "forge-std",
+     "version": "1.9.2"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-2.0",
+    "package_json": "MIT",
+    "headers": {
+     "GPL-2.0-or-later": 57,
+     "MIT": 26,
+     "UNLICENSED": 127,
+     "Unlicense": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 212
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "pancakeswap__infinity-core",
+   "files": 1096,
+   "bytes": 7441624,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/pancakeswap/infinity-periphery",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "56a7a4f5076d57d5ed90c38a00421ecbac0d649c",
+   "submodules": [
+    {
+     "path": "lib/infinity-core",
+     "url": "https://github.com/pancakeswap/infinity-core",
+     "commit": "891259f3b0ba32a8c9f91f903ed4e8ae2bbda3ff"
+    },
+    {
+     "path": "lib/infinity-core/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "726a6ee5fc8427a0013d6f624e486c9130c0e336"
+    },
+    {
+     "path": "lib/infinity-core/lib/solmate",
+     "url": "https://github.com/transmissions11/solmate",
+     "commit": "fadb2e2778adbf01c80275bfb99e5c14969d964b"
+    },
+    {
+     "path": "lib/infinity-core/lib/solmate/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/infinity-core/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "659f3063f82422cef820de746444e6f6cba6ca7c"
+    },
+    {
+     "path": "lib/infinity-core/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/infinity-core/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/infinity-core/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/infinity-core/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/infinity-core/lib/pancake-create3-factory",
+     "url": "https://github.com/pancakeswap/pancake-create3-factory",
+     "commit": "959233c3742131de85443e7272999e2ab288852d"
+    },
+    {
+     "path": "lib/infinity-core/lib/pancake-create3-factory/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
+    },
+    {
+     "path": "lib/infinity-core/lib/pancake-create3-factory/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/infinity-core/lib/pancake-create3-factory/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/infinity-core/lib/pancake-create3-factory/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/infinity-core/lib/pancake-create3-factory/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/infinity-core/lib/pancake-create3-factory/lib/forge-gas-snapshot",
+     "url": "https://github.com/marktoda/forge-gas-snapshot",
+     "commit": "cf34ad1ed0a1f323e77557b9bce420f3385f7400"
+    },
+    {
+     "path": "lib/permit2",
+     "url": "https://github.com/pancakeswap/permit2",
+     "commit": "cc8b7c0715a5916ee1a1c6c3640d98e06326ead6"
+    },
+    {
+     "path": "lib/pancake-create3-factory",
+     "url": "https://github.com/pancakeswap/pancake-create3-factory",
+     "commit": "bc3cfaff192dd4fb55410f895f0e11c0c17af65f"
+    },
+    {
+     "path": "lib/pancake-create3-factory/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
+    },
+    {
+     "path": "lib/pancake-create3-factory/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/pancake-create3-factory/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/pancake-create3-factory/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/pancake-create3-factory/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/pancake-create3-factory/lib/forge-gas-snapshot",
+     "url": "https://github.com/marktoda/forge-gas-snapshot",
+     "commit": "cf34ad1ed0a1f323e77557b9bce420f3385f7400"
+    }
+   ],
+   "soldeer": [
+    {
+     "path": "lib/pancake-create3-factory/lib/forge-gas-snapshot/dependencies/forge-std-1.9.2",
+     "name": "forge-std",
+     "version": "1.9.2"
+    },
+    {
+     "path": "lib/infinity-core/lib/pancake-create3-factory/lib/forge-gas-snapshot/dependencies/forge-std-1.9.2",
+     "name": "forge-std",
+     "version": "1.9.2"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-2.0",
+    "package_json": null,
+    "headers": {
+     "GPL-2.0-or-later": 62,
+     "MIT": 59,
+     "GPL-3.0-or-later": 4,
+     "UNLICENSED": 34,
+     "(none)": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 160
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "pancakeswap__infinity-periphery",
+   "files": 1708,
+   "bytes": 11150294,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/pancakeswap/pancake-swap-periphery",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "d769a6d136b74fde82502ec2f9334acc1afc0732",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": "GPL-3.0-or-later",
+    "headers": {
+     "(none)": 21,
+     "MIT": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 22
+   },
+   "npm": {
+    "node_modules/@uniswap/lib": "1.1.1",
+    "node_modules/@uniswap/v2-core": "1.0.1"
+   },
+   "copied": true,
+   "dest": "pancakeswap__pancake-swap-periphery",
+   "files": 51,
+   "bytes": 255018,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/pancakeswap/infinity-universal-router",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "1b6d479e1f76361f5950d1168d9392361e73a1e8",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "726a6ee5fc8427a0013d6f624e486c9130c0e336"
+    },
+    {
+     "path": "lib/infinity-periphery",
+     "url": "https://github.com/pancakeswap/infinity-periphery",
+     "commit": "52f28eefd2bda99c9209bbf7892b2df304f3215a"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/infinity-core",
+     "url": "https://github.com/pancakeswap/infinity-core",
+     "commit": "891259f3b0ba32a8c9f91f903ed4e8ae2bbda3ff"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/infinity-core/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "726a6ee5fc8427a0013d6f624e486c9130c0e336"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/infinity-core/lib/solmate",
+     "url": "https://github.com/transmissions11/solmate",
+     "commit": "fadb2e2778adbf01c80275bfb99e5c14969d964b"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/infinity-core/lib/solmate/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/infinity-core/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "659f3063f82422cef820de746444e6f6cba6ca7c"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/infinity-core/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/infinity-core/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/infinity-core/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/infinity-core/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/infinity-core/lib/pancake-create3-factory",
+     "url": "https://github.com/pancakeswap/pancake-create3-factory",
+     "commit": "959233c3742131de85443e7272999e2ab288852d"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/infinity-core/lib/pancake-create3-factory/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/infinity-core/lib/pancake-create3-factory/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/infinity-core/lib/pancake-create3-factory/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/infinity-core/lib/pancake-create3-factory/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/infinity-core/lib/pancake-create3-factory/lib/forge-gas-snapshot",
+     "url": "https://github.com/marktoda/forge-gas-snapshot",
+     "commit": "cf34ad1ed0a1f323e77557b9bce420f3385f7400"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/permit2",
+     "url": "https://github.com/pancakeswap/permit2",
+     "commit": "cc8b7c0715a5916ee1a1c6c3640d98e06326ead6"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/pancake-create3-factory",
+     "url": "https://github.com/pancakeswap/pancake-create3-factory",
+     "commit": "bc3cfaff192dd4fb55410f895f0e11c0c17af65f"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/pancake-create3-factory/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/pancake-create3-factory/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/pancake-create3-factory/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/pancake-create3-factory/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/pancake-create3-factory/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/pancake-create3-factory/lib/forge-gas-snapshot",
+     "url": "https://github.com/marktoda/forge-gas-snapshot",
+     "commit": "cf34ad1ed0a1f323e77557b9bce420f3385f7400"
+    },
+    {
+     "path": "lib/pancake-create3-factory",
+     "url": "https://github.com/pancakeswap/pancake-create3-factory",
+     "commit": "959233c3742131de85443e7272999e2ab288852d"
+    },
+    {
+     "path": "lib/pancake-create3-factory/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
+    },
+    {
+     "path": "lib/pancake-create3-factory/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/pancake-create3-factory/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/pancake-create3-factory/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/pancake-create3-factory/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/pancake-create3-factory/lib/forge-gas-snapshot",
+     "url": "https://github.com/marktoda/forge-gas-snapshot",
+     "commit": "cf34ad1ed0a1f323e77557b9bce420f3385f7400"
+    }
+   ],
+   "soldeer": [
+    {
+     "path": "lib/infinity-periphery/lib/pancake-create3-factory/lib/forge-gas-snapshot/dependencies/forge-std-1.9.2",
+     "name": "forge-std",
+     "version": "1.9.2"
+    },
+    {
+     "path": "lib/infinity-periphery/lib/infinity-core/lib/pancake-create3-factory/lib/forge-gas-snapshot/dependencies/forge-std-1.9.2",
+     "name": "forge-std",
+     "version": "1.9.2"
+    },
+    {
+     "path": "lib/pancake-create3-factory/lib/forge-gas-snapshot/dependencies/forge-std-1.9.2",
+     "name": "forge-std",
+     "version": "1.9.2"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "GPL-2.0-or-later": 8,
+     "MIT": 16,
+     "GPL-3.0-or-later": 10,
+     "UNLICENSED": 35,
+     "(none)": 1
+    },
+    "headers_main": {
+     "GPL-2.0-or-later": 8,
+     "MIT": 16,
+     "GPL-3.0-or-later": 10
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 70
+   },
+   "npm": {},
+   "skipped_unlicensed": 36,
+   "copied": true,
+   "dest": "pancakeswap__infinity-universal-router",
+   "files": 2173,
+   "bytes": 14516990,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/pancakeswap/pancake-v3-contracts",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "986847948755cba528324d41be19480731c36c2a",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "GPL-2.0-or-later": 102,
+     "(none)": 8,
+     "MIT": 13,
+     "UNLICENSED": 49
+    },
+    "headers_main": {
+     "GPL-2.0-or-later": 99,
+     "MIT": 13,
+     "(none)": 3
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 172
+   },
+   "npm": {
+    "projects/masterchef-v3/node_modules/@openzeppelin/contracts": "4.9.6",
+    "projects/masterchef-v3/node_modules/@chainlink/contracts": "0.6.1",
+    "projects/v3-periphery/node_modules/@uniswap/v2-core": "1.0.1",
+    "projects/v3-periphery/node_modules/@openzeppelin/contracts-upgradeable": "3.4.2-solc-0.7",
+    "projects/v3-periphery/node_modules/@uniswap/lib": "4.0.1-alpha",
+    "projects/v3-periphery/node_modules/@openzeppelin/contracts": "3.4.2-solc-0.7",
+    "projects/v3-periphery/node_modules/base64-sol": "1.0.1",
+    "projects/masterchef-v3/node_modules/@eth-optimism/contracts": "0.5.40",
+    "projects/masterchef-v3/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6"
+   },
+   "workspace_links": {
+    "projects/masterchef-v3/node_modules/@pancakeswap/v3-periphery": "projects/v3-periphery",
+    "projects/v3-core/node_modules/@pancakeswap/v3-lm-pool": "projects/v3-lm-pool",
+    "projects/v3-lm-pool/node_modules/@pancakeswap/v3-core": "projects/v3-core",
+    "projects/v3-lm-pool/node_modules/@pancakeswap/v3-periphery": "projects/v3-periphery",
+    "projects/v3-periphery/node_modules/@pancakeswap/v3-core": "projects/v3-core"
+   },
+   "skipped_unlicensed": 57,
+   "copied": true,
+   "dest": "pancakeswap__pancake-v3-contracts",
+   "files": 1306,
+   "bytes": 4706025,
+   "skipped_large": 0
+  }
+ ]
+}

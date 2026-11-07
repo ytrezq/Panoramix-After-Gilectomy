@@ -1,0 +1,53 @@
+{
+ "program": "rocketpool",
+ "repos": [
+  {
+   "repo": "https://github.com/rocket-pool/rocketpool",
+   "ref": "v1.4",
+   "scope_paths": [
+    "contracts/contract"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "fb7d9c428dc3dddc3fbd3e634e3cb365655df89e",
+   "submodules": [
+    {
+     "path": "old",
+     "url": "https://github.com/rocket-pool/rocketpool.git",
+     "commit": "77a2e2e2ad294254efca31d5bf2bc3368f726e0b"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": null,
+    "headers": {
+     "(none)": 3,
+     "GPL-3.0-only": 168,
+     "MIT": 9,
+     "UNLICENSED": 1,
+     "GPL-3.0": 1
+    },
+    "headers_main": {
+     "GPL-3.0-only": 168,
+     "MIT": 9,
+     "UNLICENSED": 1,
+     "GPL-3.0": 1,
+     "(none)": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 182
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "3.4.2",
+    "node_modules/@openzeppelin4/contracts": "4.9.6"
+   },
+   "copied": true,
+   "dest": "rocket-pool__rocketpool",
+   "files": 667,
+   "bytes": 2899932,
+   "skipped_large": 0
+  }
+ ]
+}

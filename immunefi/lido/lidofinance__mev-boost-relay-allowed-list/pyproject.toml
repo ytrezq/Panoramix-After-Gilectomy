@@ -1,0 +1,28 @@
+[project]
+name = "mev-boost-relay-allowed-list"
+version = "0.1.0"
+description = "Contract storing a list of MEV boost relays approved by Lido DAO"
+authors = [{ name = "Lido dev team" }]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "eth-ape~=0.8.50",
+]
+
+[tool.uv]
+# eth-ape pins numpy<2, but numpy 1.x has no python 3.13 wheels and builds
+# from source; ape works fine with numpy 2 (pandas 2.3 supports it)
+override-dependencies = ["numpy>=2"]
+
+[dependency-groups]
+dev = [
+    "ape-foundry~=0.8.12",
+    "ape-vyper~=0.8.12",
+    "black~=26.5",
+]
+
+[tool.black]
+line-length = 120
+target-version = ['py310']
+include = '\.pyi?$'

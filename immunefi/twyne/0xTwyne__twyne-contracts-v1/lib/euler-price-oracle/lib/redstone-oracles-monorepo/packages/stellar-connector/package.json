@@ -1,0 +1,67 @@
+{
+  "name": "@redstone-finance/stellar-connector",
+  "version": "0.9.0",
+  "description": "A tool to inject RedStone data into Stellar compatible smart contracts",
+  "main": "dist/src/index.js",
+  "exports": "./dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "license": "MIT",
+  "scripts": {
+    "clean": "yarn global:ts-clean",
+    "build": "yarn global:tsc -p tsconfig.build.json",
+    "build:turbo": "yarn global:turbo build",
+    "typecheck": "yarn global:tsc --noEmit",
+    "typecheck:turbo": "yarn global:turbo typecheck",
+    "build-dependent:turbo": "yarn build:turbo --filter=...@redstone-finance/stellar-connector",
+    "lint": "yarn global:eslint .",
+    "lint:fix": "yarn global:eslint --fix .",
+    "test": "make build && yarn global:jest:cov --runInBand",
+    "preversion": "yarn build",
+    "pack-package": "yarn build && cd dist && npm pack",
+    "convert-keys": "yarn global:ts-node scripts/convert-keys.ts",
+    "sample-run": "yarn global:ts-node scripts/sample-run.ts",
+    "sample-deploy": "yarn global:ts-node scripts/sample-deploy.ts",
+    "sample-upgrade": "yarn global:ts-node scripts/sample-upgrade.ts",
+    "sample-upgrade-tx": "yarn global:ts-node scripts/ledger/sample-upgrade-tx.ts",
+    "get-ledger-data": "yarn global:ts-node ./scripts/ledger/get-ledger-data.ts",
+    "create-multisig": "yarn global:ts-node ./scripts/ledger/create-multisig.ts",
+    "change-owner": "yarn global:ts-node scripts/change-owner.ts",
+    "accept-ownership": "yarn global:ts-node scripts/accept-ownership.ts",
+    "accept-ownership-tx": "yarn global:ts-node scripts/ledger/accept-ownership-tx.ts",
+    "cancel-ownership-transfer": "yarn global:ts-node scripts/cancel-ownership-transfer.ts",
+    "cancel-ownership-transfer-tx": "yarn global:ts-node scripts/ledger/cancel-ownership-transfer-tx.ts",
+    "change-owner-tx": "yarn global:ts-node scripts/ledger/change-owner-tx.ts",
+    "sign-tx": "yarn global:ts-node ./scripts/ledger/sign-tx.ts",
+    "combine-signatures": "yarn global:ts-node ./scripts/ledger/combine-signatures.ts",
+    "create-account": "yarn global:ts-node ./scripts/create-account-with-funds.ts",
+    "get-stellar-address": "yarn global:ts-node ./scripts/get-stellar-address.ts",
+    "instantiate-price-feed": "CONTRACT_NAME=redstone_price_feed yarn global:ts-node scripts/instantiate-price-feed.ts",
+    "extend-instance-ttl": "yarn global:ts-node scripts/extend-instance-ttl.ts"
+  },
+  "dependencies": {
+    "@redstone-finance/multichain-kit": "workspace:*",
+    "@redstone-finance/sdk": "workspace:*",
+    "@redstone-finance/utils": "workspace:*",
+    "@stellar/stellar-sdk": "14.4.3",
+    "axios": "^1.13.2",
+    "lodash": "^4.17.23",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@ledgerhq/hw-app-str": "^7.2.5",
+    "@ledgerhq/hw-transport-node-hid-singleton": "^6.31.10",
+    "@redstone-finance/chain-agnostic-oracle-tests": "workspace:*",
+    "@redstone-finance/chain-configs": "workspace:*",
+    "@redstone-finance/mars-rover": "git+https://github.com/redstone-finance/mars-rover.git#v0.0.2",
+    "@types/urijs": "^1.19.25",
+    "dotenv": "^16.0.3",
+    "ethers": "^5.7.2"
+  },
+  "files": [
+    "src",
+    "dist/src/**/*"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

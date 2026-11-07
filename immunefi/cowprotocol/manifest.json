@@ -1,0 +1,63 @@
+{
+ "program": "cowprotocol",
+ "repos": [
+  {
+   "repo": "https://github.com/cowprotocol/contracts",
+   "ref": "6ebbd810ff2da635fb6f88e9a15fde196f8c852a",
+   "scope_paths": [
+    "src/contracts/GPv2AllowListAuthentication.sol",
+    "src/contracts/GPv2Settlement.sol",
+    "src/contracts/GPv2VaultRelayer.sol",
+    "src/contracts/interfaces/GPv2Authentication.sol",
+    "src/contracts/interfaces/GPv2EIP1271.sol",
+    "src/contracts/interfaces/IERC20.sol",
+    "src/contracts/interfaces/IVault.sol",
+    "src/contracts/libraries/GPv2EIP1967.sol",
+    "src/contracts/libraries/GPv2Interaction.sol",
+    "src/contracts/libraries/GPv2Order.sol",
+    "src/contracts/libraries/GPv2SafeERC20.sol",
+    "src/contracts/libraries/GPv2Trade.sol",
+    "src/contracts/libraries/GPv2Transfer.sol",
+    "src/contracts/libraries/SafeCast.sol",
+    "src/contracts/libraries/SafeMath.sol",
+    "src/contracts/mixins/GPv2Signing.sol",
+    "src/contracts/mixins/Initializable.sol",
+    "src/contracts/mixins/ReentrancyGuard.sol",
+    "src/contracts/mixins/StorageAccessible.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "6ebbd810ff2da635fb6f88e9a15fde196f8c852a",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "LGPL-3.0",
+    "package_json": "LGPL-3.0-or-later",
+    "headers": {
+     "LGPL-3.0-or-later": 31,
+     "LGPL-3.0-only": 1,
+     "MIT": 5,
+     "Unlicensed": 1
+    },
+    "headers_main": {
+     "LGPL-3.0-or-later": 15,
+     "LGPL-3.0-only": 1,
+     "MIT": 5
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 38
+   },
+   "npm": {
+    "node_modules/@gnosis.pm/safe-contracts": "1.3.0",
+    "node_modules/@openzeppelin/contracts": "3.4.0-solc-0.7",
+    "node_modules/@gnosis.pm/mock-contract": "4.0.0"
+   },
+   "copied": true,
+   "dest": "cowprotocol__contracts",
+   "files": 190,
+   "bytes": 602732,
+   "skipped_large": 0
+  }
+ ]
+}

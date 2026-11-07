@@ -1,0 +1,206 @@
+{
+ "program": "moneyonchain",
+ "repos": [
+  {
+   "repo": "https://github.com/money-on-chain/MoC-Periphery",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "MocToken, Governor in the scope list",
+   "commit": "b035865cebae53c3835572eda84f9e98028b7a14",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": "UNLICENSED",
+    "headers": {
+     "UNLICENSED": 30,
+     "MIT": 1
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 31
+   },
+   "copied": false,
+   "why": "reference only: no license allowing redistribution found"
+  },
+  {
+   "repo": "https://github.com/money-on-chain/Areopagus-Governance",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "Governor, UpgradeDelegator in the scope list",
+   "commit": "4ae342a733cee1de01b668b1d706fad08641bfd9",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": "ISC",
+    "headers": {
+     "(none)": 24,
+     "MIT": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 25
+   },
+   "npm": {
+    "node_modules/zos-lib": "2.3.1",
+    "node_modules/openzeppelin-eth": "2.1.3",
+    "node_modules/@openzeppelin/contracts": "2.5.1"
+   },
+   "copied": true,
+   "dest": "money-on-chain__Areopagus-Governance",
+   "files": 221,
+   "bytes": 525580,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/money-on-chain/price_oracle_interfaces",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "PriceProviderDiv/DocUsd/DocRbtc, UniswapV3OracleUSD in the scope list",
+   "commit": "4ecfac84098636da7fee69949451a6205c4fe0d3",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": "MIT",
+    "headers": {
+     "MIT": 30,
+     "UNLICENSED": 14
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 44
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts-upgradeable": "5.4.0",
+    "node_modules/@openzeppelin/contracts": "5.4.0",
+    "node_modules/@uniswap/v3-core": "1.0.1",
+    "node_modules/@uniswap/v3-periphery": "1.4.4",
+    "node_modules/base64-sol": "1.0.1"
+   },
+   "copied": true,
+   "dest": "money-on-chain__price_oracle_interfaces",
+   "files": 430,
+   "bytes": 2180660,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/money-on-chain/stable-protocol-core-v2",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "d770477080daa2cf76c84b8825138974cde07878",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "unrecognized",
+    "package_json": "AGPL-3.0",
+    "headers": {
+     "UNLICENSED": 73,
+     "MIT": 3
+    },
+    "headers_main": {
+     "UNLICENSED": 58
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 76
+   },
+   "copied": false,
+   "why": "reference only: no license allowing redistribution found"
+  },
+  {
+   "repo": "https://github.com/money-on-chain/main-RBTC-contract",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "MoC v1 (MoC, MoCConnector, MoCState, MoCExchange, MoCInrate, DoC/BPro tokens, CommissionSplitter) in the blockscout scope list",
+   "commit": "0043303da89f43d7f4e67a0288c561da8bf3de1b",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "unrecognized",
+    "package_json": "AGPL-3.0",
+    "headers": {
+     "(none)": 103,
+     "//": 1,
+     "MIT": 1
+    },
+    "headers_main": {
+     "(none)": 68,
+     "MIT": 1
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 105
+   },
+   "copied": false,
+   "why": "reference only: no license allowing redistribution found"
+  },
+  {
+   "repo": "https://github.com/money-on-chain/stable-protocol-roc-v2",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "RIF on Chain v2: MocRif bucket, USDRIF/RIFPRO, WrapperPriceProvider in the scope list",
+   "commit": "ae75b6a31d8f37c98ff331f1e49386383433e98f",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "unrecognized",
+    "package_json": "AGPL-3.0",
+    "headers": {
+     "UNLICENSED": 20,
+     "UNlICENSED": 1,
+     "MIT": 1,
+     "(none)": 1
+    },
+    "headers_main": {
+     "UNLICENSED": 17,
+     "(none)": 1
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 23
+   },
+   "copied": false,
+   "why": "reference only: no license allowing redistribution found"
+  },
+  {
+   "repo": "https://github.com/money-on-chain/OMoC-Decentralized-Oracle",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "OMoC: CoinPairPrice, OracleManager, Delay/Staking/Vesting/VotingMachine, MocRegistry in the scope list",
+   "commit": "64ddb6e13e79f81224ea84def9bc0a0b8d4403ea",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "unrecognized",
+    "package_json": "ISC",
+    "headers": {
+     "UNLICENSED": 95
+    },
+    "headers_main": {
+     "UNLICENSED": 95
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 95
+   },
+   "copied": false,
+   "why": "reference only: no license allowing redistribution found"
+  }
+ ]
+}

@@ -1,0 +1,149 @@
+{
+ "program": "thegraph",
+ "repos": [
+  {
+   "repo": "https://github.com/graphprotocol/billing-contracts",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "8b063dbd638f12a71eed99c36160086e526a8ed9",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE.md",
+    "spdx": "MIT",
+    "package_json": "MIT",
+    "headers": {
+     "MIT": 9,
+     "GPL-2.0-or-later": 3,
+     "Apache-2.0": 6
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 18
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.9.6",
+    "node_modules/arb-bridge-peripherals": "1.0.11",
+    "node_modules/@openzeppelin/contracts-upgradeable": "3.4.2",
+    "node_modules/arb-bridge-eth": "0.7.8",
+    "node_modules/arbos-precompiles": "1.0.2",
+    "node_modules/@openzeppelin/contracts-0.8": "4.9.6"
+   },
+   "copied": true,
+   "dest": "graphprotocol__billing-contracts",
+   "files": 682,
+   "bytes": 2518529,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/graphprotocol/token-distribution",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "6c9e580c961d7e97c37e9f94162eda24a305f3f1",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE.md",
+    "spdx": "MIT",
+    "package_json": "MIT",
+    "headers": {
+     "MIT": 19,
+     "GPL-2.0-or-later": 4,
+     "Apache-2.0": 5
+    },
+    "headers_main": {
+     "MIT": 14,
+     "GPL-2.0-or-later": 1,
+     "Apache-2.0": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 28
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "3.4.2",
+    "node_modules/@openzeppelin/contracts-upgradeable": "3.4.2"
+   },
+   "copied": true,
+   "dest": "graphprotocol__token-distribution",
+   "files": 311,
+   "bytes": 912685,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/graphprotocol/contracts",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "f0bd90ae3726dbb013846a1791bcb669f0e22992",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-2.0",
+    "package_json": "GPL-2.0-or-later",
+    "headers": {
+     "MIT": 231,
+     "GPL-2.0-or-later": 171,
+     "GPL-3.0-or-later": 73,
+     "Apache-2.0": 17,
+     "UNLICENSED": 13
+    },
+    "headers_main": {
+     "GPL-2.0-or-later": 132,
+     "GPL-3.0-or-later": 64,
+     "MIT": 16,
+     "Apache-2.0": 13
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 505
+   },
+   "npm": {
+    "packages/subgraph-service/node_modules/@openzeppelin/contracts": "5.6.1",
+    "packages/subgraph-service/node_modules/@openzeppelin/foundry-upgrades": "0.4.0",
+    "packages/subgraph-service/node_modules/@openzeppelin/contracts-upgradeable": "5.6.1",
+    "packages/subgraph-service/node_modules/forge-std": "1.14.0",
+    "packages/interfaces/node_modules/@openzeppelin/contracts": "3.4.2",
+    "packages/interfaces/node_modules/@openzeppelin/contracts-upgradeable": "3.4.2",
+    "packages/token-distribution/node_modules/@openzeppelin/contracts": "3.4.2",
+    "packages/token-distribution/node_modules/@openzeppelin/contracts-upgradeable": "3.4.2",
+    "packages/horizon/node_modules/@openzeppelin/contracts": "5.6.1",
+    "packages/horizon/node_modules/forge-std": "1.14.0",
+    "packages/horizon/node_modules/@openzeppelin/foundry-upgrades": "0.4.0",
+    "packages/horizon/node_modules/@openzeppelin/contracts-upgradeable": "5.6.1",
+    "packages/issuance/node_modules/@openzeppelin/contracts-upgradeable": "5.6.1",
+    "packages/issuance/node_modules/@openzeppelin/contracts": "5.6.1",
+    "packages/issuance/node_modules/forge-std": "1.14.0",
+    "packages/testing/node_modules/forge-std": "1.14.0",
+    "packages/testing/node_modules/@openzeppelin/contracts": "5.6.1",
+    "packages/contracts/node_modules/@openzeppelin/contracts-upgradeable": "3.4.2",
+    "packages/contracts/node_modules/@openzeppelin/contracts": "3.4.2",
+    "packages/contracts/node_modules/arbos-precompiles": "1.0.2"
+   },
+   "symlinks": 1,
+   "workspace_links": {
+    "packages/contracts/node_modules/@graphprotocol/interfaces": "packages/interfaces",
+    "packages/horizon/node_modules/@graphprotocol/contracts": "packages/contracts",
+    "packages/horizon/node_modules/@graphprotocol/interfaces": "packages/interfaces",
+    "packages/issuance/node_modules/@graphprotocol/interfaces": "packages/interfaces",
+    "packages/subgraph-service/node_modules/@graphprotocol/contracts": "packages/contracts",
+    "packages/subgraph-service/node_modules/@graphprotocol/horizon": "packages/horizon",
+    "packages/subgraph-service/node_modules/@graphprotocol/interfaces": "packages/interfaces",
+    "packages/testing/node_modules/@graphprotocol/contracts": "packages/contracts",
+    "packages/testing/node_modules/@graphprotocol/horizon": "packages/horizon",
+    "packages/testing/node_modules/@graphprotocol/interfaces": "packages/interfaces",
+    "packages/testing/node_modules/@graphprotocol/issuance": "packages/issuance",
+    "packages/testing/node_modules/@graphprotocol/subgraph-service": "packages/subgraph-service",
+    "packages/token-distribution/node_modules/@graphprotocol/interfaces": "packages/interfaces"
+   },
+   "copied": true,
+   "dest": "graphprotocol__contracts",
+   "files": 2868,
+   "bytes": 17715177,
+   "skipped_large": 0
+  }
+ ]
+}

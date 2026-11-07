@@ -1,0 +1,24 @@
+::toc: macro
+
+= Yearn components for tBTC v2 (moved)
+
+This package has moved to a standalone repository:
+https://github.com/threshold-network/tbtc-v2-yearn
+
+The standalone archive is private. The last public source snapshot remains
+available at
+https://github.com/threshold-network/tbtc-v2/tree/40a11d1dcdcf82d3962e430067cfe3f97be81483/yearn[`tbtc-v2@40a11d1/yearn`].
+
+The Yearn strategies and vault-integration components
+(`CurveVoterProxyStrategy`, `ConvexStrategy`, `SaddleStrategy`, and related
+deploy/test scaffolding) that used to live in this directory received no
+functional changes since 2021 and depended on `@keep-network/yearn-vaults`,
+an upstream package this monorepo no longer wants to carry in its own
+build/lint/test pipeline. The directory was extracted with its full git
+history preserved (via `git subtree split --prefix=yearn`) into
+https://github.com/threshold-network/tbtc-v2-yearn[`tbtc-v2-yearn`].
+
+That repository is archived (read-only) as of its extraction; it remains
+available for historical reference and for any downstream integrator that
+still depends on its deployed contract addresses or ABI. No further
+development is planned on this component.

@@ -1,0 +1,153 @@
+{
+ "program": "thresholdnetwork",
+ "repos": [
+  {
+   "repo": "https://github.com/threshold-network/tbtc-v2",
+   "ref": "main",
+   "scope_paths": [
+    "cross-chain/bob/contracts",
+    "solidity/contracts"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "5d2af6cd99e4cbe7f7062921b514737026f43756",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": null,
+    "headers": {
+     "GPL-3.0-only": 127,
+     "Apache": 2,
+     "BUSL-1.1": 3,
+     "MIT": 10
+    },
+    "headers_main": {
+     "GPL-3.0-only": 69,
+     "Apache": 2,
+     "BUSL-1.1": 3,
+     "MIT": 8
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 142
+   },
+   "npm": {
+    "solidity/node_modules/@openzeppelin/contracts": "4.9.6",
+    "solidity/node_modules/@keep-network/bitcoin-spv-sol": "v3.4.0-solc-0.8",
+    "solidity/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6",
+    "solidity/node_modules/@thesis/solidity-contracts": "0.0.1",
+    "solidity/node_modules/@keep-network/random-beacon": "2.1.0-dev.18+main.d9a8706d5794d70014e14e8c52e7274471e0fb03",
+    "solidity/node_modules/@keep-network/ecdsa": "2.1.0-dev.19+main.17735c2101b1e638085e135ac9ce7d61163b0102",
+    "cross-chain/starknet/node_modules/@keep-network/bitcoin-spv-sol": "v3.4.0-solc-0.8",
+    "cross-chain/starknet/node_modules/@keep-network/random-beacon": "2.1.0-dev.18+main.d9a8706d5794d70014e14e8c52e7274471e0fb03",
+    "cross-chain/starknet/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6",
+    "cross-chain/bob/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6",
+    "cross-chain/bob/node_modules/@openzeppelin/contracts": "4.9.6",
+    "solidity/node_modules/@keep-network/sortition-pools": "2.0.0",
+    "solidity/node_modules/@threshold-network/solidity-contracts": "1.3.0-dev.11+main.116e669eb17c1901284a82881fa379fba84f9a49",
+    "cross-chain/starknet/node_modules/@openzeppelin/contracts": "4.7.3",
+    "cross-chain/starknet/node_modules/@keep-network/sortition-pools": "2.0.0",
+    "cross-chain/starknet/node_modules/@threshold-network/solidity-contracts": "1.3.0-dev.11+main.116e669eb17c1901284a82881fa379fba84f9a49",
+    "cross-chain/starknet/node_modules/@thesis/solidity-contracts": "0.0.1"
+   },
+   "symlinks": 8,
+   "workspace_links": {
+    "cross-chain/arbitrum/node_modules/@keep-network/tbtc-v2": "solidity",
+    "cross-chain/base/node_modules/@keep-network/tbtc-v2": "solidity",
+    "cross-chain/optimism/node_modules/@keep-network/tbtc-v2": "solidity",
+    "cross-chain/polygon/node_modules/@keep-network/tbtc-v2": "solidity"
+   },
+   "copied": true,
+   "dest": "threshold-network__tbtc-v2",
+   "files": 1577,
+   "bytes": 7902097,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/threshold-network/solidity-contracts",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "25e3b7538a39607dd8dd558ee2c016c31dbc4ac6",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": "GPL-3.0-or-later",
+    "headers": {
+     "GPL-3.0-or-later": 24,
+     "AGPL-3.0-or-later": 1
+    },
+    "headers_main": {
+     "GPL-3.0-or-later": 17
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 25
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.5.0",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.5.2",
+    "node_modules/@thesis/solidity-contracts": "0.0.1"
+   },
+   "copied": true,
+   "dest": "threshold-network__solidity-contracts",
+   "files": 332,
+   "bytes": 1108894,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/threshold-network/keep-core",
+   "ref": null,
+   "scope_paths": [
+    "solidity/ecdsa",
+    "solidity/random-beacon"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "b6964c86bc79085fd85126e6fc886869eca55c82",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "MIT",
+    "package_json": null,
+    "headers": {
+     "GPL-3.0-only": 47,
+     "MIT": 2,
+     "(none)": 2
+    },
+    "headers_main": {
+     "GPL-3.0-only": 29,
+     "MIT": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 51
+   },
+   "npm": {
+    "solidity/ecdsa/node_modules/@keep-network/sortition-pools": "2.0.0",
+    "solidity/ecdsa/node_modules/@threshold-network/solidity-contracts": "1.3.0-dev.14+main.09487d86035029254c5ae2274f47098e473fdf0e",
+    "solidity/ecdsa/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6",
+    "solidity/ecdsa/node_modules/@openzeppelin/contracts": "4.9.6",
+    "solidity/random-beacon/node_modules/@openzeppelin/contracts": "4.7.3",
+    "solidity/random-beacon/node_modules/@keep-network/sortition-pools": "2.0.0",
+    "solidity/random-beacon/node_modules/@threshold-network/solidity-contracts": "1.3.0-dev.14+main.09487d86035029254c5ae2274f47098e473fdf0e",
+    "solidity/ecdsa/node_modules/@thesis/solidity-contracts": "0.0.1",
+    "solidity/random-beacon/node_modules/@thesis/solidity-contracts": "0.0.1",
+    "solidity/random-beacon/node_modules/@openzeppelin/contracts-upgradeable": "4.5.2"
+   },
+   "symlinks": 2,
+   "workspace_links": {
+    "solidity/deploy-consumer/node_modules/@keep-network/ecdsa": "solidity/ecdsa",
+    "solidity/ecdsa/node_modules/@keep-network/random-beacon": "solidity/random-beacon"
+   },
+   "copied": true,
+   "dest": "threshold-network__keep-core",
+   "files": 926,
+   "bytes": 4054017,
+   "skipped_large": 0
+  }
+ ]
+}

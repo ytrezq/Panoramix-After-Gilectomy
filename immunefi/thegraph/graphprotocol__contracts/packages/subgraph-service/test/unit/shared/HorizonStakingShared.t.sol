@@ -1,0 +1,92 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.27;
+
+import { IGraphPayments } from "@graphprotocol/interfaces/contracts/horizon/IGraphPayments.sol";
+import { IHorizonStakingTypes } from "@graphprotocol/interfaces/contracts/horizon/internal/IHorizonStakingTypes.sol";
+
+import { SubgraphBaseTest } from "../SubgraphBaseTest.t.sol";
+
+abstract contract HorizonStakingSharedTest is SubgraphBaseTest {
+    /*
+     * HELPERS
+     */
+
+    function _provision(
+        address _indexer,
+        uint256 _tokens,
+        uint32 _maxSlashingPercentage,
+        uint64 _disputePeriod
+    ) internal {
+        staking.provision(_indexer, address(subgraphService), _tokens, _maxSlashingPercentage, _disputePeriod);
+    }
+
+    function _createProvision(
+        address _indexer,
+        uint256 _tokens,
+        uint32 _maxSlashingPercentage,
+        uint64 _disputePeriod
+    ) internal {
+        _stakeTo(_indexer, _tokens);
+        staking.provision(_indexer, address(subgraphService), _tokens, _maxSlashingPercentage, _disputePeriod);
+    }
+
+    function _addToProvision(address _indexer, uint256 _tokens) internal {
+        _stakeTo(_indexer, _tokens);
+        staking.addToProvision(_indexer, address(subgraphService), _tokens);
+    }
+
+    function _removeFromProvision(address _indexer, uint256 _tokens) internal {
+        staking.thaw(_indexer, address(subgraphService), _tokens);
+        skip(staking.getProvision(_indexer, address(subgraphService)).thawingPeriod + 1);
+        staking.deprovision(_indexer, address(subgraphService), 0);
+    }
+
+    function _delegate(address _indexer, address _verifier, uint256 _tokens, uint256 _minSharesOut) internal {
+        staking.delegate(_indexer, _verifier, _tokens, _minSharesOut);
+    }
+
+    function _undelegate(address _indexer, address _verifier, uint256 _shares) internal {
+        staking.undelegate(_indexer, _verifier, _shares);
+    }
+
+    function _setDelegationFeeCut(
+        address _indexer,
+        address _verifier,
+        IGraphPayments.PaymentTypes _paymentType,
+        uint256 _cut
+    ) internal {
+        staking.setDelegationFeeCut(_indexer, _verifier, _paymentType, _cut);
+    }
+
+    function _thawDeprovisionAndUnstake(address _indexer, address _verifier, uint256 _tokens) internal {
+        // Initiate thaw request
+        staking.thaw(_indexer, _verifier, _tokens);
+
+        // Skip thawing period
+        IHorizonStakingTypes.Provision memory provision = staking.getProvision(_indexer, _verifier);
+        skip(provision.thawingPeriod + 1);
+
+        // Deprovision and unstake
+        staking.deprovision(_indexer, _verifier, 0);
+        staking.unstake(_tokens);
+    }
+
+    function _setProvisionParameters(
+        address _indexer,
+        address _verifier,
+        uint32 _maxVerifierCut,
+        uint64 _thawingPeriod
+    ) internal {
+        staking.setProvisionParameters(_indexer, _verifier, _maxVerifierCut, _thawingPeriod);
+    }
+
+    function _stakeTo(address _indexer, uint256 _tokens) internal {
+        token.approve(address(staking), _tokens);
+        staking.stakeTo(_indexer, _tokens);
+    }
+
+    function _stake(uint256 _tokens) internal {
+        token.approve(address(staking), _tokens);
+        staking.stake(_tokens);
+    }
+}

@@ -1,0 +1,177 @@
+{
+ "program": "berachain",
+ "repos": [
+  {
+   "repo": "https://github.com/berachain/contracts",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "70e392fc83deec6a34bd11613f2a446eb6266588",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66"
+    },
+    {
+     "path": "lib/solady",
+     "url": "https://github.com/Vectorized/solady",
+     "commit": "d223d4347d0866cc7692747edf9c8a7be0d3d047"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
+     "commit": "453d9ff3591cb42f65d2281ea792aded95d7bd8c"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b6a506db2262cad5ff982a87789ee6d1558ec861"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils",
+     "url": "https://github.com/Arachnid/solidity-stringutils",
+     "commit": "4b2fcc43fa0426e19ce88b1f1ec16f5903a2e461"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE.md",
+    "spdx": "BUSL-1.1",
+    "package_json": null,
+    "headers": {
+     "BUSL-1.1": 133,
+     "MIT": 181,
+     "Apache-2.0": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 316
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts-upgradeable": "5.1.0",
+    "node_modules/@pythnetwork/pyth-sdk-solidity": "3.1.0",
+    "node_modules/@openzeppelin/contracts": "5.1.0"
+   },
+   "copied": true,
+   "dest": "berachain__contracts",
+   "files": 959,
+   "bytes": 9458676,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/berachain/airdrop-contracts",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "dda56c53f8716b98978cee0f014a32e5b6195946",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/solady",
+     "url": "https://github.com/vectorized/solady",
+     "commit": "5dd6f93498b8ebdc9d72194cfa680a90b738e1ad"
+    },
+    {
+     "path": "lib/devtools",
+     "url": "https://github.com/LayerZero-Labs/devtools",
+     "commit": "43425da932338c83a7d0155dfcc4e82f89650e7f"
+    },
+    {
+     "path": "lib/devtools/packages/toolbox-foundry/src/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "051fb65fc46013dff64e46ca410445d63ea5620a"
+    },
+    {
+     "path": "lib/devtools/packages/toolbox-foundry/src/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/devtools/tests-user/lib/bats-core",
+     "url": "https://github.com/bats-core/bats-core.git",
+     "commit": "3d3f63d9772b98c88586ec0a66bd358a85d9b4a6"
+    },
+    {
+     "path": "lib/devtools/tests-user/lib/bats-support",
+     "url": "https://github.com/bats-core/bats-support.git",
+     "commit": "9bf10e876dd6b624fe44423f0b35e064225f7556"
+    },
+    {
+     "path": "lib/devtools/tests-user/lib/bats-assert",
+     "url": "https://github.com/bats-core/bats-assert.git",
+     "commit": "e2d855bc78619ee15b0c702b5c30fb074101159f"
+    },
+    {
+     "path": "lib/layerzero-v2",
+     "url": "https://github.com/LayerZero-Labs/layerzero-v2",
+     "commit": "a3637f851ab1b987bff9fb3db31bf40a59ac374b"
+    },
+    {
+     "path": "lib/layerzero-v2/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2f112697506eab12d433a65fdc31a639548fe365"
+    },
+    {
+     "path": "lib/layerzero-v2/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "MIT": 22,
+     "UNLICENSED": 3
+    },
+    "headers_main": {
+     "MIT": 8,
+     "UNLICENSED": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 25
+   },
+   "npm": {},
+   "symlinks": 10,
+   "skipped_unlicensed": 3,
+   "copied": true,
+   "dest": "berachain__airdrop-contracts",
+   "files": 1564,
+   "bytes": 11823661,
+   "skipped_large": 0
+  }
+ ]
+}

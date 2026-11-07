@@ -1,0 +1,113 @@
+{
+ "program": "sushiswap",
+ "repos": [
+  {
+   "repo": "https://github.com/sushiswap/v2-core",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "a349882c918c752d0363e4c6e02dedcbc48b734e",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": "MIT",
+    "headers": {
+     "GPL-3.0": 18,
+     "MIT": 3,
+     "GPL-3.0-only": 1
+    },
+    "headers_main": {
+     "GPL-3.0": 18,
+     "MIT": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 22
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "3.1.0"
+   },
+   "copied": true,
+   "dest": "sushiswap__v2-core",
+   "files": 107,
+   "bytes": 385407,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sushiswap/v3-core",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "21dfbed6b5e343559a14a7825e3d2f3be2611d8a",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": "BUSL-1.1",
+    "headers": {
+     "(none)": 7,
+     "BUSL-1.1": 10,
+     "GPL-2.0-or-later": 22,
+     "MIT": 1,
+     "UNLICENSED": 29
+    },
+    "headers_main": {
+     "(none)": 3,
+     "BUSL-1.1": 10,
+     "GPL-2.0-or-later": 22,
+     "MIT": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 69
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sushiswap__v3-core",
+   "files": 78,
+   "bytes": 326463,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sushiswap/v3-periphery",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "5c4e99c9af11adcc03e0255a15d378d432b74ec0",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-2.0",
+    "package_json": "GPL-2.0-or-later",
+    "headers": {
+     "GPL-2.0-or-later": 53,
+     "MIT": 3,
+     "UNLICENSED": 20
+    },
+    "headers_main": {
+     "GPL-2.0-or-later": 50,
+     "MIT": 3
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 76
+   },
+   "npm": {
+    "node_modules/@uniswap/v3-core": "1.0.0",
+    "node_modules/@uniswap/v2-core": "1.0.1",
+    "node_modules/@uniswap/lib": "4.0.1-alpha",
+    "node_modules/@openzeppelin/contracts": "3.4.2-solc-0.7",
+    "node_modules/base64-sol": "1.0.1"
+   },
+   "copied": true,
+   "dest": "sushiswap__v3-periphery",
+   "files": 288,
+   "bytes": 885113,
+   "skipped_large": 0
+  }
+ ]
+}

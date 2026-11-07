@@ -1,0 +1,39 @@
+{
+ "program": "charm",
+ "repos": [
+  {
+   "repo": "https://github.com/charmfinance/alpha-vaults-v2-contracts",
+   "ref": "main",
+   "scope_paths": [
+    "contracts/AlphaProVault.sol",
+    "contracts/AlphaProVaultFactory.sol",
+    "contracts/CloneFactory.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "0174095f918b5a883c3726cbe4556aaa58f12c82",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "Unlicense": 1,
+     "(none)": 2,
+     "GPL-3.0": 5,
+     "UNLICENSED": 1
+    },
+    "headers_main": {
+     "Unlicense": 1,
+     "(none)": 2,
+     "GPL-3.0": 3
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 9
+   },
+   "copied": false,
+   "why": "reference only: no license allowing redistribution found"
+  }
+ ]
+}

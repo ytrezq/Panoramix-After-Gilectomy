@@ -1,0 +1,56 @@
+[submodule "lib/forge-std"]
+	path = lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "lib/dss-allocator"]
+	path = lib/dss-allocator
+	url = https://github.com/makerdao/dss-allocator
+[submodule "lib/openzeppelin-contracts"]
+	path = lib/openzeppelin-contracts
+	url = https://github.com/openzeppelin/openzeppelin-contracts
+[submodule "lib/spark-psm"]
+	path = lib/spark-psm
+	url = https://github.com/marsfoundation/spark-psm
+[submodule "lib/xchain-helpers"]
+	path = lib/xchain-helpers
+	url = https://github.com/marsfoundation/xchain-helpers
+[submodule "lib/dss-test"]
+	path = lib/dss-test
+	url = https://github.com/makerdao/dss-test
+[submodule "lib/metamorpho"]
+	path = lib/metamorpho
+	url = https://github.com/morpho-org/metamorpho
+[submodule "lib/aave-v3-origin"]
+	path = lib/aave-v3-origin
+	url = https://github.com/aave-dao/aave-v3-origin
+[submodule "lib/spark-address-registry"]
+	path = lib/spark-address-registry
+	url = https://github.com/sparkdotfi/spark-address-registry
+[submodule "lib/layerzero-v2"]
+	path = lib/layerzero-v2
+	url = https://github.com/LayerZero-Labs/layerzero-v2
+[submodule "lib/solidity-bytes-utils"]
+	path = lib/solidity-bytes-utils
+	url = https://github.com/GNSPS/solidity-bytes-utils
+[submodule "lib/spark-vaults-v2"]
+	path = lib/spark-vaults-v2
+	url = https://github.com/sparkdotfi/spark-vaults-v2
+	branch = dev
+[submodule "lib/uniswap-v4-periphery"]
+	path = lib/uniswap-v4-periphery
+	url = https://github.com/Uniswap/v4-periphery.git
+[submodule "lib/oz-upgradeable"]
+	path = lib/oz-upgradeable
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable.git
+[submodule "lib/grove-address-registry"]
+	path = lib/grove-address-registry
+	url = https://github.com/grove-labs/grove-address-registry
+[submodule "lib/grove-xchain-helpers"]
+	path = lib/grove-xchain-helpers
+	url = https://github.com/grove-labs/xchain-helpers
+	branch = master
+[submodule "lib/grove-basin"]
+	path = lib/grove-basin
+	url = https://github.com/grove-labs/grove-basin
+[submodule "lib/nfat"]
+	path = lib/nfat
+	url = https://github.com/sky-ecosystem/nfat

@@ -1,0 +1,38 @@
+{
+ "program": "celer",
+ "repos": [
+  {
+   "repo": "https://github.com/celer-network/sgn-v2-contracts",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "dd60f9563d84127cd5cd33adcbe1df0fc14090e3",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": "GPL-3.0",
+    "headers": {
+     "GPL-3.0-only": 124,
+     "MIT": 4
+    },
+    "headers_main": {
+     "GPL-3.0-only": 124,
+     "MIT": 4
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 128
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.5.0"
+   },
+   "copied": true,
+   "dest": "celer-network__sgn-v2-contracts",
+   "files": 283,
+   "bytes": 1004987,
+   "skipped_large": 0
+  }
+ ]
+}

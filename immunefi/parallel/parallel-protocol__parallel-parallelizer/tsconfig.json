@@ -1,0 +1,19 @@
+{
+  "exclude": ["node_modules"],
+  "include": ["./hardhat.config.ts", "./scripts", "./deploy"],
+  "compilerOptions": {
+    "lib": ["es2023"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "target": "es2022",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "paths": {
+      "@rocketh": ["./rocketh.ts"],
+      "@generated/*": ["./generated/*"]
+    }
+  }
+}

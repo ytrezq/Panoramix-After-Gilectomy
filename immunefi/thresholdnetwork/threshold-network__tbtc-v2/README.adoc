@@ -1,0 +1,81 @@
+:toc: macro
+
+= tBTC v2
+
+https://github.com/keep-network/tbtc-v2/actions/workflows/contracts.yml[image:https://img.shields.io/github/actions/workflow/status/keep-network/tbtc-v2/contracts.yml?branch=main&event=push&label=Core%20contracts%20build[Core contracts build status]]
+https://github.com/keep-network/tbtc-v2/actions/workflows/typescript.yml[image:https://img.shields.io/github/actions/workflow/status/keep-network/tbtc-v2/typescript.yml?branch=main&event=push&label=SDK%20build[SDK build status]]
+https://github.com/keep-network/tbtc-v2/actions/workflows/system-tests.yml[image:https://img.shields.io/github/actions/workflow/status/keep-network/tbtc-v2/system-tests.yml?branch=main&event=schedule&label=System%20tests[System tests status]]
+https://github.com/keep-network/tbtc-v2/actions/workflows/monitoring.yml[image:https://img.shields.io/github/actions/workflow/status/keep-network/tbtc-v2/monitoring.yml?branch=main&event=push&label=Monitoring%20build[Monitoring build status]]
+
+https://docs.threshold.network/fundamentals/tbtc-v2[image:https://img.shields.io/badge/docs-website-green.svg[Docs]]
+https://discord.gg/threshold[image:https://img.shields.io/badge/chat-Discord-5865f2.svg[Chat with us on Discord]]
+
+For many Bitcoin holders, one question remains: how can I move my assets across
+blockchains to make them more useful while maintaining Bitcoin's core values?
+
+Existing solutions that bridge Bitcoin to Ethereum require users to send their
+Bitcoin to an intermediary in exchange for an Ethereum token that represents the
+original asset. This centralized model requires you to trust a third party and
+is prone to censorship, threatening Bitcoin's promise of secure, permissionless
+decentralization.
+
+Threshold aims to solve this problem with tBTC v2.
+
+The second generation of tBTC is a truly decentralized bridge between Bitcoin
+and Ethereum. It provides Bitcoin holders permissionless access to DeFi and the
+expanding web3 universe.
+
+tBTC v2 replaces centralized intermediaries with a randomly selected group of
+node operators on the Threshold Network. This group of independent operators
+works together to secure your deposited Bitcoin through threshold cryptography.
+That means tBTC v2 requires a majority threshold agreement before operators
+perform any action with your Bitcoin. By rotating the selection of operators,
+tBTC v2 protects against any malicious individual or group of operators seizing
+control. Unlike other solutions on the market, users on tBTC v2 are reliant on
+math, not hardware or people. Additionally, tBTC v2 is open and accessible to
+anyone.
+
+tBTC v2 allows anyone to use Bitcoin in the expanding DeFi and Web3 universe
+without a third-party intermediary.
+
+toc::[]
+
+== Overview
+
+tBTCv2 uses the
+link:https://github.com/keep-network/keep-core/tree/main/solidity/random-beacon[Random
+Beacon] and link:https://github.com/keep-network/sortition-pools[Sortition Pool]
+to generate governable-sized (starting at 51-of-100)
+link:https://eprint.iacr.org/2019/114.pdf[threshold ECDSA]
+Bitcoin wallets at a governable frequency (starting weekly). The youngest
+wallet accepts new deposits, and the oldest wallet serves redemptions.
+
+Depositing Bitcoin into the tBTCv2 bridge grants a transferable Bank balance, which
+can be used to mint a supply-pegged ERC-20: tBTC. For an in-depth explanation
+about the design, see link:docs/rfc/rfc-1.adoc[RFC 1: tBTCv2 Design].
+
+== Repository structure
+
+This repository contains the following modules:
+
+- link:solidity/[Core smart contracts],
+- link:typescript/[SDK TypeScript library],
+- link:system-tests/[System tests]
+- link:docs/[Documentation],
+- link:yearn/[Deprecated Yearn vault smart contracts (archived)],
+- link:monitoring/[Monitoring tool],
+- link:cross-chain/[Cross-chain smart contracts].
+
+Please refer module-level README for specific module's installation and
+usage instructions.
+
+== Contributing
+
+Contributions are always welcome! Feel free to open any issue or send a
+pull request. Please see link:CONTRIBUTING.adoc[CONTRIBUTING.adoc] to
+learn more.
+
+== Security
+
+Please see link:SECURITY.adoc[SECURITY.adoc] to learn more about
+tBTC v2 security policy.

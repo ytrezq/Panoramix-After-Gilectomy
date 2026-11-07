@@ -1,0 +1,95 @@
+[profile.default]
+cache_path = "cache/build"
+out = "out/build"
+solc_version = "0.8.29"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 416
+deny = "notes"
+verbosity = 3
+isolate = true
+disable_block_gas_limit = true
+libs = ["../node_modules", "node_modules"]
+auto_detect_remappings = false
+ignored_error_codes = ["unused-param", "code-size", "init-code-size"]
+fs_permissions = [
+  { access = "read", path = "broadcast" },
+  { access = "read", path = "deploy.json" },
+  { access = "read", path = "package.json" },
+  { access = "read", path = "../node_modules" },
+]
+ffi = true
+
+[fmt]
+tab_width = 2
+sort_imports = true
+bracket_spacing = true
+number_underscore = "thousands"
+
+[lint]
+exclude_lints = [
+  "block-timestamp",
+  "incorrect-shift",
+  "mixed-case-function",
+  "mixed-case-variable",
+  "pascal-case-struct",
+]
+ignore = ["test/**/*.t.sol", "test/mocks/**/*.sol"]
+
+[profile.build]
+skip = ["script/**"]
+test = "test/support/Build.sol"
+
+[profile.production]
+skip = ["script/**"]
+
+[profile.production.fuzz]
+runs = 66_666
+
+[profile.coverage]
+cache_path = "cache/coverage"
+out = "out/coverage"
+
+[profile.sizes]
+cache_path = "cache/sizes"
+out = "out/sizes"
+skip = ["script/**", "test/**"]
+
+[profile.slither]
+cache_path = "cache/slither"
+out = "out/slither"
+
+[profile.snapshot]
+bytecode_hash = "none"
+cache_path = "cache/snapshot"
+out = "out/snapshot"
+skip = ["script/**"]
+
+[profile.snapshot.fuzz]
+runs = 64
+
+[profile.tooling]
+cache_path = "cache/tooling"
+out = "out/tooling"
+test = "test/mocks"
+
+[rpc_endpoints]
+arbitrum = "${ARBITRUM_RPC_URL}"
+base = "${BASE_RPC_URL}"
+base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
+bnb_smart_chain = "${BNB_SMART_CHAIN_RPC_URL}"
+mainnet = "${ETHEREUM_RPC_URL}"
+optimism = "${OPTIMISM_RPC_URL}"
+optimism_sepolia = "${OPTIMISM_SEPOLIA_RPC_URL}"
+polygon = "${POLYGON_RPC_URL}"
+anvil = "http://localhost:8545"
+
+[etherscan]
+arbitrum = { key = "${ETHERSCAN_KEY}" }
+base = { key = "${ETHERSCAN_KEY}" }
+base_sepolia = { key = "${ETHERSCAN_KEY}" }
+bnb_smart_chain = { key = "${ETHERSCAN_KEY}" }
+mainnet = { key = "${ETHERSCAN_KEY}" }
+optimism = { key = "${ETHERSCAN_KEY}" }
+optimism_sepolia = { key = "${ETHERSCAN_KEY}" }
+polygon = { key = "${ETHERSCAN_KEY}" }

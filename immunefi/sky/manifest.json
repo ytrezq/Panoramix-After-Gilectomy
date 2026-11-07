@@ -1,0 +1,5713 @@
+{
+ "program": "sky",
+ "repos": [
+  {
+   "repo": "https://github.com/sky-ecosystem/dss-auto-line",
+   "ref": "master",
+   "scope_paths": [
+    "src/DssAutoLine.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "bff7e6cc43dbd7d9a054dd359ef18a1b4d06b6f5",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 2
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__dss-auto-line",
+   "files": 10,
+   "bytes": 113774,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/clipper-mom",
+   "ref": "master",
+   "scope_paths": [
+    "src/ClipperMom.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "1473b448cc9141fb0c56146f8b5b28db57b39739",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 2
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__clipper-mom",
+   "files": 10,
+   "bytes": 107677,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/dss-vest",
+   "ref": "master",
+   "scope_paths": [
+    "src/DssVest.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "e9e6a779fc0ab8b05711fba190765f50bb1d77a2",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "(none)": 2,
+     "AGPL-3.0-or-later": 13,
+     "GPL-3.0-or-later": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 16
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__dss-vest",
+   "files": 24,
+   "bytes": 299377,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/dss-chain-log",
+   "ref": "master",
+   "scope_paths": [
+    "src/ChainLog.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "2eaea03e7ebd8db563eea003272094a5b5bc9ce5",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 2
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__dss-chain-log",
+   "files": 10,
+   "bytes": 104408,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/mkr-authority",
+   "ref": "master",
+   "scope_paths": [
+    "src/MkrAuthority.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "fc19f8a02cfd080fbdeedd7ddf01c5e61d519e04",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "(none)": 6
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 6
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__mkr-authority",
+   "files": 14,
+   "bytes": 116069,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/univ2-lp-oracle",
+   "ref": "master",
+   "scope_paths": [
+    "src/UNIV2LPOracle.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "874a59d74d847909cc4a31f0d38ee6b020f6525f",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "GPL-3.0-or-later": 4,
+     "MIT": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 5
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__univ2-lp-oracle",
+   "files": 13,
+   "bytes": 159505,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/univ3-lp-oracle",
+   "ref": "master",
+   "scope_paths": [
+    "src/GUniLPOracle.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "0d25676e0956fc3a5359431c708106547c4fef26",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "24c2259db514a7bdd2ca6c71b587121fe513519c"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 2
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__univ3-lp-oracle",
+   "files": 10,
+   "bytes": 139186,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/sky",
+   "ref": "one-direction",
+   "scope_paths": [
+    "src/MkrSky.sol",
+    "src/Sky.sol"
+   ],
+   "fetched": "2026-11-07",
+   "note": "scope refs dev (Sky.sol) and one-direction (MkrSky.sol): Sky.sol identical on both",
+   "commit": "2ec7f7eab8b9552b99e2ea9ecd6cc3fc10a31883",
+   "submodules": [
+    {
+     "path": "lib/token-tests",
+     "url": "https://github.com/makerdao/token-tests",
+     "commit": "6bdd5a38586970acf27166c3205093fd3450d530"
+    },
+    {
+     "path": "lib/token-tests/lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "6d4029dc373d4e2af2404016e0a834e53d976264"
+    },
+    {
+     "path": "lib/token-tests/lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/token-tests/lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 9,
+     "(none)": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 11
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__sky",
+   "files": 169,
+   "bytes": 1359937,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/sdai",
+   "ref": "susds",
+   "scope_paths": [
+    "src/SUsds.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "dfc7f41cb7599afcb0f0eb1ddaadbf9dd4015dce",
+   "submodules": [
+    {
+     "path": "lib/token-tests",
+     "url": "https://github.com/makerdao/token-tests",
+     "commit": "6bdd5a38586970acf27166c3205093fd3450d530"
+    },
+    {
+     "path": "lib/token-tests/lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "6d4029dc373d4e2af2404016e0a834e53d976264"
+    },
+    {
+     "path": "lib/token-tests/lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/token-tests/lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef"
+    },
+    {
+     "path": "lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "723f8cab09cdae1aca9ec9cc1cfa040c2d4b06c1"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
+     "commit": "332bd3306242e09520df2685b2edb99ebd7f5d37"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b6a506db2262cad5ff982a87789ee6d1558ec861"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils",
+     "url": "https://github.com/Arachnid/solidity-stringutils",
+     "commit": "4b2fcc43fa0426e19ce88b1f1ec16f5903a2e461"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 14
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 14
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__sdai",
+   "files": 808,
+   "bytes": 5252565,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/lockstake",
+   "ref": "master",
+   "scope_paths": [
+    "src/LockstakeCappedOsmWrapper.sol",
+    "src/LockstakeClipper.sol",
+    "src/LockstakeEngine.sol",
+    "src/LockstakeSky.sol",
+    "src/LockstakeUrn.sol"
+   ],
+   "fetched": "2026-11-07",
+   "note": "scope refs v2 (4 files) and master (LockstakeCappedOsmWrapper): master taken, only LockstakeClipper.sol differs from v2",
+   "commit": "e389dc18fa21b5ae460714522a9f484d0b1b9f30",
+   "submodules": [
+    {
+     "path": "lib/token-tests",
+     "url": "https://github.com/makerdao/token-tests/",
+     "commit": "6bdd5a38586970acf27166c3205093fd3450d530"
+    },
+    {
+     "path": "lib/token-tests/lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "6d4029dc373d4e2af2404016e0a834e53d976264"
+    },
+    {
+     "path": "lib/token-tests/lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/token-tests/lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef"
+    },
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std/",
+     "commit": "bf909b22fa55e244796dfa920c9639fdffa1c545"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 40,
+     "GPL-2.0-or-later": 1,
+     "UNLICENSED": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 42
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__lockstake",
+   "files": 246,
+   "bytes": 2594805,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/vote-delegate",
+   "ref": "v3",
+   "scope_paths": [
+    "src/VoteDelegate.sol",
+    "src/VoteDelegateFactory.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "3996b034f8c459f3308d1e99e2001491137cb715",
+   "submodules": [
+    {
+     "path": "lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "6d4029dc373d4e2af2404016e0a834e53d976264"
+    },
+    {
+     "path": "lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 7
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 7
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__vote-delegate",
+   "files": 154,
+   "bytes": 1252147,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/univ2-pool-migrator",
+   "ref": "dev",
+   "scope_paths": [
+    "deploy/UniV2PoolMigratorInit.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "605c7791c5f98989043c3552b1dd7db242ff1053",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef"
+    },
+    {
+     "path": "lib/sky",
+     "url": "https://github.com/makerdao/sky",
+     "commit": "3ddfa5ee55d10b8192f239235bf83e46744314b8"
+    },
+    {
+     "path": "lib/sky/lib/token-tests",
+     "url": "https://github.com/makerdao/token-tests",
+     "commit": "6bdd5a38586970acf27166c3205093fd3450d530"
+    },
+    {
+     "path": "lib/sky/lib/token-tests/lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "6d4029dc373d4e2af2404016e0a834e53d976264"
+    },
+    {
+     "path": "lib/sky/lib/token-tests/lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/sky/lib/token-tests/lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef"
+    },
+    {
+     "path": "lib/usds",
+     "url": "https://github.com/makerdao/usds",
+     "commit": "1e91268374d2796abcbb1af2b75473b2af488265"
+    },
+    {
+     "path": "lib/usds/lib/token-tests",
+     "url": "https://github.com/makerdao/token-tests",
+     "commit": "6bdd5a38586970acf27166c3205093fd3450d530"
+    },
+    {
+     "path": "lib/usds/lib/token-tests/lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "6d4029dc373d4e2af2404016e0a834e53d976264"
+    },
+    {
+     "path": "lib/usds/lib/token-tests/lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/usds/lib/token-tests/lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "723f8cab09cdae1aca9ec9cc1cfa040c2d4b06c1"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-foundry-upgrades",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
+     "commit": "332bd3306242e09520df2685b2edb99ebd7f5d37"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-foundry-upgrades/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b6a506db2262cad5ff982a87789ee6d1558ec861"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils",
+     "url": "https://github.com/Arachnid/solidity-stringutils",
+     "commit": "4b2fcc43fa0426e19ce88b1f1ec16f5903a2e461"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 2
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__univ2-pool-migrator",
+   "files": 1029,
+   "bytes": 7454505,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/dss-allocator",
+   "ref": "dev",
+   "scope_paths": [
+    "src/AllocatorBuffer.sol",
+    "src/AllocatorOracle.sol",
+    "src/AllocatorRegistry.sol",
+    "src/AllocatorRoles.sol",
+    "src/AllocatorVault.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "6e99d87374cff66e93fe44c55d4ed240dac1c3dc",
+   "submodules": [
+    {
+     "path": "lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "df7b13ead253f4b831df2464f7d74f28a091a790"
+    },
+    {
+     "path": "lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 48,
+     "GPL-3.0": 2,
+     "GPL-2.0-or-later": 1,
+     "(none)": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 52
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__dss-allocator",
+   "files": 198,
+   "bytes": 1468920,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/op-token-bridge",
+   "ref": "master",
+   "scope_paths": [
+    "src/Escrow.sol",
+    "src/L1GovernanceRelay.sol",
+    "src/L1TokenBridge.sol",
+    "src/L2GovernanceRelay.sol",
+    "src/L2TokenBridge.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "82918f4853d50c6520dac53fdb70a42fd4ce671b",
+   "submodules": [
+    {
+     "path": "lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "f2a2b2bbea71921103c5b7cf3cb1d241b957bec7"
+    },
+    {
+     "path": "lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "978ac6fadb62f5f0b723c996f64be52eddba6801"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "723f8cab09cdae1aca9ec9cc1cfa040c2d4b06c1"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
+     "commit": "332bd3306242e09520df2685b2edb99ebd7f5d37"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b6a506db2262cad5ff982a87789ee6d1558ec861"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils",
+     "url": "https://github.com/Arachnid/solidity-stringutils",
+     "commit": "4b2fcc43fa0426e19ce88b1f1ec16f5903a2e461"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 27
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 27
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__op-token-bridge",
+   "files": 807,
+   "bytes": 5092119,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/dss-emergency-spells",
+   "ref": "master",
+   "scope_paths": [
+    "src/DssEmergencySpell.sol",
+    "src/DssGroupedEmergencySpell.sol",
+    "src/clip-breaker",
+    "src/ddm-disable",
+    "src/line-wipe",
+    "src/lite-psm-halt",
+    "src/osm-stop",
+    "src/spbeam-halt",
+    "src/splitter-stop",
+    "src/stusds/StUsdsRateSetterDissBudSpell.sol",
+    "src/stusds/StUsdsRateSetterHaltSpell.sol",
+    "src/stusds/StUsdsWipeParamSpell.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "ef95bc19668a07e450ecedffd763a36ae1daa61c",
+   "submodules": [
+    {
+     "path": "lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "dd3ff0970cded87ebd875120220225e72cd8c75a"
+    },
+    {
+     "path": "lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "da591f56d8884c5824c0c1b3103fbcfd81123c4c"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 49
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 49
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__dss-emergency-spells",
+   "files": 197,
+   "bytes": 1448334,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/arbitrum-token-bridge",
+   "ref": "master",
+   "scope_paths": [
+    "src/L1TokenGateway.sol",
+    "src/L2TokenGateway.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "beb73666df3e7d15797720c6bdabad5b554678e8",
+   "submodules": [
+    {
+     "path": "lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "f2a2b2bbea71921103c5b7cf3cb1d241b957bec7"
+    },
+    {
+     "path": "lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "978ac6fadb62f5f0b723c996f64be52eddba6801"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
+     "commit": "332bd3306242e09520df2685b2edb99ebd7f5d37"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b6a506db2262cad5ff982a87789ee6d1558ec861"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils",
+     "url": "https://github.com/Arachnid/solidity-stringutils",
+     "commit": "4b2fcc43fa0426e19ce88b1f1ec16f5903a2e461"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "723f8cab09cdae1aca9ec9cc1cfa040c2d4b06c1"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 25,
+     "MIT": 2,
+     "Apache-2.0": 6,
+     "BUSL-1.1": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 35
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__arbitrum-token-bridge",
+   "files": 815,
+   "bytes": 5122628,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/dss-blow2",
+   "ref": "master",
+   "scope_paths": [
+    "src/DssBlow2.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "8c4b672e93deafe485197bac11e302653228a005",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66"
+    },
+    {
+     "path": "lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "dd3ff0970cded87ebd875120220225e72cd8c75a"
+    },
+    {
+     "path": "lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "da591f56d8884c5824c0c1b3103fbcfd81123c4c"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 5
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 5
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__dss-blow2",
+   "files": 201,
+   "bytes": 2197419,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/protego",
+   "ref": "master",
+   "scope_paths": [
+    "src/EmergencyDropSpell.sol",
+    "src/Protego.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "dd96f9d3a14147fb15141e2654bbcc6a0e19f58c",
+   "submodules": [
+    {
+     "path": "lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "6d4029dc373d4e2af2404016e0a834e53d976264"
+    },
+    {
+     "path": "lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 8
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 8
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__protego",
+   "files": 158,
+   "bytes": 1273445,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/chief",
+   "ref": "master",
+   "scope_paths": [
+    "src/Chief.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "ed7f9129319ee11d79f5d9948e0f7fce7e4dfeff",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "dd3ff0970cded87ebd875120220225e72cd8c75a"
+    },
+    {
+     "path": "lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "da591f56d8884c5824c0c1b3103fbcfd81123c4c"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": null,
+    "headers": {
+     "GPL-3.0-or-later": 5
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 5
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__chief",
+   "files": 196,
+   "bytes": 2163460,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/stusds",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "486bfe342c01afab7387a920dfcd7eeaaf91f4b7",
+   "submodules": [
+    {
+     "path": "lib/token-tests",
+     "url": "https://github.com/makerdao/token-tests",
+     "commit": "6bdd5a38586970acf27166c3205093fd3450d530"
+    },
+    {
+     "path": "lib/token-tests/lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "6d4029dc373d4e2af2404016e0a834e53d976264"
+    },
+    {
+     "path": "lib/token-tests/lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/token-tests/lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef"
+    },
+    {
+     "path": "lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "723f8cab09cdae1aca9ec9cc1cfa040c2d4b06c1"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
+     "commit": "332bd3306242e09520df2685b2edb99ebd7f5d37"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b6a506db2262cad5ff982a87789ee6d1558ec861"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils",
+     "url": "https://github.com/Arachnid/solidity-stringutils",
+     "commit": "4b2fcc43fa0426e19ce88b1f1ec16f5903a2e461"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 21,
+     "(none)": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 23
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__stusds",
+   "files": 819,
+   "bytes": 5337471,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/lz-governance-relay",
+   "ref": "master",
+   "scope_paths": [
+    "src/L1GovernanceRelay.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "ff964bb030fd84f6f0d9718aa585fc90fdc9989e",
+   "submodules": [
+    {
+     "path": "lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "61cf29fc0cf0c177a3b4072b433c43a7326ccd7b"
+    },
+    {
+     "path": "lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "da591f56d8884c5824c0c1b3103fbcfd81123c4c"
+    },
+    {
+     "path": "lib/sky-oapp-oft",
+     "url": "https://github.com/makerdao/sky-oapp-oft",
+     "commit": "cc36b244ae1f40abe1565f5abb2bdcb6b05bc08f"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 11
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 11
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__lz-governance-relay",
+   "files": 178,
+   "bytes": 1357144,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/diamond-pau",
+   "ref": "dev",
+   "scope_paths": [
+    "src/Beacon.sol",
+    "src/PAUFactory.sol",
+    "src/facets/aave/AaveFacet.sol",
+    "src/facets/basin/BasinFacet.sol",
+    "src/facets/cctp/CCTPFacet.sol",
+    "src/facets/centrifuge/CentrifugeFacet.sol",
+    "src/facets/curve/CurveFacet.sol",
+    "src/facets/dai-usds/DAIUSDSFacet.sol",
+    "src/facets/erc4626/ERC4626Facet.sol",
+    "src/facets/erc7540/ERC7540Facet.sol",
+    "src/facets/ethena/EthenaFacet.sol",
+    "src/facets/farm/FarmFacet.sol",
+    "src/facets/layer-zero/LayerZeroFacet.sol",
+    "src/facets/maple/MapleFacet.sol",
+    "src/facets/merkl/MerklFacet.sol",
+    "src/facets/otc/OTCFacet.sol",
+    "src/facets/pendle/PendleFacet.sol",
+    "src/facets/psm/PSMFacet.sol",
+    "src/facets/spark-vault/SparkVaultFacet.sol",
+    "src/facets/superstate/SuperstateFacet.sol",
+    "src/facets/transfer-asset/TransferAssetFacet.sol",
+    "src/facets/uniswap-v3/UniswapV3Facet.sol",
+    "src/facets/uniswap-v4/UniswapV4Facet.sol",
+    "src/facets/usds/USDSFacet.sol",
+    "src/facets/weeth/WEETHFacet.sol",
+    "src/facets/wrap-proxy-eth/WrapProxyETHFacet.sol",
+    "src/facets/wsteth/WSTETHFacet.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "583f4fc8a37211a429f2d9571fa19e40f33a3392",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bf909b22fa55e244796dfa920c9639fdffa1c545"
+    },
+    {
+     "path": "lib/dss-allocator",
+     "url": "https://github.com/makerdao/dss-allocator",
+     "commit": "226584d3b179d98025497815adb4ea585ea0102d"
+    },
+    {
+     "path": "lib/dss-allocator/lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "df7b13ead253f4b831df2464f7d74f28a091a790"
+    },
+    {
+     "path": "lib/dss-allocator/lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/dss-allocator/lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/dss-allocator/lib/dss-test/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/spark-psm",
+     "url": "https://github.com/marsfoundation/spark-psm",
+     "commit": "6a5a579cb503a461df254007064370f732fcd19d"
+    },
+    {
+     "path": "lib/spark-psm/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e4aef94c1768803a16fe19f7ce8b65defd027cfd"
+    },
+    {
+     "path": "lib/spark-psm/lib/erc20-helpers",
+     "url": "https://github.com/marsfoundation/erc20-helpers",
+     "commit": "3c66d2b38ae12f5c0f81068fdb6a59f4079c799a"
+    },
+    {
+     "path": "lib/spark-psm/lib/erc20-helpers/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "267acd30a625086b3f16e1a28cfe0c5097fa46b8"
+    },
+    {
+     "path": "lib/spark-psm/lib/erc20-helpers/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/spark-psm/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/spark-psm/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/spark-psm/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/spark-psm/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/spark-psm/lib/xchain-ssr-oracle",
+     "url": "https://github.com/marsfoundation/xchain-ssr-oracle",
+     "commit": "dc9fc30ea91e8cc562f561faa62d40f615a99abb"
+    },
+    {
+     "path": "lib/spark-psm/lib/xchain-ssr-oracle/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "155d547c449afa8715f538d69454b83944117811"
+    },
+    {
+     "path": "lib/spark-psm/lib/xchain-ssr-oracle/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/spark-psm/lib/xchain-ssr-oracle/lib/xchain-helpers",
+     "url": "https://github.com/marsfoundation/xchain-helpers",
+     "commit": "008ffe05334b59b77b3cde293bf7aa0c82cd59de"
+    },
+    {
+     "path": "lib/spark-psm/lib/xchain-ssr-oracle/lib/xchain-helpers/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e4aef94c1768803a16fe19f7ce8b65defd027cfd"
+    },
+    {
+     "path": "lib/spark-psm/lib/xchain-ssr-oracle/lib/xchain-helpers/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/spark-psm/lib/xchain-ssr-oracle/lib/xchain-helpers/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/spark-psm/lib/xchain-ssr-oracle/lib/xchain-helpers/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/spark-psm/lib/xchain-ssr-oracle/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "932fddf69a699a9a80fd2396fd1a2ab91cdda123"
+    },
+    {
+     "path": "lib/spark-psm/lib/xchain-ssr-oracle/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/spark-psm/lib/xchain-ssr-oracle/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/spark-psm/lib/xchain-ssr-oracle/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/spark-psm/lib/xchain-ssr-oracle/lib/sparklend-address-registry",
+     "url": "https://github.com/marsfoundation/sparklend-address-registry",
+     "commit": "405954de096cea0ccd3cd70eced2f5f4ef69a2ae"
+    },
+    {
+     "path": "lib/spark-psm/lib/xchain-ssr-oracle/lib/sparklend-address-registry/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1d0766bc5d814f117c7b1e643828f7d85024fb51"
+    },
+    {
+     "path": "lib/spark-psm/lib/xchain-ssr-oracle/lib/sparklend-address-registry/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/xchain-helpers",
+     "url": "https://github.com/marsfoundation/xchain-helpers",
+     "commit": "07e27b6eebb985b0c1e3376329c02b29d49664f7"
+    },
+    {
+     "path": "lib/xchain-helpers/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e4aef94c1768803a16fe19f7ce8b65defd027cfd"
+    },
+    {
+     "path": "lib/xchain-helpers/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/xchain-helpers/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/xchain-helpers/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/xchain-helpers/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "f2a2b2bbea71921103c5b7cf3cb1d241b957bec7"
+    },
+    {
+     "path": "lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "978ac6fadb62f5f0b723c996f64be52eddba6801"
+    },
+    {
+     "path": "lib/metamorpho",
+     "url": "https://github.com/morpho-org/metamorpho",
+     "commit": "f5faa9c21b1396c291b471a6a5ad9407d23486a9"
+    },
+    {
+     "path": "lib/metamorpho/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1d9650e951204a0ddce9ff89c32f1997984cef4d"
+    },
+    {
+     "path": "lib/metamorpho/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/metamorpho/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "932fddf69a699a9a80fd2396fd1a2ab91cdda123"
+    },
+    {
+     "path": "lib/metamorpho/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/metamorpho/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/metamorpho/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/metamorpho/lib/morpho-blue",
+     "url": "https://github.com/morpho-org/morpho-blue",
+     "commit": "55d2d99304fb3fb930c688462ae2ccabb1d533ad"
+    },
+    {
+     "path": "lib/metamorpho/lib/morpho-blue/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2f112697506eab12d433a65fdc31a639548fe365"
+    },
+    {
+     "path": "lib/metamorpho/lib/morpho-blue/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/metamorpho/lib/universal-rewards-distributor",
+     "url": "https://github.com/morpho-org/universal-rewards-distributor",
+     "commit": "8aaa0099db6cef311a2b02e04b930bfe9b6a6e4e"
+    },
+    {
+     "path": "lib/metamorpho/lib/universal-rewards-distributor/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "97810ebcbede585b7966ec982e5d3e3403a68c7a"
+    },
+    {
+     "path": "lib/metamorpho/lib/universal-rewards-distributor/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/metamorpho/lib/universal-rewards-distributor/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "e50c24f5839db17f46991478384bfda14acfb830"
+    },
+    {
+     "path": "lib/metamorpho/lib/universal-rewards-distributor/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/metamorpho/lib/universal-rewards-distributor/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/metamorpho/lib/universal-rewards-distributor/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/metamorpho/lib/universal-rewards-distributor/lib/murky",
+     "url": "https://github.com/dmfxyz/murky",
+     "commit": "1d9566b908b9702c45d354a1caabe8ef5a69938d"
+    },
+    {
+     "path": "lib/metamorpho/lib/universal-rewards-distributor/lib/murky/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "cb14ea3c5c72151f254ec79866793ddf65f4c727"
+    },
+    {
+     "path": "lib/metamorpho/lib/universal-rewards-distributor/lib/murky/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bcc9992b5fddb91f1c515da6341de087922efcd7"
+    },
+    {
+     "path": "lib/metamorpho/lib/universal-rewards-distributor/lib/murky/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "2c7dbcc8586b33f358e3307a443e524490c17666"
+    },
+    {
+     "path": "lib/metamorpho/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/aave-v3-origin",
+     "url": "https://github.com/aave-dao/aave-v3-origin",
+     "commit": "e627c7428cbb358b9c84b601a009a86b4b871c08"
+    },
+    {
+     "path": "lib/spark-address-registry",
+     "url": "https://github.com/sparkdotfi/spark-address-registry",
+     "commit": "5a6c42ccb5ad4a5dcf033bd48307d8fe0a344d2b"
+    },
+    {
+     "path": "lib/spark-address-registry/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1d0766bc5d814f117c7b1e643828f7d85024fb51"
+    },
+    {
+     "path": "lib/spark-address-registry/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/layerzero-v2",
+     "url": "https://github.com/LayerZero-Labs/layerzero-v2",
+     "commit": "88428755be6caa71cb1d2926141d73c8989296b5"
+    },
+    {
+     "path": "lib/layerzero-v2/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2f112697506eab12d433a65fdc31a639548fe365"
+    },
+    {
+     "path": "lib/layerzero-v2/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/solidity-bytes-utils",
+     "url": "https://github.com/GNSPS/solidity-bytes-utils",
+     "commit": "9505c85a251afc57ecced90a6076f2c661ee2404"
+    },
+    {
+     "path": "lib/spark-vaults-v2",
+     "url": "https://github.com/sparkdotfi/spark-vaults-v2",
+     "commit": "8f1442ad5094d1ddd48c95d390dee6cd6c164133"
+    },
+    {
+     "path": "lib/spark-vaults-v2/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e4aef94c1768803a16fe19f7ce8b65defd027cfd"
+    },
+    {
+     "path": "lib/spark-vaults-v2/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0"
+    },
+    {
+     "path": "lib/spark-vaults-v2/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/spark-vaults-v2/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/spark-vaults-v2/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/spark-vaults-v2/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "e725abddf1e01cf05ace496e950fc8e243cc7cab"
+    },
+    {
+     "path": "lib/spark-vaults-v2/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/spark-vaults-v2/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/spark-vaults-v2/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/spark-vaults-v2/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0"
+    },
+    {
+     "path": "lib/spark-vaults-v2/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/spark-vaults-v2/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/spark-vaults-v2/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/spark-vaults-v2/lib/token-tests",
+     "url": "https://github.com/makerdao/token-tests",
+     "commit": "6bdd5a38586970acf27166c3205093fd3450d530"
+    },
+    {
+     "path": "lib/spark-vaults-v2/lib/token-tests/lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "6d4029dc373d4e2af2404016e0a834e53d976264"
+    },
+    {
+     "path": "lib/spark-vaults-v2/lib/token-tests/lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/spark-vaults-v2/lib/token-tests/lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef"
+    },
+    {
+     "path": "lib/uniswap-v4-periphery",
+     "url": "https://github.com/Uniswap/v4-periphery.git",
+     "commit": "3779387e5d296f39df543d23524b050f89a62917"
+    },
+    {
+     "path": "lib/uniswap-v4-periphery/lib/v4-core",
+     "url": "https://github.com/Uniswap/v4-core",
+     "commit": "59d3ecf53afa9264a16bba0e38f4c5d2231f80bc"
+    },
+    {
+     "path": "lib/uniswap-v4-periphery/lib/v4-core/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1de6eecf821de7fe2c908cc48d3ab3dced20717f"
+    },
+    {
+     "path": "lib/uniswap-v4-periphery/lib/v4-core/lib/solmate",
+     "url": "https://github.com/transmissions11/solmate",
+     "commit": "4b47a19038b798b4a33d9749d25e570443520647"
+    },
+    {
+     "path": "lib/uniswap-v4-periphery/lib/v4-core/lib/solmate/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/uniswap-v4-periphery/lib/v4-core/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/uniswap-v4-periphery/lib/v4-core/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/uniswap-v4-periphery/lib/v4-core/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/uniswap-v4-periphery/lib/v4-core/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/uniswap-v4-periphery/lib/permit2",
+     "url": "https://github.com/Uniswap/permit2",
+     "commit": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219"
+    },
+    {
+     "path": "lib/uniswap-v4-periphery/lib/permit2/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "66bf4e2c92cf507531599845e8d5a08cc2e3b5bb"
+    },
+    {
+     "path": "lib/uniswap-v4-periphery/lib/permit2/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/uniswap-v4-periphery/lib/permit2/lib/solmate",
+     "url": "https://github.com/rari-capital/solmate",
+     "commit": "8d910d876f51c3b2585c9109409d601f600e68e1"
+    },
+    {
+     "path": "lib/uniswap-v4-periphery/lib/permit2/lib/solmate/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    },
+    {
+     "path": "lib/uniswap-v4-periphery/lib/permit2/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "d3ff81b37f3c773b44dcaf5fda212c7176eef0e2"
+    },
+    {
+     "path": "lib/uniswap-v4-periphery/lib/permit2/lib/forge-gas-snapshot",
+     "url": "https://github.com/marktoda/forge-gas-snapshot",
+     "commit": "3c5d52a26169876a144f7690d2f9ef0200eb0791"
+    },
+    {
+     "path": "lib/uniswap-v4-periphery/lib/permit2/lib/forge-gas-snapshot/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2c7cbfc6fbede6d7c9e6b17afe997e3fdfe22fef"
+    },
+    {
+     "path": "lib/uniswap-v4-periphery/lib/permit2/lib/forge-gas-snapshot/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    },
+    {
+     "path": "lib/oz-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable.git",
+     "commit": "723f8cab09cdae1aca9ec9cc1cfa040c2d4b06c1"
+    },
+    {
+     "path": "lib/oz-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/oz-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/oz-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/oz-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/oz-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/oz-upgradeable/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/oz-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/grove-address-registry",
+     "url": "https://github.com/grove-labs/grove-address-registry",
+     "commit": "6a51b96aa920b4b45b5c70e2e76f0529bd4f4103"
+    },
+    {
+     "path": "lib/grove-address-registry/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1d0766bc5d814f117c7b1e643828f7d85024fb51"
+    },
+    {
+     "path": "lib/grove-address-registry/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/grove-xchain-helpers",
+     "url": "https://github.com/grove-labs/xchain-helpers",
+     "commit": "d7bf92cd6182da577c5ff9912507997b7a516561"
+    },
+    {
+     "path": "lib/grove-xchain-helpers/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e4aef94c1768803a16fe19f7ce8b65defd027cfd"
+    },
+    {
+     "path": "lib/grove-xchain-helpers/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/grove-xchain-helpers/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/grove-xchain-helpers/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/grove-xchain-helpers/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/grove-xchain-helpers/lib/devtools",
+     "url": "https://github.com/layerzero-labs/devtools",
+     "commit": "2a86327542da20c428eccba05ecb0657375e5ad1"
+    },
+    {
+     "path": "lib/grove-xchain-helpers/lib/devtools/packages/toolbox-foundry/src/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "60acb7aaadcce2d68e52986a0a66fe79f07d138f"
+    },
+    {
+     "path": "lib/grove-xchain-helpers/lib/devtools/packages/toolbox-foundry/src/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/grove-xchain-helpers/lib/devtools/tests-user/lib/bats-core",
+     "url": "https://github.com/bats-core/bats-core.git",
+     "commit": "855844b8344e67d60dc0f43fa39817ed7787f141"
+    },
+    {
+     "path": "lib/grove-xchain-helpers/lib/devtools/tests-user/lib/bats-support",
+     "url": "https://github.com/bats-core/bats-support.git",
+     "commit": "0ad082d4590108684c68975ca517a90459f05cd0"
+    },
+    {
+     "path": "lib/grove-xchain-helpers/lib/devtools/tests-user/lib/bats-assert",
+     "url": "https://github.com/bats-core/bats-assert.git",
+     "commit": "912a98804efd34f24d5eae1bf97ee622ca770e99"
+    },
+    {
+     "path": "lib/grove-xchain-helpers/lib/solidity-bytes-utils",
+     "url": "https://github.com/GNSPS/solidity-bytes-utils",
+     "commit": "fc502455bb2a7e26a743378df042612dd50d1eb9"
+    },
+    {
+     "path": "lib/grove-xchain-helpers/lib/solidity-bytes-utils/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/grove-xchain-helpers/lib/solidity-bytes-utils/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/grove-xchain-helpers/lib/LayerZero-v2",
+     "url": "https://github.com/layerzero-labs/LayerZero-v2",
+     "commit": "63bbd31584c588844de33678bf8dd61d879cba14"
+    },
+    {
+     "path": "lib/grove-xchain-helpers/lib/LayerZero-v2/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2f112697506eab12d433a65fdc31a639548fe365"
+    },
+    {
+     "path": "lib/grove-xchain-helpers/lib/LayerZero-v2/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/grove-basin",
+     "url": "https://github.com/grove-labs/grove-basin",
+     "commit": "a79269a3f5f0253110e9cbca15d79aa9ffb62c4d"
+    },
+    {
+     "path": "lib/grove-basin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "0844d7e1fc5e60d77b68e469bff60265f236c398"
+    },
+    {
+     "path": "lib/grove-basin/lib/erc20-helpers",
+     "url": "https://github.com/sparkdotfi/erc20-helpers",
+     "commit": "ee1cbda4707f3f13900ae0ef5561d5116c9acb6d"
+    },
+    {
+     "path": "lib/grove-basin/lib/erc20-helpers/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "267acd30a625086b3f16e1a28cfe0c5097fa46b8"
+    },
+    {
+     "path": "lib/grove-basin/lib/erc20-helpers/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/grove-basin/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "fcbae5394ae8ad52d8e580a3477db99814b9d565"
+    },
+    {
+     "path": "lib/grove-basin/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/grove-basin/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/grove-basin/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/grove-basin/lib/xchain-ssr-oracle",
+     "url": "https://github.com/sparkdotfi/xchain-ssr-oracle",
+     "commit": "466595dcba4cfe6b924484f1fef4ad83accf4411"
+    },
+    {
+     "path": "lib/grove-basin/lib/xchain-ssr-oracle/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "155d547c449afa8715f538d69454b83944117811"
+    },
+    {
+     "path": "lib/grove-basin/lib/xchain-ssr-oracle/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/grove-basin/lib/xchain-ssr-oracle/lib/xchain-helpers",
+     "url": "https://github.com/marsfoundation/xchain-helpers",
+     "commit": "008ffe05334b59b77b3cde293bf7aa0c82cd59de"
+    },
+    {
+     "path": "lib/grove-basin/lib/xchain-ssr-oracle/lib/xchain-helpers/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e4aef94c1768803a16fe19f7ce8b65defd027cfd"
+    },
+    {
+     "path": "lib/grove-basin/lib/xchain-ssr-oracle/lib/xchain-helpers/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/grove-basin/lib/xchain-ssr-oracle/lib/xchain-helpers/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/grove-basin/lib/xchain-ssr-oracle/lib/xchain-helpers/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/grove-basin/lib/xchain-ssr-oracle/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "932fddf69a699a9a80fd2396fd1a2ab91cdda123"
+    },
+    {
+     "path": "lib/grove-basin/lib/xchain-ssr-oracle/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/grove-basin/lib/xchain-ssr-oracle/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/grove-basin/lib/xchain-ssr-oracle/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/grove-basin/lib/xchain-ssr-oracle/lib/sparklend-address-registry",
+     "url": "https://github.com/marsfoundation/sparklend-address-registry",
+     "commit": "405954de096cea0ccd3cd70eced2f5f4ef69a2ae"
+    },
+    {
+     "path": "lib/grove-basin/lib/xchain-ssr-oracle/lib/sparklend-address-registry/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1d0766bc5d814f117c7b1e643828f7d85024fb51"
+    },
+    {
+     "path": "lib/grove-basin/lib/xchain-ssr-oracle/lib/sparklend-address-registry/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/grove-basin/lib/grove-address-registry",
+     "url": "https://github.com/grove-labs/grove-address-registry",
+     "commit": "0d4569cbe8b7a9afe013f49d7948bfa279a4efcf"
+    },
+    {
+     "path": "lib/grove-basin/lib/grove-address-registry/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1d0766bc5d814f117c7b1e643828f7d85024fb51"
+    },
+    {
+     "path": "lib/grove-basin/lib/grove-address-registry/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/nfat",
+     "url": "https://github.com/sky-ecosystem/nfat",
+     "commit": "530a5e328f6a51895f58bbff86ac981be777ea27"
+    },
+    {
+     "path": "lib/nfat/lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "61cf29fc0cf0c177a3b4072b433c43a7326ccd7b"
+    },
+    {
+     "path": "lib/nfat/lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/nfat/lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "da591f56d8884c5824c0c1b3103fbcfd81123c4c"
+    },
+    {
+     "path": "lib/nfat/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "fcbae5394ae8ad52d8e580a3477db99814b9d565"
+    },
+    {
+     "path": "lib/nfat/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/nfat/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/nfat/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 228
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 228
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__diamond-pau",
+   "files": 11621,
+   "bytes": 78957931,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/pau-administered-agent",
+   "ref": "master",
+   "scope_paths": [
+    "src/AdministeredAgentFactory.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "6d096227873fbf8a854ca816973fde9378681c6d",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e4aef94c1768803a16fe19f7ce8b65defd027cfd"
+    },
+    {
+     "path": "lib/openzeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "74edc4baff50b93c06977021ee9ba25987803291"
+    },
+    {
+     "path": "lib/openzeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1801b0541f4fda118a10798fd3486bb7051c5dd6"
+    },
+    {
+     "path": "lib/openzeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 10
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 10
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__pau-administered-agent",
+   "files": 559,
+   "bytes": 4069012,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/pau-assemblers",
+   "ref": "dev",
+   "scope_paths": [
+    "src/DefaultPAUAssembler.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "0cd4fd16984aca922ebf57317fea33ca9f34441b",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "620536fa5277db4e3fd46772d5cbc1ea0696fb43"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 4
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 4
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__pau-assemblers",
+   "files": 65,
+   "bytes": 1151943,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/pas",
+   "ref": "947e71cd5dbaaf9c5b3840dd1b23e8e99d9a564d",
+   "scope_paths": [
+    "src/BeamState.sol",
+    "src/Configurator.sol",
+    "src/PASMom.sol",
+    "src/timelock/Timelock.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "947e71cd5dbaaf9c5b3840dd1b23e8e99d9a564d",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ebc60f500bc6870baaf321a0196fddc24d6edb03"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "a83d9aabbca1ad4be17acba3e1caeca90539d3cc"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/dss-test",
+     "url": "https://github.com/sky-ecosystem/dss-test",
+     "commit": "61cf29fc0cf0c177a3b4072b433c43a7326ccd7b"
+    },
+    {
+     "path": "lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "da591f56d8884c5824c0c1b3103fbcfd81123c4c"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 20
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 20
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__pas",
+   "files": 694,
+   "bytes": 5380350,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/dss",
+   "ref": "master",
+   "scope_paths": [
+    "src/abaci.sol",
+    "src/clip.sol",
+    "src/dai.sol",
+    "src/dog.sol",
+    "src/flap.sol",
+    "src/flop.sol",
+    "src/join.sol",
+    "src/jug.sol",
+    "src/pot.sol",
+    "src/spot.sol",
+    "src/vat.sol",
+    "src/vow.sol"
+   ],
+   "fetched": "2026-11-07",
+   "note": "scope refs master (10 files), v1.2 (join.sol), c8d4c806 (abaci.sol): master taken",
+   "commit": "fa4f6630afb0624d04a003e920b0d71a00331d98",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-value",
+     "url": "https://github.com/dapphub/ds-value",
+     "commit": "4049ecd2652a39cbab464bb1c2c627985f720f97"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing",
+     "url": "https://github.com/dapphub/ds-thing",
+     "commit": "5865abc83184ab546db4279a038eb3466da4cd6b"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-note/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "a5e709b205383720a3d47c7b234771daf4b58766"
+    },
+    {
+     "path": "lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/ds-token/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/ds-token/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 30
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 30
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__dss",
+   "files": 117,
+   "bytes": 1240452,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/dapphub/ds-weth",
+   "ref": "master",
+   "scope_paths": [
+    "src/weth9.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "72355fbac1755331aeab354b3e4a92ca47d06b35",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/erc20",
+     "url": "https://github.com/dapphub/erc20",
+     "commit": "f322aaca414db343337814097d2af43214bee96c"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": null,
+    "headers": {
+     "(none)": 5
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 5
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "dapphub__ds-weth",
+   "files": 15,
+   "bytes": 143103,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/median",
+   "ref": "master",
+   "scope_paths": [
+    "src/median.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "0316acd5a97fbd6c3d23b159b3d329f99ead3405",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": null,
+    "headers": {
+     "(none)": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 2
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__median",
+   "files": 10,
+   "bytes": 108654,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/osm",
+   "ref": "master",
+   "scope_paths": [
+    "src/osm.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "e36c874b4e14fba860e48c0cf99cd600c0c59efa",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-stop",
+     "url": "https://github.com/dapphub/ds-stop",
+     "commit": "27cad71111afd06a841915c8fe710a7cd5ac7f99"
+    },
+    {
+     "path": "lib/ds-stop/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-stop/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/ds-stop/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-stop/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/ds-stop/lib/ds-note/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-value",
+     "url": "https://github.com/dapphub/ds-value",
+     "commit": "4049ecd2652a39cbab464bb1c2c627985f720f97"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing",
+     "url": "https://github.com/dapphub/ds-thing",
+     "commit": "5865abc83184ab546db4279a038eb3466da4cd6b"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-note/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "(none)": 3
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 3
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__osm",
+   "files": 91,
+   "bytes": 918306,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/rwa-toolkit",
+   "ref": "master",
+   "scope_paths": [
+    "src/conduits/RwaInputConduit.sol",
+    "src/conduits/RwaInputConduit2.sol",
+    "src/conduits/RwaMultiSwapOutputConduit.sol",
+    "src/conduits/RwaOutputConduit.sol",
+    "src/conduits/RwaOutputConduit2.sol",
+    "src/conduits/RwaSwapInputConduit.sol",
+    "src/conduits/RwaSwapInputConduit2.sol",
+    "src/conduits/RwaSwapOutputConduit.sol",
+    "src/jars/RwaJar.sol",
+    "src/tokens/RwaToken.sol",
+    "src/tokens/RwaTokenFactory.sol",
+    "src/urns/RwaUrn.sol",
+    "src/urns/RwaUrn2.sol",
+    "src/oracles/RwaLiquidationOracle.sol"
+   ],
+   "fetched": "2026-11-07",
+   "note": "also holds the scope links into sky-ecosystem/mip21-toolkit (the old name of this repository, gone; makerdao/mip21-toolkit is at this same commit)",
+   "commit": "8d30ed2cb657641253d45b57c894613e26b4ae1b",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    },
+    {
+     "path": "lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins",
+     "url": "https://github.com/makerdao/dss-gem-joins",
+     "commit": "0db8b0bfa80e41158a6f2062846f611a676d4bad"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy",
+     "url": "https://github.com/makerdao/dss-deploy",
+     "commit": "b2c1c5ac107b99fd61a7f6d2f63164331bd1fbf9"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth.git",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/ds-pause",
+     "url": "https://github.com/makerdao/ds-pause",
+     "commit": "5e798dd96bfaac978cd9fe3c0259b486e8afd213"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/ds-pause/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/ds-pause/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/ds-pause/lib/ds-note/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/dss",
+     "url": "https://github.com/makerdao/dss",
+     "commit": "fa4f6630afb0624d04a003e920b0d71a00331d98"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/dss/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/dss/lib/ds-value",
+     "url": "https://github.com/dapphub/ds-value",
+     "commit": "4049ecd2652a39cbab464bb1c2c627985f720f97"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-thing",
+     "url": "https://github.com/dapphub/ds-thing",
+     "commit": "5865abc83184ab546db4279a038eb3466da4cd6b"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/dss/lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "a5e709b205383720a3d47c7b234771daf4b58766"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/esm",
+     "url": "https://github.com/makerdao/esm",
+     "commit": "225ddf29b1515d10ea6d4f9cde5814a73085ce09"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/esm/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/esm/lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "a5e709b205383720a3d47c7b234771daf4b58766"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/ds-value",
+     "url": "https://github.com/dapphub/ds-value",
+     "commit": "4049ecd2652a39cbab464bb1c2c627985f720f97"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing",
+     "url": "https://github.com/dapphub/ds-thing",
+     "commit": "5865abc83184ab546db4279a038eb3466da4cd6b"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-note/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss",
+     "url": "https://github.com/makerdao/dss",
+     "commit": "fa4f6630afb0624d04a003e920b0d71a00331d98"
+    },
+    {
+     "path": "lib/dss/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value",
+     "url": "https://github.com/dapphub/ds-value",
+     "commit": "4049ecd2652a39cbab464bb1c2c627985f720f97"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing",
+     "url": "https://github.com/dapphub/ds-thing",
+     "commit": "5865abc83184ab546db4279a038eb3466da4cd6b"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-note/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "a5e709b205383720a3d47c7b234771daf4b58766"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/shell-utils",
+     "url": "https://github.com/clio-finance/shell-utils",
+     "commit": "8fc03ff8aacac95a02fe28782ce55563dd86c20d"
+    },
+    {
+     "path": "lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "16f187acc15dd839589be60173ad1ebd0716eb82"
+    },
+    {
+     "path": "lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/ds-token/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/ds-token/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/forward-proxy",
+     "url": "https://github.com/hbarcelos/forward-proxy",
+     "commit": "e4f132ba5b868f81d61a87ce4c1126b48e77d5b6"
+    },
+    {
+     "path": "lib/forward-proxy/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-chain-log",
+     "url": "https://github.com/makerdao/dss-chain-log",
+     "commit": "2eaea03e7ebd8db563eea003272094a5b5bc9ce5"
+    },
+    {
+     "path": "lib/dss-chain-log/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ca8d6e00ea9cb035f6856ff732203c9a3c48b966"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    },
+    {
+     "path": "lib/dss-psm",
+     "url": "https://github.com/makerdao/dss-psm",
+     "commit": "7d717d88d6b6dfcb346119369647969df6cadad3"
+    },
+    {
+     "path": "lib/dss-psm/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-psm/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "4470bc451403b597d924c895e7dc99d6aa6a7d7f"
+    },
+    {
+     "path": "lib/dss-psm/lib/dss",
+     "url": "https://github.com/makerdao/dss",
+     "commit": "81441305eebb80e2bca39afe33c9ef44446f1fb2"
+    },
+    {
+     "path": "lib/dss-psm/lib/dss/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-psm/lib/dss/lib/ds-value",
+     "url": "https://github.com/dapphub/ds-value",
+     "commit": "4049ecd2652a39cbab464bb1c2c627985f720f97"
+    },
+    {
+     "path": "lib/dss-psm/lib/dss/lib/ds-value/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-psm/lib/dss/lib/ds-value/lib/ds-thing",
+     "url": "https://github.com/dapphub/ds-thing",
+     "commit": "5865abc83184ab546db4279a038eb3466da4cd6b"
+    },
+    {
+     "path": "lib/dss-psm/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-psm/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-psm/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/dss-psm/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss-psm/lib/dss/lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "a5e709b205383720a3d47c7b234771daf4b58766"
+    },
+    {
+     "path": "lib/dss-psm/lib/dss/lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-psm/lib/dss/lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss-psm/lib/dss/lib/ds-token/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-psm/lib/dss/lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-psm/lib/dss/lib/ds-token/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ilk-registry",
+     "url": "https://github.com/makerdao/ilk-registry",
+     "commit": "d628d1d929f18ee3d4d1de998bcf40b1c4b3e938"
+    },
+    {
+     "path": "lib/ilk-registry/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ilk-registry/lib/ds-value",
+     "url": "https://github.com/dapphub/ds-value",
+     "commit": "4049ecd2652a39cbab464bb1c2c627985f720f97"
+    },
+    {
+     "path": "lib/ilk-registry/lib/ds-value/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ilk-registry/lib/ds-value/lib/ds-thing",
+     "url": "https://github.com/dapphub/ds-thing",
+     "commit": "5865abc83184ab546db4279a038eb3466da4cd6b"
+    },
+    {
+     "path": "lib/ilk-registry/lib/ds-value/lib/ds-thing/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ilk-registry/lib/ds-value/lib/ds-thing/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/ilk-registry/lib/ds-value/lib/ds-thing/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ilk-registry/lib/ds-value/lib/ds-thing/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/ilk-registry/lib/ds-value/lib/ds-thing/lib/ds-note/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ilk-registry/lib/ds-value/lib/ds-thing/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/ilk-registry/lib/ds-value/lib/ds-thing/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ilk-registry/lib/dss",
+     "url": "https://github.com/makerdao/dss",
+     "commit": "fa4f6630afb0624d04a003e920b0d71a00331d98"
+    },
+    {
+     "path": "lib/ilk-registry/lib/dss/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ilk-registry/lib/dss/lib/ds-value",
+     "url": "https://github.com/dapphub/ds-value",
+     "commit": "4049ecd2652a39cbab464bb1c2c627985f720f97"
+    },
+    {
+     "path": "lib/ilk-registry/lib/dss/lib/ds-value/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ilk-registry/lib/dss/lib/ds-value/lib/ds-thing",
+     "url": "https://github.com/dapphub/ds-thing",
+     "commit": "5865abc83184ab546db4279a038eb3466da4cd6b"
+    },
+    {
+     "path": "lib/ilk-registry/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ilk-registry/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/ilk-registry/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/ilk-registry/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/ilk-registry/lib/dss/lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "a5e709b205383720a3d47c7b234771daf4b58766"
+    },
+    {
+     "path": "lib/ilk-registry/lib/dss/lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ilk-registry/lib/dss/lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/ilk-registry/lib/dss/lib/ds-token/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ilk-registry/lib/dss/lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/ilk-registry/lib/dss/lib/ds-token/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "7fdaf8774d038ebb5a49e2f581f7b10dbce14653"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": "AGPL-3.0-or-later",
+    "headers": {
+     "AGPL-3.0-or-later": 20,
+     "GPL-3.0-or-later": 8
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 28
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__rwa-toolkit",
+   "files": 900,
+   "bytes": 7945998,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/dss-cdp-manager",
+   "ref": "master",
+   "scope_paths": [
+    "src/DssCdpManager.sol",
+    "src/GetCdps.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "95eb088495239d6033e4ff4ccc28427adb20500b",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy",
+     "url": "https://github.com/makerdao/dss-deploy",
+     "commit": "b2c1c5ac107b99fd61a7f6d2f63164331bd1fbf9"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth.git",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-pause",
+     "url": "https://github.com/makerdao/ds-pause",
+     "commit": "5e798dd96bfaac978cd9fe3c0259b486e8afd213"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-pause/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-pause/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-pause/lib/ds-note/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss",
+     "url": "https://github.com/makerdao/dss",
+     "commit": "fa4f6630afb0624d04a003e920b0d71a00331d98"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value",
+     "url": "https://github.com/dapphub/ds-value",
+     "commit": "4049ecd2652a39cbab464bb1c2c627985f720f97"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-thing",
+     "url": "https://github.com/dapphub/ds-thing",
+     "commit": "5865abc83184ab546db4279a038eb3466da4cd6b"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "a5e709b205383720a3d47c7b234771daf4b58766"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm",
+     "url": "https://github.com/makerdao/esm",
+     "commit": "225ddf29b1515d10ea6d4f9cde5814a73085ce09"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "a5e709b205383720a3d47c7b234771daf4b58766"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "(none)": 1,
+     "AGPL-3.0-or-later": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 3
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__dss-cdp-manager",
+   "files": 198,
+   "bytes": 2086031,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/dss-proxy-actions",
+   "ref": "master",
+   "scope_paths": [
+    "src/DssProxyActions.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "5cf46344070274ca59882d645bebf15589bdc87d",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-cdp-manager",
+     "url": "https://github.com/makerdao/dss-cdp-manager",
+     "commit": "306132d6442b3245081a60bc84468c6a0c252fa8"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy",
+     "url": "https://github.com/makerdao/dss-deploy",
+     "commit": "45985a91024f3bc82cbe15b17dd70990d7f56020"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/ds-pause",
+     "url": "https://github.com/makerdao/ds-pause",
+     "commit": "5e798dd96bfaac978cd9fe3c0259b486e8afd213"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/ds-pause/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/ds-pause/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/ds-pause/lib/ds-note/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/dss",
+     "url": "https://github.com/makerdao/dss",
+     "commit": "38f618c54ff27d278eacc58d543e01bd08a88680"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/dss/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/dss/lib/ds-value",
+     "url": "https://github.com/dapphub/ds-value",
+     "commit": "4049ecd2652a39cbab464bb1c2c627985f720f97"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-thing",
+     "url": "https://github.com/dapphub/ds-thing",
+     "commit": "5865abc83184ab546db4279a038eb3466da4cd6b"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/dss/lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "a5e709b205383720a3d47c7b234771daf4b58766"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/esm",
+     "url": "https://github.com/makerdao/esm",
+     "commit": "8fabd86487bc712faa306c01b85fceeafb0d15d0"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/esm/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/esm/lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "a5e709b205383720a3d47c7b234771daf4b58766"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss-cdp-manager/lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/proxy-registry",
+     "url": "https://github.com/makerdao/proxy-registry",
+     "commit": "981715a971f53d474ece6e4e06fd8c7992d2d5b5"
+    },
+    {
+     "path": "lib/proxy-registry/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/proxy-registry/lib/ds-proxy",
+     "url": "https://github.com/dapphub/ds-proxy",
+     "commit": "e17a2526ad5c9877ba925ff25c1119f519b7369b"
+    },
+    {
+     "path": "lib/proxy-registry/lib/ds-proxy/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/proxy-registry/lib/ds-proxy/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/proxy-registry/lib/ds-proxy/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/proxy-registry/lib/ds-proxy/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/proxy-registry/lib/ds-proxy/lib/ds-note/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-weth",
+     "url": "https://github.com/dapphub/ds-weth",
+     "commit": "b23b47824572500cb301b65370208b1b752f7482"
+    },
+    {
+     "path": "lib/ds-weth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-weth/lib/erc20",
+     "url": "https://github.com/dapphub/erc20",
+     "commit": "f322aaca414db343337814097d2af43214bee96c"
+    },
+    {
+     "path": "lib/dss-gem-joins",
+     "url": "https://github.com/makerdao/dss-gem-joins",
+     "commit": "123d6b7d7210a4dc47cecc405e1deeaa0f28e0c0"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy",
+     "url": "https://github.com/makerdao/dss-deploy",
+     "commit": "45985a91024f3bc82cbe15b17dd70990d7f56020"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/ds-pause",
+     "url": "https://github.com/makerdao/ds-pause",
+     "commit": "5e798dd96bfaac978cd9fe3c0259b486e8afd213"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/ds-pause/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/ds-pause/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/ds-pause/lib/ds-note/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/dss",
+     "url": "https://github.com/makerdao/dss",
+     "commit": "38f618c54ff27d278eacc58d543e01bd08a88680"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/dss/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/dss/lib/ds-value",
+     "url": "https://github.com/dapphub/ds-value",
+     "commit": "4049ecd2652a39cbab464bb1c2c627985f720f97"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-thing",
+     "url": "https://github.com/dapphub/ds-thing",
+     "commit": "5865abc83184ab546db4279a038eb3466da4cd6b"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/dss/lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "a5e709b205383720a3d47c7b234771daf4b58766"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/esm",
+     "url": "https://github.com/makerdao/esm",
+     "commit": "8fabd86487bc712faa306c01b85fceeafb0d15d0"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/esm/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/esm/lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "a5e709b205383720a3d47c7b234771daf4b58766"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss-gem-joins/lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 1,
+     "(none)": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 2
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__dss-proxy-actions",
+   "files": 401,
+   "bytes": 3830166,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/dsr-manager",
+   "ref": "master",
+   "scope_paths": [
+    "src/DsrManager.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "0a48c2dda418927ab844ec251f24079c0a3ff2bb",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy",
+     "url": "https://github.com/makerdao/dss-deploy",
+     "commit": "45985a91024f3bc82cbe15b17dd70990d7f56020"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-pause",
+     "url": "https://github.com/makerdao/ds-pause",
+     "commit": "5e798dd96bfaac978cd9fe3c0259b486e8afd213"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-pause/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-pause/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-pause/lib/ds-note/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss",
+     "url": "https://github.com/makerdao/dss",
+     "commit": "38f618c54ff27d278eacc58d543e01bd08a88680"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value",
+     "url": "https://github.com/dapphub/ds-value",
+     "commit": "4049ecd2652a39cbab464bb1c2c627985f720f97"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-thing",
+     "url": "https://github.com/dapphub/ds-thing",
+     "commit": "5865abc83184ab546db4279a038eb3466da4cd6b"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "a5e709b205383720a3d47c7b234771daf4b58766"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm",
+     "url": "https://github.com/makerdao/esm",
+     "commit": "8fabd86487bc712faa306c01b85fceeafb0d15d0"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "a5e709b205383720a3d47c7b234771daf4b58766"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "(none)": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 2
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__dsr-manager",
+   "files": 190,
+   "bytes": 1890464,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/dss-exec-lib",
+   "ref": "master",
+   "scope_paths": [
+    "src/CollateralOpts.sol",
+    "src/DssAction.sol",
+    "src/DssExec.sol",
+    "src/DssExecLib.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "4206c58c162116e211067bbe3a3d3aae7eda994d",
+   "submodules": [
+    {
+     "path": "lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "eb63423fb1f777a8d2887919504b3dd0102f1aa4"
+    },
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "9530d9ec702df1b27b7f8f50c0a63a11b1b5fba9"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 16
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 16
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__dss-exec-lib",
+   "files": 143,
+   "bytes": 1310968,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/dss-flappers",
+   "ref": "master",
+   "scope_paths": [
+    "src/FarmOwner.sol",
+    "src/FlapperMom.sol",
+    "src/FlapperUniV2.sol",
+    "src/FlapperUniV2SwapOnly.sol",
+    "src/Kicker.sol",
+    "src/OracleWrapper.sol",
+    "src/SBEBeam.sol",
+    "src/Splitter.sol",
+    "src/SplitterMom.sol"
+   ],
+   "fetched": "2026-11-07",
+   "note": "scope refs master/dev/beam: master holds all scoped files but FlapperMom.sol (on no branch any more)",
+   "commit": "5d8215cee7b66591aa2f87023043c868a420fe27",
+   "submodules": [
+    {
+     "path": "lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "6d4029dc373d4e2af2404016e0a834e53d976264"
+    },
+    {
+     "path": "lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 29,
+     "(none)": 4,
+     "GPL-3.0-or-later": 1,
+     "MIT": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 35
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__dss-flappers",
+   "files": 182,
+   "bytes": 1462684,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/dss-flash",
+   "ref": "master",
+   "scope_paths": [
+    "src/flash.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "9d492aa6148c35f568400a1ab85cd6df43b2ccc8",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss",
+     "url": "https://github.com/makerdao/dss",
+     "commit": "fa4f6630afb0624d04a003e920b0d71a00331d98"
+    },
+    {
+     "path": "lib/dss/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value",
+     "url": "https://github.com/dapphub/ds-value",
+     "commit": "4049ecd2652a39cbab464bb1c2c627985f720f97"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing",
+     "url": "https://github.com/dapphub/ds-thing",
+     "commit": "5865abc83184ab546db4279a038eb3466da4cd6b"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-note/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "a5e709b205383720a3d47c7b234771daf4b58766"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 7
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 7
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__dss-flash",
+   "files": 132,
+   "bytes": 1369509,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/ilk-registry",
+   "ref": "master",
+   "scope_paths": [
+    "src/IlkRegistry.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "1d65fb6e17c28e9e94ac88f0d8ccad04d8945f3c",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-value",
+     "url": "https://github.com/dapphub/ds-value",
+     "commit": "4049ecd2652a39cbab464bb1c2c627985f720f97"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing",
+     "url": "https://github.com/dapphub/ds-thing",
+     "commit": "5865abc83184ab546db4279a038eb3466da4cd6b"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-note/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/ds-value/lib/ds-thing/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss",
+     "url": "https://github.com/makerdao/dss",
+     "commit": "fa4f6630afb0624d04a003e920b0d71a00331d98"
+    },
+    {
+     "path": "lib/dss/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value",
+     "url": "https://github.com/dapphub/ds-value",
+     "commit": "4049ecd2652a39cbab464bb1c2c627985f720f97"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing",
+     "url": "https://github.com/dapphub/ds-thing",
+     "commit": "5865abc83184ab546db4279a038eb3466da4cd6b"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-note/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "a5e709b205383720a3d47c7b234771daf4b58766"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 4
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 4
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__ilk-registry",
+   "files": 178,
+   "bytes": 1873743,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/line-mom",
+   "ref": "master",
+   "scope_paths": [
+    "src/LineMom.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "5935e56ac8d4d677865259e94129bf2bd3039ebf",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "73a504d2cf6f37b7ce285b479f4c681f76e95f1b"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 2
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__line-mom",
+   "files": 52,
+   "bytes": 526026,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/dss-interfaces",
+   "ref": "master",
+   "scope_paths": [
+    "src/ERC/GemAbstract.sol",
+    "src/Interfaces.sol",
+    "src/dapp/DSAuthorityAbstract.sol",
+    "src/dapp/DSChiefAbstract.sol",
+    "src/dapp/DSPauseAbstract.sol",
+    "src/dapp/DSPauseProxyAbstract.sol",
+    "src/dapp/DSRolesAbstract.sol",
+    "src/dapp/DSRuneAbstract.sol",
+    "src/dapp/DSSpellAbstract.sol",
+    "src/dapp/DSThingAbstract.sol",
+    "src/dapp/DSTokenAbstract.sol",
+    "src/dapp/DSValueAbstract.sol",
+    "src/dss/AuthGemJoinAbstract.sol",
+    "src/dss/CatAbstract.sol",
+    "src/dss/ChainlogAbstract.sol",
+    "src/dss/ClipAbstract.sol",
+    "src/dss/ClipperMomAbstract.sol",
+    "src/dss/DaiAbstract.sol",
+    "src/dss/DaiJoinAbstract.sol",
+    "src/dss/DogAbstract.sol",
+    "src/dss/DssAutoLineAbstract.sol",
+    "src/dss/DssCdpManager.sol",
+    "src/dss/ETHJoinAbstract.sol",
+    "src/dss/ExponentialDecreaseAbstract.sol",
+    "src/dss/FaucetAbstract.sol",
+    "src/dss/FlapAbstract.sol",
+    "src/dss/FlashAbstract.sol",
+    "src/dss/FlipAbstract.sol",
+    "src/dss/FlipperMomAbstract.sol",
+    "src/dss/FlopAbstract.sol",
+    "src/dss/GemJoinAbstract.sol",
+    "src/dss/GemJoinImplementationAbstract.sol",
+    "src/dss/GemJoinManagedAbstract.sol",
+    "src/dss/GetCdpsAbstract.sol",
+    "src/dss/IlkRegistryAbstract.sol",
+    "src/dss/JugAbstract.sol",
+    "src/dss/LPOsmAbstract.sol",
+    "src/dss/LerpAbstract.sol",
+    "src/dss/LerpFactoryAbstract.sol",
+    "src/dss/LinearDecreaseAbstract.sol",
+    "src/dss/MKRAbstract.sol",
+    "src/dss/MedianAbstract.sol",
+    "src/dss/MkrAuthorityAbstract.sol",
+    "src/dss/OsmAbstract.sol",
+    "src/dss/OsmMomAbstract.sol",
+    "src/dss/PipAbstract.sol",
+    "src/dss/PotAbstract.sol",
+    "src/dss/PotHelper.sol",
+    "src/dss/PsmAbstract.sol",
+    "src/dss/SpotAbstract.sol",
+    "src/dss/StairstepExponentialDecreaseAbstract.sol",
+    "src/dss/VatAbstract.sol",
+    "src/dss/VestAbstract.sol",
+    "src/dss/VowAbstract.sol",
+    "src/sai/GemPitAbstract.sol",
+    "src/sai/SaiMomAbstract.sol",
+    "src/sai/SaiTapAbstract.sol",
+    "src/sai/SaiTokenAbstract.sol",
+    "src/sai/SaiTopAbstract.sol",
+    "src/sai/SaiTubAbstract.sol",
+    "src/sai/SaiVoxAbstract.sol",
+    "src/utils/WardsAbstract.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "eb63423fb1f777a8d2887919504b3dd0102f1aa4",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": "GPL-3.0-or-later",
+    "headers": {
+     "AGPL-3.0-or-later": 70
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 70
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__dss-interfaces",
+   "files": 73,
+   "bytes": 111626,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/dss-gem-joins",
+   "ref": "v1.2",
+   "scope_paths": [
+    "src/join-2.sol",
+    "src/join-3.sol",
+    "src/join-4.sol",
+    "src/join-5.sol",
+    "src/join-6.sol",
+    "src/join-7.sol",
+    "src/join-8.sol",
+    "src/join-auth.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "123d6b7d7210a4dc47cecc405e1deeaa0f28e0c0",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy",
+     "url": "https://github.com/makerdao/dss-deploy",
+     "commit": "45985a91024f3bc82cbe15b17dd70990d7f56020"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-pause",
+     "url": "https://github.com/makerdao/ds-pause",
+     "commit": "5e798dd96bfaac978cd9fe3c0259b486e8afd213"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-pause/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-pause/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/dss-deploy/lib/ds-pause/lib/ds-note/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss",
+     "url": "https://github.com/makerdao/dss",
+     "commit": "38f618c54ff27d278eacc58d543e01bd08a88680"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value",
+     "url": "https://github.com/dapphub/ds-value",
+     "commit": "4049ecd2652a39cbab464bb1c2c627985f720f97"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-thing",
+     "url": "https://github.com/dapphub/ds-thing",
+     "commit": "5865abc83184ab546db4279a038eb3466da4cd6b"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-value/lib/ds-thing/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "a5e709b205383720a3d47c7b234771daf4b58766"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-deploy/lib/dss/lib/ds-token/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm",
+     "url": "https://github.com/makerdao/esm",
+     "commit": "8fabd86487bc712faa306c01b85fceeafb0d15d0"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "a5e709b205383720a3d47c7b234771daf4b58766"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss-deploy/lib/esm/lib/ds-token/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 10,
+     "(none)": 23
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 33
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__dss-gem-joins",
+   "files": 221,
+   "bytes": 1995896,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/dss-psm",
+   "ref": "master",
+   "scope_paths": [
+    "src/join-5-auth.sol",
+    "src/join-8-auth.sol",
+    "src/join-auth.sol",
+    "src/psm.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "7d717d88d6b6dfcb346119369647969df6cadad3",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "4470bc451403b597d924c895e7dc99d6aa6a7d7f"
+    },
+    {
+     "path": "lib/dss",
+     "url": "https://github.com/makerdao/dss",
+     "commit": "81441305eebb80e2bca39afe33c9ef44446f1fb2"
+    },
+    {
+     "path": "lib/dss/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value",
+     "url": "https://github.com/dapphub/ds-value",
+     "commit": "4049ecd2652a39cbab464bb1c2c627985f720f97"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing",
+     "url": "https://github.com/dapphub/ds-thing",
+     "commit": "5865abc83184ab546db4279a038eb3466da4cd6b"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-note",
+     "url": "https://github.com/dapphub/ds-note",
+     "commit": "832591b2d7dfb13dd513a72d0ff5a64c23b4e327"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-note/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss/lib/ds-value/lib/ds-thing/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-token",
+     "url": "https://github.com/dapphub/ds-token",
+     "commit": "a5e709b205383720a3d47c7b234771daf4b58766"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-math",
+     "url": "https://github.com/dapphub/ds-math",
+     "commit": "e70a364787804c1ded9801ed6c27b440a86ebd32"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-math/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-auth",
+     "url": "https://github.com/dapphub/ds-auth",
+     "commit": "a51e7caa1f03eeffed66d67f3b38605e0f1f881d"
+    },
+    {
+     "path": "lib/dss/lib/ds-token/lib/ds-auth/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 7,
+     "(none)": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 8
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__dss-psm",
+   "files": 195,
+   "bytes": 1459429,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/optimism-dai-bridge",
+   "ref": "master",
+   "scope_paths": [
+    "contracts/l1/L1DAITokenBridge.sol",
+    "contracts/l1/L1Escrow.sol",
+    "contracts/l1/L1GovernanceRelay.sol",
+    "contracts/l2/L2DAITokenBridge.sol",
+    "contracts/l2/L2GovernanceRelay.sol",
+    "contracts/l2/dai.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "bc3d63f5da2fd34ebb90369c90f2ea57e51cbca0",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": "MIT",
+    "headers": {
+     "(none)": 1,
+     "AGPL-3.0-or-later": 10
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 11
+   },
+   "npm": {
+    "node_modules/@eth-optimism/contracts": "0.0.0-2021515174945",
+    "node_modules/@openzeppelin/contracts": "3.4.2",
+    "node_modules/@openzeppelin/contracts-upgradeable": "3.4.2"
+   },
+   "copied": true,
+   "dest": "sky-ecosystem__optimism-dai-bridge",
+   "files": 372,
+   "bytes": 1305996,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/arbitrum-dai-bridge",
+   "ref": "master",
+   "scope_paths": [
+    "contracts/l1/L1CrossDomainEnabled.sol",
+    "contracts/l1/L1DaiGateway.sol",
+    "contracts/l1/L1Escrow.sol",
+    "contracts/l1/L1GovernanceRelay.sol",
+    "contracts/l1/L1ITokenGateway.sol",
+    "contracts/l2/L2CrossDomainEnabled.sol",
+    "contracts/l2/L2DaiGateway.sol",
+    "contracts/l2/L2GovernanceRelay.sol",
+    "contracts/l2/L2ITokenGateway.sol",
+    "contracts/l2/dai.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "ba5e98631307025a74fc03108492b20af57a0d3a",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "(none)": 2,
+     "AGPL-3.0-or-later": 14,
+     "Apache-2.0": 4
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 20
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__arbitrum-dai-bridge",
+   "files": 27,
+   "bytes": 92900,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/starknet-dai-bridge",
+   "ref": "main",
+   "scope_paths": [
+    "contracts/l1/L1DAIBridge.sol",
+    "contracts/l1/L1Escrow.sol",
+    "contracts/l1/L1EscrowMom.sol",
+    "contracts/l1/L1GovernanceRelay.sol",
+    "contracts/l2/dai.cairo",
+    "contracts/l2/l2_dai_bridge.cairo",
+    "contracts/l2/l2_governance_relay.cairo",
+    "contracts/l2/registry.cairo"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "380a6ed2b78644b05c8b9fd0e0f969da1a5cadf9",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": "MIT",
+    "headers": {
+     "AGPL-3.0-or-later": 7
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 7
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.9.6"
+   },
+   "copied": true,
+   "dest": "sky-ecosystem__starknet-dai-bridge",
+   "files": 203,
+   "bytes": 800336,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/dss-direct-deposit",
+   "ref": "master",
+   "scope_paths": [
+    "src/D3MHub.sol",
+    "src/D3MMom.sol",
+    "src/D3MOracle.sol",
+    "src/plans/D3MOperatorPlan.sol",
+    "src/pools/D3M4626TypePool.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "8e8ab516c472a5274e88911d4e6a34b03b470f38",
+   "submodules": [
+    {
+     "path": "lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "7529fa1e043b9195f41549852d9c5bb0714eaa27"
+    },
+    {
+     "path": "lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "aea0b2685bebc883c09f5554d7fb481e85d0564d"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/solmate",
+     "url": "https://github.com/transmissions11/solmate",
+     "commit": "c892309933b25c03d32b1b0d674df7ae292ba925"
+    },
+    {
+     "path": "lib/solmate/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/usds",
+     "url": "https://github.com/makerdao/usds",
+     "commit": "cfd4ac83eb75a0498bf7efec1ecfd525b666c004"
+    },
+    {
+     "path": "lib/usds/lib/token-tests",
+     "url": "https://github.com/makerdao/token-tests",
+     "commit": "6bdd5a38586970acf27166c3205093fd3450d530"
+    },
+    {
+     "path": "lib/usds/lib/token-tests/lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "6d4029dc373d4e2af2404016e0a834e53d976264"
+    },
+    {
+     "path": "lib/usds/lib/token-tests/lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/usds/lib/token-tests/lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "723f8cab09cdae1aca9ec9cc1cfa040c2d4b06c1"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-foundry-upgrades",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
+     "commit": "332bd3306242e09520df2685b2edb99ebd7f5d37"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-foundry-upgrades/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b6a506db2262cad5ff982a87789ee6d1558ec861"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils",
+     "url": "https://github.com/Arachnid/solidity-stringutils",
+     "commit": "4b2fcc43fa0426e19ce88b1f1ec16f5903a2e461"
+    },
+    {
+     "path": "lib/usds/lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 52
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 52
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__dss-direct-deposit",
+   "files": 1068,
+   "bytes": 6792302,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/dss-lite-psm",
+   "ref": "main",
+   "scope_paths": [
+    "src/DssLitePsm.sol",
+    "src/DssLitePsmMom.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "dbf0022225f645f5697e5517d0cf00810471bccf",
+   "submodules": [
+    {
+     "path": "lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "28000a0ea3602c887f2fdc22dea591789d1b4971"
+    },
+    {
+     "path": "lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 21
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 21
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__dss-lite-psm",
+   "files": 169,
+   "bytes": 1402894,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/endgame-toolkit",
+   "ref": "master",
+   "scope_paths": [
+    "src/SDAO.sol",
+    "src/SubProxy.sol",
+    "src/VestedRewardsDistribution.sol",
+    "src/synthetix/StakingRewards.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "db3cc6a4cc4852f3677055b7a37dbd0492ce2f9c",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "f90623596aecbf678c41d4d45ca81ce0e43c8219"
+    },
+    {
+     "path": "lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "28000a0ea3602c887f2fdc22dea591789d1b4971"
+    },
+    {
+     "path": "lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/token-tests",
+     "url": "https://github.com/makerdao/token-tests",
+     "commit": "159dc32e7df7f03f9bdab3845918fa2b2f4babb9"
+    },
+    {
+     "path": "lib/token-tests/lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "9d7557817af849273ec1d952cc953b212f19025f"
+    },
+    {
+     "path": "lib/token-tests/lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/token-tests/lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "aea0b2685bebc883c09f5554d7fb481e85d0564d"
+    },
+    {
+     "path": "lib/token-tests/lib/dss-test/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "0a25c1940ca220686588c4af3ec526f725fe2582"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib-0_6_x/dss-vest",
+     "url": "https://github.com/makerdao/dss-vest.git",
+     "commit": "b11bef740c10ed730424981c0bf2e058dcd0797b"
+    },
+    {
+     "path": "lib-0_6_x/dss-vest/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "c0b770c04474db28d43ab4b2fdb891bd21887e9e"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": "AGPL-3.0-or-later",
+    "headers": {
+     "AGPL-3.0-or-later": 51,
+     "MIT": 5,
+     "(none)": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 57
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__endgame-toolkit",
+   "files": 799,
+   "bytes": 4768341,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/usds",
+   "ref": "dev",
+   "scope_paths": [
+    "src/DaiUsds.sol",
+    "src/Usds.sol",
+    "src/UsdsJoin.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "5dfba54824c652a43208ae2926daab225aebf8b4",
+   "submodules": [
+    {
+     "path": "lib/token-tests",
+     "url": "https://github.com/makerdao/token-tests",
+     "commit": "6bdd5a38586970acf27166c3205093fd3450d530"
+    },
+    {
+     "path": "lib/token-tests/lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "6d4029dc373d4e2af2404016e0a834e53d976264"
+    },
+    {
+     "path": "lib/token-tests/lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/token-tests/lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "723f8cab09cdae1aca9ec9cc1cfa040c2d4b06c1"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
+     "commit": "332bd3306242e09520df2685b2edb99ebd7f5d37"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b6a506db2262cad5ff982a87789ee6d1558ec861"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils",
+     "url": "https://github.com/Arachnid/solidity-stringutils",
+     "commit": "4b2fcc43fa0426e19ce88b1f1ec16f5903a2e461"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": null,
+    "headers": {
+     "(none)": 3,
+     "AGPL-3.0-or-later": 12
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 15
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__usds",
+   "files": 806,
+   "bytes": 5108002,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/sp-beam",
+   "ref": "master",
+   "scope_paths": [
+    "src/SPBEAM.sol",
+    "src/SPBEAMMom.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "bc8857955fa0245b015d45ec661ab4757925db44",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66"
+    },
+    {
+     "path": "lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "dd3ff0970cded87ebd875120220225e72cd8c75a"
+    },
+    {
+     "path": "lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "da591f56d8884c5824c0c1b3103fbcfd81123c4c"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 16,
+     "(none)": 3
+    },
+    "headers_main": {
+     "AGPL-3.0-or-later": 5
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 19
+   },
+   "npm": {},
+   "skipped_unlicensed": 3,
+   "copied": true,
+   "dest": "sky-ecosystem__sp-beam",
+   "files": 212,
+   "bytes": 2317671,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/sky-oapp-oft",
+   "ref": "main",
+   "scope_paths": [
+    "contracts/GovernanceOAppSender.sol",
+    "contracts/SkyOFTAdapter.sol",
+    "programs/governance/src/state/governance.rs",
+    "programs/oft/src/state/oft.rs"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "0baba10c77a5cdfcef8fe9611e38d4306ab827a7",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "Apache-2.0": 16,
+     "UNLICENSED": 17,
+     "AGPL-3.0-or-later": 7
+    },
+    "headers_main": {
+     "Apache-2.0": 12
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 40
+   },
+   "npm": {
+    "node_modules/@layerzerolabs/toolbox-foundry": "0.1.13",
+    "node_modules/@layerzerolabs/lz-evm-protocol-v2": "3.0.168",
+    "node_modules/@openzeppelin/contracts": "5.6.1",
+    "node_modules/@layerzerolabs/oapp-evm": "0.3.3",
+    "node_modules/@layerzerolabs/oft-evm": "3.2.1",
+    "node_modules/@layerzerolabs/lz-evm-messagelib-v2": "3.0.168",
+    "node_modules/@layerzerolabs/test-devtools-evm-foundry": "6.0.3",
+    "node_modules/@openzeppelin/contracts-upgradeable": "5.6.1",
+    "node_modules/hardhat-deploy": "0.12.4",
+    "node_modules/solidity-bytes-utils": "0.8.4",
+    "node_modules/@layerzerolabs/lz-evm-v1-0.7": "3.0.168",
+    "node_modules/@chainlink/contracts-ccip": "0.7.6",
+    "node_modules/@arbitrum/nitro-contracts": "1.3.0",
+    "node_modules/@axelar-network/axelar-gmp-sdk-solidity": "5.10.0",
+    "node_modules/@eth-optimism/contracts": "0.6.0",
+    "node_modules/@offchainlabs/upgrade-executor": "1.1.0-beta.0"
+   },
+   "skipped_unlicensed": 17,
+   "copied": true,
+   "dest": "sky-ecosystem__sky-oapp-oft",
+   "files": 1124,
+   "bytes": 6128891,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/star-guard",
+   "ref": "main",
+   "scope_paths": [
+    "src/StarGuard.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "707c84df0607ddc91ce8b10021a58579d44945c5",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "60acb7aaadcce2d68e52986a0a66fe79f07d138f"
+    },
+    {
+     "path": "lib/dss-test",
+     "url": "https://github.com/sky-ecosystem/dss-test",
+     "commit": "61cf29fc0cf0c177a3b4072b433c43a7326ccd7b"
+    },
+    {
+     "path": "lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "da591f56d8884c5824c0c1b3103fbcfd81123c4c"
+    },
+    {
+     "path": "lib/endgame-toolkit",
+     "url": "https://github.com/sky-ecosystem/endgame-toolkit",
+     "commit": "94235ec63b0cb9ee5273d268b0870d0254e6d42d"
+    },
+    {
+     "path": "lib/endgame-toolkit/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
+    },
+    {
+     "path": "lib/endgame-toolkit/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/endgame-toolkit/lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "28000a0ea3602c887f2fdc22dea591789d1b4971"
+    },
+    {
+     "path": "lib/endgame-toolkit/lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/endgame-toolkit/lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/endgame-toolkit/lib/dss-test/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/endgame-toolkit/lib/token-tests",
+     "url": "https://github.com/makerdao/token-tests",
+     "commit": "159dc32e7df7f03f9bdab3845918fa2b2f4babb9"
+    },
+    {
+     "path": "lib/endgame-toolkit/lib/token-tests/lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "9d7557817af849273ec1d952cc953b212f19025f"
+    },
+    {
+     "path": "lib/endgame-toolkit/lib/token-tests/lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "lib/endgame-toolkit/lib/token-tests/lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "aea0b2685bebc883c09f5554d7fb481e85d0564d"
+    },
+    {
+     "path": "lib/endgame-toolkit/lib/token-tests/lib/dss-test/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/endgame-toolkit/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "0a25c1940ca220686588c4af3ec526f725fe2582"
+    },
+    {
+     "path": "lib/endgame-toolkit/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/endgame-toolkit/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/endgame-toolkit/lib-0_6_x/dss-vest",
+     "url": "https://github.com/makerdao/dss-vest.git",
+     "commit": "b11bef740c10ed730424981c0bf2e058dcd0797b"
+    },
+    {
+     "path": "lib/endgame-toolkit/lib-0_6_x/dss-vest/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "c0b770c04474db28d43ab4b2fdb891bd21887e9e"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 9
+    },
+    "headers_main": {
+     "AGPL-3.0-or-later": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 9
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__star-guard",
+   "files": 982,
+   "bytes": 6740938,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/sky-ecosystem/subproxy-methods",
+   "ref": "main",
+   "scope_paths": [
+    "src/SubProxyMethods.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "8ab9dafcab349a24a2ca953a8a698640408c3d02",
+   "submodules": [
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "5fd1781b1454fd1ef8e722282f86f9293cacf256"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "AGPL-3.0-or-later": 2,
+     "MIT": 50
+    },
+    "headers_main": {
+     "AGPL-3.0-or-later": 1,
+     "MIT": 31
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 52
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "sky-ecosystem__subproxy-methods",
+   "files": 535,
+   "bytes": 3925950,
+   "skipped_large": 0
+  }
+ ]
+}

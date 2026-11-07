@@ -1,0 +1,624 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.26;
+
+// External imports
+import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {SafeCast} from "@uniswap/v4-core/src/libraries/SafeCast.sol";
+import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
+import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
+import {BalanceDelta, BalanceDeltaLibrary} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {PoolSwapTest} from "@uniswap/v4-core/src/test/PoolSwapTest.sol";
+import {toBalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
+import {CustomRevert} from "@uniswap/v4-core/src/libraries/CustomRevert.sol";
+import {Position} from "@uniswap/v4-core/src/libraries/Position.sol";
+import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+
+// Internal imports
+import {HookTest} from "../utils/HookTest.sol";
+import {BalanceDeltaAssertions} from "../utils/BalanceDeltaAssertions.sol";
+import {LiquidityPenaltyHook} from "../../src/general/LiquidityPenaltyHook.sol";
+import {LiquidityPenaltyHookMock} from "../../src/mocks/general/LiquidityPenaltyHookMock.sol";
+
+contract LiquidityPenaltyHookTest is HookTest, BalanceDeltaAssertions {
+    int24 constant TICK_LOWER = -600;
+    int24 constant TICK_UPPER = 600;
+    int256 constant LIQUIDITY_AMOUNT_1E18 = 1e18;
+    int256 constant SWAP_AMOUNT = 10_000;
+
+    LiquidityPenaltyHookMock hook;
+    PoolKey noHookKey;
+    uint24 fee = 1000; // 0.1%
+
+    address user = makeAddr("user"); // long term LP
+    bytes32 bobSalt = keccak256(abi.encode(user));
+
+    address attacker = makeAddr("attacker"); // JIT attacker
+    bytes32 attackerSalt = keccak256(abi.encode(attacker));
+
+    function setUp() public {
+        deployFreshManagerAndRouters();
+        deployMintAndApprove2Currencies();
+
+        hook = LiquidityPenaltyHookMock(
+            address(
+                uint160(
+                    Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+                        | Hooks.AFTER_REMOVE_LIQUIDITY_RETURNS_DELTA_FLAG | Hooks.AFTER_ADD_LIQUIDITY_RETURNS_DELTA_FLAG
+                )
+            )
+        );
+        deployCodeTo(
+            "src/mocks/general/LiquidityPenaltyHookMock.sol:LiquidityPenaltyHookMock",
+            abi.encode(address(manager), 1),
+            address(hook)
+        );
+
+        (key,) = initPool(currency0, currency1, IHooks(address(hook)), fee, SQRT_PRICE_1_1);
+        (noHookKey,) = initPool(currency0, currency1, IHooks(address(0)), fee, SQRT_PRICE_1_1);
+
+        vm.label(Currency.unwrap(currency0), "currency0");
+        vm.label(Currency.unwrap(currency1), "currency1");
+    }
+
+    function test_deploy_LowOffset_reverts() public {
+        vm.expectRevert();
+        deployCodeTo(
+            "src/mocks/general/LiquidityPenaltyHookMock.sol:LiquidityPenaltyHookMock",
+            abi.encode(address(manager), 0),
+            address(hook)
+        );
+    }
+
+    function test_noSwaps() public {
+        // add liquidity
+        modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+        modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+
+        // remove liquidity
+        BalanceDelta hookDelta = modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, -1e17, 0);
+        BalanceDelta noHookDelta = modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, -1e17, 0);
+
+        assertEq(hookDelta, noHookDelta, "No swaps: equivalent behavior");
+    }
+
+    function test_JIT_SingleLP() public {
+        // add liquidity
+        modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+        modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+
+        // swap
+        PoolSwapTest.TestSettings memory testSettings =
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false});
+        SwapParams memory swapParams = SwapParams({
+            zeroForOne: true,
+            amountSpecified: -1e15, //exact input
+            sqrtPriceLimitX96: MIN_PRICE_LIMIT
+        });
+        swapRouter.swap(key, swapParams, testSettings, "");
+        swapRouter.swap(noHookKey, swapParams, testSettings, "");
+
+        // calculate earned fees due to the swap
+        BalanceDelta feeDelta =
+            calculateFeeDelta(manager, key.toId(), address(modifyLiquidityRouter), TICK_LOWER, TICK_UPPER, bytes32(0));
+
+        // remove liquidity during the same block (consolidate JIT attack), apply penalty
+        vm.expectEmit(false, false, true, true);
+        emit Donate(key.toId(), address(0), uint128(feeDelta.amount0()), uint128(feeDelta.amount1()));
+        BalanceDelta hookDelta = modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, -1e17, 0);
+
+        // attacker removes liquidity in the unhooked pool without penalty
+        BalanceDelta noHookDelta = modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, -1e17, 0);
+
+        assertEq(hookDelta, noHookDelta - feeDelta, "Hooked: JIT penalty applied");
+
+        // since the ataccker is the only LP, himself is the recipient of the whole donation in the hooked pool
+        BalanceDelta hookFeeDeltaAfterRemoval =
+            calculateFeeDelta(manager, key.toId(), address(modifyLiquidityRouter), TICK_LOWER, TICK_UPPER, bytes32(0));
+        assertApproxEqAbs(hookFeeDeltaAfterRemoval, feeDelta, 1, "Hooked: Attacker received donation");
+
+        // in the unhooked pool, the attacker should have collected the fees during liquidity removal
+        BalanceDelta noHookFeeDeltaAfterRemoval = calculateFeeDelta(
+            manager, noHookKey.toId(), address(modifyLiquidityRouter), TICK_LOWER, TICK_UPPER, bytes32(0)
+        );
+        assertEq(noHookFeeDeltaAfterRemoval, toBalanceDelta(0, 0), "Unhooked: Attacker collected fees");
+    }
+
+    function test_JIT_SingleLP_RemoveEntireLiquidity() public {
+        // add liquidity
+        modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+        modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+
+        // swap
+        PoolSwapTest.TestSettings memory testSettings =
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false});
+        SwapParams memory swapParams = SwapParams({
+            zeroForOne: false,
+            amountSpecified: -1e15, //exact input
+            sqrtPriceLimitX96: MAX_PRICE_LIMIT
+        });
+        swapRouter.swap(key, swapParams, testSettings, "");
+        swapRouter.swap(noHookKey, swapParams, testSettings, "");
+
+        uint128 liquidityHookKey = StateLibrary.getLiquidity(manager, key.toId());
+        uint128 liquidityNoHookKey = StateLibrary.getLiquidity(manager, noHookKey.toId());
+
+        // remove entire liquidity
+        BalanceDelta noHookDelta =
+            modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, -int128(liquidityNoHookKey), 0);
+
+        // Can't withdraw all liquidity in the hooked since the attacker is the sole lp in range, and there
+        // is no other active liquidity positions in range to receive the donation. Offset must be awaited.
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                address(hook), // target address
+                IHooks.afterRemoveLiquidity.selector, // function selector
+                abi.encodeWithSelector(LiquidityPenaltyHook.NoLiquidityToReceiveDonation.selector), // reason
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector) // details
+            )
+        );
+        modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, -int128(liquidityHookKey), 0);
+
+        // advance block
+        vm.roll(block.number + 1);
+
+        // now the attacker can remove without penalty
+        BalanceDelta hookDeltaAfterOffset =
+            modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, -int128(liquidityHookKey), 0);
+
+        assertEq(hookDeltaAfterOffset, noHookDelta, "Hooked: penalty not applied after offset.");
+    }
+
+    function test_JIT_Swap() public {
+        // add liquidity
+        modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, bobSalt);
+        modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, attackerSalt);
+        modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, bobSalt);
+        modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, attackerSalt);
+
+        // swap
+        PoolSwapTest.TestSettings memory testSettings =
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false});
+        SwapParams memory swapParams = SwapParams({
+            zeroForOne: true,
+            amountSpecified: -1e15, //exact input
+            sqrtPriceLimitX96: MIN_PRICE_LIMIT
+        });
+        swapRouter.swap(key, swapParams, testSettings, "");
+        swapRouter.swap(noHookKey, swapParams, testSettings, "");
+
+        // calculate lp fees earned due to the swap
+        BalanceDelta feeDelta =
+            calculateFeeDelta(manager, key.toId(), address(modifyLiquidityRouter), TICK_LOWER, TICK_UPPER, bobSalt);
+
+        // attacker removes the entire liquidity in the same block (consolidates JIT attack), penalty is applied.
+        vm.expectEmit(false, false, true, true);
+        emit Donate(key.toId(), address(0), uint128(feeDelta.amount0()), uint128(feeDelta.amount1()));
+        BalanceDelta deltaHook = modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, -LIQUIDITY_AMOUNT_1E18, attackerSalt);
+
+        // attacker removes liquidity in the unhooked pool without penalty
+        BalanceDelta deltaNoHook =
+            modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, -LIQUIDITY_AMOUNT_1E18, attackerSalt);
+
+        assertEq(deltaHook, deltaNoHook - feeDelta, "Hooked: JIT penalty applied");
+
+        // attacker's fees should be zero after removing liquidity
+        BalanceDelta hookAttackerFeesAfterRemoval = calculateFeeDelta(
+            manager, key.toId(), address(modifyLiquidityRouter), TICK_LOWER, TICK_UPPER, attackerSalt
+        );
+        assertEq(hookAttackerFeesAfterRemoval, toBalanceDelta(0, 0), "Hooked: Attacker's feeDelta zero");
+
+        // user should have received the attacker's fees donation in the hooked pool
+        BalanceDelta hookBobFeesAfterRemoval =
+            calculateFeeDelta(manager, key.toId(), address(modifyLiquidityRouter), TICK_LOWER, TICK_UPPER, bobSalt);
+        assertEq(hookBobFeesAfterRemoval, feeDelta + feeDelta, "user received attacker's fees");
+
+        // advance block
+        vm.roll(block.number + 1);
+
+        // now user can remove without penalty in the hooked pool
+        BalanceDelta hookDeltaBobAfterRemoval =
+            modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, -LIQUIDITY_AMOUNT_1E18, bobSalt);
+        BalanceDelta noHookDeltaBobAfterRemoval =
+            modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, -LIQUIDITY_AMOUNT_1E18, bobSalt);
+
+        assertEq(
+            hookDeltaBobAfterRemoval,
+            noHookDeltaBobAfterRemoval + feeDelta,
+            "Hooked: user collects his and the attacker's fees"
+        );
+    }
+
+    function test_JIT_addLiquidityFeeCollection() public {
+        // add liquidity
+        modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, bobSalt);
+        modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, attackerSalt);
+        modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, bobSalt);
+        modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, attackerSalt);
+
+        // swap
+        PoolSwapTest.TestSettings memory testSettings =
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false});
+        SwapParams memory swapParams = SwapParams({
+            zeroForOne: true,
+            amountSpecified: -1e15, //exact input
+            sqrtPriceLimitX96: MIN_PRICE_LIMIT
+        });
+        swapRouter.swap(key, swapParams, testSettings, "");
+        swapRouter.swap(noHookKey, swapParams, testSettings, "");
+
+        // calculate lp fees before adding liquidity
+        BalanceDelta feeDelta =
+            calculateFeeDelta(manager, key.toId(), address(modifyLiquidityRouter), TICK_LOWER, TICK_UPPER, bobSalt);
+
+        // add a very small amount of liquidity (1e14 wei), which triggers fee collection
+        BalanceDelta hookDeltaBobAddition = modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, 1e14, bobSalt);
+        BalanceDelta hookDeltaAttackerAddition = modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, 1e14, attackerSalt);
+
+        BalanceDelta noHookDeltaBobAddition = modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, 1e14, bobSalt);
+        BalanceDelta noHookDeltaAttackerAddition =
+            modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, 1e14, attackerSalt);
+
+        // user and attacker collected fees on unhooked, but withheld in hook
+        assertEq(hookDeltaBobAddition, noHookDeltaBobAddition - feeDelta, "unhooked collected, hooked withheld");
+        assertEq(
+            hookDeltaAttackerAddition, noHookDeltaAttackerAddition - feeDelta, "unhooked collected, hooked withheld"
+        );
+
+        // hook should hold ERC-6909 claims for both user and attacker's fees
+        assertEq(
+            manager.balanceOf(address(key.hooks), currency0.toId()),
+            uint256(uint128(feeDelta.amount0())) * 2,
+            "hook withheld fees for currency0 from user and attacker"
+        );
+        assertEq(
+            manager.balanceOf(address(key.hooks), currency1.toId()),
+            uint256(uint128(feeDelta.amount1())) * 2,
+            "hook withheld fees for currency1 from user and attacker"
+        );
+
+        // now the attacker removes the entire liquidity position to consolidate JIT attack
+        vm.expectEmit(false, false, true, true);
+        emit Donate(key.toId(), address(0), uint128(feeDelta.amount0()), uint128(feeDelta.amount1()));
+        modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, -(1e18 + 1e14), attackerSalt);
+
+        // the hook should have burned the attacker ERC-6909 claims as donation
+        assertEq(
+            manager.balanceOf(address(key.hooks), currency0.toId()),
+            uint256(uint128(feeDelta.amount0())),
+            "hook burned attacker's claims"
+        );
+        assertEq(
+            manager.balanceOf(address(key.hooks), currency1.toId()),
+            uint256(uint128(feeDelta.amount1())),
+            "hook burned attacker's claims"
+        );
+
+        // advance block
+        vm.roll(block.number + 1);
+
+        // user can now remove without penalty after the offset
+        BalanceDelta hookDeltaBobRemoval = modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, -1e14, bobSalt);
+        BalanceDelta noHookDeltaBobRemoval = modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, -1e14, bobSalt);
+
+        assertApproxEqAbs(
+            hookDeltaBobRemoval,
+            noHookDeltaBobRemoval + feeDelta + feeDelta,
+            1,
+            "Hooked: user collects his and the attacker's fees"
+        );
+    }
+
+    function test_JIT_MultipleSwaps() public {
+        // add liquidity
+        modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, bobSalt);
+        modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, attackerSalt);
+        modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, bobSalt);
+        modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, attackerSalt);
+
+        // swap with all possible combinations of zeroForOne and amountSpecified
+        swapAllCombinations(key, 1e15);
+        swapAllCombinations(noHookKey, 1e15);
+
+        BalanceDelta feeDelta =
+            calculateFeeDelta(manager, key.toId(), address(modifyLiquidityRouter), TICK_LOWER, TICK_UPPER, bobSalt);
+
+        // attacker removes liquidity
+        modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, -LIQUIDITY_AMOUNT_1E18, attackerSalt);
+        modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, -LIQUIDITY_AMOUNT_1E18, attackerSalt);
+
+        BalanceDelta hookFeesAttackerAfterRemoval = calculateFeeDelta(
+            manager, key.toId(), address(modifyLiquidityRouter), TICK_LOWER, TICK_UPPER, attackerSalt
+        );
+        assertEq(hookFeesAttackerAfterRemoval, toBalanceDelta(0, 0), "Attacker's fees got penalized");
+
+        BalanceDelta hookFeesBobAfterRemoval =
+            calculateFeeDelta(manager, key.toId(), address(modifyLiquidityRouter), TICK_LOWER, TICK_UPPER, bobSalt);
+        assertEq(hookFeesBobAfterRemoval, feeDelta + feeDelta, "user received attacker's fees");
+
+        // advance block
+        vm.roll(block.number + 1);
+
+        // now user can remove without penalty in the hooked pool
+        BalanceDelta hookDeltaBobAfterRemoval =
+            modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, -LIQUIDITY_AMOUNT_1E18, bobSalt);
+        BalanceDelta noHookDeltaBobAfterRemoval =
+            modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, -LIQUIDITY_AMOUNT_1E18, bobSalt);
+
+        assertEq(
+            hookDeltaBobAfterRemoval,
+            noHookDeltaBobAfterRemoval + feeDelta,
+            "Hooked: user collects his and the attacker's fees"
+        );
+    }
+
+    function test_donation_JIT() public {
+        modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+        modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+
+        donateRouter.donate(key, 100000, 100000, "");
+        donateRouter.donate(noHookKey, 100000, 100000, "");
+
+        BalanceDelta feeDelta =
+            calculateFeeDelta(manager, key.toId(), address(modifyLiquidityRouter), TICK_LOWER, TICK_UPPER, bytes32(0));
+
+        BalanceDelta deltaHook = modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, -1e17, 0);
+        BalanceDelta deltaNoHook = modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, -1e17, 0);
+
+        assertEq(deltaHook, deltaNoHook - feeDelta, "applied penalty over donation JIT");
+    }
+
+    function test_donation_RemoveNextBlock() public {
+        modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+        modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+
+        donateRouter.donate(key, 100000, 100000, "");
+        donateRouter.donate(noHookKey, 100000, 100000, "");
+
+        vm.roll(block.number + 1);
+
+        // now can be removed without penalty
+        BalanceDelta deltaHook = modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, -1e17, 0);
+        BalanceDelta deltaNoHook = modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, -1e17, 0);
+
+        assertEq(deltaHook, deltaNoHook, "removed liquidity without penalty");
+    }
+
+    function testFuzz_BlockNumberOffset_JIT(uint24 offset, uint24 removeBlockQuantity) public {
+        vm.assume(offset > 1);
+        vm.assume(removeBlockQuantity < offset);
+
+        LiquidityPenaltyHookMock newHook = LiquidityPenaltyHookMock(
+            address(
+                uint160(
+                    Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+                        | Hooks.AFTER_REMOVE_LIQUIDITY_RETURNS_DELTA_FLAG | Hooks.AFTER_ADD_LIQUIDITY_RETURNS_DELTA_FLAG
+                ) + 2 ** 96
+            ) // 2**96 is an offset to avoid collision with the hook address already in the test
+        );
+
+        deployCodeTo(
+            "src/mocks/general/LiquidityPenaltyHookMock.sol:LiquidityPenaltyHookMock",
+            abi.encode(address(manager), offset),
+            address(newHook)
+        );
+
+        (PoolKey memory poolKey,) = initPool(currency0, currency1, IHooks(address(newHook)), fee, SQRT_PRICE_1_1);
+
+        // add liquidity
+        modifyPoolLiquidity(poolKey, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+        modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+
+        // swap
+        PoolSwapTest.TestSettings memory testSettings =
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false});
+
+        SwapParams memory swapParams = SwapParams({
+            zeroForOne: true,
+            amountSpecified: -1e15, //exact input
+            sqrtPriceLimitX96: MIN_PRICE_LIMIT
+        });
+        swapRouter.swap(poolKey, swapParams, testSettings, "");
+        swapRouter.swap(noHookKey, swapParams, testSettings, "");
+
+        (int128 feesExpected0, int128 feesExpected1) =
+            calculateFees(manager, noHookKey.toId(), address(modifyLiquidityRouter), TICK_LOWER, TICK_UPPER, bytes32(0));
+
+        int128 feeDonation0 = SafeCast.toInt128(
+            Math.mulDiv(SafeCast.toUint128(feesExpected0), offset - removeBlockQuantity, offset, Math.Rounding.Ceil)
+        );
+        int128 feeDonation1 = SafeCast.toInt128(
+            Math.mulDiv(SafeCast.toUint128(feesExpected1), offset - removeBlockQuantity, offset, Math.Rounding.Ceil)
+        );
+
+        // remove liquidity
+        vm.roll(block.number + removeBlockQuantity);
+        BalanceDelta deltaHook = modifyPoolLiquidity(poolKey, TICK_LOWER, TICK_UPPER, -1e17, 0);
+        BalanceDelta deltaNoHook = modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, -1e17, 0);
+
+        assertEq(BalanceDeltaLibrary.amount0(deltaHook), BalanceDeltaLibrary.amount0(deltaNoHook) - feeDonation0);
+        assertEq(BalanceDeltaLibrary.amount1(deltaHook), BalanceDeltaLibrary.amount1(deltaNoHook) - feeDonation1);
+    }
+
+    function test_JIT_penaltyBelowOneUnit_roundsUp() public {
+        uint48 offset = 100;
+        LiquidityPenaltyHookMock newHook = LiquidityPenaltyHookMock(
+            address(
+                uint160(
+                    Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+                        | Hooks.AFTER_REMOVE_LIQUIDITY_RETURNS_DELTA_FLAG | Hooks.AFTER_ADD_LIQUIDITY_RETURNS_DELTA_FLAG
+                ) + 2 ** 96
+            )
+        );
+        deployCodeTo(
+            "src/mocks/general/LiquidityPenaltyHookMock.sol:LiquidityPenaltyHookMock",
+            abi.encode(address(manager), offset),
+            address(newHook)
+        );
+        (PoolKey memory poolKey,) = initPool(currency0, currency1, IHooks(address(newHook)), fee, SQRT_PRICE_1_1);
+
+        modifyPoolLiquidity(poolKey, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+        modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+
+        PoolSwapTest.TestSettings memory testSettings =
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false});
+        SwapParams memory swapParams =
+            SwapParams({zeroForOne: true, amountSpecified: -SWAP_AMOUNT, sqrtPriceLimitX96: MIN_PRICE_LIMIT});
+        swapRouter.swap(poolKey, swapParams, testSettings, "");
+        swapRouter.swap(noHookKey, swapParams, testSettings, "");
+
+        (int128 fees0,) =
+            calculateFees(manager, noHookKey.toId(), address(modifyLiquidityRouter), TICK_LOWER, TICK_UPPER, bytes32(0));
+        // one block remains in the window, so the floored penalty is zero for any fee below `offset`
+        assertGt(fees0, 0);
+        assertEq(FullMath.mulDiv(SafeCast.toUint128(fees0), 1, offset), 0);
+
+        vm.roll(block.number + offset - 1);
+        BalanceDelta deltaHook = modifyPoolLiquidity(poolKey, TICK_LOWER, TICK_UPPER, -1e17, 0);
+        BalanceDelta deltaNoHook = modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, -1e17, 0);
+
+        assertEq(BalanceDeltaLibrary.amount0(deltaHook), BalanceDeltaLibrary.amount0(deltaNoHook) - 1);
+    }
+
+    function testFuzz_BlockNumberOffset_RemoveAfterSwap(uint24 offset, uint24 removeBlockQuantity) public {
+        vm.assume(offset > 1);
+        vm.assume(removeBlockQuantity > offset);
+
+        LiquidityPenaltyHookMock newHook = LiquidityPenaltyHookMock(
+            address(
+                uint160(
+                    Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+                        | Hooks.AFTER_REMOVE_LIQUIDITY_RETURNS_DELTA_FLAG | Hooks.AFTER_ADD_LIQUIDITY_RETURNS_DELTA_FLAG
+                ) + 2 ** 96
+            ) // 2**96 is an offset to avoid collision with the hook address already in the test
+        );
+
+        deployCodeTo(
+            "src/mocks/general/LiquidityPenaltyHookMock.sol:LiquidityPenaltyHookMock",
+            abi.encode(address(manager), offset),
+            address(newHook)
+        );
+
+        (PoolKey memory poolKey,) = initPool(currency0, currency1, IHooks(address(newHook)), fee, SQRT_PRICE_1_1);
+
+        // add liquidity
+        modifyPoolLiquidity(poolKey, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+        modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+
+        // swap
+        PoolSwapTest.TestSettings memory testSettings =
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false});
+
+        SwapParams memory swapParams = SwapParams({
+            zeroForOne: true,
+            amountSpecified: -1e15, //exact input
+            sqrtPriceLimitX96: MIN_PRICE_LIMIT
+        });
+
+        swapRouter.swap(poolKey, swapParams, testSettings, "");
+        swapRouter.swap(noHookKey, swapParams, testSettings, "");
+
+        vm.roll(block.number + removeBlockQuantity);
+        BalanceDelta deltaHook = modifyPoolLiquidity(poolKey, TICK_LOWER, TICK_UPPER, -1e17, 0);
+        BalanceDelta deltaNoHook = modifyPoolLiquidity(noHookKey, TICK_LOWER, TICK_UPPER, -1e17, 0);
+
+        assertEq(BalanceDeltaLibrary.amount0(deltaHook), BalanceDeltaLibrary.amount0(deltaNoHook));
+        assertEq(BalanceDeltaLibrary.amount1(deltaHook), BalanceDeltaLibrary.amount1(deltaNoHook));
+    }
+
+    function test_JIT_MultiplePools() public {
+        // Validates that the hook correctly supports multiple pools at the same time
+        (PoolKey memory poolKeyWithHook1,) = initPool(currency0, currency1, IHooks(address(hook)), 3000, SQRT_PRICE_1_2);
+        (PoolKey memory poolKeyWithHook2,) = initPool(currency0, currency1, IHooks(address(hook)), 5000, SQRT_PRICE_2_1);
+
+        (PoolKey memory poolKeyWithoutHook1,) = initPool(currency0, currency1, IHooks(address(0)), 3000, SQRT_PRICE_1_2);
+        (PoolKey memory poolKeyWithoutHook2,) = initPool(currency0, currency1, IHooks(address(0)), 5000, SQRT_PRICE_2_1);
+
+        // add liquidity to both pools
+        modifyPoolLiquidity(poolKeyWithHook1, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+        modifyPoolLiquidity(poolKeyWithHook2, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+
+        modifyPoolLiquidity(poolKeyWithoutHook1, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+        modifyPoolLiquidity(poolKeyWithoutHook2, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+
+        // swap in both pools
+        PoolSwapTest.TestSettings memory testSettings =
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false});
+
+        SwapParams memory swapParams = SwapParams({
+            zeroForOne: true,
+            amountSpecified: -1e15, //exact input
+            sqrtPriceLimitX96: MIN_PRICE_LIMIT
+        });
+
+        swapRouter.swap(poolKeyWithHook1, swapParams, testSettings, "");
+        swapRouter.swap(poolKeyWithHook2, swapParams, testSettings, "");
+
+        swapRouter.swap(poolKeyWithoutHook1, swapParams, testSettings, "");
+        swapRouter.swap(poolKeyWithoutHook2, swapParams, testSettings, "");
+
+        // calculate fees
+        BalanceDelta noHookFeesKey1 = calculateFeeDelta(
+            manager, poolKeyWithoutHook1.toId(), address(modifyLiquidityRouter), TICK_LOWER, TICK_UPPER, bytes32(0)
+        );
+        BalanceDelta noHookFeesKey2 = calculateFeeDelta(
+            manager, poolKeyWithoutHook2.toId(), address(modifyLiquidityRouter), TICK_LOWER, TICK_UPPER, bytes32(0)
+        );
+
+        // remove liquidity from both pools
+        BalanceDelta deltaHook1 = modifyPoolLiquidity(poolKeyWithHook1, TICK_LOWER, TICK_UPPER, -1e17, 0);
+        BalanceDelta deltaHook2 = modifyPoolLiquidity(poolKeyWithHook2, TICK_LOWER, TICK_UPPER, -1e17, 0);
+
+        BalanceDelta deltaNoHook1 = modifyPoolLiquidity(poolKeyWithoutHook1, TICK_LOWER, TICK_UPPER, -1e17, 0);
+        BalanceDelta deltaNoHook2 = modifyPoolLiquidity(poolKeyWithoutHook2, TICK_LOWER, TICK_UPPER, -1e17, 0);
+
+        // penalties are applied
+        assertEq(deltaHook1, deltaNoHook1 - noHookFeesKey1, "applied penalty over JIT");
+        assertEq(deltaHook2, deltaNoHook2 - noHookFeesKey2, "applied penalty over JIT");
+    }
+
+    // Acknowledged limitation: fresh plus withheld fees above `type(int128).max` cannot be returned in one delta.
+    function test_expiredRemoval_withheldFeesNearInt128Max_reverts() public {
+        vm.roll(100);
+        modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, LIQUIDITY_AMOUNT_1E18, 0);
+
+        // Withhold `type(int128).max - 1` of currency1, backed by hook claims and pool manager reserves.
+        int128 withheld = type(int128).max - 1;
+        bytes32 positionKey =
+            Position.calculatePositionKey(address(modifyLiquidityRouter), TICK_LOWER, TICK_UPPER, bytes32(0));
+        bytes32 withheldSlot =
+            keccak256(abi.encode(positionKey, keccak256(abi.encode(PoolId.unwrap(key.toId()), uint256(1)))));
+        vm.store(address(hook), withheldSlot, bytes32(uint256(BalanceDelta.unwrap(toBalanceDelta(0, withheld)))));
+        bytes32 claimsSlot = keccak256(
+            abi.encode(uint256(uint160(Currency.unwrap(currency1))), keccak256(abi.encode(address(hook), uint256(4))))
+        );
+        vm.store(address(manager), claimsSlot, bytes32(uint256(uint128(withheld))));
+        MockERC20(Currency.unwrap(currency1)).mint(address(manager), uint128(withheld));
+
+        // After the offset, accrue fresh currency1 fees so fresh plus withheld fees exceed `type(int128).max`.
+        vm.roll(200);
+        swapRouter.swap(
+            key,
+            SwapParams({zeroForOne: false, amountSpecified: -1e15, sqrtPriceLimitX96: MAX_PRICE_LIMIT}),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            ""
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                address(hook),
+                IHooks.afterRemoveLiquidity.selector,
+                abi.encodeWithSelector(SafeCast.SafeCastOverflow.selector),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
+        );
+        modifyPoolLiquidity(key, TICK_LOWER, TICK_UPPER, -LIQUIDITY_AMOUNT_1E18, 0);
+    }
+}

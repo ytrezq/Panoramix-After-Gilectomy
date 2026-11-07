@@ -1,0 +1,172 @@
+# Protocol-Owned Liquidity (POL) deployment
+
+Forge-based shell scripts for deploying `NeighborhoodScanner`, `LiquidityManagerUniV2UniV3` /
+`LiquidityManagerBalancerSlipstream` / `LiquidityManagerBalancerUniV3` (impl), `LiquidityManagerProxy` (proxy), plus the post-deploy V3
+wiring for the BuyBackBurner proxy.
+
+> **POL is per-chain optional.** As of the V3-optional `BuyBackBurner` change
+> (Vulnerabilities_list item #21), chains that deploy `BuyBackBurner` with
+> `liquidityManagerAddress = ""` and `swapRouterV3Address = ""` get a working V2-only
+> deployment. The V3 path reverts `V3PathDisabled` until a new impl is deployed with both
+> addresses populated and `changeImplementation` is called on the proxy. Skip the entire
+> `pol/` directory for V2-only chains — no LM, no scanner, no V3 wire step.
+
+## Prerequisites (run first, from other folders)
+
+1. `scripts/deployment/utils/deploy_01|02_buy_back_burner_*.sh` — deploys the BBB **implementation**.
+2. `scripts/deployment/utils/deploy_03|04_buy_back_burner_*_proxy.sh` — deploys the BBB **proxy**.
+   The resulting `buyBackBurnerProxyAddress` is copied into `globals_*.json` here.
+
+## Step sequence
+
+Run in order, passing the network suffix (`eth_mainnet`, `optimism_mainnet`):
+
+```bash
+./scripts/deployment/pol/deploy_01_neighborhood_scanner.sh    eth_mainnet
+./scripts/deployment/pol/deploy_02_liquidity_manager_univ2univ3.sh   eth_mainnet
+./scripts/deployment/pol/deploy_03_liquidity_manager_proxy.sh eth_mainnet
+
+# Populate v3Pools / v3SecondTokens / v3MaxSlippages in globals first,
+# then:
+./scripts/deployment/pol/script_03_buy_back_burner_wire_v3.sh eth_mainnet
+```
+
+Pick the `deploy_02_liquidity_manager_*` script by the chain's **source → target DEX pair**, not the chain:
+`univ2univ3` (Uniswap V2 → V3, local L1 OLAS burn, e.g. ETH), `balancer_slipstream` (Balancer →
+Velodrome/Aerodrome Slipstream, L2 bridge burn, e.g. Optimism/Base), `balancer_univ3` (Balancer → Uniswap V3,
+L2 bridge burn, e.g. Polygon/Arbitrum), or `univ2univ3_bridge` (Uniswap V2 → Uniswap V3 with L2 bridge burn,
+e.g. Celo/Ubeswap). The proxy step
+(`deploy_03_liquidity_manager_proxy.sh`) is chain-agnostic — same script everywhere — because the proxy
+constructor is `(impl, initData)` where `initData = initialize(uint16 _maxSlippage)` is identical across
+LiquidityManagerCore-derived impls.
+
+After `deploy_03` writes `liquidityManagerProxyAddress` into the local `globals_*.json`, copy
+that value into `scripts/deployment/utils/globals_*.json` (same field name) so the BBB
+implementation step (utils/01 or utils/02) picks it up. **Always wire the proxy address into
+the BBB, not the impl** — the BBB calls `liquidityManager.factoryV3()` at runtime, and the
+proxy delegatecall-reads the impl's immutables. Wiring the impl directly would break a future
+`changeImplementation()` upgrade.
+
+## Upgrading the implementation (`changeImplementation`)
+
+To roll a new `LiquidityManager*` implementation onto an **already-deployed** proxy (e.g. the
+price-guard fail-closed fix), do **not** deploy a fresh proxy — swap the impl behind the existing
+one:
+
+```bash
+# 1. Deploy the new implementation (writes liquidityManagerAddress in globals):
+./scripts/deployment/pol/deploy_02_liquidity_manager_univ2univ3.sh eth_mainnet
+# 2. Point the proxy at it:
+./scripts/deployment/pol/script_05_liquidity_manager_change_implementation.sh eth_mainnet
+# 3. If liquidityManagerMaxSlippage changed since the proxy was first initialized, apply it (see below):
+./scripts/deployment/pol/script_06_liquidity_manager_change_max_slippage.sh eth_mainnet
+```
+
+- **Owner = deployer EOA.** The LM proxies are still owned by the Autonolas deployer (ownership was
+  left with the deployer while POL is not operational), so `changeImplementation` is a plain
+  single-signer `cast send`, **not** a Timelock/DAO proposal.
+- **`maxSlippage` does not follow `changeImplementation` — run steps 2 and 3 adjacently, in that order.**
+  `maxSlippage` is proxy storage set once by `initialize` (which reverts `AlreadyInitialized` on an upgraded
+  proxy), so a swapped-in-place proxy keeps its original value. When `liquidityManagerMaxSlippage` in globals
+  differs from what the proxy was first initialized with (e.g. the 10% → 5% re-tasking for the V2↔V3 ratio
+  gate), `script_05` alone leaves the **new** ratio cross-check running at the **old** tolerance. That window
+  is not cosmetic: a 10-WETH push on a ~272-WETH pool (748 bps) is rejected at 5% but passes at 10%, so an
+  operator who runs `script_05` and treats the upgrade as done has silently shipped a gate ~2× looser than the
+  fork evidence justifies. Run `script_06` immediately after `script_05`. Fresh proxies (`deploy_03`)
+  `initialize` at the globals value and do not need it.
+- **Storage-safe.** The fail-closed fix changes only function bodies + one `error` (no storage layout
+  change), so the swap preserves proxy storage. Do **not** re-run `deploy_01` (scanner) or `deploy_03`
+  (proxy).
+- **Ordering — upgrade before seeding.** The fixed guard is **fail-closed**: the first `convertToV3`
+  reverts (`NotEnoughHistory`) on a brand-new / quiet pool. So the pool must be **pre-warmed** before the
+  first seed. Deploy the fixed impl first, then, **before** running the seed:
+  1. create + initialize the V3 pool at the true price;
+  2. pre-seed real wide-range liquidity (so `slot0` is no longer free to move);
+  3. `increaseObservationCardinalityNext(N)` with **N sized so the buffer spans ≥ 1800s at the pool's PEAK
+     swap rate**, not just today's — each swap that changes the tick overwrites the oldest observation, so a
+     buffer that spans ≥ 1800s at current churn can wrap below 1800s during a volatility burst. This is a
+     **hard release gate with a per-pool number**, not a confirm-once step (`N ≥ ceil(1800 / min_block_time)
+     × peak_ticks_crossed_per_block`, rounded up generously). Let trades populate the buffer;
+  4. confirm off-chain that `observe([1800, 0])` succeeds, the latest observation is younger than 1800s, and
+     the buffer spans ≥ 1800s. **Why this is load-bearing:** if the buffer ever spans < 1800s, `observe(1800)`
+     reverts, `_getExitSqrtPrice` fails open to raw `slot0`, and the exit deviation gate silently switches off.
+     A front-run swap re-activating the pool does **not** rescue this branch — writing an observation shortens
+     the buffer's span, it does not extend it. (The *inactive*-pool fail-open is self-defeating for an attacker;
+     this buffer-wrap one is not, which is why N must be sized for peak churn up front.);
+  5. **hand proxy ownership to the Timelock / `BridgeMediator`.** The EOA-ownership above is justified only
+     while POL is not operational — seeding makes the LM custodial, so ownership must be the DAO **before**
+     the first seed (this is what the "inert to non-owners, owner is the DAO" safety framing rests on).
+
+  Never seed POL on the un-upgraded impl, and never seed into an EOA-owned proxy. See the full
+  [V2 → V3 migration runbook](../../../docs/liquidity_migration_runbook.md) for the complete pre-warm,
+  oracle warm-up, cross-chain LP transfer, and pre-flight checklist.
+
+## Globals fields
+
+| Field | Consumed by | Notes |
+|---|---|---|
+| `olasAddress` | deploy_02 | OLAS token on target chain |
+| `timelockAddress` (ETH) | deploy_02 | Treasury on L1 |
+| `bridgeMediatorAddress` (L2s) | deploy_02 | Treasury on L2 |
+| `positionManagerV3Address` | deploy_02 | Uniswap V3 NonfungiblePositionManager (ETH: `0xC36442b4a4522E871399CD717aBDD847Ab11FE88`). On Optimism this is Velodrome Slipstream's equivalent — populate per chain |
+| `neighborhoodScannerAddress` | deploy_02 | Written by deploy_01 |
+| `observationCardinality` | deploy_02 | uint16, observation buffer for fresh V3 pools. Per-chain: ETH `120` (120 × 12s = 1440s nominal worst-case), Base/Optimism `300` (300 × 2s = 600s nominal worst-case). Anchored to mid-volume mainnet V3 precedent (LINK/ETH `144`, DAI/UNI/ETH `300` per Alex Roan gist); OLAS volume sits below LINK on ETH and below the L2 mid-volume pools, so these bounds leave generous safety envelope under realistic surge regimes. Higher values inflate the cold-SSTORE cost of `increaseObservationCardinalityNext` (~22.2k gas/slot — see `test/LiquidityManagerObservationCardinalityGasETH.t.sol`) and risk OOG on the first `convertToV3` mint. Per-pool bump is permissionless post-deploy: `cast send <pool> "increaseObservationCardinalityNext(uint16)" <N>` |
+| `routerV2Address` (ETH) | deploy_02 | Uniswap V2 Router |
+| `balancerVaultAddress` (L2s) | deploy_02 | Balancer V2 Vault |
+| `bridge2BurnerAddress` (L2s) | deploy_02 | Bridge2BurnerOptimism (from `utils/deploy_00b_bridge2burner_*.sh`) |
+| `liquidityManagerAddress` | deploy_02→deploy_03 | Written by deploy_02 (impl); consumed by deploy_03 as proxy constructor target |
+| `liquidityManagerMaxSlippage` | deploy_03 | uint16 BPS (MAX_BPS = 10_000); seeds `LiquidityManagerCore.initialize(uint16)`. Default `500` (5%). **Decoupled from `MAX_ALLOWED_DEVIATION`.** Its live role is the **source-side manipulation gate**: `convertToV3` cross-checks the ratio of the V2/Balancer-removed tokens against the gate-verified V3 slot0 price and reverts (`RatioDeviation`) when they diverge by more than this. Set it above the honest V2↔V3 basis (the cross-pool arb/fee band — the fork evidence puts 5% comfortably above honest flow and below the manipulation regime) but below the manipulation regime — do **not** tighten it to track the gate (that risks reverting legit exits on a shallow source pool). The 2% `MAX_ALLOWED_DEVIATION` is **orthogonal**, not an additive term: it bounds V3 `slot0` vs the V3 TWAP (making the reference this check compares *against* trustworthy), not the V2↔V3 basis. It is a contract **constant**, not a deploy field. Updatable post-deploy via `changeMaxSlippage()` |
+| `liquidityManagerProxyAddress` | deploy_03 (writes) | Proxy address — copy into `utils/globals_*.json` for BBB impl deploy |
+| `buyBackBurnerProxyAddress` | script_03 | BBB proxy address (copied from `utils/globals_*.json`) |
+| `v3Pools`, `v3SecondTokens` | script_03 | Parallel arrays; `setV3Pools(secondTokens, pools)` |
+| `v3MaxSlippages` | script_03 | Parallel to `v3SecondTokens`; slippage in bps (e.g. `500` = 5%) |
+
+## Why the wire step is mandatory
+
+`contracts/utils/BuyBackBurner.sol` (lines 251 and 269–271) enforces two guards on the V3
+buyBack path:
+
+- **UnauthorizedPool** — V3 buyBack reverts unless the pool is present in `mapV3Pools`.
+- **amountOutMin = TWAP quote with zero slippage** — if `mapTokenMaxSlippages[secondToken] == 0`,
+  the DEX-side `amountOutMinimum` equals the TWAP quote, which is not realistically reachable
+  after fees. Intentional fail-closed behavior (closes PR #275 / H-02).
+
+Both must be configured before the first V3 buyBack on that (pool, token) pair.
+
+## Upgrade-flow caveats (BBB impl swap via `changeImplementation`)
+
+The current redeploy flow swaps the impl behind each chain's **existing** BBB proxy via
+`utils/script_01_buy_back_burner_change_implementation.sh <chain>_mainnet` rather than
+deploying a fresh proxy. Three things to know before running:
+
+1. **Storage layout compatibility.** `changeImplementation` preserves proxy storage; the new
+   `BuyBackBurner` introduces immutables (`liquidityManager`, `bridge2Burner`, `treasury`,
+   `swapRouter`) but those are inlined into bytecode, not storage. Storage slots
+   `owner / olas / nativeToken / oracle / maxSlippage / _locked / mapAccountActivities /
+   mapV2Oracles / mapV3Pools / mapTokenMaxSlippages` must align with the old impl. If you're
+   not 100% sure the old impl declared these in the same order with the same slot widths,
+   spot-check one chain with `cast storage <proxy> <slot>` before mass-rolling.
+
+2. **Post-changeImpl configuration is required** for buyback to function. After
+   `script_01_*` lands, each BBB proxy still needs:
+   - `setV2Oracles(secondTokens, oracles)` — maps each second token (WETH/WMATIC/WXDAI/…) to
+     its `*PriceOracleAddress`.
+   - `setMaxSlippages(secondTokens, slippages)` — per-token slippage in BPS. **This is no
+     longer an initializer field** (`maxBuyBackSlippage` was dead config in the old proxy
+     payload; the new flow drops it).
+   - `setV3Pools(secondTokens, pools)` — V3-enabled chains only (Base, Optimism, ETH).
+   Without these, `buyBack()` reverts: V2 path with `"Zero oracle address"`, V3 path with
+   `UnauthorizedToken` or an unfillable `amountOutMin`. Done via separate cast calls or
+   governance proposal — not part of the deploy scripts.
+
+3. **Base BBB proxy owner is the legacy agents.fun deployer.** Owner of `0x3FD8…1426` is
+   `0x6F7a4938AB3bbF69480E7C109Af778ee78099Be7` (derivationPath `m/44'/60'/9'/0/0`),
+   inherited from the autonolas-marketplace lineage. All other chains' BBB proxy owner is
+   the Autonolas deployer `0xEB2A…914E` (`m/44'/60'/2'/0/0`). Two valid reconciliation paths
+   before running `script_01 base_mainnet`:
+   - Call `proxy.changeOwner(0xEB2A…914E)` from the agents.fun derivation path first
+     (one extra tx, Base only), then run `script_01` with the standard Autonolas path.
+   - Or temporarily set `utils/globals_base_mainnet.json` `derivationPath` to
+     `m/44'/60'/9'/0/0` for the single `script_01 base_mainnet` run, then revert the JSON.
+
+   Without one of these, the call reverts `OwnerOnly`.

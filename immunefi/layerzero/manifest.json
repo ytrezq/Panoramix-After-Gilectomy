@@ -1,0 +1,46 @@
+{
+ "program": "layerzero",
+ "repos": [
+  {
+   "repo": "https://github.com/LayerZero-Labs/LayerZero-v2",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "EndpointV2, SendULN302, ReceiveULN302 (EVM) in packages/layerzero-v2/evm",
+   "commit": "9c741e7f9790639537b1710a203bcdfd73b0b9ac",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2f112697506eab12d433a65fdc31a639548fe365"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    }
+   ],
+   "license": {
+    "file": "LICENSE-LZBL-1.2",
+    "spdx": "unrecognized",
+    "package_json": null,
+    "headers": {
+     "UNLICENSED": 78,
+     "LZBL-1.2": 60,
+     "MIT": 68
+    },
+    "headers_main": {
+     "LZBL-1.2": 59,
+     "MIT": 66,
+     "UNLICENSED": 2
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 206
+   },
+   "copied": false,
+   "why": "reference only: no license allowing redistribution found"
+  }
+ ]
+}

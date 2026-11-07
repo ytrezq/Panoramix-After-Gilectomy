@@ -1,0 +1,92 @@
+{
+  "name": "price-oracle-interfaces",
+  "version": "0.1.1",
+  "description": "Price Oracle Interfaces",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/money-on-chain/price_oracle_interfaces.git"
+  },
+  "keywords": [
+    "solidity",
+    "oracle",
+    "money-on-chain",
+    "smart-contracts"
+  ],
+  "files": [
+    "contracts",
+    "config",
+    "scripts",
+    "test"
+  ],
+  "devDependencies": {
+    "@eslint/js": "^9.34.0",
+    "@nomicfoundation/hardhat-ethers": "^4.1.0",
+    "@nomicfoundation/hardhat-ignition": "^3.1.8",
+    "@nomicfoundation/hardhat-ignition-ethers": "^3.1.6",
+    "@nomicfoundation/hardhat-network-helpers": "^3.0.11",
+    "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.7",
+    "@nomicfoundation/hardhat-typechain": "^3.1.1",
+    "@nomicfoundation/hardhat-verify": "^3.1.0",
+    "@nomicfoundation/ignition-core": "^3.1.9",
+    "@openzeppelin/contracts": "5.4.0",
+    "@openzeppelin/contracts-upgradeable": "5.4.0",
+    "@types/chai": "^5.2.2",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.15.21",
+    "@typescript-eslint/eslint-plugin": "^8.41.0",
+    "@typescript-eslint/parser": "^8.41.0",
+    "@uniswap/swap-router-contracts": "1.3.1",
+    "@uniswap/v3-core": "1.0.1",
+    "@uniswap/v3-periphery": "1.4.4",
+    "chai": "^5.3.1",
+    "dotenv": "^17.2.1",
+    "eslint": "^9.34.0",
+    "eslint-config-prettier": "^9.1.2",
+    "eslint-import-resolver-node": "^0.3.9",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-n": "^17.21.3",
+    "ethers": "^6.15.0",
+    "forge-std": "github:foundry-rs/forge-std",
+    "globals": "^16.3.0",
+    "hardhat": "^3.17.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.6",
+    "prettier": "3.8.1",
+    "prettier-plugin-solidity": "^1.4.3",
+    "solhint": "^6.0.1",
+    "typechain": "^8.3.2",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.41.0"
+  },
+  "scripts": {
+    "compile": "hardhat compile",
+    "clean": "hardhat clean",
+    "test": "hardhat test",
+    "test:usdrif:fork": "RUN_RSK_MAINNET_FORK=1 FORK_URL=https://public-node.rsk.co FORK_BLOCK= hardhat test test/PriceProviderUsdRifUsd.spec.ts --network hardhat",
+    "lint": "eslint 'scripts/**/*.{ts,js,cjs,mjs}' 'test/**/*.{ts,js,cjs,mjs}' 'hardhat.config.{ts,js}' && solhint 'contracts/**/*.sol'",
+    "lint:fix": "eslint 'scripts/**/*.{ts,js,cjs,mjs}' 'test/**/*.{ts,js,cjs,mjs}' 'hardhat.config.{ts,js}' --fix",
+    "format": "prettier . --check",
+    "format:fix": "prettier . --write",
+    "fix:all": "eslint . --ext .ts,.tsx,.js,.cjs,.mjs --fix && prettier . --write",
+    "check:all": "eslint . --ext .ts,.tsx,.js,.cjs,.mjs && prettier . --check",
+    "test:bprousd_aggregator_v2": "npx hardhat test test/bprousd_aggregator_v2.spec.js"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,cjs,mjs}": [
+      "eslint --fix --max-warnings=0",
+      "prettier --write"
+    ],
+    "contracts/**/*.sol": [
+      "prettier --write",
+      "solhint --max-warnings=0"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
+  "overrides": {},
+  "type": "module",
+  "packageManager": "pnpm@10.13.1+sha512.37ebf1a5c7a30d5fabe0c5df44ee8da4c965ca0c5af3dbab28c3a1681b70a256218d05c81c9c0dcf767ef6b8551eb5b960042b9ed4300c59242336377e01cfad"
+}

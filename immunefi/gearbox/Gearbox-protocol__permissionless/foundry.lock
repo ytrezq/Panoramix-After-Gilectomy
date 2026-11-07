@@ -1,0 +1,32 @@
+{
+  "lib/@1inch/solidity-utils": {
+    "tag": {
+      "name": "2.4.0",
+      "rev": "5fdd4c2c02525855e9f64d9a43d779013c6444ea"
+    }
+  },
+  "lib/@gearbox-protocol/core-v3": {
+    "tag": {
+      "name": "v1.53.0",
+      "rev": "510fc6541c3767ce825929b4c311826fe81d6fa5"
+    }
+  },
+  "lib/@openzeppelin": {
+    "tag": {
+      "name": "v4.9.6",
+      "rev": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    }
+  },
+  "lib/@solady": {
+    "tag": {
+      "name": "v0.0.218",
+      "rev": "8d726fb1499f7f1d7459d05379efddcd500dab1a"
+    }
+  },
+  "lib/forge-std": {
+    "tag": {
+      "name": "v1.16.1",
+      "rev": "620536fa5277db4e3fd46772d5cbc1ea0696fb43"
+    }
+  }
+}

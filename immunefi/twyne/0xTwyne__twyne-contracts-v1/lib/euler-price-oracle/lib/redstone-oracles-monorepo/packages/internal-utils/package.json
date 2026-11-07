@@ -1,0 +1,51 @@
+{
+  "name": "@redstone-finance/internal-utils",
+  "version": "0.9.0",
+  "main": "dist/src/index.js",
+  "exports": "./dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "license": "MIT",
+  "scripts": {
+    "clean": "yarn global:ts-clean",
+    "build": "yarn global:tsc -p tsconfig.build.json",
+    "build:turbo": "yarn global:turbo build",
+    "typecheck": "yarn global:tsc --noEmit",
+    "typecheck:turbo": "yarn global:turbo typecheck",
+    "lint": "yarn global:eslint .",
+    "lint:fix": "yarn global:eslint --fix .",
+    "preversion": "yarn build",
+    "push-config-json": "FILENAME=../../terraform/config/$KEY_NAME yarn global:object-pushToBucket",
+    "push-wallets-to-monitor-json": "BUCKET_NAME=redstone-configuration-eu-west-1 KEY_NAME=wallets-to-monitor.json yarn push-config-json",
+    "test": "yarn global:jest:cov"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cloudwatch": "^3.696.0",
+    "@aws-sdk/client-dynamodb": "^3.696.0",
+    "@aws-sdk/client-ecs": "^3.696.0",
+    "@aws-sdk/client-lambda": "^3.696.0",
+    "@aws-sdk/client-s3": "^3.696.0",
+    "@aws-sdk/client-ssm": "^3.696.0",
+    "@aws-sdk/lib-dynamodb": "^3.696.0",
+    "@aws-sdk/util-arn-parser": "^3.696.0",
+    "@influxdata/influxdb-client": "^1.35.0",
+    "@influxdata/influxdb-client-apis": "^1.35.0",
+    "@redstone-finance/protocol": "workspace:*",
+    "@redstone-finance/utils": "workspace:*",
+    "@types/lodash": "^4.14.195",
+    "axios": "^1.13.2",
+    "dayjs": "^1.11.12",
+    "lodash": "^4.17.23",
+    "secp256k1": "^5.0.1",
+    "zod": "^4.1.12"
+  },
+  "files": [
+    "src",
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "calculate-dir-hash": "./dist/src/cli/calculate-dir-hash.js"
+  }
+}

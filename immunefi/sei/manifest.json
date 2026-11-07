@@ -1,0 +1,72 @@
+{
+ "program": "sei",
+ "repos": [
+  {
+   "repo": "https://github.com/sei-protocol/sei-chain",
+   "ref": null,
+   "scope_paths": [
+    "contracts",
+    "precompiles"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "9e135ce0e4f9536d921ba00ef7c9b2f31feac557",
+   "submodules": [
+    {
+     "path": "contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bdea49f9bb3c58c8c35850c3bdc17eaeea756e9a"
+    },
+    {
+     "path": "contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "contracts/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "932fddf69a699a9a80fd2396fd1a2ab91cdda123"
+    },
+    {
+     "path": "contracts/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "contracts/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "contracts/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    }
+   ],
+   "license": {
+    "file": "LICENSE.md",
+    "spdx": "Apache-2.0",
+    "package_json": null,
+    "headers": {
+     "MIT": 73,
+     "GPL-3.0": 17,
+     "GPL-3.0-only": 1,
+     "UNLICENSED": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 92
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "5.6.1",
+    "integration_test/dapp_tests/node_modules/@openzeppelin/contracts": "5.6.1",
+    "contracts/node_modules/@openzeppelin/contracts": "5.6.1"
+   },
+   "copied": true,
+   "dest": "sei-protocol__sei-chain",
+   "files": 1220,
+   "bytes": 7138761,
+   "skipped_large": 0
+  }
+ ]
+}

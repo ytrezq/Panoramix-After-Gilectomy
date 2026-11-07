@@ -1,0 +1,354 @@
+{
+ "program": "intuition",
+ "repos": [
+  {
+   "repo": "https://github.com/0xIntuition/intuition-contracts-v2",
+   "ref": "main",
+   "scope_paths": [
+    "audits/Diligence-Audit-Report-1.pdf"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "1346baba80415bb26a4ab7933f016ffad51708ca",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std.git",
+     "commit": "a3dca253700f19f15b1837c57c67b9388f5cc3fb"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades.git",
+     "commit": "cfd861bc18ef4737e82eae6ec75304e27af699ef"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "e725abddf1e01cf05ace496e950fc8e243cc7cab"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/solady",
+     "url": "https://github.com/vectorized/solady",
+     "commit": "acd959aa4bd04720d640bf4e6a5c71037510cc4b"
+    },
+    {
+     "path": "lib/prb-math",
+     "url": "https://github.com/PaulRBerg/prb-math.git",
+     "commit": "b51e8631ed28d3cc917c491dd47cd6c3ff652edc"
+    },
+    {
+     "path": "lib/account-abstraction",
+     "url": "https://github.com/eth-infinitism/account-abstraction.git",
+     "commit": "cc3893bcaf2272c163ce89d5eb9eadb8e6b52db7"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": "BUSL-1.1",
+    "headers": {
+     "(none)": 1,
+     "BUSL-1.1": 207,
+     "MIT": 2,
+     "UNLICENSED": 3
+    },
+    "headers_main": {
+     "(none)": 1,
+     "BUSL-1.1": 37,
+     "MIT": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 213
+   },
+   "npm": {
+    "node_modules/@openzeppelin-v4/contracts-upgradeable": "4.9.6",
+    "node_modules/@openzeppelin-v4/contracts": "4.9.6"
+   },
+   "symlinks": 1,
+   "copied": true,
+   "dest": "0xIntuition__intuition-contracts-v2",
+   "files": 2412,
+   "bytes": 18980105,
+   "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/0xIntuition/intuition-contracts-v2-periphery",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "1d951b225d30f578667f4247e031df86a5ba7996",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "a3dca253700f19f15b1837c57c67b9388f5cc3fb"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
+     "commit": "cfd861bc18ef4737e82eae6ec75304e27af699ef"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "e725abddf1e01cf05ace496e950fc8e243cc7cab"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/solady",
+     "url": "https://github.com/vectorized/solady",
+     "commit": "acd959aa4bd04720d640bf4e6a5c71037510cc4b"
+    },
+    {
+     "path": "lib/prb-math",
+     "url": "https://github.com/PaulRBerg/prb-math",
+     "commit": "dae52a48422f7464e7eeb4eea824f44dde7dfabe"
+    },
+    {
+     "path": "lib/account-abstraction",
+     "url": "https://github.com/eth-infinitism/account-abstraction",
+     "commit": "cc3893bcaf2272c163ce89d5eb9eadb8e6b52db7"
+    },
+    {
+     "path": "lib/intuition-contracts-v2",
+     "url": "https://github.com/0xIntuition/intuition-contracts-v2",
+     "commit": "93a4b67289255ff35ca5ade47ab686ceb56bd0ed"
+    },
+    {
+     "path": "lib/intuition-contracts-v2/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std.git",
+     "commit": "a3dca253700f19f15b1837c57c67b9388f5cc3fb"
+    },
+    {
+     "path": "lib/intuition-contracts-v2/lib/openzeppelin-foundry-upgrades",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades.git",
+     "commit": "cfd861bc18ef4737e82eae6ec75304e27af699ef"
+    },
+    {
+     "path": "lib/intuition-contracts-v2/lib/openzeppelin-foundry-upgrades/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66"
+    },
+    {
+     "path": "lib/intuition-contracts-v2/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "5bab08015558f2c8af54335ee4c5d7782823484b"
+    },
+    {
+     "path": "lib/intuition-contracts-v2/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/intuition-contracts-v2/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/intuition-contracts-v2/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/intuition-contracts-v2/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "efdc7cd2d4bcbd22e032907066d2190e97e34939"
+    },
+    {
+     "path": "lib/intuition-contracts-v2/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/intuition-contracts-v2/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/intuition-contracts-v2/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/intuition-contracts-v2/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "efdc7cd2d4bcbd22e032907066d2190e97e34939"
+    },
+    {
+     "path": "lib/intuition-contracts-v2/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/intuition-contracts-v2/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/intuition-contracts-v2/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/intuition-contracts-v2/lib/solady",
+     "url": "https://github.com/vectorized/solady",
+     "commit": "33b4b98e350bbcba6aa85642957c313e98b5f911"
+    },
+    {
+     "path": "lib/intuition-contracts-v2/lib/prb-math",
+     "url": "https://github.com/PaulRBerg/prb-math.git",
+     "commit": "dae52a48422f7464e7eeb4eea824f44dde7dfabe"
+    },
+    {
+     "path": "lib/intuition-contracts-v2/lib/account-abstraction",
+     "url": "https://github.com/eth-infinitism/account-abstraction.git",
+     "commit": "cc3893bcaf2272c163ce89d5eb9eadb8e6b52db7"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": "BUSL-1.1",
+    "headers": {
+     "BUSL-1.1": 26,
+     "MIT": 10,
+     "UNLICENSED": 1
+    },
+    "headers_main": {
+     "BUSL-1.1": 4,
+     "MIT": 10
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 37
+   },
+   "npm": {},
+   "copied": true,
+   "dest": "0xIntuition__intuition-contracts-v2-periphery",
+   "files": 3792,
+   "bytes": 30266133,
+   "skipped_large": 0
+  }
+ ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "endgame-toolkit",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "git@github.com:sky-ecosystem/endgame-toolkit.git",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "devDependencies": {
+    "husky": "^8.0.0",
+    "lint-staged": "^13.2.0",
+    "prettier": "^2.8.7",
+    "prettier-plugin-toml": "^0.3.1"
+  },
+  "scripts": {
+    "prepare": "husky install"
+  },
+  "lint-staged": {
+    "*.{js,toml,md}": "prettier --write",
+    "*.sol": "forge fmt"
+  }
+}

@@ -1,0 +1,169 @@
+{
+ "program": "pareto",
+ "repos": [
+  {
+   "repo": "https://github.com/Idle-Labs/idle-tranches",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "539dba671797ece04f98e698de04124d175fcdd0",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "31fffdef2d1b6da633e30412ea22ab13094a3552",
+     "error": "fetch https://github.com/foundry-rs/forge-std 31fffdef2d1b6da633e30412ea22ab13094a3552: fatal: remote error: upload-pack: not our ref 31fffdef2d1b6da633e30412ea22ab13094a3552"
+    },
+    {
+     "path": "lib/best-yield-PYT-strategy",
+     "url": "https://github.com/Idle-Finance/best-yield-PYT-strategy",
+     "commit": "c36815dca82ed267b94a656b3e51c2eeb0b9af4f"
+    },
+    {
+     "path": "lib/best-yield-PYT-strategy/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "d0d6fdf911d332c691c49a7ce5485b8ace61020c"
+    },
+    {
+     "path": "lib/best-yield-PYT-strategy/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    },
+    {
+     "path": "lib/best-yield-PYT-strategy/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "096eb7efec4ddce33ed4ffb68b436e8dc1d80e6a"
+    },
+    {
+     "path": "lib/erc4626-tests",
+     "url": "https://github.com/Idle-Finance/erc4626-tests",
+     "commit": "ed4d96c4d39f56630c2686d58ab2a51b4b1a775c"
+    },
+    {
+     "path": "lib/universal-rewards-distributor",
+     "url": "https://github.com/morpho-org/universal-rewards-distributor",
+     "commit": "cc55aeaa70d0410d696fd4c9a3560dc80255884a"
+    },
+    {
+     "path": "lib/universal-rewards-distributor/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "97810ebcbede585b7966ec982e5d3e3403a68c7a"
+    },
+    {
+     "path": "lib/universal-rewards-distributor/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/universal-rewards-distributor/lib/solmate",
+     "url": "https://github.com/transmissions11/solmate",
+     "commit": "e0e9ff05d8aa5c7c48465511f85a6efdf5d5c30d"
+    },
+    {
+     "path": "lib/universal-rewards-distributor/lib/solmate/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/universal-rewards-distributor/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "e50c24f5839db17f46991478384bfda14acfb830"
+    },
+    {
+     "path": "lib/universal-rewards-distributor/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/universal-rewards-distributor/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/universal-rewards-distributor/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/universal-rewards-distributor/lib/murky",
+     "url": "https://github.com/dmfxyz/murky",
+     "commit": "1d9566b908b9702c45d354a1caabe8ef5a69938d"
+    },
+    {
+     "path": "lib/universal-rewards-distributor/lib/murky/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "cb14ea3c5c72151f254ec79866793ddf65f4c727"
+    },
+    {
+     "path": "lib/universal-rewards-distributor/lib/murky/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bcc9992b5fddb91f1c515da6341de087922efcd7"
+    },
+    {
+     "path": "lib/universal-rewards-distributor/lib/murky/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "2c7dbcc8586b33f358e3307a443e524490c17666"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": "MIT",
+    "headers": {
+     "UNLICENSED": 80,
+     "AGPL-3.0": 20,
+     "MIT": 78,
+     "(none)": 22,
+     "Apache 2.0": 2,
+     "Apache-2.0": 35,
+     "AGPL-3.0-only": 2,
+     "Unlicense": 1,
+     "GPL-3.0": 5,
+     "GPL-2.0-or-later": 14,
+     "GNU AGPLv3": 5,
+     "agpl-3.0": 1
+    },
+    "headers_main": {
+     "UNLICENSED": 76,
+     "MIT": 49,
+     "(none)": 18,
+     "Apache 2.0": 2,
+     "Apache-2.0": 35,
+     "AGPL-3.0-only": 2,
+     "AGPL-3.0": 1,
+     "Unlicense": 1,
+     "GPL-3.0": 4,
+     "GPL-2.0-or-later": 14,
+     "GNU AGPLv3": 5,
+     "agpl-3.0": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 265
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.9.6",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.9.6",
+    "node_modules/@uniswap/v2-periphery": "1.1.0-beta.0",
+    "node_modules/@uniswap/v3-periphery": "1.4.4",
+    "node_modules/clones-with-immutable-args": "1.2.0",
+    "node_modules/hardhat": "2.19.4",
+    "node_modules/@uniswap/lib": "1.1.1",
+    "node_modules/@uniswap/v2-core": "1.0.0",
+    "node_modules/@uniswap/v3-core": "1.0.1",
+    "node_modules/base64-sol": "1.0.1"
+   },
+   "copied": true,
+   "dest": "Idle-Labs__idle-tranches",
+   "files": 1992,
+   "bytes": 8873318,
+   "skipped_large": 0
+  }
+ ]
+}

@@ -1,0 +1,39 @@
+[submodule "lib/ds-test"]
+	path = lib/ds-test
+	url = https://github.com/dapphub/ds-test
+[submodule "lib/ds-math"]
+	path = lib/ds-math
+	url = https://github.com/dapphub/ds-math
+[submodule "lib/dss-gem-joins"]
+	path = lib/dss-gem-joins
+	url = https://github.com/makerdao/dss-gem-joins
+[submodule "lib/ds-value"]
+	path = lib/ds-value
+	url = https://github.com/dapphub/ds-value
+[submodule "lib/dss"]
+	path = lib/dss
+	url = https://github.com/makerdao/dss
+[submodule "lib/shell-utils"]
+	path = lib/shell-utils
+	url = https://github.com/clio-finance/shell-utils
+[submodule "lib/ds-token"]
+	path = lib/ds-token
+	url = https://github.com/dapphub/ds-token
+[submodule "lib/forward-proxy"]
+	path = lib/forward-proxy
+	url = https://github.com/hbarcelos/forward-proxy
+[submodule "lib/dss-chain-log"]
+	path = lib/dss-chain-log
+	url = https://github.com/makerdao/dss-chain-log
+[submodule "lib/forge-std"]
+	path = lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "lib/dss-psm"]
+	path = lib/dss-psm
+	url = https://github.com/makerdao/dss-psm
+[submodule "lib/ilk-registry"]
+	path = lib/ilk-registry
+	url = https://github.com/makerdao/ilk-registry
+[submodule "lib/dss-interfaces"]
+	path = lib/dss-interfaces
+	url = https://github.com/makerdao/dss-interfaces

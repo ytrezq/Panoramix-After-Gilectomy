@@ -1,0 +1,144 @@
+## Prerequisite
+
+### Install Docker and Docker Compose
+MacOS:
+```sh
+# The easiest and recommended way to get Docker and
+# Docker Compose is to install Docker Desktop here:
+https://docs.docker.com/desktop/install/mac-install/
+```
+
+Ubuntu:
+```sh
+# Follow the below link to install docker on ubuntu
+https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository
+# Follow the below link to install standalone docker compose
+https://docs.docker.com/compose/install/other/
+```
+
+## Local Cluster
+
+Detailed instruction: see the `Makefile` in the root of [the repo](https://github.com/sei-protocol/sei-chain/blob/main/Makefile)
+
+### Frozen RPC router cluster
+
+The frozen-router topology runs two live validators, archival full nodes frozen
+before heights 10 and 20, and `frozen-rpc-router` on host port 8553:
+
+```sh
+DOCKER_DETACH=true make docker-frozen-rpc-cluster-start
+go test -tags frozen_rpc_integration -v -count=1 -timeout 5m ./integration_test/frozen_rpc_router/...
+make docker-frozen-rpc-cluster-stop
+```
+
+Run the complete start-test-stop flow with:
+
+```sh
+make frozen-rpc-router-integration-test
+```
+
+The direct EVM RPC ports are 8547 for the height-10 frozen node, 8549 for the
+height-20 frozen node, and 8545 for the live node.
+
+**To start a single local node (Not Recommended)**
+
+```sh
+make build-docker-node && make run-local-node
+```
+
+**To start 4 node cluster**
+
+This will start a 4 node sei chain cluster.
+```sh
+# If this is the first time or you want to rebuild the binary:
+make docker-cluster-start
+
+# If you have run docker-cluster-start and build/seid exist,
+# you can skip the build process to quick start by:
+make docker-cluster-start-skipbuild
+```
+All the logs and genesis files will be generated under the temporary build/generated folder.
+
+```sh
+# To monitor logs after cluster is started
+tail -f build/generated/logs/seid-0.log
+```
+
+**To ssh into a single node**
+```sh
+# List all containers
+docker ps -a
+# SSH into a running container
+docker exec -it [container_name] /bin/bash
+```
+
+## Prometheus / Grafana (monitornode)
+
+**Cluster and monitoring together:** from the repo root you can run:
+
+```sh
+make docker-cluster-start-monitoring
+```
+
+This stops any existing compose stack, rebuilds the node image, starts the four-node local cluster, and brings up the Prometheus and Grafana containers via the monitoring compose overlay, so you do not need to run the scripts below for that flow. To tear down the cluster and monitoring containers together:
+
+```sh
+make docker-cluster-stop-monitoring
+```
+
+**Scripts only:** to start Prometheus and Grafana by themselves (for example when you are not using the make target above):
+
+```sh
+./docker/monitornode/scripts/start-prometheus.sh
+./docker/monitornode/scripts/start-grafana.sh
+```
+
+Grafana UI: http://localhost:3000 (login: admin / admin). To stop containers started via the scripts:
+
+```sh
+./docker/monitornode/scripts/stop-prometheus.sh
+./docker/monitornode/scripts/stop-grafana.sh
+```
+
+## State Sync RPC Node
+
+Requirement: Follow the above steps to start a 4 node docker cluster before starting any state sync node
+
+```sh
+# Be sure to start up a 4-node cluster before you start a state sync node
+make docker-cluster-start
+# Wait for at least a few minutes till the latest block height exceed 500 (this can be changed via app.toml)
+seid status |jq
+# Start up a state sync node
+make run-rpc-node
+```
+
+## Local Debugging & Testing
+One of the fanciest thing of using docker is fast iteration. Here we support:
+- Being able to make changes locally and start up the chain to see the immediate impact
+- Being able to make changes to local dependency repo (Cosmo SDK/Tendermint) and start the chain with the latest changes without bumping or release any binary version
+
+
+In order to make local debugging work, you can follow these steps:
+```sh
+# Clone your dependency repo and put them under the same path as sei-chain
+cd sei-chain
+cd ../
+git clone https://github.com/sei-protocol/sei-tendermint.git
+git clone https://github.com/sei-protocol/sei-cosmos.git
+
+# Modify go.mod file to point to local repo, must use the exact same path as below:
+go mod edit -replace github.com/cosmos/cosmos-sdk=../sei-cosmos
+go mod edit -replace github.com/tendermint/tendermint=../sei-tendermint
+
+# You are good to go now! Make changes as you wish to any of the dependency repo and run docker to test it out.
+
+```
+****
+
+
+
+# Build with Us!
+If you are interested in building with Sei Network:
+Email us at team@seinetwork.io
+DM us on Twitter https://twitter.com/SeiNetwork

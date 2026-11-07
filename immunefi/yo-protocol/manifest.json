@@ -1,0 +1,41 @@
+{
+ "program": "yo-protocol",
+ "repos": [
+  {
+   "repo": "https://github.com/yoprotocol/core",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "found by name: YoVault, YoGateway, YoRegistry, YoOracle",
+   "commit": "9820b0f2b34412f6df155ac8ad4c54942939ee82",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE.md",
+    "spdx": "MIT",
+    "package_json": null,
+    "headers": {
+     "MIT": 60,
+     "UNLICENSED": 4
+    },
+    "headers_main": {
+     "MIT": 18
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 64
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "5.1.0",
+    "node_modules/@openzeppelin/contracts-upgradeable": "5.2.0",
+    "node_modules/solmate": "6.8.0",
+    "node_modules/forge-std": "1.9.5"
+   },
+   "copied": true,
+   "dest": "yoprotocol__core",
+   "files": 412,
+   "bytes": 2923705,
+   "skipped_large": 0
+  }
+ ]
+}

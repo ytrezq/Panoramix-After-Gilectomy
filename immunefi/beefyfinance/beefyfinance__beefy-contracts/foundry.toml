@@ -1,0 +1,47 @@
+[profile.default]
+src = 'forge'
+out = 'artifacts-forge'
+cache_path = 'cache-forge'
+libs = ['node_modules']
+remappings = [
+    '@openzeppelin-4/=node_modules/@openzeppelin-4/',
+    '@openzeppelin/=node_modules/@openzeppelin/',
+    'forge-std/=node_modules/forge-std/src',
+    'ds-test/=node_modules/ds-test/src'
+]
+evm_version = 'shanghai'
+solc_version = '0.8.23'
+optimizer = true
+optimizer_runs = 200
+verbosity = 2
+fs_permissions = [{ access = "read", path = "./"}]
+
+[lint]
+lint_on_build=false
+
+# Base precompiles (B20 tokens etc.) need Foundry >= 1.8.4; see https://docs.base.org/sdks/base-anvil
+[profile.b20]
+hardfork = 'base:Cobalt'
+match_path = 'forge/test/b20/**'
+
+[rpc_endpoints]
+eth = "${ETH_RPC}"
+mainnet = "${ETH_RPC}"
+ethereum = "${ETH_RPC}"
+optimism = "${OPTIMISM_RPC}"
+arbitrum = "${ARBITRUM_RPC}"
+avax = "${AVAX_RPC}"
+polygon = "${POLYGON_RPC}"
+bsc = "${BSC_RPC}"
+base = "${BASE_RPC}"
+fraxtal = "${FRAXTAL_RPC}"
+real = "${REAL_RPC}"
+sonic = "${SONIC_RPC}"
+berachain = "${BERA_RPC}"
+plasma = "${PLASMA_RPC}"
+monad = "${MONAD_RPC}"
+hyperevm = "${HYPER_RPC}"
+megaeth = "${MEGAETH_RPC}"
+linea = "${LINEA_RPC}"
+robinhood = "${ROBINHOOD_RPC}"
+arc = "${ARC_RPC}"

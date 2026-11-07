@@ -1,0 +1,71 @@
+{
+  "name": "@hyperlane-xyz/ccip-server",
+  "version": "45.1.0",
+  "private": true,
+  "description": "CCIP server",
+  "license": "Apache-2.0",
+  "author": "brolee",
+  "files": [
+    "src",
+    "dist"
+  ],
+  "type": "module",
+  "typings": "dist/index.d.ts",
+  "scripts": {
+    "prisma:generate": "rm -rf ./src/generated/prisma && prisma generate",
+    "postinstall": "pnpm prisma:generate",
+    "build": "pnpm prisma:generate && tsc -p tsconfig.json",
+    "bundle": "rm -rf ./bundle && ncc build ./dist/server.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ../../scripts/ncc.post-bundle.mjs",
+    "start": "tsx src/server.ts",
+    "dev": "NODE_ENV=development LOG_FORMAT=pretty tsx watch src/server.ts",
+    "test": "mocha --config .mocharc.json",
+    "test:ci": "pnpm test",
+    "lint": "oxlint -c ../../oxlint.json",
+    "format": "oxfmt --write ./src ./tests"
+  },
+  "dependencies": {
+    "@eth-optimism/core-utils": "^0.13.2",
+    "@eth-optimism/sdk": "catalog:",
+    "@ethersproject/abi": "*",
+    "@ethersproject/providers": "*",
+    "@fastify/cors": "catalog:",
+    "@fastify/rate-limit": "catalog:",
+    "@google-cloud/pino-logging-gcp-config": "catalog:",
+    "@hyperlane-xyz/core": "workspace:*",
+    "@hyperlane-xyz/metrics": "workspace:*",
+    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/sdk": "workspace:*",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "@prisma/adapter-pg": "catalog:",
+    "@prisma/client": "catalog:",
+    "dotenv-flow": "^4.1.0",
+    "ethers": "catalog:",
+    "fastify": "catalog:",
+    "pg": "^8.17.2",
+    "pino": "catalog:",
+    "prisma": "catalog:",
+    "prom-client": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "^8.16.0",
+    "@types/sinon": "catalog:",
+    "@vercel/ncc": "catalog:",
+    "chai": "catalog:",
+    "mocha": "catalog:",
+    "nodemon": "^3.0.3",
+    "pino-pretty": "catalog:",
+    "sinon": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "moduleResolution": "nodenext",
+  "typedocMain": "src/index.ts"
+}

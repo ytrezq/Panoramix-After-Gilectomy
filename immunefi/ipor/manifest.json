@@ -1,0 +1,53 @@
+{
+ "program": "ipor",
+ "repos": [
+  {
+   "repo": "https://github.com/IPOR-Labs/ipor-protocol",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "434327d363f237dbf628f45cdb7709ab929f4a30",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": null,
+    "headers": {
+     "UNLICENSED": 128,
+     "BUSL-1.1": 132,
+     "MIT": 2,
+     "GPL-3.0": 19,
+     "(none)": 2,
+     "GPL-2.0-or-later": 60,
+     "agpl-3.0": 2,
+     "BSD-3-Clause": 8
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 353
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.9.3",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.9.3",
+    "node_modules/abdk-libraries-solidity": "3.2.0"
+   },
+   "copied": true,
+   "dest": "IPOR-Labs__ipor-protocol",
+   "files": 823,
+   "bytes": 5819798,
+   "skipped_large": 0
+  }
+ ]
+}

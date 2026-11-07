@@ -1,0 +1,41 @@
+{
+ "program": "symbiosis",
+ "repos": [
+  {
+   "repo": "https://github.com/symbiosis-finance/core-contracts",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "3932a6266d156d47e69f3a5ab6f194cfc6708797",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "GPL-3.0": 22,
+     "(none)": 1,
+     "MIT": 2
+    },
+    "headers_main": {
+     "GPL-3.0": 22
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 25
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.4.2",
+    "node_modules/@uniswap/lib": "4.0.1-alpha",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.4.2"
+   },
+   "skipped_unlicensed": 1,
+   "copied": true,
+   "dest": "symbiosis-finance__core-contracts",
+   "files": 304,
+   "bytes": 1040621,
+   "skipped_large": 0
+  }
+ ]
+}

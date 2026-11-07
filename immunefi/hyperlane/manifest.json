@@ -1,0 +1,370 @@
+{
+ "program": "hyperlane",
+ "repos": [
+  {
+   "repo": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "69b5327a7c12a8de6214d32f9b3a7045db73951c",
+   "submodules": [
+    {
+     "path": "solidity/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "52715a217dc51d0de15877878ab8213f6cbbbab5"
+    }
+   ],
+   "soldeer": [
+    {
+     "path": "solidity/dependencies/@arbitrum-nitro-contracts-1.2.1",
+     "name": "@arbitrum-nitro-contracts",
+     "version": "1.2.1",
+     "url": "https://github.com/OffchainLabs/nitro-contracts.git",
+     "rev": "399790bb6660486fadf958017efc4eec99be3dd2",
+     "submodules": [
+      {
+       "path": "solidity/dependencies/@arbitrum-nitro-contracts-1.2.1/lib/forge-std",
+       "url": "https://github.com/foundry-rs/forge-std",
+       "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
+      },
+      {
+       "path": "solidity/dependencies/@arbitrum-nitro-contracts-1.2.1/lib/forge-std/lib/ds-test",
+       "url": "https://github.com/dapphub/ds-test",
+       "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+      }
+     ]
+    },
+    {
+     "path": "solidity/dependencies/@chainlink-contracts-ccip-1.5.0",
+     "name": "@chainlink-contracts-ccip",
+     "version": "1.5.0",
+     "url": "https://github.com/smartcontractkit/ccip.git",
+     "rev": "b5529a39311a2fd39cafceb62e4bb8f40eeb2e9e",
+     "submodules": []
+    },
+    {
+     "path": "solidity/dependencies/@eth-optimism-contracts-0.6.0",
+     "name": "@eth-optimism-contracts",
+     "version": "0.6.0",
+     "url": "https://github.com/ethereum-optimism/optimism.git",
+     "rev": "9d1be2dab809f5a80a3927ed84fd9cda49a82c47",
+     "submodules": [
+      {
+       "path": "solidity/dependencies/@eth-optimism-contracts-0.6.0/l2geth/tests/testdata",
+       "url": "https://github.com/ethereum/tests",
+       "commit": "ff68495eb56c382b2ddcea4020259e106353b874"
+      },
+      {
+       "path": "solidity/dependencies/@eth-optimism-contracts-0.6.0/packages/contracts-periphery/lib/multicall",
+       "url": "https://github.com/mds1/multicall",
+       "commit": "a1fa0644fa412cd3237ef7081458ecb2ffad7dbe"
+      },
+      {
+       "path": "solidity/dependencies/@eth-optimism-contracts-0.6.0/packages/contracts-periphery/lib/multicall/lib/ds-test",
+       "url": "https://github.com/dapphub/ds-test",
+       "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+      },
+      {
+       "path": "solidity/dependencies/@eth-optimism-contracts-0.6.0/packages/contracts-periphery/lib/multicall/lib/forge-std",
+       "url": "https://github.com/brockelmore/forge-std",
+       "commit": "bab506ddaa6949efa64d47222a1a1d9d608fa006"
+      },
+      {
+       "path": "solidity/dependencies/@eth-optimism-contracts-0.6.0/packages/contracts-periphery/lib/multicall/lib/forge-std/lib/ds-test",
+       "url": "https://github.com/dapphub/ds-test",
+       "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+      }
+     ]
+    },
+    {
+     "path": "solidity/dependencies/@openzeppelin-contracts-4.9.3",
+     "name": "@openzeppelin-contracts",
+     "version": "4.9.3",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "rev": "fd81a96f01cc42ef1c9a5399364968d0e07e9e90",
+     "submodules": [
+      {
+       "path": "solidity/dependencies/@openzeppelin-contracts-4.9.3/lib/forge-std",
+       "url": "https://github.com/foundry-rs/forge-std",
+       "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+      },
+      {
+       "path": "solidity/dependencies/@openzeppelin-contracts-4.9.3/lib/forge-std/lib/ds-test",
+       "url": "https://github.com/dapphub/ds-test",
+       "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+      },
+      {
+       "path": "solidity/dependencies/@openzeppelin-contracts-4.9.3/lib/erc4626-tests",
+       "url": "https://github.com/a16z/erc4626-tests.git",
+       "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+      }
+     ]
+    },
+    {
+     "path": "solidity/dependencies/@openzeppelin-contracts-upgradeable-4.9.3",
+     "name": "@openzeppelin-contracts-upgradeable",
+     "version": "4.9.3",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable.git",
+     "rev": "3d4c0d5741b131c231e558d7a6213392ab3672a5",
+     "submodules": [
+      {
+       "path": "solidity/dependencies/@openzeppelin-contracts-upgradeable-4.9.3/lib/forge-std",
+       "url": "https://github.com/foundry-rs/forge-std",
+       "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+      },
+      {
+       "path": "solidity/dependencies/@openzeppelin-contracts-upgradeable-4.9.3/lib/forge-std/lib/ds-test",
+       "url": "https://github.com/dapphub/ds-test",
+       "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+      },
+      {
+       "path": "solidity/dependencies/@openzeppelin-contracts-upgradeable-4.9.3/lib/erc4626-tests",
+       "url": "https://github.com/a16z/erc4626-tests.git",
+       "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+      }
+     ]
+    },
+    {
+     "path": "solidity/dependencies/@predicate-contracts-2.2.2",
+     "name": "@predicate-contracts",
+     "version": "2.2.2",
+     "url": "https://github.com/predicatelabs/predicate-contracts.git",
+     "rev": "v2.2.2",
+     "submodules": [
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/solmate",
+       "url": "https://github.com/transmissions11/solmate",
+       "commit": "97bdb2003b70382996a79a406813f76417b1cf90"
+      },
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/solmate/lib/ds-test",
+       "url": "https://github.com/dapphub/ds-test",
+       "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+      },
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/forge-std",
+       "url": "https://github.com/foundry-rs/forge-std",
+       "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
+      },
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/forge-std/lib/ds-test",
+       "url": "https://github.com/dapphub/ds-test",
+       "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+      },
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-foundry-upgrades",
+       "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
+       "commit": "326d96b5d9b5fa87b8cdb734f02a8f73324dad3e"
+      },
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-foundry-upgrades/lib/forge-std",
+       "url": "https://github.com/foundry-rs/forge-std",
+       "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66"
+      },
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable",
+       "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+       "commit": "fa525310e45f91eb20a6d3baa2644be8e0adba31"
+      },
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+       "url": "https://github.com/foundry-rs/forge-std",
+       "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+      },
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+       "url": "https://github.com/dapphub/ds-test",
+       "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+      },
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+       "url": "https://github.com/a16z/erc4626-tests.git",
+       "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+      },
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+       "url": "https://github.com/a16z/halmos-cheatcodes",
+       "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+      },
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+       "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+       "commit": "69c8def5f222ff96f2b5beff05dfba996368aa79"
+      },
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+       "url": "https://github.com/foundry-rs/forge-std",
+       "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+      },
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+       "url": "https://github.com/dapphub/ds-test",
+       "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+      },
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+       "url": "https://github.com/a16z/erc4626-tests.git",
+       "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+      },
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+       "url": "https://github.com/a16z/halmos-cheatcodes",
+       "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+      },
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts",
+       "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+       "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527"
+      },
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts/lib/forge-std",
+       "url": "https://github.com/foundry-rs/forge-std",
+       "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
+      },
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts/lib/erc4626-tests",
+       "url": "https://github.com/a16z/erc4626-tests.git",
+       "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+      },
+      {
+       "path": "solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+       "url": "https://github.com/a16z/halmos-cheatcodes",
+       "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+      }
+     ]
+    },
+    {
+     "path": "solidity/dependencies/forge-std-1.9.2",
+     "name": "forge-std",
+     "version": "1.9.2",
+     "zip": "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_9_2_06-08-2024_17:31:25_forge-std-1.9.2.zip",
+     "error": "Multicall3.sol\nwarning:  stripped absolute path spec from /src/interfaces/IERC1155.sol\nwarning:  stripped absolute path spec from /src/interfaces/IERC721.sol\nwarning:  stripped absolute path spec from /src/interfaces/IERC4626.sol\nwarning:  stripped absolute path spec from /src/interfaces/IERC165.sol"
+    },
+    {
+     "path": "solidity/dependencies/layerzero-v2-2.0.2",
+     "name": "layerzero-v2",
+     "version": "2.0.2",
+     "url": "https://github.com/LayerZero-Labs/LayerZero-v2.git",
+     "rev": "9c741e7f9790639537b1710a203bcdfd73b0b9ac",
+     "submodules": [
+      {
+       "path": "solidity/dependencies/layerzero-v2-2.0.2/lib/forge-std",
+       "url": "https://github.com/foundry-rs/forge-std",
+       "commit": "2f112697506eab12d433a65fdc31a639548fe365"
+      },
+      {
+       "path": "solidity/dependencies/layerzero-v2-2.0.2/lib/forge-std/lib/ds-test",
+       "url": "https://github.com/dapphub/ds-test",
+       "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+      }
+     ]
+    },
+    {
+     "path": "solidity/dependencies/permit2-1.0.0",
+     "name": "permit2",
+     "version": "1.0.0",
+     "url": "https://github.com/Uniswap/permit2",
+     "rev": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219",
+     "submodules": [
+      {
+       "path": "solidity/dependencies/permit2-1.0.0/lib/forge-std",
+       "url": "https://github.com/foundry-rs/forge-std",
+       "commit": "66bf4e2c92cf507531599845e8d5a08cc2e3b5bb"
+      },
+      {
+       "path": "solidity/dependencies/permit2-1.0.0/lib/forge-std/lib/ds-test",
+       "url": "https://github.com/dapphub/ds-test",
+       "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+      },
+      {
+       "path": "solidity/dependencies/permit2-1.0.0/lib/solmate",
+       "url": "https://github.com/rari-capital/solmate",
+       "commit": "8d910d876f51c3b2585c9109409d601f600e68e1"
+      },
+      {
+       "path": "solidity/dependencies/permit2-1.0.0/lib/solmate/lib/ds-test",
+       "url": "https://github.com/dapphub/ds-test",
+       "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+      },
+      {
+       "path": "solidity/dependencies/permit2-1.0.0/lib/openzeppelin-contracts",
+       "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+       "commit": "d3ff81b37f3c773b44dcaf5fda212c7176eef0e2"
+      },
+      {
+       "path": "solidity/dependencies/permit2-1.0.0/lib/forge-gas-snapshot",
+       "url": "https://github.com/marktoda/forge-gas-snapshot",
+       "commit": "3c5d52a26169876a144f7690d2f9ef0200eb0791"
+      },
+      {
+       "path": "solidity/dependencies/permit2-1.0.0/lib/forge-gas-snapshot/lib/forge-std",
+       "url": "https://github.com/foundry-rs/forge-std",
+       "commit": "2c7cbfc6fbede6d7c9e6b17afe997e3fdfe22fef"
+      },
+      {
+       "path": "solidity/dependencies/permit2-1.0.0/lib/forge-gas-snapshot/lib/forge-std/lib/ds-test",
+       "url": "https://github.com/dapphub/ds-test",
+       "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+      }
+     ]
+    },
+    {
+     "path": "solidity/dependencies/wormhole-solidity-sdk-1.1.0",
+     "name": "wormhole-solidity-sdk",
+     "version": "1.1.0",
+     "url": "https://github.com/wormhole-foundation/wormhole-solidity-sdk.git",
+     "rev": "d80e0f6cd16f281f3f9df435e98e823b4212b2ad",
+     "submodules": [
+      {
+       "path": "solidity/dependencies/wormhole-solidity-sdk-1.1.0/lib/forge-std",
+       "url": "https://github.com/foundry-rs/forge-std",
+       "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
+      },
+      {
+       "path": "solidity/dependencies/wormhole-solidity-sdk-1.1.0/lib/forge-std/lib/ds-test",
+       "url": "https://github.com/dapphub/ds-test",
+       "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+      }
+     ]
+    }
+   ],
+   "license": {
+    "file": "LICENSE.md",
+    "spdx": "Apache-2.0",
+    "package_json": null,
+    "headers": {
+     "MIT": 279,
+     "UNLICENSED": 6,
+     "Apache-2.0": 64,
+     "BSD-3.0": 1,
+     "CC0-1.0": 1,
+     "(none)": 3,
+     "BUSL-1.1": 9
+    },
+    "headers_main": {
+     "MIT": 182,
+     "BSD-3.0": 1,
+     "CC0-1.0": 1,
+     "(none)": 3,
+     "Apache-2.0": 21,
+     "BUSL-1.1": 9,
+     "UNLICENSED": 3
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 363
+   },
+   "npm": {},
+   "symlinks": 32,
+   "workspace_links": {
+    "typescript/helloworld/node_modules/@hyperlane-xyz/core": "solidity"
+   },
+   "copied": true,
+   "dest": "hyperlane-xyz__hyperlane-monorepo",
+   "files": 5244,
+   "bytes": 34606241,
+   "skipped_large": 0
+  }
+ ]
+}

@@ -1,0 +1,545 @@
+{
+ "program": "paxos-labs",
+ "repos": [
+  {
+   "repo": "https://github.com/paxoslabs/pxl-boring-vault",
+   "ref": "master",
+   "scope_paths": [
+    "audit/0xmacro-boring-vault-arctic-0.pdf"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "d3d0ee178efb67cb908f52b34f0b1a335851bbbd",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
+    },
+    {
+     "path": "lib/solmate",
+     "url": "https://github.com/transmissions11/solmate",
+     "commit": "97bdb2003b70382996a79a406813f76417b1cf90"
+    },
+    {
+     "path": "lib/solmate/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "e30b390d84ea27e430f56efcf39d19c1ec4d30eb"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/ion-protocol",
+     "url": "https://github.com/Ion-Protocol/ion-protocol",
+     "commit": "3da1aadb970a3e1e866ab714b14525b1cefb22ed"
+    },
+    {
+     "path": "lib/ion-protocol/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "f73c73d2018eb6a111f35e4dae7b4f27401e9421"
+    },
+    {
+     "path": "lib/ion-protocol/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/ion-protocol/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "932fddf69a699a9a80fd2396fd1a2ab91cdda123"
+    },
+    {
+     "path": "lib/ion-protocol/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/ion-protocol/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/ion-protocol/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/ion-protocol/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/Openzeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "625fb3c2b2696f1747ba2e72d1e1113066e6c177"
+    },
+    {
+     "path": "lib/ion-protocol/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/ion-protocol/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/ion-protocol/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/ion-protocol/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "932fddf69a699a9a80fd2396fd1a2ab91cdda123"
+    },
+    {
+     "path": "lib/ion-protocol/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/ion-protocol/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/ion-protocol/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/ion-protocol/lib/balancer-v2-monorepo",
+     "url": "https://github.com/balancer/balancer-v2-monorepo",
+     "commit": "fc3e5735a07438ab506931f56adf64dede1441b1"
+    },
+    {
+     "path": "lib/ion-protocol/lib/balancer-v2-monorepo/pvt/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "9fec3a49630d8086cac96ea8ff3a2137a23f96ed"
+    },
+    {
+     "path": "lib/ion-protocol/lib/balancer-v2-monorepo/pvt/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/ion-protocol/lib/chainlink",
+     "url": "https://github.com/smartcontractkit/chainlink",
+     "commit": "b96cb806e6ea648799e31a71fb1803607d79cde4"
+    },
+    {
+     "path": "lib/ion-protocol/lib/chainlink/contracts/foundry-lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "f4264050aca5a2eedf243f9bd54b544c5a373bd2"
+    },
+    {
+     "path": "lib/ion-protocol/lib/chainlink/contracts/foundry-lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/ion-protocol/lib/chainlink/contracts/foundry-lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "1a60b061d5bb809c3d7e4ee915c77a00b1eca95d"
+    },
+    {
+     "path": "lib/ion-protocol/lib/chainlink/contracts/foundry-lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/ion-protocol/lib/chainlink/contracts/foundry-lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/ion-protocol/lib/chainlink/contracts/foundry-lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/ion-protocol/lib/v3-periphery",
+     "url": "https://github.com/Uniswap/v3-periphery",
+     "commit": "80f26c86c57b8a5e4b913f42844d4c8bd274d058"
+    },
+    {
+     "path": "lib/ion-protocol/lib/v3-core",
+     "url": "https://github.com/Uniswap/v3-core",
+     "commit": "e3589b192d0be27e100cd0daaf6c97204fdb1899"
+    },
+    {
+     "path": "lib/ion-protocol/lib/solady",
+     "url": "https://github.com/Vectorized/solady",
+     "commit": "cde0a5fb594da8655ba6bfcdc2e40a7c870c0cc0"
+    },
+    {
+     "path": "lib/ion-protocol/lib/solady/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    },
+    {
+     "path": "lib/ion-protocol/lib/forge-safe",
+     "url": "https://github.com/ind-igo/forge-safe",
+     "commit": "4ce820bad668846207f34b6f439021ad151f0a1e"
+    },
+    {
+     "path": "lib/ion-protocol/lib/forge-safe/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "lib/ion-protocol/lib/forge-safe/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/ion-protocol/lib/forge-safe/lib/solmate",
+     "url": "https://github.com/transmissions11/solmate",
+     "commit": "bfc9c25865a274a7827fea5abf6e4fb64fc64e6c"
+    },
+    {
+     "path": "lib/ion-protocol/lib/forge-safe/lib/solmate/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/ion-protocol/lib/forge-safe/lib/surl",
+     "url": "https://github.com/memester-xyz/surl",
+     "commit": "88cf6c658fa3478594ef25f45516735ed10542f5"
+    },
+    {
+     "path": "lib/ion-protocol/lib/forge-safe/lib/surl/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "066ff16c5c03e6f931cd041fd366bc4be1fae82a"
+    },
+    {
+     "path": "lib/ion-protocol/lib/forge-safe/lib/surl/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/ion-protocol/lib/forge-safe/lib/surl/lib/solidity-stringutils",
+     "url": "https://github.com/Arachnid/solidity-stringutils",
+     "commit": "46983c6d9462a80229cf0d5bab8ea3b3ee31066c"
+    },
+    {
+     "path": "lib/ion-protocol/lib/forge-safe/lib/surl/lib/solidity-stringutils/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/ion-protocol/lib/forge-safe/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/ion-protocol/lib/solarray",
+     "url": "https://github.com/evmcheb/solarray",
+     "commit": "a547630f9bf7837af9e6919d217672afe7abf7f1"
+    },
+    {
+     "path": "lib/ion-protocol/lib/solarray/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/ion-protocol/lib/solarray/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/ion-protocol/lib/pendle-core-v2-public",
+     "url": "https://github.com/pendle-finance/pendle-core-v2-public",
+     "commit": "bc27b10c33ac16d6e1936a9ddd24d536b00c96a4"
+    },
+    {
+     "path": "lib/devtools",
+     "url": "https://github.com/LayerZero-Labs/devtools",
+     "commit": "222b5cf49f4b3043305094ed6f0a994a771e5e0e"
+    },
+    {
+     "path": "lib/devtools/packages/toolbox-foundry/src/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/devtools/packages/toolbox-foundry/src/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/devtools/packages/toolbox-foundry/src/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/devtools/tests-user/lib/bats-core",
+     "url": "https://github.com/bats-core/bats-core.git",
+     "commit": "3d3f63d9772b98c88586ec0a66bd358a85d9b4a6"
+    },
+    {
+     "path": "lib/devtools/tests-user/lib/bats-support",
+     "url": "https://github.com/bats-core/bats-support.git",
+     "commit": "9bf10e876dd6b624fe44423f0b35e064225f7556"
+    },
+    {
+     "path": "lib/devtools/tests-user/lib/bats-assert",
+     "url": "https://github.com/bats-core/bats-assert.git",
+     "commit": "e2d855bc78619ee15b0c702b5c30fb074101159f"
+    },
+    {
+     "path": "lib/createx",
+     "url": "https://github.com/pcaversaccio/createx",
+     "commit": "cbac803268835138f86a69bfe01fcf05a50e0447"
+    },
+    {
+     "path": "lib/createx/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std.git",
+     "commit": "155d547c449afa8715f538d69454b83944117811"
+    },
+    {
+     "path": "lib/createx/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/createx/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts.git",
+     "commit": "44965d7779f89cc97b8dbc6e473d3931ecd9e4b2"
+    },
+    {
+     "path": "lib/createx/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/createx/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/createx/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/createx/lib/solady",
+     "url": "https://github.com/vectorized/solady.git",
+     "commit": "88bb5f223ae3d8567229f39d6c19b5d4c7c4a069"
+    },
+    {
+     "path": "lib/createx/lib/solady/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    },
+    {
+     "path": "lib/v3-periphery",
+     "url": "https://github.com/Uniswap/v3-periphery",
+     "commit": "0682387198a24c7cd63566a2c58398533860a5d1"
+    },
+    {
+     "path": "lib/v3-core",
+     "url": "https://github.com/Uniswap/v3-core",
+     "commit": "d8b1c635c275d2a9450bd6a78f3fa2484fef73eb"
+    },
+    {
+     "path": "lib/aave-v3-core",
+     "url": "https://github.com/aave/aave-v3-core",
+     "commit": "b74526a7bc67a3a117a1963fc871b3eb8cea8435"
+    },
+    {
+     "path": "lib/predicate-contracts",
+     "url": "https://github.com/PredicateLabs/predicate-contracts",
+     "commit": "28b3d3222173392d274a0d0e7aef51bcc96c6a38"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/solmate",
+     "url": "https://github.com/transmissions11/solmate",
+     "commit": "97bdb2003b70382996a79a406813f76417b1cf90"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/solmate/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/openzeppelin-foundry-upgrades",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
+     "commit": "326d96b5d9b5fa87b8cdb734f02a8f73324dad3e"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/openzeppelin-foundry-upgrades/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "fa525310e45f91eb20a6d3baa2644be8e0adba31"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "69c8def5f222ff96f2b5beff05dfba996368aa79"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/predicate-contracts/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "GPL-2.0-or-later": 3,
+     "Apache-2.0": 115,
+     "MIT": 143,
+     "GPL-3.0-or-later": 2,
+     "(none)": 3,
+     "AGPL-3.0-only": 2,
+     "UNLICENSED": 14,
+     "BUSL-1.1": 2,
+     "LZBL-1.2": 3
+    },
+    "headers_main": {
+     "GPL-2.0-or-later": 3,
+     "Apache-2.0": 27,
+     "MIT": 127,
+     "GPL-3.0-or-later": 1,
+     "(none)": 3,
+     "AGPL-3.0-only": 2,
+     "UNLICENSED": 11,
+     "BUSL-1.1": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 287
+   },
+   "npm": {
+    "node_modules/@layerzerolabs/lz-evm-oapp-v2": "2.3.44",
+    "node_modules/@chainlink/contracts-ccip": "2.0.0",
+    "node_modules/@layerzerolabs/lz-evm-protocol-v2": "2.3.44",
+    "node_modules/@layerzerolabs/lz-evm-messagelib-v2": "2.3.44",
+    "node_modules/@layerzerolabs/test-devtools-evm-foundry": "0.2.12",
+    "node_modules/@openzeppelin/contracts": "4.9.6",
+    "node_modules/solidity-bytes-utils": "0.8.4",
+    "node_modules/@layerzerolabs/lz-evm-v1-0.7": "2.3.44",
+    "node_modules/@chainlink/contracts": "1.5.0",
+    "node_modules/@openzeppelin/contracts-5.3.0": "5.3.0",
+    "node_modules/@chainlink/ace": "1.0.0",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.9.6",
+    "node_modules/hardhat-deploy": "0.12.4",
+    "node_modules/@arbitrum/nitro-contracts": "1.3.0",
+    "node_modules/@axelar-network/axelar-gmp-sdk-solidity": "5.10.0",
+    "node_modules/@eth-optimism/contracts": "0.6.0",
+    "node_modules/@openzeppelin/contracts-4.8.3": "4.8.3",
+    "node_modules/@openzeppelin/contracts-5.0.2": "5.0.2",
+    "node_modules/@openzeppelin/contracts-4.9.6": "4.9.6",
+    "node_modules/@zksync/contracts": "0.1.0",
+    "node_modules/@scroll-tech/contracts": "2.0.0",
+    "node_modules/@openzeppelin/contracts-4.7.3": "4.7.3",
+    "node_modules/@openzeppelin/contracts-5.1.0": "5.1.0",
+    "node_modules/forge-std": "1.9.4",
+    "node_modules/@offchainlabs/upgrade-executor": "1.1.0-beta.0",
+    "node_modules/@zksync/contracts/l2-contracts/node_modules/@openzeppelin/contracts-upgradeable": "4.9.5",
+    "node_modules/@zksync/contracts/l2-contracts/node_modules/@openzeppelin/contracts": "4.9.5",
+    "node_modules/@zksync/contracts/gas-bound-caller/node_modules/@matterlabs/zksync-contracts": "0.6.2",
+    "node_modules/@zksync/contracts/gas-bound-caller/node_modules/@openzeppelin/contracts": "4.9.6",
+    "node_modules/@zksync/contracts/gas-bound-caller/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6"
+   },
+   "symlinks": 10,
+   "skipped_unlicensed": 20,
+   "copied": true,
+   "dest": "paxoslabs__pxl-boring-vault",
+   "files": 11494,
+   "bytes": 66250425,
+   "skipped_large": 0
+  }
+ ]
+}

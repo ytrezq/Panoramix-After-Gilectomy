@@ -1,0 +1,16 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+      "resolveJsonModule": true,
+      "allowJs": true
+  },
+  "include": [
+    "./test",
+    "sync-tests/*.ts",
+    "./actor-tests/**/*.ts",
+    "./artifacts/**/*.json",
+    "./tasks/**/*.ts",
+    "./package.json"
+  ],
+  "files": ["./hardhat.config.ts"]
+}

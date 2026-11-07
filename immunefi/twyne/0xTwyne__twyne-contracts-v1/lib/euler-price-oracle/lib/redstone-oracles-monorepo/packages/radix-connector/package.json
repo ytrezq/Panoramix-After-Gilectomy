@@ -1,0 +1,73 @@
+{
+  "name": "@redstone-finance/radix-connector",
+  "version": "0.9.0",
+  "main": "dist/src/index.js",
+  "exports": "./dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "license": "MIT",
+  "scripts": {
+    "clean": "yarn global:ts-clean",
+    "build": "yarn global:tsc -p tsconfig.build.json",
+    "build:turbo": "yarn global:turbo build",
+    "typecheck": "yarn global:tsc --noEmit",
+    "typecheck:turbo": "yarn global:turbo typecheck",
+    "preversion": "yarn build",
+    "pack-package": "yarn build && npm pack",
+    "lint": "yarn global:eslint .",
+    "lint:fix": "yarn global:eslint --fix .",
+    "test": "yarn global:jest",
+    "test-e2e": "yarn global:jest e2e.spec.ts",
+    "coverage": "yarn global:jest:cov --coveragePathIgnorePatterns=\"src/index.ts\" --coveragePathIgnorePatterns=\"src/radix/parser/generated/converter.ts\"",
+    "convert-keys": "yarn global:ts-node scripts/convert-keys.ts",
+    "transfer-xrd": "yarn global:ts-node scripts/transfer-xrd.ts",
+    "sample-deploy_price_adapter": "make -C scrypto build-price_adapter && CONTRACT_NAME=price_adapter yarn global:ts-node scripts/sample_deploy.ts",
+    "sample-deploy-price_feed": "make -C scrypto build-price_feed && CONTRACT_NAME=price_feed yarn global:ts-node scripts/sample_deploy.ts",
+    "sample-deploy-proxy": "make -C scrypto build-proxy && CONTRACT_NAME=proxy yarn global:ts-node scripts/sample_deploy.ts",
+    "sample-instantiate-price_adapter": "yarn global:ts-node scripts/sample_instantiate_price_adapter.ts",
+    "sample-instantiate-price_feed": "yarn global:ts-node scripts/sample_instantiate_price_feed.ts",
+    "sample-instantiate-proxy": "yarn global:ts-node scripts/sample_instantiate_proxy.ts",
+    "sample-change_proxy_address": "yarn global:ts-node scripts/sample_change_proxy_address.ts",
+    "sample-change_proxy_manager": "yarn global:ts-node scripts/sample_change_proxy_manager.ts",
+    "sample-run": "yarn global:ts-node scripts/sample_run.ts",
+    "ledger-public-key": "yarn global:ts-node scripts/ledger/public-key.ts",
+    "change-proxy-address-tx": "yarn global:ts-node scripts/ledger/change-address-tx.ts",
+    "decompile-intent": "yarn global:ts-node scripts/ledger/decompile-into-intent.ts",
+    "sign-intent": "yarn global:ts-node scripts/ledger/sign-intent.ts",
+    "combine-signatures": "yarn global:ts-node scripts/ledger/combine-signatures.ts",
+    "public-keys-to-address": "yarn global:ts-node scripts/account-address.ts",
+    "transfer-multisig-tx": "yarn global:ts-node scripts/ledger/transfer-multisig-tx.ts"
+  },
+  "dependencies": {
+    "@ethersproject/strings": "^5.7.0",
+    "@radixdlt/babylon-gateway-api-sdk": "^1.10.1",
+    "@radixdlt/radix-engine-toolkit": "^1.0.5",
+    "@redstone-finance/sdk": "workspace:*",
+    "axios": "^1.13.2",
+    "ethers": "^5.7.2",
+    "lodash": "^4.17.23"
+  },
+  "devDependencies": {
+    "@atlantis-l/radix-tool": "^0.8.9",
+    "@ledgerhq/hw-app-aptos": "^6.31.0",
+    "@ledgerhq/hw-transport-node-hid": "^6.29.5",
+    "@redstone-finance/utils": "workspace:*",
+    "dotenv": "^16.0.3",
+    "node-jq": "^6.0.0",
+    "redstone-api": "^0.4.13",
+    "secp256k1": "^5.0.1",
+    "zod": "^4.1.12"
+  },
+  "overrides": {
+    "elliptic": "^6.6.1"
+  },
+  "resolutions": {
+    "elliptic": "^6.6.1"
+  },
+  "files": [
+    "src",
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

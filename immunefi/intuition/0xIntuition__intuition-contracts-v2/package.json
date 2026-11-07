@@ -1,0 +1,116 @@
+{
+  "name": "@0xintuition/contracts-v2",
+  "description": "Intuition Protocol V2 smart contracts, ABIs, and bytecode",
+  "version": "1.1.0-alpha.1",
+  "license": "BUSL-1.1",
+  "author": {
+    "name": "0xIntuition",
+    "url": "https://github.com/0xIntuition/intuition-contracts-v2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0xIntuition/intuition-contracts-v2.git"
+  },
+  "homepage": "https://github.com/0xIntuition/intuition-contracts-v2#readme",
+  "bugs": "https://github.com/0xIntuition/intuition-contracts-v2/issues",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./abis": {
+      "import": {
+        "types": "./dist/abis/index.d.ts",
+        "default": "./dist/abis/index.js"
+      },
+      "require": {
+        "types": "./dist/abis/index.d.cts",
+        "default": "./dist/abis/index.cjs"
+      }
+    },
+    "./bytecodes": {
+      "import": {
+        "types": "./dist/bytecodes/index.d.ts",
+        "default": "./dist/bytecodes/index.js"
+      },
+      "require": {
+        "types": "./dist/bytecodes/index.d.cts",
+        "default": "./dist/bytecodes/index.cjs"
+      }
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./artifact-manifest.json": "./artifact-manifest.json"
+  },
+  "files": [
+    "src",
+    "dist",
+    "artifact-manifest.json"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
+  "dependencies": {
+    "@account-abstraction/contracts": "0.8.0",
+    "@openzeppelin-v4/contracts": "npm:@openzeppelin/contracts@4.9.6",
+    "@openzeppelin-v4/contracts-upgradeable": "npm:@openzeppelin/contracts-upgradeable@4.9.6",
+    "@openzeppelin/contracts": "5.4.0",
+    "@openzeppelin/contracts-upgradeable": "5.4.0",
+    "@prb/math": "4.1.1",
+    "solady": "0.1.26"
+  },
+  "devDependencies": {
+    "@types/node": "^24.7.0",
+    "ethers": "^5.8.0",
+    "prettier": "^3.5",
+    "solhint": "^5.1",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  },
+  "keywords": [
+    "intuition",
+    "ethereum",
+    "solidity",
+    "smart-contracts",
+    "foundry",
+    "abi"
+  ],
+  "scripts": {
+    "clean": "rm -rf cache out dist",
+    "build": "forge build",
+    "build:ts": "tsup",
+    "extract": "tsx extract-abis.ts && tsx extract-bytecodes.ts",
+    "build:package": "bun run build && bun run extract && bun run build:ts",
+    "release:alpha": "npm publish --tag alpha",
+    "fmt": "forge fmt",
+    "fmt:check": "forge fmt --check",
+    "viz:call-flows": "bun script/viz/generate-call-flows.ts",
+    "lint": "bun run lint:sol && bun run prettier:check",
+    "lint:sol": "forge fmt --check && bun solhint \"{script,src,tests}/**/*.sol\"",
+    "prettier:check": "prettier --check \"**/*.{json,md,yml}\"",
+    "prettier:write": "prettier --write \"**/*.{json,md,yml}\"",
+    "test": "forge test",
+    "test:upgrades": "bun test script/intuition/v1.0.2/safe-txs",
+    "coverage": "forge coverage --no-match-coverage '(script|tests|src/legacy)'",
+    "test:coverage": "forge coverage",
+    "test:coverage:report": "forge coverage --no-match-coverage '(script|tests|src/legacy)' --report lcov && genhtml lcov.info --branch-coverage --output-dir coverage --ignore-errors inconsistent",
+    "fetch:roles:summary": "npx tsx script/utils/fetch-roles-summary.ts",
+    "prepack": "bun run release:check",
+    "test:package": "bun test scripts/package.test.ts",
+    "test:packed": "node scripts/test-packed.mjs",
+    "release:check": "bun run build:package && tsc --noEmit && bun run test:package && bun run test:packed"
+  }
+}

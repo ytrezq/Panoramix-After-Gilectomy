@@ -1,0 +1,17 @@
+{
+  "extends": "@layerzerolabs/typescript-config-next/library.json",
+  "exclude": ["dist", "build", "node_modules"],
+  "compilerOptions": {
+    "outDir": "dist",
+    "strict": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*", "hardhat.config.ts"],
+  "ts-node": {
+    "transpileOnly": true,
+    "compilerOptions": {
+      "skipLibCheck": true,
+      "isolatedModules": true
+    }
+  }
+}
