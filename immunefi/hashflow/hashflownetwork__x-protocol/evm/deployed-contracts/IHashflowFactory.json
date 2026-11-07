@@ -1,0 +1,58 @@
+{
+    "goerli": {
+        "address": "0x2524923e88Cc8356B35753C270214a2e2d70745F",
+        "deploymentTransactionHash": "0xd3bf482baa6df617e7fa33670e7f84b314997b0cb7a73e291efd0fa89011ab4d"
+    },
+    "mumbai": {
+        "address": "0x7D916a5b5A23A9FB583Cd9B227B0a0b9C01eAA85",
+        "deploymentTransactionHash": "0xfd1fd40b1a849af3a932eb0f4cffbfb8ead28a572bd132e978599cae8922aad4"
+    },
+    "bnb-testnet": {
+        "address": "0x7D916a5b5A23A9FB583Cd9B227B0a0b9C01eAA85",
+        "deploymentTransactionHash": "0x77116ffad3898d9db3970d41416e6c438754a42514b9525f9c24f04eb2667872"
+    },
+    "wormhole1": {
+        "address": "0x2f3efA6bbDC5fAf4dC1a600765c7B7829e47bE10",
+        "deploymentTransactionHash": "0xf4f537bc94b2ac5353c02e31af7967fc3c228b686cb3a02eeed951598233e15f"
+    },
+    "wormhole2": {
+        "address": "0x2f3efA6bbDC5fAf4dC1a600765c7B7829e47bE10",
+        "deploymentTransactionHash": "0x29a9e6c1928d8de0b1c82139d97cd453424f22b910fc549cab4a3d1ebbc1d675"
+    },
+    "ethereum": {
+        "address": "0xdE828fdc3F497F16416D1bB645261C7C6a62DAb5",
+        "deploymentTransactionHash": "0x49bfd670ac08989bf5679bb1c6712d341863112f5c45bb177a44a914e5f7babe"
+    },
+    "arbitrum": {
+        "address": "0xdE828fdc3F497F16416D1bB645261C7C6a62DAb5",
+        "deploymentTransactionHash": "0xd8baabb9991a64baec757dc706f3c8ba15596bff744fa3fecadafee2e65ae9ce"
+    },
+    "optimism": {
+        "address": "0x6D551f4D999faC0984eb75B2B230ba7e7651BdE7",
+        "deploymentTransactionHash": "0x484e2725c7dd6d0a79f1a7ae1660ce0e079c424d8dbe57addcc2396c7774eb48"
+    },
+    "polygon": {
+        "address": "0xdE828fdc3F497F16416D1bB645261C7C6a62DAb5",
+        "deploymentTransactionHash": "0xaff3cb39946dbddca888d2f7c8ff810690f9454cf14756ed8402b77a5bb0210e"
+    },
+    "bnb": {
+        "address": "0xdE828fdc3F497F16416D1bB645261C7C6a62DAb5",
+        "deploymentTransactionHash": "0x763983fd6a075b8c34c4a68e7bc34a19c4de50131aab12db3727d74fff8743b3"
+    },
+    "avalanche": {
+        "address": "0xdE828fdc3F497F16416D1bB645261C7C6a62DAb5",
+        "deploymentTransactionHash": "0xd3d46d60a0f2797eb4cc1f4efc528e16d3d78bdc7df7e4165de6964b1245de8b"
+    },
+    "sepolia": {
+        "address": "0xdE828fdc3F497F16416D1bB645261C7C6a62DAb5",
+        "deploymentTransactionHash": "0x05f6e55d9934dc940d364922c0c88570f832ac09c526880a8bcbcb8daf3a1208"
+    },
+    "base": {
+        "address": "0xdE828fdc3F497F16416D1bB645261C7C6a62DAb5",
+        "deploymentTransactionHash": "0xde3a89f936f4e0190e63d578d501ed12c4acdc5990aa9e81e543db45fd4c372d"
+    },
+    "monad-testnet": {
+        "address": "0xdE828fdc3F497F16416D1bB645261C7C6a62DAb5",
+        "deploymentTransactionHash": "0xe85747893bf2bfa16e04030ac86329c53038e77a06beb369b152aa52ef177b42"
+    }
+}

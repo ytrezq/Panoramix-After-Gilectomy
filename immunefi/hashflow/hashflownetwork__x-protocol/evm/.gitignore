@@ -1,0 +1,16 @@
+node_modules
+.env
+yarn-error.log
+
+# Typescript
+dist
+
+# Hardhat files
+cache
+artifacts
+
+# Integration tests
+wormhole_test_metadata.json
+
+# IDE
+.idea
