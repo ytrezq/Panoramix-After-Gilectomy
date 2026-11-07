@@ -1,0 +1,150 @@
+Ran 1 test for test/E2E/VaultMigrationE2ETest.t.sol:VaultMigrationE2ETest
+[PASS] testDeployProxyWithStandardImplAndMigrateToCAnotherImpl() (gas: 1432003)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 1.19ms (271.71µs CPU time)
+
+Ran 9 tests for test/E2E/ManagementFeeAccrualE2ETest.t.sol:ManagementFeeAccrualTest
+[PASS] testAccrueManagementFee() (gas: 393293)
+[PASS] testAccrueManagementFeeDuringDeposit() (gas: 343096)
+[PASS] testAccrueManagementFeeWhenNoTimeElapsed() (gas: 253377)
+[PASS] testAccrueManagementFeeWithZeroFee() (gas: 334847)
+Logs:
+  Time before accrual: 1735603200
+  Last accrual before: 1704067200
+  Recipient balance before: 0
+  Last accrual after: 1735603200
+  Recipient balance after: 0
+  Test passed - Last accrual timestamp updated correctly with 0 fee
+
+[PASS] testManagementFeeAccrual_5Percent_LargeDeposit() (gas: 441907)
+Logs:
+  Large deposit amount: 1000000
+  Management fee rate: 500
+  initial lastAccrual 1704067200
+  Initial total supply: 0
+  Initial recipient balance: 0
+  Initial total assets: 0
+  lastAccrual after first deposit 1704067200
+  Shares received: 500000000000000000000000
+  Total supply after deposit: 500000000000000000000000
+  Total assets after deposit: 500000000000000000000000
+  Shares received: 500000000000000000000000
+  Total supply after deposit2: 1000000000000000000000000
+  Total assets after deposit2: 1000000000000000000000000
+  Advanced time by 1 year to: 1735603200
+  Total supply before accrual: 1000000000000000000000000
+  Total assets before accrual: 1000000000000000000000000
+  Recipient balance before accrual: 0
+  Time elapsed: 31536000
+  Annual fee amount: 50000000000000000000000
+  Expected fee amount: 50000000000000000000000
+  Expected fee shares: 52631578947368421052631
+  Total supply after accrual: 1052631578947368421052631
+  Total assets after accrual: 1000000000000000000000000
+  Recipient balance after accrual: 52631578947368421052631
+  previewRedeem fee shares 49999999999999999999999
+  Fee shares minted: 52631578947368421052631
+  Fee amount in assets: 49999999999999999999999
+  Fee as percentage of total assets: 499
+  Test passed - 5% management fee correctly charged
+
+[PASS] testManagementFeeAccrual_MultipleAccruals() (gas: 425210)
+Logs:
+  Accrual 1 fee shares: 12623110001387154945207
+  Accrual 2 fee shares: 12782452907494275364129
+  Accrual 3 fee shares: 12943807216633126669183
+  Accrual 4 fee shares: 13107198318965435522963
+  Total fee shares over 1 year: 51456568444479992501482
+  Total fee amount: 48938367963790081223689
+  Fee as percentage of deposit: 489 basis points
+  Expected compounded fee percentage: 490 basis points
+
+[PASS] testManagementFeeAccrual_NoTimeElapsed() (gas: 228517)
+[PASS] testManagementFeeAccrual_OneDay() (gas: 289632)
+Logs:
+  Total assets: 1000000000000000000000000
+  Expected annual fee: 50000000000000000000000
+  Expected daily fee: 136986301369863013698
+  Actual fee charged: 136986301369863013697
+  Fee shares minted: 137005069187559939717
+  Daily management fee calculated correctly
+
+[PASS] testManagementFeeUpdateWithoutSync() (gas: 396922)
+Logs:
+  Time elapsed since last accrual: 5184000
+  Total assets before accrual: 1000000000000000000000
+  Total supply before accrual: 1000000000000000000000
+  Fee shares minted: 12448038180063380118
+  Fee amount in assets: 12294989679114280349
+  Expected fee for first 30 days at 5%: 4109589041095890410
+  Expected fee for second 30 days at 10%: 8219178082191780821
+  Expected total fee: 12328767123287671231
+  Test passed - Total fee correctly reflects both periods (5% + 10%)
+
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 3.37ms (3.21ms CPU time)
+
+Ran 8 tests for test/E2E/DeallocationOrderE2ETest.t.sol:DeallocationOrderE2ETest
+[PASS] testCanRemoveStrategyAfterRemovingFromDeallocationOrder() (gas: 114322)
+[PASS] testCannotAddHaltedStrategyToDeallocationOrder() (gas: 85192)
+[PASS] testCannotAddNonExistentStrategyToDeallocationOrder() (gas: 59214)
+[PASS] testCannotAddZeroAddressToDeallocationOrder() (gas: 56075)
+[PASS] testCannotRemoveStrategyInDeallocationOrder() (gas: 45213)
+[PASS] testHaltedStrategyCanBeRemovedEvenInDeallocationOrder() (gas: 349119)
+[PASS] testMaxWithdrawFollowDeallocationOrder() (gas: 1075655)
+[PASS] testWithdrawalsFollowDeallocationOrder() (gas: 1116404)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 3.58ms (2.43ms CPU time)
+
+Ran 9 tests for test/E2E/PerformanceFeeE2ETest.t.sol:PerformanceFeeE2ETest
+[PASS] testNoPerformanceFeeOnNoYield() (gas: 257944)
+[PASS] testPerformanceFeeAccrualOnYield() (gas: 358225)
+[PASS] testPerformanceFeeOnDepositTriggersYieldAccrual() (gas: 425080)
+[PASS] testPerformanceFeeOnMultipleYieldAccruals() (gas: 456073)
+[PASS] testPerformanceFeeOnNetPositiveYieldAfterLoss() (gas: 373863)
+[PASS] testPerformanceFeeWithMultipleUsers() (gas: 645416)
+[PASS] testPerformanceFeeWithStrategyLoss() (gas: 295817)
+[PASS] testPerformanceFeeWithZeroFeeRate() (gas: 347268)
+[PASS] testUserWithdrawalAfterPerformanceFee() (gas: 475853)
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 3.59ms (4.33ms CPU time)
+
+Ran 11 tests for test/E2E/WithdrawFromAllocatedVaultE2ETest.t.sol:WithdrawFromAllocatedVaultE2ETest
+[PASS] testMaxWithdrawCalculations() (gas: 842028)
+[PASS] testPartialWithdrawFromMultipleUsersWithStrategies() (gas: 1054652)
+[PASS] testRedeemFromAllocatedStrategies() (gas: 692325)
+[PASS] testWithdrawFromIdleFundsOnly() (gas: 666932)
+[PASS] testWithdrawFromMultipleStrategies() (gas: 800094)
+[PASS] testWithdrawRequiringStrategyDeallocation() (gas: 696357)
+[PASS] testWithdrawTriggersYieldAccrual() (gas: 662343)
+[PASS] testWithdrawWithInsufficientLiquidity() (gas: 842210)
+[PASS] testWithdrawWithLossInStrategies() (gas: 949308)
+[PASS] testWithdrawWithProfitInStrategyAndWithdraw() (gas: 647196)
+[PASS] testWithdrawWithYieldInStrategies() (gas: 977726)
+Suite result: ok. 11 passed; 0 failed; 0 skipped; finished in 3.67ms (8.27ms CPU time)
+
+Ran 13 tests for test/E2E/HaltedStrategyE2ETest.t.sol:HaltedStrategyE2ETest
+[PASS] testAccrueYieldIgnoresHaltedStrategies() (gas: 881355)
+[PASS] testAllocationIgnoresHaltedStrategies() (gas: 592999)
+[PASS] testCannotRemoveActiveStrategyWithAllocatedFunds() (gas: 457475)
+[PASS] testHaltedStrategySkipsAllocationAndWithdrawal() (gas: 1114884)
+[PASS] testMigrateHaltedStrategyWithAllocatedFunds() (gas: 2949535)
+[PASS] testMultipleStrategyStatusToggles() (gas: 100945)
+[PASS] testRemoveActiveStrategyWithZeroAllocation() (gas: 102082)
+[PASS] testRemoveHaltedStrategyWithAllocatedFunds() (gas: 499727)
+[PASS] testToggleStrategyFromActiveToHalted() (gas: 55631)
+[PASS] testToggleStrategyFromHaltedToActive() (gas: 63541)
+[PASS] testToggleStrategyRevertsForNonExistentStrategy() (gas: 36885)
+[PASS] testToggleStrategyRevertsForUnauthorizedUser() (gas: 31155)
+[PASS] testWithdrawalIgnoresHaltedStrategies() (gas: 1082132)
+Suite result: ok. 13 passed; 0 failed; 0 skipped; finished in 3.74ms (6.49ms CPU time)
+
+Ran 9 tests for test/E2E/LayerZeroClaimE2ETest.t.sol:LayerZeroClaimE2ETest
+[PASS] test_E2E_batchClaim_fullFlow() (gas: 1593140)
+[PASS] test_E2E_batchClaim_withDuplicates() (gas: 1477071)
+[PASS] test_E2E_emergencyWithdraw() (gas: 86677)
+[PASS] test_E2E_exchangeRate_remainsConstant() (gas: 1954602)
+[PASS] test_E2E_multipleUsersClaim() (gas: 2833602)
+[PASS] test_E2E_revertsWhenDepositsNotLocked() (gas: 279388)
+[PASS] test_E2E_revertsWhenSelfClaimsDisabled() (gas: 95502)
+[PASS] test_E2E_revertsWithNoShares() (gas: 97738)
+[PASS] test_E2E_singleClaim_fullFlow() (gas: 1190197)
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 7.86ms (9.88ms CPU time)
+
+Ran 7 test suites in 100.61ms (26.99ms CPU time): 60 tests passed, 0 failed, 0 skipped (60 total tests)

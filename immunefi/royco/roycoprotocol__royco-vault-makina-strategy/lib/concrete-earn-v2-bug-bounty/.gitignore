@@ -1,0 +1,12 @@
+# Node.js
+node_modules
+
+# Foundry
+out
+cache
+
+# Environment variables
+.env
+
+# OS 
+.DS_Store
