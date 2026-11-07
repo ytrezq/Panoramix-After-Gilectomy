@@ -1,0 +1,22 @@
+package utils
+
+import (
+	"time"
+
+	"github.com/cenkalti/backoff/v4"
+)
+
+// WithRetriesTimeout uses an exponential backoff to run the operation until it
+// succeeds or timeout limit has been reached. It is the caller's responsibility
+// to ensure {operation} returns. It is safe for {operation} to take longer than {timeout}.
+// {operation} should log any errors itself at an appropriate level.
+func WithRetriesTimeout(
+	operation backoff.Operation,
+	notify backoff.Notify,
+	timeout time.Duration,
+) error {
+	expBackOff := backoff.NewExponentialBackOff(
+		backoff.WithMaxElapsedTime(timeout),
+	)
+	return backoff.RetryNotify(operation, expBackOff, notify)
+}

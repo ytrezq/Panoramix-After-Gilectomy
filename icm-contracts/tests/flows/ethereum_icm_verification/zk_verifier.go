@@ -1,0 +1,277 @@
+package ethereum_icm_verification
+
+import (
+	"context"
+	"encoding/json"
+	"math/big"
+	"os"
+	"time"
+
+	risczerogroth16verifier "github.com/ava-labs/icm-services/abi-bindings/go/risc0/groth16/RiscZeroGroth16Verifier"
+	zkadapter "github.com/ava-labs/icm-services/abi-bindings/go/verifiers/ethereum/ZKAdapter"
+	zkstatemanager "github.com/ava-labs/icm-services/abi-bindings/go/verifiers/ethereum/ZKStateManager"
+	localnetwork "github.com/ava-labs/icm-services/icm-contracts/tests/network"
+	"github.com/ava-labs/icm-services/icm-contracts/tests/utils"
+	deploymentUtils "github.com/ava-labs/icm-services/icm-contracts/utils/deployment-utils"
+	"github.com/ava-labs/libevm/accounts/abi/bind"
+	"github.com/ava-labs/libevm/common"
+	. "github.com/onsi/gomega"
+)
+
+// Fixtures
+type EthereumFixture struct {
+	AnchorBeaconBlockRoot string                `json:"anchorBeaconBlockRoot"`
+	ExecutionProof        ExecutionProofFixture `json:"executionProof"`
+	ReceiptProof          ReceiptProofFixture   `json:"receiptProof"`
+}
+
+type ExecutionProofFixture struct {
+	AnchorSlot                 uint64   `json:"anchorSlot"`
+	TargetSlot                 uint64   `json:"targetSlot"`
+	AnchorBeaconStateRoot      string   `json:"anchorBeaconStateRoot"`
+	AnchorBeaconStateProof     []string `json:"anchorBeaconStateProof"`
+	TargetBeaconStateRoot      string   `json:"targetBeaconStateRoot"`
+	TargetBeaconStateProof     []string `json:"targetBeaconStateProof"`
+	TargetExecutionHeaderRoot  string   `json:"targetExecutionHeaderRoot"`
+	TargetExecutionHeaderProof []string `json:"targetExecutionHeaderProof"`
+	TargetReceiptsRoot         string   `json:"targetReceiptsRoot"`
+	TargetReceiptsProof        []string `json:"targetReceiptsProof"`
+}
+
+type ReceiptProofFixture struct {
+	Proof           []string `json:"proof"`
+	Key             string   `json:"key"`
+	Value           string   `json:"value"`
+	LogIndex        uint64   `json:"logIndex"`
+	ExpectedEmitter string   `json:"expectedEmitter"`
+	ExpectedTopic0  string   `json:"expectedTopic0"`
+}
+
+type BoundlessFixture struct {
+	PreState      string `json:"preState"`
+	PostState     string `json:"postState"`
+	JournalData   string `json:"journalData"`
+	Seal          string `json:"seal"`
+	FinalizedSlot uint64 `json:"finalizedSlot,string"`
+}
+
+// Helpers
+func loadEthereumFixture(path string) EthereumFixture {
+	data, err := os.ReadFile(path)
+	Expect(err).Should(BeNil())
+	var fixture EthereumFixture
+	err = json.Unmarshal(data, &fixture)
+	Expect(err).Should(BeNil())
+	return fixture
+}
+
+func loadBoundlessFixture(path string) BoundlessFixture {
+	data, err := os.ReadFile(path)
+	Expect(err).Should(BeNil())
+	var fixture BoundlessFixture
+	err = json.Unmarshal(data, &fixture)
+	Expect(err).Should(BeNil())
+	return fixture
+}
+
+func parseConsensusState(hexStr string) zkstatemanager.ConsensusState {
+	data := common.FromHex(hexStr)
+	Expect(len(data)).Should(BeNumerically(">=", 128))
+
+	justifiedEpoch := new(big.Int).SetBytes(data[0:32]).Uint64()
+	var justifiedRoot [32]byte
+	copy(justifiedRoot[:], data[32:64])
+
+	finalizedEpoch := new(big.Int).SetBytes(data[64:96]).Uint64()
+	var finalizedRoot [32]byte
+	copy(finalizedRoot[:], data[96:128])
+
+	return zkstatemanager.ConsensusState{
+		CurrentJustifiedCheckpoint: zkstatemanager.ConsensusCheckpoint{
+			Epoch: justifiedEpoch,
+			Root:  justifiedRoot,
+		},
+		FinalizedCheckpoint: zkstatemanager.ConsensusCheckpoint{
+			Epoch: finalizedEpoch,
+			Root:  finalizedRoot,
+		},
+	}
+}
+
+func hexStringsToBytes32Array(hexStrings []string) [][32]byte {
+	result := make([][32]byte, len(hexStrings))
+	for i, s := range hexStrings {
+		result[i] = common.HexToHash(s)
+	}
+	return result
+}
+
+func hexStringsToByteSlices(hexStrings []string) [][]byte {
+	result := make([][]byte, len(hexStrings))
+	for i, s := range hexStrings {
+		result[i] = common.FromHex(s)
+	}
+	return result
+}
+
+// Beacon chain timing, matching ZKStateManager's SLOT_PER_EPOCH and SECONDS_PER_SLOT.
+const (
+	slotsPerEpoch  = 32
+	secondsPerSlot = 12
+)
+
+// Fulu Ethereum Beacon Config
+var fuluBeaconConfig = zkstatemanager.ExecutionBeaconConfig{
+	GIndexBlockStateRoot: big.NewInt(11),
+	GIndexExecRoot:       big.NewInt(88),
+	GIndexBaseStateRoots: big.NewInt(70),
+	StateRootsDepth:      big.NewInt(13),
+	GIndexReceiptsRoot:   big.NewInt(35),
+	StateRootsVectorSize: big.NewInt(8192),
+}
+
+// ZKAdapterVerifier tests the full ZKAdapter verification flow:
+// 1. Deploy ZKAdapter on Avalanche C-Chain
+// 2. Submit a trusted beacon block root into the contract state via transition
+// 3. Verify an Ethereum event using pre-generated SSZ and MPT Merkle proofs from test fixtures
+func ZKAdapterVerifier(
+	ctx context.Context,
+	localAvalancheNetwork *localnetwork.LocalAvalancheNetwork,
+	zkAdapterByteCodeFile string,
+	ethereumFixturePath string,
+	boundlessFixturePath string,
+) {
+	// Initialize
+	fundedAddress, fundedAvalancheKey := localAvalancheNetwork.GetFundedAccountInfo()
+	primaryNetworkInfo := localAvalancheNetwork.GetPrimaryNetworkInfo()
+	fixture := loadEthereumFixture(ethereumFixturePath)
+	boundlessFixture := loadBoundlessFixture(boundlessFixturePath)
+	startingState := parseConsensusState(boundlessFixture.PreState)
+
+	// Create a transaction signer
+	opts, err := bind.NewKeyedTransactorWithChainID(fundedAvalancheKey, primaryNetworkInfo.EVMChainID)
+	Expect(err).Should(BeNil())
+
+	// Deploy RISC Zero Groth16 Verifier
+	controlRoot := common.HexToHash("0xa54dc85ac99f851c92d7c96d7318af41dbe7c0194edfcc37eb4d422a998c1f56")
+	bn254ControlId := common.HexToHash("0x04446e66d300eb7fb45c9726bb53c793dda407a62e9601618bb43c5c14657ac0")
+
+	riscZeroVerifierAddress, tx, _, err := risczerogroth16verifier.DeployRiscZeroGroth16Verifier(
+		opts,
+		primaryNetworkInfo.EthClient,
+		controlRoot,
+		bn254ControlId,
+	)
+	Expect(err).Should(BeNil())
+	utils.WaitForTransactionSuccess(ctx, primaryNetworkInfo.EthClient, tx.Hash())
+
+	// Extract, encode, and construct transaction
+	byteCode, err := deploymentUtils.ExtractByteCodeFromFile(zkAdapterByteCodeFile)
+	Expect(err).Should(BeNil())
+
+	zkAdapterABI, err := zkadapter.ZKAdapterMetaData.GetAbi()
+	Expect(err).Should(BeNil())
+
+	var signalImageID = common.HexToHash("0x0ccb3d146a7f64e78cc1d146acc26912138ea39bb79b4ca74423389d61b2c30e")
+
+	// The fixture proof finalizes a fixed historical epoch, while ZKStateManager rejects a post-state
+	// whose finalized epoch began more than permissibleTimespan before the current block time. Anchor
+	// the beacon genesis so that the fixture's post-state finalized epoch reads as one hour old, which
+	// keeps it inside the timespan regardless of when the fixture was generated.
+	journalPostState := parseConsensusState(boundlessFixture.PostState)
+	postEpochStart := int64(journalPostState.FinalizedCheckpoint.Epoch) * slotsPerEpoch * secondsPerSlot
+	block, err := primaryNetworkInfo.EthClient.BlockByNumber(ctx, nil)
+	Expect(err).Should(BeNil())
+	genesisTime := big.NewInt(int64(block.Time()) - postEpochStart - int64(time.Hour.Seconds()))
+	permissibleTimespan := big.NewInt(int64((24 * time.Hour).Seconds()))
+	byteCode, err = deploymentUtils.AddConstructorArgsToByteCode(
+		zkAdapterABI,
+		byteCode,
+		big.NewInt(1), // Ethereum Mainnet
+		startingState,
+		fuluBeaconConfig,
+		genesisTime,
+		permissibleTimespan,
+		riscZeroVerifierAddress,
+		signalImageID,
+		fundedAddress,
+		fundedAddress,
+	)
+	Expect(err).Should(BeNil())
+
+	gasLimit := uint64(8_000_000)
+	zkadapterContractTransaction,
+		zkadapterDeployerAddress,
+		zkadapterContractAddress,
+		err := deploymentUtils.ConstructKeylessTransaction(
+		byteCode,
+		nil,
+		deploymentUtils.GetDefaultContractCreationGasPrice(),
+		&gasLimit,
+	)
+	Expect(err).Should(BeNil())
+
+	// Deploy
+	utils.DeployWithNicksMethod(
+		ctx,
+		&primaryNetworkInfo,
+		zkadapterContractTransaction,
+		zkadapterDeployerAddress,
+		zkadapterContractAddress,
+		fundedAvalancheKey,
+	)
+
+	avalancheZkadapter, err := zkadapter.NewZKAdapter(zkadapterContractAddress, primaryNetworkInfo.EthClient)
+	Expect(err).Should(BeNil())
+
+	// Submit the Boundless ZK proof to transition consensus state
+	tx, err = avalancheZkadapter.Transition(opts, zkadapter.ConsensusData{
+		JournalData: common.FromHex(boundlessFixture.JournalData),
+		Seal:        common.FromHex(boundlessFixture.Seal),
+	})
+	Expect(err).Should(BeNil())
+	utils.WaitForTransactionSuccess(ctx, primaryNetworkInfo.EthClient, tx.Hash())
+
+	// Verify the beacon block root was stored after transition
+	result, err := avalancheZkadapter.GetBeaconBlockRoot(
+		&bind.CallOpts{},
+		boundlessFixture.FinalizedSlot,
+	)
+	Expect(err).Should(BeNil())
+	Expect(result.Valid).Should(BeTrue())
+	Expect(result.Root).Should(Equal(journalPostState.FinalizedCheckpoint.Root))
+
+	// Construct execution and receipt proofs from the fixtures
+	execProof := zkadapter.ExecutionProof{
+		AnchorSlot:                 fixture.ExecutionProof.AnchorSlot,
+		TargetSlot:                 fixture.ExecutionProof.TargetSlot,
+		AnchorBeaconStateRoot:      common.HexToHash(fixture.ExecutionProof.AnchorBeaconStateRoot),
+		AnchorBeaconStateProof:     hexStringsToBytes32Array(fixture.ExecutionProof.AnchorBeaconStateProof),
+		TargetBeaconStateRoot:      common.HexToHash(fixture.ExecutionProof.TargetBeaconStateRoot),
+		TargetBeaconStateProof:     hexStringsToBytes32Array(fixture.ExecutionProof.TargetBeaconStateProof),
+		TargetExecutionHeaderRoot:  common.HexToHash(fixture.ExecutionProof.TargetExecutionHeaderRoot),
+		TargetExecutionHeaderProof: hexStringsToBytes32Array(fixture.ExecutionProof.TargetExecutionHeaderProof),
+		TargetReceiptsRoot:         common.HexToHash(fixture.ExecutionProof.TargetReceiptsRoot),
+		TargetReceiptsProof:        hexStringsToBytes32Array(fixture.ExecutionProof.TargetReceiptsProof),
+	}
+
+	receiptProof := zkadapter.ReceiptProof{
+		Proof:           hexStringsToByteSlices(fixture.ReceiptProof.Proof),
+		Key:             common.FromHex(fixture.ReceiptProof.Key),
+		Value:           common.FromHex(fixture.ReceiptProof.Value),
+		LogIndex:        big.NewInt(int64(fixture.ReceiptProof.LogIndex)),
+		ExpectedEmitter: common.HexToAddress(fixture.ReceiptProof.ExpectedEmitter),
+		ExpectedTopic0:  common.HexToHash(fixture.ReceiptProof.ExpectedTopic0),
+	}
+
+	// Submit the proofs to the contract
+	tx, err = avalancheZkadapter.VerifyLogAndExtract(opts, execProof, receiptProof)
+	Expect(err).Should(BeNil())
+	receipt := utils.WaitForTransactionSuccess(ctx, primaryNetworkInfo.EthClient, tx.Hash())
+
+	// Verify the ZKEventImported event was emitted
+	eventImported, err := utils.GetEventFromLogs(receipt.Logs, avalancheZkadapter.ParseZKEventImported)
+	Expect(err).Should(BeNil())
+	Expect(eventImported.BeaconSlot.Uint64()).Should(Equal(fixture.ExecutionProof.TargetSlot))
+	Expect(eventImported.Emitter).Should(Equal(common.HexToAddress(fixture.ReceiptProof.ExpectedEmitter)))
+}

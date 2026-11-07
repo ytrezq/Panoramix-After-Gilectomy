@@ -1,0 +1,182 @@
+# Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+# See the file LICENSE for licensing terms.
+
+name: E2E Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - "**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Detect which components changed and turn that into the list of suites to run.
+  changes:
+    runs-on: ubuntu-22.04
+    outputs:
+      matrix: ${{ steps.suites.outputs.matrix }}
+      count: ${{ steps.suites.outputs.count }}
+    steps:
+      - name: Checkout repository and submodules
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Detect changed components
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            shared: &shared
+              - '.github/workflows/e2e.yml'
+              - 'go.mod'
+              - 'go.sum'
+              - '**/*.go'
+              - 'scripts/**'
+              - 'tests/**'
+              - 'ethereum/**'
+            contracts:
+              - *shared
+              - 'icm-contracts/avalanche/**'
+              - 'icm-contracts/common/**'
+              - 'icm-contracts/ethereum/**'
+              - 'lib/**'
+              - 'foundry.toml'
+              - 'remappings.txt'
+            services:
+              - *shared
+
+      # Every push to main runs every suite. On pull requests the contract suites run when
+      # contracts changed and the services suite runs when services changed. Each entry
+      # becomes one job in the e2e matrix below; "name" is the job name shown in checks and
+      # "geth" marks suites that need a local Ethereum node.
+      - name: Select suites to run
+        id: suites
+        env:
+          RUN_CONTRACTS: ${{ steps.filter.outputs.contracts == 'true' || github.ref == 'refs/heads/main' }}
+          RUN_SERVICES: ${{ steps.filter.outputs.services == 'true' || github.ref == 'refs/heads/main' }}
+        run: |
+          suites='[]'
+          if [[ "$RUN_CONTRACTS" == "true" ]]; then
+            suites=$(jq -c '. + [
+              {"name": "teleporter-e2e-tests",        "component": "teleporter"},
+              {"name": "Teleporter V2 E2E Tests",     "component": "teleporterV2"},
+              {"name": "governance-e2e-tests",        "component": "governance"},
+              {"name": "validator-manager-e2e-tests", "component": "validator-manager"},
+              {"name": "ictt-e2e-tests",              "component": "ictt"},
+              {"name": "ethereum-e2e-tests",          "component": "ethereum-icm-verification", "geth": true}
+            ]' <<< "$suites")
+          fi
+          if [[ "$RUN_SERVICES" == "true" ]]; then
+            suites=$(jq -c '. + [
+              {"name": "ICM Services E2E Tests", "component": "services", "geth": true}
+            ]' <<< "$suites")
+          fi
+          echo "Selected suites: $suites"
+          echo "matrix=$(jq -c '{include: .}' <<< "$suites")" >> "$GITHUB_OUTPUT"
+          echo "count=$(jq 'length' <<< "$suites")" >> "$GITHUB_OUTPUT"
+
+  e2e:
+    name: ${{ matrix.name }}
+    needs: changes
+    if: needs.changes.outputs.count != '0'
+    runs-on: ubuntu-22.04
+    strategy:
+      # Keep every suite running when one fails, as the separate jobs used to.
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
+    steps:
+      - name: Checkout repository and submodules
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Resolve avalanchego version
+        id: avalanchego
+        run: |
+          source ./scripts/versions.sh
+          echo "version=${AVALANCHEGO_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "go-version=${GO_VERSION}" >> "$GITHUB_OUTPUT"
+
+      # The pinned avalanchego version is a commit hash, so e2e_test.sh clones and compiles
+      # avalanchego and subnet-evm from source on a cache miss, which takes several minutes.
+      # It reuses this directory when the version stamp inside it matches.
+      - name: Cache avalanchego build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.teleporter-deps/avalanchego
+          key: avalanchego-${{ runner.os }}-${{ runner.arch }}-${{ steps.avalanchego.outputs.version }}-go${{ steps.avalanchego.outputs.go-version }}
+
+      # Foundry is pinned in scripts/install_foundry.sh, so the key changes with the pin.
+      - name: Cache Foundry
+        id: foundry-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.foundry
+          key: foundry-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/install_foundry.sh') }}
+
+      - name: Install Foundry
+        if: steps.foundry-cache.outputs.cache-hit != 'true'
+        run: ./scripts/install_foundry.sh
+
+      - name: Install geth
+        if: matrix.geth
+        run: ./scripts/install_geth.sh
+
+      - name: Cache reforge binary
+        id: cache-reforge
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/bin/reforge
+          key: ${{ runner.os }}-reforge-${{ hashFiles('icm-macros/Cargo.lock', 'icm-macros/Cargo.toml', 'icm-macros/src/**') }}
+
+      - name: Cache Cargo (icm-macros)
+        if: steps.cache-reforge.outputs.cache-hit != 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            icm-macros/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('icm-macros/Cargo.lock', 'icm-macros/Cargo.toml', 'icm-macros/src/**') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Build reforge
+        if: steps.cache-reforge.outputs.cache-hit != 'true'
+        run: ./scripts/build_reforge.sh
+
+      - name: Run E2E Tests
+        # Forge installs to BASE_DIR, but updates the PATH definition in $HOME/.bashrc
+        run: |
+          export PATH=$PATH:$HOME/.foundry/bin:$HOME/.local/bin
+          export PATH="$PATH:$GOPATH/bin"
+          export PATH="$PATH:$HOME/.geth"
+          ./scripts/e2e_test.sh --components ${{ matrix.component }}
+
+  # Branch protection requires this job instead of the individual suites. It always runs, so a
+  # pull request that needs no suite still gets a passing check, and it fails when any suite did.
+  e2e-results:
+    name: e2e-results
+    needs: [changes, e2e]
+    if: always()
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check suite results
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+        run: |
+          echo "changes: $CHANGES_RESULT, e2e: $E2E_RESULT"
+          [[ "$CHANGES_RESULT" == "success" ]]
+          [[ "$E2E_RESULT" == "success" || "$E2E_RESULT" == "skipped" ]]

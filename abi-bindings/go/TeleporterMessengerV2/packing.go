@@ -1,0 +1,199 @@
+// (c) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package teleportermessengerv2
+
+import (
+	"fmt"
+	"math/big"
+
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/libevm/accounts/abi"
+	"github.com/ava-labs/libevm/common"
+	"github.com/pkg/errors"
+)
+
+var teleporterMessageV2Type abi.Type
+
+func init() {
+	// Create an ABI binding for TeleporterMessageV2, defined in ITeleporterMessenger.sol
+	// abigen does not support ABI bindings for standalone structs, only methods and events,
+	// so we must manually keep this up-to-date with the struct defined in the contract.
+	var err error
+	teleporterMessageV2Type, err = abi.NewType("tuple", "struct Overloader.F", []abi.ArgumentMarshaling{
+		{Name: "messageNonce", Type: "uint256"},
+		{Name: "originSenderAddress", Type: "address"},
+		{Name: "originTeleporterAddress", Type: "address"},
+		{Name: "destinationBlockchainID", Type: "bytes32"},
+		{Name: "destinationAddress", Type: "address"},
+		{Name: "requiredGasLimit", Type: "uint256"},
+		{Name: "allowedRelayerAddresses", Type: "address[]"},
+		{Name: "receipts", Type: "tuple[]", Components: []abi.ArgumentMarshaling{
+			{Name: "receivedMessageNonce", Type: "uint256"},
+			{Name: "relayerRewardAddress", Type: "address"},
+		}},
+		{Name: "message", Type: "bytes"},
+	})
+	if err != nil {
+		panic(fmt.Sprintf("failed to create TeleporterMessageV2 ABI type: %v", err))
+	}
+}
+
+func (m *TeleporterMessageV2) Pack() ([]byte, error) {
+	args := abi.Arguments{
+		{
+			Name: "teleporterMessageV2",
+			Type: teleporterMessageV2Type,
+		},
+	}
+	return args.Pack(m)
+}
+
+func (m *TeleporterMessageV2) Unpack(b []byte) error {
+	args := abi.Arguments{
+		{
+			Name: "teleporterMessageV2",
+			Type: teleporterMessageV2Type,
+		},
+	}
+	unpacked, err := args.Unpack(b)
+	if err != nil {
+		return fmt.Errorf("failed to unpack to teleporter message with err: %v", err)
+	}
+	return args.Copy(&m, unpacked)
+}
+
+func PackSendCrossChainMessage(input TeleporterMessageInput) ([]byte, error) {
+	abi, err := TeleporterMessengerV2MetaData.GetAbi()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get abi")
+	}
+
+	return abi.Pack("sendCrossChainMessage", input)
+}
+
+func PackRetryMessageExecution(sourceBlockchainID ids.ID, message TeleporterMessage) ([]byte, error) {
+	abi, err := TeleporterMessengerV2MetaData.GetAbi()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get abi")
+	}
+
+	return abi.Pack("retryMessageExecution", sourceBlockchainID, message)
+}
+
+// PackReceiveCrossChainMessage packs a ReceiveCrossChainMessageInput to form
+// a call to the receiveCrossChainMessage function
+func PackReceiveCrossChainMessageV2(
+	teleporterMessage TeleporterMessageV2,
+	sourceBlockChainID ids.ID,
+	attestation []byte,
+	relayerRewardAddress common.Address,
+) ([]byte, error) {
+	tabi, err := TeleporterMessengerV2MetaData.GetAbi()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get abi")
+	}
+
+	return tabi.Pack("receiveCrossChainMessage", TeleporterICMMessage{
+		Message:            teleporterMessage,
+		SourceBlockchainID: sourceBlockChainID,
+		Attestation:        attestation,
+	}, relayerRewardAddress)
+}
+
+// PackReceiveCrossChainMessageMerkle packs a call to receiveCrossChainMessage for the merkle
+// verification path. Unlike PackReceiveCrossChainMessageV2 it sets SourceNetworkID, which the
+// MerkleValidatorSetRegistry verifier requires to match its configured Avalanche network ID.
+func PackReceiveCrossChainMessageMerkle(
+	teleporterMessage TeleporterMessageV2,
+	sourceNetworkID uint32,
+	sourceBlockchainID ids.ID,
+	attestation []byte,
+	relayerRewardAddress common.Address,
+) ([]byte, error) {
+	tabi, err := TeleporterMessengerV2MetaData.GetAbi()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get abi")
+	}
+
+	return tabi.Pack("receiveCrossChainMessage", TeleporterICMMessage{
+		Message:            teleporterMessage,
+		SourceNetworkID:    sourceNetworkID,
+		SourceBlockchainID: sourceBlockchainID,
+		Attestation:        attestation,
+	}, relayerRewardAddress)
+}
+
+// PackCalculateMessageID packs input to form a call to the calculateMessageID function
+func PackCalculateMessageID(
+	sourceBlockchainID [32]byte,
+	destinationBlockchainID [32]byte,
+	nonce *big.Int,
+) ([]byte, error) {
+	abi, err := TeleporterMessengerV2MetaData.GetAbi()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get abi")
+	}
+
+	return abi.Pack("calculateMessageID", sourceBlockchainID, destinationBlockchainID, nonce)
+}
+
+func PackCalculateMessageIDOutput(messageID [32]byte) ([]byte, error) {
+	abi, err := TeleporterMessengerV2MetaData.GetAbi()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get abi")
+	}
+
+	return abi.PackOutput("calculateMessageID", messageID)
+}
+
+// PackMessageReceived packs a MessageReceivedInput to form a call to the messageReceived function
+func PackMessageReceived(messageID [32]byte) ([]byte, error) {
+	abi, err := TeleporterMessengerV2MetaData.GetAbi()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get abi")
+	}
+	return abi.Pack("messageReceived", messageID)
+}
+
+// UnpackMessageReceivedResult attempts to unpack result bytes to a bool indicating whether the message was received
+func UnpackMessageReceivedResult(result []byte) (bool, error) {
+	abi, err := TeleporterMessengerV2MetaData.GetAbi()
+	if err != nil {
+		return false, errors.Wrap(err, "failed to get abi")
+	}
+
+	var success bool
+	err = abi.UnpackIntoInterface(&success, "messageReceived", result)
+	return success, err
+}
+
+func PackMessageReceivedOutput(success bool) ([]byte, error) {
+	abi, err := TeleporterMessengerV2MetaData.GetAbi()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get abi")
+	}
+
+	return abi.PackOutput("messageReceived", success)
+}
+
+// UnpackEvent unpacks the event data and topics into the provided interface
+func UnpackEvent(out interface{}, event string, topics []common.Hash, data []byte) error {
+	teleporterABI, err := TeleporterMessengerV2MetaData.GetAbi()
+	if err != nil {
+		return fmt.Errorf("failed to get abi: %v", err)
+	}
+	if len(data) > 0 {
+		if err := teleporterABI.UnpackIntoInterface(out, event, data); err != nil {
+			return err
+		}
+	}
+
+	var indexed abi.Arguments
+	for _, arg := range teleporterABI.Events[event].Inputs {
+		if arg.Indexed {
+			indexed = append(indexed, arg)
+		}
+	}
+	return abi.ParseTopics(out, indexed, topics[1:])
+}

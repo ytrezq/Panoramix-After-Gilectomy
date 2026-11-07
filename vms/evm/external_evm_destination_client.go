@@ -1,0 +1,298 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package evm
+
+import (
+	"context"
+	"fmt"
+	"math/big"
+	"time"
+
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/set"
+	merkleregistry "github.com/ava-labs/icm-services/abi-bindings/go/MerkleValidatorSetRegistry"
+	"github.com/ava-labs/icm-services/vms/evm/signer"
+	ethereum "github.com/ava-labs/libevm"
+	"github.com/ava-labs/libevm/accounts/abi/bind"
+	"github.com/ava-labs/libevm/common"
+	"github.com/ava-labs/libevm/core/types"
+	"github.com/ava-labs/libevm/ethclient"
+	"go.uber.org/zap"
+)
+
+const (
+	// externalEVMPoolTxsPerAccount limits pending txs per account in mempool
+	externalEVMPoolTxsPerAccount = 16
+	// gasLimitForSimulation is the gas limit used when simulating calls
+	gasLimitForSimulation = 2_000_000
+)
+
+// ExternalEVMDestinationClient handles communication with external EVM chains
+// that have MerkleValidatorSetRegistry contracts deployed.
+//
+// Implements vms.DestinationClient interface.
+type ExternalEVMDestinationClient struct {
+	ethClient       EthClient
+	chainID         string
+	evmChainID      *big.Int
+	registryAddress common.Address
+	rpcEndpointURL  string
+	blockGasLimit   uint64
+
+	// Gas fee configuration
+	gasFeeConfig       *GasFeeConfig
+	txInclusionTimeout time.Duration
+
+	// Concurrent senders for transaction processing
+	concurrentSenders []*readonlyConcurrentSigner
+
+	// Message-delivery routing/verification context
+	// destinationBlockchainID is the ID by which TeleporterV2 messages address this chain.
+	destinationBlockchainID ids.ID
+	// sourceBlockchainID is the Avalanche chain whose registered commitment height is used
+	// to pin the signing height for delivered messages (Merkle path).
+	sourceBlockchainID ids.ID
+}
+
+// NewExternalEVMDestinationClient creates a new external EVM destination client.
+func NewExternalEVMDestinationClient(
+	logger logging.Logger,
+	chainID string,
+	rpcEndpointURL string,
+	registryAddress common.Address,
+	privateKeyHexes []string,
+	blockGasLimit uint64,
+	maxBaseFee *big.Int,
+	suggestedPriorityFeeBuffer *big.Int,
+	maxPriorityFeePerGas *big.Int,
+	txInclusionTimeoutSeconds uint64,
+	destinationBlockchainID ids.ID,
+	sourceBlockchainID ids.ID,
+) (*ExternalEVMDestinationClient, error) {
+	logger = logger.With(
+		zap.String("chainID", chainID),
+		zap.String("registryAddress", registryAddress.Hex()),
+	)
+
+	// Parse chain ID
+	evmChainID, ok := new(big.Int).SetString(chainID, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid chain ID: %s", chainID)
+	}
+
+	// Create ethclient connection using libevm/ethclient for external EVM compatibility
+	rawClient, err := ethclient.Dial(rpcEndpointURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial rpc endpoint: %w", err)
+	}
+
+	// Wrap the client to add Avalanche-specific method stubs
+	wrappedClient := NewExternalEthClientWrapper(rawClient)
+
+	// Verify chain ID matches
+	networkChainID, err := rawClient.ChainID(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chain ID from endpoint: %w", err)
+	}
+	if networkChainID.Cmp(evmChainID) != 0 {
+		return nil, fmt.Errorf("chain ID mismatch: expected %s, got %s", chainID, networkChainID.String())
+	}
+	gasFeeData := &GasFeeConfig{
+		maxBaseFee:                 maxBaseFee,
+		suggestedPriorityFeeBuffer: suggestedPriorityFeeBuffer,
+		maxPriorityFeePerGas:       maxPriorityFeePerGas,
+	}
+	destClient := &ExternalEVMDestinationClient{
+		ethClient:          wrappedClient,
+		chainID:            chainID,
+		evmChainID:         evmChainID,
+		registryAddress:    registryAddress,
+		rpcEndpointURL:     rpcEndpointURL,
+		blockGasLimit:      blockGasLimit,
+		gasFeeConfig:       gasFeeData,
+		txInclusionTimeout: time.Duration(txInclusionTimeoutSeconds) * time.Second,
+
+		destinationBlockchainID: destinationBlockchainID,
+		sourceBlockchainID:      sourceBlockchainID,
+	}
+
+	// Initialize concurrent senders from private keys
+	concurrentSenders := make([]*readonlyConcurrentSigner, len(privateKeyHexes))
+	for i, pkHex := range privateKeyHexes {
+		txSigner, err := signer.NewTxSigner(pkHex)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse private key %d: %w", i, err)
+		}
+
+		address := txSigner.Address()
+		senderLogger := logger.With(zap.Stringer("senderAddress", address))
+
+		// Get current nonce for this sender
+		nonce, err := wrappedClient.NonceAt(context.Background(), address, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get nonce for sender %s: %w", address.Hex(), err)
+		}
+
+		cs := &concurrentSigner{
+			logger:             senderLogger,
+			signer:             txSigner,
+			currentNonce:       nonce,
+			messageChan:        make(chan txData),
+			queuedTxSemaphore:  make(chan struct{}, externalEVMPoolTxsPerAccount),
+			txInclusionTimeout: destClient.txInclusionTimeout,
+			destinationClient:  destClient.ethClient,
+		}
+
+		// Start the transaction processing goroutine
+		go cs.processIncomingTransactions()
+
+		concurrentSenders[i] = (*readonlyConcurrentSigner)(cs)
+		senderLogger.Info("Initialized concurrent sender", zap.Uint64("nonce", nonce))
+	}
+
+	destClient.concurrentSenders = concurrentSenders
+
+	logger.Info("Created external EVM destination client",
+		zap.String("chainID", chainID),
+		zap.String("registryAddress", registryAddress.Hex()),
+		zap.String("rpcEndpointURL", rpcEndpointURL),
+		zap.Int("numSenders", len(privateKeyHexes)),
+	)
+
+	return destClient, nil
+}
+
+// getFeePerGas calculates the gas fee cap and gas tip cap for transactions.
+// nolint:unused
+func (c *ExternalEVMDestinationClient) getFeePerGas() (*big.Int, *big.Int, error) {
+	return getFeePerGas(c.ethClient, c.gasFeeConfig)
+}
+
+// SendTx sends a transaction to an external EVM chain.
+// Uses channel-based concurrency for nonce management.
+func (c *ExternalEVMDestinationClient) SendTx(
+	logger logging.Logger,
+	accessList types.AccessList,
+	deliverers set.Set[common.Address],
+	toAddress common.Address,
+	gasLimit uint64,
+	callData []byte,
+) (*types.Receipt, error) {
+	return SendTx(
+		logger,
+		c.ethClient,
+		c.gasFeeConfig,
+		c.concurrentSenders,
+		accessList,
+		c.evmChainID,
+		deliverers,
+		toAddress,
+		gasLimit,
+		callData,
+		c.txInclusionTimeout,
+	)
+}
+
+// SenderAddresses returns the addresses of all senders.
+func (c *ExternalEVMDestinationClient) SenderAddresses() []common.Address {
+	return SenderAddresses(c.concurrentSenders)
+}
+
+// Client returns the underlying ethclient.
+func (c *ExternalEVMDestinationClient) Client() Client {
+	return c.ethClient
+}
+
+// DestinationBlockchainID returns empty for external chains.
+// External chains don't have Avalanche blockchain IDs.
+// This method is required by the interface but not used for external EVMs.
+func (c *ExternalEVMDestinationClient) DestinationBlockchainID() ids.ID {
+	return c.destinationBlockchainID
+}
+
+// BlockGasLimit returns the configured gas limit for transactions.
+func (c *ExternalEVMDestinationClient) BlockGasLimit() uint64 {
+	return c.blockGasLimit
+}
+
+// GetRPCEndpointURL returns the RPC endpoint URL for this external chain.
+func (c *ExternalEVMDestinationClient) GetRPCEndpointURL() string {
+	return c.rpcEndpointURL
+}
+
+// RegistryAddress returns the registry contract address for this external chain.
+func (c *ExternalEVMDestinationClient) RegistryAddress() common.Address {
+	return c.registryAddress
+}
+
+// GetPChainHeightForDestination queries the registry contract for its known P-chain height.
+func (c *ExternalEVMDestinationClient) GetPChainHeightForDestination(
+	ctx context.Context,
+) (uint64, error) {
+	// The committed P-chain height is read directly from the per-source commitment, so
+	// delivered-message signatures are gathered at the exact height the stored Merkle
+	// root was built from.
+	registry, err := merkleregistry.NewMerkleValidatorSetRegistry(c.registryAddress, c.ethClient)
+	if err != nil {
+		return 0, fmt.Errorf("failed to bind merkle registry: %w", err)
+	}
+	commitment, err := registry.GetValidatorSetCommitment(
+		&bind.CallOpts{Context: ctx}, c.sourceBlockchainID,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read merkle commitment: %w", err)
+	}
+	return commitment.PChainHeight, nil
+}
+
+// SimulateCall simulates a contract call and returns the revert reason if it fails.
+// This is useful for debugging why a transaction might fail before sending it.
+func (c *ExternalEVMDestinationClient) SimulateCall(
+	ctx context.Context,
+	toAddress string,
+	callData []byte,
+) ([]byte, error) {
+	to := common.HexToAddress(toAddress)
+
+	// Use the first sender's address as the "from" address for simulation
+	var fromAddress common.Address
+	if len(c.concurrentSenders) > 0 {
+		fromAddress = c.concurrentSenders[0].signer.Address()
+	}
+
+	callMsg := ethereum.CallMsg{
+		From: fromAddress,
+		To:   &to,
+		Gas:  gasLimitForSimulation, // Use same gas limit as actual transactions
+		Data: callData,
+	}
+
+	return c.ethClient.CallContract(ctx, callMsg, nil) // nil = latest block
+}
+
+// SimulateCallAtBlock simulates a contract call at a specific block number.
+func (c *ExternalEVMDestinationClient) SimulateCallAtBlock(
+	ctx context.Context,
+	toAddress string,
+	callData []byte,
+	blockNumber *big.Int,
+) ([]byte, error) {
+	to := common.HexToAddress(toAddress)
+
+	var fromAddress common.Address
+	if len(c.concurrentSenders) > 0 {
+		fromAddress = c.concurrentSenders[0].signer.Address()
+	}
+
+	callMsg := ethereum.CallMsg{
+		From: fromAddress,
+		To:   &to,
+		Gas:  gasLimitForSimulation,
+		Data: callData,
+	}
+
+	result, err := c.ethClient.CallContract(ctx, callMsg, blockNumber)
+	return result, err
+}

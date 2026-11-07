@@ -1,0 +1,307 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package api
+
+import (
+	"context"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"time"
+
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/units"
+	pchainapi "github.com/ava-labs/avalanchego/vms/platformvm/api"
+	avalancheWarp "github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"github.com/ava-labs/icm-services/signature-aggregator/aggregator"
+	"github.com/ava-labs/icm-services/signature-aggregator/metrics"
+	"github.com/ava-labs/icm-services/utils"
+	"go.uber.org/zap"
+)
+
+const (
+	APIPath                 = "/aggregate-signatures"
+	DefaultQuorumPercentage = 67
+
+	// MaxRequestBodySize bounds the size of an /aggregate-signatures request body. The message and
+	// justification are hex encoded, so a body of this size can still carry a request at the
+	// aggregator's p2p size limit, while anything larger could never be sent to a validator and is
+	// rejected before it is buffered in full.
+	MaxRequestBodySize = 2*aggregator.MaxRequestSize + 4*units.KiB
+
+	// maxLoggedFieldLen caps how much of a rejected request field is copied into a log line.
+	maxLoggedFieldLen = 128
+)
+
+// Defines a request interface for signature aggregation for a raw unsigned message.
+type AggregateSignatureRequest struct {
+	// Required: either Message or Justification must be provided.
+	// hex-encoded message, optionally prefixed with "0x".
+	Message string `json:"message"`
+	// hex-encoded justification, optionally prefixed with "0x".
+	Justification string `json:"justification"`
+	// Optional hex or cb58 encoded signing subnet ID. If omitted will default to the subnetID of the source blockchain
+	SigningSubnetID string `json:"signing-subnet-id"`
+	// Optional. Integer from 0 to 100 representing the percentage of the weight of the signing Subnet that is required
+	// to sign the message. Defaults to 67 if omitted.
+	QuorumPercentage uint64 `json:"quorum-percentage"`
+	// Optional P-Chain height for validator set selection. If 0 (default), validators at proposed height will be used.
+	// If non-zero, validators at the specified P-Chain height will be used for signature aggregation.
+	PChainHeight uint64 `json:"pchain-height"`
+}
+
+type AggregateSignatureResponse struct {
+	// hex encoding of the signature
+	SignedMessage string `json:"signed-message"`
+}
+
+type AggregateSignatureErrorResponse struct {
+	Error string `json:"error"`
+}
+
+// signatureAggregator is the part of [aggregator.SignatureAggregator] the API depends on. It is
+// an interface so that handler tests can drive the error paths with a stub.
+type signatureAggregator interface {
+	CreateSignedMessage(
+		ctx context.Context,
+		log logging.Logger,
+		unsignedMessage *avalancheWarp.UnsignedMessage,
+		justification []byte,
+		inputSigningSubnet ids.ID,
+		requiredQuorumPercentage uint64,
+		pchainHeight uint64,
+	) (*avalancheWarp.Message, error)
+}
+
+var _ signatureAggregator = (*aggregator.SignatureAggregator)(nil)
+
+func HandleAggregateSignaturesByRawMsgRequest(
+	mux *http.ServeMux,
+	logger logging.Logger,
+	metrics *metrics.SignatureAggregatorMetrics,
+	signatureAggregator *aggregator.SignatureAggregator,
+) {
+	mux.Handle(
+		APIPath,
+		signatureAggregationAPIHandler(
+			logger,
+			metrics,
+			signatureAggregator,
+		),
+	)
+}
+
+func writeJSONError(
+	logger logging.Logger,
+	w http.ResponseWriter,
+	httpStatusCode int,
+	errorMsg string,
+) {
+	resp, err := json.Marshal(
+		AggregateSignatureErrorResponse{
+			Error: errorMsg,
+		},
+	)
+	if err != nil {
+		msg := "Error marshalling JSON error response"
+		logger.Error(msg, zap.Error(err))
+		resp = []byte(msg)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(httpStatusCode)
+
+	_, err = w.Write(resp)
+	if err != nil {
+		logger.Error("Error writing error response", zap.Error(err))
+	}
+}
+
+// truncateForLog returns at most maxLoggedFieldLen characters of [s]. Rejected request fields are
+// attacker controlled and may be megabytes long, so they are not copied into logs in full.
+func truncateForLog(s string) string {
+	if len(s) <= maxLoggedFieldLen {
+		return s
+	}
+	return s[:maxLoggedFieldLen] + "..."
+}
+
+// classifyAggregationError maps a CreateSignedMessage error to the HTTP status and the fixed
+// message returned to the caller. Only sentinel errors defined by the aggregator package are
+// reported specifically, using their fixed text. Everything else is reported generically: the
+// error chain can wrap upstream RPC transport errors whose text embeds the full request URL,
+// including any API key configured on the P-Chain endpoint, and the endpoint is unauthenticated.
+// The full error is logged server-side by the caller.
+func classifyAggregationError(err error) (int, string) {
+	switch {
+	case errors.Is(err, aggregator.ErrRequestTooLarge):
+		return http.StatusRequestEntityTooLarge, aggregator.ErrRequestTooLarge.Error()
+	case errors.Is(err, aggregator.ErrNotEnoughConnectedStake):
+		return http.StatusInternalServerError, aggregator.ErrNotEnoughConnectedStake.Error()
+	case errors.Is(err, aggregator.ErrNotEnoughSignatures):
+		return http.StatusInternalServerError, aggregator.ErrNotEnoughSignatures.Error()
+	default:
+		return http.StatusInternalServerError, "failed to aggregate signatures"
+	}
+}
+
+func signatureAggregationAPIHandler(
+	logger logging.Logger,
+	metrics *metrics.SignatureAggregatorMetrics,
+	signatureAggregator signatureAggregator,
+) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		metrics.AggregateSignaturesRequestCount.Inc()
+		startTime := time.Now()
+
+		// Fail oversized bodies before they are buffered, and before any hex decoding, so a single
+		// request cannot allocate memory proportional to an attacker-chosen size.
+		r.Body = http.MaxBytesReader(w, r.Body, MaxRequestBodySize)
+
+		var req AggregateSignatureRequest
+		err := json.NewDecoder(r.Body).Decode(&req)
+		if err != nil {
+			var maxBytesErr *http.MaxBytesError
+			if errors.As(err, &maxBytesErr) {
+				msg := "Request body too large"
+				logger.Warn(msg, zap.Int64("limit", maxBytesErr.Limit))
+				writeJSONError(logger, w, http.StatusRequestEntityTooLarge, msg)
+				return
+			}
+			msg := "Could not decode request body"
+			logger.Warn(msg, zap.Error(err))
+			writeJSONError(logger, w, http.StatusBadRequest, msg)
+			return
+		}
+		var decodedMessage []byte
+		decodedMessage, err = hex.DecodeString(
+			utils.SanitizeHexString(req.Message),
+		)
+		if err != nil {
+			msg := "Could not decode message"
+			logger.Warn(
+				msg,
+				zap.String("msg", truncateForLog(req.Message)),
+				zap.Error(err),
+			)
+			writeJSONError(logger, w, http.StatusBadRequest, msg)
+			return
+		}
+		message, err := utils.UnpackWarpMessage(decodedMessage)
+		if err != nil {
+			msg := "Error unpacking warp message"
+			logger.Warn(msg, zap.Error(err))
+			writeJSONError(logger, w, http.StatusBadRequest, msg)
+			return
+		}
+
+		justification, err := hex.DecodeString(
+			utils.SanitizeHexString(req.Justification),
+		)
+		if err != nil {
+			msg := "Could not decode justification"
+			logger.Warn(
+				msg,
+				zap.String("justification", truncateForLog(req.Justification)),
+				zap.Error(err),
+			)
+			writeJSONError(logger, w, http.StatusBadRequest, msg)
+			return
+		}
+
+		if utils.IsEmptyOrZeroes(message.Bytes()) && utils.IsEmptyOrZeroes(justification) {
+			writeJSONError(
+				logger,
+				w,
+				http.StatusBadRequest,
+				"Must provide either message or justification",
+			)
+			return
+		}
+
+		quorumPercentage := req.QuorumPercentage
+		if quorumPercentage == 0 {
+			quorumPercentage = DefaultQuorumPercentage
+		} else if req.QuorumPercentage > 100 {
+			msg := "Invalid quorum number"
+			logger.Warn(msg, zap.Uint64("quorum-num", req.QuorumPercentage))
+			writeJSONError(logger, w, http.StatusBadRequest, msg)
+			return
+		}
+
+		var signingSubnetID ids.ID
+		if req.SigningSubnetID != "" {
+			signingSubnetID, err = utils.HexOrCB58ToID(
+				req.SigningSubnetID,
+			)
+			if err != nil {
+				msg := "Error parsing signing subnet ID"
+				logger.Warn(
+					msg,
+					zap.Error(err),
+					zap.String("input", req.SigningSubnetID),
+				)
+				writeJSONError(logger, w, http.StatusBadRequest, msg)
+				return
+			}
+		}
+
+		// Determine P-Chain height: use ProposedHeight (latest) if not specified
+		pchainHeight := req.PChainHeight
+		if pchainHeight == 0 {
+			pchainHeight = pchainapi.ProposedHeight
+			logger.Debug("Using ProposedHeight for current validators",
+				zap.Uint64("pchainHeight", pchainHeight),
+			)
+		} else {
+			logger.Debug("Using specified P-Chain height",
+				zap.Uint64("pchainHeight", pchainHeight),
+			)
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), utils.DefaultCreateSignedMessageTimeout)
+		defer cancel()
+
+		signedMessage, err := signatureAggregator.CreateSignedMessage(
+			ctx,
+			logger,
+			message,
+			justification,
+			signingSubnetID,
+			quorumPercentage,
+			pchainHeight, // ACP-181: Use determined P-Chain height for validator set selection
+		)
+		if err != nil {
+			// Never echo err itself to the caller; see classifyAggregationError.
+			status, msg := classifyAggregationError(err)
+			logger.Warn("Failed to aggregate signatures", zap.Int("status", status), zap.Error(err))
+			writeJSONError(logger, w, status, msg)
+			return
+		}
+		resp, err := json.Marshal(
+			AggregateSignatureResponse{
+				SignedMessage: hex.EncodeToString(
+					signedMessage.Bytes(),
+				),
+			},
+		)
+
+		if err != nil {
+			msg := "Failed to marshal response"
+			logger.Error(msg, zap.Error(err))
+			writeJSONError(logger, w, http.StatusInternalServerError, msg)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, err = w.Write(resp)
+		if err != nil {
+			logger.Error("Error writing response", zap.Error(err))
+		}
+		metrics.AggregateSignaturesLatencyMS.Set(
+			float64(time.Since(startTime).Milliseconds()),
+		)
+	})
+}

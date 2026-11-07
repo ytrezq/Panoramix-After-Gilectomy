@@ -1,0 +1,109 @@
+package utils
+
+import (
+	"context"
+	"crypto/ecdsa"
+
+	avalancheWarp "github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp/payload"
+	validatorsetsig "github.com/ava-labs/icm-services/abi-bindings/go/governance/ValidatorSetSig"
+	testinfo "github.com/ava-labs/icm-services/icm-contracts/tests/test-info"
+	"github.com/ava-labs/icm-services/log"
+	"github.com/ava-labs/libevm/accounts/abi/bind"
+	"github.com/ava-labs/libevm/common"
+	"github.com/ava-labs/libevm/core/types"
+	. "github.com/onsi/gomega"
+	"go.uber.org/zap"
+)
+
+func DeployValidatorSetSig(
+	ctx context.Context,
+	senderKey *ecdsa.PrivateKey,
+	contractL1 testinfo.L1TestInfo,
+	validatorL1 testinfo.L1TestInfo,
+) (common.Address, *validatorsetsig.ValidatorSetSig) {
+	opts, err := bind.NewKeyedTransactorWithChainID(senderKey, contractL1.EVMChainID)
+	Expect(err).Should(BeNil())
+	address, tx, validatorSetSig, err := validatorsetsig.DeployValidatorSetSig(
+		opts,
+		contractL1.EthClient,
+		validatorL1.BlockchainID,
+	)
+	Expect(err).Should(BeNil())
+
+	// Wait for the transaction to be mined
+	WaitForTransactionSuccess(ctx, contractL1.EthClient, tx.Hash())
+
+	return address, validatorSetSig
+}
+
+// Returns Receipt for the transaction unlike TeleporterRegistry version since this is a non-teleporter case
+// and we don't want to add the ValidatorSetSig ABI to the L1Info
+func ExecuteValidatorSetSigCallAndVerify(
+	ctx context.Context,
+	source testinfo.L1TestInfo,
+	destination testinfo.L1TestInfo,
+	validatorSetSigAddress common.Address,
+	senderKey *ecdsa.PrivateKey,
+	unsignedMessage *avalancheWarp.UnsignedMessage,
+	signatureAggregator *SignatureAggregator,
+	expectSuccess bool,
+) *types.Receipt {
+	signedWarpMsg := GetSignedMessage(source, destination, unsignedMessage, nil, signatureAggregator)
+	log.Info("Got signed warp message", zap.Stringer("messageID", signedWarpMsg.ID()))
+
+	signedPredicateTx := CreateExecuteCallPredicateTransaction(
+		ctx,
+		signedWarpMsg,
+		validatorSetSigAddress,
+		senderKey,
+		destination,
+	)
+
+	// Wait for tx to be accepted and verify events emitted
+	if expectSuccess {
+		return SendTransactionAndWaitForSuccess(ctx, destination.EthClient, signedPredicateTx)
+	}
+	return SendTransactionAndWaitForFailure(ctx, destination.EthClient, signedPredicateTx)
+}
+
+func InitOffChainMessageChainConfigValidatorSetSig(
+	networkID uint32,
+	l1 testinfo.L1TestInfo,
+	validatorSetSigMessages []validatorsetsig.ValidatorSetSigMessage,
+) ([]avalancheWarp.UnsignedMessage, string) {
+	unsignedMessages := []avalancheWarp.UnsignedMessage{}
+	for _, message := range validatorSetSigMessages {
+		unsignedMessage := CreateOffChainValidatorSetSigMessage(networkID, l1, message)
+		unsignedMessages = append(unsignedMessages, *unsignedMessage)
+		log.Info("Adding validatorSetSig off-chain message to Warp chain config",
+			zap.Stringer("messageID", unsignedMessage.ID()),
+			zap.Stringer("blockchainID", l1.BlockchainID),
+		)
+	}
+	return unsignedMessages, GetChainConfigWithOffChainMessages(unsignedMessages)
+}
+
+// Creates an off-chain Warp message pointing to a function, contract and payload to be executed
+// if the validator set signs this message
+func CreateOffChainValidatorSetSigMessage(
+	networkID uint32,
+	l1 testinfo.L1TestInfo,
+	message validatorsetsig.ValidatorSetSigMessage,
+) *avalancheWarp.UnsignedMessage {
+	sourceAddress := []byte{}
+	payloadBytes, err := message.Pack()
+	Expect(err).Should(BeNil())
+
+	addressedPayload, err := payload.NewAddressedCall(sourceAddress, payloadBytes)
+	Expect(err).Should(BeNil())
+
+	unsignedMessage, err := avalancheWarp.NewUnsignedMessage(
+		networkID,
+		l1.BlockchainID,
+		addressedPayload.Bytes(),
+	)
+	Expect(err).Should(BeNil())
+
+	return unsignedMessage
+}

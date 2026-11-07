@@ -1,0 +1,33 @@
+# This file configures github.com/golangci/golangci-lint.
+
+run:
+  timeout: 3m
+  tests: true
+
+issues:
+  # Maximum count of issues with the same text. Set to 0 to disable. Default is 3.
+  max-same-issues: 0
+  # skip auto-generated files.
+  exclude-files:
+    - ".*mock.*"
+    - "tests/abi-bindings/.*"
+    - ".*.pb.go"
+
+linters:
+  disable-all: true
+  enable:
+    - goconst
+    - goimports
+    - gosimple
+    - govet
+    - ineffassign
+    - misspell
+    - unconvert
+    - unused
+    - whitespace
+    - lll
+    - gci
+
+linters-settings:
+  gofmt:
+    simplify: true
