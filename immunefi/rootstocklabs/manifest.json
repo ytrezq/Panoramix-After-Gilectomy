@@ -106,8 +106,19 @@
    "languages": {
     ".sol": 25
    },
-   "copied": false,
-   "why": "reference only: no license allowing redistribution found"
+   "copied": true,
+   "why": "its license does not allow redistribution: added as git subtrees at the user's request, its license files kept in the tree",
+   "via": "git subtree",
+   "dest": "riflabs__RIF-Token",
+   "files": 28,
+   "subtrees": [
+    {
+     "prefix": "riflabs__RIF-Token",
+     "url": "https://github.com/riflabs/RIF-Token",
+     "commit": "8c4a514de6a36e81b5f4cf120ae3df78a01c9d51"
+    }
+   ],
+   "npm": {}
   }
  ]
 }
