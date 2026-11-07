@@ -1,0 +1,710 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package main
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/ava-labs/avalanchego/api/info"
+	"github.com/ava-labs/avalanchego/graft/subnet-evm/plugin/evm"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/message"
+	"github.com/ava-labs/avalanchego/network/peer"
+	"github.com/ava-labs/avalanchego/utils/constants"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	merklevalidatorsetregistry "github.com/ava-labs/icm-services/abi-bindings/go/MerkleValidatorSetRegistry"
+	"github.com/ava-labs/icm-services/database"
+	"github.com/ava-labs/icm-services/messages"
+	metricsServer "github.com/ava-labs/icm-services/metrics"
+	"github.com/ava-labs/icm-services/peers"
+	"github.com/ava-labs/icm-services/peers/clients"
+	"github.com/ava-labs/icm-services/relayer"
+	"github.com/ava-labs/icm-services/relayer/api"
+	"github.com/ava-labs/icm-services/relayer/checkpoint"
+	"github.com/ava-labs/icm-services/relayer/config"
+	"github.com/ava-labs/icm-services/relayer/validatorupdater"
+	"github.com/ava-labs/icm-services/signature-aggregator/aggregator"
+	sigAggMetrics "github.com/ava-labs/icm-services/signature-aggregator/metrics"
+	"github.com/ava-labs/icm-services/utils"
+	"github.com/ava-labs/icm-services/vms"
+	"github.com/ava-labs/libevm/accounts/abi/bind"
+	"github.com/ava-labs/libevm/common"
+	"github.com/ava-labs/libevm/crypto"
+	"github.com/ava-labs/libevm/ethclient"
+	"go.uber.org/atomic"
+	// Sets GOMAXPROCS to the CPU quota for containerized environments
+	_ "go.uber.org/automaxprocs"
+	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
+)
+
+var version = "v0.0.0-dev"
+
+const (
+	relayerMetricsPrefix        = "app"
+	peerNetworkMetricsPrefix    = "peers"
+	msgCreatorMetricsPrefix     = "msgcreator"
+	timeoutManagerMetricsPrefix = "timeoutmanager"
+
+	// The size of the FIFO cache for epoched validator sets
+	// The Cache will store validator sets for the most recent N P-Chain heights.
+	validatorSetCacheSize = 100
+
+	apiReadHeaderTimeout = 10 * time.Second
+)
+
+func main() {
+	// Register all libevm extras in order to be
+	// able to get pre-compile information from the genesis block
+	evm.RegisterAllLibEVMExtras()
+
+	logger := logging.NewLogger(
+		"icm-relayer",
+		logging.NewWrappedCore(
+			logging.Info,
+			os.Stdout,
+			logging.JSON.ConsoleEncoder(),
+		),
+	)
+
+	cfg, err := buildConfig()
+	if err != nil {
+		logger.Fatal("couldn't build config", zap.Error(err))
+		os.Exit(1)
+	}
+
+	// Create parent context with cancel function
+	parentCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create errgroup with parent context
+	errGroup, ctx := errgroup.WithContext(parentCtx)
+
+	// Modify the default http.DefaultClient globally
+	// TODO: Remove this temporary fix once the RPC clients used by the relayer
+	// start accepting custom underlying http clients.
+	{
+		// Set the timeout conservatively to catch any potential cases where the context is not used
+		// and the request hangs indefinitely.
+		http.DefaultClient.Timeout = 2 * utils.DefaultRPCTimeout
+		maxConns := 10_000
+		http.DefaultClient.Transport = &http.Transport{
+			MaxConnsPerHost:     maxConns,
+			MaxIdleConns:        maxConns,
+			MaxIdleConnsPerHost: maxConns,
+			IdleConnTimeout:     0, // Unlimited since handled by context and timeout on the client level.
+		}
+	}
+
+	logLevel, err := logging.ToLevel(cfg.LogLevel)
+	if err != nil {
+		logger.Error("error reading log level from config", zap.Error(err))
+		os.Exit(1)
+	}
+	logger.SetLevel(logLevel)
+
+	logger.Info("Initializing icm-relayer")
+
+	// Initialize the Warp Config values and trackedSubnets by fetching via RPC
+	// We do this here so that BuildConfig doesn't need to make RPC calls
+	if err = cfg.Initialize(parentCtx); err != nil {
+		logger.Fatal("couldn't initialize config", zap.Error(err))
+		os.Exit(1)
+	}
+
+	logger.Info("Config", cfg.LogSafeField())
+
+	// Initialize all destination clients
+	logger.Info("Initializing destination clients")
+	destinationClients, err := vms.CreateDestinationClients(logger, cfg)
+	if err != nil {
+		logger.Fatal("Failed to create destination clients", zap.Error(err))
+		os.Exit(1)
+	}
+
+	// Initialize all source clients
+	logger.Info("Initializing source clients")
+	sourceClients, err := createSourceClients(ctx, logger, cfg)
+	if err != nil {
+		logger.Fatal("Failed to create source clients", zap.Error(err))
+		os.Exit(1)
+	}
+
+	// Initialize metrics gathered through prometheus
+	registries, err := metricsServer.StartMetricsServer(
+		logger,
+		cfg.MetricsPort,
+		[]string{
+			relayerMetricsPrefix,
+			peerNetworkMetricsPrefix,
+			msgCreatorMetricsPrefix,
+			timeoutManagerMetricsPrefix,
+		},
+	)
+	if err != nil {
+		logger.Fatal("Failed to start metrics server", zap.Error(err))
+		os.Exit(1)
+	}
+	relayerMetricsRegistry := registries[relayerMetricsPrefix]
+	peerNetworkMetricsRegistry := registries[peerNetworkMetricsPrefix]
+	msgCreatorMetricsRegistry := registries[msgCreatorMetricsPrefix]
+	timeoutManagerMetricsRegistry := registries[timeoutManagerMetricsPrefix]
+
+	// Initialize the global app request network
+	logger.Info("Initializing app request network")
+	// The app request network generates P2P networking logs that are verbose at the info level.
+	// Unless the log level is debug or lower, set the network log level to error to avoid spamming the logs.
+	// We do not collect metrics for the network.
+	networkLogLevel := logging.Error
+	if logLevel <= logging.Debug {
+		networkLogLevel = logLevel
+	}
+	networkLogger := logging.NewLogger(
+		"p2p-network",
+		logging.NewWrappedCore(
+			networkLogLevel,
+			os.Stdout,
+			logging.JSON.ConsoleEncoder(),
+		),
+	)
+
+	// Initialize message creator passed down to relayers for creating app requests.
+	// We do not collect metrics for the message creator.
+	messageCreator, err := message.NewCreator(
+		msgCreatorMetricsRegistry,
+		constants.DefaultNetworkCompressionType,
+		constants.DefaultNetworkMaximumInboundTimeout,
+	)
+	if err != nil {
+		logger.Fatal("Failed to create message creator", zap.Error(err))
+		os.Exit(1)
+	}
+
+	var manuallyTrackedPeers []info.Peer
+	for _, p := range cfg.ManuallyTrackedPeers {
+		manuallyTrackedPeers = append(manuallyTrackedPeers, info.Peer{
+			Info: peer.Info{
+				PublicIP: p.GetIP(),
+				ID:       p.GetID(),
+			},
+		})
+	}
+
+	network, err := peers.NewNetwork(
+		ctx,
+		networkLogger,
+		relayerMetricsRegistry,
+		peerNetworkMetricsRegistry,
+		timeoutManagerMetricsRegistry,
+		cfg.GetTrackedSubnets(),
+		manuallyTrackedPeers,
+		cfg,
+		validatorSetCacheSize,
+	)
+	if err != nil {
+		logger.Fatal("Failed to create app request network", zap.Error(err))
+		os.Exit(1)
+	}
+	defer network.Shutdown()
+	// Logged here rather than in NewNetwork, whose logger only emits errors unless log-level is debug.
+	logger.Info("Network starting with NodeID", zap.Stringer("NodeID", network.NodeID()))
+
+	err = relayer.InitializeConnectionsAndCheckStake(ctx, logger, network, cfg)
+	if err != nil {
+		logger.Fatal("Failed to initialize connections and check stake", zap.Error(err))
+		os.Exit(1)
+	}
+
+	// Initialize the database
+	db, err := database.NewDatabase(logger, cfg)
+	if err != nil {
+		logger.Fatal("Failed to create database", zap.Error(err))
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	// Initialize the global write ticker
+	ticker := utils.NewTicker(cfg.DBWriteIntervalSeconds)
+	go ticker.Run(ctx)
+
+	relayerHealth := createHealthTrackers(cfg)
+
+	messageHandlerFactories, err := createMessageHandlerFactories(
+		logger,
+		cfg,
+	)
+	if err != nil {
+		logger.Fatal("Failed to create message handler factories", zap.Error(err))
+		os.Exit(1)
+	}
+
+	signatureAggregator, err := aggregator.NewSignatureAggregator(
+		network,
+		messageCreator,
+		cfg.SignatureCacheSize,
+		sigAggMetrics.NewSignatureAggregatorMetrics(
+			relayerMetricsRegistry,
+		),
+		clients.NewCanonicalValidatorClient(cfg.PChainAPI),
+		2*utils.DefaultAppRequestTimeout,
+	)
+	if err != nil {
+		logger.Fatal("Failed to create signature aggregator", zap.Error(err))
+		os.Exit(1)
+	}
+
+	// Limits the global number of messages that can be processed concurrently by the application
+	// to avoid trying to issue too many requests at once.
+	processMessageSemaphore := make(chan struct{}, cfg.MaxConcurrentMessages)
+
+	applicationRelayers, minHeights, err := createApplicationRelayers(
+		ctx,
+		logger,
+		relayer.NewApplicationRelayerMetrics(relayerMetricsRegistry),
+		checkpoint.NewCheckpointManagerMetrics(relayerMetricsRegistry),
+		db,
+		ticker,
+		network,
+		cfg,
+		sourceClients,
+		destinationClients,
+		signatureAggregator,
+		processMessageSemaphore,
+	)
+	if err != nil {
+		logger.Fatal("Failed to create application relayers", zap.Error(err))
+		os.Exit(1)
+	}
+	messageCoordinator := relayer.NewMessageCoordinator(
+		logger,
+		messageHandlerFactories,
+		applicationRelayers,
+		sourceClients,
+	)
+
+	networkHealthFunc := network.GetNetworkHealthFunc(cfg.GetTrackedSubnets().List())
+
+	// The API endpoints are registered on a dedicated mux, rather than http.DefaultServeMux,
+	// so that they are only reachable on the API port and not on the metrics port.
+	apiMux := http.NewServeMux()
+
+	// Each Listener goroutine will have an atomic bool that it can set to false to indicate an unrecoverable error
+	api.HandleHealthCheck(apiMux, logger, relayerHealth, networkHealthFunc)
+	api.HandleRelay(apiMux, logger, messageCoordinator)
+	api.HandleRelayMessage(apiMux, logger, messageCoordinator)
+
+	errGroup.Go(func() error {
+		httpServer := &http.Server{
+			Addr:              fmt.Sprintf(":%d", cfg.APIPort),
+			Handler:           apiMux,
+			ReadHeaderTimeout: apiReadHeaderTimeout,
+		}
+		// Handle graceful shutdown
+		go func() {
+			<-ctx.Done()
+			if err := httpServer.Shutdown(context.Background()); err != nil {
+				logger.Error("Failed to shutdown server", zap.Error(err))
+			}
+		}()
+
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			return fmt.Errorf("Failed to start server: %w", err)
+		}
+
+		return nil
+	})
+
+	// Create listeners for each of the subnets configured as a source
+	for _, sourceBlockchain := range cfg.SourceBlockchains {
+		for _, protocol := range sourceBlockchain.Protocols() {
+			if !protocol.HasListener() {
+				continue
+			}
+			// errgroup will cancel the context when the first goroutine returns an error
+			errGroup.Go(func() error {
+				// runListener runs until it errors or the context is canceled by another goroutine
+				return relayer.RunListener(
+					ctx,
+					logger,
+					protocol,
+					*sourceBlockchain,
+					sourceClients[sourceBlockchain.GetBlockchainID()],
+					relayerHealth[sourceBlockchain.GetBlockchainID()],
+					minHeights[sourceBlockchain.GetBlockchainID()],
+					messageCoordinator,
+					cfg.MaxConcurrentMessages,
+				)
+			})
+		}
+	}
+
+	// Start validator set updaters for configured external EVM destinations
+	for _, extDest := range cfg.ExternalEVMDestinations {
+		errGroup.Go(func() error {
+			return startMerkleSetUpdater(ctx, logger, extDest, signatureAggregator, cfg)
+		})
+	}
+
+	// Handle os signal
+	go func() {
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
+		select {
+		case sig := <-sigChan:
+			logger.Info("Received os signal", zap.Stringer("signal", sig))
+			// Cancel the parent context
+			// This will cascade to errgroup context
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
+	logger.Info("Initialization complete")
+	if err := errGroup.Wait(); err != nil {
+		logger.Fatal("Relayer exiting with error.", zap.Error(err))
+		os.Exit(1)
+	}
+
+	logger.Info("Relayer exited gracefully")
+}
+
+// buildConfig parses the flags and builds the config
+// Errors here should call log.Fatalf to exit the program
+// since these errors are prior to building the logger struct
+func buildConfig() (*config.Config, error) {
+	fs := config.BuildFlagSet()
+	// Parse the flags
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		config.DisplayUsageText()
+		return nil, fmt.Errorf("couldn't parse flags: %w", err)
+	}
+
+	// If the version flag is set, display the version then exit
+	displayVersion, err := fs.GetBool(config.VersionKey)
+	if err != nil {
+		return nil, fmt.Errorf("error reading flag value: %s: %w", config.VersionKey, err)
+	}
+	if displayVersion {
+		fmt.Printf("%s\n", version)
+		os.Exit(0)
+	}
+
+	// If the help flag is set, output the usage text then exit
+	help, err := fs.GetBool(config.HelpKey)
+	if err != nil {
+		return nil, fmt.Errorf("error reading flag value: %s: %w", config.HelpKey, err)
+	}
+	if help {
+		config.DisplayUsageText()
+		os.Exit(0)
+	}
+
+	v, err := config.BuildViper(fs)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't build viper: %w", err)
+	}
+
+	cfg, err := config.NewConfig(v)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't build config: %w", err)
+	}
+	return &cfg, nil
+}
+
+func createMessageHandlerFactories(
+	logger logging.Logger,
+	globalConfig *config.Config,
+) (map[ids.ID]map[common.Address]messages.MessageHandlerFactory, error) {
+	// Shared P-Chain client used by message handlers that need to fetch validator sets
+	// (e.g. the TeleporterV2 Merkle verification path).
+	pChainClient := clients.NewCanonicalValidatorClient(globalConfig.PChainAPI)
+
+	messageHandlerFactories := make(map[ids.ID]map[common.Address]messages.MessageHandlerFactory)
+	for _, sourceBlockchain := range globalConfig.SourceBlockchains {
+		messageHandlerFactoriesForSource := make(map[common.Address]messages.MessageHandlerFactory)
+		// Create message handler factories for each supported message protocol
+		for addressStr, cfg := range sourceBlockchain.MessageContracts {
+			address := common.HexToAddress(addressStr)
+			m, err := relayer.NewMessageHandlerFactory(
+				address,
+				cfg,
+				pChainClient,
+				sourceBlockchain.GetSubnetID(),
+			)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create message handler factory: %w", err)
+			}
+			messageHandlerFactoriesForSource[address] = m
+		}
+		messageHandlerFactories[sourceBlockchain.GetBlockchainID()] = messageHandlerFactoriesForSource
+	}
+	return messageHandlerFactories, nil
+}
+
+func createSourceClients(
+	ctx context.Context,
+	logger logging.Logger,
+	cfg *config.Config,
+) (map[ids.ID]*ethclient.Client, error) {
+	var err error
+	clients := make(map[ids.ID]*ethclient.Client)
+
+	for _, sourceBlockchain := range cfg.SourceBlockchains {
+		clients[sourceBlockchain.GetBlockchainID()], err = utils.NewEthClientWithConfig(
+			ctx,
+			sourceBlockchain.RPCEndpoint.BaseURL,
+			sourceBlockchain.RPCEndpoint.HTTPHeaders,
+			sourceBlockchain.RPCEndpoint.QueryParams,
+		)
+		if err != nil {
+			logger.Error(
+				"Failed to connect to node via RPC",
+				zap.String("blockchainID", sourceBlockchain.BlockchainID),
+				zap.Error(err),
+			)
+			return nil, err
+		}
+	}
+	return clients, nil
+}
+
+// Returns a map of application relayers, as well as a map of source blockchain IDs to starting heights.
+func createApplicationRelayers(
+	ctx context.Context,
+	logger logging.Logger,
+	relayerMetrics *relayer.ApplicationRelayerMetrics,
+	checkpointMetrics *checkpoint.CheckpointManagerMetrics,
+	db database.RelayerDatabase,
+	ticker *utils.Ticker,
+	network *peers.AppRequestNetwork,
+	cfg *config.Config,
+	sourceClients map[ids.ID]*ethclient.Client,
+	destinationClients map[ids.ID]vms.DestinationClient,
+	signatureAggregator *aggregator.SignatureAggregator,
+	processMessagesSemaphore chan struct{},
+) (map[common.Hash]*relayer.ApplicationRelayer, map[ids.ID]uint64, error) {
+	applicationRelayers := make(map[common.Hash]*relayer.ApplicationRelayer)
+	minHeights := make(map[ids.ID]uint64)
+	for _, sourceBlockchain := range cfg.SourceBlockchains {
+		logger = logger.With(
+			zap.Stringer("sourceBlockchainID", sourceBlockchain.GetBlockchainID()),
+		)
+		currentHeight, err := sourceClients[sourceBlockchain.GetBlockchainID()].BlockNumber(ctx)
+		if err != nil {
+			logger.Error("Failed to get current block height", zap.Error(err))
+			return nil, nil, err
+		}
+
+		// Create the ApplicationRelayers
+		applicationRelayersForSource, minHeight, err := createApplicationRelayersForSourceChain(
+			ctx,
+			logger,
+			relayerMetrics,
+			checkpointMetrics,
+			db,
+			ticker,
+			sourceBlockchain,
+			network,
+			cfg,
+			currentHeight,
+			destinationClients,
+			signatureAggregator,
+			processMessagesSemaphore,
+		)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create application relayers: %w", err)
+		}
+
+		for relayerID, applicationRelayer := range applicationRelayersForSource {
+			applicationRelayers[relayerID] = applicationRelayer
+		}
+		minHeights[sourceBlockchain.GetBlockchainID()] = minHeight
+
+		logger.Info("Created application relayers")
+	}
+	return applicationRelayers, minHeights, nil
+}
+
+// createApplicationRelayersForSourceChain creates Application Relayers for a given source blockchain.
+func createApplicationRelayersForSourceChain(
+	ctx context.Context,
+	logger logging.Logger,
+	metrics *relayer.ApplicationRelayerMetrics,
+	checkpointMetrics *checkpoint.CheckpointManagerMetrics,
+	db database.RelayerDatabase,
+	ticker *utils.Ticker,
+	sourceBlockchain *config.SourceBlockchain,
+	network *peers.AppRequestNetwork,
+	cfg *config.Config,
+	currentHeight uint64,
+	destinationClients map[ids.ID]vms.DestinationClient,
+	signatureAggregator *aggregator.SignatureAggregator,
+	processMessageSemaphore chan struct{},
+) (map[common.Hash]*relayer.ApplicationRelayer, uint64, error) {
+	// Create the ApplicationRelayers
+	logger.Info("Creating application relayers")
+	applicationRelayers := make(map[common.Hash]*relayer.ApplicationRelayer)
+
+	// Each ApplicationRelayer determines its starting height based on the configuration and database state.
+	// The Listener begins processing messages starting from the minimum height across all the ApplicationRelayers
+	// If catch up is disabled, the first block the ApplicationRelayer processes is the next block after the current height
+	//
+	// Only the relayers of protocols with a listener count towards the minimum. A relayer's
+	// checkpoint is only advanced by its own protocol's listener, so the checkpoint of a
+	// listener-less relayer never moves and would otherwise pin the starting height forever.
+	var height, minHeight uint64
+	if !cfg.ProcessMissedBlocks {
+		logger.Info("processed-missed-blocks set to false, starting processing from chain head")
+		height = currentHeight + 1
+		minHeight = height
+	}
+
+	for _, protocol := range sourceBlockchain.Protocols() {
+		for _, relayerID := range database.GetProtocolRelayerIDs(sourceBlockchain, protocol) {
+			log := logger.With(
+				zap.Stringer("relayerID", relayerID.ID),
+				zap.Stringer("destinationBlockchainID", relayerID.DestinationBlockchainID),
+				zap.Stringer("originSenderAddress", relayerID.OriginSenderAddress),
+				zap.Stringer("destinationAddress", relayerID.DestinationAddress),
+			)
+			// Calculate the catch-up starting block height, and update the min height if necessary
+			if cfg.ProcessMissedBlocks {
+				var err error
+				height, err = database.CalculateStartingBlockHeight(
+					log,
+					db,
+					relayerID,
+					sourceBlockchain.ProcessHistoricalBlocksFromHeight,
+					currentHeight,
+				)
+				if err != nil {
+					log.Error("Failed to calculate starting block height", zap.Error(err))
+					return nil, 0, err
+				}
+
+				// Update the min height. This is the height that the listener will start processing from
+				if protocol.HasListener() && (minHeight == 0 || height < minHeight) {
+					minHeight = height
+				}
+			}
+
+			checkpointManager, err := checkpoint.NewCheckpointManager(
+				log,
+				checkpointMetrics,
+				db,
+				ticker.Subscribe(),
+				relayerID,
+				height,
+			)
+			if err != nil {
+				log.Error("Failed to create checkpoint manager", zap.Error(err))
+				return nil, 0, err
+			}
+
+			applicationRelayer, err := relayer.NewApplicationRelayer(
+				log,
+				metrics,
+				network,
+				relayerID,
+				destinationClients[relayerID.DestinationBlockchainID],
+				sourceBlockchain,
+				checkpointManager,
+				cfg,
+				signatureAggregator,
+				processMessageSemaphore,
+			)
+			if err != nil {
+				log.Error("Failed to create application relayer", zap.Error(err))
+				return nil, 0, err
+			}
+			applicationRelayers[relayerID.ID] = applicationRelayer
+
+			log.Info("Created application relayer")
+		}
+	}
+	return applicationRelayers, minHeight, nil
+}
+
+func createHealthTrackers(cfg *config.Config) map[ids.ID]*atomic.Bool {
+	healthTrackers := make(map[ids.ID]*atomic.Bool, len(cfg.SourceBlockchains))
+	for _, sourceBlockchain := range cfg.SourceBlockchains {
+		healthTrackers[sourceBlockchain.GetBlockchainID()] = atomic.NewBool(true)
+	}
+	return healthTrackers
+}
+
+func startMerkleSetUpdater(
+	ctx context.Context,
+	logger logging.Logger,
+	extDest *config.ExternalEVMDestination,
+	signatureAggregator *aggregator.SignatureAggregator,
+	cfg *config.Config,
+) error {
+	blockchainID, err := ids.FromString(extDest.BlockchainID)
+	if err != nil {
+		return fmt.Errorf("invalid blockchain ID %q: %w", extDest.BlockchainID, err)
+	}
+	subnetID, err := ids.FromString(extDest.SubnetID)
+	if err != nil {
+		return fmt.Errorf("invalid subnet ID %q: %w", extDest.SubnetID, err)
+	}
+	ethClient, err := ethclient.DialContext(ctx, extDest.RPCEndpoint)
+	if err != nil {
+		return fmt.Errorf("failed to connect to external EVM at %s: %w", extDest.RPCEndpoint, err)
+	}
+	chainID, err := ethClient.ChainID(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get chain ID: %w", err)
+	}
+
+	privateKey, err := crypto.HexToECDSA(extDest.PrivateKey)
+	if err != nil {
+		return fmt.Errorf("invalid private key: %w", err)
+	}
+	txOpts, err := bind.NewKeyedTransactorWithChainID(privateKey, chainID)
+	if err != nil {
+		return fmt.Errorf("failed to create transactor: %w", err)
+	}
+
+	contractAddr := common.HexToAddress(extDest.ContractAddress)
+	contract, err := merklevalidatorsetregistry.NewMerkleValidatorSetRegistry(contractAddr, ethClient)
+	if err != nil {
+		return fmt.Errorf("failed to bind MerkleValidatorSetRegistry contract: %w", err)
+	}
+
+	pChainClient := clients.NewCanonicalValidatorClient(cfg.PChainAPI)
+
+	infoClient := info.NewClient(cfg.InfoAPI.BaseURL)
+	networkID, err := infoClient.GetNetworkID(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get network ID: %w", err)
+	}
+
+	pollInterval := extDest.GetPollInterval()
+	maxUpdateInterval := time.Duration(extDest.MaxUpdateIntervalSeconds) * time.Second
+	updater := validatorupdater.NewMerkleSetUpdater(
+		logger,
+		pChainClient,
+		signatureAggregator,
+		ethClient,
+		contract,
+		contractAddr,
+		txOpts,
+		networkID,
+		blockchainID,
+		subnetID,
+		pollInterval,
+		maxUpdateInterval,
+		extDest.MaxGasPriceGwei,
+	)
+
+	return updater.Start(ctx)
+}

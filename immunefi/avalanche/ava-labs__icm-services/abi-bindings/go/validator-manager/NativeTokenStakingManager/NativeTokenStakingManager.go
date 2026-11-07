@@ -1,0 +1,3226 @@
+// Code generated - DO NOT EDIT.
+// This file is a generated binding and any manual changes will be lost.
+
+package nativetokenstakingmanager
+
+import (
+	"errors"
+	"math/big"
+	"strings"
+
+	ethereum "github.com/ava-labs/libevm"
+	"github.com/ava-labs/libevm/accounts/abi"
+	"github.com/ava-labs/libevm/accounts/abi/bind"
+	"github.com/ava-labs/libevm/common"
+	"github.com/ava-labs/libevm/core/types"
+	"github.com/ava-labs/libevm/event"
+)
+
+// Reference imports to suppress errors if they are not otherwise used.
+var (
+	_ = errors.New
+	_ = big.NewInt
+	_ = strings.NewReader
+	_ = ethereum.NotFound
+	_ = bind.Bind
+	_ = common.Big1
+	_ = types.BloomLookup
+	_ = event.NewSubscription
+	_ = abi.ConvertType
+)
+
+// ConversionData is an auto generated low-level Go binding around an user-defined struct.
+type ConversionData struct {
+	SubnetID                     [32]byte
+	ValidatorManagerBlockchainID [32]byte
+	ValidatorManagerAddress      common.Address
+	InitialValidators            []InitialValidator
+}
+
+// Delegator is an auto generated low-level Go binding around an user-defined struct.
+type Delegator struct {
+	Status        uint8
+	Owner         common.Address
+	ValidationID  [32]byte
+	Weight        uint64
+	StartTime     uint64
+	StartingNonce uint64
+	EndingNonce   uint64
+}
+
+// InitialValidator is an auto generated low-level Go binding around an user-defined struct.
+type InitialValidator struct {
+	NodeID       []byte
+	BlsPublicKey []byte
+	Weight       uint64
+}
+
+// PChainOwner is an auto generated low-level Go binding around an user-defined struct.
+type PChainOwner struct {
+	Threshold uint32
+	Addresses []common.Address
+}
+
+// PoSValidatorInfo is an auto generated low-level Go binding around an user-defined struct.
+type PoSValidatorInfo struct {
+	Owner             common.Address
+	DelegationFeeBips uint16
+	MinStakeDuration  uint64
+	UptimeSeconds     uint64
+}
+
+// StakingManagerSettings is an auto generated low-level Go binding around an user-defined struct.
+type StakingManagerSettings struct {
+	Manager                  common.Address
+	MinimumStakeAmount       *big.Int
+	MaximumStakeAmount       *big.Int
+	MinimumStakeDuration     uint64
+	MinimumDelegationFeeBips uint16
+	MaximumStakeMultiplier   uint8
+	WeightToValueFactor      *big.Int
+	RewardCalculator         common.Address
+	UptimeBlockchainID       [32]byte
+}
+
+// ValidatorMessagesValidationPeriod is an auto generated low-level Go binding around an user-defined struct.
+type ValidatorMessagesValidationPeriod struct {
+	SubnetID              [32]byte
+	NodeID                []byte
+	BlsPublicKey          []byte
+	RegistrationExpiry    uint64
+	RemainingBalanceOwner PChainOwner
+	DisableOwner          PChainOwner
+	Weight                uint64
+}
+
+// NativeTokenStakingManagerMetaData contains all meta data concerning the NativeTokenStakingManager contract.
+var NativeTokenStakingManagerMetaData = &bind.MetaData{
+	ABI: "[{\"inputs\":[{\"internalType\":\"enumICMInitializable\",\"name\":\"init\",\"type\":\"uint8\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"delegationID\",\"type\":\"bytes32\"}],\"name\":\"DelegatorIneligibleForRewards\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"FailedCall\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"balance\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"needed\",\"type\":\"uint256\"}],\"name\":\"InsufficientBalance\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"uint16\",\"name\":\"delegationFeeBips\",\"type\":\"uint16\"}],\"name\":\"InvalidDelegationFee\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"delegationID\",\"type\":\"bytes32\"}],\"name\":\"InvalidDelegationID\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"enumDelegatorStatus\",\"name\":\"status\",\"type\":\"uint8\"}],\"name\":\"InvalidDelegatorStatus\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"InvalidInitialization\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"minStakeDuration\",\"type\":\"uint64\"}],\"name\":\"InvalidMinStakeDuration\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nonce\",\"type\":\"uint64\"}],\"name\":\"InvalidNonce\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"rewardRecipient\",\"type\":\"address\"}],\"name\":\"InvalidRewardRecipient\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"stakeAmount\",\"type\":\"uint256\"}],\"name\":\"InvalidStakeAmount\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"maximumStakeMultiplier\",\"type\":\"uint8\"}],\"name\":\"InvalidStakeMultiplier\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"uptimeBlockchainID\",\"type\":\"bytes32\"}],\"name\":\"InvalidUptimeBlockchainID\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"enumValidatorStatus\",\"name\":\"status\",\"type\":\"uint8\"}],\"name\":\"InvalidValidatorStatus\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"InvalidWarpMessage\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"senderAddress\",\"type\":\"address\"}],\"name\":\"InvalidWarpOriginSenderAddress\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"sourceChainID\",\"type\":\"bytes32\"}],\"name\":\"InvalidWarpSourceChainID\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"newValidatorWeight\",\"type\":\"uint64\"}],\"name\":\"MaxWeightExceeded\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"endTime\",\"type\":\"uint64\"}],\"name\":\"MinStakeDurationNotPassed\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"NotInitializing\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"ReentrancyGuardReentrantCall\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"}],\"name\":\"UnauthorizedOwner\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"expectedValidationID\",\"type\":\"bytes32\"}],\"name\":\"UnexpectedValidationID\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"}],\"name\":\"ValidatorIneligibleForRewards\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"}],\"name\":\"ValidatorNotPoS\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"ZeroAddress\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"ZeroWeightToValueFactor\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"delegationID\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"startTime\",\"type\":\"uint256\"}],\"name\":\"CompletedDelegatorRegistration\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"delegationID\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"rewards\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"fees\",\"type\":\"uint256\"}],\"name\":\"CompletedDelegatorRemoval\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"delegationID\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"DelegatorRewardClaimed\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"delegationID\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"oldRecipient\",\"type\":\"address\"}],\"name\":\"DelegatorRewardRecipientChanged\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"version\",\"type\":\"uint64\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"delegationID\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"delegatorAddress\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"nonce\",\"type\":\"uint64\"},{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"validatorWeight\",\"type\":\"uint64\"},{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"delegatorWeight\",\"type\":\"uint64\"},{\"indexed\":false,\"internalType\":\"bytes32\",\"name\":\"setWeightMessageID\",\"type\":\"bytes32\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"rewardRecipient\",\"type\":\"address\"}],\"name\":\"InitiatedDelegatorRegistration\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"delegationID\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"}],\"name\":\"InitiatedDelegatorRemoval\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint16\",\"name\":\"delegationFeeBips\",\"type\":\"uint16\"},{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"minStakeDuration\",\"type\":\"uint64\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"rewardRecipient\",\"type\":\"address\"}],\"name\":\"InitiatedStakingValidatorRegistration\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"},{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"uptime\",\"type\":\"uint64\"}],\"name\":\"UptimeUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"ValidatorRewardClaimed\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"oldRecipient\",\"type\":\"address\"}],\"name\":\"ValidatorRewardRecipientChanged\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"BIPS_CONVERSION_FACTOR\",\"outputs\":[{\"internalType\":\"uint16\",\"name\":\"\",\"type\":\"uint16\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MAXIMUM_DELEGATION_FEE_BIPS\",\"outputs\":[{\"internalType\":\"uint16\",\"name\":\"\",\"type\":\"uint16\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MAXIMUM_STAKE_MULTIPLIER_LIMIT\",\"outputs\":[{\"internalType\":\"uint8\",\"name\":\"\",\"type\":\"uint8\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"NATIVE_MINTER\",\"outputs\":[{\"internalType\":\"contractINativeMinter\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"STAKING_MANAGER_STORAGE_LOCATION\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"WARP_MESSENGER\",\"outputs\":[{\"internalType\":\"contractIWarpMessenger\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"delegationID\",\"type\":\"bytes32\"},{\"internalType\":\"address\",\"name\":\"rewardRecipient\",\"type\":\"address\"}],\"name\":\"changeDelegatorRewardRecipient\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"},{\"internalType\":\"address\",\"name\":\"rewardRecipient\",\"type\":\"address\"}],\"name\":\"changeValidatorRewardRecipient\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"}],\"name\":\"claimDelegationFees\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"delegationID\",\"type\":\"bytes32\"},{\"internalType\":\"uint32\",\"name\":\"messageIndex\",\"type\":\"uint32\"}],\"name\":\"completeDelegatorRegistration\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"delegationID\",\"type\":\"bytes32\"},{\"internalType\":\"uint32\",\"name\":\"messageIndex\",\"type\":\"uint32\"}],\"name\":\"completeDelegatorRemoval\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint32\",\"name\":\"messageIndex\",\"type\":\"uint32\"}],\"name\":\"completeValidatorRegistration\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint32\",\"name\":\"messageIndex\",\"type\":\"uint32\"}],\"name\":\"completeValidatorRemoval\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"delegationID\",\"type\":\"bytes32\"},{\"internalType\":\"bool\",\"name\":\"includeUptimeProof\",\"type\":\"bool\"},{\"internalType\":\"uint32\",\"name\":\"messageIndex\",\"type\":\"uint32\"}],\"name\":\"forceInitiateDelegatorRemoval\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"},{\"internalType\":\"bool\",\"name\":\"includeUptimeProof\",\"type\":\"bool\"},{\"internalType\":\"uint32\",\"name\":\"messageIndex\",\"type\":\"uint32\"}],\"name\":\"forceInitiateValidatorRemoval\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"delegationID\",\"type\":\"bytes32\"}],\"name\":\"getDelegatorInfo\",\"outputs\":[{\"components\":[{\"internalType\":\"enumDelegatorStatus\",\"name\":\"status\",\"type\":\"uint8\"},{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"},{\"internalType\":\"uint64\",\"name\":\"weight\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"startTime\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"startingNonce\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"endingNonce\",\"type\":\"uint64\"}],\"internalType\":\"structDelegator\",\"name\":\"\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"delegationID\",\"type\":\"bytes32\"}],\"name\":\"getDelegatorRewardInfo\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getStakingManagerSettings\",\"outputs\":[{\"components\":[{\"internalType\":\"contractIValidatorManager\",\"name\":\"manager\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"minimumStakeAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"maximumStakeAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"minimumStakeDuration\",\"type\":\"uint64\"},{\"internalType\":\"uint16\",\"name\":\"minimumDelegationFeeBips\",\"type\":\"uint16\"},{\"internalType\":\"uint8\",\"name\":\"maximumStakeMultiplier\",\"type\":\"uint8\"},{\"internalType\":\"uint256\",\"name\":\"weightToValueFactor\",\"type\":\"uint256\"},{\"internalType\":\"contractIRewardCalculator\",\"name\":\"rewardCalculator\",\"type\":\"address\"},{\"internalType\":\"bytes32\",\"name\":\"uptimeBlockchainID\",\"type\":\"bytes32\"}],\"internalType\":\"structStakingManagerSettings\",\"name\":\"\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"}],\"name\":\"getStakingValidator\",\"outputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"internalType\":\"uint16\",\"name\":\"delegationFeeBips\",\"type\":\"uint16\"},{\"internalType\":\"uint64\",\"name\":\"minStakeDuration\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"uptimeSeconds\",\"type\":\"uint64\"}],\"internalType\":\"structPoSValidatorInfo\",\"name\":\"\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"}],\"name\":\"getValidatorRewardInfo\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"contractIValidatorManager\",\"name\":\"manager\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"minimumStakeAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"maximumStakeAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"minimumStakeDuration\",\"type\":\"uint64\"},{\"internalType\":\"uint16\",\"name\":\"minimumDelegationFeeBips\",\"type\":\"uint16\"},{\"internalType\":\"uint8\",\"name\":\"maximumStakeMultiplier\",\"type\":\"uint8\"},{\"internalType\":\"uint256\",\"name\":\"weightToValueFactor\",\"type\":\"uint256\"},{\"internalType\":\"contractIRewardCalculator\",\"name\":\"rewardCalculator\",\"type\":\"address\"},{\"internalType\":\"bytes32\",\"name\":\"uptimeBlockchainID\",\"type\":\"bytes32\"}],\"internalType\":\"structStakingManagerSettings\",\"name\":\"settings\",\"type\":\"tuple\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"},{\"internalType\":\"address\",\"name\":\"rewardRecipient\",\"type\":\"address\"}],\"name\":\"initiateDelegatorRegistration\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"delegationID\",\"type\":\"bytes32\"},{\"internalType\":\"bool\",\"name\":\"includeUptimeProof\",\"type\":\"bool\"},{\"internalType\":\"uint32\",\"name\":\"messageIndex\",\"type\":\"uint32\"}],\"name\":\"initiateDelegatorRemoval\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"nodeID\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"blsPublicKey\",\"type\":\"bytes\"},{\"components\":[{\"internalType\":\"uint32\",\"name\":\"threshold\",\"type\":\"uint32\"},{\"internalType\":\"address[]\",\"name\":\"addresses\",\"type\":\"address[]\"}],\"internalType\":\"structPChainOwner\",\"name\":\"remainingBalanceOwner\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"uint32\",\"name\":\"threshold\",\"type\":\"uint32\"},{\"internalType\":\"address[]\",\"name\":\"addresses\",\"type\":\"address[]\"}],\"internalType\":\"structPChainOwner\",\"name\":\"disableOwner\",\"type\":\"tuple\"},{\"internalType\":\"uint16\",\"name\":\"delegationFeeBips\",\"type\":\"uint16\"},{\"internalType\":\"uint64\",\"name\":\"minStakeDuration\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"rewardRecipient\",\"type\":\"address\"}],\"name\":\"initiateValidatorRegistration\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"},{\"internalType\":\"bool\",\"name\":\"includeUptimeProof\",\"type\":\"bool\"},{\"internalType\":\"uint32\",\"name\":\"messageIndex\",\"type\":\"uint32\"}],\"name\":\"initiateValidatorRemoval\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"delegationID\",\"type\":\"bytes32\"}],\"name\":\"resendUpdateDelegator\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"},{\"internalType\":\"uint32\",\"name\":\"messageIndex\",\"type\":\"uint32\"}],\"name\":\"submitUptimeProof\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"}],\"name\":\"valueToWeight\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"weight\",\"type\":\"uint64\"}],\"name\":\"weightToValue\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	Bin: "0x608060405234801561000f575f5ffd5b5060405161428338038061428383398101604081905261002e91610107565b60018160018111156100425761004261012c565b0361004f5761004f610055565b50610140565b7ff0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00805468010000000000000000900460ff16156100a55760405163f92ee8a960e01b815260040160405180910390fd5b80546001600160401b03908116146101045780546001600160401b0319166001600160401b0390811782556040519081527fc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d29060200160405180910390a15b50565b5f60208284031215610117575f5ffd5b815160028110610125575f5ffd5b9392505050565b634e487b7160e01b5f52602160045260245ffd5b6141368061014d5f395ff3fe6080604052600436106101ba575f3560e01c806360ad7784116100f2578063a9778a7a11610092578063b771b3bc11610062578063b771b3bc1461056b578063caa7187414610585578063e24b2680146105a6578063fb8b11dd146105c5575f5ffd5b8063a9778a7a146103ba578063ad93936d146104fb578063af1dd66c1461050e578063b2c1712e1461054c575f5ffd5b80638ef34c98116100cd5780638ef34c981461047f57806393e245981461049e5780639681d940146104bd578063a3a65e48146104dc575f5ffd5b806360ad77841461040e578063620658561461042d5780637a63ad851461044c575f5ffd5b80632674874b1161015d5780632e2194d8116101385780632e2194d814610351578063329c3e121461038857806335455ded146103ba57806353a13338146103e2575f5ffd5b80632674874b146102a757806327bf60cd146103135780632aa5663814610332575f5ffd5b806316679564116101985780631667956414610229578063243ca19a14610248578063245dafcb1461026957806325e1c77614610288575f5ffd5b80630d436317146101be57806313409645146101df578063151d30d1146101fe575b5f5ffd5b3480156101c9575f5ffd5b506101dd6101d8366004613650565b6105e4565b005b3480156101ea575f5ffd5b506101dd6101f936600461367d565b6106f0565b348015610209575f5ffd5b50610212600a81565b60405160ff90911681526020015b60405180910390f35b348015610234575f5ffd5b506101dd6102433660046136b4565b610a30565b61025b61025636600461370e565b610a41565b604051908152602001610220565b348015610274575f5ffd5b506101dd61028336600461373c565b610a74565b348015610293575f5ffd5b506101dd6102a236600461367d565b610d38565b3480156102b2575f5ffd5b506102c66102c136600461373c565b610e54565b6040805182516001600160a01b0316815260208084015161ffff1690820152828201516001600160401b039081169282019290925260609283015190911691810191909152608001610220565b34801561031e575f5ffd5b506101dd61032d3660046136b4565b610ee0565b34801561033d575f5ffd5b506101dd61034c3660046136b4565b610eeb565b34801561035c575f5ffd5b5061037061036b36600461373c565b610efb565b6040516001600160401b039091168152602001610220565b348015610393575f5ffd5b506103a26001600160991b0181565b6040516001600160a01b039091168152602001610220565b3480156103c5575f5ffd5b506103cf61271081565b60405161ffff9091168152602001610220565b3480156103ed575f5ffd5b506104016103fc36600461373c565b610f49565b604051610220919061377b565b348015610419575f5ffd5b506101dd61042836600461367d565b611036565b348015610438575f5ffd5b5061025b61044736600461381a565b611350565b348015610457575f5ffd5b5061025b7fafe6c4731b852fc2be89a0896ae43d22d8b24989064d841b2a1586b4d39ab60081565b34801561048a575f5ffd5b506101dd61049936600461370e565b611370565b3480156104a9575f5ffd5b506101dd6104b836600461373c565b611452565b3480156104c8575f5ffd5b5061025b6104d7366004613835565b61156b565b3480156104e7575f5ffd5b5061025b6104f6366004613835565b61170c565b61025b610509366004613a57565b611784565b348015610519575f5ffd5b5061052d61052836600461373c565b6117c0565b604080516001600160a01b039093168352602083019190915201610220565b348015610557575f5ffd5b506101dd6105663660046136b4565b6117fc565b348015610576575f5ffd5b506103a26005600160991b0181565b348015610590575f5ffd5b50610599611807565b6040516102209190613b3c565b3480156105b1575f5ffd5b5061052d6105c036600461373c565b6118e3565b3480156105d0575f5ffd5b506101dd6105df36600461370e565b61191f565b7ff0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a008054600160401b810460ff1615906001600160401b03165f811580156106285750825b90505f826001600160401b031660011480156106435750303b155b905081158015610651575080155b1561066f5760405163f92ee8a960e01b815260040160405180910390fd5b845467ffffffffffffffff19166001178555831561069957845460ff60401b1916600160401b1785555b6106a2866119e7565b83156106e857845460ff60401b19168555604051600181527fc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d29060200160405180910390a15b505050505050565b6106f86119fb565b5f610701611a32565b5f848152600882016020526040808220815160e0810190925280549394509192909190829060ff16600381111561073a5761073a613753565b600381111561074b5761074b613753565b8152815461010090046001600160a01b03166020820152600182015460408201526002909101546001600160401b038082166060840152600160401b820481166080840152600160801b8204811660a0840152600160c01b9091041660c09091015290506003815160038111156107c4576107c4613753565b146107ee578051604051633b0d540d60e21b81526107e59190600401613bdd565b60405180910390fd5b81546040828101519051636af907fb60e11b815260048101919091525f916001600160a01b03169063d5f20ff6906024015f60405180830381865afa158015610839573d5f5f3e3d5ffd5b505050506040513d5f823e601f3d908101601f191682016040526108609190810190613c68565b9050600483546040808501519051636af907fb60e11b81526001600160a01b039092169163d5f20ff69161089a9160040190815260200190565b5f60405180830381865afa1580156108b4573d5f5f3e3d5ffd5b505050506040513d5f823e601f3d908101601f191682016040526108db9190810190613c68565b5160058111156108ed576108ed613753565b1415801561091457508160c001516001600160401b031681608001516001600160401b0316105b15610a0a57825460405163338587c560e21b815263ffffffff861660048201525f9182916001600160a01b039091169063ce161f149060240160408051808303815f875af1158015610968573d5f5f3e3d5ffd5b505050506040513d601f19601f8201168201806040525081019061098c9190613d4a565b91509150818460400151146109c55781846040015160405163fee3144560e01b81526004016107e5929190918252602082015260400190565b806001600160401b03168460c001516001600160401b03161115610a0757604051632e19bc2d60e11b81526001600160401b03821660048201526024016107e5565b50505b610a1385611a56565b505050610a2c60015f5160206140e15f395f51905f5255565b5050565b610a3b838383611cfd565b50505050565b5f610a4a6119fb565b610a5683333485611fa4565b9050610a6e60015f5160206140e15f395f51905f5255565b92915050565b5f610a7d611a32565b5f838152600882016020526040808220815160e0810190925280549394509192909190829060ff166003811115610ab657610ab6613753565b6003811115610ac757610ac7613753565b8152815461010090046001600160a01b0316602082015260018083015460408301526002909201546001600160401b038082166060840152600160401b820481166080840152600160801b8204811660a0840152600160c01b9091041660c09091015290915081516003811115610b4057610b40613753565b14158015610b615750600381516003811115610b5e57610b5e613753565b14155b15610b82578051604051633b0d540d60e21b81526107e59190600401613bdd565b81546040828101519051636af907fb60e11b815260048101919091525f916001600160a01b03169063d5f20ff6906024015f60405180830381865afa158015610bcd573d5f5f3e3d5ffd5b505050506040513d5f823e601f3d908101601f19168201604052610bf49190810190613c68565b905080606001516001600160401b03165f03610c26576040516339b894f960e21b8152600481018590526024016107e5565b604080830151606083015160a0840151925163854a893f60e01b81526005600160991b019363ee5b48eb9373__$add2235b6a6cf493060b757d4655105486$__9363854a893f93610c9493906004019283526001600160401b03918216602084015216604082015260600190565b5f60405180830381865af4158015610cae573d5f5f3e3d5ffd5b505050506040513d5f823e601f3d908101601f19168201604052610cd59190810190613d6e565b6040518263ffffffff1660e01b8152600401610cf19190613dca565b6020604051808303815f875af1158015610d0d573d5f5f3e3d5ffd5b505050506040513d601f19601f82011682018060405250810190610d319190613ddc565b5050505050565b610d41826123ed565b610d61576040516330efa98b60e01b8152600481018390526024016107e5565b5f610d6a611a32565b54604051636af907fb60e11b8152600481018590526001600160a01b039091169063d5f20ff6906024015f60405180830381865afa158015610dae573d5f5f3e3d5ffd5b505050506040513d5f823e601f3d908101601f19168201604052610dd59190810190613c68565b5190506002816005811115610dec57610dec613753565b14158015610e0c57506003816005811115610e0957610e09613753565b14155b8015610e2a57506004816005811115610e2757610e27613753565b14155b15610e4a578060405163170cc93360e21b81526004016107e59190613df3565b610a3b8383612416565b604080516080810182525f808252602082018190529181018290526060810191909152610e7f611a32565b5f9283526007016020908152604092839020835160808101855281546001600160a01b038116825261ffff600160a01b820416938201939093526001600160401b03600160b01b909304831694810194909452600101541660608301525090565b610a3b83838361267d565b610ef6838383612ae4565b505050565b5f5f610f05611a32565b60040154610f139084613e21565b9050801580610f2857506001600160401b0381115b15610a6e5760405163222d164360e21b8152600481018490526024016107e5565b6040805160e0810182525f80825260208201819052918101829052606081018290526080810182905260a0810182905260c0810191909152610f89611a32565b5f838152600891909101602052604090819020815160e081019092528054829060ff166003811115610fbd57610fbd613753565b6003811115610fce57610fce613753565b8152815461010090046001600160a01b03166020820152600182015460408201526002909101546001600160401b038082166060840152600160401b820481166080840152600160801b8204811660a0840152600160c01b9091041660c09091015292915050565b5f61103f611a32565b5f848152600882016020526040808220815160e0810190925280549394509192909190829060ff16600381111561107857611078613753565b600381111561108957611089613753565b8152815461010090046001600160a01b03908116602083015260018301546040808401919091526002909301546001600160401b038082166060850152600160401b820481166080850152600160801b8204811660a0850152600160c01b9091041660c0909201919091528282015185549251636af907fb60e11b815260048101829052939450925f929091169063d5f20ff6906024015f60405180830381865afa15801561113a573d5f5f3e3d5ffd5b505050506040513d5f823e601f3d908101601f191682016040526111619190810190613c68565b905060018351600381111561117857611178613753565b14611199578251604051633b0d540d60e21b81526107e59190600401613bdd565b6004815160058111156111ae576111ae613753565b036111bc576106e886611a56565b8260a001516001600160401b031681608001516001600160401b031610156112c457835460405163338587c560e21b815263ffffffff871660048201525f9182916001600160a01b039091169063ce161f149060240160408051808303815f875af115801561122d573d5f5f3e3d5ffd5b505050506040513d601f19601f820116820180604052508101906112519190613d4a565b9150915081841461127f5760405163fee3144560e01b815260048101839052602481018590526044016107e5565b8460a001516001600160401b0316816001600160401b031610156112c157604051632e19bc2d60e11b81526001600160401b03821660048201526024016107e5565b50505b5f868152600885016020908152604091829020805460ff1916600290811782550180546001600160401b034216600160401b81026fffffffffffffffff000000000000000019909216919091179091559151918252839188917f3886b7389bccb22cac62838dee3f400cf8b22289295283e01a2c7093f93dd5aa910160405180910390a3505050505050565b5f611359611a32565b60040154610a6e906001600160401b038416613e40565b5f611379611a32565b90506001600160a01b0382166113ad5760405163caa903f960e01b81526001600160a01b03831660048201526024016107e5565b5f8381526007820160205260409020546001600160a01b031633146113f357335b604051636e2ccd7560e11b81526001600160a01b0390911660048201526024016107e5565b5f838152600c8201602052604080822080546001600160a01b038681166001600160a01b0319831681179093559251921692839287917f28c6fc4db51556a07b41aa23b91cedb22c02a7560c431a31255c03ca6ad61c3391a450505050565b5f61145b611a32565b8054604051636af907fb60e11b8152600481018590529192505f916001600160a01b039091169063d5f20ff6906024015f60405180830381865afa1580156114a5573d5f5f3e3d5ffd5b505050506040513d5f823e601f3d908101601f191682016040526114cc9190810190613c68565b51905060048160058111156114e3576114e3613753565b14611503578060405163170cc93360e21b81526004016107e59190613df3565b5f8381526007830160205260409020546001600160a01b0316331461152857336113ce565b5f838152600c830160205260409020546001600160a01b03168061156157505f8381526007830160205260409020546001600160a01b03165b610a3b8185612b0f565b5f6115746119fb565b5f61157d611a32565b805460405163025a076560e61b815263ffffffff861660048201529192505f916001600160a01b0390911690639681d940906024016020604051808303815f875af11580156115ce573d5f5f3e3d5ffd5b505050506040513d601f19601f820116820180604052508101906115f29190613ddc565b8254604051636af907fb60e11b8152600481018390529192505f916001600160a01b039091169063d5f20ff6906024015f60405180830381865afa15801561163c573d5f5f3e3d5ffd5b505050506040513d5f823e601f3d908101601f191682016040526116639190810190613c68565b905061166e826123ed565b61167c575091506116f19050565b5f828152600784016020908152604080832054600c8701909252909120546001600160a01b039182169116806116af5750805b6004835160058111156116c4576116c4613753565b036116d3576116d38185612b0f565b6116e9826116e48560400151611350565b612b83565b509193505050505b61170760015f5160206140e15f395f51905f5255565b919050565b5f611715611a32565b54604051631474cbc960e31b815263ffffffff841660048201526001600160a01b039091169063a3a65e48906024016020604051808303815f875af1158015611760573d5f5f3e3d5ffd5b505050506040513d601f19601f82011682018060405250810190610a6e9190613ddc565b5f61178d6119fb565b61179d8888888888883489612b96565b90506117b560015f5160206140e15f395f51905f5255565b979650505050505050565b5f5f5f6117cb611a32565b5f948552600a810160209081526040808720546009909301909152909420546001600160a01b039094169492505050565b610ef6838383612ec2565b60408051610120810182525f80825260208201819052918101829052606081018290526080810182905260a0810182905260c0810182905260e08101829052610100810182905290611857611a32565b604080516101208101825282546001600160a01b0390811682526001840154602083015260028401549282019290925260038301546001600160401b0381166060830152600160401b810461ffff166080830152600160501b900460ff1660a0820152600483015460c0820152600583015490911660e082015260069091015461010082015292915050565b5f5f5f6118ee611a32565b5f948552600c81016020908152604080872054600b909301909152909420546001600160a01b039094169492505050565b6001600160a01b0381166119515760405163caa903f960e01b81526001600160a01b03821660048201526024016107e5565b5f61195a611a32565b5f8481526008820160205260409020549091506001600160a01b0361010090910416331461198857336113ce565b5f838152600a8201602052604080822080546001600160a01b038681166001600160a01b0319831681179093559251921692839287917f6b30f219ab3cc1c43b394679707f3856ff2f3c6f1f6c97f383c6b16687a1e00591a450505050565b6119ef612eed565b6119f881612f38565b50565b5f5160206140e15f395f51905f52805460011901611a2c57604051633ee5aeb560e01b815260040160405180910390fd5b60029055565b7fafe6c4731b852fc2be89a0896ae43d22d8b24989064d841b2a1586b4d39ab60090565b5f611a5f611a32565b5f838152600882016020526040808220815160e0810190925280549394509192909190829060ff166003811115611a9857611a98613753565b6003811115611aa957611aa9613753565b815281546001600160a01b03610100909104811660208084019190915260018401546040808501919091526002909401546001600160401b038082166060860152600160401b820481166080860152600160801b8204811660a0860152600160c01b9091041660c09093019290925283830151865484516304e0efb360e11b8152945195965090949116926309c1df669260048083019391928290030181865afa158015611b59573d5f5f3e3d5ffd5b505050506040513d601f19601f82011682018060405250810190611b7d9190613e57565b8260800151611b8c9190613e72565b6001600160401b0316421015611bc05760405163fb6ce63f60e01b81526001600160401b03421660048201526024016107e5565b5f848152600d840160205260409020546001600160401b03168015611c22575f858152600d850160209081526040808320805467ffffffffffffffff19169055600a8701909152902054611c209084906001600160a01b03168784612fb3565b505b5f858152600885016020908152604080832080546001600160a81b031916815560018101849055600201839055600a8701909152902080546001600160a01b031981169091556001600160a01b031680611c7d575060208301515b5f5f611c8a8389876131ca565b91509150611ca386602001516116e48860600151611350565b604080518381526020810183905286918a917f5ecc5b26a9265302cf871229b3d983e5ca57dbb1448966c6c58b2d3c68bc7f7e910160405180910390a35050505050505050565b60015f5160206140e15f395f51905f5255565b5f5f611d07611a32565b8054604051635b73516560e11b8152600481018890529192506001600160a01b03169063b6e6a2ca906024015f604051808303815f87803b158015611d4a575f5ffd5b505af1158015611d5c573d5f5f3e3d5ffd5b50508254604051636af907fb60e11b8152600481018990525f93506001600160a01b03909116915063d5f20ff6906024015f60405180830381865afa158015611da7573d5f5f3e3d5ffd5b505050506040513d5f823e601f3d908101601f19168201604052611dce9190810190613c68565b9050611dd9866123ed565b611de857600192505050611f9d565b5f8681526007830160205260409020546001600160a01b03163314611e0d57336113ce565b5f86815260078301602052604090205460c0820151611e3c91600160b01b90046001600160401b031690613e72565b6001600160401b03168160e001516001600160401b03161015611e835760e081015160405163fb6ce63f60e01b81526001600160401b0390911660048201526024016107e5565b5f8515611e9b57611e948786612416565b9050611eb9565b505f8681526007830160205260409020600101546001600160401b03165b600583015460408301515f916001600160a01b031690634f22429f90611ede90611350565b60c086015160e0808801516040519185901b6001600160e01b031916825260048201939093526001600160401b0391821660248201819052604482015291811660648301528516608482015260a401602060405180830381865afa158015611f48573d5f5f3e3d5ffd5b505050506040513d601f19601f82011682018060405250810190611f6c9190613ddc565b90508084600b015f8a81526020019081526020015f205f828254611f909190613e91565b9091555050151593505050505b9392505050565b5f5f611fae611a32565b90505f611fba85610efb565b9050611fc5876123ed565b611fe5576040516330efa98b60e01b8152600481018890526024016107e5565b6001600160a01b0384166120175760405163caa903f960e01b81526001600160a01b03851660048201526024016107e5565b8154604051636af907fb60e11b8152600481018990525f9182916001600160a01b039091169063d5f20ff6906024015f60405180830381865afa158015612060573d5f5f3e3d5ffd5b505050506040513d5f823e601f3d908101601f191682016040526120879190810190613c68565b9050828160a001516120999190613e72565b915083600301600a9054906101000a90046001600160401b031681604001516120c29190613ea4565b6001600160401b0316826001600160401b031611156120ff57604051636d51fe0560e11b81526001600160401b03831660048201526024016107e5565b508254604051636610966960e01b8152600481018a90526001600160401b03831660248201525f9182916001600160a01b039091169063661096699060440160408051808303815f875af1158015612159573d5f5f3e3d5ffd5b505050506040513d601f19601f8201168201806040525081019061217d9190613ecd565b915091505f8a836040516020016121ab92919091825260c01b6001600160c01b031916602082015260280190565b60408051601f1981840301815291815281516020928301205f81815260088a019093529120805491925060019160ff19168280021790555089866008015f8381526020019081526020015f205f0160016101000a8154816001600160a01b0302191690836001600160a01b031602179055508a866008015f8381526020019081526020015f206001018190555084866008015f8381526020019081526020015f206002015f6101000a8154816001600160401b0302191690836001600160401b031602179055505f866008015f8381526020019081526020015f2060020160086101000a8154816001600160401b0302191690836001600160401b0316021790555082866008015f8381526020019081526020015f2060020160106101000a8154816001600160401b0302191690836001600160401b031602179055505f866008015f8381526020019081526020015f2060020160186101000a8154816001600160401b0302191690836001600160401b031602179055508786600a015f8381526020019081526020015f205f6101000a8154816001600160a01b0302191690836001600160a01b03160217905550896001600160a01b03168b827f77499a5603260ef2b34698d88b31f7b1acf28c7b134ad4e3fa636501e6064d7786888a888f6040516123d59594939291906001600160401b039586168152938516602085015291909316604083015260608201929092526001600160a01b0391909116608082015260a00190565b60405180910390a4955050505050505b949350505050565b5f5f6123f7611a32565b5f938452600701602052505060409020546001600160a01b0316151590565b6040516306f8253560e41b815263ffffffff821660048201525f90819081906005600160991b0190636f825350906024015f60405180830381865afa158015612461573d5f5f3e3d5ffd5b505050506040513d5f823e601f3d908101601f191682016040526124889190810190613ef9565b91509150806124aa57604051636b2f19e960e01b815260040160405180910390fd5b5f6124b3611a32565b60068101548451919250146124e1578251604051636ba589a560e01b815260048101919091526024016107e5565b60208301516001600160a01b03161561251d576020830151604051624de75d60e31b81526001600160a01b0390911660048201526024016107e5565b5f5f73__$add2235b6a6cf493060b757d4655105486$__63088c246386604001516040518263ffffffff1660e01b815260040161255a9190613dca565b6040805180830381865af4158015612574573d5f5f3e3d5ffd5b505050506040513d601f19601f820116820180604052508101906125989190613d4a565b915091508188146125c65760405163fee3144560e01b815260048101839052602481018990526044016107e5565b5f8881526007840160205260409020600101546001600160401b039081169082161115612657575f888152600784016020908152604091829020600101805467ffffffffffffffff19166001600160401b038516908117909155915191825289917fec44148e8ff271f2d0bacef1142154abacb0abb3a29eb3eb50e2ca97e86d0435910160405180910390a26117b5565b50505f95865260070160205250506040909220600101546001600160401b031692915050565b5f5f612687611a32565b5f868152600882016020526040808220815160e0810190925280549394509192909190829060ff1660038111156126c0576126c0613753565b60038111156126d1576126d1613753565b8152815461010090046001600160a01b03908116602083015260018301546040808401919091526002909301546001600160401b038082166060850152600160401b820481166080850152600160801b8204811660a0850152600160c01b9091041660c0909201919091528282015185549251636af907fb60e11b815260048101829052939450925f929091169063d5f20ff6906024015f60405180830381865afa158015612782573d5f5f3e3d5ffd5b505050506040513d5f823e601f3d908101601f191682016040526127a99190810190613c68565b90506002835160038111156127c0576127c0613753565b146127e1578251604051633b0d540d60e21b81526107e59190600401613bdd565b60208301516001600160a01b03163314801590612880575f8381526007860160205260409020546001600160a01b0316331461281d57336113ce565b5f83815260078601602052604090205460c083015161284c91600160b01b90046001600160401b031690613e72565b6001600160401b03164210156128805760405163fb6ce63f60e01b81526001600160401b03421660048201526024016107e5565b5f898152600a860160205260409020546001600160a01b03166002835160058111156128ae576128ae613753565b03612a8557600386015460808601516128d0916001600160401b031690613e72565b6001600160401b03164210156129045760405163fb6ce63f60e01b81526001600160401b03421660048201526024016107e5565b8815612916576129148489612416565b505b5f8a81526008870160205260409020805460ff191660031790558554606086015160a08501516001600160a01b0390921691636610966991879161295a9190613f8c565b6040516001600160e01b031960e085901b16815260048101929092526001600160401b0316602482015260440160408051808303815f875af11580156129a2573d5f5f3e3d5ffd5b505050506040513d601f19601f820116820180604052508101906129c69190613ecd565b505f8b815260088801602052604080822060020180546001600160401b03909416600160c01b026001600160c01b0390941693909317909255905185918c917f5abe543af12bb7f76f6fa9daaa9d95d181c5e90566df58d3c012216b6245eeaf9190a38115612a67575050505f878152600d93909301602052505060409020805467ffffffffffffffff1916426001600160401b0316179055506001611f9d565b5f612a7486838d42612fb3565b15159750611f9d9650505050505050565b600483516005811115612a9a57612a9a613753565b03612ac857612aaf85828c8660e00151612fb3565b50612ab98a611a56565b60019650505050505050611f9d565b825160405163170cc93360e21b81526107e59190600401613df3565b612aef83838361267d565b610ef657604051631036cf9160e11b8152600481018490526024016107e5565b5f612b18611a32565b5f838152600b8201602052604081208054919055909150612b3984826132c9565b836001600160a01b0316837f875feb58aa30eeee040d55b00249c5c8c5af4f27c95cd29d64180ad67400c6e483604051612b7591815260200190565b60405180910390a350505050565b610a2c6001600160a01b03831682613327565b5f5f612ba0611a32565b600381015490915061ffff600160401b90910481169087161080612bc9575061271061ffff8716115b15612bed57604051635f12e6c360e11b815261ffff871660048201526024016107e5565b60038101546001600160401b039081169086161015612c29576040516202a06d60e11b81526001600160401b03861660048201526024016107e5565b8060010154841080612c3e5750806002015484115b15612c5f5760405163222d164360e21b8152600481018590526024016107e5565b6001600160a01b038316612c915760405163caa903f960e01b81526001600160a01b03841660048201526024016107e5565b835f612c9c82610efb565b90505f835f015f9054906101000a90046001600160a01b03166001600160a01b0316639cb7624e8e8e8e8e876040518663ffffffff1660e01b8152600401612ce8959493929190614011565b6020604051808303815f875af1158015612d04573d5f5f3e3d5ffd5b505050506040513d601f19601f82011682018060405250810190612d289190613ddc565b90505f33905080856007015f8481526020019081526020015f205f015f6101000a8154816001600160a01b0302191690836001600160a01b0316021790555089856007015f8481526020019081526020015f205f0160146101000a81548161ffff021916908361ffff16021790555088856007015f8481526020019081526020015f205f0160166101000a8154816001600160401b0302191690836001600160401b031602179055505f856007015f8481526020019081526020015f206001015f6101000a8154816001600160401b0302191690836001600160401b031602179055508685600c015f8481526020019081526020015f205f6101000a8154816001600160a01b0302191690836001600160a01b03160217905550806001600160a01b0316827ff51ab9b5253693af2f675b23c4042ccac671873d5f188e405b30019f4c159b7f8c8c8b604051612ea99392919061ffff9390931683526001600160401b039190911660208301526001600160a01b0316604082015260600190565b60405180910390a3509c9b505050505050505050505050565b612ecd838383611cfd565b610ef657604051635bff683f60e11b8152600481018490526024016107e5565b7ff0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a0054600160401b900460ff16612f3657604051631afcd79f60e31b815260040160405180910390fd5b565b612f40612eed565b612f486133c1565b6119f8612f586020830183614079565b60208301356040840135612f72608086016060870161381a565b612f8260a0870160808801614094565b612f9260c0880160a089016140ad565b60c0880135612fa86101008a0160e08b01614079565b8961010001356133d1565b5f5f612fbd611a32565b80546040808901519051636af907fb60e11b81529293505f926001600160a01b039092169163d5f20ff691612ff89160040190815260200190565b5f60405180830381865afa158015613012573d5f5f3e3d5ffd5b505050506040513d5f823e601f3d908101601f191682016040526130399190810190613c68565b905086608001516001600160401b0316846001600160401b031611613062575f925050506123e5565b6040808801515f908152600784016020529081206001015460c08301516001600160401b0390911691906130969087613f8c565b9050806001600160401b0316826001600160401b031611156130b6578091505b600584015460608a01515f916001600160a01b031690634f22429f906130db90611350565b60c087015160808e01516040516001600160e01b031960e086901b16815260048101939093526001600160401b03918216602484015281166044830152808b1660648301528616608482015260a401602060405180830381865afa158015613145573d5f5f3e3d5ffd5b505050506040513d601f19601f820116820180604052508101906131699190613ddc565b90506001600160a01b03891661318157896020015198505b5f8881526009860160209081526040808320849055600a90970190529490942080546001600160a01b038a166001600160a01b0319909116179055509192505050949350505050565b5f5f5f6131d5611a32565b5f86815260098201602052604081205491925090819080156132bb575f8881526009850160209081526040808320839055898352600787019091529020546127109061322c90600160a01b900461ffff1683613e40565b6132369190613e21565b91508184600b015f8981526020019081526020015f205f82825461325a9190613e91565b9091555061326a905082826140cd565b925061327689846132c9565b886001600160a01b0316887f3ffc31181aadb250503101bd718e5fce8c27650af8d3525b9f60996756efaf63856040516132b291815260200190565b60405180910390a35b509097909650945050505050565b6040516327ad555d60e11b81526001600160a01b0383166004820152602481018290526001600160991b0190634f5aaaba906044015f604051808303815f87803b158015613315575f5ffd5b505af11580156106e8573d5f5f3e3d5ffd5b804710156133515760405163cf47918160e01b8152476004820152602481018290526044016107e5565b5f826001600160a01b0316826040515f6040518083038185875af1925050503d805f811461339a576040519150601f19603f3d011682016040523d82523d5f602084013e61339f565b606091505b5050905080610ef65760405163d6bda27560e01b815260040160405180910390fd5b6133c9612eed565b612f36613648565b6133d9612eed565b5f6133e2611a32565b905061ffff861615806133fa575061271061ffff8716115b1561341e57604051635f12e6c360e11b815261ffff871660048201526024016107e5565b878911156134425760405163222d164360e21b8152600481018a90526024016107e5565b60ff851615806134555750600a60ff8616115b156134785760405163170db35960e31b815260ff861660048201526024016107e5565b6001600160a01b038a1661349f5760405163d92e233d60e01b815260040160405180910390fd5b6001600160a01b0383166134c65760405163d92e233d60e01b815260040160405180910390fd5b896001600160a01b03166309c1df666040518163ffffffff1660e01b8152600401602060405180830381865afa158015613502573d5f5f3e3d5ffd5b505050506040513d601f19601f820116820180604052508101906135269190613e57565b6001600160401b0316876001600160401b03161015613562576040516202a06d60e11b81526001600160401b03881660048201526024016107e5565b835f036135825760405163a733007160e01b815260040160405180910390fd5b816135a357604051632f6bd1db60e01b8152600481018390526024016107e5565b80546001600160a01b039a8b166001600160a01b031991821617825560018201999099556002810197909755600387018054600160501b60ff9096169590950267ffffffffffffffff60501b1961ffff909716600160401b0269ffffffffffffffffffff199096166001600160401b03909816979097179490941794909416949094179091556004840155600583018054929095169190931617909255600690910155565b611cea612eed565b5f610120828403128015613662575f5ffd5b509092915050565b803563ffffffff81168114611707575f5ffd5b5f5f6040838503121561368e575f5ffd5b8235915061369e6020840161366a565b90509250929050565b80151581146119f8575f5ffd5b5f5f5f606084860312156136c6575f5ffd5b8335925060208401356136d8816136a7565b91506136e66040850161366a565b90509250925092565b6001600160a01b03811681146119f8575f5ffd5b8035611707816136ef565b5f5f6040838503121561371f575f5ffd5b823591506020830135613731816136ef565b809150509250929050565b5f6020828403121561374c575f5ffd5b5035919050565b634e487b7160e01b5f52602160045260245ffd5b6004811061377757613777613753565b9052565b5f60e08201905061378d828451613767565b60018060a01b036020840151166020830152604083015160408301526001600160401b0360608401511660608301526001600160401b0360808401511660808301526001600160401b0360a08401511660a08301526001600160401b0360c08401511660c083015292915050565b6001600160401b03811681146119f8575f5ffd5b8035611707816137fb565b5f6020828403121561382a575f5ffd5b8135611f9d816137fb565b5f60208284031215613845575f5ffd5b611f9d8261366a565b634e487b7160e01b5f52604160045260245ffd5b604080519081016001600160401b03811182821017156138845761388461384e565b60405290565b60405161010081016001600160401b03811182821017156138845761388461384e565b604051606081016001600160401b03811182821017156138845761388461384e565b604051601f8201601f191681016001600160401b03811182821017156138f7576138f761384e565b604052919050565b5f6001600160401b038211156139175761391761384e565b50601f01601f191660200190565b5f82601f830112613934575f5ffd5b8135613947613942826138ff565b6138cf565b81815284602083860101111561395b575f5ffd5b816020850160208301375f918101602001919091529392505050565b5f60408284031215613987575f5ffd5b61398f613862565b905061399a8261366a565b815260208201356001600160401b038111156139b4575f5ffd5b8201601f810184136139c4575f5ffd5b80356001600160401b038111156139dd576139dd61384e565b8060051b6139ed602082016138cf565b91825260208184018101929081019087841115613a08575f5ffd5b6020850194505b83851015613a365784359250613a24836136ef565b82825260209485019490910190613a0f565b6020860152509295945050505050565b803561ffff81168114611707575f5ffd5b5f5f5f5f5f5f5f60e0888a031215613a6d575f5ffd5b87356001600160401b03811115613a82575f5ffd5b613a8e8a828b01613925565b97505060208801356001600160401b03811115613aa9575f5ffd5b613ab58a828b01613925565b96505060408801356001600160401b03811115613ad0575f5ffd5b613adc8a828b01613977565b95505060608801356001600160401b03811115613af7575f5ffd5b613b038a828b01613977565b945050613b1260808901613a46565b9250613b2060a0890161380f565b9150613b2e60c08901613703565b905092959891949750929550565b81516001600160a01b031681526020808301519082015260408083015190820152606080830151610120830191613b7d908401826001600160401b03169052565b506080830151613b93608084018261ffff169052565b5060a0830151613ba860a084018260ff169052565b5060c083015160c083015260e0830151613bcd60e08401826001600160a01b03169052565b5061010092830151919092015290565b60208101610a6e8284613767565b805160068110611707575f5ffd5b5f5b83811015613c13578181015183820152602001613bfb565b50505f910152565b5f82601f830112613c2a575f5ffd5b8151613c38613942826138ff565b818152846020838601011115613c4c575f5ffd5b6123e5826020830160208701613bf9565b8051611707816137fb565b5f60208284031215613c78575f5ffd5b81516001600160401b03811115613c8d575f5ffd5b82016101008185031215613c9f575f5ffd5b613ca761388a565b613cb082613beb565b815260208201516001600160401b03811115613cca575f5ffd5b613cd686828501613c1b565b602083015250613ce860408301613c5d565b6040820152613cf960608301613c5d565b6060820152613d0a60808301613c5d565b6080820152613d1b60a08301613c5d565b60a0820152613d2c60c08301613c5d565b60c0820152613d3d60e08301613c5d565b60e0820152949350505050565b5f5f60408385031215613d5b575f5ffd5b82516020840151909250613731816137fb565b5f60208284031215613d7e575f5ffd5b81516001600160401b03811115613d93575f5ffd5b6123e584828501613c1b565b5f8151808452613db6816020860160208601613bf9565b601f01601f19169290920160200192915050565b602081525f611f9d6020830184613d9f565b5f60208284031215613dec575f5ffd5b5051919050565b6020810160068310613e0757613e07613753565b91905290565b634e487b7160e01b5f52601160045260245ffd5b5f82613e3b57634e487b7160e01b5f52601260045260245ffd5b500490565b8082028115828204841417610a6e57610a6e613e0d565b5f60208284031215613e67575f5ffd5b8151611f9d816137fb565b6001600160401b038181168382160190811115610a6e57610a6e613e0d565b80820180821115610a6e57610a6e613e0d565b6001600160401b038181168382160290811690818114613ec657613ec6613e0d565b5092915050565b5f5f60408385031215613ede575f5ffd5b8251613ee9816137fb565b6020939093015192949293505050565b5f5f60408385031215613f0a575f5ffd5b82516001600160401b03811115613f1f575f5ffd5b830160608186031215613f30575f5ffd5b613f386138ad565b815181526020820151613f4a816136ef565b602082015260408201516001600160401b03811115613f67575f5ffd5b613f7387828501613c1b565b60408301525080935050506020830151613731816136a7565b6001600160401b038281168282160390811115610a6e57610a6e613e0d565b5f6040830163ffffffff83511684526020830151604060208601528181518084526060870191506020830193505f92505b808310156140075783516001600160a01b031682526020938401936001939093019290910190613fdc565b5095945050505050565b60a081525f61402360a0830188613d9f565b82810360208401526140358188613d9f565b905082810360408401526140498187613fab565b9050828103606084015261405d8186613fab565b9150506001600160401b03831660808301529695505050505050565b5f60208284031215614089575f5ffd5b8135611f9d816136ef565b5f602082840312156140a4575f5ffd5b611f9d82613a46565b5f602082840312156140bd575f5ffd5b813560ff81168114611f9d575f5ffd5b81810381811115610a6e57610a6e613e0d56fe9b779b17422d0df92223018b32b4d1fa46e071723d6817e2486d003becc55f00a2646970667358221220e43aab71a67215169e95ff0f9d2454c9b378a0ce4678945e44dafbdefcdbdf9264736f6c634300081e0033",
+}
+
+// NativeTokenStakingManagerABI is the input ABI used to generate the binding from.
+// Deprecated: Use NativeTokenStakingManagerMetaData.ABI instead.
+var NativeTokenStakingManagerABI = NativeTokenStakingManagerMetaData.ABI
+
+// NativeTokenStakingManagerBin is the compiled bytecode used for deploying new contracts.
+// Deprecated: Use NativeTokenStakingManagerMetaData.Bin instead.
+var NativeTokenStakingManagerBin = NativeTokenStakingManagerMetaData.Bin
+
+// DeployNativeTokenStakingManager deploys a new Ethereum contract, binding an instance of NativeTokenStakingManager to it.
+func DeployNativeTokenStakingManager(auth *bind.TransactOpts, backend bind.ContractBackend, init uint8) (common.Address, *types.Transaction, *NativeTokenStakingManager, error) {
+	parsed, err := NativeTokenStakingManagerMetaData.GetAbi()
+	if err != nil {
+		return common.Address{}, nil, nil, err
+	}
+	if parsed == nil {
+		return common.Address{}, nil, nil, errors.New("GetABI returned nil")
+	}
+
+	validatorMessagesAddr, _, _, _ := DeployValidatorMessages(auth, backend)
+	NativeTokenStakingManagerBin = strings.ReplaceAll(NativeTokenStakingManagerBin, "__$add2235b6a6cf493060b757d4655105486$__", validatorMessagesAddr.String()[2:])
+
+	address, tx, contract, err := bind.DeployContract(auth, *parsed, common.FromHex(NativeTokenStakingManagerBin), backend, init)
+	if err != nil {
+		return common.Address{}, nil, nil, err
+	}
+	return address, tx, &NativeTokenStakingManager{NativeTokenStakingManagerCaller: NativeTokenStakingManagerCaller{contract: contract}, NativeTokenStakingManagerTransactor: NativeTokenStakingManagerTransactor{contract: contract}, NativeTokenStakingManagerFilterer: NativeTokenStakingManagerFilterer{contract: contract}}, nil
+}
+
+// NativeTokenStakingManager is an auto generated Go binding around an Ethereum contract.
+type NativeTokenStakingManager struct {
+	NativeTokenStakingManagerCaller     // Read-only binding to the contract
+	NativeTokenStakingManagerTransactor // Write-only binding to the contract
+	NativeTokenStakingManagerFilterer   // Log filterer for contract events
+}
+
+// NativeTokenStakingManagerCaller is an auto generated read-only Go binding around an Ethereum contract.
+type NativeTokenStakingManagerCaller struct {
+	contract *bind.BoundContract // Generic contract wrapper for the low level calls
+}
+
+// NativeTokenStakingManagerTransactor is an auto generated write-only Go binding around an Ethereum contract.
+type NativeTokenStakingManagerTransactor struct {
+	contract *bind.BoundContract // Generic contract wrapper for the low level calls
+}
+
+// NativeTokenStakingManagerFilterer is an auto generated log filtering Go binding around an Ethereum contract events.
+type NativeTokenStakingManagerFilterer struct {
+	contract *bind.BoundContract // Generic contract wrapper for the low level calls
+}
+
+// NativeTokenStakingManagerSession is an auto generated Go binding around an Ethereum contract,
+// with pre-set call and transact options.
+type NativeTokenStakingManagerSession struct {
+	Contract     *NativeTokenStakingManager // Generic contract binding to set the session for
+	CallOpts     bind.CallOpts              // Call options to use throughout this session
+	TransactOpts bind.TransactOpts          // Transaction auth options to use throughout this session
+}
+
+// NativeTokenStakingManagerCallerSession is an auto generated read-only Go binding around an Ethereum contract,
+// with pre-set call options.
+type NativeTokenStakingManagerCallerSession struct {
+	Contract *NativeTokenStakingManagerCaller // Generic contract caller binding to set the session for
+	CallOpts bind.CallOpts                    // Call options to use throughout this session
+}
+
+// NativeTokenStakingManagerTransactorSession is an auto generated write-only Go binding around an Ethereum contract,
+// with pre-set transact options.
+type NativeTokenStakingManagerTransactorSession struct {
+	Contract     *NativeTokenStakingManagerTransactor // Generic contract transactor binding to set the session for
+	TransactOpts bind.TransactOpts                    // Transaction auth options to use throughout this session
+}
+
+// NativeTokenStakingManagerRaw is an auto generated low-level Go binding around an Ethereum contract.
+type NativeTokenStakingManagerRaw struct {
+	Contract *NativeTokenStakingManager // Generic contract binding to access the raw methods on
+}
+
+// NativeTokenStakingManagerCallerRaw is an auto generated low-level read-only Go binding around an Ethereum contract.
+type NativeTokenStakingManagerCallerRaw struct {
+	Contract *NativeTokenStakingManagerCaller // Generic read-only contract binding to access the raw methods on
+}
+
+// NativeTokenStakingManagerTransactorRaw is an auto generated low-level write-only Go binding around an Ethereum contract.
+type NativeTokenStakingManagerTransactorRaw struct {
+	Contract *NativeTokenStakingManagerTransactor // Generic write-only contract binding to access the raw methods on
+}
+
+// NewNativeTokenStakingManager creates a new instance of NativeTokenStakingManager, bound to a specific deployed contract.
+func NewNativeTokenStakingManager(address common.Address, backend bind.ContractBackend) (*NativeTokenStakingManager, error) {
+	contract, err := bindNativeTokenStakingManager(address, backend, backend, backend)
+	if err != nil {
+		return nil, err
+	}
+	return &NativeTokenStakingManager{NativeTokenStakingManagerCaller: NativeTokenStakingManagerCaller{contract: contract}, NativeTokenStakingManagerTransactor: NativeTokenStakingManagerTransactor{contract: contract}, NativeTokenStakingManagerFilterer: NativeTokenStakingManagerFilterer{contract: contract}}, nil
+}
+
+// NewNativeTokenStakingManagerCaller creates a new read-only instance of NativeTokenStakingManager, bound to a specific deployed contract.
+func NewNativeTokenStakingManagerCaller(address common.Address, caller bind.ContractCaller) (*NativeTokenStakingManagerCaller, error) {
+	contract, err := bindNativeTokenStakingManager(address, caller, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &NativeTokenStakingManagerCaller{contract: contract}, nil
+}
+
+// NewNativeTokenStakingManagerTransactor creates a new write-only instance of NativeTokenStakingManager, bound to a specific deployed contract.
+func NewNativeTokenStakingManagerTransactor(address common.Address, transactor bind.ContractTransactor) (*NativeTokenStakingManagerTransactor, error) {
+	contract, err := bindNativeTokenStakingManager(address, nil, transactor, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &NativeTokenStakingManagerTransactor{contract: contract}, nil
+}
+
+// NewNativeTokenStakingManagerFilterer creates a new log filterer instance of NativeTokenStakingManager, bound to a specific deployed contract.
+func NewNativeTokenStakingManagerFilterer(address common.Address, filterer bind.ContractFilterer) (*NativeTokenStakingManagerFilterer, error) {
+	contract, err := bindNativeTokenStakingManager(address, nil, nil, filterer)
+	if err != nil {
+		return nil, err
+	}
+	return &NativeTokenStakingManagerFilterer{contract: contract}, nil
+}
+
+// bindNativeTokenStakingManager binds a generic wrapper to an already deployed contract.
+func bindNativeTokenStakingManager(address common.Address, caller bind.ContractCaller, transactor bind.ContractTransactor, filterer bind.ContractFilterer) (*bind.BoundContract, error) {
+	parsed, err := NativeTokenStakingManagerMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
+	return bind.NewBoundContract(address, *parsed, caller, transactor, filterer), nil
+}
+
+// Call invokes the (constant) contract method with params as input values and
+// sets the output to result. The result type might be a single field for simple
+// returns, a slice of interfaces for anonymous returns and a struct for named
+// returns.
+func (_NativeTokenStakingManager *NativeTokenStakingManagerRaw) Call(opts *bind.CallOpts, result *[]interface{}, method string, params ...interface{}) error {
+	return _NativeTokenStakingManager.Contract.NativeTokenStakingManagerCaller.contract.Call(opts, result, method, params...)
+}
+
+// Transfer initiates a plain transaction to move funds to the contract, calling
+// its default method if one is available.
+func (_NativeTokenStakingManager *NativeTokenStakingManagerRaw) Transfer(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.NativeTokenStakingManagerTransactor.contract.Transfer(opts)
+}
+
+// Transact invokes the (paid) contract method with params as input values.
+func (_NativeTokenStakingManager *NativeTokenStakingManagerRaw) Transact(opts *bind.TransactOpts, method string, params ...interface{}) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.NativeTokenStakingManagerTransactor.contract.Transact(opts, method, params...)
+}
+
+// Call invokes the (constant) contract method with params as input values and
+// sets the output to result. The result type might be a single field for simple
+// returns, a slice of interfaces for anonymous returns and a struct for named
+// returns.
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCallerRaw) Call(opts *bind.CallOpts, result *[]interface{}, method string, params ...interface{}) error {
+	return _NativeTokenStakingManager.Contract.contract.Call(opts, result, method, params...)
+}
+
+// Transfer initiates a plain transaction to move funds to the contract, calling
+// its default method if one is available.
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactorRaw) Transfer(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.contract.Transfer(opts)
+}
+
+// Transact invokes the (paid) contract method with params as input values.
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactorRaw) Transact(opts *bind.TransactOpts, method string, params ...interface{}) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.contract.Transact(opts, method, params...)
+}
+
+// BIPSCONVERSIONFACTOR is a free data retrieval call binding the contract method 0xa9778a7a.
+//
+// Solidity: function BIPS_CONVERSION_FACTOR() view returns(uint16)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCaller) BIPSCONVERSIONFACTOR(opts *bind.CallOpts) (uint16, error) {
+	var out []interface{}
+	err := _NativeTokenStakingManager.contract.Call(opts, &out, "BIPS_CONVERSION_FACTOR")
+
+	if err != nil {
+		return *new(uint16), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(uint16)).(*uint16)
+
+	return out0, err
+
+}
+
+// BIPSCONVERSIONFACTOR is a free data retrieval call binding the contract method 0xa9778a7a.
+//
+// Solidity: function BIPS_CONVERSION_FACTOR() view returns(uint16)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) BIPSCONVERSIONFACTOR() (uint16, error) {
+	return _NativeTokenStakingManager.Contract.BIPSCONVERSIONFACTOR(&_NativeTokenStakingManager.CallOpts)
+}
+
+// BIPSCONVERSIONFACTOR is a free data retrieval call binding the contract method 0xa9778a7a.
+//
+// Solidity: function BIPS_CONVERSION_FACTOR() view returns(uint16)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCallerSession) BIPSCONVERSIONFACTOR() (uint16, error) {
+	return _NativeTokenStakingManager.Contract.BIPSCONVERSIONFACTOR(&_NativeTokenStakingManager.CallOpts)
+}
+
+// MAXIMUMDELEGATIONFEEBIPS is a free data retrieval call binding the contract method 0x35455ded.
+//
+// Solidity: function MAXIMUM_DELEGATION_FEE_BIPS() view returns(uint16)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCaller) MAXIMUMDELEGATIONFEEBIPS(opts *bind.CallOpts) (uint16, error) {
+	var out []interface{}
+	err := _NativeTokenStakingManager.contract.Call(opts, &out, "MAXIMUM_DELEGATION_FEE_BIPS")
+
+	if err != nil {
+		return *new(uint16), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(uint16)).(*uint16)
+
+	return out0, err
+
+}
+
+// MAXIMUMDELEGATIONFEEBIPS is a free data retrieval call binding the contract method 0x35455ded.
+//
+// Solidity: function MAXIMUM_DELEGATION_FEE_BIPS() view returns(uint16)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) MAXIMUMDELEGATIONFEEBIPS() (uint16, error) {
+	return _NativeTokenStakingManager.Contract.MAXIMUMDELEGATIONFEEBIPS(&_NativeTokenStakingManager.CallOpts)
+}
+
+// MAXIMUMDELEGATIONFEEBIPS is a free data retrieval call binding the contract method 0x35455ded.
+//
+// Solidity: function MAXIMUM_DELEGATION_FEE_BIPS() view returns(uint16)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCallerSession) MAXIMUMDELEGATIONFEEBIPS() (uint16, error) {
+	return _NativeTokenStakingManager.Contract.MAXIMUMDELEGATIONFEEBIPS(&_NativeTokenStakingManager.CallOpts)
+}
+
+// MAXIMUMSTAKEMULTIPLIERLIMIT is a free data retrieval call binding the contract method 0x151d30d1.
+//
+// Solidity: function MAXIMUM_STAKE_MULTIPLIER_LIMIT() view returns(uint8)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCaller) MAXIMUMSTAKEMULTIPLIERLIMIT(opts *bind.CallOpts) (uint8, error) {
+	var out []interface{}
+	err := _NativeTokenStakingManager.contract.Call(opts, &out, "MAXIMUM_STAKE_MULTIPLIER_LIMIT")
+
+	if err != nil {
+		return *new(uint8), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(uint8)).(*uint8)
+
+	return out0, err
+
+}
+
+// MAXIMUMSTAKEMULTIPLIERLIMIT is a free data retrieval call binding the contract method 0x151d30d1.
+//
+// Solidity: function MAXIMUM_STAKE_MULTIPLIER_LIMIT() view returns(uint8)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) MAXIMUMSTAKEMULTIPLIERLIMIT() (uint8, error) {
+	return _NativeTokenStakingManager.Contract.MAXIMUMSTAKEMULTIPLIERLIMIT(&_NativeTokenStakingManager.CallOpts)
+}
+
+// MAXIMUMSTAKEMULTIPLIERLIMIT is a free data retrieval call binding the contract method 0x151d30d1.
+//
+// Solidity: function MAXIMUM_STAKE_MULTIPLIER_LIMIT() view returns(uint8)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCallerSession) MAXIMUMSTAKEMULTIPLIERLIMIT() (uint8, error) {
+	return _NativeTokenStakingManager.Contract.MAXIMUMSTAKEMULTIPLIERLIMIT(&_NativeTokenStakingManager.CallOpts)
+}
+
+// NATIVEMINTER is a free data retrieval call binding the contract method 0x329c3e12.
+//
+// Solidity: function NATIVE_MINTER() view returns(address)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCaller) NATIVEMINTER(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _NativeTokenStakingManager.contract.Call(opts, &out, "NATIVE_MINTER")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// NATIVEMINTER is a free data retrieval call binding the contract method 0x329c3e12.
+//
+// Solidity: function NATIVE_MINTER() view returns(address)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) NATIVEMINTER() (common.Address, error) {
+	return _NativeTokenStakingManager.Contract.NATIVEMINTER(&_NativeTokenStakingManager.CallOpts)
+}
+
+// NATIVEMINTER is a free data retrieval call binding the contract method 0x329c3e12.
+//
+// Solidity: function NATIVE_MINTER() view returns(address)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCallerSession) NATIVEMINTER() (common.Address, error) {
+	return _NativeTokenStakingManager.Contract.NATIVEMINTER(&_NativeTokenStakingManager.CallOpts)
+}
+
+// STAKINGMANAGERSTORAGELOCATION is a free data retrieval call binding the contract method 0x7a63ad85.
+//
+// Solidity: function STAKING_MANAGER_STORAGE_LOCATION() view returns(bytes32)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCaller) STAKINGMANAGERSTORAGELOCATION(opts *bind.CallOpts) ([32]byte, error) {
+	var out []interface{}
+	err := _NativeTokenStakingManager.contract.Call(opts, &out, "STAKING_MANAGER_STORAGE_LOCATION")
+
+	if err != nil {
+		return *new([32]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+
+	return out0, err
+
+}
+
+// STAKINGMANAGERSTORAGELOCATION is a free data retrieval call binding the contract method 0x7a63ad85.
+//
+// Solidity: function STAKING_MANAGER_STORAGE_LOCATION() view returns(bytes32)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) STAKINGMANAGERSTORAGELOCATION() ([32]byte, error) {
+	return _NativeTokenStakingManager.Contract.STAKINGMANAGERSTORAGELOCATION(&_NativeTokenStakingManager.CallOpts)
+}
+
+// STAKINGMANAGERSTORAGELOCATION is a free data retrieval call binding the contract method 0x7a63ad85.
+//
+// Solidity: function STAKING_MANAGER_STORAGE_LOCATION() view returns(bytes32)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCallerSession) STAKINGMANAGERSTORAGELOCATION() ([32]byte, error) {
+	return _NativeTokenStakingManager.Contract.STAKINGMANAGERSTORAGELOCATION(&_NativeTokenStakingManager.CallOpts)
+}
+
+// WARPMESSENGER is a free data retrieval call binding the contract method 0xb771b3bc.
+//
+// Solidity: function WARP_MESSENGER() view returns(address)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCaller) WARPMESSENGER(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _NativeTokenStakingManager.contract.Call(opts, &out, "WARP_MESSENGER")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// WARPMESSENGER is a free data retrieval call binding the contract method 0xb771b3bc.
+//
+// Solidity: function WARP_MESSENGER() view returns(address)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) WARPMESSENGER() (common.Address, error) {
+	return _NativeTokenStakingManager.Contract.WARPMESSENGER(&_NativeTokenStakingManager.CallOpts)
+}
+
+// WARPMESSENGER is a free data retrieval call binding the contract method 0xb771b3bc.
+//
+// Solidity: function WARP_MESSENGER() view returns(address)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCallerSession) WARPMESSENGER() (common.Address, error) {
+	return _NativeTokenStakingManager.Contract.WARPMESSENGER(&_NativeTokenStakingManager.CallOpts)
+}
+
+// GetDelegatorInfo is a free data retrieval call binding the contract method 0x53a13338.
+//
+// Solidity: function getDelegatorInfo(bytes32 delegationID) view returns((uint8,address,bytes32,uint64,uint64,uint64,uint64))
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCaller) GetDelegatorInfo(opts *bind.CallOpts, delegationID [32]byte) (Delegator, error) {
+	var out []interface{}
+	err := _NativeTokenStakingManager.contract.Call(opts, &out, "getDelegatorInfo", delegationID)
+
+	if err != nil {
+		return *new(Delegator), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(Delegator)).(*Delegator)
+
+	return out0, err
+
+}
+
+// GetDelegatorInfo is a free data retrieval call binding the contract method 0x53a13338.
+//
+// Solidity: function getDelegatorInfo(bytes32 delegationID) view returns((uint8,address,bytes32,uint64,uint64,uint64,uint64))
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) GetDelegatorInfo(delegationID [32]byte) (Delegator, error) {
+	return _NativeTokenStakingManager.Contract.GetDelegatorInfo(&_NativeTokenStakingManager.CallOpts, delegationID)
+}
+
+// GetDelegatorInfo is a free data retrieval call binding the contract method 0x53a13338.
+//
+// Solidity: function getDelegatorInfo(bytes32 delegationID) view returns((uint8,address,bytes32,uint64,uint64,uint64,uint64))
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCallerSession) GetDelegatorInfo(delegationID [32]byte) (Delegator, error) {
+	return _NativeTokenStakingManager.Contract.GetDelegatorInfo(&_NativeTokenStakingManager.CallOpts, delegationID)
+}
+
+// GetDelegatorRewardInfo is a free data retrieval call binding the contract method 0xaf1dd66c.
+//
+// Solidity: function getDelegatorRewardInfo(bytes32 delegationID) view returns(address, uint256)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCaller) GetDelegatorRewardInfo(opts *bind.CallOpts, delegationID [32]byte) (common.Address, *big.Int, error) {
+	var out []interface{}
+	err := _NativeTokenStakingManager.contract.Call(opts, &out, "getDelegatorRewardInfo", delegationID)
+
+	if err != nil {
+		return *new(common.Address), *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+
+	return out0, out1, err
+
+}
+
+// GetDelegatorRewardInfo is a free data retrieval call binding the contract method 0xaf1dd66c.
+//
+// Solidity: function getDelegatorRewardInfo(bytes32 delegationID) view returns(address, uint256)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) GetDelegatorRewardInfo(delegationID [32]byte) (common.Address, *big.Int, error) {
+	return _NativeTokenStakingManager.Contract.GetDelegatorRewardInfo(&_NativeTokenStakingManager.CallOpts, delegationID)
+}
+
+// GetDelegatorRewardInfo is a free data retrieval call binding the contract method 0xaf1dd66c.
+//
+// Solidity: function getDelegatorRewardInfo(bytes32 delegationID) view returns(address, uint256)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCallerSession) GetDelegatorRewardInfo(delegationID [32]byte) (common.Address, *big.Int, error) {
+	return _NativeTokenStakingManager.Contract.GetDelegatorRewardInfo(&_NativeTokenStakingManager.CallOpts, delegationID)
+}
+
+// GetStakingManagerSettings is a free data retrieval call binding the contract method 0xcaa71874.
+//
+// Solidity: function getStakingManagerSettings() view returns((address,uint256,uint256,uint64,uint16,uint8,uint256,address,bytes32))
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCaller) GetStakingManagerSettings(opts *bind.CallOpts) (StakingManagerSettings, error) {
+	var out []interface{}
+	err := _NativeTokenStakingManager.contract.Call(opts, &out, "getStakingManagerSettings")
+
+	if err != nil {
+		return *new(StakingManagerSettings), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(StakingManagerSettings)).(*StakingManagerSettings)
+
+	return out0, err
+
+}
+
+// GetStakingManagerSettings is a free data retrieval call binding the contract method 0xcaa71874.
+//
+// Solidity: function getStakingManagerSettings() view returns((address,uint256,uint256,uint64,uint16,uint8,uint256,address,bytes32))
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) GetStakingManagerSettings() (StakingManagerSettings, error) {
+	return _NativeTokenStakingManager.Contract.GetStakingManagerSettings(&_NativeTokenStakingManager.CallOpts)
+}
+
+// GetStakingManagerSettings is a free data retrieval call binding the contract method 0xcaa71874.
+//
+// Solidity: function getStakingManagerSettings() view returns((address,uint256,uint256,uint64,uint16,uint8,uint256,address,bytes32))
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCallerSession) GetStakingManagerSettings() (StakingManagerSettings, error) {
+	return _NativeTokenStakingManager.Contract.GetStakingManagerSettings(&_NativeTokenStakingManager.CallOpts)
+}
+
+// GetStakingValidator is a free data retrieval call binding the contract method 0x2674874b.
+//
+// Solidity: function getStakingValidator(bytes32 validationID) view returns((address,uint16,uint64,uint64))
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCaller) GetStakingValidator(opts *bind.CallOpts, validationID [32]byte) (PoSValidatorInfo, error) {
+	var out []interface{}
+	err := _NativeTokenStakingManager.contract.Call(opts, &out, "getStakingValidator", validationID)
+
+	if err != nil {
+		return *new(PoSValidatorInfo), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(PoSValidatorInfo)).(*PoSValidatorInfo)
+
+	return out0, err
+
+}
+
+// GetStakingValidator is a free data retrieval call binding the contract method 0x2674874b.
+//
+// Solidity: function getStakingValidator(bytes32 validationID) view returns((address,uint16,uint64,uint64))
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) GetStakingValidator(validationID [32]byte) (PoSValidatorInfo, error) {
+	return _NativeTokenStakingManager.Contract.GetStakingValidator(&_NativeTokenStakingManager.CallOpts, validationID)
+}
+
+// GetStakingValidator is a free data retrieval call binding the contract method 0x2674874b.
+//
+// Solidity: function getStakingValidator(bytes32 validationID) view returns((address,uint16,uint64,uint64))
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCallerSession) GetStakingValidator(validationID [32]byte) (PoSValidatorInfo, error) {
+	return _NativeTokenStakingManager.Contract.GetStakingValidator(&_NativeTokenStakingManager.CallOpts, validationID)
+}
+
+// GetValidatorRewardInfo is a free data retrieval call binding the contract method 0xe24b2680.
+//
+// Solidity: function getValidatorRewardInfo(bytes32 validationID) view returns(address, uint256)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCaller) GetValidatorRewardInfo(opts *bind.CallOpts, validationID [32]byte) (common.Address, *big.Int, error) {
+	var out []interface{}
+	err := _NativeTokenStakingManager.contract.Call(opts, &out, "getValidatorRewardInfo", validationID)
+
+	if err != nil {
+		return *new(common.Address), *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+
+	return out0, out1, err
+
+}
+
+// GetValidatorRewardInfo is a free data retrieval call binding the contract method 0xe24b2680.
+//
+// Solidity: function getValidatorRewardInfo(bytes32 validationID) view returns(address, uint256)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) GetValidatorRewardInfo(validationID [32]byte) (common.Address, *big.Int, error) {
+	return _NativeTokenStakingManager.Contract.GetValidatorRewardInfo(&_NativeTokenStakingManager.CallOpts, validationID)
+}
+
+// GetValidatorRewardInfo is a free data retrieval call binding the contract method 0xe24b2680.
+//
+// Solidity: function getValidatorRewardInfo(bytes32 validationID) view returns(address, uint256)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCallerSession) GetValidatorRewardInfo(validationID [32]byte) (common.Address, *big.Int, error) {
+	return _NativeTokenStakingManager.Contract.GetValidatorRewardInfo(&_NativeTokenStakingManager.CallOpts, validationID)
+}
+
+// ValueToWeight is a free data retrieval call binding the contract method 0x2e2194d8.
+//
+// Solidity: function valueToWeight(uint256 value) view returns(uint64)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCaller) ValueToWeight(opts *bind.CallOpts, value *big.Int) (uint64, error) {
+	var out []interface{}
+	err := _NativeTokenStakingManager.contract.Call(opts, &out, "valueToWeight", value)
+
+	if err != nil {
+		return *new(uint64), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(uint64)).(*uint64)
+
+	return out0, err
+
+}
+
+// ValueToWeight is a free data retrieval call binding the contract method 0x2e2194d8.
+//
+// Solidity: function valueToWeight(uint256 value) view returns(uint64)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) ValueToWeight(value *big.Int) (uint64, error) {
+	return _NativeTokenStakingManager.Contract.ValueToWeight(&_NativeTokenStakingManager.CallOpts, value)
+}
+
+// ValueToWeight is a free data retrieval call binding the contract method 0x2e2194d8.
+//
+// Solidity: function valueToWeight(uint256 value) view returns(uint64)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCallerSession) ValueToWeight(value *big.Int) (uint64, error) {
+	return _NativeTokenStakingManager.Contract.ValueToWeight(&_NativeTokenStakingManager.CallOpts, value)
+}
+
+// WeightToValue is a free data retrieval call binding the contract method 0x62065856.
+//
+// Solidity: function weightToValue(uint64 weight) view returns(uint256)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCaller) WeightToValue(opts *bind.CallOpts, weight uint64) (*big.Int, error) {
+	var out []interface{}
+	err := _NativeTokenStakingManager.contract.Call(opts, &out, "weightToValue", weight)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// WeightToValue is a free data retrieval call binding the contract method 0x62065856.
+//
+// Solidity: function weightToValue(uint64 weight) view returns(uint256)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) WeightToValue(weight uint64) (*big.Int, error) {
+	return _NativeTokenStakingManager.Contract.WeightToValue(&_NativeTokenStakingManager.CallOpts, weight)
+}
+
+// WeightToValue is a free data retrieval call binding the contract method 0x62065856.
+//
+// Solidity: function weightToValue(uint64 weight) view returns(uint256)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerCallerSession) WeightToValue(weight uint64) (*big.Int, error) {
+	return _NativeTokenStakingManager.Contract.WeightToValue(&_NativeTokenStakingManager.CallOpts, weight)
+}
+
+// ChangeDelegatorRewardRecipient is a paid mutator transaction binding the contract method 0xfb8b11dd.
+//
+// Solidity: function changeDelegatorRewardRecipient(bytes32 delegationID, address rewardRecipient) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactor) ChangeDelegatorRewardRecipient(opts *bind.TransactOpts, delegationID [32]byte, rewardRecipient common.Address) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.contract.Transact(opts, "changeDelegatorRewardRecipient", delegationID, rewardRecipient)
+}
+
+// ChangeDelegatorRewardRecipient is a paid mutator transaction binding the contract method 0xfb8b11dd.
+//
+// Solidity: function changeDelegatorRewardRecipient(bytes32 delegationID, address rewardRecipient) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) ChangeDelegatorRewardRecipient(delegationID [32]byte, rewardRecipient common.Address) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.ChangeDelegatorRewardRecipient(&_NativeTokenStakingManager.TransactOpts, delegationID, rewardRecipient)
+}
+
+// ChangeDelegatorRewardRecipient is a paid mutator transaction binding the contract method 0xfb8b11dd.
+//
+// Solidity: function changeDelegatorRewardRecipient(bytes32 delegationID, address rewardRecipient) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactorSession) ChangeDelegatorRewardRecipient(delegationID [32]byte, rewardRecipient common.Address) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.ChangeDelegatorRewardRecipient(&_NativeTokenStakingManager.TransactOpts, delegationID, rewardRecipient)
+}
+
+// ChangeValidatorRewardRecipient is a paid mutator transaction binding the contract method 0x8ef34c98.
+//
+// Solidity: function changeValidatorRewardRecipient(bytes32 validationID, address rewardRecipient) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactor) ChangeValidatorRewardRecipient(opts *bind.TransactOpts, validationID [32]byte, rewardRecipient common.Address) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.contract.Transact(opts, "changeValidatorRewardRecipient", validationID, rewardRecipient)
+}
+
+// ChangeValidatorRewardRecipient is a paid mutator transaction binding the contract method 0x8ef34c98.
+//
+// Solidity: function changeValidatorRewardRecipient(bytes32 validationID, address rewardRecipient) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) ChangeValidatorRewardRecipient(validationID [32]byte, rewardRecipient common.Address) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.ChangeValidatorRewardRecipient(&_NativeTokenStakingManager.TransactOpts, validationID, rewardRecipient)
+}
+
+// ChangeValidatorRewardRecipient is a paid mutator transaction binding the contract method 0x8ef34c98.
+//
+// Solidity: function changeValidatorRewardRecipient(bytes32 validationID, address rewardRecipient) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactorSession) ChangeValidatorRewardRecipient(validationID [32]byte, rewardRecipient common.Address) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.ChangeValidatorRewardRecipient(&_NativeTokenStakingManager.TransactOpts, validationID, rewardRecipient)
+}
+
+// ClaimDelegationFees is a paid mutator transaction binding the contract method 0x93e24598.
+//
+// Solidity: function claimDelegationFees(bytes32 validationID) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactor) ClaimDelegationFees(opts *bind.TransactOpts, validationID [32]byte) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.contract.Transact(opts, "claimDelegationFees", validationID)
+}
+
+// ClaimDelegationFees is a paid mutator transaction binding the contract method 0x93e24598.
+//
+// Solidity: function claimDelegationFees(bytes32 validationID) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) ClaimDelegationFees(validationID [32]byte) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.ClaimDelegationFees(&_NativeTokenStakingManager.TransactOpts, validationID)
+}
+
+// ClaimDelegationFees is a paid mutator transaction binding the contract method 0x93e24598.
+//
+// Solidity: function claimDelegationFees(bytes32 validationID) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactorSession) ClaimDelegationFees(validationID [32]byte) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.ClaimDelegationFees(&_NativeTokenStakingManager.TransactOpts, validationID)
+}
+
+// CompleteDelegatorRegistration is a paid mutator transaction binding the contract method 0x60ad7784.
+//
+// Solidity: function completeDelegatorRegistration(bytes32 delegationID, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactor) CompleteDelegatorRegistration(opts *bind.TransactOpts, delegationID [32]byte, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.contract.Transact(opts, "completeDelegatorRegistration", delegationID, messageIndex)
+}
+
+// CompleteDelegatorRegistration is a paid mutator transaction binding the contract method 0x60ad7784.
+//
+// Solidity: function completeDelegatorRegistration(bytes32 delegationID, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) CompleteDelegatorRegistration(delegationID [32]byte, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.CompleteDelegatorRegistration(&_NativeTokenStakingManager.TransactOpts, delegationID, messageIndex)
+}
+
+// CompleteDelegatorRegistration is a paid mutator transaction binding the contract method 0x60ad7784.
+//
+// Solidity: function completeDelegatorRegistration(bytes32 delegationID, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactorSession) CompleteDelegatorRegistration(delegationID [32]byte, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.CompleteDelegatorRegistration(&_NativeTokenStakingManager.TransactOpts, delegationID, messageIndex)
+}
+
+// CompleteDelegatorRemoval is a paid mutator transaction binding the contract method 0x13409645.
+//
+// Solidity: function completeDelegatorRemoval(bytes32 delegationID, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactor) CompleteDelegatorRemoval(opts *bind.TransactOpts, delegationID [32]byte, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.contract.Transact(opts, "completeDelegatorRemoval", delegationID, messageIndex)
+}
+
+// CompleteDelegatorRemoval is a paid mutator transaction binding the contract method 0x13409645.
+//
+// Solidity: function completeDelegatorRemoval(bytes32 delegationID, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) CompleteDelegatorRemoval(delegationID [32]byte, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.CompleteDelegatorRemoval(&_NativeTokenStakingManager.TransactOpts, delegationID, messageIndex)
+}
+
+// CompleteDelegatorRemoval is a paid mutator transaction binding the contract method 0x13409645.
+//
+// Solidity: function completeDelegatorRemoval(bytes32 delegationID, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactorSession) CompleteDelegatorRemoval(delegationID [32]byte, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.CompleteDelegatorRemoval(&_NativeTokenStakingManager.TransactOpts, delegationID, messageIndex)
+}
+
+// CompleteValidatorRegistration is a paid mutator transaction binding the contract method 0xa3a65e48.
+//
+// Solidity: function completeValidatorRegistration(uint32 messageIndex) returns(bytes32)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactor) CompleteValidatorRegistration(opts *bind.TransactOpts, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.contract.Transact(opts, "completeValidatorRegistration", messageIndex)
+}
+
+// CompleteValidatorRegistration is a paid mutator transaction binding the contract method 0xa3a65e48.
+//
+// Solidity: function completeValidatorRegistration(uint32 messageIndex) returns(bytes32)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) CompleteValidatorRegistration(messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.CompleteValidatorRegistration(&_NativeTokenStakingManager.TransactOpts, messageIndex)
+}
+
+// CompleteValidatorRegistration is a paid mutator transaction binding the contract method 0xa3a65e48.
+//
+// Solidity: function completeValidatorRegistration(uint32 messageIndex) returns(bytes32)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactorSession) CompleteValidatorRegistration(messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.CompleteValidatorRegistration(&_NativeTokenStakingManager.TransactOpts, messageIndex)
+}
+
+// CompleteValidatorRemoval is a paid mutator transaction binding the contract method 0x9681d940.
+//
+// Solidity: function completeValidatorRemoval(uint32 messageIndex) returns(bytes32)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactor) CompleteValidatorRemoval(opts *bind.TransactOpts, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.contract.Transact(opts, "completeValidatorRemoval", messageIndex)
+}
+
+// CompleteValidatorRemoval is a paid mutator transaction binding the contract method 0x9681d940.
+//
+// Solidity: function completeValidatorRemoval(uint32 messageIndex) returns(bytes32)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) CompleteValidatorRemoval(messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.CompleteValidatorRemoval(&_NativeTokenStakingManager.TransactOpts, messageIndex)
+}
+
+// CompleteValidatorRemoval is a paid mutator transaction binding the contract method 0x9681d940.
+//
+// Solidity: function completeValidatorRemoval(uint32 messageIndex) returns(bytes32)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactorSession) CompleteValidatorRemoval(messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.CompleteValidatorRemoval(&_NativeTokenStakingManager.TransactOpts, messageIndex)
+}
+
+// ForceInitiateDelegatorRemoval is a paid mutator transaction binding the contract method 0x27bf60cd.
+//
+// Solidity: function forceInitiateDelegatorRemoval(bytes32 delegationID, bool includeUptimeProof, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactor) ForceInitiateDelegatorRemoval(opts *bind.TransactOpts, delegationID [32]byte, includeUptimeProof bool, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.contract.Transact(opts, "forceInitiateDelegatorRemoval", delegationID, includeUptimeProof, messageIndex)
+}
+
+// ForceInitiateDelegatorRemoval is a paid mutator transaction binding the contract method 0x27bf60cd.
+//
+// Solidity: function forceInitiateDelegatorRemoval(bytes32 delegationID, bool includeUptimeProof, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) ForceInitiateDelegatorRemoval(delegationID [32]byte, includeUptimeProof bool, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.ForceInitiateDelegatorRemoval(&_NativeTokenStakingManager.TransactOpts, delegationID, includeUptimeProof, messageIndex)
+}
+
+// ForceInitiateDelegatorRemoval is a paid mutator transaction binding the contract method 0x27bf60cd.
+//
+// Solidity: function forceInitiateDelegatorRemoval(bytes32 delegationID, bool includeUptimeProof, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactorSession) ForceInitiateDelegatorRemoval(delegationID [32]byte, includeUptimeProof bool, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.ForceInitiateDelegatorRemoval(&_NativeTokenStakingManager.TransactOpts, delegationID, includeUptimeProof, messageIndex)
+}
+
+// ForceInitiateValidatorRemoval is a paid mutator transaction binding the contract method 0x16679564.
+//
+// Solidity: function forceInitiateValidatorRemoval(bytes32 validationID, bool includeUptimeProof, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactor) ForceInitiateValidatorRemoval(opts *bind.TransactOpts, validationID [32]byte, includeUptimeProof bool, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.contract.Transact(opts, "forceInitiateValidatorRemoval", validationID, includeUptimeProof, messageIndex)
+}
+
+// ForceInitiateValidatorRemoval is a paid mutator transaction binding the contract method 0x16679564.
+//
+// Solidity: function forceInitiateValidatorRemoval(bytes32 validationID, bool includeUptimeProof, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) ForceInitiateValidatorRemoval(validationID [32]byte, includeUptimeProof bool, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.ForceInitiateValidatorRemoval(&_NativeTokenStakingManager.TransactOpts, validationID, includeUptimeProof, messageIndex)
+}
+
+// ForceInitiateValidatorRemoval is a paid mutator transaction binding the contract method 0x16679564.
+//
+// Solidity: function forceInitiateValidatorRemoval(bytes32 validationID, bool includeUptimeProof, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactorSession) ForceInitiateValidatorRemoval(validationID [32]byte, includeUptimeProof bool, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.ForceInitiateValidatorRemoval(&_NativeTokenStakingManager.TransactOpts, validationID, includeUptimeProof, messageIndex)
+}
+
+// Initialize is a paid mutator transaction binding the contract method 0x0d436317.
+//
+// Solidity: function initialize((address,uint256,uint256,uint64,uint16,uint8,uint256,address,bytes32) settings) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactor) Initialize(opts *bind.TransactOpts, settings StakingManagerSettings) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.contract.Transact(opts, "initialize", settings)
+}
+
+// Initialize is a paid mutator transaction binding the contract method 0x0d436317.
+//
+// Solidity: function initialize((address,uint256,uint256,uint64,uint16,uint8,uint256,address,bytes32) settings) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) Initialize(settings StakingManagerSettings) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.Initialize(&_NativeTokenStakingManager.TransactOpts, settings)
+}
+
+// Initialize is a paid mutator transaction binding the contract method 0x0d436317.
+//
+// Solidity: function initialize((address,uint256,uint256,uint64,uint16,uint8,uint256,address,bytes32) settings) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactorSession) Initialize(settings StakingManagerSettings) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.Initialize(&_NativeTokenStakingManager.TransactOpts, settings)
+}
+
+// InitiateDelegatorRegistration is a paid mutator transaction binding the contract method 0x243ca19a.
+//
+// Solidity: function initiateDelegatorRegistration(bytes32 validationID, address rewardRecipient) payable returns(bytes32)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactor) InitiateDelegatorRegistration(opts *bind.TransactOpts, validationID [32]byte, rewardRecipient common.Address) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.contract.Transact(opts, "initiateDelegatorRegistration", validationID, rewardRecipient)
+}
+
+// InitiateDelegatorRegistration is a paid mutator transaction binding the contract method 0x243ca19a.
+//
+// Solidity: function initiateDelegatorRegistration(bytes32 validationID, address rewardRecipient) payable returns(bytes32)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) InitiateDelegatorRegistration(validationID [32]byte, rewardRecipient common.Address) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.InitiateDelegatorRegistration(&_NativeTokenStakingManager.TransactOpts, validationID, rewardRecipient)
+}
+
+// InitiateDelegatorRegistration is a paid mutator transaction binding the contract method 0x243ca19a.
+//
+// Solidity: function initiateDelegatorRegistration(bytes32 validationID, address rewardRecipient) payable returns(bytes32)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactorSession) InitiateDelegatorRegistration(validationID [32]byte, rewardRecipient common.Address) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.InitiateDelegatorRegistration(&_NativeTokenStakingManager.TransactOpts, validationID, rewardRecipient)
+}
+
+// InitiateDelegatorRemoval is a paid mutator transaction binding the contract method 0x2aa56638.
+//
+// Solidity: function initiateDelegatorRemoval(bytes32 delegationID, bool includeUptimeProof, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactor) InitiateDelegatorRemoval(opts *bind.TransactOpts, delegationID [32]byte, includeUptimeProof bool, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.contract.Transact(opts, "initiateDelegatorRemoval", delegationID, includeUptimeProof, messageIndex)
+}
+
+// InitiateDelegatorRemoval is a paid mutator transaction binding the contract method 0x2aa56638.
+//
+// Solidity: function initiateDelegatorRemoval(bytes32 delegationID, bool includeUptimeProof, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) InitiateDelegatorRemoval(delegationID [32]byte, includeUptimeProof bool, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.InitiateDelegatorRemoval(&_NativeTokenStakingManager.TransactOpts, delegationID, includeUptimeProof, messageIndex)
+}
+
+// InitiateDelegatorRemoval is a paid mutator transaction binding the contract method 0x2aa56638.
+//
+// Solidity: function initiateDelegatorRemoval(bytes32 delegationID, bool includeUptimeProof, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactorSession) InitiateDelegatorRemoval(delegationID [32]byte, includeUptimeProof bool, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.InitiateDelegatorRemoval(&_NativeTokenStakingManager.TransactOpts, delegationID, includeUptimeProof, messageIndex)
+}
+
+// InitiateValidatorRegistration is a paid mutator transaction binding the contract method 0xad93936d.
+//
+// Solidity: function initiateValidatorRegistration(bytes nodeID, bytes blsPublicKey, (uint32,address[]) remainingBalanceOwner, (uint32,address[]) disableOwner, uint16 delegationFeeBips, uint64 minStakeDuration, address rewardRecipient) payable returns(bytes32)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactor) InitiateValidatorRegistration(opts *bind.TransactOpts, nodeID []byte, blsPublicKey []byte, remainingBalanceOwner PChainOwner, disableOwner PChainOwner, delegationFeeBips uint16, minStakeDuration uint64, rewardRecipient common.Address) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.contract.Transact(opts, "initiateValidatorRegistration", nodeID, blsPublicKey, remainingBalanceOwner, disableOwner, delegationFeeBips, minStakeDuration, rewardRecipient)
+}
+
+// InitiateValidatorRegistration is a paid mutator transaction binding the contract method 0xad93936d.
+//
+// Solidity: function initiateValidatorRegistration(bytes nodeID, bytes blsPublicKey, (uint32,address[]) remainingBalanceOwner, (uint32,address[]) disableOwner, uint16 delegationFeeBips, uint64 minStakeDuration, address rewardRecipient) payable returns(bytes32)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) InitiateValidatorRegistration(nodeID []byte, blsPublicKey []byte, remainingBalanceOwner PChainOwner, disableOwner PChainOwner, delegationFeeBips uint16, minStakeDuration uint64, rewardRecipient common.Address) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.InitiateValidatorRegistration(&_NativeTokenStakingManager.TransactOpts, nodeID, blsPublicKey, remainingBalanceOwner, disableOwner, delegationFeeBips, minStakeDuration, rewardRecipient)
+}
+
+// InitiateValidatorRegistration is a paid mutator transaction binding the contract method 0xad93936d.
+//
+// Solidity: function initiateValidatorRegistration(bytes nodeID, bytes blsPublicKey, (uint32,address[]) remainingBalanceOwner, (uint32,address[]) disableOwner, uint16 delegationFeeBips, uint64 minStakeDuration, address rewardRecipient) payable returns(bytes32)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactorSession) InitiateValidatorRegistration(nodeID []byte, blsPublicKey []byte, remainingBalanceOwner PChainOwner, disableOwner PChainOwner, delegationFeeBips uint16, minStakeDuration uint64, rewardRecipient common.Address) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.InitiateValidatorRegistration(&_NativeTokenStakingManager.TransactOpts, nodeID, blsPublicKey, remainingBalanceOwner, disableOwner, delegationFeeBips, minStakeDuration, rewardRecipient)
+}
+
+// InitiateValidatorRemoval is a paid mutator transaction binding the contract method 0xb2c1712e.
+//
+// Solidity: function initiateValidatorRemoval(bytes32 validationID, bool includeUptimeProof, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactor) InitiateValidatorRemoval(opts *bind.TransactOpts, validationID [32]byte, includeUptimeProof bool, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.contract.Transact(opts, "initiateValidatorRemoval", validationID, includeUptimeProof, messageIndex)
+}
+
+// InitiateValidatorRemoval is a paid mutator transaction binding the contract method 0xb2c1712e.
+//
+// Solidity: function initiateValidatorRemoval(bytes32 validationID, bool includeUptimeProof, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) InitiateValidatorRemoval(validationID [32]byte, includeUptimeProof bool, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.InitiateValidatorRemoval(&_NativeTokenStakingManager.TransactOpts, validationID, includeUptimeProof, messageIndex)
+}
+
+// InitiateValidatorRemoval is a paid mutator transaction binding the contract method 0xb2c1712e.
+//
+// Solidity: function initiateValidatorRemoval(bytes32 validationID, bool includeUptimeProof, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactorSession) InitiateValidatorRemoval(validationID [32]byte, includeUptimeProof bool, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.InitiateValidatorRemoval(&_NativeTokenStakingManager.TransactOpts, validationID, includeUptimeProof, messageIndex)
+}
+
+// ResendUpdateDelegator is a paid mutator transaction binding the contract method 0x245dafcb.
+//
+// Solidity: function resendUpdateDelegator(bytes32 delegationID) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactor) ResendUpdateDelegator(opts *bind.TransactOpts, delegationID [32]byte) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.contract.Transact(opts, "resendUpdateDelegator", delegationID)
+}
+
+// ResendUpdateDelegator is a paid mutator transaction binding the contract method 0x245dafcb.
+//
+// Solidity: function resendUpdateDelegator(bytes32 delegationID) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) ResendUpdateDelegator(delegationID [32]byte) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.ResendUpdateDelegator(&_NativeTokenStakingManager.TransactOpts, delegationID)
+}
+
+// ResendUpdateDelegator is a paid mutator transaction binding the contract method 0x245dafcb.
+//
+// Solidity: function resendUpdateDelegator(bytes32 delegationID) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactorSession) ResendUpdateDelegator(delegationID [32]byte) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.ResendUpdateDelegator(&_NativeTokenStakingManager.TransactOpts, delegationID)
+}
+
+// SubmitUptimeProof is a paid mutator transaction binding the contract method 0x25e1c776.
+//
+// Solidity: function submitUptimeProof(bytes32 validationID, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactor) SubmitUptimeProof(opts *bind.TransactOpts, validationID [32]byte, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.contract.Transact(opts, "submitUptimeProof", validationID, messageIndex)
+}
+
+// SubmitUptimeProof is a paid mutator transaction binding the contract method 0x25e1c776.
+//
+// Solidity: function submitUptimeProof(bytes32 validationID, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerSession) SubmitUptimeProof(validationID [32]byte, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.SubmitUptimeProof(&_NativeTokenStakingManager.TransactOpts, validationID, messageIndex)
+}
+
+// SubmitUptimeProof is a paid mutator transaction binding the contract method 0x25e1c776.
+//
+// Solidity: function submitUptimeProof(bytes32 validationID, uint32 messageIndex) returns()
+func (_NativeTokenStakingManager *NativeTokenStakingManagerTransactorSession) SubmitUptimeProof(validationID [32]byte, messageIndex uint32) (*types.Transaction, error) {
+	return _NativeTokenStakingManager.Contract.SubmitUptimeProof(&_NativeTokenStakingManager.TransactOpts, validationID, messageIndex)
+}
+
+// NativeTokenStakingManagerCompletedDelegatorRegistrationIterator is returned from FilterCompletedDelegatorRegistration and is used to iterate over the raw logs and unpacked data for CompletedDelegatorRegistration events raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerCompletedDelegatorRegistrationIterator struct {
+	Event *NativeTokenStakingManagerCompletedDelegatorRegistration // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *NativeTokenStakingManagerCompletedDelegatorRegistrationIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(NativeTokenStakingManagerCompletedDelegatorRegistration)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(NativeTokenStakingManagerCompletedDelegatorRegistration)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *NativeTokenStakingManagerCompletedDelegatorRegistrationIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *NativeTokenStakingManagerCompletedDelegatorRegistrationIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// NativeTokenStakingManagerCompletedDelegatorRegistration represents a CompletedDelegatorRegistration event raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerCompletedDelegatorRegistration struct {
+	DelegationID [32]byte
+	ValidationID [32]byte
+	StartTime    *big.Int
+	Raw          types.Log // Blockchain specific contextual infos
+}
+
+// FilterCompletedDelegatorRegistration is a free log retrieval operation binding the contract event 0x3886b7389bccb22cac62838dee3f400cf8b22289295283e01a2c7093f93dd5aa.
+//
+// Solidity: event CompletedDelegatorRegistration(bytes32 indexed delegationID, bytes32 indexed validationID, uint256 startTime)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) FilterCompletedDelegatorRegistration(opts *bind.FilterOpts, delegationID [][32]byte, validationID [][32]byte) (*NativeTokenStakingManagerCompletedDelegatorRegistrationIterator, error) {
+
+	var delegationIDRule []interface{}
+	for _, delegationIDItem := range delegationID {
+		delegationIDRule = append(delegationIDRule, delegationIDItem)
+	}
+	var validationIDRule []interface{}
+	for _, validationIDItem := range validationID {
+		validationIDRule = append(validationIDRule, validationIDItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.FilterLogs(opts, "CompletedDelegatorRegistration", delegationIDRule, validationIDRule)
+	if err != nil {
+		return nil, err
+	}
+	return &NativeTokenStakingManagerCompletedDelegatorRegistrationIterator{contract: _NativeTokenStakingManager.contract, event: "CompletedDelegatorRegistration", logs: logs, sub: sub}, nil
+}
+
+// WatchCompletedDelegatorRegistration is a free log subscription operation binding the contract event 0x3886b7389bccb22cac62838dee3f400cf8b22289295283e01a2c7093f93dd5aa.
+//
+// Solidity: event CompletedDelegatorRegistration(bytes32 indexed delegationID, bytes32 indexed validationID, uint256 startTime)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) WatchCompletedDelegatorRegistration(opts *bind.WatchOpts, sink chan<- *NativeTokenStakingManagerCompletedDelegatorRegistration, delegationID [][32]byte, validationID [][32]byte) (event.Subscription, error) {
+
+	var delegationIDRule []interface{}
+	for _, delegationIDItem := range delegationID {
+		delegationIDRule = append(delegationIDRule, delegationIDItem)
+	}
+	var validationIDRule []interface{}
+	for _, validationIDItem := range validationID {
+		validationIDRule = append(validationIDRule, validationIDItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.WatchLogs(opts, "CompletedDelegatorRegistration", delegationIDRule, validationIDRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(NativeTokenStakingManagerCompletedDelegatorRegistration)
+				if err := _NativeTokenStakingManager.contract.UnpackLog(event, "CompletedDelegatorRegistration", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseCompletedDelegatorRegistration is a log parse operation binding the contract event 0x3886b7389bccb22cac62838dee3f400cf8b22289295283e01a2c7093f93dd5aa.
+//
+// Solidity: event CompletedDelegatorRegistration(bytes32 indexed delegationID, bytes32 indexed validationID, uint256 startTime)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) ParseCompletedDelegatorRegistration(log types.Log) (*NativeTokenStakingManagerCompletedDelegatorRegistration, error) {
+	event := new(NativeTokenStakingManagerCompletedDelegatorRegistration)
+	if err := _NativeTokenStakingManager.contract.UnpackLog(event, "CompletedDelegatorRegistration", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// NativeTokenStakingManagerCompletedDelegatorRemovalIterator is returned from FilterCompletedDelegatorRemoval and is used to iterate over the raw logs and unpacked data for CompletedDelegatorRemoval events raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerCompletedDelegatorRemovalIterator struct {
+	Event *NativeTokenStakingManagerCompletedDelegatorRemoval // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *NativeTokenStakingManagerCompletedDelegatorRemovalIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(NativeTokenStakingManagerCompletedDelegatorRemoval)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(NativeTokenStakingManagerCompletedDelegatorRemoval)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *NativeTokenStakingManagerCompletedDelegatorRemovalIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *NativeTokenStakingManagerCompletedDelegatorRemovalIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// NativeTokenStakingManagerCompletedDelegatorRemoval represents a CompletedDelegatorRemoval event raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerCompletedDelegatorRemoval struct {
+	DelegationID [32]byte
+	ValidationID [32]byte
+	Rewards      *big.Int
+	Fees         *big.Int
+	Raw          types.Log // Blockchain specific contextual infos
+}
+
+// FilterCompletedDelegatorRemoval is a free log retrieval operation binding the contract event 0x5ecc5b26a9265302cf871229b3d983e5ca57dbb1448966c6c58b2d3c68bc7f7e.
+//
+// Solidity: event CompletedDelegatorRemoval(bytes32 indexed delegationID, bytes32 indexed validationID, uint256 rewards, uint256 fees)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) FilterCompletedDelegatorRemoval(opts *bind.FilterOpts, delegationID [][32]byte, validationID [][32]byte) (*NativeTokenStakingManagerCompletedDelegatorRemovalIterator, error) {
+
+	var delegationIDRule []interface{}
+	for _, delegationIDItem := range delegationID {
+		delegationIDRule = append(delegationIDRule, delegationIDItem)
+	}
+	var validationIDRule []interface{}
+	for _, validationIDItem := range validationID {
+		validationIDRule = append(validationIDRule, validationIDItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.FilterLogs(opts, "CompletedDelegatorRemoval", delegationIDRule, validationIDRule)
+	if err != nil {
+		return nil, err
+	}
+	return &NativeTokenStakingManagerCompletedDelegatorRemovalIterator{contract: _NativeTokenStakingManager.contract, event: "CompletedDelegatorRemoval", logs: logs, sub: sub}, nil
+}
+
+// WatchCompletedDelegatorRemoval is a free log subscription operation binding the contract event 0x5ecc5b26a9265302cf871229b3d983e5ca57dbb1448966c6c58b2d3c68bc7f7e.
+//
+// Solidity: event CompletedDelegatorRemoval(bytes32 indexed delegationID, bytes32 indexed validationID, uint256 rewards, uint256 fees)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) WatchCompletedDelegatorRemoval(opts *bind.WatchOpts, sink chan<- *NativeTokenStakingManagerCompletedDelegatorRemoval, delegationID [][32]byte, validationID [][32]byte) (event.Subscription, error) {
+
+	var delegationIDRule []interface{}
+	for _, delegationIDItem := range delegationID {
+		delegationIDRule = append(delegationIDRule, delegationIDItem)
+	}
+	var validationIDRule []interface{}
+	for _, validationIDItem := range validationID {
+		validationIDRule = append(validationIDRule, validationIDItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.WatchLogs(opts, "CompletedDelegatorRemoval", delegationIDRule, validationIDRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(NativeTokenStakingManagerCompletedDelegatorRemoval)
+				if err := _NativeTokenStakingManager.contract.UnpackLog(event, "CompletedDelegatorRemoval", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseCompletedDelegatorRemoval is a log parse operation binding the contract event 0x5ecc5b26a9265302cf871229b3d983e5ca57dbb1448966c6c58b2d3c68bc7f7e.
+//
+// Solidity: event CompletedDelegatorRemoval(bytes32 indexed delegationID, bytes32 indexed validationID, uint256 rewards, uint256 fees)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) ParseCompletedDelegatorRemoval(log types.Log) (*NativeTokenStakingManagerCompletedDelegatorRemoval, error) {
+	event := new(NativeTokenStakingManagerCompletedDelegatorRemoval)
+	if err := _NativeTokenStakingManager.contract.UnpackLog(event, "CompletedDelegatorRemoval", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// NativeTokenStakingManagerDelegatorRewardClaimedIterator is returned from FilterDelegatorRewardClaimed and is used to iterate over the raw logs and unpacked data for DelegatorRewardClaimed events raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerDelegatorRewardClaimedIterator struct {
+	Event *NativeTokenStakingManagerDelegatorRewardClaimed // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *NativeTokenStakingManagerDelegatorRewardClaimedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(NativeTokenStakingManagerDelegatorRewardClaimed)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(NativeTokenStakingManagerDelegatorRewardClaimed)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *NativeTokenStakingManagerDelegatorRewardClaimedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *NativeTokenStakingManagerDelegatorRewardClaimedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// NativeTokenStakingManagerDelegatorRewardClaimed represents a DelegatorRewardClaimed event raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerDelegatorRewardClaimed struct {
+	DelegationID [32]byte
+	Recipient    common.Address
+	Amount       *big.Int
+	Raw          types.Log // Blockchain specific contextual infos
+}
+
+// FilterDelegatorRewardClaimed is a free log retrieval operation binding the contract event 0x3ffc31181aadb250503101bd718e5fce8c27650af8d3525b9f60996756efaf63.
+//
+// Solidity: event DelegatorRewardClaimed(bytes32 indexed delegationID, address indexed recipient, uint256 amount)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) FilterDelegatorRewardClaimed(opts *bind.FilterOpts, delegationID [][32]byte, recipient []common.Address) (*NativeTokenStakingManagerDelegatorRewardClaimedIterator, error) {
+
+	var delegationIDRule []interface{}
+	for _, delegationIDItem := range delegationID {
+		delegationIDRule = append(delegationIDRule, delegationIDItem)
+	}
+	var recipientRule []interface{}
+	for _, recipientItem := range recipient {
+		recipientRule = append(recipientRule, recipientItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.FilterLogs(opts, "DelegatorRewardClaimed", delegationIDRule, recipientRule)
+	if err != nil {
+		return nil, err
+	}
+	return &NativeTokenStakingManagerDelegatorRewardClaimedIterator{contract: _NativeTokenStakingManager.contract, event: "DelegatorRewardClaimed", logs: logs, sub: sub}, nil
+}
+
+// WatchDelegatorRewardClaimed is a free log subscription operation binding the contract event 0x3ffc31181aadb250503101bd718e5fce8c27650af8d3525b9f60996756efaf63.
+//
+// Solidity: event DelegatorRewardClaimed(bytes32 indexed delegationID, address indexed recipient, uint256 amount)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) WatchDelegatorRewardClaimed(opts *bind.WatchOpts, sink chan<- *NativeTokenStakingManagerDelegatorRewardClaimed, delegationID [][32]byte, recipient []common.Address) (event.Subscription, error) {
+
+	var delegationIDRule []interface{}
+	for _, delegationIDItem := range delegationID {
+		delegationIDRule = append(delegationIDRule, delegationIDItem)
+	}
+	var recipientRule []interface{}
+	for _, recipientItem := range recipient {
+		recipientRule = append(recipientRule, recipientItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.WatchLogs(opts, "DelegatorRewardClaimed", delegationIDRule, recipientRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(NativeTokenStakingManagerDelegatorRewardClaimed)
+				if err := _NativeTokenStakingManager.contract.UnpackLog(event, "DelegatorRewardClaimed", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseDelegatorRewardClaimed is a log parse operation binding the contract event 0x3ffc31181aadb250503101bd718e5fce8c27650af8d3525b9f60996756efaf63.
+//
+// Solidity: event DelegatorRewardClaimed(bytes32 indexed delegationID, address indexed recipient, uint256 amount)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) ParseDelegatorRewardClaimed(log types.Log) (*NativeTokenStakingManagerDelegatorRewardClaimed, error) {
+	event := new(NativeTokenStakingManagerDelegatorRewardClaimed)
+	if err := _NativeTokenStakingManager.contract.UnpackLog(event, "DelegatorRewardClaimed", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// NativeTokenStakingManagerDelegatorRewardRecipientChangedIterator is returned from FilterDelegatorRewardRecipientChanged and is used to iterate over the raw logs and unpacked data for DelegatorRewardRecipientChanged events raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerDelegatorRewardRecipientChangedIterator struct {
+	Event *NativeTokenStakingManagerDelegatorRewardRecipientChanged // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *NativeTokenStakingManagerDelegatorRewardRecipientChangedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(NativeTokenStakingManagerDelegatorRewardRecipientChanged)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(NativeTokenStakingManagerDelegatorRewardRecipientChanged)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *NativeTokenStakingManagerDelegatorRewardRecipientChangedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *NativeTokenStakingManagerDelegatorRewardRecipientChangedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// NativeTokenStakingManagerDelegatorRewardRecipientChanged represents a DelegatorRewardRecipientChanged event raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerDelegatorRewardRecipientChanged struct {
+	DelegationID [32]byte
+	Recipient    common.Address
+	OldRecipient common.Address
+	Raw          types.Log // Blockchain specific contextual infos
+}
+
+// FilterDelegatorRewardRecipientChanged is a free log retrieval operation binding the contract event 0x6b30f219ab3cc1c43b394679707f3856ff2f3c6f1f6c97f383c6b16687a1e005.
+//
+// Solidity: event DelegatorRewardRecipientChanged(bytes32 indexed delegationID, address indexed recipient, address indexed oldRecipient)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) FilterDelegatorRewardRecipientChanged(opts *bind.FilterOpts, delegationID [][32]byte, recipient []common.Address, oldRecipient []common.Address) (*NativeTokenStakingManagerDelegatorRewardRecipientChangedIterator, error) {
+
+	var delegationIDRule []interface{}
+	for _, delegationIDItem := range delegationID {
+		delegationIDRule = append(delegationIDRule, delegationIDItem)
+	}
+	var recipientRule []interface{}
+	for _, recipientItem := range recipient {
+		recipientRule = append(recipientRule, recipientItem)
+	}
+	var oldRecipientRule []interface{}
+	for _, oldRecipientItem := range oldRecipient {
+		oldRecipientRule = append(oldRecipientRule, oldRecipientItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.FilterLogs(opts, "DelegatorRewardRecipientChanged", delegationIDRule, recipientRule, oldRecipientRule)
+	if err != nil {
+		return nil, err
+	}
+	return &NativeTokenStakingManagerDelegatorRewardRecipientChangedIterator{contract: _NativeTokenStakingManager.contract, event: "DelegatorRewardRecipientChanged", logs: logs, sub: sub}, nil
+}
+
+// WatchDelegatorRewardRecipientChanged is a free log subscription operation binding the contract event 0x6b30f219ab3cc1c43b394679707f3856ff2f3c6f1f6c97f383c6b16687a1e005.
+//
+// Solidity: event DelegatorRewardRecipientChanged(bytes32 indexed delegationID, address indexed recipient, address indexed oldRecipient)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) WatchDelegatorRewardRecipientChanged(opts *bind.WatchOpts, sink chan<- *NativeTokenStakingManagerDelegatorRewardRecipientChanged, delegationID [][32]byte, recipient []common.Address, oldRecipient []common.Address) (event.Subscription, error) {
+
+	var delegationIDRule []interface{}
+	for _, delegationIDItem := range delegationID {
+		delegationIDRule = append(delegationIDRule, delegationIDItem)
+	}
+	var recipientRule []interface{}
+	for _, recipientItem := range recipient {
+		recipientRule = append(recipientRule, recipientItem)
+	}
+	var oldRecipientRule []interface{}
+	for _, oldRecipientItem := range oldRecipient {
+		oldRecipientRule = append(oldRecipientRule, oldRecipientItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.WatchLogs(opts, "DelegatorRewardRecipientChanged", delegationIDRule, recipientRule, oldRecipientRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(NativeTokenStakingManagerDelegatorRewardRecipientChanged)
+				if err := _NativeTokenStakingManager.contract.UnpackLog(event, "DelegatorRewardRecipientChanged", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseDelegatorRewardRecipientChanged is a log parse operation binding the contract event 0x6b30f219ab3cc1c43b394679707f3856ff2f3c6f1f6c97f383c6b16687a1e005.
+//
+// Solidity: event DelegatorRewardRecipientChanged(bytes32 indexed delegationID, address indexed recipient, address indexed oldRecipient)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) ParseDelegatorRewardRecipientChanged(log types.Log) (*NativeTokenStakingManagerDelegatorRewardRecipientChanged, error) {
+	event := new(NativeTokenStakingManagerDelegatorRewardRecipientChanged)
+	if err := _NativeTokenStakingManager.contract.UnpackLog(event, "DelegatorRewardRecipientChanged", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// NativeTokenStakingManagerInitializedIterator is returned from FilterInitialized and is used to iterate over the raw logs and unpacked data for Initialized events raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerInitializedIterator struct {
+	Event *NativeTokenStakingManagerInitialized // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *NativeTokenStakingManagerInitializedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(NativeTokenStakingManagerInitialized)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(NativeTokenStakingManagerInitialized)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *NativeTokenStakingManagerInitializedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *NativeTokenStakingManagerInitializedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// NativeTokenStakingManagerInitialized represents a Initialized event raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerInitialized struct {
+	Version uint64
+	Raw     types.Log // Blockchain specific contextual infos
+}
+
+// FilterInitialized is a free log retrieval operation binding the contract event 0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2.
+//
+// Solidity: event Initialized(uint64 version)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) FilterInitialized(opts *bind.FilterOpts) (*NativeTokenStakingManagerInitializedIterator, error) {
+
+	logs, sub, err := _NativeTokenStakingManager.contract.FilterLogs(opts, "Initialized")
+	if err != nil {
+		return nil, err
+	}
+	return &NativeTokenStakingManagerInitializedIterator{contract: _NativeTokenStakingManager.contract, event: "Initialized", logs: logs, sub: sub}, nil
+}
+
+// WatchInitialized is a free log subscription operation binding the contract event 0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2.
+//
+// Solidity: event Initialized(uint64 version)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) WatchInitialized(opts *bind.WatchOpts, sink chan<- *NativeTokenStakingManagerInitialized) (event.Subscription, error) {
+
+	logs, sub, err := _NativeTokenStakingManager.contract.WatchLogs(opts, "Initialized")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(NativeTokenStakingManagerInitialized)
+				if err := _NativeTokenStakingManager.contract.UnpackLog(event, "Initialized", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseInitialized is a log parse operation binding the contract event 0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2.
+//
+// Solidity: event Initialized(uint64 version)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) ParseInitialized(log types.Log) (*NativeTokenStakingManagerInitialized, error) {
+	event := new(NativeTokenStakingManagerInitialized)
+	if err := _NativeTokenStakingManager.contract.UnpackLog(event, "Initialized", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// NativeTokenStakingManagerInitiatedDelegatorRegistrationIterator is returned from FilterInitiatedDelegatorRegistration and is used to iterate over the raw logs and unpacked data for InitiatedDelegatorRegistration events raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerInitiatedDelegatorRegistrationIterator struct {
+	Event *NativeTokenStakingManagerInitiatedDelegatorRegistration // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *NativeTokenStakingManagerInitiatedDelegatorRegistrationIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(NativeTokenStakingManagerInitiatedDelegatorRegistration)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(NativeTokenStakingManagerInitiatedDelegatorRegistration)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *NativeTokenStakingManagerInitiatedDelegatorRegistrationIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *NativeTokenStakingManagerInitiatedDelegatorRegistrationIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// NativeTokenStakingManagerInitiatedDelegatorRegistration represents a InitiatedDelegatorRegistration event raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerInitiatedDelegatorRegistration struct {
+	DelegationID       [32]byte
+	ValidationID       [32]byte
+	DelegatorAddress   common.Address
+	Nonce              uint64
+	ValidatorWeight    uint64
+	DelegatorWeight    uint64
+	SetWeightMessageID [32]byte
+	RewardRecipient    common.Address
+	Raw                types.Log // Blockchain specific contextual infos
+}
+
+// FilterInitiatedDelegatorRegistration is a free log retrieval operation binding the contract event 0x77499a5603260ef2b34698d88b31f7b1acf28c7b134ad4e3fa636501e6064d77.
+//
+// Solidity: event InitiatedDelegatorRegistration(bytes32 indexed delegationID, bytes32 indexed validationID, address indexed delegatorAddress, uint64 nonce, uint64 validatorWeight, uint64 delegatorWeight, bytes32 setWeightMessageID, address rewardRecipient)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) FilterInitiatedDelegatorRegistration(opts *bind.FilterOpts, delegationID [][32]byte, validationID [][32]byte, delegatorAddress []common.Address) (*NativeTokenStakingManagerInitiatedDelegatorRegistrationIterator, error) {
+
+	var delegationIDRule []interface{}
+	for _, delegationIDItem := range delegationID {
+		delegationIDRule = append(delegationIDRule, delegationIDItem)
+	}
+	var validationIDRule []interface{}
+	for _, validationIDItem := range validationID {
+		validationIDRule = append(validationIDRule, validationIDItem)
+	}
+	var delegatorAddressRule []interface{}
+	for _, delegatorAddressItem := range delegatorAddress {
+		delegatorAddressRule = append(delegatorAddressRule, delegatorAddressItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.FilterLogs(opts, "InitiatedDelegatorRegistration", delegationIDRule, validationIDRule, delegatorAddressRule)
+	if err != nil {
+		return nil, err
+	}
+	return &NativeTokenStakingManagerInitiatedDelegatorRegistrationIterator{contract: _NativeTokenStakingManager.contract, event: "InitiatedDelegatorRegistration", logs: logs, sub: sub}, nil
+}
+
+// WatchInitiatedDelegatorRegistration is a free log subscription operation binding the contract event 0x77499a5603260ef2b34698d88b31f7b1acf28c7b134ad4e3fa636501e6064d77.
+//
+// Solidity: event InitiatedDelegatorRegistration(bytes32 indexed delegationID, bytes32 indexed validationID, address indexed delegatorAddress, uint64 nonce, uint64 validatorWeight, uint64 delegatorWeight, bytes32 setWeightMessageID, address rewardRecipient)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) WatchInitiatedDelegatorRegistration(opts *bind.WatchOpts, sink chan<- *NativeTokenStakingManagerInitiatedDelegatorRegistration, delegationID [][32]byte, validationID [][32]byte, delegatorAddress []common.Address) (event.Subscription, error) {
+
+	var delegationIDRule []interface{}
+	for _, delegationIDItem := range delegationID {
+		delegationIDRule = append(delegationIDRule, delegationIDItem)
+	}
+	var validationIDRule []interface{}
+	for _, validationIDItem := range validationID {
+		validationIDRule = append(validationIDRule, validationIDItem)
+	}
+	var delegatorAddressRule []interface{}
+	for _, delegatorAddressItem := range delegatorAddress {
+		delegatorAddressRule = append(delegatorAddressRule, delegatorAddressItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.WatchLogs(opts, "InitiatedDelegatorRegistration", delegationIDRule, validationIDRule, delegatorAddressRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(NativeTokenStakingManagerInitiatedDelegatorRegistration)
+				if err := _NativeTokenStakingManager.contract.UnpackLog(event, "InitiatedDelegatorRegistration", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseInitiatedDelegatorRegistration is a log parse operation binding the contract event 0x77499a5603260ef2b34698d88b31f7b1acf28c7b134ad4e3fa636501e6064d77.
+//
+// Solidity: event InitiatedDelegatorRegistration(bytes32 indexed delegationID, bytes32 indexed validationID, address indexed delegatorAddress, uint64 nonce, uint64 validatorWeight, uint64 delegatorWeight, bytes32 setWeightMessageID, address rewardRecipient)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) ParseInitiatedDelegatorRegistration(log types.Log) (*NativeTokenStakingManagerInitiatedDelegatorRegistration, error) {
+	event := new(NativeTokenStakingManagerInitiatedDelegatorRegistration)
+	if err := _NativeTokenStakingManager.contract.UnpackLog(event, "InitiatedDelegatorRegistration", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// NativeTokenStakingManagerInitiatedDelegatorRemovalIterator is returned from FilterInitiatedDelegatorRemoval and is used to iterate over the raw logs and unpacked data for InitiatedDelegatorRemoval events raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerInitiatedDelegatorRemovalIterator struct {
+	Event *NativeTokenStakingManagerInitiatedDelegatorRemoval // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *NativeTokenStakingManagerInitiatedDelegatorRemovalIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(NativeTokenStakingManagerInitiatedDelegatorRemoval)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(NativeTokenStakingManagerInitiatedDelegatorRemoval)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *NativeTokenStakingManagerInitiatedDelegatorRemovalIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *NativeTokenStakingManagerInitiatedDelegatorRemovalIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// NativeTokenStakingManagerInitiatedDelegatorRemoval represents a InitiatedDelegatorRemoval event raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerInitiatedDelegatorRemoval struct {
+	DelegationID [32]byte
+	ValidationID [32]byte
+	Raw          types.Log // Blockchain specific contextual infos
+}
+
+// FilterInitiatedDelegatorRemoval is a free log retrieval operation binding the contract event 0x5abe543af12bb7f76f6fa9daaa9d95d181c5e90566df58d3c012216b6245eeaf.
+//
+// Solidity: event InitiatedDelegatorRemoval(bytes32 indexed delegationID, bytes32 indexed validationID)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) FilterInitiatedDelegatorRemoval(opts *bind.FilterOpts, delegationID [][32]byte, validationID [][32]byte) (*NativeTokenStakingManagerInitiatedDelegatorRemovalIterator, error) {
+
+	var delegationIDRule []interface{}
+	for _, delegationIDItem := range delegationID {
+		delegationIDRule = append(delegationIDRule, delegationIDItem)
+	}
+	var validationIDRule []interface{}
+	for _, validationIDItem := range validationID {
+		validationIDRule = append(validationIDRule, validationIDItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.FilterLogs(opts, "InitiatedDelegatorRemoval", delegationIDRule, validationIDRule)
+	if err != nil {
+		return nil, err
+	}
+	return &NativeTokenStakingManagerInitiatedDelegatorRemovalIterator{contract: _NativeTokenStakingManager.contract, event: "InitiatedDelegatorRemoval", logs: logs, sub: sub}, nil
+}
+
+// WatchInitiatedDelegatorRemoval is a free log subscription operation binding the contract event 0x5abe543af12bb7f76f6fa9daaa9d95d181c5e90566df58d3c012216b6245eeaf.
+//
+// Solidity: event InitiatedDelegatorRemoval(bytes32 indexed delegationID, bytes32 indexed validationID)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) WatchInitiatedDelegatorRemoval(opts *bind.WatchOpts, sink chan<- *NativeTokenStakingManagerInitiatedDelegatorRemoval, delegationID [][32]byte, validationID [][32]byte) (event.Subscription, error) {
+
+	var delegationIDRule []interface{}
+	for _, delegationIDItem := range delegationID {
+		delegationIDRule = append(delegationIDRule, delegationIDItem)
+	}
+	var validationIDRule []interface{}
+	for _, validationIDItem := range validationID {
+		validationIDRule = append(validationIDRule, validationIDItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.WatchLogs(opts, "InitiatedDelegatorRemoval", delegationIDRule, validationIDRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(NativeTokenStakingManagerInitiatedDelegatorRemoval)
+				if err := _NativeTokenStakingManager.contract.UnpackLog(event, "InitiatedDelegatorRemoval", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseInitiatedDelegatorRemoval is a log parse operation binding the contract event 0x5abe543af12bb7f76f6fa9daaa9d95d181c5e90566df58d3c012216b6245eeaf.
+//
+// Solidity: event InitiatedDelegatorRemoval(bytes32 indexed delegationID, bytes32 indexed validationID)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) ParseInitiatedDelegatorRemoval(log types.Log) (*NativeTokenStakingManagerInitiatedDelegatorRemoval, error) {
+	event := new(NativeTokenStakingManagerInitiatedDelegatorRemoval)
+	if err := _NativeTokenStakingManager.contract.UnpackLog(event, "InitiatedDelegatorRemoval", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// NativeTokenStakingManagerInitiatedStakingValidatorRegistrationIterator is returned from FilterInitiatedStakingValidatorRegistration and is used to iterate over the raw logs and unpacked data for InitiatedStakingValidatorRegistration events raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerInitiatedStakingValidatorRegistrationIterator struct {
+	Event *NativeTokenStakingManagerInitiatedStakingValidatorRegistration // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *NativeTokenStakingManagerInitiatedStakingValidatorRegistrationIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(NativeTokenStakingManagerInitiatedStakingValidatorRegistration)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(NativeTokenStakingManagerInitiatedStakingValidatorRegistration)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *NativeTokenStakingManagerInitiatedStakingValidatorRegistrationIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *NativeTokenStakingManagerInitiatedStakingValidatorRegistrationIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// NativeTokenStakingManagerInitiatedStakingValidatorRegistration represents a InitiatedStakingValidatorRegistration event raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerInitiatedStakingValidatorRegistration struct {
+	ValidationID      [32]byte
+	Owner             common.Address
+	DelegationFeeBips uint16
+	MinStakeDuration  uint64
+	RewardRecipient   common.Address
+	Raw               types.Log // Blockchain specific contextual infos
+}
+
+// FilterInitiatedStakingValidatorRegistration is a free log retrieval operation binding the contract event 0xf51ab9b5253693af2f675b23c4042ccac671873d5f188e405b30019f4c159b7f.
+//
+// Solidity: event InitiatedStakingValidatorRegistration(bytes32 indexed validationID, address indexed owner, uint16 delegationFeeBips, uint64 minStakeDuration, address rewardRecipient)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) FilterInitiatedStakingValidatorRegistration(opts *bind.FilterOpts, validationID [][32]byte, owner []common.Address) (*NativeTokenStakingManagerInitiatedStakingValidatorRegistrationIterator, error) {
+
+	var validationIDRule []interface{}
+	for _, validationIDItem := range validationID {
+		validationIDRule = append(validationIDRule, validationIDItem)
+	}
+	var ownerRule []interface{}
+	for _, ownerItem := range owner {
+		ownerRule = append(ownerRule, ownerItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.FilterLogs(opts, "InitiatedStakingValidatorRegistration", validationIDRule, ownerRule)
+	if err != nil {
+		return nil, err
+	}
+	return &NativeTokenStakingManagerInitiatedStakingValidatorRegistrationIterator{contract: _NativeTokenStakingManager.contract, event: "InitiatedStakingValidatorRegistration", logs: logs, sub: sub}, nil
+}
+
+// WatchInitiatedStakingValidatorRegistration is a free log subscription operation binding the contract event 0xf51ab9b5253693af2f675b23c4042ccac671873d5f188e405b30019f4c159b7f.
+//
+// Solidity: event InitiatedStakingValidatorRegistration(bytes32 indexed validationID, address indexed owner, uint16 delegationFeeBips, uint64 minStakeDuration, address rewardRecipient)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) WatchInitiatedStakingValidatorRegistration(opts *bind.WatchOpts, sink chan<- *NativeTokenStakingManagerInitiatedStakingValidatorRegistration, validationID [][32]byte, owner []common.Address) (event.Subscription, error) {
+
+	var validationIDRule []interface{}
+	for _, validationIDItem := range validationID {
+		validationIDRule = append(validationIDRule, validationIDItem)
+	}
+	var ownerRule []interface{}
+	for _, ownerItem := range owner {
+		ownerRule = append(ownerRule, ownerItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.WatchLogs(opts, "InitiatedStakingValidatorRegistration", validationIDRule, ownerRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(NativeTokenStakingManagerInitiatedStakingValidatorRegistration)
+				if err := _NativeTokenStakingManager.contract.UnpackLog(event, "InitiatedStakingValidatorRegistration", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseInitiatedStakingValidatorRegistration is a log parse operation binding the contract event 0xf51ab9b5253693af2f675b23c4042ccac671873d5f188e405b30019f4c159b7f.
+//
+// Solidity: event InitiatedStakingValidatorRegistration(bytes32 indexed validationID, address indexed owner, uint16 delegationFeeBips, uint64 minStakeDuration, address rewardRecipient)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) ParseInitiatedStakingValidatorRegistration(log types.Log) (*NativeTokenStakingManagerInitiatedStakingValidatorRegistration, error) {
+	event := new(NativeTokenStakingManagerInitiatedStakingValidatorRegistration)
+	if err := _NativeTokenStakingManager.contract.UnpackLog(event, "InitiatedStakingValidatorRegistration", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// NativeTokenStakingManagerUptimeUpdatedIterator is returned from FilterUptimeUpdated and is used to iterate over the raw logs and unpacked data for UptimeUpdated events raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerUptimeUpdatedIterator struct {
+	Event *NativeTokenStakingManagerUptimeUpdated // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *NativeTokenStakingManagerUptimeUpdatedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(NativeTokenStakingManagerUptimeUpdated)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(NativeTokenStakingManagerUptimeUpdated)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *NativeTokenStakingManagerUptimeUpdatedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *NativeTokenStakingManagerUptimeUpdatedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// NativeTokenStakingManagerUptimeUpdated represents a UptimeUpdated event raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerUptimeUpdated struct {
+	ValidationID [32]byte
+	Uptime       uint64
+	Raw          types.Log // Blockchain specific contextual infos
+}
+
+// FilterUptimeUpdated is a free log retrieval operation binding the contract event 0xec44148e8ff271f2d0bacef1142154abacb0abb3a29eb3eb50e2ca97e86d0435.
+//
+// Solidity: event UptimeUpdated(bytes32 indexed validationID, uint64 uptime)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) FilterUptimeUpdated(opts *bind.FilterOpts, validationID [][32]byte) (*NativeTokenStakingManagerUptimeUpdatedIterator, error) {
+
+	var validationIDRule []interface{}
+	for _, validationIDItem := range validationID {
+		validationIDRule = append(validationIDRule, validationIDItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.FilterLogs(opts, "UptimeUpdated", validationIDRule)
+	if err != nil {
+		return nil, err
+	}
+	return &NativeTokenStakingManagerUptimeUpdatedIterator{contract: _NativeTokenStakingManager.contract, event: "UptimeUpdated", logs: logs, sub: sub}, nil
+}
+
+// WatchUptimeUpdated is a free log subscription operation binding the contract event 0xec44148e8ff271f2d0bacef1142154abacb0abb3a29eb3eb50e2ca97e86d0435.
+//
+// Solidity: event UptimeUpdated(bytes32 indexed validationID, uint64 uptime)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) WatchUptimeUpdated(opts *bind.WatchOpts, sink chan<- *NativeTokenStakingManagerUptimeUpdated, validationID [][32]byte) (event.Subscription, error) {
+
+	var validationIDRule []interface{}
+	for _, validationIDItem := range validationID {
+		validationIDRule = append(validationIDRule, validationIDItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.WatchLogs(opts, "UptimeUpdated", validationIDRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(NativeTokenStakingManagerUptimeUpdated)
+				if err := _NativeTokenStakingManager.contract.UnpackLog(event, "UptimeUpdated", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseUptimeUpdated is a log parse operation binding the contract event 0xec44148e8ff271f2d0bacef1142154abacb0abb3a29eb3eb50e2ca97e86d0435.
+//
+// Solidity: event UptimeUpdated(bytes32 indexed validationID, uint64 uptime)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) ParseUptimeUpdated(log types.Log) (*NativeTokenStakingManagerUptimeUpdated, error) {
+	event := new(NativeTokenStakingManagerUptimeUpdated)
+	if err := _NativeTokenStakingManager.contract.UnpackLog(event, "UptimeUpdated", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// NativeTokenStakingManagerValidatorRewardClaimedIterator is returned from FilterValidatorRewardClaimed and is used to iterate over the raw logs and unpacked data for ValidatorRewardClaimed events raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerValidatorRewardClaimedIterator struct {
+	Event *NativeTokenStakingManagerValidatorRewardClaimed // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *NativeTokenStakingManagerValidatorRewardClaimedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(NativeTokenStakingManagerValidatorRewardClaimed)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(NativeTokenStakingManagerValidatorRewardClaimed)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *NativeTokenStakingManagerValidatorRewardClaimedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *NativeTokenStakingManagerValidatorRewardClaimedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// NativeTokenStakingManagerValidatorRewardClaimed represents a ValidatorRewardClaimed event raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerValidatorRewardClaimed struct {
+	ValidationID [32]byte
+	Recipient    common.Address
+	Amount       *big.Int
+	Raw          types.Log // Blockchain specific contextual infos
+}
+
+// FilterValidatorRewardClaimed is a free log retrieval operation binding the contract event 0x875feb58aa30eeee040d55b00249c5c8c5af4f27c95cd29d64180ad67400c6e4.
+//
+// Solidity: event ValidatorRewardClaimed(bytes32 indexed validationID, address indexed recipient, uint256 amount)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) FilterValidatorRewardClaimed(opts *bind.FilterOpts, validationID [][32]byte, recipient []common.Address) (*NativeTokenStakingManagerValidatorRewardClaimedIterator, error) {
+
+	var validationIDRule []interface{}
+	for _, validationIDItem := range validationID {
+		validationIDRule = append(validationIDRule, validationIDItem)
+	}
+	var recipientRule []interface{}
+	for _, recipientItem := range recipient {
+		recipientRule = append(recipientRule, recipientItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.FilterLogs(opts, "ValidatorRewardClaimed", validationIDRule, recipientRule)
+	if err != nil {
+		return nil, err
+	}
+	return &NativeTokenStakingManagerValidatorRewardClaimedIterator{contract: _NativeTokenStakingManager.contract, event: "ValidatorRewardClaimed", logs: logs, sub: sub}, nil
+}
+
+// WatchValidatorRewardClaimed is a free log subscription operation binding the contract event 0x875feb58aa30eeee040d55b00249c5c8c5af4f27c95cd29d64180ad67400c6e4.
+//
+// Solidity: event ValidatorRewardClaimed(bytes32 indexed validationID, address indexed recipient, uint256 amount)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) WatchValidatorRewardClaimed(opts *bind.WatchOpts, sink chan<- *NativeTokenStakingManagerValidatorRewardClaimed, validationID [][32]byte, recipient []common.Address) (event.Subscription, error) {
+
+	var validationIDRule []interface{}
+	for _, validationIDItem := range validationID {
+		validationIDRule = append(validationIDRule, validationIDItem)
+	}
+	var recipientRule []interface{}
+	for _, recipientItem := range recipient {
+		recipientRule = append(recipientRule, recipientItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.WatchLogs(opts, "ValidatorRewardClaimed", validationIDRule, recipientRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(NativeTokenStakingManagerValidatorRewardClaimed)
+				if err := _NativeTokenStakingManager.contract.UnpackLog(event, "ValidatorRewardClaimed", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseValidatorRewardClaimed is a log parse operation binding the contract event 0x875feb58aa30eeee040d55b00249c5c8c5af4f27c95cd29d64180ad67400c6e4.
+//
+// Solidity: event ValidatorRewardClaimed(bytes32 indexed validationID, address indexed recipient, uint256 amount)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) ParseValidatorRewardClaimed(log types.Log) (*NativeTokenStakingManagerValidatorRewardClaimed, error) {
+	event := new(NativeTokenStakingManagerValidatorRewardClaimed)
+	if err := _NativeTokenStakingManager.contract.UnpackLog(event, "ValidatorRewardClaimed", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// NativeTokenStakingManagerValidatorRewardRecipientChangedIterator is returned from FilterValidatorRewardRecipientChanged and is used to iterate over the raw logs and unpacked data for ValidatorRewardRecipientChanged events raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerValidatorRewardRecipientChangedIterator struct {
+	Event *NativeTokenStakingManagerValidatorRewardRecipientChanged // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *NativeTokenStakingManagerValidatorRewardRecipientChangedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(NativeTokenStakingManagerValidatorRewardRecipientChanged)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(NativeTokenStakingManagerValidatorRewardRecipientChanged)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *NativeTokenStakingManagerValidatorRewardRecipientChangedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *NativeTokenStakingManagerValidatorRewardRecipientChangedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// NativeTokenStakingManagerValidatorRewardRecipientChanged represents a ValidatorRewardRecipientChanged event raised by the NativeTokenStakingManager contract.
+type NativeTokenStakingManagerValidatorRewardRecipientChanged struct {
+	ValidationID [32]byte
+	Recipient    common.Address
+	OldRecipient common.Address
+	Raw          types.Log // Blockchain specific contextual infos
+}
+
+// FilterValidatorRewardRecipientChanged is a free log retrieval operation binding the contract event 0x28c6fc4db51556a07b41aa23b91cedb22c02a7560c431a31255c03ca6ad61c33.
+//
+// Solidity: event ValidatorRewardRecipientChanged(bytes32 indexed validationID, address indexed recipient, address indexed oldRecipient)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) FilterValidatorRewardRecipientChanged(opts *bind.FilterOpts, validationID [][32]byte, recipient []common.Address, oldRecipient []common.Address) (*NativeTokenStakingManagerValidatorRewardRecipientChangedIterator, error) {
+
+	var validationIDRule []interface{}
+	for _, validationIDItem := range validationID {
+		validationIDRule = append(validationIDRule, validationIDItem)
+	}
+	var recipientRule []interface{}
+	for _, recipientItem := range recipient {
+		recipientRule = append(recipientRule, recipientItem)
+	}
+	var oldRecipientRule []interface{}
+	for _, oldRecipientItem := range oldRecipient {
+		oldRecipientRule = append(oldRecipientRule, oldRecipientItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.FilterLogs(opts, "ValidatorRewardRecipientChanged", validationIDRule, recipientRule, oldRecipientRule)
+	if err != nil {
+		return nil, err
+	}
+	return &NativeTokenStakingManagerValidatorRewardRecipientChangedIterator{contract: _NativeTokenStakingManager.contract, event: "ValidatorRewardRecipientChanged", logs: logs, sub: sub}, nil
+}
+
+// WatchValidatorRewardRecipientChanged is a free log subscription operation binding the contract event 0x28c6fc4db51556a07b41aa23b91cedb22c02a7560c431a31255c03ca6ad61c33.
+//
+// Solidity: event ValidatorRewardRecipientChanged(bytes32 indexed validationID, address indexed recipient, address indexed oldRecipient)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) WatchValidatorRewardRecipientChanged(opts *bind.WatchOpts, sink chan<- *NativeTokenStakingManagerValidatorRewardRecipientChanged, validationID [][32]byte, recipient []common.Address, oldRecipient []common.Address) (event.Subscription, error) {
+
+	var validationIDRule []interface{}
+	for _, validationIDItem := range validationID {
+		validationIDRule = append(validationIDRule, validationIDItem)
+	}
+	var recipientRule []interface{}
+	for _, recipientItem := range recipient {
+		recipientRule = append(recipientRule, recipientItem)
+	}
+	var oldRecipientRule []interface{}
+	for _, oldRecipientItem := range oldRecipient {
+		oldRecipientRule = append(oldRecipientRule, oldRecipientItem)
+	}
+
+	logs, sub, err := _NativeTokenStakingManager.contract.WatchLogs(opts, "ValidatorRewardRecipientChanged", validationIDRule, recipientRule, oldRecipientRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(NativeTokenStakingManagerValidatorRewardRecipientChanged)
+				if err := _NativeTokenStakingManager.contract.UnpackLog(event, "ValidatorRewardRecipientChanged", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseValidatorRewardRecipientChanged is a log parse operation binding the contract event 0x28c6fc4db51556a07b41aa23b91cedb22c02a7560c431a31255c03ca6ad61c33.
+//
+// Solidity: event ValidatorRewardRecipientChanged(bytes32 indexed validationID, address indexed recipient, address indexed oldRecipient)
+func (_NativeTokenStakingManager *NativeTokenStakingManagerFilterer) ParseValidatorRewardRecipientChanged(log types.Log) (*NativeTokenStakingManagerValidatorRewardRecipientChanged, error) {
+	event := new(NativeTokenStakingManagerValidatorRewardRecipientChanged)
+	if err := _NativeTokenStakingManager.contract.UnpackLog(event, "ValidatorRewardRecipientChanged", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// ValidatorMessagesMetaData contains all meta data concerning the ValidatorMessages contract.
+var ValidatorMessagesMetaData = &bind.MetaData{
+	ABI: "[{\"inputs\":[],\"name\":\"InvalidBLSPublicKey\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"uint32\",\"name\":\"id\",\"type\":\"uint32\"}],\"name\":\"InvalidCodecID\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"uint32\",\"name\":\"actual\",\"type\":\"uint32\"},{\"internalType\":\"uint32\",\"name\":\"expected\",\"type\":\"uint32\"}],\"name\":\"InvalidMessageLength\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"InvalidMessageType\",\"type\":\"error\"},{\"inputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"subnetID\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"validatorManagerBlockchainID\",\"type\":\"bytes32\"},{\"internalType\":\"address\",\"name\":\"validatorManagerAddress\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"bytes\",\"name\":\"nodeID\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"blsPublicKey\",\"type\":\"bytes\"},{\"internalType\":\"uint64\",\"name\":\"weight\",\"type\":\"uint64\"}],\"internalType\":\"structInitialValidator[]\",\"name\":\"initialValidators\",\"type\":\"tuple[]\"}],\"internalType\":\"structConversionData\",\"name\":\"conversionData\",\"type\":\"tuple\"}],\"name\":\"packConversionData\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"},{\"internalType\":\"bool\",\"name\":\"registered\",\"type\":\"bool\"}],\"name\":\"packL1ValidatorRegistrationMessage\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"},{\"internalType\":\"uint64\",\"name\":\"nonce\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"weight\",\"type\":\"uint64\"}],\"name\":\"packL1ValidatorWeightMessage\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"subnetID\",\"type\":\"bytes32\"},{\"internalType\":\"bytes\",\"name\":\"nodeID\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"blsPublicKey\",\"type\":\"bytes\"},{\"internalType\":\"uint64\",\"name\":\"registrationExpiry\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"uint32\",\"name\":\"threshold\",\"type\":\"uint32\"},{\"internalType\":\"address[]\",\"name\":\"addresses\",\"type\":\"address[]\"}],\"internalType\":\"structPChainOwner\",\"name\":\"remainingBalanceOwner\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"uint32\",\"name\":\"threshold\",\"type\":\"uint32\"},{\"internalType\":\"address[]\",\"name\":\"addresses\",\"type\":\"address[]\"}],\"internalType\":\"structPChainOwner\",\"name\":\"disableOwner\",\"type\":\"tuple\"},{\"internalType\":\"uint64\",\"name\":\"weight\",\"type\":\"uint64\"}],\"internalType\":\"structValidatorMessages.ValidationPeriod\",\"name\":\"validationPeriod\",\"type\":\"tuple\"}],\"name\":\"packRegisterL1ValidatorMessage\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"conversionID\",\"type\":\"bytes32\"}],\"name\":\"packSubnetToL1ConversionMessage\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"validationID\",\"type\":\"bytes32\"},{\"internalType\":\"uint64\",\"name\":\"uptime\",\"type\":\"uint64\"}],\"name\":\"packValidationUptimeMessage\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"input\",\"type\":\"bytes\"}],\"name\":\"unpackL1ValidatorRegistrationMessage\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"input\",\"type\":\"bytes\"}],\"name\":\"unpackL1ValidatorWeightMessage\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"input\",\"type\":\"bytes\"}],\"name\":\"unpackRegisterL1ValidatorMessage\",\"outputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"subnetID\",\"type\":\"bytes32\"},{\"internalType\":\"bytes\",\"name\":\"nodeID\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"blsPublicKey\",\"type\":\"bytes\"},{\"internalType\":\"uint64\",\"name\":\"registrationExpiry\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"uint32\",\"name\":\"threshold\",\"type\":\"uint32\"},{\"internalType\":\"address[]\",\"name\":\"addresses\",\"type\":\"address[]\"}],\"internalType\":\"structPChainOwner\",\"name\":\"remainingBalanceOwner\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"uint32\",\"name\":\"threshold\",\"type\":\"uint32\"},{\"internalType\":\"address[]\",\"name\":\"addresses\",\"type\":\"address[]\"}],\"internalType\":\"structPChainOwner\",\"name\":\"disableOwner\",\"type\":\"tuple\"},{\"internalType\":\"uint64\",\"name\":\"weight\",\"type\":\"uint64\"}],\"internalType\":\"structValidatorMessages.ValidationPeriod\",\"name\":\"\",\"type\":\"tuple\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"input\",\"type\":\"bytes\"}],\"name\":\"unpackSubnetToL1ConversionMessage\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"input\",\"type\":\"bytes\"}],\"name\":\"unpackValidationUptimeMessage\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"pure\",\"type\":\"function\"}]",
+	Bin: "0x6121be610034600b8282823980515f1a607314602857634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe73000000000000000000000000000000000000000030146080604052600436106100b1575f3560e01c8063854a893f11610079578063854a893f146101b257806387418b8e1461020f5780639b83546514610222578063a699c13514610242578063e1d68f3014610255578063eb97ce5114610268575f5ffd5b8063021de88f146100b5578063088c2463146100e25780634d8478841461011257806350782b0f146101335780637f7c427a1461016b575b5f5ffd5b6100c86100c33660046118e7565b610289565b604080519283529015156020830152015b60405180910390f35b6100f56100f03660046118e7565b61044a565b604080519283526001600160401b039091166020830152016100d9565b6101256101203660046118e7565b61063b565b6040519081526020016100d9565b6101466101413660046118e7565b6107c8565b604080519384526001600160401b0392831660208501529116908201526060016100d9565b6101a5610179366004611920565b604080515f60208201819052602282015260268082019390935281518082039093018352604601905290565b6040516100d99190611984565b6101a56101c03660046119b8565b604080515f6020820152600360e01b602282015260268101949094526001600160c01b031960c093841b811660468601529190921b16604e830152805180830360360181526056909201905290565b6101a561021d366004611a29565b610a1e565b6102356102303660046118e7565b610b66565b6040516100d99190611c13565b6101a5610250366004611cca565b6114b1565b6101a5610263366004611cfc565b6114f5565b61027b610276366004611de4565b61152b565b6040516100d9929190611ef8565b5f5f82516027146102c457825160405163cc92daa160e01b815263ffffffff9091166004820152602760248201526044015b60405180910390fd5b5f5f5b6002811015610313576102db816001611f24565b6102e6906008611f37565b61ffff168582815181106102fc576102fc611f4e565b016020015160f81c901b91909117906001016102c7565b5061ffff81161561033d5760405163407b587360e01b815261ffff821660048201526024016102bb565b5f5f5b600481101561039857610354816003611f24565b61035f906008611f37565b63ffffffff1686610371836002611f62565b8151811061038157610381611f4e565b016020015160f81c901b9190911790600101610340565b5063ffffffff81166002146103c057604051635b60892f60e01b815260040160405180910390fd5b5f5f5b6020811015610415576103d781601f611f24565b6103e2906008611f37565b876103ee836006611f62565b815181106103fe576103fe611f4e565b016020015160f81c901b91909117906001016103c3565b505f8660268151811061042a5761042a611f4e565b016020015191976001600160f81b03199092161515965090945050505050565b5f5f8251602e1461048057825160405163cc92daa160e01b815263ffffffff9091166004820152602e60248201526044016102bb565b5f5f5b60028110156104cf57610497816001611f24565b6104a2906008611f37565b61ffff168582815181106104b8576104b8611f4e565b016020015160f81c901b9190911790600101610483565b5061ffff8116156104f95760405163407b587360e01b815261ffff821660048201526024016102bb565b5f5f5b600481101561055457610510816003611f24565b61051b906008611f37565b63ffffffff168661052d836002611f62565b8151811061053d5761053d611f4e565b016020015160f81c901b91909117906001016104fc565b5063ffffffff81161561057a57604051635b60892f60e01b815260040160405180910390fd5b5f5f5b60208110156105cf5761059181601f611f24565b61059c906008611f37565b876105a8836006611f62565b815181106105b8576105b8611f4e565b016020015160f81c901b919091179060010161057d565b505f5f5b600881101561062e576105e7816007611f24565b6105f2906008611f37565b6001600160401b031688610607836026611f62565b8151811061061757610617611f4e565b016020015160f81c901b91909117906001016105d3565b5090969095509350505050565b5f815160261461067057815160405163cc92daa160e01b815263ffffffff9091166004820152602660248201526044016102bb565b5f5f5b60028110156106bf57610687816001611f24565b610692906008611f37565b61ffff168482815181106106a8576106a8611f4e565b016020015160f81c901b9190911790600101610673565b5061ffff8116156106e95760405163407b587360e01b815261ffff821660048201526024016102bb565b5f5f5b600481101561074457610700816003611f24565b61070b906008611f37565b63ffffffff168561071d836002611f62565b8151811061072d5761072d611f4e565b016020015160f81c901b91909117906001016106ec565b5063ffffffff81161561076a57604051635b60892f60e01b815260040160405180910390fd5b5f5f5b60208110156107bf5761078181601f611f24565b61078c906008611f37565b86610798836006611f62565b815181106107a8576107a8611f4e565b016020015160f81c901b919091179060010161076d565b50949350505050565b5f5f5f83516036146107ff57835160405163cc92daa160e01b815263ffffffff9091166004820152603660248201526044016102bb565b5f5f5b600281101561084e57610816816001611f24565b610821906008611f37565b61ffff1686828151811061083757610837611f4e565b016020015160f81c901b9190911790600101610802565b5061ffff8116156108785760405163407b587360e01b815261ffff821660048201526024016102bb565b5f5f5b60048110156108d35761088f816003611f24565b61089a906008611f37565b63ffffffff16876108ac836002611f62565b815181106108bc576108bc611f4e565b016020015160f81c901b919091179060010161087b565b5063ffffffff81166003146108fb57604051635b60892f60e01b815260040160405180910390fd5b5f5f5b60208110156109505761091281601f611f24565b61091d906008611f37565b88610929836006611f62565b8151811061093957610939611f4e565b016020015160f81c901b91909117906001016108fe565b505f5f5b60088110156109af57610968816007611f24565b610973906008611f37565b6001600160401b031689610988836026611f62565b8151811061099857610998611f4e565b016020015160f81c901b9190911790600101610954565b505f5f5b6008811015610a0e576109c7816007611f24565b6109d2906008611f37565b6001600160401b03168a6109e783602e611f62565b815181106109f7576109f7611f4e565b016020015160f81c901b91909117906001016109b3565b5091989097509095509350505050565b80516020808301516040808501516060868101515192515f95810186905260228101969096526042860193909352600560e21b60628601526bffffffffffffffffffffffff1990831b16606685015260e01b6001600160e01b031916607a84015291607e0160405160208183030381529060405290505f5b836060015151811015610b5f578184606001518281518110610aba57610aba611f4e565b60200260200101515f01515160e01b85606001518381518110610adf57610adf611f4e565b60200260200101515f015186606001518481518110610b0057610b00611f4e565b60200260200101516020015187606001518581518110610b2257610b22611f4e565b60200260200101516040015160c01b604051602001610b45959493929190611f75565b60408051601f198184030181529190529150600101610a96565b5092915050565b610b6e611727565b5f610b77611727565b5f5f5b6002811015610bd557610b8e816001611f24565b610b99906008611f37565b61ffff1686610bae63ffffffff871684611f62565b81518110610bbe57610bbe611f4e565b016020015160f81c901b9190911790600101610b7a565b5061ffff811615610bff5760405163407b587360e01b815261ffff821660048201526024016102bb565b610c0a600284611fe4565b9250505f5f5b6004811015610c6f57610c24816003611f24565b610c2f906008611f37565b63ffffffff16868563ffffffff1683610c489190611f62565b81518110610c5857610c58611f4e565b016020015160f81c901b9190911790600101610c10565b5063ffffffff8116600114610c9757604051635b60892f60e01b815260040160405180910390fd5b610ca2600484611fe4565b9250505f5f5b6020811015610cff57610cbc81601f611f24565b610cc7906008611f37565b86610cd863ffffffff871684611f62565b81518110610ce857610ce8611f4e565b016020015160f81c901b9190911790600101610ca8565b50808252610d0e602084611fe4565b9250505f5f5b6004811015610d7357610d28816003611f24565b610d33906008611f37565b63ffffffff16868563ffffffff1683610d4c9190611f62565b81518110610d5c57610d5c611f4e565b016020015160f81c901b9190911790600101610d14565b50610d7f600484611fe4565b92505f8163ffffffff166001600160401b03811115610da057610da06117aa565b6040519080825280601f01601f191660200182016040528015610dca576020820181803683370190505b5090505f5b8263ffffffff16811015610e395786610dee63ffffffff871683611f62565b81518110610dfe57610dfe611f4e565b602001015160f81c60f81b828281518110610e1b57610e1b611f4e565b60200101906001600160f81b03191690815f1a905350600101610dcf565b5060208301819052610e4b8285611fe4565b604080516030808252606082019092529195505f92506020820181803683370190505090505f5b6030811015610ed75786610e8c63ffffffff871683611f62565b81518110610e9c57610e9c611f4e565b602001015160f81c60f81b828281518110610eb957610eb9611f4e565b60200101906001600160f81b03191690815f1a905350600101610e72565b5060408301819052610eea603085611fe4565b9350505f5f5b6008811015610f5057610f04816007611f24565b610f0f906008611f37565b6001600160401b031687610f2963ffffffff881684611f62565b81518110610f3957610f39611f4e565b016020015160f81c901b9190911790600101610ef0565b506001600160401b0381166060840152610f6b600885611fe4565b9350505f5f5f5b6004811015610fd157610f86816003611f24565b610f91906008611f37565b63ffffffff16888763ffffffff1683610faa9190611f62565b81518110610fba57610fba611f4e565b016020015160f81c901b9190911790600101610f72565b50610fdd600486611fe4565b94505f5b600481101561104057610ff5816003611f24565b611000906008611f37565b63ffffffff16888763ffffffff16836110199190611f62565b8151811061102957611029611f4e565b016020015160f81c901b9290921791600101610fe1565b5061104c600486611fe4565b94505f8263ffffffff166001600160401b0381111561106d5761106d6117aa565b604051908082528060200260200182016040528015611096578160200160208202803683370190505b5090505f5b8363ffffffff1681101561117e576040805160148082528183019092525f916020820181803683370190505090505f5b6014811015611130578a6110e563ffffffff8b1683611f62565b815181106110f5576110f5611f4e565b602001015160f81c60f81b82828151811061111257611112611f4e565b60200101906001600160f81b03191690815f1a9053506001016110cb565b505f601482015190508084848151811061114c5761114c611f4e565b6001600160a01b039092166020928302919091019091015261116f60148a611fe4565b9850505080600101905061109b565b506040805180820190915263ffffffff9092168252602082015260808401525f80805b6004811015611200576111b5816003611f24565b6111c0906008611f37565b63ffffffff16898863ffffffff16836111d99190611f62565b815181106111e9576111e9611f4e565b016020015160f81c901b91909117906001016111a1565b5061120c600487611fe4565b95505f5b600481101561126f57611224816003611f24565b61122f906008611f37565b63ffffffff16898863ffffffff16836112489190611f62565b8151811061125857611258611f4e565b016020015160f81c901b9290921791600101611210565b5061127b600487611fe4565b95505f8263ffffffff166001600160401b0381111561129c5761129c6117aa565b6040519080825280602002602001820160405280156112c5578160200160208202803683370190505b5090505f5b8363ffffffff168110156113ad576040805160148082528183019092525f916020820181803683370190505090505f5b601481101561135f578b61131463ffffffff8c1683611f62565b8151811061132457611324611f4e565b602001015160f81c60f81b82828151811061134157611341611f4e565b60200101906001600160f81b03191690815f1a9053506001016112fa565b505f601482015190508084848151811061137b5761137b611f4e565b6001600160a01b039092166020928302919091019091015261139e60148b611fe4565b995050508060010190506112ca565b506040805180820190915263ffffffff9092168252602082015260a08501525f6113d78284611fe4565b6113e2906014612000565b6113ed85607a611fe4565b6113f79190611fe4565b90508063ffffffff1688511461143357875160405163cc92daa160e01b815263ffffffff918216600482015290821660248201526044016102bb565b5f5f5b60088110156114965761144a816007611f24565b611455906008611f37565b6001600160401b03168a61146f63ffffffff8b1684611f62565b8151811061147f5761147f611f4e565b016020015160f81c901b9190911790600101611436565b506001600160401b031660c086015250929695505050505050565b6040515f6020820152600160e11b60228201526026810183905281151560f81b60468201526060906047015b60405160208183030381529060405290505b92915050565b6040515f602082018190526022820152602681018390526001600160c01b031960c083901b166046820152606090604e016114dd565b5f60608260400151516030146115545760405163180ffa0d60e01b815260040160405180910390fd5b82516020808501518051604080880151606089015160808a01518051908701515193515f986115a4988a98600160e01b98929760e093841b979196919560c09290921b9491841b931b910161201f565b60405160208183030381529060405290505f5b84608001516020015151811015611616578185608001516020015182815181106115e3576115e3611f4e565b60200260200101516040516020016115fc9291906120b4565b60408051601f1981840301815291905291506001016115b7565b5060a08401518051602091820151516040516116369385939291016120ea565b60405160208183030381529060405290505f5b8460a0015160200151518110156116a857818560a0015160200151828151811061167557611675611f4e565b602002602001015160405160200161168e9291906120b4565b60408051601f198184030181529190529150600101611649565b5060c08401516040516116bf918391602001612125565b60405160208183030381529060405290506002816040516116e09190612156565b602060405180830381855afa1580156116fb573d5f5f3e3d5ffd5b5050506040513d601f19601f8201168201806040525081019061171e9190612171565b94909350915050565b6040518060e001604052805f815260200160608152602001606081526020015f6001600160401b0316815260200161177760405180604001604052805f63ffffffff168152602001606081525090565b815260200161179e60405180604001604052805f63ffffffff168152602001606081525090565b81525f60209091015290565b634e487b7160e01b5f52604160045260245ffd5b604051608081016001600160401b03811182821017156117e0576117e06117aa565b60405290565b604051606081016001600160401b03811182821017156117e0576117e06117aa565b604080519081016001600160401b03811182821017156117e0576117e06117aa565b60405160e081016001600160401b03811182821017156117e0576117e06117aa565b604051601f8201601f191681016001600160401b0381118282101715611874576118746117aa565b604052919050565b5f82601f83011261188b575f5ffd5b81356001600160401b038111156118a4576118a46117aa565b6118b7601f8201601f191660200161184c565b8181528460208386010111156118cb575f5ffd5b816020850160208301375f918101602001919091529392505050565b5f602082840312156118f7575f5ffd5b81356001600160401b0381111561190c575f5ffd5b6119188482850161187c565b949350505050565b5f60208284031215611930575f5ffd5b5035919050565b5f5b83811015611951578181015183820152602001611939565b50505f910152565b5f8151808452611970816020860160208601611937565b601f01601f19169290920160200192915050565b602081525f6119966020830184611959565b9392505050565b80356001600160401b03811681146119b3575f5ffd5b919050565b5f5f5f606084860312156119ca575f5ffd5b833592506119da6020850161199d565b91506119e86040850161199d565b90509250925092565b80356001600160a01b03811681146119b3575f5ffd5b5f6001600160401b03821115611a1f57611a1f6117aa565b5060051b60200190565b5f60208284031215611a39575f5ffd5b81356001600160401b03811115611a4e575f5ffd5b820160808185031215611a5f575f5ffd5b611a676117be565b8135815260208083013590820152611a81604083016119f1565b604082015260608201356001600160401b03811115611a9e575f5ffd5b80830192505084601f830112611ab2575f5ffd5b8135611ac5611ac082611a07565b61184c565b8082825260208201915060208360051b860101925087831115611ae6575f5ffd5b602085015b83811015611b9c5780356001600160401b03811115611b08575f5ffd5b86016060818b03601f19011215611b1d575f5ffd5b611b256117e6565b60208201356001600160401b03811115611b3d575f5ffd5b611b4c8c60208386010161187c565b82525060408201356001600160401b03811115611b67575f5ffd5b611b768c60208386010161187c565b602083015250611b886060830161199d565b604082015284525060209283019201611aeb565b506060840152509095945050505050565b5f6040830163ffffffff83511684526020830151604060208601528181518084526060870191506020830193505f92505b80831015611c095783516001600160a01b031682526020938401936001939093019290910190611bde565b5095945050505050565b60208152815160208201525f602083015160e06040840152611c39610100840182611959565b90506040840151601f19848303016060850152611c568282611959565b9150506001600160401b0360608501511660808401526080840151601f198483030160a0850152611c878282611bad565b91505060a0840151601f198483030160c0850152611ca58282611bad565b91505060c0840151611cc260e08501826001600160401b03169052565b509392505050565b5f5f60408385031215611cdb575f5ffd5b8235915060208301358015158114611cf1575f5ffd5b809150509250929050565b5f5f60408385031215611d0d575f5ffd5b82359150611d1d6020840161199d565b90509250929050565b5f60408284031215611d36575f5ffd5b611d3e611808565b9050813563ffffffff81168114611d53575f5ffd5b815260208201356001600160401b03811115611d6d575f5ffd5b8201601f81018413611d7d575f5ffd5b8035611d8b611ac082611a07565b8082825260208201915060208360051b850101925086831115611dac575f5ffd5b6020840193505b82841015611dd557611dc4846119f1565b825260209384019390910190611db3565b60208501525091949350505050565b5f60208284031215611df4575f5ffd5b81356001600160401b03811115611e09575f5ffd5b820160e08185031215611e1a575f5ffd5b611e2261182a565b8135815260208201356001600160401b03811115611e3e575f5ffd5b611e4a8682850161187c565b60208301525060408201356001600160401b03811115611e68575f5ffd5b611e748682850161187c565b604083015250611e866060830161199d565b606082015260808201356001600160401b03811115611ea3575f5ffd5b611eaf86828501611d26565b60808301525060a08201356001600160401b03811115611ecd575f5ffd5b611ed986828501611d26565b60a083015250611eeb60c0830161199d565b60c0820152949350505050565b828152604060208201525f6119186040830184611959565b634e487b7160e01b5f52601160045260245ffd5b818103818111156114ef576114ef611f10565b80820281158282048414176114ef576114ef611f10565b634e487b7160e01b5f52603260045260245ffd5b808201808211156114ef576114ef611f10565b5f8651611f86818460208b01611937565b6001600160e01b031987169083019081528551611faa816004840160208a01611937565b8551910190611fc0816004840160208901611937565b6001600160c01b031994909416930160048101939093525050600c01949350505050565b63ffffffff81811683821601908111156114ef576114ef611f10565b63ffffffff8181168382160290811690818114610b5f57610b5f611f10565b6001600160f01b03198a1681526001600160e01b03198981166002830152600682018990528716602682015285515f9061206081602a850160208b01611937565b86519083019061207781602a840160208b01611937565b6001600160c01b0319969096169501602a81019590955250506001600160e01b03199182166032840152166036820152603a019695505050505050565b5f83516120c5818460208801611937565b60609390931b6bffffffffffffffffffffffff19169190920190815260140192915050565b5f84516120fb818460208901611937565b6001600160e01b031960e095861b8116919093019081529290931b16600482015260080192915050565b5f8351612136818460208801611937565b60c09390931b6001600160c01b0319169190920190815260080192915050565b5f8251612167818460208701611937565b9190910192915050565b5f60208284031215612181575f5ffd5b505191905056fea264697066735822122049389dc0ab4dda43aacd0dda39767caebed63d711d7c43c96b182c0b56430f9964736f6c634300081e0033",
+}
+
+// ValidatorMessagesABI is the input ABI used to generate the binding from.
+// Deprecated: Use ValidatorMessagesMetaData.ABI instead.
+var ValidatorMessagesABI = ValidatorMessagesMetaData.ABI
+
+// ValidatorMessagesBin is the compiled bytecode used for deploying new contracts.
+// Deprecated: Use ValidatorMessagesMetaData.Bin instead.
+var ValidatorMessagesBin = ValidatorMessagesMetaData.Bin
+
+// DeployValidatorMessages deploys a new Ethereum contract, binding an instance of ValidatorMessages to it.
+func DeployValidatorMessages(auth *bind.TransactOpts, backend bind.ContractBackend) (common.Address, *types.Transaction, *ValidatorMessages, error) {
+	parsed, err := ValidatorMessagesMetaData.GetAbi()
+	if err != nil {
+		return common.Address{}, nil, nil, err
+	}
+	if parsed == nil {
+		return common.Address{}, nil, nil, errors.New("GetABI returned nil")
+	}
+
+	address, tx, contract, err := bind.DeployContract(auth, *parsed, common.FromHex(ValidatorMessagesBin), backend)
+	if err != nil {
+		return common.Address{}, nil, nil, err
+	}
+	return address, tx, &ValidatorMessages{ValidatorMessagesCaller: ValidatorMessagesCaller{contract: contract}, ValidatorMessagesTransactor: ValidatorMessagesTransactor{contract: contract}, ValidatorMessagesFilterer: ValidatorMessagesFilterer{contract: contract}}, nil
+}
+
+// ValidatorMessages is an auto generated Go binding around an Ethereum contract.
+type ValidatorMessages struct {
+	ValidatorMessagesCaller     // Read-only binding to the contract
+	ValidatorMessagesTransactor // Write-only binding to the contract
+	ValidatorMessagesFilterer   // Log filterer for contract events
+}
+
+// ValidatorMessagesCaller is an auto generated read-only Go binding around an Ethereum contract.
+type ValidatorMessagesCaller struct {
+	contract *bind.BoundContract // Generic contract wrapper for the low level calls
+}
+
+// ValidatorMessagesTransactor is an auto generated write-only Go binding around an Ethereum contract.
+type ValidatorMessagesTransactor struct {
+	contract *bind.BoundContract // Generic contract wrapper for the low level calls
+}
+
+// ValidatorMessagesFilterer is an auto generated log filtering Go binding around an Ethereum contract events.
+type ValidatorMessagesFilterer struct {
+	contract *bind.BoundContract // Generic contract wrapper for the low level calls
+}
+
+// ValidatorMessagesSession is an auto generated Go binding around an Ethereum contract,
+// with pre-set call and transact options.
+type ValidatorMessagesSession struct {
+	Contract     *ValidatorMessages // Generic contract binding to set the session for
+	CallOpts     bind.CallOpts      // Call options to use throughout this session
+	TransactOpts bind.TransactOpts  // Transaction auth options to use throughout this session
+}
+
+// ValidatorMessagesCallerSession is an auto generated read-only Go binding around an Ethereum contract,
+// with pre-set call options.
+type ValidatorMessagesCallerSession struct {
+	Contract *ValidatorMessagesCaller // Generic contract caller binding to set the session for
+	CallOpts bind.CallOpts            // Call options to use throughout this session
+}
+
+// ValidatorMessagesTransactorSession is an auto generated write-only Go binding around an Ethereum contract,
+// with pre-set transact options.
+type ValidatorMessagesTransactorSession struct {
+	Contract     *ValidatorMessagesTransactor // Generic contract transactor binding to set the session for
+	TransactOpts bind.TransactOpts            // Transaction auth options to use throughout this session
+}
+
+// ValidatorMessagesRaw is an auto generated low-level Go binding around an Ethereum contract.
+type ValidatorMessagesRaw struct {
+	Contract *ValidatorMessages // Generic contract binding to access the raw methods on
+}
+
+// ValidatorMessagesCallerRaw is an auto generated low-level read-only Go binding around an Ethereum contract.
+type ValidatorMessagesCallerRaw struct {
+	Contract *ValidatorMessagesCaller // Generic read-only contract binding to access the raw methods on
+}
+
+// ValidatorMessagesTransactorRaw is an auto generated low-level write-only Go binding around an Ethereum contract.
+type ValidatorMessagesTransactorRaw struct {
+	Contract *ValidatorMessagesTransactor // Generic write-only contract binding to access the raw methods on
+}
+
+// NewValidatorMessages creates a new instance of ValidatorMessages, bound to a specific deployed contract.
+func NewValidatorMessages(address common.Address, backend bind.ContractBackend) (*ValidatorMessages, error) {
+	contract, err := bindValidatorMessages(address, backend, backend, backend)
+	if err != nil {
+		return nil, err
+	}
+	return &ValidatorMessages{ValidatorMessagesCaller: ValidatorMessagesCaller{contract: contract}, ValidatorMessagesTransactor: ValidatorMessagesTransactor{contract: contract}, ValidatorMessagesFilterer: ValidatorMessagesFilterer{contract: contract}}, nil
+}
+
+// NewValidatorMessagesCaller creates a new read-only instance of ValidatorMessages, bound to a specific deployed contract.
+func NewValidatorMessagesCaller(address common.Address, caller bind.ContractCaller) (*ValidatorMessagesCaller, error) {
+	contract, err := bindValidatorMessages(address, caller, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &ValidatorMessagesCaller{contract: contract}, nil
+}
+
+// NewValidatorMessagesTransactor creates a new write-only instance of ValidatorMessages, bound to a specific deployed contract.
+func NewValidatorMessagesTransactor(address common.Address, transactor bind.ContractTransactor) (*ValidatorMessagesTransactor, error) {
+	contract, err := bindValidatorMessages(address, nil, transactor, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &ValidatorMessagesTransactor{contract: contract}, nil
+}
+
+// NewValidatorMessagesFilterer creates a new log filterer instance of ValidatorMessages, bound to a specific deployed contract.
+func NewValidatorMessagesFilterer(address common.Address, filterer bind.ContractFilterer) (*ValidatorMessagesFilterer, error) {
+	contract, err := bindValidatorMessages(address, nil, nil, filterer)
+	if err != nil {
+		return nil, err
+	}
+	return &ValidatorMessagesFilterer{contract: contract}, nil
+}
+
+// bindValidatorMessages binds a generic wrapper to an already deployed contract.
+func bindValidatorMessages(address common.Address, caller bind.ContractCaller, transactor bind.ContractTransactor, filterer bind.ContractFilterer) (*bind.BoundContract, error) {
+	parsed, err := ValidatorMessagesMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
+	return bind.NewBoundContract(address, *parsed, caller, transactor, filterer), nil
+}
+
+// Call invokes the (constant) contract method with params as input values and
+// sets the output to result. The result type might be a single field for simple
+// returns, a slice of interfaces for anonymous returns and a struct for named
+// returns.
+func (_ValidatorMessages *ValidatorMessagesRaw) Call(opts *bind.CallOpts, result *[]interface{}, method string, params ...interface{}) error {
+	return _ValidatorMessages.Contract.ValidatorMessagesCaller.contract.Call(opts, result, method, params...)
+}
+
+// Transfer initiates a plain transaction to move funds to the contract, calling
+// its default method if one is available.
+func (_ValidatorMessages *ValidatorMessagesRaw) Transfer(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _ValidatorMessages.Contract.ValidatorMessagesTransactor.contract.Transfer(opts)
+}
+
+// Transact invokes the (paid) contract method with params as input values.
+func (_ValidatorMessages *ValidatorMessagesRaw) Transact(opts *bind.TransactOpts, method string, params ...interface{}) (*types.Transaction, error) {
+	return _ValidatorMessages.Contract.ValidatorMessagesTransactor.contract.Transact(opts, method, params...)
+}
+
+// Call invokes the (constant) contract method with params as input values and
+// sets the output to result. The result type might be a single field for simple
+// returns, a slice of interfaces for anonymous returns and a struct for named
+// returns.
+func (_ValidatorMessages *ValidatorMessagesCallerRaw) Call(opts *bind.CallOpts, result *[]interface{}, method string, params ...interface{}) error {
+	return _ValidatorMessages.Contract.contract.Call(opts, result, method, params...)
+}
+
+// Transfer initiates a plain transaction to move funds to the contract, calling
+// its default method if one is available.
+func (_ValidatorMessages *ValidatorMessagesTransactorRaw) Transfer(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _ValidatorMessages.Contract.contract.Transfer(opts)
+}
+
+// Transact invokes the (paid) contract method with params as input values.
+func (_ValidatorMessages *ValidatorMessagesTransactorRaw) Transact(opts *bind.TransactOpts, method string, params ...interface{}) (*types.Transaction, error) {
+	return _ValidatorMessages.Contract.contract.Transact(opts, method, params...)
+}
+
+// PackConversionData is a free data retrieval call binding the contract method 0x51f48008.
+//
+// Solidity: function packConversionData((bytes32,bytes32,address,(bytes,bytes,uint64)[]) conversionData) pure returns(bytes)
+func (_ValidatorMessages *ValidatorMessagesCaller) PackConversionData(opts *bind.CallOpts, conversionData ConversionData) ([]byte, error) {
+	var out []interface{}
+	err := _ValidatorMessages.contract.Call(opts, &out, "packConversionData", conversionData)
+
+	if err != nil {
+		return *new([]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]byte)).(*[]byte)
+
+	return out0, err
+
+}
+
+// PackConversionData is a free data retrieval call binding the contract method 0x51f48008.
+//
+// Solidity: function packConversionData((bytes32,bytes32,address,(bytes,bytes,uint64)[]) conversionData) pure returns(bytes)
+func (_ValidatorMessages *ValidatorMessagesSession) PackConversionData(conversionData ConversionData) ([]byte, error) {
+	return _ValidatorMessages.Contract.PackConversionData(&_ValidatorMessages.CallOpts, conversionData)
+}
+
+// PackConversionData is a free data retrieval call binding the contract method 0x51f48008.
+//
+// Solidity: function packConversionData((bytes32,bytes32,address,(bytes,bytes,uint64)[]) conversionData) pure returns(bytes)
+func (_ValidatorMessages *ValidatorMessagesCallerSession) PackConversionData(conversionData ConversionData) ([]byte, error) {
+	return _ValidatorMessages.Contract.PackConversionData(&_ValidatorMessages.CallOpts, conversionData)
+}
+
+// PackL1ValidatorRegistrationMessage is a free data retrieval call binding the contract method 0xa699c135.
+//
+// Solidity: function packL1ValidatorRegistrationMessage(bytes32 validationID, bool registered) pure returns(bytes)
+func (_ValidatorMessages *ValidatorMessagesCaller) PackL1ValidatorRegistrationMessage(opts *bind.CallOpts, validationID [32]byte, registered bool) ([]byte, error) {
+	var out []interface{}
+	err := _ValidatorMessages.contract.Call(opts, &out, "packL1ValidatorRegistrationMessage", validationID, registered)
+
+	if err != nil {
+		return *new([]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]byte)).(*[]byte)
+
+	return out0, err
+
+}
+
+// PackL1ValidatorRegistrationMessage is a free data retrieval call binding the contract method 0xa699c135.
+//
+// Solidity: function packL1ValidatorRegistrationMessage(bytes32 validationID, bool registered) pure returns(bytes)
+func (_ValidatorMessages *ValidatorMessagesSession) PackL1ValidatorRegistrationMessage(validationID [32]byte, registered bool) ([]byte, error) {
+	return _ValidatorMessages.Contract.PackL1ValidatorRegistrationMessage(&_ValidatorMessages.CallOpts, validationID, registered)
+}
+
+// PackL1ValidatorRegistrationMessage is a free data retrieval call binding the contract method 0xa699c135.
+//
+// Solidity: function packL1ValidatorRegistrationMessage(bytes32 validationID, bool registered) pure returns(bytes)
+func (_ValidatorMessages *ValidatorMessagesCallerSession) PackL1ValidatorRegistrationMessage(validationID [32]byte, registered bool) ([]byte, error) {
+	return _ValidatorMessages.Contract.PackL1ValidatorRegistrationMessage(&_ValidatorMessages.CallOpts, validationID, registered)
+}
+
+// PackL1ValidatorWeightMessage is a free data retrieval call binding the contract method 0x854a893f.
+//
+// Solidity: function packL1ValidatorWeightMessage(bytes32 validationID, uint64 nonce, uint64 weight) pure returns(bytes)
+func (_ValidatorMessages *ValidatorMessagesCaller) PackL1ValidatorWeightMessage(opts *bind.CallOpts, validationID [32]byte, nonce uint64, weight uint64) ([]byte, error) {
+	var out []interface{}
+	err := _ValidatorMessages.contract.Call(opts, &out, "packL1ValidatorWeightMessage", validationID, nonce, weight)
+
+	if err != nil {
+		return *new([]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]byte)).(*[]byte)
+
+	return out0, err
+
+}
+
+// PackL1ValidatorWeightMessage is a free data retrieval call binding the contract method 0x854a893f.
+//
+// Solidity: function packL1ValidatorWeightMessage(bytes32 validationID, uint64 nonce, uint64 weight) pure returns(bytes)
+func (_ValidatorMessages *ValidatorMessagesSession) PackL1ValidatorWeightMessage(validationID [32]byte, nonce uint64, weight uint64) ([]byte, error) {
+	return _ValidatorMessages.Contract.PackL1ValidatorWeightMessage(&_ValidatorMessages.CallOpts, validationID, nonce, weight)
+}
+
+// PackL1ValidatorWeightMessage is a free data retrieval call binding the contract method 0x854a893f.
+//
+// Solidity: function packL1ValidatorWeightMessage(bytes32 validationID, uint64 nonce, uint64 weight) pure returns(bytes)
+func (_ValidatorMessages *ValidatorMessagesCallerSession) PackL1ValidatorWeightMessage(validationID [32]byte, nonce uint64, weight uint64) ([]byte, error) {
+	return _ValidatorMessages.Contract.PackL1ValidatorWeightMessage(&_ValidatorMessages.CallOpts, validationID, nonce, weight)
+}
+
+// PackRegisterL1ValidatorMessage is a free data retrieval call binding the contract method 0xe0d5478f.
+//
+// Solidity: function packRegisterL1ValidatorMessage((bytes32,bytes,bytes,uint64,(uint32,address[]),(uint32,address[]),uint64) validationPeriod) pure returns(bytes32, bytes)
+func (_ValidatorMessages *ValidatorMessagesCaller) PackRegisterL1ValidatorMessage(opts *bind.CallOpts, validationPeriod ValidatorMessagesValidationPeriod) ([32]byte, []byte, error) {
+	var out []interface{}
+	err := _ValidatorMessages.contract.Call(opts, &out, "packRegisterL1ValidatorMessage", validationPeriod)
+
+	if err != nil {
+		return *new([32]byte), *new([]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+	out1 := *abi.ConvertType(out[1], new([]byte)).(*[]byte)
+
+	return out0, out1, err
+
+}
+
+// PackRegisterL1ValidatorMessage is a free data retrieval call binding the contract method 0xe0d5478f.
+//
+// Solidity: function packRegisterL1ValidatorMessage((bytes32,bytes,bytes,uint64,(uint32,address[]),(uint32,address[]),uint64) validationPeriod) pure returns(bytes32, bytes)
+func (_ValidatorMessages *ValidatorMessagesSession) PackRegisterL1ValidatorMessage(validationPeriod ValidatorMessagesValidationPeriod) ([32]byte, []byte, error) {
+	return _ValidatorMessages.Contract.PackRegisterL1ValidatorMessage(&_ValidatorMessages.CallOpts, validationPeriod)
+}
+
+// PackRegisterL1ValidatorMessage is a free data retrieval call binding the contract method 0xe0d5478f.
+//
+// Solidity: function packRegisterL1ValidatorMessage((bytes32,bytes,bytes,uint64,(uint32,address[]),(uint32,address[]),uint64) validationPeriod) pure returns(bytes32, bytes)
+func (_ValidatorMessages *ValidatorMessagesCallerSession) PackRegisterL1ValidatorMessage(validationPeriod ValidatorMessagesValidationPeriod) ([32]byte, []byte, error) {
+	return _ValidatorMessages.Contract.PackRegisterL1ValidatorMessage(&_ValidatorMessages.CallOpts, validationPeriod)
+}
+
+// PackSubnetToL1ConversionMessage is a free data retrieval call binding the contract method 0x7f7c427a.
+//
+// Solidity: function packSubnetToL1ConversionMessage(bytes32 conversionID) pure returns(bytes)
+func (_ValidatorMessages *ValidatorMessagesCaller) PackSubnetToL1ConversionMessage(opts *bind.CallOpts, conversionID [32]byte) ([]byte, error) {
+	var out []interface{}
+	err := _ValidatorMessages.contract.Call(opts, &out, "packSubnetToL1ConversionMessage", conversionID)
+
+	if err != nil {
+		return *new([]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]byte)).(*[]byte)
+
+	return out0, err
+
+}
+
+// PackSubnetToL1ConversionMessage is a free data retrieval call binding the contract method 0x7f7c427a.
+//
+// Solidity: function packSubnetToL1ConversionMessage(bytes32 conversionID) pure returns(bytes)
+func (_ValidatorMessages *ValidatorMessagesSession) PackSubnetToL1ConversionMessage(conversionID [32]byte) ([]byte, error) {
+	return _ValidatorMessages.Contract.PackSubnetToL1ConversionMessage(&_ValidatorMessages.CallOpts, conversionID)
+}
+
+// PackSubnetToL1ConversionMessage is a free data retrieval call binding the contract method 0x7f7c427a.
+//
+// Solidity: function packSubnetToL1ConversionMessage(bytes32 conversionID) pure returns(bytes)
+func (_ValidatorMessages *ValidatorMessagesCallerSession) PackSubnetToL1ConversionMessage(conversionID [32]byte) ([]byte, error) {
+	return _ValidatorMessages.Contract.PackSubnetToL1ConversionMessage(&_ValidatorMessages.CallOpts, conversionID)
+}
+
+// PackValidationUptimeMessage is a free data retrieval call binding the contract method 0xe1d68f30.
+//
+// Solidity: function packValidationUptimeMessage(bytes32 validationID, uint64 uptime) pure returns(bytes)
+func (_ValidatorMessages *ValidatorMessagesCaller) PackValidationUptimeMessage(opts *bind.CallOpts, validationID [32]byte, uptime uint64) ([]byte, error) {
+	var out []interface{}
+	err := _ValidatorMessages.contract.Call(opts, &out, "packValidationUptimeMessage", validationID, uptime)
+
+	if err != nil {
+		return *new([]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]byte)).(*[]byte)
+
+	return out0, err
+
+}
+
+// PackValidationUptimeMessage is a free data retrieval call binding the contract method 0xe1d68f30.
+//
+// Solidity: function packValidationUptimeMessage(bytes32 validationID, uint64 uptime) pure returns(bytes)
+func (_ValidatorMessages *ValidatorMessagesSession) PackValidationUptimeMessage(validationID [32]byte, uptime uint64) ([]byte, error) {
+	return _ValidatorMessages.Contract.PackValidationUptimeMessage(&_ValidatorMessages.CallOpts, validationID, uptime)
+}
+
+// PackValidationUptimeMessage is a free data retrieval call binding the contract method 0xe1d68f30.
+//
+// Solidity: function packValidationUptimeMessage(bytes32 validationID, uint64 uptime) pure returns(bytes)
+func (_ValidatorMessages *ValidatorMessagesCallerSession) PackValidationUptimeMessage(validationID [32]byte, uptime uint64) ([]byte, error) {
+	return _ValidatorMessages.Contract.PackValidationUptimeMessage(&_ValidatorMessages.CallOpts, validationID, uptime)
+}
+
+// UnpackL1ValidatorRegistrationMessage is a free data retrieval call binding the contract method 0x021de88f.
+//
+// Solidity: function unpackL1ValidatorRegistrationMessage(bytes input) pure returns(bytes32, bool)
+func (_ValidatorMessages *ValidatorMessagesCaller) UnpackL1ValidatorRegistrationMessage(opts *bind.CallOpts, input []byte) ([32]byte, bool, error) {
+	var out []interface{}
+	err := _ValidatorMessages.contract.Call(opts, &out, "unpackL1ValidatorRegistrationMessage", input)
+
+	if err != nil {
+		return *new([32]byte), *new(bool), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+	out1 := *abi.ConvertType(out[1], new(bool)).(*bool)
+
+	return out0, out1, err
+
+}
+
+// UnpackL1ValidatorRegistrationMessage is a free data retrieval call binding the contract method 0x021de88f.
+//
+// Solidity: function unpackL1ValidatorRegistrationMessage(bytes input) pure returns(bytes32, bool)
+func (_ValidatorMessages *ValidatorMessagesSession) UnpackL1ValidatorRegistrationMessage(input []byte) ([32]byte, bool, error) {
+	return _ValidatorMessages.Contract.UnpackL1ValidatorRegistrationMessage(&_ValidatorMessages.CallOpts, input)
+}
+
+// UnpackL1ValidatorRegistrationMessage is a free data retrieval call binding the contract method 0x021de88f.
+//
+// Solidity: function unpackL1ValidatorRegistrationMessage(bytes input) pure returns(bytes32, bool)
+func (_ValidatorMessages *ValidatorMessagesCallerSession) UnpackL1ValidatorRegistrationMessage(input []byte) ([32]byte, bool, error) {
+	return _ValidatorMessages.Contract.UnpackL1ValidatorRegistrationMessage(&_ValidatorMessages.CallOpts, input)
+}
+
+// UnpackL1ValidatorWeightMessage is a free data retrieval call binding the contract method 0x50782b0f.
+//
+// Solidity: function unpackL1ValidatorWeightMessage(bytes input) pure returns(bytes32, uint64, uint64)
+func (_ValidatorMessages *ValidatorMessagesCaller) UnpackL1ValidatorWeightMessage(opts *bind.CallOpts, input []byte) ([32]byte, uint64, uint64, error) {
+	var out []interface{}
+	err := _ValidatorMessages.contract.Call(opts, &out, "unpackL1ValidatorWeightMessage", input)
+
+	if err != nil {
+		return *new([32]byte), *new(uint64), *new(uint64), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+	out1 := *abi.ConvertType(out[1], new(uint64)).(*uint64)
+	out2 := *abi.ConvertType(out[2], new(uint64)).(*uint64)
+
+	return out0, out1, out2, err
+
+}
+
+// UnpackL1ValidatorWeightMessage is a free data retrieval call binding the contract method 0x50782b0f.
+//
+// Solidity: function unpackL1ValidatorWeightMessage(bytes input) pure returns(bytes32, uint64, uint64)
+func (_ValidatorMessages *ValidatorMessagesSession) UnpackL1ValidatorWeightMessage(input []byte) ([32]byte, uint64, uint64, error) {
+	return _ValidatorMessages.Contract.UnpackL1ValidatorWeightMessage(&_ValidatorMessages.CallOpts, input)
+}
+
+// UnpackL1ValidatorWeightMessage is a free data retrieval call binding the contract method 0x50782b0f.
+//
+// Solidity: function unpackL1ValidatorWeightMessage(bytes input) pure returns(bytes32, uint64, uint64)
+func (_ValidatorMessages *ValidatorMessagesCallerSession) UnpackL1ValidatorWeightMessage(input []byte) ([32]byte, uint64, uint64, error) {
+	return _ValidatorMessages.Contract.UnpackL1ValidatorWeightMessage(&_ValidatorMessages.CallOpts, input)
+}
+
+// UnpackRegisterL1ValidatorMessage is a free data retrieval call binding the contract method 0x9b835465.
+//
+// Solidity: function unpackRegisterL1ValidatorMessage(bytes input) pure returns((bytes32,bytes,bytes,uint64,(uint32,address[]),(uint32,address[]),uint64))
+func (_ValidatorMessages *ValidatorMessagesCaller) UnpackRegisterL1ValidatorMessage(opts *bind.CallOpts, input []byte) (ValidatorMessagesValidationPeriod, error) {
+	var out []interface{}
+	err := _ValidatorMessages.contract.Call(opts, &out, "unpackRegisterL1ValidatorMessage", input)
+
+	if err != nil {
+		return *new(ValidatorMessagesValidationPeriod), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(ValidatorMessagesValidationPeriod)).(*ValidatorMessagesValidationPeriod)
+
+	return out0, err
+
+}
+
+// UnpackRegisterL1ValidatorMessage is a free data retrieval call binding the contract method 0x9b835465.
+//
+// Solidity: function unpackRegisterL1ValidatorMessage(bytes input) pure returns((bytes32,bytes,bytes,uint64,(uint32,address[]),(uint32,address[]),uint64))
+func (_ValidatorMessages *ValidatorMessagesSession) UnpackRegisterL1ValidatorMessage(input []byte) (ValidatorMessagesValidationPeriod, error) {
+	return _ValidatorMessages.Contract.UnpackRegisterL1ValidatorMessage(&_ValidatorMessages.CallOpts, input)
+}
+
+// UnpackRegisterL1ValidatorMessage is a free data retrieval call binding the contract method 0x9b835465.
+//
+// Solidity: function unpackRegisterL1ValidatorMessage(bytes input) pure returns((bytes32,bytes,bytes,uint64,(uint32,address[]),(uint32,address[]),uint64))
+func (_ValidatorMessages *ValidatorMessagesCallerSession) UnpackRegisterL1ValidatorMessage(input []byte) (ValidatorMessagesValidationPeriod, error) {
+	return _ValidatorMessages.Contract.UnpackRegisterL1ValidatorMessage(&_ValidatorMessages.CallOpts, input)
+}
+
+// UnpackSubnetToL1ConversionMessage is a free data retrieval call binding the contract method 0x4d847884.
+//
+// Solidity: function unpackSubnetToL1ConversionMessage(bytes input) pure returns(bytes32)
+func (_ValidatorMessages *ValidatorMessagesCaller) UnpackSubnetToL1ConversionMessage(opts *bind.CallOpts, input []byte) ([32]byte, error) {
+	var out []interface{}
+	err := _ValidatorMessages.contract.Call(opts, &out, "unpackSubnetToL1ConversionMessage", input)
+
+	if err != nil {
+		return *new([32]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+
+	return out0, err
+
+}
+
+// UnpackSubnetToL1ConversionMessage is a free data retrieval call binding the contract method 0x4d847884.
+//
+// Solidity: function unpackSubnetToL1ConversionMessage(bytes input) pure returns(bytes32)
+func (_ValidatorMessages *ValidatorMessagesSession) UnpackSubnetToL1ConversionMessage(input []byte) ([32]byte, error) {
+	return _ValidatorMessages.Contract.UnpackSubnetToL1ConversionMessage(&_ValidatorMessages.CallOpts, input)
+}
+
+// UnpackSubnetToL1ConversionMessage is a free data retrieval call binding the contract method 0x4d847884.
+//
+// Solidity: function unpackSubnetToL1ConversionMessage(bytes input) pure returns(bytes32)
+func (_ValidatorMessages *ValidatorMessagesCallerSession) UnpackSubnetToL1ConversionMessage(input []byte) ([32]byte, error) {
+	return _ValidatorMessages.Contract.UnpackSubnetToL1ConversionMessage(&_ValidatorMessages.CallOpts, input)
+}
+
+// UnpackValidationUptimeMessage is a free data retrieval call binding the contract method 0x088c2463.
+//
+// Solidity: function unpackValidationUptimeMessage(bytes input) pure returns(bytes32, uint64)
+func (_ValidatorMessages *ValidatorMessagesCaller) UnpackValidationUptimeMessage(opts *bind.CallOpts, input []byte) ([32]byte, uint64, error) {
+	var out []interface{}
+	err := _ValidatorMessages.contract.Call(opts, &out, "unpackValidationUptimeMessage", input)
+
+	if err != nil {
+		return *new([32]byte), *new(uint64), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+	out1 := *abi.ConvertType(out[1], new(uint64)).(*uint64)
+
+	return out0, out1, err
+
+}
+
+// UnpackValidationUptimeMessage is a free data retrieval call binding the contract method 0x088c2463.
+//
+// Solidity: function unpackValidationUptimeMessage(bytes input) pure returns(bytes32, uint64)
+func (_ValidatorMessages *ValidatorMessagesSession) UnpackValidationUptimeMessage(input []byte) ([32]byte, uint64, error) {
+	return _ValidatorMessages.Contract.UnpackValidationUptimeMessage(&_ValidatorMessages.CallOpts, input)
+}
+
+// UnpackValidationUptimeMessage is a free data retrieval call binding the contract method 0x088c2463.
+//
+// Solidity: function unpackValidationUptimeMessage(bytes input) pure returns(bytes32, uint64)
+func (_ValidatorMessages *ValidatorMessagesCallerSession) UnpackValidationUptimeMessage(input []byte) ([32]byte, uint64, error) {
+	return _ValidatorMessages.Contract.UnpackValidationUptimeMessage(&_ValidatorMessages.CallOpts, input)
+}

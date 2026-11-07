@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+# Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+# See the file LICENSE for licensing terms.
+
+# Following script is adapted from https://github.com/ava-labs/subnet-evm/blob/master/scripts/install_avalanchego_release.sh
+set -e
+
+# Load the versions
+ICM_SERVICES_PATH=$(
+  cd "$(dirname "${BASH_SOURCE[0]}")"
+  cd .. && pwd
+)
+source "$ICM_SERVICES_PATH"/scripts/versions.sh
+
+# Load the constants
+source "$ICM_SERVICES_PATH"/scripts/constants.sh
+
+############################
+# download avalanchego
+# https://github.com/ava-labs/avalanchego/releases
+GOARCH=$(go env GOARCH)
+GOOS=$(go env GOOS)
+BASEDIR=${BASEDIR:-"/tmp/avalanchego-release"}
+AVALANCHEGO_BUILD_PATH=${AVALANCHEGO_BUILD_PATH:-${BASEDIR}/avalanchego}
+
+mkdir -p ${BASEDIR}
+
+AVAGO_DOWNLOAD_URL=https://github.com/ava-labs/avalanchego/releases/download/${AVALANCHEGO_VERSION}/avalanchego-linux-${GOARCH}-${AVALANCHEGO_VERSION}.tar.gz
+AVAGO_DOWNLOAD_PATH=${BASEDIR}/avalanchego-linux-${GOARCH}-${AVALANCHEGO_VERSION}.tar.gz
+
+if [[ ${GOOS} == "darwin" ]]; then
+  AVAGO_DOWNLOAD_URL=https://github.com/ava-labs/avalanchego/releases/download/${AVALANCHEGO_VERSION}/avalanchego-macos-${AVALANCHEGO_VERSION}.zip
+  AVAGO_DOWNLOAD_PATH=${BASEDIR}/avalanchego-macos-${AVALANCHEGO_VERSION}.zip
+fi
+
+BUILD_DIR=${AVALANCHEGO_BUILD_PATH}-${AVALANCHEGO_VERSION}
+
+extract_archive() {
+  mkdir -p ${BUILD_DIR}
+
+  if [[ ${AVAGO_DOWNLOAD_PATH} == *.tar.gz ]]; then
+    tar xzvf ${AVAGO_DOWNLOAD_PATH} --directory ${BUILD_DIR} --strip-components 1
+  elif [[ ${AVAGO_DOWNLOAD_PATH} == *.zip ]]; then
+    unzip ${AVAGO_DOWNLOAD_PATH} -d ${BUILD_DIR}
+    mv ${BUILD_DIR}/build/* ${BUILD_DIR}
+    rm -rf ${BUILD_DIR}/build/
+  fi
+}
+
+is_valid_archive() {
+  local archive_path="${1}"
+  if [[ ${archive_path} == *.tar.gz ]]; then
+    gzip -t "${archive_path}" 2>/dev/null
+    return $?
+  elif [[ ${archive_path} == *.zip ]]; then
+    unzip -t "${archive_path}" > /dev/null 2>&1
+    return $?
+  fi
+  return 1
+}
+
+# first check if we already have the archive
+if [[ -f ${AVAGO_DOWNLOAD_PATH} ]] && is_valid_archive "${AVAGO_DOWNLOAD_PATH}"; then
+  # if the download path already exists and is valid, extract and exit
+  echo "found valid avalanchego ${AVALANCHEGO_VERSION} at ${AVAGO_DOWNLOAD_PATH}"
+
+  extract_archive
+else
+  # Remove any invalid or partial download
+  if [[ -f ${AVAGO_DOWNLOAD_PATH} ]]; then
+    echo "removing invalid or partial download at ${AVAGO_DOWNLOAD_PATH}"
+    rm -f ${AVAGO_DOWNLOAD_PATH}
+  fi
+
+  # Try to download the archive if it exists. GitHub responds to existing
+  # release asset requests with a 302 redirect to the actual download; check
+  # the HTTP status code explicitly rather than grepping the headers for
+  # "302", which can false-positive on substrings of unrelated header values.
+  if [[ "$(curl -s -o /dev/null -w '%{http_code}' -I ${AVAGO_DOWNLOAD_URL})" == "302" ]]; then
+    echo "${AVAGO_DOWNLOAD_URL} found"
+    echo "downloading to ${AVAGO_DOWNLOAD_PATH}"
+    if ! curl -f -L ${AVAGO_DOWNLOAD_URL} -o ${AVAGO_DOWNLOAD_PATH}; then
+      rm -f ${AVAGO_DOWNLOAD_PATH}
+      echo "Failed to download avalanchego from ${AVAGO_DOWNLOAD_URL}"
+      exit 1
+    fi
+
+    extract_archive
+  else
+    # else the version is a git commit (or it's invalid)
+    GIT_CLONE_URL=https://github.com/ava-labs/avalanchego.git
+    GIT_CLONE_PATH=${BASEDIR}/avalanchego-repo/
+
+    # check to see if the repo already exists, if not clone it
+    if [[ ! -d ${GIT_CLONE_PATH} ]]; then
+      echo "cloning ${GIT_CLONE_URL} to ${GIT_CLONE_PATH}"
+      git clone --no-checkout ${GIT_CLONE_URL} ${GIT_CLONE_PATH}
+    fi
+
+    # check to see if the commit hash exists in the repo
+    WORKDIR=$(pwd)
+
+    cd ${GIT_CLONE_PATH}
+
+    git fetch
+
+    echo "checking out ${AVALANCHEGO_VERSION}"
+
+    set +e
+    # try to checkout the branch
+    git checkout origin/${AVALANCHEGO_VERSION} > /dev/null 2>&1
+    CHECKOUT_STATUS=$?
+    set -e
+
+    # if it's not a branch, try to checkout the commit 
+    # Try to checkout the branch. If it fails, try the commit.
+    if ! git checkout "origin/${AVALANCHEGO_VERSION}" > /dev/null 2>&1; then
+      if ! git checkout "${AVALANCHEGO_VERSION}" > /dev/null 2>&1; then
+        # If the version is in the format of tag-commit, try to extract the commit and checkout.
+        AVALANCHEGO_VERSION=$(extract_commit "${AVALANCHEGO_VERSION}")
+        if ! git checkout "${AVALANCHEGO_VERSION}" > /dev/null 2>&1; then
+          echo
+          echo "'${AVALANCHEGO_VERSION}' is not a valid release tag, commit hash, or branch name"
+          exit 1
+        fi
+      fi
+    fi
+
+    COMMIT=$(git rev-parse HEAD)
+
+    # use the commit hash instead of the branch name or tag
+    BUILD_DIR=${AVALANCHEGO_BUILD_PATH}-${COMMIT}
+
+    # if the build-directory doesn't exist, build avalanchego
+    if [[ ! -d ${BUILD_DIR} ]]; then
+      echo "building avalanchego ${COMMIT} to ${BUILD_DIR}"
+      ./scripts/build.sh
+
+      # subnet-evm is part of avalanchego as of v1.14.1
+      if [[ -f graft/subnet-evm/scripts/build.sh ]]; then
+        echo "building subnet-evm from avalanchego graft..."
+        ./graft/subnet-evm/scripts/build.sh "${GIT_CLONE_PATH}/build/subnet-evm"
+      fi
+
+      mkdir -p ${BUILD_DIR}
+      mv ${GIT_CLONE_PATH}/build/* ${BUILD_DIR}/
+    fi
+
+    cd $WORKDIR
+  fi
+fi
+
+AVALANCHEGO_PATH=${AVALANCHEGO_BUILD_PATH}/avalanchego
+AVALANCHEGO_PLUGIN_DIR=${AVALANCHEGO_BUILD_PATH}/plugins
+
+mkdir -p ${AVALANCHEGO_BUILD_PATH}
+mkdir -p ${AVALANCHEGO_PLUGIN_DIR}
+
+cp ${BUILD_DIR}/avalanchego ${AVALANCHEGO_PATH}
+
+# Copy subnet-evm plugin if it was built from the avalanchego graft
+if [[ -f ${BUILD_DIR}/subnet-evm ]]; then
+  # The VM ID is the CB58-encoded hash of the string "subnetevm", defined in
+  # graft/subnet-evm/scripts/constants.sh as DEFAULT_VM_ID.
+  SUBNET_EVM_PLUGIN_PATH=${AVALANCHEGO_PLUGIN_DIR}/srEXiWaHuhNyGwPUi444Tu47ZEDwxTWrbQiuD7FmgSAQ6X7Dy
+  cp ${BUILD_DIR}/subnet-evm ${SUBNET_EVM_PLUGIN_PATH}
+  echo "Installed Subnet-EVM plugin: ${SUBNET_EVM_PLUGIN_PATH}"
+fi
+
+echo "Installed AvalancheGo release ${AVALANCHEGO_VERSION}"
+echo "AvalancheGo Path: ${AVALANCHEGO_PATH}"
+echo "Plugin Dir: ${AVALANCHEGO_PLUGIN_DIR}"

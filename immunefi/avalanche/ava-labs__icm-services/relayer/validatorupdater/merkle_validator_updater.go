@@ -1,0 +1,528 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+// THIS IS AN EXAMPLE OF UNAUDITED CODE. DO NOT USE THIS IN PRODUCTION.
+
+package validatorupdater
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"math/big"
+	"time"
+
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/constants"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	avalancheWarp "github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	warppayload "github.com/ava-labs/avalanchego/vms/platformvm/warp/payload"
+	merklevalidatorsetregistry "github.com/ava-labs/icm-services/abi-bindings/go/MerkleValidatorSetRegistry"
+	"github.com/ava-labs/icm-services/peers/clients"
+	"github.com/ava-labs/icm-services/relayer/config"
+	"github.com/ava-labs/icm-services/signature-aggregator/aggregator"
+	"github.com/ava-labs/libevm/accounts/abi/bind"
+	"github.com/ava-labs/libevm/common"
+	"github.com/ava-labs/libevm/core/types"
+	"github.com/ava-labs/libevm/ethclient"
+	"go.uber.org/zap"
+)
+
+// weiPerGwei is the conversion factor between gwei and wei.
+var weiPerGwei = big.NewInt(1_000_000_000)
+
+// errPChainNotRegistered is returned when the registry has no usable P-chain
+// validator set commitment to anchor a P-chain-signed update against. The
+// constructor always stores one, but does not reject a zero total weight, and
+// the contract treats zero weight as unregistered.
+var errPChainNotRegistered = errors.New("P-chain validator set is not registered on the contract")
+
+// registryCaller is the read-only subset of the MerkleValidatorSetRegistry
+// binding needed to resolve the anchor of a P-chain-signed update.
+type registryCaller interface {
+	GetValidatorSetCommitment(
+		opts *bind.CallOpts,
+		avalancheBlockchainID [32]byte,
+	) (merklevalidatorsetregistry.ValidatorSetMerkleCommitment, error)
+}
+
+var _ registryCaller = (*merklevalidatorsetregistry.MerkleValidatorSetRegistry)(nil)
+
+type MerkleSetUpdater struct {
+	logger              logging.Logger
+	pChainClient        clients.CanonicalValidatorState
+	signatureAggregator *aggregator.SignatureAggregator
+	ethClient           *ethclient.Client
+	contract            *merklevalidatorsetregistry.MerkleValidatorSetRegistry
+	contractAddress     common.Address
+	txOpts              *bind.TransactOpts
+
+	networkID    uint32
+	blockchainID ids.ID
+	subnetID     ids.ID
+	pollInterval time.Duration
+
+	maxUpdateInterval time.Duration
+	// maxGasPriceWei is the maximum suggested gas price (in wei) at which
+	// an update transaction will be submitted. If the destination network's
+	// suggested gas price exceeds this value, the update is deferred until
+	// the next poll. A zero value disables gas gating.
+	maxGasPriceWei *big.Int
+
+	localValidatorSet   []*Validator
+	localPChainHeight   uint64
+	localTotalWeight    uint64
+	lastUpdateTime      time.Time
+	initialized         bool
+	allowPChainFallback bool
+}
+
+func NewMerkleSetUpdater(
+	logger logging.Logger,
+	pChainClient clients.CanonicalValidatorState,
+	signatureAggregator *aggregator.SignatureAggregator,
+	ethClient *ethclient.Client,
+	contract *merklevalidatorsetregistry.MerkleValidatorSetRegistry,
+	contractAddress common.Address,
+	txOpts *bind.TransactOpts,
+	networkID uint32,
+	blockchainID ids.ID,
+	subnetID ids.ID,
+	pollInterval time.Duration,
+	maxUpdateInterval time.Duration,
+	maxGasPriceGwei uint64,
+) *MerkleSetUpdater {
+	maxGasPriceWei := new(big.Int).Mul(new(big.Int).SetUint64(maxGasPriceGwei), weiPerGwei)
+	return &MerkleSetUpdater{
+		logger:              logger,
+		pChainClient:        pChainClient,
+		signatureAggregator: signatureAggregator,
+		ethClient:           ethClient,
+		contract:            contract,
+		contractAddress:     contractAddress,
+		txOpts:              txOpts,
+		networkID:           networkID,
+		blockchainID:        blockchainID,
+		subnetID:            subnetID,
+		pollInterval:        pollInterval,
+		maxUpdateInterval:   maxUpdateInterval,
+		maxGasPriceWei:      maxGasPriceWei,
+	}
+}
+
+// Start runs the polling loop that detects validator set changes and updates the contract.
+func (s *MerkleSetUpdater) Start(ctx context.Context) error {
+	s.logger.Info("Starting MerkleSetUpdater",
+		zap.Stringer("blockchainID", s.blockchainID),
+		zap.Duration("maxUpdateInterval", s.maxUpdateInterval),
+	)
+
+	if err := s.checkAndUpdate(ctx); err != nil {
+		s.logger.Error("Initial update failed", zap.Error(err))
+	}
+
+	ticker := time.NewTicker(s.pollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			s.logger.Info("MerkleSetUpdater stopping")
+			return ctx.Err()
+		case <-ticker.C:
+			if err := s.checkAndUpdate(ctx); err != nil {
+				s.logger.Error("Update check failed", zap.Error(err))
+			}
+		}
+	}
+}
+
+func (s *MerkleSetUpdater) checkAndUpdate(ctx context.Context) error {
+	if !s.initialized {
+		return s.initializeLocalState(ctx)
+	}
+
+	pChainHeight, err := s.pChainClient.GetLatestHeight(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get P-chain height: %w", err)
+	}
+
+	if pChainHeight <= s.localPChainHeight {
+		s.logger.Debug("No new P-chain blocks",
+			zap.Uint64("pChainHeight", pChainHeight),
+			zap.Uint64("localPChainHeight", s.localPChainHeight),
+		)
+		return nil
+	}
+	pChainTimestamp, err := s.pChainClient.GetBlockTimestampAtHeight(ctx, pChainHeight)
+	if err != nil {
+		return fmt.Errorf("failed to get P-chain timestamp: %w", err)
+	}
+
+	ok, err := s.gasPriceWithinBounds(ctx)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+
+	newValidators, err := s.fetchCanonicalValidators(ctx, s.subnetID, pChainHeight)
+	if err != nil {
+		return fmt.Errorf("failed to fetch validators at height %d: %w", pChainHeight, err)
+	}
+
+	validatorSetUpdate, err := s.nextUpdate(newValidators, pChainHeight, pChainTimestamp)
+	if err != nil {
+		return fmt.Errorf("failed to build validator set commitment: %w", err)
+	}
+	if validatorSetUpdate == nil {
+		s.logger.Debug("No validator changes and not stale, skipping")
+		return nil
+	}
+
+	s.logger.Info("Validator set update triggered",
+		zap.Uint64("localPChainHeight", s.localPChainHeight),
+		zap.Uint64("pChainHeight", pChainHeight),
+		zap.String("newCommitmentRoot", fmt.Sprintf("0x%x", validatorSetUpdate.RootHash[:])),
+		zap.Bool("stale", s.isStale()),
+	)
+
+	err = s.performUpdate(ctx, validatorSetUpdate, s.subnetID)
+	if err != nil {
+		// Does not retry if the update is for the P-chain itself, or if fallback to P-Chain signing is disabled.
+		if s.subnetID == constants.PrimaryNetworkID || !s.allowPChainFallback {
+			s.logger.Warn("Merkle root update failed, retrying on next tick",
+				zap.Error(err),
+				zap.Stringer("subnetID", s.subnetID),
+				zap.Bool("isPChain", s.subnetID == constants.PrimaryNetworkID),
+				zap.Bool("allowPChainFallback", s.allowPChainFallback),
+			)
+			return nil
+		}
+		s.logger.Warn("Merkle root self-signed update failed, retrying with P-Chain fallback",
+			zap.Error(err),
+			zap.Stringer("subnetID", s.subnetID),
+		)
+		err = s.performUpdate(ctx, validatorSetUpdate, constants.PrimaryNetworkID)
+		if err != nil {
+			s.logger.Warn("Merkle root P-Chain fallback also failed, retrying on next tick",
+				zap.Error(err),
+				zap.Stringer("subnetID", s.subnetID),
+			)
+			return nil
+		}
+		s.logger.Info("P-Chain fallback succeeded",
+			zap.Stringer("subnetID", s.subnetID),
+		)
+	}
+
+	s.localValidatorSet = newValidators
+	s.localPChainHeight = pChainHeight
+	s.localTotalWeight = sumWeights(newValidators)
+	s.lastUpdateTime = time.Now()
+
+	return nil
+}
+
+func (s *MerkleSetUpdater) initializeLocalState(ctx context.Context) error {
+	allowPChainFallback, err := s.contract.AllowPChainFallback(&bind.CallOpts{Context: ctx})
+	if err != nil {
+		return fmt.Errorf("failed to read allowPChainFallback: %w", err)
+	}
+	s.allowPChainFallback = allowPChainFallback
+
+	onChainVS, err := s.contract.GetValidatorSetCommitment(&bind.CallOpts{Context: ctx}, s.blockchainID)
+	if err != nil {
+		return fmt.Errorf("failed to get on-chain validator set: %w", err)
+	}
+
+	isFirstRegistration := onChainVS.TotalWeight == 0
+	if isFirstRegistration {
+		pChainHeight, err := s.pChainClient.GetLatestHeight(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get P-chain height: %w", err)
+		}
+		pChainTimestamp, err := s.pChainClient.GetBlockTimestampAtHeight(ctx, pChainHeight)
+		if err != nil {
+			return fmt.Errorf("failed to get P-chain timestamp: %w", err)
+		}
+
+		ok, err := s.gasPriceWithinBounds(ctx)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return nil
+		}
+
+		newValidators, err := s.fetchCanonicalValidators(ctx, s.subnetID, pChainHeight)
+		if err != nil {
+			return fmt.Errorf("failed to fetch validators after first registration: %w", err)
+		}
+		cmt, err := NewValidatorSetMerkleCommitment(s.blockchainID, newValidators, pChainHeight, pChainTimestamp)
+		if err != nil {
+			return fmt.Errorf("failed to build validator set commitment: %w", err)
+		}
+
+		s.logger.Info("First registration detected, performing update",
+			zap.Uint64("pChainHeight", pChainHeight),
+		)
+		if err := s.performUpdate(ctx, cmt, constants.PrimaryNetworkID); err != nil {
+			return err
+		}
+		s.localValidatorSet = newValidators
+		s.localPChainHeight = pChainHeight
+		s.localTotalWeight = sumWeights(newValidators)
+		s.lastUpdateTime = time.Now()
+		s.initialized = true
+		return nil
+	}
+
+	validators, err := s.fetchCanonicalValidators(ctx, s.subnetID, onChainVS.PChainHeight)
+	if err != nil {
+		return fmt.Errorf("failed to fetch P-chain validators at on-chain height %d: %w",
+			onChainVS.PChainHeight, err)
+	}
+
+	s.localValidatorSet = validators
+	s.localPChainHeight = onChainVS.PChainHeight
+	s.localTotalWeight = sumWeights(validators)
+	s.lastUpdateTime = time.Now()
+	s.initialized = true
+
+	s.logger.Info("Initialized local validator set from contract",
+		zap.Uint64("pChainHeight", onChainVS.PChainHeight),
+		zap.Int("numValidators", len(validators)),
+		zap.Uint64("totalWeight", s.localTotalWeight),
+	)
+
+	return nil
+}
+
+func (s *MerkleSetUpdater) isStale() bool {
+	if s.maxUpdateInterval == 0 {
+		return false
+	}
+	return time.Since(s.lastUpdateTime) >= s.maxUpdateInterval
+}
+
+// gasPriceWithinBounds reports whether the destination's suggested gas price
+// is at or below the configured threshold. A zero threshold disables the
+// check. A false result means "defer until the next poll".
+func (s *MerkleSetUpdater) gasPriceWithinBounds(ctx context.Context) (bool, error) {
+	if s.maxGasPriceWei.Sign() == 0 {
+		return true, nil
+	}
+	suggested, err := s.ethClient.SuggestGasPrice(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to get suggested gas price: %w", err)
+	}
+	if suggested.Cmp(s.maxGasPriceWei) > 0 {
+		s.logger.Info("Skipping validator set update: suggested gas price above threshold",
+			zap.String("suggestedGasPriceWei", suggested.String()),
+			zap.String("maxGasPriceWei", s.maxGasPriceWei.String()),
+		)
+		return false, nil
+	}
+	s.logger.Debug("Suggested gas price within threshold",
+		zap.String("suggestedGasPriceWei", suggested.String()),
+		zap.String("maxGasPriceWei", s.maxGasPriceWei.String()),
+	)
+	return true, nil
+}
+
+func (s *MerkleSetUpdater) nextUpdate(
+	newValidators []*Validator,
+	pChainHeight uint64,
+	pChainTimestamp uint64,
+) (*ValidatorSetMerkleCommitment, error) {
+	if BuildMerkleRoot(s.localValidatorSet) != BuildMerkleRoot(newValidators) || s.isStale() {
+		return NewValidatorSetMerkleCommitment(s.blockchainID, newValidators, pChainHeight, pChainTimestamp)
+	}
+	return nil, nil
+}
+
+// performUpdate has [signingChain]'s validators sign [validatorSetUpdate] and
+// submits it to the registry.
+//
+// The registry verifies the attestation against the commitment it has stored
+// for the signing chain, so the signer bitset, quorum weighting and Merkle
+// multi-proof are only meaningful over the signing chain's canonical validator
+// set at the P-chain height of that stored commitment. Signature aggregation
+// and the attestation are therefore anchored at the registry's P-chain entry
+// when the P-chain signs (first registration and the P-chain fallback), and at
+// the locally tracked height of this chain's own entry when it signs for itself.
+func (s *MerkleSetUpdater) performUpdate(
+	ctx context.Context,
+	validatorSetUpdate *ValidatorSetMerkleCommitment,
+	signingChain ids.ID,
+) error {
+	if signingChain != constants.PrimaryNetworkID && signingChain != s.subnetID {
+		return fmt.Errorf("invalid signing chain %s: must be P-Chain or this subnet (%s)",
+			signingChain, s.subnetID)
+	}
+
+	signingPChainHeight := s.localPChainHeight
+	if signingChain == constants.PrimaryNetworkID {
+		var err error
+		signingPChainHeight, err = pChainAnchorHeight(ctx, s.contract)
+		if err != nil {
+			return err
+		}
+	}
+
+	addressedCall, err := warppayload.NewAddressedCall(nil, validatorSetUpdate.Bytes())
+	if err != nil {
+		return fmt.Errorf("failed to create addressed call: %w", err)
+	}
+
+	unsignedMsg, err := avalancheWarp.NewUnsignedMessage(
+		s.networkID,
+		constants.PlatformChainID,
+		addressedCall.Bytes(),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create unsigned warp message: %w", err)
+	}
+
+	s.logger.Info("Signing new merkle root",
+		zap.Stringer("signingChain", signingChain),
+		zap.Uint64("signingPChainHeight", signingPChainHeight),
+	)
+
+	signedMsg, err := s.signatureAggregator.CreateSignedMessage(
+		ctx,
+		s.logger,
+		unsignedMsg,
+		nil,
+		signingChain,
+		config.DefaultRegistryQuorumNumerator,
+		signingPChainHeight,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to sign message: %w", err)
+	}
+
+	return s.sendUpdate(ctx, signedMsg, signingPChainHeight, signingChain)
+}
+
+func (s *MerkleSetUpdater) sendUpdate(
+	ctx context.Context,
+	signedMsg *avalancheWarp.Message,
+	signingPChainHeight uint64,
+	signingChain ids.ID,
+) error {
+	// The registry keys commitments by blockchain ID and verifies the attestation
+	// against the commitment stored for the signing chain. When the P-Chain signed
+	// the message (first registration or fallback) that is the registry's P-chain
+	// entry, so the attestation proof is computed over the primary network's
+	// canonical validator set at that entry's height: the same ordered set the
+	// signer bitset refers to. Otherwise it is this chain's own entry, which the
+	// local state mirrors.
+	signingBlockchainID := s.blockchainID
+	attestationValidators := s.localValidatorSet
+	if signingChain == constants.PrimaryNetworkID {
+		var err error
+		signingBlockchainID = constants.PlatformChainID
+		attestationValidators, err = s.fetchCanonicalValidators(ctx, constants.PrimaryNetworkID, signingPChainHeight)
+		if err != nil {
+			return fmt.Errorf("failed to get P-chain validators at height %d for attestation: %w",
+				signingPChainHeight,
+				err,
+			)
+		}
+	}
+
+	icmMessage, err := s.buildICMMessage(signedMsg, attestationValidators)
+	if err != nil {
+		return err
+	}
+
+	s.logger.Info("Sending registerValidatorSet",
+		zap.Stringer("signingBlockchainID", signingBlockchainID),
+	)
+	tx, err := s.contract.RegisterValidatorSet(s.txOpts, icmMessage, [32]byte(signingBlockchainID))
+	if err != nil {
+		return fmt.Errorf("registerValidatorSet failed: %w", err)
+	}
+
+	receipt, err := bind.WaitMined(ctx, s.ethClient, tx)
+	if err != nil {
+		return fmt.Errorf("waiting for validator set tx: %w", err)
+	}
+	if receipt.Status == types.ReceiptStatusFailed {
+		return fmt.Errorf("validator set tx reverted: %s", tx.Hash().Hex())
+	}
+	s.logger.Info("validator set tx confirmed",
+		zap.String("txHash", tx.Hash().Hex()),
+		zap.Uint64("blockNumber", receipt.BlockNumber.Uint64()),
+	)
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
+
+// fetchCanonicalValidators returns [subnetID]'s canonical warp validator set at
+// [pChainHeight] as Merkle leaves. The committed Merkle tree, the attestation
+// ordering, and the signature aggregator's signer bitset must all be derived
+// from this single representation: validators without a BLS key are omitted
+// and validators sharing a BLS key are merged into one entry.
+func (s *MerkleSetUpdater) fetchCanonicalValidators(
+	ctx context.Context,
+	subnetID ids.ID,
+	pChainHeight uint64,
+) ([]*Validator, error) {
+	return FetchCanonicalValidators(ctx, s.pChainClient, subnetID, pChainHeight)
+}
+
+// pChainAnchorHeight returns the P-chain height of the primary network validator
+// set currently registered on [registry] under the P-chain's blockchain ID.
+//
+// The registry verifies every P-chain-signed registerValidatorSet message against
+// this stored commitment, so signature aggregation and the attestation for such a
+// message must be built over the primary network's canonical validator set at
+// exactly this height.
+func pChainAnchorHeight(ctx context.Context, registry registryCaller) (uint64, error) {
+	commitment, err := registry.GetValidatorSetCommitment(
+		&bind.CallOpts{Context: ctx},
+		constants.PlatformChainID,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get on-chain P-chain validator set commitment: %w", err)
+	}
+	if commitment.TotalWeight == 0 {
+		return 0, errPChainNotRegistered
+	}
+	return commitment.PChainHeight, nil
+}
+
+func (s *MerkleSetUpdater) buildICMMessage(
+	signedMsg *avalancheWarp.Message,
+	validators []*Validator,
+) (merklevalidatorsetregistry.ICMMessage, error) {
+	addressedCall, err := warppayload.ParseAddressedCall(signedMsg.UnsignedMessage.Payload)
+	if err != nil {
+		return merklevalidatorsetregistry.ICMMessage{},
+			fmt.Errorf("failed to parse addressed call from signed message: %w", err)
+	}
+
+	bitSetSig, ok := signedMsg.Signature.(*avalancheWarp.BitSetSignature)
+	if !ok {
+		return merklevalidatorsetregistry.ICMMessage{}, fmt.Errorf("expected BitSetSignature, got %T", signedMsg.Signature)
+	}
+
+	attestation, err := NewValidatorSetMerkleAttestation(validators, bitSetSig)
+	if err != nil {
+		return merklevalidatorsetregistry.ICMMessage{}, fmt.Errorf("failed to build validator set attestation: %w", err)
+	}
+
+	return merklevalidatorsetregistry.ICMMessage{
+		RawMessage:         addressedCall.Payload,
+		SourceNetworkID:    signedMsg.UnsignedMessage.NetworkID,
+		SourceBlockchainID: signedMsg.UnsignedMessage.SourceChainID,
+		Attestation:        attestation.Bytes(),
+	}, nil
+}

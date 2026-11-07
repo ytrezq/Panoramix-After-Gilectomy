@@ -1,0 +1,503 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package config
+
+import (
+	"context"
+	"crypto/tls"
+	"errors"
+	"fmt"
+	"net/url"
+	"reflect"
+	"strings"
+	"time"
+
+	"github.com/ava-labs/avalanchego/graft/subnet-evm/params"
+	"github.com/ava-labs/avalanchego/graft/subnet-evm/precompile/contracts/warp"
+	_ "github.com/ava-labs/avalanchego/graft/subnet-evm/precompile/registry" // Force-load precompiles to trigger registration
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/set"
+	basecfg "github.com/ava-labs/icm-services/config"
+	"github.com/ava-labs/icm-services/peers"
+	"go.uber.org/zap"
+)
+
+const (
+	accountPrivateKeyEnvVarName     = "ACCOUNT_PRIVATE_KEY"
+	accountPrivateKeyListEnvVarName = "ACCOUNT_PRIVATE_KEYS_LIST"
+	cChainIdentifierString          = "C"
+	warpConfigKey                   = "warpConfig"
+	suppliedSubnetsLimit            = 16
+)
+
+const (
+	defaultStorageLocation                 = "./.icm-relayer-storage"
+	defaultProcessMissedBlocks             = true
+	defaultAPIPort                         = uint16(8080)
+	defaultMetricsPort                     = uint16(9090)
+	defaultIntervalSeconds                 = uint64(10)
+	defaultSignatureCacheSize              = uint64(1024 * 1024)
+	defaultInitialConnectionTimeoutSeconds = uint64(300)
+	defaultMaxConcurrentMessages           = uint64(250)
+	defaultValidatorRefreshPeriodSeconds   = uint64(60)
+)
+
+var defaultLogLevel = logging.Info.String()
+
+// redactedValue replaces any configuration value that must not appear in logs.
+const redactedValue = "[REDACTED]"
+
+const usageText = `
+Usage:
+icm-relayer --config-file path-to-config                Specifies the relayer config file and begin relaying messages.
+icm-relayer --version                                   Display icm-relayer version and exit.
+icm-relayer --help                                      Display icm-relayer usage and exit.
+`
+
+// Top-level configuration
+type Config struct {
+	LogLevel                        string                    `mapstructure:"log-level" json:"log-level"`
+	StorageLocation                 string                    `mapstructure:"storage-location" json:"storage-location"`
+	RedisURL                        string                    `mapstructure:"redis-url" json:"redis-url" sensitive:"true"`
+	APIPort                         uint16                    `mapstructure:"api-port" json:"api-port"`
+	MetricsPort                     uint16                    `mapstructure:"metrics-port" json:"metrics-port"`
+	DBWriteIntervalSeconds          uint64                    `mapstructure:"db-write-interval-seconds" json:"db-write-interval-seconds"` //nolint:lll
+	PChainAPI                       *basecfg.APIConfig        `mapstructure:"p-chain-api" json:"p-chain-api"`
+	InfoAPI                         *basecfg.APIConfig        `mapstructure:"info-api" json:"info-api"`
+	SourceBlockchains               []*SourceBlockchain       `mapstructure:"source-blockchains" json:"source-blockchains"`           //nolint:lll
+	DestinationBlockchains          []*DestinationBlockchain  `mapstructure:"destination-blockchains" json:"destination-blockchains"` //nolint:lll
+	ProcessMissedBlocks             bool                      `mapstructure:"process-missed-blocks" json:"process-missed-blocks"`     //nolint:lll
+	SignatureCacheSize              uint64                    `mapstructure:"signature-cache-size" json:"signature-cache-size"`       //nolint:lll
+	ManuallyTrackedPeers            []*basecfg.PeerConfig     `mapstructure:"manually-tracked-peers" json:"manually-tracked-peers"`   //nolint:lll
+	AllowPrivateIPs                 bool                      `mapstructure:"allow-private-ips" json:"allow-private-ips"`
+	TLSCertPath                     string                    `mapstructure:"tls-cert-path" json:"tls-cert-path,omitempty"` //nolint:lll
+	TLSKeyPath                      string                    `mapstructure:"tls-key-path" json:"tls-key-path,omitempty"`
+	InitialConnectionTimeoutSeconds uint64                    `mapstructure:"initial-connection-timeout-seconds" json:"initial-connection-timeout-seconds,omitempty"` // nolint:lll
+	MaxConcurrentMessages           uint64                    `mapstructure:"max-concurrent-messages" json:"max-concurrent-messages,omitempty"`                       //nolint:lll
+	ValidatorRefreshPeriodSeconds   uint64                    `mapstructure:"validator-refresh-period-seconds" json:"validator-refresh-period-seconds,omitempty"`     //nolint:lll
+	ExternalEVMDestinations         []*ExternalEVMDestination `mapstructure:"external-evm-destinations" json:"external-evm-destinations,omitempty"`                   //nolint:lll
+
+	// convenience field to fetch a blockchain's subnet ID
+	tlsCert                *tls.Certificate
+	blockchainIDToSubnetID map[ids.ID]ids.ID
+	trackedSubnets         set.Set[ids.ID]
+}
+
+func DisplayUsageText() {
+	fmt.Printf("%s\n", usageText)
+}
+
+func (c *Config) countSuppliedSubnets() int {
+	foundSubnets := make(map[string]struct{})
+	for _, sourceBlockchain := range c.SourceBlockchains {
+		foundSubnets[sourceBlockchain.SubnetID] = struct{}{}
+	}
+	return len(foundSubnets)
+}
+
+// Validates the configuration
+// Does not modify the public fields as derived from the configuration passed to the application,
+// but does initialize private fields available through getters.
+func (c *Config) Validate() error {
+	if len(c.SourceBlockchains) == 0 {
+		return errors.New("relayer not configured to relay from any subnets. A list of source subnets must be provided in the configuration file") //nolint:lll
+	}
+	if suppliedSubnets := c.countSuppliedSubnets(); suppliedSubnets > suppliedSubnetsLimit {
+		return fmt.Errorf("relayer can track at most %d subnets, %d are provided", suppliedSubnetsLimit, suppliedSubnets)
+	}
+	if len(c.DestinationBlockchains) == 0 {
+		return errors.New("relayer not configured to relay to any subnets. A list of destination subnets must be provided in the configuration file") //nolint:lll
+	}
+	if err := c.PChainAPI.Validate(); err != nil {
+		return fmt.Errorf("failed to validate p-chain API config: %w", err)
+	}
+	if err := c.InfoAPI.Validate(); err != nil {
+		return fmt.Errorf("failed to validate info API config: %w", err)
+	}
+	if c.DBWriteIntervalSeconds == 0 || c.DBWriteIntervalSeconds > 600 {
+		return errors.New("db-write-interval-seconds must be between 1 and 600")
+	}
+	for _, p := range c.ManuallyTrackedPeers {
+		if err := p.Validate(); err != nil {
+			return fmt.Errorf("failed to validate manually tracked peer %s: %w", p.ID, err)
+		}
+	}
+
+	blockchainIDToSubnetID := make(map[ids.ID]ids.ID)
+
+	// Validate the destination chains
+	destinationChains := set.NewSet[string](len(c.DestinationBlockchains))
+	for _, s := range c.DestinationBlockchains {
+		if err := s.Validate(); err != nil {
+			return fmt.Errorf("failed to validate destination blockchain %s: %w", s.BlockchainID, err)
+		}
+		if destinationChains.Contains(s.BlockchainID) {
+			return errors.New("configured destination subnets must have unique chain IDs")
+		}
+		destinationChains.Add(s.BlockchainID)
+		blockchainIDToSubnetID[s.blockchainID] = s.subnetID
+	}
+
+	// Validate external EVM destinations and register the IDs of delivery-enabled ones so
+	// that source SupportedDestinations may reference them.
+	for _, e := range c.ExternalEVMDestinations {
+		if err := e.ValidateDelivery(); err != nil {
+			return fmt.Errorf("failed to validate external EVM destination: %w", err)
+		}
+		if e.DeliversMessages() {
+			destinationChains.Add(e.DestinationBlockchainID)
+		}
+	}
+
+	// Validate the source chains and store the source subnet and chain IDs for future use
+	sourceBlockchains := set.NewSet[string](len(c.SourceBlockchains))
+	for _, s := range c.SourceBlockchains {
+		// Validate configuration
+		if err := s.Validate(&destinationChains); err != nil {
+			return fmt.Errorf("failed to validate source blockchain %s: %w", s.BlockchainID, err)
+		}
+		// Verify uniqueness
+		if sourceBlockchains.Contains(s.BlockchainID) {
+			return errors.New("configured source subnets must have unique chain IDs")
+		}
+		sourceBlockchains.Add(s.BlockchainID)
+		blockchainIDToSubnetID[s.blockchainID] = s.subnetID
+	}
+	c.blockchainIDToSubnetID = blockchainIDToSubnetID
+
+	for _, l1ID := range c.blockchainIDToSubnetID {
+		c.trackedSubnets.Add(l1ID)
+	}
+
+	if c.InitialConnectionTimeoutSeconds == 0 {
+		return errors.New("initial-connection-timeout-seconds must be greater than 0")
+	}
+
+	if c.MaxConcurrentMessages == 0 {
+		return errors.New("max-concurrent-messages must be greater than 0")
+	}
+
+	return nil
+}
+
+func (c *Config) GetSubnetID(blockchainID ids.ID) ids.ID {
+	return c.blockchainIDToSubnetID[blockchainID]
+}
+
+// If the numerator in the Warp config is 0, use the default value
+func warpConfigFromSubnetWarpConfig(inputConfig warp.Config) WarpConfig {
+	if inputConfig.QuorumNumerator == 0 {
+		return WarpConfig{
+			QuorumNumerator:              warp.WarpDefaultQuorumNumerator,
+			RequirePrimaryNetworkSigners: inputConfig.RequirePrimaryNetworkSigners,
+		}
+	}
+	return WarpConfig{
+		QuorumNumerator:              inputConfig.QuorumNumerator,
+		RequirePrimaryNetworkSigners: inputConfig.RequirePrimaryNetworkSigners,
+	}
+}
+
+func getWarpConfig(client configRPCClient) (*warp.Config, error) {
+	// Fetch the subnet's chain config
+	chainConfig, err := client.ChainConfig(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch chain config")
+	}
+
+	latestHeader, err := client.LatestHeader(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch latest block")
+	}
+
+	// First, check the list of precompile upgrades to get the most up to date Warp config
+	// We only need to consider the most recent activated Warp config, since the QuorumNumerator is used
+	// at signature verification time on the receiving chain, regardless of the Warp config at the
+	// time of the message's creation
+	var warpConfig *warp.Config
+	for _, precompile := range chainConfig.UpgradeConfig.PrecompileUpgrades {
+		cfg, ok := precompile.Config.(*warp.Config)
+		if !ok {
+			continue
+		}
+
+		// If the upgrade is scheduled in the future, skip it. If it activates during the lifetime of the relayer
+		// it will become unhealthy and restart and pick up the new config on next startup.
+		if cfg.Timestamp() != nil && *cfg.Timestamp() > latestHeader.Time {
+			continue
+		}
+
+		// This is the first non-future config found, so use it for now.
+		if warpConfig == nil {
+			warpConfig = cfg
+			continue
+		}
+		// Do the nil check to avoid a panic if the initial config has no timestamp.
+		if warpConfig.Timestamp() == nil || *cfg.Timestamp() > *warpConfig.Timestamp() {
+			warpConfig = cfg
+		}
+	}
+	if warpConfig != nil {
+		return warpConfig, nil
+	}
+
+	extra := params.GetExtra(&chainConfig.ChainConfig)
+	// If we didn't find the Warp config in the upgrade precompile list, check the genesis config
+	warpConfig, ok := extra.GenesisPrecompiles[warpConfigKey].(*warp.Config)
+	if !ok {
+		return nil, fmt.Errorf("no Warp config found in chain config")
+	}
+	return warpConfig, nil
+}
+
+func (c *Config) GetDestinationAPIConfig(blockchainID string) (*basecfg.APIConfig, error) {
+	for _, dest := range c.DestinationBlockchains {
+		if blockchainID == dest.BlockchainID {
+			return &dest.RPCEndpoint, nil
+		}
+	}
+	return nil, fmt.Errorf("blockchain %s not configured as a destination", blockchainID)
+}
+
+// Initializes Warp configurations (quorum and self-signing settings) for each destination subnet
+func (c *Config) initializeWarpConfigs(ctx context.Context) error {
+	// Fetch the Warp config values for each destination subnet.
+	for _, destinationSubnet := range c.DestinationBlockchains {
+		err := destinationSubnet.initializeWarpConfigs(ctx)
+		if err != nil {
+			return fmt.Errorf(
+				"failed to initialize Warp config for destination subnet %s: %w",
+				destinationSubnet.SubnetID,
+				err,
+			)
+		}
+	}
+
+	return nil
+}
+
+// Initializes the tracked subnets list. This should only be called after the configuration has been validated and
+// [Config.initializeWarpConfigs] has been called
+func (c *Config) initializeTrackedSubnets() error {
+	for _, sourceBlockchain := range c.SourceBlockchains {
+		c.trackedSubnets.Add(sourceBlockchain.GetSubnetID())
+	}
+	for _, destinationBlockchain := range c.DestinationBlockchains {
+		if !destinationBlockchain.warpConfig.RequirePrimaryNetworkSigners {
+			c.trackedSubnets.Add(destinationBlockchain.GetSubnetID())
+		}
+	}
+	return nil
+}
+
+func (c *Config) Initialize(ctx context.Context) error {
+	if err := c.initializeWarpConfigs(ctx); err != nil {
+		return err
+	}
+	return c.initializeTrackedSubnets()
+}
+
+//
+// Top-level config getters
+//
+
+func (c *Config) GetWarpConfig(blockchainID ids.ID) (WarpConfig, error) {
+	for _, s := range c.DestinationBlockchains {
+		if blockchainID == s.GetBlockchainID() {
+			return s.warpConfig, nil
+		}
+	}
+	// Fall back to external EVM delivery destinations, whose Warp config (quorum) comes
+	// from configuration since they cannot be queried for a Warp precompile config.
+	for _, e := range c.ExternalEVMDestinations {
+		if !e.DeliversMessages() {
+			continue
+		}
+		if id, err := e.GetDestinationBlockchainID(); err == nil && id == blockchainID {
+			return e.GetWarpConfig(), nil
+		}
+	}
+	return WarpConfig{}, fmt.Errorf("blockchain %s not configured as a destination", blockchainID)
+}
+
+var _ peers.Config = &Config{}
+
+func (c *Config) GetPChainAPI() *basecfg.APIConfig {
+	return c.PChainAPI
+}
+
+func (c *Config) GetInfoAPI() *basecfg.APIConfig {
+	return c.InfoAPI
+}
+
+func (c *Config) GetAllowPrivateIPs() bool {
+	return c.AllowPrivateIPs
+}
+
+func (c *Config) GetTrackedSubnets() set.Set[ids.ID] {
+	return c.trackedSubnets
+}
+
+func (c *Config) GetTLSCert() *tls.Certificate {
+	return c.tlsCert
+}
+
+func (c *Config) LogSafeField() zap.Field {
+	return zap.Any("config", c.sanitizeForLogging())
+}
+
+func (c *Config) GetMaxPChainLookback() int64 {
+	return -1 // No max lookback for relayer
+}
+
+func (c *Config) GetValidatorRefreshPeriod() time.Duration {
+	return time.Duration(c.ValidatorRefreshPeriodSeconds) * time.Second
+}
+
+func (c *Config) sanitizeForLogging() map[string]any {
+	return sanitizeValue(reflect.ValueOf(c), reflect.TypeOf(c)).(map[string]any)
+}
+
+// sanitizeValue recursively sanitizes any value based on struct tags
+func sanitizeValue(v reflect.Value, t reflect.Type) any {
+	// Handle nil pointers
+	if v.Kind() == reflect.Ptr && v.IsNil() {
+		return nil
+	}
+
+	// Dereference pointers
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+		t = t.Elem()
+	}
+
+	switch v.Kind() {
+	case reflect.Struct:
+		return sanitizeStruct(v, t)
+	case reflect.Slice:
+		return sanitizeSlice(v, t)
+	case reflect.Map:
+		return sanitizeMap(v, t)
+	case reflect.String:
+		// Any string may be an endpoint URL carrying credentials; see redactURLCredentials.
+		return redactURLCredentials(v.String())
+	default:
+		// For other primitive types, return as-is
+		if v.CanInterface() {
+			return v.Interface()
+		}
+		return nil
+	}
+}
+
+// redactURLCredentials makes a string safe to log if it is a URL. Endpoint URLs routinely carry
+// credentials outside the userinfo: managed RPC providers put the API key in the path
+// (https://provider.example/v2/<KEY>) or in the query string (?key=<KEY>), and nothing about
+// the string proves a path segment or parameter is not a secret. Only the scheme and host
+// (with port) are kept; any userinfo, path, query or fragment is replaced with a fixed marker.
+// A string with a URL scheme that cannot be parsed is redacted entirely. Strings without a
+// scheme are returned unchanged.
+func redactURLCredentials(s string) string {
+	if !strings.Contains(s, "://") {
+		return s
+	}
+	u, err := url.Parse(s)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return redactedValue
+	}
+	bareHost := u.User == nil &&
+		(u.Path == "" || u.Path == "/") &&
+		u.RawQuery == "" &&
+		u.Fragment == ""
+	if bareHost {
+		return s
+	}
+	return u.Scheme + "://" + u.Host + "/" + redactedValue
+}
+
+// sanitizeStruct handles struct types recursively
+func sanitizeStruct(v reflect.Value, t reflect.Type) map[string]any {
+	result := make(map[string]any)
+
+	for i := 0; i < v.NumField(); i++ {
+		field := t.Field(i)
+		fieldValue := v.Field(i)
+
+		// Skip unexported fields
+		if !fieldValue.CanInterface() {
+			continue
+		}
+
+		jsonTag := getJSONTag(field)
+		if jsonTag == "-" {
+			continue
+		}
+
+		// Check if field has sensitive tag
+		if field.Tag.Get("sensitive") == "true" {
+			result[jsonTag] = redactedValue
+		} else {
+			// Recursively sanitize the field value
+			result[jsonTag] = sanitizeValue(fieldValue, field.Type)
+		}
+	}
+
+	return result
+}
+
+// sanitizeSlice handles slice types recursively
+func sanitizeSlice(v reflect.Value, t reflect.Type) []any {
+	result := make([]any, v.Len())
+	elemType := t.Elem()
+
+	for i := 0; i < v.Len(); i++ {
+		elem := v.Index(i)
+		result[i] = sanitizeValue(elem, elemType)
+	}
+
+	return result
+}
+
+// sanitizeMap handles map types
+func sanitizeMap(v reflect.Value, t reflect.Type) any {
+	// The config's string maps are operator-supplied request decorations (query parameters and
+	// HTTP headers), which are exactly where RPC provider credentials go, under whatever key the
+	// provider chose ("key", "token", "x-api-key", ...). A key-name denylist cannot enumerate
+	// them, so fail safe: every value is redacted and only the keys are logged.
+	if t.Key().Kind() == reflect.String && t.Elem().Kind() == reflect.String {
+		mapResult := make(map[string]any)
+		for _, key := range v.MapKeys() {
+			mapResult[key.String()] = redactedValue
+		}
+		return mapResult
+	}
+
+	// For other map types, convert to string-keyed map for JSON compatibility
+	mapResult := make(map[string]any)
+	for _, key := range v.MapKeys() {
+		// Convert key to string for JSON compatibility
+		var keyStr string
+		if key.CanInterface() {
+			keyStr = fmt.Sprintf("%v", key.Interface())
+		} else {
+			keyStr = key.String()
+		}
+
+		elemVal := sanitizeValue(v.MapIndex(key), t.Elem())
+		mapResult[keyStr] = elemVal
+	}
+
+	return mapResult
+}
+
+func getJSONTag(field reflect.StructField) string {
+	jsonTag := field.Tag.Get("json")
+	if jsonTag == "" {
+		return field.Name
+	}
+	// Handle json tag with options like "field-name,omitempty"
+	parts := strings.Split(jsonTag, ",")
+	return parts[0]
+}

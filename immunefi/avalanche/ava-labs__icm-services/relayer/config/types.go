@@ -1,0 +1,56 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package config
+
+import "github.com/ava-labs/libevm/common"
+
+// Protocol pairs a contract address with the message protocol it implements.
+type Protocol struct {
+	Address common.Address
+	Type    MessageProtocol
+}
+
+// HasListener reports whether the protocol's messages are read from the source chain's logs by
+// a listener. The off-chain registry has no listener: its messages are submitted through the
+// API, so its application relayers never process block heights.
+func (p Protocol) HasListener() bool {
+	return p.Type != OFF_CHAIN_REGISTRY
+}
+
+// Supported Message Protocols
+type MessageProtocol int
+
+const (
+	UNKNOWN_MESSAGE_PROTOCOL MessageProtocol = iota
+	TELEPORTER
+	OFF_CHAIN_REGISTRY
+	TELEPORTER_V2
+)
+
+func (msg MessageProtocol) String() string {
+	switch msg {
+	case TELEPORTER:
+		return "teleporter"
+	case OFF_CHAIN_REGISTRY:
+		return "off-chain-registry"
+	case TELEPORTER_V2:
+		return "teleporter-v2"
+	default:
+		return "unknown"
+	}
+}
+
+// ParseMessageProtocol returns the MessageProtocol corresponding to [msg]
+func ParseMessageProtocol(msg string) MessageProtocol {
+	switch msg {
+	case "teleporter":
+		return TELEPORTER
+	case "off-chain-registry":
+		return OFF_CHAIN_REGISTRY
+	case "teleporter-v2":
+		return TELEPORTER_V2
+	default:
+		return UNKNOWN_MESSAGE_PROTOCOL
+	}
+}

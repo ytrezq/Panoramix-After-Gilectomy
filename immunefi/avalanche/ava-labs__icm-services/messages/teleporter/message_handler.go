@@ -1,0 +1,419 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package teleporter
+
+import (
+	"context"
+	"fmt"
+	"slices"
+	"time"
+
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/vms/evm/predicate"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	warpPayload "github.com/ava-labs/avalanchego/vms/platformvm/warp/payload"
+	teleportermessenger "github.com/ava-labs/icm-services/abi-bindings/go/teleporter/TeleporterMessenger"
+	gasUtils "github.com/ava-labs/icm-services/icm-contracts/utils/gas-utils"
+	teleporterUtils "github.com/ava-labs/icm-services/icm-contracts/utils/teleporter-utils"
+	"github.com/ava-labs/icm-services/messages"
+	"github.com/ava-labs/icm-services/relayer/config"
+	"github.com/ava-labs/icm-services/signature-aggregator/aggregator"
+	"github.com/ava-labs/icm-services/utils"
+	"github.com/ava-labs/icm-services/vms"
+	"github.com/ava-labs/icm-services/vms/evm"
+	"github.com/ava-labs/libevm/accounts/abi/bind"
+	"github.com/ava-labs/libevm/common"
+	"github.com/ava-labs/libevm/core/types"
+	"go.uber.org/zap"
+)
+
+type factory struct {
+	messageConfig   *Config
+	protocolAddress common.Address
+}
+
+type messageHandler struct {
+	logger              logging.Logger
+	teleporterMessage   *teleportermessenger.TeleporterMessage
+	unsignedMessage     *warp.UnsignedMessage
+	destinationClient   vms.DestinationClient
+	signatureAggregator *aggregator.SignatureAggregator
+	metrics             messages.Metrics
+	teleporterMessageID ids.ID
+	messageConfig       *Config
+	protocolAddress     common.Address
+	signingSubnetID     ids.ID
+	quorumNumerator     uint64
+}
+
+func NewMessageHandlerFactory(
+	messageProtocolAddress common.Address,
+	messageProtocolConfig config.MessageProtocolConfig,
+) (messages.MessageHandlerFactory, error) {
+	messageConfig, err := ConfigFromMap(messageProtocolConfig.Settings)
+	if err != nil {
+		return nil, fmt.Errorf("invalid teleporter config: %w", err)
+	}
+
+	return &factory{
+		messageConfig:   messageConfig,
+		protocolAddress: messageProtocolAddress,
+	}, nil
+}
+
+// EventFilter returns the filter matching the Warp messages sent by the Teleporter contract.
+func (f *factory) EventFilter() evm.EventFilter {
+	return messages.WarpEventFilter(f.protocolAddress)
+}
+
+func (f *factory) NewMessageHandler(
+	logger logging.Logger,
+	message *messages.SourceMessage,
+	destinationClient vms.DestinationClient,
+	signatureAggregator *aggregator.SignatureAggregator,
+	metrics messages.Metrics,
+	signingSubnetID ids.ID,
+	quorumNumerator uint64,
+) (messages.MessageHandler, error) {
+	unsignedMessage, teleporterMessage, err := parseMessage(message)
+	if err != nil {
+		logger.Error(
+			"Failed to parse teleporter message.",
+			zap.Stringer("sourceTxID", message.SourceTxID),
+			zap.Error(err),
+		)
+		return nil, err
+	}
+	destinationBlockChainID := destinationClient.DestinationBlockchainID()
+	teleporterMessageID, err := teleporterUtils.CalculateMessageID(
+		f.protocolAddress,
+		unsignedMessage.SourceChainID,
+		destinationBlockChainID,
+		teleporterMessage.MessageNonce,
+	)
+	if err != nil {
+		logger.Error(
+			"Failed to calculate Teleporter message ID.",
+			zap.Stringer("warpMessageID", unsignedMessage.ID()),
+			zap.Error(err),
+		)
+		return &messageHandler{}, err
+	}
+
+	logFields := []zap.Field{
+		zap.Stringer("warpMessageID", unsignedMessage.ID()),
+		zap.Stringer("teleporterMessageID", teleporterMessageID),
+		zap.Stringer("destinationBlockchainID", destinationBlockChainID),
+	}
+	return &messageHandler{
+		logger:            logger.With(logFields...),
+		teleporterMessage: teleporterMessage,
+
+		unsignedMessage:     unsignedMessage,
+		destinationClient:   destinationClient,
+		signatureAggregator: signatureAggregator,
+		metrics:             metrics,
+		teleporterMessageID: teleporterMessageID,
+		messageConfig:       f.messageConfig,
+		protocolAddress:     f.protocolAddress,
+		signingSubnetID:     signingSubnetID,
+		quorumNumerator:     quorumNumerator,
+	}, nil
+}
+
+func (f *factory) GetMessageRoutingInfo(
+	message *messages.SourceMessage,
+) (messages.MessageRoutingInfo, error) {
+	unsignedMessage, teleporterMessage, err := parseMessage(message)
+	if err != nil {
+		return messages.MessageRoutingInfo{}, fmt.Errorf("failed to parse teleporter message: %w", err)
+	}
+	return messages.MessageRoutingInfo{
+		SourceChainID:      unsignedMessage.SourceChainID,
+		SenderAddress:      teleporterMessage.OriginSenderAddress,
+		DestinationChainID: teleporterMessage.DestinationBlockchainID,
+		DestinationAddress: teleporterMessage.DestinationAddress,
+	}, nil
+}
+
+func isAllowedRelayer(allowedRelayers []common.Address, eoa common.Address) bool {
+	// If no allowed relayer addresses were set, then anyone can relay it.
+	if len(allowedRelayers) == 0 {
+		return true
+	}
+
+	return slices.Contains(allowedRelayers, eoa)
+}
+
+func containsAllowedRelayer(allowedRelayers []common.Address, eoas []common.Address) bool {
+	for _, eoa := range eoas {
+		if isAllowedRelayer(allowedRelayers, eoa) {
+			return true
+		}
+	}
+	return false
+}
+
+// ShouldSendMessage returns true if the message should be sent to the destination chain
+func (m *messageHandler) ShouldSendMessage() (bool, error) {
+	destBlockGasLimit := m.destinationClient.BlockGasLimit()
+
+	// Check that the whole delivery fits in a block, not just the message's own execution
+	// budget. A message's receipt count is attacker-controlled and unbounded - Teleporter's
+	// sendSpecifiedReceipts is permissionless, caps nothing, and hardcodes requiredGasLimit to
+	// zero - so the receipts, not RequiredGasLimit, are what can push a delivery past the block
+	// limit. Signers and predicate chunks are not known until the signature is aggregated;
+	// omitting them makes this a lower bound on the limit SendMessage will compute, so this
+	// never declines a message that would have fit.
+	//
+	// RequiredGasLimit is a Solidity uint256 (*big.Int). CalculateReceiveMessageGasLimit returns
+	// an error for any value that does not fit in a uint64, which is treated as exceeding the
+	// block gas limit.
+	minGasLimit, err := gasUtils.CalculateReceiveMessageGasLimit(
+		0,
+		m.teleporterMessage.RequiredGasLimit,
+		0,
+		len(m.unsignedMessage.Payload),
+		len(m.teleporterMessage.Receipts),
+	)
+	if err != nil || minGasLimit > destBlockGasLimit {
+		m.logger.Info(
+			"Delivery gas limit exceeds destination block gas limit",
+			zap.Stringer("requiredGasLimit", m.teleporterMessage.RequiredGasLimit),
+			zap.Int("numReceipts", len(m.teleporterMessage.Receipts)),
+			zap.Uint64("minDeliveryGasLimit", minGasLimit),
+			zap.Uint64("blockGasLimit", destBlockGasLimit),
+			zap.Error(err),
+		)
+		return false, nil
+	}
+
+	// Check if the relayer is allowed to deliver this message
+	if !containsAllowedRelayer(m.teleporterMessage.AllowedRelayerAddresses, m.destinationClient.SenderAddresses()) {
+		m.logger.Info("Relayer EOA not allowed to deliver this message.")
+		return false, nil
+	}
+
+	// Check if the message has already been delivered to the destination chain
+	teleporterMessenger := m.getTeleporterMessenger()
+	delivered, err := teleporterMessenger.MessageReceived(&bind.CallOpts{}, m.teleporterMessageID)
+	if err != nil {
+		m.logger.Error(
+			"Failed to check if message has been delivered to destination chain.",
+			zap.Error(err),
+		)
+		return false, err
+	}
+	if delivered {
+		m.logger.Info("Message already delivered to destination.")
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// SendMessage extracts the gasLimit and packs the call data to call the receiveCrossChainMessage
+// method of the Teleporter contract, and dispatches transaction construction and broadcast to the
+// destination client.
+func (m *messageHandler) SendMessage(signedMessage *warp.Message) (common.Hash, error) {
+	m.logger.Info("Sending message to destination chain")
+	numSigners, err := signedMessage.Signature.NumSigners()
+	if err != nil {
+		m.logger.Error("Failed to get number of signers")
+		return common.Hash{}, err
+	}
+
+	gasLimit, err := gasUtils.CalculateReceiveMessageGasLimit(
+		numSigners,
+		m.teleporterMessage.RequiredGasLimit,
+		len(predicate.New(signedMessage.Bytes())),
+		len(signedMessage.Payload),
+		len(m.teleporterMessage.Receipts),
+	)
+	if err != nil {
+		m.logger.Error("Failed to calculate gas limit for receiveCrossChainMessage call")
+		return common.Hash{}, err
+	}
+
+	// Re-check against the block gas limit now that the signature fixes the signer and predicate
+	// chunk counts. ShouldSendMessage only had a lower bound, and broadcasting a transaction that
+	// cannot fit in a block would burn the relayer's funds for a guaranteed failure.
+	if blockGasLimit := m.destinationClient.BlockGasLimit(); gasLimit > blockGasLimit {
+		m.logger.Warn(
+			"Delivery gas limit exceeds destination block gas limit, not sending",
+			zap.Uint64("gasLimit", gasLimit),
+			zap.Uint64("blockGasLimit", blockGasLimit),
+			zap.Int("numReceipts", len(m.teleporterMessage.Receipts)),
+		)
+		return common.Hash{}, fmt.Errorf(
+			"%w: %d exceeds %d",
+			messages.ErrDeliveryExceedsBlockGasLimit, gasLimit, blockGasLimit,
+		)
+	}
+
+	// Construct the transaction call data to call the receive cross chain message method of the receiver precompile.
+	callData, err := teleportermessenger.PackReceiveCrossChainMessage(
+		0,
+		common.HexToAddress(m.messageConfig.RewardAddress),
+	)
+	if err != nil {
+		m.logger.Error("Failed packing receiveCrossChainMessage call data")
+		return common.Hash{}, err
+	}
+
+	accessList := utils.SignedWarpMessageToAccessList(signedMessage)
+
+	receipt, err := m.destinationClient.SendTx(
+		m.logger,
+		accessList,
+		set.Of(m.teleporterMessage.AllowedRelayerAddresses...),
+		m.protocolAddress,
+		gasLimit,
+		callData,
+	)
+	if err != nil {
+		m.logger.Error("Failed to send tx.", zap.Error(err))
+		return common.Hash{}, err
+	}
+
+	txHash := receipt.TxHash
+	log := m.logger.With(zap.Stringer("txID", txHash))
+
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		// Check if the message has already been delivered to the destination chain
+		delivered, err := m.getTeleporterMessenger().MessageReceived(&bind.CallOpts{}, m.teleporterMessageID)
+		if err != nil {
+			log.Error(
+				"Failed to check if message has been delivered to destination chain.",
+				zap.Error(err),
+			)
+			return common.Hash{}, fmt.Errorf("failed to check if message has been delivered: %w", err)
+		}
+		if delivered {
+			log.Info("Execution reverted: message already delivered to destination.")
+			return txHash, nil
+		}
+
+		// A revert that consumed the entire gas limit is an out-of-gas failure: the same
+		// delivery will fail identically on a retry, so re-broadcasting only bills the relayer
+		// for a second reverted transaction. Reverts that left gas unspent are logic failures
+		// (e.g. Warp verification against a churned validator set) which a fresh signature may
+		// resolve, so those stay retryable.
+		if receipt.GasUsed >= gasLimit {
+			log.Error(
+				"Transaction ran out of gas",
+				zap.Uint64("gasUsed", receipt.GasUsed),
+				zap.Uint64("gasLimit", gasLimit),
+				zap.Int("numReceipts", len(m.teleporterMessage.Receipts)),
+			)
+			return common.Hash{}, fmt.Errorf(
+				"%w: used %d of %d",
+				messages.ErrDeliveryOutOfGas, receipt.GasUsed, gasLimit,
+			)
+		}
+
+		log.Error("Transaction failed")
+		return common.Hash{}, fmt.Errorf("transaction failed with status: %d", receipt.Status)
+	}
+
+	log.Info("Delivered message to destination chain")
+	return txHash, nil
+}
+
+// ProcessMessage relays the message to the destination chain by aggregating a signature for it
+// and sending it via SendMessage. It does not retry on failure or checkpoint the height.
+// Returns the transaction hash if the message is successfully relayed.
+func (m *messageHandler) ProcessMessage() (common.Hash, error) {
+	m.logger.Info("Relaying message")
+	shouldSend, err := m.ShouldSendMessage()
+	if err != nil {
+		m.metrics.IncFailedRelayMessageCount("failed to check if message should be sent")
+		return common.Hash{}, fmt.Errorf("failed to check if message should be sent: %w", err)
+	}
+	if !shouldSend {
+		m.logger.Info("Message should not be sent")
+		return common.Hash{}, nil
+	}
+	unsignedMessage := m.unsignedMessage
+
+	startCreateSignedMessageTime := time.Now()
+
+	ctx, cancel := context.WithTimeout(context.Background(), utils.DefaultCreateSignedMessageTimeout)
+	defer cancel()
+
+	// Determine the appropriate P-Chain height for validator set selection
+	pchainHeight, err := m.destinationClient.GetPChainHeightForDestination(ctx)
+	if err != nil {
+		m.metrics.IncFailedRelayMessageCount("failed to determine P-Chain height")
+		return common.Hash{}, fmt.Errorf("failed to determine P-Chain height for validator set: %w", err)
+	}
+
+	signedMessage, err := m.signatureAggregator.CreateSignedMessage(
+		ctx,
+		m.logger,
+		unsignedMessage,
+		nil,
+		m.signingSubnetID,
+		m.quorumNumerator,
+		pchainHeight,
+	)
+	m.metrics.IncFetchSignatureAppRequestCount()
+	if err != nil {
+		m.metrics.IncFailedRelayMessageCount("failed to create signed warp message via AppRequest network")
+		return common.Hash{}, fmt.Errorf("failed to create signed warp message via AppRequest network: %w", err)
+	}
+
+	// create signed message latency (ms)
+	m.metrics.SetCreateSignedMessageLatencyMS(float64(time.Since(startCreateSignedMessageTime).Milliseconds()))
+
+	txHash, err := m.SendMessage(signedMessage)
+	if err != nil {
+		m.metrics.IncFailedRelayMessageCount("failed to send warp message")
+		return common.Hash{}, fmt.Errorf("failed to send warp message: %w", err)
+	}
+	m.logger.Info(
+		"Finished relaying message to destination chain",
+		zap.Stringer("txID", txHash),
+	)
+	m.metrics.IncSuccessfulRelayMessageCount()
+
+	return txHash, nil
+}
+
+// parseMessage decodes the Teleporter message that [message] was sent as. Teleporter sends its
+// messages through the Warp precompile, so the source message payload is the encoded unsigned
+// Warp message that carries the Teleporter message as its addressed payload.
+func parseMessage(
+	message *messages.SourceMessage,
+) (*warp.UnsignedMessage, *teleportermessenger.TeleporterMessage, error) {
+	unsignedMessage, err := utils.UnpackWarpMessage(message.Payload)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed parsing unsigned warp message: %w", err)
+	}
+	addressedPayload, err := warpPayload.ParseAddressedCall(unsignedMessage.Payload)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed parsing addressed payload: %w", err)
+	}
+	var teleporterMessage teleportermessenger.TeleporterMessage
+	err = teleporterMessage.Unpack(addressedPayload.Payload)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed unpacking teleporter message: %w", err)
+	}
+
+	return unsignedMessage, &teleporterMessage, nil
+}
+
+// getTeleporterMessenger returns the Teleporter messenger instance for the destination chain.
+// Panic instead of returning errors because this should never happen, and if it does, we do not
+// want to log and swallow the error, since operations after this will fail too.
+func (m *messageHandler) getTeleporterMessenger() *teleportermessenger.TeleporterMessenger {
+	// Get the teleporter messenger contract
+	teleporterMessenger, err := teleportermessenger.NewTeleporterMessenger(m.protocolAddress, m.destinationClient.Client())
+	if err != nil {
+		panic(fmt.Sprintf("Failed to get teleporter messenger contract: %s", err.Error()))
+	}
+	return teleporterMessenger
+}
