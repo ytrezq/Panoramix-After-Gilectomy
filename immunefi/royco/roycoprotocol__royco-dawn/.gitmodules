@@ -1,0 +1,19 @@
+[submodule "lib/forge-std"]
+	path = lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "lib/openzeppelin-contracts"]
+	path = lib/openzeppelin-contracts
+	url = https://github.com/openzeppelin/openzeppelin-contracts
+[submodule "lib/openzeppelin-contracts-upgradeable"]
+	path = lib/openzeppelin-contracts-upgradeable
+	url = https://github.com/openzeppelin/openzeppelin-contracts-upgradeable
+[submodule "lib/solady"]
+	path = lib/solady
+	url = https://github.com/vectorized/solady
+[submodule "lib/Pendle-SY-Public"]
+	path = lib/Pendle-SY-Public
+	url = https://github.com/pendle-finance/Pendle-SY-Public
+[submodule "lib/openzeppelin-contracts-v4"]
+	path = lib/openzeppelin-contracts-v4
+	url = https://github.com/openzeppelin/openzeppelin-contracts
+	branch = release-v4.9
