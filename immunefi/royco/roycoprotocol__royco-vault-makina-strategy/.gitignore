@@ -1,0 +1,17 @@
+# Compiler files
+cache/
+out/
+
+# Docs
+docs/
+
+# Dotenv file
+.env
+.env.deploy
+
+# Foundry deployment files
+broadcast/
+*.env.*
+
+# Deployment script output
+output/
