@@ -1,0 +1,33 @@
+{
+  "optimizer": {
+    "enabled": true,
+    "runs": 200,
+    "details": {
+      "yulDetails": {
+        "optimizerSteps": "dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul[j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul]VcTOculjmul"
+      }
+    }
+  },
+  "viaIR": true,
+  "evmVersion": "london",
+  "outputSelection": {
+    "*": {
+      "*": [
+        "storageLayout",
+        "abi",
+        "evm.bytecode",
+        "evm.deployedBytecode",
+        "evm.methodIdentifiers",
+        "metadata",
+        "devdoc",
+        "userdoc",
+        "evm.gasEstimates"
+      ],
+      "": ["ast"]
+    }
+  },
+  "remappings": [
+    "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
+    "@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/"
+  ]
+}

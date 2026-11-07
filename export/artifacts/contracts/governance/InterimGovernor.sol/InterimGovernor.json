@@ -1,0 +1,198 @@
+{
+  "contractName": "InterimGovernor",
+  "sourceName": "contracts/governance/InterimGovernor.sol",
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "previousOwner",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "OwnershipTransferred",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "contract IChangeContract",
+          "name": "changeContract_",
+          "type": "address"
+        }
+      ],
+      "name": "executeChange",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "caller_",
+          "type": "address"
+        }
+      ],
+      "name": "isAuthorizedChanger",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "renounceOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "transferOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080806040523461005b5760008054336001600160a01b0319821681178355916001600160a01b03909116907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09080a361031690816100618239f35b600080fdfe60406080815260048036101561001457600080fd5b600091823560e01c8063715018a61461022b578381638c777e8214610193575080638da5cb5b14610167578063d994d6d51461012f5763f2fde38b1461005957600080fd5b3461012b57602036600319011261012b576001600160a01b038235818116939192908490036101275761008a610288565b83156100d5575050600054826bffffffffffffffffffffffff60a01b821617600055167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0600080a380f35b906020608492519162461bcd60e51b8352820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201526564647265737360d01b6064820152fd5b8480fd5b8280fd5b50903461012b57602036600319011261012b57356001600160a01b0381811691829003610163576020935416149051908152f35b8380fd5b83823461018f578160031936011261018f57905490516001600160a01b039091168152602090f35b5080fd5b929050346102275760203660031901126102275780356001600160a01b03811690819003610222576101c3610288565b803b1561022257839082845180968193631851865560e21b83525af18015610218576101ed578380f35b67ffffffffffffffff83116102055750523880808380f35b634e487b7160e01b845260419052602483fd5b82513d86823e3d90fd5b505050fd5b5050fd5b8334610285578060031936011261028557610244610288565b80546001600160a01b03198116825581906001600160a01b03167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e08280a380f35b80fd5b6000546001600160a01b0316330361029c57565b606460405162461bcd60e51b815260206004820152602060248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e65726044820152fdfea2646970667358221220b7de87bf27a36611c072b8650670099966307889f376db04c8cd8f786b4d3ba464736f6c63430008180033",
+  "deployedBytecode": "0x60406080815260048036101561001457600080fd5b600091823560e01c8063715018a61461022b578381638c777e8214610193575080638da5cb5b14610167578063d994d6d51461012f5763f2fde38b1461005957600080fd5b3461012b57602036600319011261012b576001600160a01b038235818116939192908490036101275761008a610288565b83156100d5575050600054826bffffffffffffffffffffffff60a01b821617600055167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0600080a380f35b906020608492519162461bcd60e51b8352820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201526564647265737360d01b6064820152fd5b8480fd5b8280fd5b50903461012b57602036600319011261012b57356001600160a01b0381811691829003610163576020935416149051908152f35b8380fd5b83823461018f578160031936011261018f57905490516001600160a01b039091168152602090f35b5080fd5b929050346102275760203660031901126102275780356001600160a01b03811690819003610222576101c3610288565b803b1561022257839082845180968193631851865560e21b83525af18015610218576101ed578380f35b67ffffffffffffffff83116102055750523880808380f35b634e487b7160e01b845260419052602483fd5b82513d86823e3d90fd5b505050fd5b5050fd5b8334610285578060031936011261028557610244610288565b80546001600160a01b03198116825581906001600160a01b03167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e08280a380f35b80fd5b6000546001600160a01b0316330361029c57565b606460405162461bcd60e51b815260206004820152602060248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e65726044820152fdfea2646970667358221220b7de87bf27a36611c072b8650670099966307889f376db04c8cd8f786b4d3ba464736f6c63430008180033",
+  "linkReferences": {},
+  "deployedLinkReferences": {},
+  "devdoc": {
+    "kind": "dev",
+    "methods": {
+      "executeChange(address)": {
+        "params": {
+          "changeContract_": "Address of the contract that will execute the changes"
+        }
+      },
+      "isAuthorizedChanger(address)": {
+        "params": {
+          "caller_": "Address of the caller of the protected function"
+        }
+      },
+      "owner()": {
+        "details": "Returns the address of the current owner."
+      },
+      "renounceOwnership()": {
+        "details": "Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner."
+      },
+      "transferOwnership(address)": {
+        "details": "Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner."
+      }
+    },
+    "title": "InterimGovernor",
+    "version": 1
+  },
+  "evm": {
+    "bytecode": {
+      "functionDebugData": {},
+      "generatedSources": [],
+      "linkReferences": {},
+      "opcodes": "PUSH1 0x80 DUP1 PUSH1 0x40 MSTORE CALLVALUE PUSH2 0x5B JUMPI PUSH1 0x0 DUP1 SLOAD CALLER PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB NOT DUP3 AND DUP2 OR DUP4 SSTORE SWAP2 PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB SWAP1 SWAP2 AND SWAP1 PUSH32 0x8BE0079C531659141344CD1FD0A4F28419497F9722A3DAAFE3B4186F6B6457E0 SWAP1 DUP1 LOG3 PUSH2 0x316 SWAP1 DUP2 PUSH2 0x61 DUP3 CODECOPY RETURN JUMPDEST PUSH1 0x0 DUP1 REVERT INVALID PUSH1 0x40 PUSH1 0x80 DUP2 MSTORE PUSH1 0x4 DUP1 CALLDATASIZE LT ISZERO PUSH2 0x14 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH1 0x0 SWAP2 DUP3 CALLDATALOAD PUSH1 0xE0 SHR DUP1 PUSH4 0x715018A6 EQ PUSH2 0x22B JUMPI DUP4 DUP2 PUSH4 0x8C777E82 EQ PUSH2 0x193 JUMPI POP DUP1 PUSH4 0x8DA5CB5B EQ PUSH2 0x167 JUMPI DUP1 PUSH4 0xD994D6D5 EQ PUSH2 0x12F JUMPI PUSH4 0xF2FDE38B EQ PUSH2 0x59 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST CALLVALUE PUSH2 0x12B JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0x12B JUMPI PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB DUP3 CALLDATALOAD DUP2 DUP2 AND SWAP4 SWAP2 SWAP3 SWAP1 DUP5 SWAP1 SUB PUSH2 0x127 JUMPI PUSH2 0x8A PUSH2 0x288 JUMP JUMPDEST DUP4 ISZERO PUSH2 0xD5 JUMPI POP POP PUSH1 0x0 SLOAD DUP3 PUSH12 0xFFFFFFFFFFFFFFFFFFFFFFFF PUSH1 0xA0 SHL DUP3 AND OR PUSH1 0x0 SSTORE AND PUSH32 0x8BE0079C531659141344CD1FD0A4F28419497F9722A3DAAFE3B4186F6B6457E0 PUSH1 0x0 DUP1 LOG3 DUP1 RETURN JUMPDEST SWAP1 PUSH1 0x20 PUSH1 0x84 SWAP3 MLOAD SWAP2 PUSH3 0x461BCD PUSH1 0xE5 SHL DUP4 MSTORE DUP3 ADD MSTORE PUSH1 0x26 PUSH1 0x24 DUP3 ADD MSTORE PUSH32 0x4F776E61626C653A206E6577206F776E657220697320746865207A65726F2061 PUSH1 0x44 DUP3 ADD MSTORE PUSH6 0x646472657373 PUSH1 0xD0 SHL PUSH1 0x64 DUP3 ADD MSTORE REVERT JUMPDEST DUP5 DUP1 REVERT JUMPDEST DUP3 DUP1 REVERT JUMPDEST POP SWAP1 CALLVALUE PUSH2 0x12B JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0x12B JUMPI CALLDATALOAD PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB DUP2 DUP2 AND SWAP2 DUP3 SWAP1 SUB PUSH2 0x163 JUMPI PUSH1 0x20 SWAP4 SLOAD AND EQ SWAP1 MLOAD SWAP1 DUP2 MSTORE RETURN JUMPDEST DUP4 DUP1 REVERT JUMPDEST DUP4 DUP3 CALLVALUE PUSH2 0x18F JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0x18F JUMPI SWAP1 SLOAD SWAP1 MLOAD PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB SWAP1 SWAP2 AND DUP2 MSTORE PUSH1 0x20 SWAP1 RETURN JUMPDEST POP DUP1 REVERT JUMPDEST SWAP3 SWAP1 POP CALLVALUE PUSH2 0x227 JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0x227 JUMPI DUP1 CALLDATALOAD PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB DUP2 AND SWAP1 DUP2 SWAP1 SUB PUSH2 0x222 JUMPI PUSH2 0x1C3 PUSH2 0x288 JUMP JUMPDEST DUP1 EXTCODESIZE ISZERO PUSH2 0x222 JUMPI DUP4 SWAP1 DUP3 DUP5 MLOAD DUP1 SWAP7 DUP2 SWAP4 PUSH4 0x18518655 PUSH1 0xE2 SHL DUP4 MSTORE GAS CALL DUP1 ISZERO PUSH2 0x218 JUMPI PUSH2 0x1ED JUMPI DUP4 DUP1 RETURN JUMPDEST PUSH8 0xFFFFFFFFFFFFFFFF DUP4 GT PUSH2 0x205 JUMPI POP MSTORE CODESIZE DUP1 DUP1 DUP4 DUP1 RETURN JUMPDEST PUSH4 0x4E487B71 PUSH1 0xE0 SHL DUP5 MSTORE PUSH1 0x41 SWAP1 MSTORE PUSH1 0x24 DUP4 REVERT JUMPDEST DUP3 MLOAD RETURNDATASIZE DUP7 DUP3 RETURNDATACOPY RETURNDATASIZE SWAP1 REVERT JUMPDEST POP POP POP REVERT JUMPDEST POP POP REVERT JUMPDEST DUP4 CALLVALUE PUSH2 0x285 JUMPI DUP1 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0x285 JUMPI PUSH2 0x244 PUSH2 0x288 JUMP JUMPDEST DUP1 SLOAD PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB NOT DUP2 AND DUP3 SSTORE DUP2 SWAP1 PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB AND PUSH32 0x8BE0079C531659141344CD1FD0A4F28419497F9722A3DAAFE3B4186F6B6457E0 DUP3 DUP1 LOG3 DUP1 RETURN JUMPDEST DUP1 REVERT JUMPDEST PUSH1 0x0 SLOAD PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB AND CALLER SUB PUSH2 0x29C JUMPI JUMP JUMPDEST PUSH1 0x64 PUSH1 0x40 MLOAD PUSH3 0x461BCD PUSH1 0xE5 SHL DUP2 MSTORE PUSH1 0x20 PUSH1 0x4 DUP3 ADD MSTORE PUSH1 0x20 PUSH1 0x24 DUP3 ADD MSTORE PUSH32 0x4F776E61626C653A2063616C6C6572206973206E6F7420746865206F776E6572 PUSH1 0x44 DUP3 ADD MSTORE REVERT INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 0xB7 0xDE DUP8 0xBF 0x27 LOG3 PUSH7 0x11C072B8650670 MULMOD SWAP10 PUSH7 0x307889F376DB04 0xC8 0xCD DUP16 PUSH25 0x6B4D3BA464736F6C6343000818003300000000000000000000 ",
+      "sourceMap": "522:649:95:-:0;;;;;;;2518:6:25;522:649:95;;719:10:44;-1:-1:-1;;;;;;522:649:95;;;;;;719:10:44;-1:-1:-1;;;;;522:649:95;;;;2566:40:25;;2518:6;2566:40;522:649:95;;;;;;;;;;"
+    },
+    "deployedBytecode": {
+      "functionDebugData": {
+        "fun_checkOwner": {
+          "entryPoint": 648,
+          "id": 4865,
+          "parameterSlots": 0,
+          "returnSlots": 0
+        }
+      },
+      "generatedSources": [],
+      "immutableReferences": {},
+      "linkReferences": {},
+      "opcodes": "PUSH1 0x40 PUSH1 0x80 DUP2 MSTORE PUSH1 0x4 DUP1 CALLDATASIZE LT ISZERO PUSH2 0x14 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH1 0x0 SWAP2 DUP3 CALLDATALOAD PUSH1 0xE0 SHR DUP1 PUSH4 0x715018A6 EQ PUSH2 0x22B JUMPI DUP4 DUP2 PUSH4 0x8C777E82 EQ PUSH2 0x193 JUMPI POP DUP1 PUSH4 0x8DA5CB5B EQ PUSH2 0x167 JUMPI DUP1 PUSH4 0xD994D6D5 EQ PUSH2 0x12F JUMPI PUSH4 0xF2FDE38B EQ PUSH2 0x59 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST CALLVALUE PUSH2 0x12B JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0x12B JUMPI PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB DUP3 CALLDATALOAD DUP2 DUP2 AND SWAP4 SWAP2 SWAP3 SWAP1 DUP5 SWAP1 SUB PUSH2 0x127 JUMPI PUSH2 0x8A PUSH2 0x288 JUMP JUMPDEST DUP4 ISZERO PUSH2 0xD5 JUMPI POP POP PUSH1 0x0 SLOAD DUP3 PUSH12 0xFFFFFFFFFFFFFFFFFFFFFFFF PUSH1 0xA0 SHL DUP3 AND OR PUSH1 0x0 SSTORE AND PUSH32 0x8BE0079C531659141344CD1FD0A4F28419497F9722A3DAAFE3B4186F6B6457E0 PUSH1 0x0 DUP1 LOG3 DUP1 RETURN JUMPDEST SWAP1 PUSH1 0x20 PUSH1 0x84 SWAP3 MLOAD SWAP2 PUSH3 0x461BCD PUSH1 0xE5 SHL DUP4 MSTORE DUP3 ADD MSTORE PUSH1 0x26 PUSH1 0x24 DUP3 ADD MSTORE PUSH32 0x4F776E61626C653A206E6577206F776E657220697320746865207A65726F2061 PUSH1 0x44 DUP3 ADD MSTORE PUSH6 0x646472657373 PUSH1 0xD0 SHL PUSH1 0x64 DUP3 ADD MSTORE REVERT JUMPDEST DUP5 DUP1 REVERT JUMPDEST DUP3 DUP1 REVERT JUMPDEST POP SWAP1 CALLVALUE PUSH2 0x12B JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0x12B JUMPI CALLDATALOAD PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB DUP2 DUP2 AND SWAP2 DUP3 SWAP1 SUB PUSH2 0x163 JUMPI PUSH1 0x20 SWAP4 SLOAD AND EQ SWAP1 MLOAD SWAP1 DUP2 MSTORE RETURN JUMPDEST DUP4 DUP1 REVERT JUMPDEST DUP4 DUP3 CALLVALUE PUSH2 0x18F JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0x18F JUMPI SWAP1 SLOAD SWAP1 MLOAD PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB SWAP1 SWAP2 AND DUP2 MSTORE PUSH1 0x20 SWAP1 RETURN JUMPDEST POP DUP1 REVERT JUMPDEST SWAP3 SWAP1 POP CALLVALUE PUSH2 0x227 JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0x227 JUMPI DUP1 CALLDATALOAD PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB DUP2 AND SWAP1 DUP2 SWAP1 SUB PUSH2 0x222 JUMPI PUSH2 0x1C3 PUSH2 0x288 JUMP JUMPDEST DUP1 EXTCODESIZE ISZERO PUSH2 0x222 JUMPI DUP4 SWAP1 DUP3 DUP5 MLOAD DUP1 SWAP7 DUP2 SWAP4 PUSH4 0x18518655 PUSH1 0xE2 SHL DUP4 MSTORE GAS CALL DUP1 ISZERO PUSH2 0x218 JUMPI PUSH2 0x1ED JUMPI DUP4 DUP1 RETURN JUMPDEST PUSH8 0xFFFFFFFFFFFFFFFF DUP4 GT PUSH2 0x205 JUMPI POP MSTORE CODESIZE DUP1 DUP1 DUP4 DUP1 RETURN JUMPDEST PUSH4 0x4E487B71 PUSH1 0xE0 SHL DUP5 MSTORE PUSH1 0x41 SWAP1 MSTORE PUSH1 0x24 DUP4 REVERT JUMPDEST DUP3 MLOAD RETURNDATASIZE DUP7 DUP3 RETURNDATACOPY RETURNDATASIZE SWAP1 REVERT JUMPDEST POP POP POP REVERT JUMPDEST POP POP REVERT JUMPDEST DUP4 CALLVALUE PUSH2 0x285 JUMPI DUP1 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0x285 JUMPI PUSH2 0x244 PUSH2 0x288 JUMP JUMPDEST DUP1 SLOAD PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB NOT DUP2 AND DUP3 SSTORE DUP2 SWAP1 PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB AND PUSH32 0x8BE0079C531659141344CD1FD0A4F28419497F9722A3DAAFE3B4186F6B6457E0 DUP3 DUP1 LOG3 DUP1 RETURN JUMPDEST DUP1 REVERT JUMPDEST PUSH1 0x0 SLOAD PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB AND CALLER SUB PUSH2 0x29C JUMPI JUMP JUMPDEST PUSH1 0x64 PUSH1 0x40 MLOAD PUSH3 0x461BCD PUSH1 0xE5 SHL DUP2 MSTORE PUSH1 0x20 PUSH1 0x4 DUP3 ADD MSTORE PUSH1 0x20 PUSH1 0x24 DUP3 ADD MSTORE PUSH32 0x4F776E61626C653A2063616C6C6572206973206E6F7420746865206F776E6572 PUSH1 0x44 DUP3 ADD MSTORE REVERT INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 0xB7 0xDE DUP8 0xBF 0x27 LOG3 PUSH7 0x11C072B8650670 MULMOD SWAP10 PUSH7 0x307889F376DB04 0xC8 0xCD DUP16 PUSH25 0x6B4D3BA464736F6C6343000818003300000000000000000000 ",
+      "sourceMap": "522:649:95:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;522:649:95;;;;-1:-1:-1;;;;;522:649:95;;;;;;;;;;;;;;1063:62:25;;:::i;:::-;2162:22;;522:649:95;;;;;;;;;;;;;;;;2566:40:25;522:649:95;2566:40:25;;522:649:95;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;;522:649:95;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;522:649:95;;;;;-1:-1:-1;;;;;522:649:95;;;;;;;;;;;;;1144:18;522:649;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;;;;522:649:95;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;522:649:95;;;;;;-1:-1:-1;;;;;522:649:95;;;;;;;;1063:62:25;;:::i;:::-;835:25:95;;;;;522:649;;;;;;;;;;;;835:25;;;;;;;;;;522:649;;;835:25;522:649;;;;;;;835:25;;;522:649;;;;-1:-1:-1;;;522:649:95;;;;;;;;835:25;522:649;;;;;;;;;835:25;522:649;;;;;;;;;;;;;;;;;;;;;1063:62:25;;:::i;:::-;522:649:95;;-1:-1:-1;;;;;;522:649:95;;;;;;-1:-1:-1;;;;;522:649:95;2566:40:25;522:649:95;;2566:40:25;522:649:95;;;;;1359:130:25;1273:6;522:649:95;-1:-1:-1;;;;;522:649:95;719:10:44;1422:23:25;522:649:95;;1359:130:25:o;522:649:95:-;;;;;;;;;;;;;;;;;;;;;;;;"
+    },
+    "gasEstimates": {
+      "creation": {
+        "codeDepositCost": "158000",
+        "executionCost": "25988",
+        "totalCost": "183988"
+      },
+      "external": {
+        "executeChange(address)": "infinite",
+        "isAuthorizedChanger(address)": "2396",
+        "owner()": "2341",
+        "renounceOwnership()": "28067",
+        "transferOwnership(address)": "28217"
+      }
+    },
+    "methodIdentifiers": {
+      "executeChange(address)": "8c777e82",
+      "isAuthorizedChanger(address)": "d994d6d5",
+      "owner()": "8da5cb5b",
+      "renounceOwnership()": "715018a6",
+      "transferOwnership(address)": "f2fde38b"
+    }
+  },
+  "metadata": "{\"compiler\":{\"version\":\"0.8.24+commit.e11b9ed9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"contract IChangeContract\",\"name\":\"changeContract_\",\"type\":\"address\"}],\"name\":\"executeChange\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"caller_\",\"type\":\"address\"}],\"name\":\"isAuthorizedChanger\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"executeChange(address)\":{\"params\":{\"changeContract_\":\"Address of the contract that will execute the changes\"}},\"isAuthorizedChanger(address)\":{\"params\":{\"caller_\":\"Address of the caller of the protected function\"}},\"owner()\":{\"details\":\"Returns the address of the current owner.\"},\"renounceOwnership()\":{\"details\":\"Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner.\"},\"transferOwnership(address)\":{\"details\":\"Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.\"}},\"title\":\"InterimGovernor\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"executeChange(address)\":{\"notice\":\"Function to be called to make the changes in changeContract\"},\"isAuthorizedChanger(address)\":{\"notice\":\"Only the owner can call protected functions on the Governed contract\"}},\"notice\":\"Basic governor that handles its governed contracts changes  when are done by this contract owner.  It is used to set parameters during the deployment and then the transfer  to the real governor must be done\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/governance/InterimGovernor.sol\":\"InterimGovernor\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"details\":{\"constantOptimizer\":true,\"cse\":true,\"deduplicate\":true,\"inliner\":true,\"jumpdestRemover\":true,\"orderLiterals\":true,\"peephole\":true,\"simpleCounterForLoopUncheckedIncrement\":true,\"yul\":true,\"yulDetails\":{\"optimizerSteps\":\"dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul[j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul]VcTOculjmul:fDnTOcmu\",\"stackAllocation\":true}},\"runs\":200},\"remappings\":[],\"viaIR\":true},\"sources\":{\"@openzeppelin/contracts/access/Ownable.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n// OpenZeppelin Contracts (last updated v4.9.0) (access/Ownable.sol)\\n\\npragma solidity ^0.8.0;\\n\\nimport \\\"../utils/Context.sol\\\";\\n\\n/**\\n * @dev Contract module which provides a basic access control mechanism, where\\n * there is an account (an owner) that can be granted exclusive access to\\n * specific functions.\\n *\\n * By default, the owner account will be the one that deploys the contract. This\\n * can later be changed with {transferOwnership}.\\n *\\n * This module is used through inheritance. It will make available the modifier\\n * `onlyOwner`, which can be applied to your functions to restrict their use to\\n * the owner.\\n */\\nabstract contract Ownable is Context {\\n    address private _owner;\\n\\n    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);\\n\\n    /**\\n     * @dev Initializes the contract setting the deployer as the initial owner.\\n     */\\n    constructor() {\\n        _transferOwnership(_msgSender());\\n    }\\n\\n    /**\\n     * @dev Throws if called by any account other than the owner.\\n     */\\n    modifier onlyOwner() {\\n        _checkOwner();\\n        _;\\n    }\\n\\n    /**\\n     * @dev Returns the address of the current owner.\\n     */\\n    function owner() public view virtual returns (address) {\\n        return _owner;\\n    }\\n\\n    /**\\n     * @dev Throws if the sender is not the owner.\\n     */\\n    function _checkOwner() internal view virtual {\\n        require(owner() == _msgSender(), \\\"Ownable: caller is not the owner\\\");\\n    }\\n\\n    /**\\n     * @dev Leaves the contract without owner. It will not be possible to call\\n     * `onlyOwner` functions. Can only be called by the current owner.\\n     *\\n     * NOTE: Renouncing ownership will leave the contract without an owner,\\n     * thereby disabling any functionality that is only available to the owner.\\n     */\\n    function renounceOwnership() public virtual onlyOwner {\\n        _transferOwnership(address(0));\\n    }\\n\\n    /**\\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\\n     * Can only be called by the current owner.\\n     */\\n    function transferOwnership(address newOwner) public virtual onlyOwner {\\n        require(newOwner != address(0), \\\"Ownable: new owner is the zero address\\\");\\n        _transferOwnership(newOwner);\\n    }\\n\\n    /**\\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\\n     * Internal function without access restriction.\\n     */\\n    function _transferOwnership(address newOwner) internal virtual {\\n        address oldOwner = _owner;\\n        _owner = newOwner;\\n        emit OwnershipTransferred(oldOwner, newOwner);\\n    }\\n}\\n\",\"keccak256\":\"0xba43b97fba0d32eb4254f6a5a297b39a19a247082a02d6e69349e071e2946218\",\"license\":\"MIT\"},\"@openzeppelin/contracts/utils/Context.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n// OpenZeppelin Contracts v4.4.1 (utils/Context.sol)\\n\\npragma solidity ^0.8.0;\\n\\n/**\\n * @dev Provides information about the current execution context, including the\\n * sender of the transaction and its data. While these are generally available\\n * via msg.sender and msg.data, they should not be accessed in such a direct\\n * manner, since when dealing with meta-transactions the account sending and\\n * paying for execution may not be the actual sender (as far as an application\\n * is concerned).\\n *\\n * This contract is only required for intermediate, library-like contracts.\\n */\\nabstract contract Context {\\n    function _msgSender() internal view virtual returns (address) {\\n        return msg.sender;\\n    }\\n\\n    function _msgData() internal view virtual returns (bytes calldata) {\\n        return msg.data;\\n    }\\n}\\n\",\"keccak256\":\"0xe2e337e6dde9ef6b680e07338c493ebea1b5fd09b43424112868e9cc1706bca7\",\"license\":\"MIT\"},\"contracts/governance/InterimGovernor.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.24;\\n\\nimport { IGovernor } from \\\"../interfaces/IGovernor.sol\\\";\\nimport { IChangeContract } from \\\"../interfaces/IChangeContract.sol\\\";\\nimport { Ownable } from \\\"@openzeppelin/contracts/access/Ownable.sol\\\";\\n\\n/**\\n * @title InterimGovernor\\n * @notice Basic governor that handles its governed contracts changes\\n *  when are done by this contract owner.\\n *  It is used to set parameters during the deployment and then the transfer\\n *  to the real governor must be done\\n */\\ncontract InterimGovernor is IGovernor, Ownable {\\n    /**\\n     * @notice Function to be called to make the changes in changeContract\\n     * @param changeContract_ Address of the contract that will execute the changes\\n     */\\n    function executeChange(IChangeContract changeContract_) external onlyOwner {\\n        changeContract_.execute();\\n    }\\n\\n    /**\\n     * @notice Only the owner can call protected functions on the Governed contract\\n     * @param caller_ Address of the caller of the protected function\\n     */\\n    function isAuthorizedChanger(address caller_) external view override returns (bool) {\\n        return caller_ == owner();\\n    }\\n}\\n\",\"keccak256\":\"0x75eba62655eb602a24f463c38f4e014e8910d62ab090907a3c31697579525323\",\"license\":\"UNLICENSED\"},\"contracts/interfaces/IChangeContract.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.24;\\n\\n/**\\n  @title IChangeContract\\n  @notice This interface is the one used by the governance system.\\n  @dev If you plan to do some changes to a system governed by this project you should write a contract\\n  that does those changes, like a recipe. This contract MUST not have ANY kind of public or external function\\n  that modifies the state of this ChangeContract, otherwise you could run into front-running issues when the governance\\n  system is fully in place.\\n */\\ninterface IChangeContract {\\n    /**\\n    @notice Override this function with a recipe of the changes to be done when this ChangeContract\\n    is executed\\n   */\\n    function execute() external;\\n}\\n\",\"keccak256\":\"0x48365b58eee9210491a9daf480f2b9f84a1f94fce045d3bacb485d08d6091d99\",\"license\":\"UNLICENSED\"},\"contracts/interfaces/IGovernor.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.24;\\n\\nimport { IChangeContract } from \\\"./IChangeContract.sol\\\";\\n\\n/**\\n  @title IGovernor\\n  @notice Governor interface. This functions should be overwritten to\\n  enable the communication with the rest of the system\\n  @dev This interface **MUST** be compatible with the corresponding Governance instance\\n  used on Production, from https://github.com/money-on-chain/Areopagus-Governance\\n  */\\ninterface IGovernor {\\n    /**\\n    @notice Function to be called to make the changes described in changeContract\\n    @dev This function should be protected somehow to only execute changes that\\n    benefit the system. This decision process is independent of this architecture\\n    therefore is independent of this interface too\\n    @param changeContract_ Address of the contract that will execute the changes\\n   */\\n    function executeChange(IChangeContract changeContract_) external;\\n\\n    /**\\n    @notice Returns whether this `changer_` is authorized to execute changes.\\n    @param changer_ Address of the contract that will execute the changes\\n   */\\n    function isAuthorizedChanger(address changer_) external view returns (bool);\\n}\\n\",\"keccak256\":\"0x1591bc1258deb8371c2afa418e579fdbd764d8222fcab282bc5d99f03bfc91f2\",\"license\":\"UNLICENSED\"}},\"version\":1}",
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 4818,
+        "contract": "contracts/governance/InterimGovernor.sol:InterimGovernor",
+        "label": "_owner",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_address"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      }
+    }
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {
+      "executeChange(address)": {
+        "notice": "Function to be called to make the changes in changeContract"
+      },
+      "isAuthorizedChanger(address)": {
+        "notice": "Only the owner can call protected functions on the Governed contract"
+      }
+    },
+    "notice": "Basic governor that handles its governed contracts changes  when are done by this contract owner.  It is used to set parameters during the deployment and then the transfer  to the real governor must be done",
+    "version": 1
+  }
+}

@@ -1,0 +1,306 @@
+{
+  "contractName": "PriceProviderMock",
+  "sourceName": "contracts/mocks/PriceProviderMock.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "price_",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "deprecatePriceProvider",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getLastPublicationBlock",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "has",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "lastPublicationBlock",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "mocPrice",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "peek",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "price_",
+          "type": "uint256"
+        }
+      ],
+      "name": "poke",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "removeLastPublicationBlock",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "restorePriceProvider",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "lastPublicationBlock_",
+          "type": "uint256"
+        }
+      ],
+      "name": "setLastPublicationBlock",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "useLastPublicationBlock",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x60803461006557601f6102e638819003918201601f19168301916001600160401b0383118484101761006a578084926020946040528339810103126100655760019051815490600060025560005561ffff19161760015560405161026590816100818239f35b600080fd5b634e487b7160e01b600052604160045260246000fdfe60806040818152600436101561001457600080fd5b600091823560e01c9081631de13f6e146101f85781632a3f4389146101de5750806332145f90146101c05780635095e3d9146101a257806357847c9d1461018257806359e02dd71461015857806378ff1b4d146101355780638466458a1461010f578063b689d5ac146100ec578063cc53a005146100ce5763f549a8e51461009b57600080fd5b346100ca5760203660031901126100ca576001805461ff00191661010017905560043560025551908152602090f35b5080fd5b50346100ca57816003193601126100ca576020906002549051908152f35b50346100ca57816003193601126100ca5760209060ff6001541690519015158152f35b50346100ca57816003193601126100ca5760209060ff60015460081c1690519015158152f35b50346100ca57816003193601126100ca57602090610151610217565b9051908152f35b50903461017f578060031936011261017f575460ff60015416825191825215156020820152f35b80fd5b823461017f578060031936011261017f57600160ff198154161760015580f35b823461017f578060031936011261017f5760ff196001541660015580f35b823461017f57602036600319011261017f5760043581554360025580f35b8390346100ca57816003193601126100ca57602091548152f35b833461017f578060031936011261017f5761ff00196001541660015580f35b60015460081c60ff161561022b5760025490565b439056fea26469706673582212201588538fe01d55aaae1d0f8ed12cbf8d1536f89bb9fec944d91b1664f4cd796c64736f6c63430008180033",
+  "deployedBytecode": "0x60806040818152600436101561001457600080fd5b600091823560e01c9081631de13f6e146101f85781632a3f4389146101de5750806332145f90146101c05780635095e3d9146101a257806357847c9d1461018257806359e02dd71461015857806378ff1b4d146101355780638466458a1461010f578063b689d5ac146100ec578063cc53a005146100ce5763f549a8e51461009b57600080fd5b346100ca5760203660031901126100ca576001805461ff00191661010017905560043560025551908152602090f35b5080fd5b50346100ca57816003193601126100ca576020906002549051908152f35b50346100ca57816003193601126100ca5760209060ff6001541690519015158152f35b50346100ca57816003193601126100ca5760209060ff60015460081c1690519015158152f35b50346100ca57816003193601126100ca57602090610151610217565b9051908152f35b50903461017f578060031936011261017f575460ff60015416825191825215156020820152f35b80fd5b823461017f578060031936011261017f57600160ff198154161760015580f35b823461017f578060031936011261017f5760ff196001541660015580f35b823461017f57602036600319011261017f5760043581554360025580f35b8390346100ca57816003193601126100ca57602091548152f35b833461017f578060031936011261017f5761ff00196001541660015580f35b60015460081c60ff161561022b5760025490565b439056fea26469706673582212201588538fe01d55aaae1d0f8ed12cbf8d1536f89bb9fec944d91b1664f4cd796c64736f6c63430008180033",
+  "linkReferences": {},
+  "deployedLinkReferences": {},
+  "devdoc": {
+    "kind": "dev",
+    "methods": {
+      "constructor": {
+        "params": {
+          "price_": "MoC price for mock contract"
+        }
+      },
+      "getLastPublicationBlock()": {
+        "details": "only valid for decentralized oracles",
+        "returns": {
+          "_0": "lastPublicationBlock"
+        }
+      },
+      "peek()": {
+        "returns": {
+          "_0": "assetPrice",
+          "_1": "true if the price is valid"
+        }
+      }
+    },
+    "version": 1
+  },
+  "evm": {
+    "bytecode": {
+      "functionDebugData": {},
+      "generatedSources": [],
+      "linkReferences": {},
+      "opcodes": "PUSH1 0x80 CALLVALUE PUSH2 0x65 JUMPI PUSH1 0x1F PUSH2 0x2E6 CODESIZE DUP2 SWAP1 SUB SWAP2 DUP3 ADD PUSH1 0x1F NOT AND DUP4 ADD SWAP2 PUSH1 0x1 PUSH1 0x1 PUSH1 0x40 SHL SUB DUP4 GT DUP5 DUP5 LT OR PUSH2 0x6A JUMPI DUP1 DUP5 SWAP3 PUSH1 0x20 SWAP5 PUSH1 0x40 MSTORE DUP4 CODECOPY DUP2 ADD SUB SLT PUSH2 0x65 JUMPI PUSH1 0x1 SWAP1 MLOAD DUP2 SLOAD SWAP1 PUSH1 0x0 PUSH1 0x2 SSTORE PUSH1 0x0 SSTORE PUSH2 0xFFFF NOT AND OR PUSH1 0x1 SSTORE PUSH1 0x40 MLOAD PUSH2 0x265 SWAP1 DUP2 PUSH2 0x81 DUP3 CODECOPY RETURN JUMPDEST PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH4 0x4E487B71 PUSH1 0xE0 SHL PUSH1 0x0 MSTORE PUSH1 0x41 PUSH1 0x4 MSTORE PUSH1 0x24 PUSH1 0x0 REVERT INVALID PUSH1 0x80 PUSH1 0x40 DUP2 DUP2 MSTORE PUSH1 0x4 CALLDATASIZE LT ISZERO PUSH2 0x14 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH1 0x0 SWAP2 DUP3 CALLDATALOAD PUSH1 0xE0 SHR SWAP1 DUP2 PUSH4 0x1DE13F6E EQ PUSH2 0x1F8 JUMPI DUP2 PUSH4 0x2A3F4389 EQ PUSH2 0x1DE JUMPI POP DUP1 PUSH4 0x32145F90 EQ PUSH2 0x1C0 JUMPI DUP1 PUSH4 0x5095E3D9 EQ PUSH2 0x1A2 JUMPI DUP1 PUSH4 0x57847C9D EQ PUSH2 0x182 JUMPI DUP1 PUSH4 0x59E02DD7 EQ PUSH2 0x158 JUMPI DUP1 PUSH4 0x78FF1B4D EQ PUSH2 0x135 JUMPI DUP1 PUSH4 0x8466458A EQ PUSH2 0x10F JUMPI DUP1 PUSH4 0xB689D5AC EQ PUSH2 0xEC JUMPI DUP1 PUSH4 0xCC53A005 EQ PUSH2 0xCE JUMPI PUSH4 0xF549A8E5 EQ PUSH2 0x9B JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST CALLVALUE PUSH2 0xCA JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0xCA JUMPI PUSH1 0x1 DUP1 SLOAD PUSH2 0xFF00 NOT AND PUSH2 0x100 OR SWAP1 SSTORE PUSH1 0x4 CALLDATALOAD PUSH1 0x2 SSTORE MLOAD SWAP1 DUP2 MSTORE PUSH1 0x20 SWAP1 RETURN JUMPDEST POP DUP1 REVERT JUMPDEST POP CALLVALUE PUSH2 0xCA JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0xCA JUMPI PUSH1 0x20 SWAP1 PUSH1 0x2 SLOAD SWAP1 MLOAD SWAP1 DUP2 MSTORE RETURN JUMPDEST POP CALLVALUE PUSH2 0xCA JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0xCA JUMPI PUSH1 0x20 SWAP1 PUSH1 0xFF PUSH1 0x1 SLOAD AND SWAP1 MLOAD SWAP1 ISZERO ISZERO DUP2 MSTORE RETURN JUMPDEST POP CALLVALUE PUSH2 0xCA JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0xCA JUMPI PUSH1 0x20 SWAP1 PUSH1 0xFF PUSH1 0x1 SLOAD PUSH1 0x8 SHR AND SWAP1 MLOAD SWAP1 ISZERO ISZERO DUP2 MSTORE RETURN JUMPDEST POP CALLVALUE PUSH2 0xCA JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0xCA JUMPI PUSH1 0x20 SWAP1 PUSH2 0x151 PUSH2 0x217 JUMP JUMPDEST SWAP1 MLOAD SWAP1 DUP2 MSTORE RETURN JUMPDEST POP SWAP1 CALLVALUE PUSH2 0x17F JUMPI DUP1 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0x17F JUMPI SLOAD PUSH1 0xFF PUSH1 0x1 SLOAD AND DUP3 MLOAD SWAP2 DUP3 MSTORE ISZERO ISZERO PUSH1 0x20 DUP3 ADD MSTORE RETURN JUMPDEST DUP1 REVERT JUMPDEST DUP3 CALLVALUE PUSH2 0x17F JUMPI DUP1 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0x17F JUMPI PUSH1 0x1 PUSH1 0xFF NOT DUP2 SLOAD AND OR PUSH1 0x1 SSTORE DUP1 RETURN JUMPDEST DUP3 CALLVALUE PUSH2 0x17F JUMPI DUP1 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0x17F JUMPI PUSH1 0xFF NOT PUSH1 0x1 SLOAD AND PUSH1 0x1 SSTORE DUP1 RETURN JUMPDEST DUP3 CALLVALUE PUSH2 0x17F JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0x17F JUMPI PUSH1 0x4 CALLDATALOAD DUP2 SSTORE NUMBER PUSH1 0x2 SSTORE DUP1 RETURN JUMPDEST DUP4 SWAP1 CALLVALUE PUSH2 0xCA JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0xCA JUMPI PUSH1 0x20 SWAP2 SLOAD DUP2 MSTORE RETURN JUMPDEST DUP4 CALLVALUE PUSH2 0x17F JUMPI DUP1 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0x17F JUMPI PUSH2 0xFF00 NOT PUSH1 0x1 SLOAD AND PUSH1 0x1 SSTORE DUP1 RETURN JUMPDEST PUSH1 0x1 SLOAD PUSH1 0x8 SHR PUSH1 0xFF AND ISZERO PUSH2 0x22B JUMPI PUSH1 0x2 SLOAD SWAP1 JUMP JUMPDEST NUMBER SWAP1 JUMP INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 ISZERO DUP9 MSTORE8 DUP16 0xE0 SAR SSTORE 0xAA 0xAE SAR 0xF DUP15 0xD1 0x2C 0xBF DUP14 ISZERO CALLDATASIZE 0xF8 SWAP12 0xB9 INVALID 0xC9 PREVRANDAO 0xD9 SHL AND PUSH5 0xF4CD796C64 PUSH20 0x6F6C634300081800330000000000000000000000 ",
+      "sourceMap": "132:1243:126:-:0;;;;;;;;;;;;;-1:-1:-1;;132:1243:126;;;;-1:-1:-1;;;;;132:1243:126;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;320:1:126;132:1243;-1:-1:-1;132:1243:126;;;;;;;;;;;;;;;;;-1:-1:-1;132:1243:126;;;;;;-1:-1:-1;132:1243:126;;;;;-1:-1:-1;132:1243:126"
+    },
+    "deployedBytecode": {
+      "functionDebugData": {
+        "fun_getLastPublicationBlock": {
+          "entryPoint": 535,
+          "id": 27342,
+          "parameterSlots": 0,
+          "returnSlots": 1
+        }
+      },
+      "generatedSources": [],
+      "immutableReferences": {},
+      "linkReferences": {},
+      "opcodes": "PUSH1 0x80 PUSH1 0x40 DUP2 DUP2 MSTORE PUSH1 0x4 CALLDATASIZE LT ISZERO PUSH2 0x14 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH1 0x0 SWAP2 DUP3 CALLDATALOAD PUSH1 0xE0 SHR SWAP1 DUP2 PUSH4 0x1DE13F6E EQ PUSH2 0x1F8 JUMPI DUP2 PUSH4 0x2A3F4389 EQ PUSH2 0x1DE JUMPI POP DUP1 PUSH4 0x32145F90 EQ PUSH2 0x1C0 JUMPI DUP1 PUSH4 0x5095E3D9 EQ PUSH2 0x1A2 JUMPI DUP1 PUSH4 0x57847C9D EQ PUSH2 0x182 JUMPI DUP1 PUSH4 0x59E02DD7 EQ PUSH2 0x158 JUMPI DUP1 PUSH4 0x78FF1B4D EQ PUSH2 0x135 JUMPI DUP1 PUSH4 0x8466458A EQ PUSH2 0x10F JUMPI DUP1 PUSH4 0xB689D5AC EQ PUSH2 0xEC JUMPI DUP1 PUSH4 0xCC53A005 EQ PUSH2 0xCE JUMPI PUSH4 0xF549A8E5 EQ PUSH2 0x9B JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST CALLVALUE PUSH2 0xCA JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0xCA JUMPI PUSH1 0x1 DUP1 SLOAD PUSH2 0xFF00 NOT AND PUSH2 0x100 OR SWAP1 SSTORE PUSH1 0x4 CALLDATALOAD PUSH1 0x2 SSTORE MLOAD SWAP1 DUP2 MSTORE PUSH1 0x20 SWAP1 RETURN JUMPDEST POP DUP1 REVERT JUMPDEST POP CALLVALUE PUSH2 0xCA JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0xCA JUMPI PUSH1 0x20 SWAP1 PUSH1 0x2 SLOAD SWAP1 MLOAD SWAP1 DUP2 MSTORE RETURN JUMPDEST POP CALLVALUE PUSH2 0xCA JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0xCA JUMPI PUSH1 0x20 SWAP1 PUSH1 0xFF PUSH1 0x1 SLOAD AND SWAP1 MLOAD SWAP1 ISZERO ISZERO DUP2 MSTORE RETURN JUMPDEST POP CALLVALUE PUSH2 0xCA JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0xCA JUMPI PUSH1 0x20 SWAP1 PUSH1 0xFF PUSH1 0x1 SLOAD PUSH1 0x8 SHR AND SWAP1 MLOAD SWAP1 ISZERO ISZERO DUP2 MSTORE RETURN JUMPDEST POP CALLVALUE PUSH2 0xCA JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0xCA JUMPI PUSH1 0x20 SWAP1 PUSH2 0x151 PUSH2 0x217 JUMP JUMPDEST SWAP1 MLOAD SWAP1 DUP2 MSTORE RETURN JUMPDEST POP SWAP1 CALLVALUE PUSH2 0x17F JUMPI DUP1 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0x17F JUMPI SLOAD PUSH1 0xFF PUSH1 0x1 SLOAD AND DUP3 MLOAD SWAP2 DUP3 MSTORE ISZERO ISZERO PUSH1 0x20 DUP3 ADD MSTORE RETURN JUMPDEST DUP1 REVERT JUMPDEST DUP3 CALLVALUE PUSH2 0x17F JUMPI DUP1 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0x17F JUMPI PUSH1 0x1 PUSH1 0xFF NOT DUP2 SLOAD AND OR PUSH1 0x1 SSTORE DUP1 RETURN JUMPDEST DUP3 CALLVALUE PUSH2 0x17F JUMPI DUP1 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0x17F JUMPI PUSH1 0xFF NOT PUSH1 0x1 SLOAD AND PUSH1 0x1 SSTORE DUP1 RETURN JUMPDEST DUP3 CALLVALUE PUSH2 0x17F JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0x17F JUMPI PUSH1 0x4 CALLDATALOAD DUP2 SSTORE NUMBER PUSH1 0x2 SSTORE DUP1 RETURN JUMPDEST DUP4 SWAP1 CALLVALUE PUSH2 0xCA JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0xCA JUMPI PUSH1 0x20 SWAP2 SLOAD DUP2 MSTORE RETURN JUMPDEST DUP4 CALLVALUE PUSH2 0x17F JUMPI DUP1 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0x17F JUMPI PUSH2 0xFF00 NOT PUSH1 0x1 SLOAD AND PUSH1 0x1 SSTORE DUP1 RETURN JUMPDEST PUSH1 0x1 SLOAD PUSH1 0x8 SHR PUSH1 0xFF AND ISZERO PUSH2 0x22B JUMPI PUSH1 0x2 SLOAD SWAP1 JUMP JUMPDEST NUMBER SWAP1 JUMP INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 ISZERO DUP9 MSTORE8 DUP16 0xE0 SAR SSTORE 0xAA 0xAE SAR 0xF DUP15 0xD1 0x2C 0xBF DUP14 ISZERO CALLDATASIZE 0xF8 SWAP12 0xB9 INVALID 0xC9 PREVRANDAO 0xD9 SHL AND PUSH5 0xF4CD796C64 PUSH20 0x6F6C634300081800330000000000000000000000 ",
+      "sourceMap": "132:1243:126:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;132:1243:126;;;;;;;-1:-1:-1;;132:1243:126;;;;;;;1221:44;132:1243;;;;;;;;;;;;;;;;;;;;;;;;;;;282:39;132:1243;;;;;;;;;;;;;;;;;;;;;;;212:15;132:1243;;;;;;;;;;;;;;;;;;;;;;;;;;233:43;132:1243;;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;599:3;132:1243;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;883:4;132:1243;;;;;;883:4;132:1243;;;;;;;;;;;;;;;;;;802:11;132:1243;;802:11;132:1243;;;;;;;;;;-1:-1:-1;;132:1243:126;;;;;;;;724:12;701:35;132:1243;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;1335:31;132:1243;;1335:31;132:1243;;;900:174;981:23;132:1243;;;;;;;;1013:20;132:1243;1006:27;:::o;977:90::-;1055:12;1048:19;:::o"
+    },
+    "gasEstimates": {
+      "creation": {
+        "codeDepositCost": "122600",
+        "executionCost": "infinite",
+        "totalCost": "infinite"
+      },
+      "external": {
+        "deprecatePriceProvider()": "24427",
+        "getLastPublicationBlock()": "4562",
+        "has()": "2460",
+        "lastPublicationBlock()": "2470",
+        "mocPrice()": "2284",
+        "peek()": "4506",
+        "poke(uint256)": "44404",
+        "removeLastPublicationBlock()": "24359",
+        "restorePriceProvider()": "24455",
+        "setLastPublicationBlock(uint256)": "46714",
+        "useLastPublicationBlock()": "2444"
+      }
+    },
+    "methodIdentifiers": {
+      "deprecatePriceProvider()": "5095e3d9",
+      "getLastPublicationBlock()": "78ff1b4d",
+      "has()": "b689d5ac",
+      "lastPublicationBlock()": "cc53a005",
+      "mocPrice()": "2a3f4389",
+      "peek()": "59e02dd7",
+      "poke(uint256)": "32145f90",
+      "removeLastPublicationBlock()": "1de13f6e",
+      "restorePriceProvider()": "57847c9d",
+      "setLastPublicationBlock(uint256)": "f549a8e5",
+      "useLastPublicationBlock()": "8466458a"
+    }
+  },
+  "metadata": "{\"compiler\":{\"version\":\"0.8.24+commit.e11b9ed9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"price_\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[],\"name\":\"deprecatePriceProvider\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getLastPublicationBlock\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"has\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"lastPublicationBlock\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"mocPrice\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"peek\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"price_\",\"type\":\"uint256\"}],\"name\":\"poke\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"removeLastPublicationBlock\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"restorePriceProvider\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"lastPublicationBlock_\",\"type\":\"uint256\"}],\"name\":\"setLastPublicationBlock\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"useLastPublicationBlock\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"constructor\":{\"params\":{\"price_\":\"MoC price for mock contract\"}},\"getLastPublicationBlock()\":{\"details\":\"only valid for decentralized oracles\",\"returns\":{\"_0\":\"lastPublicationBlock\"}},\"peek()\":{\"returns\":{\"_0\":\"assetPrice\",\"_1\":\"true if the price is valid\"}}},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"constructor\":{\"notice\":\"constructor\"},\"getLastPublicationBlock()\":{\"notice\":\"returns the last publication block of an asset price\"},\"peek()\":{\"notice\":\"returns the given `price` for the asset if `valid`\"}},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/mocks/PriceProviderMock.sol\":\"PriceProviderMock\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"details\":{\"constantOptimizer\":true,\"cse\":true,\"deduplicate\":true,\"inliner\":true,\"jumpdestRemover\":true,\"orderLiterals\":true,\"peephole\":true,\"simpleCounterForLoopUncheckedIncrement\":true,\"yul\":true,\"yulDetails\":{\"optimizerSteps\":\"dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul[j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul]VcTOculjmul:fDnTOcmu\",\"stackAllocation\":true}},\"runs\":200},\"remappings\":[],\"viaIR\":true},\"sources\":{\"contracts/interfaces/IPriceProvider.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.24;\\n\\n/**\\n * @title IPriceProvider\\n * @notice Interface for peeking the price and last publication block of a given asset\\n * @dev https://github.com/money-on-chain/OMoC-Decentralized-Oracle\\n */\\ninterface IPriceProvider {\\n    /**\\n     * @notice returns the given `price` for the asset if `valid`\\n     * @return price assetPrice\\n     * @return valid true if the price is valid\\n     */\\n    function peek() external view returns (bytes32 price, bool valid);\\n\\n    /**\\n     * @notice returns the last publication block of an asset price\\n     * @dev only valid for decentralized oracles\\n     * @return lastPublicationBlock\\n     */\\n    function getLastPublicationBlock() external view returns (uint256 lastPublicationBlock);\\n}\\n\",\"keccak256\":\"0xa6e835e403803eb592d5d6f9ce15e38cee5e0f54faf74efa4503f59a84407d7a\",\"license\":\"UNLICENSED\"},\"contracts/mocks/PriceProviderMock.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.24;\\n\\nimport { IPriceProvider } from \\\"../interfaces/IPriceProvider.sol\\\";\\n\\ncontract PriceProviderMock is IPriceProvider {\\n    bytes32 public mocPrice;\\n    bool public has;\\n    bool public useLastPublicationBlock = false;\\n    uint256 public lastPublicationBlock = 0;\\n\\n    /**\\n     * @notice constructor\\n     * @param price_ MoC price for mock contract\\n     */\\n    constructor(uint256 price_) {\\n        mocPrice = bytes32(price_);\\n        has = true;\\n    }\\n\\n    function peek() external view returns (bytes32, bool) {\\n        return (mocPrice, has);\\n    }\\n\\n    function poke(uint256 price_) external {\\n        mocPrice = bytes32(price_);\\n        lastPublicationBlock = block.number;\\n    }\\n\\n    function deprecatePriceProvider() external {\\n        has = false;\\n    }\\n\\n    function restorePriceProvider() external {\\n        has = true;\\n    }\\n\\n    function getLastPublicationBlock() external view returns (uint256) {\\n        if (useLastPublicationBlock) return lastPublicationBlock;\\n        else return block.number;\\n    }\\n\\n    function setLastPublicationBlock(uint256 lastPublicationBlock_) external returns (uint256) {\\n        useLastPublicationBlock = true;\\n        lastPublicationBlock = lastPublicationBlock_;\\n    }\\n\\n    function removeLastPublicationBlock() external {\\n        useLastPublicationBlock = false;\\n    }\\n}\\n\",\"keccak256\":\"0x5dca9ab00855d93f96b78a7ef58fd41ee905c9012350549153bba45015e1ef3f\",\"license\":\"UNLICENSED\"}},\"version\":1}",
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 27257,
+        "contract": "contracts/mocks/PriceProviderMock.sol:PriceProviderMock",
+        "label": "mocPrice",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_bytes32"
+      },
+      {
+        "astId": 27259,
+        "contract": "contracts/mocks/PriceProviderMock.sol:PriceProviderMock",
+        "label": "has",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_bool"
+      },
+      {
+        "astId": 27262,
+        "contract": "contracts/mocks/PriceProviderMock.sol:PriceProviderMock",
+        "label": "useLastPublicationBlock",
+        "offset": 1,
+        "slot": "1",
+        "type": "t_bool"
+      },
+      {
+        "astId": 27265,
+        "contract": "contracts/mocks/PriceProviderMock.sol:PriceProviderMock",
+        "label": "lastPublicationBlock",
+        "offset": 0,
+        "slot": "2",
+        "type": "t_uint256"
+      }
+    ],
+    "types": {
+      "t_bool": {
+        "encoding": "inplace",
+        "label": "bool",
+        "numberOfBytes": "1"
+      },
+      "t_bytes32": {
+        "encoding": "inplace",
+        "label": "bytes32",
+        "numberOfBytes": "32"
+      },
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      }
+    }
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {
+      "constructor": {
+        "notice": "constructor"
+      },
+      "getLastPublicationBlock()": {
+        "notice": "returns the last publication block of an asset price"
+      },
+      "peek()": {
+        "notice": "returns the given `price` for the asset if `valid`"
+      }
+    },
+    "version": 1
+  }
+}

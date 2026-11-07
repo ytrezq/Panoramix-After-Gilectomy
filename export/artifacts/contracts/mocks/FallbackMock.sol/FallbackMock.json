@@ -1,0 +1,160 @@
+{
+  "contractName": "FallbackMock",
+  "sourceName": "contracts/mocks/FallbackMock.sol",
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "GasBurned",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "dest_",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes",
+          "name": "data_",
+          "type": "bytes"
+        }
+      ],
+      "name": "forward",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "iterations",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "iterations_",
+          "type": "uint256"
+        }
+      ],
+      "name": "setIterations",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "stateMutability": "payable",
+      "type": "receive"
+    }
+  ],
+  "bytecode": "0x6080806040523461001657610206908161001c8239f35b600080fdfe60806040526004361015610023575b361561001957600080fd5b61002161018c565b005b6000803560e01c9081634358d2be146100c35781636fadcf7214610051575063b41e20d40361000e576100dd565b60403660031901126100c0576004356001600160a01b03811681036100bc576024359067ffffffffffffffff908183116100b857366023840112156100b85782600401359182116100b85736602483850101116100b85760246100b5930190610111565b80f35b8380fd5b5080fd5b80fd5b346100c057806003193601126100c0575460805260206080f35b346100f65760203660031901126100f657600435600055005b600080fd5b634e487b7160e01b600052604160045260246000fd5b60009283928160405192839283378101848152039134905af13d156101845767ffffffffffffffff903d82811161017f5760405192601f8201601f19908116603f011684019081118482101761017f5760405282523d6000602084013e5b156101775750565b805190602001fd5b6100fb565b60609061016f565b60008054905b81811061019d575050565b6001907f66b080be3a86b83f5d135c658e27e11b5324bafc4cedff14c15e17e3313119bd6020604051838152a10161019256fea26469706673582212200958fbb02d3182d165e14572d64643cd7e3000a0c40e58e39c13e827e624520b64736f6c63430008180033",
+  "deployedBytecode": "0x60806040526004361015610023575b361561001957600080fd5b61002161018c565b005b6000803560e01c9081634358d2be146100c35781636fadcf7214610051575063b41e20d40361000e576100dd565b60403660031901126100c0576004356001600160a01b03811681036100bc576024359067ffffffffffffffff908183116100b857366023840112156100b85782600401359182116100b85736602483850101116100b85760246100b5930190610111565b80f35b8380fd5b5080fd5b80fd5b346100c057806003193601126100c0575460805260206080f35b346100f65760203660031901126100f657600435600055005b600080fd5b634e487b7160e01b600052604160045260246000fd5b60009283928160405192839283378101848152039134905af13d156101845767ffffffffffffffff903d82811161017f5760405192601f8201601f19908116603f011684019081118482101761017f5760405282523d6000602084013e5b156101775750565b805190602001fd5b6100fb565b60609061016f565b60008054905b81811061019d575050565b6001907f66b080be3a86b83f5d135c658e27e11b5324bafc4cedff14c15e17e3313119bd6020604051838152a10161019256fea26469706673582212200958fbb02d3182d165e14572d64643cd7e3000a0c40e58e39c13e827e624520b64736f6c63430008180033",
+  "linkReferences": {},
+  "deployedLinkReferences": {},
+  "devdoc": {
+    "kind": "dev",
+    "methods": {},
+    "version": 1
+  },
+  "evm": {
+    "bytecode": {
+      "functionDebugData": {},
+      "generatedSources": [],
+      "linkReferences": {},
+      "opcodes": "PUSH1 0x80 DUP1 PUSH1 0x40 MSTORE CALLVALUE PUSH2 0x16 JUMPI PUSH2 0x206 SWAP1 DUP2 PUSH2 0x1C DUP3 CODECOPY RETURN JUMPDEST PUSH1 0x0 DUP1 REVERT INVALID PUSH1 0x80 PUSH1 0x40 MSTORE PUSH1 0x4 CALLDATASIZE LT ISZERO PUSH2 0x23 JUMPI JUMPDEST CALLDATASIZE ISZERO PUSH2 0x19 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH2 0x21 PUSH2 0x18C JUMP JUMPDEST STOP JUMPDEST PUSH1 0x0 DUP1 CALLDATALOAD PUSH1 0xE0 SHR SWAP1 DUP2 PUSH4 0x4358D2BE EQ PUSH2 0xC3 JUMPI DUP2 PUSH4 0x6FADCF72 EQ PUSH2 0x51 JUMPI POP PUSH4 0xB41E20D4 SUB PUSH2 0xE JUMPI PUSH2 0xDD JUMP JUMPDEST PUSH1 0x40 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0xC0 JUMPI PUSH1 0x4 CALLDATALOAD PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB DUP2 AND DUP2 SUB PUSH2 0xBC JUMPI PUSH1 0x24 CALLDATALOAD SWAP1 PUSH8 0xFFFFFFFFFFFFFFFF SWAP1 DUP2 DUP4 GT PUSH2 0xB8 JUMPI CALLDATASIZE PUSH1 0x23 DUP5 ADD SLT ISZERO PUSH2 0xB8 JUMPI DUP3 PUSH1 0x4 ADD CALLDATALOAD SWAP2 DUP3 GT PUSH2 0xB8 JUMPI CALLDATASIZE PUSH1 0x24 DUP4 DUP6 ADD ADD GT PUSH2 0xB8 JUMPI PUSH1 0x24 PUSH2 0xB5 SWAP4 ADD SWAP1 PUSH2 0x111 JUMP JUMPDEST DUP1 RETURN JUMPDEST DUP4 DUP1 REVERT JUMPDEST POP DUP1 REVERT JUMPDEST DUP1 REVERT JUMPDEST CALLVALUE PUSH2 0xC0 JUMPI DUP1 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0xC0 JUMPI SLOAD PUSH1 0x80 MSTORE PUSH1 0x20 PUSH1 0x80 RETURN JUMPDEST CALLVALUE PUSH2 0xF6 JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0xF6 JUMPI PUSH1 0x4 CALLDATALOAD PUSH1 0x0 SSTORE STOP JUMPDEST PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH4 0x4E487B71 PUSH1 0xE0 SHL PUSH1 0x0 MSTORE PUSH1 0x41 PUSH1 0x4 MSTORE PUSH1 0x24 PUSH1 0x0 REVERT JUMPDEST PUSH1 0x0 SWAP3 DUP4 SWAP3 DUP2 PUSH1 0x40 MLOAD SWAP3 DUP4 SWAP3 DUP4 CALLDATACOPY DUP2 ADD DUP5 DUP2 MSTORE SUB SWAP2 CALLVALUE SWAP1 GAS CALL RETURNDATASIZE ISZERO PUSH2 0x184 JUMPI PUSH8 0xFFFFFFFFFFFFFFFF SWAP1 RETURNDATASIZE DUP3 DUP2 GT PUSH2 0x17F JUMPI PUSH1 0x40 MLOAD SWAP3 PUSH1 0x1F DUP3 ADD PUSH1 0x1F NOT SWAP1 DUP2 AND PUSH1 0x3F ADD AND DUP5 ADD SWAP1 DUP2 GT DUP5 DUP3 LT OR PUSH2 0x17F JUMPI PUSH1 0x40 MSTORE DUP3 MSTORE RETURNDATASIZE PUSH1 0x0 PUSH1 0x20 DUP5 ADD RETURNDATACOPY JUMPDEST ISZERO PUSH2 0x177 JUMPI POP JUMP JUMPDEST DUP1 MLOAD SWAP1 PUSH1 0x20 ADD REVERT JUMPDEST PUSH2 0xFB JUMP JUMPDEST PUSH1 0x60 SWAP1 PUSH2 0x16F JUMP JUMPDEST PUSH1 0x0 DUP1 SLOAD SWAP1 JUMPDEST DUP2 DUP2 LT PUSH2 0x19D JUMPI POP POP JUMP JUMPDEST PUSH1 0x1 SWAP1 PUSH32 0x66B080BE3A86B83F5D135C658E27E11B5324BAFC4CEDFF14C15E17E3313119BD PUSH1 0x20 PUSH1 0x40 MLOAD DUP4 DUP2 MSTORE LOG1 ADD PUSH2 0x192 JUMP INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 MULMOD PC 0xFB 0xB0 0x2D BALANCE DUP3 0xD1 PUSH6 0xE14572D64643 0xCD PUSH31 0x3000A0C40E58E39C13E827E624520B64736F6C634300081800330000000000 ",
+      "sourceMap": "64:799:120:-:0;;;;;;;;;;;;;;;;;"
+    },
+    "deployedBytecode": {
+      "functionDebugData": {
+        "external_fun_setIterations": {
+          "entryPoint": 221,
+          "id": null,
+          "parameterSlots": 0,
+          "returnSlots": 0
+        },
+        "fun": {
+          "entryPoint": 396,
+          "id": 25866,
+          "parameterSlots": 0,
+          "returnSlots": 0
+        },
+        "fun_forward": {
+          "entryPoint": 273,
+          "id": 25836,
+          "parameterSlots": 3,
+          "returnSlots": 0
+        },
+        "panic_error_0x41": {
+          "entryPoint": 251,
+          "id": null,
+          "parameterSlots": 0,
+          "returnSlots": 0
+        }
+      },
+      "generatedSources": [],
+      "immutableReferences": {},
+      "linkReferences": {},
+      "opcodes": "PUSH1 0x80 PUSH1 0x40 MSTORE PUSH1 0x4 CALLDATASIZE LT ISZERO PUSH2 0x23 JUMPI JUMPDEST CALLDATASIZE ISZERO PUSH2 0x19 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH2 0x21 PUSH2 0x18C JUMP JUMPDEST STOP JUMPDEST PUSH1 0x0 DUP1 CALLDATALOAD PUSH1 0xE0 SHR SWAP1 DUP2 PUSH4 0x4358D2BE EQ PUSH2 0xC3 JUMPI DUP2 PUSH4 0x6FADCF72 EQ PUSH2 0x51 JUMPI POP PUSH4 0xB41E20D4 SUB PUSH2 0xE JUMPI PUSH2 0xDD JUMP JUMPDEST PUSH1 0x40 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0xC0 JUMPI PUSH1 0x4 CALLDATALOAD PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB DUP2 AND DUP2 SUB PUSH2 0xBC JUMPI PUSH1 0x24 CALLDATALOAD SWAP1 PUSH8 0xFFFFFFFFFFFFFFFF SWAP1 DUP2 DUP4 GT PUSH2 0xB8 JUMPI CALLDATASIZE PUSH1 0x23 DUP5 ADD SLT ISZERO PUSH2 0xB8 JUMPI DUP3 PUSH1 0x4 ADD CALLDATALOAD SWAP2 DUP3 GT PUSH2 0xB8 JUMPI CALLDATASIZE PUSH1 0x24 DUP4 DUP6 ADD ADD GT PUSH2 0xB8 JUMPI PUSH1 0x24 PUSH2 0xB5 SWAP4 ADD SWAP1 PUSH2 0x111 JUMP JUMPDEST DUP1 RETURN JUMPDEST DUP4 DUP1 REVERT JUMPDEST POP DUP1 REVERT JUMPDEST DUP1 REVERT JUMPDEST CALLVALUE PUSH2 0xC0 JUMPI DUP1 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0xC0 JUMPI SLOAD PUSH1 0x80 MSTORE PUSH1 0x20 PUSH1 0x80 RETURN JUMPDEST CALLVALUE PUSH2 0xF6 JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0xF6 JUMPI PUSH1 0x4 CALLDATALOAD PUSH1 0x0 SSTORE STOP JUMPDEST PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH4 0x4E487B71 PUSH1 0xE0 SHL PUSH1 0x0 MSTORE PUSH1 0x41 PUSH1 0x4 MSTORE PUSH1 0x24 PUSH1 0x0 REVERT JUMPDEST PUSH1 0x0 SWAP3 DUP4 SWAP3 DUP2 PUSH1 0x40 MLOAD SWAP3 DUP4 SWAP3 DUP4 CALLDATACOPY DUP2 ADD DUP5 DUP2 MSTORE SUB SWAP2 CALLVALUE SWAP1 GAS CALL RETURNDATASIZE ISZERO PUSH2 0x184 JUMPI PUSH8 0xFFFFFFFFFFFFFFFF SWAP1 RETURNDATASIZE DUP3 DUP2 GT PUSH2 0x17F JUMPI PUSH1 0x40 MLOAD SWAP3 PUSH1 0x1F DUP3 ADD PUSH1 0x1F NOT SWAP1 DUP2 AND PUSH1 0x3F ADD AND DUP5 ADD SWAP1 DUP2 GT DUP5 DUP3 LT OR PUSH2 0x17F JUMPI PUSH1 0x40 MSTORE DUP3 MSTORE RETURNDATASIZE PUSH1 0x0 PUSH1 0x20 DUP5 ADD RETURNDATACOPY JUMPDEST ISZERO PUSH2 0x177 JUMPI POP JUMP JUMPDEST DUP1 MLOAD SWAP1 PUSH1 0x20 ADD REVERT JUMPDEST PUSH2 0xFB JUMP JUMPDEST PUSH1 0x60 SWAP1 PUSH2 0x16F JUMP JUMPDEST PUSH1 0x0 DUP1 SLOAD SWAP1 JUMPDEST DUP2 DUP2 LT PUSH2 0x19D JUMPI POP POP JUMP JUMPDEST PUSH1 0x1 SWAP1 PUSH32 0x66B080BE3A86B83F5D135C658E27E11B5324BAFC4CEDFF14C15E17E3313119BD PUSH1 0x20 PUSH1 0x40 MLOAD DUP4 DUP2 MSTORE LOG1 ADD PUSH2 0x192 JUMP INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 MULMOD PC 0xFB 0xB0 0x2D BALANCE DUP3 0xD1 PUSH6 0xE14572D64643 0xCD PUSH31 0x3000A0C40E58E39C13E827E624520B64736F6C634300081800330000000000 ",
+      "sourceMap": "64:799:120:-:0;;;;;;;;;-1:-1:-1;64:799:120;;;;;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;;;:::i;:::-;;;-1:-1:-1;;64:799:120;;;;;;-1:-1:-1;;;;;64:799:120;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;64:799:120;;;;;;-1:-1:-1;64:799:120;;;-1:-1:-1;64:799:120;;;;;;;;;;;;;;154:475;336:37;154:475;;;64:799;;;;;;;;;;;;;336:37;355:9;;336:37;;;64:799;;;;;;;;;;;;;;;;;;-1:-1:-1;;64:799:120;;;;;;;;;;;;;;;;;;;;;;336:37;64:799;;;;;387:8;383:240;;154:475;:::o;383:240::-;471:142;;;;;;64:799;;:::i;:::-;;;;;735:126;789:1;;64:799;772:83;792:14;;;;;;735:126;;:::o;808:3::-;64:799;;832:12;64:799;;;;;;832:12;64:799;777:13;"
+    },
+    "gasEstimates": {
+      "creation": {
+        "codeDepositCost": "103600",
+        "executionCost": "159",
+        "totalCost": "103759"
+      },
+      "external": {
+        "forward(address,bytes)": "infinite",
+        "iterations()": "2247",
+        "setIterations(uint256)": "22292"
+      }
+    },
+    "methodIdentifiers": {
+      "forward(address,bytes)": "6fadcf72",
+      "iterations()": "4358d2be",
+      "setIterations(uint256)": "b41e20d4"
+    }
+  },
+  "metadata": "{\"compiler\":{\"version\":\"0.8.24+commit.e11b9ed9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"GasBurned\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"dest_\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"data_\",\"type\":\"bytes\"}],\"name\":\"forward\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"iterations\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"iterations_\",\"type\":\"uint256\"}],\"name\":\"setIterations\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"stateMutability\":\"payable\",\"type\":\"receive\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/mocks/FallbackMock.sol\":\"FallbackMock\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"details\":{\"constantOptimizer\":true,\"cse\":true,\"deduplicate\":true,\"inliner\":true,\"jumpdestRemover\":true,\"orderLiterals\":true,\"peephole\":true,\"simpleCounterForLoopUncheckedIncrement\":true,\"yul\":true,\"yulDetails\":{\"optimizerSteps\":\"dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul[j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul]VcTOculjmul:fDnTOcmu\",\"stackAllocation\":true}},\"runs\":200},\"remappings\":[],\"viaIR\":true},\"sources\":{\"contracts/mocks/FallbackMock.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.24;\\n\\ncontract FallbackMock {\\n    event GasBurned(uint256);\\n    uint256 public iterations;\\n\\n    function forward(address dest_, bytes calldata data_) external payable {\\n        // solhint-disable-next-line avoid-low-level-calls\\n        (bool success, bytes memory returndata) = dest_.call{ value: msg.value }(data_);\\n        if (!success) {\\n            // solhint-disable-next-line no-inline-assembly\\n            assembly {\\n                let returndata_size := mload(returndata)\\n                revert(add(32, returndata), returndata_size)\\n            }\\n        }\\n    }\\n\\n    function setIterations(uint256 iterations_) external {\\n        iterations = iterations_;\\n    }\\n\\n    receive() external payable {\\n        for (uint256 i = 0; i < iterations; i++) {\\n            emit GasBurned(i);\\n        }\\n    }\\n}\\n\",\"keccak256\":\"0x216ba1fa73dc0fbffa3895d4de50bd764410e1e0b3a08ae6061cae81ab0791d0\",\"license\":\"UNLICENSED\"}},\"version\":1}",
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 25811,
+        "contract": "contracts/mocks/FallbackMock.sol:FallbackMock",
+        "label": "iterations",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_uint256"
+      }
+    ],
+    "types": {
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      }
+    }
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {},
+    "version": 1
+  }
+}

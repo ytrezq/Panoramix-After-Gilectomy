@@ -1,0 +1,330 @@
+{
+  "contractName": "MocSwapperMock",
+  "sourceName": "contracts/mocks/MocSwapperMock.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "dataProviderAddress_",
+          "type": "address"
+        }
+      ],
+      "name": "MissingProviderData",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "getSafeMaxAmountToSwap",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "maxAmountToSwap_",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "maxAmountToSwap",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "maxAmountToSwap_",
+          "type": "uint256"
+        }
+      ],
+      "name": "setMaxAmountToSwap",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "swapResult_",
+          "type": "uint256"
+        }
+      ],
+      "name": "setSwapResult",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "swapCoinbase",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "amountOut",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amountOut_",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "swapCoinbaseExactOutput",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "amountIn",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amountIn_",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "swapRC20",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "amountOut",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amountOut_",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "swapRC20ExactOutput",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "amountIn",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "swapResult",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080806040523461001c5760001960005561029790816100228239f35b600080fdfe60806040908082526004908136101561001757600080fd5b600092833560e01c91826303c9e934146101dc575081630b3883fc146101bf5781632c0add93146101a05781632d9dea1914610158578163393c96bd1461011d5781635b232acd146100f95781638298a4be146100e0578163d1f62d1b146100a5575063d7cfecf51461008957600080fd5b346100a15760203660031901126100a1573560015580f35b5080fd5b91905060603660031901126100dc576001600160a01b039035818116036100dc57604435908116036100a157602090516024358152f35b8280fd5b5050346100a15760203660031901126100a15735815580f35b9050823461011a575061010f6020923690610225565b505092519283525050f35b80fd5b919050346100dc57816003193601126100dc576001600160a01b039035818116036100dc57602435908116036100a157602091549051908152f35b91905060603660031901126100dc576001600160a01b039035818116036100dc57604435908116036100a157600154602092508061019a575034905b51908152f35b90610194565b8390346100a157816003193601126100a1576020906001549051908152f35b8390346100a157816003193601126100a157602091549051908152f35b849084346100dc57916101f26020933690610225565b50506001549093509150508061020757508152f35b825250f35b35906001600160a01b038216820361022057565b600080fd5b908160a0910312610220576102398161020c565b916102466020830161020c565b9160408101359161025e60806060840135930161020c565b9056fea2646970667358221220101327ffd1572263bfcf7b92039825b1fb41e77da6e86d908a7cc033cc13c6a964736f6c63430008180033",
+  "deployedBytecode": "0x60806040908082526004908136101561001757600080fd5b600092833560e01c91826303c9e934146101dc575081630b3883fc146101bf5781632c0add93146101a05781632d9dea1914610158578163393c96bd1461011d5781635b232acd146100f95781638298a4be146100e0578163d1f62d1b146100a5575063d7cfecf51461008957600080fd5b346100a15760203660031901126100a1573560015580f35b5080fd5b91905060603660031901126100dc576001600160a01b039035818116036100dc57604435908116036100a157602090516024358152f35b8280fd5b5050346100a15760203660031901126100a15735815580f35b9050823461011a575061010f6020923690610225565b505092519283525050f35b80fd5b919050346100dc57816003193601126100dc576001600160a01b039035818116036100dc57602435908116036100a157602091549051908152f35b91905060603660031901126100dc576001600160a01b039035818116036100dc57604435908116036100a157600154602092508061019a575034905b51908152f35b90610194565b8390346100a157816003193601126100a1576020906001549051908152f35b8390346100a157816003193601126100a157602091549051908152f35b849084346100dc57916101f26020933690610225565b50506001549093509150508061020757508152f35b825250f35b35906001600160a01b038216820361022057565b600080fd5b908160a0910312610220576102398161020c565b916102466020830161020c565b9160408101359161025e60806060840135930161020c565b9056fea2646970667358221220101327ffd1572263bfcf7b92039825b1fb41e77da6e86d908a7cc033cc13c6a964736f6c63430008180033",
+  "linkReferences": {},
+  "deployedLinkReferences": {},
+  "devdoc": {
+    "kind": "dev",
+    "methods": {},
+    "version": 1
+  },
+  "evm": {
+    "bytecode": {
+      "functionDebugData": {},
+      "generatedSources": [],
+      "linkReferences": {},
+      "opcodes": "PUSH1 0x80 DUP1 PUSH1 0x40 MSTORE CALLVALUE PUSH2 0x1C JUMPI PUSH1 0x0 NOT PUSH1 0x0 SSTORE PUSH2 0x297 SWAP1 DUP2 PUSH2 0x22 DUP3 CODECOPY RETURN JUMPDEST PUSH1 0x0 DUP1 REVERT INVALID PUSH1 0x80 PUSH1 0x40 SWAP1 DUP1 DUP3 MSTORE PUSH1 0x4 SWAP1 DUP2 CALLDATASIZE LT ISZERO PUSH2 0x17 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH1 0x0 SWAP3 DUP4 CALLDATALOAD PUSH1 0xE0 SHR SWAP2 DUP3 PUSH4 0x3C9E934 EQ PUSH2 0x1DC JUMPI POP DUP2 PUSH4 0xB3883FC EQ PUSH2 0x1BF JUMPI DUP2 PUSH4 0x2C0ADD93 EQ PUSH2 0x1A0 JUMPI DUP2 PUSH4 0x2D9DEA19 EQ PUSH2 0x158 JUMPI DUP2 PUSH4 0x393C96BD EQ PUSH2 0x11D JUMPI DUP2 PUSH4 0x5B232ACD EQ PUSH2 0xF9 JUMPI DUP2 PUSH4 0x8298A4BE EQ PUSH2 0xE0 JUMPI DUP2 PUSH4 0xD1F62D1B EQ PUSH2 0xA5 JUMPI POP PUSH4 0xD7CFECF5 EQ PUSH2 0x89 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST CALLVALUE PUSH2 0xA1 JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0xA1 JUMPI CALLDATALOAD PUSH1 0x1 SSTORE DUP1 RETURN JUMPDEST POP DUP1 REVERT JUMPDEST SWAP2 SWAP1 POP PUSH1 0x60 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0xDC JUMPI PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB SWAP1 CALLDATALOAD DUP2 DUP2 AND SUB PUSH2 0xDC JUMPI PUSH1 0x44 CALLDATALOAD SWAP1 DUP2 AND SUB PUSH2 0xA1 JUMPI PUSH1 0x20 SWAP1 MLOAD PUSH1 0x24 CALLDATALOAD DUP2 MSTORE RETURN JUMPDEST DUP3 DUP1 REVERT JUMPDEST POP POP CALLVALUE PUSH2 0xA1 JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0xA1 JUMPI CALLDATALOAD DUP2 SSTORE DUP1 RETURN JUMPDEST SWAP1 POP DUP3 CALLVALUE PUSH2 0x11A JUMPI POP PUSH2 0x10F PUSH1 0x20 SWAP3 CALLDATASIZE SWAP1 PUSH2 0x225 JUMP JUMPDEST POP POP SWAP3 MLOAD SWAP3 DUP4 MSTORE POP POP RETURN JUMPDEST DUP1 REVERT JUMPDEST SWAP2 SWAP1 POP CALLVALUE PUSH2 0xDC JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0xDC JUMPI PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB SWAP1 CALLDATALOAD DUP2 DUP2 AND SUB PUSH2 0xDC JUMPI PUSH1 0x24 CALLDATALOAD SWAP1 DUP2 AND SUB PUSH2 0xA1 JUMPI PUSH1 0x20 SWAP2 SLOAD SWAP1 MLOAD SWAP1 DUP2 MSTORE RETURN JUMPDEST SWAP2 SWAP1 POP PUSH1 0x60 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0xDC JUMPI PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB SWAP1 CALLDATALOAD DUP2 DUP2 AND SUB PUSH2 0xDC JUMPI PUSH1 0x44 CALLDATALOAD SWAP1 DUP2 AND SUB PUSH2 0xA1 JUMPI PUSH1 0x1 SLOAD PUSH1 0x20 SWAP3 POP DUP1 PUSH2 0x19A JUMPI POP CALLVALUE SWAP1 JUMPDEST MLOAD SWAP1 DUP2 MSTORE RETURN JUMPDEST SWAP1 PUSH2 0x194 JUMP JUMPDEST DUP4 SWAP1 CALLVALUE PUSH2 0xA1 JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0xA1 JUMPI PUSH1 0x20 SWAP1 PUSH1 0x1 SLOAD SWAP1 MLOAD SWAP1 DUP2 MSTORE RETURN JUMPDEST DUP4 SWAP1 CALLVALUE PUSH2 0xA1 JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0xA1 JUMPI PUSH1 0x20 SWAP2 SLOAD SWAP1 MLOAD SWAP1 DUP2 MSTORE RETURN JUMPDEST DUP5 SWAP1 DUP5 CALLVALUE PUSH2 0xDC JUMPI SWAP2 PUSH2 0x1F2 PUSH1 0x20 SWAP4 CALLDATASIZE SWAP1 PUSH2 0x225 JUMP JUMPDEST POP POP PUSH1 0x1 SLOAD SWAP1 SWAP4 POP SWAP2 POP POP DUP1 PUSH2 0x207 JUMPI POP DUP2 MSTORE RETURN JUMPDEST DUP3 MSTORE POP RETURN JUMPDEST CALLDATALOAD SWAP1 PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB DUP3 AND DUP3 SUB PUSH2 0x220 JUMPI JUMP JUMPDEST PUSH1 0x0 DUP1 REVERT JUMPDEST SWAP1 DUP2 PUSH1 0xA0 SWAP2 SUB SLT PUSH2 0x220 JUMPI PUSH2 0x239 DUP2 PUSH2 0x20C JUMP JUMPDEST SWAP2 PUSH2 0x246 PUSH1 0x20 DUP4 ADD PUSH2 0x20C JUMP JUMPDEST SWAP2 PUSH1 0x40 DUP2 ADD CALLDATALOAD SWAP2 PUSH2 0x25E PUSH1 0x80 PUSH1 0x60 DUP5 ADD CALLDATALOAD SWAP4 ADD PUSH2 0x20C JUMP JUMPDEST SWAP1 JUMP INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 LT SGT 0x27 SELFDESTRUCT 0xD1 JUMPI 0x22 PUSH4 0xBFCF7B92 SUB SWAP9 0x25 0xB1 0xFB COINBASE 0xE7 PUSH30 0xA6E86D908A7CC033CC13C6A964736F6C6343000818003300000000000000 ",
+      "sourceMap": "126:1199:124:-:0;;;;;;;-1:-1:-1;;204:17:124;126:1199;;;;;;;;;;;"
+    },
+    "deployedBytecode": {
+      "functionDebugData": {
+        "abi_decode_address": {
+          "entryPoint": 524,
+          "id": null,
+          "parameterSlots": 1,
+          "returnSlots": 1
+        },
+        "abi_decode_addresst_addresst_uint256t_uint256t_address": {
+          "entryPoint": 549,
+          "id": null,
+          "parameterSlots": 2,
+          "returnSlots": 5
+        }
+      },
+      "generatedSources": [],
+      "immutableReferences": {},
+      "linkReferences": {},
+      "opcodes": "PUSH1 0x80 PUSH1 0x40 SWAP1 DUP1 DUP3 MSTORE PUSH1 0x4 SWAP1 DUP2 CALLDATASIZE LT ISZERO PUSH2 0x17 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH1 0x0 SWAP3 DUP4 CALLDATALOAD PUSH1 0xE0 SHR SWAP2 DUP3 PUSH4 0x3C9E934 EQ PUSH2 0x1DC JUMPI POP DUP2 PUSH4 0xB3883FC EQ PUSH2 0x1BF JUMPI DUP2 PUSH4 0x2C0ADD93 EQ PUSH2 0x1A0 JUMPI DUP2 PUSH4 0x2D9DEA19 EQ PUSH2 0x158 JUMPI DUP2 PUSH4 0x393C96BD EQ PUSH2 0x11D JUMPI DUP2 PUSH4 0x5B232ACD EQ PUSH2 0xF9 JUMPI DUP2 PUSH4 0x8298A4BE EQ PUSH2 0xE0 JUMPI DUP2 PUSH4 0xD1F62D1B EQ PUSH2 0xA5 JUMPI POP PUSH4 0xD7CFECF5 EQ PUSH2 0x89 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST CALLVALUE PUSH2 0xA1 JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0xA1 JUMPI CALLDATALOAD PUSH1 0x1 SSTORE DUP1 RETURN JUMPDEST POP DUP1 REVERT JUMPDEST SWAP2 SWAP1 POP PUSH1 0x60 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0xDC JUMPI PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB SWAP1 CALLDATALOAD DUP2 DUP2 AND SUB PUSH2 0xDC JUMPI PUSH1 0x44 CALLDATALOAD SWAP1 DUP2 AND SUB PUSH2 0xA1 JUMPI PUSH1 0x20 SWAP1 MLOAD PUSH1 0x24 CALLDATALOAD DUP2 MSTORE RETURN JUMPDEST DUP3 DUP1 REVERT JUMPDEST POP POP CALLVALUE PUSH2 0xA1 JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0xA1 JUMPI CALLDATALOAD DUP2 SSTORE DUP1 RETURN JUMPDEST SWAP1 POP DUP3 CALLVALUE PUSH2 0x11A JUMPI POP PUSH2 0x10F PUSH1 0x20 SWAP3 CALLDATASIZE SWAP1 PUSH2 0x225 JUMP JUMPDEST POP POP SWAP3 MLOAD SWAP3 DUP4 MSTORE POP POP RETURN JUMPDEST DUP1 REVERT JUMPDEST SWAP2 SWAP1 POP CALLVALUE PUSH2 0xDC JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0xDC JUMPI PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB SWAP1 CALLDATALOAD DUP2 DUP2 AND SUB PUSH2 0xDC JUMPI PUSH1 0x24 CALLDATALOAD SWAP1 DUP2 AND SUB PUSH2 0xA1 JUMPI PUSH1 0x20 SWAP2 SLOAD SWAP1 MLOAD SWAP1 DUP2 MSTORE RETURN JUMPDEST SWAP2 SWAP1 POP PUSH1 0x60 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0xDC JUMPI PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB SWAP1 CALLDATALOAD DUP2 DUP2 AND SUB PUSH2 0xDC JUMPI PUSH1 0x44 CALLDATALOAD SWAP1 DUP2 AND SUB PUSH2 0xA1 JUMPI PUSH1 0x1 SLOAD PUSH1 0x20 SWAP3 POP DUP1 PUSH2 0x19A JUMPI POP CALLVALUE SWAP1 JUMPDEST MLOAD SWAP1 DUP2 MSTORE RETURN JUMPDEST SWAP1 PUSH2 0x194 JUMP JUMPDEST DUP4 SWAP1 CALLVALUE PUSH2 0xA1 JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0xA1 JUMPI PUSH1 0x20 SWAP1 PUSH1 0x1 SLOAD SWAP1 MLOAD SWAP1 DUP2 MSTORE RETURN JUMPDEST DUP4 SWAP1 CALLVALUE PUSH2 0xA1 JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0xA1 JUMPI PUSH1 0x20 SWAP2 SLOAD SWAP1 MLOAD SWAP1 DUP2 MSTORE RETURN JUMPDEST DUP5 SWAP1 DUP5 CALLVALUE PUSH2 0xDC JUMPI SWAP2 PUSH2 0x1F2 PUSH1 0x20 SWAP4 CALLDATASIZE SWAP1 PUSH2 0x225 JUMP JUMPDEST POP POP PUSH1 0x1 SLOAD SWAP1 SWAP4 POP SWAP2 POP POP DUP1 PUSH2 0x207 JUMPI POP DUP2 MSTORE RETURN JUMPDEST DUP3 MSTORE POP RETURN JUMPDEST CALLDATALOAD SWAP1 PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB DUP3 AND DUP3 SUB PUSH2 0x220 JUMPI JUMP JUMPDEST PUSH1 0x0 DUP1 REVERT JUMPDEST SWAP1 DUP2 PUSH1 0xA0 SWAP2 SUB SLT PUSH2 0x220 JUMPI PUSH2 0x239 DUP2 PUSH2 0x20C JUMP JUMPDEST SWAP2 PUSH2 0x246 PUSH1 0x20 DUP4 ADD PUSH2 0x20C JUMP JUMPDEST SWAP2 PUSH1 0x40 DUP2 ADD CALLDATALOAD SWAP2 PUSH2 0x25E PUSH1 0x80 PUSH1 0x60 DUP5 ADD CALLDATALOAD SWAP4 ADD PUSH2 0x20C JUMP JUMPDEST SWAP1 JUMP INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 LT SGT 0x27 SELFDESTRUCT 0xD1 JUMPI 0x22 PUSH4 0xBFCF7B92 SUB SWAP9 0x25 0xB1 0xFB COINBASE 0xE7 PUSH30 0xA6E86D908A7CC033CC13C6A964736F6C6343000818003300000000000000 ",
+      "sourceMap": "126:1199:124:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;126:1199:124;;;;;;;;;;;;;;;;-1:-1:-1;126:1199:124;;-1:-1:-1;;126:1199:124;;;;-1:-1:-1;;;;;126:1199:124;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;126:1199:124;;;;;;;;;;;;;;;;;;;;;;;:::i;:::-;-1:-1:-1;;126:1199:124;;;;;-1:-1:-1;;126:1199:124;;;;;;;;;;;;;;;;;;;-1:-1:-1;;;;;126:1199:124;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;126:1199:124;;-1:-1:-1;;126:1199:124;;;;-1:-1:-1;;;;;126:1199:124;;;;;;;;;;;;;;;;590:10;126:1199;;;-1:-1:-1;590:15:124;;;608:9;;590:40;;126:1199;;;;;590:40;;;;126:1199;;;;;;;;;;;;;;;;227:25;126:1199;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::i;:::-;-1:-1:-1;;925:10:124;126:1199;;;-1:-1:-1;126:1199:124;-1:-1:-1;;925:15:124;;;:40;126:1199;;;925:40;126:1199;;-1:-1:-1;126:1199:124;;;;-1:-1:-1;;;;;126:1199:124;;;;;;:::o;:::-;;;;;;;;;;;;;;;;:::i;:::-;;;;;;;:::i;:::-;;;;;;;;;;;;;;;;:::i;:::-;;:::o"
+    },
+    "gasEstimates": {
+      "creation": {
+        "codeDepositCost": "132600",
+        "executionCost": "22293",
+        "totalCost": "154893"
+      },
+      "external": {
+        "getSafeMaxAmountToSwap(address,address)": "2449",
+        "maxAmountToSwap()": "2304",
+        "setMaxAmountToSwap(uint256)": "22394",
+        "setSwapResult(uint256)": "22433",
+        "swapCoinbase(address,uint256,address)": "2446",
+        "swapCoinbaseExactOutput(address,uint256,address)": "400",
+        "swapRC20(address,address,uint256,uint256,address)": "infinite",
+        "swapRC20ExactOutput(address,address,uint256,uint256,address)": "infinite",
+        "swapResult()": "2329"
+      }
+    },
+    "methodIdentifiers": {
+      "getSafeMaxAmountToSwap(address,address)": "393c96bd",
+      "maxAmountToSwap()": "0b3883fc",
+      "setMaxAmountToSwap(uint256)": "8298a4be",
+      "setSwapResult(uint256)": "d7cfecf5",
+      "swapCoinbase(address,uint256,address)": "2d9dea19",
+      "swapCoinbaseExactOutput(address,uint256,address)": "d1f62d1b",
+      "swapRC20(address,address,uint256,uint256,address)": "03c9e934",
+      "swapRC20ExactOutput(address,address,uint256,uint256,address)": "5b232acd",
+      "swapResult()": "2c0add93"
+    }
+  },
+  "metadata": "{\"compiler\":{\"version\":\"0.8.24+commit.e11b9ed9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"dataProviderAddress_\",\"type\":\"address\"}],\"name\":\"MissingProviderData\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"getSafeMaxAmountToSwap\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"maxAmountToSwap_\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"maxAmountToSwap\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"maxAmountToSwap_\",\"type\":\"uint256\"}],\"name\":\"setMaxAmountToSwap\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"swapResult_\",\"type\":\"uint256\"}],\"name\":\"setSwapResult\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"swapCoinbase\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"amountOut\",\"type\":\"uint256\"}],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amountOut_\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"swapCoinbaseExactOutput\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"amountIn\",\"type\":\"uint256\"}],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amountIn_\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"swapRC20\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"amountOut\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amountOut_\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"swapRC20ExactOutput\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"amountIn\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"swapResult\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/mocks/MocSwapperMock.sol\":\"MocSwapperMock\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"details\":{\"constantOptimizer\":true,\"cse\":true,\"deduplicate\":true,\"inliner\":true,\"jumpdestRemover\":true,\"orderLiterals\":true,\"peephole\":true,\"simpleCounterForLoopUncheckedIncrement\":true,\"yul\":true,\"yulDetails\":{\"optimizerSteps\":\"dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul[j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul]VcTOculjmul:fDnTOcmu\",\"stackAllocation\":true}},\"runs\":200},\"remappings\":[],\"viaIR\":true},\"sources\":{\"contracts/interfaces/IMocSwapper.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.24;\\n\\ninterface IMocSwapper {\\n    error MissingProviderData(address dataProviderAddress_);\\n\\n    /**\\n     * @notice wrap coinbase and swap it for another RC20 using exact input\\n     * @param tokenOut_ RC20 token to receive\\n     * @param amountOutMin_ minimum amount of tokens to receive\\n     * @param recipient_ address who receives the tokens\\n     * @return amountOut amount of RC20 tokens received\\n     */\\n    function swapCoinbase(\\n        address tokenOut_,\\n        uint256 amountOutMin_,\\n        address recipient_\\n    ) external payable returns (uint256 amountOut);\\n\\n    /**\\n     * @notice wrap coinbase and swap it for another RC20 using exact output\\n     * @param tokenOut_ RC20 token to receive\\n     * @param amountOut_ amount of tokens to receive in the swap\\n     * @param recipient_ address who receives the tokens\\n     * @return amountIn amount of RC20 tokens spent\\n     */\\n    function swapCoinbaseExactOutput(\\n        address tokenOut_,\\n        uint256 amountOut_,\\n        address recipient_\\n    ) external payable returns (uint256 amountIn);\\n\\n    /**\\n     * @notice swap RC20 token using exact input\\n     * @param tokenIn_ RC20 token to send\\n     * @param tokenOut_ token to receive. If address(0), unwrap it and send coinbase to the `recipient_`\\n     * @param amountIn_ amount of tokens to swap\\n     * @param amountOutMin_ minimum amount of tokens to receive\\n     * @param recipient_ address who receives the tokens\\n     * @return amountOut amount of RC20 tokens or coinbase received\\n     */\\n    function swapRC20(\\n        address tokenIn_,\\n        address tokenOut_,\\n        uint256 amountIn_,\\n        uint256 amountOutMin_,\\n        address recipient_\\n    ) external returns (uint256 amountOut);\\n\\n    /**\\n     * @notice swap RC20 token using exact output\\n     * @param tokenIn_ RC20 token to send\\n     * @param tokenOut_ token to receive. If address(0), unwrap it and send coinbase to the `recipient_`\\n     * @param amountOut_ amount of tokens to receive in the swap\\n     * @param amountInMax_ maximum amount of tokens to spend\\n     * @param recipient_ address who receives the tokens\\n     * @return amountIn amount of RC20 tokens or coinbase spent\\n     */\\n    function swapRC20ExactOutput(\\n        address tokenIn_,\\n        address tokenOut_,\\n        uint256 amountOut_,\\n        uint256 amountInMax_,\\n        address recipient_\\n    ) external returns (uint256 amountIn);\\n\\n    /**\\n     * @notice get the safe maximum amount of tokens to swap\\n     * @dev this function is used to prevent critical losses by a pool liquidity manipulation\\n     * @param tokenIn_ token to send\\n     * @param tokenOut_ token to receive\\n     * @return maxAmountToSwap maximum amount of tokens to swap\\n     */\\n    function getSafeMaxAmountToSwap(\\n        address tokenIn_,\\n        address tokenOut_\\n    ) external view returns (uint256 maxAmountToSwap);\\n}\\n\",\"keccak256\":\"0x29ff890969e5c3abff8d0b8bcb0b31b86551ef676f6f6dabc5b6a8bc83e5b2d1\",\"license\":\"UNLICENSED\"},\"contracts/mocks/MocSwapperMock.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.24;\\n\\nimport { IMocSwapper } from \\\"../interfaces/IMocSwapper.sol\\\";\\n\\ncontract MocSwapperMock is IMocSwapper {\\n    uint256 public maxAmountToSwap = type(uint256).max;\\n    uint256 public swapResult;\\n\\n    function setMaxAmountToSwap(uint256 maxAmountToSwap_) external {\\n        maxAmountToSwap = maxAmountToSwap_;\\n    }\\n\\n    function setSwapResult(uint256 swapResult_) external {\\n        swapResult = swapResult_;\\n    }\\n\\n    function swapCoinbase(address, uint256, address) external payable returns (uint256 amountOut) {\\n        return swapResult == 0 ? msg.value : swapResult;\\n    }\\n\\n    function swapCoinbaseExactOutput(address, uint256 amountOut_, address) external payable returns (uint256 amountIn) {\\n        return amountOut_;\\n    }\\n\\n    function swapRC20(address, address, uint256 amountIn_, uint256, address) external returns (uint256 amountOut) {\\n        return swapResult == 0 ? amountIn_ : swapResult;\\n    }\\n\\n    function swapRC20ExactOutput(\\n        address,\\n        address,\\n        uint256 amountOut_,\\n        uint256,\\n        address\\n    ) external returns (uint256 amountIn) {\\n        return amountOut_;\\n    }\\n\\n    function getSafeMaxAmountToSwap(address, address) external view returns (uint256 maxAmountToSwap_) {\\n        return maxAmountToSwap;\\n    }\\n}\\n\",\"keccak256\":\"0xc8fd3f89993b82c265467effddaec497c414b7f250687dc46211050f80ce8cbc\",\"license\":\"UNLICENSED\"}},\"version\":1}",
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 27111,
+        "contract": "contracts/mocks/MocSwapperMock.sol:MocSwapperMock",
+        "label": "maxAmountToSwap",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_uint256"
+      },
+      {
+        "astId": 27113,
+        "contract": "contracts/mocks/MocSwapperMock.sol:MocSwapperMock",
+        "label": "swapResult",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_uint256"
+      }
+    ],
+    "types": {
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      }
+    }
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {},
+    "version": 1
+  }
+}

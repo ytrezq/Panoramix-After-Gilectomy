@@ -1,0 +1,86 @@
+{
+  "contractName": "NonPayableMock",
+  "sourceName": "contracts/mocks/NonPayableMock.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "dest_",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes",
+          "name": "data_",
+          "type": "bytes"
+        }
+      ],
+      "name": "forward",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080806040523461001657610161908161001c8239f35b600080fdfe6080604052600436101561001257600080fd5b6000803560e01c636fadcf721461002857600080fd5b6040366003190112610097576004356001600160a01b0381168103610093576024359067ffffffffffffffff9081831161008f573660238401121561008f57826004013591821161008f57366024838501011161008f57602461008c9301906100b0565b80f35b8380fd5b5080fd5b80fd5b634e487b7160e01b600052604160045260246000fd5b60009283928160405192839283378101848152039134905af13d156101235767ffffffffffffffff903d82811161011e5760405192601f8201601f19908116603f011684019081118482101761011e5760405282523d6000602084013e5b156101165750565b805190602001fd5b61009a565b60609061010e56fea2646970667358221220eb90ae35248ea94e0fb3718bfc2516c98f2e9c32291189b15bcdc2740a6192f764736f6c63430008180033",
+  "deployedBytecode": "0x6080604052600436101561001257600080fd5b6000803560e01c636fadcf721461002857600080fd5b6040366003190112610097576004356001600160a01b0381168103610093576024359067ffffffffffffffff9081831161008f573660238401121561008f57826004013591821161008f57366024838501011161008f57602461008c9301906100b0565b80f35b8380fd5b5080fd5b80fd5b634e487b7160e01b600052604160045260246000fd5b60009283928160405192839283378101848152039134905af13d156101235767ffffffffffffffff903d82811161011e5760405192601f8201601f19908116603f011684019081118482101761011e5760405282523d6000602084013e5b156101165750565b805190602001fd5b61009a565b60609061010e56fea2646970667358221220eb90ae35248ea94e0fb3718bfc2516c98f2e9c32291189b15bcdc2740a6192f764736f6c63430008180033",
+  "linkReferences": {},
+  "deployedLinkReferences": {},
+  "devdoc": {
+    "kind": "dev",
+    "methods": {},
+    "version": 1
+  },
+  "evm": {
+    "bytecode": {
+      "functionDebugData": {},
+      "generatedSources": [],
+      "linkReferences": {},
+      "opcodes": "PUSH1 0x80 DUP1 PUSH1 0x40 MSTORE CALLVALUE PUSH2 0x16 JUMPI PUSH2 0x161 SWAP1 DUP2 PUSH2 0x1C DUP3 CODECOPY RETURN JUMPDEST PUSH1 0x0 DUP1 REVERT INVALID PUSH1 0x80 PUSH1 0x40 MSTORE PUSH1 0x4 CALLDATASIZE LT ISZERO PUSH2 0x12 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH1 0x0 DUP1 CALLDATALOAD PUSH1 0xE0 SHR PUSH4 0x6FADCF72 EQ PUSH2 0x28 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH1 0x40 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0x97 JUMPI PUSH1 0x4 CALLDATALOAD PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB DUP2 AND DUP2 SUB PUSH2 0x93 JUMPI PUSH1 0x24 CALLDATALOAD SWAP1 PUSH8 0xFFFFFFFFFFFFFFFF SWAP1 DUP2 DUP4 GT PUSH2 0x8F JUMPI CALLDATASIZE PUSH1 0x23 DUP5 ADD SLT ISZERO PUSH2 0x8F JUMPI DUP3 PUSH1 0x4 ADD CALLDATALOAD SWAP2 DUP3 GT PUSH2 0x8F JUMPI CALLDATASIZE PUSH1 0x24 DUP4 DUP6 ADD ADD GT PUSH2 0x8F JUMPI PUSH1 0x24 PUSH2 0x8C SWAP4 ADD SWAP1 PUSH2 0xB0 JUMP JUMPDEST DUP1 RETURN JUMPDEST DUP4 DUP1 REVERT JUMPDEST POP DUP1 REVERT JUMPDEST DUP1 REVERT JUMPDEST PUSH4 0x4E487B71 PUSH1 0xE0 SHL PUSH1 0x0 MSTORE PUSH1 0x41 PUSH1 0x4 MSTORE PUSH1 0x24 PUSH1 0x0 REVERT JUMPDEST PUSH1 0x0 SWAP3 DUP4 SWAP3 DUP2 PUSH1 0x40 MLOAD SWAP3 DUP4 SWAP3 DUP4 CALLDATACOPY DUP2 ADD DUP5 DUP2 MSTORE SUB SWAP2 CALLVALUE SWAP1 GAS CALL RETURNDATASIZE ISZERO PUSH2 0x123 JUMPI PUSH8 0xFFFFFFFFFFFFFFFF SWAP1 RETURNDATASIZE DUP3 DUP2 GT PUSH2 0x11E JUMPI PUSH1 0x40 MLOAD SWAP3 PUSH1 0x1F DUP3 ADD PUSH1 0x1F NOT SWAP1 DUP2 AND PUSH1 0x3F ADD AND DUP5 ADD SWAP1 DUP2 GT DUP5 DUP3 LT OR PUSH2 0x11E JUMPI PUSH1 0x40 MSTORE DUP3 MSTORE RETURNDATASIZE PUSH1 0x0 PUSH1 0x20 DUP5 ADD RETURNDATACOPY JUMPDEST ISZERO PUSH2 0x116 JUMPI POP JUMP JUMPDEST DUP1 MLOAD SWAP1 PUSH1 0x20 ADD REVERT JUMPDEST PUSH2 0x9A JUMP JUMPDEST PUSH1 0x60 SWAP1 PUSH2 0x10E JUMP INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 0xEB SWAP1 0xAE CALLDATALOAD 0x24 DUP15 0xA9 0x4E 0xF 0xB3 PUSH18 0x8BFC2516C98F2E9C32291189B15BCDC2740A PUSH2 0x92F7 PUSH5 0x736F6C6343 STOP ADDMOD XOR STOP CALLER ",
+      "sourceMap": "64:507:125:-:0;;;;;;;;;;;;;;;;;"
+    },
+    "deployedBytecode": {
+      "functionDebugData": {
+        "fun_forward": {
+          "entryPoint": 176,
+          "id": 27248,
+          "parameterSlots": 3,
+          "returnSlots": 0
+        },
+        "panic_error_0x41": {
+          "entryPoint": 154,
+          "id": null,
+          "parameterSlots": 0,
+          "returnSlots": 0
+        }
+      },
+      "generatedSources": [],
+      "immutableReferences": {},
+      "linkReferences": {},
+      "opcodes": "PUSH1 0x80 PUSH1 0x40 MSTORE PUSH1 0x4 CALLDATASIZE LT ISZERO PUSH2 0x12 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH1 0x0 DUP1 CALLDATALOAD PUSH1 0xE0 SHR PUSH4 0x6FADCF72 EQ PUSH2 0x28 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH1 0x40 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0x97 JUMPI PUSH1 0x4 CALLDATALOAD PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB DUP2 AND DUP2 SUB PUSH2 0x93 JUMPI PUSH1 0x24 CALLDATALOAD SWAP1 PUSH8 0xFFFFFFFFFFFFFFFF SWAP1 DUP2 DUP4 GT PUSH2 0x8F JUMPI CALLDATASIZE PUSH1 0x23 DUP5 ADD SLT ISZERO PUSH2 0x8F JUMPI DUP3 PUSH1 0x4 ADD CALLDATALOAD SWAP2 DUP3 GT PUSH2 0x8F JUMPI CALLDATASIZE PUSH1 0x24 DUP4 DUP6 ADD ADD GT PUSH2 0x8F JUMPI PUSH1 0x24 PUSH2 0x8C SWAP4 ADD SWAP1 PUSH2 0xB0 JUMP JUMPDEST DUP1 RETURN JUMPDEST DUP4 DUP1 REVERT JUMPDEST POP DUP1 REVERT JUMPDEST DUP1 REVERT JUMPDEST PUSH4 0x4E487B71 PUSH1 0xE0 SHL PUSH1 0x0 MSTORE PUSH1 0x41 PUSH1 0x4 MSTORE PUSH1 0x24 PUSH1 0x0 REVERT JUMPDEST PUSH1 0x0 SWAP3 DUP4 SWAP3 DUP2 PUSH1 0x40 MLOAD SWAP3 DUP4 SWAP3 DUP4 CALLDATACOPY DUP2 ADD DUP5 DUP2 MSTORE SUB SWAP2 CALLVALUE SWAP1 GAS CALL RETURNDATASIZE ISZERO PUSH2 0x123 JUMPI PUSH8 0xFFFFFFFFFFFFFFFF SWAP1 RETURNDATASIZE DUP3 DUP2 GT PUSH2 0x11E JUMPI PUSH1 0x40 MLOAD SWAP3 PUSH1 0x1F DUP3 ADD PUSH1 0x1F NOT SWAP1 DUP2 AND PUSH1 0x3F ADD AND DUP5 ADD SWAP1 DUP2 GT DUP5 DUP3 LT OR PUSH2 0x11E JUMPI PUSH1 0x40 MSTORE DUP3 MSTORE RETURNDATASIZE PUSH1 0x0 PUSH1 0x20 DUP5 ADD RETURNDATACOPY JUMPDEST ISZERO PUSH2 0x116 JUMPI POP JUMP JUMPDEST DUP1 MLOAD SWAP1 PUSH1 0x20 ADD REVERT JUMPDEST PUSH2 0x9A JUMP JUMPDEST PUSH1 0x60 SWAP1 PUSH2 0x10E JUMP INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 0xEB SWAP1 0xAE CALLDATALOAD 0x24 DUP15 0xA9 0x4E 0xF 0xB3 PUSH18 0x8BFC2516C98F2E9C32291189B15BCDC2740A PUSH2 0x92F7 PUSH5 0x736F6C6343 STOP ADDMOD XOR STOP CALLER ",
+      "sourceMap": "64:507:125:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;64:507:125;;;;;;-1:-1:-1;;;;;64:507:125;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;;;;94:475;276:37;94:475;;;64:507;;;;;;;;;;;;;276:37;295:9;;276:37;;;64:507;;;;;;;;;;;;;;;;;;-1:-1:-1;;64:507:125;;;;;;;;;;;;;;;;;;;;;;276:37;64:507;;;;;327:8;323:240;;94:475;:::o;323:240::-;411:142;;;;;;64:507;;:::i;:::-;;;;"
+    },
+    "gasEstimates": {
+      "creation": {
+        "codeDepositCost": "70600",
+        "executionCost": "129",
+        "totalCost": "70729"
+      },
+      "external": {
+        "forward(address,bytes)": "infinite"
+      }
+    },
+    "methodIdentifiers": {
+      "forward(address,bytes)": "6fadcf72"
+    }
+  },
+  "metadata": "{\"compiler\":{\"version\":\"0.8.24+commit.e11b9ed9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"dest_\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"data_\",\"type\":\"bytes\"}],\"name\":\"forward\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/mocks/NonPayableMock.sol\":\"NonPayableMock\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"details\":{\"constantOptimizer\":true,\"cse\":true,\"deduplicate\":true,\"inliner\":true,\"jumpdestRemover\":true,\"orderLiterals\":true,\"peephole\":true,\"simpleCounterForLoopUncheckedIncrement\":true,\"yul\":true,\"yulDetails\":{\"optimizerSteps\":\"dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul[j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul]VcTOculjmul:fDnTOcmu\",\"stackAllocation\":true}},\"runs\":200},\"remappings\":[],\"viaIR\":true},\"sources\":{\"contracts/mocks/NonPayableMock.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.24;\\n\\ncontract NonPayableMock {\\n    function forward(address dest_, bytes calldata data_) external payable {\\n        // solhint-disable-next-line avoid-low-level-calls\\n        (bool success, bytes memory returndata) = dest_.call{ value: msg.value }(data_);\\n        if (!success) {\\n            // solhint-disable-next-line no-inline-assembly\\n            assembly {\\n                let returndata_size := mload(returndata)\\n                revert(add(32, returndata), returndata_size)\\n            }\\n        }\\n    }\\n}\\n\",\"keccak256\":\"0xe26761e84aba25f5a381da28989b2b6f99ad0920e46585929e1a70c940d63af8\",\"license\":\"UNLICENSED\"}},\"version\":1}",
+  "storageLayout": {
+    "storage": [],
+    "types": null
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {},
+    "version": 1
+  }
+}

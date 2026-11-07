@@ -1,0 +1,146 @@
+{
+  "contractName": "GovernorMock",
+  "sourceName": "contracts/mocks/upgradeability/GovernorMock.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "contract IChangeContract",
+          "name": "changeContract",
+          "type": "address"
+        }
+      ],
+      "name": "executeChange",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "isAuthorized",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "isAuthorizedChanger",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bool",
+          "name": "isAuthorized_",
+          "type": "bool"
+        }
+      ],
+      "name": "setIsAuthorized",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080806040523461002357600160ff19600054161760005561019a90816100298239f35b600080fdfe60808060405260048036101561001457600080fd5b600091823560e01c90816357e6c2f41461014557508281638c777e82146100b5575080639e0a8e09146100895763d994d6d51461005057600080fd5b3461008557602036600319011261008557356001600160a01b038116036100825760ff60209154166040519015158152f35b80fd5b5080fd5b503461008557602036600319011261008557358015158091036100855760ff8019835416911617815580f35b8083346101425760203660031901126101425780356001600160a01b0381169081900361013e57803b1561013e5782908260405180958193631851865560e21b83525af1801561013357610107578280f35b67ffffffffffffffff8211610120575060405281808280f35b634e487b7160e01b835260419052602482fd5b6040513d85823e3d90fd5b5050fd5b50fd5b83903461008557816003193601126100855760ff602092541615158152f3fea26469706673582212203861fd70c8945e1772f9d183763e08491690a547217a2de5c9c34b3ce904253164736f6c63430008180033",
+  "deployedBytecode": "0x60808060405260048036101561001457600080fd5b600091823560e01c90816357e6c2f41461014557508281638c777e82146100b5575080639e0a8e09146100895763d994d6d51461005057600080fd5b3461008557602036600319011261008557356001600160a01b038116036100825760ff60209154166040519015158152f35b80fd5b5080fd5b503461008557602036600319011261008557358015158091036100855760ff8019835416911617815580f35b8083346101425760203660031901126101425780356001600160a01b0381169081900361013e57803b1561013e5782908260405180958193631851865560e21b83525af1801561013357610107578280f35b67ffffffffffffffff8211610120575060405281808280f35b634e487b7160e01b835260419052602482fd5b6040513d85823e3d90fd5b5050fd5b50fd5b83903461008557816003193601126100855760ff602092541615158152f3fea26469706673582212203861fd70c8945e1772f9d183763e08491690a547217a2de5c9c34b3ce904253164736f6c63430008180033",
+  "linkReferences": {},
+  "deployedLinkReferences": {},
+  "devdoc": {
+    "details": "Test only contract to mock Governor behavior ",
+    "kind": "dev",
+    "methods": {
+      "executeChange(address)": {
+        "params": {
+          "changeContract": "Address of the contract that will execute the changes"
+        }
+      }
+    },
+    "title": "GovernorMock",
+    "version": 1
+  },
+  "evm": {
+    "bytecode": {
+      "functionDebugData": {},
+      "generatedSources": [],
+      "linkReferences": {},
+      "opcodes": "PUSH1 0x80 DUP1 PUSH1 0x40 MSTORE CALLVALUE PUSH2 0x23 JUMPI PUSH1 0x1 PUSH1 0xFF NOT PUSH1 0x0 SLOAD AND OR PUSH1 0x0 SSTORE PUSH2 0x19A SWAP1 DUP2 PUSH2 0x29 DUP3 CODECOPY RETURN JUMPDEST PUSH1 0x0 DUP1 REVERT INVALID PUSH1 0x80 DUP1 PUSH1 0x40 MSTORE PUSH1 0x4 DUP1 CALLDATASIZE LT ISZERO PUSH2 0x14 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH1 0x0 SWAP2 DUP3 CALLDATALOAD PUSH1 0xE0 SHR SWAP1 DUP2 PUSH4 0x57E6C2F4 EQ PUSH2 0x145 JUMPI POP DUP3 DUP2 PUSH4 0x8C777E82 EQ PUSH2 0xB5 JUMPI POP DUP1 PUSH4 0x9E0A8E09 EQ PUSH2 0x89 JUMPI PUSH4 0xD994D6D5 EQ PUSH2 0x50 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST CALLVALUE PUSH2 0x85 JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0x85 JUMPI CALLDATALOAD PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB DUP2 AND SUB PUSH2 0x82 JUMPI PUSH1 0xFF PUSH1 0x20 SWAP2 SLOAD AND PUSH1 0x40 MLOAD SWAP1 ISZERO ISZERO DUP2 MSTORE RETURN JUMPDEST DUP1 REVERT JUMPDEST POP DUP1 REVERT JUMPDEST POP CALLVALUE PUSH2 0x85 JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0x85 JUMPI CALLDATALOAD DUP1 ISZERO ISZERO DUP1 SWAP2 SUB PUSH2 0x85 JUMPI PUSH1 0xFF DUP1 NOT DUP4 SLOAD AND SWAP2 AND OR DUP2 SSTORE DUP1 RETURN JUMPDEST DUP1 DUP4 CALLVALUE PUSH2 0x142 JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0x142 JUMPI DUP1 CALLDATALOAD PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB DUP2 AND SWAP1 DUP2 SWAP1 SUB PUSH2 0x13E JUMPI DUP1 EXTCODESIZE ISZERO PUSH2 0x13E JUMPI DUP3 SWAP1 DUP3 PUSH1 0x40 MLOAD DUP1 SWAP6 DUP2 SWAP4 PUSH4 0x18518655 PUSH1 0xE2 SHL DUP4 MSTORE GAS CALL DUP1 ISZERO PUSH2 0x133 JUMPI PUSH2 0x107 JUMPI DUP3 DUP1 RETURN JUMPDEST PUSH8 0xFFFFFFFFFFFFFFFF DUP3 GT PUSH2 0x120 JUMPI POP PUSH1 0x40 MSTORE DUP2 DUP1 DUP3 DUP1 RETURN JUMPDEST PUSH4 0x4E487B71 PUSH1 0xE0 SHL DUP4 MSTORE PUSH1 0x41 SWAP1 MSTORE PUSH1 0x24 DUP3 REVERT JUMPDEST PUSH1 0x40 MLOAD RETURNDATASIZE DUP6 DUP3 RETURNDATACOPY RETURNDATASIZE SWAP1 REVERT JUMPDEST POP POP REVERT JUMPDEST POP REVERT JUMPDEST DUP4 SWAP1 CALLVALUE PUSH2 0x85 JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0x85 JUMPI PUSH1 0xFF PUSH1 0x20 SWAP3 SLOAD AND ISZERO ISZERO DUP2 MSTORE RETURN INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 CODESIZE PUSH2 0xFD70 0xC8 SWAP5 MCOPY OR PUSH19 0xF9D183763E08491690A547217A2DE5C9C34B3C 0xE9 DIV 0x25 BALANCE PUSH5 0x736F6C6343 STOP ADDMOD XOR STOP CALLER ",
+      "sourceMap": "279:573:131:-:0;;;;;;;347:4;279:573;;347:4;279:573;;;347:4;279:573;;;;;;;;;;;"
+    },
+    "deployedBytecode": {
+      "functionDebugData": {},
+      "generatedSources": [],
+      "immutableReferences": {},
+      "linkReferences": {},
+      "opcodes": "PUSH1 0x80 DUP1 PUSH1 0x40 MSTORE PUSH1 0x4 DUP1 CALLDATASIZE LT ISZERO PUSH2 0x14 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH1 0x0 SWAP2 DUP3 CALLDATALOAD PUSH1 0xE0 SHR SWAP1 DUP2 PUSH4 0x57E6C2F4 EQ PUSH2 0x145 JUMPI POP DUP3 DUP2 PUSH4 0x8C777E82 EQ PUSH2 0xB5 JUMPI POP DUP1 PUSH4 0x9E0A8E09 EQ PUSH2 0x89 JUMPI PUSH4 0xD994D6D5 EQ PUSH2 0x50 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST CALLVALUE PUSH2 0x85 JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0x85 JUMPI CALLDATALOAD PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB DUP2 AND SUB PUSH2 0x82 JUMPI PUSH1 0xFF PUSH1 0x20 SWAP2 SLOAD AND PUSH1 0x40 MLOAD SWAP1 ISZERO ISZERO DUP2 MSTORE RETURN JUMPDEST DUP1 REVERT JUMPDEST POP DUP1 REVERT JUMPDEST POP CALLVALUE PUSH2 0x85 JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0x85 JUMPI CALLDATALOAD DUP1 ISZERO ISZERO DUP1 SWAP2 SUB PUSH2 0x85 JUMPI PUSH1 0xFF DUP1 NOT DUP4 SLOAD AND SWAP2 AND OR DUP2 SSTORE DUP1 RETURN JUMPDEST DUP1 DUP4 CALLVALUE PUSH2 0x142 JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH2 0x142 JUMPI DUP1 CALLDATALOAD PUSH1 0x1 PUSH1 0x1 PUSH1 0xA0 SHL SUB DUP2 AND SWAP1 DUP2 SWAP1 SUB PUSH2 0x13E JUMPI DUP1 EXTCODESIZE ISZERO PUSH2 0x13E JUMPI DUP3 SWAP1 DUP3 PUSH1 0x40 MLOAD DUP1 SWAP6 DUP2 SWAP4 PUSH4 0x18518655 PUSH1 0xE2 SHL DUP4 MSTORE GAS CALL DUP1 ISZERO PUSH2 0x133 JUMPI PUSH2 0x107 JUMPI DUP3 DUP1 RETURN JUMPDEST PUSH8 0xFFFFFFFFFFFFFFFF DUP3 GT PUSH2 0x120 JUMPI POP PUSH1 0x40 MSTORE DUP2 DUP1 DUP3 DUP1 RETURN JUMPDEST PUSH4 0x4E487B71 PUSH1 0xE0 SHL DUP4 MSTORE PUSH1 0x41 SWAP1 MSTORE PUSH1 0x24 DUP3 REVERT JUMPDEST PUSH1 0x40 MLOAD RETURNDATASIZE DUP6 DUP3 RETURNDATACOPY RETURNDATASIZE SWAP1 REVERT JUMPDEST POP POP REVERT JUMPDEST POP REVERT JUMPDEST DUP4 SWAP1 CALLVALUE PUSH2 0x85 JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH2 0x85 JUMPI PUSH1 0xFF PUSH1 0x20 SWAP3 SLOAD AND ISZERO ISZERO DUP2 MSTORE RETURN INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 CODESIZE PUSH2 0xFD70 0xC8 SWAP5 MCOPY OR PUSH19 0xF9D183763E08491690A547217A2DE5C9C34B3C 0xE9 DIV 0x25 BALANCE PUSH5 0x736F6C6343 STOP ADDMOD XOR STOP CALLER ",
+      "sourceMap": "279:573:131:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;279:573:131;;;;;-1:-1:-1;;;;;279:573:131;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;279:573:131;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;279:573:131;;;;;;-1:-1:-1;;;;;279:573:131;;;;;;;;598:24;;;;;279:573;;;;;;;;;;;;598:24;;;;;;;;;;279:573;;;598:24;279:573;;;;;;;;598:24;;279:573;;;;-1:-1:-1;;;279:573:131;;;;;;;;598:24;279:573;;;;;;;;;598:24;279:573;;;;;;;;;;;;;;;;;;;;;;;;;;;;;"
+    },
+    "gasEstimates": {
+      "creation": {
+        "codeDepositCost": "82000",
+        "executionCost": "24356",
+        "totalCost": "106356"
+      },
+      "external": {
+        "executeChange(address)": "infinite",
+        "isAuthorized()": "2274",
+        "isAuthorizedChanger(address)": "2387",
+        "setIsAuthorized(bool)": "24455"
+      }
+    },
+    "methodIdentifiers": {
+      "executeChange(address)": "8c777e82",
+      "isAuthorized()": "57e6c2f4",
+      "isAuthorizedChanger(address)": "d994d6d5",
+      "setIsAuthorized(bool)": "9e0a8e09"
+    }
+  },
+  "metadata": "{\"compiler\":{\"version\":\"0.8.24+commit.e11b9ed9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"contract IChangeContract\",\"name\":\"changeContract\",\"type\":\"address\"}],\"name\":\"executeChange\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"isAuthorized\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"isAuthorizedChanger\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bool\",\"name\":\"isAuthorized_\",\"type\":\"bool\"}],\"name\":\"setIsAuthorized\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"details\":\"Test only contract to mock Governor behavior \",\"kind\":\"dev\",\"methods\":{\"executeChange(address)\":{\"params\":{\"changeContract\":\"Address of the contract that will execute the changes\"}}},\"title\":\"GovernorMock\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"executeChange(address)\":{\"notice\":\"Function to be called to make the changes in changeContract\"}},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/mocks/upgradeability/GovernorMock.sol\":\"GovernorMock\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"details\":{\"constantOptimizer\":true,\"cse\":true,\"deduplicate\":true,\"inliner\":true,\"jumpdestRemover\":true,\"orderLiterals\":true,\"peephole\":true,\"simpleCounterForLoopUncheckedIncrement\":true,\"yul\":true,\"yulDetails\":{\"optimizerSteps\":\"dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul[j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul]VcTOculjmul:fDnTOcmu\",\"stackAllocation\":true}},\"runs\":200},\"remappings\":[],\"viaIR\":true},\"sources\":{\"contracts/interfaces/IChangeContract.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.24;\\n\\n/**\\n  @title IChangeContract\\n  @notice This interface is the one used by the governance system.\\n  @dev If you plan to do some changes to a system governed by this project you should write a contract\\n  that does those changes, like a recipe. This contract MUST not have ANY kind of public or external function\\n  that modifies the state of this ChangeContract, otherwise you could run into front-running issues when the governance\\n  system is fully in place.\\n */\\ninterface IChangeContract {\\n    /**\\n    @notice Override this function with a recipe of the changes to be done when this ChangeContract\\n    is executed\\n   */\\n    function execute() external;\\n}\\n\",\"keccak256\":\"0x48365b58eee9210491a9daf480f2b9f84a1f94fce045d3bacb485d08d6091d99\",\"license\":\"UNLICENSED\"},\"contracts/interfaces/IGovernor.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.24;\\n\\nimport { IChangeContract } from \\\"./IChangeContract.sol\\\";\\n\\n/**\\n  @title IGovernor\\n  @notice Governor interface. This functions should be overwritten to\\n  enable the communication with the rest of the system\\n  @dev This interface **MUST** be compatible with the corresponding Governance instance\\n  used on Production, from https://github.com/money-on-chain/Areopagus-Governance\\n  */\\ninterface IGovernor {\\n    /**\\n    @notice Function to be called to make the changes described in changeContract\\n    @dev This function should be protected somehow to only execute changes that\\n    benefit the system. This decision process is independent of this architecture\\n    therefore is independent of this interface too\\n    @param changeContract_ Address of the contract that will execute the changes\\n   */\\n    function executeChange(IChangeContract changeContract_) external;\\n\\n    /**\\n    @notice Returns whether this `changer_` is authorized to execute changes.\\n    @param changer_ Address of the contract that will execute the changes\\n   */\\n    function isAuthorizedChanger(address changer_) external view returns (bool);\\n}\\n\",\"keccak256\":\"0x1591bc1258deb8371c2afa418e579fdbd764d8222fcab282bc5d99f03bfc91f2\",\"license\":\"UNLICENSED\"},\"contracts/mocks/upgradeability/GovernorMock.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.24;\\n\\nimport { IGovernor } from \\\"../../interfaces/IGovernor.sol\\\";\\nimport { IChangeContract } from \\\"../../interfaces/IChangeContract.sol\\\";\\n\\n/**\\n  @title GovernorMock\\n  @dev Test only contract to mock Governor behavior \\n*/\\ncontract GovernorMock is IGovernor {\\n    bool public isAuthorized = true;\\n\\n    /**\\n    @notice Function to be called to make the changes in changeContract\\n    @param changeContract Address of the contract that will execute the changes\\n   */\\n    function executeChange(IChangeContract changeContract) external {\\n        changeContract.execute();\\n    }\\n\\n    function isAuthorizedChanger(address) external view override returns (bool) {\\n        return isAuthorized;\\n    }\\n\\n    function setIsAuthorized(bool isAuthorized_) public {\\n        isAuthorized = isAuthorized_;\\n    }\\n}\\n\",\"keccak256\":\"0xe05a7757cf258bf7ff3763750c47d6ed83c336daaabda8be54dc4b3a18d586b2\",\"license\":\"UNLICENSED\"}},\"version\":1}",
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 27735,
+        "contract": "contracts/mocks/upgradeability/GovernorMock.sol:GovernorMock",
+        "label": "isAuthorized",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_bool"
+      }
+    ],
+    "types": {
+      "t_bool": {
+        "encoding": "inplace",
+        "label": "bool",
+        "numberOfBytes": "1"
+      }
+    }
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {
+      "executeChange(address)": {
+        "notice": "Function to be called to make the changes in changeContract"
+      }
+    },
+    "version": 1
+  }
+}

@@ -1,0 +1,185 @@
+{
+  "contractName": "DataProviderMock",
+  "sourceName": "contracts/mocks/DataProviderMock.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "data_",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "data",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "deprecateDataProvider",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "has",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "peek",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "data_",
+          "type": "uint256"
+        }
+      ],
+      "name": "poke",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x60803461005d57601f61019d38819003918201601f19168301916001600160401b038311848410176100625780849260209460405283398101031261005d5751600055600160ff198154161760015560405161012490816100798239f35b600080fd5b634e487b7160e01b600052604160045260246000fdfe6080806040526004361015601257600080fd5b600090813560e01c90816332145f901460d657816359e02dd71460ac5750806373d4a13a146091578063b689d5ac1460705763c62dee0d14605257600080fd5b34606d5780600319360112606d5760ff196001541660015580f35b80fd5b5034606d5780600319360112606d57602060ff600154166040519015158152f35b5034606d5780600319360112606d5760209054604051908152f35b90503460d2578160031936011260d2576040915460ff6001541690825215156020820152f35b5080fd5b8234606d576020366003190112606d57600435815580f3fea26469706673582212207435a1110eded6b944907f74e08af4d7e79f48fb39ec26a52019622ecd34c9f864736f6c63430008180033",
+  "deployedBytecode": "0x6080806040526004361015601257600080fd5b600090813560e01c90816332145f901460d657816359e02dd71460ac5750806373d4a13a146091578063b689d5ac1460705763c62dee0d14605257600080fd5b34606d5780600319360112606d5760ff196001541660015580f35b80fd5b5034606d5780600319360112606d57602060ff600154166040519015158152f35b5034606d5780600319360112606d5760209054604051908152f35b90503460d2578160031936011260d2576040915460ff6001541690825215156020820152f35b5080fd5b8234606d576020366003190112606d57600435815580f3fea26469706673582212207435a1110eded6b944907f74e08af4d7e79f48fb39ec26a52019622ecd34c9f864736f6c63430008180033",
+  "linkReferences": {},
+  "deployedLinkReferences": {},
+  "devdoc": {
+    "kind": "dev",
+    "methods": {
+      "constructor": {
+        "params": {
+          "data_": "default data"
+        }
+      },
+      "peek()": {
+        "params": {
+          "data": "peeked",
+          "valid": "true if the data is valid"
+        }
+      }
+    },
+    "version": 1
+  },
+  "evm": {
+    "bytecode": {
+      "functionDebugData": {},
+      "generatedSources": [],
+      "linkReferences": {},
+      "opcodes": "PUSH1 0x80 CALLVALUE PUSH2 0x5D JUMPI PUSH1 0x1F PUSH2 0x19D CODESIZE DUP2 SWAP1 SUB SWAP2 DUP3 ADD PUSH1 0x1F NOT AND DUP4 ADD SWAP2 PUSH1 0x1 PUSH1 0x1 PUSH1 0x40 SHL SUB DUP4 GT DUP5 DUP5 LT OR PUSH2 0x62 JUMPI DUP1 DUP5 SWAP3 PUSH1 0x20 SWAP5 PUSH1 0x40 MSTORE DUP4 CODECOPY DUP2 ADD SUB SLT PUSH2 0x5D JUMPI MLOAD PUSH1 0x0 SSTORE PUSH1 0x1 PUSH1 0xFF NOT DUP2 SLOAD AND OR PUSH1 0x1 SSTORE PUSH1 0x40 MLOAD PUSH2 0x124 SWAP1 DUP2 PUSH2 0x79 DUP3 CODECOPY RETURN JUMPDEST PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH4 0x4E487B71 PUSH1 0xE0 SHL PUSH1 0x0 MSTORE PUSH1 0x41 PUSH1 0x4 MSTORE PUSH1 0x24 PUSH1 0x0 REVERT INVALID PUSH1 0x80 DUP1 PUSH1 0x40 MSTORE PUSH1 0x4 CALLDATASIZE LT ISZERO PUSH1 0x12 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH1 0x0 SWAP1 DUP2 CALLDATALOAD PUSH1 0xE0 SHR SWAP1 DUP2 PUSH4 0x32145F90 EQ PUSH1 0xD6 JUMPI DUP2 PUSH4 0x59E02DD7 EQ PUSH1 0xAC JUMPI POP DUP1 PUSH4 0x73D4A13A EQ PUSH1 0x91 JUMPI DUP1 PUSH4 0xB689D5AC EQ PUSH1 0x70 JUMPI PUSH4 0xC62DEE0D EQ PUSH1 0x52 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST CALLVALUE PUSH1 0x6D JUMPI DUP1 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH1 0x6D JUMPI PUSH1 0xFF NOT PUSH1 0x1 SLOAD AND PUSH1 0x1 SSTORE DUP1 RETURN JUMPDEST DUP1 REVERT JUMPDEST POP CALLVALUE PUSH1 0x6D JUMPI DUP1 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH1 0x6D JUMPI PUSH1 0x20 PUSH1 0xFF PUSH1 0x1 SLOAD AND PUSH1 0x40 MLOAD SWAP1 ISZERO ISZERO DUP2 MSTORE RETURN JUMPDEST POP CALLVALUE PUSH1 0x6D JUMPI DUP1 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH1 0x6D JUMPI PUSH1 0x20 SWAP1 SLOAD PUSH1 0x40 MLOAD SWAP1 DUP2 MSTORE RETURN JUMPDEST SWAP1 POP CALLVALUE PUSH1 0xD2 JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH1 0xD2 JUMPI PUSH1 0x40 SWAP2 SLOAD PUSH1 0xFF PUSH1 0x1 SLOAD AND SWAP1 DUP3 MSTORE ISZERO ISZERO PUSH1 0x20 DUP3 ADD MSTORE RETURN JUMPDEST POP DUP1 REVERT JUMPDEST DUP3 CALLVALUE PUSH1 0x6D JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH1 0x6D JUMPI PUSH1 0x4 CALLDATALOAD DUP2 SSTORE DUP1 RETURN INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 PUSH21 0x35A1110EDED6B944907F74E08AF4D7E79F48FB39EC 0x26 0xA5 KECCAK256 NOT PUSH3 0x2ECD34 0xC9 0xF8 PUSH5 0x736F6C6343 STOP ADDMOD XOR STOP CALLER ",
+      "sourceMap": "130:512:117:-:0;;;;;;;;;;;;;-1:-1:-1;;130:512:117;;;;-1:-1:-1;;;;;130:512:117;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;130:512:117;;;;;;;;;;;;;;;;;;;;-1:-1:-1;130:512:117;;;;;;-1:-1:-1;130:512:117;;;;;-1:-1:-1;130:512:117"
+    },
+    "deployedBytecode": {
+      "functionDebugData": {},
+      "generatedSources": [],
+      "immutableReferences": {},
+      "linkReferences": {},
+      "opcodes": "PUSH1 0x80 DUP1 PUSH1 0x40 MSTORE PUSH1 0x4 CALLDATASIZE LT ISZERO PUSH1 0x12 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH1 0x0 SWAP1 DUP2 CALLDATALOAD PUSH1 0xE0 SHR SWAP1 DUP2 PUSH4 0x32145F90 EQ PUSH1 0xD6 JUMPI DUP2 PUSH4 0x59E02DD7 EQ PUSH1 0xAC JUMPI POP DUP1 PUSH4 0x73D4A13A EQ PUSH1 0x91 JUMPI DUP1 PUSH4 0xB689D5AC EQ PUSH1 0x70 JUMPI PUSH4 0xC62DEE0D EQ PUSH1 0x52 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST CALLVALUE PUSH1 0x6D JUMPI DUP1 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH1 0x6D JUMPI PUSH1 0xFF NOT PUSH1 0x1 SLOAD AND PUSH1 0x1 SSTORE DUP1 RETURN JUMPDEST DUP1 REVERT JUMPDEST POP CALLVALUE PUSH1 0x6D JUMPI DUP1 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH1 0x6D JUMPI PUSH1 0x20 PUSH1 0xFF PUSH1 0x1 SLOAD AND PUSH1 0x40 MLOAD SWAP1 ISZERO ISZERO DUP2 MSTORE RETURN JUMPDEST POP CALLVALUE PUSH1 0x6D JUMPI DUP1 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH1 0x6D JUMPI PUSH1 0x20 SWAP1 SLOAD PUSH1 0x40 MLOAD SWAP1 DUP2 MSTORE RETURN JUMPDEST SWAP1 POP CALLVALUE PUSH1 0xD2 JUMPI DUP2 PUSH1 0x3 NOT CALLDATASIZE ADD SLT PUSH1 0xD2 JUMPI PUSH1 0x40 SWAP2 SLOAD PUSH1 0xFF PUSH1 0x1 SLOAD AND SWAP1 DUP3 MSTORE ISZERO ISZERO PUSH1 0x20 DUP3 ADD MSTORE RETURN JUMPDEST POP DUP1 REVERT JUMPDEST DUP3 CALLVALUE PUSH1 0x6D JUMPI PUSH1 0x20 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH1 0x6D JUMPI PUSH1 0x4 CALLDATALOAD DUP2 SSTORE DUP1 RETURN INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 PUSH21 0x35A1110EDED6B944907F74E08AF4D7E79F48FB39EC 0x26 0xA5 KECCAK256 NOT PUSH3 0x2ECD34 0xC9 0xF8 PUSH5 0x736F6C6343 STOP ADDMOD XOR STOP CALLER ",
+      "sourceMap": "130:512:117:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;622:11;130:512;;622:11;130:512;;;;;;;;;;;;;;;;;;;;;204:15;130:512;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;471:3;130:512;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;130:512:117;;;;;;;;;"
+    },
+    "gasEstimates": {
+      "creation": {
+        "codeDepositCost": "58400",
+        "executionCost": "infinite",
+        "totalCost": "infinite"
+      },
+      "external": {
+        "data()": "2310",
+        "deprecateDataProvider()": "24440",
+        "has()": "2344",
+        "peek()": "4413",
+        "poke(uint256)": "22250"
+      }
+    },
+    "methodIdentifiers": {
+      "data()": "73d4a13a",
+      "deprecateDataProvider()": "c62dee0d",
+      "has()": "b689d5ac",
+      "peek()": "59e02dd7",
+      "poke(uint256)": "32145f90"
+    }
+  },
+  "metadata": "{\"compiler\":{\"version\":\"0.8.24+commit.e11b9ed9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"data_\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[],\"name\":\"data\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"deprecateDataProvider\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"has\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"peek\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"data_\",\"type\":\"uint256\"}],\"name\":\"poke\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"constructor\":{\"params\":{\"data_\":\"default data\"}},\"peek()\":{\"params\":{\"data\":\"peeked\",\"valid\":\"true if the data is valid\"}}},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"constructor\":{\"notice\":\"constructor\"},\"peek()\":{\"notice\":\"returns the given `data` if `valid`\"}},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/mocks/DataProviderMock.sol\":\"DataProviderMock\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"details\":{\"constantOptimizer\":true,\"cse\":true,\"deduplicate\":true,\"inliner\":true,\"jumpdestRemover\":true,\"orderLiterals\":true,\"peephole\":true,\"simpleCounterForLoopUncheckedIncrement\":true,\"yul\":true,\"yulDetails\":{\"optimizerSteps\":\"dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul[j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul]VcTOculjmul:fDnTOcmu\",\"stackAllocation\":true}},\"runs\":200},\"remappings\":[],\"viaIR\":true},\"sources\":{\"contracts/interfaces/IDataProvider.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.24;\\n\\n/**\\n * @title IDataProvider\\n * @notice Interface for peeking the data from an oracle,\\n *         compatible with Amphiraos and OMoC-Decentralized Oracles\\n * @dev https://github.com/money-on-chain/Amphiraos-Oracle\\n * @dev https://github.com/money-on-chain/OMoC-Decentralized-Oracle\\n */\\ninterface IDataProvider {\\n    /**\\n     * @notice returns the given `data` if `valid`\\n     * @param data peeked\\n     * @param valid true if the data is valid\\n     */\\n    function peek() external view returns (bytes32 data, bool valid);\\n}\\n\",\"keccak256\":\"0x5ce68b4b9773fe512c03f84f173ab43359c4377d44cd07c01d9f3d514dd1958c\",\"license\":\"UNLICENSED\"},\"contracts/mocks/DataProviderMock.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.24;\\n\\nimport { IDataProvider } from \\\"../interfaces/IDataProvider.sol\\\";\\n\\ncontract DataProviderMock is IDataProvider {\\n    bytes32 public data;\\n    bool public has;\\n\\n    /**\\n     * @notice constructor\\n     * @param data_ default data\\n     */\\n    constructor(uint256 data_) {\\n        data = bytes32(data_);\\n        has = true;\\n    }\\n\\n    function peek() external view returns (bytes32, bool) {\\n        return (data, has);\\n    }\\n\\n    function poke(uint256 data_) external {\\n        data = bytes32(data_);\\n    }\\n\\n    function deprecateDataProvider() external {\\n        has = false;\\n    }\\n}\\n\",\"keccak256\":\"0x43ed7897b70782a92184e9f58e78f103632f977042042b0e4f47399b0165e791\",\"license\":\"UNLICENSED\"}},\"version\":1}",
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 25547,
+        "contract": "contracts/mocks/DataProviderMock.sol:DataProviderMock",
+        "label": "data",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_bytes32"
+      },
+      {
+        "astId": 25549,
+        "contract": "contracts/mocks/DataProviderMock.sol:DataProviderMock",
+        "label": "has",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_bool"
+      }
+    ],
+    "types": {
+      "t_bool": {
+        "encoding": "inplace",
+        "label": "bool",
+        "numberOfBytes": "1"
+      },
+      "t_bytes32": {
+        "encoding": "inplace",
+        "label": "bytes32",
+        "numberOfBytes": "32"
+      }
+    }
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {
+      "constructor": {
+        "notice": "constructor"
+      },
+      "peek()": {
+        "notice": "returns the given `data` if `valid`"
+      }
+    },
+    "version": 1
+  }
+}

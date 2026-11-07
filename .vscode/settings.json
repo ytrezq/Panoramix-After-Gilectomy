@@ -1,0 +1,27 @@
+{
+    "mocha.requires": [
+        "ts-node/register/files"
+    ],
+    "mocha.files.glob": "test/**/*.ts",
+    "cSpell.enableFiletypes": [
+        "solidity", "markdown"
+    ],
+    "cSpell.words": [
+        "basefee",
+        "multicollateral",
+        "oper",
+        "PREC",
+        "Rebalance",
+        "rebalancing",
+        "struct",
+        "Structs",
+        "Thrld"
+    ],
+    "solidity.formatter": "prettier",
+    "[solidity]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "files.watcherExclude": {
+        "**/target": true
+    }
+}

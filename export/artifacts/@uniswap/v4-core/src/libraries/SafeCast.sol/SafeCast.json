@@ -1,0 +1,65 @@
+{
+  "contractName": "SafeCast",
+  "sourceName": "@uniswap/v4-core/src/libraries/SafeCast.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "SafeCastOverflow",
+      "type": "error"
+    }
+  ],
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea2646970667358221220079cda5f86b66d43cc4488cc7d161d0c0a809b4e8067486c424ef26a9e4f4b7a64736f6c63430008180033",
+  "deployedBytecode": "0x600080fdfea2646970667358221220079cda5f86b66d43cc4488cc7d161d0c0a809b4e8067486c424ef26a9e4f4b7a64736f6c63430008180033",
+  "linkReferences": {},
+  "deployedLinkReferences": {},
+  "devdoc": {
+    "kind": "dev",
+    "methods": {},
+    "title": "Safe casting methods",
+    "version": 1
+  },
+  "evm": {
+    "bytecode": {
+      "functionDebugData": {},
+      "generatedSources": [],
+      "linkReferences": {},
+      "opcodes": "PUSH1 0x80 DUP1 PUSH1 0x40 MSTORE CALLVALUE PUSH1 0x17 JUMPI PUSH1 0x3A SWAP1 DUP2 PUSH1 0x1D DUP3 CODECOPY ADDRESS DUP2 POP POP RETURN JUMPDEST PUSH1 0x0 DUP1 REVERT INVALID PUSH1 0x0 DUP1 REVERT INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 SMOD SWAP13 0xDA PUSH0 DUP7 0xB6 PUSH14 0x43CC4488CC7D161D0C0A809B4E80 PUSH8 0x486C424EF26A9E4F 0x4B PUSH27 0x64736F6C6343000818003300000000000000000000000000000000 ",
+      "sourceMap": "201:2067:62:-:0;;;;;;;;;;;;;;;;;;;;;"
+    },
+    "deployedBytecode": {
+      "functionDebugData": {},
+      "generatedSources": [],
+      "immutableReferences": {},
+      "linkReferences": {},
+      "opcodes": "PUSH1 0x0 DUP1 REVERT INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 SMOD SWAP13 0xDA PUSH0 DUP7 0xB6 PUSH14 0x43CC4488CC7D161D0C0A809B4E80 PUSH8 0x486C424EF26A9E4F 0x4B PUSH27 0x64736F6C6343000818003300000000000000000000000000000000 ",
+      "sourceMap": "201:2067:62:-:0;;"
+    },
+    "gasEstimates": {
+      "creation": {
+        "codeDepositCost": "11600",
+        "executionCost": "infinite",
+        "totalCost": "infinite"
+      },
+      "internal": {
+        "toInt128(int256)": "infinite",
+        "toInt128(uint256)": "infinite",
+        "toInt256(uint256)": "infinite",
+        "toUint128(int128)": "infinite",
+        "toUint128(uint256)": "infinite",
+        "toUint160(uint256)": "infinite"
+      }
+    },
+    "methodIdentifiers": {}
+  },
+  "metadata": "{\"compiler\":{\"version\":\"0.8.24+commit.e11b9ed9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"name\":\"SafeCastOverflow\",\"type\":\"error\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"title\":\"Safe casting methods\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"notice\":\"Contains methods for safely casting between types\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"@uniswap/v4-core/src/libraries/SafeCast.sol\":\"SafeCast\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"details\":{\"constantOptimizer\":true,\"cse\":true,\"deduplicate\":true,\"inliner\":true,\"jumpdestRemover\":true,\"orderLiterals\":true,\"peephole\":true,\"simpleCounterForLoopUncheckedIncrement\":true,\"yul\":true,\"yulDetails\":{\"optimizerSteps\":\"dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul[j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul]VcTOculjmul:fDnTOcmu\",\"stackAllocation\":true}},\"runs\":200},\"remappings\":[],\"viaIR\":true},\"sources\":{\"@uniswap/v4-core/src/libraries/CustomRevert.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.0;\\n\\n/// @title Library for reverting with custom errors efficiently\\n/// @notice Contains functions for reverting with custom errors with different argument types efficiently\\n/// @dev To use this library, declare `using CustomRevert for bytes4;` and replace `revert CustomError()` with\\n/// `CustomError.selector.revertWith()`\\n/// @dev The functions may tamper with the free memory pointer but it is fine since the call context is exited immediately\\nlibrary CustomRevert {\\n    /// @dev ERC-7751 error for wrapping bubbled up reverts\\n    error WrappedError(address target, bytes4 selector, bytes reason, bytes details);\\n\\n    /// @dev Reverts with the selector of a custom error in the scratch space\\n    function revertWith(bytes4 selector) internal pure {\\n        assembly (\\\"memory-safe\\\") {\\n            mstore(0, selector)\\n            revert(0, 0x04)\\n        }\\n    }\\n\\n    /// @dev Reverts with a custom error with an address argument in the scratch space\\n    function revertWith(bytes4 selector, address addr) internal pure {\\n        assembly (\\\"memory-safe\\\") {\\n            mstore(0, selector)\\n            mstore(0x04, and(addr, 0xffffffffffffffffffffffffffffffffffffffff))\\n            revert(0, 0x24)\\n        }\\n    }\\n\\n    /// @dev Reverts with a custom error with an int24 argument in the scratch space\\n    function revertWith(bytes4 selector, int24 value) internal pure {\\n        assembly (\\\"memory-safe\\\") {\\n            mstore(0, selector)\\n            mstore(0x04, signextend(2, value))\\n            revert(0, 0x24)\\n        }\\n    }\\n\\n    /// @dev Reverts with a custom error with a uint160 argument in the scratch space\\n    function revertWith(bytes4 selector, uint160 value) internal pure {\\n        assembly (\\\"memory-safe\\\") {\\n            mstore(0, selector)\\n            mstore(0x04, and(value, 0xffffffffffffffffffffffffffffffffffffffff))\\n            revert(0, 0x24)\\n        }\\n    }\\n\\n    /// @dev Reverts with a custom error with two int24 arguments\\n    function revertWith(bytes4 selector, int24 value1, int24 value2) internal pure {\\n        assembly (\\\"memory-safe\\\") {\\n            let fmp := mload(0x40)\\n            mstore(fmp, selector)\\n            mstore(add(fmp, 0x04), signextend(2, value1))\\n            mstore(add(fmp, 0x24), signextend(2, value2))\\n            revert(fmp, 0x44)\\n        }\\n    }\\n\\n    /// @dev Reverts with a custom error with two uint160 arguments\\n    function revertWith(bytes4 selector, uint160 value1, uint160 value2) internal pure {\\n        assembly (\\\"memory-safe\\\") {\\n            let fmp := mload(0x40)\\n            mstore(fmp, selector)\\n            mstore(add(fmp, 0x04), and(value1, 0xffffffffffffffffffffffffffffffffffffffff))\\n            mstore(add(fmp, 0x24), and(value2, 0xffffffffffffffffffffffffffffffffffffffff))\\n            revert(fmp, 0x44)\\n        }\\n    }\\n\\n    /// @dev Reverts with a custom error with two address arguments\\n    function revertWith(bytes4 selector, address value1, address value2) internal pure {\\n        assembly (\\\"memory-safe\\\") {\\n            let fmp := mload(0x40)\\n            mstore(fmp, selector)\\n            mstore(add(fmp, 0x04), and(value1, 0xffffffffffffffffffffffffffffffffffffffff))\\n            mstore(add(fmp, 0x24), and(value2, 0xffffffffffffffffffffffffffffffffffffffff))\\n            revert(fmp, 0x44)\\n        }\\n    }\\n\\n    /// @notice bubble up the revert message returned by a call and revert with a wrapped ERC-7751 error\\n    /// @dev this method can be vulnerable to revert data bombs\\n    function bubbleUpAndRevertWith(\\n        address revertingContract,\\n        bytes4 revertingFunctionSelector,\\n        bytes4 additionalContext\\n    ) internal pure {\\n        bytes4 wrappedErrorSelector = WrappedError.selector;\\n        assembly (\\\"memory-safe\\\") {\\n            // Ensure the size of the revert data is a multiple of 32 bytes\\n            let encodedDataSize := mul(div(add(returndatasize(), 31), 32), 32)\\n\\n            let fmp := mload(0x40)\\n\\n            // Encode wrapped error selector, address, function selector, offset, additional context, size, revert reason\\n            mstore(fmp, wrappedErrorSelector)\\n            mstore(add(fmp, 0x04), and(revertingContract, 0xffffffffffffffffffffffffffffffffffffffff))\\n            mstore(\\n                add(fmp, 0x24),\\n                and(revertingFunctionSelector, 0xffffffff00000000000000000000000000000000000000000000000000000000)\\n            )\\n            // offset revert reason\\n            mstore(add(fmp, 0x44), 0x80)\\n            // offset additional context\\n            mstore(add(fmp, 0x64), add(0xa0, encodedDataSize))\\n            // size revert reason\\n            mstore(add(fmp, 0x84), returndatasize())\\n            // revert reason\\n            returndatacopy(add(fmp, 0xa4), 0, returndatasize())\\n            // size additional context\\n            mstore(add(fmp, add(0xa4, encodedDataSize)), 0x04)\\n            // additional context\\n            mstore(\\n                add(fmp, add(0xc4, encodedDataSize)),\\n                and(additionalContext, 0xffffffff00000000000000000000000000000000000000000000000000000000)\\n            )\\n            revert(fmp, add(0xe4, encodedDataSize))\\n        }\\n    }\\n}\\n\",\"keccak256\":\"0x111ed3031b6990c80a93ae35dde6b6ac0b7e6af471388fdd7461e91edda9b7de\",\"license\":\"MIT\"},\"@uniswap/v4-core/src/libraries/SafeCast.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.0;\\n\\nimport {CustomRevert} from \\\"./CustomRevert.sol\\\";\\n\\n/// @title Safe casting methods\\n/// @notice Contains methods for safely casting between types\\nlibrary SafeCast {\\n    using CustomRevert for bytes4;\\n\\n    error SafeCastOverflow();\\n\\n    /// @notice Cast a uint256 to a uint160, revert on overflow\\n    /// @param x The uint256 to be downcasted\\n    /// @return y The downcasted integer, now type uint160\\n    function toUint160(uint256 x) internal pure returns (uint160 y) {\\n        y = uint160(x);\\n        if (y != x) SafeCastOverflow.selector.revertWith();\\n    }\\n\\n    /// @notice Cast a uint256 to a uint128, revert on overflow\\n    /// @param x The uint256 to be downcasted\\n    /// @return y The downcasted integer, now type uint128\\n    function toUint128(uint256 x) internal pure returns (uint128 y) {\\n        y = uint128(x);\\n        if (x != y) SafeCastOverflow.selector.revertWith();\\n    }\\n\\n    /// @notice Cast a int128 to a uint128, revert on overflow or underflow\\n    /// @param x The int128 to be casted\\n    /// @return y The casted integer, now type uint128\\n    function toUint128(int128 x) internal pure returns (uint128 y) {\\n        if (x < 0) SafeCastOverflow.selector.revertWith();\\n        y = uint128(x);\\n    }\\n\\n    /// @notice Cast a int256 to a int128, revert on overflow or underflow\\n    /// @param x The int256 to be downcasted\\n    /// @return y The downcasted integer, now type int128\\n    function toInt128(int256 x) internal pure returns (int128 y) {\\n        y = int128(x);\\n        if (y != x) SafeCastOverflow.selector.revertWith();\\n    }\\n\\n    /// @notice Cast a uint256 to a int256, revert on overflow\\n    /// @param x The uint256 to be casted\\n    /// @return y The casted integer, now type int256\\n    function toInt256(uint256 x) internal pure returns (int256 y) {\\n        y = int256(x);\\n        if (y < 0) SafeCastOverflow.selector.revertWith();\\n    }\\n\\n    /// @notice Cast a uint256 to a int128, revert on overflow\\n    /// @param x The uint256 to be downcasted\\n    /// @return The downcasted integer, now type int128\\n    function toInt128(uint256 x) internal pure returns (int128) {\\n        if (x >= 1 << 127) SafeCastOverflow.selector.revertWith();\\n        return int128(int256(x));\\n    }\\n}\\n\",\"keccak256\":\"0x42c4a24f996a14d358be397b71f7ec9d7daf666aaec78002c63315a6ee67aa86\",\"license\":\"MIT\"}},\"version\":1}",
+  "storageLayout": {
+    "storage": [],
+    "types": null
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {},
+    "notice": "Contains methods for safely casting between types",
+    "version": 1
+  }
+}

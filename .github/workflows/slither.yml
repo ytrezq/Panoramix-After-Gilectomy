@@ -1,0 +1,17 @@
+name: Slither Analysis
+on: [workflow_dispatch]
+env:
+  INFURA_API_KEY: "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+  MNEMONIC: "here is where your twelve words mnemonic should be put my friend"
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run Slither
+        uses: crytic/slither-action@v0.4.0
+        with:
+          node-version: "22.14.0"
+          fail-on: none

@@ -1,0 +1,77 @@
+{
+  "contractName": "BeforeSwapDeltaLibrary",
+  "sourceName": "@uniswap/v4-core/src/types/BeforeSwapDelta.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "ZERO_DELTA",
+      "outputs": [
+        {
+          "internalType": "BeforeSwapDelta",
+          "name": "",
+          "type": "int256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608080604052346018576075908161001e823930815050f35b600080fdfe6080806040526004361015601257600080fd5b60003560e01c6391cb466914602657600080fd5b6000366003190112603a5780600060209252f35b600080fdfea264697066735822122030de923b2c0de280963b9cf188df6f24a820450f64eb690ad93d123a6d742a9164736f6c63430008180033",
+  "deployedBytecode": "0x6080806040526004361015601257600080fd5b60003560e01c6391cb466914602657600080fd5b6000366003190112603a5780600060209252f35b600080fdfea264697066735822122030de923b2c0de280963b9cf188df6f24a820450f64eb690ad93d123a6d742a9164736f6c63430008180033",
+  "linkReferences": {},
+  "deployedLinkReferences": {},
+  "devdoc": {
+    "kind": "dev",
+    "methods": {},
+    "version": 1
+  },
+  "evm": {
+    "bytecode": {
+      "functionDebugData": {},
+      "generatedSources": [],
+      "linkReferences": {},
+      "opcodes": "PUSH1 0x80 DUP1 PUSH1 0x40 MSTORE CALLVALUE PUSH1 0x18 JUMPI PUSH1 0x75 SWAP1 DUP2 PUSH2 0x1E DUP3 CODECOPY ADDRESS DUP2 POP POP RETURN JUMPDEST PUSH1 0x0 DUP1 REVERT INVALID PUSH1 0x80 DUP1 PUSH1 0x40 MSTORE PUSH1 0x4 CALLDATASIZE LT ISZERO PUSH1 0x12 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH1 0x0 CALLDATALOAD PUSH1 0xE0 SHR PUSH4 0x91CB4669 EQ PUSH1 0x26 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH1 0x0 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH1 0x3A JUMPI DUP1 PUSH1 0x0 PUSH1 0x20 SWAP3 MSTORE RETURN JUMPDEST PUSH1 0x0 DUP1 REVERT INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 ADDRESS 0xDE SWAP3 EXTCODESIZE 0x2C 0xD 0xE2 DUP1 SWAP7 EXTCODESIZE SWAP13 CALL DUP9 0xDF PUSH16 0x24A820450F64EB690AD93D123A6D742A SWAP2 PUSH5 0x736F6C6343 STOP ADDMOD XOR STOP CALLER ",
+      "sourceMap": "688:777:64:-:0;;;;;;;;;;;;;;;;;;;;;"
+    },
+    "deployedBytecode": {
+      "functionDebugData": {},
+      "generatedSources": [],
+      "immutableReferences": {},
+      "linkReferences": {},
+      "opcodes": "PUSH1 0x80 DUP1 PUSH1 0x40 MSTORE PUSH1 0x4 CALLDATASIZE LT ISZERO PUSH1 0x12 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH1 0x0 CALLDATALOAD PUSH1 0xE0 SHR PUSH4 0x91CB4669 EQ PUSH1 0x26 JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST PUSH1 0x0 CALLDATASIZE PUSH1 0x3 NOT ADD SLT PUSH1 0x3A JUMPI DUP1 PUSH1 0x0 PUSH1 0x20 SWAP3 MSTORE RETURN JUMPDEST PUSH1 0x0 DUP1 REVERT INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 ADDRESS 0xDE SWAP3 EXTCODESIZE 0x2C 0xD 0xE2 DUP1 SWAP7 EXTCODESIZE SWAP13 CALL DUP9 0xDF PUSH16 0x24A820450F64EB690AD93D123A6D742A SWAP2 PUSH5 0x736F6C6343 STOP ADDMOD XOR STOP CALLER ",
+      "sourceMap": "688:777:64:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;688:777:64;;;;;;;;;;;;;"
+    },
+    "gasEstimates": {
+      "creation": {
+        "codeDepositCost": "23400",
+        "executionCost": "infinite",
+        "totalCost": "infinite"
+      },
+      "external": {
+        "ZERO_DELTA()": "129"
+      },
+      "internal": {
+        "getSpecifiedDelta(BeforeSwapDelta)": "infinite",
+        "getUnspecifiedDelta(BeforeSwapDelta)": "infinite"
+      }
+    },
+    "methodIdentifiers": {
+      "ZERO_DELTA()": "91cb4669"
+    }
+  },
+  "metadata": "{\"compiler\":{\"version\":\"0.8.24+commit.e11b9ed9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"name\":\"ZERO_DELTA\",\"outputs\":[{\"internalType\":\"BeforeSwapDelta\",\"name\":\"\",\"type\":\"int256\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"ZERO_DELTA()\":{\"notice\":\"A BeforeSwapDelta of 0\"}},\"notice\":\"Library for getting the specified and unspecified deltas from the BeforeSwapDelta type\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"@uniswap/v4-core/src/types/BeforeSwapDelta.sol\":\"BeforeSwapDeltaLibrary\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"details\":{\"constantOptimizer\":true,\"cse\":true,\"deduplicate\":true,\"inliner\":true,\"jumpdestRemover\":true,\"orderLiterals\":true,\"peephole\":true,\"simpleCounterForLoopUncheckedIncrement\":true,\"yul\":true,\"yulDetails\":{\"optimizerSteps\":\"dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul[j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul]VcTOculjmul:fDnTOcmu\",\"stackAllocation\":true}},\"runs\":200},\"remappings\":[],\"viaIR\":true},\"sources\":{\"@uniswap/v4-core/src/types/BeforeSwapDelta.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.0;\\n\\n// Return type of the beforeSwap hook.\\n// Upper 128 bits is the delta in specified tokens. Lower 128 bits is delta in unspecified tokens (to match the afterSwap hook)\\ntype BeforeSwapDelta is int256;\\n\\n// Creates a BeforeSwapDelta from specified and unspecified\\nfunction toBeforeSwapDelta(int128 deltaSpecified, int128 deltaUnspecified)\\n    pure\\n    returns (BeforeSwapDelta beforeSwapDelta)\\n{\\n    assembly (\\\"memory-safe\\\") {\\n        beforeSwapDelta := or(shl(128, deltaSpecified), and(sub(shl(128, 1), 1), deltaUnspecified))\\n    }\\n}\\n\\n/// @notice Library for getting the specified and unspecified deltas from the BeforeSwapDelta type\\nlibrary BeforeSwapDeltaLibrary {\\n    /// @notice A BeforeSwapDelta of 0\\n    BeforeSwapDelta public constant ZERO_DELTA = BeforeSwapDelta.wrap(0);\\n\\n    /// extracts int128 from the upper 128 bits of the BeforeSwapDelta\\n    /// returned by beforeSwap\\n    function getSpecifiedDelta(BeforeSwapDelta delta) internal pure returns (int128 deltaSpecified) {\\n        assembly (\\\"memory-safe\\\") {\\n            deltaSpecified := sar(128, delta)\\n        }\\n    }\\n\\n    /// extracts int128 from the lower 128 bits of the BeforeSwapDelta\\n    /// returned by beforeSwap and afterSwap\\n    function getUnspecifiedDelta(BeforeSwapDelta delta) internal pure returns (int128 deltaUnspecified) {\\n        assembly (\\\"memory-safe\\\") {\\n            deltaUnspecified := signextend(15, delta)\\n        }\\n    }\\n}\\n\",\"keccak256\":\"0x2a774312d91285313d569da1a718c909655da5432310417692097a1d4dc83a78\",\"license\":\"MIT\"}},\"version\":1}",
+  "storageLayout": {
+    "storage": [],
+    "types": null
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {
+      "ZERO_DELTA()": {
+        "notice": "A BeforeSwapDelta of 0"
+      }
+    },
+    "notice": "Library for getting the specified and unspecified deltas from the BeforeSwapDelta type",
+    "version": 1
+  }
+}
