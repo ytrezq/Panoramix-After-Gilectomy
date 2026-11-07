@@ -28,8 +28,19 @@
    "languages": {
     ".sol": 51
    },
-   "copied": false,
-   "why": "reference only: no license allowing redistribution found"
+   "copied": true,
+   "why": "its license does not allow redistribution: added as git subtrees at the user's request, its license files kept in the tree",
+   "via": "git subtree",
+   "dest": "Benqi-fi__BENQI-Smart-Contracts",
+   "files": 52,
+   "subtrees": [
+    {
+     "prefix": "Benqi-fi__BENQI-Smart-Contracts",
+     "url": "https://github.com/Benqi-fi/BENQI-Smart-Contracts",
+     "commit": "e0cfd244726719dfe027c9740878d64d1cad98f2"
+    }
+   ],
+   "npm": {}
   }
  ]
 }
