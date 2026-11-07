@@ -2,32 +2,6 @@
  "program": "1inch-aqua",
  "repos": [
   {
-   "repo": "https://github.com/1inch/aqua",
-   "ref": "v1.0.0",
-   "scope_paths": [
-    "src/Aqua.sol",
-    "src/AquaRouter.sol",
-    "src/libs/Balance.sol"
-   ],
-   "fetched": "2026-11-07",
-   "commit": "81c26e4619ce21556ab02b3284ee2685de21fb18",
-   "submodules": [],
-   "license": {
-    "file": "LICENSE",
-    "spdx": "LicenseRef-Degensoft-Aqua-Source-1.1",
-    "package_json": "SEE LICENSE IN LICENSE",
-    "headers": {
-     "LicenseRef-Degensoft-Aqua-Source-1.1": 22
-    }
-   },
-   "redistributable": false,
-   "languages": {
-    ".sol": 22
-   },
-   "copied": false,
-   "why": "reference only: no license allowing redistribution found"
-  },
-  {
    "repo": "https://github.com/1inch/swap-vm",
    "ref": "v1.0.2",
    "scope_paths": [
@@ -110,6 +84,47 @@
    "files": 319,
    "bytes": 1619758,
    "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/1inch/aqua",
+   "ref": "v1.0.0",
+   "scope_paths": [
+    "src/Aqua.sol",
+    "src/AquaRouter.sol",
+    "src/libs/Balance.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "81c26e4619ce21556ab02b3284ee2685de21fb18",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "LicenseRef-Degensoft-Aqua-Source-1.1",
+    "package_json": "SEE LICENSE IN LICENSE",
+    "headers": {
+     "LicenseRef-Degensoft-Aqua-Source-1.1": 22
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 22
+   },
+   "copied": true,
+   "why": "its license does not allow redistribution: added as git subtrees at the user's request, its license files kept in the tree",
+   "via": "git subtree",
+   "dest": "1inch__aqua",
+   "files": 351,
+   "subtrees": [
+    {
+     "prefix": "1inch__aqua",
+     "url": "https://github.com/1inch/aqua",
+     "commit": "81c26e4619ce21556ab02b3284ee2685de21fb18"
+    }
+   ],
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "5.4.0",
+    "node_modules/@1inch/solidity-utils": "6.9.7",
+    "node_modules/forge-std": "1.11.0"
+   }
   }
  ]
 }
