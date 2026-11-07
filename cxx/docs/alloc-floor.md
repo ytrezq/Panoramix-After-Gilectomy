@@ -1,28 +1,38 @@
-# The free-memory floor, and solc's allocation as an option
+# The free-memory floor: copies proven disjoint, no assumption about the compiler
 
-## The question
+## The question, and the answer
 
-The question left to the user on 20 October was whether to accept the
-assumption "solc always allocates memory upwards" so that the memory copies
-still printed as loops would be converted, as the asm and python do. The
-copies left were 1,055 printed loop lines in 92 contracts, against the
-asm's 242. On the corpus rebuilt on 7 November (`tools/fetch_corpus.sh`,
-861 contracts), `tools/loop_lines.py` counts 5,262 while loops with a
-plain copy line in their body, in 241 contracts, out of 8,997 while
-loops.
+On 20 October one question was left to the user: should the decompiler assume
+solc's allocation discipline ("memory is only ever allocated upwards from
+`mem[64]`, and a pointer designates an object allocated earlier"), so that
+the memory copies still printed as loops are converted, as the asm and python
+convert them? The copies left were 1,055 printed loop lines in 92 contracts,
+against the asm's 242. On the corpus rebuilt on 7 November
+(`tools/fetch_corpus.sh`, 861 contracts), `tools/loop_lines.py` counts 5,262
+while loops with a plain copy line in their body, in 241 contracts, out of
+8,997 while loops.
 
-The two answers are not exclusive, and both are designed here:
+The user's answer (7 November): **assume nothing about the compiler**; the
+bytecode is not necessarily solidity's. It may come from Vyper, from Yul or
+inline assembly, from Huff, Fe, LLL, or be written by hand, and hostile code
+may imitate a compiler's idioms to mislead a reader. So:
 
-1. **By default, exact.** Most of these copies can be *proven* disjoint from
-   facts the trace already holds, if the analysis knows how far the free
-   memory pointer has grown: a lower bound of `mem[64]`, the *floor*, carried
-   along the trace (part 1). No assumption.
-2. **As an option, solc's allocation.** What the floor can't prove,
-   `--assume-alloc` takes from solc's allocation discipline, stated as a
-   precise assumption that execution checks on every contract (part 2). It
-   is narrower than python's unchecked rule (`RewriteOptions::dubious`,
-   python's "we should check for overwrites here, but skipping for now"),
-   which `loops_fuzz_test` shows to be unsound on overlapping copies.
+1. Nothing is converted on the strength of a compiler's conventions. A copy
+   becomes a memory range only when the trace itself proves the conversion
+   exact. The option designed on 7 November (`--assume-alloc`, solc's
+   allocation stated as an assumption) is **dropped**.
+2. What the conventions gave is recovered by **proofs** from the facts the
+   trace holds: a lower bound of the words the code keeps at constant
+   addresses (the *floor*, part 1), and where a pointer came from (its
+   *provenance*, part 2).
+3. The assumptions about solidity the decompiler inherited from python are
+   **removed** (part 3) and replaced by the same proofs.
+
+`mem[64]` has no special status anywhere below. It is the word solc keeps its
+free memory pointer in, so it is the word the floor helps most on the corpus,
+but the floor is computed for whatever constant-address word the code reads
+and writes, from the code's own writes; for code that keeps no such word
+(Vyper's static allocation) it is simply unknown and changes nothing.
 
 ## What the remaining copies look like
 
@@ -38,195 +48,166 @@ source):
 
 **First shape: the destination reads `mem[64]`.** The forward pass of
 `cleanup_mems` lost `mem[64]`'s value, typically at the join of an IF
-whose branches allocate differently. OpenZeppelin 4.9's TokenTimelock is
-an example: `_callOptionalReturn` copies the return data only when there
+whose branches set it to different values. OpenZeppelin 4.9's TokenTimelock
+is an example: `_callOptionalReturn` copies the return data only when there
 is some. After the join, `mem[mem[64]] = 0x08c379a0...` writes at an
-unknown place. Every piece known below it is then forgotten, among them
-the length word of the revert string at `ceil32(_1) + 228`. So the
-length isn't forwarded, the loop's trip count isn't known, and the
-destination can't be compared with the source.
+unknown place, and every piece known below it is forgotten, among them the
+length word of the revert string at `ceil32(_1) + 228`. So the length isn't
+forwarded, the loop's trip count isn't known, and the destination can't be
+compared with the source. Both branches left `mem[64] >= ceil32(_1) + 292`,
+above that piece: a floor carried through the join keeps the piece, the loop
+runs once on known bytes, and the destination, at or above the floor, is
+apart from the source below it.
 
-Both branches left `mem[64] >= ceil32(_1) + 292`, above that piece. A
-floor carried through the join keeps the piece. The loop then runs once
-on known bytes, and the destination, at or above the floor, is apart from
-the source below it.
-
-**Second shape: a decoded offset.** An offset decoded from data (ABI
-decoding of return data or calldata) places the source inside an earlier
-allocation, and the destination is the allocation made after it. The
-decoder's checks (`require _9 + 32 + len <= return_data.size`...) are path
-facts that bound the source's end below the buffer's end. The buffer's end
-is at most the floor, which is at most the destination. That is a
+**Second shape: a decoded offset.** An offset decoded from data (return data,
+calldata) places the source inside a buffer the trace copied earlier, and the
+destination lies past it. The decoder's checks (`require _9 + 32 + len <=
+return_data.size`...) are path facts bounding the source's end by the
+buffer's end; the buffer's end is proven at most the floor when the buffer
+was written below it; the destination is at or above the floor. That is a
 comparison chained through a relational fact, not a constant bound.
 
-**Third shape: a pointer stored in memory.** These are proven only when
-the forward pass knows where the stored pointer came from. Otherwise they
-are exactly what part 2 assumes.
+**Third shape: a pointer stored in memory.** Proven only when the trace
+shows where the stored pointer came from (part 2). Otherwise it stays a loop.
 
-## Part 1: the floor (sound)
+## Part 1: the floor
 
 ### Definition
 
-At a point p of a function's trace, the floor `F(p)` is an expression made
-of values available at p (never of `mem[64]` itself) such that on every
-run reaching p:
+For a constant address `A` (a word `MEM(RANGE(A, 32))` the code reads; `A =
+64` in practice), at a point p of a function's trace, the floor `F_A(p)` is an
+expression made of values available at p (never of `mem[A]` itself) such that
+on every run reaching p:
 
-    word(mem[64]) >= word(F(p))      (unsigned; F(p) itself doesn't wrap)
+    word(mem[A]) >= word(F_A(p))      (unsigned; F_A(p) itself doesn't wrap)
 
-The floor is NIL when nothing is known.
+A floor is NIL when nothing is known. Nothing in the definition presumes what
+the word is used for.
 
 ### Transfer
 
-- **Start of a function.** The entry lines (the dispatcher's `mem[64] =
-  128`) set it. For an internal function or a trace without entry lines,
-  the floor is NIL.
-- **`SETMEM(RANGE(64, 32), v)`.** `F = v`. It is exact, and needs no
-  monotonicity: the floor bounds `mem[64]`, not the allocations.
-- **Any other memory write.** A SETMEM, a call's or a copy's output, or a
-  loop's writes summarized by lot 6's `LoopSummary::mem_writes` leaves `F`
-  as it is when its range provably misses `[64, 96)`
-  (`mem::overlaps(range, RANGE(64, 32), facts) == Tri::False`). Otherwise
-  F becomes NIL. A write that may go anywhere (`writes_any & S_MEM`, an
-  INTERNAL, an UNDEFINED) also makes it NIL.
-- **A line that sets a variable F reads.** A SETVAR, setvars, or a call's
-  results: F is rewritten to the variable's old value when the line gives
-  it (`assignments` + `substitute`, as `Live::assign` does). Otherwise F
-  becomes NIL.
-- **Other state changes.** Storage, calls and transient storage make F NIL
-  only when F reads what they change (F_STORAGE, F_STATE...). A floor made
-  of a call's result is rare.
-- **IF / MERGED_IF.** Each branch starts from F. After the IF, a branch
-  that ends (halts, jumps away) is ignored. When both go on, the join is
-  the first candidate among `F_then`, `F_else` and `F_before` that is
-  `alg::le` both branches' floors (`Top::Memory`, the facts). Otherwise it
-  is NIL. `F_before` is a valid candidate only when `le(F_before, F_then)`
-  and `le(F_before, F_else)` are proven: a branch could also lower
-  `mem[64]`.
+- **Start of a function.** The entry lines (the dispatcher's own writes, e.g.
+  `mem[64] = 128` when the code wrote that) set it. For an internal function,
+  or a trace without entry lines, every floor is NIL.
+- **`SETMEM(RANGE(A, 32), v)`.** `F_A = v`: exact, needs no monotonicity (the
+  floor bounds the word, not the allocations). A write that may lower the
+  word (inline assembly restoring a saved pointer) is just another value.
+- **Any other memory write** (a SETMEM, a call's or a copy's output, a loop's
+  writes as lot 6's `LoopSummary::mem_writes` summarizes them) leaves `F_A`
+  when its range provably misses `[A, A + 32)` (`mem::overlaps(range,
+  RANGE(A, 32), facts) == Tri::False`); otherwise `F_A` becomes NIL. A write
+  that may go anywhere (`writes_any & S_MEM`, an INTERNAL, an UNDEFINED) makes
+  every floor NIL.
+- **A line that sets a variable F reads** (a SETVAR, setvars, a call's
+  results): F is rewritten to the variable's old value when the line gives it
+  (`assignments` + `substitute`, as `Live::assign` does); otherwise NIL.
+- **Other state changes** (storage, calls, transient storage) make F NIL only
+  when F reads what they change (F_STORAGE, F_STATE...).
+- **IF / MERGED_IF.** Each branch starts from F. After the IF, a branch that
+  ends (halts, jumps away) is ignored. When both go on, the join is the first
+  candidate among `F_then`, `F_else` and `F_before` proven `<=` both
+  branches' floors (`alg::le`, `Top::Memory`, the facts), else NIL.
+  `F_before` qualifies only when `le(F_before, F_then)` and `le(F_before,
+  F_else)` are proven: a branch may have lowered the word.
 - **WHILE / LABEL (a loop's head).** The floor before the loop when no
-  iteration's write may touch `[64, 96)` (the loop's summary), NIL
-  otherwise. A later improvement could keep the floor of a loop that only
-  ever bumps `mem[64]`.
+  iteration's write may touch `[A, A + 32)` (the loop's summary), NIL
+  otherwise. (Later: keep the floor of a loop whose writes of the word are
+  each proven `>=` the word's value before them.)
 
 ### Uses
 
-A comparison that involves the current `mem[64]` gets the floor through a
-substitution. Wherever an address reads `MEM(RANGE(64, 32))`, the
-comparison sees `F + δ` instead, δ being one fresh atom per point,
-non-negative and bounded by the memory model (an address the run accesses
-is below 2^64: `Top::Memory`). The existing decisions (`mem::overlaps`,
-`alg::le` with `Top::Memory` and the path facts) then decide
-`mem[64] + 4 >= ceil32(_1) + 260` from `F = ceil32(_1) + 292` with no new
-algebra.
+A decision that involves the current `mem[A]` gets the floor through a
+substitution: where an expression reads `MEM(RANGE(A, 32))`, the question sees
+`F_A + δ` instead, δ one fresh atom per point, non-negative and bounded as the
+memory model bounds an address the run accesses (`Top::Memory`). The existing
+decisions (`mem::overlaps`, `alg::le` with `Top::Memory` and the path facts)
+then decide `mem[64] + 4 >= ceil32(_1) + 260` from `F = ceil32(_1) + 292`
+with no new algebra. The substitution is only for deciding: the trace keeps
+`mem[A]`.
 
-The substitution is only for deciding. The trace keeps `mem[64]` as it is.
-
-1. **Forwarding** (`simplify/mems.cpp`, the forward pass). MemState's
-   overlap decisions for a write, and the pieces a read is made of, see the
-   floor. A write at `mem[64] + k` then keeps the pieces below the floor.
+1. **Forwarding** (`simplify/mems.cpp`, the forward pass): MemState's overlap
+   decisions for a write, and the pieces a read is made of, see the floor; a
+   write at `mem[64] + k` keeps the pieces below the floor.
 2. **Copy proofs** (`loops/rewrite.cpp`, `to_setmem`, called from
-   `SetmemWalk`). The same substitution in the `apart` / `ahead` proofs and
-   in `misses`: a destination at `mem[64] + k`, `k >= 0`, starts at or above
-   the floor. `SetmemWalk` carries the floor next to its path facts.
-3. **Relational path facts** (the second shape). The copy proof chains
-   `src_end <= buffer_end <= F <= dst_start` through the decoder's
-   requires. Where `alg::le` can't chain a relational Cond fact with
-   `ceil32` and sums, the decision procedure gets the missing step: an
-   `int_le` through one fact `a <= b` with offsets, sound under the
-   no-wrap conditions it already proves. Only what the corpus needs.
+   `SetmemWalk`): the same substitution in the `apart` / `ahead` proofs and in
+   `misses`; `SetmemWalk` carries the floors next to its path facts.
+3. **Conditions** (what part 3 removes from the ranges): the decisions of the
+   simplifier that read `mem[A]` (`cleanup_conds` and the others that decide
+   with the path facts) get `mem[A] >= F_A` as a path fact at that point.
+4. **Relational facts** (the second shape): the copy proof chains `src_end <=
+   buffer_end <= F <= dst_start` through the decoder's requires; where
+   `alg::le` can't chain a relational fact with `ceil32` and sums, the
+   decision procedure gets the missing step (an `int_le` through one fact `a
+   <= b` with offsets, sound under the no-wrap conditions it already proves).
+   Only what the corpus needs.
 
-The floor is computed by one small module, `mem/floor.{hpp,cpp}`, used by
-both walks. It is a value type with `transfer(line)`, `branch()`,
-`join(a, b)`, `loop_head(while_line)` and `substitute(expr)`, so the two
-walks can't disagree.
+One small module, `mem/floor.{hpp,cpp}`, computes the floors for every walk
+(a value type: `transfer(line)`, `branch()`, `join(a, b)`,
+`loop_head(while_line)`, `substitute(expr)`, `facts()`), so the walks can't
+disagree.
 
 ### Soundness
 
-The invariant holds by induction on the trace:
-
-- the floor is only made equal to a value `mem[64]` was given;
-- it is kept only across lines that provably don't change `mem[64]`;
-- it is rewritten through the assignments of the variables it reads;
-- at a join, it is lowered to a value proven at most both branches'.
-
-The substitution reads the comparison as "for some δ >= 0". That is
-exactly what the invariant gives.
-
+By induction on the trace: a floor is only made equal to a value the word was
+given; it is kept only across lines that provably don't change the word; it is
+rewritten through the assignments of the variables it reads; at a join it is
+lowered to a value proven at most both branches'. The substitution reads the
+question as "for some δ >= 0", which is exactly what the invariant gives.
 Every rewrite keeps its own checks (`apart`, `ahead`, `misses`, the
-induction's trips). The floor only adds facts. The stagecheck on the whole
-corpus, at every stage, must stay at 0 different.
+induction's trips); the floor only adds facts.
 
-## Part 2: solc's allocation, as an option (`--assume-alloc`)
+## Part 2: provenance (the third shape, exact)
 
-### The assumption
+A source address read from memory, `mem[t]`, is placed below the floor only
+when the forward pass knows the value stored at `t` (a piece of MemState) and
+that value is itself an earlier floor value `F_A(q)` of a point q where the
+word was then advanced past the object: the trace wrote `mem[A] = F_A(q) + s`
+with `s` proven at least the object's extent the copy reads. Then
+`src + n <= F_A(q) + s <= F_A(p) <= dst`. Every link is a fact of the trace;
+when one is missing (the pointer came through a merge, a call, a loop, or
+data the contract was given), the copy stays a loop. No convention of any
+compiler is used: a hand-written allocator that bumps another word gets the
+same proof through its own `F_A`.
 
-> **(A)** A memory range the function reads through an address that is
-> neither a constant nor derived from the current `mem[64]` lies entirely
-> below the free memory pointer whenever a later allocation is made. Such
-> addresses are a pointer read from memory, an offset decoded from data,
-> or a word the contract was given.
+## Part 3: the assumptions inherited from python, removed
 
-That is solc's discipline. Objects are allocated by bumping `mem[64]`, and
-pointers designate allocated objects. Hand-written assembly can break it,
-which is why it is an option.
-
-### Its one use
-
-The copy proof (`to_setmem`). When `apart` and `ahead` aren't proven, the
-copy is converted under (A) exactly when:
-
-- the **destination** starts at or above the floor (a fresh allocation:
-  `mem[64] + k`, or an expression proven `>=` the floor);
-- the **source**'s address reads memory or a decoded offset, or a word
-  the contract was given, and isn't derived from the current `mem[64]`.
-
-Never under (A):
-
-- a copy whose source and destination are both relative to the same base
-  (an in-place move);
-- a copy whose source is at or above the floor (a temporary buffer, such
-  as `abi.encode` scratch space);
-- anything `dubious` would take beyond these.
-
-### Interface
-
-- `SimplifyOptions::assume_alloc` and `RunFlags::assume_alloc`;
-  `loops::RewriteOptions::assume_alloc`.
-- `driver::PipelineOptions`, `DecompileOptions`.
-- The CLI's `--assume-alloc`, the environment's `PANORAMIX_ASSUME_ALLOC=1`,
-  and the python module's `decompile(..., assume_alloc=False)` keyword.
-  Every existing interface is unchanged when it is off.
-- `stagecheck` and `text_check` accept `--assume-alloc`, to measure where
-  (A) fails.
-- **Display.** When the option is on, the contract's header gains one
-  comment line saying the copies were converted assuming solc's allocation.
-  Nothing else changes.
-
-### Checking it
-
-`stagecheck --stage folded --assume-alloc` on the whole corpus counts the
-calls that differ. Any difference is a contract that breaks (A). It is
-reported, and the option documented with that number.
+1. **`mem[64] >= 0x60` everywhere** (`algebra/ranges.cpp`, the range of
+   `MEM(RANGE(64, 32))` is `[0x60, 2^256)` when `ContractShared::
+   free_memory_pointer`, i.e. when the code's first instructions write
+   `mem[0x40]`, and by default; python's `variants.FREE_MEMORY_POINTER`). The
+   code may later write any value there (solady and other inline assembly do).
+   Removed; the floor gives the proven bound where there is one (use 3).
+2. **`mem[0x40] = 0x60` before a function whose entry state isn't known**
+   (`vm/vm.cpp`, "as the old compilers set it"). Removed: an unknown entry
+   leaves memory unknown, and the function's trace is made from what the code
+   does (when that leaves the validation's machine without the dispatcher's
+   writes, the function is decompiled from where the dispatcher starts
+   instead).
+3. **The others found by the audit** (the dispatcher's idioms, the storage
+   layouts, SafeMath's and the traits' patterns, the loops' shapes...) are
+   listed with their status in `DESIGN.md`: a pattern of one compiler may be
+   *recognized* (that is reading, and every rewrite it leads to is checked
+   exact), never *assumed*.
 
 ## Validation
 
-1. **Unit tests (doctest)**, `mem_floor_test.cpp`:
-   - the transfer rules: a write of `mem[64]`, a write missing `[64,96)`,
-     an unknown write, a variable of F set again, the joins (each
-     candidate, and none), and a loop that writes or doesn't write
-     `mem[64]`;
-   - forwarding through a join (the TokenTimelock shape), and the copy
-     shapes 1 and 2 converted;
-   - negative cases: `mem[64]` lowered in a branch, a write over `[64,96)`
-     at an unknown place, an in-place move. These run in the trace machine
-     against the loop, as `loops_rewrite_test` does;
-   - (A): a stored-pointer source converted only with the option, and an
-     in-place move never.
-2. **The corpus** (`tools/fetch_corpus.sh /home/claude/corpus`, 861
-   contracts):
-   - copy loops and while loops before and after (`tools/loop_lines.py`),
-     with and without the option;
-   - `stagecheck --stage folded` and `text_check` on every contract:
-     **0 different** without the option, the count reported with it;
-   - CPU time before and after: the floor must cost little, one
-     substitution per comparison that reads `mem[64]`.
+1. **Unit tests (doctest)**, `mem_floor_test.cpp` and the loops/simplify
+   tests: the transfer rules (a write of the word, a write missing it, an
+   unknown write, a variable of F set again, the joins: each candidate and
+   none, a loop that writes or doesn't write the word); forwarding through a
+   join (the TokenTimelock shape) and the copy shapes converted; the negative
+   cases run in the trace machine against the loop, as `loops_rewrite_test`
+   does: the word lowered in a branch, a write over the word at an unknown
+   place, an in-place move, a stored pointer of unknown provenance; and
+   part 3: a trace that lowers `mem[64]` below 0x60, decided as the machine
+   runs it.
+2. **The corpora**, every stage and the printed text, **0 different**:
+   - the 861 contracts of `tools/fetch_corpus.sh` (solidity);
+   - a corpus of code not from solc's high-level output, built reproducibly
+     the same way (pinned packages): Vyper contracts compiled by pinned Vyper
+     versions, solidity whose assembly ignores the allocation discipline,
+     Yul objects;
+   - copy loops and while loops before and after (`tools/loop_lines.py`), and
+     what part 3's removal costs before the floor recovers it;
+   - CPU time before and after.
 3. **The existing suites**: release and ASan/UBSan, and the python tests.
