@@ -1,0 +1,229 @@
+{
+  "address": "0x99aCDaF05b900a4Db37B0FaA7270855b186135cD",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "owner_",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "previousOwner",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "OwnershipTransferred",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "data",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "peek",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "renounceOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "data_",
+          "type": "uint256"
+        }
+      ],
+      "name": "setMaxAbsoluteOperation",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "transferOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0x95f6b6233d35db960e15326f76d90fcf875b0d999b753440dad1eb2bd2ee47e1",
+  "receipt": {
+    "to": null,
+    "from": "0xEA14c08764c9e5F212c916E11a5c47Eaf92571e4",
+    "contractAddress": "0x99aCDaF05b900a4Db37B0FaA7270855b186135cD",
+    "transactionIndex": 0,
+    "gasUsed": "231261",
+    "logsBloom": "0x00000000000000000000001002000000000000000000000000800000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000020000000000000000000800000000000000000200000000008000400000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000020000000000000000000000000000000002000000000000400000000000000000000",
+    "blockHash": "0x0b420663bada08deb1449717ea0373cdf3087f8d9cd1c54e270722516fda7f68",
+    "transactionHash": "0x95f6b6233d35db960e15326f76d90fcf875b0d999b753440dad1eb2bd2ee47e1",
+    "logs": [
+      {
+        "transactionIndex": 0,
+        "blockNumber": 6258025,
+        "transactionHash": "0x95f6b6233d35db960e15326f76d90fcf875b0d999b753440dad1eb2bd2ee47e1",
+        "address": "0x99aCDaF05b900a4Db37B0FaA7270855b186135cD",
+        "topics": [
+          "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0x000000000000000000000000ea14c08764c9e5f212c916e11a5c47eaf92571e4"
+        ],
+        "data": "0x",
+        "logIndex": 0,
+        "blockHash": "0x0b420663bada08deb1449717ea0373cdf3087f8d9cd1c54e270722516fda7f68"
+      },
+      {
+        "transactionIndex": 0,
+        "blockNumber": 6258025,
+        "transactionHash": "0x95f6b6233d35db960e15326f76d90fcf875b0d999b753440dad1eb2bd2ee47e1",
+        "address": "0x99aCDaF05b900a4Db37B0FaA7270855b186135cD",
+        "topics": [
+          "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
+          "0x000000000000000000000000ea14c08764c9e5f212c916e11a5c47eaf92571e4",
+          "0x00000000000000000000000040662ed57284b4b541a42d347be2447abd1b119d"
+        ],
+        "data": "0x",
+        "logIndex": 1,
+        "blockHash": "0x0b420663bada08deb1449717ea0373cdf3087f8d9cd1c54e270722516fda7f68"
+      }
+    ],
+    "blockNumber": 6258025,
+    "cumulativeGasUsed": "231261",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [
+    "0x40662eD57284B4B541A42D347BE2447ABd1b119d"
+  ],
+  "numDeployments": 1,
+  "solcInputHash": "76e1e12d11f02c94d3bdaf0b14e68353",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.20+commit.a1b79de6\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"owner_\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"data\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"peek\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"data_\",\"type\":\"uint256\"}],\"name\":\"setMaxAbsoluteOperation\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"owner()\":{\"details\":\"Returns the address of the current owner.\"},\"peek()\":{\"params\":{\"data\":\"peeked\",\"valid\":\"true if the data is valid\"}},\"renounceOwnership()\":{\"details\":\"Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner.\"},\"transferOwnership(address)\":{\"details\":\"Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.\"}},\"title\":\"Flux Capacitor Operation Absolute Maximum DataProvider\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"peek()\":{\"notice\":\"returns the given `data` if `valid`\"}},\"notice\":\"Allows the Owner, to set the value so that the protocol cold peek it.\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/providers/FCMaxAbsoluteOpProvider.sol\":\"FCMaxAbsoluteOpProvider\"},\"evmVersion\":\"london\",\"libraries\":{\":__CACHE_BREAKER__\":\"0x00000000d41867734bbee4c6863d9255b2b06ac1\"},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"details\":{\"constantOptimizer\":true,\"cse\":true,\"deduplicate\":true,\"inliner\":true,\"jumpdestRemover\":true,\"orderLiterals\":true,\"peephole\":true,\"yul\":true,\"yulDetails\":{\"optimizerSteps\":\"dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul[j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul]VcTOculjmul:fDnTOc\",\"stackAllocation\":true}},\"runs\":200},\"remappings\":[],\"viaIR\":true},\"sources\":{\"@openzeppelin/contracts/access/Ownable.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n// OpenZeppelin Contracts (last updated v4.9.0) (access/Ownable.sol)\\n\\npragma solidity ^0.8.0;\\n\\nimport \\\"../utils/Context.sol\\\";\\n\\n/**\\n * @dev Contract module which provides a basic access control mechanism, where\\n * there is an account (an owner) that can be granted exclusive access to\\n * specific functions.\\n *\\n * By default, the owner account will be the one that deploys the contract. This\\n * can later be changed with {transferOwnership}.\\n *\\n * This module is used through inheritance. It will make available the modifier\\n * `onlyOwner`, which can be applied to your functions to restrict their use to\\n * the owner.\\n */\\nabstract contract Ownable is Context {\\n    address private _owner;\\n\\n    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);\\n\\n    /**\\n     * @dev Initializes the contract setting the deployer as the initial owner.\\n     */\\n    constructor() {\\n        _transferOwnership(_msgSender());\\n    }\\n\\n    /**\\n     * @dev Throws if called by any account other than the owner.\\n     */\\n    modifier onlyOwner() {\\n        _checkOwner();\\n        _;\\n    }\\n\\n    /**\\n     * @dev Returns the address of the current owner.\\n     */\\n    function owner() public view virtual returns (address) {\\n        return _owner;\\n    }\\n\\n    /**\\n     * @dev Throws if the sender is not the owner.\\n     */\\n    function _checkOwner() internal view virtual {\\n        require(owner() == _msgSender(), \\\"Ownable: caller is not the owner\\\");\\n    }\\n\\n    /**\\n     * @dev Leaves the contract without owner. It will not be possible to call\\n     * `onlyOwner` functions. Can only be called by the current owner.\\n     *\\n     * NOTE: Renouncing ownership will leave the contract without an owner,\\n     * thereby disabling any functionality that is only available to the owner.\\n     */\\n    function renounceOwnership() public virtual onlyOwner {\\n        _transferOwnership(address(0));\\n    }\\n\\n    /**\\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\\n     * Can only be called by the current owner.\\n     */\\n    function transferOwnership(address newOwner) public virtual onlyOwner {\\n        require(newOwner != address(0), \\\"Ownable: new owner is the zero address\\\");\\n        _transferOwnership(newOwner);\\n    }\\n\\n    /**\\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\\n     * Internal function without access restriction.\\n     */\\n    function _transferOwnership(address newOwner) internal virtual {\\n        address oldOwner = _owner;\\n        _owner = newOwner;\\n        emit OwnershipTransferred(oldOwner, newOwner);\\n    }\\n}\\n\",\"keccak256\":\"0xba43b97fba0d32eb4254f6a5a297b39a19a247082a02d6e69349e071e2946218\",\"license\":\"MIT\"},\"@openzeppelin/contracts/utils/Context.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n// OpenZeppelin Contracts v4.4.1 (utils/Context.sol)\\n\\npragma solidity ^0.8.0;\\n\\n/**\\n * @dev Provides information about the current execution context, including the\\n * sender of the transaction and its data. While these are generally available\\n * via msg.sender and msg.data, they should not be accessed in such a direct\\n * manner, since when dealing with meta-transactions the account sending and\\n * paying for execution may not be the actual sender (as far as an application\\n * is concerned).\\n *\\n * This contract is only required for intermediate, library-like contracts.\\n */\\nabstract contract Context {\\n    function _msgSender() internal view virtual returns (address) {\\n        return msg.sender;\\n    }\\n\\n    function _msgData() internal view virtual returns (bytes calldata) {\\n        return msg.data;\\n    }\\n}\\n\",\"keccak256\":\"0xe2e337e6dde9ef6b680e07338c493ebea1b5fd09b43424112868e9cc1706bca7\",\"license\":\"MIT\"},\"contracts/interfaces/IDataProvider.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.20;\\n\\n/**\\n * @title IDataProvider\\n * @notice Generic interface, to query for any bytes32 sized data from an external provider\\n */\\ninterface IDataProvider {\\n    /**\\n     * @notice returns the given `data` if `valid`\\n     * @param data peeked\\n     * @param valid true if the data is valid\\n     */\\n    function peek() external view returns (bytes32 data, bool valid);\\n}\\n\",\"keccak256\":\"0x3de99cb7b07e7ce3609104720e81ffe53d267bed20af0e65af39ee0f4390f514\",\"license\":\"UNLICENSED\"},\"contracts/providers/FCMaxAbsoluteOpProvider.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.20;\\n\\nimport { Ownable } from \\\"@openzeppelin/contracts/access/Ownable.sol\\\";\\nimport { IDataProvider } from \\\"../interfaces/IDataProvider.sol\\\";\\n\\n/**\\n * @title Flux Capacitor Operation Absolute Maximum DataProvider\\n * @notice Allows the Owner, to set the value so that the protocol cold peek it.\\n */\\ncontract FCMaxAbsoluteOpProvider is Ownable, IDataProvider {\\n    bytes32 public data;\\n\\n    constructor(address owner_) Ownable() {\\n        _transferOwnership(owner_);\\n    }\\n\\n    function peek() external view returns (bytes32, bool) {\\n        return (data, true);\\n    }\\n\\n    function setMaxAbsoluteOperation(uint256 data_) external onlyOwner {\\n        data = bytes32(data_);\\n    }\\n}\\n\",\"keccak256\":\"0x2052c1db765989394959849212a0c6b9d36ecdb3e229535f19e3dcbfa1b53a8f\",\"license\":\"UNLICENSED\"}},\"version\":1}",
+  "bytecode": "0x60803461007057601f61037638819003918201601f19168301916001600160401b038311848410176100755780849260209460405283398101031261007057516001600160a01b0381168103610070576100619061005c3361008b565b61008b565b6040516102a390816100d38239f35b600080fd5b634e487b7160e01b600052604160045260246000fd5b600080546001600160a01b039283166001600160a01b03198216811783559216907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09080a356fe608080604052600436101561001357600080fd5b600090813560e01c90816359e02dd7146101ee57508063692987de146101cb578063715018a61461017157806373d4a13a146101535780638da5cb5b1461012c5763f2fde38b1461006357600080fd5b34610129576020366003190112610129576004356001600160a01b038181169182900361012557610092610215565b81156100d15782546001600160a01b0319811683178455167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e08380a380f35b60405162461bcd60e51b815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201526564647265737360d01b6064820152608490fd5b8280fd5b80fd5b5034610129578060031936011261012957546040516001600160a01b039091168152602090f35b50346101295780600319360112610129576020600154604051908152f35b503461012957806003193601126101295761018a610215565b80546001600160a01b03198116825581906001600160a01b03167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e08280a380f35b5034610129576020366003190112610129576101e5610215565b60043560015580f35b905034610211578160031936011261021157604090600154815260016020820152f35b5080fd5b6000546001600160a01b0316330361022957565b606460405162461bcd60e51b815260206004820152602060248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e65726044820152fdfea26469706673582212207cc11a60cc5e8f2f3dfad2424e2960aed984a3ca1fff1fff2886cb90acd111ec64736f6c63430008140033",
+  "deployedBytecode": "0x608080604052600436101561001357600080fd5b600090813560e01c90816359e02dd7146101ee57508063692987de146101cb578063715018a61461017157806373d4a13a146101535780638da5cb5b1461012c5763f2fde38b1461006357600080fd5b34610129576020366003190112610129576004356001600160a01b038181169182900361012557610092610215565b81156100d15782546001600160a01b0319811683178455167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e08380a380f35b60405162461bcd60e51b815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201526564647265737360d01b6064820152608490fd5b8280fd5b80fd5b5034610129578060031936011261012957546040516001600160a01b039091168152602090f35b50346101295780600319360112610129576020600154604051908152f35b503461012957806003193601126101295761018a610215565b80546001600160a01b03198116825581906001600160a01b03167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e08280a380f35b5034610129576020366003190112610129576101e5610215565b60043560015580f35b905034610211578160031936011261021157604090600154815260016020820152f35b5080fd5b6000546001600160a01b0316330361022957565b606460405162461bcd60e51b815260206004820152602060248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e65726044820152fdfea26469706673582212207cc11a60cc5e8f2f3dfad2424e2960aed984a3ca1fff1fff2886cb90acd111ec64736f6c63430008140033",
+  "devdoc": {
+    "kind": "dev",
+    "methods": {
+      "owner()": {
+        "details": "Returns the address of the current owner."
+      },
+      "peek()": {
+        "params": {
+          "data": "peeked",
+          "valid": "true if the data is valid"
+        }
+      },
+      "renounceOwnership()": {
+        "details": "Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner."
+      },
+      "transferOwnership(address)": {
+        "details": "Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner."
+      }
+    },
+    "title": "Flux Capacitor Operation Absolute Maximum DataProvider",
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {
+      "peek()": {
+        "notice": "returns the given `data` if `valid`"
+      }
+    },
+    "notice": "Allows the Owner, to set the value so that the protocol cold peek it.",
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 5005,
+        "contract": "contracts/providers/FCMaxAbsoluteOpProvider.sol:FCMaxAbsoluteOpProvider",
+        "label": "_owner",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_address"
+      },
+      {
+        "astId": 7556,
+        "contract": "contracts/providers/FCMaxAbsoluteOpProvider.sol:FCMaxAbsoluteOpProvider",
+        "label": "data",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_bytes32"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_bytes32": {
+        "encoding": "inplace",
+        "label": "bytes32",
+        "numberOfBytes": "32"
+      }
+    }
+  }
+}

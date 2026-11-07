@@ -1,0 +1,164 @@
+{
+  "address": "0xcC0ed062F011613BD56658D17ddd5fF8F7cA112a",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "price_",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "deprecatePriceProvider",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "has",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "mocPrice",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "peek",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "price_",
+          "type": "uint256"
+        }
+      ],
+      "name": "poke",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0x18a0b4fb541d21c654fe3dd855016a3b7b3fb683187203b0acdefa82183330fa",
+  "receipt": {
+    "to": null,
+    "from": "0xB4776c2bd17DF529b98Ea31661D9d852EaBDd217",
+    "contractAddress": "0xcC0ed062F011613BD56658D17ddd5fF8F7cA112a",
+    "transactionIndex": 0,
+    "gasUsed": "179117",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0xeacc77d8e38013a224fecf332dfe1f43305afedefefbe0c7ed0c6f158d41ce40",
+    "transactionHash": "0x18a0b4fb541d21c654fe3dd855016a3b7b3fb683187203b0acdefa82183330fa",
+    "logs": [],
+    "blockNumber": 4835415,
+    "cumulativeGasUsed": "179117",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [
+    "1000000000000000000"
+  ],
+  "numDeployments": 1,
+  "metadata": "{\"compiler\":{\"version\":\"0.8.20+commit.a1b79de6\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"price_\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[],\"name\":\"deprecatePriceProvider\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"has\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"mocPrice\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"peek\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"price_\",\"type\":\"uint256\"}],\"name\":\"poke\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"constructor\":{\"params\":{\"price_\":\"MoC price for mock contract\"}},\"peek()\":{\"params\":{\"price\":\"assetPrice\",\"valid\":\"true if the price is valid\"}}},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"constructor\":{\"notice\":\"constructor\"},\"peek()\":{\"notice\":\"returns the given `price` for the asset if `valid`\"}},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/mocks/PriceProviderMock.sol\":\"PriceProviderMock\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"details\":{\"constantOptimizer\":true,\"cse\":true,\"deduplicate\":true,\"inliner\":true,\"jumpdestRemover\":true,\"orderLiterals\":true,\"peephole\":true,\"yul\":true,\"yulDetails\":{\"optimizerSteps\":\"dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul[j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul]VcTOculjmul:fDnTOc\",\"stackAllocation\":true}},\"runs\":200},\"remappings\":[],\"viaIR\":true},\"sources\":{\"contracts/interfaces/IPriceProvider.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.20;\\n\\n/**\\n * @title IPriceFeed\\n * @notice Amphiraos-Oracle Interface for peeking the price of a given asset\\n * @dev https://github.com/money-on-chain/Amphiraos-Oracle\\n */\\ninterface IPriceProvider {\\n    /**\\n     * @notice returns the given `price` for the asset if `valid`\\n     * @param price assetPrice\\n     * @param valid true if the price is valid\\n     */\\n    function peek() external view returns (bytes32 price, bool valid);\\n}\\n\",\"keccak256\":\"0xf91d285e24227b0c2f0c187d610d63e33a4fc9c1e193e0ced8df131eac440b23\",\"license\":\"UNLICENSED\"},\"contracts/mocks/PriceProviderMock.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.20;\\n\\nimport { IPriceProvider } from \\\"../interfaces/IPriceProvider.sol\\\";\\n\\ncontract PriceProviderMock is IPriceProvider {\\n    bytes32 public mocPrice;\\n    bool public has;\\n\\n    /**\\n     * @notice constructor\\n     * @param price_ MoC price for mock contract\\n     */\\n    constructor(uint256 price_) {\\n        mocPrice = bytes32(price_);\\n        has = true;\\n    }\\n\\n    function peek() external view returns (bytes32, bool) {\\n        return (mocPrice, has);\\n    }\\n\\n    function poke(uint256 price_) external {\\n        mocPrice = bytes32(price_);\\n    }\\n\\n    function deprecatePriceProvider() external {\\n        has = false;\\n    }\\n}\\n\",\"keccak256\":\"0x17a9ad4ed6aa114f4937efb30b9bc6e3dda6bc1f03401fd8c6556f0d80ab0b5d\",\"license\":\"UNLICENSED\"}},\"version\":1}",
+  "bytecode": "0x60803461005d57601f61019b38819003918201601f19168301916001600160401b038311848410176100625780849260209460405283398101031261005d5751600055600160ff198154161760015560405161012290816100798239f35b600080fd5b634e487b7160e01b600052604160045260246000fdfe6080806040526004361015601257600080fd5b600090813560e01c9081632a3f43891460d05750806332145f901460b85780635095e3d914609c57806359e02dd71460755763b689d5ac14605257600080fd5b3460725780600319360112607257602060ff600154166040519015158152f35b80fd5b5034607257806003193601126072576040905460ff60015416825191825215156020820152f35b50346072578060031936011260725760ff196001541660015580f35b50346072576020366003190112607257600435815580f35b90503460e8578160031936011260e857602091548152f35b5080fdfea264697066735822122072d2893e184264a56256407bb10b2744402af53807dbe6d8cac8f775960d5c7864736f6c63430008140033",
+  "deployedBytecode": "0x6080806040526004361015601257600080fd5b600090813560e01c9081632a3f43891460d05750806332145f901460b85780635095e3d914609c57806359e02dd71460755763b689d5ac14605257600080fd5b3460725780600319360112607257602060ff600154166040519015158152f35b80fd5b5034607257806003193601126072576040905460ff60015416825191825215156020820152f35b50346072578060031936011260725760ff196001541660015580f35b50346072576020366003190112607257600435815580f35b90503460e8578160031936011260e857602091548152f35b5080fdfea264697066735822122072d2893e184264a56256407bb10b2744402af53807dbe6d8cac8f775960d5c7864736f6c63430008140033",
+  "devdoc": {
+    "kind": "dev",
+    "methods": {
+      "constructor": {
+        "params": {
+          "price_": "MoC price for mock contract"
+        }
+      },
+      "peek()": {
+        "params": {
+          "price": "assetPrice",
+          "valid": "true if the price is valid"
+        }
+      }
+    },
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {
+      "constructor": {
+        "notice": "constructor"
+      },
+      "peek()": {
+        "notice": "returns the given `price` for the asset if `valid`"
+      }
+    },
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 25992,
+        "contract": "contracts/mocks/PriceProviderMock.sol:PriceProviderMock",
+        "label": "mocPrice",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_bytes32"
+      },
+      {
+        "astId": 25994,
+        "contract": "contracts/mocks/PriceProviderMock.sol:PriceProviderMock",
+        "label": "has",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_bool"
+      }
+    ],
+    "types": {
+      "t_bool": {
+        "encoding": "inplace",
+        "label": "bool",
+        "numberOfBytes": "1"
+      },
+      "t_bytes32": {
+        "encoding": "inplace",
+        "label": "bytes32",
+        "numberOfBytes": "32"
+      }
+    }
+  }
+}

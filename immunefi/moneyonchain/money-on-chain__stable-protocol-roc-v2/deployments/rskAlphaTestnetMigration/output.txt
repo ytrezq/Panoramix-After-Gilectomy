@@ -1,0 +1,47 @@
+###### fetching parameters from MoCV1: 0x4512f4C1d984bbf8B7f7404EddFb1881cFA79EfD ######
+MocVendors, as MocRifVendors implementation deployed at 0x0A8135DaA1302582f27Ef8B92c340159aeC58046
+MocRifVendorsProxy ERC1967Proxy deployed at 0x6bE4da06B2352a6e5A1FF3c369dde158D034f28f
+MocQueue, as MocRifQueue implementation deployed at 0x71D7Bc0c6BC89F2dB072Ec1Eb33D0657d4fe460f
+MocRifQueueProxy ERC1967Proxy deployed at 0x94E255F8D8fcc05A2a87A732d3b6236f0C6810A6
+FCMaxAbsoluteOpProvider deployed at 0x2354eFcfED5626F6F5bDBEb62D95d8c9fB6b40c1 with owner at 0x5bCdf8A2E61BD238AEe43b99962Ee8BfBda1Beca
+FCMaxOpDifferenceProvider deployed at 0xB861dF684C2F43f44a7608c9787CfA5255C82a1b with owner at 0x5bCdf8A2E61BD238AEe43b99962Ee8BfBda1Beca
+Initializing MocRif with: {
+  initializeCoreParams: {
+    initializeBaseBucketParams: {
+      mocQueueAddress: '0x94E255F8D8fcc05A2a87A732d3b6236f0C6810A6',
+      feeTokenAddress: '0x0399c7F7B37E21cB9dAE04Fb57E24c68ed0B4635',
+      feeTokenPriceProviderAddress: '0xE972c8E83A5b97bB4FC867855A0aA13EF96f228D',
+      tcTokenAddress: '0xf947fe5190D33D812F74B4EEA31509D9D94F149e',
+      mocFeeFlowAddress: '0x83be6Ad5C6156CDA1644957925B3888FB875c69c',
+      mocAppreciationBeneficiaryAddress: '0xcd8a1c9acc980ae031456573e34dc05cd7dae6e3',
+      protThrld: BigNumber { value: "1500000000000000000" },
+      liqThrld: BigNumber { value: "1040000000000000000" },
+      feeRetainer: BigNumber { value: "100000000000000000" },
+      tcMintFee: BigNumber { value: "2000000000000000" },
+      tcRedeemFee: BigNumber { value: "2000000000000000" },
+      swapTPforTPFee: BigNumber { value: "1000000000000000" },
+      swapTPforTCFee: BigNumber { value: "1000000000000000" },
+      swapTCforTPFee: BigNumber { value: "1000000000000000" },
+      redeemTCandTPFee: BigNumber { value: "800000000000000" },
+      mintTCandTPFee: BigNumber { value: "800000000000000" },
+      feeTokenPct: BigNumber { value: "500000000000000000" },
+      successFee: BigNumber { value: "100000000000000000" },
+      appreciationFactor: BigNumber { value: "500000000000000000" },
+      bes: 86400,
+      tcInterestCollectorAddress: '0x0780Cc1dd3e1E0d9b6c8C72EB71c3468486d0C2f',
+      tcInterestRate: BigNumber { value: "196200000000000" },
+      tcInterestPaymentBlockSpan: 20160,
+      decayBlockSpan: 2880,
+      maxAbsoluteOpProviderAddress: '0x2354eFcfED5626F6F5bDBEb62D95d8c9fB6b40c1',
+      maxOpDiffProviderAddress: '0xB861dF684C2F43f44a7608c9787CfA5255C82a1b'
+    },
+    governorAddress: '0x7b716178771057195bB511f0B1F7198EEE62Bc22',
+    pauserAddress: '0x5bCdf8A2E61BD238AEe43b99962Ee8BfBda1Beca',
+    mocCoreExpansion: '0xF0DB88af7B860e1069dD44BabbB5B6dD25081351',
+    emaCalculationBlockSpan: 2880,
+    mocVendors: '0x6bE4da06B2352a6e5A1FF3c369dde158D034f28f'
+  },
+  acTokenAddress: '0x19F64674D8A5B4E652319F5e239eFd3bc969A1fE'
+}
+MocRif, as MocRif implementation deployed at 0x15E6DF1bc1860e153061bB28B32bEa6181246031
+MocRifProxy ERC1967Proxy deployed at 0xf5008675cF2b677682C8dfF7f1ae149643781169

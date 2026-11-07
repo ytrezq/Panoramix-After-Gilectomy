@@ -1,0 +1,71 @@
+MocRifExpansion, as MocCoreExpansion implementation deployed at 0x86C6CEde6A2355BDcCF410905E486b33D82a84ce
+###### fetching parameters from MoCV1: 0xCfF3fcaeC2352C672C38d77cb1a064B7D50ce7e1 ######
+MocQueue, as MocRifQueue implementation deployed at 0xE996877E040bd735311c02C460C8f15F05C67f3D
+MocRifQueueProxy ERC1967Proxy deployed at 0x9181E99dceace7dFd5f2E7d5126275D54067A9E3
+CommissionSplitter, as FeesSplitter implementation deployed at 0xa6CcBD440F0D19342a38cdC21083BeDB9092FE24
+FeesSplitterProxy ERC1967Proxy deployed at 0x535FA6cB8f219b6c555E98cfAfbBAf7a7b1e2bB4
+FeesSplitter deployed at 0x535FA6cB8f219b6c555E98cfAfbBAf7a7b1e2bB4 with: [
+  '0x3b8853DF65AfBd94853E6D77ee0Ab5590F41bB08',
+  '0x2AcC95758f8b5F583470ba265EB685a8F45fC9D5',
+  '0x9AC7fE28967B30E3A4e6e03286d715b42B453D10',
+  '0x4905F643Db489d9561617638d31875b6bfF79077',
+  '0x728967DD751F5f21bF390eeE66527dBC17bD7E25',
+  BigNumber { value: "666666666666666666" },
+  '0x4905F643Db489d9561617638d31875b6bfF79077',
+  '0x09A84d61c1A10f1D5fb3267DFb00D16ca0DaCC30',
+  BigNumber { value: "500000000000000000" }
+]
+CommissionSplitter, as TCInterestsSplitter implementation deployed at 0xf0b9F73C41E9e1Da9334B085D3278c0C32148920
+TCInterestsSplitterProxy ERC1967Proxy deployed at 0x5325AD7b21bAF90aEfCe3D6a83075d7590B6e049
+TCInterestsSplitter deployed at 0x5325AD7b21bAF90aEfCe3D6a83075d7590B6e049 with: [
+  '0x3b8853DF65AfBd94853E6D77ee0Ab5590F41bB08',
+  '0x2AcC95758f8b5F583470ba265EB685a8F45fC9D5',
+  '0x9AC7fE28967B30E3A4e6e03286d715b42B453D10',
+  '0x4905F643Db489d9561617638d31875b6bfF79077',
+  '0x728967DD751F5f21bF390eeE66527dBC17bD7E25',
+  BigNumber { value: "500000000000000000" },
+  '0x4905F643Db489d9561617638d31875b6bfF79077',
+  '0x09A84d61c1A10f1D5fb3267DFb00D16ca0DaCC30',
+  BigNumber { value: "500000000000000000" }
+]
+Initializing MocRif with: {
+  initializeCoreParams: {
+    initializeBaseBucketParams: {
+      mocQueueAddress: '0x9181E99dceace7dFd5f2E7d5126275D54067A9E3',
+      feeTokenAddress: '0x9AC7fE28967B30E3A4e6e03286d715b42B453D10',
+      feeTokenPriceProviderAddress: '0x72835fDc4F73cb33b1E7e03bFe067AAfED2BDB9C',
+      tcTokenAddress: '0xf4d27c56595Ed59B66cC7F03CFF5193e4bd74a61',
+      mocFeeFlowAddress: '0x535FA6cB8f219b6c555E98cfAfbBAf7a7b1e2bB4',
+      mocAppreciationBeneficiaryAddress: '0xC61820bFB8F87391d62Cd3976dDc1d35e0cf7128',
+      protThrld: BigNumber { value: "1500000000000000000" },
+      liqThrld: BigNumber { value: "1040000000000000000" },
+      feeRetainer: BigNumber { value: "250000000000000000" },
+      tcMintFee: BigNumber { value: "2000000000000000" },
+      tcRedeemFee: BigNumber { value: "2000000000000000" },
+      swapTPforTPFee: BigNumber { value: "2000000000000000" },
+      swapTPforTCFee: BigNumber { value: "2000000000000000" },
+      swapTCforTPFee: BigNumber { value: "2000000000000000" },
+      redeemTCandTPFee: BigNumber { value: "2000000000000000" },
+      mintTCandTPFee: BigNumber { value: "2000000000000000" },
+      feeTokenPct: BigNumber { value: "750000000000000000" },
+      successFee: BigNumber { value: "0" },
+      appreciationFactor: BigNumber { value: "0" },
+      bes: 86400,
+      tcInterestCollectorAddress: '0x5325AD7b21bAF90aEfCe3D6a83075d7590B6e049',
+      tcInterestRate: BigNumber { value: "196200000000000" },
+      tcInterestPaymentBlockSpan: 20160,
+      decayBlockSpan: 2880,
+      maxAbsoluteOpProviderAddress: '0x99aCDaF05b900a4Db37B0FaA7270855b186135cD',
+      maxOpDiffProviderAddress: '0x60744BE41058Aa876153CdBeE75aD281Ab1a9738',
+      allowDifferentRecipient: false
+    },
+    governorAddress: '0x3b8853DF65AfBd94853E6D77ee0Ab5590F41bB08',
+    pauserAddress: '0x40662eD57284B4B541A42D347BE2447ABd1b119d',
+    mocCoreExpansion: '0x86C6CEde6A2355BDcCF410905E486b33D82a84ce',
+    emaCalculationBlockSpan: 2880,
+    mocVendors: '0x5F69df7e853686a794c13be029FF228642C07012'
+  },
+  acTokenAddress: '0x2AcC95758f8b5F583470ba265EB685a8F45fC9D5'
+}
+MocRif, as MocRif implementation deployed at 0x8d168070fC3aCF9B8491623917ECb17E764208cf
+MocRifProxy ERC1967Proxy deployed at 0xA27024Ed70035E46dba712609fc2Afa1c97aA36A
