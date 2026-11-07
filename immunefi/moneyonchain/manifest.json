@@ -68,35 +68,6 @@
    "skipped_large": 0
   },
   {
-   "repo": "https://github.com/money-on-chain/main-RBTC-contract",
-   "ref": null,
-   "scope_paths": [],
-   "fetched": "2026-11-07",
-   "note": "MoC v1 (MoC, MoCConnector, MoCState, MoCExchange, MoCInrate, DoC/BPro tokens, CommissionSplitter) in the blockscout scope list",
-   "commit": "0043303da89f43d7f4e67a0288c561da8bf3de1b",
-   "submodules": [],
-   "license": {
-    "file": "LICENSE",
-    "spdx": "unrecognized",
-    "package_json": "AGPL-3.0",
-    "headers": {
-     "(none)": 103,
-     "//": 1,
-     "MIT": 1
-    },
-    "headers_main": {
-     "(none)": 68,
-     "MIT": 1
-    }
-   },
-   "redistributable": false,
-   "languages": {
-    ".sol": 105
-   },
-   "copied": false,
-   "why": "reference only: no license allowing redistribution found"
-  },
-  {
    "repo": "https://github.com/money-on-chain/stable-protocol-roc-v2",
    "ref": null,
    "scope_paths": [],
@@ -238,6 +209,51 @@
     "node_modules/@uniswap/v3-core": "1.0.0",
     "node_modules/@uniswap/v3-periphery": "1.4.4",
     "node_modules/base64-sol": "1.0.1"
+   }
+  },
+  {
+   "repo": "https://github.com/money-on-chain/main-RBTC-contract",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "MoC v1 (MoC, MoCConnector, MoCState, MoCExchange, MoCInrate, DoC/BPro tokens, CommissionSplitter) in the blockscout scope list",
+   "commit": "0043303da89f43d7f4e67a0288c561da8bf3de1b",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "unrecognized",
+    "package_json": "AGPL-3.0",
+    "headers": {
+     "(none)": 103,
+     "//": 1,
+     "MIT": 1
+    },
+    "headers_main": {
+     "(none)": 68,
+     "MIT": 1
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 105
+   },
+   "copied": true,
+   "why": "its license does not allow redistribution: added as git subtrees at the user's request, its license files kept in the tree",
+   "via": "git subtree",
+   "dest": "money-on-chain__main-RBTC-contract",
+   "files": 687,
+   "subtrees": [
+    {
+     "prefix": "money-on-chain__main-RBTC-contract",
+     "url": "https://github.com/money-on-chain/main-RBTC-contract",
+     "commit": "0043303da89f43d7f4e67a0288c561da8bf3de1b"
+    }
+   ],
+   "npm": {
+    "node_modules/openzeppelin-solidity": "2.3.0",
+    "node_modules/moc-governance": "0.1.0",
+    "node_modules/openzeppelin-eth": "2.1.3",
+    "node_modules/zos-lib": "2.3.1"
    }
   }
  ]
