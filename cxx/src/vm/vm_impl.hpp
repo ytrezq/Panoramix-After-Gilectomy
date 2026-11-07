@@ -189,7 +189,6 @@ struct RunSetup {
     u32 start = 0;
     Value stack;               // LIST
     Facts known;           // at start
-    std::vector<Value> before; // lines before the function (python `before`: the fmp)
     bool just_fdests = false;  // discovery
     bool inside = false;       // an internal function's body
     bool verbose = false;

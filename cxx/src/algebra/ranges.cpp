@@ -401,7 +401,6 @@ struct RangeState final : ModuleState {
     MemoSet<Value> stable;
     Memo<Value, u8> stable_memo;  // a value: 1 its meaning may change, 2 it can't
     bool vars_flagged = true;  // every variable has F_VAR (walks below them prune by it)
-    bool fmp = true;
     // the variables whose values are being looked at (python _VISITING)
     SmallVec<Value, 8> visiting;
 
@@ -415,11 +414,7 @@ struct RangeState final : ModuleState {
           new_values(cx().budget.resource()),
           new_cyclic(cx().budget.resource()),
           new_small(cx().budget.resource()),
-          new_stable(cx().budget.resource()) {
-        // the loader's decision about the contract (python
-        // variants.FREE_MEMORY_POINTER); set_free_memory_pointer changes it
-        if (cx().shared) fmp = cx().shared->free_memory_pointer;
-    }
+          new_stable(cx().budget.resource()) {}
 
     void clear_caches() override {
         word_memo.clear();
@@ -457,9 +452,8 @@ struct RangeState final : ModuleState {
     bool any_vars() const noexcept { return !var_index.empty(); }
 
     bool compact_prepare(Importer& imp) override {
-        // (nothing to keep: the state is made again, its flag the contract's)
-        const bool fmp_default = cx().shared ? cx().shared->free_memory_pointer : true;
-        if (var_index.empty() && small.empty() && fmp == fmp_default) return false;
+        // (nothing to keep: the state is made again)
+        if (var_index.empty() && small.empty()) return false;
         new_index.clear();
         new_values.clear();
         new_cyclic.clear();
@@ -606,11 +600,6 @@ bool is_computed(Op op) noexcept {
 
 // a sum (python's add, and mul by a number): its terms are read, not it
 bool is_sum(Value v) noexcept { return v.is(Op::ADD) || (v.is(Op::MUL) && v.size() >= 2 && v[0].is_int()); }
-
-// solidity's free memory pointer, mem[64]
-bool is_fmp(Value v) noexcept {
-    return v.is(Op::MEM, 1) && v[0].is(Op::RANGE, 2) && v[0][0] == Value::small(64) && v[0][1] == Value::small(32);
-}
 
 i64 clamp4096(i64 x) noexcept { return std::max<i64>(-4096, std::min<i64>(4096, x)); }
 
@@ -1283,7 +1272,9 @@ XRange RangeQuery::Impl::structural(Value v, Top top) {
                 return xr_bits(u32(std::max<i64>(0, std::min<i64>(args[0].small_val(), 256))));
             return xr_word();
         case Op::MEM:
-            if (st.fmp && is_fmp(v)) return XRange{xi(0x60), kWordMax};
+            // (no word of memory is assumed anything: mem[64] is what the
+            // code wrote there - the floors of mem/floor.hpp bound it where
+            // the trace proves it)
             return xr_word();
         case Op::LAND: {
             // python's `and`: a when it's 0, else b
@@ -1548,14 +1539,11 @@ void set_variables(std::span<const std::pair<Value, Value>> name_values, std::sp
 
 void clear_variables() { set_variables({}, {}); }
 
-void set_free_memory_pointer(bool on) {
-    RangeState& s = rst();
-    if (s.fmp == on) return;
-    s.fmp = on;
-    cx().clear_caches();
-}
+// (part 3 of docs/alloc-floor.md: nothing assumed of mem[64] any more;
+// kept until the header loses them)
+void set_free_memory_pointer(bool) {}
 
-bool free_memory_pointer() { return rst().fmp; }
+bool free_memory_pointer() { return false; }
 
 bool unchecked(Value v) {
     RangeQuery::Impl impl(nullptr);

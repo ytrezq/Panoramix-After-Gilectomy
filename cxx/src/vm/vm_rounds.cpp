@@ -71,7 +71,6 @@ void Vm::explore() {
     {
         Node& r = nodes_[root_];
         r.dead = false;
-        r.lines.assign(setup_.before.begin(), setup_.before.end());
         r.end = End::Jump;
         r.a = func;
     }

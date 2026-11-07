@@ -90,12 +90,12 @@ VmResult run_function(const ContractShared& contract, const FunctionInfo& fn, co
             s.stack = stack;
             s.known = known;
         } else {
-            // the entry isn't known: the free memory pointer assumed to be
-            // 0x60, as the old compilers set it
+            // the entry isn't known (the dispatcher couldn't be read: the
+            // code from its start): nothing assumed of the memory - at the
+            // code's first instruction it is the EVM's, zeroes, and no call
+            // has returned data; anywhere else nothing is known
             s.stack = mk_list({});
-            if (contract.free_memory_pointer)
-                s.before.push_back(mk(Op::SETMEM, mk(Op::RANGE, Value::small(0x40), Value::small(32)),
-                                      mk(Op::SIZED, Value::small(32), Value::small(0x60))));
+            if (start == 0) s.known = Facts().with_fresh().with_rdzero();
         }
         s.given = mk_list({fn.entry.vm_state.nil() ? Value::none() : fn.entry.vm_state,
                            fn.entry.entry_lines.nil() ? Value::none() : fn.entry.entry_lines});
