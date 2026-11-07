@@ -68,32 +68,6 @@
    "skipped_large": 0
   },
   {
-   "repo": "https://github.com/money-on-chain/OMoC-Decentralized-Oracle",
-   "ref": null,
-   "scope_paths": [],
-   "fetched": "2026-11-07",
-   "note": "OMoC: CoinPairPrice, OracleManager, Delay/Staking/Vesting/VotingMachine, MocRegistry in the scope list",
-   "commit": "64ddb6e13e79f81224ea84def9bc0a0b8d4403ea",
-   "submodules": [],
-   "license": {
-    "file": "LICENSE",
-    "spdx": "unrecognized",
-    "package_json": "ISC",
-    "headers": {
-     "UNLICENSED": 95
-    },
-    "headers_main": {
-     "UNLICENSED": 95
-    }
-   },
-   "redistributable": false,
-   "languages": {
-    ".sol": 95
-   },
-   "copied": false,
-   "why": "reference only: no license allowing redistribution found"
-  },
-  {
    "repo": "https://github.com/money-on-chain/MoC-Periphery",
    "ref": null,
    "scope_paths": [],
@@ -276,6 +250,50 @@
    "npm_errors": {
     "node_modules/moc-main-latest": "git fetch -q --filter=blob:none origin: 128: fatal: could not read Username for 'https://github.com': terminal prompts disabled",
     "node_modules/moc-main-stable": "git fetch -q --filter=blob:none origin: 128: fatal: could not read Username for 'https://github.com': terminal prompts disabled"
+   }
+  },
+  {
+   "repo": "https://github.com/money-on-chain/OMoC-Decentralized-Oracle",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "OMoC: CoinPairPrice, OracleManager, Delay/Staking/Vesting/VotingMachine, MocRegistry in the scope list",
+   "commit": "64ddb6e13e79f81224ea84def9bc0a0b8d4403ea",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "unrecognized",
+    "package_json": "ISC",
+    "headers": {
+     "UNLICENSED": 95
+    },
+    "headers_main": {
+     "UNLICENSED": 95
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 95
+   },
+   "copied": true,
+   "why": "its license does not allow redistribution: added as git subtrees at the user's request, its license files kept in the tree",
+   "via": "git subtree",
+   "dest": "money-on-chain__OMoC-Decentralized-Oracle",
+   "files": 489,
+   "subtrees": [
+    {
+     "prefix": "money-on-chain__OMoC-Decentralized-Oracle",
+     "url": "https://github.com/money-on-chain/OMoC-Decentralized-Oracle",
+     "commit": "64ddb6e13e79f81224ea84def9bc0a0b8d4403ea"
+    }
+   ],
+   "npm": {
+    "node_modules/@openzeppelin/contracts-ethereum-package": "3.0.0",
+    "node_modules/@moc/periphery": "3.0.5",
+    "node_modules/@openzeppelin/contracts": "4.9.3"
+   },
+   "npm_errors": {
+    "node_modules/@moc/moc-main": "git fetch -q --filter=blob:none origin: 128: fatal: could not read Username for 'https://github.com': terminal prompts disabled"
    }
   }
  ]
