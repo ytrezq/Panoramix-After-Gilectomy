@@ -19,8 +19,8 @@ only holds data and the tools that make and use it.
 | `immunefi/STATUS.md` | per program: the repositories found, copied, by reference only (`tools/corpus_stats.py`) |
 | `immunefi/SLUG/manifest.json` | per repository: its URL and commit, its submodules and Soldeer dependencies (with their commits), the npm packages fetched for its imports (with their versions), its license and the verdict, its languages, the files copied |
 | `immunefi/SLUG/notes.md` | how the repositories were found (the program's assets, its GitHub organization), what was left out and why |
-| `immunefi/SLUG/OWNER__REPO/` | the copy: every EVM source (`.sol .vy .vyi .yul .huff .fe .lll .se`) and build configuration (`foundry.toml`, `remappings.txt`, `package.json`, `hardhat.config.*`, ...) at the repository's own paths, its submodules' and dependencies' at the paths a build finds them (`lib/...`, `node_modules/...`, `dependencies/...`), the links of a workspace |
-| `reference/` | (ignored by git) local copies of the repositories recorded by reference only: `tools/fetch_reference.py` |
+| `immunefi/SLUG/OWNER__REPO/` | the copy: every EVM source (`.sol .vy .vyi .yul .huff .fe .lll .se`) and build configuration (`foundry.toml`, `remappings.txt`, `package.json`, `hardhat.config.*`, ...) at the repository's own paths, its submodules' and dependencies' at the paths a build finds them (`lib/...`, `node_modules/...`, `dependencies/...`), the links of a workspace; or, for a repository whose license doesn't allow redistribution, the whole repository as a git subtree (below) |
+| `reference/` | (ignored by git) local copies made by `tools/fetch_reference.py`, for a repository that isn't on GitHub |
 
 ## What is copied
 
@@ -31,9 +31,20 @@ or a licence for non-commercial use, means *reference only*), else its
 `package.json`'s license, else each file's SPDX header (then only the sources
 whose own header is an open license are copied, when the contracts' headers
 are mostly open; a root license that defers to the files' headers is read the
-same way). A repository that isn't copied is recorded by URL and commit only;
-`tools/fetch_reference.py` makes a local copy outside git. Files over 2 MB and
-build outputs (`out/`, `artifacts/`, `cache/`, ...) are left out.
+same way). Files over 2 MB and build outputs (`out/`, `artifacts/`,
+`cache/`, ...) are left out of a copy.
+
+A repository on GitHub whose license doesn't allow redistribution (a
+proprietary text, "all rights reserved", a source-available or
+non-commercial licence, UNLICENSED headers) is not copied file by file: it
+is added whole with `git subtree add --squash` (`tools/subtree_repo.py`, at
+the owner's request) - its tree at its commit, its license files with it,
+one squashed commit, so `git subtree pull --prefix=...` updates it; its
+submodules on GitHub become subtrees at their own paths and commits, and the
+npm packages its sources import are added as files. The manifest says
+`"via": "git subtree"` and lists the subtrees. A repository that isn't on
+GitHub would be recorded by URL and commit only (`tools/fetch_reference.py`
+makes a local copy outside git).
 
 The copied code is untrusted: nothing of it was run. Repositories were cloned
 with git; npm packages were fetched one by one with `npm pack
@@ -46,6 +57,10 @@ sources and give them to the compilers.
 # copy one repository into a program (clone, submodules, Soldeer, the npm
 # packages its imports need, the license verdict, the manifest)
 tools/copy_repo.py --program SLUG --repo https://github.com/OWNER/REPO [--ref REF] [--note TEXT]
+
+# or add it whole as git subtrees (itself, its submodules), its npm packages
+# as files (a clean work tree; each step a commit)
+tools/subtree_repo.py --program SLUG --repo https://github.com/OWNER/REPO [--commit SHA]
 
 # compile: each project (foundry, hardhat, truffle, brownie, a src/ or
 # contracts/ of sources) with the compiler its configuration or pragmas ask,
