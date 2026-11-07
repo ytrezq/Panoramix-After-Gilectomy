@@ -1,0 +1,141 @@
+// SPDX-License-Identifier: SEL-1.0
+// Copyright © 2025 Veda Tech Labs
+// Derived from Boring Vault Software © 2025 Veda Tech Labs (TEST ONLY – NO COMMERCIAL USE)
+// Licensed under Software Evaluation License, Version 1.0
+// Last audited: boring-vault-fixes@75bedc585da451b4ec4690ee8d3e378c6447dfe9 — file:audit/0xmacro-veda-90.pdf
+pragma solidity 0.8.21;
+
+import {DecoderCustomTypes} from "src/interfaces/DecoderCustomTypes.sol";
+
+contract MorphoBlueDecoderAndSanitizer {
+    //============================== ERRORS ===============================
+
+    error MorphoBlueDecoderAndSanitizer__CallbackNotSupported();
+    error MorphoBlueDecoderAndSanitizer__OvercastUint160();
+
+    //============================== MORPHO BLUE ===============================
+
+    function supply(
+        DecoderCustomTypes.MarketParams calldata params,
+        uint256,
+        uint256,
+        address onBehalf,
+        bytes calldata data
+    ) external pure returns (bytes memory addressesFound) {
+        // Sanitize raw data
+        if (data.length > 0) revert MorphoBlueDecoderAndSanitizer__CallbackNotSupported();
+        if (params.lltv > type(uint160).max) revert MorphoBlueDecoderAndSanitizer__OvercastUint160();
+        // Return addresses found
+        addressesFound = abi.encodePacked(
+            params.loanToken,
+            params.collateralToken,
+            params.oracle,
+            params.irm,
+            address(uint160(params.lltv)),
+            onBehalf
+        );
+    }
+
+    function withdraw(
+        DecoderCustomTypes.MarketParams calldata params,
+        uint256,
+        uint256,
+        address onBehalf,
+        address receiver
+    ) external pure returns (bytes memory addressesFound) {
+        if (params.lltv > type(uint160).max) revert MorphoBlueDecoderAndSanitizer__OvercastUint160();
+
+        // Return addresses found
+        addressesFound = abi.encodePacked(
+            params.loanToken,
+            params.collateralToken,
+            params.oracle,
+            params.irm,
+            address(uint160(params.lltv)),
+            onBehalf,
+            receiver
+        );
+    }
+
+    function borrow(
+        DecoderCustomTypes.MarketParams calldata params,
+        uint256,
+        uint256,
+        address onBehalf,
+        address receiver
+    ) external pure returns (bytes memory addressesFound) {
+        if (params.lltv > type(uint160).max) revert MorphoBlueDecoderAndSanitizer__OvercastUint160();
+
+        addressesFound = abi.encodePacked(
+            params.loanToken,
+            params.collateralToken,
+            params.oracle,
+            params.irm,
+            address(uint160(params.lltv)),
+            onBehalf,
+            receiver
+        );
+    }
+
+    function repay(
+        DecoderCustomTypes.MarketParams calldata params,
+        uint256,
+        uint256,
+        address onBehalf,
+        bytes calldata data
+    ) external pure returns (bytes memory addressesFound) {
+        // Sanitize raw data
+        if (data.length > 0) revert MorphoBlueDecoderAndSanitizer__CallbackNotSupported();
+        if (params.lltv > type(uint160).max) revert MorphoBlueDecoderAndSanitizer__OvercastUint160();
+
+        // Return addresses found
+        addressesFound = abi.encodePacked(
+            params.loanToken,
+            params.collateralToken,
+            params.oracle,
+            params.irm,
+            address(uint160(params.lltv)),
+            onBehalf
+        );
+    }
+
+    function supplyCollateral(
+        DecoderCustomTypes.MarketParams calldata params,
+        uint256,
+        address onBehalf,
+        bytes calldata data
+    ) external pure returns (bytes memory addressesFound) {
+        // Sanitize raw data
+        if (data.length > 0) revert MorphoBlueDecoderAndSanitizer__CallbackNotSupported();
+        if (params.lltv > type(uint160).max) revert MorphoBlueDecoderAndSanitizer__OvercastUint160();
+
+        // Return addresses found
+        addressesFound = abi.encodePacked(
+            params.loanToken,
+            params.collateralToken,
+            params.oracle,
+            params.irm,
+            address(uint160(params.lltv)),
+            onBehalf
+        );
+    }
+
+    function withdrawCollateral(
+        DecoderCustomTypes.MarketParams calldata params,
+        uint256,
+        address onBehalf,
+        address receiver
+    ) external pure returns (bytes memory addressesFound) {
+        if (params.lltv > type(uint160).max) revert MorphoBlueDecoderAndSanitizer__OvercastUint160();
+
+        addressesFound = abi.encodePacked(
+            params.loanToken,
+            params.collateralToken,
+            params.oracle,
+            params.irm,
+            address(uint160(params.lltv)),
+            onBehalf,
+            receiver
+        );
+    }
+}

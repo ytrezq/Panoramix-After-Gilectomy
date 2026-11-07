@@ -1,0 +1,32 @@
+// SPDX-License-Identifier: SEL-1.0
+// Copyright © 2025 Veda Tech Labs
+// Derived from Boring Vault Software © 2025 Veda Tech Labs (TEST ONLY – NO COMMERCIAL USE)
+// Licensed under Software Evaluation License, Version 1.0
+// Last audited: boring-vault@4c9c671bb965899728167102a0e3ac22f4aabf7a — https://macroaudits.com/library/audits/sevenSeas-39
+pragma solidity 0.8.21;
+
+import {DecoderCustomTypes} from "src/interfaces/DecoderCustomTypes.sol";
+
+contract Permit2DecoderAndSanitizer {
+    // ========================================= ERRORS ==================================
+
+    error Permit2DecoderAndSanitizer__LengthGtOne();
+
+    function approve(address token, address spender, uint160, /*amount*/ uint48 /*expiraton*/ )
+        external
+        pure
+        virtual
+        returns (bytes memory addressesFound)
+    {
+        addressesFound = abi.encodePacked(token, spender);
+    }
+
+    function lockdown(DecoderCustomTypes.TokenSpenderPair[] memory approvals)
+        external
+        pure
+        returns (bytes memory addressesFound)
+    {
+        if (approvals.length > 1) revert Permit2DecoderAndSanitizer__LengthGtOne();
+        addressesFound = abi.encodePacked(approvals[0].token, approvals[0].spender);
+    }
+}

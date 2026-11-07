@@ -1,0 +1,162 @@
+{
+    "deploymentParameters": {
+      "logLevel": 4,
+      "privateKeyEnvName": "BORING_DEVELOPER",
+      "chainName": "mainnet",
+      "evmVersion": "cancun",
+      "desiredNumberOfDeploymentTxs": 2,
+      "txBundlerAddressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "txBundlerAddress"
+      },
+      "setupRoles": true,
+      "setupTestUser": true,
+      "saveDeploymentDetails": true,
+      "testUserAddressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "dev4Address"
+      },
+      "deployerContractAddressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "deployerAddress"
+      },
+      "nativeWrapperAddressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "WETH"
+      },
+      "deploymentOwnerAddressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "txBundlerAddress"
+      },
+      "deploymentFileName": "addresses/Mainnet/LtacBTC.json"
+    },
+    "rolesAuthorityConfiguration": {
+      "rolesAuthorityDeploymentName": "Locked Turtle TAC Bitcoin Vault RolesAuthority Version 0.3"
+    },
+    "lensConfiguration": {
+      "lensDeploymentName": "Arctic Architecture Lens V0.3"
+    },
+    "boringVaultConfiguration": {
+      "boringVaultDeploymentName": "Locked Turtle TAC Bitcoin Vault V0.3",
+      "boringVaultName": "Locked Turtle TAC BTC Vault",
+      "boringVaultSymbol": "LtacBTC",
+      "boringVaultDecimals": 8
+    },
+    "managerConfiguration": {
+      "managerDeploymentName": "Locked Turtle TAC Bitcoin Vault Manager With Merkle Verification V0.3",
+      "balancerVaultAddressOrName": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "balancerVault"
+      }
+    },
+    "accountantConfiguration": {
+      "accountantDeploymentName": "Locked Turtle TAC Bitcoin Vault Accountant With Rate Providers V0.3",
+      "accountantParameters": {
+        "kind": {
+          "variableRate": true,
+          "fixedRate": false
+        },
+        "payoutConfiguration": {
+          "payoutTo": "0x0000000000000000000000000000000000000001",
+          "optionalPaymentSplitterName": "Locked Turtle TAC Bitcoin Vault Payment Splitter V0.3",
+          "splits": [
+            {
+              "to": "0xD3d742a82524b6de30E54315E471264dc4CF2BcC",
+              "percent": 10000
+            }
+          ]
+        },
+        "accountantDeploymentParameters": {
+          "allowedExchangeRateChangeLower": 10000,
+          "allowedExchangeRateChangeUpper": 10000,
+          "baseAddressOrName": {
+            "address": "0x0000000000000000000000000000000000000000",
+            "name": "TurtleTACBTC"
+          },
+          "minimumUpateDelayInSeconds": 21600,
+          "performanceFee": 0,
+          "platformFee": 0,
+          "startingExchangeRate": 100000000
+        }
+      }
+    },
+    "tellerConfiguration": {
+      "tellerDeploymentName": "Locked Turtle TAC Bitcoin Vault Teller With Multi Asset Support V0.3",
+      "tellerParameters": {
+        "allowPublicDeposits": true,
+        "shareLockPeriod": 86400,
+        "kind": {
+          "teller": false,
+          "tellerWithRemediation": false,
+          "tellerWithCcip": false,
+          "tellerWithLayerZero": true,
+          "tellerWithLayerZeroRateLimiting": false
+        },
+        "layerZero": {
+          "endpointAddressOrName": {
+            "address": "0x0000000000000000000000000000000000000000",
+            "name": "LayerZeroEndPoint"
+          },
+          "lzTokenAddressOrName": {
+            "address": "0x0000000000000000000000000000000000000000",
+            "name": "ZRO"
+          },
+          "lzChains": []
+        }
+      }
+    },
+    "boringQueueConfiguration": {
+      "boringQueueDeploymentName": "Locked Turtle TAC Bitcoin Vault Boring Queue V0.3",
+      "boringQueueSolverName": "Locked Turtle TAC Bitcoin Vault Boring Solver V0.3",
+      "queueParameters": {
+        "allowPublicWithdrawals": false,
+        "allowPublicSelfWithdrawals": false,
+        "kind": {
+          "boringQueue": true,
+          "boringQueueWithTracking": false
+        }
+      }
+    },
+    "droneConfiguration": {
+      "droneDeploymentBaseName": "Locked Turtle TAC Bitcoin Vault Drone V0.3",
+      "droneCount": 0,
+      "safeGasToForwardNative": 21000
+    },
+    "pauserConfiguration": {
+      "shouldDeploy": true,
+      "pauserDeploymentName": "Locked Turtle TAC Bitcoin Vault Pauser V0.3",
+      "makeGenericPauser": ["0x0000000000000000000000000000000000000000"],
+      "makeGenericUnpauser": ["0x0000000000000000000000000000000000000000"],
+      "makePauseAll": ["0x0000000000000000000000000000000000000000"],
+      "makeUnpauseAll": ["0x0000000000000000000000000000000000000000"],
+      "senderToPausable": [
+        {
+          "sender": "0x0000000000000000000000000000000000000000",
+          "pausable": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    "timelockConfiguration": {
+      "shouldDeploy": true,
+      "timelockDeploymentName": "Locked Turtle TAC Bitcoin Vault Timelock V0.3",
+      "timelockParameters": {
+        "minDelay": 86400,
+        "proposers": ["0xD3d742a82524b6de30E54315E471264dc4CF2BcC"],
+        "executors": ["0xD3d742a82524b6de30E54315E471264dc4CF2BcC"]
+      }
+    },
+    "accountantAssets": [],
+    "depositAssets": [
+      {
+        "addressOrName": {
+          "address": "0x0000000000000000000000000000000000000000",
+          "name": "TurtleTACBTC"
+        },
+        "allowDeposits": true,
+        "allowWithdraws": false,
+        "sharePremium": 0
+      }
+    ],
+    "withdrawAssets": []
+  }
+  
