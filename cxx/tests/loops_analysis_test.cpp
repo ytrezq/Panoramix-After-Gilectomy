@@ -470,9 +470,10 @@ TEST_CASE("loops: summary ranges of an address read from memory the loop doesn't
     MESSAGE("writes " << dump(s.mem_writes));
     CHECK(s.mem_writes[0][0] == V("(add 96 (mem (range 64 32)))"));
     CHECK(L::may_write(w, V("(range 64 32)")) == Tri::False);
-    // every word it says no iteration writes is as it was (the free memory
-    // pointer left at least 0x60: the ranges' assumption for solidity's
-    // code - no sentinel over part of it)
+    // every word it says no iteration writes is as it was (no sentinel over
+    // part of it); nothing is assumed of mem[64] (docs/alloc-floor.md part
+    // 3): the words below 96 are the ones decided, the writes being at
+    // 96 + loop0 + mem[64] at least, without a wrap (addresses below 2^64)
     const Value sent = V("(sized 32 0x100)");
     int decided = 0;
     for (int q = 0; q <= 1024; q += 16) {
@@ -484,7 +485,7 @@ TEST_CASE("loops: summary ranges of an address read from memory the loop doesn't
         Value tb = make({fill, fmp, mk(Op::SETMEM, r, sent), w, mk(Op::RETURN, sent)});
         CHECK_MESSAGE(same_runs(ta, tb), "q " << q);
     }
-    CHECK(decided > 5);
+    CHECK(decided >= 4);
     // a write that may reach the word its address reads: per iteration
     const Value w2 = V(
         "(while (lt loop0 (mask_shl 3 5 0 (calldataload 36))) {(setmem (range (add loop0 (mask_shl 6 0 0 (mem (range 64 "

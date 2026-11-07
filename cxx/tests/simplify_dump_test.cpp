@@ -88,7 +88,6 @@ TEST_CASE("simplify: dump (PANORAMIX_SIMPLIFY_DUMP)") {
         ContractShared shared;
         shared.code = *bytes;
         shared.map = &map;
-        shared.free_memory_pointer = map.fmp;
         std::vector<FunctionInfo> fns = vm::discover(shared, budget);
         std::vector<vm::InternalEntry> known;
         for (auto& fn : fns) {

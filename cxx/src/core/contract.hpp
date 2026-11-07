@@ -28,7 +28,6 @@ struct ContractShared {
     const CodeMap* map = nullptr;        // lot 1
     const sigdb::Database* db = nullptr;  // may be null
     Lang lang = Lang::Unknown;
-    bool free_memory_pointer = true;  // solidity's fmp idiom (mem[64]) assumed
 };
 
 // INVALID(reason, pc): why the path ends invalid

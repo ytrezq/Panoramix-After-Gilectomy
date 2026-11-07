@@ -359,7 +359,7 @@ void hashes_of(Value v, Memo<Value, u8>& seen, std::vector<Value>& out) {
     for (Value c : v.children()) hashes_of(c, seen, out);
 }
 
-Lang vote_language(const Accesses& accesses) {
+Lang vote_language(const Accesses& accesses, Lang tie) {
     i64 votes = 0;
     for (usize i = 0; i < accesses.size(); ++i) {
         Memo<Value, u8> seen;
@@ -376,6 +376,7 @@ Lang vote_language(const Accesses& accesses) {
                 --votes;
         }
     }
+    if (votes == 0) return tie == Lang::Vyper ? Lang::Vyper : Lang::Solidity;
     return votes > 0 ? Lang::Vyper : Lang::Solidity;
 }
 
@@ -1006,17 +1007,21 @@ std::shared_ptr<const StorageLayout> analyse(std::span<FunctionInfo> functions, 
                                              const ContractShared& shared, const Options& opts) {
     using namespace detail;
     std::vector<Fn> fns = functions_of(functions, internals);
-    // python narrow, then the language (the metadata's, else how the mappings hash)
+    // python narrow, then the order the mappings hash in, read from the
+    // code's own hashes (vote_language): nothing assumed from the metadata,
+    // which only breaks a tie (no mapping hashed with a constant slot). An
+    // access hashed in the other order doesn't parse as a mapping and stays
+    // raw; the typed forms are executed by the trace machine in that order.
     {
         Narrow nw;
         for (Fn& f : fns) f.trace = nw.trace(f.trace);
     }
     check_deadline(opts.deadline_ns);
-    Lang lang = shared.lang;
+    Lang lang = Lang::Unknown;
     {
         Accesses all;
         for (Fn& f : fns) all.find(f.trace);
-        if (lang == Lang::Unknown) lang = vote_language(all);
+        lang = vote_language(all, shared.lang);
         Parser parser(lang);
         // the stores of whole variables
         Regroup rg(all, parser);

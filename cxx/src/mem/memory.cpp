@@ -15,6 +15,7 @@
 #include "algebra/compare.hpp"
 #include "algebra/construct.hpp"
 #include "algebra/eval.hpp"
+#include "algebra/facts.hpp"
 #include "algebra/linear.hpp"
 #include "algebra/masks.hpp"
 #include "algebra/ranges.hpp"
@@ -58,7 +59,21 @@ struct PosMemo final : ModuleState {
     }
 };
 
+// facts of floors only (or none) are used as a substitution: the pair
+// floored is then decided without facts, memoized (docs/alloc-floor.md)
+inline void floors_applied(Value& a, Value& b, const Facts*& f) {
+    if (!f) return;
+    if (f->empty()) {
+        f = nullptr;
+    } else if (f->floors_only()) {
+        a = alg::floored(a, *f);
+        b = alg::floored(b, *f);
+        f = nullptr;
+    }
+}
+
 Tri pos_le(Value a, Value b, const Facts* f) {
+    floors_applied(a, b, f);
     if (a == b) return Tri::True;
     if (auto x = nat(a))
         if (auto y = nat(b)) return tri(*x <= *y);
@@ -74,6 +89,7 @@ Tri pos_le(Value a, Value b, const Facts* f) {
     return t == Tri::Cannot ? Tri::None : t;
 }
 Tri pos_lt(Value a, Value b, const Facts* f) {
+    floors_applied(a, b, f);
     if (a == b) return Tri::False;
     if (auto x = nat(a))
         if (auto y = nat(b)) return tri(*x < *y);

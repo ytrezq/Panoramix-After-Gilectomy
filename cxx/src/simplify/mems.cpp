@@ -27,6 +27,7 @@
 // only where no msize is read after it on any path, or where it ends within
 // the memory the entry lines made (it moves nothing).
 #include "simplify/effects.hpp"
+#include "simplify/floor.hpp"
 #include "simplify/internal.hpp"
 #include "simplify/simplify.hpp"
 
@@ -38,6 +39,7 @@
 #include "core/memo.hpp"
 #include "algebra/compare.hpp"
 #include "algebra/construct.hpp"
+#include "algebra/facts.hpp"
 #include "loops/loops.hpp"
 #include "mem/memory.hpp"
 
@@ -156,9 +158,12 @@ void forget_loop(mem::MemState& st, Value while_line, u32& fresh) {
         if (Value r2 = substitute(r, from, to); r2 != r) st.write(r2, Value());
 }
 
+// (the forward walk carries the floors of the words at constant addresses -
+// simplify/floor.hpp - in `fl`, a Facts of floors only, and gives them to
+// the MemState of each point: its decisions about positions read them)
 class Forward {
 public:
-    Value walk(Value trace, mem::MemState& st) {
+    Value walk(Value trace, mem::MemState& st, alg::Facts& fl) {
         if (!trace.is_list()) return trace;
         check_stack();
         SmallVec<Value, 32> out;
@@ -166,7 +171,7 @@ public:
         for (u32 i = 0; i < trace.size(); ++i) {
             poll();
             Value l = trace[i];
-            Value r = line(l, st, trace, i);
+            Value r = line(l, st, fl, trace, i);
             if (r != l) changed = true;
             out.push_back(r);
         }
@@ -208,41 +213,53 @@ private:
         return map_line_exprs(l, [&](Value e, Pos pos) { return reads(e, pos, st); });
     }
 
-    Value line(Value l, mem::MemState& st, Value trace, u32 i) {
+    Value line(Value l, mem::MemState& st, alg::Facts& fl, Value trace, u32 i) {
         if (!l.is_expr()) return l;
         switch (l.op()) {
             case Op::IF:
             case Op::MERGED_IF: {
                 Value cond = reads(l[0], Pos::Word, st);
+                alg::Facts ft = fl, fe = fl;
                 mem::MemState st_t = constrained(st, cond), st_e = constrained(st, alg::iszero(cond));
-                Value t = walk(l[1], st_t);
-                Value e = walk(l[2], st_e);
+                st_t.set_facts(&ft);
+                st_e.set_facts(&fe);
+                Value t = walk(l[1], st_t, ft);
+                Value e = walk(l[2], st_e, fe);
                 const bool t_ends = ends(t), e_ends = ends(e);
                 if (t_ends && !e_ends) {
                     st = std::move(st_e);
+                    fl = fe;
                 } else if (e_ends && !t_ends) {
                     st = std::move(st_t);
+                    fl = ft;
                 } else if (!t_ends && !e_ends) {
                     st_t.meet(st_e);
                     st = std::move(st_t);
+                    fl = floor_join(fl, fl, ft, fe);
                 }
+                st.set_facts(&fl);
                 Value r = mk_like(l, std::span<const Value>({cond, t, e}));
                 cx().pcs.inherit(r, l);
                 return r;
             }
             case Op::WHILE: {
                 Value sv = map_line_exprs(mk(Op::CONTINUE, l[2], l[3]), [&](Value e, Pos pos) { return reads(e, pos, st); });
-                // at its head (any iteration): what it changes forgotten
+                // at its head (any iteration): the floors no iteration
+                // changes, what it changes forgotten
+                fl = floor_loop(fl, l);
                 forget_loop(st, l, fresh_);
                 mem::MemState inside(st);
+                alg::Facts fin = fl;
+                inside.set_facts(&fin);
                 Value cond = reads(l[0], Pos::Word, inside);
-                Value body = walk(l[1], inside);
+                Value body = walk(l[1], inside, fin);
                 Value r = mk(Op::WHILE, cond, body, l[2], sv[1]);
                 cx().pcs.inherit(r, l);
                 return r;
             }
             case Op::LABEL: {
                 Value r = line_reads(l, st);
+                fl = fl.without_floors();
                 forget(st, summary(r));
                 EffectSummary rest;
                 for (u32 j = i + 1; j < trace.size(); ++j) rest = combine(rest, summary(trace[j]), true);
@@ -250,21 +267,26 @@ private:
                 return r;
             }
             case Op::LOOP_PATH: {
+                fl = fl.without_floors();
                 forget(st, summary(l));
                 mem::MemState inside(st);
-                Value t = walk(l[0], inside);
+                alg::Facts fin = fl;
+                inside.set_facts(&fin);
+                Value t = walk(l[0], inside, fin);
                 return t == l[0] ? l : mk(Op::LOOP_PATH, t, l[1]);
             }
             case Op::SETMEM: {
                 Value r = line_reads(l, st);
                 if (r != l) cx().pcs.inherit(r, l);
-                // (its other effects: none; its write)
+                // (its other effects: none; its write, decided with the
+                // floors before it)
                 if (!r[0].is(Op::RANGE, 2))
                     st.clear();
                 else if (keeps(r[0], r[1]))
                     st.write(r[0], r[1]);
                 else
                     st.write(r[0], Value());
+                fl = floor_transfer(fl, r);
                 return r;
             }
             default: break;
@@ -272,6 +294,7 @@ private:
         Value r = line_reads(l, st);
         if (r != l) cx().pcs.inherit(r, l);
         forget(st, summary(r));
+        fl = floor_transfer(fl, r);
         return r;
     }
 
@@ -564,10 +587,12 @@ Value cleanup_mems(Value trace) {
     // (where msize is read, a read of memory nothing wrote touches it: not
     // zeroes)
     mem::MemState st(run_flags().fresh && !msize);
+    alg::Facts fl;  // the floors (simplify/floor.hpp)
+    st.set_facts(&fl);
     Forward fw;
     // what the lines before the trace wrote (the dispatcher's)
-    if (run_flags().entry_lines.is_list()) (void)fw.walk(run_flags().entry_lines, st);
-    Value t = fw.walk(trace, st);
+    if (run_flags().entry_lines.is_list()) (void)fw.walk(run_flags().entry_lines, st, fl);
+    Value t = fw.walk(trace, st, fl);
     // where msize is read, a write no read sees is dropped only where msize
     // isn't read after it or where it doesn't move it (within what the entry
     // lines wrote: the memory is that large on every path)

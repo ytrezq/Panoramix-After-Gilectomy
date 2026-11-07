@@ -379,7 +379,6 @@ Run::Run(std::span<const u8> code, const Settings& settings)
     shared_.code = code_;
     shared_.map = &map_;
     shared_.db = s_.options.db;
-    shared_.free_memory_pointer = map_.fmp || sets_free_memory_pointer(code_);
     if (const auto md = metadata(code_))
         shared_.lang = md->lang;
     result_.lang = shared_.lang;

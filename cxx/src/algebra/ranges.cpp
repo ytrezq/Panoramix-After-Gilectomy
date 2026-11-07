@@ -1388,7 +1388,12 @@ Range Range::as_word() const {
     return Range{lo - shift, hi - shift};
 }
 
-Range range(Value v, Top top, const Facts* facts) { return RangeQuery(facts, {&v, 1}).range(v, top); }
+Range range(Value v, Top top, const Facts* facts) {
+    // (docs/alloc-floor.md: a position reads mem[A] as F + d where the facts
+    // floor it)
+    if (top == Top::Memory && facts && facts->any_floor()) v = floored(v, *facts);
+    return RangeQuery(facts, {&v, 1}).range(v, top);
+}
 Range signed_range(Value v, Top top, const Facts* facts) { return RangeQuery(facts, {&v, 1}).signed_range(v, top); }
 Range word_diff(Value a, Value b, Top top, const Facts* facts) {
     const Value ab[2] = {a, b};
@@ -1538,12 +1543,6 @@ void set_variables(std::span<const std::pair<Value, Value>> name_values, std::sp
 }
 
 void clear_variables() { set_variables({}, {}); }
-
-// (part 3 of docs/alloc-floor.md: nothing assumed of mem[64] any more;
-// kept until the header loses them)
-void set_free_memory_pointer(bool) {}
-
-bool free_memory_pointer() { return false; }
 
 bool unchecked(Value v) {
     RangeQuery::Impl impl(nullptr);

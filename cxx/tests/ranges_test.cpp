@@ -543,12 +543,8 @@ TEST_CASE("ranges: leaves, masks and the other operations") {
     CHECK(A::range(A::exp(mk_int(2), V("(mask_shl 3 0 0 (calldataload 4))"))) == A::Range::of(EvmInt(1), EvmInt(128)));
     // max / min of ranges
     CHECK(A::range(A::max({V("(mask_shl 8 0 0 caller)"), mk_int(1000)})) == A::Range::of(EvmInt(1000), EvmInt(1000)));
-    // the free memory pointer
-    CHECK(A::range(V("(mem (range 64 32))")) == A::Range::of(EvmInt(0x60), word_max()));
-    A::set_free_memory_pointer(false);
+    // the word at 0x40: nothing assumed (docs/alloc-floor.md part 3)
     CHECK(A::range(V("(mem (range 64 32))")) == A::Range::word());
-    A::set_free_memory_pointer(true);
-    CHECK(A::range(V("(mem (range 64 32))")) == A::Range::of(EvmInt(0x60), word_max()));
     // range_bits
     CHECK(A::range_bits(V("calldatasize")) == 64);
     CHECK(A::range_bits(V("(add 1 calldatasize)")) == 65);
@@ -827,12 +823,13 @@ TEST_CASE("ranges: a variable set before the state changed (lot 7's stETH case)"
     CHECK(A::le(a, b) == Tri::None);
     CHECK(A::eq(a, b) == Tri::None);
     CHECK(A::eval_bool(A::cmp(Op::LT, b, a)) == Tri::None);
-    // its range: the value's, whatever it reads (mem[64] >= 0x60)
-    CHECK(A::range(t8) == A::Range::of(EvmInt(0x60), word_max()));
+    // its range: the value's, whatever it reads (nothing assumed of mem[64]:
+    // docs/alloc-floor.md part 3)
+    CHECK(A::range(t8) == A::Range::word());
     // a fact of here about mem[64] says nothing of the snapshot
     A::Facts k = A::Facts().with_cond(A::cmp(Op::LT, fmp, mk_int(1000)));
-    CHECK(A::range(fmp, A::Top::Word, &k) == A::Range::of(EvmInt(0x60), EvmInt(999)));
-    CHECK(A::range(t8, A::Top::Word, &k) == A::Range::of(EvmInt(0x60), word_max()));
+    CHECK(A::range(fmp, A::Top::Word, &k) == A::Range::of(EvmInt(0), EvmInt(999)));
+    CHECK(A::range(t8, A::Top::Word, &k) == A::Range::word());
     CHECK(A::eval_bool(A::cmp(Op::LT, t8, mk_int(1000)), &k) == Tri::None);
     // a value that reads no state is the variable's value: tmp9 = cd[4] + 1
     const Value t9 = V("tmp9"), x = V("(calldataload 4)");

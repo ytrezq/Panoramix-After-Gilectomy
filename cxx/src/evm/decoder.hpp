@@ -199,12 +199,6 @@ void check_code_size(std::span<const u8> code);
 // Throws std::bad_alloc, and SizeLimit past kMaxCodeSize.
 [[nodiscard]] CodeMap analyse(std::span<const u8> code);
 
-// python's loader.sets_free_memory_pointer (ContractShared::free_memory_pointer):
-// the code starts as solidity's does - its first MSTORE, within its first 32
-// instructions, writes a number in [0x60, 2^16) at 0x40, the stack before it
-// made of pushes, dups, swaps and ADDRESS CALLVALUE CALLDATASIZE ISZERO EQ LT
-// GT (their results unknown). CodeMap::fmp (the idiom) implies it.
-[[nodiscard]] bool sets_free_memory_pointer(std::span<const u8> code);
 
 // ---------------------------------------------------------------------------
 // The machines with a callback (NaCl's ProcessInstructionFunc): the

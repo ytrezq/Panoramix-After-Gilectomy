@@ -14,6 +14,7 @@
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "core/intops.hpp"
+#include "core/memo.hpp"
 
 namespace pan::alg {
 
@@ -312,6 +313,7 @@ Facts Facts::forget(Forget what) const {
             case FactKind::Mem: any = !f.c.nil() && mentions(f.c, what); break;
             case FactKind::RdZero: any = what == Forget::Volatile; break;
             case FactKind::VarBits: any = mentions(f.a, what); break;
+            case FactKind::Floor: any = mentions(f.b, what); break;
             case FactKind::Fresh: break;
         }
     }
@@ -332,6 +334,9 @@ Facts Facts::forget(Forget what) const {
             case FactKind::RdZero:
                 if (what == Forget::Volatile) continue;
                 break;
+            case FactKind::Floor:
+                if (mentions(f.b, what)) continue;
+                break;
             case FactKind::Fresh:
                 break;
         }
@@ -351,6 +356,7 @@ Facts Facts::forget_flags(u8 flags) const {
             case FactKind::VarBits: any = f.a.has_flags(flags); break;
             case FactKind::Mem: any = !f.c.nil() && f.c.has_flags(flags); break;
             case FactKind::RdZero: any = (flags & F_STATE) != 0; break;
+            case FactKind::Floor: any = f.b.has_flags(flags); break;
             case FactKind::Fresh: break;
         }
     }
@@ -371,6 +377,9 @@ Facts Facts::forget_flags(u8 flags) const {
             case FactKind::RdZero:
                 if (flags & F_STATE) continue;
                 break;
+            case FactKind::Floor:
+                if (f.b.has_flags(flags)) continue;
+                break;
             case FactKind::Fresh:
                 break;
         }
@@ -382,15 +391,92 @@ Facts Facts::forget_flags(u8 flags) const {
 }
 
 Facts Facts::without_memory() const {
+    auto memory = [](FactKind k) { return k == FactKind::Mem || k == FactKind::Fresh || k == FactKind::Floor; };
     bool any = false;
-    for (const Cell* c = head_; c && !any; c = c->next)
-        any = c->f.kind == FactKind::Mem || c->f.kind == FactKind::Fresh;
+    for (const Cell* c = head_; c && !any; c = c->next) any = memory(c->f.kind);
     if (!any) return *this;
     SmallVec<const Cell*, 32> cs, keep;
     cells_of(head_, cs);
     for (const Cell* c : cs)
-        if (c->f.kind != FactKind::Mem && c->f.kind != FactKind::Fresh) keep.push_back(c);
+        if (!memory(c->f.kind)) keep.push_back(c);
     return from_cells(keep.span());
+}
+
+// ---- floors (docs/alloc-floor.md) -----------------------------------------------------
+
+Value Facts::floor_of(u64 addr) const noexcept {
+    const Value a = Value::small(i64(addr));
+    for (const Cell* c = head_; c; c = c->next)
+        if (c->f.kind == FactKind::Floor && c->f.a == a) return c->f.b;
+    return Value();
+}
+
+Facts Facts::without_floor(u64 addr) const {
+    const Value a = Value::small(i64(addr));
+    bool any = false;
+    for (const Cell* c = head_; c && !any; c = c->next) any = c->f.kind == FactKind::Floor && c->f.a == a;
+    if (!any) return *this;
+    SmallVec<const Cell*, 32> cs, keep;
+    cells_of(head_, cs);
+    for (const Cell* c : cs)
+        if (!(c->f.kind == FactKind::Floor && c->f.a == a)) keep.push_back(c);
+    return from_cells(keep.span());
+}
+
+bool Facts::floors_only() const noexcept {
+    if (!head_) return false;
+    for (const Cell* c = head_; c; c = c->next)
+        if (c->f.kind != FactKind::Floor) return false;
+    return true;
+}
+
+Facts Facts::without_floors() const {
+    if (!any_floor()) return *this;
+    SmallVec<const Cell*, 32> cs, keep;
+    cells_of(head_, cs);
+    for (const Cell* c : cs)
+        if (c->f.kind != FactKind::Floor) keep.push_back(c);
+    return from_cells(keep.span());
+}
+
+Value floor_atom(u64 addr) { return Value::name(NameKind::LOOP, 0xffe00000u | u32(addr & 0xfffffu)); }
+
+namespace {
+
+Value floored_rec(Value v, const Facts& f, Memo<Value, Value>& memo) {
+    if (!v.has_flags(F_MEM) || !(v.is_expr() || v.is_list())) return v;
+    if (v.is(Op::MEM, 1) && v[0].is(Op::RANGE, 2) && v[0][0].is_small() && v[0][1] == Value::small(32)) {
+        const i64 a = v[0][0].small_val();
+        if (a >= 0)
+            if (Value fl = f.floor_of(u64(a)); !fl.nil()) return add(fl, floor_atom(u64(a)));
+        return v;
+    }
+    if (Value* m = memo.find(v)) return *m;
+    check_stack();
+    SmallVec<Value, 8> args;
+    bool changed = false;
+    for (Value x : v.args()) {
+        Value y = floored_rec(x, f, memo);
+        changed |= y != x;
+        args.push_back(y);
+    }
+    Value r = !changed ? v : v.is_list() ? mk_list(args.span()) : apply(v.op(), args.span());
+    memo.put(v, r);
+    return r;
+}
+
+}  // namespace
+
+Value floored(Value v, const Facts& facts) {
+    if (!facts.any_floor() || !v.has_flags(F_MEM)) return v;
+    Memo<Value, Value> memo;
+    return floored_rec(v, facts, memo);
+}
+
+Facts Facts::with_floor(u64 addr, Value floor) const {
+    Facts r = without_floor(addr);
+    if (floor.nil()) return r;
+    return r.with(Fact{FactKind::Floor, Value::small(i64(addr)), floor, {}});
 }
 
 // ---- memory -------------------------------------------------------------------------
@@ -408,6 +494,21 @@ Facts Facts::write_memory(Value start, Value size, Value value) const {
         return without_memory();
     }
     if (*n == 0) return *this;
+    if (any_floor()) {
+        // (a floor of a word this write may change goes: the walks that
+        // keep floors - mem/floor.hpp - set them again from what is written)
+        SmallVec<u64, 4> hit;
+        for (const Cell* c = head_; c; c = c->next)
+            if (c->f.kind == FactKind::Floor) {
+                const u64 a = u64(c->f.a.small_val());
+                if (!(a + 32 <= *s || *s + *n <= a) || c->f.b.has_flags(F_MEM)) hit.push_back(a);
+            }
+        if (!hit.empty()) {
+            Facts r = *this;
+            for (u64 a : hit) r = r.without_floor(a);
+            return r.write_memory(start, size, value);
+        }
+    }
     if (!value.nil()) {
         if (*n != 1 && *n != 32 && !(value.is_int() && *n < 32)) value = Value();
     }

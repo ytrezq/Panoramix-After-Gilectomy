@@ -458,6 +458,35 @@ calldata, context) with their places (ranges, slots, keys, names, call
 ids; "anywhere" past 32) and how the paths end; `affects`, `independent`
 (the folder's hoisting), `ends`, `storage_may_alias` are conservative.
 
+## Nothing assumed of the compiler
+
+The decompiler reads EVM code whatever made it: solc's legacy and IR
+pipelines, Vyper, Yul, Huff, Fe, hand-written assembly. A pattern of one
+compiler may be *recognized* - that is reading, and every rewrite it leads
+to is proven or checked exact - never *assumed*. What the tree inherited
+from python and the asm, and what became of it (the audit of November
+2026):
+
+| what | where | now |
+|---|---|---|
+| `mem[64] >= 0x60` (python's `FREE_MEMORY_POINTER`) | `algebra/ranges.cpp` | removed; the floors give what the trace proves (`docs/alloc-floor.md`) |
+| `mem[0x40] = 0x60` before a function whose entry state isn't known | `vm/vm.cpp` | removed: memory unknown there |
+| the free memory pointer flag (`ContractShared::free_memory_pointer`, `sets_free_memory_pointer`) | `core/contract.hpp`, `evm/decoder.cpp` | removed |
+| a mapping's hash order (solidity's `keccak(key . slot)`, Vyper's `keccak(slot . key)`) taken from the CBOR metadata | `storage/analyse.cpp` | the code's hashes vote; the metadata only breaks a tie |
+| the dispatcher's selector tests | `vm/discover` | recognized by their semantics (EQ, XOR, SUB, ISZERO, AND, OR of the selector word; jump tables are code the VM runs): Vyper 0.3.10 to 0.4.3's tables, `gas` and `codesize`, give every function |
+| copies whose source and destination can't overlap by the allocation discipline | `loops/rewrite.cpp` | never assumed: proven (the floors) or left a loop |
+| checked arithmetic (OpenZeppelin, ds-math, Panic 0x11 / 0x12, Vyper) | `analysis/safemath.cpp` | recognized; each site verified on random values |
+| params' types from masks, solc >= 0.8's validation | `analysis/traits.cpp` | recognized; the trace machine runs the checks taken out |
+| python's `small_words` (a word given to the contract below 2^64 in memory positions) | `simplify/` | made sound: past a check bounding it on every path |
+| the metadata's language | `driver/` | displayed (`lang`), and the storage tie |
+| Error(string) / Panic decoding, event and storage names | `output/` | display only |
+
+Validated on code that isn't solc's: Vyper (the corpus branch's Lido
+contracts, 0.3.6 and 0.3.7, every EVM version they know; a 27-function
+contract by 0.3.10, 0.4.0 and 0.4.3, both optimizer modes) and the Yul
+fixtures (`tests/fixtures/yul`: overlapping copies and MCOPY, a dispatcher on
+the first byte, the word at 0x40 lowered or unused).
+
 ## The pipeline
 
 `driver::run_pipeline(code, options)` (`src/driver/pipeline.hpp`) runs a
@@ -597,12 +626,15 @@ zx_Exchange): that the two don't overlap follows from solc's allocation
 discipline (earlier allocations lie below the current mem[64]), which the
 loop alone can't show. The asm converts them with python's unchecked rule,
 which execution showed unsound on overlapping copies; no assumption is
-made here instead. Future work, with the simplifier: carry a lower bound F,
-mem[64] >= F, along the trace - kept where mem[64] is written with a value
-proven at least its old one (solc's overflow checks give it) and across
-writes and loops that provably miss [64, 96), F the new value; an ABI
-check placing a source inside an earlier allocation puts it below F, and a
-destination at or above F is then provably disjoint.
+made here instead. What the trace itself proves is used
+(`docs/alloc-floor.md`, `simplify/floor.hpp`): the *floors*, path facts
+`word(mem[A]) >= F` for a word at a constant address A that the code
+writes - made where the code writes the word (its new value, or the old
+floor plus what an allocation adds), kept across lines and loops that
+provably miss the word and what F reads, lowered at a join to a value
+proven below both branches' - which the decisions about positions read as
+`mem[A] = F + d`, `d >= 0`. Nothing presumes what the word is for: a
+hand-written allocator bumping another word gets the same proofs.
 
 ### The simplifier (lot 7, `src/simplify/`)
 
@@ -648,8 +680,10 @@ which the trace machine checks first); `read_only` (no write line);
 (keccak(key . slot); Vyper's slot . key), an array's data, offsets,
 lengths - the hashes compilers write as numbers found in a table made at
 build time (`gen_storage_htab.cpp`: keccak(n) for n < 4096, keccak(k . n)
-for k < 16 and n < 64, both orders). The language is the CBOR metadata's,
-else the mapping hashes' vote. Split stores are regrouped, types chosen by
+for k < 16 and n < 64, both orders). The order of a mapping's hash is the
+code's own: a vote of the hashes it computes (`vote_language`), the CBOR
+metadata only breaking a tie (it is the compiler's claim, not the code's;
+a hash the vote doesn't explain is printed raw). Split stores are regrouped, types chosen by
 most accesses, names taken from getters with a good name (`names.rl`).
 The accesses become the printer's forms - `SV(Name(STORVAR, i))`,
 `SI(base, key)`, `SL`, `SBL`, `SF(base, n)`, `SR(slot)` locations;
@@ -865,6 +899,23 @@ unsupported, 42 evm inconclusive); random world 45,311 calls, 44,803 the same, 0
 (243 unsupported - 220 of them storage bytes the random world fills with invalid encodings -
 and 265 evm inconclusive). Unit tests: 317 cases, 241,362 assertions; the python tests
 (surfaces, robustness, threads, the decoder's proof): 0 failures.
+
+**Nothing assumed of the compiler** (7-8 Nov, the floors and the audit above; the npm
+corpus of 861 contracts, `stagecheck --stage folded --timeout 300` in three parts, then
+`text_check` with the params' places from pancxx's JSON): every stage 0 different, 0 bugs -
+78,087 calls, 77,780 the same, 307 inconclusive (one contract stopped at the time limit, as
+before); the printed texts: 0 unparsed lines, empty world 39,059 calls, 39,017 the same, 0
+different; random world 39,063, 38,549 the same, 0 different. Unit tests: 351 cases, 242,698
+assertions, 0 failures. The price of assuming nothing: copy loops left 5,579 in 247
+contracts and `while` lines 9,568 (5,262 in 241 and 8,997 with python's `mem[64] >= 0x60`);
+the floors as they stand don't win them back (`docs/alloc-floor.md`, Results).
+
+**The source corpus** (branch `corpus`, `tools/build_corpus.py` and
+`tools/compare_source.py` there): the EVM programs of Immunefi's bug bounties with their
+sources, compiled for several EVM versions by the compilers their projects ask; per
+artifact the ABI's functions against the dispatcher, the storage layout against the storage
+definitions, stagecheck and text_check, each function's size against its source's
+statements, and the same contract across EVM versions.
 
 ## Hostile input
 

@@ -143,7 +143,6 @@ TEST_CASE("loops: corpus (PANORAMIX_LOOPS_CORPUS)") {
             ContractShared shared;
             shared.code = *bytes;
             shared.map = &map;
-            shared.free_memory_pointer = map.fmp;
             std::string name = p.substr(p.rfind('/') + 1);
             if (show) std::printf("%s\n", name.c_str());
             try {

@@ -272,7 +272,6 @@ Decompiled::Decompiled(BytesView c) : code(c.begin(), c.end()), map(pan::analyse
 {
     shared.code = code;
     shared.map = &map;
-    shared.free_memory_pointer = map.fmp;
     if (const auto md = pan::metadata(code))
         shared.lang = md->lang;
 }

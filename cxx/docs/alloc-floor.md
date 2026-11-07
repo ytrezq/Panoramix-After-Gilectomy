@@ -141,10 +141,18 @@ with no new algebra. The substitution is only for deciding: the trace keeps
    <= b` with offsets, sound under the no-wrap conditions it already proves).
    Only what the corpus needs.
 
-One small module, `mem/floor.{hpp,cpp}`, computes the floors for every walk
-(a value type: `transfer(line)`, `branch()`, `join(a, b)`,
-`loop_head(while_line)`, `substitute(expr)`, `facts()`), so the walks can't
-disagree.
+One small module, `simplify/floor.{hpp,cpp}`, computes the floors for every
+walk, so the walks can't disagree. The floors are path facts
+(`alg::FactKind::Floor`: the address A, the expression F), carried by the
+`alg::Facts` the walks already keep: `floor_transfer(facts, line)` after each
+line, `floor_join(into, before, then, else)` where two paths meet,
+`floor_loop(facts, while_line)` at a loop's head (the loop's summary: every
+iteration's writes, decided with the floors before it), `floor_walk(facts,
+v)` over a block. The substitution is `alg::floored(v, facts)`, applied by
+the decisions about positions only (`Top::Memory`): `alg::int_lt`, `int_le`,
+`decide_cmp` (`algebra/compare.cpp`), `alg::range` (`algebra/ranges.cpp`)
+and `mem::pos_le` / `pos_lt` (`mem/memory.cpp`, where facts made only of
+floors are decided by substituting and deciding without facts, memoized).
 
 ### Soundness
 
@@ -155,6 +163,16 @@ lowered to a value proven at most both branches'. The substitution reads the
 question as "for some δ >= 0", which is exactly what the invariant gives.
 Every rewrite keeps its own checks (`apart`, `ahead`, `misses`, the
 induction's trips); the floor only adds facts.
+
+The floors live under the memory model's premise (`Top::Memory`, lot 4: the
+words an address is made of are below 2^64, as python's `MEMORY_TOP`): an
+allocation `mem[A] + s` is taken not to wrap, and a join's `c <= F` is
+decided with the words of `c` and `F` below 2^64. A contract that stores a
+word of 2^64 or more in the free word and later compares positions with what
+it became is outside the model - as it is for every decision about positions
+(`a + b >= b` with `a` a word of the address). The walks use only facts that
+hold where they decide: a walk through an IF's branches has the floors alone,
+a loop's floors are decided with what holds in every iteration.
 
 ## Part 2: provenance (the third shape, exact)
 
@@ -191,7 +209,7 @@ same proof through its own `F_A`.
 
 ## Validation
 
-1. **Unit tests (doctest)**, `mem_floor_test.cpp` and the loops/simplify
+1. **Unit tests (doctest)**, `simplify_floor_test.cpp` and the loops/simplify
    tests: the transfer rules (a write of the word, a write missing it, an
    unknown write, a variable of F set again, the joins: each candidate and
    none, a loop that writes or doesn't write the word); forwarding through a
@@ -211,3 +229,22 @@ same proof through its own `F_A`.
      what part 3's removal costs before the floor recovers it;
    - CPU time before and after.
 3. **The existing suites**: release and ASan/UBSan, and the python tests.
+
+## Results (7-8 Nov 2026)
+
+Parts 1 and 3 implemented (part 2 not yet); the npm corpus, 861 contracts:
+
+| tree | copy loops left | `while` lines | stagecheck, text_check |
+|---|---|---|---|
+| python's assumption (`mem[64] >= 0x60`) | 5,262 in 241 contracts | 8,997 | 0 different |
+| part 3 alone (nothing assumed) | 5,579 in 247 | 9,568 | 0 different |
+| parts 3 and 1 (the floors) | 5,579 in 247 | 9,568 | 0 different |
+
+Assuming nothing costs 317 copy loops (aave311's SupplyLogic and BorrowLogic,
+ENS' NameWrapper, OpenZeppelin's ERC1155...) and some dead writes kept
+(`mem[64] = 128` and the call's arguments in aave311_DelegationAwareAToken's
+totalSupply); the floors, as the walks carry them now, give none of it back.
+The first reason found: the copy conversion's walk started with no floor -
+the dispatcher's write of the free word is in the entry lines, which only the
+forward memory pass walked (to do: start `loops_to_setmems` with the entry
+lines' floors, then the conditions of use 3 and part 2).

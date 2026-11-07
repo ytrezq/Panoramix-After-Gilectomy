@@ -45,6 +45,7 @@
 
 #include "algebra/compare.hpp"
 #include "algebra/facts.hpp"
+#include "simplify/floor.hpp"
 #include "algebra/construct.hpp"
 #include "algebra/linear.hpp"
 #include "core/budget.hpp"
@@ -360,17 +361,24 @@ public:
                     changed |= r != l;
                     out.push_back(r);
                     // (the condition known after it, then what its branches
-                    // write forgotten - the condition too if it reads that)
+                    // write forgotten - the condition too if it reads that;
+                    // the floors through its branches, simplify/floor.hpp)
+                    const alg::Facts floors = simplify::floor_walk(facts, r);
                     const bool t_ends = simplify::ends(tt), e_ends = simplify::ends(ee);
                     if (t_ends && !e_ends)
                         facts = facts.with(c, false);
                     else if (e_ends && !t_ends)
                         facts = facts.with(c, true);
-                    facts = forget(facts, r);
+                    facts = simplify::floors_from(forget(facts, r), floors);
                     break;
                 }
                 case Op::WHILE: {
-                    const alg::Facts head = forget(facts, l);
+                    // (at its head, for every iteration: the floors none of
+                    // its iterations changes, decided with the facts that
+                    // hold in every iteration)
+                    const alg::Facts kept = forget(facts, l);
+                    const alg::Facts head =
+                        simplify::floors_from(kept, simplify::floor_loop(simplify::floors_from(kept, facts), l));
                     Value b = trace(l[1], head.with(l[0], true));
                     Value x = b == l[1] ? l : mk(Op::WHILE, l[0], b, l[2], l[3]);
                     if (x != l) cx().pcs.inherit(x, l);
@@ -390,7 +398,7 @@ public:
                 }
                 default:
                     out.push_back(l);
-                    facts = forget(facts, l);
+                    facts = forget(simplify::floor_transfer(facts, l), l);
                     break;
             }
         }

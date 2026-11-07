@@ -123,7 +123,6 @@ TEST_CASE("vm: corpus (PANORAMIX_VM_CORPUS)") {
             ContractShared shared;
             shared.code = *bytes;
             shared.map = &map;
-            shared.free_memory_pointer = map.fmp;
             try {
                 std::vector<FunctionInfo> fns = vm::discover(shared, budget);
                 if (selectors) {

@@ -47,12 +47,12 @@
 // (F_VOLATILE: tmp8 = mem[64] is no mem[64] once the free memory pointer
 // has moved).
 //
-// The free memory pointer (python variants.FREE_MEMORY_POINTER): mem[64] is
-// at least 0x60 when the loader says the contract is solidity's (on by
-// default, as python; set_free_memory_pointer).
+// Nothing is assumed of the word at 0x40 (python's variants.FREE_MEMORY_POINTER,
+// mem[64] >= 0x60, is gone: docs/alloc-floor.md part 3); what the code wrote
+// there is known through the path facts' floors (alg::floored).
 //
 // Ranges without facts are memoized per context and top (cleared with the
-// context's caches: set_variables, set_free_memory_pointer); with facts that
+// context's caches: set_variables); with facts that
 // bound something, a walk of its own (bounded: past a node budget what's
 // left is the range without facts, which is sound).
 #pragma once
@@ -210,10 +210,6 @@ private:
 // under the old ones, every module's). set_variables({}, {}) forgets them.
 void set_variables(std::span<const std::pair<Value, Value>> name_values, std::span<const Value> small);
 void clear_variables();
-// python variants.set_free_memory_pointer: whether mem[64] is solidity's
-// free memory pointer (>= 0x60); clears the caches when it changes
-void set_free_memory_pointer(bool on);
-bool free_memory_pointer();
 
 // python unchecked(exp, values, small): v is made of a word the contract is
 // given (CALLDATALOAD, CALLDATA_BYTES, RETURNDATA_BYTES, a PARAM) not in

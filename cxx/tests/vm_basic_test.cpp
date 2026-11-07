@@ -56,15 +56,14 @@ std::vector<u8> unhex(std::string_view s) {
     return out;
 }
 
-// a contract of its own code (fmp off unless asked)
+// a contract of its own code
 struct Code {
     std::vector<u8> bytes;
     CodeMap map;
     ContractShared shared;
-    explicit Code(std::string_view hex, bool fmp = false) : bytes(unhex(hex)), map(analyse(bytes)) {
+    explicit Code(std::string_view hex) : bytes(unhex(hex)), map(analyse(bytes)) {
         shared.code = bytes;
         shared.map = &map;
-        shared.free_memory_pointer = fmp;
     }
 };
 
@@ -179,8 +178,7 @@ TEST_CASE("vm: discovery") {
     // 43 (returns 1), 0xaabbccdd -> 54 (non-payable: invalid when value);
     // fallback (38) reverts
     Code c("6080604052600436106026576000356" "0e01c806312345678146 02b5780" "63aabbccdd14603657"
-           "5b600080fd5b600160005260206000f35b3415603d57fe5b00",
-           true);
+           "5b600080fd5b600160005260206000f35b3415603d57fe5b00");
     Budget b{Budget::Limits{}};
     auto fns = vm::discover(c.shared, b);
     REQUIRE(fns.size() == 3);

@@ -35,6 +35,12 @@ enum class FactKind : u8 {
     Fresh,    // memory_fresh: the memory is of zeroes where no Mem fact says otherwise
     RdZero,   // returndatasize_zero: no call was made yet in this run
     VarBits,  // a: a variable, b: the bit length of its value (small int)
+    // a: a constant address A (small int), b: an expression F of values
+    // available here (never mem[A] itself) with word(mem[A]) >= word(F),
+    // unsigned, F not wrapping: the free-memory floor of docs/alloc-floor.md
+    // (simplify/floor.hpp keeps them; the comparisons under Top::Memory read
+    // MEM(RANGE(A, 32)) as F + d, d >= 0)
+    Floor,
 };
 
 struct Fact {
@@ -58,6 +64,16 @@ inline Value fact_value(Value v) { return v.is(Op::SIZED, 2) ? v[1] : v; }
 Value mask_value(Value v, i64 size, i64 off = 0, i64 shl = 0);
 
 class Facts;
+
+// v with every read of the word at a constant address A that the facts
+// floor (FactKind::Floor: word(mem[A]) >= F) read as F + d_A, d_A >= 0 an
+// atom of its own (a LOOP name no trace has): the question "for every value
+// mem[A] may have" made "for every d_A >= 0" (docs/alloc-floor.md, Uses).
+// For the decisions about positions only (Top::Memory: d_A is then a word of
+// an address, below 2^64 as mem[A] is). v itself when nothing is floored.
+Value floored(Value v, const Facts& facts);
+// the atom d_A
+Value floor_atom(u64 addr);
 // the bit length v's value has at most (python memloc.max_value_bits, by
 // the ranges: the BOUNDED leaves below 2^64, the facts' bounds and var_bits)
 u32 max_value_bits(Value v, const Facts* facts = nullptr);
@@ -79,6 +95,17 @@ public:
     Facts with_var_bits(Value var, u32 bits) const {
         return with(Fact{FactKind::VarBits, var, Value::small(i64(bits)), {}});
     }
+    // the floor of the word at the constant address A (any earlier floor of
+    // A replaced)
+    Facts with_floor(u64 addr, Value floor) const;
+    // the floor of the word at A; NIL when none
+    Value floor_of(u64 addr) const noexcept;
+    bool any_floor() const noexcept { return has(FactKind::Floor); }
+    // every fact a floor (and at least one)
+    bool floors_only() const noexcept;
+    // the facts but the floors (those of A only, when given)
+    Facts without_floors() const;
+    Facts without_floor(u64 addr) const;
 
     // --- reading ---
     bool contains(const Fact& f) const noexcept;
