@@ -181,8 +181,164 @@
    "languages": {
     ".sol": 798
    },
-   "copied": false,
-   "why": "reference only: no license allowing redistribution found"
+   "copied": true,
+   "why": "its license does not allow redistribution: added as git subtrees at the user's request, its license files kept in the tree",
+   "via": "git subtree",
+   "dest": "Veda-Labs__boring-vault",
+   "files": 10273,
+   "subtrees": [
+    {
+     "prefix": "Veda-Labs__boring-vault",
+     "url": "https://github.com/Veda-Labs/boring-vault",
+     "commit": "cffa9c3f62c70fb80cdae7f95a0be1bf6d0ead2c"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth",
+     "url": "https://github.com/Se7en-Seas/OAppAuth",
+     "commit": "5beb4df293c7558520f0d63b38179b8e47a08ef2"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/ccip",
+     "url": "https://github.com/smartcontractkit/ccip",
+     "commit": "9eb2708908536544c26ad67a4be96b5974d2d9d0"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "01ef448981be9d20ca85f2faf6ebdf591ce409f3"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/solmate",
+     "url": "https://github.com/transmissions11/solmate",
+     "commit": "c892309933b25c03d32b1b0d674df7ae292ba925"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth/lib/LayerZero-V2",
+     "url": "https://github.com/LayerZero-Labs/LayerZero-V2",
+     "commit": "05b9fa8e743e6108ceaaaa79c0d542b2f66bb336"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth/lib/devtools",
+     "url": "https://github.com/LayerZero-Labs/devtools",
+     "commit": "33ff07db358e4037e62d155907a89f51166662eb"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "69c8def5f222ff96f2b5beff05dfba996368aa79"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth/lib/solidity-bytes-utils",
+     "url": "https://github.com/GNSPS/solidity-bytes-utils",
+     "commit": "e0115c4d231910df47ce3b60625ce562fe4af985"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth/lib/solmate",
+     "url": "https://github.com/transmissions11/solmate",
+     "commit": "97bdb2003b70382996a79a406813f76417b1cf90"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/ccip/contracts/foundry-lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/solmate/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth/lib/LayerZero-V2/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2f112697506eab12d433a65fdc31a639548fe365"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth/lib/devtools/packages/toolbox-foundry/src/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth/lib/devtools/packages/toolbox-foundry/src/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth/lib/devtools/tests-user/lib/bats-assert",
+     "url": "https://github.com/bats-core/bats-assert",
+     "commit": "e2d855bc78619ee15b0c702b5c30fb074101159f"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth/lib/devtools/tests-user/lib/bats-core",
+     "url": "https://github.com/bats-core/bats-core",
+     "commit": "3d3f63d9772b98c88586ec0a66bd358a85d9b4a6"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth/lib/devtools/tests-user/lib/bats-support",
+     "url": "https://github.com/bats-core/bats-support",
+     "commit": "9bf10e876dd6b624fe44423f0b35e064225f7556"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth/lib/solmate/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth/lib/LayerZero-V2/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth/lib/devtools/packages/toolbox-foundry/src/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "prefix": "Veda-Labs__boring-vault/lib/OAppAuth/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    }
+   ],
+   "npm": {}
   }
  ]
 }
