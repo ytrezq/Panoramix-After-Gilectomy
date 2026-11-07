@@ -2,30 +2,6 @@
  "program": "moneyonchain",
  "repos": [
   {
-   "repo": "https://github.com/money-on-chain/MoC-Periphery",
-   "ref": null,
-   "scope_paths": [],
-   "fetched": "2026-11-07",
-   "note": "MocToken, Governor in the scope list",
-   "commit": "b035865cebae53c3835572eda84f9e98028b7a14",
-   "submodules": [],
-   "license": {
-    "file": null,
-    "spdx": null,
-    "package_json": "UNLICENSED",
-    "headers": {
-     "UNLICENSED": 30,
-     "MIT": 1
-    }
-   },
-   "redistributable": false,
-   "languages": {
-    ".sol": 31
-   },
-   "copied": false,
-   "why": "reference only: no license allowing redistribution found"
-  },
-  {
    "repo": "https://github.com/money-on-chain/Areopagus-Governance",
    "ref": null,
    "scope_paths": [],
@@ -201,6 +177,43 @@
    },
    "copied": false,
    "why": "reference only: no license allowing redistribution found"
+  },
+  {
+   "repo": "https://github.com/money-on-chain/MoC-Periphery",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "MocToken, Governor in the scope list",
+   "commit": "b035865cebae53c3835572eda84f9e98028b7a14",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": "UNLICENSED",
+    "headers": {
+     "UNLICENSED": 30,
+     "MIT": 1
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 31
+   },
+   "copied": true,
+   "why": "its license does not allow redistribution: added as git subtrees at the user's request, its license files kept in the tree",
+   "via": "git subtree",
+   "dest": "money-on-chain__MoC-Periphery",
+   "files": 114,
+   "subtrees": [
+    {
+     "prefix": "money-on-chain__MoC-Periphery",
+     "url": "https://github.com/money-on-chain/MoC-Periphery",
+     "commit": "b035865cebae53c3835572eda84f9e98028b7a14"
+    }
+   ],
+   "npm": {
+    "node_modules/@openzeppelin/contracts-ethereum-package": "3.0.0"
+   }
   }
  ]
 }
