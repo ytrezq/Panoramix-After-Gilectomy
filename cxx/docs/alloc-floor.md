@@ -243,8 +243,10 @@ Parts 1 and 3 implemented (part 2 not yet); the npm corpus, 861 contracts:
 Assuming nothing costs 317 copy loops (aave311's SupplyLogic and BorrowLogic,
 ENS' NameWrapper, OpenZeppelin's ERC1155...) and some dead writes kept
 (`mem[64] = 128` and the call's arguments in aave311_DelegationAwareAToken's
-totalSupply); the floors, as the walks carry them now, give none of it back.
-The first reason found: the copy conversion's walk started with no floor -
-the dispatcher's write of the free word is in the entry lines, which only the
-forward memory pass walked (to do: start `loops_to_setmems` with the entry
-lines' floors, then the conditions of use 3 and part 2).
+totalSupply); the floors, as the walks carry them now, give none of it back -
+the 861 texts are the same with and without them. Starting the copy
+conversion's walk with the floors of the entry lines (the dispatcher's
+write of the free word) changes no text either: what the old range bought
+is decided elsewhere - the backward memory pass's dead writes and the
+simplifier's conditions (use 3), which don't read the floors yet, are the
+next places to look, then part 2.
