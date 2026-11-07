@@ -68,32 +68,6 @@
    "skipped_large": 0
   },
   {
-   "repo": "https://github.com/money-on-chain/stable-protocol-core-v2",
-   "ref": null,
-   "scope_paths": [],
-   "fetched": "2026-11-07",
-   "commit": "d770477080daa2cf76c84b8825138974cde07878",
-   "submodules": [],
-   "license": {
-    "file": "LICENSE",
-    "spdx": "unrecognized",
-    "package_json": "AGPL-3.0",
-    "headers": {
-     "UNLICENSED": 73,
-     "MIT": 3
-    },
-    "headers_main": {
-     "UNLICENSED": 58
-    }
-   },
-   "redistributable": false,
-   "languages": {
-    ".sol": 76
-   },
-   "copied": false,
-   "why": "reference only: no license allowing redistribution found"
-  },
-  {
    "repo": "https://github.com/money-on-chain/main-RBTC-contract",
    "ref": null,
    "scope_paths": [],
@@ -213,6 +187,57 @@
    ],
    "npm": {
     "node_modules/@openzeppelin/contracts-ethereum-package": "3.0.0"
+   }
+  },
+  {
+   "repo": "https://github.com/money-on-chain/stable-protocol-core-v2",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "d770477080daa2cf76c84b8825138974cde07878",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "unrecognized",
+    "package_json": "AGPL-3.0",
+    "headers": {
+     "UNLICENSED": 73,
+     "MIT": 3
+    },
+    "headers_main": {
+     "UNLICENSED": 58
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 76
+   },
+   "copied": true,
+   "why": "its license does not allow redistribution: added as git subtrees at the user's request, its license files kept in the tree",
+   "via": "git subtree",
+   "dest": "money-on-chain__stable-protocol-core-v2",
+   "files": 4697,
+   "subtrees": [
+    {
+     "prefix": "money-on-chain__stable-protocol-core-v2",
+     "url": "https://github.com/money-on-chain/stable-protocol-core-v2",
+     "commit": "d770477080daa2cf76c84b8825138974cde07878"
+    }
+   ],
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.9.3",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.9.3",
+    "node_modules/@uniswap/universal-router": "2.0.0",
+    "node_modules/@uniswap/v4-core": "1.0.1",
+    "node_modules/@uniswap/v4-periphery": "1.0.1",
+    "node_modules/@uniswap/swap-router-contracts": "1.3.1",
+    "node_modules/@uniswap/v2-core": "1.0.1",
+    "node_modules/@uniswap/universal-router/lib/v3-periphery/node_modules/@uniswap/v2-core": "1.0.1",
+    "node_modules/@uniswap/universal-router/lib/v3-periphery/node_modules/@uniswap/v3-core": "1.0.2-solc-0.8-simulate",
+    "node_modules/@uniswap/universal-router/lib/v3-periphery/node_modules/base64-sol": "1.1.0",
+    "node_modules/@uniswap/v3-core": "1.0.0",
+    "node_modules/@uniswap/v3-periphery": "1.4.4",
+    "node_modules/base64-sol": "1.0.1"
    }
   }
  ]
