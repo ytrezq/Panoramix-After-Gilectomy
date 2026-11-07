@@ -1,0 +1,12 @@
+removeBaseToken.t.sol
+├── when caller is not the risk manager timelock
+│  └── it should revert with UnauthorizedCaller
+└── when caller is the risk manager timelock
+   ├── given the base token is the accounting token of the Caliber
+   │  └── it should revert with AccountingToken
+   └── given the base token is not the accounting token of the Caliber
+      ├── given the base token is not registered in the Caliber
+      │  └── it should revert with NotBaseToken
+      └── given the base token is registered in the Caliber
+         ├── it should unregister the base token from the Caliber
+         └── it should emit a BaseTokenRemoved event
