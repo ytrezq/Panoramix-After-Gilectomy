@@ -141,10 +141,14 @@ class Solc:
         self.releases = sorted((vt(v) for v in self.builds), reverse=True)
 
     def newest(self, ranges):
-        for v in self.releases:
-            if all(satisfies(v, r) for r in ranges):
-                return v
-        return None
+        """the release for sources with these pragmas: the newest they allow;
+        the oldest when none of them bounds the version from above (">=
+        0.5.12": the code is 0.5.12's - a newer major release rejects it)"""
+        ok = [v for v in self.releases if all(satisfies(v, r) for r in ranges)]
+        if not ok:
+            return None
+        open_above = ranges and all(re.fullmatch(r'\s*(>=?\s*v?[\d.x*]+\s*)+', r) for r in ranges)
+        return min(ok) if open_above else max(ok)
 
     def path(self, v):
         s = '%d.%d.%d' % v
@@ -268,6 +272,24 @@ def sources_of(project):
         v = toml_get(text, k)
         if v is not None:
             cfg[k] = v
+    # the compilers a hardhat or truffle configuration names (read, never
+    # run): each source gets the newest of them its pragmas allow
+    vs = set()
+    for name in ('hardhat.config.js', 'hardhat.config.ts', 'hardhat.config.cjs', 'truffle-config.js', 'truffle.js'):
+        hp = os.path.join(project, name)
+        if os.path.exists(hp):
+            vs |= {vt(x) for x in re.findall(r'version\s*:\s*["\'](\d+\.\d+\.\d+)', open(hp, errors='replace').read())}
+    # dapptools: .dapprc's DAPP_SOLC_VERSION
+    dr = os.path.join(project, '.dapprc')
+    if os.path.exists(dr):
+        m = re.search(r'DAPP_SOLC_VERSION\s*=\s*["\']?(\d+\.\d+\.\d+)', open(dr, errors='replace').read())
+        if m:
+            vs.add(vt(m.group(1)))
+    cfg['config_versions'] = sorted(v for v in vs if v)
+    for name in ('hardhat.config.js', 'hardhat.config.ts', 'hardhat.config.cjs'):
+        hp = os.path.join(project, name)
+        if os.path.exists(hp) and re.search(r'viaIR\s*:\s*true', open(hp, errors='replace').read()):
+            cfg.setdefault('via_ir', 'true')
     remaps = foundry_remaps(project)
     src_dirs = [cfg['src']] if 'src' in cfg else [d for d in ('src', 'contracts') if os.path.isdir(os.path.join(project, d))]
     files = []
@@ -368,6 +390,21 @@ def build_solc(solc, version, group, project, repo, remaps, cfg, evm, opt, via_i
     inp = {'language': 'Solidity', 'sources': sources, 'settings': settings}
     astname = 'ast-solc-%d.%d.%d' % version + ('-ir' if via_ir else '')
     args = [solc, '--standard-json', '--allow-paths', repo]
+    if version < (0, 8, 8):
+        # (no include paths before 0.8.8: the packages under node_modules/
+        # remapped by name, as a node resolver finds them)
+        taken = {k for c, k, v in remaps if not c}
+        for nm in ('node_modules', os.path.relpath(os.path.join(repo, 'node_modules'), project)):
+            top = os.path.join(project, nm)
+            if not os.path.isdir(top):
+                continue
+            for name in sorted(os.listdir(top)):
+                pkgs = [name + '/' + x for x in sorted(os.listdir(os.path.join(top, name)))] \
+                    if name.startswith('@') and os.path.isdir(os.path.join(top, name)) else [name]
+                for pkg in pkgs:
+                    if pkg + '/' not in taken and os.path.isdir(os.path.join(top, pkg)):
+                        taken.add(pkg + '/')
+                        settings['remappings'].append('%s/=%s/' % (pkg, os.path.normpath(os.path.join(nm, pkg))))
     if version >= (0, 8, 8):
         args += ['--base-path', project]
         # (each directory once, and never the base path: a file found twice
@@ -476,10 +513,25 @@ def build_vyper(f, project, evm, outdir, cache, timeout):
     exe = vyper_exe(version, cache)
     if evm not in vyper_evms(exe):
         return [], []
-    p = subprocess.run([exe, '-f', 'bytecode_runtime,abi,layout', '--evm-version', evm, f], capture_output=True,
-                       text=True, cwd=project, timeout=timeout)
+    # a source that pins its EVM version (#pragma evm-version) is compiled
+    # for another one from a copy without that line, beside it (imports
+    # resolve the same), removed after
+    src, tmp = f, None
+    pm = re.search(r'^#\s*pragma\s+evm-version\s+(\w+)\s*$', text, re.M)
+    if pm and pm.group(1) != evm:
+        d, b = os.path.split(f)
+        tmp = os.path.join(d, '.%s.%s.vy' % (os.path.splitext(b)[0], evm))
+        open(os.path.join(project, tmp), 'w').write(text[:pm.start()] + '\n' + text[pm.end():])
+        src = tmp
+    try:
+        p = subprocess.run([exe, '-f', 'bytecode_runtime,abi,layout', '--evm-version', evm, src], capture_output=True,
+                           text=True, cwd=project, timeout=timeout)
+    finally:
+        if tmp:
+            os.unlink(os.path.join(project, tmp))
     if p.returncode != 0:
-        return [], ['%s: %s' % (f, p.stderr.strip()[-400:])]
+        err = [l for l in p.stderr.strip().split('\n') if 'Warning' not in l and 'python_ast' not in l]
+        return [], ['%s: %s' % (f, '\n'.join(err)[-400:])]
     lines = p.stdout.strip().split('\n')
     code = lines[0].strip().removeprefix('0x')
     try:
@@ -523,7 +575,9 @@ def build_project(args, solc, slug, repo, project):
     fixed = vt(cfg.get('solc_version') or cfg.get('solc') or '')
     cache = {}
     for f in sol:
-        v = fixed or solc.newest(pragmas(f, project, remaps, repo, cache))
+        prs = pragmas(f, project, remaps, repo, cache)
+        conf = [x for x in cfg.get('config_versions', []) if all(satisfies(x, r) for r in prs)]
+        v = fixed or (max(conf) if conf else solc.newest(prs))
         if v is None:
             errors.append({'project': project, 'file': f, 'error': 'no solc release fits its pragmas'})
             continue
@@ -545,6 +599,19 @@ def build_project(args, solc, slug, repo, project):
                                             args.timeout)
                 except subprocess.TimeoutExpired:
                     arts, errs = [], ['timeout']
+                # one source's error fails its whole group: each source alone
+                # then (not when the EVM version is what the code can't target)
+                if errs and not arts and len(group) > 1 and len(group) <= args.retry_max and \
+                        not all(re.search(r'VM|only available for|not supported by the', e) for e in errs):
+                    errs = ['group failed, each source alone: ' + errs[0][-200:]]
+                    for f in group:
+                        try:
+                            a1, e1 = build_solc(exe, v, [f], project, repo, remaps, cfg, evm, opt, via_ir, outdir,
+                                                args.timeout)
+                        except subprocess.TimeoutExpired:
+                            a1, e1 = [], ['timeout']
+                        arts += [a for a in a1 if a not in arts]
+                        errs += ['%s: %s' % (f, x) for x in e1[:2]]
                 index += [{'program': slug, 'repo': os.path.basename(repo), 'project': rel, 'build': tag,
                            'artifact': os.path.relpath(a, args.out)} for a in arts]
                 errors += [{'project': project, 'build': tag, 'error': e} for e in errs[:20]]
@@ -575,6 +642,7 @@ def main():
     ap.add_argument('--limit', type=int, default=0, help='projects at most')
     ap.add_argument('--timeout', type=int, default=900)
     ap.add_argument('--jobs', type=int, default=1)
+    ap.add_argument('--retry-max', type=int, default=150, help='a failed group of at most N sources: each alone')
     ap.add_argument('--solc-cache', default=os.path.expanduser('~/.cache/panoramix-corpus'))
     args = ap.parse_args()
     solc = Solc(args.solc_cache)
