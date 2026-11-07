@@ -1,0 +1,14 @@
+{
+    "name": "LISTA-CLISBNB-BSC-APR2025",
+    "SY": "0x27FaF900007B4cBa7803000251ec96Bc69ff1BEa",
+    "YT": "0x44264c7bE2d92F010b20b29c4531fc09381C56f3",
+    "PT": "0xE8F1C9804770e11Ab73395bE54686Ad656601E9e",
+    "market": "0x1d9D27f0b89181cF1593aC2B36A37B444Eb66bEE",
+    "expiry": 1745452800,
+    "scalarRoot": "5647602566000000000",
+    "initAnchor": "1098985681000000000",
+    "lnFeeRateRoot": "25667746748000000",
+    "deployTxHash": "0xefd99ff64bd9b28bbba9abe8cdb49ce9310c2d86d97f4e84973da594f1df77ae",
+    "deployBlockNumber": 46065819,
+    "reversedFee": 2.5999999999407164
+}

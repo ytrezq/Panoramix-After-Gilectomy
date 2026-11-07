@@ -1,0 +1,15 @@
+{
+    "name": "SENA-MAINNET-SEP2025",
+    "SY": "0xA36ECCA8B7624D224F01CD6649C8afAd3Da12C3D",
+    "YT": "0x9DB057e02582D1ceaeC287BE9861fbE25cecC765",
+    "PT": "0xfC66d247F577Bfc87df8a5267C43676C4a088B8b",
+    "market": "0xdA57ABF95a7C21eB9df08fBAADa182F749F6C62F",
+    "expiry": 1758758400,
+    "lnFeeRateRoot": "19802627296179713",
+    "scalarRoot": "8914640322616478913",
+    "initialRateAnchor": "1140809841861097217",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0x46971b6814a98723f81df8dd1b7ce7564a2e7e168d48de540e96512099573795",
+    "deployBlockNumber": 22193761,
+    "reversedFee": 1.999999999981661
+}

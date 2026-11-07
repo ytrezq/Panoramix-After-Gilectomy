@@ -1,0 +1,15 @@
+{
+    "name": "SUSDE-BSC-JUN2025",
+    "SY": "0xF2810F8ec028576354C4388d8B347aC1921c63A2",
+    "YT": "0x55B106c8b7c23cAF60db956DDA41A59329aFd1C2",
+    "PT": "0xDD809435ba6c9d6903730f923038801781cA66ce",
+    "market": "0x8557D39d4BAB2b045ac5c2B7ea66d12139da9Af4",
+    "expiry": 1750896000,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "34470528877043187768",
+    "initialRateAnchor": "1027730017928088585",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0xd7118906e1d6cfbb1bbaa2a1cb3c7989d0622a9f50e09b97388a1188576e64de",
+    "deployBlockNumber": 48056491,
+    "reversedFee": 0.9999999999830145
+}

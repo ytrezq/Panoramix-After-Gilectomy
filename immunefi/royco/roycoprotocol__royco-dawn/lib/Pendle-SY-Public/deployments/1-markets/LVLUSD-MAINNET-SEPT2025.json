@@ -1,0 +1,15 @@
+{
+    "name": "LVLUSD-MAINNET-SEPT2025",
+    "SY": "0x14Ff57675c9c34EEb9E1516fFda7cAC6Ed1B9748",
+    "YT": "0x946934554a2Bf59039661f971986F0223E906264",
+    "PT": "0x207F7205fd6c4b602Fa792C8b2B60e6006D4a0b8",
+    "market": "0x461bc2ac3f80801BC11B0F20d63B73feF60C8076",
+    "expiry": 1758758400,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "18156237095255046697",
+    "initialRateAnchor": "1081042465574937286",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0x08228aab812fa1c0423688344d1260edfa56d2720dc9f29e1e30223ef4c95989",
+    "deployBlockNumber": 22228966,
+    "reversedFee": 0.9999999999830145
+}

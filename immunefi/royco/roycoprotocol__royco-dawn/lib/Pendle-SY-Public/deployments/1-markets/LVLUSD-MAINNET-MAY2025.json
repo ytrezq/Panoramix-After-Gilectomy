@@ -1,0 +1,15 @@
+{
+    "name": "LVLUSD-MAINNET-MAY2025",
+    "SY": "0x8b9D898327C0Ac74b946Ca3cA9FcfCBE9bc29c48",
+    "YT": "0x65901Ac9EFA7CdAf1Bdb4dbce4c53B151ae8d014",
+    "PT": "0x9BcA74F805AB0a22DDD0886dB0942199a0feBa71",
+    "market": "0xE45d2CE15aBbA3c67b9fF1E7A69225C855d3DA82",
+    "expiry": 1748476800,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "19572956698538789635",
+    "initialRateAnchor": "1046208701314158635",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0xffcb74791b74e6a72265de82c80acc4de2509e69f1d82c7119fdbda71122c82f",
+    "deployBlockNumber": 21898420,
+    "reversedFee": 0.9999999999830145
+}

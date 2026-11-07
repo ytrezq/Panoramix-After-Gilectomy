@@ -1,0 +1,14 @@
+{
+    "name": "AVALON-SUSDA-MAINNET-APR2025",
+    "SY": "0x8946f653aeD1af1F82a8dE6d7F54088afFf5A14e",
+    "YT": "0x24D9bf5aAdFC1adA369A6D1bA4572Bdf16aC17cB",
+    "PT": "0x4Ef516d5F8644D19CAAdf352E2c97ec346b6b986",
+    "market": "0xD75FC2B1ca52e72163787D1C370650F952E75DD7",
+    "expiry": 1745452800,
+    "scalarRoot": "13243531338000000000",
+    "initAnchor": "1070465870000000000",
+    "lnFeeRateRoot": "14888612493000000",
+    "deployTxHash": "0x5bfff9bd0b9c8092b9bd652da8e013a5b279b8718a876cdad9847d77f324e65a",
+    "deployBlockNumber": 21680120,
+    "reversedFee": 1.4999999999238067
+}

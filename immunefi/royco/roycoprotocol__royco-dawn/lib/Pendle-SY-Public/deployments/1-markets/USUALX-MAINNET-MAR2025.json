@@ -1,0 +1,14 @@
+{
+    "name": "USUALX-MAINNET-MAR2025",
+    "SY": "0x86E2a16A5aBC67467Ce502e3Dab511c909C185A8",
+    "YT": "0x9fF097eD3A76492394d2F8b63dC83B60EDABc408",
+    "PT": "0x36f4Ec0a7c46923C4f6508C404eE1C6fBe175e1C",
+    "market": "0xb9B7840Ec34094cE1269c38BA7a6AC7407F9C4E3",
+    "expiry": 1743033600,
+    "scalarRoot": "2905936463000000000",
+    "initAnchor": "1337512751000000000",
+    "lnFeeRateRoot": "48789211788000000",
+    "deployTxHash": "0x3dc045d9e2043bb390bbb2e3d6e82ec246fac82af9e3d9cea6e0ef922fdbf425",
+    "deployBlockNumber": 21442919,
+    "reversedFee": 4.999899999997259
+}

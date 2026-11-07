@@ -1,0 +1,15 @@
+{
+    "name": "WSTKSCUSD-SONIC-MAY2025",
+    "SY": "0x896f4D49916aC5cfC36d7a260a7039ba4Ea317b6",
+    "YT": "0xdCad0f3992A72eA0Ce5eb703293a353249C0a76F",
+    "PT": "0xBe27993204Ec64238F71A527B4c4D5F4949034C3",
+    "market": "0x6e4e95FaB7db1f0524b4b0a05F0b9c96380b7Dfa",
+    "expiry": 1748476800,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "20679564580739014193",
+    "initialRateAnchor": "1041417722874341791",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0x14d2dbb599e4b3e24a795153168751203335a04862ac4ee3db7e2f19eea4593b",
+    "deployBlockNumber": 10253280,
+    "reversedFee": 0.9999999999830145
+}

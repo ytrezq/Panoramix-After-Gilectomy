@@ -1,0 +1,15 @@
+{
+    "name": "SWETH-MAINNET-JUN2025",
+    "SY": "0xaa68CA9C69a4ff22203cE189Ce4448d7401875E8",
+    "YT": "0x5AA213C1d8d3DE74fB70DD66206FeAdc5Fab8eBb",
+    "PT": "0xaE666C484C28a3376Ea8929A4DE6c378621d62a6",
+    "market": "0x86D27c49A6a7A2BC033B5d67a21F93d62894CCb9",
+    "expiry": 1750896000,
+    "lnFeeRateRoot": "4987541511039073",
+    "scalarRoot": "225193472539909587202",
+    "initialRateAnchor": "1009826072829624872",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0x5f724ab37e61b058d9482c96736146c05eb0115cf9a9ef1e0dc35448e26deabb",
+    "deployBlockNumber": 22042493,
+    "reversedFee": 0.49999999999608136
+}

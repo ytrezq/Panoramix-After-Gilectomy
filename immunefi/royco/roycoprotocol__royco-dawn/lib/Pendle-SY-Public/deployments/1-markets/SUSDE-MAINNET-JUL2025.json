@@ -1,0 +1,15 @@
+{
+    "name": "SUSDE-MAINNET-JUL2025",
+    "SY": "0xF541AA4d6f29ec2423A0D306dBc677021A02DBC0",
+    "YT": "0xb7E51D15161C49C823f3951D579DEd61cD27272B",
+    "PT": "0x3b3fB9C57858EF816833dC91565EFcd85D96f634",
+    "market": "0x4339Ffe2B7592Dc783ed13cCE310531aB366dEac",
+    "expiry": 1753920000,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "36682572552812893137",
+    "initialRateAnchor": "1044912562027478374",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0x83e417eb7725d9acaf1c8f800f51d5fc948b1f3882a285c943aa49adee645592",
+    "deployBlockNumber": 22122290,
+    "reversedFee": 0.9999999999830145
+}

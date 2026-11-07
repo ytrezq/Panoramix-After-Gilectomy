@@ -1,0 +1,15 @@
+{
+    "name": "SOLV-BERA-BTC-MAINNET-MAY2025",
+    "SY": "0x67e58F0240B432E78795DC010716e54B70c609d7",
+    "YT": "0x6E6003A1a2804cD3259EF4eb12513bF441EBf74e",
+    "PT": "0x2a6aB85617A1dfB8a5317d43Ab91f55c607BC4cC",
+    "market": "0x71B2B207BB596508e119b3DeF876b6bb381f4c2e",
+    "expiry": 1746662400,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "20391421935567816405",
+    "initialRateAnchor": "1010875298512725492",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0xa18e891f033ad7db8a60ca8c84f99edd845a8a6da8909337ce10755aefbf3476",
+    "deployBlockNumber": 22193813,
+    "reversedFee": 0.9999999999830145
+}

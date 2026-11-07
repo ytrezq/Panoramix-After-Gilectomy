@@ -1,0 +1,15 @@
+{
+    "name": "USR-BASE-SEP2025",
+    "SY": "0x4665d514e82B2F9c78Fa2B984e450F33d9efc842",
+    "YT": "0x61468EA4d55C02744041F16DAf8eD0262891661f",
+    "PT": "0xa6F0A4D18B6f6DdD408936e81b7b3A8BEFA18e77",
+    "market": "0x715509Bde846104cF2cCeBF6fdF7eF1BB874Bc45",
+    "expiry": 1758758400,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "16083195878698272465",
+    "initialRateAnchor": "1088508825125246078",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0xe1d6b7cdd071317bce5d562ff4c281a01096ce9dc7ae7fd39160af5e1a2a4ee6",
+    "deployBlockNumber": 28480342,
+    "reversedFee": 0.9999999999830145
+}

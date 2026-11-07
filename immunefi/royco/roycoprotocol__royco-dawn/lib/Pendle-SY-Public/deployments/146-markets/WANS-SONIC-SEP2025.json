@@ -1,0 +1,15 @@
+{
+    "name": "WANS-SONIC-SEP2025",
+    "SY": "0x27b1dAcd74688aF24a64BD3C9C1B143118740784",
+    "YT": "0x77F0151fe112592db289e8652a0780cc9f924DdB",
+    "PT": "0x1266CAb99DF5d58817F44E3CB61f9D04C907d820",
+    "market": "0x7DAA356cFC8F5bBff7eA27E500e730C10A803Aaa",
+    "expiry": 1758758400,
+    "lnFeeRateRoot": "5982071677547463",
+    "scalarRoot": "45980744042818408458",
+    "initialRateAnchor": "1050759756987825880",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0x5feee7c9a91efdb47a883e5863ddbcbc3a7f7b14876eb90e39ac5fda85b72561",
+    "deployBlockNumber": 14408877,
+    "reversedFee": 0.5999999999449335
+}

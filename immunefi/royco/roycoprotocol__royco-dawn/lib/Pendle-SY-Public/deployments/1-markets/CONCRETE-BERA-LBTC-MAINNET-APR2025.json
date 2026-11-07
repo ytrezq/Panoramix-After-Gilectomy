@@ -1,0 +1,14 @@
+{
+    "name": "CONCRETE-BERA-LBTC-MAINNET-APR2025",
+    "SY": "0xac614884b52DbAB8728476b5d50F0D672BaED31F",
+    "YT": "0xeAD901CE4786d4e97B35cb07905a4ed0B35B4d7D",
+    "PT": "0xdfB913b117Bc93fdE164A4ff8B3176662D4198F3",
+    "market": "0x83916356556f51dcBcB226202c3efeEfc88d5eaA",
+    "expiry": 1744243200,
+    "scalarRoot": "14555971425000000000",
+    "initAnchor": "1049872528000000000",
+    "lnFeeRateRoot": "11928570865000000",
+    "deployTxHash": "0xb1cfc7459c0ec138f1101de3d63f0d1f1aff8dde0f060001c32ef64fd7c98a4e",
+    "deployBlockNumber": 21623407,
+    "reversedFee": 1.19999999997229
+}

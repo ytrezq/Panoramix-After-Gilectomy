@@ -1,0 +1,15 @@
+{
+    "name": "HGETH-MAINNET-JUN2025",
+    "SY": "0x378fA6C08C86d76F0C2511A8addd9464d3dfc723",
+    "YT": "0x2E0Ca05f9a524f7469A424D3aEBf1B273C05a9D5",
+    "PT": "0x0B48a647e55a84D7FE25DACf8cA0ea79BdF4caE5",
+    "market": "0xdFAAB89058dAcA36759Aafa80BebBC6dBf4C2e4e",
+    "expiry": 1750896000,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "28001728418326575287",
+    "initialRateAnchor": "1036753017168639698",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0x79eb8e58188638b46838c43b853c9613138ccdad172ea33426e10d8d85bfabb5",
+    "deployBlockNumber": 21971567,
+    "reversedFee": 0.9999999999830145
+}

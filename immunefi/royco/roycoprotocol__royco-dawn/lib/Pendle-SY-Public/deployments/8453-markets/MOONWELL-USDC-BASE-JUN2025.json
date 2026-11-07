@@ -1,0 +1,14 @@
+{
+    "name": "MOONWELL-USDC",
+    "SY": "0xC40fEbF5A33b8C92B187d9be0fD3fe0ac2E4B07c",
+    "YT": "0xe84009923221BB401C811643c5A5EFaF56EEd4cA",
+    "PT": "0x2A9e9256E0d1Ad0f7f9d7c7248cb7e2f06072DeB",
+    "market": "0x3124D41708edbdC7995A55183e802E3D9d0D5Ef1",
+    "expiry": 1750896000,
+    "scalarRoot": "28804571980000000000",
+    "initAnchor": "1066709224000000000",
+    "lnFeeRateRoot": "1998002662000000",
+    "deployTxHash": "0x8d7d62378ad3869426ccc4192fe75c1f2bc89a06eb76034a8bec75c622b075e6",
+    "deployBlockNumber": 23119666,
+    "reversedFee": 0.19999999993256523
+}

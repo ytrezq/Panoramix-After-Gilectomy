@@ -1,0 +1,15 @@
+{
+    "name": "SUPER-USDC-MAINNET",
+    "SY": "0x0A91166428D71777e1a9b338b84eB9452e520b78",
+    "YT": "0x1456aA6e9E3346FFCc66c9Cd32DE90D6197f9833",
+    "PT": "0x8fa8dA847BC3E8a945Bae061C73af74df6375a95",
+    "market": "0x1Bd1AE9D7A377E63cD0c584A2C42B8C614937e81",
+    "expiry": 1744848000,
+    "lnFeeRateRoot": "17839918128331000",
+    "scalarRoot": "13916771793680489691",
+    "initialRateAnchor": "1039271916058193512",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0x6077c993aceedf27582c7ac0dfcc2f303e1f9fdfc117b22b58f08ecbd5c9d589",
+    "deployBlockNumber": 21830674,
+    "reversedFee": 1.7999999999662952
+}

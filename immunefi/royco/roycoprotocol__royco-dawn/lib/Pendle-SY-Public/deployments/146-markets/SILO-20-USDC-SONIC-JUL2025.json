@@ -1,0 +1,15 @@
+{
+    "name": "SILO-20-USDC-SONIC-JUL2025",
+    "SY": "0xa9da5457FFC301d7c98fB38105f551a665511aF3",
+    "YT": "0x64547Ba3F2D032c2D9f43e6ca1A98516A43Dad3F",
+    "PT": "0x77d8F09053c28FaF1E00Df6511b23125d438616f",
+    "market": "0xaCfAD541698437F6EF0E728C56A50CE35C73cC3e",
+    "expiry": 1752710400,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "26760807243182606561",
+    "initialRateAnchor": "1038027640036026231",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0x83d281f5ba6a51e903edea4daad82a009613e1d28bb932587e6e574639562539",
+    "deployBlockNumber": 17622981,
+    "reversedFee": 0.9999999999830145
+}

@@ -1,0 +1,15 @@
+{
+    "name": "ASTHERUS-ASUSDF-BSC-MAY2025",
+    "SY": "0x7eEc75fE8D9AC678F9B4e0eCf2AF7b445E0c5B4C",
+    "YT": "0x5e4Ea9538E8ae4C22f3897e85C7AB51672Bb3a62",
+    "PT": "0xa3De5349b50baab12B9578a31f29eaA5d6682895",
+    "market": "0x9E515a7115C86d7314159DbdAb41E555d5330Dfe",
+    "expiry": 1748476800,
+    "lnFeeRateRoot": "11928570865273801",
+    "scalarRoot": "22482087531972920978",
+    "initialRateAnchor": "1035842174506274427",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0xe68aa1a70627a5b88921253c8cf16a4125b99dabaada8083a548622e0c2ca64b",
+    "deployBlockNumber": 46783777,
+    "reversedFee": 1.19999999997229
+}

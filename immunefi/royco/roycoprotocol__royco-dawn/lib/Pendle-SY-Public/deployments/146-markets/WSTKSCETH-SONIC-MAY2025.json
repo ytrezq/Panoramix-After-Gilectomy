@@ -1,0 +1,15 @@
+{
+    "name": "WSTKSCETH-SONIC-MAY2025",
+    "SY": "0x8bB86a99f97F5D19718bD5cA0b0Ca00354532Ef3",
+    "YT": "0x30989Fd89e9fA16191F38807d56CDFe98Ad206f2",
+    "PT": "0xa2161E75EDf50d70544e6588788A5732A3105c00",
+    "market": "0xd14117baf6EC5D12BE68CD06e763A4B82C9B6d1D",
+    "expiry": 1748476800,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "29864785916943879413",
+    "initialRateAnchor": "1028370397801937819",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0x90cd96d74a5fef29b22704fab50a27cbe30aabcff728193c8b4004262ee450d7",
+    "deployBlockNumber": 10253323,
+    "reversedFee": 0.9999999999830145
+}

@@ -1,0 +1,14 @@
+{
+    "name": "ETHERFI-BERA-WBTC-APR2025",
+    "SY": "0xAaA576F3c8b1f6F12AfD37f3936ced36E1A6Ab94",
+    "YT": "0xBB1a58c7cF8705F4F2F476a4409198064E153Cea",
+    "PT": "0xA2621F9b02549D05289b46700e9d53fcd2ee0B6D",
+    "market": "0xEbf5c58b74A836F1e51d08e9C909c4A4530AFD41",
+    "expiry": 1744243200,
+    "scalarRoot": "14501799983000000000",
+    "initAnchor": "1053866453000000000",
+    "lnFeeRateRoot": "11928570865000000",
+    "deployTxHash": "0x94bad8de4dd1db2e50873fb5d9635e4bd48a3736fcac9120c70aea0087daf14e",
+    "deployBlockNumber": 21573034,
+    "reversedFee": 1.19999999997229
+}

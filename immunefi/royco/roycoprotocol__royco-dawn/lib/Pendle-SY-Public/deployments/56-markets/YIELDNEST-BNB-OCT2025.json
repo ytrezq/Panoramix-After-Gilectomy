@@ -1,0 +1,15 @@
+{
+    "name": "YIELDNEST-BNB-OCT2025",
+    "SY": "0xFeC0D38A9c16d4e1280d984F2B5d674670159bf4",
+    "YT": "0x6A665855c2b98c8AB71a58E4b97cD3653EE591db",
+    "PT": "0x50956c8e46a4f7Dfc7475e3957c162D29b39F75f",
+    "market": "0x7608eB2fc533343556e443511a2747F605E49C9B",
+    "expiry": 1760572800,
+    "lnFeeRateRoot": "17839918128331002",
+    "scalarRoot": "16595509409158768455",
+    "initialRateAnchor": "1143718477236366265",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0x292fe748d5c3c1fbad71d4443213cb0a1953f38ec6cc1adebcafcba2b0606740",
+    "deployBlockNumber": 48216428,
+    "reversedFee": 1.7999999999662952
+}

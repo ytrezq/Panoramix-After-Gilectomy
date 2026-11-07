@@ -1,0 +1,15 @@
+{
+    "name": "ETHERFI-BERA-ETH-MAY2025",
+    "SY": "0x14C1878BD3F989D0D2199c537EA1a6d3b5225d05",
+    "YT": "0x980647371C6fF9AC1d88A2FFC3AC00123Ecfe224",
+    "PT": "0xf91eD4974C22Dc375b99858DA848A2eF34e2C103",
+    "market": "0xD122517Ca17E5Dc1d77Bad87D0cFdc00e9691Ba4",
+    "expiry": 1746662400,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "20391506290152727232",
+    "initialRateAnchor": "1010871091741954634",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0x4a1060a71fe6d2b95d992220f90684283dc64d686ae755565365b86d382dd5bf",
+    "deployBlockNumber": 22193905,
+    "reversedFee": 0.9999999999830145
+}

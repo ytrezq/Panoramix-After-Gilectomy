@@ -1,0 +1,15 @@
+{
+    "name": "CUSDO-MAINNET-JUN2025",
+    "SY": "0xFcAAE839cfC7E3627741bd9914f661FD75Cc3CBF",
+    "YT": "0x42E2BA2bAb73650442F0624297190fAb219BB5d5",
+    "PT": "0x933B9FfEE0Ad3Ef8E4DBb52688ea905826D73755",
+    "market": "0xA77c0DE4d26B7C97D1D42ABD6733201206122E25",
+    "expiry": 1750291200,
+    "lnFeeRateRoot": "13902905168991418",
+    "scalarRoot": "18121832053119608638",
+    "initialRateAnchor": "1043478155028301975",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0x16449f1ac99028eab61fd9e2b846dae531b3530f4b86bb7faddc83c7c90662cc",
+    "deployBlockNumber": 22136146,
+    "reversedFee": 1.3999999998994594
+}

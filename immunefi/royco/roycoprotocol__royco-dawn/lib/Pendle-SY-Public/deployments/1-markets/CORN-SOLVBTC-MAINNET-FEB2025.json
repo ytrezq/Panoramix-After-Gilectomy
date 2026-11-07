@@ -1,0 +1,14 @@
+{
+    "name": "CORN-SOLVBTC-MAINNET-FEB2025",
+    "SY": "0xEC30E55B51D9518cfcf5e870BCF89c73F5708f72",
+    "YT": "0xC61376Da9DFc173496dbAC87c9530522472b964d",
+    "PT": "0xcBbfa588285d370571e52db62FA7C5241Bd5B7d9",
+    "market": "0xE6b03f3182692db1eD7D3A91F6fADF3e4Dff2b95",
+    "expiry": 1740614400,
+    "scalarRoot": "32187305756000000000",
+    "initAnchor": "1022492599000000000",
+    "lnFeeRateRoot": "3992021269000000",
+    "deployTxHash": "0x38f4a6e77bb4ee98560c1066dd2adbffae6769fd9c4d01eb1d74813ed381bd96",
+    "deployBlockNumber": 21463630,
+    "reversedFee": 0.3999999999460435
+}

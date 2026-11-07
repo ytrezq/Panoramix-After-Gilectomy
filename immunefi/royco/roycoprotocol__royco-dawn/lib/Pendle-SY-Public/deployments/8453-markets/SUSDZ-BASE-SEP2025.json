@@ -1,0 +1,15 @@
+{
+    "name": "SUSDZ-BASE-SEP2025",
+    "SY": "0xFF702347D81725eD8bbe341392AF511e29CfED98",
+    "YT": "0x18839da000E86b3A55Fe3F0E32cFe6ef23e84096",
+    "PT": "0x2C14E596C51fB6c0Dbad96858B1829835257b93B",
+    "market": "0xd7C3CEce4bd8FF41aDE50D59ecE7bc91DC2545c1",
+    "expiry": 1758758400,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "23617973414144916813",
+    "initialRateAnchor": "1067777057512888045",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0x7a9dbd8b09cf3daca372c595bd25249562ff0836036bdb2686e38a5e7e2c99ed",
+    "deployBlockNumber": 28479181,
+    "reversedFee": 0.9999999999830145
+}

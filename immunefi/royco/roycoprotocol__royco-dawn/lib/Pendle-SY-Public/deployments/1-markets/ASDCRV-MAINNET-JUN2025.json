@@ -1,0 +1,14 @@
+{
+    "name": "ASDCRV-MAINNET-JUN2025",
+    "SY": "0x18c11b1dc74cab82ad18d5034fde93fe90a41d99",
+    "YT": "0x613b5ebcea88A64d484FF91347073c153A4D3AA4",
+    "PT": "0xEEAd826151d25F44418553303F2722893f08478C",
+    "market": "0x4D7356369273c6373E6C5074fe540CB070acfE6b",
+    "expiry": 1750896000,
+    "scalarRoot": "11817486981000000000",
+    "initAnchor": "1102504840000000000",
+    "lnFeeRateRoot": "14888612493000000",
+    "deployTxHash": "0x632894d6f50ce156ee26c54597e0d111258fa69fcad2ce0aa45c86ae9fccd9e8",
+    "deployBlockNumber": 21780443,
+    "reversedFee": 1.4999999999238067
+}

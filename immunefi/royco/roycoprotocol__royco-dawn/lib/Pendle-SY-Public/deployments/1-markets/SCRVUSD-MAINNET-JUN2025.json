@@ -1,0 +1,14 @@
+{
+    "name": "SY crvUSD",
+    "SY": "0x292e67fE392B811d486c81eCeb25EA96AF57c2fc",
+    "YT": "0x86885053488DaFc39C8214C3FC402D2b1d0b8925",
+    "PT": "0x1cb3C1C1e0f61770c224A66bB251c59f2c37ab91",
+    "market": "0x2bf616c236d1AbD31FF105247a774E6E738b5f4E",
+    "expiry": 1750896000,
+    "scalarRoot": "30785098468000000000",
+    "initAnchor": "1069532671000000000",
+    "lnFeeRateRoot": "1998002662000000",
+    "deployTxHash": "0x0f9f7a23d4995c45907be56c68fb44a3bef2515f2f719ab56c83173d566c134b",
+    "deployBlockNumber": 21326372,
+    "reversedFee": 0.19999999993256523
+}

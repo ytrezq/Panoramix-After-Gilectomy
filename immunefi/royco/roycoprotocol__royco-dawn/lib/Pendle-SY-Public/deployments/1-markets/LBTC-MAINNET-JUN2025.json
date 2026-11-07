@@ -1,0 +1,15 @@
+{
+    "name": "LBTC-MAINNET-JUN2025",
+    "SY": "0xC781c0cC527CB8C351bE3A64c690216c535C6F36",
+    "YT": "0x46EdBe69332AcF86AD31a403B599a32849cF4958",
+    "PT": "0x6cA4d5d2eCb72E3Bbf17543B3367746B80D22694",
+    "market": "0x931F7eA0c31c14914a452d341bc5Cb5d996BE71d",
+    "expiry": 1750896000,
+    "lnFeeRateRoot": "4987541511039073",
+    "scalarRoot": "57203455973401356000",
+    "initialRateAnchor": "1022263405425649252",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0xe468398a071457ecf442ab43e278bbe0a3034fc1b04b26f73cba798dde6b78a3",
+    "deployBlockNumber": 21865560,
+    "reversedFee": 0.49999999999608136
+}

@@ -1,0 +1,15 @@
+{
+    "name": "CONCRETE-SUSDE-MAY2025",
+    "SY": "0xd84e88AbBe6a44A2ef9B72DE9DEf68317d6DF336",
+    "YT": "0x93d5ceD9fb7E784400590b3B978c015d4A7D9f46",
+    "PT": "0xe92a73E619a5bc344B394D5D2D030002B7EDd0AC",
+    "market": "0x0271A803f0d3Dec9cCd105A4A4d41e6Ee1458765",
+    "expiry": 1746662400,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "20391486335281907119",
+    "initialRateAnchor": "1010872086889149831",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0x934b85427ac4d709e3fc099d8198e7eaa229670b28ef28fad2bccba60c95fa7d",
+    "deployBlockNumber": 22193884,
+    "reversedFee": 0.9999999999830145
+}

@@ -1,0 +1,15 @@
+{
+    "name": "ASBNB-BSC-JUL2025",
+    "SY": "0xE954C3B53b2CD8B9056737193780f0a541815bB2",
+    "YT": "0x89C625c475F33A78a8c60250137A3D51aa12b357",
+    "PT": "0x5f63b282089905C55A283110d4868A56e265Aec5",
+    "market": "0xD75D9Fbc6486CA5A18037F9eA2fD48044fa9e414",
+    "expiry": 1753315200,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "14887948342784900043",
+    "initialRateAnchor": "1087119394217961269",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0xd48679d99859612bab8d7f3b0f7ad7c1f97ab0dcadd60ed195d8de60c5c74495",
+    "deployBlockNumber": 47569445,
+    "reversedFee": 0.9999999999830145
+}

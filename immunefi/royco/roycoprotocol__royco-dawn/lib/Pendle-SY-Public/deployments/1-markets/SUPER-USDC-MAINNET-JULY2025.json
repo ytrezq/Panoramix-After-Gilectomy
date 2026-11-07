@@ -1,0 +1,15 @@
+{
+    "name": "SUPER-USDC-MAINNET-JULY2025",
+    "SY": "0x0A91166428D71777e1a9b338b84eB9452e520b78",
+    "YT": "0x8c7352907f0a0C61771ad7f3Ac2f631294182F4B",
+    "PT": "0x11105208Abb3Ce206922Bf4cd6B2D5F98CAC2F0d",
+    "market": "0x9b5418ef165E86490eDbFBaE865e0791b225F037",
+    "expiry": 1753920000,
+    "lnFeeRateRoot": "14888612493750654",
+    "scalarRoot": "16554974279536736127",
+    "initialRateAnchor": "1056771567313387408",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0xbacf047dba7f30646f6a398e32c93520b785131e7803014cf5ff354e8f84f7b4",
+    "deployBlockNumber": 22220984,
+    "reversedFee": 1.4999999999238067
+}

@@ -1,0 +1,15 @@
+{
+    "name": "ETHERFI-BERA-BTC-MAY2025",
+    "SY": "0xAaA576F3c8b1f6F12AfD37f3936ced36E1A6Ab94",
+    "YT": "0x2A289830EEB4f352FbB6499B207b76B8507a3f73",
+    "PT": "0xfc94AEaf21ab0124fb369Bf40982dbad804D682E",
+    "market": "0x6fEa50057Edd8baA63f3d5ffD72953b61917507D",
+    "expiry": 1746662400,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "20391587923862154825",
+    "initialRateAnchor": "1010867020703829928",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0xc88c779f8bed4b3c600d29ad294b56c41baee09c5102217d0d864670f40b5c9c",
+    "deployBlockNumber": 22193995,
+    "reversedFee": 0.9999999999830145
+}

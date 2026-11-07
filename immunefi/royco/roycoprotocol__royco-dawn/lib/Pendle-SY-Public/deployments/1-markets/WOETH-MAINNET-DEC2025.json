@@ -1,0 +1,14 @@
+{
+    "name": "SY WOETH",
+    "SY": "0x0a26e7ab5c554232314a8d459eff0ede72333f08",
+    "YT": "0x60a6e581E47105F0CF523017D9Fcc8d572BDA620",
+    "PT": "0xeAd5939DF65F19b866615A7853Faa52cF4a1635d",
+    "market": "0x15E434C42AB4c9a62Ed7db53baaF9d255ea51E0E",
+    "expiry": 1766620800,
+    "scalarRoot": "73045791116000000000",
+    "initAnchor": "1052835700000000000",
+    "lnFeeRateRoot": "499875041000000",
+    "deployTxHash": "0x746076647b115625bde5ccfde7e7e8d9033e65996bfcbfbe24510f32eee1c239",
+    "deployBlockNumber": 21342603,
+    "reversedFee": 0.04999999993486881
+}

@@ -1,0 +1,15 @@
+{
+    "name": "UPUSDC-MAINNET-JUL2025",
+    "SY": "0x9a68bbA8074f78727a7B129e30175388E02a5b9D",
+    "YT": "0xf406B9f5704d952124eea4d6e5ea761494aCD924",
+    "PT": "0xe2828B5f839bd8BB4168eEa4583375727e825058",
+    "market": "0x06e705bdCBd4A9F9bC8D5FcCB7841EDada77d8A1",
+    "expiry": 1751500800,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "28937967753474890533",
+    "initialRateAnchor": "1038940494025627403",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0x09b8c081850c65256a8b5343760bbda6907b0ef2954f458a4ac00c1b86fd8d48",
+    "deployBlockNumber": 22173865,
+    "reversedFee": 0.9999999999830145
+}

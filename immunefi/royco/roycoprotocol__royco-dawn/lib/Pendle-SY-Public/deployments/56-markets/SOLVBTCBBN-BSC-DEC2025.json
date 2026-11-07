@@ -1,0 +1,15 @@
+{
+    "name": "SOLVBTCBBN-BSC-DEC2025",
+    "SY": "0x141EC2D606F12fF959D7D07CDe6811e5FDff2831",
+    "YT": "0xf52623E5A65aE9cDaA8CB999ac2021cA81A13730",
+    "PT": "0x154b13a628E947034CA69378Ee0acdE9d973d868",
+    "market": "0xE616D50e441aa2f6d6CD43eba1b1632AB1B046e6",
+    "expiry": 1766016000,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "42471077078483043599",
+    "initialRateAnchor": "1046644277708137121",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0x54437f6ba74e14093405dd25be0a55ed3d961459627b69ade81b1849be983087",
+    "deployBlockNumber": 47534089,
+    "reversedFee": 0.9999999999830145
+}

@@ -1,0 +1,15 @@
+{
+    "name": "USDF-BSC-JUL2025",
+    "SY": "0x0F47AeE96fae2558b0081c8D2DffbB8512397e23",
+    "YT": "0x5E9d14e48C7a35c77Caf83bD15Ae2F73d411e523",
+    "PT": "0x1627abFd41CDAaff4FC595444519410160fE9df1",
+    "market": "0x61B79369738fAd86C4e948fC775048104b7ffbf0",
+    "expiry": 1753315200,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "17882705219106955662",
+    "initialRateAnchor": "1061439428091232858",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0x3f2ea344fb46b51471557dc7716d410a66d78ccf5dd6c812074e30dd0346b50e",
+    "deployBlockNumber": 47593782,
+    "reversedFee": 0.9999999999830145
+}

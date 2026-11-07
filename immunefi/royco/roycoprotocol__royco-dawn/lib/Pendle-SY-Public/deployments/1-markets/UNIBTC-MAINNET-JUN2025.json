@@ -1,0 +1,15 @@
+{
+    "name": "UNIBTC-MAINNET-JUN2025",
+    "SY": "0x87b8E462080fa443a06d2BB119Adb3828C407d78",
+    "YT": "0xdffF44e606B54c1Db01Fcd905BE9C75DBe996C76",
+    "PT": "0x3f26dc58f2537975353F8acCc6432C1FA4ce9b98",
+    "market": "0x928e2E42f3B21C9Af0E0454d7bB3884e5D36e1BE",
+    "expiry": 1750896000,
+    "lnFeeRateRoot": "4987541511039073",
+    "scalarRoot": "55773566551783504462",
+    "initialRateAnchor": "1021916471170567680",
+    "doCacheIndexSameBlock": true,
+    "deployTxHash": "0x45d99a920e66dd62fe2ac38941f8e53fff549d67da409206842f13c54bb7db07",
+    "deployBlockNumber": 21865564,
+    "reversedFee": 0.49999999999608136
+}

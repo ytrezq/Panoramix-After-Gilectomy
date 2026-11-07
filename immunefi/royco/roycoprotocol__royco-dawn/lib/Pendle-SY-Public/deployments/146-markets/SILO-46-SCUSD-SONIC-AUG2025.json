@@ -1,0 +1,15 @@
+{
+    "name": "SILO-46-SCUSD-SONIC-AUG2025",
+    "SY": "0x068DEf65B9dbAFf02b4ee54572a9Fa7dFb188EA3",
+    "YT": "0x3AB07241dB5e87e45edCa012Ddf4BDE84c078920",
+    "PT": "0x9731842eD581816913933c01De142C7EE412A8c8",
+    "market": "0x84ECc6be573f15991736131F924F7bF571eD3B60",
+    "expiry": 1755129600,
+    "lnFeeRateRoot": "9950330853168082",
+    "scalarRoot": "28710207810298365537",
+    "initialRateAnchor": "1044307239507565587",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0x77cb4ecb03cdfb91acfdc41a4d3234d007a84626b1b3776d7c54b3bd8cb8afb5",
+    "deployBlockNumber": 17622943,
+    "reversedFee": 0.9999999999830145
+}

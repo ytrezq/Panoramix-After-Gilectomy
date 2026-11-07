@@ -1,0 +1,15 @@
+{
+    "name": "EBTC-BERA-SEP2025",
+    "SY": "0x9ACc60F915dFcd190D270fc92567aE71776bd320",
+    "YT": "0xB846707a2597ef5B588c93dcbE7D087bEbBa2408",
+    "PT": "0x1b34BEaE4F3a559Ec3412532445C44b74D4053C5",
+    "market": "0xbFC42d9CB3358603e4804AC9ab54159Fd5a85098",
+    "expiry": 1758758400,
+    "lnFeeRateRoot": "4987541511039073",
+    "scalarRoot": "56399723043923700370",
+    "initialRateAnchor": "1027151632246050530",
+    "doCacheIndexSameBlock": false,
+    "deployTxHash": "0x41de972c49e610212bfdfe45688366061290f7c3e1c00085c39359add336f37b",
+    "deployBlockNumber": 2796489,
+    "reversedFee": 0.49999999999608136
+}

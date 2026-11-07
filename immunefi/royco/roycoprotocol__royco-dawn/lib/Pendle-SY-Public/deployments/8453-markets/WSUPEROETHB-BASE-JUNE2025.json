@@ -1,0 +1,14 @@
+{
+    "name": "WSUPEROETHB-BASE-JUNE2025",
+    "SY": "0x67507f3E26E7e2Fd0A42c48FbC85069cCFCBD2FF",
+    "YT": "0x1188331820dAA0a8AF69C0779334d53Cb4A9cEF1",
+    "PT": "0x25d2B7E3B71f4edcC366e79134570704a079923a",
+    "market": "0xeCc2c994aA0C599a7f69a7Cfb9106fe4dfFb4341",
+    "expiry": 1750896000,
+    "scalarRoot": "57064126439000000000",
+    "initAnchor": "1048921689000000000",
+    "lnFeeRateRoot": "999500333000000",
+    "deployTxHash": "0x5a26ec1a1f76365e92f4aa5ae091dce7349eb1d1950c9584b7712da7cfda9509",
+    "deployBlockNumber": 23345450,
+    "reversedFee": 0.09999999999164011
+}
