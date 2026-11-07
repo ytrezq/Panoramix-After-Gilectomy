@@ -1,0 +1,156 @@
+//Simple parser for .sol files that finds libraries defined in the file and creates a wrapper
+//  that converts all their internal functions to external functions so they can be externally
+//  called in forge unit tests.
+//
+//Forge supports vm.expectRevert even for internal functions, so this wrapper is primarily
+//  helpful for libraries like BytesParsing (the original motivation for this script) where
+//  you have a large family of similar functions to test and you don't want to write a separate
+//  test for each one. So, it really mostly is a workaround for Solidity's lack of support for
+//  generics.
+
+//Regarding the implementation of this script:
+//Instead of properly parsing the full AST, we make our task of finding and transforming the
+//  relevant bits easier by making some basic assumptions about code formatting that any sane
+//  code should almost certainly adhere to regardless, like closing braces of library definitions
+//  being on their own line with no leading whitespace, etc.
+//
+//Solidity language grammar:
+//  https://docs.soliditylang.org/en/latest/grammar.html
+
+import { readFileSync } from "fs";
+
+// const commentTestCode = `
+// // /* commented-out block comment start
+// code
+// // commented-out block comment end */
+// const x = 42; // inline comment
+// /* block comment // */
+// code after comment
+// // commented-out block comment end */
+// `;
+function removeComments(code: string): string {
+  //?<! is a negative lookbehind assertion:
+  // it only finds matches that are not preceded by the specified pattern)
+  //so in our case, we are looking for /* that is not preceded by // to make sure
+  //  that we only delete legitimate block comments
+  //\S matches any non-whitespace character and used together with \s in [\s\S]
+  //  it matches any character including newlines (when .* would not)
+  const blockCommentRegex = /(?<!\/\/.*)\/\*[\s\S]*?\*\//g;
+  //m flag is multiline mode:
+  //  ensures that ^ and $ matches individual line starts/ends rather than the whole string
+  const lineCommentRegex = /\/\/.*$/gm;
+  const emptyLineRegex = /(^\s*\n)+/gm;
+
+  return code
+    .replace(blockCommentRegex, '')
+    .replace(lineCommentRegex, '')
+    .replace(emptyLineRegex, '\n');
+}
+
+if (process.argv.length != 3) {
+  console.log("requires exactly one command line argument relative to src: <path/libfile[.sol]>");
+  process.exit(1);
+}
+
+//convenience for use with Makefile:
+//If no .sol file ending is specified, this script will use Wormhole Solidity SDK defaults for
+//  the file paths, the SPDX license header, the pragma version, and the import statement.
+const fullPath = (() => {
+  const filename = process.argv[2];
+  if (filename.endsWith(".sol"))
+    return filename;
+
+  console.log(
+    `// SPDX-License-Identifier: Apache 2\npragma solidity ^0.8.24;\n\n` +
+    `import "wormhole-sdk/${filename}.sol";\n`
+  );
+
+  return "../src/" + filename + ".sol";
+})();
+let fileCode = readFileSync(fullPath, "utf8");
+
+//we first remove all comments so we can be sure that everything we're parsing is actual code
+fileCode = removeComments(fileCode);
+
+interface Func {
+  name: string;
+  stateMut: string;
+  paras: string[];
+  rets?: string[];
+}
+
+const libraries: Record<string, Func[]> = {};
+
+const libRegex = /library\s+(\w+)\s*\{([\s\S]*?)\n\}/g;
+//use library regex to find all libraries in the file and split into name and code pairs
+const libMatches = fileCode.matchAll(libRegex);
+for (const libs of libMatches) {
+  const [_, name, code] = libs;
+  libraries[name] = [];
+  const structRegex = /\s*struct\s+(\w+)/g;
+  const structs = new Set<string>();
+  const structMatches = code.matchAll(structRegex);
+  for (const struct of structMatches)
+    structs.add[struct[1]];
+
+  const funcRegex = /\s*function\s+(\w+)\s*\(([\s\S]*?)\)([\s\S]*?)([\{;])/g;
+  const funcMatches = code.matchAll(funcRegex);
+  for (const funcs of funcMatches) {
+    const [_, funcName, funcParasRaw, modsRaw, close] = funcs;
+    if (close == ';')
+      continue; //function pointer, not a function definition
+
+    if (!modsRaw.includes("internal"))
+      continue; //not an internal function
+
+    const retParasRegex = /returns\s*\(([\s\S]*?)\)/;
+    const retParasRaw = modsRaw.match(retParasRegex);
+
+    const collapseSpaceRegex = /\s\s+/g;
+    const paramsToArray = (paramList: string) => {
+      const cleaned = paramList.replace(collapseSpaceRegex, ' ').trim();
+      return !cleaned ? [] : cleaned.split(',').map(param => {
+        param = param.trim();
+        const paraType = param.match(/^(\w+)/)[1];
+        return structs.has(paraType) ? param.replace(paraType, `${name}.${paraType}`) : param;
+      });
+    }
+
+    libraries[name].push({
+      name: funcName,
+      stateMut: modsRaw.match(/\b(pure|view)\b/)?.[0] ?? '',
+      paras: paramsToArray(funcParasRaw.replace(/\bmemory\b/g, ' calldata ')),
+      rets: retParasRaw ? paramsToArray(retParasRaw[1]) : undefined,
+    });
+  }
+}
+
+console.log(`// This file was auto-generated by wormhole-solidity-sdk gen/libraryTestWrapper.ts`);
+
+const pConcat = (paras: string[]) =>
+  (paras.length > 2 ? "\n    " : "") +
+  paras.join(paras.length > 2 ? ",\n    " : ", ") +
+  (paras.length > 2 ? "\n  " : "");
+
+const pNames = (paras: string[]) =>
+  paras.map(para => {
+    const pieces = para.split(" ");
+    return pieces[pieces.length-1];
+  });
+
+
+for (const [libName, funcs] of Object.entries(libraries)) {
+  console.log(`\ncontract ${libName}TestWrapper {`);
+  const funcCode = [];
+  for (const func of funcs)
+    funcCode.push([
+      `  function ${func.name}(${pConcat(func.paras)}) external` +
+        (func.stateMut ? ` ${func.stateMut}` : "") +
+        (func.rets ? ` returns (${pConcat(func.rets)})` : "") +
+        " {",
+      `    ${func.rets ? 'return ' : ''}${libName}.${func.name}(${pNames(func.paras).join(', ')});`,
+      `  }`
+    ].join('\n'));
+  console.log(funcCode.join('\n\n'));
+  console.log('}');
+}
