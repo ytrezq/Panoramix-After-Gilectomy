@@ -413,31 +413,6 @@
    "skipped_large": 0
   },
   {
-   "repo": "https://github.com/yearn/woofy",
-   "ref": null,
-   "scope_paths": [],
-   "fetched": "2026-11-07",
-   "commit": "f4a680238c6a0ac049c1d8aa9b82ce34951e7495",
-   "submodules": [],
-   "license": {
-    "file": null,
-    "spdx": null,
-    "package_json": null,
-    "headers": {
-     "(none)": 1
-    },
-    "headers_main": {
-     "(none)": 1
-    }
-   },
-   "redistributable": false,
-   "languages": {
-    ".vy": 1
-   },
-   "copied": false,
-   "why": "reference only: no license allowing redistribution found"
-  },
-  {
    "repo": "https://github.com/yearn/yearn-yb",
    "ref": null,
    "scope_paths": [],
@@ -887,6 +862,42 @@
    "files": 3741,
    "bytes": 20823653,
    "skipped_large": 0
+  },
+  {
+   "repo": "https://github.com/yearn/woofy",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "f4a680238c6a0ac049c1d8aa9b82ce34951e7495",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "(none)": 1
+    },
+    "headers_main": {
+     "(none)": 1
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".vy": 1
+   },
+   "copied": true,
+   "why": "its license does not allow redistribution: added as git subtrees at the user's request, its license files kept in the tree",
+   "via": "git subtree",
+   "dest": "yearn__woofy",
+   "files": 7,
+   "subtrees": [
+    {
+     "prefix": "yearn__woofy",
+     "url": "https://github.com/yearn/woofy",
+     "commit": "f4a680238c6a0ac049c1d8aa9b82ce34951e7495"
+    }
+   ],
+   "npm": {}
   }
  ]
 }
