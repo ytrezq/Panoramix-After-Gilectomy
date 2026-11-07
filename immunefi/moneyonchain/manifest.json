@@ -68,36 +68,6 @@
    "skipped_large": 0
   },
   {
-   "repo": "https://github.com/money-on-chain/stable-protocol-roc-v2",
-   "ref": null,
-   "scope_paths": [],
-   "fetched": "2026-11-07",
-   "note": "RIF on Chain v2: MocRif bucket, USDRIF/RIFPRO, WrapperPriceProvider in the scope list",
-   "commit": "ae75b6a31d8f37c98ff331f1e49386383433e98f",
-   "submodules": [],
-   "license": {
-    "file": "LICENSE",
-    "spdx": "unrecognized",
-    "package_json": "AGPL-3.0",
-    "headers": {
-     "UNLICENSED": 20,
-     "UNlICENSED": 1,
-     "MIT": 1,
-     "(none)": 1
-    },
-    "headers_main": {
-     "UNLICENSED": 17,
-     "(none)": 1
-    }
-   },
-   "redistributable": false,
-   "languages": {
-    ".sol": 23
-   },
-   "copied": false,
-   "why": "reference only: no license allowing redistribution found"
-  },
-  {
    "repo": "https://github.com/money-on-chain/OMoC-Decentralized-Oracle",
    "ref": null,
    "scope_paths": [],
@@ -254,6 +224,58 @@
     "node_modules/moc-governance": "0.1.0",
     "node_modules/openzeppelin-eth": "2.1.3",
     "node_modules/zos-lib": "2.3.1"
+   }
+  },
+  {
+   "repo": "https://github.com/money-on-chain/stable-protocol-roc-v2",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "RIF on Chain v2: MocRif bucket, USDRIF/RIFPRO, WrapperPriceProvider in the scope list",
+   "commit": "ae75b6a31d8f37c98ff331f1e49386383433e98f",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "unrecognized",
+    "package_json": "AGPL-3.0",
+    "headers": {
+     "UNLICENSED": 20,
+     "UNlICENSED": 1,
+     "MIT": 1,
+     "(none)": 1
+    },
+    "headers_main": {
+     "UNLICENSED": 17,
+     "(none)": 1
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 23
+   },
+   "copied": true,
+   "why": "its license does not allow redistribution: added as git subtrees at the user's request, its license files kept in the tree",
+   "via": "git subtree",
+   "dest": "money-on-chain__stable-protocol-roc-v2",
+   "files": 998,
+   "subtrees": [
+    {
+     "prefix": "money-on-chain__stable-protocol-roc-v2",
+     "url": "https://github.com/money-on-chain/stable-protocol-roc-v2",
+     "commit": "ae75b6a31d8f37c98ff331f1e49386383433e98f"
+    }
+   ],
+   "npm": {
+    "node_modules/forge-std": "1.9.7",
+    "node_modules/@openzeppelin/foundry-upgrades": "0.4.0",
+    "node_modules/@openzeppelin/contracts": "4.9.3",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.9.3",
+    "node_modules/@openzeppelin-v4.8.0/contracts": "4.8.0",
+    "node_modules/@openzeppelin-v4.8.0/contracts-upgradeable": "4.8.0"
+   },
+   "npm_errors": {
+    "node_modules/moc-main-latest": "git fetch -q --filter=blob:none origin: 128: fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+    "node_modules/moc-main-stable": "git fetch -q --filter=blob:none origin: 128: fatal: could not read Username for 'https://github.com': terminal prompts disabled"
    }
   }
  ]
