@@ -1,0 +1,26 @@
+# folders
+.coverage_artifacts/
+.coverage_cache/
+.coverage_contracts/
+/artifacts/
+build/
+cache/
+coverage/
+dist/
+lib/
+node_modules/
+/typechain/
+profiles/
+bytecodes/
+corpus/
+crytic-export/
+.openzeppelin/
+deployments/hardhat/
+
+# files
+*.env
+*.log
+*.tsbuildinfo
+coverage.json
+npm-debug.log*
+.solcx-lock*

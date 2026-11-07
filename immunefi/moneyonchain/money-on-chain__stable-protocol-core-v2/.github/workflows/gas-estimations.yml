@@ -1,0 +1,33 @@
+name: Gas Estimations
+on: [workflow_dispatch]
+env:
+  INFURA_API_KEY: "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+  MNEMONIC: "here is where your twelve words mnemonic should be put my friend"
+  TP_AMOUNT: 5
+  GAS_PRICE: 65800000
+  BLOCK_GAS_LIMIT: 6800000
+  BTCUSD_PRICE: 43000
+  EXEC_FEE_BUCKET_AMOUNT: 2
+  EXEC_FEE_ITER: 20
+  EXEC_FEE_AVG_OPER_PER_BATCH: 1
+  EXEC_FEE_TP_AMOUNT: 1
+  BATCH_SIZE_TP_AMOUNT: 1
+  BATCH_SIZE_OPER_PER_BATCH: 65
+jobs:
+  build:
+    name: Run Gas Estimations
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [22.14.0]
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm ci
+      - run: npm run compile
+      - run: npm run test-gas-estimation

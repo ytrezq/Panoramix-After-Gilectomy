@@ -1,0 +1,42 @@
+name: Mythril Analysis
+on: [workflow_dispatch]
+
+env:
+  INFURA_API_KEY: "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+  MNEMONIC: "here is where your twelve words mnemonic should be put my friend"
+  NODE_VERSION: "22.14.0"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  mythril-analysis:
+    name: Run Mythril - ${{ matrix.target.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - path: "./contracts/collateral/coinbase/MocCACoinbase.sol"
+            name: "MocCACoinbase"
+          - path: "./contracts/collateral/rc20/MocCARC20.sol"
+            name: "MocCARC20"
+          - path: "./contracts/core/MocCoreExpansion.sol"
+            name: "MocCoreExpansion"
+          - path: "./contracts/vendors/MocVendors.sol"
+            name: "MocVendors"
+          - path: "./contracts/tokens/MocRC20.sol"
+            name: "MocRC20"
+          - path: "./contracts/queue/MocQueue.sol"
+            name: "MocQueue"
+          - path: "./contracts/multiCollateral/MocMultiCollateralGuard.sol"
+            name: "MocMultiCollateralGuard"
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm ci
+      - run: pip3 install mythril
+      - run: npm run mythril -- ${{ matrix.target.path }}
