@@ -604,6 +604,58 @@
    "skipped_large": 0
   },
   {
+   "repo": "https://github.com/agglayer/agglayer-contracts",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "110bda5a03e70ee7331bc06407a8e79226d3e520",
+   "submodules": [],
+   "soldeer": [
+    {
+     "path": "dependencies/forge-std-1.10.0",
+     "name": "forge-std",
+     "version": "1.10.0",
+     "zip": "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_10_0_02-08-2025_06:50:35_forge-std-1.10.zip"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": "pending",
+    "headers": {
+     "AGPL-3.0": 114,
+     "MIT": 14,
+     "GPL-3.0": 9,
+     "Apache-2.0": 1,
+     "(none)": 2
+    },
+    "headers_main": {
+     "AGPL-3.0": 95,
+     "MIT": 12,
+     "GPL-3.0": 9,
+     "Apache-2.0": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 140
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts-upgradeable4": "4.8.2",
+    "node_modules/@openzeppelin/contracts5": "5.0.0",
+    "node_modules/@openzeppelin/contracts4": "4.8.2",
+    "node_modules/@openzeppelin/contracts52": "5.2.0",
+    "node_modules/@openzeppelin/contracts-upgradeable5": "5.0.0",
+    "node_modules/hardhat": "2.29.1",
+    "node_modules/@openzeppelin/contracts": "5.0.0"
+   },
+   "copied": true,
+   "dest": "agglayer__agglayer-contracts",
+   "files": 1213,
+   "bytes": 7516105,
+   "skipped_large": 0
+  },
+  {
    "repo": "https://github.com/agglayer/vault-bridge",
    "ref": "v1.0.0",
    "scope_paths": [],
@@ -678,60 +730,19 @@
    "languages": {
     ".sol": 86
    },
-   "copied": false,
-   "why": "reference only: no license allowing redistribution found"
-  },
-  {
-   "repo": "https://github.com/agglayer/agglayer-contracts",
-   "ref": null,
-   "scope_paths": [],
-   "fetched": "2026-11-07",
-   "commit": "110bda5a03e70ee7331bc06407a8e79226d3e520",
-   "submodules": [],
-   "soldeer": [
+   "copied": true,
+   "why": "its license does not allow redistribution: added as git subtrees at the user's request, its license files kept in the tree",
+   "via": "git subtree",
+   "dest": "agglayer__vault-bridge",
+   "files": 163,
+   "subtrees": [
     {
-     "path": "dependencies/forge-std-1.10.0",
-     "name": "forge-std",
-     "version": "1.10.0",
-     "zip": "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_10_0_02-08-2025_06:50:35_forge-std-1.10.zip"
+     "prefix": "agglayer__vault-bridge",
+     "url": "https://github.com/agglayer/vault-bridge",
+     "commit": "bd3ea7b42dd1d23121827abb6eb7191a80b8e720"
     }
    ],
-   "license": {
-    "file": "LICENSE",
-    "spdx": "AGPL-3.0",
-    "package_json": "pending",
-    "headers": {
-     "AGPL-3.0": 114,
-     "MIT": 14,
-     "GPL-3.0": 9,
-     "Apache-2.0": 1,
-     "(none)": 2
-    },
-    "headers_main": {
-     "AGPL-3.0": 95,
-     "MIT": 12,
-     "GPL-3.0": 9,
-     "Apache-2.0": 1
-    }
-   },
-   "redistributable": true,
-   "languages": {
-    ".sol": 140
-   },
-   "npm": {
-    "node_modules/@openzeppelin/contracts-upgradeable4": "4.8.2",
-    "node_modules/@openzeppelin/contracts5": "5.0.0",
-    "node_modules/@openzeppelin/contracts4": "4.8.2",
-    "node_modules/@openzeppelin/contracts52": "5.2.0",
-    "node_modules/@openzeppelin/contracts-upgradeable5": "5.0.0",
-    "node_modules/hardhat": "2.29.1",
-    "node_modules/@openzeppelin/contracts": "5.0.0"
-   },
-   "copied": true,
-   "dest": "agglayer__agglayer-contracts",
-   "files": 1213,
-   "bytes": 7516105,
-   "skipped_large": 0
+   "npm": {}
   }
  ]
 }
