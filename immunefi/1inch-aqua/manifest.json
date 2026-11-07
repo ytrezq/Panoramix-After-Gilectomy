@@ -2,46 +2,6 @@
  "program": "1inch-aqua",
  "repos": [
   {
-   "repo": "https://github.com/1inch/swap-vm",
-   "ref": "v1.0.2",
-   "scope_paths": [
-    "src/SwapVM.sol",
-    "src/instructions/Balances.sol",
-    "src/instructions/Controls.sol",
-    "src/instructions/Decay.sol",
-    "src/instructions/Extruction.sol",
-    "src/instructions/Fee.sol",
-    "src/instructions/PeggedSwap.sol",
-    "src/instructions/XYCConcentrate.sol",
-    "src/instructions/XYCSwap.sol",
-    "src/libs/MakerTraits.sol",
-    "src/libs/PeggedSwapMath.sol",
-    "src/libs/TakerTraits.sol",
-    "src/libs/VM.sol",
-    "src/opcodes/AquaOpcodes.sol",
-    "src/routers/AquaSwapVMRouter.sol"
-   ],
-   "fetched": "2026-11-07",
-   "commit": "32c687c2b73101fc26549e48fa1ff8a4d73afbac",
-   "submodules": [],
-   "license": {
-    "file": "LICENSE",
-    "spdx": "LicenseRef-Degensoft-SwapVM-1.1",
-    "package_json": "SEE LICENSE IN LICENSE",
-    "headers": {
-     "LicenseRef-Degensoft-SwapVM-1.1": 152,
-     "LicenseRef-Degensoft-ARSL-1.0-Audit": 1,
-     "MIT": 2
-    }
-   },
-   "redistributable": false,
-   "languages": {
-    ".sol": 155
-   },
-   "copied": false,
-   "why": "reference only: no license allowing redistribution found"
-  },
-  {
    "repo": "https://github.com/1inch/solidity-utils",
    "ref": "7.0.0",
    "scope_paths": [
@@ -123,6 +83,62 @@
    "npm": {
     "node_modules/@openzeppelin/contracts": "5.4.0",
     "node_modules/@1inch/solidity-utils": "6.9.7",
+    "node_modules/forge-std": "1.11.0"
+   }
+  },
+  {
+   "repo": "https://github.com/1inch/swap-vm",
+   "ref": "v1.0.2",
+   "scope_paths": [
+    "src/SwapVM.sol",
+    "src/instructions/Balances.sol",
+    "src/instructions/Controls.sol",
+    "src/instructions/Decay.sol",
+    "src/instructions/Extruction.sol",
+    "src/instructions/Fee.sol",
+    "src/instructions/PeggedSwap.sol",
+    "src/instructions/XYCConcentrate.sol",
+    "src/instructions/XYCSwap.sol",
+    "src/libs/MakerTraits.sol",
+    "src/libs/PeggedSwapMath.sol",
+    "src/libs/TakerTraits.sol",
+    "src/libs/VM.sol",
+    "src/opcodes/AquaOpcodes.sol",
+    "src/routers/AquaSwapVMRouter.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "32c687c2b73101fc26549e48fa1ff8a4d73afbac",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "LicenseRef-Degensoft-SwapVM-1.1",
+    "package_json": "SEE LICENSE IN LICENSE",
+    "headers": {
+     "LicenseRef-Degensoft-SwapVM-1.1": 152,
+     "LicenseRef-Degensoft-ARSL-1.0-Audit": 1,
+     "MIT": 2
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 155
+   },
+   "copied": true,
+   "why": "its license does not allow redistribution: added as git subtrees at the user's request, its license files kept in the tree",
+   "via": "git subtree",
+   "dest": "1inch__swap-vm",
+   "files": 626,
+   "subtrees": [
+    {
+     "prefix": "1inch__swap-vm",
+     "url": "https://github.com/1inch/swap-vm",
+     "commit": "32c687c2b73101fc26549e48fa1ff8a4d73afbac"
+    }
+   ],
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "5.4.0",
+    "node_modules/@1inch/solidity-utils": "6.9.7",
+    "node_modules/@1inch/aqua": "0.1.0",
     "node_modules/forge-std": "1.11.0"
    }
   }
