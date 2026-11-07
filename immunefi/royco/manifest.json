@@ -2,178 +2,6 @@
  "program": "royco",
  "repos": [
   {
-   "repo": "https://github.com/roycoprotocol/royco-vault-makina-strategy",
-   "ref": null,
-   "scope_paths": [],
-   "fetched": "2026-11-07",
-   "note": "RoycoVaultMakinaStrategy; the Concrete Earn v2 vault code comes as a submodule",
-   "commit": "3ba424d368a996342b4ff24e9d258c989fe99023",
-   "submodules": [
-    {
-     "path": "lib/forge-std",
-     "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "0844d7e1fc5e60d77b68e469bff60265f236c398"
-    },
-    {
-     "path": "lib/concrete-earn-v2-bug-bounty",
-     "url": "https://github.com/Blueprint-Finance/concrete-earn-v2-bug-bounty",
-     "commit": "a9ace6154cb2728bc9d3d4c5019e040fb2d4b562"
-    },
-    {
-     "path": "lib/openzeppelin-contracts",
-     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "5fd1781b1454fd1ef8e722282f86f9293cacf256"
-    },
-    {
-     "path": "lib/openzeppelin-contracts/lib/forge-std",
-     "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
-    },
-    {
-     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
-     "url": "https://github.com/a16z/erc4626-tests.git",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
-    },
-    {
-     "path": "lib/openzeppelin-contracts/lib/halmos-cheatcodes",
-     "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
-    },
-    {
-     "path": "lib/makina-core",
-     "url": "https://github.com/MakinaHQ/makina-core",
-     "commit": "ff6f03628cb41a65b3551e1decac61d49e6eb0ba"
-    },
-    {
-     "path": "lib/makina-core/lib/forge-std",
-     "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
-    },
-    {
-     "path": "lib/makina-core/lib/openzeppelin-contracts-upgradeable",
-     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "aa677e9d28ed78fc427ec47ba2baef2030c58e7c"
-    },
-    {
-     "path": "lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
-     "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
-    },
-    {
-     "path": "lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
-     "url": "https://github.com/a16z/erc4626-tests.git",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
-    },
-    {
-     "path": "lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
-     "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
-    },
-    {
-     "path": "lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
-     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
-     "commit": "fcbae5394ae8ad52d8e580a3477db99814b9d565"
-    },
-    {
-     "path": "lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
-     "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
-    },
-    {
-     "path": "lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
-     "url": "https://github.com/a16z/erc4626-tests.git",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
-    },
-    {
-     "path": "lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
-     "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
-    },
-    {
-     "path": "lib/makina-core/lib/wormhole-solidity-sdk",
-     "url": "https://github.com/wormhole-foundation/wormhole-solidity-sdk",
-     "commit": "baa085006586a43c42858d355e3ffb743b80d7a4"
-    },
-    {
-     "path": "lib/makina-core/lib/wormhole-solidity-sdk/lib/forge-std",
-     "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
-    },
-    {
-     "path": "lib/makina-core/lib/wormhole-solidity-sdk/lib/forge-std/lib/ds-test",
-     "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
-    },
-    {
-     "path": "lib/makina-core/lib/enso-weiroll",
-     "url": "https://github.com/EnsoBuild/enso-weiroll",
-     "commit": "900250114203727ff236d3f6313673c17c2d90dd"
-    },
-    {
-     "path": "lib/makina-core/lib/devtools",
-     "url": "https://github.com/LayerZero-Labs/devtools",
-     "commit": "b150aaa536ed707a4720bf1057bb772562b18e2d"
-    },
-    {
-     "path": "lib/makina-core/lib/devtools/packages/toolbox-foundry/src/forge-std",
-     "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "60acb7aaadcce2d68e52986a0a66fe79f07d138f"
-    },
-    {
-     "path": "lib/makina-core/lib/devtools/packages/toolbox-foundry/src/ds-test",
-     "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
-    },
-    {
-     "path": "lib/makina-core/lib/devtools/tests-user/lib/bats-core",
-     "url": "https://github.com/bats-core/bats-core.git",
-     "commit": "855844b8344e67d60dc0f43fa39817ed7787f141"
-    },
-    {
-     "path": "lib/makina-core/lib/devtools/tests-user/lib/bats-support",
-     "url": "https://github.com/bats-core/bats-support.git",
-     "commit": "0ad082d4590108684c68975ca517a90459f05cd0"
-    },
-    {
-     "path": "lib/makina-core/lib/devtools/tests-user/lib/bats-assert",
-     "url": "https://github.com/bats-core/bats-assert.git",
-     "commit": "912a98804efd34f24d5eae1bf97ee622ca770e99"
-    },
-    {
-     "path": "lib/makina-core/lib/LayerZero-v2",
-     "url": "https://github.com/LayerZero-Labs/LayerZero-v2",
-     "commit": "3801b9929281261b907eb3482a82364ad00d7868"
-    },
-    {
-     "path": "lib/makina-core/lib/LayerZero-v2/lib/forge-std",
-     "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "2f112697506eab12d433a65fdc31a639548fe365"
-    },
-    {
-     "path": "lib/makina-core/lib/LayerZero-v2/lib/forge-std/lib/ds-test",
-     "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
-    }
-   ],
-   "license": {
-    "file": null,
-    "spdx": null,
-    "package_json": null,
-    "headers": {
-     "UNLICENSED": 11
-    },
-    "headers_main": {
-     "UNLICENSED": 1
-    }
-   },
-   "redistributable": false,
-   "languages": {
-    ".sol": 11
-   },
-   "copied": false,
-   "why": "reference only: no license allowing redistribution found"
-  },
-  {
    "repo": "https://github.com/roycoprotocol/royco-dawn",
    "ref": null,
    "scope_paths": [],
@@ -404,6 +232,334 @@
      "prefix": "roycoprotocol__royco-dawn/lib/openzeppelin-contracts-v4/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
      "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    }
+   ],
+   "npm": {}
+  },
+  {
+   "repo": "https://github.com/roycoprotocol/royco-vault-makina-strategy",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "RoycoVaultMakinaStrategy; the Concrete Earn v2 vault code comes as a submodule",
+   "commit": "3ba424d368a996342b4ff24e9d258c989fe99023",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "0844d7e1fc5e60d77b68e469bff60265f236c398"
+    },
+    {
+     "path": "lib/concrete-earn-v2-bug-bounty",
+     "url": "https://github.com/Blueprint-Finance/concrete-earn-v2-bug-bounty",
+     "commit": "a9ace6154cb2728bc9d3d4c5019e040fb2d4b562"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "5fd1781b1454fd1ef8e722282f86f9293cacf256"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/makina-core",
+     "url": "https://github.com/MakinaHQ/makina-core",
+     "commit": "ff6f03628cb41a65b3551e1decac61d49e6eb0ba"
+    },
+    {
+     "path": "lib/makina-core/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/makina-core/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "aa677e9d28ed78fc427ec47ba2baef2030c58e7c"
+    },
+    {
+     "path": "lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "fcbae5394ae8ad52d8e580a3477db99814b9d565"
+    },
+    {
+     "path": "lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/makina-core/lib/wormhole-solidity-sdk",
+     "url": "https://github.com/wormhole-foundation/wormhole-solidity-sdk",
+     "commit": "baa085006586a43c42858d355e3ffb743b80d7a4"
+    },
+    {
+     "path": "lib/makina-core/lib/wormhole-solidity-sdk/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
+    },
+    {
+     "path": "lib/makina-core/lib/wormhole-solidity-sdk/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/makina-core/lib/enso-weiroll",
+     "url": "https://github.com/EnsoBuild/enso-weiroll",
+     "commit": "900250114203727ff236d3f6313673c17c2d90dd"
+    },
+    {
+     "path": "lib/makina-core/lib/devtools",
+     "url": "https://github.com/LayerZero-Labs/devtools",
+     "commit": "b150aaa536ed707a4720bf1057bb772562b18e2d"
+    },
+    {
+     "path": "lib/makina-core/lib/devtools/packages/toolbox-foundry/src/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "60acb7aaadcce2d68e52986a0a66fe79f07d138f"
+    },
+    {
+     "path": "lib/makina-core/lib/devtools/packages/toolbox-foundry/src/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/makina-core/lib/devtools/tests-user/lib/bats-core",
+     "url": "https://github.com/bats-core/bats-core.git",
+     "commit": "855844b8344e67d60dc0f43fa39817ed7787f141"
+    },
+    {
+     "path": "lib/makina-core/lib/devtools/tests-user/lib/bats-support",
+     "url": "https://github.com/bats-core/bats-support.git",
+     "commit": "0ad082d4590108684c68975ca517a90459f05cd0"
+    },
+    {
+     "path": "lib/makina-core/lib/devtools/tests-user/lib/bats-assert",
+     "url": "https://github.com/bats-core/bats-assert.git",
+     "commit": "912a98804efd34f24d5eae1bf97ee622ca770e99"
+    },
+    {
+     "path": "lib/makina-core/lib/LayerZero-v2",
+     "url": "https://github.com/LayerZero-Labs/LayerZero-v2",
+     "commit": "3801b9929281261b907eb3482a82364ad00d7868"
+    },
+    {
+     "path": "lib/makina-core/lib/LayerZero-v2/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2f112697506eab12d433a65fdc31a639548fe365"
+    },
+    {
+     "path": "lib/makina-core/lib/LayerZero-v2/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "UNLICENSED": 11
+    },
+    "headers_main": {
+     "UNLICENSED": 1
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 11
+   },
+   "copied": true,
+   "why": "its license does not allow redistribution: added as git subtrees at the user's request, its license files kept in the tree",
+   "via": "git subtree",
+   "dest": "roycoprotocol__royco-vault-makina-strategy",
+   "files": 8084,
+   "subtrees": [
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy",
+     "url": "https://github.com/roycoprotocol/royco-vault-makina-strategy",
+     "commit": "3ba424d368a996342b4ff24e9d258c989fe99023"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/concrete-earn-v2-bug-bounty",
+     "url": "https://github.com/Blueprint-Finance/concrete-earn-v2-bug-bounty",
+     "commit": "a9ace6154cb2728bc9d3d4c5019e040fb2d4b562"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "0844d7e1fc5e60d77b68e469bff60265f236c398"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core",
+     "url": "https://github.com/MakinaHQ/makina-core",
+     "commit": "ff6f03628cb41a65b3551e1decac61d49e6eb0ba"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "5fd1781b1454fd1ef8e722282f86f9293cacf256"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/LayerZero-v2",
+     "url": "https://github.com/LayerZero-Labs/LayerZero-v2",
+     "commit": "3801b9929281261b907eb3482a82364ad00d7868"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/devtools",
+     "url": "https://github.com/LayerZero-Labs/devtools",
+     "commit": "b150aaa536ed707a4720bf1057bb772562b18e2d"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/enso-weiroll",
+     "url": "https://github.com/EnsoBuild/enso-weiroll",
+     "commit": "900250114203727ff236d3f6313673c17c2d90dd"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "aa677e9d28ed78fc427ec47ba2baef2030c58e7c"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/wormhole-solidity-sdk",
+     "url": "https://github.com/wormhole-foundation/wormhole-solidity-sdk",
+     "commit": "baa085006586a43c42858d355e3ffb743b80d7a4"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/LayerZero-v2/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2f112697506eab12d433a65fdc31a639548fe365"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/devtools/packages/toolbox-foundry/src/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/devtools/packages/toolbox-foundry/src/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "60acb7aaadcce2d68e52986a0a66fe79f07d138f"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/devtools/tests-user/lib/bats-assert",
+     "url": "https://github.com/bats-core/bats-assert",
+     "commit": "912a98804efd34f24d5eae1bf97ee622ca770e99"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/devtools/tests-user/lib/bats-core",
+     "url": "https://github.com/bats-core/bats-core",
+     "commit": "855844b8344e67d60dc0f43fa39817ed7787f141"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/devtools/tests-user/lib/bats-support",
+     "url": "https://github.com/bats-core/bats-support",
+     "commit": "0ad082d4590108684c68975ca517a90459f05cd0"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "fcbae5394ae8ad52d8e580a3477db99814b9d565"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/wormhole-solidity-sdk/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/LayerZero-v2/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "prefix": "roycoprotocol__royco-vault-makina-strategy/lib/makina-core/lib/wormhole-solidity-sdk/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ],
    "npm": {}
