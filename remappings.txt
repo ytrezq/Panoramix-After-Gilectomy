@@ -1,0 +1,13 @@
+@solmate/=lib/solmate/src/
+@forge-std/=lib/forge-std/src/
+@ds-test/=lib/forge-std/lib/ds-test/src/
+ds-test/=lib/forge-std/lib/ds-test/src/
+@devtools-oapp-evm/=lib/devtools/packages/oapp-evm/contracts/oapp
+@lz-oapp-evm/=lib/LayerZero-V2/packages/layerzero-v2/evm/oapp/contracts/oapp
+
+@layerzerolabs/oapp-evm/=lib/devtools/packages/oapp-evm/
+@layerzerolabs/lz-evm-protocol-v2/=lib/LayerZero-V2/packages/layerzero-v2/evm/protocol
+solidity-bytes-utils/=node_modules/solidity-bytes-utils/
+@openzeppelin/=lib/openzeppelin-contracts/
+@layerzerolabs/lz-evm-messagelib-v2/=node_modules/@layerzerolabs/lz-evm-messagelib-v2/
+@sbu/=lib/solidity-bytes-utils/
