@@ -1,0 +1,52 @@
+{
+  "proxyAddresses": {
+    "MoC": "0xf773B590aF754D597770937Fa8ea7AbDf2668370",
+    "MoCConnector": "0xcE2A128cC73e5d98355aAfb2595647F2D3171Faa",
+    "MoCExchange": "0x6aCb83bB0281FB847b43cf7dd5e2766BFDF49038",
+    "MoCSettlement": "0x609dF03D8a85eAffE376189CA7834D4C35e32F22",
+    "MoCInrate": "0xc0f9B54c41E3d0587Ce0F7540738d8d649b0A3F3",
+    "MoCState": "0xb9C42EFc8ec54490a37cA91c423F7285Fa01e257",
+    "MoCVendors": "0x2d442aA5D391475b6Af3ad361eA3b9818fb35BcA",
+    "CommissionSplitter": "0xa5467535851263122ef1476e24C529CFc6CFc086"
+  },
+  "implementationAddresses": {
+    "MoC": "0x9965C3B0fDcb9145AdFd4C0535716b109F450f9F",
+    "MoCConnector": "",
+    "MoCExchange": "0x36D1Dc7b41a18c2455ad7C3844a3C711712f6F14",
+    "MoCSettlement": "0x3B5F29F815675902324727F194f6B3F39e8B05f9",
+    "MoCInrate": "0xE9B15be6e7Cd575B15a197DE6A536f39B32Ac918",
+    "MoCState": "0x436930E882DFf853344275067235a0FfE5c1F112",
+    "ProxyAdmin": "0x009C51E1f6feDcDB8014Ea9AE1E39B6dbF2AC0EC",
+    "UpgradeDelegator": "0x5cE577f6Ec969CE9a282838D350206C52A6F338C",
+    "Governor": "0xC61F0392d5170214b5D93C0BC4c4354163aBC1f7",
+    "MoCToken": "0x9AC7fE28967B30E3A4e6e03286d715b42B453D10",
+    "MoCPriceProvider": "0x72835fDc4F73cb33b1E7e03bFe067AAfED2BDB9C",
+    "MoCVendors": "0x2C393B9484B1D15519031F14d9FafEb999A6A811",
+    "MoCHelperLib": "0x592b84710955C9561008D137a5403E1dd9A222D8",
+    "CommissionSplitter": "0xc60b5050552e35B1af3026A44465c058B77861dc"
+  },
+  "valuesToAssign": {
+    "commissionRates": {
+      "MINT_BPRO_FEES_RBTC": 0.001,
+      "REDEEM_BPRO_FEES_RBTC": 0.001,
+      "MINT_DOC_FEES_RBTC": 0.001,
+      "REDEEM_DOC_FEES_RBTC": 0.001,
+      "MINT_BTCX_FEES_RBTC": 0.001,
+      "REDEEM_BTCX_FEES_RBTC": 0.001,
+      "MINT_BPRO_FEES_MOC": 0.0005,
+      "REDEEM_BPRO_FEES_MOC": 0.0005,
+      "MINT_DOC_FEES_MOC": 0.0005,
+      "REDEEM_DOC_FEES_MOC": 0.0005,
+      "MINT_BTCX_FEES_MOC": 0.0005,
+      "REDEEM_BTCX_FEES_MOC": 0.0005
+    },
+    "liquidationEnabled": false,
+    "protected": "1.5",
+    "vendorGuardianAddress": "0x09f513cdcaabf26ba10fd4f6f5d74dcc61c1b6c1",
+    "mocTokenCommissionsAddress": "0x7002dD3027947aB98cA3DDC28F93F2450281453A"
+  },
+  "changerAddresses": {
+    "BatchChanger": "0x58933D29430b79780F54d1E97CB70eA9558360BE"
+  },
+  "governorOwnerAddress": "0xC61820bFB8F87391d62Cd3976dDc1d35e0cf7128"
+}
