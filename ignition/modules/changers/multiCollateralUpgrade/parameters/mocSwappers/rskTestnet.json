@@ -1,0 +1,32 @@
+{
+  "MocSwappers": {
+    "governorAddress": "0x7b716178771057195bB511f0B1F7198EEE62Bc22",
+    "pauserAddress": "0x5bCdf8A2E61BD238AEe43b99962Ee8BfBda1Beca",
+    "swapRouterAddress": "0x69fE5ceC81d5Ef92600c1A0dB1f11986ab37deAd",
+    "coinbaseWrapperAddress": "0x69FE5cEC81D5eF92600c1A0dB1F11986AB3758Ab",
+
+    "docTokenAddress": "0xCB46c0ddc60D18eFEB0E586C17Af6ea36452Dae0",
+    "mocTokenAddress": "0x45a97b54021a3F99827641AFe1BFAE574431e6ab",
+    "rifTokenAddress": "0x19F64674D8A5B4E652319F5e239eFd3bc969A1fE",
+
+    "__docToMocPaths": "USDT, WBTC",
+    "docToMocPath": ["0x69fE5ceC81d5Ef92600c1A0dB1f11986ab37deAd", "0x69FE5cEC81D5eF92600c1A0dB1F11986AB3758Ab"],
+    "docToMocFees": [500, 3000, 3000],
+    "maxDocToMocToSwap": "1000000000000000000000",
+
+    "__mocToDocPaths": "WBTC, USDT",
+    "mocToDocPath": ["0x69FE5cEC81D5eF92600c1A0dB1F11986AB3758Ab", "0x69fE5ceC81d5Ef92600c1A0dB1f11986ab37deAd"],
+    "mocToDocFees": [3000, 3000, 500],
+    "maxMocToDocToSwap": "1000000000000000000000",
+
+    "__rifToDocPaths": "USDT",
+    "rifToDocPath": ["0x69fE5ceC81d5Ef92600c1A0dB1f11986ab37deAd"],
+    "rifToDocFees": [3000, 500],
+    "maxRifToDocToSwap": "1000000000000000000000",
+
+    "__docToRIFPaths": "USDT",
+    "docToRifPath": ["0x69fE5ceC81d5Ef92600c1A0dB1f11986ab37deAd"],
+    "docToRifFees": [500, 3000],
+    "maxDocToRifToSwap": "1000000000000000000000"
+  }
+}

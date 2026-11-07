@@ -1,0 +1,125 @@
+{
+  "address": "0xc8Dc991eF317714AB5413fE7d50365b3676AD7C4",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "contract IChangeContract",
+          "name": "changeContract",
+          "type": "address"
+        }
+      ],
+      "name": "executeChange",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "isAuthorized",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "isAuthorizedChanger",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bool",
+          "name": "isAuthorized_",
+          "type": "bool"
+        }
+      ],
+      "name": "setIsAuthorized",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0x7d56e9fdd0c1fcc715dab38a0bd4168a2a9bde95d72deb357a66b020ed79c079",
+  "receipt": {
+    "to": null,
+    "from": "0xF4695CFF1E7dD0201b71a8A4F01D0450f89cC46C",
+    "contractAddress": "0xc8Dc991eF317714AB5413fE7d50365b3676AD7C4",
+    "transactionIndex": 0,
+    "gasUsed": "162326",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0x75f1b1b2d83085f4b69f0ff53bd358b9463a32610b00ba3ef721d73396fe4917",
+    "transactionHash": "0x7d56e9fdd0c1fcc715dab38a0bd4168a2a9bde95d72deb357a66b020ed79c079",
+    "logs": [],
+    "blockNumber": 6457441,
+    "cumulativeGasUsed": "162326",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [],
+  "numDeployments": 1,
+  "metadata": "{\"compiler\":{\"version\":\"0.8.20+commit.a1b79de6\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"contract IChangeContract\",\"name\":\"changeContract\",\"type\":\"address\"}],\"name\":\"executeChange\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"isAuthorized\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"isAuthorizedChanger\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bool\",\"name\":\"isAuthorized_\",\"type\":\"bool\"}],\"name\":\"setIsAuthorized\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"details\":\"Test only contract to mock Governor behavior \",\"kind\":\"dev\",\"methods\":{\"executeChange(address)\":{\"params\":{\"changeContract\":\"Address of the contract that will execute the changes\"}}},\"title\":\"GovernorMock\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"executeChange(address)\":{\"notice\":\"Function to be called to make the changes in changeContract\"}},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/mocks/upgradeability/GovernorMock.sol\":\"GovernorMock\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"details\":{\"constantOptimizer\":true,\"cse\":true,\"deduplicate\":true,\"inliner\":true,\"jumpdestRemover\":true,\"orderLiterals\":true,\"peephole\":true,\"yul\":true,\"yulDetails\":{\"optimizerSteps\":\"dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul[j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul]VcTOculjmul:fDnTOc\",\"stackAllocation\":true}},\"runs\":200},\"remappings\":[],\"viaIR\":true},\"sources\":{\"contracts/interfaces/IChangeContract.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.20;\\n\\n/**\\n  @title IChangeContract\\n  @notice This interface is the one used by the governance system.\\n  @dev If you plan to do some changes to a system governed by this project you should write a contract\\n  that does those changes, like a recipe. This contract MUST not have ANY kind of public or external function\\n  that modifies the state of this ChangeContract, otherwise you could run into front-running issues when the governance\\n  system is fully in place.\\n */\\ninterface IChangeContract {\\n    /**\\n    @notice Override this function with a recipe of the changes to be done when this ChangeContract\\n    is executed\\n   */\\n    function execute() external;\\n}\\n\",\"keccak256\":\"0x22e20ac9596a6a4c4545b0c5cf307c2924987d6033ef75357850b0de4d1f0901\",\"license\":\"UNLICENSED\"},\"contracts/interfaces/IGovernor.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.20;\\n\\nimport { IChangeContract } from \\\"./IChangeContract.sol\\\";\\n\\n/**\\n  @title IGovernor\\n  @notice Governor interface. This functions should be overwritten to\\n  enable the communication with the rest of the system\\n  @dev This interface **MUST** be compatible with the corresponding Governance instance\\n  used on Production, from https://github.com/money-on-chain/Areopagus-Governance\\n  */\\ninterface IGovernor {\\n    /**\\n    @notice Function to be called to make the changes described in changeContract\\n    @dev This function should be protected somehow to only execute changes that\\n    benefit the system. This decision process is independent of this architecture\\n    therefore is independent of this interface too\\n    @param changeContract_ Address of the contract that will execute the changes\\n   */\\n    function executeChange(IChangeContract changeContract_) external;\\n\\n    /**\\n    @notice Returns whether this `changer_` is authorized to execute changes.\\n    @param changer_ Address of the contract that will execute the changes\\n   */\\n    function isAuthorizedChanger(address changer_) external view returns (bool);\\n}\\n\",\"keccak256\":\"0x0f8cd9de3ed9348e6a58cf4d971586f60f5542a20ecd3748194e4ba288f419c1\",\"license\":\"UNLICENSED\"},\"contracts/mocks/upgradeability/GovernorMock.sol\":{\"content\":\"// SPDX-License-Identifier: UNLICENSED\\npragma solidity 0.8.20;\\n\\nimport { IGovernor } from \\\"../../interfaces/IGovernor.sol\\\";\\nimport { IChangeContract } from \\\"../../interfaces/IChangeContract.sol\\\";\\n\\n/**\\n  @title GovernorMock\\n  @dev Test only contract to mock Governor behavior \\n*/\\ncontract GovernorMock is IGovernor {\\n    bool public isAuthorized = true;\\n\\n    /**\\n    @notice Function to be called to make the changes in changeContract\\n    @param changeContract Address of the contract that will execute the changes\\n   */\\n    function executeChange(IChangeContract changeContract) external {\\n        changeContract.execute();\\n    }\\n\\n    function isAuthorizedChanger(address) external view override returns (bool) {\\n        return isAuthorized;\\n    }\\n\\n    function setIsAuthorized(bool isAuthorized_) public {\\n        isAuthorized = isAuthorized_;\\n    }\\n}\\n\",\"keccak256\":\"0x4c3d3f98f6557c1d830dc592929b49deaa881a60290335ed68729191b2d2aa50\",\"license\":\"UNLICENSED\"}},\"version\":1}",
+  "bytecode": "0x6080806040523461002357600160ff19600054161760005561019a90816100298239f35b600080fdfe60808060405260048036101561001457600080fd5b600091823560e01c90816357e6c2f41461014557508281638c777e82146100b5575080639e0a8e09146100895763d994d6d51461005057600080fd5b3461008557602036600319011261008557356001600160a01b038116036100825760ff60209154166040519015158152f35b80fd5b5080fd5b503461008557602036600319011261008557358015158091036100855760ff8019835416911617815580f35b8083346101425760203660031901126101425780356001600160a01b0381169081900361013e57803b1561013e5782908260405180958193631851865560e21b83525af1801561013357610107578280f35b67ffffffffffffffff8211610120575060405281808280f35b634e487b7160e01b835260419052602482fd5b6040513d85823e3d90fd5b5050fd5b50fd5b83903461008557816003193601126100855760ff602092541615158152f3fea2646970667358221220db32608f1f6cb45e0039ab366ec4b054a5b78ac7e186da44aee701495bd22f2064736f6c63430008140033",
+  "deployedBytecode": "0x60808060405260048036101561001457600080fd5b600091823560e01c90816357e6c2f41461014557508281638c777e82146100b5575080639e0a8e09146100895763d994d6d51461005057600080fd5b3461008557602036600319011261008557356001600160a01b038116036100825760ff60209154166040519015158152f35b80fd5b5080fd5b503461008557602036600319011261008557358015158091036100855760ff8019835416911617815580f35b8083346101425760203660031901126101425780356001600160a01b0381169081900361013e57803b1561013e5782908260405180958193631851865560e21b83525af1801561013357610107578280f35b67ffffffffffffffff8211610120575060405281808280f35b634e487b7160e01b835260419052602482fd5b6040513d85823e3d90fd5b5050fd5b50fd5b83903461008557816003193601126100855760ff602092541615158152f3fea2646970667358221220db32608f1f6cb45e0039ab366ec4b054a5b78ac7e186da44aee701495bd22f2064736f6c63430008140033",
+  "devdoc": {
+    "details": "Test only contract to mock Governor behavior ",
+    "kind": "dev",
+    "methods": {
+      "executeChange(address)": {
+        "params": {
+          "changeContract": "Address of the contract that will execute the changes"
+        }
+      }
+    },
+    "title": "GovernorMock",
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {
+      "executeChange(address)": {
+        "notice": "Function to be called to make the changes in changeContract"
+      }
+    },
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 24127,
+        "contract": "contracts/mocks/upgradeability/GovernorMock.sol:GovernorMock",
+        "label": "isAuthorized",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_bool"
+      }
+    ],
+    "types": {
+      "t_bool": {
+        "encoding": "inplace",
+        "label": "bool",
+        "numberOfBytes": "1"
+      }
+    }
+  }
+}

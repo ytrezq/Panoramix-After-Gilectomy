@@ -1,0 +1,27 @@
+{
+  "FeeFlow": {
+    "governorAddress": "0x7b716178771057195bB511f0B1F7198EEE62Bc22",
+    "docTokenAddress": "0xCB46c0ddc60D18eFEB0E586C17Af6ea36452Dae0",
+    "mocTokenAddress": "0x45a97b54021a3F99827641AFe1BFAE574431e6ab",
+
+    "mocSwapperV3Multihop": "0x0000000000000000000000000000000000000000",
+
+    "mocRewardsBuffer": "0xf69287F5Ca3cC3C6d3981f2412109110cB8af076",
+    "docBucketAddress": "0x0000000000000000000000000000000000000000",
+    "foundationTreasury": "0xf69287F5Ca3cC3C6d3981f2412109110cB8af076",
+
+    "feesSplitterAcTokenPct1": "666666666666666666",
+    "feesSplitterFeeTokenPct1": "500000000000000000",
+    "mocRewardsSplitterThreshold": "1576270958724000000000",
+    "mocRewardsSplitterSplits": ["500000000000000000", "500000000000000000"],
+    "mocRewardsSplitterThresholds": ["923975527660200000000", "923975527660200000000"],
+
+    "docToMocOrderThreshold": "1000000000000000000",
+    "docToMocPriceProvider": "0x0000000000000000000000000000000000000000",
+    "docToMocSlippage": "30000000000000000",
+    "mocToDocOrderThreshold": "20000000000000000000000",
+    "mocToDocSlippage": "50000000000000000",
+
+    "mocToDocPriceProvider": "0x8DCE78BbD4D757EF7777Be113277cf5A35283b1E"
+  }
+}
