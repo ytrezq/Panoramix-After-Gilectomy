@@ -1,0 +1,18 @@
+{
+  "name": "solidity-generators",
+  "version": "1.0.0",
+  "author": "Wormhole Contributors",
+  "license": "Apache-2.0",
+  "description": "code for generating Solidity constants to enforce a single source of truth",
+  "scripts": {
+    "build": "make"
+  },
+  "dependencies": {
+    "@wormhole-foundation/sdk-base": "latest",
+    "@wormhole-foundation/sdk-definitions": "latest",
+    "@wormhole-foundation/sdk-evm": "latest",
+    "@types/node": "^20.3.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  }
+}
