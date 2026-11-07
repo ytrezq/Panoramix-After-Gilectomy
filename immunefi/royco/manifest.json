@@ -2,135 +2,6 @@
  "program": "royco",
  "repos": [
   {
-   "repo": "https://github.com/roycoprotocol/royco-dawn",
-   "ref": null,
-   "scope_paths": [],
-   "fetched": "2026-11-07",
-   "note": "RoycoFactory (implementation verified on Sourcify matches src/factory/RoycoFactory.sol) and the markets it deploys",
-   "commit": "d68947a1c52bf52b26455f7202f8b67b2494cc4b",
-   "submodules": [
-    {
-     "path": "lib/forge-std",
-     "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "0844d7e1fc5e60d77b68e469bff60265f236c398"
-    },
-    {
-     "path": "lib/openzeppelin-contracts",
-     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
-     "commit": "56a3de2cea907c9a500d32e70c275f68393b7ba6"
-    },
-    {
-     "path": "lib/openzeppelin-contracts/lib/forge-std",
-     "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
-    },
-    {
-     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
-     "url": "https://github.com/a16z/erc4626-tests.git",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
-    },
-    {
-     "path": "lib/openzeppelin-contracts/lib/halmos-cheatcodes",
-     "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
-    },
-    {
-     "path": "lib/openzeppelin-contracts-upgradeable",
-     "url": "https://github.com/openzeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "c9f48f0d6c470a3edab20dcbb3cc35dcfc7f4f1f"
-    },
-    {
-     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
-     "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
-    },
-    {
-     "path": "lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
-     "url": "https://github.com/a16z/erc4626-tests.git",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
-    },
-    {
-     "path": "lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
-     "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
-    },
-    {
-     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
-     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
-     "commit": "56a3de2cea907c9a500d32e70c275f68393b7ba6"
-    },
-    {
-     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
-     "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
-    },
-    {
-     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
-     "url": "https://github.com/a16z/erc4626-tests.git",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
-    },
-    {
-     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
-     "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
-    },
-    {
-     "path": "lib/solady",
-     "url": "https://github.com/vectorized/solady",
-     "commit": "acd959aa4bd04720d640bf4e6a5c71037510cc4b"
-    },
-    {
-     "path": "lib/Pendle-SY-Public",
-     "url": "https://github.com/pendle-finance/Pendle-SY-Public",
-     "commit": "73676d931102a369a978a713abfd0b48e3e34361"
-    },
-    {
-     "path": "lib/openzeppelin-contracts-v4",
-     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
-     "commit": "fd81a96f01cc42ef1c9a5399364968d0e07e9e90"
-    },
-    {
-     "path": "lib/openzeppelin-contracts-v4/lib/forge-std",
-     "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
-    },
-    {
-     "path": "lib/openzeppelin-contracts-v4/lib/forge-std/lib/ds-test",
-     "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
-    },
-    {
-     "path": "lib/openzeppelin-contracts-v4/lib/erc4626-tests",
-     "url": "https://github.com/a16z/erc4626-tests.git",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
-    }
-   ],
-   "license": {
-    "file": "LICENSE.md",
-    "spdx": "unrecognized",
-    "package_json": null,
-    "headers": {
-     "agpl-3.0": 2,
-     "UNLICENSED": 164,
-     "GPL-3.0-or-later": 1,
-     "MIT": 8,
-     "Apache-2.0": 2
-    },
-    "headers_main": {
-     "UNLICENSED": 59,
-     "GPL-3.0-or-later": 1,
-     "MIT": 6,
-     "Apache-2.0": 1
-    }
-   },
-   "redistributable": false,
-   "languages": {
-    ".sol": 177
-   },
-   "copied": false,
-   "why": "reference only: no license allowing redistribution found"
-  },
-  {
    "repo": "https://github.com/roycoprotocol/royco-vault-makina-strategy",
    "ref": null,
    "scope_paths": [],
@@ -301,6 +172,241 @@
    },
    "copied": false,
    "why": "reference only: no license allowing redistribution found"
+  },
+  {
+   "repo": "https://github.com/roycoprotocol/royco-dawn",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "RoycoFactory (implementation verified on Sourcify matches src/factory/RoycoFactory.sol) and the markets it deploys",
+   "commit": "d68947a1c52bf52b26455f7202f8b67b2494cc4b",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "0844d7e1fc5e60d77b68e469bff60265f236c398"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "56a3de2cea907c9a500d32e70c275f68393b7ba6"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "c9f48f0d6c470a3edab20dcbb3cc35dcfc7f4f1f"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "56a3de2cea907c9a500d32e70c275f68393b7ba6"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/solady",
+     "url": "https://github.com/vectorized/solady",
+     "commit": "acd959aa4bd04720d640bf4e6a5c71037510cc4b"
+    },
+    {
+     "path": "lib/Pendle-SY-Public",
+     "url": "https://github.com/pendle-finance/Pendle-SY-Public",
+     "commit": "73676d931102a369a978a713abfd0b48e3e34361"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-v4",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "fd81a96f01cc42ef1c9a5399364968d0e07e9e90"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-v4/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-v4/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-v4/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    }
+   ],
+   "license": {
+    "file": "LICENSE.md",
+    "spdx": "unrecognized",
+    "package_json": null,
+    "headers": {
+     "agpl-3.0": 2,
+     "UNLICENSED": 164,
+     "GPL-3.0-or-later": 1,
+     "MIT": 8,
+     "Apache-2.0": 2
+    },
+    "headers_main": {
+     "UNLICENSED": 59,
+     "GPL-3.0-or-later": 1,
+     "MIT": 6,
+     "Apache-2.0": 1
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 177
+   },
+   "copied": true,
+   "why": "its license does not allow redistribution: added as git subtrees at the user's request, its license files kept in the tree",
+   "via": "git subtree",
+   "dest": "roycoprotocol__royco-dawn",
+   "files": 4980,
+   "subtrees": [
+    {
+     "prefix": "roycoprotocol__royco-dawn",
+     "url": "https://github.com/roycoprotocol/royco-dawn",
+     "commit": "d68947a1c52bf52b26455f7202f8b67b2494cc4b"
+    },
+    {
+     "prefix": "roycoprotocol__royco-dawn/lib/Pendle-SY-Public",
+     "url": "https://github.com/pendle-finance/Pendle-SY-Public",
+     "commit": "73676d931102a369a978a713abfd0b48e3e34361"
+    },
+    {
+     "prefix": "roycoprotocol__royco-dawn/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "0844d7e1fc5e60d77b68e469bff60265f236c398"
+    },
+    {
+     "prefix": "roycoprotocol__royco-dawn/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "56a3de2cea907c9a500d32e70c275f68393b7ba6"
+    },
+    {
+     "prefix": "roycoprotocol__royco-dawn/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "c9f48f0d6c470a3edab20dcbb3cc35dcfc7f4f1f"
+    },
+    {
+     "prefix": "roycoprotocol__royco-dawn/lib/openzeppelin-contracts-v4",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "fd81a96f01cc42ef1c9a5399364968d0e07e9e90"
+    },
+    {
+     "prefix": "roycoprotocol__royco-dawn/lib/solady",
+     "url": "https://github.com/vectorized/solady",
+     "commit": "acd959aa4bd04720d640bf4e6a5c71037510cc4b"
+    },
+    {
+     "prefix": "roycoprotocol__royco-dawn/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "prefix": "roycoprotocol__royco-dawn/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "prefix": "roycoprotocol__royco-dawn/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "prefix": "roycoprotocol__royco-dawn/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "56a3de2cea907c9a500d32e70c275f68393b7ba6"
+    },
+    {
+     "prefix": "roycoprotocol__royco-dawn/lib/openzeppelin-contracts-v4/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "prefix": "roycoprotocol__royco-dawn/lib/openzeppelin-contracts-v4/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "prefix": "roycoprotocol__royco-dawn/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "prefix": "roycoprotocol__royco-dawn/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "prefix": "roycoprotocol__royco-dawn/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "prefix": "roycoprotocol__royco-dawn/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "prefix": "roycoprotocol__royco-dawn/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "prefix": "roycoprotocol__royco-dawn/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "prefix": "roycoprotocol__royco-dawn/lib/openzeppelin-contracts-v4/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    }
+   ],
+   "npm": {}
   }
  ]
 }
