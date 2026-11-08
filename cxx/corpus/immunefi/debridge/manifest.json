@@ -44,8 +44,7 @@
     {
      "prefix": "debridge-finance__debridge-contracts-v1",
      "url": "https://github.com/debridge-finance/debridge-contracts-v1",
-     "commit": "2e9f9c73438738310b5293cec4cffe25741e9b1f",
-     "files": 53
+     "commit": "2e9f9c73438738310b5293cec4cffe25741e9b1f"
     }
    ]
   }
