@@ -645,6 +645,29 @@ TEST_CASE("output: make_ast's passes")
           "  _1 = gas_remaining\n  return _1 - gas_remaining\n");
 }
 
+TEST_CASE("output: a call's return data bytes in a byte element, read after another call")
+{
+    Fixture f;
+    // the snapshot's variable as wide as the bytes were (a SHA3's element, a
+    // DATA's): never a bare word in a byte element
+    for (const char* t :
+         {"{(staticcall 1 (gas 1) caller (sized 4 0x0dfe1681) None)"
+          " (staticcall 2 (gas 2) caller (sized 4 0xd21220a7) None)"
+          " (return (sized 32 (sha3 (returndata_bytes 1 12 20) (returndata_bytes 2 0 32))))}",
+          "{(staticcall 1 (gas 1) caller (sized 4 0x0dfe1681) None)"
+          " (staticcall 2 (gas 2) caller (sized 4 0xd21220a7) None)"
+          " (setmem (range 0 (add 32 (min 32 (returndatasize 1)))) (data (sized 32 (min 32 (returndatasize 1)))"
+          " (returndata_bytes 1 0 (min 32 (returndatasize 1)))))"
+          " (return (mem (range 0 64)))}"}) {
+        FunctionInfo fn;
+        fn.kind = FunctionInfo::Kind::Fallback;
+        fn.trace = V(t);
+        const Value ast = make_ast(fn);
+        CHECK(has_op(ast, Op::SETVAR));
+        CHECK(same_runs(fn.trace, ast));
+    }
+}
+
 TEST_CASE("output: the ifs whose branches print the same")
 {
     Fixture f;
