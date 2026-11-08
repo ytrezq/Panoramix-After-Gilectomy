@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.23;
+
+import {IwstETH} from "../../../interfaces/lido/IwstETH.sol";
+
+contract WstETHMock is IwstETH {
+    address public override stETH;
+    uint256 public override stEthPerToken;
+
+    constructor(address _stETH) {
+        stETH = _stETH;
+    }
+
+    function hackStEthPerToken(uint256 newStEthPerToken) external {
+        stEthPerToken = newStEthPerToken;
+    }
+}
