@@ -1,0 +1,16 @@
+# License
+
+This repository is licensed as follows:
+
+- **Public License**: GNU General Public License v3.0 (GPL-3.0)  
+  See [LICENSES/GPL-3.0](LICENSES/GPL-3.0) for the full text.
+
+- **Alternative Terms**: The copyright holder, Enzyme Foundation, may
+  license this code under alternative terms (e.g., BUSL-1.1) for affiliated or
+  internal products. Public users only receive GPL-3.0 rights.
+
+Third-party components:
+
+- Files vendored from dependencies are licensed under their original terms.
+
+Refer to SPDX identifiers in individual source files for the applicable license.
