@@ -214,6 +214,26 @@ TEST_CASE("simplify: cleanup_mems") {
         S::cleanup_mems);
 }
 
+TEST_CASE("simplify: cleanup_mems, a write of an earlier call's results past another call") {
+    Fixture f;
+    // the free memory pointer moved by ceil32(return_data.size) of the first
+    // call: the second call (another id) changes none of it
+    Value u = check_trace(
+        "{(call 1 (gas 1) (calldataload 4) 0 None None)"
+        " (setmem (range 64 32) (sized 32 (add 128 (mask_shl 251 5 0 (add 31 (returndatasize 1))))))"
+        " (call 2 (gas 2) (calldataload 36) 0 None None)"
+        " (return (data (mem (range 64 32)) (sized 32 (returndatasize 2))))}",
+        S::cleanup_mems);
+    CHECK_FALSE(contains(u, V("(mem (range 64 32))")));
+    // ... a balance, which the call changes, forgotten
+    u = check_trace(
+        "{(setmem (range 64 32) (sized 32 selfbalance))"
+        " (call 2 (gas 2) (calldataload 36) 7 None None)"
+        " (return (mem (range 64 32)))}",
+        S::cleanup_mems);
+    CHECK(contains(u, V("(mem (range 64 32))")));
+}
+
 TEST_CASE("simplify: conditions") {
     Fixture f;
     check_trace("{(if 1 {(return (sized 32 1))} {(revert None)})}", S::cleanup_conds);

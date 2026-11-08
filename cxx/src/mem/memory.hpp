@@ -252,6 +252,17 @@ public:
     // the pieces whose range or value mentions this name (a variable set
     // again) forgotten
     void forget_name(Value name);
+    // the pieces whose range or value `changed(x)` says may read what
+    // changed forgotten (and fresh memory, if a range written may)
+    template <class F>
+    void forget_if(F&& changed) {
+        std::erase_if(pieces_, [&](const Piece& p) { return changed(p.range) || changed(p.value); });
+        for (Value w : written_)
+            if (changed(w)) {
+                unfresh();
+                break;
+            }
+    }
 
     // MEM(range) here, from what's known: a bytes expression of range's
     // length (concat of slices of pieces, zeroes of fresh memory, MEM parts);

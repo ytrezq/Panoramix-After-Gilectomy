@@ -522,6 +522,35 @@ TEST_CASE("loops: a copy whose length a checked product bounds (the simplifier's
     CHECK(loops_in(loops_in, w) == 2);
 }
 
+TEST_CASE("loops: a copy of a length known once memory is forwarded past the calls") {
+    Fixture f;
+    // Aave's WrappedTokenGatewayV3.repayETH (solc 0.8.27, shanghai): the
+    // empty bytes of a call's arguments copied onto themselves, in words -
+    // MCOPY in the cancun build. The length word was written just before
+    // (0); the free memory pointer, moved by an earlier call's
+    // return_data.size, is known past the next call (its results are
+    // another call's): the length is 0, the loop runs never
+    const std::string y = "(mask_shl 251 5 0 (add 31 (returndatasize 2)))";
+    const std::string t =
+        "{(call 1 (gas 1) (calldataload 4) 0 None None)"
+        " (setmem (range 64 32) (sized 32 (add 128 (mask_shl 251 5 0 (add 31 (returndatasize 1))))))"
+        " (call 2 (gas 2) (calldataload 36) 0 None None)"
+        " (setvar tmp10 (mem (range 64 32)))"
+        " (setmem (range 64 32) (sized 32 (add tmp10 " + y + ")))"
+        " (setmem (range (add tmp10 " + y + ") 32) (sized 32 0))"
+        " (setmem (range 64 32) (sized 32 (add 32 tmp10 " + y + ")))"
+        " (setvar tmp12 (mem (range (add tmp10 " + y + ") 32)))"
+        " (while (lt loop1 tmp12) {(setvar tmp14 (mem (range (add 32 tmp10 loop1 " + y + ") 32)))"
+        " (setmem (range (add 32 tmp10 loop1 " + y + ") 32) (sized 32 tmp14))"
+        " (continue loopid1 {(setvar loop1 (add 32 loop1))})} loopid1 {(setvar loop1 0)})"
+        " (setmem (range (add 32 tmp10 tmp12 " + y + ") 32) (sized 32 0))"
+        " (call 3 (gas 3) caller 5 None (mem (range (mem (range 64 32)) (add 32 tmp10 tmp12 (mul -1 (mem (range 64 32))) " + y +
+        "))))"
+        " (stop)}";
+    Value u = check_value(t.c_str(), pass_whole);
+    CHECK(!has_while(u));
+}
+
 TEST_CASE("loops: propagate_storage_in_loops") {
     Fixture f;
     // a storage array read from its start: the variable moved, read as itself + sha3
