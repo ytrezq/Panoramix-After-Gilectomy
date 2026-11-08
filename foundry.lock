@@ -1,0 +1,35 @@
+{
+  "lib/chainlink-brownie-contracts": {
+    "rev": "5cb41fbc9b525338b6098da5ea7dd0b7e92f89e4"
+  },
+  "lib/forge-std": {
+    "rev": "6bce1540c7a5d1c40eec032a1ae16f0e01f82b92"
+  },
+  "lib/halmos-cheatcodes": {
+    "rev": "6da4e692c357ba6d641a2e677a28298cac9f76ab"
+  },
+  "lib/openzeppelin-contracts": {
+    "rev": "483fc3f1f89ef6eb0803d578a4a17346d94359f7"
+  },
+  "lib/openzeppelin-contracts-upgradeable": {
+    "rev": "56118009a30763d6b635676bed7968874036bb53"
+  },
+  "lib/permit2": {
+    "rev": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219"
+  },
+  "lib/solmate": {
+    "rev": "97bdb2003b70382996a79a406813f76417b1cf90"
+  },
+  "lib/v2-foundry": {
+    "rev": "8915ef7b1714c16f9e260a4ef41c5f254d5b7f58"
+  },
+  "lib/v3-periphery": {
+    "tag": {
+      "name": "v1.3.0",
+      "rev": "80f26c86c57b8a5e4b913f42844d4c8bd274d058"
+    }
+  },
+  "lib/vault-v2": {
+    "rev": "275c2f9cbe6d79e8e4712497dc3cb51cc70f786f"
+  }
+}
