@@ -53,14 +53,12 @@
     {
      "prefix": "exactly__protocol",
      "url": "https://github.com/exactly/protocol",
-     "commit": "644b11ca84a1127c78824bb1667a4c3c8bae5dc4",
-     "files": 85
+     "commit": "644b11ca84a1127c78824bb1667a4c3c8bae5dc4"
     },
     {
      "prefix": "exactly__protocol/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "f46d8301cf732f4f83846565aa475628265e51e0",
-     "files": 49
+     "commit": "f46d8301cf732f4f83846565aa475628265e51e0"
     }
    ]
   },
@@ -129,8 +127,7 @@
     {
      "prefix": "exactly__exa",
      "url": "https://github.com/exactly/exa",
-     "commit": "f341780fe2c3e2d6a90409b90a02dde0f5a3869a",
-     "files": 57
+     "commit": "f341780fe2c3e2d6a90409b90a02dde0f5a3869a"
     }
    ]
   }
