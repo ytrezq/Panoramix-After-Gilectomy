@@ -479,7 +479,8 @@ from python and the asm, and what became of it (the audit of November
 | copies whose source and destination can't overlap by the allocation discipline | `loops/rewrite.cpp` | never assumed: proven (the floors) or left a loop |
 | a copy loop of the storage's words (python's `loop_to_setmem_from_storage`, which the port had dropped) | `loops/rewrite.cpp` | one line where the induction proves the trips: `mem[p len 32 n] = stor[slot len n]` (`STORAGE_RANGE`); Vyper's `!=` loop condition (a XOR) read as one |
 | checked arithmetic (OpenZeppelin, ds-math, Panic 0x11 / 0x12, Vyper, a hand-written check) | `analysis/safemath.cpp` | recognized; each site's abstraction proven (the result and the conditions put back have the site's normal forms: `alg::same_value`), else the checks stay - the four random points are gone |
-| the storage forms (python's four worlds) | `storage/check.cpp` | recognized; a form proven (its slot and bits the access's once the hashes of constants are computed: the same normal form), else raw - the four random worlds are gone; a bytes getter run by the trace machine on storage worlds |
+| the storage forms (python's four worlds) | `storage/check.cpp` | recognized; a form proven (its slot and bits the access's once the hashes of constants are computed: the same normal form), else raw - the four random worlds are gone |
+| a bytes getter's copy of the bytes (python's `bytes_tail`: lengths drawn around the code's numbers, about 100 worlds) | `storage/getters.cpp` | `return name[all]` checked on a complete set of boundary worlds (the trace machine runs both, the same RETURN or REVERT bytes in every one: the short form of every length 0 to 31, the long form's flag with each of them, the long form of every length 32 to 95 and of every residue mod 32 at 3, 4, 2^13 and 16,320 words, the short form's flag with every length 32 to 127, garbage past the length - in the slot word, the last data word, the slot after the data - and in the neighbouring slots), not proven; else the getter keeps its trace |
 | solidity's length of a storage bytes or string, `(x & (256 * iszero(x & 1) - 1)) >> 1` | `simplify/passes.cpp` | recognized exactly: `LENGTH(key)`'s meaning is that formula (the machine runs it); Vyper's length slot is a plain word |
 | params' types from masks, solc >= 0.8's validation | `analysis/traits.cpp` | recognized; the trace machine runs the checks taken out |
 | python's `small_words` (a word given to the contract below 2^64 in memory positions) | `simplify/` | made sound: past a check bounding it on every path |
@@ -711,8 +712,15 @@ made of - proven (`storage/check.cpp`: both places as expressions, a hash
 of constant bytes computed, a hash's DATA operands flat, then the same
 normal form, `alg::same_value`), never sampled - else it is printed raw.
 A bytes getter becomes `return name[all]` only when the trace machine
-runs both the same on storage worlds. Everything is made aside and
-swapped in at the end.
+runs both with the same RETURN or REVERT bytes on a complete set of
+boundary worlds (`storage/getters.cpp`, checked, not proven): every length
+and slot-word form up to where the code can treat lengths apart (0 to 127),
+every residue mod 32 at 3, 4, 2^13 and 16,320 words (the most the check
+machine's 1 MiB memory holds with the bytes copied twice; 2^16 words would
+need 4 MiB), garbage wherever an encoding has bytes past the length, the
+neighbouring slots set; the storage made of fixed patterns, so the verdict
+is the same on every run. Everything is made aside and swapped in at the
+end.
 
 ### The folder and the ast (lot 10, `src/output/`)
 

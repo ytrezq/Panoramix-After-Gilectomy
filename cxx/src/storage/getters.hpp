@@ -26,11 +26,12 @@ std::optional<GetterAccess> getter_access(const traits::Getter& g, Value narrowe
 // python bytes_tail: a function's trace with what's after a first part of it
 // (its checks of the params, say) replaced by the return of the bytes at the
 // slot key, ABI-encoded - RETURN(DATA(ARR(STORAGE(256, 0, LENGTH(key)),
-// SALL(SR(key))))) - when running both on the storage worlds says it is the
-// same: python's (bytes as solidity keeps them, short and long, of the
-// lengths the code may treat apart), and those words with garbage past the
-// bytes, and encodings no solc makes (SALL reads anything as solc's copy
-// does: the rewrite holds on any storage); NIL else.
+// SALL(SR(key))))) - when the trace machine runs both with the same RETURN or
+// REVERT bytes on every one of a fixed set of boundary worlds (getters.cpp:
+// every length to 159, both slot-word forms, every residue mod 32 at 3, 4,
+// 2^13 and 16,320 words, garbage wherever an encoding has bytes past the
+// length, the neighbouring slots; encodings no solc makes too - SALL reads
+// anything as solc's copy does); NIL else. Checked, not proven.
 class BytesTail {
 public:
     // deadline_ns: monotonic, 0 for none (Timeout past it); the runs of one
