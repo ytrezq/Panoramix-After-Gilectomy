@@ -76,56 +76,47 @@
     {
      "prefix": "solidity-labs-io__kleidi",
      "url": "https://github.com/solidity-labs-io/kleidi",
-     "commit": "1290079776ed84e207196a3683b99cc8501ca1dd",
-     "files": 47
+     "commit": "1290079776ed84e207196a3683b99cc8501ca1dd"
     },
     {
      "prefix": "solidity-labs-io__kleidi/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef",
-     "files": 47
+     "commit": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef"
     },
     {
      "prefix": "solidity-labs-io__kleidi/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "c80b675b8db1d951b8b3734df59530d0d3be064b",
-     "files": 288
+     "commit": "c80b675b8db1d951b8b3734df59530d0d3be064b"
     },
     {
      "prefix": "solidity-labs-io__kleidi/lib/safe-smart-account",
      "url": "https://github.com/safe-global/safe-smart-account",
-     "commit": "bf943f80fec5ac647159d26161446ac5d716a294",
-     "files": 48
+     "commit": "bf943f80fec5ac647159d26161446ac5d716a294"
     },
     {
      "prefix": "solidity-labs-io__kleidi/lib/forge-proposal-simulator",
      "url": "https://github.com/solidity-labs-io/forge-proposal-simulator",
-     "commit": "fcc79ed08ad4f8d6c61e1ed204943412fdadf8d2",
-     "files": 47
+     "commit": "fcc79ed08ad4f8d6c61e1ed204943412fdadf8d2"
     },
     {
      "prefix": "solidity-labs-io__kleidi/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce",
-     "files": 45
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
     },
     {
      "prefix": "solidity-labs-io__kleidi/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "solidity-labs-io__kleidi/lib/forge-proposal-simulator/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "e4aef94c1768803a16fe19f7ce8b65defd027cfd",
-     "files": 47
+     "commit": "e4aef94c1768803a16fe19f7ce8b65defd027cfd"
     },
     {
      "prefix": "solidity-labs-io__kleidi/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ]
   }
