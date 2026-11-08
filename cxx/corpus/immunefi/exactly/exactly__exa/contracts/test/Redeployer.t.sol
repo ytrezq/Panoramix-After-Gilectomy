@@ -1,0 +1,480 @@
+// SPDX-License-Identifier: AGPL-3.0
+pragma solidity ^0.8.0;
+
+import { ForkTest, Vm } from "./Fork.t.sol";
+
+import { TimelockController } from "@openzeppelin/contracts-v4/governance/TimelockController.sol";
+import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
+import { IERC20 } from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
+import { ERC1967Utils } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Utils.sol";
+import { ProxyAdmin } from "openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
+import {
+  ITransparentUpgradeableProxy
+} from "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+
+import { UpgradeableModularAccount } from "modular-account/src/account/UpgradeableModularAccount.sol";
+import { IMultiOwnerPlugin } from "modular-account/src/plugins/owner/IMultiOwnerPlugin.sol";
+
+import { UserOperation } from "modular-account-libs/interfaces/UserOperation.sol";
+
+import { ECDSA } from "solady/utils/ECDSA.sol";
+
+import { PublicKey } from "webauthn-owner-plugin/IWebauthnOwnerPlugin.sol";
+
+import { EXA } from "@exactly/protocol/periphery/EXA.sol";
+
+import { AdminIsDeployer, NotPrepared, Redeployer, TargetNonceTooLow } from "../script/Redeployer.s.sol";
+import { ExaAccountFactory } from "../src/ExaAccountFactory.sol";
+import { ExaPlugin } from "../src/ExaPlugin.sol";
+import { ProposalManager } from "../src/ProposalManager.sol";
+
+contract RedeployerTest is ForkTest {
+  using ECDSA for bytes32;
+
+  Redeployer public redeployer;
+
+  // solhint-disable func-name-mixedcase
+  function test_deployEXA_deploysAtSameAddress_onBase() external {
+    vm.createSelectFork("base", 41_053_217);
+
+    redeployer = new Redeployer();
+
+    address deployer = acct("redeployer");
+    address exaOP = protocol("EXA", true, 10);
+    uint256 targetNonce = redeployer.findNonce(deployer, exaOP, 1_000_000);
+    uint256 currentNonce = vm.getNonce(deployer);
+    assertGt(targetNonce, currentNonce, "target nonce <= current nonce");
+
+    redeployer.prepare();
+    redeployer.proxyThrough(targetNonce);
+
+    assertTrue(exaOP.code.length > 0, "EXA not deployed at same address");
+
+    redeployer.deployEXA();
+
+    EXA token = EXA(exaOP);
+    assertEq(token.name(), "exactly");
+    assertEq(token.symbol(), "EXA");
+    assertEq(token.totalSupply(), 0, "base should have zero supply");
+    assertEq(token.decimals(), 18, "token should have 18 decimals");
+  }
+
+  function test_deployEXA_usesProtectedEXAProxy() external {
+    vm.createSelectFork("base", 41_053_217);
+
+    address deployer = acct("redeployer");
+    redeployer = new Redeployer();
+    address proxy = protocol("EXA", true, 10);
+    uint256 target = redeployer.findNonce(deployer, proxy, 1_000_000);
+
+    redeployer.prepare();
+    redeployer.proxyThrough(target);
+
+    assertEq(vm.computeCreateAddress(deployer, target), proxy, "proxy != expected");
+    assertTrue(proxy.code.length > 0, "proxy not deployed");
+
+    ProxyAdmin proxyAdmin = redeployer.proxyAdmin();
+    EXA token = new EXA();
+
+    address attacker = address(0xbad);
+    vm.prank(attacker);
+    vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, attacker));
+    proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(proxy), address(token), abi.encodeCall(EXA.initialize, ()));
+
+    redeployer.deployEXA();
+
+    assertEq(EXA(proxy).name(), "exactly");
+  }
+
+  function test_prepare_succeeds_whenCalledTwice() external {
+    vm.createSelectFork("polygon", 82_000_000);
+
+    redeployer = new Redeployer();
+    redeployer.prepare();
+    redeployer.prepare();
+
+    assertTrue(address(redeployer.ownerPlugin()).code.length > 0, "ownerPlugin not deployed");
+    assertTrue(address(redeployer.exaPlugin()).code.length > 0, "exaPlugin not deployed");
+    assertTrue(address(redeployer.factory()).code.length > 0, "factory not deployed");
+  }
+
+  function test_prepare_deploysOwnerPluginWithoutOwnerCodeAccess_onPolygon() external {
+    vm.createSelectFork("polygon", 82_000_000);
+
+    redeployer = new Redeployer();
+    redeployer.prepare();
+
+    (address owner, uint256 ownerKey) = makeAddrAndKey("eoa");
+    PublicKey[] memory owners = new PublicKey[](1);
+    owners[0] = PublicKey({ x: uint256(uint160(owner)), y: 0 });
+    address account = redeployer.deployExaFactory("1.1.0").createAccount(0, owners);
+
+    UserOperation memory op;
+    bytes32 hash = keccak256("op");
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, hash.toEthSignedMessageHash());
+    op.signature = abi.encodePacked(uint8(0), r, s, v);
+
+    vm.startStateDiffRecording();
+    vm.startPrank(account);
+    uint256 validation = redeployer.ownerPlugin()
+      .userOpValidationFunction(uint8(IMultiOwnerPlugin.FunctionId.USER_OP_VALIDATION_OWNER), op, hash);
+    vm.stopPrank();
+    Vm.AccountAccess[] memory accesses = vm.stopAndReturnStateDiff();
+
+    assertEq(validation, 0, "signature not valid");
+    for (uint256 i = 0; i < accesses.length; ++i) {
+      assertNotEq(accesses[i].account, owner, "owner code accessed");
+    }
+  }
+
+  function test_prepare_reusesExistingDeps_onBase() external {
+    vm.createSelectFork("base", 41_053_217);
+
+    redeployer = new Redeployer();
+    redeployer.setUp();
+
+    address ownerPluginBefore = address(redeployer.ownerPlugin());
+    address exaPluginBefore = address(redeployer.exaPlugin());
+
+    assertTrue(ownerPluginBefore.code.length > 0, "ownerPlugin not deployed");
+    assertTrue(exaPluginBefore.code.length > 0, "exaPlugin not deployed");
+
+    redeployer.prepare();
+
+    assertEq(address(redeployer.ownerPlugin()), ownerPluginBefore, "ownerPlugin != expected");
+    assertEq(address(redeployer.exaPlugin()), exaPluginBefore, "exaPlugin != expected");
+    assertEq(
+      CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("ProposalManager"))).code.length,
+      0,
+      "proposalManager deployed via CREATE3"
+    );
+  }
+
+  function test_prepare_reverts_whenAdminIsDeployer() external {
+    vm.createSelectFork("optimism_sepolia", 39_900_000);
+
+    redeployer = new Redeployer();
+    vm.expectRevert(AdminIsDeployer.selector);
+    redeployer.prepare();
+  }
+
+  function test_serialProxies_reverts_whenTargetNonceTooLow() external {
+    vm.createSelectFork("base", 41_053_217);
+
+    vm.prank(acct("redeployer"));
+    new Redeployer();
+
+    redeployer = new Redeployer();
+    redeployer.prepare();
+    vm.expectRevert(TargetNonceTooLow.selector);
+    redeployer.proxyThrough(0);
+  }
+
+  function test_deployExaFactory_deploysAtSameAddress_onEthereum() external {
+    address factoryOP = 0xcbeaAF42Cc39c17e84cBeFe85160995B515A9668;
+
+    vm.createSelectFork("mainnet", 24_328_200);
+
+    redeployer = new Redeployer();
+
+    address deployer = acct("redeployer");
+    uint256 targetNonce = redeployer.findNonce(deployer, factoryOP, 1_000_000);
+    uint256 currentNonce = vm.getNonce(deployer);
+    assertGt(targetNonce, currentNonce, "target nonce <= current nonce");
+
+    redeployer.prepare();
+    redeployer.proxyThrough(targetNonce);
+
+    assertTrue(factoryOP.code.length > 0, "factory not deployed at same address");
+
+    IERC20 usdc = IERC20(protocol("USDC"));
+
+    redeployer.deployExaFactory(factoryOP);
+
+    vm.startPrank(acct("admin"));
+    ProposalManager(
+        address(ExaPlugin(payable(address(ExaAccountFactory(payable(factoryOP)).EXA_PLUGIN()))).proposalManager())
+      ).allowTarget(address(usdc), true);
+    vm.stopPrank();
+
+    PublicKey[] memory owners = new PublicKey[](1);
+    owners[0] = PublicKey({
+      x: 7_069_542_735_213_499_944_382_077_471_664_383_693_469_693_907_948_845_929_105_962_569_513_088_837_587,
+      y: 109_447_313_708_148_764_580_619_319_745_128_534_523_804_427_244_103_263_888_763_245_366_360_252_254_529
+    });
+
+    address expectedAccount = 0xa5a43E7ba1C106455b643D8fBb39c81Ca1b57c67;
+    address account = ExaAccountFactory(payable(factoryOP)).createAccount(0, owners);
+    assertEq(account, expectedAccount, "account != expected");
+
+    uint256 amount = usdc.balanceOf(account);
+    assertGt(amount, 0, "account USDC == 0");
+
+    address receiver = makeAddr("receiver");
+    vm.prank(account);
+    UpgradeableModularAccount(payable(account))
+      .execute(address(usdc), 0, abi.encodeCall(IERC20.transfer, (receiver, amount)));
+    assertEq(usdc.balanceOf(receiver), amount, "receiver should have USDC");
+  }
+
+  function test_deployExaFactory_deploysAtSameAddress_onPolygon() external {
+    address factoryOP = 0xcbeaAF42Cc39c17e84cBeFe85160995B515A9668;
+
+    vm.createSelectFork("polygon", 82_000_000);
+
+    redeployer = new Redeployer();
+
+    address deployer = acct("redeployer");
+    uint256 targetNonce = redeployer.findNonce(deployer, factoryOP, 1_000_000);
+    uint256 currentNonce = vm.getNonce(deployer);
+    assertGt(targetNonce, currentNonce, "target nonce <= current nonce");
+
+    IERC20 usdc = IERC20(0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359);
+
+    redeployer.prepare();
+    redeployer.proxyThrough(targetNonce);
+
+    assertTrue(factoryOP.code.length > 0, "factory not deployed at same address");
+
+    redeployer.deployExaFactory(factoryOP);
+    ProposalManager p = ProposalManager(
+      address(ExaPlugin(payable(address(ExaAccountFactory(payable(factoryOP)).EXA_PLUGIN()))).proposalManager())
+    );
+    assertTrue(p.allowlist(acct("swapper")), "swapper should be in allowlist");
+    vm.startPrank(acct("admin"));
+    p.allowTarget(address(usdc), true);
+    vm.stopPrank();
+
+    PublicKey[] memory owners = new PublicKey[](1);
+    owners[0] = PublicKey({
+      x: 36_239_696_829_842_771_799_020_839_773_186_339_451_905_684_138_052_071_201_385_735_692_571_111_323_304,
+      y: 68_346_061_821_485_004_327_752_959_192_465_308_812_504_725_568_244_017_761_086_739_549_382_760_577_121
+    });
+
+    address expectedAccount = 0xDAB3996c49b8D9e0197aa6cb265Ed736448bD24E;
+    address account = ExaAccountFactory(payable(factoryOP)).createAccount(0, owners);
+    assertEq(account, expectedAccount, "account != expected");
+
+    uint256 amount = usdc.balanceOf(account);
+    assertGt(amount, 0, "account USDC == 0");
+
+    address receiver = makeAddr("receiver");
+    vm.prank(account);
+    UpgradeableModularAccount(payable(account))
+      .execute(address(usdc), 0, abi.encodeCall(IERC20.transfer, (receiver, amount)));
+    assertEq(usdc.balanceOf(receiver), amount, "receiver should have USDC");
+  }
+
+  function test_deployExaFactory_succeeds_whenVersionAlreadyDeployed() external {
+    vm.createSelectFork("polygon", 82_000_000);
+    redeployer = new Redeployer();
+    redeployer.prepare();
+    ExaAccountFactory f1 = redeployer.deployExaFactory("1.1.0");
+    ExaAccountFactory f2 = redeployer.deployExaFactory("1.1.0");
+    assertEq(address(f1), address(f2));
+  }
+
+  function test_deployExaFactoryWithProxy_succeeds_whenAlreadyUpgraded() external {
+    vm.createSelectFork("polygon", 82_000_000);
+    redeployer = new Redeployer();
+    redeployer.prepare();
+    address deployer = acct("redeployer");
+    uint256 nonce = vm.getNonce(deployer);
+    redeployer.proxyThrough(nonce);
+    address proxy = vm.computeCreateAddress(deployer, nonce);
+    redeployer.deployExaFactory(proxy);
+    redeployer.deployExaFactory(proxy);
+  }
+
+  function test_deployExaFactory_reverts_whenNotPrepared() external {
+    vm.createSelectFork("polygon", 82_000_000);
+    redeployer = new Redeployer();
+    vm.expectRevert(NotPrepared.selector);
+    redeployer.deployExaFactory("1");
+  }
+
+  function test_deployExaFactoryWithProxy_reverts_whenNotPrepared() external {
+    vm.createSelectFork("polygon", 82_000_000);
+    redeployer = new Redeployer();
+    vm.expectRevert(NotPrepared.selector);
+    redeployer.deployExaFactory(address(1));
+  }
+
+  function test_deployExaFactory_deploysViaCreate3AtSameAddress_onPolygon() external {
+    address factoryBase = 0xAd92a288CE0cc869129cDA518Af2baaf69fFa026;
+    address accountBase = 0xeC6EE8939C1230742eCe9571319037767F574754;
+
+    vm.createSelectFork("polygon", 82_000_000);
+
+    redeployer = new Redeployer();
+    redeployer.prepare();
+    ExaAccountFactory factory = redeployer.deployExaFactory("1.1.0");
+
+    assertEq(address(factory), factoryBase, "factory != expected");
+
+    PublicKey[] memory owners = new PublicKey[](1);
+    owners[0] = PublicKey({ x: 1_377_837_249_724_728_941_829_967_018_498_619_894_891_941_074_907, y: 0 });
+
+    address account = factory.createAccount(0, owners);
+    assertEq(account, accountBase, "account != expected");
+  }
+
+  function test_deployExaFactory_replacesOutdatedOwnerPlugin_onPolygon() external {
+    vm.createSelectFork("polygon", 95_000_000);
+
+    redeployer = new Redeployer();
+    redeployer.setUp();
+    redeployer.prepare();
+    ExaAccountFactory factory = redeployer.deployExaFactory("1.2.0");
+
+    assertEq(factory.WEBAUTHN_OWNER_PLUGIN(), address(redeployer.ownerPlugin()), "ownerPlugin != expected");
+    assertNotEq(address(redeployer.ownerPlugin()), 0x9d654197Aa393D198B628E9F4Cc03903574CD7D5, "outdated plugin reused");
+  }
+
+  function test_recoversNativeETHOnPolygon() external {
+    address accountBase = 0xeC6EE8939C1230742eCe9571319037767F574754;
+
+    vm.createSelectFork("polygon", 82_000_000);
+    vm.deal(accountBase, 1 ether);
+
+    redeployer = new Redeployer();
+    redeployer.prepare();
+    ExaAccountFactory factory = redeployer.deployExaFactory("1.1.0");
+
+    PublicKey[] memory owners = new PublicKey[](1);
+    owners[0] = PublicKey({ x: 1_377_837_249_724_728_941_829_967_018_498_619_894_891_941_074_907, y: 0 });
+
+    address account = factory.createAccount(0, owners);
+    assertEq(account, accountBase, "account != expected");
+
+    address receiver = address(0x420);
+    vm.startPrank(acct("admin"));
+    ProposalManager(address(ExaPlugin(payable(address(factory.EXA_PLUGIN()))).proposalManager()))
+      .allowTarget(receiver, true);
+    vm.stopPrank();
+
+    vm.prank(account);
+    UpgradeableModularAccount(payable(account)).execute(receiver, 1 ether, new bytes(4));
+    assertEq(receiver.balance, 1 ether, "receiver should have ETH");
+  }
+
+  function test_deployEXA_migratesProxyAdmin_onBase() external {
+    vm.createSelectFork("base", 47_400_000);
+
+    redeployer = new Redeployer();
+    redeployer.setUp();
+
+    address exa = protocol("EXA", true, 10);
+
+    ProxyAdmin adminV5 = redeployer.proxyAdmin();
+    address adminV4 = protocol("ProxyAdmin");
+    address timelock = protocol("TimelockController");
+
+    redeployer.deployEXA();
+
+    assertEq(address(uint160(uint256(vm.load(exa, ERC1967Utils.ADMIN_SLOT)))), adminV4, "admin slot != v4 ProxyAdmin");
+    assertEq(
+      address(uint160(uint256(vm.load(exa, ERC1967Utils.IMPLEMENTATION_SLOT)))),
+      address(redeployer.exa()),
+      "implementation slot != EXA"
+    );
+    assertEq(Ownable(adminV4).owner(), timelock, "v4 ProxyAdmin owner != timelock");
+    assertTrue(adminV4 != address(adminV5), "v4 admin == v5 admin");
+
+    assertEq(EXA(exa).name(), "exactly", "token name broken after migration");
+    assertEq(EXA(exa).symbol(), "EXA", "token symbol broken after migration");
+  }
+
+  function test_deployEXA_revokesOldProxyAdmin_onBase() external {
+    vm.createSelectFork("base", 47_400_000);
+
+    redeployer = new Redeployer();
+    redeployer.setUp();
+
+    address exa = protocol("EXA", true, 10);
+
+    ProxyAdmin adminV5 = redeployer.proxyAdmin();
+    redeployer.deployEXA();
+
+    EXA newImpl = new EXA();
+    vm.prank(acct("admin"));
+    vm.expectRevert();
+    adminV5.upgradeAndCall(ITransparentUpgradeableProxy(exa), address(newImpl), "");
+  }
+
+  function test_deployEXA_allowsProxyAdminV4Upgrade_onBase() external {
+    vm.createSelectFork("base", 47_400_000);
+
+    redeployer = new Redeployer();
+    redeployer.setUp();
+
+    address exa = protocol("EXA", true, 10);
+    redeployer.deployEXA();
+
+    ProxyAdmin adminV4 = ProxyAdmin(protocol("ProxyAdmin"));
+    TimelockController timelock = TimelockController(payable(protocol("TimelockController")));
+    address multisig = acct("exactly");
+
+    assertTrue(timelock.hasRole(timelock.PROPOSER_ROLE(), multisig), "multisig not proposer");
+    assertTrue(timelock.hasRole(timelock.EXECUTOR_ROLE(), multisig), "multisig not executor");
+
+    EXA newImpl = new EXA();
+    bytes memory call = abi.encodeCall(
+      ProxyAdmin.upgradeAndCall,
+      (ITransparentUpgradeableProxy(exa), address(newImpl), abi.encodeCall(EXA(exa).symbol, ()))
+    );
+    uint256 delay = timelock.getMinDelay();
+
+    vm.startPrank(multisig);
+    timelock.schedule(address(adminV4), 0, call, bytes32(0), bytes32(0), delay);
+    vm.warp(block.timestamp + delay);
+    timelock.execute(address(adminV4), 0, call, bytes32(0), bytes32(0));
+    vm.stopPrank();
+
+    assertEq(
+      address(uint160(uint256(vm.load(exa, ERC1967Utils.IMPLEMENTATION_SLOT)))),
+      address(newImpl),
+      "implementation not upgraded by timelock"
+    );
+  }
+
+  function test_deployEXA_preservesERC20_onBase() external {
+    vm.createSelectFork("base", 47_400_000);
+
+    redeployer = new Redeployer();
+    redeployer.setUp();
+
+    address exa = protocol("EXA", true, 10);
+    redeployer.deployEXA();
+
+    EXA token = EXA(exa);
+    address bridge = makeAddr("bridge");
+    address user = makeAddr("user");
+    address recipient = makeAddr("recipient");
+
+    vm.prank(protocol("TimelockController"));
+    token.grantRole(keccak256("BRIDGE_ROLE"), bridge);
+
+    uint256 initialSupply = token.totalSupply();
+    uint256 mintAmount = 1000e18;
+    uint256 transferAmount = 400e18;
+
+    vm.prank(bridge);
+    token.mint(user, mintAmount);
+    assertEq(token.balanceOf(user), mintAmount, "user balance after mint");
+    assertEq(token.totalSupply(), initialSupply + mintAmount, "total supply after mint");
+
+    vm.prank(user);
+    token.transfer(recipient, transferAmount);
+    assertEq(token.balanceOf(user), mintAmount - transferAmount, "user balance after transfer");
+    assertEq(token.balanceOf(recipient), transferAmount, "recipient balance after transfer");
+
+    vm.prank(recipient);
+    token.transfer(user, 100e18);
+    assertEq(token.balanceOf(user), mintAmount - transferAmount + 100e18, "user balance after return transfer");
+    assertEq(token.balanceOf(recipient), transferAmount - 100e18, "recipient balance after return transfer");
+    assertEq(token.totalSupply(), initialSupply + mintAmount, "total supply unchanged");
+  }
+
+  // solhint-enable func-name-mixedcase
+}
