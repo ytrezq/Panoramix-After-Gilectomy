@@ -1,0 +1,38 @@
+{
+  "lib/osx-commons": {
+    "rev": "6627101992f2d41db2be7eee1696eb3fa81eed02"
+  },
+  "lib/merkl": {
+    "rev": "bd3bd1ead0cb421a09e60c046fad56ee26f34008"
+  },
+  "lib/protocol-factory": {
+    "branch": {
+      "name": "main",
+      "rev": "a103581428e2403fb798af8323e161639c9842a2"
+    }
+  },
+  "lib/ve-governance": {
+    "branch": {
+      "name": "develop",
+      "rev": "8a37bbdb63129d501f473d46537b01b8c8fb40e1"
+    }
+  },
+  "lib/forge-std": {
+    "rev": "0c71116a218268ee8c0157be8efcb13af0f7beaf"
+  },
+  "lib/openzeppelin-contracts-upgradeable": {
+    "rev": "d83fc65ee4b24aa50a6d42e4510cee1566067a98"
+  },
+  "lib/openzeppelin-contracts": {
+    "rev": "e8745a6a68d77c43c01e2cbe2c83a0b3d36ecc84"
+  },
+  "lib/erc4626-tests": {
+    "tag": {
+      "name": "v0.1.1",
+      "rev": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    }
+  },
+  "lib/osx": {
+    "rev": "df9a2acf3e0cce1d146d63c6894a8274d6786c17"
+  }
+}
