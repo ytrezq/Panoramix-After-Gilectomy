@@ -51,8 +51,7 @@
     {
      "prefix": "GammaStrategies__hypervisor",
      "url": "https://github.com/GammaStrategies/hypervisor",
-     "commit": "de902bf7d9de14874f031bb83ee3ad028414b2f1",
-     "files": 18
+     "commit": "de902bf7d9de14874f031bb83ee3ad028414b2f1"
     }
    ]
   },
@@ -87,8 +86,7 @@
     {
      "prefix": "GammaStrategies__xGamma",
      "url": "https://github.com/GammaStrategies/xGamma",
-     "commit": "c387a9680790fc9fdafbfccf17cbca02bb8c5203",
-     "files": 4
+     "commit": "c387a9680790fc9fdafbfccf17cbca02bb8c5203"
     }
    ],
    "npm": {},
