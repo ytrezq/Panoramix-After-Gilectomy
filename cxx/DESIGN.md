@@ -473,7 +473,7 @@ from python and the asm, and what became of it (the audit of November
 | `mem[0x40] = 0x60` before a function whose entry state isn't known | `vm/vm.cpp` | removed: memory unknown there |
 | the free memory pointer flag (`ContractShared::free_memory_pointer`, `sets_free_memory_pointer`) | `core/contract.hpp`, `evm/decoder.cpp` | removed |
 | a mapping's hash order (solidity's `keccak(key . slot)`, Vyper's `keccak(slot . key)`) taken from the CBOR metadata | `storage/analyse.cpp` | the code's hashes vote; the metadata only breaks a tie |
-| the dispatcher's selector tests | `vm/discover` | recognized by their semantics (EQ, XOR, SUB, ISZERO, AND, OR of the selector word; jump tables are code the VM runs): Vyper 0.3.10 to 0.4.3's tables, `gas` and `codesize`, give every function |
+| the dispatcher's selector tests | `vm/discover` | recognized by their semantics (EQ, XOR, SUB, ISZERO, AND, OR of the selector word; jump tables are code the VM runs): Vyper 0.3.10 to 0.4.3's tables, `gas` and `codesize`, give every function; the selector word read wherever the code puts it - a copy of fewer than 32 bytes of the calldata is known as its number (`vm::memory_fact`: Vyper 0.3.1 copies the selector to mem[28] and reads the word at 0) |
 | a comparison of anything read from `calldataload(0)` with a 4-byte number taken for a selector's test (a dispatcher on the first byte became functions 0x00000000...), an AND with any condition for Vyper's size guard, a selector's last target for all its calls, the negated tests for the default function's short calls | `vm/discover.cpp` | removed: a test is a selector's only where it decides every call as the machine dispatches (the first 4 bytes of 4 or more; a shorter calldata reads as its bytes then zeroes: a selector ending in 0 needs the size guard or a proof); a function is kept only when every call of its selector reaches its one node with no line on the way but the entry's (SETMEM, SETVAR, checks), else it is the default function's, which is then all of the dispatcher |
 | solc's default function reached with the selector on the stack or not | `vm/` | the stacks' common top is the entry's; where the code reads the words below it or overflows the stack with them, `UNDEFINED(STACK)` |
 | copies whose source and destination can't overlap by the allocation discipline | `loops/rewrite.cpp` | never assumed: proven (the floors) or left a loop |
@@ -534,12 +534,19 @@ A selector test is recognised on the JUMPI's condition (EQ or XOR of the
 selector word with a 4-byte number, their difference, ISZERO negations,
 Vyper's AND / OR with conditions the path's facts decide for every call of
 4 bytes or more, `iszero(selector)`), its paths giving the
-EntryCondition; the fallback is where no selector leads (lot 5: the asm's
+EntryCondition; the selector word is read wherever the dispatcher puts it
+(the VM knows a copy of fewer than 32 bytes of the calldata as its number:
+Vyper 0.3.1's `calldatacopy(28, 0, 4)` then `mload(0)`); the
+fallback is where no selector leads (lot 5: the asm's
 selectors on 1121 of 1121 contracts). A selector's function stands only
 when every call of it gets to its one node, each condition on the way
-decided by the selector's value or a check whose other branch reverts, and
+decided by the selector's value or a check whose other branch reverts (an
+entry line of the function: Vyper 0.3.1's one callvalue check before the
+non-payable selectors' tests), and
 no line but the entry's on the way; the default function's start likewise
-(else all of the dispatcher is the default function). A failed discovery
+(else all of the dispatcher is the default function, the kept selectors'
+tests failing there: Vyper 0.3.1's, whose shorter calls skip the callvalue
+check). A failed discovery
 logs python's "Loader issue: ..." and leaves the fallback alone.
 
 **Jobs**: one per function (`--function`: those whose name starts with
@@ -1084,6 +1091,19 @@ count whose end is made of a pointer, `max(p + 64, p + 32 n + 32)`: nothing boun
 under `Top::Word`, and the memory model's bound would be wrong where the loop runs never
 and the end wraps (what bounds `p` soundly is an access through it that ran, a fact the
 loops' walk doesn't make).
+
+**Vyper 0.3.1's dispatchers** (8 Nov): the source corpus' six distinct Vyper
+0.3.1 bytecodes (Balancer's ChildChainStreamer, RewardsOnlyGauge, GaugeController,
+VotingEscrow, LiquidityGaugeV5, PreseededVotingEscrowDelegation) came out as one
+`_fallback` of 170 to 2,826 lines, as the asm's: the dispatcher copies the selector to
+mem[28] and reads the word at 0, and the VM didn't know the copy's value
+(`Facts::write_memory` kept one for 1 or 32 bytes only), so no test read as a selector's.
+Now every function of their ABIs is found (12, 39, 38, 31, 57, 42), the one callvalue check
+before the non-payable tests an entry line of those, the fallback `revert`; stagecheck the
+same before and after (1,788 calls, every stage 0 different; at the folded stage 8 bugs in
+RewardsOnlyGauge both times: lot 10's snapshot of a 96-byte return in a variable), text_check
+0 different (4 and 25 lines unparsed in VotingEscrow and LiquidityGaugeV5: addresses past
+160 bits printed `????...`, the asm's display). No text of the npm corpus changes.
 
 ## Hostile input
 

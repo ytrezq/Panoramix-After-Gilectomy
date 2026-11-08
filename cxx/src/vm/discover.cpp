@@ -493,7 +493,7 @@ FunctionInfo Discovery::make(FunctionInfo::Kind kind, u32 sel, i64 target, Value
         Facts k = Facts().with_fresh();
         for (const EntryItem& it : p)
             if (!it.check && it.line.is(Op::SETMEM, 2))
-                k = k.write_memory(it.line[0][0], it.line[0][1], alg::fact_value(it.line[1]));
+                k = k.write_memory(it.line[0][0], it.line[0][1], memory_fact(it.line));
         SmallVec<Fact, 32> v;
         k.to_vector(v);
         for (const Fact& x : v)

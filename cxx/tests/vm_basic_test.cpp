@@ -198,6 +198,56 @@ TEST_CASE("vm: discovery") {
     CHECK(fns[0].entry.entry_lines == V("{(setmem (range 64 32) (sized 32 128))}"));
 }
 
+TEST_CASE("vm: discovery - the selector read through memory, one callvalue check before the tests") {
+    Fixture fx;
+    // Vyper 0.3.1's dispatcher (tests/fixtures/asm/vyper031.asm):
+    // calldatacopy(28, 0, 4) then mload(0), the selector word; deposit()'s
+    // test (payable), then one callvalue check (0x6c reverts) before get()'s
+    // and set(uint256)'s, each PUSH4 h DUP2 XOR PUSH2 next JUMPI with the body
+    // after it; a call of fewer than 4 bytes goes to the default function
+    // (0x61) without the check
+    Code c("600436106100615760046000601c3760005163d0e30db08118610026573460005401600055005b3461006c57636d4ce63c81"
+           "186100425760005460005260206000f35b6360fe47b1811861005f5760015433141561006c57600435600055005b505b600760"
+           "005260206000f35b60006000fd");
+    Budget b{Budget::Limits{}};
+    auto fns = vm::discover(c.shared, b);
+    REQUIRE(fns.size() == 4);
+    auto of = [&](u32 sel) -> const FunctionInfo* {
+        for (const auto& f : fns)
+            if (f.kind == FunctionInfo::Kind::Selector && f.selector == sel) return &f;
+        return nullptr;
+    };
+    const FunctionInfo* deposit = of(0xd0e30db0);
+    const FunctionInfo* get = of(0x6d4ce63c);
+    const FunctionInfo* set = of(0x60fe47b1);
+    REQUIRE(deposit);
+    REQUIRE(get);
+    REQUIRE(set);
+    CHECK(deposit->entry_pc == 0x1d);
+    CHECK(get->entry_pc == 0x37);
+    CHECK(set->entry_pc == 0x4e);
+    // the callvalue check: an entry line of the functions past it only
+    auto checks_value = [](const FunctionInfo& f) { return dump(f.entry.entry_lines).find("callvalue") != std::string::npos; };
+    CHECK_FALSE(checks_value(*deposit));
+    CHECK(checks_value(*get));
+    CHECK(checks_value(*set));
+    // the default function: its calls of 4 bytes or more go through the
+    // check, the shorter ones don't - all of the dispatcher, the three
+    // selectors' tests failing there
+    const FunctionInfo& fb = fns.back();
+    CHECK(fb.kind == FunctionInfo::Kind::Fallback);
+    CHECK(fb.entry_pc == 0);
+    CHECK(fb.entry.checks.size() == 3);
+    for (const auto& f : fns) {
+        auto r = vm::run_function(c.shared, f, {});
+        INFO(dump_trace(r.trace));
+        CHECK(r.complete);
+        // (the fallback's run reads the selector through memory too: the
+        // functions' bodies aren't in it)
+        if (&f == &fb) CHECK(dump_trace(r.trace).find("(store ") == std::string::npos);
+    }
+}
+
 TEST_CASE("vm: review 2026-11-02 F1 (discover) - the fallback's checks are the selector tests' negations only") {
     Fixture fx;
     // calldatasize < 4 -> 60 (receive: stop); sel 0x12345678 -> 38, where

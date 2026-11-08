@@ -190,6 +190,11 @@ struct Node {
     bool has_children() const noexcept { return first != NO_NODE; }
 };
 
+// what the facts know of a SETMEM's bytes (Facts::write_memory's value): its
+// value, a copy of fewer than 32 bytes of the calldata as the number it is
+// (vm_core.cpp)
+Value memory_fact(Value setmem);
+
 // what a run is for
 struct RunSetup {
     u32 start = 0;

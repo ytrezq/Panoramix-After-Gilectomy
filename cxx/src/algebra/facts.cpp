@@ -622,7 +622,12 @@ Facts Facts::write_memory(Value start, Value size, Value value) const {
         }
     }
     if (!value.nil()) {
-        if (*n != 1 && *n != 32 && !(value.is_int() && *n < 32)) value = Value();
+        // of n bytes but 1 and 32: a word (its low n bytes, as SETMEM's: an
+        // int, or the number a short copy of the calldata is - vm::
+        // memory_fact), not a bytes expression
+        const bool bytes = value.is_none() || value.is_bytes() ||
+                           (value.is_expr() && info(value.op()).sort == Sort::Bytes);
+        if (*n != 1 && *n != 32 && !(*n < 32 && !bytes)) value = Value();
     }
     if (!value.nil() && value.has_flags(F_MEM)) {
         // a read of memory (mcopy's), made before the write: what the memory

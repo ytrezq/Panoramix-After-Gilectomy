@@ -12,6 +12,7 @@
 #include "core/errors.hpp"
 #include "core/intops.hpp"
 #include "core/platform.hpp"
+#include "mem/memory.hpp"
 #include "vm/vm_impl.hpp"
 
 namespace pan::vm {
@@ -418,7 +419,22 @@ void Vm::run_block(NodeId id) {
 void Vm::emit(Value line, u32 pc) {
     out_.push_back(line);
     cx().pcs.note(line, pc);
-    if (line.is(Op::SETMEM, 2)) known_ = known_.write_memory(line[0][0], line[0][1], alg::fact_value(line[1]));
+    if (line.is(Op::SETMEM, 2)) known_ = known_.write_memory(line[0][0], line[0][1], memory_fact(line));
+}
+
+// What the facts know of a SETMEM's bytes: its value - a copy of fewer than
+// 32 bytes of the calldata as the number it is (mem::as_word: CALLDATA_BYTES
+// (0, 4) is cd[0] >> 224, the selector Vyper 0.3.1's dispatcher copies to
+// mem[28] and reads as the word at 0), so that a selector test reads
+// through it - in the discovery, and in the run of a default function that
+// is all of the dispatcher, whose known selectors' tests then fail
+Value memory_fact(Value setmem) {
+    const Value v = alg::fact_value(setmem[1]);
+    const Value n = setmem[0][1];
+    if (!v.is(Op::CALLDATA_BYTES, 2) || v[1] != n || !n.is_small() || n.small_val() <= 0 || n.small_val() >= 32)
+        return v;
+    const std::optional<Value> w = mem::as_word(v);
+    return w && !mem::is_bytes(*w) ? *w : v;
 }
 
 void Vm::finish_halt(Value line, u32 pc) {
