@@ -1,0 +1,10 @@
+@forge-std/=node_modules/forge-std/src/
+forge-std/=node_modules/forge-std/src/
+@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/
+@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/
+@layerzerolabs/=node_modules/@layerzerolabs/
+solidity-bytes-utils/=node_modules/solidity-bytes-utils/
+interfaces/=contracts/interfaces/
+utils/=contracts/utils/
+libs/=libs/
+contracts/=contracts/
