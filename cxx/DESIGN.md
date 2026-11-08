@@ -964,12 +964,21 @@ words of a checked product, a call forgetting only its own results, a counting l
 where it provably ends, SafeMath past a loop that ends and can't fail, cleanup_vars' exact
 reads, a copy in words cut where the next line covers its tail): 75.2% identical, 54.2% of
 the lines changed; solc's builds alone 79.9% -> 85.0% (london -> shanghai 95.6% -> 96.2%);
-the sample's 6,673 functions 560,477 lines -> 523,996, `while` lines 7,513 -> 7,191. Left:
-Vyper 0.4's cancun builds keep the reentrancy lock in transient storage, the storage slots
-after it move by one (Vyper shanghai -> cancun 47.5%, genuine); copies between pointers
-loaded from memory or snapshots of the free memory pointer, which need the floors of the
-values read from it and provenance (`docs/alloc-floor.md` parts 1 and 2); the VM's
-temporaries numbered otherwise where a loop made more (`_18` / `_16`).
+the sample's 6,673 functions 560,477 lines -> 523,996, `while` lines 7,513 -> 7,191. With
+cxx23's storage copies (`STORAGE_RANGE`) merged and a bytes' decoded length read below
+2^255: 75.3% (solc 85.1%), 519,791 lines, `while` lines 6,520; GnosisSafe's getStorageAt
+reads `return Array(len=SafeMath.mul2(length, 32), data=stor[offset len length])` in every
+build. The npm corpus (`loop_lines.py`): copy loops 5,579 in 247 contracts -> 5,413 in 236,
+`while` lines 9,568 -> 9,021 (cxx23 with the storage copies alone: 5,540 and 9,151);
+stagecheck and text_check 0 different on the 861. Left: Vyper 0.4's cancun builds keep the reentrancy lock in transient storage, the
+storage slots after it move by one (Vyper shanghai -> cancun 47.5%, genuine); copies
+between pointers loaded from memory or snapshots of the free memory pointer, which need the
+floors of the values read from it and provenance (`docs/alloc-floor.md` parts 1 and 2); the
+VM's temporaries numbered otherwise where a loop made more (`_18` / `_16`); a copy's trip
+count whose end is made of a pointer, `max(p + 64, p + 32 n + 32)`: nothing bounds `p`
+under `Top::Word`, and the memory model's bound would be wrong where the loop runs never
+and the end wraps (what bounds `p` soundly is an access through it that ran, a fact the
+loops' walk doesn't make).
 
 ## Hostile input
 
