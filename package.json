@@ -1,0 +1,42 @@
+{
+  "name": "@parallel/tokenomics",
+  "description": "Parallel Tokenomics",
+  "version": "1.0.0",
+  "private": false,
+  "scripts": {
+    "compile": "forge build && hardhat compile",
+    "deploy": "npx hardhat deploy",
+    "clean": "rm -rf cache out",
+    "build": "forge build",
+    "lint": "bun run lint:sol && bun run prettier:check",
+    "lint:sol": "forge fmt --check && bun solhint \"{script,contracts,test}/**/*.sol\"",
+    "prettier:check": "prettier --check \"**/*.{json,md,yml}\" --ignore-path \".prettierignore\"",
+    "prettier:write": "prettier --write \"**/*.{json,md,yml}\" --ignore-path \".prettierignore\"",
+    "test": "forge test -vvv --nmt \"^.*invariant.*$\"",
+    "test:invariant": "forge test --mt \"^.*invariant.*$\"",
+    "test:coverage": "forge coverage --ir-minimum",
+    "test:coverage:report": "forge coverage --ir-minimum --report lcov && lcov --remove lcov.info -o lcov.info \"test/*\" && genhtml lcov.info -o coverage",
+    "prepare": "husky",
+    "verify": "npx hardhat etherscan-verify --sleep"
+  },
+  "dependencies": {
+    "@layerzerolabs/lz-evm-oapp-v2": "^3.0.14",
+    "@openzeppelin/contracts": "^5.1.0"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.5.0",
+    "@commitlint/config-conventional": "^19.5.0",
+    "@layerzerolabs/lz-definitions": "^3.0.36",
+    "@nomicfoundation/hardhat-foundry": "^1.1.2",
+    "@types/fs-extra": "^11.0.4",
+    "dotenv": "^16.4.5",
+    "forge-std": "github:foundry-rs/forge-std#v1.9.5",
+    "fs-extra": "^11.2.0",
+    "hardhat-contract-sizer": "^2.10.0",
+    "hardhat-deploy": "^0.14.0",
+    "husky": "^9.1.6",
+    "murky": "github:dmfxyz/murky",
+    "prettier": "^3.3.3",
+    "solhint": "^5.0.3"
+  }
+}
