@@ -463,3 +463,44 @@ TEST_CASE("safemath: what stays as it is")
         same_runs(r.before, r.after, r.table.get());
     }
 }
+
+TEST_CASE("safemath: a site's abstraction is proven, never sampled")
+{
+    Fixture fx;
+    const Value a = cd(4), b = cd(36);
+    SUBCASE("a * b + (a == 12345) checked as a product: random points can't tell it from a * b - it stays")
+    {
+        const Value res = alg::add(alg::mul(a, b), alg::cmp(Op::EQ, a, Value::small(12345)));
+        const Value cond = alg::iszero(alg::cmp(Op::EQ, alg::div(res, a), b));
+        const Value body = tr({check(cond, panic_line(0x11)), store(1, res), stop()});
+        Rewritten r = rewrite({fn_of(body)});
+        CHECK_FALSE(r.table);
+        CHECK(r.after[0].trace == body);
+        // a = 12345, b = 2: 24691 stored, where SafeMath.mul(a, b) would store 24690
+        Call c{};
+        c.calldata = {u8(SEL >> 24), u8(SEL >> 16), u8(SEL >> 8), u8(SEL)};
+        for (const u64 w : {u64(12345), u64(2), u64(0)}) {
+            const auto bytes = word_bytes(Word256::of(w));
+            c.calldata.insert(c.calldata.end(), bytes.begin(), bytes.end());
+        }
+        std::vector<exec::SimpleHost::Effect> e1, e2;
+        const exec::Outcome o1 = run(r.before, nullptr, c, e1);
+        const exec::Outcome o2 = run(r.after, r.table.get(), c, e2);
+        CHECK(o1.status == o2.status);
+        CHECK(e1 == e2);
+    }
+    SUBCASE("the check and the use as a pass rebuilt them, terms out of the normal order: proven")
+    {
+        // (the normal form is a + st(1): a storage form or a SafeMath call put
+        // in a sum by mk_like keeps its old place)
+        const Value sum = mk(Op::ADD, st(1), a);
+        REQUIRE(sum != alg::add(a, st(1)));
+        const Value body = tr({check(mk(Op::LT, sum, st(1)), revert_line(error_data("SafeMath: addition overflow"))),
+                               store(1, sum), stop()});
+        Rewritten r = rewrite({fn_of(body)});
+        REQUIRE(r.table);
+        CHECK(r.table->fns[0].op == Table::Arith::Add);
+        CHECK_FALSE(mentions(r.after[0].trace, Op::IF));
+        same_runs(r.before, r.after, r.table.get());
+    }
+}

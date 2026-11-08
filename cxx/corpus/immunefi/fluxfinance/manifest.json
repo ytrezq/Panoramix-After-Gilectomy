@@ -1,0 +1,80 @@
+{
+ "program": "fluxfinance",
+ "repos": [
+  {
+   "repo": "https://github.com/flux-finance/contracts",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "Flux Finance (Compound v2 fork with OndoPriceOracle, fTokens, GovernorBravo)",
+   "commit": "05bba79ef40e49cbd196b5e5d227d41cc56a66f2",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "066ff16c5c03e6f931cd041fd366bc4be1fae82a"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BSD",
+    "package_json": "BSD-3-Clause",
+    "headers": {
+     "BUSL-1.1": 7,
+     "GPL-3.0": 6,
+     "BSD-3-Clause": 20,
+     "(none)": 47,
+     "MIT": 58,
+     "AGPL-3.0": 2,
+     "UNLICENSED": 19,
+     "GPL-3.0-or-later": 1
+    },
+    "headers_main": {
+     "BUSL-1.1": 6,
+     "GPL-3.0": 6,
+     "BSD-3-Clause": 18,
+     "(none)": 28,
+     "MIT": 58,
+     "AGPL-3.0": 2,
+     "UNLICENSED": 9,
+     "GPL-3.0-or-later": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 160
+   },
+   "npm": {},
+   "copied": true,
+   "files": 210,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "flux-finance__contracts",
+   "subtrees": [
+    {
+     "prefix": "flux-finance__contracts",
+     "url": "https://github.com/flux-finance/contracts",
+     "commit": "05bba79ef40e49cbd196b5e5d227d41cc56a66f2",
+     "files": 165
+    },
+    {
+     "prefix": "flux-finance__contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "066ff16c5c03e6f931cd041fd366bc4be1fae82a",
+     "files": 37
+    },
+    {
+     "prefix": "flux-finance__contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b",
+     "files": 5
+    }
+   ]
+  }
+ ]
+}

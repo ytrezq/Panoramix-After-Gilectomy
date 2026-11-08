@@ -1,0 +1,75 @@
+{
+  "name": "@unruggable/gateways",
+  "version": "1.3.5",
+  "description": "Trustless Ethereum Multichain CCIP-Read Gateway",
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "ethereum",
+    "evm",
+    "gateway",
+    "rollup",
+    "multichain",
+    "ccip",
+    "proof",
+    "prover",
+    "verifier",
+    "unruggable"
+  ],
+  "type": "module",
+  "scripts": {
+    "check": "bunx tsc -p . --noEmit",
+    "forge": "forge build --force",
+    "serve": "bun scripts/serve.ts",
+    "test": "IS_CI=1 bun test --timeout 50000",
+    "test-all": "bun test --timeout 50000",
+    "test-contracts": "forge test -C test/",
+    "test-components": "bun scripts/opcodes.ts quiet && bun run test-contracts && bun test test/components/* test/hooks/*",
+    "test-gateways": "bun test test/gateway/* --timeout 50000",
+    "test-fast": "bun run check && bun run lint && bun run forge && bun run test-components test/gateway/op.test.ts test/gateway/reverse-op.test.ts",
+    "lint": "eslint . --ext .ts",
+    "build": "bun scripts/build-dist.ts",
+    "deploy": "bun scripts/deploy.ts",
+    "loc": "rg -c '^' -g 'src/**/*.ts' -g 'test/**/*.ts' --no-filename | jq -s 'add'"
+  },
+  "sideEffects": false,
+  "exports": {
+    "types": "./dist/types/index.d.ts",
+    "require": "./dist/cjs/index.cjs",
+    "import": "./dist/esm/index.mjs"
+  },
+  "files": [
+    "dist/",
+    "artifacts/",
+    "contracts/"
+  ],
+  "devDependencies": {
+    "@adraffy/blocksmith": "^0.1.58",
+    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/js": "^9.36.0",
+    "@types/bun": "latest",
+    "@typescript-eslint/eslint-plugin": "^8.43.0",
+    "@typescript-eslint/parser": "^8.43.0",
+    "eslint": "^9.35.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "prettier": "^3.6.2",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.2",
+    "@semantic-release/npm": "^13.1.2",
+    "@semantic-release/release-notes-generator": "^14.1.0",
+    "semantic-release": "^25.0.2"
+  },
+  "dependencies": {
+    "@namestone/ezccip": "^0.1.1",
+    "ethers": "^6.15.0",
+    "fzstd": "^0.1.1"
+  },
+  "peerDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

@@ -1,0 +1,103 @@
+.DEFAULT_GOAL = build
+.PHONY: build cargo-build anchor-build artifacts-mainnet artifacts-solana-devnet artifacts-tilt-devnet _artifacts test cargo-test anchor-test idl sdk clean node_modules lint cargo-lint anchor-lint fix-lint
+
+# Find and convert version line:
+#  Turn `const VERSION: &str = "major.minor.patch";` into `major_minor_patch`
+# Use make functions to minimize dependence on shell
+VERSION = $(subst .,_,$(subst ;,,$(subst ",,$(lastword \
+  $(shell grep "const VERSION" programs/example-native-token-transfers/src/lib.rs) \
+))))
+
+
+#######################
+## BUILD
+
+build: cargo-build anchor-build
+
+
+cargo-build:
+	BPF_OUT_DIR="$(pwd)/target/deploy" cargo build-sbf
+
+# After building, remove the generics from the idl file. This is necessary as of anchor 0.29.0,
+# because the javascript library does not support generics yet, and just panics
+anchor-build:
+	anchor build --arch sbf -- --features mainnet
+	for jsonfile in target/idl/*.json; do \
+	  echo "Removing generics from" $$jsonfile; \
+	  ./scripts/patch-idl $$jsonfile; \
+	done
+
+artifacts-mainnet:
+	$(MAKE) _artifacts TARGET_DIR=$@ NETWORK=mainnet
+
+artifacts-solana-devnet:
+	$(MAKE) _artifacts TARGET_DIR=$@ NETWORK=solana-devnet
+
+artifacts-tilt-devnet:
+	$(MAKE) _artifacts TARGET_DIR=$@ NETWORK=tilt-devnet
+
+_artifacts:
+	solana-verify build -- --no-default-features --features $(NETWORK) --target-dir $(TARGET_DIR)
+
+idl: anchor-build
+	@echo "IDL Version: $(VERSION)"
+	mkdir -p ts/idl/$(VERSION)/json
+	mkdir -p ts/idl/$(VERSION)/ts
+	cp -r target/idl/* ts/idl/$(VERSION)/json/
+	for src in target/idl/*.json; do \
+	  filename=$$(basename $$src); \
+	  jsonfile=ts/idl/$(VERSION)/json/$$filename; \
+	  tsfile=$$(echo $$jsonfile | sed 's/json\/\(.*\)\.json/ts\/\1.ts/'); \
+	  tsx scripts/regenerateIdl.ts $$jsonfile > $$tsfile; \
+	done
+
+sdk: anchor-build
+	@echo "Building SDK"
+	cd .. && bun ci && bun run build:solana
+
+clean:
+	anchor clean
+	rm -rf .anchor node_modules
+
+node_modules:
+	bun install
+
+
+#######################
+## TESTS
+
+test: cargo-test anchor-test
+
+
+# ntt-transceiver is built separately with `testing` so post message shim ix data is set as return_data
+# See: ntt-transceiver/src/wormhole/accounts.rs::post_message (#[cfg(feature = "testing")])
+cargo-test:
+	cargo build-sbf --features "mainnet"
+	cargo test-sbf -p "example-native-token-transfers" --features "mainnet"
+	cargo test-sbf -p "ntt-transceiver" --features "mainnet,testing"
+	cargo test
+
+anchor-test: idl sdk node_modules
+	anchor test --skip-build
+
+
+#######################
+## LINT
+
+lint: cargo-lint anchor-lint
+
+
+cargo-lint:
+	cargo fmt --check --all --manifest-path Cargo.toml
+	cargo check --workspace --tests --manifest-path Cargo.toml
+	cargo clippy --workspace --tests --manifest-path Cargo.toml -- -Dclippy::cast_possible_truncation
+
+# Run anchor's linter on all Rust files in the current directory via `anchor idl parse`
+# Results written to /dev/null because we're just calling parse for the linting capabilities and we don't care about
+# the JSON output.
+# anchor-cli v0.29.0 doesn't seem to do linting on the command-line during the build process so this is a workaround
+anchor-lint:
+	bash scripts/anchor-lint.sh
+
+fix-lint:
+	cargo fmt --all --manifest-path Cargo.toml

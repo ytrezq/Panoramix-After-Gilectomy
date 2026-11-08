@@ -1,0 +1,62 @@
+{
+ "program": "capyfi",
+ "repos": [
+  {
+   "repo": "https://github.com/Capyfi/capyfi-smart-contracts",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "99d5313e4b14b3da07e4bc8e47248cb3e18954c8",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BSD",
+    "package_json": null,
+    "headers": {
+     "BSD-3-Clause": 43,
+     "(none)": 3,
+     "MIT": 678,
+     "GPL-3.0": 1,
+     "UNLICENSED": 8,
+     "GPL-3.0-or-later": 6,
+     "AGPL-3.0": 4,
+     "BUSL-1.1": 10
+    },
+    "headers_main": {
+     "BSD-3-Clause": 39,
+     "(none)": 1,
+     "MIT": 429,
+     "GPL-3.0": 1,
+     "GPL-3.0-or-later": 4,
+     "AGPL-3.0": 4,
+     "BUSL-1.1": 10
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 753
+   },
+   "npm": {},
+   "workspace_links": {
+    "lib/openzeppelin-contracts-upgradeable/lib/forge-std/node_modules/ds-test": "lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+    "lib/openzeppelin-contracts-upgradeable/node_modules/forge-std": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+    "lib/openzeppelin-contracts/lib/forge-std/node_modules/ds-test": "lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+    "lib/openzeppelin-contracts/node_modules/forge-std": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+    "node_modules/forge-std": "lib/openzeppelin-contracts-upgradeable/lib/forge-std"
+   },
+   "copied": true,
+   "files": 852,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "Capyfi__capyfi-smart-contracts",
+   "subtrees": [
+    {
+     "prefix": "Capyfi__capyfi-smart-contracts",
+     "url": "https://github.com/Capyfi/capyfi-smart-contracts",
+     "commit": "99d5313e4b14b3da07e4bc8e47248cb3e18954c8",
+     "files": 800
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "verifications",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "type": "module",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "chai": "^5.1.1",
+    "chalk": "^5.3.0",
+    "ethers": "^6.13.0",
+    "yaml": "^2.8.3"
+  },
+  "devDependencies": {
+    "@types/chai": "^4.3.16",
+    "@types/node": "^20.14.2",
+    "cbor": "^9.0.2",
+    "tsx": "^4.15.4",
+    "typescript": "^5.4.5"
+  },
+  "scripts": {
+    "verify:bytecode": "./bytecode",
+    "verify:state:testnets": "tsx scripts/state-checker.ts acceptance-tests/testnets.yml ../out",
+    "verify:state:mainnet:mock": "tsx scripts/state-checker.ts acceptance-tests/mainnet-mock.yml ../out",
+    "verify:state:mainnet": "tsx scripts/state-checker.ts acceptance-tests/mainnet.yml ../out"
+  }
+}

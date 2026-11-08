@@ -1,0 +1,11 @@
+@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/
+@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/
+@openzeppelin-gov/=node_modules/@openzeppelin/contracts-upgradeable/governance/
+@openzeppelin-gov-ext/=node_modules/@openzeppelin/contracts-upgradeable/governance/extensions/
+@prb/math/=node_modules/@prb/math/
+@pythnetwork/=node_modules/@pythnetwork/pyth-sdk-solidity/
+forge-std/=lib/forge-std/src/
+solady/src/=lib/solady/src/
+solady/test/=lib/solady/test/
+transient-goodies/=lib/transient-goodies/src/
+@mock/=test/mock/

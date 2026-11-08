@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: SEL-1.0
+// Copyright © 2025 Veda Tech Labs
+// Derived from Boring Vault Software © 2025 Veda Tech Labs (TEST ONLY – NO COMMERCIAL USE)
+// Licensed under Software Evaluation License, Version 1.0
+// Last audited: boring-vault@6de77927f58fde1a08420c9e325cb4f20880229f — https://macroaudits.com/library/audits/sevenSeas-46
+pragma solidity 0.8.21;
+
+import {BaseDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
+import {AtomicQueueDecoderAndSanitizer} from
+    "src/base/DecodersAndSanitizers/Protocols/AtomicQueueDecoderAndSanitizer.sol";
+
+contract OnlyAtomicQueueDecoderAndSanitizer is AtomicQueueDecoderAndSanitizer {
+    constructor(uint32 min, uint32 max) AtomicQueueDecoderAndSanitizer(min, max) {}
+}

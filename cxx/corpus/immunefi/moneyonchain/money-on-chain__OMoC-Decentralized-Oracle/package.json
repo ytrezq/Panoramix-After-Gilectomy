@@ -1,0 +1,97 @@
+{
+    "name": "@moneyonchain/oracles",
+    "version": "3.0.21",
+    "description": "Money On Chain Oracles and Beyond Oracle smart contracts",
+    "type": "module",
+    "scripts": {
+        "hh": "hardhat",
+        "compile": "hardhat compile",
+        "clean": "hardhat clean && rm -rf dist",
+        "debug": "node --inspect ./scripts/debug-hardhat.mjs test mocha",
+        "format": "pnpm exec prettier ./test/* --write",
+        "format:check": "pnpm exec prettier ./test/* --check",
+        "lint": "pnpm exec eslint . --max-warnings 0",
+        "lint:fix": "pnpm exec eslint . --fix --max-warnings 0",
+        "precommit": "pnpm lint-staged && pnpm format:check",
+        "test": "hardhat test mocha",
+        "quality": "pnpm format:check && pnpm lint && pnpm check",
+        "check": "pnpm exec tsc --noEmit -p tsconfig.json",
+        "build:local": "pnpm clean && pnpm compile && pnpm exec tsc -p tsconfig.json",
+        "hooks:install": "husky"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/money-on-chain/OMoC-Decentralized-Oracle.git"
+    },
+    "author": "",
+    "license": "ISC",
+    "bugs": {
+        "url": "https://github.com/money-on-chain/OMoC-Decentralized-Oracle/issues"
+    },
+    "homepage": "https://github.com/money-on-chain/OMoC-Decentralized-Oracle#readme",
+    "dependencies": {
+        "@openzeppelin/contracts": "4.9.3",
+        "@openzeppelin/contracts-ethereum-package": "3.0.0",
+        "@openzeppelin/contracts-upgradeable": "4.9.3",
+        "viem": "2.53.1"
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.0.0",
+        "@moc/moc-main": "git+ssh://git@github.com/money-on-chain/main-sc-protocol-v2.git#v3.0.9",
+        "@moc/periphery": "git+ssh://git@github.com/money-on-chain/MoC-Periphery#v3.0.5",
+        "@nomicfoundation/hardhat-mocha": "^3.0.21",
+        "@nomicfoundation/hardhat-network-helpers": "^3.0.10",
+        "@nomicfoundation/hardhat-toolbox-viem": "5.0.7",
+        "@types/chai": "^5.2.3",
+        "@types/mocha": "^10.0.10",
+        "@types/node": "^26.0.1",
+        "chai": "^6.2.2",
+        "eslint": "^9.0.0",
+        "eslint-config-prettier": "^10.0.0",
+        "eslint-plugin-chai-friendly": "^1.2.1",
+        "globals": "^16.0.0",
+        "hardhat": "3.9.0",
+        "husky": "^9.0.0",
+        "lint-staged": "^16.0.0",
+        "mocha": "^11",
+        "prettier": "^3.0.0",
+        "prettier-plugin-solidity": "^1.4.3",
+        "solc": "0.6.12",
+        "ts-test-helpers": "git+ssh://git@github.com/money-on-chain/ts-test-helpers#v0.1.2",
+        "typescript": "6.0.3",
+        "typescript-eslint": "^8.0.0"
+    },
+    "files": [
+        "contracts",
+        "dist/index.*",
+        "dist/src/helpers.*"
+    ],
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./test/helpers": {
+            "types": "./dist/src/helpers.d.ts",
+            "import": "./dist/src/helpers.js"
+        },
+        "./contracts/*": "./contracts/*",
+        "./package.json": "./package.json"
+    },
+    "packageManager": "pnpm@11.15.1+sha512.81350b07e53c9538a02f1f2303b4290fa2d7be04e56e2a970c4cc4b417dc761de196edabd49d55c7dc9580db81007c44143e4e3d7e462b3000d23c255122d065",
+    "lint-staged": {
+        "*.{js,ts}": [
+            "pnpm exec eslint --fix --max-warnings 0 --no-warn-ignored"
+        ],
+        "*.{json,md,yml,yaml}": [
+            "pnpm exec prettier --write"
+        ]
+    },
+    "peerDependencies": {
+        "@moc/moc-main": "3.0.9",
+        "@moc/periphery": "3.0.5",
+        "ts-test-helpers": "0.1.2"
+    }
+}

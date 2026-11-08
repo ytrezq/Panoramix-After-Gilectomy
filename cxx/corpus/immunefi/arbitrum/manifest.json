@@ -1,0 +1,563 @@
+{
+ "program": "arbitrum",
+ "repos": [
+  {
+   "repo": "https://github.com/OffchainLabs/token-bridge-contracts",
+   "ref": "main",
+   "scope_paths": [
+    "contracts/tokenbridge/arbitrum/IArbToken.sol",
+    "contracts/tokenbridge/arbitrum/L2ArbitrumMessenger.sol",
+    "contracts/tokenbridge/arbitrum/StandardArbERC20.sol",
+    "contracts/tokenbridge/arbitrum/gateway/L2ArbitrumGateway.sol",
+    "contracts/tokenbridge/arbitrum/gateway/L2CustomGateway.sol",
+    "contracts/tokenbridge/arbitrum/gateway/L2ERC20Gateway.sol",
+    "contracts/tokenbridge/arbitrum/gateway/L2GatewayRouter.sol",
+    "contracts/tokenbridge/arbitrum/gateway/L2WethGateway.sol",
+    "contracts/tokenbridge/ethereum/ICustomToken.sol",
+    "contracts/tokenbridge/ethereum/L1ArbitrumMessenger.sol",
+    "contracts/tokenbridge/ethereum/gateway/L1ArbitrumExtendedGateway.sol",
+    "contracts/tokenbridge/ethereum/gateway/L1ArbitrumGateway.sol",
+    "contracts/tokenbridge/ethereum/gateway/L1CustomGateway.sol",
+    "contracts/tokenbridge/ethereum/gateway/L1ERC20Gateway.sol",
+    "contracts/tokenbridge/ethereum/gateway/L1GatewayRouter.sol",
+    "contracts/tokenbridge/ethereum/gateway/L1WethGateway.sol",
+    "contracts/tokenbridge/libraries/BytesParser.sol",
+    "contracts/tokenbridge/libraries/ClonableBeaconProxy.sol",
+    "contracts/tokenbridge/libraries/ITransferAndCall.sol",
+    "contracts/tokenbridge/libraries/L2GatewayToken.sol",
+    "contracts/tokenbridge/libraries/TransferAndCallToken.sol",
+    "contracts/tokenbridge/libraries/aeERC20.sol",
+    "contracts/tokenbridge/libraries/aeWETH.sol",
+    "contracts/tokenbridge/libraries/gateway/GatewayMessageHandler.sol",
+    "contracts/tokenbridge/libraries/gateway/GatewayRouter.sol",
+    "contracts/tokenbridge/libraries/gateway/ICustomGateway.sol",
+    "contracts/tokenbridge/libraries/gateway/ITokenGateway.sol",
+    "contracts/tokenbridge/libraries/gateway/TokenGateway.sol",
+    "contracts/tokenbridge/libraries/BytesLib.sol",
+    "contracts/tokenbridge/libraries/Cloneable.sol",
+    "contracts/tokenbridge/libraries/ICloneable.sol",
+    "contracts/tokenbridge/libraries/Whitelist.sol",
+    "contracts/tokenbridge/ethereum/gateway/IL1ArbitrumGateway.sol",
+    "contracts/tokenbridge/ethereum/gateway/IL1GatewayRouter.sol",
+    "contracts/tokenbridge/libraries/gateway/IGatewayRouter.sol",
+    "contracts/tokenbridge/libraries/ERC165.sol",
+    "contracts/tokenbridge/libraries/IERC165.sol",
+    "contracts/tokenbridge/libraries/ProxyUtil.sol",
+    "contracts/tokenbridge/ethereum/gateway/L1ForceOnlyReverseCustomGateway.sol",
+    "contracts/tokenbridge/ethereum/gateway/L1ReverseCustomGateway.sol",
+    "contracts/tokenbridge/arbitrum/ReverseArbToken.sol",
+    "contracts/tokenbridge/arbitrum/gateway/L2ReverseCustomGateway.sol",
+    "contracts/tokenbridge/libraries/L2CustomGatewayToken.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "0746a71321cdb2d6df6b15158c7ecbb9ece84b12",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/nitro-contracts",
+     "url": "https://github.com/OffchainLabs/nitro-contracts.git",
+     "commit": "0770fe07d99c499bebfaf3b7df37047d19032050"
+    },
+    {
+     "path": "lib/nitro-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
+    },
+    {
+     "path": "lib/nitro-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "Apache-2.0",
+    "package_json": "Apache-2.0",
+    "headers": {
+     "Apache-2.0": 93,
+     "BUSL-1.1": 1,
+     "MIT": 9,
+     "(none)": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 104
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.8.3",
+    "node_modules/@offchainlabs/upgrade-executor": "1.1.0-beta.0",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.8.3",
+    "node_modules/@arbitrum/nitro-contracts": "1.1.1"
+   },
+   "copied": true,
+   "files": 868,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "OffchainLabs__token-bridge-contracts",
+   "subtrees": [
+    {
+     "prefix": "OffchainLabs__token-bridge-contracts",
+     "url": "https://github.com/OffchainLabs/token-bridge-contracts",
+     "commit": "0746a71321cdb2d6df6b15158c7ecbb9ece84b12",
+     "files": 110
+    },
+    {
+     "prefix": "OffchainLabs__token-bridge-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6",
+     "files": 39
+    },
+    {
+     "prefix": "OffchainLabs__token-bridge-contracts/lib/nitro-contracts",
+     "url": "https://github.com/OffchainLabs/nitro-contracts",
+     "commit": "0770fe07d99c499bebfaf3b7df37047d19032050",
+     "files": 149
+    },
+    {
+     "prefix": "OffchainLabs__token-bridge-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
+     "files": 6
+    },
+    {
+     "prefix": "OffchainLabs__token-bridge-contracts/lib/nitro-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e",
+     "files": 40
+    },
+    {
+     "prefix": "OffchainLabs__token-bridge-contracts/lib/nitro-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/OffchainLabs/nitro-contracts",
+   "ref": "main",
+   "scope_paths": [
+    "src/state/Machine.sol",
+    "src/state/Value.sol",
+    "src/bridge/Bridge.sol",
+    "src/bridge/Inbox.sol",
+    "src/bridge/Messages.sol",
+    "src/bridge/Outbox.sol",
+    "src/bridge/SequencerInbox.sol",
+    "src/bridge/IBridge.sol",
+    "src/bridge/IInbox.sol",
+    "src/bridge/IOutbox.sol",
+    "src/bridge/ISequencerInbox.sol",
+    "src/libraries/MerkleLib.sol",
+    "src/rollup/BridgeCreator.sol",
+    "src/rollup/IRollupCore.sol",
+    "src/rollup/Node.sol",
+    "src/rollup/RollupCore.sol",
+    "src/rollup/RollupCreator.sol",
+    "src/rollup/RollupLib.sol",
+    "src/rollup/ValidatorUtils.sol",
+    "src/rollup/ValidatorWalletCreator.sol",
+    "src/precompiles/ArbAddressTable.sol",
+    "src/precompiles/ArbSys.sol",
+    "src/precompiles/ArbAggregator.sol",
+    "src/precompiles/ArbDebug.sol",
+    "src/precompiles/ArbBLS.sol",
+    "src/precompiles/ArbFunctionTable.sol",
+    "src/precompiles/ArbGasInfo.sol",
+    "src/precompiles/ArbInfo.sol",
+    "src/precompiles/ArbOwner.sol",
+    "src/precompiles/ArbOwnerPublic.sol",
+    "src/precompiles/ArbRetryableTx.sol",
+    "src/precompiles/ArbStatistics.sol",
+    "src/precompiles/ArbosActs.sol",
+    "src/precompiles/ArbosTest.sol",
+    "src/bridge/IDelayedMessageProvider.sol",
+    "src/libraries/AddressAliasHelper.sol",
+    "src/libraries/AdminFallbackProxy.sol",
+    "src/libraries/Constants.sol",
+    "src/libraries/CryptographyPrimitives.sol",
+    "src/libraries/DelegateCallAware.sol",
+    "src/libraries/DoubleLogicUUPSUpgradeable.sol",
+    "src/libraries/Error.sol",
+    "src/libraries/IGasRefunder.sol",
+    "src/libraries/UUPSNotUpgradeable.sol",
+    "src/node-interface/NodeInterface.sol",
+    "src/node-interface/NodeInterfaceDebug.sol",
+    "src/osp/HashProofHelper.sol",
+    "src/osp/IOneStepProofEntry.sol",
+    "src/osp/IOneStepProver.sol",
+    "src/osp/OneStepProofEntry.sol",
+    "src/osp/OneStepProver0.sol",
+    "src/osp/OneStepProverHostIo.sol",
+    "src/osp/OneStepProverMath.sol",
+    "src/osp/OneStepProverMemory.sol",
+    "src/rollup/IRollupEventInbox.sol",
+    "src/rollup/IRollupLogic.sol",
+    "src/rollup/RollupAdminLogic.sol",
+    "src/rollup/RollupProxy.sol",
+    "src/rollup/RollupUserLogic.sol",
+    "src/state/Deserialize.sol",
+    "src/state/GlobalState.sol",
+    "src/state/Instructions.sol",
+    "src/state/Module.sol",
+    "src/state/ModuleMemory.sol",
+    "src/state/PcArray.sol",
+    "src/state/StackFrame.sol",
+    "src/state/ValueArray.sol",
+    "src/state/ValueStack.sol",
+    "src/challengeV2/EdgeChallengeManager.sol",
+    "src/challengeV2/IAssertionChain.sol",
+    "src/challengeV2/IEdgeChallengeManager.sol",
+    "src/challengeV2/libraries/ArrayUtilsLib.sol",
+    "src/challengeV2/libraries/ChallengeEdgeLib.sol",
+    "src/challengeV2/libraries/ChallengeErrors.sol",
+    "src/challengeV2/libraries/EdgeChallengeManagerLib.sol",
+    "src/challengeV2/libraries/Enums.sol",
+    "src/challengeV2/libraries/MerkleTreeAccumulatorLib.sol",
+    "src/challengeV2/libraries/Structs.sol",
+    "src/challengeV2/libraries/UintUtilsLib.sol",
+    "src/assertionStakingPool/AbsBoldStakingPool.sol",
+    "src/assertionStakingPool/AssertionStakingPool.sol",
+    "src/assertionStakingPool/AssertionStakingPoolCreator.sol",
+    "src/assertionStakingPool/EdgeStakingPool.sol",
+    "src/assertionStakingPool/EdgeStakingPoolCreator.sol",
+    "src/assertionStakingPool/StakingPoolCreatorUtils.sol",
+    "src/assertionStakingPool/interfaces/IAbsBoldStakingPool.sol",
+    "src/assertionStakingPool/interfaces/IAssertionStakingPool.sol",
+    "src/assertionStakingPool/interfaces/IAssertionStakingPoolCreator.sol",
+    "src/assertionStakingPool/interfaces/IEdgeStakingPool.sol",
+    "src/assertionStakingPool/interfaces/IEdgeStakingPoolCreator.sol",
+    "src/bridge/DelayBuffer.sol",
+    "src/bridge/DelayBufferTypes.sol",
+    "src/libraries/CallerChecker.sol",
+    "src/rollup/Assertion.sol",
+    "src/rollup/AssertionState.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "67487333202561b74492d07de62a4f56be28560e",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "src/precompiles",
+     "url": "https://github.com/OffchainLabs/nitro-precompile-interfaces.git",
+     "commit": "f49a4889b486fd804a7901203f5f663cfd1581c8"
+    }
+   ],
+   "license": {
+    "file": "LICENSE.md",
+    "spdx": "BUSL-1.1",
+    "package_json": "BUSL-1.1",
+    "headers": {
+     "MIT": 11,
+     "BUSL-1.1": 148,
+     "(none)": 2,
+     "Apache-2.0": 3,
+     "UNLICENSED": 27
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 190,
+    ".yul": 1
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.7.3",
+    "node_modules/@openzeppelin/contracts": "4.7.3",
+    "node_modules/@offchainlabs/upgrade-executor": "1.1.0-beta.0",
+    "node_modules/solady": "0.0.182",
+    "node_modules/@uniswap/v2-core": "1.0.1"
+   },
+   "copied": true,
+   "files": 678,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "OffchainLabs__nitro-contracts",
+   "subtrees": [
+    {
+     "prefix": "OffchainLabs__nitro-contracts",
+     "url": "https://github.com/OffchainLabs/nitro-contracts",
+     "commit": "67487333202561b74492d07de62a4f56be28560e",
+     "files": 196
+    },
+    {
+     "prefix": "OffchainLabs__nitro-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e",
+     "files": 40
+    },
+    {
+     "prefix": "OffchainLabs__nitro-contracts/src/precompiles",
+     "url": "https://github.com/OffchainLabs/nitro-precompile-interfaces",
+     "commit": "f49a4889b486fd804a7901203f5f663cfd1581c8",
+     "files": 20
+    },
+    {
+     "prefix": "OffchainLabs__nitro-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/ArbitrumFoundation/governance",
+   "ref": "main",
+   "scope_paths": [
+    "src/ArbitrumDAOConstitution.sol",
+    "src/ArbitrumTimelock.sol",
+    "src/ArbitrumVestingWallet.sol",
+    "src/FixedDelegateErc20Wallet.sol",
+    "src/L1ArbitrumMessenger.sol",
+    "src/L1ArbitrumTimelock.sol",
+    "src/L1ArbitrumToken.sol",
+    "src/L1GovernanceFactory.sol",
+    "src/L2ArbitrumGovernor.sol",
+    "src/L2ArbitrumToken.sol",
+    "src/L2GovernanceFactory.sol",
+    "src/TokenDistributor.sol",
+    "src/TransferAndCallToken.sol",
+    "src/UpgradeExecutor.sol",
+    "src/Util.sol",
+    "src/ArbitrumFoundationVestingWallet.sol",
+    "src/security-council-mgmt/SecurityCouncilManager.sol",
+    "src/security-council-mgmt/SecurityCouncilMemberSyncAction.sol",
+    "src/security-council-mgmt/SecurityCouncilMgmtUtils.sol",
+    "src/security-council-mgmt/factories/L2SecurityCouncilMgmtFactory.sol",
+    "src/security-council-mgmt/governors/SecurityCouncilMemberElectionGovernor.sol",
+    "src/security-council-mgmt/governors/SecurityCouncilMemberRemovalGovernor.sol",
+    "src/security-council-mgmt/governors/SecurityCouncilNomineeElectionGovernor.sol",
+    "src/security-council-mgmt/governors/modules/ArbitrumGovernorProposalExpirationUpgradeable.sol",
+    "src/security-council-mgmt/governors/modules/ArbitrumGovernorVotesQuorumFractionUpgradeable.sol",
+    "src/security-council-mgmt/governors/modules/ElectionGovernor.sol",
+    "src/security-council-mgmt/governors/modules/SecurityCouncilMemberElectionGovernorCountingUpgradeable.sol",
+    "src/security-council-mgmt/governors/modules/SecurityCouncilNomineeElectionGovernorCountingUpgradeable.sol",
+    "src/security-council-mgmt/governors/modules/SecurityCouncilNomineeElectionGovernorTiming.sol",
+    "src/UpgradeExecRouteBuilder.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "4c2d1b9a7affd85a44ca95c8aa8b90b7621320d6",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "token-bridge-contracts",
+     "url": "https://github.com/OffchainLabs/token-bridge-contracts.git",
+     "commit": "7c90b43fee0072a3515147822faf5b20fbcf134b"
+    },
+    {
+     "path": "token-bridge-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6"
+    },
+    {
+     "path": "token-bridge-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "token-bridge-contracts/lib/nitro-contracts",
+     "url": "https://github.com/OffchainLabs/nitro-contracts.git",
+     "commit": "0770fe07d99c499bebfaf3b7df37047d19032050"
+    },
+    {
+     "path": "token-bridge-contracts/lib/nitro-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
+    },
+    {
+     "path": "token-bridge-contracts/lib/nitro-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/solady",
+     "url": "https://github.com/Vectorized/solady",
+     "commit": "7175c21f95255dc7711ce84cc32080a41864abd6"
+    },
+    {
+     "path": "lib/solady/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "Apache-2.0",
+    "package_json": "Apache 2.0",
+    "headers": {
+     "Apache-2.0": 194,
+     "MIT": 1,
+     "(none)": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 197
+   },
+   "npm": {
+    "node_modules/@arbitrum/nitro-contracts": "3.1.1",
+    "node_modules/@openzeppelin/contracts": "4.7.3",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.7.3",
+    "node_modules/@offchainlabs/upgrade-executor": "1.1.1",
+    "node_modules/@arbitrum/token-bridge-contracts": "1.2.5",
+    "node_modules/@gnosis.pm/safe-contracts": "1.3.0",
+    "node_modules/solady": "0.0.182",
+    "node_modules/@gnosis.pm/mock-contract": "4.0.0"
+   },
+   "copied": true,
+   "files": 1430,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "ArbitrumFoundation__governance",
+   "subtrees": [
+    {
+     "prefix": "ArbitrumFoundation__governance",
+     "url": "https://github.com/ArbitrumFoundation/governance",
+     "commit": "4c2d1b9a7affd85a44ca95c8aa8b90b7621320d6",
+     "files": 204
+    },
+    {
+     "prefix": "ArbitrumFoundation__governance/token-bridge-contracts",
+     "url": "https://github.com/OffchainLabs/token-bridge-contracts",
+     "commit": "7c90b43fee0072a3515147822faf5b20fbcf134b",
+     "files": 110
+    },
+    {
+     "prefix": "ArbitrumFoundation__governance/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e",
+     "files": 40
+    },
+    {
+     "prefix": "ArbitrumFoundation__governance/lib/solady",
+     "url": "https://github.com/Vectorized/solady",
+     "commit": "7175c21f95255dc7711ce84cc32080a41864abd6",
+     "files": 127
+    },
+    {
+     "prefix": "ArbitrumFoundation__governance/token-bridge-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6",
+     "files": 39
+    },
+    {
+     "prefix": "ArbitrumFoundation__governance/token-bridge-contracts/lib/nitro-contracts",
+     "url": "https://github.com/OffchainLabs/nitro-contracts",
+     "commit": "0770fe07d99c499bebfaf3b7df37047d19032050",
+     "files": 149
+    },
+    {
+     "prefix": "ArbitrumFoundation__governance/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    },
+    {
+     "prefix": "ArbitrumFoundation__governance/lib/solady/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5",
+     "files": 4
+    },
+    {
+     "prefix": "ArbitrumFoundation__governance/token-bridge-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
+     "files": 6
+    },
+    {
+     "prefix": "ArbitrumFoundation__governance/token-bridge-contracts/lib/nitro-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e",
+     "files": 40
+    },
+    {
+     "prefix": "ArbitrumFoundation__governance/token-bridge-contracts/lib/nitro-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/OffchainLabs/fund-distribution-contracts",
+   "ref": "main",
+   "scope_paths": [
+    "src/RewardDistributor.sol",
+    "src/Util.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "9d5714b6dffb52cc3c9981aa7e74c2a91f213348",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "07263d193d621c4b2b0ce8b4d54af58f6957d97d"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": "MIT",
+    "headers": {
+     "MIT": 32
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 32
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.7.3",
+    "node_modules/@arbitrum/nitro-contracts": "1.3.0",
+    "node_modules/@offchainlabs/upgrade-executor": "1.1.0-beta.0",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.5.2"
+   },
+   "copied": true,
+   "files": 523,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "OffchainLabs__fund-distribution-contracts",
+   "subtrees": [
+    {
+     "prefix": "OffchainLabs__fund-distribution-contracts",
+     "url": "https://github.com/OffchainLabs/fund-distribution-contracts",
+     "commit": "9d5714b6dffb52cc3c9981aa7e74c2a91f213348",
+     "files": 37
+    },
+    {
+     "prefix": "OffchainLabs__fund-distribution-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "07263d193d621c4b2b0ce8b4d54af58f6957d97d",
+     "files": 47
+    }
+   ]
+  }
+ ]
+}

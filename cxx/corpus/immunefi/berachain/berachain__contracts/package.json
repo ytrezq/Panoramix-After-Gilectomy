@@ -1,0 +1,51 @@
+{
+  "name": "@berachain/pol-contracts",
+  "description": "",
+  "version": "1.0.0",
+  "author": {
+    "name": "berachain",
+    "url": "https://github.com/berachain"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "5.1.0",
+    "@openzeppelin/contracts-upgradeable": "5.1.0",
+    "@prb/math": "^4.0.3",
+    "@pythnetwork/pyth-sdk-solidity": "^3.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.2",
+    "prettier": "3.7.3",
+    "solhint": "^5.0.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5",
+    "viem": "^2.13.6"
+  },
+  "keywords": [
+    "blockchain",
+    "ethereum",
+    "forge",
+    "foundry",
+    "smart-contracts",
+    "solidity",
+    "template"
+  ],
+  "private": true,
+  "scripts": {
+    "clean": "forge clean",
+    "build": "forge build",
+    "build-extra-output": "forge build --extra-output-files bin --extra-output-files abi",
+    "lint": "bun run fmt:sol && bun run prettier:check",
+    "lint:fix": "bun run prettier:write && forge fmt",
+    "fmt:sol": "forge fmt --check",
+    "lint:sol": "bun solhint {script,src,test}/**/*.sol",
+    "prettier:check": "prettier --check **/*.{json,md,yml} --ignore-path=.prettierignore",
+    "prettier:write": "prettier --write **/*.{json,md,yml} --ignore-path=.prettierignore",
+    "slither": "docker run -t --platform linux/amd64 -v ./:/contracts trailofbits/eth-security-toolbox /bin/bash -c 'cd /contracts && slither .'",
+    "snapshot": "forge snapshot --isolate",
+    "snapshot:diff": "forge snapshot --diff --isolate",
+    "solstat": "RUST_BACKTRACE=full solstat -p ./src",
+    "test": "forge test",
+    "test:coverage": "forge coverage",
+    "test:coverage:report": "forge coverage --report lcov && genhtml lcov.info --branch-coverage --output-dir coverage"
+  }
+}

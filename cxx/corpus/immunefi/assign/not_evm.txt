@@ -1,0 +1,14 @@
+raydium	Solana
+orca	Solana
+sbtc	Bitcoin,Stacks
+stacks	Bitcoin,Stacks
+marinade	Solana
+hydration	Polkadot
+pythnetwork	Solana
+gmtrade	Solana
+onre	Solana
+folksfinance	Algorand
+obyte	Obyte
+hibachi	Celestia
+leather	Bitcoin,Stacks
+acala	Polkadot

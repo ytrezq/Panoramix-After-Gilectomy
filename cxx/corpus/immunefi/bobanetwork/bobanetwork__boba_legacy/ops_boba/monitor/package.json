@@ -1,0 +1,30 @@
+{
+  "name": "@bobanetwork/monitor",
+  "version": "1.0.0",
+  "description": "boba monitor",
+  "main": "index.js",
+  "scripts": {
+    "start": "node ./exec/run-monitor.js",
+    "test": "hardhat test --show-stack-traces",
+    "test:coverage": "hardhat test --show-stack-traces"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@bobanetwork/contracts": "0.0.2",
+    "@bobanetwork/register": "0.0.2",
+    "@eth-optimism/common-ts": "0.2.2",
+    "@bobanetwork/core_contracts": "^0.5.13",
+    "@eth-optimism/core-utils": "0.8.1",
+    "@bobanetwork/sdk": "1.0.7",
+    "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "chai": "^4.3.4",
+    "dotenv": "^9.0.0",
+    "ethereum-waffle": "^3.3.0",
+    "ethers": "^5.5.4",
+    "hardhat": "^2.12.5",
+    "lodash": "4.17.21",
+    "mysql": "^2.18.1",
+    "node-fetch": "2.6.0"
+  }
+}

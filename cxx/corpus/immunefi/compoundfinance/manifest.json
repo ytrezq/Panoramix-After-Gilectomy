@@ -1,0 +1,120 @@
+{
+ "program": "compoundfinance",
+ "repos": [
+  {
+   "repo": "https://github.com/compound-finance/compound-protocol",
+   "ref": null,
+   "scope_paths": [
+    "contracts"
+   ],
+   "fetched": "2026-11-07",
+   "note": "Compound v2 (cTokens, Comptroller, GovernorBravo)",
+   "commit": "a3214f67b73310d547e00fc578e8355911c9d376",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BSD",
+    "package_json": "UNLICENSED",
+    "headers": {
+     "(none)": 24,
+     "BSD-3-Clause": 60
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 84
+   },
+   "npm": {},
+   "copied": true,
+   "files": 92,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "compound-finance__compound-protocol",
+   "subtrees": [
+    {
+     "prefix": "compound-finance__compound-protocol",
+     "url": "https://github.com/compound-finance/compound-protocol",
+     "commit": "a3214f67b73310d547e00fc578e8355911c9d376",
+     "files": 89
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/compound-finance/comet",
+   "ref": null,
+   "scope_paths": [
+    "contracts"
+   ],
+   "fetched": "2026-11-07",
+   "note": "Compound III (Comet, Configurator, Rewards, Bulker, bridge receivers) on the scope addresses",
+   "commit": "f766f51583c23acc33b2a7824654ef2029a96804",
+   "submodules": [
+    {
+     "path": "forge/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
+    },
+    {
+     "path": "contracts/capo",
+     "url": "https://github.com/woof-software/compound-capo.git",
+     "commit": "3020ec85ccddde176a7b379e162e6c0d50239d42"
+    },
+    {
+     "path": "contracts/capo/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": "UNLICENSED",
+    "headers": {
+     "UNLICENSED": 3,
+     "(none)": 11,
+     "MIT": 33,
+     "BUSL-1.1": 82,
+     "GPL-2.0-or-later": 18,
+     "Apache-2.0": 1,
+     "BSD-3-Clause": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 149
+   },
+   "npm": {},
+   "copied": true,
+   "files": 293,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "compound-finance__comet",
+   "subtrees": [
+    {
+     "prefix": "compound-finance__comet",
+     "url": "https://github.com/compound-finance/comet",
+     "commit": "f766f51583c23acc33b2a7824654ef2029a96804",
+     "files": 156
+    },
+    {
+     "prefix": "compound-finance__comet/contracts/capo",
+     "url": "https://github.com/woof-software/compound-capo",
+     "commit": "3020ec85ccddde176a7b379e162e6c0d50239d42",
+     "files": 30
+    },
+    {
+     "prefix": "compound-finance__comet/forge/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505",
+     "files": 49
+    },
+    {
+     "prefix": "compound-finance__comet/contracts/capo/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505",
+     "files": 49
+    }
+   ]
+  }
+ ]
+}

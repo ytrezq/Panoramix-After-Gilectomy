@@ -1,0 +1,241 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.4;
+
+import {IRouterClient} from "../interfaces/IRouterClient.sol";
+
+import {Client} from "../libraries/Client.sol";
+import {CCIPReceiver} from "./CCIPReceiver.sol";
+import {Ownable2StepMsgSender} from "@chainlink/contracts/src/v0.8/shared/access/Ownable2StepMsgSender.sol";
+
+import {IERC20} from "@openzeppelin/contracts@5.3.0/token/ERC20/IERC20.sol";
+import {EnumerableSet} from "@openzeppelin/contracts@5.3.0/utils/structs/EnumerableSet.sol";
+
+// @notice Example of a client which supports EVM/non-EVM chains.
+// @dev If chain specific logic is required for different chain families (e.g. particular
+// decoding the bytes sender for authorization checks), it may be required to point to a helper
+// authorization contract unless all chain families are known up front.
+// @dev If contract does not implement IAny2EVMMessageReceiver and IERC165,
+// and tokens are sent to it, ccipReceive will not be called but tokens will be transferred.
+// @dev If the client is upgradeable you have significantly more flexibility and
+// can avoid storage based options like the below contract uses. However it's
+// worth carefully considering how the trust assumptions of your client dapp will
+// change if you introduce upgradability. An immutable dapp building on top of CCIP
+// like the example below will inherit the trust properties of CCIP (i.e. the oracle network).
+// @dev The receiver's are encoded offchain and passed as direct arguments to permit supporting
+// new chain family receivers (e.g. a Solana encoded receiver address) without upgrading.
+contract CCIPClientExample is CCIPReceiver, Ownable2StepMsgSender {
+  using EnumerableSet for EnumerableSet.UintSet;
+
+  error InvalidChain(uint64 chainSelector);
+
+  event MessageSent(bytes32 messageId);
+  event MessageReceived(bytes32 messageId);
+
+  /// @notice Per-remote-chain configuration: outbound extra args and the finality the receiver
+  /// will accept for inbound messages arriving from that chain.
+  /// @dev allowedFinalityConfig follows FinalityCodec encoding: FinalityCodec.WAIT_FOR_FINALITY_FLAG = require full finality
+  /// (safest, default), any non-zero value permits faster-than-finality messages. Only configure
+  /// a non-zero value when using a trusted sender that manages re-org risk on the source side.
+  struct RemoteChainConfig {
+    bytes extraArgs;
+    bytes4 allowedFinalityConfig;
+  }
+
+  // Current feeToken
+  IERC20 internal s_feeToken;
+  // Below is a simplistic example (same params for all messages) of using storage to allow for new options without
+  // upgrading the dapp. To construct a basic entry, use
+  // ExtraArgsCodec._getBasicEncodedExtraArgsV3(uint32 gasLimit, uint16 blockDepth);
+  // This will return a simple one-storage-slot sized ExtraArgsV3 encoding with the provided args. For more advanced
+  // cases use the GenericExtraArgsV3 struct and encode using ExtraArgsCodec._encodeGenericExtraArgsV3.
+  mapping(uint64 remoteChainSelector => RemoteChainConfig) internal s_chains;
+
+  // Tracks all configured remote chain selectors so they can be enumerated on-chain.
+  EnumerableSet.UintSet private s_remoteChainSelectors;
+
+  constructor(
+    IRouterClient router,
+    IERC20 feeToken
+  ) CCIPReceiver(address(router)) {
+    s_feeToken = feeToken;
+    s_feeToken.approve(address(router), type(uint256).max);
+  }
+
+  /// @notice Configure (or reconfigure) a remote chain.
+  /// @param remoteChainSelector The chain selector of the remote chain.
+  /// @param extraArgs Encoded extra args to use when sending messages to this chain.
+  /// @param allowedFinalityConfig FinalityCodec-encoded finality policy accepted for inbound
+  /// messages from this chain.
+  function enableChain(
+    uint64 remoteChainSelector,
+    bytes memory extraArgs,
+    bytes4 allowedFinalityConfig
+  ) external onlyOwner {
+    s_chains[remoteChainSelector] =
+      RemoteChainConfig({extraArgs: extraArgs, allowedFinalityConfig: allowedFinalityConfig});
+    s_remoteChainSelectors.add(uint256(remoteChainSelector));
+  }
+
+  function disableChain(
+    uint64 remoteChainSelector
+  ) external onlyOwner {
+    delete s_chains[remoteChainSelector];
+    s_remoteChainSelectors.remove(uint256(remoteChainSelector));
+  }
+
+  /// @notice Returns all remote chain selectors that have been configured via enableChain.
+  function getRemoteChainSelectors() external view returns (uint64[] memory) {
+    uint256[] memory values = s_remoteChainSelectors.values();
+    uint64[] memory result = new uint64[](values.length);
+    for (uint256 i = 0; i < values.length; ++i) {
+      result[i] = uint64(values[i]);
+    }
+    return result;
+  }
+
+  /// @notice Returns the remote chain config for a given chain selector.
+  function getRemoteChainConfig(
+    uint64 remoteChainSelector
+  ) external view returns (RemoteChainConfig memory) {
+    return s_chains[remoteChainSelector];
+  }
+
+  /// @notice Returns the fee token used for paying CCIP fees.
+  function getFeeToken() external view returns (IERC20) {
+    return s_feeToken;
+  }
+
+  function ccipReceive(
+    Client.Any2EVMMessage calldata message
+  ) external virtual override onlyRouter validChain(message.sourceChainSelector) {
+    // Extremely important to ensure only router calls this.
+    // Tokens in message if any will be transferred to this contract.
+    // TODO: Validate sender/origin chain and process message and/or tokens.
+    _ccipReceive(message);
+  }
+
+  function _ccipReceive(
+    Client.Any2EVMMessage memory message
+  ) internal override {
+    emit MessageReceived(message.messageId);
+  }
+
+  /// @notice Return the default CCVs and allowed finality config for a remote chain.
+  function getCCVsAndFinalityConfig(
+    uint64 remoteChainSelector,
+    bytes calldata
+  )
+    external
+    view
+    virtual
+    override
+    returns (
+      address[] memory requiredCCVs,
+      address[] memory optionalCCVs,
+      uint8 optionalThreshold,
+      bytes4 allowedFinalityConfig
+    )
+  {
+    return (new address[](0), new address[](0), 0, s_chains[remoteChainSelector].allowedFinalityConfig);
+  }
+
+  /// @notice sends data to receiver on dest chain. Assumes address(this) has sufficient native asset.
+  function sendDataPayNative(
+    uint64 remoteChainSelector,
+    bytes memory receiver,
+    bytes memory data
+  ) external validChain(remoteChainSelector) {
+    Client.EVMTokenAmount[] memory tokenAmounts = new Client.EVMTokenAmount[](0);
+    Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
+      receiver: receiver,
+      data: data,
+      tokenAmounts: tokenAmounts,
+      extraArgs: s_chains[remoteChainSelector].extraArgs,
+      feeToken: address(0) // We leave the feeToken empty indicating we'll pay raw native.
+    });
+    bytes32 messageId = IRouterClient(i_ccipRouter)
+    .ccipSend{value: IRouterClient(i_ccipRouter).getFee(remoteChainSelector, message)}(
+      remoteChainSelector, message
+    );
+    emit MessageSent(messageId);
+  }
+
+  /// @notice sends data to receiver on dest chain. Assumes address(this) has sufficient feeToken.
+  function sendDataPayFeeToken(
+    uint64 remoteChainSelector,
+    bytes memory receiver,
+    bytes memory data
+  ) external validChain(remoteChainSelector) {
+    Client.EVMTokenAmount[] memory tokenAmounts = new Client.EVMTokenAmount[](0);
+    Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
+      receiver: receiver,
+      data: data,
+      tokenAmounts: tokenAmounts,
+      extraArgs: s_chains[remoteChainSelector].extraArgs,
+      feeToken: address(s_feeToken)
+    });
+    // Optional uint256 fee = i_ccipRouter.getFee(remoteChainSelector, message);
+    // Can decide if fee is acceptable.
+    // address(this) must have sufficient feeToken or the send will revert.
+    bytes32 messageId = IRouterClient(i_ccipRouter).ccipSend(remoteChainSelector, message);
+    emit MessageSent(messageId);
+  }
+
+  /// @notice sends data to receiver on dest chain. Assumes address(this) has sufficient native token.
+  function sendDataAndTokens(
+    uint64 remoteChainSelector,
+    bytes memory receiver,
+    bytes memory data,
+    Client.EVMTokenAmount[] memory tokenAmounts
+  ) external validChain(remoteChainSelector) {
+    for (uint256 i = 0; i < tokenAmounts.length; ++i) {
+      IERC20(tokenAmounts[i].token).transferFrom(msg.sender, address(this), tokenAmounts[i].amount);
+      IERC20(tokenAmounts[i].token).approve(i_ccipRouter, tokenAmounts[i].amount);
+    }
+    Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
+      receiver: receiver,
+      data: data,
+      tokenAmounts: tokenAmounts,
+      extraArgs: s_chains[remoteChainSelector].extraArgs,
+      feeToken: address(s_feeToken)
+    });
+    // Optional uint256 fee = i_ccipRouter.getFee(remoteChainSelector, message);
+    // Can decide if fee is acceptable.
+    // address(this) must have sufficient feeToken or the send will revert.
+    bytes32 messageId = IRouterClient(i_ccipRouter).ccipSend(remoteChainSelector, message);
+    emit MessageSent(messageId);
+  }
+
+  /// @notice user sends tokens to a receiver.
+  /// Approvals can be optimized with a whitelist of tokens and inf approvals if desired.
+  function sendTokens(
+    uint64 remoteChainSelector,
+    bytes memory receiver,
+    Client.EVMTokenAmount[] memory tokenAmounts
+  ) external validChain(remoteChainSelector) {
+    for (uint256 i = 0; i < tokenAmounts.length; ++i) {
+      IERC20(tokenAmounts[i].token).transferFrom(msg.sender, address(this), tokenAmounts[i].amount);
+      IERC20(tokenAmounts[i].token).approve(i_ccipRouter, tokenAmounts[i].amount);
+    }
+    bytes memory data;
+    Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
+      receiver: receiver,
+      data: data,
+      tokenAmounts: tokenAmounts,
+      extraArgs: s_chains[remoteChainSelector].extraArgs,
+      feeToken: address(s_feeToken)
+    });
+    // Optional uint256 fee = i_ccipRouter.getFee(remoteChainSelector, message);
+    // Can decide if fee is acceptable.
+    // address(this) must have sufficient feeToken or the send will revert.
+    bytes32 messageId = IRouterClient(i_ccipRouter).ccipSend(remoteChainSelector, message);
+    emit MessageSent(messageId);
+  }
+
+  modifier validChain(
+    uint64 chainSelector
+  ) {
+    if (s_chains[chainSelector].extraArgs.length == 0) revert InvalidChain(chainSelector);
+    _;
+  }
+}

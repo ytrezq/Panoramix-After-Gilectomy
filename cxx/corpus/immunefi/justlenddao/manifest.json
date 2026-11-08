@@ -1,0 +1,43 @@
+{
+ "program": "justlenddao",
+ "repos": [
+  {
+   "repo": "https://github.com/justlend/justlend-protocol",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "found via web search: JustLend (Compound fork on TRON)",
+   "commit": "f28f3b462a4f281761e23423554563e15fc9f028",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": "ISC",
+    "headers": {
+     "(none)": 52
+    },
+    "headers_main": {
+     "(none)": 52
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 52
+   },
+   "npm": {},
+   "copied": true,
+   "files": 55,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "justlend__justlend-protocol",
+   "subtrees": [
+    {
+     "prefix": "justlend__justlend-protocol",
+     "url": "https://github.com/justlend/justlend-protocol",
+     "commit": "f28f3b462a4f281761e23423554563e15fc9f028",
+     "files": 53
+    }
+   ]
+  }
+ ]
+}

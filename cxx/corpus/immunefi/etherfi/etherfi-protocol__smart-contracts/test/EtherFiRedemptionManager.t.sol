@@ -1,0 +1,2129 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.13;
+
+import "forge-std/console2.sol";
+import "@tests/TestSetup.sol";
+import "@etherfi/governance/rate-limiting/libraries/BucketLimiter.sol";
+import "@etherfi/governance/utils/PausableUntil.sol";
+
+contract EtherFiRedemptionManagerTest is TestSetup {
+
+    address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
+    address user = vm.addr(999);
+    address op_admin = vm.addr(1000);
+
+
+    function setUp() public {
+        setUpTests();
+    }
+
+    function setUp_Fork() public {
+        setUpTests();
+        initializeRealisticFork(MAINNET_FORK);
+        vm.startPrank(roleRegistryInstance.owner());
+        // ETHERFI_REDEMPTION_MANAGER_ADMIN_ROLE consolidated into OPERATION_TIMELOCK_ROLE
+        roleRegistryInstance.grantRole(roleRegistryInstance.OPERATION_TIMELOCK_ROLE(), op_admin);
+        vm.stopPrank();
+        uint32 timeBoundCapRefreshInterval = liquifierInstance.timeBoundCapRefreshInterval();
+        vm.warp(block.timestamp + timeBoundCapRefreshInterval + 1);
+
+        // The warp above pushes block.timestamp past the live stETH/ETH feed's
+        // updatedAt by more than Liquifier.stalePriceWindow, so any deposit that
+        // routes through the curve-quoting path (depositWithERC20 of stETH) would
+        // revert with StalePriceFeed(). Pin a fresh, ~1:1 answer so the staleness
+        // and deviation guards pass. Mirrors _mockFreshStEthFeed() in Liquifier.t.sol.
+        _mockFreshStEthFeed();
+    }
+
+    /// On a realistic mainnet fork the live stETH/ETH feed has a ~24h heartbeat and,
+    /// after setUp_Fork's vm.warp, sits past Liquifier.stalePriceWindow. Pin it to a
+    /// fresh, 1:1 answer dated at the current block so stETH deposits don't revert.
+    function _mockFreshStEthFeed() internal {
+        vm.mockCall(
+            stEthChainlinkFeed,
+            abi.encodeWithSignature("latestRoundData()"),
+            abi.encode(uint80(0), int256(1 ether), uint256(0), block.timestamp, uint80(0))
+        );
+    }
+
+    function _redemptionCtorAddrs() internal view returns (IEtherFiRedemptionManager.ConstructorAddresses memory) {
+        return IEtherFiRedemptionManager.ConstructorAddresses({
+            liquidityPool: address(liquidityPoolInstance),
+            eEth: address(eETHInstance),
+            weEth: address(weEthInstance),
+            treasury: address(treasuryInstance),
+            roleRegistry: address(roleRegistryInstance),
+            etherFiRestaker: address(etherFiRestakerInstance),
+            priorityWithdrawalQueue: address(priorityQueueInstance),
+            blacklister: address(blacklisterInstance),
+            stEthPriceFeed: stEthChainlinkFeed
+        });
+    }
+
+    function test_upgrade_only_by_owner() public {
+        setUp_Fork();
+
+        address impl = etherFiRedemptionManagerInstance.getImplementation();
+        vm.prank(chad);
+        vm.expectRevert();
+        etherFiRedemptionManagerInstance.upgradeTo(impl);
+
+        vm.prank(owner);
+        etherFiRedemptionManagerInstance.upgradeTo(impl);
+    }
+
+    function test_rate_limit() public {
+
+
+        vm.deal(user, 100000 ether);
+        vm.prank(user);
+        liquidityPoolInstance.deposit{value: 100000 ether}();
+
+        vm.deal(user, 5 ether);
+        vm.prank(user);
+        liquidityPoolInstance.deposit{value: 5 ether}();
+
+        vm.startPrank(admin);
+        etherFiRedemptionManagerInstance.setCapacity(5 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(5 ether, ETH_ADDRESS);
+        vm.stopPrank();
+        vm.warp(block.timestamp + 1);
+
+        assertEq(etherFiRedemptionManagerInstance.canRedeem(1 ether, ETH_ADDRESS), true);
+        assertEq(etherFiRedemptionManagerInstance.canRedeem(5 ether - 1, ETH_ADDRESS), true);
+        assertEq(etherFiRedemptionManagerInstance.canRedeem(5 ether + 1, ETH_ADDRESS), false);
+        assertEq(etherFiRedemptionManagerInstance.canRedeem(10 ether, ETH_ADDRESS), false);
+        assertEq(etherFiRedemptionManagerInstance.totalRedeemableAmount(ETH_ADDRESS), 5 ether);
+    }
+
+    function test_lowwatermark_guardrail() public {
+        vm.deal(user, 100 ether);
+        
+        assertEq(etherFiRedemptionManagerInstance.lowWatermarkInETH(ETH_ADDRESS), 0 ether);
+
+        vm.prank(user);
+        liquidityPoolInstance.deposit{value: 100 ether}();
+
+
+        vm.startPrank(owner);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(1_00, ETH_ADDRESS); // 1%
+        assertEq(etherFiRedemptionManagerInstance.lowWatermarkInETH(ETH_ADDRESS), 1 ether);
+
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(50_00, ETH_ADDRESS); // 50%
+        assertEq(etherFiRedemptionManagerInstance.lowWatermarkInETH(ETH_ADDRESS), 50 ether);
+
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(100_00, ETH_ADDRESS); // 100%
+        assertEq(etherFiRedemptionManagerInstance.lowWatermarkInETH(ETH_ADDRESS), 100 ether);
+
+        vm.expectRevert(EtherFiRedemptionManager.ExceedsMaxLowWatermark.selector);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(100_01, ETH_ADDRESS); // 100.01%
+    }
+
+    function test_exit_fee_guardrail() public {
+        vm.startPrank(admin);
+
+        uint256 maxExitFee = etherFiRedemptionManagerInstance.maxExitFeeInBps();
+        assertEq(maxExitFee, 100); // configured in TestSetup
+
+        // boundary value is accepted
+        etherFiRedemptionManagerInstance.setExitFeeBasisPoints(uint16(maxExitFee), ETH_ADDRESS);
+        (, , uint16 exitFeeBps, ) = etherFiRedemptionManagerInstance.tokenToRedemptionInfo(ETH_ADDRESS);
+        assertEq(exitFeeBps, uint16(maxExitFee));
+
+        // one above the cap reverts
+        vm.expectRevert(EtherFiRedemptionManager.ExceedsMaxExitFee.selector);
+        etherFiRedemptionManagerInstance.setExitFeeBasisPoints(uint16(maxExitFee + 1), ETH_ADDRESS);
+        vm.stopPrank();
+    }
+
+    function test_exit_fee_split_to_treasury_guardrail() public {
+        vm.startPrank(admin);
+
+        uint256 maxSplit = etherFiRedemptionManagerInstance.maxExitFeeSplitToTreasuryInBps();
+        assertEq(maxSplit, 10_000); // configured in TestSetup
+
+        // boundary value is accepted
+        etherFiRedemptionManagerInstance.setExitFeeSplitToTreasuryInBps(uint16(maxSplit), ETH_ADDRESS);
+        (, uint16 exitSplit, , ) = etherFiRedemptionManagerInstance.tokenToRedemptionInfo(ETH_ADDRESS);
+        assertEq(exitSplit, uint16(maxSplit));
+
+        // one above the cap reverts
+        vm.expectRevert(EtherFiRedemptionManager.ExceedsMaxExitFeeSplit.selector);
+        etherFiRedemptionManagerInstance.setExitFeeSplitToTreasuryInBps(uint16(maxSplit + 1), ETH_ADDRESS);
+        vm.stopPrank();
+    }
+
+    function test_initializeTokenParameters_guardrails() public {
+        uint256 maxExitFee = etherFiRedemptionManagerInstance.maxExitFeeInBps();
+        uint256 maxSplit = etherFiRedemptionManagerInstance.maxExitFeeSplitToTreasuryInBps();
+        uint256 maxLowWatermark = etherFiRedemptionManagerInstance.maxLowWatermarkInBpsOfTvl();
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = ETH_ADDRESS;
+        uint16[] memory exitFeeSplitBps = new uint16[](1);
+        uint16[] memory exitFeeBps = new uint16[](1);
+        uint16[] memory lowWatermarkBps = new uint16[](1);
+        uint256[] memory capacities = new uint256[](1);
+        uint256[] memory refillRates = new uint256[](1);
+        capacities[0] = 5 ether;
+        refillRates[0] = 0.001 ether;
+
+        vm.startPrank(admin);
+
+        // exit fee split above cap reverts
+        exitFeeSplitBps[0] = uint16(maxSplit + 1);
+        exitFeeBps[0] = uint16(maxExitFee);
+        lowWatermarkBps[0] = uint16(maxLowWatermark);
+        vm.expectRevert(EtherFiRedemptionManager.ExceedsMaxExitFeeSplit.selector);
+        etherFiRedemptionManagerInstance.initializeTokenParameters(tokens, exitFeeSplitBps, exitFeeBps, lowWatermarkBps, capacities, refillRates);
+
+        // exit fee above cap reverts
+        exitFeeSplitBps[0] = uint16(maxSplit);
+        exitFeeBps[0] = uint16(maxExitFee + 1);
+        lowWatermarkBps[0] = uint16(maxLowWatermark);
+        vm.expectRevert(EtherFiRedemptionManager.ExceedsMaxExitFee.selector);
+        etherFiRedemptionManagerInstance.initializeTokenParameters(tokens, exitFeeSplitBps, exitFeeBps, lowWatermarkBps, capacities, refillRates);
+
+        // low watermark above cap reverts
+        exitFeeSplitBps[0] = uint16(maxSplit);
+        exitFeeBps[0] = uint16(maxExitFee);
+        lowWatermarkBps[0] = uint16(maxLowWatermark + 1);
+        vm.expectRevert(EtherFiRedemptionManager.ExceedsMaxLowWatermark.selector);
+        etherFiRedemptionManagerInstance.initializeTokenParameters(tokens, exitFeeSplitBps, exitFeeBps, lowWatermarkBps, capacities, refillRates);
+
+        // boundary values are accepted
+        exitFeeSplitBps[0] = uint16(maxSplit);
+        exitFeeBps[0] = uint16(maxExitFee);
+        lowWatermarkBps[0] = uint16(maxLowWatermark);
+        etherFiRedemptionManagerInstance.initializeTokenParameters(tokens, exitFeeSplitBps, exitFeeBps, lowWatermarkBps, capacities, refillRates);
+        (, uint16 storedSplit, uint16 storedFee, uint16 storedLowWM) =
+            etherFiRedemptionManagerInstance.tokenToRedemptionInfo(ETH_ADDRESS);
+        assertEq(storedSplit, uint16(maxSplit));
+        assertEq(storedFee, uint16(maxExitFee));
+        assertEq(storedLowWM, uint16(maxLowWatermark));
+
+        vm.stopPrank();
+    }
+
+    function test_constructor_max_caps_guardrail() public {
+        uint256 oneAboveBasisPoints = 10_001;
+
+        // _maxExitFeeSplitToTreasuryInBps above BASIS_POINT_SCALE reverts
+        vm.expectRevert(EtherFiRedemptionManager.InvalidAmount.selector);
+        new EtherFiRedemptionManager(
+            _redemptionCtorAddrs(),
+            oneAboveBasisPoints,
+            100,
+            10_000,
+            LIQUIFIER_STALE_WINDOW,
+            STETH_MAX_PRICE_THRESHOLD
+        );
+
+        // _maxExitFeeInBps above BASIS_POINT_SCALE reverts
+        vm.expectRevert(EtherFiRedemptionManager.InvalidAmount.selector);
+        new EtherFiRedemptionManager(
+            _redemptionCtorAddrs(),
+            10_000,
+            oneAboveBasisPoints,
+            10_000,
+            LIQUIFIER_STALE_WINDOW,
+            STETH_MAX_PRICE_THRESHOLD
+        );
+
+        // _maxLowWatermarkInBpsOfTvl above BASIS_POINT_SCALE reverts
+        vm.expectRevert(EtherFiRedemptionManager.InvalidAmount.selector);
+        new EtherFiRedemptionManager(
+            _redemptionCtorAddrs(),
+            10_000,
+            100,
+            oneAboveBasisPoints,
+            LIQUIFIER_STALE_WINDOW,
+            STETH_MAX_PRICE_THRESHOLD
+        );
+    }
+
+    function _admin_permission_by_token(address token) public {
+        address dummy = makeAddr("dummy");
+        vm.startPrank(dummy);
+        vm.expectRevert();
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(1_00, token); // 1%
+        vm.expectRevert();
+        etherFiRedemptionManagerInstance.setExitFeeSplitToTreasuryInBps(1_000, token); // 10%
+        vm.expectRevert();
+        etherFiRedemptionManagerInstance.setExitFeeBasisPoints(40, token); // 0.4%
+        vm.expectRevert();
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(1_00, token); // 1%
+        vm.expectRevert();
+        etherFiRedemptionManagerInstance.setCapacity(1_00, token); // 1%
+        vm.expectRevert();
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(1_00, token); // 1%
+        vm.stopPrank();
+    }
+
+    function test_admin_permission_by_token() public {
+        _admin_permission_by_token(ETH_ADDRESS);
+        _admin_permission_by_token(address(etherFiRestakerInstance.lido()));
+    }
+
+    function testFuzz_redeemEEth(uint256 depositAmount,uint256 redeemAmount,uint256 exitFeeSplitBps,uint16 exitFeeBps,uint16 lowWatermarkBps) public {
+        vm.assume(depositAmount >= redeemAmount);
+        depositAmount = bound(depositAmount, 1 ether, 1000 ether);
+        redeemAmount = bound(redeemAmount, 0.1 ether, depositAmount);
+        exitFeeSplitBps = bound(exitFeeSplitBps, 0, 10000);
+        exitFeeBps = uint16(bound(uint256(exitFeeBps), 0, 100));
+        lowWatermarkBps = uint16(bound(uint256(lowWatermarkBps), 0, 10000));
+
+
+        vm.deal(user, depositAmount);
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: depositAmount}();
+        vm.stopPrank();
+
+        // Set exitFeeSplitToTreasuryInBps
+        vm.prank(owner);
+        etherFiRedemptionManagerInstance.setExitFeeSplitToTreasuryInBps(uint16(exitFeeSplitBps), ETH_ADDRESS);
+
+        // Set exitFeeBasisPoints and lowWatermarkInBpsOfTvl
+        vm.prank(owner);
+        etherFiRedemptionManagerInstance.setExitFeeBasisPoints(exitFeeBps, ETH_ADDRESS);
+
+        vm.prank(owner);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(lowWatermarkBps, ETH_ADDRESS);
+
+        vm.startPrank(user);
+        if (etherFiRedemptionManagerInstance.canRedeem(redeemAmount, ETH_ADDRESS)) {
+            uint256 userBalanceBefore = address(user).balance;
+            uint256 treasuryBalanceBefore = eETHInstance.balanceOf(address(treasuryInstance));
+            
+            IeETH.PermitInput memory permit = eEth_createPermitInput(999, address(etherFiRedemptionManagerInstance), redeemAmount, eETHInstance.nonces(user), 2**256 - 1, eETHInstance.DOMAIN_SEPARATOR());
+            etherFiRedemptionManagerInstance.redeemEEthWithPermit(redeemAmount, user, permit, ETH_ADDRESS);
+
+            uint256 totalFee = (redeemAmount * exitFeeBps) / 10000;
+            uint256 treasuryFee = (totalFee * exitFeeSplitBps) / 10000;
+            uint256 userReceives = redeemAmount - totalFee;
+
+            assertApproxEqAbs(
+                eETHInstance.balanceOf(address(treasuryInstance)),
+                treasuryBalanceBefore + treasuryFee,
+                1e2
+            );
+            assertApproxEqAbs(
+                address(user).balance,
+                userBalanceBefore + userReceives,
+                1e2
+            );
+
+        } else {
+            vm.expectRevert();
+            etherFiRedemptionManagerInstance.redeemEEth(redeemAmount, user, ETH_ADDRESS);
+        }
+        vm.stopPrank();
+    }
+
+    function testFuzz_redeemWeEth(uint256 depositAmount,uint256 redeemAmount,uint16 exitFeeSplitBps,int256 rebase,uint16 exitFeeBps,uint16 lowWatermarkBps) public {
+        // Bound the parameters
+        depositAmount = bound(depositAmount, 1 ether, 1000 ether);
+        redeemAmount = bound(redeemAmount, 0.1 ether, depositAmount);
+        exitFeeSplitBps = uint16(bound(exitFeeSplitBps, 0, 10000));
+        exitFeeBps = uint16(bound(exitFeeBps, 0, 100));
+        lowWatermarkBps = uint16(bound(lowWatermarkBps, 0, 10000));
+        rebase = bound(rebase, 0, int128(uint128(depositAmount) / 10));
+
+        // Deal Ether to user and perform deposit
+        vm.deal(user, depositAmount);
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: depositAmount}();
+        vm.stopPrank();
+
+        // Apply rebase
+        _rebaseUncapped(int128(rebase));
+
+        // Set fee and watermark configurations
+        vm.prank(owner);
+        etherFiRedemptionManagerInstance.setExitFeeSplitToTreasuryInBps(uint16(exitFeeSplitBps), ETH_ADDRESS);
+
+        vm.prank(owner);
+        etherFiRedemptionManagerInstance.setExitFeeBasisPoints(exitFeeBps, ETH_ADDRESS);
+
+        vm.prank(owner);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(lowWatermarkBps, ETH_ADDRESS);
+
+        // Convert redeemAmount from ETH to weETH
+        vm.startPrank(user);
+        eETHInstance.approve(address(weEthInstance), redeemAmount);
+        weEthInstance.wrap(redeemAmount);
+        uint256 weEthAmount = weEthInstance.balanceOf(user);
+
+        if (etherFiRedemptionManagerInstance.canRedeem(redeemAmount, ETH_ADDRESS)) {
+            uint256 userBalanceBefore = address(user).balance;
+            uint256 treasuryBalanceBefore = eETHInstance.balanceOf(address(treasuryInstance));
+
+            uint256 eEthAmount = liquidityPoolInstance.amountForShare(weEthAmount);
+
+            IWeETH.PermitInput memory permit = weEth_createPermitInput(999, address(etherFiRedemptionManagerInstance), weEthAmount, weEthInstance.nonces(user), 2**256 - 1, weEthInstance.DOMAIN_SEPARATOR());
+            etherFiRedemptionManagerInstance.redeemWeEthWithPermit(weEthAmount, user, permit, ETH_ADDRESS);
+
+            uint256 totalFee = (eEthAmount * exitFeeBps) / 10000;
+            uint256 treasuryFee = (totalFee * exitFeeSplitBps) / 10000;
+            uint256 userReceives = eEthAmount - totalFee;
+
+            assertApproxEqAbs(
+                eETHInstance.balanceOf(address(treasuryInstance)),
+                treasuryBalanceBefore + treasuryFee,
+                1e3
+            );
+            assertApproxEqAbs(
+                address(user).balance,
+                userBalanceBefore + userReceives,
+                1e3
+            );
+
+        } else {
+            vm.expectRevert();
+            etherFiRedemptionManagerInstance.redeemWeEth(weEthAmount, user, ETH_ADDRESS);
+        }
+        vm.stopPrank();
+    }
+
+    function testFuzz_role_management(address admin, address pauser, address unpauser, address user) public {
+        address owner = roleRegistryInstance.owner();
+        // ETHERFI_REDEMPTION_MANAGER_ADMIN_ROLE → OPERATION_TIMELOCK_ROLE.
+        // PROTOCOL_PAUSER / PROTOCOL_UNPAUSER → OPERATION_MULTISIG_ROLE.
+        bytes32 ADMIN_ROLE = roleRegistryInstance.OPERATION_TIMELOCK_ROLE();
+        bytes32 PAUSER_ROLE = roleRegistryInstance.OPERATION_MULTISIG_ROLE();
+
+        vm.assume(admin != address(0) && admin != owner);
+        vm.assume(pauser != address(0) && pauser != owner && pauser != admin);
+        vm.assume(unpauser != address(0) && unpauser != owner && unpauser != admin && unpauser != pauser);
+        vm.assume(user != address(0) && user != owner && user != admin && user != pauser && user != unpauser);
+
+        // Grant roles to respective addresses
+        vm.prank(owner);
+        roleRegistryInstance.grantRole(ADMIN_ROLE, admin);
+        vm.prank(owner);
+        roleRegistryInstance.grantRole(PAUSER_ROLE, pauser);
+        vm.prank(owner);
+        roleRegistryInstance.grantRole(PAUSER_ROLE, unpauser);
+
+        // Admin performs admin-only actions
+        vm.startPrank(admin);
+        etherFiRedemptionManagerInstance.setCapacity(10 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(0.001 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setExitFeeSplitToTreasuryInBps(1e4, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(1e2, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setExitFeeBasisPoints(1e2, ETH_ADDRESS);
+        vm.stopPrank();
+
+        // Pauser pauses the contract
+        vm.startPrank(pauser);
+        etherFiRedemptionManagerInstance.pause();
+        assertTrue(etherFiRedemptionManagerInstance.paused());
+        vm.stopPrank();
+
+        // Unpauser unpauses the contract
+        vm.startPrank(unpauser);
+        etherFiRedemptionManagerInstance.unpause();
+        assertFalse(etherFiRedemptionManagerInstance.paused());
+        vm.stopPrank();
+
+        // Revoke ADMIN_ROLE from admin
+        vm.prank(owner);
+        roleRegistryInstance.revokeRole(ADMIN_ROLE, admin);
+
+        // Admin attempts admin-only actions after role revocation
+        vm.startPrank(admin);
+        vm.expectRevert(RoleRegistry.OnlyOperatingTimelock.selector);
+        etherFiRedemptionManagerInstance.setCapacity(10 ether, ETH_ADDRESS);
+        vm.stopPrank();
+    }
+
+    function test_mainnet_redeem_eEth() public {
+        setUp_Fork();
+
+        vm.startPrank(op_admin);
+        // Ensure bucket limiter has enough capacity and is fully refilled
+        etherFiRedemptionManagerInstance.setCapacity(3000 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(3000 ether, ETH_ADDRESS);
+        vm.stopPrank();
+        
+        // Warp time forward to ensure bucket is fully refilled
+        vm.warp(block.timestamp + 1);
+
+        vm.deal(alice, 100000 ether);
+        vm.prank(alice);
+        liquidityPoolInstance.deposit{value: 100000 ether}();
+
+        vm.deal(user, 2010 ether);
+        vm.startPrank(user);
+
+        liquidityPoolInstance.deposit{value: 2005 ether}();
+
+        uint256 redeemableAmount = etherFiRedemptionManagerInstance.totalRedeemableAmount(ETH_ADDRESS);
+        uint256 userBalance = address(user).balance;
+        uint256 treasuryBalance = eETHInstance.balanceOf(address(etherFiRedemptionManagerInstance.treasury()));
+
+        // Get actual fee configuration from contract
+        (, uint16 exitFeeSplitToTreasuryBps, uint16 exitFeeBps, ) = 
+            etherFiRedemptionManagerInstance.tokenToRedemptionInfo(ETH_ADDRESS);
+        
+        // Calculate expected values using shares (more accurate)
+        uint256 eEthShares = liquidityPoolInstance.sharesForAmount(2000 ether);
+        uint256 expectedAmountToReceiver = liquidityPoolInstance.amountForShare((eEthShares * (10000 - exitFeeBps)) / 10000);
+        uint256 eEthShareFee = eEthShares - liquidityPoolInstance.sharesForWithdrawalAmount(expectedAmountToReceiver);
+        uint256 expectedTreasuryFee = liquidityPoolInstance.amountForShare((eEthShareFee * exitFeeSplitToTreasuryBps) / 10000);
+
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), 2000 ether);
+        etherFiRedemptionManagerInstance.redeemEEth(2000 ether, user, ETH_ADDRESS);
+
+        // Use more lenient tolerance for treasury fee due to share-based rounding
+        assertApproxEqAbs(eETHInstance.balanceOf(address(etherFiRedemptionManagerInstance.treasury())), treasuryBalance + expectedTreasuryFee, 2e15);
+        assertApproxEqAbs(address(user).balance, userBalance + expectedAmountToReceiver, 1e1);
+
+        // Check redeemable amount after first redemption
+        uint256 redeemableAmountAfter = etherFiRedemptionManagerInstance.totalRedeemableAmount(ETH_ADDRESS);
+        
+        // Try to redeem more than what's available (if user has enough balance)
+        uint256 userBalanceAfter = eETHInstance.balanceOf(user);
+        if (userBalanceAfter > redeemableAmountAfter) {
+            // User has enough balance, so test should fail due to exceeding redeemable amount
+            uint256 amountToRedeem = redeemableAmountAfter + 1 ether;
+            eETHInstance.approve(address(etherFiRedemptionManagerInstance), amountToRedeem);
+            vm.expectRevert(EtherFiRedemptionManager.ExceededRedeemable.selector);
+            etherFiRedemptionManagerInstance.redeemEEth(amountToRedeem, user, ETH_ADDRESS);
+        }
+        // If user doesn't have enough balance, that's fine - the redemption already verified the core functionality
+
+        vm.stopPrank();
+    }
+
+    function test_mainnet_redeem_weEth_for_stETH_with_rebase() public {
+        setUp_Fork();
+
+        vm.deal(alice, 50000 ether);
+        vm.prank(alice);
+        liquidityPoolInstance.deposit{value: 50000 ether}();
+
+        vm.deal(user, 100 ether);
+
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: 10 ether}();
+        eETHInstance.approve(address(weEthInstance), 10 ether);
+        weEthInstance.wrap(1 ether);
+        vm.stopPrank();
+
+        uint256 one_percent_of_tvl = liquidityPoolInstance.getTotalPooledEther() / 100;
+
+        _rebaseUncapped(int128(uint128(one_percent_of_tvl))); // 10 eETH earned 1 ETH
+
+        vm.startPrank(user);
+        uint256 weEthAmount = weEthInstance.balanceOf(user);
+        uint256 eEthAmount = weEthInstance.getEETHByWeETH(weEthAmount);
+        uint256 userBalance = address(user).balance;
+        address treasury = etherFiRedemptionManagerInstance.treasury();
+        uint256 treasuryBalanceBefore = eETHInstance.balanceOf(treasury);
+        weEthInstance.approve(address(etherFiRedemptionManagerInstance), 1 ether);
+        etherFiRedemptionManagerInstance.redeemWeEth(weEthAmount, user, ETH_ADDRESS);
+        
+        // Use exact same calculation flow as _calcRedemption to account for rounding differences
+        (, uint16 exitFeeSplitToTreasuryBps, uint16 exitFeeBps, ) = 
+            etherFiRedemptionManagerInstance.tokenToRedemptionInfo(ETH_ADDRESS);
+        uint256 eEthShares = liquidityPoolInstance.sharesForAmount(eEthAmount);
+        uint256 expectedAmountToReceiver = liquidityPoolInstance.amountForShare(
+            eEthShares * (10000 - exitFeeBps) / 10000
+        );
+        uint256 sharesToBurn = liquidityPoolInstance.sharesForWithdrawalAmount(expectedAmountToReceiver);
+        uint256 eEthShareFee = eEthShares - sharesToBurn;
+        uint256 feeShareToTreasury = eEthShareFee * exitFeeSplitToTreasuryBps / 10000;
+        uint256 expectedTreasuryFee = liquidityPoolInstance.amountForShare(feeShareToTreasury);
+        
+        // Use more lenient tolerance for share-based rounding differences, especially after rebase
+        assertApproxEqAbs(eETHInstance.balanceOf(treasury), treasuryBalanceBefore + expectedTreasuryFee, 2e12);
+        assertApproxEqAbs(address(user).balance, userBalance + expectedAmountToReceiver, 1e3);
+
+        vm.stopPrank();
+    }
+
+    function test_mainnet_redeem_beyond_liquidity_fails() public {
+        setUp_Fork();
+
+        uint256 redeemAmount = liquidityPoolInstance.getTotalPooledEther() / 2;
+        vm.prank(address(liquidityPoolInstance));
+        eETHInstance.mintShares(user, 2 * redeemAmount);
+
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setCapacity(2 * redeemAmount, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(2 * redeemAmount, ETH_ADDRESS);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+
+        vm.startPrank(user);
+
+        uint256 userBalance = address(user).balance;
+        uint256 treasuryBalance = eETHInstance.balanceOf(address(etherFiRedemptionManagerInstance.treasury()));
+
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), redeemAmount);
+        vm.expectRevert(EtherFiRedemptionManager.ExceededRedeemable.selector);
+        etherFiRedemptionManagerInstance.redeemEEth(redeemAmount, user, ETH_ADDRESS);
+
+        vm.stopPrank();
+    }
+
+    function test_mainnet_redeem_eEth_for_stETH() public {
+        setUp_Fork();
+        ILido stEth = ILido(address(etherFiRestakerInstance.lido()));
+        
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, address(etherFiRestakerInstance.lido()));
+        // Ensure bucket limiter has enough capacity and is fully refilled
+        etherFiRedemptionManagerInstance.setCapacity(3000 ether, address(etherFiRestakerInstance.lido()));
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(3000 ether, address(etherFiRestakerInstance.lido()));
+        vm.stopPrank();
+        
+        // Warp time forward to ensure bucket is fully refilled
+        vm.warp(block.timestamp + 1);
+        
+        // Fund EtherFiRestaker with stETH so redemption can work
+        // Deposit stETH through liquifier which will fund EtherFiRestaker
+        address funder = vm.addr(2001);
+        vm.deal(funder, 2100 ether);
+        vm.startPrank(funder);
+        stEth.submit{value: 2100 ether}(address(0));
+        uint256 stEthAmount = stEth.balanceOf(funder);
+        stEth.approve(address(liquifierInstance), stEthAmount);
+        liquifierInstance.depositWithERC20(address(stEth), stEthAmount, 0, address(0));
+        vm.stopPrank();
+        
+        vm.deal(user, 2010 ether);
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: 2005 ether}();
+
+        uint256 redeemableAmount = etherFiRedemptionManagerInstance.totalRedeemableAmount(address(etherFiRestakerInstance.lido()));
+        uint256 stEthBalanceBefore = stEth.balanceOf(user);
+        uint256 treasuryBalanceBefore = eETHInstance.balanceOf(address(etherFiRedemptionManagerInstance.treasury()));
+
+        // Get actual fee configuration from contract
+        address lidoToken = address(etherFiRestakerInstance.lido());
+        (, uint16 exitFeeSplitToTreasuryBps, uint16 exitFeeBps, ) = 
+            etherFiRedemptionManagerInstance.tokenToRedemptionInfo(lidoToken);
+        
+        // Calculate expected values using shares (more accurate)
+        uint256 eEthShares = liquidityPoolInstance.sharesForAmount(2000 ether);
+        uint256 expectedAmountToReceiver = liquidityPoolInstance.amountForShare((eEthShares * (10000 - exitFeeBps)) / 10000);
+        uint256 eEthShareFee = eEthShares - liquidityPoolInstance.sharesForWithdrawalAmount(expectedAmountToReceiver);
+        uint256 expectedTreasuryFee = liquidityPoolInstance.amountForShare((eEthShareFee * exitFeeSplitToTreasuryBps) / 10000);
+
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), 2000 ether);
+        etherFiRedemptionManagerInstance.redeemEEth(2000 ether, user, lidoToken);
+
+        redeemableAmount = etherFiRedemptionManagerInstance.totalRedeemableAmount(lidoToken);
+
+        uint256 treasuryBalanceAfter = eETHInstance.balanceOf(address(etherFiRedemptionManagerInstance.treasury()));
+        uint256 stEthBalanceAfter = stEth.balanceOf(user);
+        
+        // Use more lenient tolerance for treasury fee due to share-based rounding
+        assertApproxEqAbs(treasuryBalanceAfter, treasuryBalanceBefore + expectedTreasuryFee, 1e15);
+        assertApproxEqAbs(stEthBalanceAfter, stEthBalanceBefore + expectedAmountToReceiver, 1e1);
+
+        // After redeeming 2000 ether, verify the redemption worked correctly
+        // The redeemable amount is min(bucket consumable, stETH balance in EtherFiRestaker)
+        uint256 remainingStEth = stEth.balanceOf(address(etherFiRestakerInstance));
+        assertLe(redeemableAmount, remainingStEth, "Redeemable amount should be limited by remaining stETH");
+        
+        // Try to redeem an amount greater than what's available (if user has enough balance)
+        uint256 userBalance = eETHInstance.balanceOf(user);
+        if (userBalance > redeemableAmount) {
+            // User has enough balance, so test should fail due to exceeding redeemable amount
+            uint256 amountToRedeem = redeemableAmount + 1 ether;
+            eETHInstance.approve(address(etherFiRedemptionManagerInstance), amountToRedeem);
+            vm.expectRevert(EtherFiRedemptionManager.ExceededRedeemable.selector);
+            etherFiRedemptionManagerInstance.redeemEEth(amountToRedeem, user, lidoToken);
+        }
+        // If user doesn't have enough balance, that's fine - the redemption already verified the core functionality
+
+        vm.stopPrank();
+    }
+
+    // -----------------------------------------------------------------
+    //  stETH depeg guard (redemption side)
+    //
+    //  _processStETHRedemption blocks paying out stETH 1:1 when the stETH/ETH price is
+    //  above the ceiling (1e18 + maxPriceThreshold). With STETH_MAX_PRICE_THRESHOLD = 1e16,
+    //  the ceiling is 1.01e18: a premium stETH redemption is unfavorable to the protocol
+    //  (it hands out stETH worth >1 ETH for a 1-ETH eETH burn) and must revert.
+    // -----------------------------------------------------------------
+
+    /// @dev Shared setup: configure lido-token redemption, fund the restaker with stETH,
+    ///      and give `user` redeemable eETH. Returns the stETH (lido) token address.
+    function _setupStEthRedemption() internal returns (address lidoToken) {
+        setUp_Fork();
+        lidoToken = address(etherFiRestakerInstance.lido());
+
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, lidoToken);
+        etherFiRedemptionManagerInstance.setCapacity(3000 ether, lidoToken);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(3000 ether, lidoToken);
+        vm.stopPrank();
+        vm.warp(block.timestamp + 1);
+
+        // Fund the restaker with stETH (via a liquifier deposit) so redemptions can pay out.
+        address funder = vm.addr(2001);
+        vm.deal(funder, 2100 ether);
+        vm.startPrank(funder);
+        stEth.submit{value: 2100 ether}(address(0));
+        uint256 stEthAmount = stEth.balanceOf(funder);
+        stEth.approve(address(liquifierInstance), stEthAmount);
+        liquifierInstance.depositWithERC20(address(stEth), stEthAmount, 0, address(0));
+        vm.stopPrank();
+
+        // Give `user` redeemable eETH.
+        vm.deal(user, 2010 ether);
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: 2005 ether}();
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), 2000 ether);
+        vm.stopPrank();
+    }
+
+    function test_redeem_eEth_for_stETH_revertsOnStEthUpDepeg() public {
+        address lidoToken = _setupStEthRedemption();
+
+        // stETH at 1.02 ETH — above the 1.01e18 ceiling → blocked.
+        vm.mockCall(
+            stEthChainlinkFeed,
+            abi.encodeWithSignature("latestRoundData()"),
+            abi.encode(uint80(0), int256(1.02 ether), uint256(0), block.timestamp, uint80(0))
+        );
+
+        vm.startPrank(user);
+        vm.expectRevert(EtherFiRedemptionManager.InvalidStEthPrice.selector);
+        etherFiRedemptionManagerInstance.redeemEEth(2000 ether, user, lidoToken);
+        vm.stopPrank();
+    }
+
+    /// @dev Favorable side: a slight stETH discount (0.998, below the ceiling) proceeds —
+    ///      the protocol offloads cheap stETH for a par eETH burn.
+    function test_redeem_eEth_for_stETH_allowsAtDiscount() public {
+        address lidoToken = _setupStEthRedemption();
+        uint256 stEthBefore = stEth.balanceOf(user);
+
+        vm.mockCall(
+            stEthChainlinkFeed,
+            abi.encodeWithSignature("latestRoundData()"),
+            abi.encode(uint80(0), int256(0.998 ether), uint256(0), block.timestamp, uint80(0))
+        );
+
+        vm.prank(user);
+        etherFiRedemptionManagerInstance.redeemEEth(2000 ether, user, lidoToken);
+
+        assertGt(stEth.balanceOf(user), stEthBefore, "discounted-stETH redemption must pay out");
+    }
+
+    /// @dev A stale stETH feed must also block stETH redemption.
+    function test_redeem_eEth_for_stETH_revertsOnStalePriceFeed() public {
+        address lidoToken = _setupStEthRedemption();
+
+        vm.mockCall(
+            stEthChainlinkFeed,
+            abi.encodeWithSignature("latestRoundData()"),
+            abi.encode(uint80(0), int256(1 ether), uint256(0), block.timestamp - LIQUIFIER_STALE_WINDOW - 1, uint80(0))
+        );
+
+        vm.startPrank(user);
+        vm.expectRevert(EtherFiRedemptionManager.StalePriceFeed.selector);
+        etherFiRedemptionManagerInstance.redeemEEth(2000 ether, user, lidoToken);
+        vm.stopPrank();
+    }
+
+    function test_mainnet_redeem_weEth_with_rebase() public {
+        setUp_Fork();
+        
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, address(etherFiRestakerInstance.lido()));
+        // Ensure bucket limiter has enough capacity and is fully refilled
+        etherFiRedemptionManagerInstance.setCapacity(3000 ether, address(etherFiRestakerInstance.lido()));
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(3000 ether, address(etherFiRestakerInstance.lido()));
+        vm.stopPrank();
+        
+        // Warp time forward to ensure bucket is fully refilled
+        vm.warp(block.timestamp + 1);
+
+        // Fund EtherFiRestaker with stETH so redemption can work
+        // Deposit stETH through liquifier which will fund EtherFiRestaker
+        address funder = vm.addr(2002);
+        vm.deal(funder, 5 ether);
+        vm.startPrank(funder);
+        stEth.submit{value: 5 ether}(address(0));
+        uint256 stEthAmount = stEth.balanceOf(funder);
+        stEth.approve(address(liquifierInstance), stEthAmount);
+        liquifierInstance.depositWithERC20(address(stEth), stEthAmount, 0, address(0));
+        vm.stopPrank();
+
+        vm.deal(alice, 50000 ether);
+        vm.prank(alice);
+        liquidityPoolInstance.deposit{value: 50000 ether}();
+
+        vm.deal(user, 100 ether);
+
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: 10 ether}();
+        eETHInstance.approve(address(weEthInstance), 10 ether);
+        weEthInstance.wrap(1 ether);
+        vm.stopPrank();
+
+        uint256 one_percent_of_tvl = liquidityPoolInstance.getTotalPooledEther() / 100;
+
+        _rebaseUncapped(int128(uint128(one_percent_of_tvl))); // 10 eETH earned 1 ETH
+
+        vm.startPrank(user);
+        uint256 weEthAmount = weEthInstance.balanceOf(user);
+        uint256 eEthAmount = weEthInstance.getEETHByWeETH(weEthAmount);
+        uint256 stEthBalanceBefore = stEth.balanceOf(user);
+        address treasury = etherFiRedemptionManagerInstance.treasury();
+        uint256 treasuryBalanceBefore = eETHInstance.balanceOf(treasury);
+        weEthInstance.approve(address(etherFiRedemptionManagerInstance), 1 ether);
+        etherFiRedemptionManagerInstance.redeemWeEth(weEthAmount, user, address(etherFiRestakerInstance.lido()));
+        
+        // Use exact same calculation flow as _calcRedemption to account for rounding differences
+        address lidoToken = address(etherFiRestakerInstance.lido());
+        (, uint16 exitFeeSplitToTreasuryBps, uint16 exitFeeBps, ) = 
+            etherFiRedemptionManagerInstance.tokenToRedemptionInfo(lidoToken);
+        uint256 eEthShares = liquidityPoolInstance.sharesForAmount(eEthAmount);
+        uint256 expectedAmountToReceiver = liquidityPoolInstance.amountForShare(
+            eEthShares * (10000 - exitFeeBps) / 10000
+        );
+        uint256 sharesToBurn = liquidityPoolInstance.sharesForWithdrawalAmount(expectedAmountToReceiver);
+        uint256 eEthShareFee = eEthShares - sharesToBurn;
+        uint256 feeShareToTreasury = eEthShareFee * exitFeeSplitToTreasuryBps / 10000;
+        uint256 expectedTreasuryFee = liquidityPoolInstance.amountForShare(feeShareToTreasury);
+        
+        // Use more lenient tolerance for share-based rounding differences, especially after rebase
+        assertApproxEqAbs(eETHInstance.balanceOf(treasury), treasuryBalanceBefore + expectedTreasuryFee, 5e11);
+        assertApproxEqAbs(stEth.balanceOf(user), stEthBalanceBefore + expectedAmountToReceiver, 1e3);
+
+        vm.stopPrank();
+    }
+
+    function test_unrestaker_transferSteth_permissions() public {
+        setUp_Fork();
+
+        // Fund EtherFiRestaker with stETH so transfer can work
+        // Deposit stETH through liquifier which will fund EtherFiRestaker
+        address funder = vm.addr(2005);
+        vm.deal(funder, 5 ether);
+        vm.startPrank(funder);
+        stEth.submit{value: 5 ether}(address(0));
+        uint256 stEthAmount = stEth.balanceOf(funder);
+        stEth.approve(address(liquifierInstance), stEthAmount);
+        liquifierInstance.depositWithERC20(address(stEth), stEthAmount, 0, address(0));
+        vm.stopPrank();
+
+        vm.expectRevert(EtherFiRestaker.IncorrectCaller.selector);
+        vm.startPrank(admin);
+        etherFiRestakerInstance.transferStETH(user, 1 ether);
+        vm.stopPrank();
+
+        vm.expectRevert(EtherFiRestaker.IncorrectCaller.selector);
+        vm.startPrank(owner);
+        etherFiRestakerInstance.transferStETH(user, 1 ether);
+        vm.stopPrank();
+
+        uint256 balanceBefore = etherFiRestakerInstance.lido().balanceOf(user);
+        vm.prank(address(etherFiRedemptionManagerInstance));
+        etherFiRestakerInstance.transferStETH(user, 1 ether);
+        uint256 balanceAfter = etherFiRestakerInstance.lido().balanceOf(user);
+        assertApproxEqAbs(balanceAfter, balanceBefore + 1 ether, 2);
+    }
+
+    function test_end_to_end_redeem_stETH() public {
+        setUp_Fork();
+        vm.startPrank(op_admin);
+        address[] memory _tokens = new address[](1);
+        _tokens[0] = address(etherFiRestakerInstance.lido());
+        uint16[] memory _exitFeeSplitToTreasuryInBps = new uint16[](1);
+        _exitFeeSplitToTreasuryInBps[0] = 20_00;
+        uint16[] memory _exitFeeInBps = new uint16[](1);
+        _exitFeeInBps[0] = 3_00;
+        uint16[] memory _lowWatermarkInBpsOfTvl = new uint16[](1);
+        _lowWatermarkInBpsOfTvl[0] = 20_00;
+        uint256[] memory _bucketCapacity = new uint256[](1);
+        _bucketCapacity[0] = 10 ether;
+        uint256[] memory _bucketRefillRate = new uint256[](1);
+        _bucketRefillRate[0] = 0.001 ether;
+        etherFiRedemptionManagerInstance.initializeTokenParameters(_tokens, _exitFeeSplitToTreasuryInBps, _exitFeeInBps, _lowWatermarkInBpsOfTvl, _bucketCapacity, _bucketRefillRate);
+
+        // verify the struct has the correct values for stETH after update token parameters
+        (BucketLimiter.Limit memory limit, uint16 exitSplit, uint16 exitFee, uint16 lowWM) =
+            etherFiRedemptionManagerInstance.tokenToRedemptionInfo(address(etherFiRestakerInstance.lido()));
+        assertEq(exitSplit, 20_00);
+        assertEq(exitFee, 3_00);
+        assertEq(lowWM, 20_00);
+        uint64 expectedCapacity = uint64(10 ether / 1e12);
+        uint64 expectedRefillRate = uint64(0.001 ether / 1e12);
+        assertEq(limit.capacity, expectedCapacity);
+        assertEq(limit.refillRate, expectedRefillRate);
+        vm.stopPrank();
+
+        // Fund EtherFiRestaker with stETH so redemption can work
+        // Deposit stETH through liquifier which will fund EtherFiRestaker
+        address funder = vm.addr(2000);
+        vm.deal(funder, 5 ether);
+        vm.startPrank(funder);
+        stEth.submit{value: 5 ether}(address(0));
+        uint256 stEthAmount = stEth.balanceOf(funder);
+        stEth.approve(address(liquifierInstance), stEthAmount);
+        liquifierInstance.depositWithERC20(address(stEth), stEthAmount, 0, address(0));
+        vm.stopPrank();
+
+        //test low watermark works
+        vm.startPrank(user);
+        vm.deal(user, 10 ether);
+        liquidityPoolInstance.deposit{value: 10 ether}();
+        address lidoToken = address(etherFiRestakerInstance.lido()); // external call; fetch before expectRevert
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), 1 ether);
+        vm.stopPrank();
+
+        // The watermark only blocks the redeem while it exceeds the restaker's stETH balance.
+        // That balance is a live mainnet position and its share of TVL drifts (it has since
+        // grown past the 20_00 bps set above), so derive the blocking bps from current state
+        // rather than assuming a fixed percentage still clears it.
+        uint256 stEthLiquidity = stEth.balanceOf(address(etherFiRestakerInstance));
+        uint256 blockingBps = (stEthLiquidity * 10_000) / liquidityPoolInstance.getTotalPooledEther() + 1;
+        assertLe(blockingBps, etherFiRedemptionManagerInstance.maxLowWatermarkInBpsOfTvl());
+        vm.prank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(uint16(blockingBps), lidoToken);
+
+        vm.prank(user);
+        vm.expectRevert(EtherFiRedemptionManager.ExceededRedeemable.selector);
+        etherFiRedemptionManagerInstance.redeemEEth(1 ether, user, lidoToken);
+
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, lidoToken);
+        vm.stopPrank();
+        vm.startPrank(user);
+        uint256 balanceBefore = stEth.balanceOf(user);
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), 1 ether);
+        etherFiRedemptionManagerInstance.redeemEEth(1 ether, user, lidoToken); 
+        uint256 balanceAfter = stEth.balanceOf(user);
+        assertApproxEqAbs(balanceAfter, balanceBefore + 1 ether - 0.03 ether, 1e1);
+        vm.stopPrank();
+    }
+
+    function test_redeem_stETH_share_price() public {
+        setUp_Fork();
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, address(etherFiRestakerInstance.lido()));
+        etherFiRedemptionManagerInstance.setCapacity(10000 ether, address(etherFiRestakerInstance.lido()));
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(10000 ether, address(etherFiRestakerInstance.lido()));
+        vm.warp(block.timestamp + 1);
+        vm.stopPrank();
+
+        // Fund EtherFiRestaker with stETH so redemption can work
+        // Deposit stETH through liquifier which will fund EtherFiRestaker
+        address funder = vm.addr(2003);
+        vm.deal(funder, 5 ether);
+        vm.startPrank(funder);
+        stEth.submit{value: 5 ether}(address(0));
+        uint256 stEthAmount = stEth.balanceOf(funder);
+        stEth.approve(address(liquifierInstance), stEthAmount);
+        liquifierInstance.depositWithERC20(address(stEth), stEthAmount, 0, address(0));
+        vm.stopPrank();
+
+        vm.startPrank(user);
+        vm.deal(user, 10 ether);
+        liquidityPoolInstance.deposit{value: 10 ether}();
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), 10 ether);
+        
+        // Get fee configuration and calculate expected values
+        address lidoToken = address(etherFiRestakerInstance.lido());
+        (, uint16 exitFeeSplitToTreasuryBps, uint16 exitFeeBps, ) = etherFiRedemptionManagerInstance.tokenToRedemptionInfo(lidoToken);
+        uint256 eEthShares = liquidityPoolInstance.sharesForAmount(1 ether);
+        uint256 expectedAmountToReceiver = liquidityPoolInstance.amountForShare((eEthShares * (10000 - exitFeeBps)) / 10000);
+        uint256 eEthShareFee = eEthShares - liquidityPoolInstance.sharesForWithdrawalAmount(expectedAmountToReceiver);
+        uint256 expectedTreasuryFee = liquidityPoolInstance.amountForShare((eEthShareFee * exitFeeSplitToTreasuryBps) / 10000);
+        uint256 expectedTotalSharesBurned = eEthShares - (eEthShareFee * exitFeeSplitToTreasuryBps / 10000);
+        
+        // Capture state before redemption
+        uint256 totalValueOutOfLpBefore = liquidityPoolInstance.totalValueOutOfLp();
+        uint256 totalSharesBefore = eETHInstance.totalShares();
+        uint256 treasuryBalanceBefore = eETHInstance.balanceOf(address(etherFiRedemptionManagerInstance.treasury()));
+        uint256 stethBalanceBefore = stEth.balanceOf(user);
+        
+        etherFiRedemptionManagerInstance.redeemEEth(1 ether, user, lidoToken);
+        
+        // Compare differences
+        assertApproxEqAbs(stEth.balanceOf(user) - stethBalanceBefore, expectedAmountToReceiver, 1e3);
+        assertApproxEqAbs(totalSharesBefore - eETHInstance.totalShares(), expectedTotalSharesBurned, 1e2);
+        assertApproxEqAbs(totalValueOutOfLpBefore - liquidityPoolInstance.totalValueOutOfLp(), expectedAmountToReceiver, 1e3);
+        uint256 totalValueInLpBefore = liquidityPoolInstance.totalValueInLp();
+        assertEq(liquidityPoolInstance.totalValueInLp() - totalValueInLpBefore, 0);
+        assertApproxEqAbs(eETHInstance.balanceOf(address(etherFiRedemptionManagerInstance.treasury())) + expectedTreasuryFee, treasuryBalanceBefore, 1.5e15);
+        vm.stopPrank();
+    }
+
+    function test_redeem_stETH_share_price_with_not_fee() public {
+        setUp_Fork();
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setCapacity(10000 ether, address(etherFiRestakerInstance.lido()));
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(10000 ether, address(etherFiRestakerInstance.lido()));
+        vm.warp(block.timestamp + 1);
+        vm.stopPrank();
+
+        // Fund EtherFiRestaker with stETH so redemption can work
+        // Deposit stETH through liquifier which will fund EtherFiRestaker
+        address funder = vm.addr(2004);
+        vm.deal(funder, 5 ether);
+        vm.startPrank(funder);
+        stEth.submit{value: 5 ether}(address(0));
+        uint256 stEthAmount = stEth.balanceOf(funder);
+        stEth.approve(address(liquifierInstance), stEthAmount);
+        liquifierInstance.depositWithERC20(address(stEth), stEthAmount, 0, address(0));
+        vm.stopPrank();
+        
+        vm.startPrank(user);
+        vm.deal(user, 10 ether);
+        liquidityPoolInstance.deposit{value: 10 ether}();
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), 10 ether);
+        vm.stopPrank();
+        //set fee to 0
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setExitFeeBasisPoints(0, address(etherFiRestakerInstance.lido()));
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, address(etherFiRestakerInstance.lido()));
+        vm.stopPrank();
+        //get number of shares for 1 ether
+        vm.startPrank(user);
+        uint256 sharesFor_999_ether = liquidityPoolInstance.sharesForAmount(1 ether); // should be 0.9 ether since 0.1 ether is left for 
+        address lidoToken = address(etherFiRestakerInstance.lido()); // external call; fetch before expectRevert
+        uint256 totalValueOutOfLpBefore = liquidityPoolInstance.totalValueOutOfLp();
+        uint256 totalValueInLpBefore = liquidityPoolInstance.totalValueInLp();
+        uint256 totalSharesBefore = eETHInstance.totalShares();
+        uint256 treasuryBalanceBefore = eETHInstance.balanceOf(address(etherFiRedemptionManagerInstance.treasury()));
+        //steth balance before
+        uint256 stethBalanceBefore = stEth.balanceOf(user);
+        etherFiRedemptionManagerInstance.redeemEEth(1 ether, user, lidoToken);
+        uint256 stethBalanceAfter = stEth.balanceOf(user);
+        uint256 totalSharesAfter = eETHInstance.totalShares();
+        uint256 totalValueOutOfLpAfter = liquidityPoolInstance.totalValueOutOfLp();
+        uint256 totalValueInLpAfter = liquidityPoolInstance.totalValueInLp();
+        uint256 treasuryBalanceAfter = eETHInstance.balanceOf(address(etherFiRedemptionManagerInstance.treasury()));
+        assertApproxEqAbs(stethBalanceAfter - stethBalanceBefore, 1 ether, 5);
+        assertApproxEqAbs(totalSharesBefore - totalSharesAfter, sharesFor_999_ether, 1);
+        assertApproxEqAbs(totalValueOutOfLpBefore - totalValueOutOfLpAfter, 1 ether, 3);
+        assertEq(totalValueInLpAfter- totalValueInLpBefore, 0);
+        assertEq(treasuryBalanceAfter-treasuryBalanceBefore, 0);
+        vm.stopPrank();
+    }
+
+    function test_redeem_eEth_share_price() public {
+        setUp_Fork();
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, ETH_ADDRESS);
+        vm.stopPrank();
+        
+        vm.startPrank(user);
+        vm.deal(user, 10 ether);
+        liquidityPoolInstance.deposit{value: 10 ether}();
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), 10 ether);
+        
+        // Get fee configuration and calculate expected values dynamically
+        (, uint16 exitFeeSplitToTreasuryBps, uint16 exitFeeBps, ) = 
+            etherFiRedemptionManagerInstance.tokenToRedemptionInfo(ETH_ADDRESS);
+        uint256 eEthShares = liquidityPoolInstance.sharesForAmount(1 ether);
+        uint256 expectedAmountToReceiver = liquidityPoolInstance.amountForShare((eEthShares * (10000 - exitFeeBps)) / 10000);
+        uint256 sharesToBurn = liquidityPoolInstance.sharesForWithdrawalAmount(expectedAmountToReceiver);
+        uint256 eEthShareFee = eEthShares - sharesToBurn;
+        uint256 feeShareToTreasury = (eEthShareFee * exitFeeSplitToTreasuryBps) / 10000;
+        uint256 expectedTreasuryFee = liquidityPoolInstance.amountForShare(feeShareToTreasury);
+        uint256 expectedTotalSharesBurned = eEthShares - feeShareToTreasury;
+        
+        // Capture state before redemption
+        uint256 totalValueOutOfLpBefore = liquidityPoolInstance.totalValueOutOfLp();
+        uint256 totalValueInLpBefore = liquidityPoolInstance.totalValueInLp();
+        uint256 totalSharesBefore = eETHInstance.totalShares();
+        uint256 treasuryBalanceBefore = eETHInstance.balanceOf(address(etherFiRedemptionManagerInstance.treasury()));
+        uint256 ethBalanceBefore = address(user).balance;
+        
+        etherFiRedemptionManagerInstance.redeemEEth(1 ether, user, ETH_ADDRESS);
+        
+        // Compare differences
+        assertApproxEqAbs(address(user).balance - ethBalanceBefore, expectedAmountToReceiver, 1e3);
+        assertApproxEqAbs(totalSharesBefore - eETHInstance.totalShares(), expectedTotalSharesBurned, 1e2);
+        assertApproxEqAbs(totalValueInLpBefore - liquidityPoolInstance.totalValueInLp(), expectedAmountToReceiver, 1e3);
+        assertEq(liquidityPoolInstance.totalValueOutOfLp() - totalValueOutOfLpBefore, 0);
+        // Use more lenient tolerance for treasury fee due to share-based rounding differences on mainnet fork
+        assertApproxEqAbs(eETHInstance.balanceOf(address(etherFiRedemptionManagerInstance.treasury())) - treasuryBalanceBefore, expectedTreasuryFee, 2e12);
+        vm.stopPrank();
+    }
+
+
+    function test_mainnet_previewRedeem_eEth() public {
+        setUp_Fork();
+        
+        vm.deal(user, 100 ether);
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: 100 ether}();
+        vm.stopPrank();
+
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setCapacity(1000 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(1000 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setExitFeeBasisPoints(50, ETH_ADDRESS); // 0.5%
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+
+        vm.startPrank(user);
+        uint256 eEthBalance = eETHInstance.balanceOf(user);
+        uint256 shares = liquidityPoolInstance.sharesForAmount(eEthBalance);
+        
+        uint256 previewAmount = etherFiRedemptionManagerInstance.previewRedeem(shares, ETH_ADDRESS);
+        
+        // previewRedeem should return amount after exit fee
+        uint256 expectedAmount = eEthBalance - (eEthBalance * 50 / 10000);
+        assertApproxEqAbs(previewAmount, expectedAmount, 1e10);
+        
+        // Verify preview matches actual redemption
+        uint256 userBalanceBefore = address(user).balance;
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), eEthBalance);
+        etherFiRedemptionManagerInstance.redeemEEth(eEthBalance, user, ETH_ADDRESS);
+        uint256 userBalanceAfter = address(user).balance;
+        
+        assertApproxEqAbs(userBalanceAfter - userBalanceBefore, previewAmount, 1e3);
+        vm.stopPrank();
+    }
+
+    function test_mainnet_previewRedeem_stETH() public {
+        setUp_Fork();
+        
+        ILido stEth = ILido(address(etherFiRestakerInstance.lido()));
+        
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, address(stEth));
+        etherFiRedemptionManagerInstance.setCapacity(100000 ether, address(stEth));
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(100000 ether, address(stEth));
+        etherFiRedemptionManagerInstance.setExitFeeBasisPoints(30, address(stEth)); // 0.3%
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+
+        // Fund EtherFiRestaker with stETH
+        address funder = vm.addr(2010);
+        vm.deal(funder, 10000 ether);
+        vm.startPrank(funder);
+        stEth.submit{value: 10000 ether}(address(0));
+        uint256 stEthAmount = stEth.balanceOf(funder);
+        stEth.approve(address(liquifierInstance), stEthAmount);
+        liquifierInstance.depositWithERC20(address(stEth), stEthAmount, 0, address(0));
+        vm.stopPrank();
+
+        vm.deal(user, 100 ether);
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: 100 ether}();
+        uint256 eEthBalance = eETHInstance.balanceOf(user);
+        uint256 shares = liquidityPoolInstance.sharesForAmount(eEthBalance);
+        
+        uint256 previewAmount = etherFiRedemptionManagerInstance.previewRedeem(shares, address(stEth));
+        
+        // previewRedeem should return amount after exit fee
+        uint256 expectedAmount = eEthBalance - (eEthBalance * 30 / 10000);
+        assertApproxEqAbs(previewAmount, expectedAmount, 1e10);
+        
+        // Verify preview matches actual redemption
+        uint256 stEthBalanceBefore = stEth.balanceOf(user);
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), eEthBalance);
+        etherFiRedemptionManagerInstance.redeemEEth(eEthBalance, user, address(stEth));
+        uint256 stEthBalanceAfter = stEth.balanceOf(user);
+        
+        assertApproxEqAbs(stEthBalanceAfter - stEthBalanceBefore, previewAmount, 1e3);
+        vm.stopPrank();
+    }
+
+    function test_mainnet_getInstantLiquidityAmount_ETH() public {
+        setUp_Fork();
+        
+        vm.deal(alice, 1000 ether);
+        vm.prank(alice);
+        liquidityPoolInstance.deposit{value: 1000 ether}();
+
+        uint256 instantLiquidity = etherFiRedemptionManagerInstance.getInstantLiquidityAmount(ETH_ADDRESS);
+        uint256 lpBalance = address(liquidityPoolInstance).balance;
+
+        // The mainnet RM implementation may not yet be upgraded to this PR's version
+        // (it is the deployed mainnet binary). The post-migration formula (LP.balance)
+        // and the pre-migration formula (LP.balance - locked) are both bounded by lpBalance.
+        // Assert the function returns a positive value bounded by LP balance.
+        assertGt(instantLiquidity, 0, "should have positive liquidity on mainnet");
+        assertLe(instantLiquidity, lpBalance, "instantLiquidity cannot exceed LP balance");
+    }
+
+    function test_mainnet_getInstantLiquidityAmount_stETH() public {
+        setUp_Fork();
+        
+        ILido stEth = ILido(address(etherFiRestakerInstance.lido()));
+        
+        // Fund EtherFiRestaker with stETH
+        address funder = vm.addr(2011);
+        vm.deal(funder, 50 ether);
+        vm.startPrank(funder);
+        stEth.submit{value: 50 ether}(address(0));
+        uint256 stEthAmount = stEth.balanceOf(funder);
+        stEth.approve(address(liquifierInstance), stEthAmount);
+        liquifierInstance.depositWithERC20(address(stEth), stEthAmount, 0, address(0));
+        vm.stopPrank();
+
+        uint256 instantLiquidity = etherFiRedemptionManagerInstance.getInstantLiquidityAmount(address(stEth));
+        uint256 restakerBalance = stEth.balanceOf(address(etherFiRestakerInstance));
+        
+        assertEq(instantLiquidity, restakerBalance);
+        assertGt(instantLiquidity, 0);
+    }
+
+    function test_mainnet_bucket_limiter_refill_over_time() public {
+        setUp_Fork();
+        
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setCapacity(100 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(10 ether, ETH_ADDRESS); // 10 ETH per second
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+
+        vm.deal(user, 200 ether);
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: 200 ether}();
+        vm.stopPrank();
+
+        // Consume full capacity
+        vm.startPrank(user);
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), 100 ether);
+        etherFiRedemptionManagerInstance.redeemEEth(100 ether, user, ETH_ADDRESS);
+        vm.stopPrank();
+
+        // Should not be able to redeem more immediately
+        vm.startPrank(user);
+        uint256 remainingBalance = eETHInstance.balanceOf(user);
+        if (remainingBalance > 0) {
+            eETHInstance.approve(address(etherFiRedemptionManagerInstance), remainingBalance);
+            vm.expectRevert(EtherFiRedemptionManager.ExceededRedeemable.selector);
+            etherFiRedemptionManagerInstance.redeemEEth(remainingBalance, user, ETH_ADDRESS);
+        }
+        vm.stopPrank();
+
+        // Warp forward 1 second - should have refilled 10 ETH
+        vm.warp(block.timestamp + 1);
+        
+        uint256 redeemableAfter1Sec = etherFiRedemptionManagerInstance.totalRedeemableAmount(ETH_ADDRESS);
+        assertGe(redeemableAfter1Sec, 10 ether - 1e12); // Allow for rounding
+
+        // Warp forward 5 more seconds - should have refilled 50 ETH total
+        vm.warp(block.timestamp + 5);
+        
+        uint256 redeemableAfter6Sec = etherFiRedemptionManagerInstance.totalRedeemableAmount(ETH_ADDRESS);
+        assertGe(redeemableAfter6Sec, 60 ether - 1e12); // Allow for rounding
+
+        // Should be able to redeem 60 ETH now
+        vm.startPrank(user);
+        uint256 userBalance = eETHInstance.balanceOf(user);
+        if (userBalance >= 60 ether) {
+            eETHInstance.approve(address(etherFiRedemptionManagerInstance), 60 ether);
+            uint256 userEthBefore = address(user).balance;
+            etherFiRedemptionManagerInstance.redeemEEth(60 ether, user, ETH_ADDRESS);
+            assertGt(address(user).balance, userEthBefore);
+        }
+        vm.stopPrank();
+    }
+
+    function test_mainnet_low_watermark_exactly_at_threshold() public {
+        setUp_Fork();
+        
+        vm.deal(alice, 1000 ether);
+        vm.prank(alice);
+        liquidityPoolInstance.deposit{value: 1000 ether}();
+
+        vm.startPrank(op_admin);
+        // Set low watermark to 10% of TVL
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(10_00, ETH_ADDRESS); // 10%
+        etherFiRedemptionManagerInstance.setCapacity(10000 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(10000 ether, ETH_ADDRESS);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+
+        uint256 tvl = liquidityPoolInstance.getTotalPooledEther();
+        uint256 lowWatermark = etherFiRedemptionManagerInstance.lowWatermarkInETH(ETH_ADDRESS);
+        assertEq(lowWatermark, tvl * 10_00 / 10000);
+
+        uint256 instantLiquidity = etherFiRedemptionManagerInstance.getInstantLiquidityAmount(ETH_ADDRESS);
+        
+        // If liquidity is exactly at low watermark, should not be able to redeem
+        if (instantLiquidity <= lowWatermark) {
+            vm.deal(user, 100 ether);
+            vm.startPrank(user);
+            liquidityPoolInstance.deposit{value: 100 ether}();
+            vm.expectRevert(EtherFiRedemptionManager.ExceededRedeemable.selector);
+            etherFiRedemptionManagerInstance.redeemEEth(1 ether, user, ETH_ADDRESS);
+            vm.stopPrank();
+        }
+    }
+
+    function test_mainnet_low_watermark_just_below_threshold() public {
+        setUp_Fork();
+        
+        vm.deal(alice, 1000 ether);
+        vm.prank(alice);
+        liquidityPoolInstance.deposit{value: 1000 ether}();
+
+        vm.startPrank(op_admin);
+        // Set low watermark to 50% of TVL
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(50_00, ETH_ADDRESS); // 50%
+        etherFiRedemptionManagerInstance.setCapacity(10000 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(10000 ether, ETH_ADDRESS);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+
+        uint256 instantLiquidity = etherFiRedemptionManagerInstance.getInstantLiquidityAmount(ETH_ADDRESS);
+        uint256 lowWatermark = etherFiRedemptionManagerInstance.lowWatermarkInETH(ETH_ADDRESS);
+
+        // If liquidity is below low watermark, totalRedeemableAmount should be 0
+        if (instantLiquidity < lowWatermark) {
+            uint256 redeemable = etherFiRedemptionManagerInstance.totalRedeemableAmount(ETH_ADDRESS);
+            assertEq(redeemable, 0);
+            
+            vm.deal(user, 100 ether);
+            vm.startPrank(user);
+            liquidityPoolInstance.deposit{value: 100 ether}();
+            vm.expectRevert(EtherFiRedemptionManager.ExceededRedeemable.selector);
+            etherFiRedemptionManagerInstance.redeemEEth(1 ether, user, ETH_ADDRESS);
+            vm.stopPrank();
+        }
+    }
+
+    function test_mainnet_pause_unpause_redemption() public {
+        setUp_Fork();
+        
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setCapacity(1000 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(1000 ether, ETH_ADDRESS);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+
+        vm.deal(user, 100 ether);
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: 100 ether}();
+        vm.stopPrank();
+
+        // Pause the contract — PROTOCOL_PAUSER consolidated into OPERATION_MULTISIG_ROLE.
+        bytes32 PAUSER_ROLE = roleRegistryInstance.OPERATION_MULTISIG_ROLE();
+        address pauser = vm.addr(2000);
+        vm.prank(roleRegistryInstance.owner());
+        roleRegistryInstance.grantRole(PAUSER_ROLE, pauser);
+
+        vm.prank(pauser);
+        etherFiRedemptionManagerInstance.pause();
+        assertTrue(etherFiRedemptionManagerInstance.paused());
+
+        // Should not be able to redeem when paused
+        vm.startPrank(user);
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), 10 ether);
+        vm.expectRevert(Pausable.ContractPaused.selector);
+        etherFiRedemptionManagerInstance.redeemEEth(10 ether, user, ETH_ADDRESS);
+        vm.expectRevert(Pausable.ContractPaused.selector);
+        etherFiRedemptionManagerInstance.redeemWeEth(10 ether, user, ETH_ADDRESS);
+        vm.stopPrank();
+
+        // Unpause the contract — PROTOCOL_UNPAUSER consolidated into OPERATION_MULTISIG_ROLE.
+        bytes32 UNPAUSER_ROLE = roleRegistryInstance.OPERATION_MULTISIG_ROLE();
+        address unpauser = vm.addr(2001);
+        vm.prank(roleRegistryInstance.owner());
+        roleRegistryInstance.grantRole(UNPAUSER_ROLE, unpauser);
+
+        vm.prank(unpauser);
+        etherFiRedemptionManagerInstance.unpause();
+        assertFalse(etherFiRedemptionManagerInstance.paused());
+
+        // Should be able to redeem after unpause
+        vm.startPrank(user);
+        uint256 userBalance = eETHInstance.balanceOf(user);
+        if (userBalance > 0) {
+            eETHInstance.approve(address(etherFiRedemptionManagerInstance), userBalance);
+            uint256 userEthBefore = address(user).balance;
+            etherFiRedemptionManagerInstance.redeemEEth(userBalance, user, ETH_ADDRESS);
+            assertGt(address(user).balance, userEthBefore);
+        }
+        vm.stopPrank();
+    }
+
+    function test_mainnet_redeem_zero_amount() public {
+        setUp_Fork();
+        
+        vm.deal(user, 100 ether);
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: 100 ether}();
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), 0);
+        
+        // Zero amount should fail
+        vm.expectRevert();
+        etherFiRedemptionManagerInstance.redeemEEth(0, user, ETH_ADDRESS);
+        vm.stopPrank();
+    }
+
+    function test_mainnet_redeem_insufficient_balance() public {
+        setUp_Fork();
+        
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setCapacity(1000 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(1000 ether, ETH_ADDRESS);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+
+        vm.deal(user, 10 ether);
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: 10 ether}();
+        
+        // Try to redeem more than balance
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), 100 ether);
+        vm.expectRevert(EtherFiRedemptionManager.InsufficientBalance.selector);
+        etherFiRedemptionManagerInstance.redeemEEth(100 ether, user, ETH_ADDRESS);
+        vm.stopPrank();
+    }
+
+    function test_mainnet_redeem_insufficient_stETH() public {
+        setUp_Fork();
+        
+        ILido stEth = ILido(address(etherFiRestakerInstance.lido()));
+        
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, address(stEth));
+        etherFiRedemptionManagerInstance.setCapacity(1000 ether, address(stEth));
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(1000 ether, address(stEth));
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+
+        uint256 stEthBalance = stEth.balanceOf(address(etherFiRestakerInstance));
+        uint256 amount = stEthBalance + 1 ether;
+        vm.deal(user, amount);
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: amount}();
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), amount);
+        
+        // Should fail due to exceeding total redeemable amount
+        vm.expectRevert(EtherFiRedemptionManager.InsufficientBalance.selector);
+        etherFiRedemptionManagerInstance.redeemEEth(amount, user, address(stEth));
+        vm.stopPrank();
+    }
+
+    function test_mainnet_redeem_emits_event() public {
+        setUp_Fork();
+        
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setCapacity(1000 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(1000 ether, ETH_ADDRESS);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+
+        vm.deal(user, 100 ether);
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: 100 ether}();
+        uint256 redeemAmount = 10 ether;
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), redeemAmount);
+        
+        // Check that event is emitted with correct receiver and token
+        vm.expectEmit(true, false, false, false);
+        emit EtherFiRedemptionManager.Redeemed(
+            user,
+            redeemAmount,
+            0, // We'll check this separately
+            0, // We'll check this separately
+            ETH_ADDRESS
+        );
+        
+        etherFiRedemptionManagerInstance.redeemEEth(redeemAmount, user, ETH_ADDRESS);
+        
+        // Verify event was emitted by checking state changes
+        uint256 treasuryBalance = eETHInstance.balanceOf(address(etherFiRedemptionManagerInstance.treasury()));
+        assertGt(treasuryBalance, 0); // Treasury should have received fees
+        vm.stopPrank();
+    }
+
+    function test_mainnet_multiple_sequential_redemptions() public {
+        setUp_Fork();
+        
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setCapacity(100 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(10 ether, ETH_ADDRESS); // 10 ETH per second
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+
+        vm.deal(user, 200 ether);
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: 200 ether}();
+        vm.stopPrank();
+
+        // First redemption - consume 50 ETH
+        vm.startPrank(user);
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), 50 ether);
+        uint256 userEthBefore1 = address(user).balance;
+        etherFiRedemptionManagerInstance.redeemEEth(50 ether, user, ETH_ADDRESS);
+        uint256 userEthAfter1 = address(user).balance;
+        assertGt(userEthAfter1, userEthBefore1);
+        vm.stopPrank();
+
+        // Check redeemable amount decreased
+        uint256 redeemableAfter1 = etherFiRedemptionManagerInstance.totalRedeemableAmount(ETH_ADDRESS);
+        assertLe(redeemableAfter1, 50 ether); // Should have 50 ETH left in bucket
+
+        // Warp forward 2 seconds - should refill 20 ETH
+        vm.warp(block.timestamp + 2);
+
+        // Second redemption - should be able to redeem up to 70 ETH now
+        vm.startPrank(user);
+        uint256 userBalance = eETHInstance.balanceOf(user);
+        if (userBalance >= 70 ether) {
+            eETHInstance.approve(address(etherFiRedemptionManagerInstance), 70 ether);
+            uint256 userEthBefore2 = address(user).balance;
+            etherFiRedemptionManagerInstance.redeemEEth(70 ether, user, ETH_ADDRESS);
+            uint256 userEthAfter2 = address(user).balance;
+            assertGt(userEthAfter2, userEthBefore2);
+        }
+        vm.stopPrank();
+    }
+
+    function test_mainnet_redeemEEthWithPermit_invalid_permit() public {
+        setUp_Fork();
+        
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setCapacity(1000 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(1000 ether, ETH_ADDRESS);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+
+        vm.deal(user, 100 ether);
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: 100 ether}();
+        vm.stopPrank();
+
+        // Create invalid permit (wrong signature)
+        IeETH.PermitInput memory invalidPermit = IeETH.PermitInput({
+            value: 10 ether,
+            deadline: block.timestamp + 1000,
+            v: 27,
+            r: bytes32(uint256(1)),
+            s: bytes32(uint256(2))
+        });
+
+        // Permit will fail but redemption should still work if user has approved
+        vm.startPrank(user);
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), 10 ether);
+        // Should still work because we check balance, not permit
+        uint256 userEthBefore = address(user).balance;
+        etherFiRedemptionManagerInstance.redeemEEthWithPermit(10 ether, user, invalidPermit, ETH_ADDRESS);
+        assertGt(address(user).balance, userEthBefore);
+        vm.stopPrank();
+    }
+
+    function test_mainnet_redeem_at_maximum_capacity() public {
+        setUp_Fork();
+        
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setCapacity(10000 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(10000 ether, ETH_ADDRESS);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+
+        vm.deal(user, 20000 ether);
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: 20000 ether}();
+        vm.stopPrank();
+
+        // Redeem exactly at capacity
+        uint256 remainingCapacity = etherFiRedemptionManagerInstance.totalRedeemableAmount(ETH_ADDRESS);
+        vm.startPrank(user);
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), remainingCapacity);
+        uint256 userEthBefore = address(user).balance;
+        etherFiRedemptionManagerInstance.redeemEEth(remainingCapacity, user, ETH_ADDRESS);
+        assertGt(address(user).balance, userEthBefore);
+        vm.stopPrank();
+
+        // Should not be able to redeem more immediately
+        vm.startPrank(user);
+        uint256 remainingBalance = eETHInstance.balanceOf(user);
+        if (remainingBalance > 0) {
+            eETHInstance.approve(address(etherFiRedemptionManagerInstance), remainingBalance);
+            vm.expectRevert(EtherFiRedemptionManager.ExceededRedeemable.selector);
+            etherFiRedemptionManagerInstance.redeemEEth(remainingBalance, user, ETH_ADDRESS);
+        }
+        vm.stopPrank();
+    }
+
+    function test_mainnet_initializeTokenParameters_multiple_tokens() public {
+        setUp_Fork();
+        
+        vm.startPrank(op_admin);
+        address[] memory tokens = new address[](2);
+        tokens[0] = ETH_ADDRESS;
+        tokens[1] = address(etherFiRestakerInstance.lido());
+        
+        uint16[] memory exitFeeSplitBps = new uint16[](2);
+        exitFeeSplitBps[0] = 50_00; // 50%
+        exitFeeSplitBps[1] = 30_00; // 30%
+        
+        uint16[] memory exitFeeBps = new uint16[](2);
+        exitFeeBps[0] = 50; // 0.5%
+        exitFeeBps[1] = 30; // 0.3%
+        
+        uint16[] memory lowWatermarkBps = new uint16[](2);
+        lowWatermarkBps[0] = 10_00; // 10%
+        lowWatermarkBps[1] = 5_00; // 5%
+        
+        uint256[] memory capacities = new uint256[](2);
+        capacities[0] = 1000 ether;
+        capacities[1] = 500 ether;
+        
+        uint256[] memory refillRates = new uint256[](2);
+        refillRates[0] = 100 ether;
+        refillRates[1] = 50 ether;
+        
+        etherFiRedemptionManagerInstance.initializeTokenParameters(
+            tokens,
+            exitFeeSplitBps,
+            exitFeeBps,
+            lowWatermarkBps,
+            capacities,
+            refillRates
+        );
+        
+        // Verify ETH_ADDRESS configuration
+        (BucketLimiter.Limit memory ethLimit, uint16 ethExitSplit, uint16 ethExitFee, uint16 ethLowWM) =
+            etherFiRedemptionManagerInstance.tokenToRedemptionInfo(ETH_ADDRESS);
+        assertEq(ethExitSplit, 50_00);
+        assertEq(ethExitFee, 50);
+        assertEq(ethLowWM, 10_00);
+        
+        // Verify stETH configuration
+        (BucketLimiter.Limit memory stEthLimit, uint16 stEthExitSplit, uint16 stEthExitFee, uint16 stEthLowWM) =
+            etherFiRedemptionManagerInstance.tokenToRedemptionInfo(address(etherFiRestakerInstance.lido()));
+        assertEq(stEthExitSplit, 30_00);
+        assertEq(stEthExitFee, 30);
+        assertEq(stEthLowWM, 5_00);
+        
+        vm.stopPrank();
+    }
+
+    function test_mainnet_setExitFeeBasisPoints_max_value() public {
+        setUp_Fork();
+
+        vm.startPrank(op_admin);
+        // Set to maximum allowed value (100%)
+        etherFiRedemptionManagerInstance.setExitFeeBasisPoints(10000, ETH_ADDRESS);
+
+        (, , uint16 exitFeeBps, ) = etherFiRedemptionManagerInstance.tokenToRedemptionInfo(ETH_ADDRESS);
+        assertEq(exitFeeBps, 10000);
+
+        // Try to set above maximum - should fail
+        vm.expectRevert(EtherFiRedemptionManager.ExceedsMaxExitFee.selector);
+        etherFiRedemptionManagerInstance.setExitFeeBasisPoints(10001, ETH_ADDRESS);
+        vm.stopPrank();
+    }
+
+    function test_mainnet_setLowWatermarkInBpsOfTvl_max_value() public {
+        setUp_Fork();
+
+        vm.startPrank(op_admin);
+        // Set to maximum allowed value (100%)
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(10000, ETH_ADDRESS);
+
+        (, , , uint16 lowWM) = etherFiRedemptionManagerInstance.tokenToRedemptionInfo(ETH_ADDRESS);
+        assertEq(lowWM, 10000);
+
+        // Try to set above maximum - should fail
+        vm.expectRevert(EtherFiRedemptionManager.ExceedsMaxLowWatermark.selector);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(10001, ETH_ADDRESS);
+        vm.stopPrank();
+    }
+
+    function test_mainnet_setExitFeeSplitToTreasuryInBps_max_value() public {
+        setUp_Fork();
+
+        vm.startPrank(op_admin);
+        // Set to maximum allowed value (100%)
+        etherFiRedemptionManagerInstance.setExitFeeSplitToTreasuryInBps(10000, ETH_ADDRESS);
+
+        (, uint16 exitSplit, , ) = etherFiRedemptionManagerInstance.tokenToRedemptionInfo(ETH_ADDRESS);
+        assertEq(exitSplit, 10000);
+
+        // Try to set above maximum - should fail
+        vm.expectRevert(EtherFiRedemptionManager.ExceedsMaxExitFeeSplit.selector);
+        etherFiRedemptionManagerInstance.setExitFeeSplitToTreasuryInBps(10001, ETH_ADDRESS);
+        vm.stopPrank();
+    }
+
+    function test_mainnet_redeemWeEth_insufficient_balance() public {
+        setUp_Fork();
+        
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setCapacity(1000 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(1000 ether, ETH_ADDRESS);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+
+        vm.deal(user, 10 ether);
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: 10 ether}();
+        
+        // Try to redeem more weETH than balance
+        weEthInstance.approve(address(etherFiRedemptionManagerInstance), 100 ether);
+        vm.expectRevert(EtherFiRedemptionManager.InsufficientBalance.selector);
+        etherFiRedemptionManagerInstance.redeemWeEth(100 ether, user, ETH_ADDRESS);
+        vm.stopPrank();
+    }
+
+    function test_mainnet_redeemWeEth_with_rebase_preview() public {
+        setUp_Fork();
+        
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setCapacity(1000 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(1000 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setExitFeeBasisPoints(50, ETH_ADDRESS);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+
+        vm.deal(alice, 50000 ether);
+        vm.prank(alice);
+        liquidityPoolInstance.deposit{value: 50000 ether}();
+
+        vm.deal(user, 100 ether);
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: 10 ether}();
+        eETHInstance.approve(address(weEthInstance), 10 ether);
+        weEthInstance.wrap(1 ether);
+        vm.stopPrank();
+
+        // Apply rebase
+        uint256 one_percent_of_tvl = liquidityPoolInstance.getTotalPooledEther() / 100;
+        _rebaseUncapped(int128(uint128(one_percent_of_tvl)));
+
+        vm.startPrank(user);
+        uint256 weEthAmount = weEthInstance.balanceOf(user);
+        uint256 eEthAmount = weEthInstance.getEETHByWeETH(weEthAmount);
+        uint256 shares = liquidityPoolInstance.sharesForAmount(eEthAmount);
+        
+        // Test previewRedeem with weETH (after rebase)
+        uint256 previewAmount = etherFiRedemptionManagerInstance.previewRedeem(shares, ETH_ADDRESS);
+        assertGt(previewAmount, 0);
+        
+        // Verify preview is less than eEthAmount (due to fees)
+        assertLt(previewAmount, eEthAmount);
+        vm.stopPrank();
+    }
+
+    function test_mainnet_totalRedeemableAmount_with_locked_withdrawals() public {
+        setUp_Fork();
+
+        vm.deal(alice, 1000 ether);
+        vm.prank(alice);
+        liquidityPoolInstance.deposit{value: 1000 ether}();
+
+        uint256 instantLiquidity = etherFiRedemptionManagerInstance.getInstantLiquidityAmount(ETH_ADDRESS);
+        uint256 lpBalance = address(liquidityPoolInstance).balance;
+
+        // Verify getInstantLiquidityAmount is positive and bounded by LP balance.
+        assertGt(instantLiquidity, 0, "should have positive liquidity on mainnet");
+        assertLe(instantLiquidity, lpBalance, "instantLiquidity cannot exceed LP balance");
+
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setCapacity(10000 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(10000 ether, ETH_ADDRESS);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+
+        uint256 totalRedeemable = etherFiRedemptionManagerInstance.totalRedeemableAmount(ETH_ADDRESS);
+        
+        // Total redeemable should be min(bucket capacity, instant liquidity)
+        assertLe(totalRedeemable, instantLiquidity);
+        assertLe(totalRedeemable, 10000 ether);
+    }
+
+    function test_mainnet_redeem_with_zero_exit_fee() public {
+        setUp_Fork();
+        
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setCapacity(1000 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(1000 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setExitFeeBasisPoints(0, ETH_ADDRESS); // 0% exit fee
+        etherFiRedemptionManagerInstance.setExitFeeSplitToTreasuryInBps(0, ETH_ADDRESS); // 0% to treasury
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+
+        vm.deal(user, 100 ether);
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: 100 ether}();
+        uint256 eEthBalance = eETHInstance.balanceOf(user);
+        
+        uint256 treasuryBalanceBefore = eETHInstance.balanceOf(address(etherFiRedemptionManagerInstance.treasury()));
+        uint256 userEthBefore = address(user).balance;
+        
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), eEthBalance);
+        etherFiRedemptionManagerInstance.redeemEEth(eEthBalance, user, ETH_ADDRESS);
+        
+        uint256 treasuryBalanceAfter = eETHInstance.balanceOf(address(etherFiRedemptionManagerInstance.treasury()));
+        uint256 userEthAfter = address(user).balance;
+        
+        // With zero fees, treasury should receive nothing
+        assertEq(treasuryBalanceAfter, treasuryBalanceBefore);
+        
+        // User should receive almost all ETH (minus gas and rounding)
+        assertApproxEqAbs(userEthAfter - userEthBefore, eEthBalance, 1e3);
+        vm.stopPrank();
+    }
+
+    function test_mainnet_redeem_with_100_percent_treasury_split() public {
+        setUp_Fork();
+        
+        vm.startPrank(op_admin);
+        etherFiRedemptionManagerInstance.setLowWatermarkInBpsOfTvl(0, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setCapacity(1000 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(1000 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setExitFeeBasisPoints(100, ETH_ADDRESS); // 1% exit fee
+        etherFiRedemptionManagerInstance.setExitFeeSplitToTreasuryInBps(10000, ETH_ADDRESS); // 100% to treasury
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+
+        vm.deal(user, 100 ether);
+        vm.startPrank(user);
+        liquidityPoolInstance.deposit{value: 100 ether}();
+        uint256 eEthBalance = eETHInstance.balanceOf(user);
+        
+        uint256 treasuryBalanceBefore = eETHInstance.balanceOf(address(etherFiRedemptionManagerInstance.treasury()));
+        
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), eEthBalance);
+        etherFiRedemptionManagerInstance.redeemEEth(eEthBalance, user, ETH_ADDRESS);
+        
+        uint256 treasuryBalanceAfter = eETHInstance.balanceOf(address(etherFiRedemptionManagerInstance.treasury()));
+        
+        // With 100% fee split to treasury, all fees should go to treasury
+        // Calculate expected fee
+        uint256 expectedFee = (eEthBalance * 100) / 10000;
+        uint256 expectedTreasuryFee = liquidityPoolInstance.amountForShare(
+            liquidityPoolInstance.sharesForAmount(expectedFee)
+        );
+        
+        assertApproxEqAbs(treasuryBalanceAfter - treasuryBalanceBefore, expectedTreasuryFee, 5e11);
+        vm.stopPrank();
+    }
+
+    //--------------------------------------------------------------------------------------
+    //--------------------------  pauseContractUntil / unpauseContractUntil  ---------------
+    //--------------------------------------------------------------------------------------
+
+    bytes32 constant PAUSABLE_UNTIL_SLOT =
+        0x2c7e4bc092c2002f0baaf2f47367bc442b098266b43d189dafe4cb25f1e1fea2;
+
+    address rmPauseUntilPauser = makeAddr("rmPauseUntilPauser");
+    address rmUnpauseUntilUnpauser = makeAddr("rmUnpauseUntilUnpauser");
+    address rmPauseUntilDurationSetter = makeAddr("rmPauseUntilDurationSetter");
+
+    function _grantRmPauseUntilRoles() internal {
+        vm.startPrank(roleRegistryInstance.owner());
+        // pauseContractUntil → GUARDIAN_ROLE; unpause + setPauseUntilDuration → OPERATION_MULTISIG_ROLE
+        roleRegistryInstance.grantRole(roleRegistryInstance.GUARDIAN_ROLE(), rmPauseUntilPauser);
+        roleRegistryInstance.grantRole(roleRegistryInstance.OPERATION_MULTISIG_ROLE(), rmUnpauseUntilUnpauser);
+        roleRegistryInstance.grantRole(roleRegistryInstance.OPERATION_TIMELOCK_ROLE(), rmPauseUntilDurationSetter);
+        vm.stopPrank();
+        if (block.timestamp < 1_700_000_000) vm.warp(1_700_000_000);
+
+        uint256 maxDur = etherFiRedemptionManagerInstance.MAX_PAUSE_DURATION();
+        vm.prank(rmPauseUntilDurationSetter);
+        etherFiRedemptionManagerInstance.setPauseUntilDuration(maxDur);
+    }
+
+    function _rmPausedUntil() internal view returns (uint256) {
+        return uint256(vm.load(address(etherFiRedemptionManagerInstance), PAUSABLE_UNTIL_SLOT));
+    }
+
+    function _setupRedeemScenario() internal {
+        // deposit LP liquidity + user eETH balance + configure rate limiter
+        vm.deal(alice, 100 ether);
+        vm.prank(alice);
+        liquidityPoolInstance.deposit{value: 100 ether}();
+
+        vm.deal(user, 10 ether);
+        vm.prank(user);
+        liquidityPoolInstance.deposit{value: 5 ether}();
+
+        vm.startPrank(admin);
+        etherFiRedemptionManagerInstance.setCapacity(5 ether, ETH_ADDRESS);
+        etherFiRedemptionManagerInstance.setRefillRatePerSecond(5 ether, ETH_ADDRESS);
+        vm.stopPrank();
+        vm.warp(block.timestamp + 1);
+
+        vm.prank(user);
+        eETHInstance.approve(address(etherFiRedemptionManagerInstance), type(uint256).max);
+    }
+
+    function test_pauseContractUntil_requiresRole() public {
+        _grantRmPauseUntilRoles();
+        vm.prank(bob);
+        vm.expectRevert(RoleRegistry.OnlyGuardian.selector);
+        etherFiRedemptionManagerInstance.pauseUntil();
+    }
+
+    function test_pauseContractUntil_setsState() public {
+        _grantRmPauseUntilRoles();
+        vm.prank(rmPauseUntilPauser);
+        etherFiRedemptionManagerInstance.pauseUntil();
+        assertEq(_rmPausedUntil(), block.timestamp + etherFiRedemptionManagerInstance.MAX_PAUSE_DURATION());
+    }
+
+    function test_unpauseContractUntil_requiresRole() public {
+        _grantRmPauseUntilRoles();
+        vm.prank(rmPauseUntilPauser);
+        etherFiRedemptionManagerInstance.pauseUntil();
+
+        vm.prank(bob);
+        vm.expectRevert(RoleRegistry.OnlyOperatingMultisig.selector);
+        etherFiRedemptionManagerInstance.unpauseUntil();
+    }
+
+    function test_unpauseContractUntil_clearsState() public {
+        _grantRmPauseUntilRoles();
+        vm.prank(rmPauseUntilPauser);
+        etherFiRedemptionManagerInstance.pauseUntil();
+
+        vm.prank(rmUnpauseUntilUnpauser);
+        etherFiRedemptionManagerInstance.unpauseUntil();
+        assertEq(_rmPausedUntil(), 0);
+    }
+
+    function test_unpauseContractUntil_revertsIfNotPaused() public {
+        _grantRmPauseUntilRoles();
+        vm.prank(rmUnpauseUntilUnpauser);
+        vm.expectRevert(PausableUntil.ContractNotPausedUntil.selector);
+        etherFiRedemptionManagerInstance.unpauseUntil();
+    }
+
+    // --- setPauseUntilDuration ---
+
+    function test_setPauseUntilDuration_requiresRole() public {
+        _grantRmPauseUntilRoles();
+        uint256 maxDur = etherFiRedemptionManagerInstance.MAX_PAUSE_DURATION();
+
+        vm.prank(bob);
+        vm.expectRevert();
+        etherFiRedemptionManagerInstance.setPauseUntilDuration(maxDur);
+
+        // PAUSE_UNTIL_ROLE alone is insufficient
+        vm.prank(rmPauseUntilPauser);
+        vm.expectRevert();
+        etherFiRedemptionManagerInstance.setPauseUntilDuration(maxDur);
+    }
+
+    function test_setPauseUntilDuration_setsValue() public {
+        _grantRmPauseUntilRoles();
+        uint256 d = etherFiRedemptionManagerInstance.MIN_PAUSE_DURATION() + 1 hours;
+
+        vm.prank(rmPauseUntilDurationSetter);
+        etherFiRedemptionManagerInstance.setPauseUntilDuration(d);
+
+        vm.prank(rmPauseUntilPauser);
+        etherFiRedemptionManagerInstance.pauseUntil();
+        assertEq(_rmPausedUntil(), block.timestamp + d);
+    }
+
+    function test_setPauseUntilDuration_revertsOnInvalidValue() public {
+        _grantRmPauseUntilRoles();
+        uint256 belowMin = etherFiRedemptionManagerInstance.MIN_PAUSE_DURATION() - 1;
+        uint256 aboveMax = etherFiRedemptionManagerInstance.MAX_PAUSE_DURATION() + 1;
+
+        vm.prank(rmPauseUntilDurationSetter);
+        vm.expectRevert(PausableUntil.InvalidPauseUntilDuration.selector);
+        etherFiRedemptionManagerInstance.setPauseUntilDuration(belowMin);
+
+        vm.prank(rmPauseUntilDurationSetter);
+        vm.expectRevert(PausableUntil.InvalidPauseUntilDuration.selector);
+        etherFiRedemptionManagerInstance.setPauseUntilDuration(aboveMax);
+    }
+
+    // --- each gated function (whenNotPaused now also enforces pause-until via override) ---
+
+    function test_redeemEEth_blockedByPauseContractUntil() public {
+        _setupRedeemScenario();
+        _grantRmPauseUntilRoles();
+        vm.prank(rmPauseUntilPauser);
+        etherFiRedemptionManagerInstance.pauseUntil();
+
+        vm.prank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(PausableUntil.ContractPausedUntil.selector, _rmPausedUntil())
+        );
+        etherFiRedemptionManagerInstance.redeemEEth(1 ether, user, ETH_ADDRESS);
+    }
+
+    function test_redeemWeEth_blockedByPauseContractUntil() public {
+        _setupRedeemScenario();
+        // wrap a small amount of eETH to weETH so we can attempt redeemWeEth
+        vm.startPrank(user);
+        eETHInstance.approve(address(weEthInstance), 1 ether);
+        weEthInstance.wrap(1 ether);
+        IERC20(address(weEthInstance)).approve(address(etherFiRedemptionManagerInstance), type(uint256).max);
+        vm.stopPrank();
+
+        _grantRmPauseUntilRoles();
+        vm.prank(rmPauseUntilPauser);
+        etherFiRedemptionManagerInstance.pauseUntil();
+
+        vm.prank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(PausableUntil.ContractPausedUntil.selector, _rmPausedUntil())
+        );
+        etherFiRedemptionManagerInstance.redeemWeEth(0.5 ether, user, ETH_ADDRESS);
+    }
+
+    function test_redeemEEthWithPermit_blockedByPauseContractUntil() public {
+        _setupRedeemScenario();
+        _grantRmPauseUntilRoles();
+        vm.prank(rmPauseUntilPauser);
+        etherFiRedemptionManagerInstance.pauseUntil();
+
+        IeETH.PermitInput memory emptyPermit;
+        vm.prank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(PausableUntil.ContractPausedUntil.selector, _rmPausedUntil())
+        );
+        etherFiRedemptionManagerInstance.redeemEEthWithPermit(1 ether, user, emptyPermit, ETH_ADDRESS);
+    }
+
+    function test_redeemWeEthWithPermit_blockedByPauseContractUntil() public {
+        _setupRedeemScenario();
+        _grantRmPauseUntilRoles();
+        vm.prank(rmPauseUntilPauser);
+        etherFiRedemptionManagerInstance.pauseUntil();
+
+        IWeETH.PermitInput memory emptyPermit;
+        vm.prank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(PausableUntil.ContractPausedUntil.selector, _rmPausedUntil())
+        );
+        etherFiRedemptionManagerInstance.redeemWeEthWithPermit(1 ether, user, emptyPermit, ETH_ADDRESS);
+    }
+
+    function test_redeemEEth_unblockedAfterPauseExpires() public {
+        _setupRedeemScenario();
+        _grantRmPauseUntilRoles();
+        vm.prank(rmPauseUntilPauser);
+        etherFiRedemptionManagerInstance.pauseUntil();
+
+        vm.warp(block.timestamp + etherFiRedemptionManagerInstance.MAX_PAUSE_DURATION() + 1);
+
+        vm.prank(user);
+        etherFiRedemptionManagerInstance.redeemEEth(1 ether, user, ETH_ADDRESS);
+    }
+
+    function test_redeemEEth_unblockedAfterExplicitUnpause() public {
+        _setupRedeemScenario();
+        _grantRmPauseUntilRoles();
+        vm.prank(rmPauseUntilPauser);
+        etherFiRedemptionManagerInstance.pauseUntil();
+        vm.prank(rmUnpauseUntilUnpauser);
+        etherFiRedemptionManagerInstance.unpauseUntil();
+
+        vm.prank(user);
+        etherFiRedemptionManagerInstance.redeemEEth(1 ether, user, ETH_ADDRESS);
+    }
+
+    // -----------------------------------------------------------------
+    //  sweepDust — recover residual ERC20 balances (onlyOperatingMultisig)
+    //
+    //  Non-fork: sweepDust is token-agnostic (any IERC20), so a mock token
+    //  minted directly into the contract exercises every path without a fork.
+    // -----------------------------------------------------------------
+
+    /// @dev local mirror of EtherFiRedemptionManager.DustSwept for expectEmit.
+    event DustSwept(address indexed token, address indexed to, uint256 amount);
+
+    function _grantOperatingMultisig(address who) internal {
+        // Cache view-call results before the prank — each external call (even a view)
+        // consumes a single vm.prank, so inlining them would spend it before grantRole.
+        address rrOwner = roleRegistryInstance.owner();
+        bytes32 role = roleRegistryInstance.OPERATION_MULTISIG_ROLE();
+        vm.prank(rrOwner);
+        roleRegistryInstance.grantRole(role, who);
+    }
+
+    function test_sweepDust_succeeds() public {
+        address sweeper = makeAddr("dustSweeper");
+        address recipient = makeAddr("dustRecipient");
+        _grantOperatingMultisig(sweeper);
+
+        TestERC20 dust = new TestERC20("Dust", "DUST");
+        dust.mint(address(etherFiRedemptionManagerInstance), 1234);
+
+        vm.expectEmit(true, true, false, true);
+        emit DustSwept(address(dust), recipient, 1234);
+
+        vm.prank(sweeper);
+        etherFiRedemptionManagerInstance.sweepDust(address(dust), recipient);
+
+        assertEq(dust.balanceOf(recipient), 1234, "recipient receives full residual balance");
+        assertEq(dust.balanceOf(address(etherFiRedemptionManagerInstance)), 0, "contract balance fully swept");
+    }
+
+    function test_sweepDust_revertsForNonOperatingMultisig() public {
+        TestERC20 dust = new TestERC20("Dust", "DUST");
+        dust.mint(address(etherFiRedemptionManagerInstance), 1 ether);
+
+        // chad holds no roles.
+        vm.prank(chad);
+        vm.expectRevert(RoleRegistry.OnlyOperatingMultisig.selector);
+        etherFiRedemptionManagerInstance.sweepDust(address(dust), chad);
+    }
+
+    function test_sweepDust_revertsOnZeroRecipient() public {
+        address sweeper = makeAddr("dustSweeper");
+        _grantOperatingMultisig(sweeper);
+
+        TestERC20 dust = new TestERC20("Dust", "DUST");
+        dust.mint(address(etherFiRedemptionManagerInstance), 1 ether);
+
+        vm.prank(sweeper);
+        vm.expectRevert(EtherFiRedemptionManager.InvalidRecipient.selector);
+        etherFiRedemptionManagerInstance.sweepDust(address(dust), address(0));
+    }
+
+    function test_sweepDust_revertsOnZeroBalance() public {
+        address sweeper = makeAddr("dustSweeper");
+        address recipient = makeAddr("dustRecipient");
+        _grantOperatingMultisig(sweeper);
+
+        // Token with no balance held by the contract.
+        TestERC20 dust = new TestERC20("Dust", "DUST");
+
+        vm.prank(sweeper);
+        vm.expectRevert(EtherFiRedemptionManager.InsufficientBalance.selector);
+        etherFiRedemptionManagerInstance.sweepDust(address(dust), recipient);
+    }
+}

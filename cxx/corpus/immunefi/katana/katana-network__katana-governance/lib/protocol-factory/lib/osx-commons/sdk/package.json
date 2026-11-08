@@ -1,0 +1,64 @@
+{
+  "name": "@aragon/osx-commons-sdk",
+  "author": "Aragon X",
+  "version": "0.2.0",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "module": "dist/osx-commons-sdk.esm.js",
+  "typings": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "scripts": {
+    "start": "dts watch",
+    "build": "dts build",
+    "test": "TESTING=true dts test --verbose --runInBand",
+    "lint:ts": "cd .. && yarn run lint:sdk:ts",
+    "prepare": "yarn run build",
+    "size": "size-limit",
+    "analyze": "size-limit --why",
+    "clean": "rm -Rf .turbo dist",
+    "examples": "node ./scripts/generate-examples-md.js ./examples ./examples.md"
+  },
+  "peerDependencies": {},
+  "husky": {
+    "hooks": {
+      "pre-commit": "yarn lint:ts"
+    }
+  },
+  "size-limit": [
+    {
+      "path": "dist/osx-commons-sdk.cjs.production.min.js",
+      "limit": "10 KB"
+    },
+    {
+      "path": "dist/osx-commons-sdk.esm.js",
+      "limit": "10 KB"
+    }
+  ],
+  "devDependencies": {
+    "@size-limit/preset-small-lib": "^11.1.6",
+    "@types/node": "^20.17.17",
+    "dotenv": "^16.4.7",
+    "dts-cli": "^2.0.5",
+    "husky": "^9.1.7",
+    "size-limit": "^11.1.6",
+    "tslib": "^2.8.1",
+    "typescript": "5.7.3"
+  },
+  "dependencies": {
+    "@aragon/osx-commons-configs": "^0.8.0",
+    "@ethersproject/address": "5.7.0",
+    "@ethersproject/bignumber": "5.7.0",
+    "@ethersproject/contracts": "5.7.0",
+    "@ethersproject/hash": "5.7.0",
+    "@ethersproject/logger": "5.7.0",
+    "@ethersproject/providers": "5.7.2"
+  }
+}

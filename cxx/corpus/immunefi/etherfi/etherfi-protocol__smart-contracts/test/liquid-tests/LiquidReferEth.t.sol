@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.22;
+
+import {LiquidReferBaseTest} from "@tests/liquid-tests/base/liquidReferBaseTest.t.sol";
+import {ILayerZeroTellerWithRateLimiting} from "@etherfi/interfaces/liquid-interfaces/ILayerZeroTellerWithRateLimiting.sol";
+
+contract LiquidReferEthTest is LiquidReferBaseTest {
+    function _assetConfig() internal pure override returns (AssetConfig memory) {
+        return AssetConfig({
+            teller: ILayerZeroTellerWithRateLimiting(LIQUID_ETH_TELLER),
+            asset: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, // WETH mainnet
+            depositAmount: 1 ether
+        });
+    }
+
+    function _maxFuzzAmount() internal pure override returns (uint256) {
+        return 10 ether;
+    }
+}
+
+contract LiquidReferETHOPTest is LiquidReferBaseTest {
+    function _assetConfig() internal pure override returns (AssetConfig memory) {
+        return AssetConfig({
+            teller: ILayerZeroTellerWithRateLimiting(LIQUID_ETH_TELLER),
+            asset: 0x4200000000000000000000000000000000000006, // WETH OP
+            depositAmount: 1 ether
+        });
+    }
+
+    function _maxFuzzAmount() internal pure override returns (uint256) {
+        return 10 ether;
+    }
+    function _envVar() internal pure override returns (string memory) {
+        return "OP_RPC_URL";
+    }
+}

@@ -1,0 +1,6 @@
+[submodule "modules/forge-std"]
+	path = modules/forge-std
+	url = git@github.com:foundry-rs/forge-std.git
+[submodule "modules/ntp"]
+	path = modules/ntp
+	url = git@github.com:maple-labs/non-transparent-proxy.git

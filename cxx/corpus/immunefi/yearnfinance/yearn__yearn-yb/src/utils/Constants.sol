@@ -1,0 +1,53 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+library Protocol {
+    address constant OWNER = 0x4444AAAACDBa5580282365e25b16309Bd770ce4a;
+    address constant LOCKER = 0x0000000C90799449af8eE0B240Da639144a36C6A;
+    address constant OPERATOR = 0x1111111Ecd5Ae05422aeCe517072ec33Dbf34af9;
+    address constant YTOKEN = 0x22222222aEA0076fCA927a3f44dc0B4FdF9479D6;
+    address constant YV_YYB = 0xA785dbbb48f6C42bE29DeA00Eb1347b341D681a5;
+    address constant YV_LPYYB = 0xe0287cA62fE23f4FFAB827d5448d68aFe6DD9Fd7;
+    address constant NFT_HELPER = 0x99999990aAA1B07506Cb4eA501B46Ba03D526E95;
+}
+
+library YBS {
+    address constant YBS_YB = 0x5D2eA33449A60a70E8FCdc5251FDd86a030fAD91;
+    address constant UTILS_YB = 0xcC94635a39678265079287058105657326a38624;
+    address constant DISTRIBUTOR_YB = 0x9C5733145417B0C8cd0A799Db054664F81a7b336;
+
+    address constant REGISTRY = 0x262be1d31d0754399d8d5dc63B99c22146E9f738;
+    address constant STAKE_TOKEN = 0x22222222aEA0076fCA927a3f44dc0B4FdF9479D6;
+    address constant REWARD_TOKEN = 0xBF319dDC2Edc1Eb6FDf9910E39b37Be221C8805F;
+    address constant OWNER = 0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52;
+}
+
+library YB {
+    address constant TOKEN = 0x01791F726B4103694969820be083196cC7c045fF;
+    address constant VEYB = 0x8235c179E9e84688FBd8B12295EfC26834dAC211;
+    address constant GAUGE_CONTROLLER = 0x1Be14811A3a06F6aF4fA64310a636e1Df04c1c21;
+    address constant STAKE_ZAP = 0xE862bC39B8D5F12D8c4117d3e2D493Dc20051EC6;
+    address constant DAO_VOTING = 0x2be6670DE1cCEC715bDBBa2e3A6C1A05E496ec78;
+    address constant DAO = 0x42F2A41A0D0e65A440813190880c8a65124895Fa;
+}
+
+library Curve {
+    address internal constant CURVE_STABLE_FACTORY = 0x6A8cbed756804B16E05E741eDaBd5cB544AE21bf;
+    address internal constant POOL = 0x64c08F63De0D4AF43aE09d3E26737ED2A492F02B;
+    address internal constant GAUGE = 0xE064B521c282C988cCE7BB74C6836b63AfA602Ea;
+}
+
+library Yearn {
+    address internal constant ROLE_MANAGER = 0xb3bd6B2E61753C311EFbCF0111f75D29706D9a41;
+    address internal constant VAULT = 0xA785dbbb48f6C42bE29DeA00Eb1347b341D681a5;
+    address internal constant REGISTRY_V2 = 0x7Cb5ABEb0de8f6f46a27329B9eF54CE10E47F1e2;
+}
+
+library CreateX {
+    address constant FACTORY = 0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed;
+    // CREATE3 Salts
+    bytes32 constant SALT_LOCKER = 0x4444aaaacdba5580282365e25b16309bd770ce4a009fcc93897e0b2700f8ab4c;
+    bytes32 constant SALT_OPERATOR = 0x4444aaaacdba5580282365e25b16309bd770ce4a00089586a306e5c9037ec220;
+    bytes32 constant SALT_YTOKEN = 0x4444aaaacdba5580282365e25b16309bd770ce4a0010b1e704a781420081c557;
+    bytes32 constant SALT_NFTHelper = 0x4444aaaacdba5580282365e25b16309bd770ce4a0042ed51275b4d0d01d5acfa;
+}
