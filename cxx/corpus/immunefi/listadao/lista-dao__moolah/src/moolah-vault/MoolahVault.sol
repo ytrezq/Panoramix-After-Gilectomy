@@ -1,0 +1,726 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.34;
+
+import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import { ERC20PermitUpgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import { IERC20, IERC4626, ERC20Upgradeable, ERC4626Upgradeable, Math, SafeERC20 } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import { AccessControlEnumerableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
+import { UUPSUpgradeable } from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+
+import { MarketConfig, MarketAllocation, IMoolahVaultBase, IMoolahVaultStaticTyping } from "./interfaces/IMoolahVault.sol";
+import { Id, MarketParams, IMoolah } from "moolah/interfaces/IMoolah.sol";
+
+import { ConstantsLib } from "./libraries/ConstantsLib.sol";
+import { ErrorsLib } from "./libraries/ErrorsLib.sol";
+import { EventsLib } from "./libraries/EventsLib.sol";
+import { MoolahVaultLib } from "./libraries/MoolahVaultLib.sol";
+import { WAD } from "moolah/libraries/MathLib.sol";
+import { UtilsLib } from "moolah/libraries/UtilsLib.sol";
+import { MarketParamsLib } from "moolah/libraries/MarketParamsLib.sol";
+import { MoolahBalancesLib } from "moolah/libraries/periphery/MoolahBalancesLib.sol";
+import { IProvider } from "../provider/interfaces/IProvider.sol";
+import { IBrokerInterestLockBuffer } from "../utils/interfaces/IBrokerInterestLockBuffer.sol";
+
+/// @title MoolahVault
+/// @author Lista DAO
+/// @notice ERC4626 compliant vault allowing users to deposit assets to Moolah.
+contract MoolahVault is
+  UUPSUpgradeable,
+  AccessControlEnumerableUpgradeable,
+  ERC4626Upgradeable,
+  ERC20PermitUpgradeable,
+  IMoolahVaultStaticTyping
+{
+  using Math for uint256;
+  using UtilsLib for uint256;
+  using SafeCast for uint256;
+  using SafeERC20 for IERC20;
+  using MarketParamsLib for MarketParams;
+  using MoolahBalancesLib for IMoolah;
+  using EnumerableSet for EnumerableSet.AddressSet;
+
+  /* IMMUTABLES */
+
+  /// @inheritdoc IMoolahVaultBase
+  IMoolah public immutable MOOLAH;
+
+  /// @notice OpenZeppelin decimals offset used by the ERC4626 implementation.
+  /// @dev Calculated to be max(0, 18 - underlyingDecimals) at construction, so the initial conversion rate maximizes
+  /// precision between shares and assets.
+  uint8 public immutable DECIMALS_OFFSET;
+
+  /* STORAGE */
+
+  /// @inheritdoc IMoolahVaultStaticTyping
+  mapping(Id => MarketConfig) public config;
+
+  /// @inheritdoc IMoolahVaultBase
+  uint96 public fee;
+
+  /// @inheritdoc IMoolahVaultBase
+  address public feeRecipient;
+
+  /// @inheritdoc IMoolahVaultBase
+  address public skimRecipient;
+
+  /// @inheritdoc IMoolahVaultBase
+  Id[] public supplyQueue;
+
+  /// @inheritdoc IMoolahVaultBase
+  Id[] public withdrawQueue;
+
+  /// @inheritdoc IMoolahVaultBase
+  uint256 public lastTotalAssets;
+
+  /// @inheritdoc IMoolahVaultBase
+  address public provider;
+
+  /// if whitelist is set, only whitelisted addresses can deposit and mint
+  EnumerableSet.AddressSet private whiteList;
+
+  /// @notice Custom name override for the vault token.
+  string private _name;
+
+  /// @notice Custom symbol override for the vault token.
+  string private _symbol;
+
+  /// @notice Optional smoothing companion for brokered-interest flushes (audit #08).
+  address public lockBuffer;
+
+  bytes32 public constant MANAGER = keccak256("MANAGER"); // manager role
+  bytes32 public constant CURATOR = keccak256("CURATOR"); // curator role
+  bytes32 public constant ALLOCATOR = keccak256("ALLOCATOR"); // allocator role
+  bytes32 public constant BOT = keccak256("BOT"); // bot role
+
+  modifier onlyAllocatorOrBot() {
+    require(hasRole(ALLOCATOR, msg.sender) || hasRole(BOT, msg.sender), "not allocator or bot");
+    _;
+  }
+
+  /* CONSTRUCTOR */
+
+  /// @custom:oz-upgrades-unsafe-allow constructor
+  /// @param moolah The address of the Moolah contract.
+  /// @param _asset The address of the underlying asset.
+  constructor(address moolah, address _asset) {
+    if (moolah == address(0)) revert ErrorsLib.ZeroAddress();
+    _disableInitializers();
+    MOOLAH = IMoolah(moolah);
+    DECIMALS_OFFSET = uint8(uint256(18).zeroFloorSub(IERC20Metadata(_asset).decimals()));
+  }
+
+  /// @dev Initializes the contract.
+  /// @param admin The new admin of the contract.
+  /// @param manager The new manager of the contract.
+  /// @param _asset The address of the underlying asset.
+  /// @param _name The name of the vault.
+  /// @param _symbol The symbol of the vault.
+  function initialize(
+    address admin,
+    address manager,
+    address _asset,
+    string memory _name,
+    string memory _symbol
+  ) public initializer {
+    if (admin == address(0)) revert ErrorsLib.ZeroAddress();
+    if (manager == address(0)) revert ErrorsLib.ZeroAddress();
+
+    __ERC4626_init(IERC20(_asset));
+    __ERC20_init(_name, _symbol);
+    __AccessControl_init();
+
+    _grantRole(DEFAULT_ADMIN_ROLE, admin);
+    _grantRole(MANAGER, manager);
+    _setRoleAdmin(ALLOCATOR, MANAGER);
+
+    IERC20(_asset).forceApprove(address(MOOLAH), type(uint256).max);
+  }
+
+  /* ONLY MANAGER FUNCTIONS */
+
+  /// @inheritdoc IMoolahVaultBase
+  function setSkimRecipient(address newSkimRecipient) external onlyRole(MANAGER) {
+    if (newSkimRecipient == skimRecipient) revert ErrorsLib.AlreadySet();
+
+    skimRecipient = newSkimRecipient;
+
+    emit EventsLib.SetSkimRecipient(newSkimRecipient);
+  }
+
+  /// @inheritdoc IMoolahVaultBase
+  function setFee(uint256 newFee) external onlyRole(MANAGER) {
+    if (newFee == fee) revert ErrorsLib.AlreadySet();
+    if (newFee > ConstantsLib.MAX_FEE) revert ErrorsLib.MaxFeeExceeded();
+    if (newFee != 0 && feeRecipient == address(0)) revert ErrorsLib.ZeroFeeRecipient();
+
+    // Accrue fee using the previous fee set before changing it.
+    _updateLastTotalAssets(_accrueFee());
+
+    // Safe "unchecked" cast because newFee <= MAX_FEE.
+    fee = uint96(newFee);
+
+    emit EventsLib.SetFee(_msgSender(), fee);
+  }
+
+  /// @inheritdoc IMoolahVaultBase
+  function setFeeRecipient(address newFeeRecipient) external onlyRole(MANAGER) {
+    if (newFeeRecipient == feeRecipient) revert ErrorsLib.AlreadySet();
+    if (newFeeRecipient == address(0) && fee != 0) revert ErrorsLib.ZeroFeeRecipient();
+
+    // Accrue fee to the previous fee recipient set before changing it.
+    _updateLastTotalAssets(_accrueFee());
+
+    feeRecipient = newFeeRecipient;
+
+    emit EventsLib.SetFeeRecipient(newFeeRecipient);
+  }
+
+  /// @notice Set (or unset, with `address(0)`) the broker-interest smoothing buffer.
+  function setLockBuffer(address buf) external onlyRole(MANAGER) {
+    // Refuse to drop or swap a buffer that still has residual locked balance — both detach
+    // (A → 0) and replace (A → B) would otherwise produce an immediate NAV jump.
+    address cur = lockBuffer;
+    if (cur != address(0) && IBrokerInterestLockBuffer(cur).currentLocked() != 0) revert ErrorsLib.LockBufferNotEmpty();
+    if (buf != address(0)) {
+      if (IBrokerInterestLockBuffer(buf).vault() != address(this) || IBrokerInterestLockBuffer(buf).asset() != asset())
+        revert ErrorsLib.LockBufferMismatch();
+      // Refuse a buffer with residual locked — would create a NAV discontinuity at attach.
+      if (IBrokerInterestLockBuffer(buf).currentLocked() != 0) revert ErrorsLib.LockBufferNotEmpty();
+    }
+    // Accrue fee under the OLD curve before swapping the pointer.
+    _updateLastTotalAssets(_accrueFee());
+    lockBuffer = buf;
+    emit EventsLib.SetLockBuffer(buf);
+  }
+
+  /// @notice Add or remove an account from the whitelist.
+  /// @param account The account to add or remove.
+  /// @param enabled True to add, false to remove.
+  function setWhiteList(address account, bool enabled) external onlyRole(MANAGER) {
+    MoolahVaultLib.setWhiteList(whiteList, account, enabled);
+  }
+
+  /// @inheritdoc IMoolahVaultBase
+  function isWhiteList(address account) public view returns (bool) {
+    return whiteList.length() == 0 || whiteList.contains(account);
+  }
+
+  /// @inheritdoc IMoolahVaultBase
+  function getWhiteList() external view returns (address[] memory) {
+    return whiteList.values();
+  }
+
+  /* ONLY CURATOR FUNCTIONS */
+
+  /// @inheritdoc IMoolahVaultBase
+  function setCap(MarketParams memory marketParams, uint256 newSupplyCap) external onlyRole(CURATOR) {
+    Id id = marketParams.id();
+    if (marketParams.loanToken != asset()) revert ErrorsLib.InconsistentAsset(id);
+    if (MOOLAH.market(id).lastUpdate == 0) revert ErrorsLib.MarketNotCreated();
+    if (config[id].removableAt != 0) revert ErrorsLib.PendingRemoval();
+    uint256 supplyCap = config[id].cap;
+    if (newSupplyCap == supplyCap) revert ErrorsLib.AlreadySet();
+
+    _setCap(marketParams, id, newSupplyCap.toUint184());
+  }
+
+  /// @inheritdoc IMoolahVaultBase
+  function setMarketRemoval(MarketParams memory marketParams) external onlyRole(CURATOR) {
+    Id id = marketParams.id();
+    if (config[id].removableAt != 0) revert ErrorsLib.AlreadyPending();
+    if (config[id].cap != 0) revert ErrorsLib.NonZeroCap();
+    if (!config[id].enabled) revert ErrorsLib.MarketNotEnabled(id);
+
+    config[id].removableAt = uint64(block.timestamp);
+  }
+
+  /* ONLY ALLOCATOR FUNCTIONS */
+
+  /// @inheritdoc IMoolahVaultBase
+  function setSupplyQueue(Id[] calldata newSupplyQueue) external onlyRole(ALLOCATOR) {
+    uint256 length = newSupplyQueue.length;
+
+    if (length > ConstantsLib.MAX_QUEUE_LENGTH) revert ErrorsLib.MaxQueueLengthExceeded();
+
+    for (uint256 i; i < length; ++i) {
+      if (config[newSupplyQueue[i]].cap == 0) revert ErrorsLib.UnauthorizedMarket(newSupplyQueue[i]);
+    }
+
+    supplyQueue = newSupplyQueue;
+
+    emit EventsLib.SetSupplyQueue(_msgSender(), newSupplyQueue);
+  }
+
+  /// @inheritdoc IMoolahVaultBase
+  function updateWithdrawQueue(uint256[] calldata indexes) external onlyRole(ALLOCATOR) {
+    uint256 newLength = indexes.length;
+    uint256 currLength = withdrawQueue.length;
+
+    bool[] memory seen = new bool[](currLength);
+    Id[] memory newWithdrawQueue = new Id[](newLength);
+
+    for (uint256 i; i < newLength; ++i) {
+      uint256 prevIndex = indexes[i];
+
+      // If prevIndex >= currLength, it will revert with native "Index out of bounds".
+      Id id = withdrawQueue[prevIndex];
+      if (seen[prevIndex]) revert ErrorsLib.DuplicateMarket(id);
+      seen[prevIndex] = true;
+
+      newWithdrawQueue[i] = id;
+    }
+
+    for (uint256 i; i < currLength; ++i) {
+      if (!seen[i]) {
+        Id id = withdrawQueue[i];
+
+        if (config[id].cap != 0) revert ErrorsLib.InvalidMarketRemovalNonZeroCap(id);
+
+        if (MOOLAH.position(id, address(this)).supplyShares != 0) {
+          if (config[id].removableAt == 0) revert ErrorsLib.InvalidMarketRemovalNonZeroSupply(id);
+
+          if (block.timestamp < config[id].removableAt) {
+            revert ErrorsLib.InvalidMarketRemovalTimelockNotElapsed(id);
+          }
+        }
+
+        delete config[id];
+      }
+    }
+
+    withdrawQueue = newWithdrawQueue;
+
+    emit EventsLib.SetWithdrawQueue(_msgSender(), newWithdrawQueue);
+  }
+
+  /// @inheritdoc IMoolahVaultBase
+  function reallocate(MarketAllocation[] calldata allocations) external onlyAllocatorOrBot {
+    uint256 len = allocations.length;
+    bool[] memory enabled = new bool[](len);
+    uint184[] memory caps = new uint184[](len);
+    for (uint256 i; i < len; ++i) {
+      Id id = allocations[i].marketParams.id();
+      enabled[i] = config[id].enabled;
+      caps[i] = config[id].cap;
+    }
+    MoolahVaultLib.reallocate(MOOLAH, allocations, enabled, caps);
+  }
+
+  /// @inheritdoc IMoolahVaultBase
+  function setBotRole(address _address) external override onlyRole(ALLOCATOR) {
+    require(_address != address(0), ErrorsLib.ZeroAddress());
+    require(_grantRole(BOT, _address), ErrorsLib.SetBotFailed());
+  }
+
+  /// @inheritdoc IMoolahVaultBase
+  function revokeBotRole(address _address) external override onlyRole(ALLOCATOR) {
+    require(_address != address(0), ErrorsLib.ZeroAddress());
+    require(_revokeRole(BOT, _address), ErrorsLib.RevokeBotFailed());
+  }
+
+  /// @inheritdoc IMoolahVaultBase
+  function setProvider(address _provider) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    require(_provider != address(0), ErrorsLib.ZeroAddress());
+    require(provider != _provider, ErrorsLib.AlreadySet());
+    require(IProvider(_provider).TOKEN() == asset(), ErrorsLib.TokenMismatch());
+    provider = _provider;
+
+    emit EventsLib.InitProvider(_provider);
+  }
+
+  /// @notice Set a custom vault name. Pass empty string to revert to the original name.
+  function setName(string calldata newName) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    _name = newName;
+    emit EventsLib.SetName(newName);
+  }
+
+  /// @notice Set a custom vault symbol. Pass empty string to revert to the original symbol.
+  function setSymbol(string calldata newSymbol) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    _symbol = newSymbol;
+    emit EventsLib.SetSymbol(newSymbol);
+  }
+
+  /* EXTERNAL */
+
+  /// @inheritdoc IMoolahVaultBase
+  function supplyQueueLength() external view returns (uint256) {
+    return supplyQueue.length;
+  }
+
+  /// @inheritdoc IMoolahVaultBase
+  function withdrawQueueLength() external view returns (uint256) {
+    return withdrawQueue.length;
+  }
+
+  /// @inheritdoc IMoolahVaultBase
+  function skim(address token) external {
+    if (skimRecipient == address(0)) revert ErrorsLib.ZeroAddress();
+
+    uint256 amount = IERC20(token).balanceOf(address(this));
+
+    IERC20(token).safeTransfer(skimRecipient, amount);
+
+    emit EventsLib.Skim(_msgSender(), token, amount);
+  }
+
+  /* ERC4626Upgradeable (PUBLIC) */
+
+  function decimals() public view override(ERC20Upgradeable, ERC4626Upgradeable) returns (uint8) {
+    return ERC4626Upgradeable.decimals();
+  }
+
+  /// @inheritdoc IERC4626
+  /// @dev Warning: May be higher than the actual max deposit due to duplicate markets in the supplyQueue.
+  function maxDeposit(address) public view override returns (uint256) {
+    return _maxDeposit();
+  }
+
+  /// @inheritdoc IERC4626
+  /// @dev Warning: May be higher than the actual max mint due to duplicate markets in the supplyQueue.
+  function maxMint(address) public view override returns (uint256) {
+    uint256 suppliable = _maxDeposit();
+
+    return _convertToShares(suppliable, Math.Rounding.Floor);
+  }
+
+  /// @inheritdoc IERC4626
+  /// @dev Warning: May be lower than the actual amount of assets that can be withdrawn by `owner` due to conversion
+  /// roundings between shares and assets.
+  function maxWithdraw(address owner) public view override returns (uint256 assets) {
+    (assets, , ) = _maxWithdraw(owner);
+  }
+
+  /// @inheritdoc IERC4626
+  /// @dev Warning: May be lower than the actual amount of shares that can be redeemed by `owner` due to conversion
+  /// roundings between shares and assets.
+  function maxRedeem(address owner) public view override returns (uint256) {
+    (uint256 assets, uint256 newTotalSupply, uint256 newTotalAssets) = _maxWithdraw(owner);
+
+    return _convertToSharesWithTotals(assets, newTotalSupply, newTotalAssets, Math.Rounding.Floor);
+  }
+
+  /// @inheritdoc IERC4626
+  function deposit(uint256 assets, address receiver) public override returns (uint256 shares) {
+    require(isWhiteList(receiver), ErrorsLib.NotWhiteList());
+    uint256 newTotalAssets = _accrueFee();
+
+    // Update `lastTotalAssets` to avoid an inconsistent state in a re-entrant context.
+    // It is updated again in `_deposit`.
+    lastTotalAssets = newTotalAssets;
+
+    shares = _convertToSharesWithTotals(assets, totalSupply(), newTotalAssets, Math.Rounding.Floor);
+
+    _deposit(_msgSender(), receiver, assets, shares);
+  }
+
+  /// @inheritdoc IERC4626
+  function mint(uint256 shares, address receiver) public override returns (uint256 assets) {
+    require(isWhiteList(receiver), ErrorsLib.NotWhiteList());
+    uint256 newTotalAssets = _accrueFee();
+
+    // Update `lastTotalAssets` to avoid an inconsistent state in a re-entrant context.
+    // It is updated again in `_deposit`.
+    lastTotalAssets = newTotalAssets;
+
+    assets = _convertToAssetsWithTotals(shares, totalSupply(), newTotalAssets, Math.Rounding.Ceil);
+
+    _deposit(_msgSender(), receiver, assets, shares);
+  }
+
+  /// @inheritdoc IERC4626
+  function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256 shares) {
+    shares = _withdrawInternal(assets, receiver, owner, _msgSender());
+  }
+
+  /// @dev Withdraws `assets` from the vault and sends them to `receiver`.
+  /// @dev This function is called by providers to withdraw assets from the vault.
+  /// @dev It is not a standard ERC4626 function and should not be used directly.
+  /// @param assets The amount of assets to withdraw.
+  /// @param owner The address of the owner of the shares; shares are burned from owner.
+  /// @param sender The address of the caller who initiated the withdrawal via the provider.
+  function withdrawFor(uint256 assets, address owner, address sender) external returns (uint256 shares) {
+    require(provider != address(0), ErrorsLib.ZeroAddress());
+    require(msg.sender == provider, ErrorsLib.NotProvider());
+
+    shares = _withdrawInternal(assets, provider, owner, sender);
+  }
+
+  /// @inheritdoc IERC4626
+  function redeem(uint256 shares, address receiver, address owner) public override returns (uint256 assets) {
+    assets = _redeemInternal(shares, receiver, owner, _msgSender());
+  }
+
+  /// @dev Redeems `shares` from the vault and sends them to `receiver`.
+  /// @dev This function is called by providers to redeem shares from the vault.
+  /// @dev It is not a standard ERC4626 function and should not be used directly.
+  /// @param shares The amount of shares to redeem.
+  /// @param owner The address of the owner of the shares; shares are burned from owner.
+  /// @param sender The address of the caller who initiated the redemption via the provider.
+  function redeemFor(uint256 shares, address owner, address sender) external returns (uint256 assets) {
+    require(provider != address(0), ErrorsLib.ZeroAddress());
+    require(msg.sender == provider, ErrorsLib.NotProvider());
+
+    assets = _redeemInternal(shares, provider, owner, sender);
+  }
+
+  /// @inheritdoc IERC4626
+  function totalAssets() public view override returns (uint256 assets) {
+    for (uint256 i; i < withdrawQueue.length; ++i) {
+      assets += MOOLAH.expectedSupplyAssets(_marketParams(withdrawQueue[i]), address(this));
+    }
+    address buf = lockBuffer;
+    if (buf != address(0)) {
+      uint256 locked = IBrokerInterestLockBuffer(buf).currentLocked();
+      assets = assets > locked ? assets - locked : 0;
+    }
+  }
+
+  /// @inheritdoc IERC20Metadata
+  function name() public view override(ERC20Upgradeable, IERC20Metadata) returns (string memory) {
+    if (bytes(_name).length > 0) return _name;
+    return super.name();
+  }
+
+  /// @inheritdoc IERC20Metadata
+  function symbol() public view override(ERC20Upgradeable, IERC20Metadata) returns (string memory) {
+    if (bytes(_symbol).length > 0) return _symbol;
+    return super.symbol();
+  }
+
+  /* ERC4626Upgradeable (INTERNAL) */
+
+  /// @inheritdoc ERC4626Upgradeable
+  function _decimalsOffset() internal view override returns (uint8) {
+    return DECIMALS_OFFSET;
+  }
+
+  /// @dev Returns the maximum amount of asset (`assets`) that the `owner` can withdraw from the vault, as well as the
+  /// new vault's total supply (`newTotalSupply`) and total assets (`newTotalAssets`).
+  function _maxWithdraw(
+    address owner
+  ) internal view returns (uint256 assets, uint256 newTotalSupply, uint256 newTotalAssets) {
+    uint256 feeShares;
+    (feeShares, newTotalAssets) = _accruedFeeShares();
+    newTotalSupply = totalSupply() + feeShares;
+
+    assets = _convertToAssetsWithTotals(balanceOf(owner), newTotalSupply, newTotalAssets, Math.Rounding.Floor);
+    assets -= _simulateWithdrawMoolah(assets);
+  }
+
+  /// @dev Returns the maximum amount of assets that the vault can supply on Moolah.
+  function _maxDeposit() internal view returns (uint256) {
+    uint256 len = supplyQueue.length;
+    Id[] memory queue = new Id[](len);
+    uint184[] memory caps = new uint184[](len);
+    for (uint256 i; i < len; ++i) {
+      queue[i] = supplyQueue[i];
+      caps[i] = config[queue[i]].cap;
+    }
+    return MoolahVaultLib.maxDeposit(MOOLAH, queue, caps);
+  }
+
+  /// @inheritdoc ERC4626Upgradeable
+  /// @dev The accrual of performance fees is taken into account in the conversion.
+  function _convertToShares(uint256 assets, Math.Rounding rounding) internal view override returns (uint256) {
+    (uint256 feeShares, uint256 newTotalAssets) = _accruedFeeShares();
+
+    return _convertToSharesWithTotals(assets, totalSupply() + feeShares, newTotalAssets, rounding);
+  }
+
+  /// @inheritdoc ERC4626Upgradeable
+  /// @dev The accrual of performance fees is taken into account in the conversion.
+  function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view override returns (uint256) {
+    (uint256 feeShares, uint256 newTotalAssets) = _accruedFeeShares();
+
+    return _convertToAssetsWithTotals(shares, totalSupply() + feeShares, newTotalAssets, rounding);
+  }
+
+  /// @dev Returns the amount of shares that the vault would exchange for the amount of `assets` provided.
+  /// @dev It assumes that the arguments `newTotalSupply` and `newTotalAssets` are up to date.
+  function _convertToSharesWithTotals(
+    uint256 assets,
+    uint256 newTotalSupply,
+    uint256 newTotalAssets,
+    Math.Rounding rounding
+  ) internal view returns (uint256) {
+    return assets.mulDiv(newTotalSupply + 10 ** _decimalsOffset(), newTotalAssets + 1, rounding);
+  }
+
+  /// @dev Returns the amount of assets that the vault would exchange for the amount of `shares` provided.
+  /// @dev It assumes that the arguments `newTotalSupply` and `newTotalAssets` are up to date.
+  function _convertToAssetsWithTotals(
+    uint256 shares,
+    uint256 newTotalSupply,
+    uint256 newTotalAssets,
+    Math.Rounding rounding
+  ) internal view returns (uint256) {
+    return shares.mulDiv(newTotalAssets + 1, newTotalSupply + 10 ** _decimalsOffset(), rounding);
+  }
+
+  /// @inheritdoc ERC4626Upgradeable
+  /// @dev Used in mint or deposit to deposit the underlying asset to Moolah markets.
+  function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
+    super._deposit(caller, receiver, assets, shares);
+
+    _supplyMoolah(assets);
+
+    // `lastTotalAssets + assets` may be a little off from `totalAssets()`.
+    _updateLastTotalAssets(lastTotalAssets + assets);
+  }
+
+  /// @inheritdoc ERC4626Upgradeable
+  /// @dev Used in redeem or withdraw to withdraw the underlying asset from Moolah markets.
+  /// @dev Depending on 3 cases, reverts when withdrawing "too much" with:
+  /// 1. NotEnoughLiquidity when withdrawing more than available liquidity.
+  /// 2. ERC20InsufficientAllowance when withdrawing more than `caller`'s allowance.
+  /// 3. ERC20InsufficientBalance when withdrawing more than `owner`'s balance.
+  function _withdraw(
+    address caller,
+    address receiver,
+    address owner,
+    uint256 assets,
+    uint256 shares
+  ) internal override {
+    _withdrawMoolah(assets);
+
+    super._withdraw(caller, receiver, owner, assets, shares);
+  }
+
+  function _withdrawInternal(
+    uint256 assets,
+    address receiver,
+    address owner,
+    address sender
+  ) private returns (uint256 shares) {
+    uint256 newTotalAssets = _accrueFee();
+
+    // Do not call expensive `maxWithdraw` and optimistically withdraw assets.
+
+    shares = _convertToSharesWithTotals(assets, totalSupply(), newTotalAssets, Math.Rounding.Ceil);
+
+    // `newTotalAssets - assets` may be a little off from `totalAssets()`.
+    _updateLastTotalAssets(newTotalAssets.zeroFloorSub(assets));
+
+    _withdraw(sender, receiver, owner, assets, shares);
+  }
+
+  function _redeemInternal(
+    uint256 shares,
+    address receiver,
+    address owner,
+    address sender
+  ) private returns (uint256 assets) {
+    uint256 newTotalAssets = _accrueFee();
+
+    // Do not call expensive `maxRedeem` and optimistically redeem shares.
+
+    assets = _convertToAssetsWithTotals(shares, totalSupply(), newTotalAssets, Math.Rounding.Floor);
+
+    // `newTotalAssets - assets` may be a little off from `totalAssets()`.
+    _updateLastTotalAssets(newTotalAssets.zeroFloorSub(assets));
+
+    _withdraw(sender, receiver, owner, assets, shares);
+  }
+
+  /* INTERNAL */
+
+  /// @dev Returns the market params of the market defined by `id`.
+  function _marketParams(Id id) internal view returns (MarketParams memory) {
+    return MOOLAH.idToMarketParams(id);
+  }
+
+  /// @dev Sets the cap of the market defined by `id` to `supplyCap`.
+  /// @dev Assumes that the inputs `marketParams` and `id` match.
+  function _setCap(MarketParams memory marketParams, Id id, uint184 supplyCap) internal {
+    MarketConfig storage marketConfig = config[id];
+
+    if (supplyCap > 0) {
+      if (!marketConfig.enabled) {
+        withdrawQueue.push(id);
+
+        if (withdrawQueue.length > ConstantsLib.MAX_QUEUE_LENGTH) revert ErrorsLib.MaxQueueLengthExceeded();
+
+        marketConfig.enabled = true;
+
+        // Take into account assets of the new market without applying a fee.
+        _updateLastTotalAssets(lastTotalAssets + MOOLAH.expectedSupplyAssets(marketParams, address(this)));
+
+        emit EventsLib.SetWithdrawQueue(msg.sender, withdrawQueue);
+      }
+
+      marketConfig.removableAt = 0;
+    }
+
+    marketConfig.cap = supplyCap;
+
+    emit EventsLib.SetCap(_msgSender(), id, supplyCap);
+  }
+
+  /* LIQUIDITY ALLOCATION */
+
+  /// @dev Supplies `assets` to Moolah.
+  function _supplyMoolah(uint256 assets) internal {
+    uint256 len = supplyQueue.length;
+    Id[] memory queue = new Id[](len);
+    uint184[] memory caps = new uint184[](len);
+    for (uint256 i; i < len; ++i) {
+      queue[i] = supplyQueue[i];
+      caps[i] = config[queue[i]].cap;
+    }
+    MoolahVaultLib.supplyMoolah(MOOLAH, queue, caps, assets);
+  }
+
+  /// @dev Withdraws `assets` from Moolah.
+  function _withdrawMoolah(uint256 assets) internal {
+    MoolahVaultLib.withdrawMoolah(MOOLAH, withdrawQueue, assets);
+  }
+
+  /// @dev Simulates a withdraw of `assets` from Moolah.
+  /// @return The remaining assets to be withdrawn.
+  function _simulateWithdrawMoolah(uint256 assets) internal view returns (uint256) {
+    return MoolahVaultLib.simulateWithdrawMoolah(MOOLAH, withdrawQueue, assets);
+  }
+
+  /* FEE MANAGEMENT */
+
+  /// @dev Updates `lastTotalAssets` to `updatedTotalAssets`.
+  function _updateLastTotalAssets(uint256 updatedTotalAssets) internal {
+    lastTotalAssets = updatedTotalAssets;
+
+    emit EventsLib.UpdateLastTotalAssets(updatedTotalAssets);
+  }
+
+  /// @dev Accrues the fee and mints the fee shares to the fee recipient.
+  /// @return newTotalAssets The vaults total assets after accruing the interest.
+  function _accrueFee() internal returns (uint256 newTotalAssets) {
+    uint256 feeShares;
+    (feeShares, newTotalAssets) = _accruedFeeShares();
+
+    if (feeShares != 0) _mint(feeRecipient, feeShares);
+
+    emit EventsLib.AccrueInterest(newTotalAssets, feeShares);
+  }
+
+  /// @dev Computes and returns the fee shares (`feeShares`) to mint and the new vault's total assets
+  /// (`newTotalAssets`).
+  function _accruedFeeShares() internal view returns (uint256 feeShares, uint256 newTotalAssets) {
+    newTotalAssets = totalAssets();
+
+    uint256 totalInterest = newTotalAssets.zeroFloorSub(lastTotalAssets);
+    if (totalInterest != 0 && fee != 0) {
+      // It is acknowledged that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
+      uint256 feeAssets = totalInterest.mulDiv(fee, WAD);
+      // The fee assets is subtracted from the total assets in this calculation to compensate for the fact
+      // that total assets is already increased by the total interest (including the fee assets).
+      feeShares = _convertToSharesWithTotals(feeAssets, totalSupply(), newTotalAssets - feeAssets, Math.Rounding.Floor);
+    }
+  }
+
+  function setRoleAdmin(bytes32 role) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    _setRoleAdmin(role, DEFAULT_ADMIN_ROLE);
+  }
+
+  function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+}

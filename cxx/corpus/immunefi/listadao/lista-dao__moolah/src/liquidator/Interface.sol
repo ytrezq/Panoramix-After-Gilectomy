@@ -1,0 +1,48 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.13;
+
+interface IMoolah {
+  struct MarketParams {
+    address loanToken;
+    address collateralToken;
+    address oracle;
+    address irm;
+    uint256 lltv;
+  }
+
+  struct Market {
+    uint128 totalSupplyAssets;
+    uint128 totalSupplyShares;
+    uint128 totalBorrowAssets;
+    uint128 totalBorrowShares;
+    uint128 lastUpdate;
+    uint128 fee;
+  }
+
+  function idToMarketParams(bytes32 id) external view returns (MarketParams memory);
+
+  function market(bytes32 id) external view returns (Market memory m);
+
+  function accrueInterest(MarketParams memory) external;
+
+  function liquidate(
+    MarketParams memory marketParams,
+    address borrower,
+    uint256 seizedAssets,
+    uint256 repaidShares,
+    bytes memory data
+  ) external returns (uint256, uint256);
+
+  function isLiquidationWhitelist(bytes32 id, address account) external view returns (bool);
+
+  function getPrice(MarketParams calldata marketParams) external view returns (uint256);
+
+  function isHealthy(MarketParams memory marketParams, bytes32 id, address borrower) external view returns (bool);
+}
+
+/// @dev Callback the OEV payer implements. OEVLiquidator calls it inside the Moolah liquidate callback,
+///      after sending the seized collateral to the payer; the payer must transfer `repaidAssets` of loan
+///      token to OEVLiquidator before returning.
+interface IOEVLiquidateCallback {
+  function onOEVLiquidate(uint256 repaidAssets, bytes calldata data) external;
+}
