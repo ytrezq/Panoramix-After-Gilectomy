@@ -51,8 +51,7 @@
     {
      "prefix": "katana-network__kat-token",
      "url": "https://github.com/katana-network/kat-token",
-     "commit": "548949891934a5d7a8d0b5fe5f75e3e983019413",
-     "files": 11
+     "commit": "548949891934a5d7a8d0b5fe5f75e3e983019413"
     }
    ]
   },
@@ -563,572 +562,477 @@
     {
      "prefix": "katana-network__katana-governance",
      "url": "https://github.com/katana-network/katana-governance",
-     "commit": "2fe29c49bfbd6c7c116ddf56a1228de450a62728",
-     "files": 55
+     "commit": "2fe29c49bfbd6c7c116ddf56a1228de450a62728"
     },
     {
      "prefix": "katana-network__katana-governance/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "0c71116a218268ee8c0157be8efcb13af0f7beaf",
-     "files": 49
+     "commit": "0c71116a218268ee8c0157be8efcb13af0f7beaf"
     },
     {
      "prefix": "katana-network__katana-governance/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/Openzeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "d83fc65ee4b24aa50a6d42e4510cee1566067a98",
-     "files": 255
+     "commit": "d83fc65ee4b24aa50a6d42e4510cee1566067a98"
     },
     {
      "prefix": "katana-network__katana-governance/lib/openzeppelin-contracts",
      "url": "https://github.com/Openzeppelin/openzeppelin-contracts",
-     "commit": "e8745a6a68d77c43c01e2cbe2c83a0b3d36ecc84",
-     "files": 381
+     "commit": "e8745a6a68d77c43c01e2cbe2c83a0b3d36ecc84"
     },
     {
      "prefix": "katana-network__katana-governance/lib/osx-commons",
      "url": "https://github.com/aragon/osx-commons",
-     "commit": "6627101992f2d41db2be7eee1696eb3fa81eed02",
-     "files": 68
+     "commit": "6627101992f2d41db2be7eee1696eb3fa81eed02"
     },
     {
      "prefix": "katana-network__katana-governance/lib/osx",
      "url": "https://github.com/aragon/osx",
-     "commit": "df9a2acf3e0cce1d146d63c6894a8274d6786c17",
-     "files": 42
+     "commit": "df9a2acf3e0cce1d146d63c6894a8274d6786c17"
     },
     {
      "prefix": "katana-network__katana-governance/lib/merkl",
      "url": "https://github.com/AngleProtocol/merkl-contracts",
-     "commit": "bd3bd1ead0cb421a09e60c046fad56ee26f34008",
-     "files": 60
+     "commit": "bd3bd1ead0cb421a09e60c046fad56ee26f34008"
     },
     {
      "prefix": "katana-network__katana-governance/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
-     "files": 3
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance",
      "url": "https://github.com/aragon/ve-governance",
-     "commit": "8a37bbdb63129d501f473d46537b01b8c8fb40e1",
-     "files": 353
+     "commit": "8a37bbdb63129d501f473d46537b01b8c8fb40e1"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory",
      "url": "https://github.com/aragon/protocol-factory",
-     "commit": "a103581428e2403fb798af8323e161639c9842a2",
-     "files": 18
+     "commit": "a103581428e2403fb798af8323e161639c9842a2"
     },
     {
      "prefix": "katana-network__katana-governance/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
-     "files": 43
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
     },
     {
      "prefix": "katana-network__katana-governance/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
-     "files": 3
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
     },
     {
      "prefix": "katana-network__katana-governance/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c",
-     "files": 3
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
     },
     {
      "prefix": "katana-network__katana-governance/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "e8745a6a68d77c43c01e2cbe2c83a0b3d36ecc84",
-     "files": 381
+     "commit": "e8745a6a68d77c43c01e2cbe2c83a0b3d36ecc84"
     },
     {
      "prefix": "katana-network__katana-governance/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
-     "files": 43
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
     },
     {
      "prefix": "katana-network__katana-governance/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
-     "files": 3
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
     },
     {
      "prefix": "katana-network__katana-governance/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c",
-     "files": 3
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "bf909b22fa55e244796dfa920c9639fdffa1c545",
-     "files": 45
+     "commit": "bf909b22fa55e244796dfa920c9639fdffa1c545"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/openzeppelin-contracts",
      "url": "https://github.com/Openzeppelin/openzeppelin-contracts",
-     "commit": "e50c24f5839db17f46991478384bfda14acfb830",
-     "files": 294
+     "commit": "e50c24f5839db17f46991478384bfda14acfb830"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/osx",
      "url": "https://github.com/aragon/osx",
-     "commit": "ee4b3e4dbb3e6972fc1ce35c6864bfc8c2166b3d",
-     "files": 42
+     "commit": "ee4b3e4dbb3e6972fc1ce35c6864bfc8c2166b3d"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/Openzeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "bc95521e34dcd49792065e264a7ad2b5a86f0091",
-     "files": 290
+     "commit": "bc95521e34dcd49792065e264a7ad2b5a86f0091"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/solmate",
      "url": "https://github.com/transmissions11/solmate",
-     "commit": "97bdb2003b70382996a79a406813f76417b1cf90",
-     "files": 63
+     "commit": "97bdb2003b70382996a79a406813f76417b1cf90"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/openzeppelin-foundry-upgrades",
      "url": "https://github.com/Openzeppelin/openzeppelin-foundry-upgrades",
-     "commit": "cbce1e00305e943aa1661d43f41e5ac72c662b07",
-     "files": 57
+     "commit": "cbce1e00305e943aa1661d43f41e5ac72c662b07"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/multisig-plugin",
      "url": "https://github.com/aragon/multisig-plugin",
-     "commit": "596935de4022470aa993998836ef3899b7e6ff04",
-     "files": 11
+     "commit": "596935de4022470aa993998836ef3899b7e6ff04"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/osx-commons",
      "url": "https://github.com/aragon/osx-commons",
-     "commit": "6627101992f2d41db2be7eee1696eb3fa81eed02",
-     "files": 68
+     "commit": "6627101992f2d41db2be7eee1696eb3fa81eed02"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory",
      "url": "https://github.com/aragon/protocol-factory",
-     "commit": "c5d3b20b51251d2a391238048de7b814cd8d13ca",
-     "files": 17
+     "commit": "c5d3b20b51251d2a391238048de7b814cd8d13ca"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
-     "files": 43
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/osx",
      "url": "https://github.com/aragon/osx",
-     "commit": "6f35a85f6159ae62c68776c5cff57d4e8cfe1549",
-     "files": 42
+     "commit": "6f35a85f6159ae62c68776c5cff57d4e8cfe1549"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/osx-commons",
      "url": "https://github.com/aragon/osx-commons",
-     "commit": "98c2b9672d07377e4b429595d21c1803c19581db",
-     "files": 68
+     "commit": "98c2b9672d07377e4b429595d21c1803c19581db"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/admin-plugin",
      "url": "https://github.com/aragon/admin-plugin",
-     "commit": "7b54f175fe8353fe5a7c9e1de65e588bdafdfe4a",
-     "files": 11
+     "commit": "7b54f175fe8353fe5a7c9e1de65e588bdafdfe4a"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/multisig-plugin",
      "url": "https://github.com/aragon/multisig-plugin",
-     "commit": "391a1b1b9c5d4ee2180c370fdec4045d9189f202",
-     "files": 11
+     "commit": "391a1b1b9c5d4ee2180c370fdec4045d9189f202"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/token-voting-plugin",
      "url": "https://github.com/aragon/token-voting-plugin",
-     "commit": "f9c66e2b427ea0044eefe0992c8d0f7f863d681a",
-     "files": 57
+     "commit": "f9c66e2b427ea0044eefe0992c8d0f7f863d681a"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/staged-proposal-processor-plugin",
      "url": "https://github.com/aragon/staged-proposal-processor-plugin",
-     "commit": "67d17827650d524a22fa0f5d1ca1fecd7266be1c",
-     "files": 68
+     "commit": "67d17827650d524a22fa0f5d1ca1fecd7266be1c"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/ens-contracts",
      "url": "https://github.com/ensdomains/ens-contracts",
-     "commit": "2736f15fb36345f0691deb77cba4d77760b15077",
-     "files": 92
+     "commit": "2736f15fb36345f0691deb77cba4d77760b15077"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/openzeppelin-contracts",
      "url": "https://github.com/openzeppelin/openzeppelin-contracts",
-     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6",
-     "files": 295
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "2d081f24cac1a867f6f73d512f2022e1fa987854",
-     "files": 291
+     "commit": "2d081f24cac1a867f6f73d512f2022e1fa987854"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/buffer",
      "url": "https://github.com/ensdomains/buffer",
-     "commit": "82cc81935de1d1a82e021cf1030d902c5248982b",
-     "files": 6
+     "commit": "82cc81935de1d1a82e021cf1030d902c5248982b"
     },
     {
      "prefix": "katana-network__katana-governance/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
-     "files": 43
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
     },
     {
      "prefix": "katana-network__katana-governance/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
-     "files": 3
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
     },
     {
      "prefix": "katana-network__katana-governance/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c",
-     "files": 3
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
-     "files": 39
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
-     "files": 39
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/solmate/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/openzeppelin-foundry-upgrades/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66",
-     "files": 47
+     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
-     "files": 43
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/osx",
      "url": "https://github.com/aragon/osx",
-     "commit": "6f35a85f6159ae62c68776c5cff57d4e8cfe1549",
-     "files": 42
+     "commit": "6f35a85f6159ae62c68776c5cff57d4e8cfe1549"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/osx-commons",
      "url": "https://github.com/aragon/osx-commons",
-     "commit": "98c2b9672d07377e4b429595d21c1803c19581db",
-     "files": 68
+     "commit": "98c2b9672d07377e4b429595d21c1803c19581db"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/admin-plugin",
      "url": "https://github.com/aragon/admin-plugin",
-     "commit": "7b54f175fe8353fe5a7c9e1de65e588bdafdfe4a",
-     "files": 11
+     "commit": "7b54f175fe8353fe5a7c9e1de65e588bdafdfe4a"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/multisig-plugin",
      "url": "https://github.com/aragon/multisig-plugin",
-     "commit": "391a1b1b9c5d4ee2180c370fdec4045d9189f202",
-     "files": 11
+     "commit": "391a1b1b9c5d4ee2180c370fdec4045d9189f202"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin",
      "url": "https://github.com/aragon/token-voting-plugin",
-     "commit": "f9c66e2b427ea0044eefe0992c8d0f7f863d681a",
-     "files": 57
+     "commit": "f9c66e2b427ea0044eefe0992c8d0f7f863d681a"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/staged-proposal-processor-plugin",
      "url": "https://github.com/aragon/staged-proposal-processor-plugin",
-     "commit": "67d17827650d524a22fa0f5d1ca1fecd7266be1c",
-     "files": 68
+     "commit": "67d17827650d524a22fa0f5d1ca1fecd7266be1c"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/ens-contracts",
      "url": "https://github.com/ensdomains/ens-contracts",
-     "commit": "2736f15fb36345f0691deb77cba4d77760b15077",
-     "files": 92
+     "commit": "2736f15fb36345f0691deb77cba4d77760b15077"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/openzeppelin-contracts",
      "url": "https://github.com/openzeppelin/openzeppelin-contracts",
-     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6",
-     "files": 295
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "2d081f24cac1a867f6f73d512f2022e1fa987854",
-     "files": 291
+     "commit": "2d081f24cac1a867f6f73d512f2022e1fa987854"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/buffer",
      "url": "https://github.com/ensdomains/buffer",
-     "commit": "82cc81935de1d1a82e021cf1030d902c5248982b",
-     "files": 6
+     "commit": "82cc81935de1d1a82e021cf1030d902c5248982b"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/token-voting-plugin/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505",
-     "files": 49
+     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/token-voting-plugin/lib/osx",
      "url": "https://github.com/aragon/osx",
-     "commit": "fc7403fcef660aa952c7e635e95257ee7f466efb",
-     "files": 44
+     "commit": "fc7403fcef660aa952c7e635e95257ee7f466efb"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/token-voting-plugin/lib/osx-commons",
      "url": "https://github.com/aragon/osx-commons",
-     "commit": "869045b069679fad94d640a8a3e1a1b5538cf0f0",
-     "files": 69
+     "commit": "869045b069679fad94d640a8a3e1a1b5538cf0f0"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/token-voting-plugin/lib/ens-contracts",
      "url": "https://github.com/ensdomains/ens-contracts",
-     "commit": "f5f2ededccbb7e52be44925c0050620d71762e32",
-     "files": 112
+     "commit": "f5f2ededccbb7e52be44925c0050620d71762e32"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts",
      "url": "https://github.com/openzeppelin/openzeppelin-contracts",
-     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6",
-     "files": 295
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "2d081f24cac1a867f6f73d512f2022e1fa987854",
-     "files": 291
+     "commit": "2d081f24cac1a867f6f73d512f2022e1fa987854"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/token-voting-plugin/lib/plugin-version-1.3",
      "url": "https://github.com/aragon/token-voting-plugin-hardhat",
-     "commit": "44c445e5b084bb4b225ab5006427a99727cdd0b8",
-     "files": 21
+     "commit": "44c445e5b084bb4b225ab5006427a99727cdd0b8"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
-     "files": 39
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
-     "files": 39
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-     "files": 6
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-     "files": 6
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505",
-     "files": 49
+     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/osx",
      "url": "https://github.com/aragon/osx",
-     "commit": "fc7403fcef660aa952c7e635e95257ee7f466efb",
-     "files": 44
+     "commit": "fc7403fcef660aa952c7e635e95257ee7f466efb"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/osx-commons",
      "url": "https://github.com/aragon/osx-commons",
-     "commit": "869045b069679fad94d640a8a3e1a1b5538cf0f0",
-     "files": 69
+     "commit": "869045b069679fad94d640a8a3e1a1b5538cf0f0"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/ens-contracts",
      "url": "https://github.com/ensdomains/ens-contracts",
-     "commit": "f5f2ededccbb7e52be44925c0050620d71762e32",
-     "files": 112
+     "commit": "f5f2ededccbb7e52be44925c0050620d71762e32"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts",
      "url": "https://github.com/openzeppelin/openzeppelin-contracts",
-     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6",
-     "files": 295
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "2d081f24cac1a867f6f73d512f2022e1fa987854",
-     "files": 291
+     "commit": "2d081f24cac1a867f6f73d512f2022e1fa987854"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/plugin-version-1.3",
      "url": "https://github.com/aragon/token-voting-plugin-hardhat",
-     "commit": "44c445e5b084bb4b225ab5006427a99727cdd0b8",
-     "files": 21
+     "commit": "44c445e5b084bb4b225ab5006427a99727cdd0b8"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
-     "files": 39
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
-     "files": 39
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
-     "files": 39
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
-     "files": 39
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-     "files": 6
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-     "files": 6
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
-     "files": 39
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
-     "files": 39
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-     "files": 6
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
     },
     {
      "prefix": "katana-network__katana-governance/lib/ve-governance/lib/protocol-factory/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-     "files": 6
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-     "files": 6
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
     },
     {
      "prefix": "katana-network__katana-governance/lib/protocol-factory/lib/token-voting-plugin/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-     "files": 6
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
     }
    ]
   },
@@ -1185,8 +1089,7 @@
     {
      "prefix": "katana-network__lz-kat-upgradeable",
      "url": "https://github.com/katana-network/lz-kat-upgradeable",
-     "commit": "fe5979e17bdb6b7b4667a108dd190ab6d8751791",
-     "files": 20
+     "commit": "fe5979e17bdb6b7b4667a108dd190ab6d8751791"
     }
    ]
   },
@@ -1245,8 +1148,7 @@
     {
      "prefix": "agglayer__agglayer-contracts",
      "url": "https://github.com/agglayer/agglayer-contracts",
-     "commit": "110bda5a03e70ee7331bc06407a8e79226d3e520",
-     "files": 145
+     "commit": "110bda5a03e70ee7331bc06407a8e79226d3e520"
     }
    ]
   },
@@ -1332,8 +1234,7 @@
     {
      "prefix": "agglayer__vault-bridge",
      "url": "https://github.com/agglayer/vault-bridge",
-     "commit": "bd3ea7b42dd1d23121827abb6eb7191a80b8e720",
-     "files": 90
+     "commit": "bd3ea7b42dd1d23121827abb6eb7191a80b8e720"
     }
    ],
    "npm": {},
