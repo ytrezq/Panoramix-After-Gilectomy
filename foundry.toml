@@ -1,0 +1,25 @@
+[profile.default]
+solc = "0.8.30"
+src = "contracts"
+out = "out"
+libs = ["lib"]
+optimizer = true
+optimizer_runs = 750
+evm_version = "prague"
+
+remappings = [
+    "@gnosis.pm=node_modules/@gnosis.pm",
+]
+
+[lint]
+ignore = [
+    "test/IdentityRegistryBridger.t.sol",
+    "test/ServiceStaking.t.sol",
+]
+exclude_lints = [
+    "asm-keccak256",
+    "erc20-unchecked-transfer",
+    "mixed-case-function",
+    "screaming-snake-case-immutable",
+    "unwrapped-modifier-logic",
+]
