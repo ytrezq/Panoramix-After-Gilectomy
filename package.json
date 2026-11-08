@@ -1,0 +1,52 @@
+{
+  "name": "@parallel/prl-token",
+  "description": "PRL token repository",
+  "version": "1.0.0",
+  "private": false,
+  "scripts": {
+    "prepare": "husky",
+    "clean": "rm -rf cache out",
+    "build": "forge build",
+    "lint": "bun run lint:sol && bun run prettier:check",
+    "lint:sol": "forge fmt --check && bun solhint \"{contracts,scripts}/**/*.sol\"",
+    "prettier:check": "prettier --check \"**/*.{json,md,yml}\" --ignore-path \".prettierignore\"",
+    "prettier:write": "prettier --write \"**/*.{json,md,yml}\" --ignore-path \".prettierignore\"",
+    "OApp:wire:mainnet:migration": "npx hardhat lz:oapp:wire --oapp-config layerZero/mainnet/migration.config.ts",
+    "OApp:wire:mainnet:bridge": "npx hardhat lz:oapp:wire --oapp-config layerZero/mainnet/prlBridge.config.ts",
+    "OApp:wire:testnet:migration": "npx hardhat lz:oapp:wire --oapp-config layerZero/testnet/migration.config.ts",
+    "OApp:wire:testnet:bridge": "npx hardhat lz:oapp:wire --oapp-config layerZero/testnet/prlBridge.config.ts",
+    "test": "forge test",
+    "test:coverage": "forge coverage --ir-minimum",
+    "test:coverage:report": "forge coverage --ir-minimum --report lcov && lcov --remove lcov.info -o lcov.info \"test/*\" && genhtml lcov.info -o coverage",
+    "verify": "npx hardhat etherscan-verify --sleep"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.1",
+    "@layerzerolabs/lz-evm-oapp-v2": "^3.0.83"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.5.0",
+    "@commitlint/config-conventional": "^19.5.0",
+    "@layerzerolabs/lz-definitions": "^3.0.83",
+    "@layerzerolabs/test-devtools-evm-foundry": "^6.0.3",
+    "@layerzerolabs/toolbox-hardhat": "^0.6.9",
+    "@nomicfoundation/edr": "^0.6.4",
+    "@nomicfoundation/hardhat-ethers": "^3.0.8",
+    "@nomicfoundation/hardhat-foundry": "^1.1.2",
+    "@typechain/ethers-v5": "^11.1.2",
+    "@typechain/hardhat": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.4.5",
+    "ethers": "^5.7.2",
+    "forge-std": "github:foundry-rs/forge-std#v1.9.5",
+    "fp-ts": "^2.16.9",
+    "fs": "^0.0.1-security",
+    "hardhat": "^2.22.10",
+    "hardhat-contract-sizer": "^2.10.0",
+    "hardhat-deploy": "^0.12.1",
+    "husky": "^9.1.6",
+    "prettier": "^3.0.0",
+    "solhint": "^3.6.2",
+    "ts-node": "^10.9.2"
+  }
+}
