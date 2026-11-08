@@ -291,7 +291,7 @@
      "prefix": "Idle-Labs__idle-tranches/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
      "commit": "31fffdef2d1b6da633e30412ea22ab13094a3552",
-     "error": "git -C /mnt/zcorpus/scratch/st-e27kn5tz rev-parse: fatal: remote error: upload-pack: not our ref 31fffdef2d1b6da633e30412ea22ab13094a3552\nfatal: remote error: upload-pack: not our ref 31fffdef2d1b6da633e30412ea22ab13094a3552\nfatal: Needed a single revision"
+     "error": "git -C /mnt/zcorpus/scratch/st-sq_cey6g rev-parse: fatal: remote error: upload-pack: not our ref 31fffdef2d1b6da633e30412ea22ab13094a3552\nfatal: remote error: upload-pack: not our ref 31fffdef2d1b6da633e30412ea22ab13094a3552\nfatal: Needed a single revision"
     }
    ]
   }
