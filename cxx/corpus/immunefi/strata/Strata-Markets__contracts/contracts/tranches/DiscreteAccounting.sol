@@ -1,0 +1,674 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity ^0.8.28;
+
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import { UD60x18, pow, mul } from "@prb/math/src/ud60x18/Math.sol";
+import { IAccounting } from "./interfaces/IAccounting.sol";
+import { IStrataCDO } from "./interfaces/IStrataCDO.sol";
+import { IAprPairFeed } from "./interfaces/IAprPairFeed.sol";
+import { CDOComponent } from "./base/CDOComponent.sol";
+import { UD60x18Ext } from "./utils/UD60x18Ext.sol";
+
+
+/**
+ * @title CDO::DiscreteAccounting
+ * @dev Pure math contract to track the in-flow and out-flow of assets and balance the gain/loss between Junior (Jrt) and Senior (Srt) Tranche Value Locked (TVL).
+ */
+contract DiscreteAccounting is IAccounting, CDOComponent {
+
+    uint256 constant SECONDS_PER_YEAR = 31_536_000;
+
+    int64   private constant APR_FEED_BOUNDARY_MAX = 2e12; // 200%
+    int64   private constant APR_FEED_BOUNDARY_MIN = 0;
+    uint256 private constant APR_FEED_DECIMALS = 12;
+    uint256 private immutable ONE_ASSET;
+
+    /// @dev The oracle to fetch the latest APR floor and APR base.
+    /// @notice When the oracle is updated, it can actively push the latest values to this contract, allowing us to adjust srtTargetIndex.
+    IAprPairFeed public aprPairFeed;
+
+    /// @dev External floor target APR for Srt
+    UD60x18 public aprTarget;
+
+    /// @dev External APR for the underlying protocol
+    UD60x18 public aprBase;
+
+    /// @dev The calculated target APR for Srt; the primary objective in calculations.
+    UD60x18 public aprSrt;
+
+    uint256 public indexTimestamp;
+    uint256 public srtTargetIndex;
+
+    uint256 public reserveBps;
+    uint256 constant PERCENTAGE_100 = 1e18;
+    uint256 constant RESERVE_BPS_MAX = 0.2e18;
+
+    /// @dev Latest balances at T0 (latest protocol interrogation)
+    uint256 public nav;
+    uint256 public jrtNav;
+    uint256 public srtNav;
+    uint256 public reserveNav;
+
+    /// @dev Risk parameters for Risk Premium calculation.
+    /// @notice See `calculateRiskPremium()` for usage details.
+    UD60x18 public riskX;
+    UD60x18 public riskY;
+    UD60x18 public riskK;
+
+    /// @notice The hard minimum TVLjrt/TVLsrt ratio.
+    /// @dev If the Jrt TVL falls below this ratio relative to Srt,
+    ///      Jrt withdrawals are no longer allowed.
+    //       In case of low APR, Jrt will still be responsible for funding Srt returns, even if it falls below this ratio
+    uint256 public minimumJrtSrtRatio;
+
+    /// @notice The protective buffer above the minimum Jrt/Srt ratio.
+    /// @dev If the ratio falls below this threshold, deposits into the Srt vault
+    ///      are disabled earlier to prevent front-running the hard floor.
+    ///      Jrt withdrawals remain possible until the hard minimum is reached.
+    uint256 public minimumJrtSrtRatioBuffer;
+
+    /// @notice The portion of Junior fees that is returned to its TVL. The remainder goes to the reserve.
+    uint256 public feeJrtRetentionBps;
+
+    /// @notice The portion of Senior fees that is returned to the Senior tranche TVL.
+    uint256 public feeSrtRetentionBps;
+
+    /** Accounting Storage Compatibility **/
+
+    // The index for NAV during projection
+    uint256 public navTargetIndex;
+
+    /// @notice Latest changes to "nav"
+    uint256 public navTimestamp;
+
+    /// @notice Projected Junior NAV during the rewardless periods
+    uint256 public jrtNavProjected;
+
+
+    error InvalidNavSplit(uint256 navT1, uint256 jrtAssets, uint256 srtAssets, uint256 reserveAssets);
+    error ReserveTooLow(uint256 reserveNav, uint256 requestedNav);
+
+    event AprPairFeedChanged(address aprPairFeed);
+    event AprDataChangedViaPush(UD60x18 aprTarget, UD60x18 aprBase);
+    event ReservePercentageChanged(uint256 reserveBps);
+    event RiskParametersChanged(UD60x18 x, UD60x18 y, UD60x18 k);
+    event MinimumJrtSrtRatioChanged(uint256 ratio);
+    event MinimumJrtSrtRatioBufferChanged(uint256 ratio);
+    event FeeAccrued(bool isJrt, uint256 amountToReserve, uint256 amountToTranche);
+    event FeeRetentionChanged(uint256 feeJrtRetention, uint256 feeSrtRetention);
+
+    constructor (uint256 navDecimals) {
+        ONE_ASSET = 10 ** navDecimals;
+    }
+
+    function initialize(
+        address owner_,
+        address acm_,
+        IStrataCDO cdo_,
+        IAprPairFeed aprPairFeed_
+    ) public virtual initializer {
+        AccessControlled_init(owner_, acm_);
+        cdo = cdo_;
+
+        aprPairFeed = aprPairFeed_;
+
+        riskX = UD60x18.wrap(0.2e18);
+        riskY = UD60x18.wrap(0.2e18);
+        riskK = UD60x18.wrap(0.3e18);
+
+        srtTargetIndex = 1e18;
+        navTargetIndex = 1e18;
+        indexTimestamp = block.timestamp;
+        minimumJrtSrtRatio = 0.05e18;
+        minimumJrtSrtRatioBuffer = 0.06e18;
+    }
+
+    /// @notice Returns the updated total assets for each tranche and the reserve
+    /// @dev This method is used by the Tranches to get their updated total assets for the current block
+    /// @param navT1 The current total Net Asset Value
+    /// @return jrtNavT1Projected The updated Junior Tranche TVL
+    /// @return srtNavT1 The updated Senior Tranche TVL
+    /// @return reserveNavT1 The updated Reserve TVL
+    function totalAssets (uint256 navT1) public view returns (uint256 jrtNavT1Projected, uint256 srtNavT1, uint256 reserveNavT1) {
+        (
+            jrtNavT1Projected,
+            /*jrtNavT1Real*/,
+            srtNavT1,
+            reserveNavT1
+        ) = calculateNAVSplit(nav, jrtNavProjected, jrtNav, srtNav, reserveNav, navT1);
+        return (jrtNavT1Projected, srtNavT1, reserveNavT1);
+    }
+
+    /// @notice Returns the updated total assets for each tranche and the reserve
+    /// @dev This method is used by the Tranches to get their updated total assets for the current block
+    /// @dev The strategy must return NAV with new rewards, using accounting's current NAV and `navTimestamp`.
+    /// @return jrtNavT1Projected The updated Junior Tranche TVL
+    /// @return srtNavT1 The updated Senior Tranche TVL
+    /// @return reserveNavT1 The updated Reserve TVL
+    function totalAssets () public view returns (uint256 jrtNavT1Projected, uint256 srtNavT1, uint256 reserveNavT1) {
+        uint256 navT1 = cdo.totalStrategyAssets(nav, navTimestamp);
+        (
+            jrtNavT1Projected,
+            /*jrtNavT1Real*/,
+            srtNavT1,
+            reserveNavT1
+        ) = calculateNAVSplit(nav, jrtNavProjected, jrtNav, srtNav, reserveNav, navT1);
+        return (jrtNavT1Projected, srtNavT1, reserveNavT1);
+    }
+
+    /// @notice Returns the current saved real total assets for each tranche and the reserve
+    /// @dev These values represent the state at the last update, not necessarily the current block
+    /// @return jrtNavT0 The last saved Junior Real Tranche TVL
+    /// @return srtNavT0 The last saved Senior Tranche TVL
+    /// @return reserveNavT0 The last saved Reserve TVL
+    function totalAssetsT0 () public view returns (uint256 jrtNavT0, uint256 srtNavT0, uint256 reserveNavT0) {
+        return (jrtNav, srtNav, reserveNav);
+    }
+
+    /// @notice Returns current reserve value
+    /// @dev This method returns the maximum amount that `reduceReserve` can handle
+    /// @return The current reserve Net Asset Value (NAV)
+    function totalReserve () external view returns (uint256) {
+        (,,uint256 reserveNavT1) = totalAssets(cdo.totalStrategyAssets(nav, navTimestamp));
+        return reserveNavT1;
+    }
+
+    /// @notice Reduces the reserve by the specified amount
+    /// @dev This function is called by the CDO contract to reduce the reserve
+    /// @dev The CDO contract is responsible for withdrawing the appropriate amount to the treasury
+    /// @param amount The amount by which to reduce the reserve NAV
+    /// @param jrtAmountIn The amount to be credited to the Junior Tranche
+    /// @param srtAmountIn The amount to be credited to the Senior Tranche
+    function reduceReserve (uint256 amount, uint256 jrtAmountIn, uint256 srtAmountIn) external onlyCDO {
+        updateAccountingInner(cdo.totalStrategyAssets(nav, navTimestamp));
+        if (amount > reserveNav) {
+            revert ReserveTooLow(reserveNav, amount);
+        }
+        if (amount < (jrtAmountIn + srtAmountIn)) {
+            revert ReserveTooLow(amount, jrtAmountIn + srtAmountIn);
+        }
+        reserveNav = reserveNav - amount;
+        nav = nav + jrtAmountIn + srtAmountIn - amount;
+        navTimestamp = block.timestamp;
+        jrtNavProjected += jrtAmountIn;
+        jrtNav += jrtAmountIn;
+        srtNav += srtAmountIn;
+
+        // Fetch APRs and force recalculate aprSrt, as JRT and SRT TVLs may have changed.
+        (bool modified, UD60x18 aprTarget_, UD60x18 aprBase_) = fetchAprs();
+        if (modified == false) {
+            // Recalculates aprSrt based on new TVL ratio and old APRs
+            updateAprSrt(aprTarget_, aprBase_);
+        }
+    }
+
+    function maxWithdraw(bool isJrt) external view returns (uint256) {
+        return maxWithdrawInner(isJrt, false);
+    }
+    function maxWithdraw(bool isJrt, bool ownerIsSharesCooldown) external view returns (uint256) {
+        return maxWithdrawInner(isJrt, ownerIsSharesCooldown);
+    }
+    function maxWithdrawInner(bool isJrt, bool ownerIsSharesCooldown) internal view returns (uint256) {
+        if (ownerIsSharesCooldown) {
+            return isJrt ? jrtNav : srtNav;
+        }
+        if (isJrt) {
+            uint256 minJrt = srtNav * minimumJrtSrtRatio / 1e18;
+            return Math.saturatingSub(jrtNav, minJrt);
+        }
+        // srt
+        return srtNav;
+    }
+    function maxDeposit(bool isJrt) external view returns (uint256) {
+        if (isJrt) {
+            return type(uint256).max;
+        }
+        uint256 maxSrt = jrtNav * 1e18 / minimumJrtSrtRatioBuffer;
+        return Math.saturatingSub(maxSrt, srtNav);
+    }
+
+    /// @notice Updates the accounting by fetching the current total assets from the strategy
+    /// @dev Fetches total assets by providing the last accounted NAV and timestamp to the strategy,
+    ///      allowing it to determine if new yield has arrived and should be reconciled.
+    ///      This triggers a true-up between projected and realized Junior NAV if rewards are detected.
+    function updateAccounting () external onlyCDO {
+        updateAccountingInner(cdo.totalStrategyAssets(nav, navTimestamp));
+    }
+
+    /// @notice Updates the Net Asset Values (NAVs) after deposits or withdrawals
+    /// @dev This method should be called after any deposits or withdrawals are made in the tranches
+    /// @dev It adjusts the NAVs for both Junior and Senior tranches, as well as the total NAV
+    /// @param jrtAssetsIn Amount of assets deposited into the Junior tranche
+    /// @param jrtAssetsOut Amount of assets withdrawn from the Junior tranche
+    /// @param srtAssetsIn Amount of assets deposited into the Senior tranche
+    /// @param srtAssetsOut Amount of assets withdrawn from the Senior tranche
+    function updateBalanceFlow (
+        uint256 jrtAssetsIn,
+        uint256 jrtAssetsOut,
+        uint256 srtAssetsIn,
+        uint256 srtAssetsOut
+    ) external onlyCDO {
+        jrtNav = jrtNav + jrtAssetsIn - jrtAssetsOut;
+        jrtNavProjected = jrtNavProjected + jrtAssetsIn - jrtAssetsOut;
+        srtNav = srtNav + srtAssetsIn - srtAssetsOut;
+        nav = nav + jrtAssetsIn + srtAssetsIn - jrtAssetsOut - srtAssetsOut;
+        navTimestamp = block.timestamp;
+        (bool modified, UD60x18 aprTarget_, UD60x18 aprBase_) = fetchAprs();
+        if (modified == false) {
+            // Recalculates aprSrt based on new TVL ratio and old APRs
+            updateAprSrt(aprTarget_, aprBase_);
+        }
+    }
+
+    /// @notice Called by the CDO to account for a fee by moving NAV from a tranche to the reserve.
+    function accrueFee (bool isJrt, uint256 amount) external onlyCDO {
+        uint256 retentionBps = isJrt ? feeJrtRetentionBps : feeSrtRetentionBps;
+        uint256 amountToReserve = amount * (1e18 - retentionBps) / 1e18;
+        reserveNav += amountToReserve;
+        if (isJrt) {
+            jrtNav -= amountToReserve;
+            jrtNavProjected -= amountToReserve;
+        } else {
+            srtNav -= amountToReserve;
+        }
+        emit FeeAccrued(isJrt, amountToReserve, amount - amountToReserve);
+    }
+
+    /// @notice Calculates the updated Net Asset Values (NAVs) for Junior, Senior tranches, and Reserve
+    /// @dev This function performs the following operations:
+    /// 1. Calculates and distributes gains or losses across tranches
+    /// 2. Allocates a portion of gains to the Reserve based on reserveBps
+    /// 3. Junior tranche initially receives all gain, but this is later adjusted
+    /// 4. Ensures the Senior tranche reaches its target APR using Junior tranche funds
+    /// 5. Verifies the final NAV split is consistent with the total NAV
+    /// @param navT0 Total Net Asset Value at the previous timestamp
+    /// @param jrtNavT0Projected Junior tranche Projected NAV at the previous timestamp
+    /// @param jrtNavT0Real Junior tranche Real NAV at the previous timestamp
+    /// @param srtNavT0 Senior tranche NAV at the previous timestamp
+    /// @param reserveNavT0 Reserve NAV at the previous timestamp
+    /// @param navT1 Current total Net Asset Value
+    /// @return jrtNavT1Projected Updated Junior tranche Projected NAV
+    /// @return jrtNavT1Real Updated Junior tranche Real NAV
+    /// @return srtNavT1 Updated Senior tranche NAV
+    /// @return reserveNavT1 Updated Reserve NAV
+    function calculateNAVSplit (
+        uint256 navT0,
+        uint256 jrtNavT0Projected,
+        uint256 jrtNavT0Real,
+        uint256 srtNavT0,
+        uint256 reserveNavT0,
+
+        uint256 navT1
+    ) public view returns (uint256 jrtNavT1Projected, uint256 jrtNavT1Real, uint256 srtNavT1, uint256 reserveNavT1) {
+        if (jrtNavT0Projected == 0 && srtNavT0 == 0 && navT1 > 0) {
+            // No deposits yet, however Strategy reports gain, move all to reserve.
+            return (0, 0, 0, navT1);
+        }
+
+        if (navT0 == navT1) {
+            // Still no realized gain; process using the projection.
+            return calculateNAVSplitProjected(
+                navT0,
+                jrtNavT0Projected,
+                jrtNavT0Real,
+                srtNavT0,
+                reserveNavT0
+            );
+        }
+
+        int256 gain_dT = int256(navT1) - int256(navT0);
+
+        if (gain_dT < 0) {
+            // Should never happen to USDe, jic: cover by Jrt, then Reserve, then Srt
+            uint256 loss = uint256(-gain_dT);
+
+            uint256 jrtLoss = Math.min(jrtNavT0Real, loss);
+
+            loss -= jrtLoss;
+            uint256 reserveLoss = Math.min(reserveNavT0, loss);
+
+            loss -= reserveLoss;
+            uint256 srtLoss = Math.min(srtNavT0, loss);
+            require(srtLoss == loss, "Loss>navT0");
+
+            jrtNavT0Real -= jrtLoss;
+            srtNavT0  -= srtLoss;
+            reserveNavT0 -= reserveLoss;
+            gain_dT = 0;
+        }
+        uint256 gain_dTAbs = uint256(gain_dT);
+
+        // #1 Final new reserve
+        uint256 reserve_dT = 0;
+        if (gain_dTAbs > 0 && reserveBps > 0) {
+            reserve_dT = gain_dTAbs * reserveBps / PERCENTAGE_100;
+            gain_dTAbs -= reserve_dT;
+        }
+        reserveNavT1 = reserveNavT0 + reserve_dT;
+
+        // Allocate the full gain (if any) to Juniors; later, subtract Seniors' target gain from Juniors.
+        jrtNavT1Real = jrtNavT0Real + gain_dTAbs;
+
+
+        // Calculate Srt gain
+        uint256 srtTargetIndexT1 = getSrtTargetIndexT1();
+        // Gain = Assets * (TargetIndex1 / TargetIndex0 - 1);
+        int256 srtGainTarget = calculateGain(srtNavT0, srtTargetIndexT1, srtTargetIndex);
+        if (srtGainTarget < 0) {
+            // Should never happen, jic: transfer the loss to Juniors as profit
+            uint256 loss = uint256(-srtGainTarget);
+            uint256 srtLoss = Math.min(srtNavT0, loss);
+
+            srtNavT0 -= srtLoss;
+            jrtNavT1Real += srtLoss;
+            srtGainTarget = 0;
+        }
+        uint256 srtGainTargetAbs = Math.min(
+            uint256(srtGainTarget),
+            Math.saturatingSub(jrtNavT1Real, ONE_ASSET)
+        );
+
+        // #2 Final new Jrt
+        jrtNavT1Real = jrtNavT1Real - srtGainTargetAbs;
+        jrtNavT1Projected = jrtNavT1Real;
+
+        // #3 Final new Srt
+        srtNavT1 = srtNavT0 + srtGainTargetAbs;
+
+        if (navT1 != (jrtNavT1Real + srtNavT1 + reserveNavT1)) {
+            revert InvalidNavSplit(navT1, jrtNavT1Real, srtNavT1, reserveNavT1);
+        }
+
+        return (jrtNavT1Projected, jrtNavT1Real, srtNavT1, reserveNavT1);
+    }
+
+    function calculateNAVSplitProjected (
+        uint256 navT0,
+        uint256 jrtNavT0Projected,
+        uint256 jrtNavT0Real,
+        uint256 srtNavT0,
+        uint256 reserveNavT0
+    ) internal view returns (
+        uint256 jrtNavT1Projected,
+        uint256 jrtNavT1Real,
+        uint256 srtNavT1,
+        uint256 reserveNavT1
+    ) {
+        if (jrtNavT0Projected == 0 && srtNavT0 == 0) {
+            // No deposits yet, the projected NAV remain 0.
+            return (0, 0, 0, 0);
+        }
+
+        uint256 navTargetIndexT1 = getNavTargetIndexT1();
+        // Gain = Assets * (TargetIndex1 / TargetIndex0 - 1);
+        // Calculate gain based on real NAV, not projected
+        int256 gain_dT = calculateGain(navT0, navTargetIndexT1, navTargetIndex);
+
+        if (gain_dT < 0) {
+            // never happens, jic: cover by Jrt, then Reserve, then Srt
+            uint256 loss = uint256(-gain_dT);
+
+            uint256 jrtLoss = Math.min(
+                loss,
+                Math.saturatingSub(jrtNavT0Projected, ONE_ASSET)
+            );
+
+            loss -= jrtLoss;
+            uint256 reserveLoss = Math.min(reserveNavT0, loss);
+
+            loss -= reserveLoss;
+            uint256 srtLoss = Math.min(srtNavT0, loss);
+            require(srtLoss == loss, "Loss>navT0");
+
+            jrtNavT1Projected = jrtNavT0Projected - jrtLoss;
+            jrtNavT1Real = Math.min(jrtNavT1Projected, jrtNavT0Real);
+
+            srtNavT1 = srtNavT0 - srtLoss;
+            reserveNavT1 = reserveNavT0 - reserveLoss;
+
+            return (
+                jrtNavT1Projected,
+                jrtNavT1Real,
+                srtNavT1,
+                reserveNavT1
+            );
+        }
+
+        uint256 gain_dTAbs = uint256(gain_dT);
+
+        // #1 Decrease Projected Gain by expected peformance fee, but do not increase real reserve.
+        if (reserveBps > 0) {
+            uint256 reserve_dT = gain_dTAbs * reserveBps / PERCENTAGE_100;
+            gain_dTAbs -= reserve_dT;
+        }
+
+        // Allocate the full gain (if any) to Juniors; later, subtract Seniors' target gain from Juniors.
+        jrtNavT1Projected = jrtNavT0Projected + gain_dTAbs;
+
+        // Calculate Srt gain
+        uint256 srtTargetIndexT1 = getSrtTargetIndexT1();
+        // Gain = Assets * (TargetIndex1 / TargetIndex0 - 1);
+        int256 srtGainTarget = calculateGain(srtNavT0, srtTargetIndexT1, srtTargetIndex);
+        if (srtGainTarget < 0) {
+            // Should never happen, jic: transfer the loss to Juniors as profit
+            uint256 loss = uint256(-srtGainTarget);
+            uint256 srtLoss = Math.min(srtNavT0, loss);
+
+            srtNavT0 -= srtLoss;
+            jrtNavT0Real += srtLoss;
+            jrtNavT1Projected += srtLoss;
+            srtGainTarget = 0;
+        }
+        uint256 srtGainTargetAbs = Math.min(
+            uint256(srtGainTarget),
+            Math.saturatingSub(jrtNavT1Projected, ONE_ASSET)
+        );
+
+
+        // #2 Final new Jrt (after srt funding)
+        jrtNavT1Projected = jrtNavT1Projected - srtGainTargetAbs;
+        jrtNavT1Real = Math.saturatingSub(jrtNavT0Real, srtGainTargetAbs);
+
+        // #3 Final new Srt
+        srtNavT1 = srtNavT0 + srtGainTargetAbs;
+
+        // #4 No changes to NAV and reserve on Projection
+        reserveNavT1 = reserveNavT0;
+
+        return (
+            jrtNavT1Projected,
+            jrtNavT1Real,
+            srtNavT1,
+            reserveNavT1
+        );
+    }
+
+    function updateAccountingInner (uint256 navT1) internal {
+        (
+            uint256 jrtNavT1Projected,
+            uint256 jrtNavT1Real,
+            uint256 srtNavT1,
+            uint256 reserveNavT1
+        ) = calculateNAVSplit(nav, jrtNavProjected, jrtNav, srtNav, reserveNav, navT1);
+        updateIndex();
+        nav = navT1;
+        navTimestamp = block.timestamp;
+        srtNav = srtNavT1;
+        jrtNavProjected = jrtNavT1Projected;
+        jrtNav = jrtNavT1Real;
+        reserveNav = reserveNavT1;
+    }
+
+    /// @notice Calculates the target index for the current block
+    function getSrtTargetIndexT1 () internal view returns (uint256) {
+        return calculateTargetIndex(srtTargetIndex, indexTimestamp, block.timestamp, aprSrt);
+    }
+
+    /// @notice Calculates the Juniors NET target index for the current block
+    function getNavTargetIndexT1 () internal view returns (uint256) {
+        return calculateTargetIndex(navTargetIndex, indexTimestamp, block.timestamp, aprBase);
+    }
+
+    /// @notice Computes the accrual index at t1 given the prior index, elapsed time, and APR
+    function calculateTargetIndex (uint256 targetIndex, uint256 t0, uint256 t1, UD60x18 apr) internal pure returns (uint256) {
+        uint256 dt = t1 - t0;
+        if (dt == 0) {
+            return targetIndex;
+        }
+        // Calculate the interest factor: (APR * time elapsed) / seconds per year
+        uint256 interestFactor = apr.unwrap() * dt / SECONDS_PER_YEAR;
+        // Apply the interest factor to the initial target index
+        // newIndex = oldIndex * (1 + interestFactor)
+        uint256 targetIndexT1 = targetIndex * (1e18 + interestFactor) / 1e18;
+        return targetIndexT1;
+    }
+
+
+    function calculateRiskPremium () internal view returns (UD60x18){
+        UD60x18 tvlRatio = UD60x18.wrap(srtNav == 0 ? 0 : (srtNav * 1e18 / (srtNav + jrtNavProjected)));
+        UD60x18 riskPremium = calculateRiskPremiumInner(riskX, riskY, riskK, tvlRatio);
+        return riskPremium;
+    }
+    function calculateRiskPremiumInner (UD60x18 x, UD60x18 y, UD60x18 k, UD60x18 tvlRatioSrt) internal pure returns (UD60x18){
+        // RiskPremium = x + y * TVL_ratio_sr ^ k
+        UD60x18 riskPremium = x + y * pow(tvlRatioSrt, k);
+        return riskPremium;
+    }
+
+    // Fetch APRs from Feed
+    function fetchAprs () internal returns (bool modified, UD60x18 aprTargetT1, UD60x18 aprBaseT1) {
+        if (address(aprPairFeed) == address(0)) {
+            return (false, aprTarget, aprBase);
+        }
+        IAprPairFeed.TRound memory round = aprPairFeed.latestRoundData();
+
+        aprTargetT1 = normalizeAprFromFeed(round.aprTarget);
+        aprBaseT1 = normalizeAprFromFeed(round.aprBase);
+
+        if (aprTargetT1 != aprTarget || aprBaseT1 != aprBase) {
+            aprTarget = aprTargetT1;
+            aprBase = aprBaseT1;
+            updateAprSrt(aprTargetT1, aprBaseT1);
+            return (true, aprTargetT1, aprBaseT1);
+        }
+        return (false, aprTargetT1, aprBaseT1);
+    }
+
+    function updateIndex () internal {
+        srtTargetIndex = getSrtTargetIndexT1();
+        navTargetIndex = getNavTargetIndexT1();
+        indexTimestamp = block.timestamp;
+    }
+    function updateAprSrt (UD60x18 aprTarget_, UD60x18 aprBase_) internal {
+        UD60x18 risk = calculateRiskPremium();
+        UD60x18 aprSrt1 = mul(aprBase_, UD60x18.wrap(1e18) - risk);
+        aprSrt = UD60x18Ext.max(aprTarget_, aprSrt1);
+    }
+
+    /// @dev Calculates the desired gain based on the change in target index over a period
+    /// @return The calculated gain (positive) or loss (negative) as an int256
+    function calculateGain (uint256 navT0, uint256 targetIndexT1, uint256 targetIndexT0) internal pure returns (int256) {
+        // Gain = Assets * (TargetIndex1 / TargetIndex0 - 1);
+        return int256(navT0 * targetIndexT1 / targetIndexT0) - int256(navT0);
+    }
+
+    /// @dev Converts APR from Feed's compact format (12 decimal places, stored in 1 SLOT) to UD60x18
+    /// @dev Ensures the APR is within the acceptable range for Accounting
+    /// @return The APR value as a UD60x18
+    function normalizeAprFromFeed (/* SD7x12 */ int64 apr) internal pure returns (UD60x18) {
+        if (apr < APR_FEED_BOUNDARY_MIN) {
+            apr = APR_FEED_BOUNDARY_MIN;
+        }
+        if (apr > APR_FEED_BOUNDARY_MAX) {
+            apr = APR_FEED_BOUNDARY_MAX;
+        }
+        return UD60x18.wrap(uint256(int256(apr)) * (10 ** (18 - APR_FEED_DECIMALS)));
+    }
+
+
+    /*****************************************************************************
+     *                  External configuration Methods                           *
+     *****************************************************************************/
+
+    // Trigger fetching new APRs to update srtTargetIndex
+    function onAprChanged () external onlyRole(UPDATER_FEED_ROLE)  {
+        updateAccountingInner(cdo.totalStrategyAssets(nav, navTimestamp));
+        (bool modified, UD60x18 aprTarget_, UD60x18 aprBase_) = fetchAprs();
+        if (modified) {
+            emit AprDataChangedViaPush(aprTarget_, aprBase_);
+        } else {
+            // If APRs are unchanged, recalculate aprSrt using old APRs and the post-accounting TVL ratio
+            updateAprSrt(aprTarget_, aprBase_);
+        }
+    }
+
+    /// @notice Sets the risk premium parameters used in calculating the risk-adjusted APR
+    /// @param riskX_ Base risk premium
+    /// @param riskY_ Coefficient for the TVL ratio-dependent component
+    /// @param riskK_ Exponent for the TVL ratio in the risk calculation
+    /// @dev Only callable by accounts with UPDATER_STRAT_CONFIG_ROLE
+    function setRiskParameters (
+        UD60x18 riskX_,
+        UD60x18 riskY_,
+        UD60x18 riskK_
+    ) external onlyRole(UPDATER_STRAT_CONFIG_ROLE) {
+        updateAccountingInner(cdo.totalStrategyAssets(nav, navTimestamp));
+        riskX = riskX_;
+        riskY = riskY_;
+        riskK = riskK_;
+        UD60x18 risk = calculateRiskPremiumInner(riskX_, riskY_, riskK_, UD60x18.wrap(1e18));
+        require(risk.unwrap() <= PERCENTAGE_100, ">100%");
+        emit RiskParametersChanged(riskX_, riskY_, riskK_);
+        updateAprSrt(aprTarget, aprBase);
+    }
+
+    /// @notice Sets the APRs Feed contract for fetching APR target and APR base
+    /// @dev This feed provides the external APR values used in calculations
+    /// @param aprPairFeed_ The address of the new APRs Feed contract
+    /// @dev Only callable by the protocol owner
+    function setAprPairFeed (IAprPairFeed aprPairFeed_) external onlyOwner {
+        // integrity check
+        require(aprPairFeed_.decimals() == APR_FEED_DECIMALS, "InvalidFeed");
+        aprPairFeed = aprPairFeed_;
+        emit AprPairFeedChanged(address(aprPairFeed_));
+    }
+
+    /// @notice Sets the percentage of gains allocated to the reserve
+    /// @param bps The new reserve percentage in basis points (1e18 = 100%)
+    /// @dev Only callable by the protocol owner
+    /// @dev The maximum allowed value is defined by RESERVE_BPS_MAX
+    function setReserveBps (uint256 bps) external onlyOwner {
+        require(bps <= RESERVE_BPS_MAX && bps != reserveBps, "InvalidNewReserve");
+        updateAccountingInner(cdo.totalStrategyAssets(nav, navTimestamp));
+        reserveBps = bps;
+        emit ReservePercentageChanged(reserveBps);
+    }
+
+    /// @notice Sets the portion of fees from each tranche that is returned to its TVL. The remainder goes to the reserve.
+    /// @param jrtRetentionBps The percentage of junior fees that is retained by the junior tranche TVL.
+    /// @param srtRetentionBps The percentage of senior fees that is retained by the senior tranche TVL.
+    function setFeeRetentionBps (uint256 jrtRetentionBps, uint256 srtRetentionBps) external onlyOwner {
+        require(jrtRetentionBps <= PERCENTAGE_100, "InvalidJrtRetention");
+        require(srtRetentionBps <= PERCENTAGE_100, "InvalidSrtRetention");
+        feeJrtRetentionBps = jrtRetentionBps;
+        feeSrtRetentionBps = srtRetentionBps;
+        emit FeeRetentionChanged(feeJrtRetentionBps, feeSrtRetentionBps);
+    }
+
+    /// @notice Sets the hard minimum Jrt/Srt ratio below which Jrt withdrawals are blocked.
+    function setMinimumJrtSrtRatio (uint256 ratio) external onlyOwner {
+        // initial: min Jrt = .05x Srt; allow up-to min Jrt = 100x Srt
+        require(ratio <= minimumJrtSrtRatioBuffer, "RatioAboveSoftFloor");
+        minimumJrtSrtRatio = ratio;
+        emit MinimumJrtSrtRatioChanged(ratio);
+    }
+
+    /// @notice Sets the protective buffer ratio at which Srt deposits are halted.
+    function setMinimumJrtSrtRatioBuffer (uint256 ratio) external onlyOwner {
+        // initial: min Jrt = .05x Srt; allow up-to min Jrt = 100x Srt
+        require(ratio <= 100 * PERCENTAGE_100, "RatioTooHigh");
+        require(ratio >= minimumJrtSrtRatio && ratio != 0, "RatioBelowHardFloor");
+        minimumJrtSrtRatioBuffer = ratio;
+        emit MinimumJrtSrtRatioBufferChanged(ratio);
+    }
+}
