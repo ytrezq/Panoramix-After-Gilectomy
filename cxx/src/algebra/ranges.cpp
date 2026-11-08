@@ -92,6 +92,7 @@ constexpr XInt kZero = xi(0);
 constexpr XInt kOne = xi(1);
 constexpr XInt kWordMax = xi_ones(256);   // 2^256 - 1
 constexpr XInt kSatMax = xi_ones(kSatBits);  // 2^320 - 1: the largest finite
+constexpr XInt kSatMin = {{1, 0, 0, 0, 0, ~u64(0)}, 0};  // -(2^320 - 1): the smallest
 constexpr XInt kTwo255 = xi_pow2(255);
 constexpr XInt kTwo256 = xi_pow2(256);
 
@@ -159,23 +160,23 @@ bool add_exact(XInt& r, const XInt& a, const XInt& b) noexcept {
 // a bound past the other side made the weaker finite one: a lower bound of
 // +inf is 2^320 - 1, an upper bound of -inf is -(2^320 - 1)
 XInt as_lo(const XInt& x) noexcept { return x.inf > 0 ? kSatMax : x; }
-XInt as_hi(const XInt& x) noexcept { return x.inf < 0 ? xneg(kSatMax) : x; }
+XInt as_hi(const XInt& x) noexcept { return x.inf < 0 ? kSatMin : x; }
 
+// (as_lo of each operand - a +inf one made finite - then -inf when one is;
+// written without copying the operands)
 XInt add_lo(const XInt& a0, const XInt& b0) noexcept {
-    const XInt a = as_lo(a0), b = as_lo(b0);
-    if (a.inf || b.inf) return xi_inf(-1);
+    if (a0.inf < 0 || b0.inf < 0) return xi_inf(-1);
     XInt r;
-    raw_add(r, a, b);
+    raw_add(r, a0.inf > 0 ? kSatMax : a0, b0.inf > 0 ? kSatMax : b0);
     saturate(r);
-    return as_lo(r);
+    return r.inf > 0 ? kSatMax : r;
 }
 XInt add_hi(const XInt& a0, const XInt& b0) noexcept {
-    const XInt a = as_hi(a0), b = as_hi(b0);
-    if (a.inf || b.inf) return xi_inf(1);
+    if (a0.inf > 0 || b0.inf > 0) return xi_inf(1);
     XInt r;
-    raw_add(r, a, b);
+    raw_add(r, a0.inf < 0 ? kSatMin : a0, b0.inf < 0 ? kSatMin : b0);
     saturate(r);
-    return as_hi(r);
+    return r.inf < 0 ? kSatMin : r;
 }
 
 // |a| on five limbs (a finite)
@@ -185,12 +186,30 @@ void magnitude(const XInt& a, u64 m[kSatLimbs]) noexcept {
     for (u32 i = 0; i < kSatLimbs; ++i) m[i] = t.l[i];
 }
 
+// 1 when a is 1, -1 when it is -1, else 0
+int unit(const XInt& a) noexcept {
+    if (a.inf) return 0;
+    if (a.l[0] == 1 && !(a.l[1] | a.l[2] | a.l[3] | a.l[4] | a.l[5])) return 1;
+    if ((a.l[0] & a.l[1] & a.l[2] & a.l[3] & a.l[4] & a.l[5]) == ~u64(0)) return -1;
+    return 0;
+}
+// a (finite) is below 2^320 in magnitude: its five low limbs are |a|'s
+bool fits5(const XInt& a) noexcept {
+    if (a.l[5] == 0) return true;
+    return a.l[5] == ~u64(0) && (a.l[0] | a.l[1] | a.l[2] | a.l[3] | a.l[4]);
+}
+
 // a * b: exact when below 2^320 in magnitude, else the inf of its sign
 // (0 times anything is 0: an infinite end stands for a finite value)
 XInt xmul(const XInt& a, const XInt& b) noexcept {
     const int sa = a.sign(), sb = b.sign();
     if (sa == 0 || sb == 0) return kZero;
     if (a.inf || b.inf) return xi_inf(sa * sb);
+    // (a factor 1 or -1: the other or its negation - what the product of the
+    // magnitudes below makes of an operand of five limbs, the common case of
+    // a linear reading's coefficients)
+    if (const int u = unit(a); u && fits5(b)) return u > 0 ? b : xneg(b);
+    if (const int u = unit(b); u && fits5(a)) return u > 0 ? a : xneg(a);
     u64 A[kSatLimbs], B[kSatLimbs];
     magnitude(a, A);
     magnitude(b, B);
@@ -603,6 +622,34 @@ bool is_sum(Value v) noexcept { return v.is(Op::ADD) || (v.is(Op::MUL) && v.size
 
 i64 clamp4096(i64 x) noexcept { return std::max<i64>(-4096, std::min<i64>(4096, x)); }
 
+// The linear readings diff compares, by (value, reading, top), without facts:
+// expand's Lin of the value and the window of its range - what they are made
+// of is the context's (the variables set_variables installed, the words'
+// ranges without facts, memoized: the same whenever asked, a variable's
+// value read only where no cycle makes its reading depend on the order),
+// cleared with the caches; a compaction drops the state. The pairs of
+// positions the memory model compares are made of a few thousand values: a
+// value is read once, not once per pair.
+struct Side {
+    XInt c;
+    u32 first = 0, count = 0;  // its items: side_items[first, first + count)
+    u32 masks = 0;
+    bool overflow = false;
+    bool windowed = false;  // its range lies within one window
+    i128 window = 0;
+};
+struct SideState final : ModuleState {
+    Memo<Key2, u32> index;  // (value, reading | top << 8) -> 1 + its place in sides
+    std::pmr::vector<Side> sides;
+    std::pmr::vector<LinItem> side_items;
+    SideState() : sides(cx().budget.resource()), side_items(cx().budget.resource()) {}
+    void clear_caches() override {
+        index.clear();
+        sides.clear();
+        side_items.clear();
+    }
+};
+
 }  // namespace
 
 // ================================================================ the walk
@@ -984,11 +1031,62 @@ struct RangeQuery::Impl {
 
     // ---- differences ----
 
+    // v's reading rd, without facts (SideState): its place in the state's sides
+    u32 side(Value v, Rd rd, Top top) {
+        const Key2 key{v.raw(), u64(rd) | (u64(top) << 8)};
+        if (const u32* k = cx().state<SideState>().index.find(key)) return *k - 1;
+        Lin acc;
+        expand(v, kOne, rd, Md::Word, top, acc);
+        Side s;
+        s.c = acc.c;
+        s.masks = acc.masks;
+        s.overflow = acc.overflow;
+        if (!acc.overflow)
+            if (const auto j = xr_window(lin_range(acc, top))) {
+                s.windowed = true;
+                s.window = *j;
+            }
+        SideState& ss = cx().state<SideState>();
+        s.first = u32(ss.side_items.size());
+        s.count = u32(acc.items.size());
+        for (const LinItem& it : acc.items) ss.side_items.push_back(it);
+        ss.sides.push_back(s);
+        ss.index.put(key, u32(ss.sides.size()));
+        return u32(ss.sides.size() - 1);
+    }
+
     // word(b) - word(a), an integer
     XRange diff(Value a, Value b, Top top) {
         if (a == b) return xr_point(kZero);
         const XRange ra = word(a, top), rb = word(b, top);
         XRange best = xr_sub(rb, ra);
+        if (!with_facts() && !a.nil() && !b.nil()) {
+            // (each reading of a and b made once - SideState - and combined
+            // as below: ld = lb - la, lb's items first, in their order)
+            for (Rd rd : kReadings) {
+                const u32 ia = side(a, rd, top), ib = side(b, rd, top);
+                const SideState& ss = cx().state<SideState>();
+                const Side &sa = ss.sides[ia], &sb = ss.sides[ib];
+                const u32 masks = sa.masks + sb.masks;
+                if (!sa.overflow && !sb.overflow && sa.windowed && sb.windowed) {
+                    Lin ld;
+                    ld.c = sb.c;
+                    ld.masks = sb.masks;
+                    for (u32 i = 0; i < sb.count; ++i) ld.items.push_back(ss.side_items[sb.first + i]);
+                    ld.add_c(xneg(sa.c));
+                    for (u32 i = 0; i < sa.count; ++i) {
+                        const LinItem& it = ss.side_items[sa.first + i];
+                        ld.add(it.key, it.atom, it.off, xneg(it.k));
+                    }
+                    if (!ld.overflow) {
+                        const XRange d = xr_shift(lin_range(ld, top), xneg(times_two256(sb.window - sa.window)));
+                        best = xr_narrow(best, d);
+                    }
+                }
+                if (masks == 0) break;
+            }
+            return best;
+        }
         for (Rd rd : kReadings) {
             Lin la, lb;
             expand(a, kOne, rd, Md::Word, top, la);

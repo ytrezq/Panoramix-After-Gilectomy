@@ -970,6 +970,53 @@ TEST_CASE("ranges: path facts are hash-consed - the same facts in the same order
     CHECK(c.floor_of(64) == mk_int(128));
 }
 
+TEST_CASE("ranges: a value's linear readings kept for the decisions go with the variables") {
+    Fixture f;
+    // (the decisions without facts keep each value's linear readings, the
+    // pairs being made of a few values: a variable read through its value
+    // reads differently once set_variables installs other values)
+    const Value t1 = V("tmp1"), t2 = V("tmp2");
+    const Value a = A::add(t1, mk_int(32)), b = A::add(t2, mk_int(64));
+    const Value cd4 = V("(and 65535 (calldataload 4))"), cd36 = V("(and 65535 (calldataload 36))");
+    std::vector<std::pair<Value, Value>> v1 = {{t1, cd4}, {t2, cd4}};
+    A::set_variables(v1, {});
+    CHECK(A::le(a, b, A::Top::Memory) == Tri::True);
+    CHECK(A::lt(b, a, A::Top::Memory) == Tri::False);
+    std::vector<std::pair<Value, Value>> v2 = {{t1, cd4}, {t2, cd36}};
+    A::set_variables(v2, {});
+    CHECK(A::le(a, b, A::Top::Memory) == Tri::None);
+    CHECK(A::lt(b, a, A::Top::Memory) == Tri::None);
+    // and through a compaction (the readings' values moved)
+    A::set_variables(v1, {});
+    CHECK(A::le(a, b, A::Top::Memory) == Tri::True);
+    Value roots[2] = {a, b};
+    cx().compact(roots);
+    CHECK(A::le(roots[0], roots[1], A::Top::Memory) == Tri::True);
+    A::clear_variables();
+    CHECK(A::le(a, b, A::Top::Memory) == Tri::None);
+}
+
+TEST_CASE("ranges: decisions through coefficients 1 and -1 and saturated bounds") {
+    Fixture f;
+    // (a linear reading's coefficients are mostly 1 and -1: the products by
+    // them are the other factor or its negation; bounds past 2^320 saturate)
+    const Value x = V("(and 65535 (calldataload 4))"), y = V("(calldataload 36)");
+    CHECK(A::le(A::sub(x, mk_int(1)), x) == Tri::None);  // (x = 0 wraps)
+    CHECK(A::lt(x, A::add(x, mk_int(1))) == Tri::True);
+    // (300000 - x) - (x + 70000) = 230000 - 2x >= 98930: the coefficient -2
+    CHECK(A::le(A::add(x, mk_int(70000)), A::sub(mk_int(300000), x)) == Tri::True);
+    CHECK(A::le(A::sub(mk_int(300000), x), A::add(x, mk_int(70000))) == Tri::False);
+    // 130000 - 2x: either sign
+    CHECK(A::le(A::add(x, mk_int(70000)), A::sub(mk_int(200000), x)) == Tri::None);
+    CHECK(A::int_diff_sign(A::neg(x), mk_int(1)).nonneg());
+    CHECK(A::lt(A::add(y, mk_int(1)), y) == Tri::None);
+    // a coefficient past the saturation: nothing decided, nothing wrong
+    Value big = y;
+    for (int i = 0; i < 6; ++i) big = A::add(A::mul(pow2(255), big), y);
+    CHECK(A::le(big, A::add(big, mk_int(1))) == Tri::None);
+    CHECK(A::eq(big, big) == Tri::True);
+}
+
 TEST_CASE("ranges: long paths of facts") {
     Fixture f;
     // 300 conditions on 300 words (a long path: the index of the bounds)
