@@ -48,8 +48,7 @@
     {
      "prefix": "1inch__solidity-utils",
      "url": "https://github.com/1inch/solidity-utils",
-     "commit": "9e506a39a00231ffb6ce2a9e5b479f05d8203dab",
-     "files": 77
+     "commit": "9e506a39a00231ffb6ce2a9e5b479f05d8203dab"
     }
    ]
   },
@@ -83,8 +82,7 @@
     {
      "prefix": "1inch__aqua",
      "url": "https://github.com/1inch/aqua",
-     "commit": "81c26e4619ce21556ab02b3284ee2685de21fb18",
-     "files": 33
+     "commit": "81c26e4619ce21556ab02b3284ee2685de21fb18"
     }
    ],
    "npm": {
@@ -140,8 +138,7 @@
     {
      "prefix": "1inch__swap-vm",
      "url": "https://github.com/1inch/swap-vm",
-     "commit": "32c687c2b73101fc26549e48fa1ff8a4d73afbac",
-     "files": 169
+     "commit": "32c687c2b73101fc26549e48fa1ff8a4d73afbac"
     }
    ],
    "npm": {
