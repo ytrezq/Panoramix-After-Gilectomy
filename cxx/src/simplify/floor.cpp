@@ -499,8 +499,8 @@ const LoopInfo& loop_info(Value loop_line, const loops::LoopSummary& ls) {
         for (usize i = 0; i < cand.size(); ++i) {
             if (!ok[i]) continue;
             Value next;
-            if (l[1].is_list())
-                for (Value x : l[1].args())
+            if (const Value sets = l[1]; sets.is_list())
+                for (Value x : sets.args())
                     if (x.is(Op::SETVAR, 2) && x[0] == cand[i]) next = x[1];
             if (next.nil()) continue;  // (left as it is there)
             const Value d = alg::from_linear(alg::linear_diff(next, cand[i]));
@@ -670,7 +670,8 @@ alg::Facts with_rising(alg::Facts r, Value loop_line, const loops::LoopSummary& 
     for (Value v : loop_info(loop_line, ls).rising) {
         if (!alg::var_floor_key(v)) continue;
         Value start;
-        for (Value x : loop_line[3].args())
+        const Value inits = loop_line[3];
+        for (Value x : inits.args())
             if (x.is(Op::SETVAR, 2) && x[0] == v) start = x[1];
         if (start.nil() || start.has_flags(F_MSIZE)) continue;
         bool reads_loop = false;
