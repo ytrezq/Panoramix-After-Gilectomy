@@ -328,21 +328,49 @@ and `floored` kept to the arithmetic of positions.
 
 ## Results (7-8 Nov 2026)
 
-Parts 1 and 3 implemented (part 2 not yet); the npm corpus, 861 contracts:
+Parts 1 and 3 implemented (part 2 not yet); the npm corpus, 861 contracts
+(the texts' lines: the printed lines of all 861):
 
-| tree | copy loops left | `while` lines | stagecheck, text_check |
-|---|---|---|---|
-| python's assumption (`mem[64] >= 0x60`) | 5,262 in 241 contracts | 8,997 | 0 different |
-| part 3 alone (nothing assumed) | 5,579 in 247 | 9,568 | 0 different |
-| parts 3 and 1 (the floors) | 5,579 in 247 | 9,568 | 0 different |
+| tree | copy loops left | `while` lines | lines | stagecheck, text_check |
+|---|---|---|---|---|
+| python's assumption (`mem[64] >= 0x60`) | 5,262 in 241 contracts | 8,997 | 545,648 | 0 different |
+| part 3 alone (nothing assumed) | 5,579 in 247 | 9,568 | 647,045 | 0 different |
+| parts 3 and 1, the floors in two walks (7 Nov) | 5,579 in 247 | 9,568 | 647,045 | 0 different |
+| cxx23 with the Vyper agent's merge (storage copies as ranges...) | 5,540 in 247 | 9,151 | 643,886 | 0 different |
+| that and the floors in every walk (8 Nov) | 5,094 in 227 | 8,144 | 573,577 | 0 different |
 
-Assuming nothing costs 317 copy loops (aave311's SupplyLogic and BorrowLogic,
-ENS' NameWrapper, OpenZeppelin's ERC1155...) and some dead writes kept
-(`mem[64] = 128` and the call's arguments in aave311_DelegationAwareAToken's
-totalSupply); the floors, as the walks carry them now, give none of it back -
-the 861 texts are the same with and without them. Starting the copy
-conversion's walk with the floors of the entry lines (the dispatcher's
-write of the free word) changes no text either: what the old range bought
-is decided elsewhere - the backward memory pass's dead writes and the
-simplifier's conditions (use 3), which don't read the floors yet, are the
-next places to look, then part 2.
+On 7 November, assuming nothing cost 317 copy loops (aave311's SupplyLogic
+and BorrowLogic, ENS' NameWrapper, OpenZeppelin's ERC1155...), 571 `while`
+lines, about 100,000 printed lines and some dead writes kept (`mem[64] =
+128` and the call's arguments in aave311_DelegationAwareAToken's
+totalSupply); the floors, read by two walks only, gave none of it back.
+Read by every walk (8 November: "What the old range decided" above), they
+give back more than the copies and the loops - 168 copy loops and 853
+`while` lines fewer than with the assumption, every stage of the 861
+contracts and their texts 0 different (stagecheck: 78,021 calls at the
+folded stage, 77,732 the same, 289 inconclusive - one contract at the time
+limit, as before;
+text_check: empty world 39,059 calls, 39,017 the same, random world 39,063,
+38,549 the same) - and 72% of the lines: 27,929 more than the assumption's
+texts (0x032_Exchange 9,355, 0x042_Forwarder 3,390, uniswa410_SkipCallsTest
+1,524...).
+
+What is left:
+
+- copy loops still worse than the assumption in 14 contracts (36 loops:
+  aave311_BorrowLogic 14, repo_UniversalRouter 4, aave311_LiquidationLogic
+  and SupplyLogic 4 and 3...) - decoded offsets (the second shape: Uses 4)
+  and stored pointers (part 2), not yet done;
+- `while` lines more than cxx23's in 8 contracts (13). 10 are loops whose
+  copy the backward pass now finds dead, left stepping their variables
+  (`while idx < _param3 + 32 * _param3.length + 36: s = s + 32; idx = idx
+  + 32`, OpenZeppelin's ERC1155Holder and TimelockController, ENS'
+  TestNameWrapperReentrancy): cxx23 converted the copy whole and dropped
+  it, the trip count proven with the copy's memory address; a loop that
+  does nothing, with no address to bound it, isn't proven to end. The 3
+  others, and 3 copies not converted any more (0x013_LibAssetData 2,
+  ensdom122_DummyExtendedDNSSECResolver 1), not analysed yet;
+- an internal function's trace starts with no floor (no entry lines);
+- the cost: the 861 texts take 1.4 times the CPU cxx23 took before the
+  merge (102 s against 72 s, `texts.sh`); ENS' TestRRUtils 4 times,
+  0x032_Exchange 1.8 times (33 s against 18 s).
