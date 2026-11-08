@@ -232,6 +232,33 @@ cxx23 at 33930c6935 (the floors, and the bytes getter's boundary worlds)
 84.6 s, with these two changes 78.3 s (0x032_Exchange 16.4, 28.8, 23.0 s);
 the 834 contracts under 0.3 s each 17.3, 29.3, 29.1 s.
 
+Then the walks remember what they decide - nothing decided differently (the
+861 texts byte-identical to cxx23 0d986fed75's). The profiles (a sampling
+profiler on a frame-pointer build) showed three costs: `floor_transfer`'s
+overlap decisions (31% of aave311_BorrowLogic: 72% of its calls are the
+same line with the same facts, met again by the other walks and the next
+rounds - but a Facts list rebuilt the same was new cells, so nothing could
+be remembered); the fresh decisions about positions (51% of 0x032_Exchange:
+3.3 million pairs, each expanding both sides into their linear readings,
+though the pairs are made of a few thousand values - BorrowLogic's 262,504
+of 7,039); and the bytes getter's check (73% of openze300_ERC721, 91% of
+uniswa410_MockHooks: its worlds of up to 16,320 words, a virtual sload, two
+GMP calls and an append per word). So: the path facts are hash-consed (a
+fact on a given list is one cell: a list rebuilt the same is the same
+cells, its identity a key); `floor_transfer` is memoized by (line, facts,
+scope), `kept_conditions` by (line, facts), a scope's id names its words
+exactly; `loop_info`'s two walks over every path are one; the decisions
+without facts read each value's linear readings once (`SideState` in
+`algebra/ranges.cpp`, cleared with the variables), XInt's products by 1 and
+-1 are the other factor; the trace machine copies a run of storage words
+the host has at hand at once (`exec::Host::sload_run`, the same checks in
+the same order). Measured on the 861 texts in one run, the builds
+interleaved, one contract at a time: 85e7ce3123 56.7 s, cxx23 0d986fed75
+84.1 s (1.48 times), these changes 61.2 s (1.08 times); 0x032_Exchange
+18.1, 22.9, 14.3 s; the 831 contracts under 0.3 s 18.6, 32.1, 23.6 s (what
+is left there is mostly the bytes getter's check), the 30 others 38.1,
+52.0, 37.6 s.
+
 ### Soundness
 
 By induction on the trace: a floor is only made equal to a value the word was
@@ -386,6 +413,9 @@ What is left:
   others, and 3 copies not converted any more (0x013_LibAssetData 2,
   ensdom122_DummyExtendedDNSSECResolver 1), not analysed yet;
 - an internal function's trace starts with no floor (no entry lines);
-- the cost: the 861 texts take 1.4 times the CPU cxx23 took before the
-  merge (102 s against 72 s, `texts.sh`); ENS' TestRRUtils 4 times,
-  0x032_Exchange 1.8 times (33 s against 18 s).
+- the cost (8 November, after the memos above): the 861 texts take 1.08
+  times the user time of 85e7ce3123, the tree before the floors (61.2 s
+  against 56.7 s, interleaved); the contracts below 0.3 s 1.27 times
+  (the bytes getter's check, its worlds), aave311_BorrowLogic 2.1 times
+  (1.40 s against 0.66 s), ENS' TestRRUtils 1.75 times, 0x032_Exchange
+  0.79 times.
