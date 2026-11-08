@@ -1,0 +1,173 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity 0.8.28;
+
+import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
+import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
+
+import {AcrossV3BridgeAdapter} from "src/bridge/adapters/AcrossV3BridgeAdapter.sol";
+import {AcrossV3BridgeConfig} from "src/bridge/configs/AcrossV3BridgeConfig.sol";
+import {IBridgeAdapter} from "src/interfaces/IBridgeAdapter.sol";
+import {IMockAcrossV3SpokePool} from "test/mocks/IMockAcrossV3SpokePool.sol";
+
+import {ScheduleOutBridgeTransfer_Integration_Concrete_Test} from
+    "../bridge-adapter/schedule-out-bridge-transfer/scheduleOutBridgeTransfer.t.sol";
+import {ClaimInBridgeTransfer_Integration_Concrete_Test} from
+    "../bridge-adapter/claim-in-bridge-transfer/claimInBridgeTransfer.t.sol";
+import {BridgeAdapter_Integration_Concrete_Test} from "../bridge-adapter/BridgeAdapter.t.sol";
+import {WithdrawPendingFunds_Integration_Concrete_Test} from
+    "../bridge-adapter/withdraw-pending-funds/withdrawPendingFunds.t.sol";
+
+abstract contract AcrossV3BridgeAdapter_Integration_Concrete_Test is BridgeAdapter_Integration_Concrete_Test {
+    IMockAcrossV3SpokePool public acrossV3SpokePool;
+
+    function setUp() public virtual override {
+        BridgeAdapter_Integration_Concrete_Test.setUp();
+
+        bridgeController1.setMaxBridgeLossBps(ACROSS_V3_BRIDGE_ID, DEFAULT_MAX_BRIDGE_LOSS_BPS);
+        bridgeController2.setMaxBridgeLossBps(ACROSS_V3_BRIDGE_ID, DEFAULT_MAX_BRIDGE_LOSS_BPS);
+
+        acrossV3SpokePool = IMockAcrossV3SpokePool(_deployCode(getMockAcrossV3SpokePoolCode(), 0));
+
+        address beacon =
+            address(_deployAcrossV3BridgeAdapterBeacon(dao, address(coreRegistry), address(acrossV3SpokePool)));
+        bridgeAdapter1 = IBridgeAdapter(
+            address(
+                new BeaconProxy(beacon, abi.encodeCall(IBridgeAdapter.initialize, (address(bridgeController1), "")))
+            )
+        );
+        bridgeAdapter2 = IBridgeAdapter(
+            address(
+                new BeaconProxy(beacon, abi.encodeCall(IBridgeAdapter.initialize, (address(bridgeController2), "")))
+            )
+        );
+
+        vm.startPrank(address(dao));
+        AcrossV3BridgeConfig config = _deployAcrossV3BridgeConfig(dao, address(accessManager));
+        coreRegistry.setBridgeConfig(ACROSS_V3_BRIDGE_ID, address(config));
+        config.setForeignChainSupported(chainId2, true);
+        vm.stopPrank();
+    }
+
+    function _receiveInBridgeTransfer(
+        address bridgeAdapter,
+        bytes memory encodedMessage,
+        address receivedToken,
+        uint256 receivedAmount
+    ) internal virtual override {
+        vm.prank(IBridgeAdapter(bridgeAdapter).controller());
+        IBridgeAdapter(bridgeAdapter).authorizeInBridgeTransfer(keccak256(encodedMessage));
+
+        deal(
+            receivedToken,
+            address(bridgeAdapter),
+            IERC20(receivedToken).balanceOf(address(bridgeAdapter)) + receivedAmount,
+            true
+        );
+
+        vm.prank(address(acrossV3SpokePool));
+        AcrossV3BridgeAdapter(bridgeAdapter).handleV3AcrossMessage(
+            receivedToken, receivedAmount, address(0), encodedMessage
+        );
+    }
+
+    function _sendOutBridgeTransfer(address bridgeAdapter, uint256 transferId) internal virtual override {
+        vm.prank(IBridgeAdapter(bridgeAdapter).controller());
+        IBridgeAdapter(bridgeAdapter).sendOutBridgeTransfer(transferId, abi.encode(1 hours));
+    }
+}
+
+contract ScheduleOutBridgeTransfer_AcrossV3BridgeAdapter_Integration_Concrete_Test is
+    ScheduleOutBridgeTransfer_Integration_Concrete_Test,
+    AcrossV3BridgeAdapter_Integration_Concrete_Test
+{
+    function setUp()
+        public
+        virtual
+        override(AcrossV3BridgeAdapter_Integration_Concrete_Test, ScheduleOutBridgeTransfer_Integration_Concrete_Test)
+    {
+        AcrossV3BridgeAdapter_Integration_Concrete_Test.setUp();
+        ScheduleOutBridgeTransfer_Integration_Concrete_Test.setUp();
+    }
+
+    function _receiveInBridgeTransfer(
+        address bridgeAdapter,
+        bytes memory encodedMessage,
+        address receivedToken,
+        uint256 receivedAmount
+    ) internal override(AcrossV3BridgeAdapter_Integration_Concrete_Test, BridgeAdapter_Integration_Concrete_Test) {
+        AcrossV3BridgeAdapter_Integration_Concrete_Test._receiveInBridgeTransfer(
+            bridgeAdapter, encodedMessage, receivedToken, receivedAmount
+        );
+    }
+
+    function _sendOutBridgeTransfer(address bridgeAdapter, uint256 transferId)
+        internal
+        override(AcrossV3BridgeAdapter_Integration_Concrete_Test, BridgeAdapter_Integration_Concrete_Test)
+    {
+        AcrossV3BridgeAdapter_Integration_Concrete_Test._sendOutBridgeTransfer(bridgeAdapter, transferId);
+    }
+}
+
+contract ClaimInBridgeTransfer_AcrossV3BridgeAdapter_Integration_Concrete_Test is
+    ClaimInBridgeTransfer_Integration_Concrete_Test,
+    AcrossV3BridgeAdapter_Integration_Concrete_Test
+{
+    function setUp()
+        public
+        virtual
+        override(AcrossV3BridgeAdapter_Integration_Concrete_Test, ClaimInBridgeTransfer_Integration_Concrete_Test)
+    {
+        AcrossV3BridgeAdapter_Integration_Concrete_Test.setUp();
+        ClaimInBridgeTransfer_Integration_Concrete_Test.setUp();
+    }
+
+    function _receiveInBridgeTransfer(
+        address bridgeAdapter,
+        bytes memory encodedMessage,
+        address receivedToken,
+        uint256 receivedAmount
+    ) internal override(AcrossV3BridgeAdapter_Integration_Concrete_Test, BridgeAdapter_Integration_Concrete_Test) {
+        AcrossV3BridgeAdapter_Integration_Concrete_Test._receiveInBridgeTransfer(
+            bridgeAdapter, encodedMessage, receivedToken, receivedAmount
+        );
+    }
+
+    function _sendOutBridgeTransfer(address bridgeAdapter, uint256 transferId)
+        internal
+        override(AcrossV3BridgeAdapter_Integration_Concrete_Test, BridgeAdapter_Integration_Concrete_Test)
+    {
+        AcrossV3BridgeAdapter_Integration_Concrete_Test._sendOutBridgeTransfer(bridgeAdapter, transferId);
+    }
+}
+
+contract WithdrawPendingFunds_AcrossV3BridgeAdapter_Integration_Concrete_Test is
+    WithdrawPendingFunds_Integration_Concrete_Test,
+    AcrossV3BridgeAdapter_Integration_Concrete_Test
+{
+    function setUp()
+        public
+        virtual
+        override(AcrossV3BridgeAdapter_Integration_Concrete_Test, WithdrawPendingFunds_Integration_Concrete_Test)
+    {
+        AcrossV3BridgeAdapter_Integration_Concrete_Test.setUp();
+        WithdrawPendingFunds_Integration_Concrete_Test.setUp();
+    }
+
+    function _receiveInBridgeTransfer(
+        address bridgeAdapter,
+        bytes memory encodedMessage,
+        address receivedToken,
+        uint256 receivedAmount
+    ) internal override(AcrossV3BridgeAdapter_Integration_Concrete_Test, BridgeAdapter_Integration_Concrete_Test) {
+        AcrossV3BridgeAdapter_Integration_Concrete_Test._receiveInBridgeTransfer(
+            bridgeAdapter, encodedMessage, receivedToken, receivedAmount
+        );
+    }
+
+    function _sendOutBridgeTransfer(address bridgeAdapter, uint256 transferId)
+        internal
+        override(AcrossV3BridgeAdapter_Integration_Concrete_Test, BridgeAdapter_Integration_Concrete_Test)
+    {
+        AcrossV3BridgeAdapter_Integration_Concrete_Test._sendOutBridgeTransfer(bridgeAdapter, transferId);
+    }
+}
