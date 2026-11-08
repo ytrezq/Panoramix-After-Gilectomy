@@ -313,6 +313,16 @@ Value with_selector(Value v, u32 h) {
     return changed ? alg::apply(v.op(), args.span()) : v;
 }
 
+// the lines a node runs on the dispatcher's way that the entry's lines run
+// too: SETMEM, SETVAR (and --verbose's ASM) - not a store, a log, a call...
+// (python's entry keeps those only: such a line on the way, and the machine
+// running the entry's lines then the function, would leave it out)
+bool entry_lines_only(std::span<const Value> lines) {
+    for (Value l : lines)
+        if (!(l.is(Op::SETMEM) || l.is(Op::SETVAR) || l.is(Op::ASM))) return false;
+    return true;
+}
+
 }  // namespace
 
 // The machine runs a selector's function for the calls of that selector, of
@@ -323,7 +333,8 @@ Value with_selector(Value v, u32 h) {
 // dispatch condition that holds for them (decided by `the selector is the
 // hash, calldatasize >= 4`: the other selectors' tests, the size's, a binary
 // search's, a code switch's case), or a check whose other branch reverts
-// (python's entry: in the entry lines) - no branch on anything else, no loop.
+// (python's entry: in the entry lines) - no branch on anything else, no loop,
+// no line the entry's don't run (entry_lines_only).
 bool Discovery::exact_path(NodeId n) const {
     const Node& leaf = node(n);
     if (leaf.end != End::FuncCall || !leaf.fshort) return false;
@@ -336,7 +347,7 @@ bool Discovery::exact_path(NodeId n) const {
     for (NodeId x = n, p = vm_.parent(n); p != NO_NODE; x = p, p = vm_.parent(p)) {
         poll();
         const Node& m = node(p);
-        if (m.label != NO_NODE) return false;
+        if (m.label != NO_NODE || !entry_lines_only(m.lines)) return false;
         if (m.end == End::Jump && m.a == x) continue;
         if (m.end != End::If || m.cont != NO_NODE || (x != m.a && x != m.b)) return false;
         const bool holds = x == m.a;
@@ -353,7 +364,8 @@ bool Discovery::exact_path(NodeId n) const {
 // The machine runs the default function for every call no kept selector's
 // function takes: the dispatcher must take them all to its start `target`
 // (python default_starts), through dispatch conditions and checks (a branch
-// that reverts) only - no other branch, halt or loop on the way.
+// that reverts) only - no other branch, halt or loop on the way, no line the
+// entry's don't run.
 bool Discovery::default_reached(u32 target) const {
     SmallVec<NodeId, 64> todo{vm_.root()};
     while (!todo.empty()) {
@@ -362,6 +374,7 @@ bool Discovery::default_reached(u32 target) const {
         todo.pop_back();
         const Node& m = node(n);
         if (m.end == End::FuncCall || (m.start == target && m.sw == 0 && has_marker(n))) continue;
+        if (!entry_lines_only(m.lines)) return false;
         if (m.end == End::Jump) {
             todo.push_back(m.a);
             continue;

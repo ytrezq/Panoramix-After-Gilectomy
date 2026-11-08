@@ -203,3 +203,18 @@ TEST_CASE("vm dispatch: the default function reached with the selector on the st
         {{with_selector(0xaabbccdd)}, {with_selector(0x12345678), 0, true}, {bytes("aabbcc"), 0, true},
             {{}, 0, true}});
 }
+
+TEST_CASE("vm dispatch: a dispatcher that writes the storage or logs before its tests")
+{
+    // stor[0] = 1; sel == 0xaabbccdd -> return stor[0]; else revert: the
+    // function's entry can't run the store (the entry's lines are memory's)
+    const auto stores = check_dispatch("6001600055" "600035" "60e01c" "63aabbccdd14" "601857" "600080fd" "5b"
+                                       "600054" "600052" "60206000f3",
+        {{with_selector(0xaabbccdd)}, {with_selector(0x12345678)}, {{}}});
+    CHECK(stores.empty());
+    // log0 of nothing, then the same tests: the log is every call's
+    const auto logs = check_dispatch("60006000a0" "600035" "60e01c" "63aabbccdd14" "601857" "600080fd" "5b"
+                                     "600054" "600052" "60206000f3",
+        {{with_selector(0xaabbccdd)}, {with_selector(0x12345678)}, {{}}});
+    CHECK(logs.empty());
+}
