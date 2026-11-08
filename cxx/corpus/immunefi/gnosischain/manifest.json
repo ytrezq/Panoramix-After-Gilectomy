@@ -110,92 +110,77 @@
     {
      "prefix": "gnosischain__tokenbridge-contracts",
      "url": "https://github.com/gnosischain/tokenbridge-contracts",
-     "commit": "52afd25b05f1afa3347f2f18595748b2149df6aa",
-     "files": 174
+     "commit": "52afd25b05f1afa3347f2f18595748b2149df6aa"
     },
     {
      "prefix": "gnosischain__tokenbridge-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1",
-     "files": 40
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
     },
     {
      "prefix": "gnosischain__tokenbridge-contracts/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527",
-     "files": 322
+     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527"
     },
     {
      "prefix": "gnosischain__tokenbridge-contracts/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "3d5fa5c24c411112bab47bec25cfa9ad0af0e6e8",
-     "files": 214
+     "commit": "3d5fa5c24c411112bab47bec25cfa9ad0af0e6e8"
     },
     {
      "prefix": "gnosischain__tokenbridge-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "gnosischain__tokenbridge-contracts/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa",
-     "files": 47
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
     },
     {
      "prefix": "gnosischain__tokenbridge-contracts/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "gnosischain__tokenbridge-contracts/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "gnosischain__tokenbridge-contracts/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa",
-     "files": 47
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
     },
     {
      "prefix": "gnosischain__tokenbridge-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "gnosischain__tokenbridge-contracts/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "gnosischain__tokenbridge-contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527",
-     "files": 322
+     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527"
     },
     {
      "prefix": "gnosischain__tokenbridge-contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa",
-     "files": 47
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
     },
     {
      "prefix": "gnosischain__tokenbridge-contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "gnosischain__tokenbridge-contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     }
    ]
   },
@@ -235,8 +220,7 @@
     {
      "prefix": "gnosischain__omnibridge",
      "url": "https://github.com/gnosischain/omnibridge",
-     "commit": "ccd9003d99eb0bda86e7f3320d08804f2f98cff8",
-     "files": 83
+     "commit": "ccd9003d99eb0bda86e7f3320d08804f2f98cff8"
     }
    ]
   }
