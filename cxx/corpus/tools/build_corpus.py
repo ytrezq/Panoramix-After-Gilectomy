@@ -588,9 +588,11 @@ def build_project(args, solc, slug, repo, project):
         except Exception as e:
             errors.append({'project': project, 'solc': '%d.%d.%d' % v, 'error': str(e)})
             continue
-        for evm in evms:
-            if v < SOLC_EVM_SINCE.get(evm, (9, 9, 9)):
-                continue
+        known = [e for e in evms if v >= SOLC_EVM_SINCE.get(e, (9, 9, 9))]
+        if not known and args.fallback_evm:
+            fb = [e for e in args.fallback_evm.split(',') if v >= SOLC_EVM_SINCE.get(e, (9, 9, 9))]
+            known = fb[-1:]
+        for evm in known:
             for opt in opts:
                 tag = 'solc-%d.%d.%d-%s%s%s' % (v + (evm, '' if opt else '-noopt', '-ir' if via_ir else ''))
                 outdir = os.path.join(base_out, tag)
@@ -637,6 +639,8 @@ def main():
     ap.add_argument('--program', action='append', default=[])
     ap.add_argument('--repo', action='append', default=[], help='OWNER__NAME, only those')
     ap.add_argument('--evm', default=DEFAULT_EVM)
+    ap.add_argument('--fallback-evm', default='',
+                    help='for a compiler that knows none of --evm: the newest of these it knows (comma separated)')
     ap.add_argument('--optimizer', default='auto', choices=['auto', 'on', 'off', 'both'])
     ap.add_argument('--out', default=os.path.join(ROOT, 'build'))
     ap.add_argument('--limit', type=int, default=0, help='projects at most')

@@ -14,6 +14,15 @@ links kept; documentation, server-side code, JavaScript / TypeScript and data
 left out - added with `git subtree add --squash`, and each of its submodules
 the same way at its own path (`tools/subtree_corpus.py`).
 
+A checkout of the branch has the corpus' 370,000 files (2.3 GB; git stores
+them in about 110 MB, the same libraries recurring from one repository to
+the next). To leave the repositories out of a checkout and keep the
+manifests and notes:
+
+```sh
+git sparse-checkout set --no-cone '/*' '!/cxx/corpus/immunefi/*/*/'
+```
+
 ## Layout
 
 | path | what |
@@ -59,13 +68,16 @@ tools/copy_repo.py --program SLUG --repo https://github.com/OWNER/REPO [--ref RE
 
 # the manifests' repositories as filtered git subtrees here (a clean work
 # tree; resumable; each step a commit), the npm packages from OLD
-tools/subtree_corpus.py --from OLD [--program SLUG]... [--jobs 4]
+tools/subtree_corpus.py --from OLD [--program SLUG]... [--jobs 4] [--minutes N]
+#   (--minutes: start no program after N minutes; a later run resumes)
 
 # compile: each project (foundry, hardhat, truffle, brownie, a src/ or
 # contracts/ of sources) with the compiler its configuration or pragmas ask,
 # for each EVM version that compiler knows; runtime bytecode, ABI, storage
 # layout, AST
-tools/build_corpus.py [--program SLUG] [--evm paris,shanghai,cancun] [--optimizer auto|on|off|both] --out BUILD
+tools/build_corpus.py [--program SLUG] [--evm paris,shanghai,cancun] [--fallback-evm byzantium,petersburg,istanbul]
+    [--optimizer auto|on|off|both] --out BUILD
+#   (--fallback-evm: a compiler that knows none of --evm gets the newest of these it knows)
 
 # compare the decompiled code with the sources (pancxx, stagecheck and
 # text_check from the cxx23 branch's build)

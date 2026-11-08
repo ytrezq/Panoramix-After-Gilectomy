@@ -12,6 +12,7 @@ import collections
 import glob
 import json
 import os
+import subprocess
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -26,6 +27,18 @@ def main():
     ne = os.path.join(a.root, 'immunefi', 'assign', 'not_evm.txt')
     not_evm = {l.split()[0] for l in open(ne) if l.strip()} if os.path.exists(ne) else \
         {s for s, p in programs.items() if not p.get('evm')}
+    def in_tree(path):
+        # (files and bytes under path in HEAD, whether checked out or not)
+        out = subprocess.run(['git', '-C', a.root, 'ls-tree', '-r', '-l', '-z', 'HEAD', '--', path],
+                             capture_output=True, text=True).stdout
+        files = size = 0
+        for rec in out.split('\0'):
+            meta = rec.split('\t', 1)[0].split()
+            if len(meta) == 4 and meta[1] == 'blob':
+                files += 1
+                size += int(meta[3]) if meta[3].isdigit() else 0
+        return files, size
+
     rows, tot = [], collections.Counter()
     langs = collections.Counter()
     licenses = collections.Counter()
@@ -50,7 +63,15 @@ def main():
         c = collections.Counter()
         for r in m.get('repos', []):
             c['repos'] += 1
-            if r.get('copied'):
+            if r.get('via') == 'git subtree':
+                c['copied'] += 1
+                c['subtrees'] += len(r.get('subtrees', []))
+                f, b = in_tree(os.path.join('immunefi', slug, r['dest']))
+                c['files'] += f
+                c['bytes'] += b
+                for ext, n in (r.get('languages') or {}).items():
+                    langs[ext] += n
+            elif r.get('copied'):
                 c['copied'] += 1
                 c['files'] += r.get('files', 0)
                 c['bytes'] += r.get('bytes', 0)
@@ -75,6 +96,8 @@ def main():
          'of sources), %d by reference only, %d failed.' % (
              tot['programs'], tot['programs_searched_empty'], tot['programs_pending'], tot['not_evm'], tot['repos'],
              tot['copied'], tot['files'], tot['bytes'] / 1e6, tot['reference'], tot['failed']), '',
+         'Git subtrees (the repositories, their submodules and Soldeer dependencies, filtered): %d.' %
+         tot['subtrees'], '',
          'Languages of the copied repositories\' own sources: ' + ', '.join(
              '%s %d' % kv for kv in langs.most_common()) + '.', '',
          '| program | project | repositories | copied | reference only | failed | MB | note |',
