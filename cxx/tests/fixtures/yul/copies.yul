@@ -11,15 +11,15 @@ object "Copies" {
         mstore(0x40, 0x80)
         codecopy(0x80, 0, 0x400)
         let sel := shr(224, calldataload(0))
-        let a := and(calldataload(4), 0x1ff)
-        let b := and(calldataload(36), 0x1ff)
-        let n := and(calldataload(68), 0x1ff)
+        let x := and(calldataload(4), 0x1ff)
+        let y := and(calldataload(36), 0x1ff)
+        let z := and(calldataload(68), 0x1ff)
         switch sel
-        case 0x6319684f { loopFwd(a, b, n) }
-        case 0xcfa9bdcb { loopBwd(a, b, n) }
-        case 0xc21d5a80 { loopBytes(a, b, n) }
-        case 0xb78f1d71 { mcopyFwd(a, b, n) }
-        case 0x4005c4f5 { mcopyBwd(a, b, n) }
+        case 0x6319684f { loopFwd(x, y, z) }
+        case 0xcfa9bdcb { loopBwd(x, y, z) }
+        case 0xc21d5a80 { loopBytes(x, y, z) }
+        case 0xb78f1d71 { mcopyFwd(x, y, z) }
+        case 0x4005c4f5 { mcopyBwd(x, y, z) }
         case 0x8bd05801 { mcopyCalldata() }
         default { revert(0, 0) }
 
