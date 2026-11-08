@@ -1,0 +1,24 @@
+// SPDX-License-Identifier: BUSL-1.1
+
+/*
+    This file is part of the Onyx Protocol.
+
+    (c) Enzyme Foundation <foundation@enzyme.finance>
+
+    For the full license information, please view the LICENSE
+    file that was distributed with this source code.
+*/
+
+pragma solidity 0.8.28;
+
+abstract contract Constants {
+    // `[NETWORK]_BLOCK_LATEST` can be increased as-needed, and should be used in all tests
+    uint256 internal constant ETHEREUM_BLOCK_LATEST = 23967530; // Dec 8th, 2025
+    uint256 internal constant ARBITRUM_BLOCK_LATEST = 408447230; // Dec 8th, 2025
+    uint256 internal constant BASE_BLOCK_LATEST = 39201030; // Dec 8th, 2025
+    uint256 internal constant PLUME_BLOCK_LATEST = 41664170; // Dec 8th, 2025
+    uint256 internal constant MEGA_ETH_BLOCK_LATEST = 12236830; // Apr 1st, 2026
+    uint256 internal constant ETHEREUM_SEPOLIA_BLOCK_LATEST = 10566500; // Apr 1st, 2026
+    uint256 internal constant RAYLS_BLOCK_LATEST = 1142636; // May 18th, 2026
+    uint256 internal constant BNB_SMART_CHAIN_BLOCK_LATEST = 114316634; // Aug 6th, 2026
+}
