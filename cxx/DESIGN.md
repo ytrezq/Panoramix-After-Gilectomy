@@ -481,7 +481,8 @@ from python and the asm, and what became of it (the audit of November
 | copy loops that write the storage (Vyper's stores of strings, DynArrays and structs; solc's legacy bytes and string stores, their tails cleared) | `loops/rewrite.cpp` (`to_store`) | one line where the induction proves the trips and the loop's reads can't see its writes: `stor[slot len n] = mem[p len 32 n]`, `= call.data[...]`, `= 0`, `= stor[r len n]` (`STORE_RANGE`; storage to storage only where no iteration reads a slot an earlier one wrote: the backward distance 0, at least the trips, or a multiple of a power of two above them) |
 | python's one fixed array per root slot, an array of structs laid out from a slot (Vyper's DynArray of structs) printed as one array per field, its elements reached with an offset index (8 n - 3) as arrays near 2^256 | `storage/analyse.cpp` | the same stride's roots merged into one array of structs at the lowest root whose slots hold no other variable; a member reached through a variable holding an element's address (c + S x) raw, not an array at the member's offset |
 | checked arithmetic (OpenZeppelin, ds-math, Panic 0x11 / 0x12, Vyper, a hand-written check) | `analysis/safemath.cpp` | recognized; each site's abstraction proven (the result and the conditions put back have the site's normal forms: `alg::same_value`), else the checks stay - the four random points are gone |
-| the storage forms (python's four worlds) | `storage/check.cpp` | recognized; a form proven (its slot and bits the access's once the hashes of constants are computed: the same normal form), else raw - the four random worlds are gone; a bytes getter run by the trace machine on storage worlds |
+| the storage forms (python's four worlds) | `storage/check.cpp` | recognized; a form proven (its slot and bits the access's once the hashes of constants are computed: the same normal form), else raw - the four random worlds are gone |
+| a bytes getter's copy of the bytes (python's `bytes_tail`: lengths drawn around the code's numbers, about 100 worlds) | `storage/getters.cpp` | `return name[all]` checked on a complete set of boundary worlds (the trace machine runs both, the same RETURN or REVERT bytes in every one: the short form of every length 0 to 31, the long form's flag with each of them, the long form of every length 32 to 95 and of every residue mod 32 at 3, 4, 2^13 and 16,320 words, the short form's flag with every length 32 to 127, garbage past the length - in the slot word, the last data word, the slot after the data - and in the neighbouring slots), not proven; else the getter keeps its trace |
 | solidity's length of a storage bytes or string, `(x & (256 * iszero(x & 1) - 1)) >> 1` | `simplify/passes.cpp` | recognized exactly: `LENGTH(key)`'s meaning is that formula (the machine runs it), below 2^255 by it (`max_bits`: a copy's end `L + 160` past `L >= 32` doesn't wrap, its trip count takes no max); Vyper's length slot is a plain word |
 | params' types from masks, solc >= 0.8's validation | `analysis/traits.cpp` | recognized; the trace machine runs the checks taken out |
 | python's `small_words` (a word given to the contract below 2^64 in memory positions) | `simplify/` | made sound: past a check bounding it on every path |
@@ -746,8 +747,15 @@ made of - proven (`storage/check.cpp`: both places as expressions, a hash
 of constant bytes computed, a hash's DATA operands flat, then the same
 normal form, `alg::same_value`), never sampled - else it is printed raw.
 A bytes getter becomes `return name[all]` only when the trace machine
-runs both the same on storage worlds. Everything is made aside and
-swapped in at the end.
+runs both with the same RETURN or REVERT bytes on a complete set of
+boundary worlds (`storage/getters.cpp`, checked, not proven): every length
+from 0 to 159 under the long form's flag and from 0 to 127 under the short
+form's (an even slot word can't say more), every residue mod 32 at 2^13 and
+16,320 words (the most the check machine's 1 MiB memory holds with the
+bytes copied twice; 2^16 words would need 4 MiB), garbage wherever an
+encoding has bytes past the length, the neighbouring slots set; the storage
+made of fixed patterns, so the verdict is the same on every run.
+Everything is made aside and swapped in at the end.
 
 ### The folder and the ast (lot 10, `src/output/`)
 
@@ -998,6 +1006,31 @@ stage 0 different, 0 bugs - 78,022 calls, 77,732 the same, 290 inconclusive (all
 0 unparsed lines, empty world 39,059 calls, 39,017 the same, 0 different; random world
 39,063, 38,549 the same, 0 different. Unit tests: 368 cases, 247,151 assertions, 0 failures.
 
+**A bytes getter on boundary worlds** (8 Nov; `storage/getters.cpp`): a getter of a bytes or
+string became `return name[all]` where the trace machine ran both alike on about 100
+worlds - 13 lengths and up to 48 drawn around the trace's numbers, garbage past the length
+on 12 of them, a few encodings no solc makes, no neighbouring slot set - and a turn at
+another length went unseen (the unit test's: `''` at residue 13 past 64 bytes, or past
+300,000 bytes, taken for `return stor0[all]`). Proving the copy instead (the trace returns
+the ABI encoding whatever the bytes past the length hold) would have needed a proof engine
+of 800 to 1,000 lines for what refusing would cost: 214 names in the npm corpus (105
+contracts), 266 in the sample (143 artifacts). The check now runs the fixed set above, the
+same verdict on every run. Counted on cxx23 with it merged (three times: 85e7ce3, 2491ac4
+and 192290c), before and after: the npm corpus 293 getters checked, 226 accepted (108
+contracts) and 67 refused, the same verdict for each, no text changed; the sample 442
+checked, 299 accepted (170 artifacts) and 143 refused, the same verdict for each, no text
+changed (RocketUpgradeOneDotFour's three builds moved between runs of either build: its
+simplification meets its time limit). The price is the large worlds (every residue at 2^13
+and 16,320 words, the original's run and the candidate's): about 0.05 s per accepted
+getter - WETH 0.02 s -> 0.12 s; the texts' CPU time 87.6 s -> 93.7 s for the npm corpus
+(+7%) and 279.7 s -> 308.8 s for the sample (+10%; +4% to +20% in the runs on a loaded
+machine) - half what it was before Word256's conversions became byte swaps. On the 278
+contracts with an accepted getter (108 + 170), on 192290c: stagecheck (every stage) 0
+different, 0 bugs - 58,694 calls, 58,405 the same, 289 inconclusive (287 evmone's, 2
+exhausted); text_check 0 unparsed lines, empty world 29,438 calls, 29,436 the same, 0
+different; random world 29,438, 28,892 the same, 0 different (320 unsupported: a storage
+bytes of an invalid encoding). Unit tests: 397 cases, 248,292 assertions, 0 failures.
+
 **The source corpus** (branch `corpus`, `tools/build_corpus.py` and
 `tools/compare_source.py` there): the EVM programs of Immunefi's bug bounties with their
 sources, compiled for several EVM versions by the compilers their projects ask; per
@@ -1190,8 +1223,9 @@ stagechecks above: 0 different at every stage they ran):
   6 blocks the asm lacks).
 - **The storage SALL copy** (lot 9): a bytes read reads what solidity's
   copy to memory reads whatever the slot holds - short or long by the
-  decoded length, exactly that many bytes - so a getter's rewrite holds on
-  any storage. Storage copy loops: 32 left in the corpus, the asm's 185.
+  decoded length, exactly that many bytes - so a getter's rewrite can hold
+  on any storage (it is checked on boundary worlds, `storage/getters.cpp`).
+  Storage copy loops: 32 left in the corpus, the asm's 185.
 - **Call results and gas reads kept apart in the text** (lot 10, triage
   issues 3 and 9): a call's result read where another call may have run
   since, and a gas read printed with or after another, get a variable, as

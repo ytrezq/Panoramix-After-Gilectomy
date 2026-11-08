@@ -700,3 +700,83 @@ TEST_CASE("storage: the hashes solc computes at compile time - the forms proven,
     CHECK(has(a.after[4].trace, V("(st 256 (si (si (sv stor1) 0) caller) 256)")));
     same_runs(a);
 }
+
+namespace {
+
+// solc's legacy getter of a string at slot 0 (WETH's name()): its copy to the
+// memory (short or long by the length), the ABI encoding with the last word's
+// bytes past the length cleared
+constexpr std::string_view LEGACY_GETTER =
+    "(if (mul 2 (storage 256 0 (length (loc 0)))) {(if (lt 31 (storage 256 0 (length (loc 0)))) {(setmem (range 128 32) "
+    "(sized 32 (storage 256 0 (sha3 (sized 32 0))))) (setmem (range 160 (mask_shl 251 5 0 (add -129 (max 160 (add 128 "
+    "(storage 256 0 (length (loc 0)))))))) (storage_range (add 1 (sha3 (sized 32 0))) (mask_shl 251 5 -5 (add -129 (max "
+    "160 (add 128 (storage 256 0 (length (loc 0)))))))))} {(setmem (range 128 32) (sized 32 (mul 256 (storage 248 8 "
+    "0))))})} {}) (setmem (range (add 192 (mask_shl 251 5 0 (add 31 (storage 256 0 (length (loc 0)))))) (mask_shl 251 5 0 "
+    "(add 31 (storage 256 0 (length (loc 0)))))) (mem (range 128 (mask_shl 251 5 0 (add 31 (storage 256 0 (length (loc "
+    "0)))))))) (if (iszero (storage 5 0 (length (loc 0)))) {(return (data (sized 32 32) (sized 32 (storage 256 0 (length "
+    "(loc 0)))) (mem (range (add 192 (mask_shl 251 5 0 (add 31 (storage 256 0 (length (loc 0)))))) (storage 256 0 (length "
+    "(loc 0)))))))} {(setmem (range (add 192 (mask_shl 251 5 0 (add 31 (storage 256 0 (length (loc 0))))) (mul 32 (storage "
+    "251 5 (length (loc 0))))) 32) (sized 32 (and (not (add -1 (exp 256 (add 32 (mul -1 (storage 5 0 (length (loc "
+    "0)))))))) (mem (range (add 192 (mask_shl 251 5 0 (add 31 (storage 256 0 (length (loc 0))))) (mul 32 (storage 251 5 "
+    "(length (loc 0))))) 32))))) (return (data (arr (storage 256 0 (length (loc 0))) (mem (range (add 192 (mask_shl 251 5 0 "
+    "(add 31 (storage 256 0 (length (loc 0)))))) (add 32 (mul 32 (storage 251 5 (length (loc 0))))))))))})";
+
+// slot 0 holding a string of len bytes in the long form (its words from keccak(0) on)
+class LongString final : public exec::SimpleHost {
+public:
+    explicit LongString(u64 len) {
+        calldata = {0x06, 0xfd, 0xde, 0x03};
+        storage[Word256{}] = Word256::of(2 * len + 1);
+        u8 zero[32] = {};
+        const Word256 base = exec::keccak256(std::span<const u8>(zero, 32));
+        for (u64 i = 0; 32 * i < len + 32; ++i) storage[add(base, Word256::of(i))] = Word256{{hash_mix(i), 7, 7, 7}};
+    }
+};
+
+bool has_op(Value v, Op op) {
+    if (v.is(op)) return true;
+    for (Value c : v.children())
+        if (has_op(c, op)) return true;
+    return false;
+}
+
+}  // namespace
+
+TEST_CASE("storage: a bytes getter is checked on a complete set of boundary worlds - a turn at a length no sample drew") {
+    Fixture f;
+    // the getter with a wrong turn first - '' for some lengths: of residue 13
+    // (mod 32) past 64 bytes (77, 109, ...), or past 300,000 bytes. The old
+    // worlds (some lengths, those around the trace's numbers) drew none of
+    // them and took `return stor0[all]` for the whole function: the boundary
+    // worlds (every L to 159, every residue at M = 3, 4, 2^13 and 16,320
+    // words) see them, and keep the turn
+    const std::string turns[] = {
+        "(if (and (eq (storage 5 0 (length (loc 0))) 13) (lt 64 (storage 256 0 (length (loc 0))))) "
+        "{(return (data (sized 32 32) (sized 32 0)))} {})",
+        "(if (lt 300000 (storage 256 0 (length (loc 0)))) {(return (data (sized 32 32) (sized 32 0)))} {})",
+    };
+    for (const u64 len : {u64(109), u64(32 * 16320 + 13)}) {
+        const std::string& turn = turns[len > 300000];
+        FunctionInfo g = fn(0x06fdde03, "{" + turn + " " + std::string(LEGACY_GETTER) + "}");
+        g.read_only = true;
+        const Analysed a = analyse({g});
+        INFO(dump(a.after[0].trace));
+        // still `return stor0[all]` after the turn (the getter keeps its name)
+        CHECK(has_op(a.after[0].trace, Op::SALL));
+        CHECK(a.layout->vars.size() == 1);
+        // and '' at that length, as the raw getter
+        exec::Program p0, p1;
+        p0.functions = a.before;
+        p1.functions = a.after;
+        p1.layout = a.layout.get();
+        exec::Machine m0(p0), m1(p1);
+        LongString w0(len), w1(len);
+        const exec::Outcome o0 = m0.run(w0, a.before[0]);
+        const exec::Outcome o1 = m1.run(w1, a.after[0]);
+        CHECK(o0.status == exec::Status::Return);
+        CHECK(o0.data.size() == 64);
+        CHECK(o1.status == o0.status);
+        CHECK(o1.data == o0.data);
+        same_runs(a);
+    }
+}

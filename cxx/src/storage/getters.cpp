@@ -1,8 +1,8 @@
 // The getters (python storage.py: getter_access, bytes_tail, splits): what
 // a getter returns - its storage access names the variable - and the
 // getters of a bytes/string, whose copy of the bytes to the memory is
-// replaced by `return name[all]` when running both (the trace machine, on
-// storage worlds) says it is the same.
+// replaced by `return name[all]` when the trace machine runs both the same
+// on a complete set of boundary worlds (checked, not proven).
 #include "storage/getters.hpp"
 
 #include <algorithm>
@@ -41,21 +41,11 @@ namespace {
 
 constexpr usize MAX_CANDIDATES = 201;
 
-// a deterministic stream of numbers (splitmix64)
-struct Rng {
-    u64 s = 0;
-    u64 next() noexcept {
-        u64 z = (s += 0x9e3779b97f4a7c15ull);
-        z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ull;
-        z = (z ^ (z >> 27)) * 0x94d049bb133111ebull;
-        return z ^ (z >> 31);
-    }
-    std::vector<u8> content(usize n) {
-        std::vector<u8> b(n);
-        for (u8& c : b) c = u8(1 + next() % 255);
-        return b;
-    }
-};
+// The largest lengths tried, L = 32 * M + r: M = 2^13 words, and the most the
+// check machine's memory (lot 9's 1 MiB) holds with the bytes copied twice
+// (solc's getters copy them to memory, then to the ABI encoding) and 4 KiB to
+// spare: 16,320 (2^16 words would need 4 MiB)
+constexpr u64 M_LARGE = u64(1) << 13, M_MAX = (exec::MachineLimits::storage_check().memory_max - 4096) / 64;
 
 void put_word(std::vector<u8>& out, const Word256& w) {
     u8 b[32];
@@ -136,48 +126,95 @@ bool splits(std::span<const Value> lines, Value tail, const std::function<bool(V
     return true;
 }
 
-// a storage world of the getter's check: the words set, any other slot unknown
+// A world of the check: the calldata and the getter's bytes, by their
+// parameters - the slot word's form, the length L, garbage where an encoding
+// has bytes no reader should use, the slots next to the getter's - its
+// storage made of fixed patterns (no randomness: the same verdict on every run)
+struct World {
+    std::vector<u8> calldata;
+    bool odd = false;         // the slot word's low bit: L = s / 2 (else (s & 0xff) / 2)
+    u64 len = 0;              // L
+    bool garbage = false;     // bytes past L: the slot word's, the last data word's, the slot after the data
+    bool neighbours = false;  // the slots next to the getter's non-zero
+    u64 id = 0;               // the patterns' seed
+    // as solidity keeps the bytes (the short form below 32, the long one from 32)
+    bool clean() const noexcept { return !garbage && !neighbours && odd == (len >= 32); }
+};
+
+// the pattern word i of world id: no byte 0 (every byte's low bit set)
+Word256 pattern(u64 id, u64 i) noexcept {
+    const u64 h = hash_mix(id * 0x9e3779b97f4a7c15ull ^ (i + 1) * 0xc2b2ae3d27d4eb4full);
+    Word256 w;
+    for (int k = 0; k < 4; ++k) w.limb[k] = (h + u64(k)) * 0xd6e8feb86659fd93ull | 0x0101010101010101ull;
+    return w;
+}
+
+// the high n bytes of w, the others 0
+Word256 high_bytes(const Word256& w, u64 n) noexcept {
+    if (n >= 32) return w;
+    const Word256 s = Word256::of(8 * (32 - n));
+    return pan::shl(s, pan::shr(s, w));
+}
+
+// a world's storage: the getter's slot, the words from keccak(slot) on - the
+// long form's ceil(L / 32), garbage or 0 past L, then the slot after them;
+// the long form's flag with a short length: two of garbage (what a reader
+// going by the flag reads); the short form below 32: none - and the slots
+// next to the getter's
+struct Storage {
+    Word256 slot{};
+    std::vector<Word256> data;
+    std::optional<Word256> up, down;
+};
+
+Storage storage_of(const World& w) {
+    Storage st;
+    if (w.odd) {
+        st.slot = Word256::of(2 * w.len + 1);
+    } else {  // the bytes (below 32), garbage or 0 past them, 2L
+        const u64 n = w.len < 32 ? w.len : 0;
+        st.slot = high_bytes(pattern(w.id, 0), n);
+        if (w.garbage) {
+            const Word256 g = pattern(w.id, 1);
+            st.slot = pan::bor(st.slot, pan::bxor(g, high_bytes(g, n)));
+        }
+        st.slot.limb[0] = (st.slot.limb[0] & ~u64(0xff)) | 2 * w.len;
+    }
+    if (w.len < 32) {
+        if (w.odd) st.data = {pattern(w.id, 2), pattern(w.id, 3)};
+    } else {
+        const u64 n = (w.len + 31) / 32;
+        st.data.reserve(n + 1);
+        for (u64 i = 0; i < n; ++i) st.data.push_back(pattern(w.id, 2 + i));
+        if (!w.garbage) st.data.back() = high_bytes(st.data.back(), w.len - 32 * (n - 1));
+        st.data.push_back(w.garbage ? pattern(w.id, 2 + n) : Word256{});
+    }
+    if (w.neighbours) {
+        st.up = pattern(w.id, u64(1) << 40);
+        st.down = pattern(w.id, (u64(1) << 40) + 1);
+    }
+    return st;
+}
+
+// a world's storage at the getter's slot (any other slot: Unsupported)
 class GetterHost final : public exec::SimpleHost {
 public:
-    Word256 sload(const Word256& slot) override {
-        if (auto it = storage.find(slot); it != storage.end()) return it->second;
+    GetterHost() = default;
+    GetterHost(const Storage& st, const Word256& slot) : st_(&st), slot_(slot), base_(keccak_word(slot)) {}
+    Word256 sload(const Word256& s) override {
+        if (st_) {
+            if (s == slot_) return st_->slot;
+            if (const auto i = pan::sub(s, base_).as_u64(); i && *i < st_->data.size()) return st_->data[*i];
+            if (st_->up && s == pan::add(slot_, Word256::of(1))) return *st_->up;
+            if (st_->down && s == pan::sub(slot_, Word256::of(1))) return *st_->down;
+        }
         throw Unsupported("storage: another slot");
     }
-};
 
-// a storage world: the calldata, the bytes (python's content, when clean:
-// as solidity keeps them), the slot's word and the words from keccak(slot) on
-struct World {
-    std::vector<u8> calldata, content;
-    bool clean = true;
-    Word256 word{};
-    std::vector<Word256> data;
+private:
+    const Storage* st_ = nullptr;
+    Word256 slot_{}, base_{};
 };
-
-// the words of bytes as solidity keeps them (python's), garbage past them
-// when dirty
-void encode(World& w, Rng& rnd, bool dirty) {
-    const usize len = w.content.size();
-    if (len < 32) {
-        u8 b[32] = {};
-        std::copy(w.content.begin(), w.content.end(), b);
-        if (dirty)
-            for (usize i = len; i < 31; ++i) b[i] = u8(1 + rnd.next() % 255);
-        b[31] = u8(2 * len);
-        w.word = Word256::from_be(std::span<const u8>(b, 32));
-        w.data.clear();
-        return;
-    }
-    w.word = pan::add(pan::shl(Word256::of(1), Word256::of(len)), Word256::of(1));
-    std::vector<u8> padded = w.content;
-    while (padded.size() % 32) padded.push_back(dirty ? u8(1 + rnd.next() % 255) : 0);
-    w.data.clear();
-    for (usize i = 0; i < padded.size() / 32 + 1; ++i) {
-        u8 b[32] = {};
-        if (32 * i < padded.size()) std::copy(padded.begin() + 32 * i, padded.begin() + 32 * i + 32, b);
-        w.data.push_back(Word256::from_be(std::span<const u8>(b, 32)));
-    }
-}
 
 struct Result {
     bool ok = false;  // halted (else the run says nothing)
@@ -186,6 +223,20 @@ struct Result {
     bool reached = false;  // it ended at the tail's line
     bool operator==(const Result& o) const { return ok == o.ok && status == o.status && data == o.data; }
 };
+
+// r returns the ABI encoding of w's bytes as solidity keeps them (w clean)
+bool returns_bytes(const Result& r, const World& w, const Storage& st) {
+    if (r.status != exec::Status::Return) return false;
+    std::vector<u8> want;
+    put_word(want, Word256::of(32));
+    put_word(want, Word256::of(w.len));
+    if (w.len < 32) {
+        if (w.len) put_word(want, high_bytes(st.slot, w.len));
+    } else {
+        for (usize i = 0; i + 1 < st.data.size(); ++i) put_word(want, st.data[i]);
+    }
+    return r.data == want;
+}
 
 }  // namespace
 
@@ -202,29 +253,18 @@ BytesTail::BytesTail(const FunctionInfo& fn, std::span<const FunctionInfo> inter
 BytesTail::~BytesTail() = default;
 
 Value BytesTail::find(Value trace, Value key) {
-    // the worlds: bytes as solidity keeps them, short and long, of every
-    // length the code may treat apart, params clean and dirty and of the
-    // numbers the code compares with
-    Rng rnd;
-    std::vector<i64> lengths{0, 1, 2, 30, 31, 32, 33, 63, 64, 65, 96, 97, 300};
-    {
-        Memo<Value, u8> seen;
-        std::vector<Word256> ints;
-        ints_of(trace, seen, ints, false);
-        std::set<i64> around;
-        for (const Word256& w : ints) {
-            const i64 c = i64(w.limb[0]);
-            for (i64 x : {c - 1, c, c + 1, c / 2, c / 2 + 1}) around.insert(x);
-        }
-        usize added = 0;
-        const std::vector<i64> base = lengths;
-        for (i64 x : around) {
-            if (added >= 48) break;
-            if (std::find(base.begin(), base.end(), x) != base.end()) continue;
-            lengths.push_back(x);
-            ++added;
-        }
-    }
+    // The worlds, in this order (the larger ones last: a wrong candidate fails
+    // early). The short form (even slot word) of every L from 0 to 31, as
+    // solidity keeps it and with garbage in the slot word's bytes past L; the
+    // long form's flag (odd) with every L below 32, its data words garbage
+    // (solc never writes it); the long form of every L from 32 to 95, clean
+    // and with garbage past L in the last data word and in the slot after the
+    // data; the short form's flag with every L from 32 to 127 (an even word
+    // can't say more); the slots next to the getter's non-zero; the params of
+    // the numbers the trace's conditions compare with, calldata too short for
+    // a param; lengths around the trace's numbers past 159; the long form of
+    // every residue r of L = 32 * M + r at M = 3, 4, M_LARGE and M_MAX, with
+    // garbage.
     static const Word256 values[] = {Word256::of(0),
                                      Word256::of(1),
                                      Word256::of(2),
@@ -238,14 +278,28 @@ Value BytesTail::find(Value trace, Value key) {
     const u32 sel = fn_.selector;
     const u8 selb[4] = {u8(sel >> 24), u8(sel >> 16), u8(sel >> 8), u8(sel)};
     std::vector<World> worlds;
-    for (usize n = 0; n < lengths.size(); ++n) {
+    auto add = [&](bool odd, u64 len, bool garbage, bool neighbours = false) {
         World w;
-        w.content = rnd.content(usize(std::max<i64>(lengths[n], 0)));
+        w.odd = odd;
+        w.len = len;
+        w.garbage = garbage;
+        w.neighbours = neighbours;
+        w.id = worlds.size();
         w.calldata.assign(selb, selb + 4);
-        for (usize k = 0; k < 8; ++k) put_word(w.calldata, values[(n + 3 * k) % NV]);
-        encode(w, rnd, false);
+        for (usize k = 0; k < 8; ++k) put_word(w.calldata, values[(worlds.size() + 3 * k) % NV]);
         worlds.push_back(std::move(w));
+    };
+    for (u64 l = 0; l < 32; ++l) {
+        add(false, l, false);
+        add(false, l, true);
     }
+    for (u64 l = 0; l < 32; ++l) add(true, l, true);
+    for (u64 l = 32; l < 96; ++l) {
+        add(true, l, false);
+        add(true, l, true);
+    }
+    for (u64 l = 32; l < 128; ++l) add(false, l, true);
+    for (const u64 l : {5, 31, 32, 77}) add(l >= 32, l, true, true);
     {
         std::vector<Value> conds;
         conds_of(trace, conds);
@@ -259,106 +313,83 @@ Value BytesTail::find(Value trace, Value key) {
         for (const Word256& v : near) {
             if (n >= 64) break;
             if (std::find(std::begin(values), std::end(values), v) != std::end(values)) continue;
-            World w;
-            w.content = rnd.content(usize(std::max<i64>(lengths[n % lengths.size()], 0)));
-            w.calldata.assign(selb, selb + 4);
-            for (int k = 0; k < 8; ++k) put_word(w.calldata, v);
-            encode(w, rnd, false);
-            worlds.push_back(std::move(w));
+            add(n % 2 == 1, n % 2 ? 32 + n : n % 32, false);
+            worlds.back().calldata.resize(4);
+            for (int k = 0; k < 8; ++k) put_word(worlds.back().calldata, v);
             ++n;
         }
     }
     for (usize n : {usize(0), usize(31)}) {  // calldata too short for a param
-        World w;
-        w.calldata.assign(selb, selb + 4);
-        w.calldata.insert(w.calldata.end(), n, u8(1));
-        w.content = {u8('a'), u8('b')};
-        encode(w, rnd, false);
-        worlds.push_back(std::move(w));
+        add(false, 2, false);
+        worlds.back().calldata.resize(4);
+        worlds.back().calldata.insert(worlds.back().calldata.end(), n, u8(1));
     }
-    // and what no solc keeps, as a random world holds: garbage past the bytes,
-    // a short encoding of a length past 31 (its data words read by a legacy
-    // copy), a long one of a length below 32
     {
-        const usize base = worlds.size();
-        for (usize n = 0; n < 13 && n < base; ++n) {
-            World w = worlds[n];
-            if (w.content.empty()) continue;
-            w.clean = false;
-            encode(w, rnd, true);
-            worlds.push_back(std::move(w));
+        Memo<Value, u8> seen;
+        std::vector<Word256> ints;
+        ints_of(trace, seen, ints, false);
+        std::set<u64> around;
+        for (const Word256& w : ints) {
+            const u64 c = w.limb[0];
+            for (u64 x : {c - 1, c, c + 1, c / 2, c / 2 + 1})
+                if (x >= 160) around.insert(x);
         }
-        for (u64 len : {u64(32), u64(33), u64(50), u64(64), u64(127)}) {
-            World w;
-            w.clean = false;
-            w.calldata = worlds[len % base].calldata;
-            u8 b[32];
-            for (u8& c : b) c = u8(rnd.next());
-            b[31] = u8(2 * len);
-            w.word = Word256::from_be(std::span<const u8>(b, 32));
-            for (u64 i = 0; i < (len + 31) / 32 + 1; ++i)
-                w.data.push_back(Word256{{rnd.next(), rnd.next(), rnd.next(), rnd.next()}});
-            worlds.push_back(std::move(w));
-        }
-        for (u64 len : {u64(0), u64(1), u64(5), u64(31)}) {
-            World w;
-            w.clean = false;
-            w.calldata = worlds[len % base].calldata;
-            w.word = Word256::of(2 * len + 1);
-            for (u64 i = 0; i < 2; ++i) w.data.push_back(Word256{{rnd.next(), rnd.next(), rnd.next(), rnd.next()}});
-            worlds.push_back(std::move(w));
-        }
+        usize added = 0;
+        for (u64 x : around)
+            if (added++ < 48) add(true, x, true);
     }
+    for (const u64 m : {u64(3), u64(4), M_LARGE, M_MAX})
+        for (u64 r = 0; r < 32; ++r) add(true, 32 * m + r, true);
 
     const Value tail_line =
         mk(Op::RETURN, mk(Op::DATA, mk(Op::ARR, mk(Op::STORAGE, small(256), small(0), mk(Op::LENGTH, key)),
                                        mk(Op::SALL, mk(Op::SR, key)))));
     const Value key_trace = mk_trace({mk(Op::RETURN, mk(Op::SIZED, small(32), key))});
 
-    auto run = [&](Value t, const World& w) -> Result {
+    // the storage of the last world run (the original's run and a
+    // candidate's on a world come one after the other)
+    usize cached = worlds.size();
+    Storage st;
+    auto run = [&](Value t, usize k) -> Result {
         poll();
         if (steps_ > MAX_STEPS) return Result{};  // (too long a check: no rewrite)
-        GetterHost host;
-        host.calldata = w.calldata;
+        const World& w = worlds[k];
+        GetterHost kh;
+        kh.calldata = w.calldata;
         // the slot of the bytes, with this calldata
-        const exec::Outcome ko = machine_->run(host, fn_, key_trace);
+        const exec::Outcome ko = machine_->run(kh, fn_, key_trace);
         steps_ += ko.steps;
         if (ko.status != exec::Status::Return || ko.data.size() != 32) return Result{};
-        const Word256 slot = Word256::from_be(ko.data);
-        host.storage[slot] = w.word;
-        if (!w.data.empty()) {
-            const Word256 base = keccak_word(slot);
-            for (usize i = 0; i < w.data.size(); ++i) host.storage[pan::add(base, Word256::of(i))] = w.data[i];
+        if (cached != k) {
+            st = storage_of(w);
+            cached = k;
         }
-        const exec::Outcome o = machine_->run(host, fn_, t);
+        GetterHost host(st, Word256::from_be(ko.data));
+        host.calldata = w.calldata;
+        exec::Outcome o = machine_->run(host, fn_, t);
         steps_ += o.steps;
         if (!o.halted()) return Result{};
         Result r;
         r.ok = true;
         r.status = o.status;
-        r.data = o.data;
+        r.data = std::move(o.data);
         r.reached = o.status == exec::Status::Return && o.line == tail_line;
         return r;
     };
 
+    // the original's results, run as far as a candidate gets (a world the
+    // original says nothing in: no rewrite)
     std::vector<Result> orig;
-    bool returns = false;
-    for (const World& w : worlds) {
-        Result r = run(trace, w);
-        if (!r.ok) return Value();
-        returns |= r.status == exec::Status::Return;
-        orig.push_back(std::move(r));
-    }
-    if (!returns) return Value();
-
-    auto returns_bytes = [](const Result& r, const std::vector<u8>& content) {
-        if (r.status != exec::Status::Return) return false;
-        std::vector<u8> d;
-        put_word(d, Word256::of(32));
-        put_word(d, Word256::of(content.size()));
-        d.insert(d.end(), content.begin(), content.end());
-        d.resize(64 + (content.size() + 31) / 32 * 32, 0);
-        return r.data == d;
+    bool broken = false;
+    auto orig_at = [&](usize k) -> const Result* {
+        while (orig.size() <= k && !broken) {
+            Result r = run(trace, orig.size());
+            if (r.ok)
+                orig.push_back(std::move(r));
+            else
+                broken = true;
+        }
+        return k < orig.size() ? &orig[k] : nullptr;
     };
 
     Value found;
@@ -369,12 +400,13 @@ Value BytesTail::find(Value trace, Value key) {
             throw Timeout("the post-processing and the text took more than 3 minutes");
         bool reached = false;
         for (usize k = 0; k < worlds.size(); ++k) {
-            const Result got = run(cand, worlds[k]);
-            if (!got.ok || !(got == orig[k])) return true;
+            const Result* o = orig_at(k);
+            if (!o) return false;
+            const Result got = run(cand, k);
+            if (!got.ok || !(got == *o)) return true;
             // the bytes returned by what's kept of the code, not by the tail
             // (a branch kept returns something else: `return ''`)
-            if (worlds[k].clean && !worlds[k].content.empty() && returns_bytes(orig[k], worlds[k].content) &&
-                !got.reached)
+            if (worlds[k].clean() && worlds[k].len > 0 && !got.reached && returns_bytes(*o, worlds[k], st))
                 return true;
             reached |= got.reached;
         }
