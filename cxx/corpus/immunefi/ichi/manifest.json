@@ -1,0 +1,44 @@
+{
+ "program": "ichi",
+ "repos": [
+  {
+   "repo": "https://github.com/ichifarm/ichi-oneToken",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "4873873861da749481739f40de5a535841736518",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": "ISC",
+    "headers": {
+     "BUSL-1.1": 39,
+     "MIT": 16,
+     "ISC": 4,
+     "GNU": 6,
+     "GPL-3.0-or-later": 3,
+     "CC-BY-4.0": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 69
+   },
+   "npm": {},
+   "copied": true,
+   "files": 79,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "ichifarm__ichi-oneToken",
+   "subtrees": [
+    {
+     "prefix": "ichifarm__ichi-oneToken",
+     "url": "https://github.com/ichifarm/ichi-oneToken",
+     "commit": "4873873861da749481739f40de5a535841736518",
+     "files": 76
+    }
+   ]
+  }
+ ]
+}
