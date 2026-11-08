@@ -6,8 +6,8 @@
 
 | | |
 |---|---|
-| ABI functions found in the dispatcher | 27071 / 27129 (99.8%) |
-| selectors not in the ABI | 101 |
+| ABI functions found in the dispatcher | 27087 / 27129 (99.8%) |
+| selectors not in the ABI | 85 |
 | names and types as the ABI (signature database) | 56.3% |
 | payable as the ABI | 98.8% |
 | static parameter types (with the database) | 94.0% of 22490 |
