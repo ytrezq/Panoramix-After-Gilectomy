@@ -1,0 +1,25 @@
+{
+  "name": "boba_bridges",
+  "version": "0.1.0",
+  "scripts": {
+    "codegen": "graph codegen",
+    "build": "graph build",
+    "prepare:bobabnbtestnet:rollup": "mustache config/bobabnbtestnet.json subgraph.template.rollup.yaml > subgraph.yaml",
+    "prepare:bobabnb:rollup": "mustache config/bobabnb.json subgraph.template.rollup.yaml > subgraph.yaml",
+    "deploy:subgraph:bobabnbtestnet:rollup": "graph deploy --studio boba-bnb-testnet-rollup",
+    "deploy:subgraph:bobabnb:rollup": "graph deploy --studio boba-bnb-rollup"
+  },
+  "devDependencies": {
+    "@graphprotocol/graph-cli": "0.71.2",
+    "@graphprotocol/graph-ts": "^0.26.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "3.4.1",
+    "babel-polyfill": "^6.26.0",
+    "babel-register": "^6.26.0",
+    "mustache": "^4.2.0",
+    "truffle": "^5.0.4",
+    "truffle-contract": "^4.0.5",
+    "truffle-hdwallet-provider": "^1.0.4"
+  }
+}
