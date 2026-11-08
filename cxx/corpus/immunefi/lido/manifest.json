@@ -30,8 +30,7 @@
     {
      "prefix": "lidofinance__mev-boost-relay-allowed-list",
      "url": "https://github.com/lidofinance/mev-boost-relay-allowed-list",
-     "commit": "47211c69c7382975e0882d1deef908d10730fa1b",
-     "files": 4
+     "commit": "47211c69c7382975e0882d1deef908d10730fa1b"
     }
    ]
   },
@@ -146,98 +145,82 @@
     {
      "prefix": "lidofinance__aave-delivery-infrastructure",
      "url": "https://github.com/lidofinance/aave-delivery-infrastructure",
-     "commit": "c625ea95f925808598e6c354d852f0ee4795bb25",
-     "files": 218
+     "commit": "c625ea95f925808598e6c354d852f0ee4795bb25"
     },
     {
      "prefix": "lidofinance__aave-delivery-infrastructure/lib/solidity-utils",
      "url": "https://github.com/bgd-labs/solidity-utils",
-     "commit": "56720adb8b751c3742a5f9b8c5bcb8a9446ba941",
-     "files": 41
+     "commit": "56720adb8b751c3742a5f9b8c5bcb8a9446ba941"
     },
     {
      "prefix": "lidofinance__aave-delivery-infrastructure/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "1d9650e951204a0ddce9ff89c32f1997984cef4d",
-     "files": 40
+     "commit": "1d9650e951204a0ddce9ff89c32f1997984cef4d"
     },
     {
      "prefix": "lidofinance__aave-delivery-infrastructure/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "e1b3d8c7ee2c97868f4ab107fe8b7e19f0a8db9f",
-     "files": 294
+     "commit": "e1b3d8c7ee2c97868f4ab107fe8b7e19f0a8db9f"
     },
     {
      "prefix": "lidofinance__aave-delivery-infrastructure/lib/aave-address-book",
      "url": "https://github.com/bgd-labs/aave-address-book",
-     "commit": "9f5c33da4813dbd885b9f888c1cf6234340f71e7",
-     "files": 69
+     "commit": "9f5c33da4813dbd885b9f888c1cf6234340f71e7"
     },
     {
      "prefix": "lidofinance__aave-delivery-infrastructure/lib/nitro-contracts",
      "url": "https://github.com/OffchainLabs/nitro-contracts",
-     "commit": "a68783436b5105a64f54efe5fbd55174704a7618",
-     "files": 96
+     "commit": "a68783436b5105a64f54efe5fbd55174704a7618"
     },
     {
      "prefix": "lidofinance__aave-delivery-infrastructure/lib/fx-portal",
      "url": "https://github.com/0xPolygon/fx-portal",
-     "commit": "ebd046507d76cd03fa2b2559257091471a259ed7",
-     "files": 47
+     "commit": "ebd046507d76cd03fa2b2559257091471a259ed7"
     },
     {
      "prefix": "lidofinance__aave-delivery-infrastructure/lib/solidity-utils/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "4a79aca83f8075f8b1b4fe9153945fef08375630",
-     "files": 37
+     "commit": "4a79aca83f8075f8b1b4fe9153945fef08375630"
     },
     {
      "prefix": "lidofinance__aave-delivery-infrastructure/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "lidofinance__aave-delivery-infrastructure/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
-     "files": 39
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
     },
     {
      "prefix": "lidofinance__aave-delivery-infrastructure/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "lidofinance__aave-delivery-infrastructure/lib/aave-address-book/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "9838df8b281f2e5c1bda49632f1944ff0f86b4b5",
-     "files": 40
+     "commit": "9838df8b281f2e5c1bda49632f1944ff0f86b4b5"
     },
     {
      "prefix": "lidofinance__aave-delivery-infrastructure/lib/aave-address-book/lib/aave-v3-core",
      "url": "https://github.com/aave/aave-v3-core",
-     "commit": "27a6d5c83560694210849d4abf09a09dec8da388",
-     "files": 140
+     "commit": "27a6d5c83560694210849d4abf09a09dec8da388"
     },
     {
      "prefix": "lidofinance__aave-delivery-infrastructure/lib/solidity-utils/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "cd98eff28324bfac652e63a239a60632a761790b",
-     "files": 5
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
     },
     {
      "prefix": "lidofinance__aave-delivery-infrastructure/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-     "files": 6
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
     },
     {
      "prefix": "lidofinance__aave-delivery-infrastructure/lib/aave-address-book/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ]
   },
@@ -274,8 +257,7 @@
     {
      "prefix": "lidofinance__governance-crosschain-bridges",
      "url": "https://github.com/lidofinance/governance-crosschain-bridges",
-     "commit": "ad77e31d0fa44fc9587764bbceb2328ca9e081c2",
-     "files": 28
+     "commit": "ad77e31d0fa44fc9587764bbceb2328ca9e081c2"
     }
    ]
   },
@@ -310,8 +292,7 @@
     {
      "prefix": "lidofinance__lido-l2",
      "url": "https://github.com/lidofinance/lido-l2",
-     "commit": "fea8d76fd6464f8bda435a90b065fdd123f80727",
-     "files": 40
+     "commit": "fea8d76fd6464f8bda435a90b065fdd123f80727"
     }
    ]
   },
@@ -346,8 +327,7 @@
     {
      "prefix": "lidofinance__lido-l2-with-steth",
      "url": "https://github.com/lidofinance/lido-l2-with-steth",
-     "commit": "b1159ef6eec8482d6b9d1fa980222fbe19b7114f",
-     "files": 47
+     "commit": "b1159ef6eec8482d6b9d1fa980222fbe19b7114f"
     }
    ]
   },
@@ -386,8 +366,7 @@
     {
      "prefix": "lidofinance__community-staking-module",
      "url": "https://github.com/lidofinance/community-staking-module",
-     "commit": "7bdcfb631b13d24e8fae3b5ba0e11d4be07b84f9",
-     "files": 277
+     "commit": "7bdcfb631b13d24e8fae3b5ba0e11d4be07b84f9"
     }
    ]
   },
@@ -423,8 +402,7 @@
     {
      "prefix": "lidofinance__easy-track",
      "url": "https://github.com/lidofinance/easy-track",
-     "commit": "551089429de784e954deecbef35f6bd54f07b08d",
-     "files": 142
+     "commit": "551089429de784e954deecbef35f6bd54f07b08d"
     }
    ]
   },
@@ -467,14 +445,12 @@
     {
      "prefix": "lidofinance__stonks",
      "url": "https://github.com/lidofinance/stonks",
-     "commit": "6693a1efe1cb2fdb42df3ea8d61f076daf1c2166",
-     "files": 69
+     "commit": "6693a1efe1cb2fdb42df3ea8d61f076daf1c2166"
     },
     {
      "prefix": "lidofinance__stonks/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "bf647bd6046f2f7da30d0c2bf435e5c76a780c1b",
-     "files": 54
+     "commit": "bf647bd6046f2f7da30d0c2bf435e5c76a780c1b"
     }
    ]
   },
@@ -507,8 +483,7 @@
     {
      "prefix": "lidofinance__lido-vesting-escrow",
      "url": "https://github.com/lidofinance/lido-vesting-escrow",
-     "commit": "2d53525f0431ac8cfffd6d7c5a2f70fb64ce3058",
-     "files": 12
+     "commit": "2d53525f0431ac8cfffd6d7c5a2f70fb64ce3058"
     }
    ]
   },
@@ -576,44 +551,37 @@
     {
      "prefix": "lidofinance__dual-governance",
      "url": "https://github.com/lidofinance/dual-governance",
-     "commit": "ba9dfc9213ec888993937a699e2a587a0082720f",
-     "files": 279
+     "commit": "ba9dfc9213ec888993937a699e2a587a0082720f"
     },
     {
      "prefix": "lidofinance__dual-governance/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa",
-     "files": 47
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
     },
     {
      "prefix": "lidofinance__dual-governance/lib/kontrol-cheatcodes",
      "url": "https://github.com/runtimeverification/kontrol-cheatcodes",
-     "commit": "187b89ad863226afe494caa9f58320997a543bff",
-     "files": 2
+     "commit": "187b89ad863226afe494caa9f58320997a543bff"
     },
     {
      "prefix": "lidofinance__dual-governance/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3",
-     "files": 250
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
     },
     {
      "prefix": "lidofinance__dual-governance/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb",
-     "files": 35
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
     },
     {
      "prefix": "lidofinance__dual-governance/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "lidofinance__dual-governance/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "cd98eff28324bfac652e63a239a60632a761790b",
-     "files": 5
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
     }
    ]
   },
@@ -671,8 +639,7 @@
     {
      "prefix": "lidofinance__aragon-apps",
      "url": "https://github.com/lidofinance/aragon-apps",
-     "commit": "2c16b9a752b6002436a238bc2ca33a908d51d78a",
-     "files": 59
+     "commit": "2c16b9a752b6002436a238bc2ca33a908d51d78a"
     }
    ]
   },
@@ -714,14 +681,12 @@
     {
      "prefix": "lidofinance__circuit-breaker",
      "url": "https://github.com/lidofinance/circuit-breaker",
-     "commit": "6945a0025bfcaa07185017c8319a06612e78895b",
-     "files": 15
+     "commit": "6945a0025bfcaa07185017c8319a06612e78895b"
     },
     {
      "prefix": "lidofinance__circuit-breaker/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "8e7bbe65b08aa71a0c93b50dc707da716a2ac1ff",
-     "files": 54
+     "commit": "8e7bbe65b08aa71a0c93b50dc707da716a2ac1ff"
     }
    ]
   },
@@ -803,14 +768,12 @@
     {
      "prefix": "lidofinance__core",
      "url": "https://github.com/lidofinance/core",
-     "commit": "2bd532298d85cdf520169fdc0c5fb0cc9baf03c3",
-     "files": 374
+     "commit": "2bd532298d85cdf520169fdc0c5fb0cc9baf03c3"
     },
     {
      "prefix": "lidofinance__core/foundry/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "ffa2ee0d921b4163b7abd0f1122df93ead205805",
-     "files": 47
+     "commit": "ffa2ee0d921b4163b7abd0f1122df93ead205805"
     }
    ]
   }
