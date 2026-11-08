@@ -90,9 +90,11 @@ tools/corpus_stats.py   # immunefi/STATUS.md
 `build_corpus.py` downloads the solc releases it needs from
 binaries.soliditylang.org (checked against their published SHA-256) and the
 Vyper releases from PyPI (a virtualenv per version), into
-`~/.cache/panoramix-corpus`. Remappings are made as forge makes them (the
-project's own, then every library's under `lib/`, nested ones too, as context
-remappings); `node_modules/` is an include path.
+`~/.cache/panoramix-corpus`. Remappings are made as forge makes them (its
+algorithm ported: the project's own, then its libraries' - those with a
+`foundry.toml`, recursively, and the automatic ones - the shortest path of a
+name winning, none overlapping the project's; `auto_detect_remappings = false`
+honoured); `node_modules/` is an include path.
 
 `compare_source.py` writes `results.jsonl` (a line per artifact) and
 `summary.md`:

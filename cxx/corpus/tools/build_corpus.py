@@ -12,8 +12,12 @@ brownie-config.yaml, or a src/ or contracts/ of Solidity sources):
   - the sources: the Solidity files of its source directory (foundry.toml's
     `src`, else src/ or contracts/), tests and scripts left out (*.t.sol,
     *.s.sol, test/, tests/, script/, scripts/);
-  - the remappings: remappings.txt, foundry.toml's, then foundry's automatic
-    ones (lib/NAME/ for every library); node_modules/ by solc's include paths;
+  - the remappings forge makes (its algorithm ported, forge_remaps): the
+    project's remappings.txt and foundry.toml's, then - unless
+    auto_detect_remappings is off - its libraries': those of each library
+    with a foundry.toml (the same way, recursively) and the automatic ones
+    (foundry-compilers' find_many), of one name the shortest path, none
+    overlapping one already there; node_modules/ by solc's include paths;
   - the compiler: foundry.toml's solc / solc_version when set, else for each
     source the newest release its pragma (and its imports') allows: the
     sources are compiled in groups of one compiler;
@@ -21,7 +25,9 @@ brownie-config.yaml, or a src/ or contracts/ of Solidity sources):
     on with 200 runs, or off, or both;
   - the EVM versions: each one asked that the compiler supports (default:
     byzantium petersburg istanbul london paris shanghai cancun prague) is a
-    build of its own.
+    build of its own; with --fallback-evm, a compiler that knows none of
+    them gets the newest of those it knows; and the project's own
+    (foundry.toml's evm_version) when its code needs a newer one.
 Vyper sources (.vy): compiled one by one by the Vyper their `# @version` /
 `#pragma version` names (pip, a virtualenv per version under the cache), for
 each EVM version that Vyper knows.
@@ -189,64 +195,272 @@ def toml_array(text, key):
     return re.findall(r'["\']([^"\']*)["\']', body)
 
 
+def parse_remapping(line):
+    """(context, name, path) of a remapping line as forge reads it (None if
+    it isn't one); name and path given the trailing / forge gives them (not
+    to a .sol file's)"""
+    if '=' not in line:
+        return None
+    name, path = line.split('=', 1)
+    ctx = ''
+    if ':' in name:
+        ctx, name = name.split(':', 1)
+    name, path, ctx = name.strip(), path.strip(), ctx.strip()
+    if not name or not path:
+        return None
+    if not name.endswith(('/', '.sol')):
+        name += '/'
+    if not path.endswith(('/', '.sol')):
+        path += '/'
+    if not os.path.isabs(path):
+        tail = '/' if path.endswith('/') else ''
+        path = os.path.normpath(path) + tail
+        if path == './':
+            path = ''
+    return ctx, name, path
+
+
 def own_remaps(d):
-    """a directory's own remappings, as (context, prefix, target) with paths
-    from it: foundry.toml's, then remappings.txt's"""
-    out = []
-    ft = os.path.join(d, 'foundry.toml')
-    lines = toml_array(open(ft, errors='replace').read(), 'remappings') or [] if os.path.exists(ft) else []
+    """a directory's own remappings, (context, name, path) with paths from
+    it: remappings.txt's, then foundry.toml's (forge's order: the first of a
+    name wins)"""
+    lines = []
     rp = os.path.join(d, 'remappings.txt')
     if os.path.exists(rp):
         lines += [x.strip() for x in open(rp, errors='replace') if x.strip() and not x.strip().startswith('#')]
-    for line in lines:
-        if '=' not in line:
+    ft = os.path.join(d, 'foundry.toml')
+    if os.path.exists(ft):
+        lines += toml_array(open(ft, errors='replace').read(), 'remappings') or []
+    return [r for r in map(parse_remapping, lines) if r]
+
+
+# forge's detection of remappings (foundry-compilers' Remapping::find_many),
+# ported: the folder names it knows, its candidates and how it merges them
+
+def _last(p):
+    return os.path.basename(p.rstrip('/'))
+
+
+def _ncomp(p):
+    return len([c for c in p.split('/') if c]) + (1 if p.startswith('/') else 0)
+
+
+def _is_source_dir(p):
+    return _last(p) in ('src', 'contracts')
+
+
+def _is_lib_dir(p):
+    return _last(p) in ('lib', 'node_modules')
+
+
+def _entries(d):
+    try:
+        return sorted((e for e in os.scandir(d) if not e.name.startswith('.')), key=lambda e: e.name)
+    except OSError:
+        return []
+
+
+class _Candidate:
+    __slots__ = ('window', 'source', 'level')
+
+    def __init__(self, window, source, level):
+        self.window, self.source, self.level = window, source, level
+
+
+def _next_window(root, cur):
+    if not _is_lib_dir(root) or root == cur:
+        return root
+    if cur.startswith(root + '/'):
+        p = root
+        for c in os.path.relpath(cur, root).split('/'):
+            nxt = os.path.join(p, c)
+            if not _is_lib_dir(nxt) or _last(nxt) != 'contracts':
+                return nxt
+            p = nxt
+    return root
+
+
+def _distance(root, cur):
+    if root == cur or not cur.startswith(root + '/'):
+        return 0
+    return _ncomp(os.path.relpath(cur, root))
+
+
+def _last_source_dir(root, d):
+    if _is_source_dir(d):
+        return d
+    p = d
+    while os.path.dirname(p) != p:
+        parent = os.path.dirname(p)
+        if parent == root:
+            return root
+        if _is_source_dir(parent):
+            return parent
+        p = parent
+    return root
+
+
+def _merge(cands, cur, level, window, in_nm):
+    n, pos = 0, None
+    for i, c in enumerate(cands):
+        if _last(c.source) == 'src':
+            n += 1
+            pos = i if n == 1 else None
+    if pos is not None:
+        cands[:] = [cands[pos]]
+        return
+    cands[:] = [c for c in cands if c.level != level]
+    source = window if in_nm else cur
+    if level > 0 and source == window and (_is_source_dir(source) or _is_lib_dir(source)):
+        return
+    cands.append(_Candidate(window, source, level))
+
+
+def _candidates(cur, open_, level, in_nm, visited):
+    is_cand, cands = False, []
+    for e in _entries(cur):
+        try:
+            is_file, is_dir = e.is_file(), e.is_dir()
+        except OSError:
             continue
-        k, v = line.split('=', 1)
-        ctx = ''
-        if ':' in k:
-            ctx, k = k.split(':', 1)
-        out.append((ctx.strip(), k.strip(), v.strip()))
+        if not is_cand and is_file and e.name.endswith('.sol'):
+            is_cand = True
+        elif is_dir:
+            if e.is_symlink():
+                target = os.path.realpath(e.path)
+                if target in visited:
+                    return []
+                visited.add(target)
+                if _ncomp(open_) > _ncomp(target):
+                    return []
+            if e.name in ('tests', 'test', 'demo'):
+                continue
+            if _is_lib_dir(e.path):
+                for s in _entries(e.path):
+                    if s.is_dir():
+                        cands += _candidates(s.path, s.path, level + 1, in_nm, visited)
+            else:
+                cands += _candidates(e.path, open_, level, in_nm, visited)
+    window = _next_window(open_, cur)
+    if is_cand or sum(1 for c in cands if c.level == level and c.window == window) > 1:
+        _merge(cands, cur, level, window, in_nm)
+    else:
+        c = next((c for c in cands if c.level == level), None)
+        if c:
+            if _distance(c.window, c.source) > 1 and (
+                    _last(c.source) == 'contracts' or c.source.rstrip('/').endswith('/contracts/src')):
+                c.source = window
+            elif not _is_source_dir(c.source) and c.source != c.window:
+                c.source = _last_source_dir(open_, c.source)
+    return cands
+
+
+def find_many(d):
+    """forge's automatic remappings of a library folder: {name/: path}
+    (absolute paths)"""
+    d = os.path.abspath(d)
+    in_nm = _last(d) == 'node_modules'
+    found, visited = {}, set()
+    for e in _entries(d):
+        if not e.is_dir():
+            continue
+        for c in _candidates(e.path, e.path, 0, in_nm, visited):
+            name = _last(c.window)
+            if not name:
+                continue
+            k = name + '/'
+            old = found.get(k)
+            if old is None or _ncomp(old) > _ncomp(c.source) or (_last(c.source) == 'src' and _last(old) != 'src'):
+                found[k] = c.source
+    return found
+
+
+def _conflicts(existing, r):
+    ctx, name, path = r
+    if name.endswith('.sol') and not path.endswith('.sol'):
+        return True
+    for c, k, v in existing:
+        if c != ctx:
+            continue
+        if name.endswith('.sol'):
+            if k == name and v == path:
+                return True
+            continue
+        kk = k if k.endswith('/') else k + '/'
+        if name.startswith(kk) or k.startswith(name):
+            return True
+    return False
+
+
+_FORGE_CACHE = {}
+
+
+def forge_remaps(root, depth=0):
+    """the remappings forge gives a project root (foundry-config's
+    RemappingsProvider), (context, name, path) with paths from the root: its
+    own; then, unless auto_detect_remappings is off, those of its libraries:
+    the remappings of each library with a foundry.toml (its own and its
+    libraries', the same way), the libraries' src/ when they name another
+    one, and the automatic ones (find_many) - of one name the shortest path
+    - each left out when its name overlaps one already there"""
+    root = os.path.realpath(root)
+    if root in _FORGE_CACHE:
+        return _FORGE_CACHE[root]
+    ft = os.path.join(root, 'foundry.toml')
+    text = open(ft, errors='replace').read() if os.path.exists(ft) else ''
+    out, seen = [], set()
+    for r in own_remaps(root):
+        if r[0] + r[1] not in seen:
+            seen.add(r[0] + r[1])
+            out.append(r)
+    if (toml_get(text, 'auto_detect_remappings') or '').lower() != 'false' and depth < 6:
+        libs = toml_array(text, 'libs')
+        if libs is None:
+            libs = ['lib'] if os.path.isdir(os.path.join(root, 'lib')) or not text else \
+                ['node_modules'] if os.path.isdir(os.path.join(root, 'node_modules')) else ['lib']
+        closest = {}
+
+        def put(ctx, name, path):
+            k = (ctx, name)
+            if k not in closest or _ncomp(closest[k]) > _ncomp(path):
+                closest[k] = path
+
+        for l in libs:
+            ld = os.path.join(root, l)
+            if not os.path.isdir(ld):
+                continue
+            dirs = [ld] + [e.path for e in _entries(ld) if e.is_dir()]
+            for sub in dirs:
+                sub = os.path.realpath(sub)
+                if sub == root or not os.path.exists(os.path.join(sub, 'foundry.toml')):
+                    continue
+                for c, k, v in forge_remaps(sub, depth + 1):
+                    put(c, k, v if os.path.isabs(v) else os.path.join(sub, v))
+                src = toml_get(open(os.path.join(sub, 'foundry.toml'), errors='replace').read(), 'src') or 'src'
+                if src.strip('/') not in ('src', 'contracts', 'lib'):
+                    put('', os.path.basename(sub) + '/', os.path.join(sub, src))
+        for l in libs:
+            ld = os.path.join(root, l)
+            if os.path.isdir(ld):
+                for k, v in find_many(ld).items():
+                    if k not in ('lib/', 'src/', 'contracts/'):
+                        put('', k, v)
+        project_dirs = {(toml_get(text, k) or k).strip('/').lower() + '/' for k in ('src', 'test', 'script')}
+        for (ctx, name), path in sorted(closest.items()):
+            if not name.endswith('.sol'):
+                rel = os.path.relpath(path, root) if os.path.isabs(path) else path
+                path = os.path.normpath(rel) + '/'
+            r = (ctx, name, path)
+            if _conflicts(out, r) or name.lower() in project_dirs:
+                continue
+            out.append(r)
+    _FORGE_CACHE[root] = out
     return out
 
 
-def lib_dirs(d):
-    ft = os.path.join(d, 'foundry.toml')
-    libs = toml_array(open(ft, errors='replace').read(), 'libs') if os.path.exists(ft) else None
-    return [x for x in (libs or ['lib']) if x != 'node_modules']
-
-
 def foundry_remaps(project):
-    """the remappings as forge makes them, in solc's terms: the project's own
-    first; then, for every library under its libs (nested ones too, breadth
-    first), the library's own with its path put in front, as context
-    remappings for the library's files and as plain ones when the prefix
-    isn't taken yet; then NAME/ = the library's src/ or contracts/"""
-    rem = [(c, k, v) for c, k, v in own_remaps(project)]
-    taken = {k for c, k, v in rem if not c}
-    todo = [os.path.normpath(os.path.join(l, n)) for l in lib_dirs(project)
-            if os.path.isdir(os.path.join(project, l)) for n in sorted(os.listdir(os.path.join(project, l)))]
-    seen = set()
-    while todo and len(seen) < 400:
-        lib = todo.pop(0)
-        full = os.path.join(project, lib)
-        if lib in seen or not os.path.isdir(full):
-            continue
-        seen.add(lib)
-        for c, k, v in own_remaps(full):
-            target = os.path.normpath(os.path.join(lib, v)) + ('/' if v.endswith('/') else '')
-            rem.append((os.path.normpath(os.path.join(lib, c)) + '/' if c else lib + '/', k, target))
-            if not c and k not in taken:
-                taken.add(k)
-                rem.append(('', k, target))
-        name = os.path.basename(lib) + '/'
-        if name not in taken:
-            taken.add(name)
-            sub = next((s for s in ('src', 'contracts') if os.path.isdir(os.path.join(full, s))), '')
-            rem.append(('', name, os.path.join(lib, sub) + '/' if sub else lib + '/'))
-        for l in lib_dirs(full):
-            if os.path.isdir(os.path.join(full, l)):
-                todo += [os.path.join(lib, l, n) for n in sorted(os.listdir(os.path.join(full, l)))]
-    return rem
+    """the remappings as forge makes them (forge_remaps), in solc's terms"""
+    return forge_remaps(project)
 
 
 def projects_of(repo):
@@ -592,7 +806,15 @@ def build_project(args, solc, slug, repo, project):
         if not known and args.fallback_evm:
             fb = [e for e in args.fallback_evm.split(',') if v >= SOLC_EVM_SINCE.get(e, (9, 9, 9))]
             known = fb[-1:]
-        for evm in known:
+        # the project's own EVM version too when the code needs a newer one
+        # than those asked (an instruction "only available for" it)
+        own = cfg.get('evm_version', '')
+        extra = [own] if own in SOLC_EVM_SINCE and own not in known and v >= SOLC_EVM_SINCE[own] and \
+            (not known or EVM_ORDER.index(own) > EVM_ORDER.index(known[-1])) else []
+        for evm in known + extra:
+            if evm in extra and not any(re.search(r'only available for', str(x.get('error', ''))) for x in errors
+                                        if x.get('build', '').startswith('solc-%d.%d.%d-' % v)):
+                continue
             for opt in opts:
                 tag = 'solc-%d.%d.%d-%s%s%s' % (v + (evm, '' if opt else '-noopt', '-ir' if via_ir else ''))
                 outdir = os.path.join(base_out, tag)
@@ -602,9 +824,10 @@ def build_project(args, solc, slug, repo, project):
                 except subprocess.TimeoutExpired:
                     arts, errs = [], ['timeout']
                 # one source's error fails its whole group: each source alone
-                # then (not when the EVM version is what the code can't target)
+                # then (not when the EVM version is what the code can't
+                # target: an error says so, the others follow from it)
                 if errs and not arts and len(group) > 1 and len(group) <= args.retry_max and \
-                        not all(re.search(r'VM|only available for|not supported by the', e) for e in errs):
+                        not any(re.search(r'VMs?\b|only available for|not supported by the', e) for e in errs):
                     errs = ['group failed, each source alone: ' + errs[0][-200:]]
                     for f in group:
                         try:
