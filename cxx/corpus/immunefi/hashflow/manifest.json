@@ -39,8 +39,7 @@
     {
      "prefix": "hashflownetwork__x-protocol",
      "url": "https://github.com/hashflownetwork/x-protocol",
-     "commit": "e41cfaadac7d9bacfa368be904a93bd98b5a2df6",
-     "files": 80
+     "commit": "e41cfaadac7d9bacfa368be904a93bd98b5a2df6"
     }
    ],
    "npm": {
