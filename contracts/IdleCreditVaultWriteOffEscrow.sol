@@ -1,0 +1,186 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity 0.8.10;
+
+import {IdleCDOEpochVariant} from "./IdleCDOEpochVariant.sol";
+import {IdleCreditVault} from "./strategies/idle/IdleCreditVault.sol";
+import {IERC20Detailed} from "./interfaces/IERC20Detailed.sol";
+import {SafeERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+
+error EpochNotRunning();
+error NotAllowed();
+error WrongRequest();
+error Is0();
+
+/// @title IdleCreditVaultWriteOffEscrow
+/// @dev Contract that collects write off requests of a credit vault deposit from a lender and underlyings from a fulfiller
+/// and allow them to trustlessly exchange debt between lender and buyer. If the borrower fulfills the request, the borrower
+/// will then be able to write off the debt by burning tranche tokens (via IdleCDOEpochVariant writeOffDeposit method)
+contract IdleCreditVaultWriteOffEscrow is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
+  using SafeERC20Upgradeable for IERC20Detailed;
+
+  struct WriteOffRequest {
+    /// @notice tranche tokens provided by the lender
+    uint256 tranches;
+    /// @notice underlyings requested by the lender
+    uint256 underlyings;
+  }
+
+  /// @notice constant representing a 100% fee used for accounting
+  uint256 public constant FULL_VALUE = 100_000; // 100_000 = 100%
+  /// @notice maximum exit fee percentage
+  uint256 public constant MAX_EXIT_FEE = 1_000; // 1_000 = 1%
+  /// @notice 1 tranche token = 1e18
+  uint256 private constant ONE_TRANCHE = 1e18;
+  /// @notice idleCDOEpochVariant contract
+  address public idleCDOEpoch;
+  /// @notice IdleCreditVault strategy contract 
+  address public strategy;
+  /// @notice address of the underlying token
+  address public underlying;
+  /// @notice address of the tranche
+  address public tranche;
+  /// @notice address of the borrower
+  address public borrower;
+  /// @notice mapping of user to their write-off requests
+  mapping(address => WriteOffRequest) public userRequests;
+  /// @notice exit fee percentage (value between 0 and 1000, where 1000 = 1%)
+  uint256 public exitFee;
+  /// @notice address of the fee receiver (where exit fee is sent)
+  address public feeReceiver;
+  /// @notice amount of pending underlyings requested across all users
+  uint256 public pendingUnderlyings;
+
+  /// @notice disable initialization of the implementation contract
+  /// @custom:oz-upgrades-unsafe-allow constructor
+  constructor() {
+    _disableInitializers();
+  }
+
+  /// @notice initialize the contract
+  /// @param _idleCDOEpoch address of the IdleCDOEpochVariant contract
+  /// @param _owner address of the owner of the contract
+  /// @param _isAATranche true if the tranche is the AA one
+  function initialize(address _idleCDOEpoch, address _owner, bool _isAATranche) public virtual initializer {
+    if (idleCDOEpoch != address(0)) revert NotAllowed();
+    // initialize the parent contracts
+    OwnableUpgradeable.__Ownable_init();
+    ReentrancyGuardUpgradeable.__ReentrancyGuard_init();
+    // set basic storage variables
+    IdleCDOEpochVariant _cdo = IdleCDOEpochVariant(_idleCDOEpoch);
+    idleCDOEpoch = _idleCDOEpoch;
+    strategy = _cdo.strategy();
+    underlying = _cdo.token();
+    tranche = _isAATranche ? _cdo.AATranche() : _cdo.BBTranche();
+    borrower = IdleCreditVault(strategy).borrower();
+    exitFee = 100; // 0.1%
+    feeReceiver = _owner; // set fee receiver to owner
+    // transfer ownership to the owner
+    transferOwnership(_owner);
+  }
+
+  /// @notice create a write-off request by depositing tranche tokens and setting the amount of underlyings requested
+  /// @param amount of tranche tokens to deposit
+  function createWriteOffRequest(uint256 amount, uint256 underlyingsRequested) external nonReentrant {
+    // can request write off only when epoch is running
+    if (!IdleCDOEpochVariant(idleCDOEpoch).isEpochRunning()) revert EpochNotRunning();
+    // cannot request write off with 0 tranche tokens
+    if (amount == 0) revert NotAllowed();
+
+    // get tranche tokens from user
+    IERC20Detailed(tranche).safeTransferFrom(msg.sender, address(this), amount);
+    // get current write-off request
+    WriteOffRequest memory currentRequest = userRequests[msg.sender];
+    // update user requests
+    userRequests[msg.sender] = WriteOffRequest({
+      tranches: currentRequest.tranches + amount,
+      underlyings: currentRequest.underlyings + underlyingsRequested
+    });
+    pendingUnderlyings += underlyingsRequested;
+  }
+
+  /// @notice delete the write-off request and transfer tranche tokens back to the user
+  function deleteWriteOffRequest() external nonReentrant {
+    // get current write-off request
+    WriteOffRequest memory currentRequest = userRequests[msg.sender];
+    // check if the user has a write-off request
+    if (currentRequest.tranches == 0) revert Is0();
+
+    // Existing upgraded escrows can have legacy requests that were never added to pendingUnderlyings.
+    pendingUnderlyings -= pendingUnderlyings >= currentRequest.underlyings ? currentRequest.underlyings : pendingUnderlyings;
+    delete userRequests[msg.sender];
+    // transfer tranche tokens back to the user
+    IERC20Detailed(tranche).safeTransfer(msg.sender, currentRequest.tranches);
+  }
+
+  /// @notice fulfill the write-off request by buying the escrowed tranche tokens
+  /// @param _user address of the user that made the write-off request
+  /// @param _tranches amount of tranche tokens to transfer
+  /// @param _underlyings amount of underlyings to transfer
+  /// @dev this function can be called by any wallet
+  function fullfillWriteOffRequest(address _user, uint256 _tranches, uint256 _underlyings) external nonReentrant {
+    // get current write-off request
+    WriteOffRequest memory currentRequest = userRequests[_user];
+    // check if the user has a write-off request
+    if (currentRequest.tranches == 0) revert Is0();
+    // check if the request matches at least the expected values (borrower can choose to overpay if needed, but not underpay)
+    if (currentRequest.tranches != _tranches || _underlyings < currentRequest.underlyings) {
+      revert WrongRequest();
+    }
+
+    // Existing upgraded escrows can have legacy requests that were never added to pendingUnderlyings.
+    pendingUnderlyings -= pendingUnderlyings >= currentRequest.underlyings ? currentRequest.underlyings : pendingUnderlyings;
+    delete userRequests[_user];
+
+    IERC20Detailed underlyingToken = IERC20Detailed(underlying);
+    // transfer underlyings requested from the fulfiller to this contract
+    underlyingToken.safeTransferFrom(msg.sender, address(this), _underlyings);
+    // check if the exit fee is set and if so, apply it
+    uint256 _exitFee = exitFee;
+    uint256 _totFee;
+    if (_exitFee > 0) {
+      _totFee = (_underlyings * _exitFee) / FULL_VALUE;
+      // transfer exit fee to the feeReceiver
+      underlyingToken.safeTransfer(feeReceiver, _totFee);
+    }
+    // transfer the remaining underlyings to the user
+    underlyingToken.safeTransfer(_user, _underlyings - _totFee);
+    // transfer tranche tokens to fulfiller
+    IERC20Detailed(tranche).safeTransfer(msg.sender, _tranches);
+
+    // If the fulfiller is the borrower, they can then choose to either keep the tranche tokens or write them off via
+    // IdleCDOEpochVariant.writeOffDeposit method.
+  }
+
+  function setExitFee(uint256 _exitFee) external {
+    _checkOnlyOwner();
+    // check if the exit fee is valid
+    if (_exitFee > MAX_EXIT_FEE) revert NotAllowed();
+    exitFee = _exitFee;
+  }
+
+  function setFeeReceiver(address _feeReceiver) external {
+    _checkOnlyOwner();
+    if (_feeReceiver == address(0)) revert Is0();
+    feeReceiver = _feeReceiver;
+  }
+
+  /// @notice emergency withdraw function to allow the owner to withdraw tokens from the contract
+  /// @param _token address of the token to withdraw
+  /// @param _to address to withdraw the tokens to
+  /// @param _amount amount of tokens to withdraw
+  function emergencyWithdraw(address _token, address _to, uint256 _amount) external {
+    _checkOnlyOwner();
+    // do not allow to withdraw to the zero address
+    if (_to == address(0)) revert Is0();
+
+    IERC20Detailed(_token).safeTransfer(_to, _amount);
+  }
+
+  /// @notice check if msg.sender is the owner
+  function _checkOnlyOwner() internal view {
+    if (msg.sender != owner()) revert NotAllowed();
+  }
+}

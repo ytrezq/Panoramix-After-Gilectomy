@@ -1,0 +1,1542 @@
+pragma solidity 0.8.10;
+
+import "forge-std/Test.sol";
+import {IdleCreditVault} from "../../contracts/strategies/idle/IdleCreditVault.sol";
+import {IdleCDOEpochVariant} from "../../contracts/IdleCDOEpochVariant.sol";
+import {IdleCDOEpochVariantPrefunded} from "../../contracts/IdleCDOEpochVariantPrefunded.sol";
+import {IdleCDOEpochQueue} from "../../contracts/IdleCDOEpochQueue.sol";
+import {IKeyring} from "../../contracts/interfaces/keyring/IKeyring.sol";
+import {IERC20Detailed} from "../../contracts/interfaces/IERC20Detailed.sol";
+
+error NotAllowed();
+error EpochNotRunning();
+error Is0();
+
+contract TestIdleCDOEpochQueue is Test {
+  using stdStorage for StdStorage;
+
+  uint256 public constant ONE_TRANCHE = 1e18;
+  uint256 public constant ONE_TOKEN = 1e6; // vault uses USDC with 6 decimals
+  uint256 public constant PREFUNDED_DEPOSIT_WINDOW = 1;
+  IdleCDOEpochVariant public constant cdoEpoch = IdleCDOEpochVariant(0xf6223C567F21E33e859ED7A045773526E9E3c2D5);
+  IdleCDOEpochQueue public queue;
+  IERC20Detailed public underlying;
+  IERC20Detailed public tranche;
+  IdleCreditVault public strategy;
+  address public manager;
+  // LP address
+  address public constant FASA = 0x7545CdbccD780DabAd6AdA8279D82E5ccfd4bF88;
+
+  function setUp() public {
+    vm.createSelectFork('mainnet', 20933865);
+
+    // we deploy a new IdleCDOEpochVariant and IdleCreditVault contract used only to get the bytecode 
+    // and etch at the same address of the original one so to enable console.log in the IdleCDOEpochVariant 
+    // and new features not yet deployed on mainnet
+    IdleCDOEpochVariant dummy = IdleCDOEpochVariant(address(new IdleCDOEpochVariantPrefunded()));
+    IdleCreditVault dummyStrategy = new IdleCreditVault();
+    vm.etch(address(cdoEpoch), address(dummy).code);
+    vm.etch(cdoEpoch.strategy(), address(dummyStrategy).code);
+
+    queue = new IdleCDOEpochQueue();
+    stdstore.target(address(queue)).sig(queue.idleCDOEpoch.selector).checked_write(address(0));
+    queue.initialize(address(cdoEpoch), address(this), true);
+    underlying = IERC20Detailed(cdoEpoch.token());
+    strategy = IdleCreditVault(cdoEpoch.strategy());
+    manager = strategy.manager();
+    tranche = IERC20Detailed(cdoEpoch.AATranche());
+
+    // approve queue contract to spend underlying of address(this)
+    underlying.approve(address(queue), type(uint256).max);
+
+    // allow everyone to deposit
+    vm.prank(cdoEpoch.owner());
+    cdoEpoch.setKeyringParams(address(0), 1);
+
+    vm.prank(FASA);
+    tranche.approve(address(queue), type(uint256).max);
+
+    vm.prank(address(this));
+    tranche.approve(address(queue), type(uint256).max);
+  }
+
+  function testInitialize() public view {
+    assertEq(queue.idleCDOEpoch(), address(cdoEpoch));
+    assertEq(queue.strategy(), cdoEpoch.strategy());
+    assertEq(queue.underlying(), cdoEpoch.token());
+    assertEq(queue.tranche(), cdoEpoch.AATranche());
+    assertEq(queue.owner(), address(this));
+  }
+
+  function testCantReinitialize() public {
+    vm.expectRevert('Initializable: contract is already initialized');
+    queue.initialize(address(cdoEpoch), address(this), true);
+  }
+
+  function testOnlyKeyringUsersCanInteract() external {
+    address keyring = address(1);
+
+    vm.prank(cdoEpoch.owner());
+    cdoEpoch.setKeyringParams(keyring, 1);
+
+    vm.mockCall(
+      keyring,
+      abi.encodeWithSelector(IKeyring.checkCredential.selector),
+      abi.encode(false)
+    );
+
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    queue.requestDeposit(1e18);
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    queue.requestWithdraw(1e18);
+    vm.clearMockedCalls();
+
+    vm.mockCall(
+      keyring,
+      abi.encodeWithSelector(IKeyring.checkCredential.selector),
+      abi.encode(true)
+    );
+
+    // epoch is already running at specified block
+    deal(address(underlying), address(this), 1e18);
+    queue.requestDeposit(1e18);
+    // trying to request a withdrawal
+    vm.prank(FASA);
+    queue.requestWithdraw(1e18);
+
+    vm.clearMockedCalls();
+  }
+
+  function testCannotQueueIfEpochNotRunning() external {
+    _stopCurrentEpoch();
+    vm.expectRevert(abi.encodeWithSelector(EpochNotRunning.selector));
+    queue.requestDeposit(1e18);
+    vm.expectRevert(abi.encodeWithSelector(EpochNotRunning.selector));
+    vm.prank(FASA);
+    queue.requestWithdraw(1e18);
+  }
+
+  function testRequestDeposit() external {
+    // epoch is already running at specified block
+    uint256 amount = 1e6; // 1USDC
+    deal(address(underlying), address(this), amount);
+    queue.requestDeposit(amount);
+
+    assertEq(underlying.balanceOf(address(this)), 0, 'underlying balance is wrong'); 
+    assertEq(underlying.balanceOf(address(queue)), amount, 'underlying balance of queue contract is wrong'); 
+    assertEq(queue.epochPendingDeposits(1), amount, 'pending deposits is wrong');
+    assertEq(queue.userDepositsEpochs(address(this), strategy.epochNumber() + 1), amount, 'user deposits is wrong');
+
+    // do another deposit
+    deal(address(underlying), address(this), amount);
+    queue.requestDeposit(amount);
+    assertEq(queue.userDepositsEpochs(address(this), strategy.epochNumber() + 1), 2 * amount, 'user deposits is wrong after second deposit');
+    assertEq(queue.epochPendingDeposits(1), 2 * amount, 'pending deposits is wrong after second deposit');
+
+    // do another deposit with different user
+    address user1 = makeAddr('user1');
+    _requestDepositWithUser(user1, amount);
+    assertEq(queue.userDepositsEpochs(user1, strategy.epochNumber() + 1), amount, 'user deposits is wrong after user1 deposit');
+    assertEq(queue.epochPendingDeposits(1), 3 * amount, 'pending deposits is wrong after user1 deposit');
+  }
+
+  function testProcessDeposits() external {
+    uint256 amount = 1e6; // 1USDC
+
+    // request deposit with user1
+    address user1 = makeAddr('user1');
+    _requestDepositWithUser(user1, amount);
+
+    // request deposit with user2
+    address user2 = makeAddr('user2');
+    _requestDepositWithUser(user2, amount * 9);
+
+    // stopEpoch
+    _stopCurrentEpoch();
+
+    uint256 balStrategyPre = underlying.balanceOf(address(strategy));
+
+    // only owner or manager can call processDeposits
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    vm.prank(address(1));
+    queue.processDeposits();
+
+    // process deposits
+    vm.prank(manager);
+    queue.processDeposits();
+
+    assertEq(underlying.balanceOf(address(queue)), 0, 'underlying balance of queue contract is wrong');
+    assertEq(underlying.balanceOf(address(strategy)) - balStrategyPre, 10 * amount, 'underlying balance of cdoEpoch contract is wrong');
+    assertEq(queue.epochPendingDeposits(1), 0, 'pending deposits is wrong');
+
+    uint256 tranchePrice = cdoEpoch.virtualPrice(address(tranche));
+    uint256 trancheTokensMinted = amount * 10 * ONE_TRANCHE / tranchePrice;
+    assertEq(tranche.balanceOf(address(queue)), trancheTokensMinted, 'tranche balance of user is wrong');
+    assertEq(queue.epochPrice(strategy.epochNumber()), tranchePrice, 'epoch price is wrong');
+  }
+
+  function testProcessPrefundedDepositsToBorrower() external {
+    uint256 amount1 = 3e6; // 3 USDC
+    address user1 = makeAddr('user1');
+
+    // enable prefunded queue automation in cdo variant
+    vm.prank(manager);
+    IdleCDOEpochVariantPrefunded(address(cdoEpoch)).setEpochQueue(address(queue));
+    vm.prank(manager);
+    queue.setPrefundedDepositWindow(PREFUNDED_DEPOSIT_WINDOW);
+
+    _requestDepositWithUser(user1, amount1);
+    uint256 requestEpoch = strategy.epochNumber() + 1;
+
+    // while epoch is running, forward already queued deposits to borrower without minting tranche tokens
+    address borrower = strategy.borrower();
+    uint256 borrowerBalPre = underlying.balanceOf(borrower);
+    _enterPrefundedWindow(PREFUNDED_DEPOSIT_WINDOW);
+    vm.prank(manager);
+    queue.processDepositsToBorrower();
+    assertEq(queue.epochPrefundedDeposits(requestEpoch), amount1, 'prefunded deposits is wrong');
+    assertEq(underlying.balanceOf(address(queue)), 0, 'queue underlying balance after prefund is wrong');
+    assertEq(queue.epochPendingDeposits(requestEpoch), 0, 'pending deposits should be moved out of queue');
+    assertEq(underlying.balanceOf(borrower) - borrowerBalPre, amount1, 'borrower prefunded amount is wrong');
+    assertEq(tranche.balanceOf(address(queue)), 0, 'queue tranche balance should not increase before processing');
+
+    // prefunded requests cannot be deleted as funds are already sent to borrower
+    vm.prank(user1);
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    queue.deleteRequest(requestEpoch);
+
+    // once prefunding starts, that epoch is closed to new deposits
+    address user2 = makeAddr('user2');
+    deal(address(underlying), user2, 2e6);
+    vm.startPrank(user2);
+    underlying.approve(address(queue), 2e6);
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    queue.requestDeposit(2e6);
+    vm.stopPrank();
+
+    _stopCurrentEpochPrefunded();
+
+    // prefunded deposits are processed at stopEpoch with a single epoch price
+    assertEq(underlying.balanceOf(address(queue)), 0, 'queue underlying should be empty');
+    assertEq(queue.epochPendingDeposits(requestEpoch), 0, 'pending deposits should be reset');
+    assertEq(queue.epochPrefundedDeposits(requestEpoch), 0, 'prefunded deposits should be reset');
+
+    uint256 epochPrice = queue.epochPrice(requestEpoch);
+    assertApproxEqAbs(epochPrice, cdoEpoch.virtualPrice(address(tranche)), 1, 'epoch price is wrong');
+    assertEq(
+      tranche.balanceOf(address(queue)),
+      amount1 * ONE_TRANCHE / epochPrice,
+      'queue tranche balance is wrong after processing'
+    );
+
+    uint256 user1BalPre = tranche.balanceOf(user1);
+    vm.prank(user1);
+    queue.claimDepositRequest(requestEpoch);
+    assertEq(
+      tranche.balanceOf(user1) - user1BalPre,
+      amount1 * ONE_TRANCHE / epochPrice,
+      'user1 tranche balance is wrong after claim'
+    );
+  }
+
+  /// @notice only owner or strategy manager can update the prefunded deposit window
+  function testSetPrefundedDepositWindowOnlyOwnerOrManager() external {
+    vm.prank(address(1));
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    queue.setPrefundedDepositWindow(PREFUNDED_DEPOSIT_WINDOW);
+
+    vm.prank(manager);
+    queue.setPrefundedDepositWindow(PREFUNDED_DEPOSIT_WINDOW);
+    assertEq(queue.prefundedDepositWindow(), PREFUNDED_DEPOSIT_WINDOW, 'prefunded deposit window is wrong');
+  }
+
+  /// @notice prefunded deposits can only be forwarded by owner or strategy manager
+  function testProcessDepositsToBorrowerOnlyOwnerOrManager() external {
+    uint256 amount = 1e6;
+    address user1 = makeAddr('user1');
+
+    vm.prank(manager);
+    IdleCDOEpochVariantPrefunded(address(cdoEpoch)).setEpochQueue(address(queue));
+    _requestDepositWithUser(user1, amount);
+
+    vm.prank(address(1));
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    queue.processDepositsToBorrower();
+  }
+
+  function testProcessDepositsToBorrowerRequiresPrefundedQueueSetup() external {
+    uint256 amount = 1e6;
+    address user1 = makeAddr('user1');
+    _requestDepositWithUser(user1, amount);
+
+    vm.prank(manager);
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    queue.processDepositsToBorrower();
+  }
+
+  function testProcessDepositsToBorrowerRevertsBeforePrefundedWindow() external {
+    uint256 amount = 1e6;
+    address user1 = makeAddr('user1');
+
+    vm.prank(manager);
+    IdleCDOEpochVariantPrefunded(address(cdoEpoch)).setEpochQueue(address(queue));
+    vm.prank(manager);
+    queue.setPrefundedDepositWindow(PREFUNDED_DEPOSIT_WINDOW);
+    _requestDepositWithUser(user1, amount);
+
+    vm.prank(manager);
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    queue.processDepositsToBorrower();
+  }
+
+  function testProcessPrefundedDepositsOnlyCdoCanCall() external {
+    vm.prank(manager);
+    IdleCDOEpochVariantPrefunded(address(cdoEpoch)).setEpochQueue(address(queue));
+
+    vm.prank(manager);
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    queue.processPrefundedDeposits(1);
+  }
+
+  function testProcessPrefundedDepositsClearsPrefundedDust() external {
+    uint256 amount = 1; // dust-sized request to force manual 0-mint branch
+    address user1 = makeAddr('user1');
+
+    vm.prank(manager);
+    IdleCDOEpochVariantPrefunded(address(cdoEpoch)).setEpochQueue(address(queue));
+    vm.prank(manager);
+    queue.setPrefundedDepositWindow(PREFUNDED_DEPOSIT_WINDOW);
+
+    _requestDepositWithUser(user1, amount);
+    uint256 requestEpoch = strategy.epochNumber() + 1;
+    _enterPrefundedWindow(PREFUNDED_DEPOSIT_WINDOW);
+    vm.prank(manager);
+    queue.processDepositsToBorrower();
+    assertEq(queue.epochPrefundedDeposits(requestEpoch), amount, 'prefunded deposits should be set');
+
+    stdstore.target(address(strategy)).sig(strategy.epochNumber.selector).checked_write(requestEpoch);
+
+    // Simulate zero minted shares on prefunded settlement.
+    vm.prank(address(cdoEpoch));
+    queue.processPrefundedDeposits(0);
+
+    assertEq(queue.epochPendingDeposits(requestEpoch), 0, 'pending deposits should be cleared');
+    assertEq(queue.epochPrefundedDeposits(requestEpoch), 0, 'prefunded deposits should be cleared');
+    assertTrue(queue.epochPrice(requestEpoch) != 0, 'epoch price should be set');
+  }
+
+  /// @notice prefunded deposits cannot be forwarded once the epoch has already been stopped
+  function testProcessDepositsToBorrowerRevertsIfEpochNotRunning() external {
+    _stopCurrentEpoch();
+
+    vm.prank(manager);
+    IdleCDOEpochVariantPrefunded(address(cdoEpoch)).setEpochQueue(address(queue));
+
+    vm.prank(manager);
+    vm.expectRevert(abi.encodeWithSelector(EpochNotRunning.selector));
+    queue.processDepositsToBorrower();
+  }
+
+  /// @notice prefunded forwarding can happen only once per epoch
+  function testProcessDepositsToBorrowerRevertsIfAlreadyPrefunded() external {
+    uint256 amount = 1e6;
+    address user1 = makeAddr('user1');
+
+    vm.prank(manager);
+    IdleCDOEpochVariantPrefunded(address(cdoEpoch)).setEpochQueue(address(queue));
+    vm.prank(manager);
+    queue.setPrefundedDepositWindow(PREFUNDED_DEPOSIT_WINDOW);
+    _requestDepositWithUser(user1, amount);
+    _enterPrefundedWindow(PREFUNDED_DEPOSIT_WINDOW);
+
+    vm.prank(manager);
+    queue.processDepositsToBorrower();
+
+    vm.prank(manager);
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    queue.processDepositsToBorrower();
+  }
+
+  /// @notice prefunded queues cannot use the normal buffer-period deposit processing path
+  function testProcessDepositsRevertsWhenPrefundedQueueIsEnabled() external {
+    vm.prank(manager);
+    IdleCDOEpochVariantPrefunded(address(cdoEpoch)).setEpochQueue(address(queue));
+
+    vm.prank(manager);
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    queue.processDeposits();
+  }
+
+  function testRequestDepositRevertsInsidePrefundedWindow() external {
+    uint256 amount = 1e6;
+    address user1 = makeAddr('user1');
+
+    vm.prank(manager);
+    IdleCDOEpochVariantPrefunded(address(cdoEpoch)).setEpochQueue(address(queue));
+    vm.prank(manager);
+    queue.setPrefundedDepositWindow(PREFUNDED_DEPOSIT_WINDOW);
+
+    _enterPrefundedWindow(PREFUNDED_DEPOSIT_WINDOW);
+
+    deal(address(underlying), user1, amount);
+    vm.startPrank(user1);
+    underlying.approve(address(queue), amount);
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    queue.requestDeposit(amount);
+    vm.stopPrank();
+  }
+
+  function testStopEpochWithDurationRevertsIfPrefundedQueueWasNotPrefunded() external {
+    uint256 amount = 1e6;
+    address user1 = makeAddr('user1');
+
+    vm.prank(manager);
+    IdleCDOEpochVariantPrefunded(address(cdoEpoch)).setEpochQueue(address(queue));
+    vm.prank(manager);
+    queue.setPrefundedDepositWindow(PREFUNDED_DEPOSIT_WINDOW);
+
+    _requestDepositWithUser(user1, amount);
+    uint256 requestEpoch = strategy.epochNumber() + 1;
+    _enterPrefundedWindow(PREFUNDED_DEPOSIT_WINDOW);
+
+    uint256 interest = 1000 * 1e6;
+    uint256 pendingWithdraw = strategy.pendingWithdraws();
+    address borrower = strategy.borrower();
+    uint256 toRepay = interest + pendingWithdraw;
+
+    deal(address(underlying), borrower, toRepay);
+    vm.prank(borrower);
+    underlying.approve(address(cdoEpoch), toRepay);
+
+    vm.warp(cdoEpoch.epochEndDate() + 1);
+    uint256 duration = cdoEpoch.epochDuration();
+    vm.prank(manager);
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    cdoEpoch.stopEpochWithDuration(0, interest, duration, 0);
+
+    assertEq(queue.epochPendingDeposits(requestEpoch), amount, 'pending deposits should stay queued');
+    assertEq(queue.epochPrefundedDeposits(requestEpoch), 0, 'prefunded deposits should stay empty');
+    assertEq(queue.epochPrice(requestEpoch), 0, 'epoch price should not be set');
+  }
+
+  /// @notice the prefunded flow is AA-only and must reject BB queues
+  function testProcessDepositsToBorrowerRevertsForBBQueue() external {
+    IdleCDOEpochQueue bbQueue = new IdleCDOEpochQueue();
+    stdstore.target(address(bbQueue)).sig(bbQueue.idleCDOEpoch.selector).checked_write(address(0));
+    bbQueue.initialize(address(cdoEpoch), address(this), false);
+
+    uint256 amount = 1e6;
+    address user1 = makeAddr('user1');
+
+    vm.prank(manager);
+    IdleCDOEpochVariantPrefunded(address(cdoEpoch)).setEpochQueue(address(bbQueue));
+
+    deal(address(underlying), user1, amount);
+    vm.startPrank(user1);
+    underlying.approve(address(bbQueue), amount);
+    bbQueue.requestDeposit(amount);
+    vm.stopPrank();
+
+    vm.prank(manager);
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    bbQueue.processDepositsToBorrower();
+  }
+
+  function testClaimDepositRequest() external {
+    // request deposit with user1
+    uint256 amount1 = 1e6; // 1USDC
+    address user1 = makeAddr('user1');
+    _requestDepositWithUser(user1, amount1);
+
+    // request deposit with user2
+    uint256 amount2 = 9 * 1e6;
+    address user2 = makeAddr('user2');
+    _requestDepositWithUser(user2, amount2);
+
+    // request deposit with user3
+    uint256 amount3 = 10 * 1e6;
+    address user3 = makeAddr('user3');
+    _requestDepositWithUser(user3, amount3);
+
+    // stopEpoch
+    _stopCurrentEpoch();
+
+    // vPrice is == to epochPrice[epochNumber]
+    uint256 vPrice = cdoEpoch.virtualPrice(address(tranche));
+    uint256 epochNumber = strategy.epochNumber();
+
+    // process deposits
+    vm.prank(queue.owner());
+    queue.processDeposits();
+
+    // claim deposit request with user0 who had no deposit requests
+    address user0 = makeAddr('user0');
+    uint256 trancheBal0Pre = tranche.balanceOf(user0);
+    vm.prank(user0);
+    queue.claimDepositRequest(epochNumber);
+    assertEq(tranche.balanceOf(user0) - trancheBal0Pre, 0, 'user0 tranche balance is wrong after claim');
+
+    // claim deposit request with user1 during buffer period
+    uint256 trancheBal1Pre = tranche.balanceOf(user1);
+    vm.prank(user1);
+    queue.claimDepositRequest(epochNumber);
+    assertEq(queue.userDepositsEpochs(user1, epochNumber), 0, 'user1 userDepositsEpochs is wrong after claim');
+    assertEq(tranche.balanceOf(user1) - trancheBal1Pre, amount1 * ONE_TRANCHE / vPrice, 'user1 tranche balance is wrong after claim');
+
+    // start a new epoch
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+
+    // claim deposit request with user2 when epoch is running
+    uint256 trancheBal2Pre = tranche.balanceOf(user2);
+    vm.prank(user2);
+    queue.claimDepositRequest(epochNumber);
+    assertEq(queue.userDepositsEpochs(user2, epochNumber), 0, 'user2 userDepositsEpochs is wrong after claim');
+    assertEq(tranche.balanceOf(user2) - trancheBal2Pre, amount2 * ONE_TRANCHE / vPrice, 'user2 tranche balance is wrong after claim');
+
+    // request deposit with user4
+    address user4 = makeAddr('user4');
+    uint256 amount4 = 1e6;
+    _requestDepositWithUser(user4, amount4);
+
+    // _stopEpoch
+    _stopCurrentEpoch();
+
+    // claim deposit request with user3 when epoch number changed
+    uint256 trancheBal3Pre = tranche.balanceOf(user3);
+    vm.prank(user3);
+    queue.claimDepositRequest(epochNumber);
+    assertEq(queue.userDepositsEpochs(user3, epochNumber), 0, 'user3 userDepositsEpochs is wrong after claim');
+    assertEq(tranche.balanceOf(user3) - trancheBal3Pre, amount3 * ONE_TRANCHE / vPrice, 'user3 tranche balance is wrong after claim');
+  }
+
+  function testDeleteRequest() external {
+    uint256 depositEpoch = strategy.epochNumber() + 1;
+    // request deposit with user1
+    uint256 amount1 = 1e6; // 1USDC
+    address user1 = makeAddr('user1');
+    _requestDepositWithUser(user1, amount1);
+    uint256 balUser1 = underlying.balanceOf(user1);
+
+    // request deposit with user2
+    uint256 amount2 = 10 * 1e6;
+    address user2 = makeAddr('user2');
+    _requestDepositWithUser(user2, amount2);
+
+    // deleting a queued request is allowed while the epoch is running as long as it was not prefunded/processed
+    vm.prank(user1);
+    queue.deleteRequest(depositEpoch);
+    assertEq(queue.userDepositsEpochs(user1, depositEpoch), 0, 'user1 userDepositsEpochs is wrong after running delete');
+    assertEq(queue.epochPendingDeposits(1), amount2, 'pending deposits is wrong after running delete');
+    assertEq(underlying.balanceOf(user1) - balUser1, amount1, 'user1 balance is wrong after running delete');
+
+    // stop epoch
+    _stopCurrentEpoch();
+
+    // trying to delete a non existent request
+    address badUser = makeAddr('badUser');
+    uint256 balBadUser = underlying.balanceOf(badUser);
+    uint256 pendingDepositsPre = queue.epochPendingDeposits(1);
+    vm.prank(badUser);
+    queue.deleteRequest(depositEpoch);
+    assertEq(underlying.balanceOf(badUser) - balBadUser, 0, 'badUser balance is wrong after badUser delete');
+    assertEq(queue.epochPendingDeposits(1), pendingDepositsPre, 'pending deposits is wrong after badUser delete');
+
+    // process deposits
+    vm.prank(manager);
+    queue.processDeposits();
+
+    // user cannot delete request after deposits were processed
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    vm.prank(user2);
+    queue.deleteRequest(depositEpoch);
+  }
+
+  function testDeleteRequestForNonProcessedEpoch() public {
+    // request deposit with user1
+    uint256 depositEpochUser1 = strategy.epochNumber() + 1;
+    uint256 amount1 = 1e6; // 1USDC
+    address user1 = makeAddr('user1');
+    _requestDepositWithUser(user1, amount1);
+    uint256 balUser1 = underlying.balanceOf(user1);
+
+    _stopCurrentEpoch();
+    // epoch 1 buffer
+
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+
+    // request deposit with user2
+    uint256 amount2 = 10 * 1e6;
+    address user2 = makeAddr('user2');
+    _requestDepositWithUser(user2, amount2);
+
+    _stopCurrentEpoch();
+    // epoch 2 buffer
+
+    vm.prank(manager);
+    queue.processDeposits();
+
+    assertEq(queue.epochPendingDeposits(1), amount1, 'pending deposits for epoch 1 is wrong after processDeposits');
+    assertEq(queue.epochPendingDeposits(2), 0, 'pending deposits for epoch 2 is wrong after processDeposits');
+
+    // delete request with user1 for epoch 1
+    vm.prank(user1);
+    queue.deleteRequest(depositEpochUser1);
+
+    assertEq(underlying.balanceOf(user1), balUser1 + amount1, 'user1 balance is wrong after delete');
+  }
+
+  function testClaimRequestForNonProcessedEpoch() public {
+    uint256 depositEpoch = strategy.epochNumber() + 1;
+    // request deposit with user1
+    uint256 amount1 = 1e6; // 1USDC
+    address user1 = makeAddr('user1');
+    _requestDepositWithUser(user1, amount1);
+
+    // request deposit with user2
+    uint256 amount2 = 10 * 1e6;
+    address user2 = makeAddr('user2');
+    _requestDepositWithUser(user2, amount2);
+
+    _stopCurrentEpoch();
+    // epoch 1 buffer
+
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+
+    _stopCurrentEpoch();
+    // epoch 2 buffer
+
+    // claim request with user1 for epoch 1 before next process deposit (of epoch 2)
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    vm.prank(user1);
+    queue.claimDepositRequest(depositEpoch);
+
+    vm.prank(manager);
+    queue.processDeposits();
+
+    // claim request with user2 for epoch 1 after process deposit (of epoch 2)
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    vm.prank(user2);
+    queue.claimDepositRequest(depositEpoch);
+  }
+
+  function testRequestWithdraw() external {
+    // epoch is already running at specified block
+    // so we stop the current epoch #0
+    _stopCurrentEpoch();
+    // we are now in epoch #1 (epoch starts at the beginning of the buffer period)
+
+    // do deposit with address(this)
+    _depositWithUser(address(this), 100e6); // 100 USDC
+
+    // try to request a withdraw in the buffer period, the request will revert
+    vm.expectRevert(abi.encodeWithSelector(EpochNotRunning.selector));
+    vm.prank(FASA);
+    queue.requestWithdraw(1e18);
+
+    // start epoch
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+
+    // request a withdraw with FASA
+    uint256 balPre = tranche.balanceOf(FASA);
+    uint256 amount = 1e18; // 1 AA tranche token
+    vm.prank(FASA);
+    queue.requestWithdraw(amount);
+
+    // we transferred tranche tokens in the queue contract
+    assertEq(balPre - tranche.balanceOf(FASA), amount, 'tranche balance is wrong'); 
+    assertEq(tranche.balanceOf(address(queue)), amount, 'tranche balance of queue contract is wrong'); 
+    // withdraw request is queued for epoch #2
+    assertEq(queue.epochPendingWithdrawals(2), amount, 'pending withdraw is wrong');
+    assertEq(queue.userWithdrawalsEpochs(FASA, strategy.epochNumber() + 1), amount, 'user withdraw is wrong');
+
+    // do another withdraw request with FASA
+    vm.prank(FASA);
+    queue.requestWithdraw(amount);
+    assertEq(queue.epochPendingWithdrawals(2), 2 * amount, 'pending withdraw is wrong after second withdraw');
+    assertEq(queue.userWithdrawalsEpochs(FASA, strategy.epochNumber() + 1), 2 * amount, 'user withdraw is wrong after second withdraw');
+
+    // do another withdraw request with address(this)
+    queue.requestWithdraw(amount);
+    assertEq(queue.userWithdrawalsEpochs(address(this), strategy.epochNumber() + 1), amount, 'user withdraw is wrong after address(this) withdraw');
+    assertEq(queue.epochPendingWithdrawals(2), 3 * amount, 'pending withdraw is wrong after address(this) deposit');
+  }
+
+  function testProcessWithdrawRequests() external {
+    // stop epoch #0
+    _stopCurrentEpoch();
+    // we are now in epoch #1 (epoch starts at the beginning of the buffer period)
+
+    // deposit with user1
+    uint256 amount1 = 1e6; // 1 USDC
+    address user1 = makeAddr('user1');
+    uint256 tranches1 = _depositWithUser(user1, amount1);
+
+    // deposit with user2
+    uint256 amount2 = 100e6; // 100 USDC
+    address user2 = makeAddr('user2');
+    uint256 tranches2 = _depositWithUser(user2, amount2);
+
+    // start epoch #1
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+
+    // request withdrawals with both users
+    _requestWithdrawWithUser(user1, tranches1);
+    _requestWithdrawWithUser(user2, tranches2);
+
+    // stopEpoch, deposits got some interest
+    _stopCurrentEpoch();
+    // we are now in epoch #2
+
+    // only owner or manager can call processWithdrawRequests
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    vm.prank(address(1));
+    queue.processWithdrawRequests();
+
+    // process withdraw requests, claims will be done in epoch #3
+    vm.prank(manager);
+    queue.processWithdrawRequests();
+    
+    // tranche tokens are burned in exchange for strategyTokens
+    assertEq(tranche.balanceOf(address(queue)), 0, 'tranche balance of queue contract is wrong');
+    uint256 tranchePrice = cdoEpoch.virtualPrice(address(tranche));
+    uint256 pendingClaims = (tranches1 + tranches2) * tranchePrice / ONE_TRANCHE;
+    // This credit vault has apr set to 0 so on withdraw requests the interest is not accrued during the waiting epoch. Deposits however got some interest at stopEpoch
+    assertEq(IERC20Detailed(address(strategy)).balanceOf(address(queue)), pendingClaims, 'strategy token balance of queue contract is wrong');
+    assertApproxEqAbs(queue.epochWithdrawPrice(2), tranchePrice, 1, 'pending withdraw is wrong');
+    assertEq(queue.epochPendingClaims(2), pendingClaims, 'pending claims is wrong');
+    assertEq(queue.epochPendingWithdrawals(2), 0, 'pending withdraw is wrong');
+    assertEq(queue.pendingClaims(), true, 'pendingClaims is wrong');
+
+    // try to call process withdraw again but will revert because pendingClaims is true
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    vm.prank(manager);
+    queue.processWithdrawRequests();
+  }
+
+  function testProcessWithdrawalClaims() external {
+    // stop epoch #0
+    _stopCurrentEpoch();
+    // we are now in epoch #1 (epoch starts at the beginning of the buffer period)
+
+    // deposit with user1
+    uint256 amount1 = 1e6; // 1 USDC
+    address user1 = makeAddr('user1');
+    uint256 tranches1 = _depositWithUser(user1, amount1);
+
+    // deposit with user2
+    uint256 amount2 = 100e6; // 100 USDC
+    address user2 = makeAddr('user2');
+    uint256 tranches2 = _depositWithUser(user2, amount2);
+
+    // start epoch
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+
+    // request withdrawals with both users
+    _requestWithdrawWithUser(user1, tranches1);
+    _requestWithdrawWithUser(user2, tranches2);
+
+    // stopEpoch, deposits got some interest
+    _stopCurrentEpoch();
+    // we are now in epoch #2
+
+    uint256 epoch = strategy.epochNumber();
+
+    // process withdraw requests, claims will be available at epoch #3
+    vm.prank(manager);
+    queue.processWithdrawRequests();
+    uint256 expectedUnderlyings = queue.epochPendingClaims(epoch);
+    uint256 withdrawPricePre = queue.epochWithdrawPrice(epoch);
+
+    // start epoch #2
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+    // stopEpoch, deposits got some interest
+    _stopCurrentEpoch();
+    // we are now in epoch #3
+
+    // only owner or manager can call processWithdrawalClaims
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    vm.prank(address(1));
+    queue.processWithdrawalClaims(epoch);
+
+    // claim withdraw requests
+    uint256 balPre = underlying.balanceOf(address(queue));
+    queue.processWithdrawalClaims(epoch);
+
+    // strategy tokens are burned for underlyings
+    uint256 receivedUnderlyings = underlying.balanceOf(address(queue)) - balPre;
+    assertEq(strategy.balanceOf(address(queue)), 0, 'strategy token balance of queue contract is wrong');
+    assertEq(queue.pendingClaims(), false, 'pendingClaims is wrong');
+    assertEq(queue.epochPendingClaims(epoch), 0, 'epochPendingClaims is wrong');
+    // APR=0 pending claims can increase at stopEpoch; queue should pass this delta via an updated withdraw price.
+    assertGe(receivedUnderlyings, expectedUnderlyings, 'underlying balance of queue contract is wrong');
+    assertGe(queue.epochWithdrawPrice(epoch), withdrawPricePre, 'withdraw price should not decrease');
+    assertApproxEqAbs(
+      receivedUnderlyings,
+      (tranches1 + tranches2) * queue.epochWithdrawPrice(epoch) / ONE_TRANCHE,
+      500,
+      'final withdraw price is wrong'
+    );
+  }
+
+  /// @notice A valid proportional loss can round a small queue claim to zero without blocking later epochs.
+  function testProcessWithdrawalClaimsWithZeroRoundedQueuePayout() external {
+    _stopCurrentEpochWithApr(10e18);
+    address currentFeeReceiver = cdoEpoch.feeReceiver();
+    vm.prank(cdoEpoch.owner());
+    cdoEpoch.setFeeParams(currentFeeReceiver, 0, 100_000, 0);
+
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+
+    uint256 tranchePrice = cdoEpoch.virtualPrice(address(tranche));
+    uint256 tinyTrancheAmount = (ONE_TRANCHE + tranchePrice - 1) / tranchePrice;
+    _requestWithdrawWithUser(FASA, tinyTrancheAmount);
+
+    _stopCurrentEpochWithApr(10e18);
+    uint256 claimEpoch = strategy.epochNumber();
+
+    vm.prank(manager);
+    queue.processWithdrawRequests();
+    uint256 queueClaimBasis = queue.epochPendingClaims(claimEpoch);
+    assertEq(queueClaimBasis, 1, 'test requires a one-unit queue claim');
+
+    vm.prank(FASA);
+    cdoEpoch.requestWithdraw(ONE_TRANCHE, address(tranche));
+
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+    vm.warp(cdoEpoch.epochEndDate() + 1);
+
+    uint256 pendingBasis = strategy.pendingWithdraws();
+    uint256 activeBasis = cdoEpoch.getContractValue() + cdoEpoch.expectedEpochInterest();
+    uint256 totalBasis = activeBasis + pendingBasis;
+    uint256 totalRecovery = totalBasis / 100_000;
+    uint256 lossAmount = totalBasis - totalRecovery;
+    (uint256 pendingToFund, ) = strategy.previewLossAdjustedWithdrawFunds(lossAmount);
+    uint256 fundsToRepay = cdoEpoch.expectedEpochInterest() + pendingToFund;
+    deal(address(underlying), strategy.borrower(), fundsToRepay, true);
+    vm.prank(strategy.borrower());
+    underlying.approve(address(cdoEpoch), fundsToRepay);
+
+    uint256 duration = cdoEpoch.epochDuration();
+    vm.prank(manager);
+    cdoEpoch.stopEpochWithDuration(10e18, 0, duration, lossAmount);
+
+    queue.processWithdrawalClaims(claimEpoch);
+    assertEq(queue.epochWithdrawPrice(claimEpoch), 0, 'rounded withdraw price should be zero');
+    assertTrue(queue.isEpochWithdrawZero(claimEpoch), 'zero payout marker was not saved');
+    assertEq(queue.epochPendingClaims(claimEpoch), 0, 'zero payout claim remained pending');
+    assertFalse(queue.pendingClaims(), 'zero payout blocked later processing');
+
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    vm.prank(FASA);
+    queue.deleteWithdrawRequest(claimEpoch);
+
+    uint256 balancePre = underlying.balanceOf(FASA);
+    vm.prank(FASA);
+    queue.claimWithdrawRequest(claimEpoch);
+    assertEq(underlying.balanceOf(FASA), balancePre, 'zero payout transferred underlying');
+    assertEq(queue.userWithdrawalsEpochs(FASA, claimEpoch), 0, 'zero payout receipt was not cleared');
+
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+    _requestWithdrawWithUser(FASA, ONE_TRANCHE);
+    _stopCurrentEpochWithApr(10e18);
+
+    uint256 laterEpoch = strategy.epochNumber();
+    vm.prank(manager);
+    queue.processWithdrawRequests();
+    assertGt(queue.epochPendingClaims(laterEpoch), 0, 'later withdrawal was not processed');
+    assertTrue(queue.pendingClaims(), 'later claim was not opened');
+  }
+
+  function testProcessPostDefaultWithdrawalAsNormalClaim() external {
+    uint256 trancheAmount = ONE_TRANCHE;
+    uint256 claimEpoch = strategy.epochNumber() + 1;
+    _requestWithdrawWithUser(FASA, trancheAmount);
+
+    // Move the queued request into the current strategy epoch without processing it.
+    _stopCurrentEpochWithApr(10e18);
+    assertEq(strategy.epochNumber(), claimEpoch, 'queued epoch did not become current');
+
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+    deal(address(underlying), strategy.borrower(), 0, true);
+    vm.warp(cdoEpoch.epochEndDate() + 1);
+    vm.prank(cdoEpoch.owner());
+    cdoEpoch.stopEpoch(0, 0);
+    assertEq(cdoEpoch.defaulted(), true, 'pool should be defaulted');
+
+    uint256 expectedInterest = cdoEpoch.expectedEpochInterest();
+    uint256 pendingFees = cdoEpoch.pendingWithdrawFees();
+    uint256 activeInterest = expectedInterest > pendingFees ? expectedInterest - pendingFees : 0;
+    activeInterest = activeInterest * (100_000 - cdoEpoch.fee()) / 100_000;
+    uint256 recovered = strategy.balanceOf(address(cdoEpoch)) + activeInterest;
+    deal(address(underlying), manager, recovered, true);
+    vm.startPrank(manager);
+    underlying.approve(address(strategy), recovered);
+    cdoEpoch.finalizeDefault(recovered, manager);
+    queue.processWithdrawRequests();
+    vm.stopPrank();
+
+    assertEq(queue.isEpochInstant(claimEpoch), false, 'post-default request was classified as instant');
+    uint256 queueBalancePre = underlying.balanceOf(address(queue));
+    queue.processWithdrawalClaims(claimEpoch);
+    assertGt(underlying.balanceOf(address(queue)) - queueBalancePre, 0, 'queue did not receive recovery funds');
+    assertEq(queue.pendingClaims(), false, 'post-default queue claim remained pending');
+
+    uint256 userBalancePre = underlying.balanceOf(FASA);
+    vm.prank(FASA);
+    queue.claimWithdrawRequest(claimEpoch);
+    assertGt(underlying.balanceOf(FASA) - userBalancePre, 0, 'user did not receive post-default recovery');
+  }
+
+  /// @notice A queued withdrawal processed after a healthy pool close remains a normal funded claim.
+  function testHealthyCloseProcessesQueuedWithdrawalAsNormalClaim() external {
+    uint256 trancheAmount = ONE_TRANCHE;
+    uint256 claimEpoch = strategy.epochNumber() + 1;
+    _requestWithdrawWithUser(FASA, trancheAmount);
+
+    uint256 principal = strategy.balanceOf(address(cdoEpoch));
+    uint256 interest = cdoEpoch.expectedEpochInterest();
+    uint256 closeFunds = principal + interest;
+    address borrower = strategy.borrower();
+    deal(address(underlying), borrower, closeFunds, true);
+    vm.prank(borrower);
+    underlying.approve(address(cdoEpoch), closeFunds);
+
+    vm.warp(cdoEpoch.epochEndDate() + 1);
+    vm.prank(manager);
+    cdoEpoch.stopEpoch(0, 1);
+
+    assertFalse(cdoEpoch.defaulted(), 'close should be healthy');
+    assertEq(cdoEpoch.epochEndDate(), 0, 'pool should be closed');
+    assertEq(strategy.epochNumber(), claimEpoch, 'queued epoch should be current');
+
+    queue.processWithdrawRequests();
+    uint256 claimBasis = queue.epochPendingClaims(claimEpoch);
+    assertGt(claimBasis, 0, 'queue claim should have a positive basis');
+    assertFalse(queue.isEpochInstant(claimEpoch), 'normal closed-pool receipt was classified as instant');
+    assertEq(strategy.withdrawsRequests(address(queue)), claimBasis, 'normal receipt was not recorded');
+    assertEq(strategy.instantWithdrawsRequests(address(queue)), 0, 'instant ledger should be empty');
+
+    uint256 queueBalancePre = underlying.balanceOf(address(queue));
+    queue.processWithdrawalClaims(claimEpoch);
+    assertEq(underlying.balanceOf(address(queue)) - queueBalancePre, claimBasis, 'queue did not receive the normal claim');
+    assertEq(strategy.withdrawsRequests(address(queue)), 0, 'normal receipt was not cleared');
+    assertEq(strategy.balanceOf(address(queue)), 0, 'queue strategy receipt was not burned');
+
+    uint256 expectedPayout = trancheAmount * queue.epochWithdrawPrice(claimEpoch) / ONE_TRANCHE;
+    uint256 userBalancePre = underlying.balanceOf(FASA);
+    vm.prank(FASA);
+    queue.claimWithdrawRequest(claimEpoch);
+    assertEq(underlying.balanceOf(FASA) - userBalancePre, expectedPayout, 'user did not receive the queued claim');
+    assertEq(queue.userWithdrawalsEpochs(FASA, claimEpoch), 0, 'user entitlement was not cleared');
+  }
+
+  function testProcessWithdrawalClaimsInstantEpoch() external {
+    _useStandardEpochVariant();
+    // stop epoch #0 and set apr for next epoch to 10%
+    _stopCurrentEpochWithApr(10e18);
+    // we are now in epoch #1 (epoch starts at the beginning of the buffer period)
+
+    // enable instant withdrawals
+    uint256 instantDelay = 100;
+    vm.prank(manager);
+    // 100s of delay after ne epoch started to make instant withdrawals, min apr diff 1%
+    cdoEpoch.setInstantWithdrawParams(instantDelay, 1e18, false);
+
+    // deposit with user1
+    uint256 amount1 = 1e6; // 1 USDC
+    address user1 = makeAddr('user1');
+    uint256 tranches1 = _depositWithUser(user1, amount1);
+
+    // deposit with user2
+    uint256 amount2 = 100e6; // 100 USDC
+    address user2 = makeAddr('user2');
+    uint256 tranches2 = _depositWithUser(user2, amount2);
+
+    // start epoch
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+
+    // request withdrawals with both users
+    _requestWithdrawWithUser(user1, tranches1);
+    _requestWithdrawWithUser(user2, tranches2);
+
+    // stopEpoch with a low apr so instant withdraws are triggered
+    _stopCurrentEpochWithApr(1e18);
+    // we are now in epoch #2 (epoch starts at the beginning of the buffer period)
+
+    uint256 epoch = strategy.epochNumber();
+
+    // process withdraw requests, claims will be available at epoch #4
+    vm.prank(manager);
+    queue.processWithdrawRequests();
+
+    uint256 tranchePrice = cdoEpoch.virtualPrice(address(tranche));
+    uint256 pendingClaims = (tranches1 + tranches2) * tranchePrice / ONE_TRANCHE;
+    // epoch number for claim is #2 as instant withdrawal claims will be available in current epoch
+    assertEq(queue.epochPendingClaims(2), pendingClaims, 'pending claims is wrong');
+
+    uint256 expectedUnderlyings = queue.epochPendingClaims(epoch);
+
+    // start epoch
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+    // wait for the instant withdraw delay
+    skip(instantDelay + 1);
+
+    uint256 balPre = underlying.balanceOf(address(queue));
+    queue.processWithdrawalClaims(epoch);
+
+    // strategy tokens are burned for underlyings
+    assertEq(strategy.balanceOf(address(queue)), 0, 'strategy token balance of queue contract is wrong');
+    assertEq(queue.pendingClaims(), false, 'pendingClaims is wrong');
+    assertEq(queue.epochPendingClaims(epoch), 0, 'epochPendingClaims is wrong');
+    assertEq(underlying.balanceOf(address(queue)) - balPre, expectedUnderlyings, 'underlying balance of queue contract is wrong');
+  }
+
+  function testProcessWithdrawalClaimsMixedInstantAndNormalEpoch() external {
+    _useStandardEpochVariant();
+    // stop epoch #0 and set apr for next epoch to 10%
+    _stopCurrentEpochWithApr(10e18);
+    // we are now in epoch #1 (epoch starts at the beginning of the buffer period)
+
+    // enable instant withdrawals
+    uint256 instantDelay = 100;
+    vm.prank(manager);
+    // 100s of delay after ne epoch started to make instant withdrawals, min apr diff 1%
+    cdoEpoch.setInstantWithdrawParams(instantDelay, 1e18, false);
+
+    // deposit with user1
+    uint256 amount1 = 1e6; // 1 USDC
+    address user1 = makeAddr('user1');
+    uint256 tranches1 = _depositWithUser(user1, amount1);
+
+    // deposit with user2
+    uint256 amount2 = 100e6; // 100 USDC
+    address user2 = makeAddr('user2');
+    uint256 tranches2 = _depositWithUser(user2, amount2);
+
+    // start epoch
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+
+    // request withdrawals with user1
+    _requestWithdrawWithUser(user1, tranches1);
+
+    // stopEpoch with same apr so to have normal withdraws
+    _stopCurrentEpochWithApr(10e18);
+    // we are now in epoch #2 (epoch starts at the beginning of the buffer period)
+
+    uint256 epoch = strategy.epochNumber();
+
+    // process withdraw requests, claims will be available at epoch #4
+    vm.prank(manager);
+    queue.processWithdrawRequests();
+
+    // start epoch
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+    // stopEpoch with lower apr so to trigger instant withdraws
+    _stopCurrentEpochWithApr(1e18);
+    // we are now in epoch #3, normal claims are available
+
+    // user2 calls requestWithdraw directly in the cdoEpoch
+    // before processWithdrawalClaims is called
+    vm.prank(user2);
+    cdoEpoch.requestWithdraw(tranches2, address(tranche));
+
+    uint256 expectedUnderlyings = queue.epochPendingClaims(epoch);
+    uint256 balPre = underlying.balanceOf(address(queue));
+    // process claims for the previous epoch
+    queue.processWithdrawalClaims(epoch);
+    assertEq(underlying.balanceOf(address(queue)) - balPre, expectedUnderlyings, 'underlying balance of queue contract is wrong');
+  }
+
+  function testProcessWithdrawalClaimsWithProcessRequestsInSameBuffer() external {
+    _useStandardEpochVariant();
+    // stop epoch #0 and set apr for next epoch to 10%
+    _stopCurrentEpochWithApr(10e18);
+    // we are now in epoch #1 (epoch starts at the beginning of the buffer period)
+
+    // enable instant withdrawals
+    uint256 instantDelay = 100;
+    vm.prank(manager);
+    // 100s of delay after ne epoch started to make instant withdrawals, min apr diff 1%
+    cdoEpoch.setInstantWithdrawParams(instantDelay, 1e18, false);
+
+    // deposit with user1
+    uint256 amount1 = 1e6; // 1 USDC
+    address user1 = makeAddr('user1');
+    uint256 tranches1 = _depositWithUser(user1, amount1);
+
+    // deposit with user2
+    uint256 amount2 = 100e6; // 100 USDC
+    address user2 = makeAddr('user2');
+    uint256 tranches2 = _depositWithUser(user2, amount2);
+
+    // start epoch
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+
+    // request withdrawals with user1
+    _requestWithdrawWithUser(user1, tranches1);
+
+    // stopEpoch with same apr so to have normal withdraws
+    _stopCurrentEpochWithApr(10e18);
+    // we are now in epoch #2 (epoch starts at the beginning of the buffer period)
+
+    uint256 epoch = strategy.epochNumber();
+
+    // process withdraw requests, claims will be available at epoch #4
+    vm.prank(manager);
+    queue.processWithdrawRequests();
+
+    // start epoch
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+
+    // request withdrawals with user2
+    _requestWithdrawWithUser(user2, tranches2);
+
+    // stopEpoch with lower apr so to trigger instant withdraws
+    _stopCurrentEpochWithApr(1e18);
+    // we are now in epoch #3, normal claims are available
+
+    // process claims for the previous epoch
+    queue.processWithdrawalClaims(epoch);
+    // epochPendingClaims is set to 0
+    assertEq(queue.epochPendingClaims(epoch), 0, 'pending claims is wrong');
+
+    // process withdraw requests for the instant withdraws
+    queue.processWithdrawRequests();
+    // assertEq(queue.epochPendingClaims(epoch + 1), 0, 'pending claims is wrong');
+
+    // claim with user1
+    uint256 expectedUnderlyings = tranches1 * queue.epochWithdrawPrice(epoch) / ONE_TRANCHE;
+    uint256 balPre = underlying.balanceOf(address(user1));
+    vm.prank(user1);
+    queue.claimWithdrawRequest(epoch);
+    assertEq(underlying.balanceOf(user1) - balPre, expectedUnderlyings, 'user1 balance is wrong after claim');
+  }
+
+  function testProcessWithdrawWhenInstantAreDisabled() external {
+    _useStandardEpochVariant();
+    // stop epoch #0 and set apr for next epoch to 10%
+    _stopCurrentEpochWithApr(10e18);
+    // we are now in epoch #1 (epoch starts at the beginning of the buffer period)
+
+    // enable instant withdrawals
+    uint256 instantDelay = 100;
+    vm.prank(manager);
+    // 100s of delay after ne epoch started to make instant withdrawals, min apr diff 1%
+    cdoEpoch.setInstantWithdrawParams(instantDelay, 1e18, false);
+
+    // deposit with user1
+    uint256 amount1 = 1e6; // 1 USDC
+    address user1 = makeAddr('user1');
+    uint256 tranches1 = _depositWithUser(user1, amount1);
+
+    // deposit with user2
+    uint256 amount2 = 100e6; // 100 USDC
+    address user2 = makeAddr('user2');
+    uint256 tranches2 = _depositWithUser(user2, amount2);
+
+    // start epoch
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+
+    // request withdrawals with user2
+    _requestWithdrawWithUser(user2, tranches2);
+
+    _stopCurrentEpochWithApr(1e18);
+    // we are now in epoch #2, instant withdrawals are enabled
+
+    uint256 _epoch = strategy.epochNumber();
+
+    // user1 requests instant withdraw directly in cdoEpoch
+    vm.prank(user1);
+    cdoEpoch.requestWithdraw(tranches1, address(tranche));
+
+    // instant withdrawals are disabled
+    vm.prank(manager);
+    cdoEpoch.setInstantWithdrawParams(instantDelay, 10e18, true);
+
+    // process withdraw requests
+    queue.processWithdrawRequests();
+
+    // epochPendingClaims should be set for next epoch as now the available withdraws are only the normal ones
+    assertGt(queue.epochPendingClaims(_epoch), 0, 'pending claims for epoch + 1 is wrong');
+  }
+
+  function testClaimWithdrawRequest() external {
+    // stop epoch #0
+    _stopCurrentEpoch();
+    // we are now in epoch #1 (epoch starts at the beginning of the buffer period)
+
+    // deposit with user1
+    uint256 amount1 = 1e6; // 1 USDC
+    address user1 = makeAddr('user1');
+    uint256 tranches1 = _depositWithUser(user1, amount1);
+
+    // deposit with user2
+    uint256 amount2 = 100e6; // 100 USDC
+    address user2 = makeAddr('user2');
+    uint256 tranches2 = _depositWithUser(user2, amount2);
+
+    // start epoch
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+
+    // request withdrawals with both users
+    _requestWithdrawWithUser(user1, tranches1);
+    _requestWithdrawWithUser(user2, tranches2);
+
+    // stopEpoch, deposits got some interest
+    _stopCurrentEpoch();
+    // we are now in epoch #2
+
+    uint256 epoch = strategy.epochNumber();
+    // check that user cannot claim right away as withdraw requests were not processed
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    vm.prank(user1);
+    queue.claimWithdrawRequest(epoch);
+
+    // process withdraw requests, claims will be available at epoch #3
+    vm.prank(manager);
+    queue.processWithdrawRequests();
+
+    // start epoch #2
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+    // stopEpoch, deposits got some interest
+    _stopCurrentEpoch();
+    // we are now in epoch #3
+
+    // check that user cannot claim right away as claims were not processed
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    vm.prank(user1);
+    // epoch is #2 ie when processWithdrawRequests was called
+    queue.claimWithdrawRequest(epoch);
+
+    // claim withdraw requests
+    queue.processWithdrawalClaims(epoch);
+
+    // check that user1 can claim right away for epoch #2 withdraw request
+    uint256 underlyingsExpected1 = tranches1 * queue.epochWithdrawPrice(epoch) / ONE_TRANCHE;
+    uint256 underlyingsExpected2 = tranches2 * queue.epochWithdrawPrice(epoch) / ONE_TRANCHE;
+    uint256 bal1Pre = underlying.balanceOf(user1);
+    vm.prank(user1);
+    queue.claimWithdrawRequest(epoch);
+    // check that user1 claimed amount is correct
+    assertEq(underlying.balanceOf(user1) - bal1Pre, underlyingsExpected1, 'user1 balance is wrong after claim');
+    assertEq(queue.userWithdrawalsEpochs(user1, epoch), 0, 'user1 userWithdrawalsEpochs is wrong after claim');
+
+    // start epoch #3
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+    _stopCurrentEpoch();
+
+    // check that user2 can claim in the next epoch too for epoch #2 claims
+    uint256 bal2Pre = underlying.balanceOf(user2);
+    vm.prank(user2);
+    queue.claimWithdrawRequest(epoch);
+    // check that user2 claimed amount is correct
+    assertEq(underlying.balanceOf(user2) - bal2Pre, underlyingsExpected2, 'user2 balance is wrong after claim');
+    assertEq(queue.userWithdrawalsEpochs(user2, epoch), 0, 'user2 userWithdrawalsEpochs is wrong after claim');
+  }
+
+  function testClaimInstantWithdrawRequest() external {
+    _useStandardEpochVariant();
+    // stop epoch #0 and set apr for next epoch to 10%
+    _stopCurrentEpochWithApr(10e18);
+    // we are now in epoch #1 (epoch starts at the beginning of the buffer period)
+
+    // enable instant withdrawals
+    uint256 instantDelay = 100;
+    vm.prank(manager);
+    // 100s of delay after ne epoch started to make instant withdrawals, min apr diff 1%
+    cdoEpoch.setInstantWithdrawParams(instantDelay, 1e18, false);
+
+    // deposit with user1
+    uint256 amount1 = 1e6; // 1 USDC
+    address user1 = makeAddr('user1');
+    uint256 tranches1 = _depositWithUser(user1, amount1);
+
+    // deposit with user2
+    uint256 amount2 = 100e6; // 100 USDC
+    address user2 = makeAddr('user2');
+    uint256 tranches2 = _depositWithUser(user2, amount2);
+
+    // start epoch
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+
+    // request withdrawals with both users
+    _requestWithdrawWithUser(user1, tranches1);
+    _requestWithdrawWithUser(user2, tranches2);
+
+    // stopEpoch with a low apr so instant withdraws are triggered
+    _stopCurrentEpochWithApr(1e18);
+    // we are now in epoch #2 (epoch starts at the beginning of the buffer period)
+
+    uint256 epoch = strategy.epochNumber();
+
+    // process withdraw requests, claims will be available at epoch #4
+    vm.prank(manager);
+    queue.processWithdrawRequests();
+
+    uint256 tranchePrice = cdoEpoch.virtualPrice(address(tranche));
+    uint256 pendingClaims = (tranches1 + tranches2) * tranchePrice / ONE_TRANCHE;
+    // epoch number for claim is #2 as instant withdrawal claims will be available in current epoch
+    assertEq(queue.epochPendingClaims(2), pendingClaims, 'pending claims is wrong');
+
+    // start epoch
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+    // wait for the instant withdraw delay
+    skip(instantDelay + 1);
+
+    queue.processWithdrawalClaims(epoch);
+
+    // check that user1 can claim right away for epoch #2 withdraw request
+    uint256 underlyingsExpected1 = tranches1 * queue.epochWithdrawPrice(epoch) / ONE_TRANCHE;
+    uint256 underlyingsExpected2 = tranches2 * queue.epochWithdrawPrice(epoch) / ONE_TRANCHE;
+    uint256 bal1Pre = underlying.balanceOf(user1);
+    vm.prank(user1);
+    queue.claimWithdrawRequest(epoch);
+    // check that user1 claimed amount is correct
+    assertEq(underlying.balanceOf(user1) - bal1Pre, underlyingsExpected1, 'user1 balance is wrong after claim');
+    assertEq(queue.userWithdrawalsEpochs(user1, epoch), 0, 'user1 userWithdrawalsEpochs is wrong after claim');
+
+    _stopCurrentEpoch();
+
+    // start epoch #3
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+    _stopCurrentEpoch();
+
+    // check that user2 can claim in the next epoch too for epoch #2 claims
+    uint256 bal2Pre = underlying.balanceOf(user2);
+    vm.prank(user2);
+    queue.claimWithdrawRequest(epoch);
+    // check that user2 claimed amount is correct
+    assertEq(underlying.balanceOf(user2) - bal2Pre, underlyingsExpected2, 'user2 balance is wrong after claim');
+    assertEq(queue.userWithdrawalsEpochs(user2, epoch), 0, 'user2 userWithdrawalsEpochs is wrong after claim');
+  }
+
+  function testDeleteWithdrawRequest() external {
+    _stopCurrentEpoch();
+
+    uint256 amount1 = 1e6; // 1 USDC
+    address user1 = makeAddr('user1');
+    uint256 tranches1 = _depositWithUser(user1, amount1);
+
+    uint256 amount2 = 100e6; // 100 USDC
+    address user2 = makeAddr('user2');
+    uint256 tranches2 = _depositWithUser(user2, amount2);
+
+    // startEpoch
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+
+    // request withdrawals with both users
+    _requestWithdrawWithUser(user1, tranches1);
+    _requestWithdrawWithUser(user2, tranches2);
+
+    uint256 requestWithdrawEpoch = strategy.epochNumber() + 1;
+    // stopEpoch
+    _stopCurrentEpoch();
+
+    // trying to delete a non existent request
+    address badUser = makeAddr('badUser');
+    uint256 balBadUser = tranche.balanceOf(badUser);
+    uint256 pendingWithdrawalsPre = queue.epochPendingWithdrawals(2);
+    vm.prank(badUser);
+    queue.deleteWithdrawRequest(requestWithdrawEpoch);
+    assertEq(tranche.balanceOf(badUser) - balBadUser, 0, 'badUser balance is wrong after badUser delete');
+    assertEq(queue.epochPendingWithdrawals(2), pendingWithdrawalsPre, 'pending withdrawals is wrong after badUser delete');
+    assertEq(queue.userWithdrawalsEpochs(badUser, 2), 0, 'userWithdrawalsEpochs is wrong after badUser delete');
+
+    // delete request with user1
+    vm.prank(user1);
+    queue.deleteWithdrawRequest(requestWithdrawEpoch);
+
+    assertEq(queue.userDepositsEpochs(user1, requestWithdrawEpoch), 0, 'user1 userWithdrawalsEpochs is wrong after delete');
+    assertEq(queue.epochPendingWithdrawals(2), tranches2, 'pending withdrawals is wrong after delete');
+    assertEq(tranche.balanceOf(user1), tranches1, 'user1 tranche balance is wrong after delete');
+
+    // process withdrawals
+    vm.prank(manager);
+    queue.processWithdrawRequests();
+
+    // user cannot delete request after deposits were processed
+    vm.expectRevert(abi.encodeWithSelector(NotAllowed.selector));
+    vm.prank(user2);
+    queue.deleteWithdrawRequest(requestWithdrawEpoch);
+  }
+
+  function testDeleteWithdrawRequestForNonProcessedEpoch() public {
+    _stopCurrentEpoch();
+
+    uint256 amount1 = 1e6; // 1 USDC
+    address user1 = makeAddr('user1');
+    uint256 tranches1 = _depositWithUser(user1, amount1);
+
+    uint256 amount2 = 100e6; // 100 USDC
+    address user2 = makeAddr('user2');
+    uint256 tranches2 = _depositWithUser(user2, amount2);
+
+    // startEpoch
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+
+    // request withdrawals with user1
+    _requestWithdrawWithUser(user1, tranches1);
+
+    uint256 requestWithdrawEpoch = strategy.epochNumber() + 1;
+    // stopEpoch
+    _stopCurrentEpoch();
+
+    // start new epoch without processing withdraws
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+
+    _requestWithdrawWithUser(user2, tranches2);
+
+    // stopEpoch
+    _stopCurrentEpoch();
+
+    // process withdrawal of user 2
+    vm.prank(manager);
+    queue.processWithdrawRequests();
+
+    // delete request with user1 for non processed epoch
+    uint256 trancheBalPre = tranche.balanceOf(user1);
+    vm.prank(user1);
+    queue.deleteWithdrawRequest(requestWithdrawEpoch);
+    // user1 redeemed tranche tokens eq to the number requested
+    assertEq(tranche.balanceOf(user1) - trancheBalPre, tranches1, 'user1 tranche balance is wrong after delete');
+  }
+
+  function testProcessWithdrawRequestsWith0Price() external {
+    // stop epoch #0
+    _stopCurrentEpoch();
+    // we are now in epoch #1 (epoch starts at the beginning of the buffer period)
+
+    // deposit with user1
+    uint256 amount1 = 1e6; // 1 USDC
+    address user1 = makeAddr('user1');
+    _depositWithUser(user1, amount1);
+
+    // start epoch #1
+    vm.prank(manager);
+    cdoEpoch.startEpoch();
+
+    // request withdrawals with both users
+    _requestWithdrawWithUser(user1, 100);
+
+    // stopEpoch, deposits got some interest
+    _stopCurrentEpoch();
+    // we are now in epoch #2
+
+    // can't call process deposits with 0 price
+    vm.expectRevert(abi.encodeWithSelector(Is0.selector));
+    vm.prank(manager);
+    queue.processWithdrawRequests();
+  }
+
+  function _requestDepositWithUser(address _user, uint256 amount) internal {
+    deal(address(underlying), _user, amount);
+    vm.startPrank(_user);
+    underlying.approve(address(queue), amount);
+    queue.requestDeposit(amount);
+    vm.stopPrank();
+  }
+
+  /// @notice Use the standard epoch implementation for queue tests that exercise instant mode.
+  function _useStandardEpochVariant() internal {
+    IdleCDOEpochVariant standardImplementation = new IdleCDOEpochVariant();
+    vm.etch(address(cdoEpoch), address(standardImplementation).code);
+  }
+
+  function _requestWithdrawWithUser(address _user, uint256 trancheAmount) internal {
+    vm.startPrank(_user);
+    tranche.approve(address(queue), trancheAmount);
+    queue.requestWithdraw(trancheAmount);
+    vm.stopPrank();
+  }
+
+  function _depositWithUser(address user, uint256 amount) internal returns (uint256 _trancheTokens) {
+    // do deposit with user
+    deal(address(underlying), user, amount);
+    vm.startPrank(user);
+    underlying.approve(address(cdoEpoch), amount);
+    _trancheTokens = cdoEpoch.depositAA(amount);
+    vm.stopPrank();
+  }
+
+  function _stopCurrentEpoch() internal {
+    _stopCurrentEpochWithApr(0);
+  }
+
+  function _stopCurrentEpochWithApr(uint256 _apr) internal {
+    uint256 interest = 1000 * 1e6; // 1000 USDC
+    uint256 pendingWithdraw = strategy.pendingWithdraws();
+    address borrower = strategy.borrower();
+
+    uint256 toRepay = _apr == 0 ? interest + pendingWithdraw : _expectedFundsEndEpoch();
+
+    deal(address(underlying), borrower, toRepay);
+    vm.prank(borrower);
+    underlying.approve(address(cdoEpoch), toRepay);
+
+    vm.warp(cdoEpoch.epochEndDate() + 1);
+    vm.prank(cdoEpoch.owner());
+    if (_apr == 0) {
+      cdoEpoch.stopEpoch(0, interest);
+    } else {
+      cdoEpoch.stopEpoch(_apr, 0);
+    }
+
+    assertEq(cdoEpoch.defaulted(), false, 'pool should not be defaulted');
+  }
+
+  function _stopCurrentEpochPrefunded() internal {
+    uint256 interest = 1000 * 1e6;
+    uint256 pendingWithdraw = strategy.pendingWithdraws();
+    address borrower = strategy.borrower();
+    uint256 toRepay = interest + pendingWithdraw;
+
+    deal(address(underlying), borrower, toRepay);
+    vm.prank(borrower);
+    underlying.approve(address(cdoEpoch), toRepay);
+
+    vm.warp(cdoEpoch.epochEndDate() + 1);
+    uint256 duration = cdoEpoch.epochDuration();
+    vm.prank(manager);
+    cdoEpoch.stopEpochWithDuration(0, interest, duration, 0);
+
+    assertEq(cdoEpoch.defaulted(), false, 'pool should not be defaulted');
+  }
+
+  function _enterPrefundedWindow(uint256 _window) internal {
+    uint256 target = cdoEpoch.epochEndDate() - _window + 1;
+    if (block.timestamp < target) {
+      vm.warp(target);
+    }
+  }
+
+  function _expectedFundsEndEpoch() internal view returns (uint256 expected) {
+    expected = cdoEpoch.expectedEpochInterest() + IdleCreditVault(address(strategy)).pendingWithdraws();
+  }
+}
