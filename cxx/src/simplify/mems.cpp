@@ -53,7 +53,11 @@ namespace {
 void forget(mem::MemState& st, const EffectSummary& s) {
     if (!s.writes) return;
     if (s.writes & S_STORAGE) st.forget_flags(F_STORAGE);
-    if (s.writes & (S_TRANSIENT | S_ACCOUNT | S_CALLRES)) st.forget_flags(F_STATE);
+    // (a call's results are numbered by its id: a call changes its own
+    // only - the pieces reading another's, the free memory pointer moved by
+    // ceil32(return_data.size) of an earlier call, stay)
+    if (s.writes & (S_TRANSIENT | S_ACCOUNT | S_CALLRES))
+        st.forget_if([&](Value x) { return !x.nil() && x.has_flags(F_STATE) && changes(s, summary(x)); });
     if (s.writes & S_VARS) {
         if (s.writes_any & S_VARS)
             st.forget_flags(F_VAR);
