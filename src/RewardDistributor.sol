@@ -1,0 +1,238 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.16;
+
+import {BASIS_POINTS, hashAddresses, hashWeights, uncheckedInc} from "./Util.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+
+error CannotReceiveNative();
+error TooManyRecipients();
+error EmptyRecipients();
+error InvalidRecipientGroup(bytes32 currentRecipientGroup, bytes32 providedRecipientGroup);
+error InvalidRecipientWeights(bytes32 currentRecipientWeights, bytes32 providedRecipientWeights);
+error FallbackFailedRecieve(address fallbackRecipient, address recipient, uint256 value);
+error EmptyFallbackRecipient();
+error NoFundsToDistribute();
+error InputLengthMismatch();
+error InvalidTotalWeight(uint256 totalWeight);
+error InsufficientGas();
+
+/// @title A distributor of ether or an ERC20 token
+/// @notice You can use this contract to distribute ether/token according to defined weights between a group of participants managed by an owner.
+/// @dev If a particular recipient is not able to recieve funds at their address, the payment will fallback to the fallback recipient.
+///      A RewardDistributor can only handle a single, specific asset defined at deployment.
+///      This contract assumes that the token does not have a blacklist or other non standard behavior.
+contract RewardDistributor is Ownable, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
+    /// @notice Amount of gas forwarded to each transfer call.
+    /// @dev The recipient group is assumed to be a known group of contracts that won't consume more than this amount.
+    uint256 public constant PER_RECIPIENT_GAS = 1_000_000;
+
+    /// @notice The maximum number of addresses that may be recipients.
+    /// @dev This ensures that all sends may always happen within a block.
+    uint64 public constant MAX_RECIPIENTS = 10;
+
+    IERC20 public immutable token;
+
+    /// @notice Hash of concat'ed recipient group.
+    bytes32 public currentRecipientGroup;
+    /// @notice Hash of concat'ed recipient weights.
+    bytes32 public currentRecipientWeights;
+
+    /// @notice The address that will receive funds if a recipient cannot receive them.
+    address public fallbackRecipient;
+
+    /// @notice The recipient couldn't receive rewards, so the fallback recipient received them instead.
+    event FallbackRecieved(address indexed fallbackRecipient, address indexed recipient, uint256 value);
+
+    /// @notice A new fallback recipient has been set
+    event FallbackRecipientUpdated(address indexed fallbackRecipient);
+
+    /// @notice Address successfully received rewards.
+    event RecipientRecieved(address indexed recipient, uint256 value);
+
+    /// @notice New recipients have been set
+    event RecipientsUpdated(bytes32 recipientGroup, address[] recipients, bytes32 recipientWeights, uint256[] weights);
+
+    /// @notice It is assumed that all recipients are able to receive eth when called with value but no data
+    /// @param _owner Address that manages the recipient group.
+    /// @param _fallbackRecipient Address that will receive funds if a recipient cannot receive them.
+    /// @param _token Address of the ERC20 token to distribute. Use address(0) for ether.
+    /// @param recipients Addresses to receive rewards.
+    /// @param weights Weights of each recipient in basis points.
+    constructor(
+        address _owner,
+        address _fallbackRecipient,
+        address _token,
+        address[] memory recipients,
+        uint256[] memory weights
+    ) Ownable() {
+        setRecipients(recipients, weights);
+        setFallbackRecipient(_fallbackRecipient);
+        token = IERC20(_token);
+        transferOwnership(_owner);
+    }
+
+    /// @notice allows eth to be deposited into this contract
+    /// @dev this contract is expected to handle ether appearing in its balance as well as an explicit deposit as long as token == address(0)
+    receive() external payable {
+        if (address(token) != address(0)) {
+            revert CannotReceiveNative();
+        }
+    }
+
+    /**
+     * @notice Distributes previous rewards then updates the recipients to a new group.
+     * @param currentRecipients Group of addresses that will receive their final rewards.
+     * @param currentWeights Weights of the final rewards.
+     * @param newRecipients Group of addresses that will receive future rewards.
+     * @param newWeights Weights of the future rewards.
+     */
+    function distributeAndUpdateRecipients(
+        address[] memory currentRecipients,
+        uint256[] memory currentWeights,
+        address[] memory newRecipients,
+        uint256[] memory newWeights
+    ) external onlyOwner {
+        distributeRewards(currentRecipients, currentWeights);
+        setRecipients(newRecipients, newWeights);
+    }
+
+    /**
+     * @notice Sends rewards to the current group of recipients.
+     * @dev The remainder will be kept in the contract.
+     *      If a recipient fails to receive their reward, their funds will be sent to the fallback recipient.
+     *      If the fallback recipient cannot receive funds, the whole call reverts.
+     *      The fallback recipient can always be updated to another address that can receive funds.
+     * @param recipients Group of addresses to receive rewards.
+     * @param weights Weights of each recipient in basis points.
+     */
+    function distributeRewards(address[] memory recipients, uint256[] memory weights) public nonReentrant {
+        if (recipients.length == 0) {
+            revert EmptyRecipients();
+        }
+
+        if (recipients.length != weights.length) {
+            revert InputLengthMismatch();
+        }
+
+        bytes32 recipientGroup = hashAddresses(recipients);
+        if (recipientGroup != currentRecipientGroup) {
+            revert InvalidRecipientGroup(currentRecipientGroup, recipientGroup);
+        }
+
+        bytes32 recipientWeights = hashWeights(weights);
+        if (recipientWeights != currentRecipientWeights) {
+            revert InvalidRecipientWeights(currentRecipientWeights, recipientWeights);
+        }
+
+        // calculate individual reward
+        uint256 rewards = address(token) == address(0) ? address(this).balance : token.balanceOf(address(this));
+        // the reminder will be kept in the contract
+        uint256 rewardPerBps = rewards / BASIS_POINTS;
+        if (rewardPerBps == 0) {
+            revert NoFundsToDistribute();
+        }
+        for (uint256 r; r < recipients.length; r = uncheckedInc(r)) {
+            uint256 individualRewards;
+            unchecked {
+                // we know weights <= BASIS_POINTS
+                individualRewards = rewardPerBps * weights[r];
+            }
+            // send the funds
+            // if the recipient reentry to steal funds, the contract will not have sufficient
+            // funds and revert when trying to send fund to the next recipient
+            // if the recipient is the last, it doesn't matter since there are no extra fund to steal
+            bool success;
+            if (address(token) == address(0)) {
+                // EIP-150 forwards at most 63/64 of the remaining gas, so the recipient is only
+                // offered the full PER_RECIPIENT_GAS if 64/63 of it remains. Without this check a
+                // caller can under-gas the call, fail an otherwise healthy recipient, and divert
+                // its share to the fallback recipient. We multiply by 1.05 for buffer.
+                if (gasleft() <= PER_RECIPIENT_GAS * 105 / 100) {
+                    revert InsufficientGas();
+                }
+                // assembly so the recipient's returndata is not copied into this contract's memory.
+                // memory is never freed, so copying would let the recipient group charge this call
+                // a cost quadratic in their combined returndata, exceeding the block gas limit.
+                address recipient = recipients[r];
+                assembly {
+                    success := call(PER_RECIPIENT_GAS, recipient, individualRewards, 0, 0, 0, 0)
+                }
+            } else {
+                // we assume that this will never revert, because we know we have enough token and the token is "normal"
+                token.safeTransfer(recipients[r], individualRewards);
+                success = true;
+            }
+
+            // if the funds failed to send we send them to the fallback recipient for safe keeping
+            // then the fallback recipient will have the opportunity to distribute them out of band
+            if (success) {
+                emit RecipientRecieved(recipients[r], individualRewards);
+            } else {
+                // this case will never be hit if we are using an ERC20 token
+                // cache fallbackRecipient in memory
+                address _fallbackRecipient = fallbackRecipient;
+                (bool fallbackSuccess,) = _fallbackRecipient.call{value: individualRewards}("");
+                // if this is the case then revert and sort it out
+                // it's important that this fail in order to preserve the accounting in this contract.
+                // if we dont fail here we enable a re-entrancy attack
+                if (!fallbackSuccess) {
+                    revert FallbackFailedRecieve(_fallbackRecipient, recipients[r], individualRewards);
+                }
+                emit FallbackRecieved(_fallbackRecipient, recipients[r], individualRewards);
+            }
+        }
+    }
+
+    /**
+     * @notice Validates and sets the group of recipient addresses. It is assumed that all recipients are able to receive eth
+     * @dev We enforce a max number of recipients to ensure the distribution of rewards fits within a block.
+     * @param recipients Group of addresses that will receive future rewards.
+     * @param weights Weights of each recipient in basis points.
+     */
+    function setRecipients(address[] memory recipients, uint256[] memory weights) private {
+        if (recipients.length == 0) {
+            revert EmptyRecipients();
+        }
+        if (recipients.length != weights.length) {
+            revert InputLengthMismatch();
+        }
+        if (recipients.length > MAX_RECIPIENTS) {
+            // it is expected that all sends may happen within the block gas limit
+            revert TooManyRecipients();
+        }
+
+        // validate that the total weight is 100%
+        uint256 totalWeight = 0;
+        for (uint256 i; i < weights.length; i = uncheckedInc(i)) {
+            totalWeight += weights[i];
+        }
+        if (totalWeight != BASIS_POINTS) {
+            revert InvalidTotalWeight(totalWeight);
+        }
+
+        // create a committment to the recipient group and update current
+        bytes32 recipientGroup = hashAddresses(recipients);
+        currentRecipientGroup = recipientGroup;
+
+        // create a committment to the recipient weights and update current
+        bytes32 recipientWeights = hashWeights(weights);
+        currentRecipientWeights = recipientWeights;
+
+        emit RecipientsUpdated(recipientGroup, recipients, recipientWeights, weights);
+    }
+
+    /// @notice Sets the address that will receive funds when a recipient cannot receive them.
+    /// @param _fallbackRecipient Address that will receive funds if a recipient cannot receive them.
+    function setFallbackRecipient(address _fallbackRecipient) public onlyOwner {
+        if (_fallbackRecipient == address(0)) {
+            revert EmptyFallbackRecipient();
+        }
+        fallbackRecipient = _fallbackRecipient;
+        emit FallbackRecipientUpdated(_fallbackRecipient);
+    }
+}
