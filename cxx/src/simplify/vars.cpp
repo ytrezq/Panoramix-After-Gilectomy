@@ -15,7 +15,8 @@
 //  2. backward, the variables live (read later on some path): a SETVAR of a
 //     variable no one reads after it dropped (python: kept only while the
 //     rest of the trace mentions it). Loops: at a CONTINUE / GOTO, every
-//     variable the loop reads anywhere is live.
+//     variable the loop reads anywhere is live. The reads are counted
+//     exactly: where a summary's list of variables was capped, its parts'.
 //
 // Sound by construction: a value replaces a variable only where the SETVAR
 // is the one that set it on every path, and nothing between changed what the
@@ -368,8 +369,44 @@ private:
         if (!s.var_reads.nil())
             for (Value v : s.var_reads.args()) live.add(index(v));
     }
-    // every variable v reads anywhere in it (lines, nested traces)
-    void add_reads_all(Value v, Live& live) { add_reads(summary(v), live); }
+    // every variable v reads anywhere in it (lines, nested traces) - the
+    // summary's list, or where that list was capped (past kMaxPlaces a
+    // summary reads variables "anywhere": a loop of 53 variables, a big
+    // branch) its parts', down to those whose list is whole: exact, as only
+    // the cap makes a summary read variables anywhere (a SETVAR's target, a
+    // precompile's or an internal call's results are no reads)
+    void add_reads_all(Value v, Live& live) {
+        const EffectSummary& s = summary(v);
+        if (!(s.reads & S_VARS)) return;
+        if (!(s.reads_any & S_VARS)) {
+            add_reads(s, live);
+            return;
+        }
+        MemoSet<Value> seen;
+        add_reads_parts(v, live, seen);
+    }
+    void add_reads_parts(Value v, Live& live, MemoSet<Value>& seen) {
+        const EffectSummary& s = summary(v);
+        if (!(s.reads & S_VARS)) return;
+        if (!(s.reads_any & S_VARS) || !(v.is_expr() || v.is_list())) {
+            add_reads(s, live);
+            return;
+        }
+        if (!seen.add(v)) return;
+        check_stack();
+        for (u32 i = 0; i < v.size(); ++i) {
+            if (v.is_expr() && is_target(v, i)) continue;
+            add_reads_parts(v[i], live, seen);
+        }
+    }
+    static bool is_target(Value line, u32 i) {
+        switch (line.op()) {
+            case Op::SETVAR: return i == 0;
+            case Op::PRECOMPILED: return i == 1;
+            case Op::INTERNAL: return i == 2;
+            default: return false;
+        }
+    }
     void kill_writes(const EffectSummary& s, Live& live) {
         if (!(s.writes & S_VARS) || (s.writes_any & S_VARS)) return;
         if (!s.var_writes.nil())
@@ -386,7 +423,7 @@ private:
         for (Value x : sv.args())
             if (x.is(Op::SETVAR, 2)) live.remove(index(x[0]));
         for (Value x : sv.args())
-            if (x.is(Op::SETVAR, 2)) add_reads(summary(x[1]), live);
+            if (x.is(Op::SETVAR, 2)) add_reads_all(x[1], live);
     }
 
     Value line(Value l, Live& live) {
@@ -401,7 +438,7 @@ private:
                     if (droppable) return Value();
                 }
                 live.remove(index(l[0]));
-                add_reads(summary(l[1]), live);
+                add_reads_all(l[1], live);
                 return l;
             }
             case Op::IF:
@@ -411,7 +448,7 @@ private:
                 Value e = l.size() > 2 ? walk(l[2], le) : Value();
                 live = lt;
                 if (l.size() > 2) live.unite(le);
-                add_reads(summary(l[0]), live);
+                add_reads_all(l[0], live);
                 SmallVec<Value, 3> a{l[0], t};
                 if (l.size() > 2) a.push_back(e);
                 Value r = mk_like(l, a.span());
@@ -461,7 +498,7 @@ private:
         const EffectSummary& s = summary(l);
         if (s.control & C_ENDS) live = Live{};
         kill_writes(s, live);
-        add_reads(s, live);
+        add_reads_all(l, live);
         return l;
     }
 

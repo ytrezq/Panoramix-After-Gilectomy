@@ -169,6 +169,27 @@ TEST_CASE("simplify: cleanup_vars inlines and drops") {
         S::cleanup_vars);
 }
 
+TEST_CASE("simplify: cleanup_vars drops what no line reads past a line of many variables") {
+    Fixture f;
+    // a line reading 40 variables (past the summaries' 32 places: "anywhere")
+    // and a loop reading them too: tmp100, read by neither, dropped - the
+    // reads counted exactly (a variable copied in the loop, kept)
+    std::string t = "{(setvar tmp100 (calldataload 68)) (setvar tmp101 (calldataload 100)) (if (calldataload 4) {";
+    for (int i = 1; i <= 40; ++i) t += "(setvar tmp" + std::to_string(i) + " " + std::to_string(i) + ") ";
+    t += "} {";
+    for (int i = 1; i <= 40; ++i) t += "(setvar tmp" + std::to_string(i) + " " + std::to_string(2 * i) + ") ";
+    std::string sum = "(add tmp101";
+    for (int i = 1; i <= 40; ++i) sum += " tmp" + std::to_string(i);
+    sum += ")";
+    t += "}) (while (lt loop0 2) {(setmem (range (mul 32 loop0) 32) (sized 32 " + sum +
+         ")) (continue loopid1 {(setvar loop0 (add 1 loop0))})} loopid1 {(setvar loop0 0)})"
+         " (return (data (mem (range 0 64)) (sized 32 " + sum + ")))}";
+    Value u = check_trace(t.c_str(), S::cleanup_vars);
+    CHECK_FALSE(contains(u, V("(setvar tmp100 (calldataload 68))")));
+    const bool kept_or_unread = contains(u, V("(setvar tmp101 (calldataload 100))")) || !contains(u, V("tmp101"));
+    CHECK(kept_or_unread);
+}
+
 TEST_CASE("simplify: cleanup_vars and loops (raw LABEL / GOTO)") {
     Fixture f;
     // a counter: the label's setvar not inlined into the loop
