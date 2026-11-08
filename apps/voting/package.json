@@ -1,0 +1,55 @@
+{
+  "name": "@aragon/apps-voting",
+  "version": "2.1.0",
+  "author": "Aragon Association <legal@aragon.org>",
+  "license": "(GPL-3.0-or-later OR AGPL-3.0-or-later)",
+  "contributors": [
+    "Jorge Izquierdo <jorge@aragon.one>",
+    "Pierre Bertet <pierre@aragon.one>",
+    "Oliver Nordbjerg <oliver@aragon.one>",
+    "Brett Sun <brett@aragon.one>"
+  ],
+  "files": [
+    "/abi",
+    "/arapp.json",
+    "/artifacts",
+    "/contracts",
+    "/test"
+  ],
+  "scripts": {
+    "postinstall": "patch-package",
+    "console": "hardhat console",
+    "compile": "hardhat compile --force",
+    "devchain": "hardhat node",
+    "build": "cd app && yarn install && yarn build",
+    "lint": "solium --dir ./contracts",
+    "test": "hardhat test",
+    "test:gas": "REPORT_GAS=true hardhat test --network hardhat",
+    "coverage": "hardhat coverage --testfiles test",
+    "abi:extract": "hardhat export-abi"
+  },
+  "dependencies": {
+    "@aragon/minime": "1.0.0",
+    "@aragon/os": "4.4.0"
+  },
+  "devDependencies": {
+    "@aragon/contract-helpers-test": "^0.1.0",
+    "@aragon/hardhat-aragon": "^1.0.0",
+    "@aragon/hardhat-config": "^1.0.1",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.10",
+    "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@nomiclabs/hardhat-etherscan": "^3.1.8",
+    "@nomiclabs/hardhat-ganache": "^2.0.1",
+    "@nomiclabs/hardhat-truffle5": "^2.0.5",
+    "@nomiclabs/hardhat-web3": "^2.0.0",
+    "chai": "^4.2.0",
+    "ethers": "^5.4.7",
+    "hardhat": "^2.22.2",
+    "hardhat-abi-exporter": "^2.8.0",
+    "hardhat-gas-reporter": "^2.1.1",
+    "patch-package": "^6.4.7",
+    "solidity-coverage": "^0.8.0",
+    "solium": "^1.2.5",
+    "web3": "^1.3.0"
+  }
+}
