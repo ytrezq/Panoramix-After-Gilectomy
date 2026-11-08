@@ -1,0 +1,98 @@
+// SPDX-License-Identifier: MIT
+pragma solidity =0.8.34;
+
+import {SettlerBase} from "../../SettlerBase.sol";
+import {Select} from "../../core/Select.sol";
+import {UniswapV3Fork} from "../../core/UniswapV3Fork.sol";
+
+import {IERC20} from "@forge-std/interfaces/IERC20.sol";
+import {FreeMemory} from "../../utils/FreeMemory.sol";
+import {FastLogic} from "../../utils/FastLogic.sol";
+
+import {ISettlerActions} from "../../ISettlerActions.sol";
+import {ISignatureTransfer} from "@permit2/interfaces/ISignatureTransfer.sol";
+import {revertUnknownForkId} from "../../core/SettlerErrors.sol";
+
+import {
+    uniswapV3AbstractFactory,
+    uniswapV3InitHashEraVm,
+    uniswapV3ForkId,
+    IUniswapV3Callback
+} from "../../core/univ3forks/UniswapV3.sol";
+import {aboreanCLSwapFactory, aboreanCLSwapInitHash, aboreanCLSwapForkId} from "../../core/univ3forks/AboreanCL.sol";
+
+// Solidity inheritance is stupid
+import {SettlerSwapAbstract} from "../../SettlerAbstract.sol";
+
+abstract contract AbstractMixin is FreeMemory, SettlerBase {
+    using FastLogic for bool;
+
+    constructor() {
+        assert(block.chainid == _chainId() || block.chainid == 31337);
+    }
+
+    function _chainId() internal pure override returns (uint256) {
+        return 2741;
+    }
+
+    function _dispatch(uint256 i, uint256 action, bytes calldata data, AllowedSlippage memory slippage)
+        internal
+        virtual
+        override(/* SettlerSwapAbstract, */ SettlerBase)
+        DANGEROUS_freeMemory
+        returns (bool)
+    {
+        if (super._dispatch(i, action, data, slippage)) {
+            return true;
+        } else {
+            return false;
+        }
+        return true;
+    }
+
+    function _isEraVmUniV3Fork(uint8 forkId) internal pure virtual override returns (bool) {
+        return (forkId == uniswapV3ForkId).or(forkId == aboreanCLSwapForkId);
+    }
+
+    function _uniV3ForkInfo(uint8 forkId)
+        internal
+        pure
+        override
+        returns (address factory, bytes32 initHash, uint32 callbackSelector)
+    {
+        if (forkId == uniswapV3ForkId) {
+            factory = uniswapV3AbstractFactory;
+            initHash = uniswapV3InitHashEraVm;
+            callbackSelector = uint32(IUniswapV3Callback.uniswapV3SwapCallback.selector);
+        } else if (forkId == aboreanCLSwapForkId) {
+            factory = aboreanCLSwapFactory;
+            initHash = aboreanCLSwapInitHash;
+            callbackSelector = uint32(IUniswapV3Callback.uniswapV3SwapCallback.selector);
+        } else {
+            revertUnknownForkId(forkId);
+        }
+    }
+}
+
+// `Select` is listed last so that candidate selection sits above the chain actions in the
+// linearization; see `Select`.
+abstract contract AbstractCommon is AbstractMixin, Select {
+    function _dispatch(uint256 i, uint256 action, bytes calldata data, AllowedSlippage memory slippage)
+        internal
+        virtual
+        override(AbstractMixin, Select)
+        returns (bool)
+    {
+        return super._dispatch(i, action, data, slippage);
+    }
+
+    function _isEraVmUniV3Fork(uint8 forkId)
+        internal
+        pure
+        virtual
+        override(AbstractMixin, UniswapV3Fork)
+        returns (bool)
+    {
+        return super._isEraVmUniV3Fork(forkId);
+    }
+}

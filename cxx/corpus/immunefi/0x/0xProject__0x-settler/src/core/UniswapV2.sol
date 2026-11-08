@@ -1,0 +1,135 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.25;
+
+import {fastGetToken} from "../utils/TokenGetter.sol";
+
+import {IERC20} from "@forge-std/interfaces/IERC20.sol";
+import "./Constants.sol" as Constants;
+import {Panic} from "../utils/Panic.sol";
+import {revertTooMuchSlippage} from "./SettlerErrors.sol";
+import {SafeTransferLib} from "../vendor/SafeTransferLib.sol";
+import {Ternary} from "../utils/Ternary.sol";
+import {SettlerSwapAbstract} from "../SettlerAbstract.sol";
+
+interface IUniV2Pair {
+    function token0() external view returns (address);
+
+    function token1() external view returns (address);
+
+    function getReserves() external view returns (uint112, uint112, uint32);
+
+    function swap(uint256, uint256, address, bytes calldata) external;
+}
+
+library FastUniswapV2Pool {
+    using Ternary for bool;
+
+    function fastGetReserves(address pool, bool zeroForOne)
+        internal
+        view
+        returns (uint256 sellReserve, uint256 buyReserve)
+    {
+        assembly ("memory-safe") {
+            mstore(0x00, 0x0902f1ac) // selector for `getReserves()`
+            if iszero(staticcall(gas(), pool, 0x1c, 0x04, 0x00, 0x40)) {
+                let ptr := mload(0x40)
+                returndatacopy(ptr, 0x00, returndatasize())
+                revert(ptr, returndatasize())
+            }
+            if lt(returndatasize(), 0x40) { revert(0x00, 0x00) }
+            let r := shl(0x05, iszero(zeroForOne))
+            sellReserve := mload(r)
+            buyReserve := mload(xor(0x20, r))
+        }
+    }
+
+    function fastToken0or1(address pool, bool zeroForOne) internal view returns (IERC20) {
+        return
+            fastGetToken(
+                pool, zeroForOne.ternary(uint32(IUniV2Pair.token1.selector), uint32(IUniV2Pair.token0.selector))
+            );
+    }
+
+    function fastSwap(address pool, bool zeroForOne, uint256 buyAmount, address recipient) internal {
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+
+            mstore(ptr, 0x022c0d9f) // selector for `swap(uint256,uint256,address,bytes)`
+            // set amount0Out and amount1Out
+            let buyAmountBaseOffset := add(0x20, ptr)
+            // If `zeroForOne`, buyAmount offset is 0x40, else 0x20
+            let directionOffset := shl(0x05, iszero(zeroForOne))
+            mstore(add(buyAmountBaseOffset, directionOffset), 0x00)
+            mstore(add(buyAmountBaseOffset, xor(0x20, directionOffset)), buyAmount)
+
+            mstore(add(0x60, ptr), and(0xffffffffffffffffffffffffffffffffffffffff, recipient))
+            mstore(add(0x80, ptr), 0x80) // offset to length of data
+            mstore(add(0xa0, ptr), 0x00) // length of data
+
+            // perform swap at the pool sending bought tokens to the recipient
+            if iszero(call(gas(), pool, 0x00, add(0x1c, ptr), 0xa4, 0x00, 0x00)) {
+                let ptr_ := mload(0x40)
+                returndatacopy(ptr_, 0x00, returndatasize())
+                revert(ptr_, returndatasize())
+            }
+        }
+    }
+}
+
+abstract contract UniswapV2 is SettlerSwapAbstract {
+    using SafeTransferLib for IERC20;
+    using FastUniswapV2Pool for address;
+
+    /// @dev Sell a token for another token using UniswapV2.
+    function sellToUniswapV2(
+        address recipient,
+        address sellToken,
+        uint256 ppm,
+        address pool,
+        uint24 swapInfo,
+        uint256 minBuyAmount
+    ) internal {
+        // Preventing calls to Permit2 or AH is not explicitly required as neither of these contracts implement the `swap` nor `transfer` selector
+
+        // |7|6|5|4|3|2|1|0| - bit positions in swapInfo (uint8)
+        // |0|0|0|0|0|0|F|Z| - Z: zeroForOne flag, F: sellTokenHasFee flag
+        bool zeroForOne = (swapInfo & 1) == 1; // Extract the least significant bit (bit 0)
+        bool sellTokenHasFee = (swapInfo & 2) >> 1 == 1; // Extract the second least significant bit (bit 1) and shift it right
+        uint256 feeBps = swapInfo >> 8;
+
+        uint256 sellAmount;
+        uint256 buyAmount;
+        // If ppm is zero we assume there are no funds within this contract, skip the updating sellAmount.
+        // This case occurs if the pool is being chained, in which the funds have been sent directly to the pool
+        if (ppm != 0) {
+            // We don't care about phantom overflow here because reserves are
+            // limited to 112 bits. Any token balance that would overflow here would
+            // also break UniV2.
+            // It is *possible* to set `ppm` above the basis and therefore
+            // cause an overflow on this multiplication. However, `ppm` is
+            // passed as authenticated calldata, so this is a GIGO error that we
+            // do not attempt to fix.
+            unchecked {
+                sellAmount = IERC20(sellToken).fastSpendableBalance() * ppm / Constants.BASIS;
+            }
+            _checkRecipient(address(this), pool, IERC20(sellToken));
+            IERC20(sellToken).safeTransfer(address(pool), sellAmount);
+        }
+        (uint256 sellReserve, uint256 buyReserve) = FastUniswapV2Pool.fastGetReserves(pool, zeroForOne);
+        if (sellAmount == 0 || sellTokenHasFee) {
+            uint256 bal = IERC20(sellToken).fastBalanceOf(pool);
+            sellAmount = bal - sellReserve;
+        }
+        unchecked {
+            uint256 sellAmountWithFee = sellAmount * (10_000 - feeBps);
+            buyAmount = (sellAmountWithFee * buyReserve) / (sellAmountWithFee + sellReserve * 10_000);
+        }
+        if (buyAmount < minBuyAmount) {
+            revertTooMuchSlippage(pool.fastToken0or1(zeroForOne), minBuyAmount, buyAmount);
+        }
+        _checkRecipient(
+            pool, recipient, _recipientCheckNeedsToken() ? pool.fastToken0or1(zeroForOne) : IERC20(address(0))
+        );
+        pool.fastSwap(zeroForOne, buyAmount, recipient);
+    }
+}

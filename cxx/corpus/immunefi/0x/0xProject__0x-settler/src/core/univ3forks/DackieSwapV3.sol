@@ -1,0 +1,8 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.25;
+
+address constant dackieSwapV3BaseFactory = 0x4f205D69834f9B101b9289F7AFFAc9B77B3fF9b7;
+address constant dackieSwapV3OptimismFactory = 0xa466ebCfa58848Feb6D8022081f1C21a884889bB;
+address constant dackieSwapV3ArbitrumFactory = 0xf79A36F6f440392C63AD61252a64d5d3C43F860D;
+address constant dackieSwapV3WorldChainFactory = 0xc6f3966E5D08Ced98aC30f8B65BeAB5882Be54C7;
+uint8 constant dackieSwapV3ForkId = 14;
