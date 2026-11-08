@@ -425,9 +425,9 @@ void Vm::emit(Value line, u32 pc) {
 // What the facts know of a SETMEM's bytes: its value - a copy of fewer than
 // 32 bytes of the calldata as the number it is (mem::as_word: CALLDATA_BYTES
 // (0, 4) is cd[0] >> 224, the selector Vyper 0.3.1's dispatcher copies to
-// mem[28] and reads as the word at 0), so that a selector test reads
-// through it - in the discovery, and in the run of a default function that
-// is all of the dispatcher, whose known selectors' tests then fail
+// mem[28] and reads as the word at 0), in every run: the discovery's tests
+// read the selector through it, and a default function that is all of the
+// dispatcher reads it the same way, its known selectors' tests failing there
 Value memory_fact(Value setmem) {
     const Value v = alg::fact_value(setmem[1]);
     const Value n = setmem[0][1];
