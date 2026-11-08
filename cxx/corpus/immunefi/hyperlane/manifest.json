@@ -368,338 +368,282 @@
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo",
      "url": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-     "commit": "69b5327a7c12a8de6214d32f9b3a7045db73951c",
-     "files": 405
+     "commit": "69b5327a7c12a8de6214d32f9b3a7045db73951c"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "52715a217dc51d0de15877878ab8213f6cbbbab5",
-     "files": 47
+     "commit": "52715a217dc51d0de15877878ab8213f6cbbbab5"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@arbitrum-nitro-contracts-1.2.1",
      "url": "https://github.com/OffchainLabs/nitro-contracts",
-     "commit": "399790bb6660486fadf958017efc4eec99be3dd2",
-     "files": 138
+     "commit": "399790bb6660486fadf958017efc4eec99be3dd2"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@arbitrum-nitro-contracts-1.2.1/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e",
-     "files": 40
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@arbitrum-nitro-contracts-1.2.1/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@chainlink-contracts-ccip-1.5.0",
      "url": "https://github.com/smartcontractkit/ccip",
-     "commit": "b5529a39311a2fd39cafceb62e4bb8f40eeb2e9e",
-     "files": 918
+     "commit": "b5529a39311a2fd39cafceb62e4bb8f40eeb2e9e"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@eth-optimism-contracts-0.6.0",
      "url": "https://github.com/ethereum-optimism/optimism",
-     "commit": "9d1be2dab809f5a80a3927ed84fd9cda49a82c47",
-     "files": 369
+     "commit": "9d1be2dab809f5a80a3927ed84fd9cda49a82c47"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@eth-optimism-contracts-0.6.0/l2geth/tests/testdata",
      "url": "https://github.com/ethereum/tests",
-     "commit": "ff68495eb56c382b2ddcea4020259e106353b874",
-     "files": 6
+     "commit": "ff68495eb56c382b2ddcea4020259e106353b874"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@eth-optimism-contracts-0.6.0/packages/contracts-periphery/lib/multicall",
      "url": "https://github.com/mds1/multicall",
-     "commit": "a1fa0644fa412cd3237ef7081458ecb2ffad7dbe",
-     "files": 12
+     "commit": "a1fa0644fa412cd3237ef7081458ecb2ffad7dbe"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@eth-optimism-contracts-0.6.0/packages/contracts-periphery/lib/multicall/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248",
-     "files": 4
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@eth-optimism-contracts-0.6.0/packages/contracts-periphery/lib/multicall/lib/forge-std",
      "url": "https://github.com/brockelmore/forge-std",
-     "commit": "bab506ddaa6949efa64d47222a1a1d9d608fa006",
-     "files": 8
+     "commit": "bab506ddaa6949efa64d47222a1a1d9d608fa006"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@eth-optimism-contracts-0.6.0/packages/contracts-periphery/lib/multicall/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248",
-     "files": 4
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@openzeppelin-contracts-4.9.3",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "fd81a96f01cc42ef1c9a5399364968d0e07e9e90",
-     "files": 294
+     "commit": "fd81a96f01cc42ef1c9a5399364968d0e07e9e90"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@openzeppelin-contracts-4.9.3/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
-     "files": 39
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@openzeppelin-contracts-4.9.3/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-     "files": 6
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@openzeppelin-contracts-4.9.3/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@openzeppelin-contracts-upgradeable-4.9.3",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "3d4c0d5741b131c231e558d7a6213392ab3672a5",
-     "files": 290
+     "commit": "3d4c0d5741b131c231e558d7a6213392ab3672a5"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@openzeppelin-contracts-upgradeable-4.9.3/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
-     "files": 39
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@openzeppelin-contracts-upgradeable-4.9.3/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-     "files": 6
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@openzeppelin-contracts-upgradeable-4.9.3/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2",
      "url": "https://github.com/predicatelabs/predicate-contracts",
-     "commit": "v2.2.2",
-     "files": 30
+     "commit": "v2.2.2"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/solmate",
      "url": "https://github.com/transmissions11/solmate",
-     "commit": "97bdb2003b70382996a79a406813f76417b1cf90",
-     "files": 63
+     "commit": "97bdb2003b70382996a79a406813f76417b1cf90"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/solmate/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e",
-     "files": 40
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-foundry-upgrades",
      "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
-     "commit": "326d96b5d9b5fa87b8cdb734f02a8f73324dad3e",
-     "files": 57
+     "commit": "326d96b5d9b5fa87b8cdb734f02a8f73324dad3e"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-foundry-upgrades/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66",
-     "files": 47
+     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "fa525310e45f91eb20a6d3baa2644be8e0adba31",
-     "files": 205
+     "commit": "fa525310e45f91eb20a6d3baa2644be8e0adba31"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce",
-     "files": 45
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "69c8def5f222ff96f2b5beff05dfba996368aa79",
-     "files": 306
+     "commit": "69c8def5f222ff96f2b5beff05dfba996368aa79"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce",
-     "files": 45
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527",
-     "files": 322
+     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa",
-     "files": 47
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/@predicate-contracts-2.2.2/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/layerzero-v2-2.0.2",
      "url": "https://github.com/LayerZero-Labs/LayerZero-v2",
-     "commit": "9c741e7f9790639537b1710a203bcdfd73b0b9ac",
-     "files": 250
+     "commit": "9c741e7f9790639537b1710a203bcdfd73b0b9ac"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/layerzero-v2-2.0.2/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "2f112697506eab12d433a65fdc31a639548fe365",
-     "files": 45
+     "commit": "2f112697506eab12d433a65fdc31a639548fe365"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/layerzero-v2-2.0.2/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/permit2-1.0.0",
      "url": "https://github.com/Uniswap/permit2",
-     "commit": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219",
-     "files": 63
+     "commit": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/permit2-1.0.0/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "66bf4e2c92cf507531599845e8d5a08cc2e3b5bb",
-     "files": 40
+     "commit": "66bf4e2c92cf507531599845e8d5a08cc2e3b5bb"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/permit2-1.0.0/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/permit2-1.0.0/lib/solmate",
      "url": "https://github.com/rari-capital/solmate",
-     "commit": "8d910d876f51c3b2585c9109409d601f600e68e1",
-     "files": 60
+     "commit": "8d910d876f51c3b2585c9109409d601f600e68e1"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/permit2-1.0.0/lib/solmate/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5",
-     "files": 4
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/permit2-1.0.0/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "d3ff81b37f3c773b44dcaf5fda212c7176eef0e2",
-     "files": 281
+     "commit": "d3ff81b37f3c773b44dcaf5fda212c7176eef0e2"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/permit2-1.0.0/lib/forge-gas-snapshot",
      "url": "https://github.com/marktoda/forge-gas-snapshot",
-     "commit": "3c5d52a26169876a144f7690d2f9ef0200eb0791",
-     "files": 7
+     "commit": "3c5d52a26169876a144f7690d2f9ef0200eb0791"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/permit2-1.0.0/lib/forge-gas-snapshot/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "2c7cbfc6fbede6d7c9e6b17afe997e3fdfe22fef",
-     "files": 14
+     "commit": "2c7cbfc6fbede6d7c9e6b17afe997e3fdfe22fef"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/permit2-1.0.0/lib/forge-gas-snapshot/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5",
-     "files": 4
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/wormhole-solidity-sdk-1.1.0",
      "url": "https://github.com/wormhole-foundation/wormhole-solidity-sdk",
-     "commit": "d80e0f6cd16f281f3f9df435e98e823b4212b2ad",
-     "files": 95
+     "commit": "d80e0f6cd16f281f3f9df435e98e823b4212b2ad"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/wormhole-solidity-sdk-1.1.0/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e",
-     "files": 40
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
     },
     {
      "prefix": "hyperlane-xyz__hyperlane-monorepo/solidity/dependencies/wormhole-solidity-sdk-1.1.0/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ]
   }
