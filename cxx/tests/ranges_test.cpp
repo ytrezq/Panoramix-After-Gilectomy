@@ -946,6 +946,30 @@ TEST_CASE("ranges: variables set in one state, read in another, by sampling") {
     MESSAGE("variables across states: ", decided, " of ", total, " decided");
 }
 
+TEST_CASE("ranges: path facts are hash-consed - the same facts in the same order are the same cells") {
+    Fixture f;
+    const Value x = V("(calldataload 4)"), s = V("(storage 256 0 1)");
+    const Value lt100 = A::cmp(Op::LT, x, mk_int(100));
+    const A::Facts a = A::Facts().with_cond(lt100).with_floor(64, mk_int(128));
+    const A::Facts b = A::Facts().with_cond(lt100).with_floor(64, mk_int(128));
+    // two lists made the same way: one list (its identity, a memo's key)
+    CHECK(a.identity() == b.identity());
+    CHECK(a == b);
+    // a list rebuilt to what it was (a floor moved and moved back): the same
+    const A::Facts c = a.with_floor(64, mk_int(160)).with_floor(64, mk_int(128));
+    CHECK(c.identity() == a.identity());
+    // a rewrite that drops a newer fact: the older ones' list
+    CHECK(a.with_cond(s).forget(A::Forget::Storage).identity() == a.identity());
+    CHECK(a.with_floor(96, mk_int(160)).without_floor(96).identity() == a.identity());
+    // other facts, or the same in another order: another list
+    CHECK(a.with_cond(s).identity() != a.identity());
+    CHECK(A::Facts().with_floor(64, mk_int(128)).with_cond(lt100).identity() != a.identity());
+    CHECK(a.with_floor(64, mk_int(129)).identity() != a.identity());
+    // what a cell keeps of its fact (a condition's bounds) is the fact's
+    CHECK(c.bounds(x) == A::Range::of(EvmInt(0), EvmInt(99)));
+    CHECK(c.floor_of(64) == mk_int(128));
+}
+
 TEST_CASE("ranges: long paths of facts") {
     Fixture f;
     // 300 conditions on 300 words (a long path: the index of the bounds)

@@ -65,9 +65,12 @@ std::optional<u64> word_at(Value range) {
 struct FloorScopes final : ModuleState {
     struct Scope {
         std::vector<u64> words;  // sorted
-        u64 id = 0;              // a hash of them (not 0)
+        u64 id = 0;              // 1 + the place of these words in `seen`
     };
     std::vector<Scope> stack;
+    // the word sets the scopes had on this context, each once (a scope's id
+    // names its set exactly: the memos keyed by it)
+    std::vector<std::vector<u64>> seen;
     // (plain addresses: nothing to move when the context compacts)
     bool compact_prepare(Importer&) override { return true; }
 };
@@ -115,9 +118,6 @@ void scope_of(Value trace, FloorScopes::Scope& out) {
     for (const auto& [a, x] : written)
         if (!x.nil() && !x.is_int() && words.add(a + 1)) out.words.push_back(a);
     std::sort(out.words.begin(), out.words.end());
-    u64 h = 0x9e3779b97f4a7c15ull;
-    for (u64 w : out.words) h = map_hash(h ^ (w * 0xff51afd7ed558ccdull));
-    out.id = h | 1;
 }
 
 // v reads the node n (hash-consed: one node per value)
@@ -366,15 +366,31 @@ bool dies(Value v) {
     return (c & C_ENDS) && !(c & (C_JUMPS | C_UNDEFINED));
 }
 
-// the conditions of c that s doesn't change (the other facts as they are)
-alg::Facts kept_conds(const alg::Facts& c, const EffectSummary& s) {
+// kept_conditions' results by (the line, the facts' identity): a function
+// of the facts' content and the line's summary (the caches cleared with the
+// variables, the state dropped with the arena's cells at a compaction)
+struct KeptCondsState final : ModuleState {
+    Memo<Key2, alg::Facts> memo;
+    void clear_caches() override { memo.clear(); }
+};
+
+}  // namespace
+
+alg::Facts kept_conditions(const alg::Facts& c, Value l) {
+    const EffectSummary& s = summary(l);
     if (c.empty() || !s.writes) return c;
+    const Key2 key{l.raw(), c.identity()};
+    if (const alg::Facts* r = cx().state<KeptCondsState>().memo.find(key)) return *r;
     SmallVec<alg::Fact, 32> v, k;
     c.to_vector(v);
     for (const alg::Fact& f : v)
         if (f.kind != alg::FactKind::Cond || !changes(s, summary(f.a))) k.push_back(f);
-    return k.size() == v.size() ? c : alg::Facts::from(std::span<const alg::Fact>(k.data(), k.size()));
+    const alg::Facts r = k.size() == v.size() ? c : alg::Facts::from(std::span<const alg::Fact>(k.data(), k.size()));
+    cx().state<KeptCondsState>().memo.put(key, r);
+    return r;
 }
+
+namespace {
 
 // The lines of t (a loop's body) with the conditions that hold before each
 // on its path - the IFs' conditions in their branches, after an IF the one
@@ -394,21 +410,21 @@ bool cond_walk(Value t, bool cont, alg::Facts conds, F& visit) {
             if (!(cont && dies(l[1])) && !cond_walk(l[1], cont, conds.with(c, true), visit)) return false;
             if (!(cont && dies(l[2])) && !cond_walk(l[2], cont, conds.with(c, false), visit)) return false;
             const bool t_ends = ends(l[1]), e_ends = ends(l[2]);
-            alg::Facts after = kept_conds(conds, summary(l));
+            alg::Facts after = kept_conditions(conds, l);
             if (t_ends && !e_ends && !changes(summary(l[2]), summary(c)))
                 after = after.with(c, false);
             else if (e_ends && !t_ends && !changes(summary(l[1]), summary(c)))
                 after = after.with(c, true);
             conds = after;
         } else if (l.is(Op::WHILE, 4)) {
-            const alg::Facts in = kept_conds(conds, summary(l));
+            const alg::Facts in = kept_conditions(conds, l);
             if (!cond_walk(l[1], cont, in.with(l[0], true), visit)) return false;
             conds = in;
         } else if (l.is(Op::LOOP_PATH)) {
             if (!cond_walk(l[0], cont, alg::Facts{}, visit)) return false;
-            conds = kept_conds(conds, summary(l));
+            conds = kept_conditions(conds, l);
         } else {
-            conds = kept_conds(conds, summary(l));
+            conds = kept_conditions(conds, l);
         }
     }
     return true;
@@ -468,56 +484,71 @@ const LoopInfo& loop_info(Value loop_line, const loops::LoopSummary& ls) {
     const Value id = loop_line[2], body = loop_line[1];
     // the rising variables: those the CONTINUEs of the loop (any path that
     // gets back to its head: all of them) step up
-    if (!ls.stepped.nil()) {
-        SmallVec<Value, 8> cand(ls.stepped.args());
-        SmallVec<u8, 8> ok;
-        for (usize i = 0; i < cand.size(); ++i) ok.push_back(1);
-        bool any_cont = false;
+    const bool rising = !ls.stepped.nil();
+    SmallVec<Value, 8> cand;
+    SmallVec<u8, 8> ok;
+    if (rising)
+        for (Value v : ls.stepped.args()) {
+            cand.push_back(v);
+            ok.push_back(1);
+        }
+    bool any_cont = false;
+    auto visit_rising = [&](Value l, const alg::Facts& conds) {
+        if (!l.is(Op::CONTINUE, 2) || l[0] != id) return true;
+        any_cont = true;
+        for (usize i = 0; i < cand.size(); ++i) {
+            if (!ok[i]) continue;
+            Value next;
+            if (l[1].is_list())
+                for (Value x : l[1].args())
+                    if (x.is(Op::SETVAR, 2) && x[0] == cand[i]) next = x[1];
+            if (next.nil()) continue;  // (left as it is there)
+            const Value d = alg::from_linear(alg::linear_diff(next, cand[i]));
+            if (contains(d, cand[i]) || !never_down(d, conds)) ok[i] = 0;
+        }
+        return true;
+    };
+    // the growing words, on all the paths (c = 0) and on those that go on
+    // (c = 1)
+    const bool grows = summary(body).writes & S_MEM;
+    SmallVec<u64, 4> good[2], bad[2];
+    auto visit_grows = [&](int c, Value l, const alg::Facts& conds) {
+        if (!l.is(Op::SETMEM, 2)) return true;
+        auto a = word_at(l[0]);
+        if (!a) return true;
+        if (std::find(bad[c].begin(), bad[c].end(), *a) != bad[c].end()) return true;
+        const Value step = allocation_step(l, *a);
+        if (step.nil() || !never_down(step, conds)) {
+            bad[c].push_back(*a);
+            SmallVec<u64, 4> rest;
+            for (u64 g : good[c])
+                if (g != *a) rest.push_back(g);
+            good[c] = rest;
+        } else if (std::find(good[c].begin(), good[c].end(), *a) == good[c].end()) {
+            good[c].push_back(*a);
+        }
+        return true;
+    };
+    // (the rising variables' walk and the growing words' on all the paths
+    // are the same walk - every path, from the loop's condition: one walk
+    // visits each line for both)
+    if (rising || grows) {
         auto visit = [&](Value l, const alg::Facts& conds) {
-            if (!l.is(Op::CONTINUE, 2) || l[0] != id) return true;
-            any_cont = true;
-            for (usize i = 0; i < cand.size(); ++i) {
-                if (!ok[i]) continue;
-                Value next;
-                if (l[1].is_list())
-                    for (Value x : l[1].args())
-                        if (x.is(Op::SETVAR, 2) && x[0] == cand[i]) next = x[1];
-                if (next.nil()) continue;  // (left as it is there)
-                const Value d = alg::from_linear(alg::linear_diff(next, cand[i]));
-                if (contains(d, cand[i]) || !never_down(d, conds)) ok[i] = 0;
-            }
+            if (rising) visit_rising(l, conds);
+            if (grows) visit_grows(0, l, conds);
             return true;
         };
         (void)cond_walk(body, false, alg::Facts{}.with(loop_line[0], true), visit);
-        if (any_cont)
-            for (usize i = 0; i < cand.size(); ++i)
-                if (ok[i]) info.rising.push_back(cand[i]);
     }
-    // the growing words
-    if (summary(body).writes & S_MEM) {
-        for (int c = 0; c < 2; ++c) {
-            SmallVec<u64, 4> good, bad;
-            auto visit = [&](Value l, const alg::Facts& conds) {
-                if (!l.is(Op::SETMEM, 2)) return true;
-                auto a = word_at(l[0]);
-                if (!a) return true;
-                if (std::find(bad.begin(), bad.end(), *a) != bad.end()) return true;
-                const Value step = allocation_step(l, *a);
-                if (step.nil() || !never_down(step, conds)) {
-                    bad.push_back(*a);
-                    SmallVec<u64, 4> rest;
-                    for (u64 g : good)
-                        if (g != *a) rest.push_back(g);
-                    good = rest;
-                } else if (std::find(good.begin(), good.end(), *a) == good.end()) {
-                    good.push_back(*a);
-                }
-                return true;
-            };
-            (void)cond_walk(body, c == 1, alg::Facts{}.with(loop_line[0], true), visit);
-            info.grows[c] = good;
-        }
+    if (grows) {
+        auto visit = [&](Value l, const alg::Facts& conds) { return visit_grows(1, l, conds); };
+        (void)cond_walk(body, true, alg::Facts{}.with(loop_line[0], true), visit);
+        info.grows[0] = good[0];
+        info.grows[1] = good[1];
     }
+    if (rising && any_cont)
+        for (usize i = 0; i < cand.size(); ++i)
+            if (ok[i]) info.rising.push_back(cand[i]);
     st.infos.push_back(info);
     st.index.put(loop_line, u32(st.infos.size()));
     return st.infos.back();
@@ -525,8 +556,35 @@ const LoopInfo& loop_info(Value loop_line, const loops::LoopSummary& ls) {
 
 }  // namespace
 
+namespace {
+
+// floor_transfer's results by (the line, the facts' identity, the scope):
+// what it decides reads nothing else - the facts' content (the floors, and
+// the conditions the decisions about positions read), the line, the words
+// the scope gives floors, the algebra's variables (fixed for a run: the
+// caches are cleared with them); the results' cells live until the context
+// compacts, which drops the state
+struct FloorTransferState final : ModuleState {
+    Memo<Key3, alg::Facts> memo;
+    void clear_caches() override { memo.clear(); }
+};
+
+alg::Facts transfer(const alg::Facts& facts, Value line);
+
+}  // namespace
+
 alg::Facts floor_transfer(const alg::Facts& facts, Value line) {
     if (!line.is_expr()) return facts;
+    const Key3 key{line.raw(), facts.identity(), scope_id()};
+    if (const alg::Facts* r = cx().state<FloorTransferState>().memo.find(key)) return *r;
+    const alg::Facts r = transfer(facts, line);
+    cx().state<FloorTransferState>().memo.put(key, r);
+    return r;
+}
+
+namespace {
+
+alg::Facts transfer(const alg::Facts& facts, Value line) {
     if (line.is(Op::SETMEM, 2)) {
         // (one write, evaluated before it: decided with the facts before it)
         const Value range = line[0];
@@ -566,6 +624,8 @@ alg::Facts floor_transfer(const alg::Facts& facts, Value line) {
     const EffectSummary& s = summary(line);
     return stable_floors(facts, s, s.mem_writes, s.writes_any & S_MEM);
 }
+
+}  // namespace
 
 alg::Facts floor_join(const alg::Facts& into, const alg::Facts& before, const alg::Facts& then_facts,
                       const alg::Facts& else_facts) {
@@ -676,7 +736,7 @@ public:
                     const bool t_on = tg && !ends(l[1]), e_on = eg && !ends(l[2]);
                     if (!t_on && !e_on) return false;
                     if (t_on && e_on) {
-                        f = floor_join(kept_conds(f, summary(l)), f, ft, fe);
+                        f = floor_join(kept_conditions(f, l), f, ft, fe);
                         SmallVec<Value, 16> both;
                         for (Value n : st)
                             if (std::find(se.begin(), se.end(), n) != se.end()) both.push_back(n);
@@ -692,7 +752,7 @@ public:
                 }
                 case Op::WHILE: {
                     reads(l, set);
-                    const alg::Facts h = floor_loop(kept_conds(f, summary(l)), l);
+                    const alg::Facts h = floor_loop(kept_conditions(f, l), l);
                     check(h);
                     f = h;
                     const loops::LoopSummary& ns = loops::summary(l);
@@ -751,7 +811,7 @@ private:
     // the facts after a line l: its floors moved (floor.hpp), the conditions
     // it may change dropped (the same facts when neither changes)
     static alg::Facts after_line(const alg::Facts& f, Value l) {
-        const alg::Facts nf = floor_transfer(f, l), kc = kept_conds(f, summary(l));
+        const alg::Facts nf = floor_transfer(f, l), kc = kept_conditions(f, l);
         if (nf.identity() == f.identity()) return kc;
         if (kc.identity() == f.identity()) return nf;  // (floor_transfer keeps the other facts)
         return floors_from(kc, nf);
@@ -1113,8 +1173,14 @@ alg::Facts floor_walk(const alg::Facts& facts, Value v) {
 FloorScope::FloorScope(Value trace) {
     FloorScopes::Scope sc;
     if (trace.is_list()) scope_of(trace, sc);
-
-    cx().state<FloorScopes>().stack.push_back(std::move(sc));
+    FloorScopes& s = cx().state<FloorScopes>();
+    auto it = std::find(s.seen.begin(), s.seen.end(), sc.words);
+    if (it == s.seen.end()) {
+        s.seen.push_back(sc.words);
+        it = s.seen.end() - 1;
+    }
+    sc.id = u64(it - s.seen.begin()) + 1;
+    s.stack.push_back(std::move(sc));
 }
 
 FloorScope::~FloorScope() {

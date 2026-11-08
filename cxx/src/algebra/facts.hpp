@@ -10,10 +10,14 @@
 // Persistent and cheap to copy: a list of cells in the context's arena, the
 // newest first; a child path adds a fact in O(1) and shares the rest with
 // its parent; a rewrite (forget, a memory write over known facts) rebuilds
-// the list. Each condition is read once when added: its negation and the
-// bound it puts on what it compares with a constant (x < 10: x in [0, 9])
-// are kept beside it, for is_known and the ranges (ranges.hpp: a Facts*
-// narrows the range of every expression a fact bounds).
+// the list. The cells are hash-consed per context (a fact on a given list is
+// one cell): two lists of the same facts in the same order made on it are
+// the same cells - the memos keyed by a list's identity see a list rebuilt
+// the same as the same facts. Each condition is read once when added: its
+// negation and the bound it puts on what it compares with a constant (x <
+// 10: x in [0, 9]) are kept beside it, for is_known and the ranges
+// (ranges.hpp: a Facts* narrows the range of every expression a fact
+// bounds).
 //
 // (The API of lot 5's first src/vm/facts.hpp, which this replaces, kept.)
 #pragma once
@@ -94,8 +98,10 @@ public:
 
     bool empty() const noexcept { return head_ == nullptr; }
     u32 size() const noexcept { return n_; }
-    // the list's identity (its newest cell): the same facts while it is the
-    // same - a memo's key, until the context compacts
+    // the list's identity (its newest cell): the same identity, the same
+    // facts in the same order (and the cells being hash-consed, a list
+    // rebuilt with the facts it had has its identity) - a memo's key, until
+    // the context compacts
     u64 identity() const noexcept { return u64(reinterpret_cast<uintptr_t>(head_)); }
 
     // --- adding ---
@@ -228,11 +234,14 @@ private:
         // a condition's bounds (cond_bounds), in the arena
         const CondBound* b;
         u32 nb;
+        // the context's other cells of the same intern key (cons)
+        const Cell* alt;
     };
     // (resolve: an OR fact's operand known where its others are 0 - one level)
     Tri match_all(Value cond, bool resolve = true) const;
-    // a cell for f; its bounds computed, or taken from a cell of the same
-    // fact (a rebuild)
+    // the cell of f on the list next: the context's one when it has it
+    // (hash-consed), else a new one - its bounds computed, or taken from a
+    // cell of the same fact (a rebuild)
     static const Cell* cons(const Fact& f, const Cell* next, const Cell* same = nullptr);
     // the list rebuilt from cells (oldest first), their bounds kept
     static Facts from_cells(std::span<const Cell* const> oldest_first);
