@@ -67,44 +67,37 @@
     {
      "prefix": "berachain__contracts",
      "url": "https://github.com/berachain/contracts",
-     "commit": "70e392fc83deec6a34bd11613f2a446eb6266588",
-     "files": 321
+     "commit": "70e392fc83deec6a34bd11613f2a446eb6266588"
     },
     {
      "prefix": "berachain__contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66",
-     "files": 47
+     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66"
     },
     {
      "prefix": "berachain__contracts/lib/solady",
      "url": "https://github.com/Vectorized/solady",
-     "commit": "d223d4347d0866cc7692747edf9c8a7be0d3d047",
-     "files": 215
+     "commit": "d223d4347d0866cc7692747edf9c8a7be0d3d047"
     },
     {
      "prefix": "berachain__contracts/lib/openzeppelin-foundry-upgrades",
      "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
-     "commit": "453d9ff3591cb42f65d2281ea792aded95d7bd8c",
-     "files": 55
+     "commit": "453d9ff3591cb42f65d2281ea792aded95d7bd8c"
     },
     {
      "prefix": "berachain__contracts/lib/openzeppelin-foundry-upgrades/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "b6a506db2262cad5ff982a87789ee6d1558ec861",
-     "files": 47
+     "commit": "b6a506db2262cad5ff982a87789ee6d1558ec861"
     },
     {
      "prefix": "berachain__contracts/lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils",
      "url": "https://github.com/Arachnid/solidity-stringutils",
-     "commit": "4b2fcc43fa0426e19ce88b1f1ec16f5903a2e461",
-     "files": 7
+     "commit": "4b2fcc43fa0426e19ce88b1f1ec16f5903a2e461"
     },
     {
      "prefix": "berachain__contracts/lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248",
-     "files": 4
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
     }
    ]
   },
@@ -218,98 +211,82 @@
     {
      "prefix": "berachain__airdrop-contracts",
      "url": "https://github.com/berachain/airdrop-contracts",
-     "commit": "dda56c53f8716b98978cee0f014a32e5b6195946",
-     "files": 28
+     "commit": "dda56c53f8716b98978cee0f014a32e5b6195946"
     },
     {
      "prefix": "berachain__airdrop-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
-     "files": 43
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
     },
     {
      "prefix": "berachain__airdrop-contracts/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527",
-     "files": 322
+     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527"
     },
     {
      "prefix": "berachain__airdrop-contracts/lib/solady",
      "url": "https://github.com/vectorized/solady",
-     "commit": "5dd6f93498b8ebdc9d72194cfa680a90b738e1ad",
-     "files": 259
+     "commit": "5dd6f93498b8ebdc9d72194cfa680a90b738e1ad"
     },
     {
      "prefix": "berachain__airdrop-contracts/lib/devtools",
      "url": "https://github.com/LayerZero-Labs/devtools",
-     "commit": "43425da932338c83a7d0155dfcc4e82f89650e7f",
-     "files": 354
+     "commit": "43425da932338c83a7d0155dfcc4e82f89650e7f"
     },
     {
      "prefix": "berachain__airdrop-contracts/lib/layerzero-v2",
      "url": "https://github.com/LayerZero-Labs/layerzero-v2",
-     "commit": "a3637f851ab1b987bff9fb3db31bf40a59ac374b",
-     "files": 218
+     "commit": "a3637f851ab1b987bff9fb3db31bf40a59ac374b"
     },
     {
      "prefix": "berachain__airdrop-contracts/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa",
-     "files": 47
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
     },
     {
      "prefix": "berachain__airdrop-contracts/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "berachain__airdrop-contracts/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "berachain__airdrop-contracts/lib/layerzero-v2/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "2f112697506eab12d433a65fdc31a639548fe365",
-     "files": 45
+     "commit": "2f112697506eab12d433a65fdc31a639548fe365"
     },
     {
      "prefix": "berachain__airdrop-contracts/lib/devtools/tests-user/lib/bats-core",
      "url": "https://github.com/bats-core/bats-core",
-     "commit": "3d3f63d9772b98c88586ec0a66bd358a85d9b4a6",
-     "files": 14
+     "commit": "3d3f63d9772b98c88586ec0a66bd358a85d9b4a6"
     },
     {
      "prefix": "berachain__airdrop-contracts/lib/devtools/tests-user/lib/bats-support",
      "url": "https://github.com/bats-core/bats-support",
-     "commit": "9bf10e876dd6b624fe44423f0b35e064225f7556",
-     "files": 2
+     "commit": "9bf10e876dd6b624fe44423f0b35e064225f7556"
     },
     {
      "prefix": "berachain__airdrop-contracts/lib/devtools/tests-user/lib/bats-assert",
      "url": "https://github.com/bats-core/bats-assert",
-     "commit": "e2d855bc78619ee15b0c702b5c30fb074101159f",
-     "files": 2
+     "commit": "e2d855bc78619ee15b0c702b5c30fb074101159f"
     },
     {
      "prefix": "berachain__airdrop-contracts/lib/devtools/packages/toolbox-foundry/src/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "051fb65fc46013dff64e46ca410445d63ea5620a",
-     "files": 47
+     "commit": "051fb65fc46013dff64e46ca410445d63ea5620a"
     },
     {
      "prefix": "berachain__airdrop-contracts/lib/devtools/packages/toolbox-foundry/src/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "berachain__airdrop-contracts/lib/layerzero-v2/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ]
   }
