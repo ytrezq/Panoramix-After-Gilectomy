@@ -34,7 +34,9 @@ takes - tests, scripts, proofs and the like left out), with:
     release they allow - for pragmas open above (>= only) the one most of
     the project's other sources get (unless the code is an old compiler's),
     else the oldest they allow: the sources are compiled in groups of one
-    compiler;
+    compiler (a group that fails compiled again without the sources its
+    errors reach - those with an error and those importing them - or, when
+    the errors say no source, by halves);
   - optimizer: the profile's optimizer / optimizer_runs / via_ir (auto; no
     viaIR before solc 0.8.13, as forge does), or on with 200 runs, or off,
     or both;
@@ -45,7 +47,8 @@ takes - tests, scripts, proofs and the like left out), with:
     (evm_version) when its code needs a newer one.
 Vyper sources (.vy): compiled one by one by the Vyper their `# @version` /
 `#pragma version` names (pip, a virtualenv per version under the cache), for
-each EVM version that Vyper knows.
+each EVM version asked that Vyper knows (with --fallback-evm, when it knows
+none of them, the newest of those it knows).
 
 Output, OUT/SLUG/OWNER__NAME/PROJECT/ (PROJECT/@PROFILE/ for a profile's):
   COMPILER-EVM[-noopt][-ir]/FILE:CONTRACT.hex   runtime bytecode (hex), the
@@ -747,12 +750,15 @@ def resolve(imp, src_file, project, remaps, repo):
     return os.path.normpath(imp)
 
 
-def find(path, project, repo):
-    for base in (project, os.path.join(project, 'node_modules'), repo, os.path.join(repo, 'node_modules')):
+def find(path, project, repo, which=False):
+    """where a source unit name is: the project's directory, its
+    node_modules/, the repository's directory, its node_modules/ (with
+    which, also the index of the one: 0 to 3)"""
+    for i, base in enumerate((project, os.path.join(project, 'node_modules'), repo, os.path.join(repo, 'node_modules'))):
         p = os.path.join(base, path)
         if os.path.exists(p):
-            return p
-    return None
+            return (p, i) if which else p
+    return (None, None) if which else None
 
 
 def pragmas(entry, project, remaps, repo, cache):
@@ -798,11 +804,13 @@ def link(code):
 
 
 def build_solc(solc, version, group, project, repo, remaps, cfg, evm, opt, via_ir, outdir, timeout,
-               outside=(True, True)):
-    """one compilation (standard JSON); outside: whether the sources import
-    files outside the project, of the repository's node_modules/ and of the
-    repository's own (that directory an include path then - only then: a
-    file found twice is an ambiguous import)"""
+               outside=(True, True, frozenset())):
+    """one compilation (standard JSON): (artifacts, errors, the sources the
+    errors are in). outside: whether the sources import files outside the
+    project, of the repository's node_modules/ and of the repository's own
+    (that directory an include path then - only then: a file found twice is
+    an ambiguous import; before 0.8.8, which has no include paths, the
+    directories of the repository they import from remapped)"""
     sources = {f: {'urls': [f]} for f in group}
     settings = {
         'remappings': [('%s:%s=%s' if c else '%s%s=%s') % (c, k, v) for c, k, v in remaps],
@@ -836,6 +844,10 @@ def build_solc(solc, version, group, project, repo, remaps, cfg, evm, opt, via_i
                     if pkg + '/' not in taken and os.path.isdir(os.path.join(top, pkg)):
                         taken.add(pkg + '/')
                         settings['remappings'].append('%s/=%s/' % (pkg, os.path.normpath(os.path.join(nm, pkg))))
+        for d in sorted(outside[2]):
+            if d + '/' not in taken:
+                taken.add(d + '/')
+                settings['remappings'].append('%s/=%s/' % (d, os.path.join(repo, d)))
     if version >= (0, 8, 8):
         args += ['--base-path', project]
         # (each directory once, and never the base path: a file found twice
@@ -850,9 +862,11 @@ def build_solc(solc, version, group, project, repo, remaps, cfg, evm, opt, via_i
     try:
         out = json.loads(p.stdout)
     except Exception:
-        return [], ['solc output: ' + (p.stderr or p.stdout)[-500:]]
+        return [], ['solc output: ' + (p.stderr or p.stdout)[-500:]], set()
     errors = [e.get('formattedMessage', e.get('message', ''))[-400:] for e in out.get('errors', [])
               if e.get('severity') == 'error']
+    bad = {(e.get('sourceLocation') or {}).get('file') for e in out.get('errors', []) if e.get('severity') == 'error'}
+    bad.discard(None)
     arts = []
     os.makedirs(outdir, exist_ok=True)
     for f, contracts in (out.get('contracts') or {}).items():
@@ -876,7 +890,7 @@ def build_solc(solc, version, group, project, repo, remaps, cfg, evm, opt, via_i
         if s.get('ast') and not os.path.exists(p):
             os.makedirs(astdir, exist_ok=True)
             json.dump(s['ast'], open(p, 'w'))
-    return arts, errors
+    return arts, errors, bad
 
 
 def vyper_exe(version, cache):
@@ -956,8 +970,12 @@ def build_vyper(f, project, evm, outdir, cache, timeout):
         open(os.path.join(project, tmp), 'w').write(text[:pm.start()] + '\n' + text[pm.end():])
         src = tmp
     try:
-        p = subprocess.run([exe, '-f', 'bytecode_runtime,abi,layout', '--evm-version', evm, src], capture_output=True,
-                           text=True, cwd=project, timeout=timeout)
+        # (no storage layout output before vyper 0.2.16)
+        for fmt in ('bytecode_runtime,abi,layout', 'bytecode_runtime,abi'):
+            p = subprocess.run([exe, '-f', fmt, '--evm-version', evm, src], capture_output=True, text=True,
+                               cwd=project, timeout=timeout)
+            if "Unsupported format type 'layout'" not in p.stderr:
+                break
     finally:
         if tmp:
             os.unlink(os.path.join(project, tmp))
@@ -1027,7 +1045,9 @@ def plan_project(solc, repo, project, profile='default'):
     (>= only), the one most other sources get when they allow it and none
     of its code is an old compiler's, else the oldest they allow. outside:
     whether the sources import files outside the project (of the
-    repository's node_modules/, of the repository's own)"""
+    repository's node_modules/, of the repository's own), and the
+    repository's directories they import from; cache: the sources' pragmas
+    and imports (pragmas')"""
     files, remaps, cfg = sources_of(project, profile)
     sol = [f for f in files if f.endswith('.sol')]
     fixed = vt((cfg.get('solc') or '').lstrip('='))
@@ -1057,10 +1077,16 @@ def plan_project(solc, repo, project, profile='default'):
     for f in sol:
         if f in choice:
             groups.setdefault(choice[f], []).append(f)
-    top, rnm = project.rstrip('/') + '/', os.path.join(repo, 'node_modules') + '/'
-    out = [p for p in (find(g, project, repo) for g in cache) if p and not p.startswith(top)]
-    outside = (any(p.startswith(rnm) for p in out), any(not p.startswith(rnm) for p in out))
-    return files, remaps, cfg, groups, errors, outside
+    nm_out, repo_out, dirs = False, False, set()
+    for g in cache:
+        p, i = find(g, project, repo, which=True)
+        if i == 3:
+            nm_out = True
+        elif i == 2 or (i == 0 and g.startswith('../')):
+            repo_out = True
+            if g.split('/')[0] not in ('.', '..'):
+                dirs.add(g.split('/')[0])
+    return files, remaps, cfg, groups, errors, (nm_out, repo_out, frozenset(dirs)), cache
 
 
 def _text(f, project, repo):
@@ -1072,7 +1098,7 @@ def _text(f, project, repo):
 
 
 def build_project(args, solc, slug, repo, project, profile='default'):
-    files, remaps, cfg, groups, errors, outside = plan_project(solc, repo, project, profile)
+    files, remaps, cfg, groups, errors, outside, cache = plan_project(solc, repo, project, profile)
     vys = [f for f in files if f.endswith('.vy')]
     rel = os.path.relpath(project, repo)
     rel = '' if rel == '.' else rel
@@ -1111,34 +1137,65 @@ def build_project(args, solc, slug, repo, project, profile='default'):
             for opt in opts:
                 tag = 'solc-%d.%d.%d-%s%s%s' % (v + (evm, '' if opt else '-noopt', '-ir' if via_ir else ''))
                 outdir = os.path.join(base_out, tag)
-                try:
-                    arts, errs = build_solc(exe, v, group, project, repo, remaps, cfg, evm, opt, via_ir, outdir,
-                                            args.timeout, outside)
-                except subprocess.TimeoutExpired:
-                    arts, errs = [], ['timeout']
-                # one source's error fails its whole group: each source alone
-                # then (not when the EVM version is what the code can't
-                # target: an error says so, the others follow from it)
-                if errs and not arts and len(group) > 1 and len(group) <= args.retry_max and \
-                        not any(EVM_ERROR.search(e) for e in errs):
-                    errs = ['group failed, each source alone: ' + errs[0][-200:]]
-                    for f in group:
-                        try:
-                            a1, e1 = build_solc(exe, v, [f], project, repo, remaps, cfg, evm, opt, via_ir, outdir,
-                                                args.timeout, outside)
-                        except subprocess.TimeoutExpired:
-                            a1, e1 = [], ['timeout']
-                        arts += [a for a in a1 if a not in arts]
-                        errs += ['%s: %s' % (f, x) for x in e1[:2]]
+
+                def attempt(srcs):
+                    try:
+                        return build_solc(exe, v, srcs, project, repo, remaps, cfg, evm, opt, via_ir, outdir,
+                                          args.timeout, outside)
+                    except subprocess.TimeoutExpired:
+                        return [], ['timeout'], set()
+
+                arts, errs, bad = attempt(group)
+                # one source's error fails the whole group: the group again
+                # without the sources that import (or are) a source with an
+                # error, while the errors say where; when they say no source
+                # the plan knows, halves of the group, and halves of those
+                # failing (--retry-max compilations at most)
+                rest, notes = group, []
+                for _ in range(4):
+                    if arts or not bad:
+                        break
+                    keep = [f for f in rest if not closure(f, cache) & bad]
+                    if len(keep) == len(rest):
+                        break  # (errors in sources the plan doesn't know: by halves)
+                    if not keep:
+                        rest = []  # (every source reaches an error)
+                        break
+                    notes.append('again without the %d sources the errors reach: %d' % (len(rest) - len(keep),
+                                                                                         len(keep)))
+                    rest = keep
+                    arts, e1, bad = attempt(rest)
+                    errs += e1[:5]
+                if not arts and len(rest) > 1:
+                    todo, n = [rest[:len(rest) // 2], rest[len(rest) // 2:]], 0
+                    while todo and n < args.retry_max:
+                        part = todo.pop(0)
+                        n += 1
+                        a1, e1, _ = attempt(part)
+                        if a1:
+                            arts += [x for x in a1 if x not in arts]
+                        elif len(part) > 1:
+                            todo += [part[:len(part) // 2], part[len(part) // 2:]]
+                    notes.append('again by halves (%d compilations): %d artifacts' % (n, len(arts)))
                 index += [{'program': slug, 'repo': os.path.basename(repo), 'project': rel, 'build': tag,
                            'artifact': os.path.relpath(a, args.out)} for a in arts]
-                errors += [{'project': where, 'build': tag, 'error': e} for e in errs[:20]]
+                errors += [{'project': where, 'build': tag, 'error': e} for e in (notes + errs)[:20]]
     for f in vys:
         m = re.search(r'^#\s*(?:@version|pragma\s+version)\s+[\^~=>]*\s*(\d+\.\d+\.\d+)',
                       open(os.path.join(project, f), errors='replace').read(), re.M)
         if not m:
             continue  # (an interface or a module without a version: compiled through its users)
-        for evm in evms:
+        # the EVM versions asked that this Vyper knows; when it knows none,
+        # the newest of --fallback-evm it knows
+        try:
+            vk = vyper_evms(vyper_exe(m.group(1), args.solc_cache))
+        except Exception as e:
+            errors.append({'project': where, 'file': f, 'error': 'vyper %s: %s' % (m.group(1), str(e)[-300:])})
+            continue
+        known = [e for e in evms if e in vk]
+        if not known and args.fallback_evm:
+            known = [e for e in args.fallback_evm.split(',') if e in vk][-1:]
+        for evm in known:
             tag = 'vyper-%s-%s' % (m.group(1), evm)
             try:
                 arts, errs = build_vyper(f, project, evm, os.path.join(base_out, tag), args.solc_cache, args.timeout)
@@ -1162,7 +1219,8 @@ def main():
     ap.add_argument('--limit', type=int, default=0, help='projects at most')
     ap.add_argument('--timeout', type=int, default=900)
     ap.add_argument('--jobs', type=int, default=1)
-    ap.add_argument('--retry-max', type=int, default=150, help='a failed group of at most N sources: each alone')
+    ap.add_argument('--retry-max', type=int, default=24,
+                    help='a failed group whose errors say no source: at most N compilations of its halves')
     ap.add_argument('--solc-cache', default=os.path.expanduser('~/.cache/panoramix-corpus'))
     args = ap.parse_args()
     solc = Solc(args.solc_cache)
