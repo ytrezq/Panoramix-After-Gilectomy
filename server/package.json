@@ -1,0 +1,250 @@
+{
+  "name": "@exactly/server",
+  "version": "0.2.134",
+  "private": true,
+  "scripts": {
+    "build": "pkgroll --clean-dist --sourcemap --src . && sentry-cli sourcemaps inject -o exactly -p server dist",
+    "prepare:generated": "mkdir -p generated",
+    "generate:release": "echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/server@*' | sed 's/@exactly\\///')')\" > generated/release.js",
+    "generate:openapi": "tsx script/openapi.ts",
+    "generate:broadcasts": "[ \"$CHAIN_ID\" != 31337 ] || NODE_ENV=development tsx -e 'require(\"./test/anvil\").default().then((teardown) => teardown())'",
+    "db:push": "drizzle-kit push",
+    "e2e": "tsx script/e2e.ts",
+    "eval:chat": "tsx test/workers/chat.eval.ts",
+    "test": "nx test server",
+    "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
+    "test:vi": "vitest run --maxWorkers=100%",
+    "test:openapi": "nx test:openapi server",
+    "spotlight:replay": "for f in node_modules/@exactly/.spotlight/*; do curl --data-binary @$f -H content-type:application/x-sentry-envelope http://localhost:8969/stream; done",
+    "dev": "tsx --watch --env-file=.env --require=./instrument.cjs index.ts"
+  },
+  "bin": "./dist/index.cjs",
+  "exports": {
+    "./api": {
+      "types": "./api/index.ts"
+    },
+    "./api/*": {
+      "types": "./api/*.ts"
+    },
+    "./api/bin": "./dist/api/bin.cjs",
+    "./instrument": "./dist/instrument.cjs",
+    "./hooks/*/bin": "./dist/hooks/bin/*.cjs",
+    "./workers/*/bin": "./dist/workers/*/bin.cjs"
+  },
+  "files": [
+    "app",
+    "dist",
+    "generated/release.js"
+  ],
+  "engines": {
+    "node": "^24.14.1"
+  },
+  "dependencies": {
+    "@exactly/lib": "^0.1.0",
+    "@google-cloud/kms": "^6.0.0",
+    "@google-cloud/secret-manager": "^7.0.0",
+    "@hono/node-server": "catalog:",
+    "@hono/valibot-validator": "^0.5.3",
+    "@mastra/core": "^1.63.2",
+    "@mastra/observability": "^1.17.4",
+    "@mastra/sentry": "^1.2.14",
+    "@onesignal/node-onesignal": "^5.4.0",
+    "@react-pdf/renderer": "^4.3.2",
+    "@segment/analytics-node": "^3.0.0",
+    "@sentry/core": "catalog:",
+    "@sentry/node": "catalog:",
+    "@sentry/profiling-node": "catalog:",
+    "@simplewebauthn/server": "^13.3.3",
+    "@types/debug": "^4.1.13",
+    "@valibot/to-json-schema": "^1.6.0",
+    "@valora/viem-account-hsm-gcp": "^1.2.19",
+    "async-mutex": "^0.5.0",
+    "better-auth": "^1.6.25",
+    "bullmq": "^5.79.0",
+    "canonicalize": "^3.0.0",
+    "debug": "^4.4.3",
+    "drizzle-orm": "^0.45.2",
+    "graphql": "^16.13.2",
+    "hono": "catalog:",
+    "hono-openapi": "^0.4.8",
+    "i18n-iso-countries": "^7.14.0",
+    "i18next": "catalog:",
+    "ioredis": "^5.10.1",
+    "jose": "^6.2.2",
+    "pg": "^8.20.0",
+    "react": "catalog:",
+    "uuid": "^11.1.0",
+    "valibot": "catalog:",
+    "viem": "catalog:"
+  },
+  "devDependencies": {
+    "@account-kit/infra": "catalog:",
+    "@eslint/compat": "^2.0.3",
+    "@exactly/common": "workspace:^0.0.24",
+    "@exactly/plugin": "workspace:^1.1.0",
+    "@mastra/evals": "^1.9.0",
+    "@peculiar/x509": "^1.14.3",
+    "@pimlico/alto": "^0.0.21",
+    "@sentry/cli": "^3.6.2",
+    "@types/ioredis-mock": "^8.2.7",
+    "@types/istanbul-lib-coverage": "^2.0.6",
+    "@types/istanbul-lib-instrument": "^1.7.8",
+    "@types/istanbul-lib-report": "^3.0.3",
+    "@types/istanbul-reports": "^3.0.4",
+    "@types/node": "^25.5.0",
+    "@types/pg": "^8.20.0",
+    "@types/wait-on": "^5.3.4",
+    "@vitest/coverage-v8": "^5.0.5",
+    "@vitest/ui": "^5.0.5",
+    "@wagmi/core": "catalog:",
+    "drizzle-kit": "^0.31.10",
+    "embedded-postgres": "^18.3.0-beta.16",
+    "eslint": "catalog:",
+    "eslint-config-universe": "^15.0.3",
+    "eslint-plugin-drizzle": "^0.2.3",
+    "execa": "^9.6.1",
+    "istanbul-lib-coverage": "^3.2.2",
+    "istanbul-lib-instrument": "^6.0.3",
+    "istanbul-lib-report": "^3.0.1",
+    "istanbul-reports": "^3.2.0",
+    "openapi-types": "^12.1.3",
+    "pkgroll": "^2.27.0",
+    "prool": "^0.2.17",
+    "redis-memory-server": "^0.17.1",
+    "tsx": "^4.22.4",
+    "typescript": "catalog:",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5",
+    "wait-on": "^9.0.4",
+    "webauthn-owner-plugin": "exactly/webauthn-owner-plugin#9c0c38b"
+  },
+  "nx": {
+    "projectType": "application",
+    "namedInputs": {
+      "anvil": [
+        "{projectRoot}/test/anvil.ts",
+        "{projectRoot}/test/anvilClient.ts",
+        "{workspaceRoot}/contracts/test/Fork.t.sol",
+        "{workspaceRoot}/contracts/test/mocks/**/*"
+      ]
+    },
+    "targets": {
+      "prepare": {
+        "dependsOn": [
+          "^prepare",
+          "generate:release"
+        ],
+        "executor": "nx:noop"
+      },
+      "generate:release": {
+        "dependsOn": [
+          "prepare:generated",
+          {
+            "projects": "@exactly/common",
+            "target": "git:unshallow"
+          }
+        ],
+        "inputs": [],
+        "outputs": [
+          "{projectRoot}/generated/release.js"
+        ],
+        "cache": false
+      },
+      "generate:openapi": {
+        "dependsOn": [
+          "^prepare",
+          "prepare:generated"
+        ],
+        "outputs": [
+          "{projectRoot}/generated/openapi.json"
+        ]
+      },
+      "generate:broadcasts": {
+        "dependsOn": [
+          {
+            "projects": "@exactly/plugin",
+            "target": "prepare"
+          }
+        ],
+        "inputs": [
+          "anvil",
+          "^production",
+          {
+            "env": "CHAIN_ID"
+          }
+        ],
+        "outputs": [
+          "{workspaceRoot}/contracts/broadcast/*/31337/run-latest.json",
+          "{workspaceRoot}/contracts/cache/tooling",
+          "{workspaceRoot}/contracts/out/tooling"
+        ]
+      },
+      "generate:app": {
+        "dependsOn": [
+          {
+            "projects": "@exactly/mobile",
+            "target": "build"
+          }
+        ],
+        "inputs": [
+          {
+            "dependentTasksOutputFiles": "dist/**/*"
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/app"
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "rm -rf server/app && cp -r dist server/app"
+        }
+      },
+      "test": {
+        "dependsOn": [
+          "test:eslint",
+          "test:ts",
+          "test:vi",
+          "test:openapi"
+        ],
+        "executor": "nx:noop"
+      },
+      "test:openapi": {
+        "dependsOn": [
+          "generate:openapi"
+        ],
+        "executor": "nx:noop"
+      },
+      "test:vi": {
+        "dependsOn": [
+          "prepare",
+          "^prepare",
+          "^build"
+        ],
+        "inputs": [
+          "default",
+          "anvil",
+          "^production"
+        ],
+        "outputs": [
+          "{projectRoot}/coverage"
+        ]
+      },
+      "e2e": {
+        "dependsOn": [
+          "prepare",
+          "^prepare",
+          "^build"
+        ],
+        "inputs": [
+          "default",
+          "anvil",
+          "^production"
+        ],
+        "outputs": [
+          "{projectRoot}/coverage"
+        ],
+        "continuous": true
+      }
+    }
+  }
+}

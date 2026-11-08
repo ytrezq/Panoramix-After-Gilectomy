@@ -1,0 +1,71 @@
+{
+  "name": "@exactly/docs",
+  "version": "0.1.6",
+  "private": true,
+  "scripts": {
+    "generate:astro": "astro sync",
+    "test": "nx test docs",
+    "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "engines": {
+    "node": "^24.14.1"
+  },
+  "devDependencies": {
+    "@astrojs/starlight": "^0.41.3",
+    "@eslint/markdown": "^8.0.3",
+    "@exactly/common": "workspace:^0.0.24",
+    "@exactly/server": "workspace:^0.2.132",
+    "astro": "^7.3.8",
+    "astro-mermaid": "^2.1.0",
+    "eslint": "catalog:",
+    "eslint-config-universe": "^15.0.3",
+    "eslint-plugin-astro": "^1.7.0",
+    "mermaid": "^11.16.1",
+    "openapi-types": "^12.1.3",
+    "starlight-openapi": "^0.26.0",
+    "typescript": "catalog:"
+  },
+  "nx": {
+    "projectType": "application",
+    "targets": {
+      "prepare": {
+        "dependsOn": [
+          "^prepare",
+          "generate:astro"
+        ],
+        "executor": "nx:noop"
+      },
+      "generate:astro": {
+        "outputs": [
+          "{projectRoot}/.astro"
+        ]
+      },
+      "build": {
+        "dependsOn": [
+          {
+            "projects": "@exactly/server",
+            "target": "generate:openapi"
+          }
+        ],
+        "inputs": [
+          "production",
+          "^production",
+          {
+            "dependentTasksOutputFiles": "server/generated/openapi.json"
+          }
+        ]
+      },
+      "test": {
+        "dependsOn": [
+          "test:eslint",
+          "test:ts"
+        ],
+        "executor": "nx:noop"
+      }
+    }
+  }
+}
