@@ -39,8 +39,7 @@
     {
      "prefix": "charmfinance__alpha-vaults-v2-contracts",
      "url": "https://github.com/charmfinance/alpha-vaults-v2-contracts",
-     "commit": "0174095f918b5a883c3726cbe4556aaa58f12c82",
-     "files": 12
+     "commit": "0174095f918b5a883c3726cbe4556aaa58f12c82"
     }
    ],
    "npm": {
