@@ -1,0 +1,56 @@
+{
+  "name": "liquidity-bridge-contract",
+  "version": "2.0.1",
+  "description": "## registerFastBridgeBtcTransaction",
+  "main": "index.js",
+  "scripts": {
+    "compile": "npm run lint:sol && forge build",
+    "test": "npm run compile && make test-unit",
+    "test:fuzz": "npm run compile && make test-fuzz",
+    "test:invariant": "npm run compile && make test-invariant",
+    "coverage": "forge coverage",
+    "lint:ts": "npx prettier --check . && npx eslint .",
+    "lint:sol": "solhint 'src/**/*.sol'",
+    "upgrade-rskDev": "npm run lint:sol && npm run compile && make upgrade-lbc-broadcast NETWORK=rskDevelopment VERIFY=true",
+    "upgrade-rskTestnet": "npm run lint:sol && npm run compile && make upgrade-lbc-broadcast NETWORK=rskTestnet VERIFY=true",
+    "upgrade-rskMainnet": "npm run lint:sol && npm run compile && make upgrade-lbc-broadcast NETWORK=rskMainnet VERIFY=true",
+    "contract-size": "forge build --sizes",
+    "test:integration": "forge test --match-path 'test/integration/**/*.t.sol'",
+    "test:e2e": "forge test --match-path 'test/deployment/ChangeOwnerToMultiSig.t.sol'",
+    "prepare": "pip3 install pre-commit && pre-commit install"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rsksmart/liquidity-bridge-contract.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/rsksmart/liquidity-bridge-contract/issues"
+  },
+  "homepage": "https://github.com/rsksmart/liquidity-bridge-contract#readme",
+  "devDependencies": {
+    "@eslint/js": "^9.16.0",
+    "@mempool/mempool.js": "^2.3.0",
+    "@openzeppelin/upgrades-core": "^1.44.2",
+    "@rsksmart/pmt-builder": "^3.0.0",
+    "bech32": "^2.0.0",
+    "bitcoinjs-lib": "^6.0.1",
+    "bs58": "^6.0.0",
+    "bs58check": "^3.0.1",
+    "dotenv": "^16.3.1",
+    "eslint": "^9.16.0",
+    "ethers": "^6.13.4",
+    "globals": "^15.13.0",
+    "prettier": "2.8.8",
+    "prettier-plugin-solidity": "^1.0.0-beta.18",
+    "solhint": "^6.0.0",
+    "ts-node": "^10.9.2",
+    "typescript-eslint": "^8.18.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.3.0",
+    "@openzeppelin/contracts-upgradeable": "^5.3.0",
+    "@rsksmart/btc-transaction-solidity-helper": "^0.3.0"
+  }
+}
