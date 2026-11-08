@@ -7,6 +7,7 @@
 // dispatcher goes when no selector matches if that's always the same place.
 #include <algorithm>
 
+#include "algebra/compare.hpp"
 #include "algebra/construct.hpp"
 #include "core/budget.hpp"
 #include "core/context.hpp"
@@ -49,66 +50,97 @@ bool size_test(Value v) {
     }
 }
 
-// the selector word itself: (cd[0] >> 224) as a 32-bit field
-bool is_selector_word(Value v) {
-    return v.is(Op::MASK_SHL, 4) && v[0] == Value::small(32) && v[1] == Value::small(224) &&
-           (v[2] == Value::small(0) || v[2] == Value::small(-224)) && v[3].is(Op::CALLDATALOAD, 1) &&
-           v[3][0] == Value::small(0);
+// The selector word - the first 4 bytes of the calldata as a number, cd[0] >>
+// 224 (true), or in place, cd[0] with its 28 last bytes cleared (false) -
+// nothing else of the calldata: a dispatcher on another part of it (its first
+// byte, as MEV bots and Huff contracts have) is no selector's.
+std::optional<bool> selector_word(Value v) {
+    if (!(v.is(Op::MASK_SHL, 4) && v[0] == Value::small(32) && v[1] == Value::small(224) &&
+          v[3].is(Op::CALLDATALOAD, 1) && v[3][0] == Value::small(0)))
+        return std::nullopt;
+    if (v[2] == Value::small(-224)) return true;
+    if (v[2] == Value::small(0)) return false;
+    return std::nullopt;
 }
 
-std::optional<u32> hash_of(Value v) {
-    // a 4-byte number (a number past 4 bytes is no hash: a comparison of
-    // more of the calldata)
-    if (!v.is_small()) return std::nullopt;
-    i64 x = v.small_val();
-    if (x < 0 || x >= (i64(1) << 32)) return std::nullopt;
-    return u32(x);
+// the selector a selector word equals when it equals the number v (the word
+// mod 2^256): a 4-byte number, or one in place (its 28 last bytes 0); none
+// when no selector is (a test that never holds)
+std::optional<u32> hash_of(Value v, bool right) {
+    if (!v.is_int()) return std::nullopt;
+    const Word256 w = Word256::from_value(v);
+    if (right) {
+        const auto x = w.as_u64();
+        if (!x || *x >= (u64(1) << 32)) return std::nullopt;
+        return u32(*x);
+    }
+    if (w.limb[0] || w.limb[1] || w.limb[2] || (w.limb[3] & 0xffffffffu)) return std::nullopt;
+    return u32(w.limb[3] >> 32);
 }
 
 }  // namespace
 
 bool Vm::is_dispatch(Value cond) const { return contains_cd0(cond) || size_test(cond); }
 
-// (hash, taken) if cond compares the selector with a function's hash, taken
-// being whether it holds when they're equal (python selector_test). The
+// The test of a JUMPI that holds (taken) or fails (!taken) exactly when the
+// call's selector is the hash (python selector_test, made exact): the machine
+// dispatches by the selector - the first 4 bytes of 4 or more - so a test the
+// discovery takes for a selector's must be that for every call. The
 // dispatcher jumps to a function when the selector equals its hash, or past
-// it when they differ: a difference, zero if they're equal (a sub, a xor).
-std::optional<std::pair<u32, bool>> Vm::selector_test(Value cond) const {
+// it when they differ: a difference, zero if they're equal (a sub, a xor); a
+// comparison of the selector word (selector_word) only. An AND (OR) of such a
+// test with conditions that hold (fail) for every call of 4 bytes or more:
+// Vyper 0.3.10's `calldatasize > 3` - which fails for the shorter ones
+// (size_guard).
+std::optional<Vm::SelectorTest> Vm::selector_test(Value cond) const {
     check_stack();
     if (cond.is(Op::ISZERO, 1)) {
+        // (the same branch: its guard kept)
         auto r = selector_test(cond[0]);
-        if (r) r->second = !r->second;
+        if (r) r->taken = !r->taken;
         return r;
     }
     // the selector itself, its being not 0: of the hash 0 (solc's optimizer
     // tests iszero(selector) for selector == 0)
-    if (is_selector_word(cond)) return std::pair<u32, bool>{0, false};
+    if (selector_word(cond)) return SelectorTest{0, false, false};
     if (cond.is(Op::AND) || cond.is(Op::OR)) {
-        // the selector is the hash and something else holds (Vyper from
-        // 0.3.10: calldatasize > 3), or, negated, it isn't or something else
-        // doesn't
+        // the selector is the hash and something that every call of 4 bytes
+        // or more makes true holds (an AND of truth values: bitwise, so each
+        // a 0 or a 1), or, negated, it isn't or something false for them is
         const bool taken = cond.is(Op::AND);
-        std::optional<std::pair<u32, bool>> one;
+        const Value cds = Value::leaf(Op::CALLDATASIZE);
+        const Value short_call = alg::cmp(Op::LT, cds, Value::small(4));
+        const alg::Facts long_calls = alg::Facts().with(short_call, false);
+        const alg::Facts short_calls = alg::Facts().with(short_call, true);
+        std::optional<SelectorTest> one;
         u32 count = 0;
+        bool guard = false;
         for (Value a : cond.args()) {
+            if (taken && !alg::is_bool(a)) return std::nullopt;
             auto t = selector_test(a);
-            if (t && t->second == taken) {
+            if (t && t->taken == taken) {
                 if (!one) one = t;
                 ++count;
+                continue;
             }
+            if (alg::eval_bool(a, &long_calls) != (taken ? Tri::True : Tri::False)) return std::nullopt;
+            if (alg::eval_bool(a, &short_calls) == (taken ? Tri::False : Tri::True)) guard = true;
         }
-        return count == 1 ? one : std::nullopt;
+        if (count != 1) return std::nullopt;
+        one->size_guard = one->size_guard || guard;
+        return one;
     }
     if ((cond.is(Op::EQ, 2) || cond.is(Op::XOR, 2))) {
         for (int k = 0; k < 2; ++k) {
-            Value num = cond[k], other = cond[1 - k];
-            if (auto h = hash_of(num); h && contains_cd0(other)) return std::pair<u32, bool>{*h, cond.is(Op::EQ)};
+            const Value num = cond[k], other = cond[1 - k];
+            if (const auto right = selector_word(other))
+                if (const auto h = hash_of(num, *right)) return SelectorTest{*h, cond.is(Op::EQ), false};
         }
     }
-    if (cond.is(Op::ADD, 2) && cond[0].is_int() && contains_cd0(cond[1])) {
+    if (cond.is(Op::ADD, 2) && cond[0].is_int()) {
         Value other = cond[1];
         Value num;
-        if (other.is(Op::MUL, 2) && cond[1][0] == Value::small(-1)) {
+        if (other.is(Op::MUL, 2) && other[0] == Value::small(-1)) {
             // num - selector
             num = cond[0];
             other = other[1];
@@ -116,7 +148,8 @@ std::optional<std::pair<u32, bool>> Vm::selector_test(Value cond) const {
             // selector - (-num)
             num = Word256::from_value(int_neg(cond[0])).to_value();
         }
-        if (auto h = hash_of(num); h && contains_cd0(other)) return std::pair<u32, bool>{*h, false};
+        if (const auto right = selector_word(other))
+            if (const auto h = hash_of(num, *right)) return SelectorTest{*h, false, false};
     }
     return std::nullopt;
 }
@@ -159,6 +192,7 @@ struct Found {
     u32 sel;
     i64 target;
     Value stack;
+    NodeId node;
 };
 
 class Discovery {
@@ -177,8 +211,10 @@ private:
     bool reverts(NodeId n) const;
     bool has_funccall(NodeId n) const;
     bool has_marker(NodeId n) const;
+    bool exact_path(NodeId n) const;
+    bool default_reached(u32 target) const;
     template <class Leaf>
-    void entry_paths(Leaf&& is_leaf, std::vector<std::pair<EntryPath, NodeId>>& out);
+    void entry_paths(Leaf&& is_leaf, std::vector<std::pair<EntryPath, NodeId>>& out, bool stop = false);
     Value other_trace(NodeId n);
     FunctionInfo make(FunctionInfo::Kind kind, u32 sel, i64 target, Value stack,
                       const std::vector<EntryPath>& paths, const std::vector<Value>& fallback_known);
@@ -254,6 +290,110 @@ bool Discovery::has_marker(NodeId n) const {
     return m.lines.empty() && m.end == End::Jump;
 }
 
+namespace {
+
+// v where the selector is h: its masks of the calldata's first word within
+// its first 4 bytes (the selector word, either alignment; a code switch's
+// bits of it) their values, the rest made again (normal forms: the
+// dispatcher's tests decided)
+Value with_selector(Value v, u32 h) {
+    check_stack();
+    if (v.is(Op::MASK_SHL, 4) && v[3].is(Op::CALLDATALOAD, 1) && v[3][0] == Value::small(0) && v[0].is_small() &&
+        v[1].is_small() && v[2].is_small() && v[0].small_val() >= 0 && v[1].small_val() >= 224 &&
+        v[0].small_val() + v[1].small_val() <= 256)
+        return alg::mask(v[0], v[1], v[2], pan::shl(Word256::of(224), Word256::of(h)).to_value());
+    if (!v.is_expr() || !v.has_flags(F_CALLDATA)) return v;
+    SmallVec<Value, 8> args;
+    bool changed = false;
+    for (Value a : v.args()) {
+        const Value b = with_selector(a, h);
+        changed |= b != a;
+        args.push_back(b);
+    }
+    return changed ? alg::apply(v.op(), args.span()) : v;
+}
+
+// the lines a node runs on the dispatcher's way that the entry's lines run
+// too: SETMEM, SETVAR (and --verbose's ASM) - not a store, a log, a call...
+// (python's entry keeps those only: such a line on the way, and the machine
+// running the entry's lines then the function, would leave it out)
+bool entry_lines_only(std::span<const Value> lines) {
+    for (Value l : lines)
+        if (!(l.is(Op::SETMEM) || l.is(Op::SETVAR) || l.is(Op::ASM))) return false;
+    return true;
+}
+
+}  // namespace
+
+// The machine runs a selector's function for the calls of that selector, of
+// 4 bytes of calldata or more (exec/machine.hpp): the dispatcher must send
+// them all to its FuncCall node n, and only them. Only them: the selector
+// test (selector_test) and fshort. All of them, by the same lines (the entry's,
+// which the machine runs first): every condition on the way from the root is a
+// dispatch condition that holds for them (decided by `the selector is the
+// hash, calldatasize >= 4`: the other selectors' tests, the size's, a binary
+// search's, a code switch's case), or a check whose other branch reverts
+// (python's entry: in the entry lines) - no branch on anything else, no loop,
+// no line the entry's don't run (entry_lines_only).
+bool Discovery::exact_path(NodeId n) const {
+    const Node& leaf = node(n);
+    if (leaf.end != End::FuncCall || !leaf.fshort) return false;
+    const Value cds = Value::leaf(Op::CALLDATASIZE);
+    const Value sel = alg::mask(Value::small(32), Value::small(224), Value::small(-224),
+                                mk(Op::CALLDATALOAD, Value::small(0)));
+    const alg::Facts of_hash = alg::Facts()
+                                   .with(alg::cmp(Op::LT, cds, Value::small(4)), false)
+                                   .with_cond(alg::cmp(Op::EQ, sel, mk_uint(leaf.fsel)));
+    for (NodeId x = n, p = vm_.parent(n); p != NO_NODE; x = p, p = vm_.parent(p)) {
+        poll();
+        const Node& m = node(p);
+        if (m.label != NO_NODE || !entry_lines_only(m.lines)) return false;
+        if (m.end == End::Jump && m.a == x) continue;
+        if (m.end != End::If || m.cont != NO_NODE || (x != m.a && x != m.b)) return false;
+        const bool holds = x == m.a;
+        if (vm_.is_dispatch(m.cond)) {
+            if (alg::eval_bool(with_selector(holds ? m.cond : alg::iszero(m.cond), leaf.fsel), &of_hash) != Tri::True)
+                return false;
+        } else if (!reverts(holds ? m.b : m.a)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// The machine runs the default function for every call no kept selector's
+// function takes: the dispatcher must take them all to its start `target`
+// (python default_starts), through dispatch conditions and checks (a branch
+// that reverts) only - no other branch, halt or loop on the way, no line the
+// entry's don't run.
+bool Discovery::default_reached(u32 target) const {
+    SmallVec<NodeId, 64> todo{vm_.root()};
+    while (!todo.empty()) {
+        poll();
+        const NodeId n = todo.back();
+        todo.pop_back();
+        const Node& m = node(n);
+        if (m.end == End::FuncCall || (m.start == target && m.sw == 0 && has_marker(n))) continue;
+        if (!entry_lines_only(m.lines)) return false;
+        if (m.end == End::Jump) {
+            todo.push_back(m.a);
+            continue;
+        }
+        if (m.end != End::If || m.cont != NO_NODE) return false;
+        if (vm_.is_dispatch(m.cond)) {
+            todo.push_back(m.a);
+            todo.push_back(m.b);
+        } else if (reverts(m.b)) {
+            todo.push_back(m.a);
+        } else if (reverts(m.a)) {
+            todo.push_back(m.b);
+        } else {
+            return false;
+        }
+    }
+    return true;
+}
+
 Value Discovery::other_trace(NodeId n) {
     for (auto& [k, v] : traces_)
         if (k == n) return v;
@@ -263,9 +403,10 @@ Value Discovery::other_trace(NodeId n) {
 }
 
 // python entry_paths: (entry, leaf) for every node of the trace for which
-// is_leaf, the entry being the SETMEMs and the checks on the way
+// is_leaf, the entry being the SETMEMs and the checks on the way (stop: not
+// past a leaf)
 template <class Leaf>
-void Discovery::entry_paths(Leaf&& is_leaf, std::vector<std::pair<EntryPath, NodeId>>& out) {
+void Discovery::entry_paths(Leaf&& is_leaf, std::vector<std::pair<EntryPath, NodeId>>& out, bool stop) {
     struct Todo {
         NodeId n;
         EntryPath entry;
@@ -280,7 +421,10 @@ void Discovery::entry_paths(Leaf&& is_leaf, std::vector<std::pair<EntryPath, Nod
         EntryPath entry = std::move(t.entry);
         while (n != NO_NODE) {
             const Node& m = node(n);
-            if (is_leaf(n)) out.push_back({entry, n});
+            if (is_leaf(n)) {
+                out.push_back({entry, n});
+                if (stop) break;
+            }
             if (m.end == End::None) break;
             // (the SETVARs too, unlike python: a variable of the dispatcher's
             // may be on the stack the function starts with)
@@ -396,7 +540,7 @@ std::vector<FunctionInfo> Discovery::run() {
     // the functions, in the order of the trace (python find_f_list over it:
     // the true branch of an IF first)
     std::vector<Found> funcs;
-    std::vector<Value> fallback_known;
+    std::vector<std::pair<u32, Value>> fallback_known;  // (selector, its test failing)
     std::vector<std::optional<std::pair<u32, Value>>> starts;
     {
         SmallVec<NodeId, 64> todo{vm_.root()};
@@ -407,7 +551,7 @@ std::vector<FunctionInfo> Discovery::run() {
             while (n != NO_NODE) {
                 const Node& m = node(n);
                 if (m.end == End::FuncCall) {
-                    funcs.push_back({m.fsel, m.ftarget, m.stack});
+                    funcs.push_back({m.fsel, m.ftarget, m.stack, n});
                     break;
                 }
                 if (m.end == End::Jump) {
@@ -416,12 +560,20 @@ std::vector<FunctionInfo> Discovery::run() {
                 }
                 if (m.end == End::If) {
                     // the conditions known in the default function: no
-                    // selector matched (python selector_checks)
+                    // selector matched (python selector_checks) - for the
+                    // calls of fewer than 4 bytes too, which the machine
+                    // gives it: a test that may hold for them (no fguard;
+                    // calldatasize >= 4 on its way) holds for none of 4 or more
                     NodeId lt = chain_end(m.a), lf = chain_end(m.b);
+                    const Value short_call = alg::cmp(Op::LT, Value::leaf(Op::CALLDATASIZE), Value::small(4));
+                    auto known_fails = [&](NodeId leaf, Value fails) {
+                        fallback_known.emplace_back(node(leaf).fsel,
+                                                    node(leaf).fguard ? fails : alg::bor(short_call, fails));
+                    };
                     if (node(lt).end == End::FuncCall)
-                        fallback_known.push_back(alg::iszero(m.cond));
+                        known_fails(lt, alg::iszero(m.cond));
                     else if (node(lf).end == End::FuncCall)
-                        fallback_known.push_back(m.cond);
+                        known_fails(lf, m.cond);
                     // where the dispatch's branches without a function start
                     // (python default_starts)
                     if (vm_.is_dispatch(m.cond)) {
@@ -442,16 +594,20 @@ std::vector<FunctionInfo> Discovery::run() {
         }
     }
 
-    // one per selector, in the order found (the last target found wins, as
-    // python's dict)
-    std::vector<Found> uniq;
+    // one per selector, in the order found - the selectors whose calls the
+    // dispatcher may send elsewhere left out (exact_path: one place for all of
+    // them, and only them), their code then the default function's
+    std::vector<u32> dropped;
     for (const Found& f : funcs) {
-        auto it = std::find_if(uniq.begin(), uniq.end(), [&](const Found& g) { return g.sel == f.sel; });
-        if (it == uniq.end())
-            uniq.push_back(f);
-        else
-            *it = f;
+        bool exact = exact_path(f.node);
+        for (const Found& g : funcs)
+            exact = exact && (g.sel != f.sel || g.node == f.node);
+        if (!exact && std::find(dropped.begin(), dropped.end(), f.sel) == dropped.end()) dropped.push_back(f.sel);
     }
+    auto kept = [&](u32 sel) { return std::find(dropped.begin(), dropped.end(), sel) == dropped.end(); };
+    std::vector<Found> uniq;
+    for (const Found& f : funcs)
+        if (kept(f.sel)) uniq.push_back(f);
     std::vector<std::pair<EntryPath, NodeId>> leaves;
     entry_paths([&](NodeId n) { return node(n).end == End::FuncCall; }, leaves);
 
@@ -459,17 +615,58 @@ std::vector<FunctionInfo> Discovery::run() {
     for (const Found& f : uniq) {
         std::vector<EntryPath> paths;
         for (const auto& [p, n] : leaves)
-            if (node(n).fsel == f.sel) paths.push_back(p);
+            if (n == f.node) paths.push_back(p);
         res.push_back(make(FunctionInfo::Kind::Selector, f.sel, f.target, f.stack, paths, {}));
     }
 
     // the default function: where the dispatcher goes when no function
-    // matches, if it's always the same place; else all of the dispatcher
+    // matches, if it's always the same place, by the same lines and with the
+    // same stack on top (default_reached, the paths alike) - every call no
+    // kept function takes going there; the words some paths leave below the
+    // shortest stack are its stack_below (solc leaves the selector there on
+    // the way past the tests, not on the way of `calldatasize < 4`); else all
+    // of the dispatcher
     std::optional<std::pair<u32, Value>> deflt;
-    if (!funcs.empty() && !starts.empty() && starts[0]) {
+    u32 below = 0;
+    // whether the stacks end the same (the shortest is the top of the others),
+    // the shortest in `top`, the most words under it in `below`
+    auto same_top = [&](std::span<const Value> stacks, Value& top) {
+        top = stacks[0];
+        for (Value st : stacks)
+            if (st.size() < top.size()) top = st;
+        below = 0;
+        for (Value st : stacks) {
+            const u32 d = st.size() - top.size();
+            for (u32 i = 0; i < top.size(); ++i)
+                if (st[d + i] != top[i]) return false;
+            below = std::max(below, d);
+        }
+        return true;
+    };
+    if (!uniq.empty() && dropped.empty() && !starts.empty() && starts[0]) {
         bool same = true;
-        for (const auto& s : starts) same = same && s && s->first == starts[0]->first;
-        if (same) deflt = starts[0];
+        std::vector<Value> stacks;
+        for (const auto& s : starts) {
+            same = same && s && s->first == starts[0]->first;
+            if (s) stacks.push_back(s->second);
+        }
+        Value top;
+        if (same && same_top(stacks, top) && default_reached(starts[0]->first)) deflt = std::pair<u32, Value>{starts[0]->first, top};
+    }
+    if (deflt) {
+        const u32 target = deflt->first;
+        auto at_start = [&](NodeId n) { return node(n).start == target && node(n).sw == 0 && has_marker(n); };
+        // (the paths from the dispatcher alike; past the start, the default
+        // function's own: python's entry is their common start)
+        std::vector<std::pair<EntryPath, NodeId>> first;
+        entry_paths(at_start, first, true);
+        std::vector<Value> stacks;
+        for (const auto& [p, n] : first) {
+            stacks.push_back(node(n).stack);
+            if (p != first[0].first) deflt.reset();
+        }
+        Value top;
+        if (deflt && (stacks.empty() || !same_top(stacks, top) || top != deflt->second)) deflt.reset();
     }
     if (deflt) {
         const u32 target = deflt->first;
@@ -478,8 +675,12 @@ std::vector<FunctionInfo> Discovery::run() {
         std::vector<EntryPath> paths;
         for (auto& [p, n] : fl) paths.push_back(p);
         res.push_back(make(FunctionInfo::Kind::Fallback, 0, target, deflt->second, paths, {}));
+        res.back().entry.stack_below = below;
     } else {
-        res.push_back(make(FunctionInfo::Kind::Fallback, 0, 0, mk_list({}), {EntryPath{}}, fallback_known));
+        std::vector<Value> known;
+        for (const auto& [sel, c] : fallback_known)
+            if (kept(sel)) known.push_back(c);
+        res.push_back(make(FunctionInfo::Kind::Fallback, 0, 0, mk_list({}), {EntryPath{}}, known));
     }
     return res;
 }

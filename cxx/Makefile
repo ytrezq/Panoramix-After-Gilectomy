@@ -146,6 +146,8 @@ CPPFLAGS_SRC := -Isrc -I$(G)/src $(TP_INC)
 CPPFLAGS_VAL := -Isrc -I$(G)/src -I. $(TP_INC) $(VALIDATE_CPPFLAGS)
 CPPFLAGS_TST := -Isrc -I$(G)/src -I. $(TP_INC) -isystem third_party/doctest $(VALIDATE_CPPFLAGS)
 CPPFLAGS_TP  := $(EVMONE_CPPFLAGS)
+# (tests/fixtures_test.cpp reads the .hex files of tests/fixtures)
+$(O)/tests/fixtures_test.cpp.o: CPPFLAGS_TST += -DPAN_FIXTURES='"$(abspath tests/fixtures)"'
 
 # the library: everything in src/ and its subdirectories (src/core/, the
 # stages') but the two front-ends' main files

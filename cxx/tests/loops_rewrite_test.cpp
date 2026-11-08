@@ -166,6 +166,25 @@ bool has_while(Value v) {
     return false;
 }
 
+bool has_op(Value v, Op op) {
+    if (!(v.is_expr() || v.is_list())) return false;
+    if (v.is(op)) return true;
+    for (Value a : v.children())
+        if (has_op(a, op)) return true;
+    return false;
+}
+
+// the pass made the loop one SETMEM of the storage's words (no WHILE left),
+// the same by execution
+bool storage_copy(const char* text) {
+    Value t = V(text);
+    Vars vars(t);
+    Value u = pass_setmems(t);
+    CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
+    INFO(dump_trace(u));
+    return !has_while(u) && has_op(u, Op::STORAGE_RANGE);
+}
+
 }  // namespace
 
 TEST_CASE("loops: loop_to_setmem, zeroes and copies") {
@@ -250,6 +269,61 @@ TEST_CASE("loops: loop_to_setmem, zeroes and copies") {
     }
     CHECK(same_runs(t, u));
     CHECK(u != t);
+}
+
+TEST_CASE("loops: loop_to_setmem, the storage's words (python's loop_to_setmem_from_storage)") {
+    Fixture f;
+    // the slots from 5 on, a counter of words: mem[64 len 32 tmp1] =
+    // stor[5 len tmp1]
+    CHECK(storage_copy("{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+                       " (setmem (range 0 512) (calldata_bytes 100 512))"
+                       " (while (lt loop1 tmp1) {(setmem (range (add 64 (mul 32 loop1)) 32) (storage 256 0 (add 5 "
+                       "loop1))) (continue loopid1 {(setvar loop1 (add 1 loop1))})} loopid1 {(setvar loop1 0)})"
+                       " (return (data (mem (range 0 512)) (sized 32 loop1)))}"));
+    // Vyper's: while i + 1 != n (xor), a slot of a struct in an array
+    CHECK(storage_copy("{(setvar tmp1 (add 1 (mask_shl 3 0 0 (calldataload 4))))"
+                       " (setvar tmp2 (mul 100 (mask_shl 2 0 0 (calldataload 36))))"
+                       " (setmem (range 0 640) (calldata_bytes 100 640))"
+                       " (while (xor (add 1 loop1) tmp1) {(setmem (range (add 320 (mul 32 loop1)) 32) (storage 256 0 "
+                       "(add (add 5 tmp2) loop1))) (continue loopid1 {(setvar loop1 (add 1 loop1))})} loopid1 "
+                       "{(setvar loop1 0)})"
+                       " (return (data (mem (range 0 640)) (sized 32 loop1)))}"));
+    // downwards: the address and the slot both
+    CHECK(storage_copy("{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+                       " (setmem (range 0 512) (calldata_bytes 100 512))"
+                       " (while (gt loop1 0) {(setmem (range (add 32 (mul 32 loop1)) 32) (storage 256 0 (add 7 "
+                       "loop1))) (continue loopid1 {(setvar loop1 (add -1 loop1))})} loopid1 {(setvar loop1 tmp1)})"
+                       " (return (data (mem (range 0 512)) (sized 32 loop1)))}"));
+    // the slot read from memory the loop doesn't write
+    CHECK(storage_copy("{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+                       " (setmem (range 0 32) (calldataload 36))"
+                       " (while (lt loop1 tmp1) {(setmem (range (add 64 (mul 32 loop1)) 32) (storage 256 0 (add (mem "
+                       "(range 0 32)) loop1))) (continue loopid1 {(setvar loop1 (add 1 loop1))})} loopid1 {(setvar "
+                       "loop1 0)})"
+                       " (return (mem (range 0 320)))}"));
+    // not rewritten: the slot read from memory the loop writes, a slot
+    // moving by 2 a word, against the address, a field of the word
+    CHECK(!check("{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+                 " (setmem (range 0 512) (calldata_bytes 100 512))"
+                 " (while (lt loop1 tmp1) {(setmem (range (add 64 (mul 32 loop1)) 32) (storage 256 0 (add (mem (range "
+                 "96 32)) loop1))) (continue loopid1 {(setvar loop1 (add 1 loop1))})} loopid1 {(setvar loop1 0)})"
+                 " (return (mem (range 0 512)))}",
+                 pass_setmems));
+    CHECK(!check("{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+                 " (while (lt loop1 tmp1) {(setmem (range (add 64 (mul 32 loop1)) 32) (storage 256 0 (add 5 (mul 2 "
+                 "loop1)))) (continue loopid1 {(setvar loop1 (add 1 loop1))})} loopid1 {(setvar loop1 0)})"
+                 " (return (mem (range 0 320)))}",
+                 pass_setmems));
+    CHECK(!check("{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+                 " (while (lt loop1 tmp1) {(setmem (range (add 64 (mul 32 loop1)) 32) (storage 256 0 (add 9 (mul -1 "
+                 "loop1)))) (continue loopid1 {(setvar loop1 (add 1 loop1))})} loopid1 {(setvar loop1 0)})"
+                 " (return (mem (range 0 320)))}",
+                 pass_setmems));
+    CHECK(!check("{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+                 " (while (lt loop1 tmp1) {(setmem (range (add 64 (mul 32 loop1)) 32) (storage 160 0 (add 5 "
+                 "loop1))) (continue loopid1 {(setvar loop1 (add 1 loop1))})} loopid1 {(setvar loop1 0)})"
+                 " (return (mem (range 0 320)))}",
+                 pass_setmems));
 }
 
 TEST_CASE("loops: loop_to_setmem, what the path knows and the variables' last values") {

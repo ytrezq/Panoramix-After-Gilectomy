@@ -213,6 +213,17 @@ TEST_CASE("loops: induction of counted loops, endvars checked by execution") {
         " (while (iszero (eq loop1 tmp1)) {(continue loopid1 {(setvar loop1 (add 1 loop1)) (setvar loop2 (add 64 "
         "loop2))})} loopid1 {(setvar loop1 0) (setvar loop2 0)})"
         " (return (data (sized 32 loop1) (sized 32 loop2)))}");
+    // != as a xor (Vyper's), the counter plus an offset
+    {
+        auto x = check(
+            "{(setvar tmp1 (add 1 (mask_shl 6 0 0 (calldataload 4))))"
+            " (while (xor (add 1 loop1) tmp1) {(continue loopid1 {(setvar loop1 (add 1 loop1)) (setvar loop2 (add 32 "
+            "loop2))})} loopid1 {(setvar loop1 0) (setvar loop2 0)})"
+            " (return (data (sized 32 loop1) (sized 32 loop2)))}");
+        REQUIRE(x);
+        CHECK(x->cmp == L::Cmp::Ne);
+        CHECK(!x->trips.nil());
+    }
     // a negated comparison (a pass's form): while not (i >= n)
     check(
         "{(setvar tmp1 (mask_shl 6 0 0 (calldataload 4)))"

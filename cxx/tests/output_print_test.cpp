@@ -272,6 +272,9 @@ TEST_CASE("output: lines")
     CHECK(L("{(setvar tmp3 (add 1 tmp2)) (stop)}") == "  _3 = _2 + 1\n");
     CHECK(L("{(setmem (range 64 32) 128)}") == "  mem[64] = 128\n");
     CHECK(L("{(setmem (range 64 4) (sized 4 2835717307))}") == "  mem[64 len 4] = 2835717307\n");
+    // the words of n slots (a copy loop of the storage): stor[slot len n]
+    CHECK(L("{(setmem (range 64 (mul 32 tmp1)) (storage_range 5 tmp1))}") == "  mem[64 len 32 * _1] = stor[5 len _1]\n");
+    CHECK(E("(storage_range (add 1 (storage 256 0 3)) 2)") == "stor[stor[3] + 1 len 2]");
     CHECK(L("{(store 256 0 5 (add 1 (storage 256 0 5)))}") == "  stor[5]++\n");
     CHECK(L("{(store 160 0 5 caller)}") == "  address(stor[5]) = caller\n");
     CHECK(L("{(store 256 0 5 (add (storage 256 0 5) (mul -1 tmp1)))}") == "  stor[5] -= _1\n");

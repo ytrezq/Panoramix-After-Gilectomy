@@ -216,6 +216,42 @@ TEST_CASE("text interp: memory, data, Bytes, Array, sha3")
     CHECK(t.call(calldata("m(uint256)", {4})).end.data == Bytes{'a', 'b', 'c', 'd', 'e', 'f', 'g'});
 }
 
+TEST_CASE("text interp: stor[slot len n] - the words of n slots (a copy loop of the storage)")
+{
+    const Program program = parse(
+        "def m(uint256 n): # not payable\n"
+        "  mem[64] = 128\n"
+        "  mem[128 len 32 * n] = stor[5 len n]\n"
+        "  if n == 2:\n"
+        "      return stor[sha3(7) + 1 len 2], stor[3 len 0]\n"
+        "  return memory\n"
+        "    from 128\n"
+        "     len 32 * n\n");
+    for (const auto& e : program.errors)
+        MESSAGE(e);
+    CHECK(program.errors.empty());
+    Interpreter interp{program};
+    const SeededWorld world{WorldConfig{.seed = 7, .random = true}};
+    for (const unsigned n : {0u, 1u, 2u, 3u})
+    {
+        State state{world, world.contract_address(), Bytes{0x00}};
+        CallContext c;
+        c.caller = world.actors().front();
+        c.origin = c.caller;
+        c.calldata = calldata("m(uint256)", {n});
+        const Effects e = interp.run(state, c);
+        Bytes want;
+        Bytes seven;
+        append_word(seven, 7);
+        for (unsigned i = 0; i < n; ++i)
+            append_word(want, n == 2 ? world.storage(world.contract_address(), keccak256(seven) + 1 + i)
+                                     : world.storage(world.contract_address(), Word{5 + i}));
+        INFO("n = ", n);
+        CHECK(e.end.status == Status::return_);
+        CHECK(e.end.data == want);
+    }
+}
+
 TEST_CASE("text interp: review 2026-11-02 F1 - a Bytes(n, v) of a large n, its value short or padded")
 {
     // the printer writes a wide Bytes(n, v) as its significant digits alone

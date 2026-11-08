@@ -1024,7 +1024,7 @@ bool Parser::close_bracket(std::uint32_t tok)
         {
         case T_MEM_B: op = range ? Op::mem_range : Op::mem; break;
         case T_CD_B: op = range ? Op::call_data : Op::cd; break;
-        case T_STOR_B: op = range ? Op::num : Op::stor_raw; break;
+        case T_STOR_B: op = range ? Op::stor_range : Op::stor_raw; break;
         case T_TRANSIENT_B: op = range ? Op::num : Op::transient; break;
         case T_CALLDATA_B: op = Op::call_data; break;
         case T_RETDATA_B: op = Op::return_data; break;
@@ -1032,7 +1032,7 @@ bool Parser::close_bracket(std::uint32_t tok)
         default: return fail(tok, "brackets this doesn't know");
         }
         if (op == Op::num)
-            return fail(tok, "a range in stor[...] or transient[...]");
+            return fail(tok, "a range in transient[...]");
         if (range || op == Op::mem || op == Op::cd || op == Op::stor_raw || op == Op::transient)
             result = node(op, 0, range ? std::span<const ExprId>(pair) : std::span<const ExprId>(one));
         else

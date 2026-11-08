@@ -20,11 +20,13 @@
 //          apart), proven; else only `dubious` (python's "we should check
 //          for overwrites here, but skipping for now")
 //      v = CALLDATALOAD(q), q moving by D: SETMEM(range, CALLDATA_BYTES(...))
-//    python's loop_to_setmem_from_storage (its storage range of slots) has
-//    no form here: such a loop stays. An address (or the bound) may read
-//    memory that only the loop's own write could change (the free memory
-//    pointer: mem[64] + 32 + idx; while idx < mem[128]) when that write over
-//    all the iterations misses it. In
+//      v = STORAGE(256, 0, q), q moving by D / 32: SETMEM(range,
+//          STORAGE_RANGE(q_lo, trips)), the words of the slots from q_lo on
+//          (python's loop_to_setmem_from_storage; the loop's only write is
+//          the SETMEM: each iteration reads the storage as it was)
+//    An address (or the bound) may read memory that only the loop's own
+//    write could change (the free memory pointer: mem[64] + 32 + idx; while
+//    idx < mem[128]) when that write over all the iterations misses it. In
 //    loops_to_setmems (given a function's whole trace) the body may also
 //    start with a SETVAR of the SETMEM's value to a name the function never
 //    reads (kept by lot 7 for msize), dropped. loops_to_setmems also
@@ -248,6 +250,15 @@ Value to_setmem(Value w, const RewriteOptions& opts, const alg::Facts* facts, co
         const auto dq = moves(q);
         if (!dq || *dq != *dp) return w;
         value = mk(Op::CALLDATA_BYTES, low(q), len);
+    } else if (v.is(Op::STORAGE, 3) && v[0] == small(256) && v[1] == small(0) && !v[2].is(Op::LENGTH) &&
+               !v[2].is(Op::LOC)) {
+        // a word of the storage whose slot moves by one as the address by 32:
+        // the words of consecutive slots (the loop writes memory only: every
+        // iteration reads the storage as it was where the loop starts)
+        const Value q = v[2];
+        const auto dq = moves(q);
+        if (!dq || *dq != (up ? small(1) : small(-1))) return w;
+        value = mk(Op::STORAGE_RANGE, up ? at(q, ns, sv) : alg::add(at(q, ns, finals), small(1)), ind->trips);
     } else {
         return w;
     }

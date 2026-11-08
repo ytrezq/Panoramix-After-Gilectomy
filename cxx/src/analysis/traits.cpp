@@ -918,6 +918,7 @@ bool reads_varying(Value v, Memo<Value, u8>& memo)
         case Op::SBYTES:
         case Op::ST:
         case Op::SALL:
+        case Op::STORAGE_RANGE:
         case Op::TLOAD:
         case Op::BALANCE:
         case Op::EXTCODESIZE:

@@ -135,6 +135,7 @@
 0x169   sf               2       loc
 0x16a   sr               1       loc
 0x16b   sall             1       bytes r_storage
+0x16c   storage_range    2       bytes r_storage
 
 # --- 0x180-0x1bf lines and control -------------------------------------------
 0x180   setvar           2       line

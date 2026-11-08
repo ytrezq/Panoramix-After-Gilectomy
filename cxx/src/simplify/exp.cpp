@@ -353,6 +353,11 @@ std::optional<Value> bytes_rule(Value r) {
             if (r[0].is(Op::CALLDATASIZE) && r[1].is_small() && r[1].small_val() >= 0)
                 return mk(Op::SIZED, r[1], small(0));
             return std::nullopt;
+        case Op::STORAGE_RANGE:
+            // one word of the storage, none
+            if (is_int(r[1], 1)) return mk(Op::SIZED, small(32), mk(Op::STORAGE, small(256), small(0), r[0]));
+            if (is_int(r[1], 0)) return mk(Op::DATA, std::span<const Value>{});
+            return std::nullopt;
         default: return std::nullopt;
     }
 }

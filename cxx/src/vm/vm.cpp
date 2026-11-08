@@ -84,6 +84,7 @@ VmResult run_function(const ContractShared& contract, const FunctionInfo& fn, co
         u32 start = fn.entry_pc;
         if (start > 1 && map.is_jumpdest(start)) start += 1;
         s.start = start;
+        s.stack_below = fn.entry.stack_below;
         Value stack;
         Facts known;
         if (!fn.entry.vm_state.nil() && decode_state(fn.entry.vm_state, stack, known)) {

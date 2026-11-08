@@ -825,6 +825,9 @@ struct LineImpl {
             case UndefinedReason::AMBIGUOUS_CALL:
                 return std::format("('return data of a call that depends on the path', {})",
                                    l.size() >= 2 && l[1].is_small() ? l[1].small_val() : 0);
+            case UndefinedReason::STACK:
+                return std::format("('stack words that depend on the path', {})",
+                                   l.size() >= 2 && l[1].is_small() ? l[1].small_val() : 0);
         }
         return "('unknown',)";
     }

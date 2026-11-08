@@ -427,6 +427,19 @@ struct Machine::Impl {
         }
     }
 
+    // STORAGE_RANGE(slot, n): the words of the n slots from slot on (mod
+    // 2^256), big-endian - python's storage range, a copy loop's
+    void storage_words(const Word256& slot, const Word256& n, Bytes& out) {
+        if (PAN_UNLIKELY(!fits_u64(n) || n.limb[0] > lim.bytes_max / 32))
+            exhausted("a byte string of more than " + std::to_string(lim.bytes_max) + " bytes");
+        u8 w[32];
+        for (u64 i = 0; i < n.limb[0]; ++i) {
+            host->sload(pan::add(slot, Word256::of(i))).to_be(w);
+            append(out, w, 32);
+            if ((i & 255) == 255) poll();
+        }
+    }
+
     // STORAGE(size, off, slot) (pre-P): the `size` bits at bit off of the
     // slot (or of the decoded length of LENGTH(key)); off < 0: moved left
     Word256 storage_read(Value size_v, Value off_v, Value slot_v) {
@@ -576,6 +589,7 @@ struct Machine::Impl {
             case Op::RETURNDATA_BYTES:
             case Op::SBYTES:
             case Op::SALL:
+            case Op::STORAGE_RANGE:
                 return bytes_word(v);
             case Op::ST: return st_read(v);
             case Op::SV:
@@ -858,6 +872,9 @@ struct Machine::Impl {
                 }
                 case Op::SBYTES:
                     solidity_bytes(ev(a[0]), out);
+                    return;
+                case Op::STORAGE_RANGE:
+                    storage_words(ev(a[0]), ev(a[1]), out);
                     return;
                 case Op::SALL: {  // what a getter copies of the bytes/string at loc's slot
                     const storage::Place p = place(a[0]);

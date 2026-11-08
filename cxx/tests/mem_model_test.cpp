@@ -303,6 +303,82 @@ TEST_CASE("mem: concat and as_word") {
     CHECK(!as_word(V("(mem (range 0 33))")));
 }
 
+TEST_CASE("mem: the storage's words, STORAGE_RANGE (a copy loop's)") {
+    Fixture fx;
+    const Value n = V("(mask_shl 3 0 0 (calldataload 4))");
+    const Value some = mk(Op::STORAGE_RANGE, S(5), n);
+    CHECK(is_bytes(some));
+    CHECK(D(width_of(some)) == D(alg::mul(S(32), n)));
+    const Value three = mk(Op::STORAGE_RANGE, S(5), S(3));
+    CHECK(width_u64(three) == std::optional<u64>(96));
+    // whole words of it (a slot's word, 32 bytes, as a word: the slot's)
+    CHECK(D(slice(three, S(32), S(96))) == "(storage_range 6 2)");
+    CHECK(D(slice(three, S(32), S(64))) == "(storage_range 6 1)");
+    CHECK(D(as_word(V("(storage_range 6 1)"))) == "(storage 256 0 6)");
+    CHECK(D(as_word(V("(storage_range 6 0)"))) == "0");
+    CHECK(!as_word(three));
+    // not the bytes of a word apart
+    CHECK(!slice(three, S(16), S(48)));
+    // consecutive slots one part, the others apart
+    Value parts1[] = {V("(sized 32 (storage 256 0 4))"), three, V("(storage_range 8 2)")};
+    CHECK(D(concat(parts1)) == "(storage_range 4 6)");
+    Value parts2[] = {three, V("(storage_range 9 1)")};
+    CHECK(D(concat(parts2)) == "(data (storage_range 5 3) (storage_range 9 1))");
+    Value parts3[] = {V("(sized 32 (storage 256 0 4))"), V("(sized 32 (storage 256 0 5))")};
+    CHECK(D(concat(parts3)) == "(data (sized 32 (storage 256 0 4)) (sized 32 (storage 256 0 5)))");
+
+    // reads of the memory such writes made, checked by execution
+    Rng rng{777};
+    int checked = 0;
+    for (int round = 0; round < 300; ++round) {
+        exec::SimpleHost host = random_host(rng);
+        for (u64 slot = 0; slot < 48; ++slot) {
+            Word256 w{};
+            w.limb[0] = rng.next();
+            w.limb[3] = rng.coin(2) ? rng.next() : 0;
+            host.storage[Word256::of(slot)] = w;
+        }
+        SmallVec<Value, 16> lines;
+        MemState st(true);
+        const int nw = 1 + int(rng.below(5));
+        for (int i = 0; i < nw; ++i) {
+            const i64 at = 32 * i64(rng.below(8)) + (rng.coin(6) ? i64(rng.below(32)) : 0);
+            const i64 words = i64(rng.below(5));
+            Value value, range = R(at, 32 * words);
+            switch (rng.below(4)) {
+                case 0: value = mk(Op::STORAGE_RANGE, S(i64(rng.below(40))), S(words)); break;
+                case 1:
+                    range = R(at, 32);
+                    value = mk(Op::SIZED, S(32), mk(Op::STORAGE, S(256), S(0), S(i64(rng.below(40)))));
+                    break;
+                case 2:
+                    range = R(at, 32);
+                    value = mk(Op::CALLDATALOAD, S(i64(4 + 32 * rng.below(12))));
+                    break;
+                default: value = mk(Op::STORAGE_RANGE, alg::add(S(i64(rng.below(30))), n), S(words)); break;
+            }
+            Value line = mk(Op::SETMEM, range, value);
+            lines.push_back(line);
+            st.write(range, value);
+            const i64 roff = rng.coin(2) ? 32 * i64(rng.below(9)) : i64(rng.below(288));
+            const i64 rlen = rng.coin(2) ? 32 * i64(rng.below(5)) : i64(rng.below(100));
+            const Value rr = R(roff, rlen);
+            std::optional<Value> got = st.read(rr);
+            if (!got) continue;
+            Value prefix = mk_trace(lines.span());
+            auto want = returned(prefix, mk(Op::MEM, rr), host);
+            auto have = returned(prefix, *got, host);
+            INFO("trace: " << dump_trace(prefix) << "\nread: " << D(rr) << "\nfilled: " << D(*got));
+            REQUIRE(want.has_value());
+            REQUIRE(have.has_value());
+            CHECK(*want == *have);
+            ++checked;
+        }
+    }
+    MESSAGE("reads of the storage's words checked by execution: " << checked);
+    CHECK(checked > 300);
+}
+
 TEST_CASE("mem: python splits_mem") {
     Fixture fx;
     // known (66, 32) = a, then a write at (65, 32): its last byte left
