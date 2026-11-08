@@ -1,0 +1,5 @@
+forge-std/=lib/@gearbox-protocol/core-v3/lib/forge-std/src/
+@solady=lib/@solady/src/
+@openzeppelin/=lib/@gearbox-protocol/core-v3/lib/@openzeppelin/
+@gearbox-protocol/=lib/@gearbox-protocol/
+@redstone-finance=node_modules/@redstone-finance/
