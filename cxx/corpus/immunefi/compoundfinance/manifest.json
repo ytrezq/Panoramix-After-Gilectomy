@@ -83,9 +83,11 @@
    "languages": {
     ".sol": 149
    },
-   "npm": {},
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.8.3"
+   },
    "copied": true,
-   "files": 293,
+   "files": 489,
    "via": "git subtree",
    "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
    "dest": "compound-finance__comet",
@@ -114,7 +116,10 @@
      "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505",
      "files": 49
     }
-   ]
+   ],
+   "npm_added": {
+    "node_modules/@openzeppelin/contracts": "imported through a submodule (copy_repo reads only the repository's own sources' imports): contracts/capo (declared by package.json)"
+   }
   }
  ]
 }
