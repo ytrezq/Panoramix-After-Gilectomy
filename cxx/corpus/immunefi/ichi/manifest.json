@@ -35,7 +35,8 @@
     {
      "prefix": "ichifarm__ichi-oneToken",
      "url": "https://github.com/ichifarm/ichi-oneToken",
-     "commit": "4873873861da749481739f40de5a535841736518"
+     "commit": "4873873861da749481739f40de5a535841736518",
+     "files": 76
     }
    ]
   }
