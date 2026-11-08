@@ -59,20 +59,17 @@
     {
      "prefix": "flux-finance__contracts",
      "url": "https://github.com/flux-finance/contracts",
-     "commit": "05bba79ef40e49cbd196b5e5d227d41cc56a66f2",
-     "files": 165
+     "commit": "05bba79ef40e49cbd196b5e5d227d41cc56a66f2"
     },
     {
      "prefix": "flux-finance__contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "066ff16c5c03e6f931cd041fd366bc4be1fae82a",
-     "files": 37
+     "commit": "066ff16c5c03e6f931cd041fd366bc4be1fae82a"
     },
     {
      "prefix": "flux-finance__contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "cd98eff28324bfac652e63a239a60632a761790b",
-     "files": 5
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
     }
    ]
   }
