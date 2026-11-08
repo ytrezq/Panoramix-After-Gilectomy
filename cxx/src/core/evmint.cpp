@@ -1,6 +1,7 @@
 // Ethereum integers: EvmInt (python int on gmpxx) and Word256 (EVM word).
 #include "core/evmint.hpp"
 
+#include <bit>
 #include <cstring>
 #include <type_traits>
 
@@ -331,13 +332,30 @@ const EvmInt& word_max() {
 Word256 Word256::from_be(std::span<const u8> b) noexcept {
     if (b.size() > 32) b = b.subspan(b.size() - 32);
     Word256 r{};
+    if constexpr (std::endian::native == std::endian::little) {
+        if (b.size() == 32) {  // a whole word: its limbs byte-swapped
+            for (int k = 0; k < 4; ++k) {
+                u64 v;
+                std::memcpy(&v, b.data() + 8 * (3 - k), 8);
+                r.limb[k] = std::byteswap(v);
+            }
+            return r;
+        }
+    }
     usize n = b.size();
     for (usize j = 0; j < n; ++j) r.limb[j / 8] |= u64(b[n - 1 - j]) << (8 * (j % 8));
     return r;
 }
 
 void Word256::to_be(u8 out[32]) const noexcept {
-    for (int j = 0; j < 32; ++j) out[31 - j] = u8(limb[j / 8] >> (8 * (j % 8)));
+    if constexpr (std::endian::native == std::endian::little) {
+        for (int k = 0; k < 4; ++k) {
+            const u64 v = std::byteswap(limb[3 - k]);
+            std::memcpy(out + 8 * k, &v, 8);
+        }
+    } else {
+        for (int j = 0; j < 32; ++j) out[31 - j] = u8(limb[j / 8] >> (8 * (j % 8)));
+    }
 }
 
 Word256 Word256::from_int(const EvmInt& x) noexcept {
