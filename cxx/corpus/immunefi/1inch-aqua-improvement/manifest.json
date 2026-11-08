@@ -1,0 +1,140 @@
+{
+ "program": "1inch-aqua-improvement",
+ "repos": [
+  {
+   "repo": "https://github.com/1inch/solidity-utils",
+   "ref": "7.0.0",
+   "scope_paths": [
+    "contracts/libraries",
+    "contracts/mixins"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "9e506a39a00231ffb6ce2a9e5b479f05d8203dab",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE.md",
+    "spdx": "MIT",
+    "package_json": "MIT",
+    "headers": {
+     "MIT": 74
+    },
+    "headers_main": {
+     "MIT": 33
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 74
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "5.6.1",
+    "node_modules/@0xsequence/create3": "3.0.0"
+   },
+   "copied": true,
+   "files": 319,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "1inch__solidity-utils",
+   "subtrees": [
+    {
+     "prefix": "1inch__solidity-utils",
+     "url": "https://github.com/1inch/solidity-utils",
+     "commit": "9e506a39a00231ffb6ce2a9e5b479f05d8203dab",
+     "files": 77
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/1inch/aqua",
+   "ref": "v1.0.0",
+   "scope_paths": [
+    "src"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "81c26e4619ce21556ab02b3284ee2685de21fb18",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "LicenseRef-Degensoft-Aqua-Source-1.1",
+    "package_json": "SEE LICENSE IN LICENSE",
+    "headers": {
+     "LicenseRef-Degensoft-Aqua-Source-1.1": 22
+    },
+    "headers_main": {
+     "LicenseRef-Degensoft-Aqua-Source-1.1": 7
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 22
+   },
+   "copied": true,
+   "via": "git subtree",
+   "files": 351,
+   "subtrees": [
+    {
+     "prefix": "1inch__aqua",
+     "url": "https://github.com/1inch/aqua",
+     "commit": "81c26e4619ce21556ab02b3284ee2685de21fb18",
+     "files": 33
+    }
+   ],
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "5.4.0",
+    "node_modules/@1inch/solidity-utils": "6.9.7",
+    "node_modules/forge-std": "1.11.0"
+   },
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "1inch__aqua",
+   "license_note": "its license does not allow redistribution: added at the owner's request, its license files kept"
+  },
+  {
+   "repo": "https://github.com/1inch/swap-vm",
+   "ref": "v1.0.2",
+   "scope_paths": [
+    "src"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "32c687c2b73101fc26549e48fa1ff8a4d73afbac",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "LicenseRef-Degensoft-SwapVM-1.1",
+    "package_json": "SEE LICENSE IN LICENSE",
+    "headers": {
+     "LicenseRef-Degensoft-SwapVM-1.1": 152,
+     "LicenseRef-Degensoft-ARSL-1.0-Audit": 1,
+     "MIT": 2
+    },
+    "headers_main": {
+     "LicenseRef-Degensoft-SwapVM-1.1": 39,
+     "LicenseRef-Degensoft-ARSL-1.0-Audit": 1
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 155
+   },
+   "copied": true,
+   "via": "git subtree",
+   "files": 626,
+   "subtrees": [
+    {
+     "prefix": "1inch__swap-vm",
+     "url": "https://github.com/1inch/swap-vm",
+     "commit": "32c687c2b73101fc26549e48fa1ff8a4d73afbac",
+     "files": 169
+    }
+   ],
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "5.4.0",
+    "node_modules/@1inch/solidity-utils": "6.9.7",
+    "node_modules/@1inch/aqua": "0.1.0",
+    "node_modules/forge-std": "1.11.0"
+   },
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "1inch__swap-vm",
+   "license_note": "its license does not allow redistribution: added at the owner's request, its license files kept"
+  }
+ ]
+}
