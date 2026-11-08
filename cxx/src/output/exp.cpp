@@ -271,6 +271,10 @@ Value elem_len(Value e) noexcept
         case Op::CODE_BYTES: return e.size() == 2 ? e[1] : Value();
         case Op::RETURNDATA_BYTES: return e.size() == 3 ? e[2] : Value();
         case Op::EXTCODE_BYTES: return e.size() == 2 && e[1].is(Op::RANGE, 2) ? e[1][1] : Value();
+        case Op::STORAGE_RANGE:
+            return e.size() == 2 && e[1].is_small() && e[1].small_val() >= 0 && e[1].small_val() < (i64(1) << 40)
+                       ? Value::small(32 * e[1].small_val())
+                       : Value();
         default: return e.is_bytes() ? Value::small(i64(e.size())) : Value();
     }
 }
@@ -1464,6 +1468,18 @@ struct ExpImpl {
                         pret(e[0][1]);
                     }
                     o.col(Col::header, "]");
+                    return;
+                }
+                break;
+            case Op::STORAGE_RANGE:
+                if (n == 2) {
+                    // the words of n slots (python's storage range,
+                    // stor[slot len n]: its storage of a RANGE)
+                    o.col(Col::green, "stor[");
+                    pret(e[0]);
+                    o.col(Col::header, " len ");
+                    pret(e[1]);
+                    o.col(Col::green, "]");
                     return;
                 }
                 break;

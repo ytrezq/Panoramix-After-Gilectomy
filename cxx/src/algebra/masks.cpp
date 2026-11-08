@@ -135,6 +135,8 @@ bool may_be_wide(Value x) noexcept {
         case Op::SALL:
         case Op::SBYTES:
             return true;
+        case Op::STORAGE_RANGE:
+            return !(x.size() == 2 && x[1].is_small() && x[1].small_val() >= 0 && x[1].small_val() <= 1);
         case Op::SIZED:
             return x.size() == 2 && !len_le32(x[0]);
         case Op::MEM:

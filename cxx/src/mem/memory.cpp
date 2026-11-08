@@ -314,8 +314,23 @@ std::optional<Value> merge_constants(Value a, Value b) {
     return bytes_value(bytes);
 }
 
+// a word of the storage as 32 bytes: STORAGE_RANGE(slot, 1)'s
+Value as_storage_words(Value e) {
+    if (e.is(Op::SIZED, 2) && e[0] == small(32) && e[1].is(Op::STORAGE, 3) && e[1][0] == small(256) &&
+        e[1][1] == small(0) && !e[1][2].is(Op::LENGTH) && !e[1][2].is(Op::LOC))
+        return mk(Op::STORAGE_RANGE, e[1][2], small(1));
+    return e;
+}
+
 // two parts next to each other as one, when they are
 std::optional<Value> merge2(Value a, Value b, const Facts* f) {
+    if (a.is(Op::STORAGE_RANGE) || b.is(Op::STORAGE_RANGE)) {
+        // the words of consecutive slots (a word of the storage: one of them)
+        const Value x = as_storage_words(a), y = as_storage_words(b);
+        if (x.is(Op::STORAGE_RANGE, 2) && y.is(Op::STORAGE_RANGE, 2) && y[0] == alg::add(x[0], x[1]))
+            return mk(Op::STORAGE_RANGE, x[0], alg::add(x[1], y[1]));
+        return std::nullopt;
+    }
     if (a.op() != b.op()) return merge_constants(a, b);
     switch (a.op()) {
         case Op::MEM:
@@ -438,6 +453,13 @@ std::optional<Value> slice_source(Value b, Value lo, Value hi, const Facts* f) {
         case Op::EXTCODE_BYTES:
             if (!offset_ok(b[1][0], lo, f)) return std::nullopt;
             return mk(b.op(), b[0], make_range(padd(b[1][0], lo), len));
+        case Op::STORAGE_RANGE: {
+            // whole words only (the slots are words: their bytes apart,
+            // masks of them, aren't this source's)
+            const auto ilo = nat(lo), ihi = nat(hi);
+            if (!ilo || !ihi || *ilo % 32 || *ihi % 32 || *ilo > *ihi) return std::nullopt;
+            return mk(Op::STORAGE_RANGE, alg::add(b[0], small(*ilo / 32)), small((*ihi - *ilo) / 32));
+        }
         default:
             return std::nullopt;
     }
@@ -551,6 +573,9 @@ std::optional<Value> width_of(Value b) {
             return std::nullopt;
         case Op::EXTCODE_BYTES:
             if (b.size() == 2 && is_range(b[1])) return b[1][1];
+            return std::nullopt;
+        case Op::STORAGE_RANGE:
+            if (b.size() == 2) return alg::mul(small(32), b[1]);
             return std::nullopt;
         case Op::DATA: {
             SmallVec<Value, 8> ws;
@@ -757,6 +782,12 @@ std::optional<Value> as_word(Value b) {
             if (*w == 0) return kZero;
             return b;
         }
+        case Op::STORAGE_RANGE:
+            // (no word but 0 or 1 of them)
+            if (b.size() != 2 || !b[1].is_small()) return std::nullopt;
+            if (b[1].small_val() == 0) return kZero;
+            if (b[1].small_val() == 1) return mk(Op::STORAGE, small(256), small(0), b[0]);
+            return std::nullopt;
         case Op::CALLDATA_BYTES: {
             auto w = width_u64(b);
             if (!w || *w > 32) return std::nullopt;
@@ -835,6 +866,9 @@ std::optional<Value> slice(Value b, Value lo, Value hi, const Facts* f) {
             return slice_source(b, lo, hi, f);
         case Op::EXTCODE_BYTES:
             if (b.size() != 2 || !is_range(b[1])) return std::nullopt;
+            return slice_source(b, lo, hi, f);
+        case Op::STORAGE_RANGE:
+            if (b.size() != 2) return std::nullopt;
             return slice_source(b, lo, hi, f);
         default:
             return std::nullopt;

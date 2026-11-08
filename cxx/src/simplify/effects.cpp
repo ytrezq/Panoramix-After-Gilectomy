@@ -242,6 +242,7 @@ EffectSummary expr_summary(Value v) {
         case Op::SBYTES:
         case Op::SALL:
         case Op::ST:
+        case Op::STORAGE_RANGE:
             s = operands(v);
             add_any(s, false, S_STORAGE);
             return s;
