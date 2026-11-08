@@ -292,6 +292,99 @@ TEST_CASE("text: the statements")
     CHECK(p.functions[3].payable);
 }
 
+TEST_CASE("text: the keywords the text also uses as names")
+{
+    // names the signature database gives (a getter delegate(address): the
+    // storage variable delegate; params, consts): a name wherever the
+    // keyword's reading can't go - a storage definition, an operand, a
+    // statement's start before `[`, `.field_N`, `=`, `+=`, `++`...
+    const std::string text =
+        "const delegate = 7\n"
+        "const True = 1\n"
+        "\n"
+        "def storage:\n"
+        "  delegate is mapping of struct of 1 slot at storage 6\n"
+        "  log is uint256 at storage 7\n"
+        "  if is address at storage 8\n"
+        "  not is uint8 at storage 9\n"
+        "  and is uint256 at storage 10\n"
+        "\n"
+        "def f(uint256 call, address create2): # not payable\n"
+        "  delegate[caller].field_160 = log\n"
+        "  delegate[caller] = 0\n"
+        "  log += call\n"
+        "  log -= 1\n"
+        "  log++\n"
+        "  if--\n"
+        "  not = (not) + 3\n"
+        "  and = not + and\n"
+        "  x = delegate[caller].field_0 + log * if\n"
+        "  y = not log\n"
+        "  z = not - and\n"
+        "  if --x:\n"
+        "      return --x\n"
+        "  require call\n"
+        "  assert create2 == caller\n"
+        "  log 0xddf252ad: delegate[caller].field_0, log\n"
+        "  t = True + False\n"
+        "  stop\n";
+    const auto p = parse(text);
+    for (const auto& e : p.errors)
+        MESSAGE(e);
+    CHECK(p.errors.empty());
+    REQUIRE(p.functions.size() == 3);
+    CHECK(p.functions[0].selector == selector_of("delegate()"));
+    CHECK(p.functions[1].selector == selector_of("True()"));
+    REQUIRE(p.storage.size() == 5);
+    CHECK(p.storage[0].name == "delegate");
+    CHECK(p.storage[0].slot == 6);
+    CHECK(p.storage[2].name == "if");
+    CHECK(p.storage[3].name == "not");
+    const Function& f = p.functions[2];
+    CHECK(f.selector == selector_of("f(uint256,address)"));
+    REQUIRE(f.body.size() == 17);
+    const auto& st = [&](std::size_t i) -> const Stmt& { return p.stmts[f.body[i]]; };
+    CHECK(st(0).kind == St::assign);
+    CHECK(shape(p, st(0).a) == "field160(index(stor0, caller))");
+    CHECK(shape(p, st(0).b) == "stor1");
+    CHECK(shape(p, st(1).a) == "index(stor0, caller)");
+    CHECK(st(2).kind == St::add_assign);
+    CHECK(shape(p, st(2).b) == "param0");
+    CHECK(st(3).kind == St::sub_assign);
+    CHECK(st(4).kind == St::inc);
+    CHECK(shape(p, st(4).a) == "stor1");
+    // `--` ends the line: the name decremented (if's statement takes an
+    // expression, which `--` may start)
+    CHECK(st(5).kind == St::dec);
+    CHECK(shape(p, st(5).a) == "stor2");
+    CHECK(shape(p, st(6).a) == "stor3");
+    CHECK(shape(p, st(6).b) == "add(stor3, 0x3)");
+    CHECK(shape(p, st(7).b) == "add(stor3, stor4)");
+    CHECK(shape(p, st(8).b) == "add(field0(index(stor0, caller)), mul(stor1, stor2))");
+    // `not` before an operand (`-` too): the operator
+    CHECK(shape(p, st(9).b) == "not(stor1)");
+    CHECK(shape(p, st(10).b) == "not(neg(stor4))");
+    CHECK(st(11).kind == St::if_);
+    CHECK(shape(p, st(11).a) == "neg(neg(var0))");
+    REQUIRE(st(11).body.size() == 1);
+    CHECK(shape(p, p.stmts[st(11).body[0]].list.at(0)) == "neg(neg(var0))");
+    CHECK(shape(p, st(12).a) == "param0");
+    CHECK(shape(p, st(13).a) == "eq(param1, caller)");
+    CHECK(st(14).kind == St::log);
+    REQUIRE(st(14).list.size() == 2);
+    CHECK(shape(p, st(14).list[1]) == "stor1");
+    // True, False: the literals (a name would print the same)
+    CHECK(shape(p, st(15).b) == "add(0x1, 0x0)");
+    CHECK(st(16).kind == St::stop);
+
+    // a storage variable named True or False can't be read back: its
+    // definition stays unparsed
+    const auto q = parse("def storage:\n  True is uint256 at storage 1\n  x is uint256 at storage 2\n");
+    REQUIRE(q.errors.size() == 1);
+    CHECK(q.errors[0].starts_with("line 2:"));
+    CHECK(q.storage.size() == 1);
+}
+
 TEST_CASE("text: the errors are by line, the rest is parsed")
 {
     const auto p = parse(fn_text("  x = 1 +\n  y = 2\n  if x ++ y:\n      z = 3\n"));

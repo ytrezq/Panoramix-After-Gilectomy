@@ -2,7 +2,8 @@
 // per function (AGENTS.md rule 2), over the tokens of text_lexer.rl.
 //
 //   parse_line   a logical line: its statement (or definition, or the line
-//                of a statement that goes on: `gas`, `args`, `from`...)
+//                of a statement that goes on: `gas`, `args`, `from`...); in
+//                def storage:'s block a definition (its storage_line entry)
 //   parse_expr   an expression: an operator-precedence machine, its
 //                operands and operators on explicit stacks (the brackets,
 //                the calls, the subscripts too)
@@ -1088,7 +1089,9 @@ bool Parser::close_bracket(std::uint32_t tok)
   action e_neg { push_prefix(Op::neg, index(fpc)); }
   action e_negneg { push_prefix(Op::neg, index(fpc)); push_prefix(Op::neg, index(fpc)); }
   action e_bitnot { push_prefix(Op::bit_not, index(fpc)); }
-  action e_not { push_prefix(Op::not_, index(fpc)); }
+  # `not`, decided by the token after it (read again where it goes)
+  action e_not_op { push_prefix(Op::not_, index(fpc) - 1); fhold; }
+  action e_not_name { const ExprId e = name_leaf(index(fpc) - 1); if (e == none) fbreak; push_val(e); fhold; }
   action e_paren { open_frame(F_PAREN, index(fpc)); }
   action e_call { if (!open_call(index(fpc))) fbreak; }
   action e_bracket { open_frame(F_BRACKET, index(fpc)); }
@@ -1118,6 +1121,11 @@ bool Parser::close_bracket(std::uint32_t tok)
        | T_INDEXED | T_CONTRACT | T_CODE | T_SALT | T_STORAGE | T_IS | T_AT | T_OFFSET | T_OF
        | T_MAPPING | T_FIXED | T_STRUCT | T_SLOT | T_SLOTS | T_PAYABLE;
   names = T_IDENT | soft | T_TYPE | T_BYTES | T_ARRAY | T_SAFEMATH;
+  # the keywords no operand starts with (a storage variable, a param the
+  # signature database names `delegate`, `log`...): names where an operand goes
+  kwnames = T_DEF | T_CONST | T_IF | T_ELSE | T_WHILE | T_CONTINUE | T_BREAK | T_REQUIRE
+          | T_ASSERT | T_REVERT | T_RETURN | T_STOP | T_INVALID | T_LOG | T_CALL | T_DELEGATE
+          | T_CODECALL | T_CREATE | T_CREATE2 | T_AND | T_OR;
   evm = T_CALLER | T_ORIGIN | T_GASPRICE | T_CALLVALUE | T_FUNC_HASH | T_CALLDATASIZE
       | T_RETDATASIZE | T_THIS | T_GAS_REMAINING | T_CHAINID | T_MSIZE | T_NUMBER | T_TIMESTAMP
       | T_COINBASE | T_DIFFICULTY | T_GASLIMIT | T_BASEFEE | T_BLOBBASEFEE | T_CALL_SUCCESS
@@ -1133,17 +1141,24 @@ bool Parser::close_bracket(std::uint32_t tok)
          | T_SLE | T_SGE | T_SADD | T_SMUL | T_SDIV | T_SMOD | T_AND | T_OR;
   after_toks = binops | T_LEN | T_LBRACK | T_ALL | T_DOT_LENGTH | T_DOT_FIELD | T_DOT_MEMBER
              | T_DOT_CALL | T_DOT_MEM_B | T_DOT_DATA_B | T_COMMA | T_RPAREN | T_RBRACK;
+  # what an operand starts with: after `not`, `not` the operator (`not - 1`,
+  # `not and`, `not len` too: both readings go on, the operator's kept), any
+  # other token makes it a name (`not[k]`, `not.field_0`, `not)`, `not + 1`,
+  # `not = ...`)
+  operand = names | kwnames | T_NUM | T_HEX | T_STR | evm | T_MINUS | T_MINUSMINUS | T_TILDE
+          | T_NOT | T_LPAREN | calls | brackets | T_ARRAY_C | T_DATA_EQ | T_IDENT_CALL
+          | T_PANIC_C;
 
   main := (
     start: (
-        names @e_name -> after
+        ( names | kwnames ) @e_name -> after
       | ( T_NUM | T_HEX ) @e_num -> after
       | T_STR @e_str -> after
       | evm @e_evm -> after
       | T_MINUS @e_neg -> start
       | T_MINUSMINUS @e_negneg -> start
       | T_TILDE @e_bitnot -> start
-      | T_NOT @e_not -> start
+      | T_NOT -> not_
       | T_LPAREN @e_paren -> start
       | calls @e_call -> start
       | brackets @e_bracket -> start
@@ -1153,6 +1168,10 @@ bool Parser::close_bracket(std::uint32_t tok)
       | T_PANIC_C ( T_TYPE | T_BYTES | T_LPAREN | T_RPAREN ) @e_panic_sig -> after
       | T_PANIC_C ( any - ( T_TYPE | T_BYTES | T_LPAREN | T_RPAREN ) ) @e_panic -> start
       | T_RPAREN @e_empty -> after
+    ),
+    not_: (
+        operand @e_not_op -> start
+      | ( any - operand ) @e_not_name -> after
     ),
     after: (
         binops @o_bin -> start
@@ -1887,6 +1906,7 @@ void Parser::s_stor_item()
   import "text_lexer.hpp";
 
   action x { if (!sub_expr(fpc, false)) fbreak; fexec k0_ + pos_; }
+  action x_back { if (!sub_expr(fpc - 1, false)) fbreak; fexec k0_ + pos_; }
   action x_indexed { if (!sub_expr(fpc, true)) fbreak; fexec k0_ + pos_; }
   action lv_count { nlv_ = static_cast<std::uint32_t>(parts_.size()); }
   action sig_def { if (!sub_sig(fpc, SigMode::def)) fbreak; fexec k0_ + pos_; }
@@ -1977,6 +1997,12 @@ void Parser::s_stor_item()
        | T_INDEXED | T_CONTRACT | T_CODE | T_SALT | T_STORAGE | T_IS | T_AT | T_OFFSET | T_OF
        | T_MAPPING | T_FIXED | T_STRUCT | T_SLOT | T_SLOTS | T_PAYABLE;
   names = T_IDENT | soft | T_TYPE | T_BYTES | T_ARRAY | T_SAFEMATH;
+  # the keywords no operand starts with: names where an operand goes (the
+  # expression machine's kwnames), and at a statement's start before what
+  # can't go on the keyword's statement (kw_assign)
+  kwnames = T_DEF | T_CONST | T_IF | T_ELSE | T_WHILE | T_CONTINUE | T_BREAK | T_REQUIRE
+          | T_ASSERT | T_REVERT | T_RETURN | T_STOP | T_INVALID | T_LOG | T_CALL | T_DELEGATE
+          | T_CODECALL | T_CREATE | T_CREATE2 | T_AND | T_OR;
   evm = T_CALLER | T_ORIGIN | T_GASPRICE | T_CALLVALUE | T_FUNC_HASH | T_CALLDATASIZE
       | T_RETDATASIZE | T_THIS | T_GAS_REMAINING | T_CHAINID | T_MSIZE | T_NUMBER | T_TIMESTAMP
       | T_COINBASE | T_DIFFICULTY | T_GASLIMIT | T_BASEFEE | T_BLOBBASEFEE | T_CALL_SUCCESS
@@ -1987,8 +2013,11 @@ void Parser::s_stor_item()
         | T_EXTCODE_C | T_BLOCKHASH_C | T_BLOBHASH_C | T_SAFEMATH_C;
   brackets = T_MEM_B | T_CD_B | T_STOR_B | T_TRANSIENT_B | T_CALLDATA_B | T_RETDATA_B
            | T_CODEDATA_B;
-  expr_first = names | evm | T_NUM | T_HEX | T_STR | calls | brackets | T_ARRAY_C | T_PANIC_C
-             | T_IDENT_CALL | T_LPAREN | T_MINUS | T_MINUSMINUS | T_TILDE | T_NOT;
+  expr_first = names | kwnames | evm | T_NUM | T_HEX | T_STR | calls | brackets | T_ARRAY_C
+             | T_PANIC_C | T_IDENT_CALL | T_LPAREN | T_MINUS | T_MINUSMINUS | T_TILDE | T_NOT;
+  # every word the text may give a definition: a const's name (the
+  # sig machine's param names)
+  hard = kwnames | T_NOT | T_TRUE | T_FALSE | T_CALLER | T_CHAINID | T_MSIZE | T_GAS_REMAINING;
   def_name = T_IDENT_CALL | calls | T_ARRAY_C | T_PANIC_C | T_SELFDESTRUCT_C | T_PRECOMPILE_C
            | T_FALLBACK_C;
   hdr_comment = T_C_NOT_PAYABLE | T_C_NOT_PAYABLE_INVALID | T_C_DEFAULT | T_C_NOT_PAYABLE_DEFAULT
@@ -2000,6 +2029,13 @@ void Parser::s_stor_item()
   ex_nomem = ( expr_first - T_MEMORY ) @x;
   ex_noidx = ( expr_first - T_INDEXED ) @x;
   ex_nosig = ( expr_first - ( T_IDENT_CALL | T_INDEXED ) ) @x;
+  # an expression after a keyword the text may also use as a name: `--`
+  # starts one (a double negation) unless the line ends after it - the name
+  # decremented (kw_assign): there the second token decides
+  kdash = T_MINUSMINUS ( any - ( T_COMMENT | T_EOL ) ) @x_back;
+  kex = ( expr_first - T_MINUSMINUS ) @x | kdash;
+  kex_nomem = ( expr_first - ( T_MEMORY | T_MINUSMINUS ) ) @x | kdash;
+  kex_nosig = ( expr_first - ( T_IDENT_CALL | T_INDEXED | T_MINUSMINUS ) ) @x | kdash;
   datalist = ex ( T_COMMA ex )*;
   log_items = ( T_INDEXED ( expr_first - T_INDEXED ) @x_indexed | ex_noidx )
               ( T_COMMA ( T_INDEXED ( expr_first - T_INDEXED ) @x_indexed | ex_noidx ) )*;
@@ -2020,20 +2056,32 @@ void Parser::s_stor_item()
       | def_name @rem_a @sig_def T_PAYABLE? T_COLON ( hdr_comment @rem_comment )? T_EOL @s_def
   );
 
-  const_line = T_CONST ( names @rem_a T_ASSIGN datalist eol @s_const
+  const_line = T_CONST ( ( names | hard ) @rem_a T_ASSIGN datalist eol @s_const
                        | def_name @sig_def T_ASSIGN datalist eol @s_const_sig );
 
   log_line = T_LOG @rem_a (
         T_EOL @s_log_none
       | T_IDENT_CALL @sig_log ( T_COLON log_items? )? eol @s_log_sig
-      | ex_nosig ( T_COLON log_items? eol @s_log_topic
-                 | ( T_COMMA ex_nosig )* eol @s_log_data )
+      | kex_nosig ( T_COLON log_items? eol @s_log_topic
+                  | ( T_COMMA ex_nosig )* eol @s_log_data )
   );
 
   # the lines whose first word is also a name: decided by the second token
   # (priorities: a name's assignment otherwise)
-  stor_item = names @rem_a ( T_IS >(lead, 2) ) stype_wrap* stype_base T_AT T_STORAGE
-              stype_num @rem_b ( T_OFFSET T_NUM @si_offset )? eol @s_stor_item;
+  stor_rest = stype_wrap* stype_base T_AT T_STORAGE stype_num @rem_b ( T_OFFSET T_NUM @si_offset )?
+              eol @s_stor_item;
+  stor_item = names @rem_a ( T_IS >(lead, 2) ) stor_rest;
+  # a statement whose first word is a keyword the text also uses as a name:
+  # the name (an assignment's) before what can't go on the keyword's
+  # statement - `[`, `.field_N`, `.length`, `.member`, `[all]`, `,`, `=`,
+  # `+=`, `-=`, `++` - and before `--` ending the line (after if, while,
+  # require, assert, return, log and the calls, `--` may start an
+  # expression: kex); `not` before `--` stays the operator (the expression
+  # machine reads `not --` as two)
+  name_next = T_LBRACK | T_DOT_FIELD | T_DOT_LENGTH | T_DOT_MEMBER | T_ALL | T_COMMA | T_ASSIGN
+            | T_PLUSEQ | T_MINUSEQ | T_PLUSPLUS;
+  kw_assign = kwnames ( name_next | T_MINUSMINUS ( T_COMMENT | T_EOL ) ) @go_assign
+            | T_NOT name_next @go_assign;
   label_while = T_IDENT @rem_a ( T_COLON >(lead, 2) ) T_WHILE ex T_COLON eol @s_while;
   a_funct = T_FUNCT ( ex >(lead, 1) ) eol @a_funct;
   a_value = T_VALUE ( ex >(lead, 1) ) T_WEI eol @a_value;
@@ -2051,32 +2099,40 @@ void Parser::s_stor_item()
       any_comment T_EOL @s_comment
     | def_line
     | const_line
-    | T_IF ex T_COLON eol @s_if
+    | T_IF kex T_COLON eol @s_if
     | T_ELSE T_COLON eol @s_else
-    | T_WHILE ex T_COLON eol @s_while
+    | T_WHILE kex T_COLON eol @s_while
     | T_CONTINUE ( T_IDENT @rem_a )? eol @s_continue
     | T_BREAK eol @s_break
-    | T_REQUIRE ex eol @s_require
-    | T_ASSERT ex eol @s_assert
+    | T_REQUIRE kex eol @s_require
+    | T_ASSERT kex eol @s_assert
     | T_REVERT ( eol @s_revert
                | T_WITH ( T_MEMORY eol @s_revert_mem
                         | ex_nomem ( T_COMMA ex )* eol @s_revert_data ) )
     | T_RETURN ( eol @s_return
                | T_MEMORY eol @s_return_mem
-               | ex_nomem ( T_COMMA ex )* eol @s_return_data )
+               | kex_nomem ( T_COMMA ex )* eol @s_return_data )
     | T_STOP eol @s_stop
     | T_INVALID eol @s_invalid
     | T_SELFDESTRUCT_C ex T_RPAREN eol @s_selfdestruct
     | log_line
     | ( T_CALL @k_call | T_STATIC_CALL @k_static | T_DELEGATE @k_delegate | T_CODECALL @k_codecall )
-      ex T_WITH T_COLON eol @s_call
+      kex T_WITH T_COLON eol @s_call
     | ( T_CREATE @k_create | T_CREATE2 @k_create2 ) T_CONTRACT T_WITH ex T_WEI eol @s_create
     | T_INTERNAL_C @rem_b ( ex ( T_COMMA ex )* )? T_RPAREN eol @s_internal
     | T_ELLIPSIS T_C_ABORTED T_EOL @s_aborted
     | stor_item | label_while
     | a_funct | a_value | a_gas | a_args | a_from | a_len | a_to | a_code | a_salt
+    | kw_assign
     | fallback
   );
+
+  # a line of def storage:'s block (parse_line starts there in it): a
+  # definition's name may be any word the expressions read as a name - the
+  # block says it's no statement (True, False and the EVM's values print as
+  # their names would: not names)
+  storage_line := any_comment T_EOL @s_comment
+                | ( names | kwnames | T_NOT ) @rem_a T_IS stor_rest;
 
   assign := ex ( ( T_COMMA ex )* T_ASSIGN @lv_count (
                      T_PRECOMPILE_C @rem_b ( ex ( T_COMMA ex )* )? T_RPAREN T_C_PRECOMPILED T_EOL @s_precompiled
@@ -2122,6 +2178,10 @@ void Parser::parse_line(std::uint32_t line)
     const std::uint16_t* p = k0_ + ln.first;
     const std::uint16_t* pe = k0_ + ln.last;
     %% write init;
+    // def storage:'s block holds definitions only: their names may be
+    // keywords (delegate is mapping of ...)
+    if (ctx_ == Ctx::storage)
+        cs = line_en_storage_line;
     %% write exec;
 
     if (comment_line)

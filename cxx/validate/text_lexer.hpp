@@ -8,7 +8,11 @@
 // the calls of the builtin functions (`sha3(`, `uint8(`: the word and its
 // parenthesis, written together in the text), the comments the headers end
 // with. A word the text may also use as a name (`value`, `from`, `data`...)
-// is a "soft" keyword: the parser takes it for a name where a name goes.
+// is a "soft" keyword: the parser takes it for a name where a name goes. The
+// others ("hard": `delegate`, `log`, `call`, `if`...) are names too where
+// their reading can't go - the signature database names storage variables
+// and params so: a getter delegate(address) is `delegate is mapping of ...`
+// (text_parser.rl: kwnames, kw_assign, storage_line).
 #pragma once
 
 #include <cstdint>

@@ -908,7 +908,17 @@ machine's limits, UNDEFINED, unsupported), and the first divergent stage.
 **text_check** (`validate/text_*`): `text_lexer.rl` scans the printed text
 into tokens in logical lines; `text_parser.rl`, 11 machines (statements,
 expressions by an operator-precedence machine with explicit stacks,
-signatures, blocks by indentation), makes a `Program` with integer names;
+signatures, blocks by indentation), makes a `Program` with integer names
+- a keyword among them where its reading can't go, as the signature
+database names storage variables and params `delegate`, `log`, `call`: in
+`def storage:`'s block (its own entry), at an operand (`not` the operator
+before what starts one, `-`, `and`, `or`, `len` included: both readings go
+on there), at a statement's start before `[`, `.field_N`, `.length`,
+`.member`, `[all]`, `,`, `=`, `+=`, `-=`, `++`, and before `--` ending the
+line (after `if`, `while`, `require`, `assert`, `return`, `log` and the
+calls `--` starts an expression too: two tokens decide); `True` and
+`False` never (at an operand the literal and a name print the same), nor
+`not` before `--`;
 `text_interp` runs a call as the text says, through a Session; what the
 text doesn't say precisely (msize, an aborted line...) is unsupported. The
 text doesn't print where an unknown function's params are in calldata

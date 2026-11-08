@@ -123,6 +123,45 @@ TEST_CASE("text interp: the storage - mappings, packed values, arrays, fields")
     CHECK(get.end.data == words({0x1234567, 0x1234567, 0, 0x67, 0x1234567, 1}));
 }
 
+TEST_CASE("text interp: the keywords the text also uses as names - storage variables, params, locals")
+{
+    // (Aragon's Voting: `delegate is mapping of struct of 1 slot at storage
+    // 6`, `delegate[_15].field_160 = _12`, `delegate[caller] = 0`)
+    Text t(
+        "def storage:\n"
+        "  delegate is mapping of struct of 1 slot at storage 6\n"
+        "  log is uint256 at storage 7\n"
+        "  not is uint256 at storage 8\n"
+        "\n"
+        "def set(address call, uint256 if): # not payable\n"
+        "  delegate[call].field_160 = if\n"
+        "  log += if\n"
+        "  log++\n"
+        "  if if > 5:\n"
+        "      log--\n"
+        "  not = log + delegate[call].field_160\n"
+        "  and = not + 1\n"
+        "  return address(delegate[call].field_0), log, not, and, not and\n"
+        "\n"
+        "def clear(address call): # not payable\n"
+        "  delegate[call] = 0\n");
+    const Word who{0x1234};
+    const Word slot = keccak256(words({who, 6}));
+    const auto a = t.call(calldata("set(address,uint256)", {who, 9}));
+    CHECK(a.end.status == Status::return_);
+    // log 9 + 1 - 1, not 9 + 9, and 19, `not and` (the operator) 0
+    CHECK(a.end.data == words({0, 9, 18, 19, 0}));
+    CHECK(a.storage_diff.at(slot) == Word{9} << 160);
+    CHECK(a.storage_diff.at(7) == 9);
+    CHECK(a.storage_diff.at(8) == 18);
+    const auto b = t.call(calldata("set(address,uint256)", {who, 2}));
+    // log 9 + 2 + 1 (2 <= 5), not 12 + 2
+    CHECK(b.end.data == words({0, 12, 14, 15, 0}));
+    const auto c = t.call(calldata("clear(address)", {who}));
+    CHECK(c.end.status == Status::stop);
+    CHECK(c.storage_diff.at(slot) == 0);
+}
+
 TEST_CASE("text interp: the ends - revert texts, Panic, require, assert, payable")
 {
     Text t(
