@@ -236,254 +236,212 @@
     {
      "prefix": "ensdomains__contracts-v2",
      "url": "https://github.com/ensdomains/contracts-v2",
-     "commit": "48b3e2d39513b9dd32ef1850877a29009bc807b9",
-     "files": 134
+     "commit": "48b3e2d39513b9dd32ef1850877a29009bc807b9"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "5fc3fee14043035097ae718387200f4f4daaa982",
-     "files": 229
+     "commit": "5fc3fee14043035097ae718387200f4f4daaa982"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/buffer",
      "url": "https://github.com/ensdomains/buffer",
-     "commit": "82cc81935de1d1a82e021cf1030d902c5248982b",
-     "files": 6
+     "commit": "82cc81935de1d1a82e021cf1030d902c5248982b"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/verifiable-factory",
      "url": "https://github.com/ensdomains/verifiable-factory",
-     "commit": "5ef7b1a88fd9062bae580ed4048ca369f18450c4",
-     "files": 17
+     "commit": "5ef7b1a88fd9062bae580ed4048ca369f18450c4"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505",
-     "files": 49
+     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/openzeppelin-contracts",
      "url": "https://github.com/openzeppelin/openzeppelin-contracts",
-     "commit": "e4f70216d759d8e6a64144a9e1f7bbeed78e7079",
-     "files": 339
+     "commit": "e4f70216d759d8e6a64144a9e1f7bbeed78e7079"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/openzeppelin-contracts-v4",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "54b3f14346da01ba0d159114b399197fea8b7cda",
-     "files": 289
+     "commit": "54b3f14346da01ba0d159114b399197fea8b7cda"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/solsha1",
      "url": "https://github.com/ensdomains/solsha1",
-     "commit": "c4fbe97cf5e8c1b8d607001588fd23abb5bfb923",
-     "files": 6
+     "commit": "c4fbe97cf5e8c1b8d607001588fd23abb5bfb923"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/ens-contracts",
      "url": "https://github.com/ensdomains/ens-contracts",
-     "commit": "3b1cc225ccdf64581d5fdc81db574f51ba5c8c09",
-     "files": 166
+     "commit": "3b1cc225ccdf64581d5fdc81db574f51ba5c8c09"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/unruggable-gateways",
      "url": "https://github.com/unruggable-labs/unruggable-gateways",
-     "commit": "7426ac57509e2023a673956439eed29998d2e371",
-     "files": 83
+     "commit": "7426ac57509e2023a673956439eed29998d2e371"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/solady",
      "url": "https://github.com/vectorized/solady",
-     "commit": "90db92ce173856605d24a554969f2c67cadbc7e9",
-     "files": 272
+     "commit": "90db92ce173856605d24a554969f2c67cadbc7e9"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
-     "files": 43
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
-     "files": 3
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c",
-     "files": 3
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "0a77e54c307d9becf0473b73541c4f9d3b2743a3",
-     "files": 339
+     "commit": "0a77e54c307d9becf0473b73541c4f9d3b2743a3"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/verifiable-factory/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "2b59872eee0b8088ddcade39fe8c041e17bb79c0",
-     "files": 47
+     "commit": "2b59872eee0b8088ddcade39fe8c041e17bb79c0"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/verifiable-factory/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "ccb39d27656fc36eea331e3403c52b057885634d",
-     "files": 321
+     "commit": "ccb39d27656fc36eea331e3403c52b057885634d"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/verifiable-factory/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "3d5fa5c24c411112bab47bec25cfa9ad0af0e6e8",
-     "files": 214
+     "commit": "3d5fa5c24c411112bab47bec25cfa9ad0af0e6e8"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262",
-     "files": 47
+     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/openzeppelin-contracts-v4/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
-     "files": 39
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/openzeppelin-contracts-v4/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/unruggable-gateways/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
-     "files": 43
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/unruggable-gateways/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3",
-     "files": 250
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
-     "files": 43
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
-     "files": 3
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c",
-     "files": 3
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/verifiable-factory/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262",
-     "files": 47
+     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/verifiable-factory/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/verifiable-factory/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/verifiable-factory/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa",
-     "files": 47
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/verifiable-factory/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/verifiable-factory/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/verifiable-factory/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527",
-     "files": 322
+     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/openzeppelin-contracts-v4/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-     "files": 6
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/unruggable-gateways/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb",
-     "files": 35
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/unruggable-gateways/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/verifiable-factory/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa",
-     "files": 47
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/verifiable-factory/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/verifiable-factory/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "ensdomains__contracts-v2/contracts/lib/unruggable-gateways/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "cd98eff28324bfac652e63a239a60632a761790b",
-     "files": 5
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
     }
    ]
   },
@@ -527,8 +485,7 @@
     {
      "prefix": "ensdomains__ens-contracts",
      "url": "https://github.com/ensdomains/ens-contracts",
-     "commit": "ebe0b84852134c6236727defc0704471215c23c0",
-     "files": 168
+     "commit": "ebe0b84852134c6236727defc0704471215c23c0"
     }
    ]
   }
