@@ -1,0 +1,48 @@
+{
+  "name": "parallel-core",
+  "description": "Parallel Core",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "compile": "forge build && hardhat compile",
+    "clean": "rm -rf cache out",
+    "lint": "bun run lint:sol && bun run prettier:check",
+    "lint:sol": "forge fmt --check && bun solhint \"{script,src,tests}/**/*.sol\"",
+    "prettier:check": "prettier --check \"**/*.{json,md,yml}\" --ignore-path \".prettierignore\"",
+    "prettier:write": "prettier --write \"**/*.{json,md,yml}\" --ignore-path \".prettierignore\"",
+    "slither": "slither . --triage-mode",
+    "test": "forge test",
+    "test:coverage": "forge coverage",
+    "test:coverage:report": "forge coverage --report lcov && genhtml lcov.info --branch-coverage --output-dir coverage",
+    "verify": "rocketh-verify etherscan"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.1"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-keystore": "^3.0.1",
+    "@nomicfoundation/hardhat-network-helpers": "^3.0.0",
+    "@nomicfoundation/hardhat-node-test-runner": "^3.0.2",
+    "@nomicfoundation/hardhat-viem": "^3.0.0",
+    "@rocketh/deploy": "^0.14.0",
+    "@rocketh/doc": "^0.14.4",
+    "@rocketh/export": "^0.14.4",
+    "@rocketh/proxy": "^0.14.0",
+    "@rocketh/read-execute": "^0.14.0",
+    "@rocketh/signer": "^0.14.0",
+    "@rocketh/verifier": "^0.14.4",
+    "@rocketh/viem": "^0.14.0",
+    "dotenv": "^16.4.7",
+    "forge-std": "github:foundry-rs/forge-std#v1.9.5",
+    "hardhat": "^3.0.3",
+    "hardhat-deploy": "^2.0.0-next.40",
+    "prettier": "^3.0.0",
+    "solhint": "^3.6.2",
+    "ts-node": "^10.9.2",
+    "rocketh": "^0.14.4",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "viem": "^2.37.1"
+  }
+}
