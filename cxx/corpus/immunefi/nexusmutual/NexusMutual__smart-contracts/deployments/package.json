@@ -1,0 +1,28 @@
+{
+  "name": "@nexusmutual/deployments",
+  "version": "3.4.0",
+  "description": "Nexus Mutual deployed contract addresses and abis",
+  "typings": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NexusMutual/smart-contracts.git"
+  },
+  "keywords": [
+    "nexusmutual",
+    "nexus",
+    "mutual",
+    "deployments",
+    "contracts"
+  ],
+  "author": "nexusmutual",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/NexusMutual/smart-contracts/issues"
+  },
+  "homepage": "https://github.com/NexusMutual/smart-contracts#readme"
+}

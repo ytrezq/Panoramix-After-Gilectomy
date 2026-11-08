@@ -1,0 +1,151 @@
+import fs from "node:fs";
+
+import "@nomicfoundation/hardhat-foundry";
+import "@openzeppelin/hardhat-upgrades";
+import "@nomicfoundation/hardhat-verify";
+import "@nomiclabs/hardhat-ethers";
+import "hardhat-abi-exporter";
+import "@typechain/hardhat";
+
+import { ChainId } from "./deployment/chainIds";
+import "./deployment/upgrade/upgrade";
+import "./deployment/polygon/privateTokenSwap";
+import "./deployment/hyperevm/whitelistSpotAsset";
+import "./deployment/hyperevm/whitelistPerpAssets";
+
+if (fs.existsSync(".env")) process.loadEnvFile(".env");
+
+/**
+ * @type import('hardhat/config').HardhatUserConfig
+ */
+export default {
+  networks: {
+    hardhat: {},
+    localhost: {
+      chainId: ChainId.hardhat,
+      url: "http://127.0.0.1:8545",
+      timeout: 0,
+    },
+    ethereum: {
+      chainId: ChainId.ethereum,
+      url: process.env.ETHEREUM_URL_ALTERNATIVE || "https://eth-mainnet.g.alchemy.com/v2/",
+      accounts: process.env.ETHEREUM_PRIVATE_KEY ? [process.env.ETHEREUM_PRIVATE_KEY] : [],
+    },
+    ovm: {
+      chainId: ChainId.optimism,
+      url: process.env.OPTIMISM_URL || "https://opt-mainnet.g.alchemy.com/v2/",
+      accounts: process.env.OVM_PRIVATE_KEY ? [process.env.OVM_PRIVATE_KEY] : [],
+    },
+    polygon: {
+      chainId: ChainId.polygon,
+      url: process.env.POLYGON_URL || "https://polygon-mainnet.g.alchemy.com/v2/",
+      accounts: process.env.POLYGON_PRIVATE_KEY ? [process.env.POLYGON_PRIVATE_KEY] : [],
+    },
+    arbitrum: {
+      chainId: ChainId.arbitrum,
+      url: process.env.ARBITRUM_URL || "https://arb-mainnet.g.alchemy.com/v2/",
+      accounts: process.env.ARBITRUM_PRIVATE_KEY ? [process.env.ARBITRUM_PRIVATE_KEY] : [],
+    },
+    base: {
+      chainId: ChainId.base,
+      url: process.env.BASE_URL || "https://base-mainnet.g.alchemy.com/v2/",
+      accounts: process.env.BASE_PRIVATE_KEY ? [process.env.BASE_PRIVATE_KEY] : [],
+    },
+    plasma: {
+      chainId: ChainId.plasma,
+      url: process.env.PLASMA_URL || "https://plasma-mainnet.g.alchemy.com/v2/",
+      accounts: process.env.PLASMA_PRIVATE_KEY ? [process.env.PLASMA_PRIVATE_KEY] : [],
+    },
+    hyperevm: {
+      chainId: ChainId.hyperevm,
+      url: process.env.HYPEREVM_URL || "https://hyperliquid-mainnet.g.alchemy.com/v2/",
+      accounts: process.env.HYPEREVM_PRIVATE_KEY ? [process.env.HYPEREVM_PRIVATE_KEY] : [],
+    },
+  },
+  solidity: {
+    compilers: [
+      {
+        version: "0.7.6",
+        settings: {
+          outputSelection: {
+            "*": {
+              "*": ["storageLayout"],
+            },
+          },
+          optimizer: {
+            enabled: true,
+            runs: 20,
+          },
+        },
+      },
+      {
+        version: "0.8.28",
+        settings: {
+          outputSelection: {
+            "*": {
+              "*": ["storageLayout"],
+            },
+          },
+          evmVersion: "cancun",
+          optimizer: {
+            enabled: true,
+            runs: 20,
+          },
+        },
+      },
+    ],
+    overrides: {
+      "@uniswap/v3-periphery/contracts/libraries/PoolAddress.sol": {
+        version: "0.7.6",
+      },
+    },
+  },
+  abiExporter: {
+    path: "./abi",
+    clear: true,
+    flat: true,
+    only: [
+      "PoolFactory",
+      "contracts/PoolLogic",
+      "PoolManagerLogic",
+      "AssetHandler",
+      "DynamicBonds",
+      "DhedgeStakingV2",
+      "DhedgeEasySwapper",
+      "RewardDistribution",
+      "Governance",
+      "contracts/swappers/poolTokenSwapper/PoolTokenSwapper",
+      "contracts/swappers/easySwapperV2/EasySwapperV2",
+      "contracts/limitOrders/PoolLimitOrderManager",
+      "TypedStructuredDataValidator",
+      "EasyLimitBuyManager",
+    ],
+    except: ["contracts/interfaces", "contracts/test", "contracts/stakingv2/interfaces"],
+    spacing: 2,
+  },
+  etherscan: {
+    apiKey: process.env.ETHERSCAN_API_KEY,
+    customChains: [
+      {
+        network: "plasma",
+        chainId: ChainId.plasma,
+        urls: {
+          apiURL: "https://api.routescan.io/v2/network/mainnet/evm/9745/etherscan/api",
+          browserURL: "https://plasmascan.to/",
+        },
+      },
+      {
+        network: "hyperevm",
+        chainId: ChainId.hyperevm,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api",
+          browserURL: "https://hyperevmscan.io/",
+        },
+      },
+    ],
+  },
+  typechain: {
+    outDir: "./types",
+    target: "ethers-v5",
+  },
+};

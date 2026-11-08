@@ -1,0 +1,202 @@
+{
+  "name": "@exactly/e2e",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "test": "nx test e2e",
+    "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
+    "generate:camera": "node camera.ts",
+    "maestro": "hash=$(printenv npm_lifecycle_script | cat - patches/*.patch | git hash-object --stdin) && echo $hash | cmp -s - build/hash || { r=https://ghcr.io/v2/exactly/maestro && t=$(curl -fsSm 10 'https://ghcr.io/token?scope=repository:exactly/maestro:pull') && a=\"Authorization: Bearer $(node -p 'JSON.parse(process.argv[1]).token' \"$t\")\" && m=$(curl -fsSm 10 -H \"$a\" -H 'Accept: application/vnd.oci.image.manifest.v1+json' $r/manifests/$hash) && rm -rf build && mkdir build && curl -fsSL --connect-timeout 10 -Y 1000000 -y 10 -H \"$a\" $r/blobs/$(node -p 'JSON.parse(process.argv[1]).layers[0].digest' \"$m\") | tar -xzf - -C build && echo $hash > build/hash; } || { src=$(mktemp -d) && trap 'rm -rf $src' EXIT && git init -q $src && git -C $src fetch -q --depth 1 https://github.com/mobile-dev-inc/Maestro cli-2.12.0 && git -C $src checkout -q FETCH_HEAD && git -C $src apply $PWD/patches/*.patch && $src/gradlew -p $src :maestro-cli:installDist -x :maestro-ios-driver:buildIosDriver && rm -rf build && mv $src/maestro-cli/build/install/maestro build && echo $hash > build/hash; }",
+    "brave": "d=node_modules/.cache/brave && hash=$(printenv npm_lifecycle_script | git hash-object --stdin) && echo $hash | cmp -s - $d/hash || { v=1.98.60 && rm -rf $d && curl -fsSL --create-dirs -o $d/brave.zip https://github.com/brave/brave-browser/releases/download/v$v/brave-browser-$v-linux-amd64.zip && unzip -qd $d $d/brave.zip && rm $d/brave.zip && echo $hash > $d/hash; }",
+    "metamask": "d=node_modules/.cache/metamask && hash=$(printenv npm_lifecycle_script | cat - subflows/metamask.yaml | git hash-object --stdin) && echo $hash | cmp -s - $d/hash || { v=13.54.0 && rm -rf $d && curl -fsSL --create-dirs -o $d/metamask.zip https://github.com/MetaMask/metamask-extension/releases/download/v$v/metamask-chrome-$v.zip && unzip -qd $d/extension $d/metamask.zip && rm $d/metamask.zip && SE_FORCE_BROWSER_DOWNLOAD=true build/bin/maestro test subflows/metamask.yaml -e APP_ID=http://localhost:8081 --platform web --headless --screen-size 1920x1080 --browser-args=--force-prefers-reduced-motion --browser-args=--user-data-dir=$PWD/$d/profile --browser-args=--load-extension=$PWD/$d/extension --browser-args=--no-sandbox --browser-args=--screen-info={3840x2160} '--browser-args=--host-resolver-rules=MAP *.infura.io ~NOTFOUND, MAP *.metamask.io ~NOTFOUND' && echo $hash > $d/hash; }",
+    "dev": "nx dev e2e"
+  },
+  "engines": {
+    "node": "^24.14.1"
+  },
+  "devDependencies": {
+    "@exactly/common": "workspace:^0.0.24",
+    "@noble/curves": "^2.0.1",
+    "@noble/hashes": "^2.0.1",
+    "esbuild": "^0.28.1",
+    "eslint": "catalog:",
+    "fast-text-encoding": "^1.0.6",
+    "qrcode": "^1.5.4",
+    "typescript": "catalog:",
+    "viem": "catalog:"
+  },
+  "nx": {
+    "projectType": "library",
+    "namedInputs": {
+      "bundle": [
+        "{projectRoot}/src/**/*",
+        "{projectRoot}/maestro.d.ts",
+        "{projectRoot}/package.json",
+        "{projectRoot}/tsconfig.json",
+        "{projectRoot}/esbuild.config.cjs",
+        "sharedGlobals"
+      ]
+    },
+    "targets": {
+      "prepare": {
+        "dependsOn": [
+          "^prepare",
+          "build",
+          "generate:camera"
+        ],
+        "executor": "nx:noop"
+      },
+      "generate:camera": {
+        "inputs": [
+          "{projectRoot}/camera.ts"
+        ],
+        "outputs": [
+          "{projectRoot}/generated"
+        ]
+      },
+      "build": {
+        "executor": "@nx/esbuild:esbuild",
+        "inputs": [
+          "bundle",
+          {
+            "dependentTasksOutputFiles": "common/generated/**/*",
+            "transitive": true
+          },
+          "^production"
+        ],
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "options": {
+          "minify": true,
+          "thirdParty": true,
+          "outputPath": ".maestro/dist",
+          "platform": "neutral",
+          "tsConfig": "{projectRoot}/tsconfig.json",
+          "esbuildConfig": "{projectRoot}/esbuild.config.cjs",
+          "main": "{projectRoot}/src/script/*.ts"
+        }
+      },
+      "dev": {
+        "continuous": true,
+        "dependsOn": [
+          "^prepare",
+          "^build"
+        ],
+        "executor": "@nx/esbuild:esbuild",
+        "inputs": [
+          "bundle",
+          "^production"
+        ],
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "options": {
+          "watch": true,
+          "thirdParty": true,
+          "outputPath": ".maestro/dist",
+          "platform": "neutral",
+          "tsConfig": "{projectRoot}/tsconfig.json",
+          "esbuildConfig": "{projectRoot}/esbuild.config.cjs",
+          "main": "{projectRoot}/src/script/*.ts"
+        }
+      },
+      "test": {
+        "dependsOn": [
+          "test:eslint",
+          "test:ts"
+        ],
+        "executor": "nx:noop"
+      },
+      "metamask": {
+        "dependsOn": [
+          "maestro"
+        ]
+      },
+      "e2e:webauthn": {
+        "command": "mkdir -p junit && curl -fs --fail-early --retry 900 --retry-delay 1 --retry-all-errors -o /dev/null localhost:3000/api/auth/authentication -o /dev/null localhost:8081 && CHROME_LOG_FILE=$PWD/chrome.log build/bin/maestro test flows/{args.flow}.yaml -e APP_ID=http://localhost:8081 -e method=webauthn --platform web --headless --screen-size {args.screen} --format junit --output junit/{args.flow}.xml --browser-args=--force-prefers-reduced-motion --browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$PWD/generated/{args.flow}.y4m --browser-args=--no-sandbox",
+        "dependsOn": [
+          "maestro",
+          "generate:camera"
+        ],
+        "options": {
+          "cwd": "{projectRoot}"
+        },
+        "cache": true,
+        "inputs": [
+          "default",
+          {
+            "input": "default",
+            "projects": [
+              "@exactly/common",
+              "@exactly/mobile",
+              "@exactly/plugin",
+              "@exactly/server"
+            ]
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/junit/{options.flow}.xml"
+        ]
+      },
+      "e2e:metamask": {
+        "command": "d=$(mktemp -d) && cp -a node_modules/.cache/metamask/profile/. $d && mkdir -p junit && curl -fs --fail-early --retry 900 --retry-delay 1 --retry-all-errors -o /dev/null localhost:3000/api/auth/authentication -o /dev/null localhost:8081 && CHROME_LOG_FILE=$PWD/chrome.log build/bin/maestro test flows/{args.flow}.yaml -e APP_ID=http://localhost:8081 -e method=metamask --platform web --headless --screen-size {args.screen} --format junit --output junit/{args.flow}.xml --browser-args=--force-prefers-reduced-motion --browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$PWD/generated/{args.flow}.y4m --browser-args=--user-data-dir=$d --browser-args=--load-extension=$PWD/node_modules/.cache/metamask/extension --browser-args=--no-sandbox --browser-args=--screen-info={3840x2160} '--browser-args=--host-resolver-rules=MAP *.infura.io ~NOTFOUND, MAP *.metamask.io ~NOTFOUND'",
+        "dependsOn": [
+          "maestro",
+          "generate:camera",
+          "metamask"
+        ],
+        "options": {
+          "cwd": "{projectRoot}",
+          "env": {
+            "SE_FORCE_BROWSER_DOWNLOAD": "true"
+          }
+        },
+        "cache": true,
+        "inputs": [
+          "default",
+          {
+            "input": "default",
+            "projects": [
+              "@exactly/common",
+              "@exactly/mobile",
+              "@exactly/plugin",
+              "@exactly/server"
+            ]
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/junit/{options.flow}.xml"
+        ]
+      },
+      "e2e:brave": {
+        "command": "mkdir -p junit && curl -fs --fail-early --retry 900 --retry-delay 1 --retry-all-errors -o /dev/null localhost:3000/api/auth/authentication -o /dev/null localhost:8081 && CHROME_LOG_FILE=$PWD/chrome.log SE_BROWSER_PATH=$PWD/node_modules/.cache/brave/brave xvfb-run -a build/bin/maestro test flows/{args.flow}.yaml -e APP_ID=http://localhost:8081 -e method=brave --platform web --screen-size {args.screen} --format junit --output junit/{args.flow}.xml --browser-args=--force-prefers-reduced-motion --browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$PWD/generated/{args.flow}.y4m --browser-args=--window-size=$(echo {args.screen} | tr x ,) --browser-args=--no-sandbox --browser-args=--disable-gpu",
+        "dependsOn": [
+          "maestro",
+          "generate:camera",
+          "brave"
+        ],
+        "options": {
+          "cwd": "{projectRoot}"
+        },
+        "cache": true,
+        "inputs": [
+          "default",
+          {
+            "input": "default",
+            "projects": [
+              "@exactly/common",
+              "@exactly/mobile",
+              "@exactly/plugin",
+              "@exactly/server"
+            ]
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/junit/{options.flow}.xml"
+        ]
+      }
+    }
+  },
+  "private": true
+}

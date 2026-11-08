@@ -1,0 +1,13 @@
+name: styfi
+plugins:
+  - name: vyper
+  - name: foundry
+  - name: etherscan
+vyper:
+  evm_version: cancun
+ethereum:
+  default_network: mainnet-fork
+  local:
+    default_provider: foundry
+  mainnet_fork:
+    default_provider: foundry

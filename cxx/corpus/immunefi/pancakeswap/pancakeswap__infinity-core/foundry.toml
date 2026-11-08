@@ -1,0 +1,40 @@
+[profile.default]
+src = 'src'
+out = 'foundry-out'
+solc_version = '0.8.26'
+optimizer_runs = 25_666
+via_ir = true
+ffi = true
+fs_permissions = [
+    { access = "read-write", path = ".forge-snapshots/" },
+    { access = "read", path = "./foundry-out" },
+    { access = "read", path = "./script/config" },
+    { access = "read", path = "./test/pool-cl/bin" },
+    { access = "read", path = "./test/pool-bin/bin" },
+]
+evm_version = 'cancun'
+gas_limit = "300000000"
+bytecode_hash = "none"
+
+# added due to v1.0 foundry
+# ref: https://book.getfoundry.sh/guides/v1.0-migration#expect-revert-cheatcode-disabled-on-internal-calls-by-default
+allow_internal_expect_revert = true
+
+[fuzz]
+runs = 5 # change this for higher number of fuzz runs locally
+
+[profile.ci.fuzz]
+runs = 10000
+
+[profile.ci.invariant]
+runs = 1000            # The number of calls to make in the invariant tests
+call_override = false  # Override calls
+fail_on_revert = false # Fail the test if the contract reverts
+
+[profile.ci_main.fuzz]
+runs = 100000
+
+[profile.ci_main.invariant]
+runs = 10000           # The number of calls to make in the invariant tests
+call_override = false  # Override calls
+fail_on_revert = false # Fail the test if the contract reverts

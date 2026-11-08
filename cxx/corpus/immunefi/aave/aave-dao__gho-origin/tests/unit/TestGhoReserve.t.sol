@@ -1,0 +1,462 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import './TestGhoBase.t.sol';
+
+contract TestGhoReserve is TestGhoBase {
+  function testConstructor() public {
+    GhoReserve reserve = new GhoReserve(address(GHO_TOKEN));
+    assertEq(reserve.GHO_TOKEN(), address(GHO_TOKEN));
+  }
+
+  function testRevertConstructorInvalidGhoToken() public {
+    vm.expectRevert('ZERO_ADDRESS_NOT_VALID');
+    new GhoReserve(address(0));
+  }
+
+  function testInitialize() public {
+    address proxyAdmin = makeAddr('PROXY_ADMIN');
+    GhoReserve reserveImpl = new GhoReserve(address(GHO_TOKEN));
+
+    TransparentUpgradeableProxy reserveProxy = new TransparentUpgradeableProxy(
+      address(reserveImpl),
+      proxyAdmin,
+      abi.encodeWithSignature('initialize(address)', address(this))
+    );
+    GhoReserve reserve = GhoReserve(address(reserveProxy));
+
+    assertTrue(reserve.hasRole(DEFAULT_ADMIN_ROLE, address(this)));
+    assertTrue(reserve.hasRole(ENTITY_MANAGER_ROLE, address(this)));
+    assertTrue(reserve.hasRole(LIMIT_MANAGER_ROLE, address(this)));
+    assertTrue(reserve.hasRole(TRANSFER_ROLE, address(this)));
+  }
+
+  function testRevertInitializeInvalidZeroOwner() public {
+    address proxyAdmin = makeAddr('PROXY_ADMIN');
+    GhoReserve reserveImpl = new GhoReserve(address(GHO_TOKEN));
+
+    vm.expectRevert('ZERO_ADDRESS_NOT_VALID');
+    new TransparentUpgradeableProxy(
+      address(reserveImpl),
+      proxyAdmin,
+      abi.encodeWithSignature('initialize(address)', address(0))
+    );
+  }
+
+  function testRevertInitializeTwice() public {
+    GhoReserve reserve = _deployReserve();
+    vm.expectRevert('Contract instance has already been initialized');
+    reserve.initialize(address(this));
+  }
+
+  function testRevertUseNoCapacity() public {
+    GHO_RESERVE.addEntity(address(this));
+    vm.expectRevert('LIMIT_EXCEEDED');
+    GHO_RESERVE.use(100 ether);
+  }
+
+  function testUse() public {
+    uint256 capacity = 100_000 ether;
+    GHO_RESERVE.addEntity(address(this));
+    GHO_RESERVE.setLimit(address(this), capacity);
+    assertEq(GHO_RESERVE.getUsed(address(this)), 0);
+    assertEq(GHO_RESERVE.getLimit(address(this)), capacity);
+
+    vm.expectEmit(true, true, true, true, address(GHO_RESERVE));
+    emit IGhoReserve.GhoUsed(address(this), capacity / 2);
+    GHO_RESERVE.use(capacity / 2);
+
+    (uint256 limit, uint256 used) = GHO_RESERVE.getUsage(address(this));
+
+    assertEq(GHO_RESERVE.getUsed(address(this)), capacity / 2);
+    assertEq(limit - used, capacity / 2);
+  }
+
+  function testUseOverflowUnreachable() public {
+    address newEntity = makeAddr('new-entity');
+    GHO_RESERVE.addEntity(address(newEntity));
+
+    uint256 value = type(uint128).max;
+
+    vm.expectRevert(
+      abi.encodeWithSignature('SafeCastOverflowedUintDowncast(uint8,uint256)', 128, value + 1)
+    );
+    GHO_RESERVE.setLimit(newEntity, value + 1);
+
+    GHO_RESERVE.setLimit(newEntity, value);
+
+    vm.expectRevert('LIMIT_EXCEEDED');
+    vm.prank(newEntity);
+    GHO_RESERVE.use(value + 1);
+  }
+
+  function testUseNotEntity() public {
+    vm.expectRevert('LIMIT_EXCEEDED');
+    GHO_RESERVE.use(1_000 ether);
+  }
+
+  function testUseAmountIsZero() public {
+    vm.expectRevert('INVALID_AMOUNT');
+    GHO_RESERVE.use(0);
+  }
+
+  function testRevertRestoreNoWithdrawnAmount() public {
+    GHO_RESERVE.addEntity(address(this));
+    GHO_RESERVE.setLimit(address(this), 10_000 ether);
+
+    vm.expectRevert(stdError.arithmeticError);
+    GHO_RESERVE.restore(10_000 ether);
+  }
+
+  function testRestore() public {
+    uint256 capacity = 100_000 ether;
+    GHO_RESERVE.addEntity(address(this));
+    GHO_RESERVE.setLimit(address(this), capacity);
+    assertEq(GHO_RESERVE.getUsed(address(this)), 0);
+    assertEq(GHO_RESERVE.getLimit(address(this)), capacity);
+
+    vm.expectEmit(true, true, true, true, address(GHO_RESERVE));
+    emit IGhoReserve.GhoUsed(address(this), capacity / 2);
+    GHO_RESERVE.use(capacity / 2);
+
+    (uint256 limit, uint256 used) = GHO_RESERVE.getUsage(address(this));
+
+    assertEq(GHO_RESERVE.getUsed(address(this)), capacity / 2);
+    assertEq(limit - used, capacity / 2);
+
+    uint256 repayAmount = 25_000 ether;
+    GHO_TOKEN.approve(address(GHO_RESERVE), repayAmount);
+
+    vm.expectEmit(true, true, true, true, address(GHO_RESERVE));
+    emit IGhoReserve.GhoRestored(address(this), repayAmount);
+    GHO_RESERVE.restore(repayAmount);
+
+    (limit, used) = GHO_RESERVE.getUsage(address(this));
+
+    assertEq(GHO_RESERVE.getUsed(address(this)), capacity / 4);
+    assertEq(limit - used, capacity - repayAmount);
+  }
+
+  function testRestoreOverflow() public {
+    address newEntity = makeAddr('new-entity');
+    GHO_RESERVE.addEntity(address(newEntity));
+
+    uint256 value = type(uint128).max;
+    GHO_RESERVE.setLimit(newEntity, value);
+
+    vm.expectRevert(
+      abi.encodeWithSignature('SafeCastOverflowedUintDowncast(uint8,uint256)', 128, value + 1)
+    );
+    vm.prank(newEntity);
+    GHO_RESERVE.restore(value + 1);
+  }
+
+  function testRestoreNotEntity() public {
+    vm.expectRevert(stdError.arithmeticError);
+    GHO_RESERVE.restore(1_000 ether);
+  }
+
+  function testRestoreAmountIsZero() public {
+    vm.expectRevert('INVALID_AMOUNT');
+    GHO_RESERVE.restore(0);
+  }
+
+  function testAddEntity() public {
+    address alice = makeAddr('alice');
+    vm.expectEmit(true, true, true, true, address(GHO_RESERVE));
+    emit IGhoReserve.EntityAdded(alice);
+    GHO_RESERVE.addEntity(address(alice));
+
+    assertTrue(GHO_RESERVE.isEntity(alice));
+  }
+
+  function testAddEntityAlreadyInSet() public {
+    uint256 entitiesCount = GHO_RESERVE.totalEntities();
+    address alice = makeAddr('alice');
+    vm.expectEmit(true, true, true, true, address(GHO_RESERVE));
+    emit IGhoReserve.EntityAdded(alice);
+    GHO_RESERVE.addEntity(alice);
+
+    // Set already contains two entities from constructor
+    assertEq(GHO_RESERVE.totalEntities(), entitiesCount + 1);
+
+    vm.expectRevert('ENTITY_ALREADY_EXISTS');
+    GHO_RESERVE.addEntity(alice);
+
+    assertEq(GHO_RESERVE.totalEntities(), entitiesCount + 1);
+  }
+
+  function testRevertAddEntityNoRole() public {
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector,
+        ALICE,
+        ENTITY_MANAGER_ROLE
+      )
+    );
+    vm.prank(ALICE);
+    GHO_RESERVE.addEntity(ALICE);
+  }
+
+  function testRemoveEntity() public {
+    uint256 limit = 1_000_000 ether;
+    address alice = makeAddr('alice');
+    vm.expectEmit(true, true, true, true, address(GHO_RESERVE));
+    emit IGhoReserve.EntityAdded(alice);
+    GHO_RESERVE.addEntity(alice);
+    GHO_RESERVE.setLimit(alice, limit);
+
+    assertTrue(GHO_RESERVE.isEntity(alice));
+    assertEq(GHO_RESERVE.getLimit(alice), limit);
+
+    GHO_RESERVE.setLimit(alice, 0);
+    assertEq(GHO_RESERVE.getLimit(alice), 0);
+
+    vm.expectEmit(true, true, true, true, address(GHO_RESERVE));
+    emit IGhoReserve.EntityRemoved(alice);
+    GHO_RESERVE.removeEntity(alice);
+
+    assertFalse(GHO_RESERVE.isEntity(alice));
+    assertEq(GHO_RESERVE.getLimit(alice), 0);
+  }
+
+  function testRemoveEntityNotInSet() public {
+    uint256 entitiesCount = GHO_RESERVE.totalEntities();
+    address alice = makeAddr('alice');
+    assertFalse(GHO_RESERVE.isEntity(alice));
+    assertEq(GHO_RESERVE.totalEntities(), entitiesCount);
+
+    vm.expectRevert('ENTITY_NOT_REMOVED');
+    GHO_RESERVE.removeEntity(address(alice));
+
+    assertFalse(GHO_RESERVE.isEntity(alice));
+    assertEq(GHO_RESERVE.totalEntities(), entitiesCount);
+  }
+
+  function testRevertRemoveEntityBalanceOutstanding() public {
+    address alice = makeAddr('alice');
+    uint256 capacity = 100_000 ether;
+    GHO_RESERVE.addEntity(address(alice));
+    GHO_RESERVE.setLimit(alice, capacity);
+
+    vm.prank(alice);
+    GHO_RESERVE.use(5_000 ether);
+
+    vm.expectRevert('ENTITY_GHO_USED_NOT_ZERO');
+    GHO_RESERVE.removeEntity(alice);
+  }
+
+  function testRevertRemoveEntityLimitNotZero() public {
+    address alice = makeAddr('alice');
+    uint256 capacity = 100_000 ether;
+    GHO_RESERVE.addEntity(address(alice));
+    GHO_RESERVE.setLimit(alice, capacity);
+
+    vm.expectRevert('ENTITY_GHO_LIMIT_NOT_ZERO');
+    GHO_RESERVE.removeEntity(alice);
+  }
+
+  function testRevertRemoveEntityNoRole() public {
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector,
+        ALICE,
+        ENTITY_MANAGER_ROLE
+      )
+    );
+    vm.prank(ALICE);
+    GHO_RESERVE.removeEntity(ALICE);
+  }
+
+  function testSetLimit() public {
+    address alice = makeAddr('alice');
+    uint256 capacity = 100_000 ether;
+    GHO_RESERVE.addEntity(address(alice));
+
+    vm.expectEmit(true, true, true, true, address(GHO_RESERVE));
+    emit IGhoReserve.GhoLimitUpdated(alice, capacity);
+    GHO_RESERVE.setLimit(alice, capacity);
+  }
+
+  function testSetLimitEntityDoesNotExist() public {
+    vm.expectRevert('ENTITY_DOES_NOT_EXIST');
+    GHO_RESERVE.setLimit(makeAddr('no-entity'), 100_000 ether);
+  }
+
+  function testSetLimitOverflow() public {
+    address newEntity = makeAddr('new-entity');
+    GHO_RESERVE.addEntity(address(newEntity));
+
+    uint256 value = type(uint128).max;
+    vm.expectRevert(
+      abi.encodeWithSignature('SafeCastOverflowedUintDowncast(uint8,uint256)', 128, value + 1)
+    );
+    GHO_RESERVE.setLimit(newEntity, value + 1);
+  }
+
+  function testRevertSetLimitNoRole() public {
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector,
+        ALICE,
+        LIMIT_MANAGER_ROLE
+      )
+    );
+    vm.prank(ALICE);
+    GHO_RESERVE.setLimit(ALICE, 1_000_000 ether);
+  }
+
+  function testTransfer() public {
+    GhoReserve reserve = _deployReserve();
+    address facilitator = makeAddr('facilitator');
+    uint256 amount = 1_000 ether;
+
+    deal(address(GHO_TOKEN), address(reserve), 5_000 ether);
+
+    vm.expectEmit(true, true, true, true, address(reserve));
+    emit IGhoReserve.GhoTransferred(facilitator, amount);
+    reserve.transfer(facilitator, amount);
+
+    assertEq(GHO_TOKEN.balanceOf(address(reserve)), 5_000 ether - amount);
+  }
+
+  function testRevertTransferInvalidCaller() public {
+    GhoReserve reserve = _deployReserve();
+    address facilitator = makeAddr('facilitator');
+    uint256 amount = 1_000 ether;
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector,
+        ALICE,
+        TRANSFER_ROLE
+      )
+    );
+    vm.prank(ALICE);
+    reserve.transfer(facilitator, amount);
+  }
+
+  function testRevertTransferNoFunds() public {
+    GhoReserve reserve = _deployReserve();
+    address facilitator = makeAddr('facilitator');
+    uint256 amount = 1_000 ether;
+
+    assertEq(GHO_TOKEN.balanceOf(address(reserve)), 0);
+
+    vm.expectRevert(stdError.arithmeticError);
+    reserve.transfer(facilitator, amount);
+  }
+
+  function testTransferFull() public {
+    GhoReserve reserve = _deployReserve();
+    address facilitator = makeAddr('facilitator');
+    uint256 amount = 1_000 ether;
+
+    deal(address(GHO_TOKEN), address(reserve), amount);
+
+    vm.expectEmit(true, true, true, true, address(reserve));
+    emit IGhoReserve.GhoTransferred(facilitator, amount);
+    reserve.transfer(facilitator, amount);
+
+    assertEq(GHO_TOKEN.balanceOf(address(reserve)), 0);
+  }
+
+  function testRevertTransferAmountGreaterThanBalance() public {
+    GhoReserve reserve = _deployReserve();
+    address facilitator = makeAddr('facilitator');
+    uint256 amount = 1_000 ether;
+
+    deal(address(GHO_TOKEN), address(reserve), amount);
+
+    vm.expectRevert(stdError.arithmeticError);
+    reserve.transfer(facilitator, amount + 1);
+  }
+
+  function testTransferAfterGhoUsedAndReturned() public {
+    GhoReserve reserve = _deployReserve();
+    address facilitator = makeAddr('facilitator');
+    uint256 amount = 1_000 ether;
+
+    reserve.addEntity(address(this));
+    reserve.setLimit(address(this), amount);
+    deal(address(GHO_TOKEN), address(reserve), amount);
+
+    assertEq(GHO_TOKEN.balanceOf(address(reserve)), amount);
+
+    vm.expectEmit(true, true, true, true, address(reserve));
+    emit IGhoReserve.GhoUsed(address(this), amount);
+    reserve.use(amount);
+
+    assertEq(GHO_TOKEN.balanceOf(address(reserve)), 0);
+
+    // No GHO to transfer
+    vm.expectRevert(stdError.arithmeticError);
+    reserve.transfer(facilitator, amount);
+
+    GHO_TOKEN.approve(address(reserve), amount / 2);
+
+    vm.expectEmit(true, true, true, true, address(reserve));
+    emit IGhoReserve.GhoRestored(address(this), amount / 2);
+    reserve.restore(amount / 2);
+
+    assertEq(GHO_TOKEN.balanceOf(address(reserve)), amount / 2);
+
+    reserve.transfer(facilitator, amount / 2);
+
+    assertEq(GHO_TOKEN.balanceOf(address(reserve)), 0);
+  }
+
+  function testGetEntities() public {
+    address alice = makeAddr('alice');
+    address[] memory entities = GHO_RESERVE.getEntities();
+
+    assertEq(entities.length, 2);
+
+    GHO_RESERVE.addEntity(alice);
+
+    entities = GHO_RESERVE.getEntities();
+
+    assertEq(entities.length, 3);
+
+    assertEq(address(GHO_GSM), entities[0]);
+    assertEq(address(GHO_GSM_4626), entities[1]);
+    assertEq(alice, entities[2]);
+  }
+
+  function testIsEntity() public {
+    assertTrue(GHO_RESERVE.isEntity(address(GHO_GSM)));
+    assertFalse(GHO_RESERVE.isEntity(makeAddr('NOT_AN_ENTITY')));
+  }
+
+  function testTotalEntities() public {
+    assertEq(GHO_RESERVE.totalEntities(), 2);
+
+    GHO_RESERVE.addEntity(makeAddr('alice'));
+
+    assertEq(GHO_RESERVE.totalEntities(), 3);
+  }
+
+  function testRevertRenounceRoleBadConfirmation() public {
+    vm.expectRevert(IAccessControl.AccessControlBadConfirmation.selector);
+    vm.prank(ALICE);
+    GHO_RESERVE.renounceRole(ENTITY_MANAGER_ROLE, address(this));
+  }
+
+  function testRenounceRole() public {
+    assertTrue(GHO_RESERVE.hasRole(ENTITY_MANAGER_ROLE, address(this)));
+    GHO_RESERVE.renounceRole(ENTITY_MANAGER_ROLE, address(this));
+    assertFalse(GHO_RESERVE.hasRole(ENTITY_MANAGER_ROLE, address(this)));
+  }
+
+  function testGrantRoleRevertsWithCustomError() public {
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector,
+        ALICE,
+        DEFAULT_ADMIN_ROLE
+      )
+    );
+    vm.prank(ALICE);
+    GHO_RESERVE.grantRole(ENTITY_MANAGER_ROLE, ALICE);
+  }
+}

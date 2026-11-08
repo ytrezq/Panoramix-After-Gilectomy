@@ -1,0 +1,77 @@
+{
+  "name": "@gammaswap/v1-implementations",
+  "version": "1.2.18",
+  "description": "Pool and strategies implementation contracts for GammaSwap V1 protocol",
+  "homepage": "https://gammaswap.com",
+  "scripts": {
+    "test": "hardhat test",
+    "fuzz": "forge test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/@gammaswap"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gammaswap/v1-implementations"
+  },
+  "files": [
+    "artifacts",
+    "contracts",
+    "typechain",
+    "typechain-types"
+  ],
+  "keywords": [
+    "gammaswap",
+    "ethereum",
+    "implementations",
+    "v1",
+    "gammaswap-v1"
+  ],
+  "author": "Daniel D. Alcarraz (https://github.com/0xDanr)",
+  "contributors": [
+    "Simon Mall"
+  ],
+  "license": "BUSL-1.1",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^1.0.6",
+    "@nomicfoundation/hardhat-foundry": "^1.0.1",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.8",
+    "@nomicfoundation/hardhat-toolbox": "^2.0.2",
+    "@nomiclabs/hardhat-ethers": "^2.0.6",
+    "@nomiclabs/hardhat-etherscan": "^3.1.0",
+    "@typechain/ethers-v5": "^10.1.0",
+    "@typechain/hardhat": "^6.1.2",
+    "@types/chai": "^4.3.1",
+    "@types/mocha": "^9.1.1",
+    "@types/node": "^12.20.55",
+    "@typescript-eslint/eslint-plugin": "^4.33.0",
+    "@typescript-eslint/parser": "^4.33.0",
+    "chai": "^4.3.6",
+    "dotenv": "^16.0.1",
+    "eslint": "^7.32.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-config-standard": "^16.0.3",
+    "eslint-plugin-import": "^2.26.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prettier": "^3.4.1",
+    "eslint-plugin-promise": "^5.2.0",
+    "ethers": "^5.6.9",
+    "hardhat": "^2.17.1",
+    "hardhat-contract-sizer": "^2.6.1",
+    "hardhat-gas-reporter": "^1.0.8",
+    "prettier": "^2.7.1",
+    "prettier-plugin-solidity": "^1.0.0-beta.13",
+    "solhint": "^3.3.7",
+    "solidity-coverage": "^0.8.1",
+    "ts-node": "^10.8.2",
+    "typechain": "^8.1.1",
+    "typescript": "^4.7.4"
+  },
+  "dependencies": {
+    "@gammaswap/v1-core": "^1.2.16",
+    "@openzeppelin/contracts": "^4.7.0"
+  }
+}

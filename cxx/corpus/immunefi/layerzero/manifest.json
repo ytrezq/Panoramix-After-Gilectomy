@@ -1,0 +1,87 @@
+{
+ "program": "layerzero",
+ "repos": [
+  {
+   "repo": "https://github.com/LayerZero-Labs/LayerZero-v2",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "EndpointV2, SendULN302, ReceiveULN302 (EVM) in packages/layerzero-v2/evm",
+   "commit": "9c741e7f9790639537b1710a203bcdfd73b0b9ac",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2f112697506eab12d433a65fdc31a639548fe365"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    }
+   ],
+   "license": {
+    "file": "LICENSE-LZBL-1.2",
+    "spdx": "unrecognized",
+    "package_json": null,
+    "headers": {
+     "UNLICENSED": 78,
+     "LZBL-1.2": 60,
+     "MIT": 68
+    },
+    "headers_main": {
+     "LZBL-1.2": 59,
+     "MIT": 66,
+     "UNLICENSED": 2
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 206
+   },
+   "copied": true,
+   "via": "git subtree",
+   "files": 3428,
+   "subtrees": [
+    {
+     "prefix": "LayerZero-Labs__LayerZero-v2",
+     "url": "https://github.com/LayerZero-Labs/LayerZero-v2",
+     "commit": "9c741e7f9790639537b1710a203bcdfd73b0b9ac",
+     "files": 250
+    },
+    {
+     "prefix": "LayerZero-Labs__LayerZero-v2/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2f112697506eab12d433a65fdc31a639548fe365",
+     "files": 45
+    },
+    {
+     "prefix": "LayerZero-Labs__LayerZero-v2/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    }
+   ],
+   "npm": {
+    "packages/layerzero-v2/evm/protocol/node_modules/@openzeppelin/contracts": "4.9.6",
+    "packages/layerzero-v2/evm/protocol/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6",
+    "packages/layerzero-v2/evm/protocol/node_modules/hardhat-deploy": "0.11.45",
+    "packages/layerzero-v2/evm/oapp/node_modules/@openzeppelin/contracts": "4.9.6",
+    "packages/layerzero-v2/evm/oapp/node_modules/solidity-bytes-utils": "0.8.4",
+    "packages/layerzero-v2/evm/oapp/node_modules/@layerzerolabs/lz-evm-v1-0.7": "2.3.44",
+    "packages/layerzero-v2/evm/messagelib/node_modules/@layerzerolabs/lz-evm-v1-0.7": "2.3.44",
+    "packages/layerzero-v2/evm/messagelib/node_modules/solidity-bytes-utils": "0.8.4",
+    "packages/layerzero-v2/evm/messagelib/node_modules/@openzeppelin/contracts": "4.9.6",
+    "packages/layerzero-v2/evm/messagelib/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6",
+    "packages/layerzero-v2/evm/messagelib/node_modules/hardhat-deploy": "0.11.45",
+    "packages/layerzero-v2/evm/messagelib/node_modules/@chainlink/contracts-ccip": "0.7.6",
+    "packages/layerzero-v2/evm/messagelib/node_modules/@axelar-network/axelar-gmp-sdk-solidity": "5.10.0",
+    "packages/layerzero-v2/evm/oapp/node_modules/@openzeppelin/contracts-upgradeable": "3.4.2-solc-0.7",
+    "packages/layerzero-v2/evm/oapp/node_modules/hardhat-deploy": "0.12.4"
+   },
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "LayerZero-Labs__LayerZero-v2",
+   "license_note": "its license does not allow redistribution: added at the owner's request, its license files kept"
+  }
+ ]
+}

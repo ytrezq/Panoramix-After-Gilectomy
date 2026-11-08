@@ -1,0 +1,91 @@
+{
+  "name": "@hyperlane-xyz/aleo-sdk",
+  "version": "45.1.0",
+  "description": "Hyperlane TypeScript SDK for the Aleo Hyperlane SDK module",
+  "keywords": [
+    "aleo",
+    "blockchain",
+    "hyperlane",
+    "sdk"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "/dist"
+  ],
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "default": "./dist/runtime.js"
+    },
+    "./runtime/mainnet": {
+      "types": "./dist/runtime/mainnet.d.ts",
+      "default": "./dist/runtime/mainnet.js"
+    },
+    "./runtime/testnet": {
+      "types": "./dist/runtime/testnet.d.ts",
+      "default": "./dist/runtime/testnet.js"
+    },
+    "./constants": {
+      "types": "./dist/constants.d.ts",
+      "default": "./dist/constants.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
+    }
+  },
+  "scripts": {
+    "prebuild": "node scripts/generate-artifacts.js",
+    "build": "pnpm prebuild && rm -rf ./dist && tsc",
+    "format": "oxfmt --write ./src",
+    "lint": "oxlint -c ../../oxlint.json",
+    "clean": "rm -rf ./dist ./cache",
+    "test": "mocha --config .mocharc.json",
+    "test:ci": "mocha --config .mocharc.json",
+    "test:e2e": "./scripts/run-e2e-test.sh"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/provider-sdk": "workspace:*",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "@provablehq/sdk": "0.12.0",
+    "bignumber.js": "catalog:",
+    "unzipper": "^0.12.3"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
+    "@types/chai-as-promised": "catalog:",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
+    "@types/unzipper": "^0",
+    "chai": "catalog:",
+    "chai-as-promised": "catalog:",
+    "mocha": "catalog:",
+    "mocha-steps": "catalog:",
+    "node-fetch": "^3.3.2",
+    "oxfmt": "catalog:",
+    "testcontainers": "catalog:",
+    "ts-node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "testcontainers": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "testcontainers": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

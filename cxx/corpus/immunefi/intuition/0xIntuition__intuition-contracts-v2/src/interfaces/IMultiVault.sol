@@ -1,0 +1,757 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity 0.8.29;
+
+import {
+    BondingCurveConfig,
+    GeneralConfig,
+    AtomConfig,
+    TripleConfig,
+    WalletConfig,
+    VaultFees
+} from "src/interfaces/IMultiVaultCore.sol";
+
+/* =================================================== */
+/*                          STRUCTS                    */
+/* =================================================== */
+
+/// @notice Vault state struct
+struct VaultState {
+    /// @dev Total assets held in the vault
+    uint256 totalAssets;
+    /// @dev Total shares issued by the vault
+    uint256 totalShares;
+    /// @dev Mapping of account addresses to their share balances in the vault
+    mapping(address account => uint256 balance) balanceOf;
+}
+
+/* =================================================== */
+/*                        ENUMS                        */
+/* =================================================== */
+
+/// @notice Enum for the approval types
+/// @dev Values are bit flags packed into the `uint8` slot of
+///      `approvals[receiver][sender]`. Bit 0 = DEPOSIT, bit 1 = REDEMPTION,
+///      bit 2 = CREATION. Composite values are bitwise unions of the
+///      primitives, so a single setter call covers any combination.
+///      `BOTH` is kept for backward compatibility and means
+///      `DEPOSIT | REDEMPTION` (its historical meaning).
+///
+///      An approval hands the sender control over the receiver's position, not just
+///      the right to add to it. On a curve with a deposit fee hook, a delegated deposit
+///      is recorded against the receiver: it opens or tops up one lot per tier band the
+///      deposit traverses, starting at the vault's current tier. The receiver's next
+///      redemption draws from their highest lot first, at that tier's rate, so a delegated
+///      deposit that reaches a tier above the receiver's existing lots raises the rate on
+///      their next shares out until that lot is drained. Stake the receiver already holds
+///      keeps its own tier. Approve only accounts you trust to act on your position.
+///
+///      NONE                    = 0 (0b000)
+///      DEPOSIT                 = 1 (0b001)
+///      REDEMPTION              = 2 (0b010)
+///      BOTH                    = 3 (0b011) = DEPOSIT | REDEMPTION
+///      CREATION                = 4 (0b100)
+///      DEPOSIT_AND_CREATION    = 5 (0b101) = DEPOSIT | CREATION
+///      REDEMPTION_AND_CREATION = 6 (0b110) = REDEMPTION | CREATION
+///      ALL                     = 7 (0b111) = DEPOSIT | REDEMPTION | CREATION
+enum ApprovalTypes {
+    NONE,
+    DEPOSIT,
+    REDEMPTION,
+    BOTH,
+    CREATION,
+    DEPOSIT_AND_CREATION,
+    REDEMPTION_AND_CREATION,
+    ALL
+}
+
+/// @notice Enum for the vault types
+enum VaultType {
+    ATOM,
+    TRIPLE,
+    COUNTER_TRIPLE
+}
+
+/// @title IMultiVault
+/// @author 0xIntuition
+/// @notice Interface for managing many ERC4626 style vaults in a single contract
+interface IMultiVault {
+    /* =================================================== */
+    /*                       EVENTS                        */
+    /* =================================================== */
+
+    /// @notice Emitted when a receiver changes the approval type for a sender
+    ///
+    /// @param sender The address of the sender being approved or disapproved
+    /// @param receiver The address of the receiver granting or revoking approval
+    /// @param approvalType The type of approval granted. Encoded as the
+    ///        bit-flag union of DEPOSIT (0b001), REDEMPTION (0b010), and
+    ///        CREATION (0b100). See {ApprovalTypes} for the full enumeration.
+    event ApprovalTypeUpdated(address indexed sender, address indexed receiver, ApprovalTypes approvalType);
+
+    /// @notice Emitted when atom wallet deposit fees are claimed
+    ///
+    /// @param termId The ID of the atom
+    /// @param atomWalletOwner The address of the atom wallet owner
+    /// @param feesClaimed The amount of fees claimed from the atom wallet
+    event AtomWalletDepositFeesClaimed(
+        bytes32 indexed termId, address indexed atomWalletOwner, uint256 indexed feesClaimed
+    );
+
+    /// @notice Emitted when total utilization is added for an epoch
+    ///
+    /// @param epoch The epoch in which the total utilization was added
+    /// @param valueAdded The value of the utilization added (in TRUST tokens)
+    /// @param totalUtilization The total utilization for the epoch after adding the value
+    event TotalUtilizationAdded(uint256 indexed epoch, int256 indexed valueAdded, int256 indexed totalUtilization);
+
+    /// @notice Emitted when personal utilization is added for a user
+    ///
+    /// @param user The address of the user
+    /// @param epoch The epoch in which the utilization was added
+    /// @param valueAdded The value of the utilization added (in TRUST tokens)
+    /// @param personalUtilization The personal utilization for the user after adding the value
+    event PersonalUtilizationAdded(
+        address indexed user, uint256 indexed epoch, int256 indexed valueAdded, int256 personalUtilization
+    );
+
+    /// @notice Emitted when total utilization is removed for an epoch
+    ///
+    /// @param epoch The epoch in which the total utilization was removed
+    /// @param valueRemoved The value of the utilization removed (in TRUST tokens)
+    /// @param totalUtilization The total utilization for the epoch after removing the value
+    event TotalUtilizationRemoved(uint256 indexed epoch, int256 indexed valueRemoved, int256 indexed totalUtilization);
+
+    /// @notice Emitted when personal utilization is removed for a user
+    ///
+    /// @param user The address of the user
+    /// @param epoch The epoch in which the utilization was removed
+    /// @param valueRemoved The value of the utilization removed (in TRUST tokens)
+    /// @param personalUtilization The personal utilization for the user after removing the value
+    event PersonalUtilizationRemoved(
+        address indexed user, uint256 indexed epoch, int256 indexed valueRemoved, int256 personalUtilization
+    );
+
+    /// @notice Emitted when assets are deposited into a vault
+    ///
+    /// @param sender The operator: `msg.sender` on the deposit paths. On the create paths this slot
+    /// carries the creator (the on-behalf-of principal), which the `*For` variants allow to differ
+    /// from `msg.sender`
+    /// @param receiver The address the shares are minted to
+    /// @param termId The ID of the term (atom or triple)
+    /// @param curveId The ID of the bonding curve
+    /// @param assets The amount of assets deposited (gross assets deposited by the sender, including atomCost or
+    /// tripleCost where applicable)
+    /// @param assetsAfterFees The amount of assets after all deposit fees are deducted
+    /// @param shares The amount of shares minted to the receiver
+    /// @param receiverSharesAfter The receiver's share balance in the vault after the deposit (not the
+    /// vault-wide total; see {SharePriceChanged.totalShares} for that)
+    /// @param vaultType The type of vault (ATOM, TRIPLE, or COUNTER_TRIPLE)
+    event Deposited(
+        address indexed sender,
+        address indexed receiver,
+        bytes32 indexed termId,
+        uint256 curveId,
+        uint256 assets,
+        uint256 assetsAfterFees,
+        uint256 shares,
+        uint256 receiverSharesAfter,
+        VaultType vaultType
+    );
+
+    /// @notice Emitted when shares are redeemed from a vault
+    ///
+    /// @param sender The operator: `msg.sender`, which may act under the account's redemption approval
+    /// @param account The account whose shares are burned and which receives the payout
+    /// @param termId The ID of the term (atom or triple)
+    /// @param curveId The ID of the bonding curve
+    /// @param shares The amount of shares redeemed
+    /// @param accountSharesAfter The account's share balance in the vault after the redemption (not the
+    /// vault-wide total; see {SharePriceChanged.totalShares} for that)
+    /// @param assetsAfterFees The net assets paid out to the account
+    /// @param totalFees The total fees charged: protocol + exit + the curve-level redeem fee
+    /// @param vaultType The type of vault (ATOM, TRIPLE, or COUNTER_TRIPLE)
+    event Redeemed(
+        address indexed sender,
+        address indexed account,
+        bytes32 indexed termId,
+        uint256 curveId,
+        uint256 shares,
+        uint256 accountSharesAfter,
+        uint256 assetsAfterFees,
+        uint256 totalFees,
+        VaultType vaultType
+    );
+
+    /// @notice Emitted when an atom wallet deposit fee is collected
+    /// @dev The atom wallet deposit fee is charged when depositing assets into atom vaults and accumulates
+    ///      as claimable fees for the atom wallet owner of the corresponding atom vault
+    ///
+    /// @param termId The ID of the term (atom)
+    /// @param sender The address of the sender
+    /// @param feeAmount The amount of atom wallet deposit fee collected
+    event AtomWalletDepositFeeCollected(bytes32 indexed termId, address indexed sender, uint256 feeAmount);
+
+    /// @notice Emitted when a protocol fee is accrued internally
+    ///
+    /// @param epoch The epoch in which the protocol fee was accrued (current epoch)
+    /// @param sender The address of the user who paid the protocol fee
+    /// @param feeAmount The amount of protocol fee accrued
+    event ProtocolFeeAccrued(uint256 indexed epoch, address indexed sender, uint256 feeAmount);
+
+    /// @notice Emitted when the timelock controller address is updated
+    /// @param timelock The new timelock controller address
+    event TimelockSet(address indexed timelock);
+
+    /// @notice Emitted when a protocol fee is transferred to the protocol multisig or the TrustBonding contract
+    /// @dev The protocol fee is charged when depositing assets and redeeming shares from the vault, except
+    ///      when the contract is paused
+    ///
+    /// @param epoch The epoch for which the protocol fee was transferred (previous epoch)
+    /// @param destination The address of the destination (protocol multisig or TrustBonding contract)
+    /// @param feeAmount The amount of protocol fee transferred
+    event ProtocolFeeTransferred(uint256 indexed epoch, address indexed destination, uint256 feeAmount);
+
+    /// @notice Emitted when the share price changes
+    ///
+    /// @param termId The ID of the term (atom or triple)
+    /// @param curveId The ID of the bonding curve
+    /// @param sharePrice The new share price
+    /// @param totalAssets The total assets in the vault after the change
+    /// @param totalShares The total shares in the vault after the change
+    /// @param vaultType The type of vault (ATOM, TRIPLE, or COUNTER_TRIPLE)
+    event SharePriceChanged(
+        bytes32 indexed termId,
+        uint256 indexed curveId,
+        uint256 sharePrice,
+        uint256 totalAssets,
+        uint256 totalShares,
+        VaultType vaultType
+    );
+
+    /// @notice Emitted when an atom vault is created
+    ///
+    /// @param creator The address of the creator
+    /// @param termId The ID of the atom vault
+    /// @param atomData The data associated with the atom
+    /// @param atomWallet The address of the atom wallet associated with the atom vault
+    event AtomCreated(address indexed creator, bytes32 indexed termId, bytes atomData, address atomWallet);
+
+    /// @notice Emitted when optional context pointers are registered alongside a newly created atom
+    /// @dev URI bytes are opaque, are not stored, and do not affect the atom's `termId`.
+    /// @param termId The ID of the atom the context describes
+    /// @param registrant The address that supplied the context
+    /// @param uris Context pointers registered for the atom
+    event AtomContextRegistered(bytes32 indexed termId, address indexed registrant, bytes[] uris);
+
+    /// @notice Emitted when a triple vault is created
+    ///
+    /// @param creator The address of the creator
+    /// @param termId The ID of the triple vault
+    /// @param subjectId The ID of the subject atom
+    /// @param predicateId The ID of the predicate atom
+    /// @param objectId The ID of the object atom
+    event TripleCreated(
+        address indexed creator, bytes32 indexed termId, bytes32 subjectId, bytes32 predicateId, bytes32 objectId
+    );
+
+    /* =================================================== */
+    /*                        GETTERS                      */
+    /* =================================================== */
+
+    /// @notice Returns the amount of assets deposited into underlying atoms when depositing into a triple vault
+    function atomDepositFractionAmount(uint256 assets) external view returns (uint256);
+
+    /**
+     * @notice Claims accumulated deposit fees for an atom wallet owner
+     * @param atomId The ID of the atom to claim fees for
+     */
+    function claimAtomWalletDepositFees(bytes32 atomId) external;
+
+    /**
+     * @notice Returns the accumulated deposit fees for an atom wallet
+     * @param atomWallet The atom wallet address
+     * @return accumulatedFees The accumulated fees for the atom wallet
+     */
+    function accumulatedAtomWalletDepositFees(address atomWallet) external view returns (uint256 accumulatedFees);
+
+    /**
+     * @notice Computes the deterministic address of an atom wallet for a given atom ID
+     * @param atomId The ID of the atom to compute the wallet address for
+     * @return The computed address of the atom wallet
+     */
+    function computeAtomWalletAddr(bytes32 atomId) external view returns (address);
+
+    /// @notice Returns the amount of assets that would be exchanged by the vault for a given amount of shares
+    ///
+    /// @param termId The ID of the term (atom or triple)
+    /// @param curveId The ID of the bonding curve
+    /// @param shares The amount of shares to convert to assets
+    ///
+    /// @return assets The amount of assets that would be exchanged for the given shares
+    function convertToAssets(bytes32 termId, uint256 curveId, uint256 shares) external view returns (uint256);
+
+    /// @notice Returns the amount of shares that would be exchanged by the vault for a given amount of assets
+    ///
+    /// @param termId The ID of the term (atom or triple)
+    /// @param curveId The ID of the bonding curve
+    /// @param assets The amount of assets to convert to shares
+    ///
+    /// @return shares The amount of shares that would be exchanged for the given assets
+    function convertToShares(bytes32 termId, uint256 curveId, uint256 assets) external view returns (uint256);
+
+    /// @notice Returns the current epoch
+    /// @return The current epoch number
+    function currentEpoch() external view returns (uint256);
+
+    /// @notice Returns the current share price for the specified vault
+    /// @dev This method is provided primarily for ERC4626 compatibility and is not called internally
+    /// @param termId The ID of the term (atom or triple)
+    /// @param curveId The ID of the bonding curve
+    /// @return price The current share price for the specified vault
+    function currentSharePrice(bytes32 termId, uint256 curveId) external view returns (uint256);
+
+    /// @notice Returns the amount of assets that would be charged as an entry fee for a given deposit amount
+    /// @dev If the vault has zero total shares, the entry fee is not applied
+    /// @param assets The amount of assets to calculate the fee on
+    /// @return feeAmount The amount of assets that would be charged as the entry fee
+    function entryFeeAmount(uint256 assets) external view returns (uint256);
+
+    /// @notice Returns the amount of assets that would be charged as an exit fee for a given redemption amount
+    /// @dev If redeeming the shares would result in zero total shares remaining in the vault, the exit fee is not
+    /// applied
+    /// @param assets The amount of assets to calculate the fee on
+    /// @return feeAmount The amount of assets that would be charged as the exit fee
+    function exitFeeAmount(uint256 assets) external view returns (uint256);
+
+    /**
+     * @notice Returns the AtomWarden contract address
+     * @return The address of the AtomWarden contract
+     */
+    function getAtomWarden() external view returns (address);
+
+    /**
+     * @notice Returns the creator recorded for a given atom ID
+     * @param atomId The atom ID
+     * @return creator The recorded creator
+     */
+    function getAtomCreator(bytes32 atomId) external view returns (address creator);
+
+    /**
+     * @notice Returns the creation timestamp recorded for a given atom ID
+     * @param atomId The atom ID
+     * @return createdAt The recorded creation timestamp
+     */
+    function getAtomCreatedAt(bytes32 atomId) external view returns (uint48 createdAt);
+
+    /// @notice Returns the number of shares held by an account in a specific vault
+    /// @param account The address of the account to query
+    /// @param termId The ID of the term (atom or triple)
+    /// @param curveId The ID of the bonding curve
+    /// @return shares The amount of shares held by the account that can be redeemed
+    function getShares(address account, bytes32 termId, uint256 curveId) external view returns (uint256);
+
+    /**
+     * @notice Returns the total system utilization for a specific epoch
+     * @param epoch The epoch number to query
+     * @return The total utilization value for the epoch (can be positive or negative)
+     */
+    function getTotalUtilizationForEpoch(uint256 epoch) external view returns (int256);
+
+    /**
+     * @notice Returns a user's utilization for a specific epoch
+     * @param user The user address to query
+     * @param epoch The epoch number to query
+     * @return The user's utilization value (can be positive or negative)
+     */
+    function getUserUtilizationForEpoch(address user, uint256 epoch) external view returns (int256);
+
+    /**
+     * @notice Returns the last active epoch for a user
+     * @param user The user address to query
+     * @return The last epoch number in which the user had activity
+     */
+    function getUserLastActiveEpoch(address user) external view returns (uint256);
+
+    /**
+     * @notice Returns a user's personal utilization value from their most recent tracked active epoch at or
+     *         before the specified epoch (inclusive of `epoch` itself).
+     * @dev
+     * - This function walks back through the user's last three tracked active epochs and returns the utilization
+     *   value from the most recent one whose epoch is `<= epoch`, so a user active in `epoch` itself returns that
+     *   epoch's value rather than an earlier one
+     * - Reverts with `MultiVault_InvalidEpoch` if `epoch` is in the future (`epoch > currentEpoch()`)
+     * - Reverts with `MultiVault_EpochNotTracked` if none of the tracked epochs is `<= epoch` (i.e. all of the
+     *   user's recorded activity is in epochs after `epoch`)
+     * - Utilization values are signed integers and may be positive (net deposits) or negative (net redemptions)
+     * @param user The address of the user whose utilization is being queried
+     * @param epoch The epoch number up to and including which the most recent tracked utilization is resolved
+     * @return utilization The user's utilization value from their most recent tracked active epoch at or
+     *         before the specified `epoch`
+     */
+    function getUserUtilizationInEpoch(address user, uint256 epoch) external view returns (int256);
+
+    /// @notice Returns the total assets and total shares in a vault for a given term and bonding curve
+    /// @param termId The ID of the term (atom or triple)
+    /// @param curveId The ID of the bonding curve
+    /// @return totalAssets The total assets held in the vault
+    /// @return totalShares The total shares issued by the vault
+    function getVault(bytes32 termId, uint256 curveId) external view returns (uint256, uint256);
+
+    /**
+     * @notice Checks if a term (atom or triple) has been created
+     * @param termId The term ID to check
+     * @return True if the term has been created, false otherwise
+     */
+    function isTermCreated(bytes32 termId) external view returns (bool);
+
+    /// @notice Returns the maximum number of shares a user can redeem from a vault
+    /// @param sender The address of the user
+    /// @param termId The ID of the term (atom or triple)
+    /// @param curveId The ID of the bonding curve
+    /// @return The maximum number of redeemable shares for the user in the vault
+    function maxRedeem(address sender, bytes32 termId, uint256 curveId) external view returns (uint256);
+
+    /// @notice Returns whether `sender` can deposit on behalf of `receiver`.
+    /// @dev    Returns true when `sender == receiver` or when `receiver` has
+    ///         granted `sender` an approval type whose DEPOSIT bit is set.
+    /// @param sender The address attempting to deposit.
+    /// @param receiver The address that would receive minted shares.
+    /// @return approved True if `sender` is approved to deposit for `receiver`.
+    function isApprovedToDeposit(address sender, address receiver) external view returns (bool approved);
+
+    /// @notice Returns whether `sender` can redeem on behalf of `receiver`.
+    /// @dev    Returns true when `sender == receiver` or when `receiver` has
+    ///         granted `sender` an approval type whose REDEMPTION bit is set.
+    /// @param sender The address attempting to redeem.
+    /// @param receiver The share owner being redeemed for: their shares are burned and they receive the assets.
+    /// @return approved True if `sender` is approved to redeem for `receiver`.
+    function isApprovedToRedeem(address sender, address receiver) external view returns (bool approved);
+
+    /// @notice Returns whether `sender` can create atoms/triples on behalf of `creator`.
+    /// @dev    Returns true when `sender == creator` or when `creator` has
+    ///         granted `sender` an approval type whose CREATION bit is set.
+    /// @param sender The address attempting to create.
+    /// @param creator The address that would be credited as creator.
+    /// @return approved True if `sender` is approved to create for `creator`.
+    function isApprovedToCreate(address sender, address creator) external view returns (bool approved);
+
+    /// @notice Simulates the creation of an atom with an initial deposit
+    /// @dev Returns the expected shares to be minted and the net assets credited after fees
+    /// @param termId The ID of the atom
+    /// @param assets The amount of assets the user would send
+    /// @return shares The expected shares to be minted for the user
+    /// @return feeBaseAssets The base the rate fees are computed on: `assets` less the fixed atom cost
+    /// (`atomCreationProtocolFee` + `minShare` seed). Not itself credited to the vault
+    /// @return assetsAfterFees The net assets that will be added to the vault (after all fees)
+    function previewAtomCreate(bytes32 termId, uint256 assets)
+        external
+        view
+        returns (uint256 shares, uint256 feeBaseAssets, uint256 assetsAfterFees);
+
+    /// @notice Simulates a deposit of assets into a vault
+    /// @dev Returns the expected shares to be minted and the net assets credited after fees
+    /// @param termId The ID of the term (atom or triple)
+    /// @param curveId The ID of the bonding curve
+    /// @param assets The amount of assets the user would send
+    /// @return shares The expected shares to be minted for the user
+    /// @return assetsAfterFees The net assets that will be added to the vault (after all fees)
+    function previewDeposit(bytes32 termId, uint256 curveId, uint256 assets)
+        external
+        view
+        returns (uint256 shares, uint256 assetsAfterFees);
+
+    /// @notice Simulates a redemption of shares from a vault
+    /// @dev Returns the net assets the user would receive after fees and the shares to be burned
+    /// @dev Account-agnostic. This signature carries no account, so a curve fee hook is quoted with
+    ///      `address(0)` and any curve pricing its fee off per-holder state falls back to a
+    ///      vault-level default. On the dynamic-fee curve a holder's shares are priced lot by lot at
+    ///      the tiers they entered through, highest first, while the fallback uses the vault's
+    ///      current tier, so this figure can differ from execution
+    ///      in either direction, so it is not a source for a redemption `minAssets` on a hook-bearing
+    ///      curve: over-statement makes the slippage guard reject the redemption. The curve's own
+    ///      account-aware view gives the holder's true curve fee. That view is net of the curve's
+    ///      fee only and is not a drop-in replacement for this figure: to derive a holder-accurate
+    ///      net, take the value returned here, add back the account-less curve fee it was computed
+    ///      with (`quoteRedeemFee(termId, address(0), grossAssets)`), then subtract the account's own
+    ///      curve fee. On hookless curves (including the default curve) this caveat does not apply.
+    /// @dev Can revert. If the accumulated fees would consume the entire redemption, this reverts with
+    ///      `MultiVault_RedeemYieldsNoAssets` rather than returning zero — the same floor the write
+    ///      path enforces, surfaced here so a preview cannot report a payout the execution will not
+    ///      make. In practice this affects only dust redemptions. Callers previewing a set of
+    ///      positions should tolerate a revert on any single one rather than assuming a total.
+    /// @param termId The ID of the term (atom or triple)
+    /// @param curveId The ID of the bonding curve
+    /// @param shares The amount of shares the user would redeem
+    /// @return assetsAfterFees The net assets that would be sent to the user (after protocol and exit fees and, on a
+    /// fee-hook curve, the curve-level redeem fee) @return sharesUsed The shares that would be burned (returned for
+    /// convenience)
+    function previewRedeem(bytes32 termId, uint256 curveId, uint256 shares)
+        external
+        view
+        returns (uint256 assetsAfterFees, uint256 sharesUsed);
+
+    /// @notice Simulates the creation of a triple with an initial deposit
+    /// @dev Returns the expected shares to be minted and the net assets credited after fees. Keyed on
+    ///      the three atom ids rather than the triple id: the atom-deposit fraction is charged only
+    ///      when all three atom default vaults clear `feeThreshold`, and the triple's component
+    ///      mapping that the write path reads for that test is written during creation itself, so a
+    ///      quote keyed on a not-yet-created triple id would read three empty ids and omit the
+    ///      fraction. Evaluating against the supplied atoms makes the quote match what
+    ///      `createTriples` charges.
+    /// @param subjectId The ID of the subject atom
+    /// @param predicateId The ID of the predicate atom
+    /// @param objectId The ID of the object atom
+    /// @param assets The amount of assets the user would send
+    /// @return shares The expected shares to be minted for the user
+    /// @return feeBaseAssets The base the rate fees are computed on: `assets` less the fixed triple cost
+    /// (`tripleCreationProtocolFee` + the two `minShare` seeds). Not itself credited to the vault
+    /// @return assetsAfterFees The net assets that will be added to the vault (after all fees)
+    function previewTripleCreate(bytes32 subjectId, bytes32 predicateId, bytes32 objectId, uint256 assets)
+        external
+        view
+        returns (uint256 shares, uint256 feeBaseAssets, uint256 assetsAfterFees);
+
+    /// @notice Returns the amount of assets that would be charged as a protocol fee for a given amount
+    /// @param assets The amount of assets to calculate the fee on
+    /// @return feeAmount The amount of assets that would be charged as the protocol fee
+    function protocolFeeAmount(uint256 assets) external view returns (uint256);
+
+    /* =================================================== */
+    /*                        WRITES                       */
+    /* =================================================== */
+
+    /// @notice Sets the approval type for a sender to act on behalf of the receiver
+    /// @dev Declared payable only so it can share a value-bearing multicall with
+    ///      payable legs. Its direct or virtual value allocation must be zero.
+    /// @param sender The address to grant or revoke approval for
+    /// @param approvalType The type of approval to grant. Encoded as the
+    ///        bit-flag union of DEPOSIT (0b001), REDEMPTION (0b010), and
+    ///        CREATION (0b100). See {ApprovalTypes} for the full enumeration.
+    function approve(address sender, ApprovalTypes approvalType) external payable;
+
+    /**
+     * @notice Creates multiple atom vaults with initial deposits
+     * @param atomDatas Array of atom data (metadata) for each atom to be created
+     * @param assets Array of asset amounts to deposit into each atom vault
+     * @return Array of atom IDs (termIds) for the created atoms
+     */
+    function createAtoms(bytes[] calldata atomDatas, uint256[] calldata assets)
+        external
+        payable
+        returns (bytes32[] memory);
+
+    /**
+     * @notice Creates multiple atom vaults for an approved creator with optional creation-time context pointers
+     * @dev Uses the same CREATION approval rules as {createAtomsFor}; callers creating for themselves require no
+     *      approval. The outer arrays must have equal length. Non-empty `uris[i]` is emitted in
+     *      {AtomContextRegistered} for `atomDatas[i]`, but is excluded from atom ID calculation and storage.
+     * @param creator The address recorded as atom creator and context registrant
+     * @param atomDatas Array of atom data for each atom to be created
+     * @param assets Array of asset amounts to deposit into each atom vault
+     * @param uris Array of URI lists to emit alongside each created atom
+     * @return Array of atom IDs (termIds) for the created atoms
+     */
+    function createAtomsWithUris(
+        address creator,
+        bytes[] calldata atomDatas,
+        uint256[] calldata assets,
+        bytes[][] calldata uris
+    ) external payable returns (bytes32[] memory);
+
+    /**
+     * @notice Creates multiple triple vaults with initial deposits
+     * @param subjectIds Array of atom IDs to use as subjects
+     * @param predicateIds Array of atom IDs to use as predicates
+     * @param objectIds Array of atom IDs to use as objects
+     * @param assets Array of asset amounts to deposit into each triple vault
+     * @return Array of triple IDs (termIds) for the created triples
+     */
+    function createTriples(
+        bytes32[] calldata subjectIds,
+        bytes32[] calldata predicateIds,
+        bytes32[] calldata objectIds,
+        uint256[] calldata assets
+    ) external payable returns (bytes32[] memory);
+
+    /**
+     * @notice On-behalf-of variant of {createAtoms}. Creates multiple atom
+     *         vaults with initial deposits and attributes the resulting
+     *         atoms to `creator` instead of `msg.sender`.
+     * @dev    Requires `creator` to have approved `msg.sender` for creation
+     *         via {approve} with any {ApprovalTypes} value whose CREATION
+     *         bit is set (CREATION, DEPOSIT_AND_CREATION,
+     *         REDEMPTION_AND_CREATION, or ALL). When `creator == msg.sender`
+     *         the check short-circuits and no approval is required.
+     *
+     *         Atom creator (`atomCreators[atomId]`) and creator-utilization
+     *         are credited to `creator`. Native TRUST payment is taken from
+     *         `msg.value` exactly as in {createAtoms}.
+     * @param  creator   The address recorded as the atom creator and credited
+     *                   with the create-payment utilization.
+     * @param  atomDatas Array of atom data (metadata) for each atom to create.
+     * @param  assets    Array of asset amounts to deposit into each atom vault.
+     * @return Array of atom IDs (termIds) for the created atoms.
+     */
+    function createAtomsFor(address creator, bytes[] calldata atomDatas, uint256[] calldata assets)
+        external
+        payable
+        returns (bytes32[] memory);
+
+    /**
+     * @notice On-behalf-of variant of {createTriples}. Creates multiple
+     *         triple vaults with initial deposits and attributes the
+     *         resulting create-payment utilization to `creator` instead of
+     *         `msg.sender`.
+     * @dev    Requires `creator` to have approved `msg.sender` for creation
+     *         via {approve} with any {ApprovalTypes} value whose CREATION
+     *         bit is set (CREATION, DEPOSIT_AND_CREATION,
+     *         REDEMPTION_AND_CREATION, or ALL). When `creator == msg.sender`
+     *         the check short-circuits and no approval is required.
+     * @param  creator      The address credited with the create-payment utilization.
+     * @param  subjectIds   Array of atom IDs to use as subjects.
+     * @param  predicateIds Array of atom IDs to use as predicates.
+     * @param  objectIds    Array of atom IDs to use as objects.
+     * @param  assets       Array of asset amounts to deposit into each triple vault.
+     * @return Array of triple IDs (termIds) for the created triples.
+     */
+    function createTriplesFor(
+        address creator,
+        bytes32[] calldata subjectIds,
+        bytes32[] calldata predicateIds,
+        bytes32[] calldata objectIds,
+        uint256[] calldata assets
+    ) external payable returns (bytes32[] memory);
+
+    /**
+     * @notice Deposits assets into a vault and mints shares to the receiver
+     * @param receiver Address to receive the minted shares
+     * @param termId ID of the term (atom or triple) to deposit into
+     * @param curveId Bonding curve ID to use for the deposit
+     * @param minShares Minimum number of shares expected to be minted
+     * @return Number of shares minted to the receiver
+     */
+    function deposit(address receiver, bytes32 termId, uint256 curveId, uint256 minShares)
+        external
+        payable
+        returns (uint256);
+
+    /**
+     * @notice Deposits assets into multiple vaults in a single transaction
+     * @param receiver Address to receive the minted shares
+     * @param termIds Array of term IDs to deposit into
+     * @param curveIds Array of bonding curve IDs to use for each deposit
+     * @param assets Array of asset amounts to deposit into each vault
+     * @param minShares Array of minimum shares expected for each deposit
+     * @return Array of shares minted for each deposit
+     */
+    function depositBatch(
+        address receiver,
+        bytes32[] calldata termIds,
+        uint256[] calldata curveIds,
+        uint256[] calldata assets,
+        uint256[] calldata minShares
+    ) external payable returns (uint256[] memory);
+
+    /**
+     * @notice Redeems shares from a vault and returns assets to the receiver
+     * @dev Declared payable only so it can share a value-bearing multicall with
+     *      payable legs. Its direct or virtual value allocation must be zero.
+     * @param receiver The account whose shares are burned and which receives the assets; `msg.sender` must be this
+     * address or hold its REDEMPTION approval
+     * @param termId ID of the term (atom or triple) to redeem from
+     * @param curveId Bonding curve ID to use for the redemption
+     * @param shares Number of shares to redeem
+     * @param minAssets Minimum number of assets expected to be returned
+     * @return Number of assets returned to the receiver
+     */
+    function redeem(address receiver, bytes32 termId, uint256 curveId, uint256 shares, uint256 minAssets)
+        external
+        payable
+        returns (uint256);
+
+    /**
+     * @notice Redeems shares from multiple vaults in a single transaction
+     * @dev Declared payable only so it can share a value-bearing multicall with
+     *      payable legs. Its direct or virtual value allocation must be zero.
+     * @param receiver The account whose shares are burned and which receives the assets; `msg.sender` must be this
+     * address or hold its REDEMPTION approval
+     * @param termIds Array of term IDs to redeem from
+     * @param curveIds Array of bonding curve IDs to use for each redemption
+     * @param shares Array of share amounts to redeem from each vault
+     * @param minAssets Array of minimum assets expected for each redemption
+     * @return Array of assets returned for each redemption
+     */
+    function redeemBatch(
+        address receiver,
+        bytes32[] calldata termIds,
+        uint256[] calldata curveIds,
+        uint256[] calldata shares,
+        uint256[] calldata minAssets
+    ) external payable returns (uint256[] memory);
+
+    /**
+     * @notice Executes calls on this contract atomically with explicit per-call
+     *         value allocation. The sum of `values` must equal `msg.value`.
+     * @dev    Sub-calls preserve the original `msg.sender` and re-evaluate their
+     *         modifiers. A zero-value batch can call the full entry-point surface.
+     *         In a value-bearing batch, non-payable functions other than the
+     *         guarded `redeem`, `redeemBatch`, and `approve` entry points remain
+     *         subject to Solidity's non-payable dispatcher check. Nested
+     *         multicalls revert, and the first sub-call revert bubbles unchanged.
+     * @param  data The array of ABI-encoded calls to execute against this contract
+     * @param  values The array of per-sub-call value allocations
+     * @return results The array of return data from each sub-call
+     */
+    function multicall(bytes[] calldata data, uint256[] calldata values)
+        external
+        payable
+        returns (bytes[] memory results);
+
+    /**
+     * @notice Returns the accumulated protocol fees for a specific epoch
+     * @param epoch The epoch number to query
+     * @return The accumulated protocol fees for the epoch
+     */
+    function accumulatedProtocolFees(uint256 epoch) external view returns (uint256);
+
+    /// @notice Sweeps the accumulated protocol fees for a specified epoch to the protocol multisig
+    function sweepAccumulatedProtocolFees(uint256 epoch) external;
+
+    /// @notice Pauses the contract, preventing deposits and redemptions
+    function pause() external;
+
+    /// @notice Unpauses the contract, allowing deposits and redemptions
+    function unpause() external;
+
+    /// @notice Sets the general configuration parameters
+    /// @dev Updating `_generalConfig.admin` does not grant or revoke `DEFAULT_ADMIN_ROLE`.
+    /// AccessControl role membership is managed separately via role operations.
+    function setGeneralConfig(GeneralConfig memory _generalConfig) external;
+
+    /// @notice Sets the atom configuration parameters
+    function setAtomConfig(AtomConfig memory _atomConfig) external;
+
+    /// @notice Sets the maximum URI count per atom and maximum byte length per URI
+    function setAtomUriConfig(uint32 maxUriCount, uint32 maxUriLength) external;
+
+    /// @notice Sets the triple configuration parameters
+    function setTripleConfig(TripleConfig memory _tripleConfig) external;
+
+    /// @notice Sets the vault fee configuration parameters
+    function setVaultFees(VaultFees memory _vaultFees) external;
+
+    /// @notice Sets the wallet configuration parameters
+    function setWalletConfig(WalletConfig memory _walletConfig) external;
+
+    /// @notice Sets the bonding curve configuration parameters
+    function setBondingCurveConfig(BondingCurveConfig memory _bondingCurveConfig) external;
+
+    /// @notice Updates the timelock controller address
+    /// @param _timelock The new timelock controller address
+    function setTimelock(address _timelock) external;
+
+    /// @notice Reinitializes the contract after upgrade: bootstraps the timelock address and
+    ///         pre-seeds the system-utilization rollover source
+    /// @param _timelock The timelock controller address
+    function reinitialize(address _timelock) external;
+}

@@ -1,0 +1,131 @@
+{
+ "program": "lombard-finance",
+ "repos": [
+  {
+   "repo": "https://github.com/lombard-finance/evm-smart-contracts",
+   "ref": "main",
+   "scope_paths": [
+    "contracts/stakeAndBake/veda/ERC4626VaultTokenWrapper.sol",
+    "contracts/stakeAndBake/StakeAndBake.sol",
+    "contracts/LBTC/StakedLBTCOracle.sol",
+    "contracts/LBTC/StakedLBTC.sol",
+    "contracts/LBTC/NativeLBTC.sol",
+    "contracts/LBTC/BridgeTokenAdapter.sol",
+    "contracts/LBTC/AssetRouter.sol",
+    "contracts/gmp/Mailbox.sol",
+    "contracts/consortium/LombardTimeLock.sol",
+    "contracts/consortium/Consortium.sol",
+    "contracts/bridge/providers/LombardTokenPoolV2.sol",
+    "contracts/bridge/providers/BridgeTokenPool.sol",
+    "contracts/bridge/BridgeV2.sol",
+    "contracts/bascule/GMPBasculeV2.sol",
+    "contracts/bascule/GMPBasculeV1.sol",
+    "contracts/bascule/BasculeV2.sol",
+    "contracts/bascule/Bascule.sol",
+    "contracts/stakeAndBake/depositor/veda/ERC4626VaultWrapper.sol",
+    "contracts/strategy/shards/Shard.sol",
+    "contracts/strategy/BlocklistOracle.sol",
+    "contracts/strategy/validators/MerkleAllowlistValidator.sol",
+    "contracts/strategy/converters",
+    "contracts/strategy/MultiAssetWithAsyncRedemptionStrategy.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "7fe83e56f2265c0c281747c8dd3bb141d3022c46",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": "MIT",
+    "headers": {
+     "MIT": 99,
+     "GPL-3.0-or-later": 1,
+     "AGPL-3.0-only": 1,
+     "BUSL-1.1": 26,
+     "UNLICENSED": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 128
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "5.0.2",
+    "node_modules/@openzeppelin/contracts-upgradeable": "5.0.2",
+    "node_modules/@layerzerolabs/test-devtools-evm-hardhat": "0.3.0",
+    "node_modules/@chainlink/contracts-ccip": "1.6.1",
+    "node_modules/@chainlink/contracts": "1.4.0",
+    "node_modules/@layerzerolabs/oft-evm": "0.1.0",
+    "node_modules/solmate": "6.8.0",
+    "node_modules/@layerzerolabs/lz-evm-protocol-v2": "2.3.44",
+    "node_modules/@layerzerolabs/oapp-evm": "0.0.4",
+    "node_modules/@layerzerolabs/lz-evm-messagelib-v2": "2.3.44",
+    "node_modules/@eth-optimism/contracts": "0.6.0",
+    "node_modules/@zksync/contracts": "0.1.0",
+    "node_modules/@scroll-tech/contracts": "0.1.0",
+    "node_modules/@layerzerolabs/test-devtools-evm-foundry": "1.0.0",
+    "node_modules/hardhat-deploy": "0.12.4",
+    "node_modules/solidity-bytes-utils": "0.8.4",
+    "node_modules/@layerzerolabs/lz-evm-v1-0.7": "2.3.44",
+    "node_modules/@arbitrum/nitro-contracts": "1.3.0",
+    "node_modules/@axelar-network/axelar-gmp-sdk-solidity": "5.10.0",
+    "node_modules/@zksync/contracts/l2-contracts/node_modules/@openzeppelin/contracts-upgradeable": "4.9.5",
+    "node_modules/@zksync/contracts/l2-contracts/node_modules/@openzeppelin/contracts": "4.9.5",
+    "node_modules/@zksync/contracts/gas-bound-caller/node_modules/@matterlabs/zksync-contracts": "0.6.2",
+    "node_modules/@offchainlabs/upgrade-executor": "1.1.0-beta.0",
+    "node_modules/@zksync/contracts/gas-bound-caller/node_modules/@openzeppelin/contracts": "4.9.6",
+    "node_modules/@zksync/contracts/gas-bound-caller/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6"
+   },
+   "copied": true,
+   "files": 3305,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "lombard-finance__evm-smart-contracts",
+   "subtrees": [
+    {
+     "prefix": "lombard-finance__evm-smart-contracts",
+     "url": "https://github.com/lombard-finance/evm-smart-contracts",
+     "commit": "7fe83e56f2265c0c281747c8dd3bb141d3022c46",
+     "files": 130
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/Liquid-Bitcoin/BARD",
+   "ref": "main",
+   "scope_paths": [
+    "contracts/BARD/BARD.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "f79d6f6371b841c175ea0e28c5799d444a83ef0d",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": "MIT",
+    "headers": {
+     "MIT": 6
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 6
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "5.0.2"
+   },
+   "copied": true,
+   "files": 155,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "Liquid-Bitcoin__BARD",
+   "subtrees": [
+    {
+     "prefix": "Liquid-Bitcoin__BARD",
+     "url": "https://github.com/Liquid-Bitcoin/BARD",
+     "commit": "f79d6f6371b841c175ea0e28c5799d444a83ef0d",
+     "files": 8
+    }
+   ]
+  }
+ ]
+}

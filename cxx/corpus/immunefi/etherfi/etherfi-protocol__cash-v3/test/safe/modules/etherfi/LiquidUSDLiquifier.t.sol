@@ -1,0 +1,359 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import { IERC20Metadata } from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
+import { StdStorage, stdStorage } from "forge-std/Test.sol";
+
+import { ChainConfig } from "../../../utils/Utils.sol";
+import { SafeTestSetup, MessageHashUtils } from "../..//SafeTestSetup.t.sol";
+import { LiquidUSDLiquifierOPModule, IERC20, SafeERC20, ModuleCheckBalance, UpgradeableProxy } from "../../../../src/modules/etherfi/LiquidUSDLiquifierOP.sol";
+import { BinSponsor, Cashback, ICashModule, Mode, SpendingLimit } from "../../../../src/interfaces/ICashModule.sol";
+import { CashEventEmitter } from "../cash/CashModuleTestSetup.t.sol";
+import { CashVerificationLib } from "../../../../src/libraries/CashVerificationLib.sol";
+import { IDebtManager } from "../../../../src/interfaces/IDebtManager.sol";
+import { PriceProvider } from "../../../../src/oracle/PriceProvider.sol";
+import { AccountantWithRateProviders } from "../../../../src/interfaces/ILayerZeroTeller.sol";
+import { ILayerZeroTeller } from "../../../../src/interfaces/ILayerZeroTeller.sol";
+import { UUPSProxy } from "../../../../src/UUPSProxy.sol";
+import { RoleRegistry } from "../../../../src/role-registry/RoleRegistry.sol";
+
+contract LiquidUSDLiquifierTest is SafeTestSetup {
+    using SafeERC20 for IERC20;
+    using MessageHashUtils for bytes32;
+    using stdStorage for StdStorage;
+
+    LiquidUSDLiquifierOPModule public liquidUSDLiquifier;
+
+    IERC20 public LIQUID_USD;
+    IERC20 public USDC;
+    ILayerZeroTeller public liquidUsdTeller;
+
+    uint256 initialLiquidUSDBalance = 10000e6;
+    uint256 initialUSDCBalance = 10000e6;
+    uint256 initialDebtAmount = 100e6;
+    uint16 discount = 1;
+    uint24 secondsToDeadline = 3 days;
+
+    function setUp() public override {
+        ChainConfig memory _cc = getChainConfig();
+        vm.skip(_cc.liquidUsd == address(0), "Liquid USD does not exist on this chain");
+
+        super.setUp();
+
+        LIQUID_USD = IERC20(chainConfig.liquidUsd);
+        USDC = IERC20(chainConfig.usdc);
+        liquidUsdTeller = ILayerZeroTeller(chainConfig.liquidUsdTeller);
+
+        _setLiquidUsdAsCollateralAndBorrowToken();
+        _updateSpendingLimit(10000e6, 10000e6);
+
+        // This file is the legacy (DebtManager) twin of the dual-engine repay; the gateway path lives in
+        // test/safe/modules/cash/lend/LiquidUsdLiquifierGateway.t.sol. Force the safe onto the legacy engine
+        // so spend and repay route through the DebtManager.
+        stdstore.enable_packed_slots().target(address(cashModule)).sig(ICashModule.usesLendGateway.selector).with_key(address(safe)).checked_write(false);
+
+        address liquidUsdLiquifierImpl = address(new LiquidUSDLiquifierOPModule(address(debtManager), address(dataProvider)));
+        liquidUSDLiquifier = LiquidUSDLiquifierOPModule(address(new UUPSProxy(liquidUsdLiquifierImpl, "")));
+        liquidUSDLiquifier.initialize(address(roleRegistry));
+
+        address[] memory modules = new address[](1);
+        modules[0] = address(liquidUSDLiquifier);
+        bool[] memory shouldWhitelist = new bool[](1);
+        shouldWhitelist[0] = true;
+
+        vm.prank(owner);
+        dataProvider.configureDefaultModules(modules, shouldWhitelist);
+
+        deal(address(LIQUID_USD), address(safe), initialLiquidUSDBalance);
+        deal(address(USDC), address(liquidUSDLiquifier), initialUSDCBalance);
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(USDC);
+        uint256[] memory amountsInUsd = new uint256[](1);
+        amountsInUsd[0] = initialDebtAmount;
+        Cashback[] memory cashbacks = new Cashback[](0);
+
+        vm.prank(etherFiWallet);
+        cashModule.spend(address(safe), keccak256("txId"), BinSponsor.Reap, tokens, amountsInUsd, cashbacks);
+    }
+
+    function test_RepayUsingLiquidUSD() public {
+        uint256 liquidUsdAmount = 10e6;
+        uint256 usdAmount = debtManager.convertCollateralTokenToUsd(address(LIQUID_USD), liquidUsdAmount);
+
+        uint256 debtBefore = debtManager.borrowingOf(address(safe), address(USDC));
+
+        vm.prank(etherFiWallet);
+        vm.expectEmit(true, true, true, true);
+        emit LiquidUSDLiquifierOPModule.RepaidUsingLiquidUSD(address(safe), usdAmount, liquidUsdAmount);
+        liquidUSDLiquifier.repayUsingLiquidUSD(address(safe), usdAmount);
+
+        uint256 debtAfter = debtManager.borrowingOf(address(safe), address(USDC));
+        assertEq(debtBefore - debtAfter, usdAmount);
+    }
+
+    function test_RepayUsingLiquidUSD_ReturnsExcessFunds() public {
+        uint256 usdAmount = initialDebtAmount + 10e6;
+        uint256 liquidUsdAmountToRepay = debtManager.convertUsdToCollateralToken(address(LIQUID_USD), initialDebtAmount);
+
+        deal(address(USDC), address(liquidUSDLiquifier), usdAmount);
+
+        uint256 liquidUsdAmountBefore = LIQUID_USD.balanceOf(address(safe));
+
+        vm.prank(etherFiWallet);
+        liquidUSDLiquifier.repayUsingLiquidUSD(address(safe), usdAmount);
+
+        uint256 debtAfter = debtManager.borrowingOf(address(safe), address(USDC));
+        uint256 liquidUsdAmountAfter = LIQUID_USD.balanceOf(address(safe));
+
+        assertEq(debtAfter, 0);
+        assertApproxEqAbs(liquidUsdAmountAfter, liquidUsdAmountBefore - liquidUsdAmountToRepay, 10);
+    }
+
+    function test_RepayUsingLiquidUSD_WorksEvenWhenUserIsNotHealthy() public {
+        uint256 maxDebt = debtManager.getMaxBorrowAmount(address(safe), true);
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(USDC);
+        uint256[] memory amountsInUsd = new uint256[](1);
+        amountsInUsd[0] = maxDebt - initialDebtAmount;
+        Cashback[] memory cashbacks = new Cashback[](0);
+
+        vm.prank(etherFiWallet);
+        cashModule.spend(address(safe), keccak256("txId-1"), BinSponsor.Reap, tokens, amountsInUsd, cashbacks);
+
+        IDebtManager.CollateralTokenConfig memory newCollateralTokenConfig = IDebtManager.CollateralTokenConfig({
+            ltv: 49e18,
+            liquidationThreshold: 60e18,
+            liquidationBonus: 5e18
+        });
+
+        vm.prank(owner);
+        debtManager.setCollateralTokenConfig(address(LIQUID_USD), newCollateralTokenConfig);
+
+        vm.expectRevert(IDebtManager.AccountUnhealthy.selector);
+        debtManager.ensureHealth(address(safe));
+
+        deal(address(USDC), address(liquidUSDLiquifier), maxDebt);
+
+        vm.prank(etherFiWallet);
+        liquidUSDLiquifier.repayUsingLiquidUSD(address(safe), maxDebt);
+    }
+
+    function test_RepayUsingLiquidUSD_AmountZero() public {
+        vm.prank(etherFiWallet);
+        vm.expectRevert(LiquidUSDLiquifierOPModule.AmountZero.selector);
+        liquidUSDLiquifier.repayUsingLiquidUSD(address(safe), 0);
+
+        vm.prank(etherFiWallet);
+        vm.expectRevert(LiquidUSDLiquifierOPModule.LiquidUsdAmountZero.selector);
+        liquidUSDLiquifier.repayUsingLiquidUSD(address(safe), 1);
+    }
+
+    function test_RepayUsingLiquidUSD_InsufficientUsdcBalance() public {
+        deal(address(USDC), address(liquidUSDLiquifier), 0);
+    
+        vm.prank(etherFiWallet);
+        vm.expectRevert(LiquidUSDLiquifierOPModule.InsufficientUsdcBalance.selector);
+        liquidUSDLiquifier.repayUsingLiquidUSD(address(safe), 10e6);
+    }
+
+    function test_RepayUsingLiquidUSD_InsufficientAvailableBalanceOnSafe() public {
+        deal(address(LIQUID_USD), address(safe), 0);
+    
+        vm.prank(etherFiWallet);
+        vm.expectRevert(ModuleCheckBalance.InsufficientAvailableBalanceOnSafe.selector);
+        liquidUSDLiquifier.repayUsingLiquidUSD(address(safe), 10e6);
+    }
+
+    function test_RepayUsingLiquidUSD_OnlyEtherFiWallet() public {
+        vm.prank(makeAddr("notEtherFiWallet"));
+        vm.expectRevert(LiquidUSDLiquifierOPModule.OnlyEtherFiWallet.selector);
+        liquidUSDLiquifier.repayUsingLiquidUSD(address(safe), 10e6);
+    }
+
+    function test_WithdrawLiquidUSD() public {
+        uint128 amount = 100e6;
+        uint128 minReturn = 100e6;
+
+        deal(address(LIQUID_USD), address(liquidUSDLiquifier), amount);
+
+        uint128 amountOut = liquidUSDLiquifier.LIQUID_USD_BORING_QUEUE().previewAssetsOut(address(usdc), amount, discount);
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit LiquidUSDLiquifierOPModule.LiquidUSDWithdrawalRequested(amount, amountOut);
+        liquidUSDLiquifier.withdrawLiquidUSD(amount, minReturn, discount, secondsToDeadline);
+    }
+
+    function test_WithdrawLiquidUSD_InsufficientReturnAmount() public {
+        uint128 amount = 100e6;
+        uint128 minReturn = 1000e6;
+
+        deal(address(LIQUID_USD), address(liquidUSDLiquifier), amount);
+
+        vm.prank(owner);
+        vm.expectRevert(LiquidUSDLiquifierOPModule.InsufficientReturnAmount.selector);
+        liquidUSDLiquifier.withdrawLiquidUSD(amount, minReturn, discount, secondsToDeadline);
+    }
+
+    function test_WithdrawLiquidUSD_OnlySettlementDispatcherBridger() public {
+        vm.prank(makeAddr("notSettlementDispatcherBridger"));
+        vm.expectRevert(LiquidUSDLiquifierOPModule.OnlySettlementDispatcherBridger.selector);
+        liquidUSDLiquifier.withdrawLiquidUSD(100e6, 100e6, discount, secondsToDeadline);
+    }
+
+    function test_withdrawFunds_succeeds_withErc20Token() public {
+        uint256 amount = 100e6;
+        deal(address(USDC), address(liquidUSDLiquifier), amount);
+
+        uint256 balBefore = USDC.balanceOf(owner);
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit LiquidUSDLiquifierOPModule.FundsWithdrawn(address(USDC), amount, owner);
+        liquidUSDLiquifier.withdrawFunds(address(USDC), owner, amount);
+
+        uint256 balAfter = USDC.balanceOf(owner);
+
+        assertEq(balAfter, balBefore + amount);
+    }
+
+    function test_withdrawFunds_succeeds_withNativeToken() public {
+        uint256 amount = 100e6;
+        deal(address(liquidUSDLiquifier), 1 ether);
+
+        address recipient = makeAddr("recipient");
+
+        address ETH = liquidUSDLiquifier.ETH();
+
+        uint256 balBefore = address(recipient).balance;
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit LiquidUSDLiquifierOPModule.FundsWithdrawn(ETH, amount, recipient);
+        liquidUSDLiquifier.withdrawFunds(ETH, recipient, amount);
+
+        uint256 balAfter = address(recipient).balance;
+
+        assertEq(balAfter, balBefore + amount);
+    }
+
+    function test_withdrawFunds_reverts_whenRecipientAddressZero() public {
+        vm.prank(owner);
+        vm.expectRevert(LiquidUSDLiquifierOPModule.InvalidValue.selector);
+        liquidUSDLiquifier.withdrawFunds(address(USDC), address(0), 100e6);
+    }
+
+    function test_withdrawFunds_OnlyRoleRegistryOwner() public {
+        vm.prank(makeAddr("notRoleRegistryOwner"));
+        vm.expectRevert(RoleRegistry.OnlyAdminTimelock.selector);
+        liquidUSDLiquifier.withdrawFunds(address(USDC), owner, 100e6);
+    }
+
+    function test_withdrawFunds_reverts_whenAmountZero() public {
+        address ETH = liquidUSDLiquifier.ETH();
+        deal(address(USDC), address(liquidUSDLiquifier), 0);
+        vm.prank(owner);
+        vm.expectRevert(LiquidUSDLiquifierOPModule.CannotWithdrawZeroAmount.selector);
+        liquidUSDLiquifier.withdrawFunds(address(USDC), owner, 0);
+
+        vm.prank(owner);
+        vm.expectRevert(LiquidUSDLiquifierOPModule.CannotWithdrawZeroAmount.selector);
+        liquidUSDLiquifier.withdrawFunds(address(ETH), owner, 0);
+    }
+
+    function test_withdrawFunds_reverts_whenWithdrawalFails() public {
+        address ETH = liquidUSDLiquifier.ETH();
+
+        vm.prank(owner);
+        vm.expectRevert(LiquidUSDLiquifierOPModule.WithdrawFundsFailed.selector);
+        liquidUSDLiquifier.withdrawFunds(address(ETH), owner, 100e6);
+    }
+
+    function _updateSpendingLimit(uint256 dailyLimit, uint256 monthlyLimit) internal {
+        uint256 nonce = cashModule.getNonce(address(safe));
+        bytes32 digestHash = keccak256(abi.encodePacked(CashVerificationLib.UPDATE_SPENDING_LIMIT_METHOD, block.chainid, address(safe), nonce, abi.encode(dailyLimit, monthlyLimit))).toEthSignedMessageHash();
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(owner1Pk, digestHash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        (, uint64 spendLimitDelay,) = cashModule.getDelays();
+
+        SpendingLimit memory oldLimit = cashLens.applicableSpendingLimit(address(safe));
+        SpendingLimit memory newLimit = SpendingLimit({
+            dailyLimit: oldLimit.dailyLimit,
+            monthlyLimit: oldLimit.monthlyLimit,
+            spentToday: oldLimit.spentToday,
+            spentThisMonth: oldLimit.spentThisMonth,
+            newDailyLimit: oldLimit.newDailyLimit,
+            newMonthlyLimit: oldLimit.newMonthlyLimit,
+            dailyRenewalTimestamp: oldLimit.dailyRenewalTimestamp,
+            monthlyRenewalTimestamp: oldLimit.monthlyRenewalTimestamp,
+            dailyLimitChangeActivationTime: oldLimit.dailyLimitChangeActivationTime,
+            monthlyLimitChangeActivationTime: oldLimit.monthlyLimitChangeActivationTime,
+            timezoneOffset: oldLimit.timezoneOffset
+        });
+
+        if (dailyLimit < oldLimit.dailyLimit) {
+            newLimit.newDailyLimit = dailyLimit;
+            newLimit.dailyLimitChangeActivationTime = uint64(block.timestamp) + spendLimitDelay;
+        } else {
+            newLimit.dailyLimit = dailyLimit;
+            newLimit.newDailyLimit = 0;
+            newLimit.dailyLimitChangeActivationTime = 0;
+        }
+
+        if (monthlyLimit < newLimit.monthlyLimit) {
+            newLimit.newMonthlyLimit = monthlyLimit;
+            newLimit.monthlyLimitChangeActivationTime = uint64(block.timestamp) + spendLimitDelay;
+        } else {
+            newLimit.monthlyLimit = monthlyLimit;
+            newLimit.newMonthlyLimit = 0;
+            newLimit.monthlyLimitChangeActivationTime = 0;
+        }
+
+        vm.expectEmit(true, true, true, true);
+        emit CashEventEmitter.SpendingLimitChanged(address(safe), oldLimit, newLimit);
+        cashModule.updateSpendingLimit(address(safe), dailyLimit, monthlyLimit, owner1, signature);
+    }
+
+    function _setLiquidUsdAsCollateralAndBorrowToken() internal {
+        vm.startPrank(owner);
+
+        AccountantWithRateProviders liquidUsdAccountant = liquidUsdTeller.accountant();
+
+        PriceProvider.Config memory liquidUsdConfig = PriceProvider.Config({
+            oracle: address(liquidUsdAccountant),
+            priceFunctionCalldata: abi.encodeWithSelector(AccountantWithRateProviders.getRate.selector),
+            isChainlinkType: false,
+            oraclePriceDecimals: liquidUsdAccountant.decimals(),
+            maxStaleness: 2 days,
+            dataType: PriceProvider.ReturnType.Uint256,
+            isBaseTokenEth: false,
+            isStableToken: true,
+            isBaseTokenBtc: false
+        });
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(LIQUID_USD);
+
+        PriceProvider.Config[] memory tokensConfig = new PriceProvider.Config[](1);
+        tokensConfig[0] = liquidUsdConfig;
+
+        priceProvider.setTokenConfig(tokens, tokensConfig);
+
+        IDebtManager.CollateralTokenConfig[] memory collateralTokenConfig = new IDebtManager.CollateralTokenConfig[](1);
+
+        collateralTokenConfig[0].ltv = ltv;
+        collateralTokenConfig[0].liquidationThreshold = liquidationThreshold;
+        collateralTokenConfig[0].liquidationBonus = liquidationBonus;
+
+        debtManager.supportCollateralToken(address(LIQUID_USD), collateralTokenConfig[0]);        
+
+        minShares = uint128(10 * 10 ** IERC20Metadata(address(LIQUID_USD)).decimals());
+        debtManager.supportBorrowToken(address(LIQUID_USD), borrowApyPerSecond, minShares);
+
+        vm.stopPrank();
+    }
+}

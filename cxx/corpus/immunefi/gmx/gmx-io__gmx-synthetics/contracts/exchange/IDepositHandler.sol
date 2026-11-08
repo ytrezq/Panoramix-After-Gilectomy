@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: BUSL-1.1
+
+pragma solidity ^0.8.0;
+
+import "../deposit/IDepositUtils.sol";
+import "../deposit/IExecuteDepositUtils.sol";
+
+import "../deposit/Deposit.sol";
+import "../oracle/OracleUtils.sol";
+
+interface IDepositHandler {
+    function createDeposit(address account, uint256 srcChainId, IDepositUtils.CreateDepositParams calldata params) external returns (bytes32);
+    function cancelDeposit(bytes32 key) external;
+    function simulateExecuteDeposit(
+        bytes32 key,
+        OracleUtils.SimulatePricesParams memory params
+    ) external;
+
+    function executeDepositFromController(
+        IExecuteDepositUtils.ExecuteDepositParams calldata executeDepositParams,
+        Deposit.Props calldata deposit
+    ) external returns (uint256);
+}

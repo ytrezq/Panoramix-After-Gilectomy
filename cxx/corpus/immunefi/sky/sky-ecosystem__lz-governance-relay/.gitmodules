@@ -1,0 +1,6 @@
+[submodule "lib/dss-test"]
+	path = lib/dss-test
+	url = https://github.com/makerdao/dss-test
+[submodule "lib/sky-oapp-oft"]
+	path = lib/sky-oapp-oft
+	url = https://github.com/makerdao/sky-oapp-oft

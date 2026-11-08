@@ -1,0 +1,51 @@
+{
+  "name": "@redstone-finance/canton-connector",
+  "version": "0.9.0",
+  "main": "dist/src/index.js",
+  "exports": "./dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "license": "MIT",
+  "scripts": {
+    "test": "yarn global:jest:cov",
+    "clean": "yarn global:ts-clean",
+    "build": "yarn global:tsc -p tsconfig.build.json",
+    "build:turbo": "yarn global:turbo build",
+    "typecheck": "yarn global:tsc --noEmit",
+    "typecheck:turbo": "yarn global:turbo typecheck",
+    "preversion": "yarn build",
+    "pack-package": "yarn build && cd dist && npm pack",
+    "lint": "yarn global:eslint .",
+    "lint:fix": "yarn global:eslint --fix .",
+    "run-sig-der": "yarn global:ts-node scripts/sig_der.ts",
+    "sample-run": "yarn build:turbo && node dist/scripts/sample-run.js",
+    "core-featured-client-sample": "yarn global:ts-node scripts/core-featured-client-sample.ts",
+    "core-featured-sample": "yarn global:ts-node scripts/core-featured-sample.ts"
+  },
+  "dependencies": {
+    "@redstone-finance/sdk": "workspace:*",
+    "@redstone-finance/utils": "workspace:*",
+    "decimal.js": "^10.4.3",
+    "ethers": "^5.7.2",
+    "lodash": "^4.17.23"
+  },
+  "devDependencies": {
+    "axios": "^1.13.2",
+    "dotenv": "^16.0.3",
+    "openapi-typescript-codegen": "^0.29.0",
+    "secp256k1": "^5.0.1",
+    "zod": "^4.1.12"
+  },
+  "overrides": {
+    "elliptic": "^6.6.1"
+  },
+  "resolutions": {
+    "elliptic": "^6.6.1"
+  },
+  "files": [
+    "src",
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

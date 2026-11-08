@@ -10,9 +10,11 @@
 // what it reads (lot 7's affects). An IF one branch of which only fails is
 // read as the check and the other branch's lines after it (python's folder
 // flattens them so). Each site's checks are abstracted over the params a, b
-// (and verified: the conditions put back together equal the originals on
-// random values); the sites with the same operation and checks are one
-// function of the table, its messages parameters where the sites' differ.
+// - and proven: the result and the conditions put back together are the
+// originals for every value (alg::same_value: the same normal form), never
+// a sample of values; what isn't proven keeps its checks and arithmetic -
+// the sites with the same operation and checks are one function of the
+// table, its messages parameters where the sites' differ.
 #include "analysis/safemath.hpp"
 
 #include <algorithm>
@@ -25,6 +27,7 @@
 #include "decompile.hpp"
 #include "algebra/construct.hpp"
 #include "algebra/eval.hpp"
+#include "algebra/identity.hpp"
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "core/errors.hpp"
@@ -338,9 +341,6 @@ SmallVec<Value, 3> complements(Value b)
     return r;
 }
 
-// x and y have the same value (the abstraction's insurance, below)
-bool same_value(Value x, Value y);
-
 bool fails_overflow(const Failure& f) noexcept { return f.kind == FailKind::Panic && f.panic == PANIC_OVERFLOW; }
 
 std::optional<Match> match_check(Value cond, const Failure& fail, Value res)
@@ -374,8 +374,8 @@ std::optional<Match> match_check(Value cond, const Failure& fail, Value res)
                         if (!(other == a || other == alg::to_bool(a) || (other.is(Op::BOOL, 1) && other[0] == a)))
                             continue;
                     }
-                    const Value ab = alg::mul(a, b);
-                    if (ab == res || same_value(ab, res))
+                    // (proven a * b: the same normal form)
+                    if (alg::same_value(alg::mul(a, b), res))
                         return Match{Arith::Mul, a, b};
                 }
             }
@@ -578,22 +578,6 @@ bool only_params(Value v)
     return true;
 }
 
-// x and y have the same value (on random values of what they read): the
-// abstraction's insurance
-bool same_value(Value x, Value y)
-{
-    if (x == y)
-        return true;
-    for (const u64 seed : {0x5afe0001ull, 0x5afe0002ull, 0x5afe0003ull, 0x5afe0004ull}) {
-        alg::RandomEnv env(seed);
-        alg::Evaluator ev(env);
-        const auto a = ev.try_eval(x), b = ev.try_eval(y);
-        if (!a || !b || *a != *b)
-            return false;
-    }
-    return true;
-}
-
 // whether exp divides by d somewhere (python divides)
 bool divides(Value d, Value exp)
 {
@@ -623,8 +607,8 @@ struct Site {
 };
 
 // The caps only narrow the search, they never change what a rewrite
-// means: every call made is verified the same way (call(): the result and
-// each check, abstracted then made concrete again, the same values), and
+// means: every call made is proven the same way (call(): the result and
+// each check, abstracted then made concrete again, the same expressions), and
 // what a cap leaves out keeps its plain arithmetic and its checks as they
 // were. A cap hit is counted (Rewriter::capped_*) and logged at debug level.
 //
@@ -955,8 +939,10 @@ private:
         return std::nullopt;
     }
 
-    // python _call: the site recorded (its checks abstracted, verified), the
-    // lines from e on with the call where the result is used
+    // python _call: the site recorded (its checks abstracted, proven: the
+    // function's result and conditions at a and b are the site's for every
+    // value - alg::same_value; what isn't proven keeps its checks), the lines
+    // from e on with the call where the result is used
     std::optional<Values> call(const Values& lines, usize e, usize j, std::span<const Check> checks, Value res,
                                const Match& m)
     {
@@ -967,11 +953,11 @@ private:
         Abstract ab(res, m);
         Concrete back(s.a, s.b);
         const Value result = result_of(m.op);
-        if (!same_value(back(result), res))
+        if (!alg::same_value(back(result), res))
             return std::nullopt;
         for (const Check& c : checks) {
             const Value cond = ab(c.cond);
-            if (!only_params(cond) || !same_value(back(cond), c.cond))
+            if (!only_params(cond) || !alg::same_value(back(cond), c.cond))
                 return std::nullopt;
             s.key.push_back(KeyCheck{cond, c.fail.kind, c.fail.panic, c.fail.reason});
             s.fails.push_back(c.fail);

@@ -1,0 +1,40 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.36;
+
+import {Ownable} from "./Ownable.sol";
+
+/**
+ * @title Base contract that provides ownership and operational control
+ * @author Origin Protocol Inc
+ */
+contract OwnableOperable is Ownable {
+    error OnlyOperatorOrOwner(); // 0x3fbed347
+
+    /// @notice The account that can request and claim withdrawals.
+    address public operator;
+
+    uint256[49] private _gap;
+
+    event OperatorChanged(address newAdmin);
+
+    function _initOwnableOperable(address _operator) internal {
+        _setOperator(_operator);
+    }
+
+    /// @notice Set the account that can request and claim withdrawals.
+    /// @param newOperator The address of the new operator.
+    function setOperator(address newOperator) external onlyOwner {
+        _setOperator(newOperator);
+    }
+
+    function _setOperator(address newOperator) internal {
+        operator = newOperator;
+
+        emit OperatorChanged(newOperator);
+    }
+
+    modifier onlyOperatorOrOwner() {
+        if (msg.sender != operator && msg.sender != _owner()) revert OnlyOperatorOrOwner();
+        _;
+    }
+}

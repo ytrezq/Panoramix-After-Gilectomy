@@ -1,0 +1,48 @@
+{
+  "name": "@moneyonchain/periphery",
+  "version": "3.0.7",
+  "description": "Reusable Money on Chain utility, interface, and governance contracts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/money-on-chain/MoC-Periphery.git"
+  },
+  "bugs": {
+    "url": "https://github.com/money-on-chain/MoC-Periphery/issues"
+  },
+  "homepage": "https://github.com/money-on-chain/MoC-Periphery#readme",
+  "license": "UNLICENSED",
+  "files": [
+    "contracts",
+    "dist"
+  ],
+  "scripts": {
+    "clean": "hardhat clean && rm -rf dist artifacts cache",
+    "compile": "hardhat compile",
+    "format": "prettier --write \"contracts/**/*.sol\"",
+    "format:check": "prettier --check \"contracts/**/*.sol\"",
+    "lint:sol": "solhint \"contracts/**/*.sol\"",
+    "lint:sol:fix": "solhint --fix \"contracts/**/*.sol\"",
+    "lint": "pnpm lint:sol && pnpm format:check",
+    "test": "pnpm build:local",
+    "hooks:install": "husky",
+    "build:local": "pnpm clean && pnpm compile"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts-ethereum-package": "3.0.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox-viem": "5.0.7",
+    "hardhat": "3.9.0",
+    "husky": "^9.1.7",
+    "prettier": "2.8.8",
+    "prettier-plugin-solidity": "^1.4.3",
+    "solc": "0.8.35",
+    "solhint": "^6.0.1"
+  },
+  "exports": {
+    "./contracts/*": "./contracts/*",
+    "./package.json": "./package.json"
+  },
+  "type": "module",
+  "packageManager": "pnpm@11.15.1+sha512.81350b07e53c9538a02f1f2303b4290fa2d7be04e56e2a970c4cc4b417dc761de196edabd49d55c7dc9580db81007c44143e4e3d7e462b3000d23c255122d065"
+}

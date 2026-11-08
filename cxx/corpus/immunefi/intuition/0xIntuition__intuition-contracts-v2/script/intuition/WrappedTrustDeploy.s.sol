@@ -1,0 +1,32 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity 0.8.29;
+
+import { console2 } from "forge-std/src/console2.sol";
+
+import { SetupScript } from "script/SetupScript.s.sol";
+import { WrappedTrust } from "src/WrappedTrust.sol";
+
+/*
+TESTNET
+forge script script/intuition/WrappedTrustDeploy.s.sol:WrappedTrustDeploy \
+--optimizer-runs 10000 \
+--rpc-url intuition_sepolia \
+--broadcast \
+--slow
+
+MAINNET
+forge script script/intuition/WrappedTrustDeploy.s.sol:WrappedTrustDeploy \
+--optimizer-runs 10000 \
+--rpc-url intuition \
+--broadcast \
+--slow
+*/
+contract WrappedTrustDeploy is SetupScript {
+    function run() public broadcast returns (bool) {
+        console2.log("");
+        console2.log("DEPLOYMENTS: =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+");
+        WrappedTrust wrappedTrust = new WrappedTrust();
+        info("Wrapped Trust", address(wrappedTrust));
+        return true;
+    }
+}

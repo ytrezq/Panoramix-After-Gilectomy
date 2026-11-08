@@ -1,0 +1,161 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.36;
+
+// Foundry
+import {Test} from "forge-std/Test.sol";
+
+// Contracts
+import {Proxy} from "contracts/Proxy.sol";
+import {LidoARM} from "contracts/LidoARM.sol";
+import {EthenaARM} from "contracts/EthenaARM.sol";
+import {EtherFiARM} from "contracts/EtherFiARM.sol";
+import {OriginARM} from "contracts/OriginARM.sol";
+import {EthenaAssetAdapter} from "contracts/adapters/EthenaAssetAdapter.sol";
+import {EtherFiAssetAdapter} from "contracts/adapters/EtherFiAssetAdapter.sol";
+import {OriginAssetAdapter} from "contracts/adapters/OriginAssetAdapter.sol";
+import {WrappedOriginAssetAdapter} from "contracts/adapters/WrappedOriginAssetAdapter.sol";
+import {CapManager} from "contracts/CapManager.sol";
+import {ZapperLidoARM} from "contracts/ZapperLidoARM.sol";
+import {MorphoMarket} from "contracts/markets/MorphoMarket.sol";
+
+// Interfaces
+import {IERC20} from "contracts/Interfaces.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {IOriginVault} from "contracts/Interfaces.sol";
+
+/// @notice This contract should be the common parent for all test contracts.
+///         It should be used to define common variables and that will be
+///         used across all test contracts. This pattern is used to allow different
+///         test contracts to share common variables, and ensure a consistent setup.
+/// @dev This contract should be inherited by "Shared" contracts.
+/// @dev This contract should only be used as storage for common variables.
+/// @dev Helpers and other functions should be defined in a separate contract.
+abstract contract Base_Test_ is Test {
+    uint256 internal constant _FEE_STORAGE_SLOT = 56;
+
+    //////////////////////////////////////////////////////
+    /// --- CONTRACTS
+    //////////////////////////////////////////////////////
+    Proxy public lpcProxy;
+    Proxy public lidoProxy;
+    Proxy public ethenaProxy;
+    Proxy public etherfiProxy;
+    Proxy public originARMProxy;
+    Proxy public morphoMarketProxy;
+    LidoARM public lidoARM;
+    EthenaARM public ethenaARM;
+    EtherFiARM public etherfiARM;
+    OriginARM public originARM;
+    EthenaAssetAdapter public ethenaAssetAdapter;
+    EtherFiAssetAdapter public etherfiAssetAdapter;
+    OriginAssetAdapter public originAssetAdapter;
+    WrappedOriginAssetAdapter public wrappedOriginAssetAdapter;
+    CapManager public capManager;
+    MorphoMarket public morphoMarket;
+    ZapperLidoARM public zapperLidoARM;
+
+    IERC20 public usde;
+    IERC20 public oeth;
+    IERC4626 public woeth;
+    IERC20 public weth;
+    IERC20 public eeth;
+    IERC20 public weeth;
+    IERC20 public steth;
+    IERC20 public wsteth;
+    IERC20 public morpho;
+    IERC20 public badToken;
+    IERC4626 public susde;
+    IERC4626 public market;
+    IERC4626 public market2;
+    IOriginVault public vault;
+
+    //////////////////////////////////////////////////////
+    /// --- Governance, multisigs and EOAs
+    //////////////////////////////////////////////////////
+    address public alice;
+    address public bob;
+    address public charlie;
+    address public dave;
+    address public eve;
+    address public frank;
+    address public george;
+    address public harry;
+
+    address public deployer;
+    address public governor;
+    address public operator;
+    address public oethWhale;
+    address public feeCollector;
+    address public lidoWithdraw;
+    address public stethAdapter;
+    address public wstethAdapter;
+
+    //////////////////////////////////////////////////////
+    /// --- DEFAULT VALUES
+    //////////////////////////////////////////////////////
+    uint256 public constant DEFAULT_AMOUNT = 1 ether;
+    uint256 public constant MIN_TOTAL_SUPPLY = 1e12;
+    uint256 public constant MAX_CROSS_PRICE_DEVIATION = 20e32;
+    uint256 public constant PRICE_SCALE = 1e36;
+    uint256 public constant FEE_SCALE = 10000;
+    uint256 public constant DELAY_REQUEST = 30 minutes;
+    uint256 public constant STETH_ERROR_ROUNDING = 2;
+
+    //////////////////////////////////////////////////////
+    /// --- SETUP
+    //////////////////////////////////////////////////////
+    function setUp() public virtual {}
+
+    /// @notice Better if called once all contract have been depoyed.
+    function labelAll() public virtual {
+        // Contracts
+        _labelNotNull(address(lpcProxy), "LPC PROXY");
+        _labelNotNull(address(lidoProxy), "LIDO ARM PROXY");
+        _labelNotNull(address(ethenaProxy), "ETHENA ARM PROXY");
+        _labelNotNull(address(etherfiProxy), "ETHERFI ARM PROXY");
+        _labelNotNull(address(lidoARM), "LIDO ARM");
+        _labelNotNull(address(originARM), "ORIGIN ARM");
+        _labelNotNull(address(capManager), "CAP MANAGER");
+        _labelNotNull(address(morphoMarket), "MORPHO MARKET ADAPTER");
+
+        _labelNotNull(address(usde), "USDE");
+        _labelNotNull(address(oeth), "OETH");
+        _labelNotNull(address(woeth), "WOETH");
+        _labelNotNull(address(weth), "WETH");
+        _labelNotNull(address(eeth), "EETH");
+        _labelNotNull(address(morpho), "MORPHO");
+        _labelNotNull(address(weeth), "WEETH");
+        _labelNotNull(address(steth), "STETH");
+        _labelNotNull(address(wsteth), " WRAPPED STETH");
+        _labelNotNull(address(badToken), "BAD TOKEN");
+        _labelNotNull(address(vault), "OETH VAULT");
+        _labelNotNull(address(market), "MARKET");
+        _labelNotNull(address(market2), "MARKET 2");
+        _labelNotNull(address(susde), "SUSDE");
+
+        // Governance, multisig and EOAs
+        _labelNotNull(alice, "Alice");
+        _labelNotNull(bob, "Bob");
+        _labelNotNull(charlie, "Charlie");
+        _labelNotNull(dave, "Dave");
+        _labelNotNull(eve, "Eve");
+        _labelNotNull(frank, "Frank");
+        _labelNotNull(george, "George");
+        _labelNotNull(harry, "Harry");
+
+        _labelNotNull(deployer, "Deployer");
+        _labelNotNull(governor, "Governor");
+        _labelNotNull(operator, "Operator");
+        _labelNotNull(oethWhale, "OETH Whale");
+        _labelNotNull(feeCollector, "Fee Collector");
+        _labelNotNull(lidoWithdraw, "Lido Withdraw");
+    }
+
+    function _labelNotNull(address _address, string memory _name) internal {
+        if (_address != address(0)) vm.label(_address, _name);
+    }
+
+    function feeStorageSlot(address arm) internal view returns (bytes32 value) {
+        value = vm.load(arm, bytes32(_FEE_STORAGE_SLOT));
+    }
+}

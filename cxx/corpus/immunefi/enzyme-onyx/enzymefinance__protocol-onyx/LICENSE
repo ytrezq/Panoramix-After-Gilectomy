@@ -1,0 +1,15 @@
+# License
+
+This repository is licensed under the Business Source License 1.1 (BUSL-1.1).
+
+- **Current License**: BUSL-1.1  
+  See LICENSES/BUSL-1.1 for the full text, including the Change Date and Change License.
+
+- **Change Date**: 2029-01-01
+- **Change License**: GPL-3.0
+
+Third-party components:
+
+- Files vendored from third party dependencies are licensed under their original terms.
+
+Refer to SPDX identifiers in individual source files for the applicable license.

@@ -1,0 +1,36 @@
+{
+  "name": "aave-helpers",
+  "version": "3.1.0",
+  "description": "",
+  "directories": {
+    "lib": "lib",
+    "test": "tests"
+  },
+  "scripts": {
+    "lint": "prettier . --check",
+    "lint:fix": "prettier --write .",
+    "changeset": "changeset",
+    "release": "changeset publish"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aave-dao/aave-helpers.git"
+  },
+  "keywords": [],
+  "author": "bgd-labs",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/aave-dao/aave-helpers/issues"
+  },
+  "homepage": "https://github.com/aave-dao/aave-helpers#readme",
+  "devDependencies": {
+    "@aave-dao/aave-helpers-js": "workspace:*",
+    "@changesets/cli": "^2.29.8",
+    "prettier": "3.5.3",
+    "prettier-plugin-solidity": "1.4.3"
+  },
+  "packageManager": "pnpm@10.29.2",
+  "engines": {
+    "node": ">=22"
+  }
+}
