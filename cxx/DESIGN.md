@@ -1057,8 +1057,8 @@ exhausted); text_check 0 unparsed lines, empty world 29,438 calls, 29,436 the sa
 different; random world 29,438, 28,892 the same, 0 different (320 unsupported: a storage
 bytes of an invalid encoding). Unit tests: 397 cases, 248,292 assertions, 0 failures.
 
-**The source corpus** (branch `corpus`, `tools/build_corpus.py` and
-`tools/compare_source.py` there): the EVM programs of Immunefi's bug bounties with their
+**The source corpus** (`corpus/`, its tools `corpus/tools/build_corpus.py` and
+`corpus/tools/compare_source.py`): the EVM programs of Immunefi's bug bounties with their
 sources, compiled for several EVM versions by the compilers their projects ask; per
 artifact the ABI's functions against the dispatcher, the storage layout against the storage
 definitions, stagecheck and text_check, each function's size against its source's
@@ -1140,6 +1140,21 @@ is the compiler's runtime code, without the data its constructor appends: the re
 code's own last bytes, as evmone does (`token()` returns 0x5161...a05260, the decompiler's
 `const token`), and a call to such a word calls its low 160 bits, which the asm prints
 `????...` too.
+
+**The whole source corpus** (8 Nov, `corpus/results/full-2026-11-08/`): 37,946 artifacts
+(17,872 distinct bytecodes) of 304 of the 306 repositories, solc 0.4.22 to 0.8.38 and Vyper
+0.2.12 to 0.4.2, constantinople to osaka; compared, each project's largest own contract in
+every build of it (895 artifacts). With the build of 0d986fed75: stagecheck 0 different; 3
+calls different in one text (the SafeMath check moved into an `and`'s right side) and 33
+lines unparsed in another (a storage variable named `delegate`); 42 ABI functions missing
+(Vyper 0.3.1's dispatchers) - each fixed since (text_check's keywords read as names, Vyper
+0.3.1's dispatchers above, SafeMath's checks in "Differences from the asm and python"). With
+the final build (eafea47ccc: the 895 compared with 63d7037f25's, the 8 texts eafea47ccc
+changes compared again, the 887 others decompiled again the same): every ABI function found
+(27,129), stagecheck 238,647 calls the same, 0 different, 0 bugs (899 inconclusive);
+text_check 0 different and 0 lines unparsed in both worlds (empty 119,654 the same, random
+118,929; 41 and 93 unsupported: mostly a storage bytes of an invalid encoding, places a type
+can't place, aborted lines - 209 in 29 texts -, msize).
 
 ## Hostile input
 

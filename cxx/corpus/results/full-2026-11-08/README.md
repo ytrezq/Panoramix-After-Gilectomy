@@ -29,24 +29,52 @@ Two repositories gave nothing:
 
 ## The comparison
 
-The comparison covers each project's largest own contract in every build of it: 895 artifacts. It used the release build of the cxx23 branch at 0d986fed75 (`pancxx`, `stagecheck`, `text_check`, and that build's signature database):
+The comparison covers each project's largest own contract in every build of it: 895 artifacts.
 
     compare_largest.py --build BUILD --out OUT --bin DIR --sigdb DB    (again until "== all done")
     compare_largest.py --build BUILD --out OUT --bin DIR --sigdb DB --summary
 
-It took 77 minutes of one CPU. `summary.md` is the result, and `results.jsonl` has one line per artifact.
+DIR has the release builds of `pancxx`, `stagecheck` and `text_check` from the cxx23 branch, and DB is that build's signature database. `summary.md` is the final run's result, and `results.jsonl` has one line per artifact.
 
-### Results
+### The final run
 
-**stagecheck:** no call different, out of 238,643 calls same.
+It used the build of cxx23 at eafea47ccc.
 
-**text_check:** 3 calls different and 33 lines not parsed, each in one text.
+The 895 artifacts were first compared with the build of 63d7037f25, which took 74 minutes of one CPU. eafea47ccc changes the text of 8 of them: a call's return data of more than 32 bytes, read after another call, now gets a variable per word. Those 8 were compared again with the eafea47ccc build. Each of the other 887 was decompiled again with that build, and its text came out the same.
 
-- **The 3 calls different** are in ListaStakeManager (solc 0.8.4 istanbul), `skipDelegateOrNot`. The SafeMath rewrite moved an overflow check into the right side of an `and`, so the subtraction's Panic(0x11) is skipped when the left side is 0. The asm prints the same line.
-- **The 33 lines not parsed** are in Voting (lido aragon-apps, solc 0.4.24). They involve a storage variable named `delegate` (from its getter): the text's reader took `delegate` for the keyword of `delegate call`.
+| Calls | same | different | other |
+|---|---|---|---|
+| stagecheck, every stage | 238,647 | 0 | 0 bugs, 899 inconclusive |
+| text_check, empty world | 119,654 | 0 | 78 inconclusive, 41 unsupported |
+| text_check, random world | 118,929 | 0 | 734 inconclusive, 93 unsupported |
 
-**The interface:** 27,087 of the 27,129 ABI functions are found in the dispatchers.
+- **Parsing:** the text's reader parses every line of the 895 texts.
+- **The interface:** the dispatchers have all 27,129 ABI functions. The 85 selectors not in the ABI are library functions, as explained below.
+- **Unsupported calls** are those text_check can't run from the text alone. Their reasons include:
+  - mostly, a `bytes` or `string` storage value whose encoding is invalid, since a random world puts arbitrary words in storage;
+  - storage or parameter places whose printed type doesn't say where they are;
+  - lines `Decompilation aborted`, which mark paths the VM gave up, as the asm does (209 such lines, in 29 texts);
+  - reads of `msize`.
 
-- **The 42 missing** all belong to one Vyper 0.3.1 contract. The 6 distinct Vyper 0.3.1 bytecodes come out as one default function. Their dispatcher tests the call value once, before the non-payable selectors. The asm doesn't split them either.
-- **The 85 selectors not in the ABI** are library functions. solc leaves a library's non-view functions out of its ABI: 72 in DssExecLib, 4 in each MarketUtils build, 1 in a silo library.
-- **A library's selector** names its structs (`Market.Props`), where a contract's selector spells the struct out as a tuple. `compare_source.py` computes library selectors this way since this run, and the four library artifacts were compared again with it.
+### The first run and its fixes
+
+The first run used the build of 0d986fed75 and took 77 minutes of one CPU. Its numbers:
+
+- **stagecheck:** no call different, out of 238,643 calls the same.
+- **text_check:** 3 calls different and 33 lines not parsed, each group in one text.
+- **The interface:** 27,087 of the 27,129 ABI functions were found in the dispatchers.
+
+Every problem it found has been fixed since:
+
+- **The 3 calls different** were in ListaStakeManager (solc 0.8.4 istanbul), `skipDelegateOrNot`.
+  - The cause: the SafeMath rewrite moved an overflow check into the right side of an `and`, so the subtraction's Panic(0x11) was skipped when the left side was 0. The asm prints the same line.
+  - The fix: a check now folds only into a use that every run evaluates.
+- **The 33 lines not parsed** were in Voting (lido aragon-apps, solc 0.4.24).
+  - The cause: they involve a storage variable named `delegate` (from its getter), and the text's reader took `delegate` for the keyword of `delegate call`.
+  - The fix: the reader now takes such keywords for names where a name can stand.
+- **The 42 missing functions** all belonged to one Vyper 0.3.1 contract.
+  - The cause: the 6 distinct Vyper 0.3.1 bytecodes came out as one default function, as the asm's do. Their dispatcher copies the selector to `mem[28]` with `calldatacopy(28, 0, 4)` and reads the word at 0, and the VM didn't know the value of a copy that short.
+  - The fix: the VM now knows a copy of fewer than 32 bytes of call data as its value, so the selector tests are read.
+- **Library selectors:** a library's selector names its structs (`Market.Props`), where a contract's selector spells the struct out as a tuple. `compare_source.py` now computes library selectors this way. The four library artifacts were compared again with it.
+
+The 85 selectors not in the ABI are library functions: solc leaves a library's non-view functions out of its ABI. There are 72 in DssExecLib, 4 in each MarketUtils build and 1 in a silo library.

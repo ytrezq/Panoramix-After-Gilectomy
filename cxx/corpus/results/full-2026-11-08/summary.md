@@ -6,11 +6,11 @@
 
 | | |
 |---|---|
-| ABI functions found in the dispatcher | 27087 / 27129 (99.8%) |
+| ABI functions found in the dispatcher | 27129 / 27129 (100.0%) |
 | selectors not in the ABI | 85 |
 | names and types as the ABI (signature database) | 56.3% |
 | payable as the ABI | 98.8% |
-| static parameter types (with the database) | 94.0% of 22490 |
+| static parameter types (with the database) | 94.0% of 22548 |
 | static parameter types (inferred, --blind) | - of 0 |
 
 ## Storage
@@ -19,26 +19,26 @@
 |---|---|
 | layout places found | 7555 / 8995 (84.0%) |
 | their kind as the compiler's | 97.8% |
-| named (from a getter) | 3209, the source's name 80.9% |
+| named (from a getter) | 3222, the source's name 80.9% |
 
 ## Semantics (execution against evmone)
 
 | | same | different | inconclusive |
 |---|---|---|---|
-| stagecheck, every stage (calls) | 238643 | 0 (0 contracts; bugs 0) | 899 |
-| text_check, empty world (calls) | 119643 | 3 | 78 (+ 49 unsupported) |
-| text_check, random world (calls) | 118919 | 3 | 734 (+ 100 unsupported) |
+| stagecheck, every stage (calls) | 238647 | 0 (0 contracts; bugs 0) | 899 |
+| text_check, empty world (calls) | 119654 | 0 | 78 (+ 41 unsupported) |
+| text_check, random world (calls) | 118929 | 0 | 734 (+ 93 unsupported) |
 
-Texts with a call different: 1. Texts with lines not parsed: 1.
+Texts with a call different: 0. Texts with lines not parsed: 0.
 
-## Size (functions matched on both sides: 25564)
+## Size (functions matched on both sides: 25587)
 
 | | source | decompiled |
 |---|---|---|
-| statements / lines | 317578 | 1763620 (x5.55) |
-| loops | 4329 | 25152 |
-| conditions | 50858 | 238974 |
-| reverts and requires | 34691 | 277464 |
+| statements / lines | 318350 | 1765558 (x5.55) |
+| loops | 4340 | 25164 |
+| conditions | 50943 | 239163 |
+| reverts and requires | 34765 | 278114 |
 
 (Source statements: the function, its modifiers and the internal functions it calls, each once;
 decompiled lines: the function's, comments aside.)
@@ -59,7 +59,7 @@ decompiled lines: the function's, comments aside.)
 | compiler, EVM | artifacts | with a difference | with lines not parsed |
 |---|---|---|---|
 | solc-0.4.23 constantinople | 1 | 0 | 0 |
-| solc-0.4.24 constantinople | 8 | 0 | 1 |
+| solc-0.4.24 constantinople | 8 | 0 | 0 |
 | solc-0.4.26 constantinople | 3 | 0 | 0 |
 | solc-0.5.1 constantinople | 1 | 0 | 0 |
 | solc-0.5.10 petersburg | 2 | 0 | 0 |
@@ -76,7 +76,7 @@ decompiled lines: the function's, comments aside.)
 | solc-0.7.3 istanbul | 2 | 0 | 0 |
 | solc-0.7.5 istanbul | 1 | 0 | 0 |
 | solc-0.7.6 istanbul | 20 | 0 | 0 |
-| solc-0.8.4 istanbul | 4 | 1 | 0 |
+| solc-0.8.4 istanbul | 4 | 0 | 0 |
 | solc-0.8.7 london | 58 | 0 | 0 |
 | solc-0.8.7 london noopt | 12 | 0 | 0 |
 | solc-0.8.9 london | 19 | 0 | 0 |
