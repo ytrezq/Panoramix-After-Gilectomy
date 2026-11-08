@@ -482,7 +482,7 @@ from python and the asm, and what became of it (the audit of November
 | python's one fixed array per root slot, an array of structs laid out from a slot (Vyper's DynArray of structs) printed as one array per field, its elements reached with an offset index (8 n - 3) as arrays near 2^256 | `storage/analyse.cpp` | the same stride's roots merged into one array of structs at the lowest root whose slots hold no other variable; a member reached through a variable holding an element's address (c + S x) raw, not an array at the member's offset |
 | checked arithmetic (OpenZeppelin, ds-math, Panic 0x11 / 0x12, Vyper, a hand-written check) | `analysis/safemath.cpp` | recognized; each site's abstraction proven (the result and the conditions put back have the site's normal forms: `alg::same_value`), else the checks stay - the four random points are gone |
 | the storage forms (python's four worlds) | `storage/check.cpp` | recognized; a form proven (its slot and bits the access's once the hashes of constants are computed: the same normal form), else raw - the four random worlds are gone; a bytes getter run by the trace machine on storage worlds |
-| solidity's length of a storage bytes or string, `(x & (256 * iszero(x & 1) - 1)) >> 1` | `simplify/passes.cpp` | recognized exactly: `LENGTH(key)`'s meaning is that formula (the machine runs it); Vyper's length slot is a plain word |
+| solidity's length of a storage bytes or string, `(x & (256 * iszero(x & 1) - 1)) >> 1` | `simplify/passes.cpp` | recognized exactly: `LENGTH(key)`'s meaning is that formula (the machine runs it), below 2^255 by it (`max_bits`: a copy's end `L + 160` past `L >= 32` doesn't wrap, its trip count takes no max); Vyper's length slot is a plain word |
 | params' types from masks, solc >= 0.8's validation | `analysis/traits.cpp` | recognized; the trace machine runs the checks taken out |
 | python's `small_words` (a word given to the contract below 2^64 in memory positions) | `simplify/` | made sound: past a check bounding it on every path |
 | the metadata's language | `driver/` | displayed (`lang`), and the storage tie |
@@ -618,9 +618,15 @@ the counter can't wrap. The rewrites are sound by construction:
 `loop_to_setmem` (zero fills, copies whose source and destination can't
 overlap the wrong way, calldata copies, the words of consecutive storage
 slots - `stor[slot len n]`, `STORAGE_RANGE`; under the path's facts; 0 or 1
-trips unrolled), `to_store` (a loop whose one write is a STORE of a word:
-memory, calldata, storage words or zeroes into consecutive slots, `stor[slot
-len n] = ...`, `STORE_RANGE`), `propagate_storage_in_loops` (an exact change of
+trips unrolled; a loop whose body only moves its variables - a copy whose
+writes were dead - dropped where the induction proves it ends, under
+`Top::Word`, its variables' last values set: a bound past what the counter
+reaches without wrapping may make it never end, and it stays; a copy in
+words of L bytes cut to L where the next line writes 32 bytes or more at
+its end - solc's cleanup word - in a trace that reads no msize), `to_store`
+(a loop whose one write is a STORE of a word: memory, calldata, storage
+words or zeroes into consecutive slots, `stor[slot len n] = ...`,
+`STORE_RANGE`), `propagate_storage_in_loops` (an exact change of
 variables), `rename_var`. On the corpus (lot 6, before its second round):
 14,281 loops, 95.5% with a `while cond`; 3,353 trip counts proven of
 10,659 counters.
@@ -669,14 +675,21 @@ returns its last output. `simplify_exp` is python's local rules as a
 memoized bottom-up rewrite, each rule tested by evaluation. `cleanup_vars`
 is two walks, not a rewrite per variable: forward, a variable's value
 replaces its reads (up to 150 nodes) where nothing since changed what it
-reads; backward, unread SETVARs dropped. `cleanup_mems` likewise with
+reads; backward, unread SETVARs dropped (the variables read counted
+exactly: past a summary's cap of 32 places, its parts'). `cleanup_mems` likewise with
 MemState (forward, reads replaced by what reaching writes wrote, under the
-conditions known on the path; backward, unread writes dropped), changing
+conditions known on the path - a call forgets only the pieces that read
+what it changes, its own numbered results among them, not an earlier
+call's: the free memory pointer moved by `ceil32(return_data.size)` of one
+call stays known past the next; backward, unread writes dropped), changing
 nothing a msize read would see. `cleanup_conds` keeps up to 32 known
 conditions as facts and removes what they decide. Python's `small_words`
 is made sound (`SmallWords`, `simplify.cpp`): a word the contract is
 given counts as below 2^64 in memory positions only past a check bounding
-it on the lines every execution that goes on runs. Off unless execution
+it on the lines every execution that goes on runs - a check of `k * len`
+bounding len where the product can't wrap, by the checks before it on
+the same lines (a checked multiplication's `len and k * len / len != k`)
+or len's range. Off unless execution
 confirms them (`SimplifyOptions::dubious`): python's rewrites known to be
 unsound (postprocess_trace's `len % 32` branches assumed equal,
 replace_var into setmems past clobbers).
@@ -756,7 +769,9 @@ functions (OpenZeppelin, ds-math, solidity >= 0.8's Panic(0x11) and
 Panic(0x12), increments, Vyper): a run of checks (failing with
 REVERT(None), an Error(string), a Panic or INVALID where their condition
 holds) followed by a line using the checked result - past lines that
-can't fail or change what the checks read, and checks failing the same
+can't fail or change what the checks read (a loop of such lines among
+them when lot 6's induction proves it ends: a copy loop where another
+build has MCOPY), and checks failing the same
 way - loses the checks, the result becoming `SAFEMATH(n, a, b,
 messages...)`. A site's checks are abstracted over a and b and proven:
 the function's result and conditions put back at a and b have the site's
@@ -976,6 +991,37 @@ sources, compiled for several EVM versions by the compilers their projects ask; 
 artifact the ABI's functions against the dispatcher, the storage layout against the storage
 definitions, stagecheck and text_check, each function's size against its source's
 statements, and the same contract across EVM versions.
+
+**The same source across EVM versions** (8 Nov; the sample's 168 artifacts - five of the
+projects' own contracts per project and build -, each function compared with the next EVM
+version's of the same source and compiler, `compare_source.py`'s stability): where only the
+compiler's means changed, the code should read the same. Shanghai -> cancun had 71.4% of
+1,292 functions identical (63.4% of their lines changed): cancun's MCOPY is one line where
+shanghai's copy is a loop, which the copy proof needs the length and the bases for - and the
+forward memory pass lost them at every call (a call forgot every piece reading any call's
+results, the free memory pointer moved by an earlier call's `return_data.size` among them),
+at a write at `32 * len + 160` (a checked product the small words didn't take), and the
+leftovers of a loop it couldn't convert kept a check from its SafeMath call; a copy in
+words wrote ceil32(len) bytes where MCOPY writes len. After the changes of this date (small
+words of a checked product, a call forgetting only its own results, a counting loop dropped
+where it provably ends, SafeMath past a loop that ends and can't fail, cleanup_vars' exact
+reads, a copy in words cut where the next line covers its tail): 75.2% identical, 54.2% of
+the lines changed; solc's builds alone 79.9% -> 85.0% (london -> shanghai 95.6% -> 96.2%);
+the sample's 6,673 functions 560,477 lines -> 523,996, `while` lines 7,513 -> 7,191. With
+cxx23's storage copies (`STORAGE_RANGE`) merged and a bytes' decoded length read below
+2^255: 75.3% (solc 85.1%), 519,791 lines, `while` lines 6,520; GnosisSafe's getStorageAt
+reads `return Array(len=SafeMath.mul2(length, 32), data=stor[offset len length])` in every
+build. The npm corpus (`loop_lines.py`): copy loops 5,579 in 247 contracts -> 5,413 in 236,
+`while` lines 9,568 -> 9,021 (cxx23 with the storage copies alone: 5,540 and 9,151);
+stagecheck and text_check 0 different on the 861. Left: Vyper 0.4's cancun builds keep the reentrancy lock in transient storage, the
+storage slots after it move by one (Vyper shanghai -> cancun 47.5%, genuine); copies
+between pointers loaded from memory or snapshots of the free memory pointer, which need the
+floors of the values read from it and provenance (`docs/alloc-floor.md` parts 1 and 2); the
+VM's temporaries numbered otherwise where a loop made more (`_18` / `_16`); a copy's trip
+count whose end is made of a pointer, `max(p + 64, p + 32 n + 32)`: nothing bounds `p`
+under `Top::Word`, and the memory model's bound would be wrong where the loop runs never
+and the end wraps (what bounds `p` soundly is an access through it that ran, a fact the
+loops' walk doesn't make).
 
 ## Hostile input
 

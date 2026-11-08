@@ -315,8 +315,20 @@ u32 max_bits_of(Value v) {
             if (v.size() != 3) return 256;
             auto size = small_field(v[0]);
             if (!size || !v[1].is_small() || v[1].small_val() < 0) return 256;
-            return *size > 256 ? 256 : *size;
+            u32 r = *size > 256 ? 256 : *size;
+            // the bits from off of a bytes' decoded length: below 2^255 (LENGTH)
+            if (v[2].is(Op::LENGTH, 1)) {
+                const i64 off = v[1].small_val();
+                const u32 top = off >= 255 ? 0 : u32(255 - off);
+                if (top < r) r = top;
+            }
+            return r;
         }
+        case Op::LENGTH:
+            // a bytes' length decoded (simplify/passes.cpp: (s & (256 *
+            // iszero(s & 1) - 1)) >> 1, exec's bytes_length): the slot's word /
+            // 2 or its low byte / 2
+            return 255;
         default:
             return 256;
     }
