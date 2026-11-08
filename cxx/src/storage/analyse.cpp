@@ -688,15 +688,17 @@ void Analysis::fixed_lengths_and_moves() {
 // them) becomes as many fixed arrays of the struct's stride S as it has
 // fields read - and, where an element's index is written with an offset
 // (8 n - 3: the element n - 1 of an array at 5), more of them below it,
-// near 2^256 for the slots the sum wraps to. They are one array of structs
-// of S slots at r0, the lowest root of the stride whose S slots hold no
-// other variable: the roots in [r0 - S, r0 + S) and those below r0 by a
-// multiple of S past 2^255 (a negative offset's) moved there with their
-// offset (the slot the same: r + e = r0 + (r - r0) + e) - the forms find
-// the elements' indexes and the fields. The fixed arrays of words among
-// them (a field's words a loop reads with a counter of its own: no form of
-// the struct's) are raw. A recognition of the code's slots: every form is
-// proven its access's (check.cpp), raw where it isn't.
+// near 2^256 for the slots the sum wraps to. Each root of the stride whose S
+// slots hold no other variable, lowest first, starts one array of structs
+// of S slots: the roots of its first element (of all of them when the code
+// checks the indexes against a length) and those within S below it are
+// moved there with their offset (the slot the same: r + e = r0 + (r - r0) +
+// e), and the stride's roots past 2^255 when it has one such array - the
+// forms find the elements' indexes and the fields. A fixed array of words
+// inside an element (a field's words a loop reads with a counter of its
+// own: no form of the struct's) is raw; one inside a fixed array of words
+// whose length the code checks is its own. A recognition of the code's
+// slots: every form is proven its access's (check.cpp), raw where it isn't.
 void Analysis::merge_struct_arrays() {
     const Word256 half = pan::shl(Word256::of(255), Word256::of(1));
     std::map<u64, std::vector<Word256>> groups;  // (each in ascending order: roots_' order)
