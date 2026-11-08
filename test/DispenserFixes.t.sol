@@ -1,0 +1,1022 @@
+pragma solidity ^0.8.30;
+
+import {Test} from "forge-std/Test.sol";
+import {Utils} from "./utils/Utils.sol";
+import {Dispenser, Unpaused} from "../contracts/Dispenser.sol";
+import {DispenserProxy} from "../contracts/proxies/DispenserProxy.sol";
+import "../contracts/Tokenomics.sol";
+import {TokenomicsProxy} from "../contracts/proxies/TokenomicsProxy.sol";
+import {Treasury} from "../contracts/Treasury.sol";
+import {ERC20Token} from "../contracts/test/ERC20Token.sol";
+import {MockRegistry} from "../contracts/test/MockRegistry.sol";
+import {MockVE} from "../contracts/test/MockVE.sol";
+import {MockVoteWeighting} from "../contracts/test/MockVoteWeighting.sol";
+
+/// @dev Minimal deposit processor: enough surface for the dispenser claim / withheld-sync flows.
+contract MockDepositProcessor {
+    uint256 public lastTransferAmount;
+    uint256 public lastStakingIncentive;
+
+    function getBridgingDecimals() external pure returns (uint256) {
+        return 18;
+    }
+
+    function sendMessage(address, uint256 stakingIncentive, bytes memory, uint256 transferAmount) external payable {
+        lastStakingIncentive = stakingIncentive;
+        lastTransferAmount = transferAmount;
+    }
+
+    function sendMessageBatch(address[] memory, uint256[] memory stakingIncentives, bytes memory,
+        uint256 transferAmount) external payable {
+        lastStakingIncentive = stakingIncentives[stakingIncentives.length - 1];
+        lastTransferAmount = transferAmount;
+    }
+
+    function updateHashMaintenance(bytes32) external {}
+}
+
+/// @dev Vote Weighting mock with historical weights: nomineeRelativeWeight returns the (relative weight, total
+///      weight sum) set for the exact queried time, and (0, 0) otherwise, so one claim or retain() call can span
+///      epochs with different weight conditions.
+contract MockVoteWeightingHistory {
+    address public immutable dispenser;
+    mapping(bytes32 => bool) public mapNominees;
+    mapping(bytes32 => mapping(uint256 => uint256[2])) internal mapWeightsAt;
+
+    constructor(address _dispenser) {
+        dispenser = _dispenser;
+    }
+
+    function _nomineeHash(bytes32 account, uint256 chainId) internal pure returns (bytes32) {
+        return keccak256(abi.encode(account, chainId));
+    }
+
+    function addNominee(address account, uint256 chainId) external {
+        bytes32 nomineeHash = _nomineeHash(bytes32(uint256(uint160(account))), chainId);
+        mapNominees[nomineeHash] = true;
+        Dispenser(dispenser).addNominee(nomineeHash);
+    }
+
+    function checkpointNominee(bytes32 account, uint256 chainId) external view {
+        require(mapNominees[_nomineeHash(account, chainId)], "NomineeDoesNotExist");
+    }
+
+    /// @dev Sets the relative weight (1e18 = 100%) and the total weight sum returned for `time`.
+    function setWeightAt(address account, uint256 chainId, uint256 time, uint256 weight, uint256 totalSum) external {
+        mapWeightsAt[_nomineeHash(bytes32(uint256(uint160(account))), chainId)][time] = [weight, totalSum];
+    }
+
+    function nomineeRelativeWeight(bytes32 account, uint256 chainId, uint256 time)
+        external view returns (uint256, uint256)
+    {
+        uint256[2] memory w = mapWeightsAt[_nomineeHash(account, chainId)][time];
+        return (w[0], w[1]);
+    }
+}
+
+/// @dev Regression tests for the Dispenser vulnerability-list fixes (each fails on the pre-fix code):
+///      #12 calculateStakingIncentives is view — a standalone call mutates nothing (cannot strand a
+///          zero-weight epoch's refund); the claim path refunds it exactly once and never double-refunds;
+///      #9  the withheld-covered portion of claimed incentives is returned to staking inflation
+///          (single and batch claim paths);
+///      #25 addNominee clears mapRemovedNomineeEpochs so a removed-then-re-added nominee is claimable;
+///      #8  changeManagers only swaps voteWeighting while staking incentives are paused;
+///      #30 an epoch with a zero staking fraction but a non-zero (carried refund) staking incentive is claimed;
+///      #31 a claim that sends no bridge message rejects a non-zero value (single and batch claim paths);
+///      #35 retain() refunds a zero-total-weight epoch once, consistently with the claim path;
+///      pause() is a pause-only entry point that can only set AllPaused.
+///      Run: forge test --mc DispenserFixesTest -vvv
+contract DispenserFixesTest is Test {
+    Utils internal utils;
+    Dispenser internal dispenser;
+    ERC20Token internal olas;
+    MockRegistry internal componentRegistry;
+    MockRegistry internal agentRegistry;
+    MockRegistry internal serviceRegistry;
+    MockVE internal ve;
+    Treasury internal treasury;
+    Tokenomics internal tokenomics;
+    MockVoteWeighting internal vw;
+    MockDepositProcessor internal depositProcessor;
+
+    address payable[] internal users;
+    address internal deployer;
+    bytes32 internal retainer;
+    uint256 internal epochLen = 30 days;
+    uint256 internal constant CHAIN_ID = 100;
+    address internal constant STAKING_TARGET = address(0x57A6);
+
+    function setUp() public virtual {
+        utils = new Utils();
+        users = utils.createUsers(2);
+        deployer = users[0];
+        retainer = bytes32(uint256(uint160(deployer)));
+
+        // Deploy contracts
+        olas = new ERC20Token();
+        ve = new MockVE();
+        componentRegistry = new MockRegistry();
+        agentRegistry = new MockRegistry();
+        serviceRegistry = new MockRegistry();
+
+        // Depository and dispenser contracts are irrelevant at this point, so we are using a deployer's address
+        treasury = new Treasury(address(olas), deployer, deployer, deployer);
+
+        Tokenomics tokenomicsMaster = new Tokenomics();
+        bytes memory proxyData = abi.encodeWithSelector(tokenomicsMaster.initializeTokenomics.selector,
+            address(olas), address(treasury), deployer, deployer, address(ve), epochLen,
+            address(componentRegistry), address(agentRegistry), address(serviceRegistry), address(0));
+        TokenomicsProxy tokenomicsProxy = new TokenomicsProxy(address(tokenomicsMaster), proxyData);
+        tokenomics = Tokenomics(address(tokenomicsProxy));
+
+        // Deploy dispenser implementation and proxy
+        Dispenser dispenserMaster = new Dispenser(address(olas), address(tokenomics), retainer);
+        bytes memory dispenserData = abi.encodeWithSelector(dispenserMaster.initialize.selector,
+            address(treasury), deployer, 100, 100);
+        DispenserProxy dispenserProxy = new DispenserProxy(address(dispenserMaster), dispenserData);
+        dispenser = Dispenser(address(dispenserProxy));
+
+        // Vote Weighting mock over the deployed dispenser
+        vw = new MockVoteWeighting(address(dispenser));
+        // Staking incentives are paused after initialize, so the vote weighting swap guard (#8) is satisfied
+        dispenser.changeManagers(address(0), address(vw));
+
+        // Wire the rest
+        treasury.changeManagers(address(tokenomics), address(0), address(dispenser));
+        tokenomics.changeManagers(address(0), address(0), address(dispenser));
+        olas.changeMinter(address(treasury));
+
+        // Deposit processor for the test L2 chain Id
+        depositProcessor = new MockDepositProcessor();
+        address[] memory processors = new address[](1);
+        processors[0] = address(depositProcessor);
+        uint256[] memory chainIds = new uint256[](1);
+        chainIds[0] = CHAIN_ID;
+        dispenser.setDepositProcessorChainIds(processors, chainIds);
+
+        // Enable staking inflation from the next epoch and settle two epochs so a claimable epoch exists
+        tokenomics.changeIncentiveFractions(0, 0, 0, 0, 0, 50);
+        // Staking parameters (maxStakingIncentive, minStakingWeight) — always non-zero on a live Tokenomics
+        tokenomics.changeStakingParams(1 ether, 100);
+
+        // Unpause staking incentives (nominees cannot be added while paused)
+        dispenser.setPauseState(Dispenser.Pause.Unpaused);
+    }
+
+    /// @dev Advances one epoch: warp past the epoch length and checkpoint.
+    function _advanceEpoch() internal {
+        vm.warp(block.timestamp + epochLen + 10);
+        vm.roll(block.number + 1);
+        tokenomics.checkpoint();
+    }
+
+    function _targetBytes32() internal pure returns (bytes32) {
+        return bytes32(uint256(uint160(STAKING_TARGET)));
+    }
+
+    /// @dev Reads the staking incentive of an epoch from the public tuple getter.
+    function _stakingIncentiveOf(uint256 epoch) internal view returns (uint256 amount) {
+        (amount, , , ) = tokenomics.mapEpochStakingPoints(epoch);
+    }
+
+    function _nomineeHash() internal pure returns (bytes32) {
+        return keccak256(abi.encode(_targetBytes32(), CHAIN_ID));
+    }
+
+    /// @dev True if `value` appears in `arr` (used to check the sparse zeroWeightEpochs return).
+    function _arrayContains(uint256[] memory arr, uint256 value) internal pure returns (bool) {
+        for (uint256 i = 0; i < arr.length; ++i) {
+            if (arr[i] == value) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // -----------------------------------------------------------------------
+    // #12 — zero-weight epoch refund is atomic with the one-way flag
+    // -----------------------------------------------------------------------
+
+    /// @dev calculateStakingIncentives is view: a standalone call on a zero-total-weight epoch mutates nothing
+    ///      (it reports the epoch as returnable but neither sets mapZeroWeightEpochRefunded nor refunds), so it
+    ///      can never strand the epoch's inflation. The refund happens exactly once via the claim path, and a
+    ///      subsequent claim must not refund it again.
+    function test_fix12_viewCalculate_zeroWeight_refundsOnceViaClaim() public {
+        // Nominate the target; no votes are ever cast, so nomineeRelativeWeight returns (0, 0)
+        vw.addNominee(STAKING_TARGET, CHAIN_ID);
+
+        // Settle the fraction-activation epoch, then one full epoch with staking inflation
+        _advanceEpoch();
+        _advanceEpoch();
+
+        // The settled epoch carries a non-zero staking incentive
+        uint256 claimableEpoch = tokenomics.epochCounter() - 1;
+        uint256 epochIncentive = _stakingIncentiveOf(claimableEpoch);
+        assertGt(epochIncentive, 0, "settled epoch must carry staking incentive");
+
+        uint256 currentEpoch = tokenomics.epochCounter();
+        uint256 potBefore = _stakingIncentiveOf(currentEpoch);
+
+        // Standalone view call by an arbitrary account (NOT via the claim path): reports the zero-weight epoch,
+        // mutates nothing
+        vm.prank(address(0xA77ACC));
+        (, uint256 returnAmount, , , uint256[] memory zeroWeightEpochs) =
+            dispenser.calculateStakingIncentives(10, CHAIN_ID, _targetBytes32(), 18);
+        assertEq(returnAmount, epochIncentive, "zero-weight incentive reported as returnable");
+        assertTrue(_arrayContains(zeroWeightEpochs, claimableEpoch), "zero-weight epoch reported");
+        // The view call left state untouched: flag unset and the staking pot unchanged
+        assertFalse(dispenser.mapZeroWeightEpochRefunded(claimableEpoch), "view call must not set the flag");
+        assertEq(_stakingIncentiveOf(currentEpoch), potBefore, "view call must not refund");
+
+        // The claim path refunds the zero-weight epoch exactly once and sets the flag
+        dispenser.claimStakingIncentives(10, CHAIN_ID, _targetBytes32(), "");
+        assertTrue(dispenser.mapZeroWeightEpochRefunded(claimableEpoch), "flag set on claim");
+        uint256 potAfter = _stakingIncentiveOf(currentEpoch);
+        assertEq(potAfter - potBefore, epochIncentive, "zero-weight incentive refunded once");
+    }
+
+    /// @dev Cross-transaction dedup: a second target claiming the SAME zero-weight epoch in a later tx must not
+    ///      refund it again — the persisted mapZeroWeightEpochRefunded flag makes the (view) calculation skip it.
+    function test_fix12_separateClaims_zeroWeight_noDoubleRefund() public {
+        address target2 = address(0x57A7); // fresh nominee, no votes -> shares the zero-weight epoch
+        vw.addNominee(STAKING_TARGET, CHAIN_ID);
+        vw.addNominee(target2, CHAIN_ID);
+
+        _advanceEpoch();
+        _advanceEpoch();
+
+        uint256 claimableEpoch = tokenomics.epochCounter() - 1;
+        uint256 epochIncentive = _stakingIncentiveOf(claimableEpoch);
+        uint256 currentEpoch = tokenomics.epochCounter();
+        uint256 potBefore = _stakingIncentiveOf(currentEpoch);
+
+        // First target claim (tx 1): refunds the zero-weight epoch once and sets the flag
+        dispenser.claimStakingIncentives(10, CHAIN_ID, _targetBytes32(), "");
+        uint256 potAfterFirst = _stakingIncentiveOf(currentEpoch);
+        assertEq(potAfterFirst - potBefore, epochIncentive, "first claim refunds the epoch once");
+        assertTrue(dispenser.mapZeroWeightEpochRefunded(claimableEpoch), "flag set");
+
+        // Second target claim (tx 2) for the same epoch: flag already set -> no additional refund
+        dispenser.claimStakingIncentives(10, CHAIN_ID, bytes32(uint256(uint160(target2))), "");
+        assertEq(_stakingIncentiveOf(currentEpoch), potAfterFirst, "no double refund across separate claims");
+    }
+
+    /// @dev Two targets share the same zero-total-weight epoch in a single batch claim. Zero-weight is a
+    ///      property of the epoch, so both targets would each want to refund its full incentive. The dispenser
+    ///      sets mapZeroWeightEpochRefunded for the first target before the second target's (view) calculation,
+    ///      so the epoch's inflation is refunded exactly once for the batch, not once per target.
+    function test_fix12_batchZeroWeight_dedupRefundsOnce() public {
+        // Two nominees on the same chain, neither ever voted for -> shared zero-total-weight epochs
+        address target2 = address(0x57A7); // strictly greater than STAKING_TARGET (0x57A6) for ascending order
+        vw.addNominee(STAKING_TARGET, CHAIN_ID);
+        vw.addNominee(target2, CHAIN_ID);
+
+        _advanceEpoch();
+        _advanceEpoch();
+
+        uint256 claimableEpoch = tokenomics.epochCounter() - 1;
+        uint256 epochIncentive = _stakingIncentiveOf(claimableEpoch);
+        assertGt(epochIncentive, 0, "settled epoch must carry staking incentive");
+
+        uint256 currentEpoch = tokenomics.epochCounter();
+        uint256 potBefore = _stakingIncentiveOf(currentEpoch);
+
+        // Single-chain batch claim over both targets (ascending order required)
+        uint256[] memory chainIds = new uint256[](1);
+        chainIds[0] = CHAIN_ID;
+        bytes32[][] memory stakingTargets = new bytes32[][](1);
+        stakingTargets[0] = new bytes32[](2);
+        stakingTargets[0][0] = _targetBytes32();
+        stakingTargets[0][1] = bytes32(uint256(uint160(target2)));
+        bytes[] memory bridgePayloads = new bytes[](1);
+        uint256[] memory valueAmounts = new uint256[](1);
+
+        dispenser.claimStakingIncentivesBatch(10, chainIds, stakingTargets, bridgePayloads, valueAmounts);
+
+        // The shared zero-weight epoch is refunded once for the whole batch, not once per target
+        assertTrue(dispenser.mapZeroWeightEpochRefunded(claimableEpoch), "flag set once");
+        uint256 potAfter = _stakingIncentiveOf(currentEpoch);
+        assertEq(potAfter - potBefore, epochIncentive, "zero-weight epoch refunded exactly once for the batch");
+    }
+
+    // -----------------------------------------------------------------------
+    // #9 — withheld-covered incentives return their inflation allocation
+    // -----------------------------------------------------------------------
+
+    /// @dev Sets a 100% relative weight for the target so the claim allocates incentives.
+    ///      MockVoteWeighting stores weight * 1e14 and sums raw weights into totalWeight, which the dispenser
+    ///      treats as the OLAS cap of the epoch allocation — so incentives get capped to `weight` wei.
+    function _nominateWithFullWeight() internal {
+        vw.addNominee(STAKING_TARGET, CHAIN_ID);
+        // 10_000 -> relative weight 1e18 (100%); totalWeight (OLAS cap) = 10_000 wei
+        vw.setNomineeRelativeWeight(STAKING_TARGET, CHAIN_ID, 10_000);
+    }
+
+    function test_fix9_claim_withheldReuse_refundsInflation() public {
+        _nominateWithFullWeight();
+
+        // Seed a withheld amount smaller than the allocated incentive so both branches are exercised
+        uint256 withheld = 6_000;
+        dispenser.syncWithheldAmountMaintenance(CHAIN_ID, withheld, bytes32(uint256(1)));
+        assertEq(dispenser.mapChainIdWithheldAmounts(CHAIN_ID), withheld, "withheld seeded");
+
+        _advanceEpoch();
+        _advanceEpoch();
+
+        uint256 claimableEpoch = tokenomics.epochCounter() - 1;
+        uint256 epochIncentive =
+            _stakingIncentiveOf(claimableEpoch);
+        // Weight cap makes the allocated incentive exactly 10_000 wei; the rest is the standard return amount
+        uint256 allocated = 10_000;
+        uint256 standardReturn = epochIncentive - allocated;
+
+        uint256 currentEpoch = tokenomics.epochCounter();
+        uint256 potBefore = _stakingIncentiveOf(currentEpoch);
+
+        dispenser.claimStakingIncentives(10, CHAIN_ID, _targetBytes32(), "");
+
+        // Withheld is fully consumed; only the non-covered part is actually transferred
+        assertEq(dispenser.mapChainIdWithheldAmounts(CHAIN_ID), 0, "withheld consumed");
+        assertEq(depositProcessor.lastStakingIncentive(), allocated, "full incentive communicated to L2");
+        assertEq(depositProcessor.lastTransferAmount(), allocated - withheld, "transfer netted by withheld");
+        assertEq(olas.balanceOf(address(depositProcessor)), allocated - withheld, "only the netted OLAS is minted");
+
+        // The withheld-covered portion is returned to staking inflation on top of the standard return
+        uint256 potAfter = _stakingIncentiveOf(currentEpoch);
+        assertEq(potAfter - potBefore, standardReturn + withheld, "withheld-covered allocation refunded");
+    }
+
+    function test_fix9_claimBatch_withheldReuse_refundsInflation() public {
+        _nominateWithFullWeight();
+
+        uint256 withheld = 6_000;
+        dispenser.syncWithheldAmountMaintenance(CHAIN_ID, withheld, bytes32(uint256(1)));
+
+        _advanceEpoch();
+        _advanceEpoch();
+
+        uint256 claimableEpoch = tokenomics.epochCounter() - 1;
+        uint256 epochIncentive =
+            _stakingIncentiveOf(claimableEpoch);
+        uint256 allocated = 10_000;
+        uint256 standardReturn = epochIncentive - allocated;
+
+        uint256 currentEpoch = tokenomics.epochCounter();
+        uint256 potBefore = _stakingIncentiveOf(currentEpoch);
+
+        // Single-chain batch claim
+        uint256[] memory chainIds = new uint256[](1);
+        chainIds[0] = CHAIN_ID;
+        bytes32[][] memory stakingTargets = new bytes32[][](1);
+        stakingTargets[0] = new bytes32[](1);
+        stakingTargets[0][0] = _targetBytes32();
+        bytes[] memory bridgePayloads = new bytes[](1);
+        uint256[] memory valueAmounts = new uint256[](1);
+
+        dispenser.claimStakingIncentivesBatch(10, chainIds, stakingTargets, bridgePayloads, valueAmounts);
+
+        assertEq(dispenser.mapChainIdWithheldAmounts(CHAIN_ID), 0, "withheld consumed");
+        assertEq(depositProcessor.lastTransferAmount(), allocated - withheld, "transfer netted by withheld");
+
+        uint256 potAfter = _stakingIncentiveOf(currentEpoch);
+        assertEq(potAfter - potBefore, standardReturn + withheld, "withheld-covered allocation refunded (batch)");
+    }
+
+    // -----------------------------------------------------------------------
+    // #25 — removed-then-re-added nominee is claimable again
+    // -----------------------------------------------------------------------
+
+    /// @dev addNominee must clear mapRemovedNomineeEpochs from the previous lifecycle. On the pre-fix code the
+    ///      stale removal epoch bricks every subsequent claim with Overflow(firstClaimedEpoch, epochRemoved - 1).
+    function test_fix25_removeThenReAdd_claimsAgain() public {
+        vw.addNominee(STAKING_TARGET, CHAIN_ID);
+
+        _advanceEpoch();
+
+        // Remove right after a checkpoint (allowed: more than one week before the epoch end)
+        vw.removeNominee(STAKING_TARGET, CHAIN_ID);
+        assertGt(dispenser.mapRemovedNomineeEpochs(_nomineeHash()), 0, "removal epoch recorded");
+
+        _advanceEpoch();
+
+        // Second lifecycle: re-add the same nominee
+        vw.addNominee(STAKING_TARGET, CHAIN_ID);
+        assertEq(dispenser.mapRemovedNomineeEpochs(_nomineeHash()), 0, "removal epoch cleared on re-add");
+
+        _advanceEpoch();
+
+        // Claim must work in the second lifecycle (pre-fix: reverts Overflow from the stale removal epoch)
+        dispenser.claimStakingIncentives(10, CHAIN_ID, _targetBytes32(), "");
+    }
+
+    // -----------------------------------------------------------------------
+    // #8 — voteWeighting swap requires staking incentives paused
+    // -----------------------------------------------------------------------
+
+    function test_fix8_changeManagers_voteWeightingSwap_requiresPause() public {
+        address newVW = address(new MockVoteWeighting(address(dispenser)));
+
+        // Unpaused: the swap must revert
+        vm.expectRevert(Unpaused.selector);
+        dispenser.changeManagers(address(0), newVW);
+
+        // Treasury-only change stays allowed while unpaused
+        dispenser.changeManagers(address(0xFEE5), address(0));
+        assertEq(dispenser.treasury(), address(0xFEE5), "treasury change is not pause-gated");
+
+        // Paused for staking incentives: the swap goes through
+        dispenser.setPauseState(Dispenser.Pause.StakingIncentivesPaused);
+        dispenser.changeManagers(address(0), newVW);
+        assertEq(dispenser.voteWeighting(), newVW, "vote weighting swapped under pause");
+
+        // AllPaused also satisfies the guard
+        dispenser.setPauseState(Dispenser.Pause.AllPaused);
+        dispenser.changeManagers(address(0), address(vw));
+        assertEq(dispenser.voteWeighting(), address(vw), "vote weighting swapped under all-paused");
+
+        // DevIncentivesPaused does not pause staking incentives, so the swap must still revert
+        dispenser.setPauseState(Dispenser.Pause.DevIncentivesPaused);
+        vm.expectRevert(Unpaused.selector);
+        dispenser.changeManagers(address(0), newVW);
+    }
+
+    // A claim for a never-added nominee must revert ZeroValue from the Dispenser's own claimable-cursor guard,
+    // BEFORE checkpointNominee (which reverts NomineeDoesNotExist on the real Vote Weighting). This locks in the
+    // guard ordering: were the checkpoint to run first, this claim would surface NomineeDoesNotExist instead.
+    function test_claim_neverAddedNominee_revertsZeroValueBeforeCheckpoint() public {
+        bytes32 unregistered = bytes32(uint256(uint160(address(0x9999))));
+
+        // The mock faithfully mirrors the real Vote Weighting: checkpointing an unregistered nominee reverts
+        vm.expectRevert(abi.encodeWithSignature("NomineeDoesNotExist(bytes32,uint256)", unregistered, CHAIN_ID));
+        vw.checkpointNominee(unregistered, CHAIN_ID);
+
+        // Yet the claim path reverts ZeroValue (the guard fires first), not NomineeDoesNotExist
+        vm.expectRevert(abi.encodeWithSignature("ZeroValue()"));
+        dispenser.claimStakingIncentives(10, CHAIN_ID, unregistered, "");
+    }
+
+    // -----------------------------------------------------------------------
+    // #30 — zero staking fraction does not skip carried refunds
+    // -----------------------------------------------------------------------
+
+    /// @dev Reads the staking fraction of an epoch from the public tuple getter.
+    function _stakingFractionOf(uint256 epoch) internal view returns (uint256 fraction) {
+        (, , , fraction) = tokenomics.mapEpochStakingPoints(epoch);
+    }
+
+    /// @dev Refunds made during an epoch whose staking fraction is zero still form that epoch's staking incentive.
+    ///      On the pre-fix code the claim skips the epoch on stakingFraction == 0 and advances the cursor past it,
+    ///      so the carried incentive is neither distributed nor returned to staking inflation.
+    function test_fix30_zeroStakingFraction_carriedRefundIsClaimed() public {
+        _nominateWithFullWeight();
+
+        // Settle the activation epoch, so the next epoch carries the staking fraction set in setUp
+        _advanceEpoch();
+        // Zero staking fraction from the next epoch on
+        tokenomics.changeIncentiveFractions(0, 0, 0, 0, 0, 0);
+        // Settle the epoch funded by the staking fraction
+        _advanceEpoch();
+
+        // First claim: allocates the weight-capped 10_000 wei and refunds the rest into the current epoch,
+        // whose staking fraction is zero
+        uint256 refundEpoch = tokenomics.epochCounter();
+        dispenser.claimStakingIncentives(10, CHAIN_ID, _targetBytes32(), "");
+        assertEq(olas.balanceOf(address(depositProcessor)), 10_000, "first claim allocated");
+
+        // Settle the zero-fraction epoch: its staking incentive is made only of the carried refund
+        _advanceEpoch();
+        assertEq(_stakingFractionOf(refundEpoch), 0, "zero staking fraction epoch");
+        uint256 carriedIncentive = _stakingIncentiveOf(refundEpoch);
+        assertGt(carriedIncentive, 10_000, "carried refund forms the epoch staking incentive");
+
+        uint256 currentEpoch = tokenomics.epochCounter();
+        uint256 potBefore = _stakingIncentiveOf(currentEpoch);
+
+        // Second claim covers the zero-fraction epoch: it is allocated and the remainder is returned
+        dispenser.claimStakingIncentives(10, CHAIN_ID, _targetBytes32(), "");
+        assertEq(olas.balanceOf(address(depositProcessor)), 20_000, "carried incentive allocated");
+        assertEq(_stakingIncentiveOf(currentEpoch) - potBefore, carriedIncentive - 10_000, "carried remainder returned");
+    }
+
+    // -----------------------------------------------------------------------
+    // #31 — no value is kept by a claim that sends no bridge message
+    // -----------------------------------------------------------------------
+
+    uint256 internal constant CHAIN_ID_2 = 137;
+    address internal constant STAKING_TARGET_2 = address(0x57A8);
+
+    /// @dev Adds a second chain with its own deposit processor and a nominee there with zero relative weight.
+    function _addSecondChainNominee() internal returns (MockDepositProcessor depositProcessor2) {
+        depositProcessor2 = new MockDepositProcessor();
+        address[] memory processors = new address[](1);
+        processors[0] = address(depositProcessor2);
+        uint256[] memory chainIds = new uint256[](1);
+        chainIds[0] = CHAIN_ID_2;
+        dispenser.setDepositProcessorChainIds(processors, chainIds);
+        vw.addNominee(STAKING_TARGET_2, CHAIN_ID_2);
+    }
+
+    /// @dev Builds a two-chain batch: STAKING_TARGET on CHAIN_ID and STAKING_TARGET_2 on CHAIN_ID_2.
+    function _twoChainBatch() internal pure returns (uint256[] memory chainIds, bytes32[][] memory stakingTargets,
+        bytes[] memory bridgePayloads)
+    {
+        chainIds = new uint256[](2);
+        chainIds[0] = CHAIN_ID;
+        chainIds[1] = CHAIN_ID_2;
+        stakingTargets = new bytes32[][](2);
+        stakingTargets[0] = new bytes32[](1);
+        stakingTargets[0][0] = bytes32(uint256(uint160(STAKING_TARGET)));
+        stakingTargets[1] = new bytes32[](1);
+        stakingTargets[1][0] = bytes32(uint256(uint160(STAKING_TARGET_2)));
+        bridgePayloads = new bytes[](2);
+    }
+
+    /// @dev Captures single-claim accounting and transfer state before rejecting an unused ETH fee.
+    function _singleValueStateHash(address caller) internal view returns (bytes32) {
+        uint256 currentEpoch = tokenomics.epochCounter();
+        bool[] memory refundFlags = new bool[](currentEpoch);
+        for (uint256 i = 0; i < currentEpoch; ++i) {
+            refundFlags[i] = dispenser.mapZeroWeightEpochRefunded(i);
+        }
+        return keccak256(abi.encode(
+            dispenser.mapLastClaimedStakingEpochs(_nomineeHash()),
+            dispenser.mapChainIdWithheldAmounts(CHAIN_ID), refundFlags,
+            _stakingIncentiveOf(currentEpoch), olas.totalSupply(),
+            olas.balanceOf(address(dispenser)), olas.balanceOf(address(treasury)),
+            olas.balanceOf(address(depositProcessor)),
+            address(dispenser).balance, address(depositProcessor).balance, caller.balance,
+            depositProcessor.lastStakingIncentive(), depositProcessor.lastTransferAmount()
+        ));
+    }
+
+    /// @dev A single claim with no staking incentive sends no message, so a provided value must be rejected rather
+    ///      than kept by the Dispenser. The same claim without value goes through and keeps its side effects:
+    ///      the cursor advances and the zero-weight epoch is refunded.
+    function test_fix31_claim_zeroIncentiveWithValue_reverts() public {
+        // No votes are ever cast: the claim only refunds the zero-weight epoch and sends nothing
+        vw.addNominee(STAKING_TARGET, CHAIN_ID);
+        dispenser.syncWithheldAmountMaintenance(CHAIN_ID, 6_000, bytes32(uint256(1)));
+        _advanceEpoch();
+        _advanceEpoch();
+
+        uint256 claimableEpoch = tokenomics.epochCounter() - 1;
+        uint256 epochIncentive = _stakingIncentiveOf(claimableEpoch);
+        uint256 currentEpoch = tokenomics.epochCounter();
+        uint256 cursorBefore = dispenser.mapLastClaimedStakingEpochs(_nomineeHash());
+        uint256 potBefore = _stakingIncentiveOf(currentEpoch);
+
+        vm.deal(address(this), 1 ether);
+        bytes32 beforeState = _singleValueStateHash(address(this));
+        vm.expectRevert(abi.encodeWithSignature("WrongAmount(uint256,uint256)", 1, 0));
+        dispenser.claimStakingIncentives{value: 1}(10, CHAIN_ID, _targetBytes32(), "");
+        assertEq(_singleValueStateHash(address(this)), beforeState, "rejected single claim rolls back captured state");
+
+        dispenser.claimStakingIncentives(10, CHAIN_ID, _targetBytes32(), "");
+        assertEq(address(dispenser).balance, 0, "no value kept");
+        assertGt(currentEpoch, cursorBefore, "claimable epochs existed");
+        assertEq(dispenser.mapLastClaimedStakingEpochs(_nomineeHash()), currentEpoch, "cursor advanced");
+        assertTrue(dispenser.mapZeroWeightEpochRefunded(claimableEpoch), "zero-weight epoch flagged");
+        assertEq(_stakingIncentiveOf(currentEpoch) - potBefore, epochIncentive, "zero-weight epoch refunded");
+        assertEq(dispenser.mapChainIdWithheldAmounts(CHAIN_ID), 6_000, "unused withheld credit preserved");
+        assertEq(olas.balanceOf(address(depositProcessor)), 0, "no token transfer");
+        assertEq(depositProcessor.lastStakingIncentive(), 0, "no message");
+        assertEq(address(depositProcessor).balance, 0, "no fee forwarded");
+        assertEq(address(this).balance, 1 ether, "no caller ETH retained");
+    }
+
+    /// @dev A third party claims the paying epochs first with a shorter claim, so a pending claim that was simulated
+    ///      as paying settles a zero-paying tail. Its attached value must be rejected rather than kept.
+    function test_fix31_claim_zeroTailAfterPartialClaim_withValue_reverts() public {
+        _nominateWithFullWeight();
+        // Settle the activation epoch (no staking incentive)
+        _advanceEpoch();
+        // Zero staking fraction from the next epoch on, so every later epoch pays nothing
+        tokenomics.changeIncentiveFractions(0, 0, 0, 0, 0, 0);
+        // Settle the paying epoch, then a zero-paying one
+        _advanceEpoch();
+        _advanceEpoch();
+
+        // Simulated before inclusion, the pending claim over all epochs pays
+        (uint256 simulatedIncentive, , , , ) = dispenser.calculateStakingIncentives(10, CHAIN_ID, _targetBytes32(), 18);
+        assertEq(simulatedIncentive, 10_000, "pending claim simulated as paying");
+
+        // A third party claims only the first two epochs, which include the paying one
+        vm.prank(address(0xA77ACC));
+        dispenser.claimStakingIncentives(2, CHAIN_ID, _targetBytes32(), "");
+        assertEq(olas.balanceOf(address(depositProcessor)), 10_000, "paying epoch delivered to the target");
+
+        // Capture the state after the successful third-party claim. A later revert must not undo that claim.
+        dispenser.syncWithheldAmountMaintenance(CHAIN_ID, 6_000, bytes32(uint256(1)));
+        uint256 cursorBefore = dispenser.mapLastClaimedStakingEpochs(_nomineeHash());
+        uint256 currentEpoch = tokenomics.epochCounter();
+        uint256 potBefore = _stakingIncentiveOf(currentEpoch);
+        uint256 supplyBefore = olas.totalSupply();
+        assertLt(cursorBefore, currentEpoch, "zero-paying tail remains claimable");
+
+        // The pending claim now settles only the zero-paying tail: its value is rejected, not kept.
+        vm.deal(address(this), 1 ether);
+        bytes32 beforeState = _singleValueStateHash(address(this));
+        vm.expectRevert(abi.encodeWithSignature("WrongAmount(uint256,uint256)", 1, 0));
+        dispenser.claimStakingIncentives{value: 1}(10, CHAIN_ID, _targetBytes32(), "");
+        assertEq(_singleValueStateHash(address(this)), beforeState, "rejected single claim rolls back captured state");
+
+        dispenser.claimStakingIncentives(10, CHAIN_ID, _targetBytes32(), "");
+        assertEq(dispenser.mapLastClaimedStakingEpochs(_nomineeHash()), currentEpoch, "tail cursor advanced on retry");
+        assertEq(_stakingIncentiveOf(currentEpoch), potBefore, "tail adds no refund");
+        assertEq(olas.totalSupply(), supplyBefore, "tail mints no OLAS");
+        assertEq(olas.balanceOf(address(depositProcessor)), 10_000, "prior payment preserved without duplication");
+        assertEq(depositProcessor.lastStakingIncentive(), 10_000, "prior message record preserved");
+        assertEq(depositProcessor.lastTransferAmount(), 10_000, "prior transfer record preserved");
+        assertEq(dispenser.mapChainIdWithheldAmounts(CHAIN_ID), 6_000, "unused withheld credit preserved");
+        assertEq(address(depositProcessor).balance, 0, "no fee forwarded");
+        assertEq(address(dispenser).balance, 0, "no value kept");
+        assertEq(address(this).balance, 1 ether, "no caller ETH retained");
+    }
+
+    /// @dev A paying claim forwards the attached value to the deposit processor and keeps none of it.
+    function test_fix31_claim_payingWithValue_forwardsValue() public {
+        _nominateWithFullWeight();
+        _advanceEpoch();
+        _advanceEpoch();
+
+        vm.deal(address(this), 1 ether);
+        dispenser.claimStakingIncentives{value: 1}(10, CHAIN_ID, _targetBytes32(), "");
+
+        assertEq(depositProcessor.lastTransferAmount(), 10_000, "incentive transferred");
+        assertEq(address(depositProcessor).balance, 1, "value forwarded");
+        assertEq(address(dispenser).balance, 0, "no value kept");
+    }
+
+    /// @dev A batch chain with both a paying and a zero-paying target still sends a message for the paying one, so
+    ///      its value is forwarded and the claim does not revert.
+    function test_fix31_claimBatch_mixedTargetsChainWithValue_forwardsValue() public {
+        _nominateWithFullWeight();
+        // Second target on the same chain with zero relative weight: below the staking weight threshold
+        address target2 = address(0x57A7); // strictly greater than STAKING_TARGET (0x57A6) for ascending order
+        vw.addNominee(target2, CHAIN_ID);
+        _advanceEpoch();
+        _advanceEpoch();
+
+        uint256[] memory chainIds = new uint256[](1);
+        chainIds[0] = CHAIN_ID;
+        bytes32[][] memory stakingTargets = new bytes32[][](1);
+        stakingTargets[0] = new bytes32[](2);
+        stakingTargets[0][0] = _targetBytes32();
+        stakingTargets[0][1] = bytes32(uint256(uint160(target2)));
+        bytes[] memory bridgePayloads = new bytes[](1);
+        uint256[] memory valueAmounts = new uint256[](1);
+        valueAmounts[0] = 1;
+
+        vm.deal(address(this), 1 ether);
+        dispenser.claimStakingIncentivesBatch{value: 1}(10, chainIds, stakingTargets, bridgePayloads, valueAmounts);
+
+        // Only the paying target is in the message
+        assertEq(depositProcessor.lastStakingIncentive(), 10_000, "message carries the paying target");
+        assertEq(depositProcessor.lastTransferAmount(), 10_000, "incentive transferred");
+        assertEq(address(depositProcessor).balance, 1, "value forwarded");
+        assertEq(address(dispenser).balance, 0, "no value kept");
+    }
+
+    /// @dev A batch chain fully covered by the withheld amount transfers no OLAS but still sends its bridge message,
+    ///      so its value is forwarded. The batch path uses its own distribution logic, separate from the single claim.
+    function test_fix31_claimBatch_withheldCoveredWithValue_forwardsValue() public {
+        _nominateWithFullWeight();
+        // Withheld amount covers the whole weight-capped allocation of 10_000 wei
+        dispenser.syncWithheldAmountMaintenance(CHAIN_ID, 10_000, bytes32(uint256(1)));
+        _advanceEpoch();
+        _advanceEpoch();
+
+        uint256 claimableEpoch = tokenomics.epochCounter() - 1;
+        uint256 epochIncentive = _stakingIncentiveOf(claimableEpoch);
+        uint256 currentEpoch = tokenomics.epochCounter();
+        uint256 potBefore = _stakingIncentiveOf(currentEpoch);
+        uint256 olasSupplyBefore = olas.totalSupply();
+
+        uint256[] memory chainIds = new uint256[](1);
+        chainIds[0] = CHAIN_ID;
+        bytes32[][] memory stakingTargets = new bytes32[][](1);
+        stakingTargets[0] = new bytes32[](1);
+        stakingTargets[0][0] = _targetBytes32();
+        bytes[] memory bridgePayloads = new bytes[](1);
+        uint256[] memory valueAmounts = new uint256[](1);
+        valueAmounts[0] = 1;
+
+        vm.deal(address(this), 1 ether);
+        dispenser.claimStakingIncentivesBatch{value: 1}(10, chainIds, stakingTargets, bridgePayloads, valueAmounts);
+
+        // Message sent with the full incentive, no OLAS transferred or minted, value forwarded
+        assertEq(depositProcessor.lastStakingIncentive(), 10_000, "full incentive in the message");
+        assertEq(depositProcessor.lastTransferAmount(), 0, "no OLAS transferred");
+        assertEq(olas.balanceOf(address(depositProcessor)), 0, "no OLAS received by the processor");
+        assertEq(olas.totalSupply(), olasSupplyBefore, "no OLAS minted");
+        assertEq(address(depositProcessor).balance, 1, "value forwarded");
+        assertEq(address(dispenser).balance, 0, "no value kept");
+
+        // Withheld consumed; standard return plus the withheld-covered allocation refunded to staking inflation
+        assertEq(dispenser.mapChainIdWithheldAmounts(CHAIN_ID), 0, "withheld consumed");
+        assertEq(_stakingIncentiveOf(currentEpoch) - potBefore, (epochIncentive - 10_000) + 10_000,
+            "standard return plus withheld-covered allocation refunded");
+    }
+
+    /// @dev A claim fully covered by the withheld amount transfers no OLAS but still sends the bridge message, so
+    ///      its value is forwarded and must keep being accepted.
+    function test_fix31_claim_withheldCoveredWithValue_forwardsValue() public {
+        _nominateWithFullWeight();
+        // Withheld amount covers the whole weight-capped allocation of 10_000 wei
+        dispenser.syncWithheldAmountMaintenance(CHAIN_ID, 10_000, bytes32(uint256(1)));
+        _advanceEpoch();
+        _advanceEpoch();
+
+        vm.deal(address(this), 1 ether);
+        dispenser.claimStakingIncentives{value: 1}(10, CHAIN_ID, _targetBytes32(), "");
+
+        assertEq(depositProcessor.lastStakingIncentive(), 10_000, "message sent");
+        assertEq(depositProcessor.lastTransferAmount(), 0, "no OLAS transferred");
+        assertEq(address(depositProcessor).balance, 1, "value forwarded");
+        assertEq(address(dispenser).balance, 0, "no value kept");
+    }
+
+    /// @dev Captures claim accounting and transfer state to detect partial effects after a rejected batch.
+    ///      Includes Tokenomics' current staking pot and all closed-epoch refund flags, not only Dispenser cursors.
+    function _batchValueStateHash(MockDepositProcessor second, address caller) internal view returns (bytes32) {
+        bytes32 secondHash = keccak256(abi.encode(bytes32(uint256(uint160(STAKING_TARGET_2))), CHAIN_ID_2));
+        uint256 currentEpoch = tokenomics.epochCounter();
+        bool[] memory refundFlags = new bool[](currentEpoch);
+        for (uint256 i = 0; i < currentEpoch; ++i) {
+            refundFlags[i] = dispenser.mapZeroWeightEpochRefunded(i);
+        }
+        bytes32 accounting = keccak256(abi.encode(
+            dispenser.mapLastClaimedStakingEpochs(_nomineeHash()),
+            dispenser.mapLastClaimedStakingEpochs(secondHash),
+            dispenser.mapChainIdWithheldAmounts(CHAIN_ID),
+            dispenser.mapChainIdWithheldAmounts(CHAIN_ID_2),
+            refundFlags, _stakingIncentiveOf(currentEpoch), olas.totalSupply()
+        ));
+        return keccak256(abi.encode(accounting,
+            olas.balanceOf(address(dispenser)), olas.balanceOf(address(treasury)),
+            olas.balanceOf(address(depositProcessor)), olas.balanceOf(address(second)),
+            address(dispenser).balance, address(depositProcessor).balance, address(second).balance,
+            caller.balance, depositProcessor.lastStakingIncentive(), depositProcessor.lastTransferAmount(),
+            second.lastStakingIncentive(), second.lastTransferAmount()
+        ));
+    }
+
+    /// @dev Reject an empty chain's fee, verify rollback across contracts, then retry from a non-owner.
+    ///      Partial withheld coverage exercises credit consumption, inflation refund and fresh minting before rejection.
+    function _checkZeroIncentiveChainWithValue(bool payingFirst) internal {
+        vw.addNominee(STAKING_TARGET, CHAIN_ID);
+        MockDepositProcessor second = _addSecondChainNominee();
+        uint256 payingChain = payingFirst ? CHAIN_ID : CHAIN_ID_2;
+        address payingTarget = payingFirst ? STAKING_TARGET : STAKING_TARGET_2;
+        vw.setNomineeRelativeWeight(payingTarget, payingChain, 10_000);
+        dispenser.syncWithheldAmountMaintenance(payingChain, 6_000, bytes32(uint256(1)));
+        _advanceEpoch();
+        _advanceEpoch();
+
+        (uint256[] memory chainIds, bytes32[][] memory stakingTargets, bytes[] memory bridgePayloads) =
+            _twoChainBatch();
+        uint256[] memory valueAmounts = new uint256[](2);
+        valueAmounts[0] = 1;
+        valueAmounts[1] = 1;
+        address caller = users[1];
+        vm.deal(caller, 2);
+        bytes32 beforeState = _batchValueStateHash(second, caller);
+
+        vm.expectRevert(abi.encodeWithSignature("WrongAmount(uint256,uint256)", 1, 0));
+        vm.prank(caller);
+        dispenser.claimStakingIncentivesBatch{value: 2}(10, chainIds, stakingTargets, bridgePayloads, valueAmounts);
+        assertEq(_batchValueStateHash(second, caller), beforeState, "rejected batch rolls back captured state");
+
+        // Keep the paying chain's fee, remove the empty chain's fee and reduce total msg.value.
+        valueAmounts[payingFirst ? 1 : 0] = 0;
+        uint256 supplyBefore = olas.totalSupply();
+        vm.prank(caller);
+        dispenser.claimStakingIncentivesBatch{value: 1}(10, chainIds, stakingTargets, bridgePayloads, valueAmounts);
+
+        MockDepositProcessor paying = payingFirst ? depositProcessor : second;
+        MockDepositProcessor empty = payingFirst ? second : depositProcessor;
+        assertEq(paying.lastStakingIncentive(), 10_000, "full incentive in message");
+        assertEq(paying.lastTransferAmount(), 4_000, "withheld credit reduces fresh transfer");
+        assertEq(olas.balanceOf(address(paying)), 4_000, "one token transfer");
+        assertEq(olas.totalSupply() - supplyBefore, 4_000, "one mint");
+        assertEq(address(paying).balance, 1, "paying chain receives fee once");
+        assertEq(address(empty).balance, 0, "empty chain receives no fee");
+        assertEq(empty.lastStakingIncentive(), 0, "empty chain receives no message");
+        assertEq(dispenser.mapChainIdWithheldAmounts(payingChain), 0, "withheld used once");
+        assertEq(dispenser.mapLastClaimedStakingEpochs(_nomineeHash()), tokenomics.epochCounter(),
+            "first cursor advanced on retry");
+        bytes32 secondHash = keccak256(abi.encode(bytes32(uint256(uint160(STAKING_TARGET_2))), CHAIN_ID_2));
+        assertEq(dispenser.mapLastClaimedStakingEpochs(secondHash), tokenomics.epochCounter(),
+            "second cursor advanced on retry");
+        assertEq(address(dispenser).balance, 0, "no value kept");
+        assertEq(caller.balance, 1, "rejected call retained no caller ETH");
+    }
+
+    /// @dev The paying chain is processed first: its message, token transfer and fee must also roll back.
+    function test_fix31_claimBatch_zeroIncentiveChainWithValue_reverts() public {
+        _checkZeroIncentiveChainWithValue(true);
+    }
+
+    /// @dev The empty chain is processed first: accounting and minting performed before distribution still roll back.
+    function test_fix31_claimBatch_zeroIncentiveChainFirstWithValue_reverts() public {
+        _checkZeroIncentiveChainWithValue(false);
+    }
+
+    /// @dev A batch with no staking incentive rejects ETH without retaining cursor, refund or token side effects.
+    function test_fix31_claimBatch_zeroIncentiveWithValue_reverts() public {
+        // No votes are ever cast on either chain.
+        vw.addNominee(STAKING_TARGET, CHAIN_ID);
+        MockDepositProcessor second = _addSecondChainNominee();
+        _advanceEpoch();
+        _advanceEpoch();
+
+        uint256 currentEpoch = tokenomics.epochCounter();
+        uint256 claimableEpoch = currentEpoch - 1;
+        uint256 epochIncentive = _stakingIncentiveOf(claimableEpoch);
+        uint256 potBefore = _stakingIncentiveOf(currentEpoch);
+        uint256 supplyBefore = olas.totalSupply();
+        (uint256[] memory chainIds, bytes32[][] memory stakingTargets, bytes[] memory bridgePayloads) =
+            _twoChainBatch();
+        uint256[] memory valueAmounts = new uint256[](2);
+        valueAmounts[0] = 1;
+
+        vm.deal(address(this), 1 ether);
+        bytes32 beforeState = _batchValueStateHash(second, address(this));
+        vm.expectRevert(abi.encodeWithSignature("WrongAmount(uint256,uint256)", 1, 0));
+        dispenser.claimStakingIncentivesBatch{value: 1}(10, chainIds, stakingTargets, bridgePayloads, valueAmounts);
+        assertEq(_batchValueStateHash(second, address(this)), beforeState, "zero-paying batch rolls back captured state");
+
+        valueAmounts[0] = 0;
+        dispenser.claimStakingIncentivesBatch(10, chainIds, stakingTargets, bridgePayloads, valueAmounts);
+        assertEq(dispenser.mapLastClaimedStakingEpochs(_nomineeHash()), currentEpoch, "first cursor advanced");
+        bytes32 secondHash = keccak256(abi.encode(bytes32(uint256(uint160(STAKING_TARGET_2))), CHAIN_ID_2));
+        assertEq(dispenser.mapLastClaimedStakingEpochs(secondHash), currentEpoch, "second cursor advanced");
+        assertTrue(dispenser.mapZeroWeightEpochRefunded(claimableEpoch), "zero-weight epoch flagged on retry");
+        assertEq(_stakingIncentiveOf(currentEpoch) - potBefore, epochIncentive, "epoch refunded once on retry");
+        assertEq(olas.totalSupply(), supplyBefore, "no mint");
+        assertEq(address(depositProcessor).balance, 0, "no fee to first processor");
+        assertEq(address(second).balance, 0, "no fee to second processor");
+        assertEq(depositProcessor.lastStakingIncentive(), 0, "no message to first processor");
+        assertEq(second.lastStakingIncentive(), 0, "no message to second processor");
+        assertEq(address(dispenser).balance, 0, "no value kept");
+    }
+
+    // -----------------------------------------------------------------------
+    // #35 — retain() refunds a zero-total-weight epoch, once
+    // -----------------------------------------------------------------------
+
+    /// @dev With zero total vote weight, retain() returns the whole epoch's staking incentive and flags the epoch,
+    ///      so a later claim crossing the same epoch does not refund it again. On the pre-fix code retain() returns
+    ///      nothing for such an epoch and leaves it to whichever claim crosses it, if any.
+    function test_fix35_retain_zeroWeight_refundsOnce() public {
+        // Retainer and a staking target nominated, no votes ever cast
+        vw.addNominee(deployer, block.chainid);
+        vw.addNominee(STAKING_TARGET, CHAIN_ID);
+        _advanceEpoch();
+        _advanceEpoch();
+
+        uint256 claimableEpoch = tokenomics.epochCounter() - 1;
+        uint256 epochIncentive = _stakingIncentiveOf(claimableEpoch);
+        assertGt(epochIncentive, 0, "settled epoch must carry staking incentive");
+
+        uint256 currentEpoch = tokenomics.epochCounter();
+        uint256 potBefore = _stakingIncentiveOf(currentEpoch);
+
+        dispenser.retain();
+        assertTrue(dispenser.mapZeroWeightEpochRefunded(claimableEpoch), "flag set by retain");
+        uint256 potAfterRetain = _stakingIncentiveOf(currentEpoch);
+        assertEq(potAfterRetain - potBefore, epochIncentive, "zero-weight epoch refunded by retain");
+
+        // A claim crossing the same epoch does not refund it again
+        dispenser.claimStakingIncentives(10, CHAIN_ID, _targetBytes32(), "");
+        assertEq(_stakingIncentiveOf(currentEpoch), potAfterRetain, "no double refund after retain");
+    }
+
+    /// @dev The reverse order: a claim refunds the zero-weight epoch first, so retain() must skip it.
+    function test_fix35_retain_afterClaimRefund_noDoubleRefund() public {
+        vw.addNominee(deployer, block.chainid);
+        vw.addNominee(STAKING_TARGET, CHAIN_ID);
+        _advanceEpoch();
+        _advanceEpoch();
+
+        uint256 currentEpoch = tokenomics.epochCounter();
+        uint256 potBefore = _stakingIncentiveOf(currentEpoch);
+
+        dispenser.claimStakingIncentives(10, CHAIN_ID, _targetBytes32(), "");
+        uint256 potAfterClaim = _stakingIncentiveOf(currentEpoch);
+        assertGt(potAfterClaim, potBefore, "claim refunded the zero-weight epoch");
+
+        dispenser.retain();
+        assertEq(_stakingIncentiveOf(currentEpoch), potAfterClaim, "retain skips the refunded epoch");
+    }
+
+    /// @dev With non-zero total weight, retain() still returns the retainer's weighted share only.
+    function test_fix35_retain_weighted_unchanged() public {
+        vw.addNominee(deployer, block.chainid);
+        // 50% relative weight for the retainer
+        vw.setNomineeRelativeWeight(deployer, block.chainid, 5_000);
+        _advanceEpoch();
+        _advanceEpoch();
+
+        uint256 claimableEpoch = tokenomics.epochCounter() - 1;
+        uint256 epochIncentive = _stakingIncentiveOf(claimableEpoch);
+        uint256 currentEpoch = tokenomics.epochCounter();
+        uint256 potBefore = _stakingIncentiveOf(currentEpoch);
+
+        dispenser.retain();
+        assertFalse(dispenser.mapZeroWeightEpochRefunded(claimableEpoch), "weighted epoch not flagged");
+        assertEq(_stakingIncentiveOf(currentEpoch) - potBefore, epochIncentive / 2, "weighted share retained");
+    }
+
+    /// @dev One retain() call spanning an already-refunded zero-weight epoch, a not-yet-refunded zero-weight epoch
+    ///      and a weighted epoch: the combined refund is exact and the cursor reaches the current epoch. A later
+    ///      claim across the same epochs does not refund the zero-weight epoch again.
+    function test_fix35_retain_mixedEpochConditions_exactRefund() public {
+        // Historical-weight Vote Weighting (the voteWeighting swap requires staking incentives paused)
+        MockVoteWeightingHistory vwh = new MockVoteWeightingHistory(address(dispenser));
+        dispenser.setPauseState(Dispenser.Pause.StakingIncentivesPaused);
+        dispenser.changeManagers(address(0), address(vwh));
+        dispenser.setPauseState(Dispenser.Pause.Unpaused);
+        // Lift the max staking incentive so the weighted claim below returns nothing to inflation
+        tokenomics.changeStakingParams(type(uint96).max, 100);
+
+        uint256 firstEpoch = tokenomics.epochCounter();
+        vwh.addNominee(deployer, block.chainid);
+        vwh.addNominee(STAKING_TARGET, CHAIN_ID);
+
+        // Settle four epochs: E1 (no incentive), E2 and E3 (zero total weight), E4 (weighted)
+        for (uint256 i = 0; i < 4; ++i) {
+            _advanceEpoch();
+        }
+        uint256 e2 = firstEpoch + 1;
+        uint256 e3 = firstEpoch + 2;
+        uint256 e4 = firstEpoch + 3;
+        uint256 currentEpoch = tokenomics.epochCounter();
+        assertEq(currentEpoch, firstEpoch + 4, "four epochs settled");
+        uint256 i3 = _stakingIncentiveOf(e3);
+        uint256 i4 = _stakingIncentiveOf(e4);
+        assertGt(_stakingIncentiveOf(e2), 0, "E2 carries staking incentive");
+        assertGt(i3, 0, "E3 carries staking incentive");
+
+        // E4 is weighted: total weight sum equal to the epoch incentive (no stakingDiff), retainer 25%, target 50%
+        uint256 e4EndTime = tokenomics.getEpochEndTime(e4);
+        vwh.setWeightAt(deployer, block.chainid, e4EndTime, 0.25e18, i4);
+        vwh.setWeightAt(STAKING_TARGET, CHAIN_ID, e4EndTime, 0.5e18, i4);
+
+        // A claim over E1..E2 refunds the zero-weight E2 first and flags it
+        dispenser.claimStakingIncentives(2, CHAIN_ID, _targetBytes32(), "");
+        assertTrue(dispenser.mapZeroWeightEpochRefunded(e2), "E2 refunded by the claim");
+
+        // One retain() over E1..E4: E2 skipped, E3 refunded whole and flagged, E4 the retainer's weighted share
+        uint256 potBeforeRetain = _stakingIncentiveOf(currentEpoch);
+        dispenser.retain();
+        uint256 potAfterRetain = _stakingIncentiveOf(currentEpoch);
+        assertEq(potAfterRetain - potBeforeRetain, i3 + (i4 * 0.25e18) / 1e18, "exact combined retain refund");
+        assertTrue(dispenser.mapZeroWeightEpochRefunded(e3), "E3 flagged by retain");
+        assertFalse(dispenser.mapZeroWeightEpochRefunded(e4), "weighted E4 not flagged");
+        bytes32 retainerHash = keccak256(abi.encode(bytes32(uint256(uint160(deployer))), block.chainid));
+        assertEq(dispenser.mapLastClaimedStakingEpochs(retainerHash), currentEpoch, "retain cursor at current epoch");
+
+        // The target claims E3..E4: E3 is not refunded again, E4 pays the target's share with nothing returned
+        dispenser.claimStakingIncentives(10, CHAIN_ID, _targetBytes32(), "");
+        assertEq(_stakingIncentiveOf(currentEpoch), potAfterRetain, "no duplicate refund of E3");
+        assertEq(depositProcessor.lastStakingIncentive(), (i4 * 0.5e18) / 1e18, "E4 target share delivered");
+        assertEq(dispenser.mapLastClaimedStakingEpochs(_nomineeHash()), currentEpoch, "claim cursor at current epoch");
+    }
+
+    // -----------------------------------------------------------------------
+    // pause() — pause-only entry point for emergency use
+    // -----------------------------------------------------------------------
+
+    function test_pause_setsAllPaused_ownerOnly() public {
+        // Not callable by a non-owner
+        vm.prank(address(0xBAD));
+        vm.expectRevert(abi.encodeWithSignature("OwnerOnly(address,address)", address(0xBAD), address(this)));
+        dispenser.pause();
+
+        // Owner pauses everything
+        vm.expectEmit(address(dispenser));
+        emit Dispenser.PauseDispenser(Dispenser.Pause.AllPaused);
+        dispenser.pause();
+        assertEq(uint256(dispenser.paused()), uint256(Dispenser.Pause.AllPaused), "all paused");
+
+        // Calling it again keeps the AllPaused state
+        dispenser.pause();
+        assertEq(uint256(dispenser.paused()), uint256(Dispenser.Pause.AllPaused), "still all paused");
+
+        // Claims are blocked
+        vm.expectRevert(abi.encodeWithSignature("Paused()"));
+        dispenser.claimStakingIncentives(10, CHAIN_ID, _targetBytes32(), "");
+
+        // Unpausing is only possible via setPauseState
+        dispenser.setPauseState(Dispenser.Pause.Unpaused);
+        assertEq(uint256(dispenser.paused()), uint256(Dispenser.Pause.Unpaused), "unpaused via setPauseState");
+    }
+
+    /// @dev pause() overrides any granular pause state with AllPaused.
+    function test_pause_fromGranularState() public {
+        dispenser.setPauseState(Dispenser.Pause.DevIncentivesPaused);
+        dispenser.pause();
+        assertEq(uint256(dispenser.paused()), uint256(Dispenser.Pause.AllPaused), "all paused from dev-paused");
+    }
+}
