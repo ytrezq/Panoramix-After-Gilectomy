@@ -37,7 +37,8 @@
     {
      "prefix": "celer-network__sgn-v2-contracts",
      "url": "https://github.com/celer-network/sgn-v2-contracts",
-     "commit": "dd60f9563d84127cd5cd33adcbe1df0fc14090e3"
+     "commit": "dd60f9563d84127cd5cd33adcbe1df0fc14090e3",
+     "files": 131
     }
    ]
   }
