@@ -47,8 +47,7 @@
     {
      "prefix": "harvestfi__harvest-strategy",
      "url": "https://github.com/harvestfi/harvest-strategy",
-     "commit": "4013fd75fb39f271e4e1ca3e85c76ba787d7774d",
-     "files": 297
+     "commit": "4013fd75fb39f271e4e1ca3e85c76ba787d7774d"
     }
    ]
   },
@@ -103,8 +102,7 @@
     {
      "prefix": "harvestfi__harvest-strategy-polygon",
      "url": "https://github.com/harvestfi/harvest-strategy-polygon",
-     "commit": "f24a06af70724d5b9db7f4ac554935babc02a2e3",
-     "files": 291
+     "commit": "f24a06af70724d5b9db7f4ac554935babc02a2e3"
     }
    ]
   },
@@ -156,8 +154,7 @@
     {
      "prefix": "harvestfi__harvest-strategy-arbitrum",
      "url": "https://github.com/harvestfi/harvest-strategy-arbitrum",
-     "commit": "a27619e9dfe571ec056549630fa97d1714877811",
-     "files": 221
+     "commit": "a27619e9dfe571ec056549630fa97d1714877811"
     }
    ]
   }
