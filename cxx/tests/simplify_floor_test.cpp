@@ -130,6 +130,22 @@ TEST_CASE("floor: the transfer rules") {
     CHECK(S::floor_transfer(f, V("(store 256 0 3 7)")).floor_of(64) == Value::small(128));
 }
 
+TEST_CASE("floor: a floor that says nothing isn't kept") {
+    Fixture fx;
+    // 0: any word is at least that (and floored() would read the word as a
+    // fresh atom, the conditions about it lost)
+    CHECK(S::floor_transfer(alg::Facts{}, V("(setmem (range 64 32) (sized 32 0))")).floor_of(64).nil());
+    CHECK(alg::Facts{}.with_floor(V("tmp1"), Value::small(0)).floor_of(V("tmp1")).nil());
+    // 2^64: past every address of the memory model (a word of data)
+    CHECK(S::floor_transfer(alg::Facts{}, V("(setmem (range 160 32) (sized 32 18446744073709551616))"))
+              .floor_of(160)
+              .nil());
+    // what says something is kept
+    CHECK(S::floor_transfer(alg::Facts{}, V("(setmem (range 64 32) (sized 32 128))")).floor_of(64) ==
+          Value::small(128));
+    CHECK(alg::Facts{}.with_floor(V("tmp1"), Value::small(32)).floor_of(V("tmp1")) == Value::small(32));
+}
+
 TEST_CASE("floor: joins and loops") {
     Fixture fx;
     const alg::Facts before = S::floor_transfer(alg::Facts{}, V("(setmem (range 64 32) (add 100 tmp1))"));

@@ -936,7 +936,7 @@ floors read by every walk that decides about memory (8 Nov, merged with cxx23 at
 b9a2df1c8e; the same checks): every stage 0 different, 0 bugs - 78,021 calls at the folded
 stage, 77,732 the same, 289 inconclusive (one contract at the time limit); the texts: 0
 unparsed lines, empty world 39,059 calls, 39,017 the same, random world 39,063, 38,549 the
-same, 0 different; unit tests 376 cases, 246,759 assertions, 0 failures. Copy loops left
+same, 0 different; unit tests 377 cases, 246,764 assertions, 0 failures. Copy loops left
 5,094 in 227 contracts, `while` lines 8,144, printed lines 573,577 (the assumption's texts:
 5,262, 8,997, 545,648; cxx23's: 5,540, 9,151, 643,886).
 
