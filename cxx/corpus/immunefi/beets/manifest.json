@@ -71,44 +71,37 @@
     {
      "prefix": "beethovenxfi__beets-contracts",
      "url": "https://github.com/beethovenxfi/beets-contracts",
-     "commit": "e5290eff157a0f721bb4d5b7a79c319dd779eef2",
-     "files": 18
+     "commit": "e5290eff157a0f721bb4d5b7a79c319dd779eef2"
     },
     {
      "prefix": "beethovenxfi__beets-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262",
-     "files": 47
+     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262"
     },
     {
      "prefix": "beethovenxfi__beets-contracts/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "69c8def5f222ff96f2b5beff05dfba996368aa79",
-     "files": 306
+     "commit": "69c8def5f222ff96f2b5beff05dfba996368aa79"
     },
     {
      "prefix": "beethovenxfi__beets-contracts/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce",
-     "files": 45
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
     },
     {
      "prefix": "beethovenxfi__beets-contracts/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "beethovenxfi__beets-contracts/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "beethovenxfi__beets-contracts/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ]
   },
@@ -230,110 +223,92 @@
     {
      "prefix": "beethovenxfi__sonic-staking",
      "url": "https://github.com/beethovenxfi/sonic-staking",
-     "commit": "877087b5c3cbeb6830cc0aa1c2b4c5d958fc60b2",
-     "files": 18
+     "commit": "877087b5c3cbeb6830cc0aa1c2b4c5d958fc60b2"
     },
     {
      "prefix": "beethovenxfi__sonic-staking/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "0e7097750918380d84dd3cfdef595bee74dabb70",
-     "files": 47
+     "commit": "0e7097750918380d84dd3cfdef595bee74dabb70"
     },
     {
      "prefix": "beethovenxfi__sonic-staking/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "ee3a7e4f38c62bcd22727489218b29f3b893594a",
-     "files": 213
+     "commit": "ee3a7e4f38c62bcd22727489218b29f3b893594a"
     },
     {
      "prefix": "beethovenxfi__sonic-staking/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "448efeea6640bbbc09373f03fbc9c88e280147ba",
-     "files": 321
+     "commit": "448efeea6640bbbc09373f03fbc9c88e280147ba"
     },
     {
      "prefix": "beethovenxfi__sonic-staking/lib/openzeppelin-foundry-upgrades",
      "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
-     "commit": "16e0ae21e0e39049f619f2396fa28c57fad07368",
-     "files": 55
+     "commit": "16e0ae21e0e39049f619f2396fa28c57fad07368"
     },
     {
      "prefix": "beethovenxfi__sonic-staking/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262",
-     "files": 47
+     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262"
     },
     {
      "prefix": "beethovenxfi__sonic-staking/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "beethovenxfi__sonic-staking/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "beethovenxfi__sonic-staking/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "448efeea6640bbbc09373f03fbc9c88e280147ba",
-     "files": 321
+     "commit": "448efeea6640bbbc09373f03fbc9c88e280147ba"
     },
     {
      "prefix": "beethovenxfi__sonic-staking/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262",
-     "files": 47
+     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262"
     },
     {
      "prefix": "beethovenxfi__sonic-staking/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "beethovenxfi__sonic-staking/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "beethovenxfi__sonic-staking/lib/openzeppelin-foundry-upgrades/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "b6a506db2262cad5ff982a87789ee6d1558ec861",
-     "files": 47
+     "commit": "b6a506db2262cad5ff982a87789ee6d1558ec861"
     },
     {
      "prefix": "beethovenxfi__sonic-staking/lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils",
      "url": "https://github.com/Arachnid/solidity-stringutils",
-     "commit": "4b2fcc43fa0426e19ce88b1f1ec16f5903a2e461",
-     "files": 7
+     "commit": "4b2fcc43fa0426e19ce88b1f1ec16f5903a2e461"
     },
     {
      "prefix": "beethovenxfi__sonic-staking/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262",
-     "files": 47
+     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262"
     },
     {
      "prefix": "beethovenxfi__sonic-staking/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "beethovenxfi__sonic-staking/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "beethovenxfi__sonic-staking/lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248",
-     "files": 4
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
     }
    ],
    "npm": {},
