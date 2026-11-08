@@ -1,0 +1,292 @@
+-include .env
+
+.EXPORT_ALL_VARIABLES:
+MAKEFLAGS += --no-print-directory
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                                 VARIABLES                                    ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+DEPLOY_SCRIPT   := scripts/deploy/DeployManager.s.sol
+DEPLOY_BASE     := --account deployerKey --sender $(DEPLOYER_ADDRESS) --broadcast --slow
+DEPLOY_BUILD    := contracts/ scripts/deploy/
+
+# Rewrites deployments/<network>/<Name>.json for whatever the broadcast just
+# deployed, so Talos crons and the standalone ops CLI keep resolving live
+# addresses. Deliberately NOT wired into deploy-local: that target also
+# broadcasts, but against a throwaway node.
+#
+# It runs even when `forge script` exits non-zero, with forge's exit code
+# preserved afterwards. That matters because --verify runs AFTER the broadcast:
+# a successful deploy whose Etherscan verification failed would otherwise skip
+# the descriptor update and leave live crons pointing at the old contract — the
+# exact silent drift this step exists to prevent. A descriptor failure still
+# fails the target (`|| exit 1`); only forge's own exit code is deferred.
+DESCRIPTORS     := node scripts/create-deployment-descriptors.js
+
+# Clearing the chain's broadcast dir first is what makes "a run file exists"
+# mean "this run deployed something". forge leaves the PREVIOUS run-latest.json
+# byte-identical when a broadcast produces zero transactions, and `make
+# deploy-local` broadcasts against `pnpm node:anvil` — which forks mainnet and
+# so reports chain id 1. Without this, a local rehearsal followed by a
+# no-op deploy-mainnet would replay anvil addresses into live descriptors.
+CLEAR_BROADCAST := rm -rf broadcast/DeployManager.s.sol
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                                  DEFAULT                                     ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+default:
+	forge fmt scripts/ tests/
+	$(MAKE) build
+
+install:
+	foundryup --version v1.8.3
+	forge soldeer install
+	./install-deps.sh
+	pnpm i
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                                   CLEAN                                      ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+clean:
+	rm -rf broadcast cache out
+	find build -name '*fork*' -delete 2>/dev/null || true
+	rm -f deployments-fork-*.json
+
+clean-all: clean
+	rm -rf dependencies node_modules soldeer.lock lcov.info coverage
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                                    Build                                     ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+# Build everything: make build
+build:
+	forge build
+
+# Prefer targeted builds while iterating: compiling only the subtree you need
+# can reduce compilation time significantly by avoiding unrelated sources.
+# Build a specific subtree by converting "-" in the target suffix to "/".
+# Examples:
+#   make build-contracts   -> forge build contracts/
+#   make build-tests       -> forge build tests/
+#   make build-tests-unit  -> forge build tests/unit/
+#   make build-tests-fork  -> forge build tests/fork/
+#   make build-tests-smoke -> forge build tests/smoke/
+#   make build-scripts     -> forge build scripts/
+build-%:
+	forge build $(subst -,/,$*)/
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                                   TESTS                                      ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+# Base test command
+test-base:
+	forge test --summary -vvv
+
+# Run all tests
+test:
+	$(MAKE) test-base
+
+# Run tests matching a function name: make test-f-testSwap
+test-f-%:
+	FOUNDRY_MATCH_TEST=$* $(MAKE) test-base
+
+# Run tests matching a contract name: make test-c-OETHVault
+test-c-%:
+	FOUNDRY_MATCH_CONTRACT=$* $(MAKE) test-base
+
+# Run tests by category
+# Examples:
+#   make test-unit               -> run all unit tests
+#   make test-fork               -> run all fork tests
+#   make test-fork-mainnet       -> run fork tests for mainnet
+#   make test-smoke              -> run all smoke tests
+#   make test-smoke-base         -> run smoke tests for base
+test-unit:
+	forge build contracts/ tests/unit/ tests/mocks/
+	FOUNDRY_MATCH_PATH='tests/unit/**' $(MAKE) test-base
+
+test-fork:
+	forge build contracts/ tests/fork/ tests/mocks/
+	FOUNDRY_MATCH_PATH='tests/fork/**' $(MAKE) test-base
+
+test-fork-%:
+	forge build contracts/ tests/fork/$*/ tests/mocks/
+	FOUNDRY_MATCH_PATH='tests/fork/$*/**' $(MAKE) test-base
+
+test-smoke:
+	forge build contracts/ tests/smoke/ scripts/ tests/mocks/
+	FOUNDRY_MATCH_PATH='tests/smoke/**' $(MAKE) test-base
+
+test-smoke-%:
+	forge build contracts/ tests/smoke/$*/ scripts/ tests/mocks/
+	FOUNDRY_MATCH_PATH='tests/smoke/$*/**' $(MAKE) test-base
+
+# CI entry point for the fork and smoke suites: make test-ci-fork-mainnet, make test-ci-smoke-base...
+# Unless FORK_BLOCK_NUMBER_<CHAIN> is already set, every suite of the run forks the same block,
+# FORK_BLOCK_LAG blocks behind the head, so a reorg of the head cannot drop it mid-run. A failed
+# run is retried once: every nightly failure so far came from the RPC, not from the code.
+FORK_BLOCK_LAG ?= 20
+test-ci-%:
+	@chain=$$(echo "$*" | cut -d- -f2 | tr '[:lower:]' '[:upper:]'); \
+	rpc_var=$${chain}_PROVIDER_URL; block_var=FORK_BLOCK_NUMBER_$$chain; \
+	if [ -z "$${!block_var}" ]; then \
+		head=$$(cast block-number --rpc-url "$${!rpc_var:?$$rpc_var not set}") || exit 1; \
+		export $$block_var=$$((head - $(FORK_BLOCK_LAG))); \
+	fi; \
+	echo "$$block_var=$${!block_var}"; \
+	$(MAKE) test-$* || { echo "::warning title=test-ci-$*::first run failed, retrying once"; $(MAKE) test-$*; }
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                                 COVERAGE                                     ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+coverage:
+	forge coverage --report lcov
+
+coverage-html: coverage
+	genhtml ./lcov.info -o coverage --branch-coverage
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                                   GAS                                        ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+gas:
+	forge test --gas-report
+
+snapshot:
+	forge snapshot
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                                  DEPLOY                                      ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+# Examples:
+#   make deploy-mainnet          -> deploy to mainnet with verification
+#   make deploy-base             -> deploy to base with verification
+#   make deploy-local            -> deploy to local node (no verification)
+deploy-mainnet:
+	forge build $(DEPLOY_BUILD)
+	$(CLEAR_BROADCAST)/1
+	@forge script $(DEPLOY_SCRIPT) --rpc-url $(MAINNET_PROVIDER_URL) $(DEPLOY_BASE) --verify -vvvv; rc=$$?; $(DESCRIPTORS) --chain-id 1 || exit 1; exit $$rc
+
+deploy-base:
+	forge build $(DEPLOY_BUILD)
+	$(CLEAR_BROADCAST)/8453
+	@forge script $(DEPLOY_SCRIPT) --rpc-url $(BASE_PROVIDER_URL) $(DEPLOY_BASE) --verify -vvvv; rc=$$?; $(DESCRIPTORS) --chain-id 8453 || exit 1; exit $$rc
+
+deploy-hyperevm:
+	forge build $(DEPLOY_BUILD)
+	$(CLEAR_BROADCAST)/999
+	@forge script $(DEPLOY_SCRIPT) --rpc-url $(HYPEREVM_PROVIDER_URL) $(DEPLOY_BASE) --verify -vvvv; rc=$$?; $(DESCRIPTORS) --chain-id 999 || exit 1; exit $$rc
+
+deploy-local:
+	forge build $(DEPLOY_BUILD)
+	@forge script $(DEPLOY_SCRIPT) --rpc-url $(LOCAL_URL) $(DEPLOY_BASE) -vvvv
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                                 SIMULATE                                     ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+# Simulate deployment without broadcasting
+# Examples:
+#   make simulate                -> simulate on mainnet (default)
+#   make simulate NETWORK=base   -> simulate on base
+NETWORK ?= mainnet
+RPC_URL = $(if $(filter base,$(NETWORK)),$(BASE_PROVIDER_URL),$(if $(filter hyperevm,$(NETWORK)),$(HYPEREVM_PROVIDER_URL),$(MAINNET_PROVIDER_URL)))
+
+simulate:
+	forge build $(DEPLOY_BUILD)
+	@forge script $(DEPLOY_SCRIPT) --fork-url $(RPC_URL) -vvvv
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                            UPDATE DEPLOYMENTS                                ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+# TODO: Not ready yet — needs UpdateGovernanceMetadata.s.sol script
+# update-deployments:
+# 	forge build
+# 	@forge script scripts/automation/UpdateGovernanceMetadata.s.sol --fork-url $(MAINNET_PROVIDER_URL) -vvvv
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                                  VERIFY                                      ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+# Compare local contract with deployed bytecode
+# Usage: make match file=contracts/vault/VaultCore.sol addr=0xCED...
+SHELL := /bin/bash
+match:
+	@if [ -z "$(file)" ] || [ -z "$(addr)" ]; then \
+		echo "Usage: make match file=<path> addr=<address>"; \
+		exit 1; \
+	fi
+	@name=$$(basename $(file) .sol); \
+	diff <(forge flatten $(file)) <(cast source --flatten $(addr)) \
+	&& printf "✅ Success: Local contract %-20s matches deployment at $(addr)\n" "$$name" \
+	|| printf "❌ Failure: Local contract %-20s differs from deployment at $(addr)\n" "$$name"
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                                  UTILS                                       ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+# Update Foundry fork block numbers in .env to latest - 20 blocks.
+update-fork-blocks:
+	@set -euo pipefail; \
+	mainnet_block=$$(( $$(cast block-number --rpc-url "$$MAINNET_PROVIDER_URL") - 20 )); \
+	base_block=$$(( $$(cast block-number --rpc-url "$$BASE_PROVIDER_URL") - 20 )); \
+	arbitrum_block=$$(( $$(cast block-number --rpc-url "$$ARBITRUM_PROVIDER_URL") - 20 )); \
+	awk \
+		-v mainnet="$$mainnet_block" \
+		-v base="$$base_block" \
+		-v arbitrum="$$arbitrum_block" \
+		'BEGIN { \
+			values["FORK_BLOCK_NUMBER_MAINNET"] = mainnet; \
+			values["FORK_BLOCK_NUMBER_BASE"] = base; \
+			values["FORK_BLOCK_NUMBER_ARBITRUM"] = arbitrum; \
+		} \
+		/^(FORK_BLOCK_NUMBER_MAINNET|FORK_BLOCK_NUMBER_BASE|FORK_BLOCK_NUMBER_ARBITRUM)=/ { \
+			key = $$0; sub(/=.*/, "", key); \
+			if (!seen[key]++) print key "=" values[key]; \
+			next; \
+		} \
+		{ print } \
+		END { \
+			if (!seen["FORK_BLOCK_NUMBER_MAINNET"]) print "FORK_BLOCK_NUMBER_MAINNET=" mainnet; \
+			if (!seen["FORK_BLOCK_NUMBER_BASE"]) print "FORK_BLOCK_NUMBER_BASE=" base; \
+			if (!seen["FORK_BLOCK_NUMBER_ARBITRUM"]) print "FORK_BLOCK_NUMBER_ARBITRUM=" arbitrum; \
+		}' .env > .env.tmp; \
+	mv .env.tmp .env; \
+	printf 'Updated fork blocks (latest - 20):\n  mainnet: %s\n  base: %s\n  arbitrum: %s\n' \
+		"$$mainnet_block" "$$base_block" "$$arbitrum_block"
+
+# Print a frame with centered text: make frame text="SECTION NAME"
+frame:
+	@if [ -z "$(text)" ]; then echo "Usage: make frame text=\"SECTION NAME\""; exit 1; fi
+	@awk -v t="$(text)" 'BEGIN { \
+		w=78; \
+		printf "// ╔"; for(i=0;i<w;i++) printf "═"; print "╗"; \
+		pad=int((w-length(t))/2); \
+		printf "// ║"; for(i=0;i<pad;i++) printf " "; printf "%s", t; \
+		for(i=0;i<w-pad-length(t);i++) printf " "; print "║"; \
+		printf "// ╚"; for(i=0;i<w;i++) printf "═"; print "╝"; \
+	}'
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                                   LINT                                       ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+lint-imports:
+	forge lint --only-lint unused-import -D notes -- scripts/ tests/
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                                  PHONY                                       ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+.PHONY: test test-base test-unit test-fork test-fork-% test-smoke test-smoke-% \
+        coverage coverage-html gas snapshot build build-% \
+        deploy-mainnet deploy-base deploy-hyperevm deploy-local simulate \
+        match clean clean-all install update-fork-blocks frame lint-imports
