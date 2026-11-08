@@ -39,7 +39,10 @@ enum class FactKind : u8 {
     // available here (never mem[A] itself) with word(mem[A]) >= word(F),
     // unsigned, F not wrapping: the free-memory floor of docs/alloc-floor.md
     // (simplify/floor.hpp keeps them; the comparisons under Top::Memory read
-    // MEM(RANGE(A, 32)) as F + d, d >= 0)
+    // MEM(RANGE(A, 32)) as F + d, d >= 0). Or a: a variable (a TMP name,
+    // var_floor_key), b: an F with word(a) >= word(F) - the floor of a
+    // variable set to the word at A plus what it adds (_12 = mem[64]: the
+    // pointer the code took before it moved the word on), read as F + d_a
     Floor,
 };
 
@@ -74,6 +77,13 @@ class Facts;
 Value floored(Value v, const Facts& facts);
 // the atom d_A
 Value floor_atom(u64 addr);
+// a variable that may have a floor (FactKind::Floor keyed by it): a TMP or a
+// loop variable of an id below 2^20 (its atom d_x: a LOOP name of its own)
+bool var_floor_key(Value name) noexcept;
+// the atom d_x of a variable's floor
+Value var_floor_atom(Value name);
+// the atoms floored() puts in: d_A, d_x
+bool is_floor_atom(Value v) noexcept;
 // the bit length v's value has at most (python memloc.max_value_bits, by
 // the ranges: the BOUNDED leaves below 2^64, the facts' bounds and var_bits)
 u32 max_value_bits(Value v, const Facts* facts = nullptr);
@@ -84,6 +94,9 @@ public:
 
     bool empty() const noexcept { return head_ == nullptr; }
     u32 size() const noexcept { return n_; }
+    // the list's identity (its newest cell): the same facts while it is the
+    // same - a memo's key, until the context compacts
+    u64 identity() const noexcept { return u64(reinterpret_cast<uintptr_t>(head_)); }
 
     // --- adding ---
     Facts with(const Fact& f) const;
@@ -96,16 +109,23 @@ public:
         return with(Fact{FactKind::VarBits, var, Value::small(i64(bits)), {}});
     }
     // the floor of the word at the constant address A (any earlier floor of
-    // A replaced)
+    // A replaced); NIL floor: none
     Facts with_floor(u64 addr, Value floor) const;
+    // the same keyed by a Value: a small int A, or a variable (var_floor_key)
+    Facts with_floor(Value key, Value floor) const;
     // the floor of the word at A; NIL when none
     Value floor_of(u64 addr) const noexcept;
+    Value floor_of(Value key) const noexcept;
     bool any_floor() const noexcept { return has(FactKind::Floor); }
+    // a floor of a word / of a variable among them
+    bool any_word_floor() const noexcept;
+    bool any_var_floor() const noexcept;
     // every fact a floor (and at least one)
     bool floors_only() const noexcept;
     // the facts but the floors (those of A only, when given)
     Facts without_floors() const;
     Facts without_floor(u64 addr) const;
+    Facts without_floor(Value key) const;
 
     // --- reading ---
     bool contains(const Fact& f) const noexcept;
