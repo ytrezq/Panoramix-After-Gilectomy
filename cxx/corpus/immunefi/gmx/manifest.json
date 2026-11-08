@@ -34,8 +34,7 @@
     {
      "prefix": "gmx-io__gmx-contracts",
      "url": "https://github.com/gmx-io/gmx-contracts",
-     "commit": "fe55c4ba8911ae2378b50bfb9bece5ee50cf2af8",
-     "files": 157
+     "commit": "fe55c4ba8911ae2378b50bfb9bece5ee50cf2af8"
     }
    ]
   },
@@ -107,20 +106,17 @@
     {
      "prefix": "gmx-io__gmx-synthetics",
      "url": "https://github.com/gmx-io/gmx-synthetics",
-     "commit": "a85ea3491c19c93bb4b5a002d9b358fb769b7849",
-     "files": 323
+     "commit": "a85ea3491c19c93bb4b5a002d9b358fb769b7849"
     },
     {
      "prefix": "gmx-io__gmx-synthetics/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "155d547c449afa8715f538d69454b83944117811",
-     "files": 45
+     "commit": "155d547c449afa8715f538d69454b83944117811"
     },
     {
      "prefix": "gmx-io__gmx-synthetics/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ]
   }
