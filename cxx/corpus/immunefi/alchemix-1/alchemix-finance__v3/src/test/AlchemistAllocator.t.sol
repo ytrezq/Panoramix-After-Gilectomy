@@ -1,0 +1,779 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.28;
+
+import {Test} from "forge-std/Test.sol";
+import {VaultV2} from "lib/vault-v2/src/VaultV2.sol";
+import {IVaultV2} from "lib/vault-v2/src/interfaces/IVaultV2.sol";
+import {TestYieldToken} from "./mocks/TestYieldToken.sol";
+import {TestERC20} from "./mocks/TestERC20.sol";
+import {TokenUtils} from "../libraries/TokenUtils.sol";
+import {MockYieldToken} from "./mocks/MockYieldToken.sol";
+import {IMockYieldToken} from "./mocks/MockYieldToken.sol";
+import {MYTTestHelper} from "./libraries/MYTTestHelper.sol";
+import {MockMYTStrategy} from "./mocks/MockMYTStrategy.sol";
+import {AlchemistAllocator} from "../AlchemistAllocator.sol";
+import {IAllocator} from "../interfaces/IAllocator.sol";
+import {IMYTStrategy} from "../interfaces/IMYTStrategy.sol";
+import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {console} from "forge-std/console.sol";
+import {AlchemistStrategyClassifier} from "../AlchemistStrategyClassifier.sol";
+
+contract MockAlchemistAllocator is AlchemistAllocator {
+    constructor(address _myt, address _admin, address _operator, address _classifier) AlchemistAllocator(_myt, _admin, _operator, _classifier) {}
+}
+
+contract AlchemistAllocatorTest is Test {
+    using MYTTestHelper for *;
+
+    MockAlchemistAllocator public allocator;
+    AlchemistStrategyClassifier public classifier;
+    VaultV2 public vault;
+    address public admin = address(0x2222222222222222222222222222222222222222);
+    address public operator = address(0x3333333333333333333333333333333333333333);
+    address public curator = address(0x8888888888888888888888888888888888888888);
+    address public user1 = address(0x5555555555555555555555555555555555555555);
+    address public mockVaultCollateral = address(new TestERC20(100e18, uint8(18)));
+    address public mockStrategyYieldToken = address(new MockYieldToken(mockVaultCollateral));
+    uint256 public defaultStrategyAbsoluteCap = 200 ether;
+    uint256 public defaultStrategyRelativeCap = 0.8e18; // 80%
+    MockMYTStrategy public mytStrategy;
+
+    function setUp() public {
+        vm.startPrank(admin);
+        vault = MYTTestHelper._setupVault(mockVaultCollateral, admin, curator);
+        mytStrategy = MYTTestHelper._setupStrategy(address(vault), mockStrategyYieldToken, admin, "MockToken", "MockTokenProtocol", IMYTStrategy.RiskClass.LOW);
+        classifier = new AlchemistStrategyClassifier(admin);
+        // Set up risk classes matching constructor defaults (WAD: 1e18 = 100%)
+        classifier.setRiskClass(0, 1e18, 1e18); // LOW: 100%/100%
+        classifier.setRiskClass(1, 0.4e18, 0.25e18); // MEDIUM: 40%/25%
+        classifier.setRiskClass(2, 0.1e18, 0.1e18); // HIGH: 10%/10%
+        // Assign risk level to the mock strategy
+        bytes32 strategyId = mytStrategy.adapterId();
+        classifier.assignStrategyRiskLevel(uint256(strategyId), uint8(IMYTStrategy.RiskClass.LOW));
+        allocator = new MockAlchemistAllocator(address(vault), admin, operator, address(classifier));
+        vm.stopPrank();
+        vm.startPrank(curator);
+        _vaultSubmitAndFastForward(abi.encodeCall(IVaultV2.setIsAllocator, (address(allocator), true)));
+        vault.setIsAllocator(address(allocator), true);
+        _vaultSubmitAndFastForward(abi.encodeCall(IVaultV2.addAdapter, address(mytStrategy)));
+        vault.addAdapter(address(mytStrategy));
+        // bytes memory idData = abi.encode("MockTokenProtocol", address(mytStrategy));
+        bytes memory idData = mytStrategy.getIdData();
+        _vaultSubmitAndFastForward(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, defaultStrategyAbsoluteCap)));
+        vault.increaseAbsoluteCap(idData, defaultStrategyAbsoluteCap);
+        _vaultSubmitAndFastForward(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, defaultStrategyRelativeCap)));
+        vault.increaseRelativeCap(idData, defaultStrategyRelativeCap);
+        vm.stopPrank();
+    }
+
+    function testProxyBlockedSelectors() public {
+        _magicDepositToVault(address(vault), user1, 150 ether);
+        
+        // Get selectors for blocked functions
+        bytes4 allocateSelector = bytes4(keccak256("allocate(address,bytes,uint256)"));
+        bytes4 deallocateSelector = bytes4(keccak256("deallocate(address,bytes,uint256)"));
+        bytes4 multicallSelector = bytes4(keccak256("multicall(bytes[])"));
+
+        vm.startPrank(operator);
+        
+        bytes memory idData = mytStrategy.getIdData();
+
+        // Test that allocate selector is blocked
+        bytes memory allocateData = abi.encodeCall(IVaultV2.allocate, (address(mytStrategy), idData, 100 ether));
+        vm.expectRevert(abi.encode("PD"));
+        allocator.proxy(address(vault), allocateData);
+        
+        // Test that deallocate selector is blocked
+        bytes memory deallocateData = abi.encodeCall(IVaultV2.deallocate, (address(mytStrategy), idData, 50 ether));
+        vm.expectRevert(abi.encode("PD"));
+        allocator.proxy(address(vault), deallocateData);
+        
+        // Test that multicall selector is blocked (prevents tunneling blocked calls)
+        bytes[] memory innerCalls = new bytes[](1);
+        innerCalls[0] = abi.encodeCall(IVaultV2.allocate, (address(mytStrategy), idData, 100 ether));
+        bytes memory multicallData = abi.encodeCall(IVaultV2.multicall, (innerCalls));
+        vm.expectRevert(abi.encode("PD"));
+        allocator.proxy(address(vault), multicallData);
+        
+        vm.stopPrank();
+    }
+
+    function testAllocateUnauthorizedAccessRevert() public {
+        vm.expectRevert(abi.encode("PD"));
+        allocator.allocate(address(0x4444444444444444444444444444444444444444), 0);
+    }
+
+    function testDeallocateUnauthorizedAccessRevert() public {
+        vm.expectRevert(abi.encode("PD"));
+        allocator.deallocate(address(0x4444444444444444444444444444444444444444), 0);
+    }
+
+    function testSetLiquidityAdapterUnauthorizedAccessRevert() public {
+        bytes memory directData = _directLiquidityData();
+        vm.expectRevert(abi.encode("PD"));
+        allocator.setLiquidityAdapter(address(mytStrategy), directData);
+    }
+
+    function testSetLiquidityAdapter() public {
+        bytes memory data = _directLiquidityData();
+
+        vm.startPrank(operator);
+        allocator.setLiquidityAdapter(address(mytStrategy), data);
+        vm.stopPrank();
+
+        assertEq(vault.liquidityAdapter(), address(mytStrategy));
+        assertEq(keccak256(vault.liquidityData()), keccak256(data));
+    }
+
+    function _directLiquidityData() internal pure returns (bytes memory) {
+        IMYTStrategy.VaultAdapterParams memory params;
+        params.action = IMYTStrategy.ActionType.direct;
+        return abi.encode(params);
+    }
+
+    function testAllocateRevertIfAboveAbsoluteCap() public {
+        _magicDepositToVault(address(vault), user1, 1000 ether);
+        
+        bytes32 strategyId = mytStrategy.adapterId();
+        uint256 absoluteCap = vault.absoluteCap(strategyId);
+        
+        vm.startPrank(admin);
+
+        vm.expectRevert(abi.encodeWithSelector(IAllocator.EffectiveCap.selector, absoluteCap + 1, absoluteCap));
+        allocator.allocate(address(mytStrategy), absoluteCap + 1);
+        vm.stopPrank();
+    }
+
+    function testAllocateRevertIfAboveRelativeCap() public {
+        _magicDepositToVault(address(vault), user1, 1000 ether);
+        
+        bytes32 strategyId = mytStrategy.adapterId();
+        uint256 absoluteCap = vault.absoluteCap(strategyId);
+        uint256 relativeCap = vault.relativeCap(strategyId);
+        
+        // Max allocation = totalAssets * relativeCap / 1e18
+        uint256 totalAssets = vault.totalAssets();
+        uint256 maxAllocation = (totalAssets * relativeCap) / 1e18;
+
+        // The effective limit is the minimum of absolute and relative cap (absolute is lower: 200 ether)
+        uint256 effectiveLimit = absoluteCap < maxAllocation ? absoluteCap : maxAllocation;
+        
+        vm.startPrank(admin);
+        vm.expectRevert(abi.encodeWithSelector(IAllocator.EffectiveCap.selector, maxAllocation + 1, effectiveLimit));
+        allocator.allocate(address(mytStrategy), maxAllocation + 1);
+        vm.stopPrank();
+    }
+
+    function testAllocateRelativeCapOne_RevertWhenTotalAssetsAboveAbsoluteCap() public {
+        bytes memory idData = mytStrategy.getIdData();
+        vm.startPrank(curator);
+        _vaultSubmitAndFastForward(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
+        vault.increaseRelativeCap(idData, 1e18);
+        vm.stopPrank();
+
+        _magicDepositToVault(address(vault), user1, 300 ether);
+        bytes32 strategyId = mytStrategy.adapterId();
+        uint256 totalAssets = vault.totalAssets();
+        uint256 absoluteCap = vault.absoluteCap(strategyId);
+
+        assertGt(totalAssets, absoluteCap);
+
+        vm.startPrank(admin);
+        vm.expectRevert(abi.encodeWithSelector(IAllocator.EffectiveCap.selector, totalAssets, absoluteCap));
+        allocator.allocate(address(mytStrategy), totalAssets);
+        vm.stopPrank();
+    }
+
+    function testAllocateRelativeCapOne_SucceedsWhenTotalAssetsBelowAbsoluteCap() public {
+        bytes memory idData = mytStrategy.getIdData();
+        vm.startPrank(curator);
+        _vaultSubmitAndFastForward(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
+        vault.increaseRelativeCap(idData, 1e18);
+        vm.stopPrank();
+
+        _magicDepositToVault(address(vault), user1, 150 ether);
+        bytes32 strategyId = mytStrategy.adapterId();
+        uint256 totalAssets = vault.totalAssets();
+        uint256 absoluteCap = vault.absoluteCap(strategyId);
+
+        assertLt(totalAssets, absoluteCap);
+
+        vm.startPrank(admin);
+        allocator.allocate(address(mytStrategy), totalAssets);
+        vm.stopPrank();
+
+        assertEq(vault.allocation(strategyId), totalAssets);
+    }
+
+    function testAllocateRevertIfAboveRiskGlobalCap() public {
+        _magicDepositToVault(address(vault), user1, 1000 ether);
+
+        bytes32 strategyId = mytStrategy.adapterId();
+        uint256 globalCapPct = 0.1e18; // 10% of totalAssets = 100 ether
+        uint256 expectedAbsoluteCap = 100 ether;
+
+        vm.startPrank(admin);
+        classifier.setRiskClass(0, globalCapPct, 1e18);
+        vm.stopPrank();
+
+        vm.startPrank(admin);
+        vm.expectRevert(abi.encodeWithSelector(IAllocator.EffectiveCap.selector, expectedAbsoluteCap + 1, expectedAbsoluteCap));
+        allocator.allocate(address(mytStrategy), expectedAbsoluteCap + 1);
+        vm.stopPrank();
+    }
+
+    function testAllocateRevertIfAboveRiskIndividualCap() public {
+        _magicDepositToVault(address(vault), user1, 1000 ether);
+        
+        bytes32 strategyId = mytStrategy.adapterId();
+        uint256 individualCapPct = 0.05e18; // 5% of totalAssets = 50 ether
+        uint256 expectedAbsoluteCap = 50 ether;
+        
+        vm.startPrank(admin);
+        classifier.setRiskClass(0, 1e18, individualCapPct);
+        
+        vm.stopPrank();
+        vm.startPrank(operator);
+
+        vm.expectRevert(abi.encodeWithSelector(IAllocator.EffectiveCap.selector, expectedAbsoluteCap + 1, expectedAbsoluteCap));
+        allocator.allocate(address(mytStrategy), expectedAbsoluteCap + 1);
+        vm.stopPrank();
+    }
+
+    /// @notice Verifies that cumulative allocations are properly checked against risk caps
+    /// @dev After fix, _validateCaps should check currentAllocation + amount <= limit
+    function testAllocateRevertIfCumulativeAllocationExceedsRiskCap() public {
+        _magicDepositToVault(address(vault), user1, 1000 ether);
+        
+        bytes32 strategyId = mytStrategy.adapterId();
+        uint256 riskCapPct = 0.1e18; // 10% of totalAssets = 100 ether
+        uint256 expectedAbsoluteCap = 100 ether;
+        
+        vm.startPrank(curator);
+        // Increase vault caps to ensure only risk caps are the limiting factor
+        bytes memory idData = mytStrategy.getIdData();
+        _vaultSubmitAndFastForward(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, 10000 ether)));
+        vault.increaseAbsoluteCap(idData, 10000 ether);
+        vm.stopPrank();
+
+        vm.startPrank(admin);
+        // Set risk cap for LOW risk class (10% global = 100 ether, 10% local = 100 ether)
+        classifier.setRiskClass(0, riskCapPct, riskCapPct);
+        vm.stopPrank();
+        
+        vm.startPrank(operator);
+        
+        // First allocation: 60 ether (should succeed, 60 <= 100)
+        allocator.allocate(address(mytStrategy), 60 ether);
+        assertEq(vault.allocation(strategyId), 60 ether, "First allocation should succeed");
+        
+        // Second allocation: 50 ether should FAIL because remaining global capacity is 40 ether
+        // This verifies the fix: cumulative allocation is properly checked against remaining global capacity
+        vm.expectRevert(abi.encodeWithSelector(IAllocator.EffectiveCap.selector, 50 ether, 40 ether));
+        allocator.allocate(address(mytStrategy), 50 ether);
+        vm.stopPrank();
+        
+        // Verify total allocation remains at 60 ether (second allocation was rejected)
+        assertEq(vault.allocation(strategyId), 60 ether, "Allocation should remain at 60 ether");
+    }
+
+    /// @notice Verifies that global risk caps are enforced across multiple strategies in the same risk class
+    /// @dev Audit fix: Ensure aggregate allocation of a risk class does not exceed globalCap
+    function testAllocateRevertIfGlobalRiskCapExceededByMultipleStrategies() public {
+        _magicDepositToVault(address(vault), user1, 1000 ether);
+
+        // Setup Strategy 2 (same risk class LOW)
+        address mockStrategyYieldToken2 = address(new MockYieldToken(mockVaultCollateral));
+        MockMYTStrategy mytStrategy2 = MYTTestHelper._setupStrategy(address(vault), mockStrategyYieldToken2, admin, "MockToken2", "MockTokenProtocol2", IMYTStrategy.RiskClass.LOW);
+        
+        vm.startPrank(admin);
+        bytes32 strategyId2 = mytStrategy2.adapterId();
+        classifier.assignStrategyRiskLevel(uint256(strategyId2), uint8(IMYTStrategy.RiskClass.LOW));
+        vm.stopPrank();
+
+        vm.startPrank(curator);
+        bytes memory idData2 = mytStrategy2.getIdData();
+        _vaultSubmitAndFastForward(abi.encodeCall(IVaultV2.addAdapter, address(mytStrategy2)));
+        vault.addAdapter(address(mytStrategy2));
+        _vaultSubmitAndFastForward(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData2, 10000 ether)));
+        vault.increaseAbsoluteCap(idData2, 10000 ether);
+        _vaultSubmitAndFastForward(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData2, 1e18)));
+        vault.increaseRelativeCap(idData2, 1e18);
+        vm.stopPrank();
+
+        // Set Global Cap for LOW risk to 10% (100 ether absolute at 1000 totalAssets)
+        vm.startPrank(admin);
+        classifier.setRiskClass(0, 0.1e18, 0.1e18); // global=10%, local=10%
+        vm.stopPrank();
+
+        vm.startPrank(operator);
+        
+        // Allocate 60 ether to Strategy 1 (should succeed)
+        allocator.allocate(address(mytStrategy), 60 ether);
+        assertEq(vault.allocation(mytStrategy.adapterId()), 60 ether);
+
+        // Allocate 50 ether to Strategy 2 (should FAIL: 60 + 50 = 110 > 100 globalCap)
+        // Remaining capacity = 100 - 60 = 40. Requesting 50.
+        vm.expectRevert(abi.encodeWithSelector(IAllocator.EffectiveCap.selector, 50 ether, 40 ether));
+        allocator.allocate(address(mytStrategy2), 50 ether);
+
+        // Verify Strategy 2 allocation is 0
+        assertEq(vault.allocation(strategyId2), 0 ether, "Strategy 2 allocation should be 0");
+
+        // Allocate 40 ether to Strategy 2 (should succeed: 60 + 40 = 100 <= 100)
+        allocator.allocate(address(mytStrategy2), 40 ether);
+        assertEq(vault.allocation(strategyId2), 40 ether);
+
+        vm.stopPrank();
+    }
+
+    function testAllocate() public {
+        require(vault.adaptersLength() == 1, "adaptersLength is must be 1");
+        _magicDepositToVault(address(vault), user1, 150 ether);
+        vm.startPrank(admin);
+        bytes32 allocationId = mytStrategy.adapterId();
+        allocator.allocate(address(mytStrategy), 100 ether);
+        uint256 mytStrategyYieldTokenBalance = IMockYieldToken(mockStrategyYieldToken).balanceOf(address(mytStrategy));
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = vault.accrueInterestView();
+        uint256 mytStrategyYieldTokenRealAssets = mytStrategy.realAssets();
+
+        // verify all state state changes that happen after an allocation
+        assertEq(mytStrategyYieldTokenBalance, 100 ether);
+        assertEq(mytStrategyYieldTokenRealAssets, 100 ether);
+        assertEq(newTotalAssets, 150 ether);
+        assertEq(performanceFeeShares, 0);
+        assertEq(managementFeeShares, 0);
+        assertEq(vault._totalAssets(), 150 ether);
+        assertEq(vault.allocation(allocationId), 100 ether);
+        vm.stopPrank();
+    }
+
+    function testDeallocate() public {
+        _magicDepositToVault(address(vault), user1, 150 ether);
+        vm.startPrank(admin);
+        allocator.allocate(address(mytStrategy), 100 ether);
+        bytes32 allocationId = mytStrategy.adapterId();
+        uint256 allocation = vault.allocation(allocationId);
+        assertEq(allocation, 100 ether);
+        allocator.deallocate(address(mytStrategy), 50 ether);
+        allocation = vault.allocation(allocationId);
+        console.log("allocation is reset to", allocation);
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = vault.accrueInterestView();
+        uint256 mytStrategyYieldTokenBalance = IMockYieldToken(mockStrategyYieldToken).balanceOf(address(mytStrategy));
+        uint256 mytStrategyYieldTokenRealAssets = mytStrategy.realAssets();
+
+        // verify all state state changes that happen after a deallocation
+        assertEq(mytStrategyYieldTokenBalance, 50 ether);
+        assertEq(mytStrategyYieldTokenRealAssets, 50 ether);
+        assertEq(newTotalAssets, 150 ether);
+        assertEq(performanceFeeShares, 0);
+        assertEq(managementFeeShares, 0);
+        assertEq(vault._totalAssets(), 150 ether);
+        assertEq(allocation, 50 ether);
+        vm.stopPrank();
+    }
+
+
+    function testDeallocateWithYield() public {
+
+        _seedYieldToken(1_000_000 ether);
+        uint256 initialYieldTokenSupply = IERC20(address(mockStrategyYieldToken)).totalSupply();
+
+        require(initialYieldTokenSupply == 1_000_000 ether, "initial yield token supply is not 1_000_000 ether"); 
+        _magicDepositToVault(address(vault), user1, 400 ether);
+        vm.startPrank(admin);
+
+        // allocate 200 vault tokens to the strategy
+        allocator.allocate(address(mytStrategy), 200 ether);
+        bytes32 allocationId = mytStrategy.adapterId();
+        uint256 allocation = vault.allocation(allocationId);
+        require(allocation == 200 ether, "allocation is not 200 ether");
+
+        // Baseline price before simulating yield
+        uint256 initialYieldTokenPrice = IMockYieldToken(mockStrategyYieldToken).price();
+
+        // now mock update supply of yield token to increase price (via reducing supply)
+        uint256 initialVaultSupply = IERC20(address(mockStrategyYieldToken)).totalSupply();
+        // Small price increase (50%): reduce mocked supply, keeping underlying constant
+        uint256 modifiedVaultSupply = initialVaultSupply - (initialVaultSupply * 5000 / 10_000);
+        IMockYieldToken(mockStrategyYieldToken).updateMockTokenSupply(modifiedVaultSupply);
+
+        // get current real assets of the strategy
+        uint256 currentRealAssets = mytStrategy.realAssets();
+        require(IMockYieldToken(mockStrategyYieldToken).price() > initialYieldTokenPrice, "price is not greater than initial yield token price");
+        require(currentRealAssets > allocation, "current real assets is not greater than allocation");
+        // ensure requested amount > previous allocation. e.g. amount is the allocation + 20% of the allocation
+        uint256 deallocateAmount = allocation + (allocation * 2000 / 10_000);
+        require(deallocateAmount > allocation, "deallocate amount is not greater than allocation");
+
+        // deallocate the amount from the strategy
+        allocator.deallocate(address(mytStrategy), deallocateAmount);
+        allocation = vault.allocation(allocationId);
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = vault.accrueInterestView();
+        uint256 mytStrategyYieldTokenBalance = IMockYieldToken(mockStrategyYieldToken).balanceOf(address(mytStrategy));
+        uint256 mytStrategyYieldTokenRealAssets = mytStrategy.realAssets();
+
+        // verify all state state changes that happen after a deallocation
+        // Expected remaining real assets are determined by remaining shares * post-deallocation price.
+        uint256 priceAfter = IMockYieldToken(mockStrategyYieldToken).price();
+        uint256 expectedRemainingRealAssets = (mytStrategyYieldTokenBalance * priceAfter) / 1e18; // precision loss!
+
+        assertApproxEqRel(mytStrategyYieldTokenRealAssets, expectedRemainingRealAssets, 1e14); // 0.01% rounding headroom
+        assertEq(newTotalAssets, 400 ether);
+        assertEq(performanceFeeShares, 0);
+        assertEq(managementFeeShares, 0);
+        assertEq(vault._totalAssets(), 400 ether);
+        assertApproxEqRel(allocation, expectedRemainingRealAssets, 1e14); // 0.01% rounding headroom
+        vm.stopPrank();
+    }
+
+    function testReclassifyMidLifecycle_StricterCapsApplyToNewAllocations() public {
+        _magicDepositToVault(address(vault), user1, 1000 ether);
+        bytes32 strategyId = mytStrategy.adapterId();
+
+        // Lift vault caps so only risk classifier caps are binding
+        vm.startPrank(curator);
+        bytes memory idData = mytStrategy.getIdData();
+        _vaultSubmitAndFastForward(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, 10000 ether)));
+        vault.increaseAbsoluteCap(idData, 10000 ether);
+        _vaultSubmitAndFastForward(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
+        vault.increaseRelativeCap(idData, 1e18);
+        vm.stopPrank();
+
+        // Phase 1: Strategy is LOW (100%/100%) - allocate 300 ether freely
+        vm.startPrank(admin);
+        assertEq(classifier.getStrategyRiskLevel(uint256(strategyId)), uint8(IMYTStrategy.RiskClass.LOW));
+        allocator.allocate(address(mytStrategy), 300 ether);
+        assertEq(vault.allocation(strategyId), 300 ether, "Phase 1: LOW allocation should succeed");
+        vm.stopPrank();
+
+        // Phase 2: Reclassify to MEDIUM (40% global = 400, 25% local = 250)
+        vm.startPrank(admin);
+        classifier.assignStrategyRiskLevel(uint256(strategyId), uint8(IMYTStrategy.RiskClass.MEDIUM));
+        vm.stopPrank();
+
+        assertEq(classifier.getStrategyRiskLevel(uint256(strategyId)), uint8(IMYTStrategy.RiskClass.MEDIUM));
+
+        // Existing 300 ether allocation is NOT force-liquidated
+        assertEq(vault.allocation(strategyId), 300 ether, "Existing allocation must persist after reclassify");
+
+        // Operator blocked by local cap: check is currentAllocation(300) + amount(1) <= localCap(250)
+        vm.startPrank(operator);
+        vm.expectRevert(abi.encodeWithSelector(IAllocator.EffectiveCap.selector, 1, 250 ether));
+        allocator.allocate(address(mytStrategy), 1);
+        vm.stopPrank();
+
+        // Admin bypasses local cap but constrained by global cap
+        // Remaining global = (1000 * 0.4) - 300 = 100 ether
+        vm.startPrank(admin);
+        vm.expectRevert(abi.encodeWithSelector(IAllocator.EffectiveCap.selector, 101 ether, 100 ether));
+        allocator.allocate(address(mytStrategy), 101 ether);
+        allocator.allocate(address(mytStrategy), 100 ether);
+        assertEq(vault.allocation(strategyId), 400 ether, "Admin should fill remaining global headroom");
+        vm.stopPrank();
+
+        // Phase 3: Reclassify to HIGH (10% global = 100, 10% local = 100)
+        //          Current allocation 400 already exceeds both caps
+        vm.startPrank(admin);
+        classifier.assignStrategyRiskLevel(uint256(strategyId), uint8(IMYTStrategy.RiskClass.HIGH));
+        vm.stopPrank();
+
+        // Neither admin nor operator can allocate (global headroom = 100 - 400 → 0)
+        vm.startPrank(admin);
+        vm.expectRevert(abi.encodeWithSelector(IAllocator.EffectiveCap.selector, 1, 0));
+        allocator.allocate(address(mytStrategy), 1);
+        vm.stopPrank();
+
+        vm.startPrank(operator);
+        vm.expectRevert(abi.encodeWithSelector(IAllocator.EffectiveCap.selector, 1, 0));
+        allocator.allocate(address(mytStrategy), 1);
+        vm.stopPrank();
+
+        // Phase 4: Deallocate below new cap, then verify allocation resumes under HIGH rules
+        vm.startPrank(admin);
+        allocator.deallocate(address(mytStrategy), 350 ether);
+        assertEq(vault.allocation(strategyId), 50 ether, "Deallocate ignores caps");
+        vm.stopPrank();
+
+        // Now HIGH: remaining global = 100 - 50 = 50, local = 100
+        // Operator: limit = min(1000 vault_rel, 100 local) = 100, global headroom = 50
+        vm.startPrank(operator);
+        allocator.allocate(address(mytStrategy), 50 ether);
+        assertEq(vault.allocation(strategyId), 100 ether, "Operator fills remaining global headroom");
+        vm.stopPrank();
+
+        // Saturated - no more room under HIGH global cap
+        vm.startPrank(operator);
+        vm.expectRevert(abi.encodeWithSelector(IAllocator.EffectiveCap.selector, 1, 0));
+        allocator.allocate(address(mytStrategy), 1);
+        vm.stopPrank();
+    }
+
+    function _magicDepositToVault(address _vault, address depositor, uint256 amount) internal {
+        deal(address(mockVaultCollateral), address(depositor), amount);
+        vm.startPrank(depositor);
+        TokenUtils.safeApprove(address(mockVaultCollateral), address(vault), amount);
+        IVaultV2(address(vault)).deposit(amount, address(vault));
+        vm.stopPrank();
+    }
+
+    function _vaultSubmitAndFastForward(bytes memory data) internal {
+        vault.submit(data);
+        bytes4 selector = bytes4(data);
+        vm.warp(block.timestamp + vault.timelock(selector));
+    }
+
+    function _seedYieldToken(uint256 seedUnderlying) internal {
+        address yieldWhale = address(0x7777);
+
+        // Give whale underlying and have it mint yield shares to itself
+        deal(mockVaultCollateral, yieldWhale, seedUnderlying);
+        vm.startPrank(yieldWhale);
+        TokenUtils.safeApprove(mockVaultCollateral, mockStrategyYieldToken, seedUnderlying);
+        IMockYieldToken(mockStrategyYieldToken).mint(seedUnderlying, yieldWhale);
+        vm.stopPrank();
+    }
+}
+
+contract AlchemistAllocatorPerformanceFeeTest is Test {
+    using MYTTestHelper for *;
+
+    MockAlchemistAllocator public allocator;
+    AlchemistStrategyClassifier public classifier;
+    VaultV2 public vault;
+    address public admin = address(0x2222222222222222222222222222222222222222);
+    address public operator = address(0x3333333333333333333333333333333333333333);
+    address public curator = address(0x8888888888888888888888888888888888888888);
+    address public user1 = address(0x5555555555555555555555555555555555555555);
+    address public mockVaultCollateral = address(new TestERC20(100e18, uint8(18)));
+    address public mockStrategyYieldToken = address(new MockYieldToken(mockVaultCollateral));
+    MockMYTStrategy public mytStrategy;
+
+    function setUp() public {
+        vm.startPrank(admin);
+        vault = MYTTestHelper._setupVault(mockVaultCollateral, admin, curator);
+        mytStrategy = MYTTestHelper._setupStrategy(
+            address(vault), mockStrategyYieldToken, admin, "MockToken", "MockTokenProtocol", IMYTStrategy.RiskClass.LOW
+        );
+        classifier = new AlchemistStrategyClassifier(admin);
+        classifier.setRiskClass(0, 1e18, 1e18);
+        classifier.setRiskClass(1, 0.4e18, 0.25e18);
+        classifier.setRiskClass(2, 0.1e18, 0.1e18);
+        bytes32 strategyId = mytStrategy.adapterId();
+        classifier.assignStrategyRiskLevel(uint256(strategyId), uint8(IMYTStrategy.RiskClass.LOW));
+        allocator = new MockAlchemistAllocator(address(vault), admin, operator, address(classifier));
+        vm.stopPrank();
+
+        vm.startPrank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setIsAllocator, (address(allocator), true)));
+        vault.setIsAllocator(address(allocator), true);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, address(mytStrategy)));
+        vault.addAdapter(address(mytStrategy));
+        bytes memory idData = mytStrategy.getIdData();
+        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, 500 ether)));
+        vault.increaseAbsoluteCap(idData, 500 ether);
+        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
+        vault.increaseRelativeCap(idData, 1e18);
+        vm.stopPrank();
+
+        _seedYieldToken(1_000_000 ether);
+        _magicDepositToVault(address(vault), user1, 400 ether);
+        vm.prank(admin);
+        allocator.allocate(address(mytStrategy), 200 ether);
+
+        uint256 supply = IERC20(mockStrategyYieldToken).totalSupply();
+        IMockYieldToken(mockStrategyYieldToken).updateMockTokenSupply(supply / 2);
+
+        vm.prank(admin);
+        allocator.setMaxRate(200e16 / uint256(365 days));
+        vm.warp(block.timestamp + 365 days);
+    }
+
+    function testPerformanceFeeCollectedOnYield() public {
+        uint256 idle = IERC20(mockVaultCollateral).balanceOf(address(vault));
+        uint256 realAssets = mytStrategy.realAssets();
+        uint256 newTotalAssets = idle + realAssets;
+        uint256 interest = newTotalAssets - vault._totalAssets();
+
+        require(interest > 0, "no interest generated - fee test is vacuous");
+        require(vault.performanceFee() > 0, "performance fee is zero - fee not enabled");
+        require(vault.maxRate() > 0, "maxRate is zero - interest will be capped to zero");
+
+        uint256 expectedFeeAssets = interest * 15e16 / 1e18;
+        require(expectedFeeAssets > 0, "expected fee assets is zero");
+        uint256 expectedFeeShares = expectedFeeAssets * (vault.totalSupply() + 1) / (newTotalAssets - expectedFeeAssets + 1);
+
+        uint256 adminSharesBefore = vault.balanceOf(admin);
+        vault.accrueInterest();
+
+        uint256 feeSharesMinted = vault.balanceOf(admin) - adminSharesBefore;
+        assertGt(feeSharesMinted, 0, "performance fee shares must be non-zero");
+        assertEq(feeSharesMinted, expectedFeeShares, "performance fee shares mismatch");
+    }
+
+    function testPerformanceFeeAccruesThroughAllocate() public {
+        uint256 adminSharesBefore = vault.balanceOf(admin);
+        _magicDepositToVault(address(vault), user1, 100 ether);
+        uint256 feeShares = vault.balanceOf(admin) - adminSharesBefore;
+        assertGt(feeShares, 0, "deposit must settle pending fees");
+
+        uint256 feeSharesTotal = vault.balanceOf(admin);
+        uint256 feeAssetsValue = vault.previewRedeem(feeSharesTotal);
+        assertGt(feeAssetsValue, 0, "fee shares must have economic value");
+    }
+
+    function testPerformanceFeeAccruesThroughVaultDeposit() public {
+        uint256 adminSharesBefore = vault.balanceOf(admin);
+
+        _magicDepositToVault(address(vault), user1, 100 ether);
+
+        uint256 feeShares = vault.balanceOf(admin) - adminSharesBefore;
+        assertGt(feeShares, 0, "performance fee must accrue through vault deposit");
+    }
+
+    function testPerformanceFeeAccruesThroughVaultWithdraw() public {
+        uint256 userShares = vault.balanceOf(user1);
+        require(userShares > 0, "user has no shares");
+
+        uint256 adminSharesBefore = vault.balanceOf(admin);
+
+        vm.prank(user1);
+        vault.withdraw(10 ether, user1, user1);
+
+        uint256 feeShares = vault.balanceOf(admin) - adminSharesBefore;
+        assertGt(feeShares, 0, "performance fee must accrue through vault withdraw");
+    }
+
+    function testPerformanceFeeZeroOnNoYield() public {
+        IMockYieldToken(mockStrategyYieldToken).updateMockTokenSupply(
+            IERC20(mockStrategyYieldToken).totalSupply()
+        );
+
+        uint256 adminSharesBefore = vault.balanceOf(admin);
+        vault.accrueInterest();
+        assertEq(vault.balanceOf(admin) - adminSharesBefore, 0, "no fee on zero yield");
+    }
+
+    function testPerformanceFeeMultipleAccrualCycles() public {
+        uint256 adminSharesBefore = vault.balanceOf(admin);
+        vault.accrueInterest();
+        uint256 firstFeeShares = vault.balanceOf(admin) - adminSharesBefore;
+        assertGt(firstFeeShares, 0, "first accrual must produce fee shares");
+
+        uint256 bookAssets = vault._totalAssets();
+        uint256 idle = IERC20(mockVaultCollateral).balanceOf(address(vault));
+        uint256 invested = mytStrategy.realAssets();
+        assertEq(idle + invested, bookAssets, "book value must match real assets after accrual");
+    }
+
+    function testPerformanceFeeWithLoss() public {
+        uint256 supply = IERC20(mockStrategyYieldToken).totalSupply();
+        IMockYieldToken(mockStrategyYieldToken).updateMockTokenSupply(supply * 2);
+
+        uint256 idle = IERC20(mockVaultCollateral).balanceOf(address(vault));
+        uint256 realAssets = idle + mytStrategy.realAssets();
+        assertLt(realAssets, vault._totalAssets(), "must simulate a loss scenario");
+
+        uint256 adminSharesBefore = vault.balanceOf(admin);
+        vault.accrueInterest();
+
+        uint256 feeShares = vault.balanceOf(admin) - adminSharesBefore;
+        assertEq(feeShares, 0, "no performance fee on loss");
+    }
+
+    function testPerformanceFeeAtMax50Percent() public {
+        uint256 adminSharesBefore = vault.balanceOf(admin);
+        vault.accrueInterest();
+        uint256 feeShares = vault.balanceOf(admin) - adminSharesBefore;
+        assertGt(feeShares, 0, "performance fee must produce shares at default rate");
+    }
+
+    function testConvertToAssetsReflectsFeeDilution() public {
+        uint256 priceBefore = vault.convertToAssets(1e18);
+
+        vault.accrueInterest();
+
+        uint256 priceAfter = vault.convertToAssets(1e18);
+
+        assertGt(priceBefore, 0, "price before must be non-zero");
+        assertGt(priceAfter, 0, "price after must be non-zero");
+    }
+
+    function testFeeRecipientBound() public {
+        for (uint256 i; i < 5; i++) {
+            uint256 supply = IERC20(mockStrategyYieldToken).totalSupply();
+            IMockYieldToken(mockStrategyYieldToken).updateMockTokenSupply(supply * 95 / 100);
+            vm.warp(block.timestamp + 30 days);
+            vault.accrueInterest();
+        }
+
+        uint256 feeShares = vault.balanceOf(admin);
+        assertGt(feeShares, 0, "fee shares must exist");
+        assertLe(feeShares, vault.totalSupply() / 2, "fee shares bounded to 50% of totalSupply");
+    }
+
+    function _magicDepositToVault(address _vault, address depositor, uint256 amount) internal {
+        deal(mockVaultCollateral, depositor, amount);
+        vm.startPrank(depositor);
+        TokenUtils.safeApprove(mockVaultCollateral, _vault, amount);
+        IVaultV2(_vault).deposit(amount, depositor);
+        vm.stopPrank();
+    }
+
+    function _seedYieldToken(uint256 seedUnderlying) internal {
+        address yieldWhale = address(0x7777);
+        deal(mockVaultCollateral, yieldWhale, seedUnderlying);
+        vm.startPrank(yieldWhale);
+        TokenUtils.safeApprove(mockVaultCollateral, mockStrategyYieldToken, seedUnderlying);
+        IMockYieldToken(mockStrategyYieldToken).mint(seedUnderlying, yieldWhale);
+        vm.stopPrank();
+    }
+
+    function testFeeChangeSettlesPendingFeesAtOldRate() public {
+        uint256 adminSharesBefore = vault.balanceOf(admin);
+        uint256 feeBefore = vault.performanceFee();
+
+        vm.startPrank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (0.5e18)));
+        vault.setPerformanceFee(0.5e18);
+        vm.stopPrank();
+
+        uint256 feeSharesFromSettlement = vault.balanceOf(admin) - adminSharesBefore;
+        assertGt(feeSharesFromSettlement, 0, "changing fee must settle pending fees at old rate");
+        assertEq(vault.performanceFee(), 0.5e18, "fee must be updated to new rate");
+    }
+
+    function testFeeSetToZeroStopsAccrual() public {
+        vm.startPrank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (0)));
+        vault.setPerformanceFee(0);
+        vm.stopPrank();
+
+        uint256 supply = IERC20(mockStrategyYieldToken).totalSupply();
+        IMockYieldToken(mockStrategyYieldToken).updateMockTokenSupply(supply / 2);
+        vm.warp(block.timestamp + 365 days);
+
+        uint256 adminSharesBefore = vault.balanceOf(admin);
+        vault.accrueInterest();
+        assertEq(vault.balanceOf(admin) - adminSharesBefore, 0, "no fees should accrue after fee set to zero");
+    }
+
+    function testFirstTotalAssetsGuardPreventsDoubleAccrual() public {
+        uint256 adminSharesBefore = vault.balanceOf(admin);
+        vault.accrueInterest();
+        uint256 feeSharesFirst = vault.balanceOf(admin) - adminSharesBefore;
+        assertGt(feeSharesFirst, 0, "first accrual must produce fees");
+
+        uint256 supply = IERC20(mockStrategyYieldToken).totalSupply();
+        IMockYieldToken(mockStrategyYieldToken).updateMockTokenSupply(supply / 2);
+        vm.warp(block.timestamp + 365 days);
+
+        (, uint256 pendingPerfShares,) = vault.accrueInterestView();
+        assertEq(pendingPerfShares, 0, "accrueInterestView must return zero fees when transient guard is active");
+
+        adminSharesBefore = vault.balanceOf(admin);
+        vault.accrueInterest();
+        uint256 feeSharesSecond = vault.balanceOf(admin) - adminSharesBefore;
+        assertEq(feeSharesSecond, 0, "transient guard must prevent double accrual in same tx");
+    }
+}

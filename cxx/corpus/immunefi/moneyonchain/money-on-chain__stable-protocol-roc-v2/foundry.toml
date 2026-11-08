@@ -1,0 +1,35 @@
+[profile.default]
+src = "contracts"
+test = "test"
+out = "out"
+libs = ["node_modules"]
+remappings = [
+    "forge-std/=node_modules/forge-std/src/",
+    "moc-main-stable/=node_modules/moc-main-stable/",
+    "moc-main-latest/=node_modules/moc-main-latest/",
+    "@openzeppelin/=node_modules/@openzeppelin/",
+    "@openzeppelin-v4.8.0/=node_modules/@openzeppelin-v4.8.0/",
+    "openzeppelin-foundry-upgrades/=node_modules/@openzeppelin/foundry-upgrades/src/"
+]
+evm_version = "london"
+auto_detect_solc = true
+via_ir = true
+optimizer = true
+optimizer_runs = 200
+
+ffi = true
+ast = true
+build_info = true
+extra_output = ["storageLayout"]
+fs_permissions = [
+    { access = "read", path = "out" },
+    { access = "read", path = "test" }
+]
+
+# Disable forge lint on build
+[lint]
+lint_on_build = false
+
+# Profile for storage layout tests (uses test-forge directory)
+[profile.storage]
+test = "test-forge"

@@ -1,0 +1,53 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+optimizer = true
+optimizer_runs = 10000
+bytecode_hash = "none"
+cbor_metadata = false
+sparse_mode = false
+build_info = true
+evm_version = "prague"
+via_ir = true
+deny = "never"
+fs_permissions = [{ access = "read", path = "./out" }, { access = "read-write", path = "./output" }]
+solc_version = "0.8.28"
+
+
+[profile.development]
+optimizer = false
+optimizer_runs = 0
+
+[profile.default.optimizer_details]
+constantOptimizer = true
+yul = true
+
+[profile.default.optimizer_details.yulDetails]
+stackAllocation = true
+
+[fmt]
+line_length = 160
+wrap_comments = false
+bracket_spacing = true
+number_underscore = "thousands"
+int_types = "long"
+multiline_func_header = "all"
+quote_style = "double"
+ignore = ["libs/*", "*.t.sol"]
+sort_imports = true
+
+[lint]
+exclude_lints = ["mixed-case-function", "mixed-case-variable"]
+
+[fuzz]
+runs = 1000
+show_logs = true
+
+[invariant]
+runs = 64
+depth = 32
+fail_on_revert = false
+
+[etherscan]
+mainnet = { key = "${ETHERSCAN_API_KEY}" }

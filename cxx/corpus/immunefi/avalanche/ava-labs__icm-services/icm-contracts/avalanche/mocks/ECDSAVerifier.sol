@@ -1,0 +1,60 @@
+// (c) 2026, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+// SPDX-License-Identifier: LicenseRef-Ecosystem
+
+/**
+ * THIS IS AN EXAMPLE CONTRACT THAT USES UN-AUDITED CODE.
+ * DO NOT USE THIS CODE IN PRODUCTION.
+ */
+pragma solidity ^0.8.30;
+
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {
+    IAdapter,
+    TeleporterICMMessage,
+    TeleporterMessageV2
+} from "../../common/ITeleporterMessengerV2.sol";
+
+contract ECDSAVerifier is IAdapter, Initializable {
+    using ECDSA for bytes32;
+    using MessageHashUtils for bytes32;
+
+    address private _trustedSigner;
+
+    event ECDSAVerifierSendMessage(TeleporterMessageV2 message);
+
+    /**
+     * @notice Sets the trusted signer address at deployment time.
+     * @param signer The address corresponding to the off-chain private key.
+     */
+    function initialize(
+        address signer
+    ) external initializer {
+        require(signer != address(0), "Invalid signer address");
+        _trustedSigner = signer;
+    }
+
+    function sendMessage(
+        TeleporterMessageV2 calldata message
+    ) external override {
+        emit ECDSAVerifierSendMessage(message);
+    }
+
+    /**
+     * @notice Verifies that the provided message was signed by TRUSTED_SIGNER.
+     * @dev The 'attestation' field is expected to contain the 65-byte ECDSA signature.
+     */
+    function verifyMessage(
+        TeleporterICMMessage calldata message
+    ) external view override returns (bool) {
+        bytes32 dataHash =
+            keccak256(abi.encode(message.message, message.sourceBlockchainID, address(this)));
+        // Apply EIP-191 prefix. See https://github.com/OpenZeppelin/openzeppelin-contracts/blob/75973f63b5a84dd2fc998b5f329f1e254b0fdc77/contracts/utils/cryptography/ECDSA.sol#L50
+        bytes32 digest = dataHash.toEthSignedMessageHash();
+        address recoveredSigner = digest.recover(message.attestation);
+        return recoveredSigner == _trustedSigner;
+    }
+}

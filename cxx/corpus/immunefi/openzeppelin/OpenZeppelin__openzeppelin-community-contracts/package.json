@@ -1,0 +1,62 @@
+{
+  "name": "@openzeppelin/community-contracts",
+  "version": "0.0.1",
+  "description": "Solidity library of smart contracts from the OpenZeppelin Community",
+  "author": "OpenZeppelin Community <maintainers@openzeppelin.org>",
+  "license": "MIT",
+  "files": [
+    "/contracts/**/*.sol",
+    "!/contracts/mocks/**/*"
+  ],
+  "scripts": {
+    "compile": "hardhat compile",
+    "clean": "hardhat clean && rimraf build contracts/build",
+    "docs": "npm run prepare-docs && oz-docs",
+    "docs:watch": "oz-docs watch contracts docs/templates docs/config.js",
+    "prepare": "husky",
+    "prepare-docs": "scripts/prepare-docs.sh",
+    "lint": "npm run lint:js && npm run lint:sol",
+    "lint:fix": "npm run lint:js:fix && npm run lint:sol:fix",
+    "lint:js": "prettier --log-level warn '**/*.{js,ts}' --check && eslint . --ignore-pattern lib/",
+    "lint:js:fix": "prettier --log-level warn '**/*.{js,ts}' --write && eslint . --fix --ignore-pattern lib/",
+    "lint:sol": "prettier --log-level warn '{contracts,test}/**/*.sol' --check && solhint '{contracts,test}/**/*.sol'",
+    "lint:sol:fix": "prettier --log-level warn '{contracts,test}/**/*.sol' --write",
+    "coverage": "scripts/checks/coverage.sh",
+    "generate": "scripts/generate/run.js",
+    "test": "hardhat test",
+    "test:generation": "scripts/checks/generation.sh",
+    "test:inheritance": "scripts/checks/inheritance-ordering.js artifacts/build-info/*",
+    "test:pragma": "scripts/checks/pragma-validity.js artifacts/build-info/*",
+    "gas-report": "env ENABLE_GAS_REPORT=true npm run test"
+  },
+  "homepage": "https://openzeppelin.com/contracts/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OpenZeppelin/openzeppelin-community-contracts.git"
+  },
+  "bugs": {
+    "url": "https://github.com/OpenZeppelin/openzeppelin-community-contracts/issues"
+  },
+  "keywords": [
+    "solidity",
+    "ethereum",
+    "smart",
+    "contracts",
+    "security",
+    "zeppelin"
+  ],
+  "devDependencies": {
+    "@openzeppelin/contracts": "file:lib/@openzeppelin-contracts",
+    "husky": "^9.1.7"
+  },
+  "lint-staged": {
+    "*.{js,ts}": [
+      "prettier --log-level warn --ignore-path .gitignore --check",
+      "eslint"
+    ],
+    "*.sol": [
+      "prettier --log-level warn --ignore-path .gitignore --check",
+      "solhint"
+    ]
+  }
+}

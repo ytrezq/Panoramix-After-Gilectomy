@@ -1,0 +1,29 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.25;
+
+address constant uniswapV3MainnetFactory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+address constant uniswapV3SepoliaFactory = 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
+address constant uniswapV3BaseFactory = 0x33128a8fC17869897dcE68Ed026d694621f6FDfD;
+address constant uniswapV3BnbFactory = 0xdB1d10011AD0Ff90774D0C6Bb92e5C5c8b4461F7;
+address constant uniswapV3AvalancheFactory = 0x740b1c1de25031C31FF4fC9A62f554A55cdC1baD;
+address constant uniswapV3LineaFactory = 0x31FAfd4889FA1269F7a13A66eE0fB458f27D72A9;
+address constant uniswapV3WorldChainFactory = 0x7a5028BDa40e7B173C278C5342087826455ea25a;
+address constant uniswapV3InkFactory = 0x640887A9ba3A9C53Ed27D0F7e8246A4F933f3424;
+address constant uniswapV3UnichainFactory = 0x1F98400000000000000000000000000000000003; // https://github.com/Uniswap/contracts/blob/main/deployments/130.md#fri-nov-08-2024
+address constant uniswapV3PlasmaFactory = 0xcb2436774C3e191c85056d248EF4260ce5f27A9D;
+address constant uniswapV3MonadFactory = 0x204FAca1764B154221e35c0d20aBb3c525710498;
+address constant uniswapV3AbstractFactory = 0xA1160e73B63F322ae88cC2d8E700833e71D0b2a1;
+address constant uniswapV3TempoFactory = 0x24a3d4757E330890A8b8978028c9e58E04611fd6;
+address constant uniswapV3RobinhoodFactory = 0x1f7d7550B1b028f7571E69A784071F0205FD2EfA;
+address constant uniswapV3ArcFactory = 0xf0db7b58379503491d857dB50AC9ece64c653918;
+address constant uniswapV3ElysiumFactory = 0x1707327F626496A7b5b3872e7E4d2879Df7d7a9f;
+
+bytes32 constant uniswapV3InitHash = 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54;
+// This isn't a "hash" inasmuch as it's a versioned discriminator
+// ref: https://web.archive.org/web/20251108134721/https://matter-labs.github.io/zksync-era/core/latest/guides/advanced/12_alternative_vm_intro.html#bytecode-hashes
+bytes32 constant uniswapV3InitHashEraVm = 0x010013f177ea1fcbc4520f9a3ca7cd2d1d77959e05aa66484027cb38e712aeed;
+uint8 constant uniswapV3ForkId = 0;
+
+interface IUniswapV3Callback {
+    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external;
+}

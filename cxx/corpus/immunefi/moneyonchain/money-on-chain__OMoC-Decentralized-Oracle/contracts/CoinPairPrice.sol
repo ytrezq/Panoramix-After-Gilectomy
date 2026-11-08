@@ -1,0 +1,434 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity 0.6.12;
+pragma experimental ABIEncoderV2;
+
+import {IERC20} from "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
+import {SafeMath} from "@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
+import {IGovernor} from "@moc/periphery/contracts/moc-governance/Governance/IGovernor.sol";
+import {IPriceProvider} from "@moc/periphery/contracts/IPriceProvider.sol";
+import {IRegistry} from "@moc/periphery/contracts/IRegistry.sol";
+import {IPriceProviderRegisterEntry} from "@moc/periphery/contracts/IPriceProviderRegisterEntry.sol";
+import {SubscribedOraclesLib} from "./libs/SubscribedOraclesLib.sol";
+import {IterableWhitelistLib} from "./libs/IterableWhitelistLib.sol";
+import {OracleManager} from "./OracleManager.sol";
+import {RoundManager} from "./RoundManager.sol";
+
+/// @title This contract provides an interface for feeding prices from oracles, and
+///        get the current price. One contract must be instanced per supported coin pair,
+///        and registered through OracleManager global contract.
+contract CoinPairPrice is RoundManager, IPriceProvider, IPriceProviderRegisterEntry {
+    using SubscribedOraclesLib for SubscribedOraclesLib.SubscribedOracles;
+    using SafeMath for uint256;
+
+    event PricePublished(address sender, uint256 price, address votedOracle, uint256 blockNumber);
+    event EmergencyPricePublished(
+        address sender,
+        uint256 price,
+        address votedOracle,
+        uint256 blockNumber
+    );
+    event ForcedPriceQueryModeSet(address indexed setter, PriceQueryMode mode);
+
+    constructor() public initializer {
+        // Avoid leaving the implementation contract uninitialized.
+    }
+
+    /// @notice Construct a new contract
+    /// @param _governor The governor address.
+    /// @param _wlist List of whitelisted contracts (those that can get the price).
+    /// @param _coinPair The coinpair, ex: USDBTC.
+    /// @param _tokenAddress The address of the MOC token to use.
+    /// @param _roundConfig Round-level config values:
+    ///        maxOraclesPerRound, maxSubscribedOraclesPerRound, roundLockPeriod, maxMissedSigRounds.
+    /// @dev _roundConfig.maxMissedSigRounds defines maximum consecutive rounds without valid signatures
+    ///        before automatic unsubscribe. Set to 0 to disable.
+    /// @param _validPricePeriodInBlocks The time span for which the last published price is valid.
+    /// @param _emergencyPublishingPeriodInBlocks The number of blocks that must pass after a publication after which
+    //          an emergency publishing must be enabled
+    /// @param _bootstrapPrice A price to be set as a bootstraping value for this block
+    /// @param _oracleManager The contract of the oracle manager.
+    function initialize(
+        IGovernor _governor,
+        address[] calldata _wlist,
+        bytes32 _coinPair,
+        address _tokenAddress,
+        RoundConfig calldata _roundConfig,
+        uint256 _validPricePeriodInBlocks,
+        uint256 _emergencyPublishingPeriodInBlocks,
+        uint256 _bootstrapPrice,
+        OracleManager _oracleManager,
+        IRegistry _registry
+    ) external initializer {
+        RoundConfig memory roundConfig = _roundConfig;
+        __RoundManager_init(
+            _governor,
+            _coinPair,
+            _tokenAddress,
+            roundConfig,
+            _oracleManager,
+            _registry
+        );
+        require(
+            _validPricePeriodInBlocks > 0,
+            "The valid price period must be positive and non zero"
+        );
+        require(
+            _emergencyPublishingPeriodInBlocks > 0,
+            "The emergency publishing period must be positive and non zero"
+        );
+        require(_wlist.length != 0, "Whitelist must have at least one element");
+
+        for (uint256 i = 0; i < _wlist.length; i++) {
+            pricePeekWhitelistData._addToWhitelist(_wlist[i]);
+        }
+        validPricePeriodInBlocks = _validPricePeriodInBlocks;
+        emergencyPublishingPeriodInBlocks = _emergencyPublishingPeriodInBlocks;
+        _publish(_bootstrapPrice);
+    }
+
+    /// @notice return the type of provider
+    function getPriceProviderType() external override pure returns (IPriceProviderType) {
+        return IPriceProviderType.Published;
+    }
+
+    /// @notice Publish a price.
+    /// @param _version Version number of message format (3)
+    /// @param _coinpair The coin pair to report (must match this contract)
+    /// @param _price Price to report.
+    /// @param _votedOracle The address of the oracle voted as a publisher by the network.
+    /// @param _blockNumber The blocknumber acting as nonce to prevent replay attacks.
+    /// @param _sigV The array of V-component of Oracle signatures.
+    /// @param _sigR The array of R-component of Oracle signatures.
+    /// @param _sigS The array of S-component of Oracle signatures.
+    function publishPrice(
+        uint256 _version,
+        bytes32 _coinpair,
+        uint256 _price,
+        address _votedOracle,
+        uint256 _blockNumber,
+        uint8[] calldata _sigV,
+        bytes32[] calldata _sigR,
+        bytes32[] calldata _sigS
+    ) external {
+        // Fail stale competing publications before performing any other validation.
+        // _validateExecution repeats this check to preserve its internal invariant.
+        require(
+            _blockNumber == lastPublicationBlock,
+            "Blocknumber does not match the last publication block"
+        );
+        address ownerAddr = oracleManager.getOracleOwner(msg.sender);
+        require(_coinpair == coinPair, "Coin pair - contract mismatch");
+        require(_price > 0, "Price must be positive and non-zero");
+        //
+        // NOTE: Message Size is 148 = sizeof(uint256) +
+        // sizeof(uint256) + sizeof(uint256) + sizeof(address) +sizeof(uint256)
+        //
+
+        bytes memory hData = abi.encodePacked(
+            "\x19Ethereum Signed Message:\n148",
+            _version,
+            _coinpair,
+            _price,
+            _votedOracle,
+            _blockNumber
+        );
+
+        _validateExecution(
+            ownerAddr,
+            _version,
+            _votedOracle,
+            _blockNumber,
+            _sigV,
+            _sigR,
+            _sigS,
+            keccak256(hData)
+        );
+        _publish(_price);
+        roundInfo.addPoints(ownerAddr, 1);
+        emit PricePublished(ownerAddr, _price, _votedOracle, _blockNumber);
+    }
+
+    /// @notice Publish a price accepting V4 signatures with expiration and legacy V3 signatures.
+    function publishPriceWithExpiration(
+        uint256 _version,
+        bytes32 _coinpair,
+        uint256 _price,
+        address _votedOracle,
+        uint256 _blockNumber,
+        uint256 _expiration,
+        uint8[] calldata _sigV,
+        bytes32[] calldata _sigR,
+        bytes32[] calldata _sigS
+    ) external {
+        address ownerAddr = oracleManager.getOracleOwner(msg.sender);
+        require(_coinpair == coinPair, "Coin pair - contract mismatch");
+        require(_price > 0, "Price must be positive and non-zero");
+        require(block.timestamp <= _expiration, "Signature expired");
+        require(roundInfo.number > 0, "Round not open");
+        require(roundInfo.isSelected(ownerAddr), "Voter oracle is not part of this round");
+        require(
+            roundInfo.length() >= getMinOraclesPerRound(),
+            "Minimum selected oracles required not reached"
+        );
+        require(msg.sender == _votedOracle, "Your address does not match the voted oracle");
+        require(
+            _version == PUBLISH_MESSAGE_VERSION_WITH_EXPIRATION,
+            "This contract accepts only V4 format"
+        );
+        require(
+            _blockNumber == lastPublicationBlock,
+            "Blocknumber does not match the last publication block"
+        );
+
+        bytes32 messageHash = keccak256(abi.encodePacked(
+            "\x19Ethereum Signed Message:\n180",
+            _version,
+            _coinpair,
+            _price,
+            _votedOracle,
+            _blockNumber,
+            _expiration
+        ));
+        bytes32 legacyMessageHash = keccak256(abi.encodePacked(
+            "\x19Ethereum Signed Message:\n148",
+            PUBLISH_MESSAGE_VERSION,
+            _coinpair,
+            _price,
+            _votedOracle,
+            _blockNumber
+        ));
+
+        _validateExecutionWithExpiration(
+            _sigV,
+            _sigR,
+            _sigS,
+            messageHash,
+            legacyMessageHash
+        );
+        _publish(_price);
+        roundInfo.addPoints(ownerAddr, 1);
+        emit PricePublished(ownerAddr, _price, _votedOracle, _blockNumber);
+    }
+
+    /// @notice Publish a price without signature validation (when there is an emergecy!!!).
+    /// @param _price Price to report.
+    function emergencyPublish(uint256 _price)
+        external
+        onlyWhitelisted(emergencyPublishWhitelistData)
+    {
+        require(_price > 0, "Price must be positive and non-zero");
+        require(
+            block.number > lastPublicationBlock + emergencyPublishingPeriodInBlocks,
+            "Emergency publish period didn't started"
+        );
+
+        _publish(_price);
+
+        emit EmergencyPricePublished(msg.sender, _price, msg.sender, lastPublicationBlock);
+    }
+
+    modifier onlyGovernanceOrWhitelisted(
+        IterableWhitelistLib.IterableWhitelistData storage self
+    ) {
+        require(
+            governor.isAuthorizedChanger(msg.sender) || IterableWhitelistLib._isWhitelisted(self, msg.sender),
+            "Address is not authorized"
+        );
+        _;
+    }
+
+    /// @notice Set forced price query mode.
+    /// @param _mode 0 = Ok, 1 = Invalid, 2 = Revert.
+    function setPriceQueryMode(PriceQueryMode _mode)
+        external
+        onlyGovernanceOrWhitelisted(priceQueryModeWhitelistData)
+    {
+        priceQueryMode = _mode;
+        emit ForcedPriceQueryModeSet(msg.sender, _mode);
+    }
+
+    /// @notice Add an address to the list allowed to change the forced price query mode.
+    /// @param _account Address to whitelist.
+    function addPriceQueryModeWhitelist(address _account)
+        external
+        onlyAuthorizedChanger
+    {
+        priceQueryModeWhitelistData._addToWhitelist(_account);
+    }
+
+    /// @notice Remove an address from the list allowed to change the forced price query mode.
+    /// @param _account Address to remove from whitelist.
+    function removePriceQueryModeWhitelist(address _account)
+        external
+        onlyAuthorizedChanger
+    {
+        priceQueryModeWhitelistData._removeFromWhitelist(_account);
+    }
+
+    /// @notice Return the current forced price query mode.
+    function getPriceQueryMode() external view returns (PriceQueryMode) {
+        return priceQueryMode;
+    }
+
+    /// @notice Check if an address is allowed to change the forced price query mode.
+    function isPriceQueryModeWhitelisted(address _account)
+        external
+        view
+        returns (bool)
+    {
+        return priceQueryModeWhitelistData._isWhitelisted(_account);
+    }
+
+    /// @notice Return the number of addresses allowed to change the forced price query mode.
+    function getPriceQueryModeWhitelistLen() external view returns (uint256) {
+        return priceQueryModeWhitelistData._getWhiteListLen();
+    }
+
+    /// @notice Return the address allowed to change the forced price query mode at index.
+    /// @param _idx Index to query.
+    function getPriceQueryModeWhitelistAtIndex(uint256 _idx) external view returns (address) {
+        return priceQueryModeWhitelistData._getWhiteListAtIndex(_idx);
+    }
+
+    /// @notice Return the number of addresses allowed to query price peek data.
+    function getPricePeekWhitelistLen() external view returns (uint256) {
+        return pricePeekWhitelistData._getWhiteListLen();
+    }
+
+    /// @notice Return the address allowed to query price peek data at index.
+    /// @param _idx Index to query.
+    function getPricePeekWhitelistAtIndex(uint256 _idx) external view returns (address) {
+        return pricePeekWhitelistData._getWhiteListAtIndex(_idx);
+    }
+
+    /// @notice Add an address to the list allowed to query price peek data.
+    /// @param _account Address to whitelist.
+    function addPricePeekWhitelist(address _account)
+        external
+        onlyAuthorizedChanger
+    {
+        pricePeekWhitelistData._addToWhitelist(_account);
+    }
+
+    /// @notice Remove an address from the list allowed to query price peek data.
+    /// @param _account Address to remove from whitelist.
+    function removePricePeekWhitelist(address _account)
+        external
+        onlyAuthorizedChanger
+    {
+        pricePeekWhitelistData._removeFromWhitelist(_account);
+    }
+
+    /// @notice Check if an address is allowed to query price peek data.
+    function isPricePeekWhitelisted(address _account)
+        external
+        view
+        returns (bool)
+    {
+        return pricePeekWhitelistData._isWhitelisted(_account);
+    }
+
+    /// @notice Return the number of addresses allowed to emergency publish.
+    function getEmergencyPublishWhitelistLen() external view returns (uint256) {
+        return emergencyPublishWhitelistData._getWhiteListLen();
+    }
+
+    /// @notice Return the address allowed to emergency publish at index.
+    /// @param _idx Index to query.
+    function getEmergencyPublishWhitelistAtIndex(uint256 _idx) external view returns (address) {
+        return emergencyPublishWhitelistData._getWhiteListAtIndex(_idx);
+    }
+
+    // Legacy function compatible with old MOC Oracle.
+    // returns a tuple (uint256, bool) that corresponds
+    // to the price and if it is not expired.
+    function peek()
+        external
+        override(IPriceProvider)
+        view
+        whitelistedOrExternal(pricePeekWhitelistData)
+        returns (bytes32, bool)
+    {
+        return (bytes32(currentPrice), _getPriceValidity());
+    }
+
+    /// @notice Return the current price
+    function getPrice()
+        external
+        override(IPriceProvider)
+        view
+        whitelistedOrExternal(pricePeekWhitelistData)
+        returns (uint256)
+    {
+        _requireNotForcedRevert();
+        return currentPrice;
+    }
+
+    // Return if the price is not expired.
+    function getIsValid() external override view returns (bool) {
+        return _getPriceValidity();
+    }
+
+    // Return the result of getPrice, getIsValid and getLastPublicationBlock at once.
+    function getPriceInfo()
+        external
+        override
+        view
+        returns (
+            uint256,
+            bool,
+            uint256
+        )
+    {
+        return (currentPrice, _getPriceValidity(), lastPublicationBlock);
+    }
+
+    // Public variable
+    function getCoinPair() external view returns (bytes32) {
+        return coinPair;
+    }
+
+    // Public variable
+    function getLastPublicationBlock() external override(IPriceProvider) view returns (uint256) {
+        return lastPublicationBlock;
+    }
+
+    // Public variable
+    function getValidPricePeriodInBlocks() external view returns (uint256) {
+        return validPricePeriodInBlocks;
+    }
+
+    // Public variable
+    function getEmergencyPublishingPeriodInBlocks() external view returns (uint256) {
+        return emergencyPublishingPeriodInBlocks;
+    }
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // Internal functions
+    // ----------------------------------------------------------------------------------------------------------------
+
+    /// @notice return true if the price is valid
+    function _requireNotForcedRevert() private view {
+        if (priceQueryMode == PriceQueryMode.Revert) {
+            revert("Forced revert active");
+        }
+    }
+
+    function _getPriceValidity() private view returns (bool) {
+        PriceQueryMode mode = priceQueryMode;
+        if (mode == PriceQueryMode.Ok) {
+            require(block.number >= lastPublicationBlock, "Wrong lastPublicationBlock");
+            return (block.number - lastPublicationBlock) < validPricePeriodInBlocks;
+        }
+        if (mode == PriceQueryMode.Invalid) {
+            return false;
+        }
+        revert("Forced revert active");
+    }
+
+    // @notice publish a price, called only after verification.
+    function _publish(uint256 _price) private {
+        lastPublicationBlock = block.number;
+        currentPrice = _price;
+    }
+}

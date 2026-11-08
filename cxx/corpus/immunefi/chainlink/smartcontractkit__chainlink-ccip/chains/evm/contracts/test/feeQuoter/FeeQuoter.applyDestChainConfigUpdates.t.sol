@@ -1,0 +1,194 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity ^0.8.24;
+
+import {FeeQuoter} from "../../FeeQuoter.sol";
+import {Internal} from "../../libraries/Internal.sol";
+import {FeeQuoterSetup} from "./FeeQuoterSetup.t.sol";
+
+contract FeeQuoter_applyDestChainConfigUpdates is FeeQuoterSetup {
+  bytes4[] internal s_validChainFamilySelector =
+    [Internal.CHAIN_FAMILY_SELECTOR_EVM, Internal.CHAIN_FAMILY_SELECTOR_SVM];
+
+  function testFuzz_applyDestChainConfigUpdates(
+    FeeQuoter.DestChainConfigArgs memory destChainConfigArgs
+  ) public {
+    vm.assume(destChainConfigArgs.destChainSelector != 0);
+    vm.assume(destChainConfigArgs.destChainConfig.maxPerMsgGasLimit != 0);
+    vm.assume(destChainConfigArgs.destChainConfig.linkFeeMultiplierPercent != 0);
+    destChainConfigArgs.destChainConfig.defaultTxGasLimit = uint32(
+      bound(
+        destChainConfigArgs.destChainConfig.defaultTxGasLimit, 1, destChainConfigArgs.destChainConfig.maxPerMsgGasLimit
+      )
+    );
+
+    for (uint256 i = 0; i < s_validChainFamilySelector.length; ++i) {
+      destChainConfigArgs.destChainConfig.chainFamilySelector = s_validChainFamilySelector[i];
+      destChainConfigArgs.destChainSelector = uint64(
+        uint256(keccak256(abi.encodePacked(destChainConfigArgs.destChainSelector, s_validChainFamilySelector[i])))
+      );
+
+      FeeQuoter.DestChainConfigArgs[] memory newDestChainConfigArgs = new FeeQuoter.DestChainConfigArgs[](1);
+      newDestChainConfigArgs[0] = destChainConfigArgs;
+
+      vm.expectEmit();
+      emit FeeQuoter.DestChainAdded(destChainConfigArgs.destChainSelector, destChainConfigArgs.destChainConfig);
+
+      s_feeQuoter.applyDestChainConfigUpdates(newDestChainConfigArgs);
+
+      _assertFeeQuoterDestChainConfigsEqual(
+        destChainConfigArgs.destChainConfig, s_feeQuoter.getDestChainConfig(destChainConfigArgs.destChainSelector)
+      );
+    }
+  }
+
+  function test_applyDestChainConfigUpdates() public {
+    FeeQuoter.DestChainConfigArgs[] memory destChainConfigArgs = new FeeQuoter.DestChainConfigArgs[](4);
+    destChainConfigArgs[0] = _generateFeeQuoterDestChainConfigArgs()[0];
+    destChainConfigArgs[0].destChainConfig.isEnabled = false;
+
+    destChainConfigArgs[1] = _generateFeeQuoterDestChainConfigArgs()[0];
+    destChainConfigArgs[1].destChainSelector = DEST_CHAIN_SELECTOR + 1;
+    destChainConfigArgs[1].destChainConfig.chainFamilySelector = Internal.CHAIN_FAMILY_SELECTOR_SVM;
+
+    destChainConfigArgs[2] = _generateFeeQuoterDestChainConfigArgs()[0];
+    destChainConfigArgs[2].destChainSelector = DEST_CHAIN_SELECTOR + 2;
+    destChainConfigArgs[2].destChainConfig.chainFamilySelector = Internal.CHAIN_FAMILY_SELECTOR_APTOS;
+
+    destChainConfigArgs[3] = _generateFeeQuoterDestChainConfigArgs()[0];
+    destChainConfigArgs[3].destChainSelector = DEST_CHAIN_SELECTOR + 3;
+    destChainConfigArgs[3].destChainConfig.chainFamilySelector = Internal.CHAIN_FAMILY_SELECTOR_SUI;
+
+    vm.expectEmit();
+    emit FeeQuoter.DestChainConfigUpdated(DEST_CHAIN_SELECTOR, destChainConfigArgs[0].destChainConfig);
+    vm.expectEmit();
+    emit FeeQuoter.DestChainAdded(DEST_CHAIN_SELECTOR + 1, destChainConfigArgs[1].destChainConfig);
+
+    vm.recordLogs();
+    s_feeQuoter.applyDestChainConfigUpdates(destChainConfigArgs);
+
+    FeeQuoter.DestChainConfig memory gotDestChainConfig0 = s_feeQuoter.getDestChainConfig(DEST_CHAIN_SELECTOR);
+    FeeQuoter.DestChainConfig memory gotDestChainConfig1 = s_feeQuoter.getDestChainConfig(DEST_CHAIN_SELECTOR + 1);
+    FeeQuoter.DestChainConfig memory gotDestChainConfig2 = s_feeQuoter.getDestChainConfig(DEST_CHAIN_SELECTOR + 2);
+    FeeQuoter.DestChainConfig memory gotDestChainConfig3 = s_feeQuoter.getDestChainConfig(DEST_CHAIN_SELECTOR + 3);
+
+    assertEq(vm.getRecordedLogs().length, destChainConfigArgs.length);
+    _assertFeeQuoterDestChainConfigsEqual(destChainConfigArgs[0].destChainConfig, gotDestChainConfig0);
+    _assertFeeQuoterDestChainConfigsEqual(destChainConfigArgs[1].destChainConfig, gotDestChainConfig1);
+    _assertFeeQuoterDestChainConfigsEqual(destChainConfigArgs[2].destChainConfig, gotDestChainConfig2);
+    _assertFeeQuoterDestChainConfigsEqual(destChainConfigArgs[3].destChainConfig, gotDestChainConfig3);
+  }
+
+  function test_applyDestChainConfigUpdates_ZeroInputDoesNotEmitLog() public {
+    FeeQuoter.DestChainConfigArgs[] memory destChainConfigArgs = new FeeQuoter.DestChainConfigArgs[](0);
+
+    vm.recordLogs();
+    s_feeQuoter.applyDestChainConfigUpdates(destChainConfigArgs);
+
+    assertEq(vm.getRecordedLogs().length, 0);
+  }
+
+  function test_getAllDestChainConfigs() public {
+    // Set up multiple destination chain configs
+    FeeQuoter.DestChainConfigArgs[] memory destChainConfigArgs = new FeeQuoter.DestChainConfigArgs[](3);
+
+    destChainConfigArgs[0] = _generateFeeQuoterDestChainConfigArgs()[0];
+    destChainConfigArgs[0].destChainSelector = DEST_CHAIN_SELECTOR;
+    destChainConfigArgs[0].destChainConfig.chainFamilySelector = Internal.CHAIN_FAMILY_SELECTOR_EVM;
+
+    destChainConfigArgs[1] = _generateFeeQuoterDestChainConfigArgs()[0];
+    destChainConfigArgs[1].destChainSelector = DEST_CHAIN_SELECTOR + 1;
+    destChainConfigArgs[1].destChainConfig.chainFamilySelector = Internal.CHAIN_FAMILY_SELECTOR_SVM;
+
+    destChainConfigArgs[2] = _generateFeeQuoterDestChainConfigArgs()[0];
+    destChainConfigArgs[2].destChainSelector = DEST_CHAIN_SELECTOR + 2;
+    destChainConfigArgs[2].destChainConfig.chainFamilySelector = Internal.CHAIN_FAMILY_SELECTOR_APTOS;
+
+    // Apply the configs
+    s_feeQuoter.applyDestChainConfigUpdates(destChainConfigArgs);
+
+    // Get all dest chain configs
+    (uint64[] memory destChainSelectors, FeeQuoter.DestChainConfig[] memory destChainConfigs) =
+      s_feeQuoter.getAllDestChainConfigs();
+
+    // Verify arrays are the same length
+    assertEq(destChainSelectors.length, destChainConfigs.length, "Arrays should have same length");
+
+    // Verify we got all the configs (including any that were set up in the test setup)
+    // We need to find our configs in the returned arrays
+    uint256 foundCount = 0;
+    for (uint256 i = 0; i < destChainSelectors.length; ++i) {
+      for (uint256 j = 0; j < destChainConfigArgs.length; ++j) {
+        if (destChainSelectors[i] == destChainConfigArgs[j].destChainSelector) {
+          _assertFeeQuoterDestChainConfigsEqual(destChainConfigArgs[j].destChainConfig, destChainConfigs[i]);
+          foundCount++;
+          break;
+        }
+      }
+    }
+
+    // Verify we found all the configs we just added
+    assertGe(foundCount, destChainConfigArgs.length, "Should find all configured chains");
+  }
+
+  // Reverts
+
+  function test_applyDestChainConfigUpdates_RevertWhen_DefaultTxGasLimitEqZero() public {
+    FeeQuoter.DestChainConfigArgs[] memory destChainConfigArgs = _generateFeeQuoterDestChainConfigArgs();
+    FeeQuoter.DestChainConfigArgs memory destChainConfigArg = destChainConfigArgs[0];
+
+    destChainConfigArg.destChainConfig.defaultTxGasLimit = 0;
+    vm.expectRevert(
+      abi.encodeWithSelector(FeeQuoter.InvalidDestChainConfig.selector, destChainConfigArg.destChainSelector)
+    );
+    s_feeQuoter.applyDestChainConfigUpdates(destChainConfigArgs);
+  }
+
+  function test_applyDestChainConfigUpdates_RevertWhen_DefaultTxGasLimitGtMaxPerMessageGasLimit() public {
+    FeeQuoter.DestChainConfigArgs[] memory destChainConfigArgs = _generateFeeQuoterDestChainConfigArgs();
+    FeeQuoter.DestChainConfigArgs memory destChainConfigArg = destChainConfigArgs[0];
+
+    // Allow setting to the max value
+    destChainConfigArg.destChainConfig.defaultTxGasLimit = destChainConfigArg.destChainConfig.maxPerMsgGasLimit;
+    s_feeQuoter.applyDestChainConfigUpdates(destChainConfigArgs);
+
+    // Revert when exceeding max value
+    destChainConfigArg.destChainConfig.defaultTxGasLimit = destChainConfigArg.destChainConfig.maxPerMsgGasLimit + 1;
+    vm.expectRevert(
+      abi.encodeWithSelector(FeeQuoter.InvalidDestChainConfig.selector, destChainConfigArg.destChainSelector)
+    );
+    s_feeQuoter.applyDestChainConfigUpdates(destChainConfigArgs);
+  }
+
+  function test_applyDestChainConfigUpdates_RevertWhen_InvalidDestChainConfigDestChainSelectorEqZero() public {
+    FeeQuoter.DestChainConfigArgs[] memory destChainConfigArgs = _generateFeeQuoterDestChainConfigArgs();
+    FeeQuoter.DestChainConfigArgs memory destChainConfigArg = destChainConfigArgs[0];
+
+    destChainConfigArg.destChainSelector = 0;
+    vm.expectRevert(
+      abi.encodeWithSelector(FeeQuoter.InvalidDestChainConfig.selector, destChainConfigArg.destChainSelector)
+    );
+    s_feeQuoter.applyDestChainConfigUpdates(destChainConfigArgs);
+  }
+
+  function test_applyDestChainConfigUpdates_RevertWhen_InvalidDestChainConfig_LinkFeeMultiplierPercentEqZero() public {
+    FeeQuoter.DestChainConfigArgs[] memory destChainConfigArgs = _generateFeeQuoterDestChainConfigArgs();
+    FeeQuoter.DestChainConfigArgs memory destChainConfigArg = destChainConfigArgs[0];
+
+    destChainConfigArg.destChainConfig.linkFeeMultiplierPercent = 0;
+    vm.expectRevert(
+      abi.encodeWithSelector(FeeQuoter.InvalidDestChainConfig.selector, destChainConfigArg.destChainSelector)
+    );
+    s_feeQuoter.applyDestChainConfigUpdates(destChainConfigArgs);
+  }
+
+  function test_applyDestChainConfigUpdates_RevertWhen_InvalidDestChainConfig_ChainFamilySelectorEqZero() public {
+    FeeQuoter.DestChainConfigArgs[] memory destChainConfigArgs = _generateFeeQuoterDestChainConfigArgs();
+    FeeQuoter.DestChainConfigArgs memory destChainConfigArg = destChainConfigArgs[0];
+
+    destChainConfigArg.destChainConfig.chainFamilySelector = bytes4(0);
+    vm.expectRevert(
+      abi.encodeWithSelector(FeeQuoter.InvalidDestChainConfig.selector, destChainConfigArg.destChainSelector)
+    );
+    s_feeQuoter.applyDestChainConfigUpdates(destChainConfigArgs);
+  }
+}

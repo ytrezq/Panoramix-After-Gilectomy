@@ -1,0 +1,114 @@
+{
+ "program": "axelarnetwork",
+ "repos": [
+  {
+   "repo": "https://github.com/axelarnetwork/interchain-token-service",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "0f4b03706c79ed9c364edd080aca4ae23a7e3642",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "MIT",
+    "package_json": "MIT",
+    "headers": {
+     "MIT": 70
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 70
+   },
+   "npm": {
+    "node_modules/@axelar-network/axelar-gmp-sdk-solidity": "6.0.6",
+    "node_modules/@axelar-network/axelar-cgp-solidity": "6.4.0"
+   },
+   "copied": true,
+   "files": 282,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "axelarnetwork__interchain-token-service",
+   "subtrees": [
+    {
+     "prefix": "axelarnetwork__interchain-token-service",
+     "url": "https://github.com/axelarnetwork/interchain-token-service",
+     "commit": "0f4b03706c79ed9c364edd080aca4ae23a7e3642",
+     "files": 73
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/axelarnetwork/axelar-cgp-solidity",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "a4367a0006ab5852fe705e7e4cd15ee6d6ea6bef",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "MIT",
+    "package_json": "MIT",
+    "headers": {
+     "MIT": 42
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 42
+   },
+   "npm": {
+    "node_modules/@axelar-network/axelar-gmp-sdk-solidity": "6.1.0"
+   },
+   "copied": true,
+   "files": 202,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "axelarnetwork__axelar-cgp-solidity",
+   "subtrees": [
+    {
+     "prefix": "axelarnetwork__axelar-cgp-solidity",
+     "url": "https://github.com/axelarnetwork/axelar-cgp-solidity",
+     "commit": "a4367a0006ab5852fe705e7e4cd15ee6d6ea6bef",
+     "files": 45
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/axelarnetwork/axelar-gmp-sdk-solidity",
+   "ref": "main",
+   "scope_paths": [
+    "contracts/governance/InterchainGovernance.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "30196ca7cb9479fd5f79f0668523bd2a488093ed",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "MIT",
+    "package_json": "MIT",
+    "headers": {
+     "MIT": 149
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 149
+   },
+   "npm": {},
+   "copied": true,
+   "files": 156,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "axelarnetwork__axelar-gmp-sdk-solidity",
+   "subtrees": [
+    {
+     "prefix": "axelarnetwork__axelar-gmp-sdk-solidity",
+     "url": "https://github.com/axelarnetwork/axelar-gmp-sdk-solidity",
+     "commit": "30196ca7cb9479fd5f79f0668523bd2a488093ed",
+     "files": 152
+    }
+   ]
+  }
+ ]
+}

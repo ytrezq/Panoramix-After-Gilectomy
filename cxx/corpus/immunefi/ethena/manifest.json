@@ -1,0 +1,248 @@
+{
+ "program": "ethena",
+ "repos": [
+  {
+   "repo": "https://github.com/ethena-labs/bbp-public-assets",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "f3e56d5f06bfef82367d5d5b561398e91d5bebc1",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "UNLICENSED": 1,
+     "GPL-3.0-or-later": 5,
+     "Unlicense": 1,
+     "MIT": 351,
+     "(none)": 1,
+     "BUSL-1.1": 6,
+     "BSD-3-Clause": 1,
+     "GPL-3.0": 32,
+     "GPL-2.0-or-later": 1,
+     "WTFPL": 2,
+     "BSD-4-Clause": 1
+    },
+    "headers_main": {
+     "MIT": 221,
+     "GPL-3.0-or-later": 3,
+     "BUSL-1.1": 6,
+     "GPL-3.0": 30,
+     "GPL-2.0-or-later": 1,
+     "WTFPL": 2,
+     "BSD-4-Clause": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 402
+   },
+   "npm": {},
+   "workspace_links": {
+    "contracts/lib/forge-std/node_modules/ds-test": "contracts/lib/forge-std/lib/ds-test",
+    "contracts/lib/openzeppelin-contracts/node_modules/forge-std": "contracts/lib/forge-std"
+   },
+   "copied": true,
+   "files": 446,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "ethena-labs__bbp-public-assets",
+   "subtrees": [
+    {
+     "prefix": "ethena-labs__bbp-public-assets",
+     "url": "https://github.com/ethena-labs/bbp-public-assets",
+     "commit": "f3e56d5f06bfef82367d5d5b561398e91d5bebc1",
+     "files": 423
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/ethena-labs/ethena-usdtb-contest",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "2e7c9f688d90e0651ff54a5e0d47fca57e9c704d",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
+     "commit": "16e0ae21e0e39049f619f2396fa28c57fad07368"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b6a506db2262cad5ff982a87789ee6d1558ec861"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils",
+     "url": "https://github.com/Arachnid/solidity-stringutils",
+     "commit": "4b2fcc43fa0426e19ce88b1f1ec16f5903a2e461"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "2d081f24cac1a867f6f73d512f2022e1fa987854"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "UNLICENSED": 2,
+     "GPL-3.0-or-later": 1,
+     "Unlicense": 1,
+     "MIT": 16,
+     "GPL-3.0": 8
+    },
+    "headers_main": {
+     "GPL-3.0": 6,
+     "MIT": 4
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 28
+   },
+   "npm": {},
+   "copied": true,
+   "files": 927,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "ethena-labs__ethena-usdtb-contest",
+   "subtrees": [
+    {
+     "prefix": "ethena-labs__ethena-usdtb-contest",
+     "url": "https://github.com/ethena-labs/ethena-usdtb-contest",
+     "commit": "2e7c9f688d90e0651ff54a5e0d47fca57e9c704d",
+     "files": 31
+    },
+    {
+     "prefix": "ethena-labs__ethena-usdtb-contest/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262",
+     "files": 47
+    },
+    {
+     "prefix": "ethena-labs__ethena-usdtb-contest/lib/openzeppelin-foundry-upgrades",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
+     "commit": "16e0ae21e0e39049f619f2396fa28c57fad07368",
+     "files": 55
+    },
+    {
+     "prefix": "ethena-labs__ethena-usdtb-contest/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dc44c9f1a4c3b10af99492eed84f83ed244203f6",
+     "files": 295
+    },
+    {
+     "prefix": "ethena-labs__ethena-usdtb-contest/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "2d081f24cac1a867f6f73d512f2022e1fa987854",
+     "files": 291
+    },
+    {
+     "prefix": "ethena-labs__ethena-usdtb-contest/lib/openzeppelin-foundry-upgrades/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b6a506db2262cad5ff982a87789ee6d1558ec861",
+     "files": 47
+    },
+    {
+     "prefix": "ethena-labs__ethena-usdtb-contest/lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils",
+     "url": "https://github.com/Arachnid/solidity-stringutils",
+     "commit": "4b2fcc43fa0426e19ce88b1f1ec16f5903a2e461",
+     "files": 7
+    },
+    {
+     "prefix": "ethena-labs__ethena-usdtb-contest/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
+     "files": 39
+    },
+    {
+     "prefix": "ethena-labs__ethena-usdtb-contest/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
+     "files": 3
+    },
+    {
+     "prefix": "ethena-labs__ethena-usdtb-contest/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
+     "files": 39
+    },
+    {
+     "prefix": "ethena-labs__ethena-usdtb-contest/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
+     "files": 3
+    },
+    {
+     "prefix": "ethena-labs__ethena-usdtb-contest/lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248",
+     "files": 4
+    },
+    {
+     "prefix": "ethena-labs__ethena-usdtb-contest/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
+     "files": 6
+    },
+    {
+     "prefix": "ethena-labs__ethena-usdtb-contest/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
+     "files": 6
+    }
+   ]
+  }
+ ]
+}

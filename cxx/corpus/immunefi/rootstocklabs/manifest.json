@@ -1,0 +1,200 @@
+{
+ "program": "rootstocklabs",
+ "repos": [
+  {
+   "repo": "https://github.com/rsksmart/liquidity-bridge-contract",
+   "ref": "v2.0.1",
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "4066b8fb726bb6c7cf9c0fb7d2761ff6739c8793",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8bbcf6e3f8f62f419e5429a0bd89331c85c37824"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
+     "commit": "cbce1e00305e943aa1661d43f41e5ac72c662b07"
+    },
+    {
+     "path": "lib/openzeppelin-foundry-upgrades/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "7bf4727aacdbfaa0f36cbd664654d0c9e1dc52bf"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "5fd1781b1454fd1ef8e722282f86f9293cacf256"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "MIT",
+    "package_json": "ISC",
+    "headers": {
+     "MIT": 152,
+     "LGPL-3.0-only": 36,
+     "(none)": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 189
+   },
+   "npm": {
+    "node_modules/@rsksmart/btc-transaction-solidity-helper": "0.3.0"
+   },
+   "copied": true,
+   "files": 1164,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "rsksmart__liquidity-bridge-contract",
+   "subtrees": [
+    {
+     "prefix": "rsksmart__liquidity-bridge-contract",
+     "url": "https://github.com/rsksmart/liquidity-bridge-contract",
+     "commit": "4066b8fb726bb6c7cf9c0fb7d2761ff6739c8793",
+     "files": 195
+    },
+    {
+     "prefix": "rsksmart__liquidity-bridge-contract/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8bbcf6e3f8f62f419e5429a0bd89331c85c37824",
+     "files": 49
+    },
+    {
+     "prefix": "rsksmart__liquidity-bridge-contract/lib/openzeppelin-foundry-upgrades",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
+     "commit": "cbce1e00305e943aa1661d43f41e5ac72c662b07",
+     "files": 57
+    },
+    {
+     "prefix": "rsksmart__liquidity-bridge-contract/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "7bf4727aacdbfaa0f36cbd664654d0c9e1dc52bf",
+     "files": 260
+    },
+    {
+     "prefix": "rsksmart__liquidity-bridge-contract/lib/openzeppelin-foundry-upgrades/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66",
+     "files": 47
+    },
+    {
+     "prefix": "rsksmart__liquidity-bridge-contract/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
+     "files": 43
+    },
+    {
+     "prefix": "rsksmart__liquidity-bridge-contract/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
+     "files": 3
+    },
+    {
+     "prefix": "rsksmart__liquidity-bridge-contract/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c",
+     "files": 3
+    },
+    {
+     "prefix": "rsksmart__liquidity-bridge-contract/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "5fd1781b1454fd1ef8e722282f86f9293cacf256",
+     "files": 400
+    },
+    {
+     "prefix": "rsksmart__liquidity-bridge-contract/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
+     "files": 43
+    },
+    {
+     "prefix": "rsksmart__liquidity-bridge-contract/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
+     "files": 3
+    },
+    {
+     "prefix": "rsksmart__liquidity-bridge-contract/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c",
+     "files": 3
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/riflabs/RIF-Token",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "8c4a514de6a36e81b5f4cf120ae3df78a01c9d51",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "(none)": 25
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 25
+   },
+   "copied": true,
+   "via": "git subtree",
+   "files": 28,
+   "subtrees": [
+    {
+     "prefix": "riflabs__RIF-Token",
+     "url": "https://github.com/riflabs/RIF-Token",
+     "commit": "8c4a514de6a36e81b5f4cf120ae3df78a01c9d51",
+     "files": 25
+    }
+   ],
+   "npm": {},
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "riflabs__RIF-Token",
+   "license_note": "its license does not allow redistribution: added at the owner's request, its license files kept"
+  }
+ ]
+}

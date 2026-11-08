@@ -1,0 +1,27 @@
+{
+  "type": "module",
+  "name": "@sky-ecosystem/protego",
+  "version": "0.3.0",
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+  },
+  "exports": {
+    ".": "./module.js"
+  },
+  "bin": {
+    "protego": "cli.js"
+  },
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "commander": "^13.1.0",
+    "ethers": "^6.13.1",
+    "figlet": "^1.8.1",
+    "prompts": "^2.4.2",
+    "table": "^6.8.2",
+    "yocto-spinner": "^0.2.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "prettier": "^3.5.3"
+  }
+}

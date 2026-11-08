@@ -1,0 +1,14 @@
+{
+  "lib/aave-delivery-infrastructure": {
+    "branch": {
+      "name": "main",
+      "rev": "e4e2500c58fa1eeaa3ffd8f352bdc55c576c1148"
+    }
+  },
+  "lib/aave-helpers": {
+    "branch": {
+      "name": "main",
+      "rev": "e31e62444964511bf8c8c39bbdb1669cba508826"
+    }
+  }
+}

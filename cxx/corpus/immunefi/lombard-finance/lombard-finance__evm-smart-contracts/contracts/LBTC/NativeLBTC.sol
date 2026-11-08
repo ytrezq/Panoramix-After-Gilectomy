@@ -1,0 +1,565 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.24;
+
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {IBascule} from "../bascule/interfaces/IBascule.sol";
+import {INativeLBTC} from "./interfaces/INativeLBTC.sol";
+import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
+import {IAssetRouter} from "./interfaces/IAssetRouter.sol";
+import {Actions} from "../libs/Actions.sol";
+import {Assert} from "./libraries/Assert.sol";
+import {BaseLBTC} from "./BaseLBTC.sol";
+
+/**
+ * @title ERC20 representation of Liquid Bitcoin
+ * @author Lombard.Finance
+ * @notice This contract is part of the Lombard.Finance protocol
+ * @custom:security-contact security@lombard.finance
+ */
+contract NativeLBTC is INativeLBTC, BaseLBTC {
+    /// @custom:storage-location erc7201:lombardfinance.storage.NativeLBTC
+    struct NativeLBTCStorage {
+        // slot: 20 + 8 + 1 | 29/32
+        address consortium;
+        /// @custom:oz-renamed-from burnCommission
+        uint64 __removed__burnCommission;
+        /// @custom:oz-renamed-from isWithdrawalsEnabled
+        bool __removed__isWithdrawalsEnabled;
+        // slot: 20 | 20/32
+        address treasury;
+        // slot: 20 | 20/32
+        IBascule bascule;
+        // other slots by 32
+        /// @custom:oz-renamed-from name
+        string __removed__name;
+        /// @custom:oz-renamed-from symbol
+        string __removed__symbol;
+        /// @custom:oz-renamed-from dustFeeRate
+        uint256 __removed__dustFeeRate;
+        /// @custom:oz-renamed-from maximumFee
+        uint256 __removed__maximumFee;
+        mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
+        IAssetRouter assetRouter;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.NativeLBTC")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant NATIVE_LBTC_STORAGE_LOCATION =
+        0xb773c428c0cecc1b857b133b10e11481edd580cedc90e62754fff20b7c0d6000;
+
+    bytes32 public constant CLAIMER_ROLE = keccak256("CLAIMER_ROLE");
+
+    /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// INTIALIZERS ///
+
+    function initialize(
+        address consortium_,
+        address treasury_,
+        string calldata name_,
+        string calldata symbol_,
+        address initialOwner,
+        uint48 initialOwnerDelay
+    ) external initializer {
+        __AccessControlDefaultAdminRules_init(initialOwnerDelay, initialOwner);
+
+        __ERC20_init("", "");
+        __ERC20Pausable_init();
+
+        __ReentrancyGuard_init();
+        __ERC20Permit_init(name_);
+
+        __NativeLBTC_init(name_, symbol_, consortium_, treasury_);
+    }
+
+    /// ONLY OWNER FUNCTIONS ///
+
+    function toggleRedeemsForBtc() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _getNativeLBTCStorage().assetRouter.toggleRedeem();
+    }
+
+    function changeNameAndSymbol(
+        string calldata name_,
+        string calldata symbol_
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeNameAndSymbol(name_, symbol_);
+    }
+
+    function changeConsortium(
+        address newVal
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeConsortium(newVal);
+    }
+
+    function changeTreasuryAddress(
+        address newValue
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeTreasury(newValue);
+    }
+
+    /**
+     * Change the address of the Bascule drawbridge contract.
+     * Setting the address to 0 disables the Bascule check.
+     * @param newVal The new address.
+     *
+     * Emits a {BasculeChanged} event.
+     */
+    function changeBascule(
+        address newVal
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeBascule(newVal);
+    }
+
+    function changeAssetRouter(
+        address newVal
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeAssetRouter(newVal);
+    }
+
+    function changeRedeemFee(
+        uint256 newVal
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeRedeemFee(newVal);
+    }
+
+    function changeRedeemForBtcMinAmount(
+        uint256 newVal
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeRedeemForBtcMinAmount(newVal);
+    }
+
+    /// GETTERS ///
+
+    /// @notice Returns the maximum mint commission for this token from the asset router.
+    /// @return mintFee The configured max mint commission (reverts if asset router is not set).
+    function getMintFee() external view returns (uint256) {
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
+        return IAssetRouter($.assetRouter).maxMintCommission(address(this));
+    }
+
+    /// @notice Calculate the amount that will be unstaked and check if it's above the dust limit
+    /// @dev This function can be used by front-ends to verify burn amounts before submitting a transaction
+    /// @param scriptPubkey The Bitcoin script public key as a byte array
+    /// @param amount The amount of NativeLBTC to be burned
+    /// @return amountAfterFee The amount that will be unstaked (after deducting the burn commission)
+    /// @return isAboveDust Whether the amountAfterFee is equal to or above the dust limit
+    function calcUnstakeRequestAmount(
+        bytes calldata scriptPubkey,
+        uint256 amount
+    ) external view returns (uint256 amountAfterFee, bool isAboveDust) {
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        return
+            $.assetRouter.calcUnstakeRequestAmount(
+                address(this),
+                scriptPubkey,
+                amount
+            );
+    }
+
+    function consortium() external view virtual returns (address) {
+        return _getNativeLBTCStorage().consortium;
+    }
+
+    function getAssetRouter() external view override returns (address) {
+        return address(_getNativeLBTCStorage().assetRouter);
+    }
+
+    /// @notice Token decimals for user-facing amounts (same as BTC).
+    /// @dev NativeLBTC represents BTC; precision matches satoshi-style 1e8 units.
+    /// @return Always 8 (BTC-style decimals).
+    function decimals() public view virtual override returns (uint8) {
+        return 8;
+    }
+
+    function isNative() public pure returns (bool) {
+        return true;
+    }
+
+    function isRedeemsEnabled() public view override returns (bool) {
+        (, , bool isRedeemEnabled) = _getNativeLBTCStorage()
+            .assetRouter
+            .tokenConfig(address(this));
+        return isRedeemEnabled;
+    }
+
+    function getTreasury() public view override returns (address) {
+        return _getNativeLBTCStorage().treasury;
+    }
+
+    function toNativeCommission() public view returns (uint64) {
+        return
+            _getNativeLBTCStorage().assetRouter.toNativeCommission(
+                address(this)
+            );
+    }
+
+    function getRedeemFee() public view override returns (uint256) {
+        (uint256 redeemFee, , ) = _getNativeLBTCStorage()
+            .assetRouter
+            .tokenConfig(address(this));
+        return redeemFee;
+    }
+
+    function getRedeemForBtcMinAmount() public view returns (uint256) {
+        (, uint256 redeemForBtcMinAmount, ) = _getNativeLBTCStorage()
+            .assetRouter
+            .tokenConfig(address(this));
+        return redeemForBtcMinAmount;
+    }
+
+    /// @notice Deposit monitor (Bascule) contract configured for this deployment.
+    /// @return bascule The `IBascule` instance stored in NativeLBTC storage.
+    function Bascule() external view returns (IBascule) {
+        return _getNativeLBTCStorage().bascule;
+    }
+
+    /// USER ACTIONS ///
+
+    /**
+     * @notice Mint NativeLBTC to the specified address
+     * @param to The address to mint to
+     * @param amount The amount of NativeLBTC to mint
+     * @dev Only callable by whitelisted minters
+     */
+    function mint(
+        address to,
+        uint256 amount
+    ) external override onlyRole(MINTER_ROLE) whenMintBurnAllowed {
+        _mintWithLimit(to, amount);
+    }
+
+    /**
+     * @notice Mint NativeLBTC in batches
+     * @param to The addresses to mint to
+     * @param amount The amounts of NativeLBTC to mint
+     * @dev Only callable by whitelisted minters
+     */
+    function batchMint(
+        address[] calldata to,
+        uint256[] calldata amount
+    ) external onlyRole(MINTER_ROLE) whenMintBurnAllowed {
+        _batchMintWithLimit(to, amount);
+    }
+
+    /**
+     * @notice Mint NativeLBTC by proving DepositV1 payload
+     * @param rawPayload The message with the stake data
+     * @param proof Signature of the consortium approving the mint
+     */
+    function mintV1(
+        bytes calldata rawPayload,
+        bytes calldata proof
+    ) public nonReentrant whenMintBurnAllowed {
+        _mint(rawPayload, proof);
+    }
+
+    /**
+     * @notice Mint NativeLBTC in batches by DepositV1 payloads
+     * @param payload The messages with the stake data
+     * @param proof Signatures of the consortium approving the mints
+     */
+    function batchMintV1(
+        bytes[] calldata payload,
+        bytes[] calldata proof
+    ) external whenMintBurnAllowed {
+        Assert.equalLength(payload.length, proof.length);
+
+        for (uint256 i; i < payload.length; ++i) {
+            // Pre-emptive check if payload was used. If so, we can skip the call.
+            bytes32 payloadHash = sha256(payload[i]);
+            if (_getNativeLBTCStorage().usedPayloads[payloadHash]) {
+                emit BatchMintSkipped(payloadHash, payload[i]);
+                continue;
+            }
+
+            mintV1(payload[i], proof[i]);
+        }
+    }
+
+    /**
+     * @notice Mint NativeLBTC applying a commission to the amount
+     * @dev Payload should be same as mint to avoid reusing them with and without fee
+     * @param mintPayload DepositV1 payload
+     * @param proof Signature of the consortium approving the mint
+     * @param feePayload Contents of the fee approval signed by the user
+     * @param userSignature Signature of the user to allow Fee
+     */
+    function mintV1WithFee(
+        bytes calldata mintPayload,
+        bytes calldata proof,
+        bytes calldata feePayload,
+        bytes calldata userSignature
+    ) external onlyRole(CLAIMER_ROLE) whenMintBurnAllowed {
+        _mintWithFee(mintPayload, proof, feePayload, userSignature);
+    }
+
+    /**
+     * @notice Mint NativeLBTC in batches proving stake actions happened
+     * @param mintPayload DepositV1 payloads
+     * @param proof Signatures of the consortium approving the mints
+     * @param feePayload Contents of the fee approvals signed by the user
+     * @param userSignature Signatures of the user to allow Fees
+     */
+    function batchMintV1WithFee(
+        bytes[] calldata mintPayload,
+        bytes[] calldata proof,
+        bytes[] calldata feePayload,
+        bytes[] calldata userSignature
+    ) external onlyRole(CLAIMER_ROLE) whenMintBurnAllowed {
+        Assert.equalLength(mintPayload.length, proof.length);
+        Assert.equalLength(mintPayload.length, feePayload.length);
+        Assert.equalLength(mintPayload.length, userSignature.length);
+
+        for (uint256 i; i < mintPayload.length; ++i) {
+            // Pre-emptive check if payload was used. If so, we can skip the call.
+            bytes32 payloadHash = sha256(mintPayload[i]);
+            if (_getNativeLBTCStorage().usedPayloads[payloadHash]) {
+                emit BatchMintSkipped(payloadHash, mintPayload[i]);
+                continue;
+            }
+
+            _mintWithFee(
+                mintPayload[i],
+                proof[i],
+                feePayload[i],
+                userSignature[i]
+            );
+        }
+    }
+
+    /**
+     * @dev Burns NativeLBTC to initiate withdrawal of BTC to provided `scriptPubkey` with `amount`
+     *
+     * @param scriptPubkey scriptPubkey for output
+     * @param amount Amount of NativeLBTC to burn
+     */
+    function redeemForBtc(
+        bytes calldata scriptPubkey,
+        uint256 amount
+    ) external whenMintBurnAllowed {
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
+        $.assetRouter.redeemForBtc(
+            address(_msgSender()),
+            address(this),
+            scriptPubkey,
+            amount
+        );
+    }
+
+    /// @notice Burns caller's NativeLBTC balance.
+    /// @param amount Amount of NativeLBTC to burn from `msg.sender`.
+    function burn(uint256 amount) external whenMintBurnAllowed {
+        _burn(_msgSender(), amount);
+    }
+
+    /// @notice Burns NativeLBTC from an arbitrary holder; minter-only.
+    /// @param from Account whose NativeLBTC balance is burned.
+    /// @param amount Amount of NativeLBTC to burn.
+    function burn(
+        address from,
+        uint256 amount
+    ) external override onlyRole(MINTER_ROLE) whenMintBurnAllowed {
+        _burn(from, amount);
+    }
+
+    /// PRIVATE FUNCTIONS ///
+
+    function __NativeLBTC_init(
+        string memory name_,
+        string memory symbol_,
+        address consortium_,
+        address treasury
+    ) internal onlyInitializing {
+        _changeNameAndSymbol(name_, symbol_);
+        _changeConsortium(consortium_);
+        _changeTreasury(treasury);
+    }
+
+    function _mint(bytes calldata rawPayload, bytes calldata proof) internal {
+        _mintV1(rawPayload, proof);
+    }
+
+    function _mintV1(
+        bytes calldata rawPayload,
+        bytes calldata proof
+    ) internal returns (address, uint256) {
+        Assert.selector(rawPayload, Actions.DEPOSIT_BTC_ACTION_V1);
+        Actions.DepositBtcActionV1 memory action = Actions.depositBtcV1(
+            rawPayload[4:]
+        );
+
+        _validateAndMint(action.recipient, action.amount, rawPayload, proof);
+        return (action.recipient, action.amount);
+    }
+
+    /// @dev Proof mint consumes the `address(this)` rate-limit bucket; the commission is moved
+    ///      via `_transfer` to treasury (not a second mint), so only `amount` counts against
+    ///      the bucket. Unlike {AssetRouter._mintWithFee}, this path does not double-count fees.
+    function _mintWithFee(
+        bytes calldata mintPayload,
+        bytes calldata proof,
+        bytes calldata feePayload,
+        bytes calldata userSignature
+    ) internal {
+        (address recipient, uint256 amount) = _mintV1(mintPayload, proof);
+
+        Assert.selector(feePayload, Actions.FEE_APPROVAL_ACTION);
+        Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(
+            feePayload[4:]
+        );
+
+        uint256 maxFee = _getMaxFee();
+        address treasury = _getTreasury();
+        uint256 fee = Math.min(maxFee, feeAction.fee);
+
+        if (fee >= amount) {
+            revert FeeGreaterThanAmount();
+        }
+
+        {
+            bytes32 digest = _hashTypedDataV4(
+                keccak256(
+                    abi.encode(
+                        Actions.FEE_APPROVAL_EIP712_ACTION,
+                        block.chainid,
+                        feeAction.fee,
+                        feeAction.expiry
+                    )
+                )
+            );
+
+            Assert.feeApproval(digest, recipient, userSignature);
+        }
+
+        if (fee > 0) {
+            _transfer(recipient, treasury, fee);
+        }
+
+        emit FeeCharged(fee, userSignature);
+    }
+
+    /// @dev Consumes the proof-mint rate-limit bucket keyed by `address(this)`. This is a single,
+    ///      protocol-wide quota shared by ALL permissionless proof mints (`mintV1`, `batchMintV1`)
+    ///      and the `CLAIMER_ROLE` fee paths (`mintV1WithFee`, `batchMintV1WithFee`) — it is NOT
+    ///      per-recipient or per-caller. Heavy but fully legitimate proof-mint activity from one user
+    ///      can temporarily exhaust the bucket and make other users' unrelated proof mints revert with
+    ///      `RateLimitExceeded` until it decays. This is intended: size `address(this)`'s `limit` as
+    ///      bucket capacity (peak burst), not as a per-window volume cap — sustained throughput is
+    ///      ~`limit / window` per second and up to ~2× `limit` can be consumed over any `window`-length
+    ///      interval. Expect short-window contention.
+    function _validateAndMint(
+        address recipient,
+        uint256 amountToMint,
+        bytes calldata payload,
+        bytes calldata proof
+    ) internal {
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+
+        /// make sure that hash of payload not used before
+        /// need to check sha256 hash from payload without selector
+        bytes32 payloadHash = sha256(payload);
+        bytes32 legacyHash = keccak256(payload[4:]); // TODO: remove when bascule support sha256
+        if ($.usedPayloads[payloadHash]) {
+            revert PayloadAlreadyUsed();
+        }
+        INotaryConsortium($.consortium).checkProof(payloadHash, proof);
+        $.usedPayloads[payloadHash] = true;
+
+        // Confirm deposit against Bascule
+        _confirmDeposit($, legacyHash, amountToMint);
+
+        // Actually mint (contract-level bucket; caller is not `MINTER_ROLE`)
+        _consumeMinterLimit(address(this), amountToMint);
+        _mint(recipient, amountToMint);
+
+        emit MintProofConsumed(recipient, payloadHash, payload);
+    }
+
+    /**
+     * @dev Checks that the deposit was validated by the Bascule drawbridge.
+     * @param $ NativeLBTC storage.
+     * @param depositID The unique ID of the deposit.
+     * @param amount The withdrawal amount.
+     */
+    function _confirmDeposit(
+        NativeLBTCStorage storage $,
+        bytes32 depositID,
+        uint256 amount
+    ) internal {
+        IBascule bascule = $.bascule;
+        if (address(bascule) != address(0)) {
+            bascule.validateWithdrawal(depositID, amount);
+        }
+    }
+
+    /// @dev not zero
+    function _changeConsortium(address newVal) internal {
+        Assert.zeroAddress(newVal);
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        emit ConsortiumChanged($.consortium, newVal);
+        $.consortium = newVal;
+    }
+
+    function _changeBascule(address newVal) internal {
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        emit BasculeChanged(address($.bascule), newVal);
+        $.bascule = IBascule(newVal);
+    }
+
+    /// @dev `treasury` not zero
+    function _changeTreasury(address newValue) internal {
+        Assert.zeroAddress(newValue);
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        address prevValue = $.treasury;
+        $.treasury = newValue;
+        emit TreasuryAddressChanged(prevValue, newValue);
+    }
+
+    /// @dev allow zero address to disable Stakings
+    function _changeAssetRouter(address newVal) internal {
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        address prevValue = address($.assetRouter);
+        $.assetRouter = IAssetRouter(newVal);
+        emit AssetRouterChanged(prevValue, newVal);
+    }
+
+    function _changeRedeemFee(uint256 newVal) internal {
+        _getNativeLBTCStorage().assetRouter.changeRedeemFee(newVal);
+    }
+
+    function _changeRedeemForBtcMinAmount(uint256 newVal) internal {
+        _getNativeLBTCStorage().assetRouter.changeRedeemForBtcMinAmount(newVal);
+    }
+
+    function _getNativeLBTCStorage()
+        private
+        pure
+        returns (NativeLBTCStorage storage $)
+    {
+        assembly {
+            $.slot := NATIVE_LBTC_STORAGE_LOCATION
+        }
+    }
+
+    function _getMaxFee() internal view virtual returns (uint256) {
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
+        return $.assetRouter.maxMintCommission(address(this));
+    }
+
+    function _getTreasury() internal view virtual returns (address) {
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        return $.treasury;
+    }
+}

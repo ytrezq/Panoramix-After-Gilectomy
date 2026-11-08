@@ -1,0 +1,23 @@
+{
+  "name": "viem",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha test/viemFunctions.test.js --timeout 60000"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "chai": "^4.5.0",
+    "mocha": "^12.0.0"
+  },
+  "dependencies": {
+    "dotenv": "^16.5.0",
+    "viem": "^2.27.3"
+  }
+}

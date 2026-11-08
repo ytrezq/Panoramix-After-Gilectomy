@@ -1,0 +1,127 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity ^0.8.24;
+
+import {Router} from "../../../Router.sol";
+import {ERC20LockBox} from "../../../pools/ERC20LockBox.sol";
+import {SiloedLockReleaseTokenPool} from "../../../pools/SiloedLockReleaseTokenPool.sol";
+import {TokenPool} from "../../../pools/TokenPool.sol";
+import {BaseERC20} from "../../../tokens/BaseERC20.sol";
+import {CrossChainToken} from "../../../tokens/CrossChainToken.sol";
+import {BaseTest} from "../../BaseTest.t.sol";
+import {AuthorizedCallers} from "@chainlink/contracts/src/v0.8/shared/access/AuthorizedCallers.sol";
+
+import {IERC20} from "@openzeppelin/contracts@5.3.0/token/ERC20/IERC20.sol";
+
+contract SiloedLockReleaseTokenPoolSetup is BaseTest {
+  IERC20 internal s_token;
+  SiloedLockReleaseTokenPool internal s_siloedLockReleaseTokenPool;
+  address[] internal s_allowedList;
+
+  address internal s_allowedOnRamp = address(123);
+  address internal s_allowedOffRamp = address(234);
+
+  address internal s_destPoolAddress = address(2736782345);
+  address internal s_sourcePoolAddress = address(53852352095);
+
+  address internal s_siloedDestPoolAddress = address(4245234524);
+  uint64 internal constant SILOED_CHAIN_SELECTOR = DEST_CHAIN_SELECTOR + 1;
+
+  ERC20LockBox internal s_lockBox;
+  ERC20LockBox internal s_siloLockBox;
+
+  function setUp() public virtual override {
+    super.setUp();
+    s_token = IERC20(
+      address(
+        new CrossChainToken(
+          BaseERC20.ConstructorParams({
+            name: "LINK",
+            symbol: "LNK",
+            decimals: 18,
+            maxSupply: 0,
+            preMint: 0,
+            preMintRecipient: address(0),
+            ccipAdmin: OWNER
+          }),
+          OWNER,
+          OWNER
+        )
+      )
+    );
+    deal(address(s_token), OWNER, type(uint256).max);
+
+    s_lockBox = new ERC20LockBox(address(s_token));
+    s_siloLockBox = new ERC20LockBox(address(s_token));
+
+    s_siloedLockReleaseTokenPool = new SiloedLockReleaseTokenPool(
+      s_token, DEFAULT_TOKEN_DECIMALS, address(0), address(s_mockRMNRemote), address(s_sourceRouter)
+    );
+
+    address[] memory allowedCallers = new address[](1);
+    allowedCallers[0] = address(s_siloedLockReleaseTokenPool);
+    s_lockBox.applyAuthorizedCallerUpdates(
+      AuthorizedCallers.AuthorizedCallerArgs({addedCallers: allowedCallers, removedCallers: new address[](0)})
+    );
+    s_siloLockBox.applyAuthorizedCallerUpdates(
+      AuthorizedCallers.AuthorizedCallerArgs({addedCallers: allowedCallers, removedCallers: new address[](0)})
+    );
+
+    // Configure lockboxes for both chains.
+    SiloedLockReleaseTokenPool.LockBoxConfig[] memory lockBoxes = new SiloedLockReleaseTokenPool.LockBoxConfig[](3);
+    lockBoxes[0] =
+      SiloedLockReleaseTokenPool.LockBoxConfig({remoteChainSelector: DEST_CHAIN_SELECTOR, lockBox: address(s_lockBox)});
+    lockBoxes[1] = SiloedLockReleaseTokenPool.LockBoxConfig({
+      remoteChainSelector: SILOED_CHAIN_SELECTOR, lockBox: address(s_siloLockBox)
+    });
+    lockBoxes[2] = SiloedLockReleaseTokenPool.LockBoxConfig({
+      remoteChainSelector: SOURCE_CHAIN_SELECTOR, lockBox: address(s_lockBox)
+    });
+    s_siloedLockReleaseTokenPool.configureLockBoxes(lockBoxes);
+
+    s_token.approve(address(s_siloedLockReleaseTokenPool), type(uint256).max);
+
+    bytes[] memory remotePoolAddresses = new bytes[](2);
+    remotePoolAddresses[0] = abi.encode(s_destPoolAddress);
+    remotePoolAddresses[1] = abi.encode(s_siloedDestPoolAddress);
+
+    TokenPool.ChainUpdate[] memory chainUpdates = new TokenPool.ChainUpdate[](3);
+    chainUpdates[0] = TokenPool.ChainUpdate({
+      remoteChainSelector: DEST_CHAIN_SELECTOR,
+      remotePoolAddresses: remotePoolAddresses,
+      remoteTokenAddress: abi.encode(address(2)),
+      outboundRateLimiterConfig: _getOutboundRateLimiterConfig(),
+      inboundRateLimiterConfig: _getInboundRateLimiterConfig()
+    });
+
+    chainUpdates[1] = TokenPool.ChainUpdate({
+      remoteChainSelector: SILOED_CHAIN_SELECTOR,
+      remotePoolAddresses: remotePoolAddresses,
+      remoteTokenAddress: abi.encode(address(2)),
+      outboundRateLimiterConfig: _getOutboundRateLimiterConfig(),
+      inboundRateLimiterConfig: _getInboundRateLimiterConfig()
+    });
+
+    chainUpdates[2] = TokenPool.ChainUpdate({
+      remoteChainSelector: SOURCE_CHAIN_SELECTOR,
+      remotePoolAddresses: remotePoolAddresses,
+      remoteTokenAddress: abi.encode(address(2)),
+      outboundRateLimiterConfig: _getOutboundRateLimiterConfig(),
+      inboundRateLimiterConfig: _getInboundRateLimiterConfig()
+    });
+
+    s_siloedLockReleaseTokenPool.applyChainUpdates(new uint64[](0), chainUpdates);
+
+    Router.OnRamp[] memory onRampUpdates = new Router.OnRamp[](3);
+    Router.OffRamp[] memory offRampUpdates = new Router.OffRamp[](2);
+
+    onRampUpdates[0] = Router.OnRamp({destChainSelector: DEST_CHAIN_SELECTOR, onRamp: s_allowedOnRamp});
+    offRampUpdates[0] = Router.OffRamp({sourceChainSelector: SOURCE_CHAIN_SELECTOR, offRamp: s_allowedOffRamp});
+
+    onRampUpdates[1] = Router.OnRamp({destChainSelector: SILOED_CHAIN_SELECTOR, onRamp: s_allowedOnRamp});
+    offRampUpdates[1] = Router.OffRamp({sourceChainSelector: SILOED_CHAIN_SELECTOR, offRamp: s_allowedOffRamp});
+
+    onRampUpdates[2] = Router.OnRamp({destChainSelector: SOURCE_CHAIN_SELECTOR, onRamp: s_allowedOnRamp});
+
+    s_sourceRouter.applyRampUpdates(onRampUpdates, new Router.OffRamp[](0), offRampUpdates);
+  }
+}

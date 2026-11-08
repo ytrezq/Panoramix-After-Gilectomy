@@ -1,0 +1,82 @@
+// SPDX-License-Identifier: SEL-1.0
+// Copyright © 2025 Veda Tech Labs
+// Derived from Boring Vault Software © 2025 Veda Tech Labs (TEST ONLY – NO COMMERCIAL USE)
+// Licensed under Software Evaluation License, Version 1.0
+// Last audited: boring-vault@4c9c671bb965899728167102a0e3ac22f4aabf7a — https://macroaudits.com/library/audits/sevenSeas-39
+pragma solidity 0.8.21;
+
+import {BaseDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
+import {ERC4626DecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/ERC4626DecoderAndSanitizer.sol";
+
+contract ResolvDecoderAndSanitizer is ERC4626DecoderAndSanitizer {
+    //============================== UsrExternalRequestManager ===============================
+
+    function requestMint(address _depositTokenAddress, uint256, /*_amount*/ uint256 /*_minMintAmount*/ )
+        external
+        pure
+        virtual
+        returns (bytes memory addressesFound)
+    {
+        return abi.encodePacked(_depositTokenAddress);
+    }
+
+    function requestBurn(
+        uint256, /*_issueTokenAmount*/
+        address _withdrawalTokenAddress,
+        uint256 /*_minWithdrawalAmount*/
+    ) external pure virtual returns (bytes memory addressesFound) {
+        return abi.encodePacked(_withdrawalTokenAddress);
+    }
+
+    function redeem(
+        uint256, /*_amount*/
+        address _receiver,
+        address _withdrawalTokenAddress,
+        uint256 /*_minExpectedAmount*/
+    ) external pure virtual returns (bytes memory addressesFound) {
+        addressesFound = abi.encodePacked(_receiver, _withdrawalTokenAddress);
+    }
+
+    function cancelMint(uint256 /*_id*/) external pure virtual returns (bytes memory addressesFound) {
+        return addressesFound;
+    }
+
+    function cancelBurn(uint256 /*_id*/) external pure virtual returns (bytes memory addressesFound) {
+        return addressesFound;
+    }
+
+    //============================== stUSR ===============================
+
+    function deposit(uint256 /*_usrAmount*/ ) external pure virtual returns (bytes memory addressesFound) {
+        return addressesFound;
+    }
+
+    function withdraw(uint256 /*_usrAmount*/ ) external pure virtual returns (bytes memory addressesFound) {
+        return addressesFound;
+    }
+
+    //============================== wstUSR ===============================
+
+    /*
+    The following functions are available on wstUSR but the signature conflicts with
+    the above stUSR methods of the same name. Leaves have been added against wstUSR
+
+    // direct from USR -> wstUSR
+    function deposit(uint256 _usrAmount ) external pure virtual returns (bytes memory addressesFound) {
+        return addressesFound;
+    }
+
+    // direct from wstUSR -> USR
+    function withdraw(uint256 _usrAmount) external pure virtual returns (bytes memory addressesFound) {
+        return addressesFound;
+    }
+    */
+
+    function wrap(uint256 /*_stUSRAmount*/ ) external pure virtual returns (bytes memory addressesFound) {
+        return addressesFound;
+    }
+
+    function unwrap(uint256 /*_wstUSRAmount*/ ) external pure virtual returns (bytes memory addressesFound) {
+        return addressesFound;
+    }
+}

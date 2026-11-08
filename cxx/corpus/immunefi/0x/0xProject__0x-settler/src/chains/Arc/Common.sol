@@ -1,0 +1,183 @@
+// SPDX-License-Identifier: MIT
+pragma solidity =0.8.34;
+
+import {SettlerBase} from "../../SettlerBase.sol";
+import {Attest} from "../../core/Attest.sol";
+
+import {IERC20} from "@forge-std/interfaces/IERC20.sol";
+import {FreeMemory} from "../../utils/FreeMemory.sol";
+
+import {UniswapV4} from "../../core/UniswapV4.sol";
+import {IPoolManager} from "../../core/UniswapV4Types.sol";
+import {PancakeInfinity} from "../../core/PancakeInfinity.sol";
+
+import {ISettlerActions} from "../../ISettlerActions.sol";
+import {ISignatureTransfer} from "@permit2/interfaces/ISignatureTransfer.sol";
+import {revertUnknownForkId, revertUnknownPoolManagerId} from "../../core/SettlerErrors.sol";
+import {aeroArcFactory, aeroInitHash, aeroForkId} from "../../core/univ3forks/Aero.sol";
+
+import {
+    uniswapV3ArcFactory,
+    uniswapV3InitHash,
+    uniswapV3ForkId,
+    IUniswapV3Callback
+} from "../../core/univ3forks/UniswapV3.sol";
+import {sushiswapV3ArcFactory, sushiswapV3ForkId} from "../../core/univ3forks/SushiswapV3.sol";
+import {
+    achSwapV3Factory,
+    achSwapV3InitHash,
+    achSwapV3ForkId,
+    IAchSwapV3SwapCallback
+} from "../../core/univ3forks/AchSwapV3.sol";
+import {uniswapV4ArcPoolManager, uniswapV4ForkId} from "../../core/univ4forks/UniswapV4.sol";
+import {
+    pancakeInfinityVault,
+    pancakeInfinityClManager,
+    pancakeInfinityForkId
+} from "../../core/pancakeInfinityForks/PancakeInfinity.sol";
+import {
+    sushiswapV4Vault,
+    sushiswapV4ClManager,
+    sushiswapV4ForkId
+} from "../../core/pancakeInfinityForks/SushiswapV4.sol";
+
+import {FastLogic} from "../../utils/FastLogic.sol";
+
+// Solidity inheritance is stupid
+import {SettlerSwapAbstract} from "../../SettlerAbstract.sol";
+import {Permit2PaymentAbstract} from "../../core/Permit2PaymentAbstract.sol";
+
+abstract contract ArcMixin is FreeMemory, SettlerBase, UniswapV4, PancakeInfinity {
+    using FastLogic for bool;
+
+    constructor() {
+        assert(block.chainid == _chainId() || block.chainid == 31337);
+    }
+
+    function _chainId() internal pure override returns (uint256) {
+        return 5042;
+    }
+
+    function _dispatch(uint256 i, uint256 action, bytes calldata data, AllowedSlippage memory slippage)
+        internal
+        virtual
+        override(SettlerSwapAbstract, SettlerBase)
+        DANGEROUS_freeMemory
+        returns (bool)
+    {
+        if (super._dispatch(i, action, data, slippage)) {
+            return true;
+        } else if ((action == uint32(ISettlerActions.UNISWAPV4.selector))
+            .or(action == uint32(ISettlerActions.PANCAKE_INFINITY.selector))) {
+            (
+                address recipient,
+                IERC20 sellToken,
+                uint256 ppm,
+                uint8 forkId,
+                bool feeOnTransfer,
+                uint256 hashMul,
+                uint256 hashMod,
+                bytes memory fills,
+                uint256 amountOutMin
+            ) = abi.decode(data, (address, IERC20, uint256, uint8, bool, uint256, uint256, bytes, uint256));
+
+            if (action == uint32(ISettlerActions.UNISWAPV4.selector)) {
+                sellToUniswapV4(recipient, sellToken, ppm, forkId, feeOnTransfer, hashMul, hashMod, fills, amountOutMin);
+            } else { // if (action == uint32(ISettlerActions.PANCAKE_INFINITY.selector))
+                sellToPancakeInfinity(
+                    recipient, sellToken, ppm, forkId, feeOnTransfer, hashMul, hashMod, fills, amountOutMin
+                );
+            }
+        } else {
+            return false;
+        }
+        return true;
+    }
+
+    function _uniV3ForkInfo(uint8 forkId)
+        internal
+        pure
+        override
+        returns (address factory, bytes32 initHash, uint32 callbackSelector)
+    {
+        if (forkId == uniswapV3ForkId) {
+            factory = uniswapV3ArcFactory;
+            initHash = uniswapV3InitHash;
+            callbackSelector = uint32(IUniswapV3Callback.uniswapV3SwapCallback.selector);
+        } else if (forkId == sushiswapV3ForkId) {
+            factory = sushiswapV3ArcFactory;
+            initHash = uniswapV3InitHash;
+            callbackSelector = uint32(IUniswapV3Callback.uniswapV3SwapCallback.selector);
+        } else if (forkId == achSwapV3ForkId) {
+            factory = achSwapV3Factory;
+            initHash = achSwapV3InitHash;
+            callbackSelector = uint32(IAchSwapV3SwapCallback.AchSwapV3SwapCallback.selector);
+        } else if (forkId == aeroForkId) {
+            factory = aeroArcFactory;
+            initHash = aeroInitHash;
+            callbackSelector = uint32(IUniswapV3Callback.uniswapV3SwapCallback.selector);
+        } else {
+            revertUnknownForkId(forkId);
+        }
+    }
+
+    function _uniV4ForkInfo(uint8 forkId) internal pure override returns (IPoolManager poolManager) {
+        if (forkId == uniswapV4ForkId) {
+            poolManager = uniswapV4ArcPoolManager;
+        } else {
+            revertUnknownForkId(forkId);
+        }
+    }
+
+    function _pancakeInfinityForkInfo(uint8 forkId)
+        internal
+        pure
+        override
+        returns (address vault, address clManager, address binManager)
+    {
+        if (forkId == pancakeInfinityForkId) {
+            vault = pancakeInfinityVault;
+            clManager = pancakeInfinityClManager;
+            binManager = address(0);
+        } else if (forkId == sushiswapV4ForkId) {
+            vault = sushiswapV4Vault;
+            clManager = sushiswapV4ClManager;
+            // SushiSwap V4 does not have a Bin pool manager
+            binManager = address(0);
+        } else {
+            revertUnknownForkId(forkId);
+        }
+    }
+
+    // I hate Solidity inheritance
+    function _fallback(bytes calldata data)
+        internal
+        virtual
+        override(Permit2PaymentAbstract, UniswapV4)
+        returns (bool success, bytes memory returndata)
+    {
+        return super._fallback(data);
+    }
+}
+
+// `Attest` is listed last so that candidate selection sits above the chain actions in the
+// linearization; see `Select`.
+abstract contract ArcCommon is ArcMixin, Attest {
+    function _dispatch(uint256 i, uint256 action, bytes calldata data, AllowedSlippage memory slippage)
+        internal
+        virtual
+        override(ArcMixin, Attest)
+        returns (bool)
+    {
+        return super._dispatch(i, action, data, slippage);
+    }
+
+    function _fallback(bytes calldata data)
+        internal
+        virtual
+        override(ArcMixin, Attest)
+        returns (bool success, bytes memory returndata)
+    {
+        return super._fallback(data);
+    }
+}

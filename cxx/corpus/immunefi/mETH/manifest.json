@@ -1,0 +1,345 @@
+{
+ "program": "mETH",
+ "repos": [
+  {
+   "repo": "https://github.com/mantle-lsp/contracts",
+   "ref": "v1.4.1",
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "mETH L1: METH, Staking, UnstakeRequestsManager, Oracle, OracleQuorumManager, ReturnsAggregator, ReturnsReceiver, Pauser; latest release tag v1.4.1 (= default branch HEAD)",
+   "commit": "bbc4e8bf7d3e3b4ca0c5be07aba409ac66611c76",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "dfef6a68ee18dbd2e1f5a099061a3b8a0e404485"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "f6febd79e2a3a17e26969dd0d450c6ebd64bf459"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/aave-v3-origin",
+     "url": "https://github.com/aave-dao/aave-v3-origin",
+     "commit": "94bb4d5cdf9065deb9a6be576a836845de15aa9a"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils",
+     "url": "https://github.com/bgd-labs/solidity-utils",
+     "commit": "bf955b866b9f6c90b9cc2d099b94fc37ee53c542"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "999be66ec94c78090087f674bbf52ce1cca12b75"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "fa525310e45f91eb20a6d3baa2644be8e0adba31"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "69c8def5f222ff96f2b5beff05dfba996368aa79"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/aave-v3-origin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "999be66ec94c78090087f674bbf52ce1cca12b75"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-v5",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts.git",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-v5/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-v5/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-v5/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    }
+   ],
+   "license": {
+    "file": "LICENCE",
+    "spdx": "MIT",
+    "package_json": null,
+    "headers": {
+     "MIT": 66,
+     "CC0-1.0": 2,
+     "AGPL-3.0": 1
+    },
+    "headers_main": {
+     "MIT": 21,
+     "CC0-1.0": 1,
+     "AGPL-3.0": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 69
+   },
+   "npm": {},
+   "copied": true,
+   "files": 2411,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "mantle-lsp__contracts",
+   "subtrees": [
+    {
+     "prefix": "mantle-lsp__contracts",
+     "url": "https://github.com/mantle-lsp/contracts",
+     "commit": "bbc4e8bf7d3e3b4ca0c5be07aba409ac66611c76",
+     "files": 74
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e",
+     "files": 40
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/openzeppelin-contracts",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "dfef6a68ee18dbd2e1f5a099061a3b8a0e404485",
+     "files": 289
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "f6febd79e2a3a17e26969dd0d450c6ebd64bf459",
+     "files": 285
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/aave-v3-origin",
+     "url": "https://github.com/aave-dao/aave-v3-origin",
+     "commit": "94bb4d5cdf9065deb9a6be576a836845de15aa9a",
+     "files": 441
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/openzeppelin-contracts-v5",
+     "url": "https://github.com/openzeppelin/openzeppelin-contracts",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3",
+     "files": 250
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
+     "files": 39
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
+     "files": 3
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
+     "files": 39
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
+     "files": 3
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/aave-v3-origin/lib/solidity-utils",
+     "url": "https://github.com/bgd-labs/solidity-utils",
+     "commit": "bf955b866b9f6c90b9cc2d099b94fc37ee53c542",
+     "files": 47
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/aave-v3-origin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "999be66ec94c78090087f674bbf52ce1cca12b75",
+     "files": 47
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/openzeppelin-contracts-v5/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb",
+     "files": 35
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/openzeppelin-contracts-v5/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
+     "files": 3
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
+     "files": 6
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
+     "files": 6
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/aave-v3-origin/lib/solidity-utils/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "999be66ec94c78090087f674bbf52ce1cca12b75",
+     "files": 47
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "fa525310e45f91eb20a6d3baa2644be8e0adba31",
+     "files": 205
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/openzeppelin-contracts-v5/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b",
+     "files": 5
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce",
+     "files": 45
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
+     "files": 3
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
+     "files": 3
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "69c8def5f222ff96f2b5beff05dfba996368aa79",
+     "files": 306
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce",
+     "files": 45
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
+     "files": 3
+    },
+    {
+     "prefix": "mantle-lsp__contracts/lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
+     "files": 3
+    }
+   ]
+  }
+ ]
+}

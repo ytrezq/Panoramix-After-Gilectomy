@@ -1,0 +1,136 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.7.6;
+pragma abicoder v2;
+
+import {SafeERC20} from "../../../utils/SafeERC20.sol";
+import {IERC20} from "../../../interfaces/IERC20.sol";
+
+import {OndoGMTokenAssetGuard} from "../../../guards/assetGuards/ondo/OndoGMTokenAssetGuard.sol";
+import {PancakeNonfungiblePositionGuard} from "../../../guards/contractGuards/pancake/PancakeNonfungiblePositionGuard.sol";
+import {ICompoundV3Comet} from "../../../interfaces/compound/ICompoundV3Comet.sol";
+import {IPancakeNonfungiblePositionManager} from "../../../interfaces/pancake/IPancakeNonfungiblePositionManager.sol";
+import {IPActionMiscV3} from "../../../interfaces/pendle/IPActionMiscV3.sol";
+import {IPPrincipalToken} from "../../../interfaces/pendle/IPPrincipalToken.sol";
+import {IHasGuardInfo} from "../../../interfaces/IHasGuardInfo.sol";
+import {IPoolLogic} from "../../../interfaces/IPoolLogic.sol";
+import {IFToken} from "../../../interfaces/fluid/IFToken.sol";
+import {IEasySwapperV2} from "../interfaces/IEasySwapperV2.sol";
+import {IWithdrawalVault} from "../interfaces/IWithdrawalVault.sol";
+import {PendlePTHandlerLib} from "../../../utils/pendle/PendlePTHandlerLib.sol";
+
+import "../../../interfaces/pendle/IPAllActionTypeV3.sol" as IPAllActionTypeV3;
+
+library SwapperV2Helpers {
+  using SafeERC20 for IERC20;
+
+  /// @dev Ondo GM token (assetType 41) is redeemed to USDC inside the asset guard's
+  ///      `withdrawProcessing`. The vault tracks USDC, resolved on-chain from the asset guard
+  ///      so calldata can never substitute a different output token.
+  function ondoGMHelper(address _asset, address _poolFactory) internal view returns (address usdcAddress) {
+    usdcAddress = OndoGMTokenAssetGuard(IHasGuardInfo(_poolFactory).getAssetGuard(_asset)).usdc();
+  }
+
+  /// @dev Hyperliquid spot assets (assetType 40) are either a HyperCore system address
+  ///      (0x2000...0000 + tokenIndex, or 0x2222...2222 for HYPE) or a linked EVM ERC20 contract.
+  ///      System addresses are not ERC20 contracts, so the WithdrawalVault must never track them.
+  function isHyperliquidSystemAddress(address _asset) internal pure returns (bool) {
+    if (_asset == 0x2222222222222222222222222222222222222222) return true;
+
+    uint160 baseSystemAddress = uint160(0x2000000000000000000000000000000000000000);
+
+    return uint160(_asset) >= baseSystemAddress && uint160(_asset) < baseSystemAddress + 10_000;
+  }
+
+  /// @dev A dHEDGE vault pays its EasySwapperV2 "asset" out of both of its WithdrawalVaults: the
+  ///      single-asset one and the one fed by executed limit orders. Both must be tracked.
+  function getUnrolledAssets(address _asset, address _dHedgeVault) internal view returns (address[] memory assets) {
+    IWithdrawalVault.TrackedAsset[] memory trackedAssets = IEasySwapperV2(_asset).getTrackedAssets(_dHedgeVault);
+    IWithdrawalVault.TrackedAsset[] memory trackedFromLimitOrders = IEasySwapperV2(_asset)
+      .getTrackedAssetsFromLimitOrders(_dHedgeVault);
+    assets = new address[](trackedAssets.length + trackedFromLimitOrders.length);
+
+    for (uint256 i; i < trackedAssets.length; ++i) {
+      assets[i] = trackedAssets[i].token;
+    }
+    for (uint256 i; i < trackedFromLimitOrders.length; ++i) {
+      assets[trackedAssets.length + i] = trackedFromLimitOrders[i].token;
+    }
+  }
+
+  /// @dev It's possible to disable base token of CompoundV3Comet asset, while having positive balance of it,
+  ///      hence this helper is required for WithdrawalVault to pick base token after withdrawing from CompoundV3Comet asset
+  function getCompoundV3BaseAsset(address _compoundV3CometAsset) internal view returns (address baseAsset) {
+    baseAsset = ICompoundV3Comet(_compoundV3CometAsset).baseToken();
+  }
+
+  function getPancakeCLPositionAssets(
+    address _pool,
+    address _pancakenNftPositionManager
+  ) internal view returns (address[] memory assets) {
+    uint256[] memory tokenIds = PancakeNonfungiblePositionGuard(
+      IHasGuardInfo(IPoolLogic(_pool).factory()).getContractGuard(_pancakenNftPositionManager)
+    ).getOwnedTokenIds(_pool);
+
+    assets = new address[](tokenIds.length * 2);
+
+    for (uint256 i; i < tokenIds.length; ++i) {
+      (, , address token0, address token1, , , , , , , , ) = IPancakeNonfungiblePositionManager(
+        _pancakenNftPositionManager
+      ).positions(tokenIds[i]);
+
+      assets[i * 2] = token0;
+      assets[i * 2 + 1] = token1;
+    }
+  }
+
+  function getFluidTokenUnderlying(address _fToken) internal view returns (address underlying) {
+    underlying = IFToken(_fToken).asset();
+  }
+
+  function unrollPendlePT(address _pool, address _principalToken) internal returns (address underlying) {
+    return unrollPendlePTByFactory(IPoolLogic(_pool).factory(), _principalToken);
+  }
+
+  function unrollPendlePTByFactory(address _factory, address _principalToken) internal returns (address underlying) {
+    uint256 ptBalance = IPPrincipalToken(_principalToken).balanceOf(address(this));
+
+    if (ptBalance == 0) return underlying;
+
+    address market;
+    // Worst case scenario is revert down here if the asset guard does not contain necessary data
+    (market, underlying) = PendlePTHandlerLib.getPTAssociatedDataByFactory(_principalToken, _factory);
+
+    bool expired = IPPrincipalToken(_principalToken).isExpired();
+
+    IERC20(_principalToken).safeIncreaseAllowance(PendlePTHandlerLib.ROUTER_V4, ptBalance);
+
+    // Post-expiry redemption is not manipulable, so minTokenOut == 0 is safe.
+    // Pre-expiry: compute minTokenOut.
+    if (expired) {
+      IPActionMiscV3(PendlePTHandlerLib.ROUTER_V4).exitPostExpToToken(
+        address(this),
+        market,
+        ptBalance,
+        0,
+        IPAllActionTypeV3.createTokenOutputSimple(underlying, 0)
+      );
+    } else {
+      uint256 minTokenOut = PendlePTHandlerLib.computeMinTokenOutPreExp(
+        _principalToken,
+        ptBalance,
+        underlying,
+        _factory,
+        market
+      );
+      IPActionMiscV3(PendlePTHandlerLib.ROUTER_V4).exitPreExpToToken(
+        address(this),
+        market,
+        ptBalance,
+        0,
+        0,
+        IPAllActionTypeV3.createTokenOutputSimple(underlying, minTokenOut),
+        IPAllActionTypeV3.createEmptyLimitOrderData()
+      );
+    }
+  }
+}

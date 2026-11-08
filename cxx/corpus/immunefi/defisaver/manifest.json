@@ -1,0 +1,76 @@
+{
+ "program": "defisaver",
+ "repos": [
+  {
+   "repo": "https://github.com/defisaver/defisaver-v3-contracts",
+   "ref": "main",
+   "scope_paths": [
+    "contracts"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "36ec5c5b925a9f1ac92c20f5d98a907b85e2cc02",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "2c7dbcc8586b33f358e3307a443e524490c17666"
+    },
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "26048ab55c64519ce21e032fdb49df1d5a2a7eb4"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "MIT",
+    "package_json": "MIT",
+    "headers": {
+     "MIT": 1149,
+     "SEE": 4,
+     "AGPL-3.0-only": 2,
+     "GNU": 3,
+     "GPL-3.0": 2,
+     "Apache-2.0": 1,
+     "(none)": 2,
+     "GPL-2.0-or-later": 25,
+     "AGPL-3.0-or-later": 1,
+     "agpl-3.0": 7,
+     "BSD-3-Clause": 1,
+     "AGPL-3.0": 10,
+     "GPL-3.0-or-later": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 1208
+   },
+   "npm": {},
+   "copied": true,
+   "files": 1336,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "defisaver__defisaver-v3-contracts",
+   "subtrees": [
+    {
+     "prefix": "defisaver__defisaver-v3-contracts",
+     "url": "https://github.com/defisaver/defisaver-v3-contracts",
+     "commit": "36ec5c5b925a9f1ac92c20f5d98a907b85e2cc02",
+     "files": 1215
+    },
+    {
+     "prefix": "defisaver__defisaver-v3-contracts/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "2c7dbcc8586b33f358e3307a443e524490c17666",
+     "files": 4
+    },
+    {
+     "prefix": "defisaver__defisaver-v3-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "26048ab55c64519ce21e032fdb49df1d5a2a7eb4",
+     "files": 54
+    }
+   ]
+  }
+ ]
+}

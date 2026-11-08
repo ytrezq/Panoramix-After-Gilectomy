@@ -1,0 +1,91 @@
+{
+  "name": "dhedge-v2",
+  "version": "1.0.0",
+  "description": "dHEDGE V2 smart contracts",
+  "scripts": {
+    "build": "pnpm check:foundry-version && forge build --skip test",
+    "build:sizes": "pnpm check:foundry-version && forge build --skip test --skip 'test/**' --sizes",
+    "compile:hardhat": "hardhat compile",
+    "abigen": "hardhat export-abi",
+    "test": "pnpm check:foundry-version && forge test --no-match-path \"**/ffi/**\" && prettier --write snapshots",
+    "test:gas": "pnpm check:foundry-version && forge test --match-contract GasSnapshot && prettier --write snapshots",
+    "test:ffi": "pnpm check:foundry-version && FOUNDRY_PROFILE=ffi-tests forge test --match-path \"**/ffi/**/*.t.sol\"",
+    "test-freshness:check": "ts-node --transpile-only scripts/testFreshness/check.ts",
+    "test-freshness:repin": "ts-node --transpile-only scripts/testFreshness/repin.ts",
+    "lint": "pnpm lint:sol && eslint . --max-warnings=0",
+    "typecheck": "pnpm compile:hardhat && tsc --noEmit -p tsconfig.json",
+    "lint:sol": "solhint 'contracts/**/*.sol' && solhint 'test/**/*.sol' --config test/.solhint.test.json",
+    "format": "prettier -w --plugin=prettier-plugin-solidity '**/*.{js,mjs,ts,sol,json,md}'",
+    "prettier:check": "prettier -l --plugin=prettier-plugin-solidity '**/*.{js,mjs,ts,sol,json,md}'",
+    "check:foundry-version": "scripts/utils/checkFoundryVersion.sh",
+    "check:compiler-parity": "pnpm build && pnpm compile:hardhat && ts-node scripts/utils/checkCompilerParity.ts",
+    "error-registry:generate": "forge build --skip test --force && ts-node scripts/errorRegistry/generate.ts",
+    "error-registry:check": "ts-node scripts/errorRegistry/generate.ts --check",
+    "check:twaps": "hardhat run scripts/assets/twapOraclesCheck.ts",
+    "check:twaps:ci": "pnpm check:twaps --network arbitrum && pnpm check:twaps --network base && pnpm check:twaps --network ethereum && pnpm check:twaps --network hyperevm && pnpm check:twaps --network ovm && pnpm check:twaps --network polygon",
+    "check:oracles": "hardhat run scripts/assets/oraclesReturnPriceCheck.ts",
+    "check:oracles:ci": "pnpm check:oracles --network arbitrum && pnpm check:oracles --network base && pnpm check:oracles --network ethereum && pnpm check:oracles --network hyperevm && pnpm check:oracles --network ovm && pnpm check:oracles --network polygon",
+    "check:slippage": "hardhat run scripts/slippage/slippageMonitor.ts",
+    "check:slippage:ci": "pnpm check:slippage --network arbitrum && pnpm check:slippage --network base && pnpm check:slippage --network ethereum && pnpm check:slippage --network hyperevm && pnpm check:slippage --network ovm && pnpm check:slippage --network polygon",
+    "preinstall": "npx only-allow pnpm",
+    "prepare": "husky"
+  },
+  "author": "dHEDGE Team",
+  "license": "ISC",
+  "devDependencies": {
+    "@ethersproject/abi": "^5.8.0",
+    "@ethersproject/providers": "^5.8.0",
+    "@nomicfoundation/hardhat-foundry": "^1.2.1",
+    "@nomicfoundation/hardhat-verify": "^2.1.3",
+    "@nomiclabs/hardhat-ethers": "^2.2.3",
+    "@openzeppelin/hardhat-upgrades": "1.17.0",
+    "@openzeppelin/upgrades-core": "^1.46.0",
+    "@safe-global/api-kit": "^4.0.0",
+    "@safe-global/protocol-kit": "^6.1.1",
+    "@typechain/ethers-v5": "^11.1.2",
+    "@typechain/hardhat": "^7.0.0",
+    "@types/node": "^24.13.4",
+    "csv-stringify": "^6.9.0",
+    "csvtojson": "^2.0.14",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.6",
+    "ethers": "5.8.0",
+    "hardhat": "2.29.1",
+    "hardhat-abi-exporter": "^2.11.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.9",
+    "prettier-plugin-solidity": "^1.4.2",
+    "solhint": "^5.2.0",
+    "ts-node": "^10.9.2",
+    "typechain": "^8.3.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.1"
+  },
+  "dependencies": {
+    "@uniswap/v3-core": "1.0.1",
+    "@uniswap/v3-periphery": "1.4.4"
+  },
+  "lint-staged": {
+    "contracts/**/*.sol": [
+      "solhint -w 0",
+      "prettier --write --plugin=prettier-plugin-solidity"
+    ],
+    "test/**/*.sol": [
+      "solhint --config test/.solhint.test.json -w 0",
+      "prettier --write --plugin=prettier-plugin-solidity"
+    ],
+    "*.{ts,js,mjs,json,md}": [
+      "prettier --write"
+    ],
+    "*.ts": "eslint --max-warnings=0",
+    "*.js": "eslint --cache --fix",
+    "{contracts/**/*.sol,config/**/*.{csv,json},readmes/errorCodes/overlay.json}": "pnpm error-registry:check"
+  },
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=11"
+  },
+  "packageManager": "pnpm@11.1.1+sha512.d1fdf5f73c617b64fa1a56a81c3c8dfe0e966e33a6010aa256b517ae77be21d93e05affc0de1a83b0e4f29d569f68b446ae8f068cd7247c0bb3df0fb4d7bdf9a"
+}

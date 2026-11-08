@@ -1,0 +1,9 @@
+@forge-std/=lib/forge-std/src/
+@test=test/
+@proposals/=src/proposals/
+@interface/=src/interface/
+@addresses/=addresses/
+@utils/=utils/
+@examples/=examples/
+@script=script/
+@mocks=mocks/

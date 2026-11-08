@@ -1,0 +1,66 @@
+# Full reference https://github.com/foundry-rs/foundry/tree/master/crates/config
+[profile.default]
+auto_detect_solc = false
+solc = "0.8.26"
+evm_version = "cancun"
+fuzz = { runs = 1024 }
+optimizer = true
+optimizer_runs = 4294967295
+via_ir = false
+out = "out"
+script = "script"
+src = "src"
+test = "test"
+block_timestamp = 1_680_220_800 # March 31, 2023 at 00:00 GMT
+bytecode_hash = "none"
+gas_reports = ["*"]
+verbosity = 2
+ffi = true
+ast = true
+build_info = true
+extra_output = ["storageLayout"]
+fs_permissions = [{ access = "read", path = "./test"}, { access = "read", path = "./script/genesis/"}, { access = "read", path = "./out"}]
+
+[profile.ci]
+fuzz = { runs = 69420 }
+verbosity = 3
+fs_permissions = [{ access = "read", path = "./test"}]
+
+[profile.deploy]
+via_ir = true
+optimizer_runs = 666
+
+[profile.deploy_small]
+via_ir = true
+optimizer_runs = 200
+
+[etherscan]
+berachain = {key = "verifyContract", url = "https://api.routescan.io/v2/network/mainnet/evm/80094/etherscan", chain = 80094}
+bepolia = {key = "verifyContract", url = "https://api.routescan.io/v2/network/testnet/evm/80069/etherscan", chain = 80069}
+
+[fmt]
+bracket_spacing = true
+int_types = "long"
+line_length = 119
+multiline_func_header = "all"
+number_underscore = "thousands"
+quote_style = "double"
+tab_width = 4
+wrap_comments = true
+
+[rpc_endpoints]
+arbitrum = "https://arbitrum-mainnet.infura.io/v3/${API_KEY_INFURA}"
+avalanche = "https://avalanche-mainnet.infura.io/v3/${API_KEY_INFURA}"
+bnb_smart_chain = "https://bsc-dataseed.binance.org"
+gnosis_chain = "https://rpc.gnosischain.com"
+goerli = "https://goerli.infura.io/v3/${API_KEY_INFURA}"
+localhost = "http://localhost:8545"
+mainnet = "https://eth-mainnet.g.alchemy.com/v2/${API_KEY_ALCHEMY}"
+optimism = "https://optimism-mainnet.infura.io/v3/${API_KEY_INFURA}"
+polygon = "https://polygon-mainnet.infura.io/v3/${API_KEY_INFURA}"
+sepolia = "https://sepolia.infura.io/v3/${API_KEY_INFURA}"
+berachain = "${BERACHAIN_RPC_URL}"
+bepolia = "https://bepolia.rpc.berachain.com/"
+
+[lint]
+lint_on_build = false

@@ -1,0 +1,185 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
+import {IEVC} from "ethereum-vault-connector/interfaces/IEthereumVaultConnector.sol";
+import {SafeERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
+import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
+import {EulerCollateralVault, IEVault} from "src/twyne/EulerCollateralVault.sol";
+import {CollateralVaultBase} from "src/twyne/CollateralVaultBase.sol";
+import {CollateralVaultFactory} from "src/TwyneFactory/CollateralVaultFactory.sol";
+import {IErrors} from "src/interfaces/IErrors.sol";
+import {IEvents} from "src/interfaces/IEvents.sol";
+import {ReentrancyGuardTransient} from "openzeppelin-contracts/utils/ReentrancyGuardTransient.sol";
+import {EVCUtil} from "ethereum-vault-connector/utils/EVCUtil.sol";
+
+interface IMorpho {
+    function flashLoan(address token, uint assets, bytes calldata data) external;
+}
+
+interface ISwapper {
+    function multicall(bytes[] memory calls) external;
+}
+
+interface ISwapVerifier {
+    function verifyAmountMinAndSkim(address eulerVault, address receiver, uint amountMin, uint deadline) external;
+}
+
+/// @title LeverageOperator
+/// @notice Operator contract for executing 1-click leverage operations on collateral vaults
+/// @dev Uses Morpho flashloans to enable atomic leverage operations
+contract LeverageOperator is ReentrancyGuardTransient, EVCUtil, IErrors, IEvents {
+    using SafeERC20 for IERC20;
+
+    address public immutable SWAPPER;
+    address public immutable SWAP_VERIFIER;
+    IMorpho public immutable MORPHO;
+    CollateralVaultFactory public immutable COLLATERAL_VAULT_FACTORY;
+
+    constructor(
+        address _evc,
+        address _swapper,
+        address _swapVerifier,
+        address _morpho,
+        address _collateralVaultFactory
+    ) EVCUtil(_evc) {
+        SWAPPER = _swapper;
+        SWAP_VERIFIER = _swapVerifier;
+        MORPHO = IMorpho(_morpho);
+        COLLATERAL_VAULT_FACTORY = CollateralVaultFactory(_collateralVaultFactory);
+    }
+
+    /// @notice Execute a leverage operation on a collateral vault
+    /// @dev This function executes the following steps:
+    /// 1. Takes user's collateral
+    ///    a. Takes user's underlying collateral, deposit it to Euler vault and the collateral to collateral vault
+    ///    b. Takes user's collateral, transfer it to collateral vault
+    /// 2. Takes target asset flashloan from Morpho: target asset received in this contract
+    /// 3. Transfers received target asset to Swapper
+    /// 4. Swapper.multicall is called which swaps target asset to underlying collateral which is sent to Euler vault
+    /// 5. SwapVerifier.verifyAmountMinAndSkim is called which does minAmountOut check and calls skim on Euler vault.
+    ///    EulerVault.skim deposits underlying collateral and transfers Euler vault tokens (collateral) to collateral vault
+    /// 6. EVC batch calls
+    ///    a. skim on collateral vault to deposit all the airdropped collateral
+    ///    b. borrow on collateral vault to borrow target asset, net of any target asset returned by the swap route
+    /// 7. Approves Morpho to transfer target asset from this contract
+    /// 8. Morpho transferFroms the flashloaned target asset from this contract
+    /// @param collateralVault Address of the user's collateral vault
+    /// @param underlyingCollateralAmount Amount of underlying collateral the user is providing
+    /// @param collateralAmount Amount of collateral the user is providing
+    /// @param flashloanAmount Amount of target asset to flashloan
+    /// @param minAmountOut Minimum amount of WETH expected from swap
+    /// @param deadline Deadline timestamp for the swap verification
+    /// @param swapData Encoded swap instructions for the swapper
+    function executeLeverage(
+        address collateralVault,
+        uint underlyingCollateralAmount,
+        uint collateralAmount,
+        uint flashloanAmount,
+        uint minAmountOut,
+        uint deadline,
+        bytes[] calldata swapData
+    ) external nonReentrant {
+        address msgSender = _msgSender();
+
+        require(COLLATERAL_VAULT_FACTORY.isCollateralVault(collateralVault), T_InvalidCollateralVault());
+
+        require(EulerCollateralVault(collateralVault).borrower() == msgSender, T_CallerNotBorrower());
+
+        address collateral = EulerCollateralVault(collateralVault).asset();
+        address targetAsset = EulerCollateralVault(collateralVault).targetAsset();
+
+        {
+            if (underlyingCollateralAmount > 0) {
+                address underlyingCollateral = IEVault(collateral).asset();
+                IERC20(underlyingCollateral).safeTransferFrom(msgSender, collateral, underlyingCollateralAmount);
+                IEVault(collateral).skim(underlyingCollateralAmount, collateralVault);
+            }
+            if (collateralAmount > 0) {
+                IEVault(collateral).transferFrom(msgSender, collateralVault, collateralAmount);
+            }
+        }
+
+        MORPHO.flashLoan(
+            targetAsset,
+            flashloanAmount,
+            abi.encode(
+                msgSender,
+                collateralVault,
+                collateral,
+                targetAsset,
+                minAmountOut,
+                deadline,
+                swapData
+            )
+        );
+
+        emit T_LeverageUpExecuted(collateralVault);
+    }
+
+    /// @notice Callback function for Morpho flashloan
+    /// @param amount Amount of tokens received in the flashloan
+    /// @param data Encoded data containing swap and deposit parameters
+    function onMorphoFlashLoan(uint amount, bytes calldata data) external {
+        require(msg.sender == address(MORPHO), T_CallerNotMorpho());
+
+        (
+            address user,
+            address collateralVault,
+            address collateral,
+            address targetAsset,
+            uint minAmountOut,
+            uint deadline,
+            bytes[] memory swapData
+        ) = abi.decode(data, (address, address, address, address, uint, uint, bytes[]));
+
+        // Step 1: Transfer flashloaned target asset to swapper
+        IERC20(targetAsset).safeTransfer(SWAPPER, amount);
+
+        // Step 2: Execute swap target asset -> underlying collateral through multicall.
+        // Euler vault receives the underlying collateral.
+        ISwapper(SWAPPER).multicall(swapData);
+
+        // Target asset the route returned to this contract (e.g. an exact-output
+        // route sweeping its unconsumed input back). Only the consumed part needs to be
+        // borrowed; the returned part settles the flashloan repayment directly.
+        uint borrowAmount = amount - Math.min(amount, IERC20(targetAsset).balanceOf(address(this)));
+
+        // Step 3: Verify swap output and skim collateral to collateral vault
+        // The swap sends underlying collateral to Euler vault, which then needs to be skimmed.
+        // Collateral vault receives the collateral.
+        ISwapVerifier(SWAP_VERIFIER).verifyAmountMinAndSkim(
+            collateral,
+            collateralVault,
+            minAmountOut,
+            deadline
+        );
+
+        IEVC.BatchItem[] memory items = new IEVC.BatchItem[](Math.ternary(borrowAmount > 0, 2, 1));
+
+        // Deposit all airdropped collateral to collateral vault
+        items[0] = IEVC.BatchItem({
+            targetContract: collateralVault,
+            onBehalfOfAccount: user,
+            value: 0,
+            data: abi.encodeCall(CollateralVaultBase.skim, ())
+        });
+
+        // Borrow target asset from collateral vault, net of any target asset returned by the swap route
+        if (borrowAmount > 0) {
+            items[1] = IEVC.BatchItem({
+                targetContract: collateralVault,
+                onBehalfOfAccount: user,
+                value: 0,
+                data: abi.encodeCall(CollateralVaultBase.borrow, (borrowAmount, address(this)))
+            });
+        }
+
+        IEVC(evc).batch(items);
+
+        // Step 6: Approve Morpho to take repayment
+        IERC20(targetAsset).forceApprove(address(MORPHO), amount);
+
+        // Morpho will automatically pull the repayment amount
+    }
+}
