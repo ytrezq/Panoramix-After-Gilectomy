@@ -5,6 +5,7 @@
 #include "simplify/simplify.hpp"
 
 #include <algorithm>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -87,6 +88,12 @@ std::vector<std::pair<Value, Value>> variable_values(Value trace) {
 // words that small (ceil32(len) + k doesn't wrap). A variable set once:
 // its value too (cleanup_vars puts it in its place). Not past a LABEL (a
 // raw trace's loop).
+// A check of a product by a constant, `if k * len > 2^64 - 1: revert`,
+// bounds len where k * len can't wrap - by what the checks before it on
+// the spine say of len (they hold wherever it is checked: the words are
+// immutable), among them a checked multiplication's own test (`len and
+// (k * len) / len != k`: once it fails, k * len < 2^256) - or by len's
+// range (an address...).
 class SmallWords {
 public:
     explicit SmallWords(const std::vector<std::pair<Value, Value>>& values) : values_(values) {}
@@ -148,21 +155,87 @@ private:
     // what holds from here on: the words it bounds below 2^64
     void bound(Value holds) {
         static const EvmInt top = EvmInt::pow2(64);
+        if (const auto p = unwrapped_product(holds)) remember(p->y, floordiv(word_max(), p->k));
         for (const alg::CondBound& b : alg::cond_bounds(holds)) {
-            if (!(b.range().hi < top)) continue;
-            add(b.x);
-            if (b.x.is_name()) {
+            Value x = b.x;
+            EvmInt hi = b.range().hi;
+            // k * y: y <= hi / k, where k * y can't wrap
+            if (x.is(Op::MUL, 2) && x[0].is_int() && !x[1].is_int()) {
+                const EvmInt k(x[0]);
+                if (k.sign() <= 0 || !(k * hi_of(x[1]) <= word_max())) continue;
+                x = x[1];
+                hi = floordiv(hi, k);
+            }
+            remember(x, hi);
+            if (!(hi < top)) continue;
+            add(x);
+            if (x.is_name()) {
                 // (a variable set once: its value)
                 Value v;
                 u32 n = 0;
                 for (const auto& [name, value] : values_)
-                    if (name == b.x) {
+                    if (name == x) {
                         v = value;
                         ++n;
                     }
                 if (n == 1) add(v);
             }
         }
+    }
+    // k * y with y == 0 or (k * y) / y == k where cond holds - a checked
+    // multiplication's test - can't wrap: were k y >= 2^256, (k y mod 2^256)
+    // / y <= (k y - 2^256) / y < k (and y == 0 makes the division 0, not k)
+    struct Product {
+        EvmInt k;
+        Value y;
+    };
+    static std::optional<Product> unwrapped_product(Value cond) {
+        // (k == (k * y) / y)
+        auto quotient = [](Value eq) -> std::optional<Product> {
+            if (!eq.is(Op::EQ, 2)) return std::nullopt;
+            for (int s = 0; s < 2; ++s) {
+                const Value k = eq[s], d = eq[1 - s];
+                if (!k.is_int() || !d.is(Op::DIV, 2) || !d[0].is(Op::MUL, 2) || d[0][0] != k) continue;
+                const Value y = d[1];
+                if (d[0][1] != y || y.is_int() || EvmInt(k).sign() <= 0) continue;
+                return Product{EvmInt(k), y};
+            }
+            return std::nullopt;
+        };
+        // y != 0 (y itself as a truth value, or bool(y))
+        auto nonzero = [](Value t, Value y) { return t == y || (t.is(Op::BOOL, 1) && t[0] == y); };
+        // y == 0
+        auto zero = [](Value t, Value y) { return t.is(Op::ISZERO, 1) && t[0] == y; };
+        if (cond.is(Op::ISZERO, 1) && cond[0].is(Op::AND, 2)) {
+            // not (y != 0 and not (k == (k * y) / y))
+            const Value a = cond[0];
+            for (int s = 0; s < 2; ++s)
+                if (a[s].is(Op::ISZERO, 1))
+                    if (const auto p = quotient(a[s][0]); p && nonzero(a[1 - s], p->y)) return p;
+        }
+        if (cond.is(Op::OR, 2)) {
+            // y == 0 or k == (k * y) / y
+            for (int s = 0; s < 2; ++s)
+                if (const auto p = quotient(cond[s]); p && zero(cond[1 - s], p->y)) return p;
+        }
+        return std::nullopt;
+    }
+    // what the spine's checks so far say of an immutable word: the lowest
+    // upper bound, with its range's
+    EvmInt hi_of(Value x) {
+        EvmInt hi = alg::range(x).hi;
+        for (const auto& [y, h] : highs_)
+            if (y == x && h < hi) hi = h;
+        return hi;
+    }
+    void remember(Value x, const EvmInt& hi) {
+        if (x.is_int() || !immutable(x, 0)) return;
+        for (auto& [y, h] : highs_)
+            if (y == x) {
+                if (hi < h) h = hi;
+                return;
+            }
+        highs_.emplace_back(x, hi);
     }
     void add(Value x) {
         if (x.is_int() || x.is(Op::ADD) || x.is(Op::MUL)) return;  // (a sum may be small only modulo 2^256)
@@ -220,6 +293,7 @@ private:
     const std::vector<std::pair<Value, Value>>& values_;
     MemoSet<Value> noted_, seen_;
     std::vector<Value> small_;
+    std::vector<std::pair<Value, EvmInt>> highs_;  // (remember)
 };
 
 class Driver {

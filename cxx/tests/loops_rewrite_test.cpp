@@ -19,6 +19,7 @@
 #include "algebra/ranges.hpp"
 #include "exec/machine.hpp"
 #include "loops/loops.hpp"
+#include "simplify/simplify.hpp"
 
 using namespace pan;
 namespace L = pan::loops;
@@ -136,6 +137,10 @@ Value pass_dubious(Value t) {
 }
 Value pass_storage(Value t) { return L::propagate_storage_in_loops(t); }
 
+// the simplifier's rounds and final passes (lot 7: its small words, the
+// memory forwarded, loops_to_setmems among them)
+Value pass_whole(Value t) { return simplify::simplify_trace(t); }
+
 // the pass on the trace, checked by execution; whether it changed it
 bool check(const char* text, Value (*pass)(Value)) {
     Value t = V(text);
@@ -143,6 +148,14 @@ bool check(const char* text, Value (*pass)(Value)) {
     Value u = pass(t);
     CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
     return u != t;
+}
+// the same, the trace it made
+Value check_value(const char* text, Value (*pass)(Value)) {
+    Value t = V(text);
+    Vars vars(t);
+    Value u = pass(t);
+    CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
+    return u;
 }
 
 bool has_while(Value v) {
@@ -428,6 +441,46 @@ TEST_CASE("loops: a loop that runs once or never") {
                  "4)})"
                  " (return (data (mem (range 0 32)) (sized 32 loop1) (sized 32 loop2)))}",
                  pass_setmems));
+}
+
+TEST_CASE("loops: a copy whose length a checked product bounds (the simplifier's small words)") {
+    Fixture f;
+    // GnosisSafe's getStorageAt (solc 0.8.30, shanghai): new bytes(length *
+    // 32), the words copied from storage, the bytes copied again to be
+    // returned - MCOPY in the cancun build. `length * 32` checked (a
+    // checked multiplication's test, then the allocation's bound) makes
+    // length a small word: the length word at 128 is known past the write
+    // at mem[64], the copy's source and destination apart
+    const char* t =
+        "{(if (and (bool (calldataload 36)) (iszero (eq 32 (div (mul 32 (calldataload 36)) (calldataload 36))))) "
+        "{(revert None)} {})"
+        " (if (gt (mul 32 (calldataload 36)) 0xffffffffffffffff) {(revert None)} {})"
+        " (setmem (range 64 32) (sized 32 (add 160 (mul 32 (calldataload 36)))))"
+        " (setmem (range 128 32) (sized 32 (mul 32 (calldataload 36))))"
+        " (setmem (range 160 (mul 32 (calldataload 36))) (calldata_bytes calldatasize (mul 32 (calldataload 36))))"
+        " (while (lt loop1 (calldataload 36)) {(setmem (range (add 160 (mul 32 loop1)) 32) (sized 32 (storage 256 0 (add "
+        "loop1 (calldataload 4))))) (continue loopid1 {(setvar loop1 (add 1 loop1))})} loopid1 {(setvar loop1 0)})"
+        " (setvar tmp2 (mem (range 64 32)))"
+        " (setmem (range (mem (range 64 32)) 32) (sized 32 32))"
+        " (setvar tmp3 (mem (range 128 32)))"
+        " (setmem (range (add 32 tmp2) 32) (sized 32 (mem (range 128 32))))"
+        " (while (lt loop2 tmp3) {(setmem (range (add 64 tmp2 loop2) 32) (sized 32 (mem (range (add 160 loop2) 32)))) "
+        "(continue loopid2 {(setvar loop2 (add 32 loop2))})} loopid2 {(setvar loop2 0)})"
+        " (setmem (range (add 64 tmp2 tmp3) 32) (sized 32 0))"
+        " (return (mem (range tmp2 (add 64 (mask_shl 251 5 0 (add 31 tmp3))))))}";
+    auto loops_in = [](auto&& self, Value v) -> int {
+        if (!(v.is_expr() || v.is_list())) return 0;
+        int n = v.is(Op::WHILE) ? 1 : 0;
+        for (Value a : v.children()) n += self(self, a);
+        return n;
+    };
+    Value u = check_value(t, pass_whole);
+    // the storage loop stays (storage), the copy is a SETMEM
+    CHECK(loops_in(loops_in, u) == 1);
+    // ... not where nothing excludes the product's wrap (the multiplication unchecked)
+    const std::string unchecked = std::string(t).substr(std::string(t).find(" (if (gt"));
+    Value w = check_value(("{" + unchecked).c_str(), pass_whole);
+    CHECK(loops_in(loops_in, w) == 2);
 }
 
 TEST_CASE("loops: propagate_storage_in_loops") {
