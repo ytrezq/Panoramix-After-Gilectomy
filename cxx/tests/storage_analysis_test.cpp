@@ -22,6 +22,7 @@
 #include "core/evmint.hpp"
 #include "exec/machine.hpp"
 #include "sigdb.hpp"
+#include "storage/check.hpp"
 #include "storage/internal.hpp"
 #include "storage/names.hpp"
 #include "storage/storage.hpp"
@@ -547,4 +548,80 @@ TEST_CASE("storage: review 2026-11-02 F5 - a slot read by several getters is nam
         CHECK(layout->vars[0].getter == 0x8da5cb5bu);  // (whatever the dispatcher's order)
         CHECK(!layout->vars[0].strip_get);
     }
+}
+
+TEST_CASE("storage: a form is proven to read as its access, or refused - never sampled") {
+    Fixture f;
+    using storage::detail::Access;
+    using storage::detail::Checker;
+    // uint256[] at slot 0, mapping(uint256 => mapping(address => uint256)) at 5, mapping(address => uint256) at 3
+    StorageLayout L;
+    L.lang = Lang::Solidity;
+    L.types.push_back(StorageType{});  // 0: uint256
+    StorageType arr, map, map2;
+    arr.kind = Kind::Array;
+    arr.elem = 0;
+    map.kind = Kind::Mapping;
+    map.elem = 0;
+    L.types.push_back(arr);  // 1
+    L.types.push_back(map);  // 2
+    map2.kind = Kind::Mapping;
+    map2.elem = 2;
+    L.types.push_back(map2);  // 3
+    const std::vector<std::pair<u64, u32>> vars{{0, 1}, {5, 3}, {3, 2}};
+    for (const auto& [slot, type] : vars) {
+        StorageVar v;
+        v.slot = Word256::of(slot);
+        v.type = type;
+        L.vars.push_back(v);
+    }
+    const Value w = Value::small(256), zero = Value::small(0);
+    Checker c;
+    // as solc writes the slots: keccak(0) + 3, keccak(0) + i (the hash a number,
+    // the terms in another order), keccak(caller . keccak(0 . 5)) with the inner
+    // hash a number, a hash of a DATA
+    CHECK(c.check(L, V("(st 256 (si (sv stor0) 3) 256)"), Access{w, zero, V("0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e566")}));
+    CHECK(c.check(L, V("(st 256 (si (sv stor0) (calldataload 4)) 256)"),
+                  Access{w, zero, V("(add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563 (calldataload 4))")}));
+    CHECK(c.check(L, V("(st 64 (sf (si (si (sv stor1) 0) caller) 64) 192)"),
+                  Access{Value::small(64), Value::small(64),
+                         V("(sha3 (sized 32 caller) (sized 32 0x5b8ccbb9d4d8fb16ea74ce3c29a41f1b461fbdaff4714a0d9a8eb05499746bc))")}));
+    CHECK(c.check(L, V("(st 256 (si (sv stor2) caller) 256)"), Access{w, zero, V("(sha3 (data (sized 32 caller) (sized 32 3)))")}));
+    CHECK(c.proven() == 4);
+    // another element, another bit; a slot that is the access's but where no
+    // random world would look (max(x, 1) is x but at 0), a hash of other bytes
+    CHECK_FALSE(c.check(L, V("(st 256 (si (sv stor0) 3) 256)"), Access{w, zero, V("0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e567")}));
+    CHECK_FALSE(c.check(L, V("(st 64 (sf (si (si (sv stor1) 0) caller) 64) 192)"),
+                        Access{Value::small(64), Value::small(0),
+                               V("(sha3 (sized 32 caller) (sized 32 0x5b8ccbb9d4d8fb16ea74ce3c29a41f1b461fbdaff4714a0d9a8eb05499746bc))")}));
+    CHECK_FALSE(c.check(L, V("(st 256 (sr (calldataload 4)) 256)"), Access{w, zero, V("(max (calldataload 4) 1)")}));
+    CHECK_FALSE(c.check(L, V("(st 256 (si (sv stor2) caller) 256)"), Access{w, zero, V("(sha3 (data (sized 20 caller) (sized 32 3)))")}));
+    CHECK(c.refused() == 4);
+}
+
+TEST_CASE("storage: the hashes solc computes at compile time - the forms proven, run the same") {
+    Fixture f;
+    std::vector<FunctionInfo> fns{
+        // uint256[] at 0: its length, element i (checked), element 3
+        fn(0x01010101, "{(return (sized 32 (storage 256 0 0)))}"),
+        fn(0x02020202,
+           "{(if (lt (calldataload 4) (storage 256 0 0)) {(return (sized 32 (storage 256 0 (add "
+           "0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563 (calldataload 4)))))} {(revert None)})}"),
+        fn(0x03030303, "{(return (sized 32 (storage 256 0 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e566)))}"),
+        // a mapping of mappings at 5, its key 0 a number: keccak(0 . 5)
+        fn(0x04040404,
+           "{(return (sized 32 (storage 256 0 (sha3 (sized 32 caller) (sized 32 (sha3 (sized 32 (calldataload 4)) (sized 32 5)))))))}"),
+        fn(0x05050505,
+           "{(return (sized 32 (storage 256 0 (sha3 (sized 32 caller) (sized 32 "
+           "0x5b8ccbb9d4d8fb16ea74ce3c29a41f1b461fbdaff4714a0d9a8eb05499746bc)))))}"),
+    };
+    const Analysed a = analyse(fns);
+    for (const FunctionInfo& fi : a.after) {
+        INFO(dump(fi.trace));
+        CHECK(no_pre_p(fi.trace));
+    }
+    CHECK(has(a.after[1].trace, V("(st 256 (si (sv stor0) (calldataload 4)) 256)")));
+    CHECK(has(a.after[2].trace, V("(st 256 (si (sv stor0) 3) 256)")));
+    CHECK(has(a.after[4].trace, V("(st 256 (si (si (sv stor1) 0) caller) 256)")));
+    same_runs(a);
 }

@@ -446,7 +446,7 @@ private:
     std::map<Word256, u32> var_of_root_;
     std::map<std::pair<Word256, std::pair<i64, i64>>, u32> var_of_field_;
     Memo<Key3, Value> forms_read_, forms_write_;
-    std::unique_ptr<Worlds> worlds_;
+    std::unique_ptr<Checker> checker_;
     std::unique_ptr<FormRewrite> rewriter_;
 
     const Known& known(u32 fn) {
@@ -882,7 +882,7 @@ Value Analysis::form(Value size, Value off, Value idx, bool write) {
                 f = st_form(size.small_val(), mk(Op::SF, f[3][1], off), 256 - off.small_val());
         }
         if (!f.nil() && write && !f.is(Op::ST)) f = Value();
-        if (!f.nil() && !worlds_->check(*layout_, f, a)) f = Value();
+        if (!f.nil() && !checker_->check(*layout_, f, a)) f = Value();
     }
     if (f.nil()) f = write ? raw_target(size, off, idx) : raw_read(size, off, idx);
     // (a NIL target: the whole word - kept NIL in the memo, the slot made again)
@@ -980,7 +980,7 @@ std::shared_ptr<StorageLayout> Analysis::run() {
     find_bytes_getters();
     check_deadline(deadline);
     names();
-    worlds_ = std::make_unique<Worlds>();
+    checker_ = std::make_unique<Checker>();
     for (usize fi = 0; fi < fns_.size(); ++fi) {
         check_deadline(deadline);
         const Value g = getter_trace(fi);
