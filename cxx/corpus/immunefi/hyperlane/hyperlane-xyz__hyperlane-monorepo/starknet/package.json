@@ -1,0 +1,50 @@
+{
+  "name": "@hyperlane-xyz/starknet-core",
+  "version": "45.1.0",
+  "description": "Core cairo contracts for Hyperlane",
+  "keywords": [
+    "Cairo",
+    "Hyperlane",
+    "Starknet"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "default": "./dist/runtime.js"
+    }
+  },
+  "scripts": {
+    "test:ci": "tsx --test scripts/generate-artifacts.test.ts",
+    "fetch-contracts": "./scripts/fetch-contracts-release.sh",
+    "generate-artifacts": "tsx ./scripts/generate-artifacts.ts",
+    "build": "tsc && pnpm fetch-contracts && pnpm generate-artifacts",
+    "clean": "rm -rf ./dist ./release",
+    "lint": "oxlint -c ../oxlint.json",
+    "format": "oxfmt --write ./src"
+  },
+  "dependencies": {
+    "starknet": "catalog:"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/node": "catalog:",
+    "globby": "^14.1.0",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

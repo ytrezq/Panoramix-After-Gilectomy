@@ -1,0 +1,2594 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.13;
+
+import {Test} from "forge-std/Test.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+import {StandardHookMetadata} from "../contracts/hooks/libs/StandardHookMetadata.sol";
+import {MockMailbox} from "../contracts/mock/MockMailbox.sol";
+import {MockHyperlaneEnvironment} from "../contracts/mock/MockHyperlaneEnvironment.sol";
+import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
+import {IInterchainSecurityModule} from "../contracts/interfaces/IInterchainSecurityModule.sol";
+import {TestInterchainGasPaymaster} from "../contracts/test/TestInterchainGasPaymaster.sol";
+import {InterchainGasPaymaster} from "../contracts/hooks/igp/InterchainGasPaymaster.sol";
+import {StorageGasOracle} from "../contracts/hooks/igp/StorageGasOracle.sol";
+import {IGasOracle} from "../contracts/interfaces/IGasOracle.sol";
+import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook.sol";
+import {CallLib, OwnableMulticall, InterchainAccountRouter, InterchainAccountMessage, CommitmentReadIsm} from "../contracts/middleware/InterchainAccountRouter.sol";
+import {AbstractPostDispatchHook} from "../contracts/hooks/libs/AbstractPostDispatchHook.sol";
+import {TestPostDispatchHook} from "../contracts/test/TestPostDispatchHook.sol";
+import {Message} from "../contracts/libs/Message.sol";
+import {ERC20Test} from "../contracts/test/ERC20Test.sol";
+import {StaticAggregationHook} from "../contracts/hooks/aggregation/StaticAggregationHook.sol";
+import {StaticAggregationHookFactory} from "../contracts/hooks/aggregation/StaticAggregationHookFactory.sol";
+import {MerkleTreeHook} from "../contracts/hooks/MerkleTreeHook.sol";
+
+contract Callable {
+    mapping(address => bytes32) public data;
+    mapping(address => uint256) public value;
+
+    function set(bytes32 _data) external payable {
+        data[msg.sender] = _data;
+        value[msg.sender] = msg.value;
+    }
+}
+
+contract DelegateCallable {
+    function sendBalance(
+        address payable recipient,
+        bytes calldata data
+    ) external {
+        (bool success, ) = recipient.call{value: address(this).balance}(data);
+        require(success, "delegate send failed");
+    }
+}
+
+contract FailingIsm is IInterchainSecurityModule {
+    string public failureMessage;
+    uint8 public moduleType;
+
+    constructor(string memory _failureMessage) {
+        failureMessage = _failureMessage;
+    }
+
+    function verify(
+        bytes calldata,
+        bytes calldata
+    ) external view returns (bool) {
+        revert(failureMessage);
+    }
+}
+
+contract TestERC20FeeHook is AbstractPostDispatchHook {
+    using Message for bytes;
+    using SafeERC20 for IERC20;
+    using StandardHookMetadata for bytes;
+
+    IERC20 public immutable feeToken;
+    uint256 public dispatchCount;
+    uint256 public totalFees;
+    uint256 public lastMsgValue;
+    bytes32 public lastRecipient;
+    bytes32 public lastBodyHash;
+
+    constructor(IERC20 _feeToken) {
+        feeToken = _feeToken;
+    }
+
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.HookTypes.UNUSED);
+    }
+
+    function _postDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal override {
+        require(
+            metadata.feeToken(address(0)) == address(feeToken),
+            "unexpected fee token"
+        );
+
+        uint256 fee = _quoteDispatch(metadata, message);
+        feeToken.safeTransferFrom(message.senderAddress(), address(this), fee);
+
+        dispatchCount += 1;
+        totalFees += fee;
+        lastMsgValue = msg.value;
+        lastRecipient = message.recipient();
+        lastBodyHash = keccak256(message.body());
+    }
+
+    function _quoteDispatch(
+        bytes calldata,
+        bytes calldata message
+    ) internal pure override returns (uint256) {
+        return
+            1_000_000 +
+            message.body().length *
+            1_000 +
+            (uint256(message.recipient()) & 0xff);
+    }
+}
+
+contract TestUnderpullingERC20FeeHook is AbstractPostDispatchHook {
+    using Message for bytes;
+    using SafeERC20 for IERC20;
+
+    uint256 internal constant FEE = 1_000_000;
+    IERC20 public immutable feeToken;
+
+    constructor(IERC20 _feeToken) {
+        feeToken = _feeToken;
+    }
+
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.HookTypes.UNUSED);
+    }
+
+    function _postDispatch(
+        bytes calldata,
+        bytes calldata message
+    ) internal override {
+        feeToken.safeTransferFrom(
+            message.senderAddress(),
+            address(this),
+            FEE - 1
+        );
+    }
+
+    function _quoteDispatch(
+        bytes calldata,
+        bytes calldata
+    ) internal pure override returns (uint256) {
+        return FEE;
+    }
+}
+
+contract InterchainAccountRouterTestBase is Test {
+    using TypeCasts for address;
+    using StandardHookMetadata for bytes;
+
+    event InterchainAccountCreated(
+        address indexed account,
+        uint32 origin,
+        bytes32 router,
+        bytes32 owner,
+        address ism,
+        bytes32 salt
+    );
+
+    event RemoteCallDispatched(
+        uint32 indexed destination,
+        address indexed owner,
+        bytes32 router,
+        bytes32 ism,
+        bytes32 salt
+    );
+
+    event CommitRevealDispatched(bytes32 indexed commitment);
+
+    MockHyperlaneEnvironment internal environment;
+
+    uint32 internal origin = 1;
+    uint32 internal destination = 2;
+
+    TestInterchainGasPaymaster internal igp;
+    InterchainAccountRouter internal originIcaRouter;
+    InterchainAccountRouter internal destinationIcaRouter;
+    bytes32 internal ismOverride;
+    bytes32 internal routerOverride;
+    uint256 gasPaymentQuote;
+    uint256 internal constant GAS_LIMIT_OVERRIDE = 60000;
+
+    // ============ ERC20 Fee Infrastructure ============
+    InterchainGasPaymaster internal erc20Igp;
+    StorageGasOracle internal gasOracle;
+    ERC20Test internal feeToken;
+    InterchainAccountRouter internal originErc20Router;
+    InterchainAccountRouter internal destinationErc20Router;
+    bytes32 internal erc20RouterOverride;
+
+    uint128 internal constant GAS_PRICE = 10;
+    uint128 internal constant TOKEN_EXCHANGE_RATE = 1e10;
+
+    OwnableMulticall internal ica;
+
+    Callable internal target;
+
+    function deployIcaRouter(
+        MockMailbox _mailbox,
+        IPostDispatchHook _customHook,
+        address _owner
+    ) public virtual returns (InterchainAccountRouter) {
+        string[] memory urls = new string[](1);
+        return
+            new InterchainAccountRouter(
+                address(_mailbox),
+                address(_customHook),
+                _owner,
+                20_000,
+                urls
+            );
+    }
+
+    function setUp() public virtual {
+        environment = new MockHyperlaneEnvironment(origin, destination);
+
+        igp = new TestInterchainGasPaymaster();
+        gasPaymentQuote = igp.quoteGasPayment(
+            destination,
+            igp.getDefaultGasUsage()
+        );
+
+        address owner = address(this);
+        originIcaRouter = deployIcaRouter(
+            environment.mailboxes(origin),
+            environment.igps(origin),
+            owner
+        );
+
+        destinationIcaRouter = deployIcaRouter(
+            environment.mailboxes(destination),
+            environment.igps(destination),
+            owner
+        );
+
+        environment.mailboxes(origin).setDefaultHook(address(igp));
+
+        routerOverride = TypeCasts.addressToBytes32(
+            address(destinationIcaRouter)
+        );
+        ismOverride = TypeCasts.addressToBytes32(
+            address(environment.isms(destination))
+        );
+        ica = destinationIcaRouter.getLocalInterchainAccount(
+            origin,
+            address(this),
+            address(originIcaRouter),
+            address(environment.isms(destination))
+        );
+
+        target = new Callable();
+
+        _setupErc20FeeInfrastructure();
+    }
+
+    function _setupErc20FeeInfrastructure() internal {
+        // Deploy ERC20 fee token
+        feeToken = new ERC20Test("Fee Token", "FEE", 1_000_000e18, 18);
+
+        // Deploy real IGP with ERC20 support
+        erc20Igp = new InterchainGasPaymaster();
+        erc20Igp.initialize(address(this), address(this));
+
+        // Deploy and configure gas oracle
+        gasOracle = new StorageGasOracle();
+        // Configure native token gas oracle first (required before ERC20 tokens)
+        _setTokenGasConfig(address(0), destination);
+        _setTokenGasConfig(address(feeToken), destination);
+        _setRemoteGasData(destination, TOKEN_EXCHANGE_RATE, GAS_PRICE);
+
+        // Deploy routers wired to ERC20 IGP
+        string[] memory urls = new string[](1);
+        originErc20Router = new InterchainAccountRouter(
+            address(environment.mailboxes(origin)),
+            address(erc20Igp),
+            address(this),
+            20_000,
+            urls
+        );
+        destinationErc20Router = new InterchainAccountRouter(
+            address(environment.mailboxes(destination)),
+            address(erc20Igp),
+            address(this),
+            20_000,
+            urls
+        );
+
+        // Set up router override for ERC20 routers
+        erc20RouterOverride = address(destinationErc20Router)
+            .addressToBytes32();
+
+        // Enroll remote router
+        originErc20Router.enrollRemoteRouterAndIsm(
+            destination,
+            erc20RouterOverride,
+            ismOverride
+        );
+
+        // Fund test contract with fee tokens
+        feeToken.transfer(address(this), 100_000e18);
+    }
+
+    function _setTokenGasConfig(address _token, uint32 _domain) internal {
+        InterchainGasPaymaster.TokenGasOracleConfig[]
+            memory params = new InterchainGasPaymaster.TokenGasOracleConfig[](
+                1
+            );
+        params[0] = InterchainGasPaymaster.TokenGasOracleConfig(
+            _token,
+            _domain,
+            IGasOracle(address(gasOracle))
+        );
+        erc20Igp.setTokenGasOracles(params);
+    }
+
+    function _setRemoteGasData(
+        uint32 _domain,
+        uint128 _exchangeRate,
+        uint128 _gasPrice
+    ) internal {
+        gasOracle.setRemoteGasData(
+            StorageGasOracle.RemoteGasDataConfig({
+                remoteDomain: _domain,
+                tokenExchangeRate: _exchangeRate,
+                gasPrice: _gasPrice
+            })
+        );
+    }
+
+    function getCalls(
+        bytes32 data,
+        uint256 value
+    ) internal view returns (CallLib.Call[] memory) {
+        vm.assume(data != bytes32(0));
+        vm.assume(value < CallLib.DELEGATECALL_SENTINEL);
+
+        CallLib.Call memory call = CallLib.Call(
+            TypeCasts.addressToBytes32(address(target)),
+            value,
+            abi.encodeCall(target.set, (data))
+        );
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = call;
+        return calls;
+    }
+
+    function assertRemoteCallReceived(bytes32 data, uint256 value) internal {
+        assertEq(target.data(address(this)), bytes32(0));
+        assertEq(target.value(address(this)), 0);
+
+        vm.expectEmit(true, true, false, true, address(destinationIcaRouter));
+        emit InterchainAccountCreated(
+            address(ica),
+            origin,
+            address(originIcaRouter).addressToBytes32(),
+            address(this).addressToBytes32(),
+            TypeCasts.bytes32ToAddress(ismOverride),
+            bytes32(0)
+        );
+
+        vm.deal(address(this), value);
+        environment.processNextPendingMessage{value: value}();
+
+        assertEq(target.data(address(ica)), data);
+        assertEq(target.value(address(ica)), value);
+    }
+
+    function assertIgpPayment(
+        uint256 balanceBefore,
+        uint256 balanceAfter,
+        uint256 gasLimit
+    ) internal {
+        uint256 expectedGasPayment = gasLimit * igp.gasPrice();
+        assertEq(balanceBefore - balanceAfter, expectedGasPayment);
+        assertEq(address(igp).balance, expectedGasPayment);
+    }
+
+    function testFuzz_constructor(address _localOwner) public {
+        OwnableMulticall _account = destinationIcaRouter
+            .getDeployedInterchainAccount(
+                origin,
+                _localOwner,
+                address(originIcaRouter),
+                address(environment.isms(destination))
+            );
+        assertEq(_account.owner(), address(destinationIcaRouter));
+    }
+
+    function test_implementation_deployed() public {
+        address impl = originIcaRouter.implementation();
+        assertTrue(impl != address(0));
+        assertTrue(impl.code.length > 0);
+    }
+
+    function test_bytecodeHash_nonzero() public {
+        bytes32 hash = originIcaRouter.bytecodeHash();
+        assertTrue(hash != bytes32(0));
+    }
+
+    function test_interchainSecurityModule_returnsSelf() public {
+        assertEq(
+            address(originIcaRouter.interchainSecurityModule()),
+            address(originIcaRouter)
+        );
+    }
+
+    function testFuzz_enrollRemoteRouterAndIsm(
+        bytes32 router,
+        bytes32 ism
+    ) public {
+        vm.assume(router != bytes32(0));
+
+        // arrange pre-condition
+        bytes32 actualRouter = originIcaRouter.routers(destination);
+        bytes32 actualIsm = originIcaRouter.isms(destination);
+        assertEq(actualRouter, bytes32(0));
+        assertEq(actualIsm, bytes32(0));
+
+        // act
+        originIcaRouter.enrollRemoteRouterAndIsm(destination, router, ism);
+
+        // assert
+        actualRouter = originIcaRouter.routers(destination);
+        actualIsm = originIcaRouter.isms(destination);
+        assertEq(actualRouter, router);
+        assertEq(actualIsm, ism);
+    }
+
+    function testFuzz_enrollRemoteRouterAndIsms(
+        uint32[] calldata destinations,
+        bytes32[] calldata routers,
+        bytes32[] calldata isms
+    ) public {
+        // check reverts
+        if (
+            destinations.length != routers.length ||
+            destinations.length != isms.length
+        ) {
+            vm.expectRevert(bytes("length mismatch"));
+            originIcaRouter.enrollRemoteRouterAndIsms(
+                destinations,
+                routers,
+                isms
+            );
+            return;
+        }
+
+        vm.assume(_hasUniqueDomains(destinations));
+
+        // act
+        originIcaRouter.enrollRemoteRouterAndIsms(destinations, routers, isms);
+
+        // assert
+        for (uint256 i = 0; i < destinations.length; i++) {
+            bytes32 actualRouter = originIcaRouter.routers(destinations[i]);
+            bytes32 actualIsm = originIcaRouter.isms(destinations[i]);
+            assertEq(actualRouter, routers[i]);
+            assertEq(actualIsm, isms[i]);
+        }
+    }
+
+    function test_enrollRemoteRouterAndIsms_revertsDuplicateEnrolledDestination()
+        public
+    {
+        uint32[] memory destinations = new uint32[](2);
+        destinations[0] = destination;
+        destinations[1] = destination;
+
+        bytes32[] memory routers = new bytes32[](2);
+        routers[0] = bytes32(uint256(1));
+        routers[1] = bytes32(uint256(2));
+
+        bytes32[] memory isms = new bytes32[](2);
+        isms[0] = bytes32(uint256(3));
+        isms[1] = bytes32(uint256(4));
+
+        vm.expectRevert(
+            bytes("router and ISM defaults are immutable once set")
+        );
+        originIcaRouter.enrollRemoteRouterAndIsms(destinations, routers, isms);
+
+        assertEq(originIcaRouter.routers(destination), bytes32(0));
+        assertEq(originIcaRouter.isms(destination), bytes32(0));
+    }
+
+    function _hasUniqueDomains(
+        uint32[] calldata domains
+    ) internal pure returns (bool) {
+        for (uint256 i = 0; i < domains.length; i++) {
+            for (uint256 j = i + 1; j < domains.length; j++) {
+                if (domains[i] == domains[j]) return false;
+            }
+        }
+        return true;
+    }
+
+    function testFuzz_enrollRemoteRouterAndIsmImmutable(
+        bytes32 routerA,
+        bytes32 ismA,
+        bytes32 routerB,
+        bytes32 ismB
+    ) public {
+        vm.assume(routerA != bytes32(0) && routerB != bytes32(0));
+
+        // act
+        originIcaRouter.enrollRemoteRouterAndIsm(destination, routerA, ismA);
+
+        // assert
+        vm.expectRevert(
+            bytes("router and ISM defaults are immutable once set")
+        );
+        originIcaRouter.enrollRemoteRouterAndIsm(destination, routerB, ismB);
+    }
+
+    function testFuzz_enrollRemoteRouterAndIsmNonOwner(
+        address newOwner,
+        bytes32 router,
+        bytes32 ism
+    ) public {
+        vm.assume(
+            newOwner != address(0) && newOwner != originIcaRouter.owner()
+        );
+
+        // act
+        originIcaRouter.transferOwnership(newOwner);
+
+        // assert
+        vm.expectRevert(bytes("Ownable: caller is not the owner"));
+        originIcaRouter.enrollRemoteRouterAndIsm(destination, router, ism);
+    }
+
+    function test_quoteGasPayment_gasLimitOverride() public {
+        // arrange
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        // assert
+        assertEq(
+            originIcaRouter.quoteGasPayment(destination, GAS_LIMIT_OVERRIDE),
+            igp.quoteGasPayment(destination, GAS_LIMIT_OVERRIDE)
+        );
+    }
+
+    function testFuzz_callRemoteWithOverrides_metadata(
+        uint64 gasLimit,
+        bytes32 data,
+        uint256 value
+    ) public {
+        // arrange
+        bytes memory metadata = StandardHookMetadata.formatMetadata(
+            0,
+            gasLimit,
+            address(this),
+            ""
+        );
+        uint256 balanceBefore = address(this).balance;
+
+        // act
+        originIcaRouter.callRemoteWithOverrides{
+            value: gasLimit * igp.gasPrice()
+        }(
+            destination,
+            routerOverride,
+            ismOverride,
+            getCalls(data, value),
+            metadata
+        );
+
+        // assert
+        uint256 balanceAfter = address(this).balance;
+        assertRemoteCallReceived(data, value);
+        assertIgpPayment(balanceBefore, balanceAfter, gasLimit);
+    }
+
+    function testFuzz_callRemoteWithOverrides_withHook(
+        bytes32 data,
+        uint256 value
+    ) public {
+        TestPostDispatchHook testHook = new TestPostDispatchHook();
+
+        originIcaRouter = deployIcaRouter(
+            environment.mailboxes(origin),
+            testHook,
+            address(this)
+        );
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        vm.expectCall(
+            address(testHook),
+            0,
+            abi.encodePacked(AbstractPostDispatchHook.postDispatch.selector)
+        );
+        originIcaRouter.callRemoteWithOverrides(
+            destination,
+            routerOverride,
+            ismOverride,
+            getCalls(data, value),
+            new bytes(0)
+        );
+    }
+
+    function testFuzz_callRemoteWithFailingIsmOverride(
+        bytes32 data,
+        uint256 value
+    ) public {
+        // arrange
+        string memory failureMessage = "failing ism";
+        bytes32 failingIsm = TypeCasts.addressToBytes32(
+            address(new FailingIsm(failureMessage))
+        );
+
+        // act
+        originIcaRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
+            destination,
+            routerOverride,
+            failingIsm,
+            getCalls(data, value),
+            bytes("")
+        );
+
+        // assert
+        vm.expectRevert(bytes(failureMessage));
+        environment.processNextPendingMessage();
+    }
+
+    function testFuzz_callRemoteWithFailingDefaultIsm(
+        bytes32 data,
+        uint256 value
+    ) public {
+        // arrange
+        string memory failureMessage = "failing ism";
+        FailingIsm failingIsm = new FailingIsm(failureMessage);
+
+        // act
+        environment.mailboxes(destination).setDefaultIsm(address(failingIsm));
+        originIcaRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
+            destination,
+            routerOverride,
+            bytes32(0),
+            getCalls(data, value),
+            bytes("")
+        );
+
+        // assert
+        vm.expectRevert(bytes(failureMessage));
+        environment.processNextPendingMessage();
+    }
+
+    function testFuzz_receiveValue(uint256 value) public {
+        vm.assume(value > 1 && value <= address(this).balance);
+        // receive value before deployed
+        assert(address(ica).code.length == 0);
+        bool success;
+        (success, ) = address(ica).call{value: value / 2}("");
+        require(success, "transfer before deploy failed");
+
+        // receive value after deployed
+        destinationIcaRouter.getDeployedInterchainAccount(
+            origin,
+            address(this),
+            address(originIcaRouter),
+            address(environment.isms(destination))
+        );
+        assert(address(ica).code.length > 0);
+
+        (success, ) = address(ica).call{value: value / 2}("");
+        require(success, "transfer after deploy failed");
+    }
+
+    function receiveValue(uint256 value) external payable {
+        assertEq(value, msg.value);
+    }
+
+    function receiveValueFrom(
+        uint256 value,
+        address expectedSender
+    ) external payable {
+        assertEq(value, msg.value);
+        assertEq(expectedSender, msg.sender);
+    }
+
+    function testFuzz_sendValue(uint256 value) public {
+        vm.assume(
+            value > 0 && value <= address(this).balance - gasPaymentQuote
+        );
+        payable(address(ica)).transfer(value);
+
+        bytes memory data = abi.encodeCall(this.receiveValue, (value));
+        CallLib.Call memory call = CallLib.build(address(this), value, data);
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = call;
+
+        originIcaRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
+            destination,
+            routerOverride,
+            ismOverride,
+            calls,
+            bytes("")
+        );
+        vm.expectCall(address(this), value, data);
+        environment.processNextPendingMessage();
+    }
+
+    function test_sendNativeBalanceSentinel() public {
+        uint256 value = 1 ether;
+        vm.deal(address(ica), value);
+
+        bytes memory data = abi.encodeCall(this.receiveValue, (value));
+        CallLib.Call memory call = CallLib.build(
+            address(this),
+            type(uint256).max,
+            data
+        );
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = call;
+
+        originIcaRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
+            destination,
+            routerOverride,
+            ismOverride,
+            calls,
+            bytes("")
+        );
+        vm.expectCall(address(this), value, data);
+        environment.processNextPendingMessage();
+
+        assertEq(address(ica).balance, 0);
+    }
+
+    function test_delegateCallSentinel() public {
+        uint256 value = 1 ether;
+        vm.deal(address(ica), value);
+
+        DelegateCallable delegateCallable = new DelegateCallable();
+        bytes memory receiveData = abi.encodeCall(
+            this.receiveValueFrom,
+            (value, address(ica))
+        );
+        bytes memory data = abi.encodeCall(
+            delegateCallable.sendBalance,
+            (payable(address(this)), receiveData)
+        );
+        CallLib.Call memory call = CallLib.build(
+            address(delegateCallable),
+            type(uint256).max - 1,
+            data
+        );
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = call;
+
+        originIcaRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
+            destination,
+            routerOverride,
+            ismOverride,
+            calls,
+            bytes("")
+        );
+        vm.expectCall(address(this), value, receiveData);
+        environment.processNextPendingMessage();
+
+        assertEq(address(ica).balance, 0);
+        assertEq(address(delegateCallable).balance, 0);
+    }
+
+    function testDifferentSalts() public {
+        address owner = address(this);
+
+        ica = destinationIcaRouter.getDeployedInterchainAccount(
+            origin,
+            owner.addressToBytes32(),
+            address(originIcaRouter).addressToBytes32(),
+            address(environment.isms(destination)),
+            keccak256("i am a salt")
+        );
+
+        OwnableMulticall ica2 = destinationIcaRouter
+            .getDeployedInterchainAccount(
+                origin,
+                owner.addressToBytes32(),
+                address(originIcaRouter).addressToBytes32(),
+                address(environment.isms(destination)),
+                keccak256("i am a different salt")
+            );
+        assertNotEq(address(ica), address(ica2));
+    }
+
+    function testEqualSalts() public {
+        address owner = address(this);
+
+        ica = destinationIcaRouter.getDeployedInterchainAccount(
+            origin,
+            owner.addressToBytes32(),
+            address(originIcaRouter).addressToBytes32(),
+            address(environment.isms(destination)),
+            keccak256("salt1")
+        );
+
+        OwnableMulticall ica2 = destinationIcaRouter
+            .getDeployedInterchainAccount(
+                origin,
+                owner.addressToBytes32(),
+                address(originIcaRouter).addressToBytes32(),
+                address(environment.isms(destination)),
+                keccak256("salt1")
+            );
+        assertEq(address(ica), address(ica2));
+    }
+
+    receive() external payable {}
+}
+
+contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
+    using TypeCasts for address;
+    using Message for bytes;
+    using StandardHookMetadata for bytes;
+
+    function test_constructor_revertsWhen_ownerIsZeroAddress() public {
+        // The constructor of OwnableMulticall is called internally when deploying InterchainAccountRouter
+        // So, we test this by trying to deploy an InterchainAccountRouter with a zero address owner for the OwnableMulticall part.
+        // This specific path isn't directly testable from ICA router's constructor as ICA takes its own owner.
+        // However, OwnableMulticall itself has a direct constructor check.
+        vm.expectRevert("OwnableMulticall: invalid owner");
+        new OwnableMulticall(address(0));
+    }
+
+    function testFuzz_getRemoteInterchainAccount(
+        address _localOwner,
+        address _ism
+    ) public {
+        address _account = originIcaRouter.getRemoteInterchainAccount(
+            address(_localOwner),
+            address(destinationIcaRouter),
+            _ism
+        );
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            TypeCasts.addressToBytes32(_ism)
+        );
+        assertEq(
+            originIcaRouter.getRemoteInterchainAccount(
+                destination,
+                address(_localOwner)
+            ),
+            _account
+        );
+    }
+
+    function testFuzz_enrollRemoteRouters(
+        uint8 count,
+        uint32 domain,
+        bytes32 router
+    ) public {
+        vm.assume(count > 0 && count < uint256(router) && count < domain);
+
+        // arrange
+        // count - # of domains and routers
+        uint32[] memory domains = new uint32[](count);
+        bytes32[] memory routers = new bytes32[](count);
+        for (uint256 i = 0; i < count; i++) {
+            domains[i] = domain - uint32(i);
+            routers[i] = bytes32(uint256(router) - i);
+        }
+
+        // act
+        originIcaRouter.enrollRemoteRouters(domains, routers);
+
+        // assert
+        uint32[] memory actualDomains = originIcaRouter.domains();
+        assertEq(actualDomains.length, domains.length);
+        assertEq(abi.encode(originIcaRouter.domains()), abi.encode(domains));
+
+        for (uint256 i = 0; i < count; i++) {
+            bytes32 actualRouter = originIcaRouter.routers(domains[i]);
+            bytes32 actualIsm = originIcaRouter.isms(domains[i]);
+
+            assertEq(actualRouter, routers[i]);
+            assertEq(actualIsm, bytes32(0));
+            assertEq(actualDomains[i], domains[i]);
+        }
+    }
+
+    function test_quoteGasPayment() public {
+        // arrange
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        // assert
+        assertEq(originIcaRouter.quoteGasPayment(destination), gasPaymentQuote);
+    }
+
+    function test_quoteDispatch_differentHook() public {
+        // arrange
+        TestPostDispatchHook testHook = new TestPostDispatchHook();
+        originIcaRouter = deployIcaRouter(
+            environment.mailboxes(origin),
+            testHook,
+            address(this)
+        );
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        // assert
+        assertEq(originIcaRouter.quoteGasPayment(destination), 0);
+    }
+
+    function testFuzz_singleCallRemoteWithDefault(
+        bytes32 data,
+        uint256 value
+    ) public {
+        // arrange
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+        uint256 balanceBefore = address(this).balance;
+
+        // act
+        CallLib.Call[] memory calls = getCalls(data, value);
+        originIcaRouter.callRemote{value: gasPaymentQuote}(destination, calls);
+
+        // assert
+        uint256 balanceAfter = address(this).balance;
+        assertIgpPayment(balanceBefore, balanceAfter, igp.getDefaultGasUsage());
+        assertRemoteCallReceived(data, value);
+    }
+
+    function testFuzz_callRemoteWithDefault(
+        bytes32 data,
+        uint256 value
+    ) public {
+        // arrange
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+        uint256 balanceBefore = address(this).balance;
+
+        // act
+        originIcaRouter.callRemote{value: gasPaymentQuote}(
+            destination,
+            getCalls(data, value)
+        );
+
+        // assert
+        uint256 balanceAfter = address(this).balance;
+        assertRemoteCallReceived(data, value);
+        assertIgpPayment(balanceBefore, balanceAfter, igp.getDefaultGasUsage());
+    }
+
+    function testFuzz_callRemoteWithDefault_differentHook(
+        bytes32 data,
+        uint256 value
+    ) public {
+        // arrange
+        TestPostDispatchHook testHook = new TestPostDispatchHook();
+        originIcaRouter = deployIcaRouter(
+            environment.mailboxes(origin),
+            testHook,
+            address(this)
+        );
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        // assert
+        vm.expectCall(
+            address(testHook),
+            0,
+            abi.encodePacked(AbstractPostDispatchHook.postDispatch.selector)
+        );
+
+        // act
+        originIcaRouter.callRemote(destination, getCalls(data, value));
+    }
+
+    function testFuzz_overrideAndCallRemote(
+        bytes32 data,
+        uint256 value
+    ) public {
+        // arrange
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+        uint256 balanceBefore = address(this).balance;
+
+        // act
+        originIcaRouter.callRemote{value: gasPaymentQuote}(
+            destination,
+            getCalls(data, value)
+        );
+
+        // assert
+        uint256 balanceAfter = address(this).balance;
+        assertRemoteCallReceived(data, value);
+        assertIgpPayment(balanceBefore, balanceAfter, igp.getDefaultGasUsage());
+    }
+
+    function testFuzz_callRemoteWithoutDefaults_revert_noRouter(
+        bytes32 data,
+        uint256 value
+    ) public {
+        // assert error
+        CallLib.Call[] memory calls = getCalls(data, value);
+        vm.expectRevert(bytes("no router specified for destination"));
+        originIcaRouter.callRemote(destination, calls);
+    }
+
+    function testFuzz_customMetadata_forIgp(
+        uint64 gasLimit,
+        uint64 overpayment,
+        bytes32 data,
+        uint256 value
+    ) public {
+        // arrange
+        bytes memory metadata = StandardHookMetadata.formatMetadata(
+            0,
+            gasLimit,
+            address(this),
+            ""
+        );
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+        uint256 balanceBefore = address(this).balance;
+
+        // act
+        originIcaRouter.callRemote{
+            value: gasLimit * igp.gasPrice() + overpayment
+        }(destination, getCalls(data, value), metadata);
+
+        // assert
+        uint256 balanceAfter = address(this).balance;
+        assertRemoteCallReceived(data, value);
+        assertIgpPayment(balanceBefore, balanceAfter, gasLimit);
+    }
+
+    function testFuzz_customMetadata_reverts_underpayment(
+        uint64 gasLimit,
+        uint64 payment,
+        bytes32 data,
+        uint256 value
+    ) public {
+        CallLib.Call[] memory calls = getCalls(data, value);
+        vm.assume(payment < gasLimit * igp.gasPrice());
+        // arrange
+        bytes memory metadata = StandardHookMetadata.formatMetadata(
+            0,
+            gasLimit,
+            address(this),
+            ""
+        );
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        // act
+        vm.expectRevert("IGP: insufficient interchain gas payment");
+        originIcaRouter.callRemote{value: payment}(
+            destination,
+            calls,
+            metadata
+        );
+    }
+
+    function testFuzz_callRemoteWithOverrides_default(
+        bytes32 data,
+        uint256 value
+    ) public {
+        // arrange
+        uint256 balanceBefore = address(this).balance;
+
+        // act
+        originIcaRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
+            destination,
+            routerOverride,
+            ismOverride,
+            getCalls(data, value)
+        );
+
+        // assert
+        uint256 balanceAfter = address(this).balance;
+        assertRemoteCallReceived(data, value);
+        assertIgpPayment(balanceBefore, balanceAfter, igp.getDefaultGasUsage());
+        assertEq(address(originIcaRouter.hook()), address(0));
+    }
+
+    function testFuzz_getLocalInterchainAccount(
+        bytes32 data,
+        uint256 value
+    ) public {
+        // check
+        OwnableMulticall destinationIca = destinationIcaRouter
+            .getLocalInterchainAccount(
+                origin,
+                address(this),
+                address(originIcaRouter),
+                address(environment.isms(destination))
+            );
+        assertEq(
+            address(destinationIca),
+            address(
+                destinationIcaRouter.getLocalInterchainAccount(
+                    origin,
+                    TypeCasts.addressToBytes32(address(this)),
+                    TypeCasts.addressToBytes32(address(originIcaRouter)),
+                    address(environment.isms(destination))
+                )
+            )
+        );
+        assertEq(address(destinationIca).code.length, 0);
+
+        // act
+        originIcaRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
+            destination,
+            routerOverride,
+            ismOverride,
+            getCalls(data, value),
+            bytes("")
+        );
+
+        // recheck
+        assertRemoteCallReceived(data, value);
+        assert(address(destinationIca).code.length != 0);
+    }
+
+    function testFuzz_callRemoteWithCustomHook(
+        bytes32 data,
+        uint256 value
+    ) public {
+        // arrange
+        TestPostDispatchHook testHook = new TestPostDispatchHook();
+        TestPostDispatchHook customHook = new TestPostDispatchHook();
+
+        originIcaRouter = deployIcaRouter(
+            environment.mailboxes(origin),
+            testHook,
+            address(this)
+        );
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        // assert
+        vm.expectCall(
+            address(customHook),
+            0,
+            abi.encodePacked(AbstractPostDispatchHook.postDispatch.selector)
+        );
+
+        // act
+        originIcaRouter.callRemoteWithOverrides(
+            destination,
+            routerOverride,
+            ismOverride,
+            getCalls(data, value),
+            new bytes(0),
+            bytes32(0),
+            customHook
+        );
+    }
+
+    function test_callRemote_withZeroRouter(
+        bytes32 data,
+        uint256 value
+    ) public {
+        bytes32 router = bytes32(0);
+
+        CallLib.Call[] memory calls = getCalls(data, value);
+
+        vm.expectRevert("no router specified for destination");
+        originIcaRouter.callRemoteWithOverrides(
+            destination,
+            router,
+            ismOverride,
+            calls
+        );
+
+        TestPostDispatchHook customHook = new TestPostDispatchHook();
+        vm.expectRevert("no router specified for destination");
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            router,
+            ismOverride,
+            StandardHookMetadata.formatMetadata(
+                0,
+                GAS_LIMIT_OVERRIDE,
+                address(this),
+                ""
+            ),
+            customHook,
+            bytes32(0),
+            bytes32(0)
+        );
+    }
+
+    function testFuzz_callRemoteCommitReveal(bytes32 commitment) public {
+        // act
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            new TestPostDispatchHook(),
+            bytes32(0),
+            commitment
+        );
+
+        // Process message
+        environment.processNextPendingMessage();
+
+        // assert
+        // ICA router should have the commitment
+        assertEq(ica.commitments(commitment), true);
+    }
+
+    function testFuzz_callRemoteCommitReveal_events(
+        bytes32 data,
+        uint256 value,
+        bytes32 callsSalt,
+        bytes32 userSalt
+    ) public {
+        // Arrange
+        CallLib.Call[] memory calls = getCalls(data, value);
+        bytes32 commitment = _get_commitment(callsSalt, calls);
+
+        // expect both events to be emitted
+        vm.expectEmit(true, true, true, true);
+        emit RemoteCallDispatched(
+            destination,
+            address(this),
+            routerOverride,
+            ismOverride,
+            userSalt
+        );
+
+        vm.expectEmit(true, false, false, false);
+        emit CommitRevealDispatched(commitment);
+
+        // act
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            new TestPostDispatchHook(),
+            userSalt,
+            commitment
+        );
+
+        OwnableMulticall derivedIca = destinationIcaRouter
+            .getDeployedInterchainAccount(
+                origin,
+                address(this).addressToBytes32(),
+                address(originIcaRouter).addressToBytes32(),
+                address(environment.isms(destination)),
+                userSalt
+            );
+
+        vm.expectEmit(true, false, false, false);
+        emit OwnableMulticall.CommitmentSet(commitment);
+        environment.processNextPendingMessage();
+
+        vm.deal(address(derivedIca), value);
+        vm.expectEmit(true, false, false, false);
+        emit OwnableMulticall.CommitmentExecuted(commitment);
+        derivedIca.revealAndExecute(calls, callsSalt);
+    }
+
+    function _get_metadata(
+        OwnableMulticall _ica,
+        bytes32 salt,
+        CallLib.Call[] memory calls
+    ) internal returns (bytes memory) {
+        return abi.encodePacked(_ica, salt, abi.encode(calls));
+    }
+
+    function _get_commitment(
+        bytes32 salt,
+        CallLib.Call[] memory calls
+    ) internal returns (bytes32) {
+        return keccak256(abi.encodePacked(salt, abi.encode(calls)));
+    }
+
+    function testFuzz_revealAndExecute(
+        bytes32 data,
+        uint256 value,
+        bytes32 salt
+    ) public {
+        // Arrange
+        CallLib.Call[] memory calls = getCalls(data, value);
+        bytes32 commitment = _get_commitment(salt, calls);
+        deal(address(ica), value); // Ensure ICA has enough balance to execute calls
+
+        // Act
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            new TestPostDispatchHook(),
+            bytes32(0),
+            commitment
+        );
+        // Process commit message
+        environment.processNextPendingMessage();
+
+        // ICA router should have the commitment after commit message
+        assertEq(ica.commitments(commitment), true);
+
+        // Manually process the reveal
+        bytes32 executedCommitment = ica.revealAndExecute(calls, salt);
+
+        // Commitment should be cleared
+        assertEq(executedCommitment, commitment);
+        assertEq(ica.commitments(commitment), false);
+
+        // Cannot reveal twice
+        vm.expectRevert("ICA: Invalid Reveal");
+        ica.revealAndExecute(calls, salt);
+    }
+
+    function test_revealAndExecuteNativeBalanceSentinel() public {
+        uint256 value = 1 ether;
+        bytes memory data = abi.encodeCall(this.receiveValue, (value));
+        CallLib.Call memory call = CallLib.build(
+            address(this),
+            type(uint256).max,
+            data
+        );
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = call;
+
+        bytes32 salt = keccak256("calls salt");
+        bytes32 commitment = _get_commitment(salt, calls);
+
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            new TestPostDispatchHook(),
+            bytes32(0),
+            commitment
+        );
+        environment.processNextPendingMessage();
+        assertEq(ica.commitments(commitment), true);
+
+        vm.deal(address(ica), value);
+        vm.expectCall(address(this), value, data);
+        bytes32 executedCommitment = ica.revealAndExecute(calls, salt);
+
+        assertEq(executedCommitment, commitment);
+        assertEq(ica.commitments(commitment), false);
+        assertEq(address(ica).balance, 0);
+    }
+
+    function test_revealAndExecuteDelegateCallSentinel() public {
+        uint256 value = 1 ether;
+        DelegateCallable delegateCallable = new DelegateCallable();
+        bytes memory receiveData = abi.encodeCall(
+            this.receiveValueFrom,
+            (value, address(ica))
+        );
+        bytes memory data = abi.encodeCall(
+            delegateCallable.sendBalance,
+            (payable(address(this)), receiveData)
+        );
+        CallLib.Call memory call = CallLib.build(
+            address(delegateCallable),
+            type(uint256).max - 1,
+            data
+        );
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = call;
+
+        bytes32 salt = keccak256("calls salt");
+        bytes32 commitment = _get_commitment(salt, calls);
+
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            new TestPostDispatchHook(),
+            bytes32(0),
+            commitment
+        );
+        environment.processNextPendingMessage();
+        assertEq(ica.commitments(commitment), true);
+
+        vm.deal(address(ica), value);
+        vm.expectCall(address(this), value, receiveData);
+        bytes32 executedCommitment = ica.revealAndExecute(calls, salt);
+
+        assertEq(executedCommitment, commitment);
+        assertEq(ica.commitments(commitment), false);
+        assertEq(address(ica).balance, 0);
+        assertEq(address(delegateCallable).balance, 0);
+    }
+
+    function testFuzz_readIsm_verify(
+        bytes32 data,
+        uint256 value,
+        bytes32 salt
+    ) public {
+        // Arrange
+        CallLib.Call[] memory calls = getCalls(data, value);
+        bytes32 commitment = _get_commitment(salt, calls);
+        deal(address(ica), value); // Ensure ICA has enough balance to execute calls
+
+        // Act
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            new TestPostDispatchHook(),
+            bytes32(0),
+            commitment
+        );
+        // Process commit message
+        environment.processNextPendingMessage();
+
+        // ICA router should have the commitment after commit message
+        assertEq(ica.commitments(commitment), true);
+
+        // Process reveal message
+        MockMailbox _mailbox = MockMailbox(
+            address(destinationIcaRouter.mailbox())
+        );
+        bytes memory message = _mailbox.inboundMessages(1);
+        bytes memory metadata = _get_metadata(ica, salt, calls);
+        _mailbox.addInboundMetadata(1, metadata); // Metadata can fetched by other callers
+        environment.processNextPendingMessage();
+
+        // Commitment should be cleared
+        assertEq(ica.commitments(commitment), false);
+    }
+
+    function testFuzz_readIsm_verify_reverts_two_reveals(
+        bytes32 data,
+        uint256 value,
+        bytes32 salt
+    ) public {
+        testFuzz_readIsm_verify(data, value, salt);
+        MockMailbox _mailbox = MockMailbox(
+            address(destinationIcaRouter.mailbox())
+        );
+
+        // If you reveal once, you can't reveal again
+        bytes memory message = _mailbox.inboundMessages(1);
+        bytes memory metadata = _mailbox.inboundMetadata(1);
+
+        CommitmentReadIsm _ism = destinationIcaRouter.CCIP_READ_ISM();
+        vm.expectRevert("ICA: Invalid Reveal");
+        _ism.verify(metadata, message);
+    }
+
+    function testFuzz_readIsm_verify_reverts_commit_not_delivered(
+        bytes32 data,
+        uint256 value,
+        bytes32 salt
+    ) public {
+        // Arrange
+        CallLib.Call[] memory calls = getCalls(data, value);
+        bytes32 commitment = _get_commitment(salt, calls);
+        deal(address(ica), value); // Ensure ICA has enough balance to execute calls
+        // Act
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            new TestPostDispatchHook(),
+            bytes32(0),
+            commitment
+        );
+
+        // We need to deploy the ica here, since it's usually lazy deployed in `handle`, but handle is never called.
+        ica = destinationIcaRouter.getDeployedInterchainAccount(
+            origin,
+            address(this),
+            address(originIcaRouter),
+            address(environment.isms(destination))
+        );
+
+        // Process reveal message
+        MockMailbox _mailbox = MockMailbox(
+            address(destinationIcaRouter.mailbox())
+        );
+        bytes memory message = _mailbox.inboundMessages(1);
+        bytes memory metadata = _get_metadata(ica, salt, calls);
+        CommitmentReadIsm _ism = destinationIcaRouter.CCIP_READ_ISM();
+        vm.expectRevert("ICA: Invalid Reveal");
+        _ism.verify(metadata, message);
+    }
+
+    function testFuzz_callRemoteCommitReveal_simpleOverload(
+        bytes32 commitment
+    ) public {
+        // Arrange
+        gasPaymentQuote = igp.quoteGasPayment(
+            destination,
+            100_000 + originIcaRouter.COMMIT_TX_GAS_USAGE()
+        );
+        deal(address(this), gasPaymentQuote);
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        // Act
+        originIcaRouter.callRemoteCommitReveal{value: gasPaymentQuote}(
+            destination,
+            commitment,
+            100_000
+        );
+
+        // Process message
+        environment.processNextPendingMessage();
+
+        // Assert
+        // ICA router should have the commitment
+        assertEq(ica.commitments(commitment), true);
+    }
+
+    function test_callRemote_refundBehavior(
+        bytes32 data,
+        uint256 value
+    ) public {
+        uint256 gasLimit = 100_000;
+
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        uint quote = originIcaRouter.quoteGasPayment(destination, gasLimit);
+
+        uint256 balanceBefore = address(this).balance;
+
+        originIcaRouter.callRemote{value: 2 * quote}(
+            destination,
+            getCalls(data, value),
+            StandardHookMetadata.formatMetadata(
+                0,
+                gasLimit,
+                address(this),
+                bytes("")
+            )
+        );
+
+        uint256 balanceAfter = address(this).balance;
+        assertEq(balanceBefore - balanceAfter, quote);
+    }
+
+    function test_callRemoteCommitReveal_refundBehavior(
+        bytes32 commitment
+    ) public {
+        uint256 gasLimit = 100_000;
+
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        uint quote = originIcaRouter.quoteGasForCommitReveal(
+            destination,
+            gasLimit
+        );
+
+        uint256 balanceBefore = address(this).balance;
+
+        originIcaRouter.callRemoteCommitReveal{value: 2 * quote}(
+            destination,
+            commitment,
+            gasLimit
+        );
+
+        uint256 balanceAfter = address(this).balance;
+        assertEq(balanceBefore - balanceAfter, quote);
+    }
+
+    function test_callRemoteCommitReveal_emptyMetadata_refundsResidual(
+        bytes32 commitment
+    ) public {
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        uint256 quote = originIcaRouter.quoteGasForCommitReveal(
+            destination,
+            50_000
+        );
+        uint256 preExistingBalance = 1 wei;
+        vm.deal(address(originIcaRouter), preExistingBalance);
+        uint256 callerBalanceBefore = address(this).balance;
+
+        originIcaRouter.callRemoteCommitReveal{value: 2 * quote}(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            originIcaRouter.hook(),
+            bytes32(0),
+            commitment
+        );
+
+        assertEq(callerBalanceBefore - address(this).balance, quote);
+        assertEq(address(originIcaRouter).balance, preExistingBalance);
+    }
+
+    function testFuzz_quoteGasForCommitReveal(bytes32 commitment) public {
+        // Arrange
+        // We use _Router_quoteDispatch so we actually need a remote router enrolled before quoting
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        uint gasLimitForExecutingCalls = 100_000;
+        uint quote = originIcaRouter.quoteGasForCommitReveal(
+            destination,
+            gasLimitForExecutingCalls
+        );
+
+        uint directIGPQuote = igp.quoteGasPayment(
+            origin,
+            gasLimitForExecutingCalls + originIcaRouter.COMMIT_TX_GAS_USAGE()
+        );
+
+        // Assert
+        // The ICA Router gets it quote by passing fixed gas plus variable gas to the IGP
+        assertEq(quote, directIGPQuote);
+    }
+
+    function test_ReadIsmOwnership() public {
+        assertEq(
+            originIcaRouter.CCIP_READ_ISM().owner(),
+            originIcaRouter.owner()
+        );
+    }
+
+    function testFuzz_revert_commitTwice(bytes32 commitment) public {
+        // We need to deploy the ica here, since it's usually lazy deployed in `handle`, but handle is never called.
+        ica = destinationIcaRouter.getDeployedInterchainAccount(
+            origin,
+            address(this),
+            address(originIcaRouter),
+            address(environment.isms(destination))
+        );
+
+        vm.startPrank(address(destinationIcaRouter));
+        ica.setCommitment(commitment);
+
+        vm.expectRevert("ICA: Previous commitment pending execution");
+        ica.setCommitment(commitment);
+    }
+
+    // ============ ERC20 Fee Tests ============
+
+    function test_quoteGasPayment_erc20() public view {
+        uint256 quote = originErc20Router.quoteGasPayment(
+            address(feeToken),
+            destination,
+            GAS_LIMIT_OVERRIDE
+        );
+
+        uint256 expectedQuote = erc20Igp.quoteGasPayment(
+            address(feeToken),
+            destination,
+            GAS_LIMIT_OVERRIDE
+        );
+
+        assertEq(quote, expectedQuote, "ERC20 quote should match IGP quote");
+        assertGt(quote, 0, "Quote should be non-zero");
+    }
+
+    function test_callRemote_withERC20Fee() public {
+        uint256 feeQuote = originErc20Router.quoteGasPayment(
+            address(feeToken),
+            destination,
+            GAS_LIMIT_OVERRIDE
+        );
+
+        feeToken.approve(address(originErc20Router), feeQuote);
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this),
+            address(feeToken)
+        );
+
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.Call({
+            to: address(target).addressToBytes32(),
+            value: 0,
+            data: abi.encodeCall(target.set, (bytes32("test")))
+        });
+
+        uint256 feeBalanceBefore = feeToken.balanceOf(address(this));
+
+        originErc20Router.callRemote{value: 0}(
+            destination,
+            calls,
+            hookMetadata
+        );
+
+        uint256 feeBalanceAfter = feeToken.balanceOf(address(this));
+
+        assertEq(
+            feeBalanceBefore - feeBalanceAfter,
+            feeQuote,
+            "Fee tokens should be charged"
+        );
+
+        assertEq(
+            feeToken.balanceOf(address(erc20Igp)),
+            feeQuote,
+            "IGP should receive fee tokens"
+        );
+    }
+
+    function test_callRemote_withERC20Fee_insufficientAllowance() public {
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this),
+            address(feeToken)
+        );
+
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.Call({
+            to: address(target).addressToBytes32(),
+            value: 0,
+            data: abi.encodeCall(target.set, (bytes32("test")))
+        });
+
+        vm.expectRevert("ERC20: insufficient allowance");
+        originErc20Router.callRemote{value: 0}(
+            destination,
+            calls,
+            hookMetadata
+        );
+    }
+
+    function test_callRemote_withERC20Fee_insufficientBalance() public {
+        uint256 balance = feeToken.balanceOf(address(this));
+        feeToken.transfer(address(1), balance);
+
+        feeToken.approve(address(originErc20Router), type(uint256).max);
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this),
+            address(feeToken)
+        );
+
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.Call({
+            to: address(target).addressToBytes32(),
+            value: 0,
+            data: abi.encodeCall(target.set, (bytes32("test")))
+        });
+
+        vm.expectRevert("ERC20: transfer amount exceeds balance");
+        originErc20Router.callRemote{value: 0}(
+            destination,
+            calls,
+            hookMetadata
+        );
+    }
+
+    function test_callRemoteWithOverrides_withERC20Fee() public {
+        uint256 feeQuote = originErc20Router.quoteGasPayment(
+            address(feeToken),
+            destination,
+            GAS_LIMIT_OVERRIDE
+        );
+
+        feeToken.approve(address(originErc20Router), feeQuote);
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this),
+            address(feeToken)
+        );
+
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.Call({
+            to: address(target).addressToBytes32(),
+            value: 0,
+            data: abi.encodeCall(target.set, (bytes32("test")))
+        });
+
+        uint256 feeBalanceBefore = feeToken.balanceOf(address(this));
+
+        originErc20Router.callRemoteWithOverrides{value: 0}(
+            destination,
+            erc20RouterOverride,
+            ismOverride,
+            calls,
+            hookMetadata
+        );
+
+        uint256 feeBalanceAfter = feeToken.balanceOf(address(this));
+
+        assertEq(
+            feeBalanceBefore - feeBalanceAfter,
+            feeQuote,
+            "Fee tokens should be charged"
+        );
+    }
+
+    function test_callRemote_withERC20Fee_usesMailboxDefaultHook() public {
+        environment.mailboxes(origin).setDefaultHook(address(erc20Igp));
+        InterchainAccountRouter defaultHookRouter = deployIcaRouter(
+            environment.mailboxes(origin),
+            IPostDispatchHook(address(0)),
+            address(this)
+        );
+        defaultHookRouter.enrollRemoteRouterAndIsm(
+            destination,
+            erc20RouterOverride,
+            ismOverride
+        );
+
+        uint256 feeQuote = defaultHookRouter.quoteGasPayment(
+            address(feeToken),
+            destination,
+            GAS_LIMIT_OVERRIDE
+        );
+        feeToken.approve(address(defaultHookRouter), feeQuote);
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this),
+            address(feeToken)
+        );
+        CallLib.Call[] memory calls = getCalls(bytes32("default_hook"), 0);
+
+        defaultHookRouter.callRemote(destination, calls, hookMetadata);
+
+        assertEq(feeToken.balanceOf(address(erc20Igp)), feeQuote);
+        assertEq(feeToken.balanceOf(address(defaultHookRouter)), 0);
+        assertEq(
+            feeToken.allowance(address(defaultHookRouter), address(erc20Igp)),
+            type(uint256).max
+        );
+        assertEq(feeToken.allowance(address(defaultHookRouter), address(0)), 0);
+    }
+
+    function test_callRemote_withERC20Fee_defaultAggregationRequiresChildApproval()
+        public
+    {
+        address[] memory hooks = new address[](1);
+        hooks[0] = address(erc20Igp);
+        StaticAggregationHook aggregationHook = StaticAggregationHook(
+            new StaticAggregationHookFactory().deploy(hooks)
+        );
+        environment.mailboxes(origin).setDefaultHook(address(aggregationHook));
+
+        InterchainAccountRouter defaultHookRouter = deployIcaRouter(
+            environment.mailboxes(origin),
+            IPostDispatchHook(address(0)),
+            address(this)
+        );
+        defaultHookRouter.enrollRemoteRouterAndIsm(
+            destination,
+            erc20RouterOverride,
+            ismOverride
+        );
+
+        uint256 feeQuote = defaultHookRouter.quoteGasPayment(
+            address(feeToken),
+            destination,
+            GAS_LIMIT_OVERRIDE
+        );
+        feeToken.approve(address(defaultHookRouter), feeQuote);
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this),
+            address(feeToken)
+        );
+        CallLib.Call[] memory calls = getCalls(bytes32("aggregation"), 0);
+
+        vm.expectRevert("ERC20: insufficient allowance");
+        defaultHookRouter.callRemote(destination, calls, hookMetadata);
+
+        defaultHookRouter.approveFeeTokenForHook(
+            address(feeToken),
+            address(erc20Igp)
+        );
+        defaultHookRouter.callRemote(destination, calls, hookMetadata);
+
+        assertEq(feeToken.balanceOf(address(erc20Igp)), feeQuote);
+        assertEq(feeToken.balanceOf(address(defaultHookRouter)), 0);
+    }
+
+    function test_callRemoteWithOverrides_withERC20Fee_unenrolledDestination()
+        public
+    {
+        InterchainAccountRouter unenrolledRouter = deployIcaRouter(
+            environment.mailboxes(origin),
+            IPostDispatchHook(address(erc20Igp)),
+            address(this)
+        );
+        feeToken.approve(address(unenrolledRouter), type(uint256).max);
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this),
+            address(feeToken)
+        );
+        CallLib.Call[] memory calls = getCalls(bytes32("unenrolled"), 0);
+        uint256 hookBalanceBefore = feeToken.balanceOf(address(erc20Igp));
+
+        unenrolledRouter.callRemoteWithOverrides(
+            destination,
+            erc20RouterOverride,
+            ismOverride,
+            calls,
+            hookMetadata
+        );
+
+        assertGt(feeToken.balanceOf(address(erc20Igp)), hookBalanceBefore);
+        assertEq(feeToken.balanceOf(address(unenrolledRouter)), 0);
+        assertEq(unenrolledRouter.routers(destination), bytes32(0));
+    }
+
+    function test_callRemoteWithOverrides_withERC20Fee_customHook() public {
+        TestERC20FeeHook customHook = new TestERC20FeeHook(feeToken);
+        bytes32 customRouter = bytes32(uint256(0xBEEF));
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this),
+            address(feeToken)
+        );
+        CallLib.Call[] memory calls = getCalls(bytes32("custom_hook"), 0);
+        uint256 bodyLength = 97 + abi.encode(calls).length;
+        uint256 expectedFee = 1_000_000 +
+            bodyLength *
+            1_000 +
+            (uint256(customRouter) & 0xff);
+        feeToken.approve(address(originErc20Router), expectedFee);
+        uint256 callerBalanceBefore = feeToken.balanceOf(address(this));
+
+        originErc20Router.callRemoteWithOverrides(
+            destination,
+            customRouter,
+            ismOverride,
+            calls,
+            hookMetadata,
+            bytes32(0),
+            IPostDispatchHook(address(customHook))
+        );
+
+        assertEq(customHook.dispatchCount(), 1);
+        assertEq(customHook.lastRecipient(), customRouter);
+        assertNotEq(customHook.lastBodyHash(), keccak256(bytes("")));
+        assertEq(customHook.lastMsgValue(), 0);
+        assertEq(customHook.totalFees(), expectedFee);
+        assertEq(feeToken.balanceOf(address(customHook)), expectedFee);
+        assertEq(
+            callerBalanceBefore - feeToken.balanceOf(address(this)),
+            expectedFee
+        );
+        assertEq(feeToken.balanceOf(address(erc20Igp)), 0);
+        assertEq(feeToken.balanceOf(address(originErc20Router)), 0);
+        assertEq(
+            feeToken.allowance(address(originErc20Router), address(customHook)),
+            type(uint256).max
+        );
+    }
+
+    function test_callRemoteWithOverrides_withERC20Fee_revertsWhenHookUnderpulls()
+        public
+    {
+        TestUnderpullingERC20FeeHook underpullingHook = new TestUnderpullingERC20FeeHook(
+                feeToken
+            );
+        feeToken.approve(address(originErc20Router), type(uint256).max);
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this),
+            address(feeToken)
+        );
+        CallLib.Call[] memory calls = getCalls(bytes32("underpull"), 0);
+
+        vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x01));
+        originErc20Router.callRemoteWithOverrides(
+            destination,
+            erc20RouterOverride,
+            ismOverride,
+            calls,
+            hookMetadata,
+            bytes32(0),
+            IPostDispatchHook(address(underpullingHook))
+        );
+
+        assertEq(feeToken.balanceOf(address(originErc20Router)), 0);
+        assertEq(feeToken.balanceOf(address(underpullingHook)), 0);
+    }
+
+    function test_feeToken_shortMetadata_returnsZeroAddress() public {
+        // Test that feeToken(bytes memory) returns address(0) for short metadata
+        // This covers the early return branch when metadata.length < 106
+
+        // Empty metadata - should use native payment (feeToken returns address(0))
+        bytes memory emptyMetadata = bytes("");
+        assertEq(
+            emptyMetadata.feeToken(),
+            address(0),
+            "Empty metadata should return zero address"
+        );
+
+        // Standard 86-byte metadata without fee token - should return address(0)
+        bytes memory standardMetadata = StandardHookMetadata.format(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this)
+        );
+        assertEq(
+            standardMetadata.length,
+            86,
+            "Standard metadata should be 86 bytes"
+        );
+        assertEq(
+            standardMetadata.feeToken(),
+            address(0),
+            "86-byte metadata should return zero address"
+        );
+
+        // Metadata with fee token (106 bytes) - should return the fee token
+        bytes memory erc20Metadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this),
+            address(feeToken)
+        );
+        assertEq(
+            erc20Metadata.length,
+            106,
+            "ERC20 metadata should be 106 bytes"
+        );
+        assertEq(
+            erc20Metadata.feeToken(),
+            address(feeToken),
+            "106-byte metadata should return fee token"
+        );
+    }
+
+    function test_callRemote_withShortMetadata_usesNativeFee() public {
+        // Test that when passing short metadata (without fee token),
+        // the native payment path is used (no ERC20 tokens transferred)
+
+        // Enroll router for the regular ICA router
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        // Use standard 86-byte metadata (no fee token field)
+        bytes memory shortMetadata = StandardHookMetadata.format(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this)
+        );
+
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.Call({
+            to: address(target).addressToBytes32(),
+            value: 0,
+            data: abi.encodeCall(target.set, (bytes32("test")))
+        });
+
+        uint256 feeTokenBalanceBefore = feeToken.balanceOf(address(this));
+
+        // Get native quote for this call using the regular ICA router
+        uint256 nativeQuote = originIcaRouter.quoteGasPayment(
+            destination,
+            GAS_LIMIT_OVERRIDE
+        );
+
+        // Call with native payment (should not touch feeToken)
+        originIcaRouter.callRemote{value: nativeQuote}(
+            destination,
+            calls,
+            shortMetadata
+        );
+
+        uint256 feeTokenBalanceAfter = feeToken.balanceOf(address(this));
+
+        // Verify no ERC20 tokens were transferred
+        assertEq(
+            feeTokenBalanceBefore,
+            feeTokenBalanceAfter,
+            "No ERC20 tokens should be charged when using short metadata"
+        );
+    }
+
+    // ============ approveFeeTokenForHook Tests ============
+
+    function test_approveFeeTokenForHook_setsInfiniteApproval() public {
+        address hook = address(0xBEEF);
+
+        // Verify no approval before
+        assertEq(
+            feeToken.allowance(address(originErc20Router), hook),
+            0,
+            "Should have no approval initially"
+        );
+
+        // Call approveFeeTokenForHook
+        originErc20Router.approveFeeTokenForHook(address(feeToken), hook);
+
+        // Verify infinite approval is set
+        assertEq(
+            feeToken.allowance(address(originErc20Router), hook),
+            type(uint256).max,
+            "Should have infinite approval"
+        );
+    }
+
+    function test_approveFeeTokenForHook_allowsNonOwner() public {
+        address hook = address(0xBEEF);
+        address nonOwner = address(0xCAFE);
+
+        // Call from non-owner should succeed
+        vm.prank(nonOwner);
+        originErc20Router.approveFeeTokenForHook(address(feeToken), hook);
+
+        assertEq(
+            feeToken.allowance(address(originErc20Router), hook),
+            type(uint256).max,
+            "Non-owner should be able to set approval"
+        );
+    }
+
+    function test_approveFeeTokenForHook_multipleHooks() public {
+        address hook1 = address(0xBEEF);
+        address hook2 = address(0xCAFE);
+        address hook3 = address(0xDEAD);
+
+        // Approve multiple hooks
+        originErc20Router.approveFeeTokenForHook(address(feeToken), hook1);
+        originErc20Router.approveFeeTokenForHook(address(feeToken), hook2);
+        originErc20Router.approveFeeTokenForHook(address(feeToken), hook3);
+
+        // All should have infinite approval
+        assertEq(
+            feeToken.allowance(address(originErc20Router), hook1),
+            type(uint256).max
+        );
+        assertEq(
+            feeToken.allowance(address(originErc20Router), hook2),
+            type(uint256).max
+        );
+        assertEq(
+            feeToken.allowance(address(originErc20Router), hook3),
+            type(uint256).max
+        );
+    }
+
+    function test_approveFeeTokenForHook_multipleTokens() public {
+        ERC20Test feeToken2 = new ERC20Test(
+            "Fee Token 2",
+            "FEE2",
+            1_000_000e18,
+            18
+        );
+        address hook = address(0xBEEF);
+
+        // Approve same hook for multiple tokens
+        originErc20Router.approveFeeTokenForHook(address(feeToken), hook);
+        originErc20Router.approveFeeTokenForHook(address(feeToken2), hook);
+
+        assertEq(
+            feeToken.allowance(address(originErc20Router), hook),
+            type(uint256).max
+        );
+        assertEq(
+            feeToken2.allowance(address(originErc20Router), hook),
+            type(uint256).max
+        );
+    }
+
+    function test_approveFeeTokenForHook_notOverwrittenByDispatch() public {
+        // This test verifies that pre-approved child hook allowances are not
+        // overwritten when another user dispatches directly to that hook.
+        //
+        // Scenario:
+        // 1. Alice pre-approves IGP for use as a child hook in StaticAggregationHook
+        // 2. Bob dispatches directly to IGP (not via aggregation)
+        // 3. Alice's pre-approval should still be type(uint256).max
+
+        address alice = address(0xA11CE);
+        address bob = address(0xB0B);
+
+        // Give Alice and Bob some fee tokens
+        feeToken.transfer(alice, 10_000e18);
+        feeToken.transfer(bob, 10_000e18);
+
+        // Step 1: Alice pre-approves IGP for child hook usage
+        vm.prank(alice);
+        originErc20Router.approveFeeTokenForHook(
+            address(feeToken),
+            address(erc20Igp)
+        );
+
+        assertEq(
+            feeToken.allowance(address(originErc20Router), address(erc20Igp)),
+            type(uint256).max,
+            "Alice's pre-approval should be infinite"
+        );
+
+        // Step 2: Bob dispatches directly to IGP
+        uint256 feeQuote = originErc20Router.quoteGasPayment(
+            address(feeToken),
+            destination,
+            GAS_LIMIT_OVERRIDE
+        );
+
+        vm.startPrank(bob);
+        feeToken.approve(address(originErc20Router), feeQuote);
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            bob,
+            address(feeToken)
+        );
+
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.Call({
+            to: address(target).addressToBytes32(),
+            value: 0,
+            data: abi.encodeCall(target.set, (bytes32("bob_test")))
+        });
+
+        originErc20Router.callRemoteWithOverrides{value: 0}(
+            destination,
+            erc20RouterOverride,
+            ismOverride,
+            calls,
+            hookMetadata
+        );
+        vm.stopPrank();
+
+        // Step 3: Verify Alice's pre-approval is still infinite
+        // Before the fix, this would be 0 because forceApprove(_fee) would
+        // overwrite the infinite approval, and then IGP would consume it all.
+        assertEq(
+            feeToken.allowance(address(originErc20Router), address(erc20Igp)),
+            type(uint256).max,
+            "Alice's pre-approval should still be infinite after Bob's dispatch"
+        );
+    }
+
+    // ============ Commit-Reveal Fee Token Consistency Tests ============
+
+    function test_callRemoteCommitReveal_withERC20Fee() public {
+        uint256 revealGasLimit = 100_000;
+        uint256 commitGasUsage = originErc20Router.COMMIT_TX_GAS_USAGE();
+
+        // Quote both commit and reveal using ERC20 fee token
+        uint256 totalQuote = originErc20Router.quoteGasForCommitReveal(
+            address(feeToken),
+            destination,
+            revealGasLimit
+        );
+
+        // Approve fee tokens for the hook
+        originErc20Router.approveFeeTokenForHook(
+            address(feeToken),
+            address(erc20Igp)
+        );
+        feeToken.approve(address(originErc20Router), totalQuote);
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            revealGasLimit,
+            address(this),
+            address(feeToken)
+        );
+
+        uint256 feeBalanceBefore = feeToken.balanceOf(address(this));
+
+        // Dispatch commit-reveal with ERC20 fee metadata
+        originErc20Router.callRemoteCommitReveal{value: 0}(
+            destination,
+            erc20RouterOverride,
+            ismOverride,
+            hookMetadata,
+            IPostDispatchHook(address(erc20Igp)),
+            bytes32(0),
+            keccak256("test_commitment")
+        );
+
+        uint256 feeBalanceAfter = feeToken.balanceOf(address(this));
+
+        // Both commit and reveal should have been paid with fee tokens
+        assertEq(
+            feeBalanceBefore - feeBalanceAfter,
+            totalQuote,
+            "Fee tokens charged should match quoteGasForCommitReveal"
+        );
+    }
+
+    function test_callRemoteCommitReveal_withERC20Fee_nonZeroRouterBalance()
+        public
+    {
+        // Only this call's commit refund may fund its reveal. An unrelated
+        // native balance must not brick the ERC20 fee path.
+        vm.deal(address(1), 1 wei);
+        vm.prank(address(1));
+        (bool sent, ) = address(originErc20Router).call{value: 1 wei}("");
+        assertTrue(sent, "balance not sent");
+
+        uint256 revealGasLimit = 100_000;
+        uint256 totalQuote = originErc20Router.quoteGasForCommitReveal(
+            address(feeToken),
+            destination,
+            revealGasLimit
+        );
+        feeToken.approve(address(originErc20Router), totalQuote);
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            revealGasLimit,
+            address(this),
+            address(feeToken)
+        );
+        uint256 feeBalanceBefore = feeToken.balanceOf(address(this));
+
+        originErc20Router.callRemoteCommitReveal{value: 0}(
+            destination,
+            erc20RouterOverride,
+            ismOverride,
+            hookMetadata,
+            IPostDispatchHook(address(erc20Igp)),
+            bytes32(0),
+            keccak256("balance_commitment")
+        );
+
+        assertEq(
+            feeBalanceBefore - feeToken.balanceOf(address(this)),
+            totalQuote,
+            "Fee tokens charged should match quoteGasForCommitReveal"
+        );
+        assertEq(
+            address(originErc20Router).balance,
+            1 wei,
+            "Native balance should be untouched by the fee token path"
+        );
+    }
+
+    function test_callRemoteCommitReveal_withERC20Fee_customHook_nonZeroRouterBalance()
+        public
+    {
+        TestERC20FeeHook customHook = new TestERC20FeeHook(feeToken);
+        bytes32 customRouter = bytes32(uint256(0xCAFE));
+        feeToken.approve(address(originErc20Router), type(uint256).max);
+
+        vm.deal(address(1), 1 wei);
+        vm.prank(address(1));
+        (bool sent, ) = address(originErc20Router).call{value: 1 wei}("");
+        assertTrue(sent, "balance not sent");
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            100_000,
+            address(this),
+            address(feeToken)
+        );
+
+        originErc20Router.callRemoteCommitReveal(
+            destination,
+            customRouter,
+            ismOverride,
+            hookMetadata,
+            IPostDispatchHook(address(customHook)),
+            bytes32(0),
+            keccak256("custom_hook_commitment")
+        );
+
+        assertEq(customHook.dispatchCount(), 2);
+        assertEq(customHook.lastRecipient(), customRouter);
+        assertEq(customHook.lastMsgValue(), 0);
+        assertEq(
+            feeToken.balanceOf(address(customHook)),
+            customHook.totalFees()
+        );
+        assertEq(feeToken.balanceOf(address(erc20Igp)), 0);
+        assertEq(feeToken.balanceOf(address(originErc20Router)), 0);
+        assertEq(address(originErc20Router).balance, 1 wei);
+    }
+
+    function test_callRemoteCommitReveal_withERC20Fee_revertsWhen_nativeValueSent()
+        public
+    {
+        uint256 revealGasLimit = 100_000;
+        uint256 totalQuote = originErc20Router.quoteGasForCommitReveal(
+            address(feeToken),
+            destination,
+            revealGasLimit
+        );
+        feeToken.approve(address(originErc20Router), totalQuote);
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            revealGasLimit,
+            address(this),
+            address(feeToken)
+        );
+
+        vm.expectRevert("IGP: native value not accepted with ERC20 fee");
+        originErc20Router.callRemoteCommitReveal{value: 1 wei}(
+            destination,
+            erc20RouterOverride,
+            ismOverride,
+            hookMetadata,
+            IPostDispatchHook(address(erc20Igp)),
+            bytes32(0),
+            keccak256("mixed_commitment")
+        );
+    }
+
+    function test_callRemoteCommitReveal_withNativeFee_preservesPreExistingBalance()
+        public
+    {
+        vm.deal(address(1), 1 wei);
+        vm.prank(address(1));
+        (bool sent, ) = address(originErc20Router).call{value: 1 wei}("");
+        assertTrue(sent, "balance not sent");
+
+        uint256 revealGasLimit = 100_000;
+        uint256 quote = originErc20Router.quoteGasForCommitReveal(
+            destination,
+            revealGasLimit
+        );
+        bytes memory hookMetadata = StandardHookMetadata.formatMetadata(
+            0,
+            revealGasLimit,
+            address(this),
+            bytes("")
+        );
+
+        originErc20Router.callRemoteCommitReveal{value: quote}(
+            destination,
+            erc20RouterOverride,
+            ismOverride,
+            hookMetadata,
+            IPostDispatchHook(address(erc20Igp)),
+            bytes32(0),
+            keccak256("native_balance_commitment")
+        );
+
+        assertEq(
+            address(originErc20Router).balance,
+            1 wei,
+            "Native path should preserve the pre-existing router balance"
+        );
+    }
+
+    function testFuzz_callRemoteCommitReveal_withNativeFee_preservesPreExistingBalance(
+        uint96 preExistingBalance,
+        uint96 extraPayment,
+        bytes32 commitment
+    ) public {
+        vm.deal(address(originErc20Router), preExistingBalance);
+
+        uint256 revealGasLimit = 100_000;
+        uint256 quote = originErc20Router.quoteGasForCommitReveal(
+            destination,
+            revealGasLimit
+        );
+        uint256 payment = quote + extraPayment;
+        vm.deal(address(this), payment);
+
+        bytes memory hookMetadata = StandardHookMetadata.formatMetadata(
+            0,
+            revealGasLimit,
+            address(this),
+            bytes("")
+        );
+
+        originErc20Router.callRemoteCommitReveal{value: payment}(
+            destination,
+            erc20RouterOverride,
+            ismOverride,
+            hookMetadata,
+            IPostDispatchHook(address(erc20Igp)),
+            bytes32(0),
+            commitment
+        );
+
+        assertEq(
+            address(originErc20Router).balance,
+            preExistingBalance,
+            "Native path should preserve arbitrary pre-existing balance"
+        );
+    }
+
+    function test_callRemoteCommitReveal_withNativeFee_noFeeTokenInMetadata()
+        public
+    {
+        // When hookMetadata has no fee token, commitment should also use native fee
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        uint256 gasLimit = 100_000;
+        uint256 quote = originIcaRouter.quoteGasForCommitReveal(
+            destination,
+            gasLimit
+        );
+
+        uint256 feeBalanceBefore = feeToken.balanceOf(address(this));
+
+        // Use standard metadata without fee token
+        bytes memory hookMetadata = StandardHookMetadata.formatMetadata(
+            0,
+            gasLimit,
+            address(this),
+            bytes("")
+        );
+
+        originIcaRouter.callRemoteCommitReveal{value: quote}(
+            destination,
+            routerOverride,
+            ismOverride,
+            hookMetadata,
+            IPostDispatchHook(address(igp)),
+            bytes32(0),
+            keccak256("native_commitment")
+        );
+
+        uint256 feeBalanceAfter = feeToken.balanceOf(address(this));
+
+        // No ERC20 tokens should have been used
+        assertEq(
+            feeBalanceBefore,
+            feeBalanceAfter,
+            "No fee tokens should be charged for native fee path"
+        );
+    }
+}

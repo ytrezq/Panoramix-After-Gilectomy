@@ -1,0 +1,113 @@
+{
+  "name": "@hyperlane-xyz/utils",
+  "version": "45.1.0",
+  "description": "General utilities and types for the Hyperlane network",
+  "keywords": [
+    "Hyperlane",
+    "Typescript",
+    "Utilities"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "/dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "errors": [
+        "./dist/errors.d.ts"
+      ],
+      "fs": [
+        "./dist/fs/index.d.ts"
+      ],
+      "anvil": [
+        "./dist/anvil/index.d.ts"
+      ],
+      "sets": [
+        "./dist/sets.d.ts"
+      ],
+      "validation": [
+        "./dist/validation.d.ts"
+      ]
+    }
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./errors": {
+      "types": "./dist/errors.d.ts",
+      "default": "./dist/errors.js"
+    },
+    "./fs": {
+      "types": "./dist/fs/index.d.ts",
+      "default": "./dist/fs/index.js"
+    },
+    "./sets": {
+      "types": "./dist/sets.d.ts",
+      "default": "./dist/sets.js"
+    },
+    "./validation": {
+      "types": "./dist/validation.d.ts",
+      "default": "./dist/validation.js"
+    }
+  },
+  "scripts": {
+    "dev": "tsc -w",
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf ./dist",
+    "check": "tsc --noEmit",
+    "lint": "oxlint -c ../../oxlint.json",
+    "format": "oxfmt --write ./src",
+    "test": "mocha --config .mocharc.json './src/**/*.test.ts'",
+    "test:ci": "pnpm test"
+  },
+  "dependencies": {
+    "@cosmjs/encoding": "catalog:",
+    "@ethersproject/bytes": "*",
+    "@ethersproject/units": "*",
+    "@solana/web3.js": "catalog:",
+    "bech32": "^2.0.0",
+    "bignumber.js": "catalog:",
+    "bs58": "catalog:",
+    "ethers": "catalog:",
+    "lodash-es": "catalog:",
+    "pino": "catalog:",
+    "starknet": "catalog:",
+    "yaml": "catalog:"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/bs58": "catalog:",
+    "@types/chai": "catalog:",
+    "@types/lodash-es": "catalog:",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
+    "@types/sinon": "catalog:",
+    "@types/sinon-chai": "catalog:",
+    "chai": "catalog:",
+    "mocha": "catalog:",
+    "sinon": "catalog:",
+    "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "@google-cloud/pino-logging-gcp-config": "catalog:",
+    "pino-pretty": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "@google-cloud/pino-logging-gcp-config": {
+      "optional": true
+    },
+    "pino-pretty": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

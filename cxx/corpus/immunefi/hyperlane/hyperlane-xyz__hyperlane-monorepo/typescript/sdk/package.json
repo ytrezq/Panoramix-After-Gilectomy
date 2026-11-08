@@ -1,0 +1,256 @@
+{
+  "name": "@hyperlane-xyz/sdk",
+  "version": "45.1.0",
+  "description": "The official SDK for the Hyperlane Network",
+  "keywords": [
+    "Hyperlane",
+    "SDK",
+    "Typescript"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "/dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "browser": {
+    "./dist/providers/builders/aleo.js": "./dist/providers/builders/aleo.browser.js",
+    "./dist/providers/builders/radix.js": "./dist/providers/builders/radix.browser.js"
+  },
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./core/*": {
+      "types": "./dist/core/*.d.ts",
+      "default": "./dist/core/*.js"
+    },
+    "./fee/*": {
+      "types": "./dist/fee/*.d.ts",
+      "default": "./dist/fee/*.js"
+    },
+    "./hook/*": {
+      "types": "./dist/hook/*.d.ts",
+      "default": "./dist/hook/*.js"
+    },
+    "./ism/*": {
+      "types": "./dist/ism/*.d.ts",
+      "default": "./dist/ism/*.js"
+    },
+    "./metadata/*": {
+      "types": "./dist/metadata/*.d.ts",
+      "default": "./dist/metadata/*.js"
+    },
+    "./middleware/account/*": {
+      "types": "./dist/middleware/account/*.d.ts",
+      "default": "./dist/middleware/account/*.js"
+    },
+    "./predicate/PredicateApiClient": {
+      "types": "./dist/predicate/PredicateApiClient.d.ts",
+      "default": "./dist/predicate/PredicateApiClient.js"
+    },
+    "./providers/builders/*": {
+      "types": "./dist/providers/builders/*.d.ts",
+      "default": "./dist/providers/builders/*.js"
+    },
+    "./providers/MinimalProviderRegistry": {
+      "types": "./dist/providers/MinimalProviderRegistry.d.ts",
+      "default": "./dist/providers/MinimalProviderRegistry.js"
+    },
+    "./providers/MultiProvider": {
+      "types": "./dist/providers/MultiProvider.d.ts",
+      "default": "./dist/providers/MultiProvider.js"
+    },
+    "./providers/MultiProviderAdapter": {
+      "types": "./dist/providers/MultiProviderAdapter.d.ts",
+      "default": "./dist/providers/MultiProviderAdapter.js"
+    },
+    "./providers/MultiProtocolProvider": {
+      "types": "./dist/providers/MultiProtocolProvider.d.ts",
+      "default": "./dist/providers/MultiProtocolProvider.js"
+    },
+    "./providers/ProviderType": {
+      "types": "./dist/providers/ProviderType.d.ts",
+      "default": "./dist/providers/ProviderType.js"
+    },
+    "./providers/defaultProviderBuilderMaps": {
+      "types": "./dist/providers/defaultProviderBuilderMaps.d.ts",
+      "default": "./dist/providers/defaultProviderBuilderMaps.js"
+    },
+    "./providers/explorerHealthTest": {
+      "types": "./dist/providers/explorerHealthTest.d.ts",
+      "default": "./dist/providers/explorerHealthTest.js"
+    },
+    "./providers/providerBuilders": {
+      "types": "./dist/providers/providerBuilders.d.ts",
+      "default": "./dist/providers/providerBuilders.js"
+    },
+    "./providers/rpcHealthTest": {
+      "types": "./dist/providers/rpcHealthTest.d.ts",
+      "default": "./dist/providers/rpcHealthTest.js"
+    },
+    "./providers/runtime/*": {
+      "types": "./dist/providers/runtime/*.d.ts",
+      "default": "./dist/providers/runtime/*.js"
+    },
+    "./providers/transactions/types": {
+      "types": "./dist/providers/transactions/types.d.ts",
+      "default": "./dist/providers/transactions/types.js"
+    },
+    "./providers/SmartProvider/HyperlaneEtherscanProvider": {
+      "types": "./dist/providers/SmartProvider/HyperlaneEtherscanProvider.d.ts",
+      "default": "./dist/providers/SmartProvider/HyperlaneEtherscanProvider.js"
+    },
+    "./providers/SmartProvider/HyperlaneJsonRpcProvider": {
+      "types": "./dist/providers/SmartProvider/HyperlaneJsonRpcProvider.d.ts",
+      "default": "./dist/providers/SmartProvider/HyperlaneJsonRpcProvider.js"
+    },
+    "./providers/SmartProvider/ProviderMethods": {
+      "types": "./dist/providers/SmartProvider/ProviderMethods.d.ts",
+      "default": "./dist/providers/SmartProvider/ProviderMethods.js"
+    },
+    "./providers/SmartProvider/SmartProvider": {
+      "types": "./dist/providers/SmartProvider/SmartProvider.d.ts",
+      "default": "./dist/providers/SmartProvider/SmartProvider.js"
+    },
+    "./providers/SmartProvider/types": {
+      "types": "./dist/providers/SmartProvider/types.d.ts",
+      "default": "./dist/providers/SmartProvider/types.js"
+    },
+    "./quoted-calls/client": {
+      "types": "./dist/quoted-calls/client.d.ts",
+      "default": "./dist/quoted-calls/client.js"
+    },
+    "./quoted-calls/codec": {
+      "types": "./dist/quoted-calls/codec.d.ts",
+      "default": "./dist/quoted-calls/codec.js"
+    },
+    "./quoted-calls/EvmQuotedTransferProvider": {
+      "types": "./dist/quoted-calls/EvmQuotedTransferProvider.d.ts",
+      "default": "./dist/quoted-calls/EvmQuotedTransferProvider.js"
+    },
+    "./quoted-calls/QuotedTransferProvider": {
+      "types": "./dist/quoted-calls/QuotedTransferProvider.d.ts",
+      "default": "./dist/quoted-calls/QuotedTransferProvider.js"
+    },
+    "./quoted-calls/SealevelQuotedTransferProvider": {
+      "types": "./dist/quoted-calls/SealevelQuotedTransferProvider.d.ts",
+      "default": "./dist/quoted-calls/SealevelQuotedTransferProvider.js"
+    },
+    "./quoted-calls/types": {
+      "types": "./dist/quoted-calls/types.d.ts",
+      "default": "./dist/quoted-calls/types.js"
+    },
+    "./token/*": {
+      "types": "./dist/token/*.d.ts",
+      "default": "./dist/token/*.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "default": "./dist/types.js"
+    },
+    "./utils/*": {
+      "types": "./dist/utils/*.d.ts",
+      "default": "./dist/utils/*.js"
+    },
+    "./warp/*": {
+      "types": "./dist/warp/*.d.ts",
+      "default": "./dist/warp/*.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "check": "tsc --noEmit",
+    "clean": "rm -rf ./dist ./cache",
+    "lint": "oxlint -c ../../oxlint.json",
+    "prepublishOnly": "pnpm build",
+    "format": "oxfmt --write ./src",
+    "test": "pnpm test:unit && pnpm test:exports && pnpm test:hardhat && pnpm test:foundry",
+    "test:ci": "pnpm test",
+    "test:exports": "pnpm build && mocha --config .mocharc.json './test/**/*.test.ts' --exit",
+    "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
+    "test:hardhat": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
+    "test:foundry": "./scripts/foundry-test.sh"
+  },
+  "dependencies": {
+    "@arbitrum/sdk": "catalog:",
+    "@aws-sdk/client-s3": "catalog:",
+    "@chain-registry/types": "catalog:",
+    "@cosmjs/amino": "catalog:",
+    "@cosmjs/cosmwasm-stargate": "catalog:",
+    "@cosmjs/crypto": "catalog:",
+    "@cosmjs/encoding": "catalog:",
+    "@cosmjs/math": "catalog:",
+    "@cosmjs/proto-signing": "catalog:",
+    "@cosmjs/stargate": "catalog:",
+    "@cosmjs/tendermint-rpc": "catalog:",
+    "@hyperlane-xyz/aleo-sdk": "workspace:*",
+    "@hyperlane-xyz/core": "workspace:*",
+    "@hyperlane-xyz/cosmos-sdk": "workspace:*",
+    "@hyperlane-xyz/deploy-sdk": "workspace:*",
+    "@hyperlane-xyz/provider-sdk": "workspace:*",
+    "@hyperlane-xyz/radix-sdk": "workspace:*",
+    "@hyperlane-xyz/starknet-core": "workspace:*",
+    "@hyperlane-xyz/tron-sdk": "workspace:*",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "@safe-global/api-kit": "catalog:",
+    "@safe-global/protocol-kit": "catalog:",
+    "@safe-global/safe-deployments": "catalog:",
+    "@safe-global/types-kit": "catalog:",
+    "@solana/spl-token": "catalog:",
+    "@solana/web3.js": "catalog:",
+    "@starknet-react/chains": "catalog:",
+    "@turnkey/api-key-stamper": "catalog:",
+    "@turnkey/sdk-server": "catalog:",
+    "@turnkey/solana": "catalog:",
+    "bignumber.js": "catalog:",
+    "borsh": "catalog:",
+    "compare-versions": "catalog:",
+    "cosmjs-types": "catalog:",
+    "cross-fetch": "^3.1.5",
+    "ethers": "catalog:",
+    "pino": "catalog:",
+    "seismic-viem": "4.0.0",
+    "starknet": "catalog:",
+    "viem": "catalog:",
+    "zksync-ethers": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@ethersproject/providers": "*",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@nomiclabs/hardhat-ethers": "catalog:",
+    "@nomiclabs/hardhat-waffle": "catalog:",
+    "@types/chai": "catalog:",
+    "@types/chai-as-promised": "catalog:",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
+    "@types/sinon": "catalog:",
+    "@types/sinon-chai": "catalog:",
+    "@types/ws": "catalog:",
+    "chai": "catalog:",
+    "chai-as-promised": "catalog:",
+    "dotenv": "catalog:",
+    "ethereum-waffle": "catalog:",
+    "hardhat": "catalog:",
+    "hardhat-gas-reporter": "catalog:",
+    "mocha": "catalog:",
+    "sinon": "catalog:",
+    "solidity-coverage": "catalog:",
+    "ts-node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "yaml": "catalog:"
+  },
+  "peerDependencies": {
+    "@ethersproject/abi": "*"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

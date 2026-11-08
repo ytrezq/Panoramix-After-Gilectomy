@@ -1,0 +1,154 @@
+{
+  "name": "@hyperlane-xyz/widgets",
+  "version": "45.1.0",
+  "description": "Common react components for Hyperlane projects",
+  "keywords": [
+    "Components",
+    "Hyperlane",
+    "React",
+    "Typescript",
+    "Widgets"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "/dist"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./styles.css": "./dist/styles.css",
+    "./animations/*": {
+      "types": "./dist/animations/*.d.ts",
+      "default": "./dist/animations/*.js"
+    },
+    "./chains/*": {
+      "types": "./dist/chains/*.d.ts",
+      "default": "./dist/chains/*.js"
+    },
+    "./components/*": {
+      "types": "./dist/components/*.d.ts",
+      "default": "./dist/components/*.js"
+    },
+    "./icons/*": {
+      "types": "./dist/icons/*.d.ts",
+      "default": "./dist/icons/*.js"
+    },
+    "./layout/*": {
+      "types": "./dist/layout/*.d.ts",
+      "default": "./dist/layout/*.js"
+    },
+    "./logos/*": {
+      "types": "./dist/logos/*.d.ts",
+      "default": "./dist/logos/*.js"
+    },
+    "./messages/*": {
+      "types": "./dist/messages/*.d.ts",
+      "default": "./dist/messages/*.js"
+    },
+    "./utils/*": {
+      "types": "./dist/utils/*.d.ts",
+      "default": "./dist/utils/*.js"
+    },
+    "./walletIntegrations/*": {
+      "types": "./dist/walletIntegrations/*.d.ts",
+      "default": "./dist/walletIntegrations/*.js"
+    }
+  },
+  "scripts": {
+    "build": "pnpm build:ts && pnpm build:css",
+    "build:ts": "tsc",
+    "build:css": "tailwindcss -c ./tailwind.config.cjs -i ./src/styles.css -o ./dist/styles.css --minify",
+    "clean": "rm -rf ./dist ./cache ./storybook-static",
+    "lint": "oxlint -c ../../oxlint.json",
+    "format": "oxfmt --write ./src",
+    "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
+    "test:ci": "pnpm test",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
+  },
+  "dependencies": {
+    "@chain-registry/types": "catalog:",
+    "@cosmjs/stargate": "catalog:",
+    "@cosmos-kit/react": "^2.18.0",
+    "@headlessui/react": "^2.1.8",
+    "@hyperlane-xyz/aleo-sdk": "workspace:*",
+    "@hyperlane-xyz/cosmos-sdk": "workspace:*",
+    "@hyperlane-xyz/provider-sdk": "workspace:*",
+    "@hyperlane-xyz/radix-sdk": "workspace:*",
+    "@hyperlane-xyz/sdk": "workspace:*",
+    "@hyperlane-xyz/tron-sdk": "workspace:*",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "@interchain-ui/react": "^1.23.28",
+    "@provablehq/aleo-types": "1.0.0",
+    "@provablehq/aleo-wallet-adaptor-react": "1.0.0",
+    "@provablehq/aleo-wallet-adaptor-shield": "1.0.0",
+    "@provablehq/aleo-wallet-standard": "1.0.0",
+    "@radixdlt/babylon-gateway-api-sdk": "catalog:",
+    "@radixdlt/radix-dapp-toolkit": "^2.2.1",
+    "@rainbow-me/rainbowkit": "^2.2.0",
+    "@solana/wallet-adapter-react": "^0.15.32",
+    "@solana/wallet-adapter-react-ui": "^0.9.31",
+    "@solana/web3.js": "catalog:",
+    "@starknet-react/chains": "catalog:",
+    "@starknet-react/core": "^5.0.3",
+    "@tronweb3/tronwallet-abstract-adapter": "catalog:",
+    "@tronweb3/tronwallet-adapter-react-hooks": "catalog:",
+    "@tronweb3/tronwallet-adapter-tronlink": "catalog:",
+    "@wagmi/core": "^2.12.26",
+    "clsx": "^2.1.1",
+    "ethers": "catalog:",
+    "pino": "catalog:",
+    "react-tooltip": "^5.28.0",
+    "starknet": "catalog:",
+    "starknetkit": "^3.4.3",
+    "viem": "catalog:",
+    "wagmi": "^2.12.26",
+    "yaml": "catalog:"
+  },
+  "devDependencies": {
+    "@chakra-ui/react": "^2.8.2",
+    "@cosmjs/cosmwasm-stargate": "catalog:",
+    "@emotion/react": "^11.13.3",
+    "@emotion/styled": "^11.13.0",
+    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@storybook/addon-essentials": "^7.6.14",
+    "@storybook/addon-interactions": "^7.6.14",
+    "@storybook/addon-links": "^7.6.14",
+    "@storybook/addon-onboarding": "^1.0.11",
+    "@storybook/blocks": "^7.6.14",
+    "@storybook/react": "^7.6.14",
+    "@storybook/react-vite": "^7.6.14",
+    "@storybook/test": "^7.6.14",
+    "@tanstack/react-query": "^5.59.20",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "^18.0.27",
+    "@types/react-dom": "^18.0.10",
+    "@types/ws": "catalog:",
+    "babel-loader": "^8.3.0",
+    "framer-motion": "^10.16.4",
+    "mocha": "catalog:",
+    "postcss": "^8.4.21",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "storybook": "^7.6.14",
+    "tailwindcss": "^3.4.13",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vite": "^5.1.1"
+  },
+  "peerDependencies": {
+    "react": "^18",
+    "react-dom": "^18"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
