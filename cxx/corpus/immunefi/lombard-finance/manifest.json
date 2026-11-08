@@ -84,8 +84,7 @@
     {
      "prefix": "lombard-finance__evm-smart-contracts",
      "url": "https://github.com/lombard-finance/evm-smart-contracts",
-     "commit": "7fe83e56f2265c0c281747c8dd3bb141d3022c46",
-     "files": 130
+     "commit": "7fe83e56f2265c0c281747c8dd3bb141d3022c46"
     }
    ]
   },
@@ -122,8 +121,7 @@
     {
      "prefix": "Liquid-Bitcoin__BARD",
      "url": "https://github.com/Liquid-Bitcoin/BARD",
-     "commit": "f79d6f6371b841c175ea0e28c5799d444a83ef0d",
-     "files": 8
+     "commit": "f79d6f6371b841c175ea0e28c5799d444a83ef0d"
     }
    ]
   }
