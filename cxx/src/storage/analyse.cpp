@@ -305,6 +305,33 @@ struct Known {
     VarValues values;
 };
 
+// a variable every value of which is c + S x, S > 1 (through copies of
+// variables): the address of an element of more than one slot (Vyper keeps
+// its DynArray's new element's so), no index
+bool element_pointer(Value e, const Known& k, std::vector<Value>& seen) {
+    check_stack();
+    if (!is_var(e)) return false;
+    const std::vector<Value>* vs = k.values.find(e);
+    if (!vs || vs->empty()) return false;
+    seen.push_back(e);
+    bool all = true, one = false;
+    for (Value v : *vs) {
+        if (is_var(v)) {
+            // (a variable set to itself, or to one being looked at: no other
+            // value)
+            if (std::find(seen.begin(), seen.end(), v) != seen.end()) continue;
+            all = element_pointer(v, k, seen);
+        } else {
+            const Lin l = linear(v);
+            all = !l.index.nil() && EvmInt(1) < l.stride;
+        }
+        if (!all) break;
+        one = true;
+    }
+    seen.pop_back();
+    return all && one;
+}
+
 bool index_like(Value e, const Known& k, std::vector<Value>& seen) {
     check_stack();
     if (e.is_int()) {
@@ -413,6 +440,7 @@ private:
     void find_accesses();
     void type_roots();
     void fixed_lengths_and_moves();
+    void merge_struct_arrays();
     void find_bytes_getters();
     void names();
     // ---- forms ----
@@ -476,7 +504,7 @@ void Analysis::find_accesses() {
     known_.resize(fns_.size());
     where_.resize(accesses_.size());
     steps_.assign(accesses_.size(), std::nullopt);
-    std::vector<bool> pointer(accesses_.size(), false);
+    std::vector<bool> pointer(accesses_.size(), false), element(accesses_.size(), false);
     for (usize i = 0; i < accesses_.size(); ++i) {
         poll();
         std::optional<Path> st;
@@ -486,15 +514,20 @@ void Analysis::find_accesses() {
             st.reset();
         }
         if (st && !st->steps.empty() && st->steps[0].kind == Step::Kind::Off && !st->steps[0].e.is_int()) {
-            bool any = false;
+            // (an element's address - c + S x, S > 1 - plus a member's offset is
+            // no index of an array at that offset, however bounded x is)
+            bool any = false, elem = false;
             for (u32 f : where_[i]) {
                 std::vector<Value> seen;
-                if (index_like(st->steps[0].e, known(f), seen)) {
-                    any = true;
+                if (element_pointer(st->steps[0].e, known(f), seen)) {
+                    elem = true;
                     break;
                 }
+                seen.clear();
+                any = any || index_like(st->steps[0].e, known(f), seen);
             }
-            if (!any) pointer[i] = true;
+            if (elem) element[i] = true;
+            if (elem || !any) pointer[i] = true;
         }
         steps_[i] = std::move(st);
     }
@@ -506,8 +539,11 @@ void Analysis::find_accesses() {
     for (usize i = 0; i < accesses_.size(); ++i)
         if (steps_[i] && !pointer[i]) others.push_back(steps_[i]->root);
     std::sort(others.begin(), others.end());
+    // (a member of an element whose address a variable holds - c + S x, S > 1
+    // - is no element of an array at its offset: raw)
     for (usize i = 0; i < accesses_.size(); ++i)
-        if (pointer[i] && std::binary_search(others.begin(), others.end(), steps_[i]->root)) steps_[i].reset();
+        if (element[i] || (pointer[i] && std::binary_search(others.begin(), others.end(), steps_[i]->root)))
+            steps_[i].reset();
     for (usize i = 0; i < accesses_.size(); ++i) {
         const Access& a = accesses_[i];
         if (steps_[i] && a.size.is_small())
@@ -641,6 +677,148 @@ void Analysis::fixed_lengths_and_moves() {
             }
             roots_.erase(it);
             moved = true;
+        }
+    }
+    if (moved) type_roots();
+}
+
+// The fields of an array of structs: python's storage gives each root a
+// fixed array of its own, and an array of structs a compiler lays out from a
+// slot (Vyper's DynArray of structs, after its length; its fixed arrays of
+// them) becomes as many fixed arrays of the struct's stride S as it has
+// fields read - and, where an element's index is written with an offset
+// (8 n - 3: the element n - 1 of an array at 5), more of them below it,
+// near 2^256 for the slots the sum wraps to. They are one array of structs
+// of S slots at r0, the lowest root of the stride whose S slots hold no
+// other variable: the roots in [r0 - S, r0 + S) and those below r0 by a
+// multiple of S past 2^255 (a negative offset's) moved there with their
+// offset (the slot the same: r + e = r0 + (r - r0) + e) - the forms find
+// the elements' indexes and the fields. The fixed arrays of words among
+// them (a field's words a loop reads with a counter of its own: no form of
+// the struct's) are raw. A recognition of the code's slots: every form is
+// checked against its access (Worlds::check), raw where it isn't one.
+void Analysis::merge_struct_arrays() {
+    const Word256 half = pan::shl(Word256::of(255), Word256::of(1));
+    std::map<u64, std::vector<Word256>> groups;  // (each in ascending order: roots_' order)
+    std::vector<Word256> words, blocks;
+    for (const auto& [r, root] : roots_) {
+        if (root.type && types_[*root.type].kind == StorageType::Kind::Fixed) {
+            const StorageType& t = types_[*root.type];
+            if (t.stride > 1) {
+                groups[t.stride].push_back(r);
+                continue;
+            }
+            if (types_.elem_width(t.elem) == 256 && types_[t.elem].kind == StorageType::Kind::Value) {
+                words.push_back(r);
+                continue;
+            }
+        }
+        blocks.push_back(r);
+    }
+    // r's offset from the start r0 of an array of S slots an element - as a
+    // signed int Value
+    auto offset_of = [&](const Word256& r, const Word256& r0) {
+        return EvmInt(pan::sub(r, r0).to_value()).to_signed().value();
+    };
+    // the accesses of root r as root r0's: the offset first, or added to it
+    auto move = [&](const Word256& r, const Word256& r0) {
+        const Value d = offset_of(r, r0);
+        auto shift = [&](std::vector<Step>& steps) {
+            if (!steps.empty() && steps[0].kind == Step::Kind::Off)
+                steps[0].e = alg::add(steps[0].e, d);
+            else
+                steps.insert(steps.begin(), Step{Step::Kind::Off, d, false});
+        };
+        for (auto& st : steps_)
+            if (st && st->root == r) {
+                st->root = r0;
+                shift(st->steps);
+            }
+        auto it = roots_.find(r);
+        for (RootAccess& a : it->second.accs) {
+            shift(a.steps);
+            roots_[r0].accs.push_back(a);
+        }
+        roots_.erase(it);
+    };
+    auto drop = [&](const Word256& r) {
+        for (auto& st : steps_)
+            if (st && st->root == r) st.reset();
+        roots_.erase(r);
+    };
+    bool moved = false;
+    // a fixed array of words whose length the code checks: the roots inside
+    // it typed fixed arrays of words are its own, an index with an offset
+    for (const Word256& c : words) {
+        const auto it = lengths_.find(c);
+        if (it == lengths_.end() || it->second < 2 || it->second >= (u64(1) << 32) || !roots_.count(c)) continue;
+        const Word256 last = pan::add(c, Word256::of(it->second));
+        if (last < c) continue;
+        for (const Word256& r : words)
+            if (c < r && r < last && roots_.count(r)) {
+                move(r, c);
+                moved = true;
+            }
+    }
+    for (const auto& [stride, rs] : groups) {
+        const Word256 S = Word256::of(stride);
+        std::vector<Word256> blocking = blocks;  // (the other strides' roots too)
+        for (const auto& [s2, rs2] : groups)
+            if (s2 != stride) blocking.insert(blocking.end(), rs2.begin(), rs2.end());
+        std::vector<Word256> starts, assigned;
+        auto is_assigned = [&](const Word256& r) { return std::find(assigned.begin(), assigned.end(), r) != assigned.end(); };
+        for (const Word256& c : rs) {
+            if (!(c < half) || is_assigned(c)) continue;
+            const Word256 end = pan::add(c, S);
+            if (end < c) continue;
+            bool free = true;
+            for (const Word256& b : blocking)
+                if (!(b < c) && b < end) free = false;
+            if (!free) continue;
+            starts.push_back(c);
+            assigned.push_back(c);
+            // the roots of its elements - the first, all of them when the
+            // code checks the indexes against a length - and those within S
+            // below it (an index written with an offset), unless another
+            // start's already
+            Word256 last = end;
+            if (const auto it = lengths_.find(c); it != lengths_.end() && it->second > 1 && it->second < (u64(1) << 32)) {
+                const Word256 span = pan::add(c, pan::mul(S, Word256::of(it->second)));
+                if (!(span < c)) last = span;
+            }
+            for (const Word256& r : rs) {
+                if (!(r < half) || is_assigned(r)) continue;
+                const bool above = !(r < c) && r < last;
+                const bool below = r < c && !(r < (c < S ? Word256{} : pan::sub(c, S)));
+                if (!above && !below) continue;
+                move(r, c);
+                assigned.push_back(r);
+                moved = true;
+            }
+            // the fixed arrays of words within its first element: no form of
+            // the struct's - raw
+            for (const Word256& r : words)
+                if (!(r < c) && r < end && roots_.count(r)) {
+                    drop(r);
+                    moved = true;
+                }
+        }
+        // the roots past 2^255 (a negative offset's sum), within 2^16
+        // elements below the one array of the stride
+        if (starts.size() == 1) {
+            const Word256 c = starts[0];
+            const Word256 far = pan::sub(c, pan::mul(S, Word256::of(u64(1) << 16)));
+            auto near_below = [&](const Word256& r) { return !(r < half) && !(r < far) && !(far < half); };
+            for (const Word256& r : rs)
+                if (!(r < half) && near_below(r) && roots_.count(r)) {
+                    move(r, c);
+                    moved = true;
+                }
+            for (const Word256& r : words)
+                if (!(r < half) && near_below(r) && roots_.count(r)) {
+                    drop(r);
+                    moved = true;
+                }
         }
     }
     if (moved) type_roots();
@@ -976,6 +1154,8 @@ std::shared_ptr<StorageLayout> Analysis::run() {
     type_roots();
     check_deadline(deadline);
     fixed_lengths_and_moves();
+    check_deadline(deadline);
+    merge_struct_arrays();
     check_deadline(deadline);
     find_bytes_getters();
     check_deadline(deadline);
