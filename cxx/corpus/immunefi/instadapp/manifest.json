@@ -35,8 +35,7 @@
     {
      "prefix": "Instadapp__dsa-contracts",
      "url": "https://github.com/Instadapp/dsa-contracts",
-     "commit": "fef062af24fd11f0af72653fd8231180f1ab3c93",
-     "files": 36
+     "commit": "fef062af24fd11f0af72653fd8231180f1ab3c93"
     }
    ]
   },
@@ -74,8 +73,7 @@
     {
      "prefix": "Instadapp__avocado-contracts-public",
      "url": "https://github.com/Instadapp/avocado-contracts-public",
-     "commit": "0bc1dd9c49203dd45f48f0046abc4e95a50d06da",
-     "files": 54
+     "commit": "0bc1dd9c49203dd45f48f0046abc4e95a50d06da"
     }
    ]
   },
@@ -157,56 +155,47 @@
     {
      "prefix": "Instadapp__fluid-contracts-public",
      "url": "https://github.com/Instadapp/fluid-contracts-public",
-     "commit": "404d73f91e6806f881f8dabeb30494f93f9e99b7",
-     "files": 720
+     "commit": "404d73f91e6806f881f8dabeb30494f93f9e99b7"
     },
     {
      "prefix": "Instadapp__fluid-contracts-public/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "07263d193d621c4b2b0ce8b4d54af58f6957d97d",
-     "files": 47
+     "commit": "07263d193d621c4b2b0ce8b4d54af58f6957d97d"
     },
     {
      "prefix": "Instadapp__fluid-contracts-public/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "d00acef4059807535af0bd0dd0ddf619747a044b",
-     "files": 293
+     "commit": "d00acef4059807535af0bd0dd0ddf619747a044b"
     },
     {
      "prefix": "Instadapp__fluid-contracts-public/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "f6c4c9c4ec601665ca74d2c9dddf547fc425658c",
-     "files": 289
+     "commit": "f6c4c9c4ec601665ca74d2c9dddf547fc425658c"
     },
     {
      "prefix": "Instadapp__fluid-contracts-public/lib/solady",
      "url": "https://github.com/Vectorized/solady",
-     "commit": "acd959aa4bd04720d640bf4e6a5c71037510cc4b",
-     "files": 268
+     "commit": "acd959aa4bd04720d640bf4e6a5c71037510cc4b"
     },
     {
      "prefix": "Instadapp__fluid-contracts-public/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb",
-     "files": 35
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
     },
     {
      "prefix": "Instadapp__fluid-contracts-public/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb",
-     "files": 35
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
     },
     {
      "prefix": "Instadapp__fluid-contracts-public/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "cd98eff28324bfac652e63a239a60632a761790b",
-     "files": 5
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
     },
     {
      "prefix": "Instadapp__fluid-contracts-public/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "cd98eff28324bfac652e63a239a60632a761790b",
-     "files": 5
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
     }
    ]
   },
@@ -248,8 +237,7 @@
     {
      "prefix": "Instadapp__inst-governance",
      "url": "https://github.com/Instadapp/inst-governance",
-     "commit": "ebb3f732e10b9bd7286568ab5fe1b5363d38814e",
-     "files": 215
+     "commit": "ebb3f732e10b9bd7286568ab5fe1b5363d38814e"
     }
    ]
   }
