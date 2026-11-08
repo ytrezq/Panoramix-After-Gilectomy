@@ -50,20 +50,17 @@
     {
      "prefix": "gammaswap__v1-core",
      "url": "https://github.com/gammaswap/v1-core",
-     "commit": "2312d0e528042c506de8e93db246b45245ebf8e8",
-     "files": 133
+     "commit": "2312d0e528042c506de8e93db246b45245ebf8e8"
     },
     {
      "prefix": "gammaswap__v1-core/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "73d44ec7d124e3831bc5f832267889ffb6f9bc3f",
-     "files": 39
+     "commit": "73d44ec7d124e3831bc5f832267889ffb6f9bc3f"
     },
     {
      "prefix": "gammaswap__v1-core/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ]
   },
@@ -118,20 +115,17 @@
     {
      "prefix": "gammaswap__v1-implementations",
      "url": "https://github.com/gammaswap/v1-implementations",
-     "commit": "e71dd9175dd438e2f782a3799d08daa8a02419d3",
-     "files": 86
+     "commit": "e71dd9175dd438e2f782a3799d08daa8a02419d3"
     },
     {
      "prefix": "gammaswap__v1-implementations/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "fc560fa34fa12a335a50c35d92e55a6628ca467c",
-     "files": 39
+     "commit": "fc560fa34fa12a335a50c35d92e55a6628ca467c"
     },
     {
      "prefix": "gammaswap__v1-implementations/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ]
   },
@@ -180,8 +174,7 @@
     {
      "prefix": "gammaswap__v1-deltaswap",
      "url": "https://github.com/gammaswap/v1-deltaswap",
-     "commit": "6f71eb9c16ecfed2f02d91c4a74e04fb980a7d44",
-     "files": 90
+     "commit": "6f71eb9c16ecfed2f02d91c4a74e04fb980a7d44"
     }
    ]
   },
@@ -237,20 +230,17 @@
     {
      "prefix": "gammaswap__v1-periphery",
      "url": "https://github.com/gammaswap/v1-periphery",
-     "commit": "67743673ff69d85b08d11eb375b7c1361990b4ee",
-     "files": 52
+     "commit": "67743673ff69d85b08d11eb375b7c1361990b4ee"
     },
     {
      "prefix": "gammaswap__v1-periphery/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "fc560fa34fa12a335a50c35d92e55a6628ca467c",
-     "files": 39
+     "commit": "fc560fa34fa12a335a50c35d92e55a6628ca467c"
     },
     {
      "prefix": "gammaswap__v1-periphery/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ]
   },
@@ -313,20 +303,17 @@
     {
      "prefix": "gammaswap__v1-staking",
      "url": "https://github.com/gammaswap/v1-staking",
-     "commit": "c3df0b0309a9ae5f208e48c008362871a988654b",
-     "files": 37
+     "commit": "c3df0b0309a9ae5f208e48c008362871a988654b"
     },
     {
      "prefix": "gammaswap__v1-staking/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1",
-     "files": 40
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
     },
     {
      "prefix": "gammaswap__v1-staking/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ]
   },
@@ -370,14 +357,12 @@
     {
      "prefix": "gammaswap__timelock",
      "url": "https://github.com/gammaswap/timelock",
-     "commit": "d3cfc85db895c6bc35c50d3a67dd9ed289c4ab6d",
-     "files": 6
+     "commit": "d3cfc85db895c6bc35c50d3a67dd9ed289c4ab6d"
     },
     {
      "prefix": "gammaswap__timelock/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "1714bee72e286e73f76e320d110e0eaf5c4e649d",
-     "files": 47
+     "commit": "1714bee72e286e73f76e320d110e0eaf5c4e649d"
     }
    ]
   },
@@ -436,14 +421,12 @@
     {
      "prefix": "gammaswap__gs-token",
      "url": "https://github.com/gammaswap/gs-token",
-     "commit": "9e7e3d222942990f782cac012829c0101e753ece",
-     "files": 7
+     "commit": "9e7e3d222942990f782cac012829c0101e753ece"
     },
     {
      "prefix": "gammaswap__gs-token/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "1714bee72e286e73f76e320d110e0eaf5c4e649d",
-     "files": 47
+     "commit": "1714bee72e286e73f76e320d110e0eaf5c4e649d"
     }
    ]
   }
