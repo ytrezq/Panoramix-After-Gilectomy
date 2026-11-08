@@ -116,104 +116,87 @@
     {
      "prefix": "enzymefinance__protocol-onyx",
      "url": "https://github.com/enzymefinance/protocol-onyx",
-     "commit": "d8a522d6ca58af9dbb831dad2b8045a88952e468",
-     "files": 190
+     "commit": "d8a522d6ca58af9dbb831dad2b8045a88952e468"
     },
     {
      "prefix": "enzymefinance__protocol-onyx/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66",
-     "files": 47
+     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66"
     },
     {
      "prefix": "enzymefinance__protocol-onyx/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "3d5fa5c24c411112bab47bec25cfa9ad0af0e6e8",
-     "files": 214
+     "commit": "3d5fa5c24c411112bab47bec25cfa9ad0af0e6e8"
     },
     {
      "prefix": "enzymefinance__protocol-onyx/lib/chainlink-ccip",
      "url": "https://github.com/smartcontractkit/chainlink-ccip",
-     "commit": "bbab0601244ce58e2ffac0dbc178a80aab1fa4a3",
-     "files": 386
+     "commit": "bbab0601244ce58e2ffac0dbc178a80aab1fa4a3"
     },
     {
      "prefix": "enzymefinance__protocol-onyx/lib/chainlink-local",
      "url": "https://github.com/smartcontractkit/chainlink-local",
-     "commit": "a3ace4e17336e84c4d1261f2da45d5e8963af714",
-     "files": 131
+     "commit": "a3ace4e17336e84c4d1261f2da45d5e8963af714"
     },
     {
      "prefix": "enzymefinance__protocol-onyx/lib/chainlink-evm",
      "url": "https://github.com/smartcontractkit/chainlink-evm",
-     "commit": "86aa5a1d34b20eda8d18fe6eb0e4882948e545ba",
-     "files": 851
+     "commit": "86aa5a1d34b20eda8d18fe6eb0e4882948e545ba"
     },
     {
      "prefix": "enzymefinance__protocol-onyx/lib/chainlink-ace",
      "url": "https://github.com/smartcontractkit/chainlink-ace",
-     "commit": "46738579f57e362b5203b66d5fdca13df07892fb",
-     "files": 158
+     "commit": "46738579f57e362b5203b66d5fdca13df07892fb"
     },
     {
      "prefix": "enzymefinance__protocol-onyx/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa",
-     "files": 47
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
     },
     {
      "prefix": "enzymefinance__protocol-onyx/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "enzymefinance__protocol-onyx/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "enzymefinance__protocol-onyx/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527",
-     "files": 322
+     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527"
     },
     {
      "prefix": "enzymefinance__protocol-onyx/lib/chainlink-local/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505",
-     "files": 49
+     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
     },
     {
      "prefix": "enzymefinance__protocol-onyx/lib/chainlink-local/lib/chainlink-evm",
      "url": "https://github.com/smartcontractkit/chainlink-evm",
-     "commit": "86aa5a1d34b20eda8d18fe6eb0e4882948e545ba",
-     "files": 851
+     "commit": "86aa5a1d34b20eda8d18fe6eb0e4882948e545ba"
     },
     {
      "prefix": "enzymefinance__protocol-onyx/lib/chainlink-local/lib/chainlink-ccip",
      "url": "https://github.com/smartcontractkit/chainlink-ccip",
-     "commit": "0e3e0fc5c0f70f0d50dca66b139142ddf3009294",
-     "files": 495
+     "commit": "0e3e0fc5c0f70f0d50dca66b139142ddf3009294"
     },
     {
      "prefix": "enzymefinance__protocol-onyx/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa",
-     "files": 47
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
     },
     {
      "prefix": "enzymefinance__protocol-onyx/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "enzymefinance__protocol-onyx/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     }
    ]
   }
