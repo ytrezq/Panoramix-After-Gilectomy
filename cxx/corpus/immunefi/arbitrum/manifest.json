@@ -108,38 +108,32 @@
     {
      "prefix": "OffchainLabs__token-bridge-contracts",
      "url": "https://github.com/OffchainLabs/token-bridge-contracts",
-     "commit": "0746a71321cdb2d6df6b15158c7ecbb9ece84b12",
-     "files": 110
+     "commit": "0746a71321cdb2d6df6b15158c7ecbb9ece84b12"
     },
     {
      "prefix": "OffchainLabs__token-bridge-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6",
-     "files": 39
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6"
     },
     {
      "prefix": "OffchainLabs__token-bridge-contracts/lib/nitro-contracts",
      "url": "https://github.com/OffchainLabs/nitro-contracts",
-     "commit": "0770fe07d99c499bebfaf3b7df37047d19032050",
-     "files": 149
+     "commit": "0770fe07d99c499bebfaf3b7df37047d19032050"
     },
     {
      "prefix": "OffchainLabs__token-bridge-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-     "files": 6
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
     },
     {
      "prefix": "OffchainLabs__token-bridge-contracts/lib/nitro-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e",
-     "files": 40
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
     },
     {
      "prefix": "OffchainLabs__token-bridge-contracts/lib/nitro-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ]
   },
@@ -295,26 +289,22 @@
     {
      "prefix": "OffchainLabs__nitro-contracts",
      "url": "https://github.com/OffchainLabs/nitro-contracts",
-     "commit": "67487333202561b74492d07de62a4f56be28560e",
-     "files": 196
+     "commit": "67487333202561b74492d07de62a4f56be28560e"
     },
     {
      "prefix": "OffchainLabs__nitro-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e",
-     "files": 40
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
     },
     {
      "prefix": "OffchainLabs__nitro-contracts/src/precompiles",
      "url": "https://github.com/OffchainLabs/nitro-precompile-interfaces",
-     "commit": "f49a4889b486fd804a7901203f5f663cfd1581c8",
-     "files": 20
+     "commit": "f49a4889b486fd804a7901203f5f663cfd1581c8"
     },
     {
      "prefix": "OffchainLabs__nitro-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ]
   },
@@ -440,68 +430,57 @@
     {
      "prefix": "ArbitrumFoundation__governance",
      "url": "https://github.com/ArbitrumFoundation/governance",
-     "commit": "4c2d1b9a7affd85a44ca95c8aa8b90b7621320d6",
-     "files": 204
+     "commit": "4c2d1b9a7affd85a44ca95c8aa8b90b7621320d6"
     },
     {
      "prefix": "ArbitrumFoundation__governance/token-bridge-contracts",
      "url": "https://github.com/OffchainLabs/token-bridge-contracts",
-     "commit": "7c90b43fee0072a3515147822faf5b20fbcf134b",
-     "files": 110
+     "commit": "7c90b43fee0072a3515147822faf5b20fbcf134b"
     },
     {
      "prefix": "ArbitrumFoundation__governance/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e",
-     "files": 40
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
     },
     {
      "prefix": "ArbitrumFoundation__governance/lib/solady",
      "url": "https://github.com/Vectorized/solady",
-     "commit": "7175c21f95255dc7711ce84cc32080a41864abd6",
-     "files": 127
+     "commit": "7175c21f95255dc7711ce84cc32080a41864abd6"
     },
     {
      "prefix": "ArbitrumFoundation__governance/token-bridge-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6",
-     "files": 39
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6"
     },
     {
      "prefix": "ArbitrumFoundation__governance/token-bridge-contracts/lib/nitro-contracts",
      "url": "https://github.com/OffchainLabs/nitro-contracts",
-     "commit": "0770fe07d99c499bebfaf3b7df37047d19032050",
-     "files": 149
+     "commit": "0770fe07d99c499bebfaf3b7df37047d19032050"
     },
     {
      "prefix": "ArbitrumFoundation__governance/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "ArbitrumFoundation__governance/lib/solady/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5",
-     "files": 4
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
     },
     {
      "prefix": "ArbitrumFoundation__governance/token-bridge-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-     "files": 6
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
     },
     {
      "prefix": "ArbitrumFoundation__governance/token-bridge-contracts/lib/nitro-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e",
-     "files": 40
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
     },
     {
      "prefix": "ArbitrumFoundation__governance/token-bridge-contracts/lib/nitro-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ]
   },
@@ -548,14 +527,12 @@
     {
      "prefix": "OffchainLabs__fund-distribution-contracts",
      "url": "https://github.com/OffchainLabs/fund-distribution-contracts",
-     "commit": "9d5714b6dffb52cc3c9981aa7e74c2a91f213348",
-     "files": 37
+     "commit": "9d5714b6dffb52cc3c9981aa7e74c2a91f213348"
     },
     {
      "prefix": "OffchainLabs__fund-distribution-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "07263d193d621c4b2b0ce8b4d54af58f6957d97d",
-     "files": 47
+     "commit": "07263d193d621c4b2b0ce8b4d54af58f6957d97d"
     }
    ]
   }
