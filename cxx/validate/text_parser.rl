@@ -2201,11 +2201,22 @@ void Parser::parse_line(std::uint32_t line)
         bad.indent = ln.indent;
         bad.number = ln.number;
         const bool opener = ln.last >= ln.first + 2 && kind(ln.last - 2) == T_COLON;
+        // a call's `with:`: the lines going on it (gas, value, args...) can't
+        // follow an if - an aborted call, which they go on (else the blocks
+        // stop there: the functions after it would have no body)
+        const bool call = opener && ln.last >= ln.first + 3 && kind(ln.last - 3) == T_WITH;
         if (ctx_ == Ctx::storage || (ln.indent == 0 && !opener))
             return;
         const std::uint32_t saved = line_;
         line_ = line;
-        if (opener)
+        if (call)
+        {
+            const StmtId s = stmt(St::aborted);
+            prog_.stmts[s].aux = 1;  // a line that couldn't be parsed
+            bad.kind = LK_CALL;
+            bad.stmt = s;
+        }
+        else if (opener)
         {
             const StmtId s = stmt(St::if_);
             bad.kind = LK_IF;

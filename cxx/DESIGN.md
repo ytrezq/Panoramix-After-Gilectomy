@@ -920,7 +920,11 @@ calls `--` starts an expression too: two tokens decide); `True` and
 `False` never (at an operand the literal and a name print the same), nor
 `not` before `--`;
 `text_interp` runs a call as the text says, through a Session; what the
-text doesn't say precisely (msize, an aborted line...) is unsupported. The
+text doesn't say precisely (msize, an aborted line...) is unsupported - a
+line the parser can't read too, kept as a statement that can't run where
+the blocks need one (a block opener an if, a call's `with:` a call, its
+`gas` and `args` lines going on it: else the blocks stopped there and the
+functions after it had no body, their calls "different"). The
 text doesn't print where an unknown function's params are in calldata
 (the user's decision: the display stays the asm's; the place is
 `ParamInfo::calldata_offset`): `--params DIR` reads that side information

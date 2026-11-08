@@ -162,6 +162,38 @@ TEST_CASE("text interp: the keywords the text also uses as names - storage varia
     CHECK(c.storage_diff.at(slot) == 0);
 }
 
+TEST_CASE("text interp: an unparsed call line - its function unsupported, the functions after it run")
+{
+    // (the asm prints an address constant past 160 bits as 40 `?`: Vyper
+    // 0.3.1's immutables read from the code's tail; the line `with:` its
+    // gas and args lines go on)
+    const Program program = parse(
+        "def f(): # not payable\n"
+        "  call ????????????????????????????????????????.transfer(address recipient, uint256 amount) with:\n"
+        "       gas gas_remaining\n"
+        "      args caller, 5\n"
+        "  return 1\n"
+        "\n"
+        "def g(): # not payable\n"
+        "  return 2\n");
+    REQUIRE(program.errors.size() == 1);
+    CHECK(program.errors[0].starts_with("line 2:"));
+    Interpreter interp{program};
+    const SeededWorld world{WorldConfig{.random = false}};
+    State state{world, world.contract_address(), Bytes{0x00}};
+    auto call = [&](Bytes data) {
+        CallContext c;
+        c.caller = world.actors().front();
+        c.origin = c.caller;
+        c.calldata = std::move(data);
+        return interp.run(state, c);
+    };
+    CHECK(call(calldata("f()", {})).end.status == Status::unsupported);
+    const auto g = call(calldata("g()", {}));
+    CHECK(g.end.status == Status::return_);
+    CHECK(g.end.data == words({2}));
+}
+
 TEST_CASE("text interp: the ends - revert texts, Panic, require, assert, payable")
 {
     Text t(
