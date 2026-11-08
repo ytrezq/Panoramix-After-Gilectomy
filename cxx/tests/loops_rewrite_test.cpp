@@ -19,6 +19,7 @@
 #include "algebra/ranges.hpp"
 #include "exec/machine.hpp"
 #include "loops/loops.hpp"
+#include "simplify/simplify.hpp"
 
 using namespace pan;
 namespace L = pan::loops;
@@ -136,6 +137,10 @@ Value pass_dubious(Value t) {
 }
 Value pass_storage(Value t) { return L::propagate_storage_in_loops(t); }
 
+// the simplifier's rounds and final passes (lot 7: its small words, the
+// memory forwarded, loops_to_setmems among them)
+Value pass_whole(Value t) { return simplify::simplify_trace(t); }
+
 // the pass on the trace, checked by execution; whether it changed it
 bool check(const char* text, Value (*pass)(Value)) {
     Value t = V(text);
@@ -143,6 +148,14 @@ bool check(const char* text, Value (*pass)(Value)) {
     Value u = pass(t);
     CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
     return u != t;
+}
+// the same, the trace it made
+Value check_value(const char* text, Value (*pass)(Value)) {
+    Value t = V(text);
+    Vars vars(t);
+    Value u = pass(t);
+    CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
+    return u;
 }
 
 bool has_while(Value v) {
@@ -502,6 +515,197 @@ TEST_CASE("loops: a loop that runs once or never") {
                  "4)})"
                  " (return (data (mem (range 0 32)) (sized 32 loop1) (sized 32 loop2)))}",
                  pass_setmems));
+}
+
+TEST_CASE("loops: a copy in words cut to its length where the next line covers its tail") {
+    Fixture f;
+    // solc's copy_memory_to_memory_with_cleanup: the words copied, then
+    // mstore(dst + len, 0) - MCOPY of len bytes in the cancun build
+    const char* cleanup =
+        "{(setmem (range 0 1024) (calldata_bytes 4 1024))"
+        " (setvar tmp4 (mask_shl 8 0 0 (calldataload 4)))"
+        " (while (lt loop0 tmp4) {(setmem (range (add 512 loop0) 32) (mem (range (add 64 loop0) 32))) (continue loopid1 "
+        "{(setvar loop0 (add 32 loop0))})} loopid1 {(setvar loop0 0)})"
+        " (setmem (range (add 512 tmp4) 32) (sized 32 0))"
+        " (return (mem (range 0 1024)))}";
+    CHECK(check(cleanup, pass_setmems));
+    auto has = [](auto&& self, Value v, Value x) -> bool {
+        if (v == x) return true;
+        if (!(v.is_expr() || v.is_list())) return false;
+        for (Value a : v.children())
+            if (self(self, a, x)) return true;
+        return false;
+    };
+    {
+        Value t = V(cleanup);
+        Vars vars(t);
+        CHECK(has(has, pass_setmems(t), V("(setmem (range 512 tmp4) (mem (range 64 tmp4)))")));
+    }
+    // ... not where the next line leaves bytes of the tail as the copy wrote them
+    const char* short_cover =
+        "{(setmem (range 0 1024) (calldata_bytes 4 1024))"
+        " (setvar tmp4 (mask_shl 8 0 0 (calldataload 4)))"
+        " (while (lt loop0 tmp4) {(setmem (range (add 512 loop0) 32) (mem (range (add 64 loop0) 32))) (continue loopid1 "
+        "{(setvar loop0 (add 32 loop0))})} loopid1 {(setvar loop0 0)})"
+        " (setmem (range (add 512 tmp4) 1) (sized 1 0))"
+        " (return (mem (range 0 1024)))}";
+    CHECK(check(short_cover, pass_setmems));
+    {
+        Value t = V(short_cover);
+        Vars vars(t);
+        Value u = pass_setmems(t);
+        CHECK(!has_while(u));
+        CHECK(!has(has, u, V("(setmem (range 512 tmp4) (mem (range 64 tmp4)))")));
+    }
+    // ... nor where the trace reads msize (the source read further moves it)
+    const char* msize =
+        "{(setmem (range 0 1024) (calldata_bytes 4 1024))"
+        " (setvar tmp4 (mask_shl 8 0 0 (calldataload 4)))"
+        " (while (lt loop0 tmp4) {(setmem (range (add 512 loop0) 32) (mem (range (add 1000 loop0) 32))) (continue "
+        "loopid1 {(setvar loop0 (add 32 loop0))})} loopid1 {(setvar loop0 0)})"
+        " (setmem (range (add 512 tmp4) 32) (sized 32 0))"
+        " (return (data (mem (range 0 1024)) (sized 32 msize)))}";
+    CHECK(check(msize, pass_setmems));
+    {
+        Value t = V(msize);
+        Vars vars(t);
+        CHECK(!has(has, pass_setmems(t), V("(setmem (range 512 tmp4) (mem (range 1000 tmp4)))")));
+    }
+}
+
+TEST_CASE("loops: a counting loop (a copy whose writes were dead) dropped where it ends") {
+    Fixture f;
+    // a bound of 8 bits, a step of 32: its trips and its counter's last value
+    const char* bounded =
+        "{(setvar tmp1 (mask_shl 8 0 0 (calldataload 4)))"
+        " (while (lt loop0 tmp1) {(continue loopid1 {(setvar loop0 (add 32 loop0))})} loopid1 {(setvar loop0 0)})"
+        " (return (data (sized 32 loop0) (sized 32 tmp1)))}";
+    CHECK(check(bounded, pass_setmems));
+    {
+        Value t = V(bounded);
+        Vars vars(t);
+        CHECK(!has_while(pass_setmems(t)));
+    }
+    // a step of 1 up to any word: it ends (the counter stops at the bound),
+    // two variables moved
+    const char* any =
+        "{(while (lt loop0 (calldataload 4)) {(continue loopid1 {(setvar loop0 (add 1 loop0)) (setvar loop1 (add 3 loop1))})} "
+        "loopid1 {(setvar loop0 0) (setvar loop1 (calldataload 36))})"
+        " (return (data (sized 32 loop0) (sized 32 loop1)))}";
+    CHECK(check(any, pass_setmems));
+    {
+        Value t = V(any);
+        Vars vars(t);
+        CHECK(!has_while(pass_setmems(t)));
+    }
+    // a step of 32 up to any word: past 2^256 - 32 the counter wraps and the
+    // loop never ends - kept
+    CHECK(!check("{(while (lt loop0 (calldataload 4)) {(continue loopid1 {(setvar loop0 (add 32 loop0))})} loopid1 "
+                 "{(setvar loop0 0)})"
+                 " (return (data (sized 32 loop0)))}",
+                 pass_setmems));
+    // ... nor where the bound is read from memory (any word; its read moves msize)
+    CHECK(!check("{(setmem (range 0 32) (sized 32 (mask_shl 8 0 0 (calldataload 4))))"
+                 " (while (lt loop0 (mem (range 0 32))) {(continue loopid1 {(setvar loop0 (add 32 loop0))})} loopid1 "
+                 "{(setvar loop0 0)})"
+                 " (return (data (sized 32 loop0)))}",
+                 pass_setmems));
+}
+
+TEST_CASE("loops: a copy whose length a checked product bounds (the simplifier's small words)") {
+    Fixture f;
+    // GnosisSafe's getStorageAt (solc 0.8.30, shanghai): new bytes(length *
+    // 32), the words copied from storage, the bytes copied again to be
+    // returned - MCOPY in the cancun build. `length * 32` checked (a
+    // checked multiplication's test, then the allocation's bound) makes
+    // length a small word: the length word at 128 is known past the write
+    // at mem[64], the copy's source and destination apart
+    const char* t =
+        "{(if (and (bool (calldataload 36)) (iszero (eq 32 (div (mul 32 (calldataload 36)) (calldataload 36))))) "
+        "{(revert None)} {})"
+        " (if (gt (mul 32 (calldataload 36)) 0xffffffffffffffff) {(revert None)} {})"
+        " (setmem (range 64 32) (sized 32 (add 160 (mul 32 (calldataload 36)))))"
+        " (setmem (range 128 32) (sized 32 (mul 32 (calldataload 36))))"
+        " (setmem (range 160 (mul 32 (calldataload 36))) (calldata_bytes calldatasize (mul 32 (calldataload 36))))"
+        " (while (lt loop1 (calldataload 36)) {(setmem (range (add 160 (mul 32 loop1)) 32) (sized 32 (storage 256 0 (add "
+        "loop1 (calldataload 4))))) (continue loopid1 {(setvar loop1 (add 1 loop1))})} loopid1 {(setvar loop1 0)})"
+        " (setvar tmp2 (mem (range 64 32)))"
+        " (setmem (range (mem (range 64 32)) 32) (sized 32 32))"
+        " (setvar tmp3 (mem (range 128 32)))"
+        " (setmem (range (add 32 tmp2) 32) (sized 32 (mem (range 128 32))))"
+        " (while (lt loop2 tmp3) {(setmem (range (add 64 tmp2 loop2) 32) (sized 32 (mem (range (add 160 loop2) 32)))) "
+        "(continue loopid2 {(setvar loop2 (add 32 loop2))})} loopid2 {(setvar loop2 0)})"
+        " (setmem (range (add 64 tmp2 tmp3) 32) (sized 32 0))"
+        " (return (mem (range tmp2 (add 64 (mask_shl 251 5 0 (add 31 tmp3))))))}";
+    auto loops_in = [](auto&& self, Value v) -> int {
+        if (!(v.is_expr() || v.is_list())) return 0;
+        int n = v.is(Op::WHILE) ? 1 : 0;
+        for (Value a : v.children()) n += self(self, a);
+        return n;
+    };
+    Value u = check_value(t, pass_whole);
+    // the storage loop is stor[slot len n] (STORAGE_RANGE), the copy a SETMEM
+    CHECK(loops_in(loops_in, u) == 0);
+    CHECK(has_op(u, Op::STORAGE_RANGE));
+    // ... the copy not where nothing excludes the product's wrap (the
+    // multiplication unchecked): the one loop left
+    const std::string unchecked = std::string(t).substr(std::string(t).find(" (if (gt"));
+    Value w = check_value(("{" + unchecked).c_str(), pass_whole);
+    CHECK(loops_in(loops_in, w) == 1);
+    CHECK(has_op(w, Op::STORAGE_RANGE));
+}
+
+TEST_CASE("loops: a copy of a length known once memory is forwarded past the calls") {
+    Fixture f;
+    // Aave's WrappedTokenGatewayV3.repayETH (solc 0.8.27, shanghai): the
+    // empty bytes of a call's arguments copied onto themselves, in words -
+    // MCOPY in the cancun build. The length word was written just before
+    // (0); the free memory pointer, moved by an earlier call's
+    // return_data.size, is known past the next call (its results are
+    // another call's): the length is 0, the loop runs never
+    const std::string y = "(mask_shl 251 5 0 (add 31 (returndatasize 2)))";
+    const std::string t =
+        "{(call 1 (gas 1) (calldataload 4) 0 None None)"
+        " (setmem (range 64 32) (sized 32 (add 128 (mask_shl 251 5 0 (add 31 (returndatasize 1))))))"
+        " (call 2 (gas 2) (calldataload 36) 0 None None)"
+        " (setvar tmp10 (mem (range 64 32)))"
+        " (setmem (range 64 32) (sized 32 (add tmp10 " + y + ")))"
+        " (setmem (range (add tmp10 " + y + ") 32) (sized 32 0))"
+        " (setmem (range 64 32) (sized 32 (add 32 tmp10 " + y + ")))"
+        " (setvar tmp12 (mem (range (add tmp10 " + y + ") 32)))"
+        " (while (lt loop1 tmp12) {(setvar tmp14 (mem (range (add 32 tmp10 loop1 " + y + ") 32)))"
+        " (setmem (range (add 32 tmp10 loop1 " + y + ") 32) (sized 32 tmp14))"
+        " (continue loopid1 {(setvar loop1 (add 32 loop1))})} loopid1 {(setvar loop1 0)})"
+        " (setmem (range (add 32 tmp10 tmp12 " + y + ") 32) (sized 32 0))"
+        " (call 3 (gas 3) caller 5 None (mem (range (mem (range 64 32)) (add 32 tmp10 tmp12 (mul -1 (mem (range 64 32))) " + y +
+        "))))"
+        " (stop)}";
+    Value u = check_value(t.c_str(), pass_whole);
+    CHECK(!has_while(u));
+}
+
+TEST_CASE("loops: a copy of a bytes' words from storage, its decoded length below 2^255") {
+    Fixture f;
+    // OpenZeppelin 3.x's ERC721.tokenURI (solc 0.6): a long string's words
+    // copied from storage past its first, up to the destination's end
+    // L + 160, L its decoded length - the slot's word / 2 or its low byte /
+    // 2 (exec's bytes_length), so below 2^255 - where the path knows L >=
+    // 32: the end can't wrap, the trip count needs no max(192, L + 160)
+    const Value len = V("(storage 256 0 (length (loc 7)))");
+    CHECK(alg::range(len).hi == EvmInt::pow2(255) - EvmInt(1));
+    const char* t =
+        "{(store 256 0 7 (add 1 (mul 2 (mask_shl 8 0 0 (calldataload 36)))))"
+        " (setmem (range 0 1024) (calldata_bytes 100 1024))"
+        " (if (gt 32 (storage 256 0 (length (loc 7)))) {(stop)} {"
+        "(while (gt (add 160 (storage 256 0 (length (loc 7)))) (add 32 loop1)) {(setmem (range (add 32 loop1) 32) "
+        "(storage 256 0 loop2)) (continue loopid1 {(setvar loop1 (add 32 loop1)) (setvar loop2 (add 1 loop2))})} "
+        "loopid1 {(setvar loop1 160) (setvar loop2 100)})"
+        " (return (mem (range 0 1024)))})}";
+    Value u = check_value(t, pass_setmems);
+    INFO(dump_trace(u));
+    CHECK(!has_while(u));
+    CHECK(has_op(u, Op::STORAGE_RANGE));
+    CHECK(!has_op(u, Op::MAX));
 }
 
 TEST_CASE("loops: propagate_storage_in_loops") {

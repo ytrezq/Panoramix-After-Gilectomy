@@ -31,6 +31,7 @@
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "core/contract.hpp"
+#include "mem/memory.hpp"
 #include "output/fold.hpp"
 #include "output/print.hpp"
 
@@ -239,8 +240,21 @@ private:
         std::vector<Value> args;
         args.reserve(e.size());
         bool changed = false;
-        for (const Value a : e.args()) {
-            const Value b = use(a, last, memo);
+        // (a byte element - a SHA3's, a DATA's, a call's arguments... - that
+        // was return data bytes: the variable as wide as they were, as every
+        // byte element carries its width)
+        const std::span<const u8> bytes = e.is_expr() ? mem::byte_operands(e) : std::span<const u8>{};
+        for (u32 i = 0; i < e.size(); ++i) {
+            const Value a = e[i];
+            Value b = use(a, last, memo);
+            if (a.is(Op::RETURNDATA_BYTES, 3) && noted_.contains(a.raw()) &&
+                std::find(bytes.begin(), bytes.end(), u8(i)) != bytes.end()) {
+                // (its length read here too: call k's, its size a variable
+                // as well when another call may have been made)
+                const Value n = use(a[2], last, memo);
+                if (rewrite_ && b.is_name())
+                    b = mem::sized(n, b);
+            }
             changed = changed || b != a;
             args.push_back(b);
         }
