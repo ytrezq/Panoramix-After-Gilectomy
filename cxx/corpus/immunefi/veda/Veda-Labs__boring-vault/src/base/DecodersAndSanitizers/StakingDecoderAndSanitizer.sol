@@ -1,0 +1,59 @@
+// SPDX-License-Identifier: SEL-1.0
+// Copyright © 2025 Veda Tech Labs
+// Derived from Boring Vault Software © 2025 Veda Tech Labs (TEST ONLY – NO COMMERCIAL USE)
+// Licensed under Software Evaluation License, Version 1.0
+// Last audited: boring-vault@4c9c671bb965899728167102a0e3ac22f4aabf7a — https://macroaudits.com/library/audits/sevenSeas-39
+pragma solidity 0.8.21;
+
+import {BaseDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
+import {EtherFiDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/EtherFiDecoderAndSanitizer.sol";
+import {NativeWrapperDecoderAndSanitizer} from
+    "src/base/DecodersAndSanitizers/Protocols/NativeWrapperDecoderAndSanitizer.sol";
+import {LidoDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/LidoDecoderAndSanitizer.sol";
+import {SwellDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/SwellDecoderAndSanitizer.sol";
+import {MantleDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/MantleDecoderAndSanitizer.sol";
+import {EigenLayerLSTStakingDecoderAndSanitizer} from
+    "src/base/DecodersAndSanitizers/Protocols/EigenLayerLSTStakingDecoderAndSanitizer.sol";
+import {FraxDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/FraxDecoderAndSanitizer.sol";
+
+contract StakingDecoderAndSanitizer is
+    BaseDecoderAndSanitizer,
+    EtherFiDecoderAndSanitizer,
+    NativeWrapperDecoderAndSanitizer,
+    LidoDecoderAndSanitizer,
+    SwellDecoderAndSanitizer,
+    MantleDecoderAndSanitizer,
+    EigenLayerLSTStakingDecoderAndSanitizer,
+    FraxDecoderAndSanitizer
+{
+    // //============================== HANDLE FUNCTION COLLISIONS ===============================
+    function wrap(uint256)
+        external
+        pure
+        override(EtherFiDecoderAndSanitizer, LidoDecoderAndSanitizer)
+        returns (bytes memory addressesFound)
+    {
+        // Nothing to sanitize or return
+        return addressesFound;
+    }
+
+    function unwrap(uint256)
+        external
+        pure
+        override(EtherFiDecoderAndSanitizer, LidoDecoderAndSanitizer)
+        returns (bytes memory addressesFound)
+    {
+        // Nothing to sanitize or return
+        return addressesFound;
+    }
+
+    function deposit()
+        external
+        pure
+        override(EtherFiDecoderAndSanitizer, NativeWrapperDecoderAndSanitizer, SwellDecoderAndSanitizer)
+        returns (bytes memory addressesFound)
+    {
+        // Nothing to sanitize or return
+        return addressesFound;
+    }
+}

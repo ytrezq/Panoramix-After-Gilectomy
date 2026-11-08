@@ -1,0 +1,16 @@
+{
+    "name": "yearn-vaults-v3",
+    "devDependencies": {
+        "hardhat": "2.12.7",
+        "prettier": "2.8.4",
+        "prettier-plugin-solidity": "1.1.2",
+        "solhint": "3.4.0",
+        "solhint-plugin-prettier": "0.0.5"
+    },
+    "scripts": {
+        "format": "prettier --write 'contracts/**/*.(sol|json)' 'foundry_tests/**/*.(sol|json)'",
+        "format:check": "prettier --check 'contracts/**/*.*(sol|json)' 'foundry_tests/**/*.(sol|json)'",
+        "lint": "solhint 'contracts/**/*.sol' 'foundry_tests/**/*.sol'"
+    },
+    "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+}

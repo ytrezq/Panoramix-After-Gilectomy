@@ -1,0 +1,47 @@
+{
+ "program": "magpiexyz",
+ "repos": [
+  {
+   "repo": "https://github.com/magpiexyz/contracts",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "Wombat pool helpers (the scope's Main Pool USDC Deposit Helper)",
+   "commit": "bd4269688ef631fb5ea86731707a8f74a891ae27",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "MIT": 50,
+     "(none)": 17,
+     "GPL-3.0": 3
+    },
+    "headers_main": {
+     "MIT": 50,
+     "(none)": 7,
+     "GPL-3.0": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 70
+   },
+   "npm": {},
+   "copied": true,
+   "files": 54,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "magpiexyz__contracts",
+   "subtrees": [
+    {
+     "prefix": "magpiexyz__contracts",
+     "url": "https://github.com/magpiexyz/contracts",
+     "commit": "bd4269688ef631fb5ea86731707a8f74a891ae27",
+     "files": 70
+    }
+   ]
+  }
+ ]
+}

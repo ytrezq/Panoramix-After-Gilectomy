@@ -1,0 +1,12 @@
+[submodule "lib/@gearbox-protocol/core-v3"]
+	path = lib/@gearbox-protocol/core-v3
+	url = https://github.com/Gearbox-protocol/core-v3
+[submodule "lib/@gearbox-protocol/sdk-gov"]
+	path = lib/@gearbox-protocol/sdk-gov
+	url = https://github.com/Gearbox-protocol/sdk-gov
+[submodule "lib/@solady"]
+	path = lib/@solady
+	url = https://github.com/Vectorized/solady
+[submodule "lib/@gearbox-protocol/permissionless"]
+	path = lib/@gearbox-protocol/permissionless
+	url = https://github.com/Gearbox-protocol/permissionless

@@ -1,0 +1,22 @@
+# https://book.getfoundry.sh/reference/config/overview
+# https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+gas_reports = ["*"]
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+skip = ["HCAProxyInitCode.yul", "HCAProxyNoInitCode.yul"]
+ignored_warnings_from = ["lib/", "src/hca/HCAProxyInitCode.yul"]
+
+[fuzz]
+runs = 4096
+
+[profile.yul]
+skip = []
+
+[lint]
+lint_on_build = false

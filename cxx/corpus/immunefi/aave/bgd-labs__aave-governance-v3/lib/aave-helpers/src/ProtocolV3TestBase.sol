@@ -1,0 +1,1328 @@
+// SPDX-License-Identifier: AGPL-3.0
+pragma solidity >=0.7.5 <0.9.0;
+
+import 'forge-std/Test.sol';
+import {IAaveOracle, IPool, IPoolAddressesProvider, IPoolDataProvider, IReserveInterestRateStrategy, DataTypes, IPoolConfigurator, Errors} from 'aave-address-book/AaveV3.sol';
+import {IERC20} from 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
+import {IERC20Metadata} from 'openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol';
+import {SafeERC20} from 'openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol';
+import {ReserveConfiguration} from 'aave-v3-origin/contracts/protocol/libraries/configuration/ReserveConfiguration.sol';
+import {EModeConfiguration} from 'aave-v3-origin/contracts/protocol/libraries/configuration/EModeConfiguration.sol';
+import {IAaveV3ConfigEngine} from 'aave-v3-origin/contracts/extensions/v3-config-engine/IAaveV3ConfigEngine.sol';
+import {EngineFlags} from 'aave-v3-origin/contracts/extensions/v3-config-engine/EngineFlags.sol';
+import {PercentageMath} from 'aave-v3-origin/contracts/protocol/libraries/math/PercentageMath.sol';
+import {WadRayMath} from 'aave-v3-origin/contracts/protocol/libraries/math/WadRayMath.sol';
+import {IDefaultInterestRateStrategyV2} from 'aave-v3-origin/contracts/interfaces/IDefaultInterestRateStrategyV2.sol';
+import {AaveV3EthereumAssets} from 'aave-address-book/AaveV3Ethereum.sol';
+import {DiffUtils} from './DiffUtils.sol';
+import {ReportFileUtils} from './dependencies/ReportFileUtils.sol';
+import {ProtocolV3TestBase as RawProtocolV3TestBase, ReserveConfig} from 'aave-v3-origin-tests/utils/ProtocolV3TestBase.sol';
+import {MockAggregator} from 'aave-v3-origin/contracts/mocks/oracle/CLAggregators/MockAggregator.sol';
+import {IInitializableAdminUpgradeabilityProxy} from './interfaces/IInitializableAdminUpgradeabilityProxy.sol';
+import {ExtendedAggregatorV2V3Interface} from './interfaces/ExtendedAggregatorV2V3Interface.sol';
+import {CommonTestBase, ReserveTokens, ChainIds} from './CommonTestBase.sol';
+import {ILegacyDefaultInterestRateStrategy} from './dependencies/ILegacyDefaultInterestRateStrategy.sol';
+import {Strings} from 'openzeppelin-contracts/contracts/utils/Strings.sol';
+import {SeatbeltUtils} from './SeatbeltUtils.sol';
+import {GovV3Helpers} from './GovV3Helpers.sol';
+import {IPayloadsControllerCore, PayloadsControllerUtils} from 'aave-address-book/GovernanceV3.sol';
+
+struct InterestStrategyValues {
+  address addressesProvider;
+  uint256 optimalUsageRatio;
+  uint256 optimalStableToTotalDebtRatio;
+  uint256 baseStableBorrowRate;
+  uint256 stableRateSlope1;
+  uint256 stableRateSlope2;
+  uint256 baseVariableBorrowRate;
+  uint256 variableRateSlope1;
+  uint256 variableRateSlope2;
+}
+
+struct ExpectedListing {
+  IAaveV3ConfigEngine.Listing listing;
+  uint256 decimals;
+}
+
+contract ProtocolV3TestBase is RawProtocolV3TestBase, SeatbeltUtils, CommonTestBase, DiffUtils {
+  using ReserveConfiguration for DataTypes.ReserveConfigurationMap;
+  using PercentageMath for uint256;
+  using WadRayMath for uint256;
+  using SafeERC20 for IERC20;
+  using Strings for string;
+
+  // @dev Pre-create the report file so snapshot writes succeed under isolation. See ReportFileUtils.
+  function createConfigurationSnapshot(
+    string memory reportName,
+    IPool pool,
+    bool reserveConfigs,
+    bool strategyConfigs,
+    bool eModeConigs,
+    bool poolConfigs
+  ) public override returns (ReserveConfig[] memory) {
+    ReportFileUtils.ensureExists(string(abi.encodePacked('./reports/', reportName, '.json')));
+    return
+      super.createConfigurationSnapshot(
+        reportName,
+        pool,
+        reserveConfigs,
+        strategyConfigs,
+        eModeConigs,
+        poolConfigs
+      );
+  }
+
+  // @dev Override to handle pre-v3.7 pools that lack getIsEModeCategoryIsolated
+  function _writeEModeConfigs(string memory path, IPool pool) internal override {
+    string memory eModesKey = 'emodes';
+    string memory content = '{}';
+    vm.serializeJson(eModesKey, '{}');
+    uint8 emptyCounter = 0;
+    for (uint8 i = 0; i < 256; i++) {
+      DataTypes.CollateralConfig memory cfg = pool.getEModeCategoryCollateralConfig(i);
+      if (cfg.liquidationThreshold == 0) {
+        if (++emptyCounter > 2) break;
+      } else {
+        string memory key = vm.toString(i);
+        vm.serializeJson(key, '{}');
+        vm.serializeUint(key, 'eModeCategory', i);
+        vm.serializeString(key, 'label', pool.getEModeCategoryLabel(i));
+        vm.serializeUint(key, 'ltv', cfg.ltv);
+        try pool.getIsEModeCategoryIsolated(i) returns (bool isolated) {
+          vm.serializeBool(key, 'isolated', isolated);
+        } catch {
+          vm.serializeBool(key, 'isolated', false);
+        }
+        vm.serializeString(
+          key,
+          'collateralBitmap',
+          vm.toString(pool.getEModeCategoryCollateralBitmap(i))
+        );
+        vm.serializeString(
+          key,
+          'borrowableBitmap',
+          vm.toString(pool.getEModeCategoryBorrowableBitmap(i))
+        );
+        vm.serializeUint(key, 'liquidationThreshold', cfg.liquidationThreshold);
+        string memory object = vm.serializeUint(key, 'liquidationBonus', cfg.liquidationBonus);
+        content = vm.serializeString(eModesKey, key, object);
+        emptyCounter = 0;
+      }
+    }
+    vm.writeJson(content, path, '.eModes');
+  }
+
+  // mock receiver for flashloans
+  function executeOperation(
+    address[] calldata assets,
+    uint256[] calldata amounts,
+    uint256[] calldata premiums,
+    address /* initiator */,
+    bytes calldata /* params */
+  ) external virtual returns (bool) {
+    for (uint256 i = 0; i < assets.length; i++) {
+      IERC20(assets[i]).forceApprove(msg.sender, amounts[i] + premiums[i]);
+    }
+
+    return true;
+  }
+
+  /**
+   * @dev runs the default test suite that should run on any proposal touching the aave protocol which includes:
+   * - diffing the config
+   * - checking if the changes are plausible (no conflicting config changes etc)
+   * - running an e2e testsuite over all assets
+   * @dev the calling test must run in foundry's isolation mode (the `--isolate` CLI flag, or the
+   * per-test isolate inline-config annotation) so each top-level call is metered as its own
+   * transaction. Otherwise the payload gas measurement reads warm storage and under-counts, and the
+   * gas-limit check reverts (see `_requireIsolation`).
+   */
+  function defaultTest(
+    string memory reportName,
+    IPool pool,
+    address payload
+  ) public returns (ReserveConfig[] memory, ReserveConfig[] memory) {
+    return defaultTest(reportName, pool, payload, true, false);
+  }
+
+  /**
+   * @dev variant with an explicit payloadsController, for chains where the governance executing the
+   * payload differs from the one derived from the pool — e.g. a DAO payload touching DAO-owned
+   * contracts (GHO, CCIP token pools) on a chain whose only market is a whitelabel instance.
+   */
+  function defaultTest(
+    string memory reportName,
+    IPool pool,
+    address payload,
+    IPayloadsControllerCore payloadsController
+  ) public returns (ReserveConfig[] memory, ReserveConfig[] memory) {
+    return defaultTest(reportName, pool, payload, true, false, payloadsController);
+  }
+
+  function defaultTest(
+    string memory reportName,
+    IPool pool,
+    address payload,
+    bool runE2E,
+    bool runSeatbelt
+  ) public returns (ReserveConfig[] memory, ReserveConfig[] memory) {
+    return
+      defaultTest(
+        reportName,
+        pool,
+        payload,
+        runE2E,
+        runSeatbelt,
+        GovV3Helpers.getPayloadsController(pool, block.chainid)
+      );
+  }
+
+  function defaultTest(
+    string memory reportName,
+    IPool pool,
+    address payload,
+    bool runE2E,
+    bool runSeatbelt,
+    IPayloadsControllerCore payloadsController
+  ) public returns (ReserveConfig[] memory, ReserveConfig[] memory) {
+    string memory beforeString = string(abi.encodePacked(reportName, '_before'));
+    ReserveConfig[] memory configBefore = createConfigurationSnapshot(beforeString, pool);
+    string memory afterString = string(abi.encodePacked(reportName, '_after'));
+
+    // Meter execution on a dedicated run: vm.startStateDiffRecording (needed for the diff below)
+    // suppresses isolate's transaction-level gas accounting, so gas must be measured without it.
+    // This run is reverted and has no effect on the recorded snapshot/diff.
+    {
+      uint256 snapshotId = vm.snapshotState();
+      executePayload(vm, payload, payloadsController);
+      _assertPayloadGasWithinLimit(vm.lastCallGas().gasTotalUsed);
+      vm.revertToState(snapshotId);
+    }
+
+    vm.startStateDiffRecording();
+    vm.recordLogs();
+    executePayload(vm, payload, payloadsController);
+
+    string memory rawDiff = vm.getStateDiffJson();
+    string memory logsJson = vm.getRecordedLogsJson();
+    ReserveConfig[] memory configAfter = createConfigurationSnapshot(afterString, pool);
+
+    // as executor does delegateCall to the payload, the executor should have no storage changes
+    _validateNoExecutorStorageChange(
+      rawDiff,
+      payloadsController
+        .getExecutorSettingsByAccessControl(PayloadsControllerUtils.AccessControl.Level_1)
+        .executor
+    );
+    vm.writeJson(rawDiff, string(abi.encodePacked('./reports/', afterString, '.json')), '$.raw');
+    vm.writeJson(logsJson, string(abi.encodePacked('./reports/', afterString, '.json')), '$.logs');
+
+    diffReports(beforeString, afterString);
+    if (runSeatbelt) {
+      generateSeatbeltReport(reportName, address(payloadsController), payload.code);
+    }
+
+    configChangePlausibilityTest(pool, configBefore, configAfter);
+
+    if (runE2E) {
+      vm.pauseGasMetering();
+      e2eTest(pool);
+      vm.resumeGasMetering();
+    }
+    return (configBefore, configAfter);
+  }
+
+  function configChangePlausibilityTest(
+    IPool pool,
+    ReserveConfig[] memory configBefore,
+    ReserveConfig[] memory configAfter
+  ) public view {
+    uint256 configsBeforeLength = configBefore.length;
+    for (uint256 i = 0; i < configAfter.length; i++) {
+      // assets are usually not permanently unlisted, so the expectation is there will only be addition
+      // if config existed before
+      if (i < configsBeforeLength) {
+        // borrow increase should only happen on assets with borrowing enabled
+        // unless it is setting a borrow cap for the first time
+        // or the asset is borrowable in an e-mode (matching ValidationLogic.validateBorrow)
+        if (
+          configBefore[i].borrowCap < configAfter[i].borrowCap && configBefore[i].borrowCap != 0
+        ) {
+          if (!configAfter[i].borrowingEnabled) {
+            require(
+              _isBorrowableInAnyEMode(pool, configAfter[i].underlying),
+              'PL_BORROW_CAP_BORROW_DISABLED'
+            );
+          }
+        }
+      } else {
+        // at least newly listed assets should never have a supply cap exceeding total supply
+        uint256 totalSupply = IERC20(configAfter[i].underlying).totalSupply();
+        require(
+          configAfter[i].supplyCap / 1e2 <=
+            totalSupply / IERC20Metadata(configAfter[i].underlying).decimals(),
+          'PL_SUPPLY_CAP_GT_TOTAL_SUPPLY'
+        );
+      }
+      // borrow cap should never exceed supply cap
+      if (
+        configAfter[i].borrowCap != 0 &&
+        configAfter[i].underlying != AaveV3EthereumAssets.GHO_UNDERLYING // GHO is the exclusion from the rule
+      ) {
+        console.log(configAfter[i].underlying);
+        require(configAfter[i].borrowCap <= configAfter[i].supplyCap, 'PL_SUPPLY_LT_BORROW');
+      }
+    }
+  }
+
+  function _expectedListings() internal pure virtual returns (ExpectedListing[] memory) {
+    return new ExpectedListing[](0);
+  }
+
+  function _expectedCustomListings() internal pure virtual returns (ExpectedListing[] memory) {
+    return new ExpectedListing[](0);
+  }
+
+  function _expectedCollateralChanges()
+    internal
+    pure
+    virtual
+    returns (IAaveV3ConfigEngine.CollateralUpdate[] memory)
+  {
+    return new IAaveV3ConfigEngine.CollateralUpdate[](0);
+  }
+
+  function _expectedCapsChanges()
+    internal
+    pure
+    virtual
+    returns (IAaveV3ConfigEngine.CapsUpdate[] memory)
+  {
+    return new IAaveV3ConfigEngine.CapsUpdate[](0);
+  }
+
+  function _expectedBorrowChanges()
+    internal
+    pure
+    virtual
+    returns (IAaveV3ConfigEngine.BorrowUpdate[] memory)
+  {
+    return new IAaveV3ConfigEngine.BorrowUpdate[](0);
+  }
+
+  function _expectedFreezeChanges()
+    internal
+    pure
+    virtual
+    returns (address[] memory assets, bool[] memory frozen)
+  {
+    assets = new address[](0);
+    frozen = new bool[](0);
+  }
+
+  function reserveConfigChangesTest(
+    IPool pool,
+    address payload,
+    address[] memory updatedAssets
+  ) internal returns (ReserveConfig[] memory, ReserveConfig[] memory) {
+    ReserveConfig[] memory allConfigsBefore = _getReservesConfigs(pool);
+    executePayload(vm, payload, pool);
+    ReserveConfig[] memory allConfigsAfter = _getReservesConfigs(pool);
+
+    _validateReserveConfigChanges(allConfigsBefore, allConfigsAfter, updatedAssets);
+
+    return (allConfigsBefore, allConfigsAfter);
+  }
+
+  function _validateReserveConfigChanges(
+    ReserveConfig[] memory allConfigsBefore,
+    ReserveConfig[] memory allConfigsAfter,
+    address[] memory updatedAssets
+  ) internal pure {
+    ExpectedListing[] memory listings = _expectedListings();
+    ExpectedListing[] memory customListings = _expectedCustomListings();
+    IAaveV3ConfigEngine.CollateralUpdate[] memory collateralUpdates = _expectedCollateralChanges();
+    IAaveV3ConfigEngine.CapsUpdate[] memory capsUpdates = _expectedCapsChanges();
+    IAaveV3ConfigEngine.BorrowUpdate[] memory borrowUpdates = _expectedBorrowChanges();
+    (address[] memory freezeAssets, bool[] memory frozenStates) = _expectedFreezeChanges();
+
+    _validateNewListings(allConfigsBefore, allConfigsAfter, listings, customListings);
+
+    for (uint256 i = 0; i < updatedAssets.length; i++) {
+      ReserveConfig memory expectedConfig = _findReserveConfig(allConfigsBefore, updatedAssets[i]);
+      _applyCollateralUpdates(expectedConfig, collateralUpdates);
+      _applyCapsUpdates(expectedConfig, capsUpdates);
+      _applyBorrowUpdates(expectedConfig, borrowUpdates);
+      _applyFreezeUpdates(expectedConfig, freezeAssets, frozenStates);
+      _validateReserveConfig(expectedConfig, allConfigsAfter);
+    }
+
+    _noPreExistingReservesConfigsChangesApartFrom(allConfigsBefore, allConfigsAfter, updatedAssets);
+  }
+
+  function _validateNewListings(
+    ReserveConfig[] memory allConfigsBefore,
+    ReserveConfig[] memory allConfigsAfter,
+    ExpectedListing[] memory listings,
+    ExpectedListing[] memory customListings
+  ) internal pure {
+    _validateCountOfListings(
+      listings.length + customListings.length,
+      allConfigsBefore,
+      allConfigsAfter
+    );
+
+    for (uint256 i = 0; i < listings.length; i++) {
+      _validateListedReserveConfig(listings[i].listing, listings[i].decimals, allConfigsAfter);
+    }
+    for (uint256 i = 0; i < customListings.length; i++) {
+      _validateListedReserveConfig(
+        customListings[i].listing,
+        customListings[i].decimals,
+        allConfigsAfter
+      );
+    }
+  }
+
+  function _validateListedReserveConfig(
+    IAaveV3ConfigEngine.Listing memory listing,
+    uint256 decimals,
+    ReserveConfig[] memory allConfigsAfter
+  ) internal pure {
+    ReserveConfig memory expectedConfig = _findReserveConfig(allConfigsAfter, listing.asset);
+
+    expectedConfig.symbol = listing.assetSymbol;
+    expectedConfig.decimals = decimals;
+    expectedConfig.ltv = listing.liqThreshold != 0 ? listing.ltv : 0;
+    expectedConfig.liquidationThreshold = listing.liqThreshold;
+    expectedConfig.usageAsCollateralEnabled = listing.liqThreshold != 0;
+    if (listing.liqThreshold != 0) {
+      expectedConfig.liquidationBonus = 100_00 + listing.liqBonus;
+      expectedConfig.liquidationProtocolFee = listing.liqProtocolFee;
+    }
+    expectedConfig.borrowingEnabled = EngineFlags.toBool(listing.enabledToBorrow);
+    expectedConfig.isFlashloanable = EngineFlags.toBool(listing.flashloanable);
+    expectedConfig.reserveFactor = listing.reserveFactor;
+    expectedConfig.supplyCap = listing.supplyCap;
+    expectedConfig.borrowCap = listing.borrowCap;
+    expectedConfig.isActive = true;
+    expectedConfig.isFrozen = false;
+
+    _validateReserveConfig(expectedConfig, allConfigsAfter);
+  }
+
+  function _applyCollateralUpdates(
+    ReserveConfig memory expectedConfig,
+    IAaveV3ConfigEngine.CollateralUpdate[] memory collateralUpdates
+  ) internal pure {
+    for (uint256 i = 0; i < collateralUpdates.length; i++) {
+      IAaveV3ConfigEngine.CollateralUpdate memory update = collateralUpdates[i];
+      if (update.asset != expectedConfig.underlying) continue;
+
+      if (update.ltv != EngineFlags.KEEP_CURRENT) {
+        require(expectedConfig.ltv != update.ltv, 'COLLATERAL_UPDATE_LTV_NO_CHANGE');
+        expectedConfig.ltv = update.ltv;
+      }
+      if (update.liqThreshold != EngineFlags.KEEP_CURRENT) {
+        require(
+          expectedConfig.liquidationThreshold != update.liqThreshold,
+          'COLLATERAL_UPDATE_LIQ_THRESHOLD_NO_CHANGE'
+        );
+        expectedConfig.liquidationThreshold = update.liqThreshold;
+        expectedConfig.usageAsCollateralEnabled = update.liqThreshold != 0;
+      }
+      if (update.liqBonus != EngineFlags.KEEP_CURRENT) {
+        require(
+          expectedConfig.liquidationBonus != 100_00 + update.liqBonus,
+          'COLLATERAL_UPDATE_LIQ_BONUS_NO_CHANGE'
+        );
+        expectedConfig.liquidationBonus = 100_00 + update.liqBonus;
+      }
+      if (update.liqProtocolFee != EngineFlags.KEEP_CURRENT) {
+        require(
+          expectedConfig.liquidationProtocolFee != update.liqProtocolFee,
+          'COLLATERAL_UPDATE_LIQ_PROTOCOL_FEE_NO_CHANGE'
+        );
+        expectedConfig.liquidationProtocolFee = update.liqProtocolFee;
+      }
+    }
+  }
+
+  function _applyCapsUpdates(
+    ReserveConfig memory expectedConfig,
+    IAaveV3ConfigEngine.CapsUpdate[] memory capsUpdates
+  ) internal pure {
+    for (uint256 i = 0; i < capsUpdates.length; i++) {
+      IAaveV3ConfigEngine.CapsUpdate memory update = capsUpdates[i];
+      if (update.asset != expectedConfig.underlying) continue;
+
+      if (update.supplyCap != EngineFlags.KEEP_CURRENT) {
+        require(expectedConfig.supplyCap != update.supplyCap, 'CAPS_UPDATE_SUPPLY_CAP_NO_CHANGE');
+        expectedConfig.supplyCap = update.supplyCap;
+      }
+      if (update.borrowCap != EngineFlags.KEEP_CURRENT) {
+        require(expectedConfig.borrowCap != update.borrowCap, 'CAPS_UPDATE_BORROW_CAP_NO_CHANGE');
+        expectedConfig.borrowCap = update.borrowCap;
+      }
+    }
+  }
+
+  function _applyBorrowUpdates(
+    ReserveConfig memory expectedConfig,
+    IAaveV3ConfigEngine.BorrowUpdate[] memory borrowUpdates
+  ) internal pure {
+    for (uint256 i = 0; i < borrowUpdates.length; i++) {
+      IAaveV3ConfigEngine.BorrowUpdate memory update = borrowUpdates[i];
+      if (update.asset != expectedConfig.underlying) continue;
+
+      if (update.enabledToBorrow != EngineFlags.KEEP_CURRENT) {
+        require(
+          expectedConfig.borrowingEnabled != EngineFlags.toBool(update.enabledToBorrow),
+          'BORROW_UPDATE_ENABLED_NO_CHANGE'
+        );
+        expectedConfig.borrowingEnabled = EngineFlags.toBool(update.enabledToBorrow);
+      }
+      if (update.reserveFactor != EngineFlags.KEEP_CURRENT) {
+        require(
+          expectedConfig.reserveFactor != update.reserveFactor,
+          'BORROW_UPDATE_RESERVE_FACTOR_NO_CHANGE'
+        );
+        expectedConfig.reserveFactor = update.reserveFactor;
+      }
+      if (update.flashloanable != EngineFlags.KEEP_CURRENT) {
+        require(
+          expectedConfig.isFlashloanable != EngineFlags.toBool(update.flashloanable),
+          'BORROW_UPDATE_FLASHLOANABLE_NO_CHANGE'
+        );
+        expectedConfig.isFlashloanable = EngineFlags.toBool(update.flashloanable);
+      }
+    }
+  }
+
+  function _applyFreezeUpdates(
+    ReserveConfig memory expectedConfig,
+    address[] memory freezeAssets,
+    bool[] memory frozenStates
+  ) internal pure {
+    require(freezeAssets.length == frozenStates.length, 'INVALID_FREEZE_UPDATES');
+    for (uint256 i = 0; i < freezeAssets.length; i++) {
+      if (freezeAssets[i] != expectedConfig.underlying) continue;
+
+      require(expectedConfig.isFrozen != frozenStates[i], 'FREEZE_UPDATE_NO_CHANGE');
+      expectedConfig.isFrozen = frozenStates[i];
+    }
+  }
+
+  function _noPreExistingReservesConfigsChangesApartFrom(
+    ReserveConfig[] memory allConfigsBefore,
+    ReserveConfig[] memory allConfigsAfter,
+    address[] memory assetChangedUnderlying
+  ) internal pure {
+    // Duplicates RawProtocolV3TestBase._noReservesConfigsChangesApartFrom, but without the
+    // length check so expected new listings can be present in allConfigsAfter.
+    for (uint256 i = 0; i < allConfigsBefore.length; i++) {
+      bool isAssetExpectedToChange;
+      for (uint256 j = 0; j < assetChangedUnderlying.length; j++) {
+        if (assetChangedUnderlying[j] == allConfigsBefore[i].underlying) {
+          isAssetExpectedToChange = true;
+          break;
+        }
+      }
+      if (!isAssetExpectedToChange) {
+        _requireNoChangeInConfigs(allConfigsBefore[i], allConfigsAfter[i]);
+      }
+    }
+  }
+
+  function _isBorrowableInAnyEMode(IPool pool, address asset) internal view returns (bool) {
+    uint16 reserveId = pool.getReserveData(asset).id;
+    uint8 emptyCounter;
+    for (uint256 categoryId = 1; categoryId <= 255; categoryId++) {
+      DataTypes.CollateralConfig memory cfg = pool.getEModeCategoryCollateralConfig(
+        uint8(categoryId)
+      );
+      if (cfg.liquidationThreshold == 0) {
+        if (++emptyCounter > 2) break;
+        continue;
+      }
+      emptyCounter = 0;
+      uint128 borrowableBitmap = pool.getEModeCategoryBorrowableBitmap(uint8(categoryId));
+      if (
+        borrowableBitmap != 0 &&
+        EModeConfiguration.isReserveEnabledOnBitmap(borrowableBitmap, reserveId)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function _isCollateralInAnyEMode(IPool pool, address asset) internal view returns (bool) {
+    uint16 reserveId = pool.getReserveData(asset).id;
+    uint8 emptyCounter;
+    for (uint256 categoryId = 1; categoryId <= 255; categoryId++) {
+      DataTypes.CollateralConfig memory cfg = pool.getEModeCategoryCollateralConfig(
+        uint8(categoryId)
+      );
+      if (cfg.liquidationThreshold == 0) {
+        if (++emptyCounter > 2) break;
+        continue;
+      }
+      emptyCounter = 0;
+      uint128 collateralBitmap = pool.getEModeCategoryCollateralBitmap(uint8(categoryId));
+      if (
+        collateralBitmap != 0 &&
+        EModeConfiguration.isReserveEnabledOnBitmap(collateralBitmap, reserveId)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * @dev Returns the first eMode category where collateralAsset is collateral AND borrowAsset is borrowable.
+   * Returns 0 if no shared eMode exists.
+   */
+  function _getSharedEModeCategory(
+    IPool pool,
+    address collateralAsset,
+    address borrowAsset
+  ) internal view returns (uint8) {
+    uint16 collateralReserveId = pool.getReserveData(collateralAsset).id;
+    uint16 borrowReserveId = pool.getReserveData(borrowAsset).id;
+    uint8 emptyCounter;
+    for (uint256 categoryId = 1; categoryId <= 255; categoryId++) {
+      DataTypes.CollateralConfig memory cfg = pool.getEModeCategoryCollateralConfig(
+        uint8(categoryId)
+      );
+      if (cfg.liquidationThreshold == 0) {
+        if (++emptyCounter > 2) break;
+        continue;
+      }
+      emptyCounter = 0;
+      uint128 collateralBitmap = pool.getEModeCategoryCollateralBitmap(uint8(categoryId));
+      uint128 borrowableBitmap = pool.getEModeCategoryBorrowableBitmap(uint8(categoryId));
+      if (
+        EModeConfiguration.isReserveEnabledOnBitmap(collateralBitmap, collateralReserveId) &&
+        EModeConfiguration.isReserveEnabledOnBitmap(borrowableBitmap, borrowReserveId)
+      ) {
+        return uint8(categoryId);
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * @dev If the test asset is only borrowable in an eMode, sets the user into the appropriate eMode.
+   */
+  /**
+   * @dev If the test asset is only borrowable in an eMode and the collateral shares that eMode,
+   * sets the user into the appropriate eMode. No-op if no shared eMode exists.
+   */
+  function _setupEModeIfNeeded(
+    IPool pool,
+    ReserveConfig memory collateralConfig,
+    ReserveConfig memory testAssetConfig,
+    address user
+  ) internal {
+    if (!testAssetConfig.borrowingEnabled) {
+      uint8 eModeCategory = _getSharedEModeCategory(
+        pool,
+        collateralConfig.underlying,
+        testAssetConfig.underlying
+      );
+      if (eModeCategory != 0) {
+        vm.prank(user);
+        pool.setUserEMode(eModeCategory);
+      }
+    }
+  }
+
+  /**
+   * @dev Makes a e2e test including withdrawals/borrows and supplies to various reserves.
+   * @param pool the pool that should be tested
+   */
+  function e2eTest(IPool pool) public {
+    ReserveConfig[] memory configs = _getReservesConfigs(pool);
+    // precompute default collateral (first with ltv > 0)
+    ReserveConfig memory defaultCollateral;
+    bool hasDefaultCollateral;
+    for (uint256 i = 0; i < configs.length; i++) {
+      if (_includeInE2e(configs[i]) && configs[i].usageAsCollateralEnabled && configs[i].ltv != 0) {
+        defaultCollateral = configs[i];
+        hasDefaultCollateral = true;
+        break;
+      }
+    }
+    uint256 snapshot = vm.snapshotState();
+    for (uint256 i; i < configs.length; i++) {
+      if (_includeInE2e(configs[i])) {
+        ReserveConfig memory collateral;
+        ReserveConfig memory testAsset = configs[i];
+        bool found;
+
+        if (!configs[i].borrowingEnabled && _isBorrowableInAnyEMode(pool, configs[i].underlying)) {
+          // asset is only borrowable in eMode — find eMode-compatible collateral, preferring ltv > 0
+          uint256 fallbackIdx = type(uint256).max;
+          for (uint256 j = 0; j < configs.length; j++) {
+            if (
+              _includeInE2e(configs[j]) &&
+              _getSharedEModeCategory(pool, configs[j].underlying, configs[i].underlying) != 0
+            ) {
+              if (configs[j].ltv > 0) {
+                collateral = configs[j];
+                found = true;
+                break;
+              } else if (fallbackIdx == type(uint256).max) {
+                fallbackIdx = j;
+              }
+            }
+          }
+          if (!found && fallbackIdx != type(uint256).max) {
+            collateral = configs[fallbackIdx];
+            found = true;
+          }
+        } else if (
+          !configs[i].borrowingEnabled && _isCollateralInAnyEMode(pool, configs[i].underlying)
+        ) {
+          // asset is only collateral in eMode — use it as collateral and find a borrowable asset in the same eMode
+          for (uint256 j = 0; j < configs.length; j++) {
+            if (
+              _includeInE2e(configs[j]) &&
+              configs[j].underlying != configs[i].underlying &&
+              _getSharedEModeCategory(pool, configs[i].underlying, configs[j].underlying) != 0
+            ) {
+              collateral = configs[i];
+              testAsset = configs[j];
+              found = true;
+              break;
+            }
+          }
+        } else if (hasDefaultCollateral) {
+          collateral = defaultCollateral;
+          found = true;
+        }
+
+        if (found) {
+          e2eTestAsset(pool, collateral, testAsset);
+        } else {
+          console.log('E2E: TestAsset %s SKIPPED (no suitable collateral)', configs[i].symbol);
+        }
+        vm.revertToState(snapshot);
+      } else {
+        console.log('E2E: TestAsset %s SKIPPED', configs[i].symbol);
+      }
+    }
+  }
+
+  function e2eTestAsset(
+    IPool pool,
+    ReserveConfig memory collateralConfig,
+    ReserveConfig memory testAssetConfig
+  ) public {
+    console.log(
+      'E2E: Collateral %s, TestAsset %s',
+      collateralConfig.symbol,
+      testAssetConfig.symbol
+    );
+    address collateralSupplier = vm.addr(3);
+    address testAssetSupplier = vm.addr(4);
+    require(
+      collateralConfig.usageAsCollateralEnabled ||
+        _isCollateralInAnyEMode(pool, collateralConfig.underlying),
+      'COLLATERAL_CONFIG_MUST_BE_COLLATERAL'
+    );
+    uint256 collateralAssetAmount = _getTokenAmountByDollarValue(pool, collateralConfig, 100_000);
+    uint256 testAssetAmount = _getTokenAmountByDollarValue(pool, testAssetConfig, 10_000);
+
+    {
+      uint256 aTokenTotalSupply = IERC20(testAssetConfig.aToken).totalSupply();
+      uint256 minimumAmountOfTotalSupply = _getTokenAmountByDollarValue(pool, testAssetConfig, 1);
+
+      if (aTokenTotalSupply < minimumAmountOfTotalSupply) {
+        revert('AToken total supply is lower than minimum amount');
+      }
+    }
+
+    // remove caps as they should not prevent testing
+    IPoolAddressesProvider addressesProvider = IPoolAddressesProvider(pool.ADDRESSES_PROVIDER());
+    IPoolConfigurator poolConfigurator = IPoolConfigurator(addressesProvider.getPoolConfigurator());
+    vm.startPrank(addressesProvider.getACLAdmin());
+    if (collateralConfig.supplyCap != 0) {
+      poolConfigurator.setSupplyCap(collateralConfig.underlying, 0);
+    }
+    if (testAssetConfig.supplyCap != 0) {
+      poolConfigurator.setSupplyCap(testAssetConfig.underlying, 0);
+    }
+    if (testAssetConfig.borrowCap != 0) {
+      poolConfigurator.setBorrowCap(testAssetConfig.underlying, 0);
+    }
+    vm.stopPrank();
+
+    // set eMode before deposits so collateral with ltv=0 in default mode gets auto-enabled
+    // needed when: test asset is eMode-only borrowable, OR collateral is eMode-only (ltv=0 + LT=0 in default)
+    {
+      uint8 eModeCategory = _getSharedEModeCategory(
+        pool,
+        collateralConfig.underlying,
+        testAssetConfig.underlying
+      );
+      if (
+        eModeCategory != 0 &&
+        // test asset needs eMode to borrow, OR collateral needs eMode (ltv=0 in default mode)
+        (!testAssetConfig.borrowingEnabled || collateralConfig.ltv == 0)
+      ) {
+        vm.prank(collateralSupplier);
+        pool.setUserEMode(eModeCategory);
+      }
+    }
+
+    _deposit(collateralConfig, pool, collateralSupplier, collateralAssetAmount);
+    _deposit(testAssetConfig, pool, testAssetSupplier, testAssetAmount);
+
+    uint256 snapshotAfterDeposits = vm.snapshotState();
+
+    // test deposits and withdrawals
+    {
+      uint256 aTokenTotalSupply = IERC20(testAssetConfig.aToken).totalSupply();
+      uint256 variableDebtTokenTotalSupply = IERC20(testAssetConfig.variableDebtToken)
+        .totalSupply();
+
+      vm.prank(addressesProvider.getACLAdmin());
+      poolConfigurator.setSupplyCap(
+        testAssetConfig.underlying,
+        aTokenTotalSupply / 10 ** testAssetConfig.decimals + 1
+      );
+      vm.prank(addressesProvider.getACLAdmin());
+      poolConfigurator.setBorrowCap(
+        testAssetConfig.underlying,
+        variableDebtTokenTotalSupply / 10 ** testAssetConfig.decimals + 1
+      );
+
+      // caps should revert when supplying slightly more
+      vm.expectRevert(Errors.SupplyCapExceeded.selector);
+      vm.prank(testAssetSupplier);
+      pool.deposit({
+        asset: testAssetConfig.underlying,
+        amount: 11 ** testAssetConfig.decimals,
+        onBehalfOf: testAssetSupplier,
+        referralCode: 0
+      });
+      if (
+        (testAssetConfig.borrowingEnabled || pool.getUserEMode(collateralSupplier) != 0) &&
+        (collateralConfig.ltv >= 10_00 || pool.getUserEMode(collateralSupplier) != 0)
+      ) {
+        uint256 borrowAmount = 11 ** testAssetConfig.decimals;
+
+        if (aTokenTotalSupply < borrowAmount) {
+          vm.prank(addressesProvider.getACLAdmin());
+          poolConfigurator.setSupplyCap(testAssetConfig.underlying, 0);
+
+          // aTokenTotalSupply == 10'000$
+          // borrowAmount > 10'000$
+          // need to add more test asset in order to be able to borrow it
+          // right now there is not enough underlying tokens in the aToken
+          // need to add 10 weis more in order to be safe from rounding errors
+          _deposit(testAssetConfig, pool, testAssetSupplier, borrowAmount - aTokenTotalSupply + 10);
+
+          // need to add more collateral in order to be able to borrow
+          // collateralAssetAmount == 100'000$
+          _deposit(
+            collateralConfig,
+            pool,
+            collateralSupplier,
+            (collateralAssetAmount * borrowAmount) / aTokenTotalSupply
+          );
+        }
+
+        vm.expectRevert(Errors.BorrowCapExceeded.selector);
+        vm.prank(collateralSupplier);
+        pool.borrow({
+          asset: testAssetConfig.underlying,
+          amount: borrowAmount,
+          interestRateMode: 2,
+          referralCode: 0,
+          onBehalfOf: collateralSupplier
+        });
+      }
+
+      vm.revertToState(snapshotAfterDeposits);
+
+      _withdraw(testAssetConfig, pool, testAssetSupplier, testAssetAmount / 2);
+      _withdraw(testAssetConfig, pool, testAssetSupplier, type(uint256).max);
+
+      vm.revertToState(snapshotAfterDeposits);
+    }
+
+    // test borrows, repayments and liquidations
+    // borrow only if asset is borrowable AND collateral can support the borrow
+    // collateral needs ltv >= 10% (1000 bps) or user must be in eMode for meaningful borrowing
+    if (
+      (testAssetConfig.borrowingEnabled || pool.getUserEMode(collateralSupplier) != 0) &&
+      (collateralConfig.ltv >= 10_00 || pool.getUserEMode(collateralSupplier) != 0)
+    ) {
+      // test borrowing and repayment
+      _borrow({
+        config: testAssetConfig,
+        pool: pool,
+        user: collateralSupplier,
+        amount: testAssetAmount
+      });
+
+      uint256 snapshotBeforeRepay = vm.snapshotState();
+
+      {
+        // @note `actualBorrowAmount` can be bigger than `testAssetAmount` because of rounding
+        uint256 actualBorrowAmount = IERC20(testAssetConfig.variableDebtToken).balanceOf(
+          collateralSupplier
+        );
+
+        _repay({
+          config: testAssetConfig,
+          pool: pool,
+          user: collateralSupplier,
+          amount: actualBorrowAmount,
+          withATokens: false
+        });
+
+        vm.revertToState(snapshotBeforeRepay);
+
+        _repay({
+          config: testAssetConfig,
+          pool: pool,
+          user: collateralSupplier,
+          amount: actualBorrowAmount,
+          withATokens: true
+        });
+
+        vm.revertToState(snapshotBeforeRepay);
+      }
+
+      _testLiquidation(pool, collateralConfig, testAssetConfig, collateralSupplier);
+
+      vm.revertToState(snapshotAfterDeposits);
+    }
+
+    // test flashloans
+    if (testAssetConfig.isFlashloanable) {
+      _flashLoan({
+        config: testAssetConfig,
+        pool: pool,
+        user: collateralSupplier,
+        receiverAddress: address(this),
+        amount: testAssetAmount,
+        interestRateMode: 0
+      });
+
+      if (
+        (testAssetConfig.borrowingEnabled || pool.getUserEMode(collateralSupplier) != 0) &&
+        (collateralConfig.ltv >= 10_00 || pool.getUserEMode(collateralSupplier) != 0)
+      ) {
+        _flashLoan({
+          config: testAssetConfig,
+          pool: pool,
+          user: collateralSupplier,
+          receiverAddress: address(this),
+          amount: testAssetAmount,
+          interestRateMode: 2
+        });
+      }
+    }
+  }
+
+  /**
+   * Reserves that are frozen or not active should not be included in e2e test suite
+   */
+  function _includeInE2e(ReserveConfig memory config) internal pure returns (bool) {
+    return !config.isFrozen && config.isActive && !config.isPaused && !config.symbol.equal('CELO');
+  }
+
+  function _getTokenAmountByDollarValue(
+    IPool pool,
+    ReserveConfig memory config,
+    uint256 dollarValue
+  ) internal view returns (uint256) {
+    IPoolAddressesProvider addressesProvider = IPoolAddressesProvider(pool.ADDRESSES_PROVIDER());
+    IAaveOracle oracle = IAaveOracle(addressesProvider.getPriceOracle());
+    uint256 latestAnswer = oracle.getAssetPrice(config.underlying);
+    return (dollarValue * 10 ** (8 + config.decimals)) / latestAnswer;
+  }
+
+  function _changeAssetPrice(
+    IPool pool,
+    ReserveConfig memory config,
+    uint256 assetPriceChangePercentage
+  ) internal {
+    IPoolAddressesProvider addressesProvider = IPoolAddressesProvider(pool.ADDRESSES_PROVIDER());
+    IAaveOracle priceOracle = IAaveOracle(addressesProvider.getPriceOracle());
+
+    uint256 oldAssetPrice = priceOracle.getAssetPrice(config.underlying);
+    uint256 newAssetPrice = (oldAssetPrice * assetPriceChangePercentage) / 100_00;
+
+    MockAggregator assetPriceOracle = new MockAggregator(int256(newAssetPrice));
+
+    address[] memory assets = new address[](1);
+    assets[0] = config.underlying;
+    address[] memory sources = new address[](1);
+    sources[0] = address(assetPriceOracle);
+
+    vm.prank(addressesProvider.getACLAdmin());
+    priceOracle.setAssetSources(assets, sources);
+  }
+
+  function _setAssetLtvAndLiquidationThreshold(
+    IPool pool,
+    ReserveConfig memory config,
+    uint256 newLtv,
+    uint256 newLiquidationThreshold
+  ) internal {
+    IPoolAddressesProvider addressesProvider = IPoolAddressesProvider(pool.ADDRESSES_PROVIDER());
+    IPoolConfigurator poolConfigurator = IPoolConfigurator(addressesProvider.getPoolConfigurator());
+
+    vm.prank(addressesProvider.getACLAdmin());
+    poolConfigurator.configureReserveAsCollateral(
+      config.underlying,
+      newLtv,
+      newLiquidationThreshold,
+      105_00
+    );
+  }
+
+  function _deposit(
+    ReserveConfig memory config,
+    IPool pool,
+    address user,
+    uint256 amount
+  ) internal {
+    require(!config.isFrozen, 'DEPOSIT(): FROZEN_RESERVE');
+    require(config.isActive, 'DEPOSIT(): INACTIVE_RESERVE');
+    require(!config.isPaused, 'DEPOSIT(): PAUSED_RESERVE');
+
+    vm.startPrank(user);
+
+    uint256 aTokenBefore = IERC20(config.aToken).balanceOf(user);
+
+    deal2(config.underlying, user, amount);
+    IERC20(config.underlying).forceApprove(address(pool), amount);
+
+    console.log('SUPPLY: %s, Amount: %s', config.symbol, amount);
+
+    pool.deposit(config.underlying, amount, user, 0);
+
+    uint256 aTokenAfter = IERC20(config.aToken).balanceOf(user);
+
+    // @note supply/borrow and other operations with a/v tokens
+    // can generate +-2 wei roundings
+    assertApproxEqAbs(aTokenAfter, aTokenBefore + amount, 2);
+
+    vm.stopPrank();
+  }
+
+  function _withdraw(
+    ReserveConfig memory config,
+    IPool pool,
+    address user,
+    uint256 amount
+  ) internal returns (uint256) {
+    vm.startPrank(user);
+    uint256 aTokenBefore = IERC20(config.aToken).balanceOf(user);
+    if (
+      block.chainid == ChainIds.CELO &&
+      config.underlying == 0x471EcE3750Da237f93B8E339c536989b8978a438
+    ) {
+      vm.deal(config.aToken, aTokenBefore);
+    }
+
+    uint256 amountOut = pool.withdraw(config.underlying, amount, user);
+    console.log('WITHDRAW: %s, Amount: %s', config.symbol, amountOut);
+    uint256 aTokenAfter = IERC20(config.aToken).balanceOf(user);
+    if (aTokenBefore < amount) {
+      require(aTokenAfter == 0, '_withdraw(): DUST_AFTER_WITHDRAW_ALL');
+    } else {
+      // @note supply/borrow and other operations with a/v tokens
+      // can generate +-2 wei roundings
+      assertApproxEqAbs(aTokenAfter, aTokenBefore - amount, 2);
+    }
+    vm.stopPrank();
+    return amountOut;
+  }
+
+  function _borrow(ReserveConfig memory config, IPool pool, address user, uint256 amount) internal {
+    vm.startPrank(user);
+    address debtToken = config.variableDebtToken;
+    uint256 debtBefore = IERC20(debtToken).balanceOf(user);
+    console.log('BORROW: %s, Amount %s', config.symbol, amount);
+    pool.borrow(config.underlying, amount, 2, 0, user);
+    uint256 debtAfter = IERC20(debtToken).balanceOf(user);
+    // @note supply/borrow and other operations with a/v tokens
+    // can generate +-2 wei roundings
+    assertApproxEqAbs(debtAfter, debtBefore + amount, 2);
+    vm.stopPrank();
+  }
+
+  function _repay(
+    ReserveConfig memory config,
+    IPool pool,
+    address user,
+    uint256 amount,
+    bool withATokens
+  ) internal {
+    vm.startPrank(user);
+
+    uint256 debtBefore = IERC20(config.variableDebtToken).balanceOf(user);
+
+    deal2(config.underlying, user, amount + 2);
+    IERC20(config.underlying).forceApprove(address(pool), amount + 2);
+
+    console.log('REPAY: %s, Amount: %s', config.symbol, amount);
+
+    if (withATokens) {
+      // @note `+ 2` is required because the user's balance can be lower
+      // than `amount` because of rounding .
+      pool.supply({
+        asset: config.underlying,
+        amount: amount + 2,
+        onBehalfOf: user,
+        referralCode: 0
+      });
+
+      pool.repayWithATokens({asset: config.underlying, amount: amount, interestRateMode: 2});
+    } else {
+      pool.repay({asset: config.underlying, amount: amount, interestRateMode: 2, onBehalfOf: user});
+    }
+
+    uint256 debtAfter = IERC20(config.variableDebtToken).balanceOf(user);
+
+    if (amount >= debtBefore) {
+      assertEq(debtAfter, 0, '_repay() : ERROR MUST_BE_ZERO');
+    } else {
+      assertApproxEqAbs(debtAfter, debtBefore - amount, 1, '_repay() : ERROR MAX_ONE_OFF');
+    }
+
+    vm.stopPrank();
+  }
+
+  function _testLiquidation(
+    IPool pool,
+    ReserveConfig memory collateralConfig,
+    ReserveConfig memory testAssetConfig,
+    address borrower
+  ) internal {
+    if (testAssetConfig.underlying != collateralConfig.underlying) {
+      _changeAssetPrice(pool, testAssetConfig, 1000_00);
+    } else if (pool.getUserEMode(borrower) != 0) {
+      // in eMode, reserve-level LT is overridden — lower the eMode LT instead
+      IPoolAddressesProvider addressesProvider = IPoolAddressesProvider(pool.ADDRESSES_PROVIDER());
+      IPoolConfigurator poolConfigurator = IPoolConfigurator(
+        addressesProvider.getPoolConfigurator()
+      );
+      uint8 categoryId = uint8(pool.getUserEMode(borrower));
+      vm.prank(addressesProvider.getACLAdmin());
+      poolConfigurator.setEModeCategory(categoryId, 5_00, 5_00, 105_00, '', false);
+    } else {
+      _setAssetLtvAndLiquidationThreshold({
+        pool: pool,
+        config: testAssetConfig,
+        newLtv: 5_00,
+        newLiquidationThreshold: 5_00
+      });
+    }
+
+    address liquidator = vm.addr(5);
+    uint256 snapshotBeforeLiquidation = vm.snapshotState();
+
+    _liquidationCall(
+      collateralConfig,
+      testAssetConfig,
+      pool,
+      liquidator,
+      borrower,
+      type(uint256).max,
+      false
+    );
+    vm.revertToState(snapshotBeforeLiquidation);
+    _liquidationCall(
+      collateralConfig,
+      testAssetConfig,
+      pool,
+      liquidator,
+      borrower,
+      type(uint256).max,
+      true
+    );
+  }
+
+  function _liquidationCall(
+    ReserveConfig memory collateralConfig,
+    ReserveConfig memory debtConfig,
+    IPool pool,
+    address liquidator,
+    address borrower,
+    uint256 debtToCover,
+    bool receiveAToken
+  ) internal {
+    vm.startPrank(liquidator);
+
+    uint256 debtBefore = IERC20(debtConfig.variableDebtToken).balanceOf(borrower);
+    assertGt(debtBefore, 0);
+
+    deal2(debtConfig.underlying, liquidator, debtToCover > debtBefore ? debtBefore : debtToCover);
+    IERC20(debtConfig.underlying).forceApprove(address(pool), debtToCover);
+
+    console.log(
+      'LIQUIDATE: %s, Amount: %s, Debt Amount: %s',
+      debtConfig.symbol,
+      debtToCover,
+      debtBefore
+    );
+
+    pool.liquidationCall({
+      collateralAsset: collateralConfig.underlying,
+      debtAsset: debtConfig.underlying,
+      borrower: borrower,
+      debtToCover: debtToCover,
+      receiveAToken: receiveAToken
+    });
+
+    uint256 debtAfter = IERC20(debtConfig.variableDebtToken).balanceOf(borrower);
+
+    assertLt(debtAfter, debtBefore);
+
+    vm.stopPrank();
+  }
+
+  struct FlashLoanVars {
+    uint256 underlyingTokenBalanceOfATokenBefore;
+    uint256 debtTokenBalanceOfUserBefore;
+    uint256 flashLoanPremiumTotal;
+    uint256 underlyingTokenBalanceOfATokenAfter;
+    uint256 debtTokenBalanceOfUserAfter;
+    uint256[] interestRateModes;
+    uint256[] amounts;
+    address[] assets;
+  }
+
+  function _flashLoan(
+    ReserveConfig memory config,
+    IPool pool,
+    address user,
+    address receiverAddress,
+    uint256 amount,
+    uint256 interestRateMode
+  ) internal virtual {
+    FlashLoanVars memory vars;
+
+    vm.startPrank(user);
+
+    DataTypes.ReserveDataLegacy memory reserveDataBefore = pool.getReserveData(config.underlying);
+
+    vars.underlyingTokenBalanceOfATokenBefore = IERC20(config.underlying).balanceOf(config.aToken);
+    vars.debtTokenBalanceOfUserBefore = IERC20(config.variableDebtToken).balanceOf(user);
+
+    if (interestRateMode == 0) {
+      vars.flashLoanPremiumTotal = pool.FLASHLOAN_PREMIUM_TOTAL();
+
+      vars.flashLoanPremiumTotal = amount.percentMulCeil(vars.flashLoanPremiumTotal);
+
+      deal2(config.underlying, receiverAddress, vars.flashLoanPremiumTotal);
+    }
+
+    console.log('FLASH LOAN: %s, Amount: %s', config.symbol, amount);
+
+    vars.assets = new address[](1);
+    vars.assets[0] = config.underlying;
+
+    vars.amounts = new uint256[](1);
+    vars.amounts[0] = amount;
+
+    vars.interestRateModes = new uint256[](1);
+    vars.interestRateModes[0] = interestRateMode;
+
+    pool.flashLoan({
+      receiverAddress: receiverAddress,
+      assets: vars.assets,
+      amounts: vars.amounts,
+      interestRateModes: vars.interestRateModes,
+      onBehalfOf: user,
+      params: '',
+      referralCode: 0
+    });
+
+    vars.underlyingTokenBalanceOfATokenAfter = IERC20(config.underlying).balanceOf(config.aToken);
+    vars.debtTokenBalanceOfUserAfter = IERC20(config.variableDebtToken).balanceOf(user);
+    DataTypes.ReserveDataLegacy memory reserveDataAfter = pool.getReserveData(config.underlying);
+
+    if (interestRateMode == 0) {
+      assertApproxEqAbs(
+        vars.underlyingTokenBalanceOfATokenBefore + vars.flashLoanPremiumTotal,
+        vars.underlyingTokenBalanceOfATokenAfter,
+        2,
+        '11'
+      );
+      assertApproxEqAbs(
+        reserveDataBefore.accruedToTreasury +
+          vars.flashLoanPremiumTotal.rayDivFloor(reserveDataAfter.liquidityIndex),
+        reserveDataAfter.accruedToTreasury,
+        2,
+        '12'
+      );
+
+      assertEq(vars.debtTokenBalanceOfUserAfter, vars.debtTokenBalanceOfUserBefore, '2');
+    } else {
+      assertGt(
+        vars.underlyingTokenBalanceOfATokenBefore,
+        vars.underlyingTokenBalanceOfATokenAfter,
+        '3'
+      );
+      assertEq(
+        vars.underlyingTokenBalanceOfATokenBefore - amount,
+        vars.underlyingTokenBalanceOfATokenAfter,
+        '4'
+      );
+
+      assertGt(vars.debtTokenBalanceOfUserAfter, vars.debtTokenBalanceOfUserBefore, '5');
+      // @note supply/borrow and other operations with a/v tokens
+      // can generate +-2 wei roundings
+      assertApproxEqAbs(
+        vars.debtTokenBalanceOfUserAfter,
+        vars.debtTokenBalanceOfUserBefore + amount,
+        2,
+        '6'
+      );
+    }
+
+    vm.stopPrank();
+  }
+
+  /**
+   * @dev Validates that no storage was written to the executor contract during payload execution.
+   *      Since the executor delegatecalls the payload, any storage variable in the payload
+   *      (or any contract it delegatecalls) would modify the executor's storage.
+   *      This check uses the JSON state diff to avoid materializing a massive StorageAccess[]
+   *      array into EVM memory, which causes MemoryOOG on pools with many assets (e.g. mainnet).
+   *
+   *      Requires vm.startStateDiffRecording() to have been called before payload execution.
+   */
+  function _validateNoExecutorStorageChange(
+    string memory stateDiffJson,
+    address executor
+  ) internal view virtual {
+    string memory executorKey = Strings.toHexString(uint160(executor), 20);
+    string memory stateDiffPath = string(abi.encodePacked('.', executorKey, '.stateDiff'));
+    if (vm.keyExistsJson(stateDiffJson, stateDiffPath)) {
+      string[] memory slots = vm.parseJsonKeys(stateDiffJson, stateDiffPath);
+      require(
+        slots.length == 0,
+        string(
+          abi.encodePacked(
+            'EXECUTOR_MUST_NOT_HAVE_STORAGE_CHANGES: ',
+            Strings.toString(slots.length),
+            ' slot(s) modified on executor ',
+            executorKey
+          )
+        )
+      );
+    }
+  }
+}

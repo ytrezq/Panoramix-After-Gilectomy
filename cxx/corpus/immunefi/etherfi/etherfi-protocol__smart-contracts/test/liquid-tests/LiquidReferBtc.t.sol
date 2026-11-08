@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.22;
+
+import {ILayerZeroTellerWithRateLimiting} from "@etherfi/interfaces/liquid-interfaces/ILayerZeroTellerWithRateLimiting.sol";
+import {LiquidReferBaseTest} from "@tests/liquid-tests/base/liquidReferBaseTest.t.sol";
+
+contract LiquidReferBtcTest is LiquidReferBaseTest {
+    function _assetConfig() internal pure override returns (AssetConfig memory) {
+        return AssetConfig({
+            teller: ILayerZeroTellerWithRateLimiting(LIQUID_BTC_TELLER),
+            asset: 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599, // WBTC mainnet
+            depositAmount: 1e8 // WBTC has 8 decimals
+        });
+    }
+
+    function _maxFuzzAmount() internal pure override returns (uint256) {
+        return 2e8; // cap fuzzed WBTC deposits to 2 BTC
+    }
+}
+
+contract LiquidReferBtcOPTest is LiquidReferBaseTest {
+    function _assetConfig() internal pure override returns (AssetConfig memory) {
+        return AssetConfig({
+            teller: ILayerZeroTellerWithRateLimiting(LIQUID_BTC_TELLER),
+            asset: 0x68f180fcCe6836688e9084f035309E29Bf0A2095, // WBTC OP
+            depositAmount: 1e8 // WBTC has 8 decimals
+        });
+    }
+
+    function _maxFuzzAmount() internal pure override returns (uint256) {
+        return 2e8; // cap fuzzed WBTC deposits to 2 BTC
+    }
+    function _envVar() internal pure override returns (string memory) {
+        return "OP_RPC_URL";
+    }
+}

@@ -1,0 +1,124 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.10;
+
+import "forge-std/Script.sol";
+
+import { AtlasOracleAdaptor } from "@src/oracle/AtlasOracleAdaptor.sol";
+
+/**
+ * @title DeployAtlasOracleAdaptors
+ * @notice Deploys one AtlasOracleAdaptor per unique Atlas Oracle push feed
+ * Run with:
+ *   forge script script/oracle/deployAtlasOracleAdaptors.sol:DeployAtlasOracleAdaptors \
+ *     --rpc-url $BSC_RPC --broadcast --slow -vvvv
+ */
+contract DeployAtlasOracleAdaptors is Script {
+  struct Feed {
+    string symbol;
+    address pushContract;
+  }
+
+  function run() public {
+    uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+    address deployer = vm.addr(deployerPrivateKey);
+    console.log("Deployer:", deployer);
+
+    Feed[1] memory feeds = [
+      // ----- Atlas tokenized-equity / RWA push feeds (already deployed) -----
+      // Feed("TSLAB/USD", 0xC64bF44C23586aE5eab37775662Dc1E0c56469fe),
+      // Feed("NVDAB/USD", 0x67d168bF5d7851a7b361bFFcf794696858F9697A),
+      // Feed("SNDKB/USD", 0xEb856d62Bdf5b00C5a62c44B3fF94caF5F5d32DC),
+      // Feed("CRCLB/USD", 0x3Fe4Ad1BBb3ad138AA7d8a63a9A2984eC9641064),
+      // Feed("MUB/USD", 0xcC8d5Ffd711A85775EECB4EcE319eDDCC5EeBCE5),
+      // Feed("SPCXB/USD", 0xCf5D24C987caCD4155C83aBB95fA86951D3832f9)
+      // Feed("MSTRB/USD", 0x5453B1ABf6029A5d05De56D48d3a835Df80b7A7f),
+      // Feed("INTCB/USD", 0x04676ef12A9787761DDd0d1e27522c4a65b64262),
+      // Feed("EWYB/USD", 0xEb8AeD013806f9682a8B4530Ae3E9CE47F3f76B5),
+      // Feed("AMDB/USD", 0xBF0D0cDb25bc20C809190836b14AE902AEc17EaC)
+      // ----- Batch 3 tokenized-equity push feeds (already deployed) -----
+      // Feed("MSFTB/USD", 0xe39fC955A9b926d5ce0242505006611678180307),
+      // Feed("METAB/USD", 0xD53300F42830552D826244fc17a6A0a4a95980A6),
+      // Feed("PLTRB/USD", 0x485568bd19d587fF67F465EEff135C1F0745751C),
+      // Feed("LITEB/USD", 0x617EC012e45B864d140d3F3B3912DDa210979ea5),
+      // Feed("QQQB/USD", 0x7D2f703D2A188f32310dC9707E86acE503207027)
+      // ----- Batch 4 tokenized-equity push feeds (already deployed) -----
+      // Feed("CBRSB/USD", 0xB3FC5F9187EBE4640985E6607DDe7DE1C7067B04),
+      // Feed("COINB/USD", 0x758aB25F2Db37AAE2CC09D5542B2C69b5fC70E61),
+      // Feed("DRAMB/USD", 0x6eaed198cA7d86C7982C30CAC4dc1c28BE915744),
+      // Feed("GLWB/USD", 0x60014fD4FcdB9778C771f510BC6F1abBa824c8f6),
+      // Feed("GOOGLB/USD", 0x2FcEafD81a4dBDa2409B6fe5ce2afFe3cD46eDbC),
+      // Feed("NBISB/USD", 0x50f67D3CE440A98fFeC832726260ae03667fbE5E),
+      // Feed("QCOMB/USD", 0x22772c763Fc2B44eD59Da2BD309Fa8E4D00261f5),
+      // Feed("SOXLB/USD", 0xbFC8C863B14f08e07e789328A424137E2B5933F4),
+      // Feed("SPYB/USD", 0xCda6d5cE036AC0D6A387A377062EBd18Dd531177),
+      // Feed("WDCB/USD", 0x583e282D4C914E1Faf47235769431899D7A5fB99)
+      // ----- Batch 5 tokenized-equity push feeds (already deployed) -----
+      // Feed("SKHYB/USD", 0xAF61b3f158284F4208E75b14B1A0e362e2c79738)
+      // ----- Batch 6 tokenized-equity push feeds (already deployed) -----
+      // Feed("AAOIB/USD", 0xe4E2CD4Ed45B45bFe5ff71AbEd1f0A492f0aFc3b),
+      // Feed("ARMB/USD", 0x9E8650A13d2A910afA7929459585303543B53014),
+      // Feed("AVGOB/USD", 0x3E599d9ed2eEbe4b99Fc2298932A5881E155bd57),
+      // Feed("BABAB/USD", 0xf6FF9433c1b9199B6d6CC6Ec366cf6D78263a2a3),
+      // Feed("HOODB/USD", 0xb64511702cfF9c3fcEBf0ef85e5B10E84b2B7a37),
+      // Feed("IBMB/USD", 0x3B60B649CeB972E31dAfC4D262E6359DdcaDbd0d),
+      // Feed("MRVLB/USD", 0x9db886CBfD9d2085b1A612c086460472aF008245),
+      // Feed("NOKB/USD", 0xF3e8954fb9951C8158a1BD1B70f7FabD21DdF011),
+      // Feed("RKLBB/USD", 0xF6e6a5726DC56413007B3c6654dEc0436F4c190D),
+      // Feed("TSMB/USD", 0x06b4985edCF11538f6b1EE05fF85cdecf16779E2)
+      // ----- Batch 7 tokenized-equity push feeds (already deployed) -----
+      // Feed("KORUB/USD", 0x0509468D4115cEe3F69e2421C0500Fa60C0270F8),
+      // Feed("AXTIB/USD", 0x7B7aA086Ad4A52c279c9464a59Aaf3a29A88b2a4),
+      // Feed("CRWVB/USD", 0x0B448854D4f7B371AcD1d365eD34bb05F15FB2D5),
+      // Feed("MUUB/USD", 0x1A9edED1cBA0cc607bC4BDBbFa963DE6cb7945c8),
+      // Feed("MVLLB/USD", 0xfEfe18e0335530C61a79d32F488DE69ffA598Bbf),
+      // Feed("SNXXB/USD", 0x5db254DDBb9522B76DC40D7d0fd0f7493d19fa20),
+      // Feed("INTWB/USD", 0x9eF9Dcf8155E868149c25952Aa55d15609F26b7f),
+      // Feed("TQQQB/USD", 0x60F60BDBBFb374B37a016e126f4acEedbF03e941),
+      // Feed("QNTB/USD", 0x9B08775b41FC270F3554911913a12A017f4925f8),
+      // Feed("ORCLB/USD", 0x5560ebd6a9A8371ff5BD14217D4e817076FA8127)
+      // ----- Batch 8 tokenized-equity push feeds (already deployed) -----
+      // Feed("AAPLB/USD", 0xD96eB519e205cEA68522E6639B6464249948294c),
+      // Feed("AMATB/USD", 0xA39c1D2E58B872eC90aF6CdeE836e433Fc4A6d11),
+      // Feed("AMZNB/USD", 0x7fCB7E7731B4D31eCc5603EC080827094A595eD5),
+      // Feed("BEB/USD", 0xC1972AebD7df78E4687164122E728Bb59EDACDa0),
+      // Feed("DELLB/USD", 0x3A68B00BD929B6686138B6E40a65706F36Ff1b21),
+      // Feed("FLNCB/USD", 0xA0c90bE63A129C949d176e683fe4b3cB9a8acbCe),
+      // Feed("GSB/USD", 0x2CFeC6A8a193b5486DBCa9Bf6e13d5B760b58664),
+      // Feed("PYPLB/USD", 0xDa558B15df524d5B5Bd97476B39719d1c905fE94),
+      // Feed("SMHB/USD", 0xe2B67597992B3C6cB9F8e3fB4d0D9f1701737666),
+      // Feed("SOXSB/USD", 0x301A76B9a8b1850eca41C222EB13dD6aE0271EcB)
+      // ----- Batch 9 tokenized-equity push feeds (already deployed) -----
+      // Feed("ALABB/USD", 0x8892C690498947614Cea8Df4c9D2C34f19E89683),
+      // Feed("ASMLB/USD", 0xbbbA17748075a4b3fA52c2D206e160d31f13b51f),
+      // Feed("ASTSB/USD", 0xfe8FCD88da9B46d732012b99fc07E0141887Be9a),
+      // Feed("BMNRB/USD", 0xd1c377DCA738b42c890B972Bac3520580D5a935b),
+      // Feed("COHRB/USD", 0xBf28D1594873C15E47990eA9BF745388e35D0402),
+      // Feed("CRDOB/USD", 0xF0460864E89268bA8072d4e9968F6D84A7caa34e),
+      // Feed("IRENB/USD", 0x60896F4340fC7B192EBa9F105FdBE7c52f8Cf33e),
+      // Feed("NFLXB/USD", 0x6237Ed53A501273e385cFD2bCd12Ce1Af9E1ACD0),
+      // Feed("SMCIB/USD", 0xF2Ddb1a538A7E28837df9B8Ea200C0943E3fAd24),
+      // Feed("USARB/USD", 0x3DC1CFF29b48Eb5074FC2d551A5433C181B62b51)
+      // ----- Batch 10 tokenized-equity push feeds (already deployed) -----
+      // Feed("GMEB/USD", 0x8e043F10207DcF201C70e1A943844d98cd9856a7)
+      // ----- Stablecoin push feeds -----
+      // Feed("USDF/USD", 0x294Bb1BcF28985D62381879893237e02A2865385)
+      // Feed("USDAT/USD", 0x110fA0C7E374942eE8Cfa3CD2A5e046acB704103)
+      // ----- Batch 11 tokenized-equity push feeds -----
+      // Feed("STXB/USD", 0xc7Fe35BcD376Aa7729dA3B5AAEec8Ae21e427e8F),
+      // Feed("SQQQB/USD", 0x20dB4d71c70908Dc5Fd66b4D6005c76c40047D76),
+      // Feed("MRNAB/USD", 0x84846012824f993E942519DA3414A43CaBEe6Dd1),
+      // Feed("CRWDB/USD", 0xAb645950b9A4d6a52A081B3276A0041f9000a358)
+      Feed("DJTB/USD", 0xc948C346DcA4bCfF297D85CcDf70Fc12cA0b7E81)
+    ];
+
+    vm.startBroadcast(deployerPrivateKey);
+
+    for (uint256 i = 0; i < feeds.length; i++) {
+      AtlasOracleAdaptor adaptor = new AtlasOracleAdaptor(feeds[i].pushContract);
+      console.log("AtlasOracleAdaptor", feeds[i].symbol, "->", address(adaptor));
+      console.log("  underlying Atlas feed:", feeds[i].pushContract);
+    }
+
+    vm.stopBroadcast();
+  }
+}

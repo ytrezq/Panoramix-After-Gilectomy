@@ -1,0 +1,33 @@
+pragma solidity 0.8.34;
+
+import "forge-std/Script.sol";
+import { DeployBase } from "./DeployBase.sol";
+
+import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+
+import { MoolahVault } from "moolah-vault/MoolahVault.sol";
+
+contract MoolahVaultDeploy is DeployBase {
+  address moolah = 0x8F73b65B4caAf64FBA2aF91cC5D4a2A1318E5D8C;
+
+  address asset = 0xcE24439F2D9C6a2289F741120FE202248B666666; // U
+
+  MoolahVault impl = MoolahVault(0x8F9475F2F5fEcccce21A14971DdE47498C2e51C3);
+  string name = "Lista Credit Vault";
+  string symbol = "Credit Vault";
+
+  function run() public {
+    uint256 deployerPrivateKey = _deployerKey();
+    address deployer = vm.addr(deployerPrivateKey);
+    console.log("Deployer: ", deployer);
+    vm.startBroadcast(deployerPrivateKey);
+
+    // Deploy Moolah proxy
+    ERC1967Proxy proxy = new ERC1967Proxy(
+      address(impl),
+      abi.encodeWithSelector(impl.initialize.selector, deployer, deployer, asset, name, symbol)
+    );
+    console.log("MoolahVault proxy: ", address(proxy));
+    vm.stopBroadcast();
+  }
+}

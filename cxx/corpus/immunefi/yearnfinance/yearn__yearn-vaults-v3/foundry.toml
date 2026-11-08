@@ -1,0 +1,33 @@
+[profile.default]
+src = 'contracts'
+test = 'foundry_tests'     
+out = 'out'
+solc = "0.8.18"
+libs = ['lib']
+evm_version = "paris"
+
+remappings = [
+    'forge-std/=lib/forge-std/src/',
+    'erc4626-tests/=lib/erc4626-tests/',
+    "@tokenized-strategy=lib/tokenized-strategy/src",
+    '@openzeppelin/=lib/openzeppelin-contracts/',
+]
+fs_permissions = [{ access = "read", path = "./"}]
+
+#match_contract = "VaultERC4626StdTest"
+match_path = "./foundry_tests/tests/*"
+no_match_test = "testFail"
+ffi = true
+
+[profile.default.vyper]
+optimize = "codesize"
+
+[fuzz]
+runs = 250
+max_test_rejects = 1_000_000
+
+[invariant]
+runs = 100
+depth = 100
+
+# See more config options https://github.com/gakonst/foundry/tree/master/config

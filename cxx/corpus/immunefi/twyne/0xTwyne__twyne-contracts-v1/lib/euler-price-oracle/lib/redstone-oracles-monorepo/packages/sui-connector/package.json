@@ -1,0 +1,60 @@
+{
+  "name": "@redstone-finance/sui-connector",
+  "version": "0.9.0",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "scripts": {
+    "clean": "yarn global:ts-clean",
+    "build": "yarn global:tsc -p tsconfig.build.json",
+    "build:turbo": "yarn global:turbo build",
+    "typecheck": "yarn global:tsc --noEmit",
+    "typecheck:turbo": "yarn global:turbo typecheck",
+    "preversion": "yarn build",
+    "pack-package": "yarn build && npm pack",
+    "lint": "yarn global:eslint .",
+    "lint:fix": "yarn global:eslint --fix .",
+    "test": "yarn global:jest:cov",
+    "deploy": "yarn global:ts-node scripts/deploy-price-adapter.ts",
+    "sample-run": "yarn global:ts-node scripts/sample-run.ts",
+    "write-simultaneously": "yarn global:ts-node scripts/write-simultaneously.ts",
+    "ledger-utils": "yarn global:ts-node scripts/ledger/ledger-utils.ts",
+    "get-public-key": "yarn ledger-utils",
+    "sign-transaction": "yarn ledger-utils $(cat TRANSACTION_DATA)",
+    "get-multi-sig-address": "yarn global:ts-node scripts/ledger/get-multi-sig-address.ts",
+    "transfer-object": "yarn global:ts-node scripts/ledger/transfer-object.ts > TRANSACTION_DATA",
+    "combine-signatures": "yarn global:ts-node scripts/ledger/combine-signatures.ts",
+    "update-config": "yarn global:ts-node scripts/ledger/update-config.ts > TRANSACTION_DATA",
+    "upgrade-package": "yarn global:ts-node scripts/ledger/upgrade-package.ts",
+    "convert-public-keys": "yarn global:ts-node scripts/convert-public-keys.ts",
+    "convert-evm-private-key": "yarn global:ts-node scripts/convert-evm-private-key.ts",
+    "send-tx": "yarn global:ts-node scripts/send-tx.ts",
+    "get-code-hashes": "yarn global:ts-node scripts/get-code-hashes.ts"
+  },
+  "dependencies": {
+    "@mysten/bcs": "1.7.0",
+    "@mysten/sui": "1.37.3",
+    "@redstone-finance/multichain-kit": "workspace:*",
+    "@redstone-finance/sdk": "workspace:*",
+    "@redstone-finance/utils": "workspace:*",
+    "decimal.js": "^10.4.3",
+    "dotenv": "^16.0.3",
+    "ethers": "^5.7.2",
+    "lodash": "^4.17.23",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@ledgerhq/hw-transport-node-hid": "^6.29.5",
+    "@mysten/ledgerjs-hw-app-sui": "^0.4.2",
+    "@redstone-finance/chain-agnostic-oracle-tests": "workspace:*",
+    "@redstone-finance/chain-configs": "workspace:*",
+    "@redstone-finance/suiangria": "git+https://github.com/redstone-finance/suiangria.git#v0.0.1-all",
+    "secp256k1": "^5.0.1"
+  },
+  "files": [
+    "src",
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,167 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity 0.8.28;
+
+import {IAccessManaged} from "@openzeppelin/contracts/access/manager/IAccessManaged.sol";
+
+import {IMakinaGovernable} from "src/interfaces/IMakinaGovernable.sol";
+import {Errors} from "src/libraries/Errors.sol";
+
+import {Unit_Concrete_Test} from "../UnitConcrete.t.sol";
+
+abstract contract MakinaGovernable_Unit_Concrete_Test is Unit_Concrete_Test {
+    IMakinaGovernable internal governable;
+
+    function setUp() public virtual override {}
+
+    function test_MakinaGovernableGetters() public view {
+        assertEq(governable.mechanic(), mechanic);
+        assertEq(governable.securityCouncil(), securityCouncil);
+        assertEq(governable.riskManager(), riskManager);
+        assertEq(governable.riskManagerTimelock(), riskManagerTimelock);
+        assertFalse(governable.recoveryMode());
+    }
+
+    function test_SetMechanic_RevertWhen_CallerWithoutRole() public {
+        vm.expectRevert(abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, address(this)));
+        governable.setMechanic(address(0));
+    }
+
+    function test_SetMechanic() public {
+        address newMechanic = makeAddr("NewMechanic");
+        vm.expectEmit(true, true, false, false, address(governable));
+        emit IMakinaGovernable.MechanicChanged(mechanic, newMechanic);
+        vm.prank(dao);
+        governable.setMechanic(newMechanic);
+        assertEq(governable.mechanic(), newMechanic);
+    }
+
+    function test_SetSecurityCouncil_RevertWhen_CallerWithoutRole() public {
+        vm.expectRevert(abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, address(this)));
+        governable.setSecurityCouncil(address(0));
+    }
+
+    function test_SetSecurityCouncil() public {
+        address newSecurityCouncil = makeAddr("NewSecurityCouncil");
+        vm.expectEmit(true, true, false, false, address(governable));
+        emit IMakinaGovernable.SecurityCouncilChanged(securityCouncil, newSecurityCouncil);
+        vm.prank(dao);
+        governable.setSecurityCouncil(newSecurityCouncil);
+        assertEq(governable.securityCouncil(), newSecurityCouncil);
+    }
+
+    function test_SetRiskManager_RevertWhen_CallerWithoutRole() public {
+        vm.expectRevert(abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, address(this)));
+        governable.setRiskManager(address(0));
+    }
+
+    function test_SetRiskManager() public {
+        address newRiskManager = makeAddr("NewRiskManager");
+        vm.expectEmit(true, true, false, false, address(governable));
+        emit IMakinaGovernable.RiskManagerChanged(riskManager, newRiskManager);
+        vm.prank(dao);
+        governable.setRiskManager(newRiskManager);
+        assertEq(governable.riskManager(), newRiskManager);
+    }
+
+    function test_SetRiskManagerTimelock_RevertWhen_CallerWithoutRole() public {
+        vm.expectRevert(abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, address(this)));
+        governable.setRiskManagerTimelock(address(0));
+    }
+
+    function test_SetRiskManagerTimelock() public {
+        address newRiskManagerTimelock = makeAddr("NewRiskManagerTimelock");
+        vm.expectEmit(true, true, false, false, address(governable));
+        emit IMakinaGovernable.RiskManagerTimelockChanged(riskManagerTimelock, newRiskManagerTimelock);
+        vm.prank(dao);
+        governable.setRiskManagerTimelock(newRiskManagerTimelock);
+        assertEq(governable.riskManagerTimelock(), newRiskManagerTimelock);
+    }
+
+    function test_SetRecoveryMode_RevertWhen_CallerNotSC() public {
+        vm.expectRevert(Errors.UnauthorizedCaller.selector);
+        governable.setRecoveryMode(true);
+    }
+
+    function test_SetRecoveryMode() public {
+        vm.expectEmit(true, false, false, false, address(governable));
+        emit IMakinaGovernable.RecoveryModeChanged(true);
+        vm.prank(securityCouncil);
+        governable.setRecoveryMode(true);
+        assertTrue(governable.recoveryMode());
+    }
+
+    function test_SetRestrictedAccountingMode_RevertWhen_CallerWithoutRole() public {
+        vm.expectRevert(abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, address(this)));
+        governable.setRestrictedAccountingMode(true);
+    }
+
+    function test_SetRestrictedAccountingMode() public {
+        vm.expectEmit(true, false, false, false, address(governable));
+        emit IMakinaGovernable.RestrictedAccountingModeChanged(true);
+        vm.prank(dao);
+        governable.setRestrictedAccountingMode(true);
+        assertTrue(governable.restrictedAccountingMode());
+    }
+
+    function test_AddAccountingAgent_RevertWhen_CallerWithoutRole() public {
+        vm.expectRevert(abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, address(this)));
+        governable.addAccountingAgent(makeAddr("NewAgent"));
+    }
+
+    function test_AddAccountingAgent_RevertGiven_AlreadyAccountingAgent() public {
+        vm.startPrank(dao);
+
+        vm.expectRevert(Errors.AlreadyAccountingAgent.selector);
+        governable.addAccountingAgent(mechanic);
+
+        address newAgent = makeAddr("NewAgent");
+
+        governable.addAccountingAgent(newAgent);
+
+        vm.expectRevert(Errors.AlreadyAccountingAgent.selector);
+        governable.addAccountingAgent(newAgent);
+    }
+
+    function test_AddAccountingAgent() public {
+        address newAgent = makeAddr("NewAgent");
+        vm.expectEmit(true, false, false, false, address(governable));
+        emit IMakinaGovernable.AccountingAgentAdded(newAgent);
+        vm.prank(dao);
+        governable.addAccountingAgent(newAgent);
+        assertTrue(governable.isAccountingAgent(newAgent));
+    }
+
+    function test_RemoveAccountingAgent_RevertWhen_CallerWithoutRole() public {
+        vm.expectRevert(abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, address(this)));
+        governable.removeAccountingAgent(makeAddr("SomeAgent"));
+    }
+
+    function test_RemoveAccountingAgent_RevertGiven_ProtectedAccountingAgent() public {
+        vm.startPrank(dao);
+
+        vm.expectRevert(Errors.ProtectedAccountingAgent.selector);
+        governable.removeAccountingAgent(mechanic);
+
+        vm.expectRevert(Errors.ProtectedAccountingAgent.selector);
+        governable.removeAccountingAgent(securityCouncil);
+    }
+
+    function test_RemoveAccountingAgent_RevertGiven_NotAccountingAgent() public {
+        address newAgent = makeAddr("NewAgent");
+        vm.prank(dao);
+        vm.expectRevert(Errors.NotAccountingAgent.selector);
+        governable.removeAccountingAgent(newAgent);
+    }
+
+    function test_RemoveAccountingAgent() public {
+        address newAgent = makeAddr("NewAgent");
+        vm.prank(dao);
+        governable.addAccountingAgent(newAgent);
+
+        vm.expectEmit(true, false, false, false, address(governable));
+        emit IMakinaGovernable.AccountingAgentRemoved(newAgent);
+        vm.prank(dao);
+        governable.removeAccountingAgent(newAgent);
+        assertFalse(governable.isAccountingAgent(newAgent));
+    }
+}

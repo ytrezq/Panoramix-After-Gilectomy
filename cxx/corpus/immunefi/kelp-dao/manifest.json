@@ -1,0 +1,63 @@
+{
+ "program": "kelp-dao",
+ "repos": [
+  {
+   "repo": "https://github.com/Kelp-DAO/LRT-rsETH",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "3dded885f6f797f5959aff449c3a30c5cbb6ce23",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": null,
+    "headers": {
+     "MIT": 684,
+     "(none)": 2,
+     "GPL-3.0-or-later": 12,
+     "AGPL-3.0": 4,
+     "BUSL-1.1": 113,
+     "UNLICENSED": 3,
+     "BSD-3-Clause": 2,
+     "CC0-1.0": 1,
+     "GPL-3.0": 1
+    },
+    "headers_main": {
+     "MIT": 453,
+     "GPL-3.0-or-later": 9,
+     "AGPL-3.0": 4,
+     "BUSL-1.1": 113,
+     "UNLICENSED": 2,
+     "CC0-1.0": 1,
+     "GPL-3.0": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 822
+   },
+   "npm": {},
+   "workspace_links": {
+    "lib/forge-std/node_modules/ds-test": "lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+    "lib/openzeppelin-contracts-upgradeable/lib/forge-std/node_modules/ds-test": "lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+    "lib/openzeppelin-contracts-upgradeable/node_modules/forge-std": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+    "lib/openzeppelin-contracts/lib/forge-std/node_modules/ds-test": "lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+    "lib/openzeppelin-contracts/node_modules/forge-std": "lib/openzeppelin-contracts-upgradeable/lib/forge-std"
+   },
+   "copied": true,
+   "files": 934,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "Kelp-DAO__LRT-rsETH",
+   "subtrees": [
+    {
+     "prefix": "Kelp-DAO__LRT-rsETH",
+     "url": "https://github.com/Kelp-DAO/LRT-rsETH",
+     "commit": "3dded885f6f797f5959aff449c3a30c5cbb6ce23",
+     "files": 878
+    }
+   ]
+  }
+ ]
+}

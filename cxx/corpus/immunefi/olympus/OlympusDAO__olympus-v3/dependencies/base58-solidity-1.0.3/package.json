@@ -1,0 +1,26 @@
+{
+  "name": "base58-solidity",
+  "description": "base58 encode/decode in solidity.",
+  "keywords": [
+    "base58",
+    "solidity",
+    "encode",
+    "decode",
+    "encoding",
+    "decoding",
+    "serialize"
+  ],
+  "author": "storyicon@foxmail.com",
+  "repository": {
+		"type": "git",
+		"url": "https://github.com/storyicon/base58-solidity"
+	},
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0"
+  },
+  "dependencies": {
+    "hardhat": "^2.22.5"
+  },
+  "version": "1.0.3"
+}

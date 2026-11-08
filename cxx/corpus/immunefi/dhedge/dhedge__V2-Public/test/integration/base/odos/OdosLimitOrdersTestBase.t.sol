@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: MIT
+
+pragma solidity 0.7.6;
+pragma abicoder v2;
+
+import {OdosLimitOrdersTestSetup} from "test/integration/common/odos/OdosLimitOrdersTestSetup.t.sol";
+import {BaseSetup} from "test/integration/utils/foundry/chains/BaseSetup.t.sol";
+import {EthereumConfig} from "test/integration/utils/foundry/config/EthereumConfig.sol";
+import {ForkBlocks} from "test/integration/utils/foundry/config/ForkBlocks.sol";
+
+/// @dev `Skip` suffix: excluded from default `forge test` runs, see `OdosLimitOrdersTestSetup`.
+contract OdosLimitOrdersTestBaseSkip is OdosLimitOrdersTestSetup, BaseSetup {
+  address public constant ODOS_LIMIT_ORDER_ROUTER = 0xeDeAfdEf0901eF74Ee28c207BE8424D3B353D97A;
+
+  constructor() OdosLimitOrdersTestSetup(EthereumConfig.PERMIT2, ODOS_LIMIT_ORDER_ROUTER) BaseSetup(ForkBlocks.BASE) {}
+
+  function setUp() public override(OdosLimitOrdersTestSetup, BaseSetup) {
+    super.setUp();
+  }
+}

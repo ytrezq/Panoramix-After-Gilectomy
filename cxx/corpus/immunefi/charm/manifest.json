@@ -1,0 +1,58 @@
+{
+ "program": "charm",
+ "repos": [
+  {
+   "repo": "https://github.com/charmfinance/alpha-vaults-v2-contracts",
+   "ref": "main",
+   "scope_paths": [
+    "contracts/AlphaProVault.sol",
+    "contracts/AlphaProVaultFactory.sol",
+    "contracts/CloneFactory.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "0174095f918b5a883c3726cbe4556aaa58f12c82",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "Unlicense": 1,
+     "(none)": 2,
+     "GPL-3.0": 5,
+     "UNLICENSED": 1
+    },
+    "headers_main": {
+     "Unlicense": 1,
+     "(none)": 2,
+     "GPL-3.0": 3
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 9
+   },
+   "copied": true,
+   "via": "git subtree",
+   "files": 359,
+   "subtrees": [
+    {
+     "prefix": "charmfinance__alpha-vaults-v2-contracts",
+     "url": "https://github.com/charmfinance/alpha-vaults-v2-contracts",
+     "commit": "0174095f918b5a883c3726cbe4556aaa58f12c82",
+     "files": 12
+    }
+   ],
+   "npm": {
+    "node_modules/@uniswap/v3-core": "1.0.0",
+    "node_modules/@openzeppelin/contracts-upgradeable": "3.4.0",
+    "node_modules/@uniswap/v3-periphery": "1.0.0",
+    "node_modules/@openzeppelin/contracts": "3.4.1-solc-0.7-2",
+    "node_modules/base64-sol": "1.0.1"
+   },
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "charmfinance__alpha-vaults-v2-contracts",
+   "license_note": "its license does not allow redistribution: added at the owner's request, its license files kept"
+  }
+ ]
+}

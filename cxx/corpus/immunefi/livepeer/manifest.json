@@ -1,0 +1,128 @@
+{
+ "program": "livepeer",
+ "repos": [
+  {
+   "repo": "https://github.com/livepeer/protocol",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "default branch delta: BondingManager, BondingVotes, LivepeerGovernor, Treasury, TicketBroker, RoundsManager...",
+   "commit": "46c24fef8c7ccccfb4a55038bd80af7799c904c7",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "60acb7aaadcce2d68e52986a0a66fe79f07d138f"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "MIT",
+    "package_json": "ISC",
+    "headers": {
+     "(none)": 22,
+     "UNLICENSED": 8,
+     "MIT": 95
+    },
+    "headers_main": {
+     "MIT": 50
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 125
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.9.6",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.9.6"
+   },
+   "copied": true,
+   "files": 579,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "livepeer__protocol",
+   "subtrees": [
+    {
+     "prefix": "livepeer__protocol",
+     "url": "https://github.com/livepeer/protocol",
+     "commit": "46c24fef8c7ccccfb4a55038bd80af7799c904c7",
+     "files": 131
+    },
+    {
+     "prefix": "livepeer__protocol/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248",
+     "files": 4
+    },
+    {
+     "prefix": "livepeer__protocol/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "60acb7aaadcce2d68e52986a0a66fe79f07d138f",
+     "files": 49
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/livepeer/arbitrum-lpt-bridge",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "L1/L2 LPT gateways, migrators, escrow, data caches",
+   "commit": "f17ebc558ddb102f8f6cf886c766bb2e55b7a004",
+   "submodules": [
+    {
+     "path": "lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "MIT",
+    "package_json": "MIT",
+    "headers": {
+     "UNLICENSED": 2,
+     "(none)": 4,
+     "MIT": 21,
+     "Apache-2.0": 7
+    },
+    "headers_main": {
+     "MIT": 20,
+     "Apache-2.0": 7
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 34
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.9.6",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.9.6"
+   },
+   "copied": true,
+   "files": 438,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "livepeer__arbitrum-lpt-bridge",
+   "subtrees": [
+    {
+     "prefix": "livepeer__arbitrum-lpt-bridge",
+     "url": "https://github.com/livepeer/arbitrum-lpt-bridge",
+     "commit": "f17ebc558ddb102f8f6cf886c766bb2e55b7a004",
+     "files": 39
+    },
+    {
+     "prefix": "livepeer__arbitrum-lpt-bridge/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248",
+     "files": 4
+    }
+   ]
+  }
+ ]
+}

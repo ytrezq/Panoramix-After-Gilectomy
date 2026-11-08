@@ -1,0 +1,77 @@
+// SPDX-License-Identifier: MIT
+pragma solidity =0.8.34;
+
+import {IERC20} from "@forge-std/interfaces/IERC20.sol";
+
+import {IBridgeSettlerActions} from "../../bridge/IBridgeSettlerActions.sol";
+import {Permit2PaymentAbstract} from "../../core/Permit2PaymentAbstract.sol";
+import {BridgeSettler, BridgeSettlerBase} from "../../bridge/BridgeSettler.sol";
+
+import {BlockTempoSystemContracts} from "./BlockTempoSystemContracts.sol";
+
+import {Across} from "../../core/Across.sol";
+
+// Solidity inheritance is stupid
+import {SettlerAbstract} from "../../SettlerAbstract.sol";
+
+contract TempoBridgeSettler is BridgeSettler, BlockTempoSystemContracts, Across {
+    constructor(bytes20 gitCommit) BridgeSettlerBase(gitCommit) {
+        assert(block.chainid == 4217 || block.chainid == 31337);
+    }
+
+    function _dispatch(uint256 i, uint256 action, bytes calldata data)
+        internal
+        override(BridgeSettlerBase)
+        returns (bool)
+    {
+        if (super._dispatch(i, action, data)) {
+            return true;
+        } else if (action == uint32(IBridgeSettlerActions.BRIDGE_ERC20_TO_ACROSS.selector)) {
+            (address spoke, bytes memory depositData) = abi.decode(data, (address, bytes));
+            bridgeERC20ToAcross(spoke, depositData);
+        } else if (action == uint32(IBridgeSettlerActions.BRIDGE_NATIVE_TO_ACROSS.selector)) {
+            (address spoke, bytes memory depositData) = abi.decode(data, (address, bytes));
+            bridgeNativeToAcross(spoke, depositData);
+        } else {
+            return false;
+        }
+        return true;
+    }
+
+    // I hate Solidity inheritance
+    function _hasRecipientCheck()
+        internal
+        pure
+        override(SettlerAbstract, BridgeSettlerBase, BlockTempoSystemContracts)
+        returns (bool)
+    {
+        return super._hasRecipientCheck();
+    }
+
+    function _recipientCheckNeedsToken()
+        internal
+        pure
+        override(SettlerAbstract, BridgeSettlerBase, BlockTempoSystemContracts)
+        returns (bool)
+    {
+        return super._recipientCheckNeedsToken();
+    }
+
+    function _checkRecipient(address sender, address recipient, IERC20 buyToken)
+        internal
+        view
+        override(SettlerAbstract, BridgeSettlerBase, BlockTempoSystemContracts)
+    {
+        super._checkRecipient(sender, recipient, buyToken);
+    }
+
+    function _isRestrictedTarget(address target)
+        internal
+        view
+        virtual
+        override(BridgeSettler, BlockTempoSystemContracts, Permit2PaymentAbstract)
+        returns (bool)
+    {
+        return super._isRestrictedTarget(target);
+    }
+}

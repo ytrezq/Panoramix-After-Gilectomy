@@ -1,0 +1,25 @@
+[submodule "lib/aave-v3-periphery"]
+	path = lib/aave-v3-periphery
+	url = https://github.com/aave/aave-v3-periphery
+	branch = v2.4.1
+[submodule "lib/V2-V3-migration-helpers"]
+	path = lib/V2-V3-migration-helpers
+	url = https://github.com/marsfoundation/V2-V3-migration-helpers
+[submodule "lib/aave-address-book"]
+	path = lib/aave-address-book
+	url = https://github.com/bgd-labs/aave-address-book
+[submodule "lib/aave-helpers"]
+	path = lib/aave-helpers
+	url = https://github.com/marsfoundation/aave-helpers
+[submodule "lib/solidity-utils"]
+	path = lib/solidity-utils
+	url = https://github.com/bgd-labs/solidity-utils
+[submodule "lib/forge-std"]
+	path = lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "lib/dss-test"]
+	path = lib/dss-test
+	url = https://github.com/makerdao/dss-test
+[submodule "lib/sparklend-v1-core"]
+	path = lib/sparklend-v1-core
+	url = https://github.com/marsfoundation/sparklend-v1-core

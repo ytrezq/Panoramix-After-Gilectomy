@@ -1,0 +1,215 @@
+{
+ "program": "balancer",
+ "repos": [
+  {
+   "repo": "https://github.com/balancer/balancer-v2-monorepo",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "e91a2b643a49856f51a648d175667c1b48cf3377",
+   "submodules": [
+    {
+     "path": "pvt/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "52715a217dc51d0de15877878ab8213f6cbbbab5"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": "GPL-3.0-only",
+    "headers": {
+     "GPL-3.0-or-later": 386,
+     "UNLICENSED": 8,
+     "MIT": 30,
+     "(none)": 8
+    },
+    "headers_main": {
+     "GPL-3.0-or-later": 267,
+     "MIT": 22,
+     "(none)": 8
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 424,
+    ".vy": 8
+   },
+   "npm": {},
+   "workspace_links": {
+    "node_modules/@balancer-labs/v2-interfaces": "pkg/interfaces",
+    "node_modules/@balancer-labs/v2-pool-utils": "pkg/pool-utils",
+    "node_modules/@balancer-labs/v2-pool-weighted": "pkg/pool-weighted",
+    "node_modules/@balancer-labs/v2-solidity-utils": "pkg/solidity-utils",
+    "node_modules/@balancer-labs/v2-vault": "pkg/vault",
+    "pkg/governance-scripts/node_modules/@balancer-labs/v2-interfaces": "pkg/interfaces",
+    "pkg/governance-scripts/node_modules/@balancer-labs/v2-solidity-utils": "pkg/solidity-utils",
+    "pkg/governance-scripts/node_modules/@balancer-labs/v2-vault": "pkg/vault"
+   },
+   "copied": true,
+   "files": 557,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "balancer__balancer-v2-monorepo",
+   "subtrees": [
+    {
+     "prefix": "balancer__balancer-v2-monorepo",
+     "url": "https://github.com/balancer/balancer-v2-monorepo",
+     "commit": "e91a2b643a49856f51a648d175667c1b48cf3377",
+     "files": 472
+    },
+    {
+     "prefix": "balancer__balancer-v2-monorepo/pvt/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "52715a217dc51d0de15877878ab8213f6cbbbab5",
+     "files": 47
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/balancer/balancer-v3-monorepo",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "2b9ce4b1b8ad49eafcad8d136f0872ea7c7d5d53",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": "GPL-3.0-only",
+    "headers": {
+     "GPL-3.0-or-later": 520,
+     "MIT": 14,
+     "AGPL-3.0-only": 2,
+     "GPL-2.0-or-later": 34,
+     "LicenseRef-Gyro-1.0": 7,
+     "GPL-3.0": 2
+    },
+    "headers_main": {
+     "GPL-3.0-or-later": 194,
+     "MIT": 9,
+     "AGPL-3.0-only": 2,
+     "LicenseRef-Gyro-1.0": 6,
+     "GPL-3.0": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 579
+   },
+   "npm": {
+    "node_modules/forge-std": "1.9.7",
+    "node_modules/@openzeppelin/contracts": "5.6.1",
+    "node_modules/permit2": "1.0.0",
+    "node_modules/@chainlink/contracts": "1.5.0",
+    "pkg/interfaces/node_modules/@openzeppelin/contracts": "5.6.1",
+    "pkg/interfaces/node_modules/@chainlink/contracts": "1.5.0",
+    "pkg/interfaces/node_modules/permit2": "1.0.0",
+    "node_modules/@openzeppelin/contracts-4.8.3": "4.8.3",
+    "node_modules/@openzeppelin/contracts-5.0.2": "5.0.2",
+    "node_modules/@openzeppelin/contracts-4.9.6": "4.9.6",
+    "node_modules/@eth-optimism/contracts": "0.6.0",
+    "node_modules/@zksync/contracts": "0.1.0",
+    "node_modules/@scroll-tech/contracts": "2.0.0",
+    "node_modules/@openzeppelin/contracts-4.7.3": "4.7.3",
+    "node_modules/@openzeppelin/contracts-5.1.0": "5.1.0",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.9.6",
+    "pkg/interfaces/node_modules/@openzeppelin/contracts-4.8.3": "4.8.3",
+    "pkg/interfaces/node_modules/@openzeppelin/contracts-5.0.2": "5.0.2",
+    "pkg/interfaces/node_modules/@openzeppelin/contracts-4.9.6": "4.9.6",
+    "pkg/interfaces/node_modules/@eth-optimism/contracts": "0.6.0",
+    "pkg/interfaces/node_modules/@zksync/contracts": "0.1.0",
+    "pkg/interfaces/node_modules/@scroll-tech/contracts": "2.0.0",
+    "pkg/interfaces/node_modules/@openzeppelin/contracts-4.7.3": "4.7.3",
+    "pkg/interfaces/node_modules/@openzeppelin/contracts-5.1.0": "5.1.0",
+    "pkg/interfaces/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6",
+    "node_modules/@zksync/contracts/l2-contracts/node_modules/@openzeppelin/contracts-upgradeable": "4.9.5",
+    "node_modules/@zksync/contracts/l2-contracts/node_modules/@openzeppelin/contracts": "4.9.5",
+    "node_modules/@zksync/contracts/gas-bound-caller/node_modules/@matterlabs/zksync-contracts": "0.6.2",
+    "pkg/interfaces/node_modules/@zksync/contracts/l2-contracts/node_modules/@openzeppelin/contracts-upgradeable": "4.9.5",
+    "pkg/interfaces/node_modules/@zksync/contracts/l2-contracts/node_modules/@openzeppelin/contracts": "4.9.5",
+    "pkg/interfaces/node_modules/@zksync/contracts/gas-bound-caller/node_modules/@matterlabs/zksync-contracts": "0.6.2",
+    "node_modules/@zksync/contracts/gas-bound-caller/node_modules/@openzeppelin/contracts": "4.9.6",
+    "node_modules/@zksync/contracts/gas-bound-caller/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6",
+    "pkg/interfaces/node_modules/@zksync/contracts/gas-bound-caller/node_modules/@openzeppelin/contracts": "4.9.6",
+    "pkg/interfaces/node_modules/@zksync/contracts/gas-bound-caller/node_modules/@openzeppelin/contracts-upgradeable": "4.9.6"
+   },
+   "workspace_links": {
+    "node_modules/@balancer-labs/v3-interfaces": "pkg/interfaces",
+    "node_modules/@balancer-labs/v3-pool-gyro": "pkg/pool-gyro",
+    "node_modules/@balancer-labs/v3-pool-stable": "pkg/pool-stable",
+    "node_modules/@balancer-labs/v3-pool-utils": "pkg/pool-utils",
+    "node_modules/@balancer-labs/v3-pool-weighted": "pkg/pool-weighted",
+    "node_modules/@balancer-labs/v3-solidity-utils": "pkg/solidity-utils",
+    "node_modules/@balancer-labs/v3-standalone-utils": "pkg/standalone-utils",
+    "node_modules/@balancer-labs/v3-vault": "pkg/vault",
+    "pkg/interfaces/node_modules/@balancer-labs/v3-solidity-utils": "pkg/solidity-utils"
+   },
+   "copied": true,
+   "files": 7963,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "balancer__balancer-v3-monorepo",
+   "subtrees": [
+    {
+     "prefix": "balancer__balancer-v3-monorepo",
+     "url": "https://github.com/balancer/balancer-v3-monorepo",
+     "commit": "2b9ce4b1b8ad49eafcad8d136f0872ea7c7d5d53",
+     "files": 633
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/balancer/reclamm",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "6a13f2c9bec048996a8908f498121b20ec4e6c78",
+   "submodules": [
+    {
+     "path": "lib/balancer-v3-monorepo",
+     "url": "https://github.com/balancer/balancer-v3-monorepo",
+     "commit": "6a158e3dd732775a0b7f94edd1df10837d393ece"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": "GPL-3.0-only",
+    "headers": {
+     "GPL-3.0-or-later": 32
+    },
+    "headers_main": {
+     "GPL-3.0-or-later": 6
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 32
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "5.6.1",
+    "node_modules/forge-std": "1.9.6"
+   },
+   "copied": true,
+   "files": 931,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "balancer__reclamm",
+   "subtrees": [
+    {
+     "prefix": "balancer__reclamm",
+     "url": "https://github.com/balancer/reclamm",
+     "commit": "6a13f2c9bec048996a8908f498121b20ec4e6c78",
+     "files": 37
+    },
+    {
+     "prefix": "balancer__reclamm/lib/balancer-v3-monorepo",
+     "url": "https://github.com/balancer/balancer-v3-monorepo",
+     "commit": "6a158e3dd732775a0b7f94edd1df10837d393ece",
+     "files": 596
+    }
+   ]
+  }
+ ]
+}

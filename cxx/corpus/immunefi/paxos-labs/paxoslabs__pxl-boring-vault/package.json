@@ -1,0 +1,41 @@
+{
+  "name": "pxl-boring-vault",
+  "module": "index.ts",
+  "type": "module",
+  "scripts": {
+    "prettier": "prettier --write '**/*.{md,yml,yaml,ts,js}'",
+    "coverage": "./coverage.sh",
+    "solhint": "solhint -wq 0 'src/**/*.sol'",
+    "slither": "slither src",
+    "prepare": "husky",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio"
+  },
+  "devDependencies": {
+    "@chainlink/contracts-ccip": "^2.0.0",
+    "@layerzerolabs/lz-definitions": "^2.3.25",
+    "@layerzerolabs/lz-evm-messagelib-v2": "^2.3.25",
+    "@layerzerolabs/test-devtools-evm-foundry": "^0.2.7",
+    "@layerzerolabs/toolbox-foundry": "^0.1.6",
+    "@openzeppelin/contracts": "^5.0.2",
+    "@types/bun": "latest",
+    "husky": "^9.1.4"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@layerzerolabs/lz-evm-oapp-v2": "^2.3.25",
+    "@layerzerolabs/lz-evm-protocol-v2": "^2.3.25",
+    "@layerzerolabs/lz-evm-v1-0.7": "^2.3.25",
+    "@prisma/client": "^5.20.0",
+    "dotenv": "^17.2.3",
+    "forge-std": "^1.1.2",
+    "keccak256": "^1.0.6",
+    "prettier": "^3.3.2",
+    "prisma": "^5.20.0",
+    "solhint": "^5.0.1"
+  }
+}

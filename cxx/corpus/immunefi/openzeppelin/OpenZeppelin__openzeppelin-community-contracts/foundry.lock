@@ -1,0 +1,32 @@
+{
+  "lib/@openzeppelin-contracts": {
+    "branch": {
+      "name": "master",
+      "rev": "dd965b40d264ba7347942b0af00a2e7757feaee0"
+    }
+  },
+  "lib/@openzeppelin-contracts-upgradeable": {
+    "branch": {
+      "name": "master",
+      "rev": "6139c67f1853cfc0fc6ce8cba9de0223b6f6e63a"
+    }
+  },
+  "lib/axelar-gmp-sdk-solidity": {
+    "rev": "00682b6c3db0cc922ec0c4ea3791852c93d7ae31"
+  },
+  "lib/email-tx-builder": {
+    "rev": "895e1fe943e967b0faab6a476f3b82b37d14300d"
+  },
+  "lib/forge-std": {
+    "rev": "60acb7aaadcce2d68e52986a0a66fe79f07d138f"
+  },
+  "lib/wormhole-solidity-sdk": {
+    "rev": "575181b586a315d8f9813eab82e4cb98b45bc381"
+  },
+  "lib/zk-email-verify": {
+    "branch": {
+      "name": "v6.3.2",
+      "rev": "9ed3769dc3d96fb0d7c45f1f014dcd9bfb63675b"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+[profile.default]
+src = 'src'
+solc = '0.8.24'
+evm_version = 'cancun'
+out = 'out'
+libs = ['lib']
+test = 'test'
+cache_path = 'cache_forge'
+
+[profile.legacy]
+test = 'test-legacy'
+cache_path = 'cache_forge_legacy'
+
+[lint]
+exclude_lints = [
+    "mixed-case-variable",
+    "pascal-case-struct",
+    "mixed-case-function",
+    "screaming-snake-case-immutable",
+    "unwrapped-modifier-logic",
+    "asm-keccak256",
+]

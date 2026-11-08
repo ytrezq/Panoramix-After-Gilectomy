@@ -1,0 +1,43 @@
+{
+ "program": "rhinofi",
+ "repos": [
+  {
+   "repo": "https://github.com/rhinofi/contracts_public",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "rhino.fi bridge contracts (the scope's bridge addresses)",
+   "commit": "654c38c260eefa8a4491f3dd02390aedd0a2396e",
+   "submodules": [],
+   "license": {
+    "file": "LICENCE",
+    "spdx": "GPL-3.0",
+    "package_json": null,
+    "headers": {
+     "GPL-3.0-only": 4
+    },
+    "headers_main": {
+     "GPL-3.0-only": 4
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 4
+   },
+   "npm": {},
+   "copied": true,
+   "files": 8,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "rhinofi__contracts_public",
+   "subtrees": [
+    {
+     "prefix": "rhinofi__contracts_public",
+     "url": "https://github.com/rhinofi/contracts_public",
+     "commit": "654c38c260eefa8a4491f3dd02390aedd0a2396e",
+     "files": 5
+    }
+   ]
+  }
+ ]
+}

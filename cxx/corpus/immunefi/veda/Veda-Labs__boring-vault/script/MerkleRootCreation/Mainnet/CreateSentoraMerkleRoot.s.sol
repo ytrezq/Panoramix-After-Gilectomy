@@ -1,0 +1,159 @@
+// SPDX-License-Identifier: SEL-1.0
+// Copyright © 2025 Veda Tech Labs
+// Derived from Boring Vault Software © 2025 Veda Tech Labs (TEST ONLY – NO COMMERCIAL USE)
+// Licensed under Software Evaluation License, Version 1.0
+pragma solidity 0.8.21;
+
+import {FixedPointMathLib} from "@solmate/utils/FixedPointMathLib.sol";
+import {ERC20} from "@solmate/tokens/ERC20.sol";
+import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
+import {ERC4626} from "@solmate/tokens/ERC4626.sol";
+import {MerkleTreeHelper} from "test/resources/MerkleTreeHelper/MerkleTreeHelper.sol";
+import "forge-std/Script.sol";
+
+/**
+ *  source .env && forge script script/MerkleRootCreation/Mainnet/CreateSentoraMerkleRoot.s.sol --rpc-url $MAINNET_RPC_URL
+ */
+contract CreateSentoraMerkleRootScript is Script, MerkleTreeHelper {
+    using FixedPointMathLib for uint256;
+
+    address public boringVault = 0x13Cc1b39cb259BA10cd174EAe42012e698ed7c51;
+    address public managerAddress = 0xdd5C7C5206558e4eA66a58592fEaE13424ED6F07;
+    address public accountantAddress = 0x42135D908efa4E6aFd7E9B73D5A1bA55955F93fA;
+    address public rawDataDecoderAndSanitizer = 0xBf6199F596D7296875Faa175Ed02Dc3940C1682E;
+
+    address public odosOwnedDecoderAndSanitizer = 0x6149c711434C54A48D757078EfbE0E2B2FE2cF6a;
+    address public oneInchOwnedDecoderAndSanitizer = 0x42842201E199E6328ADBB98e7C2CbE77561FAC88;
+
+    function setUp() external {}
+
+    /**
+     * @notice Uncomment which script you want to run.
+     */
+    function run() external {
+        generateStrategistMerkleRoot();
+    }
+
+    function generateStrategistMerkleRoot() public {
+        setSourceChainName(mainnet);
+        setAddress(false, mainnet, "boringVault", boringVault);
+        setAddress(false, mainnet, "managerAddress", managerAddress);
+        setAddress(false, mainnet, "accountantAddress", accountantAddress);
+        setAddress(false, mainnet, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
+
+        ManageLeaf[] memory leafs = new ManageLeaf[](128);
+
+        // ========================== Fee Claiming ==========================
+        ERC20[] memory feeAssets = new ERC20[](2);
+        feeAssets[0] = getERC20(sourceChain, "WBTC");
+        feeAssets[1] = getERC20(sourceChain, "LBTC");
+        _addLeafsForFeeClaiming(leafs, getAddress(sourceChain, "accountantAddress"), feeAssets, false);
+
+        // ========================== Odos/1inch ==========================
+        address[] memory assets = new address[](5);
+        assets[0] = getAddress(sourceChain, "LBTC");
+        assets[1] = getAddress(sourceChain, "WBTC");
+        assets[2] = getAddress(sourceChain, "PYUSD");
+        assets[3] = getAddress(sourceChain, "RLUSD");
+        assets[4] = getAddress(sourceChain, "MORPHO");
+        SwapKind[] memory kind = new SwapKind[](5);
+        kind[0] = SwapKind.BuyAndSell;
+        kind[1] = SwapKind.BuyAndSell;
+        kind[2] = SwapKind.Sell;
+        kind[3] = SwapKind.Sell;
+        kind[4] = SwapKind.Sell;
+        setAddress(true, sourceChain, "rawDataDecoderAndSanitizer", odosOwnedDecoderAndSanitizer);
+        _addOdosOwnedSwapLeafs(leafs, assets, kind);
+        setAddress(true, sourceChain, "rawDataDecoderAndSanitizer", oneInchOwnedDecoderAndSanitizer);
+        _addLeafsFor1InchOwnedGeneralSwapping(leafs, assets, kind);
+        setAddress(true, sourceChain, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
+
+        // ========================== ITB Position Managers ==========================
+        ERC20[] memory itbTokensUsed = new ERC20[](1);
+        itbTokensUsed[0] = getERC20(sourceChain, "LBTC");
+        address itbPositionManager = 0x9B6a57Fda106eff13ffE4ea4Ef2783C547f75cd7;
+
+        _addLeafsForITBPositionManagerLocal(leafs, itbPositionManager, itbTokensUsed, "LBTC > RLUSD > RLUSD Supervised Loan");
+        itbPositionManager = 0x284D3b0eF51F0A6432948A9cCbCb5cAF30d6EE96;
+        _addLeafsForITBPositionManagerLocal(leafs, itbPositionManager, itbTokensUsed, "LBTC > PYUSD > RLUSD Supervised Loan");
+        itbPositionManager = 0xB4201A579A2cf1d321f04d98bdba2a25bEFD6b0A;
+        _addLeafsForITBPositionManagerLocal(leafs, itbPositionManager, itbTokensUsed, "LBTC > PYUSD Supervised Loan");
+
+        ERC20[] memory itbTokensUsed2 = new ERC20[](2);
+        itbTokensUsed2[0] = getERC20(sourceChain, "LBTC");
+        itbTokensUsed2[1] = getERC20(sourceChain, "PYUSD");
+        itbPositionManager = 0x6CAD5fCb29d98c4968A79eA7dB286c5986389009;
+        _addLeafsForITBPositionManagerLocal(leafs, itbPositionManager, itbTokensUsed2, "Morpho LBTC (PYUSD) + PYUSD Supervised Loan");
+        itbPositionManager = 0xff9968b429530B59b715fB937801B7949C9F6843; 
+        _addLeafsForITBPositionManagerLocal(leafs, itbPositionManager, itbTokensUsed2, "Morpho LBTC (PRIME) + PYUSD Supervised Loan");
+
+        ERC20[] memory itbTokensUsed3 = new ERC20[](2);
+        itbTokensUsed3[0] = getERC20(sourceChain, "LBTC");
+        itbTokensUsed3[1] = getERC20(sourceChain, "USDT");
+        itbPositionManager = 0x8012BA33Edd79a2eEd438C6e61Fe3b95084706C6;
+        _addLeafsForITBPositionManagerLocal(leafs, itbPositionManager, itbTokensUsed3, "Sentora Supervised Loan");
+
+
+        // ========================== Verify ==========================
+        _verifyDecoderImplementsLeafsFunctionSelectors(leafs);
+
+        bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+
+        string memory filePath = "./leafs/Mainnet/SentoraStrategistLeafs.json";
+
+        _generateLeafs(filePath, leafs, manageTree[manageTree.length - 1][0], manageTree);
+     }
+
+     function _addLeafsForITBPositionManagerLocal(
+         ManageLeaf[] memory leafs,
+         address itbPositionManager,
+         ERC20[] memory tokensUsed,
+         string memory itbContractName
+     ) internal {
+         // acceptOwnership
+         leafIndex++;
+         leafs[leafIndex] = ManageLeaf(
+             itbPositionManager,
+             false,
+             "acceptOwnership()",
+             new address[](0),
+             string.concat("Accept ownership of the ", itbContractName, " contract"),
+             getAddress(sourceChain, "rawDataDecoderAndSanitizer")
+         );
+
+        // Withdraw
+        leafIndex++;
+        leafs[leafIndex] = ManageLeaf(
+            itbPositionManager,
+            false,
+            "withdraw(address,uint256)",
+            new address[](0),
+            string.concat("Withdraw from the ", itbContractName, " contract"),
+            getAddress(sourceChain, "rawDataDecoderAndSanitizer")
+        );
+        // WithdrawAll
+        leafIndex++;
+        leafs[leafIndex] = ManageLeaf(
+            itbPositionManager,
+            false,
+            "withdrawAll(address)",
+            new address[](0),
+            string.concat("Withdraw all from the ", itbContractName, " contract"),
+            getAddress(sourceChain, "rawDataDecoderAndSanitizer")
+        );
+
+         for (uint256 i; i < tokensUsed.length; ++i) {
+             // Transfer
+             leafIndex++;
+             leafs[leafIndex] = ManageLeaf(
+                 address(tokensUsed[i]),
+                 false,
+                 "transfer(address,uint256)",
+                 new address[](1),
+                 string.concat("Transfer ", tokensUsed[i].symbol(), " to the ", itbContractName, " contract"),
+                 getAddress(sourceChain, "rawDataDecoderAndSanitizer")
+             );
+             leafs[leafIndex].argumentAddresses[0] = itbPositionManager;
+         }
+     }
+}

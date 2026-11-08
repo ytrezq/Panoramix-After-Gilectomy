@@ -1,0 +1,74 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+pragma solidity >=0.8.0;
+
+library Base {
+
+    /******************************************************************************************************************/
+    /*** Token Addresses                                                                                            ***/
+    /******************************************************************************************************************/
+
+    address internal constant SUSDS = 0x5875eEE11Cf8398102FdAd704C9E96607675467a;
+    address internal constant USDC  = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    address internal constant USDS  = 0x820C137fa70C8691f0e44Dc420a5e53c168921Dc;
+
+    /******************************************************************************************************************/
+    /*** Bridging Addresses                                                                                         ***/
+    /******************************************************************************************************************/
+
+    address internal constant CCTP_TOKEN_MESSENGER    = 0x1682Ae6375C4E4A97e4B583BC394c861A46D8962;
+    address internal constant CCTP_TOKEN_MESSENGER_V2 = 0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d;
+
+    /******************************************************************************************************************/
+    /*** PSM Addresses                                                                                              ***/
+    /******************************************************************************************************************/
+
+    address internal constant PSM3 = 0x1601843c5E9bC251A3272907010AFa41Fa18347E;
+
+    /******************************************************************************************************************/
+    /*** Grove Liquidity Layer Addresses                                                                            ***/
+    /******************************************************************************************************************/
+
+    address internal constant ALM_CONTROLLER  = 0x7f8408eBbBC3504F83eeDa52910dd75Eba92C955;
+    address internal constant ALM_PROXY       = 0x9B746dBC5269e1DF6e4193Bcb441C0FbBF1CeCEe;
+    address internal constant ALM_RATE_LIMITS = 0xAc8BF0669223197ac8B94Cbb53E725e40B3919E8;
+
+    address internal constant ALM_FREEZER   = 0xB0113804960345fd0a245788b3423319c86940e5;
+    address internal constant ALM_RELAYER   = 0x0eEC86649E756a23CBc68d9EFEd756f16aD5F85f;
+    address internal constant ALM_RELAYER_2 = 0x9187807e07112359C481870feB58f0c117a29179;
+
+    /******************************************************************************************************************/
+    /*** Governance Relay Addresses                                                                                 ***/
+    /******************************************************************************************************************/
+
+    address internal constant GROVE_EXECUTOR = 0x491EDFB0B8b608044e227225C715981a30F3A44E;
+    address internal constant GROVE_RECEIVER = 0x5F5cfCB8a463868E37Ab27B5eFF3ba02112dF19a;
+
+    /******************************************************************************************************************/
+    /*** Merkl Addresses                                                                                            ***/
+    /******************************************************************************************************************/
+
+    address internal constant MERKL_DISTRIBUTOR = 0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae;
+
+    /******************************************************************************************************************/
+    /*** Morpho Addresses                                                                                           ***/
+    /******************************************************************************************************************/
+
+    address internal constant MORPHO = 0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb;
+
+    address internal constant GROVE_X_STEAKHOUSE_USDC_MORPHO_VAULT     = 0xBeEf2d50B428675a1921bC6bBF4bfb9D8cF1461A;
+    address internal constant STEAKHOUSE_PRIME_INSTANT_V2_MORPHO_VAULT = 0xbeef0e0834849aCC03f0089F01f4F1Eeb06873C9;
+
+    /******************************************************************************************************************/
+    /*** Pendle Addresses                                                                                           ***/
+    /******************************************************************************************************************/
+
+    address public constant PENDLE_ROUTER = 0x888888888889758F76e7103c6CbF23ABbF58F946;
+
+    /******************************************************************************************************************/
+    /*** Uniswap V3 Addresses                                                                                       ***/
+    /******************************************************************************************************************/
+
+    address internal constant UNISWAP_V3_SWAP_ROUTER_02   = 0x2626664c2603336E57B271c5C0b26F421741e481;
+    address internal constant UNISWAP_V3_POSITION_MANAGER = 0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1;
+
+}

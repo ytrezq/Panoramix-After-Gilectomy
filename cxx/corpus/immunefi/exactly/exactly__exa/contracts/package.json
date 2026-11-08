@@ -1,0 +1,102 @@
+{
+  "name": "@exactly/plugin",
+  "version": "1.1.0",
+  "private": true,
+  "scripts": {
+    "build": "FOUNDRY_PROFILE=build forge build",
+    "prepare": "[ \"$EAS_BUILD_RUNNER\" != eas-build ] || (export FOUNDRY_DIR=${FOUNDRY_DIR-$HOME/workingdir} && (command -v foundryup >/dev/null || { curl -fsSL --retry 3 --retry-all-errors https://foundry.paradigm.xyz | bash; command -v foundryup >/dev/null; }) && (v=v1.7.1 && for i in $(seq 1 5); do foundryup -i $v && break; [ $i -eq 5 ] && exit 1; sleep $((1 << i)); done))",
+    "snapshot": "FOUNDRY_PROFILE=snapshot forge snapshot --force",
+    "test": "nx test contracts",
+    "test:fmt": "forge fmt --check",
+    "test:gas": "FOUNDRY_PROFILE=snapshot forge snapshot --force --check",
+    "test:solhint": "solhint --disc --max-warnings 0 '**/*.sol'",
+    "test:slither": "FOUNDRY_PROFILE=slither slither --foundry-out-directory out/slither . --skip-clean",
+    "test:coverage": "FOUNDRY_PROFILE=coverage forge coverage --report lcov",
+    "test:sizes": "FOUNDRY_PROFILE=sizes forge build --sizes"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.6.1",
+    "modular-account": "alchemyplatform/modular-account#c81e7122eb46e13447afa3f2e0d2537cf2792beb",
+    "modular-account-libs": "erc6900/modular-account-libs#v0.7.1",
+    "solady": "^0.1.26",
+    "solady-webauthn": "npm:solady@0.0.227",
+    "webauthn-owner-plugin": "exactly/webauthn-owner-plugin#9c0c38b",
+    "webauthn-sol": "base/webauthn-sol#v1.0.0"
+  },
+  "devDependencies": {
+    "@exactly/protocol": "^0.2.25",
+    "@openzeppelin/contracts-upgradeable-v4": "npm:@openzeppelin/contracts-upgradeable@^4.9.6",
+    "@openzeppelin/contracts-upgradeable": "^5.6.1",
+    "@openzeppelin/contracts-v4": "npm:@openzeppelin/contracts@^4.9.6",
+    "@hyperlane-xyz/core": "^11.0.0",
+    "account-abstraction": "eth-infinitism/account-abstraction#v0.6.0",
+    "forge-std": "foundry-rs/forge-std#v1.15.0",
+    "fresh-crypto-lib": "rdubois-crypto/FreshCryptoLib#fd2a0e6e64609ade0b0c165e4d66de8106a70db6",
+    "solhint": "^6.1.0",
+    "solmate": "transmissions11/solmate#v7",
+    "surl": "memester-xyz/surl",
+    "typescript": "catalog:"
+  },
+  "nx": {
+    "projectType": "library",
+    "namedInputs": {
+      "compile": [
+        "{projectRoot}/src/**/*",
+        "{projectRoot}/test/support/Build.sol",
+        "{projectRoot}/test/mocks/MockSwapper.sol",
+        "{projectRoot}/test/mocks/MockVelodromeFactory.sol",
+        "{projectRoot}/foundry.toml",
+        "{projectRoot}/remappings.txt",
+        {
+          "runtime": "forge --version"
+        },
+        "sharedGlobals"
+      ],
+      "default": [
+        "{projectRoot}/**/*",
+        "!{projectRoot}/broadcast/*/31337/**/*",
+        {
+          "runtime": "forge --version"
+        },
+        "sharedGlobals"
+      ]
+    },
+    "targets": {
+      "build": {
+        "dependsOn": [
+          "prepare",
+          "^prepare"
+        ],
+        "inputs": [
+          "compile",
+          "^production"
+        ],
+        "outputs": [
+          "{projectRoot}/out/build"
+        ]
+      },
+      "snapshot": {
+        "outputs": [
+          "{projectRoot}/.gas-snapshot"
+        ],
+        "cache": true
+      },
+      "test": {
+        "dependsOn": [
+          "test:fmt",
+          "test:solhint",
+          "test:sizes",
+          "test:gas",
+          "test:slither",
+          "test:coverage"
+        ],
+        "executor": "nx:noop"
+      },
+      "test:coverage": {
+        "outputs": [
+          "{projectRoot}/lcov.info"
+        ]
+      }
+    }
+  }
+}
