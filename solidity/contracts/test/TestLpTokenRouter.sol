@@ -1,0 +1,26 @@
+// SPDX-License-Identifier: MIT
+pragma solidity >=0.8.0;
+
+import {LpCollateralRouter} from "../token/libs/LpCollateralRouter.sol";
+import {TokenRouter} from "../token/libs/TokenRouter.sol";
+
+contract TestLpCollateralRouter is LpCollateralRouter {
+    constructor(
+        uint256 _scaleNumerator,
+        uint256 _scaleDenominator,
+        address _mailbox
+    ) TokenRouter(_scaleNumerator, _scaleDenominator, _mailbox) initializer {
+        _LpCollateralRouter_initialize();
+    }
+
+    function token() public view override returns (address) {
+        return address(0);
+    }
+
+    function _transferFromSender(uint256 _amount) internal override {}
+
+    function _transferTo(
+        address _recipient,
+        uint256 _amount
+    ) internal override {}
+}

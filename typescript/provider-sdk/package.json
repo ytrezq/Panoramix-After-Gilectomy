@@ -1,0 +1,58 @@
+{
+  "name": "@hyperlane-xyz/provider-sdk",
+  "version": "11.0.2",
+  "description": "Protocol Provider SDK for the Hyperlane Protocol",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./altvm": "./dist/altvm.js",
+    "./module": "./dist/module.js",
+    "./protocol": "./dist/protocol.js",
+    "./chain": "./dist/chain.js",
+    "./hook": "./dist/hook.js",
+    "./ism": "./dist/ism.js",
+    "./core": "./dist/core.js",
+    "./mailbox": "./dist/mailbox.js",
+    "./validator-announce": "./dist/validator-announce.js",
+    "./warp": "./dist/warp.js",
+    "./fee": "./dist/fee.js",
+    "./quote": "./dist/quote.js",
+    "./factory": "./dist/factory.js",
+    "./submitter": "./dist/submitter.js",
+    "./registry": "./dist/registry.js",
+    "./artifact": "./dist/artifact.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "dev": "tsc --watch",
+    "lint": "oxlint -c ../../oxlint.json",
+    "clean": "rm -rf ./dist",
+    "format": "oxfmt --write .",
+    "test": "mocha --config .mocharc.json",
+    "test:ci": "mocha --config .mocharc.json"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/utils": "workspace:*",
+    "pino": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
+    "chai": "catalog:",
+    "mocha": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

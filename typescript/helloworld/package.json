@@ -1,0 +1,78 @@
+{
+  "name": "@hyperlane-xyz/helloworld",
+  "version": "45.1.0",
+  "description": "A basic skeleton of an Hyperlane app",
+  "keywords": [
+    "HelloWorld",
+    "Hyperlane",
+    "Solidity",
+    "Typescript"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "/dist",
+    "/contracts"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": "./dist/index.js",
+  "scripts": {
+    "build": "pnpm hardhat-esm clean && pnpm hardhat-esm compile && pnpm exec tsc",
+    "clean": "pnpm hardhat-esm clean && rm -rf dist cache src/types",
+    "coverage": "pnpm hardhat-esm coverage",
+    "lint": "solhint contracts/**/*.sol",
+    "hardhat-esm": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts",
+    "format": "oxfmt --write ./src && prettier --write ./contracts",
+    "test": "pnpm hardhat-esm test $(find ./src/test -name '*.test.ts')",
+    "test:ci": "pnpm test"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/core": "workspace:*",
+    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/sdk": "workspace:*",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "@openzeppelin/contracts": "catalog:",
+    "@openzeppelin/contracts-upgradeable": "catalog:",
+    "@solana/web3.js": "catalog:",
+    "borsh": "catalog:",
+    "ethers": "catalog:"
+  },
+  "devDependencies": {
+    "@ethereum-waffle/chai": "^4.0.10",
+    "@ethersproject/abi": "*",
+    "@ethersproject/providers": "*",
+    "@nomiclabs/hardhat-ethers": "catalog:",
+    "@nomiclabs/hardhat-waffle": "catalog:",
+    "@typechain/ethers-v5": "catalog:",
+    "@typechain/ethers-v6": "catalog:",
+    "@typechain/hardhat": "catalog:",
+    "@types/chai": "catalog:",
+    "@types/chai-as-promised": "catalog:",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
+    "chai": "catalog:",
+    "chai-as-promised": "catalog:",
+    "ethereum-waffle": "catalog:",
+    "hardhat": "catalog:",
+    "hardhat-gas-reporter": "catalog:",
+    "prettier": "catalog:",
+    "prettier-plugin-solidity": "catalog:",
+    "solhint": "catalog:",
+    "solhint-plugin-prettier": "catalog:",
+    "solidity-coverage": "catalog:",
+    "ts-node": "catalog:",
+    "tsx": "catalog:",
+    "typechain": "catalog:",
+    "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "@ethersproject/abi": "*",
+    "@ethersproject/providers": "*",
+    "@types/sinon-chai": "*"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
