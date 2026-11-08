@@ -1,0 +1,9 @@
+forge-std/=lib/forge-std/src/
+ds-test/=lib/forge-std/lib/ds-test/src/
+@openzeppelin/=lib/infinity-periphery/lib/infinity-core/lib/openzeppelin-contracts/
+openzeppelin-contracts/=lib/infinity-periphery/lib/infinity-core/lib/openzeppelin-contracts/
+solmate/=lib/infinity-periphery/lib/infinity-core/lib/solmate/
+infinity-periphery/=lib/infinity-periphery/
+infinity-core/=lib/infinity-periphery/lib/infinity-core
+permit2/=lib/infinity-periphery/lib/permit2/
+pancake-create3-factory/=lib/pancake-create3-factory/
