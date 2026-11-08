@@ -1,0 +1,25 @@
+{
+    "name": "ipor-protocol",
+    "engines": {
+        "npm": "10.8.2",
+        "node": "20.17.0"
+    },
+    "devDependencies": {
+        "dotenv": "16.4.5",
+        "npm-run-all": "^4.1.5",
+        "prettier": "3.3.3",
+        "prettier-plugin-solidity": "1.4.1",
+        "solhint": "5.0.3"
+    },
+    "scripts": {
+        "solhint": "./node_modules/.bin/solhint -f table contracts/**/*.sol",
+        "prettier:contracts": "./node_modules/.bin/prettier --write 'contracts/**/*.sol'",
+        "prettier:test": "./node_modules/.bin/prettier --write 'test/**/*.sol'",
+        "prettier:all": "npm-run-all --parallel prettier:contracts prettier:test"
+    },
+    "dependencies": {
+        "@openzeppelin/contracts": "4.9.3",
+        "@openzeppelin/contracts-upgradeable": "4.9.3",
+        "abdk-libraries-solidity": "3.2.0"
+    }
+}
