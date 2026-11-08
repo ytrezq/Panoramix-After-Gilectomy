@@ -31,7 +31,9 @@
 //    unrolls a loop whose induction proves it runs once or never (trips 1
 //    or 0: the tail of a copy of 20 bytes in words...), and drops a loop
 //    whose body only moves its variables (a copy whose writes were dead)
-//    when its induction proves it ends: its variables' last values set.
+//    when its induction proves it ends: its variables' last values set. A
+//    copy in words of L bytes is cut to L where the next line writes 32
+//    bytes or more at its end (solc's cleanup word; cut_tail).
 //  - propagate_storage_in_loops: a loop variable v starting at h + k (h a
 //    SHA3 term the loop doesn't change: a storage array's start) as v' = v -
 //    h: its start k, every read of it in the loop v' + h, every write of it
