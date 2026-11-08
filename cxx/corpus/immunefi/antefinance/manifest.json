@@ -1,0 +1,49 @@
+{
+ "program": "antefinance",
+ "repos": [
+  {
+   "repo": "https://github.com/antefinance/ante-v05-core",
+   "ref": "v0.5",
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "2781ec30a4dc36c408974b30375ecd2358514b1e",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": "UNLICENSED",
+    "headers": {
+     "GPL-3.0-only": 20,
+     "MIT": 3
+    },
+    "headers_main": {
+     "GPL-3.0-only": 15,
+     "MIT": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 23
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "3.4.2",
+    "node_modules/@uniswap/v2-periphery": "1.1.0-beta.0",
+    "node_modules/@uniswap/lib": "1.1.1",
+    "node_modules/@uniswap/v2-core": "1.0.0"
+   },
+   "copied": true,
+   "files": 220,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "antefinance__ante-v05-core",
+   "subtrees": [
+    {
+     "prefix": "antefinance__ante-v05-core",
+     "url": "https://github.com/antefinance/ante-v05-core",
+     "commit": "2781ec30a4dc36c408974b30375ecd2358514b1e",
+     "files": 26
+    }
+   ]
+  }
+ ]
+}
