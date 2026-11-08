@@ -215,8 +215,7 @@ what it reads, decided with the loop's inside floors -, an IF's floors in
 the copy walk by the floors before it, `floored()` by the facts' identity;
 and a floor of 0, or of 2^63 and more, is never kept: it says nothing, and
 `floored()` would read its variable as a fresh atom, the conditions about
-the variable lost. Then (8 November, the corpus texts 1.5 times cxx23's
-CPU before, 1.4 after): a pass makes floors only of the words its trace
+the variable lost. Then (8 November): a pass makes floors only of the words its trace
 reads at a constant address, or gives a value that isn't a constant
 (`FloorScope`: `floored()` reads a word's floor only where an expression
 reads the word, and a variable set to a word's floor gets it - a
@@ -227,7 +226,11 @@ with them - and reading a variable as its floor plus d may lose what the
 ranges know of its value). What is left of the cost is mostly the forward
 memory pass's comparisons of each write with the pieces it keeps, now
 that the floors keep more of them and the variables' floors make the
-positions compared larger.
+positions compared larger. Measured on the 861 texts in one run, the
+builds interleaved: 85e7ce3123 (before the floors) 51.2 s of user time,
+cxx23 at 33930c6935 (the floors, and the bytes getter's boundary worlds)
+84.6 s, with these two changes 78.3 s (0x032_Exchange 16.4, 28.8, 23.0 s);
+the 834 contracts under 0.3 s each 17.3, 29.3, 29.1 s.
 
 ### Soundness
 
