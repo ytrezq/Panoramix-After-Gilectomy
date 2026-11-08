@@ -154,7 +154,18 @@ Value word_value(Value x) { return x.is(Op::SIZED, 2) && x[0] == small(32) ? x[1
 // SETMEM and the CONTINUE - or before them a SETVAR of the SETMEM's value to
 // a name the function reads nowhere (kept for msize: the SETMEM reads the
 // same bytes), dropped.
-Value to_setmem(Value w, const RewriteOptions& opts, const alg::Facts* facts, const Unread* unread) {
+//
+// copy (when not null): for a loop counting bytes up from 0 in steps of 32
+// while below L, the address moving with the counter, what it wrote: from
+// p_lo, ceil32(L) bytes of `value` where its first L bytes are `exact` -
+// what the walk may cut to L bytes when the next line covers the rest
+// (cut_tail).
+struct WordCopy {
+    Value p_lo, len, exact;  // NIL exact: none
+};
+Value to_setmem(Value w, const RewriteOptions& opts, const alg::Facts* facts, const Unread* unread,
+                WordCopy* copy = nullptr) {
+    if (copy) *copy = WordCopy{};
     if (!w.is(Op::WHILE, 4)) return w;
     const Value body = w[1], sv = w[3];
     if (!body.is_list() || !sv.is_list()) return w;
@@ -251,7 +262,40 @@ Value to_setmem(Value w, const RewriteOptions& opts, const alg::Facts* facts, co
     SmallVec<Value, 8> lines;
     for (Value e : finals.args()) lines.push_back(e);
     lines.push_back(set);
+    if (copy && up && ind->start == small(0) && ind->step == small(32) && ind->offset == small(0) &&
+        ind->cmp == Cmp::Lt) {
+        // (a counter of bytes from 0 while below L: trips ceil(L / 32), the
+        // range ceil32(L) bytes from p_lo, fewer than 32 of them past L; its
+        // bytes [p_lo, p_lo + L): the same source cut there)
+        const Value L = ind->bound;
+        Value exact;
+        if (value == small(0))
+            exact = small(0);
+        else if (value.is(Op::MEM, 1))
+            exact = mk(Op::MEM, mem::make_range(value[0][0], L));
+        else if (value.is(Op::CALLDATA_BYTES, 2))
+            exact = mk(Op::CALLDATA_BYTES, value[0], L);
+        if (!exact.nil() && !reads_any(exact, ns) && !reads_any(L, ns)) *copy = WordCopy{p_lo, L, exact};
+    }
     return mk_trace(lines.span());
+}
+
+// A copy in words of L bytes (WordCopy: ceil32(L) bytes written from p_lo)
+// followed by a write over [p_lo + L, p_lo + L + n), n >= 32, whose value
+// reads no memory: the bytes past L the copy writes, fewer than 32, are
+// written again by that line before anything reads them - the copy cut to
+// L bytes is the same (what MCOPY's copy of L bytes prints). Not where the
+// trace reads msize (the source read ceil32(L) bytes far may grow it more)
+// or may return to a caller who does (LEAVE, an internal call).
+Value cut_tail(Value set, const WordCopy& c, Value next) {
+    if (c.exact.nil() || !set.is(Op::SETMEM, 2) || !next.is(Op::SETMEM, 2)) return set;
+    const Value r = next[0];
+    if (!r.is(Op::RANGE, 2) || !r[1].is_int() || EvmInt(r[1]) < EvmInt(32)) return set;
+    if (next[1].has_flags(F_MEM) || next[1].has_flags(F_MSIZE)) return set;
+    if (r[0] != alg::add(c.p_lo, c.len)) return set;
+    Value cut = mk(Op::SETMEM, mem::make_range(c.p_lo, c.len), c.exact);
+    cx().pcs.inherit(cut, set);
+    return cut;
 }
 
 // The SETVARs of a LIST of them as lines, in an order that sets them all at
@@ -377,14 +421,17 @@ bool drop_counting(Value w, const alg::Facts* facts, SmallVec<Value, 32>& out) {
 // forgotten after it, what a loop writes in it and after it)
 class SetmemWalk {
 public:
-    SetmemWalk(const RewriteOptions& o, const Unread& u) : opts_(o), unread_(u) {}
+    // cut: copies in words may be cut where the next line covers their
+    // tail (cut_tail: the trace reads no msize)
+    SetmemWalk(const RewriteOptions& o, const Unread& u, bool cut) : opts_(o), unread_(u), cut_(cut) {}
 
     Value trace(Value t, alg::Facts facts) {
         if (!t.is_list() || !t.has_flags(F_LOOPCTL)) return t;
         check_stack();
         SmallVec<Value, 32> out;
         bool changed = false;
-        for (Value l : t.args()) {
+        for (u32 i = 0; i < t.size(); ++i) {
+            const Value l = t[i];
             poll();
             if (!l.is_expr()) {
                 out.push_back(l);
@@ -422,9 +469,11 @@ public:
                     Value b = trace(l[1], head.with(l[0], true));
                     Value x = b == l[1] ? l : mk(Op::WHILE, l[0], b, l[2], l[3]);
                     if (x != l) cx().pcs.inherit(x, l);
-                    Value r = to_setmem(x, opts_, &head, &unread_);
+                    WordCopy copy;
+                    Value r = to_setmem(x, opts_, &head, &unread_, cut_ ? &copy : nullptr);
                     if (r.is_list()) {
-                        for (Value y : r.args()) out.push_back(y);
+                        for (u32 k = 0; k < r.size(); ++k)
+                            out.push_back(k + 1 == r.size() && i + 1 < t.size() ? cut_tail(r[k], copy, t[i + 1]) : r[k]);
                         changed = true;
                     } else if (run_once(x, &head, once_) || drop_counting(x, &head, once_)) {
                         for (Value y : once_) out.push_back(y);
@@ -448,6 +497,7 @@ public:
 private:
     const RewriteOptions& opts_;
     const Unread& unread_;
+    const bool cut_;
     SmallVec<Value, 32> once_;
 };
 
@@ -462,7 +512,10 @@ Value loops_to_setmems(Value trace, const RewriteOptions& opts) {
     const simplify::EffectSummary& all = simplify::summary(trace);
     unread.known = !(all.reads_any & simplify::S_VARS);
     unread.reads = all.var_reads;
-    SetmemWalk walk(opts, unread);
+    // (msize read: by the trace, or by a caller it may return to)
+    const bool msize = trace.has_flags(F_MSIZE) || (all.reads & simplify::S_MSIZE) ||
+                       (all.control & (simplify::C_LEAVES | simplify::C_CALLS_OUT));
+    SetmemWalk walk(opts, unread, !msize);
     return walk.trace(trace, alg::Facts{});
 }
 

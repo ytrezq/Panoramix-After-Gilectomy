@@ -443,6 +443,62 @@ TEST_CASE("loops: a loop that runs once or never") {
                  pass_setmems));
 }
 
+TEST_CASE("loops: a copy in words cut to its length where the next line covers its tail") {
+    Fixture f;
+    // solc's copy_memory_to_memory_with_cleanup: the words copied, then
+    // mstore(dst + len, 0) - MCOPY of len bytes in the cancun build
+    const char* cleanup =
+        "{(setmem (range 0 1024) (calldata_bytes 4 1024))"
+        " (setvar tmp4 (mask_shl 8 0 0 (calldataload 4)))"
+        " (while (lt loop0 tmp4) {(setmem (range (add 512 loop0) 32) (mem (range (add 64 loop0) 32))) (continue loopid1 "
+        "{(setvar loop0 (add 32 loop0))})} loopid1 {(setvar loop0 0)})"
+        " (setmem (range (add 512 tmp4) 32) (sized 32 0))"
+        " (return (mem (range 0 1024)))}";
+    CHECK(check(cleanup, pass_setmems));
+    auto has = [](auto&& self, Value v, Value x) -> bool {
+        if (v == x) return true;
+        if (!(v.is_expr() || v.is_list())) return false;
+        for (Value a : v.children())
+            if (self(self, a, x)) return true;
+        return false;
+    };
+    {
+        Value t = V(cleanup);
+        Vars vars(t);
+        CHECK(has(has, pass_setmems(t), V("(setmem (range 512 tmp4) (mem (range 64 tmp4)))")));
+    }
+    // ... not where the next line leaves bytes of the tail as the copy wrote them
+    const char* short_cover =
+        "{(setmem (range 0 1024) (calldata_bytes 4 1024))"
+        " (setvar tmp4 (mask_shl 8 0 0 (calldataload 4)))"
+        " (while (lt loop0 tmp4) {(setmem (range (add 512 loop0) 32) (mem (range (add 64 loop0) 32))) (continue loopid1 "
+        "{(setvar loop0 (add 32 loop0))})} loopid1 {(setvar loop0 0)})"
+        " (setmem (range (add 512 tmp4) 1) (sized 1 0))"
+        " (return (mem (range 0 1024)))}";
+    CHECK(check(short_cover, pass_setmems));
+    {
+        Value t = V(short_cover);
+        Vars vars(t);
+        Value u = pass_setmems(t);
+        CHECK(!has_while(u));
+        CHECK(!has(has, u, V("(setmem (range 512 tmp4) (mem (range 64 tmp4)))")));
+    }
+    // ... nor where the trace reads msize (the source read further moves it)
+    const char* msize =
+        "{(setmem (range 0 1024) (calldata_bytes 4 1024))"
+        " (setvar tmp4 (mask_shl 8 0 0 (calldataload 4)))"
+        " (while (lt loop0 tmp4) {(setmem (range (add 512 loop0) 32) (mem (range (add 1000 loop0) 32))) (continue "
+        "loopid1 {(setvar loop0 (add 32 loop0))})} loopid1 {(setvar loop0 0)})"
+        " (setmem (range (add 512 tmp4) 32) (sized 32 0))"
+        " (return (data (mem (range 0 1024)) (sized 32 msize)))}";
+    CHECK(check(msize, pass_setmems));
+    {
+        Value t = V(msize);
+        Vars vars(t);
+        CHECK(!has(has, pass_setmems(t), V("(setmem (range 512 tmp4) (mem (range 1000 tmp4)))")));
+    }
+}
+
 TEST_CASE("loops: a counting loop (a copy whose writes were dead) dropped where it ends") {
     Fixture f;
     // a bound of 8 bits, a step of 32: its trips and its counter's last value
