@@ -24,7 +24,9 @@
 ##   B=build    the build directory: each worker its own, B=build-NAME
 ##   V=1        show the commands
 ##   JOBS=2     the contracts decompiled at once by the PGO training run
-##   CORPUS     a list of .hex files (or a directory, or .hex files)
+##   CORPUS     a list of .hex files (or a directory, or .hex files): by
+##              default corpus-npm/all_hex.txt, which
+##              `tools/fetch_corpus.sh corpus-npm` makes (861 contracts)
 ##   SIGDB, ABI_DUMP, ASM, ASM_SIGDB, PYTHON, TEST_ARGS, BENCH_ARGS,
 ##   EXTRA_CXXFLAGS, EXTRA_LDFLAGS (experiments only: the flags are fixed)
 ## -j2 at most: the machine has 2 CPUs shared by every worker.
@@ -52,8 +54,8 @@ B         ?= build
 V         ?= 0
 VARIANT   ?= release
 JOBS      ?= 2
-CORPUS    ?= /tmp/claude-0/-home-claude/0fe601fa-3d3d-56af-9a22-c5068d00d0e0/scratchpad/prof/all_hex.txt
-ABI_DUMP  ?= /home/claude/panoramix/panoramix/data/abi_dump.xz
+CORPUS    ?= $(abspath corpus-npm/all_hex.txt)
+ABI_DUMP  ?= $(or $(PANORAMIX_ABI_DUMP),/home/claude/panoramix/panoramix/data/abi_dump.xz)
 SIGDB     ?= $(B)/sigdb2.bin
 ASM       ?= $(abspath ../build/panasm)
 ASM_SIGDB ?= $(abspath ../build/abi_db.bin)
@@ -259,7 +261,7 @@ validate: $(VAL_BINS) $(VAL_LIB) $(EVM_LIB)
 # the stage checks over the corpus (validate/stage_check: evmone vs each
 # stage's trace run by the trace machine), niced: it is long
 STAGECHECK_ARGS ?=
-stagecheck: $(D)/stagecheck
+stagecheck: corpus-check $(D)/stagecheck
 	$(Q)nice -n 10 $(D)/stagecheck --corpus $(CORPUS) -j $(JOBS) --quiet $(STAGECHECK_ARGS)
 
 help:
@@ -273,8 +275,14 @@ $(SIGDB): $(ABI_DUMP) $(B)/pancxx
 	$(call say,BUILDDB,$@)
 	$(Q)$(B)/pancxx build-db $(ABI_DUMP) $@.tmp && mv -f $@.tmp $@
 
+# the corpus of the targets that read one, before they build anything: there,
+# or a word on how to get it
+corpus-check:
+	@test -e $(firstword $(CORPUS)) || { echo "CORPUS=$(CORPUS): no such file -" \
+	  "tools/fetch_corpus.sh corpus-npm makes the default one, or give CORPUS=LIST" >&2; exit 1; }
+
 ifeq ($(VARIANT),release)
-pgo: $(SIGDB)
+pgo: corpus-check $(SIGDB)
 	@find $(B)/pgo -name '*.gcda' -delete 2>/dev/null; true
 	$(Q)$(MAKE) VARIANT=pgo-gen cli
 	$(call say,TRAIN,$(CORPUS))
@@ -285,7 +293,7 @@ pgo: $(SIGDB)
 debug:
 	$(Q)$(MAKE) VARIANT=debug lib cli unit
 
-bench: all $(SIGDB)
+bench: corpus-check all $(SIGDB)
 	$(Q)$(PYTHON) tools/bench.py --asm $(ASM) --asm-sigdb $(abspath $(ASM_SIGDB)) \
 	  --cxx $(B)/pancxx --pgo $(B)/pgo/pancxx --sigdb $(abspath $(SIGDB)) $(BENCH_ARGS) $(CORPUS)
 endif
@@ -293,7 +301,7 @@ endif
 clean:
 	rm -rf $(B)
 
-.PHONY: all lib cli pymod check unit pytests validate stagecheck help sigdb pgo debug bench clean FORCE
+.PHONY: all lib cli pymod check unit pytests validate stagecheck help sigdb pgo debug bench clean corpus-check FORCE
 FORCE:
 
 # --- the links ------------------------------------------------------------------

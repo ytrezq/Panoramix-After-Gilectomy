@@ -31,8 +31,8 @@ builds in its own directory, `B=build-NAME` (`build*/` is ignored by git).
 | `V` | `0` | `V=1` shows the commands |
 | `VARIANT` | `release` | `debug`; `pgo-gen` / `pgo-use` are `make pgo`'s phases |
 | `JOBS` | `2` | contracts decompiled at once by the PGO training |
-| `CORPUS` | the scratchpad's `prof/all_hex.txt` (1121 contracts) | a list of `.hex` paths, a directory, or `.hex` files |
-| `ABI_DUMP` | `/home/claude/panoramix/panoramix/data/abi_dump.xz` | for `sigdb` |
+| `CORPUS` | `corpus-npm/all_hex.txt`, made by `tools/fetch_corpus.sh corpus-npm` (861 contracts) | a list of `.hex` paths, a directory, or `.hex` files |
+| `ABI_DUMP` | `$PANORAMIX_ABI_DUMP`, else `/home/claude/panoramix/panoramix/data/abi_dump.xz` | for `sigdb`: python panoramix's `panoramix/data/abi_dump.xz` |
 | `SIGDB` | `$(B)/sigdb2.bin` | the C++ CLI's database (not the asm's format) |
 | `ASM`, `ASM_SIGDB` | `../build/panasm`, `../build/abi_db.bin` | the asm, for `bench` |
 | `TEST_ARGS`, `BENCH_ARGS` | | passed to the doctest binary, to `bench.py` |
