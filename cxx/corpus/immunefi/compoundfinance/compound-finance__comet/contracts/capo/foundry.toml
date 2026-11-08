@@ -1,0 +1,13 @@
+[profile.default]
+src = "contracts"
+out = "out"
+libs = ["node_modules", "lib"]
+test = "test"
+cache_path  = "cache_forge"
+via_ir = true
+optimizer = true
+solc_version = "0.8.15"
+
+[fuzz]
+runs = 5000
+max_test_rejects = 150000
