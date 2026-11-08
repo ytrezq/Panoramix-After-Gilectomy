@@ -1,0 +1,27 @@
+[profile.default]
+src = 'contracts'
+test = 'test/foundry'
+script = 'script'
+out = 'out'
+libs = ['lib']
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
+    "openzeppelin-solidity/=node_modules/openzeppelin-solidity"
+    ]
+optimizer = true
+optimizer-runs = 10
+auto_detect_solc = true
+fs_permissions = [{ access = "read", path = "./out"}, { access = "read-write", path = "./test/foundry"}]
+
+compilation_restrictions = [
+    { paths = "contracts/upgradeable_contracts/erc20_to_native/{BridgeRouter,XDaiBridgePeripheral,XDaiBridgePeripheralForDaiPreUsdsUpgrade,XDaiBridgePeripheralForUsdsPreUsdsUpgrade}.sol", version = "=0.8.25" },
+    { paths = "contracts/upgradeability/TransparentUpgradeableProxy.sol", version = "=0.8.25" },
+]
+
+
+
+[fuzz]
+runs=2000
+
+# See more config options https://github.com/gakonst/foundry/tree/master/config

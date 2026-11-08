@@ -1,0 +1,37 @@
+{
+  "name": "deploy",
+  "version": "1.0.0",
+  "description": "",
+  "main": "deploy.js",
+  "scripts": {
+    "compile": "pkg deploy.js --out-path build/tmp_build",
+    "lint": "eslint .",
+    "deploy": "if test \"$NOFLAT\" != \"true\" ; then cd ..; npm run flatten; cd deploy; fi && node deploy.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.19.0",
+    "bignumber.js": "^7.2.1",
+    "dotenv": "^5.0.1",
+    "envalid": "^4.1.4",
+    "ethereumjs-tx": "^1.3.4",
+    "node-fetch": "^2.1.2",
+    "promise-retry": "^1.1.1",
+    "querystring": "^0.2.0",
+    "web3": "^1.2.9"
+  },
+  "devDependencies": {
+    "eslint": "^5.6.0",
+    "eslint-config-airbnb-base": "^13.1.0",
+    "eslint-config-prettier": "^3.0.1",
+    "eslint-plugin-import": "^2.14.0",
+    "eslint-plugin-node": "^7.0.1",
+    "eslint-plugin-prettier": "^2.6.2",
+    "pkg": "^4.3.1",
+    "prettier": "^1.14.3"
+  },
+  "engines": {
+    "node": ">= 8.9"
+  }
+}
