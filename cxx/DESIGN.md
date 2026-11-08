@@ -749,13 +749,13 @@ normal form, `alg::same_value`), never sampled - else it is printed raw.
 A bytes getter becomes `return name[all]` only when the trace machine
 runs both with the same RETURN or REVERT bytes on a complete set of
 boundary worlds (`storage/getters.cpp`, checked, not proven): every length
-and slot-word form up to where the code can treat lengths apart (0 to 127),
-every residue mod 32 at 3, 4, 2^13 and 16,320 words (the most the check
-machine's 1 MiB memory holds with the bytes copied twice; 2^16 words would
-need 4 MiB), garbage wherever an encoding has bytes past the length, the
-neighbouring slots set; the storage made of fixed patterns, so the verdict
-is the same on every run. Everything is made aside and swapped in at the
-end.
+from 0 to 159 under the long form's flag and from 0 to 127 under the short
+form's (an even slot word can't say more), every residue mod 32 at 2^13 and
+16,320 words (the most the check machine's 1 MiB memory holds with the
+bytes copied twice; 2^16 words would need 4 MiB), garbage wherever an
+encoding has bytes past the length, the neighbouring slots set; the storage
+made of fixed patterns, so the verdict is the same on every run.
+Everything is made aside and swapped in at the end.
 
 ### The folder and the ast (lot 10, `src/output/`)
 
@@ -1006,6 +1006,31 @@ stage 0 different, 0 bugs - 78,022 calls, 77,732 the same, 290 inconclusive (all
 0 unparsed lines, empty world 39,059 calls, 39,017 the same, 0 different; random world
 39,063, 38,549 the same, 0 different. Unit tests: 368 cases, 247,151 assertions, 0 failures.
 
+**A bytes getter on boundary worlds** (8 Nov; `storage/getters.cpp`): a getter of a bytes or
+string became `return name[all]` where the trace machine ran both alike on about 100
+worlds - 13 lengths and up to 48 drawn around the trace's numbers, garbage past the length
+on 12 of them, a few encodings no solc makes, no neighbouring slot set - and a turn at
+another length went unseen (the unit test's: `''` at residue 13 past 64 bytes, or past
+300,000 bytes, taken for `return stor0[all]`). Proving the copy instead (the trace returns
+the ABI encoding whatever the bytes past the length hold) would have needed a proof engine
+of 800 to 1,000 lines for what refusing would cost: 214 names in the npm corpus (105
+contracts), 266 in the sample (143 artifacts). The check now runs the fixed set above, the
+same verdict on every run. Counted on cxx23 with it merged (three times: 85e7ce3, 2491ac4
+and 192290c), before and after: the npm corpus 293 getters checked, 226 accepted (108
+contracts) and 67 refused, the same verdict for each, no text changed; the sample 442
+checked, 299 accepted (170 artifacts) and 143 refused, the same verdict for each, no text
+changed (RocketUpgradeOneDotFour's three builds moved between runs of either build: its
+simplification meets its time limit). The price is the large worlds (every residue at 2^13
+and 16,320 words, the original's run and the candidate's): about 0.05 s per accepted
+getter - WETH 0.02 s -> 0.12 s; the texts' CPU time 87.6 s -> 93.7 s for the npm corpus
+(+7%) and 279.7 s -> 308.8 s for the sample (+10%; +4% to +20% in the runs on a loaded
+machine) - half what it was before Word256's conversions became byte swaps. On the 278
+contracts with an accepted getter (108 + 170), on 192290c: stagecheck (every stage) 0
+different, 0 bugs - 58,694 calls, 58,405 the same, 289 inconclusive (287 evmone's, 2
+exhausted); text_check 0 unparsed lines, empty world 29,438 calls, 29,436 the same, 0
+different; random world 29,438, 28,892 the same, 0 different (320 unsupported: a storage
+bytes of an invalid encoding). Unit tests: 397 cases, 248,292 assertions, 0 failures.
+
 **The source corpus** (branch `corpus`, `tools/build_corpus.py` and
 `tools/compare_source.py` there): the EVM programs of Immunefi's bug bounties with their
 sources, compiled for several EVM versions by the compilers their projects ask; per
@@ -1198,8 +1223,9 @@ stagechecks above: 0 different at every stage they ran):
   6 blocks the asm lacks).
 - **The storage SALL copy** (lot 9): a bytes read reads what solidity's
   copy to memory reads whatever the slot holds - short or long by the
-  decoded length, exactly that many bytes - so a getter's rewrite holds on
-  any storage. Storage copy loops: 32 left in the corpus, the asm's 185.
+  decoded length, exactly that many bytes - so a getter's rewrite can hold
+  on any storage (it is checked on boundary worlds, `storage/getters.cpp`).
+  Storage copy loops: 32 left in the corpus, the asm's 185.
 - **Call results and gas reads kept apart in the text** (lot 10, triage
   issues 3 and 9): a call's result read where another call may have run
   since, and a gas read printed with or after another, get a variable, as
