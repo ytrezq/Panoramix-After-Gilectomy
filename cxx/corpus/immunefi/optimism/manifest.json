@@ -1,0 +1,257 @@
+{
+ "program": "optimism",
+ "repos": [
+  {
+   "repo": "https://github.com/ethereum-optimism/optimism",
+   "ref": "develop",
+   "scope_paths": [
+    "packages/contracts-bedrock"
+   ],
+   "fetched": "2026-11-07",
+   "note": "scope links name develop (op-node, op-dispute-mon, op-reth); the in-scope L1/L2 contracts are packages/contracts-bedrock",
+   "commit": "fa3efe5b49ecc42007dfd4fcb79bd5d70f78f98f",
+   "submodules": [
+    {
+     "path": "packages/contracts-bedrock/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "0a2cb9a445c365870ed7a8ab461b12acf3e27d63"
+    },
+    {
+     "path": "packages/contracts-bedrock/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "ecd2ca2cd7cac116f7a37d0e474bbb3d7d5e1c4d"
+    },
+    {
+     "path": "packages/contracts-bedrock/lib/solmate",
+     "url": "https://github.com/transmissions11/solmate",
+     "commit": "8f9b23f8838670afda0fd8983f2c41e8037ae6bc"
+    },
+    {
+     "path": "packages/contracts-bedrock/lib/solmate/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "c7a36fb236f298e04edf28e2fee385b80f53945f"
+    },
+    {
+     "path": "packages/contracts-bedrock/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "f3dae6e6ee381f25eb6a246f7da9b85c91a68219"
+    },
+    {
+     "path": "packages/contracts-bedrock/lib/safe-contracts",
+     "url": "https://github.com/safe-global/safe-contracts",
+     "commit": "bf943f80fec5ac647159d26161446ac5d716a294"
+    },
+    {
+     "path": "packages/contracts-bedrock/lib/kontrol-cheatcodes",
+     "url": "https://github.com/runtimeverification/kontrol-cheatcodes",
+     "commit": "2c48ae1ab44228c199dca29414c0b4b18a3434e6"
+    },
+    {
+     "path": "packages/contracts-bedrock/lib/solady",
+     "url": "https://github.com/Vectorized/solady",
+     "commit": "502cc1ea718e6fa73b380635ee0868b0740595f0"
+    },
+    {
+     "path": "packages/contracts-bedrock/lib/solady/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    },
+    {
+     "path": "packages/contracts-bedrock/lib/lib-keccak",
+     "url": "https://github.com/ethereum-optimism/lib-keccak",
+     "commit": "3b1e7bbb4cc23e9228097cfebe42aedaf3b8f2b9"
+    },
+    {
+     "path": "packages/contracts-bedrock/lib/lib-keccak/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "155d547c449afa8715f538d69454b83944117811"
+    },
+    {
+     "path": "packages/contracts-bedrock/lib/lib-keccak/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "packages/contracts-bedrock/lib/lib-keccak/lib/solady",
+     "url": "https://github.com/vectorized/solady",
+     "commit": "dcdddfd2b1b26353e96dbd75ec81db88f352384c"
+    },
+    {
+     "path": "packages/contracts-bedrock/lib/lib-keccak/lib/solady/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    },
+    {
+     "path": "packages/contracts-bedrock/lib/openzeppelin-contracts-v5",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "packages/contracts-bedrock/lib/openzeppelin-contracts-v5/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "packages/contracts-bedrock/lib/openzeppelin-contracts-v5/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "packages/contracts-bedrock/lib/openzeppelin-contracts-v5/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "superchain-registry",
+     "url": "https://github.com/ethereum-optimism/superchain-registry",
+     "commit": "13907b9bc2b8ac83b37c9c95883b5a4ef41cc6fb"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "MIT",
+    "package_json": null,
+    "headers": {
+     "MIT": 522,
+     "GPL-3.0": 1,
+     "Apache-2.0": 1,
+     "LGPL-3.0-only": 1,
+     "UNLICENSED": 2,
+     "(none)": 11
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 538
+   },
+   "npm": {},
+   "copied": true,
+   "files": 2195,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "ethereum-optimism__optimism",
+   "subtrees": [
+    {
+     "prefix": "ethereum-optimism__optimism",
+     "url": "https://github.com/ethereum-optimism/optimism",
+     "commit": "fa3efe5b49ecc42007dfd4fcb79bd5d70f78f98f",
+     "files": 606
+    },
+    {
+     "prefix": "ethereum-optimism__optimism/superchain-registry",
+     "url": "https://github.com/ethereum-optimism/superchain-registry",
+     "commit": "13907b9bc2b8ac83b37c9c95883b5a4ef41cc6fb",
+     "files": 1
+    },
+    {
+     "prefix": "ethereum-optimism__optimism/packages/contracts-bedrock/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "0a2cb9a445c365870ed7a8ab461b12acf3e27d63",
+     "files": 278
+    },
+    {
+     "prefix": "ethereum-optimism__optimism/packages/contracts-bedrock/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "ecd2ca2cd7cac116f7a37d0e474bbb3d7d5e1c4d",
+     "files": 282
+    },
+    {
+     "prefix": "ethereum-optimism__optimism/packages/contracts-bedrock/lib/solmate",
+     "url": "https://github.com/transmissions11/solmate",
+     "commit": "8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
+     "files": 65
+    },
+    {
+     "prefix": "ethereum-optimism__optimism/packages/contracts-bedrock/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "f3dae6e6ee381f25eb6a246f7da9b85c91a68219",
+     "files": 57
+    },
+    {
+     "prefix": "ethereum-optimism__optimism/packages/contracts-bedrock/lib/safe-contracts",
+     "url": "https://github.com/safe-global/safe-contracts",
+     "commit": "bf943f80fec5ac647159d26161446ac5d716a294",
+     "files": 48
+    },
+    {
+     "prefix": "ethereum-optimism__optimism/packages/contracts-bedrock/lib/kontrol-cheatcodes",
+     "url": "https://github.com/runtimeverification/kontrol-cheatcodes",
+     "commit": "2c48ae1ab44228c199dca29414c0b4b18a3434e6",
+     "files": 1
+    },
+    {
+     "prefix": "ethereum-optimism__optimism/packages/contracts-bedrock/lib/solady",
+     "url": "https://github.com/Vectorized/solady",
+     "commit": "502cc1ea718e6fa73b380635ee0868b0740595f0",
+     "files": 161
+    },
+    {
+     "prefix": "ethereum-optimism__optimism/packages/contracts-bedrock/lib/lib-keccak",
+     "url": "https://github.com/ethereum-optimism/lib-keccak",
+     "commit": "3b1e7bbb4cc23e9228097cfebe42aedaf3b8f2b9",
+     "files": 6
+    },
+    {
+     "prefix": "ethereum-optimism__optimism/packages/contracts-bedrock/lib/openzeppelin-contracts-v5",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3",
+     "files": 250
+    },
+    {
+     "prefix": "ethereum-optimism__optimism/packages/contracts-bedrock/lib/solmate/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "c7a36fb236f298e04edf28e2fee385b80f53945f",
+     "files": 4
+    },
+    {
+     "prefix": "ethereum-optimism__optimism/packages/contracts-bedrock/lib/solady/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5",
+     "files": 4
+    },
+    {
+     "prefix": "ethereum-optimism__optimism/packages/contracts-bedrock/lib/lib-keccak/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "155d547c449afa8715f538d69454b83944117811",
+     "files": 45
+    },
+    {
+     "prefix": "ethereum-optimism__optimism/packages/contracts-bedrock/lib/lib-keccak/lib/solady",
+     "url": "https://github.com/vectorized/solady",
+     "commit": "dcdddfd2b1b26353e96dbd75ec81db88f352384c",
+     "files": 161
+    },
+    {
+     "prefix": "ethereum-optimism__optimism/packages/contracts-bedrock/lib/openzeppelin-contracts-v5/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb",
+     "files": 35
+    },
+    {
+     "prefix": "ethereum-optimism__optimism/packages/contracts-bedrock/lib/openzeppelin-contracts-v5/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
+     "files": 3
+    },
+    {
+     "prefix": "ethereum-optimism__optimism/packages/contracts-bedrock/lib/lib-keccak/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    },
+    {
+     "prefix": "ethereum-optimism__optimism/packages/contracts-bedrock/lib/lib-keccak/lib/solady/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5",
+     "files": 4
+    },
+    {
+     "prefix": "ethereum-optimism__optimism/packages/contracts-bedrock/lib/openzeppelin-contracts-v5/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b",
+     "files": 5
+    }
+   ]
+  }
+ ]
+}
