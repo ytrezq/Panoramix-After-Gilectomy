@@ -1,0 +1,50 @@
+{
+  "name": "@redstone-finance/chain-orchestrator",
+  "version": "0.9.0",
+  "main": "dist/src/index.js",
+  "exports": "./dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "license": "MIT",
+  "scripts": {
+    "run-ts": "yarn global:ts-node",
+    "clean": "yarn global:ts-clean",
+    "build": "yarn global:tsc -p tsconfig.build.json",
+    "build:turbo": "yarn global:turbo build",
+    "typecheck": "yarn global:tsc --noEmit",
+    "typecheck:turbo": "yarn global:turbo typecheck",
+    "lint": "yarn global:eslint .",
+    "lint:fix": "yarn global:eslint --fix .",
+    "preversion": "yarn build",
+    "test": ""
+  },
+  "dependencies": {
+    "@mysten/sui": "1.37.3",
+    "@redstone-finance/canton-connector": "workspace:*",
+    "@redstone-finance/chain-configs": "workspace:*",
+    "@redstone-finance/evm-adapters": "workspace:*",
+    "@redstone-finance/fuel-connector": "workspace:*",
+    "@redstone-finance/internal-utils": "workspace:*",
+    "@redstone-finance/move-connector": "workspace:*",
+    "@redstone-finance/multichain-kit": "workspace:*",
+    "@redstone-finance/on-chain-relayer-common": "workspace:*",
+    "@redstone-finance/radix-connector": "workspace:*",
+    "@redstone-finance/rpc-providers": "workspace:*",
+    "@redstone-finance/sdk": "workspace:*",
+    "@redstone-finance/solana-connector": "workspace:*",
+    "@redstone-finance/stellar-connector": "workspace:*",
+    "@redstone-finance/sui-connector": "workspace:*",
+    "@redstone-finance/utils": "workspace:*",
+    "@solana/web3.js": "^1.98.2",
+    "@stellar/stellar-sdk": "14.4.3",
+    "ethers": "^5.7.2",
+    "fuels": "^0.97.0",
+    "lodash": "^4.17.23"
+  },
+  "files": [
+    "src",
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
