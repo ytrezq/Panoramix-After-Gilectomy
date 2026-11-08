@@ -46,20 +46,17 @@
     {
      "prefix": "LayerZero-Labs__LayerZero-v2",
      "url": "https://github.com/LayerZero-Labs/LayerZero-v2",
-     "commit": "9c741e7f9790639537b1710a203bcdfd73b0b9ac",
-     "files": 250
+     "commit": "9c741e7f9790639537b1710a203bcdfd73b0b9ac"
     },
     {
      "prefix": "LayerZero-Labs__LayerZero-v2/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "2f112697506eab12d433a65fdc31a639548fe365",
-     "files": 45
+     "commit": "2f112697506eab12d433a65fdc31a639548fe365"
     },
     {
      "prefix": "LayerZero-Labs__LayerZero-v2/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ],
    "npm": {
