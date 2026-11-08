@@ -33,8 +33,7 @@
     {
      "prefix": "axelarnetwork__interchain-token-service",
      "url": "https://github.com/axelarnetwork/interchain-token-service",
-     "commit": "0f4b03706c79ed9c364edd080aca4ae23a7e3642",
-     "files": 73
+     "commit": "0f4b03706c79ed9c364edd080aca4ae23a7e3642"
     }
    ]
   },
@@ -69,8 +68,7 @@
     {
      "prefix": "axelarnetwork__axelar-cgp-solidity",
      "url": "https://github.com/axelarnetwork/axelar-cgp-solidity",
-     "commit": "a4367a0006ab5852fe705e7e4cd15ee6d6ea6bef",
-     "files": 45
+     "commit": "a4367a0006ab5852fe705e7e4cd15ee6d6ea6bef"
     }
    ]
   },
@@ -105,8 +103,7 @@
     {
      "prefix": "axelarnetwork__axelar-gmp-sdk-solidity",
      "url": "https://github.com/axelarnetwork/axelar-gmp-sdk-solidity",
-     "commit": "30196ca7cb9479fd5f79f0668523bd2a488093ed",
-     "files": 152
+     "commit": "30196ca7cb9479fd5f79f0668523bd2a488093ed"
     }
    ]
   }
