@@ -62,8 +62,7 @@
     {
      "prefix": "cowprotocol__contracts",
      "url": "https://github.com/cowprotocol/contracts",
-     "commit": "6ebbd810ff2da635fb6f88e9a15fde196f8c852a",
-     "files": 41
+     "commit": "6ebbd810ff2da635fb6f88e9a15fde196f8c852a"
     }
    ]
   }
