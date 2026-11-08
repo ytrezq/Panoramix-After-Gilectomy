@@ -44,8 +44,7 @@
     {
      "prefix": "1inch__fusion-protocol",
      "url": "https://github.com/1inch/fusion-protocol",
-     "commit": "c45a48191e73b5876bd8b5889d364bfb9397d5e1",
-     "files": 17
+     "commit": "c45a48191e73b5876bd8b5889d364bfb9397d5e1"
     }
    ]
   },
@@ -81,8 +80,7 @@
     {
      "prefix": "1inch__token-plugins",
      "url": "https://github.com/1inch/token-plugins",
-     "commit": "d46dbd9223f38875a9fff6ada53022680729cccb",
-     "files": 14
+     "commit": "d46dbd9223f38875a9fff6ada53022680729cccb"
     }
    ]
   },
@@ -119,8 +117,7 @@
     {
      "prefix": "1inch__farming",
      "url": "https://github.com/1inch/farming",
-     "commit": "c10ef53a641e737545b588ac9ad2a7022dd241dd",
-     "files": 15
+     "commit": "c10ef53a641e737545b588ac9ad2a7022dd241dd"
     }
    ]
   },
@@ -157,8 +154,7 @@
     {
      "prefix": "1inch__delegating",
      "url": "https://github.com/1inch/delegating",
-     "commit": "63824545a29792ed8b25859e5146d7bb4e937f67",
-     "files": 11
+     "commit": "63824545a29792ed8b25859e5146d7bb4e937f67"
     }
    ]
   },
@@ -262,92 +258,77 @@
     {
      "prefix": "1inch__cross-chain-swap",
      "url": "https://github.com/1inch/cross-chain-swap",
-     "commit": "15686f0cec194dd79b0755f4c9d24c8a9b0069a7",
-     "files": 67
+     "commit": "15686f0cec194dd79b0755f4c9d24c8a9b0069a7"
     },
     {
      "prefix": "1inch__cross-chain-swap/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "60acb7aaadcce2d68e52986a0a66fe79f07d138f",
-     "files": 49
+     "commit": "60acb7aaadcce2d68e52986a0a66fe79f07d138f"
     },
     {
      "prefix": "1inch__cross-chain-swap/lib/solidity-utils",
      "url": "https://github.com/1inch/solidity-utils",
-     "commit": "94611cc4ddb6c7c55f9d20f3093074ecca5440ba",
-     "files": 54
+     "commit": "94611cc4ddb6c7c55f9d20f3093074ecca5440ba"
     },
     {
      "prefix": "1inch__cross-chain-swap/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "6ef73e33866527291e81cf98ddd1ec8b60d7aac8",
-     "files": 372
+     "commit": "6ef73e33866527291e81cf98ddd1ec8b60d7aac8"
     },
     {
      "prefix": "1inch__cross-chain-swap/lib/limit-order-protocol",
      "url": "https://github.com/1inch/limit-order-protocol",
-     "commit": "b655e74665559450ebf3500c2149b805db8ee229",
-     "files": 54
+     "commit": "b655e74665559450ebf3500c2149b805db8ee229"
     },
     {
      "prefix": "1inch__cross-chain-swap/lib/limit-order-settlement",
      "url": "https://github.com/1inch/limit-order-settlement",
-     "commit": "78a5a68f4814361332e347071513b3d191a630e1",
-     "files": 17
+     "commit": "78a5a68f4814361332e347071513b3d191a630e1"
     },
     {
      "prefix": "1inch__cross-chain-swap/lib/murky",
      "url": "https://github.com/dmfxyz/murky",
-     "commit": "991e371eb1dfa9f86701869eb08ec4e98c3cc0b0",
-     "files": 21
+     "commit": "991e371eb1dfa9f86701869eb08ec4e98c3cc0b0"
     },
     {
      "prefix": "1inch__cross-chain-swap/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
-     "files": 43
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
     },
     {
      "prefix": "1inch__cross-chain-swap/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
-     "files": 3
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
     },
     {
      "prefix": "1inch__cross-chain-swap/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c",
-     "files": 3
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
     },
     {
      "prefix": "1inch__cross-chain-swap/lib/murky/lib/openzeppelin-contracts",
      "url": "https://github.com/openzeppelin/openzeppelin-contracts",
-     "commit": "cb2aaaa04a292887c49839cd958b08a83979d746",
-     "files": 283
+     "commit": "cb2aaaa04a292887c49839cd958b08a83979d746"
     },
     {
      "prefix": "1inch__cross-chain-swap/lib/murky/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "e4aef94c1768803a16fe19f7ce8b65defd027cfd",
-     "files": 47
+     "commit": "e4aef94c1768803a16fe19f7ce8b65defd027cfd"
     },
     {
      "prefix": "1inch__cross-chain-swap/lib/murky/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce",
-     "files": 45
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
     },
     {
      "prefix": "1inch__cross-chain-swap/lib/murky/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "1inch__cross-chain-swap/lib/murky/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ]
   },
@@ -390,8 +371,7 @@
     {
      "prefix": "1inch__limit-order-protocol",
      "url": "https://github.com/1inch/limit-order-protocol",
-     "commit": "7da29889efa2e635611e1caf60f85f595ff7f05f",
-     "files": 57
+     "commit": "7da29889efa2e635611e1caf60f85f595ff7f05f"
     }
    ]
   }
