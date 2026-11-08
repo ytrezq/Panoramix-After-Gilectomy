@@ -1,0 +1,37 @@
+[profile.default]
+src = "src"
+test = "test"
+libs = ["lib"]
+
+[profile.default.fmt]
+wrap_comments = true
+
+
+[profile.build]
+via-ir = true
+test = "/dev/null"
+script = "/dev/null"
+
+
+[profile.test-slow]
+via-ir = false
+
+[profile.test-slow.fuzz]
+runs = 10000
+max_test_rejects = 500000
+
+[profile.test-slow.invariant]
+runs = 64
+depth = 2048
+
+
+[profile.test-fast]
+via-ir = false
+
+[profile.test-fast.fuzz]
+runs = 256
+max_test_rejects = 65536
+
+[profile.test-fast.invariant]
+runs = 16
+depth = 256
