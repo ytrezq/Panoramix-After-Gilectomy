@@ -1,0 +1,43 @@
+{
+ "program": "fbtc",
+ "repos": [
+  {
+   "repo": "https://github.com/fbtc-xyz/fbtc-contract",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "4e4288a417b1f04157264a6fedcccf57470d8c4f",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "LGPL-3.0-only": 16,
+     "UNLICENSED": 4
+    },
+    "headers_main": {
+     "LGPL-3.0-only": 12
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 20
+   },
+   "npm": {},
+   "copied": true,
+   "files": 20,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "fbtc-xyz__fbtc-contract",
+   "subtrees": [
+    {
+     "prefix": "fbtc-xyz__fbtc-contract",
+     "url": "https://github.com/fbtc-xyz/fbtc-contract",
+     "commit": "4e4288a417b1f04157264a6fedcccf57470d8c4f",
+     "files": 23
+    }
+   ]
+  }
+ ]
+}
