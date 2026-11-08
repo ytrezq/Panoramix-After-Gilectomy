@@ -1,0 +1,76 @@
+// SPDX-License-Identifier: MIT
+
+pragma solidity >=0.7.6;
+
+library EthereumConfig {
+  uint256 public constant CHAIN_ID = 1;
+
+  address public constant PROXY_ADMIN = 0xad17E5020954eB3c6d77be9DCDF9DBAB44EdD16E;
+  address public constant OWNER = 0x5a76f841bFe5182f04bf511fC0Ecf88C27189FCB;
+
+  // dHEDGE Contracts
+  address public constant POOL_FACTORY_PROD = 0x96D33bCF84DdE326014248E2896F79bbb9c13D6d;
+  address public constant EASY_SWAPPER_V2_PROD = 0xbDd84294bC8299861A2121F749A25EFEb7168a32;
+  address public constant SLIPPAGE_ACCUMULATOR_PROD = 0x1C6cC699FD73964F32c55Fe3208D47158Bfad8Cd;
+  address public constant USD_PRICE_AGGREGATOR_PROD = 0x4D4010338beD13483CC85de051d28d2B4f3b6484;
+
+  // Tokens
+  address public constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+  address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+  address public constant WBTC = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
+  address public constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
+  address public constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+  address public constant PT_USDe_JUL_2025 = 0x917459337CaAC939D41d7493B3999f571D20D667;
+  address public constant USDe = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
+  address public constant sUSDe = 0x9D39A5DE30e57443BfF2A8307A4256c8797A3497;
+  address public constant PT_sUSDe_SEP_2025 = 0x9F56094C450763769BA0EA9Fe2876070c0fD5F77;
+  address public constant PT_sUSDe_NOV_2025 = 0xe6A934089BBEe34F832060CE98848359883749B3;
+  address public constant USDS = 0xdC035D45d973E3EC169d2276DDab16f1e407384F;
+  address public constant sUSDS = 0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD;
+
+  // Oracles
+  address public constant USDC_CHAINLINK_ORACLE = 0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6;
+  address public constant WETH_CHAINLINK_ORACLE = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
+  address public constant DAI_CHAINLINK_ORACLE = 0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9;
+  address public constant USDT_CHAINLINK_ORACLE = 0x3E7d1eAB13ad0104d2750B8863b489D65364e32D;
+  address public constant USDe_CHAINLINK_ORACLE = 0xa569d910839Ae8865Da8F8e70FfFb0cBA869F961;
+  address public constant sUSDe_CHAINLINK_ORACLE = 0xFF3BC18cCBd5999CE63E788A1c250a88626aD099;
+  address public constant USDS_CHAINLINK_ORACLE = 0xfF30586cD0F29eD462364C7e81375FC0C71219b1;
+  address public constant PT_USDe_JUL_2025_PRICE_AGGREGATOR = 0xa920Ee93b1aC4E093Eb33C35990EE37283B1c303;
+  address public constant PT_sUSDe_NOV_2025_PRICE_AGGREGATOR = 0xB4503d626C2Cb73cf9D027499Cefc47b5A0C6a2E;
+
+  // Liquidity
+  address public constant FLUID_DEX_USDe_USDT_POOL = 0xf063BD202E45d6b2843102cb4EcE339026645D4a;
+  address public constant FLUID_DEX_sUSDe_USDT_POOL = 0x1DD125C32e4B5086c63CC13B3cA02C4A2a61Fa9b;
+
+  // mStable Vaults
+  address public constant mPT_sUSDe = 0xfeC2ADFA296Fe189F53089FD5CCD8c28Dd559CF2;
+
+  // Auxiliary Contracts
+  address public constant SWAPPER = 0x4F754e0F0924afD74980886b0B479Fa1D7C58D0D;
+  address public constant UNISWAP_V2_ROUTER = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+  address public constant UNISWAP_V3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+  address public constant UNISWAP_V3_ROUTER = 0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45;
+  address public constant SUSHISWAP_ROUTER = 0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F;
+  address public constant AAVE_V3_LENDING_POOL = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
+  address public constant PENDLE_YIELD_CONTRACT_FACTORY = 0x35A338522a435D46f77Be32C70E215B813D0e3aC;
+  address public constant PENDLE_STATIC_ROUTER = 0x263833d47eA3fA4a30f269323aba6a107f9eB14C;
+  address public constant PENDLE_ROUTER_V4 = 0x888888888889758F76e7103c6CbF23ABbF58F946; // Same for all chains
+  address public constant PENDLE_MARKET_USDe_JUL_2025 = 0x9Df192D13D61609D1852461c4850595e1F56E714;
+  address public constant PENDLE_MARKET_sUSDe_SEP_2025 = 0xA36b60A14A1A5247912584768C6e53E1a269a9F7;
+  address public constant PENDLE_MARKET_sUSDe_NOV_2025 = 0xb6aC3d5da138918aC4E84441e924a20daA60dBdd;
+  address public constant PENDLE_MARKET_sUSDS_NOV_2026 = 0x9C560eBaF78e596cbcC27411d633a74D628dd7dC;
+  address public constant PENDLE_CHAINLINK_ORACLE_FACTORY = 0x6502cda86f9110f3655512237C9FF2B9CE247c69;
+  address public constant KYBER_SWAP_ROUTER_V2 = 0x6131B5fae19EA4f9D964eAc0408E4408b66337b5; // Same for all chains
+  address public constant ODOS_V3_ROUTER = 0x0D05a7D3448512B78fa8A9e46c4872C88C4a0D05; // Same for all chains
+  address public constant ONE_INCH_V6_ROUTER = 0x111111125421cA6dc452d289314280a0f8842A65; // Same for all chains
+  address public constant ANGLE_DISTRIBUTOR_CONTRACT = 0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae; // Same for all chains
+  address public constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3; // Same for all chains
+
+  // DYTM
+  address public constant DYTM_OFFICE = 0x0ff1ceB93DbADfB13722058D60c4B8cD122b06ea;
+
+  // Ondo
+  address public constant ONDO_GM_TOKEN_MANAGER = 0x2c158BC456e027b2AfFCCadF1BDBD9f5fC4c5C8c;
+  address public constant GOOGLON = 0xbA47214eDd2bb43099611b208f75E4b42FDcfEDc;
+}
