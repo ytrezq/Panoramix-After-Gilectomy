@@ -42,8 +42,7 @@
     {
      "prefix": "aera-finance__aera-contracts-public",
      "url": "https://github.com/aera-finance/aera-contracts-public",
-     "commit": "3b1477c01c811a778a777ef90d40c41a00846109",
-     "files": 209
+     "commit": "3b1477c01c811a778a777ef90d40c41a00846109"
     }
    ]
   }
