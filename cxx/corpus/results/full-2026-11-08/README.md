@@ -44,3 +44,9 @@ It took 77 minutes of one CPU. `summary.md` is the result, and `results.jsonl` h
 
 - **The 3 calls different** are in ListaStakeManager (solc 0.8.4 istanbul), `skipDelegateOrNot`. The SafeMath rewrite moved an overflow check into the right side of an `and`, so the subtraction's Panic(0x11) is skipped when the left side is 0. The asm prints the same line.
 - **The 33 lines not parsed** are in Voting (lido aragon-apps, solc 0.4.24). They involve a storage variable named `delegate` (from its getter): the text's reader took `delegate` for the keyword of `delegate call`.
+
+**The interface:** 27,087 of the 27,129 ABI functions are found in the dispatchers.
+
+- **The 42 missing** all belong to one Vyper 0.3.1 contract. The 6 distinct Vyper 0.3.1 bytecodes come out as one default function. Their dispatcher tests the call value once, before the non-payable selectors. The asm doesn't split them either.
+- **The 85 selectors not in the ABI** are library functions. solc leaves a library's non-view functions out of its ABI: 72 in DssExecLib, 4 in each MarketUtils build, 1 in a silo library.
+- **A library's selector** names its structs (`Market.Props`), where a contract's selector spells the struct out as a tuple. `compare_source.py` computes library selectors this way since this run, and the four library artifacts were compared again with it.
