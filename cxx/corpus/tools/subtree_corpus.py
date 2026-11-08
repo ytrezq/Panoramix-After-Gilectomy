@@ -126,6 +126,14 @@ def in_head(prefix):
     return bool(git('ls-tree', '--name-only', 'HEAD', '--', prefix, check=False).strip())
 
 
+def files_in_head(prefix, prefixes):
+    """The files HEAD has under a subtree's prefix, those of the subtrees
+    nested in it left out."""
+    nested = [q + '/' for q in prefixes if q.startswith(prefix + '/')]
+    names = git('ls-tree', '-r', '-z', '--name-only', 'HEAD', '--', prefix + '/', check=False).split('\0')
+    return sum(1 for x in names if x and not any(x.startswith(q) for q in nested))
+
+
 CACHE = {}   # (url, commit) -> the filtered commit, in the branch's repository (refs/corpus/filtered/*)
 
 
@@ -157,6 +165,8 @@ def main():
     ap.add_argument('--jobs', type=int, default=4)
     ap.add_argument('--limit', type=int, default=0, help='programs at most')
     ap.add_argument('--scratch', default=None)
+    ap.add_argument('--minutes', type=float, default=0,
+                    help='start no program after this many minutes (a later run resumes)')
     a = ap.parse_args()
     if git('status', '--porcelain', '--untracked-files=no').strip():
         sys.exit('the work tree is not clean')
@@ -176,6 +186,10 @@ def main():
     t0 = time.time()
     for mp in manifests:
         slug = os.path.basename(os.path.dirname(mp))
+        if a.minutes and time.time() - t0 > a.minutes * 60:
+            print('== stopped before %s (--minutes %g): run again to resume' % (slug, a.minutes), flush=True)
+            json.dump({'%s %s' % k: list(v) for k, v in CACHE.items()}, open(cache_file, 'w'))
+            return
         old = json.load(open(mp))
         prog = os.path.join('cxx', 'corpus', 'immunefi', slug)
         jobs = []      # (prefix, url, commit, what, repo entry)
@@ -261,6 +275,9 @@ def main():
                 if j[4] is not r:
                     continue
                 p, err = results.get(j[0], (None, None))
+                if j[0] not in results:
+                    # (added by an earlier, interrupted run: its files as HEAD has them)
+                    p = Prepared(j[0], j[1], j[2], files=files_in_head(j[0], [q[0] for q in jobs]))
                 if err and err != 'nothing kept':
                     # (not fetched: its files from the earlier copy, as files)
                     top = os.path.join(src, os.path.relpath(j[0], base))
