@@ -1,0 +1,92 @@
+[profile.default]
+src = 'src'
+test = 'tests'
+out = 'out'
+libs = ['lib']
+script = 'scripts'
+remappings = []
+solc='0.8.28'
+
+fs_permissions = [{ access = "read-write", path = "./"}]
+
+optimizer = true
+optimizer_runs = 200
+evm_version = 'shanghai'
+bytecode_hash = 'none'
+
+
+# Whether or not to enable `vm.ffi`
+ffi = true
+
+#https://github.com/foundry-rs/foundry/issues/4060
+
+[lint]
+lint_on_build = false
+
+[profile.default.zksync]
+src = 'src'
+libs = ['lib']
+fallback_oz = true
+mode = "3"
+zksolc="1.4.1"
+
+[rpc_endpoints]
+ethereum="${RPC_MAINNET}"
+ethereum-testnet="${RPC_MAINNET_TESTNET}"
+polygon="${RPC_POLYGON}"
+polygon-testnet="${RPC_POLYGON_TESTNET}"
+arbitrum="${RPC_ARBITRUM}"
+arbitrum-testnet="${RPC_ARBITRUM_TESTNET}"
+metis="${RPC_METIS}"
+metis-testnet="${RPC_METIS_TESTNET}"
+avalanche="${RPC_AVALANCHE}"
+avalanche-testnet="${RPC_AVALANCHE_TESTNET}"
+optimism="${RPC_OPTIMISM}"
+optimism-testnet="${RPC_OPTIMISM_TESTNET}"
+binance="${RPC_BINANCE}"
+binance-testnet="${RPC_BINANCE_TESTNET}"
+base="${RPC_BASE}"
+base-testnet="${RPC_BASE_TESTNET}"
+gnosis="${RPC_GNOSIS}"
+gnosis-testnet="${RPC_GNOSIS_TESTNET}"
+zkevm="${RPC_ZKEVM}"
+zkevm-testnet="${RPC_ZKEVM_TESTNET}"
+scroll="${RPC_SCROLL}"
+scroll-testnet="${RPC_SCROLL_TESTNET}"
+zksync="${RPC_ZK_SYNC}"
+zksync-testnet="${RPC_ZK_SYNC_TESTNET}"
+linea="${RPC_LINEA}"
+linea-testnet="${RPC_LINEA_SEPOLIA}"
+celo="${RPC_CELO}"
+celo-testnet="${RPC_CELO_ALFAJORES}"
+sonic="${RPC_SONIC}"
+sonic-testnet="${RPC_SONIC_TESTNET}"
+mantle="${RPC_MANTLE}"
+mantle-testnet="${RPC_MANTLE_TESTNET}"
+ink="${RPC_INK}"
+soneium="${RPC_SONEIUM}"
+plasma="${RPC_PLASMA}"
+bob="${RPC_BOB}"
+xlayer="${RPC_XLAYER}"
+megaEth="${RPC_MEGAETH}"
+monad="${RPC_MONAD}"
+
+[etherscan]
+metis={ key="any", chain=1088, url='https://andromeda-explorer.metis.io/' }
+metis-testnet={ key="any", chain=599, url='https://goerli.explorer.metisdevops.link/' }
+mantle={key="any", chain=5000, url='https://api.routescan.io/v2/network/mainnet/evm/5000/etherscan'}
+mantle-testnet={key="any", chain=5003, url='https://explorer.testnet.mantle.xyz/api'}
+ink={key="any", chain=57073, url='https://api.routescan.io/v2/network/mainnet/evm/57073/etherscan'}
+soneium={key="any", chain=1868, url='https://soneium.blockscout.com/api/'}
+bob={key="${ETHERSCAN_API_KEY_BOB}", chain=60808, url='https://explorer.gobob.xyz/api/'}
+xlayer={key="any", chain=196, url='https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/xlayer'}
+megaEth={key="any", chain=4326, url='https://megaeth.blockscout.com/api/'}
+monad={key="${ETHERSCAN_API_KEY}", chain=143, url='https://api.monadscan.io/api/'}
+
+
+
+# See more config options https://github.com/gakonst/foundry/tree/master/config
+[fuzz]
+no_zksync_reserved_addresses = true
+[invariant]
+no_zksync_reserved_addresses = true
