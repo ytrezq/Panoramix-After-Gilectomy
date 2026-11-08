@@ -1,0 +1,82 @@
+[profile.default]
+src = 'contracts'
+interfaces = 'contracts/interfaces'
+out = 'out'
+test = 'tests'
+script = 'scripts'
+cache_path = 'cache-forge'
+gas_reports = ["*"]
+via_ir = false
+sizes = true
+evm_version = "cancun"
+optimizer = true
+optimizer_runs=1000
+solc_version = '0.8.28'
+ffi = true
+fs_permissions = [ 
+ { access = "read-write", path = "./libs/helpers/registry/registry.json"}
+]
+memory_limit = 1000043554432
+
+
+[fmt]
+  bracket_spacing = true
+  int_types = "long"
+  line_length = 119
+  multiline_func_header = "all"
+  number_underscore = "thousands"
+  quote_style = "double"
+  tab_width = 2
+  wrap_comments = true
+
+
+[fuzz]
+runs = 10000
+
+[invariant]
+runs = 8
+depth = 256
+
+[rpc_endpoints]
+arbitrum = "${ETH_NODE_URI_ARBITRUM}"
+mainnet = "${ETH_NODE_URI_MAINNET}"
+hyperevm = "${ETH_NODE_URI_HYPEREVM}"
+sonic-mainnet= "${ETH_NODE_URI_SONIC}"
+optimism = "${ETH_NODE_URI_OPTIMISM}"
+polygon = "${ETH_NODE_URI_POLYGON}"
+fork = "${ETH_NODE_URI_FORK}"
+base = "${ETH_NODE_URI_BASE}"
+
+[etherscan]
+arbitrum = { key = "${ARBITRUM_ETHERSCAN_API_KEY}" }
+mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}" }
+optimism = { key = "${OPTIMISM_ETHERSCAN_API_KEY}" }
+polygon = { key = "${POLYGON_ETHERSCAN_API_KEY}" }
+base = { key = "${BASE_ETHERSCAN_API_KEY}", url = "https://api.basescan.org/api" }
+
+[profile.dev]
+via_ir = false
+src = 'contracts'
+gas_reports = ["*"]
+
+[profile.dev.fuzz]
+runs = 200000
+
+[profile.dev.invariant]
+runs = 100
+depth = 30
+fail_on_revert = false
+
+[profile.ci]
+optimizer = true
+src = 'contracts'
+via_ir = false
+gas_reports = ["*"]
+
+[profile.ci.fuzz]
+runs = 1000
+
+[profile.ci.invariant]
+runs = 10
+depth = 30
+fail_on_revert = false

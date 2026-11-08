@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: GPL-3.0
+pragma solidity 0.8.28;
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+import "../../contracts/utils/Constants.sol";
+import "../../contracts/utils/Errors.sol";
+
+contract MockSwapRouter {
+  using SafeERC20 for IERC20;
+
+  bool public setRevert;
+  bool public setRevertWithMessage;
+
+  function swap(uint256 amountIn, uint256 amountOut, address tokenIn, address tokenOut) external returns (uint256) {
+    if (setRevert) require(false);
+    if (setRevertWithMessage) revert("wrong swap");
+    IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
+    IERC20(tokenOut).safeTransfer(msg.sender, amountOut);
+    return amountOut;
+  }
+
+  function setRevertStatuses(bool _setRevert, bool _setRevertWithMessage) external {
+    setRevert = _setRevert;
+    setRevertWithMessage = _setRevertWithMessage;
+  }
+}
