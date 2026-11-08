@@ -340,9 +340,11 @@
    "languages": {
     ".sol": 30
    },
-   "npm": {},
+   "npm": {
+    "matic-contracts/node_modules/openzeppelin-solidity": "2.2.0"
+   },
    "copied": true,
-   "files": 190,
+   "files": 261,
    "via": "git subtree",
    "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
    "dest": "0xPolygon__genesis-contracts",
@@ -365,7 +367,10 @@
      "commit": "58d30519826c313ce47345abedfdc07679e944d1",
      "files": 47
     }
-   ]
+   ],
+   "npm_added": {
+    "matic-contracts/node_modules/openzeppelin-solidity": "imported by the matic-contracts submodule's own sources (declared by its package.json)"
+   }
   },
   {
    "repo": "https://github.com/0xPolygon/sPOL-contracts",

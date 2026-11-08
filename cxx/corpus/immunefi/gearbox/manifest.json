@@ -565,9 +565,13 @@
    "languages": {
     ".sol": 49
    },
-   "npm": {},
+   "npm": {
+    "node_modules/@redstone-finance/evm-connector": "0.2.5",
+    "node_modules/hardhat": "2.29.1",
+    "node_modules/@openzeppelin/contracts": "4.9.6"
+   },
    "copied": true,
-   "files": 2472,
+   "files": 2738,
    "via": "git subtree",
    "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
    "dest": "Gearbox-protocol__oracles-v3",
@@ -770,7 +774,12 @@
      "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
      "files": 6
     }
-   ]
+   ],
+   "npm_added": {
+    "node_modules/@redstone-finance/evm-connector": "missed by copy_repo: its remapping has no trailing slash (forge adds one)",
+    "node_modules/hardhat": "missed by copy_repo: its remapping has no trailing slash (forge adds one)",
+    "node_modules/@openzeppelin/contracts": "missed by copy_repo: its remapping has no trailing slash (forge adds one)"
+   }
   },
   {
    "repo": "https://github.com/Gearbox-protocol/integrations-v3",
