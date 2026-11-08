@@ -1,0 +1,67 @@
+{
+  "name": "@gearbox-protocol/sdk-gov",
+  "version": "1.0.0",
+  "description": "Gearbox Governance SDK",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "files": [
+    "lib",
+    "contracts"
+  ],
+  "scripts": {
+    "clean": "rm -rf lib",
+    "dev": "tsc -w --p tsconfig.build.json",
+    "build": "tsc --noEmit && tsc --p tsconfig.build.json",
+    "bindings": "npx ts-node ./src/bindings/generate.ts && forge b && forge fmt",
+    "decimals": "npx ts-node ./src/bindings/generate_decimals.ts",
+    "test": "npx mocha -r ts-node/register -r dotenv/config src/**/*.spec.ts",
+    "prepare": "husky install",
+    "prettier": "prettier --write .",
+    "prettier:ci": "npx prettier --check .",
+    "lint": "eslint \"**/*.ts\" --fix",
+    "lint:ci": "eslint \"**/*.ts\"",
+    "typecheck:ci": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Gearbox-protocol/sdk-gov.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Gearbox-protocol/sdk-gov/issues"
+  },
+  "homepage": "https://github.com/Gearbox-protocol/sdk-gov#readme",
+  "dependencies": {
+    "ethers": "6.12.1",
+    "humanize-duration-ts": "^2.1.1",
+    "zod": "^3.22.2"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^17.6.7",
+    "@commitlint/config-conventional": "^17.6.7",
+    "@gearbox-protocol/eslint-config": "^1.6.1",
+    "@gearbox-protocol/prettier-config": "^1.5.0",
+    "@types/chai": "^4.3.5",
+    "@types/mocha": "^10.0.1",
+    "axios": "^1.5.1",
+    "chai": "^4.3.7",
+    "dotenv": "^16.3.1",
+    "eslint": "^8.46.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^13.2.3",
+    "mocha": "^10.2.0",
+    "prettier": "^3.0.0",
+    "ts-node": "^10.9.1",
+    "typechain": "^8.3.1",
+    "typescript": "^5.1.6"
+  },
+  "prettier": "@gearbox-protocol/prettier-config",
+  "lint-staged": {
+    "*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": "prettier --write"
+  }
+}
