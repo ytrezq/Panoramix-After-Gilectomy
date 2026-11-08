@@ -1389,6 +1389,7 @@ once (`exec::Host::sload_run`).
   measure its training set: one solc build per project and compiler of the source corpus,
   its distinct Vyper bytecodes, and the Yul fixtures.
 - The PGO build prints the same 861 texts as the release build, byte for byte.
+- Each contract's numbers: `docs/bench-2026-11-08.tsv`.
 
 | | asm | cxx | cxx PGO |
 |---|---|---|---|
