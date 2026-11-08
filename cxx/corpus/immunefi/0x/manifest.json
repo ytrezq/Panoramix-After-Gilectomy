@@ -178,158 +178,132 @@
     {
      "prefix": "0xProject__0x-settler",
      "url": "https://github.com/0xProject/0x-settler",
-     "commit": "3e41a1cf33f17088b8617ced8a38c17f9a45cee3",
-     "files": 381
+     "commit": "3e41a1cf33f17088b8617ced8a38c17f9a45cee3"
     },
     {
      "prefix": "0xProject__0x-settler/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "26048ab55c64519ce21e032fdb49df1d5a2a7eb4",
-     "files": 54
+     "commit": "26048ab55c64519ce21e032fdb49df1d5a2a7eb4"
     },
     {
      "prefix": "0xProject__0x-settler/lib/permit2",
      "url": "https://github.com/Uniswap/permit2",
-     "commit": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219",
-     "files": 63
+     "commit": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219"
     },
     {
      "prefix": "0xProject__0x-settler/lib/solmate",
      "url": "https://github.com/transmissions11/solmate",
-     "commit": "97bdb2003b70382996a79a406813f76417b1cf90",
-     "files": 63
+     "commit": "97bdb2003b70382996a79a406813f76417b1cf90"
     },
     {
      "prefix": "0xProject__0x-settler/lib/forge-gas-snapshot",
      "url": "https://github.com/marktoda/forge-gas-snapshot",
-     "commit": "03b10b10574e069081f6b84f5e1244e42041511d",
-     "files": 8
+     "commit": "03b10b10574e069081f6b84f5e1244e42041511d"
     },
     {
      "prefix": "0xProject__0x-settler/lib/v4-core",
      "url": "https://github.com/Uniswap/v4-core",
-     "commit": "b619b6718e31aa5b4fa0286520c455ceb950276d",
-     "files": 135
+     "commit": "b619b6718e31aa5b4fa0286520c455ceb950276d"
     },
     {
      "prefix": "0xProject__0x-settler/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "2422d7cf7ff16a397aeaa55f1f4f11d030495e59",
-     "files": 370
+     "commit": "2422d7cf7ff16a397aeaa55f1f4f11d030495e59"
     },
     {
      "prefix": "0xProject__0x-settler/lib/permit2/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "66bf4e2c92cf507531599845e8d5a08cc2e3b5bb",
-     "files": 40
+     "commit": "66bf4e2c92cf507531599845e8d5a08cc2e3b5bb"
     },
     {
      "prefix": "0xProject__0x-settler/lib/permit2/lib/solmate",
      "url": "https://github.com/rari-capital/solmate",
-     "commit": "8d910d876f51c3b2585c9109409d601f600e68e1",
-     "files": 60
+     "commit": "8d910d876f51c3b2585c9109409d601f600e68e1"
     },
     {
      "prefix": "0xProject__0x-settler/lib/permit2/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "d3ff81b37f3c773b44dcaf5fda212c7176eef0e2",
-     "files": 281
+     "commit": "d3ff81b37f3c773b44dcaf5fda212c7176eef0e2"
     },
     {
      "prefix": "0xProject__0x-settler/lib/permit2/lib/forge-gas-snapshot",
      "url": "https://github.com/marktoda/forge-gas-snapshot",
-     "commit": "3c5d52a26169876a144f7690d2f9ef0200eb0791",
-     "files": 7
+     "commit": "3c5d52a26169876a144f7690d2f9ef0200eb0791"
     },
     {
      "prefix": "0xProject__0x-settler/lib/solmate/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "0xProject__0x-settler/lib/v4-core/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "1de6eecf821de7fe2c908cc48d3ab3dced20717f",
-     "files": 47
+     "commit": "1de6eecf821de7fe2c908cc48d3ab3dced20717f"
     },
     {
      "prefix": "0xProject__0x-settler/lib/v4-core/lib/solmate",
      "url": "https://github.com/transmissions11/solmate",
-     "commit": "4b47a19038b798b4a33d9749d25e570443520647",
-     "files": 63
+     "commit": "4b47a19038b798b4a33d9749d25e570443520647"
     },
     {
      "prefix": "0xProject__0x-settler/lib/v4-core/lib/openzeppelin-contracts",
      "url": "https://github.com/openzeppelin/openzeppelin-contracts",
-     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3",
-     "files": 250
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
     },
     {
      "prefix": "0xProject__0x-settler/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
-     "files": 43
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
     },
     {
      "prefix": "0xProject__0x-settler/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
-     "files": 3
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
     },
     {
      "prefix": "0xProject__0x-settler/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c",
-     "files": 3
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
     },
     {
      "prefix": "0xProject__0x-settler/lib/permit2/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "0xProject__0x-settler/lib/permit2/lib/solmate/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5",
-     "files": 4
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
     },
     {
      "prefix": "0xProject__0x-settler/lib/permit2/lib/forge-gas-snapshot/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "2c7cbfc6fbede6d7c9e6b17afe997e3fdfe22fef",
-     "files": 14
+     "commit": "2c7cbfc6fbede6d7c9e6b17afe997e3fdfe22fef"
     },
     {
      "prefix": "0xProject__0x-settler/lib/v4-core/lib/solmate/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "cd98eff28324bfac652e63a239a60632a761790b",
-     "files": 5
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
     },
     {
      "prefix": "0xProject__0x-settler/lib/v4-core/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb",
-     "files": 35
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
     },
     {
      "prefix": "0xProject__0x-settler/lib/v4-core/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "0xProject__0x-settler/lib/permit2/lib/forge-gas-snapshot/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5",
-     "files": 4
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
     },
     {
      "prefix": "0xProject__0x-settler/lib/v4-core/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "cd98eff28324bfac652e63a239a60632a761790b",
-     "files": 5
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
     }
    ]
   }
