@@ -51,8 +51,7 @@
     {
      "prefix": "beefyfinance__beefy-contracts",
      "url": "https://github.com/beefyfinance/beefy-contracts",
-     "commit": "2efe6f1a5db07a0fd85fa6a132a1bd0ceaf60669",
-     "files": 922
+     "commit": "2efe6f1a5db07a0fd85fa6a132a1bd0ceaf60669"
     }
    ]
   }
