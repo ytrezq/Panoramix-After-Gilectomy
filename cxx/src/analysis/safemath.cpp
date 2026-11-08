@@ -6,8 +6,9 @@
 // that can't fail and change nothing the checks read (SETVAR SETMEM STORE
 // SET LOGn, and a loop of such lines that lot 6's induction proves ends: a
 // copy loop where another build has MCOPY) - by a line that uses the result
-// of the arithmetic they check (match_check over its candidates) is
-// rewritten: the checks out, the result
+// of the arithmetic they check (match_check over its candidates: where every
+// run of the line evaluates them, not in the second operand of an `and` or an
+// `or`) is rewritten: the checks out, the result
 // SAFEMATH(n, a, b...) in that line and the next ones until one changes
 // what it reads (lot 7's affects). An IF one branch of which only fails is
 // read as the check and the other branch's lines after it (python's folder
@@ -879,7 +880,14 @@ private:
     }
 
     // python candidates: the results of arithmetic in exp, the outer ones
-    // first (each once) - but a * b / a, which only a check of a * b computes
+    // first (each once) - but a * b / a, which only a check of a * b computes;
+    // and (not python's) only where exp's evaluation always gets to: not in
+    // the second operand of an `and` or an `or` (LAND, LOR - lot 7's
+    // short_circuits makes `if not x: v = 0 else: v = y` v = x and y), which
+    // runs only where the first lets it: a call there would run the checks
+    // on those paths only (ListaStakeManager's skipDelegateOrNot: `_1 = x and
+    // SafeMath.sub(a, b) <= x` returned where the contract fails with
+    // Panic(0x11), x being 0)
     static void candidates(Value exp, Values& out, MemoSet<Value>& seen)
     {
         check_stack();
@@ -890,6 +898,10 @@ private:
                              std::find(exp[0].args().begin(), exp[0].args().end(), exp[1]) != exp[0].args().end();
         if (arith && !mul_div)
             out.push_back(exp);
+        if (exp.is(Op::LAND, 2) || exp.is(Op::LOR, 2)) {
+            candidates(exp[0], out, seen);
+            return;
+        }
         for (const Value c : exp.children())
             candidates(c, out, seen);
     }

@@ -464,6 +464,81 @@ TEST_CASE("safemath: what stays as it is")
     }
 }
 
+TEST_CASE("safemath: a use evaluated on some paths only keeps its check where it is")
+{
+    // lot 7's short_circuits makes `if not x: v = 0 else: v = y` v = x and y:
+    // y is evaluated only where x isn't 0 - a check put in it would be run
+    // only there (ListaStakeManager's skipDelegateOrNot: `stor203 - _param1`
+    // checked before `maxBufferSize != 0 && ...`, Panic(0x11) whatever
+    // maxBufferSize is)
+    Fixture fx;
+    const Value a = st(5), b = cd(4);
+    const Value diff = alg::sub(a, b);
+    const Value ck = check(alg::cmp(Op::LT, a, b), panic_line(0x11));
+    const Value v1 = Value::name(NameKind::TMP, 1);
+    const Value ret = mk(Op::RETURN, mk(Op::DATA, mk(Op::SIZED, Value::small(32), v1)));
+    SUBCASE("x and y: the use in y")
+    {
+        const Value body = tr({ck, mk(Op::SETVAR, v1, mk(Op::LAND, st(1), alg::cmp(Op::LE, diff, st(1)))), ret});
+        Rewritten r = rewrite({fn_of(body)});
+        CHECK_FALSE(r.table);
+        CHECK(r.after[0].trace == body);
+        same_runs(r.before, r.after, r.table.get());
+    }
+    SUBCASE("x or y: the use in y")
+    {
+        const Value body = tr({ck, mk(Op::SETVAR, v1, mk(Op::LOR, st(1), alg::cmp(Op::GT, diff, st(1)))), ret});
+        Rewritten r = rewrite({fn_of(body)});
+        CHECK_FALSE(r.table);
+        CHECK(r.after[0].trace == body);
+        same_runs(r.before, r.after, r.table.get());
+    }
+    SUBCASE("an if's condition x and y, a require's not x or y: the use in y")
+    {
+        const Value body = tr({ck, mk(Op::IF, mk(Op::LAND, st(1), alg::cmp(Op::LT, diff, Value::small(7))), tr({store(1, Value::small(1))}), tr({})),
+                               mk(Op::REQUIRE, mk(Op::LOR, alg::iszero(st(1)), alg::cmp(Op::LT, diff, Value::small(9)))), stop()});
+        Rewritten r = rewrite({fn_of(body)});
+        CHECK_FALSE(r.table);
+        CHECK(r.after[0].trace == body);
+        same_runs(r.before, r.after, r.table.get());
+    }
+    SUBCASE("the use in x, evaluated at once: the call")
+    {
+        const Value body = tr({ck, mk(Op::SETVAR, v1, mk(Op::LAND, alg::cmp(Op::LE, diff, st(1)), st(1))), ret});
+        Rewritten r = rewrite({fn_of(body)});
+        REQUIRE(r.table);
+        CHECK(r.table->fns[0].op == Table::Arith::Sub);
+        CHECK_FALSE(mentions(r.after[0].trace, Op::IF));
+        same_runs(r.before, r.after, r.table.get());
+    }
+    SUBCASE("a later use evaluated at once: the call there, the line before it raw")
+    {
+        const Value lazy = mk(Op::SETVAR, v1, mk(Op::LAND, st(1), alg::cmp(Op::LE, diff, st(1))));
+        const Value body = tr({ck, lazy, store(2, diff), ret});
+        Rewritten r = rewrite({fn_of(body)});
+        REQUIRE(r.table);
+        REQUIRE(r.after[0].trace.size() == 3);
+        CHECK(r.after[0].trace[0] == lazy);
+        CHECK(mentions(r.after[0].trace[1], Op::SAFEMATH));
+        same_runs(r.before, r.after, r.table.get());
+    }
+    SUBCASE("the other checks still fold: an add used at once, then the sub used in y")
+    {
+        // (the add's check put past the sub's: both Panic(0x11))
+        const Value sum = alg::add(st(5), st(1));
+        const Value ck_add = check(alg::cmp(Op::GT, st(5), alg::bnot(st(1))), panic_line(0x11));
+        const Value x = alg::div(sum, Value::small(10));
+        const Value body = tr({ck_add, ck, mk(Op::SETVAR, v1, mk(Op::LAND, x, alg::cmp(Op::LE, diff, x))), ret});
+        Rewritten r = rewrite({fn_of(body)});
+        REQUIRE(r.table);
+        REQUIRE(r.table->fns.size() == 1);
+        CHECK(r.table->fns[0].op == Table::Arith::Add);
+        REQUIRE(r.after[0].trace.size() == 3);
+        CHECK(r.after[0].trace[0] == ck);
+        same_runs(r.before, r.after, r.table.get());
+    }
+}
+
 TEST_CASE("safemath: a site's abstraction is proven, never sampled")
 {
     Fixture fx;

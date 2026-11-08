@@ -13,8 +13,10 @@
 // being REVERT(None), REVERT(Error(string) of printable text), REVERT
 // (Panic(code)) or INVALID. Checks of one operation (python match_check:
 // `a + b < a`, `b > a` for a - b, `a == 0 or a * b / a == b`, `b == 0` for a
-// / b, solidity's `a == max` for a + 1...) whose result is used after them,
-// with nothing between that may fail or change what they read (lot 7's
+// / b, solidity's `a == max` for a + 1...) whose result is used after them
+// where every run of the using line evaluates it (not in the second operand
+// of an `and` or an `or`: LAND, LOR run it only where the first operand lets
+// them), with nothing between that may fail or change what they read (lot 7's
 // affects: only SETVAR SETMEM STORE SET LOG lines - and, not python's, the
 // checks of other operations that fail exactly as they do) are removed,
 // the result being a SAFEMATH call where it is used - in that line, and the

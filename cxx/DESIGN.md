@@ -782,7 +782,9 @@ executable: REQUIRE, ASSERT, LAND, LOR, MERGED_IF are IR ops.
 functions (OpenZeppelin, ds-math, solidity >= 0.8's Panic(0x11) and
 Panic(0x12), increments, Vyper): a run of checks (failing with
 REVERT(None), an Error(string), a Panic or INVALID where their condition
-holds) followed by a line using the checked result - past lines that
+holds) followed by a line using the checked result where every run of the
+line evaluates it (not in the second operand of an `and` or an `or`, which
+runs only where the first lets it) - past lines that
 can't fail or change what the checks read (a loop of such lines among
 them when lot 6's induction proves it ends: a copy loop where another
 build has MCOPY), and checks failing the same
@@ -1221,6 +1223,19 @@ stagechecks above: 0 different at every stage they ran):
   SafeMath:` (the asm 425: 11 whose checks the simplifier proved redundant,
   6 whose message is built in memory, 2 sized-int or folder-variable cases;
   6 blocks the asm lacks).
+- **SafeMath's checks folded only into a use every run evaluates** (8 Nov):
+  python's candidates (and the asm's) took the checked result anywhere in
+  the line using it, the second operand of an `and` or an `or` included;
+  lot 7's short_circuits makes `if not x: v = 0 else: v = y` `v = x and y`,
+  so the call ran the checks only where x isn't 0. ListaStakeManager's
+  skipDelegateOrNot (solc 0.8.4) printed `_1 = maxBufferSize and
+  SafeMath.sub(stor203, _param1) <= maxBufferSize` (the asm the same line),
+  returning where the contract fails with Panic(0x11) (text_check: 3 calls
+  different); the check now stays, `if stor203 < _param1: revert with
+  Panic(17)`, and the use is raw arithmetic - the other checks of the
+  function still fold. 6 texts of the npm corpus change so (TokenPaymaster,
+  OneInchV5, four uniswap v4 tests: a check kept, the later lines' calls
+  that came from it raw).
 - **The storage SALL copy** (lot 9): a bytes read reads what solidity's
   copy to memory reads whatever the slot holds - short or long by the
   decoded length, exactly that many bytes - so a getter's rewrite can hold
