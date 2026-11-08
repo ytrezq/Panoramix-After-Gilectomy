@@ -105,20 +105,27 @@ mem::MemState constrained(const mem::MemState& st, Value cond) {
 constexpr u32 kFreshAtoms = 0xfff00000u;
 
 // what a loop changes (lot 6's summary: the names it sets, the memory any
-// iteration may write), forgotten from what's known at its head
-void forget_loop(mem::MemState& st, Value while_line, u32& fresh) {
+// iteration may write), forgotten from what's known at its head (floors:
+// those no iteration changes - floor_loop - with which what its writes
+// touch is decided)
+void forget_loop(mem::MemState& st, Value while_line, u32& fresh, const alg::Facts& floors) {
     const loops::LoopSummary& ls = loops::summary(while_line);
-    const EffectSummary& e = ls.effects;
+    // (the paths that go on: an iteration that ends in the loop - a revert
+    // - never gets back to its head nor past it; the names first, all of
+    // them: a piece mentioning one isn't what it was)
     if (!ls.written.nil())
         for (Value n : ls.written.args()) st.forget_name(n);
+    const EffectSummary& e = ls.cont_effects;
+    const Value cw = ls.cont_writes;
+    const bool cany = ls.cont_writes_any;
     if ((e.writes & S_VARS) && (e.writes_any & S_VARS)) st.forget_flags(F_VAR);
     if (e.writes & S_STORAGE) st.forget_flags(F_STORAGE);
     if (e.writes & (S_TRANSIENT | S_ACCOUNT | S_CALLRES)) st.forget_flags(F_STATE);
-    if (ls.mem_writes_any || ((e.writes & S_MEM) && ls.mem_writes.nil())) {
+    if (cany || ((e.writes & S_MEM) && cw.nil())) {
         st.clear();
         return;
     }
-    if (ls.mem_writes.nil()) return;
+    if (cw.nil()) return;
     // (a range that reads what the loop changes but its variables - memory,
     // storage - isn't where the writes are: anywhere)
     EffectSummary others = e;
@@ -128,8 +135,8 @@ void forget_loop(mem::MemState& st, Value while_line, u32& fresh) {
     // (lot 6's ranges, when none is made of the loop's variables, hold for
     // every iteration - a hull over them made of the values before the
     // loop: what a range reads is changed only where they meet it)
-    bool over_all = !ls.mem_writes_any;
-    for (Value r : ls.mem_writes.args()) {
+    bool over_all = !cany;
+    for (Value r : cw.args()) {
         const EffectSummary& rs = summary(r);
         if (!(rs.reads & S_VARS)) continue;
         if (rs.reads_any & S_VARS) over_all = false;
@@ -139,26 +146,30 @@ void forget_loop(mem::MemState& st, Value while_line, u32& fresh) {
                     if (n == w) over_all = false;
     }
     if (over_all) {
-        others.mem_writes = ls.mem_writes;
+        others.mem_writes = cw;
         others.writes_any &= ~S_MEM;
     }
-    for (Value r : ls.mem_writes.args())
-        if (changes(others, summary(r))) {
+    for (Value r : cw.args())
+        if (changes(others, summary(r), &floors)) {
             st.clear();
             return;
         }
-    for (Value r : ls.mem_writes.args()) st.write(r, Value());
+    for (Value r : cw.args()) st.write(r, Value());
     // A range made of the loop's variables is where SOME iteration writes:
     // written again with them as atoms of their own (never in a trace), so
     // that what the body asks of the current values - a read below where the
-    // previous iteration wrote - isn't taken as never written (fresh zeroes)
+    // previous iteration wrote - isn't taken as never written (fresh zeroes).
+    // (A variable with a floor at the head - one that never goes down - is
+    // at least that in every iteration: its floor plus the atom.)
     if (ls.written.nil()) return;
     SmallVec<Value, 8> from, to;
     for (Value n : ls.written.args()) {
         from.push_back(n);
-        to.push_back(Value::name(NameKind::LOOP, kFreshAtoms + (fresh++ & 0xffff)));
+        const Value atom = Value::name(NameKind::LOOP, kFreshAtoms + (fresh++ & 0xffff));
+        const Value f = floors.floor_of(n);
+        to.push_back(f.nil() ? atom : alg::add(f, atom));
     }
-    for (Value r : ls.mem_writes.args())
+    for (Value r : cw.args())
         if (Value r2 = substitute(r, from, to); r2 != r) st.write(r2, Value());
 }
 
@@ -250,8 +261,15 @@ private:
                 Value sv = map_line_exprs(mk(Op::CONTINUE, l[2], l[3]), [&](Value e, Pos pos) { return reads(e, pos, st); });
                 // at its head (any iteration): the floors no iteration
                 // changes, what it changes forgotten
-                fl = floor_loop(fl, l);
-                forget_loop(st, l, fresh_);
+                {
+                    // (what its lines write decided with the floors of the
+                    // variables its body sets too: floor_loop_inside)
+                    const alg::Facts in = floor_loop_inside(fl, l);
+                    fl = floor_loop(fl, l);
+                    st.set_facts(&in);
+                    forget_loop(st, l, fresh_, in);
+                    st.set_facts(&fl);
+                }
                 mem::MemState inside(st);
                 alg::Facts fin = fl;
                 inside.set_facts(&fin);
@@ -307,6 +325,69 @@ private:
 
 // ---- backward: dead writes ------------------------------------------------------------------
 
+// The floors before each line of a trace (floor.hpp), for the backward walk:
+// a forward walk first, carrying them as the forward pass does, each line's
+// kept by its place (its list, its index) - a list met at several places
+// (hash-consed) keeps the floors all of them have.
+class FloorsAt {
+public:
+    void walk(Value t, const alg::Facts& f) { (void)list(t, f); }
+    // the floors before line i of the list t (nullptr: none known)
+    const alg::Facts* at(Value t, u32 i) const { return memo_.find(Key2{t.raw(), i}); }
+
+private:
+    alg::Facts list(Value t, alg::Facts f) {
+        if (!t.is_list()) return f;
+        check_stack();
+        for (u32 i = 0; i < t.size(); ++i) {
+            poll();
+            note(t, i, f);
+            f = line(t[i], f);
+        }
+        return f;
+    }
+    alg::Facts line(Value l, const alg::Facts& f) {
+        if (!l.is_expr()) return f;
+        switch (l.op()) {
+            case Op::IF:
+            case Op::MERGED_IF: {
+                const alg::Facts ft = list(l[1], f), fe = list(l[2], f);
+                const bool t_ends = ends(l[1]), e_ends = ends(l[2]);
+                if (t_ends && !e_ends) return fe;
+                if (e_ends && !t_ends) return ft;
+                if (t_ends && e_ends) return f;  // (nothing after it runs)
+                return floor_join(alg::Facts{}, f, ft, fe);
+            }
+            case Op::WHILE: {
+                const alg::Facts head = floor_loop(f, l);
+                (void)list(l[1], head);
+                return head;
+            }
+            case Op::LABEL: return alg::Facts{};
+            case Op::LOOP_PATH:
+                (void)list(l[0], alg::Facts{});
+                return alg::Facts{};
+            default: return floor_transfer(f, l);
+        }
+    }
+    void note(Value t, u32 i, const alg::Facts& f) {
+        bool ins = false;
+        alg::Facts& slot = memo_.slot(Key2{t.raw(), i}, &ins);
+        if (ins || slot == f) {
+            slot = f;
+            return;
+        }
+        // (the floors both places have, the same)
+        alg::Facts common;
+        f.each_newest_first([&](const alg::Fact& x) {
+            if (x.kind == alg::FactKind::Floor && slot.floor_of(x.a) == x.b) common = common.with_floor(x.a, x.b);
+            return true;
+        });
+        slot = common;
+    }
+    Memo<Key2, alg::Facts> memo_;
+};
+
 constexpr usize kMaxLive = 64;
 
 struct Live {
@@ -333,18 +414,29 @@ struct Live {
         }
         for (Value r : o.ranges) add(r);
     }
+    // (the floors given to these hold before the line asked about, or
+    // throughout a compound one: floors_through. A live range is read after
+    // the line: when the line may change what it reads, it also may write
+    // the bytes that range's address or length reads - live too, the summary
+    // of the read having them - so the decisions below stay with ranges the
+    // line leaves as they were, where the floors before it hold)
+    static bool may_overlap(Value w, Value r, const alg::Facts* floors) {
+        if (overlaps(w, r) == Tri::False) return false;
+        if (!floors || !floors->any_floor()) return true;
+        return mem::overlaps(w, r, floors) != Tri::False;
+    }
     // a write of w may be read later
-    bool read(Value w) const {
+    bool read(Value w, const alg::Facts* floors = nullptr) const {
         if (all) return true;
         for (Value r : ranges)
-            if (overlaps(w, r) != Tri::False) return true;
+            if (may_overlap(w, r, floors)) return true;
         return false;
     }
     // before a line that changes what a live range reads (its address,
     // its length: memory...), that range isn't the same bytes: anything may
     // be read; before an assignment of variables (a SETVAR, setvars), the
     // range with their values in their place (what it is before it)
-    void before(Value line) {
+    void before(Value line, const alg::Facts* floors = nullptr) {
         if (all || ranges.empty()) return;
         const EffectSummary& s = summary(line);
         if (!s.writes) return;
@@ -356,12 +448,12 @@ struct Live {
             assign(names, values);
             return;
         }
-        before(s);
+        before(s, floors);
     }
-    void before(const EffectSummary& s) {
+    void before(const EffectSummary& s, const alg::Facts* floors = nullptr) {
         if (all || !s.writes) return;
         for (Value r : ranges)
-            if (changes(s, summary(r))) {
+            if (changes(s, summary(r), floors)) {
                 all = true;
                 ranges.clear();
                 return;
@@ -373,17 +465,18 @@ struct Live {
     }
     // the ranges must not read what s changes (a loop's head: ranges valid
     // at every iteration), else anything may be read
-    void invariant(const EffectSummary& s) { before(s); }
+    void invariant(const EffectSummary& s, const alg::Facts* floors = nullptr) { before(s, floors); }
     // what a write of w leaves to be read from before it
-    void overwrite(Value w) {
+    void overwrite(Value w, const alg::Facts* floors = nullptr) {
         if (all) return;
+        const alg::Facts* f = floors && floors->any_floor() ? floors : nullptr;
         std::vector<Value> next;
         for (Value r : ranges) {
-            if (overlaps(w, r) == Tri::False) {
+            if (!may_overlap(w, r, f)) {
                 next.push_back(r);
                 continue;
             }
-            for (Value s : mem::survivors(r, w)) next.push_back(s);
+            for (Value s : mem::survivors(r, w, f)) next.push_back(s);
         }
         ranges.swap(next);
     }
@@ -393,8 +486,8 @@ class Backward {
 public:
     // where msize is read: msize is at least `msize_lo` bytes everywhere in
     // the trace (what the entry lines wrote) - a write within it doesn't
-    // move msize
-    explicit Backward(u64 msize_lo = 0) : msize_lo_(msize_lo) {}
+    // move msize; floors: those before each line (FloorsAt)
+    Backward(u64 msize_lo, const FloorsAt& floors) : msize_lo_(msize_lo), floors_(floors) {}
 
     Value walk(Value trace, Live& live) {
         if (!trace.is_list()) return trace;
@@ -421,7 +514,7 @@ public:
         for (u32 i = n; i-- > 0;) {
             poll();
             Value l = trace[i];
-            Value r = line(l, live);
+            Value r = line(l, live, floors_.at(trace, i));
             if (r != l) changed = true;
             out[i] = r;
         }
@@ -462,7 +555,8 @@ private:
         return nullptr;
     }
 
-    Value line(Value l, Live& live) {
+    // (fl: the floors before the line, nullptr when none are known)
+    Value line(Value l, Live& live, const alg::Facts* fl) {
         if (!l.is_expr()) return l;
         switch (l.op()) {
             case Op::SETMEM: {
@@ -473,9 +567,9 @@ private:
                 }
                 // no read sees it (where msize is read: nor msize, or it
                 // doesn't move it)
-                if (!live.read(w) && (!run_flags().msize || !live.msize || within_lo(w))) return Value();
-                live.before(l);
-                live.overwrite(w);
+                if (!live.read(w, fl) && (!run_flags().msize || !live.msize || within_lo(w))) return Value();
+                live.before(l, fl);
+                live.overwrite(w, fl);
                 // what it reads: its range's and its value's
                 add_reads(summary(l), live);
                 return l;
@@ -495,11 +589,12 @@ private:
             case Op::WHILE: {
                 // at its head (any iteration): what follows it reads and what
                 // it reads anywhere, when none of those ranges reads what the
-                // loop changes
+                // loop changes (decided with the floors no iteration changes)
                 const EffectSummary& ls = summary(l);
                 Live head = live;
                 add_reads(ls, head);
-                head.invariant(ls);
+                const alg::Facts fh = fl ? floor_loop_inside(*fl, l, true) : alg::Facts{};
+                head.invariant(ls, &fh);
                 loops_.push_back({l[2], head, live});
                 Live in_body = live;
                 Value body = walk(l[1], in_body);
@@ -566,7 +661,10 @@ private:
         if (s.control & C_ENDS) live = Live{};
         // (a LEAVE: the caller goes on, and may read msize)
         if (s.control & C_LEAVES) live.msize = true;
-        live.before(l);
+        {
+            const alg::Facts through = fl ? floors_through(*fl, l) : alg::Facts{};
+            live.before(l, &through);
+        }
         add_reads(s, live);
         return l;
     }
@@ -581,6 +679,7 @@ private:
 
     std::vector<Loop> loops_;
     u64 msize_lo_ = 0;
+    const FloorsAt& floors_;
 };
 
 }  // namespace
@@ -596,6 +695,8 @@ Value cleanup_mems(Value trace) {
     Forward fw;
     // what the lines before the trace wrote (the dispatcher's)
     if (run_flags().entry_lines.is_list()) (void)fw.walk(run_flags().entry_lines, st, fl);
+    // (the floors of the entry lines, for the backward walk's)
+    const alg::Facts entry_floors = fl;
     Value t = fw.walk(trace, st, fl);
     // where msize is read, a write no read sees is dropped only where msize
     // isn't read after it or where it doesn't move it (within what the entry
@@ -607,7 +708,9 @@ Value cleanup_mems(Value trace) {
                 const i64 p = l[0][0].small_val(), n = l[0][1].small_val();
                 if (p >= 0 && n > 0 && p <= (i64(1) << 40) && n <= (i64(1) << 40)) lo = std::max(lo, (u64(p + n) + 31) & ~u64(31));
             }
-    Backward bw(lo);
+    FloorsAt floors;
+    floors.walk(t, entry_floors);
+    Backward bw(lo, floors);
     Live live;
     return bw.walk(t, live);
 }

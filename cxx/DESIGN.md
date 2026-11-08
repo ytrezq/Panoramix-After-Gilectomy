@@ -658,7 +658,13 @@ floor plus what an allocation adds), kept across lines and loops that
 provably miss the word and what F reads, lowered at a join to a value
 proven below both branches' - which the decisions about positions read as
 `mem[A] = F + d`, `d >= 0`. Nothing presumes what the word is for: a
-hand-written allocator bumping another word gets the same proofs.
+hand-written allocator bumping another word gets the same proofs. The
+variables that hold such a word's value, or an address past it, get floors
+the same way (`_12 = mem[64]`: `_12 >= F`), and every walk that decides
+about memory reads them: the forwarding, `cleanup_vars`' and
+`cleanup_conds`' kills, the backward pass' dead writes. A loop's floors are
+made by walking its body from its head (the iterations that revert left out;
+a pointer its CONTINUEs only step up, a word it only allocates from).
 
 ### The simplifier (lot 7, `src/simplify/`)
 
@@ -953,7 +959,14 @@ before); the printed texts: 0 unparsed lines, empty world 39,059 calls, 39,017 t
 different; random world 39,063, 38,549 the same, 0 different. Unit tests: 351 cases, 242,698
 assertions, 0 failures. The price of assuming nothing: copy loops left 5,579 in 247
 contracts and `while` lines 9,568 (5,262 in 241 and 8,997 with python's `mem[64] >= 0x60`);
-the floors as they stand don't win them back (`docs/alloc-floor.md`, Results).
+the floors as they stand don't win them back (`docs/alloc-floor.md`, Results). With the
+floors read by every walk that decides about memory (8 Nov, merged with cxx23 at
+b9a2df1c8e; the same checks): every stage 0 different, 0 bugs - 78,021 calls at the folded
+stage, 77,732 the same, 289 inconclusive (one contract at the time limit); the texts: 0
+unparsed lines, empty world 39,059 calls, 39,017 the same, random world 39,063, 38,549 the
+same, 0 different; unit tests 377 cases, 246,764 assertions, 0 failures. Copy loops left
+5,094 in 227 contracts, `while` lines 8,144, printed lines 573,577 (the assumption's texts:
+5,262, 8,997, 545,648; cxx23's: 5,540, 9,151, 643,886).
 
 **Proofs, not samples** (8 Nov; `algebra/identity.hpp`, `analysis/safemath.cpp`,
 `storage/check.cpp`): SafeMath's abstraction of a site and a storage form against its access

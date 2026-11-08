@@ -22,6 +22,7 @@
 // is the one that set it on every path, and nothing between changed what the
 // value reads.
 #include "simplify/effects.hpp"
+#include "simplify/floor.hpp"
 #include "simplify/internal.hpp"
 #include "simplify/simplify.hpp"
 
@@ -29,6 +30,7 @@
 #include <memory_resource>
 #include <vector>
 
+#include "algebra/facts.hpp"
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "core/memo.hpp"
@@ -83,8 +85,9 @@ public:
         if (it != e_.end() && it->name == name) e_.erase(it);
     }
     // the entries a line (its summary) may make wrong: the variables it sets,
-    // the values whose reads it may change
-    void kill(const EffectSummary& s) {
+    // the values whose reads it may change (the memory decided with the
+    // floors that hold where the line's writes are: simplify/floor.hpp)
+    void kill(const EffectSummary& s, const alg::Facts* floors = nullptr) {
         if (!s.writes || e_.empty()) return;
         std::erase_if(e_, [&](const Entry& x) {
             if (s.writes & S_VARS) {
@@ -94,7 +97,7 @@ public:
                         if (w == x.name) return true;
             }
             if (!(s.writes & x.reads)) return false;
-            return changes(s, summary(x.value));
+            return changes(s, summary(x.value), floors);
         });
     }
     // what both say
@@ -126,8 +129,9 @@ public:
     explicit Forward(std::pmr::memory_resource* r) : res_(r) {}
 
     // the trace with the variables known replaced; env: at its end (the
-    // paths that reach it)
-    Value walk(Value trace, Env& env) {
+    // paths that reach it); fl: the floors there (floor.hpp: the walk
+    // carries them as the memory pass does)
+    Value walk(Value trace, Env& env, alg::Facts& fl) {
         if (!trace.is_list()) return trace;
         check_stack();
         const u32 n = trace.size();
@@ -136,7 +140,7 @@ public:
         for (u32 i = 0; i < n; ++i) {
             poll();
             Value l = trace[i];
-            Value r = line(l, env, trace, i);
+            Value r = line(l, env, fl, trace, i);
             if (r != l) changed = true;
             out.push_back(r);
         }
@@ -174,23 +178,27 @@ private:
     }
 
     // a line, env going forward through it
-    Value line(Value l, Env& env, Value trace, u32 i) {
+    Value line(Value l, Env& env, alg::Facts& fl, Value trace, u32 i) {
         if (!l.is_expr()) return l;
         switch (l.op()) {
             case Op::IF:
             case Op::MERGED_IF: {
                 Value cond = subst(l[0], env);
                 Env et(env), ee(env);
-                Value t = walk(l[1], et);
-                Value e = l.size() > 2 ? walk(l[2], ee) : Value();
+                alg::Facts ft = fl, fe = fl;
+                Value t = walk(l[1], et, ft);
+                Value e = l.size() > 2 ? walk(l[2], ee, fe) : Value();
                 const bool t_ends = ends(t), e_ends = e.nil() ? false : ends(e);
-                if (t_ends && !e_ends)
+                if (t_ends && !e_ends) {
                     env = ee;
-                else if (e_ends && !t_ends)
+                    fl = fe;
+                } else if (e_ends && !t_ends) {
                     env = et;
-                else if (!t_ends && !e_ends) {
+                    fl = ft;
+                } else if (!t_ends && !e_ends) {
                     et.meet(ee);
                     env = et;
+                    fl = floor_join(fl, fl, ft, fe);
                 }
                 // (both end: nothing after it runs)
                 SmallVec<Value, 3> a{cond, t};
@@ -202,23 +210,31 @@ private:
             case Op::WHILE: {
                 // the setvars: at the entry, from env
                 Value sv = subst_setvars(l[3], env);
-                const EffectSummary& s = summary(l);
-                env.kill(s);
+                // (at its head, for every iteration, and after it: what the
+                // paths that go on change - an iteration that reverts never
+                // gets back -, decided with the floors none of them changes;
+                // the paths that end walked in the body, line by line)
+                const EffectSummary& s = loops::summary(l).cont_effects;
+                const alg::Facts in = floor_loop_inside(fl, l);
+                fl = floor_loop(fl, l);
+                env.kill(s, &in);
                 Env inside(env);
+                alg::Facts fin = fl;
                 Value cond = subst(l[0], inside);
-                Value body = walk(l[1], inside);
+                Value body = walk(l[1], inside, fin);
                 Value r = mk(Op::WHILE, cond, body, l[2], sv);
                 cx().pcs.inherit(r, l);
                 // after it, the loop's variables' last values when lot 6
                 // proves them (made of what the loop doesn't change)
                 if (auto ind = loops::induction(l); ind && ind->endvars.is_list())
                     for (Value e : ind->endvars.args())
-                        if (e.is(Op::SETVAR, 2) && is_var(e[0]) && !changes(s, summary(e[1])) && movable(e[0], e[1]))
+                        if (e.is(Op::SETVAR, 2) && is_var(e[0]) && !changes(s, summary(e[1]), &in) && movable(e[0], e[1]))
                             env.set(e[0], e[1]);
                 return r;
             }
             case Op::LABEL: {
                 Value sv = subst_setvars(l[1], env);
+                fl = fl.without_floors();
                 env.kill(summary(l));
                 // what the lines after it (run again from it) change
                 EffectSummary rest;
@@ -230,9 +246,11 @@ private:
                 return r;
             }
             case Op::LOOP_PATH: {
+                fl = fl.without_floors();
                 Env inside(env);
                 inside.kill(summary(l));
-                Value t = walk(l[0], inside);
+                alg::Facts fin;
+                Value t = walk(l[0], inside, fin);
                 env.kill(summary(l));
                 return t == l[0] ? l : mk(Op::LOOP_PATH, t, l[1]);
             }
@@ -240,7 +258,13 @@ private:
         }
         Value r = subst_line(l, env);
         if (r != l) cx().pcs.inherit(r, l);
-        env.kill(summary(r));
+        {
+            // (what it writes, decided with the floors before it - its own
+            // writes evaluated there; floors_through for a compound line)
+            const alg::Facts through = floors_through(fl, r);
+            env.kill(summary(r), &through);
+        }
+        fl = floor_transfer(fl, r);
         if (r.is(Op::SETVAR, 2) && is_var(r[0]) && movable(r[0], r[1])) env.set(r[0], r[1]);
         return r;
     }
@@ -513,7 +537,9 @@ Value cleanup_vars(Value trace) {
     if (!trace.is_list()) return trace;
     Env env(cx().budget.resource());
     Forward fw(cx().budget.resource());
-    Value t = fw.walk(trace, env);
+    // (the floors from the lines before the trace: the dispatcher's)
+    alg::Facts fl = run_flags().entry_lines.is_list() ? floor_walk(alg::Facts{}, run_flags().entry_lines) : alg::Facts{};
+    Value t = fw.walk(trace, env, fl);
     Backward bw;
     Live live;
     return bw.walk(t, live);

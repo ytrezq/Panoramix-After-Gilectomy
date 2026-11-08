@@ -477,18 +477,21 @@ public:
                     // its iterations changes, decided with the facts that
                     // hold in every iteration)
                     const alg::Facts kept = forget(facts, l);
-                    const alg::Facts head =
-                        simplify::floors_from(kept, simplify::floor_loop(simplify::floors_from(kept, facts), l));
+                    const alg::Facts base = simplify::floors_from(kept, facts);
+                    const alg::Facts head = simplify::floors_from(kept, simplify::floor_loop(base, l));
+                    // (the decisions about its lines: with the floors of the
+                    // variables its body sets too)
+                    const alg::Facts in = simplify::floors_from(kept, simplify::floor_loop_inside(base, l));
                     Value b = trace(l[1], head.with(l[0], true));
                     Value x = b == l[1] ? l : mk(Op::WHILE, l[0], b, l[2], l[3]);
                     if (x != l) cx().pcs.inherit(x, l);
                     WordCopy copy;
-                    Value r = to_setmem(x, opts_, &head, &unread_, cut_ ? &copy : nullptr);
+                    Value r = to_setmem(x, opts_, &in, &unread_, cut_ ? &copy : nullptr);
                     if (r.is_list()) {
                         for (u32 k = 0; k < r.size(); ++k)
                             out.push_back(k + 1 == r.size() && i + 1 < t.size() ? cut_tail(r[k], copy, t[i + 1]) : r[k]);
                         changed = true;
-                    } else if (run_once(x, &head, once_) || drop_counting(x, &head, once_)) {
+                    } else if (run_once(x, &in, once_) || drop_counting(x, &in, once_)) {
                         for (Value y : once_) out.push_back(y);
                         changed = true;
                     } else {
@@ -500,7 +503,10 @@ public:
                 }
                 default:
                     out.push_back(l);
-                    facts = forget(simplify::floor_transfer(facts, l), l);
+                    // (the floors moved by floor.hpp, decided with the facts
+                    // before the line - a variable it sets gets its floor -;
+                    // the other facts forgotten as the line changes them)
+                    facts = simplify::floors_from(forget(facts, l), simplify::floor_transfer(facts, l));
                     break;
             }
         }

@@ -480,6 +480,42 @@ void summary_ranges(const simplify::EffectSummary& e, const Hull* h, std::span<c
     reads = r2;
 }
 
+// every path through v ends in it by a halt, a failure or a leave (none
+// jumps - a CONTINUE, a BREAK, a GOTO - nor is undefined): it never gets
+// back to a loop's head nor past the loop
+bool dies(Value v) {
+    const u32 c = simplify::summary(v).control;
+    return (c & simplify::C_ENDS) && !(c & (simplify::C_JUMPS | simplify::C_UNDEFINED));
+}
+
+// v's effects on the paths that go on (dies() left out): a trace's lines up
+// to one that dies, an IF's condition and its branches that don't die; a
+// nested loop whole
+simplify::EffectSummary continuing(Value v) {
+    if (v.is_list()) {
+        check_stack();
+        simplify::EffectSummary r;
+        for (Value l : v.args()) {
+            poll();
+            if (dies(l)) break;
+            r = simplify::combine(r, continuing(l), true);
+        }
+        return r;
+    }
+    if (v.is(Op::IF, 3) || v.is(Op::MERGED_IF, 3)) {
+        const bool td = dies(v[1]), ed = dies(v[2]);
+        simplify::EffectSummary b;
+        if (!td && !ed)
+            b = simplify::combine(continuing(v[1]), continuing(v[2]), false);
+        else if (!td)
+            b = continuing(v[1]);
+        else if (!ed)
+            b = continuing(v[2]);
+        return simplify::combine(simplify::summary(v[0]), b, true);
+    }
+    return simplify::summary(v);
+}
+
 }  // namespace
 
 const LoopSummary& summary(Value while_line) {
@@ -530,6 +566,24 @@ const LoopSummary& summary(Value while_line) {
                    s.mem_reads);
     s.mem_writes_any = (e.writes_any & simplify::S_MEM) != 0;
     s.mem_reads_any = (e.reads_any & simplify::S_MEM) != 0;
+    // (the paths that go on: the condition, the setvars, the body's)
+    s.cont_effects = simplify::combine(simplify::combine(simplify::summary(while_line[0]), simplify::summary(sv), true),
+                                       continuing(body), true);
+    if (s.cont_effects.mem_writes == e.mem_writes && s.cont_effects.writes_any == e.writes_any) {
+        s.cont_writes = s.mem_writes;
+    } else {
+        Value cont_reads;
+        summary_ranges(s.cont_effects, hull ? &*hull : nullptr, std::span<const Value>(written.data(), written.size()),
+                       s.cont_writes, cont_reads);
+    }
+    s.cont_writes_any = (s.cont_effects.writes_any & simplify::S_MEM) != 0;
+    // the variables only the setvars and the CONTINUEs set
+    {
+        SmallVec<Value, 8> st;
+        for (Value x : vars)
+            if (std::find(bw.sets.begin(), bw.sets.end(), x) == bw.sets.end()) st.push_back(x);
+        if (!st.empty()) s.stepped = mk_list(st.span());
+    }
     st.summaries.push_back(s);
     st.summary_index.put(while_line, u32(st.summaries.size()));
     return st.summaries.back();

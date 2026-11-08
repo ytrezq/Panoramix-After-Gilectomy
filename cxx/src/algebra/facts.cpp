@@ -433,15 +433,29 @@ Facts Facts::without_memory() const {
 
 // ---- floors (docs/alloc-floor.md) -----------------------------------------------------
 
-Value Facts::floor_of(u64 addr) const noexcept {
-    const Value a = Value::small(i64(addr));
+Value Facts::floor_of(u64 addr) const noexcept { return floor_of(Value::small(i64(addr))); }
+
+Value Facts::floor_of(Value a) const noexcept {
     for (const Cell* c = head_; c; c = c->next)
         if (c->f.kind == FactKind::Floor && c->f.a == a) return c->f.b;
     return Value();
 }
 
-Facts Facts::without_floor(u64 addr) const {
-    const Value a = Value::small(i64(addr));
+bool Facts::any_word_floor() const noexcept {
+    for (const Cell* c = head_; c; c = c->next)
+        if (c->f.kind == FactKind::Floor && c->f.a.is_small()) return true;
+    return false;
+}
+
+bool Facts::any_var_floor() const noexcept {
+    for (const Cell* c = head_; c; c = c->next)
+        if (c->f.kind == FactKind::Floor && c->f.a.is_name()) return true;
+    return false;
+}
+
+Facts Facts::without_floor(u64 addr) const { return without_floor(Value::small(i64(addr))); }
+
+Facts Facts::without_floor(Value a) const {
     bool any = false;
     for (const Cell* c = head_; c && !any; c = c->next) any = c->f.kind == FactKind::Floor && c->f.a == a;
     if (!any) return *this;
@@ -468,44 +482,113 @@ Facts Facts::without_floors() const {
     return from_cells(keep.span());
 }
 
-Value floor_atom(u64 addr) { return Value::name(NameKind::LOOP, 0xffe00000u | u32(addr & 0xfffffu)); }
+// (the LOOP ids no trace has: d_A at 0xffe00000 | A, d_x at 0xffd00000 |
+// a TMP's id, 0xffc00000 | a loop variable's; mems.cpp's fresh atoms at
+// 0xfff00000)
+constexpr u32 kFloorAtoms = 0xffe00000u, kTmpFloorAtoms = 0xffd00000u, kLoopFloorAtoms = 0xffc00000u,
+              kAtomIds = 0xfffffu;
+
+Value floor_atom(u64 addr) { return Value::name(NameKind::LOOP, kFloorAtoms | u32(addr & kAtomIds)); }
+
+bool var_floor_key(Value name) noexcept {
+    return name.is_name() && (name.name_kind() == NameKind::TMP || name.name_kind() == NameKind::LOOP) &&
+           name.name_id() <= kAtomIds;
+}
+
+Value var_floor_atom(Value name) {
+    const u32 base = name.name_kind() == NameKind::TMP ? kTmpFloorAtoms : kLoopFloorAtoms;
+    return Value::name(NameKind::LOOP, base | (name.name_id() & kAtomIds));
+}
+
+bool is_floor_atom(Value v) noexcept {
+    if (!v.is_name() || v.name_kind() != NameKind::LOOP) return false;
+    const u32 hi = v.name_id() & ~kAtomIds;
+    return hi == kFloorAtoms || hi == kTmpFloorAtoms || hi == kLoopFloorAtoms;
+}
 
 namespace {
 
-Value floored_rec(Value v, const Facts& f, Memo<Value, Value>& memo) {
-    if (!v.has_flags(F_MEM) || !(v.is_expr() || v.is_list())) return v;
-    if (v.is(Op::MEM, 1) && v[0].is(Op::RANGE, 2) && v[0][0].is_small() && v[0][1] == Value::small(32)) {
-        const i64 a = v[0][0].small_val();
-        if (a >= 0)
-            if (Value fl = f.floor_of(u64(a)); !fl.nil()) return add(fl, floor_atom(u64(a)));
+// (a floor put in place is floored in turn - a floor of the word reading a
+// variable that has one - this many levels deep: each substitution alone is
+// sound, the chain only gives the decisions more)
+constexpr int kFlooredDepth = 4;
+
+Value floored_rec(Value v, const Facts& f, Memo<Value, Value>& memo, u8 flags, int depth) {
+    if (v.is_name()) {
+        if (depth < kFlooredDepth && (flags & F_VAR) && var_floor_key(v))
+            if (Value fl = f.floor_of(v); !fl.nil()) return add(floored_rec(fl, f, memo, flags, depth + 1), var_floor_atom(v));
         return v;
     }
-    if (Value* m = memo.find(v)) return *m;
+    if (!v.has_flags(flags) || !(v.is_expr() || v.is_list())) return v;
+    if (v.is(Op::MEM, 1) && v[0].is(Op::RANGE, 2) && v[0][0].is_small() && v[0][1] == Value::small(32)) {
+        const i64 a = v[0][0].small_val();
+        if (a >= 0 && depth < kFlooredDepth)
+            if (Value fl = f.floor_of(u64(a)); !fl.nil())
+                return add(floored_rec(fl, f, memo, flags, depth + 1), floor_atom(u64(a)));
+        return v;
+    }
+    // (through the arithmetic of positions only - sums, products, masks,
+    // minimums and maximums, ranges: a read's address, a calldata word's
+    // offset stay as they are, atoms the facts' bounds are about)
+    if (v.is_expr()) switch (v.op()) {
+            case Op::ADD:
+            case Op::MUL:
+            case Op::MASK_SHL:
+            case Op::MIN:
+            case Op::MAX:
+            case Op::RANGE: break;
+            default: return v;
+        }
+    if (depth == 0)
+        if (Value* m = memo.find(v)) return *m;
     check_stack();
     SmallVec<Value, 8> args;
     bool changed = false;
     for (Value x : v.args()) {
-        Value y = floored_rec(x, f, memo);
+        Value y = floored_rec(x, f, memo, flags, depth);
         changed |= y != x;
         args.push_back(y);
     }
     Value r = !changed ? v : v.is_list() ? mk_list(args.span()) : apply(v.op(), args.span());
-    memo.put(v, r);
+    if (depth == 0) memo.put(v, r);
     return r;
 }
 
 }  // namespace
 
+// (by the value and the facts' identity: the cells live in the arena until
+// the context compacts, which drops this state)
+struct FlooredState final : ModuleState {
+    Memo<Key2, Value> memo;
+    void clear_caches() override { memo.clear(); }
+};
+
 Value floored(Value v, const Facts& facts) {
-    if (!facts.any_floor() || !v.has_flags(F_MEM)) return v;
-    Memo<Value, Value> memo;
-    return floored_rec(v, facts, memo);
+    if (!facts.any_floor() || !(v.is_expr() || v.is_list() || v.is_name())) return v;
+    const Key2 key{v.raw(), facts.identity()};
+    if (const Value* r = cx().state<FlooredState>().memo.find(key)) return *r;
+    const u8 flags = u8((facts.any_word_floor() ? F_MEM : 0) | (facts.any_var_floor() ? F_VAR : 0));
+    Value r = v;
+    if (v.has_flags(flags) || (v.is_name() && (flags & F_VAR))) {
+        Memo<Value, Value> memo;
+        r = floored_rec(v, facts, memo, flags, 0);
+    }
+    cx().state<FlooredState>().memo.put(key, r);
+    return r;
 }
 
-Facts Facts::with_floor(u64 addr, Value floor) const {
-    Facts r = without_floor(addr);
+Facts Facts::with_floor(u64 addr, Value floor) const { return with_floor(Value::small(i64(addr)), floor); }
+
+Facts Facts::with_floor(Value key, Value floor) const {
+    // (a constant floor of 0 says nothing - and floored() would read the
+    // word or the variable as a fresh atom, the conditions about it lost -,
+    // one of 2^63 or more is past the addresses of the memory model: none)
+    if (floor.is_big() || (floor.is_small() && floor.small_val() <= 0)) floor = Value();
+    // (the same floor: the same facts - the walks see nothing changed)
+    if (!floor.nil() && floor_of(key) == floor) return *this;
+    Facts r = without_floor(key);
     if (floor.nil()) return r;
-    return r.with(Fact{FactKind::Floor, Value::small(i64(addr)), floor, {}});
+    return r.with(Fact{FactKind::Floor, key, floor, {}});
 }
 
 // ---- memory -------------------------------------------------------------------------
@@ -528,7 +611,7 @@ Facts Facts::write_memory(Value start, Value size, Value value) const {
         // keep floors - mem/floor.hpp - set them again from what is written)
         SmallVec<u64, 4> hit;
         for (const Cell* c = head_; c; c = c->next)
-            if (c->f.kind == FactKind::Floor) {
+            if (c->f.kind == FactKind::Floor && c->f.a.is_small()) {
                 const u64 a = u64(c->f.a.small_val());
                 if (!(a + 32 <= *s || *s + *n <= a) || c->f.b.has_flags(F_MEM)) hit.push_back(a);
             }

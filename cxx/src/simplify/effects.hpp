@@ -52,6 +52,10 @@
 #include "core/smallvec.hpp"  // Tri
 #include "core/value.hpp"
 
+namespace pan::alg {
+class Facts;
+}
+
 namespace pan::simplify {
 
 // ---- the state classes (EffectSummary::reads / writes) ----------------------
@@ -126,6 +130,12 @@ bool affects(Value line, Value expr);
 bool affects(const EffectSummary& line, Value expr);
 // may the writes of w change what r reads (the same test, summaries)
 bool changes(const EffectSummary& w, const EffectSummary& r);
+// The same, the memory places compared with the floors of the path facts
+// where they may meet without them (docs/alloc-floor.md: mem::overlaps reads
+// a floored word or variable as its floor plus d >= 0). The facts must hold
+// where w's writes and r's reads are evaluated: before a plain line, or
+// throughout a compound one (simplify/floor.hpp floors_through).
+bool changes(const EffectSummary& w, const EffectSummary& r, const alg::Facts* facts);
 
 // Can a and b (lines) run in either order with the same effects: neither
 // writes what the other reads or writes, and neither may end a path

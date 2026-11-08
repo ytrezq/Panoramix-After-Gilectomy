@@ -24,7 +24,9 @@ namespace pan::simplify {
 
 // The facts after `line` ran (its reads as the line has them, evaluated
 // before it): the floors it may change dropped, a word written at a
-// constant address given its new floor; the other facts as they are (the
+// constant address given its new floor, a variable set to a floored word
+// (plus what it adds) the floor of that (_12 = mem[64]: _12 >= F, for as
+// long as _12 and what F reads stay); the other facts as they are (the
 // caller forgets those).
 alg::Facts floor_transfer(const alg::Facts& facts, Value line);
 
@@ -36,10 +38,27 @@ alg::Facts floor_join(const alg::Facts& into, const alg::Facts& before, const al
                       const alg::Facts& else_facts);
 
 // At the head of a loop (WHILE, LABEL, LOOP_PATH), for every iteration: the
-// floors none of its iterations may change (its summary's writes, decided
-// with the floors before it). The other facts must hold in every iteration
-// (what the loop may change forgotten first).
+// floors none of its iterations may change on the paths that go on (its
+// summary's cont_writes, decided with the floors before it) - they hold at
+// the head, throughout those paths, and after the loop. The other facts
+// must hold in every iteration (what the loop may change forgotten first).
 alg::Facts floor_loop(const alg::Facts& facts, Value loop_line);
+// The same over every path of the loop, those that end in it too (its
+// summary's mem_writes): the floors that hold at every point of the loop.
+alg::Facts floor_loop_all(const alg::Facts& facts, Value loop_line);
+// The head's floors (floor_loop's, or floor_loop_all's) with those of the
+// variables the loop's body sets - each at least its floor wherever the
+// iteration set it, none read before it's set, the floor made of what the
+// loop doesn't change: for the decisions about what the loop's lines write
+// (its summary, whose ranges read them after they're set), not past it.
+alg::Facts floor_loop_inside(const alg::Facts& facts, Value loop_line, bool all_paths = false);
+
+// The floors that hold at every point of `line` (before it and within it):
+// the decisions about what a compound line (an IF, a loop) writes - its
+// summary - are made with them. A plain line's are the facts' (it reads
+// before it writes); a WHILE's floor_loop_all's; an IF's those none of its
+// writes may change (a TRACE's alike); none for a LABEL or a LOOP_PATH.
+alg::Facts floors_through(const alg::Facts& facts, Value line);
 
 // The floors after `v` (a line, or a TRACE / LIST of lines) ran from facts:
 // floor_transfer line by line, an IF's branches walked and joined (one that
