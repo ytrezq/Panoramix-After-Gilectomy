@@ -474,18 +474,29 @@ from python and the asm, and what became of it (the audit of November
 | the free memory pointer flag (`ContractShared::free_memory_pointer`, `sets_free_memory_pointer`) | `core/contract.hpp`, `evm/decoder.cpp` | removed |
 | a mapping's hash order (solidity's `keccak(key . slot)`, Vyper's `keccak(slot . key)`) taken from the CBOR metadata | `storage/analyse.cpp` | the code's hashes vote; the metadata only breaks a tie |
 | the dispatcher's selector tests | `vm/discover` | recognized by their semantics (EQ, XOR, SUB, ISZERO, AND, OR of the selector word; jump tables are code the VM runs): Vyper 0.3.10 to 0.4.3's tables, `gas` and `codesize`, give every function |
+| a comparison of anything read from `calldataload(0)` with a 4-byte number taken for a selector's test (a dispatcher on the first byte became functions 0x00000000...), an AND with any condition for Vyper's size guard, a selector's last target for all its calls, the negated tests for the default function's short calls | `vm/discover.cpp` | removed: a test is a selector's only where it decides every call as the machine dispatches (the first 4 bytes of 4 or more; a shorter calldata reads as its bytes then zeroes: a selector ending in 0 needs the size guard or a proof); a function is kept only when every call of its selector reaches its one node with no line on the way but the entry's (SETMEM, SETVAR, checks), else it is the default function's, which is then all of the dispatcher |
+| solc's default function reached with the selector on the stack or not | `vm/` | the stacks' common top is the entry's; where the code reads the words below it or overflows the stack with them, `UNDEFINED(STACK)` |
 | copies whose source and destination can't overlap by the allocation discipline | `loops/rewrite.cpp` | never assumed: proven (the floors) or left a loop |
-| checked arithmetic (OpenZeppelin, ds-math, Panic 0x11 / 0x12, Vyper) | `analysis/safemath.cpp` | recognized; each site verified on random values |
+| a copy loop of the storage's words (python's `loop_to_setmem_from_storage`, which the port had dropped) | `loops/rewrite.cpp` | one line where the induction proves the trips: `mem[p len 32 n] = stor[slot len n]` (`STORAGE_RANGE`); Vyper's `!=` loop condition (a XOR) read as one |
+| checked arithmetic (OpenZeppelin, ds-math, Panic 0x11 / 0x12, Vyper, a hand-written check) | `analysis/safemath.cpp` | recognized; each site's abstraction the algebra's, else checked on four random points (not proven) |
+| the storage forms (python's four worlds) | `storage/check.cpp` | recognized; a form proven by its linear form (slot and bits), else checked in four random worlds (not proven); a bytes getter run by the trace machine on storage worlds |
+| solidity's length of a storage bytes or string, `(x & (256 * iszero(x & 1) - 1)) >> 1` | `simplify/passes.cpp` | recognized exactly: `LENGTH(key)`'s meaning is that formula (the machine runs it); Vyper's length slot is a plain word |
 | params' types from masks, solc >= 0.8's validation | `analysis/traits.cpp` | recognized; the trace machine runs the checks taken out |
 | python's `small_words` (a word given to the contract below 2^64 in memory positions) | `simplify/` | made sound: past a check bounding it on every path |
 | the metadata's language | `driver/` | displayed (`lang`), and the storage tie |
-| Error(string) / Panic decoding, event and storage names | `output/` | display only |
+| Error(string) / Panic decoding, event and storage names, `# solidity >= 0.8` on a SafeMath function failing with a Panic (Fe's encoding too) | `output/` | display only (the asm's) |
 
 Validated on code that isn't solc's: Vyper (the corpus branch's Lido
 contracts, 0.3.6 and 0.3.7, every EVM version they know; a 27-function
-contract by 0.3.10, 0.4.0 and 0.4.3, both optimizer modes) and the Yul
-fixtures (`tests/fixtures/yul`: overlapping copies and MCOPY, a dispatcher on
-the first byte, the word at 0x40 lowered or unused).
+contract by 0.3.10, 0.4.0 and 0.4.3, both optimizer modes; the 130 Vyper
+artifacts of the Immunefi corpus) and the fixtures `tests/fixtures_test.cpp`
+runs (stagecheck's and text_check's checks, `compile.sh` makes them): Yul
+(`yul/`: overlapping copies and MCOPY, a dispatcher on the first byte, the
+word at 0x40 lowered or unused), Vyper 0.3.7, 0.3.10, 0.4.0 and 0.4.3
+(`vyper/`: storage strings and a DynArray of structs copied word by word,
+interfaces, nested mappings, a default function), hand-written code (`asm/`:
+a token as Huff writes one, packed calldata dispatched on its first byte).
+Huff's and Fe's compilers weren't installable (no GitHub release reachable).
 
 ## The pipeline
 
@@ -518,10 +529,15 @@ layout and the SafeMath table.
 context of its own with half a function's memory and (60 + 180) s scaled.
 A selector test is recognised on the JUMPI's condition (EQ or XOR of the
 selector word with a 4-byte number, their difference, ISZERO negations,
-Vyper's AND / OR, `iszero(selector)`), its paths giving the
+Vyper's AND / OR with conditions the path's facts decide for every call of
+4 bytes or more, `iszero(selector)`), its paths giving the
 EntryCondition; the fallback is where no selector leads (lot 5: the asm's
-selectors on 1121 of 1121 contracts). A failed discovery logs python's
-"Loader issue: ..." and leaves the fallback alone.
+selectors on 1121 of 1121 contracts). A selector's function stands only
+when every call of it gets to its one node, each condition on the way
+decided by the selector's value or a check whose other branch reverts, and
+no line but the entry's on the way; the default function's start likewise
+(else all of the dispatcher is the default function). A failed discovery
+logs python's "Loader issue: ..." and leaves the fallback alone.
 
 **Jobs**: one per function (`--function`: those whose name starts with
 it) on `parallel_for`, each with its own budget (a function's memory, 180
@@ -598,7 +614,8 @@ names set, effects, the memory an iteration may write and read, breaks;
 constant step, an invariant bound), with trips and end values only when
 the counter can't wrap. The rewrites are sound by construction:
 `loop_to_setmem` (zero fills, copies whose source and destination can't
-overlap the wrong way, calldata copies; under the path's facts; 0 or 1
+overlap the wrong way, calldata copies, the words of consecutive storage
+slots - `stor[slot len n]`, `STORAGE_RANGE`; under the path's facts; 0 or 1
 trips unrolled), `propagate_storage_in_loops` (an exact change of
 variables), `rename_var`. On the corpus (lot 6, before its second round):
 14,281 loops, 95.5% with a `while cond`; 3,353 trip counts proven of
@@ -979,7 +996,9 @@ each case run before and after); `simplify`; `traits`; `safemath`;
 (the machine and evmone on hand-assembled bytecode); `driver` (one run's
 stages, determinism at 1, 2, 8 threads, limits, waves); `sigdb`, `sha256`
 (NIST vectors through every implementation the CPU has); the front ends';
-`validate`; `text`, `text interp`. The corpus suites do nothing unless
+`validate`; `text`, `text interp`; `fixtures` (`tests/fixtures`' Yul,
+Vyper and hand-written contracts: every stage and the printed text against
+evmone). The corpus suites do nothing unless
 their variable names a corpus. The python tests: `cli_surface.py` (inputs,
 options, messages, exit codes, a fetch from a node of its own, panasm's
 answers when it is there), `pymod_surface.py` (both builds of the module),
