@@ -52,20 +52,17 @@
     {
      "prefix": "IPOR-Labs__ipor-protocol",
      "url": "https://github.com/IPOR-Labs/ipor-protocol",
-     "commit": "434327d363f237dbf628f45cdb7709ab929f4a30",
-     "files": 357
+     "commit": "434327d363f237dbf628f45cdb7709ab929f4a30"
     },
     {
      "prefix": "IPOR-Labs__ipor-protocol/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e",
-     "files": 40
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
     },
     {
      "prefix": "IPOR-Labs__ipor-protocol/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ]
   }
