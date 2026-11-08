@@ -1,0 +1,1593 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.30;
+
+import {ERC721TokenReceiver} from "../../lib/solmate/src/tokens/ERC721.sol";
+
+// Staking Activity Checker interface
+interface IActivityChecker {
+    /// @dev Gets service multisig nonces.
+    /// @param multisig Service multisig address.
+    /// @return nonces Set of a single service multisig nonce.
+    function getMultisigNonces(address multisig) external view returns (uint256[] memory nonces);
+
+    /// @dev Checks if the service multisig liveness ratio passes the defined liveness threshold.
+    /// @notice The formula for calculating the ratio is the following:
+    ///         currentNonce - service multisig nonce at time now (block.timestamp);
+    ///         lastNonce - service multisig nonce at the previous checkpoint or staking time (tsStart);
+    ///         ratio = (currentNonce - lastNonce) / (block.timestamp - tsStart).
+    /// @param curNonces Current service multisig set of a single nonce.
+    /// @param lastNonces Last service multisig set of a single nonce.
+    /// @param ts Time difference between current and last timestamps.
+    /// @return ratioPass True, if the liveness ratio passes the check.
+    function isRatioPass(
+        uint256[] memory curNonces,
+        uint256[] memory lastNonces,
+        uint256 ts
+    ) external view returns (bool ratioPass);
+}
+
+// Custom Rewards Distributor interface
+interface ICustomRewardsDistributor {
+    /// @dev Gets custom reward distribution receivers and amounts.
+    /// @param serviceId Service Id.
+    /// @param serviceOwner Actual service owner address.
+    /// @param multisig Service multisig address.
+    /// @param reward Overall claimed reward amount.
+    /// @return Set of receiver addresses.
+    /// @return Corresponding set of reward amounts.
+    function getRewardReceiversAndAmounts(uint256 serviceId, address serviceOwner, address multisig, uint256 reward)
+        external view returns (address[] memory, uint256[] memory);
+}
+
+// Service Registry interface
+interface IService {
+    enum ServiceState {
+        NonExistent,
+        PreRegistration,
+        ActiveRegistration,
+        FinishedRegistration,
+        Deployed,
+        TerminatedBonded
+    }
+
+    // Service agent params struct
+    struct AgentParams {
+        // Number of agent instances
+        uint32 slots;
+        // Bond per agent instance
+        uint96 bond;
+    }
+
+    // Service parameters
+    struct Service {
+        // Registration activation deposit
+        uint96 securityDeposit;
+        // Multisig address for agent instances
+        address multisig;
+        // IPFS hashes pointing to the config metadata
+        bytes32 configHash;
+        // Agent instance signers threshold
+        uint32 threshold;
+        // Total number of agent instances
+        uint32 maxNumAgentInstances;
+        // Actual number of agent instances
+        uint32 numAgentInstances;
+        // Service state
+        ServiceState state;
+        // Canonical agent Ids for the service
+        uint32[] agentIds;
+    }
+
+    /// @dev Transfers the service that was previously approved to this contract address.
+    /// @param from Account address to transfer from.
+    /// @param to Account address to transfer to.
+    /// @param id Service Id.
+    function safeTransferFrom(address from, address to, uint256 id) external;
+
+    /// @dev Transfers the service that was previously approved to this contract address.
+    /// @param from Account address to transfer from.
+    /// @param to Account address to transfer to.
+    /// @param id Service Id.
+    function transferFrom(address from, address to, uint256 id) external;
+
+    /// @dev Gets the service instance.
+    /// @param serviceId Service Id.
+    /// @return service Corresponding Service struct.
+    function getService(uint256 serviceId) external view returns (Service memory service);
+
+    /// @dev Gets service agent parameters: number of agent instances (slots) and a bond amount.
+    /// @param serviceId Service Id.
+    /// @return numAgentIds Number of canonical agent Ids in the service.
+    /// @return agentParams Set of agent parameters for each canonical agent Id.
+    function getAgentParams(uint256 serviceId) external view
+        returns (uint256 numAgentIds, AgentParams[] memory agentParams);
+
+    /// @dev Gets service agent instances.
+    /// @param serviceId ServiceId.
+    /// @return numAgentInstances Number of agent instances.
+    /// @return agentInstances Set of agent instance addresses.
+    function getAgentInstances(uint256 serviceId) external view
+        returns (uint256 numAgentInstances, address[] memory agentInstances);
+
+    /// @dev Gets operator address by provided agent instance one.
+    /// @param agentInstance Agent instance address
+    /// @return operator Operator address that supplied agent instance.
+    function mapAgentInstanceOperators(address agentInstance) external view returns (address operator);
+}
+
+/// @dev Only `owner` has a privilege, but the `sender` was provided.
+/// @param sender Sender address.
+/// @param owner Required sender address as an owner.
+error OwnerOnly(address sender, address owner);
+
+/// @dev Provided zero address.
+error ZeroAddress();
+
+/// @dev Provided zero value.
+error ZeroValue();
+
+/// @dev Provided non-zero value.
+error NonZeroValue();
+
+/// @dev The deployed activity checker must be a contract.
+/// @param activityChecker Activity checker address.
+error ContractOnly(address activityChecker);
+
+/// @dev Agent Id is not correctly provided for the current routine.
+/// @param agentId Component Id.
+error WrongAgentId(uint256 agentId);
+
+/// @dev Wrong state of a service.
+/// @param state Service state.
+/// @param serviceId Service Id.
+error WrongServiceState(uint256 state, uint256 serviceId);
+
+/// @dev Wrong length of two arrays.
+/// @param numValues1 Number of values in a first array.
+/// @param numValues2 Number of values in a second array.
+error WrongArrayLength(uint256 numValues1, uint256 numValues2);
+
+/// @dev Multisig is not whitelisted.
+/// @param multisig Address of a multisig implementation.
+error UnauthorizedMultisig(address multisig);
+
+/// @dev The activity checker returned more nonce values than allowed.
+/// @param provided Number of values returned.
+/// @param maxAllowed Maximum number of values accepted.
+error TooManyNonces(uint256 provided, uint256 maxAllowed);
+
+/// @dev The contract is already initialized.
+error AlreadyInitialized();
+
+/// @dev No rewards are available in the contract.
+error NoRewardsAvailable();
+
+/// @dev Maximum number of staking services is reached.
+/// @param maxNumServices Maximum number of staking services.
+error MaxNumServicesReached(uint256 maxNumServices);
+
+/// @dev Received lower value than the expected one.
+/// @param provided Provided value is lower.
+/// @param expected Expected value.
+error LowerThan(uint256 provided, uint256 expected);
+
+/// @dev Supplied wrong amount.
+/// @param provided Provided amount.
+/// @param expected Expected amount.
+error WrongAmount(uint256 provided, uint256 expected);
+
+/// @dev Required service configuration is wrong.
+/// @param serviceId Service Id.
+error WrongServiceConfiguration(uint256 serviceId);
+
+/// @dev Service is not unstaked.
+/// @param serviceId Service Id.
+error ServiceNotUnstaked(uint256 serviceId);
+
+/// @dev Service is not found.
+/// @param serviceId Service Id.
+error ServiceNotFound(uint256 serviceId);
+
+/// @dev Service was not staked a minimum required time.
+/// @param serviceId Service Id.
+/// @param tsProvided Time the service is staked for.
+/// @param tsExpected Minimum time the service needs to be staked for.
+error NotEnoughTimeStaked(uint256 serviceId, uint256 tsProvided, uint256 tsExpected);
+
+// Reentrancy guard lock
+error ReentrancyGuard();
+
+// Custom rewards distributor returned a forbidden receiver address
+error UnauthorizedAccount(address account);
+
+// Service Info struct
+struct ServiceInfo {
+    // Service multisig address
+    address multisig;
+    // Service owner
+    address owner;
+    // Service multisig nonces
+    uint256[] nonces;
+    // Staking start time
+    uint256 tsStart;
+    // Accumulated service staking reward
+    uint256 reward;
+    // Accumulated inactivity that might lead to the service eviction
+    uint256 inactivity;
+    // Reward distribution info
+    uint256 rewardDistributionInfo;
+}
+
+/// @title StakingBase - Base abstract smart contract for staking a service by its owner
+/// @author Aleksandr Kuperman - <aleksandr.kuperman@valory.xyz>
+/// @author Andrey Lebedev - <andrey.lebedev@valory.xyz>
+/// @author Mariapia Moscatiello - <mariapia.moscatiello@valory.xyz>
+abstract contract StakingBase is ERC721TokenReceiver {
+    enum StakingState {
+        Unstaked,
+        Staked,
+        Evicted
+    }
+
+    enum RewardDistributionType {
+        // Rewards are divided as per where stake comes from, proportional
+        Proportional,
+        // Rewards go to service owner
+        ServiceOwner,
+        // Rewards go to service multisig
+        ServiceMultisig,
+        // Custom rewards distribution
+        Custom
+    }
+
+    // Outcome of reading service activity counters at a checkpoint
+    enum BaselineStatus {
+        // Counters are read and measured against a valid baseline
+        Measured,
+        // Counter read failed: the baseline is missing, and stored counters are kept but not used for scoring
+        ReadFailed,
+        // First valid read after a failure: it only establishes a fresh baseline
+        Recovered
+    }
+
+    // Input staking parameters
+    struct StakingParams {
+        // Metadata staking information
+        bytes32 metadataHash;
+        // Maximum number of staking services
+        uint256 maxNumServices;
+        // Rewards per second
+        uint256 rewardsPerSecond;
+        // Minimum service staking deposit value required for staking
+        uint256 minStakingDeposit;
+        // Min number of staking periods before the service can be unstaked
+        uint256 minNumStakingPeriods;
+        // Max number of accumulated inactivity periods after which the service is evicted
+        uint256 maxNumInactivityPeriods;
+        // Liveness period
+        uint256 livenessPeriod;
+        // Time for emissions
+        uint256 timeForEmissions;
+        // Number of agent instances in the service
+        uint256 numAgentInstances;
+        // Optional agent Ids requirement
+        uint256[] agentIds;
+        // Optional service multisig threshold requirement
+        uint256 threshold;
+        // Optional service configuration hash requirement
+        bytes32 configHash;
+        // Approved multisig proxy hash
+        bytes32 proxyHash;
+        // ServiceRegistry contract address
+        address serviceRegistry;
+        // Service activity checker address
+        address activityChecker;
+    }
+
+    event ServiceStaked(uint256 epoch, uint256 indexed serviceId, address indexed owner, address indexed multisig,
+        uint256[] nonces, uint256 rewardDistributionInfo);
+    event Checkpoint(uint256 indexed epoch, uint256 availableRewards, uint256[] serviceIds, uint256[] rewards,
+        uint256 epochLength);
+    event ServiceUnstaked(uint256 epoch, uint256 indexed serviceId, address indexed owner, address indexed multisig,
+        uint256[] nonces, uint256 availableRewards, bool enforced);
+    event RewardClaimed(uint256 epoch, uint256 indexed serviceId, address indexed owner, address indexed multisig,
+        uint256[] nonces, address[] receivers, uint256[] rewardAmounts);
+    event ServiceInactivityWarning(uint256 epoch, uint256 indexed serviceId, uint256 serviceInactivity);
+    event ServicesEvicted(uint256 indexed epoch, uint256[] serviceIds, address[] owners, address[] multisigs,
+        uint256[] serviceInactivity);
+    event ServicesRebaselined(uint256 indexed epoch);
+    event ServiceBaselineMissing(uint256 indexed epoch, uint256 indexed serviceId);
+    event ServiceBaselineRecovered(uint256 indexed epoch, uint256 indexed serviceId);
+    event Deposit(address indexed sender, uint256 amount, uint256 balance, uint256 availableRewards);
+    event Withdraw(address indexed receiver, uint256 amount);
+
+    // Contract version
+    string public constant VERSION = "0.4.0";
+    // Maximum gas provided to a single activity checker call
+    // The activity checker is an arbitrary external contract and checkpoint() calls it once per staked
+    // service, so each call is given an explicit allowance rather than all the gas that remains. Sized
+    // from measurement: the stock getMultisigNonces costs ~21k in-EVM and a heavier custom checker ~16k,
+    // leaving ample headroom. It is a ceiling and not a spend, so a legitimate checker pays exactly what
+    // it paid before, and a call that does not return within it is handled like any other failed call.
+    uint256 public constant MAX_ACTIVITY_CHECKER_GAS = 100_000;
+    // Maximum number of nonce values accepted from a single activity checker call
+    // The returned array is recorded per service, so its length is a per-service cost that the gas
+    // allowance does not bound; it is capped so that cost stays predictable. Four covers every activity
+    // checker in use (the liveness vector is at most four values); a longer response is treated as a
+    // failed call.
+    uint256 public constant MAX_ACTIVITY_CHECKER_NONCES = 4;
+    // Maximum bytes copied back from a single activity checker call
+    // The gas allowance bounds the callee's execution, but not the returndata the caller copies afterwards.
+    // A larger response is treated as a failed call rather than copied, so a checker cannot make the caller
+    // copy an unbounded buffer into memory. Sized as an ABI uint256[] head (offset + length) plus
+    // MAX_ACTIVITY_CHECKER_NONCES words.
+    uint256 public constant MAX_ACTIVITY_CHECKER_RETURN = 64 + MAX_ACTIVITY_CHECKER_NONCES * 32;
+    // Staking parameters for initialization
+    // Metadata staking information
+    bytes32 public metadataHash;
+    // Maximum number of staking services
+    uint256 public maxNumServices;
+    // Rewards per second
+    uint256 public rewardsPerSecond;
+    // Minimum service staking deposit value required for staking
+    // The staking deposit must be always greater than 1 in order to distinguish between native and ERC20 tokens
+    uint256 public minStakingDeposit;
+    // Max number of accumulated inactivity periods after which the service is evicted
+    uint256 public maxNumInactivityPeriods;
+    // Liveness period
+    uint256 public livenessPeriod;
+    // Time for emissions
+    uint256 public timeForEmissions;
+    // Number of agent instances in the service
+    uint256 public numAgentInstances;
+    // Optional service multisig threshold requirement
+    uint256 public threshold;
+    // Optional service configuration hash requirement
+    bytes32 public configHash;
+    // Approved multisig proxy hash
+    bytes32 public proxyHash;
+    // ServiceRegistry contract address
+    address public serviceRegistry;
+    // Service activity checker address
+    address public activityChecker;
+
+    // The rest of state variables
+    // Min staking duration
+    uint256 public minStakingDuration;
+    // Max allowed inactivity period
+    uint256 public maxInactivityDuration;
+    // Epoch counter
+    uint256 public epochCounter;
+    // Token / ETH balance
+    uint256 public balance;
+    // Token / ETH available rewards
+    uint256 public availableRewards;
+    // Calculated emissions amount
+    uint256 public emissionsAmount;
+    // Timestamp of the last checkpoint
+    uint256 public tsCheckpoint;
+    // Optional agent Ids requirement
+    uint256[] public agentIds;
+    // Mapping of serviceId => staking service info
+    mapping (uint256 => ServiceInfo) public mapServiceInfo;
+    // Set of currently staking serviceIds
+    uint256[] public setServiceIds;
+    // Reentrancy lock
+    uint256 internal _locked = 1;
+    // Re-baseline flag: set when an empty reward reserve is refilled
+    // The next checkpoint only re-records service counters and the checkpoint timestamp, so activity during
+    // the unfunded interval is neither rewarded nor counted as inactivity
+    bool public rebaselinePending;
+    // Mapping of serviceId => missing activity baseline flag: set when a counter read fails
+    mapping (uint256 => bool) public mapServiceIdBaselineMissing;
+
+    /// @dev StakingBase initialization.
+    /// @param _stakingParams Service staking parameters.
+    function _initialize(
+        StakingParams memory _stakingParams
+    ) internal {
+        // Double initialization check
+        if (serviceRegistry != address(0)) {
+            revert AlreadyInitialized();
+        }
+        
+        // Initial checks
+        if (_stakingParams.metadataHash == 0 || _stakingParams.maxNumServices == 0 ||
+            _stakingParams.rewardsPerSecond == 0 || _stakingParams.livenessPeriod == 0 ||
+            _stakingParams.numAgentInstances == 0 || _stakingParams.timeForEmissions == 0 ||
+            _stakingParams.minNumStakingPeriods == 0 || _stakingParams.maxNumInactivityPeriods == 0) {
+            revert ZeroValue();
+        }
+
+        // Check that the min number of staking periods is not smaller than the max number of inactivity periods
+        // This check is necessary to avoid an attack scenario when the service is going to stake and unstake without
+        // any meaningful activity and just occupy the staking slot
+        if (_stakingParams.minNumStakingPeriods < _stakingParams.maxNumInactivityPeriods) {
+            revert LowerThan(_stakingParams.minNumStakingPeriods, _stakingParams.maxNumInactivityPeriods);
+        }
+
+        // Check the rest of parameters
+        if (_stakingParams.minStakingDeposit < 2) {
+            revert LowerThan(_stakingParams.minStakingDeposit, 2);
+        }
+        if (_stakingParams.serviceRegistry == address(0) || _stakingParams.activityChecker == address(0)) {
+            revert ZeroAddress();
+        }
+
+        // Check for the Activity Checker to be the contract
+        if (_stakingParams.activityChecker.code.length == 0) {
+            revert ContractOnly(_stakingParams.activityChecker);
+        }
+
+        // Assign all the required parameters
+        metadataHash = _stakingParams.metadataHash;
+        maxNumServices = _stakingParams.maxNumServices;
+        rewardsPerSecond = _stakingParams.rewardsPerSecond;
+        minStakingDeposit = _stakingParams.minStakingDeposit;
+        maxNumInactivityPeriods = _stakingParams.maxNumInactivityPeriods;
+        livenessPeriod = _stakingParams.livenessPeriod;
+        timeForEmissions = _stakingParams.timeForEmissions;
+        numAgentInstances = _stakingParams.numAgentInstances;
+        serviceRegistry = _stakingParams.serviceRegistry;
+        activityChecker = _stakingParams.activityChecker;
+
+        // Assign optional parameters
+        threshold = _stakingParams.threshold;
+        configHash = _stakingParams.configHash;
+
+        // Assign agent Ids, if applicable
+        uint256 agentId;
+        for (uint256 i = 0; i < _stakingParams.agentIds.length; ++i) {
+            // Agent Ids must be unique and in ascending order
+            if (_stakingParams.agentIds[i] <= agentId) {
+                revert WrongAgentId(_stakingParams.agentIds[i]);
+            }
+            agentId = _stakingParams.agentIds[i];
+            agentIds.push(agentId);
+        }
+
+        // Check for the multisig proxy bytecode hash value
+        if (_stakingParams.proxyHash == 0) {
+            revert ZeroValue();
+        }
+
+        // Record provided multisig proxy bytecode hash
+        proxyHash = _stakingParams.proxyHash;
+
+        // Calculate min staking duration
+        minStakingDuration = _stakingParams.minNumStakingPeriods * livenessPeriod;
+
+        // Calculate max allowed inactivity duration
+        maxInactivityDuration = _stakingParams.maxNumInactivityPeriods * livenessPeriod;
+
+        // Calculate emissions amount
+        emissionsAmount = _stakingParams.rewardsPerSecond * _stakingParams.maxNumServices *
+            _stakingParams.timeForEmissions;
+
+        // Set the checkpoint timestamp to be the deployment one
+        tsCheckpoint = block.timestamp;
+    }
+
+    /// @dev Checks token / ETH staking deposit.
+    /// @notice This default setup implies that all agent bonds are equal to a minimum staking deposit.
+    /// @param serviceId Service Id.
+    /// @param stakingDeposit Staking deposit.
+    function _checkTokenStakingDeposit(
+        uint256 serviceId,
+        uint256 stakingDeposit,
+        uint32[] memory
+    ) internal view virtual {
+        uint256 minDeposit = minStakingDeposit;
+
+        // The staking deposit derived from a security deposit value must be greater or equal to the minimum defined one
+        if (stakingDeposit < minDeposit) {
+            revert LowerThan(stakingDeposit, minDeposit);
+        }
+
+        // Check agent Id bonds to be not smaller than the minimum required deposit
+        (uint256 numAgentIds, IService.AgentParams[] memory agentParams) = IService(serviceRegistry).getAgentParams(serviceId);
+        for (uint256 i = 0; i < numAgentIds; ++i) {
+            if (agentParams[i].bond < minDeposit) {
+                revert LowerThan(agentParams[i].bond, minDeposit);
+            }
+        }
+    }
+
+    /// @dev Transfers reward amount.
+    /// @param to Address to.
+    /// @param amount Amount to withdraw.
+    function _transfer(address to, uint256 amount) internal virtual;
+
+    /// @dev Reads current service multisig nonces from the external activity checker.
+    /// @notice A failed or oversized call, or a non-canonical uint256[] encoding, is a failed read. A canonically
+    ///         encoded empty array is a valid read: the counter format is the activity checker's responsibility.
+    /// @param multisig Multisig address.
+    /// @return validRead True, if the nonces are read successfully.
+    /// @return currentNonces Current multisig nonces; empty when the read fails.
+    function _getMultisigNonces(address multisig) internal view returns (bool validRead,
+        uint256[] memory currentNonces)
+    {
+        // This is a low level call since it must never revert
+        bytes memory activityData = abi.encodeCall(IActivityChecker.getMultisigNonces, multisig);
+        (bool success, bytes memory returnData) = _activityStaticcall(activityData, MAX_ACTIVITY_CHECKER_RETURN);
+
+        // Parse the nonces without reverting: a malformed response is treated as a failed call, not decoded
+        // with abi.decode, which would revert and take checkpoint() down with it
+        if (success) {
+            (validRead, currentNonces) = _decodeUintArray(returnData);
+        }
+    }
+
+    /// @dev Checks the ratio pass based on external activity checker implementation.
+    /// @param currentNonces Current multisig nonces.
+    /// @param lastNonces Last checked service multisig nonces.
+    /// @param ts Time difference between current and last timestamps.
+    /// @return ratioPass True, if the defined nonce ratio passes the check.
+    function _checkRatioPass(
+        uint256[] memory currentNonces,
+        uint256[] memory lastNonces,
+        uint256 ts
+    ) internal view returns (bool ratioPass) {
+        // Get the ratio pass activity check
+        bytes memory activityData = abi.encodeCall(IActivityChecker.isRatioPass, (currentNonces, lastNonces, ts));
+        (bool success, bytes memory returnData) = _activityStaticcall(activityData, 32);
+
+        // The return data must be exactly a word, read as a clean bool without reverting on a
+        // non-canonical value (anything other than 1 is a fail, so the service scores inactive)
+        if (success && returnData.length == 32) {
+            uint256 boolWord;
+            assembly {
+                boolWord := mload(add(returnData, 0x20))
+            }
+            ratioPass = (boolWord == 1);
+        }
+    }
+
+    /// @dev Decodes a canonical ABI uint256[] from an activity checker response, without reverting.
+    /// @notice Used in place of abi.decode on untrusted returndata: a malformed encoding returns
+    ///         valid=false rather than reverting, so a poisoned checker cannot revert checkpoint().
+    ///         The declared element count is taken from the buffer size, never from the buffer's own
+    ///         length word, so a forged length cannot be trusted or overflow the bound.
+    /// @param data Raw activity checker returndata.
+    /// @return valid True if `data` is a canonical uint256[] encoding.
+    /// @return arr The decoded array, aliased into `data`; empty when valid is false.
+    function _decodeUintArray(bytes memory data) private pure returns (bool valid, uint256[] memory arr) {
+        uint256 len = data.length;
+        // A dynamic array needs at least the offset and length words, and a whole number of words
+        if (len < 64 || (len % 32 != 0)) {
+            return (valid, arr);
+        }
+        assembly {
+            let ptr := add(data, 0x20)
+            let offset := mload(ptr)
+            let declaredLen := mload(add(ptr, 0x20))
+            // Canonical encoding: offset points just past itself (0x20), and the declared element count
+            // fills the buffer exactly. Deriving the expected count from len (not the buffer) bounds it.
+            let expectedLen := div(sub(len, 64), 32)
+            if and(eq(offset, 0x20), eq(declaredLen, expectedLen)) {
+                valid := 1
+                // [length][data...] starts one word into the content: a valid uint256[] memory layout
+                arr := add(ptr, 0x20)
+            }
+        }
+    }
+
+    /// @dev Static-calls the activity checker under a bounded gas allowance and a bounded returndata copy.
+    /// @notice The activity checker is external and untrusted. The call is given MAX_ACTIVITY_CHECKER_GAS,
+    ///         and at most `maxLen` bytes of its response are copied back; a larger response is dropped and
+    ///         reported as a failed call, so the checker cannot force an unbounded copy into the caller's
+    ///         memory. Never reverts on the callee's behalf - a failed or oversized call returns success=false.
+    /// @param activityData Encoded call to the activity checker.
+    /// @param maxLen Maximum number of returndata bytes to copy back.
+    /// @return success True if the call succeeded and its response fit within `maxLen`.
+    /// @return returnData The response, at most `maxLen` bytes, empty when success is false.
+    function _activityStaticcall(bytes memory activityData, uint256 maxLen)
+        private
+        view
+        returns (bool success, bytes memory returnData)
+    {
+        address checker = activityChecker;
+        uint256 gasLimit = MAX_ACTIVITY_CHECKER_GAS;
+        assembly {
+            returnData := mload(0x40)
+            let dataPtr := add(returnData, 0x20)
+            // Copy at most maxLen bytes of the response directly into our buffer; nothing beyond it is read.
+            success := staticcall(gasLimit, checker, add(activityData, 0x20), mload(activityData), dataPtr, maxLen)
+            let size := returndatasize()
+            // A response larger than the buffer is not something we can afford to copy: drop it as a failure.
+            if gt(size, maxLen) {
+                success := 0
+                size := 0
+            }
+            mstore(returnData, size)
+            // Advance the free memory pointer past the reserved buffer, rounded up to a full word.
+            mstore(0x40, add(dataPtr, and(add(maxLen, 0x1f), not(0x1f))))
+        }
+    }
+
+    /// @dev Evicts services due to their extended inactivity.
+    /// @param evictServiceIds Service Ids to be evicted.
+    /// @param serviceInactivity Corresponding service inactivity records.
+    /// @param numEvictServices Number of services to evict.
+    /// @return finalEvictedServiceIds Actually evicted serviceIds.
+    function _evict(
+        uint256[] memory evictServiceIds,
+        uint256[] memory serviceInactivity,
+        uint256 numEvictServices
+    ) internal returns (uint256[] memory finalEvictedServiceIds) {
+        // Get the total number of staked services
+        // All the passed arrays have the length of the number of staked services
+        uint256 totalNumServices = evictServiceIds.length;
+
+        // Get arrays of exact sizes
+        finalEvictedServiceIds = new uint256[](numEvictServices);
+        address[] memory owners = new address[](numEvictServices);
+        address[] memory multisigs = new address[](numEvictServices);
+        uint256[] memory inactivity = new uint256[](numEvictServices);
+        uint256[] memory serviceIndexes = new uint256[](numEvictServices);
+
+        // Fill in arrays
+        uint256 sCounter;
+        uint256 serviceId;
+        for (uint256 i = 0; i < totalNumServices; ++i) {
+            if (evictServiceIds[i] > 0) {
+                serviceId = evictServiceIds[i];
+                finalEvictedServiceIds[sCounter] = serviceId;
+
+                ServiceInfo storage sInfo = mapServiceInfo[serviceId];
+                owners[sCounter] = sInfo.owner;
+                multisigs[sCounter] = sInfo.multisig;
+                inactivity[sCounter] = serviceInactivity[i];
+                serviceIndexes[sCounter] = i;
+                sCounter++;
+            }
+        }
+
+        // Evict services from the global set of staked services
+        for (uint256 i = numEvictServices; i > 0; --i) {
+            // Decrease the number of services
+            totalNumServices--;
+            // Get the evicted service index
+            uint256 idx = serviceIndexes[i - 1];
+            // Assign last service Id to the index that points to the evicted service Id
+            setServiceIds[idx] = setServiceIds[totalNumServices];
+            // Pop the last element
+            setServiceIds.pop();
+        }
+
+        emit ServicesEvicted(epochCounter, finalEvictedServiceIds, owners, multisigs, inactivity);
+    }
+
+    /// @dev Claims rewards for the service.
+    /// @param serviceId Service Id.
+    /// @param execCheckPoint Checkpoint execution flag.
+    /// @return reward Staking reward.
+    function _claim(uint256 serviceId, bool execCheckPoint) internal returns (uint256 reward) {
+        ServiceInfo storage sInfo = mapServiceInfo[serviceId];
+        // Check for the service ownership
+        if (msg.sender != sInfo.owner) {
+            revert OwnerOnly(msg.sender, sInfo.owner);
+        }
+
+        // Call the checkpoint, if required
+        if (execCheckPoint) {
+            _checkpoint();
+        }
+
+        // Get service reward
+        reward = sInfo.reward;
+
+        // Check for the zero reward
+        if (reward == 0) {
+            revert ZeroValue();
+        }
+
+        // Zero the reward field
+        sInfo.reward = 0;
+
+        // Transfer accumulated rewards to the service multisig
+        // Note that the reentrancy is not possible since the reward is set to zero
+        address multisig = sInfo.multisig;
+
+        // Get reward receivers and amounts based on the distribution type
+        (address[] memory receivers, uint256[] memory amounts) =
+            _getRewardReceiversAndAmounts(serviceId, sInfo.owner, sInfo.multisig, reward, sInfo.rewardDistributionInfo);
+
+        // Transfer reward amounts to specified receivers
+        _withdraw(receivers, amounts);
+
+        emit RewardClaimed(epochCounter, serviceId, msg.sender, multisig, sInfo.nonces, receivers, amounts);
+    }
+
+    /// @dev Measures staked service activity since its last checkpoint.
+    /// @param serviceId Service Id.
+    /// @param tsCheckpointLast Last checkpoint timestamp.
+    /// @return status Service counter read outcome.
+    /// @return currentNonces Current multisig nonces; empty when the read fails.
+    /// @return ts Time elapsed since the service last checkpoint.
+    /// @return ratioPass True, if the service is measured and passes the liveness ratio check.
+    function _measureService(uint256 serviceId, uint256 tsCheckpointLast) internal view returns (
+        BaselineStatus status,
+        uint256[] memory currentNonces,
+        uint256 ts,
+        bool ratioPass
+    ) {
+        // Get the service info
+        ServiceInfo storage sInfo = mapServiceInfo[serviceId];
+
+        // Calculate the liveness nonce ratio
+        // Get the last service checkpoint: staking start time or the global checkpoint timestamp
+        uint256 serviceCheckpoint = tsCheckpointLast;
+        ts = sInfo.tsStart;
+        // Adjust the service checkpoint time if the service was staking less than the current staking period
+        if (ts > serviceCheckpoint) {
+            serviceCheckpoint = ts;
+        }
+
+        // Calculate the liveness ratio in 1e18 value
+        // This subtraction is always positive or zero, as the last checkpoint is at most block.timestamp
+        ts = block.timestamp - serviceCheckpoint;
+
+        // Get current service multisig nonces
+        bool validRead;
+        (validRead, currentNonces) = _getMultisigNonces(sInfo.multisig);
+
+        if (!validRead) {
+            // A failed read earns nothing and counts as inactivity; stored counters are kept but not scored
+            status = BaselineStatus.ReadFailed;
+        } else if (mapServiceIdBaselineMissing[serviceId]) {
+            // The first valid read after a failure only establishes a fresh baseline: stored counters are not
+            // used for scoring, so the interval earns nothing
+            status = BaselineStatus.Recovered;
+        } else {
+            // A failed ratio check alone does not invalidate counters that were read successfully
+            ratioPass = _checkRatioPass(currentNonces, sInfo.nonces, ts);
+        }
+    }
+
+    /// @dev Calculates staking rewards for all services at current timestamp.
+    /// @param lastAvailableRewards Available amount of rewards.
+    /// @param numServices Number of services eligible for the reward that passed the liveness check.
+    /// @param totalRewards Total calculated rewards.
+    /// @param eligibleServiceIds Service Ids eligible for rewards.
+    /// @param eligibleServiceRewards Corresponding rewards for eligible service Ids.
+    /// @param serviceIds All the staking service Ids.
+    /// @param serviceNonces Current service nonces.
+    /// @param serviceInactivity Service inactivity records.
+    /// @param serviceStatuses Service counter read outcomes.
+    function _calculateStakingRewards() internal view returns (
+        uint256 lastAvailableRewards,
+        uint256 numServices,
+        uint256 totalRewards,
+        uint256[] memory eligibleServiceIds,
+        uint256[] memory eligibleServiceRewards,
+        uint256[] memory serviceIds,
+        uint256[][] memory serviceNonces,
+        uint256[] memory serviceInactivity,
+        BaselineStatus[] memory serviceStatuses
+    ) {
+        // Check the last checkpoint timestamp and the liveness period, also check for available rewards to be not zero
+        uint256 tsCheckpointLast = tsCheckpoint;
+        lastAvailableRewards = availableRewards;
+
+        // Get the service Ids set length
+        uint256 size = setServiceIds.length;
+
+        // Carry out rewards calculation logic
+        // No rewards are calculated while a re-baseline is pending: the next checkpoint only records fresh baselines
+        if (size > 0 && block.timestamp - tsCheckpointLast >= livenessPeriod && lastAvailableRewards > 0 &&
+            !rebaselinePending) {
+            // Get necessary arrays
+            serviceIds = new uint256[](size);
+            eligibleServiceIds = new uint256[](size);
+            eligibleServiceRewards = new uint256[](size);
+            serviceNonces = new uint256[][](size);
+            serviceInactivity = new uint256[](size);
+            serviceStatuses = new BaselineStatus[](size);
+
+            // Calculate each staked service reward eligibility
+            for (uint256 i = 0; i < size; ++i) {
+                // Get current service Id
+                serviceIds[i] = setServiceIds[i];
+
+                // Measure the service activity since its last checkpoint
+                uint256 ts;
+                bool ratioPass;
+                (serviceStatuses[i], serviceNonces[i], ts, ratioPass) = _measureService(serviceIds[i], tsCheckpointLast);
+
+                // Record the reward for the service if it has provided enough transactions
+                if (ratioPass) {
+                    // Calculate the reward up until now and record its value for the corresponding service
+                    eligibleServiceRewards[numServices] = rewardsPerSecond * ts;
+                    totalRewards += eligibleServiceRewards[numServices];
+                    eligibleServiceIds[numServices] = serviceIds[i];
+                    ++numServices;
+                } else if (serviceStatuses[i] != BaselineStatus.Recovered) {
+                    // A failed ratio check or a failed counter read counts as inactivity
+                    // A recovery read only establishes a fresh baseline and leaves the inactivity unchanged
+                    serviceInactivity[i] = ts;
+                }
+            }
+        }
+    }
+
+    /// @dev Gets reward receivers and amounts.
+    /// @param serviceId Service Id.
+    /// @param serviceOwner Actual service owner address.
+    /// @param multisig Service multisig address.
+    /// @param reward Overall claimed reward amount.
+    /// @return receivers Set of receiver addresses.
+    /// @return amounts Corresponding set of reward amounts.
+    function _getRewardReceiversAndAmounts(
+        uint256 serviceId,
+        address serviceOwner,
+        address multisig,
+        uint256 reward,
+        uint256 rewardDistributionInfo
+    ) internal view virtual returns (address[] memory receivers, uint256[] memory amounts) {
+        // Get reward distribution info: rewardDistributionType and customRewardsDistributor address, if required
+        // rewardDistributionType is extracted from first 8 bits
+        // Safe: sInfo.rewardDistributionInfo can only be set via _stake, which validates the enum range.
+        RewardDistributionType rewardDistributionType = RewardDistributionType(uint8(rewardDistributionInfo));
+
+        // Check reward distribution type
+        if (rewardDistributionType == RewardDistributionType.Proportional) {
+            // Get service agent instances
+            (uint256 numInstances, address[] memory agentInstances) = IService(serviceRegistry).getAgentInstances(serviceId);
+
+            // Total number of receivers: 1 (serviceOwner) + numInstances (number of operators)
+            uint256 totalNumReceivers = numInstances + 1;
+
+            // Allocate arrays
+            receivers = new address[](totalNumReceivers);
+            amounts = new uint256[](totalNumReceivers);
+
+            // Default setup implies that all bonds are equal
+            // Get each operator reward
+            uint256 operatorReward = reward / (totalNumReceivers);
+
+            // Get corresponding operators and set operators reward amounts
+            for (uint256 i = 0; i < numInstances; ++i) {
+                receivers[i] = IService(serviceRegistry).mapAgentInstanceOperators(agentInstances[i]);
+                amounts[i] = operatorReward;
+            }
+
+            // Set service owner address and its reward amount
+            receivers[numInstances] = serviceOwner;
+            // Service owner gets its reward amount and a division remainder, if any
+            amounts[numInstances] = reward - (numInstances * operatorReward);
+        } else if (rewardDistributionType == RewardDistributionType.ServiceOwner) {
+            // Allocate arrays
+            receivers = new address[](1);
+            amounts = new uint256[](1);
+
+            // Set service owner address and its reward amount
+            receivers[0] = serviceOwner;
+            amounts[0] = reward;
+        } else if (rewardDistributionType == RewardDistributionType.ServiceMultisig) {
+            // Allocate arrays
+            receivers = new address[](1);
+            amounts = new uint256[](1);
+
+            // Set service owner address and its reward amount
+            receivers[0] = multisig;
+            amounts[0] = reward;
+        } else {
+            // Custom rewards distributor address: shift rewardDistributionType value of 8 bits
+            // Note this address was already checked for not being zero
+            address customRewardsDistributor = address(uint160(rewardDistributionInfo >> 8));
+
+            // Get receivers and amounts from external customRewardsDistributor contract
+            (receivers, amounts) = ICustomRewardsDistributor(customRewardsDistributor).getRewardReceiversAndAmounts(serviceId,
+                serviceOwner, multisig, reward);
+
+            // Check for correct array lengths
+            if (receivers.length == 0 || receivers.length != amounts.length) {
+                revert WrongArrayLength(receivers.length, amounts.length);
+            }
+
+            // Sum all calculated amounts, verifying each receiver is a permitted address
+            uint256 amountCheck;
+            for (uint256 i = 0; i < amounts.length; ++i) {
+                // Receiver must not be the zero address
+                if (receivers[i] == address(0)) {
+                    revert ZeroAddress();
+                }
+                // Receiver must not be this staking contract: forwarding rewards to self orphans funds
+                // and desynchronizes balance accounting
+                if (receivers[i] == address(this)) {
+                    revert UnauthorizedAccount(receivers[i]);
+                }
+                amountCheck += amounts[i];
+            }
+
+            // Check for reward amount to match total calculated amount
+            if (amountCheck != reward) {
+                revert WrongAmount(amountCheck, reward);
+            }
+        }
+    }
+
+    /// @dev Stakes the service.
+    /// @notice Each service must be staked for a minimum of maxInactivityDuration time, or until the funds are not zero.
+    ///         maxInactivityDuration = maxNumInactivityPeriods * livenessPeriod
+    /// @param serviceId Service Id.
+    /// @param rewardDistributionInfo Reward distribution info: rewardDistributionType and customRewardsDistributor
+    ///        address, if required.
+    function _stake(uint256 serviceId, uint256 rewardDistributionInfo) internal {
+        // Checkpoint to finalize any unaccounted rewards, if any
+        _checkpoint();
+
+        // Check if there available rewards
+        if (availableRewards == 0) {
+            revert NoRewardsAvailable();
+        }
+
+        // Check if the evicted service has not yet unstaked
+        ServiceInfo storage sInfo = mapServiceInfo[serviceId];
+        // tsStart being greater than zero means that the service was not yet unstaked: still staking or evicted
+        if (sInfo.tsStart > 0) {
+            revert ServiceNotUnstaked(serviceId);
+        }
+
+        // Check for the maximum number of staking services
+        uint256 numStakingServices = setServiceIds.length;
+        if (numStakingServices == maxNumServices) {
+            revert MaxNumServicesReached(maxNumServices);
+        }
+
+        // Check the service conditions for staking
+        IService.Service memory service = IService(serviceRegistry).getService(serviceId);
+
+        // Check the number of agent instances
+        if (numAgentInstances != service.maxNumAgentInstances) {
+            revert WrongServiceConfiguration(serviceId);
+        }
+
+        // Check the configuration hash, if applicable
+        if (configHash != 0 && configHash != service.configHash) {
+            revert WrongServiceConfiguration(serviceId);
+        }
+        // Check the threshold, if applicable
+        if (threshold > 0 && threshold != service.threshold) {
+            revert WrongServiceConfiguration(serviceId);
+        }
+        // The service must be deployed
+        if (service.state != IService.ServiceState.Deployed) {
+            revert WrongServiceState(uint256(service.state), serviceId);
+        }
+
+        // Check that the multisig address corresponds to the authorized multisig proxy bytecode hash
+        // NOTE: this proves the account holds Safe-proxy bytecode; it does NOT prove which singleton
+        // the proxy delegates to. A Safe proxy keeps its singleton in storage slot 0 and loads it at
+        // run time, so every proxy from a given factory has identical runtime code and codehash
+        // whatever it points at. Singleton identity is established by the multisig implementation that
+        // set the service multisig, and what that guarantee rests on differs per implementation: the
+        // creating implementations read masterCopy() back against their own pinned singleton, while the
+        // recovery-module creators rely on a pinned delegatecall target and payload. Any implementation
+        // added to mapMultisigs that accepts a CALLER-SUPPLIED multisig address must check the singleton
+        // explicitly; this codehash check is not a substitute for it.
+        bytes32 multisigProxyHash = service.multisig.codehash;
+        if (proxyHash != multisigProxyHash) {
+            revert UnauthorizedMultisig(service.multisig);
+        }
+
+        // Check the agent Ids requirement, if applicable
+        uint256 size = agentIds.length;
+        if (size > 0) {
+            uint256 numAgents = service.agentIds.length;
+
+            if (size != numAgents) {
+                revert WrongServiceConfiguration(serviceId);
+            }
+            for (uint256 i = 0; i < numAgents; ++i) {
+                // Check that the agent Ids
+                if (agentIds[i] != service.agentIds[i]) {
+                    revert WrongAgentId(agentIds[i]);
+                }
+            }
+        }
+
+        // Check service staking deposit and token, if applicable
+        _checkTokenStakingDeposit(serviceId, service.securityDeposit, service.agentIds);
+
+        // ServiceInfo struct will be an empty one since otherwise the safeTransferFrom above would fail
+        sInfo.multisig = service.multisig;
+        sInfo.owner = msg.sender;
+        // This function might revert if it's incorrectly implemented, however this is not a protocol's responsibility
+        // It is safe to revert in this place
+        uint256[] memory nonces = IActivityChecker(activityChecker).getMultisigNonces(service.multisig);
+        // Bound the recorded nonce array, matching the checkpoint path, so per-service cost stays predictable
+        if (nonces.length > MAX_ACTIVITY_CHECKER_NONCES) {
+            revert TooManyNonces(nonces.length, MAX_ACTIVITY_CHECKER_NONCES);
+        }
+        sInfo.nonces = nonces;
+        sInfo.tsStart = block.timestamp;
+        // Staking records a fresh baseline
+        delete mapServiceIdBaselineMissing[serviceId];
+
+        // Set reward distribution info: rewardDistributionType and customRewardsDistributor address, if required
+        // rewardDistributionType takes first 8 bits
+        // Solidity reverts with Panic(0x21) if uint8(rewardDistributionInfo) is outside the enum range,
+        // gating every downstream read of sInfo.rewardDistributionInfo (no other write path exists).
+        RewardDistributionType rewardDistributionType = RewardDistributionType(uint8(rewardDistributionInfo));
+        // Check reward distribution type
+        if (rewardDistributionType == RewardDistributionType.Custom) {
+            // Check custom rewards distributor address: shift rewardDistributionType value of 8 bits
+            address customRewardsDistributor = address(uint160(rewardDistributionInfo >> 8));
+            if (customRewardsDistributor == address(0)) {
+                revert ZeroAddress();
+            }
+            // Custom distributor must be a deployed contract, otherwise the staticcall in _getRewardReceiversAndAmounts
+            // returns empty data and bricks reward claims for this service
+            if (customRewardsDistributor.code.length == 0) {
+                revert ContractOnly(customRewardsDistributor);
+            }
+        } else if (uint160(rewardDistributionInfo >> 8) != 0) {
+            // Make sure upper bits do not have any value if reward distribution type is not Сustom
+            revert NonZeroValue();
+        }
+        sInfo.rewardDistributionInfo = rewardDistributionInfo;
+
+        // Add the service Id to the set of staked services
+        setServiceIds.push(serviceId);
+
+        // Transfer the service for staking
+        IService(serviceRegistry).safeTransferFrom(msg.sender, address(this), serviceId);
+
+        emit ServiceStaked(epochCounter, serviceId, msg.sender, service.multisig, nonces, rewardDistributionInfo);
+    }
+
+    /// @dev Unstakes the service.
+    /// @param serviceId Service Id.
+    /// @param enforced Forced unstake flag: true if enforced without getting a reward, and false otherwise.
+    /// @return reward Staking reward.
+    function _unstake(uint256 serviceId, bool enforced) internal returns (uint256 reward) {
+        // Call the checkpoint first, as mapServiceInfo could be updated there
+        (uint256[] memory serviceIds, , , ) = _checkpoint();
+
+        // Get sInfo as memory since there is no writing in storage anymore
+        ServiceInfo memory sInfo = mapServiceInfo[serviceId];
+        // Check for the service ownership
+        if (msg.sender != sInfo.owner) {
+            revert OwnerOnly(msg.sender, sInfo.owner);
+        }
+
+        // Get service reward
+        reward = sInfo.reward;
+
+        uint256 lastAvailableRewards = availableRewards;
+        // Note that if the service info exists, the service is staked or evicted, and thus start time is always valid
+        // Check that the service has staked long enough, or if there are no rewards left
+        uint256 ts = block.timestamp - sInfo.tsStart;
+        if (ts <= minStakingDuration && lastAvailableRewards > 0) {
+            revert NotEnoughTimeStaked(serviceId, ts, minStakingDuration);
+        }
+
+        // Get the service index in the set of services
+        // The index must always exist as the service is currently staked, otherwise it has no record in the map
+        uint256 idx;
+        bool inSet;
+        for (; idx < serviceIds.length; ++idx) {
+            // Service is still in a global staking set if it is found in the services set
+            if (serviceIds[idx] == serviceId) {
+                inSet = true;
+                break;
+            }
+        }
+
+        // Clear all the data about the unstaked service
+        // Delete the service info struct
+        delete mapServiceInfo[serviceId];
+        // Delete the missing baseline flag
+        delete mapServiceIdBaselineMissing[serviceId];
+
+        // Update the set of staked service Ids
+        // If the index was not found, the service was evicted and is not part of staked services set
+        if (inSet) {
+            // This operation is safe as if the service Id is in set, the set length is at least bigger than one
+            uint256 numServicesInSet = setServiceIds.length - 1;
+            // Shuffle the last element in set with the removed one, if it is not the last element in the set
+            if (numServicesInSet > 0) {
+                setServiceIds[idx] = setServiceIds[numServicesInSet];
+            }
+            setServiceIds.pop();
+        }
+
+        // Transfer accumulated rewards to the service multisig
+        if (reward > 0) {
+            // Check if the reward is enforced to be returned to availableRewards
+            // Note that if available rewards were zero right after the checkpoint, it is fine to force unstake the
+            // service and not wait until the minimum staking time period, as the reward is not taken from the contract
+            // The returned reward is already held by the contract, so it is not added to the recorded balance;
+            // if it refills an empty reserve after a timestamp gap, the next checkpoint re-baselines
+            if (enforced) {
+                lastAvailableRewards = _addAvailableRewards(reward);
+            } else {
+                // Get reward receivers and amounts based on the distribution type
+                (address[] memory receivers, uint256[] memory amounts) =
+                    _getRewardReceiversAndAmounts(serviceId, sInfo.owner, sInfo.multisig, sInfo.reward, sInfo.rewardDistributionInfo);
+
+                // Transfer reward amounts to specified receivers
+                _withdraw(receivers, amounts);
+
+                emit RewardClaimed(epochCounter, serviceId, msg.sender, sInfo.multisig, sInfo.nonces, receivers, amounts);
+            }
+        }
+
+        // Transfer the service back to the owner
+        // Note that the reentrancy is not possible due to the ServiceInfo struct being deleted
+        IService(serviceRegistry).transferFrom(address(this), msg.sender, serviceId);
+
+        emit ServiceUnstaked(epochCounter, serviceId, msg.sender, sInfo.multisig, sInfo.nonces, lastAvailableRewards, enforced);
+    }
+
+    /// @dev Withdraws reward amounts.
+    /// @notice The balance is always greater or equal the sum of amounts, as follows from the contract logic.
+    /// @param receivers Set of receiver addresses.
+    /// @param amounts Corresponding amounts to withdraw.
+    function _withdraw(address[] memory receivers, uint256[] memory amounts) internal virtual {
+        // Get current balance
+        uint256 updatedBalance = balance;
+
+        // Note that array lengths are checked in upper level functions
+        // Traverse all receivers and amounts
+        for (uint256 i = 0; i < receivers.length; ++i) {
+            // Update the contract balance
+            // Underflow is not going to happen since reward calculations are based on availableRewards <= balance
+            updatedBalance -= amounts[i];
+
+            // Transfer rewards
+            _transfer(receivers[i], amounts[i]);
+
+            emit Withdraw(receivers[i], amounts[i]);
+        }
+
+        // Record updated contract balance
+        balance = updatedBalance;
+    }
+
+    /// @dev Adds an amount to available rewards.
+    /// @notice Every addition to available rewards goes through this function. Refilling an empty reserve with a
+    ///         non-zero amount sets the re-baseline flag only if the last checkpoint timestamp is older than now.
+    ///         A checkpoint or initialization at this timestamp already provides a measurement starting point;
+    ///         failed reads remain protected by their missing-baseline markers. Same-timestamp refills, zero additions
+    ///         and funded top-ups do not set the flag, and no addition clears an already-pending re-baseline.
+    ///         It makes no activity checker calls and does not loop over services, so funding stays O(1).
+    /// @param amount Amount to add.
+    /// @return newAvailableRewards Updated available rewards.
+    function _addAvailableRewards(uint256 amount) internal returns (uint256 newAvailableRewards) {
+        uint256 lastAvailableRewards = availableRewards;
+
+        // Re-baseline only after a timestamp gap. A same-timestamp checkpoint has already refreshed counters
+        // (or marked failed reads missing), so another refresh would discard a newly funded interval.
+        // A no-op checkpoint does not update tsCheckpoint and therefore cannot bypass this protection.
+        if (amount > 0 && lastAvailableRewards == 0 && tsCheckpoint < block.timestamp) {
+            rebaselinePending = true;
+        }
+
+        newAvailableRewards = lastAvailableRewards + amount;
+        availableRewards = newAvailableRewards;
+    }
+
+    /// @dev Re-baselines staked services after an empty reward reserve was refilled.
+    /// @notice Re-records each service's counters and the checkpoint timestamp, without waiting for the liveness
+    ///         period. It pays nothing, evicts no one, and leaves earned rewards and accumulated inactivity unchanged.
+    ///         A failed counter read marks the service baseline missing without adding inactivity, and keeps its
+    ///         stored counters; a valid read clears an existing mark.
+    /// @return serviceIds Staking service Ids.
+    function _rebaseline() internal returns (uint256[] memory serviceIds) {
+        serviceIds = getServiceIds();
+        uint256 eCounter = epochCounter;
+
+        for (uint256 i = 0; i < serviceIds.length; ++i) {
+            uint256 serviceId = serviceIds[i];
+            ServiceInfo storage sInfo = mapServiceInfo[serviceId];
+
+            (bool validRead, uint256[] memory nonces) = _getMultisigNonces(sInfo.multisig);
+            if (validRead) {
+                // Record a fresh baseline
+                sInfo.nonces = nonces;
+                if (mapServiceIdBaselineMissing[serviceId]) {
+                    mapServiceIdBaselineMissing[serviceId] = false;
+                    emit ServiceBaselineRecovered(eCounter, serviceId);
+                }
+            } else if (!mapServiceIdBaselineMissing[serviceId]) {
+                mapServiceIdBaselineMissing[serviceId] = true;
+                emit ServiceBaselineMissing(eCounter, serviceId);
+            }
+        }
+
+        // Record the actual epoch length
+        uint256 epochLength = block.timestamp - tsCheckpoint;
+        // Next calculations start from this point of time
+        tsCheckpoint = block.timestamp;
+        rebaselinePending = false;
+
+        // Increase the epoch counter
+        epochCounter = eCounter + 1;
+
+        // The empty checkpoint is marked as a re-baseline, so it is not mistaken for an epoch with no eligible services
+        emit ServicesRebaselined(eCounter);
+        emit Checkpoint(eCounter, availableRewards, new uint256[](0), new uint256[](0), epochLength);
+    }
+
+    /// @dev Checkpoint to allocate rewards up until a current time.
+    /// @notice Internal implementation. Callers that are external entry points must set the reentrancy lock themselves;
+    ///         the internal staking flows (_stake, _unstake, _claim) rely on their own external-level guard.
+    /// @return Staking service Ids (excluding evicted ones within a current epoch).
+    /// @return Set of reward-eligible service Ids.
+    /// @return Corresponding set of reward-eligible service rewards.
+    /// @return evictServiceIds Evicted service Ids.
+    function _checkpoint() internal returns (
+        uint256[] memory,
+        uint256[] memory,
+        uint256[] memory,
+        uint256[] memory evictServiceIds
+    ) {
+        // After a refill of an empty reserve, the first checkpoint only re-baselines, without waiting for the
+        // liveness period: no rewards are allocated and no services are evicted
+        if (rebaselinePending) {
+            uint256[] memory empty;
+            return (_rebaseline(), empty, empty, empty);
+        }
+
+        // Calculate staking rewards
+        (uint256 lastAvailableRewards, uint256 numServices, uint256 totalRewards,
+            uint256[] memory eligibleServiceIds, uint256[] memory eligibleServiceRewards,
+            uint256[] memory serviceIds, uint256[][] memory serviceNonces,
+            uint256[] memory serviceInactivity, BaselineStatus[] memory serviceStatuses) = _calculateStakingRewards();
+
+        // Get arrays for eligible service Ids and rewards of exact size
+        uint256[] memory finalEligibleServiceIds;
+        uint256[] memory finalEligibleServiceRewards;
+        evictServiceIds = new uint256[](serviceIds.length);
+        uint256 curServiceId;
+
+        // If there are eligible services, proceed with staking calculation and update rewards
+        if (numServices > 0) {
+            finalEligibleServiceIds = new uint256[](numServices);
+            finalEligibleServiceRewards = new uint256[](numServices);
+            // If total allocated rewards are not enough, adjust the reward value
+            if (totalRewards > lastAvailableRewards) {
+                // Traverse all the eligible services and adjust their rewards proportional to leftovers
+                uint256 updatedReward;
+                uint256 updatedTotalRewards;
+                for (uint256 i = 1; i < numServices; ++i) {
+                    // Calculate the updated reward
+                    updatedReward = (eligibleServiceRewards[i] * lastAvailableRewards) / totalRewards;
+                    // Add to the total updated reward
+                    updatedTotalRewards += updatedReward;
+                    // Add reward to the overall service reward
+                    curServiceId = eligibleServiceIds[i];
+                    finalEligibleServiceIds[i] = eligibleServiceIds[i];
+                    finalEligibleServiceRewards[i] = updatedReward;
+                    mapServiceInfo[curServiceId].reward += updatedReward;
+                }
+
+                // Process the first service in the set
+                updatedReward = (eligibleServiceRewards[0] * lastAvailableRewards) / totalRewards;
+                updatedTotalRewards += updatedReward;
+                curServiceId = eligibleServiceIds[0];
+                finalEligibleServiceIds[0] = eligibleServiceIds[0];
+                // If the reward adjustment happened to have small leftovers, add it to the first service
+                if (lastAvailableRewards > updatedTotalRewards) {
+                    updatedReward += lastAvailableRewards - updatedTotalRewards;
+                }
+                finalEligibleServiceRewards[0] = updatedReward;
+                // Add reward to the overall service reward
+                mapServiceInfo[curServiceId].reward += updatedReward;
+                // Set available rewards to zero
+                lastAvailableRewards = 0;
+            } else {
+                // Traverse all the eligible services and add to their rewards
+                for (uint256 i = 0; i < numServices; ++i) {
+                    // Add reward to the service overall reward
+                    curServiceId = eligibleServiceIds[i];
+                    finalEligibleServiceIds[i] = eligibleServiceIds[i];
+                    finalEligibleServiceRewards[i] = eligibleServiceRewards[i];
+                    mapServiceInfo[curServiceId].reward += eligibleServiceRewards[i];
+                }
+
+                // Adjust available rewards
+                lastAvailableRewards -= totalRewards;
+            }
+
+            // Update the storage value of available rewards
+            availableRewards = lastAvailableRewards;
+        }
+
+        // If service Ids are returned, then the checkpoint takes place
+        if (serviceIds.length > 0) {
+            uint256 eCounter = epochCounter;
+            numServices = 0;
+            // Record service inactivities and updated current service nonces
+            for (uint256 i = 0; i < serviceIds.length; ++i) {
+                // Get the current service Id
+                curServiceId = serviceIds[i];
+                if (serviceStatuses[i] == BaselineStatus.ReadFailed) {
+                    // Keep stored counters and mark the baseline missing, once per failure episode
+                    if (!mapServiceIdBaselineMissing[curServiceId]) {
+                        mapServiceIdBaselineMissing[curServiceId] = true;
+                        emit ServiceBaselineMissing(eCounter, curServiceId);
+                    }
+                } else {
+                    // Record service nonces
+                    mapServiceInfo[curServiceId].nonces = serviceNonces[i];
+
+                    // A recovery read only records the fresh baseline: inactivity is neither added nor reset
+                    if (serviceStatuses[i] == BaselineStatus.Recovered) {
+                        mapServiceIdBaselineMissing[curServiceId] = false;
+                        emit ServiceBaselineRecovered(eCounter, curServiceId);
+                        continue;
+                    }
+                }
+
+                // Increase service inactivity if it is greater than zero
+                if (serviceInactivity[i] > 0) {
+                    // Get the overall continuous service inactivity
+                    serviceInactivity[i] = mapServiceInfo[curServiceId].inactivity + serviceInactivity[i];
+                    mapServiceInfo[curServiceId].inactivity = serviceInactivity[i];
+                    // Check for the maximum allowed inactivity time
+                    if (serviceInactivity[i] > maxInactivityDuration) {
+                        // Evict a service if it has been inactive for more than a maximum allowed inactivity time
+                        evictServiceIds[i] = curServiceId;
+                        // Increase number of evicted services
+                        numServices++;
+                    } else {
+                        emit ServiceInactivityWarning(eCounter, curServiceId, serviceInactivity[i]);
+                    }
+                } else if (serviceStatuses[i] == BaselineStatus.Measured) {
+                    // Otherwise, a measured service sets it back to zero; a failed read never resets it
+                    mapServiceInfo[curServiceId].inactivity = 0;
+                }
+            }
+
+            // Evict inactive services and update the final evicted services set
+            if (numServices > 0) {
+                evictServiceIds = _evict(evictServiceIds, serviceInactivity, numServices);
+            } else {
+                // No services are evicted
+                delete evictServiceIds;
+            }
+
+            // Record the actual epoch length
+            uint256 epochLength = block.timestamp - tsCheckpoint;
+            // Record the current timestamp such that next calculations start from this point of time
+            tsCheckpoint = block.timestamp;
+
+            // Increase the epoch counter
+            epochCounter = eCounter + 1;
+
+            emit Checkpoint(eCounter, lastAvailableRewards, finalEligibleServiceIds, finalEligibleServiceRewards,
+                epochLength);
+        }
+
+        // If the checkpoint was not successful, the serviceIds set is not returned and needs to be allocated
+        // If there are any evicted service Ids, the serviceIds set is outdated and needs to be updated
+        if (serviceIds.length == 0 || evictServiceIds.length > 0) {
+            serviceIds = getServiceIds();
+        }
+
+        return (serviceIds, finalEligibleServiceIds, finalEligibleServiceRewards, evictServiceIds);
+    }
+
+    /// @dev Checkpoint to allocate rewards up until a current time.
+    /// @return serviceIds Staking service Ids (excluding evicted ones within a current epoch).
+    /// @return finalEligibleServiceIds Set of reward-eligible service Ids.
+    /// @return finalEligibleServiceRewards Corresponding set of reward-eligible service rewards.
+    /// @return evictServiceIds Evicted service Ids.
+    function checkpoint() external returns (
+        uint256[] memory serviceIds,
+        uint256[] memory finalEligibleServiceIds,
+        uint256[] memory finalEligibleServiceRewards,
+        uint256[] memory evictServiceIds
+    ) {
+        // Reentrancy guard
+        if (_locked > 1) {
+            revert ReentrancyGuard();
+        }
+        _locked = 2;
+
+        (serviceIds, finalEligibleServiceIds, finalEligibleServiceRewards, evictServiceIds) = _checkpoint();
+
+        _locked = 1;
+    }
+
+    /// @dev Stakes service with default reward distribution type: Proportional.
+    /// @notice Each service must be staked for a minimum of maxInactivityDuration time, or until the funds are not zero.
+    ///         maxInactivityDuration = maxNumInactivityPeriods * livenessPeriod
+    /// @param serviceId Service Id.
+    function stake(uint256 serviceId) external {
+        // Reentrancy guard
+        if (_locked > 1) {
+            revert ReentrancyGuard();
+        }
+        _locked = 2;
+
+        _stake(serviceId, 0);
+
+        _locked = 1;
+    }
+
+    /// @dev Stakes service with specified reward distribution info.
+    /// @notice Each service must be staked for a minimum of maxInactivityDuration time, or until the funds are not zero.
+    ///         maxInactivityDuration = maxNumInactivityPeriods * livenessPeriod
+    /// @param serviceId Service Id.
+    /// @param rewardDistributionInfo Reward distribution info: rewardDistributionType and customRewardsDistributor
+    ///        address, if required.
+    function stake(uint256 serviceId, uint256 rewardDistributionInfo) external {
+        // Reentrancy guard
+        if (_locked > 1) {
+            revert ReentrancyGuard();
+        }
+        _locked = 2;
+
+        _stake(serviceId, rewardDistributionInfo);
+
+        _locked = 1;
+    }
+
+    /// @dev Unstakes the service with collected reward, if available.
+    /// @param serviceId Service Id.
+    /// @return reward Staking reward.
+    function unstake(uint256 serviceId) external returns (uint256 reward) {
+        // Reentrancy guard
+        if (_locked > 1) {
+            revert ReentrancyGuard();
+        }
+        _locked = 2;
+
+        reward = _unstake(serviceId, false);
+
+        _locked = 1;
+    }
+
+    /// @dev Unstakes the service without a reward.
+    /// @param serviceId Service Id.
+    function forcedUnstake(uint256 serviceId) external {
+        // Reentrancy guard
+        if (_locked > 1) {
+            revert ReentrancyGuard();
+        }
+        _locked = 2;
+
+        _unstake(serviceId, true);
+
+        _locked = 1;
+    }
+
+    /// @dev Claims rewards for the service without an additional checkpoint call.
+    /// @param serviceId Service Id.
+    /// @return reward Staking reward.
+    function claim(uint256 serviceId) external returns (uint256 reward) {
+        // Reentrancy guard
+        if (_locked > 1) {
+            revert ReentrancyGuard();
+        }
+        _locked = 2;
+
+        reward = _claim(serviceId, false);
+
+        _locked = 1;
+    }
+
+    /// @dev Checkpoints and claims rewards for the service.
+    /// @param serviceId Service Id.
+    /// @return reward Staking reward.
+    function checkpointAndClaim(uint256 serviceId) external returns (uint256 reward) {
+        // Reentrancy guard
+        if (_locked > 1) {
+            revert ReentrancyGuard();
+        }
+        _locked = 2;
+
+        reward = _claim(serviceId, true);
+
+        _locked = 1;
+    }
+
+    /// @dev Calculates service staking reward starting from the last checkpoint period.
+    /// @notice If this function returns a nonzero value, call checkpoint in order to get the full reward.
+    /// @param serviceId Service Id.
+    /// @return reward Service reward for the on-going epoch.
+    function calculateStakingLastReward(uint256 serviceId) public view returns (uint256 reward) {
+        // Calculate overall staking rewards
+        (uint256 lastAvailableRewards, uint256 numServices, uint256 totalRewards, uint256[] memory eligibleServiceIds,
+            uint256[] memory eligibleServiceRewards, , , , ) = _calculateStakingRewards();
+
+        // If there are eligible services, proceed with staking calculation and update rewards for the service Id
+        for (uint256 i = 0; i < numServices; ++i) {
+            // Get the service index in the eligible service set and calculate its latest reward
+            if (eligibleServiceIds[i] == serviceId) {
+                // If total allocated rewards are not enough, adjust the reward value
+                if (totalRewards > lastAvailableRewards) {
+                    reward = (eligibleServiceRewards[i] * lastAvailableRewards) / totalRewards;
+                } else {
+                    reward = eligibleServiceRewards[i];
+                }
+                break;
+            }
+        }
+    }
+
+    /// @dev Calculates overall service staking reward at current timestamp.
+    /// @param serviceId Service Id.
+    /// @return reward Service reward.
+    function calculateStakingReward(uint256 serviceId) external view returns (uint256 reward) {
+        // Get current service reward
+        ServiceInfo memory sInfo = mapServiceInfo[serviceId];
+        reward = sInfo.reward;
+
+        // Add pending reward
+        reward += calculateStakingLastReward(serviceId);
+    }
+
+    /// @dev Calculates overall service staking reward at current timestamp.
+    /// @param serviceId Service Id.
+    /// @return receivers Set of receiver addresses.
+    /// @return amounts Corresponding set of reward amounts.
+    function calculateStakingRewardReceiversAndAmounts(
+        uint256 serviceId
+    ) external view returns (address[] memory receivers, uint256[] memory amounts) {
+        // Get current service reward
+        ServiceInfo memory sInfo = mapServiceInfo[serviceId];
+        uint256 reward = sInfo.reward;
+
+        // Add pending reward
+        reward += calculateStakingLastReward(serviceId);
+
+        (receivers, amounts) =
+            _getRewardReceiversAndAmounts(serviceId, sInfo.owner, sInfo.multisig, reward, sInfo.rewardDistributionInfo);
+    }
+
+    /// @dev Gets the service staking state.
+    /// @param serviceId.
+    /// @return stakingState Staking state of the service.
+    function getStakingState(uint256 serviceId) external view returns (StakingState stakingState) {
+        ServiceInfo memory sInfo = mapServiceInfo[serviceId];
+        if (sInfo.inactivity > maxInactivityDuration) {
+            stakingState = StakingState.Evicted;
+        } else if (sInfo.tsStart > 0) {
+            stakingState = StakingState.Staked;
+        }
+    }
+
+    /// @dev Gets the timestamp used to schedule checkpoint processing.
+    /// @notice Despite the historical function name, this is not a promise that a checkpoint will pay rewards.
+    ///         While rebaselinePending is true, returns the current block timestamp: a checkpoint can establish
+    ///         fresh baselines immediately, without allocating rewards or changing accumulated inactivity.
+    ///         Otherwise returns tsCheckpoint + livenessPeriod, the normal measurement boundary, which may be
+    ///         in the past. Reward allocation still depends on available funding and service activity eligibility.
+    ///         Read tsCheckpoint() for the last recorded checkpoint time; subtracting livenessPeriod from this
+    ///         result does not recover that time while re-baselining is pending.
+    /// @return tsNext Current block timestamp if re-baselining is pending; otherwise the normal measurement boundary.
+    function getNextRewardCheckpointTimestamp() external view returns (uint256 tsNext) {
+        // "Reward" is the legacy name: pending re-baselining is due now but does not allocate rewards.
+        if (rebaselinePending) {
+            return block.timestamp;
+        }
+
+        // Preserve the normal scheduling boundary; reaching it alone does not guarantee a reward payment.
+        tsNext = tsCheckpoint + livenessPeriod;
+    }
+
+    /// @dev Gets staked service info.
+    /// @param serviceId Service Id.
+    /// @return sInfo Struct object with the corresponding service info.
+    function getServiceInfo(uint256 serviceId) external view returns (ServiceInfo memory sInfo) {
+        sInfo = mapServiceInfo[serviceId];
+    }
+
+    /// @dev Gets staked service Ids.
+    /// @return Staked service Ids.
+    function getServiceIds() public view returns (uint256[] memory) {
+        return setServiceIds;
+    }
+
+    /// @dev Gets canonical agent Ids from the service configuration.
+    /// @return Agent Ids.
+    function getAgentIds() external view returns (uint256[] memory) {
+        return agentIds;
+    }
+}

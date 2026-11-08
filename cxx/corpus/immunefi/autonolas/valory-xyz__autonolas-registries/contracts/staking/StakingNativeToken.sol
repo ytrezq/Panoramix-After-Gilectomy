@@ -1,0 +1,54 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.30;
+
+import {StakingBase, ReentrancyGuard} from "./StakingBase.sol";
+
+/// @dev Failure of a transfer.
+/// @param token Address of a token.
+/// @param from Address `from`.
+/// @param to Address `to`.
+/// @param value Value.
+error TransferFailed(address token, address from, address to, uint256 value);
+
+/// @title StakingNativeToken - Smart contract for staking a service with the service having a native network token as the deposit
+/// @author Aleksandr Kuperman - <aleksandr.kuperman@valory.xyz>
+/// @author Andrey Lebedev - <andrey.lebedev@valory.xyz>
+/// @author Mariapia Moscatiello - <mariapia.moscatiello@valory.xyz>
+contract StakingNativeToken is StakingBase {
+    /// @dev StakingNativeToken initialization.
+    /// @param _stakingParams Service staking parameters.
+    function initialize(StakingParams memory _stakingParams) external {
+        _initialize(_stakingParams);
+    }
+
+    /// @dev Transfers reward amount.
+    /// @param to Address to.
+    /// @param amount Amount to withdraw.
+    function _transfer(address to, uint256 amount) internal override {
+        // Transfer the amount
+        (bool success, ) = to.call{value: amount}("");
+        if (!success) {
+            revert TransferFailed(address(0), address(this), to, amount);
+        }
+    }
+
+    receive() external payable {
+        // Reentrancy guard
+        if (_locked > 1) {
+            revert ReentrancyGuard();
+        }
+        _locked = 2;
+
+        // Add to the contract and available rewards balances
+        uint256 newBalance = balance + msg.value;
+
+        // Record the new actual balance and available rewards
+        // Refilling an empty reserve after a timestamp gap sets the re-baseline flag; no checker calls are made
+        balance = newBalance;
+        uint256 newAvailableRewards = _addAvailableRewards(msg.value);
+
+        emit Deposit(msg.sender, msg.value, newBalance, newAvailableRewards);
+
+        _locked = 1;
+    }
+}
