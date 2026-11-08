@@ -63,44 +63,37 @@
     {
      "prefix": "smartcontractkit__ccip-owner-contracts",
      "url": "https://github.com/smartcontractkit/ccip-owner-contracts",
-     "commit": "c038d7a7685daae0d6c8728a0268c3cd8af4a122",
-     "files": 31
+     "commit": "c038d7a7685daae0d6c8728a0268c3cd8af4a122"
     },
     {
      "prefix": "smartcontractkit__ccip-owner-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1",
-     "files": 40
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
     },
     {
      "prefix": "smartcontractkit__ccip-owner-contracts/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "e50c24f5839db17f46991478384bfda14acfb830",
-     "files": 294
+     "commit": "e50c24f5839db17f46991478384bfda14acfb830"
     },
     {
      "prefix": "smartcontractkit__ccip-owner-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "smartcontractkit__ccip-owner-contracts/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
-     "files": 39
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
     },
     {
      "prefix": "smartcontractkit__ccip-owner-contracts/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "smartcontractkit__ccip-owner-contracts/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-     "files": 6
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
     }
    ]
   },
@@ -159,8 +152,7 @@
     {
      "prefix": "smartcontractkit__chainlink-ccip",
      "url": "https://github.com/smartcontractkit/chainlink-ccip",
-     "commit": "e6282c35ce2e053787714f9c8283789a577a22f8",
-     "files": 688
+     "commit": "e6282c35ce2e053787714f9c8283789a577a22f8"
     }
    ]
   },
@@ -238,8 +230,7 @@
     {
      "prefix": "smartcontractkit__chainlink-evm",
      "url": "https://github.com/smartcontractkit/chainlink-evm",
-     "commit": "982da1fb36c737664187c787fe5bfcba19d651a7",
-     "files": 706
+     "commit": "982da1fb36c737664187c787fe5bfcba19d651a7"
     }
    ]
   }
