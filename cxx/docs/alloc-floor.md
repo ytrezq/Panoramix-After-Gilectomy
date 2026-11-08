@@ -99,20 +99,48 @@ the word is used for.
   that may go anywhere (`writes_any & S_MEM`, an INTERNAL, an UNDEFINED) makes
   every floor NIL.
 - **A line that sets a variable F reads** (a SETVAR, setvars, a call's
-  results): F is rewritten to the variable's old value when the line gives it
-  (`assignments` + `substitute`, as `Live::assign` does); otherwise NIL.
-- **Other state changes** (storage, calls, transient storage) make F NIL only
-  when F reads what they change (F_STORAGE, F_STATE...).
+  results), **other state changes** (storage, calls, transient storage) and a
+  write over memory F reads: F keeps what the line leaves of it (`weaker`:
+  the terms the line may change dropped, when what's left is proven at most
+  F, `Top::Memory`: `160 + mem[128]` is `160` once `mem[128]` is written);
+  otherwise NIL.
+- **A variable's floor** (`FactKind::Floor` keyed by a TMP or a loop
+  variable): `x = v` where `floored(v)` is a sum in which each `d` is a term
+  of its own gives `x >= v` without the `d`'s (`_12 = mem[64]`: `_12 >= F`;
+  `_17 = _12 + 64`: `_17 >= F + 64`); `x` set to exactly a word's floor (the
+  value the forward pass resolved) gets that. Kept while `x` isn't set again
+  and what its floor reads isn't changed; at most 24 at once.
+- **A compound line** (an IF's summary, a loop's), decided at once: the
+  floors none of its writes may change, each write decided with the floors
+  that stay - a floor one of them may change dropped (or weakened) and the
+  others decided again without it, to a fixpoint (`stable_floors`). One pass
+  was unsound: an IF that sets the word at 96 to 64 and then writes at
+  `mem[96]` kept the floor of 64, decided with the floor of 96 it changed.
 - **IF / MERGED_IF.** Each branch starts from F. After the IF, a branch that
   ends (halts, jumps away) is ignored. When both go on, the join is the first
   candidate among `F_then`, `F_else` and `F_before` proven `<=` both
   branches' floors (`alg::le`, `Top::Memory`, the facts), else NIL.
   `F_before` qualifies only when `le(F_before, F_then)` and `le(F_before,
   F_else)` are proven: a branch may have lowered the word.
-- **WHILE / LABEL (a loop's head).** The floor before the loop when no
-  iteration's write may touch `[A, A + 32)` (the loop's summary), NIL
-  otherwise. (Later: keep the floor of a loop whose writes of the word are
-  each proven `>=` the word's value before them.)
+- **WHILE (a loop's head).** By induction over the iterations
+  (`loop_floors`): the candidates are the floors before the loop, but those
+  of the variables it sets (dropped; a rising variable's made anew) and those
+  reading what it changes but memory (weakened or dropped); the body is
+  walked from them, with the path's conditions (an IF's in its branches, a
+  require's after it: a length checked before a copy bounds it), each
+  candidate kept when it stays what it was at every point of a path that
+  goes on - an iteration that reverts never gets back to the head nor past
+  the loop (`LoopSummary::cont_effects`) - and the walk done again without
+  the ones that don't, until none goes. They hold at the head, throughout
+  those paths and after the loop. A word the body writes only by
+  allocations, `mem[A] = mem[A] + s` with `s` in `[0, 2^255)` where it is,
+  never goes down: it stays while it has a floor. A loop variable set only by
+  the CONTINUEs, each to itself plus such an amount, is at least its start
+  value. The variables the body sets get their floors too (`inside`, made of
+  what the loop doesn't change, for the decisions about the loop's own lines
+  - its summary - not past it). `floor_loop_all`: the same over every path,
+  for the backward pass, whose head holds the reverting paths' reads.
+- **LABEL / LOOP_PATH (a raw loop).** NIL.
 
 ### Uses
 
@@ -125,34 +153,69 @@ then decide `mem[64] + 4 >= ceil32(_1) + 260` from `F = ceil32(_1) + 292`
 with no new algebra. The substitution is only for deciding: the trace keeps
 `mem[A]`.
 
+`floored` substitutes through the arithmetic of positions only (sums,
+products, masks, minimums, maximums, ranges): a read's address or a calldata
+word's offset stays as it is - an atom the path's conditions may bound
+(`require cd[s] <= 2^64 - 1` with `s` a rising variable: `cd[s]` must stay
+`cd[s]` for the bound to apply).
+
 1. **Forwarding** (`simplify/mems.cpp`, the forward pass): MemState's overlap
    decisions for a write, and the pieces a read is made of, see the floor; a
-   write at `mem[64] + k` keeps the pieces below the floor.
+   write at `mem[64] + k` keeps the pieces below the floor. At a loop's head,
+   what its lines write (`forget_loop`) is decided with the loop's inside
+   floors.
 2. **Copy proofs** (`loops/rewrite.cpp`, `to_setmem`, called from
    `SetmemWalk`): the same substitution in the `apart` / `ahead` proofs and in
    `misses`; `SetmemWalk` carries the floors next to its path facts.
 3. **Conditions** (what part 3 removes from the ranges): the decisions of the
    simplifier that read `mem[A]` (`cleanup_conds` and the others that decide
    with the path facts) get `mem[A] >= F_A` as a path fact at that point.
+   (Not needed on the npm corpus: what `cleanup_conds` decided with the old
+   range was keeping a condition past a write - use 5 -, no condition about
+   `mem[64]` itself.)
 4. **Relational facts** (the second shape): the copy proof chains `src_end <=
    buffer_end <= F <= dst_start` through the decoder's requires; where
    `alg::le` can't chain a relational fact with `ceil32` and sums, the
    decision procedure gets the missing step (an `int_le` through one fact `a
    <= b` with offsets, sound under the no-wrap conditions it already proves).
    Only what the corpus needs.
+5. **The other walks that decide about memory**: `cleanup_vars`' forward walk
+   (a variable's value kept past a write the floors place apart from what it
+   reads: `changes(w, r, facts)`), `cleanup_conds` (a condition kept past such
+   a write), the backward memory pass (a forward walk first, `FloorsAt`, keeps
+   the floors before each line by its place; `Live`'s `read`, `overwrite`
+   and `before` decide with them - a live range is read after the line, but
+   when the line may change what that range's address reads, it may write a
+   range that is live too, the read's summary having it, so a dead write's
+   decision never rests on a floor the line changes). A compound line's
+   summary is decided with `floors_through`.
 
 One small module, `simplify/floor.{hpp,cpp}`, computes the floors for every
 walk, so the walks can't disagree. The floors are path facts
 (`alg::FactKind::Floor`: the address A, the expression F), carried by the
 `alg::Facts` the walks already keep: `floor_transfer(facts, line)` after each
 line, `floor_join(into, before, then, else)` where two paths meet,
-`floor_loop(facts, while_line)` at a loop's head (the loop's summary: every
-iteration's writes, decided with the floors before it), `floor_walk(facts,
+`floor_loop(facts, while_line)` at a loop's head (its body walked from the
+floors before it, to a fixpoint; `floor_loop_inside` with the body's
+variables' floors, `floor_loop_all` over every path), `floors_through(facts,
+line)` for the decisions about a compound line's summary, `floor_walk(facts,
 v)` over a block. The substitution is `alg::floored(v, facts)`, applied by
 the decisions about positions only (`Top::Memory`): `alg::int_lt`, `int_le`,
 `decide_cmp` (`algebra/compare.cpp`), `alg::range` (`algebra/ranges.cpp`)
 and `mem::pos_le` / `pos_lt` (`mem/memory.cpp`, where facts made only of
 floors are decided by substituting and deciding without facts, memoized).
+
+What it costs: read by every walk, the floors first made decompiling up to
+seven times slower (ENS' TestRRUtils, whose functions nest a loop in the
+exit of the one before, 16 deep). So a loop's floors are memoized by the
+floors they depend on - those of the words, and of the variables the loop
+reads up to `floored()`'s depth of four floors; a floor that only passes
+through the loop is kept when the loop doesn't set its variable nor write
+what it reads, decided with the loop's inside floors -, an IF's floors in
+the copy walk by the floors before it, `floored()` by the facts' identity;
+and a floor of 0, or of 2^63 and more, is never kept: it says nothing, and
+`floored()` would read its variable as a fresh atom, the conditions about
+the variable lost.
 
 ### Soundness
 
@@ -229,6 +292,39 @@ same proof through its own `F_A`.
      what part 3's removal costs before the floor recovers it;
    - CPU time before and after.
 3. **The existing suites**: release and ASan/UBSan, and the python tests.
+
+## What the old range decided (8 November)
+
+An experiment build (not committed) put python's range of `MEM(RANGE(64,
+32))`, `[0x60, 2^256)`, back behind a mask of the pipeline's phases
+(`PAN_OLDFMP`: the VM, the whiles, each pass of the simplifier, the cleanup
+of memory's two walks apart, the final passes, the stages after), the caches
+cleared where the mask switches. All the phases on gives the old texts byte
+for byte (aave311_DelegationAwareAToken, ensdom122_ETHRegistrarController,
+...), none of them today's. On 44 contracts sampled from the 346 whose text
+changed, four phases give all of it (but a loop variable's name in 6):
+
+| phase | what the old range decided there |
+|---|---|
+| `cleanup_vars`, forward | a variable `p = mem[64]` kept past `mem[p] = x`: the write at `RANGE(mem[64], 32)` misses `RANGE(64, 32)` - solidity's `return x` (`return(mload(0x40), p + 32 - mload(0x40))`), 4,394 of today's `len _N - mem[64]` lines |
+| `cleanup_mems`, forward | the same for MemState's pieces; and through a pointer taken before the word moved on (`_12 = mem[64]; mem[64] = _12 + 64; mem[_12] = ...`): the old range bounded `_12` by its value's range, `[0x60, ...)`; and in loops - a check with a message in a loop body (`mem[_44 + 4] = 32` where `_44 = mem[64]`, on a path that reverts) made the loop's writes go anywhere, every piece forgotten at its head |
+| `cleanup_mems`, backward | a write at `mem[64]` (or below the word) dead though a read at `mem[64] + k` follows: the dead writes of totalSupply (`mem[64] = 128`, the call's arguments) |
+| `cleanup_conds` | a condition kept past a write that misses what it reads (`commitments[sha3(mem[_31 + 32 len mem[_31]])]` past `mem[0] = ...`, `_31 = mem[64]`) |
+
+The VM, the whiles, `loops_to_setmems`, `simplify_exps` and the final passes
+decided nothing with it on that sample.
+
+So the floors were right but read in one walk only, and the old range gave
+three things they didn't have: a bound for a variable that holds the word's
+old value, a bound where a loop's iterations that revert write at such
+variables, and a bound after a loop that allocates at every iteration.
+
+What makes them provable now is in part 1: the floors read by every walk
+that decides about memory (Uses 1, 5), the floors of variables, a loop's
+floors made by walking its body from its head (the iterations that revert
+left out, the rising variables, the words that only grow, the body's
+variables' floors for its own lines), a floor weakened rather than dropped,
+and `floored` kept to the arithmetic of positions.
 
 ## Results (7-8 Nov 2026)
 

@@ -2,6 +2,7 @@
 // min_ifs, short_circuits (python simplify.cleanup_conds / truth / min_ifs,
 // postprocess.short_circuits / logical; asm conds.s, postprocess.s).
 #include "simplify/effects.hpp"
+#include "simplify/floor.hpp"
 #include "simplify/internal.hpp"
 #include "simplify/simplify.hpp"
 
@@ -11,6 +12,7 @@
 #include "algebra/facts.hpp"
 #include "core/context.hpp"
 #include "core/intops.hpp"
+#include "loops/loops.hpp"
 
 namespace pan::simplify {
 
@@ -88,9 +90,13 @@ std::optional<SmallVec<Value, 8>> sequential(Value setvars) {
 // whiles', the checks passed - python's cleanup_conds decided its ifs by
 // constants alone): lot 3's facts, each condition dropped where a line may
 // change what it reads (effects.hpp), so that every fact holds at the point
-// of the question.
+// of the question. (What a line writes in memory is decided with the floors
+// that hold there - simplify/floor.hpp, carried along as the memory pass
+// carries them.)
 class Conds {
 public:
+    explicit Conds(alg::Facts floors) : fl_(floors) {}
+
     Value trace(Value t) {
         if (!t.is_list()) return t;
         check_stack();
@@ -104,13 +110,19 @@ public:
                 // a loop's head: what the lines after it change, forgotten
                 EffectSummary rest = summary(line);
                 for (u32 j = i + 1; j < n; ++j) rest = combine(rest, summary(t[j]), true);
+                fl_ = fl_.without_floors();
                 forget(rest);
                 res.push_back(line);
                 continue;
             }
             if (line.is(Op::WHILE, 4)) {
-                const EffectSummary& ls = summary(line);
-                forget(ls);
+                // (at its head, for every iteration, and after it: what the
+                // paths that go on change - an iteration that reverts never
+                // gets back -, with the floors none of them changes)
+                const EffectSummary& ls = loops::summary(line).cont_effects;
+                const alg::Facts in = floor_loop_inside(fl_, line);
+                fl_ = floor_loop(fl_, line);
+                forget(ls, in);
                 Tri ev = kept_read(line[0]) ? Tri::None : decide(line[0]);
                 // the body: where the condition holds (and what the loop doesn't change)
                 const Saved saved = save();
@@ -154,17 +166,28 @@ public:
                 const Saved saved = save();
                 assume(cond);
                 Value tt = trace(line[1]);
+                const alg::Facts fl_t = fl_;
                 restore(saved);
                 assume(alg::iszero(cond));
                 Value ee = trace(line[2]);
+                const alg::Facts fl_e = fl_;
                 restore(saved);
                 const bool t_ends = ends(tt), e_ends = ends(ee);
-                forget(summary(line));
+                forget(summary(line), floors_through(fl_, line));
                 // what follows runs after the branch that goes on, if one ends
                 if (t_ends != e_ends) {
                     Value holds = t_ends ? alg::iszero(cond) : cond;
-                    if (!changes(summary(t_ends ? ee : tt), summary(holds))) assume(holds);
+                    Value on = t_ends ? ee : tt;
+                    const alg::Facts through = floors_through(fl_, on);
+                    if (!changes(summary(on), summary(holds), &through)) assume(holds);
                 }
+                // the floors after it: the branch's that goes on, or both's
+                if (t_ends && !e_ends)
+                    fl_ = fl_e;
+                else if (e_ends && !t_ends)
+                    fl_ = fl_t;
+                else if (!t_ends && !e_ends)
+                    fl_ = floor_join(fl_, fl_, fl_t, fl_e);
                 if (tt.size() == 0 && ee.size() == 0 && !keep) {
                     // (once the branches of a merged if are simplified)
                     changed = true;
@@ -188,7 +211,8 @@ public:
                 res.push_back(r);
                 continue;
             }
-            forget(summary(line));
+            forget(summary(line), floors_through(fl_, line));
+            fl_ = floor_transfer(fl_, line);
             res.push_back(line);
         }
         return changed ? mk_trace(res.span()) : t;
@@ -207,12 +231,13 @@ private:
     static constexpr usize kMaxKnown = 32;
     struct Saved {
         SmallVec<Value, 16> known;
-        alg::Facts facts;
+        alg::Facts facts, floors;
     };
-    Saved save() const { return Saved{known_, facts_}; }
+    Saved save() const { return Saved{known_, facts_, fl_}; }
     void restore(const Saved& s) {
         known_ = s.known;
         facts_ = s.facts;
+        fl_ = s.floors;
     }
     void assume(Value cond) {
         if (cond.is_int() || known_.size() >= kMaxKnown) return;
@@ -223,11 +248,12 @@ private:
         facts_ = alg::Facts();
         for (Value c : known_) facts_ = facts_.with_cond(c);
     }
-    void forget(const EffectSummary& s) {
+    // (floors: those that hold where s's writes are - floors_through)
+    void forget(const EffectSummary& s, const alg::Facts& floors = alg::Facts{}) {
         if (!s.writes || known_.empty()) return;
         SmallVec<Value, 16> kept;
         for (Value c : known_)
-            if (!changes(s, summary(c))) kept.push_back(c);
+            if (!changes(s, summary(c), &floors)) kept.push_back(c);
         if (kept.size() == known_.size()) return;
         known_ = kept;
         rebuild();
@@ -235,10 +261,12 @@ private:
 
     SmallVec<Value, 16> known_;
     alg::Facts facts_;
+    alg::Facts fl_;  // the floors here (floors only)
 };
 
 Value conds_trace(Value trace) {
-    Conds c;
+    // (the floors from the lines before the trace: the dispatcher's)
+    Conds c(run_flags().entry_lines.is_list() ? floor_walk(alg::Facts{}, run_flags().entry_lines) : alg::Facts{});
     return c.trace(trace);
 }
 

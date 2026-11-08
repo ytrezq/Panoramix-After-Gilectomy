@@ -634,7 +634,13 @@ floor plus what an allocation adds), kept across lines and loops that
 provably miss the word and what F reads, lowered at a join to a value
 proven below both branches' - which the decisions about positions read as
 `mem[A] = F + d`, `d >= 0`. Nothing presumes what the word is for: a
-hand-written allocator bumping another word gets the same proofs.
+hand-written allocator bumping another word gets the same proofs. The
+variables that hold such a word's value, or an address past it, get floors
+the same way (`_12 = mem[64]`: `_12 >= F`), and every walk that decides
+about memory reads them: the forwarding, `cleanup_vars`' and
+`cleanup_conds`' kills, the backward pass' dead writes. A loop's floors are
+made by walking its body from its head (the iterations that revert left out;
+a pointer its CONTINUEs only step up, a word it only allocates from).
 
 ### The simplifier (lot 7, `src/simplify/`)
 

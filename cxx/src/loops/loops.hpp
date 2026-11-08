@@ -157,6 +157,20 @@ struct LoopSummary {
     // INTERNAL, a LEAVE...).
     Value mem_writes, mem_reads;
     bool mem_writes_any = false, mem_reads_any = false;
+    // The same over the paths that go on: those that end in the body (halt,
+    // fail, leave - an iteration that reverts) left out, the others kept
+    // (their CONTINUEs, BREAKs, a fall off the body, an outer loop's
+    // CONTINUE; a nested loop whole): what the loop may change at its head
+    // (every iteration's start) and after it - cont_effects the effects,
+    // cont_writes the memory as mem_writes has it (a hull where it can be).
+    simplify::EffectSummary cont_effects;
+    Value cont_writes;
+    bool cont_writes_any = false;
+    // LIST of the loop's variables set only by its setvars and its
+    // CONTINUEs (none of the body's lines, no nested loop's) - the ones
+    // whose steps may be shown never to go down (simplify/floor.hpp); NIL:
+    // none
+    Value stepped;
     // the paths of the body
     bool breaks = false;           // one ends without a CONTINUE of this loop: the loop is left for what follows it
     bool continues_outer = false;  // a CONTINUE of an enclosing loop in it

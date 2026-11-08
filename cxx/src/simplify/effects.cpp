@@ -8,6 +8,7 @@
 #include "algebra/compare.hpp"
 #include "algebra/construct.hpp"
 #include "algebra/eval.hpp"
+#include "algebra/facts.hpp"
 #include "algebra/linear.hpp"
 #include "core/budget.hpp"
 #include "core/context.hpp"
@@ -501,7 +502,14 @@ Tri slots_may_alias(Value a, Value b) {
     return Tri::None;
 }
 
-bool mem_may_overlap(Value w, Value r) { return overlaps(w, r) != Tri::False; }
+// (the floors of the facts, where the answer without them may meet:
+// docs/alloc-floor.md - mem::overlaps reads the floored words and variables
+// as their floors plus d >= 0)
+bool mem_may_overlap(Value w, Value r, const alg::Facts* facts) {
+    if (overlaps(w, r) == Tri::False) return false;
+    if (!facts || !facts->any_floor()) return true;
+    return mem::overlaps(w, r, facts) != Tri::False;
+}
 
 bool key_may_alias(Value a, Value b) {
     if (a == b) return true;
@@ -511,14 +519,14 @@ bool key_may_alias(Value a, Value b) {
 }
 
 // may a place of class c in xs meet one in ys
-bool lists_meet(u32 c, Value xs, Value ys) {
+bool lists_meet(u32 c, Value xs, Value ys, const alg::Facts* facts) {
     if (xs.nil() || ys.nil()) return false;
     for (Value x : xs.args())
         for (Value y : ys.args()) {
             poll();
             switch (c) {
                 case S_MEM:
-                    if (mem_may_overlap(x, y)) return true;
+                    if (mem_may_overlap(x, y, facts)) return true;
                     break;
                 case S_STORAGE:
                     if (storage_may_alias(x, y) != Tri::False) return true;
@@ -557,7 +565,7 @@ Value r_list(const EffectSummary& s, u32 c) {
 
 // may places of `a` (classes ca, lists la) meet places of `b`
 bool classes_meet(u32 ca, u32 any_a, bool a_writes, const EffectSummary& a, u32 cb, u32 any_b, bool b_writes,
-                  const EffectSummary& b) {
+                  const EffectSummary& b, const alg::Facts* facts = nullptr) {
     u32 common = ca & cb;
     if (!common) return false;
     // the classes without places: any
@@ -565,7 +573,7 @@ bool classes_meet(u32 ca, u32 any_a, bool a_writes, const EffectSummary& a, u32 
     for (u32 c : {S_MEM, S_STORAGE, S_TRANSIENT, S_VARS, S_CALLRES}) {
         if (!(common & c)) continue;
         if ((any_a | any_b) & c) return true;
-        if (lists_meet(c, a_writes ? w_list(a, c) : r_list(a, c), b_writes ? w_list(b, c) : r_list(b, c)))
+        if (lists_meet(c, a_writes ? w_list(a, c) : r_list(a, c), b_writes ? w_list(b, c) : r_list(b, c), facts))
             return true;
     }
     return false;
@@ -612,6 +620,11 @@ EffectSummary combine(const EffectSummary& a, const EffectSummary& b, bool seq) 
 
 bool changes(const EffectSummary& w, const EffectSummary& r) {
     return classes_meet(w.writes, w.writes_any, true, w, r.reads, r.reads_any, false, r);
+}
+
+bool changes(const EffectSummary& w, const EffectSummary& r, const alg::Facts* facts) {
+    if (!facts || !facts->any_floor()) return changes(w, r);
+    return classes_meet(w.writes, w.writes_any, true, w, r.reads, r.reads_any, false, r, facts);
 }
 
 bool affects(const EffectSummary& line, Value expr) {
