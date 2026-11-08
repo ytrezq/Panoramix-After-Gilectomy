@@ -1,0 +1,36 @@
+[profile.default]
+src             = 'src'                                 # The source directory
+test            = 'test'                                # The test directory
+out             = 'out'                                 # The output directory
+libs            = ['lib']                               # A list of library directories
+solc            = "0.8.26"                              # The Solidity compiler version
+optimizer       = true                                  # Enable or disable the solc optimizer
+optimizer_runs  = 200                                   # The number of optimizer runs
+fs_permissions  = [{ access = "read", path = "./"}]     # Gives permission to read files for deployment keys.
+evm_version     = "cancun"                              # The EVM version to use
+ffi             = true                                  # Enable the foreign function interface (ffi) cheatcode.
+gas_limit = 200000000
+no_match_path   = "src/mocks/**/*.sol"                  # Exclude mocks from compilation and testing
+
+[fuzz]
+runs           = 256        # The number of times to run the fuzzing tests
+
+[invariant]
+runs           = 10        # The number of sequences to run
+depth          = 500       # The number of calls to make in each sequence
+fail_on_revert = true       # Fail the test if the contract reverts
+shrink_run_limit = 0 # Attempts to shrink failing sequence
+# corpus_dir = "cache/fuzz-corpus"
+# show_edge_coverage = true
+
+[profile.shallow.fuzz]
+runs           = 128        # The number of times to run the fuzzing tests
+
+[profile.deep.fuzz]
+runs           = 512        # The number of times to run the fuzzing tests
+
+[profile.super_deep.fuzz]
+runs           = 1024       # The number of times to run the fuzzing tests
+
+[profile.oracle]
+gas_limit = 300000000       # Higher gas limit for oracle tests
