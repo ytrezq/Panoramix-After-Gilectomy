@@ -8,31 +8,46 @@ comparison tool (compare_source.py) reads.
 
 Per project of a copied repository (immunefi/SLUG/OWNER__NAME/...: a
 directory with foundry.toml, hardhat.config.*, truffle-config.js or
-brownie-config.yaml, or a src/ or contracts/ of Solidity sources):
-  - the sources: the Solidity files of its source directory (foundry.toml's
-    `src`, else src/ or contracts/), tests and scripts left out (*.t.sol,
-    *.s.sol, test/, tests/, script/, scripts/);
+brownie-config.yaml; a package (package.json) with sources in contracts/ or
+src/ that no project above builds; else the repository, when it has
+sources), a build per foundry profile naming sources of its own (the
+default one, then each other naming a source directory no build before
+takes - tests, scripts, proofs and the like left out), with:
+  - the sources: the Solidity files of its source directories (the
+    profile's `src`; for the default one also a hardhat configuration's
+    paths.sources, src/ and contracts/; else the project's directory), tests
+    and scripts left out (*.t.sol, *.s.sol, test/, tests/, script/,
+    scripts/...) and the libraries (foundry.toml's libs);
   - the remappings forge makes (its algorithm ported, forge_remaps): the
     project's remappings.txt and foundry.toml's, then - unless
     auto_detect_remappings is off - its libraries': those of each library
     with a foundry.toml (the same way, recursively) and the automatic ones
     (foundry-compilers' find_many), of one name the shortest path, none
-    overlapping one already there; node_modules/ by solc's include paths;
-  - the compiler: foundry.toml's solc / solc_version when set, else for each
-    source the newest release its pragma (and its imports') allows: the
-    sources are compiled in groups of one compiler;
-  - optimizer: foundry.toml's optimizer / optimizer_runs / via_ir (auto), or
-    on with 200 runs, or off, or both;
+    overlapping one already there; the project's node_modules/ by solc's
+    include paths (the repository's, and the repository itself, only when
+    the sources import files there: a file found twice is an ambiguous
+    import); a node_modules/ between the sources and the project by
+    remappings for the sources below it;
+  - the compiler of each source: the profile's (solc / solc_version) when
+    its pragma and its imports' allow it, else the newest of those a
+    hardhat or truffle configuration names they allow, else the newest
+    release they allow - for pragmas open above (>= only) the one most of
+    the project's other sources get (unless the code is an old compiler's),
+    else the oldest they allow: the sources are compiled in groups of one
+    compiler;
+  - optimizer: the profile's optimizer / optimizer_runs / via_ir (auto; no
+    viaIR before solc 0.8.13, as forge does), or on with 200 runs, or off,
+    or both;
   - the EVM versions: each one asked that the compiler supports (default:
     byzantium petersburg istanbul london paris shanghai cancun prague) is a
     build of its own; with --fallback-evm, a compiler that knows none of
     them gets the newest of those it knows; and the project's own
-    (foundry.toml's evm_version) when its code needs a newer one.
+    (evm_version) when its code needs a newer one.
 Vyper sources (.vy): compiled one by one by the Vyper their `# @version` /
 `#pragma version` names (pip, a virtualenv per version under the cache), for
 each EVM version that Vyper knows.
 
-Output, OUT/SLUG/OWNER__NAME/PROJECT/:
+Output, OUT/SLUG/OWNER__NAME/PROJECT/ (PROJECT/@PROFILE/ for a profile's):
   COMPILER-EVM[-noopt][-ir]/FILE:CONTRACT.hex   runtime bytecode (hex), the
                              contracts with code; libraries linked at made-up
                              addresses (0x11..., one per library)
@@ -44,6 +59,7 @@ OUT/errors.jsonl; a build that fails doesn't stop the others. (FILE: the
 source's path, / made __.)
 """
 import argparse
+import collections
 import concurrent.futures
 import glob
 import hashlib
@@ -174,21 +190,57 @@ class Solc:
 
 # ---- projects -------------------------------------------------------------------------------
 
-def toml_get(text, key):
-    """a foundry.toml value (the first, [profile.default]'s in practice;
-    key_name and key-name alike)"""
-    k = re.escape(key).replace('_', '[_-]')
-    m = re.search(r'^\s*' + k + r'\s*=\s*(.+?)\s*$', text, re.M)
+TOML_HEADER = re.compile(r'''^\s*\[\[?\s*([A-Za-z0-9_.\-"' ]+?)\s*\]\]?\s*(?:#.*)?$''')
+
+
+def toml_sections(text):
+    """{table: its lines} of a foundry.toml, the lines before any header
+    under '' (a table's name as written: "profile.default", the legacy
+    "default", "profile.ci.fuzz"...)"""
+    out, sec = {'': []}, ''
+    for line in text.splitlines():
+        m = TOML_HEADER.match(line)
+        if m:
+            sec = re.sub(r'''["'\s]''', '', m.group(1))
+            out.setdefault(sec, [])
+            continue
+        out[sec].append(line)
+    return out
+
+
+def profile_text(text, profile='default'):
+    """the part of a foundry.toml a profile reads, its own values first:
+    [profile.NAME], then the default's ([profile.default], the legacy
+    [default], the lines before any header) - of a key, the first value
+    holds (toml_get, toml_array); the other profiles' left out"""
+    secs = toml_sections(text)
+    order = (['profile.' + profile] if profile != 'default' else []) + ['profile.default', 'default', '']
+    return '\n'.join(line for s in order for line in secs.get(s, []))
+
+
+def profiles(text):
+    """the profiles a foundry.toml names besides the default"""
+    return [s[len('profile.'):] for s in toml_sections(text)
+            if s.startswith('profile.') and s.count('.') == 1 and s != 'profile.default']
+
+
+def toml_get(text, *keys, profile='default'):
+    """a foundry.toml value of a profile (the default's unless named;
+    key_name and key-name alike; of several keys - aliases, src and
+    contracts - the first one there)"""
+    k = '|'.join(re.escape(x).replace('_', '[_-]') for x in keys)
+    m = re.search(r'^\s*(?:' + k + r')\s*=\s*(.+?)\s*$', profile_text(text, profile), re.M)
     if not m:
         return None
     v = m.group(1).split('#')[0].strip()
     return v.strip('"\'')
 
 
-def toml_array(text, key):
-    """the strings of a foundry.toml array (remappings = [...], over lines)"""
+def toml_array(text, key, profile='default'):
+    """the strings of a foundry.toml array of a profile (remappings = [...],
+    over lines)"""
     k = re.escape(key).replace('_', '[_-]')
-    m = re.search(r'^\s*' + k + r'\s*=\s*\[(.*?)\]', text, re.M | re.S)
+    m = re.search(r'^\s*' + k + r'\s*=\s*\[(.*?)\]', profile_text(text, profile), re.M | re.S)
     if not m:
         return None
     body = re.sub(r'#[^\n]*', '', m.group(1))
@@ -436,7 +488,8 @@ def forge_remaps(root, depth=0):
                     continue
                 for c, k, v in forge_remaps(sub, depth + 1):
                     put(c, k, v if os.path.isabs(v) else os.path.join(sub, v))
-                src = toml_get(open(os.path.join(sub, 'foundry.toml'), errors='replace').read(), 'src') or 'src'
+                src = toml_get(open(os.path.join(sub, 'foundry.toml'), errors='replace').read(), 'src',
+                               'contracts') or 'src'
                 if src.strip('/') not in ('src', 'contracts', 'lib'):
                     put('', os.path.basename(sub) + '/', os.path.join(sub, src))
         for l in libs:
@@ -445,7 +498,8 @@ def forge_remaps(root, depth=0):
                 for k, v in find_many(ld).items():
                     if k not in ('lib/', 'src/', 'contracts/'):
                         put('', k, v)
-        project_dirs = {(toml_get(text, k) or k).strip('/').lower() + '/' for k in ('src', 'test', 'script')}
+        project_dirs = {(toml_get(text, *ks) or ks[0]).strip('/').lower() + '/'
+                        for ks in (('src', 'contracts'), ('test',), ('script',))}
         for (ctx, name), path in sorted(closest.items()):
             if not name.endswith('.sol'):
                 rel = os.path.relpath(path, root) if os.path.isabs(path) else path
@@ -464,11 +518,26 @@ def foundry_remaps(project):
 
 
 def projects_of(repo):
-    """the project directories of a copied repository"""
+    """the project directories of a copied repository: those with a build
+    configuration; a package (package.json) with sources in its contracts/
+    or src/ and no configuration of its own (buidler's or embark's, left out
+    of the copy as JavaScript) unless a project found above it builds them;
+    else the repository when it has sources"""
     found = []
     for d, dirs, files in os.walk(repo):
-        dirs[:] = [x for x in dirs if x not in ('node_modules', 'lib', 'out', 'cache', '.git', 'dependencies')]
+        dirs[:] = sorted(x for x in dirs if x not in ('node_modules', 'lib', 'out', 'cache', '.git', 'dependencies'))
         if any(f in files for f in PROJECT_FILES):
+            found.append(d)
+    for d, dirs, files in os.walk(repo):
+        dirs[:] = sorted(x for x in dirs if x not in SKIP_DIRS and not x.startswith('.'))
+        if 'package.json' not in files or d in found:
+            continue
+        subs = [os.path.join(d, s) for s in ('contracts', 'src') if has_sources(os.path.join(d, s))]
+        # (nor when a project found is inside them: their sources are its;
+        # nor in the libraries of a project found: a dependency's copy)
+        if subs and not any(covers(p, s) or (p + '/').startswith(s + '/') for p in found for s in subs) and \
+                not any((d + '/').startswith(os.path.join(p, l) + '/') for p in found
+                        for l in (toml_array(_foundry_text(p), 'libs') or ['lib'])):
             found.append(d)
     if not found:
         for sub in ('src', 'contracts'):
@@ -477,7 +546,15 @@ def projects_of(repo):
                 break
     if not found and has_sources(repo):
         found.append(repo)  # (sources and nothing else: the repository is the project)
-    return found
+    return sorted(found)
+
+
+def covers(project, path):
+    """whether a build of the project takes the sources under path"""
+    if not (path + '/').startswith(project.rstrip('/') + '/'):
+        return False
+    return any(sd == '.' or (path + '/').startswith(os.path.join(project, sd) + '/')
+               for prof in builds_of(project) for sd in src_dirs_of(project, prof))
 
 
 def has_sources(top):
@@ -490,12 +567,113 @@ def has_sources(top):
     return False
 
 
-def sources_of(project):
-    cfg = {}
+# a directory of tests, scripts, proofs and the like (not a source
+# directory of a build, whatever profile names it)
+TESTY = re.compile(r'(^|[-_.])(tests?|testing|kontrol|certora|echidna|halmos|medusa|harness(es)?|fuzz(ing)?|'
+                   r'invariants?|proofs?|scripts?|mocks?|fv|specs?|simulations?|audits?)($|[-_.])', re.I)
+
+
+def testlike(path):
+    return any(p in SKIP_DIRS or TESTY.search(p) for p in os.path.normpath(path).split('/') if p not in ('', '.'))
+
+
+def _foundry_text(project):
     ft = os.path.join(project, 'foundry.toml')
-    text = open(ft, errors='replace').read() if os.path.exists(ft) else ''
-    for k in ('src', 'solc', 'solc_version', 'optimizer', 'optimizer_runs', 'via_ir', 'evm_version'):
-        v = toml_get(text, k)
+    return open(ft, errors='replace').read() if os.path.exists(ft) else ''
+
+
+def _hardhat_sources(project):
+    """a hardhat configuration's paths.sources (read, never run)"""
+    hh = []
+    for name in ('hardhat.config.js', 'hardhat.config.ts', 'hardhat.config.cjs'):
+        hp = os.path.join(project, name)
+        if os.path.exists(hp):
+            hh += re.findall(r'\bsources\s*:\s*["\']([^"\']+)["\']', open(hp, errors='replace').read())
+    return hh
+
+
+def _own_src(text, profile):
+    """the source directory a foundry profile names itself (src, or its
+    alias contracts), not the default's"""
+    sec = toml_sections(text).get('profile.' + profile, [])
+    return toml_get('\n'.join(sec), 'src', 'contracts')
+
+
+def src_dirs_of(project, profile='default'):
+    """the source directories of a build of the project. The default one:
+    foundry.toml's src (unless a directory of tests: some name their tests'
+    and put their sources in a profile of their own), a hardhat
+    configuration's paths.sources, src/ and contracts/ - every one there,
+    none inside another; else the project's own directory, unless profiles
+    name the sources (then none). Another profile's: its own src."""
+    text = _foundry_text(project)
+    if profile != 'default':
+        sd = toml_get(text, 'src', 'contracts', profile=profile)
+        return [os.path.normpath(sd.strip())] if sd else []
+    own = toml_get(text, 'src', 'contracts')
+    cands = ([own] if own and not testlike(own) else []) + _hardhat_sources(project) + ['src', 'contracts']
+    src_dirs = []
+    for sd in cands:
+        sd = os.path.normpath(sd.strip())
+        if sd not in src_dirs and not sd.startswith('..') and os.path.isdir(os.path.join(project, sd)):
+            src_dirs.append(sd)
+    src_dirs = [d for d in src_dirs if d == '.' or not any(e != d and (e == '.' or (d + '/').startswith(e + '/'))
+                                                         for e in src_dirs)]
+    if not src_dirs:
+        if any(_profile_src_ok(project, text, p) for p in profiles(text)):
+            return []
+        src_dirs = ['.']
+    return src_dirs
+
+
+def _profile_src_ok(project, text, p):
+    sd = _own_src(text, p)
+    if not sd:
+        return None
+    sd = os.path.normpath(sd.strip())
+    return sd if not sd.startswith('..') and not testlike(sd) and has_sources(os.path.join(project, sd)) else None
+
+
+def builds_of(project):
+    """the foundry profiles a project is built with: the default one (when
+    it has sources), then each other profile naming a source directory of
+    its own that no build before takes (not inside one of theirs), tests and
+    the like left out; a profile's other settings (compiler, optimizer, EVM
+    version) apply to its build"""
+    text = _foundry_text(project)
+    covered = src_dirs_of(project)
+    out = ['default'] if covered else []
+    for p in profiles(text):
+        sd = _profile_src_ok(project, text, p)
+        if sd and not any(c == '.' or sd == c or (sd + '/').startswith(c + '/') for c in covered):
+            covered.append(sd)
+            out.append(p)
+    return out
+
+
+def npm_packages(nm):
+    """the packages of a node_modules directory: NAME and @SCOPE/NAME"""
+    out = []
+    for name in sorted(os.listdir(nm)):
+        top = os.path.join(nm, name)
+        if name.startswith('.') or not os.path.isdir(top):
+            continue
+        if name.startswith('@'):
+            out += [name + '/' + x for x in sorted(os.listdir(top)) if os.path.isdir(os.path.join(top, x))]
+        else:
+            out.append(name)
+    return out
+
+
+def sources_of(project, profile='default'):
+    """(sources, remappings, settings) of a build of the project (a foundry
+    profile's: builds_of)"""
+    cfg = {}
+    text = _foundry_text(project)
+    for k, keys in (('src', ('src', 'contracts')), ('solc', ('solc', 'solc_version')), ('optimizer', ('optimizer',)),
+                    ('optimizer_runs', ('optimizer_runs',)), ('via_ir', ('via_ir',)),
+                    ('evm_version', ('evm_version',))):
+        v = toml_get(text, *keys, profile=profile)
         if v is not None:
             cfg[k] = v
     # the compilers a hardhat or truffle configuration names (read, never
@@ -516,32 +694,38 @@ def sources_of(project):
         hp = os.path.join(project, name)
         if os.path.exists(hp) and re.search(r'viaIR\s*:\s*true', open(hp, errors='replace').read()):
             cfg.setdefault('via_ir', 'true')
-    remaps = foundry_remaps(project)
-    # the source directories: foundry.toml's src, a hardhat configuration's
-    # paths.sources (read, never run), src/ and contracts/ - every one there,
-    # none inside another; else the project's own directory
-    hh = []
-    for name in ('hardhat.config.js', 'hardhat.config.ts', 'hardhat.config.cjs'):
-        hp = os.path.join(project, name)
-        if os.path.exists(hp):
-            hh += re.findall(r'\bsources\s*:\s*["\']([^"\']+)["\']', open(hp, errors='replace').read())
-    src_dirs = []
-    for sd in ([cfg['src']] if 'src' in cfg else []) + hh + ['src', 'contracts']:
-        sd = os.path.normpath(sd.strip())
-        if sd not in src_dirs and not sd.startswith('..') and os.path.isdir(os.path.join(project, sd)):
-            src_dirs.append(sd)
-    src_dirs = [d for d in src_dirs if d == '.' or not any(e != d and (e == '.' or (d + '/').startswith(e + '/'))
-                                                         for e in src_dirs)]
-    if not src_dirs:
-        src_dirs = ['.']
+    remaps = list(foundry_remaps(project))
+    # the libraries (foundry.toml's libs) are no sources of the project's,
+    # wherever they are
+    libs = {os.path.normpath(x) for x in (toml_array(text, 'libs') or ['lib'])}
     files = []
-    for sd in src_dirs:
+    for sd in src_dirs_of(project, profile):
         top = os.path.join(project, sd)
         for d, dirs, fs in os.walk(top):
-            dirs[:] = [x for x in dirs if x not in SKIP_DIRS and not x.startswith('.')]
+            rel = os.path.relpath(d, project)
+            dirs[:] = [x for x in dirs if x not in SKIP_DIRS and not x.startswith('.') and
+                       os.path.normpath(os.path.join(rel, x)) not in libs]
             for f in fs:
                 if (f.endswith('.sol') and not f.endswith(('.t.sol', '.s.sol'))) or f.endswith('.vy'):
                     files.append(os.path.relpath(os.path.join(d, f), project))
+    # the packages of a node_modules/ between a source and the project (a
+    # package of the project's with its own package.json: npm puts them
+    # there and a node resolver finds them from the sources below), remapped
+    # for the sources of that directory - unless a remapping of the
+    # project's names them
+    taken = [k for c, k, v in remaps if not c]
+    seen = set()
+    for f in files:
+        d = os.path.dirname(f)
+        while d and d not in seen:
+            seen.add(d)
+            nm = os.path.join(project, d, 'node_modules')
+            if os.path.isdir(nm):
+                for pkg in npm_packages(nm):
+                    k = pkg + '/'
+                    if not any(k.startswith(t) or t.startswith(k) for t in taken):
+                        remaps.append((d + '/', k, os.path.join(d, 'node_modules', pkg) + '/'))
+            d = os.path.dirname(d)
     return sorted(files), remaps, cfg
 
 
@@ -613,7 +797,12 @@ def link(code):
     return LINK_RE.sub(addr, code), linked
 
 
-def build_solc(solc, version, group, project, repo, remaps, cfg, evm, opt, via_ir, outdir, timeout):
+def build_solc(solc, version, group, project, repo, remaps, cfg, evm, opt, via_ir, outdir, timeout,
+               outside=(True, True)):
+    """one compilation (standard JSON); outside: whether the sources import
+    files outside the project, of the repository's node_modules/ and of the
+    repository's own (that directory an include path then - only then: a
+    file found twice is an ambiguous import)"""
     sources = {f: {'urls': [f]} for f in group}
     settings = {
         'remappings': [('%s:%s=%s' if c else '%s%s=%s') % (c, k, v) for c, k, v in remaps],
@@ -652,7 +841,8 @@ def build_solc(solc, version, group, project, repo, remaps, cfg, evm, opt, via_i
         # (each directory once, and never the base path: a file found twice
         # is an ambiguous import)
         seen = {os.path.realpath(project)}
-        for inc in (os.path.join(project, 'node_modules'), os.path.join(repo, 'node_modules'), repo):
+        for inc in [os.path.join(project, 'node_modules')] + ([os.path.join(repo, 'node_modules')] if outside[0] else []) + \
+                ([repo] if outside[1] else []):
             if os.path.isdir(inc) and os.path.realpath(inc) not in seen:
                 seen.add(os.path.realpath(inc))
                 args += ['--include-path', inc]
@@ -800,47 +990,122 @@ def build_vyper(f, project, evm, outdir, cache, timeout):
     return [base], []
 
 
-def build_project(args, solc, slug, repo, project):
-    files, remaps, cfg = sources_of(project)
+# an error that says the code needs a newer EVM version than the build's
+NEWER_EVM = re.compile(r'only available for|Transient storage is not supported by EVM versions older|'
+                       r'Function "(?:tload|tstore|mcopy|blobhash|blobbasefee|clz|basefee|prevrandao|chainid|'
+                       r'selfbalance)" not found')
+# an error about the EVM version (the build's other errors follow from it)
+EVM_ERROR = re.compile(r'VMs?\b|not supported by the|' + NEWER_EVM.pattern)
+# code an 0.8 compiler rejects (0.4's and 0.5's): what a source open above
+# (>= only) written for an old compiler has
+LEGACY_RE = re.compile(r'\b(?:throw|suicide|sha3|var|years|callcode)\b|\bnow\b(?!\s*\()|\bmsg\.gas\b|'
+                       r'\bblock\.blockhash\b|function\s*\(\s*\)\s*(?:public\s+|external\s+)?payable|'
+                       r'\bconstant\s+returns\b|\.value\s*\(|\.gas\s*\(')
+
+
+def open_above(ranges):
+    return bool(ranges) and all(re.fullmatch(r'\s*(>=?\s*v?[\d.x*]+\s*)+', r) for r in ranges)
+
+
+def closure(entry, cache):
+    """the sources a source imports, itself included (pragmas' cache)"""
+    out, todo = set(), [entry]
+    while todo and len(out) < 5000:
+        f = todo.pop()
+        if f not in out:
+            out.add(f)
+            todo += cache.get(f, ((), ()))[1]
+    return out
+
+
+def plan_project(solc, repo, project, profile='default'):
+    """what a build of a project compiles: (sources, remappings, settings,
+    {compiler: its sources}, errors, outside). A source's compiler: the
+    profile's (solc / solc_version) when its pragmas and its imports' allow
+    it; else the newest of those a hardhat or truffle configuration names
+    they allow; else the newest release they allow - for pragmas open above
+    (>= only), the one most other sources get when they allow it and none
+    of its code is an old compiler's, else the oldest they allow. outside:
+    whether the sources import files outside the project (of the
+    repository's node_modules/, of the repository's own)"""
+    files, remaps, cfg = sources_of(project, profile)
     sol = [f for f in files if f.endswith('.sol')]
-    vys = [f for f in files if f.endswith('.vy')]
-    rel = os.path.relpath(project, repo)
-    rel = '' if rel == '.' else rel
-    base_out = os.path.join(args.out, slug, os.path.basename(repo), rel)
-    index, errors = [], []
-    opts = {'auto': [cfg.get('optimizer', 'true') != 'false'], 'on': [True], 'off': [False],
-            'both': [True, False]}[args.optimizer]
-    via_ir = cfg.get('via_ir', 'false') == 'true'
-    evms = args.evm.split(',')
-    # the compiler of each Solidity source: foundry's, else the newest every pragma allows
-    groups = {}
-    fixed = vt(cfg.get('solc_version') or cfg.get('solc') or '')
-    cache = {}
+    fixed = vt((cfg.get('solc') or '').lstrip('='))
+    cache, choice, opens, errors = {}, {}, {}, []
     for f in sol:
         prs = pragmas(f, project, remaps, repo, cache)
+        if fixed and all(satisfies(fixed, r) for r in prs):
+            choice[f] = fixed
+            continue
         conf = [x for x in cfg.get('config_versions', []) if all(satisfies(x, r) for r in prs)]
-        v = fixed or (max(conf) if conf else solc.newest(prs))
+        if conf:
+            choice[f] = max(conf)
+            continue
+        v = solc.newest(prs)
         if v is None:
             errors.append({'project': project, 'file': f, 'error': 'no solc release fits its pragmas'})
             continue
-        groups.setdefault(v, []).append(f)
+        choice[f] = v
+        if open_above(prs):
+            opens[f] = prs
+    common = collections.Counter(v for f, v in choice.items() if f not in opens).most_common()
+    for f, prs in opens.items():
+        v = next((v for v, n in common if all(satisfies(v, r) for r in prs)), None)
+        if v and v != choice[f] and not any(LEGACY_RE.search(_text(g, project, repo)) for g in closure(f, cache)):
+            choice[f] = v
+    groups = {}
+    for f in sol:
+        if f in choice:
+            groups.setdefault(choice[f], []).append(f)
+    top, rnm = project.rstrip('/') + '/', os.path.join(repo, 'node_modules') + '/'
+    out = [p for p in (find(g, project, repo) for g in cache) if p and not p.startswith(top)]
+    outside = (any(p.startswith(rnm) for p in out), any(not p.startswith(rnm) for p in out))
+    return files, remaps, cfg, groups, errors, outside
+
+
+def _text(f, project, repo):
+    p = find(f, project, repo)
+    try:
+        return re.sub(r'//[^\n]*|/\*.*?\*/', '', open(p, errors='replace').read(), flags=re.S) if p else ''
+    except OSError:
+        return ''
+
+
+def build_project(args, solc, slug, repo, project, profile='default'):
+    files, remaps, cfg, groups, errors, outside = plan_project(solc, repo, project, profile)
+    vys = [f for f in files if f.endswith('.vy')]
+    rel = os.path.relpath(project, repo)
+    rel = '' if rel == '.' else rel
+    if profile != 'default':
+        rel = os.path.join(rel, '@' + profile)
+    base_out = os.path.join(args.out, slug, os.path.basename(repo), rel)
+    where = project if profile == 'default' else os.path.join(project, '@' + profile)
+    for e in errors:
+        e['project'] = where
+    index = []
+    opts = {'auto': [cfg.get('optimizer', 'true') != 'false'], 'on': [True], 'off': [False],
+            'both': [True, False]}[args.optimizer]
+    evms = args.evm.split(',')
     for v, group in sorted(groups.items()):
         try:
             exe = solc.path(v)
         except Exception as e:
-            errors.append({'project': project, 'solc': '%d.%d.%d' % v, 'error': str(e)})
+            errors.append({'project': where, 'solc': '%d.%d.%d' % v, 'error': str(e)})
             continue
+        # (no viaIR setting before 0.8.13: forge leaves it out, the code is
+        # compiled the legacy way)
+        via_ir = cfg.get('via_ir', 'false') == 'true' and v >= (0, 8, 13)
         known = [e for e in evms if v >= SOLC_EVM_SINCE.get(e, (9, 9, 9))]
         if not known and args.fallback_evm:
             fb = [e for e in args.fallback_evm.split(',') if v >= SOLC_EVM_SINCE.get(e, (9, 9, 9))]
             known = fb[-1:]
         # the project's own EVM version too when the code needs a newer one
-        # than those asked (an instruction "only available for" it)
+        # than those asked (an error says so)
         own = cfg.get('evm_version', '')
         extra = [own] if own in SOLC_EVM_SINCE and own not in known and v >= SOLC_EVM_SINCE[own] and \
             (not known or EVM_ORDER.index(own) > EVM_ORDER.index(known[-1])) else []
         for evm in known + extra:
-            if evm in extra and not any(re.search(r'only available for', str(x.get('error', ''))) for x in errors
+            if evm in extra and not any(NEWER_EVM.search(str(x.get('error', ''))) for x in errors
                                         if x.get('build', '').startswith('solc-%d.%d.%d-' % v)):
                 continue
             for opt in opts:
@@ -848,26 +1113,26 @@ def build_project(args, solc, slug, repo, project):
                 outdir = os.path.join(base_out, tag)
                 try:
                     arts, errs = build_solc(exe, v, group, project, repo, remaps, cfg, evm, opt, via_ir, outdir,
-                                            args.timeout)
+                                            args.timeout, outside)
                 except subprocess.TimeoutExpired:
                     arts, errs = [], ['timeout']
                 # one source's error fails its whole group: each source alone
                 # then (not when the EVM version is what the code can't
                 # target: an error says so, the others follow from it)
                 if errs and not arts and len(group) > 1 and len(group) <= args.retry_max and \
-                        not any(re.search(r'VMs?\b|only available for|not supported by the', e) for e in errs):
+                        not any(EVM_ERROR.search(e) for e in errs):
                     errs = ['group failed, each source alone: ' + errs[0][-200:]]
                     for f in group:
                         try:
                             a1, e1 = build_solc(exe, v, [f], project, repo, remaps, cfg, evm, opt, via_ir, outdir,
-                                                args.timeout)
+                                                args.timeout, outside)
                         except subprocess.TimeoutExpired:
                             a1, e1 = [], ['timeout']
                         arts += [a for a in a1 if a not in arts]
                         errs += ['%s: %s' % (f, x) for x in e1[:2]]
                 index += [{'program': slug, 'repo': os.path.basename(repo), 'project': rel, 'build': tag,
                            'artifact': os.path.relpath(a, args.out)} for a in arts]
-                errors += [{'project': project, 'build': tag, 'error': e} for e in errs[:20]]
+                errors += [{'project': where, 'build': tag, 'error': e} for e in errs[:20]]
     for f in vys:
         m = re.search(r'^#\s*(?:@version|pragma\s+version)\s+[\^~=>]*\s*(\d+\.\d+\.\d+)',
                       open(os.path.join(project, f), errors='replace').read(), re.M)
@@ -881,7 +1146,7 @@ def build_project(args, solc, slug, repo, project):
                 arts, errs = [], [str(e)[-300:]]
             index += [{'program': slug, 'repo': os.path.basename(repo), 'project': rel, 'build': tag,
                        'artifact': os.path.relpath(a, args.out)} for a in arts]
-            errors += [{'project': project, 'file': f, 'evm': evm, 'error': e} for e in errs]
+            errors += [{'project': where, 'file': f, 'evm': evm, 'error': e} for e in errs]
     return index, errors
 
 
@@ -909,8 +1174,10 @@ def main():
         for repo in sorted(glob.glob(os.path.join(os.path.dirname(prog), '*__*'))):
             if args.repo and os.path.basename(repo) not in args.repo:
                 continue
+            repo = os.path.realpath(repo)  # (solc checks the allowed paths against real ones)
             for project in projects_of(repo):
-                work.append((slug, repo, project))
+                for profile in builds_of(project):
+                    work.append((slug, repo, project, profile))
     if args.limit:
         work = work[:args.limit]
     os.makedirs(args.out, exist_ok=True)
