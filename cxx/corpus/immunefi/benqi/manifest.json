@@ -1,0 +1,48 @@
+{
+ "program": "benqi",
+ "repos": [
+  {
+   "repo": "https://github.com/Benqi-fi/BENQI-Smart-Contracts",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "found via web search: lending (Comptroller, qiTokens), sAVAX, veQI, staking, token sale",
+   "commit": "e0cfd244726719dfe027c9740878d64d1cad98f2",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "GPL-3.0": 3,
+     "(none)": 39,
+     "MIT": 9
+    },
+    "headers_main": {
+     "GPL-3.0": 3,
+     "(none)": 39,
+     "MIT": 9
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 51
+   },
+   "copied": true,
+   "via": "git subtree",
+   "files": 52,
+   "subtrees": [
+    {
+     "prefix": "Benqi-fi__BENQI-Smart-Contracts",
+     "url": "https://github.com/Benqi-fi/BENQI-Smart-Contracts",
+     "commit": "e0cfd244726719dfe027c9740878d64d1cad98f2",
+     "files": 51
+    }
+   ],
+   "npm": {},
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "Benqi-fi__BENQI-Smart-Contracts",
+   "license_note": "its license does not allow redistribution: added at the owner's request, its license files kept"
+  }
+ ]
+}
