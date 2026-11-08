@@ -196,194 +196,162 @@
     {
      "prefix": "lyra-finance__v2-matching",
      "url": "https://github.com/lyra-finance/v2-matching",
-     "commit": "f6c20f46e346151e0969777c5119c92ec21b3be8",
-     "files": 125
+     "commit": "f6c20f46e346151e0969777c5119c92ec21b3be8"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0",
-     "files": 371
+     "commit": "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/lyra-utils",
      "url": "https://github.com/derivexyz/derive-utils",
-     "commit": "8f6962cb49525c887d802a1b1d44ac35ed114791",
-     "files": 29
+     "commit": "8f6962cb49525c887d802a1b1d44ac35ed114791"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/v2-core",
      "url": "https://github.com/derivexyz/v2-core",
-     "commit": "7736900d395703c4f675376caa4c315402943831",
-     "files": 216
+     "commit": "7736900d395703c4f675376caa4c315402943831"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "0e7097750918380d84dd3cfdef595bee74dabb70",
-     "files": 47
+     "commit": "0e7097750918380d84dd3cfdef595bee74dabb70"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "e725abddf1e01cf05ace496e950fc8e243cc7cab",
-     "files": 249
+     "commit": "e725abddf1e01cf05ace496e950fc8e243cc7cab"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
-     "files": 43
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
-     "files": 3
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c",
-     "files": 3
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/lyra-utils/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "f61e4dd133379a4536a54ee57a808c9c00019b60",
-     "files": 54
+     "commit": "f61e4dd133379a4536a54ee57a808c9c00019b60"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/v2-core/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "f61e4dd133379a4536a54ee57a808c9c00019b60",
-     "files": 54
+     "commit": "f61e4dd133379a4536a54ee57a808c9c00019b60"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/v2-core/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0",
-     "files": 371
+     "commit": "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/v2-core/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "e725abddf1e01cf05ace496e950fc8e243cc7cab",
-     "files": 249
+     "commit": "e725abddf1e01cf05ace496e950fc8e243cc7cab"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/v2-core/lib/lyra-utils",
      "url": "https://github.com/derivexyz/derive-utils",
-     "commit": "8f6962cb49525c887d802a1b1d44ac35ed114791",
-     "files": 29
+     "commit": "8f6962cb49525c887d802a1b1d44ac35ed114791"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
-     "files": 43
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
-     "files": 3
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c",
-     "files": 3
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0",
-     "files": 371
+     "commit": "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/v2-core/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
-     "files": 43
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/v2-core/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
-     "files": 3
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/v2-core/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c",
-     "files": 3
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/v2-core/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
-     "files": 43
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/v2-core/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
-     "files": 3
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/v2-core/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c",
-     "files": 3
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/v2-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0",
-     "files": 371
+     "commit": "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/v2-core/lib/lyra-utils/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "f61e4dd133379a4536a54ee57a808c9c00019b60",
-     "files": 54
+     "commit": "f61e4dd133379a4536a54ee57a808c9c00019b60"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
-     "files": 43
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
-     "files": 3
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c",
-     "files": 3
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/v2-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
-     "files": 43
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/v2-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
-     "files": 3
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
     },
     {
      "prefix": "lyra-finance__v2-matching/lib/v2-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c",
-     "files": 3
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
     }
    ]
   },
@@ -506,104 +474,87 @@
     {
      "prefix": "lyra-finance__v2-core",
      "url": "https://github.com/lyra-finance/v2-core",
-     "commit": "96796a61dcb1dc852e25518b00cc1a79fb3caeeb",
-     "files": 216
+     "commit": "96796a61dcb1dc852e25518b00cc1a79fb3caeeb"
     },
     {
      "prefix": "lyra-finance__v2-core/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66",
-     "files": 47
+     "commit": "b93cf4bc34ff214c099dc970b153f85ade8c9f66"
     },
     {
      "prefix": "lyra-finance__v2-core/lib/lyra-utils",
      "url": "https://github.com/lyra-finance/lyra-utils",
-     "commit": "759e962526c7e7f04c19506cb4ba24b88be8159b",
-     "files": 28
+     "commit": "759e962526c7e7f04c19506cb4ba24b88be8159b"
     },
     {
      "prefix": "lyra-finance__v2-core/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527",
-     "files": 322
+     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527"
     },
     {
      "prefix": "lyra-finance__v2-core/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/openzeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "3d5fa5c24c411112bab47bec25cfa9ad0af0e6e8",
-     "files": 214
+     "commit": "3d5fa5c24c411112bab47bec25cfa9ad0af0e6e8"
     },
     {
      "prefix": "lyra-finance__v2-core/lib/lyra-utils/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "4a79aca83f8075f8b1b4fe9153945fef08375630",
-     "files": 37
+     "commit": "4a79aca83f8075f8b1b4fe9153945fef08375630"
     },
     {
      "prefix": "lyra-finance__v2-core/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa",
-     "files": 47
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
     },
     {
      "prefix": "lyra-finance__v2-core/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "lyra-finance__v2-core/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "lyra-finance__v2-core/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa",
-     "files": 47
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
     },
     {
      "prefix": "lyra-finance__v2-core/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "lyra-finance__v2-core/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "lyra-finance__v2-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527",
-     "files": 322
+     "commit": "acd4ff74de833399287ed6b31b4debf6b2b35527"
     },
     {
      "prefix": "lyra-finance__v2-core/lib/lyra-utils/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "cd98eff28324bfac652e63a239a60632a761790b",
-     "files": 5
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
     },
     {
      "prefix": "lyra-finance__v2-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa",
-     "files": 47
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
     },
     {
      "prefix": "lyra-finance__v2-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "lyra-finance__v2-core/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     }
    ]
   }
