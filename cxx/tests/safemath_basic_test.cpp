@@ -366,6 +366,67 @@ TEST_CASE("safemath: checks that fail alike - a call put past another operation'
     }
 }
 
+TEST_CASE("safemath: past a loop that ends and can't fail (a copy loop where another build has MCOPY)")
+{
+    Fixture fx;
+    const Value a = st(5), b = cd(4);
+    const Value diff = alg::sub(a, b);
+    const Value ck = check(alg::cmp(Op::GT, b, a), panic_line(0x11));
+    SUBCASE("a loop of four words: the call past it")
+    {
+        const Value loop = V("(while (lt loop0 4) {(setmem (range (add 64 (mul 32 loop0)) 32) (sized 32 loop0)) (continue "
+                             "loopid1 {(setvar loop0 (add 1 loop0))})} loopid1 {(setvar loop0 0)})");
+        const Value body = tr({ck, loop, store(5, diff), mk(Op::RETURN, V("(mem (range 64 128))"))});
+        Rewritten r = rewrite({fn_of(body)});
+        REQUIRE(r.table);
+        CHECK(r.table->fns[0].op == Table::Arith::Sub);
+        CHECK_FALSE(mentions(r.after[0].trace, Op::IF));
+        CHECK(mentions(r.after[0].trace, Op::WHILE));
+        same_runs(r.before, r.after, r.table.get());
+    }
+    SUBCASE("a loop with a branch of its own and a nested loop, each bounded")
+    {
+        const Value loop = V("(while (lt loop0 3) {(if (lt loop0 1) {(setmem (range 0 32) (sized 32 7))} {(setmem (range 32 32) (sized 32 9))}) "
+                             "(while (lt loop1 2) {(setmem (range (add 64 (mul 32 loop1)) 32) (sized 32 loop0)) (continue "
+                             "loopid2 {(setvar loop1 (add 1 loop1))})} loopid2 {(setvar loop1 0)}) (continue loopid1 {(setvar "
+                             "loop0 (add 1 loop0))})} loopid1 {(setvar loop0 0)})");
+        const Value body = tr({ck, loop, store(5, diff), mk(Op::RETURN, V("(mem (range 0 128))"))});
+        Rewritten r = rewrite({fn_of(body)});
+        REQUIRE(r.table);
+        // (the check gone: the loop first)
+        CHECK(r.after[0].trace[0] == loop);
+        CHECK(mentions(r.after[0].trace, Op::SAFEMATH));
+        same_runs(r.before, r.after, r.table.get());
+    }
+    SUBCASE("a loop that may not end (its counter may wrap past a bound of any word): the check stays before it")
+    {
+        const Value loop = V("(while (lt loop0 (calldataload 36)) {(continue loopid1 {(setvar loop0 (add 32 loop0))})} "
+                             "loopid1 {(setvar loop0 0)})");
+        const Value body = tr({ck, loop, store(5, diff), stop()});
+        Rewritten r = rewrite({fn_of(body)});
+        CHECK_FALSE(r.table);
+        CHECK(r.after[0].trace == body);
+    }
+    SUBCASE("a loop that may fail: the check stays before it")
+    {
+        const Value loop = V("(while (lt loop0 4) {(if (eq loop0 (calldataload 36)) {(revert None)} {}) (continue loopid1 "
+                             "{(setvar loop0 (add 1 loop0))})} loopid1 {(setvar loop0 0)})");
+        const Value body = tr({ck, loop, store(5, diff), stop()});
+        Rewritten r = rewrite({fn_of(body)});
+        CHECK_FALSE(r.table);
+        CHECK(r.after[0].trace == body);
+    }
+    SUBCASE("a loop that changes what the check reads: the check stays before it")
+    {
+        const Value loop = V("(while (lt loop0 2) {(store 256 0 5 loop0) (continue loopid1 {(setvar loop0 (add 1 loop0))})} "
+                             "loopid1 {(setvar loop0 0)})");
+        const Value body = tr({ck, loop, store(1, diff), stop()});
+        Rewritten r = rewrite({fn_of(body)});
+        CHECK_FALSE(r.table);
+        CHECK(r.after[0].trace == body);
+    }
+}
+
 TEST_CASE("safemath: what stays as it is")
 {
     Fixture fx;

@@ -4,8 +4,10 @@
 // Python's algorithm on the IR: in each block of lines (a trace, an IF's
 // branch, a WHILE's body), a run of checks (as_check) followed - past lines
 // that can't fail and change nothing the checks read (SETVAR SETMEM STORE
-// SET LOGn) - by a line that uses the result of the arithmetic they check
-// (match_check over its candidates) is rewritten: the checks out, the result
+// SET LOGn, and a loop of such lines that lot 6's induction proves ends: a
+// copy loop where another build has MCOPY) - by a line that uses the result
+// of the arithmetic they check (match_check over its candidates) is
+// rewritten: the checks out, the result
 // SAFEMATH(n, a, b...) in that line and the next ones until one changes
 // what it reads (lot 7's affects). An IF one branch of which only fails is
 // read as the check and the other branch's lines after it (python's folder
@@ -31,6 +33,7 @@
 #include "core/evmint.hpp"
 #include "core/memo.hpp"
 #include "core/smallvec.hpp"
+#include "loops/loops.hpp"
 #include "simplify/effects.hpp"
 
 namespace pan::safemath {
@@ -810,6 +813,67 @@ private:
         }
     }
 
+    // A loop that can't fail and ends, the same as the lines it runs: every
+    // line of its body (any depth) transparent, an IF of conditions that
+    // can't fail and of such branches, a CONTINUE or BREAK of it or of a
+    // loop in it, a nested loop of the same kind - and its induction's trips
+    // proven (lot 6: the loop is left by its condition after that many
+    // iterations, sooner by a BREAK, for every value of what its start and
+    // bound are made of: no counter wraps). A loop that may not end (a bound
+    // past what its counter reaches without wrapping) stays a line the
+    // checks don't move past: a run that fails for gas there would revert
+    // with the checks' data once they're after it.
+    bool transparent_loop(Value w, SmallVec<Value, 8>& ids)
+    {
+        if (!w.is(Op::WHILE, 4) || !w[1].is_list() || contains_safemath(w) || !simplify::summary(w[0]).pure())
+            return false;
+        const auto ind = loops::induction(w);
+        if (!ind || ind->trips.nil())
+            return false;
+        ids.push_back(w[2]);
+        const bool ok = transparent_body(w[1], ids);
+        ids.pop_back();
+        return ok;
+    }
+    bool transparent_body(Value trace, SmallVec<Value, 8>& ids)
+    {
+        check_stack();
+        for (const Value l : lines_of(trace)) {
+            poll();
+            if (!l.is_expr())
+                return false;
+            switch (l.op()) {
+                case Op::CONTINUE:
+                case Op::BREAK:
+                    if (std::find(ids.begin(), ids.end(), l[0]) == ids.end())
+                        return false;
+                    continue;
+                case Op::IF:
+                case Op::MERGED_IF:
+                    if (l.size() != 3 || !simplify::summary(l[0]).pure() || !transparent_body(l[1], ids) ||
+                        !transparent_body(l[2], ids))
+                        return false;
+                    continue;
+                case Op::WHILE:
+                    if (!transparent_loop(l, ids))
+                        return false;
+                    continue;
+                default:
+                    if (!transparent(l))
+                        return false;
+                    continue;
+            }
+        }
+        return true;
+    }
+    bool passable(Value l)
+    {
+        if (transparent(l))
+            return true;
+        SmallVec<Value, 8> ids;
+        return transparent_loop(l, ids);
+    }
+
     bool contains_safemath(Value v)
     {
         check_stack();
@@ -942,7 +1006,7 @@ private:
                     }
                     continue;
                 }
-                if (!transparent(line))
+                if (!passable(line))
                     break;
                 bool changes = false;
                 for (const Check& c : checks)
