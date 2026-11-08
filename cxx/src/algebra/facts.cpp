@@ -227,7 +227,7 @@ Tri Facts::match(Value exp) const {
     }
 }
 
-Tri Facts::match_all(Value exp) const {
+Tri Facts::match_all(Value exp, bool resolve) const {
     if (exp.is_int()) return tri(!word_of(exp).is_zero());
     if (exp.is_bool()) return tri(exp.is_true());
     if (!head_) return Tri::None;
@@ -271,6 +271,35 @@ Tri Facts::match_all(Value exp) const {
             for (Value k : kt.args()) {
                 r = against(fact_cond(k), Value());
                 if (r != Tri::None) return r;
+            }
+        }
+        if (resolve && kt.is(Op::OR)) {
+            // an OR that isn't 0, one of whose operands is exp's core (or its
+            // negation) and whose others are 0 where the facts hold (without
+            // this step): that operand isn't 0 - the default function's `the
+            // calldata is short or it isn't that selector` (vm/discover.cpp)
+            Value hit;
+            for (Value k : kt.args()) {
+                const Value kc = fact_cond(k);
+                if (kc == core || kc == iz_core || (kc.is(Op::ISZERO, 1) && kc[0] == core)) {
+                    if (!hit.nil()) {
+                        hit = Value();
+                        break;
+                    }
+                    hit = kc;
+                }
+            }
+            if (!hit.nil()) {
+                bool others = true;
+                for (Value k : kt.args())
+                    if (fact_cond(k) != hit && match_all(k, false) != Tri::False) {
+                        others = false;
+                        break;
+                    }
+                if (others) {
+                    r = against(hit, Value());
+                    if (r != Tri::None) return r;
+                }
             }
         }
     }

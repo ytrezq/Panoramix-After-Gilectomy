@@ -488,6 +488,7 @@ Word Run::eval(ExprId e)
     case Op::concat:
     case Op::bytes:
     case Op::mem_range:
+    case Op::stor_range:
     case Op::call_data:
     case Op::return_data:
     case Op::code_data:
@@ -573,6 +574,7 @@ bool Run::sized(ExprId e) const
     case Op::big:
     case Op::bytes:
     case Op::mem_range:
+    case Op::stor_range:
     case Op::call_data:
     case Op::return_data:
     case Op::code_data:
@@ -637,6 +639,19 @@ void Run::elem(ExprId e0, Bytes& out)
     {
         const Bytes b = mem_read(eval(kid(e, 0)), eval(kid(e, 1)));
         out.insert(out.end(), b.begin(), b.end());
+        return;
+    }
+    case Op::stor_range:
+    {
+        // the words of the slots from slot on, n of them
+        const Word slot = eval(kid(e, 0));
+        const auto n = size_of(eval(kid(e, 1)), lim_.memory / 32);
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            step();
+            const auto b = to_bytes(s_.sload(slot + Word{i}));
+            out.insert(out.end(), b.begin(), b.end());
+        }
         return;
     }
     case Op::call_data:

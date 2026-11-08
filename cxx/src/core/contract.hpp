@@ -41,7 +41,9 @@ enum class InvalidReason : u32 {
     STACK_OVERFLOW,  // a push past the EVM's 1024 words
 };
 // UNDEFINED(reason, pc): why the VM stopped exploring a path (the run is then inconclusive)
-enum class UndefinedReason : u32 { UNFINISHED = 1, COMPUTED_JUMP, AMBIGUOUS_CALL };
+// (STACK: a word below the entry's stack read, or the stack's overflow, where
+// the paths to the entry leave a different number of words there)
+enum class UndefinedReason : u32 { UNFINISHED = 1, COMPUTED_JUMP, AMBIGUOUS_CALL, STACK };
 
 enum class AbiKind : u8 { Word, Uint, Int, Address, Bool, BytesN, Bytes, String, Array, Tuple, Unknown };
 
@@ -63,6 +65,11 @@ struct EntryCondition {
                                   // NIL = REVERT of no data
     Value entry_lines;            // a TRACE: the dispatcher's lines before the body (setmems)
     Value vm_state;               // the VM's state at entry_pc (lot 5's, opaque; NIL for internals)
+    // the words some paths to the entry leave below vm_state's stack (solc's
+    // default function, reached with the selector left on the stack or not):
+    // where the code would read them, or overflow the stack with them, it
+    // depends on the path - the VM stops there, UNDEFINED(STACK, pc)
+    u32 stack_below = 0;
 };
 
 // a call line's id -> what it was (CALL_SUCCESS / RETURNDATA_BYTES(id, ...) refer to it)

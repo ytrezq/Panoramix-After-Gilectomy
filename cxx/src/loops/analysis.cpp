@@ -185,6 +185,8 @@ std::optional<CondForm> cond_form(Value cond, std::span<const Value> names) {
         case Op::GT: return cond.size() == 2 ? two(cond[0], cond[1], Cmp::Gt, Cmp::Lt) : std::nullopt;
         case Op::LE: return cond.size() == 2 ? two(cond[0], cond[1], Cmp::Le, Cmp::Ge) : std::nullopt;
         case Op::GE: return cond.size() == 2 ? two(cond[0], cond[1], Cmp::Ge, Cmp::Le) : std::nullopt;
+        // a xor b isn't 0 while a != b (Vyper's `!=`)
+        case Op::XOR: return cond.size() == 2 ? two(cond[0], cond[1], Cmp::Ne, Cmp::Ne) : std::nullopt;
         case Op::ISZERO: {
             // a comparison negated (the algebra's normal forms have none: a
             // pass's may)

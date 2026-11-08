@@ -43,7 +43,9 @@
 // bytes); DATA: concatenation, an ARR element ABI-encoded (its offset in the
 // head, length + content padded in the tail); MEM(RANGE(p, n)),
 // CALLDATA_BYTES, CODE_BYTES, EXTCODE_BYTES, RETURNDATA_BYTES (zero padded
-// past the end: the VM makes RETURNDATACOPY's halt an explicit IF); a BYTES
+// past the end: the VM makes RETURNDATACOPY's halt an explicit IF);
+// STORAGE_RANGE(slot, n) the words of the n slots from slot on (mod 2^256),
+// 32 n bytes (python's storage range: a copy loop of the storage); a BYTES
 // node: its bytes (a codecopy of known code); None: no bytes. Every byte
 // element of a DATA, SHA3, LOG, call, RETURN/REVERT payload carries its width
 // (SIZED, set by the stage that knows it); a word without one is a stage's

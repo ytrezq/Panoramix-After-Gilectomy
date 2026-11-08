@@ -229,7 +229,8 @@ private:
         const CondBound* b;
         u32 nb;
     };
-    Tri match_all(Value cond) const;
+    // (resolve: an OR fact's operand known where its others are 0 - one level)
+    Tri match_all(Value cond, bool resolve = true) const;
     // a cell for f; its bounds computed, or taken from a cell of the same
     // fact (a rebuild)
     static const Cell* cons(const Fact& f, const Cell* next, const Cell* same = nullptr);

@@ -179,6 +179,12 @@ struct Node {
     i8 dispatch = -1;  // in_dispatcher, memoized
     u32 fsel = 0;      // FuncCall: the selector
     i64 ftarget = 0;   // FuncCall: where the function starts (-1: an invalid jump)
+    // FuncCall: the test fails for every call of fewer than 4 bytes of
+    // calldata (fguard: it says so, or the selector's last byte isn't 0); no
+    // such call gets here (fshort: fguard, or the path proved calldatasize >=
+    // 4) - the machine's dispatch, by the first 4 bytes of 4 or more, is the
+    // code's then (discover.cpp)
+    bool fguard = false, fshort = false;
 
     explicit Node(std::pmr::memory_resource* r) : lines(r), loop_vars(r), begin_vars(r) {}
     bool has_children() const noexcept { return first != NO_NODE; }
@@ -197,6 +203,7 @@ struct RunSetup {
     i64 deadline_ns = 0;       // 0: none
     std::vector<InternalEntry> internal;  // known recursive functions
     Value given;               // the values handed over (python name_past): a LIST
+    u32 stack_below = 0;       // EntryCondition::stack_below
 };
 
 class Vm {
@@ -354,7 +361,15 @@ private:
 
     // --- discovery ---
     bool in_dispatcher(NodeId n);
-    std::optional<std::pair<u32, bool>> selector_test(Value cond) const;
+    // a JUMPI's condition that holds (taken) or fails (!taken) exactly when
+    // the call's selector - the first 4 bytes of its calldata, of 4 bytes or
+    // more - is `hash` (discover.cpp)
+    struct SelectorTest {
+        u32 hash = 0;
+        bool taken = false;
+        bool size_guard = false;  // the branch is never followed with fewer than 4 bytes
+    };
+    std::optional<SelectorTest> selector_test(Value cond) const;
 
     // --- the trace ---
     void trace_into(NodeId n, std::pmr::vector<Value>& out);

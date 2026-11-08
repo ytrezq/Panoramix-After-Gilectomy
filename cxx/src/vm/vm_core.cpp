@@ -490,8 +490,12 @@ NodeId Vm::child_at(Value target, bool safe, Value condition, const Facts& known
 
 bool Vm::underflow(u8 op, u32 pc) {
     if (st_.size() >= kStackIn[op]) return false;
-    // fewer words than the instruction takes: it halts, as an invalid one
-    finish_halt(mk(Op::INVALID, small(i64(InvalidReason::STACK_UNDERFLOW)), small(pc)), pc);
+    // fewer words than the instruction takes: it halts, as an invalid one -
+    // unless some paths to the entry left words below (stack_below)
+    if (setup_.stack_below)
+        finish_halt(mk(Op::UNDEFINED, small(i64(UndefinedReason::STACK)), small(pc)), pc);
+    else
+        finish_halt(mk(Op::INVALID, small(i64(InvalidReason::STACK_UNDERFLOW)), small(pc)), pc);
     return true;
 }
 
@@ -504,8 +508,13 @@ void Vm::asm_line(const Insn& in) {
 }
 
 bool Vm::overflow(u8 op, u32 pc) {
-    if (st_.size() - kStackIn[op] + kStackOut[op] <= kStackLimit) return false;
-    finish_halt(mk(Op::INVALID, small(i64(kStackOverflow)), small(pc)), pc);
+    const usize after = st_.size() - kStackIn[op] + kStackOut[op];
+    if (after + setup_.stack_below <= kStackLimit) return false;
+    // (with the words some paths left below: past the limit on those only)
+    if (after <= kStackLimit)
+        finish_halt(mk(Op::UNDEFINED, small(i64(UndefinedReason::STACK)), small(pc)), pc);
+    else
+        finish_halt(mk(Op::INVALID, small(i64(kStackOverflow)), small(pc)), pc);
     return true;
 }
 
@@ -579,11 +588,17 @@ void Vm::jumpi(u32 pc, u32 next) {
 
     if (setup_.just_fdests) {
         if (auto test = selector_test(cond)) {
-            auto [sel, taken] = *test;
+            const u32 sel = test->hash;
+            const bool taken = test->taken;
             Node& x = nodes_[taken ? t : f];
             x.lines.clear();
             x.end = End::FuncCall;
             x.fsel = sel;
+            // calldata of fewer than 4 bytes reads as its bytes then zeroes:
+            // it can't be of a selector whose last byte isn't 0
+            x.fguard = test->size_guard || (sel & 0xff) != 0;
+            x.fshort = x.fguard ||
+                       alg::eval_bool(alg::cmp(Op::LT, Value::leaf(Op::CALLDATASIZE), small(4)), &known_) == Tri::False;
             if (taken) {
                 // where a jump can't go: the function is that invalid jump
                 x.ftarget = target.is_small() && target.small_val() >= 0 &&

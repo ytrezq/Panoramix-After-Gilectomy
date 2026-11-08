@@ -135,6 +135,7 @@ enum class Op : std::uint16_t
     // the places of the storage (and of the params): a path from a storage
     // variable (stor_var), a slot (stor_raw) or a param
     stor_raw,  ///< stor[slot]
+    stor_range,  ///< stor[slot len n]: the words of the n slots from slot on (a copy of them)
     index,     ///< base[key]
     length,    ///< base.length
     field,     ///< base.field_N: N = aux
