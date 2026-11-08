@@ -1,0 +1,1379 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.30;
+
+import {ERC721TokenReceiver} from "../../lib/solmate/src/tokens/ERC721.sol";
+import {mulDiv} from "@prb/math/src/Common.sol";
+import {IPositionManagerV3} from "../interfaces/IPositionManagerV3.sol";
+import {IToken} from "../interfaces/IToken.sol";
+import {IUniswapV3} from "../interfaces/IUniswapV3.sol";
+import {SafeTransferLib} from "../utils/SafeTransferLib.sol";
+import {TickMath} from "../libraries/TickMath.sol";
+import {LiquidityAmounts} from "../libraries/LiquidityAmounts.sol";
+
+/// @dev Only `owner` has a privilege, but the `sender` was provided.
+/// @param sender Sender address.
+/// @param owner Required sender address as an owner.
+error OwnerOnly(address sender, address owner);
+
+/// @dev Provided zero address.
+error ZeroAddress();
+
+/// @dev Zero value when it has to be different from zero.
+error ZeroValue();
+
+/// @dev The contract is already initialized.
+error AlreadyInitialized();
+
+/// @dev Value overflow.
+/// @param provided Overflow value.
+/// @param max Maximum possible value.
+error Overflow(uint256 provided, uint256 max);
+
+/// @dev Expected token address is not found in provided tokens.
+/// @param provided Provided token addresses.
+/// @param expected Expected token address.
+error WrongTokenAddress(address[] provided, address expected);
+
+/// @dev Expected token addresses do not match provided ones.
+/// @param provided Provided token addresses.
+/// @param expected Expected token addresses.
+error WrongTokenAddresses(address[] provided, address[] expected);
+
+/// @dev Out of tick range bounds.
+/// @param low Low tick provided.
+/// @param center Center tick provided.
+/// @param high High tick provided.
+error RangeBounds(int24 low, int24 center, int24 high);
+
+/// @dev Caught reentrancy violation.
+error ReentrancyGuard();
+
+/// @dev Ratio of the source-removed tokens deviates from the V3 price beyond the allowed slippage — the source
+///      pool was likely manipulated (its spot pushed away from the true price before the removal).
+/// @param removedRatio Ratio of the removed tokens (token1 per token0, 1e18-scaled).
+/// @param referenceRatio V3 pool price from the gate-verified slot0 (token1 per token0, 1e18-scaled).
+/// @param maxSlippageBps Allowed deviation in BPS.
+error RatioDeviation(uint256 removedRatio, uint256 referenceRatio, uint16 maxSlippageBps);
+
+/// @dev Pool has no observation strictly inside the SECONDS_AGO window, or its oracle cannot provide
+///      the full-window TWAP. The entry price guard fails closed rather than trusting slot0.
+/// @param pool Pool address.
+error NotEnoughHistory(address pool);
+
+interface INeighborhoodScanner {
+    /// @dev Optimizes liquidity amounts by widening up provided ticks using binary search + neighborhood search.
+    /// @notice 1. Adjusts extreme boundaries, if required.
+    ///         2. Looks for correct boundaries and adjusts tick spacings accordingly.
+    ///         3. Fixes one of ticks and executed binary + neighborhood search if scan option is true.
+    /// Ensures non-zero intermediate for amount0 formula without linear loops.
+    /// @param sqrtP Center sqrt price.
+    /// @param ticks Ticks array.
+    /// @param tickSpacing Tick spacing.
+    /// @param initialAmounts Initial amounts array.
+    /// @param scan True if binary and neighborhood ticks search for optimal liquidity is requested, false otherwise.
+    /// @return loHi Optimized ticks.
+    /// @return liquidity Corresponding liquidity.
+    /// @return amountsDesired Corresponding desired amounts.
+    function optimizeLiquidityAmounts(
+        uint160 sqrtP,
+        int24[] calldata ticks,
+        int24 tickSpacing,
+        uint256[] calldata initialAmounts,
+        bool scan
+    ) external pure returns (int24[] memory loHi, uint128 liquidity, uint256[] memory amountsDesired);
+}
+
+/// @title Liquidity Manager Core - Smart contract for OLAS core Liquidity Manager functionality
+/// @author Aleksandr Kuperman - <aleksandr.kuperman@valory.xyz>
+/// @author Andrey Lebedev - <andrey.lebedev@valory.xyz>
+/// @author Mariapia Moscatiello - <mariapia.moscatiello@valory.xyz>
+abstract contract LiquidityManagerCore is ERC721TokenReceiver {
+    event OwnerUpdated(address indexed owner);
+    event ImplementationUpdated(address indexed implementation);
+    event MaxSlippageUpdated(uint256 maxSlippage);
+    event ConvertedToV3(
+        address indexed pool,
+        uint256 indexed positionId,
+        address[] tokens,
+        uint256[] amounts,
+        uint256 liquidiy,
+        bool scan
+    );
+    event RangesChanged(
+        address indexed pool,
+        uint256 indexed positionId,
+        address[] tokens,
+        uint256[] amounts,
+        uint256 liquidiy,
+        bool scan
+    );
+    event UtilityAmountsManaged(
+        address indexed olas, address indexed token, uint256 olasAmount, uint256 tokenAmount, bool olasBurnOrTransfer
+    );
+    event PositionMinted(uint256 indexed positionId, address[] tokens, uint256[] amounts, uint256 liquidiy);
+    event LiquidityDecreased(uint256 indexed positionId, uint256[] amounts, uint256 liquidity);
+    event PositionLiquidityDecreased(
+        address indexed pool, uint256 indexed positionId, address[] tokens, uint256[] amounts, uint256 liquidiy
+    );
+    event LiquidityIncreased(uint256 indexed positionId, uint256[] amounts, uint256 liquidity);
+    event PositionLiquidityIncreased(
+        address indexed pool, uint256 indexed positionId, address[] tokens, uint256[] amounts, uint256 liquidiy
+    );
+    event FeesCollected(address indexed sender, uint256 indexed positionId, uint256[] amounts);
+    event PositionFeesCollected(address indexed pool, uint256 indexed positionId, address[] tokens, uint256[] amounts);
+    event TicksSet(address[] tokens, int24 feeTierOrTickSpacing, int24[] initTicks, int24[] optimizedTicks, bool scan);
+    event PositionTransferred(uint256 indexed positionId, address indexed to);
+    event TokenTransferred(address indexed token, address indexed to, uint256 amount);
+
+    // LiquidityManager version number
+    string public constant VERSION = "0.1.0";
+    // LiquidityManager proxy address slot
+    // keccak256("PROXY_LIQUIDITY_MANAGER") = "0xf7d1f641b01c7d29322d281367bfc337651cbfb5a9b1c387d2132d8792d212cd"
+    bytes32 public constant PROXY_LIQUIDITY_MANAGER =
+        0xf7d1f641b01c7d29322d281367bfc337651cbfb5a9b1c387d2132d8792d212cd;
+    // Max allowed slot0-vs-TWAP price deviation (2%) in 1e18 format. Pre-flight anti-manipulation gate on
+    // entries/trades: rejects an operation when slot0 has been pushed more than this far from the TWAP.
+    // The entry `amount{0,1}Min` is anchored to slot0 (vacuous by construction), so this gate is the SOLE
+    // entry manipulation defence — set to 2% because on a shallow, ~fully-POL pool a wider (e.g. 10%) push is
+    // buyable for a tiny fraction (~0.1%) of the position. Treat any change as a security change, not a
+    // tuning knob.
+    uint256 public constant MAX_ALLOWED_DEVIATION = 2e16;
+    // Seconds ago to look back for TWAP pool values
+    uint32 public constant SECONDS_AGO = 1800;
+    // // Max bps value
+    uint16 public constant MAX_BPS = 10_000;
+    // 2**96, the fixed-point base of a Uniswap V3 sqrtPriceX96 (internal math constant — kept off the ABI)
+    uint256 internal constant Q96 = 0x1000000000000000000000000;
+
+    // OLAS token address
+    address public immutable olas;
+    // Treasury address (timelock or governing bridge mediator)
+    address public immutable treasury;
+    // V3 position manager address
+    address public immutable positionManagerV3;
+    // V3 factory
+    address public immutable factoryV3;
+    // Neighborhood ticks scanner
+    address public immutable neighborhoodScanner;
+    // Observations cardinality
+    uint16 public immutable observationCardinality;
+
+    // Owner address
+    address public owner;
+
+    // Max slippage for pool operations (in BPS, bound by 10_000). It does not backstop V3 mints (the entry
+    // `amount{0,1}Min` is slot0-anchored, so that amount-space check is vacuous); its live role is the
+    // source-side floor on the V2/Balancer `removeLiquidity`/`exitPool` (the fair-reserve discount in the
+    // source mixin). It is therefore DECOUPLED from `MAX_ALLOWED_DEVIATION` — set it from the source pool's
+    // expected spot-vs-TWAP drift, not the gate. Seeded at `initialize`, tunable via `changeMaxSlippage`.
+    uint16 public maxSlippage;
+
+    // Reentrancy lock
+    uint8 internal _locked;
+
+    // V3 position Ids
+    mapping(address => uint256) public mapPoolAddressPositionIds;
+
+    /// @dev LiquidityManagerCore constructor.
+    /// @param _olas OLAS token address.
+    /// @param _treasury Treasury address.
+    /// @param _positionManagerV3 Uniswap V3 position manager address.
+    /// @param _neighborhoodScanner Neighborhood ticks scanner.
+    /// @param _observationCardinality Observation cardinality for fresh pools.
+    constructor(
+        address _olas,
+        address _treasury,
+        address _positionManagerV3,
+        address _neighborhoodScanner,
+        uint16 _observationCardinality
+    ) {
+        // Check for zero addresses
+        if (
+            _olas == address(0) || _treasury == address(0) || _positionManagerV3 == address(0)
+                || _neighborhoodScanner == address(0)
+        ) {
+            revert ZeroAddress();
+        }
+
+        // Check for zero value
+        if (_observationCardinality == 0) {
+            revert ZeroValue();
+        }
+
+        olas = _olas;
+        treasury = _treasury;
+        positionManagerV3 = _positionManagerV3;
+        neighborhoodScanner = _neighborhoodScanner;
+        observationCardinality = _observationCardinality;
+
+        // Get V3 factory address
+        factoryV3 = IUniswapV3(positionManagerV3).factory();
+    }
+
+    /// @dev Burns OLAS directly or transfers OLAS to Burner contract.
+    /// @param amount OLAS amount.
+    function _burn(uint256 amount) internal virtual;
+
+    /// @dev Checks provided tokens to match V2 pool ones and removes liquidity.
+    /// @param tokens Tokens comprising V2 pool.
+    /// @param v2Pool V2 pool hash or address.
+    /// @return amounts Removed liquidity amounts.
+    function _checkTokensAndRemoveLiquidityV2(address[] memory tokens, bytes32 v2Pool)
+        internal
+        virtual
+        returns (uint256[] memory amounts);
+
+    /// @dev Gets tick spacing according to fee tier or tick spacing directly.
+    /// @param feeTierOrTickSpacing Fee tier or tick spacing.
+    /// @return tickSpacing Tick spacing.
+    function _feeAmountTickSpacing(int24 feeTierOrTickSpacing) internal view virtual returns (int24 tickSpacing);
+
+    /// @dev Gets sqrt price and observation index values from slot 0.
+    /// @notice This is a general usage function, it accounts for known UniswapV3-like versions of slot0() function.
+    /// @param pool Pool address.
+    /// @return sqrtPriceX96 Sqrt price.
+    /// @return observationIndex Observation index.
+    function _getPriceAndObservationIndexFromSlot0(address pool)
+        internal
+        view
+        virtual
+        returns (uint160 sqrtPriceX96, uint16 observationIndex)
+    {
+        // Get slot0 payload
+        bytes memory payload = abi.encodeCall(IUniswapV3.slot0, ());
+        // Low-level call of pool.slot0()
+        (bool success, bytes memory returnData) = pool.staticcall(payload);
+
+        // Check for success
+        if (success) {
+            // returnData comes with each variable in its own slot
+            // Skip first 32 bytes of the returnData length prefix
+            // mload(add(returnData, 32)) is the first return value
+            // sqrtPriceX96 is in slot 1
+            // observationIndex is in slot 3
+            assembly {
+                sqrtPriceX96 := mload(add(returnData, 32))
+                observationIndex := mload(add(returnData, 96))
+            }
+        }
+    }
+
+    /// @dev Gets V3 pool based on token addresses and fee tier or tick spacing.
+    /// @param tokens Token addresses.
+    /// @param feeTierOrTickSpacing Fee tier or tick spacing.
+    /// @return v3Pool V3 pool address.
+    function _getV3Pool(address[] memory tokens, int24 feeTierOrTickSpacing)
+        internal
+        view
+        virtual
+        returns (address v3Pool);
+
+    /// @dev Mints V3 pool position.
+    /// @param tokens Token addresses.
+    /// @param amounts Desired amounts.
+    /// @param amountsMin Minimum amounts.
+    /// @param ticks Ticks array.
+    /// @param feeTierOrTickSpacing Fee tier or tick spacing.
+    /// @param centerSqrtPriceX96 Center sqrt price.
+    /// @return positionId Minted position Id.
+    /// @return liquidity Produced liquidity.
+    /// @return amountsIn Amounts in liquidity.
+    function _mintV3(
+        address[] memory tokens,
+        uint256[] memory amounts,
+        uint256[] memory amountsMin,
+        int24[] memory ticks,
+        int24 feeTierOrTickSpacing,
+        uint160 centerSqrtPriceX96
+    ) internal virtual returns (uint256 positionId, uint128 liquidity, uint256[] memory amountsIn);
+
+    /// @dev Calculates ticks and mints position.
+    /// @param tokens Token addresses.
+    /// @param inputAmounts Input amounts corresponding to tokens.
+    /// @param feeTierOrTickSpacing Fee tier or tick spacing.
+    /// @param sqrtP Center sqrt price.
+    /// @param tickShifts Tick shifts array: shifts from central tick value.
+    /// @param scan True if binary and neighborhood ticks search for optimal liquidity is requested, false otherwise.
+    /// @return positionId Minted position Id.
+    /// @return liquidity Produced liquidity.
+    /// @return amountsIn Amounts in liquidity.
+    function _calculateTicksAndMintPosition(
+        address[] memory tokens,
+        uint256[] memory inputAmounts,
+        int24 feeTierOrTickSpacing,
+        uint160 sqrtP,
+        int24[] memory tickShifts,
+        bool scan
+    ) internal returns (uint256 positionId, uint128 liquidity, uint256[] memory amountsIn) {
+        int24 centerTick = TickMath.getTickAtSqrtRatio(sqrtP);
+        int24[] memory ticks = new int24[](2);
+        ticks[0] = centerTick + tickShifts[0];
+        ticks[1] = centerTick + tickShifts[1];
+
+        if (ticks[0] >= centerTick || ticks[1] <= centerTick) {
+            revert RangeBounds(ticks[0], centerTick, ticks[1]);
+        }
+
+        // Calculate and mint new position
+        return _optimizeTicksAndMintPosition(tokens, inputAmounts, feeTierOrTickSpacing, sqrtP, ticks, scan);
+    }
+
+    /// @dev Collects fees from LP position.
+    /// @notice Function does not revert if any of amounts are zero.
+    /// @param positionId Position Id.
+    /// @return amounts Amounts array.
+    function _collectFees(uint256 positionId) internal returns (uint256[] memory amounts) {
+        IUniswapV3.CollectParams memory params = IUniswapV3.CollectParams({
+            tokenId: positionId, recipient: address(this), amount0Max: type(uint128).max, amount1Max: type(uint128).max
+        });
+
+        amounts = new uint256[](2);
+        // Get corresponding token fees
+        (amounts[0], amounts[1]) = IUniswapV3(positionManagerV3).collect(params);
+
+        emit FeesCollected(msg.sender, positionId, amounts);
+    }
+
+    /// @dev Decreases liquidity for a position.
+    /// @notice The slippage floor is derived at execution from the deviation-gated slot0 price
+    ///         (_getExitSqrtPrice): reverts if slot0 is >MAX_ALLOWED_DEVIATION off the TWAP on a verifiable
+    ///         pool, else raw slot0 (fail-open) so an exit is always possible on a quiet pool. Because
+    ///         amountMin is derived from the same slot0 price the position manager withdraws at, a fair exit
+    ///         is always satisfiable within the gate, and it never goes stale across a governance delay. The
+    ///         residual on an unverifiable-but-liquid pool is a capital-bounded slip, never the empty-pool
+    ///         catastrophe (an exit pool always holds our own liquidity).
+    /// @param pool Pool address.
+    /// @param positionId Position Id.
+    /// @param decreaseRate Rate of position decrease in BPS.
+    /// @return liquidity Decreased liquidity amount.
+    /// @return amountsOut Amounts from liquidity.
+    function _decreaseLiquidity(address pool, uint256 positionId, uint16 decreaseRate)
+        internal
+        returns (uint128 liquidity, uint256[] memory amountsOut)
+    {
+        // Read position & liquidity
+        int24[] memory ticks = new int24[](2);
+        (,,,,, ticks[0], ticks[1], liquidity,,,,) = IPositionManagerV3(positionManagerV3).positions(positionId);
+        // Check for zero value
+        if (liquidity == 0) {
+            revert ZeroValue();
+        }
+
+        // Calculate liquidity based on provided BPS, if any
+        if (decreaseRate < MAX_BPS) {
+            liquidity = (liquidity * decreaseRate) / MAX_BPS;
+        }
+
+        // Check for zero value
+        if (liquidity == 0) {
+            revert ZeroValue();
+        }
+
+        // Price the exit off slot0 (the exact price the position manager withdraws at) so amountMin is always
+        // satisfiable, and always run the deviation gate: _getExitSqrtPrice reverts if slot0 is
+        // >MAX_ALLOWED_DEVIATION off the TWAP (anti-manipulation). Running it unconditionally is a fail-safe
+        // default — the anti-manipulation gate can never be silently skipped by a caller's omission. On the
+        // changeRanges reposition path the pool has already passed checkPoolAndGetCenterPrice earlier in the
+        // same call, so this gate is guaranteed to pass there and only costs a redundant TWAP observe (gas,
+        // not a functional change); on a genuinely quiet pool _getExitSqrtPrice fails open and returns slot0.
+        uint160 sqrtPriceX96 = _getExitSqrtPrice(pool);
+
+        // Get sqrt prices for ticks
+        uint160[] memory sqrtAB = new uint160[](2);
+        sqrtAB[0] = TickMath.getSqrtRatioAtTick(ticks[0]);
+        sqrtAB[1] = TickMath.getSqrtRatioAtTick(ticks[1]);
+
+        // Get amounts based on liquidity, then apply the slippage floor
+        uint256[] memory amountsMin = new uint256[](2);
+        (amountsMin[0], amountsMin[1]) =
+            LiquidityAmounts.getAmountsForLiquidity(sqrtPriceX96, sqrtAB[0], sqrtAB[1], liquidity);
+        amountsMin[0] = amountsMin[0] * (MAX_BPS - maxSlippage) / MAX_BPS;
+        amountsMin[1] = amountsMin[1] * (MAX_BPS - maxSlippage) / MAX_BPS;
+
+        // Assemble decrease liquidity params
+        IPositionManagerV3.DecreaseLiquidityParams memory params = IPositionManagerV3.DecreaseLiquidityParams({
+            tokenId: positionId,
+            liquidity: liquidity,
+            amount0Min: amountsMin[0],
+            amount1Min: amountsMin[1],
+            deadline: block.timestamp
+        });
+
+        // Decrease liquidity
+        amountsOut = new uint256[](2);
+        (amountsOut[0], amountsOut[1]) = IPositionManagerV3(positionManagerV3).decreaseLiquidity(params);
+
+        emit LiquidityDecreased(positionId, amountsOut, liquidity);
+    }
+
+    /// @dev slot0-anchored min amounts for an entry into [tickLower, tickUpper] with the given desired amounts.
+    /// @notice Mirrors what the position manager does at execution (getLiquidityForAmounts then
+    ///         getAmountsForLiquidity at slot0), so amountMin is always satisfiable at the price the mint /
+    ///         increase executes at — avoiding the TWAP-vs-slot0 dead band. The range stays placed around the
+    ///         TWAP center; only the floor moves to slot0, exactly as _decreaseLiquidity does on the exit.
+    ///         Manipulation resistance stays in the pre-flight checkPoolAndGetCenterPrice gate.
+    /// @param slot0SqrtPriceX96 slot0 (execution) sqrt price.
+    /// @param tickLower Lower tick of the position range.
+    /// @param tickUpper Upper tick of the position range.
+    /// @param desired Desired input amounts forwarded to the position manager.
+    /// @return aMin Slippage-floored min amounts, anchored to slot0.
+    function _slot0MinAmounts(uint160 slot0SqrtPriceX96, int24 tickLower, int24 tickUpper, uint256[] memory desired)
+        internal
+        view
+        returns (uint256[] memory aMin)
+    {
+        uint160 sqrtLower = TickMath.getSqrtRatioAtTick(tickLower);
+        uint160 sqrtUpper = TickMath.getSqrtRatioAtTick(tickUpper);
+        uint128 liquidity =
+            LiquidityAmounts.getLiquidityForAmounts(slot0SqrtPriceX96, sqrtLower, sqrtUpper, desired[0], desired[1]);
+        aMin = new uint256[](2);
+        (aMin[0], aMin[1]) =
+            LiquidityAmounts.getAmountsForLiquidity(slot0SqrtPriceX96, sqrtLower, sqrtUpper, liquidity);
+        aMin[0] = aMin[0] * (MAX_BPS - maxSlippage) / MAX_BPS;
+        aMin[1] = aMin[1] * (MAX_BPS - maxSlippage) / MAX_BPS;
+    }
+
+    /// @dev Increases liquidity for a position.
+    /// @notice The liquidity math and the amountMin floor anchor to slot0 (the exact price the position manager
+    ///         executes at), not the TWAP center — the entry analog of _decreaseLiquidity's _getExitSqrtPrice.
+    ///         Manipulation resistance lives in the caller's checkPoolAndGetCenterPrice pre-flight gate.
+    /// @param positionId Position Id.
+    /// @param inputAmounts Input amounts.
+    /// @param sqrtPriceX96 slot0 (execution) sqrt price.
+    /// @return liquidity Decreased liquidity amount.
+    /// @return amountsIn Amounts in liquidity.
+    function _increaseLiquidity(uint256 positionId, uint256[] memory inputAmounts, uint160 sqrtPriceX96)
+        internal
+        returns (uint128 liquidity, uint256[] memory amountsIn)
+    {
+        // Check for zero value
+        if (sqrtPriceX96 == 0) {
+            revert ZeroValue();
+        }
+
+        // Read position & liquidity
+        int24[] memory ticks = new int24[](2);
+        (,,,,, ticks[0], ticks[1],,,,,) = IPositionManagerV3(positionManagerV3).positions(positionId);
+
+        // Get sqrt prices for ticks
+        uint160[] memory sqrtAB = new uint160[](2);
+        sqrtAB[0] = TickMath.getSqrtRatioAtTick(ticks[0]);
+        sqrtAB[1] = TickMath.getSqrtRatioAtTick(ticks[1]);
+        // Compute liquidity based on amounts and sqrt prices
+        liquidity = LiquidityAmounts.getLiquidityForAmounts(
+            sqrtPriceX96, sqrtAB[0], sqrtAB[1], inputAmounts[0], inputAmounts[1]
+        );
+
+        // Check for zero value
+        if (liquidity == 0) {
+            revert ZeroValue();
+        }
+
+        // Get amounts for liquidity
+        (inputAmounts[0], inputAmounts[1]) =
+            LiquidityAmounts.getAmountsForLiquidity(sqrtPriceX96, sqrtAB[0], sqrtAB[1], liquidity);
+        uint256[] memory aMin = new uint256[](2);
+        aMin[0] = inputAmounts[0] * (MAX_BPS - maxSlippage) / MAX_BPS;
+        aMin[1] = inputAmounts[1] * (MAX_BPS - maxSlippage) / MAX_BPS;
+
+        // Assemble increase liquidity params
+        IPositionManagerV3.IncreaseLiquidityParams memory params = IPositionManagerV3.IncreaseLiquidityParams({
+            tokenId: positionId,
+            amount0Desired: inputAmounts[0],
+            amount1Desired: inputAmounts[1],
+            amount0Min: aMin[0],
+            amount1Min: aMin[1],
+            deadline: block.timestamp
+        });
+
+        // Increase liquidity
+        amountsIn = new uint256[](2);
+        (liquidity, amountsIn[0], amountsIn[1]) = IPositionManagerV3(positionManagerV3).increaseLiquidity(params);
+
+        emit LiquidityIncreased(positionId, amountsIn, liquidity);
+    }
+
+    /// @dev Manages utility token amounts, based on the contract's whole balance.
+    /// @notice Non-OLAS token is always transferred to treasury, OLAS is either burnt or transferred as well.
+    ///         This operates on `balanceOf(this)` and is used only by the owner-only entry/exit paths
+    ///         (convertToV3 / increaseLiquidity / decreaseLiquidity / changeRanges), where sweeping the whole
+    ///         balance is intended. The permissionless collectFees instead passes just the collected fees to
+    ///         the shared _manageAmounts primitive, so it cannot burn separately-staged OLAS.
+    /// @param tokens Token addresses.
+    /// @param utilizationRate Token utilization rate, in BPS.
+    /// @param olasBurnOrTransfer True if OLAS is burnt, false if transferred to treasury.
+    function _manageUtilityAmounts(address[] memory tokens, uint16 utilizationRate, bool olasBurnOrTransfer)
+        internal
+        returns (uint256[] memory updatedBalances)
+    {
+        updatedBalances = new uint256[](2);
+        uint256[] memory amounts = new uint256[](2);
+        // Get token balances
+        amounts[0] = IToken(tokens[0]).balanceOf(address(this));
+        amounts[1] = IToken(tokens[1]).balanceOf(address(this));
+
+        // Adjust amounts according to utilizationRate
+        if (utilizationRate < MAX_BPS) {
+            updatedBalances[0] = amounts[0];
+            updatedBalances[1] = amounts[1];
+
+            amounts[0] = (amounts[0] * utilizationRate) / MAX_BPS;
+            amounts[1] = (amounts[1] * utilizationRate) / MAX_BPS;
+
+            // Update leftover balances
+            updatedBalances[0] -= amounts[0];
+            updatedBalances[1] -= amounts[1];
+        }
+
+        // Burn / transfer the resolved amounts via the shared primitive (OLAS ordering, burn-vs-transfer, event)
+        _manageAmounts(tokens, amounts, olasBurnOrTransfer);
+    }
+
+    /// @dev Shared primitive: routes explicitly-provided amounts — OLAS burnt or transferred to treasury,
+    ///      the second token transferred to treasury — and emits UtilityAmountsManaged.
+    /// @notice Both the balance-based owner paths (via _manageUtilityAmounts) and the scoped permissionless
+    ///         collectFees path funnel through here, so the OLAS-ordering / burn-vs-transfer / event logic
+    ///         lives in exactly one place. Passing explicit amounts (rather than reading balanceOf) is what
+    ///         lets collectFees handle only the just-collected fees and leave separately-staged OLAS
+    ///         untouched.
+    /// @param tokens Token addresses.
+    /// @param amounts Amounts to manage, parallel to tokens.
+    /// @param olasBurnOrTransfer True if OLAS is burnt, false if transferred to treasury.
+    function _manageAmounts(address[] memory tokens, uint256[] memory amounts, bool olasBurnOrTransfer)
+        internal
+    {
+        uint256 olasAmount;
+        uint256 tokenAmount;
+        address secondToken;
+
+        // Check for OLAS token and swap values, if needed
+        if (tokens[0] == olas) {
+            secondToken = tokens[1];
+            olasAmount = amounts[0];
+            tokenAmount = amounts[1];
+        } else {
+            secondToken = tokens[0];
+            olasAmount = amounts[1];
+            tokenAmount = amounts[0];
+        }
+
+        // Manage OLAS token
+        if (olasAmount > 0) {
+            if (olasBurnOrTransfer) {
+                // Directly burn or transfer OLAS to Burner contract
+                _burn(olasAmount);
+            } else {
+                // Transfer OLAS to Treasury contract
+                IToken(olas).transfer(treasury, olasAmount);
+            }
+        }
+
+        // Transfer another token to Treasury
+        if (tokenAmount > 0) {
+            SafeTransferLib.safeTransfer(secondToken, treasury, tokenAmount);
+        }
+
+        emit UtilityAmountsManaged(olas, secondToken, olasAmount, tokenAmount, olasBurnOrTransfer);
+    }
+
+    /// @dev Optimizes given ticks at least to tick spacing (or liquidity based), and mints position.
+    /// @param tokens Token addresses.
+    /// @param inputAmounts Input amounts corresponding to tokens.
+    /// @param feeTierOrTickSpacing Fee tier or tick spacing.
+    /// @param sqrtP Center sqrt price.
+    /// @param initTicks Initial ticks array.
+    /// @param scan True if binary and neighborhood ticks search for optimal liquidity is requested, false otherwise.
+    /// @return positionId Minted position Id.
+    /// @return liquidity Produced liquidity.
+    /// @return amountsIn Amounts in liquidity.
+    function _optimizeTicksAndMintPosition(
+        address[] memory tokens,
+        uint256[] memory inputAmounts,
+        int24 feeTierOrTickSpacing,
+        uint160 sqrtP,
+        int24[] memory initTicks,
+        bool scan
+    ) internal returns (uint256 positionId, uint128 liquidity, uint256[] memory amountsIn) {
+        // Get tick spacing
+        int24 tickSpacing = _feeAmountTickSpacing(feeTierOrTickSpacing);
+        // Check for zero value
+        if (tickSpacing == 0) {
+            revert ZeroValue();
+        }
+
+        int24[] memory optimizedTicks;
+        // Build percent band around TWAP center
+        (optimizedTicks, liquidity, amountsIn) = INeighborhoodScanner(neighborhoodScanner)
+            .optimizeLiquidityAmounts(sqrtP, initTicks, tickSpacing, inputAmounts, scan);
+
+        // Check for zero values
+        if (liquidity == 0 || amountsIn[0] == 0 || amountsIn[1] == 0) {
+            revert ZeroValue();
+        }
+
+        // Range placement stays anchored to the TWAP center (sqrtP, manipulation-resistant), but amountMin is
+        // anchored to slot0 — the exact price NPM.mint() executes at. Otherwise a slot0 != TWAP within the
+        // deviation gate creates a dead band where the pre-flight guard accepts but the mint reverts.
+        // Mirrors _decreaseLiquidity; manipulation resistance stays in the caller's checkPoolAndGetCenterPrice.
+        (uint160 slot0Sqrt,) = _getPriceAndObservationIndexFromSlot0(_getV3Pool(tokens, feeTierOrTickSpacing));
+        uint256[] memory aMin = _slot0MinAmounts(slot0Sqrt, optimizedTicks[0], optimizedTicks[1], amountsIn);
+
+        // Mint V3 position
+        (positionId, liquidity, amountsIn) =
+            _mintV3(tokens, amountsIn, aMin, optimizedTicks, feeTierOrTickSpacing, sqrtP);
+
+        emit TicksSet(tokens, feeTierOrTickSpacing, initTicks, optimizedTicks, scan);
+        emit PositionMinted(positionId, tokens, amountsIn, liquidity);
+    }
+
+    /// @dev Initialization function.
+    /// @param _maxSlippage Max slippage for operations.
+    function initialize(uint16 _maxSlippage) external {
+        if (owner != address(0)) {
+            revert AlreadyInitialized();
+        }
+
+        // Check for zero value
+        if (_maxSlippage == 0) {
+            revert ZeroValue();
+        }
+        // Check for max value
+        if (_maxSlippage > MAX_BPS) {
+            revert Overflow(_maxSlippage, MAX_BPS);
+        }
+
+        maxSlippage = _maxSlippage;
+
+        owner = msg.sender;
+    }
+
+    /// @dev Changes the owner address.
+    /// @param newOwner Address of a new owner.
+    function changeOwner(address newOwner) external {
+        // Check for the contract ownership
+        if (msg.sender != owner) {
+            revert OwnerOnly(msg.sender, owner);
+        }
+
+        // Check for the zero address
+        if (newOwner == address(0)) {
+            revert ZeroAddress();
+        }
+
+        owner = newOwner;
+        emit OwnerUpdated(newOwner);
+    }
+
+    /// @dev Changes liquidity manager implementation contract address.
+    /// @notice Make sure the implementation contract has a function to change the implementation.
+    /// @param implementation LiquidityManager implementation contract address.
+    function changeImplementation(address implementation) external {
+        // Check for contract ownership
+        if (msg.sender != owner) {
+            revert OwnerOnly(msg.sender, owner);
+        }
+
+        // Check for the zero address
+        if (implementation == address(0)) {
+            revert ZeroAddress();
+        }
+
+        // Store the implementation address under the designated storage slot
+        assembly {
+            sstore(PROXY_LIQUIDITY_MANAGER, implementation)
+        }
+        emit ImplementationUpdated(implementation);
+    }
+
+    /// @dev Changes max slippage value.
+    /// @param newMaxSlippage New max slippage value.
+    function changeMaxSlippage(uint16 newMaxSlippage) external {
+        // Check for the contract ownership
+        if (msg.sender != owner) {
+            revert OwnerOnly(msg.sender, owner);
+        }
+
+        // Check for zero value
+        if (newMaxSlippage == 0) {
+            revert ZeroValue();
+        }
+
+        // Upper bound: values above MAX_BPS would underflow the (MAX_BPS - maxSlippage) math in
+        // _optimizeTicksAndMintPosition / _increase / _decreaseLiquidity. initialize() already enforces this;
+        // mirror it here so admin updates cannot drop the invariant.
+        if (newMaxSlippage > MAX_BPS) {
+            revert Overflow(newMaxSlippage, MAX_BPS);
+        }
+
+        maxSlippage = newMaxSlippage;
+        emit MaxSlippageUpdated(newMaxSlippage);
+    }
+
+    /// @dev Converts token amounts to V3 liquidity: from balances, or from V2 liquidity, or both.
+    /// @param tokens Token addresses.
+    /// @param v2Pool V2 pool hash / address.
+    /// @param feeTierOrTickSpacing Fee tier or tick spacing.
+    /// @param tickShifts Tick shifts array: shifts from central tick value.
+    /// @param olasBurnRate OLAS burn rate in BPS: burns specified amount of OLAS from initial token amounts,
+    ///        transfers same rate of another token to treasury address.
+    /// @param scan True if binary and neighborhood ticks search for optimal liquidity is requested, false otherwise.
+    /// @return positionId Minted or existing position Id.
+    /// @return liquidity Produced liquidity.
+    /// @return amounts Amounts in liquidity.
+    function convertToV3(
+        address[] memory tokens,
+        bytes32 v2Pool,
+        int24 feeTierOrTickSpacing,
+        int24[] memory tickShifts,
+        uint16 olasBurnRate,
+        bool scan
+    ) external returns (uint256 positionId, uint256 liquidity, uint256[] memory amounts) {
+        if (_locked > 1) {
+            revert ReentrancyGuard();
+        }
+        _locked = 2;
+
+        // Check for contract ownership
+        if (msg.sender != owner) {
+            revert OwnerOnly(msg.sender, owner);
+        }
+
+        // Check for OLAS in pair
+        if (tokens[0] != olas && tokens[1] != olas) {
+            revert WrongTokenAddress(tokens, olas);
+        }
+
+        // Check conversion rate overflow
+        if (olasBurnRate > MAX_BPS) {
+            revert Overflow(olasBurnRate, MAX_BPS);
+        }
+
+        uint256 removed0;
+        uint256 removed1;
+        if (v2Pool != 0) {
+            // Snapshot staged balances so the source-ratio check only measures this withdrawal.
+            removed0 = IToken(tokens[0]).balanceOf(address(this));
+            removed1 = IToken(tokens[1]).balanceOf(address(this));
+
+            // Remove liquidity from V2 pool
+            _checkTokensAndRemoveLiquidityV2(tokens, v2Pool);
+        }
+
+        // Get total token amounts for conversion, including any staged balances.
+        amounts = new uint256[](2);
+        amounts[0] = IToken(tokens[0]).balanceOf(address(this));
+        amounts[1] = IToken(tokens[1]).balanceOf(address(this));
+
+        // Check for zero values
+        if (amounts[0] == 0 || amounts[1] == 0) {
+            revert ZeroValue();
+        }
+
+        // Measure tokens received before any burn-rate disposal. Pre-existing balances must not
+        // mask or distort the source pool's withdrawal ratio in a mixed conversion.
+        if (v2Pool != 0) {
+            removed0 = amounts[0] - removed0;
+            removed1 = amounts[1] - removed1;
+        }
+
+        // Get V3 pool
+        address v3Pool = _getV3Pool(tokens, feeTierOrTickSpacing);
+
+        // Check for zero address
+        if (v3Pool == address(0)) {
+            revert ZeroAddress();
+        }
+
+        // Recalculate amounts for adding position liquidity depending on OLAS burn rate
+        if (olasBurnRate > 0) {
+            // Initial token management: burn OLAS, transfer another token
+            amounts = _manageUtilityAmounts(tokens, olasBurnRate, true);
+        }
+
+        // Check current pool prices
+        uint160 sqrtP = checkPoolAndGetCenterPrice(v3Pool);
+
+        // Cross-check the removed source ratio against the gate-verified V3 price (only when tokens came from a
+        // source pool removal). This is the sole source-side manipulation gate: a proportional removal cannot
+        // lose value (constant-product convexity), but a manipulated source pool yields a lopsided basket that
+        // would convert inefficiently, so reject it here rather than mint it.
+        // This intentionally runs AFTER the olasBurnRate burn above: convertToV3 is one transaction, so a
+        // RatioDeviation revert unwinds the burn atomically. Do not hoist it before the burn.
+        if (v2Pool != 0) {
+            _checkRemovedRatioAgainstV3(removed0, removed1, sqrtP);
+        }
+
+        // Approve tokens for position manager
+        IToken(tokens[0]).approve(positionManagerV3, amounts[0]);
+        IToken(tokens[1]).approve(positionManagerV3, amounts[1]);
+
+        // Get position Id
+        positionId = mapPoolAddressPositionIds[v3Pool];
+
+        // positionId is zero if it was not created before for this pool
+        if (positionId == 0) {
+            (positionId, liquidity, amounts) =
+                _calculateTicksAndMintPosition(tokens, amounts, feeTierOrTickSpacing, sqrtP, tickShifts, scan);
+
+            // Record position Id associated with pool
+            mapPoolAddressPositionIds[v3Pool] = positionId;
+
+            // Increase observation cardinality
+            IUniswapV3(v3Pool).increaseObservationCardinalityNext(observationCardinality);
+        } else {
+            // Position already exists: increase liquidity. sqrtP (checkPoolAndGetCenterPrice) above is the
+            // pre-flight manipulation gate; anchor the increase's amountMin to slot0 (the execution price) to
+            // avoid the TWAP-vs-slot0 dead band, mirroring _decreaseLiquidity.
+            (uint160 slot0Sqrt,) = _getPriceAndObservationIndexFromSlot0(v3Pool);
+            (liquidity, amounts) = _increaseLiquidity(positionId, amounts, slot0Sqrt);
+        }
+
+        // Manage token leftovers - transfer both to treasury
+        _manageUtilityAmounts(tokens, MAX_BPS, false);
+
+        emit ConvertedToV3(v3Pool, positionId, tokens, amounts, liquidity, scan);
+
+        _locked = 1;
+    }
+
+    /// @dev Changes ranges of position in a specified pool.
+    /// @notice Any collected fees from liquidating initial position are supplied for one with repositioned ranges.
+    /// @param tokens Token addresses.
+    /// @param feeTierOrTickSpacing Fee tier or tick spacing.
+    /// @param tickShifts Tick shifts array: shifts from central tick value.
+    /// @param scan True if binary and neighborhood ticks search for optimal liquidity is requested, false otherwise.
+    /// @return positionId Minted or existing position Id.
+    /// @return liquidity Produced liquidity.
+    /// @return amounts Amounts in liquidity.
+    function changeRanges(address[] memory tokens, int24 feeTierOrTickSpacing, int24[] memory tickShifts, bool scan)
+        external
+        returns (uint256 positionId, uint128 liquidity, uint256[] memory amounts)
+    {
+        if (_locked > 1) {
+            revert ReentrancyGuard();
+        }
+        _locked = 2;
+
+        // Check for contract ownership
+        if (msg.sender != owner) {
+            revert OwnerOnly(msg.sender, owner);
+        }
+
+        // Get V3 pool
+        address pool = _getV3Pool(tokens, feeTierOrTickSpacing);
+
+        // Check for zero address
+        if (pool == address(0)) {
+            revert ZeroAddress();
+        }
+
+        // Get position Id
+        uint256 currentPositionId = mapPoolAddressPositionIds[pool];
+
+        // Check for zero value
+        if (currentPositionId == 0) {
+            revert ZeroValue();
+        }
+
+        // Check current pool prices (fails closed on an unverifiable pool)
+        uint160 centerSqrtPriceX96 = checkPoolAndGetCenterPrice(pool);
+
+        // Decrease liquidity fully. _decreaseLiquidity always runs the exit deviation gate (fail-safe
+        // default); here the pool was just validated by checkPoolAndGetCenterPrice above with no intervening
+        // pool interaction, so that gate is guaranteed to pass and only costs a redundant TWAP observe.
+        _decreaseLiquidity(pool, currentPositionId, MAX_BPS);
+
+        // Collect fees and tokens removed from liquidity
+        amounts = _collectFees(currentPositionId);
+
+        // Check that we have liquidity for both tokens - revert otherwise to avoid silently routing
+        // single-sided leftovers to the treasury via _manageUtilityAmounts() below
+        if (amounts[0] == 0 || amounts[1] == 0) {
+            revert ZeroValue();
+        }
+
+        // Approve tokens for position manager
+        IToken(tokens[0]).approve(positionManagerV3, amounts[0]);
+        IToken(tokens[1]).approve(positionManagerV3, amounts[1]);
+
+        // Calculate params and mint new position
+        (positionId, liquidity, amounts) = _calculateTicksAndMintPosition(
+            tokens, amounts, feeTierOrTickSpacing, centerSqrtPriceX96, tickShifts, scan
+        );
+
+        // Record position Id
+        mapPoolAddressPositionIds[pool] = positionId;
+
+        // Manage token leftovers - transfer both to treasury
+        _manageUtilityAmounts(tokens, MAX_BPS, false);
+
+        emit RangesChanged(pool, positionId, tokens, amounts, liquidity, scan);
+
+        _locked = 1;
+    }
+
+    /// @dev Collects fees from LP position, burns OLAS tokens and transfers another token to treasury.
+    /// @param tokens Token addresses.
+    /// @param feeTierOrTickSpacing Fee tier or tick spacing.
+    /// @return amounts Amounts array.
+    function collectFees(address[] memory tokens, int24 feeTierOrTickSpacing)
+        external
+        returns (uint256[] memory amounts)
+    {
+        if (_locked > 1) {
+            revert ReentrancyGuard();
+        }
+        _locked = 2;
+
+        // Get V3 pool
+        address pool = _getV3Pool(tokens, feeTierOrTickSpacing);
+
+        // Check for zero address
+        if (pool == address(0)) {
+            revert ZeroAddress();
+        }
+
+        // Get position Id
+        uint256 positionId = mapPoolAddressPositionIds[pool];
+
+        // Check for zero value
+        if (positionId == 0) {
+            revert ZeroValue();
+        }
+
+        // No price guard here: fee collection is not price-sandwichable and must stay live on a quiet
+        // pool. Only the just-collected amounts are managed, never the contract's whole balance.
+
+        // Collect fees
+        amounts = _collectFees(positionId);
+
+        // Align collected amounts with the caller-provided token ordering. The position manager returns
+        // (amount0, amount1) against the position's own token0 / token1, whereas _manageAmounts() assigns
+        // the OLAS and secondary-token roles from the tokens array exactly as supplied. The pool resolves
+        // for either ordering, so without this alignment a call whose tokens array is ordered differently
+        // from the position would burn the secondary-token fee amount as OLAS and transfer the OLAS fee
+        // amount as the secondary token, drawing the difference from balances staged on the contract.
+        (,, address positionToken0,,,,,,,,,) = IPositionManagerV3(positionManagerV3).positions(positionId);
+        if (tokens[0] != positionToken0) {
+            (amounts[0], amounts[1]) = (amounts[1], amounts[0]);
+        }
+
+        // Check for zero values
+        if (amounts[0] == 0 && amounts[1] == 0) {
+            revert ZeroValue();
+        }
+
+        // Manage only the collected fees: burn OLAS, transfer another token to treasury
+        _manageAmounts(tokens, amounts, true);
+
+        emit PositionFeesCollected(pool, positionId, tokens, amounts);
+
+        _locked = 1;
+    }
+
+    /// @dev Decreases liquidity for specified pool.
+    /// @notice The slippage floor is derived at execution from the deviation-gated slot0 price (see
+    ///         _getExitSqrtPrice) rather than caller-supplied absolute minimums, so it never goes stale
+    ///         across a governance delay and a fair exit is always satisfiable within the deviation gate.
+    /// @param tokens Token addresses.
+    /// @param feeTierOrTickSpacing Fee tier or tick spacing.
+    /// @param decreaseRate Rate of position decrease in BPS.
+    /// @param olasBurnRate OLAS burn rate in BPS, relative to specified decreaseRate: burns OLAS from decreased
+    ///        token amounts and collected fees, transfers same rate of another token to treasury address.
+    /// @return positionId Minted or existing position Id.
+    /// @return liquidity Decreased liquidity amount.
+    /// @return amounts Amounts from liquidity.
+    function decreaseLiquidity(
+        address[] memory tokens,
+        int24 feeTierOrTickSpacing,
+        uint16 decreaseRate,
+        uint16 olasBurnRate
+    ) external returns (uint256 positionId, uint128 liquidity, uint256[] memory amounts) {
+        if (_locked > 1) {
+            revert ReentrancyGuard();
+        }
+        _locked = 2;
+
+        // Check for contract ownership
+        if (msg.sender != owner) {
+            revert OwnerOnly(msg.sender, owner);
+        }
+
+        // Check decrease and olas burn rates
+        if (decreaseRate == 0) {
+            revert ZeroValue();
+        }
+        if (decreaseRate > MAX_BPS) {
+            revert Overflow(decreaseRate, MAX_BPS);
+        }
+        if (olasBurnRate > MAX_BPS) {
+            revert Overflow(olasBurnRate, MAX_BPS);
+        }
+
+        // Get V3 pool
+        address pool = _getV3Pool(tokens, feeTierOrTickSpacing);
+
+        // Check for zero address
+        if (pool == address(0)) {
+            revert ZeroAddress();
+        }
+
+        // Get position Id
+        positionId = mapPoolAddressPositionIds[pool];
+
+        // Check for zero value
+        if (positionId == 0) {
+            revert ZeroValue();
+        }
+
+        // Decrease liquidity (deviation-gated slot0 floor computed at execution; always-exitable within the gate)
+        (liquidity,) = _decreaseLiquidity(pool, positionId, decreaseRate);
+
+        // Collect fees and tokens removed from liquidity
+        amounts = _collectFees(positionId);
+
+        // Burn OLAS and transfer another token to treasury
+        if (olasBurnRate > 0) {
+            _manageUtilityAmounts(tokens, olasBurnRate, true);
+        }
+
+        // Manage collected amounts - transfer both to treasury
+        _manageUtilityAmounts(tokens, MAX_BPS, false);
+
+        emit PositionLiquidityDecreased(pool, positionId, tokens, amounts, liquidity);
+
+        _locked = 1;
+    }
+
+    /// @dev Increases liquidity for specified pool.
+    /// @param tokens Token addresses.
+    /// @param feeTierOrTickSpacing Fee tier or tick spacing.
+    /// @param olasBurnRate OLAS burn rate in BPS: burns specified amount of OLAS from initial token amounts,
+    ///        transfers same rate of another token to treasury address.
+    /// @return positionId Minted or existing position Id.
+    /// @return liquidity Produced liquidity.
+    /// @return amounts Amounts in liquidity.
+    function increaseLiquidity(address[] memory tokens, int24 feeTierOrTickSpacing, uint16 olasBurnRate)
+        external
+        returns (uint256 positionId, uint256 liquidity, uint256[] memory amounts)
+    {
+        if (_locked > 1) {
+            revert ReentrancyGuard();
+        }
+        _locked = 2;
+
+        // Check for contract ownership
+        if (msg.sender != owner) {
+            revert OwnerOnly(msg.sender, owner);
+        }
+
+        // Check conversion rate overflow
+        if (olasBurnRate > MAX_BPS) {
+            revert Overflow(olasBurnRate, MAX_BPS);
+        }
+
+        // Get token amounts
+        amounts = new uint256[](2);
+        amounts[0] = IToken(tokens[0]).balanceOf(address(this));
+        amounts[1] = IToken(tokens[1]).balanceOf(address(this));
+
+        // Check for zero values
+        if (amounts[0] == 0 || amounts[1] == 0) {
+            revert ZeroValue();
+        }
+
+        // Get V3 pool
+        address pool = _getV3Pool(tokens, feeTierOrTickSpacing);
+
+        // Check for zero address
+        if (pool == address(0)) {
+            revert ZeroAddress();
+        }
+
+        // Recalculate amounts for adding position liquidity depending on OLAS burn rate
+        if (olasBurnRate > 0) {
+            // Initial token management: burn OLAS, transfer another token
+            amounts = _manageUtilityAmounts(tokens, olasBurnRate, true);
+        }
+
+        // Get positionId
+        positionId = mapPoolAddressPositionIds[pool];
+
+        // Check for zero position
+        if (positionId == 0) {
+            revert ZeroValue();
+        }
+
+        // Pre-flight manipulation gate (fails closed on an unverifiable pool or slot0 more than
+        // MAX_ALLOWED_DEVIATION off the TWAP)
+        checkPoolAndGetCenterPrice(pool);
+        // Anchor the liquidity math and amountMin to slot0 (the price the position manager executes at), not the
+        // TWAP center — the entry analog of _decreaseLiquidity's _getExitSqrtPrice; avoids the TWAP-vs-slot0 dead band.
+        (uint160 slot0Sqrt,) = _getPriceAndObservationIndexFromSlot0(pool);
+
+        // Approve tokens for position manager
+        IToken(tokens[0]).approve(positionManagerV3, amounts[0]);
+        IToken(tokens[1]).approve(positionManagerV3, amounts[1]);
+
+        // Increase liquidity (amountMin anchored to slot0)
+        (liquidity, amounts) = _increaseLiquidity(positionId, amounts, slot0Sqrt);
+
+        // Manage token leftovers - transfer both to treasury
+        _manageUtilityAmounts(tokens, MAX_BPS, false);
+
+        emit PositionLiquidityIncreased(pool, positionId, tokens, amounts, liquidity);
+
+        _locked = 1;
+    }
+
+    /// @dev Transfers position Id to a specified address.
+    /// @param to Account address to transfer to.
+    /// @param positionId Position Id.
+    function transferPositionId(address[] memory tokens, int24 feeTierOrTickSpacing, address to)
+        external
+        returns (uint256 positionId)
+    {
+        if (_locked > 1) {
+            revert ReentrancyGuard();
+        }
+        _locked = 2;
+
+        // Check for contract ownership
+        if (msg.sender != owner) {
+            revert OwnerOnly(msg.sender, owner);
+        }
+
+        // Get V3 pool
+        address pool = _getV3Pool(tokens, feeTierOrTickSpacing);
+
+        // Check for zero address
+        if (pool == address(0)) {
+            revert ZeroAddress();
+        }
+
+        // Get position Id
+        positionId = mapPoolAddressPositionIds[pool];
+
+        // Check for zero value
+        if (positionId == 0) {
+            revert ZeroValue();
+        }
+
+        // Transfer position Id
+        IPositionManagerV3(positionManagerV3).transferFrom(address(this), to, positionId);
+
+        mapPoolAddressPositionIds[pool] = 0;
+
+        emit PositionTransferred(positionId, to);
+
+        _locked = 1;
+    }
+
+    /// @dev Transfers token to a specified address.
+    /// @param token Token address.
+    /// @param to Account address to transfer to.
+    /// @param amount Token amount.
+    function transferToken(address token, address to, uint256 amount) external {
+        if (_locked > 1) {
+            revert ReentrancyGuard();
+        }
+        _locked = 2;
+
+        // Check for contract ownership
+        if (msg.sender != owner) {
+            revert OwnerOnly(msg.sender, owner);
+        }
+
+        // Get token balance
+        uint256 balance = IToken(token).balanceOf(address(this));
+        if (amount > balance) {
+            revert Overflow(amount, balance);
+        }
+
+        // Transfer token
+        SafeTransferLib.safeTransfer(token, to, amount);
+
+        emit TokenTransferred(token, to, amount);
+
+        _locked = 1;
+    }
+
+    /// @dev Gets TWAP price via built-in Uniswap V3 oracle.
+    /// @param pool Pool address.
+    /// @return price Calculated price.
+    /// @return centerSqrtPriceX96 Calculated center SQRT price.
+    function getTwapFromOracle(address pool) public view returns (uint256 price, uint160 centerSqrtPriceX96) {
+        // Query the pool for the current and historical tick
+        uint32[] memory secondsAgo = new uint32[](2);
+        // Start of the period
+        secondsAgo[0] = SECONDS_AGO;
+
+        // Fetch the tick cumulative values from the pool: either from observations, or from slot0
+        (int56[] memory tickCumulatives,) = IUniswapV3(pool).observe(secondsAgo);
+
+        // Calculate the average tick over the time period
+        int56 tickCumulativeDelta = tickCumulatives[1] - tickCumulatives[0];
+        int24 centerTick = int24(tickCumulativeDelta / int56(int32(SECONDS_AGO)));
+
+        // Convert the average tick to sqrtPriceX96
+        centerSqrtPriceX96 = TickMath.getSqrtRatioAtTick(centerTick);
+
+        // Calculate the price using the sqrtPriceX96
+        // Max result is uint160 * uint160 == uint320, not to overflow: 320 - 256 = 64 (2^64)
+        price = mulDiv(uint256(centerSqrtPriceX96), uint256(centerSqrtPriceX96), (1 << 64));
+    }
+
+    /// @dev Checks pool prices via Uniswap V3 built-in oracle and returns the TWAP-derived sqrt price.
+    /// @notice Fails closed: requires the latest observation strictly inside the SECONDS_AGO window
+    ///         and observe() to provide the full-window TWAP; otherwise reverts with NotEnoughHistory.
+    ///         When a TWAP is available, reverts if the deviation between the instantaneous slot0 price
+    ///         and the TWAP price exceeds MAX_ALLOWED_DEVIATION, preventing flash-loan driven manipulation.
+    ///         Calls can resume once the freshness and oracle-history requirements are satisfied and
+    ///         the instantaneous price is within the allowed deviation.
+    /// @param pool Pool address.
+    /// @return centerSqrtPriceX96 Calculated center SQRT price.
+    function checkPoolAndGetCenterPrice(address pool) public view returns (uint160 centerSqrtPriceX96) {
+        // Read the raw price facts, then apply the ENTRY policy (fail closed) explicitly here.
+        (, bool twapAvailable, uint160 twapSqrtPriceX96, uint256 deviation) = _getPoolPriceFacts(pool);
+
+        // Fail closed when the freshness check fails or the oracle cannot provide the full-window TWAP.
+        // Refuse rather than fall back to the manipulable slot0 price.
+        if (!twapAvailable) {
+            revert NotEnoughHistory(pool);
+        }
+
+        // Reject a slot0 that deviates more than MAX_ALLOWED_DEVIATION from the TWAP (flash-manipulation guard)
+        if (deviation > MAX_ALLOWED_DEVIATION) {
+            revert Overflow(deviation, MAX_ALLOWED_DEVIATION);
+        }
+
+        // Return TWAP-derived sqrt price for safer position minting (resistant to single-block manipulation)
+        centerSqrtPriceX96 = twapSqrtPriceX96;
+    }
+
+    /// @dev Rejects a manipulated source pool by comparing the removed token ratio to the V3 price.
+    /// @notice `removed1/removed0` is the source pool's spot (token1 per token0); the V3 price derived from
+    ///         `sqrtPriceX96` (already verified within MAX_ALLOWED_DEVIATION of the V3 TWAP by the caller) is the
+    ///         trusted reference. Two pools tracking the same OLAS price arbitrage together, so an honest removal
+    ///         sits within `maxSlippage` of the V3 price while a manipulated source pool sits far outside it.
+    ///         Both ratios are token1-per-token0 because `tokens` are address-sorted, matching the V3 ordering.
+    ///         PRECONDITION: this treats the removed ratio as the source pool's spot price. For a Balancer
+    ///         weighted pool spot is `(B1/w1)/(B0/w0)`, which equals the removed `B1/B0` only when the weights
+    ///         are equal — POL pools are 50/50, so this holds. A non-50/50 source pool would make honest
+    ///         removals diverge from the V3 reference and revert (fail-closed and safe — no exploit — but a
+    ///         known precondition rather than an unexplained `RatioDeviation`).
+    /// @param removed0 Removed amount of token0.
+    /// @param removed1 Removed amount of token1.
+    /// @param sqrtPriceX96 Gate-verified V3 sqrt price.
+    function _checkRemovedRatioAgainstV3(uint256 removed0, uint256 removed1, uint160 sqrtPriceX96) internal view {
+        // V3 price, token1 per token0, 1e18-scaled: (sqrtP^2 / 2**192) * 1e18. Staged mulDiv keeps every
+        // intermediate within 2**256 (mulDiv is 512-bit correct).
+        uint256 referenceRatio = mulDiv(mulDiv(uint256(sqrtPriceX96), uint256(sqrtPriceX96), Q96), 1e18, Q96);
+        // Removed ratio, token1 per token0, 1e18-scaled.
+        uint256 removedRatio = mulDiv(removed1, 1e18, removed0);
+
+        uint256 diff = removedRatio > referenceRatio ? removedRatio - referenceRatio : referenceRatio - removedRatio;
+        // diff / referenceRatio > maxSlippage / MAX_BPS  <=>  diff > referenceRatio * maxSlippage / MAX_BPS
+        if (diff > mulDiv(referenceRatio, maxSlippage, MAX_BPS)) {
+            revert RatioDeviation(removedRatio, referenceRatio, maxSlippage);
+        }
+    }
+
+    /// @dev Reads the raw price facts a pool exposes, WITHOUT applying any fail-open/fail-closed policy.
+    /// @notice Isolates the security-critical primitive shared by the entry guard (checkPoolAndGetCenterPrice,
+    ///         fail-closed) and the exit floor (_getExitSqrtPrice, deviation-gated soft) — slot0 read,
+    ///         inactivity check, observe() availability, and the slot0-vs-TWAP deviation math — so the two
+    ///         paths cannot drift apart. Each caller decides what to do when no TWAP is available and how to
+    ///         act on the deviation; this function itself never encodes that policy.
+    /// @param pool Pool address.
+    /// @return slot0SqrtPriceX96 Instantaneous slot0 sqrt price (reverts ZeroValue if zero).
+    /// @return twapAvailable True iff the pool produced a verifiable SECONDS_AGO TWAP (active + observe ok).
+    /// @return twapSqrtPriceX96 TWAP-derived sqrt price (0 when twapAvailable is false).
+    /// @return deviation slot0-vs-TWAP deviation scaled to 1e18 (0 when twapAvailable is false).
+    function _getPoolPriceFacts(address pool)
+        internal
+        view
+        returns (uint160 slot0SqrtPriceX96, bool twapAvailable, uint160 twapSqrtPriceX96, uint256 deviation)
+    {
+        uint16 observationIndex;
+        // Get current pool sqrt price and observation index
+        (slot0SqrtPriceX96, observationIndex) = _getPriceAndObservationIndexFromSlot0(pool);
+        // Check for zero value
+        if (slot0SqrtPriceX96 == 0) {
+            revert ZeroValue();
+        }
+
+        // Require an observation strictly inside the lookback window, excluding its exact left boundary.
+        (uint32 latestObsTimestamp,,,) = IUniswapV3(pool).observations(observationIndex);
+        if (latestObsTimestamp + SECONDS_AGO <= block.timestamp) {
+            return (slot0SqrtPriceX96, false, 0, 0);
+        }
+
+        // Reject pools whose oracle cannot provide the requested TWAP window.
+        bytes memory payload = abi.encodeCall(this.getTwapFromOracle, (pool));
+        (bool success, bytes memory returnData) = address(this).staticcall(payload);
+        if (!success || returnData.length == 0) {
+            return (slot0SqrtPriceX96, false, 0, 0);
+        }
+
+        // Get returned values from oracle: TWAP price and TWAP-derived sqrt price
+        // Note: twapSqrtPriceX96 is kept separate from the instantaneous slot0 value above, so that the
+        // deviation compares the true instant price against the TWAP (not TWAP against itself)
+        uint256 twapPrice;
+        (twapPrice, twapSqrtPriceX96) = abi.decode(returnData, (uint256, uint160));
+
+        // Get instant price from the slot0 sqrt price
+        // Max result is uint160 * uint160 == uint320, not to overflow: 320 - 256 = 64 (2^64)
+        uint256 instantPrice = mulDiv(uint256(slot0SqrtPriceX96), uint256(slot0SqrtPriceX96), (1 << 64));
+
+        // Calculate price deviation between instantaneous and TWAP prices
+        if (twapPrice > 0) {
+            deviation = (instantPrice > twapPrice)
+                ? mulDiv((instantPrice - twapPrice), 1e18, twapPrice)
+                : mulDiv((twapPrice - instantPrice), 1e18, twapPrice);
+        }
+
+        twapAvailable = true;
+    }
+
+    /// @dev Deviation-gated slot0 price for exits / maintenance (decreaseLiquidity).
+    /// @notice When the pool can produce a verifiable SECONDS_AGO TWAP, this reverts if the instantaneous
+    ///         slot0 price deviates more than MAX_ALLOWED_DEVIATION from the TWAP (anti-manipulation gate);
+    ///         if the freshness check fails or the oracle cannot provide the full-window TWAP, it skips
+    ///         the gate (fail-open). In BOTH cases it returns the raw slot0 price — the exact price the position
+    ///         manager withdraws at — so a caller's amountMin = amounts(slot0) * (1 - maxSlippage) is always
+    ///         satisfiable and a fair exit never reverts on the amount check. Unlike checkPoolAndGetCenterPrice
+    ///         it never reverts merely because the pool is quiet, so a withdrawal is always possible within
+    ///         the gate. The residual on an unverifiable-but-liquid pool is a capital-bounded slip (an exit
+    ///         pool always holds our own liquidity), not the empty-pool catastrophe the fail-closed entry
+    ///         guard prevents.
+    ///         Accepted liveness residual: the deviation gate cannot distinguish manipulation from a genuine
+    ///         fast market move, so on a verifiable pool the exit is temporarily blocked while slot0 sits
+    ///         >MAX_ALLOWED_DEVIATION from the (lagging) 30-min TWAP. Funds are never at risk — retry once the
+    ///         pool re-converges within the bound (self-heals as the TWAP catches up or arbitrage restores price).
+    /// @param pool Pool address.
+    /// @return sqrtPriceX96 The slot0 sqrt price, verified within MAX_ALLOWED_DEVIATION of the TWAP when one
+    ///         is available.
+    function _getExitSqrtPrice(address pool) internal view returns (uint160 sqrtPriceX96) {
+        // Read the raw price facts, then apply the EXIT policy (deviation-gated soft floor) explicitly here.
+        bool twapAvailable;
+        uint256 deviation;
+        (sqrtPriceX96, twapAvailable,, deviation) = _getPoolPriceFacts(pool);
+
+        // Unverifiable pool (inactive / freshly-created / observe() unavailable): skip the gate so the exit
+        // still works, pricing off slot0. Capital-bounded on an exit pool (it holds our own liquidity),
+        // never the empty-pool catastrophe the fail-closed entry guard prevents.
+        if (!twapAvailable) {
+            return sqrtPriceX96;
+        }
+
+        // Verifiable: reject a slot0 that deviates more than MAX_ALLOWED_DEVIATION from the TWAP
+        // (anti-manipulation gate) but keep pricing the exit off slot0 itself, so amountMin computed from
+        // slot0 always matches what the position manager returns and a fair exit does not revert.
+        if (deviation > MAX_ALLOWED_DEVIATION) {
+            revert Overflow(deviation, MAX_ALLOWED_DEVIATION);
+        }
+
+        // sqrtPriceX96 is already the slot0 price; return it (gated) rather than the TWAP price.
+    }
+}

@@ -1,0 +1,1228 @@
+pragma solidity ^0.8.30;
+
+import {Test, console} from "forge-std/Test.sol";
+import {Utils} from "./utils/Utils.sol";
+import {BuyBackBurnerUniswap} from "../contracts/utils/BuyBackBurnerUniswap.sol";
+import {BuyBackBurnerProxy} from "../contracts/utils/BuyBackBurnerProxy.sol";
+import {FixedPointMathLib} from "../lib/solmate/src/utils/FixedPointMathLib.sol";
+import {TickMath} from "../contracts/libraries/TickMath.sol";
+import {FullMath} from "../contracts/libraries/FullMath.sol";
+import {FixedPoint96} from "../contracts/libraries/FixedPoint96.sol";
+import {LiquidityManagerUniV2UniV3} from "../contracts/pol/LiquidityManagerUniV2UniV3.sol";
+import {NotEnoughHistory, ZeroValue} from "../contracts/pol/LiquidityManagerCore.sol";
+import {LiquidityManagerProxy} from "../contracts/proxies/LiquidityManagerProxy.sol";
+import {NeighborhoodScanner} from "../contracts/pol/NeighborhoodScanner.sol";
+import {UniswapPriceOracle} from "../contracts/oracles/UniswapPriceOracle.sol";
+import {IToken} from "../contracts/interfaces/IToken.sol";
+import {IUniswapV2Pair} from "../contracts/interfaces/IUniswapV2Pair.sol";
+import {IUniswapV3} from "../contracts/interfaces/IUniswapV3.sol";
+
+interface IFactory {
+    /// @notice Returns the pool address for a given pair of tokens and a fee, or address 0 if it does not exist
+    /// @dev tokenA and tokenB may be passed in either token0/token1 or token1/token0 order
+    /// @param tokenA The contract address of either token0 or token1
+    /// @param tokenB The contract address of the other token
+    /// @param fee The fee collected upon every swap in the pool, denominated in hundredths of a bip
+    /// @return pool The pool address
+    function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool);
+}
+
+interface ITreasury {
+    function withdraw(address to, uint256 tokenAmount, address token) external returns (bool success);
+}
+
+interface IRouterV3 {
+    struct ExactInputSingleParams {
+        address tokenIn;
+        address tokenOut;
+        uint24 fee;
+        address recipient;
+        uint256 amountIn;
+        uint256 amountOutMinimum;
+        uint160 sqrtPriceLimitX96;
+    }
+
+    /// @notice Swaps `amountIn` of one token for as much as possible of another token
+    /// @dev Setting `amountIn` to 0 will cause the contract to look up its own balance,
+    /// and swap the entire amount, enabling contracts to send tokens before calling this function.
+    /// @param params The parameters necessary for the swap, encoded as `ExactInputSingleParams` in calldata
+    /// @return amountOut The amount of the received token
+    function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
+}
+
+interface INPMMint {
+    struct MintParams {
+        address token0;
+        address token1;
+        uint24 fee;
+        int24 tickLower;
+        int24 tickUpper;
+        uint256 amount0Desired;
+        uint256 amount1Desired;
+        uint256 amount0Min;
+        uint256 amount1Min;
+        address recipient;
+        uint256 deadline;
+    }
+
+    function mint(MintParams calldata params)
+        external
+        payable
+        returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1);
+}
+
+contract BaseSetup is Test {
+    Utils internal utils;
+    UniswapPriceOracle internal oracleV2;
+    NeighborhoodScanner internal neighborhoodScanner;
+    LiquidityManagerUniV2UniV3 internal liquidityManager;
+    BuyBackBurnerUniswap internal buyBackBurner;
+
+    address payable[] internal users;
+    address internal deployer;
+    address internal dev;
+
+    int24 internal centerTick;
+    uint160 internal sqrtPriceX96;
+    uint160 internal sqrtPriceX96ATH;
+    uint160 internal sqrtPriceX96ATL;
+    uint256[2] internal initialAmounts;
+
+    // Contract addresses
+    address internal constant OLAS = 0x0001A500A6B18995B03f44bb040A5fFc28E45CB0;
+    address internal constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address[] internal TOKENS = [OLAS, WETH];
+    address internal constant TIMELOCK = 0x3C1fF68f5aa342D296d4DEe4Bb1cACCA912D95fE;
+    address internal constant TREASURY = 0xa0DA53447C0f6C4987964d8463da7e6628B30f82;
+    address internal constant PAIR_V2 = 0x09D1d767eDF8Fa23A64C51fa559E0688E526812F;
+    bytes32 internal constant PAIR_V2_BYTES32 = 0x00000000000000000000000009D1d767eDF8Fa23A64C51fa559E0688E526812F;
+    address internal constant ROUTER_V2 = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+    address internal constant ROUTER_V3 = 0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45;
+    address internal constant FACTORY_V3 = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    address internal constant POSITION_MANAGER_V3 = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88;
+    address internal constant BURNER = 0x51eb65012ca5cEB07320c497F4151aC207FEa4E0;
+    uint16 internal constant observationCardinality = 60;
+    uint256 internal constant maxSlippageBps = 5000;
+    uint256 internal constant minTwapWindowSeconds = 900;
+    uint256 internal constant minUpdateIntervalSeconds = 900;
+    uint256 internal constant maxStalenessSeconds = 86400;
+    int24 internal constant FEE_TIER = 3000;
+    // Allowed rounding delta in 1e18 = 1%
+    uint256 internal constant DELTA = 1e16;
+    // Max bps value
+    uint16 public constant MAX_BPS = 10_000;
+
+    uint256 public constant OLAS_ETH_ATH_PRICE = 0.003624094951 ether;
+    uint256 public constant OLAS_ETH_ATL_PRICE = 0.000005 ether;
+
+    function setUp() public virtual {
+        utils = new Utils();
+        users = utils.createUsers(2);
+        deployer = users[0];
+        vm.label(deployer, "Deployer");
+        dev = users[1];
+        vm.label(dev, "Developer");
+
+        // Deploy V2 oracle (OLAS as reference token for correct OLAS/WETH price direction)
+        oracleV2 = new UniswapPriceOracle(PAIR_V2, OLAS, minTwapWindowSeconds, minUpdateIntervalSeconds, maxStalenessSeconds);
+
+        // Warm up oracle: need 2 observations for TWAP availability
+        oracleV2.updatePrice();
+        vm.warp(block.timestamp + minUpdateIntervalSeconds);
+        oracleV2.updatePrice();
+
+        // Deploy neighborhood scanner
+        neighborhoodScanner = new NeighborhoodScanner();
+
+        // Deploy LiquidityManagerUniV2UniV3 implementation
+        LiquidityManagerUniV2UniV3 liquidityManagerImplementation = new LiquidityManagerUniV2UniV3(OLAS, TIMELOCK, POSITION_MANAGER_V3,
+            address(neighborhoodScanner), observationCardinality, ROUTER_V2);
+
+        // Deploy LiquidityManagerProxy
+        bytes memory initPayload = abi.encodeWithSignature("initialize(uint16)", maxSlippageBps);
+        LiquidityManagerProxy liquidityManagerProxy =
+            new LiquidityManagerProxy(address(liquidityManagerImplementation), initPayload);
+
+        // Wrap proxy into implementation
+        liquidityManager = LiquidityManagerUniV2UniV3(address(liquidityManagerProxy));
+
+        // Get V2 pool balance
+        uint256 v2Liquidity = IToken(PAIR_V2).balanceOf(TREASURY);
+
+        // Transfer V2 pool liquidity to LiquidityManager
+        vm.prank(TIMELOCK);
+        ITreasury(TREASURY).withdraw(address(liquidityManager), v2Liquidity, PAIR_V2);
+
+        (initialAmounts[0], initialAmounts[1], ) = IUniswapV2Pair(PAIR_V2).getReserves();
+        // Calculate the price ratio (amount1 / amount0) scaled by 1e18 to avoid floating point issues
+        uint256 price = FixedPointMathLib.divWadDown(initialAmounts[1], initialAmounts[0]);
+
+        // Calculate the square root of the price ratio in X96 format
+        sqrtPriceX96 = uint160((FixedPointMathLib.sqrt(price) * (1 << 96)) / 1e9);
+
+        // Get center tick
+        centerTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96);
+
+        // Create V3 pool
+        IUniswapV3(POSITION_MANAGER_V3).createAndInitializePoolIfNecessary(OLAS, WETH, uint24(FEE_TIER), sqrtPriceX96);
+
+        // Get V2 initial amounts on LiquidityManager
+        uint256 totalSupply = IToken(PAIR_V2).totalSupply();
+        initialAmounts[0] = (v2Liquidity * initialAmounts[0]) / totalSupply;
+        initialAmounts[1] = (v2Liquidity * initialAmounts[1]) / totalSupply;
+
+        // Get sqrt prices for OLAS ATH and ATL
+        sqrtPriceX96ATH = uint160((FixedPointMathLib.sqrt(OLAS_ETH_ATH_PRICE) * (1 << 96)) / 1e9);
+        sqrtPriceX96ATL = uint160((FixedPointMathLib.sqrt(OLAS_ETH_ATL_PRICE) * (1 << 96)) / 1e9);
+
+        // Deploy BuyBackBurner
+        buyBackBurner = new BuyBackBurnerUniswap(address(liquidityManager), BURNER, TIMELOCK, ROUTER_V3);
+
+        // Deploy BBB proxy
+        address[] memory accounts = new address[](4);
+        accounts[0] = OLAS;
+        accounts[1] = WETH;
+        accounts[2] = address(oracleV2);
+        accounts[3] = ROUTER_V2;
+        uint256 maxBuyBackSlippage = 1000;
+        bytes memory payload = abi.encode(accounts, maxBuyBackSlippage);
+        initPayload = abi.encodeWithSignature("initialize(bytes)", payload);
+        BuyBackBurnerProxy buyBackBurnerProxy = new BuyBackBurnerProxy(address(buyBackBurner), initPayload);
+
+        // Wrap BBB implementation
+        buyBackBurner = BuyBackBurnerUniswap(payable(address(buyBackBurnerProxy)));
+
+        // Configure V3 pool for WETH (the secondToken on this fork)
+        address[] memory secondTokens = new address[](1);
+        secondTokens[0] = WETH;
+        address[] memory pools = new address[](1);
+        pools[0] = IFactory(FACTORY_V3).getPool(TOKENS[0], TOKENS[1], uint24(FEE_TIER));
+        buyBackBurner.setV3Pools(secondTokens, pools);
+
+        // Set V2 oracle mapping for WETH
+        address[] memory oraclesArr = new address[](1);
+        oraclesArr[0] = address(oracleV2);
+        buyBackBurner.setV2Oracles(secondTokens, oraclesArr);
+
+        // Set per-token max slippage for WETH
+        uint256[] memory slippages = new uint256[](1);
+        slippages[0] = 1000;
+        buyBackBurner.setMaxSlippages(secondTokens, slippages);
+
+        // Pre-warm the freshly-created V3 pool so checkPoolAndGetCenterPrice can produce a verifiable
+        // TWAP. Required now that the guard fails closed: convertToV3 reverts NotEnoughHistory on a
+        // brand-new / quiet pool. This mirrors the migration runbook (docs/liquidity_migration_runbook.md).
+        _warmUpV3Pool(pools[0]);
+    }
+
+    /// @dev Pre-warms a freshly-created V3 pool: bump the observation cardinality, seed real wide-range
+    ///      liquidity (a separate position that does not touch the LM's positionId map), and generate two
+    ///      observations spanning > SECONDS_AGO via small swaps with a warp in between. After this the
+    ///      pool exposes a SECONDS_AGO TWAP and the fail-closed guard passes.
+    function _warmUpV3Pool(address pool) internal {
+        // Grow the observation buffer
+        IUniswapV3(pool).increaseObservationCardinalityNext(observationCardinality);
+
+        // Seed real wide-range liquidity (token0 = OLAS < token1 = WETH by address)
+        int24 spacing = 60; // 0.3% fee tier
+        int24 lower = ((centerTick - 30000) / spacing) * spacing;
+        int24 upper = ((centerTick + 30000) / spacing) * spacing;
+        uint256 seedOlas = 100_000 ether;
+        uint256 seedWeth = 20 ether;
+        deal(OLAS, address(this), seedOlas);
+        deal(WETH, address(this), seedWeth);
+        IToken(OLAS).approve(POSITION_MANAGER_V3, seedOlas);
+        IToken(WETH).approve(POSITION_MANAGER_V3, seedWeth);
+        INPMMint(POSITION_MANAGER_V3).mint(
+            INPMMint.MintParams({
+                token0: OLAS,
+                token1: WETH,
+                fee: uint24(FEE_TIER),
+                tickLower: lower,
+                tickUpper: upper,
+                amount0Desired: seedOlas,
+                amount1Desired: seedWeth,
+                amount0Min: 0,
+                amount1Min: 0,
+                recipient: address(this),
+                deadline: block.timestamp
+            })
+        );
+
+        // Populate the observation window: an observation is only written when a swap changes the tick,
+        // so each swap must be large enough to cross ticks (a 0.01 WETH swap does, given the thin per-tick
+        // liquidity of the wide seed range). A quick up-then-back round trip at each end of the window
+        // keeps the price at the seed so the TWAP stays within the deviation band of slot0.
+        vm.warp(block.timestamp + 1);
+        _roundTrip();
+        vm.warp(block.timestamp + 1801);
+        _roundTrip();
+
+        // Sanity: the guard now returns a TWAP instead of reverting
+        liquidityManager.checkPoolAndGetCenterPrice(pool);
+    }
+
+    /// @dev A swap up then (next second) back, so two observations are written at distinct timestamps
+    ///      while the price ends near where it started.
+    function _roundTrip() internal {
+        uint256 olasOut = _swap(WETH, OLAS, 0.01 ether);
+        vm.warp(block.timestamp + 1);
+        _swap(OLAS, WETH, olasOut);
+    }
+
+    function _swap(address tokenIn, address tokenOut, uint256 amountIn) internal returns (uint256 amountOut) {
+        deal(tokenIn, address(this), amountIn);
+        IToken(tokenIn).approve(ROUTER_V3, amountIn);
+        amountOut = IRouterV3(ROUTER_V3).exactInputSingle(
+            IRouterV3.ExactInputSingleParams({
+                tokenIn: tokenIn,
+                tokenOut: tokenOut,
+                fee: uint24(FEE_TIER),
+                recipient: address(this),
+                amountIn: amountIn,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            })
+        );
+    }
+}
+
+contract LiquidityManagerUniV2UniV3Test is BaseSetup {
+    function setUp() public override {
+        super.setUp();
+    }
+
+    /// @dev Converts V2 pool into V3 with full amount (no OLAS burnt) and optimized ticks scan.
+    function testConvertToV3FullScan() public {
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = -27000;
+        tickShifts[1] = 17000;
+        uint16 olasBurnRate = 0;
+        bool scan = true;
+
+        (, , uint256[] memory amountsOut) =
+            liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+
+        // scan = ticks are optimized, deviation must respect DELTA
+        for (uint256 i = 0; i < 2; ++i) {
+            // initialAmounts[i] is always >= amountsOut[i]
+            uint256 deviation = FixedPointMathLib.divWadDown((initialAmounts[i] - amountsOut[i]), amountsOut[i]);
+            require(deviation <= DELTA, "Price deviation too high");
+        }
+    }
+
+    /// @dev Converts V2 pool into V3 with 95% amount (5% of OLAS burn, 5% of WETH transferred) and optimized ticks scan.
+    function testConvertToV3Conversion95Scan() public {
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = -25000;
+        tickShifts[1] = 15000;
+        uint16 olasBurnRate = 500;
+        bool scan = true;
+
+        // Adjust initial amounts due to OLAS burn rate
+        initialAmounts[0] = initialAmounts[0] - (initialAmounts[0] * olasBurnRate) / MAX_BPS;
+        uint256 wethAmount = (initialAmounts[1] * olasBurnRate) / MAX_BPS;
+        initialAmounts[1] = initialAmounts[1] - wethAmount;
+
+        (, , uint256[] memory amountsOut) =
+            liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+
+        // scan = ticks are optimized, deviation must respect DELTA
+        for (uint256 i = 0; i < 2; ++i) {
+            // initialAmounts[i] is always >= amountsOut[i]
+            uint256 deviation = FixedPointMathLib.divWadDown((initialAmounts[i] - amountsOut[i]), amountsOut[i]);
+            require(deviation <= DELTA, "Price deviation too high");
+        }
+
+        uint256 dust = initialAmounts[1] - amountsOut[1];
+        wethAmount += dust;
+        // Allow small absolute tolerance for V2 _mintFee dilution at burn time (protocol fee mints
+        // additional LP to feeTo before computing the user's share, so the LM receives marginally
+        // less than (v2Liquidity * reserves) / totalSupply pre-burn)
+        uint256 timelockWeth = IToken(WETH).balanceOf(TIMELOCK);
+        uint256 timelockWethDiff = timelockWeth > wethAmount ? timelockWeth - wethAmount : wethAmount - timelockWeth;
+        require(timelockWethDiff <= wethAmount / 50, "WETH transfer was not complete");
+    }
+
+    /// @dev Converts V2 pool into V3 with 50% amount (50% of OLAS burn, 50% of WETH transferred) and optimized ticks scan.
+    function testConvertToV3Conversion50Scan() public {
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = -25000;
+        tickShifts[1] = 15000;
+        uint16 olasBurnRate = 5000;
+        bool scan = true;
+
+        // Adjust initial amounts due to OLAS burn rate
+        initialAmounts[0] = initialAmounts[0] - (initialAmounts[0] * olasBurnRate) / MAX_BPS;
+        uint256 wethAmount = (initialAmounts[1] * olasBurnRate) / MAX_BPS;
+        initialAmounts[1] = initialAmounts[1] - wethAmount;
+
+        (, , uint256[] memory amountsOut) =
+            liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+
+        // scan = ticks are optimized, deviation must respect DELTA
+        for (uint256 i = 0; i < 2; ++i) {
+            // initialAmounts[i] is always >= amountsOut[i]
+            uint256 deviation = FixedPointMathLib.divWadDown((initialAmounts[i] - amountsOut[i]), amountsOut[i]);
+            require(deviation <= DELTA, "Price deviation too high");
+        }
+
+        uint256 dust = initialAmounts[1] - amountsOut[1];
+        wethAmount += dust;
+        // Allow small absolute tolerance for V2 _mintFee dilution at burn time (protocol fee mints
+        // additional LP to feeTo before computing the user's share, so the LM receives marginally
+        // less than (v2Liquidity * reserves) / totalSupply pre-burn)
+        uint256 timelockWeth = IToken(WETH).balanceOf(TIMELOCK);
+        uint256 timelockWethDiff = timelockWeth > wethAmount ? timelockWeth - wethAmount : wethAmount - timelockWeth;
+        require(timelockWethDiff <= wethAmount / 50, "WETH transfer was not complete");
+    }
+
+    /// @dev Converts V2 pool into V3 with 50% amount and optimized ticks scan with tick shifts to OLAS ATH and ATL.
+    function testConvertToV3Conversion50ScanATHATL() public {
+        int24 atlTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96ATL);
+        require(centerTick > atlTick, "Center tick must be lower than ATL tick");
+
+        int24 athTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96ATH);
+        require(athTick > centerTick, "ATH tick must be lower than center tick");
+
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = atlTick - centerTick;
+        tickShifts[1] = athTick - centerTick;
+
+        uint16 olasBurnRate = 5000;
+        bool scan = true;
+
+        // Adjust initial amounts due to OLAS burn rate
+        initialAmounts[0] = initialAmounts[0] - (initialAmounts[0] * olasBurnRate) / MAX_BPS;
+        uint256 wethAmount = (initialAmounts[1] * olasBurnRate) / MAX_BPS;
+        initialAmounts[1] = initialAmounts[1] - wethAmount;
+
+        (, , uint256[] memory amountsOut) =
+            liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+
+        // scan = ticks are optimized, deviation must respect DELTA
+        for (uint256 i = 0; i < 2; ++i) {
+            // initialAmounts[i] is always >= amountsOut[i]
+            uint256 deviation = FixedPointMathLib.divWadDown((initialAmounts[i] - amountsOut[i]), amountsOut[i]);
+            require(deviation <= DELTA, "Price deviation too high");
+        }
+
+        uint256 dust = initialAmounts[1] - amountsOut[1];
+        wethAmount += dust;
+        // Allow small absolute tolerance for V2 _mintFee dilution at burn time (protocol fee mints
+        // additional LP to feeTo before computing the user's share, so the LM receives marginally
+        // less than (v2Liquidity * reserves) / totalSupply pre-burn)
+        uint256 timelockWeth = IToken(WETH).balanceOf(TIMELOCK);
+        uint256 timelockWethDiff = timelockWeth > wethAmount ? timelockWeth - wethAmount : wethAmount - timelockWeth;
+        require(timelockWethDiff <= wethAmount / 50, "WETH transfer was not complete");
+    }
+
+    /// @dev Converts V2 pool into V3 with 50% amount and optimized ticks scan with tick shifts to OLAS ATH / 2 and ATL / 2.
+    function testConvertToV3Conversion50ScanATHATLDiv2() public {
+        // Adjust sqrt prices with ATH / 2 and ATL / 2
+        sqrtPriceX96ATH = uint160((FixedPointMathLib.sqrt(OLAS_ETH_ATH_PRICE / 2) * (1 << 96)) / 1e9);
+        sqrtPriceX96ATL = uint160((FixedPointMathLib.sqrt(OLAS_ETH_ATL_PRICE / 2) * (1 << 96)) / 1e9);
+
+        int24 atlTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96ATL);
+        require(centerTick > atlTick, "Center tick must be lower than ATL tick");
+
+        int24 athTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96ATH);
+        require(athTick > centerTick, "ATH tick must be lower than center tick");
+
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = atlTick - centerTick;
+        tickShifts[1] = athTick - centerTick;
+
+        uint16 olasBurnRate = 5000;
+        bool scan = true;
+
+        // Adjust initial amounts due to OLAS burn rate
+        initialAmounts[0] = initialAmounts[0] - (initialAmounts[0] * olasBurnRate) / MAX_BPS;
+        uint256 wethAmount = (initialAmounts[1] * olasBurnRate) / MAX_BPS;
+        initialAmounts[1] = initialAmounts[1] - wethAmount;
+
+        (, , uint256[] memory amountsOut) =
+            liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+
+        // scan = ticks are optimized, deviation must respect DELTA
+        for (uint256 i = 0; i < 2; ++i) {
+            // initialAmounts[i] is always >= amountsOut[i]
+            uint256 deviation = FixedPointMathLib.divWadDown((initialAmounts[i] - amountsOut[i]), amountsOut[i]);
+            require(deviation <= DELTA, "Price deviation too high");
+        }
+
+        uint256 dust = initialAmounts[1] - amountsOut[1];
+        wethAmount += dust;
+        // Allow small absolute tolerance for V2 _mintFee dilution at burn time (protocol fee mints
+        // additional LP to feeTo before computing the user's share, so the LM receives marginally
+        // less than (v2Liquidity * reserves) / totalSupply pre-burn)
+        uint256 timelockWeth = IToken(WETH).balanceOf(TIMELOCK);
+        uint256 timelockWethDiff = timelockWeth > wethAmount ? timelockWeth - wethAmount : wethAmount - timelockWeth;
+        require(timelockWethDiff <= wethAmount / 50, "WETH transfer was not complete");
+    }
+
+    /// @dev Converts V2 pool into V3 with 50% amount and optimized ticks scan with tick shifts to OLAS ATH / 2 and ATL * 2.
+    function testConvertToV3Conversion50ScanATHDiv2ATLMul2() public {
+        // Adjust sqrt prices with ATH / 2 and ATL / 2
+        sqrtPriceX96ATH = uint160((FixedPointMathLib.sqrt(OLAS_ETH_ATH_PRICE / 2) * (1 << 96)) / 1e9);
+        sqrtPriceX96ATL = uint160((FixedPointMathLib.sqrt(OLAS_ETH_ATL_PRICE * 2) * (1 << 96)) / 1e9);
+
+        int24 atlTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96ATL);
+        require(centerTick > atlTick, "Center tick must be lower than ATL tick");
+
+        int24 athTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96ATH);
+        require(athTick > centerTick, "ATH tick must be lower than center tick");
+
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = atlTick - centerTick;
+        tickShifts[1] = athTick - centerTick;
+
+        uint16 olasBurnRate = 5000;
+        bool scan = true;
+
+        // Adjust initial amounts due to OLAS burn rate
+        initialAmounts[0] = initialAmounts[0] - (initialAmounts[0] * olasBurnRate) / MAX_BPS;
+        uint256 wethAmount = (initialAmounts[1] * olasBurnRate) / MAX_BPS;
+        initialAmounts[1] = initialAmounts[1] - wethAmount;
+
+        (, , uint256[] memory amountsOut) =
+            liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+
+        // scan = ticks are optimized, deviation must respect DELTA
+        for (uint256 i = 0; i < 2; ++i) {
+            // initialAmounts[i] is always >= amountsOut[i]
+            uint256 deviation = FixedPointMathLib.divWadDown((initialAmounts[i] - amountsOut[i]), amountsOut[i]);
+            require(deviation <= DELTA, "Price deviation too high");
+        }
+
+        uint256 dust = initialAmounts[1] - amountsOut[1];
+        wethAmount += dust;
+        // Allow small absolute tolerance for V2 _mintFee dilution at burn time (protocol fee mints
+        // additional LP to feeTo before computing the user's share, so the LM receives marginally
+        // less than (v2Liquidity * reserves) / totalSupply pre-burn)
+        uint256 timelockWeth = IToken(WETH).balanceOf(TIMELOCK);
+        uint256 timelockWethDiff = timelockWeth > wethAmount ? timelockWeth - wethAmount : wethAmount - timelockWeth;
+        require(timelockWethDiff <= wethAmount / 50, "WETH transfer was not complete");
+    }
+
+    /// @dev Converts V2 pool into V3 with 50% amount WITHOUT optimized ticks scan with tick shifts to OLAS ATH and ATL.
+    function testConvertToV3Conversion50NoScanATHATL() public {
+        int24 atlTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96ATL);
+        require(centerTick > atlTick, "Center tick must be lower than ATL tick");
+
+        int24 athTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96ATH);
+        require(athTick > centerTick, "ATH tick must be lower than center tick");
+
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = atlTick - centerTick;
+        tickShifts[1] = athTick - centerTick;
+
+        uint16 olasBurnRate = 5000;
+        bool scan = false;
+
+        liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+    }
+
+    /// @dev Converts V2 pool into V3 with 50% amount WITHOUT optimized ticks scan with tick shifts to OLAS ATH / 2 and ATL / 2.
+    function testConvertToV3Conversion50NoScanATHATLDiv2() public {
+        // Adjust sqrt prices with ATH / 2 and ATL / 2
+        sqrtPriceX96ATH = uint160((FixedPointMathLib.sqrt(OLAS_ETH_ATH_PRICE / 2) * (1 << 96)) / 1e9);
+        sqrtPriceX96ATL = uint160((FixedPointMathLib.sqrt(OLAS_ETH_ATL_PRICE / 2) * (1 << 96)) / 1e9);
+
+        int24 atlTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96ATL);
+        require(centerTick > atlTick, "Center tick must be lower than ATL tick");
+
+        int24 athTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96ATH);
+        require(athTick > centerTick, "ATH tick must be lower than center tick");
+
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = atlTick - centerTick;
+        tickShifts[1] = athTick - centerTick;
+
+        uint16 olasBurnRate = 5000;
+        bool scan = false;
+
+        liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+    }
+
+    /// @dev Converts V2 pool into V3 with 50% amount WITHOUT optimized ticks scan with tick shifts to OLAS ATH / 2 and ATL * 2.
+    function testConvertToV3Conversion50NoScanATHDiv2ATLMul2() public {
+        // Adjust sqrt prices with ATH / 2 and ATL / 2
+        sqrtPriceX96ATH = uint160((FixedPointMathLib.sqrt(OLAS_ETH_ATH_PRICE / 2) * (1 << 96)) / 1e9);
+        sqrtPriceX96ATL = uint160((FixedPointMathLib.sqrt(OLAS_ETH_ATL_PRICE * 2) * (1 << 96)) / 1e9);
+
+        int24 atlTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96ATL);
+        require(centerTick > atlTick, "Center tick must be lower than ATL tick");
+
+        int24 athTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96ATH);
+        require(athTick > centerTick, "ATH tick must be lower than center tick");
+
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = atlTick - centerTick;
+        tickShifts[1] = athTick - centerTick;
+
+        uint16 olasBurnRate = 5000;
+        bool scan = false;
+
+        liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+    }
+
+    /// @dev Converts V2 pool into V3 with 100% amount and optimized ticks scan with tick shifts to OLAS ATH and ATL.
+    ///      Provides swap of OLAS to WETH in estimated at least $10k.
+    function testConvertToV3ScanSwapFront10kATHATL() public {
+        int24 atlTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96ATL);
+        require(centerTick > atlTick, "Center tick must be lower than ATL tick");
+
+        int24 athTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96ATH);
+        require(athTick > centerTick, "ATH tick must be lower than center tick");
+
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = atlTick - centerTick;
+        tickShifts[1] = athTick - centerTick;
+
+        uint16 olasBurnRate = 0;
+        bool scan = true;
+
+        // Convert to V3
+        (, uint256 liquidity,) =
+            liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+
+        // Get pool address
+        address pool = IFactory(FACTORY_V3).getPool(TOKENS[0], TOKENS[1], uint24(FEE_TIER));
+
+        // Get slot0 before swap
+        (uint160 sqrtPBefore,,,,,,) = IUniswapV3(pool).slot0();
+
+        // Get full price before
+        uint256 priceBeforeX96 = FullMath.mulDiv(sqrtPBefore, sqrtPBefore, FixedPoint96.Q96);
+        uint256 priceBefore = FullMath.mulDiv(priceBeforeX96, 1e18, FixedPoint96.Q96);
+
+        // Get OLAS tokens
+        uint256 olasAmountToSwap = 65_189 ether;
+        deal(OLAS, address(this), olasAmountToSwap);
+
+        IToken(OLAS).approve(ROUTER_V3, olasAmountToSwap);
+
+        IRouterV3.ExactInputSingleParams memory params = IRouterV3.ExactInputSingleParams({
+            tokenIn: OLAS,
+            tokenOut: WETH,
+            fee: uint24(FEE_TIER),
+            recipient: address(this),
+            amountIn: olasAmountToSwap,
+            amountOutMinimum: 1,
+            sqrtPriceLimitX96: 0
+        });
+
+        // Swap tokens
+        uint256 wethOut = IRouterV3(ROUTER_V3).exactInputSingle(params);
+
+        // Get slot0 after swap
+        (uint160 sqrtPAfter,,,,,,) = IUniswapV3(pool).slot0();
+
+        // Get full price before
+        uint256 priceAfterX96 = FullMath.mulDiv(sqrtPAfter, sqrtPAfter, FixedPoint96.Q96);
+        uint256 priceAfter = FullMath.mulDiv(priceAfterX96, 1e18, FixedPoint96.Q96);
+
+        uint256 priceAverage = FullMath.mulDiv(wethOut, 1e18, olasAmountToSwap);
+
+        uint256 priceImpact;
+        if (priceAfterX96 > priceBeforeX96) {
+            priceImpact = ((priceAfterX96 - priceBeforeX96) * 1e18) / priceBeforeX96;
+        } else {
+            priceImpact = ((priceBeforeX96 - priceAfterX96) * 1e18) / priceBeforeX96;
+        }
+
+        uint256 slippage;
+        if (priceAverage > priceBefore) {
+            slippage = ((priceAverage - priceBefore) * 1e18) / priceBefore;
+        } else {
+            slippage = ((priceBefore - priceAverage) * 1e18) / priceBefore;
+        }
+
+        console.log("OLAS in (wei):", olasAmountToSwap);
+        console.log("OLAS in (ETH):", olasAmountToSwap / 1 ether);
+        console.log("WETH out (wei):", wethOut);
+        console.log("WETH out (ETH):", wethOut / 1 ether);
+        console.log("Liquidity:", liquidity);
+        console.log("Sqrt price before:", sqrtPBefore);
+        console.log("Price before X96 (price * 2^96):", priceBeforeX96);
+        console.log("Price before (price * 1e18):", priceBefore);
+        console.log("Sqrt price after:", sqrtPAfter);
+        console.log("Price after X96 (price * 2^96):", priceAfterX96);
+        console.log("Price after (price * 1e18):", priceAfter);
+        console.log("Price average:", priceAverage);
+        console.log("Price impact (wei):", priceImpact);
+        console.log("Price impact (bps: 100% = 10_000, 1% = 100):", (MAX_BPS * priceImpact) / 1 ether);
+        console.log("Slippage (wei):", slippage);
+        console.log("Slippage (bps: 100% = 10_000, 1% = 100):", (MAX_BPS * slippage) / 1 ether);
+    }
+
+    /// @dev Converts V2 pool into V3 with 100% amount and optimized ticks scan with tick shifts to OLAS ATH and ATL.
+    ///      Provides swap of WETH to OLAS of estimated at least $10k.
+    function testConvertToV3ScanSwapBack10kATHATL() public {
+        int24 atlTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96ATL);
+        require(centerTick > atlTick, "Center tick must be lower than ATL tick");
+
+        int24 athTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96ATH);
+        require(athTick > centerTick, "ATH tick must be lower than center tick");
+
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = atlTick - centerTick;
+        tickShifts[1] = athTick - centerTick;
+
+        uint16 olasBurnRate = 0;
+        bool scan = true;
+
+        // Convert to V3
+        (, uint256 liquidity,) =
+            liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+
+        // Get pool address
+        address pool = IFactory(FACTORY_V3).getPool(TOKENS[0], TOKENS[1], uint24(FEE_TIER));
+
+        // Get slot0 before swap
+        (uint160 sqrtPBefore,,,,,,) = IUniswapV3(pool).slot0();
+
+        // Get full price before
+        uint256 priceBeforeX96 = FullMath.mulDiv(sqrtPBefore, sqrtPBefore, FixedPoint96.Q96);
+        uint256 priceBefore = FullMath.mulDiv(priceBeforeX96, 1e18, FixedPoint96.Q96);
+
+        // Get WETH tokens
+        uint256 wethAmountToSwap = 2.56 ether;
+        deal(WETH, address(this), wethAmountToSwap);
+
+        IToken(WETH).approve(ROUTER_V3, wethAmountToSwap);
+
+        IRouterV3.ExactInputSingleParams memory params = IRouterV3.ExactInputSingleParams({
+            tokenIn: WETH,
+            tokenOut: OLAS,
+            fee: uint24(FEE_TIER),
+            recipient: address(this),
+            amountIn: wethAmountToSwap,
+            amountOutMinimum: 1,
+            sqrtPriceLimitX96: 0
+        });
+
+        // Swap tokens
+        uint256 olasOut = IRouterV3(ROUTER_V3).exactInputSingle(params);
+
+        // Get slot0 after swap
+        (uint160 sqrtPAfter,,,,,,) = IUniswapV3(pool).slot0();
+
+        // Get full price before
+        uint256 priceAfterX96 = FullMath.mulDiv(sqrtPAfter, sqrtPAfter, FixedPoint96.Q96);
+        uint256 priceAfter = FullMath.mulDiv(priceAfterX96, 1e18, FixedPoint96.Q96);
+
+        uint256 priceAverage = FullMath.mulDiv(wethAmountToSwap, 1e18, olasOut);
+
+        uint256 priceImpact;
+        if (priceAfterX96 > priceBeforeX96) {
+            priceImpact = ((priceAfterX96 - priceBeforeX96) * 1e18) / priceBeforeX96;
+        } else {
+            priceImpact = ((priceBeforeX96 - priceAfterX96) * 1e18) / priceBeforeX96;
+        }
+
+        uint256 slippage;
+        if (priceAverage > priceBefore) {
+            slippage = ((priceAverage - priceBefore) * 1e18) / priceBefore;
+        } else {
+            slippage = ((priceBefore - priceAverage) * 1e18) / priceBefore;
+        }
+
+        console.log("WETH in (wei):", wethAmountToSwap);
+        console.log("WETH in (ETH):", wethAmountToSwap / 1 ether);
+        console.log("OLAS out (wei):", olasOut);
+        console.log("OLAS out (ETH):", olasOut / 1 ether);
+        console.log("Liquidity:", liquidity);
+        console.log("Sqrt price before:", sqrtPBefore);
+        console.log("Price before X96 (price * 2^96):", priceBeforeX96);
+        console.log("Price before (price * 1e18):", priceBefore);
+        console.log("Sqrt price after:", sqrtPAfter);
+        console.log("Price after X96 (price * 2^96):", priceAfterX96);
+        console.log("Price after (price * 1e18):", priceAfter);
+        console.log("Price average:", priceAverage);
+        console.log("Price impact (wei):", priceImpact);
+        console.log("Price impact (bps: 100% = 10_000, 1% = 100):", (MAX_BPS * priceImpact) / 1 ether);
+        console.log("Slippage (wei):", slippage);
+        console.log("Slippage (bps: 100% = 10_000, 1% = 100):", (MAX_BPS * slippage) / 1 ether);
+    }
+
+    /// @dev Converts V2 pool into V3 with full amount (no OLAS burnt) and NO optimized ticks scan.
+    function testConvertToV3FullNoScan() public {
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = -27000;
+        tickShifts[1] = 17000;
+        uint16 olasBurnRate = 0;
+        bool scan = false;
+
+        (, , uint256[] memory amountsOut) =
+            liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+
+        // No scan = ticks are not optimized, deviation might not respect DELTA
+        for (uint256 i = 0; i < 2; ++i) {
+            // initialAmounts[i] is always >= amountsOut[i]
+            uint256 deviation = FixedPointMathLib.divWadDown((initialAmounts[i] - amountsOut[i]), amountsOut[i]);
+            // Increase DELTA by a factor of 50
+            require(deviation <= DELTA * 50, "Price deviation too high");
+        }
+    }
+
+    /// @dev Converts V2 pool into V3 with 95% amount (5% of OLAS burn, 5% of WETH transferred) and optimized ticks scan,
+    ///      then decrease liquidity and reposition to new ticks.
+    function testConvertToV3Conversion95ScanDecreaseLiquidityReposition() public {
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = -25000;
+        tickShifts[1] = 15000;
+        uint16 olasBurnRate = 1000;
+        bool scan = true;
+
+        // Adjust initial amounts due to OLAS burn rate
+        initialAmounts[0] = initialAmounts[0] - (initialAmounts[0] * olasBurnRate) / MAX_BPS;
+        initialAmounts[1] = initialAmounts[1] - (initialAmounts[1] * olasBurnRate) / MAX_BPS;
+        //console.log("Initial amounts[0]", initialAmounts[0]);
+        //console.log("Initial amounts[1]", initialAmounts[1]);
+
+        // Convert V2 to V3
+        (uint256 positionId, , uint256[] memory amountsOut) =
+            liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+
+
+        // Decrease liquidity
+        olasBurnRate = 500;
+        uint16 decreaseRate = 1000;
+        uint256[] memory decreaseAmounts = new uint256[](2);
+        // Since we decreased - decreaseAmountsOut must be <= decreaseAmounts
+        decreaseAmounts[0] = (amountsOut[0] * decreaseRate) / MAX_BPS;
+        decreaseAmounts[1] = (amountsOut[1] * decreaseRate) / MAX_BPS;
+        //console.log("Initial DECREASE amounts[0]", decreaseAmounts[0]);
+        //console.log("Initial DECREASE amounts[1]", decreaseAmounts[1]);
+
+        (, , uint256[] memory decreaseAmountsOut) =
+            liquidityManager.decreaseLiquidity(TOKENS, FEE_TIER, decreaseRate, olasBurnRate);
+        //console.log("DECREASE amountsOut[0]", decreaseAmountsOut[0]);
+        //console.log("DECREASE amountsOut[1]", decreaseAmountsOut[1]);
+
+        for (uint256 i = 0; i < 2; ++i) {
+            // initialAmounts[i] is always >= amountsOut[i]
+            uint256 deviation = FixedPointMathLib.divWadDown((decreaseAmounts[i] - decreaseAmountsOut[i]), decreaseAmountsOut[i]);
+            require(deviation <= DELTA, "Price deviation too high");
+        }
+
+
+        // Change ranges
+        initialAmounts[0] -= decreaseAmounts[0];
+        initialAmounts[1] -= decreaseAmounts[1];
+
+        tickShifts[0] = -40000;
+        tickShifts[1] = 35000;
+        uint256 newPositionId;
+        (newPositionId, , amountsOut) = liquidityManager.changeRanges(TOKENS, FEE_TIER, tickShifts, scan);
+        require(newPositionId != positionId, "Positions must be different");
+
+        // scan = ticks are optimized, deviation must respect DELTA
+        for (uint256 i = 0; i < 2; ++i) {
+            // initialAmounts[i] is always >= amountsOut[i]
+            uint256 deviation = FixedPointMathLib.divWadDown((initialAmounts[i] - amountsOut[i]), amountsOut[i]);
+            require(deviation <= DELTA, "Price deviation too high");
+        }
+    }
+
+    /// @dev Full maintenance lifecycle under the fail-closed price guard: convert V2->V3 (95%, scan),
+    ///      generate real fees via a price-neutral round-trip, collect them, reconvert, increase liquidity,
+    ///      and perform a V3 buyBack.
+    /// @notice Fees are generated by a round-trip swap (OLAS->WETH then the WETH straight back) rather than a
+    ///         one-way drain: both legs accrue fees on the LM position, but slot0 returns to ~the pre-warmed
+    ///         TWAP, so the downstream entry ops (reconvert / increaseLiquidity / buyBack) satisfy the
+    ///         deviation gate. A one-way 10% drain would move slot0 >MAX_ALLOWED_DEVIATION and the guard would
+    ///         (rightly) reject the re-add — that refusal is covered by
+    ///         testCheckPoolAndGetCenterPrice_FlashManipulationReverts and the price-guard regression suite
+    ///         (I3). The 0.3% pool is pre-warmed in setUp, so the buyBack uses the TWAP-anchored quote (the
+    ///         slot0 fallback this test previously relied on was removed by the fix). Mirrored in the Base suite.
+    function testConvertToV3Conversion95ScanCollectFees() public {
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = -25000;
+        tickShifts[1] = 15000;
+        uint16 olasBurnRate = 500;
+        bool scan = true;
+
+        // Adjust initial amounts due to OLAS burn rate
+        initialAmounts[0] = initialAmounts[0] - (initialAmounts[0] * olasBurnRate) / MAX_BPS;
+        initialAmounts[1] = initialAmounts[1] - (initialAmounts[1] * olasBurnRate) / MAX_BPS;
+
+        // Convert V2 to V3
+        (, , uint256[] memory amountsOut) =
+            liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+
+        uint256 olasAmountToSwap = initialAmounts[0] / 10;
+        // Fund deployer with OLAS
+        deal(OLAS, deployer, olasAmountToSwap);
+
+        // Approve tokens
+        vm.startPrank(deployer);
+        IToken(OLAS).approve(ROUTER_V3, olasAmountToSwap);
+
+        // Leg 1: swap OLAS -> WETH (accrues OLAS-side fees on the LM position, moves slot0)
+        uint256 wethOut = IRouterV3(ROUTER_V3).exactInputSingle(
+            IRouterV3.ExactInputSingleParams({
+                tokenIn: OLAS,
+                tokenOut: WETH,
+                fee: uint24(FEE_TIER),
+                recipient: deployer,
+                amountIn: olasAmountToSwap,
+                amountOutMinimum: 1,
+                sqrtPriceLimitX96: 0
+            })
+        );
+
+        // Leg 2: swap the WETH straight back to OLAS, restoring slot0 to ~its starting value (fees already
+        // accrued on both legs). This keeps the price within the deviation gate for the entry ops below.
+        IToken(WETH).approve(ROUTER_V3, wethOut);
+        IRouterV3(ROUTER_V3).exactInputSingle(
+            IRouterV3.ExactInputSingleParams({
+                tokenIn: WETH,
+                tokenOut: OLAS,
+                fee: uint24(FEE_TIER),
+                recipient: deployer,
+                amountIn: wethOut,
+                amountOutMinimum: 1,
+                sqrtPriceLimitX96: 0
+            })
+        );
+        vm.stopPrank();
+
+        // Collect fees
+        amountsOut = liquidityManager.collectFees(TOKENS, FEE_TIER);
+        // OLAS collected fee must be > 0
+        require(amountsOut[0] > 0);
+
+        // Fund LiquidityManager with OLAS and WETH
+        deal(OLAS, address(liquidityManager), olasAmountToSwap);
+        deal(WETH, address(liquidityManager), wethOut);
+
+        // Convert to V3 again without a pair
+        (, , amountsOut) =
+            liquidityManager.convertToV3(TOKENS, 0, FEE_TIER, tickShifts, olasBurnRate, scan);
+
+        // Fund more LiquidityManager with OLAS and WETH
+        deal(OLAS, address(liquidityManager), olasAmountToSwap);
+        deal(WETH, address(liquidityManager), wethOut);
+
+        // Increase liquidity
+        (, , amountsOut) = liquidityManager.increaseLiquidity(TOKENS, FEE_TIER, olasBurnRate);
+
+        // Fund BBB with WETH and perform a V3 buyBack on the already-whitelisted, deep-liquidity 0.3% V3
+        // pool (pre-warmed in setUp). Under the fix the V3 guard requires a verifiable TWAP and prices the
+        // buyBack off it — no slot0 fallback — so this exercises the TWAP-anchored buyBack end to end.
+        deal(WETH, address(buyBackBurner), 0.5 ether);
+        buyBackBurner.buyBack(WETH, 0.5 ether, 0);
+    }
+
+    /// @dev T2: a freshly-created, un-warmed pool has no verifiable TWAP → the first convertToV3 seed
+    ///      fails closed with NotEnoughHistory. (setUp only pre-warms the 0.3% pool; the 1% pool here is
+    ///      brand new.) This is the fail-open the fix removes: the seed can no longer mint at slot0.
+    function testConvertToV3_freshPool_revertsNotEnoughHistory() public {
+        // Create a fresh, un-warmed 1% pool at the same price
+        uint24 freshFee = 10000;
+        IUniswapV3(POSITION_MANAGER_V3).createAndInitializePoolIfNecessary(OLAS, WETH, freshFee, sqrtPriceX96);
+        address freshPool = IFactory(FACTORY_V3).getPool(OLAS, WETH, freshFee);
+
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = -27000;
+        tickShifts[1] = 17000;
+
+        vm.expectRevert(abi.encodeWithSelector(NotEnoughHistory.selector, freshPool));
+        liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, int24(uint24(freshFee)), tickShifts, 0, true);
+    }
+
+    /// @dev T9: changeRanges consumes the guard's price to re-mint. Once the seeded pool goes inactive
+    ///      (> SECONDS_AGO without a trade) it fails closed with NotEnoughHistory rather than repricing
+    ///      against a stale slot0. A subsequent swap would repopulate the buffer and unstick it.
+    function testChangeRanges_inactivePool_revertsNotEnoughHistory() public {
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = -27000;
+        tickShifts[1] = 17000;
+
+        // Seed a position on the warmed pool
+        liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, 0, true);
+        address pool = IFactory(FACTORY_V3).getPool(OLAS, WETH, uint24(FEE_TIER));
+
+        // Let the pool go quiet beyond the TWAP window
+        vm.warp(block.timestamp + 1801);
+
+        vm.expectRevert(abi.encodeWithSelector(NotEnoughHistory.selector, pool));
+        liquidityManager.changeRanges(TOKENS, FEE_TIER, tickShifts, true);
+    }
+
+    /// @dev checkPoolAndGetCenterPrice must fail closed (not fall open to slot0) when observe()
+    ///      reverts on a pool that claims rich history (cardinality >= 2). Uses the mainnet
+    ///      USDC/WETH 0.3% V3 pool as a known-mature pool and `vm.mockCallRevert` to force
+    ///      observe() to revert; asserts the `NotEnoughHistory(pool)` error propagates
+    ///      instead of the fail-open slot0 fallback.
+    function testCheckPoolAndGetCenterPrice_RevertsOnObserveRevertForkOverlay() public {
+        // Well-known mature V3 pool with cardinality ~15k+ on mainnet.
+        address maturePool = 0x8ad599c3A0ff1De082011EFDDc58f1908eb6e6D8; // USDC/WETH 0.3%
+
+        // Overlay observe(uint32[]) on the pool so any getTWAP attempt reverts.
+        bytes memory observeSelector = abi.encodeWithSelector(bytes4(keccak256("observe(uint32[])")));
+        vm.mockCallRevert(maturePool, observeSelector, "OLD");
+
+        vm.expectRevert(abi.encodeWithSelector(NotEnoughHistory.selector, maturePool));
+        liquidityManager.checkPoolAndGetCenterPrice(maturePool);
+    }
+
+    /// @dev H-02 positive path: V3 buyBack with TWAP-derived amountOutMinimum (mapTokenMaxSlippages honored).
+    ///      Converts V2 → V3 to produce a pool with real OLAS liquidity, then swaps WETH → OLAS via
+    ///      BuyBackBurner.buyBack(WETH, amount, FEE_TIER) and asserts OLAS lands at the burner.
+    function testV3BuyBackWithTwapSlippage() public {
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = -27000;
+        tickShifts[1] = 17000;
+
+        liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, 0, true);
+
+        uint256 burnerBefore = IToken(OLAS).balanceOf(BURNER);
+
+        deal(WETH, address(buyBackBurner), 0.1 ether);
+        buyBackBurner.buyBack(WETH, 0.1 ether, 0);
+
+        uint256 received = IToken(OLAS).balanceOf(BURNER) - burnerBefore;
+        assertGt(received, 0, "V3 buyBack should deliver OLAS to burner");
+    }
+
+    /// @dev H-02 negative path: tightening slippage to 1 bps forces the router to revert on realized output
+    ///      (no real V3 swap can hit ±0.01% of a TWAP-derived quote once fees are paid).
+    function testV3BuyBackRevertsOnTightSlippage() public {
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = -27000;
+        tickShifts[1] = 17000;
+
+        liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, 0, true);
+
+        // Drop per-token slippage to 1 bps
+        address[] memory tokens = new address[](1);
+        tokens[0] = WETH;
+        uint256[] memory slippages = new uint256[](1);
+        slippages[0] = 1;
+        buyBackBurner.setMaxSlippages(tokens, slippages);
+
+        deal(WETH, address(buyBackBurner), 0.1 ether);
+
+        vm.expectRevert();
+        buyBackBurner.buyBack(WETH, 0.1 ether, 0);
+    }
+
+    /// @dev Converts V2 pool into V3 with full amount (no OLAS burnt) and optimized ticks scan, transfers position.
+    function testConvertToV3FullScanTransferPosition() public {
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = -27000;
+        tickShifts[1] = 17000;
+        uint16 olasBurnRate = 0;
+        bool scan = true;
+
+        liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+
+        liquidityManager.transferPositionId(TOKENS, FEE_TIER, TIMELOCK);
+    }
+
+    /// @dev Error scenarios.
+    function testConvertToV3Errors() public {
+        int24[] memory tickShifts = new int24[](2);
+        uint16 olasBurnRate = 0;
+        bool scan = true;
+
+        // Tick shifts cause same entry prices
+        vm.expectRevert();
+        liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+
+        tickShifts[0] = -27000;
+        tickShifts[1] = 17000;
+
+        // No tokens are available
+        vm.expectRevert();
+        liquidityManager.convertToV3(TOKENS, 0, FEE_TIER, tickShifts, olasBurnRate, scan);
+
+        // OLAS burn rate is too high
+        vm.expectRevert();
+        liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, 10_001, scan);
+
+        // Pool does not exist
+        vm.expectRevert();
+        liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, 10, tickShifts, olasBurnRate, scan);
+
+        // Decrease rate is zero
+        vm.expectRevert();
+        liquidityManager.decreaseLiquidity(TOKENS, FEE_TIER, 0, olasBurnRate);
+
+        // Decrease rate is too big
+        vm.expectRevert();
+        liquidityManager.decreaseLiquidity(TOKENS, FEE_TIER, 10_001, olasBurnRate);
+
+        uint16 decreaseRate = 1_000;
+        // OLAS burn rate is too big
+        vm.expectRevert();
+        liquidityManager.decreaseLiquidity(TOKENS, FEE_TIER, decreaseRate, 10_001);
+
+        // Pool does not exist
+        vm.expectRevert();
+        liquidityManager.decreaseLiquidity(TOKENS, 10, decreaseRate, olasBurnRate);
+
+        // No position to work with
+        vm.expectRevert();
+        liquidityManager.decreaseLiquidity(TOKENS, FEE_TIER, decreaseRate, olasBurnRate);
+
+        // OLAS burn rate is too big
+        vm.expectRevert();
+        liquidityManager.increaseLiquidity(TOKENS, FEE_TIER, 10_001);
+
+        // No available amounts
+        vm.expectRevert();
+        liquidityManager.increaseLiquidity(TOKENS, FEE_TIER, olasBurnRate);
+
+        // Fund LiquidityManager with OLAS and WETH
+        deal(OLAS, address(liquidityManager), initialAmounts[0]);
+        deal(WETH, address(liquidityManager), initialAmounts[1]);
+
+        // Pool is not found
+        vm.expectRevert();
+        liquidityManager.increaseLiquidity(TOKENS, 10, olasBurnRate);
+
+        // Position does not exist
+        vm.expectRevert();
+        liquidityManager.increaseLiquidity(TOKENS, FEE_TIER, olasBurnRate);
+
+        // Position does not exist
+        vm.expectRevert();
+        liquidityManager.increaseLiquidity(TOKENS, FEE_TIER, olasBurnRate);
+
+        // Pool does not exist
+        vm.expectRevert();
+        liquidityManager.changeRanges(TOKENS, 10, tickShifts, scan);
+
+        // Position does not exist
+        vm.expectRevert();
+        liquidityManager.changeRanges(TOKENS, FEE_TIER, tickShifts, scan);
+
+        // No position available
+        vm.expectRevert();
+        liquidityManager.transferPositionId(TOKENS, FEE_TIER, TIMELOCK);
+
+        // No token available
+        vm.expectRevert();
+        liquidityManager.transferToken(OLAS, TIMELOCK, initialAmounts[0] + 1);
+    }
+
+    /// @dev Fuzz: converts V2 pool into V3 with full amount (no OLAS burnt) and optimized ticks scan,
+    ///      safe tick shifts for deviation calculation.
+    function testConvertToV3FullScanFuzz(uint24 lowerTickShift, uint24 upperTickShift) public {
+        // Tick shifts: tick ± [5000, MAX_TICK]
+        lowerTickShift = uint24(bound(lowerTickShift, 5000, 887272));
+        upperTickShift = uint24(bound(upperTickShift, 5000, 887272));
+
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = -int24(lowerTickShift);
+        tickShifts[1] = int24(upperTickShift);
+        uint16 olasBurnRate = 0;
+        bool scan = true;
+
+        (, , uint256[] memory amountsOut) =
+            liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+
+        // scan = ticks are optimized, deviation must respect DELTA
+        for (uint256 i = 0; i < 2; ++i) {
+            // initialAmounts[i] is always >= amountsOut[i]
+            uint256 deviation = FixedPointMathLib.divWadDown((initialAmounts[i] - amountsOut[i]), amountsOut[i]);
+            require(deviation <= DELTA, "Price deviation too high");
+        }
+    }
+
+    /// @dev Fuzz: converts V2 pool into V3 with full amount (no OLAS burnt) and optimized ticks scan,
+    ///     any possible tick shifts without measuring deviation.
+    function testConvertToV3FullScanFuzzAllRange(uint24 lowerTickShift, uint24 upperTickShift) public {
+        // Tick shifts: tick ± [1, MAX_TICK]
+        lowerTickShift = uint24(bound(lowerTickShift, 1, 887272));
+        upperTickShift = uint24(bound(upperTickShift, 1, 887272));
+
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = -int24(lowerTickShift);
+        tickShifts[1] = int24(upperTickShift);
+
+        uint16 olasBurnRate = 0;
+        bool scan = true;
+
+        liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+    }
+
+    /// @dev C4R #17/#18: flash-manipulation of slot0 triggers Overflow revert in checkPoolAndGetCenterPrice.
+    ///      After convertToV3 warms up the V3 pool oracle, vm.mockCall overrides slot0 to a price
+    ///      that deviates >10% from the TWAP, and checkPoolAndGetCenterPrice must revert.
+    function testCheckPoolAndGetCenterPrice_FlashManipulationReverts() public {
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = -27000;
+        tickShifts[1] = 17000;
+        uint16 olasBurnRate = 0;
+        bool scan = true;
+
+        // Establish V3 position so the pool exists and has an observation history
+        liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+
+        address pool = IFactory(FACTORY_V3).getPool(TOKENS[0], TOKENS[1], uint24(FEE_TIER));
+
+        // Read current (real) slot0 to get the live observation index
+        (uint160 realSqrtP, , uint16 realObsIdx,,,, ) = IUniswapV3(pool).slot0();
+
+        // Warp forward past SECONDS_AGO so the oldest observation is recent enough
+        // for checkPoolAndGetCenterPrice to attempt a TWAP comparison
+        vm.warp(block.timestamp + 1800);
+
+        // Craft a manipulated sqrt price that is 3x the real price in Q64.96 units
+        // (~9x price ratio) — well beyond the 10% MAX_ALLOWED_DEVIATION
+        uint160 manipulatedSqrtP = uint160(uint256(realSqrtP) * 3);
+
+        // Mock slot0 to return the manipulated price with the real observation index
+        // so that the observations() call still finds a recent timestamp
+        bytes memory slot0Return = abi.encode(
+            manipulatedSqrtP,       // sqrtPriceX96
+            int24(0),               // tick
+            realObsIdx,             // observationIndex
+            uint16(60),             // observationCardinality
+            uint16(60),             // observationCardinalityNext
+            uint8(0),               // feeProtocol
+            true                    // unlocked
+        );
+        vm.mockCall(pool, abi.encodeWithSignature("slot0()"), slot0Return);
+
+        // checkPoolAndGetCenterPrice must revert with Overflow — manipulation detected
+        vm.expectRevert();
+        liquidityManager.checkPoolAndGetCenterPrice(pool);
+
+        vm.clearMockedCalls();
+    }
+
+    /// @dev C4R #19: changeRanges reverts with ZeroValue when vm.mockCall forces collect to return
+    ///      zero for one token, instead of silently routing to treasury.
+    function testChangeRanges_SingleSidedRevertsInsteadOfTreasurySweep() public {
+        int24[] memory tickShifts = new int24[](2);
+        tickShifts[0] = -27000;
+        tickShifts[1] = 17000;
+        uint16 olasBurnRate = 0;
+        bool scan = true;
+
+        // Establish V3 position
+        liquidityManager.convertToV3(TOKENS, PAIR_V2_BYTES32, FEE_TIER, tickShifts, olasBurnRate, scan);
+
+        // Mock the NFT position manager's collect() to return (someAmount, 0),
+        // simulating a single-sided return after decreaseLiquidity + collect.
+        // collect() selector: 0xfc6f7865
+        vm.mockCall(
+            POSITION_MANAGER_V3,
+            abi.encodeWithSelector(bytes4(0xfc6f7865)),
+            abi.encode(uint256(1e18), uint256(0))
+        );
+
+        // changeRanges must revert ZeroValue instead of silently routing to treasury
+        vm.expectRevert(ZeroValue.selector);
+        liquidityManager.changeRanges(TOKENS, FEE_TIER, tickShifts, scan);
+
+        vm.clearMockedCalls();
+    }
+}
