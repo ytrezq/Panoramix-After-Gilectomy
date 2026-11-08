@@ -478,8 +478,8 @@ from python and the asm, and what became of it (the audit of November
 | solc's default function reached with the selector on the stack or not | `vm/` | the stacks' common top is the entry's; where the code reads the words below it or overflows the stack with them, `UNDEFINED(STACK)` |
 | copies whose source and destination can't overlap by the allocation discipline | `loops/rewrite.cpp` | never assumed: proven (the floors) or left a loop |
 | a copy loop of the storage's words (python's `loop_to_setmem_from_storage`, which the port had dropped) | `loops/rewrite.cpp` | one line where the induction proves the trips: `mem[p len 32 n] = stor[slot len n]` (`STORAGE_RANGE`); Vyper's `!=` loop condition (a XOR) read as one |
-| checked arithmetic (OpenZeppelin, ds-math, Panic 0x11 / 0x12, Vyper, a hand-written check) | `analysis/safemath.cpp` | recognized; each site's abstraction the algebra's, else checked on four random points (not proven) |
-| the storage forms (python's four worlds) | `storage/check.cpp` | recognized; a form proven by its linear form (slot and bits), else checked in four random worlds (not proven); a bytes getter run by the trace machine on storage worlds |
+| checked arithmetic (OpenZeppelin, ds-math, Panic 0x11 / 0x12, Vyper, a hand-written check) | `analysis/safemath.cpp` | recognized; each site's abstraction proven (the result and the conditions put back have the site's normal forms: `alg::same_value`), else the checks stay - the four random points are gone |
+| the storage forms (python's four worlds) | `storage/check.cpp` | recognized; a form proven (its slot and bits the access's once the hashes of constants are computed: the same normal form), else raw - the four random worlds are gone; a bytes getter run by the trace machine on storage worlds |
 | solidity's length of a storage bytes or string, `(x & (256 * iszero(x & 1) - 1)) >> 1` | `simplify/passes.cpp` | recognized exactly: `LENGTH(key)`'s meaning is that formula (the machine runs it); Vyper's length slot is a plain word |
 | params' types from masks, solc >= 0.8's validation | `analysis/traits.cpp` | recognized; the trace machine runs the checks taken out |
 | python's `small_words` (a word given to the contract below 2^64 in memory positions) | `simplify/` | made sound: past a check bounding it on every path |
@@ -706,10 +706,13 @@ The accesses become the printer's forms - `SV(Name(STORVAR, i))`,
 `SI(base, key)`, `SL`, `SBL`, `SF(base, n)`, `SR(slot)` locations;
 `ST(size, loc, width)` reads, `SET` writes, `SALL(loc)` bytes - each
 checked: by `storage::locate`, which the trace machine runs too, the form
-must denote the access's slot and bits in four worlds of random values
-keyed by structural hash, else it is printed raw. A bytes getter becomes
-`return name[all]` only when the trace machine runs both the same on
-storage worlds. Everything is made aside and swapped in at the end.
+must denote the access's slot and bits for every value of what they are
+made of - proven (`storage/check.cpp`: both places as expressions, a hash
+of constant bytes computed, a hash's DATA operands flat, then the same
+normal form, `alg::same_value`), never sampled - else it is printed raw.
+A bytes getter becomes `return name[all]` only when the trace machine
+runs both the same on storage worlds. Everything is made aside and
+swapped in at the end.
 
 ### The folder and the ast (lot 10, `src/output/`)
 
@@ -739,8 +742,10 @@ REVERT(None), an Error(string), a Panic or INVALID where their condition
 holds) followed by a line using the checked result - past lines that
 can't fail or change what the checks read, and checks failing the same
 way - loses the checks, the result becoming `SAFEMATH(n, a, b,
-messages...)`. A site's checks are abstracted over a and b and verified
-on random values; equal sites are one function of the `SafeMathTable`.
+messages...)`. A site's checks are abstracted over a and b and proven:
+the function's result and conditions put back at a and b have the site's
+normal forms (`alg::same_value`, `algebra/identity.hpp`), else the site
+keeps its checks; equal sites are one function of the `SafeMathTable`.
 Caps (8 checks a group, 512 lines of uses, 8 checks passed) only narrow
 the search; an Error leaves every ast as it was.
 
@@ -926,6 +931,28 @@ different; random world 39,063, 38,549 the same, 0 different. Unit tests: 351 ca
 assertions, 0 failures. The price of assuming nothing: copy loops left 5,579 in 247
 contracts and `while` lines 9,568 (5,262 in 241 and 8,997 with python's `mem[64] >= 0x60`);
 the floors as they stand don't win them back (`docs/alloc-floor.md`, Results).
+
+**Proofs, not samples** (8 Nov; `algebra/identity.hpp`, `analysis/safemath.cpp`,
+`storage/check.cpp`): SafeMath's abstraction of a site and a storage form against its access
+were accepted where four random points (four random worlds) agreed. Counted before the
+change: the random points alone decided 118 of the npm corpus' 3,460 SafeMath sites (40
+contracts) and 888 of the source corpus sample's 17,481 (188 artifacts) - every one the same
+normal form, a sum or a product whose terms a pass rebuilt with `mk_like` in their old order
+(a storage form, an earlier SafeMath call put in it; twice `-1 * (32 * x)` for `-32 * x`);
+the random worlds alone decided 70 storage forms (19 contracts) and 74 (46 artifacts) -
+every one a hash solc computed at compile time (`keccak(n) + i`, `keccak(k . n)`, inside
+another mapping's hash) against the form's SHA3. Both are proven now (`alg::same_value`: the
+same normal form; the storage places once the hashes of constant bytes are computed and a
+hash's DATA flattened), what isn't is refused. Nothing was lost: the texts the change moves
+are 1 of 861 (643,886 -> 643,884 lines) and 20 of 2,200 (1,484,924 -> 1,484,844), all by
+checks the random points had refused (a nested SafeMath call's operands in another order:
+other random values) and the normal forms prove; raw storage accesses and storage
+definitions unchanged. On those 21 contracts stagecheck (every stage) and text_check: 3,054
+calls, 0 different. The npm corpus once more (stagecheck in three parts, text_check): every
+stage 0 different, 0 bugs - 78,022 calls, 77,732 the same, 290 inconclusive (all evmone's but
+8 undefined; gnosis130_MockContract stopped at the time limit, as before); the printed texts:
+0 unparsed lines, empty world 39,059 calls, 39,017 the same, 0 different; random world
+39,063, 38,549 the same, 0 different. Unit tests: 368 cases, 247,151 assertions, 0 failures.
 
 **The source corpus** (branch `corpus`, `tools/build_corpus.py` and
 `tools/compare_source.py` there): the EVM programs of Immunefi's bug bounties with their
