@@ -1108,6 +1108,39 @@ RewardsOnlyGauge both times: lot 10's snapshot of a 96-byte return in a variable
 0 different (4 and 25 lines unparsed in VotingEscrow and LiquidityGaugeV5: addresses past
 160 bits printed `????...`, the asm's display). No text of the npm corpus changes.
 
+**A call's return data wider than a word, read after another call** (8 Nov): lot 10's
+snapshot put such a read in one variable - RewardsOnlyGauge's reward_data printed `_1 =
+ext_call.return_data[0 len 96]`, then `return arg0, Bytes(96, _1), ...` -, where a variable
+is a word for the trace machine and for the text's interpreter (8 bugs at the folded stage, 4
+calls unsupported in each world). The read is now its words' snapshots, the read their
+concatenation, as python's VM snapshots the stack's words: `_1 = ext_call.return_data[0]`,
+`_2 = ...[32]`, `_3 = ...[64]`, `return arg0, _1, _2, _3, ext_call.return_data[0],
+reward_integral[arg0]` (the asm's `return _param1, _9, _13, _14, ...`). A word the text reads
+elsewhere keeps its one variable, and an event's data cut so into words gets its params'
+names (`log DecreaseLiquidity(uint256 indexed tokenId=params.tokenId, ..., uint256
+amount0=_1, uint256 amount1=_2)` where the text had `Bytes(64, _3)`). As before: a read past
+1024 bytes, of a length that isn't a number, or whose words' offsets may wrap (none in the
+texts of the npm corpus, the 150 Vyper and Yul bytecodes and the source corpus' comparison).
+On the twelve contracts concerned (the source corpus' eight artifacts with such a snapshot,
+NonfungiblePositionManager, the three Vyper 0.3.1 ones with `????`): stagecheck 4,744 calls,
+every stage 0 different, bugs at the folded stage 9 -> 0 (MasterChefV3 had one); text_check 0
+different, "bytes of more than 32 used as a number" 5 and 4 -> 0 (the empty and the random
+world). On the 150 Vyper and Yul bytecodes: every stage 0 different, 0 bugs (30,164 calls);
+text_check 0 different (empty world 15,082 calls, 15,071 the same, 4 unsupported, all
+unparsed lines; random world 15,015 the same, 26 unsupported); one text changed
+(RewardsOnlyGauge). On the npm corpus (merged with cxx23 at 5d782c735b): every stage 0
+different, 0 bugs (78,122 calls, 77,809 the same at the folded stage, as before); text_check
+0 unparsed lines, empty world 39,059 calls, 39,017 the same, random world 39,063, 38,549 the
+same, 0 different (as before); one text changed (NonfungiblePositionManager, its three 64-byte
+snapshots); loop counts the same.
+
+The `????` addresses are true values: Vyper 0.3.1 reads its immutables at `codesize - k`
+(`CODECOPY(0x80, CODESIZE - 0x100, 32)` for VotingEscrow's TOKEN), and an artifact's `.hex`
+is the compiler's runtime code, without the data its constructor appends: the reads get the
+code's own last bytes, as evmone does (`token()` returns 0x5161...a05260, the decompiler's
+`const token`), and a call to such a word calls its low 160 bits, which the asm prints
+`????...` too.
+
 ## Hostile input
 
 Whoever sends the bytecode chooses it: a server decompiling what it is
