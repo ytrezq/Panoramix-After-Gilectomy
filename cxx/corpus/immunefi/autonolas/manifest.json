@@ -83,62 +83,52 @@
     {
      "prefix": "valory-xyz__autonolas-governance",
      "url": "https://github.com/valory-xyz/autonolas-governance",
-     "commit": "3b6dffa7d6ffb3090c917893ad1afb071d20476a",
-     "files": 113
+     "commit": "3b6dffa7d6ffb3090c917893ad1afb071d20476a"
     },
     {
      "prefix": "valory-xyz__autonolas-governance/lib/solmate",
      "url": "https://github.com/rari-capital/solmate",
-     "commit": "e8f96f25d48fe702117ce76c79228ca4f20206cb",
-     "files": 67
+     "commit": "e8f96f25d48fe702117ce76c79228ca4f20206cb"
     },
     {
      "prefix": "valory-xyz__autonolas-governance/lib/fx-portal",
      "url": "https://github.com/0xPolygon/fx-portal",
-     "commit": "296ac8d41579f98d3a4dfb6d41737fae272a30ba",
-     "files": 85
+     "commit": "296ac8d41579f98d3a4dfb6d41737fae272a30ba"
     },
     {
      "prefix": "valory-xyz__autonolas-governance/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505",
-     "files": 49
+     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
     },
     {
      "prefix": "valory-xyz__autonolas-governance/lib/solmate/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "c7a36fb236f298e04edf28e2fee385b80f53945f",
-     "files": 4
+     "commit": "c7a36fb236f298e04edf28e2fee385b80f53945f"
     },
     {
      "prefix": "valory-xyz__autonolas-governance/lib/fx-portal/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "fc560fa34fa12a335a50c35d92e55a6628ca467c",
-     "files": 39
+     "commit": "fc560fa34fa12a335a50c35d92e55a6628ca467c"
     },
     {
      "prefix": "valory-xyz__autonolas-governance/lib/fx-portal/lib/openzeppelin-contracts",
      "url": "https://github.com/openzeppelin/openzeppelin-contracts",
-     "commit": "0a25c1940ca220686588c4af3ec526f725fe2582",
-     "files": 294
+     "commit": "0a25c1940ca220686588c4af3ec526f725fe2582"
     },
     {
      "prefix": "valory-xyz__autonolas-governance/lib/fx-portal/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "valory-xyz__autonolas-governance/lib/fx-portal/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
-     "files": 39
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
     },
     {
      "prefix": "valory-xyz__autonolas-governance/lib/fx-portal/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-     "files": 6
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
     }
    ]
   },
@@ -195,26 +185,22 @@
     {
      "prefix": "valory-xyz__autonolas-registries",
      "url": "https://github.com/valory-xyz/autonolas-registries",
-     "commit": "0e065705af0ca8df84f75f7a19b814c21fa2d083",
-     "files": 134
+     "commit": "0e065705af0ca8df84f75f7a19b814c21fa2d083"
     },
     {
      "prefix": "valory-xyz__autonolas-registries/lib/solmate",
      "url": "https://github.com/Rari-Capital/solmate",
-     "commit": "8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
-     "files": 65
+     "commit": "8f9b23f8838670afda0fd8983f2c41e8037ae6bc"
     },
     {
      "prefix": "valory-xyz__autonolas-registries/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "27ba11c86ac93d8d4a50437ae26621468fe63c20",
-     "files": 54
+     "commit": "27ba11c86ac93d8d4a50437ae26621468fe63c20"
     },
     {
      "prefix": "valory-xyz__autonolas-registries/lib/solmate/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "c7a36fb236f298e04edf28e2fee385b80f53945f",
-     "files": 4
+     "commit": "c7a36fb236f298e04edf28e2fee385b80f53945f"
     }
    ]
   },
@@ -341,104 +327,87 @@
     {
      "prefix": "valory-xyz__autonolas-tokenomics",
      "url": "https://github.com/valory-xyz/autonolas-tokenomics",
-     "commit": "a55bb85ee738bda1448be078ef07e8a58701ca5b",
-     "files": 201
+     "commit": "a55bb85ee738bda1448be078ef07e8a58701ca5b"
     },
     {
      "prefix": "valory-xyz__autonolas-tokenomics/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "a6d71da563bbb8d6eef8fbec3a16c61c603d2764",
-     "files": 54
+     "commit": "a6d71da563bbb8d6eef8fbec3a16c61c603d2764"
     },
     {
      "prefix": "valory-xyz__autonolas-tokenomics/lib/solmate",
      "url": "https://github.com/rari-capital/solmate",
-     "commit": "eaa7041378f9a6c12f943de08a6c41b31a9870fc",
-     "files": 67
+     "commit": "eaa7041378f9a6c12f943de08a6c41b31a9870fc"
     },
     {
      "prefix": "valory-xyz__autonolas-tokenomics/lib/zuniswapv2",
      "url": "https://github.com/Jeiwan/zuniswapv2",
-     "commit": "50fb69e95805970e9f0f118fc797b0a02f74f43e",
-     "files": 18
+     "commit": "50fb69e95805970e9f0f118fc797b0a02f74f43e"
     },
     {
      "prefix": "valory-xyz__autonolas-tokenomics/lib/fx-portal",
      "url": "https://github.com/0xPolygon/fx-portal",
-     "commit": "731959279a77b0779f8a1eccdaea710e0babee19",
-     "files": 85
+     "commit": "731959279a77b0779f8a1eccdaea710e0babee19"
     },
     {
      "prefix": "valory-xyz__autonolas-tokenomics/lib/solmate/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "c7a36fb236f298e04edf28e2fee385b80f53945f",
-     "files": 4
+     "commit": "c7a36fb236f298e04edf28e2fee385b80f53945f"
     },
     {
      "prefix": "valory-xyz__autonolas-tokenomics/lib/zuniswapv2/lib/solmate",
      "url": "https://github.com/Rari-Capital/solmate",
-     "commit": "fab107565a51674f3a3b5bfdaacc67f6179b1a9b",
-     "files": 39
+     "commit": "fab107565a51674f3a3b5bfdaacc67f6179b1a9b"
     },
     {
      "prefix": "valory-xyz__autonolas-tokenomics/lib/zuniswapv2/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "b5c5a5cc7eab8f35d0c2019befcef624c317385e",
-     "files": 13
+     "commit": "b5c5a5cc7eab8f35d0c2019befcef624c317385e"
     },
     {
      "prefix": "valory-xyz__autonolas-tokenomics/lib/fx-portal/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "fc560fa34fa12a335a50c35d92e55a6628ca467c",
-     "files": 39
+     "commit": "fc560fa34fa12a335a50c35d92e55a6628ca467c"
     },
     {
      "prefix": "valory-xyz__autonolas-tokenomics/lib/fx-portal/lib/openzeppelin-contracts",
      "url": "https://github.com/openzeppelin/openzeppelin-contracts",
-     "commit": "0a25c1940ca220686588c4af3ec526f725fe2582",
-     "files": 294
+     "commit": "0a25c1940ca220686588c4af3ec526f725fe2582"
     },
     {
      "prefix": "valory-xyz__autonolas-tokenomics/lib/zuniswapv2/lib/solmate/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248",
-     "files": 4
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
     },
     {
      "prefix": "valory-xyz__autonolas-tokenomics/lib/zuniswapv2/lib/solmate/lib/weird-erc20",
      "url": "https://github.com/d-xo/weird-erc20",
-     "commit": "438a180eb073fa451a8a9fc734942d6ad1874120",
-     "files": 22
+     "commit": "438a180eb073fa451a8a9fc734942d6ad1874120"
     },
     {
      "prefix": "valory-xyz__autonolas-tokenomics/lib/zuniswapv2/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5",
-     "files": 4
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
     },
     {
      "prefix": "valory-xyz__autonolas-tokenomics/lib/fx-portal/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "valory-xyz__autonolas-tokenomics/lib/fx-portal/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
-     "files": 39
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
     },
     {
      "prefix": "valory-xyz__autonolas-tokenomics/lib/zuniswapv2/lib/solmate/lib/weird-erc20/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248",
-     "files": 4
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
     },
     {
      "prefix": "valory-xyz__autonolas-tokenomics/lib/fx-portal/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-     "files": 6
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
     }
    ]
   },
@@ -505,44 +474,37 @@
     {
      "prefix": "valory-xyz__autonolas-marketplace",
      "url": "https://github.com/valory-xyz/autonolas-marketplace",
-     "commit": "64d8dba33e60860644bdda6f57ffc98057fa27e7",
-     "files": 74
+     "commit": "64d8dba33e60860644bdda6f57ffc98057fa27e7"
     },
     {
      "prefix": "valory-xyz__autonolas-marketplace/lib/autonolas-registries",
      "url": "https://github.com/valory-xyz/autonolas-registries",
-     "commit": "c7f5bf23c10f044d904b55a4c41dae2a5b8946e8",
-     "files": 92
+     "commit": "c7f5bf23c10f044d904b55a4c41dae2a5b8946e8"
     },
     {
      "prefix": "valory-xyz__autonolas-marketplace/lib/gnosis-mech",
      "url": "https://github.com/valory-xyz/gnosis-mech",
-     "commit": "f6fa16551dba14fa8310fce0fd24c40be58fc7d1",
-     "files": 22
+     "commit": "f6fa16551dba14fa8310fce0fd24c40be58fc7d1"
     },
     {
      "prefix": "valory-xyz__autonolas-marketplace/lib/autonolas-registries/lib/solmate",
      "url": "https://github.com/Rari-Capital/solmate",
-     "commit": "8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
-     "files": 65
+     "commit": "8f9b23f8838670afda0fd8983f2c41e8037ae6bc"
     },
     {
      "prefix": "valory-xyz__autonolas-marketplace/lib/autonolas-registries/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "f73c73d2018eb6a111f35e4dae7b4f27401e9421",
-     "files": 41
+     "commit": "f73c73d2018eb6a111f35e4dae7b4f27401e9421"
     },
     {
      "prefix": "valory-xyz__autonolas-marketplace/lib/autonolas-registries/lib/solmate/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "c7a36fb236f298e04edf28e2fee385b80f53945f",
-     "files": 4
+     "commit": "c7a36fb236f298e04edf28e2fee385b80f53945f"
     },
     {
      "prefix": "valory-xyz__autonolas-marketplace/lib/autonolas-registries/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ]
   }
