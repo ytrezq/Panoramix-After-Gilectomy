@@ -1,0 +1,100 @@
+{
+ "program": "gamma",
+ "repos": [
+  {
+   "repo": "https://github.com/GammaStrategies/hypervisor",
+   "ref": "stable",
+   "scope_paths": [
+    "contracts/Hypervisor.sol",
+    "contracts/UniProxy.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "de902bf7d9de14874f031bb83ee3ad028414b2f1",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "Unlicense",
+    "package_json": null,
+    "headers": {
+     "Unlicense": 4,
+     "BUSL-1.1": 1,
+     "(none)": 3,
+     "UNLICENSED": 4,
+     "GPL-2.0-or-later": 1,
+     "GPL-3.0-only": 2
+    },
+    "headers_main": {
+     "Unlicense": 2,
+     "BUSL-1.1": 1,
+     "(none)": 3,
+     "UNLICENSED": 1,
+     "GPL-2.0-or-later": 1,
+     "GPL-3.0-only": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 15
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "3.4.2",
+    "node_modules/@uniswap/v3-core": "1.0.1",
+    "node_modules/@uniswap/v3-periphery": "1.4.4",
+    "node_modules/base64-sol": "1.0.1"
+   },
+   "copied": true,
+   "files": 248,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "GammaStrategies__hypervisor",
+   "subtrees": [
+    {
+     "prefix": "GammaStrategies__hypervisor",
+     "url": "https://github.com/GammaStrategies/hypervisor",
+     "commit": "de902bf7d9de14874f031bb83ee3ad028414b2f1",
+     "files": 18
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/GammaStrategies/xGamma",
+   "ref": null,
+   "scope_paths": [
+    "contracts/xGamma.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "c387a9680790fc9fdafbfccf17cbca02bb8c5203",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "(none)": 1
+    },
+    "headers_main": {
+     "(none)": 1
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 1
+   },
+   "copied": true,
+   "via": "git subtree",
+   "files": 11,
+   "subtrees": [
+    {
+     "prefix": "GammaStrategies__xGamma",
+     "url": "https://github.com/GammaStrategies/xGamma",
+     "commit": "c387a9680790fc9fdafbfccf17cbca02bb8c5203",
+     "files": 4
+    }
+   ],
+   "npm": {},
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "GammaStrategies__xGamma",
+   "license_note": "its license does not allow redistribution: added at the owner's request, its license files kept"
+  }
+ ]
+}
