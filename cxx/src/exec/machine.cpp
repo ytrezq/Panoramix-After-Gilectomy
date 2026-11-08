@@ -1039,6 +1039,10 @@ struct Machine::Impl {
                 store(a[0], a[1], a[2], a[3]);
                 touch();
                 return Sig::None;
+            case Op::STORE_RANGE:
+                store_range(a[0], a[1], a[2]);
+                touch();
+                return Sig::None;
             case Op::SET:
                 set_line(a[0], a[1]);
                 touch();
@@ -1159,6 +1163,29 @@ struct Machine::Impl {
         const Word256 placed = off >= 0 ? pan::shl(Word256::of(u64(off)), val) : pan::shr(Word256::of(u64(-off)), val);
         const Word256 old = host->sload(slot);
         host->sstore(slot, pan::bor(pan::band(old, pan::bnot(m)), pan::band(placed, m)));
+    }
+
+    // STORE_RANGE(slot, n, v): the n slots from slot on (mod 2^256) set to the
+    // words of v's 32 n bytes, all read first - v 0: zeroes
+    void store_range(Value slot_v, Value n_v, Value v) {
+        const Word256 slot = ev(slot_v), n = ev(n_v);
+        if (PAN_UNLIKELY(!fits_u64(n) || n.limb[0] > lim.bytes_max / 32))
+            exhausted("a byte string of more than " + std::to_string(lim.bytes_max) + " bytes");
+        const u64 k = n.limb[0];
+        Lease l(*this);
+        if (v.is_int()) {
+            if (!ev(v).is_zero()) bug("a STORE_RANGE of a number but 0: " + show(cur_line));
+            l.b.assign(32 * k, 0);
+        } else {
+            evb(v, l.b);
+            if (l.b.size() != 32 * k)
+                bug("STORE_RANGE of " + std::to_string(k) + " slots with " + std::to_string(l.b.size()) + " bytes: " +
+                    show(cur_line));
+        }
+        for (u64 i = 0; i < k; ++i) {
+            host->sstore(pan::add(slot, Word256::of(i)), Word256::from_be(std::span<const u8>(l.b.data() + 32 * i, 32)));
+            if ((i & 255) == 255) poll();
+        }
     }
 
     void log(Value line) {

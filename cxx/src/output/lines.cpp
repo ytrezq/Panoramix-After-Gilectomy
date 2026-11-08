@@ -738,6 +738,22 @@ struct LineImpl {
                     return;
                 }
                 break;
+            case Op::STORE_RANGE:
+                if (n == 3) {
+                    // the words of n slots set at once (a copy loop's):
+                    // stor[slot len n] = bytes, as mem[p len n] = bytes
+                    start(indent);
+                    o.col(Col::green, "stor[");
+                    pret(l[0]);
+                    o.col(Col::header, " len ");
+                    pret(l[1]);
+                    o.col(Col::green, "]");
+                    o.put(" = ");
+                    p.memory_joined(l[2], {});
+                    nl();
+                    return;
+                }
+                break;
             case Op::TSTORE:
                 if (n == 2) {
                     start(indent);

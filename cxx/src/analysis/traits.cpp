@@ -841,6 +841,7 @@ bool state_line(Value l) noexcept
     switch (l.op()) {
         case Op::STORE:
         case Op::SET:
+        case Op::STORE_RANGE:
         case Op::TSTORE:
         case Op::SELFDESTRUCT:
         case Op::CALL:
