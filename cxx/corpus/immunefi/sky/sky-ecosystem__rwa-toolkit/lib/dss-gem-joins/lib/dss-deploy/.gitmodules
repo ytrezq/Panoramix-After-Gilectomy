@@ -1,0 +1,15 @@
+[submodule "lib/ds-test"]
+	path = lib/ds-test
+	url = https://github.com/dapphub/ds-test
+[submodule "lib/ds-auth"]
+	path = lib/ds-auth
+	url = https://github.com/dapphub/ds-auth.git
+[submodule "lib/ds-pause"]
+	path = lib/ds-pause
+	url = https://github.com/makerdao/ds-pause
+[submodule "lib/dss"]
+	path = lib/dss
+	url = https://github.com/makerdao/dss
+[submodule "lib/esm"]
+	path = lib/esm
+	url = https://github.com/makerdao/esm

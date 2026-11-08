@@ -1,0 +1,103 @@
+// SPDX-License-Identifier: MIT
+
+pragma solidity =0.8.24;
+
+import { ActionBase } from "../ActionBase.sol";
+import { CompV3RatioHelper } from "../compoundV3/helpers/CompV3RatioHelper.sol";
+import { TransientStorageCancun } from "../../utils/transient/TransientStorageCancun.sol";
+
+/// @title Action to check the ratio of the Compound V3 position after strategy execution.
+contract CompV3RatioCheck is ActionBase, CompV3RatioHelper {
+    /// @notice 5% offset acceptable
+    uint256 internal constant RATIO_OFFSET = 50_000_000_000_000_000;
+
+    TransientStorageCancun public constant tempStorage =
+        TransientStorageCancun(TRANSIENT_STORAGE_CANCUN);
+
+    error BadAfterRatio(uint256 startRatio, uint256 currRatio);
+
+    enum RatioState {
+        IN_BOOST,
+        IN_REPAY
+    }
+
+    /// @param ratioState State of the ratio (IN_BOOST or IN_REPAY)
+    /// @param targetRatio Target ratio.
+    /// @param market Market address.
+    /// @param user User address.
+    struct Params {
+        RatioState ratioState;
+        uint256 targetRatio;
+        address market;
+        address user;
+    }
+
+    /// @inheritdoc ActionBase
+    function executeAction(
+        bytes memory _callData,
+        bytes32[] memory _subData,
+        uint8[] memory _paramMapping,
+        bytes32[] memory _returnValues
+    ) public payable virtual override returns (bytes32) {
+        Params memory inputData = parseInputs(_callData);
+
+        uint256 ratioState = _parseParamUint(
+            uint256(inputData.ratioState), _paramMapping[0], _subData, _returnValues
+        );
+        uint256 targetRatio = _parseParamUint(
+            uint256(inputData.targetRatio), _paramMapping[1], _subData, _returnValues
+        );
+        address market =
+            _parseParamAddr(address(inputData.market), _paramMapping[2], _subData, _returnValues);
+
+        address user;
+        if (_paramMapping.length == 4) {
+            user =
+                _parseParamAddr(address(inputData.user), _paramMapping[3], _subData, _returnValues);
+        }
+
+        if (user == address(0)) {
+            user = address(this);
+        }
+
+        uint256 currRatio = getSafetyRatio(market, user);
+
+        uint256 startRatio = uint256(tempStorage.getBytes32("COMP_RATIO"));
+
+        // if we are doing repay
+        if (RatioState(ratioState) == RatioState.IN_REPAY) {
+            /// @notice If user is subscribed on full repay, currRatio must be exactly 0
+            if (_isRatioZero(targetRatio)) {
+                if (!_isRatioZero(currRatio)) {
+                    revert BadAfterRatio(startRatio, currRatio);
+                }
+            } else {
+                if (currRatio <= startRatio || currRatio > targetRatio + RATIO_OFFSET) {
+                    // Repay: Ratio must increase but not overshoot 'target + offset' to avoid boost after.
+                    revert BadAfterRatio(startRatio, currRatio);
+                }
+            }
+        } else {
+            // Boost: Ratio must decrease but not undershoot 'target - offset' to avoid repay after.
+            if (currRatio >= startRatio || currRatio < targetRatio - RATIO_OFFSET) {
+                revert BadAfterRatio(startRatio, currRatio);
+            }
+        }
+
+        emit ActionEvent("CompV3RatioCheck", abi.encode(currRatio));
+        return bytes32(currRatio);
+    }
+
+    /// @inheritdoc ActionBase
+    // solhint-disable-next-line no-empty-blocks
+    function executeActionDirect(bytes memory _callData) public payable override { }
+
+    /// @inheritdoc ActionBase
+    function actionType() public pure virtual override returns (uint8) {
+        return uint8(ActionType.CHECK_ACTION);
+    }
+
+    function parseInputs(bytes memory _callData) public pure returns (Params memory inputData) {
+        inputData = abi.decode(_callData, (Params));
+    }
+}

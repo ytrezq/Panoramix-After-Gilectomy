@@ -1,0 +1,33 @@
+[submodule "modules/erc20"]
+	path = modules/erc20
+	url = git@github.com:maple-labs/erc20.git
+[submodule "modules/erc20-helper"]
+	path = modules/erc20-helper
+	url = git@github.com:maple-labs/erc20-helper.git
+[submodule "modules/forge-std"]
+	path = modules/forge-std
+	url = git@github.com:foundry-rs/forge-std.git
+[submodule "modules/open-zeppelin"]
+	path = modules/open-zeppelin
+	url = git@github.com:OpenZeppelin/openzeppelin-contracts.git
+[submodule "modules/xmpl"]
+	path = modules/xmpl
+	url = git@github.com:maple-labs/xMPL.git
+[submodule "modules/maple-token"]
+	path = modules/maple-token
+	url = git@github.com:maple-labs/maple-token.git
+[submodule "modules/mpl-migration"]
+	path = modules/mpl-migration
+	url = git@github.com:maple-labs/mpl-migration.git
+[submodule "modules/mpl-v2"]
+	path = modules/mpl-v2
+	url = git@github.com:maple-labs/mplv2.git
+[submodule "modules/globals-v2"]
+	path = modules/globals-v2
+	url = git@github.com:maple-labs/globals-v2.git
+[submodule "modules/lite-psm"]
+	path = modules/lite-psm
+	url = git@github.com:makerdao/dss-lite-psm.git
+[submodule "modules/non-transparent-proxy"]
+	path = modules/non-transparent-proxy
+	url = git@github.com:maple-labs/non-transparent-proxy.git

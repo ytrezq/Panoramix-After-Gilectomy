@@ -1,0 +1,116 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity 0.8.28;
+
+import {CommonDeploy} from "./_CommonDeploy.sol";
+
+import {AddrLib} from "silo-foundry-utils/lib/AddrLib.sol";
+import {ChainsLib} from "silo-foundry-utils/lib/ChainsLib.sol";
+import {SiloCoreContracts, SiloCoreDeployments} from "silo-core/common/SiloCoreContracts.sol";
+
+import {InterestRateModelV2FactoryDeploy} from "./InterestRateModelV2FactoryDeploy.s.sol";
+import {InterestRateModelV2Deploy} from "./InterestRateModelV2Deploy.s.sol";
+import {SiloHookV1Deploy} from "./SiloHookV1Deploy.s.sol";
+import {SiloHookV2Deploy} from "./SiloHookV2Deploy.s.sol";
+import {SiloHookV3Deploy} from "./SiloHookV3Deploy.s.sol";
+import {SiloDeployerDeploy} from "./SiloDeployerDeploy.s.sol";
+import {LiquidationHelperDeploy} from "./LiquidationHelperDeploy.s.sol";
+import {TowerDeploy} from "./TowerDeploy.s.sol";
+import {SiloLensDeploy} from "./SiloLensDeploy.s.sol";
+import {SiloRouterV2Deploy} from "./SiloRouterV2Deploy.s.sol";
+import {SiloFactoryDeploy} from "./SiloFactoryDeploy.s.sol";
+import {SiloIncentivesControllerFactoryDeploy} from "silo-core/deploy/SiloIncentivesControllerFactoryDeploy.s.sol";
+import {ManualLiquidationHelperDeploy} from "silo-core/deploy/ManualLiquidationHelperDeploy.s.sol";
+import {DKinkIRMFactoryDeploy} from "silo-core/deploy/DKinkIRMFactoryDeploy.s.sol";
+import {SiloImplementationDeploy} from "silo-core/deploy/SiloImplementationDeploy.s.sol";
+import {
+    LeverageRouterUsingSiloFlashloanWithGeneralSwapDeploy
+} from "silo-core/deploy/LeverageRouterUsingSiloFlashloanWithGeneralSwapDeploy.s.sol";
+import {
+    PermissionedLiquidationControllerFactoryDeploy
+} from "silo-core/deploy/incentives-controller/PermissionedLiquidationControllerFactoryDeploy.s.sol";
+
+/*
+    FOUNDRY_PROFILE=core AGGREGATOR=1INCH \
+        forge script silo-core/deploy/MainnetDeploy.s.sol \
+        --ffi --rpc-url $RPC_PHAROS --broadcast --verify \
+        --verifier-url $VERIFIER_URL_PHAROS --verifier blockscout \
+        --slow \
+        --gas-estimate-multiplier 5000
+
+    Resume verification:
+    FOUNDRY_PROFILE=core \
+        forge script silo-core/deploy/MainnetDeploy.s.sol \
+        --ffi --rpc-url $RPC_XDC --chain 50 \
+        --verify \
+        --private-key $PRIVATE_KEY \
+        --resume
+
+    XDC chain verification:
+
+    FOUNDRY_PROFILE=core \
+        forge script silo-core/deploy/MainnetDeploy.s.sol \
+        --verifier-url $VERIFIER_URL_XDC \
+        --verifier custom \
+        --chain 50 \
+        --ffi --rpc-url $RPC_XDC \
+        --etherscan-api-key $ETHERSCAN_API_KEY \
+        --verify \
+        --private-key $PRIVATE_KEY \
+        --legacy \
+        --resume
+
+    Pharos verification: https://thehemera.gitbook.io/explorer-api/verify-smart-contract/verify-smart-contract/verify-through-foundry
+    add: `--verifier-url $VERIFIER_URL_PHAROS --verifier blockscout` to the command
+ */
+contract MainnetDeploy is CommonDeploy {
+    function run() public {
+        SiloFactoryDeploy siloFactoryDeploy = new SiloFactoryDeploy();
+        SiloImplementationDeploy siloImplementationDeploy = new SiloImplementationDeploy();
+        InterestRateModelV2FactoryDeploy interestRateModelV2ConfigFactoryDeploy =
+            new InterestRateModelV2FactoryDeploy();
+        InterestRateModelV2Deploy interestRateModelV2Deploy = new InterestRateModelV2Deploy();
+        SiloHookV1Deploy siloHookV1Deploy = new SiloHookV1Deploy();
+        SiloHookV2Deploy siloHookV2Deploy = new SiloHookV2Deploy();
+        SiloHookV3Deploy siloHookV3Deploy = new SiloHookV3Deploy();
+        SiloDeployerDeploy siloDeployerDeploy = new SiloDeployerDeploy();
+        LiquidationHelperDeploy liquidationHelperDeploy = new LiquidationHelperDeploy();
+        SiloLensDeploy siloLensDeploy = new SiloLensDeploy();
+        SiloRouterV2Deploy siloRouterV2Deploy = new SiloRouterV2Deploy();
+        DKinkIRMFactoryDeploy dkinkIRMFactoryDeploy = new DKinkIRMFactoryDeploy();
+
+        SiloIncentivesControllerFactoryDeploy siloIncentivesControllerFactoryDeploy =
+            new SiloIncentivesControllerFactoryDeploy();
+
+        PermissionedLiquidationControllerFactoryDeploy permissionedLiquidationControllerFactoryDeploy =
+            new PermissionedLiquidationControllerFactoryDeploy();
+
+        LeverageRouterUsingSiloFlashloanWithGeneralSwapDeploy leverageRouterDeploy =
+            new LeverageRouterUsingSiloFlashloanWithGeneralSwapDeploy();
+
+        siloFactoryDeploy.run();
+        siloImplementationDeploy.run();
+        interestRateModelV2ConfigFactoryDeploy.run(); // not for V3
+        interestRateModelV2Deploy.run(); // not for V3
+        dkinkIRMFactoryDeploy.run();
+        siloHookV1Deploy.run();
+        siloHookV2Deploy.run();
+        siloHookV3Deploy.run();
+        liquidationHelperDeploy.run();
+        siloLensDeploy.run();
+        siloRouterV2Deploy.run();
+        siloIncentivesControllerFactoryDeploy.run();
+        permissionedLiquidationControllerFactoryDeploy.run();
+        leverageRouterDeploy.run();
+
+        {
+            ManualLiquidationHelperDeploy manualLiquidationHelperDeploy = new ManualLiquidationHelperDeploy();
+            manualLiquidationHelperDeploy.run(); // not for V3
+
+            TowerDeploy towerDeploy = new TowerDeploy();
+            towerDeploy.run();
+        }
+
+        // execute deployer at the end, to make sure we est factories
+        siloDeployerDeploy.run();
+    }
+}

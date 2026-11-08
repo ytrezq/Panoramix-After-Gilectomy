@@ -1,0 +1,27 @@
+{
+  "name": "warp-widget-react-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "oxlint -c oxlint.json src/",
+    "format": "oxfmt --write src/"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/warp-widget": "^1.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.27",
+    "@types/react-dom": "^18.0.10",
+    "@typescript/native": "npm:typescript@^7.0.2",
+    "@vitejs/plugin-react": "^4.0.0",
+    "oxfmt": "^0.62.0",
+    "oxlint": "^1.77.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vite": "^5.0.0"
+  },
+  "packageManager": "pnpm@12.3.0"
+}

@@ -1,0 +1,182 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+pragma solidity ^0.8.34;
+
+import { ApproveLib }                            from "../../libraries/ApproveLib.sol";
+import { makeAddressAddressKey, makeAddressKey } from "../../libraries/RateLimitHelpers.sol";
+
+import { IALMProxy } from "../../interfaces/IALMProxy.sol";
+
+import { IFacet } from "../IFacet.sol";
+
+import { Facet } from "../Facet.sol";
+
+import { IERC7540Facet } from "./IERC7540Facet.sol";
+
+interface IERC4626Like {
+
+    function mint(uint256 shares, address receiver) external returns (uint256 assets);
+
+    function withdraw(uint256 assets, address receiver, address owner)
+        external
+        returns (uint256 shares);
+
+    function asset() external view returns (address);
+
+    function convertToAssets(uint256 shares) external view returns (uint256 assets);
+
+    function maxMint(address receiver) external view returns (uint256 maxShares);
+
+    function maxWithdraw(address owner) external view returns (uint256 maxAssets);
+
+}
+
+interface IERC7540Like {
+
+    function requestDeposit(uint256 assets, address controller, address owner)
+        external
+        returns (uint256 requestId);
+
+    function requestRedeem(uint256 shares, address controller, address owner)
+        external
+        returns (uint256 requestId);
+
+}
+
+contract ERC7540Facet is IERC7540Facet, Facet {
+
+    /**********************************************************************************************/
+    /*** Constants                                                                              ***/
+    /**********************************************************************************************/
+
+    bytes32 internal constant _LIMIT_REQUEST_DEPOSIT = keccak256("LIMIT_7540_REQUEST_DEPOSIT");
+    bytes32 internal constant _LIMIT_CLAIM_DEPOSIT   = keccak256("LIMIT_7540_CLAIM_DEPOSIT");
+    bytes32 internal constant _LIMIT_REQUEST_REDEEM  = keccak256("LIMIT_7540_REQUEST_REDEEM");
+    bytes32 internal constant _LIMIT_CLAIM_REDEEM    = keccak256("LIMIT_7540_CLAIM_REDEEM");
+
+    /// @inheritdoc IFacet
+    string public constant override VERSION = "1.0.0";
+
+    /**********************************************************************************************/
+    /*** External Interactive Allocator Functions                                               ***/
+    /**********************************************************************************************/
+
+    /// @inheritdoc IERC7540Facet
+    function requestDeposit(address token, uint256 amount)
+        external
+        override
+        nonReentrant
+        onlyRole(ALLOCATOR_ROLE)
+    {
+        address proxy = _getSharedControllerStorage().proxy;
+        address asset = IERC4626Like(token).asset();
+
+        ApproveLib.approve(asset, proxy, token, amount);
+
+        _decreaseRateLimit(getRequestDepositRateLimitKey(token, asset), amount);
+
+        // Submit deposit request by transferring assets
+        IALMProxy(proxy).doCall(
+            token,
+            abi.encodeCall(IERC7540Like.requestDeposit, (amount, proxy, proxy))
+        );
+
+        // Clear approvals
+        ApproveLib.approve(asset, proxy, token, 0);
+
+        emit ERC7540RequestDeposit(token, amount);
+    }
+
+    /// @inheritdoc IERC7540Facet
+    function claimDeposit(address token) external override nonReentrant onlyRole(ALLOCATOR_ROLE) {
+        _requireRateLimitExists(getClaimDepositRateLimitKey(token));
+
+        address proxy  = _getSharedControllerStorage().proxy;
+        uint256 shares = IERC4626Like(token).maxMint(proxy);
+
+        // Claim shares from the vault to the proxy
+        IALMProxy(proxy).doCall(token, abi.encodeCall(IERC4626Like.mint, (shares, proxy)));
+
+        emit ERC7540ClaimDeposit(token, shares);
+    }
+
+    /// @inheritdoc IERC7540Facet
+    function requestRedeem(address token, uint256 shares)
+        external
+        override
+        nonReentrant
+        onlyRole(ALLOCATOR_ROLE)
+    {
+        _decreaseRateLimit(
+            getRequestRedeemRateLimitKey(token),
+            IERC4626Like(token).convertToAssets(shares)
+        );
+
+        address proxy = _getSharedControllerStorage().proxy;
+
+        IALMProxy(proxy).doCall(
+            token,
+            abi.encodeCall(IERC7540Like.requestRedeem, (shares, proxy, proxy))
+        );
+
+        emit ERC7540RequestRedeem(token, shares);
+    }
+
+    /// @inheritdoc IERC7540Facet
+    function claimRedeem(address token) external override nonReentrant onlyRole(ALLOCATOR_ROLE) {
+        _requireRateLimitExists(getClaimRedeemRateLimitKey(token));
+
+        address proxy  = _getSharedControllerStorage().proxy;
+        uint256 assets = IERC4626Like(token).maxWithdraw(proxy);
+
+        // Claim assets from the vault to the proxy
+        IALMProxy(proxy).doCall(
+            token,
+            abi.encodeCall(IERC4626Like.withdraw, (assets, proxy, proxy))
+        );
+
+        emit ERC7540ClaimRedeem(token, assets);
+    }
+
+    /**********************************************************************************************/
+    /*** External View/Pure Functions                                                           ***/
+    /**********************************************************************************************/
+
+    /// @inheritdoc IERC7540Facet
+    function getRequestDepositRateLimitKey(address token, address asset)
+        public
+        pure
+        override
+        returns (bytes32)
+    {
+        return makeAddressAddressKey(_LIMIT_REQUEST_DEPOSIT, asset, token);
+    }
+
+    /// @inheritdoc IERC7540Facet
+    function getClaimDepositRateLimitKey(address token)
+        public
+        pure
+        override
+        returns (bytes32)
+    {
+        return makeAddressKey(_LIMIT_CLAIM_DEPOSIT, token);
+    }
+
+    /// @inheritdoc IERC7540Facet
+    function getRequestRedeemRateLimitKey(address token) public pure override returns (bytes32) {
+        return makeAddressKey(_LIMIT_REQUEST_REDEEM, token);
+    }
+
+    /// @inheritdoc IERC7540Facet
+    function getClaimRedeemRateLimitKey(address token) public pure override returns (bytes32) {
+        return makeAddressKey(_LIMIT_CLAIM_REDEEM, token);
+    }
+
+    /**********************************************************************************************/
+    /*** Internal View/Pure Functions                                                           ***/
+    /**********************************************************************************************/
+
+    function _requireRateLimitExists(bytes32 key) internal view {
+        require(_rateLimitExists(key), "ERC7540Facet/invalid-action");
+    }
+
+}

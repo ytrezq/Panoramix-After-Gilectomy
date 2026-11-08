@@ -1,0 +1,19 @@
+[submodule "lib/solidity-utils"]
+	path = lib/solidity-utils
+	url = git@github.com:bgd-labs/solidity-utils.git
+[submodule "lib/forge-std"]
+	path = lib/forge-std
+	url = git@github.com:foundry-rs/forge-std.git
+[submodule "lib/openzeppelin-contracts"]
+	path = lib/openzeppelin-contracts
+	url = git@github.com:OpenZeppelin/openzeppelin-contracts.git
+	branch = release-v4.9
+[submodule "lib/aave-address-book"]
+	path = lib/aave-address-book
+	url = git@github.com:bgd-labs/aave-address-book.git
+[submodule "lib/nitro-contracts"]
+	path = lib/nitro-contracts
+	url = git@github.com:OffchainLabs/nitro-contracts.git
+[submodule "lib/fx-portal"]
+	path = lib/fx-portal
+	url = git@github.com:0xPolygon/fx-portal.git

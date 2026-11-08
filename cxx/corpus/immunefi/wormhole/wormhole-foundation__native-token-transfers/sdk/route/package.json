@@ -1,0 +1,63 @@
+{
+  "name": "@wormhole-foundation/sdk-route-ntt",
+  "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wormhole-foundation/native-token-transfers.git"
+  },
+  "bugs": {
+    "url": "https://github.com/wormhole-foundation/native-token-transfers"
+  },
+  "homepage": "https://github.com/wormhole-foundation/native-token-transfers#readme",
+  "directories": {
+    "test": "__tests__"
+  },
+  "license": "Apache-2.0",
+  "main": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "module": "./dist/esm/index.js",
+  "description": "Implementation of a Route usable by the Wormhole SDK",
+  "files": [
+    "dist/esm"
+  ],
+  "keywords": [
+    "wormhole",
+    "sdk",
+    "typescript",
+    "ntt"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "sideEffects": true,
+  "scripts": {
+    "build:esm": "tsc -p ./tsconfig.esm.json",
+    "build": "bun run build:esm",
+    "rebuild": "bun run clean && bun run build",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --config ./jest.config.ts",
+    "clean": "rm -rf ./dist",
+    "prettier": "prettier --write ./src ./__tests__"
+  },
+  "devDependencies": {
+    "nock": "^13.3.3",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2"
+  },
+  "dependencies": {
+    "@wormhole-foundation/sdk-definitions-ntt": "1.0.0",
+    "@wormhole-foundation/sdk-evm-ntt": "1.0.0",
+    "@wormhole-foundation/sdk-solana-ntt": "1.0.0"
+  },
+  "peerDependencies": {
+    "@wormhole-foundation/sdk-connect": "6.1.6",
+    "axios": "^1.9.0"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "default": "./dist/esm/index.js"
+    }
+  }
+}

@@ -1,0 +1,9 @@
+[profile.default]
+src = 'contracts'
+out = 'out'
+libs = ['node_modules', 'lib']
+solc_version = '0.8.21'
+test = 'test'
+cache_path  = 'cache_forge'
+bytecode_hash = 'none'
+fs_permissions = [{ access = "read", path = "./node_modules"},{ access = "read", path = "./out"}, { access = "read", path = "./test"}]

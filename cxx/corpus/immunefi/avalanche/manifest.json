@@ -1,0 +1,250 @@
+{
+ "program": "avalanche",
+ "repos": [
+  {
+   "repo": "https://github.com/ava-labs/avalanche-bridge-resources",
+   "ref": null,
+   "scope_paths": [
+    "SmartContracts/BridgeToken.sol"
+   ],
+   "fetched": "2026-11-07",
+   "note": "BridgeToken: the 25 bridged tokens in scope (*.e, BTC.b) on Avalanche C-Chain",
+   "commit": "97e5c9339712704c7bdbc2de6df40315db5c5c7c",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BSD",
+    "package_json": null,
+    "headers": {
+     "MIT": 2
+    },
+    "headers_main": {
+     "MIT": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 2
+   },
+   "npm": {},
+   "copied": true,
+   "files": 4,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "ava-labs__avalanche-bridge-resources",
+   "subtrees": [
+    {
+     "prefix": "ava-labs__avalanche-bridge-resources",
+     "url": "https://github.com/ava-labs/avalanche-bridge-resources",
+     "commit": "97e5c9339712704c7bdbc2de6df40315db5c5c7c",
+     "files": 3
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/ava-labs/icm-services",
+   "ref": "main",
+   "scope_paths": [
+    "icm-contracts"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "ba08d138d8c316e4814602f09447d36b3faf8255",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "7117c90c8cf6c68e5acce4f09a6b24715cea4de6"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "fa525310e45f91eb20a6d3baa2644be8e0adba31"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "69c8def5f222ff96f2b5beff05dfba996368aa79"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
+    },
+    {
+     "path": "lib/solidity-merkle-trees",
+     "url": "https://github.com/polytope-labs/solidity-merkle-trees",
+     "commit": "03832eb448ab77e5010281d7894c77b92a0640ad"
+    },
+    {
+     "path": "lib/solidity-merkle-trees/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "a2edd39db95df7e9dd3f9ef9edc8c55fefddb6df"
+    },
+    {
+     "path": "lib/solidity-merkle-trees/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "unrecognized",
+    "package_json": null,
+    "headers": {
+     "(none)": 37,
+     "MIT": 6,
+     "Apache-2.0": 17,
+     "GPL-3.0": 2,
+     "LicenseRef-Ecosystem": 150,
+     "Ecosystem": 1
+    },
+    "headers_main": {
+     "(none)": 35,
+     "MIT": 6,
+     "Apache-2.0": 17,
+     "GPL-3.0": 2,
+     "LicenseRef-Ecosystem": 73,
+     "Ecosystem": 1
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 213
+   },
+   "copied": true,
+   "via": "git subtree",
+   "files": 2140,
+   "subtrees": [
+    {
+     "prefix": "ava-labs__icm-services",
+     "url": "https://github.com/ava-labs/icm-services",
+     "commit": "ba08d138d8c316e4814602f09447d36b3faf8255",
+     "files": 222
+    },
+    {
+     "prefix": "ava-labs__icm-services/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "7117c90c8cf6c68e5acce4f09a6b24715cea4de6",
+     "files": 54
+    },
+    {
+     "prefix": "ava-labs__icm-services/lib/openzeppelin-contracts-upgradeable",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
+     "commit": "fa525310e45f91eb20a6d3baa2644be8e0adba31",
+     "files": 205
+    },
+    {
+     "prefix": "ava-labs__icm-services/lib/solidity-merkle-trees",
+     "url": "https://github.com/polytope-labs/solidity-merkle-trees",
+     "commit": "03832eb448ab77e5010281d7894c77b92a0640ad",
+     "files": 22
+    },
+    {
+     "prefix": "ava-labs__icm-services/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce",
+     "files": 45
+    },
+    {
+     "prefix": "ava-labs__icm-services/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
+     "files": 3
+    },
+    {
+     "prefix": "ava-labs__icm-services/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
+     "files": 3
+    },
+    {
+     "prefix": "ava-labs__icm-services/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "69c8def5f222ff96f2b5beff05dfba996368aa79",
+     "files": 306
+    },
+    {
+     "prefix": "ava-labs__icm-services/lib/solidity-merkle-trees/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "a2edd39db95df7e9dd3f9ef9edc8c55fefddb6df",
+     "files": 37
+    },
+    {
+     "prefix": "ava-labs__icm-services/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    },
+    {
+     "prefix": "ava-labs__icm-services/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce",
+     "files": 45
+    },
+    {
+     "prefix": "ava-labs__icm-services/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
+     "files": 3
+    },
+    {
+     "prefix": "ava-labs__icm-services/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+     "url": "https://github.com/a16z/halmos-cheatcodes",
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
+     "files": 3
+    },
+    {
+     "prefix": "ava-labs__icm-services/lib/solidity-merkle-trees/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b",
+     "files": 5
+    },
+    {
+     "prefix": "ava-labs__icm-services/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    }
+   ],
+   "npm": {},
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "ava-labs__icm-services",
+   "license_note": "its license does not allow redistribution: added at the owner's request, its license files kept"
+  }
+ ]
+}

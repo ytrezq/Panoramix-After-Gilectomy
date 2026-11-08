@@ -1,0 +1,132 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["dependencies"]
+verbosity = 3
+sender = "0x0165C55EF814dEFdd658532A48Bd17B2c8356322"
+tx_origin = "0x0165C55EF814dEFdd658532A48Bd17B2c8356322"
+auto_detect_remappings = false
+gas_reports = ["Proxy", "LidoARM"]
+fs_permissions = [
+  { access = "read-write", path = "./build" },
+  { access = "read-write", path = "./out" },
+  { access = "read-write", path = "./script" },
+]
+extra_output_files = ["metadata"]
+ignored_warnings_from = ["src/contracts/Proxy.sol"]
+optimizer = true
+optimizer_runs = 200
+solc = "0.8.36"
+evm_version = "cancun"
+ffi = true
+
+# About remappings: 
+# - @pendle-sy use a different version of oz contracts than the one used in the rest of the project.
+# - dependencies remappings (like "dependencies/@pendle-sy"), need to stay amongs first remappings.
+remappings = [
+  # Manage dependencies remappings inside dependencies folder (has to be first)
+  "dependencies/@pendle-sy-1.0.0-1.0.0/:@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-4.9.3-4.9.3/contracts/",
+  # Manage root folders remappings
+  "contracts/=./src/contracts",
+  "script/=./script",
+  "test/=./test",
+  "utils/=./src/contracts/utils",
+  # Manage dependencies remappings
+  "@solmate/=dependencies/solmate-6.7.0/src/",
+  "forge-std/=dependencies/forge-std-1.9.7/src/",
+  "@pendle-sy/=dependencies/@pendle-sy-1.0.0-1.0.0/contracts/",
+  "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.0.2-5.0.2/contracts/",
+  "@openzeppelin/contracts-upgradeable/=dependencies/@openzeppelin-contracts-upgradeable-5.0.2-5.0.2/contracts/",
+]
+
+#[fmt]
+#ignore = []
+#tab_width = 4
+#int_types = "long"
+#line_length = 120
+#quote_style = "double"
+#sort_imports = false
+#wrap_comments = false
+#hex_underscore = "preserve"
+#bracket_spacing = false
+#override_spacing = true
+#contract_new_lines = false
+#number_underscore = "preserve"
+#multiline_func_header = "attributes_first"
+#single_line_statement_blocks = "single"
+
+[lint]
+lint_on_build = false
+
+[fuzz]
+runs = 1_000
+
+[invariant]
+# --- Fuzzing loop ---
+runs = 256                                         # default: 256  -- number of independent call sequences
+depth = 50                                         # default: 500  -- number of calls per sequence
+fail_on_revert = true                              # default: false -- strict mode: any revert fails the test
+# call_override = false                            # default: false -- allow contracts to override calls
+
+# --- Shrinking & rejects ---
+shrink_run_limit = 5_000                           # default: 5000 -- max attempts to shrink a counterexample
+max_assume_rejects = 65_536                        # default: 65536 -- max vm.assume rejects before giving up
+
+# --- Value dictionary ---
+# dictionary_weight = 40                           # default: 40   -- probability (0-100) of drawing from dictionary
+# include_storage = true                           # default: true -- include observed storage slots
+# include_push_bytes = true                        # default: true -- include PUSH constants from bytecode
+# seed = "0x1"                                     # default: random -- deterministic seed (useful in CI)
+
+# --- Corpus / coverage-guided fuzzing ---
+corpus_dir = "test/invariants/.foundry-corpus"     # default: none -- persist interesting sequences
+# corpus_gzip = true                               # default: true -- gzip corpus files on disk
+# corpus_min_mutations = 5                         # default: 5    -- min mutations applied to a replayed sequence
+# corpus_min_size = 0                              # default: 0    -- min corpus size before mutating
+
+# --- Failure persistence ---
+failure_persist_dir = "test/invariants/.foundry-failures"          # default: cache/invariant -- auto-replay counterexamples
+
+# --- Time & block delays ---
+max_time_delay = 86_400                            # default: none -- max seconds between txs (1 day)
+#max_block_delay = 0                               # default: none -- max blocks between txs (~1 week at 12s/block)
+
+# --- Invariant check frequency ---
+# check_interval = 1                               # default: 1    -- calls between invariant assertions
+
+# --- Reporting / debug ---
+show_metrics = true                                # default: false -- per-handler counters
+show_solidity = true                               # default: false -- print counterexample as Solidity
+# show_edge_coverage = false                       # default: false -- display edge coverage metrics
+# gas_report_samples = 256                         # default: 256  -- samples for gas report
+# timeout = 0                                      # default: none -- global timeout in seconds
+
+[profile.lite.invariant]
+runs = 50
+depth = 20
+
+[profile.ci.invariant]
+runs = 50_000
+depth = 100
+
+[dependencies]
+solmate = "6.7.0"
+forge-std = "1.9.7"
+"@pendle-sy-1.0.0" = { version = "1.0.0", git = "https://github.com/pendle-finance/Pendle-SY-Public.git", rev = "3256e7728d1656a8e16e2e70aa885f69fc66088d" }
+"@openzeppelin-contracts-4.9.3" = { version = "4.9.3", git = "https://github.com/OpenZeppelin/openzeppelin-contracts.git", rev = "fd81a96f01cc42ef1c9a5399364968d0e07e9e90" }
+"@openzeppelin-contracts-5.0.2" = { version = "5.0.2", git = "https://github.com/OpenZeppelin/openzeppelin-contracts.git", rev = "dbb6104ce834628e473d2173bbc9d47f81a9eec3" }
+"@openzeppelin-contracts-upgradeable-4.9.3" = { version = "4.9.3", git = "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable.git", rev = "3d4c0d5741b131c231e558d7a6213392ab3672a5" }
+"@openzeppelin-contracts-upgradeable-5.0.2" = { version = "5.0.2", git = "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable.git", rev = "723f8cab09cdae1aca9ec9cc1cfa040c2d4b06c1" }
+
+[soldeer]
+recursive_deps = false
+remappings_version = false
+remappings_generate = false
+remappings_regenerate = false
+remappings_prefix = "@"
+remappings_location = "config"
+
+[rpc_endpoints]
+mainnet = "${MAINNET_URL}"
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

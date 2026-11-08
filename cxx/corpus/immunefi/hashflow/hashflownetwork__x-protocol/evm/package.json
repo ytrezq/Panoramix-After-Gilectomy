@@ -1,0 +1,69 @@
+{
+  "name": "@hashflow/contracts-evm",
+  "version": "2.0.17",
+  "description": "EVM Smart Contracts for Solidity",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "scripts": {
+    "test": "hardhat test",
+    "lint": "eslint .",
+    "build:contracts": "hardhat compile",
+    "build:abi": "ts-node scripts/extractABI.ts",
+    "build:tsc": "rm -rf dist && tsc",
+    "build": "yarn build:contracts && yarn build:abi && yarn build:tsc"
+  },
+  "files": [
+    "contracts",
+    "deployed-contracts",
+    "dist/src",
+    "dist/types",
+    "abi"
+  ],
+  "keywords": [
+    "ethereum",
+    "defi"
+  ],
+  "author": "Victor Ionescu <victor@hashflow.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@aave/core-v3": "1.17.2",
+    "@coral-xyz/anchor": "^0.29.0",
+    "@fireblocks/fireblocks-web3-provider": "^1.2.3",
+    "@hashflow/contracts-solana": "^0.0.4",
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
+    "@nomicfoundation/hardhat-ethers": "^3.0.6",
+    "@nomicfoundation/hardhat-ignition": "^0.15.5",
+    "@nomicfoundation/hardhat-ignition-ethers": "^0.15.5",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.11",
+    "@nomicfoundation/hardhat-verify": "^2.0.8",
+    "@nomicfoundation/ignition-core": "^0.15.5",
+    "@solana/web3.js": "^1.78.4",
+    "@typechain/ethers-v6": "^0.5.1",
+    "@typechain/hardhat": "^9.1.0",
+    "@types/chai": "^4.2.0",
+    "@types/mocha": ">=9.1.0",
+    "@types/node": ">=16.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.4.1",
+    "@typescript-eslint/parser": "^6.4.1",
+    "chai": "^4.2.0",
+    "dotenv": "^16.3.1",
+    "eslint": "^8.47.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-import": "^2.28.1",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "ethers": "^6.4.0",
+    "hardhat": "^2.22.18",
+    "hardhat-contract-sizer": "^2.10.0",
+    "hardhat-gas-reporter": "^2.2.2",
+    "prettier": "^3.0.2",
+    "prettier-plugin-solidity": "^1.1.3",
+    "solidity-coverage": "^0.8.0",
+    "ts-node": ">=8.0.0",
+    "typechain": "^8.3.2",
+    "typescript": ">=4.5.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "4.9.2"
+  }
+}

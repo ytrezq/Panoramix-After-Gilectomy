@@ -1,0 +1,269 @@
+// SPDX-License-Identifier: SEL-1.0
+// Copyright © 2025 Veda Tech Labs
+// Derived from Boring Vault Software © 2025 Veda Tech Labs (TEST ONLY – NO COMMERCIAL USE)
+// Licensed under Software Evaluation License, Version 1.0
+pragma solidity 0.8.21;
+
+import {FixedPointMathLib} from "@solmate/utils/FixedPointMathLib.sol";
+import {ERC20} from "@solmate/tokens/ERC20.sol";
+import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
+import {ERC4626} from "@solmate/tokens/ERC4626.sol";
+import {MerkleTreeHelper} from "test/resources/MerkleTreeHelper/MerkleTreeHelper.sol";
+import "forge-std/Script.sol";
+
+/**
+ *  source .env && forge script script/MerkleRootCreation/Mainnet/CreateSentoraBTCMerkleRoot.s.sol --rpc-url $MAINNET_RPC_URL --gas-limit 1000000000000000000
+ */
+contract CreateSentoraBTCMerkleRoot is Script, MerkleTreeHelper {
+    using FixedPointMathLib for uint256;
+
+    //standard
+    address public boringVault = 0x7Dee0120739b7ec048B469939EFB178ADbbB19B2;
+    address public rawDataDecoderAndSanitizer = 0xCDbAa23Ef3fCC51DA661c735c8534E3cC92bdDd3;
+    address public itbDecoderAndSanitizer = 0x2D7085602a85aFb417AE1dFcEc09C301FeC8Df36;
+    address public managerAddress = 0x29AB989D159C44dCE28A722d36aE7E35b7dB9CFE;
+    address public accountantAddress = 0x4Bb6C416a00561ad6657110b76552c42d55Ff1d6;
+
+    address public oneInchOwnedDecoderAndSanitizer = 0x42842201E199E6328ADBB98e7C2CbE77561FAC88;
+
+    function setUp() external {}
+
+    /**
+     * @notice Uncomment which script you want to run.
+     */
+    function run() external {
+        generateStrategistMerkleRoot();
+    }
+
+    function generateStrategistMerkleRoot() public {
+        setSourceChainName(mainnet);
+        setAddress(false, mainnet, "boringVault", boringVault);
+        setAddress(false, mainnet, "managerAddress", managerAddress);
+        setAddress(false, mainnet, "accountantAddress", accountantAddress);
+        setAddress(false, mainnet, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
+
+        ManageLeaf[] memory leafs = new ManageLeaf[](128);
+        
+        // ========================== Fee Claiming ==========================
+        ERC20[] memory feeAssets = new ERC20[](1);
+        feeAssets[0] = getERC20(sourceChain, "KBTC");
+        _addLeafsForFeeClaiming(leafs, getAddress(sourceChain, "accountantAddress"), feeAssets, false);
+        
+        // ========================== LayerZero ==========================
+        // bridge USDT to Ink via USDT0
+        _addLayerZeroLeafs(
+            leafs,
+            getERC20(sourceChain, "USDT"),
+            getAddress(sourceChain, "usdt0OFTAdapter"),
+            layerZeroInkEndpointId,
+            getBytes32(sourceChain, "boringVault")
+        );
+        
+        _addLayerZeroLeafs(
+            leafs,
+            getERC20(sourceChain, "KBTC"),
+            getAddress(sourceChain, "KBTC"),
+            layerZeroInkEndpointId,
+            getBytes32(sourceChain, "boringVault")
+        );
+
+        // bridge USDC to Ink via CCTP
+        _addCCTPBridgeLeafs(leafs, cctpInkDomainId);
+
+        // ========================== Position Manager ==========================
+        // Supplies kBTC on Morpho, borrows PYUSD, Supplies PYUSD
+        {
+            address pyusdMorphoKbtcPositionManager = 0xAd50F5a15F5a3Bc9DAa934915586D9b8889294AC;
+            ERC20[] memory pyusdMorphoKbtcTokensUsed = new ERC20[](3);
+            pyusdMorphoKbtcTokensUsed[0] = getERC20(sourceChain, "KBTC");
+            pyusdMorphoKbtcTokensUsed[1] = getERC20(sourceChain, "PYUSD");
+            pyusdMorphoKbtcTokensUsed[2] = getERC20(sourceChain, "MORPHO");
+            _addLeafsForITBPositionManagerLocal(leafs, pyusdMorphoKbtcPositionManager, pyusdMorphoKbtcTokensUsed, "Sentora PYUSD main V2 KBTC ITB Position Manager");
+        }
+
+        // Supplies kBTC on Morpho, borrows PYUSD, swaps PYUSD for PRIME, holds PRIME (supervised loan)
+        {
+            address primeSupervisedLoanPositionManager = 0x706ac2F9E24385ea5d0F1b3B82daf3c2F7833b65;
+            ERC20[] memory primeSupervisedLoanTokensUsed = new ERC20[](4);
+            primeSupervisedLoanTokensUsed[0] = getERC20(sourceChain, "KBTC");
+            primeSupervisedLoanTokensUsed[1] = getERC20(sourceChain, "PYUSD");
+            primeSupervisedLoanTokensUsed[2] = getERC20(sourceChain, "PRIME");
+            primeSupervisedLoanTokensUsed[3] = getERC20(sourceChain, "MORPHO");
+            _addLeafsForITBPositionManagerLocal(leafs, primeSupervisedLoanPositionManager, primeSupervisedLoanTokensUsed, "Sentora PYUSD main V2 KBTC PRIME Supervised Loan ITB Position Manager");
+        }
+
+        // Supplies wBTC on Morpho, borrows PYUSD, supplies PYUSD
+        {
+            address pyusdMorphoWbtcPositionManager = 0x834957eb674eFB12f2F70fceA7A9De5AB114D4B1;
+            ERC20[] memory pyusdMorphoWbtcTokensUsed = new ERC20[](3);
+            pyusdMorphoWbtcTokensUsed[0] = getERC20(sourceChain, "WBTC");
+            pyusdMorphoWbtcTokensUsed[1] = getERC20(sourceChain, "PYUSD");
+            pyusdMorphoWbtcTokensUsed[2] = getERC20(sourceChain, "MORPHO");
+            _addLeafsForITBPositionManagerLocal(leafs, pyusdMorphoWbtcPositionManager, pyusdMorphoWbtcTokensUsed, "Sentora PYUSD main V2 WBTC ITB Position Manager");
+        }
+
+        // Supplies wBTC on Morpho, borrows RLUSD, supplies RLUSD
+        {
+            address rlusdWbtcMorphoPositionManager = 0x817c40CFE1BB06fADbc96b3Ce3DbDc517D2b5dCE;
+            ERC20[] memory rlusdWbtcMorphoTokensUsed = new ERC20[](3);
+            rlusdWbtcMorphoTokensUsed[0] = getERC20(sourceChain, "WBTC");
+            rlusdWbtcMorphoTokensUsed[1] = getERC20(sourceChain, "RLUSD");
+            rlusdWbtcMorphoTokensUsed[2] = getERC20(sourceChain, "MORPHO");
+            _addLeafsForITBPositionManagerLocal(leafs, rlusdWbtcMorphoPositionManager, rlusdWbtcMorphoTokensUsed, "Sentora RLUSD main V2 WBTC ITB Position Manager");
+        }
+
+        // Supplies kBTC on Morpho, borrows RLUSD, supplies RLUSD
+        {
+            address rlusdKbtcMorphoPositionManager = 0xCB3168E89C375FbD0649067B63d5379232763499;
+            ERC20[] memory rlusdKbtcMorphoTokensUsed = new ERC20[](3);
+            rlusdKbtcMorphoTokensUsed[0] = getERC20(sourceChain, "KBTC");
+            rlusdKbtcMorphoTokensUsed[1] = getERC20(sourceChain, "RLUSD");
+            rlusdKbtcMorphoTokensUsed[2] = getERC20(sourceChain, "MORPHO");
+            _addLeafsForITBPositionManagerLocal(leafs, rlusdKbtcMorphoPositionManager, rlusdKbtcMorphoTokensUsed, "Sentora RLUSD main V2 KBTC ITB Position Manager");
+        }
+
+        // Supplies kBTC on Morpho, borrows RLUSD, swaps RLUSD for PRIME, holds PRIME (supervised loan)
+        {
+            address rlusdPrimeSupervisedLoanPositionManager = 0x3E20Cd4b434Fce58D02D06391d3ca1F47214b4a4;
+            ERC20[] memory rlusdPrimeSupervisedLoanTokensUsed = new ERC20[](4);
+            rlusdPrimeSupervisedLoanTokensUsed[0] = getERC20(sourceChain, "KBTC");
+            rlusdPrimeSupervisedLoanTokensUsed[1] = getERC20(sourceChain, "RLUSD");
+            rlusdPrimeSupervisedLoanTokensUsed[2] = getERC20(sourceChain, "PRIME");
+            rlusdPrimeSupervisedLoanTokensUsed[3] = getERC20(sourceChain, "MORPHO");
+            _addLeafsForITBPositionManagerLocal(leafs, rlusdPrimeSupervisedLoanPositionManager, rlusdPrimeSupervisedLoanTokensUsed, "Sentora RLUSD main V2 KBTC PRIME Supervised Loan ITB Position Manager");
+        }
+
+        // Supplies WBTC on Aave, borrows USDT, swaps USDT for PYUSD, deposits PYUSD on Morpho PYUSD PRIME
+        {
+            address usdtWbtcPrimeSupervisedLoanPositionManager = 0xF57eA5dd148cf907721C7fF9fa77BD9b7c7EEC94;
+            ERC20[] memory usdtWbtcPrimeSupervisedLoanTokensUsed = new ERC20[](4);
+            usdtWbtcPrimeSupervisedLoanTokensUsed[0] = getERC20(sourceChain, "WBTC");
+            usdtWbtcPrimeSupervisedLoanTokensUsed[1] = getERC20(sourceChain, "aV3WBTC");
+            usdtWbtcPrimeSupervisedLoanTokensUsed[2] = getERC20(sourceChain, "USDT");
+            usdtWbtcPrimeSupervisedLoanTokensUsed[3] = getERC20(sourceChain, "PYUSD");
+            _addLeafsForITBPositionManagerLocal(leafs, usdtWbtcPrimeSupervisedLoanPositionManager, usdtWbtcPrimeSupervisedLoanTokensUsed, "Sentora USDT main V2 PYUSD PRIME Supervised Loan ITB Position Manager");
+        }
+
+        // WBTC-kBTC Uniswap V3 position manager
+        {
+            address wbtcKbtcUniV3PositionManager = 0xb23530A576C2a0ddE526DF2Be56F2EF81228cC4b;
+            ERC20[] memory wbtcKbtcUniV3TokensUsed = new ERC20[](2);
+            wbtcKbtcUniV3TokensUsed[0] = getERC20(sourceChain, "WBTC");
+            wbtcKbtcUniV3TokensUsed[1] = getERC20(sourceChain, "KBTC");
+            _addLeafsForITBPositionManagerLocal(leafs, wbtcKbtcUniV3PositionManager, wbtcKbtcUniV3TokensUsed, "Sentora Uniswap V3 WBTC-kBTC ITB Position Manager");
+        }
+
+        // ========================== 1inch ==========================
+        {
+            address[] memory assets = new address[](7);
+            SwapKind[] memory kind = new SwapKind[](7);
+            assets[0] = getAddress(sourceChain, "KBTC");
+            kind[0] = SwapKind.BuyAndSell;
+            assets[1] = getAddress(sourceChain, "WBTC");
+            kind[1] = SwapKind.BuyAndSell;
+            assets[2] = getAddress(sourceChain, "PRIME");
+            kind[2] = SwapKind.BuyAndSell;
+            assets[3] = getAddress(sourceChain, "PYUSD");
+            kind[3] = SwapKind.BuyAndSell;
+            assets[4] = getAddress(sourceChain, "RLUSD");
+            kind[4] = SwapKind.BuyAndSell;
+            assets[5] = getAddress(sourceChain, "MORPHO");
+            kind[5] = SwapKind.Sell;
+            assets[6] = getAddress(sourceChain, "USDT");
+            kind[6] = SwapKind.BuyAndSell;
+
+            setAddress(true, sourceChain, "rawDataDecoderAndSanitizer", oneInchOwnedDecoderAndSanitizer);
+            _addLeafsFor1InchOwnedGeneralSwapping(leafs, assets, kind);
+            setAddress(true, sourceChain, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
+        }
+
+        // ========================== Uniswap V3 ==========================
+        // WBTC/KBTC pair
+        // Pool address: 0x64869c8D4B7C5a6A2F102C9FceeA7f7De846B672
+        {
+            address[] memory token0 = new address[](1);
+            token0[0] = getAddress(sourceChain, "WBTC");
+
+            address[] memory token1 = new address[](1);
+            token1[0] = getAddress(sourceChain, "KBTC");
+
+            uint256[] memory fees = new uint256[](1);
+            fees[0] = 100;
+
+            _addUniswapV3Leafs(leafs, token0, token1, fees, true); // swap only
+        }
+        
+        // ========================== Verify ==========================
+        _verifyDecoderImplementsLeafsFunctionSelectors(leafs);
+
+        bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+
+        string memory filePath = "./leafs/Mainnet/SentoraBTCStrategistLeafs.json";
+
+        _generateLeafs(filePath, leafs, manageTree[manageTree.length - 1][0], manageTree);
+    }
+
+    function _addLeafsForITBPositionManagerLocal(
+         ManageLeaf[] memory leafs,
+         address itbPositionManager,
+         ERC20[] memory tokensUsed,
+         string memory itbContractName
+     ) internal {
+         // acceptOwnership
+         leafIndex++;
+         leafs[leafIndex] = ManageLeaf(
+             itbPositionManager,
+             false,
+             "acceptOwnership()",
+             new address[](0),
+             string.concat("Accept ownership of the ", itbContractName, " contract"),
+             itbDecoderAndSanitizer
+         );
+ 
+         // removeExecutor
+         leafIndex++;
+         leafs[leafIndex] = ManageLeaf(
+             itbPositionManager,
+             false,
+             "removeExecutor(address)",
+             new address[](0),
+             string.concat("Remove executor from the ", itbContractName, " contract"),
+             itbDecoderAndSanitizer
+         );
+
+         // Withdraw
+         leafIndex++;
+         leafs[leafIndex] = ManageLeaf(
+             itbPositionManager,
+             false,
+             "withdraw(address,uint256)",
+             new address[](0),
+             string.concat("Withdraw from the ", itbContractName, " contract"),
+             itbDecoderAndSanitizer
+         );
+         // WithdrawAll
+         leafIndex++;
+         leafs[leafIndex] = ManageLeaf(
+             itbPositionManager,
+             false,
+             "withdrawAll(address)",
+             new address[](0),
+             string.concat("Withdraw all from the ", itbContractName, " contract"),
+             itbDecoderAndSanitizer
+         );
+ 
+         for (uint256 i; i < tokensUsed.length; ++i) {
+             // Transfer
+             leafIndex++;
+             leafs[leafIndex] = ManageLeaf(
+                 address(tokensUsed[i]),
+                 false,
+                 "transfer(address,uint256)",
+                 new address[](1),
+                 string.concat("Transfer ", tokensUsed[i].symbol(), " to the ", itbContractName, " contract"),
+                 itbDecoderAndSanitizer
+             );
+             leafs[leafIndex].argumentAddresses[0] = itbPositionManager;
+         }
+     }
+}

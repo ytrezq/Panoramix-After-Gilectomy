@@ -1,0 +1,965 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.13;
+
+import "forge-std/Vm.sol";
+
+    struct ConfigPerL2 {
+        // General chain info
+        string NAME;
+        string RPC_URL;
+        string CHAIN_ID;
+
+        /**
+        * constants and addresses related to sending LayerZero messages
+        * https://docs.layerzero.network/v2/developers/evm/technical-reference/endpoints
+        * https://docs.layerzero.network/v2/developers/evm/technical-reference/executor-addresses
+        * https://docs.layerzero.network/v2/developers/evm/technical-reference/messagelibs
+        * https://docs.layerzero.network/v2/developers/evm/technical-reference/dvn-addresses
+        */
+        uint32 L2_EID;
+        address L2_ENDPOINT;
+        address SEND_302;
+        address RECEIVE_302;
+        address LAYERZERO_DVN;
+        address NETHERMIND_DVN;
+        address HORIZEN_DVN;
+        address CANARY_DVN;
+        address[4] LZ_DVN;
+
+        // Addresses related to OFT deployment
+        address L2_OFT;
+        // TODO: remove this field after the new implementation is deployed
+        address L2_OFT_IMPL;
+        address L2_CONTRACT_CONTROLLER_SAFE;
+        address L2_OFT_PROXY_ADMIN;
+
+        // Addresses for the addition contracts required for native minting 
+        address L2_SYNC_POOL;
+        address L2_SYNC_POOL_RATE_LIMITER;
+        address L2_EXCHANGE_RATE_PROVIDER;
+        address L2_PRICE_ORACLE;
+        address L2_MESSENGER;
+
+        address L1_MESSENGER;
+        address L1_DUMMY_TOKEN;
+        address L1_RECEIVER;
+
+        address L2_SYNC_POOL_PROXY_ADMIN;
+        address L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN;
+        address L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN;
+        address L1_DUMMY_TOKEN_PROXY_ADMIN;
+        address L1_RECEIVER_PROXY_ADMIN;
+    }
+
+contract L2Constants {
+
+    /*//////////////////////////////////////////////////////////////
+                        OFT Deployment Parameters
+    //////////////////////////////////////////////////////////////*/
+
+    // General chain constants (populated by _loadTarget() from registry/chains.json)
+    string constant DEPLOYMENT_CHAIN_ID =  "143";
+
+    // Deployment target state variables — set by _loadTarget() in the constructor.
+    // When TARGET_CHAIN env var is set, values come from registry/chains.json[TARGET_CHAIN].
+    uint32  public DEPLOYMENT_EID;
+    address public DEPLOYMENT_LZ_ENDPOINT;
+    address public DEPLOYMENT_SEND_LIB_302;
+    address public DEPLOYMENT_RECEIVE_LIB_302;
+    string  public DEPLOYMENT_RPC_URL;
+    // 4-of-4 DVN array (sorted ascending by address — LZ reverts LZ_ULN_Unsorted otherwise)
+    address[4] public DEPLOYMENT_DVNS;
+
+    // Per-pathway peer config (loaded from registry peerEids/peerOfts/peerLimits/peerWindows).
+    // Length is 0 for chains that don't carry these fields in the registry.
+    uint32[]  public DEPLOYMENT_PEER_EIDS;
+    address[] public DEPLOYMENT_PEER_OFTS;
+    uint256[] public DEPLOYMENT_PEER_LIMITS;
+    uint256[] public DEPLOYMENT_PEER_WINDOWS;
+
+    // Legacy 2-DVN Monad constants — kept only for adapter-migration scripts
+    // (02_DeployMigrationOFT) which were written against the old 2-DVN Monad config.
+    // Do NOT use these in new deployment scripts; use DEPLOYMENT_DVNS instead.
+    address constant DEPLOYMENT_LZ_DVN_MONAD     = 0x282b3386571f7f794450d5789911a9804FA346b4;
+    address constant DEPLOYMENT_NETHERMIND_DVN_MONAD = 0xaCDe1f22EEAb249d3ca6Ba8805C8fEe9f52a16e7;
+
+    address constant DEPLOYMENT_CONTRACT_CONTROLLER = 0x7a00657a45420044bc526B90Ad667aFfaee0A868;
+    /*//////////////////////////////////////////////////////////////
+                    
+    //////////////////////////////////////////////////////////////*/
+
+    // OFT deployment addresses (should be consistent across all chains due to the create3 deployment)
+    address constant DEPLOYMENT_OFT = 0xA3D68b74bF0528fdD07263c60d6488749044914b;
+    address constant DEPLOYMENT_OFT_IMPL = 0x08DB0DB9b5F2dcbBFDc26FF411FB2026e81DA748;
+    address constant DEPLOYMENT_PROXY_ADMIN_CONTRACT = 0x373ea3AEC25eB652ACa38504254eCD5459da6d19;
+
+    address constant DEPLOYER_ADDRESS = 0x8D5AAc5d3d5cda4c404fA7ee31B0822B648Bb150;
+    address constant L2_CREATE3_DEPLOYER = 0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed;
+    
+    // OFT Token Constants
+    string constant TOKEN_NAME = "Wrapped eETH";
+    string constant TOKEN_SYMBOL = "weETH";
+    
+    // weETH Bridge Rate Limits for Native Minting
+    uint256 constant BUCKET_SIZE = 3600000000000000000000;
+    uint256 constant BUCKET_REFILL_PER_SECOND = 1000000000000000000;
+
+    // Global Production for OFT weETH Bridge Rate Limits
+    uint256 constant LIMIT = 5000 ether;
+    uint256 constant WINDOW = 4 hours;
+
+    // Standard Native Minting Rates
+    uint32 constant L2_PRICE_ORACLE_HEART_BEAT = 24 hours;
+
+    // Mainnet Constants
+    string constant L1_RPC_URL = "https://mainnet.gateway.tenderly.co";
+    uint32 constant L1_EID = 30101;
+    address constant L1_ENDPOINT = 0x1a44076050125825900e736c501f859c50fE728c;
+    address constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address constant L1_WEETH = 0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee;
+    address constant L1_CONTRACT_CONTROLLER = 0x2aCA71020De61bb532008049e1Bd41E451aE8AdC;
+    address constant L1_TIMELOCK_GNOSIS = 0xcdd57D11476c22d265722F68390b036f3DA48c21;
+    address constant L1_TIMELOCK = 0x9f26d4C958fD811A1F59B01B86Be7dFFc9d20761;
+    // 2-day operating timelock; L1_CONTRACT_CONTROLLER holds PROPOSER + EXECUTOR.
+    address constant L1_OPERATING_TIMELOCK = 0xcD425f44758a08BaAB3C4908f3e3dE5776e45d7a;
+
+    address constant L1_SYNC_POOL = 0xD789870beA40D056A4d26055d0bEFcC8755DA146;
+    address constant L1_OFT_ADAPTER = 0xcd2eb13D6831d4602D80E5db9230A57596CDCA63;
+    address constant L1_OFT_ADAPTER_NEW_IMPL = 0xA82cc578927058af14fD84d96a817Dc85Ac4F946;
+    address constant L1_VAMP = 0x9FFDF407cDe9a93c47611799DA23924Af3EF764F;
+    address constant L1_SEND_302 = 0xbB2Ea70C9E858123480642Cf96acbcCE1372dCe1;
+    address constant L1_RECEIVE_302 = 0xc02Ab410f0734EFa3F14628780e6e695156024C2;
+    address constant L1_LZ_DVN = 0x589dEDbD617e0CBcB916A9223F4d1300c294236b;
+    address constant L1_NETHERMIND_DVN = 0xa59BA433ac34D2927232918Ef5B2eaAfcF130BA5;
+    address constant L1_HORIZEN_DVN = 0x380275805876Ff19055EA900CDb2B46a94ecF20D;
+    address constant L1_CANARY_DVN = 0xa4fE5A5B9A846458a70Cd0748228aED3bF65c2cd;
+    // Post Canary -> P2P swap, sorted ascending. Matches registry/chains.json ethereum.LZ_DVN and
+    // live on-chain config; the retired Canary DVN (0xa4fE5A5B…) is deliberately absent.
+    address[4] L1_DVN = [0x06559EE34D85a88317Bf0bfE307444116c631b67, 0x380275805876Ff19055EA900CDb2B46a94ecF20D, 0x589dEDbD617e0CBcB916A9223F4d1300c294236b, 0xa59BA433ac34D2927232918Ef5B2eaAfcF130BA5];
+
+    // https://docs.layerzero.network/v2/developers/solana/configuration/oapp-config#dead-dvn
+    address constant DEAD_DVN = 0x000000000000000000000000000000000000dEaD;
+
+    address constant L1_OFT_ADAPTER_PROXY_ADMIN = 0xa9E9bBf04F95688D7fd82036f83544630E463CAc;
+    address constant L1_SYNC_POOL_PROXY_ADMIN = 0xDBf6bE120D4dc72f01534673a1223182D9F6261D;
+
+    // Cross chain pauser EOA
+    address constant PAUSER_EOA = 0x9AF1298993DC1f397973C62A5D47a284CF76844D;
+
+    address constant L2_TIMELOCK = 0x851Dd540f4D2Ec78120De0a0cc87B21EdE5Df5C6;
+
+    // Construct an array of all the L2s that are currently supported
+    ConfigPerL2[] L2s;
+
+    // Loads deployment target from registry/chains.json using TARGET_CHAIN env var.
+    // TARGET_CHAIN is required — reverts if unset.
+    // RPC_URL is optional (may be absent for chains without a public RPC).
+    function _loadTarget() internal {
+        // Access cheatcodes via the magic address; works in Script and Test contexts.
+        Vm _vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+        string memory key = _vm.envOr("TARGET_CHAIN", string(""));
+        require(bytes(key).length > 0, "TARGET_CHAIN env var required");
+        string memory j = _vm.readFile("registry/chains.json");
+
+        // Accept the LayerZero / explorer spelling of a chain (TARGET_CHAIN=optimism) and map it
+        // onto the registry key (op). Without this the only symptom is a raw parseJson error.
+        string memory p = _vm.readFile("registry/policy.json");
+        string memory aliasPath = string.concat(".chainKeyAliases.", key);
+        if (!_vm.keyExistsJson(j, string.concat(".", key)) && _vm.keyExistsJson(p, aliasPath)) {
+            key = _vm.parseJsonString(p, aliasPath);
+        }
+        require(
+            _vm.keyExistsJson(j, string.concat(".", key)),
+            string.concat("TARGET_CHAIN '", key, "' is not a key in registry/chains.json")
+        );
+
+        string memory b = string.concat(".", key, ".");
+        DEPLOYMENT_EID             = uint32(_vm.parseJsonUint(j, string.concat(b, "L2_EID")));
+        DEPLOYMENT_LZ_ENDPOINT     = _vm.parseJsonAddress(j, string.concat(b, "L2_ENDPOINT"));
+        DEPLOYMENT_SEND_LIB_302    = _vm.parseJsonAddress(j, string.concat(b, "SEND_302"));
+        DEPLOYMENT_RECEIVE_LIB_302 = _vm.parseJsonAddress(j, string.concat(b, "RECEIVE_302"));
+        // RPC: the registry carries a public endpoint for most chains. Chains whose RPC needs an
+        // API key carry RPC_ENV instead, so the secret stays in .env and out of git.
+        if (_vm.keyExistsJson(j, string.concat(b, "RPC_URL"))) {
+            DEPLOYMENT_RPC_URL = _vm.parseJsonString(j, string.concat(b, "RPC_URL"));
+        } else if (_vm.keyExistsJson(j, string.concat(b, "RPC_ENV"))) {
+            DEPLOYMENT_RPC_URL = _vm.envOr(_vm.parseJsonString(j, string.concat(b, "RPC_ENV")), string(""));
+        }
+        address[] memory dvns = _vm.parseJsonAddressArray(j, string.concat(b, "LZ_DVN"));
+        require(dvns.length == 4, "policy requires 4 DVNs");
+        for (uint256 i = 0; i < 4; i++) DEPLOYMENT_DVNS[i] = dvns[i];
+
+        // Per-pathway peer config — optional; only present on chains that use an explicit allow-list.
+        if (_vm.keyExistsJson(j, string.concat(b, "peerEids"))) {
+            uint256[] memory rawEids = _vm.parseJsonUintArray(j, string.concat(b, "peerEids"));
+            address[] memory peerOfts = _vm.parseJsonAddressArray(j, string.concat(b, "peerOfts"));
+            uint256[] memory peerLimits = _vm.parseJsonUintArray(j, string.concat(b, "peerLimits"));
+            uint256[] memory peerWindows = _vm.parseJsonUintArray(j, string.concat(b, "peerWindows"));
+            require(rawEids.length == peerOfts.length, "peerEids/peerOfts length mismatch");
+            require(rawEids.length == peerLimits.length, "peerEids/peerLimits length mismatch");
+            require(rawEids.length == peerWindows.length, "peerEids/peerWindows length mismatch");
+            for (uint256 i = 0; i < rawEids.length; i++) {
+                DEPLOYMENT_PEER_EIDS.push(uint32(rawEids[i]));
+                DEPLOYMENT_PEER_OFTS.push(peerOfts[i]);
+                DEPLOYMENT_PEER_LIMITS.push(peerLimits[i]);
+                DEPLOYMENT_PEER_WINDOWS.push(peerWindows[i]);
+            }
+        }
+    }
+
+    // Only connecting to base and mainnet
+    constructor () {
+        _loadTarget();
+        // L2s.push(BLAST);
+        // L2s.push(MODE);
+        // L2s.push(BNB);
+        L2s.push(BASE);
+        // L2s.push(OP);
+        // L2s.push(SCROLL);
+        // L2s.push(LINEA);
+        // L2s.push(ZKSYNC);
+        // L2s.push(SWELL);
+        // L2s.push(MORPH);
+        // L2s.push(BERA);
+        // L2s.push(UNICHAIN);
+        // L2s.push(AVAX);
+        // L2s.push(HYPEREVM);
+        // L2s.push(SONIC);
+        // L2s.push(PLASMA);
+        // L2s.push(MONAD);
+        // L2s.push(STABLE);
+    }
+
+    ConfigPerL2 BLAST = ConfigPerL2({
+        NAME: "blast",
+        RPC_URL: "https://rpc.blast.io",
+        CHAIN_ID: "81457",
+        
+        L2_EID: 30243,
+        L2_ENDPOINT: 0x1a44076050125825900e736c501f859c50fE728c,
+        SEND_302: 0xc1B621b18187F74c8F6D52a6F709Dd2780C09821,
+        RECEIVE_302: 0x377530cdA84DFb2673bF4d145DCF0C4D7fdcB5b6,
+        
+        LAYERZERO_DVN: 0xc097ab8CD7b053326DFe9fB3E3a31a0CCe3B526f,
+        NETHERMIND_DVN: 0xDd7B5E1dB4AaFd5C8EC3b764eFB8ed265Aa5445B,
+        HORIZEN_DVN: 0x70BF42C69173d6e33b834f59630DAC592C70b369,
+        CANARY_DVN: 0x6398E91001Cc1682bBA103E6B2489Fa5675a5a64,
+        LZ_DVN: [0xc097ab8CD7b053326DFe9fB3E3a31a0CCe3B526f, 0xDd7B5E1dB4AaFd5C8EC3b764eFB8ed265Aa5445B, 0x70BF42C69173d6e33b834f59630DAC592C70b369, 0x6398E91001Cc1682bBA103E6B2489Fa5675a5a64],
+
+        L2_OFT: 0x04C0599Ae5A44757c0af6F9eC3b93da8976c150A,
+        L2_OFT_IMPL: 0x70d7E0C93D8443325550Ba3F71576F5f346b8aA9,
+        L2_CONTRACT_CONTROLLER_SAFE: 0xa4822d7d24747e6A1BAA171944585bad4434f2D5,
+        L2_OFT_PROXY_ADMIN: 0x2F6f3cc4a275C7951FB79199F01eD82421eDFb68,
+
+        L2_SYNC_POOL: 0x52c4221Cb805479954CDE5accfF8C4DcaF96623B,
+        L2_SYNC_POOL_RATE_LIMITER: 0x6f257089bF046a02751b60767871953F3899652e,
+        L2_EXCHANGE_RATE_PROVIDER: 0xc42853c0C6624F42fcB8219aCeb67Ad188087DCB,
+        L2_PRICE_ORACLE: 0xcD96262Df56127f298b452FA40759632868A472a,
+        L2_MESSENGER: 0x4200000000000000000000000000000000000007,
+
+        L1_MESSENGER: 0x5D4472f31Bd9385709ec61305AFc749F0fA8e9d0,
+        L1_DUMMY_TOKEN: 0x83998e169026136760bE6AF93e776C2F352D4b28,
+        L1_RECEIVER: 0x27e120C518a339c3d8b665E56c4503DF785985c2,
+
+        L2_SYNC_POOL_PROXY_ADMIN: 0x8f732e00d6CF2302775Df16d4110f0f7ad3780f9,
+        L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN: 0xb4224E552016ba5D35b44608Cd4578fF7FCB6e82,
+        L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN: address(0),
+        L1_DUMMY_TOKEN_PROXY_ADMIN: 0x96a226ad7c14870502f9794fB481EE102E595fFa,
+        L1_RECEIVER_PROXY_ADMIN: 0x70F38913d95987829577788dF9a6A0741dA16543
+    });
+
+    ConfigPerL2 MODE = ConfigPerL2({
+        NAME: "mode",
+        RPC_URL: "https://mainnet.mode.network",
+        CHAIN_ID: "34443",
+
+        L2_EID: 30260,
+        L2_ENDPOINT: 0x1a44076050125825900e736c501f859c50fE728c,
+        SEND_302: 0x2367325334447C5E1E0f1b3a6fB947b262F58312,
+        RECEIVE_302: 0xc1B621b18187F74c8F6D52a6F709Dd2780C09821,
+
+        LAYERZERO_DVN: 0xce8358bc28dd8296Ce8cAF1CD2b44787abd65887,
+        NETHERMIND_DVN: 0xcd37CA043f8479064e10635020c65FfC005d36f6,
+        HORIZEN_DVN: 0xaCDe1f22EEAb249d3ca6Ba8805C8fEe9f52a16e7,
+        CANARY_DVN: 0x5D8aeD4182A8EcC47386e88Aa8753Dde7423996e,
+        LZ_DVN: [0xcd37CA043f8479064e10635020c65FfC005d36f6, 0xce8358bc28dd8296Ce8cAF1CD2b44787abd65887, 0xaCDe1f22EEAb249d3ca6Ba8805C8fEe9f52a16e7, 0x5D8aeD4182A8EcC47386e88Aa8753Dde7423996e],
+
+        L2_OFT: 0x04C0599Ae5A44757c0af6F9eC3b93da8976c150A,
+        L2_OFT_IMPL: 0x70d7E0C93D8443325550Ba3F71576F5f346b8aA9,
+        L2_CONTRACT_CONTROLLER_SAFE: 0xa4822d7d24747e6A1BAA171944585bad4434f2D5,
+        L2_OFT_PROXY_ADMIN: 0x2F6f3cc4a275C7951FB79199F01eD82421eDFb68,
+
+        L2_SYNC_POOL: 0x52c4221Cb805479954CDE5accfF8C4DcaF96623B,
+        L2_SYNC_POOL_RATE_LIMITER: 0x95F1138837F1158726003251B32ecd8732c76781,
+        L2_EXCHANGE_RATE_PROVIDER: 0xc42853c0C6624F42fcB8219aCeb67Ad188087DCB,
+        L2_PRICE_ORACLE: 0x7C1DAAE7BB0688C9bfE3A918A4224041c7177256,
+        L2_MESSENGER: 0xC0d3c0d3c0D3c0D3C0d3C0D3C0D3c0d3c0d30007,
+
+        L1_MESSENGER: 0x95bDCA6c8EdEB69C98Bd5bd17660BaCef1298A6f,
+        L1_DUMMY_TOKEN: 0xDc400f3da3ea5Df0B7B6C127aE2e54CE55644CF3,
+        L1_RECEIVER: 0xC8Ad0949f33F02730cFf3b96E7F067E83De1696f,
+
+        L2_SYNC_POOL_PROXY_ADMIN: 0x8f732e00d6CF2302775Df16d4110f0f7ad3780f9,
+        L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN: 0xb4224E552016ba5D35b44608Cd4578fF7FCB6e82,
+        L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN: address(0),
+        L1_DUMMY_TOKEN_PROXY_ADMIN: 0x59a5518aCE8e3d60C740503639B94bD86F7CEDF0,
+        L1_RECEIVER_PROXY_ADMIN: 0xe85e493d78a4444bf5fC4A2E415AF530aEad6dd5
+    });
+
+    ConfigPerL2 LINEA = ConfigPerL2({
+        NAME: "linea",
+        RPC_URL: "https://rpc.linea.build",
+        CHAIN_ID: "59144",
+
+        L2_EID: 30183,
+        L2_ENDPOINT: 0x1a44076050125825900e736c501f859c50fE728c,
+        SEND_302: 0x32042142DD551b4EbE17B6FEd53131dd4b4eEa06,
+        RECEIVE_302: 0xE22ED54177CE1148C557de74E4873619e6c6b205,
+
+        LAYERZERO_DVN: 0x129Ee430Cb2Ff2708CCADDBDb408a88Fe4FFd480,
+        NETHERMIND_DVN: 0xDd7B5E1dB4AaFd5C8EC3b764eFB8ed265Aa5445B,
+        HORIZEN_DVN: 0x7fe673201724925B5c477d4E1A4Bd3E954688cF5,
+        CANARY_DVN: 0xDA63525a0Fc42Bcc2cAD1dD28708d5ed11849347,
+        LZ_DVN: [0x0b239476A771834D846Cb505817baC3C391c338A, 0x129Ee430Cb2Ff2708CCADDBDb408a88Fe4FFd480, 0x7fe673201724925B5c477d4E1A4Bd3E954688cF5, 0xDd7B5E1dB4AaFd5C8EC3b764eFB8ed265Aa5445B],
+
+        L2_OFT: 0x1Bf74C010E6320bab11e2e5A532b5AC15e0b8aA6,
+        L2_OFT_IMPL: 0xde8A2C33655ACA88f258988ED74D1511876343D1,
+        L2_CONTRACT_CONTROLLER_SAFE: 0xe4ff196Cd755566845D3dEBB1e2bD34123807eBc,
+        L2_OFT_PROXY_ADMIN: 0xE21B7A5e4c15156180a76F4747313a3485fC4163,
+
+        L2_SYNC_POOL: 0x823106E745A62D0C2FC4d27644c62aDE946D9CCa,
+        L2_SYNC_POOL_RATE_LIMITER: 0x3A19866D5E0fAE0Ce19Adda617f9d2B9fD5a3975,
+        L2_EXCHANGE_RATE_PROVIDER: 0x241a91F095B2020890Bc8518bea168C195518344,
+        L2_PRICE_ORACLE: 0x100c8e61aB3BeA812A42976199Fc3daFbcDD7272,
+        L2_MESSENGER: 0x508Ca82Df566dCD1B0DE8296e70a96332cD644ec,
+
+        L1_MESSENGER: 0xd19d4B5d358258f05D7B411E21A1460D11B0876F,
+        L1_DUMMY_TOKEN: 0x61Ff310aC15a517A846DA08ac9f9abf2A0f9A2bf,
+        L1_RECEIVER: 0x6F149F8bf1CB0245e70171c9972059C22294aa35,
+
+        L2_SYNC_POOL_PROXY_ADMIN: 0x0F88DB75B9011B909b67c498cdcc1C0FD2308444,
+        L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN: 0x40B6a79A93f9596Fe6155c9a56f79482d831178f,
+        L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN: address(0),
+        L1_DUMMY_TOKEN_PROXY_ADMIN: 0xaa249a01a3D73611a27B735130Ab77fd6b0f5a3e,
+        L1_RECEIVER_PROXY_ADMIN: 0x7c6261c2eD0Bd5e532B45C4E553e633cBF34063f
+    });
+
+
+    ConfigPerL2 BASE = ConfigPerL2({
+        NAME: "base",
+        RPC_URL: "https://mainnet.base.org",
+        CHAIN_ID: "8453",
+
+        L2_EID: 30184,
+        L2_ENDPOINT: 0x1a44076050125825900e736c501f859c50fE728c,
+        SEND_302: 0xB5320B0B3a13cC860893E2Bd79FCd7e13484Dda2,
+        RECEIVE_302: 0xc70AB6f32772f59fBfc23889Caf4Ba3376C84bAf,
+
+        LAYERZERO_DVN: 0x9e059a54699a285714207b43B055483E78FAac25, 
+        NETHERMIND_DVN: 0xcd37CA043f8479064e10635020c65FfC005d36f6, 
+        HORIZEN_DVN: 0xa7b5189bcA84Cd304D8553977c7C614329750d99,
+        CANARY_DVN: 0x554833698Ae0FB22ECC90B01222903fD62CA4B47,
+        LZ_DVN: [0x5b6735c66d97479cCD18294fc96B3084EcB2fa3f, 0x9e059a54699a285714207b43B055483E78FAac25, 0xa7b5189bcA84Cd304D8553977c7C614329750d99, 0xcd37CA043f8479064e10635020c65FfC005d36f6],
+
+        L2_OFT: 0x04C0599Ae5A44757c0af6F9eC3b93da8976c150A,
+        L2_OFT_IMPL: 0xde8A2C33655ACA88f258988ED74D1511876343D1,
+        L2_CONTRACT_CONTROLLER_SAFE: 0x7a00657a45420044bc526B90Ad667aFfaee0A868,
+        L2_OFT_PROXY_ADMIN: 0x2F6f3cc4a275C7951FB79199F01eD82421eDFb68,
+
+        L2_SYNC_POOL: 0xc38e046dFDAdf15f7F56853674242888301208a5,
+        L2_SYNC_POOL_RATE_LIMITER: 0xe6e0fe0C3Ac45d1FE71AF7853007467eE89e1e67,
+        L2_EXCHANGE_RATE_PROVIDER: 0xF2c5519c634796B73dE90c7Dc27B4fEd560fC3ca,
+        L2_PRICE_ORACLE: 0x35e9D7001819Ea3B39Da906aE6b06A62cfe2c181,
+        L2_MESSENGER: 0x4200000000000000000000000000000000000007,
+
+        L1_MESSENGER: 0x866E82a600A1414e583f7F13623F1aC5d58b0Afa,
+        L1_DUMMY_TOKEN: 0x0295E0CE709723FB25A28b8f67C54a488BA5aE46,
+        L1_RECEIVER: 0x8963C96186bd05995AdaA9E1fda25B7181CCBc37,
+
+        L2_SYNC_POOL_PROXY_ADMIN: 0x9055c6EF7Cb895D550368fE7B38Be346E7eA9eE6,
+        L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN: 0x7Ce9B21e86778Bb6D06CF107f1C154cB5635598f,
+        L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN: address(0),
+        L1_DUMMY_TOKEN_PROXY_ADMIN: 0x915B16B555872A084B3512169b1F1dC089C3ca9A,
+        L1_RECEIVER_PROXY_ADMIN: 0x0df531532cf25156b1fe91232F41B4c9AA514125
+    });
+
+
+    // OFT only deployments below
+
+    ConfigPerL2 BNB = ConfigPerL2({
+        NAME: "bnb",
+        RPC_URL: "https://bsc-dataseed1.binance.org/",
+        CHAIN_ID: "56",
+
+        L2_EID: 30102,
+        L2_ENDPOINT: 0x1a44076050125825900e736c501f859c50fE728c,
+        SEND_302: 0x9F8C645f2D0b2159767Bd6E0839DE4BE49e823DE,
+        RECEIVE_302: 0xB217266c3A98C8B2709Ee26836C98cf12f6cCEC1,
+
+        LAYERZERO_DVN: 0xfD6865c841c2d64565562fCc7e05e619A30615f0,
+        NETHERMIND_DVN: 0x31F748a368a893Bdb5aBB67ec95F232507601A73,
+        HORIZEN_DVN: 0x247624e2143504730aeC22912ed41F092498bEf2,
+        CANARY_DVN: 0xfA9bA83C102283958B997Adc8B44ED3A3CdB5dDa,
+        LZ_DVN: [0x247624e2143504730aeC22912ed41F092498bEf2, 0x31F748a368a893Bdb5aBB67ec95F232507601A73, 0x439264FB87581a70Bb6D7bEFd16b636521B0Ad2D, 0xfD6865c841c2d64565562fCc7e05e619A30615f0],
+
+        L2_OFT: 0x04C0599Ae5A44757c0af6F9eC3b93da8976c150A,
+        L2_OFT_IMPL: 0x70d7E0C93D8443325550Ba3F71576F5f346b8aA9,
+        L2_CONTRACT_CONTROLLER_SAFE: 0xD568c4D42147224a701A14468bEC9E9bccF571F5,
+        L2_OFT_PROXY_ADMIN: 0x2F6f3cc4a275C7951FB79199F01eD82421eDFb68,
+
+        L2_SYNC_POOL: address(0),
+        L2_SYNC_POOL_RATE_LIMITER: address(0),
+        L2_EXCHANGE_RATE_PROVIDER: address(0),
+        L2_PRICE_ORACLE: address(0),
+        L2_MESSENGER: address(0),
+
+        L1_MESSENGER: address(0),
+        L1_DUMMY_TOKEN: address(0),
+        L1_RECEIVER: address(0),
+
+        L2_SYNC_POOL_PROXY_ADMIN: address(0),
+        L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN: address(0),
+        L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN: address(0),
+        L1_DUMMY_TOKEN_PROXY_ADMIN: address(0),
+        L1_RECEIVER_PROXY_ADMIN: address(0)
+    });
+
+    ConfigPerL2 MORPH = ConfigPerL2({
+        NAME: "morph",
+        RPC_URL: "https://rpc.morphl2.io",
+        CHAIN_ID: "2818",
+
+        L2_EID: 30322,
+        L2_ENDPOINT: 0x6F475642a6e85809B1c36Fa62763669b1b48DD5B,
+        SEND_302: 0xC39161c743D0307EB9BCc9FEF03eeb9Dc4802de7,
+        RECEIVE_302: 0xe1844c5D63a9543023008D332Bd3d2e6f1FE1043,
+
+        LAYERZERO_DVN: 0x6788f52439ACA6BFF597d3eeC2DC9a44B8FEE842,
+        NETHERMIND_DVN: 0xdf30C9f6A70cE65A152c5Bd09826525D7E97Ba49,
+        HORIZEN_DVN: 0x6c5f923B63Fdd52fb9C45dAeFA8695fA6b55a935,
+        CANARY_DVN: 0xf10Ea2c0D43bC4973cfBCc94eBAfC39d1D4aF118,
+        LZ_DVN: [0x6788f52439ACA6BFF597d3eeC2DC9a44B8FEE842, 0xdf30C9f6A70cE65A152c5Bd09826525D7E97Ba49, 0x6c5f923B63Fdd52fb9C45dAeFA8695fA6b55a935, 0xf10Ea2c0D43bC4973cfBCc94eBAfC39d1D4aF118],
+
+        L2_OFT: 0x7DCC39B4d1C53CB31e1aBc0e358b43987FEF80f7,
+        L2_OFT_IMPL: 0xa49184769628e2f22317FbeB7012EeE6075A1B5B,
+        L2_CONTRACT_CONTROLLER_SAFE: 0x770099bca35DE404C1843eaA36bA1C8986514a93,
+        L2_OFT_PROXY_ADMIN: 0x570456a8768F9EDe4E574706da4B59d8092382B4,
+
+        L2_SYNC_POOL: address(0),
+        L2_SYNC_POOL_RATE_LIMITER: address(0),
+        L2_EXCHANGE_RATE_PROVIDER: address(0),
+        L2_PRICE_ORACLE: address(0),
+        L2_MESSENGER: address(0),
+
+        L1_MESSENGER: address(0),
+        L1_DUMMY_TOKEN: address(0),
+        L1_RECEIVER: address(0),
+
+        L2_SYNC_POOL_PROXY_ADMIN: address(0),
+        L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN: address(0),
+        L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN: address(0),
+        L1_DUMMY_TOKEN_PROXY_ADMIN: address(0),
+        L1_RECEIVER_PROXY_ADMIN: address(0)
+    });
+
+    ConfigPerL2 OP = ConfigPerL2({
+        NAME: "op",
+        RPC_URL: "https://optimism-rpc.publicnode.com",
+        CHAIN_ID: "10",
+
+        L2_EID: 30111,
+        L2_ENDPOINT: 0x1a44076050125825900e736c501f859c50fE728c,
+        SEND_302: 0x1322871e4ab09Bc7f5717189434f97bBD9546e95,
+        RECEIVE_302: 0x3c4962Ff6258dcfCafD23a814237B7d6Eb712063,
+
+        LAYERZERO_DVN: 0x6A02D83e8d433304bba74EF1c427913958187142,
+        NETHERMIND_DVN: 0xa7b5189bcA84Cd304D8553977c7C614329750d99, 
+        HORIZEN_DVN: 0x9E930731cb4A6bf7eCc11F695A295c60bDd212eB,
+        CANARY_DVN: 0x5b6735c66d97479cCD18294fc96B3084EcB2fa3f,
+        LZ_DVN: [0x539008c98B17803A273eDf98aBA2d4414Ee3f4D7, 0x6A02D83e8d433304bba74EF1c427913958187142, 0x9E930731cb4A6bf7eCc11F695A295c60bDd212eB, 0xa7b5189bcA84Cd304D8553977c7C614329750d99],
+
+        L2_OFT: 0x5A7fACB970D094B6C7FF1df0eA68D99E6e73CBFF,
+        L2_OFT_IMPL: 0x70d7E0C93D8443325550Ba3F71576F5f346b8aA9,
+        L2_CONTRACT_CONTROLLER_SAFE: 0x764682c769CcB119349d92f1B63ee1c03d6AECFf,
+        L2_OFT_PROXY_ADMIN: 0x632304Edc891Afed1a7bDe9A40b19F1c393ad5F3,
+
+        L2_SYNC_POOL: 0xC9475e18E2C5C26EA6ADCD55fabE07920beA887e,
+        L2_SYNC_POOL_RATE_LIMITER: 0x9685Ff6E421F163A9A2FbB831F28344f8e4a964a,
+        L2_EXCHANGE_RATE_PROVIDER: 0xAaE0d7D8147C9f2C39A0B19974f8E684fA2bbA6f,
+        L2_PRICE_ORACLE: 0xb4479d436DDa5c1A79bD88D282725615202406E3,
+        L2_MESSENGER: 0x4200000000000000000000000000000000000007,
+
+        L1_MESSENGER: 0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1,
+        L1_DUMMY_TOKEN: 0x6a26E8894B9BBD684A13647f67822ef142E0E45e,
+        L1_RECEIVER: 0x23CA5E5300d3b35a47DFeF6A36Ecba5AC0a96E03,
+
+        L2_SYNC_POOL_PROXY_ADMIN: 0xecA0b8088bF30eFd476F0a4e6b7e4B5D652b1ded,
+        L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN: 0x5ab0DCe5dbef9C0284fBdb34a8f8e3CF5216bA2c,
+        L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN: 0xc706AC2F5c9332890A7DC37837675ed3dd116416,
+        L1_DUMMY_TOKEN_PROXY_ADMIN: 0xA60EbBB5a0Fe935625610ECeA4d0e9bdd3BC4929,
+        L1_RECEIVER_PROXY_ADMIN: 0x17B77f76030aD7277a569CEB0e9eA64070929341
+    });
+
+
+    ConfigPerL2 SCROLL = ConfigPerL2({
+        NAME: "scroll",
+        RPC_URL: "https://rpc.scroll.io",
+        CHAIN_ID: "534352",
+
+        L2_EID: 30214,
+        L2_ENDPOINT: 0x1a44076050125825900e736c501f859c50fE728c,
+        SEND_302: 0x9BbEb2B2184B9313Cf5ed4a4DDFEa2ef62a2a03B,
+        RECEIVE_302: 0x8363302080e711E0CAb978C081b9e69308d49808,
+
+        LAYERZERO_DVN: 0xbe0d08a85EeBFCC6eDA0A843521f7CBB1180D2e2,
+        NETHERMIND_DVN: 0x446755349101cB20c582C224462c3912d3584dCE, 
+        HORIZEN_DVN: 0x7fe673201724925B5c477d4E1A4Bd3E954688cF5,
+        CANARY_DVN: 0xDF44a1594d3D516f7CDFb4DC275a79a5F6e3Db1d,
+        LZ_DVN: [0xbe0d08a85EeBFCC6eDA0A843521f7CBB1180D2e2, 0x446755349101cB20c582C224462c3912d3584dCE, 0x7fe673201724925B5c477d4E1A4Bd3E954688cF5, 0xDF44a1594d3D516f7CDFb4DC275a79a5F6e3Db1d],
+
+        L2_OFT: 0x01f0a31698C4d065659b9bdC21B3610292a1c506,
+        L2_OFT_IMPL: 0x70d7E0C93D8443325550Ba3F71576F5f346b8aA9,
+        L2_CONTRACT_CONTROLLER_SAFE: 0x3cD08f51D0EA86ac93368DE31822117cd70CECA3,
+        L2_OFT_PROXY_ADMIN: 0x99fef08aEF9D6955138B66AD16Ab314DB17878ee,
+
+        L2_SYNC_POOL: 0x750cf0fd3bc891D8D864B732BC4AD340096e5e68,
+        L2_SYNC_POOL_RATE_LIMITER: 0x2Ebb099290C7Fb42Df5A31203fEc47EbEe15d576,
+        L2_EXCHANGE_RATE_PROVIDER: 0x6233BC9931De25A86be259D51Ca45558bbd6e8A7,
+        L2_PRICE_ORACLE: 0x57bd9E614f542fB3d6FeF2B744f3B813f0cc1258 ,
+        L2_MESSENGER: 0x781e90f1c8Fc4611c9b7497C3B47F99Ef6969CbC,
+        
+        L1_MESSENGER: 0x6774Bcbd5ceCeF1336b5300fb5186a12DDD8b367,
+        L1_DUMMY_TOKEN: 0x641B33A2e1e46F3af8f3f0F9249e9111F24A51B3,
+        L1_RECEIVER: 0xb7c7CC336390c26BF6eC810e2f79BccBDb660567,
+
+        L2_SYNC_POOL_PROXY_ADMIN: 0x5350B5ae3DD4557E78fcAB0b0F79Fc777161E129,
+        L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN: 0xfa85785a9AC584503f732180f802e3EE34729C37,
+        L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN: address(0),
+        L1_DUMMY_TOKEN_PROXY_ADMIN: 0x95E10c0978c2e5eC52e89e7E97e1B52FF3A13bcb,
+        L1_RECEIVER_PROXY_ADMIN: 0xB1C249646f4Ca1A1d6FD27972739869C06E9Ba6D
+    });
+
+    ConfigPerL2 ZKSYNC = ConfigPerL2({
+        NAME: "zksync",
+        RPC_URL: "https://mainnet.era.zksync.io",
+        CHAIN_ID: "324",
+
+        L2_EID: 30165,
+        L2_ENDPOINT: 0xd07C30aF3Ff30D96BDc9c6044958230Eb797DDBF,
+        SEND_302: 0x07fD0e370B49919cA8dA0CE842B8177263c0E12c,
+        RECEIVE_302: 0x04830f6deCF08Dec9eD6C3fCAD215245B78A59e1,
+
+        LAYERZERO_DVN: 0x620A9DF73D2F1015eA75aea1067227F9013f5C51,
+        NETHERMIND_DVN: 0xb183c2b91cf76cAd13602b32ADa2Fd273f19009C,
+        HORIZEN_DVN: 0x1253E268Bc04bB43CB96D2F7Ee858b8A1433Cf6D,
+        CANARY_DVN: 0x05Db3a229293C09F639a16526bB2481704716Df0,
+        LZ_DVN: [0x620A9DF73D2F1015eA75aea1067227F9013f5C51, 0xb183c2b91cf76cAd13602b32ADa2Fd273f19009C, 0x1253E268Bc04bB43CB96D2F7Ee858b8A1433Cf6D, 0x05Db3a229293C09F639a16526bB2481704716Df0],
+
+        L2_OFT: 0xc1Fa6E2E8667d9bE0Ca938a54c7E0285E9Df924a,
+        L2_OFT_IMPL: 0xFE14521c117A85faFab8E4E737a3aAB94974F75e,
+        L2_CONTRACT_CONTROLLER_SAFE: 0x8b9836176900A8EE62Dbe98066976D6CE829C53e,
+        L2_OFT_PROXY_ADMIN: 0x908245fAA919eD7cF69d3f9ab75ED0F30d91D301,
+
+        L2_SYNC_POOL: address(0),
+        L2_SYNC_POOL_RATE_LIMITER: address(0),
+        L2_EXCHANGE_RATE_PROVIDER: address(0),
+        L2_PRICE_ORACLE: address(0),
+        L2_MESSENGER: address(0),
+
+        L1_MESSENGER: address(0),
+        L1_DUMMY_TOKEN: address(0),
+        L1_RECEIVER: address(0),
+
+        L2_SYNC_POOL_PROXY_ADMIN: address(0),
+        L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN: address(0),
+        L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN: address(0),
+        L1_DUMMY_TOKEN_PROXY_ADMIN: address(0),
+        L1_RECEIVER_PROXY_ADMIN: address(0)
+    });
+
+    ConfigPerL2 SWELL = ConfigPerL2({
+        NAME: "swell",
+        RPC_URL: "https://swell-mainnet.alt.technology",
+        CHAIN_ID: "1923",
+
+        L2_EID: 30335,
+        L2_ENDPOINT: 0xcb566e3B6934Fa77258d68ea18E931fa75e1aaAa,
+        SEND_302: 0xc1B621b18187F74c8F6D52a6F709Dd2780C09821,
+        RECEIVE_302: 0x377530cdA84DFb2673bF4d145DCF0C4D7fdcB5b6,
+
+        LAYERZERO_DVN: 0x6788f52439ACA6BFF597d3eeC2DC9a44B8FEE842,
+        NETHERMIND_DVN: 0xDd7B5E1dB4AaFd5C8EC3b764eFB8ed265Aa5445B,
+        HORIZEN_DVN: 0xf4672690eF45b46EAa3b688fe2f0Fc09e9366b20,
+        CANARY_DVN: 0xa2447e5B58D357c49Bf74B50B14421e6A100e525,
+        LZ_DVN: [0xDd7B5E1dB4AaFd5C8EC3b764eFB8ed265Aa5445B, 0x6788f52439ACA6BFF597d3eeC2DC9a44B8FEE842, 0xf4672690eF45b46EAa3b688fe2f0Fc09e9366b20, 0xa2447e5B58D357c49Bf74B50B14421e6A100e525],
+
+        L2_OFT: 0xA6cB988942610f6731e664379D15fFcfBf282b44,
+        L2_OFT_IMPL: 0x04E5c62b27092234CeC69ec56Dfa0b2c97F72Eb3,
+        L2_CONTRACT_CONTROLLER_SAFE: 0x6D685276540271076e2c07eD6ed6Ce351549bA11,
+        L2_OFT_PROXY_ADMIN: 0xE917Fad11ca0d835d3C8d960906195a641320cd7,
+
+        L2_SYNC_POOL: address(0),
+        L2_SYNC_POOL_RATE_LIMITER: address(0),
+        L2_EXCHANGE_RATE_PROVIDER: address(0),
+        L2_PRICE_ORACLE: address(0),
+        L2_MESSENGER: address(0),
+
+        L1_MESSENGER: address(0),
+        L1_DUMMY_TOKEN: address(0),
+        L1_RECEIVER: address(0),
+
+        L2_SYNC_POOL_PROXY_ADMIN: address(0),
+        L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN: address(0),
+        L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN: address(0),
+        L1_DUMMY_TOKEN_PROXY_ADMIN: address(0),
+        L1_RECEIVER_PROXY_ADMIN: address(0)
+    });
+
+    ConfigPerL2 BERA = ConfigPerL2({
+        NAME: "bera",
+        RPC_URL: "https://berachain-rpc.publicnode.com",
+        CHAIN_ID: "80094",
+
+        L2_EID: 30362,
+        L2_ENDPOINT: 0x6F475642a6e85809B1c36Fa62763669b1b48DD5B,
+        SEND_302: 0xC39161c743D0307EB9BCc9FEF03eeb9Dc4802de7,
+        RECEIVE_302: 0xe1844c5D63a9543023008D332Bd3d2e6f1FE1043,
+
+        LAYERZERO_DVN: 0x282b3386571f7f794450d5789911a9804FA346b4,
+        NETHERMIND_DVN: 0xDd7B5E1dB4AaFd5C8EC3b764eFB8ed265Aa5445B,
+        HORIZEN_DVN: 0xeCbaA45c33ce6Fa284995e5F8314f5bC7F1C2008,
+        CANARY_DVN: 0x06e8042729CeF3aE6D6DB5350f48F9D736C3675d,
+        LZ_DVN: [0x282b3386571f7f794450d5789911a9804FA346b4, 0xDd7B5E1dB4AaFd5C8EC3b764eFB8ed265Aa5445B, 0xeCbaA45c33ce6Fa284995e5F8314f5bC7F1C2008, 0x06e8042729CeF3aE6D6DB5350f48F9D736C3675d],
+
+        L2_OFT: 0x7DCC39B4d1C53CB31e1aBc0e358b43987FEF80f7,
+        L2_OFT_IMPL: 0xa49184769628e2f22317FbeB7012EeE6075A1B5B,
+        L2_CONTRACT_CONTROLLER_SAFE: 0x2F8B067150123f53Da77eF3c1414FcE866E8A2D1,
+        L2_OFT_PROXY_ADMIN: 0x570456a8768F9EDe4E574706da4B59d8092382B4,
+
+        L2_SYNC_POOL: 0xC9475e18E2C5C26EA6ADCD55fabE07920beA887e,
+        L2_SYNC_POOL_RATE_LIMITER: 0x9685Ff6E421F163A9A2FbB831F28344f8e4a964a,
+        L2_EXCHANGE_RATE_PROVIDER: 0xAaE0d7D8147C9f2C39A0B19974f8E684fA2bbA6f,
+        L2_PRICE_ORACLE: 0x65eD6a4ac085620eE943c0B15525C4428D23e4Db,
+        L2_MESSENGER: 0x45f1A95A4D3f3836523F5c83673c797f4d4d263B,
+
+        L1_MESSENGER: L1_ENDPOINT,
+        L1_DUMMY_TOKEN: 0x59e01112BE736db14E6A417ee7FE3162ffE94902,
+        L1_RECEIVER: 0xc943e81200825A3c65364a919c691511eC4D3fD3,
+
+        L2_SYNC_POOL_PROXY_ADMIN: 0xecA0b8088bF30eFd476F0a4e6b7e4B5D652b1ded,
+        L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN: 0x5ab0DCe5dbef9C0284fBdb34a8f8e3CF5216bA2c,
+        L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN: 0xc706AC2F5c9332890A7DC37837675ed3dd116416,
+        L1_DUMMY_TOKEN_PROXY_ADMIN: 0x657f5D521443813760175E7FB8cF7e58213d8AeB ,
+        L1_RECEIVER_PROXY_ADMIN: 0xe7fe46Be7E3ff6C7673A863d7EF8F4D3750EEf6d
+    });
+
+    ConfigPerL2 UNICHAIN = ConfigPerL2({
+        NAME: "unichain",
+        RPC_URL: "https://mainnet.unichain.org",
+        CHAIN_ID: "130",
+
+        L2_EID: 30320,
+        L2_ENDPOINT: 0x6F475642a6e85809B1c36Fa62763669b1b48DD5B,
+        SEND_302: 0xC39161c743D0307EB9BCc9FEF03eeb9Dc4802de7,
+        RECEIVE_302: 0xe1844c5D63a9543023008D332Bd3d2e6f1FE1043,
+
+        LAYERZERO_DVN: 0x282b3386571f7f794450d5789911a9804FA346b4,
+        NETHERMIND_DVN: 0x25e0e650a78e6304A3983Fc4b7Ffc6544b1bEea6,
+        HORIZEN_DVN: 0xC6a6324932B399D6A673B7Ed0af671F28033E046,
+        CANARY_DVN: 0x00A979a5D306E9c5F8Cf473659e75f8002E06fc8,
+        LZ_DVN: [0x25e0e650a78e6304A3983Fc4b7Ffc6544b1bEea6, 0x282b3386571f7f794450d5789911a9804FA346b4, 0xab82E9b24004b954985528dAc14D1B020722a3c8, 0xC6a6324932B399D6A673B7Ed0af671F28033E046],
+
+        L2_OFT: 0x7DCC39B4d1C53CB31e1aBc0e358b43987FEF80f7,
+        L2_OFT_IMPL: 0xa49184769628e2f22317FbeB7012EeE6075A1B5B,
+        L2_CONTRACT_CONTROLLER_SAFE: 0xe54449CB6162FfcA23721434F4bB9f62702dC602,
+        L2_OFT_PROXY_ADMIN: 0x570456a8768F9EDe4E574706da4B59d8092382B4,
+
+        L2_SYNC_POOL: address(0),
+        L2_SYNC_POOL_RATE_LIMITER: address(0),
+        L2_EXCHANGE_RATE_PROVIDER: address(0),
+        L2_PRICE_ORACLE: address(0),
+        L2_MESSENGER: address(0),
+
+        L1_MESSENGER: address(0),
+        L1_DUMMY_TOKEN: address(0),
+        L1_RECEIVER: address(0),
+
+        L2_SYNC_POOL_PROXY_ADMIN: address(0),
+        L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN: address(0),
+        L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN: address(0),
+        L1_DUMMY_TOKEN_PROXY_ADMIN: address(0),
+        L1_RECEIVER_PROXY_ADMIN: address(0)
+    });
+
+    ConfigPerL2 AVAX = ConfigPerL2({
+        NAME: "avax",
+        RPC_URL: "https://avalanche-c-chain-rpc.publicnode.com",
+        CHAIN_ID: "43114",
+
+        L2_EID: 30106,
+        L2_ENDPOINT: 0x1a44076050125825900e736c501f859c50fE728c,
+        SEND_302: 0x197D1333DEA5Fe0D6600E9b396c7f1B1cFCc558a,
+        RECEIVE_302: 0xbf3521d309642FA9B1c91A08609505BA09752c61,
+
+        LAYERZERO_DVN: 0x962F502A63F5FBeB44DC9ab932122648E8352959,
+        NETHERMIND_DVN: 0xa59BA433ac34D2927232918Ef5B2eaAfcF130BA5,
+        HORIZEN_DVN: 0x07C05EaB7716AcB6f83ebF6268F8EECDA8892Ba1,
+        CANARY_DVN: 0xcC49E6fca014c77E1Eb604351cc1E08C84511760,
+        LZ_DVN: [0x07C05EaB7716AcB6f83ebF6268F8EECDA8892Ba1, 0x962F502A63F5FBeB44DC9ab932122648E8352959, 0xa59BA433ac34D2927232918Ef5B2eaAfcF130BA5, 0xE94aE34DfCC87A61836938641444080B98402c75],
+
+        L2_OFT: DEPLOYMENT_OFT,
+        L2_OFT_IMPL: DEPLOYMENT_OFT_IMPL,
+        L2_CONTRACT_CONTROLLER_SAFE: 0x7a00657a45420044bc526B90Ad667aFfaee0A868,
+        L2_OFT_PROXY_ADMIN: DEPLOYMENT_PROXY_ADMIN_CONTRACT,
+
+        L2_SYNC_POOL: address(0),
+        L2_SYNC_POOL_RATE_LIMITER: address(0),
+        L2_EXCHANGE_RATE_PROVIDER: address(0),
+        L2_PRICE_ORACLE: address(0),
+        L2_MESSENGER: address(0),
+
+        L1_MESSENGER: address(0),
+        L1_DUMMY_TOKEN: address(0),
+        L1_RECEIVER: address(0),
+
+        L2_SYNC_POOL_PROXY_ADMIN: address(0),
+        L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN: address(0),
+        L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN: address(0),
+        L1_DUMMY_TOKEN_PROXY_ADMIN: address(0),
+        L1_RECEIVER_PROXY_ADMIN: address(0)
+    });
+
+    ConfigPerL2 SONIC = ConfigPerL2({
+        NAME: "sonic",
+        RPC_URL: "https://rpc.soniclabs.com",
+        CHAIN_ID: "146",
+
+        L2_EID: 30332,
+        L2_ENDPOINT: 0x6F475642a6e85809B1c36Fa62763669b1b48DD5B,
+        SEND_302: 0xC39161c743D0307EB9BCc9FEF03eeb9Dc4802de7,
+        RECEIVE_302: 0xe1844c5D63a9543023008D332Bd3d2e6f1FE1043,
+
+        LAYERZERO_DVN: 0x282b3386571f7f794450d5789911a9804FA346b4,
+        NETHERMIND_DVN: 0x05AaEfDf9dB6E0f7d27FA3b6EE099EDB33dA029E,
+        HORIZEN_DVN: 0x54dD79f5cE72b51FCBbcb170Dd01E32034323565,
+        CANARY_DVN: 0xb2c7832aA8DDA878De6f949485f927e9e532E92C,
+        LZ_DVN: [0x282b3386571f7f794450d5789911a9804FA346b4, 0x05AaEfDf9dB6E0f7d27FA3b6EE099EDB33dA029E, 0x54dD79f5cE72b51FCBbcb170Dd01E32034323565, 0xb2c7832aA8DDA878De6f949485f927e9e532E92C],
+
+        L2_OFT: DEPLOYMENT_OFT,
+        L2_OFT_IMPL: DEPLOYMENT_OFT_IMPL,
+        L2_CONTRACT_CONTROLLER_SAFE: 0x7a00657a45420044bc526B90Ad667aFfaee0A868,
+        L2_OFT_PROXY_ADMIN: DEPLOYMENT_PROXY_ADMIN_CONTRACT,
+
+        L2_SYNC_POOL: address(0),
+        L2_SYNC_POOL_RATE_LIMITER: address(0),
+        L2_EXCHANGE_RATE_PROVIDER: address(0),
+        L2_PRICE_ORACLE: address(0),
+        L2_MESSENGER: address(0),
+
+        L1_MESSENGER: address(0),
+        L1_DUMMY_TOKEN: address(0),
+        L1_RECEIVER: address(0),
+
+        L2_SYNC_POOL_PROXY_ADMIN: address(0),
+        L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN: address(0),
+        L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN: address(0),
+        L1_DUMMY_TOKEN_PROXY_ADMIN: address(0),
+        L1_RECEIVER_PROXY_ADMIN: address(0)
+    });
+
+
+
+    ConfigPerL2 HYPEREVM = ConfigPerL2({
+        NAME: "hyperEVM",
+        RPC_URL: "https://rpc.hyperliquid.xyz/evm",
+        CHAIN_ID: "999",
+
+        L2_EID: 30367,
+        L2_ENDPOINT: 0x3A73033C0b1407574C76BdBAc67f126f6b4a9AA9,
+        SEND_302: 0xfd76d9CB0Bac839725aB79127E7411fe71b1e3CA,
+        RECEIVE_302: 0x7cacBe439EaD55fa1c22790330b12835c6884a91,
+
+        LAYERZERO_DVN: 0xc097ab8CD7b053326DFe9fB3E3a31a0CCe3B526f,
+        NETHERMIND_DVN: 0x8E49eF1DfAe17e547CA0E7526FfDA81FbaCA810A,
+        HORIZEN_DVN: 0xBB83Ecf372CbB6daa629ea9A9A53BEC6d601F229,
+        CANARY_DVN: 0x83342EC538dF0460e730a8F543Fe63063e2D44C4,
+        LZ_DVN: [0x8E49eF1DfAe17e547CA0E7526FfDA81FbaCA810A, 0xBB83Ecf372CbB6daa629ea9A9A53BEC6d601F229, 0xc097ab8CD7b053326DFe9fB3E3a31a0CCe3B526f, 0xC7423626016bc40375458bc0277F28681EC91C8e],
+
+        L2_OFT: DEPLOYMENT_OFT,
+        L2_OFT_IMPL: DEPLOYMENT_OFT_IMPL,
+        L2_CONTRACT_CONTROLLER_SAFE: 0xf27128a5b064e8d97EDaa60D24bFa2FD1eeC26eB,
+        L2_OFT_PROXY_ADMIN: DEPLOYMENT_PROXY_ADMIN_CONTRACT,
+
+        L2_SYNC_POOL: address(0),
+        L2_SYNC_POOL_RATE_LIMITER: address(0),
+        L2_EXCHANGE_RATE_PROVIDER: address(0),
+        L2_PRICE_ORACLE: address(0),
+        L2_MESSENGER: address(0),
+
+        L1_MESSENGER: address(0),
+        L1_DUMMY_TOKEN: address(0),
+        L1_RECEIVER: address(0),
+
+        L2_SYNC_POOL_PROXY_ADMIN: address(0),
+        L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN: address(0),
+        L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN: address(0),
+        L1_DUMMY_TOKEN_PROXY_ADMIN: address(0),
+        L1_RECEIVER_PROXY_ADMIN: address(0)
+    });
+
+    ConfigPerL2 PLASMA = ConfigPerL2({
+        NAME: "plasma",
+        RPC_URL: "https://rpc.plasma.to/",
+        CHAIN_ID: "9745",
+
+        L2_EID: 30383,
+        L2_ENDPOINT: 0x6F475642a6e85809B1c36Fa62763669b1b48DD5B,
+        SEND_302: 0xC39161c743D0307EB9BCc9FEF03eeb9Dc4802de7 ,
+        RECEIVE_302: 0xe1844c5D63a9543023008D332Bd3d2e6f1FE1043 ,
+
+        LAYERZERO_DVN: 0x282b3386571f7f794450d5789911a9804FA346b4,
+        NETHERMIND_DVN: 0xa51cE237FaFA3052D5d3308Df38A024724Bb1274,
+        HORIZEN_DVN: 0xd4CE45957FBCb88b868ad2c759C7DB9BC2741e56,
+        CANARY_DVN: 0x2465eE263149A18d61c9224244c61a5871dc0473,
+        LZ_DVN: [0x282b3386571f7f794450d5789911a9804FA346b4, 0xa51cE237FaFA3052D5d3308Df38A024724Bb1274, 0xd4CE45957FBCb88b868ad2c759C7DB9BC2741e56, 0xfD429433af17c5C75E4c8BC84b8F6dCD1b2C051A],
+
+        L2_OFT: DEPLOYMENT_OFT,
+        L2_OFT_IMPL: DEPLOYMENT_OFT_IMPL,
+        L2_CONTRACT_CONTROLLER_SAFE: 0x8faD84C95282503b198e27A0aAe378a04bc3d60f,
+        L2_OFT_PROXY_ADMIN: DEPLOYMENT_PROXY_ADMIN_CONTRACT,
+
+        L2_SYNC_POOL: address(0),
+        L2_SYNC_POOL_RATE_LIMITER: address(0),
+        L2_EXCHANGE_RATE_PROVIDER: address(0),
+        L2_PRICE_ORACLE: address(0),
+        L2_MESSENGER: address(0),
+
+        L1_MESSENGER: address(0),
+        L1_DUMMY_TOKEN: address(0),
+        L1_RECEIVER: address(0),
+
+        L2_SYNC_POOL_PROXY_ADMIN: address(0),
+        L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN: address(0),
+        L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN: address(0),
+        L1_DUMMY_TOKEN_PROXY_ADMIN: address(0),
+        L1_RECEIVER_PROXY_ADMIN: address(0)
+    });
+
+    ConfigPerL2 INK = ConfigPerL2({
+        NAME: "ink",
+        RPC_URL: "https://rpc-qnd.inkonchain.com",
+        CHAIN_ID: "57073",
+
+        L2_EID: 30339,
+        L2_ENDPOINT: 0xca29f3A6f966Cb2fc0dE625F8f325c0C46dbE958,
+        SEND_302: 0x76111DE813F83AAAdBD62773Bf41247634e2319a,
+        RECEIVE_302: 0x473132bb594caEF281c68718F4541f73FE14Dc89,
+
+        LAYERZERO_DVN: 0x174F2bA26f8ADeAfA82663bcf908288d5DbCa649,
+        NETHERMIND_DVN: 0xDd7B5E1dB4AaFd5C8EC3b764eFB8ed265Aa5445B,
+        HORIZEN_DVN: 0x395B14700812cccC38b8e64F0a06ce2045FE9bA3,
+        CANARY_DVN: 0x1E4CE74ccf5498B19900649D9196e64BAb592451,
+        LZ_DVN: [0x174F2bA26f8ADeAfA82663bcf908288d5DbCa649, 0x395B14700812cccC38b8e64F0a06ce2045FE9bA3, 0x68b6Fb5e728dB92A09BA810595915aE3d7399e40, 0xDd7B5E1dB4AaFd5C8EC3b764eFB8ed265Aa5445B],
+
+        L2_OFT: DEPLOYMENT_OFT,
+        L2_OFT_IMPL: DEPLOYMENT_OFT_IMPL,
+        L2_CONTRACT_CONTROLLER_SAFE: 0x7a00657a45420044bc526B90Ad667aFfaee0A868,
+        L2_OFT_PROXY_ADMIN: DEPLOYMENT_PROXY_ADMIN_CONTRACT,
+
+        L2_SYNC_POOL: address(0),
+        L2_SYNC_POOL_RATE_LIMITER: address(0),
+        L2_EXCHANGE_RATE_PROVIDER: address(0),
+        L2_PRICE_ORACLE: 0x15D2126ab8a9E88249d99A4bAf7d080BF3AEAb8A,
+        L2_MESSENGER: 0x4200000000000000000000000000000000000007,
+
+        L1_MESSENGER: 0x69d3Cf86B2Bf1a9e99875B7e2D9B6a84426c171f,
+        L1_DUMMY_TOKEN: address(0),
+        L1_RECEIVER: address(0),
+
+        L2_SYNC_POOL_PROXY_ADMIN: address(0),
+        L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN: address(0),
+        L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN: address(0),
+        L1_DUMMY_TOKEN_PROXY_ADMIN: address(0),
+        L1_RECEIVER_PROXY_ADMIN: address(0)
+    });
+
+    ConfigPerL2 MONAD = ConfigPerL2({
+        NAME: "monad",
+        RPC_URL: "https://rpc1.monad.xyz",
+        CHAIN_ID: "143",
+
+        L2_EID: 30390,
+        L2_ENDPOINT: 0x6F475642a6e85809B1c36Fa62763669b1b48DD5B,
+        SEND_302: 0xC39161c743D0307EB9BCc9FEF03eeb9Dc4802de7,
+        RECEIVE_302: 0xe1844c5D63a9543023008D332Bd3d2e6f1FE1043,
+
+        LAYERZERO_DVN: 0x282b3386571f7f794450d5789911a9804FA346b4,
+        NETHERMIND_DVN: 0xaCDe1f22EEAb249d3ca6Ba8805C8fEe9f52a16e7,
+        HORIZEN_DVN: 0xdCdd4628F858b45260C31D6ad076bD2C3D3c2f73,
+        CANARY_DVN: 0x493626C5D852B9B187a9eb709D0b0978a3877238,
+        LZ_DVN: [0x05EF739DDE35407A421eF1B3011283f92C2B30dc, 0x282b3386571f7f794450d5789911a9804FA346b4, 0xaCDe1f22EEAb249d3ca6Ba8805C8fEe9f52a16e7, 0xdCdd4628F858b45260C31D6ad076bD2C3D3c2f73],
+
+        L2_OFT: DEPLOYMENT_OFT,
+        L2_OFT_IMPL: DEPLOYMENT_OFT_IMPL,
+        L2_CONTRACT_CONTROLLER_SAFE: 0x7a00657a45420044bc526B90Ad667aFfaee0A868,
+        L2_OFT_PROXY_ADMIN: 0x373ea3AEC25eB652ACa38504254eCD5459da6d19,
+
+        L2_SYNC_POOL: address(0),
+        L2_SYNC_POOL_RATE_LIMITER: address(0),
+        L2_EXCHANGE_RATE_PROVIDER: address(0),
+        L2_PRICE_ORACLE: address(0),
+        L2_MESSENGER: address(0),
+
+        L1_MESSENGER: address(0),
+        L1_DUMMY_TOKEN: address(0),
+        L1_RECEIVER: address(0),
+
+        L2_SYNC_POOL_PROXY_ADMIN: address(0),
+        L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN: address(0),
+        L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN: address(0),
+        L1_DUMMY_TOKEN_PROXY_ADMIN: address(0),
+        L1_RECEIVER_PROXY_ADMIN: address(0)
+    });
+
+    // deterministic addresses was messaged up sp stable as a different timelock
+    address constant L2_TIMELOCK_STABLE = 0xd2D4171A1e81dc266e14B9694250C11C516C860b;
+
+    ConfigPerL2 STABLE = ConfigPerL2({
+        NAME: "stable",
+        RPC_URL: "https://rpc.stable.xyz",
+        CHAIN_ID: "988",
+
+        L2_EID: 30396,
+        L2_ENDPOINT: 0x6F475642a6e85809B1c36Fa62763669b1b48DD5B,
+        SEND_302: 0x37aaaf95887624a363effB7762D489E3C05c2a02,
+        RECEIVE_302: 0x15e51701F245F6D5bd0FEE87bCAf55B0841451B3,
+
+        LAYERZERO_DVN: 0x9C061c9A4782294eeF65ef28Cb88233A987F4bdD,
+        NETHERMIND_DVN: 0x9bCd17A654bffAa6f8fEa38D19661a7210e22196,
+        HORIZEN_DVN: 0x965A80Dc87cec5848310E612DeAD84B543AeF874,
+        CANARY_DVN: 0x8D6cC20D84FbEb5733c60436CeB8957Da2ac02C8,
+        LZ_DVN: [0x9C061c9A4782294eeF65ef28Cb88233A987F4bdD, 0x9bCd17A654bffAa6f8fEa38D19661a7210e22196, 0x965A80Dc87cec5848310E612DeAD84B543AeF874, 0x8D6cC20D84FbEb5733c60436CeB8957Da2ac02C8],
+
+        L2_OFT: 0x60a08269e5f3406d8fd7892567d53188C7F75009,
+        L2_OFT_IMPL: 0x6FFcE32713417569237786cbeFBe355090642bF9,
+        L2_CONTRACT_CONTROLLER_SAFE: 0x7a00657a45420044bc526B90Ad667aFfaee0A868,
+        L2_OFT_PROXY_ADMIN: 0xd10036AE0736DBe4cc11a56C9dc651F40d37B7E6,
+
+        L2_SYNC_POOL: address(0),
+        L2_SYNC_POOL_RATE_LIMITER: address(0),
+        L2_EXCHANGE_RATE_PROVIDER: address(0),
+        L2_PRICE_ORACLE: address(0),
+        L2_MESSENGER: address(0),
+
+        L1_MESSENGER: address(0),
+        L1_DUMMY_TOKEN: address(0),
+        L1_RECEIVER: address(0),
+
+        L2_SYNC_POOL_PROXY_ADMIN: address(0),
+        L2_EXCHANGE_RATE_PROVIDER_PROXY_ADMIN: address(0),
+        L2_SYNC_POOL_RATE_LIMITER_PROXY_ADMIN: address(0),
+        L1_DUMMY_TOKEN_PROXY_ADMIN: address(0),
+        L1_RECEIVER_PROXY_ADMIN: address(0)
+    });
+}
+

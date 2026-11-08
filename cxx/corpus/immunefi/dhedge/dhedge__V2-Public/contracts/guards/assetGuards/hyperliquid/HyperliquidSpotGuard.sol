@@ -1,0 +1,322 @@
+//
+//        __  __    __  ________  _______    ______   ________
+//       /  |/  |  /  |/        |/       \  /      \ /        |
+//   ____$$ |$$ |  $$ |$$$$$$$$/ $$$$$$$  |/$$$$$$  |$$$$$$$$/
+//  /    $$ |$$ |__$$ |$$ |__    $$ |  $$ |$$ | _$$/ $$ |__
+// /$$$$$$$ |$$    $$ |$$    |   $$ |  $$ |$$ |/    |$$    |
+// $$ |  $$ |$$$$$$$$ |$$$$$/    $$ |  $$ |$$ |$$$$ |$$$$$/
+// $$ \__$$ |$$ |  $$ |$$ |_____ $$ |__$$ |$$ \__$$ |$$ |_____
+// $$    $$ |$$ |  $$ |$$       |$$    $$/ $$    $$/ $$       |
+//  $$$$$$$/ $$/   $$/ $$$$$$$$/ $$$$$$$/   $$$$$$/  $$$$$$$$/
+//
+// dHEDGE DAO - https://dhedge.org
+//
+// Copyright (c) 2025 dHEDGE DAO
+//
+// SPDX-License-Identifier: MIT
+
+pragma solidity 0.8.28;
+
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+import {IAssetGuard} from "../../../interfaces/guards/IAssetGuard.sol";
+import {IGuard} from "../../../interfaces/guards/IGuard.sol";
+import {IHasGuardInfo} from "../../../interfaces/IHasGuardInfo.sol";
+import {IHasSupportedAsset} from "../../../interfaces/IHasSupportedAsset.sol";
+import {IERC20Extended} from "../../../interfaces/IERC20Extended.sol";
+import {IPoolLogic} from "../../../interfaces/IPoolLogic.sol";
+import {IPoolManagerLogic} from "../../../interfaces/IPoolManagerLogic.sol";
+import {ITransactionTypes} from "../../../interfaces/ITransactionTypes.sol";
+import {ITxTrackingGuard} from "../../../interfaces/guards/ITxTrackingGuard.sol";
+import {IHyperliquidCoreWriterContractGuard} from "../../../interfaces/hyperliquid/IHyperliquidCoreWriterContractGuard.sol";
+
+import {InFlightTracker} from "../../../utils/hyperliquid/InFlightTracker.sol";
+import {FixedPointMathLib} from "../../../utils/FixedPointMathLib.sol";
+import {OutsidePositionWithdrawalHelper} from "../OutsidePositionWithdrawalHelper.sol";
+import {AddAssetCheckGuard} from "../shared/AddAssetCheckGuard.sol";
+
+/// @title Hyperliquid ERC20 asset guard
+/// @notice Asset guard for spot assets and combination of asset and contract guard for linked EVM tokens on HyperEVM.
+/// @dev Can be used for spot assets with or without a linked EVM contract on HyperEVM.
+///      For the former, the `txGuard` function will revert.
+/// @dev WARNING: HyperEVM token contracts linked to a HyperCore spot token may not be ERC20 compliant.
+///      This guard SHOULD NOT BE USED for non-compliant linked EVM tokens.
+/// @dev WARNING: DON'T USE THIS GUARD FOR NATIVE HYPE.
+/// @dev WARNING: MUST BE USED FOR SPOT TOKENS WITH USDC AS THE QUOTE ASSET.
+/// @dev MUST NOT BE USED FOR USDC.
+/// @dev Asset type = 40
+contract HyperliquidSpotGuard is
+  IGuard,
+  ITxTrackingGuard,
+  IAssetGuard,
+  ITransactionTypes,
+  AddAssetCheckGuard,
+  InFlightTracker,
+  OutsidePositionWithdrawalHelper
+{
+  using FixedPointMathLib for uint256;
+
+  /////////////////////////////////////////////
+  //                 State                   //
+  /////////////////////////////////////////////
+
+  /// @notice Indicates the pool using this guard in a transaction should
+  ///         call `afterTxGuard` after the transaction is executed.
+  // solhint-disable-next-line const-name-snakecase
+  bool public constant override isTxTrackingGuard = true;
+
+  /////////////////////////////////////////////
+  //                Functions                //
+  /////////////////////////////////////////////
+
+  /// @notice Post transaction processing for tx tracking guards.
+  /// @dev Updates the composite block number for the pool and asset combination during bridging to HyperCore.
+  /// @param poolManagerLogic The address of the pool manager logic contract.
+  /// @param to The transaction target address (in this case the token address).
+  /// @param data The transaction data.
+  function afterTxGuard(address poolManagerLogic, address to, bytes calldata data) external virtual override {
+    if (bytes4(data) == IERC20.transfer.selector) {
+      address pool = IPoolManagerLogic(poolManagerLogic).poolLogic();
+
+      require(msg.sender == pool, "not authorized");
+
+      (, uint256 amount) = abi.decode(data[4:], (address, uint256));
+
+      trackInFlightToCore({pool: pool, asset: to, amount: amount});
+    }
+  }
+
+  /// @notice Transaction guard for approving assets
+  /// @dev Parses the manager transaction data to ensure transaction is valid
+  /// @param poolManagerLogic PoolManagerLogic address
+  /// @param to Transaction target address
+  /// @param data Transaction call data attempt by manager
+  /// @return txType transaction type described in ITransactionTypes
+  /// @return isPublic if the transaction is public or private
+  function txGuard(
+    address poolManagerLogic,
+    address to,
+    bytes calldata data
+  ) public view virtual override returns (uint16 txType, bool isPublic) {
+    address poolLogic = IPoolManagerLogic(poolManagerLogic).poolLogic();
+    address poolFactory = IPoolLogic(poolLogic).factory();
+
+    require(!isSystemAddress(to), "invalid transaction target");
+
+    bytes4 method = bytes4(data);
+
+    // Allow transfers only to the system address of the token contract on HyperEVM.
+    if (method == IERC20.transfer.selector) {
+      (address receiver, ) = abi.decode(data[4:], (address, uint256));
+      uint64 tokenIndex = getTokenIndex(to);
+
+      // Cross-check the registry-provided index against the tokenInfo precompile (ground truth),
+      // so a wrong or stale registry entry can't route a transfer to an unlinked system address.
+      require(tokenInfo(tokenIndex).evmContract == to, "evm contract mismatch");
+      require(receiver == getSystemAddress(tokenIndex), "invalid transfer receiver");
+
+      return (uint16(TransactionType.HyperliquidSystemAddressTransfer), false);
+    } else if (method == IERC20.approve.selector) {
+      (address spender, ) = abi.decode(data[4:], (address, uint256));
+
+      address spenderGuard = IHasGuardInfo(poolFactory).getContractGuard(spender);
+
+      // Checks that the spender is an approved address.
+      require(spenderGuard != address(0), "unsupported spender approval");
+
+      return (uint16(TransactionType.Approve), false);
+    }
+  }
+
+  /// @notice Withdraw processing for ERC20 asset
+  /// @param pool Address of the pool
+  /// @param asset Address of the managed asset
+  /// @param portion Portion of the asset balance to withdraw, in 10^18 scale
+  /// @return withdrawAsset and
+  /// @return withdrawBalance are used to withdraw portion of asset balance to depositor
+  /// @return transactions are used to execute the withdrawal transactions in PoolLogic
+  function withdrawProcessing(
+    address pool,
+    address asset,
+    uint256 portion,
+    address to
+  )
+    external
+    view
+    virtual
+    override
+    returns (address withdrawAsset, uint256 withdrawBalance, MultiTransaction[] memory transactions)
+  {
+    // Revert withdraw from single remaining depositor
+    require(portion < FixedPointMathLib.WAD, "invalid withdraw portion");
+
+    if (isSystemAddress(asset)) {
+      return _withdrawProcessingSystemAsset(pool, asset, portion);
+    }
+
+    return _withdrawProcessingNonSystemAsset(pool, asset, portion, to);
+  }
+
+  /// @notice Returns the balance of the managed asset
+  /// @dev Accounts for the spot token balance on HyperCore ONLY IF the system address of the asset is not mapped.
+  /// @param pool Address of the pool
+  /// @param asset Address of the managed asset
+  /// @return balance The asset balance of given pool
+  function getBalance(
+    address pool,
+    address asset
+  ) public view virtual override(IAssetGuard, OutsidePositionWithdrawalHelper) returns (uint256 balance) {
+    // If the `asset` is a system address, just get the balance on HyperCore.
+    if (isSystemAddress(asset)) {
+      balance = getCoreBalance(pool, getTokenIndexFromSystemAddress(asset));
+    } else {
+      uint64 tokenIndex = getTokenIndex(asset);
+
+      // Cross-check the registry-provided index against the tokenInfo precompile (ground truth)
+      // so a wrong or stale registry entry can't misvalue the asset via another token's core balance.
+      require(tokenInfo(tokenIndex).evmContract == asset, "evm contract mismatch");
+
+      // Check if the system address of the `asset` is mapped. If it is, we ignore the core balance
+      // and only return the balance of the evmContract and any in-flight amount to HyperCore.
+      uint256 coreBalance = (
+        IHasSupportedAsset(IPoolLogic(pool).poolManagerLogic()).isSupportedAsset(getSystemAddress(tokenIndex))
+      )
+        ? 0
+        : getCoreBalance(pool, tokenIndex);
+
+      // If the `asset` is the evmContract address, get the balance on the pool and also account for the in-flight amount to HyperCore.
+      balance = IERC20(asset).balanceOf(pool) + coreBalance + getInFlightAmount(pool, asset);
+    }
+  }
+
+  /// @notice Returns the decimal of the managed asset
+  /// @dev If the `asset` is a system address, return the EVM decimals (weiDecimals + evmExtraWeiDecimals)
+  ///      since the balance is scaled to EVM decimals.
+  ///      Otherwise, return the decimals of the `asset` which is the evmContract address.
+  /// @param asset Address of the managed asset
+  /// @return decimals The decimal of given asset
+  function getDecimals(address asset) public view virtual override returns (uint256 decimals) {
+    if (isSystemAddress(asset)) {
+      TokenInfo memory info = tokenInfo(getTokenIndexFromSystemAddress(asset));
+      // Return EVM decimals: weiDecimals + evmExtraWeiDecimals
+      // This matches the balance format returned by getBalance
+      int256 evmDecimals = int256(uint256(info.weiDecimals)) + int256(info.evmExtraWeiDecimals);
+      require(evmDecimals >= 0, "invalid EVM decimals");
+      decimals = uint256(evmDecimals);
+    } else {
+      decimals = IERC20Extended(asset).decimals();
+    }
+  }
+
+  /// @notice Checks if the pool's account on HyperCore has been manually activated before allowing the asset to be added.
+  /// @dev This is necessary in this guard because a core account needs to be activated before the asset can be added
+  ///      If the account is not activated, bridged assets may not appear in spotBalance, causing them to become invisible
+  ///      to the guards' balance accounting.
+  /// @dev Manual activation can be done by sending 1 USDC to the pool's account on HyperCore directly.
+  /// @param pool PoolLogic address.
+  function _addAssetCheck(address pool, IHasSupportedAsset.Asset calldata asset) internal view override {
+    require(coreUserExists(pool), "core user not activated");
+
+    if (isSystemAddress(asset.asset)) {
+      require(!asset.isDeposit, "deposit not supported");
+    }
+  }
+
+  /// @notice Necessary check for remove asset.
+  /// @dev Checks if the spot asset balance is zero before allowing the asset to be removed from the pool.
+  /// @dev Checks if a corewriter action related to any spot asset has been done before allowing the asset to be removed from the pool.
+  /// @param pool Address of the pool
+  /// @param asset Address of the remove asset
+  function removeAssetCheck(address pool, address asset) public view virtual override {
+    IHyperliquidCoreWriterContractGuard contractGuard = _useContractGuard(IPoolLogic(pool).factory());
+
+    require(getBalance(pool, asset) == 0, "cannot remove non-empty asset");
+    require(!contractGuard.hasPerformedSpotAction(pool), "spot asset action performed");
+  }
+
+  function getCoreBalance(address pool, uint64 tokenIndex) public view returns (uint256 coreBalance) {
+    coreBalance = spotBalance(pool, tokenIndex).total;
+    TokenInfo memory info = tokenInfo(tokenIndex);
+
+    // Scale the spot balance to the EVM token decimals.
+    // This can reduce the precision of the spot balance if the EVM token
+    // has less decimals than the spot token.
+    if (info.evmExtraWeiDecimals > 0) {
+      coreBalance = coreBalance * 10 ** uint8(info.evmExtraWeiDecimals);
+    } else {
+      coreBalance = coreBalance / 10 ** uint8(-info.evmExtraWeiDecimals);
+    }
+  }
+
+  function _withdrawProcessingSystemAsset(
+    address pool,
+    address asset,
+    uint256 withdrawPortion
+  )
+    internal
+    view
+    returns (address withdrawAsset, uint256 withdrawBalance, IAssetGuard.MultiTransaction[] memory transactions)
+  {
+    IPoolManagerLogic poolManagerLogic = IPoolManagerLogic(IPoolLogic(pool).poolManagerLogic());
+
+    uint256 valueToWithdraw = poolManagerLogic.assetValue(asset, getBalance(pool, asset)).mulWadDown(withdrawPortion);
+    if (valueToWithdraw == 0) return (withdrawAsset, withdrawBalance, transactions);
+
+    withdrawAsset = _USDC_ADDRESS;
+    withdrawBalance = _calculateWithdrawBalance(
+      pool,
+      address(poolManagerLogic),
+      _USDC_ADDRESS,
+      valueToWithdraw,
+      withdrawPortion
+    );
+  }
+
+  function _withdrawProcessingNonSystemAsset(
+    address pool,
+    address asset,
+    uint256 withdrawPortion,
+    address to
+  )
+    internal
+    view
+    returns (address withdrawAsset, uint256 withdrawBalance, IAssetGuard.MultiTransaction[] memory transactions)
+  {
+    IPoolManagerLogic poolManagerLogic = IPoolManagerLogic(IPoolLogic(pool).poolManagerLogic());
+
+    uint256 evmBalance = IERC20(asset).balanceOf(pool);
+    withdrawAsset = asset;
+    withdrawBalance = evmBalance.mulWadDown(withdrawPortion);
+
+    // Convert only the non-EVM part (Core + in-flight) into USDC payout.
+    uint256 totalBalance = getBalance(pool, asset);
+    uint256 coreAndInFlightBalance = totalBalance > evmBalance ? totalBalance - evmBalance : 0;
+    uint256 coreValueToWithdraw = poolManagerLogic.assetValue(asset, coreAndInFlightBalance).mulWadDown(
+      withdrawPortion
+    );
+
+    if (coreValueToWithdraw == 0) return (withdrawAsset, withdrawBalance, transactions);
+
+    uint256 usdcWithdrawBalance = _calculateWithdrawBalance(
+      pool,
+      address(poolManagerLogic),
+      _USDC_ADDRESS,
+      coreValueToWithdraw,
+      withdrawPortion
+    );
+
+    if (usdcWithdrawBalance > 0) {
+      transactions = new MultiTransaction[](1);
+      transactions[0] = MultiTransaction({
+        to: _USDC_ADDRESS,
+        txData: abi.encodeWithSelector(IERC20.transfer.selector, to, usdcWithdrawBalance)
+      });
+    }
+  }
+
+  function _useContractGuard(
+    address _poolFactory
+  ) internal view returns (IHyperliquidCoreWriterContractGuard contractguard) {
+    contractguard = IHyperliquidCoreWriterContractGuard(IHasGuardInfo(_poolFactory).getContractGuard(_CORE_WRITER));
+  }
+}

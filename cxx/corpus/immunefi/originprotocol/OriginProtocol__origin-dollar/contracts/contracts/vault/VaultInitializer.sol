@@ -1,0 +1,32 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity ^0.8.0;
+
+/**
+ * @title OToken VaultInitializer contract
+ * @notice The Vault contract initializes the vault.
+ * @author Origin Protocol Inc
+ */
+
+import "./VaultStorage.sol";
+
+abstract contract VaultInitializer is VaultStorage {
+    constructor(address _asset) VaultStorage(_asset) {}
+
+    function initialize(address _oToken) external onlyGovernor initializer {
+        require(_oToken != address(0), "oToken address is zero");
+
+        oToken = OUSD(_oToken);
+
+        rebasePaused = false;
+        capitalPaused = true;
+
+        // Initial Vault buffer of 0%
+        vaultBuffer = 0;
+        // Initial allocate threshold of 25,000 OUSD
+        autoAllocateThreshold = 25000e18;
+        // Initialize all strategies
+        allStrategies = new address[](0);
+        // Start with drip duration: 7 days
+        dripDuration = 604800;
+    }
+}

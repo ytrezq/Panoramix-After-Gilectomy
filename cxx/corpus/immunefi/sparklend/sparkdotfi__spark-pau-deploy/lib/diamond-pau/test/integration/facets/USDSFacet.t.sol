@@ -1,0 +1,165 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+pragma solidity ^0.8.34;
+
+import { ReentrancyGuard } from "../../../lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+
+import { IEnumerableIntegrations } from "../../../src/interfaces/IEnumerableIntegrations.sol";
+import { IUSDSFacet }              from "../../../src/facets/usds/IUSDSFacet.sol";
+
+import { USDSFacet } from "../../../src/facets/usds/USDSFacet.sol";
+
+import { Integration_TestBase } from "../TestBase.t.sol";
+
+interface IControllerLike {
+
+    function setVault(address vault) external;
+
+    function vault() external view returns (address);
+
+    function burnRateLimitKey() external pure returns (bytes32);
+
+    function mintRateLimitKey() external pure returns (bytes32);
+
+    function usds() external view returns (address);
+
+    function updateIntegrations(bytes32[] memory integrationIds) external;
+
+}
+
+contract Controller_USDSFacet_Tests is Integration_TestBase {
+
+    IControllerLike internal controller;
+
+    function setUp() external {
+        controller = IControllerLike(_deploy());
+
+        address facet = address(new USDSFacet(makeAddr("usds")));
+
+        vm.label(facet, "USDSFacet");
+
+        IEnumerableIntegrations.Wire[] memory wires = new IEnumerableIntegrations.Wire[](5);
+
+        wires[0] = IEnumerableIntegrations.Wire(
+            IControllerLike.setVault.selector,
+            IUSDSFacet.setVault.selector
+        );
+
+        wires[1] = IEnumerableIntegrations.Wire(
+            IControllerLike.vault.selector,
+            IUSDSFacet.vault.selector
+        );
+
+        wires[2] = IEnumerableIntegrations.Wire(
+            IControllerLike.burnRateLimitKey.selector,
+            IUSDSFacet.burnRateLimitKey.selector
+        );
+
+        wires[3] = IEnumerableIntegrations.Wire(
+            IControllerLike.mintRateLimitKey.selector,
+            IUSDSFacet.mintRateLimitKey.selector
+        );
+
+        wires[4] = IEnumerableIntegrations.Wire(
+            IControllerLike.usds.selector,
+            IUSDSFacet.usds.selector
+        );
+
+        IEnumerableIntegrations.Config memory config = IEnumerableIntegrations.Config(facet, wires);
+
+        vm.prank(beaconAdmin);
+        beacon.setIntegration("USDS_FACET", config);
+
+        bytes32[] memory integrationIds = new bytes32[](1);
+        integrationIds[0] = "USDS_FACET";
+
+        vm.prank(admin);
+        controller.updateIntegrations(integrationIds);
+    }
+
+    /**********************************************************************************************/
+    /*** Constructor Tests                                                                      ***/
+    /**********************************************************************************************/
+
+    function test_constructor_zeroUSDS() external {
+        vm.expectRevert("USDSFacet/zero-usds");
+        new USDSFacet(address(0));
+    }
+
+    function test_constructor() external {
+        address usds = makeAddr("usds");
+
+        USDSFacet facet = new USDSFacet(usds);
+
+        assertEq(facet.usds(), usds);
+    }
+
+    /**********************************************************************************************/
+    /*** Immutables Tests                                                                       ***/
+    /**********************************************************************************************/
+
+    function test_immutables() external {
+        assertEq(controller.usds(), makeAddr("usds"));
+    }
+
+    /**********************************************************************************************/
+    /*** setVault Tests                                                                         ***/
+    /**********************************************************************************************/
+
+    function test_setVault_reentrancy() external {
+        _setEntered(address(controller));
+        vm.expectRevert(ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
+        controller.setVault(makeAddr("vault"));
+    }
+
+    function test_setVault_unauthorizedAccount() external {
+        vm.expectRevert(abi.encodeWithSignature(
+            "AccessControlUnauthorizedAccount(address,bytes32)",
+            unauthorized,
+            DEFAULT_ADMIN_ROLE
+        ));
+
+        vm.prank(unauthorized);
+        controller.setVault(makeAddr("vault"));
+    }
+
+    function test_setVault_zeroAddress() external {
+        vm.expectRevert("USDSFacet/zero-vault");
+        vm.prank(admin);
+        controller.setVault(address(0));
+    }
+
+    function test_setVault() external {
+        assertEq(controller.vault(), address(0));
+
+        address vault = makeAddr("vault");
+
+        vm.record();
+
+        vm.expectEmit(address(controller));
+        emit IUSDSFacet.USDSVaultSet(vault);
+
+        vm.prank(admin);
+        controller.setVault(vault);
+
+        assertEq(controller.vault(), vault);
+
+        _assertReentrancyGuardWrittenToTwice(address(controller));
+    }
+
+    /**********************************************************************************************/
+    /*** burnRateLimitKey Tests                                                                 ***/
+    /**********************************************************************************************/
+
+    function test_burnRateLimitKey() external {
+        assertEq(controller.burnRateLimitKey(), keccak256("LIMIT_USDS_BURN"));
+    }
+
+    /**********************************************************************************************/
+    /*** mintRateLimitKey Tests                                                                 ***/
+    /**********************************************************************************************/
+
+    function test_mintRateLimitKey() external {
+        assertEq(controller.mintRateLimitKey(), keccak256("LIMIT_USDS_MINT"));
+    }
+
+}

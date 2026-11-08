@@ -1,0 +1,49 @@
+{
+  "name": "bridge-contracts",
+  "version": "1.0.0",
+  "description": "BRIDGE",
+  "main": "index.js",
+  "scripts": {
+    "start-tezos-sandbox": "scripts/start-tezos-sandbox.sh",
+    "tztest": "scripts/tztest.sh",
+    "tztest-file": "mocha",
+    "test": "scripts/test.sh",
+    "security": "scripts/security.sh",
+    "security:slither": "scripts/security.sh slither",
+    "security:mythril": "scripts/security.sh mythril",
+    "doc": "scripts/docgen.sh",
+    "coverage": "npx solidity-coverage",
+    "lint": "eslint .",
+    "lint:sol": "solium -d ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://gitlab.com/mtpelerin/bridge-contracts"
+  },
+  "author": "Mt Pelerin",
+  "license": "AGPL-3.0",
+  "devDependencies": {
+    "@openzeppelin/cli": "^2.8.2",
+    "@openzeppelin/upgrades": "^2.8.0",
+    "chai": "^4.2.0",
+    "chai-bignumber": "^3.0.0",
+    "hardhat": "^2.12.7",
+    "mocha": "^8.3.1",
+    "openzeppelin-test-helpers": "^0.3.2",
+    "solidity-coverage": "^0.7.5"
+  },
+  "dependencies": {
+    "@opengsn/gsn": "^0.10.0",
+    "@openzeppelin/contracts": "^3.0.2",
+    "@openzeppelin/contracts-ethereum-package": "^3.0.0",
+    "@taquito/michel-codec": "^9.2.0",
+    "@taquito/michelson-encoder": "^9.2.0",
+    "@taquito/signer": "^9.2.0",
+    "@taquito/taquito": "^9.2.0",
+    "bignumber.js": "^9.0.1",
+    "ganache-cli": "^6.12.2",
+    "solc": "^0.6.9",
+    "solidity-docgen": "git+https://github.com/skrafft/solidity-docgen.git",
+    "truffle": "^5.0.28"
+  }
+}

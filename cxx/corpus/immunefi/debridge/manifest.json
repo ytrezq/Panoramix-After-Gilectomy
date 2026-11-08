@@ -1,0 +1,53 @@
+{
+ "program": "debridge",
+ "repos": [
+  {
+   "repo": "https://github.com/debridge-finance/debridge-contracts-v1",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "2e9f9c73438738310b5293cec4cffe25741e9b1f",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": "ISC",
+    "headers": {
+     "BUSL-1.1": 16,
+     "MIT": 27,
+     "(none)": 2,
+     "LGPL-3.0-only": 1,
+     "Unlicense": 1
+    },
+    "headers_main": {
+     "BUSL-1.1": 16,
+     "MIT": 17,
+     "(none)": 1,
+     "LGPL-3.0-only": 1,
+     "Unlicense": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 47
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.9.6",
+    "node_modules/@openzeppelin/contracts-upgradeable": "4.9.6"
+   },
+   "copied": true,
+   "files": 455,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "debridge-finance__debridge-contracts-v1",
+   "subtrees": [
+    {
+     "prefix": "debridge-finance__debridge-contracts-v1",
+     "url": "https://github.com/debridge-finance/debridge-contracts-v1",
+     "commit": "2e9f9c73438738310b5293cec4cffe25741e9b1f",
+     "files": 53
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,262 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.21;
+
+import { BaseDecoderAndSanitizer } from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { BridgeData } from "src/base/Roles/CrossChain/CrossChainTellerBase.sol";
+import { DecoderCustomTypes } from "src/interfaces/DecoderCustomTypes.sol";
+import { IWithdrawQueue } from "src/interfaces/Roles/IWithdrawQueue.sol";
+
+import { TransitStation } from "src/transit/TransitStation.sol";
+
+abstract contract PxlDecoderAndSanitizer is BaseDecoderAndSanitizer {
+
+    error PxlDecoderAndSanitizer__ExitFunctionForInternalBurnUseOnly();
+
+    // @desc deposit into pxl via the teller
+    // @tag depositAsset:address:ERC20 to deposit, must be supported and approved
+    function deposit(
+        ERC20 depositAsset,
+        uint256 depositAmount,
+        uint256 minimumMint
+    )
+        external
+        pure
+        returns (bytes memory addressesFound)
+    {
+        addressesFound = abi.encodePacked(depositAsset);
+    }
+
+    // @desc deposit into pxl via the predicate proxy
+    // @tag depositAsset:address:ERC20 to deposit, must be supported and approved
+    // @tag recipient:address:receiver of shares
+    // @tag teller:address:teller contract to deposit with
+    function deposit(
+        ERC20 depositAsset,
+        uint256 depositAmount,
+        uint256 minimumMint,
+        address recipient,
+        address teller,
+        DecoderCustomTypes.PredicateMessage calldata predicateMessage
+    )
+        external
+        pure
+        returns (bytes memory addressesFound)
+    {
+        addressesFound = abi.encodePacked(depositAsset, recipient, teller);
+    }
+
+    // add the deposit with receiver for forward compatibility with audited teller
+    // @desc teller deposit with receiver (post-Feb 2025 audits)
+    // @tag depositAsset:address:ERC20 to deposit
+    // @tag to:address:receiver
+    function deposit(
+        ERC20 depositAsset,
+        uint256 depositAmount,
+        uint256 minimumMint,
+        address to
+    )
+        external
+        pure
+        returns (bytes memory addressesFound)
+    {
+        addressesFound = abi.encodePacked(depositAsset, to);
+    }
+
+    // @desc bridge shares using teller
+    // @tag chainSelector:uint32:chain selector
+    // @tag destinationChainReceiver:address:receiver
+    // @tag bridgeFeeToken:address:fee token
+    // @tag messageGas:uint64:gas for message
+    function bridge(uint256 shareAmount, BridgeData calldata data) external pure returns (bytes memory addressesFound) {
+        addressesFound =
+            abi.encodePacked(data.chainSelector, data.destinationChainReceiver, data.bridgeFeeToken, data.messageGas);
+    }
+
+    // @desc teller deposit and bridge
+    // @tag depositAsset:address:ERC20 to deposit
+    // @tag chainSelector:uint32:chain selector
+    // @tag destinationChainReceiver:address:receiver
+    // @tag bridgeFeeToken:address:fee token
+    // @tag messageGas:uint64:gas for message
+    function depositAndBridge(
+        ERC20 depositAsset,
+        uint256 depositAmount,
+        uint256 minimumMint,
+        BridgeData calldata data
+    )
+        external
+        pure
+        returns (bytes memory addressesFound)
+    {
+        addressesFound = abi.encodePacked(
+            depositAsset, data.chainSelector, data.destinationChainReceiver, data.bridgeFeeToken, data.messageGas
+        );
+    }
+
+    // @desc updateAtomicRequest to withdraw from vault using newer UCP
+    // @tag offer:address:ERC20 to withdraw
+    // @tag want:address:ERC20 to withdraw into
+    // @tag recipient:address:receiver
+    function updateAtomicRequest(
+        ERC20 offer,
+        ERC20 want,
+        DecoderCustomTypes.AtomicRequestUCP calldata userRequest
+    )
+        external
+        pure
+        returns (bytes memory addressesFound)
+    {
+        addressesFound = abi.encodePacked(offer, want, userRequest.recipient);
+    }
+
+    // @desc claim fees from a pxl vault, must be authorized to call
+    // @tag token:address:ERC20 to claim fees with
+    function claimFees(ERC20 token) external pure returns (bytes memory addressesFound) {
+        addressesFound = abi.encodePacked(token);
+    }
+
+    // @desc Allows burner to burn shares, in exchange for assets, only supports burning with all but share amount 0
+    function exit(
+        address to,
+        ERC20 asset,
+        uint256 assetAmount,
+        address from,
+        uint256
+    )
+        external
+        view
+        returns (bytes memory addressesFound)
+    {
+        if (to != address(0) || address(asset) != address(0) || assetAmount != 0 || from != boringVault) {
+            revert PxlDecoderAndSanitizer__ExitFunctionForInternalBurnUseOnly();
+        }
+    }
+
+    // @desc bulk withdraw from teller
+    // @tag withdrawAsset:address:ERC20 to withdraw
+    // @tag to:address:receiver
+    function bulkWithdraw(
+        ERC20 withdrawAsset,
+        uint256 shareAmount,
+        uint256 minimumAssets,
+        address to
+    )
+        external
+        pure
+        returns (bytes memory addressesFound)
+    {
+        addressesFound = abi.encodePacked(withdrawAsset, to);
+    }
+
+    // @desc deleverage using the LHYPEDeleverage contract
+    function deleverage(
+        uint256,
+        uint256,
+        uint256,
+        bytes32[] memory,
+        address
+    )
+        external
+        pure
+        returns (bytes memory addressesFound)
+    {
+        // Nothing to decode
+    }
+
+    // @desc process orders using the one to one queue
+    function processOrders(uint256 ordersToProcess) external pure returns (bytes memory addressesFound) {
+        // Nothing to decode
+    }
+
+    // @desc Transit Station submit order
+    // @tag destEID:uint32:destination chain EID (LayerZero)
+    // @tag offerAsset:address:offer asset
+    // @tag wantAsset:address:want asset
+    // @tag receiver:address:receiver
+    // @tag integratorFeeReceiver:address:integrator fee receiver
+    function submitOrder(
+        TransitStation.Quote calldata quote,
+        bytes calldata signature
+    )
+        external
+        returns (bytes memory addressesFound)
+    {
+        addressesFound = abi.encodePacked(
+            quote.route.destEID,
+            quote.route.offerAsset,
+            quote.route.wantAsset,
+            quote.receiver,
+            quote.integratorFeeReceiver
+        );
+    }
+
+    // @desc Transit Station execute pending orders
+    // @tag wantAsset:address[]:the want asset of each fill batch
+    function executePendingOrders(TransitStation.FillBatch[] calldata batches)
+        external
+        pure
+        returns (bytes memory addressesFound)
+    {
+        // Nothing to decode
+    }
+
+    // @desc submit an order to the withdraw queue
+    // @tag wantAsset:address:ERC20 asset being requested
+    // @tag receiver:address:receiver of the NFT receipt
+    // @tag refundReceiver:address:receiver of refunds
+    // @tag approvalMethod:uint8:token approval mechanism
+    // @tag submitWithSignature:bool:whether order includes depositor signature
+    function submitOrder(IWithdrawQueue.SubmitOrderParams calldata params)
+        external
+        pure
+        returns (bytes memory argumentsFound)
+    {
+        argumentsFound = abi.encodePacked(
+            params.wantAsset,
+            params.receiver,
+            params.refundReceiver,
+            params.signatureParams.approvalMethod,
+            params.signatureParams.submitWithSignature
+        );
+    }
+
+    // @desc execute a 1:1 swap route via EquivalentExchange
+    // @tag tokens:bytes:packed bytes of every token in the tokens array
+    // @tag subsidyPayer:address:address to submit subsidy tokens and provide subsidies
+    // @tag subsidyToken:address:token used for the subsidy
+    function execute(
+        ERC20[] calldata tokens,
+        uint256[] calldata,
+        address[] calldata,
+        bytes[] calldata,
+        address subsidyPayer,
+        ERC20 subsidyToken
+    )
+        external
+        pure
+        returns (bytes memory addressesFound)
+    {
+        uint256 tokensLength = tokens.length;
+        for (uint256 i; i < tokensLength; ++i) {
+            addressesFound = abi.encodePacked(addressesFound, tokens[i]);
+        }
+
+        addressesFound = abi.encodePacked(addressesFound, subsidyPayer, subsidyToken);
+    }
+
+    function manageVaultWithMerkleVerification(
+        bytes32[][] calldata manageProofs,
+        address[] calldata decodersAndSanitizers,
+        address[] calldata targets,
+        bytes[] calldata targetData,
+        uint256[] calldata values
+    )
+        external
+        pure
+        returns (bytes memory addressesFound)
+    {
+        // Nothing to decode. The other vault will do it's own decoding
+    }
+
+}

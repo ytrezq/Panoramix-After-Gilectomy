@@ -1,0 +1,818 @@
+{
+ "program": "lido",
+ "repos": [
+  {
+   "repo": "https://github.com/lidofinance/mev-boost-relay-allowed-list",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "47211c69c7382975e0882d1deef908d10730fa1b",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "MIT",
+    "package_json": null,
+    "headers": {
+     "(none)": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".vy": 1
+   },
+   "npm": {},
+   "copied": true,
+   "files": 5,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "lidofinance__mev-boost-relay-allowed-list",
+   "subtrees": [
+    {
+     "prefix": "lidofinance__mev-boost-relay-allowed-list",
+     "url": "https://github.com/lidofinance/mev-boost-relay-allowed-list",
+     "commit": "47211c69c7382975e0882d1deef908d10730fa1b",
+     "files": 4
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/lidofinance/aave-delivery-infrastructure",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "c625ea95f925808598e6c354d852f0ee4795bb25",
+   "submodules": [
+    {
+     "path": "lib/solidity-utils",
+     "url": "https://github.com/bgd-labs/solidity-utils.git",
+     "commit": "56720adb8b751c3742a5f9b8c5bcb8a9446ba941"
+    },
+    {
+     "path": "lib/solidity-utils/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "4a79aca83f8075f8b1b4fe9153945fef08375630"
+    },
+    {
+     "path": "lib/solidity-utils/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std.git",
+     "commit": "1d9650e951204a0ddce9ff89c32f1997984cef4d"
+    },
+    {
+     "path": "lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "e1b3d8c7ee2c97868f4ab107fe8b7e19f0a8db9f"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "lib/aave-address-book",
+     "url": "https://github.com/bgd-labs/aave-address-book.git",
+     "commit": "9f5c33da4813dbd885b9f888c1cf6234340f71e7"
+    },
+    {
+     "path": "lib/aave-address-book/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "9838df8b281f2e5c1bda49632f1944ff0f86b4b5"
+    },
+    {
+     "path": "lib/aave-address-book/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "lib/aave-address-book/lib/aave-v3-core",
+     "url": "https://github.com/aave/aave-v3-core",
+     "commit": "27a6d5c83560694210849d4abf09a09dec8da388"
+    },
+    {
+     "path": "lib/nitro-contracts",
+     "url": "https://github.com/OffchainLabs/nitro-contracts.git",
+     "commit": "a68783436b5105a64f54efe5fbd55174704a7618"
+    },
+    {
+     "path": "lib/fx-portal",
+     "url": "https://github.com/0xPolygon/fx-portal.git",
+     "commit": "ebd046507d76cd03fa2b2559257091471a259ed7"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": "BUSL-1.1",
+    "headers": {
+     "AGPL-3.0": 4,
+     "BUSL-1.1": 142,
+     "MIT": 42,
+     "Apache": 2,
+     "Unlicense": 1,
+     "LZBL-1.2": 1,
+     "(none)": 18
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 210
+   },
+   "npm": {},
+   "copied": true,
+   "files": 1127,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "lidofinance__aave-delivery-infrastructure",
+   "subtrees": [
+    {
+     "prefix": "lidofinance__aave-delivery-infrastructure",
+     "url": "https://github.com/lidofinance/aave-delivery-infrastructure",
+     "commit": "c625ea95f925808598e6c354d852f0ee4795bb25",
+     "files": 218
+    },
+    {
+     "prefix": "lidofinance__aave-delivery-infrastructure/lib/solidity-utils",
+     "url": "https://github.com/bgd-labs/solidity-utils",
+     "commit": "56720adb8b751c3742a5f9b8c5bcb8a9446ba941",
+     "files": 41
+    },
+    {
+     "prefix": "lidofinance__aave-delivery-infrastructure/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1d9650e951204a0ddce9ff89c32f1997984cef4d",
+     "files": 40
+    },
+    {
+     "prefix": "lidofinance__aave-delivery-infrastructure/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "e1b3d8c7ee2c97868f4ab107fe8b7e19f0a8db9f",
+     "files": 294
+    },
+    {
+     "prefix": "lidofinance__aave-delivery-infrastructure/lib/aave-address-book",
+     "url": "https://github.com/bgd-labs/aave-address-book",
+     "commit": "9f5c33da4813dbd885b9f888c1cf6234340f71e7",
+     "files": 69
+    },
+    {
+     "prefix": "lidofinance__aave-delivery-infrastructure/lib/nitro-contracts",
+     "url": "https://github.com/OffchainLabs/nitro-contracts",
+     "commit": "a68783436b5105a64f54efe5fbd55174704a7618",
+     "files": 96
+    },
+    {
+     "prefix": "lidofinance__aave-delivery-infrastructure/lib/fx-portal",
+     "url": "https://github.com/0xPolygon/fx-portal",
+     "commit": "ebd046507d76cd03fa2b2559257091471a259ed7",
+     "files": 47
+    },
+    {
+     "prefix": "lidofinance__aave-delivery-infrastructure/lib/solidity-utils/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "4a79aca83f8075f8b1b4fe9153945fef08375630",
+     "files": 37
+    },
+    {
+     "prefix": "lidofinance__aave-delivery-infrastructure/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    },
+    {
+     "prefix": "lidofinance__aave-delivery-infrastructure/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
+     "files": 39
+    },
+    {
+     "prefix": "lidofinance__aave-delivery-infrastructure/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
+     "files": 3
+    },
+    {
+     "prefix": "lidofinance__aave-delivery-infrastructure/lib/aave-address-book/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "9838df8b281f2e5c1bda49632f1944ff0f86b4b5",
+     "files": 40
+    },
+    {
+     "prefix": "lidofinance__aave-delivery-infrastructure/lib/aave-address-book/lib/aave-v3-core",
+     "url": "https://github.com/aave/aave-v3-core",
+     "commit": "27a6d5c83560694210849d4abf09a09dec8da388",
+     "files": 140
+    },
+    {
+     "prefix": "lidofinance__aave-delivery-infrastructure/lib/solidity-utils/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b",
+     "files": 5
+    },
+    {
+     "prefix": "lidofinance__aave-delivery-infrastructure/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
+     "files": 6
+    },
+    {
+     "prefix": "lidofinance__aave-delivery-infrastructure/lib/aave-address-book/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/lidofinance/governance-crosschain-bridges",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "ad77e31d0fa44fc9587764bbceb2328ca9e081c2",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE.md",
+    "spdx": "BSD",
+    "package_json": "BSD-3-Clause",
+    "headers": {
+     "(none)": 3,
+     "MIT": 4,
+     "BUSL-1.1": 1,
+     "AGPL-3.0": 9,
+     "Unlicense": 8
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 25
+   },
+   "npm": {},
+   "copied": true,
+   "files": 30,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "lidofinance__governance-crosschain-bridges",
+   "subtrees": [
+    {
+     "prefix": "lidofinance__governance-crosschain-bridges",
+     "url": "https://github.com/lidofinance/governance-crosschain-bridges",
+     "commit": "ad77e31d0fa44fc9587764bbceb2328ca9e081c2",
+     "files": 28
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/lidofinance/lido-l2",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "fea8d76fd6464f8bda435a90b065fdd123f80727",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": "ISC",
+    "headers": {
+     "GPL-3.0": 36
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 36
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.6.0"
+   },
+   "copied": true,
+   "files": 214,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "lidofinance__lido-l2",
+   "subtrees": [
+    {
+     "prefix": "lidofinance__lido-l2",
+     "url": "https://github.com/lidofinance/lido-l2",
+     "commit": "fea8d76fd6464f8bda435a90b065fdd123f80727",
+     "files": 40
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/lidofinance/lido-l2-with-steth",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "b1159ef6eec8482d6b9d1fa980222fbe19b7114f",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": "ISC",
+    "headers": {
+     "GPL-3.0": 42
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 42
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.6.0"
+   },
+   "copied": true,
+   "files": 222,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "lidofinance__lido-l2-with-steth",
+   "subtrees": [
+    {
+     "prefix": "lidofinance__lido-l2-with-steth",
+     "url": "https://github.com/lidofinance/lido-l2-with-steth",
+     "commit": "b1159ef6eec8482d6b9d1fa980222fbe19b7114f",
+     "files": 47
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/lidofinance/community-staking-module",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "7bdcfb631b13d24e8fae3b5ba0e11d4be07b84f9",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": "GPL-3.0",
+    "headers": {
+     "GPL-3.0": 268,
+     "MIT": 1,
+     "(none)": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 270
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "5.4.0",
+    "node_modules/@openzeppelin/contracts-upgradeable": "5.4.0",
+    "node_modules/forge-std": "1.9.6"
+   },
+   "copied": true,
+   "files": 630,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "lidofinance__community-staking-module",
+   "subtrees": [
+    {
+     "prefix": "lidofinance__community-staking-module",
+     "url": "https://github.com/lidofinance/community-staking-module",
+     "commit": "7bdcfb631b13d24e8fae3b5ba0e11d4be07b84f9",
+     "files": 277
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/lidofinance/easy-track",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "551089429de784e954deecbef35f6bd54f07b08d",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": "GPL-3.0",
+    "headers": {
+     "MIT": 12,
+     "GPL-3.0": 123
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 135
+   },
+   "npm": {
+    "node_modules/forge-std": "1.9.6"
+   },
+   "copied": true,
+   "files": 190,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "lidofinance__easy-track",
+   "subtrees": [
+    {
+     "prefix": "lidofinance__easy-track",
+     "url": "https://github.com/lidofinance/easy-track",
+     "commit": "551089429de784e954deecbef35f6bd54f07b08d",
+     "files": 142
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/lidofinance/stonks",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "6693a1efe1cb2fdb42df3ea8d61f076daf1c2166",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bf647bd6046f2f7da30d0c2bf435e5c76a780c1b"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "MIT",
+    "package_json": null,
+    "headers": {
+     "GPL-3.0": 28,
+     "MIT": 35,
+     "LGPL-3.0-or-later": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 64
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts": "4.9.3"
+   },
+   "copied": true,
+   "files": 334,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "lidofinance__stonks",
+   "subtrees": [
+    {
+     "prefix": "lidofinance__stonks",
+     "url": "https://github.com/lidofinance/stonks",
+     "commit": "6693a1efe1cb2fdb42df3ea8d61f076daf1c2166",
+     "files": 69
+    },
+    {
+     "prefix": "lidofinance__stonks/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "bf647bd6046f2f7da30d0c2bf435e5c76a780c1b",
+     "files": 54
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/lidofinance/lido-vesting-escrow",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "2d53525f0431ac8cfffd6d7c5a2f70fb64ce3058",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": "GPL-3.0-only",
+    "headers": {
+     "(none)": 8
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".vy": 8
+   },
+   "npm": {},
+   "copied": true,
+   "files": 13,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "lidofinance__lido-vesting-escrow",
+   "subtrees": [
+    {
+     "prefix": "lidofinance__lido-vesting-escrow",
+     "url": "https://github.com/lidofinance/lido-vesting-escrow",
+     "commit": "2d53525f0431ac8cfffd6d7c5a2f70fb64ce3058",
+     "files": 12
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/lidofinance/dual-governance",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "ba9dfc9213ec888993937a699e2a587a0082720f",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
+    },
+    {
+     "path": "lib/kontrol-cheatcodes",
+     "url": "https://github.com/runtimeverification/kontrol-cheatcodes",
+     "commit": "187b89ad863226afe494caa9f58320997a543bff"
+    },
+    {
+     "path": "lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "MIT",
+    "package_json": "MIT",
+    "headers": {
+     "MIT": 237,
+     "(none)": 27,
+     "GPL-3.0": 4,
+     "agpl-3.0": 4,
+     "BSL-1.1": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 273
+   },
+   "npm": {},
+   "copied": true,
+   "files": 651,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "lidofinance__dual-governance",
+   "subtrees": [
+    {
+     "prefix": "lidofinance__dual-governance",
+     "url": "https://github.com/lidofinance/dual-governance",
+     "commit": "ba9dfc9213ec888993937a699e2a587a0082720f",
+     "files": 279
+    },
+    {
+     "prefix": "lidofinance__dual-governance/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa",
+     "files": 47
+    },
+    {
+     "prefix": "lidofinance__dual-governance/lib/kontrol-cheatcodes",
+     "url": "https://github.com/runtimeverification/kontrol-cheatcodes",
+     "commit": "187b89ad863226afe494caa9f58320997a543bff",
+     "files": 2
+    },
+    {
+     "prefix": "lidofinance__dual-governance/lib/openzeppelin-contracts",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3",
+     "files": 250
+    },
+    {
+     "prefix": "lidofinance__dual-governance/lib/openzeppelin-contracts/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb",
+     "files": 35
+    },
+    {
+     "prefix": "lidofinance__dual-governance/lib/openzeppelin-contracts/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
+     "files": 3
+    },
+    {
+     "prefix": "lidofinance__dual-governance/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b",
+     "files": 5
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/lidofinance/aragon-apps",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "2c16b9a752b6002436a238bc2ca33a908d51d78a",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "AGPL-3.0",
+    "package_json": "(GPL-3.0-or-later OR AGPL-3.0-or-later)",
+    "headers": {
+     "(none)": 42,
+     "GPL-3.0-or-later": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 43
+   },
+   "npm": {
+    "apps/agent/node_modules/@aragon/apps-vault": "4.1.0",
+    "apps/agent/node_modules/@aragon/os": "4.4.0",
+    "apps/agent/node_modules/@aragon/contract-helpers-test": "0.1.0",
+    "apps/agreement/node_modules/@aragon/os": "5.0.0-rc.0",
+    "apps/agreement/node_modules/@aragon/staking": "0.3.1",
+    "apps/agreement/node_modules/@aragon/minime": "1.0.0",
+    "apps/agreement/node_modules/@aragon/contract-helpers-test": "0.1.0",
+    "apps/finance/node_modules/@aragon/os": "4.4.0",
+    "apps/finance/node_modules/@aragon/apps-vault": "4.1.0",
+    "apps/finance/node_modules/@aragon/contract-helpers-test": "0.1.0",
+    "apps/voting-disputable/node_modules/@aragon/os": "5.0.0-rc.0",
+    "apps/voting-disputable/node_modules/@aragon/minime": "1.0.0",
+    "apps/voting-disputable/node_modules/@aragon/apps-agreement": "1.0.0-rc.0",
+    "apps/voting-disputable/node_modules/@aragon/contract-helpers-test": "0.1.0",
+    "apps/voting-disputable/node_modules/@aragon/staking": "0.3.1",
+    "apps/vault/node_modules/@aragon/os": "4.4.0",
+    "apps/vault/node_modules/@aragon/contract-helpers-test": "0.1.0",
+    "apps/token-manager/node_modules/@aragon/os": "4.4.0",
+    "apps/token-manager/node_modules/@aragon/minime": "1.0.0",
+    "apps/token-manager/node_modules/@aragon/contract-helpers-test": "0.1.0",
+    "apps/voting/node_modules/@aragon/os": "4.4.0",
+    "apps/voting/node_modules/@aragon/minime": "1.0.0",
+    "apps/voting/node_modules/@aragon/contract-helpers-test": "0.1.0"
+   },
+   "copied": true,
+   "files": 705,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "lidofinance__aragon-apps",
+   "subtrees": [
+    {
+     "prefix": "lidofinance__aragon-apps",
+     "url": "https://github.com/lidofinance/aragon-apps",
+     "commit": "2c16b9a752b6002436a238bc2ca33a908d51d78a",
+     "files": 59
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/lidofinance/circuit-breaker",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "6945a0025bfcaa07185017c8319a06612e78895b",
+   "submodules": [
+    {
+     "path": "lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8e7bbe65b08aa71a0c93b50dc707da716a2ac1ff"
+    }
+   ],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "GPL-3.0": 12
+    },
+    "headers_main": {
+     "GPL-3.0": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 12
+   },
+   "npm": {},
+   "copied": true,
+   "files": 71,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "lidofinance__circuit-breaker",
+   "subtrees": [
+    {
+     "prefix": "lidofinance__circuit-breaker",
+     "url": "https://github.com/lidofinance/circuit-breaker",
+     "commit": "6945a0025bfcaa07185017c8319a06612e78895b",
+     "files": 15
+    },
+    {
+     "prefix": "lidofinance__circuit-breaker/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "8e7bbe65b08aa71a0c93b50dc707da716a2ac1ff",
+     "files": 54
+    }
+   ]
+  },
+  {
+   "repo": "https://github.com/lidofinance/core",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "commit": "2bd532298d85cdf520169fdc0c5fb0cc9baf03c3",
+   "submodules": [
+    {
+     "path": "foundry/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ffa2ee0d921b4163b7abd0f1122df93ead205805"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "GPL-3.0",
+    "package_json": "GPL-3.0-only",
+    "headers": {
+     "UNLICENSED": 181,
+     "GPL-3.0": 155,
+     "MIT": 27,
+     "(none)": 2,
+     "CC0-1.0": 1
+    },
+    "headers_main": {
+     "GPL-3.0": 127,
+     "MIT": 21,
+     "UNLICENSED": 6,
+     "CC0-1.0": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 366
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts-v5.2": "5.2.0",
+    "node_modules/hardhat": "2.26.1",
+    "node_modules/@aragon/os": "4.4.0",
+    "node_modules/@openzeppelin/contracts-v4.4": "4.4.1",
+    "node_modules/openzeppelin-solidity": "2.0.0",
+    "node_modules/@aragon/id": "2.1.1",
+    "node_modules/@aragon/minime": "1.0.0",
+    "node_modules/@aragon/apps-agent": "2.1.0",
+    "node_modules/@aragon/apps-vault": "4.1.0",
+    "node_modules/@aragon/apps-lido": "1.0.0",
+    "node_modules/@aragon/apps-finance": "3.0.0",
+    "node_modules/@openzeppelin/contracts": "3.4.0",
+    "node_modules/@aragon/apps-lido/apps/agent/node_modules/@aragon/os": "4.4.0",
+    "node_modules/@aragon/apps-lido/apps/agent/node_modules/@aragon/contract-helpers-test": "0.1.0",
+    "node_modules/@aragon/apps-lido/apps/agreement/node_modules/@aragon/os": "5.0.0-rc.0",
+    "node_modules/@aragon/apps-lido/apps/agreement/node_modules/@aragon/staking": "0.3.1",
+    "node_modules/@aragon/apps-lido/apps/agreement/node_modules/@aragon/minime": "1.0.0",
+    "node_modules/@aragon/apps-lido/apps/agreement/node_modules/@aragon/contract-helpers-test": "0.1.0",
+    "node_modules/@aragon/apps-lido/apps/finance/node_modules/@aragon/os": "4.4.0",
+    "node_modules/@aragon/apps-lido/apps/finance/node_modules/@aragon/contract-helpers-test": "0.1.0",
+    "node_modules/@aragon/apps-lido/apps/voting-disputable/node_modules/@aragon/os": "5.0.0-rc.0",
+    "node_modules/@aragon/apps-lido/apps/voting-disputable/node_modules/@aragon/minime": "1.0.0",
+    "node_modules/@aragon/apps-lido/apps/voting-disputable/node_modules/@aragon/contract-helpers-test": "0.1.0",
+    "node_modules/@aragon/apps-lido/apps/voting-disputable/node_modules/@aragon/staking": "0.3.1",
+    "node_modules/@aragon/apps-lido/apps/vault/node_modules/@aragon/os": "4.4.0",
+    "node_modules/@aragon/apps-lido/apps/vault/node_modules/@aragon/contract-helpers-test": "0.1.0",
+    "node_modules/@aragon/apps-lido/apps/token-manager/node_modules/@aragon/os": "4.4.0",
+    "node_modules/@aragon/apps-lido/apps/token-manager/node_modules/@aragon/minime": "1.0.0",
+    "node_modules/@aragon/apps-lido/apps/token-manager/node_modules/@aragon/contract-helpers-test": "0.1.0",
+    "node_modules/@aragon/apps-lido/apps/voting/node_modules/@aragon/os": "4.4.0",
+    "node_modules/@aragon/apps-lido/apps/voting/node_modules/@aragon/minime": "1.0.0",
+    "node_modules/@aragon/apps-lido/apps/voting/node_modules/@aragon/contract-helpers-test": "0.1.0"
+   },
+   "copied": true,
+   "files": 1733,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "lidofinance__core",
+   "subtrees": [
+    {
+     "prefix": "lidofinance__core",
+     "url": "https://github.com/lidofinance/core",
+     "commit": "2bd532298d85cdf520169fdc0c5fb0cc9baf03c3",
+     "files": 374
+    },
+    {
+     "prefix": "lidofinance__core/foundry/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "ffa2ee0d921b4163b7abd0f1122df93ead205805",
+     "files": 47
+    }
+   ]
+  }
+ ]
+}
