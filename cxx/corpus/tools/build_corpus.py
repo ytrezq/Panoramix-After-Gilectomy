@@ -475,7 +475,19 @@ def projects_of(repo):
             if os.path.isdir(os.path.join(repo, sub)):
                 found.append(repo)
                 break
+    if not found and has_sources(repo):
+        found.append(repo)  # (sources and nothing else: the repository is the project)
     return found
+
+
+def has_sources(top):
+    """whether there's a Solidity or Vyper source under top (its tests,
+    libraries and the like left out)"""
+    for d, dirs, fs in os.walk(top):
+        dirs[:] = [x for x in dirs if x not in SKIP_DIRS and not x.startswith('.')]
+        if any(f.endswith(('.sol', '.vy')) for f in fs):
+            return True
+    return False
 
 
 def sources_of(project):
@@ -505,7 +517,23 @@ def sources_of(project):
         if os.path.exists(hp) and re.search(r'viaIR\s*:\s*true', open(hp, errors='replace').read()):
             cfg.setdefault('via_ir', 'true')
     remaps = foundry_remaps(project)
-    src_dirs = [cfg['src']] if 'src' in cfg else [d for d in ('src', 'contracts') if os.path.isdir(os.path.join(project, d))]
+    # the source directories: foundry.toml's src, a hardhat configuration's
+    # paths.sources (read, never run), src/ and contracts/ - every one there,
+    # none inside another; else the project's own directory
+    hh = []
+    for name in ('hardhat.config.js', 'hardhat.config.ts', 'hardhat.config.cjs'):
+        hp = os.path.join(project, name)
+        if os.path.exists(hp):
+            hh += re.findall(r'\bsources\s*:\s*["\']([^"\']+)["\']', open(hp, errors='replace').read())
+    src_dirs = []
+    for sd in ([cfg['src']] if 'src' in cfg else []) + hh + ['src', 'contracts']:
+        sd = os.path.normpath(sd.strip())
+        if sd not in src_dirs and not sd.startswith('..') and os.path.isdir(os.path.join(project, sd)):
+            src_dirs.append(sd)
+    src_dirs = [d for d in src_dirs if d == '.' or not any(e != d and (e == '.' or (d + '/').startswith(e + '/'))
+                                                         for e in src_dirs)]
+    if not src_dirs:
+        src_dirs = ['.']
     files = []
     for sd in src_dirs:
         top = os.path.join(project, sd)
