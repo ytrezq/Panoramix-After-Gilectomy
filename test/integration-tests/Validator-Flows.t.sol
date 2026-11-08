@@ -1,0 +1,316 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.13;
+
+import "@tests/TestSetup.sol";
+import "@scripts/deploys/Deployed.s.sol";
+
+import "@etherfi/staking/interfaces/IStakingManager.sol";
+import "@etherfi/staking/interfaces/IEtherFiNode.sol";
+
+import "@etherfi/staking/libraries/DepositDataRootGenerator.sol";
+
+contract ValidatorFlowsIntegrationTest is TestSetup, Deployed {
+    function setUp() public {
+        initializeRealisticFork(MAINNET_FORK);
+
+        // Mainnet NodeOperatorManager hasn't been upgraded to the role-based ACL yet,
+        // so its NODE_OPERATOR_MANAGER_ADMIN_ROLE() getter doesn't exist on-chain.
+        // Upgrade in place so the new role getters used by _ensureValCreationRoles are reachable.
+        NodeOperatorManager nodeOperatorManagerImpl = new NodeOperatorManager(address(roleRegistryInstance), address(auctionInstance));
+        vm.prank(roleRegistryInstance.owner());
+        nodeOperatorManagerInstance.upgradeTo(address(nodeOperatorManagerImpl));
+
+        // Upgrade LiquidityPool to the consolidated role model — the on-chain impl
+        // still checks LIQUIDITY_POOL_ADMIN_ROLE on registerValidatorSpawner.
+        LiquidityPool newLpImpl = new LiquidityPool(ILiquidityPool.ConstructorAddresses({
+            stakingManager: address(stakingManagerInstance),
+            nodesManager: address(managerInstance),
+            eETH: address(eETHInstance),
+            withdrawRequestNFT: address(withdrawRequestNFTInstance),
+            liquifier: address(liquifierInstance),
+            etherFiRedemptionManager: address(etherFiRedemptionManagerInstance),
+            roleRegistry: address(roleRegistryInstance),
+            priorityWithdrawalQueue: address(priorityQueueInstance),
+            blacklister: address(blacklisterInstance),
+            etherFiAdminContract: address(etherFiAdminInstance),
+            membershipManager: address(membershipManagerInstance)
+        }));
+        address lpOwner = roleRegistryInstance.owner();
+        vm.prank(lpOwner);
+        liquidityPoolInstance.upgradeTo(address(newLpImpl));
+
+        // Upgrade WithdrawRequestNFT so it has a receive() function and accepts the
+        // ETH-escrow transfer triggered by initializeOnUpgradeV2.
+        address wrnOwner = roleRegistryInstance.owner();
+        // Deploy the impl BEFORE pranking — the inlined `new` is a CREATE that
+        // would otherwise consume the single-shot vm.prank (OnlyUpgradeTimelock).
+        address newWrnImpl = address(new WithdrawRequestNFT(address(liquidityPoolInstance), address(roleRegistryInstance), address(blacklisterInstance), address(etherFiAdminInstance)));
+        vm.prank(wrnOwner);
+        withdrawRequestNFTInstance.upgradeTo(newWrnImpl);
+
+        // The production queue proxy on mainnet still runs the master impl which
+        // has no receive(); initializeOnUpgradeV2 below sweeps queue-locked ETH
+        // into the queue and would revert with SendFail. Upgrade the queue first.
+        address newPQ = address(new PriorityWithdrawalQueue(
+            address(liquidityPoolInstance), address(eETHInstance), address(weEthInstance),
+            address(blacklisterInstance), address(roleRegistryInstance), 1 hours
+        ));
+        vm.prank(UPGRADE_TIMELOCK);
+        PriorityWithdrawalQueue(payable(PRIORITY_WITHDRAWAL_QUEUE)).upgradeTo(newPQ);
+
+        // One-shot migration: move pre-existing locked ETH into NFT escrow so the
+        // post-upgrade LP can route through addEthAmountLockedForWithdrawal.
+        if (!liquidityPoolInstance.escrowMigrationCompleted()) {
+            vm.prank(lpOwner);
+            liquidityPoolInstance.initializeOnUpgradeV2();
+        }
+
+        // Upgrade Oracle and Admin to local impls so the new OracleReport ABI matches.
+        _upgradeOracleAndAdminForFork();
+
+        // Raise the per-day approval cap so executeTasks doesn't reject the validator approval.
+        address rrOwner = roleRegistryInstance.owner();
+        vm.startPrank(rrOwner);
+        roleRegistryInstance.grantRole(roleRegistryInstance.OPERATION_TIMELOCK_ROLE(), rrOwner);
+        // ORACLE_OPERATIONS_ROLE (formerly ETHERFI_ORACLE_EXECUTOR_TASK_MANAGER_ROLE) is required by
+        // EtherFiAdmin.executeValidatorApprovalTask.
+        roleRegistryInstance.grantRole(roleRegistryInstance.ORACLE_OPERATIONS_ROLE(), ADMIN_EOA);
+        etherFiAdminInstance.updateMaxNumValidatorsToApprovePerDay(etherFiAdminInstance.maxAcceptableNumValidatorsToApprovePerDay());
+        vm.stopPrank();
+
+        // Handle any pending oracle report that hasn't been processed yet
+        _syncOracleReportState();
+    }
+
+    /// @dev Advances the admin's lastHandledReportRefSlot to match the oracle's lastPublishedReportRefSlot.
+    function _syncOracleReportState() internal {
+        // Step A: sync admin to oracle so submitReport doesn't fail with
+        // "Last published report is not handled yet".
+        uint32 lastPublished = etherFiOracleInstance.lastPublishedReportRefSlot();
+        uint32 lastHandled = etherFiAdminInstance.lastHandledReportRefSlot();
+
+        if (lastPublished != lastHandled) {
+            uint32 lastPublishedBlock = etherFiOracleInstance.lastPublishedReportRefBlock();
+
+            // EtherFiAdmin slot 209 packs: lastHandledReportRefSlot (4B @ offset 0) +
+            //   lastHandledReportRefBlock (4B @ offset 4) + other fields in higher bytes
+            bytes32 slot209 = vm.load(address(etherFiAdminInstance), bytes32(uint256(209)));
+            uint256 val = uint256(slot209);
+            val &= ~uint256(0xFFFFFFFFFFFFFFFF); // clear low 64 bits (both uint32 fields)
+            val |= uint256(lastPublished);
+            val |= uint256(lastPublishedBlock) << 32;
+            vm.store(address(etherFiAdminInstance), bytes32(uint256(209)), bytes32(val));
+        }
+
+        // Step B: make AVS_OPERATOR_1 and AVS_OPERATOR_2 the two signers that reach quorum.
+        // Mainnet's committee composition drifts: both operators have since been rotated off,
+        // so removeCommitteeMember reverts NotRegistered, and re-adding them leaves the
+        // strict-majority quorum above the two signers these tests prank as. Write the
+        // committee state directly so the setup does not depend on who is registered today.
+        _forceCommitteeMember(AVS_OPERATOR_1);
+        _forceCommitteeMember(AVS_OPERATOR_2);
+        _forceQuorumSize(2);
+    }
+
+    /// @dev Marks `_member` as a registered, enabled committee member with no prior submission.
+    ///      EtherFiOracle slot 251 holds `committeeMemberStates`; each entry packs
+    ///      registered (byte 0) + enabled (byte 1) + lastReportRefSlot + numReports.
+    function _forceCommitteeMember(address _member) internal {
+        bytes32 slot = keccak256(abi.encode(_member, uint256(251)));
+        vm.store(address(etherFiOracleInstance), slot, bytes32(uint256(0x0101)));
+    }
+
+    /// @dev Overwrites `quorumSize` (slot 253, offset 4) directly. setQuorumSize() would reject
+    ///      any value that breaks the strict-majority invariant against the live member count.
+    function _forceQuorumSize(uint32 _quorumSize) internal {
+        uint256 packed = uint256(vm.load(address(etherFiOracleInstance), bytes32(uint256(253))));
+        packed &= ~(uint256(type(uint32).max) << 32);
+        packed |= uint256(_quorumSize) << 32;
+        vm.store(address(etherFiOracleInstance), bytes32(uint256(253)), bytes32(packed));
+    }
+
+    function _toArray(IStakingManager.DepositData memory d) internal pure returns (IStakingManager.DepositData[] memory arr) {
+        arr = new IStakingManager.DepositData[](1);
+        arr[0] = d;
+    }
+
+    function _toArrayU256(uint256 x) internal pure returns (uint256[] memory arr) {
+        arr = new uint256[](1);
+        arr[0] = x;
+    }
+
+    function _ensureValCreationRoles() internal {
+        address roleOwner = roleRegistryInstance.owner();
+
+        // Ensure the operating admin can manage LP spawners + create validators.
+        vm.startPrank(roleOwner);
+        roleRegistryInstance.grantRole(roleRegistryInstance.OPERATION_TIMELOCK_ROLE(), ETHERFI_OPERATING_ADMIN);
+        roleRegistryInstance.grantRole(roleRegistryInstance.ORACLE_OPERATIONS_ROLE(), ETHERFI_OPERATING_ADMIN);
+
+        // Ensure operating timelock can create nodes.
+        roleRegistryInstance.grantRole(roleRegistryInstance.EXECUTOR_OPERATIONS_ROLE(), OPERATING_TIMELOCK);
+        vm.stopPrank();
+
+        // The mainnet NodeOperatorManager implementation predates this PR and
+        // does not expose NODE_OPERATOR_MANAGER_ADMIN_ROLE(). Upgrade in place
+        // so the new role getter and role-gated modifier are reachable, then
+        // grant the role used by whitelist ops.
+        address nodeOpMgrOwner = roleRegistryInstance.owner();
+        vm.startPrank(nodeOpMgrOwner);
+        NodeOperatorManager newNodeOpMgrImpl = new NodeOperatorManager(address(roleRegistryInstance), address(auctionInstance));
+        nodeOperatorManagerInstance.upgradeTo(address(newNodeOpMgrImpl));
+        vm.stopPrank();
+
+        vm.startPrank(roleOwner);
+        roleRegistryInstance.grantRole(roleRegistryInstance.OPERATION_MULTISIG_ROLE(), ETHERFI_OPERATING_ADMIN);
+        vm.stopPrank();
+    }
+
+    function _prepareSingleValidator(address spawner)
+        internal
+        returns (IStakingManager.DepositData memory depositData, uint256 bidId, address etherFiNode)
+    {
+        _ensureValCreationRoles();
+
+        // Step 1: Whitelist + register node operator.
+        vm.prank(ETHERFI_OPERATING_ADMIN);
+        nodeOperatorManagerInstance.addToWhitelist(spawner);
+
+        vm.deal(spawner, 10 ether);
+        vm.startPrank(spawner);
+        if (!nodeOperatorManagerInstance.registered(spawner)) {
+            nodeOperatorManagerInstance.registerNodeOperator("test_ipfs_hash", 1000);
+        }
+        uint256[] memory bidIds = auctionInstance.createBid{value: 0.1 ether}(1, 0.1 ether);
+        vm.stopPrank();
+        bidId = bidIds[0];
+
+        // Step 2: Create a new EtherFiNode (with EigenPod) for compounding withdrawal creds.
+        vm.prank(OPERATING_TIMELOCK);
+        etherFiNode = stakingManagerInstance.instantiateEtherFiNode(true /*createEigenPod*/);
+        address eigenPod = address(IEtherFiNode(etherFiNode).getEigenPod());
+
+        // Step 3: Register validator spawner.
+        vm.prank(ETHERFI_OPERATING_ADMIN);
+        liquidityPoolInstance.registerValidatorSpawner(spawner);
+
+        // Step 4: Build 1-ETH deposit data (must match compounding withdrawal creds).
+        bytes memory pubkey = vm.randomBytes(48);
+        bytes memory signature = vm.randomBytes(96);
+        bytes memory withdrawalCredentials = managerInstance.addressToCompoundingWithdrawalCredentials(eigenPod);
+        bytes32 depositDataRoot =
+            depositDataRootGenerator.generateDepositDataRoot(pubkey, signature, withdrawalCredentials, stakingManagerInstance.INITIAL_DEPOSIT_AMOUNT());
+
+        depositData = IStakingManager.DepositData({
+            publicKey: pubkey,
+            signature: signature,
+            depositDataRoot: depositDataRoot,
+            ipfsHashForEncryptedValidatorKey: "test_ipfs_hash"
+        });
+    }
+
+    function _executeValidatorApprovalTask(IEtherFiOracle.OracleReport memory report, bytes[] memory pubkeys, bytes[] memory signatures) internal returns (bool completed, bool exists) {
+        bytes32 reportHash = etherFiOracleInstance.generateReportHash(report);
+        bytes32 taskHash = keccak256(abi.encode(reportHash, report.validatorsToApprove));
+        vm.prank(ADMIN_EOA);
+        etherFiAdminInstance.executeValidatorApprovalTask(reportHash, report.validatorsToApprove, pubkeys, signatures);
+        (completed, exists) = etherFiAdminInstance.validatorApprovalTaskStatus(taskHash);
+        return (completed, exists);
+    }
+
+    function test_ValCreation_batchRegisterAndCreateBeaconValidators_succeeds() public {
+        address spawner = vm.addr(0x1234);
+
+        (IStakingManager.DepositData memory depositData, uint256 bidId, address etherFiNode) = _prepareSingleValidator(spawner);
+
+        // Step 5: batchRegister (spawner)
+        vm.prank(spawner);
+        liquidityPoolInstance.batchRegister(_toArray(depositData), _toArrayU256(bidId), etherFiNode);
+
+        bytes32 validatorHash = keccak256(
+            abi.encode(depositData.publicKey, depositData.signature, depositData.depositDataRoot, depositData.ipfsHashForEncryptedValidatorKey, bidId, etherFiNode)
+        );
+        assertEq(uint8(stakingManagerInstance.validatorCreationStatus(validatorHash)), uint8(IStakingManager.ValidatorCreationStatus.REGISTERED));
+
+        // Step 6: Create validator (operating admin / validator creator role)
+        vm.prank(ETHERFI_OPERATING_ADMIN);
+        liquidityPoolInstance.batchCreateBeaconValidators(_toArray(depositData), _toArrayU256(bidId), etherFiNode);
+
+        assertEq(uint8(stakingManagerInstance.validatorCreationStatus(validatorHash)), uint8(IStakingManager.ValidatorCreationStatus.CONFIRMED));
+    }
+
+    function test_EntireValidatorCreationFlow_accountsForEthCorrectly() public {
+        address spawner = vm.addr(0x5678);
+
+        (IStakingManager.DepositData memory depositData, uint256 bidId, address etherFiNode) = _prepareSingleValidator(spawner);
+
+        vm.prank(spawner);
+        liquidityPoolInstance.batchRegister(_toArray(depositData), _toArrayU256(bidId), etherFiNode);
+
+        uint128 initialTotalOut = liquidityPoolInstance.totalValueOutOfLp();
+        uint128 initialTotalIn = liquidityPoolInstance.totalValueInLp();
+
+        // 1 ETH per validator (current protocol design)
+        uint128 expectedEthOut = 1 ether;
+
+        vm.prank(ETHERFI_OPERATING_ADMIN);
+        liquidityPoolInstance.batchCreateBeaconValidators(_toArray(depositData), _toArrayU256(bidId), etherFiNode);
+
+        assertEq(liquidityPoolInstance.totalValueOutOfLp(), initialTotalOut + expectedEthOut);
+        assertEq(liquidityPoolInstance.totalValueInLp(), initialTotalIn - expectedEthOut);
+
+        // Advance time until the oracle considers the next report epoch finalized.
+        // Condition inside oracle: (slotEpoch + 2 < currEpoch)  <=>  currEpoch >= slotEpoch + 3
+        while (true) {
+            uint32 slot = etherFiOracleInstance.slotForNextReport();
+            uint32 curr = etherFiOracleInstance.computeSlotAtTimestamp(block.timestamp);
+            uint32 min = ((slot / 32) + 3) * 32;
+            if (curr >= min) break;
+            uint256 d = min - curr;
+            vm.roll(block.number + d);
+            vm.warp(etherFiOracleInstance.beaconGenesisTimestamp() + 12 * (curr + uint32(d)));
+        }
+
+        IEtherFiOracle.OracleReport memory report;
+        uint256[] memory emptyVals = new uint256[](0);
+        report = IEtherFiOracle.OracleReport(
+            etherFiOracleInstance.consensusVersion(), 0, 0, 0, 0, 0, 0, emptyVals, 0, 0
+        );
+
+        (report.refSlotFrom, report.refSlotTo, report.refBlockFrom) = etherFiOracleInstance.blockStampForNextReport();
+
+        bytes[] memory pubkeys = new bytes[](1);
+        uint256[] memory ids = new uint256[](1);
+        bytes[] memory signatures = new bytes[](1);
+        pubkeys[0] = depositData.publicKey;
+        ids[0] = bidId;
+        signatures[0] = depositData.signature;
+        report.validatorsToApprove = ids;
+        report.lastFinalizedWithdrawalRequestId = withdrawRequestNFTInstance.lastFinalizedRequestId();
+        
+        // Set refBlockTo to a block number that is < block.number and > lastAdminExecutionBlock
+        report.refBlockTo = uint32(block.number - 1);
+        if (report.refBlockTo <= etherFiAdminInstance.lastAdminExecutionBlock()) {
+            report.refBlockTo = etherFiAdminInstance.lastAdminExecutionBlock() + 1;
+        }
+
+        vm.prank(AVS_OPERATOR_1);
+        etherFiOracleInstance.submitReport(report);
+
+        vm.prank(AVS_OPERATOR_2);
+        etherFiOracleInstance.submitReport(report);
+
+        // Advance time for postReportWaitTimeInSlots
+        uint256 slotsToWait = uint256(etherFiAdminInstance.postReportWaitTimeInSlots() + 1);
+        uint32 slotAfterReport = etherFiOracleInstance.computeSlotAtTimestamp(block.timestamp);
+        vm.roll(block.number + slotsToWait);
+        vm.warp(etherFiOracleInstance.beaconGenesisTimestamp() + 12 * (slotAfterReport + slotsToWait));
+
+        uint256 LiquidityPoolBalanceBefore = address(liquidityPoolInstance).balance;
+        vm.prank(ADMIN_EOA);
+        etherFiAdminInstance.executeTasks(report);
+        (bool completed, bool exists) = _executeValidatorApprovalTask(report, pubkeys, signatures);
+        uint256 LiquidityPoolBalanceAfter = address(liquidityPoolInstance).balance;
+        assertApproxEqAbs(LiquidityPoolBalanceAfter, LiquidityPoolBalanceBefore - liquidityPoolInstance.validatorSizeWei() + stakingManagerInstance.INITIAL_DEPOSIT_AMOUNT(), 1e3);
+    }
+}
