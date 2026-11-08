@@ -34,8 +34,7 @@
     {
      "prefix": "compound-finance__compound-protocol",
      "url": "https://github.com/compound-finance/compound-protocol",
-     "commit": "a3214f67b73310d547e00fc578e8355911c9d376",
-     "files": 89
+     "commit": "a3214f67b73310d547e00fc578e8355911c9d376"
     }
    ]
   },
@@ -93,26 +92,22 @@
     {
      "prefix": "compound-finance__comet",
      "url": "https://github.com/compound-finance/comet",
-     "commit": "f766f51583c23acc33b2a7824654ef2029a96804",
-     "files": 156
+     "commit": "f766f51583c23acc33b2a7824654ef2029a96804"
     },
     {
      "prefix": "compound-finance__comet/contracts/capo",
      "url": "https://github.com/woof-software/compound-capo",
-     "commit": "3020ec85ccddde176a7b379e162e6c0d50239d42",
-     "files": 30
+     "commit": "3020ec85ccddde176a7b379e162e6c0d50239d42"
     },
     {
      "prefix": "compound-finance__comet/forge/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505",
-     "files": 49
+     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
     },
     {
      "prefix": "compound-finance__comet/contracts/capo/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505",
-     "files": 49
+     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
     }
    ]
   }
