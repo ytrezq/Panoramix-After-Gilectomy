@@ -66,14 +66,12 @@
     {
      "prefix": "lista-dao__lista-dao-contracts",
      "url": "https://github.com/lista-dao/lista-dao-contracts",
-     "commit": "3e120da7473d1b3e6c330b86b52cf8c1231e2627",
-     "files": 341
+     "commit": "3e120da7473d1b3e6c330b86b52cf8c1231e2627"
     },
     {
      "prefix": "lista-dao__lista-dao-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa",
-     "files": 47
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
     }
    ]
   },
@@ -150,50 +148,42 @@
     {
      "prefix": "lista-dao__synclub-contracts",
      "url": "https://github.com/lista-dao/synclub-contracts",
-     "commit": "a8b7ca7c511666ef07d654b686790b378d645da2",
-     "files": 34
+     "commit": "a8b7ca7c511666ef07d654b686790b378d645da2"
     },
     {
      "prefix": "lista-dao__synclub-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef",
-     "files": 47
+     "commit": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef"
     },
     {
      "prefix": "lista-dao__synclub-contracts/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "58fa0f81c4036f1a3b616fdffad2fd27e5d5ce21",
-     "files": 290
+     "commit": "58fa0f81c4036f1a3b616fdffad2fd27e5d5ce21"
     },
     {
      "prefix": "lista-dao__synclub-contracts/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "0a25c1940ca220686588c4af3ec526f725fe2582",
-     "files": 294
+     "commit": "0a25c1940ca220686588c4af3ec526f725fe2582"
     },
     {
      "prefix": "lista-dao__synclub-contracts/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
-     "files": 39
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
     },
     {
      "prefix": "lista-dao__synclub-contracts/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4",
-     "files": 39
+     "commit": "c2236853aadb8e2d9909bbecdc490099519b70a4"
     },
     {
      "prefix": "lista-dao__synclub-contracts/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-     "files": 6
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
     },
     {
      "prefix": "lista-dao__synclub-contracts/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-     "files": 6
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
     }
    ]
   },
@@ -263,14 +253,12 @@
     {
      "prefix": "lista-dao__lista-token",
      "url": "https://github.com/lista-dao/lista-token",
-     "commit": "28a3c02844dc2e66fbc21f342e59b333bce98c2e",
-     "files": 171
+     "commit": "28a3c02844dc2e66fbc21f342e59b333bce98c2e"
     },
     {
      "prefix": "lista-dao__lista-token/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "60acb7aaadcce2d68e52986a0a66fe79f07d138f",
-     "files": 49
+     "commit": "60acb7aaadcce2d68e52986a0a66fe79f07d138f"
     }
    ]
   },
@@ -399,110 +387,92 @@
     {
      "prefix": "lista-dao__lista-new-contracts",
      "url": "https://github.com/lista-dao/lista-new-contracts",
-     "commit": "5f4349d98d5186c623659331bc6a3161aa83d2c4",
-     "files": 172
+     "commit": "5f4349d98d5186c623659331bc6a3161aa83d2c4"
     },
     {
      "prefix": "lista-dao__lista-new-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262",
-     "files": 47
+     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262"
     },
     {
      "prefix": "lista-dao__lista-new-contracts/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "ee3a7e4f38c62bcd22727489218b29f3b893594a",
-     "files": 213
+     "commit": "ee3a7e4f38c62bcd22727489218b29f3b893594a"
     },
     {
      "prefix": "lista-dao__lista-new-contracts/lib/openzeppelin-foundry-upgrades",
      "url": "https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades",
-     "commit": "16e0ae21e0e39049f619f2396fa28c57fad07368",
-     "files": 55
+     "commit": "16e0ae21e0e39049f619f2396fa28c57fad07368"
     },
     {
      "prefix": "lista-dao__lista-new-contracts/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "f9f7db03f3df020aace3958b8fb7de8891d133e5",
-     "files": 370
+     "commit": "f9f7db03f3df020aace3958b8fb7de8891d133e5"
     },
     {
      "prefix": "lista-dao__lista-new-contracts/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262",
-     "files": 47
+     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262"
     },
     {
      "prefix": "lista-dao__lista-new-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "lista-dao__lista-new-contracts/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "lista-dao__lista-new-contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "448efeea6640bbbc09373f03fbc9c88e280147ba",
-     "files": 321
+     "commit": "448efeea6640bbbc09373f03fbc9c88e280147ba"
     },
     {
      "prefix": "lista-dao__lista-new-contracts/lib/openzeppelin-foundry-upgrades/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "b6a506db2262cad5ff982a87789ee6d1558ec861",
-     "files": 47
+     "commit": "b6a506db2262cad5ff982a87789ee6d1558ec861"
     },
     {
      "prefix": "lista-dao__lista-new-contracts/lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils",
      "url": "https://github.com/Arachnid/solidity-stringutils",
-     "commit": "4b2fcc43fa0426e19ce88b1f1ec16f5903a2e461",
-     "files": 7
+     "commit": "4b2fcc43fa0426e19ce88b1f1ec16f5903a2e461"
     },
     {
      "prefix": "lista-dao__lista-new-contracts/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
-     "files": 43
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
     },
     {
      "prefix": "lista-dao__lista-new-contracts/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
-     "files": 3
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
     },
     {
      "prefix": "lista-dao__lista-new-contracts/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c",
-     "files": 3
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
     },
     {
      "prefix": "lista-dao__lista-new-contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262",
-     "files": 47
+     "commit": "1eea5bae12ae557d589f9f0f0edae2faa47cb262"
     },
     {
      "prefix": "lista-dao__lista-new-contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "lista-dao__lista-new-contracts/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "lista-dao__lista-new-contracts/lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248",
-     "files": 4
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
     }
    ]
   },
@@ -639,98 +609,82 @@
     {
      "prefix": "lista-dao__moolah",
      "url": "https://github.com/lista-dao/moolah",
-     "commit": "abf188960678e62410c4423d0c1fb2000a8c1679",
-     "files": 1505
+     "commit": "abf188960678e62410c4423d0c1fb2000a8c1679"
     },
     {
      "prefix": "lista-dao__moolah/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "1801b0541f4fda118a10798fd3486bb7051c5dd6",
-     "files": 54
+     "commit": "1801b0541f4fda118a10798fd3486bb7051c5dd6"
     },
     {
      "prefix": "lista-dao__moolah/lib/murky",
      "url": "https://github.com/dmfxyz/murky",
-     "commit": "5feccd1253d7da820f7cccccdedf64471025455d",
-     "files": 20
+     "commit": "5feccd1253d7da820f7cccccdedf64471025455d"
     },
     {
      "prefix": "lista-dao__moolah/lib/lista-dao-contracts.git",
      "url": "https://github.com/lista-dao/lista-dao-contracts",
-     "commit": "3ac9ef279a7c89908a6e03ed8a1c52738f94601e",
-     "files": 339
+     "commit": "3ac9ef279a7c89908a6e03ed8a1c52738f94601e"
     },
     {
      "prefix": "lista-dao__moolah/lib/lista-v3",
      "url": "https://github.com/lista-dao/lista-v3",
-     "commit": "54cc4b2522d45d26e902f25767981a5784bed02c",
-     "files": 124
+     "commit": "54cc4b2522d45d26e902f25767981a5784bed02c"
     },
     {
      "prefix": "lista-dao__moolah/lib/murky/lib/openzeppelin-contracts",
      "url": "https://github.com/openzeppelin/openzeppelin-contracts",
-     "commit": "cb2aaaa04a292887c49839cd958b08a83979d746",
-     "files": 283
+     "commit": "cb2aaaa04a292887c49839cd958b08a83979d746"
     },
     {
      "prefix": "lista-dao__moolah/lib/murky/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "e4aef94c1768803a16fe19f7ce8b65defd027cfd",
-     "files": 47
+     "commit": "e4aef94c1768803a16fe19f7ce8b65defd027cfd"
     },
     {
      "prefix": "lista-dao__moolah/lib/lista-dao-contracts.git/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa",
-     "files": 47
+     "commit": "8f24d6b04c92975e0795b5868aa0d783251cdeaa"
     },
     {
      "prefix": "lista-dao__moolah/lib/lista-v3/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e",
-     "files": 40
+     "commit": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
     },
     {
      "prefix": "lista-dao__moolah/lib/lista-v3/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "04695aecbd4d17dddfd55de766d10e3805d6f42f",
-     "files": 143
+     "commit": "04695aecbd4d17dddfd55de766d10e3805d6f42f"
     },
     {
      "prefix": "lista-dao__moolah/lib/lista-v3/lib/solidity-lib",
      "url": "https://github.com/Uniswap/solidity-lib",
-     "commit": "c01640b0f0f1d8a85cba8de378cc48469fcfd9a6",
-     "files": 19
+     "commit": "c01640b0f0f1d8a85cba8de378cc48469fcfd9a6"
     },
     {
      "prefix": "lista-dao__moolah/lib/lista-v3/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "e0683346f70db930bd39551046b12449ea68f2dc",
-     "files": 137
+     "commit": "e0683346f70db930bd39551046b12449ea68f2dc"
     },
     {
      "prefix": "lista-dao__moolah/lib/murky/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce",
-     "files": 45
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
     },
     {
      "prefix": "lista-dao__moolah/lib/murky/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "lista-dao__moolah/lib/lista-v3/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "lista-dao__moolah/lib/murky/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ]
   }
