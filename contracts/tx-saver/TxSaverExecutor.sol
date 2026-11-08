@@ -1,0 +1,131 @@
+// SPDX-License-Identifier: MIT
+
+pragma solidity =0.8.24;
+
+import { IDFSRegistry } from "../interfaces/core/IDFSRegistry.sol";
+import { IRecipeExecutor } from "../interfaces/core/IRecipeExecutor.sol";
+import { ISafe } from "../interfaces/protocols/safe/ISafe.sol";
+import { AdminAuth } from "../auth/AdminAuth.sol";
+import { BotAuthForTxSaver } from "./BotAuthForTxSaver.sol";
+import { CoreHelper } from "../core/helpers/CoreHelper.sol";
+import { StrategyModel } from "../core/strategy/StrategyModel.sol";
+import { DFSExchangeData } from "../exchangeV3/DFSExchangeData.sol";
+import { TxSaverBytesTransientStorage } from "./TxSaverBytesTransientStorage.sol";
+import { DFSIds } from "../utils/DFSIds.sol";
+
+/// @title Main entry point for executing TxSaver transactions signed by users through a safe wallet.
+/// @dev Only callable by trusted bots.
+/// @notice The bot is allowed to inject the following parameters, which bypass the user signature:
+/// - estimated gas used -> used to calculate gas cost, as we can't be precise enough on-chain due to gas refunds
+/// - additional L1 gas cost -> represents additional L1 data availability costs for Optimism-based L2 chains
+/// - injected exchange data -> allows injecting a new exchange route if the old one is outdated or if a better one can be fetched
+/// Gas cost is capped by the user-signed maxTxCostInFeeToken, and the exchange route can't have a price lower than the user-signed minPrice.
+/// @notice When taking a fee from a position, the transaction is validated off-chain before execution.
+/// The validation includes, but are not limited to:
+/// - ensuring the recipe contains exactly one sell action
+/// - ensuring the sell source and destination tokens are different
+/// Any invalid recipe will be rejected by the bot.
+contract TxSaverExecutor is StrategyModel, AdminAuth, CoreHelper, TxSaverBytesTransientStorage {
+    IDFSRegistry private constant registry = IDFSRegistry(REGISTRY_ADDR);
+
+    /// Caller must be authorized bot
+    error BotNotApproved(address bot);
+    /// Revert if execution fails when using safe wallet
+    error SafeExecutionError();
+    /// Revert if signature is expired
+    error TxSaverSignatureExpired(uint256 deadline, uint256 currentTimestamp);
+    /// Revert if provided calldata does not target the expected TxSaver entrypoint
+    error WrongSelector(bytes4 providedSelector);
+
+    /// @notice Data needed to execute a Safe transaction
+    /// @param safe Address of the Safe wallet
+    /// @param refundReceiver Injected address to track safe points
+    /// @param data Data payload of Safe transaction
+    /// @param signatures Packed signature data ({bytes32 r}{bytes32 s}{uint8 v})
+    struct SafeTxParams {
+        address safe;
+        address refundReceiver;
+        bytes data;
+        bytes signatures;
+    }
+
+    /// @notice Execute a TxSaver transaction signed by user
+    /// @notice When taking fee from position, gas fee is taken inside sell action.
+    /// @notice Right now, we only support fee taking from position if recipe has sell action
+    ///
+    /// @notice when fee is taken from EOA/wallet:
+    /// @notice If wallet is 1/1, gas fee is taken from eoa
+    /// @notice If wallet is n/m, gas fee is taken from wallet itself
+    ///
+    /// @param _params SafeTxParams data needed to execute safe tx
+    /// @param _estimatedGas Estimated gas usage for the transaction
+    /// @param _l1GasCostInEth Additional gas cost added for Optimism based L2s
+    /// @param _injectedExchangeData Exchange data injected by backend
+    function executeTx(
+        SafeTxParams calldata _params,
+        uint256 _estimatedGas,
+        uint256 _l1GasCostInEth,
+        DFSExchangeData.InjectedExchangeData calldata _injectedExchangeData
+    ) external {
+        // only authorized bot can call this function
+        if (!BotAuthForTxSaver(registry.getAddr(DFSIds.BOT_AUTH_FOR_TX_SAVER))
+                .isApproved(msg.sender)) {
+            revert BotNotApproved(msg.sender);
+        }
+
+        (, TxSaverSignedData memory txSaverData) = parseTxSaverSignedData(_params.data);
+
+        // check if signature is expired
+        if (txSaverData.deadline > 0 && block.timestamp > txSaverData.deadline) {
+            revert TxSaverSignatureExpired(txSaverData.deadline, block.timestamp);
+        }
+
+        if (txSaverData.shouldTakeFeeFromPosition) {
+            setBytesTransiently(
+                abi.encode(_estimatedGas, _l1GasCostInEth, txSaverData, _injectedExchangeData),
+                txSaverData.shouldTakeFeeFromPosition
+            );
+        } else {
+            setBytesTransiently(
+                abi.encode(_estimatedGas, _l1GasCostInEth, _injectedExchangeData),
+                txSaverData.shouldTakeFeeFromPosition
+            );
+        }
+
+        _executeSafeTx(_params);
+    }
+
+    function _executeSafeTx(SafeTxParams memory _params) internal {
+        bool success = ISafe(_params.safe)
+            .execTransaction(
+                registry.getAddr(DFSIds.RECIPE_EXECUTOR),
+                0, // value
+                _params.data,
+                ISafe.Operation.DelegateCall,
+                0, // safeTxGas,
+                0, // baseGas
+                0, // gasPrice
+                address(0), // gasToken
+                payable(_params.refundReceiver),
+                _params.signatures
+            );
+        if (!success) {
+            revert SafeExecutionError();
+        }
+    }
+
+    function parseTxSaverSignedData(bytes calldata _data)
+        public
+        pure
+        returns (Recipe memory recipe, TxSaverSignedData memory txSaverData)
+    {
+        bytes4 selector = bytes4(_data[:4]);
+        // Make sure we use the correct entry point.
+        // Can be validated off-chain as well, but we add an on-chain sanity check to make the intention clear.
+        if (selector != IRecipeExecutor.executeRecipeFromTxSaver.selector) {
+            revert WrongSelector(selector);
+        }
+
+        (recipe, txSaverData) = abi.decode(_data[4:], (Recipe, TxSaverSignedData));
+    }
+}
