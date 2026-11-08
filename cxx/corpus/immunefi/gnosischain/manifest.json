@@ -100,9 +100,11 @@
    "languages": {
     ".sol": 167
    },
-   "npm": {},
+   "npm": {
+    "node_modules/openzeppelin-solidity": "1.12.0"
+   },
    "copied": true,
-   "files": 1305,
+   "files": 1375,
    "via": "git subtree",
    "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
    "dest": "gnosischain__tokenbridge-contracts",
@@ -197,7 +199,10 @@
      "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
      "files": 3
     }
-   ]
+   ],
+   "npm_added": {
+    "node_modules/openzeppelin-solidity": "missed by copy_repo: its remapping has no trailing slash (forge adds one)"
+   }
   },
   {
    "repo": "https://github.com/gnosischain/omnibridge",
