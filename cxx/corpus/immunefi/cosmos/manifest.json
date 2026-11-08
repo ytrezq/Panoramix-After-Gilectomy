@@ -37,8 +37,7 @@
     {
      "prefix": "cosmos__solidity-ibc-eureka",
      "url": "https://github.com/cosmos/solidity-ibc-eureka",
-     "commit": "df9d6c489eb99ecebf145734e0bdf1ceb268ebc7",
-     "files": 180
+     "commit": "df9d6c489eb99ecebf145734e0bdf1ceb268ebc7"
     }
    ]
   },
@@ -148,80 +147,67 @@
     {
      "prefix": "cosmos__evm",
      "url": "https://github.com/cosmos/evm",
-     "commit": "bd334caaf8ddceef79e20f92458a64bce31f1891",
-     "files": 161
+     "commit": "bd334caaf8ddceef79e20f92458a64bce31f1891"
     },
     {
      "prefix": "cosmos__evm/tests/systemtests/Counter/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505",
-     "files": 49
+     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
     },
     {
      "prefix": "cosmos__evm/tests/evm-tools-compatibility/foundry-uniswap-v3/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "8e0296096449d9b1cd7c5631e917330635244c37",
-     "files": 143
+     "commit": "8e0296096449d9b1cd7c5631e917330635244c37"
     },
     {
      "prefix": "cosmos__evm/tests/evm-tools-compatibility/foundry-uniswap-v3/lib/v3-core",
      "url": "https://github.com/Uniswap/v3-core",
-     "commit": "d8b1c635c275d2a9450bd6a78f3fa2484fef73eb",
-     "files": 75
+     "commit": "d8b1c635c275d2a9450bd6a78f3fa2484fef73eb"
     },
     {
      "prefix": "cosmos__evm/tests/evm-tools-compatibility/foundry-uniswap-v3/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505",
-     "files": 49
+     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
     },
     {
      "prefix": "cosmos__evm/tests/evm-tools-compatibility/foundry-uniswap-v3/lib/v3-periphery",
      "url": "https://github.com/Uniswap/v3-periphery",
-     "commit": "80f26c86c57b8a5e4b913f42844d4c8bd274d058",
-     "files": 78
+     "commit": "80f26c86c57b8a5e4b913f42844d4c8bd274d058"
     },
     {
      "prefix": "cosmos__evm/tests/evm-tools-compatibility/foundry-uniswap-v3/lib/solidity-lib",
      "url": "https://github.com/Uniswap/solidity-lib",
-     "commit": "c01640b0f0f1d8a85cba8de378cc48469fcfd9a6",
-     "files": 19
+     "commit": "c01640b0f0f1d8a85cba8de378cc48469fcfd9a6"
     },
     {
      "prefix": "cosmos__evm/tests/evm-tools-compatibility/foundry/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "101bbaf1a8e02f95392380586ba0fc5752c4204d",
-     "files": 376
+     "commit": "101bbaf1a8e02f95392380586ba0fc5752c4204d"
     },
     {
      "prefix": "cosmos__evm/tests/evm-tools-compatibility/foundry/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "cosmos__evm/tests/evm-tools-compatibility/foundry/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505",
-     "files": 49
+     "commit": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
     },
     {
      "prefix": "cosmos__evm/tests/evm-tools-compatibility/foundry/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
-     "files": 43
+     "commit": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
     },
     {
      "prefix": "cosmos__evm/tests/evm-tools-compatibility/foundry/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
-     "files": 3
+     "commit": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
     },
     {
      "prefix": "cosmos__evm/tests/evm-tools-compatibility/foundry/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "7328abe100445fc53885c21d0e713b95293cf14c",
-     "files": 3
+     "commit": "7328abe100445fc53885c21d0e713b95293cf14c"
     }
    ]
   }
