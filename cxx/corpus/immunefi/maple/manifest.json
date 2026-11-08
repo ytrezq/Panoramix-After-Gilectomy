@@ -1,0 +1,2000 @@
+{
+ "program": "maple",
+ "repos": [
+  {
+   "repo": "https://github.com/maple-labs/maple-core-v2",
+   "ref": null,
+   "scope_paths": [],
+   "fetched": "2026-11-07",
+   "note": "Maple v2 integration repository: every module (pool, globals, loans, loan managers, withdrawal managers, pool permission manager, strategies, syrup-utils) as a submodule",
+   "commit": "f59f30c691fa0b831426d15832ee642f5ce38a42",
+   "submodules": [
+    {
+     "path": "modules/erc20",
+     "url": "https://github.com/maple-labs/erc20.git",
+     "commit": "3c5b81673a4f58184e376bda036a63dae6124610"
+    },
+    {
+     "path": "modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/fixed-term-loan",
+     "url": "https://github.com/maple-labs/fixed-term-loan.git",
+     "commit": "8f18af8590bb2289756f4f0c80d8b355c8654582"
+    },
+    {
+     "path": "modules/fixed-term-loan/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20.git",
+     "commit": "b2fd236e9a69a96d8eb3d5ac86e3260904d1d04b"
+    },
+    {
+     "path": "modules/fixed-term-loan/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/fixed-term-loan/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper.git",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834"
+    },
+    {
+     "path": "modules/fixed-term-loan/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/fixed-term-loan/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils.git",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d"
+    },
+    {
+     "path": "modules/fixed-term-loan/modules/maple-proxy-factory",
+     "url": "https://github.com/maple-labs/maple-proxy-factory.git",
+     "commit": "c5405f964e10385b46c4c00e53a606d74679b93f"
+    },
+    {
+     "path": "modules/fixed-term-loan/modules/maple-proxy-factory/modules/proxy-factory",
+     "url": "https://github.com/maple-labs/proxy-factory.git",
+     "commit": "36ace4612f32bfcc65154b5f2da63746b950567c"
+    },
+    {
+     "path": "modules/fixed-term-loan/modules/maple-proxy-factory/modules/proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/fixed-term-loan/modules/maple-proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils.git",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d"
+    },
+    {
+     "path": "modules/fixed-term-loan-manager",
+     "url": "https://github.com/maple-labs/fixed-term-loan-manager.git",
+     "commit": "26bfef519865be5c28b9a9a0dbe63425e4050348"
+    },
+    {
+     "path": "modules/fixed-term-loan-manager/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils.git",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d"
+    },
+    {
+     "path": "modules/fixed-term-loan-manager/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20.git",
+     "commit": "b2fd236e9a69a96d8eb3d5ac86e3260904d1d04b"
+    },
+    {
+     "path": "modules/fixed-term-loan-manager/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/fixed-term-loan-manager/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper.git",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834"
+    },
+    {
+     "path": "modules/fixed-term-loan-manager/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/fixed-term-loan-manager/modules/maple-proxy-factory",
+     "url": "https://github.com/maple-labs/maple-proxy-factory.git",
+     "commit": "c5405f964e10385b46c4c00e53a606d74679b93f"
+    },
+    {
+     "path": "modules/fixed-term-loan-manager/modules/maple-proxy-factory/modules/proxy-factory",
+     "url": "https://github.com/maple-labs/proxy-factory.git",
+     "commit": "36ace4612f32bfcc65154b5f2da63746b950567c"
+    },
+    {
+     "path": "modules/fixed-term-loan-manager/modules/maple-proxy-factory/modules/proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/fixed-term-loan-manager/modules/maple-proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils.git",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d"
+    },
+    {
+     "path": "modules/fixed-term-loan-manager/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std.git",
+     "commit": "a2edd39db95df7e9dd3f9ef9edc8c55fefddb6df"
+    },
+    {
+     "path": "modules/fixed-term-loan-manager/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "modules/globals",
+     "url": "https://github.com/maple-labs/globals-v2.git",
+     "commit": "8da0f2adf5d48a4d50d5400ccedcebd909b8263e"
+    },
+    {
+     "path": "modules/globals/modules/non-transparent-proxy",
+     "url": "https://github.com/maple-labs/non-transparent-proxy.git",
+     "commit": "fdecc30a1c9c13f690581b8a04f975219caba180"
+    },
+    {
+     "path": "modules/globals/modules/non-transparent-proxy/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d"
+    },
+    {
+     "path": "modules/globals/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std.git",
+     "commit": "705263c95892a906d7af65f0f73ce8a4a0c80b80"
+    },
+    {
+     "path": "modules/globals/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "modules/liquidations",
+     "url": "https://github.com/maple-labs/liquidations.git",
+     "commit": "05a05e7e920bf545411585a5571e1a25835b2945"
+    },
+    {
+     "path": "modules/liquidations/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper.git",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834"
+    },
+    {
+     "path": "modules/liquidations/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/liquidations/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20",
+     "commit": "b2fd236e9a69a96d8eb3d5ac86e3260904d1d04b"
+    },
+    {
+     "path": "modules/liquidations/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/liquidations/modules/maple-proxy-factory",
+     "url": "https://github.com/maple-labs/maple-proxy-factory.git",
+     "commit": "c5405f964e10385b46c4c00e53a606d74679b93f"
+    },
+    {
+     "path": "modules/liquidations/modules/maple-proxy-factory/modules/proxy-factory",
+     "url": "https://github.com/maple-labs/proxy-factory.git",
+     "commit": "36ace4612f32bfcc65154b5f2da63746b950567c"
+    },
+    {
+     "path": "modules/liquidations/modules/maple-proxy-factory/modules/proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/liquidations/modules/maple-proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils.git",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d"
+    },
+    {
+     "path": "modules/liquidations/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils.git",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d"
+    },
+    {
+     "path": "modules/pool",
+     "url": "https://github.com/maple-labs/pool-v2.git",
+     "commit": "495c4a004ec4799b28964cff98b5acde1b6d578e"
+    },
+    {
+     "path": "modules/pool/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20.git",
+     "commit": "baf791a9f894b0b319a2d42d5b9f8d30349ebaad"
+    },
+    {
+     "path": "modules/pool/modules/erc20/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1de6eecf821de7fe2c908cc48d3ab3dced20717f"
+    },
+    {
+     "path": "modules/pool/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper.git",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834"
+    },
+    {
+     "path": "modules/pool/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/pool/modules/maple-proxy-factory",
+     "url": "https://github.com/maple-labs/maple-proxy-factory.git",
+     "commit": "78057cd6415ed2938ffa02b155fa02e0169bc240"
+    },
+    {
+     "path": "modules/pool/modules/maple-proxy-factory/modules/proxy-factory",
+     "url": "https://github.com/maple-labs/proxy-factory.git",
+     "commit": "36ace4612f32bfcc65154b5f2da63746b950567c"
+    },
+    {
+     "path": "modules/pool/modules/maple-proxy-factory/modules/proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/pool/modules/maple-proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils.git",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d"
+    },
+    {
+     "path": "modules/pool/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std.git",
+     "commit": "1d9650e951204a0ddce9ff89c32f1997984cef4d"
+    },
+    {
+     "path": "modules/pool/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "modules/open-term-loan-manager",
+     "url": "https://github.com/maple-labs/open-term-loan-manager.git",
+     "commit": "b6d73f8684dce12e60088eb5ab4936f07bba0ccf"
+    },
+    {
+     "path": "modules/open-term-loan-manager/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20.git",
+     "commit": "b2fd236e9a69a96d8eb3d5ac86e3260904d1d04b"
+    },
+    {
+     "path": "modules/open-term-loan-manager/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/open-term-loan-manager/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper.git",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834"
+    },
+    {
+     "path": "modules/open-term-loan-manager/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/open-term-loan-manager/modules/maple-proxy-factory",
+     "url": "https://github.com/maple-labs/maple-proxy-factory.git",
+     "commit": "c5405f964e10385b46c4c00e53a606d74679b93f"
+    },
+    {
+     "path": "modules/open-term-loan-manager/modules/maple-proxy-factory/modules/proxy-factory",
+     "url": "https://github.com/maple-labs/proxy-factory.git",
+     "commit": "36ace4612f32bfcc65154b5f2da63746b950567c"
+    },
+    {
+     "path": "modules/open-term-loan-manager/modules/maple-proxy-factory/modules/proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/open-term-loan-manager/modules/maple-proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils.git",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d"
+    },
+    {
+     "path": "modules/open-term-loan-manager/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "73a504d2cf6f37b7ce285b479f4c681f76e95f1b"
+    },
+    {
+     "path": "modules/open-term-loan-manager/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "modules/open-term-loan",
+     "url": "https://github.com/maple-labs/open-term-loan.git",
+     "commit": "ef641b767e97f8346e0edc6c3af4828aa987641e"
+    },
+    {
+     "path": "modules/open-term-loan/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20.git",
+     "commit": "b2fd236e9a69a96d8eb3d5ac86e3260904d1d04b"
+    },
+    {
+     "path": "modules/open-term-loan/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/open-term-loan/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper.git",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834"
+    },
+    {
+     "path": "modules/open-term-loan/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/open-term-loan/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std.git",
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6"
+    },
+    {
+     "path": "modules/open-term-loan/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+    },
+    {
+     "path": "modules/open-term-loan/modules/maple-proxy-factory",
+     "url": "https://github.com/maple-labs/maple-proxy-factory.git",
+     "commit": "c5405f964e10385b46c4c00e53a606d74679b93f"
+    },
+    {
+     "path": "modules/open-term-loan/modules/maple-proxy-factory/modules/proxy-factory",
+     "url": "https://github.com/maple-labs/proxy-factory.git",
+     "commit": "36ace4612f32bfcc65154b5f2da63746b950567c"
+    },
+    {
+     "path": "modules/open-term-loan/modules/maple-proxy-factory/modules/proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/open-term-loan/modules/maple-proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils.git",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d"
+    },
+    {
+     "path": "modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std.git",
+     "commit": "2f112697506eab12d433a65fdc31a639548fe365"
+    },
+    {
+     "path": "modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "modules/address-registry",
+     "url": "https://github.com/maple-labs/address-registry.git",
+     "commit": "64f5f9e2608de771635854d84135746a4aabed32"
+    },
+    {
+     "path": "modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper.git",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834"
+    },
+    {
+     "path": "modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/pool-permission-manager",
+     "url": "https://github.com/maple-labs/pool-permission-manager.git",
+     "commit": "f60f2974a34d230e53b6bb326e2542bc3a5b10a8"
+    },
+    {
+     "path": "modules/pool-permission-manager/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std.git",
+     "commit": "4b8d29e8402a95b469525b87dab9c76abb2b72f0"
+    },
+    {
+     "path": "modules/pool-permission-manager/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "modules/pool-permission-manager/modules/ntp",
+     "url": "https://github.com/maple-labs/non-transparent-proxy.git",
+     "commit": "fdecc30a1c9c13f690581b8a04f975219caba180"
+    },
+    {
+     "path": "modules/pool-permission-manager/modules/ntp/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d"
+    },
+    {
+     "path": "modules/withdrawal-manager-cyclical",
+     "url": "https://github.com/maple-labs/withdrawal-manager-cyclical.git",
+     "commit": "a1cf7f92bf6b34e4c0bba3e561bdd82289648d40"
+    },
+    {
+     "path": "modules/withdrawal-manager-cyclical/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20.git",
+     "commit": "b2fd236e9a69a96d8eb3d5ac86e3260904d1d04b"
+    },
+    {
+     "path": "modules/withdrawal-manager-cyclical/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/withdrawal-manager-cyclical/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper.git",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834"
+    },
+    {
+     "path": "modules/withdrawal-manager-cyclical/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/withdrawal-manager-cyclical/modules/maple-proxy-factory",
+     "url": "https://github.com/maple-labs/maple-proxy-factory.git",
+     "commit": "c5405f964e10385b46c4c00e53a606d74679b93f"
+    },
+    {
+     "path": "modules/withdrawal-manager-cyclical/modules/maple-proxy-factory/modules/proxy-factory",
+     "url": "https://github.com/maple-labs/proxy-factory.git",
+     "commit": "36ace4612f32bfcc65154b5f2da63746b950567c"
+    },
+    {
+     "path": "modules/withdrawal-manager-cyclical/modules/maple-proxy-factory/modules/proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/withdrawal-manager-cyclical/modules/maple-proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils.git",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d"
+    },
+    {
+     "path": "modules/withdrawal-manager-cyclical/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std.git",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "modules/withdrawal-manager-cyclical/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "modules/withdrawal-manager-queue",
+     "url": "https://github.com/maple-labs/withdrawal-manager-queue.git",
+     "commit": "dcd790111f640297332079fad815fca5f21c744d"
+    },
+    {
+     "path": "modules/withdrawal-manager-queue/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1d9650e951204a0ddce9ff89c32f1997984cef4d"
+    },
+    {
+     "path": "modules/withdrawal-manager-queue/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "modules/withdrawal-manager-queue/modules/maple-proxy-factory",
+     "url": "https://github.com/maple-labs/maple-proxy-factory.git",
+     "commit": "c5405f964e10385b46c4c00e53a606d74679b93f"
+    },
+    {
+     "path": "modules/withdrawal-manager-queue/modules/maple-proxy-factory/modules/proxy-factory",
+     "url": "https://github.com/maple-labs/proxy-factory.git",
+     "commit": "36ace4612f32bfcc65154b5f2da63746b950567c"
+    },
+    {
+     "path": "modules/withdrawal-manager-queue/modules/maple-proxy-factory/modules/proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/withdrawal-manager-queue/modules/maple-proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils.git",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d"
+    },
+    {
+     "path": "modules/withdrawal-manager-queue/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper.git",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834"
+    },
+    {
+     "path": "modules/withdrawal-manager-queue/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/withdrawal-manager-queue/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20.git",
+     "commit": "3c5b81673a4f58184e376bda036a63dae6124610"
+    },
+    {
+     "path": "modules/withdrawal-manager-queue/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/syrup-utils",
+     "url": "https://github.com/maple-labs/syrup-utils.git",
+     "commit": "1b8633014528f4822ac1f36eb42cbae52bfb80c3"
+    },
+    {
+     "path": "modules/syrup-utils/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20.git",
+     "commit": "b23fc5ee1951447759a195bb5cb230a4e28b7091"
+    },
+    {
+     "path": "modules/syrup-utils/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/syrup-utils/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper.git",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834"
+    },
+    {
+     "path": "modules/syrup-utils/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/syrup-utils/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std.git",
+     "commit": "f4a0353eaabd14128fe86f4a2b9a07b827f76e46"
+    },
+    {
+     "path": "modules/syrup-utils/modules/open-zeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    },
+    {
+     "path": "modules/syrup-utils/modules/open-zeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
+    },
+    {
+     "path": "modules/syrup-utils/modules/open-zeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
+    },
+    {
+     "path": "modules/syrup-utils/modules/open-zeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests.git",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
+    },
+    {
+     "path": "modules/syrup-utils/modules/xmpl",
+     "url": "https://github.com/maple-labs/xMPL.git",
+     "commit": "13c098b067ebb5b69fbbdcd257e79d03fa05756c"
+    },
+    {
+     "path": "modules/syrup-utils/modules/xmpl/modules/revenue-distribution-token",
+     "url": "https://github.com/maple-labs/revenue-distribution-token.git",
+     "commit": "0fb7a680861338bc10826c13f02b0a54af0f2aad"
+    },
+    {
+     "path": "modules/syrup-utils/modules/xmpl/modules/revenue-distribution-token/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20",
+     "commit": "08db27b058049117b0503557027833d23f9858eb"
+    },
+    {
+     "path": "modules/syrup-utils/modules/xmpl/modules/revenue-distribution-token/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/syrup-utils/modules/xmpl/modules/revenue-distribution-token/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper",
+     "commit": "8a5181bb8c0b10698102ad811563b720e09e3328"
+    },
+    {
+     "path": "modules/syrup-utils/modules/xmpl/modules/revenue-distribution-token/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/syrup-utils/modules/xmpl/modules/revenue-distribution-token/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/syrup-utils/modules/xmpl/modules/mpl-migration",
+     "url": "https://github.com/maple-labs/mpl-migration.git",
+     "commit": "2d228f23c5becbf393904a95444f85f506589e3f"
+    },
+    {
+     "path": "modules/syrup-utils/modules/xmpl/modules/mpl-migration/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20.git",
+     "commit": "08db27b058049117b0503557027833d23f9858eb"
+    },
+    {
+     "path": "modules/syrup-utils/modules/xmpl/modules/mpl-migration/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/syrup-utils/modules/xmpl/modules/mpl-migration/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper.git",
+     "commit": "8a5181bb8c0b10698102ad811563b720e09e3328"
+    },
+    {
+     "path": "modules/syrup-utils/modules/xmpl/modules/mpl-migration/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/syrup-utils/modules/xmpl/modules/mpl-migration/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils.git",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/syrup-utils/modules/xmpl/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils.git",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/syrup-utils/modules/maple-token",
+     "url": "https://github.com/maple-labs/maple-token.git",
+     "commit": "ae53797aa952c4d97cc4bad83c45b14bad5a9d31"
+    },
+    {
+     "path": "modules/syrup-utils/modules/maple-token/modules/openzeppelin-contracts",
+     "url": "https://github.com/Openzeppelin/openzeppelin-contracts.git",
+     "commit": "6be5ffe54fc8982b7c1d0f45d4cb7bbd313107cd"
+    },
+    {
+     "path": "modules/syrup-utils/modules/maple-token/modules/maple-test",
+     "url": "https://github.com/maple-labs/maple-test.git",
+     "commit": "af7959f8c1f93e2337d4662f157cdf8a45c944d6"
+    },
+    {
+     "path": "modules/syrup-utils/modules/maple-token/modules/maple-test/modules/ds-test",
+     "url": "https://github.com/dapphub/ds-test.git",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-migration",
+     "url": "https://github.com/maple-labs/mpl-migration.git",
+     "commit": "3d49ab895cf4a13d26d3331a004aacb7858d9877"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-migration/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20.git",
+     "commit": "08db27b058049117b0503557027833d23f9858eb"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-migration/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-migration/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper.git",
+     "commit": "8a5181bb8c0b10698102ad811563b720e09e3328"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-migration/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-migration/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std.git",
+     "commit": "52715a217dc51d0de15877878ab8213f6cbbbab5"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-v2",
+     "url": "https://github.com/maple-labs/mplv2.git",
+     "commit": "ae30972ef7b7a108f669dc313d90c0b5ab351077"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-v2/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20.git",
+     "commit": "c64a24f51434cc568958c50b29dec5fddc95c168"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-v2/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-v2/modules/globals",
+     "url": "https://github.com/maple-labs/globals-v2.git",
+     "commit": "110ac304524757e5f7015a8c318a9d5b110368cb"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-v2/modules/globals/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils.git",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-v2/modules/globals/modules/non-transparent-proxy",
+     "url": "https://github.com/maple-labs/non-transparent-proxy.git",
+     "commit": "63773a75afa53077303b8ac1ff2e5c8f93788d1f"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-v2/modules/globals/modules/non-transparent-proxy/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-v2/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std.git",
+     "commit": "66bf4e2c92cf507531599845e8d5a08cc2e3b5bb"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-v2/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-v2/modules/migrator",
+     "url": "https://github.com/maple-labs/mpl-migration.git",
+     "commit": "c07bac58ab7e3c702b93c912b30b66234b60b212"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-v2/modules/migrator/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20.git",
+     "commit": "08db27b058049117b0503557027833d23f9858eb"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-v2/modules/migrator/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-v2/modules/migrator/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper.git",
+     "commit": "8a5181bb8c0b10698102ad811563b720e09e3328"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-v2/modules/migrator/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-v2/modules/migrator/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils.git",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-v2/modules/ntp",
+     "url": "https://github.com/maple-labs/non-transparent-proxy.git",
+     "commit": "28e41b50f883eb94a4eb22494e2eb6080cbbeb24"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-v2/modules/ntp/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d"
+    },
+    {
+     "path": "modules/syrup-utils/modules/mpl-v2/modules/address-registry",
+     "url": "https://github.com/maple-labs/address-registry.git",
+     "commit": "9637dd4db857b476d323f39a39903b01e51389ab"
+    },
+    {
+     "path": "modules/syrup-utils/modules/globals-v2",
+     "url": "https://github.com/maple-labs/globals-v2.git",
+     "commit": "e09cac1186df8f19b08346e279d1888790e9348b"
+    },
+    {
+     "path": "modules/syrup-utils/modules/globals-v2/modules/non-transparent-proxy",
+     "url": "https://github.com/maple-labs/non-transparent-proxy.git",
+     "commit": "6d21a04b6b3ab09bdb89d7d52b07edc378c4e361"
+    },
+    {
+     "path": "modules/syrup-utils/modules/globals-v2/modules/non-transparent-proxy/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ab6e85e3639ef5e6b67b04dee51336edfbbef571"
+    },
+    {
+     "path": "modules/syrup-utils/modules/globals-v2/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std.git",
+     "commit": "705263c95892a906d7af65f0f73ce8a4a0c80b80"
+    },
+    {
+     "path": "modules/syrup-utils/modules/globals-v2/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "modules/syrup-utils/modules/lite-psm",
+     "url": "https://github.com/makerdao/dss-lite-psm.git",
+     "commit": "2598e2efcb079a27b5580ea416f1c7b27ede4e84"
+    },
+    {
+     "path": "modules/syrup-utils/modules/lite-psm/lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "28000a0ea3602c887f2fdc22dea591789d1b4971"
+    },
+    {
+     "path": "modules/syrup-utils/modules/lite-psm/lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb"
+    },
+    {
+     "path": "modules/syrup-utils/modules/lite-psm/lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1"
+    },
+    {
+     "path": "modules/syrup-utils/modules/lite-psm/lib/dss-test/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+    },
+    {
+     "path": "modules/syrup-utils/modules/non-transparent-proxy",
+     "url": "https://github.com/maple-labs/non-transparent-proxy.git",
+     "commit": "fdecc30a1c9c13f690581b8a04f975219caba180"
+    },
+    {
+     "path": "modules/syrup-utils/modules/non-transparent-proxy/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d"
+    },
+    {
+     "path": "modules/strategies",
+     "url": "https://github.com/maple-labs/maple-strategies.git",
+     "commit": "4b065a531f743ee89de445fbbe1efc77d71fd8b9"
+    },
+    {
+     "path": "modules/strategies/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "5a802d7c10abb4bbfb3e7214c75052ef9e6a06f8"
+    },
+    {
+     "path": "modules/strategies/modules/maple-proxy-factory",
+     "url": "https://github.com/maple-labs/maple-proxy-factory.git",
+     "commit": "3ff00bb55fb09fc559bb79254c8d89743260b914"
+    },
+    {
+     "path": "modules/strategies/modules/maple-proxy-factory/modules/proxy-factory",
+     "url": "https://github.com/maple-labs/proxy-factory.git",
+     "commit": "36ace4612f32bfcc65154b5f2da63746b950567c"
+    },
+    {
+     "path": "modules/strategies/modules/maple-proxy-factory/modules/proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/strategies/modules/maple-proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils.git",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d"
+    },
+    {
+     "path": "modules/strategies/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20.git",
+     "commit": "9fbe92522bba3724dc7d3bf9b6bda3a93ac01a40"
+    },
+    {
+     "path": "modules/strategies/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    },
+    {
+     "path": "modules/strategies/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper.git",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834"
+    },
+    {
+     "path": "modules/strategies/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95"
+    }
+   ],
+   "license": {
+    "file": "LICENSE",
+    "spdx": "BUSL-1.1",
+    "package_json": null,
+    "headers": {
+     "BUSL-1.1": 133,
+     "AGPL-3.0-only": 1
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 134
+   },
+   "npm": {},
+   "copied": true,
+   "files": 3126,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "maple-labs__maple-core-v2",
+   "subtrees": [
+    {
+     "prefix": "maple-labs__maple-core-v2",
+     "url": "https://github.com/maple-labs/maple-core-v2",
+     "commit": "f59f30c691fa0b831426d15832ee642f5ce38a42",
+     "files": 138
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20",
+     "commit": "3c5b81673a4f58184e376bda036a63dae6124610",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan",
+     "url": "https://github.com/maple-labs/fixed-term-loan",
+     "commit": "8f18af8590bb2289756f4f0c80d8b355c8654582",
+     "files": 30
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan-manager",
+     "url": "https://github.com/maple-labs/fixed-term-loan-manager",
+     "commit": "26bfef519865be5c28b9a9a0dbe63425e4050348",
+     "files": 19
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/globals",
+     "url": "https://github.com/maple-labs/globals-v2",
+     "commit": "8da0f2adf5d48a4d50d5400ccedcebd909b8263e",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/liquidations",
+     "url": "https://github.com/maple-labs/liquidations",
+     "commit": "05a05e7e920bf545411585a5571e1a25835b2945",
+     "files": 17
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/pool",
+     "url": "https://github.com/maple-labs/pool-v2",
+     "commit": "495c4a004ec4799b28964cff98b5acde1b6d578e",
+     "files": 34
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan-manager",
+     "url": "https://github.com/maple-labs/open-term-loan-manager",
+     "commit": "b6d73f8684dce12e60088eb5ab4936f07bba0ccf",
+     "files": 30
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan",
+     "url": "https://github.com/maple-labs/open-term-loan",
+     "commit": "ef641b767e97f8346e0edc6c3af4828aa987641e",
+     "files": 46
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2f112697506eab12d433a65fdc31a639548fe365",
+     "files": 45
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/address-registry",
+     "url": "https://github.com/maple-labs/address-registry",
+     "commit": "64f5f9e2608de771635854d84135746a4aabed32",
+     "files": 5
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834",
+     "files": 8
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/pool-permission-manager",
+     "url": "https://github.com/maple-labs/pool-permission-manager",
+     "commit": "f60f2974a34d230e53b6bb326e2542bc3a5b10a8",
+     "files": 23
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-cyclical",
+     "url": "https://github.com/maple-labs/withdrawal-manager-cyclical",
+     "commit": "a1cf7f92bf6b34e4c0bba3e561bdd82289648d40",
+     "files": 16
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-queue",
+     "url": "https://github.com/maple-labs/withdrawal-manager-queue",
+     "commit": "dcd790111f640297332079fad815fca5f21c744d",
+     "files": 30
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils",
+     "url": "https://github.com/maple-labs/syrup-utils",
+     "commit": "1b8633014528f4822ac1f36eb42cbae52bfb80c3",
+     "files": 40
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/strategies",
+     "url": "https://github.com/maple-labs/maple-strategies",
+     "commit": "4b065a531f743ee89de445fbbe1efc77d71fd8b9",
+     "files": 36
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20",
+     "commit": "b2fd236e9a69a96d8eb3d5ac86e3260904d1d04b",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834",
+     "files": 8
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan/modules/maple-proxy-factory",
+     "url": "https://github.com/maple-labs/maple-proxy-factory",
+     "commit": "c5405f964e10385b46c4c00e53a606d74679b93f",
+     "files": 13
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan-manager/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan-manager/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20",
+     "commit": "b2fd236e9a69a96d8eb3d5ac86e3260904d1d04b",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan-manager/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834",
+     "files": 8
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan-manager/modules/maple-proxy-factory",
+     "url": "https://github.com/maple-labs/maple-proxy-factory",
+     "commit": "c5405f964e10385b46c4c00e53a606d74679b93f",
+     "files": 13
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan-manager/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "a2edd39db95df7e9dd3f9ef9edc8c55fefddb6df",
+     "files": 37
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/globals/modules/non-transparent-proxy",
+     "url": "https://github.com/maple-labs/non-transparent-proxy",
+     "commit": "fdecc30a1c9c13f690581b8a04f975219caba180",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/globals/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "705263c95892a906d7af65f0f73ce8a4a0c80b80",
+     "files": 40
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/liquidations/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834",
+     "files": 8
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/liquidations/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20",
+     "commit": "b2fd236e9a69a96d8eb3d5ac86e3260904d1d04b",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/liquidations/modules/maple-proxy-factory",
+     "url": "https://github.com/maple-labs/maple-proxy-factory",
+     "commit": "c5405f964e10385b46c4c00e53a606d74679b93f",
+     "files": 13
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/liquidations/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/pool/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20",
+     "commit": "baf791a9f894b0b319a2d42d5b9f8d30349ebaad",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/pool/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834",
+     "files": 8
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/pool/modules/maple-proxy-factory",
+     "url": "https://github.com/maple-labs/maple-proxy-factory",
+     "commit": "78057cd6415ed2938ffa02b155fa02e0169bc240",
+     "files": 13
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/pool/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1d9650e951204a0ddce9ff89c32f1997984cef4d",
+     "files": 40
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan-manager/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20",
+     "commit": "b2fd236e9a69a96d8eb3d5ac86e3260904d1d04b",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan-manager/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834",
+     "files": 8
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan-manager/modules/maple-proxy-factory",
+     "url": "https://github.com/maple-labs/maple-proxy-factory",
+     "commit": "c5405f964e10385b46c4c00e53a606d74679b93f",
+     "files": 13
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan-manager/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "73a504d2cf6f37b7ce285b479f4c681f76e95f1b",
+     "files": 39
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20",
+     "commit": "b2fd236e9a69a96d8eb3d5ac86e3260904d1d04b",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834",
+     "files": 8
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "2b58ecbcf3dfde7a75959dc7b4eb3d0670278de6",
+     "files": 39
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan/modules/maple-proxy-factory",
+     "url": "https://github.com/maple-labs/maple-proxy-factory",
+     "commit": "c5405f964e10385b46c4c00e53a606d74679b93f",
+     "files": 13
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/pool-permission-manager/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "4b8d29e8402a95b469525b87dab9c76abb2b72f0",
+     "files": 40
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/pool-permission-manager/modules/ntp",
+     "url": "https://github.com/maple-labs/non-transparent-proxy",
+     "commit": "fdecc30a1c9c13f690581b8a04f975219caba180",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-cyclical/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20",
+     "commit": "b2fd236e9a69a96d8eb3d5ac86e3260904d1d04b",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-cyclical/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834",
+     "files": 8
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-cyclical/modules/maple-proxy-factory",
+     "url": "https://github.com/maple-labs/maple-proxy-factory",
+     "commit": "c5405f964e10385b46c4c00e53a606d74679b93f",
+     "files": 13
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-cyclical/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1",
+     "files": 40
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-queue/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1d9650e951204a0ddce9ff89c32f1997984cef4d",
+     "files": 40
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-queue/modules/maple-proxy-factory",
+     "url": "https://github.com/maple-labs/maple-proxy-factory",
+     "commit": "c5405f964e10385b46c4c00e53a606d74679b93f",
+     "files": 13
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-queue/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834",
+     "files": 8
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-queue/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20",
+     "commit": "3c5b81673a4f58184e376bda036a63dae6124610",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20",
+     "commit": "b23fc5ee1951447759a195bb5cb230a4e28b7091",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834",
+     "files": 8
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "f4a0353eaabd14128fe86f4a2b9a07b827f76e46",
+     "files": 47
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/open-zeppelin",
+     "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3",
+     "files": 250
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/xmpl",
+     "url": "https://github.com/maple-labs/xMPL",
+     "commit": "13c098b067ebb5b69fbbdcd257e79d03fa05756c",
+     "files": 15
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/maple-token",
+     "url": "https://github.com/maple-labs/maple-token",
+     "commit": "ae53797aa952c4d97cc4bad83c45b14bad5a9d31",
+     "files": 12
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-migration",
+     "url": "https://github.com/maple-labs/mpl-migration",
+     "commit": "3d49ab895cf4a13d26d3331a004aacb7858d9877",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-v2",
+     "url": "https://github.com/maple-labs/mplv2",
+     "commit": "ae30972ef7b7a108f669dc313d90c0b5ab351077",
+     "files": 44
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/globals-v2",
+     "url": "https://github.com/maple-labs/globals-v2",
+     "commit": "e09cac1186df8f19b08346e279d1888790e9348b",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/lite-psm",
+     "url": "https://github.com/makerdao/dss-lite-psm",
+     "commit": "2598e2efcb079a27b5580ea416f1c7b27ede4e84",
+     "files": 25
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/non-transparent-proxy",
+     "url": "https://github.com/maple-labs/non-transparent-proxy",
+     "commit": "fdecc30a1c9c13f690581b8a04f975219caba180",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/strategies/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "5a802d7c10abb4bbfb3e7214c75052ef9e6a06f8",
+     "files": 47
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/strategies/modules/maple-proxy-factory",
+     "url": "https://github.com/maple-labs/maple-proxy-factory",
+     "commit": "3ff00bb55fb09fc559bb79254c8d89743260b914",
+     "files": 13
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/strategies/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20",
+     "commit": "9fbe92522bba3724dc7d3bf9b6bda3a93ac01a40",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/strategies/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper",
+     "commit": "2ecb2f4d2505007213b50d7bb9e942cf69b40834",
+     "files": 8
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan/modules/maple-proxy-factory/modules/proxy-factory",
+     "url": "https://github.com/maple-labs/proxy-factory",
+     "commit": "36ace4612f32bfcc65154b5f2da63746b950567c",
+     "files": 12
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan/modules/maple-proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan-manager/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan-manager/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan-manager/modules/maple-proxy-factory/modules/proxy-factory",
+     "url": "https://github.com/maple-labs/proxy-factory",
+     "commit": "36ace4612f32bfcc65154b5f2da63746b950567c",
+     "files": 12
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan-manager/modules/maple-proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan-manager/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b",
+     "files": 5
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/globals/modules/non-transparent-proxy/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/globals/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/liquidations/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/liquidations/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/liquidations/modules/maple-proxy-factory/modules/proxy-factory",
+     "url": "https://github.com/maple-labs/proxy-factory",
+     "commit": "36ace4612f32bfcc65154b5f2da63746b950567c",
+     "files": 12
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/liquidations/modules/maple-proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/pool/modules/erc20/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "1de6eecf821de7fe2c908cc48d3ab3dced20717f",
+     "files": 47
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/pool/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/pool/modules/maple-proxy-factory/modules/proxy-factory",
+     "url": "https://github.com/maple-labs/proxy-factory",
+     "commit": "36ace4612f32bfcc65154b5f2da63746b950567c",
+     "files": 12
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/pool/modules/maple-proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/pool/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan-manager/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan-manager/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan-manager/modules/maple-proxy-factory/modules/proxy-factory",
+     "url": "https://github.com/maple-labs/proxy-factory",
+     "commit": "36ace4612f32bfcc65154b5f2da63746b950567c",
+     "files": 12
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan-manager/modules/maple-proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan-manager/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
+     "files": 6
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
+     "files": 6
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan/modules/maple-proxy-factory/modules/proxy-factory",
+     "url": "https://github.com/maple-labs/proxy-factory",
+     "commit": "36ace4612f32bfcc65154b5f2da63746b950567c",
+     "files": 12
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan/modules/maple-proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/pool-permission-manager/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/pool-permission-manager/modules/ntp/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-cyclical/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-cyclical/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-cyclical/modules/maple-proxy-factory/modules/proxy-factory",
+     "url": "https://github.com/maple-labs/proxy-factory",
+     "commit": "36ace4612f32bfcc65154b5f2da63746b950567c",
+     "files": 12
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-cyclical/modules/maple-proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-cyclical/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-queue/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-queue/modules/maple-proxy-factory/modules/proxy-factory",
+     "url": "https://github.com/maple-labs/proxy-factory",
+     "commit": "36ace4612f32bfcc65154b5f2da63746b950567c",
+     "files": 12
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-queue/modules/maple-proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-queue/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-queue/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/open-zeppelin/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb",
+     "files": 35
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/open-zeppelin/lib/erc4626-tests",
+     "url": "https://github.com/a16z/erc4626-tests",
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
+     "files": 3
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/xmpl/modules/revenue-distribution-token",
+     "url": "https://github.com/maple-labs/revenue-distribution-token",
+     "commit": "0fb7a680861338bc10826c13f02b0a54af0f2aad",
+     "files": 20
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/xmpl/modules/mpl-migration",
+     "url": "https://github.com/maple-labs/mpl-migration",
+     "commit": "2d228f23c5becbf393904a95444f85f506589e3f",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/xmpl/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/maple-token/modules/openzeppelin-contracts",
+     "url": "https://github.com/Openzeppelin/openzeppelin-contracts",
+     "commit": "6be5ffe54fc8982b7c1d0f45d4cb7bbd313107cd",
+     "files": 129
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/maple-token/modules/maple-test",
+     "url": "https://github.com/maple-labs/maple-test",
+     "commit": "af7959f8c1f93e2337d4662f157cdf8a45c944d6",
+     "files": 3
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-migration/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20",
+     "commit": "08db27b058049117b0503557027833d23f9858eb",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-migration/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper",
+     "commit": "8a5181bb8c0b10698102ad811563b720e09e3328",
+     "files": 8
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-migration/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "52715a217dc51d0de15877878ab8213f6cbbbab5",
+     "files": 47
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-v2/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20",
+     "commit": "c64a24f51434cc568958c50b29dec5fddc95c168",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-v2/modules/globals",
+     "url": "https://github.com/maple-labs/globals-v2",
+     "commit": "110ac304524757e5f7015a8c318a9d5b110368cb",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-v2/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "66bf4e2c92cf507531599845e8d5a08cc2e3b5bb",
+     "files": 40
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-v2/modules/migrator",
+     "url": "https://github.com/maple-labs/mpl-migration",
+     "commit": "c07bac58ab7e3c702b93c912b30b66234b60b212",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-v2/modules/ntp",
+     "url": "https://github.com/maple-labs/non-transparent-proxy",
+     "commit": "28e41b50f883eb94a4eb22494e2eb6080cbbeb24",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-v2/modules/address-registry",
+     "url": "https://github.com/maple-labs/address-registry",
+     "commit": "9637dd4db857b476d323f39a39903b01e51389ab",
+     "files": 3
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/globals-v2/modules/non-transparent-proxy",
+     "url": "https://github.com/maple-labs/non-transparent-proxy",
+     "commit": "6d21a04b6b3ab09bdb89d7d52b07edc378c4e361",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/globals-v2/modules/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "705263c95892a906d7af65f0f73ce8a4a0c80b80",
+     "files": 40
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/lite-psm/lib/dss-test",
+     "url": "https://github.com/makerdao/dss-test",
+     "commit": "28000a0ea3602c887f2fdc22dea591789d1b4971",
+     "files": 20
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/non-transparent-proxy/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/strategies/modules/maple-proxy-factory/modules/proxy-factory",
+     "url": "https://github.com/maple-labs/proxy-factory",
+     "commit": "36ace4612f32bfcc65154b5f2da63746b950567c",
+     "files": 12
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/strategies/modules/maple-proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/strategies/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/strategies/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan/modules/maple-proxy-factory/modules/proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/fixed-term-loan-manager/modules/maple-proxy-factory/modules/proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/liquidations/modules/maple-proxy-factory/modules/proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/pool/modules/maple-proxy-factory/modules/proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan-manager/modules/maple-proxy-factory/modules/proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/open-term-loan/modules/maple-proxy-factory/modules/proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-cyclical/modules/maple-proxy-factory/modules/proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/withdrawal-manager-queue/modules/maple-proxy-factory/modules/proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/open-zeppelin/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b",
+     "files": 5
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/xmpl/modules/revenue-distribution-token/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20",
+     "commit": "08db27b058049117b0503557027833d23f9858eb",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/xmpl/modules/revenue-distribution-token/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper",
+     "commit": "8a5181bb8c0b10698102ad811563b720e09e3328",
+     "files": 8
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/xmpl/modules/revenue-distribution-token/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/xmpl/modules/mpl-migration/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20",
+     "commit": "08db27b058049117b0503557027833d23f9858eb",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/xmpl/modules/mpl-migration/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper",
+     "commit": "8a5181bb8c0b10698102ad811563b720e09e3328",
+     "files": 8
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/xmpl/modules/mpl-migration/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/maple-token/modules/maple-test/modules/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248",
+     "files": 4
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-migration/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-migration/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-v2/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-v2/modules/globals/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-v2/modules/globals/modules/non-transparent-proxy",
+     "url": "https://github.com/maple-labs/non-transparent-proxy",
+     "commit": "63773a75afa53077303b8ac1ff2e5c8f93788d1f",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-v2/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-v2/modules/migrator/modules/erc20",
+     "url": "https://github.com/maple-labs/erc20",
+     "commit": "08db27b058049117b0503557027833d23f9858eb",
+     "files": 9
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-v2/modules/migrator/modules/erc20-helper",
+     "url": "https://github.com/maple-labs/erc20-helper",
+     "commit": "8a5181bb8c0b10698102ad811563b720e09e3328",
+     "files": 8
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-v2/modules/migrator/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-v2/modules/ntp/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/globals-v2/modules/non-transparent-proxy/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ab6e85e3639ef5e6b67b04dee51336edfbbef571",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/globals-v2/modules/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/lite-psm/lib/dss-test/lib/dss-interfaces",
+     "url": "https://github.com/makerdao/dss-interfaces",
+     "commit": "9bfd7afadd1f8c217ef05850b2555691786286cb",
+     "files": 72
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/lite-psm/lib/dss-test/lib/forge-std",
+     "url": "https://github.com/foundry-rs/forge-std",
+     "commit": "74cfb77e308dd188d2f58864aaf44963ae6b88b1",
+     "files": 40
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/strategies/modules/maple-proxy-factory/modules/proxy-factory/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/xmpl/modules/revenue-distribution-token/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/xmpl/modules/revenue-distribution-token/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/xmpl/modules/mpl-migration/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/xmpl/modules/mpl-migration/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-v2/modules/globals/modules/non-transparent-proxy/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "ec57e3d420e028069337dae7a8bb298ba946184d",
+     "files": 10
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-v2/modules/migrator/modules/erc20/modules/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/mpl-v2/modules/migrator/modules/erc20-helper/lib/contract-test-utils",
+     "url": "https://github.com/maple-labs/contract-test-utils",
+     "commit": "d42c3fa7605ccce09384ae455f3fe7b2caf60a95",
+     "files": 7
+    },
+    {
+     "prefix": "maple-labs__maple-core-v2/modules/syrup-utils/modules/lite-psm/lib/dss-test/lib/forge-std/lib/ds-test",
+     "url": "https://github.com/dapphub/ds-test",
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+     "files": 6
+    }
+   ]
+  }
+ ]
+}
