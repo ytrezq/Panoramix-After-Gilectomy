@@ -1,0 +1,363 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.36;
+
+import {AbstractSmokeTest} from "./AbstractSmokeTest.sol";
+
+import {IERC20, IFeeSplitter} from "contracts/Interfaces.sol";
+import {EthenaARM} from "contracts/EthenaARM.sol";
+import {EthenaAssetAdapter} from "contracts/adapters/EthenaAssetAdapter.sol";
+import {CapManager} from "contracts/CapManager.sol";
+import {Proxy} from "contracts/Proxy.sol";
+import {Mainnet} from "contracts/utils/Addresses.sol";
+import {IStakedUSDe} from "contracts/Interfaces.sol";
+
+contract Fork_EthenaARM_Smoke_Test is AbstractSmokeTest {
+    IERC20 BAD_TOKEN = IERC20(makeAddr("bad token"));
+
+    IERC20 usde;
+    IERC20 susde;
+    Proxy armProxy;
+    EthenaARM ethenaARM;
+    EthenaAssetAdapter ethenaAssetAdapter;
+    CapManager capManager;
+    address operator;
+
+    /// @dev EthenaAssetAdapter storage slots (see `forge inspect EthenaAssetAdapter storageLayout`):
+    ///      `totalRequests` is the public counter at slot 45, `nextPendingIndex` (internal FIFO claim
+    ///      cursor) immediately follows at slot 46.
+    uint256 internal constant ETHENA_ADAPTER_TOTAL_REQUESTS_SLOT = 45;
+    uint256 internal constant ETHENA_ADAPTER_NEXT_PENDING_INDEX_SLOT = 46;
+
+    function setUp() public override {
+        super.setUp();
+        usde = IERC20(Mainnet.USDE);
+        susde = IERC20(Mainnet.SUSDE);
+        operator = Mainnet.ARM_TALOS_RELAYER;
+
+        vm.label(address(usde), "USDE");
+        vm.label(address(susde), "SUSDE");
+        vm.label(address(operator), "OPERATOR");
+
+        armProxy = Proxy(payable(resolver.resolve("ETHENA_ARM")));
+        ethenaARM = EthenaARM(payable(resolver.resolve("ETHENA_ARM")));
+        ethenaAssetAdapter = EthenaAssetAdapter(resolver.resolve("ETHENA_ARM_SUSDE_ADAPTER"));
+        capManager = CapManager(resolver.resolve("ETHENA_ARM_CAP_MAN"));
+
+        vm.prank(ethenaARM.owner());
+        ethenaARM.setOwner(Mainnet.TIMELOCK);
+    }
+
+    function test_initialConfig() external view {
+        assertEq(ethenaARM.name(), "Ethena Staked USDe ARM", "Name");
+        assertEq(ethenaARM.symbol(), "ARM-sUSDe-USDe", "Symbol");
+        assertEq(ethenaARM.owner(), Mainnet.TIMELOCK, "Owner");
+        assertEq(ethenaARM.operator(), operator, "Operator");
+        assertEq(ethenaARM.feeCollector(), Mainnet.FEE_SPLITTER, "Fee collector");
+        assertTrue(
+            IFeeSplitter(Mainnet.FEE_SPLITTER).isSupported(ethenaARM.liquidityAsset()), "fee asset on FeeSplitter"
+        );
+        assertEq((100 * uint256(ethenaARM.fee())) / FEE_SCALE, 20, "Performance fee as a percentage");
+
+        assertEq(ethenaARM.liquidityAsset(), Mainnet.USDE, "liquidity asset");
+        assertEq(ethenaARM.asset(), Mainnet.USDE, "ERC-4626 asset");
+        assertEq(ethenaARM.claimDelay(), 10 minutes, "claim delay");
+        _assertBaseAssetListed(ethenaARM.getBaseAssets(), Mainnet.SUSDE, "sUSDe listed as base asset");
+
+        assertEq(capManager.accountCapEnabled(), true, "account cap enabled");
+        assertEq(capManager.totalAssetsCap(), 100000 ether, "total assets cap");
+        //assertEq(capManager.liquidityProviderCaps(Mainnet.TREASURY_LP), 20000 ether, "liquidity provider cap");
+        // The CapManager still uses the original ARM relayer as operator.
+        assertEq(capManager.arm(), address(ethenaARM), "arm");
+    }
+
+    function test_swap_exact_susde_for_usde() external {
+        // trader sells sUSDe and buys USDe, the ARM buys sUSDe as a
+        // 20 bps discount
+        _swapExactTokensForTokens(susde, usde, 0.998e36, 100 ether);
+        // 30 bps discount
+        _swapExactTokensForTokens(susde, usde, 0.997e36, 1e15);
+        // 40 bps discount
+        _swapExactTokensForTokens(susde, usde, 0.996e36, 1 ether);
+    }
+
+    function test_swap_exact_usde_for_susde() external {
+        // trader buys sUSDe and sells USDe, the ARM sells sUSDe at a
+        // 0.3 bps discount
+        _swapExactTokensForTokens(usde, susde, 0.99997e36, 10 ether);
+        // 0.4 bps discount
+        _swapExactTokensForTokens(usde, susde, 0.99996e36, 100 ether);
+    }
+
+    function test_swapTokensForExactTokens() external {
+        // trader sells sUSDe and buys USDe, the ARM buys sUSDe at a
+        // 20 bps discount
+        _swapTokensForExactTokens(susde, usde, 0.998e36, 10 ether);
+        // 30 bps discount
+        _swapTokensForExactTokens(susde, usde, 0.997e36, 100 ether);
+        // 50 bps discount
+        _swapTokensForExactTokens(susde, usde, 0.995e36, 10 ether);
+    }
+
+    function _swapExactTokensForTokens(IERC20 inToken, IERC20 outToken, uint256 price, uint256 amountIn) internal {
+        uint256 expectedOut;
+        if (inToken == usde) {
+            // Trader is buying sUSDe and selling USDE
+            // the ARM is selling sUSDe and buying USDE
+            deal(address(usde), address(this), 1_000_000 ether);
+            _dealSUSDe(address(ethenaARM), 1000 ether);
+
+            expectedOut = amountIn * 1e36 / price;
+            expectedOut = IStakedUSDe(address(susde)).convertToShares(expectedOut);
+
+            vm.prank(operator);
+            ethenaARM.setPrices(address(susde), 0.99e36, price, type(uint128).max, type(uint128).max);
+        } else {
+            // Trader is selling sUSDe and buying USDE
+            // the ARM is buying sUSDe and selling USDE
+            _dealSUSDe(address(this), 1000 ether);
+            deal(address(usde), address(ethenaARM), 1_000_000 ether);
+
+            expectedOut = amountIn * price / 1e36;
+            expectedOut = IStakedUSDe(address(susde)).convertToAssets(expectedOut);
+
+            vm.prank(operator);
+            uint256 sellPrice = price < 0.9997e36 ? 0.99996e36 : price + 2e32;
+            ethenaARM.setPrices(address(susde), price, sellPrice, type(uint128).max, type(uint128).max);
+        }
+        // Approve the ARM to transfer the input token of the swap.
+        inToken.approve(address(ethenaARM), amountIn);
+
+        uint256 startIn = inToken.balanceOf(address(this));
+        uint256 startOut = outToken.balanceOf(address(this));
+
+        ethenaARM.swapExactTokensForTokens(inToken, outToken, amountIn, 0, address(this));
+
+        assertApproxEqAbs(inToken.balanceOf(address(this)), startIn - amountIn, 2, "In actual");
+        assertApproxEqAbs(outToken.balanceOf(address(this)), startOut + expectedOut, 2, "Out actual");
+    }
+
+    function _swapTokensForExactTokens(IERC20 inToken, IERC20 outToken, uint256 price, uint256 amountOut) internal {
+        uint256 expectedIn;
+        if (inToken == usde) {
+            // Trader is buying sUSDe and selling USDE
+            // the ARM is selling sUSDe and buying USDE
+            deal(address(usde), address(this), 1_000_000 ether);
+            _dealSUSDe(address(ethenaARM), 1000 ether);
+
+            expectedIn = IStakedUSDe(address(susde)).convertToAssets(amountOut) * price / 1e36;
+
+            vm.prank(operator);
+            ethenaARM.setPrices(address(susde), 0.99e36, price, type(uint128).max, type(uint128).max);
+        } else {
+            // Trader is selling sUSDe and buying USDE
+            // the ARM is buying sUSDe and selling USDE
+            _dealSUSDe(address(this), 1000 ether);
+            deal(address(usde), address(ethenaARM), 1_000_000 ether);
+            // _dealWETH(address(ethenaARM), 1000 ether);
+
+            expectedIn = IStakedUSDe(address(susde)).convertToShares(amountOut) * 1e36 / price + 3;
+
+            vm.prank(operator);
+            uint256 sellPrice = price < 0.9997e36 ? 0.99996e36 : price + 2e32;
+            ethenaARM.setPrices(address(susde), price, sellPrice, type(uint128).max, type(uint128).max);
+        }
+        // Approve the ARM to transfer the input token of the swap.
+        inToken.approve(address(ethenaARM), expectedIn + 10000);
+
+        uint256 startIn = inToken.balanceOf(address(this));
+        uint256 startOut = outToken.balanceOf(address(this));
+
+        ethenaARM.swapTokensForExactTokens(inToken, outToken, amountOut, 3 * amountOut, address(this));
+
+        assertApproxEqAbs(inToken.balanceOf(address(this)), startIn - expectedIn, 2, "In actual");
+        assertApproxEqAbs(outToken.balanceOf(address(this)), startOut + amountOut, 2, "Out actual");
+    }
+
+    function _dealSUSDe(address to, uint256 amount) internal {
+        vm.prank(0x211Cc4DD073734dA055fbF44a2b4667d5E5fE5d2);
+        susde.transfer(to, amount + 2);
+    }
+
+    function test_proxy_unauthorizedAccess() external {
+        address RANDOM_ADDRESS = 0xfEEDBeef00000000000000000000000000000000;
+        vm.startPrank(RANDOM_ADDRESS);
+
+        // Proxy's restricted methods.
+        vm.expectRevert("ARM: Only owner can call this function.");
+        armProxy.setOwner(RANDOM_ADDRESS);
+
+        vm.expectRevert("ARM: Only owner can call this function.");
+        armProxy.initialize(address(this), address(this), "");
+
+        vm.expectRevert("ARM: Only owner can call this function.");
+        armProxy.upgradeTo(address(this));
+
+        vm.expectRevert("ARM: Only owner can call this function.");
+        armProxy.upgradeToAndCall(address(this), "");
+
+        // Implementation's restricted methods.
+        vm.expectRevert("ARM: Only owner can call this function.");
+        ethenaARM.setOwner(RANDOM_ADDRESS);
+    }
+
+    /* Operator Tests */
+    function test_setOperator() external {
+        vm.prank(Mainnet.TIMELOCK);
+        ethenaARM.setOperator(address(this));
+        assertEq(ethenaARM.operator(), address(this));
+    }
+
+    function test_nonOwnerCannotSetOperator() external {
+        vm.expectRevert(bytes4(keccak256("OnlyOwner()")));
+        vm.prank(operator);
+        ethenaARM.setOperator(operator);
+    }
+
+    function test_request_ethena_withdrawal_operator() external {
+        // trader sells sUSDe and buys USDE, the ARM buys sUSDe as a 20 bps discount
+        _swapExactTokensForTokens(susde, usde, 0.998e36, 100 ether);
+
+        // Operator requests an Ethena withdrawal
+        skip(DELAY_REQUEST + 1);
+        vm.prank(operator);
+        ethenaARM.requestBaseAssetRedeem(address(susde), 10 ether);
+    }
+
+    function test_request_ethena_withdrawal_owner() external {
+        // trader sells sUSDe and buys USDE, the ARM buys sUSDe as a 20 bps discount
+        _swapExactTokensForTokens(susde, usde, 0.998e36, 100 ether);
+
+        // Owner requests an Ethena withdrawal
+        skip(DELAY_REQUEST + 1);
+        vm.prank(Mainnet.TIMELOCK);
+        ethenaARM.requestBaseAssetRedeem(address(susde), 10 ether);
+    }
+
+    function test_claim_ethena_request_with_delay() external {
+        // trader sells sUSDe and buys USDE, the ARM buys sUSDe as a 20 bps discount
+        _swapExactTokensForTokens(susde, usde, 0.998e36, 100 ether);
+
+        // On a `latest` fork the live adapter can already hold real, in-flight sUSDe cooldown
+        // requests at the head of its FIFO queue. Isolate the test's request so the claim succeeds
+        // regardless of that pre-existing on-chain state.
+        _isolateEthenaAdapterQueue();
+
+        // Owner requests an Ethena withdrawal
+        uint256 nextUnstakerIndex = ethenaAssetAdapter.nextUnstakerIndex();
+        skip(DELAY_REQUEST + 1);
+        vm.prank(Mainnet.TIMELOCK);
+        ethenaARM.requestBaseAssetRedeem(address(susde), 10 ether);
+
+        skip(7 days);
+
+        // Claim the withdrawal
+        address unstaker = ethenaAssetAdapter.unstakers(uint8(nextUnstakerIndex));
+        uint256 requestShares = ethenaAssetAdapter.requestShares(unstaker);
+        vm.prank(operator);
+        ethenaARM.claimBaseAssetRedeem(address(susde), requestShares);
+    }
+
+    // Allocate to market
+    function test_allocate_AAVEMarket_withoutYield() external {
+        _swapExactTokensForTokens(usde, susde, 0.99996e36, 1_000 ether);
+
+        vm.prank(operator);
+        ethenaARM.setARMBuffer(0); // 0%, so all free USDe is allocated
+        _fundReservedWithdrawLiquidity();
+        address activeMarket = ethenaARM.activeMarket();
+
+        uint256 balanceBefore = IERC20(activeMarket).balanceOf(address(ethenaARM));
+        ethenaARM.allocate();
+        uint256 balanceAfter = IERC20(activeMarket).balanceOf(address(ethenaARM));
+
+        assertGt(balanceAfter, balanceBefore, "Allocated amount");
+    }
+
+    function test_allocate_AAVEMarket_withYield() external {
+        _swapExactTokensForTokens(usde, susde, 0.99996e36, 1_000 ether);
+
+        vm.prank(operator);
+        ethenaARM.setARMBuffer(0); // 0%, so all free USDe is allocated
+        _fundReservedWithdrawLiquidity();
+
+        // Allocate
+        uint256 balanceBefore = usde.balanceOf(address(ethenaARM));
+        ethenaARM.allocate();
+
+        // Simulate yield by transferring aUSDE to the active market
+        address aUSDE = 0x4F5923Fc5FD4a93352581b38B7cD26943012DECF;
+        address whale = 0xc468315a2df54f9c076bD5Cfe5002BA211F74CA6;
+        address activeMarket = ethenaARM.activeMarket();
+        vm.prank(whale);
+        IERC20(aUSDE).transfer(activeMarket, 10 ether);
+
+        // Deallocate
+        vm.prank(operator);
+        ethenaARM.setActiveMarket(address(0));
+        uint256 balanceAfter = usde.balanceOf(address(ethenaARM));
+
+        assertGt(balanceAfter, balanceBefore, "Allocated amount with yield");
+    }
+
+    /// @dev Top up the ARM's USDe so its free liquidity is positive regardless of live fork state.
+    ///      Outstanding LP withdrawals can leave the balance below `reservedWithdrawLiquidity`,
+    ///      in which case `allocate()` tries to withdraw from the market instead of depositing.
+    function _fundReservedWithdrawLiquidity() internal {
+        uint256 balance = usde.balanceOf(address(ethenaARM));
+        deal(address(usde), address(ethenaARM), balance + ethenaARM.reservedWithdrawLiquidity() + 1_000 ether);
+    }
+
+    /// @dev Advance the adapter's FIFO claim cursor (`nextPendingIndex`) past every pre-existing
+    ///      pending request so the test's own request becomes the head of the claimable queue.
+    ///      `EthenaAssetAdapter.redeem()` is strictly FIFO and requires the claimed shares to match
+    ///      the front request, so on a `latest` fork — where the live adapter can already hold real,
+    ///      in-flight sUSDe cooldown requests — claiming just the test's request would revert with
+    ///      "Adapter: invalid redeem amount". The adapter preserves the invariant
+    ///      `nextUnstakerIndex == totalRequests % MAX_UNSTAKERS`, so the next request lands on the free
+    ///      unstaker `unstakers[totalRequests % MAX_UNSTAKERS]` at request index `totalRequests` — which
+    ///      is exactly where the cursor is moved to here.
+    function _isolateEthenaAdapterQueue() internal {
+        uint256 totalRequests = ethenaAssetAdapter.totalRequests();
+        // nextPendingIndex is internal, so it is written by storage slot. Verify the layout
+        // assumption (totalRequests at slot 45) first so a future reordering fails loudly instead of
+        // silently corrupting adapter state.
+        require(
+            uint256(vm.load(address(ethenaAssetAdapter), bytes32(ETHENA_ADAPTER_TOTAL_REQUESTS_SLOT))) == totalRequests,
+            "Ethena adapter storage layout changed; update queue slots"
+        );
+        vm.store(address(ethenaAssetAdapter), bytes32(ETHENA_ADAPTER_NEXT_PENDING_INDEX_SLOT), bytes32(totalRequests));
+    }
+
+    /// @dev Assert `expected` appears in the ARM's `getBaseAssets()` list. A membership check
+    ///      rather than exact array equality keeps the assertion robust to registration order and
+    ///      to additional base assets being registered by future deployments.
+    function _assertBaseAssetListed(address[] memory baseAssets, address expected, string memory label) internal pure {
+        bool found = false;
+        for (uint256 i = 0; i < baseAssets.length; ++i) {
+            if (baseAssets[i] == expected) {
+                found = true;
+                break;
+            }
+        }
+        assertTrue(found, label);
+    }
+
+    function test_collectFees_toFeeSplitter() external {
+        uint256 fees = ethenaARM.feesAccrued();
+        vm.skip(fees == 0);
+
+        // Top up so the collect can't hit InsufficientLiquidity.
+        IERC20 asset = IERC20(ethenaARM.liquidityAsset());
+        deal(
+            address(asset),
+            address(ethenaARM),
+            asset.balanceOf(address(ethenaARM)) + fees + ethenaARM.reservedWithdrawLiquidity()
+        );
+
+        uint256 splitterBefore = asset.balanceOf(Mainnet.FEE_SPLITTER);
+        ethenaARM.collectFees();
+
+        assertEq(asset.balanceOf(Mainnet.FEE_SPLITTER), splitterBefore + fees, "FeeSplitter received fees");
+        assertEq(ethenaARM.feesAccrued(), 0, "fees accrued reset");
+    }
+}

@@ -1,0 +1,118 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.36;
+
+import {AbstractSmokeTest} from "./AbstractSmokeTest.sol";
+
+import {MultiAssetARM} from "contracts/MultiAssetARM.sol";
+import {CapManager} from "contracts/CapManager.sol";
+import {Proxy} from "contracts/Proxy.sol";
+import {IERC20, IFeeSplitter} from "contracts/Interfaces.sol";
+import {Mainnet} from "contracts/utils/Addresses.sol";
+import {Abstract4626MarketWrapper} from "contracts/markets/Abstract4626MarketWrapper.sol";
+
+contract Fork_WETHARM_Smoke_Test is AbstractSmokeTest {
+    MultiAssetARM internal wethARM;
+    CapManager internal capManager;
+
+    function setUp() public override {
+        super.setUp();
+
+        wethARM = MultiAssetARM(payable(resolver.resolve("WETH_ARM")));
+        capManager = CapManager(resolver.resolve("WETH_ARM_CAP_MAN"));
+    }
+
+    function test_InitialConfig() external view {
+        assertEq(wethARM.name(), "WETH ARM", "name");
+        assertEq(wethARM.symbol(), "ARM-WETH", "symbol");
+        assertEq(wethARM.owner(), Mainnet.TIMELOCK, "owner");
+        assertEq(wethARM.operator(), Mainnet.ARM_TALOS_RELAYER, "operator");
+        assertEq(wethARM.feeCollector(), Mainnet.FEE_SPLITTER, "fee collector");
+        assertTrue(IFeeSplitter(Mainnet.FEE_SPLITTER).isSupported(wethARM.liquidityAsset()), "fee asset on FeeSplitter");
+        assertEq(wethARM.fee(), 2000, "performance fee");
+        assertEq(wethARM.liquidityAsset(), Mainnet.WETH, "liquidity asset");
+        assertEq(wethARM.claimDelay(), 10 minutes, "claim delay");
+
+        assertEq(capManager.arm(), address(wethARM), "cap manager arm");
+        assertEq(capManager.totalAssetsCap(), 250 ether, "total assets cap");
+        assertTrue(capManager.accountCapEnabled(), "account cap enabled");
+        assertEq(capManager.liquidityProviderCaps(Mainnet.TREASURY_LP), 245 ether, "liquidity provider cap");
+        assertEq(capManager.operator(), Mainnet.MULTISIG_2_OF_8, "cap manager operator");
+        assertEq(capManager.owner(), Mainnet.MULTISIG_2_OF_8, "cap manager owner");
+    }
+
+    function test_BaseAssetConfigs() external view {
+        address[] memory baseAssets = wethARM.getBaseAssets();
+        assertEq(baseAssets.length, 4, "base asset count");
+        assertEq(baseAssets[0], Mainnet.STETH, "stETH order");
+        assertEq(baseAssets[1], Mainnet.WSTETH, "wstETH order");
+        assertEq(baseAssets[2], Mainnet.EETH, "eETH order");
+        assertEq(baseAssets[3], Mainnet.WEETH, "weETH order");
+
+        _assertBaseAssetConfig(Mainnet.STETH, "WETH_ARM_STETH_ADAPTER", true);
+        _assertBaseAssetConfig(Mainnet.WSTETH, "WETH_ARM_WSTETH_ADAPTER", false);
+        _assertBaseAssetConfig(Mainnet.EETH, "WETH_ARM_EETH_ADAPTER", true);
+        _assertBaseAssetConfig(Mainnet.WEETH, "WETH_ARM_WEETH_ADAPTER", false);
+    }
+
+    function test_EtherFiAdapterUpgrades() external view {
+        Proxy eethAdapter = Proxy(payable(resolver.resolve("WETH_ARM_EETH_ADAPTER")));
+        Proxy weethAdapter = Proxy(payable(resolver.resolve("WETH_ARM_WEETH_ADAPTER")));
+
+        assertEq(eethAdapter.owner(), Mainnet.TIMELOCK, "eETH adapter owner");
+        assertEq(weethAdapter.owner(), Mainnet.TIMELOCK, "weETH adapter owner");
+        assertEq(
+            eethAdapter.implementation(), resolver.resolve("WETH_ARM_EETH_ADAPTER_IMPL"), "eETH adapter implementation"
+        );
+        assertEq(
+            weethAdapter.implementation(),
+            resolver.resolve("WETH_ARM_WEETH_ADAPTER_IMPL"),
+            "weETH adapter implementation"
+        );
+    }
+
+    function test_MorphoMarketConfig() external view {
+        Abstract4626MarketWrapper morphoMarket = Abstract4626MarketWrapper(resolver.resolve("MORPHO_MARKET_WETH_ARM"));
+        Abstract4626MarketWrapper lidoMarket = Abstract4626MarketWrapper(resolver.resolve("MORPHO_MARKET_LIDO"));
+        address etherFiActiveMarket = MultiAssetARM(payable(resolver.resolve("ETHER_FI_ARM"))).activeMarket();
+        Abstract4626MarketWrapper etherFiMarket = Abstract4626MarketWrapper(etherFiActiveMarket);
+
+        assertEq(morphoMarket.arm(), address(wethARM), "market arm");
+        assertEq(morphoMarket.asset(), Mainnet.WETH, "market asset");
+        assertEq(morphoMarket.market(), Mainnet.MORPHO_WETH_VAULT, "configured Morpho vault");
+        assertEq(morphoMarket.market(), lidoMarket.market(), "Lido Morpho vault");
+        assertEq(morphoMarket.market(), etherFiMarket.market(), "EtherFi Morpho vault");
+        assertEq(morphoMarket.owner(), Mainnet.TIMELOCK, "market owner");
+        assertEq(morphoMarket.harvester(), Mainnet.MULTISIG_2_OF_8, "market harvester");
+        assertEq(address(morphoMarket.merkleDistributor()), Mainnet.MERKLE_DISTRIBUTOR, "Merkle distributor");
+        assertTrue(wethARM.supportedMarkets(address(morphoMarket)), "market supported");
+        assertEq(wethARM.activeMarket(), address(morphoMarket), "active market");
+    }
+
+    function _assertBaseAssetConfig(address baseAsset, string memory adapterName, bool pegged) internal view {
+        (,,,,,, bool peggedToLiquidityAsset, uint8 baseAssetDecimals, address adapter) =
+            wethARM.baseAssetConfigs(baseAsset);
+
+        assertEq(peggedToLiquidityAsset, pegged, "pegged");
+        assertEq(baseAssetDecimals, 18, "base asset decimals");
+        assertEq(adapter, resolver.resolve(adapterName), "adapter");
+    }
+
+    function test_collectFees_toFeeSplitter() external {
+        uint256 fees = wethARM.feesAccrued();
+        vm.skip(fees == 0);
+
+        // Top up so the collect can't hit InsufficientLiquidity.
+        IERC20 asset = IERC20(wethARM.liquidityAsset());
+        deal(
+            address(asset),
+            address(wethARM),
+            asset.balanceOf(address(wethARM)) + fees + wethARM.reservedWithdrawLiquidity()
+        );
+
+        uint256 splitterBefore = asset.balanceOf(Mainnet.FEE_SPLITTER);
+        wethARM.collectFees();
+
+        assertEq(asset.balanceOf(Mainnet.FEE_SPLITTER), splitterBefore + fees, "FeeSplitter received fees");
+        assertEq(wethARM.feesAccrued(), 0, "fees accrued reset");
+    }
+}
