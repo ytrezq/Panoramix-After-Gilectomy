@@ -55,14 +55,12 @@
     {
      "prefix": "balancer__balancer-v2-monorepo",
      "url": "https://github.com/balancer/balancer-v2-monorepo",
-     "commit": "e91a2b643a49856f51a648d175667c1b48cf3377",
-     "files": 472
+     "commit": "e91a2b643a49856f51a648d175667c1b48cf3377"
     },
     {
      "prefix": "balancer__balancer-v2-monorepo/pvt/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "52715a217dc51d0de15877878ab8213f6cbbbab5",
-     "files": 47
+     "commit": "52715a217dc51d0de15877878ab8213f6cbbbab5"
     }
    ]
   },
@@ -154,8 +152,7 @@
     {
      "prefix": "balancer__balancer-v3-monorepo",
      "url": "https://github.com/balancer/balancer-v3-monorepo",
-     "commit": "2b9ce4b1b8ad49eafcad8d136f0872ea7c7d5d53",
-     "files": 633
+     "commit": "2b9ce4b1b8ad49eafcad8d136f0872ea7c7d5d53"
     }
    ]
   },
@@ -200,14 +197,12 @@
     {
      "prefix": "balancer__reclamm",
      "url": "https://github.com/balancer/reclamm",
-     "commit": "6a13f2c9bec048996a8908f498121b20ec4e6c78",
-     "files": 37
+     "commit": "6a13f2c9bec048996a8908f498121b20ec4e6c78"
     },
     {
      "prefix": "balancer__reclamm/lib/balancer-v3-monorepo",
      "url": "https://github.com/balancer/balancer-v3-monorepo",
-     "commit": "6a158e3dd732775a0b7f94edd1df10837d393ece",
-     "files": 596
+     "commit": "6a158e3dd732775a0b7f94edd1df10837d393ece"
     }
    ]
   }
