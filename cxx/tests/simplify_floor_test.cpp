@@ -9,6 +9,7 @@
 
 #include "algebra/compare.hpp"
 #include "algebra/facts.hpp"
+#include "algebra/ranges.hpp"
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "core/dump.hpp"
@@ -144,6 +145,38 @@ TEST_CASE("floor: a floor that says nothing isn't kept") {
     CHECK(S::floor_transfer(alg::Facts{}, V("(setmem (range 64 32) (sized 32 128))")).floor_of(64) ==
           Value::small(128));
     CHECK(alg::Facts{}.with_floor(V("tmp1"), Value::small(32)).floor_of(V("tmp1")) == Value::small(32));
+}
+
+TEST_CASE("floor: what holds whatever the words are is decided before the floors") {
+    Fixture fx;
+    // tmp1 is 100 wherever it's read (a variable the ranges know); its floor
+    // 50 reads it as 50 + d, d unbounded: tmp1 + 32 <= 200 holds, and
+    // holds with the floor too
+    const std::pair<Value, Value> pairs[] = {{V("tmp1"), Value::small(100)}};
+    alg::set_variables(pairs, {});
+    const alg::Facts f = alg::Facts{}.with_floor(V("tmp1"), Value::small(50));
+    CHECK(mem::overlaps(V("(range tmp1 32)"), V("(range 200 32)"), &f) == Tri::False);
+    alg::clear_variables();
+}
+
+TEST_CASE("floor: a pass makes no floor of a word its trace never reads nor gives a value") {
+    Fixture fx;
+    {
+        // the word at 0 given a constant (a selector) and never read; the
+        // word at 64 read; the word at 288 given a value that isn't a
+        // constant (a variable set to it would get its floor)
+        const S::FloorScope scope(
+            V("{(setmem (range 0 32) (sized 32 7)) (setmem (range 288 32) (sized 32 (add 64 (calldataload 4)))) "
+              "(return (mem (range 64 32)))}"));
+        CHECK(S::floor_transfer(alg::Facts{}, V("(setmem (range 0 32) (sized 32 7))")).floor_of(0).nil());
+        CHECK(S::floor_transfer(alg::Facts{}, V("(setmem (range 64 32) (sized 32 128))")).floor_of(64) ==
+              Value::small(128));
+        CHECK(!S::floor_transfer(alg::Facts{}, V("(setmem (range 288 32) (sized 32 (add 64 (calldataload 4))))"))
+                   .floor_of(288)
+                   .nil());
+    }
+    // outside a pass: every word's
+    CHECK(S::floor_transfer(alg::Facts{}, V("(setmem (range 0 32) (sized 32 7))")).floor_of(0) == Value::small(7));
 }
 
 TEST_CASE("floor: joins and loops") {

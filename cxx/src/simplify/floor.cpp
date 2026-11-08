@@ -60,6 +60,66 @@ std::optional<u64> word_at(Value range) {
     return std::nullopt;
 }
 
+// ---- the words whose floors may decide something (FloorScope) -----------------------------
+
+struct FloorScopes final : ModuleState {
+    struct Scope {
+        std::vector<u64> words;  // sorted
+        u64 id = 0;              // a hash of them (not 0)
+    };
+    std::vector<Scope> stack;
+    // (plain addresses: nothing to move when the context compacts)
+    bool compact_prepare(Importer&) override { return true; }
+};
+
+// a floor of the word at a may be made (outside a scope: every word's)
+bool floor_word(u64 a) {
+    const FloorScopes& s = cx().state<FloorScopes>();
+    if (s.stack.empty()) return true;
+    const std::vector<u64>& w = s.stack.back().words;
+    return std::binary_search(w.begin(), w.end(), a);
+}
+
+// the scope's identity (0: none) - the memos of what depends on it
+u64 scope_id() {
+    const FloorScopes& s = cx().state<FloorScopes>();
+    return s.stack.empty() ? 0 : s.stack.back().id;
+}
+
+// The words at constant addresses a trace reads (MEM(RANGE(A, 32)) anywhere
+// in it). floored() reads a word's floor only where an expression reads the
+// word, and every expression a walk decides about is made of the trace's
+// (a floor of the values written there): a word the trace never reads -
+// a selector, revert data, an encoding's head written at constant places,
+// read as bytes if at all - has no floor that decides anything.
+Value written_word(Value v);
+
+void scope_of(Value trace, FloorScopes::Scope& out) {
+    MemoSet<Value> seen;
+    MemoSet<u64> words;  // (A + 1: 0 marks an empty slot)
+    std::vector<std::pair<u64, Value>> written;  // (A, a value written to the word at A)
+    auto walk = [&](auto& self, Value v) -> void {
+        if (!(v.is_expr() || v.is_list()) || !seen.add(v)) return;
+        check_stack();
+        if (v.is(Op::MEM, 1))
+            if (auto a = word_at(v[0]); a && words.add(*a + 1)) out.words.push_back(*a);
+        if (v.is(Op::SETMEM, 2))
+            if (auto a = word_at(v[0])) written.emplace_back(*a, written_word(v[1]));
+        for (Value x : v.args()) self(self, x);
+    };
+    walk(walk, trace);
+    // (and the words given a value that isn't a constant: a variable set to
+    // a word's floor gets it - var_floor -, whether the trace reads the word
+    // or not; a constant - a selector, a length, a string's bytes - says
+    // nothing a variable set to it doesn't)
+    for (const auto& [a, x] : written)
+        if (!x.nil() && !x.is_int() && words.add(a + 1)) out.words.push_back(a);
+    std::sort(out.words.begin(), out.words.end());
+    u64 h = 0x9e3779b97f4a7c15ull;
+    for (u64 w : out.words) h = map_hash(h ^ (w * 0xff51afd7ed558ccdull));
+    out.id = h | 1;
+}
+
 // v reads the node n (hash-consed: one node per value)
 bool contains(Value v, Value n) {
     if (v == n) return true;
@@ -487,7 +547,8 @@ alg::Facts floor_transfer(const alg::Facts& facts, Value line) {
                 r = r.with_floor(f.key, weaker(f.floor, others, s.mem_writes, s.writes_any & S_MEM, facts));
             }
         }
-        if (auto a = word_at(range)) {
+        // (a word the trace never reads: no floor of it decides anything)
+        if (auto a = word_at(range); a && floor_word(*a)) {
             Value nf = new_floor(*a, written_word(line[1]), facts.floor_of(*a));
             r = r.with_floor(*a, nf);
         }
@@ -738,7 +799,7 @@ struct LoopFloors {
 
 // (the floors are all a loop's floors depend on: the memo is keyed by them)
 struct LoopFloorsState final : ModuleState {
-    Memo<Key3, u32> index;  // (loop, floors, paths) -> 1 + its position
+    Memo<Key3, u32> index;  // (loop, floors, paths and scope) -> 1 + its position
     std::deque<LoopFloors> all;
     void clear_caches() override { index.clear(); }
 };
@@ -761,7 +822,7 @@ struct LoopFloorsState final : ModuleState {
 // again), so they hold at every CONTINUE and BREAK, the next head.
 const LoopFloors& loop_floors_of(const alg::Facts& facts, Value loop_line, bool cont) {
     LoopFloorsState& st = cx().state<LoopFloorsState>();
-    const Key3 key{loop_line.raw(), floors_key(facts).raw(), u64(cont)};
+    const Key3 key{loop_line.raw(), floors_key(facts).raw(), u64(cont) | (scope_id() << 1)};
     if (const u32* k = st.index.find(key)) return st.all[*k - 1];
     const loops::LoopSummary& ls = loops::summary(loop_line);
     const EffectSummary& e = cont ? ls.cont_effects : ls.effects;
@@ -995,7 +1056,7 @@ namespace {
 // floors): a walk that meets the same IF again (the copy conversion's, at
 // every level of a nest, at every round) doesn't walk it again
 struct FloorWalkState final : ModuleState {
-    Memo<Key2, u32> index;  // (IF, floors) -> 1 + its position
+    Memo<Key3, u32> index;  // (IF, floors, scope) -> 1 + its position
     std::deque<alg::Facts> after;
     void clear_caches() override { index.clear(); }
 };
@@ -1023,7 +1084,7 @@ alg::Facts floor_walk(const alg::Facts& facts, Value v) {
             // hold where the IF starts, not past a line of a branch that
             // may change what they read - nothing here forgets them)
             const alg::Facts base = floors_from(alg::Facts{}, facts);
-            const Key2 key{v.raw(), floors_key(base).raw()};
+            const Key3 key{v.raw(), floors_key(base).raw(), scope_id()};
             {
                 FloorWalkState& st = cx().state<FloorWalkState>();
                 if (const u32* k = st.index.find(key)) return floors_from(facts, st.after[*k - 1]);
@@ -1047,6 +1108,18 @@ alg::Facts floor_walk(const alg::Facts& facts, Value v) {
         default:
             return floor_transfer(facts, v);
     }
+}
+
+FloorScope::FloorScope(Value trace) {
+    FloorScopes::Scope sc;
+    if (trace.is_list()) scope_of(trace, sc);
+
+    cx().state<FloorScopes>().stack.push_back(std::move(sc));
+}
+
+FloorScope::~FloorScope() {
+    FloorScopes& s = cx().state<FloorScopes>();
+    if (!s.stack.empty()) s.stack.pop_back();
 }
 
 }  // namespace pan::simplify

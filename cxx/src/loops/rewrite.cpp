@@ -535,6 +535,7 @@ Value loops_to_setmems(Value trace, const RewriteOptions& opts) {
     const bool msize = trace.has_flags(F_MSIZE) || (all.reads & simplify::S_MSIZE) ||
                        (all.control & (simplify::C_LEAVES | simplify::C_CALLS_OUT));
     SetmemWalk walk(opts, unread, !msize);
+    const simplify::FloorScope scope(trace);
     return walk.trace(trace, alg::Facts{});
 }
 

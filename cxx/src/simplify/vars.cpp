@@ -535,6 +535,7 @@ private:
 
 Value cleanup_vars(Value trace) {
     if (!trace.is_list()) return trace;
+    const FloorScope scope(trace);
     Env env(cx().budget.resource());
     Forward fw(cx().budget.resource());
     // (the floors from the lines before the trace: the dispatcher's)

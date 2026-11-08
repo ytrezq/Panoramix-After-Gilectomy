@@ -686,6 +686,7 @@ private:
 
 Value cleanup_mems(Value trace) {
     if (!trace.is_list()) return trace;
+    const FloorScope scope(trace);
     const bool msize = run_flags().msize;
     // (where msize is read, a read of memory nothing wrote touches it: not
     // zeroes)

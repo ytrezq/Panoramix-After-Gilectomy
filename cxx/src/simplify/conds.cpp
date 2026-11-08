@@ -265,6 +265,7 @@ private:
 };
 
 Value conds_trace(Value trace) {
+    const FloorScope scope(trace);
     // (the floors from the lines before the trace: the dispatcher's)
     Conds c(run_flags().entry_lines.is_list() ? floor_walk(alg::Facts{}, run_flags().entry_lines) : alg::Facts{});
     return c.trace(trace);

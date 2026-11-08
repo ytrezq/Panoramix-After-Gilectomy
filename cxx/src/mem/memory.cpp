@@ -72,35 +72,50 @@ inline void floors_applied(Value& a, Value& b, const Facts*& f) {
     }
 }
 
-Tri pos_le(Value a, Value b, const Facts* f) {
-    floors_applied(a, b, f);
+// without facts, memoized
+Tri pos_le_free(Value a, Value b) {
     if (a == b) return Tri::True;
     if (auto x = nat(a))
         if (auto y = nat(b)) return tri(*x <= *y);
-    if (!f && !a.nil()) {
-        PosMemo& m = cx().state<PosMemo>();
-        if (const Tri* t = m.le.find(key2(a, b))) return *t;
-        Tri t = alg::le(a, b, Top::Memory, nullptr);
-        t = t == Tri::Cannot ? Tri::None : t;
-        m.le.put(key2(a, b), t);
-        return t;
-    }
+    if (a.nil()) return Tri::None;
+    PosMemo& m = cx().state<PosMemo>();
+    if (const Tri* t = m.le.find(key2(a, b))) return *t;
+    Tri t = alg::le(a, b, Top::Memory, nullptr);
+    t = t == Tri::Cannot ? Tri::None : t;
+    m.le.put(key2(a, b), t);
+    return t;
+}
+Tri pos_lt_free(Value a, Value b) {
+    if (a == b) return Tri::False;
+    if (auto x = nat(a))
+        if (auto y = nat(b)) return tri(*x < *y);
+    if (a.nil()) return Tri::None;
+    PosMemo& m = cx().state<PosMemo>();
+    if (const Tri* t = m.lt.find(key2(a, b))) return *t;
+    Tri t = alg::lt(a, b, Top::Memory, nullptr);
+    t = t == Tri::Cannot ? Tri::None : t;
+    m.lt.put(key2(a, b), t);
+    return t;
+}
+
+// (with floors: what holds whatever the words are is decided without them
+// first - the same pairs come back at every walk, memoized -, the floors read
+// only where that leaves it open: what holds without facts holds with them)
+Tri pos_le(Value a, Value b, const Facts* f) {
+    if (f && f->any_floor())
+        if (const Tri t = pos_le_free(a, b); t != Tri::None) return t;
+    floors_applied(a, b, f);
+    if (!f) return pos_le_free(a, b);
+    if (a == b) return Tri::True;
     Tri t = alg::le(a, b, Top::Memory, f);
     return t == Tri::Cannot ? Tri::None : t;
 }
 Tri pos_lt(Value a, Value b, const Facts* f) {
+    if (f && f->any_floor())
+        if (const Tri t = pos_lt_free(a, b); t != Tri::None) return t;
     floors_applied(a, b, f);
+    if (!f) return pos_lt_free(a, b);
     if (a == b) return Tri::False;
-    if (auto x = nat(a))
-        if (auto y = nat(b)) return tri(*x < *y);
-    if (!f && !a.nil()) {
-        PosMemo& m = cx().state<PosMemo>();
-        if (const Tri* t = m.lt.find(key2(a, b))) return *t;
-        Tri t = alg::lt(a, b, Top::Memory, nullptr);
-        t = t == Tri::Cannot ? Tri::None : t;
-        m.lt.put(key2(a, b), t);
-        return t;
-    }
     Tri t = alg::lt(a, b, Top::Memory, f);
     return t == Tri::Cannot ? Tri::None : t;
 }

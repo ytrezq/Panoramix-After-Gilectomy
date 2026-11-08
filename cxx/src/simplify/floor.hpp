@@ -71,4 +71,18 @@ alg::Facts floor_walk(const alg::Facts& facts, Value v);
 // base with its floors replaced by those of src
 alg::Facts floors_from(const alg::Facts& base, const alg::Facts& src);
 
+// The words whose floors may decide something in a pass over `trace` (a
+// function's): floored() reads a word's floor only where an expression
+// reads the word, and the walks decide about the trace's expressions (and
+// floors made of them) - so while the scope lives, floors are made only for
+// the words the trace reads at a constant address (fewer facts: as sound).
+// Outside every scope (the tests), every word's.
+class FloorScope {
+public:
+    explicit FloorScope(Value trace);
+    ~FloorScope();
+    FloorScope(const FloorScope&) = delete;
+    FloorScope& operator=(const FloorScope&) = delete;
+};
+
 }  // namespace pan::simplify
