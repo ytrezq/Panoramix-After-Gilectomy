@@ -1,0 +1,37 @@
+[profile.default]
+src = 'src'
+out = 'out'
+libs = ['node_modules', 'lib']
+auto_detect_remappings = false
+test = 'test'
+cache_path  = 'cache_forge'
+solc_version = '0.8.16'
+optimizer_runs = 20000
+script = 'scripts'
+
+auto_detect_solc = false
+evm_version = "osaka"
+optimizer = true
+via_ir = false
+bytecode_hash = "none"
+cbor_metadata = false
+libraries = []
+
+[lint]
+lint_on_build = false
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+multiline_func_header = "attributes_first"
+quote_style = "double"
+number_underscore = "preserve"
+hex_underscore = "remove"
+single_line_statement_blocks = "preserve"
+override_spacing = false
+wrap_comments = false
+ignore = []
+contract_new_lines = false
+sort_imports = false
