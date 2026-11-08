@@ -153,6 +153,15 @@ public:
     virtual CreateResult create(CreateKind kind, const Word256& value, std::span<const u8> init_code,
                                 const Word256& salt) = 0;
     virtual void selfdestruct(const Word256& beneficiary) = 0;
+    // The words of the n slots from base on (mod 2^256), when the host has
+    // them at hand: what n sloads of them would answer, none failing - else
+    // nullptr, and the machine reads them one by one. (A bytes getter's
+    // copies, thousands of words: lot 9's storage worlds.)
+    virtual const Word256* sload_run(const Word256& base, u64 n) {
+        (void)base;
+        (void)n;
+        return nullptr;
+    }
 
 protected:
     ~Host() = default;

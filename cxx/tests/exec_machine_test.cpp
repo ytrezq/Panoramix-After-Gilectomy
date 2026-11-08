@@ -804,6 +804,110 @@ TEST_CASE("exec: limits on byte strings") {
     CHECK(run_trace("{(return (data (mask_shl 1 0 0 1)))}").status == Status::Unsupported);
 }
 
+// A world whose storage words from `base` on are an array (lot 9's getter
+// worlds): sload_run hands the machine those words; the same world without
+// it, read one by one (a SimpleHost of the same storage), must give the same
+// outcome - the bytes, the limits' exceptions at the same word.
+struct RunHost final : SimpleHost {
+    Word256 base{};
+    std::vector<Word256> words;
+    Word256 sload(const Word256& s) override {
+        if (const auto i = pan::sub(s, base).as_u64(); i && *i < words.size()) return words[*i];
+        return SimpleHost::sload(s);
+    }
+    const Word256* sload_run(const Word256& b, u64 n) override {
+        const auto d = pan::sub(b, base).as_u64();
+        if (!d || *d > words.size() || n > words.size() - *d) return nullptr;
+        ++runs;
+        return words.data() + *d;
+    }
+    u64 runs = 0;
+};
+
+TEST_CASE("exec: a host's run of storage words copied at once, as one by one") {
+    Fixture fx;
+    // a long bytes at slot 5 (sbytes: its words from keccak(5)), 13,001 bytes
+    // (407 words: past two polls' chunks, the last word cut); the words of
+    // slots 1000.. (storage_range)
+    const u64 len = 13001, nwords = (len + 31) / 32;
+    const Word256 kbase = keccak256(word_bytes(W(5)));
+    auto word = [](u64 i) {
+        Word256 x;
+        for (int k = 0; k < 4; ++k) x.limb[k] = (i + 1) * 0x9e3779b97f4a7c15ull ^ u64(k) * 0x0101010101010101ull;
+        return x;
+    };
+    // the words from `at` held as a run (RunHost) or in the map (SimpleHost)
+    auto make = [&](SimpleHost& h, RunHost* r, const Word256& at, u64 n) {
+        h.storage[W(5)] = W(2 * len + 1);
+        if (r) {
+            r->base = at;
+            for (u64 i = 0; i < n; ++i) r->words.push_back(word(i));
+        } else {
+            for (u64 i = 0; i < n; ++i) h.storage[pan::add(at, W(i))] = word(i);
+        }
+    };
+    struct Case {
+        const char* trace;
+        bool range;  // the words of slots 1000.. (else keccak(5)..)
+        usize bytes_max, work_max;
+    };
+    const usize B = limits::RT_BYTES_MAX, K = limits::RT_WORK_MAX;
+    const Case cases[] = {
+        {"{(return (sbytes 5))}", false, B, K},
+        {"{(return (data (arr (storage 256 0 (length 5)) (sbytes 5))))}", false, B, K},
+        {"{(setmem (range 64 (mul 32 300)) (storage_range 1000 300)) (return (mem (range 64 (mul 32 300))))}", true, B,
+         K},
+        // the byte string's length past its limit at its last word, at a word
+        // of the first chunk, of the second; exactly at it
+        {"{(return (data (sized 32 1) (sbytes 5)))}", false, 13020, K},
+        {"{(return (data (sized 9000 0) (sbytes 5)))}", false, 13020, K},
+        {"{(return (data (sized 1000 0) (sbytes 5)))}", false, 13020, K},
+        {"{(return (data (sized 19 1) (sbytes 5)))}", false, 13020, K},
+        // the work past its limit (the second string, at a word)
+        {"{(return (data (sbytes 5) (sbytes 5)))}", false, B, 20000},
+        {"{(return (sbytes 5))}", false, B, 10000},
+        {"{(setmem (range 64 (mul 32 300)) (storage_range 1000 300)) (return (mem (range 64 (mul 32 300))))}", true, B,
+         5000},
+    };
+    for (const Case& c : cases) {
+        MachineLimits l;
+        l.bytes_max = c.bytes_max;
+        l.work_max = c.work_max;
+        SimpleHost one;
+        RunHost all;
+        const Word256 at = c.range ? W(1000) : kbase;
+        const u64 n = c.range ? 300 : nwords;
+        make(one, nullptr, at, n);
+        make(all, &all, at, n);
+        const Outcome a = run_trace(c.trace, one, {}, l), b = run_trace(c.trace, all, {}, l);
+        INFO(c.trace, " ", c.bytes_max, " ", c.work_max, ": ", a.note, " / ", b.note);
+        CHECK(all.runs > 0);
+        CHECK(a.status == b.status);
+        CHECK(a.note == b.note);
+        CHECK(a.data == b.data);
+    }
+    // the bytes are the words, the last one cut
+    {
+        RunHost all;
+        make(all, &all, kbase, nwords);
+        const Outcome o = run_trace("{(return (sbytes 5))}", all);
+        REQUIRE(o.status == Status::Return);
+        REQUIRE(o.data.size() == len);
+        for (u64 i = 0; i < nwords; ++i) {
+            const Bytes w = word_bytes(word(i));
+            const u64 k = std::min<u64>(32, len - 32 * i);
+            CHECK(std::equal(w.begin(), w.begin() + isize(k), o.data.begin() + isize(32 * i)));
+        }
+    }
+    // a run past the host's words: read one by one (sload_run says nothing)
+    RunHost part;
+    make(part, &part, kbase, 100);
+    const Outcome o = run_trace("{(return (sbytes 5))}", part);
+    CHECK(o.status == Status::Return);
+    CHECK(o.data.size() == len);
+    CHECK(part.runs == 0);
+}
+
 // python runtrace's case (tests/test_runtrace.py): solc's getter of a bytes
 // of the storage, and storage.bytes_tail's `return Array(len=b.length,
 // data=b[all])` - the same bytes for short and long contents (lot 9's check)

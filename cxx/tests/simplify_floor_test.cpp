@@ -179,6 +179,59 @@ TEST_CASE("floor: a pass makes no floor of a word its trace never reads nor give
     CHECK(S::floor_transfer(alg::Facts{}, V("(setmem (range 0 32) (sized 32 7))")).floor_of(0) == Value::small(7));
 }
 
+TEST_CASE("floor: the transfer's results, remembered per line, facts and scope, go with the scope and the variables") {
+    Fixture fx;
+    const Value line = V("(setmem (range 0 32) (sized 32 7))");
+    // passes in turn whose traces read the word at 0 or don't: each its own
+    // floors (a scope's id names its words exactly)
+    const char* misses = "{(setmem (range 0 32) (sized 32 7)) (return (mem (range 64 32)))}";
+    const char* reads = "{(return (mem (range 0 32)))}";
+    for (int round = 0; round < 2; ++round) {
+        {
+            const S::FloorScope scope(V(misses));
+            CHECK(S::floor_transfer(alg::Facts{}, line).floor_of(0).nil());
+        }
+        {
+            const S::FloorScope scope(V(reads));
+            CHECK(S::floor_transfer(alg::Facts{}, line).floor_of(0) == Value::small(7));
+        }
+        CHECK(S::floor_transfer(alg::Facts{}, line).floor_of(0) == Value::small(7));
+    }
+    // a write at tmp1, over the word or not as the variables say
+    const alg::Facts f = S::floor_transfer(alg::Facts{}, V("(setmem (range 64 32) (sized 32 128))"));
+    const Value w = V("(setmem (range tmp1 32) 7)");
+    const std::pair<Value, Value> far[] = {{V("tmp1"), Value::small(200)}}, over[] = {{V("tmp1"), Value::small(80)}};
+    alg::set_variables(far, {});
+    CHECK(S::floor_transfer(f, w).floor_of(64) == Value::small(128));
+    alg::set_variables(over, {});
+    CHECK(S::floor_transfer(f, w).floor_of(64).nil());
+    alg::set_variables(far, {});
+    CHECK(S::floor_transfer(f, w).floor_of(64) == Value::small(128));
+    alg::clear_variables();
+    CHECK(S::floor_transfer(f, w).floor_of(64).nil());
+}
+
+TEST_CASE("floor: the conditions a line keeps, remembered per line and facts, go with the variables") {
+    Fixture fx;
+    // a condition reading mem[128..160), a write at tmp1: kept where the
+    // write misses it
+    const alg::Facts c = alg::Facts{}.with_cond(V("(lt (mem (range 128 32)) 5)")).with_floor(64, Value::small(128));
+    const Value w = V("(setmem (range tmp1 32) 7)");
+    const std::pair<Value, Value> far[] = {{V("tmp1"), Value::small(200)}}, over[] = {{V("tmp1"), Value::small(140)}};
+    alg::set_variables(far, {});
+    CHECK(S::kept_conditions(c, w) == c);
+    alg::set_variables(over, {});
+    CHECK(S::kept_conditions(c, w) == alg::Facts{}.with_floor(64, Value::small(128)));
+    alg::set_variables(far, {});
+    CHECK(S::kept_conditions(c, w) == c);
+    alg::clear_variables();
+    CHECK(S::kept_conditions(c, w) == alg::Facts{}.with_floor(64, Value::small(128)));
+    // a line that writes nothing: all of them; one that writes what they
+    // don't read: all of them too
+    CHECK(S::kept_conditions(c, V("(return 1)")) == c);
+    CHECK(S::kept_conditions(c, V("(store 256 0 3 7)")) == c);
+}
+
 TEST_CASE("floor: joins and loops") {
     Fixture fx;
     const alg::Facts before = S::floor_transfer(alg::Facts{}, V("(setmem (range 64 32) (add 100 tmp1))"));

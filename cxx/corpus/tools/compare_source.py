@@ -76,20 +76,27 @@ def keccak256(data):
     return b''.join(a[i % 5][i // 5].to_bytes(8, 'little') for i in range(4))
 
 
-def canonical(inp):
+def canonical(inp, library=False):
+    """an ABI input's type as the selector's signature has it: a struct as the
+    tuple of its members - in a library, by its qualified name (solidity's
+    library signatures: a library's ABI has its contracts' and enums' names
+    already, its structs as tuples)"""
     t = inp['type']
     if t.startswith('tuple'):
-        return '(' + ','.join(canonical(c) for c in inp.get('components', [])) + ')' + t[len('tuple'):]
+        it = inp.get('internalType') or ''
+        if library and it.startswith('struct '):
+            return it[len('struct '):]
+        return '(' + ','.join(canonical(c, library) for c in inp.get('components', [])) + ')' + t[len('tuple'):]
     return t
 
 
-def abi_functions(abi):
+def abi_functions(abi, library=False):
     """{selector: {'sig', 'types', 'payable', 'mutability'}} of an ABI"""
     out = {}
     for e in abi or []:
         if e.get('type', 'function') != 'function' or 'name' not in e:
             continue
-        types = [canonical(i) for i in e.get('inputs', [])]
+        types = [canonical(i, library) for i in e.get('inputs', [])]
         sig = '%s(%s)' % (e['name'], ','.join(types))
         sel = '0x' + keccak256(sig.encode()).hex()[:8]
         mut = e.get('stateMutability') or ('payable' if e.get('payable') else 'view' if e.get('constant') else
@@ -415,7 +422,7 @@ def parse_text_check(out):
         if m:
             c, s, d, u, e, i = map(int, m.groups())
             r[world] = {'calls': c, 'same': s, 'different': d, 'unsupported': u, 'exhausted': e, 'inconclusive': i}
-        m = re.search(world + r' world: \d+ contracts \((\d+) with unparsed lines', out)
+        m = re.search(world + r' world:\s+\d+ contracts \((\d+) with unparsed lines', out)
         if m:
             r.setdefault(world, {})['unparsed'] = int(m.group(1))
     return r or {'error': out.strip()[-200:]}
@@ -461,15 +468,23 @@ def one(args, row, ast_cache):
             blind = None
     res['lang'] = dec.get('lang')
     res['problems'] = len(dec.get('problems') or [])
-    res['interface'] = compare_interface(abi_functions(meta.get('abi')), dec, blind)
+    astdir = os.path.normpath(os.path.join(os.path.dirname(base), meta['ast'])) if meta.get('ast') else None
+    vyper = str(meta.get('compiler', '')).startswith('vyper')
+    library = False
+    if not vyper and astdir and os.path.isdir(astdir):
+        if astdir not in ast_cache:
+            ast_cache.clear()  # (one build's ASTs at a time: they're large)
+            ast_cache[astdir] = Ast(astdir)
+        c = ast_cache[astdir].contract(meta['source'], meta['contract'])
+        library = bool(c) and c.get('contractKind') == 'library'
+    res['interface'] = compare_interface(abi_functions(meta.get('abi'), library), dec, blind)
     if meta.get('storageLayout'):
         res['storage'] = compare_storage(meta['storageLayout'], dec.get('stor_defs'))
     # size: per function found on both sides
     texts = {f.get('hash'): ANSI.sub('', f.get('print', '')) for f in dec.get('functions', [])}
-    astdir = os.path.normpath(os.path.join(os.path.dirname(base), meta['ast'])) if meta.get('ast') else None
     sizes = []
     vy_ast = os.path.join(astdir, meta['source'].replace('/', '__') + '.json') if astdir else None
-    if str(meta.get('compiler', '')).startswith('vyper') and vy_ast and os.path.exists(vy_ast):
+    if vyper and vy_ast and os.path.exists(vy_ast):
         try:
             ast = VyperAst(vy_ast)
         except Exception:
@@ -491,7 +506,7 @@ def one(args, row, ast_cache):
         ast = ast_cache[astdir]
         c = ast.contract(meta['source'], meta['contract'])
         if c:
-            abi_fns = abi_functions(meta.get('abi'))
+            abi_fns = abi_functions(meta.get('abi'), library)
             by_name = {}
             for sel, a in abi_fns.items():
                 by_name.setdefault((a['name'], len(a['types'])), sel)
@@ -562,6 +577,17 @@ def pct(a, b):
     return '%.1f%%' % (100.0 * a / b) if b else '-'
 
 
+def unparsed(r):
+    """the text's lines not parsed (both worlds parse the same text)"""
+    tc = r.get('text_check') or {}
+    return max(((tc.get(w) or {}).get('unparsed') or 0) for w in ('empty', 'random'))
+
+
+def text_different(r):
+    tc = r.get('text_check') or {}
+    return any(((tc.get(w) or {}).get('different') or 0) for w in ('empty', 'random'))
+
+
 def summary(results, stab, path):
     ok = [r for r in results if 'error' not in r]
     tot = collections.Counter()
@@ -582,8 +608,10 @@ def summary(results, stab, path):
         tot['sc_errors'] += 'error' in sc
         for w in ('empty', 'random'):
             t = (r.get('text_check') or {}).get(w) or {}
-            for k in ('calls', 'same', 'different', 'unsupported', 'inconclusive', 'unparsed'):
-                tot['tc_%s_%s' % (w, k)] += t.get(k, 0)
+            for k in ('calls', 'same', 'different', 'unsupported', 'inconclusive'):
+                tot['tc_%s_%s' % (w, k)] += t.get(k) or 0
+        tot['tc_unparsed'] += unparsed(r) > 0
+        tot['tc_contracts_diff'] += text_different(r)
     L = ['# Decompiled code against the sources', '',
          '%d artifacts, %d decompiled, %d failed.' % (len(results), len(ok), len(results) - len(ok)), '',
          '## Interface', '',
@@ -612,7 +640,8 @@ def summary(results, stab, path):
          '| text_check, random world (calls) | %d | %d | %d (+ %d unsupported) |' % (
              tot['tc_random_same'], tot['tc_random_different'], tot['tc_random_inconclusive'],
              tot['tc_random_unsupported']),
-         '', 'Texts with lines not parsed: %d (empty world).' % tot['tc_empty_unparsed'],
+         '', 'Texts with a call different: %d. Texts with lines not parsed: %d.' % (
+             tot['tc_contracts_diff'], tot['tc_unparsed']),
          '', '## Size (functions matched on both sides: %d)' % tot['z_functions'], '',
          '| | source | decompiled |', '|---|---|---|',
          '| statements / lines | %d | %d (x%.2f) |' % (tot['z_src_statements'], tot['z_dec_lines'],
@@ -627,14 +656,20 @@ def summary(results, stab, path):
     for k, s in sorted(stab.items()):
         L.append('| %s | %d | %d | %s | %s |' % (k, s['pairs'], s['functions'], pct(s['identical'], s['functions']),
                                                 pct(s['changed'], s['lines'])))
-    by_build = collections.defaultdict(lambda: [0, 0])
+    by_build = collections.defaultdict(lambda: [0, 0, 0])
     for r in ok:
-        k = '%s %s%s' % (r['compiler'], r['evm'], '' if r.get('optimizer', True) else ' noopt')
+        k = (r['compiler'], r['evm'], ('' if r.get('optimizer', True) else ' noopt') + (' via-IR' if r.get('via_ir') else ''))
+        sc = r.get('stagecheck') or {}
         by_build[k][0] += 1
-        by_build[k][1] += bool((r.get('stagecheck') or {}).get('different'))
-    L += ['', '## Builds', '', '| compiler, EVM | artifacts | with a difference |', '|---|---|---|']
-    for k, (n, d) in sorted(by_build.items()):
-        L.append('| %s | %d | %d |' % (k, n, d))
+        by_build[k][1] += bool(sc.get('different') or sc.get('bugs') or text_different(r))
+        by_build[k][2] += unparsed(r) > 0
+    L += ['', '## Builds', '', '(an artifact with a difference: a call different in stagecheck or text_check)', '',
+          '| compiler, EVM | artifacts | with a difference | with lines not parsed |', '|---|---|---|---|']
+    order = lambda k: ([int(x) if x.isdigit() else x for x in re.split(r'(\d+)', k[0])], EVM_ORDER.index(k[1])
+                       if k[1] in EVM_ORDER else len(EVM_ORDER), k[2])
+    for k in sorted(by_build, key=order):
+        n, d, u = by_build[k]
+        L.append('| %s %s%s | %d | %d | %d |' % (k + (n, d, u)))
     fails = [r for r in results if 'error' in r][:30]
     if fails:
         L += ['', '## Failures', ''] + ['- %s: %s' % (r['artifact'], r['error']) for r in fails]

@@ -117,7 +117,30 @@ u32 max_value_bits(Value v, const Facts* facts) { return range_bits(v, Top::Word
 
 // ---- the list -------------------------------------------------------------------
 
+namespace {
+
+// The cells made on a context, by (the list they're put on, the fact's a):
+// the newest such cell, the others chained by Cell::alt - an index of the
+// cells, not a cache: kept until the context compacts (the arena's cells go
+// with it, the state with them).
+struct FactsIntern final : ModuleState {
+    Memo<Key2, const void*> cells;
+};
+
+}  // namespace
+
 const Facts::Cell* Facts::cons(const Fact& f, const Cell* next, const Cell* same) {
+    // (a cell rebuilt where it was - a rewrite's unchanged older part - is
+    // itself: the one cell of its fact on its list)
+    if (same && same->next == next && same->f == f) return same;
+    // (a list's first cell has next == nullptr: + 1 keeps the key's first
+    // word from 0, the empty slot's)
+    const Key2 key{u64(reinterpret_cast<uintptr_t>(next)) + 1, f.a.raw()};
+    {
+        const void* const* head = cx().state<FactsIntern>().cells.find(key);
+        for (const Cell* c = head ? static_cast<const Cell*>(*head) : nullptr; c; c = c->alt)
+            if (c->f == f) return c;
+    }
     const CondBound* b = nullptr;
     u32 nb = 0;
     if (same && same->f.kind == f.kind && same->f.a == f.a && same->f.b == f.b) {
@@ -139,8 +162,12 @@ const Facts::Cell* Facts::cons(const Fact& f, const Cell* next, const Cell* same
             nb = u32(cb.size());
         }
     }
+    // (looked up again: the bounds' computation may have made cells)
+    const void*& head = cx().state<FactsIntern>().cells.slot(key);
     void* p = cx().arena.alloc_raw(sizeof(Cell));
-    return new (p) Cell{next, f, b, nb};
+    const Cell* c = new (p) Cell{next, f, b, nb, static_cast<const Cell*>(head)};
+    head = c;
+    return c;
 }
 
 Facts Facts::with(const Fact& f) const {

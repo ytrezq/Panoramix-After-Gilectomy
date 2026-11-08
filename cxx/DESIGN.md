@@ -1369,6 +1369,18 @@ zx_Exchange and zx_Staking came from paths given up (triage issue 1). B's
 two regressions - SafeMath on nested ifs and the storage table built by
 every process - were fixed after the triage (lots 8 and 9, above).
 
+The free-memory floors (`docs/alloc-floor.md`) made every walk that decides
+about memory move them line by line and decide positions with them: the
+861 texts took 1.48 times the user time of the tree before them (84.1 s
+against 56.7 s, interleaved, one contract at a time). Remembering what the
+walks decide brought it to 1.08 times (61.2 s), every text the same: the
+path facts hash-consed per context (a list rebuilt the same is the same
+cells, its identity a memo key), the floors' transfer and the conditions a
+line keeps memoized by line and facts, each value's linear readings read
+once by the decisions about positions (`SideState`), XInt's products by 1
+and -1, and the bytes getter's check copying its worlds' storage words at
+once (`exec::Host::sload_run`).
+
 **Not run yet:** the PGO build trained on the corpus (`make pgo`) and the final benchmark
 against the asm (`make bench`) - the work stopped at the user's request before them. The
 triage's measurements above are the latest; since then the storage hash table moved to the

@@ -71,6 +71,11 @@ alg::Facts floor_walk(const alg::Facts& facts, Value v);
 // base with its floors replaced by those of src
 alg::Facts floors_from(const alg::Facts& base, const alg::Facts& src);
 
+// The facts but the conditions `line` may change (what they read: python's
+// forget, by the effect summaries); the other facts as they are. Remembered
+// per line and facts (the walks of a loop's body meet the same ones).
+alg::Facts kept_conditions(const alg::Facts& facts, Value line);
+
 // The words whose floors may decide something in a pass over `trace` (a
 // function's): floored() reads a word's floor only where an expression
 // reads the word, and the walks decide about the trace's expressions (and

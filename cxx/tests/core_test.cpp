@@ -276,6 +276,31 @@ TEST_CASE("core: EvmInt and Word256") {
     CHECK_THROWS_AS(EvmInt::pow2(u64(1) << 30), SizeLimit);
 }
 
+TEST_CASE("core: Word256 add and sub carry through the limbs, mod 2^256 (as GMP's mpn_add_n / mpn_sub_n)") {
+    Fixture f;
+    // against python's integers mod 2^256, on words whose limbs carry and
+    // borrow at every place
+    const Word256 edges[] = {Word256::of(0),
+                             Word256::of(1),
+                             Word256{{~u64(0), 0, 0, 0}},
+                             Word256{{~u64(0), ~u64(0), ~u64(0), 0}},
+                             Word256{{0, 0, 0, u64(1) << 63}},
+                             Word256{{~u64(0), ~u64(0), ~u64(0), ~u64(0)}},
+                             Word256{{0x8000000000000000ull, 0xffffffff00000000ull, 1, 0x7fffffffffffffffull}},
+                             Word256{{1, ~u64(0), 0, ~u64(0)}}};
+    const EvmInt mod = EvmInt::pow2(256);
+    for (const Word256& x : edges)
+        for (const Word256& y : edges) {
+            CHECK(add(x, y).to_int() == pymod(x.to_int() + y.to_int(), mod));
+            CHECK(sub(x, y).to_int() == pymod(x.to_int() - y.to_int(), mod));
+            CHECK(sub(add(x, y), y) == x);
+        }
+    // to_be: the limbs big-endian
+    u8 b[32];
+    Word256{{0x0807060504030201ull, 0x100f0e0d0c0b0a09ull, 0x1817161514131211ull, 0x201f1e1d1c1b1a19ull}}.to_be(b);
+    for (int i = 0; i < 32; ++i) CHECK(b[i] == u8(32 - i));
+}
+
 TEST_CASE("core: review 2026-11-02 F2 - EvmInt::mask with a wrapping size + off is a SizeLimit, not a shift past 64") {
     // (the debug build has UBSan: a shift by >= 64 aborts the run)
     CHECK_THROWS_AS(EvmInt::mask(1, ~u64(0)), SizeLimit);         // size + off wraps to 0
