@@ -1,0 +1,38 @@
+{
+  "name": "@harvest-finance/harvest-strategy-arbitrum",
+  "version": "1.0.0",
+  "description": "Harvest Finance: Arbitrum. The Hardhat environment is configured to use Mainnet fork by default and provides templates and utilities for strategy development and testing.",
+  "main": "hardhat.config.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: please run tests individually\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/harvestfi/harvest-strategy-arbitrum.git"
+  },
+  "author": "",
+  "bugs": {
+    "url": "https://github.com/harvestfi/harvest-strategy-arbitrum/issues"
+  },
+  "homepage": "https://github.com/harvestfi/harvest-strategy-arbitrum#readme",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-network-helpers": "1.0.12",
+    "@nomiclabs/hardhat-ethers": "2.2.3",
+    "@nomicfoundation/hardhat-verify": "2.1.1",
+    "@nomiclabs/hardhat-waffle": "2.0.6",
+    "@openzeppelin/test-helpers": "0.5.16",
+    "hardhat": "2.26.3",
+    "hardhat-contract-sizer": "^2.10.0"
+  },
+  "dependencies": {
+    "@nomiclabs/hardhat-truffle5": "2.0.7",
+    "@nomiclabs/hardhat-web3": "2.0.0",
+    "@openzeppelin/contracts": "4.9.6",
+    "@openzeppelin/contracts-upgradeable": "4.3.3",
+    "@openzeppelin/upgrades": "^2.8.0",
+    "prompt": "1.3.0"
+  }
+}
