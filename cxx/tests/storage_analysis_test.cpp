@@ -393,6 +393,81 @@ TEST_CASE("storage: vyper - the slot first in the hashes (voted)") {
     same_runs(a);
 }
 
+TEST_CASE("storage: an array of structs laid out from a slot - one variable, not one per field") {
+    Fixture f;
+    // Vyper's DynArray of structs of 8 slots: its length at 4, element i at
+    // 5 + 8 i - fields 0, 3, 4 read at a checked index; the last element
+    // (index n - 1) written as 8 n - 3 and 8 n + 1; a new element's
+    // address kept in a variable, a member written through it
+    std::vector<FunctionInfo> fns{
+        fn(0x01010101, "{(return (sized 32 (storage 256 0 4)))}"),
+        fn(0x02020202,
+           "{(if (lt (calldataload 4) (storage 256 0 4)) {(return (data (sized 32 (storage 256 0 (add 5 (mul 8 "
+           "(calldataload 4))))) (sized 32 (storage 256 0 (add 8 (mul 8 (calldataload 4))))) (sized 32 (storage 256 0 "
+           "(add 9 (mul 8 (calldataload 4)))))))} {(revert None)})}"),
+        fn(0x03030303,
+           "{(store 256 0 (add -3 (mul 8 (storage 256 0 4))) (calldataload 4)) (store 256 0 (add 1 (mul 8 (storage 256 "
+           "0 4))) (calldataload 36)) (stop)}"),
+        fn(0x04040404,
+           "{(setvar tmp1 (add 5 (mul 8 (storage 256 0 4)))) (store 256 0 (add 3 tmp1) caller) (store 256 0 4 (add 1 "
+           "(storage 256 0 4))) (stop)}"),
+    };
+    const Analysed a = analyse(fns, Lang::Vyper);
+    const StorageLayout& l = *a.layout;
+    std::vector<std::string> vars;
+    for (const StorageVar& v : l.vars) {
+        const StorageType& t = l.types[v.type];
+        std::string s = v.slot.to_value().is_small() ? std::to_string(v.slot.to_value().small_val()) : "big";
+        s += t.kind == Kind::Fixed ? (l.types[t.elem].kind == Kind::Struct ? " fixed struct " : " fixed ") : " other ";
+        s += std::to_string(t.stride);
+        vars.push_back(s);
+    }
+    std::string all;
+    for (const auto& v : vars) all += v + "; ";
+    INFO(all);
+    // the length, and the array at 5 of structs of 8 slots - nothing at the
+    // fields' slots, nothing near 2^256
+    CHECK(vars == std::vector<std::string>{"4 other 1", "5 fixed struct 8"});
+    // its fields read and written as the array's
+    CHECK(!has(a.after[1].trace, V("(storage 256 0 (add 8 (mul 8 (calldataload 4))))")));
+    CHECK(no_pre_p(a.after[1].trace));
+    CHECK(!has(a.after[2].trace, V("(add -3 (mul 8 (storage 256 0 4)))")));
+    same_runs(a);
+}
+
+TEST_CASE("storage: a fixed array whose length the code checks - the arrays inside it its own") {
+    Fixture f;
+    // Vyper's uint256[3] at 15 and Rewards[3] at 18 (structs of 2 slots),
+    // their indexes checked below 3, each also reached with an index plus one
+    std::vector<FunctionInfo> fns{
+        fn(0x01010101,
+           "{(if (lt (calldataload 4) 3) {(return (data (sized 32 (storage 256 0 (add 18 (mul 2 (calldataload 4))))) "
+           "(sized 32 (storage 256 0 (add 19 (mul 2 (calldataload 4)))))))} {(revert None)})}"),
+        fn(0x02020202, "{(store 256 0 (add 20 (mul 2 (mask_shl 1 0 0 (calldataload 4)))) (calldataload 36)) (stop)}"),
+        fn(0x03030303,
+           "{(if (lt (calldataload 4) 3) {(return (sized 32 (storage 256 0 (add 15 (calldataload 4)))))} {(revert "
+           "None)})}"),
+        fn(0x04040404, "{(store 256 0 (add 16 (mask_shl 1 0 0 (calldataload 4))) 7) (stop)}"),
+    };
+    const Analysed a = analyse(fns, Lang::Vyper);
+    const StorageLayout& l = *a.layout;
+    std::vector<std::string> vars;
+    for (const StorageVar& v : l.vars) {
+        const StorageType& t = l.types[v.type];
+        std::string s = v.slot.to_value().is_small() ? std::to_string(v.slot.to_value().small_val()) : "big";
+        s += t.kind == Kind::Fixed ? " fixed " : " other ";
+        s += std::to_string(t.stride);
+        vars.push_back(s);
+    }
+    std::string all;
+    for (const auto& v : vars) all += v + "; ";
+    INFO(all);
+    CHECK(vars == std::vector<std::string>{"15 fixed 1", "18 fixed 2"});
+    CHECK(no_pre_p(a.after[1].trace));
+    CHECK(no_pre_p(a.after[3].trace));
+    same_runs(a);
+}
+
 TEST_CASE("storage: what no path reads stays raw - and runs the same") {
     Fixture f;
     std::vector<FunctionInfo> fns{

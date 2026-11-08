@@ -786,6 +786,7 @@ private:
             case Op::SETMEM:
             case Op::SET:
             case Op::STORE:
+            case Op::STORE_RANGE:
             case Op::LOG0:
             case Op::LOG1:
             case Op::LOG2:

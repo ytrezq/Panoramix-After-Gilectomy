@@ -478,6 +478,8 @@ from python and the asm, and what became of it (the audit of November
 | solc's default function reached with the selector on the stack or not | `vm/` | the stacks' common top is the entry's; where the code reads the words below it or overflows the stack with them, `UNDEFINED(STACK)` |
 | copies whose source and destination can't overlap by the allocation discipline | `loops/rewrite.cpp` | never assumed: proven (the floors) or left a loop |
 | a copy loop of the storage's words (python's `loop_to_setmem_from_storage`, which the port had dropped) | `loops/rewrite.cpp` | one line where the induction proves the trips: `mem[p len 32 n] = stor[slot len n]` (`STORAGE_RANGE`); Vyper's `!=` loop condition (a XOR) read as one |
+| copy loops that write the storage (Vyper's stores of strings, DynArrays and structs; solc's legacy bytes and string stores, their tails cleared) | `loops/rewrite.cpp` (`to_store`) | one line where the induction proves the trips and the loop's reads can't see its writes: `stor[slot len n] = mem[p len 32 n]`, `= call.data[...]`, `= 0`, `= stor[r len n]` (`STORE_RANGE`; storage to storage only where no iteration reads a slot an earlier one wrote: the backward distance 0, at least the trips, or a multiple of a power of two above them) |
+| python's one fixed array per root slot, an array of structs laid out from a slot (Vyper's DynArray of structs) printed as one array per field, its elements reached with an offset index (8 n - 3) as arrays near 2^256 | `storage/analyse.cpp` | the same stride's roots merged into one array of structs at the lowest root whose slots hold no other variable; a member reached through a variable holding an element's address (c + S x) raw, not an array at the member's offset |
 | checked arithmetic (OpenZeppelin, ds-math, Panic 0x11 / 0x12, Vyper, a hand-written check) | `analysis/safemath.cpp` | recognized; each site's abstraction proven (the result and the conditions put back have the site's normal forms: `alg::same_value`), else the checks stay - the four random points are gone |
 | the storage forms (python's four worlds) | `storage/check.cpp` | recognized; a form proven (its slot and bits the access's once the hashes of constants are computed: the same normal form), else raw - the four random worlds are gone; a bytes getter run by the trace machine on storage worlds |
 | solidity's length of a storage bytes or string, `(x & (256 * iszero(x & 1) - 1)) >> 1` | `simplify/passes.cpp` | recognized exactly: `LENGTH(key)`'s meaning is that formula (the machine runs it), below 2^255 by it (`max_bits`: a copy's end `L + 160` past `L >= 32` doesn't wrap, its trip count takes no max); Vyper's length slot is a plain word |
@@ -621,8 +623,10 @@ writes were dead - dropped where the induction proves it ends, under
 `Top::Word`, its variables' last values set: a bound past what the counter
 reaches without wrapping may make it never end, and it stays; a copy in
 words of L bytes cut to L where the next line writes 32 bytes or more at
-its end - solc's cleanup word - in a trace that reads no msize),
-`propagate_storage_in_loops` (an exact change of
+its end - solc's cleanup word - in a trace that reads no msize), `to_store`
+(a loop whose one write is a STORE of a word: memory, calldata, storage
+words or zeroes into consecutive slots, `stor[slot len n] = ...`,
+`STORE_RANGE`), `propagate_storage_in_loops` (an exact change of
 variables), `rename_var`. On the corpus (lot 6, before its second round):
 14,281 loops, 95.5% with a `while cond`; 3,353 trip counts proven of
 10,659 counters.
@@ -721,6 +725,18 @@ code's own: a vote of the hashes it computes (`vote_language`), the CBOR
 metadata only breaking a tie (it is the compiler's claim, not the code's;
 a hash the vote doesn't explain is printed raw). Split stores are regrouped, types chosen by
 most accesses, names taken from getters with a good name (`names.rl`).
+The roots typed fixed arrays of one stride S > 1 are the fields of
+arrays of structs (`merge_struct_arrays`: an array of structs laid out
+from a slot, as Vyper's DynArray of structs after its length): each root
+of the stride whose S slots hold no other variable, lowest first, starts
+one, the roots of its first element and those within S below it moved
+there (an element's index written with an offset), and, when it's the
+stride's only one, those past 2^255 (8 n - 3 for the element n - 1 at 5);
+a fixed array of words inside an element (a field's words a loop reads
+with a counter of its own) has no form of the struct's: raw. A member
+reached through a variable holding an element's address (c + S x) is raw,
+not an array at the member's offset. The copies of the storage's words
+(`STORAGE_RANGE`, `STORE_RANGE`) aren't accesses: their slots print raw.
 The accesses become the printer's forms - `SV(Name(STORVAR, i))`,
 `SI(base, key)`, `SL`, `SBL`, `SF(base, n)`, `SR(slot)` locations;
 `ST(size, loc, width)` reads, `SET` writes, `SALL(loc)` bytes - each

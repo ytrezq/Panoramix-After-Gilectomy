@@ -152,6 +152,7 @@
 0x18b   undefined        2       line halt
 0x18c   precompiled      4       line numbered
 0x18d   asm              4       line
+0x18e   store_range      3       line w_storage
 
 # --- 0x1c0-0x1df ast / print forms -------------------------------------------
 0x1c0   mask             3       word print_only

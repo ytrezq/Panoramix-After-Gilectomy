@@ -71,10 +71,10 @@ tools/copy_repo.py --program SLUG --repo https://github.com/OWNER/REPO [--ref RE
 tools/subtree_corpus.py --from OLD [--program SLUG]... [--jobs 4] [--minutes N]
 #   (--minutes: start no program after N minutes; a later run resumes)
 
-# compile: each project (foundry, hardhat, truffle, brownie, a src/ or
-# contracts/ of sources) with the compiler its configuration or pragmas ask,
-# for each EVM version that compiler knows; runtime bytecode, ABI, storage
-# layout, AST
+# compile: each project (foundry, hardhat, truffle, brownie, a package with
+# a src/ or contracts/ of sources) and each foundry profile naming sources of
+# its own, with the compiler its configuration or pragmas ask, for each EVM
+# version that compiler knows; runtime bytecode, ABI, storage layout, AST
 tools/build_corpus.py [--program SLUG] [--evm paris,shanghai,cancun] [--fallback-evm byzantium,petersburg,istanbul]
     [--optimizer auto|on|off|both] --out BUILD
 #   (--fallback-evm: a compiler that knows none of --evm gets the newest of these it knows)
@@ -90,9 +90,16 @@ tools/corpus_stats.py   # immunefi/STATUS.md
 `build_corpus.py` downloads the solc releases it needs from
 binaries.soliditylang.org (checked against their published SHA-256) and the
 Vyper releases from PyPI (a virtualenv per version), into
-`~/.cache/panoramix-corpus`. Remappings are made as forge makes them (the
-project's own, then every library's under `lib/`, nested ones too, as context
-remappings); `node_modules/` is an include path.
+`~/.cache/panoramix-corpus`. Remappings are made as forge makes them (its
+algorithm ported: the project's own, then its libraries' - those with a
+`foundry.toml`, recursively, and the automatic ones - the shortest path of a
+name winning, none overlapping the project's; `auto_detect_remappings = false`
+honoured); the project's `node_modules/` is an include path, the
+repository's only when the sources import files there, and a
+`node_modules/` between the sources and the project is remapped for the
+sources below it. A foundry profile reads its own table, then the default's
+(`[profile.default]`); a source gets the profile's compiler when its
+pragmas allow it.
 
 `compare_source.py` writes `results.jsonl` (a line per artifact) and
 `summary.md`:

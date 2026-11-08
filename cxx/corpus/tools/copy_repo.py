@@ -215,7 +215,8 @@ PROJECT_FILES = ('foundry.toml', 'remappings.txt', 'package.json', 'hardhat.conf
 
 def remappings(project_dir):
     """[(prefix, target)] of a project's remappings.txt and foundry.toml (a
-    context prefix `ctx:` dropped), the longest prefix first"""
+    context prefix `ctx:` dropped), the longest prefix first; both given
+    the trailing / forge gives them (not to a .sol file's)"""
     out = []
     p = os.path.join(project_dir, 'remappings.txt')
     if os.path.exists(p):
@@ -228,7 +229,9 @@ def remappings(project_dir):
     if os.path.exists(ft):
         for k, v in re.findall(r'["\']([^"\'=\s]+)=([^"\']*)["\']', open(ft, errors='replace').read()):
             out.append((k.split(':', 1)[-1].strip(), v.strip()))
-    return sorted((x for x in out if x[0]), key=lambda kv: -len(kv[0]))
+    out = [(k if k.endswith(('/', '.sol')) else k + '/', v if v.endswith(('/', '.sol')) else v + '/')
+           for k, v in out if k and v]
+    return sorted(out, key=lambda kv: -len(kv[0]))
 
 
 def npm_name(path):

@@ -362,3 +362,80 @@ TEST_CASE("fixtures: a copy loop of the storage's words to memory is one line")
     }
     budget.detach_thread();
 }
+
+TEST_CASE("fixtures: a copy loop of memory words to the storage is one line")
+{
+    // n = calldataload(4) & 7 words given after it, copied to memory, then
+    // word by word to the slots from 5 on:
+    //   calldatacopy(0x80, 0x24, 32 n)
+    //   i = 0; while i < n: sstore(5 + i, mload(0x80 + 32 i)); i += 1
+    const Bytes code = *parse_hex("6004" "35" "6007" "16" "80" "6005" "1b" "6024" "6080" "37" "6000"
+                                  "5b" "81" "81" "10" "15" "61002e" "57"
+                                  "80" "6005" "1b" "6080" "01" "51" "81" "6005" "01" "55"
+                                  "6001" "01" "610011" "56"
+                                  "5b" "00");
+    const QuietLog quiet;
+    pan::init();
+    pan::Budget budget{pan::Budget::Limits{}};
+    budget.attach_thread();
+    {
+        Decompiled contract{code};
+        auto ctx = pan::Context::create(budget, &contract.shared);
+        pan::ContextScope scope{*ctx};
+        Made made;
+        pipeline(contract, Stage::folded, budget, made);
+        for (unsigned s = 0; s < stage_count; ++s)
+            REQUIRE(contract.made[s]);
+        const auto& last = contract.functions[stage_count - 1];
+        REQUIRE(last.size() == 1);
+        INFO("folded: ", pan::dump_trace(last[0].trace), "\ntext:\n", made.text);
+        CHECK(!has_op(last[0].trace, pan::Op::WHILE));
+        CHECK(has_op(last[0].trace, pan::Op::STORE_RANGE));
+        CHECK(made.text.find("while") == std::string::npos);
+        CHECK(made.text.find("stor[5 len ") != std::string::npos);
+        const text::Program program = program_of(made);
+        for (const auto& e : program.errors)
+            MESSAGE(e);
+        CHECK(program.errors.empty());
+        text::Interpreter interp{program};
+        // every stage and the text, as evmone, for every count of words
+        for (unsigned n = 0; n < 8; ++n)
+            for (const std::uint64_t seed : {1u, 2u})
+            {
+                const SeededWorld world{WorldConfig{.seed = seed, .random = true}};
+                Bytes data{0x12, 0x34, 0x56, 0x78};
+                append_word(data, Word{n});
+                for (unsigned i = 0; i < n; ++i)
+                    append_word(data, world.hash(0x90, data));
+                const CallContext call{world.actors()[0], world.actors()[0], 0, 1, data};
+                EvmRunner runner{code};
+                State evm_state{world, world.contract_address(), code};
+                const Effects expected = runner.run(evm_state, call);
+                INFO("n ", n, ", seed ", seed, "\nevm:\n", to_string(expected));
+                REQUIRE(expected.end.status == Status::stop);
+                CHECK(expected.storage_diff.size() == n);
+                for (unsigned s = 0; s < stage_count; ++s)
+                {
+                    pan::exec::Program p;
+                    p.functions = contract.functions[s];
+                    p.internals = contract.internals[s];
+                    p.shared = &contract.shared;
+                    p.layout = contract.storage.get();
+                    p.safemath = contract.safemath.get();
+                    State state{world, world.contract_address(), code};
+                    Session session{state, call};
+                    pan::exec::Machine m{p};
+                    pan::exec::Outcome out;
+                    const Effects actual = run_machine(m, session, std::nullopt, &out);
+                    INFO("stage ", stage_name(static_cast<Stage>(s)), ", machine (",
+                        pan::exec::status_name(out.status), " ", out.note, "):\n", to_string(actual));
+                    CHECK(compare(expected, actual).verdict == Verdict::same);
+                }
+                State text_state{world, world.contract_address(), code};
+                const Effects mine = interp.run(text_state, call);
+                INFO("text:\n", to_string(mine));
+                CHECK(compare(expected, mine).verdict == Verdict::same);
+            }
+    }
+    budget.detach_thread();
+}

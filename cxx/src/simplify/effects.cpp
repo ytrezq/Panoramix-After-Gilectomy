@@ -305,6 +305,7 @@ EffectSummary expr_summary(Value v) {
             return s;
         }
         case Op::SET:
+        case Op::STORE_RANGE:  // (the n slots from a slot on: anywhere)
             s = operands(v);
             add_any(s, true, S_STORAGE);
             touch(s);
