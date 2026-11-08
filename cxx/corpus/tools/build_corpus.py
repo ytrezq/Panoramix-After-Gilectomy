@@ -24,10 +24,11 @@ takes - tests, scripts, proofs and the like left out), with:
     with a foundry.toml (the same way, recursively) and the automatic ones
     (foundry-compilers' find_many), of one name the shortest path, none
     overlapping one already there; the project's node_modules/ by solc's
-    include paths (the repository's, and the repository itself, only when
-    the sources import files there: a file found twice is an ambiguous
-    import); a node_modules/ between the sources and the project by
-    remappings for the sources below it;
+    include paths (the repository's only when the sources import packages
+    there: a file found twice is an ambiguous import); a node_modules/
+    between the sources and the project by remappings for the sources below
+    it; the repository's own files the sources import by a path from it,
+    each remapped to its place;
   - the compiler of each source: the profile's (solc / solc_version) when
     its pragma and its imports' allow it, else the newest of those a
     hardhat or truffle configuration names they allow, else the newest
@@ -804,13 +805,14 @@ def link(code):
 
 
 def build_solc(solc, version, group, project, repo, remaps, cfg, evm, opt, via_ir, outdir, timeout,
-               outside=(True, True, frozenset())):
+               outside=(True, frozenset())):
     """one compilation (standard JSON): (artifacts, errors, the sources the
-    errors are in). outside: whether the sources import files outside the
-    project, of the repository's node_modules/ and of the repository's own
-    (that directory an include path then - only then: a file found twice is
-    an ambiguous import; before 0.8.8, which has no include paths, the
-    directories of the repository they import from remapped)"""
+    errors are in). outside: whether the sources import packages of the
+    repository's node_modules/ (an include path then - only then: a file
+    found twice is an ambiguous import), and the files of the repository's
+    own they import by a path from it (each remapped to its place: the
+    repository as an include path would find twice the project's files its
+    lib/ links to the repository's)"""
     sources = {f: {'urls': [f]} for f in group}
     settings = {
         'remappings': [('%s:%s=%s' if c else '%s%s=%s') % (c, k, v) for c, k, v in remaps],
@@ -820,6 +822,10 @@ def build_solc(solc, version, group, project, repo, remaps, cfg, evm, opt, via_i
     }
     if version >= (0, 4, 21):
         settings['evmVersion'] = evm
+    own = [k for c, k, v in remaps if not c]
+    for g in sorted(outside[1]):
+        if not any(g.startswith(k) for k in own):
+            settings['remappings'].append('%s=%s' % (g, os.path.join(repo, g)))
     if via_ir:
         settings['viaIR'] = True
     if version < (0, 5, 13):  # (no storage layout before)
@@ -844,17 +850,12 @@ def build_solc(solc, version, group, project, repo, remaps, cfg, evm, opt, via_i
                     if pkg + '/' not in taken and os.path.isdir(os.path.join(top, pkg)):
                         taken.add(pkg + '/')
                         settings['remappings'].append('%s/=%s/' % (pkg, os.path.normpath(os.path.join(nm, pkg))))
-        for d in sorted(outside[2]):
-            if d + '/' not in taken:
-                taken.add(d + '/')
-                settings['remappings'].append('%s/=%s/' % (d, os.path.join(repo, d)))
     if version >= (0, 8, 8):
         args += ['--base-path', project]
         # (each directory once, and never the base path: a file found twice
         # is an ambiguous import)
         seen = {os.path.realpath(project)}
-        for inc in [os.path.join(project, 'node_modules')] + ([os.path.join(repo, 'node_modules')] if outside[0] else []) + \
-                ([repo] if outside[1] else []):
+        for inc in [os.path.join(project, 'node_modules')] + ([os.path.join(repo, 'node_modules')] if outside[0] else []):
             if os.path.isdir(inc) and os.path.realpath(inc) not in seen:
                 seen.add(os.path.realpath(inc))
                 args += ['--include-path', inc]
@@ -1044,10 +1045,9 @@ def plan_project(solc, repo, project, profile='default'):
     they allow; else the newest release they allow - for pragmas open above
     (>= only), the one most other sources get when they allow it and none
     of its code is an old compiler's, else the oldest they allow. outside:
-    whether the sources import files outside the project (of the
-    repository's node_modules/, of the repository's own), and the
-    repository's directories they import from; cache: the sources' pragmas
-    and imports (pragmas')"""
+    whether the sources import packages of the repository's node_modules/,
+    and the files of the repository's own they import by a path from it;
+    cache: the sources' pragmas and imports (pragmas')"""
     files, remaps, cfg = sources_of(project, profile)
     sol = [f for f in files if f.endswith('.sol')]
     fixed = vt((cfg.get('solc') or '').lstrip('='))
@@ -1077,16 +1077,14 @@ def plan_project(solc, repo, project, profile='default'):
     for f in sol:
         if f in choice:
             groups.setdefault(choice[f], []).append(f)
-    nm_out, repo_out, dirs = False, False, set()
+    nm_out, ext = False, set()
     for g in cache:
         p, i = find(g, project, repo, which=True)
         if i == 3:
             nm_out = True
-        elif i == 2 or (i == 0 and g.startswith('../')):
-            repo_out = True
-            if g.split('/')[0] not in ('.', '..'):
-                dirs.add(g.split('/')[0])
-    return files, remaps, cfg, groups, errors, (nm_out, repo_out, frozenset(dirs)), cache
+        elif i == 2:
+            ext.add(g)
+    return files, remaps, cfg, groups, errors, (nm_out, frozenset(ext)), cache
 
 
 def _text(f, project, repo):
