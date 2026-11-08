@@ -16,6 +16,7 @@
 #include "core/context.hpp"
 #include "core/dump.hpp"
 #include "exec/machine.hpp"
+#include "mem/memory.hpp"
 #include "output/fold.hpp"
 #include "output/output.hpp"
 #include "output/print.hpp"
@@ -93,6 +94,60 @@ bool same_runs(Value t, Value u)
             return false;
     }
     return true;
+}
+
+// a world whose calls answer 192 bytes (or 48, 56... with the bit 1 clear:
+// the reads past them zeroes), other ones at each call (by the call's number
+// and the world's bits), the low bit of the bits their success
+struct WideWorld final : exec::SimpleHost {
+    u64 bits;
+    u32 calls = 0;
+    explicit WideWorld(u64 b) : bits(b)
+    {
+        calldata.resize(4 + 32 * 4);
+        for (u32 k = 0; k < 4; ++k)
+            calldata[4 + 32 * k + 31] = u8((bits >> k) & 1);
+        call_env.caller = Word256::of(0x1234);
+    }
+    exec::CallResult call(exec::CallKind kind, const Word256& target, const Word256& value,
+                          std::span<const u8> input) override
+    {
+        SimpleHost::call(kind, target, value, input);  // (the effect)
+        ++calls;
+        std::vector<u8> out((bits & 2) ? 192 : 40 + 8 * calls);
+        for (usize i = 0; i < out.size(); ++i)
+            out[i] = u8(7 * i + 31 * calls + bits);
+        return exec::CallResult{(bits & 1) != 0, std::move(out)};
+    }
+};
+
+// t and u run the same on every WideWorld
+bool same_runs_wide(Value t, Value u)
+{
+    FunctionInfo fn;
+    fn.kind = FunctionInfo::Kind::Fallback;
+    exec::Program p;
+    exec::Machine m(p);
+    for (u64 bits = 0; bits < 16; ++bits) {
+        WideWorld w1{bits}, w2{bits};
+        const exec::Outcome a = m.run(w1, fn, t), b = m.run(w2, fn, u);
+        if (a.status == exec::Status::Bug || b.status == exec::Status::Bug || a.unsized || b.unsized)
+            return false;
+        if (a.status != b.status || a.data != b.data || w1.effects != w2.effects)
+            return false;
+    }
+    return true;
+}
+
+// the values of v's SETVARs (any depth)
+void setvar_values(Value v, std::vector<Value>& out)
+{
+    if (!(v.is_expr() || v.is_list()))
+        return;
+    if (v.is(Op::SETVAR, 2))
+        out.push_back(v[1]);
+    for (Value a : v.args())
+        setvar_values(a, out);
 }
 
 // a signature database built from a dump's lines (python's format, xz'd in
@@ -672,6 +727,73 @@ TEST_CASE("output: a call's return data bytes in a byte element, read after anot
         const Value ast = make_ast(fn);
         CHECK(has_op(ast, Op::SETVAR));
         CHECK(same_runs(fn.trace, ast));
+    }
+}
+
+TEST_CASE("output: a call's return data of more than 32 bytes, read after another call - a variable per word")
+{
+    Fixture f;
+    auto ast_of = [](std::string_view trace) {
+        FunctionInfo fn;
+        fn.kind = FunctionInfo::Kind::Fallback;
+        fn.trace = V(trace);
+        return make_ast(fn);
+    };
+    // a variable holds a word (the trace machine's, the text's): the read of
+    // more than 32 bytes is its words', each a snapshot of its own - as
+    // python's VM snapshots the words, the asm's display (Vyper 0.3.1's
+    // RewardsOnlyGauge.reward_data, a struct's three words returned after
+    // another call: `_9 = ext_call.return_data[0]`... `return _param1, _9,
+    // _13, _14, ext_call.return_data[0], stor26[_param1]`)
+    const char* calls = "(staticcall 1 (gas 1) caller (sized 4 0x0dfe1681) None)"
+                        " (staticcall 2 (gas 2) caller (sized 4 0xd21220a7) None)";
+    const std::string reward_data =
+        std::string("{") + calls + " (return (data (sized 32 caller) (returndata_bytes 1 0 96) (returndata_bytes 2 0 32)))}";
+    CHECK(print_trace(ast_of(reward_data)) ==
+          "  static call caller.unknown0dfe1681(?) with:\n          gas gas_remaining\n"
+          "  _1 = ext_call.return_data[0]\n  _2 = ext_call.return_data[32]\n  _3 = ext_call.return_data[64]\n"
+          "  static call caller.unknownd21220a7(?) with:\n          gas gas_remaining\n"
+          "  return caller, _1, _2, _3, ext_call.return_data[0]\n");
+    // a word the text reads as a number elsewhere: its variable, once
+    // (uniswap's NonfungiblePositionManager.decreaseLiquidity: amount0 and
+    // amount1 compared, then logged and returned as 64 bytes)
+    const std::string decrease =
+        std::string("{") + calls +
+        " (if (lt (returndata_bytes 1 0 32) (returndata_bytes 2 0 32)) {(revert None)}"
+        " {(log1 (returndata_bytes 1 0 64) 4660) (return (returndata_bytes 1 0 64))})}";
+    CHECK(print_trace(ast_of(decrease)) ==
+          "  static call caller.unknown0dfe1681(?) with:\n          gas gas_remaining\n"
+          "  _1 = ext_call.return_data[0]\n  _2 = ext_call.return_data[32]\n"
+          "  static call caller.unknownd21220a7(?) with:\n          gas gas_remaining\n"
+          "  require _1 >= ext_call.return_data[0]\n"
+          "  log 0x0000000000000000000000000000000000000000000000000000000000001234: _1, _2\n"
+          "  return _1, _2\n");
+    // (a word's variable among a DATA's elements past mem::byte_operands' 32:
+    // as wide as its bytes too)
+    std::string many = std::string("{") + calls + " (return (data";
+    for (int i = 0; i < 32; ++i)
+        many += " (sized 32 caller)";
+    many += " (returndata_bytes 1 12 20)))}";
+    // the same effects, every variable a word: a DATA's, a SHA3's, a log's, a
+    // return's, a revert's byte element, a SETMEM's value; words from an
+    // offset that isn't a word's, a last word shorter
+    for (const std::string& t :
+         {reward_data, decrease, many,
+          std::string("{") + calls +
+              " (return (sized 32 (sha3 (returndata_bytes 1 4 64) (returndata_bytes 2 0 32))))}",
+          std::string("{") + calls + " (revert (returndata_bytes 1 0 40))}",
+          std::string("{") + calls + " (log2 (data (returndata_bytes 1 0 72) (sized 32 caller)) 7 (returndata_bytes 1 64 32))"
+                                     " (stop)}",
+          std::string("{") + calls + " (setmem (range 0 96) (returndata_bytes 1 32 96)) (return (mem (range 0 128)))}"}) {
+        const Value ast = ast_of(t);
+        std::vector<Value> values;
+        setvar_values(ast, values);
+        CHECK(!values.empty());
+        for (const Value v : values) {
+            const auto w = mem::width_u64(v);
+            CHECK_MESSAGE((!mem::is_bytes(v) || (w && *w <= 32)), dump(v));
+        }
+        CHECK_MESSAGE(same_runs_wide(V(t), ast), t << "\n->\n" << dump_trace(ast));
     }
 }
 

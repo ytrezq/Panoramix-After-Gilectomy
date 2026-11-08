@@ -10,7 +10,9 @@
 //    have been made since (on some path) gets a variable, set right after
 //    each call k line, read there instead (python's VM snapshots them: `_1 =
 //    ext_call.return_data[0]`) - the variable of a result that only depends
-//    on call k (its offsets and lengths of numbers or of call k's size).
+//    on call k (its offsets and lengths of numbers or of call k's size). A
+//    variable holds a word: a read of more than 32 bytes, a variable per
+//    word, the read their concatenation (python snapshots the stack's words).
 //  - Gas reads kept: the text's gas_remaining is the gas left where it's
 //    printed, the IR's reads are numbered. A read printed with a later one,
 //    or again after a line that printed another, gets a variable (GasReads).
@@ -102,6 +104,45 @@ bool fixed_by_call(Value v, u32 k)
 bool snapshot_safe(Value t, u32 k)
 {
     return t.is_leaf() || (fixed_by_call(t[1], k) && fixed_by_call(t[2], k));
+}
+
+// The words of a read of more than 32 bytes of a call's return data,
+// RETURNDATA_BYTES(k, off, n) with n a number: the reads of 32 bytes from
+// off, off + 32... (the last one shorter), as the memory model slices them (a
+// word the text reads elsewhere: that read). A variable holds a word - the
+// trace machine's, the text's - as python's VM snapshots the stack's words:
+// the asm's `_9 = ext_call.return_data[0]`, `_13 = ...[32]`, `_14 = ...[64]`
+// where one variable of 96 bytes is none. nullopt for a read of a word at
+// most, of a length that isn't a number or past kWideMax bytes (a variable
+// per word: a hostile length mustn't make millions), or a word whose offset
+// may wrap (mem::slice can't say).
+constexpr i64 kWideMax = 1024;
+
+std::optional<std::vector<Value>> wide_words(Value t)
+{
+    if (!t.is(Op::RETURNDATA_BYTES, 3) || !t[2].is_small())
+        return std::nullopt;
+    const i64 n = t[2].small_val();
+    if (n <= 32 || n > kWideMax)
+        return std::nullopt;
+    std::vector<Value> r;
+    for (i64 at = 0; at < n; at += 32) {
+        const auto w = mem::slice(t, Value::small(at), Value::small(std::min(n, at + 32)));
+        if (!w || !w->is(Op::RETURNDATA_BYTES, 3) || (*w)[0] != t[0])
+            return std::nullopt;
+        r.push_back(*w);
+    }
+    return r;
+}
+
+// v's operand i is a byte element (a DATA's and a SHA3's every one: past
+// mem::byte_operands' 32 too)
+bool byte_element(Value v, u32 i) noexcept
+{
+    if (v.is(Op::DATA) || v.is(Op::SHA3))
+        return true;
+    const std::span<const u8> bytes = mem::byte_operands(v);
+    return std::find(bytes.begin(), bytes.end(), u8(i)) != bytes.end();
 }
 
 bool is_if(Value l) noexcept { return l.is(Op::IF, 3) || l.is(Op::MERGED_IF, 3); }
@@ -224,9 +265,11 @@ private:
         check_stack();
         if (const auto k = result_id(e); k && *k != 0 && *k != kInternalCalls && !surely(last, *k) &&
                                           snapshot_safe(e, *k)) {
+            // (more than a word: its words' variables, concatenated)
+            if (const auto words = wide_words(e))
+                return use_words(e, *words);
             if (!rewrite_) {
-                if (noted_.insert(e.raw()).second)
-                    needs_.push_back(e);
+                note(e);
                 return e;
             }
             if (const auto it = var_of_.find(e.raw()); it != var_of_.end())
@@ -243,12 +286,11 @@ private:
         // (a byte element - a SHA3's, a DATA's, a call's arguments... - that
         // was return data bytes: the variable as wide as they were, as every
         // byte element carries its width)
-        const std::span<const u8> bytes = e.is_expr() ? mem::byte_operands(e) : std::span<const u8>{};
+        const bool elements = e.is(Op::DATA) || e.is(Op::SHA3);
         for (u32 i = 0; i < e.size(); ++i) {
             const Value a = e[i];
             Value b = use(a, last, memo);
-            if (a.is(Op::RETURNDATA_BYTES, 3) && noted_.contains(a.raw()) &&
-                std::find(bytes.begin(), bytes.end(), u8(i)) != bytes.end()) {
+            if (a.is(Op::RETURNDATA_BYTES, 3) && noted_.contains(a.raw()) && byte_element(e, i)) {
                 // (its length read here too: call k's, its size a variable
                 // as well when another call may have been made)
                 const Value n = use(a[2], last, memo);
@@ -256,11 +298,44 @@ private:
                     b = mem::sized(n, b);
             }
             changed = changed || b != a;
+            // (the words of a wide read among a DATA's or a SHA3's elements:
+            // elements there)
+            if (elements && b != a && a.is(Op::RETURNDATA_BYTES) && b.is(Op::DATA)) {
+                args.insert(args.end(), b.args().begin(), b.args().end());
+                continue;
+            }
             args.push_back(b);
         }
         const Value r = changed && rewrite_ ? mk_like(e, args) : e;
         memo.emplace(e.raw(), r);
         return r;
+    }
+
+    void note(Value t)
+    {
+        if (noted_.insert(t.raw()).second)
+            needs_.push_back(t);
+    }
+
+    // a read of more than a word (t) where the text may take it for another
+    // call's: pass 1 notes its words, pass 2 reads their variables, each as
+    // wide as its word, one after the other (a DATA: the same bytes)
+    Value use_words(Value t, const std::vector<Value>& words)
+    {
+        if (!rewrite_) {
+            for (const Value w : words)
+                note(w);
+            return t;
+        }
+        std::vector<Value> parts;
+        parts.reserve(words.size());
+        for (const Value w : words) {
+            const auto it = var_of_.find(w.raw());
+            if (it == var_of_.end())
+                return t;
+            parts.push_back(mem::sized(w[2], it->second));
+        }
+        return mk(Op::DATA, parts);
     }
 
     Value line_use(Value l, const Last& last)

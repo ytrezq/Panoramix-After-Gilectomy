@@ -779,9 +779,12 @@ and a failed assert leaves the trace as it was. The ast passes keep the
 text faithful where python's can't name what the IR numbers: a call's
 result read where another call may have run since, and a gas read printed
 with or after another, get a variable (python's snapshots: `_1 =
-ext_call.return_data[0]`); an if whose branches differ only by call ids
-is its lines; every `UNDEFINED(UNFINISHED, pc)` is one line. The ast stays
-executable: REQUIRE, ASSERT, LAND, LOR, MERGED_IF are IR ops.
+ext_call.return_data[0]`) - a read of more than 32 bytes a variable per
+word, the read their concatenation (a variable holds a word, the trace
+machine's and the text's; python's VM snapshots the stack's words); an if
+whose branches differ only by call ids is its lines; every
+`UNDEFINED(UNFINISHED, pc)` is one line. The ast stays executable:
+REQUIRE, ASSERT, LAND, LOR, MERGED_IF are IR ops.
 
 ### SafeMath (lot 8, `src/analysis/safemath.hpp`)
 
