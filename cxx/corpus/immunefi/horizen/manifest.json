@@ -67,38 +67,32 @@
     {
      "prefix": "HorizenOfficial__staker",
      "url": "https://github.com/HorizenOfficial/staker",
-     "commit": "ab92502e9da98784dfe3bd3ef933d4e9345ff628",
-     "files": 84
+     "commit": "ab92502e9da98784dfe3bd3ef933d4e9345ff628"
     },
     {
      "prefix": "HorizenOfficial__staker/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "1714bee72e286e73f76e320d110e0eaf5c4e649d",
-     "files": 47
+     "commit": "1714bee72e286e73f76e320d110e0eaf5c4e649d"
     },
     {
      "prefix": "HorizenOfficial__staker/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3",
-     "files": 250
+     "commit": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
     },
     {
      "prefix": "HorizenOfficial__staker/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb",
-     "files": 35
+     "commit": "eb980e1d4f0e8173ec27da77297ae411840c8ccb"
     },
     {
      "prefix": "HorizenOfficial__staker/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "HorizenOfficial__staker/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "cd98eff28324bfac652e63a239a60632a761790b",
-     "files": 5
+     "commit": "cd98eff28324bfac652e63a239a60632a761790b"
     }
    ]
   }
