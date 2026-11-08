@@ -147,116 +147,97 @@
     {
      "prefix": "dhedge__V2-Public",
      "url": "https://github.com/dhedge/V2-Public",
-     "commit": "ec35e7e8749b551c49855af40c81daa766a15852",
-     "files": 848
+     "commit": "ec35e7e8749b551c49855af40c81daa766a15852"
     },
     {
      "prefix": "dhedge__V2-Public/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "c29afdd40a82db50a3d3709d324416be50050e5e",
-     "files": 54
+     "commit": "c29afdd40a82db50a3d3709d324416be50050e5e"
     },
     {
      "prefix": "dhedge__V2-Public/lib/openzeppelin-contracts-upgradeable",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "fa525310e45f91eb20a6d3baa2644be8e0adba31",
-     "files": 205
+     "commit": "fa525310e45f91eb20a6d3baa2644be8e0adba31"
     },
     {
      "prefix": "dhedge__V2-Public/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "69c8def5f222ff96f2b5beff05dfba996368aa79",
-     "files": 306
+     "commit": "69c8def5f222ff96f2b5beff05dfba996368aa79"
     },
     {
      "prefix": "dhedge__V2-Public/lib/openzeppelin-contracts-v3",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "04695aecbd4d17dddfd55de766d10e3805d6f42f",
-     "files": 143
+     "commit": "04695aecbd4d17dddfd55de766d10e3805d6f42f"
     },
     {
      "prefix": "dhedge__V2-Public/lib/openzeppelin-contracts-upgradeable-v3",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable",
-     "commit": "e0683346f70db930bd39551046b12449ea68f2dc",
-     "files": 137
+     "commit": "e0683346f70db930bd39551046b12449ea68f2dc"
     },
     {
      "prefix": "dhedge__V2-Public/lib/openzeppelin-contracts-upgradeable/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce",
-     "files": 45
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
     },
     {
      "prefix": "dhedge__V2-Public/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "dhedge__V2-Public/lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "dhedge__V2-Public/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts",
      "url": "https://github.com/OpenZeppelin/openzeppelin-contracts",
-     "commit": "69c8def5f222ff96f2b5beff05dfba996368aa79",
-     "files": 306
+     "commit": "69c8def5f222ff96f2b5beff05dfba996368aa79"
     },
     {
      "prefix": "dhedge__V2-Public/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce",
-     "files": 45
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
     },
     {
      "prefix": "dhedge__V2-Public/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "dhedge__V2-Public/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "dhedge__V2-Public/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "dhedge__V2-Public/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce",
-     "files": 45
+     "commit": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
     },
     {
      "prefix": "dhedge__V2-Public/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests",
      "url": "https://github.com/a16z/erc4626-tests",
-     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
-     "files": 3
+     "commit": "8b1d7c2ac248c33c3506b1bff8321758943c5e11"
     },
     {
      "prefix": "dhedge__V2-Public/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
      "url": "https://github.com/a16z/halmos-cheatcodes",
-     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5",
-     "files": 3
+     "commit": "c0d865508c0fee0a11b97732c5e90f9cad6b65a5"
     },
     {
      "prefix": "dhedge__V2-Public/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "dhedge__V2-Public/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     }
    ]
   }
