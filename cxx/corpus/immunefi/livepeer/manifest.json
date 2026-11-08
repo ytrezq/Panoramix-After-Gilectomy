@@ -50,20 +50,17 @@
     {
      "prefix": "livepeer__protocol",
      "url": "https://github.com/livepeer/protocol",
-     "commit": "46c24fef8c7ccccfb4a55038bd80af7799c904c7",
-     "files": 131
+     "commit": "46c24fef8c7ccccfb4a55038bd80af7799c904c7"
     },
     {
      "prefix": "livepeer__protocol/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248",
-     "files": 4
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
     },
     {
      "prefix": "livepeer__protocol/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "60acb7aaadcce2d68e52986a0a66fe79f07d138f",
-     "files": 49
+     "commit": "60acb7aaadcce2d68e52986a0a66fe79f07d138f"
     }
    ]
   },
@@ -113,14 +110,12 @@
     {
      "prefix": "livepeer__arbitrum-lpt-bridge",
      "url": "https://github.com/livepeer/arbitrum-lpt-bridge",
-     "commit": "f17ebc558ddb102f8f6cf886c766bb2e55b7a004",
-     "files": 39
+     "commit": "f17ebc558ddb102f8f6cf886c766bb2e55b7a004"
     },
     {
      "prefix": "livepeer__arbitrum-lpt-bridge/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248",
-     "files": 4
+     "commit": "0a5da56b0d65960e6a994d2ec8245e6edd38c248"
     }
    ]
   }
