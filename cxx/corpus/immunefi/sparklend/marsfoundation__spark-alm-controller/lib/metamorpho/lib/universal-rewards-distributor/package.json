@@ -1,0 +1,42 @@
+{
+  "name": "@morpho-org/universal-rewards-distributor",
+  "description": "A universal rewards distributor written in Solidity.",
+  "version": "0.1.0",
+  "author": "Morpho Labs <security@morpho.org>",
+  "license": "AGPL-2.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/morpho-org/universal-rewards-distributor.git"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "bugs": {
+    "url": "https://github.com/morpho-org/universal-rewards-distributor/issues"
+  },
+  "scripts": {
+    "prepare": "husky install && forge install",
+    "build": "FOUNDRY_PROFILE=build forge build",
+    "test": "FOUNDRY_PROFILE=test forge test",
+    "lint": "forge fmt --check",
+    "lint:fix": "forge fmt",
+    "clean": "forge clean"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^18.2.0",
+    "@commitlint/config-conventional": "^18.1.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.0.2"
+  },
+  "lint-staged": {
+    "*.sol": "forge fmt"
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ]
+  }
+}
