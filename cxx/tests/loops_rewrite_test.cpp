@@ -443,6 +443,45 @@ TEST_CASE("loops: a loop that runs once or never") {
                  pass_setmems));
 }
 
+TEST_CASE("loops: a counting loop (a copy whose writes were dead) dropped where it ends") {
+    Fixture f;
+    // a bound of 8 bits, a step of 32: its trips and its counter's last value
+    const char* bounded =
+        "{(setvar tmp1 (mask_shl 8 0 0 (calldataload 4)))"
+        " (while (lt loop0 tmp1) {(continue loopid1 {(setvar loop0 (add 32 loop0))})} loopid1 {(setvar loop0 0)})"
+        " (return (data (sized 32 loop0) (sized 32 tmp1)))}";
+    CHECK(check(bounded, pass_setmems));
+    {
+        Value t = V(bounded);
+        Vars vars(t);
+        CHECK(!has_while(pass_setmems(t)));
+    }
+    // a step of 1 up to any word: it ends (the counter stops at the bound),
+    // two variables moved
+    const char* any =
+        "{(while (lt loop0 (calldataload 4)) {(continue loopid1 {(setvar loop0 (add 1 loop0)) (setvar loop1 (add 3 loop1))})} "
+        "loopid1 {(setvar loop0 0) (setvar loop1 (calldataload 36))})"
+        " (return (data (sized 32 loop0) (sized 32 loop1)))}";
+    CHECK(check(any, pass_setmems));
+    {
+        Value t = V(any);
+        Vars vars(t);
+        CHECK(!has_while(pass_setmems(t)));
+    }
+    // a step of 32 up to any word: past 2^256 - 32 the counter wraps and the
+    // loop never ends - kept
+    CHECK(!check("{(while (lt loop0 (calldataload 4)) {(continue loopid1 {(setvar loop0 (add 32 loop0))})} loopid1 "
+                 "{(setvar loop0 0)})"
+                 " (return (data (sized 32 loop0)))}",
+                 pass_setmems));
+    // ... nor where the bound is read from memory (any word; its read moves msize)
+    CHECK(!check("{(setmem (range 0 32) (sized 32 (mask_shl 8 0 0 (calldataload 4))))"
+                 " (while (lt loop0 (mem (range 0 32))) {(continue loopid1 {(setvar loop0 (add 32 loop0))})} loopid1 "
+                 "{(setvar loop0 0)})"
+                 " (return (data (sized 32 loop0)))}",
+                 pass_setmems));
+}
+
 TEST_CASE("loops: a copy whose length a checked product bounds (the simplifier's small words)") {
     Fixture f;
     // GnosisSafe's getStorageAt (solc 0.8.30, shanghai): new bytes(length *

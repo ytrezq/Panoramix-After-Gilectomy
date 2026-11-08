@@ -29,7 +29,9 @@
 //    start with a SETVAR of the SETMEM's value to a name the function never
 //    reads (kept by lot 7 for msize), dropped. loops_to_setmems also
 //    unrolls a loop whose induction proves it runs once or never (trips 1
-//    or 0: the tail of a copy of 20 bytes in words...).
+//    or 0: the tail of a copy of 20 bytes in words...), and drops a loop
+//    whose body only moves its variables (a copy whose writes were dead)
+//    when its induction proves it ends: its variables' last values set.
 //  - propagate_storage_in_loops: a loop variable v starting at h + k (h a
 //    SHA3 term the loop doesn't change: a storage array's start) as v' = v -
 //    h: its start k, every read of it in the loop v' + h, every write of it
@@ -332,6 +334,44 @@ bool run_once(Value w, const alg::Facts* facts, SmallVec<Value, 32>& out) {
     return true;
 }
 
+// A loop whose body only moves its variables (its CONTINUE alone: a copy
+// whose writes were dead, the counting left of it) whose induction proves
+// that it ends and where its variables end - the trips for every value of
+// what its start and bound are made of (the counter can't wrap on its way
+// to the bound, under the path's facts; Top::Word: the loop touches no
+// memory, the memory model's bounds say nothing of it) and every
+// variable's value once it's left (finals, evaluated where it starts, none
+// reading a variable of the loop: one by one is all at once) - is those
+// values set. Its condition, run at every iteration, must not fail nor
+// change anything, nor read memory (a read past msize grows it, where the
+// trace may read msize). Without the trips the loop stays: a bound past
+// 2^256 - step may make the counter wrap and the loop never end (a run that
+// fails for gas, not one that goes on). The lines replacing the loop, false
+// when it isn't one.
+bool drop_counting(Value w, const alg::Facts* facts, SmallVec<Value, 32>& out) {
+    out.clear();
+    if (!w.is(Op::WHILE, 4)) return false;
+    const Value body = w[1], id = w[2], sv = w[3];
+    if (!body.is_list() || body.size() != 1 || !sv.is_list()) return false;
+    const Value cont = body[0];
+    if (!cont.is(Op::CONTINUE, 2) || cont[0] != id) return false;
+    if (!simplify::summary(w[0]).pure() || w[0].has_flags(F_MEM) || w[0].has_flags(F_MSIZE)) return false;
+    Value finals;
+    const auto ind = induction_at(w, alg::Top::Word, facts, &finals);
+    if (!ind || ind->trips.nil() || finals.nil()) return false;
+    SmallVec<Value, 8> names;
+    setvar_names(sv, names);
+    const std::span<const Value> ns(names.data(), names.size());
+    if (finals.size() != names.size()) return false;
+    for (Value e : finals.args())
+        if (reads_any(e[1], ns)) return false;
+    for (Value e : finals.args()) {
+        cx().pcs.inherit(e, w);
+        out.push_back(e);
+    }
+    return true;
+}
+
 // loops_to_setmems' walk: the path's facts carried (an IF's condition in its
 // branches, after it what the branch that goes on knows; what a line writes
 // forgotten after it, what a loop writes in it and after it)
@@ -386,7 +426,7 @@ public:
                     if (r.is_list()) {
                         for (Value y : r.args()) out.push_back(y);
                         changed = true;
-                    } else if (run_once(x, &head, once_)) {
+                    } else if (run_once(x, &head, once_) || drop_counting(x, &head, once_)) {
                         for (Value y : once_) out.push_back(y);
                         changed = true;
                     } else {
