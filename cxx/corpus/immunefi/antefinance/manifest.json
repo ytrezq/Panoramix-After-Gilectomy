@@ -40,7 +40,8 @@
     {
      "prefix": "antefinance__ante-v05-core",
      "url": "https://github.com/antefinance/ante-v05-core",
-     "commit": "2781ec30a4dc36c408974b30375ecd2358514b1e"
+     "commit": "2781ec30a4dc36c408974b30375ecd2358514b1e",
+     "files": 26
     }
    ]
   }
