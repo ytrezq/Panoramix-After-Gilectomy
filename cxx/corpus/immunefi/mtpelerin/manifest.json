@@ -1,0 +1,74 @@
+{
+ "program": "mtpelerin",
+ "repos": [
+  {
+   "repo": "https://github.com/MtPelerin/bridge-v2",
+   "ref": "master",
+   "scope_paths": [
+    "contracts/rules/HardTransferLimitRule.sol",
+    "contracts/rules/UserValidRule.sol",
+    "contracts/sale/TokenSale.sol",
+    "contracts/token/BondBridgeToken.sol",
+    "contracts/token/BridgeToken.sol",
+    "contracts/token/abstract/SeizableBridgeERC20.sol",
+    "contracts/token/CoinBridgeToken.sol",
+    "contracts/rules/MinTransferRule.sol",
+    "contracts/rules/YesNoUpdateRule.sol",
+    "contracts/rules/AddressThresholdLockRule.sol",
+    "contracts/rules/UserKycThresholdToRule.sol",
+    "contracts/operating/ComplianceRegistry.sol",
+    "contracts/access/Roles.sol",
+    "contracts/token/ShareBridgeToken.sol",
+    "contracts/rules/UserFreezeRule.sol",
+    "contracts/voting/ShareholderMeeting.sol",
+    "contracts/token/abstract/BridgeERC20.sol",
+    "contracts/rules/UserKycThresholdBothRule.sol",
+    "contracts/rules/YesNoRule.sol",
+    "contracts/access/Operator.sol",
+    "contracts/rules/UserAttributeValidToRule.sol",
+    "contracts/rules/UserKycThresholdFromRule.sol",
+    "contracts/operating/Processor.sol",
+    "contracts/operating/PriceOracle.sol",
+    "contracts/rules/SoftTransferLimitRule.sol",
+    "contracts/rules/MaxTransferRule.sol",
+    "contracts/rules/GlobalFreezeRule.sol",
+    "contracts/operating/RuleEngine.sol",
+    "contracts/utils/TokenDispenserQueue.sol"
+   ],
+   "fetched": "2026-11-07",
+   "commit": "1126cfca433dcd92882795e8c44d0995776e03f4",
+   "submodules": [],
+   "license": {
+    "file": "LICENSE.md",
+    "spdx": "AGPL-3.0",
+    "package_json": "AGPL-3.0",
+    "headers": {
+     "(none)": 69,
+     "MIT": 2
+    }
+   },
+   "redistributable": true,
+   "languages": {
+    ".sol": 71
+   },
+   "npm": {
+    "node_modules/@openzeppelin/contracts-ethereum-package": "3.0.0",
+    "node_modules/@openzeppelin/upgrades": "2.8.0",
+    "node_modules/@openzeppelin/contracts": "3.4.2"
+   },
+   "copied": true,
+   "files": 311,
+   "via": "git subtree",
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "MtPelerin__bridge-v2",
+   "subtrees": [
+    {
+     "prefix": "MtPelerin__bridge-v2",
+     "url": "https://github.com/MtPelerin/bridge-v2",
+     "commit": "1126cfca433dcd92882795e8c44d0995776e03f4",
+     "files": 75
+    }
+   ]
+  }
+ ]
+}
