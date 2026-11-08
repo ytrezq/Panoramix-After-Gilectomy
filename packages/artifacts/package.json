@@ -1,0 +1,29 @@
+{
+  "name": "@aragon/admin-plugin-artifacts",
+  "author": "Aragon X",
+  "version": "1.2.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aragon/admin-plugin",
+    "directory": "packages/artifacts"
+  },
+  "homepage": "https://github.com/aragon/admin-plugin/tree/main/packages/artifacts#readme",
+  "license": "AGPL-3.0-or-later",
+  "description": "The Admin Plugin ABI definition",
+  "typings": "dist/index.d.ts",
+  "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "yarn prepare-abi && rm -Rf dist && tsc -p tsconfig.json",
+    "sync-addrs": "bash ./sync-addresses.sh ../../../osx-commons/configs/src/deployments/json ./src/addresses.json",
+    "prepare-abi": "bash ./prepare-abi.sh"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}
