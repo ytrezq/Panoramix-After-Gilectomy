@@ -200,7 +200,8 @@ Storage storage_of(const World& w) {
 class GetterHost final : public exec::SimpleHost {
 public:
     GetterHost() = default;
-    GetterHost(const Storage& st, const Word256& slot) : st_(&st), slot_(slot), base_(keccak_word(slot)) {}
+    // (base: keccak(slot), the data's first slot)
+    GetterHost(const Storage& st, const Word256& slot, const Word256& base) : st_(&st), slot_(slot), base_(base) {}
     Word256 sload(const Word256& s) override {
         if (st_) {
             if (s == slot_) return st_->slot;
@@ -209,6 +210,15 @@ public:
             if (st_->down && s == pan::sub(slot_, Word256::of(1))) return *st_->down;
         }
         throw Unsupported("storage: another slot");
+    }
+    // (slots base + i all among the data words and none the getter's slot -
+    // the one sload answers first: those words)
+    const Word256* sload_run(const Word256& base, u64 n) override {
+        if (!st_ || n == 0) return nullptr;
+        const auto d = pan::sub(base, base_).as_u64();
+        if (!d || *d > st_->data.size() || n > st_->data.size() - *d) return nullptr;
+        if (const auto e = pan::sub(slot_, base).as_u64(); e && *e < n) return nullptr;
+        return st_->data.data() + *d;
     }
 
 private:
@@ -350,6 +360,8 @@ Value BytesTail::find(Value trace, Value key) {
     // candidate's on a world come one after the other)
     usize cached = worlds.size();
     Storage st;
+    // keccak of the last slot (the same in most worlds)
+    std::optional<std::pair<Word256, Word256>> slot_base;
     auto run = [&](Value t, usize k) -> Result {
         poll();
         if (steps_ > MAX_STEPS) return Result{};  // (too long a check: no rewrite)
@@ -364,7 +376,9 @@ Value BytesTail::find(Value trace, Value key) {
             st = storage_of(w);
             cached = k;
         }
-        GetterHost host(st, Word256::from_be(ko.data));
+        const Word256 slot = Word256::from_be(ko.data);
+        if (!slot_base || slot_base->first != slot) slot_base.emplace(slot, keccak_word(slot));
+        GetterHost host(st, slot, slot_base->second);
         host.calldata = w.calldata;
         exec::Outcome o = machine_->run(host, fn_, t);
         steps_ += o.steps;

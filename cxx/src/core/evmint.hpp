@@ -6,7 +6,9 @@
 // No floating point anywhere (-Ofast).
 #pragma once
 
+#include <bit>
 #include <compare>
+#include <cstring>
 #include <optional>
 #include <span>
 
@@ -117,9 +119,42 @@ struct Word256 {
     }
 };
 
+// its 32 bytes, big-endian (inline: the trace machine converts words by the
+// thousand - a bytes getter's copy)
+inline void Word256::to_be(u8 out[32]) const noexcept {
+    if constexpr (std::endian::native == std::endian::little) {
+        for (int k = 0; k < 4; ++k) {
+            const u64 v = std::byteswap(limb[3 - k]);
+            std::memcpy(out + 8 * k, &v, 8);
+        }
+    } else {
+        for (int j = 0; j < 32; ++j) out[31 - j] = u8(limb[j / 8] >> (8 * (j % 8)));
+    }
+}
+
 // EVM semantics; argument order is the stack order (a = top)
-Word256 add(const Word256& a, const Word256& b) noexcept;
-Word256 sub(const Word256& a, const Word256& b) noexcept;
+// (a + b and a - b mod 2^256 with the carry through the limbs, inline - what
+// GMP's mpn_add_n / mpn_sub_n on four limbs give, without the call)
+inline Word256 add(const Word256& a, const Word256& b) noexcept {
+    Word256 r;
+    unsigned __int128 c = 0;
+    for (int i = 0; i < 4; ++i) {
+        c += static_cast<unsigned __int128>(a.limb[i]) + b.limb[i];
+        r.limb[i] = u64(c);
+        c >>= 64;
+    }
+    return r;
+}
+inline Word256 sub(const Word256& a, const Word256& b) noexcept {
+    Word256 r;
+    u64 borrow = 0;
+    for (int i = 0; i < 4; ++i) {
+        const unsigned __int128 d = static_cast<unsigned __int128>(a.limb[i]) - b.limb[i] - borrow;
+        r.limb[i] = u64(d);
+        borrow = u64(d >> 64) & 1;
+    }
+    return r;
+}
 Word256 mul(const Word256& a, const Word256& b) noexcept;
 Word256 div(const Word256& a, const Word256& b) noexcept;
 Word256 sdiv(const Word256& a, const Word256& b) noexcept;

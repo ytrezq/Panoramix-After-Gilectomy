@@ -347,17 +347,6 @@ Word256 Word256::from_be(std::span<const u8> b) noexcept {
     return r;
 }
 
-void Word256::to_be(u8 out[32]) const noexcept {
-    if constexpr (std::endian::native == std::endian::little) {
-        for (int k = 0; k < 4; ++k) {
-            const u64 v = std::byteswap(limb[3 - k]);
-            std::memcpy(out + 8 * k, &v, 8);
-        }
-    } else {
-        for (int j = 0; j < 32; ++j) out[31 - j] = u8(limb[j / 8] >> (8 * (j % 8)));
-    }
-}
-
 Word256 Word256::from_int(const EvmInt& x) noexcept {
     u8 b[32];
     x.to_be32(b);
@@ -402,18 +391,6 @@ static Word256 w_quot(const Word256& a, const Word256& b) noexcept {
 
 static inline Word256 w_negate(const Word256& a) noexcept { return sub(Word256{}, a); }
 static inline Word256 w_abs(const Word256& a) noexcept { return w_neg(a) ? w_negate(a) : a; }
-
-Word256 add(const Word256& a, const Word256& b) noexcept {
-    Word256 r;
-    mpn_add_n(r.limb, a.limb, b.limb, 4);
-    return r;
-}
-
-Word256 sub(const Word256& a, const Word256& b) noexcept {
-    Word256 r;
-    mpn_sub_n(r.limb, a.limb, b.limb, 4);
-    return r;
-}
 
 Word256 mul(const Word256& a, const Word256& b) noexcept {
     Word256 r{};

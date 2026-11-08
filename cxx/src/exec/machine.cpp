@@ -342,6 +342,45 @@ struct Machine::Impl {
 
     // ---- memory ---------------------------------------------------------------------
 
+    // the words run[0, count) as count appends of their bytes would add them
+    // to out - each word's 32 bytes, the last one's first len - 32 (count - 1)
+    // (len > 32 (count - 1)) -, poll() after every 256th word: the words
+    // between two polls in one go when none of their appends' checks fails
+    // (the byte string's length, the work: each a sum the last word's check
+    // bounds), else one by one (the bytes before the failing check added,
+    // its exception)
+    void append_words(Bytes& out, const Word256* run, u64 count, u64 len) {
+        for (u64 i = 0; i < count;) {
+            const u64 stop = std::min<u64>(count, (i | 255) + 1);
+            const u64 nbytes = std::min<u64>(32 * stop, len) - 32 * i;
+            if (out.size() + nbytes <= lim.bytes_max && work + nbytes <= lim.work_max) {
+                work += nbytes;
+                const usize old = out.size();
+                out.resize(old + nbytes);
+                u8* dst = out.data() + old;
+                for (u64 j = i; j < stop; ++j) {
+                    const u64 k = std::min<u64>(32, len - 32 * j);
+                    if (k == 32) {
+                        run[j].to_be(dst);
+                    } else {
+                        u8 w[32];
+                        run[j].to_be(w);
+                        std::memcpy(dst, w, k);
+                    }
+                    dst += k;
+                }
+            } else {
+                for (u64 j = i; j < stop; ++j) {
+                    u8 w[32];
+                    run[j].to_be(w);
+                    append(out, w, std::min<u64>(32, len - 32 * j));
+                }
+            }
+            if (((stop - 1) & 255) == 255) poll();
+            i = stop;
+        }
+    }
+
     // the memory made as large as [p, p + n) needs (n > 0), word rounded
     u8* mem_at(const Word256& p, u64 n) {
         if (PAN_UNLIKELY(!fits_u64(p) || p.limb[0] > lim.memory_max || n > lim.memory_max - p.limb[0]))
@@ -393,6 +432,10 @@ struct Machine::Impl {
         u8 key[32];
         slot.to_be(key);
         const Word256 base = keccak256(std::span<const u8>(key, 32));
+        if (const Word256* run = host->sload_run(base, (len + 31) / 32)) {
+            append_words(out, run, (len + 31) / 32, len);
+            return;
+        }
         for (u64 i = 0; i * 32 < len; ++i) {
             const Word256 word = host->sload(pan::add(base, Word256::of(i)));
             word.to_be(w);
@@ -419,6 +462,10 @@ struct Machine::Impl {
         u8 key[32];
         slot.to_be(key);
         const Word256 base = keccak256(std::span<const u8>(key, 32));
+        if (const Word256* run = host->sload_run(base, (len + 31) / 32)) {
+            append_words(out, run, (len + 31) / 32, len);
+            return;
+        }
         for (u64 i = 0; i * 32 < len; ++i) {
             const Word256 word = host->sload(pan::add(base, Word256::of(i)));
             word.to_be(w);
@@ -432,6 +479,10 @@ struct Machine::Impl {
     void storage_words(const Word256& slot, const Word256& n, Bytes& out) {
         if (PAN_UNLIKELY(!fits_u64(n) || n.limb[0] > lim.bytes_max / 32))
             exhausted("a byte string of more than " + std::to_string(lim.bytes_max) + " bytes");
+        if (const Word256* run = host->sload_run(slot, n.limb[0])) {
+            append_words(out, run, n.limb[0], 32 * n.limb[0]);
+            return;
+        }
         u8 w[32];
         for (u64 i = 0; i < n.limb[0]; ++i) {
             host->sload(pan::add(slot, Word256::of(i))).to_be(w);
