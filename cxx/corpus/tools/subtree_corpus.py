@@ -126,12 +126,21 @@ def in_head(prefix):
     return bool(git('ls-tree', '--name-only', 'HEAD', '--', prefix, check=False).strip())
 
 
-def files_in_head(prefix, prefixes):
-    """The files HEAD has under a subtree's prefix, those of the subtrees
-    nested in it left out."""
-    nested = [q + '/' for q in prefixes if q.startswith(prefix + '/')]
-    names = git('ls-tree', '-r', '-z', '--name-only', 'HEAD', '--', prefix + '/', check=False).split('\0')
-    return sum(1 for x in names if x and not any(x.startswith(q) for q in nested))
+SQUASHED = {}
+
+
+def files_in_head(prefix):
+    """The files of a subtree an earlier run added: those of its squashed
+    commit (the filtered tree - not the npm packages or the copies added at
+    the same prefix later)."""
+    if not SQUASHED:
+        for line in git('log', '--format=%H %s', '--grep=^Squashed \'', 'HEAD').splitlines():
+            h, s = line.split(' ', 1)
+            m = re.match(r"Squashed '(.*)/' content from commit ", s)
+            if m:
+                SQUASHED.setdefault(m.group(1), h)
+    h = SQUASHED.get(prefix)
+    return sum(1 for x in git('ls-tree', '-r', '-z', '--name-only', h).split('\0') if x) if h else 0
 
 
 CACHE = {}   # (url, commit) -> the filtered commit, in the branch's repository (refs/corpus/filtered/*)
@@ -277,7 +286,7 @@ def main():
                 p, err = results.get(j[0], (None, None))
                 if j[0] not in results:
                     # (added by an earlier, interrupted run: its files as HEAD has them)
-                    p = Prepared(j[0], j[1], j[2], files=files_in_head(j[0], [q[0] for q in jobs]))
+                    p = Prepared(j[0], j[1], j[2], files=files_in_head(j[0]))
                 if err and err != 'nothing kept':
                     # (not fetched: its files from the earlier copy, as files)
                     top = os.path.join(src, os.path.relpath(j[0], base))
