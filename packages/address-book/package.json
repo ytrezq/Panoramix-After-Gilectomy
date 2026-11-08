@@ -1,0 +1,44 @@
+{
+  "name": "@graphprotocol/address-book",
+  "version": "1.5.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "description": "Contract addresses for The Graph Protocol",
+  "author": "Edge & Node",
+  "license": "GPL-2.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/graphprotocol/contracts",
+    "directory": "packages/address-book"
+  },
+  "exports": {
+    "./*/addresses.json": "./src/*/addresses.json"
+  },
+  "files": [
+    "src/**/*.json",
+    "README.md"
+  ],
+  "scripts": {
+    "lint": "pnpm lint:md; pnpm lint:json",
+    "lint:md": "markdownlint --fix --ignore-path ../../.gitignore '**/*.md'; prettier -w --cache --log-level warn '**/*.md'",
+    "lint:json": "prettier -w --cache --log-level warn '**/*.json'",
+    "restore-symlinks": "node scripts/restore-symlinks.js",
+    "prepublishOnly": "node scripts/copy-addresses-for-publish.js",
+    "postpublish": "node scripts/restore-symlinks.js"
+  },
+  "devDependencies": {
+    "prettier": "catalog:"
+  },
+  "keywords": [
+    "ethereum",
+    "smart-contracts",
+    "graph",
+    "graph-protocol",
+    "horizon",
+    "subgraph-service",
+    "issuance",
+    "data-edge",
+    "address-book"
+  ]
+}
