@@ -1,0 +1,60 @@
+{
+ "program": "hashflow",
+ "repos": [
+  {
+   "repo": "https://github.com/hashflownetwork/x-protocol",
+   "ref": null,
+   "scope_paths": [
+    "evm"
+   ],
+   "fetched": "2026-11-07",
+   "note": "HashflowFactory, HashflowPool, HashflowRouter, HashflowWormholeMessenger",
+   "commit": "e41cfaadac7d9bacfa368be904a93bd98b5a2df6",
+   "submodules": [],
+   "license": {
+    "file": null,
+    "spdx": null,
+    "package_json": null,
+    "headers": {
+     "UNLICENSED": 24,
+     "BUSL-1.1": 9,
+     "Apache": 4,
+     "MIT": 37
+    },
+    "headers_main": {
+     "UNLICENSED": 24,
+     "BUSL-1.1": 9,
+     "Apache": 4,
+     "MIT": 32
+    }
+   },
+   "redistributable": false,
+   "languages": {
+    ".sol": 74
+   },
+   "copied": true,
+   "via": "git subtree",
+   "files": 1630,
+   "subtrees": [
+    {
+     "prefix": "hashflownetwork__x-protocol",
+     "url": "https://github.com/hashflownetwork/x-protocol",
+     "commit": "e41cfaadac7d9bacfa368be904a93bd98b5a2df6",
+     "files": 80
+    }
+   ],
+   "npm": {
+    "evm/node_modules/@openzeppelin/contracts": "4.9.2",
+    "evm/node_modules/@aave/core-v3": "1.17.2",
+    "hashverse-evm/node_modules/@openzeppelin/contracts-upgradeable": "4.9.2",
+    "hashverse-evm/node_modules/@openzeppelin/contracts": "4.9.2",
+    "hashverse-evm/node_modules/hardhat": "2.29.1",
+    "aggregator-evm/node_modules/@1inch/solidity-utils": "3.8.3",
+    "aggregator-evm/node_modules/@openzeppelin/contracts": "4.9.2"
+   },
+   "filter": "EVM sources (.sol .vy .vyi .yul .huff .fe .lll .se), build files, license files and symbolic links; the rest (documentation, server-side code, JavaScript / TypeScript, data, submodule links) left out",
+   "dest": "hashflownetwork__x-protocol",
+   "license_note": "its license does not allow redistribution: added at the owner's request, its license files kept"
+  }
+ ]
+}
