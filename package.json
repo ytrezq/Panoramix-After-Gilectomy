@@ -1,0 +1,30 @@
+{
+  "name": "oracles-tokenmarket-ico",
+  "version": "1.0.0",
+  "description": "Updated tokenmarket ico contracts for Oracles ICO wizard",
+  "main": "migrations/2_deploy_contracts.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "npm install && node_modules/.bin/truffle migrate --network testrpc && node_modules/.bin/truffle test --network testrpc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vbaranov/ico.git"
+  },
+  "author": "Oracles",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/vbaranov/ico/issues"
+  },
+  "homepage": "https://github.com/vbaranov/ico#readme",
+  "dependencies": {
+    "truffle": "^3.4.11",
+    "truffle-contract": "^3.0.0",
+    "web3": "^0.19.1"
+  },
+  "devDependencies": {
+    "mocha": "^3.5.3"
+  }
+}
