@@ -644,12 +644,15 @@ TEST_CASE("loops: a copy whose length a checked product bounds (the simplifier's
         return n;
     };
     Value u = check_value(t, pass_whole);
-    // the storage loop stays (storage), the copy is a SETMEM
-    CHECK(loops_in(loops_in, u) == 1);
-    // ... not where nothing excludes the product's wrap (the multiplication unchecked)
+    // the storage loop is stor[slot len n] (STORAGE_RANGE), the copy a SETMEM
+    CHECK(loops_in(loops_in, u) == 0);
+    CHECK(has_op(u, Op::STORAGE_RANGE));
+    // ... the copy not where nothing excludes the product's wrap (the
+    // multiplication unchecked): the one loop left
     const std::string unchecked = std::string(t).substr(std::string(t).find(" (if (gt"));
     Value w = check_value(("{" + unchecked).c_str(), pass_whole);
-    CHECK(loops_in(loops_in, w) == 2);
+    CHECK(loops_in(loops_in, w) == 1);
+    CHECK(has_op(w, Op::STORAGE_RANGE));
 }
 
 TEST_CASE("loops: a copy of a length known once memory is forwarded past the calls") {
@@ -679,6 +682,30 @@ TEST_CASE("loops: a copy of a length known once memory is forwarded past the cal
         " (stop)}";
     Value u = check_value(t.c_str(), pass_whole);
     CHECK(!has_while(u));
+}
+
+TEST_CASE("loops: a copy of a bytes' words from storage, its decoded length below 2^255") {
+    Fixture f;
+    // OpenZeppelin 3.x's ERC721.tokenURI (solc 0.6): a long string's words
+    // copied from storage past its first, up to the destination's end
+    // L + 160, L its decoded length - the slot's word / 2 or its low byte /
+    // 2 (exec's bytes_length), so below 2^255 - where the path knows L >=
+    // 32: the end can't wrap, the trip count needs no max(192, L + 160)
+    const Value len = V("(storage 256 0 (length (loc 7)))");
+    CHECK(alg::range(len).hi == EvmInt::pow2(255) - EvmInt(1));
+    const char* t =
+        "{(store 256 0 7 (add 1 (mul 2 (mask_shl 8 0 0 (calldataload 36)))))"
+        " (setmem (range 0 1024) (calldata_bytes 100 1024))"
+        " (if (gt 32 (storage 256 0 (length (loc 7)))) {(stop)} {"
+        "(while (gt (add 160 (storage 256 0 (length (loc 7)))) (add 32 loop1)) {(setmem (range (add 32 loop1) 32) "
+        "(storage 256 0 loop2)) (continue loopid1 {(setvar loop1 (add 32 loop1)) (setvar loop2 (add 1 loop2))})} "
+        "loopid1 {(setvar loop1 160) (setvar loop2 100)})"
+        " (return (mem (range 0 1024)))})}";
+    Value u = check_value(t, pass_setmems);
+    INFO(dump_trace(u));
+    CHECK(!has_while(u));
+    CHECK(has_op(u, Op::STORAGE_RANGE));
+    CHECK(!has_op(u, Op::MAX));
 }
 
 TEST_CASE("loops: propagate_storage_in_loops") {
