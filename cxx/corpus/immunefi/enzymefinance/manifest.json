@@ -103,86 +103,72 @@
     {
      "prefix": "enzymefinance__protocol",
      "url": "https://github.com/enzymefinance/protocol",
-     "commit": "7200e4d3cb76603af2e52aca97f15088853af532",
-     "files": 444
+     "commit": "7200e4d3cb76603af2e52aca97f15088853af532"
     },
     {
      "prefix": "enzymefinance__protocol/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "73d44ec7d124e3831bc5f832267889ffb6f9bc3f",
-     "files": 39
+     "commit": "73d44ec7d124e3831bc5f832267889ffb6f9bc3f"
     },
     {
      "prefix": "enzymefinance__protocol/lib/morpho-blue",
      "url": "https://github.com/morpho-org/morpho-blue",
-     "commit": "470a6871b3eaa56e94efdc2ee15b873c5f03e086",
-     "files": 65
+     "commit": "470a6871b3eaa56e94efdc2ee15b873c5f03e086"
     },
     {
      "prefix": "enzymefinance__protocol/lib/openzeppelin-solc-0.6",
      "url": "https://github.com/openzeppelin/openzeppelin-contracts",
-     "commit": "cec0800c541c809f883a37f2dfb91ec4c90263c5",
-     "files": 143
+     "commit": "cec0800c541c809f883a37f2dfb91ec4c90263c5"
     },
     {
      "prefix": "enzymefinance__protocol/lib/openzeppelin-solc-0.7",
      "url": "https://github.com/openzeppelin/openzeppelin-contracts",
-     "commit": "04695aecbd4d17dddfd55de766d10e3805d6f42f",
-     "files": 143
+     "commit": "04695aecbd4d17dddfd55de766d10e3805d6f42f"
     },
     {
      "prefix": "enzymefinance__protocol/lib/openzeppelin-solc-0.8",
      "url": "https://github.com/openzeppelin/openzeppelin-contracts",
-     "commit": "0457042d93d9dfd760dbaa06a4d2f1216fdbe297",
-     "files": 292
+     "commit": "0457042d93d9dfd760dbaa06a4d2f1216fdbe297"
     },
     {
      "prefix": "enzymefinance__protocol/lib/uniswap-v3-periphery",
      "url": "https://github.com/uniswap/v3-periphery",
-     "commit": "80f26c86c57b8a5e4b913f42844d4c8bd274d058",
-     "files": 78
+     "commit": "80f26c86c57b8a5e4b913f42844d4c8bd274d058"
     },
     {
      "prefix": "enzymefinance__protocol/lib/uniswap-v3-core",
      "url": "https://github.com/uniswap/v3-core",
-     "commit": "e3589b192d0be27e100cd0daaf6c97204fdb1899",
-     "files": 75
+     "commit": "e3589b192d0be27e100cd0daaf6c97204fdb1899"
     },
     {
      "prefix": "enzymefinance__protocol/lib/uniswap-v3-core-0.8",
      "url": "https://github.com/Uniswap/v3-core",
-     "commit": "6562c52e8f75f0c10f9deaf44861847585fc8129",
-     "files": 65
+     "commit": "6562c52e8f75f0c10f9deaf44861847585fc8129"
     },
     {
      "prefix": "enzymefinance__protocol/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "enzymefinance__protocol/lib/morpho-blue/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "2f112697506eab12d433a65fdc31a639548fe365",
-     "files": 45
+     "commit": "2f112697506eab12d433a65fdc31a639548fe365"
     },
     {
      "prefix": "enzymefinance__protocol/lib/openzeppelin-solc-0.8/lib/forge-std",
      "url": "https://github.com/foundry-rs/forge-std",
-     "commit": "ca8d6e00ea9cb035f6856ff732203c9a3c48b966",
-     "files": 15
+     "commit": "ca8d6e00ea9cb035f6856ff732203c9a3c48b966"
     },
     {
      "prefix": "enzymefinance__protocol/lib/morpho-blue/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
-     "files": 6
+     "commit": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
     },
     {
      "prefix": "enzymefinance__protocol/lib/openzeppelin-solc-0.8/lib/forge-std/lib/ds-test",
      "url": "https://github.com/dapphub/ds-test",
-     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5",
-     "files": 4
+     "commit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
     }
    ]
   }
