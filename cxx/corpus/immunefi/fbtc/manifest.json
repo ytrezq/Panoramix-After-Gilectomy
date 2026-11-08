@@ -34,8 +34,7 @@
     {
      "prefix": "fbtc-xyz__fbtc-contract",
      "url": "https://github.com/fbtc-xyz/fbtc-contract",
-     "commit": "4e4288a417b1f04157264a6fedcccf57470d8c4f",
-     "files": 23
+     "commit": "4e4288a417b1f04157264a6fedcccf57470d8c4f"
     }
    ]
   }
