@@ -1,0 +1,42 @@
+{
+  "name": "@prb/math",
+  "description": "Solidity library for advanced fixed-point math",
+  "version": "4.1.1",
+  "author": {
+    "name": "Paul Razvan Berg",
+    "url": "https://github.com/PaulRBerg"
+  },
+  "bugs": {
+    "url": "https://github.com/PaulRBerg/prb-math/issues"
+  },
+  "devDependencies": {
+    "forge-std": "github:foundry-rs/forge-std#v1.9.7",
+    "prettier": "^3.7.4",
+    "solhint": "^6.0.2"
+  },
+  "files": [
+    "src",
+    "test/utils",
+    "CHANGELOG.md"
+  ],
+  "homepage": "https://github.com/PaulRBerg/prb-math#readme",
+  "keywords": [
+    "arithmetic",
+    "blockchain",
+    "ethereum",
+    "fixed-point",
+    "fixed-point-math",
+    "library",
+    "math",
+    "smart-contracts",
+    "solidity"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PaulRBerg/prb-math.git"
+  }
+}
