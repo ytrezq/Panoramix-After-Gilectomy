@@ -1381,8 +1381,43 @@ once by the decisions about positions (`SideState`), XInt's products by 1
 and -1, and the bytes getter's check copying its worlds' storage words at
 once (`exec::Host::sload_run`).
 
-**Not run yet:** the PGO build trained on the corpus (`make pgo`) and the final benchmark
-against the asm (`make bench`) - the work stopped at the user's request before them. The
-triage's measurements above are the latest; since then the storage hash table moved to the
-build (the corpus' median 23.6 -> 10.4 ms per contract, total 79.2 -> 70.0 s at -j 2) and
-the memory forwarding of triage issues 6 and 7 added about 15% (73.4 -> 84.6 s).
+**The final benchmark against the asm** (8 Nov, cxx23 63d7037f25). Setup:
+- `make bench` over the 861 contracts of `tools/fetch_corpus.sh`, 3 runs: the binaries take
+  turns contract by contract in a rotating order, one contract at a time, `-j 1`; CPU =
+  user + sys, the mean of the runs; the machine otherwise idle.
+- The PGO build (`make pgo`) was trained over 592 other contracts, so the benchmark doesn't
+  measure its training set: one solc build per project and compiler of the source corpus,
+  its distinct Vyper bytecodes, and the Yul fixtures.
+- The PGO build prints the same 861 texts as the release build, byte for byte.
+
+| | asm | cxx | cxx PGO |
+|---|---|---|---|
+| total CPU | 55.3 s (± 0.9 between runs) | 61.4 s (1.11x) | 54.3 s (0.98x) |
+| without 0x032_Exchange | 47.1 s | 47.3 s (1.00x) | 42.3 s (0.90x) |
+| median per contract | 6.4 ms | 6.4 ms | 5.8 ms (0.91x) |
+| p90 / p99 | 72 / 1284 ms | 106 / 1210 ms | 95 / 1078 ms |
+| max (0x032_Exchange) | 8.2 s | 14.2 s | 12.0 s |
+| user / sys | 39.6 / 15.7 s | 57.3 / 4.2 s | 50.1 / 4.1 s |
+| peak RSS / median | 370 / 23 MiB | 327 / 28 MiB | 386 / 27 MiB |
+
+By the asm's time per contract:
+
+| asm's time per contract | contracts | cxx | cxx PGO |
+|---|---|---|---|
+| under 50 ms | 735 | 1.54x (10.6 against 6.9 s) | 1.44x |
+| 50 to 300 ms | 90 | 1.18x | 1.05x |
+| 300 ms and more | 36 | 1.02x | 0.88x |
+
+Per contract (asm 50 ms or more, 126 contracts): the PGO build's ratio to the asm has a
+median of 0.99, from 0.34 to 2.13. The PGO build is faster than the asm on 440 of the 861
+contracts.
+
+What the extra time is:
+- **0x032_Exchange** accounts for 5.9 of the release build's 6.1 extra seconds. In the
+  profiles of `docs/alloc-floor.md` (made before the memos), half of its time was the
+  memory pass's decisions about positions, which the free-memory floors prove where the
+  asm assumed.
+- **The small contracts' extra** is 3.7 s over 735 contracts, 5 ms each. It isn't broken
+  down here. In the same profiles, the check of the bytes getters against storage worlds
+  (lot 9, not the asm's) took most of the time of the small contracts it was measured on:
+  73% of openze300_ERC721, 91% of uniswa410_MockHooks.
