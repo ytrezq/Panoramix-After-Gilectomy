@@ -56,6 +56,17 @@ Value line_rules(Value l) {
             if (!run_flags().msize && l[1].is(Op::MEM, 1) && l[1][0] == l[0]) return Value();
             return l;
         }
+        case Op::STORE_RANGE: {
+            // no slot: nothing changes (nor msize: no byte read); one: a
+            // STORE of its word (a read of memory stays one)
+            if (l.size() != 3) return l;
+            if (is_int(l[1], 0)) return Value();
+            if (is_int(l[1], 1)) {
+                const auto w = l[2].is_int() ? std::optional<Value>(l[2]) : mem::as_word(l[2]);
+                if (w) return mk(Op::STORE, Value::small(256), Value::small(0), l[0], *w);
+            }
+            return l;
+        }
         case Op::RETURN:
             if (no_bytes(l[0])) return mk(Op::STOP, std::span<const Value>{});
             return l;

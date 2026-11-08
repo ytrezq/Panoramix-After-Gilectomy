@@ -438,6 +438,7 @@ Pos operand_pos(Op op, u32 i, u32 n) {
         case Op::ARR: return i == 0 ? Pos::Word : Pos::Bytes;
         case Op::SIZED: return i == 0 ? Pos::Word : Pos::Any;
         case Op::SETMEM: return i == 0 ? Pos::Word : Pos::Any;
+        case Op::STORE_RANGE: return i == 2 ? Pos::Any : Pos::Word;
         case Op::RETURN:
         case Op::REVERT: return Pos::Bytes;
         case Op::LOG0:

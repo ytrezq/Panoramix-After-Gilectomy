@@ -252,6 +252,53 @@ TEST_CASE("text interp: stor[slot len n] - the words of n slots (a copy loop of 
     }
 }
 
+TEST_CASE("text interp: stor[slot len n] = data - the n slots set at once (a copy loop of the storage)")
+{
+    const Program program = parse(
+        "def m(uint256 n): # not payable\n"
+        "  mem[128 len 32 * n] = call.data[36 len 32 * n]\n"
+        "  stor[5 len n] = mem[128 len 32 * n]\n"
+        "  stor[100 len 2] = 0\n"
+        "  stor[200 len 2] = stor[4 len 2]\n"
+        "  return stor[3 len n + 3], stor[99 len 4], stor[200 len 2]\n");
+    for (const auto& e : program.errors)
+        MESSAGE(e);
+    CHECK(program.errors.empty());
+    Interpreter interp{program};
+    const SeededWorld world{WorldConfig{.seed = 11, .random = true}};
+    const Word self = world.contract_address();
+    auto slot = [&](unsigned s) { return world.storage(self, Word{s}); };
+    for (const unsigned n : {0u, 1u, 3u})
+    {
+        State state{world, self, Bytes{0x00}};
+        CallContext c;
+        c.caller = world.actors().front();
+        c.origin = c.caller;
+        c.calldata = calldata("m(uint256)", {n});
+        for (unsigned i = 0; i < n; ++i)
+            append_word(c.calldata, Word{0x1000 + i});
+        const Effects e = interp.run(state, c);
+        INFO("n = ", n);
+        REQUIRE(e.end.status == Status::return_);
+        // slots 3, 4 as they were, 5.. the words given, then as they were;
+        // 99 as it was, 100 and 101 cleared, 102; 200 and 201: slots 4 and 5
+        // as the copy found them
+        Bytes want;
+        append_word(want, slot(3));
+        append_word(want, slot(4));
+        for (unsigned i = 0; i < n; ++i)
+            append_word(want, Word{0x1000 + i});
+        append_word(want, slot(5 + n));
+        append_word(want, slot(99));
+        append_word(want, 0);
+        append_word(want, 0);
+        append_word(want, slot(102));
+        append_word(want, slot(4));
+        append_word(want, n > 0 ? Word{0x1000} : slot(5));
+        CHECK(e.end.data == want);
+    }
+}
+
 TEST_CASE("text interp: review 2026-11-02 F1 - a Bytes(n, v) of a large n, its value short or padded")
 {
     // the printer writes a wide Bytes(n, v) as its significant digits alone

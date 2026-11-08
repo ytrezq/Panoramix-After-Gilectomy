@@ -305,6 +305,7 @@ private:
     Flow exec(StmtId id);
     void assign(ExprId lhs, const Word& value);
     void assign_memory(const Stmt& s);
+    void assign_storage_range(const Stmt& s);
     void call_stmt(const Stmt& s);
     void create_stmt(const Stmt& s);
     void precompiled(const Stmt& s);
@@ -1167,6 +1168,28 @@ void Run::assign_memory(const Stmt& s)
     mem_write(at, b);
 }
 
+// stor[slot len n] = data: the n slots from slot on set to the words of its
+// 32 n bytes (all made first); a number: its low 32 n bytes
+void Run::assign_storage_range(const Stmt& s)
+{
+    const Word slot = eval(kid(s.a, 0));
+    const auto n = size_of(eval(kid(s.a, 1)), lim_.memory / 32);
+    Bytes b;
+    if (s.list.size() == 1 && !sized(s.list[0]))
+        put_low(b, eval(s.list[0]), 32 * n);
+    else
+    {
+        data(s.list, b);
+        if (b.size() != 32 * n)
+            throw Unsup{Unsupported::data_size};
+    }
+    for (std::size_t i = 0; i < n; ++i)
+    {
+        step();
+        s_.sstore(slot + Word{i}, load_word(b, Word{32 * i}));
+    }
+}
+
 void Run::call_stmt(const Stmt& s)
 {
     Word target;
@@ -1306,6 +1329,8 @@ Run::Flow Run::exec(StmtId id)
         const Op op = ex(s.a).op;
         if (op == Op::mem_range || (op == Op::mem && !s.list.empty()))
             assign_memory(s);
+        else if (op == Op::stor_range)
+            assign_storage_range(s);
         else
             assign(s.a, eval(s.b));
         return {};

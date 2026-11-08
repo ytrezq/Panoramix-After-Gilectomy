@@ -8,6 +8,7 @@
 #include <optional>
 #include <utility>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "core/budget.hpp"
@@ -107,7 +108,27 @@ std::string show(const exec::Outcome& o) {
     return s;
 }
 
-bool same_runs(Value t, Value u, int n = 48) {
+// the effects but the storage writes in their order, and the storage at the
+// end (as the stage checks compare them: validate/effects.hpp)
+bool same_end_storage(World& a, World& b) {
+    auto events = [](const World& h) {
+        std::vector<exec::SimpleHost::Effect> e;
+        for (const auto& x : h.effects)
+            if (!std::holds_alternative<exec::SimpleHost::Sstore>(x)) e.push_back(x);
+        return e;
+    };
+    if (events(a) != events(b)) return false;
+    for (World* h : {&a, &b})
+        for (const auto& [slot, value] : h->storage) {
+            (void)value;
+            if (a.sload(slot) != b.sload(slot)) return false;
+        }
+    return true;
+}
+
+// t and u run the same in n worlds: their ends, their effects - the storage
+// writes in their order, or (any_order) the storage they leave
+bool same_runs(Value t, Value u, int n = 48, bool any_order = false) {
     FunctionInfo fn;
     fn.kind = FunctionInfo::Kind::Selector;
     exec::Program p;
@@ -120,8 +141,9 @@ bool same_runs(Value t, Value u, int n = 48) {
             MESSAGE("bug: " << show(a) << " / " << show(b));
             return false;
         }
-        if (a.status != b.status || a.data != b.data || w1.effects != w2.effects) {
-            MESSAGE("world " << s << ": " << show(a) << " vs " << show(b));
+        const bool effects = any_order ? same_end_storage(w1, w2) : w1.effects == w2.effects;
+        if (a.status != b.status || a.data != b.data || !effects) {
+            MESSAGE("world " << s << ": " << show(a) << " vs " << show(b) << (effects ? "" : ", other effects"));
             return false;
         }
     }
@@ -310,6 +332,82 @@ TEST_CASE("loops: loop_to_setmem, the storage's words (python's loop_to_setmem_f
                  " (while (lt loop1 tmp1) {(setmem (range (add 64 (mul 32 loop1)) 32) (storage 160 0 (add 5 "
                  "loop1))) (continue loopid1 {(setvar loop1 (add 1 loop1))})} loopid1 {(setvar loop1 0)})"
                  " (return (mem (range 0 320)))}",
+                 pass_setmems));
+}
+
+TEST_CASE("loops: the copy loops of the storage, one STORE_RANGE (to_store)") {
+    Fixture f;
+    // (a loop downwards writes its slots from the last: the storage it
+    // leaves the same, as the stage checks compare it)
+    auto stored = [](const char* text) {
+        Value t = V(text);
+        Vars vars(t);
+        Value u = pass_setmems(t);
+        CHECK_MESSAGE(same_runs(t, u, 48, true), dump_trace(t) << "\n->\n" << dump_trace(u));
+        INFO(dump_trace(u));
+        return !has_while(u) && has_op(u, Op::STORE_RANGE);
+    };
+    // memory to the slots from 5 on, a counter of words (the storage read
+    // back after it: the slots it wrote, the ones around)
+    CHECK(stored("{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+                 " (setmem (range 0 512) (calldata_bytes 100 512))"
+                 " (while (lt loop1 tmp1) {(store 256 0 (add 5 loop1) (mem (range (add 64 (mul 32 loop1)) 32))) "
+                 "(continue loopid1 {(setvar loop1 (add 1 loop1))})} loopid1 {(setvar loop1 0)})"
+                 " (return (data (storage_range 4 10) (sized 32 loop1)))}"));
+    // Vyper's: while i + 1 != n (xor), a string's words after its length
+    CHECK(stored("{(setvar tmp1 (add 1 (mask_shl 3 0 0 (calldataload 4))))"
+                 " (setvar tmp2 (mul 8 (mask_shl 2 0 0 (calldataload 36))))"
+                 " (setmem (range 0 640) (calldata_bytes 100 640))"
+                 " (while (xor (add 1 loop1) tmp1) {(store 256 0 (add (add 6 tmp2) loop1) (mem (range (add 96 (mul "
+                 "32 loop1)) 32))) (continue loopid1 {(setvar loop1 (add 1 loop1))})} loopid1 {(setvar loop1 0)})"
+                 " (return (data (storage_range 5 40) (sized 32 loop1)))}"));
+    // downwards
+    CHECK(stored("{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+                 " (setmem (range 0 512) (calldata_bytes 100 512))"
+                 " (while (gt loop1 0) {(store 256 0 (add 7 loop1) (mem (range (add 32 (mul 32 loop1)) 32))) "
+                 "(continue loopid1 {(setvar loop1 (add -1 loop1))})} loopid1 {(setvar loop1 tmp1)})"
+                 " (return (data (storage_range 6 10) (sized 32 loop1)))}"));
+    // the calldata, solc's two counters (the slot's, the address's bounded)
+    CHECK(stored("{(setvar tmp1 (add 36 (mul 32 (mask_shl 3 0 0 (calldataload 4)))))"
+                 " (while (lt loop2 tmp1) {(store 256 0 (add 9 loop1) (calldataload loop2)) (continue loopid1 "
+                 "{(setvar loop1 (add 1 loop1)) (setvar loop2 (add 32 loop2))})} loopid1 {(setvar loop1 0) (setvar "
+                 "loop2 36)})"
+                 " (return (data (storage_range 8 10) (sized 32 loop1) (sized 32 loop2)))}"));
+    // zeroes (an old string's tail cleared)
+    CHECK(stored("{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+                 " (while (lt loop1 tmp1) {(store 256 0 (add 1000 loop1) 0) (continue loopid1 {(setvar loop1 (add 1 "
+                 "loop1))})} loopid1 {(setvar loop1 0)})"
+                 " (return (data (storage_range 999 10) (sized 32 loop1)))}"));
+    // the storage: its source ahead of its destination
+    CHECK(stored("{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+                 " (while (lt loop1 tmp1) {(store 256 0 (add 5 loop1) (storage 256 0 (add 8 loop1))) (continue "
+                 "loopid1 {(setvar loop1 (add 1 loop1))})} loopid1 {(setvar loop1 0)})"
+                 " (return (data (storage_range 4 14) (sized 32 loop1)))}"));
+    // ... an element of 8 slots moved within an array of them, 3 words at
+    // most (Vyper's struct moved to another index - or the same)
+    CHECK(stored("{(setvar tmp1 (mask_shl 2 0 0 (calldataload 4)))"
+                 " (while (lt loop1 tmp1) {(store 256 0 (add 6 (mul 8 (mask_shl 2 0 0 (calldataload 36))) loop1) "
+                 "(storage 256 0 (add 6 (mul 8 (mask_shl 2 0 0 (calldataload 68))) loop1))) (continue loopid1 "
+                 "{(setvar loop1 (add 1 loop1))})} loopid1 {(setvar loop1 0)})"
+                 " (return (data (storage_range 5 32) (sized 32 loop1)))}"));
+    // kept: the source behind its destination (each iteration may read what
+    // an earlier one wrote), a slot read from the storage, a field
+    CHECK(!check("{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+                 " (while (lt loop1 tmp1) {(store 256 0 (add 8 loop1) (storage 256 0 (add 5 loop1))) (continue "
+                 "loopid1 {(setvar loop1 (add 1 loop1))})} loopid1 {(setvar loop1 0)})"
+                 " (return (data (storage_range 4 14) (sized 32 loop1)))}",
+                 pass_setmems));
+    CHECK(!check("{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+                 " (setmem (range 0 512) (calldata_bytes 100 512))"
+                 " (while (lt loop1 tmp1) {(store 256 0 (add (storage 256 0 3) loop1) (mem (range (add 64 (mul 32 "
+                 "loop1)) 32))) (continue loopid1 {(setvar loop1 (add 1 loop1))})} loopid1 {(setvar loop1 0)})"
+                 " (return (data (storage_range 0 8) (sized 32 loop1)))}",
+                 pass_setmems));
+    CHECK(!check("{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+                 " (setmem (range 0 512) (calldata_bytes 100 512))"
+                 " (while (lt loop1 tmp1) {(store 160 0 (add 5 loop1) (mem (range (add 64 (mul 32 loop1)) 32))) "
+                 "(continue loopid1 {(setvar loop1 (add 1 loop1))})} loopid1 {(setvar loop1 0)})"
+                 " (return (data (storage_range 4 10) (sized 32 loop1)))}",
                  pass_setmems));
 }
 

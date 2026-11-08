@@ -275,6 +275,10 @@ TEST_CASE("output: lines")
     // the words of n slots (a copy loop of the storage): stor[slot len n]
     CHECK(L("{(setmem (range 64 (mul 32 tmp1)) (storage_range 5 tmp1))}") == "  mem[64 len 32 * _1] = stor[5 len _1]\n");
     CHECK(E("(storage_range (add 1 (storage 256 0 3)) 2)") == "stor[stor[3] + 1 len 2]");
+    // the n slots set at once (a copy loop of the storage): stor[slot len n] = bytes
+    CHECK(L("{(store_range 5 tmp1 (mem (range 64 (mul 32 tmp1))))}") == "  stor[5 len _1] = mem[64 len 32 * _1]\n");
+    CHECK(L("{(store_range (add 9 tmp2) tmp1 0)}") == "  stor[_2 + 9 len _1] = 0\n");
+    CHECK(L("{(store_range 5 3 (storage_range 9 3))}") == "  stor[5 len 3] = stor[9 len 3]\n");
     CHECK(L("{(store 256 0 5 (add 1 (storage 256 0 5)))}") == "  stor[5]++\n");
     CHECK(L("{(store 160 0 5 caller)}") == "  address(stor[5]) = caller\n");
     CHECK(L("{(store 256 0 5 (add (storage 256 0 5) (mul -1 tmp1)))}") == "  stor[5] -= _1\n");

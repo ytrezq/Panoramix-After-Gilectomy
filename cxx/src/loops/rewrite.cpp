@@ -31,7 +31,10 @@
 //    start with a SETVAR of the SETMEM's value to a name the function never
 //    reads (kept by lot 7 for msize), dropped. loops_to_setmems also
 //    unrolls a loop whose induction proves it runs once or never (trips 1
-//    or 0: the tail of a copy of 20 bytes in words...).
+//    or 0: the tail of a copy of 20 bytes in words...), and makes a loop
+//    whose one write is a STORE of a word one STORE_RANGE (to_store: the
+//    words of memory, the calldata, the storage, or zeroes, set in
+//    consecutive slots).
 //  - propagate_storage_in_loops: a loop variable v starting at h + k (h a
 //    SHA3 term the loop doesn't change: a storage array's start) as v' = v -
 //    h: its start k, every read of it in the loop v' + h, every write of it
@@ -42,6 +45,7 @@
 #include "loops/loops.hpp"
 
 #include <algorithm>
+#include <bit>
 #include <memory_resource>
 #include <vector>
 
@@ -50,6 +54,7 @@
 #include "simplify/floor.hpp"
 #include "algebra/construct.hpp"
 #include "algebra/linear.hpp"
+#include "algebra/masks.hpp"
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "loops/internal.hpp"
@@ -263,6 +268,133 @@ Value to_setmem(Value w, const RewriteOptions& opts, const alg::Facts* facts, co
     return mk_trace(lines.span());
 }
 
+// The storage a copy loop of the storage reads (STORAGE(256, 0, r), r moving
+// by one as the destination's slot q) before it writes it, by the backward
+// distance d of the slots read from the slots written (up: q0 - r0; down: r0
+// - q0, the first iteration's): iteration k reads the slot an earlier
+// iteration j wrote when d = k - j, in [1, trips - 1] (mod 2^256). None does
+// when d is 0 (each reads its slot, then writes it), when d >= trips, or when
+// d is a multiple of a power of two m (every coefficient of its linear form
+// and its constant: so is its word) with trips <= m (a struct of m slots
+// moved within an array of them).
+bool reads_before_written(Value q0, Value r0, Value trips, bool up, const alg::Facts* facts) {
+    const Value d = up ? alg::sub(q0, r0) : alg::sub(r0, q0);
+    if (d == small(0)) return true;
+    if (alg::le(trips, d, alg::Top::Word, facts) == Tri::True) return true;
+    const alg::Linear l = alg::linear(d);
+    // the trailing zero bits of an int's word (256 for 0)
+    auto zeros = [](Value c) -> u32 {
+        const Word256 x = Word256::from_value(c);
+        for (u32 i = 0; i < 4; ++i)
+            if (x.limb[i]) return 64 * i + u32(std::countr_zero(x.limb[i]));
+        return 256;
+    };
+    u32 tz = zeros(l.constant);
+    for (const alg::LinTerm& t : l.terms) {
+        // (a field moved left by k bits: a multiple of 2^k - 8 x & 24 is a
+        // mask of x's bits moved left by 3)
+        u32 k = 0;
+        if (const auto m = alg::as_mask(t.term); m && m->concrete() && m->ishl() > 0 && m->ishl() < 256)
+            k = u32(m->ishl());
+        tz = std::min(tz, std::min<u32>(256, zeros(t.coeff) + k));
+    }
+    if (tz == 0 || tz > 62) return false;
+    return alg::le(trips, Value::small(i64(1) << tz), alg::Top::Word, facts) == Tri::True;
+}
+
+// A copy loop of the storage: the loop's one write a STORE of a word,
+//   WHILE(cond, {STORE(256, 0, q, v), CONTINUE(id, S)}, id, S0),
+// its induction proven (trips, every variable's last value), q moving by D =
+// +-1 every iteration: the variables' last values, then STORE_RANGE(q_lo,
+// trips, value) - the slots [q_lo, q_lo + trips) set to the words of value,
+// all read first - where
+//   v = 0                      value 0
+//   v = MEM(RANGE(p, 32)), p moving by 32 D: MEM(RANGE(p_lo, 32 trips))
+//   v = CALLDATALOAD(p), p moving by 32 D:  CALLDATA_BYTES(p_lo, 32 trips)
+//   v = STORAGE(256, 0, r), r moving by D:  STORAGE_RANGE(r_lo, trips), when
+//       no iteration reads a slot an earlier one wrote (reads_before_written)
+// The loop writes the storage only: the memory, the calldata it reads and
+// its addresses' memory are as they were (what reads the storage - an
+// address, the bound - doesn't move, nor bound, then: no rewrite). With a
+// memory read moving, the counter's wrap is decided under lot 4's memory
+// model (each iteration reads memory there: a run that pays for it has it
+// below 2^64); else on words. The body may start with a SETVAR of the
+// value to a name the function never reads, as in to_setmem.
+Value to_store(Value w, const alg::Facts* facts, const Unread* unread) {
+    if (!w.is(Op::WHILE, 4)) return w;
+    const Value body = w[1], sv = w[3];
+    if (!body.is_list() || !sv.is_list()) return w;
+    Value st, cont;
+    if (body.size() == 2) {
+        st = body[0];
+        cont = body[1];
+    } else if (body.size() == 3 && unread && body[0].is(Op::SETVAR, 2) && unread->has(body[0][0])) {
+        st = body[1];
+        cont = body[2];
+        if (!st.is(Op::STORE, 4) || word_value(body[0][1]) != word_value(st[3])) return w;
+    } else {
+        return w;
+    }
+    if (!st.is(Op::STORE, 4) || st[0] != small(256) || st[1] != small(0) || !cont.is(Op::CONTINUE, 2) ||
+        cont[0] != w[2])
+        return w;
+    const Value q = st[2], v = word_value(st[3]);
+    if (q.is(Op::LENGTH) || q.is(Op::LOC)) return w;
+    const bool from_memory = v.is(Op::MEM, 1);
+    Value finals;
+    const auto ind = induction_at(w, from_memory ? alg::Top::Memory : alg::Top::Word, facts, &finals, nullptr);
+    if (!ind || ind->trips.nil() || finals.nil()) return w;
+    SmallVec<Value, 8> names;
+    setvar_names(sv, names);
+    const std::span<const Value> ns(names.data(), names.size());
+    if (finals.size() != names.size()) return w;
+    for (Value e : finals.args())
+        if (reads_any(e[1], ns)) return w;
+    bool ok = false;
+    const simplify::EffectSummary others = but_vars(simplify::summary(w), ns, ok);
+    if (!ok) return w;
+    auto moves = [&](Value x) { return move_of(x, ns, cont[1], others); };
+    const auto dq = moves(q);
+    if (!dq || !(*dq == small(1) || *dq == small(-1))) return w;
+    const bool up = *dq == small(1);
+    const Value n = ind->trips;
+    // an address where the loop starts: its first iteration's (up), else
+    // past its last iteration's
+    auto low = [&](Value addr, i64 step) {
+        if (up) return at(addr, ns, sv);
+        return alg::add(at(addr, ns, finals), small(step));
+    };
+    Value value;
+    if (v == small(0)) {
+        value = small(0);
+    } else if (v.is(Op::MEM, 1) && v[0].is(Op::RANGE, 2) && v[0][1] == small(32)) {
+        const auto dp = moves(v[0][0]);
+        if (!dp || *dp != (up ? small(32) : small(-32))) return w;
+        value = mk(Op::MEM, mem::make_range(low(v[0][0], 32), alg::mul(small(32), n)));
+    } else if (v.is(Op::CALLDATALOAD, 1)) {
+        const auto dp = moves(v[0]);
+        if (!dp || *dp != (up ? small(32) : small(-32))) return w;
+        value = mk(Op::CALLDATA_BYTES, low(v[0], 32), alg::mul(small(32), n));
+    } else if (v.is(Op::STORAGE, 3) && v[0] == small(256) && v[1] == small(0) && !v[2].is(Op::LENGTH) &&
+               !v[2].is(Op::LOC)) {
+        const Value r = v[2];
+        const auto dr = moves(r);
+        if (!dr || *dr != *dq) return w;
+        if (!reads_before_written(at(q, ns, sv), at(r, ns, sv), n, up, facts)) return w;
+        value = mk(Op::STORAGE_RANGE, low(r, 1), n);
+    } else {
+        return w;
+    }
+    Value set = mk(Op::STORE_RANGE, low(q, 1), n, value);
+    // (the line runs after the variables are set: none read in it)
+    if (reads_any(set, ns)) return w;
+    cx().pcs.inherit(set, st);
+    SmallVec<Value, 8> lines;
+    for (Value e : finals.args()) lines.push_back(e);
+    lines.push_back(set);
+    return mk_trace(lines.span());
+}
+
 // The SETVARs of a LIST of them as lines, in an order that sets them all at
 // once (a value read before a name it reads is set: a name's SETVAR after
 // every other one reading it); false when there's none (a cycle, a name set
@@ -394,6 +526,7 @@ public:
                     Value x = b == l[1] ? l : mk(Op::WHILE, l[0], b, l[2], l[3]);
                     if (x != l) cx().pcs.inherit(x, l);
                     Value r = to_setmem(x, opts_, &head, &unread_);
+                    if (!r.is_list()) r = to_store(x, &head, &unread_);
                     if (r.is_list()) {
                         for (Value y : r.args()) out.push_back(y);
                         changed = true;

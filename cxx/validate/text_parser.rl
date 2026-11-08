@@ -1655,7 +1655,7 @@ void Parser::s_assign(St kind)
     st.a = lhs;
     if (kind == St::assign)
     {
-        if (op == Op::mem_range || op == Op::mem)
+        if (op == Op::mem_range || op == Op::mem || op == Op::stor_range)
             st.list = parts_from(1);
         else if (parts_.size() == 2)
             st.b = part(1);
