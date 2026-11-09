@@ -34,6 +34,7 @@ git sparse-checkout set --no-cone '/*' '!/cxx/corpus/immunefi/*/*/'
 | `immunefi/SLUG/notes.md` | how the repositories were found (the program's assets, its GitHub organization), what was left out and why |
 | `immunefi/SLUG/OWNER__REPO/` | the repository's subtree: its EVM sources (`.sol .vy .vyi .yul .huff .fe .lll .se`), build files (`foundry.toml`, `remappings.txt`, `package.json`, `hardhat.config.*`, ...) and license files at their own paths; its submodules' and dependencies' at the paths a build finds them (`lib/...`, `node_modules/...`, `dependencies/...`) |
 | `compiled/` | the compiled corpus of 8 Nov 2026 (`build_corpus.py`'s output: 37,946 artifacts with their bytecode, ABI, storage layout and ASTs, 3.6 GB), one `PROGRAM.tar.xz` per program, 176 MB in all: `tools/unpack_build.sh DEST` unpacks it (`compiled/README.md`) |
+| `review/` | the manual review of the decompiled contracts against their sources, in tranches of 600 (`review/README.md`): the contracts in review order, the reviewers' instructions, each tranche's results |
 | `results/` | runs of the tools: the builds' errors, `compare_source.py`'s summary and per-artifact results (`results/sample-2026-11-08/`: 168 artifacts of 11 programs, solc 0.4.24 to 0.8.38 and Vyper 0.3.6 to 0.4.2 on five EVM versions) |
 
 ## What is in it
@@ -86,6 +87,13 @@ tools/compare_source.py BUILD --pancxx .../pancxx --stagecheck .../stagecheck \
     --text-check .../text_check --sigdb .../sigdb2.bin [--blind] -j 2
 
 tools/corpus_stats.py   # immunefi/STATUS.md
+
+# the manual review: the contracts in review order, a tranche's packs (the
+# source beside the decompiled code, function by function), its results put together
+tools/review_select.py --build BUILD --compare results/full-2026-11-08/results.jsonl --out review/contracts.jsonl
+tools/review_pack.py --build BUILD --sources immunefi --contracts review/contracts.jsonl --tranche N \
+    --pancxx .../pancxx --sigdb .../sigdb2.bin --out WORK --batches 20
+tools/review_summary.py --contracts review/contracts.jsonl --results WORK/results --out review/tNN --tranche N
 
 # the compiled corpus kept in compiled/: unpack it, or pack a new build
 tools/unpack_build.sh BUILD [PROGRAM...]
