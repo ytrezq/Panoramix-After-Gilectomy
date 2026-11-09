@@ -11,7 +11,7 @@ versions each compiler and each piece of code allow:
 - compilers: solc 0.4.22 to 0.8.38 (52 releases), Vyper 0.2.12 to 0.4.2 (7 releases, 150 artifacts);
 - EVM versions: constantinople to osaka (paris 11,034 artifacts, shanghai 10,224, cancun 9,175, istanbul 2,908, london 2,846, prague 863, constantinople 466, osaka 363, petersburg 67).
 
-The errors are 3,694 lines of the build's `errors.jsonl`, not kept here:
+The build itself is kept in `../../compiled/` (`tools/unpack_build.sh` unpacks it), with its `errors.jsonl`. Its 3,694 lines are these errors:
 
 | Errors | Count | What they are |
 |---|---|---|
