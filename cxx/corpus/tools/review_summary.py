@@ -37,6 +37,7 @@ def main():
     tot = collections.Counter()
     loops = collections.Counter()
     kinds = collections.Counter()
+    pats, pat_contracts = collections.Counter(), collections.Counter()
     flat = []
     for i, r in sorted(res.items()):
         tot['contracts'] += 1
@@ -45,6 +46,10 @@ def main():
             tot[k] += v if isinstance(v, int) else 0
         for k, v in (r.get('loops_shown') or {}).items():
             loops[k] += v if isinstance(v, int) else 0
+        for k, v in (r.get('patterns') or {}).items():
+            if isinstance(v, int) and v > 0:
+                pats[k] += v
+                pat_contracts[k] += 1
         for f in r.get('findings') or []:
             kinds[(f.get('kind', '?'), f.get('severity', '?'))] += 1
             flat.append(dict(f, id=i, artifact=rows.get(i, {}).get('artifact', '')))
@@ -63,6 +68,10 @@ def main():
            '', '| kind | ' + ' | '.join(sev) + ' |', '|---|' + '---|' * len(sev)]
     for k in ks:
         out.append('| %s | %s |' % (k, ' | '.join(str(kinds[(k, s)]) for s in sev)))
+    if pats:
+        out += ['', '| known pattern | lines | contracts |', '|---|---|---|']
+        for k in sorted(pats, key=lambda k: int(k[1:]) if k[1:].isdigit() else 999):
+            out.append('| %s | %d | %d |' % (k, pats[k], pat_contracts[k]))
     out += ['', '## The high findings', '']
     for x in flat:
         if x.get('severity') == 'high':

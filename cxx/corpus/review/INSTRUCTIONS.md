@@ -59,6 +59,11 @@ and don't commit.
 Read packs with the Read tool, in chunks of 300 to 600 lines (`offset`/`limit`),
 and don't re-read what you already read.
 
+Decompiled lines longer than 240 characters are cut in the packs, with the
+text's line number; read that line in `dec/ID.txt` only if you need it. The
+pack's header gives the counts of the known patterns that a regular
+expression finds (below).
+
 ## What is normal in the text (not a finding)
 
 - **Inlining.** Internal functions and modifiers are inlined into each public
@@ -71,10 +76,17 @@ and don't re-read what you already read.
 - **ABI decoding checks are real code.** For example `require calldata.size - 4
   >=′ 64`, `require x == address(x)`, and bounds checks of dynamic parameters.
 - **`′` marks signed operations:** `<′`, `>=′`, `/′`...
-- **Immutables are 0.** The bytecodes are the compiler's runtime code *before*
-  deployment, so an `immutable` reads as 0 (`const WETH9 = 0`, `Bytes(64, 0)` in
-  a hash). The same goes for a Vyper immutable read past the end of the code,
-  shown as `????` addresses.
+- **Immutables.** The bytecodes are the compiler's runtime code *before*
+  deployment, and how an immutable reads depends on the compiler:
+  - **solc** leaves zeros where the constructor writes immutables, so an
+    immutable reads as 0 (`const WETH9 = 0`, `Bytes(64, 0)` in a hash).
+  - **Vyper** (0.3 and later) reads its immutables with `CODECOPY` from the end
+    of the runtime code. In these bytecodes those bytes are the code itself, so
+    the reads give garbage. That shows as `????` addresses and odd constants,
+    and can even make a function a bare `revert`.
+
+  None of this is a decompiler error. Report it once per contract, as kind
+  `artifact`.
 - **Checked arithmetic** is shown through `def SafeMath:`'s helpers (`SafeMath.add(a, b)`),
   or as explicit checks that revert with `Panic(17)` or `Panic(18)`.
 - **The display vocabulary:**
@@ -89,6 +101,53 @@ and don't re-read what you already read.
 - **`Decompilation aborted, sorry: ("decompilation didn't finish",)`** marks a
   path the decompiler gave up on, because of its limits. Report it once per
   function, as kind `coverage`, saying which part of the source it loses.
+
+## Known patterns
+
+These problems are already known. For each one, report only how many lines of
+the contract have it, in `patterns`, for example `{"P2": 5, "P7": 3}`. Write a
+finding about one only when an instance shows something new, or when it hides
+a semantic problem.
+
+The pack's header counts P1 to P6, which a regular expression finds. Check those
+counts. Estimate the others.
+
+| Id | The pattern |
+|---|---|
+| P1 | a big constant factored by a time unit (`0x3d58...a0 * 3600`) |
+| P2 | a call's arguments shown as raw memory (`args mem[mem[64] len ...]`): memory addressed from an unknown free-memory pointer is not worked out, so the call loses its function name and arguments |
+| P3 | a rotated loop: the first iteration is printed before the loop, with a test like `while _x + 1 != N` |
+| P4 | a one-element `concat(mem[N])` used as a mapping key |
+| P5 | an unused `copied = identity(...)`, a copy through the identity precompile |
+| P6 | a word whose top hex digit is 0, printed with 63 digits, so its first 8 digits read as another selector |
+| P7 | a memory-to-memory copy (bytes, string, array) left as a `while` loop |
+| P8 | dead memory writes kept (memory written and never read) |
+| P9 | inlined multiply-divide arithmetic (mulDiv, FullMath, sqrt...) expanded or distributed until unreadable |
+| P10 | a one-armed `if` printed with two arms, with an SSA copy in one arm or a negated condition |
+| P11 | a check that a dominating check already implies, kept |
+| P12 | the same code printed in both arms of a branch |
+| P13 | a mapping of structs named after the getter of one of its members (naming) |
+| P14 | locals kept in memory as `mem[N]` instead of named variables |
+| P15 | a packed storage slot written as whole-slot arithmetic, or not split into its fields in `def storage` |
+| P16 | an element of a static calldata array at a variable index shown as raw calldata arithmetic |
+| P17 | a big decimal constant (a power of ten...) printed in hex |
+| P18 | the fields of a returned or copied struct visible only as memory slices |
+
+## Counting loops
+
+- **`source_loops`** counts the explicit loops of the source: `for`, `while`,
+  `do`, Yul `for`. Count them in the reviewed functions and in what they reach,
+  each loop once per contract, however many functions inline it.
+- **`loops_shown`** says how the text shows each of those loops: `while`,
+  `copy_line`, `unrolled`, `aborted` or `missing`.
+- **Implicit loops** are the compiler's own: ABI copies, string and bytes
+  copies, an exponentiation helper, an unrolled argument copy. Don't count them
+  in `source_loops`. When the text shows one as an obscure `while`, count it in
+  `patterns` (P7, or P3).
+- **`spurious_while`** counts the `while` blocks that match neither a source
+  loop nor an implicit loop.
+- **A loop that is dead only because of the immutables** (kind `artifact`) is
+  not counted.
 
 ## The procedure for one contract
 
@@ -136,9 +195,12 @@ and don't re-read what you already read.
    writes, events and reverts. Say so in `notes`.
 6. **When a function looks the same** as one you already reviewed (the same
    library code, the same decompiled form), write `"same as cXXXXX FN"` in
-   `notes` and move on.
+   `notes` and move on. Library code repeated across contracts (OpenZeppelin,
+   FullMath, TickMath, SafeERC20, Math...) is reviewed once per batch.
 7. **Check a semantic suspicion by execution** when you can. The tools are in
    `/home/claude/wt-cxx/cxx/build-cmp3`; use them one at a time, with `nice`.
+   `pancxx disasm BUILD.hex` disassembles the bytecode; reading the disassembly
+   often settles a doubt fastest.
 
        PANORAMIX_SIGDB=/home/claude/wt-cxx/cxx/build-cmp3/sigdb2.bin nice -n 10 \
          /home/claude/wt-cxx/cxx/build-cmp3/stagecheck --stage folded --function 0xSELECTOR \
@@ -151,6 +213,10 @@ and don't re-read what you already read.
    - `text_check` compares the printed text, parsed again, with evmone. Add
      `--verbose` or `--trace` for one contract.
    - `evmrun` runs one call of your own in evmone.
+
+   No tool runs a call of your own against the *text*. For a path that sampled
+   calls miss, use `stagecheck --function` with more `--seeds`, the
+   disassembly, and careful reading.
 
    A suspicion you can't reproduce is still worth reporting: mark it
    `"verified": "reading only"`, with your reasoning.
@@ -170,9 +236,10 @@ first, then rename it. This is the schema:
   "source_loops": 12,
   "loops_shown": {"while": 7, "copy_line": 4, "unrolled": 0, "aborted": 0, "missing": 1},
   "spurious_while": 0,
+  "patterns": {"P2": 5, "P7": 3},
   "findings": [
     {
-      "kind": "semantics | loop | simplification | coverage | naming",
+      "kind": "semantics | loop | simplification | coverage | naming | artifact",
       "severity": "high | medium | low",
       "function": "approve(address,uint256)",
       "lines": "197-212",
@@ -191,9 +258,11 @@ first, then rename it. This is the schema:
 The severities:
 
 - **high**
-  - The text says something the bytecode doesn't do, or hides something it
+  - The text says something the bytecode doesn't do, or leaves out something it
     does: a branch, revert, write, call or event missing or wrong.
   - Or a loop is missing or wrong.
+  - An effect that *is* in the text but hard to read is not high. For example,
+    a call whose arguments show as raw memory (P2) is medium.
 - **medium**
   - A loop is shown but obscure: an unconverted copy, an unreadable condition.
   - A main path is lost (`coverage`).
@@ -204,7 +273,10 @@ The severities:
 Use `naming` only for a name that misleads, for example a storage variable named
 after a getter that returns something else. It is not a focus.
 
-Keep findings concrete: the exact decompiled lines, the source lines, and why.
+A rule may take keccak256 as collision-free, as the storage analysis does.
+
+Keep findings concrete and short: the exact decompiled lines, the source lines,
+and why, with `issue` and `rule` at most three sentences each.
 Don't report the same pattern twenty times in one contract. Report it once,
 with the count and the list of functions in `notes`.
 

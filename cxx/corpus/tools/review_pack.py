@@ -38,6 +38,18 @@ _spec.loader.exec_module(rsel)
 
 ANSI = re.compile(r'\x1b\[[0-9;]*m')
 MAX_REACHED = 400
+MAX_LINE = 240       # a decompiled line longer than this is cut, with a pointer to the text
+MAX_REACHES = 15     # names listed in a function's "Reaches:"
+
+# the patterns already known (INSTRUCTIONS.md's P-numbers) that a regular expression finds
+PATTERNS = [
+    ('P1', 'a big constant factored by a time unit', re.compile(r'0x[0-9a-f]{9,} \* (60|3600|86400|604800|31536000)\b')),
+    ('P2', "a call's arguments as raw memory", re.compile(r'^\s*args mem\[')),
+    ('P3', 'a loop rotated (`while _x + 1 != N`)', re.compile(r'while _\w+ \+ 1 != \d+:')),
+    ('P4', 'a one-element concat as a key', re.compile(r'\[concat\(mem\[\d+\]\)\]')),
+    ('P5', 'an unused identity-precompile copy', re.compile(r'copied = identity\(')),
+    ('P6', 'a word printed with 63 hex digits', re.compile(r'\b0x[0-9a-f]{63}\b')),
+]
 
 
 # ---- sources -------------------------------------------------------------------------------
@@ -106,6 +118,25 @@ def numbered(text, first):
     return '\n'.join('%5d  %s' % (first + i, t) for i, t in enumerate(text.split('\n')))
 
 
+def numbered_dec(lines, first):
+    """decompiled lines, numbered; a line longer than MAX_LINE cut"""
+    out = []
+    for i, t in enumerate(lines):
+        if len(t) > MAX_LINE:
+            t = t[:MAX_LINE - 80] + ' ... [%d more characters: the text\'s line %d]' % (len(t) - MAX_LINE + 80,
+                                                                                       first + i)
+        out.append('%5d  %s' % (first + i, t))
+    return '\n'.join(out)
+
+
+def keccak_hex(sig):
+    return cs.keccak256(sig.encode()).hex()
+
+
+def abi_sig(e):
+    return '%s(%s)' % (e.get('name', ''), ','.join(cs.canonical(i) for i in e.get('inputs', [])))
+
+
 class Contract:
     """a contract's AST: its ABI functions' definitions, what they reach"""
 
@@ -168,6 +199,30 @@ class Contract:
         return out
 
 
+def vy_calls(vy, fn):
+    """the module's functions a Vyper function calls (self.f), transitively, in order"""
+    out, seen, todo = [], {fn.get('name')}, [fn]
+    while todo and len(out) < MAX_REACHED:
+        f = todo.pop(0)
+        stack = list(f.get('body') or [])
+        while stack:
+            x = stack.pop(0)
+            if isinstance(x, list):
+                stack[:0] = x
+                continue
+            if not isinstance(x, dict):
+                continue
+            if x.get('ast_type') == 'Call':
+                fu = x.get('func') or {}
+                if fu.get('ast_type') == 'Attribute' and (fu.get('value') or {}).get('id') == 'self' and \
+                        fu.get('attr') in vy.fns and fu['attr'] not in seen:
+                    seen.add(fu['attr'])
+                    out.append(vy.fns[fu['attr']])
+                    todo.append(vy.fns[fu['attr']])
+            stack.extend(v for v in x.values() if isinstance(v, (dict, list)))
+    return out
+
+
 def label(n):
     owner = n.get('_owner', '')
     kind = 'modifier' if n.get('nodeType') == 'ModifierDefinition' else (n.get('visibility') or '')
@@ -213,6 +268,9 @@ def text_stats(text):
             s['????'] += 1
         if ' len ' in t and '=' in t and '[' in t:
             s['copies'] += 1
+        for pid, _, rx in PATTERNS:
+            if rx.search(ln):
+                s[pid] += 1
     return s
 
 
@@ -276,6 +334,9 @@ def pack(a, row, ast_cache):
         row['bytes'], os.path.join(a.out, 'dec', row['id'] + '.txt'), text.count('\n')))
     w('- the text has: %d `while`, %d `for`, %d copy-like lines, %d `Decompilation aborted`, %d `????`' % (
         st['while'], st['for'], st['copies'], st['aborted'], st['????']))
+    found = ['%s %s: %d lines' % (pid, what, st[pid]) for pid, what, _ in PATTERNS if st[pid]]
+    if found:
+        w('- known patterns found by a regular expression: ' + '; '.join(found))
     w('- the build (ABI, storage layout, AST): `%s.json`' % base)
 
     # source file of the contract
@@ -306,6 +367,15 @@ def pack(a, row, ast_cache):
     sp, _ = srcs.bytes(meta['source'])
     w('- source: `%s`' % (sp or '(not found: %s under %s)' % (meta['source'], root)))
     w('')
+    vy, vy_lines, vy_reached = None, [], {}
+    if vyper and sp:
+        vy_lines = open(sp, encoding='utf-8', errors='replace').read().split('\n')
+        vy_ast = os.path.join(astdir, meta['source'].replace('/', '__') + '.json') if astdir else None
+        if vy_ast and os.path.exists(vy_ast):
+            try:
+                vy = cs.VyperAst(vy_ast)
+            except Exception:
+                vy = None
 
     # storage
     w('## Storage')
@@ -313,18 +383,57 @@ def pack(a, row, ast_cache):
     w("The compiler's layout (slot, byte offset, type, name):")
     w('')
     w('```')
+    types = (meta.get('storageLayout') or {}).get('types') or {}
+    structs, todo = [], []
     for e in (meta.get('storageLayout') or {}).get('storage', []) or []:
-        t = ((meta['storageLayout'].get('types') or {}).get(e.get('type')) or {}).get('label', e.get('type'))
+        t = (types.get(e.get('type')) or {}).get('label', e.get('type'))
         w('slot %s +%s  %s  %s.%s' % (e.get('slot'), e.get('offset'), t, e.get('contract', '').split(':')[-1],
                                        e.get('label')))
+        todo.append(e.get('type'))
+    while todo:
+        t = todo.pop(0)
+        d = types.get(t) or {}
+        if d.get('members') and t not in structs:
+            structs.append(t)
+            todo.extend(m.get('type') for m in d['members'])
+        for k in ('value', 'base', 'key'):
+            if d.get(k):
+                todo.append(d[k])
     w('```')
     w('')
+    if structs:
+        w('The structs (member: slot within the struct, byte offset, type):')
+        w('')
+        w('```')
+        for t in structs:
+            d = types[t]
+            w('%s (%s bytes)' % (d.get('label'), d.get('numberOfBytes')))
+            for m in d['members']:
+                w('  %s: slot +%s, +%s, %s' % (m.get('label'), m.get('slot'), m.get('offset'),
+                                               (types.get(m.get('type')) or {}).get('label', m.get('type'))))
+        w('```')
+        w('')
+    evs = [e for e in meta.get('abi') or [] if e.get('type') in ('event', 'error')]
+    if evs:
+        w('## Events and errors of the ABI')
+        w('')
+        w('```')
+        for e in sorted(evs, key=lambda e: (e['type'], e.get('name', ''))):
+            sig = abi_sig(e)
+            h = keccak_hex(sig)
+            if e['type'] == 'event':
+                idx = [i.get('name') or '?' for i in e.get('inputs', []) if i.get('indexed')]
+                w('event %s  topic0 0x%s%s' % (sig, h, ('  indexed: ' + ', '.join(idx)) if idx else ''))
+            else:
+                w('error %s  selector 0x%s' % (sig, h[:8]))
+        w('```')
+        w('')
     w("The text's definitions:")
     w('')
     w('```')
     for start, b in blocks:
         if b and b[0].startswith('def storage:'):
-            w(numbered('\n'.join(trim(b)), start))
+            w(numbered_dec(trim(b), start))
     w('```')
     w('')
 
@@ -359,12 +468,29 @@ def pack(a, row, ast_cache):
             for x in r:
                 reached_all.setdefault(x['id'], x)
             if r:
-                w('Reaches: ' + ', '.join(label(x) for x in r))
+                more = len(r) - MAX_REACHES
+                w('Reaches: ' + ', '.join(label(x) for x in r[:MAX_REACHES]) +
+                  (' and %d more' % more if more > 0 else ''))
                 w('')
             w('```solidity')
             w('// %s:%d' % (p, line) if p else '// (source not found)')
             if txt:
                 w(numbered(txt, line))
+            w('```')
+        elif vyper and vy is not None and f['name'] in vy.fns:
+            fn = vy.fns[f['name']]
+            first = min([fn.get('lineno', 1)] + [x.get('lineno', 1) for x in fn.get('decorator_list') or []
+                                                 if isinstance(x, dict)])
+            last = fn.get('end_lineno') or first
+            calls = vy_calls(vy, fn)
+            for c in calls:
+                vy_reached.setdefault(c.get('name'), c)
+            if calls:
+                w('Reaches: ' + ', '.join('self.' + c.get('name', '?') for c in calls))
+                w('')
+            w('```python')
+            w('# %s:%d' % (sp, first))
+            w(numbered('\n'.join(vy_lines[first - 1:last]), first))
             w('```')
         elif vyper:
             w('(Vyper: the function is in the source file named above.)')
@@ -378,11 +504,11 @@ def pack(a, row, ast_cache):
             if head in first_line:
                 start, b = first_line[head]
                 w('```decompiled')
-                w(numbered('\n'.join(b), start))
+                w(numbered_dec(b, start))
                 w('```')
             else:
                 w('```decompiled')
-                w(pr)
+                w(numbered_dec(pr.split('\n'), 1))
                 w('```')
         else:
             w('**Not in the decompiled code.**')
@@ -394,7 +520,7 @@ def pack(a, row, ast_cache):
         if b and b[0].startswith('def ') and not b[0].startswith(('def storage:', 'def SafeMath:')) \
                 and b[0] not in done_dec:
             w('```decompiled')
-            w(numbered('\n'.join(trim(b)), start))
+            w(numbered_dec(trim(b), start))
             w('```')
             w('')
     for e in meta.get('abi') or []:
@@ -423,7 +549,7 @@ def pack(a, row, ast_cache):
             w("## The text's `def SafeMath:` block")
             w('')
             w('```decompiled')
-            w(numbered('\n'.join(trim(b)), start))
+            w(numbered_dec(trim(b), start))
             w('```')
             w('')
     if reached_all:
@@ -439,11 +565,25 @@ def pack(a, row, ast_cache):
                 w(numbered(txt, line))
             w('```')
             w('')
-    if vyper and sp:
+    if vyper and vy_reached:
+        w('## Internal functions reached (each once)')
+        w('')
+        for nm, fn in sorted(vy_reached.items()):
+            first = min([fn.get('lineno', 1)] + [x.get('lineno', 1) for x in fn.get('decorator_list') or []
+                                                 if isinstance(x, dict)])
+            last = fn.get('end_lineno') or first
+            w('### self.%s' % nm)
+            w('')
+            w('```python')
+            w('# %s:%d' % (sp, first))
+            w(numbered('\n'.join(vy_lines[first - 1:last]), first))
+            w('```')
+            w('')
+    if vyper and sp and vy is None:
         w('## The Vyper source')
         w('')
         w('```python')
-        w(numbered(open(sp, encoding='utf-8', errors='replace').read(), 1))
+        w(numbered('\n'.join(vy_lines), 1))
         w('```')
     data = '\n'.join(out) + '\n'
     open(os.path.join(a.out, 'packs', row['id'] + '.md'), 'w').write(data)
