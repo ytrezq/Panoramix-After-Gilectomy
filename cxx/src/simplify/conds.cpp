@@ -105,6 +105,15 @@ public:
         const u32 n = t.size();
         for (u32 i = 0; i < n; ++i) {
             poll();
+            // what follows a line every path of which ends never runs: a
+            // branch decided here (its lines in the if's place), or an if
+            // whose branches both end once simplified, leaves the lines
+            // after it - the VM's join of its paths - with nothing reaching
+            // them (and the variables they read set on no path): dropped
+            if (!res.empty() && ends(res.back())) {
+                changed = true;
+                break;
+            }
             Value line = t[i];
             if (line.is(Op::LABEL, 2)) {
                 // a loop's head: what the lines after it change, forgotten
