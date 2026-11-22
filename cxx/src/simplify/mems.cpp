@@ -101,6 +101,36 @@ mem::MemState constrained(const mem::MemState& st, Value cond) {
     return s2;
 }
 
+// A write that keeps some of the bytes it overwrites - a field of its value
+// is those very bytes, read before it: the selector stored over the word
+// whose low bytes are the first argument's top ones, mem[p] = uint224(mem[p])
+// | sel - as the write of the bytes it changes: those bytes written again are
+// the same bytes (the split's line that simplify_line drops: a copy of memory
+// onto itself). Before the forward pass resolves its reads: what they read
+// is then no longer seen as the bytes overwritten (the argument's word stays
+// one piece, not its top bytes written again by a line of their own). The
+// line itself when nothing is kept or more than one write is left; in a
+// trace that reads msize, always (the wider write moves it further).
+Value narrowed(Value l) {
+    if (run_flags().msize || !l[0].is(Op::RANGE, 2) || !l[1].has_flags(F_MEM)) return l;
+    const SmallVec<Value, 4> parts = mem::split_setmem(l);
+    if (parts.size() < 2) return l;
+    Value keep;
+    bool kept = false;
+    for (Value part : parts) {
+        const Value q = simplify_line(part);
+        if (q.nil()) {
+            kept = true;
+            continue;
+        }
+        if (!keep.nil()) return l;
+        keep = q;
+    }
+    if (!kept || keep.nil() || !keep.is(Op::SETMEM, 2)) return l;
+    cx().pcs.inherit(keep, l);
+    return keep;
+}
+
 // the ids of the atoms forget_loop makes (LOOP names no trace has)
 constexpr u32 kFreshAtoms = 0xfff00000u;
 
@@ -298,7 +328,8 @@ private:
                 return t == l[0] ? l : mk(Op::LOOP_PATH, t, l[1]);
             }
             case Op::SETMEM: {
-                Value r = line_reads(l, st);
+                const Value n = narrowed(l);
+                Value r = line_reads(n, st);
                 if (r != l) cx().pcs.inherit(r, l);
                 // (its other effects: none; its write, decided with the
                 // floors before it)
