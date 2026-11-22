@@ -824,13 +824,29 @@ TEST_CASE("loops: propagate_storage_in_loops") {
         REQUIRE(w.is(Op::WHILE, 4));
         CHECK(w[3][0] == V("(setvar loop1 0)"));
     }
-    // a step that isn't additive: still exact
-    CHECK(check("{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
-                " (while (lt loop2 tmp1) {(setmem (range (add 64 (mul 32 loop2)) 32) (storage 256 0 loop1)) (continue "
-                "loopid1 {(setvar loop1 (mul 3 loop1)) (setvar loop2 (add 1 loop2))})} loopid1 {(setvar loop1 (add 2 "
-                "(sha3 (sized 32 5)))) (setvar loop2 0)})"
-                " (return (data (mem (range 64 256)) (sized 32 loop1)))}",
-                pass_storage));
+    // a step that isn't additive: not moved (python's condition - exact
+    // either way, but moved, the step reads e(v' + h) - h)
+    CHECK(!check("{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+                 " (while (lt loop2 tmp1) {(setmem (range (add 64 (mul 32 loop2)) 32) (storage 256 0 loop1)) (continue "
+                 "loopid1 {(setvar loop1 (mul 3 loop1)) (setvar loop2 (add 1 loop2))})} loopid1 {(setvar loop1 (add 2 "
+                 "(sha3 (sized 32 5)))) (setvar loop2 0)})"
+                 " (return (data (mem (range 64 256)) (sized 32 loop1)))}",
+                 pass_storage));
+    // the review's round 3 (c00004, c00007, c00256, c00332): a hash loop - a
+    // Merkle proof's, a hash to the curve's - whose first value is a hash the
+    // loop doesn't change: `s = sha3(s, x)`, not `s = sha3(s + h0, x) - h0`
+    {
+        const char* merkle =
+            "{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+            " (while (lt loop2 tmp1) {(continue loopid1 {(setvar loop1 (sha3 (sized 32 loop1) (sized 32 (calldataload "
+            "(add 36 (mul 32 loop2)))))) (setvar loop2 (add 1 loop2))})} loopid1 {(setvar loop1 (sha3 (sized 32 "
+            "(calldataload 36)))) (setvar loop2 0)})"
+            " (return (sized 32 loop1))}";
+        CHECK(!check(merkle, pass_storage));
+        Value t = V(merkle);
+        Vars vars(t);
+        CHECK(pass_storage(t) == t);
+    }
     // another variable's step reading it
     CHECK(check("{(setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
                 " (while (lt loop2 tmp1) {(store 256 0 loop1 loop2) (continue loopid1 {(setvar loop1 (add 1 loop1)) "
