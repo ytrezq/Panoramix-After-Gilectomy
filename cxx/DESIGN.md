@@ -699,7 +699,10 @@ memoized bottom-up rewrite, each rule tested by evaluation. `cleanup_vars`
 is two walks, not a rewrite per variable: forward, a variable's value
 replaces its reads (up to 150 nodes) where nothing since changed what it
 reads; backward, unread SETVARs dropped (the variables read counted
-exactly: past a summary's cap of 32 places, its parts'). `cleanup_mems` likewise with
+exactly: past a summary's cap of 32 places, its parts') - a gas read only
+where no read of the gas left may run after it (the gas left is lower at
+each read: one after it would read another value; c00226's reads for the
+gas of a precompile's call, which its line doesn't keep). `cleanup_mems` likewise with
 MemState (forward, reads replaced by what reaching writes wrote, under the
 conditions known on the path - a call forgets only the pieces that read
 what it changes, its own numbered results among them, not an earlier

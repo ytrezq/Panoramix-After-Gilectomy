@@ -253,6 +253,28 @@ TEST_CASE("gas reads: a read before a call, used after it, is read before it (c0
     CHECK(d.text.find("return gas_remaining") == std::string::npos);
 }
 
+TEST_CASE("gas reads: a read nothing uses and no read after it isn't printed (the review's round 3, c00226)")
+{
+    // mstore(0, calldataload(4)); staticcall(sub(gas, 100), 2, 0, 32, 0, 32);
+    // pop; return(0, 32) - the gas of a precompile's call (sha256), which the
+    // precompile's line doesn't keep: a read nothing uses, and no read runs
+    // after it - a value nobody sees, gone (c00226's `_325 = gas_remaining`
+    // before each bigModExp)
+    const QuietLog quiet;
+    Decompile d{*parse_hex("600435600052" "6020600060206000" "6002" "6064" "5a" "03" "fa" "50" "60206000f3")};
+    d.check({args({0x1234}), args({0})});
+    {
+        INFO(d.text);
+        CHECK(d.text.find("gas_remaining") == std::string::npos);
+    }
+    // a read after it (stored, returned): it stays where the code reads it -
+    // the gas left lower at every read, the one after would read more
+    Decompile e{*parse_hex("600435600052" "6020600060206000" "6002" "6064" "5a" "03" "fa" "50" "5a602052" "60406000f3")};
+    e.check({args({0x1234}), args({0})});
+    INFO(e.text);
+    CHECK(e.text.find(" = gas_remaining\n") != std::string::npos);
+}
+
 TEST_CASE("gas reads: the reads of a loop stay in the loop (c00384, c00465, c00059, c00159)")
 {
     // n = calldataload(4) & 3; for (i = 0; i < n; i++) { before = gas;
