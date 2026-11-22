@@ -4,6 +4,7 @@
 
 #include <lzma.h>
 
+#include <algorithm>
 #include <atomic>
 #include <filesystem>
 #include <fstream>
@@ -898,6 +899,41 @@ TEST_CASE("output: the folder")
     // an if whose branches join (merged): folded on its own
     const Value m = V("{(if tmp1 {(setvar tmp3 1)} {(setvar tmp3 2)}) (return (sized 32 tmp3))}");
     CHECK(print_trace(fold(m)) == "  if _1:\n      _3 = 1\n  else:\n      _3 = 2\n  return _3\n");
+}
+
+TEST_CASE("output: review r3 - guards that share the main path's ending stay guards (c00152, c00284)")
+{
+    Fixture f;
+    // three guards whose Panic the main path's last branch also reverts with:
+    // each its own `if ...: revert with Panic(17)`, the main path at the
+    // first level - not, guard by guard, nested under the negated tests with
+    // one revert at the end of the function (python's try_merge took the
+    // shared revert off both sides)
+    const char* panic = "(revert (data (sized 4 0x4e487b71) (sized 32 17)))";
+    const std::string g = std::string("{(if (lt tmp1 3) {") + panic + "} {(if (lt tmp2 3) {" + panic +
+                          "} {(store 256 0 1 tmp1) (if (lt tmp3 3) {" + panic + "} {(store 256 0 2 tmp2) (if tmp4 {(stop)} {" +
+                          panic + "})})})})}";
+    const std::string s = print_trace(fold(V(g)));
+    INFO(s);
+    usize deepest = 0, at = 0;
+    while (at < s.size()) {
+        const usize end = s.find('\n', at);
+        const std::string_view line(s.data() + at, (end == std::string::npos ? s.size() : end) - at);
+        deepest = std::max(deepest, line.find_first_not_of(' '));
+        at = end == std::string::npos ? s.size() : end + 1;
+    }
+    CHECK(deepest <= 6);
+    CHECK(s.rfind("  if _1 < 3:\n      revert with Panic(17)", 0) == 0);
+    // c00284's upgradeTo: a guard that stops, the main path ending with a stop
+    // too (and a revert on the way) - `if _1: stop`, then the main path, not
+    // `if not _1:` around it
+    const std::string u = print_trace(
+        fold(V("{(if tmp1 {(stop)} {(store 256 0 1 tmp2) (if tmp3 {(revert None)} {(log0 None) (stop)})})}")));
+    INFO(u);
+    CHECK(u.rfind("  if _1:\n      stop\n", 0) == 0);
+    // a longer shared ending stays shared (python's)
+    const Value w = V("{(if tmp1 {(setvar tmp3 1) (log0 None) (stop)} {(setvar tmp3 2) (log0 None) (stop)})}");
+    CHECK(print_trace(fold(w)) == "  if _1:\n      _3 = 1\n  else:\n      _3 = 2\n  log\n");
 }
 
 TEST_CASE("output: review 2026-11-02 F1 (15-output1) - fold_stretches loses no path")

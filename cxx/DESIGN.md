@@ -790,9 +790,14 @@ python's - `as_paths` (the branchless paths, an IF followed by lines one
 MERGED_IF item), `fold_paths` (what a level's paths share at their
 beginnings and ends taken off, the rest grouped by first condition,
 recursively, on stretches of the paths rather than copies: n^2 for n
-nested ifs where python's slices cost n^3), `flatten`, `cleanup_ors`,
-`make_ifs`, `merge_ifs` (hoisting by the effect summaries), `fold_aux` -
-and a failed assert leaves the trace as it was. The ast passes keep the
+nested ifs where python's slices cost n^3), `flatten` (an if whose
+branch ends made an if without else, the lines both branches end with
+after it - but not the one line that ends the run when it prints whole in
+each, a stop or a Panic, nor two that leave a branch empty: a guard's
+revert shared with the main path nested the main path under the negated
+guards, guard by guard, the revert at the function's end - c00152, c00284),
+`cleanup_ors`, `make_ifs`, `merge_ifs` (hoisting by the effect summaries),
+`fold_aux` - and a failed assert leaves the trace as it was. The ast passes keep the
 text faithful where python's can't name what the IR numbers: a call's
 result read where another call may have run since, and a gas read printed
 with or after another, get a variable (python's snapshots: `_1 =
