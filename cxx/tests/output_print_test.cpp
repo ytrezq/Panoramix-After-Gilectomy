@@ -931,6 +931,17 @@ TEST_CASE("output: review r3 - guards that share the main path's ending stay gua
         fold(V("{(if tmp1 {(stop)} {(store 256 0 1 tmp2) (if tmp3 {(revert None)} {(log0 None) (stop)})})}")));
     INFO(u);
     CHECK(u.rfind("  if _1:\n      stop\n", 0) == 0);
+    // TimelockController's executeBatch: guards reverting with a custom error
+    // of a named id (the guards' copies of its hash made one variable), the
+    // main path's last branch too - each guard its own line, the main path
+    // at the first level
+    const char* err = "(revert (data (sized 4 0x5ead8eb5) tmp12 (sized 32 4)))";
+    const std::string e = std::string("{(if (iszero (storage 256 0 tmp12)) {") + err +
+                          "} {(if (eq 1 (storage 256 0 tmp12)) {" + err + "} {(store 256 0 2 tmp2) (if tmp4 {(stop)} {" +
+                          err + "})})})}";
+    const std::string es = print_trace(fold(V(e)));
+    INFO(es);
+    CHECK(es.rfind("  if not stor[_12]:\n      revert with 0x5ead8eb5, _12, 4\n", 0) == 0);
     // a longer shared ending stays shared (python's)
     const Value w = V("{(if tmp1 {(setvar tmp3 1) (log0 None) (stop)} {(setvar tmp3 2) (log0 None) (stop)})}");
     CHECK(print_trace(fold(w)) == "  if _1:\n      _3 = 1\n  else:\n      _3 = 2\n  log\n");
