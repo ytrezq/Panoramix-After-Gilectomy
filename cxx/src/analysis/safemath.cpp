@@ -203,6 +203,31 @@ std::optional<Failure> failure_of_line(Value l)
     return std::nullopt;
 }
 
+// d is exactly the ABI encoding of Error(string) of a text: the selector, 32,
+// the length, the string's bytes, zeroes to the end of its last word and
+// nothing after - what `revert with 'text'` says. A revert that copies the
+// string alone returns what memory held past it (a call's arguments written
+// there before, say): that is part of its data, which then isn't this
+bool exact_error(Value d)
+{
+    if (!d.is(Op::DATA) || d.size() < 3 || selector_of(d[0]) != ERROR_SELECTOR || word_int(d[1]) != 32)
+        return false;
+    const auto len = word_int(d[2]);
+    if (!len || *len <= 0 || *len > i64(1) << 20)
+        return false;
+    const usize n = usize(*len), padded = (n + 31) / 32 * 32;
+    std::vector<u8> b;
+    for (u32 k = 3; k < d.size(); ++k)
+        if (!data_bytes(d[k], b) || b.size() > padded)
+            return false;
+    if (b.size() != padded)
+        return false;
+    for (usize k = n; k < padded; ++k)
+        if (b[k])
+            return false;
+    return is_text(std::span<const u8>(b.data(), n));
+}
+
 // two failures no call can tell apart: the same revert data (none and an
 // empty DATA alike), the same panic, or both INVALID (no data, every gas
 // spent - its reason and pc aren't seen)
@@ -723,12 +748,16 @@ private:
         Values lines = values();
         flatten_into(lines, trace);
         Values out = values();
+        // the calls every run evaluated on the lines before i: their checks
+        // passed, they can't fail again (their operands the same: a call is
+        // put only where nothing changed what its result reads)
+        MemoSet<Value> passed;
         bool changed = false;
         usize i = 0;
         while (i < lines.size()) {
             poll();
             if (check_of(lines[i]))
-                if (auto rest = convert(lines, i)) {
+                if (auto rest = convert(lines, i, passed)) {
                     lines.resize(i);
                     lines.insert(lines.end(), rest->begin(), rest->end());
                     changed = true;
@@ -737,6 +766,7 @@ private:
             const Value nl = inside(lines[i]);
             changed |= nl != lines[i];
             out.push_back(nl);
+            mark_passed(now_of(lines[i]), passed);
             ++i;
         }
         const Value r = changed ? mk_trace(std::span<const Value>(out.data(), out.size())) : trace;
@@ -962,7 +992,7 @@ private:
     //    after them, a different order no call can tell (one of them
     //    failing, the call fails the same way: solc >= 0.8's Panic(0x11)
     //    of an add then of a mul, the sum and product used together).
-    std::optional<Values> convert(const Values& lines, usize i)
+    std::optional<Values> convert(const Values& lines, usize i, const MemoSet<Value>& evaluated)
     {
         // the run of checks from i, as far as a group reaches
         std::vector<Check> run;
@@ -991,7 +1021,7 @@ private:
                     candidates(now, cands, seen);
                     for (const Value res : cands)
                         if (const auto m = of(checks, res))
-                            if (auto r = call(lines, e, j, checks, res, *m))
+                            if (auto r = call(lines, e, j, checks, res, *m, evaluated))
                                 return r;
                 }
                 if (const Check* c = check_of(line)) {
@@ -1005,9 +1035,12 @@ private:
                 }
                 if (!passable(line))
                     break;
+                // (nor what the data they revert with reads: the call evaluates
+                // it where it is - memory past a message the revert copies)
                 bool changes = false;
                 for (const Check& c : checks)
-                    changes = changes || simplify::affects(line, c.cond);
+                    changes = changes || simplify::affects(line, c.cond) ||
+                              (c.fail.data.is_expr() && simplify::affects(line, c.fail.data));
                 if (changes)
                     break;
             }
@@ -1020,7 +1053,7 @@ private:
     // value - alg::same_value; what isn't proven keeps its checks), the lines
     // from e on with the call where the result is used
     std::optional<Values> call(const Values& lines, usize e, usize j, std::span<const Check> checks, Value res,
-                               const Match& m)
+                               const Match& m, const MemoSet<Value>& passed)
     {
         Site s;
         s.op = m.op;
@@ -1050,7 +1083,128 @@ private:
         Values out = values();
         out.assign(lines.begin() + isize(e), lines.begin() + isize(j));
         uses(lines, j, res, call, out);
+        // the checks run where the call is first evaluated: a run that fails
+        // must fail as before (the lines from the passed ones to the use)
+        if (!ordered(std::span<const Value>(out.data(), j - e + 1), passed, id)) {
+            sites.pop_back();
+            return std::nullopt;
+        }
         return out;
+    }
+
+    // ---- the order of the failures -------------------------------------------------------
+    //
+    // An event: a way a run of the lines may stop - a call's checks, where the
+    // call is first evaluated (not past: its checks passed), or a check's own
+    // failure. Its key: where its checks were in the original (the sites are
+    // made in the order of their checks; a check left as it is, after the site
+    // being made). Two events that fail alike may run in any order; two that
+    // don't must run as the original did, in the trace machine and in the
+    // printed text alike - which evaluate a call's operands before its checks,
+    // its a before its b, a check's condition before its failure, the lines in
+    // order (the operands of other operations: an order the text may print
+    // otherwise, as the algebra sorts them).
+    struct Event {
+        u64 key = 0;
+        usize line = 0;
+        SmallVec<u32, 8> path;  // where in the line's evaluated part
+        bool root = false;      // the check line's own failure: after its condition
+        const Failure* fails = nullptr;
+        usize nfails = 0;
+    };
+
+    // the calls v evaluated first (operands first, the machine's order) that
+    // may fail there; false when one's first evaluation depends on a condition
+    // (the second operand of an `and`, an `or`): a call there runs on some paths only
+    bool events_of(Value v, bool lazy_ctx, usize line, SmallVec<u32, 8>& path, const MemoSet<Value>& passed,
+                   MemoSet<Value>& seen, std::vector<Event>& out)
+    {
+        check_stack();
+        if (!v.is_expr() || !contains_safemath(v))
+            return true;
+        const bool lazy = v.is(Op::LAND) || v.is(Op::LOR) || v.is(Op::FAND) || v.is(Op::FOR);
+        for (u32 k = 0; k < v.size(); ++k) {
+            path.push_back(k);
+            const bool ok = events_of(v[k], lazy_ctx || (lazy && k > 0), line, path, passed, seen, out);
+            path.pop_back();
+            if (!ok)
+                return false;
+        }
+        if (v.is(Op::SAFEMATH) && !passed.contains(v) && !seen.contains(v)) {
+            if (lazy_ctx)
+                return false;
+            seen.add(v);
+            const usize id = usize(v[0].small_val());
+            if (id >= sites.size())
+                return false;
+            out.push_back(Event{id, line, path, false, sites[id].fails.data(), sites[id].fails.size()});
+        }
+        return true;
+    }
+
+    static bool alike_events(const Event& e, const Event& f) noexcept
+    {
+        for (usize a = 0; a < e.nfails; ++a)
+            for (usize b = 0; b < f.nfails; ++b)
+                if (!alike(e.fails[a], f.fails[b]))
+                    return false;
+        return true;
+    }
+
+    // e runs before f in every run, the machine's and the text's
+    static bool before(const Event& e, const Event& f, std::span<const Value> region)
+    {
+        if (e.line != f.line)
+            return e.line < f.line;
+        if (e.root || f.root)
+            return f.root && !e.root;
+        usize d = 0;
+        while (d < e.path.size() && d < f.path.size() && e.path[d] == f.path[d])
+            ++d;
+        if (d == f.path.size())
+            return d < e.path.size();  // e among f's operands
+        if (d == e.path.size())
+            return false;  // f among e's
+        Value n = now_of(region[e.line]);
+        for (usize k = 0; k < d; ++k)
+            n = n[e.path[k]];
+        return n.is(Op::SAFEMATH) && e.path[d] < f.path[d];
+    }
+
+    // the region's runs stop as the original's: of two events that don't fail
+    // alike, the one whose checks came first (the lower key) runs first
+    bool ordered(std::span<const Value> region, const MemoSet<Value>& passed, u64 site)
+    {
+        std::vector<Event> evs;
+        MemoSet<Value> seen;
+        for (usize l = 0; l < region.size(); ++l) {
+            poll();
+            SmallVec<u32, 8> path;
+            if (!events_of(now_of(region[l]), false, l, path, passed, seen, evs))
+                return false;
+            if (const Check* c = check_of(region[l]))
+                evs.push_back(Event{site + 1 + l, l, {}, true, &c->fail, 1});
+        }
+        for (const Event& x : evs)
+            for (const Event& y : evs)
+                if (x.key < y.key && !alike_events(x, y) && !before(x, y, region))
+                    return false;
+        return true;
+    }
+
+    // the calls v evaluates in every run (not in the second operand of an
+    // `and`, an `or`)
+    void mark_passed(Value v, MemoSet<Value>& passed)
+    {
+        check_stack();
+        if (!v.is_expr() || !contains_safemath(v))
+            return;
+        const bool lazy = v.is(Op::LAND) || v.is(Op::LOR) || v.is(Op::FAND) || v.is(Op::FOR);
+        for (u32 k = 0; k < v.size(); ++k)
+            if (!(lazy && k > 0))
+                mark_passed(v[k], passed);
+        if (v.is(Op::SAFEMATH))
+            passed.add(v);
     }
 
     // python _uses: the lines from j on with the call in place of the result,
@@ -1170,6 +1324,11 @@ void make_table(const std::vector<Site>& sites, Table& table, std::vector<u32>& 
                 if (kc.kind == FailKind::Error || kc.kind == FailKind::Panic)
                     for (const u32 s : key.sites)
                         varying = varying || sites[s].fails[c].data != first.fails[c].data;
+                // (data that isn't exactly the message's encoding - what memory
+                // held past the string - is each call's: printed with it, where its
+                // expression means what it does at the site)
+                if (kc.kind == FailKind::Error && !exact_error(first.fails[c].data))
+                    varying = true;
                 if (varying)
                     ch.message = fn.messages++;
                 else

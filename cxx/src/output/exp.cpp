@@ -403,8 +403,10 @@ EvmInt display_int(const EvmInt& x)
 std::optional<std::string> error_message_text(Value data)
 {
     // python safemath.failure: data[0] the selector of Error(string), data[1]
-    // 32, data[2] the length (> 0), then the words of the bytes - what
-    // follows them in the last word isn't part of the string
+    // 32, data[2] the length (> 0), then the words of the bytes - exactly
+    // the ABI's encoding, zeroes past the string to the end of its last word
+    // and nothing after: what the text `'message'` reverts with (the bytes
+    // memory held past a copied string are part of the data, printed then)
     if (!data.is(Op::DATA))
         return std::nullopt;
     std::vector<Value> els;
@@ -420,16 +422,17 @@ std::optional<std::string> error_message_text(Value data)
     if (len.sign() <= 0 || len.bit_length() > 40)
         return std::nullopt;
     const u64 length = len.to_u64().value_or(0);
+    const u64 padded = (length + 31) / 32 * 32;
     DataBytes b;
-    for (usize i = 3; i < els.size() && b.size < length; ++i) {
-        if (b.size >= kTextBytesMax)
+    for (usize i = 3; i < els.size(); ++i) {
+        if (b.size > padded)
             return std::nullopt;
         auto c = elem_bytes(els[i]);
         if (!c)
             return std::nullopt;
         b.add(std::move(*c));
     }
-    if (b.size < length)
+    if (b.size != padded || !b.zero_from(length))
         return std::nullopt;
     return b.text(length);
 }
