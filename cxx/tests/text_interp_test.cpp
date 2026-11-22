@@ -123,6 +123,30 @@ TEST_CASE("text interp: the storage - mappings, packed values, arrays, fields")
     CHECK(get.end.data == words({0x1234567, 0x1234567, 0, 0x67, 0x1234567, 1}));
 }
 
+TEST_CASE("text interp: review t01 - empty and several Arrays, _paramN's places")
+{
+    Text t(
+        "def empty(): # not payable\n"
+        "  return ''\n"
+        "\n"
+        "def two(): # not payable\n"
+        "  return caller, Array(len=0, data=''), Array(len=3, data='abc')\n"
+        "\n"
+        "def unknown12345678(address _param2, uint256 _param4): # not payable\n"
+        "  return _param2, _param4\n");
+    const auto caller = t.world.actors().front();
+    CHECK(t.call(calldata("empty()", {})).end.data == words({32, 0}));
+    Bytes abc = words({caller, 96, 128, 0, 3});
+    abc.insert(abc.end(), {'a', 'b', 'c'});
+    abc.resize(abc.size() + 29, 0);
+    CHECK(t.call(calldata("two()", {})).end.data == abc);
+    // an unknown function's _paramN: the N-th word, whatever it reads
+    Bytes unknown{0x12, 0x34, 0x56, 0x78};
+    for (const Word w : {Word{5}, Word{6}, Word{7}, Word{8}})
+        append_word(unknown, w);
+    CHECK(t.call(unknown).end.data == words({6, 8}));
+}
+
 TEST_CASE("text interp: the keywords the text also uses as names - storage variables, params, locals")
 {
     // (Aragon's Voting: `delegate is mapping of struct of 1 slot at storage
@@ -605,9 +629,11 @@ TEST_CASE("text interp: the members of a struct param, the params' places")
     CHECK(t.interp.function_for(other) == 2u);
     CHECK(t.interp.function_for(Bytes{1, 2}) == 2u);
     CHECK(t.call(other).end.data == words({6}));
+    // (side information types them; _param2 is the second word wherever the
+    // words it reads are - the text names them by their places)
     const ParamPlace fallback[] = {{4, {}}, {68, {}}, {100, {}}};  // more than it reads: fine
     CHECK(place_params(t.program, std::nullopt, fallback));
-    CHECK(t.call(other).end.data == words({7}));
+    CHECK(t.call(other).end.data == words({6}));
 }
 
 TEST_CASE("text interp: side information - the types of the fallback's params")

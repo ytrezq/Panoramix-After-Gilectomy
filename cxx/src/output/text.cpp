@@ -81,6 +81,15 @@ std::string padded_hex(const EvmInt& x, u32 n)
     return "0x" + std::string(n - h.size(), '0') + h;
 }
 
+std::string hex_bytes(const EvmInt& x)
+{
+    std::string h = int_hex(x);
+    const usize at = h[0] == '-' ? 3 : 2;
+    if ((h.size() - at) % 2)
+        h.insert(at, 1, '0');
+    return h;
+}
+
 namespace {
 
 const EvmInt& pow10(unsigned k)
@@ -126,7 +135,7 @@ std::string pretty_num(const EvmInt& x)
     static const EvmInt big_hex = EvmInt::pow2(150);  // 8**50
     static const EvmInt small_dec = EvmInt::pow2(90);  // 8**30
     if (x > big_hex)
-        return int_hex(x);  // binary data, probably
+        return hex_bytes(x);  // binary data, probably
     if (!x.is_zero()) {
         std::string t;
         for (unsigned k = 18; k >= 9; --k)
@@ -139,7 +148,7 @@ std::string pretty_num(const EvmInt& x)
     if (w < small_dec)
         return int_dec(w);  // (the word it is: -2**256 + 128 is 128)
     if (x.sign() > 0)
-        return int_hex(x);
+        return hex_bytes(x);
     return int_dec(x);
 }
 

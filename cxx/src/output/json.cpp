@@ -376,7 +376,9 @@ std::string contract_json(const driver::ContractResult& r, const PrintOptions& o
             if (!pf)
                 j += ", ";
             pf = false;
-            std::string type = "uint256", name = std::format("_param{}", k + 1);
+            std::string type = "uint256", name = f.kind == FunctionInfo::Kind::Internal
+                                                     ? std::format("_param{}", k + 1)
+                                                     : word_param_name(f.params[k]);
             if (env.known()) {
                 if (const ParamWord* w = env.word_at(i64(f.params[k].calldata_offset))) {
                     type = w->type;

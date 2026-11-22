@@ -385,6 +385,84 @@ TEST_CASE("simplify: calls' selectors, ABI arrays") {
     check_trace("{(return (data (sized 32 32) (sized 32 5) (sized 3 0x112233)))}", S::postprocess_exps);
 }
 
+TEST_CASE("simplify: review t01 - an ABI data of several dynamic arguments, each its own array") {
+    Fixture f;
+    // two strings (c00147's initialize(string, string, ...), c00313's
+    // GetResponse, c00122's event): the second's offset is its tail's
+    // place, 96 + ceil32(len1) - python's one array took both tails and
+    // left that offset a number after it
+    const std::string l1 = "(mask_shl 6 0 0 (calldataload 4))", l2 = "(mask_shl 6 0 0 (calldataload 36))";
+    const auto c32 = [](const std::string& l) { return "(mask_shl 251 5 0 (add 31 " + l + "))"; };
+    const auto pad = [&](const std::string& l) { return "(sized (add " + c32(l) + " (mul -1 " + l + ")) 0)"; };
+    const std::string two = "(data (sized 32 64) (sized 32 (add 96 " + c32(l1) + ")) (sized 32 " + l1 +
+                            ") (calldata_bytes 68 " + l1 + ") " + pad(l1) + " (sized 32 " + l2 +
+                            ") (calldata_bytes 100 " + l2 + ") " + pad(l2) + ")";
+    Value u = check_trace(("{(return " + two + ")}").c_str(), S::postprocess_exps);
+    REQUIRE(u[0][0].is(Op::DATA));
+    REQUIRE(u[0][0].size() == 2);
+    CHECK(u[0][0][0].is(Op::ARR));
+    CHECK(u[0][0][1].is(Op::ARR));
+    CHECK(u[0][0][1][0] == V(l2));
+    // the same in a log, after two static heads
+    const std::string four = "(data (sized 32 128) (sized 32 (add 160 " + c32(l1) + ")) (sized 32 caller) (sized 32 " +
+                             "address) (sized 32 " + l1 + ") (calldata_bytes 68 " + l1 + ") " + pad(l1) +
+                             " (sized 32 " + l2 + ") (calldata_bytes 100 " + l2 + ") " + pad(l2) + ")";
+    u = check_trace(("{(log1 " + four + " 7) (stop)}").c_str(), S::postprocess_exps);
+    REQUIRE(u[0][0].is(Op::DATA));
+    REQUIRE(u[0][0].size() == 4);
+    CHECK(u[0][0][0].is(Op::ARR));
+    CHECK(u[0][0][1].is(Op::ARR));
+    CHECK(u[0][0][2] == V("(sized 32 caller)"));
+    // two arrays of words, their lengths 32 len apart (c00520, c00456)
+    u = check_trace(("{(return (data (sized 32 64) (sized 32 (add 96 (mul 32 " + l1 + "))) (sized 32 " + l1 +
+                     ") (calldata_bytes 68 (mul 32 " + l1 + ")) (sized 32 " + l2 + ") (calldata_bytes 100 (mul 32 " + l2 +
+                     "))))}")
+                        .c_str(),
+                    S::postprocess_exps);
+    CHECK(u[0][0].size() == 2);
+    CHECK(u[0][0][1].is(Op::ARR));
+    // a constant length that is a multiple of 32, its content of other
+    // words than offsets: one reading (c00600's mint(..., bytes data))
+    u = check_trace(
+        "{(return (data (sized 32 caller) (sized 32 64) (sized 32 128) (sized 32 (calldataload 4)) (sized 32 1) (sized "
+        "32 2) (sized 32 3)))}",
+        S::postprocess_exps);
+    REQUIRE(u[0][0].size() == 2);
+    CHECK(u[0][0][1].is(Op::ARR));
+    CHECK(u[0][0][1].size() == 5);
+    // ... but [caller, 64, 128, 1, 2, 3, 4] reads as well as a head of 4
+    // words and an array of 2 words: not proven, as it is
+    u = check_trace(
+        "{(return (data (sized 32 caller) (sized 32 64) (sized 32 128) (sized 32 1) (sized 32 2) (sized 32 3) (sized "
+        "32 4)))}",
+        S::postprocess_exps);
+    CHECK(!has_op(u, Op::ARR));
+    // an empty one (c00144's VoteCast(..., string reason) with reason '')
+    u = check_trace("{(return (data (sized 32 caller) (sized 32 64) (sized 32 0)))}", S::postprocess_exps);
+    REQUIRE(u[0][0].size() == 2);
+    CHECK(u[0][0][1] == V("(arr 0)"));
+    // ... only of a length 0
+    u = check_trace("{(return (data (sized 32 caller) (sized 32 64) (sized 32 5)))}", S::postprocess_exps);
+    CHECK(u[0][0].size() == 3);
+    // two readings - [32 | 64, 3, 'abc'] a bytes of 64, or 32 and the bytes
+    // 'abc' -: not proven, as it is
+    u = check_trace("{(return (data (sized 32 32) (sized 32 64) (sized 32 3) (sized 3 0x616263) (sized 29 0)))}",
+                    S::postprocess_exps);
+    CHECK(!has_op(u, Op::ARR));
+    // a length the content disagrees with (5 bytes in 2 words): no array
+    u = check_trace("{(return (data (sized 32 caller) (sized 32 64) (sized 32 5) (sized 32 1) (sized 32 2)))}",
+                    S::postprocess_exps);
+    CHECK(!has_op(u, Op::ARR));
+    // an offset that isn't its tail's place: no array - not even the first
+    // one taking both tails, longer than its length says (python's)
+    u = check_trace(("{(return (data (sized 32 64) (sized 32 (add 64 " + c32(l1) + ")) (sized 32 " + l1 +
+                     ") (calldata_bytes 68 " + l1 + ") " + pad(l1) + " (sized 32 " + l2 + ") (calldata_bytes 100 " + l2 +
+                     ") " + pad(l2) + "))}")
+                        .c_str(),
+                    S::postprocess_exps);
+    CHECK(!has_op(u, Op::ARR));
+}
+
 TEST_CASE("simplify: conditions known on the path") {
     Fixture f;
     // a check passed holds until what it reads changes: the same check again is decided

@@ -268,7 +268,7 @@ void storage_block(Out& t, const ContractNames& names)
         // the slot: hex past 2^32
         const auto small = v.slot.as_u64();
         t.put("at storage ");
-        t.put(small && *small < (u64(1) << 32) ? std::to_string(*small) : int_hex(v.slot.to_int()));
+        t.put(small && *small < (u64(1) << 32) ? std::to_string(*small) : hex_bytes(v.slot.to_int()));
         if (v.off)
             t.put(std::format(" offset {}", v.off));
         t.end();

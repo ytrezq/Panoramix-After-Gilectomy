@@ -463,11 +463,14 @@ struct ExpImpl {
     // negatives), printed
     void print_int(const EvmInt& x, int ctx) { print_word(display_int(x), ctx); }
 
-    // python's prettify of an int as it is
+    // python's prettify of an int as it is: a whole number of days or of
+    // hours as one, when it reads as a duration - fewer than 2**32 of them
+    // (python's factored any multiple: a selector, a slot, a mask or 0.9e18
+    // that 3600 divides printed as `0x3d5815...00 * 3600`)
     void print_word(const EvmInt& x, int ctx)
     {
-        static const EvmInt day(i64(24 * 3600)), hour(i64(3600));
-        if (x > day && pymod(x, day).is_zero()) {
+        static const EvmInt day(i64(24 * 3600)), hour(i64(3600)), most = EvmInt::pow2(32);
+        if (x > day && pymod(x, day).is_zero() && floordiv(x, day) < most) {
             // python: ("mul", x // 86400, 24, 3600)
             Wrap w(o, P_MUL, ctx);
             print_int(floordiv(x, day), P_MUL);
@@ -477,18 +480,10 @@ struct ExpImpl {
             print_int(hour, P_MUL + 1);
             return;
         }
-        if (x > hour && pymod(x, hour).is_zero()) {
-            // python: ("mul", x // 3600, 3600) - a power of 2 past 2**32 times it a shift
-            const EvmInt q = floordiv(x, hour);
-            if (q.sign() > 0 && q == EvmInt::pow2(q.bit_length() - 1) && q.bit_length() - 1 > 32) {
-                Wrap w(o, P_SHIFT, ctx);
-                print_int(hour, P_SHIFT);
-                op_form(" << ");
-                print_int(EvmInt(i64(q.bit_length() - 1)), P_SHIFT + 1);
-                return;
-            }
+        if (x > hour && pymod(x, hour).is_zero() && floordiv(x, hour) < most) {
+            // python: ("mul", x // 3600, 3600)
             Wrap w(o, P_MUL, ctx);
-            print_int(q, P_MUL);
+            print_int(floordiv(x, hour), P_MUL);
             op_form(" * ");
             print_int(hour, P_MUL + 1);
             return;
@@ -1109,7 +1104,7 @@ struct ExpImpl {
                     o.put('0');
                 } else {
                     // (the text parser reads both forms as the number)
-                    std::string h = int_hex(v).substr(2);
+                    std::string h = hex_bytes(v).substr(2);
                     o.put("0x");
                     if (n <= kPaddedBytesMax && h.size() < usize(2 * n))
                         o.put(std::string(usize(2 * n) - h.size(), '0'));
@@ -1185,7 +1180,7 @@ struct ExpImpl {
     // python's arr_text: an ARR of text as a string literal
     std::optional<std::string> arr_text(Value e)
     {
-        if (!e.is(Op::ARR) || e.size() < 2 || !e[0].is_small())
+        if (!e.is(Op::ARR) || e.size() < 1 || !e[0].is_small())
             return std::nullopt;
         const i64 l = e[0].small_val();
         DataBytes b;
@@ -1206,6 +1201,13 @@ struct ExpImpl {
         const u64 end = u64(l >= 0 ? l : std::max<i64>(0, l + size));
         if (!b.zero_from(end))
             return std::nullopt;
+        // (no more bytes than the text's words: the literal is ABI-encoded
+        // so - python's dropped zero words after them)
+        if (u64(size) > (end + 31) / 32 * 32)
+            return std::nullopt;
+        // (an empty one: no text of python's, which wants a letter or a digit)
+        if (l == 0)
+            return std::string("''");
         return b.text(end);
     }
 
@@ -1374,6 +1376,9 @@ struct ExpImpl {
                             o.put(", ");
                         o.append(items[i]);
                     }
+                    // (no content, an empty array's: no bytes)
+                    if (items.empty())
+                        o.put("''");
                     o.col(Col::gray, ")");
                     return;
                 }
